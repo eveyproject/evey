@@ -96,7 +96,7 @@ func (h *musicHandler) resizeAlbumArt(ctx context.Context, src string, width int
 		ctx10, cancel := context.WithTimeout(ctx, artworkResizeTimeout)
 		defer cancel()
 		if resErr := h.imgConverter.ResizeAndConvertToWebP(ctx10, src, variantPath, width, 80); resErr != nil {
-			slog.Warn("album art resize", slog.String("src", src), slog.Int("width", width), slog.Any("err", resErr))
+			slog.WarnContext(ctx, "album art resize", slog.String("src", src), slog.Int("width", width), slog.Any("err", resErr))
 			removeVariant(variantPath)
 			return ""
 		}
@@ -120,7 +120,7 @@ func (h *musicHandler) fetchMissingArt(w http.ResponseWriter, r *http.Request) {
 		// best-effort maintenance scan must never crash the server.
 		defer func() {
 			if rec := recover(); rec != nil {
-				slog.Error("music: fetch missing art panicked", slog.Any("panic", rec))
+				slog.ErrorContext(r.Context(), "music: fetch missing art panicked", slog.Any("panic", rec))
 			}
 		}()
 		ctx, span := tracing.StartSpan(bgCtx, "http.music.FetchMissingArt")
@@ -129,7 +129,7 @@ func (h *musicHandler) fetchMissingArt(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, "fetch missing art failed")
-			slog.Error("music: fetch missing art", slog.Any("err", err))
+			slog.ErrorContext(r.Context(), "music: fetch missing art", slog.Any("err", err))
 			return
 		}
 		slog.Info("music: fetched missing album art", slog.Int("count", n))
@@ -166,14 +166,14 @@ func (h *musicHandler) getTrackArt(w http.ResponseWriter, r *http.Request) {
 		}
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, "get track art failed")
-		slog.Error("music get art", slog.Any("err", err))
+		slog.ErrorContext(r.Context(), "music get art", slog.Any("err", err))
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", mimeType)
 	w.Header().Set("Cache-Control", "public, max-age=86400")
 	if _, err := w.Write(data); err != nil {
-		slog.Error("music art write", slog.Any("err", err))
+		slog.ErrorContext(r.Context(), "music art write", slog.Any("err", err))
 	}
 }
 
@@ -193,7 +193,7 @@ func (h *musicHandler) streamTrack(w http.ResponseWriter, r *http.Request) {
 		}
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, "get track failed")
-		slog.Error("music get track", slog.Any("err", err))
+		slog.ErrorContext(r.Context(), "music get track", slog.Any("err", err))
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
@@ -215,7 +215,7 @@ func (h *musicHandler) streamTrack(w http.ResponseWriter, r *http.Request) {
 		}
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, "stream track failed")
-		slog.Error("music stream", slog.Any("err", err))
+		slog.ErrorContext(r.Context(), "music stream", slog.Any("err", err))
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
@@ -230,7 +230,7 @@ func (h *musicHandler) streamTrack(w http.ResponseWriter, r *http.Request) {
 	}
 	// Disable write deadline for streaming - global WriteTimeout would cut large files.
 	if err := http.NewResponseController(w).SetWriteDeadline(time.Time{}); err != nil {
-		slog.Warn("set write deadline", slog.Any("err", err))
+		slog.WarnContext(r.Context(), "set write deadline", slog.Any("err", err))
 	}
 	http.ServeContent(w, r, filePath, time.Time{}, f)
 }
@@ -259,7 +259,7 @@ func (h *musicHandler) downloadTrack(w http.ResponseWriter, r *http.Request) {
 	if h.libLister != nil {
 		roots := mediaRoots(r.Context(), h.libLister)
 		if len(roots) > 0 && !pathWithinRoots(roots, track.FilePath) {
-			slog.Warn("music download: track path outside library roots, blocked",
+			slog.WarnContext(r.Context(), "music download: track path outside library roots, blocked",
 				slog.String("track_id", track.ID),
 				slog.String("path", track.FilePath),
 			)
@@ -281,7 +281,7 @@ func (h *musicHandler) downloadTrack(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, name))
 	if err := http.NewResponseController(w).SetWriteDeadline(time.Time{}); err != nil {
-		slog.Warn("set write deadline", slog.Any("err", err))
+		slog.WarnContext(r.Context(), "set write deadline", slog.Any("err", err))
 	}
 	http.ServeContent(w, r, track.FilePath, time.Time{}, f)
 }
@@ -317,7 +317,7 @@ func (h *musicHandler) recordPlay(w http.ResponseWriter, r *http.Request) {
 	if err := h.svc.RecordPlay(r.Context(), claims.ProfileID, id); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, "record play failed")
-		slog.Error("music: record play", slog.Any("err", err))
+		slog.ErrorContext(r.Context(), "music: record play", slog.Any("err", err))
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
@@ -394,7 +394,7 @@ func (h *musicHandler) downloadAlbum(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, "list tracks by album failed")
-		slog.Error("music: list tracks by album", slog.Any("err", err))
+		slog.ErrorContext(r.Context(), "music: list tracks by album", slog.Any("err", err))
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
@@ -416,12 +416,12 @@ func (h *musicHandler) downloadAlbum(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/zip")
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, zipName))
 	if err := http.NewResponseController(w).SetWriteDeadline(time.Time{}); err != nil {
-		slog.Warn("set write deadline", slog.Any("err", err))
+		slog.WarnContext(r.Context(), "set write deadline", slog.Any("err", err))
 	}
 	zw := zip.NewWriter(w)
 	defer func() {
 		if closeErr := zw.Close(); closeErr != nil {
-			slog.Error("music: zip writer close failed",
+			slog.ErrorContext(r.Context(), "music: zip writer close failed",
 				slog.String("album", album), slog.String("library_id", libraryID),
 				slog.Any("err", closeErr))
 		}
@@ -431,20 +431,20 @@ func (h *musicHandler) downloadAlbum(w http.ResponseWriter, r *http.Request) {
 		// Defense-in-depth: the query already filtered by library_id, but assert
 		// each track we're about to serve matches the access-checked library.
 		if string(tr.LibraryID) != libraryID {
-			slog.Warn("music album download: cross-library track skipped",
+			slog.WarnContext(r.Context(), "music album download: cross-library track skipped",
 				slog.String("track_id", tr.ID), slog.String("expected_lib", libraryID), slog.String("got_lib", string(tr.LibraryID)))
 			continue
 		}
 		// Defense-in-depth: confine path to known library roots.
 		if len(albumRoots) > 0 && !pathWithinRoots(albumRoots, tr.FilePath) {
-			slog.Warn("music album download: path outside library roots, skipped",
+			slog.WarnContext(r.Context(), "music album download: path outside library roots, skipped",
 				slog.String("track_id", tr.ID), slog.String("path", tr.FilePath))
 			continue
 		}
 		func() {
 			f, openErr := os.Open(tr.FilePath)
 			if openErr != nil {
-				slog.Warn("music album download: open", slog.String("path", tr.FilePath), slog.Any("err", openErr))
+				slog.WarnContext(r.Context(), "music album download: open", slog.String("path", tr.FilePath), slog.Any("err", openErr))
 				return
 			}
 			defer f.Close()
@@ -471,11 +471,11 @@ func (h *musicHandler) downloadAlbum(w http.ResponseWriter, r *http.Request) {
 			}
 			zfw, zipErr := zw.Create(entryName)
 			if zipErr != nil {
-				slog.Warn("music album download: zip create", slog.Any("err", zipErr))
+				slog.WarnContext(r.Context(), "music album download: zip create", slog.Any("err", zipErr))
 				return
 			}
 			if _, copyErr := io.Copy(zfw, f); copyErr != nil {
-				slog.Warn("music album download: zip copy", slog.Any("err", copyErr))
+				slog.WarnContext(r.Context(), "music album download: zip copy", slog.Any("err", copyErr))
 			}
 		}()
 	}

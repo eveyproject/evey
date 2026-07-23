@@ -48,7 +48,7 @@ func (h *adminHandler) audit(r *http.Request, action, resourceType string, resou
 		UserAgent:    &ua,
 	}
 	if err := h.activityCmdSvc.CreateAuditEntry(r.Context(), e); err != nil {
-		slog.Warn("audit log failed", slog.String("action", action), slog.Any("err", err))
+		slog.WarnContext(r.Context(), "audit log failed", slog.String("action", action), slog.Any("err", err))
 	}
 }
 

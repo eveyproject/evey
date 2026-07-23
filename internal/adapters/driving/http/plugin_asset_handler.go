@@ -193,7 +193,7 @@ func (h *pluginAssetHandler) handlePluginAsset(w http.ResponseWriter, r *http.Re
 		return
 	}
 	if stat.Size() > maxPluginAssetBytes {
-		slog.Warn("plugin asset rejected: size limit",
+		slog.WarnContext(r.Context(), "plugin asset rejected: size limit",
 			slog.String("plugin_id", pluginID),
 			slog.String("path", requestedPath),
 			slog.Int64("size", stat.Size()),
@@ -245,7 +245,7 @@ func (h *pluginAssetHandler) handlePluginAsset(w http.ResponseWriter, r *http.Re
 	if ext == ".css" && h.sanitizeCSS != nil {
 		sanitized, warns := h.sanitizeCSS(data)
 		if len(warns) > 0 {
-			slog.Warn("plugin css sanitizer cleaned rules",
+			slog.WarnContext(r.Context(), "plugin css sanitizer cleaned rules",
 				slog.String("plugin_id", pluginID),
 				slog.String("path", requestedPath),
 				slog.Any("warnings", warns))
@@ -316,7 +316,7 @@ func (h *pluginAssetHandler) handleListThemes(w http.ResponseWriter, r *http.Req
 
 	w.Header().Set("Content-Type", "application/json")
 	if encErr := json.NewEncoder(w).Encode(map[string]any{"themes": result}); encErr != nil {
-		slog.Warn("encode themes", slog.Any("err", encErr))
+		slog.WarnContext(r.Context(), "encode themes", slog.Any("err", encErr))
 	}
 }
 

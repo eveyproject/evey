@@ -518,7 +518,7 @@ func (h *hlsVODServe) refuseStaleFP(w http.ResponseWriter, r *http.Request, curr
 	if sealed == "" || currentFP == "" || sealed == currentFP {
 		return false
 	}
-	slog.Warn("hls-vod: stale rendition URL refused (the ladder moved under a live player)",
+	slog.WarnContext(r.Context(), "hls-vod: stale rendition URL refused (the ladder moved under a live player)",
 		slog.String("media_id", mediaID),
 		slog.String("file", file),
 		slog.String("sealed_fp", sealed),
@@ -772,7 +772,7 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 			// Host at its global transcode cap (hardware path) - shed load
 			// gracefully. hls.js retries a 503 on a fragment fetch, so playback
 			// resumes once a slot frees instead of melting the CPU.
-			slog.Warn("hls-vod: at capacity, shedding segment",
+			slog.WarnContext(r.Context(), "hls-vod: at capacity, shedding segment",
 				slog.String("media_id", mediaID),
 				slog.Int("seg", segmentIdx))
 			writeTooManyStreams(w, 2, "server at transcode session capacity")
@@ -798,13 +798,13 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 			// starve the ones already running on a weak NAS. A longer
 			// Retry-After than the raw capacity cap above: a video encode slot
 			// frees far less often than a rafale slot.
-			slog.Warn("hls-vod: at video transcoding capacity, shedding segment",
+			slog.WarnContext(r.Context(), "hls-vod: at video transcoding capacity, shedding segment",
 				slog.String("media_id", mediaID),
 				slog.Int("seg", segmentIdx))
 			writeTooManyStreams(w, 5, "server at video transcoding capacity")
 			return
 		}
-		slog.Warn("hls-vod: ensure failed",
+		slog.WarnContext(r.Context(), "hls-vod: ensure failed",
 			slog.String("media_id", mediaID),
 			slog.Int("variant", variantIdx),
 			slog.Int("seg", segmentIdx),
@@ -830,7 +830,7 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 	if err := h.cache.Wait(waitCtx, key, fp.UseFMP4, waitBudget); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "segment wait timeout")
-		slog.Warn("hls-vod: segment timeout",
+		slog.WarnContext(r.Context(), "hls-vod: segment timeout",
 			slog.String("media_id", mediaID),
 			slog.Int("variant", variantIdx),
 			slog.Int("seg", segmentIdx),
@@ -992,7 +992,7 @@ func (h *hlsVODServe) servePrewarmNext(w http.ResponseWriter, r *http.Request) {
 	nextItem, err := h.libSvc.NextEpisodeOf(r.Context(), currentID)
 	if err != nil {
 		span.RecordError(err)
-		slog.Warn("prewarm: next episode lookup failed", slog.String("current_id", currentID), slog.Any("err", err))
+		slog.WarnContext(r.Context(), "prewarm: next episode lookup failed", slog.String("current_id", currentID), slog.Any("err", err))
 		http.Error(w, `{"message":"prewarm lookup failed"}`, http.StatusInternalServerError)
 		return
 	}
@@ -1018,7 +1018,7 @@ func (h *hlsVODServe) servePrewarmNext(w http.ResponseWriter, r *http.Request) {
 	streams, err := h.libSvc.GetMediaStreams(r.Context(), string(nextItem.ID))
 	if err != nil {
 		span.RecordError(err)
-		slog.Warn("prewarm: streams lookup failed", slog.String("next_id", string(nextItem.ID)), slog.Any("err", err))
+		slog.WarnContext(r.Context(), "prewarm: streams lookup failed", slog.String("next_id", string(nextItem.ID)), slog.Any("err", err))
 		http.Error(w, `{"message":"prewarm streams lookup failed"}`, http.StatusInternalServerError)
 		return
 	}
@@ -1032,7 +1032,7 @@ func (h *hlsVODServe) servePrewarmNext(w http.ResponseWriter, r *http.Request) {
 	// cache). One source of truth now also carries HWTonemap.
 	fp, err := h.buildFingerprint(r, string(nextItem.ID), nextItem, streams)
 	if err != nil {
-		slog.Warn("prewarm: fingerprint build failed", slog.String("next_id", string(nextItem.ID)), slog.Any("err", err))
+		slog.WarnContext(r.Context(), "prewarm: fingerprint build failed", slog.String("next_id", string(nextItem.ID)), slog.Any("err", err))
 		http.Error(w, `{"message":"prewarm fingerprint failed"}`, http.StatusInternalServerError)
 		return
 	}
@@ -1058,7 +1058,7 @@ func (h *hlsVODServe) servePrewarmNext(w http.ResponseWriter, r *http.Request) {
 			slog.Info("prewarm: skipped, host at video transcoding capacity",
 				slog.String("next_id", string(nextItem.ID)))
 		} else {
-			slog.Warn("prewarm: producer EnsureSegmentRange failed",
+			slog.WarnContext(r.Context(), "prewarm: producer EnsureSegmentRange failed",
 				slog.String("next_id", string(nextItem.ID)), slog.Any("err", err))
 		}
 	} else {

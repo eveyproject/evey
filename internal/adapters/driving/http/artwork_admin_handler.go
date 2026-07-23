@@ -34,7 +34,7 @@ func resolveAutoDownloadDefault(ctx context.Context, cfg *appconfig.Service) boo
 	entry, err := cfg.Get(ctx, configKeyArtworkAutoDownload)
 	if err != nil {
 		if !errors.Is(err, shared.ErrNotFound) {
-			slog.Warn("read artwork.auto_download config", slog.Any("err", err))
+			slog.WarnContext(ctx, "read artwork.auto_download config", slog.Any("err", err))
 		}
 		return true
 	}

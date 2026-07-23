@@ -122,7 +122,7 @@ func (h *remuxServe) handle(w http.ResponseWriter, r *http.Request) {
 	// into an arbitrary-file read. Fail-open on unknown roots (no libLister).
 	if h.libLister != nil && !pathWithinRoots(mediaRoots(r.Context(), h.libLister), item.File.Path) {
 		span.SetStatus(codes.Error, "file outside library roots")
-		slog.Warn("remux: file path outside configured library roots",
+		slog.WarnContext(r.Context(), "remux: file path outside configured library roots",
 			slog.String("media_id", mediaID), slog.String("path", item.File.Path))
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return
@@ -149,7 +149,7 @@ func (h *remuxServe) handle(w http.ResponseWriter, r *http.Request) {
 	if produceErr := h.ensureRemuxed(ctx, item.File.Path, outPath); produceErr != nil {
 		span.RecordError(produceErr)
 		span.SetStatus(codes.Error, "remux failed")
-		slog.Error("remux: produce failed", slog.String("media_id", mediaID), slog.Any("err", produceErr))
+		slog.ErrorContext(r.Context(), "remux: produce failed", slog.String("media_id", mediaID), slog.Any("err", produceErr))
 		http.Error(w, `{"message":"remux failed"}`, http.StatusInternalServerError)
 		return
 	}

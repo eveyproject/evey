@@ -189,7 +189,7 @@ func (s *syncplayHandler) wsUpgradeHandler(w http.ResponseWriter, r *http.Reques
 			span.RecordError(jwtErr)
 			span.SetStatus(otelcodes.Error, "invalid token")
 			span.End()
-			slog.Warn("syncplay ws: invalid token", slog.String("room", roomID))
+			slog.WarnContext(r.Context(), "syncplay ws: invalid token", slog.String("room", roomID))
 			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
 			return
 		}
@@ -232,7 +232,7 @@ func (s *syncplayHandler) wsUpgradeHandler(w http.ResponseWriter, r *http.Reques
 		if !room.IsMember(claims.UserID) {
 			span.SetStatus(otelcodes.Error, "non-member attempt")
 			span.End()
-			slog.Warn("syncplay ws: non-member attempt", slog.String("user", claims.UserID), slog.String("room", roomID))
+			slog.WarnContext(r.Context(), "syncplay ws: non-member attempt", slog.String("user", claims.UserID), slog.String("room", roomID))
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 			return
 		}
@@ -264,15 +264,15 @@ func (s *syncplayHandler) wsUpgradeHandler(w http.ResponseWriter, r *http.Reques
 		sender := &wsSender{ws: ws}
 		_, connErr := s.hub.ConnectMember(wsCtx, wsRoomID, userID, username, sender)
 		if connErr != nil {
-			slog.Warn("syncplay ws: connect failed", slog.String("room", wsRoomID), slog.Any("err", connErr))
+			slog.WarnContext(r.Context(), "syncplay ws: connect failed", slog.String("room", wsRoomID), slog.Any("err", connErr))
 			if err := ws.Close(); err != nil {
-				slog.Warn("syncplay ws close after connect failure", slog.Any("err", err))
+				slog.WarnContext(r.Context(), "syncplay ws close after connect failure", slog.Any("err", err))
 			}
 			return
 		}
 		defer func() {
 			if dErr := s.hub.DisconnectMember(wsCtx, wsRoomID, userID); dErr != nil {
-				slog.Error("syncplay: disconnect", slog.String("room", wsRoomID), slog.Any("err", dErr))
+				slog.ErrorContext(r.Context(), "syncplay: disconnect", slog.String("room", wsRoomID), slog.Any("err", dErr))
 			}
 		}()
 
@@ -295,7 +295,7 @@ func (s *syncplayHandler) wsUpgradeHandler(w http.ResponseWriter, r *http.Reques
 				continue
 			}
 			if _, cmdErr := s.hub.HandleCommand(wsCtx, wsRoomID, userID, username, cmd); cmdErr != nil {
-				slog.Error("syncplay: handle command", slog.String("room", wsRoomID), slog.Any("err", cmdErr))
+				slog.ErrorContext(r.Context(), "syncplay: handle command", slog.String("room", wsRoomID), slog.Any("err", cmdErr))
 			}
 		}
 	})

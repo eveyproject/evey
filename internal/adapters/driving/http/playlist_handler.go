@@ -103,7 +103,7 @@ func (h *playlistHandler) generatePlaylist(w http.ResponseWriter, r *http.Reques
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, "generate failed")
-		slog.Error("playlist generate", slog.Any("err", err))
+		slog.ErrorContext(r.Context(), "playlist generate", slog.Any("err", err))
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
@@ -143,7 +143,7 @@ func (h *playlistHandler) downloadPlaylist(w http.ResponseWriter, r *http.Reques
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, "list playlist items failed")
-		slog.Error("playlist download: get items", slog.String("playlist_id", playlistID), slog.Any("err", err))
+		slog.ErrorContext(r.Context(), "playlist download: get items", slog.String("playlist_id", playlistID), slog.Any("err", err))
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
@@ -194,7 +194,7 @@ func (h *playlistHandler) manualPlaylistEntries(ctx context.Context, plItems []*
 	if len(mediaIDs) > 0 {
 		items, err := h.libSvc.GetMediaItemsByIDs(ctx, mediaIDs)
 		if err != nil {
-			slog.Warn("playlist download: batch get media items", slog.Any("err", err))
+			slog.WarnContext(ctx, "playlist download: batch get media items", slog.Any("err", err))
 		} else {
 			mediaItems = items
 		}

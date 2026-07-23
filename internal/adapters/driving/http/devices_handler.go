@@ -66,7 +66,7 @@ func (h *devicesHandler) list(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(map[string]any{"devices": out}); err != nil {
-		slog.Warn("devices list: json encode", slog.Any("err", err))
+		slog.WarnContext(r.Context(), "devices list: json encode", slog.Any("err", err))
 	}
 }
 
@@ -101,7 +101,7 @@ func (h *devicesHandler) command(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, "send failed")
-		slog.Warn("devices command: send", slog.String("device", deviceID), slog.Any("err", err))
+		slog.WarnContext(r.Context(), "devices command: send", slog.String("device", deviceID), slog.Any("err", err))
 		http.Error(w, `{"message":"send failed"}`, http.StatusBadGateway)
 		return
 	}
@@ -135,12 +135,12 @@ func (h *devicesHandler) wsUpgradeHandler(w http.ResponseWriter, r *http.Request
 		_ = ws.SetReadDeadline(time.Now().Add(10 * time.Second)) //nolint:errcheck // best-effort deadline refresh
 		var raw string
 		if err := websocket.Message.Receive(ws, &raw); err != nil {
-			slog.Warn("devices ws: no register frame", slog.String("user", userID), slog.Any("err", err))
+			slog.WarnContext(r.Context(), "devices ws: no register frame", slog.String("user", userID), slog.Any("err", err))
 			return
 		}
 		var reg domainsyncplay.DeviceRegisterRequest
 		if err := json.Unmarshal([]byte(raw), &reg); err != nil || reg.Type != "register" || reg.DeviceID == "" {
-			slog.Warn("devices ws: invalid register frame", slog.String("user", userID))
+			slog.WarnContext(r.Context(), "devices ws: invalid register frame", slog.String("user", userID))
 			return
 		}
 
@@ -148,7 +148,7 @@ func (h *devicesHandler) wsUpgradeHandler(w http.ResponseWriter, r *http.Request
 			// Past the per-user cap: the socket is already upgraded (HTTP 101),
 			// so there's no status code to return - closing the connection is
 			// the rejection. The client can retry after dropping a device.
-			slog.Warn("devices ws: register rejected", slog.String("user", userID), slog.Any("err", err))
+			slog.WarnContext(r.Context(), "devices ws: register rejected", slog.String("user", userID), slog.Any("err", err))
 			return
 		}
 		defer h.registry.Unregister(userID, reg.DeviceID, sender)

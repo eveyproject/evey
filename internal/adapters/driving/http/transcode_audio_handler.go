@@ -160,7 +160,7 @@ func (h *audioServe) serveInitFile(w http.ResponseWriter, r *http.Request, media
 	waitCtx, cancel := context.WithTimeout(r.Context(), h.segmentWaitTimeout)
 	defer cancel()
 	if err := h.audioOrch.EnsureAudioInit(waitCtx, fp); err != nil {
-		slog.Warn("audio rendition: ensure init failed",
+		slog.WarnContext(r.Context(), "audio rendition: ensure init failed",
 			slog.String("media_id", mediaID),
 			slog.Int("track_idx", trackIdx),
 			slog.Any("err", err))
@@ -210,7 +210,7 @@ func (h *audioServe) serveSegmentFile(w http.ResponseWriter, r *http.Request, me
 	waitCtx, cancel := context.WithTimeout(r.Context(), h.segmentWaitTimeout)
 	defer cancel()
 	if err := h.audioOrch.EnsureAudioSegment(waitCtx, fp, segIdx); err != nil {
-		slog.Warn("audio rendition: ensure segment failed",
+		slog.WarnContext(r.Context(), "audio rendition: ensure segment failed",
 			slog.String("media_id", mediaID),
 			slog.Int("track_idx", trackIdx),
 			slog.Int("seg_idx", segIdx),
@@ -323,7 +323,7 @@ func (h *audioServe) sourceAudioChannels(ctx context.Context, mediaID string, tr
 	}
 	streams, err := h.libSvc.GetMediaStreams(ctx, mediaID)
 	if err != nil {
-		slog.Warn("audio rendition: stream lookup failed, defaulting to stereo",
+		slog.WarnContext(ctx, "audio rendition: stream lookup failed, defaulting to stereo",
 			slog.String("media_id", mediaID), slog.Any("err", err))
 		return 0
 	}

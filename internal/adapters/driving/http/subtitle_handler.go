@@ -232,7 +232,7 @@ func tryMKVGoSubtitle(ctx context.Context, w http.ResponseWriter, r *http.Reques
 
 	c, err := openMkvgoSubtitleContainer(ctx, ext, filePath)
 	if err != nil {
-		slog.Warn("subtitle: mkvgo open failed, falling back to ffmpeg",
+		slog.WarnContext(ctx, "subtitle: mkvgo open failed, falling back to ffmpeg",
 			slog.String("path", filePath), slog.Any("err", err))
 		return false
 	}
@@ -251,7 +251,7 @@ func tryMKVGoSubtitle(ctx context.Context, w http.ResponseWriter, r *http.Reques
 		subIdx++
 	}
 	if mkvTrack == nil {
-		slog.Warn("subtitle: mkvgo subtitle track index out of range, falling back to ffmpeg",
+		slog.WarnContext(ctx, "subtitle: mkvgo subtitle track index out of range, falling back to ffmpeg",
 			slog.String("path", filePath), slog.Int("track_index", trackIndex))
 		return false
 	}
@@ -263,7 +263,7 @@ func tryMKVGoSubtitle(ctx context.Context, w http.ResponseWriter, r *http.Reques
 	// is the safe option - never serve a track that doesn't match the DB entry.
 	mkvCodec := extmkv.FFprobeCodecName(mkvTrack.Codec)
 	if mkvCodec != matchedCodec {
-		slog.Warn("subtitle: mkvgo codec mismatch vs DB, falling back to ffmpeg",
+		slog.WarnContext(ctx, "subtitle: mkvgo codec mismatch vs DB, falling back to ffmpeg",
 			slog.String("path", filePath),
 			slog.String("db_codec", matchedCodec),
 			slog.String("mkvgo_codec", mkvCodec))
@@ -273,7 +273,7 @@ func tryMKVGoSubtitle(ctx context.Context, w http.ResponseWriter, r *http.Reques
 	// Language guard: only enforced when both sides carry a non-empty tag.
 	// Empty language on either side means "unknown" - don't reject.
 	if matchedLanguage != "" && mkvTrack.Language != "" && matchedLanguage != mkvTrack.Language {
-		slog.Warn("subtitle: mkvgo language mismatch vs DB, falling back to ffmpeg",
+		slog.WarnContext(ctx, "subtitle: mkvgo language mismatch vs DB, falling back to ffmpeg",
 			slog.String("path", filePath),
 			slog.String("db_lang", matchedLanguage),
 			slog.String("mkvgo_lang", mkvTrack.Language))
@@ -284,7 +284,7 @@ func tryMKVGoSubtitle(ctx context.Context, w http.ResponseWriter, r *http.Reques
 	// therefore produces no partial response.
 	var buf bytes.Buffer
 	if err := extractMkvgoSubtitleWebVTT(ctx, ext, filePath, mkvTrack.ID, &buf); err != nil {
-		slog.Warn("subtitle: mkvgo WebVTT extraction failed, falling back to ffmpeg",
+		slog.WarnContext(ctx, "subtitle: mkvgo WebVTT extraction failed, falling back to ffmpeg",
 			slog.String("path", filePath), slog.Any("err", err))
 		return false
 	}
@@ -293,7 +293,7 @@ func tryMKVGoSubtitle(ctx context.Context, w http.ResponseWriter, r *http.Reques
 	w.Header().Set("Cache-Control", "no-cache")
 	setCORSHeaders(w, r, baseURL)
 	if _, err := io.Copy(w, &buf); err != nil {
-		slog.Warn("subtitle: mkvgo response write failed",
+		slog.WarnContext(ctx, "subtitle: mkvgo response write failed",
 			slog.String("path", filePath), slog.Any("err", err))
 	}
 	return true
@@ -324,7 +324,7 @@ func serveExternalSubtitle(w http.ResponseWriter, r *http.Request, path, baseDir
 			_, _ = io.Copy(w, &buf)
 			return
 		}
-		slog.Warn("mkvgo subtitle->webvtt failed, falling back to ffmpeg",
+		slog.WarnContext(r.Context(), "mkvgo subtitle->webvtt failed, falling back to ffmpeg",
 			slog.String("path", safePath), slog.String("ext", ext), slog.Any("err", mkvErr))
 	}
 	ctx, cancel := context.WithCancel(r.Context())
@@ -333,7 +333,7 @@ func serveExternalSubtitle(w http.ResponseWriter, r *http.Request, path, baseDir
 	w.Header().Set("Content-Type", "text/vtt; charset=utf-8")
 	cmd.Stdout = w
 	if err := cmd.Start(); err != nil {
-		slog.Error("ffmpeg external subtitle", slog.Any("err", err))
+		slog.ErrorContext(r.Context(), "ffmpeg external subtitle", slog.Any("err", err))
 		return
 	}
 	go func() {
@@ -346,7 +346,7 @@ func serveExternalSubtitle(w http.ResponseWriter, r *http.Request, path, baseDir
 		cancel()
 	}()
 	if err := cmd.Wait(); err != nil && ctx.Err() == nil {
-		slog.Warn("ffmpeg external subtitle convert", slog.String("path", safePath), slog.Any("err", err))
+		slog.WarnContext(r.Context(), "ffmpeg external subtitle convert", slog.String("path", safePath), slog.Any("err", err))
 	}
 }
 
@@ -440,7 +440,7 @@ func (h *subtitleRoutes) search(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, "search failed")
-		slog.Error("subtitle search", slog.Any("err", err))
+		slog.ErrorContext(r.Context(), "subtitle search", slog.Any("err", err))
 		http.Error(w, `{"message":"search failed"}`, http.StatusInternalServerError)
 		return
 	}
@@ -463,7 +463,7 @@ func (h *subtitleRoutes) search(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(map[string]any{"results": out}); err != nil {
-		slog.Warn("json encode failed", slog.Any("err", err))
+		slog.WarnContext(r.Context(), "json encode failed", slog.Any("err", err))
 	}
 }
 
@@ -499,7 +499,7 @@ func (h *subtitleRoutes) download(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, "download failed")
-		slog.Error("subtitle download", slog.Any("err", err))
+		slog.ErrorContext(r.Context(), "subtitle download", slog.Any("err", err))
 		http.Error(w, `{"message":"download failed"}`, http.StatusInternalServerError)
 		return
 	}
@@ -518,7 +518,7 @@ func (h *subtitleRoutes) download(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	if err := json.NewEncoder(w).Encode(out); err != nil {
-		slog.Warn("json encode failed", slog.Any("err", err))
+		slog.WarnContext(r.Context(), "json encode failed", slog.Any("err", err))
 	}
 }
 
@@ -537,7 +537,7 @@ func (h *subtitleRoutes) list(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, "list failed")
-		slog.Error("subtitle list", slog.Any("err", err))
+		slog.ErrorContext(r.Context(), "subtitle list", slog.Any("err", err))
 		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 		return
 	}
@@ -569,7 +569,7 @@ func (h *subtitleRoutes) list(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(map[string]any{"subtitles": out}); err != nil {
-		slog.Warn("json encode failed", slog.Any("err", err))
+		slog.WarnContext(r.Context(), "json encode failed", slog.Any("err", err))
 	}
 }
 

@@ -126,7 +126,7 @@ func (h *adminHandler) handleGetLogs(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(map[string]any{"lines": data}); err != nil {
-		slog.Warn("json encode failed", slog.Any("err", err))
+		slog.WarnContext(r.Context(), "json encode failed", slog.Any("err", err))
 	}
 }
 
@@ -147,7 +147,7 @@ func (h *adminHandler) handleSearchLogs(w http.ResponseWriter, r *http.Request) 
 	}
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(res); err != nil {
-		slog.Warn("json encode failed", slog.Any("err", err))
+		slog.WarnContext(r.Context(), "json encode failed", slog.Any("err", err))
 	}
 }
 

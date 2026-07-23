@@ -45,7 +45,7 @@ func (h *photoHandler) servePhoto(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, "get photo failed")
-		slog.Error("serve photo get", slog.Any("err", err))
+		slog.ErrorContext(r.Context(), "serve photo get", slog.Any("err", err))
 		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 		return
 	}
@@ -59,12 +59,12 @@ func (h *photoHandler) servePhoto(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if dlErr := http.NewResponseController(w).SetWriteDeadline(time.Time{}); dlErr != nil {
-		slog.Warn("set write deadline", slog.Any("err", dlErr))
+		slog.WarnContext(r.Context(), "set write deadline", slog.Any("err", dlErr))
 	}
 	// Defense-in-depth: a poisoned photos.file_path must not become an arbitrary-file
 	// read. Mirror media/remux handlers: fail-open when roots are unknown.
 	if h.libLister != nil && !pathWithinRoots(mediaRoots(r.Context(), h.libLister), p.FilePath) {
-		slog.Warn("photo serve: file path outside configured library roots",
+		slog.WarnContext(r.Context(), "photo serve: file path outside configured library roots",
 			slog.String("photo_id", photoID), slog.String("path", p.FilePath))
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return
@@ -140,7 +140,7 @@ func (h *photoHandler) serveTranscoded(w http.ResponseWriter, r *http.Request, p
 
 	photoDir := filepath.Join(h.cacheDir, "photos")
 	if err := os.MkdirAll(photoDir, 0o755); err != nil {
-		slog.Warn("photo cache mkdir", slog.Any("err", err))
+		slog.WarnContext(r.Context(), "photo cache mkdir", slog.Any("err", err))
 		return false
 	}
 	dstName := p.ID + "-w" + strconv.Itoa(width) + "-" + ext + "." + ext
@@ -156,7 +156,7 @@ func (h *photoHandler) serveTranscoded(w http.ResponseWriter, r *http.Request, p
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 	if err := h.transcoder.Transcode(ctx, p.FilePath, dstPath, width, fmtStr); err != nil {
-		slog.Warn("photo transcode", slog.String("id", p.ID), slog.Any("err", err))
+		slog.WarnContext(r.Context(), "photo transcode", slog.String("id", p.ID), slog.Any("err", err))
 		_ = os.Remove(dstPath)
 		return false
 	}

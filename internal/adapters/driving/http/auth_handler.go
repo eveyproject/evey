@@ -205,7 +205,7 @@ func (h *parentalHandler) getSettings(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(out); err != nil {
-		slog.Warn("json encode failed", slog.Any("err", err))
+		slog.WarnContext(r.Context(), "json encode failed", slog.Any("err", err))
 	}
 }
 
@@ -489,7 +489,7 @@ func (h *parentalHandler) persistAndRespond(w http.ResponseWriter, r *http.Reque
 	}
 	w.Header().Set("Content-Type", "application/json")
 	if _, err := w.Write([]byte(`{"ok":true}`)); err != nil {
-		slog.Warn("write failed", slog.Any("err", err))
+		slog.WarnContext(r.Context(), "write failed", slog.Any("err", err))
 	}
 }
 

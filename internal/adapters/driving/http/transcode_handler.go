@@ -250,7 +250,7 @@ func (h *playbackServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(toPlaybackInfoDTO(decision)); err != nil {
-		slog.Warn("json encode failed", slog.Any("err", err))
+		slog.WarnContext(r.Context(), "json encode failed", slog.Any("err", err))
 	}
 }
 
@@ -403,14 +403,14 @@ func (h *transcodeServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "ffmpeg stdout pipe failed")
-		slog.Error("ffmpeg stdout pipe", slog.Any("err", err))
+		slog.ErrorContext(r.Context(), "ffmpeg stdout pipe", slog.Any("err", err))
 		http.Error(w, "transcode failed", http.StatusInternalServerError)
 		return
 	}
 	if err := cmd.Start(); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "ffmpeg start failed")
-		slog.Error("ffmpeg start", slog.Any("err", err))
+		slog.ErrorContext(r.Context(), "ffmpeg start", slog.Any("err", err))
 		http.Error(w, "transcode failed", http.StatusInternalServerError)
 		return
 	}
@@ -433,10 +433,10 @@ func (h *transcodeServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	}()
 	copied, copyErr := io.Copy(w, stdout)
 	if copyErr != nil && ctx.Err() == nil {
-		slog.Warn("transcode copy", slog.Any("err", copyErr))
+		slog.WarnContext(r.Context(), "transcode copy", slog.Any("err", copyErr))
 	}
 	if err := cmd.Wait(); err != nil && ctx.Err() == nil {
-		slog.Warn("ffmpeg transcode", slog.String("media_id", mediaID), slog.Any("err", err))
+		slog.WarnContext(r.Context(), "ffmpeg transcode", slog.String("media_id", mediaID), slog.Any("err", err))
 		// ffmpeg failed before emitting any bytes: the 200 status line hasn't
 		// been committed yet (io.Copy wrote nothing), so we can still send a 500.
 		// Otherwise the player gets a bare 200 with an empty body and never

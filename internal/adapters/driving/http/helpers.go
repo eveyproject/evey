@@ -124,7 +124,7 @@ func checkLibraryAccess(ctx context.Context, w http.ResponseWriter, claims *doma
 		return true
 	}
 	if checker == nil {
-		slog.Warn("library access checker is nil, denying access", slog.String("user_id", claims.UserID), slog.String("library_id", string(libraryID)))
+		slog.WarnContext(ctx, "library access checker is nil, denying access", slog.String("user_id", claims.UserID), slog.String("library_id", string(libraryID)))
 		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 		return false
 	}
@@ -136,12 +136,12 @@ func checkLibraryAccess(ctx context.Context, w http.ResponseWriter, claims *doma
 		// it has no grant to. Mirror the not-found response so the two are
 		// indistinguishable. (err is logged but still denied, fail-closed.)
 		if err != nil {
-			slog.Warn("library access check failed", slog.String("user_id", claims.UserID), slog.String("library_id", string(libraryID)), slog.Any("err", err))
+			slog.WarnContext(ctx, "library access check failed", slog.String("user_id", claims.UserID), slog.String("library_id", string(libraryID)), slog.Any("err", err))
 		} else {
 			// ok == false: a caller probing a library it holds no grant to. Log
 			// the deny (not just infra errors) so repeated cross-library
 			// enumeration by one profile is visible/alertable to operators.
-			slog.Warn("library access denied", slog.String("user_id", claims.UserID), slog.String("library_id", string(libraryID)))
+			slog.WarnContext(ctx, "library access denied", slog.String("user_id", claims.UserID), slog.String("library_id", string(libraryID)))
 		}
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return false

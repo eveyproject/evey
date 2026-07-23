@@ -56,7 +56,7 @@ func (h *hlsVODServe) serveConcatMaster(w http.ResponseWriter, r *http.Request, 
 
 	plan, err := h.buildConcatPlan(r, chain)
 	if err != nil {
-		slog.Warn("hls vod: concat plan build failed, falling back to per-episode playback",
+		slog.WarnContext(r.Context(), "hls vod: concat plan build failed, falling back to per-episode playback",
 			slog.String("media_id", mediaID), slog.Int("chain_len", len(chain)), slog.Any("err", err))
 		return false
 	}

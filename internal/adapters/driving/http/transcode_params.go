@@ -85,7 +85,7 @@ func (h *transcodeServe) analyzeStreams(ctx context.Context, mediaID string, rem
 
 	streams, err := h.libSvc.GetMediaStreams(ctx, mediaID)
 	if err != nil {
-		slog.Error("transcode: GetMediaStreams failed", slog.String("media_id", mediaID), slog.Any("err", err))
+		slog.ErrorContext(ctx, "transcode: GetMediaStreams failed", slog.String("media_id", mediaID), slog.Any("err", err))
 		return a
 	}
 	a.streams = streams

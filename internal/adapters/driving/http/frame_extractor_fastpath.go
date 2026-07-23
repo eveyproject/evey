@@ -57,7 +57,7 @@ func (e *fastFrameExtractor) ExtractFrame(ctx context.Context, filePath string, 
 				return jpeg, nil
 			}
 			// Unexpected: mkvgo handed us a keyframe packet ffmpeg can't decode.
-			slog.Warn("snapshot fast path: keyframe packet decode failed, using exact decoder",
+			slog.WarnContext(ctx, "snapshot fast path: keyframe packet decode failed, using exact decoder",
 				slog.String("path", filePath), slog.Any("err", derr))
 		}
 	}

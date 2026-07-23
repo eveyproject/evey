@@ -43,7 +43,7 @@ func (h *adminHandler) handleRefreshMetadata(w http.ResponseWriter, r *http.Requ
 	if refreshErr != nil {
 		span.RecordError(refreshErr)
 		span.SetStatus(otelcodes.Error, "refresh metadata failed")
-		slog.Error("refresh metadata", slog.Any("err", refreshErr))
+		slog.ErrorContext(r.Context(), "refresh metadata", slog.Any("err", refreshErr))
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
@@ -63,7 +63,7 @@ func (h *adminHandler) handleResetMetadata(w http.ResponseWriter, r *http.Reques
 	if err := h.metaCmd.ResetItemMetadata(r.Context(), mediaItemID); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, "reset metadata failed")
-		slog.Error("reset metadata", slog.Any("err", err))
+		slog.ErrorContext(r.Context(), "reset metadata", slog.Any("err", err))
 		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 		return
 	}
@@ -87,7 +87,7 @@ func (h *adminHandler) handleSearchMetadata(w http.ResponseWriter, r *http.Reque
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, "search metadata failed")
-		slog.Error("search metadata", slog.Any("err", err))
+		slog.ErrorContext(r.Context(), "search metadata", slog.Any("err", err))
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
@@ -133,7 +133,7 @@ func (h *adminHandler) handleSearchMetadata(w http.ResponseWriter, r *http.Reque
 	}
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(out); err != nil {
-		slog.Warn("json encode failed", slog.Any("err", err))
+		slog.WarnContext(r.Context(), "json encode failed", slog.Any("err", err))
 	}
 }
 
@@ -158,12 +158,12 @@ func (h *adminHandler) handleRefreshAll(w http.ResponseWriter, r *http.Request) 
 			}
 		}()
 		if err := h.metaCmd.AutoRefreshAllItems(h.serverCtx, libraryID); err != nil {
-			slog.Error("bulk metadata refresh", slog.Any("err", err))
+			slog.ErrorContext(r.Context(), "bulk metadata refresh", slog.Any("err", err))
 		}
 	}()
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusAccepted)
 	if err := json.NewEncoder(w).Encode(map[string]string{"message": "refresh started"}); err != nil {
-		slog.Warn("json encode failed", slog.Any("err", err))
+		slog.WarnContext(r.Context(), "json encode failed", slog.Any("err", err))
 	}
 }

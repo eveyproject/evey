@@ -83,7 +83,7 @@ func (h *hlsVODServe) tryServePlanMaster(w http.ResponseWriter, r *http.Request,
 	// the plan cache the sub-resource requests hit.
 	plan, err := h.buildPlan(r, mediaID, item)
 	if err != nil {
-		slog.Warn("hls-vod: on-demand plan build failed, falling back to ffmpeg",
+		slog.WarnContext(r.Context(), "hls-vod: on-demand plan build failed, falling back to ffmpeg",
 			slog.String("media_id", mediaID), slog.Any("err", err))
 		return false
 	}
@@ -101,7 +101,7 @@ func (h *hlsVODServe) tryServePlanMaster(w http.ResponseWriter, r *http.Request,
 	}
 	master, err := h.buildHybridMaster(r, mediaID, item, streams)
 	if err != nil {
-		slog.Warn("hls-vod: hybrid on-demand master failed, falling back to ffmpeg",
+		slog.WarnContext(r.Context(), "hls-vod: hybrid on-demand master failed, falling back to ffmpeg",
 			slog.String("media_id", mediaID), slog.Any("err", err))
 		return false
 	}
@@ -189,7 +189,7 @@ func (h *hlsVODServe) serveWasmAudioMaster(w http.ResponseWriter, r *http.Reques
 
 	master, err := h.buildWasmAudioMaster(r, mediaID, item, streams, useMkvgoVideo, useMkvgoAudio, audioTrack)
 	if err != nil {
-		slog.Warn("hls-vod: wasm-audio master failed, falling back",
+		slog.WarnContext(r.Context(), "hls-vod: wasm-audio master failed, falling back",
 			slog.String("media_id", mediaID), slog.Any("err", err))
 		return false
 	}

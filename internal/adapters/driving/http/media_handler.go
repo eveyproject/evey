@@ -130,7 +130,7 @@ func (h *mediaServe) handleStream(w http.ResponseWriter, r *http.Request) {
 	// arbitrary host files. Same fail-open semantics on unknown roots.
 	if h.libLister != nil && !pathWithinRoots(mediaRoots(r.Context(), h.libLister), item.File.Path) {
 		span.SetStatus(codes.Error, "file outside library roots")
-		slog.Warn("stream: file path outside configured library roots",
+		slog.WarnContext(r.Context(), "stream: file path outside configured library roots",
 			slog.String("media_id", mediaID), slog.String("path", item.File.Path))
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return
@@ -223,7 +223,7 @@ func serveDownload(w http.ResponseWriter, r *http.Request, item *library.MediaIt
 	// roots are unknown (transient list error) - confinement is NOT the
 	// access gate; access was already checked by the caller.
 	if len(roots) > 0 && !pathWithinRoots(roots, item.File.Path) {
-		slog.Warn("download: path outside library roots, blocked",
+		slog.WarnContext(r.Context(), "download: path outside library roots, blocked",
 			slog.String("item_id", string(item.ID)),
 			slog.String("path", item.File.Path),
 		)
@@ -307,7 +307,7 @@ func archivableFile(it *library.MediaItem, roots []string) bool {
 func mediaRoots(ctx context.Context, libSvc LibraryLister) []string {
 	libs, err := libSvc.ListLibraries(ctx)
 	if err != nil {
-		slog.Warn("download archive: list libraries for path confinement", slog.Any("err", err))
+		slog.WarnContext(ctx, "download archive: list libraries for path confinement", slog.Any("err", err))
 		return nil
 	}
 	var roots []string
@@ -342,13 +342,13 @@ func pathWithinRoots(roots []string, path string) bool {
 func sortedChildren(ctx context.Context, libSvc MediaArchiveSource, parentID string, libraryID shared.LibraryID) []*library.MediaItem {
 	items, err := libSvc.ListMediaItems(ctx, library.ListMediaItemsFilter{ParentID: &parentID})
 	if err != nil {
-		slog.Warn("download archive: list children", slog.String("parent_id", parentID), slog.Any("err", err))
+		slog.WarnContext(ctx, "download archive: list children", slog.String("parent_id", parentID), slog.Any("err", err))
 		return nil
 	}
 	out := make([]*library.MediaItem, 0, len(items))
 	for _, it := range items {
 		if it.LibraryID != libraryID {
-			slog.Warn("download archive: cross-library child skipped",
+			slog.WarnContext(ctx, "download archive: cross-library child skipped",
 				slog.String("item_id", string(it.ID)), slog.String("expected_lib", string(libraryID)), slog.String("got_lib", string(it.LibraryID)))
 			continue
 		}
@@ -398,12 +398,12 @@ func serveMediaArchive(w http.ResponseWriter, r *http.Request, title string, ent
 	setCORSHeaders(w, r, baseURL)
 	// A large archive can take longer than the global write timeout to stream.
 	if err := http.NewResponseController(w).SetWriteDeadline(time.Time{}); err != nil {
-		slog.Warn("set write deadline", slog.Any("err", err))
+		slog.WarnContext(r.Context(), "set write deadline", slog.Any("err", err))
 	}
 	zw := zip.NewWriter(w)
 	defer func() {
 		if err := zw.Close(); err != nil {
-			slog.Warn("download archive: zip close", slog.Any("err", err))
+			slog.WarnContext(r.Context(), "download archive: zip close", slog.Any("err", err))
 		}
 	}()
 	seen := make(map[string]int)
@@ -425,7 +425,7 @@ func serveMediaArchive(w http.ResponseWriter, r *http.Request, title string, ent
 			name = fmt.Sprintf("%s (%d)%s", strings.TrimSuffix(name, ext), n+1, ext)
 		}
 		if err := addFileToZip(zw, e.path, name); err != nil {
-			slog.Warn("download archive: add file", slog.String("path", e.path), slog.Any("err", err))
+			slog.WarnContext(r.Context(), "download archive: add file", slog.String("path", e.path), slog.Any("err", err))
 		}
 	}
 }

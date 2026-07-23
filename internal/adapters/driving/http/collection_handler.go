@@ -68,7 +68,7 @@ func (h *collectionHandler) downloadCollection(w http.ResponseWriter, r *http.Re
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, "list collection items failed")
-		slog.Error("collection download: get items", slog.String("collection_id", collectionID), slog.Any("err", err))
+		slog.ErrorContext(r.Context(), "collection download: get items", slog.String("collection_id", collectionID), slog.Any("err", err))
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}

@@ -153,7 +153,7 @@ func (h *mediaServe) handleArtwork(w http.ResponseWriter, r *http.Request) {
 							ctx10, cancel := context.WithTimeout(r.Context(), artworkResizeTimeout)
 							defer cancel()
 							if resErr := h.imgConverter.ResizeAndConvertToWebP(ctx10, *rec.LocalPath, variantPath, requestedWidth, 80); resErr != nil {
-								slog.Warn("artwork resize", slog.String("src", *rec.LocalPath), slog.Int("width", requestedWidth), slog.Any("err", resErr))
+								slog.WarnContext(r.Context(), "artwork resize", slog.String("src", *rec.LocalPath), slog.Int("width", requestedWidth), slog.Any("err", resErr))
 								removeVariant(variantPath) // drop any partial/empty output so it isn't served next time
 								variantPath = ""           // fall through to full-res WebP
 							}
@@ -282,13 +282,13 @@ func (h *mediaServe) resolveWebP(ctx context.Context, rec *domainmeta.ArtworkRec
 	}
 	webpPath := strings.TrimSuffix(*rec.LocalPath, ext) + ".webp"
 	if err := h.imgConverter.ConvertToWebP(ctx, *rec.LocalPath, webpPath, 80); err != nil {
-		slog.Warn("webp convert", slog.String("src", *rec.LocalPath), slog.Any("err", err))
+		slog.WarnContext(ctx, "webp convert", slog.String("src", *rec.LocalPath), slog.Any("err", err))
 		return ""
 	}
 	rec.WebPPath = &webpPath
 	if h.artworkWriter != nil {
 		if err := h.artworkWriter.UpdateWebPPath(ctx, rec.ID, webpPath); err != nil {
-			slog.Warn("save webp path", slog.Any("err", err))
+			slog.WarnContext(ctx, "save webp path", slog.Any("err", err))
 		}
 	}
 	return webpPath
