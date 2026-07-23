@@ -31,7 +31,7 @@ import {
   setSubtitleStyle,
   type SubtitleStyle,
 } from "@/hooks/usePlaybackPrefs";
-import { buildTranscodeHlsUrl, getSelectedBurnInTrack, resolveDefaultAudio, resolveDefaultSubtitle } from "./hooks/hlsPlayerUtils";
+import { buildTranscodeHlsUrl, getSelectedBurnInTrack, performCastSeek, resolveDefaultAudio, resolveDefaultSubtitle } from "./hooks/hlsPlayerUtils";
 import { useDirectPlayback } from "./hooks/useDirectPlayback";
 import { useTranscodePlayback, type ShedReason } from "./hooks/useTranscodePlayback";
 import { useWasmAudioPlayback } from "./wasmaudio/useWasmAudioPlayback";
@@ -266,7 +266,7 @@ export function HLSPlayer({
   const reportCastEvent = useMemo(() => createPlayerEventReporter(mediaId), [mediaId]);
   const {
     castSdkReady, connected: castConnected, deviceName: castDeviceName,
-    castPlayback, startCast, stopCast, castPlayPause, castSeek, castReload, castSetVolume, castSetMuted,
+    castPlayback, startCast, stopCast, castPlayPause, castSeek, castSetVolume, castSetMuted,
   } = useCasting(reportCastEvent);
   // Chrome Android can't run the Cast SDK. Its only web cast path is the
   // Remote Playback API, which flings a source URL to the receiver - but the
@@ -409,9 +409,6 @@ export function HLSPlayer({
     }
     const { url, castStartSec, castResumeSec } = await buildCastUrl();
     if (import.meta.env.DEV) console.log("[Cast] SDK cast url:", url, "mode:", streamInfo.directPlayUrl ? "direct" : "transcode");
-    // Remember the negotiated URL so handleCastSeek can reload at a new
-    // startSec without reconstructing it.
-    castBaseUrlRef.current = url;
     castTranscodeOffsetRef.current = castStartSec;
     const outcome = await startCast(url, title, castResumeSec);
     if (outcome !== "session-failed") return;
@@ -561,9 +558,6 @@ export function HLSPlayer({
   // built at startSec=X, so the device's reported currentTime is local to
   // that stream and the absolute position is castTranscodeOffset + it.
   const castTranscodeOffsetRef = useRef(0);
-  // The exact URL handed to the cast device, captured at cast start so a
-  // seek can reload it at a new startSec without re-deriving the endpoint.
-  const castBaseUrlRef = useRef("");
 
   const isDirectPlay = streamInfo.playMethod === "PLAY_METHOD_DIRECT_PLAY";
 
@@ -698,28 +692,18 @@ export function HLSPlayer({
   const seekRef = useRef(handleSeekRequest);
   seekRef.current = handleSeekRequest;
 
-  // Cast seek. Direct-play casts stream a complete file the device can
-  // seek natively. HLS / remux casts play a progressively-built manifest,
-  // so seeking outside its window means reloading the stream at
-  // startSec=target on the device - same idea as setTranscodeStartTime
-  // for the local player. We reuse the exact negotiated cast URL and only
-  // overwrite startSec, so the endpoint (/transcode vs /hls/master.m3u8)
-  // and codec params stay whatever the server picked.
-  const handleCastSeek = useCallback((absoluteTimeSec: number): boolean => {
-    if (isDirectPlay) {
-      return castSeek(absoluteTimeSec);
-    }
-    const base = castBaseUrlRef.current;
-    if (!base) {
-      // No captured URL (shouldn't happen once casting) - best effort.
-      return castSeek(absoluteTimeSec);
-    }
-    const u = new URL(base, window.location.origin);
-    u.searchParams.set("startSec", String(Math.floor(absoluteTimeSec)));
-    castTranscodeOffsetRef.current = absoluteTimeSec;
-    void castReload(`${u.pathname}?${u.searchParams.toString()}`, title);
-    return true;
-  }, [isDirectPlay, castSeek, castReload, title]);
+  // Cast seek. Both direct-play and transcode casts play a COMPLETE VOD manifest
+  // (the transcode path precomputes it from the known duration and the server
+  // ignores startSec), so the receiver's timeline is the absolute media timeline
+  // and a native seek lands frame-accurately. The old transcode path rebuilt the
+  // URL at startSec=target and reloaded the device, but no handler parses startSec
+  // so the receiver restarted at 0 while the UI thought the seek landed. See
+  // performCastSeek for the offset reset that keeps position reporting correct.
+  const handleCastSeek = useCallback((absoluteTimeSec: number): boolean =>
+    performCastSeek(absoluteTimeSec, isDirectPlay, {
+      nativeSeek: castSeek,
+      setTranscodeOffset: (v) => { castTranscodeOffsetRef.current = v; },
+    }), [isDirectPlay, castSeek]);
 
   // Canonical subtitle selection - shared by the settings panel picker and the
   // keyboard "c" shortcut. Crucially, when toggling a burn-in track (PGS/VobSub)

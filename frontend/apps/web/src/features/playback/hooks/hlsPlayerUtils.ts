@@ -126,6 +126,41 @@ export function shouldRestartTranscodeSeek(
   return localTime < start || localTime > end + 10;
 }
 
+// CastSeekActions are the side effects performCastSeek drives, injected so the
+// routing decision stays pure and testable outside the player component.
+export interface CastSeekActions {
+  // nativeSeek moves the receiver's playhead in place (RemotePlayer.currentTime).
+  // Returns false when no live cast session accepted it, so the caller can fall
+  // back to the local player.
+  nativeSeek: (absoluteTimeSec: number) => boolean;
+  // setTranscodeOffset resets the reported-position offset added to the
+  // receiver's clock when deriving the absolute media position.
+  setTranscodeOffset: (offsetSec: number) => void;
+}
+
+// performCastSeek routes a seek on an ACTIVE cast session. Both direct-play and
+// transcode casts load a COMPLETE VOD manifest (the transcode path precomputes it
+// from the known media duration and the server ignores startSec), so the
+// receiver's timeline IS the absolute media timeline and a native receiver seek
+// lands frame-accurately - the same mechanism direct play already uses.
+//
+// The transcode branch additionally zeroes the reported-position offset: it was
+// only non-zero to compensate for a baked startSec. The OLD transcode path
+// rebuilt the cast URL at startSec=target and reloaded the receiver, but no
+// server handler parses startSec, so the receiver silently restarted at 0 while
+// the UI believed the seek had landed. Native seek fixes both the jump and the
+// post-seek position reporting (offset now 0 = receiver time is absolute).
+export function performCastSeek(
+  absoluteTimeSec: number,
+  isDirectPlay: boolean,
+  actions: CastSeekActions,
+): boolean {
+  if (!isDirectPlay) {
+    actions.setTranscodeOffset(0);
+  }
+  return actions.nativeSeek(absoluteTimeSec);
+}
+
 // matchLang returns true when a stream's language or title matches a candidate
 // language code (case-insensitive, trimmed).
 function matchLang(

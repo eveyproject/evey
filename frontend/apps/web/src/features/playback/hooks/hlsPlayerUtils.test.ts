@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { startPlayback } from "./hlsPlayerUtils";
+import { startPlayback, performCastSeek } from "./hlsPlayerUtils";
 import type { SubtitleStream } from "../SubtitleSelector";
 
 const mockCaps = vi.hoisted(() => ({
@@ -375,5 +375,40 @@ describe("startPlayback", () => {
     await expect(startPlayback(video)).resolves.toBe(true);
     expect(video.paused, "muted playback beats no playback").toBe(false);
     expect(video.muted).toBe(true);
+  });
+});
+
+describe("performCastSeek", () => {
+  function actions() {
+    return {
+      nativeSeek: vi.fn().mockReturnValue(true),
+      setTranscodeOffset: vi.fn(),
+    };
+  }
+
+  it("transcode: seeks natively on the VOD manifest and zeroes the offset (no URL reload)", () => {
+    // The transcode cast plays a COMPLETE VOD manifest; the old path rebuilt the
+    // URL at startSec=target and reloaded, but no server handler parses startSec,
+    // so the receiver silently restarted at 0. A native seek must be used, and
+    // the reported-position offset dropped to 0 (receiver time is now absolute).
+    const a = actions();
+    const ok = performCastSeek(742, /*isDirectPlay*/ false, a);
+    expect(ok).toBe(true);
+    expect(a.nativeSeek).toHaveBeenCalledWith(742);
+    expect(a.setTranscodeOffset).toHaveBeenCalledWith(0);
+  });
+
+  it("direct-play: seeks natively and leaves the offset untouched", () => {
+    const a = actions();
+    const ok = performCastSeek(30, /*isDirectPlay*/ true, a);
+    expect(ok).toBe(true);
+    expect(a.nativeSeek).toHaveBeenCalledWith(30);
+    expect(a.setTranscodeOffset).not.toHaveBeenCalled();
+  });
+
+  it("propagates a failed native seek so the caller can fall back to the local player", () => {
+    const a = actions();
+    a.nativeSeek.mockReturnValue(false);
+    expect(performCastSeek(10, false, a)).toBe(false);
   });
 });
