@@ -287,6 +287,13 @@ function PluginWebView({ pluginId, entryPath, externalFetch, context }: PluginWe
         return fetch(`${serverUrl}/api/v1/public/media/${enc(String(args.id ?? ""))}`, { headers: h });
       case "media.list":
         return fetch(`${serverUrl}/api/v1/public/media${args.libraryId ? `?libraryId=${enc(String(args.libraryId))}` : ""}`, { headers: h });
+      case "media.poster":
+        // The user's own session (no plugin token): the artwork handler applies
+        // this user's library ACL + parental filter, so a plugin can only reach
+        // posters the user can already see. Mirrors web PluginIframe's media.poster.
+        return fetch(`${serverUrl}/api/v1/media/${enc(String(args.id ?? ""))}/artwork/poster`, {
+          headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+        });
       case "assets.read": {
         // Reads one of the plugin's OWN web_root assets. Strict path guard
         // (the server also rejects traversal, this is defense in depth); the
@@ -302,7 +309,7 @@ function PluginWebView({ pluginId, entryPath, externalFetch, context }: PluginWe
       default:
         return Promise.reject(new Error(`method not permitted: ${method}`));
     }
-  }, [pluginId, serverUrl]);
+  }, [pluginId, serverUrl, accessToken]);
 
   const pluginRpcCall = useCallback(async (method: string, args: Record<string, unknown>): Promise<unknown> => {
     let token = await ensurePluginToken();
@@ -318,11 +325,16 @@ function PluginWebView({ pluginId, entryPath, externalFetch, context }: PluginWe
       try { const b = (await res.json()) as { message?: string }; if (b.message) m = b.message; } catch { /* ignore */ }
       throw new Error(m);
     }
-    // assets.read returns binary; hand it back as a data: URL so the WebView
-    // can use it directly (data URLs work as WebGL textures without any
-    // CORS/taint concern). Mirrors web PluginIframe's pluginRpcCall.
-    if (method === "assets.read") {
+    // assets.read/media.poster return binary; hand it back as a data: URL so
+    // the WebView can use it directly (data URLs work as WebGL/img sources
+    // without any CORS/taint concern). Mirrors web PluginIframe's pluginRpcCall,
+    // except there is no canvas in RN to downscale media.poster - the full-size
+    // artwork (~1.3 MB typ.) is sent as-is; only warn past ~1.5 MB.
+    if (method === "assets.read" || method === "media.poster") {
       const blob = await res.blob();
+      if (method === "media.poster" && blob.size > 1_500_000 && process.env.NODE_ENV !== "production") {
+        console.warn("PluginSlot media.poster: large image, no downscale on RN", blob.size);
+      }
       return await new Promise<string>((resolve, reject) => {
         const fr = new FileReader();
         fr.onload = () => resolve(String(fr.result));

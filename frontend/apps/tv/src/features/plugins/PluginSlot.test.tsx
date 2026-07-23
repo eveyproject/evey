@@ -150,6 +150,39 @@ describe("PluginSlot (TV)", () => {
   });
 });
 
+describe("PluginSlot media.poster bridge (TV)", () => {
+  it("fetches the media poster with the user's session token (not the plugin token) and returns a data URL", async () => {
+    const fetchMock = vi.fn().mockImplementation(async (url: string) => {
+      if (String(url).includes("/artwork/poster")) {
+        return {
+          ok: true,
+          status: 200,
+          blob: async () => new Blob([new Uint8Array([0xff, 0xd8, 0xff, 0x01])], { type: "image/jpeg" }),
+        };
+      }
+      return { ok: true, text: async () => PLUGIN_BUNDLE };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await mountPluginWebView();
+    dispatchToWebView({ type: "rpc", id: 9, method: "media.poster", args: { id: "mi-1" } });
+
+    await waitFor(() => {
+      const msg = lastInjectedMessage() as { type?: string; id?: number; ok?: boolean; data?: string };
+      expect(msg?.type).toBe("rpc-result");
+      expect(msg?.id).toBe(9);
+      expect(msg?.ok).toBe(true);
+      expect(msg?.data).toMatch(/^data:image\/jpeg;base64,/);
+    });
+
+    const posterCall = fetchMock.mock.calls.find(([url]) => String(url).includes("/artwork/poster"));
+    expect(posterCall, "poster endpoint should have been called").toBeTruthy();
+    const [url, init] = posterCall!;
+    expect(url).toContain("/api/v1/media/mi-1/artwork/poster");
+    expect((init as RequestInit).headers).toEqual({ Authorization: "Bearer USER-ACCESS-TOKEN" });
+  });
+});
+
 describe("PluginSlot assets.read bridge (TV)", () => {
   it("fetches the plugin's own asset with the plugin token and returns a data URL", async () => {
     eveyFetchRawMock.mockImplementation(async (req: { url: string }) => {
