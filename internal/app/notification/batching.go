@@ -345,14 +345,9 @@ func (s *CommandService) shouldSkipEpisodeNotif(ctx context.Context, profileID, 
 
 	// Update the most recent one.
 	existing := existingEps[0]
-	addCount := initialCount
-	if addCount < 1 {
-		addCount = 1
-	}
-	prevCount := existing.EpisodeCount
-	if prevCount < 1 {
-		prevCount = 1 // treat the original notification as representing at least 1 episode
-	}
+	addCount := max(initialCount, 1)
+	// treat the original notification as representing at least 1 episode
+	prevCount := max(existing.EpisodeCount, 1)
 	newCount := prevCount + addCount
 
 	// Re-derive the series name from the stored title so we can rebuild it.

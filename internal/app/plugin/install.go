@@ -79,8 +79,8 @@ func (s *InstallerService) downloadIfURL(ctx context.Context, source string) (lo
 
 	// Parse optional "#sha256:<hex>" fragment.
 	rawURL, fragment, _ := strings.Cut(source, "#")
-	if strings.HasPrefix(fragment, "sha256:") {
-		expectedHash = strings.TrimPrefix(fragment, "sha256:")
+	if h, ok := strings.CutPrefix(fragment, "sha256:"); ok {
+		expectedHash = h
 		source = rawURL
 	}
 
@@ -372,7 +372,7 @@ func (s *InstallerService) validateStagedPlugin(ctx context.Context, p *plugin.P
 				// serves theme.css raw (and pre-auth on the login page). If it
 				// fails, fail the install so the deferred cleanup removes the dir
 				// rather than leaving the dangerous original on disk.
-				if writeErr := os.WriteFile(themePath, sanitized, 0o644); writeErr != nil {
+				if writeErr := os.WriteFile(themePath, sanitized, 0o644); writeErr != nil { //nolint:gosec // G703 FP: themePath = pluginDir/<plugin-id>/theme.css, both components server-controlled, filename is a literal - no user-tainted path element
 					return fmt.Errorf("persist sanitized theme.css: %w", writeErr)
 				}
 			}

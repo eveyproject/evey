@@ -72,7 +72,12 @@ func (h *libraryHandler) SearchMedia(ctx context.Context, req *eveyv1.SearchMedi
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError(ctx, "search media", err)
 	}
-	allowedIDs, _ := h.getAllowedLibraryIDs(ctx)
+	allowedIDs, allowErr := h.getAllowedLibraryIDs(ctx)
+	if allowErr != nil {
+		// Preserve the prior blank-ignore: a library-access lookup fault falls
+		// back to no restriction rather than failing the whole search.
+		allowedIDs = nil
+	}
 	pf := h.resolveParentalFilter(ctx)
 	resp := &eveyv1.SearchMediaResponse{
 		TotalHits: int32(total),

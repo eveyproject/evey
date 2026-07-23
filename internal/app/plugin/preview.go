@@ -167,11 +167,12 @@ func (s *InstallerService) PreviewUpdate(ctx context.Context, pluginID, source s
 	// Cosign on candidate (best-effort - status recorded, not blocking).
 	if s.sigVerifier != nil {
 		sigStatus, sigErr := s.sigVerifier.VerifySignature(ctx, localPath, "")
-		if sigErr != nil {
+		switch {
+		case sigErr != nil:
 			preview.SignatureStatus = "invalid"
-		} else if sigStatus != nil && sigStatus.Verified {
+		case sigStatus != nil && sigStatus.Verified:
 			preview.SignatureStatus = "signed"
-		} else {
+		default:
 			preview.SignatureStatus = "unsigned"
 		}
 	}

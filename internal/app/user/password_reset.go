@@ -9,7 +9,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/user"
 	"github.com/evey-project/evey/internal/pkg/id"
 	"github.com/evey-project/evey/internal/pkg/tracing"
@@ -111,7 +110,7 @@ func (s *CommandService) ResetPassword(ctx context.Context, rawToken, newPasswor
 		return ErrPasswordTooShort
 	}
 
-	u, err := s.users.GetByID(ctx, shared.UserID(t.UserID))
+	u, err := s.users.GetByID(ctx, t.UserID)
 	if err != nil {
 		return ErrResetTokenInvalid
 	}
