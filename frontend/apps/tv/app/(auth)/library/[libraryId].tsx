@@ -1,11 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, FlatList, Pressable, ActivityIndicator, StyleSheet } from "react-native";
+import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useLibraryServiceGetLibrary, useLibraryServiceListMediaItems } from "@evey/api";
 import type { V1MediaItem } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { FocusableCard } from "../../../src/components/FocusableCard";
+import { artworkUrl } from "../../../src/lib/artwork";
+import { useServerUrl } from "../../../src/hooks/useServerUrl";
+import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { CARD_WIDTH_GRID, POSTER_RATIO, LABEL_BLOCK_HEIGHT, GRID_GAP } from "../../../src/lib/tvLayout";
 
 const NUM_COLUMNS = 5;
@@ -29,6 +33,8 @@ export default function LibraryDetailScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
   const router = useRouter();
+  const serverUrl = useServerUrl();
+  const authHeaders = useAuthHeaders();
   const [page, setPage] = useState(1);
   const [allItems, setAllItems] = useState<V1MediaItem[]>([]);
   const [hasMore, setHasMore] = useState(true);
@@ -63,21 +69,37 @@ export default function LibraryDetailScreen() {
   }, [isFetching, hasMore]);
 
   const renderItem = useCallback(
-    ({ item, index }: { item: V1MediaItem; index: number }) => (
-      <FocusableCard
-        onPress={() => router.push(`/media/${item.id}`)}
-        hasTVPreferredFocus={index === 0}
-        style={styles.gridItem}
-      >
-        <View style={[styles.poster, { borderRadius: theme.radii.sm, backgroundColor: theme.colors.surface }]}>
-          <Text style={{ color: theme.colors.textMuted, fontSize: 18 }}>?</Text>
-        </View>
-        <Text style={[styles.title, { color: theme.colors.text }]} numberOfLines={2}>
-          {item.title}
-        </Text>
-      </FocusableCard>
-    ),
-    [theme, router],
+    ({ item, index }: { item: V1MediaItem; index: number }) => {
+      const posterUri = item.id ? artworkUrl(serverUrl, item.id, "poster", CARD_WIDTH * 2) : undefined;
+      const blurhash = (item.artwork ?? []).find((a) => a.type === "ARTWORK_TYPE_PRIMARY")?.blurhash;
+      return (
+        <FocusableCard
+          onPress={() => router.push(`/media/${item.id}`)}
+          hasTVPreferredFocus={index === 0}
+          style={styles.gridItem}
+        >
+          <View style={[styles.poster, { borderRadius: theme.radii.sm, backgroundColor: theme.colors.surface, overflow: "hidden" }]}>
+            {posterUri ? (
+              <Image
+                source={{ uri: posterUri, headers: authHeaders }}
+                style={StyleSheet.absoluteFill}
+                contentFit="cover"
+                transition={200}
+                recyclingKey={item.id}
+                placeholder={blurhash ? { blurhash } : undefined}
+                placeholderContentFit="cover"
+              />
+            ) : (
+              <Text style={{ color: theme.colors.textMuted, fontSize: 18 }}>?</Text>
+            )}
+          </View>
+          <Text style={[styles.title, { color: theme.colors.text }]} numberOfLines={2}>
+            {item.title}
+          </Text>
+        </FocusableCard>
+      );
+    },
+    [theme, router, serverUrl, authHeaders],
   );
 
   return (

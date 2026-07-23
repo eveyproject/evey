@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Text, StyleSheet } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../providers/ThemeProvider";
@@ -40,9 +41,13 @@ interface SkipIntroButtonProps {
   mediaId?: string;
   currentTime: number;
   onSkip: (toSec: number) => void;
+  // Reports whether the button is currently showing, so the player screen can
+  // include it in its overlay set (the button holds TV focus while visible, so
+  // OK must not ALSO toggle play/pause - the double-fire the audit found).
+  onVisibleChange?: (visible: boolean) => void;
 }
 
-export function SkipIntroButton({ mediaId, currentTime, onSkip }: SkipIntroButtonProps) {
+export function SkipIntroButton({ mediaId, currentTime, onSkip, onVisibleChange }: SkipIntroButtonProps) {
   const { t } = useTranslation();
   const theme = useTheme();
 
@@ -53,12 +58,20 @@ export function SkipIntroButton({ mediaId, currentTime, onSkip }: SkipIntroButto
     .map((s) => ({ type: s.type as SkippableType, startSec: s.startMs / 1000, endSec: s.endMs / 1000 }));
   const resolved = active(candidates, currentTime);
 
+  // Hook must run before the early return below (rules of hooks).
+  const visible = resolved !== null;
+  useEffect(() => {
+    onVisibleChange?.(visible);
+    return () => onVisibleChange?.(false);
+  }, [visible, onVisibleChange]);
+
   if (!resolved) return null;
 
   const labelKey = LABEL_KEY[resolved.type];
 
   return (
     <FocusableCard
+      hasTVPreferredFocus
       onPress={() => onSkip(resolved.endSec)}
       accessibilityLabel={t(labelKey)}
       style={[styles.button, { borderColor: theme.colors.border, backgroundColor: theme.colors.overlay }]}

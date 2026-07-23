@@ -55,6 +55,7 @@ export default function PlayerScreen() {
   const [showTrackMenu, setShowTrackMenu] = useState(false);
   const [showAudioPicker, setShowAudioPicker] = useState(false);
   const [showSubtitlePicker, setShowSubtitlePicker] = useState(false);
+  const [skipVisible, setSkipVisible] = useState(false);
   const [selectedQuality, setSelectedQuality] = useState(0);
   const [selectedAudioIndex, setSelectedAudioIndex] = useState<number>(0);
   const [selectedSubtitleIndex, setSelectedSubtitleIndex] = useState<number | null>(null);
@@ -365,6 +366,11 @@ export default function PlayerScreen() {
     // kept interpreting the same key here (e.g. "select") it would double-fire
     // (native onPress AND togglePlayPause()).
     if (anyOverlayOpen) return;
+    // The Skip button holds TV focus while visible; its own FocusableCard
+    // native onPress handles OK, so don't ALSO toggle play/pause on "select"
+    // (the double-fire the audit found). The dedicated playPause remote key
+    // still pauses during an intro.
+    if (skipVisible && type === "select") return;
     if (type === "select" || type === "playPause") {
       togglePlayPause();
     } else if (type === "longSelect") {
@@ -524,7 +530,7 @@ export default function PlayerScreen() {
         onClose={() => setShowSubtitlePicker(false)}
       />
 
-      <SkipIntroButton mediaId={mediaId} currentTime={currentTime} onSkip={handleSkipIntro} />
+      <SkipIntroButton mediaId={mediaId} currentTime={currentTime} onSkip={handleSkipIntro} onVisibleChange={setSkipVisible} />
 
       <NextEpisodeOverlay
         visible={nextEp.visible}
