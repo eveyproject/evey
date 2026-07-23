@@ -67,7 +67,7 @@ func (h *playbackHandler) audit(ctx context.Context, userID, action, resourceTyp
 		e.DeviceName = &dn
 	}
 	if err := h.activitySvc.CreateAuditEntry(ctx, e); err != nil {
-		slog.Warn("audit log failed", slog.String("action", action), slog.Any("err", err))
+		slog.WarnContext(ctx, "audit log failed", slog.String("action", action), slog.Any("err", err))
 	}
 }
 
@@ -169,7 +169,7 @@ func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStre
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		slog.Warn("grpc GetStreamInfo: media item query failed", slog.Any("err", err))
+		slog.WarnContext(ctx, "grpc GetStreamInfo: media item query failed", slog.Any("err", err))
 		return nil, status.Error(codes.NotFound, "media item not found")
 	}
 	// Mirror StartStream: a parental-blocked item must look non-existent. Without
@@ -194,7 +194,7 @@ func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStre
 	}
 	streams, err := h.librarySvc.GetMediaStreams(ctx, req.MediaItemId)
 	if err != nil {
-		slog.Warn("get media streams", slog.String("media_item_id", req.MediaItemId), slog.Any("err", err))
+		slog.WarnContext(ctx, "get media streams", slog.String("media_item_id", req.MediaItemId), slog.Any("err", err))
 	}
 	// On-demand keyframe fill: when the paced background backfill hasn't
 	// indexed this file yet, try the bounded fast-path (container seek index,
@@ -521,7 +521,7 @@ func (h *playbackHandler) StopStream(ctx context.Context, req *eveyv1.StopStream
 			return nil, tErr
 		}
 		span.SetStatus(otelcodes.Error, err.Error())
-		slog.Error("stop stream", slog.Any("err", err))
+		slog.ErrorContext(ctx, "stop stream", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	if sessErr == nil && sess != nil && h.hlsManager != nil {
@@ -555,7 +555,7 @@ func (h *playbackHandler) lastActiveStreamForMedia(ctx context.Context, mediaIte
 	}
 	active, err := h.query.GetActiveSessions(ctx)
 	if err != nil {
-		slog.Warn("StopStream: GetActiveSessions failed; leaving transcode to idle GC",
+		slog.WarnContext(ctx, "StopStream: GetActiveSessions failed; leaving transcode to idle GC",
 			slog.String("media_id", mediaItemID), slog.Any("err", err))
 		return false
 	}
@@ -607,7 +607,7 @@ func (h *playbackHandler) ReportProgress(ctx context.Context, req *eveyv1.Report
 			return nil, tErr
 		}
 		span.SetStatus(otelcodes.Error, err.Error())
-		slog.Error("report progress", slog.Any("err", err))
+		slog.ErrorContext(ctx, "report progress", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	return resp, nil
@@ -638,7 +638,7 @@ func (h *playbackHandler) GetWatchProgress(ctx context.Context, req *eveyv1.GetW
 		}
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		slog.Error("get watch progress", slog.Any("err", err))
+		slog.ErrorContext(ctx, "get watch progress", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	return watchProgressToProto(wp), nil
@@ -674,7 +674,7 @@ func (h *playbackHandler) GetWatchHistory(ctx context.Context, req *eveyv1.GetWa
 			if err != nil {
 				span.RecordError(err)
 				span.SetStatus(otelcodes.Error, err.Error())
-				slog.Warn("grpc GetWatchHistory: invalid cursor", slog.Any("err", err))
+				slog.WarnContext(ctx, "grpc GetWatchHistory: invalid cursor", slog.Any("err", err))
 				return nil, status.Error(codes.InvalidArgument, "invalid cursor")
 			}
 			cursor = &playback.WatchHistoryCursor{LastPlayedAt: c.t, MediaItemID: c.id}
@@ -689,7 +689,7 @@ func (h *playbackHandler) GetWatchHistory(ctx context.Context, req *eveyv1.GetWa
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		slog.Error("get watch history", slog.Any("err", err))
+		slog.ErrorContext(ctx, "get watch history", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	allowedIDs, _ := h.getAllowedLibraryIDs(ctx)
@@ -774,7 +774,7 @@ func (h *playbackHandler) mediaItemMap(ctx context.Context, ids []string) map[st
 	}
 	mis, err := h.librarySvc.GetMediaItemsByIDs(ctx, ids)
 	if err != nil {
-		slog.Warn("watch history: batch fetch media items", slog.Any("err", err))
+		slog.WarnContext(ctx, "watch history: batch fetch media items", slog.Any("err", err))
 		return m
 	}
 	for _, mi := range mis {
@@ -808,7 +808,7 @@ func (h *playbackHandler) GetResumeItems(ctx context.Context, req *eveyv1.GetRes
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		slog.Error("get resume items", slog.Any("err", err))
+		slog.ErrorContext(ctx, "get resume items", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	allowedIDs, _ := h.getAllowedLibraryIDs(ctx)
@@ -827,7 +827,7 @@ func (h *playbackHandler) GetResumeItems(ctx context.Context, req *eveyv1.GetRes
 		}
 		mis, mErr := h.librarySvc.GetMediaItemsByIDs(ctx, ids)
 		if mErr != nil {
-			slog.Warn("resume items: batch fetch media items", slog.Any("err", mErr))
+			slog.WarnContext(ctx, "resume items: batch fetch media items", slog.Any("err", mErr))
 		}
 		allowed := make(map[string]bool, len(mis))
 		for _, mi := range mis {
@@ -887,7 +887,7 @@ func (h *playbackHandler) GetNextUp(ctx context.Context, req *eveyv1.GetNextUpRe
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		slog.Error("get media items for next up", slog.Any("err", err))
+		slog.ErrorContext(ctx, "get media items for next up", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	allowedIDs, _ := h.getAllowedLibraryIDs(ctx)
@@ -942,7 +942,7 @@ func (h *playbackHandler) MarkAsWatched(ctx context.Context, req *eveyv1.MarkAsW
 			return nil, tErr
 		}
 		span.SetStatus(otelcodes.Error, err.Error())
-		slog.Error("mark as watched", slog.Any("err", err))
+		slog.ErrorContext(ctx, "mark as watched", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	return &eveyv1.MarkAsWatchedResponse{}, nil
@@ -976,7 +976,7 @@ func (h *playbackHandler) MarkAsUnwatched(ctx context.Context, req *eveyv1.MarkA
 			return nil, tErr
 		}
 		span.SetStatus(otelcodes.Error, err.Error())
-		slog.Error("mark as unwatched", slog.Any("err", err))
+		slog.ErrorContext(ctx, "mark as unwatched", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	return &eveyv1.MarkAsUnwatchedResponse{}, nil
@@ -1008,7 +1008,7 @@ func (h *playbackHandler) ClearWatchHistory(ctx context.Context, req *eveyv1.Cle
 			return nil, tErr
 		}
 		span.SetStatus(otelcodes.Error, err.Error())
-		slog.Error("clear watch history", slog.Any("err", err))
+		slog.ErrorContext(ctx, "clear watch history", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	return &eveyv1.ClearWatchHistoryResponse{Deleted: int32(deleted)}, nil

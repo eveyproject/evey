@@ -71,13 +71,13 @@ func (h *libraryHandler) GetLibrary(ctx context.Context, req *eveyv1.GetLibraryR
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, "library not found")
-		slog.Warn("grpc GetLibrary: query failed", slog.Any("err", err))
+		slog.WarnContext(ctx, "grpc GetLibrary: query failed", slog.Any("err", err))
 		return nil, status.Error(codes.NotFound, "library not found")
 	}
 	if ok, accessErr := h.checkLibraryAccess(ctx, lib.ID); !ok {
 		if accessErr != nil {
 			span.RecordError(accessErr)
-			slog.Warn("check library access", slog.Any("err", accessErr))
+			slog.WarnContext(ctx, "check library access", slog.Any("err", accessErr))
 		}
 		span.SetStatus(otelcodes.Error, "library access denied")
 		return nil, status.Error(codes.NotFound, "library not found")
@@ -118,7 +118,7 @@ func (h *libraryHandler) UpdateLibrary(ctx context.Context, req *eveyv1.UpdateLi
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, "library not found")
-		slog.Warn("grpc UpdateLibrary: query failed", slog.Any("err", err))
+		slog.WarnContext(ctx, "grpc UpdateLibrary: query failed", slog.Any("err", err))
 		return nil, status.Error(codes.NotFound, "library not found")
 	}
 	// Defense-in-depth IDOR check: RBAC already restricts this RPC to admins,
@@ -127,7 +127,7 @@ func (h *libraryHandler) UpdateLibrary(ctx context.Context, req *eveyv1.UpdateLi
 	if ok, accessErr := h.checkLibraryAccess(ctx, lib.ID); !ok {
 		if accessErr != nil {
 			span.RecordError(accessErr)
-			slog.Warn("update library access check", slog.Any("err", accessErr))
+			slog.WarnContext(ctx, "update library access check", slog.Any("err", accessErr))
 		}
 		span.SetStatus(otelcodes.Error, "library access denied")
 		return nil, status.Error(codes.NotFound, "library not found")
@@ -166,7 +166,7 @@ func (h *libraryHandler) DeleteLibrary(ctx context.Context, req *eveyv1.DeleteLi
 	if ok, accessErr := h.checkLibraryAccess(ctx, shared.LibraryID(req.Id)); !ok {
 		if accessErr != nil {
 			span.RecordError(accessErr)
-			slog.Warn("delete library access check", slog.Any("err", accessErr))
+			slog.WarnContext(ctx, "delete library access check", slog.Any("err", accessErr))
 		}
 		span.SetStatus(otelcodes.Error, "library access denied")
 		return nil, status.Error(codes.NotFound, "library not found")
@@ -222,13 +222,13 @@ func (h *libraryHandler) loadGatedMediaItem(ctx context.Context, span trace.Span
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, "media item not found")
-		slog.Warn("grpc: media item query failed", slog.Any("err", err))
+		slog.WarnContext(ctx, "grpc: media item query failed", slog.Any("err", err))
 		return nil, status.Error(codes.NotFound, "media item not found")
 	}
 	if ok, accessErr := h.checkLibraryAccess(ctx, item.LibraryID); !ok {
 		if accessErr != nil {
 			span.RecordError(accessErr)
-			slog.Warn("check library access", slog.Any("err", accessErr))
+			slog.WarnContext(ctx, "check library access", slog.Any("err", accessErr))
 		}
 		span.SetStatus(otelcodes.Error, "library access denied")
 		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.media.not_found")
@@ -280,7 +280,7 @@ func (h *libraryHandler) GetMediaItem(ctx context.Context, req *eveyv1.GetMediaI
 	// diagnosable instead of invisible.
 	if h.metadataSvc != nil {
 		if artworks, err := h.metadataSvc.GetArtwork(ctx, req.Id); err != nil {
-			slog.Warn("media detail: load artwork failed", slog.String("media_item_id", req.Id), slog.Any("err", err))
+			slog.WarnContext(ctx, "media detail: load artwork failed", slog.String("media_item_id", req.Id), slog.Any("err", err))
 		} else {
 			for _, a := range artworks {
 				pb.Artwork = append(pb.Artwork, artworkRecordToProto(a))
@@ -288,14 +288,14 @@ func (h *libraryHandler) GetMediaItem(ctx context.Context, req *eveyv1.GetMediaI
 		}
 	}
 	if cast, err := h.query.GetCast(ctx, req.Id); err != nil {
-		slog.Warn("media detail: load cast failed", slog.String("media_item_id", req.Id), slog.Any("err", err))
+		slog.WarnContext(ctx, "media detail: load cast failed", slog.String("media_item_id", req.Id), slog.Any("err", err))
 	} else {
 		for _, cm := range cast {
 			pb.People = append(pb.People, castMemberToProto(cm))
 		}
 	}
 	if streams, err := h.query.GetMediaStreams(ctx, req.Id); err != nil {
-		slog.Warn("media detail: load streams failed", slog.String("media_item_id", req.Id), slog.Any("err", err))
+		slog.WarnContext(ctx, "media detail: load streams failed", slog.String("media_item_id", req.Id), slog.Any("err", err))
 	} else {
 		for _, s := range streams {
 			pb.Streams = append(pb.Streams, mediaStreamToProto(s))
@@ -364,7 +364,7 @@ func (h *libraryHandler) applyMediaItemsLibraryAccess(ctx context.Context, req *
 	if req.LibraryId != "" {
 		if ok, accessErr := h.checkLibraryAccess(ctx, shared.LibraryID(req.LibraryId)); !ok {
 			if accessErr != nil {
-				slog.Warn("check library access", slog.Any("err", accessErr))
+				slog.WarnContext(ctx, "check library access", slog.Any("err", accessErr))
 			}
 			return false
 		}
@@ -380,7 +380,7 @@ func (h *libraryHandler) applyMediaItemsLibraryAccess(ctx context.Context, req *
 // cursor is present, decodes it and resets Offset (cursor paging takes
 // precedence over offset paging). Returns a formatted gRPC error on an
 // invalid cursor.
-func (h *libraryHandler) applyMediaItemsPagination(span trace.Span, pagination *eveyv1.PaginationRequest, filter *library.ListMediaItemsFilter) error {
+func (h *libraryHandler) applyMediaItemsPagination(ctx context.Context, span trace.Span, pagination *eveyv1.PaginationRequest, filter *library.ListMediaItemsFilter) error {
 	if pagination == nil {
 		return nil
 	}
@@ -390,7 +390,7 @@ func (h *libraryHandler) applyMediaItemsPagination(span trace.Span, pagination *
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, "invalid cursor")
-			slog.Warn("grpc ListMediaItems: invalid cursor", slog.Any("err", err))
+			slog.WarnContext(ctx, "grpc ListMediaItems: invalid cursor", slog.Any("err", err))
 			return status.Error(codes.InvalidArgument, "invalid cursor")
 		}
 		filter.Cursor = cursor
@@ -410,7 +410,7 @@ func (h *libraryHandler) overlayMediaItemsLocale(ctx context.Context, ids []stri
 	}
 	trans, tErr := h.query.GetMediaItemTranslations(ctx, ids, locale)
 	if tErr != nil {
-		slog.Warn("list media items: localize titles", slog.Any("err", tErr))
+		slog.WarnContext(ctx, "list media items: localize titles", slog.Any("err", tErr))
 		return
 	}
 	for _, item := range items {
@@ -454,7 +454,7 @@ func (h *libraryHandler) fetchMediaItemsArtwork(ctx context.Context, ids []strin
 	}
 	artworkMap, artErr := h.metadataSvc.BatchGetArtwork(ctx, ids)
 	if artErr != nil {
-		slog.Warn("batch get artwork", slog.Any("err", artErr))
+		slog.WarnContext(ctx, "batch get artwork", slog.Any("err", artErr))
 	}
 	return artworkMap
 }
@@ -467,7 +467,7 @@ func (h *libraryHandler) fetchMediaItemsCast(ctx context.Context, req *eveyv1.Li
 	}
 	castMap, castErr := h.query.GetCastForItems(ctx, ids)
 	if castErr != nil {
-		slog.Warn("batch get cast for person filter", slog.Any("err", castErr))
+		slog.WarnContext(ctx, "batch get cast for person filter", slog.Any("err", castErr))
 	}
 	return castMap
 }
@@ -500,7 +500,7 @@ func (h *libraryHandler) ListMediaItems(ctx context.Context, req *eveyv1.ListMed
 	if !h.applyMediaItemsLibraryAccess(ctx, req, &filter) {
 		return &eveyv1.ListMediaItemsResponse{Pagination: &eveyv1.PaginationResponse{}}, nil
 	}
-	if err := h.applyMediaItemsPagination(span, req.Pagination, &filter); err != nil {
+	if err := h.applyMediaItemsPagination(ctx, span, req.Pagination, &filter); err != nil {
 		return nil, err
 	}
 	pf := h.resolveParentalFilter(ctx)
@@ -1031,7 +1031,7 @@ func (h *libraryHandler) SetLibrarySchedule(ctx context.Context, req *eveyv1.Set
 		span.RecordError(err)
 		if strings.HasPrefix(err.Error(), "invalid cron") {
 			span.SetStatus(otelcodes.Error, "invalid cron expression")
-			slog.Warn("grpc SetLibrarySchedule: invalid cron expression", slog.Any("err", err))
+			slog.WarnContext(ctx, "grpc SetLibrarySchedule: invalid cron expression", slog.Any("err", err))
 			return nil, status.Error(codes.InvalidArgument, "invalid cron expression")
 		}
 		span.SetStatus(otelcodes.Error, err.Error())
@@ -1056,7 +1056,7 @@ func (h *libraryHandler) DeleteLibrarySchedule(ctx context.Context, req *eveyv1.
 	if h.scheduler != nil {
 		if delErr := h.scheduler.DeleteSchedule(ctx, req.Id); delErr != nil {
 			span.RecordError(delErr)
-			slog.Warn("delete schedule", slog.Any("err", delErr))
+			slog.WarnContext(ctx, "delete schedule", slog.Any("err", delErr))
 		}
 	}
 	return &eveyv1.DeleteLibraryScheduleResponse{}, nil
@@ -1082,7 +1082,7 @@ func (h *libraryHandler) FilterMediaItems(ctx context.Context, req *eveyv1.Filte
 	if req.LibraryId != "" {
 		if ok, accessErr := h.checkLibraryAccess(ctx, shared.LibraryID(req.LibraryId)); !ok {
 			if accessErr != nil {
-				slog.Warn("check library access", slog.Any("err", accessErr))
+				slog.WarnContext(ctx, "check library access", slog.Any("err", accessErr))
 			}
 			return &eveyv1.FilterMediaItemsResponse{}, nil
 		}
@@ -1145,7 +1145,7 @@ func (h *libraryHandler) ListGenres(ctx context.Context, req *eveyv1.ListGenresR
 	}
 	if ok, accessErr := h.checkLibraryAccess(ctx, shared.LibraryID(req.LibraryId)); !ok {
 		if accessErr != nil {
-			slog.Warn("check library access", slog.Any("err", accessErr))
+			slog.WarnContext(ctx, "check library access", slog.Any("err", accessErr))
 		}
 		return &eveyv1.ListGenresResponse{}, nil
 	}
