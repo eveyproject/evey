@@ -192,8 +192,8 @@ func (s *SeekIndexService) processFiles(bg context.Context, op string, paths []s
 
 func (s *SeekIndexService) tryStart(kind, libraryID string) bool {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	if s.running {
+		s.mu.Unlock()
 		return false
 	}
 	s.running = true
@@ -203,18 +203,21 @@ func (s *SeekIndexService) tryStart(kind, libraryID string) bool {
 		Phase:     PhaseScanning,
 		StartedAt: time.Now(),
 	}
-	s.saveJobMarker()
+	data := s.marshalJobMarker()
+	s.mu.Unlock()
+	s.writeJobMarker(data)
 	return true
 }
 
 func (s *SeekIndexService) setPhase(phase string, total int) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.cur.Phase = phase
 	s.cur.Total = total
 	s.cur.Done, s.cur.Failed, s.cur.Skipped = 0, 0, 0
 	s.cur.CurrentPath = ""
-	s.saveJobMarker()
+	data := s.marshalJobMarker()
+	s.mu.Unlock()
+	s.writeJobMarker(data)
 }
 
 func (s *SeekIndexService) setCurrent(path string) {
@@ -229,8 +232,9 @@ func (s *SeekIndexService) recordDone(skipped bool) {
 	if skipped {
 		s.cur.Skipped++
 	}
-	s.saveJobMarker()
+	data := s.marshalJobMarker()
 	s.mu.Unlock()
+	s.writeJobMarker(data)
 }
 
 // jobFailures accumulates outside JobStatus so Status() copies stay cheap.
@@ -241,7 +245,6 @@ type jobFailures struct {
 
 func (s *SeekIndexService) recordFailure(path string, err error) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.cur.Done++
 	s.cur.Failed++
 	ro := IsReadOnlyFS(err)
@@ -251,7 +254,9 @@ func (s *SeekIndexService) recordFailure(path string, err error) {
 	if len(s.curFailures.list) < maxFailures {
 		s.curFailures.list = append(s.curFailures.list, Failure{Path: path, Error: err.Error(), ReadOnly: ro})
 	}
-	s.saveJobMarker()
+	data := s.marshalJobMarker()
+	s.mu.Unlock()
+	s.writeJobMarker(data)
 }
 
 func (s *SeekIndexService) finish(jobErr error) {

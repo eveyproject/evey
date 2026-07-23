@@ -128,11 +128,12 @@ type persistedJob struct {
 	StartedAt time.Time `json:"startedAt"`
 }
 
-// saveJobMarker snapshots the running job. Called with s.mu held (it reads
-// s.cur) - the write itself is tiny.
-func (s *SeekIndexService) saveJobMarker() {
+// marshalJobMarker snapshots the running job into its persisted bytes. Called
+// with s.mu held (it reads s.running + s.cur); returns nil when there is nothing
+// to persist (no state dir, or no job running) so the paired write no-ops.
+func (s *SeekIndexService) marshalJobMarker() []byte {
 	if s.stateDir == "" || !s.running {
-		return
+		return nil
 	}
 	data, err := json.Marshal(persistedJob{
 		Kind: s.cur.Kind, Scope: s.cur.Scope, Phase: s.cur.Phase,
@@ -140,6 +141,17 @@ func (s *SeekIndexService) saveJobMarker() {
 		StartedAt: s.cur.StartedAt,
 	})
 	if err != nil {
+		return nil
+	}
+	return data
+}
+
+// writeJobMarker persists the bytes marshalJobMarker produced. Called WITHOUT
+// s.mu held so a slow NAS disk write never blocks Status()/Cancel() mid-batch
+// (the marshal already happened under the lock). Jobs are serialized on one
+// goroutine, so there is no concurrent writer of this file.
+func (s *SeekIndexService) writeJobMarker(data []byte) {
+	if data == nil {
 		return
 	}
 	if err := os.WriteFile(filepath.Join(s.stateDir, stateJobFile), data, 0o644); err != nil {
