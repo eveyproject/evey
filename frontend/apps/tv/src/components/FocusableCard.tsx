@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from "react";
-import { Pressable, StyleSheet, type ViewStyle, type StyleProp } from "react-native";
+import { Pressable, StyleSheet, type ViewStyle, type StyleProp, type AccessibilityState } from "react-native";
 import { useTheme } from "../providers/ThemeProvider";
 
 interface FocusableCardProps {
@@ -9,6 +9,10 @@ interface FocusableCardProps {
   focusedStyle?: StyleProp<ViewStyle>;
   hasTVPreferredFocus?: boolean;
   accessibilityLabel?: string;
+  // accessibilityState conveys selected/disabled to the screen reader - a
+  // colour-only "active" chip is invisible without it. Optional, so every
+  // existing call site is unchanged.
+  accessibilityState?: AccessibilityState;
 }
 
 export const FocusableCard = React.memo(function FocusableCard({
@@ -18,6 +22,7 @@ export const FocusableCard = React.memo(function FocusableCard({
   focusedStyle,
   hasTVPreferredFocus,
   accessibilityLabel,
+  accessibilityState,
 }: FocusableCardProps) {
   const [focused, setFocused] = useState(false);
   const theme = useTheme();
@@ -40,6 +45,7 @@ export const FocusableCard = React.memo(function FocusableCard({
       accessible={true}
       accessibilityLabel={accessibilityLabel}
       accessibilityRole="button"
+      accessibilityState={accessibilityState}
     >
       {children}
     </Pressable>

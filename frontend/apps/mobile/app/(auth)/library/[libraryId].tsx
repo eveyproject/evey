@@ -191,6 +191,24 @@ export default function LibraryDetailScreen() {
       { query: { enabled: !!libraryId } },
     );
 
+  // Reset pagination when filters/sort change. Declared BEFORE the accumulate
+  // effect ON PURPOSE: React runs effects in declaration order, so when a
+  // filter flips back to a value whose page-1 is already cached (query resolves
+  // synchronously), this clear runs FIRST and the accumulate repopulates
+  // SECOND. The reverse order let the accumulate fill allItems and this clear
+  // wipe it with no re-run ([data,page] deps unchanged) - a persistent empty
+  // grid on the common peek-a-genre-then-back flow over a static library.
+  const resetAndRefetch = useCallback(() => {
+    setPage(1);
+    setAllItems([]);
+    setHasMore(true);
+    prevDataRef.current = null;
+  }, []);
+
+  useEffect(() => {
+    resetAndRefetch();
+  }, [sortField, sortOrder, genre, resetAndRefetch]);
+
   useEffect(() => {
     if (!data || data === prevDataRef.current) return;
     prevDataRef.current = data;
@@ -203,18 +221,6 @@ export default function LibraryDetailScreen() {
     const totalPages = data.pagination?.totalPages ?? 1;
     setHasMore(page < totalPages);
   }, [data, page]);
-
-  // Reset pagination when filters/sort change
-  const resetAndRefetch = useCallback(() => {
-    setPage(1);
-    setAllItems([]);
-    setHasMore(true);
-    prevDataRef.current = null;
-  }, []);
-
-  useEffect(() => {
-    resetAndRefetch();
-  }, [sortField, sortOrder, genre, resetAndRefetch]);
 
   const totalItems = data?.pagination?.totalItems ?? 0;
 
@@ -532,6 +538,8 @@ export default function LibraryDetailScreen() {
               ]}
               activeOpacity={0.7}
               onPress={() => setViewMode((v) => (v === "grid" ? "list" : "grid"))}
+              accessibilityRole="button"
+              accessibilityLabel={t(viewMode === "grid" ? "common.switchToListView" : "common.switchToGridView")}
             >
               <Ionicons
                 name={viewMode === "grid" ? "list" : "grid"}

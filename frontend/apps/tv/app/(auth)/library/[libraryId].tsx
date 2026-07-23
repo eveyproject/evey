@@ -48,6 +48,7 @@ function GenreChip({ label, active, onPress }: { label: string; active: boolean;
         { backgroundColor: active ? theme.colors.accent : theme.colors.surface },
       ]}
       accessibilityLabel={label}
+      accessibilityState={{ selected: active }}
     >
       <Text style={{ color: active ? "#fff" : theme.colors.text, fontSize: 18, fontWeight: "600" }}>{label}</Text>
     </FocusableCard>
@@ -84,6 +85,21 @@ export default function LibraryDetailScreen() {
     { query: { enabled: !!libraryId } },
   );
 
+  // Reset pagination when the genre filter changes. Declared BEFORE the
+  // accumulate effect ON PURPOSE: React runs effects in declaration order, so
+  // on the render where genre flips to a value whose page-1 is already cached
+  // (query resolves synchronously), this clear must run FIRST and the
+  // accumulate effect repopulates SECOND. The reverse order let the accumulate
+  // fill allItems and this clear wipe it to [] with no re-run (its [data,page]
+  // deps were unchanged) - a persistent empty grid on the common peek-a-genre-
+  // then-back-to-All flow over a static library.
+  useEffect(() => {
+    setPage(1);
+    setAllItems([]);
+    setHasMore(true);
+    prevDataRef.current = null;
+  }, [genre]);
+
   useEffect(() => {
     if (!data || data === prevDataRef.current) return;
     prevDataRef.current = data;
@@ -96,14 +112,6 @@ export default function LibraryDetailScreen() {
     const totalPages = data.pagination?.totalPages ?? 1;
     setHasMore(page < totalPages);
   }, [data, page]);
-
-  // Reset pagination when the genre filter changes, same as the mobile screen.
-  useEffect(() => {
-    setPage(1);
-    setAllItems([]);
-    setHasMore(true);
-    prevDataRef.current = null;
-  }, [genre]);
 
   // Shuffle play: no local-only facet exists on this screen (the genre
   // filter is server-side), so a shuffle always draws from the WHOLE library
