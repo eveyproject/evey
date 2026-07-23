@@ -128,6 +128,24 @@ describe("SegmentTimeline", () => {
     expect(onChange).toHaveBeenCalledWith("intro", introSegment.startMs, 95000);
   });
 
+  it("slider labels are internationalized (no hardcoded French)", () => {
+    // The app falls back to English, so hardcoded French labels leak to every
+    // non-French user. The selected-segment editor must render its start/end
+    // labels through i18n, not literal "Début"/"Fin".
+    render(
+      <SegmentTimeline
+        segments={[introSegment]}
+        durationMs={2700000}
+        selectedType="intro"
+        onSelectSegment={vi.fn()}
+        onSegmentChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByText(/Début/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Fin/)).not.toBeInTheDocument();
+  });
+
   it("shows lock icon for source=manual", () => {
     render(
       <SegmentTimeline

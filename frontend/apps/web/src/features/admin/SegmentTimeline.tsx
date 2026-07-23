@@ -114,7 +114,7 @@ function SegmentEditor({ segment, durationMs, onStartChange, onEndChange }: Segm
 
       <div className="flex flex-col gap-1">
         <label className="text-xs text-[var(--text-muted)]">
-          Début : {formatMs(segment.startMs)}
+          {t("admin.segments.startLabel")}
         </label>
         <input
           type="range"
@@ -133,7 +133,7 @@ function SegmentEditor({ segment, durationMs, onStartChange, onEndChange }: Segm
 
       <div className="flex flex-col gap-1">
         <label className="text-xs text-[var(--text-muted)]">
-          Fin : {formatMs(segment.endMs)}
+          {t("admin.segments.endLabel")}
         </label>
         <input
           type="range"
