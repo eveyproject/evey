@@ -159,6 +159,60 @@ func TestNotificationRepo_CleanupExpired(t *testing.T) {
 	assert.Equal(t, "active", list[0].ID)
 }
 
+func TestNotificationRepo_FindRecentByProfilesTypeAndSeries(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	seedNotifProfile(t, db, "pBatchA", "notif-batch-u1")
+	seedNotifProfile(t, db, "pBatchB", "notif-batch-u2")
+
+	repo := postgres.NewNotificationRepository(db)
+	ctx := context.Background()
+	now := time.Now().UTC().Truncate(time.Millisecond)
+	expires := now.Add(24 * time.Hour)
+
+	mk := func(id, profileID string, typ notification.Type, relatedMediaID string, createdAt time.Time) {
+		require.NoError(t, repo.Create(ctx, &notification.Notification{
+			ID: id, ProfileID: shared.ProfileID(profileID), Type: typ, Title: "T",
+			RelatedMediaID: shared.MediaItemID(relatedMediaID),
+			Level:          notification.LevelAll,
+			CreatedAt:      createdAt,
+			ExpiresAt:      &expires,
+		}))
+	}
+
+	// Matches for pBatchA: a recent series notif for "lib1:Foo".
+	mk("a-series", "pBatchA", notification.TypeNewSeries, "lib1:Foo", now)
+	// Matches for pBatchB: a recent episode notif for the same series key.
+	mk("b-episode", "pBatchB", notification.TypeNewEpisode, "lib1:Foo", now)
+	// Must NOT match: different series key.
+	mk("a-other-series", "pBatchA", notification.TypeNewMovie, "lib1:Bar", now)
+	// Must NOT match: outside the since window.
+	mk("a-old", "pBatchA", notification.TypeNewSeries, "lib1:Foo", now.Add(-48*time.Hour))
+	// Must NOT match: profile not in the requested set.
+	seedNotifProfile(t, db, "pBatchC", "notif-batch-u3")
+	mk("c-series", "pBatchC", notification.TypeNewSeries, "lib1:Foo", now)
+
+	since := now.Add(-24 * time.Hour)
+	types := []notification.Type{notification.TypeNewSeries, notification.TypeNewSeason, notification.TypeNewEpisode}
+
+	byProfile, err := repo.FindRecentByProfilesTypeAndSeries(ctx, []string{"pBatchA", "pBatchB"}, types, "lib1:Foo", since)
+	require.NoError(t, err)
+
+	require.Len(t, byProfile["pBatchA"], 1)
+	assert.Equal(t, "a-series", byProfile["pBatchA"][0].ID)
+
+	require.Len(t, byProfile["pBatchB"], 1)
+	assert.Equal(t, "b-episode", byProfile["pBatchB"][0].ID)
+
+	assert.Empty(t, byProfile["pBatchC"], "profile outside the requested set must not appear in the result")
+
+	// Empty profile list short-circuits without querying.
+	empty, err := repo.FindRecentByProfilesTypeAndSeries(ctx, nil, types, "lib1:Foo", since)
+	require.NoError(t, err)
+	assert.Empty(t, empty)
+}
+
 func TestNotificationSettingsRepo(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()

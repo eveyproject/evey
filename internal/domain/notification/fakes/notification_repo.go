@@ -173,19 +173,26 @@ func (r *FakeNotificationRepository) CleanupExpired(_ context.Context) error {
 	return nil
 }
 
-func (r *FakeNotificationRepository) FindRecentByProfileTypeAndSeries(_ context.Context, profileID string, types []notification.Type, relatedMediaID string, since time.Time) ([]*notification.Notification, error) {
+func (r *FakeNotificationRepository) FindRecentByProfilesTypeAndSeries(_ context.Context, profileIDs []string, types []notification.Type, relatedMediaID string, since time.Time) (map[string][]*notification.Notification, error) {
 	if r.Err != nil {
 		return nil, r.Err
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
+	profileSet := make(map[string]bool, len(profileIDs))
+	for _, id := range profileIDs {
+		profileSet[id] = true
+	}
 	typeSet := make(map[notification.Type]bool, len(types))
 	for _, t := range types {
 		typeSet[t] = true
 	}
-	var out []*notification.Notification
+	out := make(map[string][]*notification.Notification)
 	for _, n := range r.items {
-		if string(n.ProfileID) != profileID {
+		if !profileSet[string(n.ProfileID)] {
 			continue
 		}
 		if !typeSet[n.Type] {
@@ -197,7 +204,7 @@ func (r *FakeNotificationRepository) FindRecentByProfileTypeAndSeries(_ context.
 		if n.CreatedAt.Before(since) {
 			continue
 		}
-		out = append(out, n)
+		out[string(n.ProfileID)] = append(out[string(n.ProfileID)], n)
 	}
 	return out, nil
 }

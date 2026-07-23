@@ -20,9 +20,12 @@ type PushSender interface {
 type Repository interface {
 	Create(ctx context.Context, n *Notification) error
 	ListByProfile(ctx context.Context, profileID string, unreadOnly bool, limit, offset int) ([]*Notification, error)
-	// FindRecentByProfileTypeAndSeries returns notifications matching profileID, one of types,
-	// and relatedMediaID (series ID), created after since. Used for deduplication.
-	FindRecentByProfileTypeAndSeries(ctx context.Context, profileID string, types []Type, relatedMediaID string, since time.Time) ([]*Notification, error)
+	// FindRecentByProfilesTypeAndSeries is the batched form of the per-profile dedup
+	// lookup: it returns, for every profile in profileIDs, the notifications matching
+	// one of types and relatedMediaID (series ID) created after since, in a single
+	// query. Used during episode notification fan-out to avoid one round-trip per
+	// profile per series.
+	FindRecentByProfilesTypeAndSeries(ctx context.Context, profileIDs []string, types []Type, relatedMediaID string, since time.Time) (map[string][]*Notification, error)
 	// Update persists title and episode_count changes on an existing notification.
 	Update(ctx context.Context, n *Notification) error
 	MarkRead(ctx context.Context, id, profileID string) error
