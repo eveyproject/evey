@@ -38,6 +38,15 @@ type CommandService struct {
 	albumArtFetcher AlbumArtFetcher
 	albumArtDir     string
 	searchIndex     music.MusicSearchIndex
+	// albumArtInFlight is the set of library IDs with a running background
+	// album-art fetch. An inotify burst fires ScanDirectory repeatedly; without
+	// this each spawned a detached goroutine racing the others on the same
+	// os.Stat/WriteFile and duplicating lookups against a rate-limited provider.
+	albumArtInFlight sync.Map
+	// shutdownCtx is the service-lifetime context (optional). Detached album-art
+	// fetches derive their timeout from it so a shutdown cancels them instead of
+	// running on context.Background() past a redeploy.
+	shutdownCtx context.Context
 }
 
 func NewCommandService(tracks music.TrackRepository, bus shared.EventBus, libRepo library.LibraryQueryRepo, scanner music.MusicScanner) *CommandService {
@@ -46,6 +55,14 @@ func NewCommandService(tracks music.TrackRepository, bus shared.EventBus, libRep
 
 func (s *CommandService) WithProber(p library.StreamProber) *CommandService {
 	s.prober = p
+	return s
+}
+
+// WithShutdownCtx wires the service-lifetime context so detached background
+// album-art fetches are cancelled at shutdown rather than running on
+// context.Background().
+func (s *CommandService) WithShutdownCtx(ctx context.Context) *CommandService {
+	s.shutdownCtx = ctx
 	return s
 }
 
@@ -410,13 +427,24 @@ func (s *CommandService) kickAlbumArtFetch(libraryID string) {
 	if s.albumArtFetcher == nil || s.albumArtDir == "" {
 		return
 	}
+	// One in-flight fetch per library: a rescan burst re-enters here, and a
+	// second goroutine would only duplicate the same os.Stat/WriteFile and
+	// provider lookups the first is already doing.
+	if _, loaded := s.albumArtInFlight.LoadOrStore(libraryID, struct{}{}); loaded {
+		return
+	}
+	baseCtx := s.shutdownCtx
+	if baseCtx == nil {
+		baseCtx = context.Background()
+	}
 	go func() {
+		defer s.albumArtInFlight.Delete(libraryID)
 		defer func() {
 			if rec := recover(); rec != nil {
 				slog.Error("music: fetch missing album art panic", slog.Any("recover", rec))
 			}
 		}()
-		bgCtx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+		bgCtx, cancel := context.WithTimeout(baseCtx, 10*time.Minute)
 		defer cancel()
 		n, err := s.FetchMissingAlbumArt(bgCtx, libraryID)
 		if err != nil {

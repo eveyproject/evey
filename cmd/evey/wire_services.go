@@ -90,12 +90,13 @@ func buildFeedServices(ctx context.Context, infra *infraDeps) (*appfeed.CommandS
 
 // buildMusicServices wires the music service (in-process mkvgo prober fast-path,
 // iTunes album art, optional search index) and its now-playing registry.
-func buildMusicServices(cfg *config.Config, infra *infraDeps) (*appmusic.Service, *appmusic.NowPlayingRegistry) {
+func buildMusicServices(ctx context.Context, cfg *config.Config, infra *infraDeps) (*appmusic.Service, *appmusic.NowPlayingRegistry) {
 	r := infra.repos
 	bus := infra.bus
 	musicScanner := filesystem.NewMusicScanner()
 	musicSvc := appmusic.NewService(r.MusicTrack, bus, r.Library, musicScanner)
 	musicSvc.WithPlayRepository(r.MusicPlay)
+	musicSvc.CommandService().WithShutdownCtx(ctx)
 	musicNowPlaying := appmusic.NewNowPlayingRegistry()
 	// Same in-process fast-path as the library scan: .m4a (AAC) reads channels /
 	// sample rate / esds bitrate head-only via mkvgo, while .flac/.mp3 (not
