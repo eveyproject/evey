@@ -180,8 +180,12 @@ func startTranscodingWorkers(
 	complexityRepo domaintranscoding.ComplexityRepo,
 	complexityClassifier *ffmpeg.ComplexityClassifier,
 	hlsVODRemover *apptranscoding.ProducerSelector,
-) (*apptranscoding.CapOverrideService, *apptranscoding.KeyframeOnDemand, *proberpkg.KeyframeDispatcher) {
+) (*apptranscoding.CapOverrideService, *apptranscoding.KeyframeOnDemand, *proberpkg.KeyframeDispatcher, []func()) {
 	r := infra.repos
+	// Blocking stoppers for the workers this function STARTS - returned so the
+	// composition root can drain them at shutdown before db.Close (the caller
+	// appends the keyframe-backfill worker's, which it starts itself).
+	var stoppers []func()
 
 	// CMCD-feedback adaptive cap (Phase C). Periodically aggregates
 	// playback_qoe_events to lower the calibration-set ceiling on
@@ -192,6 +196,7 @@ func startTranscodingWorkers(
 		capsOverrideRepo, apptranscoding.CapOverrideServiceOpts{}, slog.Default(),
 	)
 	capsOverrideSvc.Start(ctx)
+	stoppers = append(stoppers, capsOverrideSvc.Close)
 
 	complexityWorker := apptranscoding.NewComplexityWorker(
 		complexityRepo,
@@ -203,6 +208,7 @@ func startTranscodingWorkers(
 		slog.Default(),
 	).WithVideoDims(r.MediaStream)
 	complexityWorker.Start(ctx)
+	stoppers = append(stoppers, complexityWorker.Stop)
 
 	// Level backfill: re-probe existing media to fill media_streams.level. The
 	// scanner skips unchanged files, so it never back-populates the column the
@@ -242,6 +248,7 @@ func startTranscodingWorkers(
 		// viewers instead of probing alongside them (2026-07-19 incident family).
 		levelBackfillWorker.WithActivePlayback(hlsVODRemover.ActivePlaybackCount)
 		levelBackfillWorker.Start(ctx)
+		stoppers = append(stoppers, levelBackfillWorker.Stop)
 	}
 
 	// Keyframe backfill: index keyframe times for copy-eligible media so the
@@ -279,7 +286,7 @@ func startTranscodingWorkers(
 
 	// kfProber is returned because the PACED keyframe backfill worker (built at
 	// the call site, after the load-test runner) shares this same dispatcher.
-	return capsOverrideSvc, keyframeOnDemand, kfProber
+	return capsOverrideSvc, keyframeOnDemand, kfProber, stoppers
 }
 
 // buildLoadTestRunner wires the built-in capacity load test: synthetic viewers

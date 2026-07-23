@@ -271,6 +271,13 @@ func run() error {
 	deps.engagement.pluginHostServer.Stop()
 	deps.engagement.notifCmdSvc.Stop()
 	deps.media.playbackSvc.CommandService().StopProgressFlusher()
+	// Drain the transcode background workers (complexity / level+keyframe backfill
+	// / CMCD cap-override) BEFORE bus.Stop and the deferred db.Close: each blocks
+	// until its in-flight item's write lands, so a batch can't race the closing
+	// pool. Stops before bus.Stop because the keyframe worker subscribes to scan
+	// events. ctx is already cancelled here, so every loop is on its way out; this
+	// just waits for them.
+	deps.stopBackgroundWorkers()
 	deps.bus.Stop()
 	deps.media.streamTokenStore.Stop()
 	deps.media.mediaItemCache.Stop() // stop the cache eviction loop like the other workers
@@ -282,6 +289,24 @@ func run() error {
 	grpcSrv.Stop()
 	rootLog.Info("shutdown complete")
 	return nil
+}
+
+// stopBackgroundWorkers drains every registered background worker, blocking on
+// each until its goroutine exits (each Stop/Close finishes the item in flight,
+// so its last DB write lands before the pool closes). Best-effort: a panicking
+// stopper is recovered and logged so one buggy worker can't wedge the shutdown
+// drain of the others.
+func (d *appDeps) stopBackgroundWorkers() {
+	for _, stop := range d.bgStoppers {
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("shutdown: background worker stop panicked", slog.Any("panic", r))
+				}
+			}()
+			stop()
+		}()
+	}
 }
 
 // serverConfigGetter is the minimal contract loadOverride needs from cfgStore.

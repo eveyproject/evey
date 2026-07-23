@@ -662,7 +662,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		calibrationSvc.DemoteCapability(ctx, class, codec)
 	})
 
-	capsOverrideSvc, keyframeOnDemand, kfProber := startTranscodingWorkers(ctx, db, infra, libCmdSvc, libQuerySvc, complexityRepo, complexityClassifier, hlsVODRemover)
+	capsOverrideSvc, keyframeOnDemand, kfProber, bgStoppers := startTranscodingWorkers(ctx, db, infra, libCmdSvc, libQuerySvc, complexityRepo, complexityClassifier, hlsVODRemover)
 
 	// Built-in load test: synthetic viewers against this server's OWN stack,
 	// through the loopback (real routing, auth, middleware - not a shortcut).
@@ -703,6 +703,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 			// keyframe backfill itself.
 			WithFrameRateAnalyzer(infra.mkvAdapter, r.MediaStream)
 		keyframeBackfillWorker.Start(ctx)
+		bgStoppers = append(bgStoppers, keyframeBackfillWorker.Stop)
 		// Fresh additions: once the library has been quiet for 10 min after a
 		// scan, drain the queue right away instead of waiting the idle cycle.
 		// (Playback that starts sooner is covered by the on-demand inline fill.)
@@ -837,7 +838,8 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// have evicted a hash mid-write if ever re-wired.)
 
 	return &appDeps{
-		bus: bus,
+		bus:        bus,
+		bgStoppers: bgStoppers,
 		// The media-item repo doubles as the seek-index fingerprint refresher, so a
 		// reindexed file isn't re-probed (and its keyframe index dropped) by the
 		// next scan. r.MediaItem satisfies appmaintenance.FileStateRefresher.

@@ -208,4 +208,12 @@ type appDeps struct {
 	// loadTestPublicURL is the reverse-proxy origin real viewers come through.
 	// Used when reachable; the loopback is the fallback.
 	loadTestPublicURL string
+	// bgStoppers holds the blocking Stop/Close of every background worker that
+	// owns an in-flight DB write (transcode complexity / level-backfill /
+	// keyframe-backfill and the CMCD cap-override sweep). main.go invokes them at
+	// shutdown BEFORE the deferred db.Close so a worker finishes its current item
+	// instead of racing the closing pool. Only STARTED workers register here, so
+	// the slice reflects the conditional wiring; order is not significant (the
+	// workers are independent).
+	bgStoppers []func()
 }

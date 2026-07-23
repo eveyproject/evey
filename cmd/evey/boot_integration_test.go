@@ -118,4 +118,13 @@ func TestBuildServices_Boot(t *testing.T) {
 			t.Errorf("appDeps: %s is nil after buildServices - a required service was not wired", c.name)
 		}
 	}
+
+	// The transcode background workers must register their blocking stoppers so
+	// shutdown drains them before db.Close. Default-on wiring starts four
+	// (cap-override, complexity, level-backfill, keyframe-backfill); a worker that
+	// starts a goroutine but forgets to register its stopper leaves an in-flight
+	// write racing the closing pool - invisible to the nil checks above.
+	if len(deps.bgStoppers) == 0 {
+		t.Error("appDeps.bgStoppers is empty - no transcode worker registered a shutdown drain")
+	}
 }
