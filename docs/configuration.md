@@ -204,3 +204,22 @@ See [adr/0011-intro-detection-providers.md](adr/0011-intro-detection-providers.m
 EVEY_LOG_LEVEL=info                    # debug, info, warn, error
 EVEY_LOG_RETENTION_DAYS=90
 ```
+
+### Remote access (WAN bitrate cap)
+```env
+EVEY_REMOTE_ACCESS_LAN_NETWORKS=10.0.0.0/8,172.16.0.0/12,192.168.0.0/16  # CIDRs treated as LAN
+EVEY_REMOTE_ACCESS_MAX_BITRATE_KBPS=0                                    # 0 = no cap for remote (WAN) sessions
+```
+
+When `EVEY_REMOTE_ACCESS_MAX_BITRATE_KBPS` is set, playback sessions whose
+client IP is classified WAN are capped to that bitrate; the cap only ever
+LOWERS the client/profile ceiling. Two safety rules to know:
+
+- An RFC1918/private client IP is **never** capped, even if you forgot to
+  list its range in `EVEY_REMOTE_ACCESS_LAN_NETWORKS` - the cap only lands on
+  a positively public address.
+- If you use unusual local ranges (CGNAT `100.64.0.0/10`, a VPN/Tailscale
+  subnet) and do NOT want those viewers capped, list them explicitly in
+  `EVEY_REMOTE_ACCESS_LAN_NETWORKS`. Behind a reverse proxy, make sure it
+  forwards the real client IP (`X-Forwarded-For`) or every session will look
+  like the proxy's address.
