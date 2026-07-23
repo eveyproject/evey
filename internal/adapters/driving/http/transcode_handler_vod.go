@@ -309,7 +309,7 @@ func (h *hlsVODServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		// every prefixed sub-resource (od_playlist.m3u8, od_seg00001.m4s,
 		// od_audio1.m3u8, od_init.mp4, od_sub1.vtt …) the plan's manifests
 		// reference. 404 when the feature is off / the source can't be packaged.
-		h.serveOnDemandResource(w, r, mediaID, file, item, span)
+		h.serveOnDemandResource(w, r, mediaID, file, item, streams, span)
 	case vodVariantNameRE.MatchString(file):
 		h.serveVariant(w, r, mediaID, file, item, streams, span)
 	case vodSegmentNameRE.MatchString(file):

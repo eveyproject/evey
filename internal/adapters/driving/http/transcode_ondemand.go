@@ -81,7 +81,7 @@ func (h *hlsVODServe) tryServePlanMaster(w http.ResponseWriter, r *http.Request,
 	// The source must package verbatim (a codec CMAF can't carry, or a
 	// Matroska without a Cues seek index → ffmpeg). Building here also warms
 	// the plan cache the sub-resource requests hit.
-	plan, err := h.buildPlan(r, mediaID, item)
+	plan, err := h.buildPlan(r, mediaID, item, streams)
 	if err != nil {
 		slog.WarnContext(r.Context(), "hls-vod: on-demand plan build failed, falling back to ffmpeg",
 			slog.String("media_id", mediaID), slog.Any("err", err))
@@ -183,7 +183,7 @@ func (h *hlsVODServe) serveWasmAudioMaster(w http.ResponseWriter, r *http.Reques
 	// Prefer mkvgo's plan for the AC-3 audio rendition (no ffmpeg). Building it
 	// also warms the cache the od_audio* sub-requests hit. A plan failure routes
 	// the audio to the ffmpeg copy rendition instead - the source is still served.
-	_, planErr := h.buildPlan(r, mediaID, item)
+	_, planErr := h.buildPlan(r, mediaID, item, streams)
 	useMkvgoAudio := planErr == nil
 	useMkvgoVideo := videoCopy && planErr == nil
 
@@ -287,14 +287,14 @@ func (h *hlsVODServe) buildWasmAudioMaster(r *http.Request, mediaID string, item
 // playlist, init, segment, subtitle) or the top-level `manifest.mpd`. The plan
 // is rebuilt (cache hit) from the source alone; access was already enforced by
 // commonAuth. Unknown/unpackageable → 404.
-func (h *hlsVODServe) serveOnDemandResource(w http.ResponseWriter, r *http.Request, mediaID, file string, item *domainlibrary.MediaItem, span trace.Span) {
+func (h *hlsVODServe) serveOnDemandResource(w http.ResponseWriter, r *http.Request, mediaID, file string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, span trace.Span) {
 	if h.onDemand == nil {
 		span.SetStatus(codes.Error, "on-demand packaging not wired")
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return
 	}
 	name := strings.TrimPrefix(file, onDemandPrefix) // "od_seg1.m4s" → "seg1.m4s"; "manifest.mpd" unchanged
-	plan, err := h.buildPlan(r, mediaID, item)
+	plan, err := h.buildPlan(r, mediaID, item, streams)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "on-demand plan build")
@@ -377,7 +377,7 @@ func (h *hlsVODServe) servePlanResourceData(w http.ResponseWriter, r *http.Reque
 // on-demand options (segment duration + URL prefix, plus AES-128 when the
 // feature is on). Cheap on a cache hit. The AES key is deterministic per media,
 // so the plan cache stays coherent across the master and its sub-requests.
-func (h *hlsVODServe) buildPlan(r *http.Request, mediaID string, item *domainlibrary.MediaItem) (apptranscoding.OnDemandPlan, error) {
+func (h *hlsVODServe) buildPlan(r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream) (apptranscoding.OnDemandPlan, error) {
 	opts := apptranscoding.OnDemandOptions{
 		SegmentMs: onDemandSegmentMs,
 		URLPrefix: onDemandPrefix,
@@ -405,14 +405,16 @@ func (h *hlsVODServe) buildPlan(r *http.Request, mediaID string, item *domainlib
 	if h.onDemandTrackTrim {
 		// Same resolution the ffmpeg pipeline uses for ?audioTrack=/the
 		// profile's language default (resolveAudioTrack), reused here so both
-		// backends agree on which track a request gets. Best-effort: a lookup
-		// failure serves every audio track rather than failing the plan.
-		if streams, err := h.libSvc.GetMediaStreams(r.Context(), mediaID); err == nil {
+		// backends agree on which track a request gets. The streams come from
+		// the CALLER (commonAuth fetched them for this very request) - this
+		// used to re-query Postgres per sub-resource served. Best-effort: no
+		// streams in hand serves every audio track rather than failing the plan.
+		if len(streams) > 0 {
 			idx := h.resolveAudioTrack(r, streams)
 			opts.KeepAudioTrack = &idx
 		} else {
-			slog.WarnContext(r.Context(), "hls vod: on-demand track trim: stream lookup failed, serving every track",
-				slog.String("media_id", mediaID), slog.Any("err", err))
+			slog.WarnContext(r.Context(), "hls vod: on-demand track trim: no streams in hand, serving every track",
+				slog.String("media_id", mediaID))
 		}
 	}
 	return h.onDemand.Plan(r.Context(), item.File.Path, opts)

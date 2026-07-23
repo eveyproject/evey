@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -269,7 +270,7 @@ func TestServeOnDemandResource_Segment(t *testing.T) {
 
 	// The dispatcher strips the od_ prefix before Resource().
 	w := httptest.NewRecorder()
-	h.serveOnDemandResource(w, onDemandReq(), "m1", "od_seg00001.m4s", onDemandItem(), noopSpan())
+	h.serveOnDemandResource(w, onDemandReq(), "m1", "od_seg00001.m4s", onDemandItem(), nil, noopSpan())
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "segbytes", w.Body.String())
 }
@@ -277,7 +278,7 @@ func TestServeOnDemandResource_Segment(t *testing.T) {
 func TestServeOnDemandResource_FeatureOff404(t *testing.T) {
 	h := newCopyTestHandler(t) // onDemand nil
 	w := httptest.NewRecorder()
-	h.serveOnDemandResource(w, onDemandReq(), "m1", "od_seg00001.m4s", onDemandItem(), noopSpan())
+	h.serveOnDemandResource(w, onDemandReq(), "m1", "od_seg00001.m4s", onDemandItem(), nil, noopSpan())
 	assert.Equal(t, http.StatusNotFound, w.Code)
 }
 
@@ -285,7 +286,7 @@ func TestServeOnDemandResource_UnknownName404(t *testing.T) {
 	h := newCopyTestHandler(t)
 	h.onDemand = &fakeOnDemandPackager{plan: &fakeOnDemandPlan{resources: map[string][]byte{}}}
 	w := httptest.NewRecorder()
-	h.serveOnDemandResource(w, onDemandReq(), "m1", "od_bogus.m4s", onDemandItem(), noopSpan())
+	h.serveOnDemandResource(w, onDemandReq(), "m1", "od_bogus.m4s", onDemandItem(), nil, noopSpan())
 	assert.Equal(t, http.StatusNotFound, w.Code)
 }
 
@@ -358,7 +359,7 @@ func TestBuildPlan_RotationPassesKeys(t *testing.T) {
 
 	pkg := &fakeOnDemandPackager{plan: &fakeOnDemandPlan{}}
 	h := &hlsVODServe{onDemand: pkg, onDemandEncrypt: true, hlsAESSecret: []byte("0123456789abcdef0123456789abcdef"), hlsKeyRotateSegments: 10}
-	_, err = h.buildPlan(onDemandReq(), "mi-1", item)
+	_, err = h.buildPlan(onDemandReq(), "mi-1", item, copyEligibleAV())
 	require.NoError(t, err)
 
 	assert.Empty(t, pkg.lastOpts.AESKey, "rotation supersedes the single key")
@@ -373,7 +374,7 @@ func TestBuildPlan_EncryptPassesAESOptions(t *testing.T) {
 	pkg := &fakeOnDemandPackager{plan: &fakeOnDemandPlan{}}
 	h := &hlsVODServe{onDemand: pkg, onDemandEncrypt: true, hlsAESSecret: []byte("0123456789abcdef0123456789abcdef")}
 
-	_, err := h.buildPlan(onDemandReq(), "mi-1", onDemandItem())
+	_, err := h.buildPlan(onDemandReq(), "mi-1", onDemandItem(), copyEligibleAV())
 	require.NoError(t, err)
 	assert.Len(t, pkg.lastOpts.AESKey, 16, "AES key threaded into the plan options")
 	assert.Equal(t, "key", pkg.lastOpts.AESKeyURI)
@@ -381,7 +382,7 @@ func TestBuildPlan_EncryptPassesAESOptions(t *testing.T) {
 	// Encryption off → no key in the options.
 	pkg2 := &fakeOnDemandPackager{plan: &fakeOnDemandPlan{}}
 	h2 := &hlsVODServe{onDemand: pkg2}
-	_, err = h2.buildPlan(onDemandReq(), "mi-1", onDemandItem())
+	_, err = h2.buildPlan(onDemandReq(), "mi-1", onDemandItem(), copyEligibleAV())
 	require.NoError(t, err)
 	assert.Empty(t, pkg2.lastOpts.AESKey, "no AES key when encryption is off")
 }
@@ -391,7 +392,7 @@ func TestBuildPlan_EncryptPassesAESOptions(t *testing.T) {
 func TestBuildPlan_TrackTrimOff_NoRestriction(t *testing.T) {
 	pkg := &fakeOnDemandPackager{plan: &fakeOnDemandPlan{}}
 	h := &hlsVODServe{onDemand: pkg, libSvc: &testFakeStreamsGetter{streams: copyEligibleAV()}}
-	_, err := h.buildPlan(onDemandReq(), "mi-1", onDemandItem())
+	_, err := h.buildPlan(onDemandReq(), "mi-1", onDemandItem(), copyEligibleAV())
 	require.NoError(t, err)
 	assert.Nil(t, pkg.lastOpts.KeepAudioTrack, "flag off: today's untrimmed behaviour")
 }
@@ -400,7 +401,7 @@ func TestBuildPlan_TrackTrimOn_ResolvesAudioTrack(t *testing.T) {
 	streams := copyEligibleAV() // one audio track (ordinal 0)
 	pkg := &fakeOnDemandPackager{plan: &fakeOnDemandPlan{}}
 	h := &hlsVODServe{onDemand: pkg, onDemandTrackTrim: true, libSvc: &testFakeStreamsGetter{streams: streams}}
-	_, err := h.buildPlan(onDemandReq(), "mi-1", onDemandItem())
+	_, err := h.buildPlan(onDemandReq(), "mi-1", onDemandItem(), copyEligibleAV())
 	require.NoError(t, err)
 	require.NotNil(t, pkg.lastOpts.KeepAudioTrack)
 	assert.Equal(t, 0, *pkg.lastOpts.KeepAudioTrack)
@@ -418,17 +419,19 @@ func TestBuildPlan_TrackTrimOn_HonoursExplicitAudioTrackQuery(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/master.m3u8?audioTrack=1", nil)
 	req = req.WithContext(context.WithValue(req.Context(), httpClaimsCtxKey{}, &domainuser.Claims{UserID: "u1", ProfileID: "p1"}))
 
-	_, err := h.buildPlan(req, "mi-1", onDemandItem())
+	_, err := h.buildPlan(req, "mi-1", onDemandItem(), streams)
 	require.NoError(t, err)
 	require.NotNil(t, pkg.lastOpts.KeepAudioTrack)
 	assert.Equal(t, 1, *pkg.lastOpts.KeepAudioTrack, "explicit ?audioTrack= wins over the profile default, same as the ffmpeg pipeline")
 }
 
-func TestBuildPlan_TrackTrimOn_StreamLookupFailsServesUntrimmed(t *testing.T) {
+func TestBuildPlan_TrackTrimOn_NoStreamsServesUntrimmed(t *testing.T) {
+	// The caller normally passes commonAuth's streams; an empty slice (edge:
+	// unprobed media) must serve every track, never refuse the plan.
 	pkg := &fakeOnDemandPackager{plan: &fakeOnDemandPlan{}}
-	h := &hlsVODServe{onDemand: pkg, onDemandTrackTrim: true, libSvc: &testFakeStreamsGetter{err: fmt.Errorf("boom")}}
-	_, err := h.buildPlan(onDemandReq(), "mi-1", onDemandItem())
-	require.NoError(t, err, "a stream lookup failure must not refuse the plan")
+	h := &hlsVODServe{onDemand: pkg, onDemandTrackTrim: true}
+	_, err := h.buildPlan(onDemandReq(), "mi-1", onDemandItem(), nil)
+	require.NoError(t, err, "missing streams must not refuse the plan")
 	assert.Nil(t, pkg.lastOpts.KeepAudioTrack, "best-effort: falls back to every track")
 }
 
@@ -505,4 +508,32 @@ func TestPlanHLSVideoEligible_IndependentOfFFmpegCopyRung(t *testing.T) {
 	d := decisionFor(h, onDemandReq(), onDemandItem(), copyEligibleAV())
 	assert.True(t, h.planHLSVideoEligible(d, onDemandItem(), copyEligibleAV()),
 		"mkvgo packages without ffmpeg: a disabled copy rung must not disable it")
+}
+
+// countingStreamsGetter fails the test intent if the plan builder re-fetches
+// streams: commonAuth already fetched them for this very request.
+type countingStreamsGetter struct {
+	testFakeStreamsGetter
+	calls atomic.Int32
+}
+
+func (c *countingStreamsGetter) GetMediaStreams(ctx context.Context, id string) ([]*domainlibrary.MediaStream, error) {
+	c.calls.Add(1)
+	return c.testFakeStreamsGetter.GetMediaStreams(ctx, id)
+}
+
+// The trim path used to re-query Postgres for the streams of EVERY on-demand
+// sub-resource (playlist, init, each segment) although commonAuth had just
+// fetched them for the same request (~3.4 free queries/s at 20 viewers).
+// buildPlan must reuse the streams the caller already holds - zero lookups.
+func TestBuildPlan_TrackTrimOn_ReusesAuthStreams_NoRefetch(t *testing.T) {
+	streams := copyEligibleAV()
+	pkg := &fakeOnDemandPackager{plan: &fakeOnDemandPlan{}}
+	counter := &countingStreamsGetter{}
+	h := &hlsVODServe{onDemand: pkg, onDemandTrackTrim: true, libSvc: counter}
+	_, err := h.buildPlan(onDemandReq(), "mi-1", onDemandItem(), streams)
+	require.NoError(t, err)
+	require.NotNil(t, pkg.lastOpts.KeepAudioTrack)
+	assert.Equal(t, 0, *pkg.lastOpts.KeepAudioTrack)
+	assert.Equal(t, int32(0), counter.calls.Load(), "buildPlan must reuse commonAuth's streams, not re-query")
 }
