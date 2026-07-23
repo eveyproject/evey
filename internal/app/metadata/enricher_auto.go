@@ -24,7 +24,7 @@ func (e *Enricher) AutoEnrichItem(ctx context.Context, item *domainlib.MediaItem
 	ctx, span := tracing.StartSpan(ctx, "app.metadata.AutoEnrichItem")
 	defer span.End()
 	span.SetAttributes(attribute.String("media_item.id", string(item.ID)))
-	e.autoEnrichItem(ctx, item, log, false)
+	e.autoEnrichItem(ctx, item, log, false, nil)
 }
 
 // ForceAutoEnrichItem bypasses the "already enriched" short-circuits so an
@@ -35,10 +35,17 @@ func (e *Enricher) ForceAutoEnrichItem(ctx context.Context, item *domainlib.Medi
 	ctx, span := tracing.StartSpan(ctx, "app.metadata.ForceAutoEnrichItem")
 	defer span.End()
 	span.SetAttributes(attribute.String("media_item.id", string(item.ID)))
-	e.autoEnrichItem(ctx, item, log, true)
+	e.autoEnrichItem(ctx, item, log, true, nil)
 }
 
-func (e *Enricher) autoEnrichItem(ctx context.Context, item *domainlib.MediaItem, log *slog.Logger, force bool) {
+// autoEnrichItem searches providers and enriches a single item.
+// overridesByItem is the batch-preloaded override map keyed by media item id
+// (see autoEnrichAll): when non-nil, the per-item admin-override lookup below
+// is skipped in favor of a map read, avoiding an N+1 GetByMediaItem call per
+// item on a bulk "Refresh all metadata" pass. nil means the caller has no
+// preload (e.g. the single-item AutoEnrichItem/ForceAutoEnrichItem entry
+// points) and the legacy per-item fetch runs instead.
+func (e *Enricher) autoEnrichItem(ctx context.Context, item *domainlib.MediaItem, log *slog.Logger, force bool, overridesByItem map[string][]*domainmetadata.MetadataOverride) {
 	if item.Title == "" {
 		return
 	}
@@ -66,7 +73,16 @@ func (e *Enricher) autoEnrichItem(ctx context.Context, item *domainlib.MediaItem
 	isOrphan := item.Catalog == nil || len(item.Catalog.ProviderIDs) == 0
 	var titleOverride, originalTitleOverride string
 	if e.overrides != nil {
-		if overrides, err := e.overrides.GetByMediaItem(ctx, string(item.ID)); err == nil && len(overrides) > 0 {
+		var overrides []*domainmetadata.MetadataOverride
+		var err error
+		if overridesByItem != nil {
+			// Preloaded by the caller in one batched GetByMediaItems call -
+			// skip the per-item round trip.
+			overrides = overridesByItem[string(item.ID)]
+		} else {
+			overrides, err = e.overrides.GetByMediaItem(ctx, string(item.ID))
+		}
+		if err == nil && len(overrides) > 0 {
 			if !isOrphan {
 				if log != nil {
 					log.Debug("skip auto-enrich: matched item has admin overrides", slog.String("id", string(item.ID)), slog.Int("overrides", len(overrides)))
@@ -777,15 +793,25 @@ func (e *Enricher) ForceAutoEnrichAll(ctx context.Context, items []*domainlib.Me
 }
 
 func (e *Enricher) autoEnrichAll(ctx context.Context, items []*domainlib.MediaItem, log *slog.Logger, force bool) {
-	// Batch-load admin overrides once to avoid N queries in the hot loop.
+	// Batch-load admin overrides ONCE with a single GetByMediaItems call - both
+	// the bool set used for the skip decision below and the full records
+	// autoEnrichItem needs to harvest orphan title overrides. Previously this
+	// preloaded only the bool set, so autoEnrichItem still issued its own
+	// GetByMediaItem per item in the hot loop (N+1 on a 7700+ item library).
 	overridden := map[string]bool{}
+	var overridesByItem map[string][]*domainmetadata.MetadataOverride
 	if e.overrides != nil && len(items) > 0 {
 		ids := make([]string, 0, len(items))
 		for _, it := range items {
 			ids = append(ids, string(it.ID))
 		}
-		if m, err := e.overrides.ListOverriddenMediaItemIDs(ctx, ids); err == nil {
-			overridden = m
+		if m, err := e.overrides.GetByMediaItems(ctx, ids); err == nil {
+			overridesByItem = m
+			for id, ovs := range m {
+				if len(ovs) > 0 {
+					overridden[id] = true
+				}
+			}
 		}
 	}
 	sem := make(chan struct{}, 3)
@@ -822,7 +848,7 @@ func (e *Enricher) autoEnrichAll(ctx context.Context, items []*domainlib.MediaIt
 			}()
 			defer wg.Done()
 			defer func() { <-sem }()
-			e.autoEnrichItem(ctx, it, log, force)
+			e.autoEnrichItem(ctx, it, log, force, overridesByItem)
 		}(item)
 	}
 	wg.Wait()

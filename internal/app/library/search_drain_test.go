@@ -3,11 +3,32 @@ package library
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/evey-project/evey/internal/domain/library"
 	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
+	"github.com/evey-project/evey/internal/domain/shared"
 )
+
+// countingItemRepo wraps the fake query repo to record how many times
+// GetByID vs GetByIDs is called, so a test can prove the drain batches the
+// re-read instead of issuing one round trip per pending item.
+type countingItemRepo struct {
+	*libfakes.FakeMediaItemQueryRepo
+	getByIDCalls  int
+	getByIDsCalls int
+}
+
+func (r *countingItemRepo) GetByID(ctx context.Context, id shared.MediaItemID) (*library.MediaItem, error) {
+	r.getByIDCalls++
+	return r.FakeMediaItemQueryRepo.GetByID(ctx, id)
+}
+
+func (r *countingItemRepo) GetByIDs(ctx context.Context, ids []shared.MediaItemID) ([]*library.MediaItem, error) {
+	r.getByIDsCalls++
+	return r.FakeMediaItemQueryRepo.GetByIDs(ctx, ids)
+}
 
 type fakeSearchQueue struct {
 	ops map[string]string // media_item_id -> op
@@ -91,6 +112,37 @@ func TestDrainSearchWriteQueue(t *testing.T) {
 		}
 		if search.Indexed() != 0 {
 			t.Errorf("stale doc not evicted, indexed=%d", search.Indexed())
+		}
+	})
+
+	t.Run("batches the re-read into a single GetByIDs call regardless of pending count", func(t *testing.T) {
+		q := newFakeSearchQueue()
+		items := &countingItemRepo{FakeMediaItemQueryRepo: libfakes.NewFakeMediaItemQueryRepo()}
+		const n = 50
+		for i := range n {
+			id := fmt.Sprintf("m%d", i)
+			q.ops[id] = library.SearchOpUpsert
+			items.Add(&library.MediaItem{ID: shared.MediaItemID(id)})
+		}
+		search := libfakes.NewFakeSearchIndex()
+
+		got, err := DrainSearchWriteQueue(ctx, q, items, search, nil)
+		if err != nil {
+			t.Fatalf("drain: %v", err)
+		}
+		if got != n {
+			t.Errorf("drained %d, want %d", got, n)
+		}
+		// The N+1 fix: one GetByIDs call for the whole page, not N GetByID calls.
+		// Without the batching, getByIDsCalls stays 0 and getByIDCalls climbs to n.
+		if items.getByIDsCalls != 1 {
+			t.Errorf("GetByIDs calls = %d, want 1", items.getByIDsCalls)
+		}
+		if items.getByIDCalls != 0 {
+			t.Errorf("GetByID calls = %d, want 0 (should use the batch call instead)", items.getByIDCalls)
+		}
+		if search.Indexed() != n {
+			t.Errorf("indexed=%d, want %d", search.Indexed(), n)
 		}
 	})
 }

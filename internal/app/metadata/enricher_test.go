@@ -3,7 +3,9 @@ package metadata
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
+	"sync"
 	"testing"
 	"time"
 
@@ -1254,6 +1256,61 @@ func TestAutoEnrichAll_ContextCanceled(t *testing.T) {
 	item := &domainlib.MediaItem{ID: "m1", Title: "X", Type: "movie"}
 	e.AutoEnrichAll(ctx, []*domainlib.MediaItem{item}, nil)
 	assert.Empty(t, item.Overview) // limiter.Wait returns err immediately
+}
+
+// countingOverrideRepo wraps the fake override repo to record how many times
+// GetByMediaItem vs GetByMediaItems is called, proving a bulk pass batches
+// the admin-override preload into one call instead of one per item.
+type countingOverrideRepo struct {
+	*metafakes.FakeMetadataOverrideRepository
+	mu               sync.Mutex
+	getByMediaItemN  int
+	getByMediaItemsN int
+}
+
+func (r *countingOverrideRepo) GetByMediaItem(ctx context.Context, mediaItemID string) ([]*domain.MetadataOverride, error) {
+	r.mu.Lock()
+	r.getByMediaItemN++
+	r.mu.Unlock()
+	return r.FakeMetadataOverrideRepository.GetByMediaItem(ctx, mediaItemID)
+}
+
+func (r *countingOverrideRepo) GetByMediaItems(ctx context.Context, mediaItemIDs []string) (map[string][]*domain.MetadataOverride, error) {
+	r.mu.Lock()
+	r.getByMediaItemsN++
+	r.mu.Unlock()
+	return r.FakeMetadataOverrideRepository.GetByMediaItems(ctx, mediaItemIDs)
+}
+
+// TestAutoEnrichAll_BatchesOverridePreload proves the N+1 fix: a bulk
+// "Refresh all metadata" pass over many items must issue a single
+// GetByMediaItems call, never a per-item GetByMediaItem. Before the fix,
+// autoEnrichItem re-fetched overrides for every already-enriched item that
+// autoEnrichAll's skip filter let through, and every to-be-enriched item.
+func TestAutoEnrichAll_BatchesOverridePreload(t *testing.T) {
+	primary := &fakeProvider{name: "tmdb"}
+	e, _, _, _, miRepo, _ := newTestEnricher(primary, nil, nil)
+	overrideRepo := &countingOverrideRepo{FakeMetadataOverrideRepository: metafakes.NewFakeMetadataOverrideRepository()}
+	EnricherWithOverrides(overrideRepo)(e)
+
+	// Overview intentionally left empty so autoEnrichAll's skip filter lets
+	// every item through into autoEnrichItem (where the override lookup this
+	// test cares about happens). apiLimiter is 1 req/250ms, so keep n small.
+	const n = 5
+	items := make([]*domainlib.MediaItem, 0, n)
+	for i := range n {
+		it := &domainlib.MediaItem{
+			ID: shared.MediaItemID(fmt.Sprintf("bulk-%d", i)), Title: fmt.Sprintf("Movie %d", i),
+			Type: "movie",
+		}
+		require.NoError(t, miRepo.Create(context.Background(), it))
+		items = append(items, it)
+	}
+
+	e.AutoEnrichAll(context.Background(), items, slog.Default())
+
+	assert.Equal(t, 1, overrideRepo.getByMediaItemsN, "must batch the preload into one GetByMediaItems call")
+	assert.Equal(t, 0, overrideRepo.getByMediaItemN, "must not fall back to a per-item GetByMediaItem when the caller preloaded")
 }
 
 // --- Alternative-titles matching (Fix A) ---

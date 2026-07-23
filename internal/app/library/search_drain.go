@@ -2,7 +2,6 @@ package library
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 
@@ -47,28 +46,54 @@ func DrainSearchWriteQueue(
 		if len(pending) == 0 {
 			break
 		}
+
+		// Collect the upsert IDs from this page and re-read them from the DB
+		// with a SINGLE GetByIDs call, then index the found ones with a SINGLE
+		// IndexMediaItemsBatch call - instead of one GetByID + one
+		// IndexMediaItemsBatch([1]) per item, which was thousands of round trips
+		// on a large backlog after an outage. queue.Delete has no batch
+		// equivalent, so it stays per-item below.
+		var upsertIDs []shared.MediaItemID
+		for _, p := range pending {
+			if p.Op != library.SearchOpDelete {
+				upsertIDs = append(upsertIDs, shared.MediaItemID(p.MediaItemID))
+			}
+		}
+		found := make(map[shared.MediaItemID]*library.MediaItem, len(upsertIDs))
+		if len(upsertIDs) > 0 {
+			dbItems, gerr := items.GetByIDs(ctx, upsertIDs)
+			if gerr != nil {
+				return drained, fmt.Errorf("drain: get pending items: %w", gerr)
+			}
+			for _, item := range dbItems {
+				found[item.ID] = item
+			}
+			if len(dbItems) > 0 {
+				attachTranslations(ctx, translations, dbItems)
+				if ierr := search.IndexMediaItemsBatch(ctx, dbItems); ierr != nil {
+					// Engine still down / transient - stop before deleting ANY op from
+					// this page (including delete-ops below), unlike the previous
+					// per-item stop. Every op here is idempotent (upsert/delete), so
+					// replaying the whole page again on the next tick is safe.
+					return drained, fmt.Errorf("drain: index batch: %w", ierr)
+				}
+			}
+		}
+
 		for _, p := range pending {
 			if ctx.Err() != nil {
 				return drained, ctx.Err()
 			}
 			var opErr error
-			switch p.Op {
-			case library.SearchOpDelete:
+			switch {
+			case p.Op == library.SearchOpDelete:
 				opErr = search.RemoveMediaItem(ctx, p.MediaItemID)
-			default: // upsert
-				item, gerr := items.GetByID(ctx, shared.MediaItemID(p.MediaItemID))
-				switch {
-				case errors.Is(gerr, shared.ErrNotFound):
-					// Deleted between enqueue and drain - ensure the index has no stale
-					// doc, then drop the pending op.
-					opErr = search.RemoveMediaItem(ctx, p.MediaItemID)
-				case gerr != nil:
-					opErr = gerr
-				default:
-					batch := []*library.MediaItem{item}
-					attachTranslations(ctx, translations, batch)
-					opErr = search.IndexMediaItemsBatch(ctx, batch)
-				}
+			case found[shared.MediaItemID(p.MediaItemID)] == nil:
+				// Deleted between enqueue and drain - ensure the index has no stale
+				// doc, then drop the pending op.
+				opErr = search.RemoveMediaItem(ctx, p.MediaItemID)
+			default:
+				// Already indexed in the batch call above.
 			}
 			if opErr != nil {
 				// Engine still down / transient - stop; the rest stays queued for the
