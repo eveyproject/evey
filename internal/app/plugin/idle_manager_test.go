@@ -216,8 +216,7 @@ func TestIdleManager_ConcurrentEnsureStartedStartsOnce(t *testing.T) {
 
 	var wg sync.WaitGroup
 	for range 4 {
-		wg.Add(1)
-		go func() { defer wg.Done(); m.EnsureStarted(context.Background(), p.ID) }()
+		wg.Go(func() { m.EnsureStarted(context.Background(), p.ID) })
 	}
 	// Give the winner time to enter Start and the losers to bounce off resuming[].
 	time.Sleep(50 * time.Millisecond)
