@@ -67,6 +67,11 @@ export default function LibraryDetailScreen() {
   const [hasMore, setHasMore] = useState(true);
   const [genre, setGenre] = useState("");
   const [shuffling, setShuffling] = useState(false);
+  // Ref latch, not just the state flag: a second remote OK press before the
+  // setShuffling(true) re-render would read the old state and slip a second
+  // probe + navigation through. The ref updates synchronously, closing that
+  // window (FocusableCard has no disabled prop to fall back on).
+  const shufflingRef = useRef(false);
   const prevDataRef = useRef<unknown>(null);
 
   const { data: library } = useLibraryServiceGetLibrary(libraryId ?? "");
@@ -119,7 +124,8 @@ export default function LibraryDetailScreen() {
   // the genre filter, if any, still applies server-side since it's baked
   // into the probe request.
   const handleShuffle = useCallback(async () => {
-    if (shuffling || !libraryId) return;
+    if (shufflingRef.current || !libraryId) return;
+    shufflingRef.current = true;
     setShuffling(true);
     try {
       const base = { libraryId, ...(genre ? { genre } : {}) };
@@ -136,9 +142,10 @@ export default function LibraryDetailScreen() {
     } catch {
       toast.error(t("common.shuffleFailed"));
     } finally {
+      shufflingRef.current = false;
       setShuffling(false);
     }
-  }, [shuffling, libraryId, genre, router, t]);
+  }, [libraryId, genre, router, t]);
 
   const handleEndReached = useCallback(() => {
     if (!isFetching && hasMore) setPage((p) => p + 1);
