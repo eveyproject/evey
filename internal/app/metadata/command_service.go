@@ -39,6 +39,10 @@ type CommandService struct {
 	mediaPersons library.MediaPersonRepository
 	enricher     ItemEnricher
 	workerWg     sync.WaitGroup
+	// shutdownCtx is the service-lifetime context. Set once at construction
+	// (race-free), used by detached background jobs (orphan drain) so they are
+	// cancelled at shutdown instead of running on context.Background() forever.
+	shutdownCtx context.Context
 
 	// auto-download settings. Atomic: SetAutoDownload runs on the server-config
 	// event goroutine while enrichment workers read them concurrently during a
@@ -49,6 +53,14 @@ type CommandService struct {
 
 	// in-memory job registry for background artwork jobs (poll via GetDownloadJob)
 	jobs *downloadJobRegistry
+}
+
+// WithShutdownCtx wires the service-lifetime context so detached background
+// jobs (the orphan drain) are cancelled at shutdown and awaited by
+// WaitWorkers, instead of running on context.Background() invisibly past a
+// redeploy against a DB pool the server thinks is drained.
+func WithShutdownCtx(ctx context.Context) CommandServiceOption {
+	return func(s *CommandService) { s.shutdownCtx = ctx }
 }
 
 func WithAutoDownload(dataDir string, enabled bool) CommandServiceOption {

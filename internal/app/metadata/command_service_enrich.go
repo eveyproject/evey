@@ -219,8 +219,10 @@ func (s *CommandService) MatchOrphansInLibrary(ctx context.Context, libraryID st
 		return 0, nil
 	}
 	// Drain in background - paginated, with stall detection so a downstream
-	// provider outage doesn't burn CPU on the same 500 items forever.
-	go s.drainOrphans(libraryID, filter, total, be)
+	// provider outage doesn't burn CPU on the same 500 items forever. Registered
+	// on workerWg + the service ctx so a shutdown cancels and awaits it, rather
+	// than leaving it running on context.Background() past a redeploy.
+	s.workerWg.Go(func() { s.drainOrphans(libraryID, filter, total, be) })
 	return total, nil
 }
 
@@ -235,11 +237,22 @@ func (s *CommandService) drainOrphans(libraryID string, filter library.ListMedia
 		maxIterations = 500 // safety cap: ≥ 250k items per invocation
 	)
 	log := slog.Default()
+	// Detached from the request ctx (survives caller disconnect / gateway
+	// timeout) but bound to the SERVICE ctx so a shutdown cancels it.
+	ctx := s.shutdownCtx
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	lastCount := total
 	for i := range maxIterations {
+		if ctx.Err() != nil {
+			log.Info("match orphans: cancelled (shutdown)",
+				slog.String("library_id", libraryID), slog.Int("iterations", i))
+			return
+		}
 		f := filter
 		f.Limit = pageSize
-		items, err := s.mediaItems.List(context.Background(), f)
+		items, err := s.mediaItems.List(ctx, f)
 		if err != nil {
 			log.Warn("match orphans: list page failed",
 				slog.String("library_id", libraryID),
@@ -253,8 +266,8 @@ func (s *CommandService) drainOrphans(libraryID string, filter library.ListMedia
 				slog.Int("iterations", i))
 			return
 		}
-		be.AutoEnrichAll(context.Background(), items, log)
-		current, err := s.mediaItems.Count(context.Background(), f)
+		be.AutoEnrichAll(ctx, items, log)
+		current, err := s.mediaItems.Count(ctx, f)
 		if err != nil {
 			log.Warn("match orphans: recount failed",
 				slog.String("library_id", libraryID),

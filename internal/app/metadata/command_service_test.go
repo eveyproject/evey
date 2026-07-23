@@ -482,6 +482,41 @@ func TestMatchOrphansInLibrary_SelectsOnlyOrphansInLibrary(t *testing.T) {
 	assert.NotContains(t, enricher.itemsSeen, "m4")
 }
 
+func TestMatchOrphansInLibrary_DrainCancelledByShutdown(t *testing.T) {
+	cmdSvc := newCmdSvcNoEnricher()
+	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	enricher := &fakeOrphanBulkEnricher{finishedCh: make(chan struct{})}
+	appmetadata.WithEnricher(enricher, mediaRepo)(cmdSvc)
+
+	// Service ctx already cancelled: the detached drain must see it and stop
+	// before any enrich work, AND WaitWorkers must await it (it is now
+	// registered on workerWg, not a bare `go` on context.Background()).
+	shutdownCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+	appmetadata.WithShutdownCtx(shutdownCtx)(cmdSvc)
+
+	require.NoError(t, mediaRepo.Create(context.Background(), &library.MediaItem{
+		ID: "m1", LibraryID: "lib-1", Type: library.MovieItem, Title: "Orphan",
+	}))
+
+	// The initial count runs on the request ctx (not cancelled) so total is real.
+	total, err := cmdSvc.MatchOrphansInLibrary(context.Background(), "lib-1")
+	require.NoError(t, err)
+	assert.Equal(t, 1, total)
+
+	done := make(chan struct{})
+	go func() { cmdSvc.WaitWorkers(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("WaitWorkers did not await the drain (not registered on workerWg?)")
+	}
+
+	enricher.mu.Lock()
+	defer enricher.mu.Unlock()
+	assert.False(t, enricher.called, "a cancelled service ctx must stop the drain before any enrich work")
+}
+
 func TestMatchOrphansInLibrary_StopsOnStall(t *testing.T) {
 	cmdSvc := newCmdSvcNoEnricher()
 	mediaRepo := libfakes.NewFakeMediaItemRepository()
