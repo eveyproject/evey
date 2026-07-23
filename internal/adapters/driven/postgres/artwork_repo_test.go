@@ -188,3 +188,40 @@ func TestArtworkRepo_DeleteByMediaItemID(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, got)
 }
+
+func TestArtworkRepo_DeleteByMediaItemIDs(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	artRepo := postgres.NewArtworkRepository(db)
+	ctx := context.Background()
+
+	lib := newTestLibrary("artlib6")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	item1 := newTestMediaItem("artmi6a", lib.ID)
+	item2 := newTestMediaItem("artmi6b", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, item1))
+	require.NoError(t, itemRepo.Create(ctx, item2))
+
+	require.NoError(t, artRepo.Create(ctx, newTestArtwork("art6a", string(item1.ID), 0)))
+	require.NoError(t, artRepo.Create(ctx, newTestArtwork("art6b", string(item2.ID), 0)))
+
+	require.NoError(t, artRepo.DeleteByMediaItemIDs(ctx, []string{string(item1.ID), string(item2.ID)}))
+
+	got1, err := artRepo.GetByMediaItem(ctx, string(item1.ID))
+	require.NoError(t, err)
+	assert.Empty(t, got1)
+	got2, err := artRepo.GetByMediaItem(ctx, string(item2.ID))
+	require.NoError(t, err)
+	assert.Empty(t, got2)
+}
+
+func TestArtworkRepo_DeleteByMediaItemIDs_Empty(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	artRepo := postgres.NewArtworkRepository(db)
+	assert.NoError(t, artRepo.DeleteByMediaItemIDs(context.Background(), nil))
+}

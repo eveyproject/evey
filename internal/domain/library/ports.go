@@ -213,6 +213,10 @@ type MediaPersonRepository interface {
 	Create(ctx context.Context, mp *MediaPerson) error
 	CreateBatch(ctx context.Context, mps []*MediaPerson) error
 	DeleteByMediaItemID(ctx context.Context, mediaItemID shared.MediaItemID) error
+	// DeleteByMediaItemIDs is the batch form of DeleteByMediaItemID: one
+	// statement for a whole level of items (e.g. all episodes of a season)
+	// instead of one round-trip per item.
+	DeleteByMediaItemIDs(ctx context.Context, mediaItemIDs []shared.MediaItemID) error
 	GetByMediaItemID(ctx context.Context, mediaItemID shared.MediaItemID) ([]*MediaPerson, error)
 }
 

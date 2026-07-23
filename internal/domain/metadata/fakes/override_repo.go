@@ -11,6 +11,15 @@ type FakeMetadataOverrideRepository struct {
 	mu    sync.RWMutex
 	items map[string]*metadata.MetadataOverride
 	Err   error
+
+	// DeleteByMediaItemIDCalls / DeleteByMediaItemIDsCalls count invocations
+	// of the single-item vs batch delete, so tests can assert the N+1 is gone.
+	DeleteByMediaItemIDCalls  int
+	DeleteByMediaItemIDsCalls int
+	// CallLog, when non-nil, records a tag ("overrides") on every delete call.
+	// Shared across the three fakes used by ResetItemMetadata so a test can
+	// assert the overrides-before-artwork-before-persons ordering invariant.
+	CallLog *[]string
 }
 
 func NewFakeMetadataOverrideRepository() *FakeMetadataOverrideRepository {
@@ -124,11 +133,42 @@ func (r *FakeMetadataOverrideRepository) DeleteByMediaItemID(_ context.Context, 
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	r.DeleteByMediaItemIDCalls++
+	if r.CallLog != nil {
+		*r.CallLog = append(*r.CallLog, "overrides")
+	}
 	if r.Err != nil {
 		return r.Err
 	}
 	for id, o := range r.items {
 		if string(o.MediaItemID) == mediaItemID {
+			delete(r.items, id)
+		}
+	}
+	return nil
+}
+
+// DeleteByMediaItemIDs is the batch form: one pass over the map instead of
+// one call (and one map scan) per item.
+func (r *FakeMetadataOverrideRepository) DeleteByMediaItemIDs(_ context.Context, mediaItemIDs []string) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.DeleteByMediaItemIDsCalls++
+	if r.CallLog != nil {
+		*r.CallLog = append(*r.CallLog, "overrides")
+	}
+	if r.Err != nil {
+		return r.Err
+	}
+	wanted := make(map[string]bool, len(mediaItemIDs))
+	for _, id := range mediaItemIDs {
+		wanted[id] = true
+	}
+	for id, o := range r.items {
+		if wanted[string(o.MediaItemID)] {
 			delete(r.items, id)
 		}
 	}

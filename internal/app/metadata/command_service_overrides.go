@@ -258,19 +258,6 @@ func (s *CommandService) ResetItemMetadata(ctx context.Context, mediaItemID stri
 // for one item. Errors propagate: they used to be logged and swallowed, so a
 // half-completed reset still answered "ok" to the admin who asked for it.
 func (s *CommandService) resetSingleItem(ctx context.Context, item *library.MediaItem) error {
-	// Derive title from file path or directory name
-	filePath := ""
-	if item.File != nil {
-		filePath = item.File.Path
-	}
-	if filePath != "" {
-		item.Title = deriveTitle(filePath, string(item.Type))
-	} else if item.Type == library.Series {
-		if dirName := s.deriveTitleFromChildren(ctx, string(item.ID)); dirName != "" {
-			item.Title = dirName
-		}
-	}
-
 	// Order matters, because these four writes are NOT in one transaction and a
 	// failure can land between any two of them. Overrides go FIRST.
 	//
@@ -292,6 +279,27 @@ func (s *CommandService) resetSingleItem(ctx context.Context, item *library.Medi
 			return fmt.Errorf("delete media persons: %w", err)
 		}
 	}
+	return s.clearFieldsAndUpdate(ctx, item)
+}
+
+// clearFieldsAndUpdate derives the title and blanks the enriched fields, then
+// persists the item. Split out of resetSingleItem so resetChildren can batch
+// the three deletes across an entire level and run only this per-item tail
+// (title derivation + Update) afterwards, instead of one DELETE triplet per
+// child.
+func (s *CommandService) clearFieldsAndUpdate(ctx context.Context, item *library.MediaItem) error {
+	// Derive title from file path or directory name
+	filePath := ""
+	if item.File != nil {
+		filePath = item.File.Path
+	}
+	if filePath != "" {
+		item.Title = deriveTitle(filePath, string(item.Type))
+	} else if item.Type == library.Series {
+		if dirName := s.deriveTitleFromChildren(ctx, string(item.ID)); dirName != "" {
+			item.Title = dirName
+		}
+	}
 
 	item.Overview = ""
 	item.Tagline = ""
@@ -308,17 +316,55 @@ func (s *CommandService) resetSingleItem(ctx context.Context, item *library.Medi
 }
 
 // resetChildren resets all direct children and their children recursively.
-// Stops at the first failure and reports it: a series reset that silently gave
-// up halfway is worse than one that says so, because the admin has no way to
-// tell which episodes were actually reset.
+// The three deletes (overrides, artwork, media persons) are batched across
+// the whole level - one statement per type for every child of parentID -
+// instead of the old per-item DELETE triplet, which was ~3*(S+S*E) queries
+// for a series with S seasons and E episodes/season. The recursion itself
+// (one List per season) is unchanged, only the DELETEs are batched.
+//
+// Stops at the first failure and reports it: a series reset that silently
+// gave up halfway is worse than one that says so, because the admin has no
+// way to tell which episodes were actually reset.
+//
+// Same fail-safe ordering as resetSingleItem: overrides for the whole level
+// are dropped FIRST, then artwork, then media persons, and only then are the
+// items' fields cleared and updated. A failure between any two steps leaves
+// the fields still populated with (some of) the overrides already gone, so
+// re-enrichment converges on the reset state instead of silently reinstating
+// what the admin asked to remove.
 func (s *CommandService) resetChildren(ctx context.Context, parentID string) error {
 	children, err := s.mediaItems.List(ctx, library.ListMediaItemsFilter{ParentID: &parentID})
 	if err != nil {
 		return fmt.Errorf("list children of %s: %w", parentID, err)
 	}
+	if len(children) == 0 {
+		return nil
+	}
+
+	ids := make([]string, len(children))
+	for i, c := range children {
+		ids[i] = string(c.ID)
+	}
+
+	if err := s.overrides.DeleteByMediaItemIDs(ctx, ids); err != nil {
+		return fmt.Errorf("delete overrides for children of %s: %w", parentID, err)
+	}
+	if err := s.artwork.DeleteByMediaItemIDs(ctx, ids); err != nil {
+		return fmt.Errorf("delete artwork for children of %s: %w", parentID, err)
+	}
+	if s.mediaPersons != nil {
+		mediaItemIDs := make([]shared.MediaItemID, len(children))
+		for i, c := range children {
+			mediaItemIDs[i] = c.ID
+		}
+		if err := s.mediaPersons.DeleteByMediaItemIDs(ctx, mediaItemIDs); err != nil {
+			return fmt.Errorf("delete media persons for children of %s: %w", parentID, err)
+		}
+	}
+
 	for _, child := range children {
-		if err := s.resetSingleItem(ctx, child); err != nil {
-			return fmt.Errorf("reset child %s: %w", child.ID, err)
+		if err := s.clearFieldsAndUpdate(ctx, child); err != nil {
+			return fmt.Errorf("update child %s: %w", child.ID, err)
 		}
 		// Recurse (series → seasons → episodes)
 		if child.Type == library.Season {

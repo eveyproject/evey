@@ -331,6 +331,27 @@ func (r *ArtworkRepository) DeleteByMediaItemID(ctx context.Context, mediaItemID
 	return nil
 }
 
+// DeleteByMediaItemIDs is the batch form of DeleteByMediaItemID: one
+// statement for a whole level of items instead of one round-trip per item.
+func (r *ArtworkRepository) DeleteByMediaItemIDs(ctx context.Context, mediaItemIDs []string) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.artwork.DeleteByMediaItemIDs")
+	defer span.End()
+	span.SetAttributes(attribute.Int("media_item.count", len(mediaItemIDs)))
+	if len(mediaItemIDs) == 0 {
+		return nil
+	}
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
+		`DELETE FROM artwork WHERE media_item_id = ANY($1)`, pq.Array(mediaItemIDs))
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
+}
+
 func (r *ArtworkRepository) scanArtworkRows(rows *sql.Rows) ([]*metadata.ArtworkRecord, error) {
 	var result []*metadata.ArtworkRecord
 	for rows.Next() {

@@ -233,4 +233,25 @@ func (r *MetadataOverrideRepository) DeleteByMediaItemID(ctx context.Context, me
 	return nil
 }
 
+// DeleteByMediaItemIDs is the batch form of DeleteByMediaItemID: one
+// statement for a whole level of items instead of one round-trip per item.
+func (r *MetadataOverrideRepository) DeleteByMediaItemIDs(ctx context.Context, mediaItemIDs []string) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.metadata_override.DeleteByMediaItemIDs")
+	defer span.End()
+	span.SetAttributes(attribute.Int("media_item.count", len(mediaItemIDs)))
+	if len(mediaItemIDs) == 0 {
+		return nil
+	}
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
+		`DELETE FROM metadata_overrides WHERE media_item_id = ANY($1)`, pq.Array(mediaItemIDs))
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
+}
+
 var _ metadata.MetadataOverrideRepository = (*MetadataOverrideRepository)(nil)
