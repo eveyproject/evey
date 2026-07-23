@@ -156,9 +156,15 @@ func (k *KeyframeOnDemand) TryIndex(ctx context.Context, mediaID, filePath strin
 		k.mu.Unlock()
 		return false
 	}
-	if t, ok := k.failed[mediaID]; ok && time.Since(t) < keyframeOnDemandRetryAfter {
-		k.mu.Unlock()
-		return false
+	if t, ok := k.failed[mediaID]; ok {
+		if time.Since(t) < keyframeOnDemandRetryAfter {
+			k.mu.Unlock()
+			return false
+		}
+		// Expired: purge eagerly. Without this the negative cache only ever
+		// grew - one stale entry per failed media, kept for the process
+		// lifetime even after the file was repaired or re-probed.
+		delete(k.failed, mediaID)
 	}
 	k.inflight[mediaID] = struct{}{}
 	k.mu.Unlock()
@@ -240,6 +246,11 @@ func (k *KeyframeOnDemand) index(ctx context.Context, mediaID, filePath string) 
 			slog.String("media_id", mediaID), slog.Any("err", err))
 		return false
 	}
+	// Success on either branch below: drop any stale negative-cache entry so
+	// a previously failed media doesn't keep its tombstone after being fixed.
+	k.mu.Lock()
+	delete(k.failed, mediaID)
+	k.mu.Unlock()
 	if n == 0 {
 		// The background worker beat us to it - the index exists either way.
 		return true
