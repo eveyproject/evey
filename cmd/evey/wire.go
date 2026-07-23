@@ -20,13 +20,10 @@ import (
 	"github.com/evey-project/evey/internal/adapters/driven/filesystem"
 	"github.com/evey-project/evey/internal/adapters/driven/introproviders"
 	metadataadapter "github.com/evey-project/evey/internal/adapters/driven/metadata"
-	"github.com/evey-project/evey/internal/adapters/driven/pluginrunner"
 	"github.com/evey-project/evey/internal/adapters/driven/postgres"
 	proberpkg "github.com/evey-project/evey/internal/adapters/driven/prober"
 	"github.com/evey-project/evey/internal/adapters/driven/webhooksender"
-	"github.com/evey-project/evey/internal/adapters/driving/grpcapi"
 	httpapi "github.com/evey-project/evey/internal/adapters/driving/http"
-	"github.com/evey-project/evey/internal/adapters/driving/pluginhost"
 	appactivity "github.com/evey-project/evey/internal/app/activity"
 	appcollection "github.com/evey-project/evey/internal/app/collection"
 	appconfig "github.com/evey-project/evey/internal/app/config"
@@ -295,68 +292,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		// then dropped on the floor, so an operator changing it saw no effect.
 		WithSampleInterval(time.Duration(cfg.Metrics.SampleIntervalSec) * time.Second)
 
-	permChecker := appplugin.NewPermissionChecker(r.Plugin)
-	pluginFS := filesystem.NewPluginFileSystem()
-	// Refresh the server-shipped SDK stubs at every plugin start, so installed
-	// plugins pick up host-contract changes (new RPCs) after a server upgrade.
-	// Safe here: AutoStartPlugins only runs after wiring completes (main.go).
-	infra.pluginRunner.WithSDKStubs(pluginFS)
-	cssSanitizer := pluginrunner.NewCSSSanitizer()
-	runtimeChecker := pluginrunner.NewRuntimeAvailability()
-	slog.Info("plugin runtimes detected", slog.Any("available", runtimeChecker.Available()))
-	pluginInstallerSvc := appplugin.NewInstallerService(r.Plugin, infra.pluginRunner, infra.manifestParser, bus,
-		appplugin.InstallerWithInstaller(infra.pluginInstaller),
-		appplugin.InstallerWithAnalyzer(infra.pluginAnalyzer),
-		appplugin.InstallerWithSignatureVerifier(infra.pluginSigVerifier),
-		appplugin.InstallerWithPermissionChecker(permChecker),
-		appplugin.InstallerWithFileSystem(pluginFS),
-		appplugin.InstallerWithCSSSanitizer(cssSanitizer),
-		appplugin.InstallerWithRuntimeChecker(runtimeChecker),
-	)
-	// Reap any plugin install dirs left behind by uninstalls that crashed
-	// before the FS removal succeeded. Async so it never blocks startup.
-	go func() {
-		if n := pluginInstallerSvc.CleanupOrphans(ctx); n > 0 {
-			slog.Info("plugin orphans cleaned at startup", slog.Int("removed", n))
-		}
-	}()
-	pluginRuntimeSvc := appplugin.NewRuntimeService(r.Plugin, r.PluginRuntime, infra.pluginRunner, infra.manifestParser, bus,
-		appplugin.RuntimeWithPermissionChecker(permChecker),
-		appplugin.RuntimeWithShutdownCtx(ctx),
-	)
-	infra.pluginRunner.WithIPCCallback(pluginRuntimeSvc.HandleIPCResult)
-	pluginQuerySvc := appplugin.NewQueryService(r.Plugin, r.PluginRuntime)
-	pluginTokenSvc := appplugin.NewTokenService(r.Plugin, infra.tokenGen)
-	pluginSecurityDashboardSvc := appplugin.NewSecurityDashboardService(r.Plugin, bus, infra.pluginRunner.EffectiveSandboxMode).
-		WithSandboxStatus(func() appplugin.SandboxStatus {
-			return appplugin.SandboxStatus(infra.pluginRunner.SandboxStatus())
-		})
-
-	// Low-memory profile: suspend idle plugin processes and resume them on
-	// demand (widget asset fetch). The manager runs its sweep loop for the
-	// whole server lifetime; when the profile is normal every tick no-ops.
-	// Profile changes (admin setting) and the setting's "auto" resolution are
-	// re-evaluated live on ServerConfigChanged.
-	pluginIdleMgr := appplugin.NewIdleManager(r.Plugin, infra.pluginRunner, appplugin.DefaultPluginIdleTimeout)
-	memProfile, memBudget := appplugin.ResolveMemoryProfile(ctx, r.ServerCfg)
-	rootLog.Info("memory profile resolved",
-		slog.String("profile", memProfile),
-		slog.Int64("budget_mb", memBudget>>20))
-	pluginIdleMgr.SetEnabled(ctx, memProfile == appplugin.MemoryProfileLow)
-	go pluginIdleMgr.Run(ctx)
-	bus.Subscribe(shared.ServerConfigChanged{}.EventName(), func(evtCtx context.Context, evt shared.Event) {
-		if c, ok := evt.(shared.ServerConfigChanged); ok && c.Key == appplugin.KeyMemoryProfile {
-			p, _ := appplugin.ResolveMemoryProfile(evtCtx, r.ServerCfg)
-			pluginIdleMgr.SetEnabled(evtCtx, p == appplugin.MemoryProfileLow)
-		}
-	})
-
-	permInterceptor := grpcapi.PluginPermissionInterceptor(permChecker)
-	pluginHostSrv := pluginhost.NewHostServer(r.MediaItemQuery, r.Plugin, bus, infra.pluginLogger, permInterceptor).
-		WithDataStore(r.PluginData).
-		WithActivityFunc(pluginIdleMgr.Touch)
-	infra.pluginRunner.WithHostRegistry(pluginHostSrv)
-	infra.pluginLogger.StartCleanup(ctx, &pluginIDLister{repo: r.Plugin})
+	pluginInstallerSvc, pluginRuntimeSvc, pluginQuerySvc, pluginTokenSvc, pluginSecurityDashboardSvc, pluginIdleMgr, pluginHostSrv, memProfile := buildPluginSubsystem(ctx, infra, rootLog)
 
 	webhookLog := eveylogger.NewWith(rootLog, "webhook")
 	webhookSender := webhooksender.New()
