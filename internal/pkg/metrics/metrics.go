@@ -114,12 +114,17 @@ var (
 		Help: "Full library scans by trigger reason.",
 	}, []string{"library_id", "reason"})
 
-	// TranscodeQueueDepth counts transcode requests blocked waiting for
-	// a semaphore slot (all maxConcurrent slots taken). > 0 for any extended
-	// period = the server is under-provisioned on HLS concurrency.
+	// TranscodeQueueDepth counts transcode jobs persisted as Queued because
+	// every concurrency slot was taken (running >= maxConcurrent) when they were
+	// requested. Fed by Service.refreshActiveGauge. > 0 for any extended period
+	// = the server is under-provisioned for its transcode-job load.
+	//
+	// Note: this covers the explicit transcode-job path, not on-demand HLS,
+	// which is admission-shaped (it sheds/spills rather than queueing) and does
+	// not write these rows - see docs/transcode-saga-plan.md.
 	TranscodeQueueDepth = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "evey_transcode_queue_depth",
-		Help: "Number of HLS session requests waiting for a concurrency slot.",
+		Help: "Number of transcode jobs waiting for a concurrency slot (queued).",
 	})
 
 	// TranscodeDuration tracks how long a transcode job ran before its

@@ -142,6 +142,11 @@ func (s *Service) StartTranscode(ctx context.Context, job *transcoding.Transcode
 			span.SetStatus(otelcodes.Error, err.Error())
 			return fmt.Errorf("Service.StartTranscode: %w", err)
 		}
+		// Refresh here too: this path returns before the success-path refresh
+		// below, so without it the queue-depth gauge would not move until the
+		// next start/stop - it would lag exactly the saturation it exists to
+		// signal.
+		s.refreshActiveGauge(ctx)
 		span.RecordError(ErrMaxConcurrent)
 		span.SetStatus(otelcodes.Error, ErrMaxConcurrent.Error())
 		return ErrMaxConcurrent
@@ -189,13 +194,23 @@ func (s *Service) refreshActiveGauge(ctx context.Context) {
 	if err != nil {
 		return
 	}
-	running := 0
+	running, queued := 0, 0
 	for _, j := range active {
-		if j.Status == transcoding.Running {
+		switch j.Status {
+		case transcoding.Running:
 			running++
+		case transcoding.Queued:
+			// A job lands here when StartTranscode found every concurrency slot
+			// taken (running >= maxConcurrent) and persisted it Queued instead
+			// of starting it. This gauge was declared and registered but never
+			// fed - it read a permanent 0, which is worse than absent for a
+			// saturation signal. ListActive already returns queued rows, so
+			// counting them here costs nothing.
+			queued++
 		}
 	}
 	metrics.TranscodesActive.Set(float64(running))
+	metrics.TranscodeQueueDepth.Set(float64(queued))
 }
 
 func (s *Service) StopTranscode(ctx context.Context, jobID string) error {

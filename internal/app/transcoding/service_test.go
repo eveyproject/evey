@@ -3,6 +3,8 @@ package transcoding_test
 import (
 	"context"
 	"fmt"
+	"github.com/evey-project/evey/internal/pkg/metrics"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"testing"
 	"time"
 
@@ -117,6 +119,13 @@ func TestStartTranscode_MaxConcurrentOne_RejectsSecond(t *testing.T) {
 	err := svc.StartTranscode(ctx, j2)
 	require.ErrorIs(t, err, apptranscode.ErrMaxConcurrent)
 	assert.Equal(t, transcoding.Queued, j2.Status)
+
+	// The queue-depth gauge must reflect the queued job. It was declared and
+	// registered but never fed - a permanent 0 that lied about saturation.
+	assert.InDelta(t, 1.0, testutil.ToFloat64(metrics.TranscodeQueueDepth), 0.001,
+		"one job queued for a concurrency slot must show as queue depth 1")
+	assert.InDelta(t, 1.0, testutil.ToFloat64(metrics.TranscodesActive), 0.001,
+		"the running job must still show as one active transcode")
 }
 
 func TestStartTranscode_TranscoderError_FailsJob(t *testing.T) {
