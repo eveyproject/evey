@@ -38,7 +38,10 @@ export const PLUGIN_BRIDGE_SCRIPT = `
     },
     media: {
       get: function(id) { return rpc("media.get", { id: id }); },
-      list: function(opts) { return rpc("media.list", opts || {}); }
+      list: function(opts) { return rpc("media.list", opts || {}); },
+      // Returns the media's poster as a data: URL. Mirrors web's evey.media.poster
+      // (no in-host downscale here - RN has no canvas, see PluginSlot.tsx).
+      poster: function(id) { return rpc("media.poster", { id: id }); }
     },
     assets: {
       read: function(path) { return rpc("assets.read", { path: path }); }
