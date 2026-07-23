@@ -267,10 +267,23 @@ func (ws *WatcherService) resolveLibrary(filePath string) string {
 	return ""
 }
 
-func (ws *WatcherService) triggerScan(ctx context.Context, libraryID string) error {
+func (ws *WatcherService) triggerScan(ctx context.Context, libraryID string) (err error) {
 	if ws.scanner == nil {
 		return errors.New("watcher: no scanner wired")
 	}
+	// This runs on the debounce timer's own goroutine (time.AfterFunc), where an
+	// unrecovered panic in ScanLibrary would take down the whole process. The
+	// scheduler path already recovers (scheduler.go runScan); stay symmetric so a
+	// buggy scan of one library can't crash the server via a filesystem event.
+	// Surfacing it as an error lets the debounce callback drop the pending entry
+	// like any other scan failure (a panic never matches ErrScanInProgress, so it
+	// is not re-armed).
+	defer func() {
+		if r := recover(); r != nil {
+			ws.log.Error("watcher: scan panicked", slog.String("library_id", libraryID), slog.Any("panic", r))
+			err = fmt.Errorf("watcher: scan of %s panicked: %v", libraryID, r)
+		}
+	}()
 	ws.log.Info("watcher: triggering scan", slog.String("library_id", libraryID))
 	added, updated, err := ws.scanner.ScanLibrary(ctx, libraryID)
 	if err != nil {
