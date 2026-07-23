@@ -27,8 +27,7 @@ func (r *FakeTrickplayRepository) Create(_ context.Context, m *library.Trickplay
 	if r.Err != nil {
 		return r.Err
 	}
-	stored := *m
-	r.items[string(m.MediaItemID)] = &stored
+	r.items[string(m.MediaItemID)] = cloneTrickplayManifest(m)
 	return nil
 }
 
@@ -45,7 +44,7 @@ func (r *FakeTrickplayRepository) GetByMediaItemID(_ context.Context, mediaItemI
 	if !ok {
 		return nil, ErrNotFound
 	}
-	return m, nil
+	return cloneTrickplayManifest(m), nil
 }
 
 func (r *FakeTrickplayRepository) GetByMediaItemIDs(_ context.Context, mediaItemIDs []shared.MediaItemID) (map[shared.MediaItemID]*library.TrickplayManifest, error) {
@@ -60,8 +59,7 @@ func (r *FakeTrickplayRepository) GetByMediaItemIDs(_ context.Context, mediaItem
 	result := make(map[shared.MediaItemID]*library.TrickplayManifest, len(mediaItemIDs))
 	for _, id := range mediaItemIDs {
 		if m, ok := r.items[string(id)]; ok {
-			cp := *m
-			result[id] = &cp
+			result[id] = cloneTrickplayManifest(m)
 		}
 	}
 	return result, nil
@@ -85,4 +83,17 @@ func (r *FakeTrickplayRepository) ListMissingMediaItemIDs(_ context.Context) ([]
 		return nil, r.Err
 	}
 	return nil, nil
+}
+
+// cloneTrickplayManifest detaches the stored record from the caller's
+// pointer, so a service that mutates a manifest in memory without persisting
+// it again is distinguishable from one that does. See cloneUser (user fakes)
+// for the full rationale. TrickplayManifest holds only scalar fields, so a
+// shallow copy is enough.
+func cloneTrickplayManifest(m *library.TrickplayManifest) *library.TrickplayManifest {
+	if m == nil {
+		return nil
+	}
+	cp := *m
+	return &cp
 }
