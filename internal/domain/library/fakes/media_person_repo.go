@@ -12,6 +12,15 @@ type FakeMediaPersonRepository struct {
 	mu    sync.RWMutex
 	items map[string][]*library.MediaPerson
 	Err   error
+
+	// DeleteByMediaItemIDCalls / DeleteByMediaItemIDsCalls count invocations
+	// of the single-item vs batch delete, so tests can assert the N+1 is gone.
+	DeleteByMediaItemIDCalls  int
+	DeleteByMediaItemIDsCalls int
+	// CallLog, when non-nil, records a tag ("persons") on every delete call.
+	// Shared across the three repos used by ResetItemMetadata so a test can
+	// assert the overrides-before-artwork-before-persons ordering invariant.
+	CallLog *[]string
 }
 
 func NewFakeMediaPersonRepository() *FakeMediaPersonRepository {
@@ -49,10 +58,35 @@ func (r *FakeMediaPersonRepository) DeleteByMediaItemID(_ context.Context, media
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	r.DeleteByMediaItemIDCalls++
+	if r.CallLog != nil {
+		*r.CallLog = append(*r.CallLog, "persons")
+	}
 	if r.Err != nil {
 		return r.Err
 	}
 	delete(r.items, string(mediaItemID))
+	return nil
+}
+
+// DeleteByMediaItemIDs is the batch form: one map-delete pass instead of one
+// call per item.
+func (r *FakeMediaPersonRepository) DeleteByMediaItemIDs(_ context.Context, mediaItemIDs []shared.MediaItemID) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.DeleteByMediaItemIDsCalls++
+	if r.CallLog != nil {
+		*r.CallLog = append(*r.CallLog, "persons")
+	}
+	if r.Err != nil {
+		return r.Err
+	}
+	for _, id := range mediaItemIDs {
+		delete(r.items, string(id))
+	}
 	return nil
 }
 

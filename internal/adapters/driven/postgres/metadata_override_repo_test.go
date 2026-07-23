@@ -191,3 +191,40 @@ func TestMetadataOverrideRepo_DeleteByMediaItemID(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, list)
 }
+
+func TestMetadataOverrideRepo_DeleteByMediaItemIDs(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	overrideRepo := postgres.NewMetadataOverrideRepository(db)
+	ctx := context.Background()
+
+	lib := newTestLibrary("ovlib6")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	item1 := newTestMediaItem("ovmi6a", lib.ID)
+	item2 := newTestMediaItem("ovmi6b", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, item1))
+	require.NoError(t, itemRepo.Create(ctx, item2))
+
+	require.NoError(t, overrideRepo.Set(ctx, newTestOverride("ov6a", string(item1.ID), "title", "T1")))
+	require.NoError(t, overrideRepo.Set(ctx, newTestOverride("ov6b", string(item2.ID), "title", "T2")))
+
+	require.NoError(t, overrideRepo.DeleteByMediaItemIDs(ctx, []string{string(item1.ID), string(item2.ID)}))
+
+	list1, err := overrideRepo.GetByMediaItem(ctx, string(item1.ID))
+	require.NoError(t, err)
+	assert.Empty(t, list1)
+	list2, err := overrideRepo.GetByMediaItem(ctx, string(item2.ID))
+	require.NoError(t, err)
+	assert.Empty(t, list2)
+}
+
+func TestMetadataOverrideRepo_DeleteByMediaItemIDs_Empty(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	overrideRepo := postgres.NewMetadataOverrideRepository(db)
+	assert.NoError(t, overrideRepo.DeleteByMediaItemIDs(context.Background(), nil))
+}

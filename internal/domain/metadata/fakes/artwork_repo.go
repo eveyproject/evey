@@ -11,6 +11,19 @@ type FakeArtworkRepository struct {
 	mu    sync.RWMutex
 	items map[string]*metadata.ArtworkRecord
 	Err   error
+
+	// DeleteByMediaItemIDCalls / DeleteByMediaItemIDsCalls count invocations
+	// of the single-item vs batch delete, so tests can assert the N+1 is gone.
+	DeleteByMediaItemIDCalls  int
+	DeleteByMediaItemIDsCalls int
+	// CallLog, when non-nil, records a tag ("artwork") on every delete call.
+	// Shared across the three fakes used by ResetItemMetadata so a test can
+	// assert the overrides-before-artwork-before-persons ordering invariant.
+	CallLog *[]string
+	// ErrDeleteByMediaItemIDs, when set, fails only the batch delete (not the
+	// single-item one), so a test can force a mid-level abort without also
+	// failing the single top-item reset that runs before any batch call.
+	ErrDeleteByMediaItemIDs error
 }
 
 func NewFakeArtworkRepository() *FakeArtworkRepository {
@@ -207,11 +220,45 @@ func (r *FakeArtworkRepository) DeleteByMediaItemID(_ context.Context, mediaItem
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	r.DeleteByMediaItemIDCalls++
+	if r.CallLog != nil {
+		*r.CallLog = append(*r.CallLog, "artwork")
+	}
 	if r.Err != nil {
 		return r.Err
 	}
 	for id, a := range r.items {
 		if string(a.MediaItemID) == mediaItemID {
+			delete(r.items, id)
+		}
+	}
+	return nil
+}
+
+// DeleteByMediaItemIDs is the batch form: one pass over the map instead of
+// one call (and one map scan) per item.
+func (r *FakeArtworkRepository) DeleteByMediaItemIDs(_ context.Context, mediaItemIDs []string) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.DeleteByMediaItemIDsCalls++
+	if r.CallLog != nil {
+		*r.CallLog = append(*r.CallLog, "artwork")
+	}
+	if r.Err != nil {
+		return r.Err
+	}
+	if r.ErrDeleteByMediaItemIDs != nil {
+		return r.ErrDeleteByMediaItemIDs
+	}
+	wanted := make(map[string]bool, len(mediaItemIDs))
+	for _, id := range mediaItemIDs {
+		wanted[id] = true
+	}
+	for id, a := range r.items {
+		if wanted[string(a.MediaItemID)] {
 			delete(r.items, id)
 		}
 	}

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/lib/pq"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 
@@ -79,6 +80,31 @@ func (r *MediaPersonRepository) DeleteByMediaItemID(ctx context.Context, mediaIt
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `DELETE FROM media_people WHERE media_item_id = $1`, string(mediaItemID))
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
+}
+
+// DeleteByMediaItemIDs is the batch form of DeleteByMediaItemID: one
+// statement for a whole level of items instead of one round-trip per item.
+func (r *MediaPersonRepository) DeleteByMediaItemIDs(ctx context.Context, mediaItemIDs []shared.MediaItemID) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.media_person.DeleteByMediaItemIDs")
+	defer span.End()
+	span.SetAttributes(attribute.Int("media_item.count", len(mediaItemIDs)))
+	if len(mediaItemIDs) == 0 {
+		return nil
+	}
+	ids := make([]string, len(mediaItemIDs))
+	for i, id := range mediaItemIDs {
+		ids[i] = string(id)
+	}
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
+		`DELETE FROM media_people WHERE media_item_id = ANY($1)`, pq.Array(ids))
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

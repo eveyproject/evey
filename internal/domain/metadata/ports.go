@@ -25,6 +25,10 @@ type MetadataOverrideRepository interface {
 	ListOverriddenMediaItemIDs(ctx context.Context, mediaItemIDs []string) (map[string]bool, error)
 	Delete(ctx context.Context, id string) error
 	DeleteByMediaItemID(ctx context.Context, mediaItemID string) error
+	// DeleteByMediaItemIDs is the batch form of DeleteByMediaItemID: one
+	// statement for a whole level of items (e.g. all seasons of a series)
+	// instead of one round-trip per item.
+	DeleteByMediaItemIDs(ctx context.Context, mediaItemIDs []string) error
 }
 
 // ArtworkStats holds aggregate counts about local-path coverage.
@@ -59,6 +63,10 @@ type ArtworkRepository interface {
 	UpdateBlurhash(ctx context.Context, id string, blurhash string) error
 	Delete(ctx context.Context, id string) error
 	DeleteByMediaItemID(ctx context.Context, mediaItemID string) error
+	// DeleteByMediaItemIDs is the batch form of DeleteByMediaItemID: one
+	// statement for a whole level of items (e.g. all seasons of a series)
+	// instead of one round-trip per item.
+	DeleteByMediaItemIDs(ctx context.Context, mediaItemIDs []string) error
 }
 
 type ImageConverter interface {
