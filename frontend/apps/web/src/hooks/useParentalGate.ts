@@ -84,7 +84,7 @@ export function useParentalGate(
   certificationsByCountry?: Record<string, string>,
 ) {
   const profileId = useAuthStore((s) => s.profileId);
-  const { data: parental } = useParentalSettings(profileId);
+  const { data: parental, isLoading: settingsLoading } = useParentalSettings(profileId);
   const { data: user } = useUserServiceGetCurrentUser();
   const { data: profilesResp } = useUserServiceListProfiles(user?.id ?? "", { query: { enabled: !!user?.id } });
   const profile = profilesResp?.profiles?.find((p) => p.id === profileId);
@@ -101,5 +101,12 @@ export function useParentalGate(
     return isAgeExceeded(region || "US", rating, maxAge);
   }
 
-  return { needsPin, profileId };
+  // settingsLoading: the caller must NOT trust needsPin() yet - the settings
+  // are still in flight, and answering "false" during that window let the
+  // player mount and start a transcode session before the PIN dialog showed.
+  // isLoading (pending AND fetching) is deliberately used over isPending: a
+  // disabled query (no profile) stays pending forever but never fetches, and
+  // the gate must not hang on it. A failed fetch also ends loading and falls
+  // open - this gate is UI comfort, the server re-verifies every request.
+  return { needsPin, profileId, settingsLoading: !!profileId && settingsLoading };
 }

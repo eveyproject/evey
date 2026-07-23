@@ -117,3 +117,47 @@ describe("useParentalGate hook (age-based)", () => {
     expect(result.current.needsPin()).toBe(true); // FR -16 > 10
   });
 });
+
+describe("settingsLoading (gate readiness)", () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+    vi.clearAllMocks();
+  });
+
+  // The player page used to evaluate needsPin() while the parental settings
+  // were still in flight: needsPin() returned false, the player mounted and a
+  // transcode session started BEFORE the PIN dialog appeared. The hook must
+  // say "not ready yet" so callers can hold the spinner instead.
+  it("reports loading while the settings query is in flight for a profile", async () => {
+    // @ts-expect-error test-only partial shape
+    mockUseParental.mockReturnValue({ data: undefined, isLoading: true });
+    const { renderHook } = await import("@testing-library/react");
+    const { useParentalGate } = await import("./useParentalGate");
+    const { result } = renderHook(() => useParentalGate("R"));
+    expect(result.current.settingsLoading).toBe(true);
+  });
+
+  it("is not loading once the settings landed", async () => {
+    // @ts-expect-error test-only partial shape
+    mockUseParental.mockReturnValue({ data: { enabled: true, hasPin: true, maxAge: 10 }, isLoading: false });
+    const { renderHook } = await import("@testing-library/react");
+    const { useParentalGate } = await import("./useParentalGate");
+    const { result } = renderHook(() => useParentalGate("R"));
+    expect(result.current.settingsLoading).toBe(false);
+  });
+
+  it("is not loading when there is no active profile (query disabled)", async () => {
+    const { useAuthStore } = await import("@evey/store");
+    // @ts-expect-error test-only mock override
+    useAuthStore.mockImplementation((selector: (s: { profileId: string | null }) => unknown) =>
+      selector({ profileId: null }));
+    // Disabled TanStack v5 queries stay status=pending but never fetch;
+    // isLoading (pending AND fetching) is false - the hook must not hang on it.
+    // @ts-expect-error test-only partial shape
+    mockUseParental.mockReturnValue({ data: undefined, isLoading: false });
+    const { renderHook } = await import("@testing-library/react");
+    const { useParentalGate } = await import("./useParentalGate");
+    const { result } = renderHook(() => useParentalGate("R"));
+    expect(result.current.settingsLoading).toBe(false);
+  });
+});

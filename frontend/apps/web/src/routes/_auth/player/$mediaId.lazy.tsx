@@ -43,11 +43,14 @@ function PlayerPage() {
     enabled: !!mediaId,
   });
 
-  const { needsPin } = useParentalGate(gateItem?.officialRating);
+  const { needsPin, settingsLoading } = useParentalGate(gateItem?.officialRating);
   const [pinVerified, setPinVerified] = useState(false);
-  const blocked = !gateLoading && needsPin() && !pinVerified;
+  // Hold the spinner until the parental settings landed too: evaluating
+  // needsPin() while they were in flight returned false, mounted the player
+  // and started a transcode session BEFORE the PIN dialog appeared.
+  const blocked = !gateLoading && !settingsLoading && needsPin() && !pinVerified;
 
-  if (gateLoading) {
+  if (gateLoading || settingsLoading) {
     return (
       <div className="fixed inset-0 bg-black z-overlay flex items-center justify-center">
         <Spinner />
