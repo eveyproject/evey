@@ -36,6 +36,12 @@ type WatcherService struct {
 	pathToLib  map[string]string // watched path → library ID
 	failedLibs map[string]bool   // library IDs where inotify failed → need periodic scan
 	probes     *probeState       // liveness of each library's watch (watcher_probe.go)
+	// noWatchLogged gates the one-shot "no library wants realtime monitoring"
+	// notice. Monitoring disabled everywhere is an operator CHOICE: say it once
+	// at INFO, not as a WARN every probe round (prod 2026-07-23: 247 of 254
+	// daily WARNs were this, burying the real signals). Re-armed by a
+	// successful watch so a later disable gets one fresh notice.
+	noWatchLogged bool
 	// probeTimeout is how long a probe waits for its own event. Injectable for
 	// the same reason debounceDelay is: the real 30 s makes the failure-path
 	// tests unbearably slow, and a test that cancels the context instead would
@@ -136,6 +142,7 @@ func (ws *WatcherService) watchLibrary(lib *library.Library) {
 		}
 		allFailed = false
 		ws.pathToLib[p] = string(lib.ID)
+		ws.noWatchLogged = false
 		ws.log.Info("watcher: watching", slog.String("path", p), slog.String("library", lib.Name))
 	}
 	if allFailed && len(lib.Paths) > 0 {

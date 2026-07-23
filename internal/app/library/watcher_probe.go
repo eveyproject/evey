@@ -227,10 +227,27 @@ func (ws *WatcherService) probeRound(ctx context.Context) {
 	ws.mu.Unlock()
 
 	if len(perLib) == 0 {
-		// Nothing watched at all. Distinct from "probe passing" and worth
-		// saying: it means real-time monitoring is off everywhere and the
-		// periodic walk is the ONLY discovery path.
-		ws.log.Warn("watcher probe: no watched paths - real-time monitoring is not active on any library")
+		// Nothing watched at all. Two very different situations share this
+		// state and must not share a log level:
+		//  - a library ASKED for realtime monitoring and every watch failed
+		//    (failedLibs non-empty) → a fault, keep warning every round so a
+		//    dead watcher can't fade into silence;
+		//  - no library has monitoring enabled at all → an operator CHOICE,
+		//    said once at INFO (prod 2026-07-23: warning every round produced
+		//    247 of the day's 254 WARNs and buried the real signals).
+		ws.mu.Lock()
+		requested := len(ws.failedLibs) > 0
+		notice := !requested && !ws.noWatchLogged
+		if notice {
+			ws.noWatchLogged = true
+		}
+		ws.mu.Unlock()
+		switch {
+		case requested:
+			ws.log.Warn("watcher probe: no watched paths - real-time monitoring is not active on any library")
+		case notice:
+			ws.log.Info("watcher probe: no library has real-time monitoring enabled - periodic scan is the only discovery path")
+		}
 		return
 	}
 
