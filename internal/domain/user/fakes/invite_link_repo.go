@@ -27,8 +27,7 @@ func (r *FakeInviteLinkRepository) Create(_ context.Context, link *user.InviteLi
 	if r.Err != nil {
 		return r.Err
 	}
-	stored := *link
-	r.items[link.ID] = &stored
+	r.items[link.ID] = cloneInviteLink(link)
 	return nil
 }
 
@@ -45,8 +44,7 @@ func (r *FakeInviteLinkRepository) GetByToken(_ context.Context, token string) (
 		if l.Token == token {
 			// Return a copy to avoid racing with IncrementUsedCount on the shared
 			// pointer. Real postgres repo already returns a fresh struct per Scan.
-			cp := *l
-			return &cp, nil
+			return cloneInviteLink(l), nil
 		}
 	}
 	return nil, ErrNotFound
@@ -64,7 +62,7 @@ func (r *FakeInviteLinkRepository) ListByCreator(_ context.Context, creatorID st
 	var result []*user.InviteLink
 	for _, l := range r.items {
 		if string(l.CreatedBy) == creatorID {
-			result = append(result, l)
+			result = append(result, cloneInviteLink(l))
 		}
 	}
 	return result, nil
@@ -120,4 +118,14 @@ func (r *FakeInviteLinkRepository) Delete(_ context.Context, id string) error {
 	}
 	delete(r.items, id)
 	return nil
+}
+
+// cloneInviteLink detaches the stored record from the caller's pointer. See
+// cloneUser for the full rationale.
+func cloneInviteLink(l *user.InviteLink) *user.InviteLink {
+	if l == nil {
+		return nil
+	}
+	cp := *l
+	return &cp
 }

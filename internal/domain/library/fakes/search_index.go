@@ -59,12 +59,16 @@ func (s *FakeSearchIndex) Indexed() int {
 }
 
 // Get returns the indexed item by id - a test accessor for asserting what was
-// pushed to the index (e.g. attached translations).
+// pushed to the index (e.g. attached translations). Returns a clone so a test
+// mutating the result can't silently corrupt the index it's meant to observe.
 func (s *FakeSearchIndex) Get(id string) (*library.MediaItem, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	it, ok := s.items[id]
-	return it, ok
+	if !ok {
+		return nil, false
+	}
+	return cloneMediaItem(it), true
 }
 
 func (s *FakeSearchIndex) RemoveMediaItem(_ context.Context, id string) error {

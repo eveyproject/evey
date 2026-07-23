@@ -41,8 +41,7 @@ func (s *FakeBackupStore) Create(_ context.Context, m *backup.BackupManifest, da
 	// Store a copy, not the caller's pointer: a service that mutates the
 	// manifest afterwards without persisting again would otherwise be
 	// indistinguishable from one that did.
-	stored := *m
-	s.manifests[m.ID] = &stored
+	s.manifests[m.ID] = cloneBackupManifest(m)
 	s.data[m.ID] = b
 	return nil
 }
@@ -58,7 +57,7 @@ func (s *FakeBackupStore) List(_ context.Context) ([]*backup.BackupManifest, err
 	}
 	var result []*backup.BackupManifest
 	for _, m := range s.manifests {
-		result = append(result, m)
+		result = append(result, cloneBackupManifest(m))
 	}
 	return result, nil
 }
@@ -76,7 +75,7 @@ func (s *FakeBackupStore) Get(_ context.Context, id string) (*backup.BackupManif
 	if !ok {
 		return nil, nil, backup.ErrNotFound
 	}
-	return m, io.NopCloser(bytes.NewReader(s.data[id])), nil
+	return cloneBackupManifest(m), io.NopCloser(bytes.NewReader(s.data[id])), nil
 }
 
 func (s *FakeBackupStore) Delete(_ context.Context, id string) error {
@@ -103,4 +102,16 @@ func (s *FakeBackupStore) SetCreatedAt(id string, t time.Time) {
 	if m, ok := s.manifests[id]; ok {
 		m.CreatedAt = t
 	}
+}
+
+// cloneBackupManifest detaches the stored record from the caller's pointer,
+// so a service that mutates a manifest handed back by List/Get without
+// calling back into the store can't silently look like a persisted change.
+// See cloneUser (user fakes) for the full rationale.
+func cloneBackupManifest(m *backup.BackupManifest) *backup.BackupManifest {
+	if m == nil {
+		return nil
+	}
+	cp := *m
+	return &cp
 }
