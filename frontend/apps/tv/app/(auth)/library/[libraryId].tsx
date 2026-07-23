@@ -1,10 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { View, Text, FlatList, Pressable, ActivityIndicator, StyleSheet } from "react-native";
+import { View, Text, FlatList, ScrollView, Pressable, ActivityIndicator, StyleSheet } from "react-native";
 import { Image } from "expo-image";
+import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { useLibraryServiceGetLibrary, useLibraryServiceListMediaItems } from "@evey/api";
+import {
+  useLibraryServiceGetLibrary,
+  useLibraryServiceListMediaItems,
+  useLibraryServiceListGenres,
+  libraryServiceListMediaItems,
+} from "@evey/api";
 import type { V1MediaItem } from "@evey/api";
+import { toast } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { FocusableCard } from "../../../src/components/FocusableCard";
 import { artworkUrl } from "../../../src/lib/artwork";
@@ -28,6 +35,25 @@ const tvLibGetItemLayout = (_: unknown, index: number) => ({
   index,
 });
 
+// D-pad genre filter: a row of focusable chips (same pattern as the search
+// screen's ScopeTab) rather than a dropdown, which has no natural TV/remote
+// affordance.
+function GenreChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+  const theme = useTheme();
+  return (
+    <FocusableCard
+      onPress={onPress}
+      style={[
+        styles.genreChip,
+        { backgroundColor: active ? theme.colors.accent : theme.colors.surface },
+      ]}
+      accessibilityLabel={label}
+    >
+      <Text style={{ color: active ? "#fff" : theme.colors.text, fontSize: 18, fontWeight: "600" }}>{label}</Text>
+    </FocusableCard>
+  );
+}
+
 export default function LibraryDetailScreen() {
   const { libraryId } = useLocalSearchParams<{ libraryId: string }>();
   const theme = useTheme();
@@ -38,13 +64,20 @@ export default function LibraryDetailScreen() {
   const [page, setPage] = useState(1);
   const [allItems, setAllItems] = useState<V1MediaItem[]>([]);
   const [hasMore, setHasMore] = useState(true);
+  const [genre, setGenre] = useState("");
+  const [shuffling, setShuffling] = useState(false);
   const prevDataRef = useRef<unknown>(null);
 
   const { data: library } = useLibraryServiceGetLibrary(libraryId ?? "");
+  const { data: genresData } = useLibraryServiceListGenres(libraryId ?? "", {
+    query: { enabled: !!libraryId },
+  });
+  const genres = genresData?.genres ?? [];
 
   const { data, isLoading, isError, isFetching, refetch } = useLibraryServiceListMediaItems(
     {
       libraryId,
+      ...(genre ? { genre } : {}),
       "pagination.page": page,
       "pagination.pageSize": PAGE_SIZE,
     },
@@ -63,6 +96,41 @@ export default function LibraryDetailScreen() {
     const totalPages = data.pagination?.totalPages ?? 1;
     setHasMore(page < totalPages);
   }, [data, page]);
+
+  // Reset pagination when the genre filter changes, same as the mobile screen.
+  useEffect(() => {
+    setPage(1);
+    setAllItems([]);
+    setHasMore(true);
+    prevDataRef.current = null;
+  }, [genre]);
+
+  // Shuffle play: no local-only facet exists on this screen (the genre
+  // filter is server-side), so a shuffle always draws from the WHOLE library
+  // via a random page offset (pageSize 1) rather than the loaded slice -
+  // the genre filter, if any, still applies server-side since it's baked
+  // into the probe request.
+  const handleShuffle = useCallback(async () => {
+    if (shuffling || !libraryId) return;
+    setShuffling(true);
+    try {
+      const base = { libraryId, ...(genre ? { genre } : {}) };
+      const probe = await libraryServiceListMediaItems({ ...base, "pagination.page": 1, "pagination.pageSize": 1 });
+      const total = probe.pagination?.totalItems ?? 0;
+      if (total === 0) { toast.info(t("common.shuffleEmpty")); return; }
+      const randomPage = Math.floor(Math.random() * total) + 1;
+      const res = randomPage === 1
+        ? probe
+        : await libraryServiceListMediaItems({ ...base, "pagination.page": randomPage, "pagination.pageSize": 1 });
+      const pick = res.items?.[0];
+      if (pick?.id) router.push(`/player/${pick.id}`);
+      else toast.error(t("common.shuffleFailed"));
+    } catch {
+      toast.error(t("common.shuffleFailed"));
+    } finally {
+      setShuffling(false);
+    }
+  }, [shuffling, libraryId, genre, router, t]);
 
   const handleEndReached = useCallback(() => {
     if (!isFetching && hasMore) setPage((p) => p + 1);
@@ -119,36 +187,60 @@ export default function LibraryDetailScreen() {
             <Text style={{ color: theme.colors.accent, fontSize: 20 }}>{t("common.retry")}</Text>
           </Pressable>
         </View>
-      ) : isLoading && page === 1 ? (
-        <View style={styles.center}>
-          <ActivityIndicator color={theme.colors.accent} size="large" />
-        </View>
       ) : (
-        <FlatList
-          data={allItems}
-          keyExtractor={tvLibKeyExtractor}
-          renderItem={renderItem}
-          numColumns={NUM_COLUMNS}
-          contentContainerStyle={{ padding: 24 }}
-          columnWrapperStyle={{ gap: 16, marginBottom: 16 }}
-          onEndReached={handleEndReached}
-          onEndReachedThreshold={0.5}
-          getItemLayout={tvLibGetItemLayout}
-          initialNumToRender={10}
-          maxToRenderPerBatch={15}
-          windowSize={5}
-          removeClippedSubviews={true}
-          ListFooterComponent={
-            isFetching && page > 1 ? (
-              <ActivityIndicator color={theme.colors.accent} style={{ marginVertical: 24 }} />
-            ) : null
-          }
-          ListEmptyComponent={
+        <>
+          <View style={styles.toolbar}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ gap: 12 }}>
+              <GenreChip label={t("media.search.allGenres") || "All"} active={!genre} onPress={() => setGenre("")} />
+              {genres.map((g) => (
+                <GenreChip key={g} label={g} active={genre === g} onPress={() => setGenre(genre === g ? "" : g)} />
+              ))}
+            </ScrollView>
+            <FocusableCard
+              onPress={handleShuffle}
+              style={[styles.shuffleBtn, { backgroundColor: theme.colors.surface }]}
+              accessibilityLabel={t("common.shufflePlay")}
+            >
+              {shuffling ? (
+                <ActivityIndicator color={theme.colors.accent} size="small" />
+              ) : (
+                <Ionicons name="shuffle" size={24} color={theme.colors.text} />
+              )}
+              <Text style={{ color: theme.colors.text, fontSize: 18, fontWeight: "600" }}>{t("common.shufflePlay")}</Text>
+            </FocusableCard>
+          </View>
+          {isLoading && page === 1 ? (
             <View style={styles.center}>
-              <Text style={{ color: theme.colors.textMuted, fontSize: 22 }}>{t("common.noItems")}</Text>
+              <ActivityIndicator color={theme.colors.accent} size="large" />
             </View>
-          }
-        />
+          ) : (
+            <FlatList
+              data={allItems}
+              keyExtractor={tvLibKeyExtractor}
+              renderItem={renderItem}
+              numColumns={NUM_COLUMNS}
+              contentContainerStyle={{ padding: 24 }}
+              columnWrapperStyle={{ gap: 16, marginBottom: 16 }}
+              onEndReached={handleEndReached}
+              onEndReachedThreshold={0.5}
+              getItemLayout={tvLibGetItemLayout}
+              initialNumToRender={10}
+              maxToRenderPerBatch={15}
+              windowSize={5}
+              removeClippedSubviews={true}
+              ListFooterComponent={
+                isFetching && page > 1 ? (
+                  <ActivityIndicator color={theme.colors.accent} style={{ marginVertical: 24 }} />
+                ) : null
+              }
+              ListEmptyComponent={
+                <View style={styles.center}>
+                  <Text style={{ color: theme.colors.textMuted, fontSize: 22 }}>{t("common.noItems")}</Text>
+                </View>
+              }
+            />
+          )}
+        </>
       )}
     </View>
   );
@@ -157,6 +249,24 @@ export default function LibraryDetailScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, justifyContent: "center", alignItems: "center", paddingTop: 80 },
+  toolbar: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    gap: 16,
+  },
+  genreChip: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+  },
+  shuffleBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+  },
   gridItem: { width: CARD_WIDTH, alignItems: "center" },
   poster: {
     width: CARD_WIDTH,

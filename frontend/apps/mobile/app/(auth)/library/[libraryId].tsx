@@ -21,6 +21,7 @@ import {
   useLibraryServiceListMediaItems,
   usePlaybackServiceMarkAsWatched,
   usePlaybackServiceMarkAsUnwatched,
+  libraryServiceListMediaItems,
 } from "@evey/api";
 import type {
   V1MediaItem,
@@ -254,6 +255,45 @@ export default function LibraryDetailScreen() {
     ).sort();
     return merged;
   }, [allItems]);
+
+  const [shuffling, setShuffling] = useState(false);
+  // Text/year/rating filters only exist client-side (no server param), so a
+  // shuffle while any of them is active must draw from what's actually on
+  // screen (displayItems) to honor the facet. With no such filter, shuffle
+  // the WHOLE library via a random page offset (pageSize 1) instead of just
+  // the scrolled-in slice - the genre quick-filter, if any, still applies
+  // server-side since it's baked into the probe request.
+  const hasLocalFilters = Boolean(
+    debouncedSearch.trim() || yearMin || yearMax || ratingMin || ratingMax,
+  );
+  const handleShuffle = useCallback(async () => {
+    if (shuffling || !libraryId) return;
+    if (hasLocalFilters) {
+      if (displayItems.length === 0) { toast.info(t("common.shuffleEmpty")); return; }
+      const pick = displayItems[Math.floor(Math.random() * displayItems.length)];
+      if (pick?.id) router.push(`/(auth)/player/${pick.id}`);
+      else toast.error(t("common.shuffleFailed"));
+      return;
+    }
+    setShuffling(true);
+    try {
+      const base = { libraryId, ...(genre ? { genre } : {}) };
+      const probe = await libraryServiceListMediaItems({ ...base, "pagination.page": 1, "pagination.pageSize": 1 });
+      const total = probe.pagination?.totalItems ?? 0;
+      if (total === 0) { toast.info(t("common.shuffleEmpty")); return; }
+      const randomPage = Math.floor(Math.random() * total) + 1;
+      const res = randomPage === 1
+        ? probe
+        : await libraryServiceListMediaItems({ ...base, "pagination.page": randomPage, "pagination.pageSize": 1 });
+      const pick = res.items?.[0];
+      if (pick?.id) router.push(`/(auth)/player/${pick.id}`);
+      else toast.error(t("common.shuffleFailed"));
+    } catch {
+      toast.error(t("common.shuffleFailed"));
+    } finally {
+      setShuffling(false);
+    }
+  }, [shuffling, libraryId, hasLocalFilters, displayItems, genre, router, t]);
 
   const handleRefresh = useCallback(() => {
     setPage(1);
@@ -498,6 +538,28 @@ export default function LibraryDetailScreen() {
                 size={18}
                 color={theme.colors.textMuted}
               />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.filterBtn,
+                {
+                  backgroundColor: theme.colors.surface,
+                  borderRadius: theme.radii.sm,
+                  opacity: shuffling ? 0.5 : 1,
+                },
+              ]}
+              activeOpacity={0.7}
+              onPress={handleShuffle}
+              disabled={shuffling}
+              testID="library-shuffle-play"
+              accessibilityLabel={t("common.shufflePlay")}
+              accessibilityRole="button"
+            >
+              {shuffling ? (
+                <ActivityIndicator size="small" color={theme.colors.textMuted} />
+              ) : (
+                <Ionicons name="shuffle" size={18} color={theme.colors.textMuted} />
+              )}
             </TouchableOpacity>
           </View>
 
