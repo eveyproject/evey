@@ -401,6 +401,9 @@ playlist:
   fieldType: "प्रकार"
   fieldLibrary: "लाइब्रेरी"
   fieldRating: "रेटिंग ≥"
+  fields:
+    year: "वर्ष"
+    ruleValue: "नियम मान"
   typeMovie: "फ़िल्म"
   typeSeries: "सीरीज़"
   typeEpisode: "एपिसोड"

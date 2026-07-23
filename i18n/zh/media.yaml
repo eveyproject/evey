@@ -401,6 +401,9 @@ playlist:
   fieldType: "媒体类型"
   fieldLibrary: "媒体库"
   fieldRating: "评分 ≥"
+  fields:
+    year: "年份"
+    ruleValue: "规则值"
   typeMovie: "电影"
   typeSeries: "剧集"
   typeEpisode: "单集"

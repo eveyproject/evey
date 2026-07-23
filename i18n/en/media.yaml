@@ -401,6 +401,9 @@ playlist:
   fieldType: Type
   fieldLibrary: Library
   fieldRating: "Rating ≥"
+  fields:
+    year: Year
+    ruleValue: Rule value
   typeMovie: Movie
   typeSeries: Series
   typeEpisode: Episode
