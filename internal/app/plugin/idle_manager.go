@@ -40,6 +40,12 @@ type IdleManager struct {
 	enabled   bool
 	last      map[string]time.Time // pluginID -> last interaction
 	suspended map[string]bool      // pluginID -> parked by us
+	// resuming marks a plugin whose resume I/O is in flight. It lets
+	// EnsureStarted run its DB/RPC/spawn OUTSIDE m.mu (so Touch and every other
+	// plugin's traffic no longer block behind a ~200ms cold resume) while still
+	// preventing two concurrent resumes of the SAME plugin from double-starting
+	// it - the single guarantee the old lock-across-I/O gave.
+	resuming map[string]bool
 }
 
 func NewIdleManager(plugins plugin.PluginRepository, runner plugin.PluginRunner, timeout time.Duration) *IdleManager {
@@ -53,6 +59,7 @@ func NewIdleManager(plugins plugin.PluginRepository, runner plugin.PluginRunner,
 		now:       time.Now,
 		last:      make(map[string]time.Time),
 		suspended: make(map[string]bool),
+		resuming:  make(map[string]bool),
 	}
 }
 
@@ -92,23 +99,37 @@ func (m *IdleManager) Touch(pluginID string) {
 // the DB (a plugin disabled while parked must stay down), and verifies via
 // the runner that the process is not already back (e.g. an admin restart).
 func (m *IdleManager) EnsureStarted(ctx context.Context, pluginID string) {
+	// Claim the resume under the lock, then release it for the I/O. A plugin
+	// stays in suspended[] until we succeed, so a concurrent Sweep keeps
+	// skipping it (it already checks suspended[]); resuming[] is what stops a
+	// second EnsureStarted from starting the same plugin twice.
 	m.mu.Lock()
-	if !m.suspended[pluginID] {
+	if !m.suspended[pluginID] || m.resuming[pluginID] {
 		m.mu.Unlock()
 		return
 	}
-	// Hold the lock across the resume so a concurrent sweep can't re-suspend
-	// (or double-start) mid-flight; resumes are rare and take ~200ms.
-	defer m.mu.Unlock()
+	m.resuming[pluginID] = true
+	m.mu.Unlock()
+	defer func() {
+		m.mu.Lock()
+		delete(m.resuming, pluginID)
+		m.mu.Unlock()
+	}()
 
+	// DB + RPC + process spawn, all off the lock: before this, every plugin
+	// interaction on the server serialised behind one plugin's cold resume.
 	p, err := m.plugins.GetByID(ctx, pluginID)
 	if err != nil || p == nil || !p.Enabled || p.Status != plugin.Running || p.IsTheme() {
+		m.mu.Lock()
 		delete(m.suspended, pluginID) // no longer ours to manage
+		m.mu.Unlock()
 		return
 	}
 	if alive, herr := m.runner.Health(ctx, pluginID); herr == nil && alive {
+		m.mu.Lock()
 		delete(m.suspended, pluginID) // someone else already started it
 		m.last[pluginID] = m.now()
+		m.mu.Unlock()
 		return
 	}
 	if err := m.runner.Start(ctx, p); err != nil {
@@ -116,8 +137,10 @@ func (m *IdleManager) EnsureStarted(ctx context.Context, pluginID string) {
 		return // keep it marked suspended; the next interaction retries
 	}
 	slog.Info("resumed suspended plugin", slog.String("pluginID", pluginID))
+	m.mu.Lock()
 	delete(m.suspended, pluginID)
 	m.last[pluginID] = m.now()
+	m.mu.Unlock()
 }
 
 // Sweep suspends every eligible plugin whose last interaction is older than

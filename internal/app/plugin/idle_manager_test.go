@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -147,4 +148,93 @@ func TestIdleManager_SweepSkipsThemesAndDisabled(t *testing.T) {
 	// The theme was never a process; ensure the manager never tried to touch it.
 	assert.False(t, m.suspended["plg-theme"])
 	_ = runner
+}
+
+// gatingRunner counts Start calls and can block them on a gate, so a test can
+// force two EnsureStarted calls to overlap in the resume I/O window.
+type gatingRunner struct {
+	mu         sync.Mutex
+	running    map[string]bool
+	startCount int
+	gate       chan struct{} // when non-nil, Start blocks until closed
+}
+
+func newGatingRunner() *gatingRunner { return &gatingRunner{running: map[string]bool{}} }
+
+func (r *gatingRunner) Start(_ context.Context, p *plugin.Plugin) error {
+	r.mu.Lock()
+	r.startCount++
+	gate := r.gate
+	r.mu.Unlock()
+	if gate != nil {
+		<-gate // hold inside Start, off IdleManager's lock, to widen the race window
+	}
+	r.mu.Lock()
+	r.running[p.ID] = true
+	r.mu.Unlock()
+	return nil
+}
+func (r *gatingRunner) Stop(_ context.Context, id string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.running, id)
+	return nil
+}
+func (r *gatingRunner) Kill(string) error { return nil }
+func (r *gatingRunner) Health(_ context.Context, id string) (bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.running[id], nil
+}
+func (r *gatingRunner) SendEvent(context.Context, string, any) error { return nil }
+func (r *gatingRunner) starts() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.startCount
+}
+
+// Two EnsureStarted calls racing on the same suspended plugin must resume it
+// exactly once. Before the resume was moved off the global lock, correctness
+// relied on holding that lock across the spawn; the resuming[] guard is what
+// keeps the single-start guarantee now that the lock is released for the I/O.
+func TestIdleManager_ConcurrentEnsureStartedStartsOnce(t *testing.T) {
+	repo := fakes.NewFakePluginRepository()
+	runner := newGatingRunner()
+	p := &plugin.Plugin{ID: "plg-race", Name: "race", Enabled: true, Status: plugin.Running}
+	require.NoError(t, repo.Create(context.Background(), p))
+
+	m := NewIdleManager(repo, runner, 10*time.Minute)
+	m.SetEnabled(context.Background(), true)
+	// Park it: mark suspended as the manager would.
+	m.mu.Lock()
+	m.suspended[p.ID] = true
+	m.mu.Unlock()
+
+	runner.mu.Lock()
+	runner.gate = make(chan struct{})
+	runner.mu.Unlock()
+
+	var wg sync.WaitGroup
+	for range 4 {
+		wg.Add(1)
+		go func() { defer wg.Done(); m.EnsureStarted(context.Background(), p.ID) }()
+	}
+	// Give the winner time to enter Start and the losers to bounce off resuming[].
+	time.Sleep(50 * time.Millisecond)
+	close(runner.gate) // release the blocked Start
+	wg.Wait()
+
+	assert.Equal(t, 1, runner.starts(), "a plugin must be resumed exactly once under concurrent EnsureStarted")
+	assert.True(t, runnerAliveG(t, runner, p.ID))
+	m.mu.Lock()
+	assert.False(t, m.suspended[p.ID], "successful resume clears the suspended mark")
+	assert.Empty(t, m.resuming, "the resuming guard is released after the resume")
+	m.mu.Unlock()
+}
+
+func runnerAliveG(t *testing.T, r *gatingRunner, id string) bool {
+	t.Helper()
+	alive, err := r.Health(context.Background(), id)
+	require.NoError(t, err)
+	return alive
 }
