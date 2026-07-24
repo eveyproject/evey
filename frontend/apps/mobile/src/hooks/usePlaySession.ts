@@ -89,6 +89,10 @@ export interface PlaySessionResult {
   streamToken: string | null;
   sessionId: string | null;
   streamInfo: V1StreamInfo | null;
+  // Exposed so useCastSession can re-negotiate the URL against the RECEIVER's
+  // capabilities via buildCastStreamUrl instead of casting the phone-negotiated
+  // streamUrl as-is.
+  serverUrl: string | null;
   isLoading: boolean;
   isError: boolean;
   // Set instead of isError when the server refused to start THIS request for
@@ -161,6 +165,7 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
   const [streamToken, setStreamToken] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [streamInfo, setStreamInfo] = useState<V1StreamInfo | null>(null);
+  const [serverUrl, setServerUrl] = useState<string | null>(null);
   const [progress, setProgress] = useState<V1WatchProgress | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isError, setIsError] = useState(false);
@@ -243,6 +248,7 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
         if (!stoppedRef.current) {
           streamInfoRef.current = info;
           setStreamInfo(info);
+          setServerUrl(serverUrl);
           setStreamUrl(url);
           if (session.id) {
             sessionIdRef.current = session.id;
@@ -304,5 +310,5 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
     return () => stopSession();
   }, [stopSession]);
 
-  return { streamUrl, streamToken, sessionId, streamInfo, isLoading, isError, shedReason, stopSession, restartWithTracks, progress };
+  return { streamUrl, streamToken, sessionId, streamInfo, serverUrl, isLoading, isError, shedReason, stopSession, restartWithTracks, progress };
 }

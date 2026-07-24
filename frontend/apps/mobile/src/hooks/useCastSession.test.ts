@@ -4,6 +4,7 @@ import { renderHook, act } from "@testing-library/react";
 const showCastDialog = vi.fn();
 let castState = 0; // NOT_CONNECTED
 let castClientInstance: { loadMedia: ReturnType<typeof vi.fn> } | null = null;
+let castDeviceModelName: string | null = null;
 
 vi.mock("./useChromecast", () => ({
   CastContext: { showCastDialog: () => showCastDialog() },
@@ -11,6 +12,7 @@ vi.mock("./useChromecast", () => ({
   useCastStateHook: () => castState,
   useRemoteMediaClientHook: () => castClientInstance,
   useMediaStatusHook: () => null,
+  useCastDeviceHook: () => (castDeviceModelName ? { modelName: castDeviceModelName } : null),
 }));
 
 const setAudioBoost = vi.fn();
@@ -42,7 +44,12 @@ function fakePlayer() {
   return { pause: vi.fn(), play: vi.fn(), volume: 1 };
 }
 
-function mount(player: ReturnType<typeof fakePlayer>, streamUrl = "https://example.invalid/s.m3u8") {
+function mount(
+  player: ReturnType<typeof fakePlayer>,
+  streamUrl = "https://example.invalid/s.m3u8",
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  opts: { streamInfo?: any; serverUrl?: string | null } = {},
+) {
   return renderHook(() =>
     useCastSession({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -53,6 +60,8 @@ function mount(player: ReturnType<typeof fakePlayer>, streamUrl = "https://examp
       title: "A Film",
       currentTime: 0,
       fallbackDurationSec: 120,
+      streamInfo: opts.streamInfo ?? null,
+      serverUrl: opts.serverUrl ?? null,
     }),
   );
 }
@@ -60,6 +69,7 @@ function mount(player: ReturnType<typeof fakePlayer>, streamUrl = "https://examp
 beforeEach(() => {
   castState = 0;
   castClientInstance = null;
+  castDeviceModelName = null;
   showCastDialog.mockReset();
   setAudioBoost.mockReset();
   eveyFetchMock.mockReset();
@@ -121,5 +131,39 @@ describe("useCastSession", () => {
     const castedUrl = new URL(call.mediaInfo.contentUrl);
     expect(castedUrl.searchParams.get("token")).toBe("cast-tok-999");
     expect(castedUrl.searchParams.get("videoCodecs")).toBe("h264");
+  });
+
+  // With streamInfo/serverUrl available, the URL is re-negotiated against the
+  // RECEIVER's profile (via buildCastStreamUrl) instead of just swapping the
+  // token into the phone-negotiated URL - a Chromecast gen 1-3 must never see
+  // the hevc the phone itself advertised.
+  it("negotiates the receiver's profile from the connected device's model name", async () => {
+    castState = 4; // CONNECTED
+    castDeviceModelName = "Chromecast"; // gen 1-3 floor: h264 only, no hevc
+    castClientInstance = { loadMedia: vi.fn().mockResolvedValue(undefined) };
+    eveyFetchMock.mockResolvedValue({ token: "cast-tok-999", mediaId: "m1" });
+
+    const { result } = mount(fakePlayer(), "https://example.invalid/s.m3u8", {
+      serverUrl: "https://example.invalid",
+      streamInfo: {
+        playMethod: "PLAY_METHOD_DIRECT_PLAY",
+        container: "mkv",
+        mediaStreams: [
+          { type: "MEDIA_STREAM_TYPE_VIDEO", codec: "hevc", bitDepth: 10, height: 2160 },
+          { type: "MEDIA_STREAM_TYPE_AUDIO", codec: "aac", isDefault: true },
+        ],
+      },
+    });
+
+    await act(async () => {
+      await result.current.handleCast();
+    });
+
+    const calls = castClientInstance!.loadMedia.mock.calls;
+    const call = calls[calls.length - 1][0];
+    const castedUrl = new URL(call.mediaInfo.contentUrl);
+    expect(castedUrl.pathname).toBe("/api/v1/media/m1/hls/master.m3u8");
+    expect(castedUrl.searchParams.get("videoCodecs")).toBe("h264");
+    expect(castedUrl.searchParams.get("token")).toBe("cast-tok-999");
   });
 });

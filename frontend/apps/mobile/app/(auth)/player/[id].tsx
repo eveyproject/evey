@@ -119,7 +119,7 @@ export default function PlayerScreen() {
   // remount us on a real episode in a tick. Passing "" makes usePlaySession
   // hold its initial loading state instead of hitting /transcode and 404'ing.
   const sessionMediaId = isSeriesOrSeason ? "" : mediaId;
-  const { streamUrl, streamToken, sessionId, streamInfo, isLoading, isError, shedReason, stopSession, restartWithTracks, progress } =
+  const { streamUrl, streamToken, sessionId, streamInfo, serverUrl, isLoading, isError, shedReason, stopSession, restartWithTracks, progress } =
     usePlaySession(sessionMediaId);
 
   const { data: chapters = [] } = useChapters(mediaId);
@@ -289,6 +289,8 @@ export default function PlayerScreen() {
     title: media?.title,
     currentTime,
     fallbackDurationSec: media?.durationMs ? Number(media.durationMs) / 1000 : 0,
+    streamInfo,
+    serverUrl,
   });
 
   // Open in whatever orientation the user is currently holding the device in.

@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef } from "react";
 import type { VideoPlayer } from "expo-video";
+import type { V1StreamInfo } from "@evey/api";
 import { setAudioBoost } from "../lib/audioBoost";
 import { fetchStreamToken } from "./usePlaySession";
+import { buildCastStreamUrl, pickCastProfile } from "../lib/castUrl";
 import {
   CastContext, useCastStateHook, useRemoteMediaClientHook,
-  useMediaStatusHook, CastStateEnum,
+  useMediaStatusHook, useCastDeviceHook, CastStateEnum,
 } from "./useChromecast";
 
 // Swaps the URL's token param for a cast-purpose one, preserving every other
@@ -28,6 +30,11 @@ interface UseCastSessionArgs {
   // current position. Flagged as a deviation in the report.
   currentTime: number;
   fallbackDurationSec: number;
+  // streamInfo/serverUrl come straight from usePlaySession - buildCastStreamUrl
+  // re-negotiates the URL against the RECEIVER's decode profile instead of
+  // casting the phone-negotiated streamUrl as-is (see lib/castUrl.ts).
+  streamInfo: V1StreamInfo | null;
+  serverUrl: string | null;
 }
 
 export function useCastSession({
@@ -38,10 +45,13 @@ export function useCastSession({
   title,
   currentTime,
   fallbackDurationSec,
+  streamInfo,
+  serverUrl,
 }: UseCastSessionArgs) {
   const castState = useCastStateHook();
   const castClient = useRemoteMediaClientHook();
   const castMediaStatus = useMediaStatusHook();
+  const castDevice = useCastDeviceHook();
   const castConnected = castState === CastStateEnum.CONNECTED;
   const castCurrentTime = castMediaStatus?.streamPosition ?? 0;
   const castDuration = castMediaStatus?.mediaInfo?.streamDuration ?? fallbackDurationSec;
@@ -74,7 +84,16 @@ export function useCastSession({
     // server-derived progress - better than a broken cast.
     try {
       const castToken = await fetchStreamToken(mediaId, { cast: true });
-      castUrl = withCastToken(streamUrl, castToken);
+      if (streamInfo && serverUrl) {
+        // The RECEIVER decodes the stream, not this phone: negotiating with
+        // streamInfo/the receiver's profile (instead of casting the
+        // phone-negotiated streamUrl) is what stops a copy rung the
+        // Chromecast can't decode from producing a black screen on the TV.
+        const profile = pickCastProfile(castDevice?.modelName);
+        castUrl = buildCastStreamUrl(serverUrl, mediaId, streamInfo, castToken, profile);
+      } else {
+        castUrl = withCastToken(streamUrl, castToken);
+      }
     } catch (err) {
       console.warn("[Cast] cast token mint failed, casting with native token:", err);
     }
@@ -93,7 +112,7 @@ export function useCastSession({
         startTime: currentTime,
       });
     } catch (e) { console.warn("[CAST] loadMedia failed:", e); }
-  }, [streamUrl, title, mediaId, currentTime, muteLocalPlayer]);
+  }, [streamUrl, title, mediaId, currentTime, muteLocalPlayer, streamInfo, serverUrl, castDevice?.modelName]);
 
   const handleCast = useCallback(async () => {
     if (!CastContext) return;
