@@ -30,6 +30,7 @@ export const Route = createLazyFileRoute("/_auth/player/$mediaId")({
 function PlayerPage() {
   const { mediaId } = Route.useParams();
   const router = useRouter();
+  const { t } = useTranslation();
   const profileId = useAuthStore((s) => s.profileId);
 
   // Close the global music mini-player when a full-screen video player opens -
@@ -48,12 +49,47 @@ function PlayerPage() {
   // Hold the spinner until the parental settings landed too: evaluating
   // needsPin() while they were in flight returned false, mounted the player
   // and started a transcode session BEFORE the PIN dialog appeared.
-  const blocked = !gateLoading && !settingsLoading && needsPin() && !pinVerified;
+  const gatePending = gateLoading || settingsLoading;
+  const blocked = !gatePending && needsPin() && !pinVerified;
 
-  if (gateLoading || settingsLoading) {
+  // Leaving the gate before the player mounts: back if we can, else fall to the
+  // media page. Shared by the gate spinner's escape and the PIN dialog's close.
+  const goBackFromGate = useCallback(() => {
+    if (router.history.canGoBack()) {
+      router.history.back();
+    } else {
+      void router.navigate({ to: "/media/$mediaId", params: { mediaId } });
+    }
+  }, [router, mediaId]);
+
+  // A hung media-item or parental-settings request would otherwise leave a
+  // black screen with no way out (the inner player-loading branch already has
+  // this safety net; the gate stage lacked it).
+  const [gateTimedOut, setGateTimedOut] = useState(false);
+  useEffect(() => {
+    if (!gatePending) { setGateTimedOut(false); return; }
+    const timer = setTimeout(() => setGateTimedOut(true), 30_000);
+    return () => clearTimeout(timer);
+  }, [gatePending]);
+
+  if (gatePending) {
     return (
-      <div className="fixed inset-0 bg-black z-overlay flex items-center justify-center">
-        <Spinner />
+      <div className="fixed inset-0 bg-black z-overlay flex flex-col items-center justify-center gap-4">
+        {gateTimedOut ? (
+          <>
+            <TriangleAlert size={48} style={{ color: "var(--color-danger)" }} strokeWidth={1.5} />
+            <p className="text-lg font-medium text-white">{t("player.failedToStart")}</p>
+            <div className="flex gap-3">
+              <Button variant="overlay-accent" onClick={() => window.location.reload()}>{t("player.retry")}</Button>
+              <Button variant="overlay" onClick={goBackFromGate}>{t("player.goBack")}</Button>
+            </div>
+          </>
+        ) : (
+          <>
+            <Spinner />
+            <Button variant="overlay" className="mt-4" onClick={goBackFromGate} data-testid="gate-loading-back">{t("player.goBack")}</Button>
+          </>
+        )}
       </div>
     );
   }
@@ -64,13 +100,7 @@ function PlayerPage() {
         {profileId && (
           <ParentalPINDialog
             open
-            onClose={() => {
-              if (router.history.canGoBack()) {
-                router.history.back();
-              } else {
-                void router.navigate({ to: "/media/$mediaId", params: { mediaId } });
-              }
-            }}
+            onClose={goBackFromGate}
             onVerified={() => {
               if (profileId) markUnlocked(profileId);
               setPinVerified(true);
