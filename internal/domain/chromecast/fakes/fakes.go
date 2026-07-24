@@ -27,6 +27,27 @@ func (f *FakeDiscoverer) Discover(_ context.Context) ([]chromecast.Device, error
 	return out, nil
 }
 
+type FakeSubnetProber struct {
+	Devices []chromecast.Device
+	Err     error
+	Calls   int
+	LastIP  string
+	mu      sync.Mutex
+}
+
+func (f *FakeSubnetProber) ProbeSubnet(_ context.Context, clientIP string) ([]chromecast.Device, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.Calls++
+	f.LastIP = clientIP
+	if f.Err != nil {
+		return nil, f.Err
+	}
+	out := make([]chromecast.Device, len(f.Devices))
+	copy(out, f.Devices)
+	return out, nil
+}
+
 type FakeSession struct {
 	Loaded       string
 	ContentType  string

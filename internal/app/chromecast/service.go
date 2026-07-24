@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net"
+	"sort"
 	"sync"
 	"time"
 
@@ -29,6 +31,7 @@ type Service struct {
 
 	discoverer domaincast.Discoverer
 	factory    domaincast.SessionFactory
+	prober     domaincast.SubnetProber
 
 	// connMu guards conns and connLocks ONLY - it is never held across a
 	// blocking session call (Connect/StopMedia/Close). Per-device serialization
@@ -41,14 +44,16 @@ type Service struct {
 // New builds a Service backed by real go-chromecast discovery/connections.
 // baseURL is retained for API compatibility; currently unused by the service.
 func New(_ string) *Service {
-	return NewWithPorts(&mdnsDiscoverer{}, &appSessionFactory{})
+	return NewWithPorts(&mdnsDiscoverer{}, &appSessionFactory{}, &tcpSubnetProber{})
 }
 
 // NewWithPorts builds a Service with injected ports (used in tests).
-func NewWithPorts(discoverer domaincast.Discoverer, factory domaincast.SessionFactory) *Service {
+// prober may be nil (no unicast fallback).
+func NewWithPorts(discoverer domaincast.Discoverer, factory domaincast.SessionFactory, prober domaincast.SubnetProber) *Service {
 	return &Service{
 		discoverer: discoverer,
 		factory:    factory,
+		prober:     prober,
 		conns:      make(map[string]domaincast.CastSession),
 		connLocks:  make(map[string]*sync.Mutex),
 	}
@@ -67,7 +72,14 @@ func (s *Service) connLock(uuid string) *sync.Mutex {
 	return l
 }
 
-func (s *Service) Discover(ctx context.Context) ([]Device, error) {
+// Discover lists cast devices. clientIP (may be empty) is the requesting
+// client's real IP: when multicast mDNS finds nothing - the normal state for
+// a server on a Docker bridge network, whose multicast never reaches the LAN -
+// and the client is on a private network, the client's own /24 is probed
+// directly over unicast, which DOES route out of a bridge. The client's subnet
+// is the right one to scan: their Chromecast lives on their network, not on
+// whatever internal network the container sees.
+func (s *Service) Discover(ctx context.Context, clientIP string) ([]Device, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.chromecast.Discover")
 	defer span.End()
 
@@ -85,8 +97,21 @@ func (s *Service) Discover(ctx context.Context) ([]Device, error) {
 		return nil, err
 	}
 
+	if len(devices) == 0 && s.prober != nil && clientIP != "" {
+		probed, probeErr := s.prober.ProbeSubnet(ctx, clientIP)
+		if probeErr != nil {
+			slog.Warn("chromecast: subnet probe failed", slog.Any("err", probeErr))
+		} else {
+			devices = probed
+		}
+	}
+
 	s.mu.Lock()
-	s.devices = devices
+	// An empty result never overwrites known devices: a later hint-less scan
+	// (or an mDNS blip) must not evict entries a user is about to Play on.
+	if len(devices) > 0 {
+		s.devices = devices
+	}
 	s.lastScan = time.Now()
 	s.mu.Unlock()
 
@@ -373,6 +398,85 @@ func (mdnsDiscoverer) Discover(ctx context.Context) ([]domaincast.Device, error)
 	devices = dedupeDevices(devices)
 	slog.Info("chromecast: discovery complete", slog.Int("count", len(devices)))
 	return devices, nil
+}
+
+// tcpSubnetProber finds Chromecasts without multicast: every cast device
+// listens on TCP 8009 (the CASTV2 channel go-chromecast connects to anyway),
+// so a plain unicast connect scan of the client's /24 finds them from inside
+// a Docker bridge network where mDNS is structurally deaf. Names are synthetic
+// ("Chromecast (ip)") - the CASTV2 handshake needed for the real name is what
+// Play opens later; the picker label does not justify 254 TLS handshakes.
+type tcpSubnetProber struct {
+	// dial is injectable for tests; nil means net.DialTimeout.
+	dial func(network, addr string, timeout time.Duration) (net.Conn, error)
+}
+
+const (
+	castPort         = 8009
+	probeTimeout     = 400 * time.Millisecond
+	probeConcurrency = 64
+)
+
+func (p *tcpSubnetProber) ProbeSubnet(ctx context.Context, clientIP string) ([]domaincast.Device, error) {
+	ip := net.ParseIP(clientIP)
+	if ip == nil {
+		return nil, nil
+	}
+	v4 := ip.To4()
+	// Only probe private IPv4 space: a public client has no scannable home LAN
+	// from here, and this must never become a generic port scanner.
+	if v4 == nil || !ip.IsPrivate() {
+		return nil, nil
+	}
+
+	dial := p.dial
+	if dial == nil {
+		dial = net.DialTimeout
+	}
+
+	var (
+		wg      sync.WaitGroup
+		mu      sync.Mutex
+		found   []domaincast.Device
+		sem     = make(chan struct{}, probeConcurrency)
+		network = v4.Mask(net.CIDRMask(24, 32))
+	)
+	for host := 1; host <= 254; host++ {
+		if ctx.Err() != nil {
+			break
+		}
+		addr := net.IPv4(network[0], network[1], network[2], byte(host)).String()
+		sem <- struct{}{}
+		wg.Add(1)
+		go func(addr string) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			conn, err := dial("tcp", fmt.Sprintf("%s:%d", addr, castPort), probeTimeout)
+			if err != nil {
+				return
+			}
+			_ = conn.Close()
+			mu.Lock()
+			found = append(found, domaincast.Device{
+				// Stable identity across scans so findDevice/Play and session
+				// caching keep working when the list refreshes.
+				UUID: "tcp-" + addr,
+				Name: "Chromecast (" + addr + ")",
+				Addr: addr,
+				Port: castPort,
+			})
+			mu.Unlock()
+		}(addr)
+	}
+	wg.Wait()
+	// A cancelled request gets the cancellation, not a silently truncated scan
+	// that would be cached as "the whole subnet".
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	sort.Slice(found, func(i, j int) bool { return found[i].Addr < found[j].Addr })
+	slog.Info("chromecast: subnet probe complete", slog.Int("count", len(found)))
+	return found, nil
 }
 
 type appSessionFactory struct{}

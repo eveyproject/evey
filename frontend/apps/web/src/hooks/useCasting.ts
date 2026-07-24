@@ -169,7 +169,11 @@ function ensureCastSdk() {
 // the other half.
 type CastReporter = (e: { type: string; details?: string; fatal?: boolean }) => void;
 
-export type CastAttempt = "connected" | "dismissed" | "session-failed" | "load-failed";
+// "no-devices" is its own outcome (not a "session-failed"): the server-side
+// discovery answered and found nothing reachable. The caller decides what to
+// tell the user - startCast itself never toasts for it, so a caller with a
+// second path to try (the mobile fling) doesn't stack two errors on screen.
+export type CastAttempt = "connected" | "dismissed" | "session-failed" | "load-failed" | "no-devices";
 
 export function useCasting(report?: CastReporter) {
   const reportRef = useRef<CastReporter | undefined>(report);
@@ -330,7 +334,11 @@ export function useCasting(report?: CastReporter) {
   // not come up, which is recoverable by another cast path (the Remote
   // Playback fling). "load-failed" is not - the receiver took the session and
   // refused the media, and handing it the same URL another way changes nothing.
-  const startCast = useCallback(async (streamUrl: string, title?: string, startAtSec = 0): Promise<CastAttempt> => {
+  // opts.skipSdk: Chrome Android reports the Cast SDK as ready but cannot
+  // complete a session with it (measured in prod 2026-07-22: sdk=true then
+  // session error, while the same phone in desktop-site mode connects fine).
+  // The mobile tap path passes skipSdk to go straight to the server-side cast.
+  const startCast = useCallback(async (streamUrl: string, title?: string, startAtSec = 0, opts?: { skipSdk?: boolean }): Promise<CastAttempt> => {
     log(TAG, "startCast - url:", streamUrl, "title:", title, "startAtSec:", startAtSec);
     // Same diagnostic payload as the fling path: whether the tap's activation
     // was still alive tells a browser refusal apart from a user cancelling.
@@ -348,7 +356,7 @@ export function useCasting(report?: CastReporter) {
       : `${origin}${streamUrl}`;
     log(TAG, "Absolute URL:", absoluteUrl);
 
-    if (chromecastReady.current) {
+    if (chromecastReady.current && !opts?.skipSdk) {
       try {
         const cast = window.cast;
         const ctx = cast.framework.CastContext.getInstance();
@@ -422,25 +430,14 @@ export function useCasting(report?: CastReporter) {
       }
     }
 
-    // Server-side Cast (Chromecast via backend) + DLNA fallback - ONLY when
-    // Evey is reached directly by a LAN IP, where the server shares the user's
-    // network. Behind a domain (reverse proxy) it never can, so skip the whole
-    // server round-trip and give an honest client-side message instead of the
-    // misleading "no devices on the server's network" toast. Applies to admins
-    // too: an admin on a domain has the same non-overlapping-LAN problem.
-    let castHost = window.location.hostname;
-    try {
-      castHost = new URL(absoluteUrl).hostname;
-    } catch {
-      /* absoluteUrl always absolute here; fall back to the page host */
-    }
-    if (!isDirectLanHost(castHost)) {
-      // Behind a domain the server shares no network with the user, so the
-      // LAN discovery below cannot help. Report it as a failed attempt so the
-      // caller can try its own cast path before showing anything.
-      return "session-failed";
-    }
-
+    // Server-side Cast (Chromecast via backend) + DLNA fallback. This used to
+    // be gated on reaching Evey by a LAN IP ("behind a domain the server never
+    // shares the visitor's LAN") - which wrote off the most common self-hosted
+    // deployment: server and visitor on the SAME home LAN, accessed through
+    // the public domain. The server now probes the CLIENT's subnet during
+    // discovery (see the chromecast service), so it answers the question
+    // authoritatively: an empty list means genuinely nothing reachable, not
+    // "wrong kind of hostname".
     try {
       const castDevices = (await eveyFetch<CastDevice[]>({
         url: "/api/v1/cast/devices",
@@ -476,12 +473,10 @@ export function useCasting(report?: CastReporter) {
         method: "GET",
       })) ?? [];
       if (renderers.length === 0) {
-        // Server-side discovery found nothing on the server's LAN. Tell
-        // the user instead of failing silently - the most common cause
-        // is the evey container being on a Docker bridge network where
-        // mDNS/SSDP multicast can't reach the LAN.
-        toast.error(i18n.t("player.cast.noDevices"));
-        return "session-failed";
+        // Nothing reachable server-side either (Chromecast probe + DLNA).
+        // Hand the fact back instead of toasting here - only the caller
+        // knows whether it still has a path to try before saying anything.
+        return "no-devices";
       }
       const renderer = renderers[0];
       await eveyFetch({

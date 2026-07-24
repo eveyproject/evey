@@ -25,6 +25,16 @@ type Discoverer interface {
 	Discover(ctx context.Context) ([]Device, error)
 }
 
+// SubnetProber finds cast devices by probing a client's subnet directly
+// (unicast), for deployments where multicast discovery cannot work - an mDNS
+// query from a Docker bridge network never reaches the LAN, so a server that
+// could perfectly well drive a Chromecast reports an empty device list.
+type SubnetProber interface {
+	// ProbeSubnet scans the /24 around clientIP for devices. clientIP must be
+	// a private (RFC1918) IPv4 address; implementations return nil otherwise.
+	ProbeSubnet(ctx context.Context, clientIP string) ([]Device, error)
+}
+
 // CastSession represents a live connection to a single cast device.
 type CastSession interface {
 	Load(mediaURL, contentType string) error

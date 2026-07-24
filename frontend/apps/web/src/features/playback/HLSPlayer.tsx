@@ -358,22 +358,25 @@ export function HLSPlayer({
     return { url, castResumeSec: plan.resumeSec };
   }, [streamInfo.directPlayUrl, mediaId, currentTrackIndex, onCastTokenRequest, gapless, reportCastEvent]);
 
-  // Chrome Android: the Cast SDK is dead, so cast by FLINGING the HLS/direct
-  // URL through the Remote Playback API on a dedicated hidden <video>. The
-  // receiver fetches and decodes the URL itself (it reads HLS natively), so
-  // it doesn't matter that Chrome Android can't decode HLS locally. The local
-  // MSE player is paused - the film moves to the TV.
+  // Chrome Android: neither browser cast path is reliable here - the Cast SDK
+  // claims ready but cannot complete a session, and the Remote Playback fling
+  // is refused outright for anything the phone can't fully parse (both
+  // measured in prod, 2026-07-22 and 2026-07-24). So the tap goes SERVER-side
+  // first, like every self-hosted peer does for non-desktop browsers: the
+  // backend discovers the Chromecast (unicast-probing the phone's own subnet,
+  // which works from a Docker bridge) and drives it directly - no browser
+  // cast API in the loop at all. The Remote Playback fling stays as a last
+  // resort for setups where the server genuinely can't reach the device.
   const handleMobileCast = useCallback(async () => {
     const el = castVideoRef.current;
     if (!el) return;
+    const { url, castResumeSec } = await buildCastUrl();
+    const server = await startCast(url, title, castResumeSec, { skipSdk: true });
+    if (server === "connected" || server === "load-failed" || server === "dismissed") return;
+    // Fling fallback, still inside the tap's transient activation: the server
+    // round-trip is fast (device cache) and activation survives short awaits -
+    // what kills it is consumption, and nothing above consumes it.
     el.muted = false;
-    // NOTHING may be awaited before prompt(). The element already carries the
-    // complete cast URL (castAvailabilitySrc, rebuilt whenever the media, the
-    // track or the cast token changes), so the tap goes straight to the picker.
-    // Building the URL here instead - one token fetch - burned the tap's
-    // transient user activation, and Chrome then rejected every attempt with
-    // NotAllowedError: 13 taps, 13 instant rejections, no picker (measured in
-    // production at 19:38 via the cast beacon).
     const outcome = await remotePlayback.prompt();
     if (outcome === "connected") {
       // Pause the local player only on a REAL handoff - a dismissed picker
@@ -385,21 +388,13 @@ export function HLSPlayer({
       // device (the SDK path gets autoplay from its LoadRequest; this one has
       // to ask).
       el.play().catch(() => { /* receiver may auto-start on its own */ });
-    } else if (outcome === "refused") {
-      // The browser rejected before any picker could appear (instant
-      // NotAllowedError - see classifyPromptRejection). Staying silent here is
-      // what turned a dead code path into "the button is broken": 7 taps into
-      // the void, prod 2026-07-24. Say something, every time.
-      toast.error(t("player.cast.pickerRefused"));
-    } else if (outcome === "error") {
-      // Deliberately NO fallback to the Cast SDK here. Chaining a second cast
-      // path after a failed one costs awaits, and the tap's user activation is
-      // already spent by then: production showed the chained attempt rejected
-      // with InvalidAccessError ("not triggered by user activation"), i.e. a
-      // picker that can never open. One tap, one path, inside the activation.
-      toast.error(t("player.cast.loadFailed"));
+      return;
     }
-  }, [remotePlayback, t]);
+    if (outcome === "dismissed") return; // the user's choice, stay silent
+    // Both paths failed. ONE message, matching what actually happened: the
+    // 2026-07-24 lesson is that a cast button must never eat a tap silently.
+    toast.error(t(server === "no-devices" ? "player.cast.noDevices" : "player.cast.connectFailed"));
+  }, [remotePlayback, startCast, buildCastUrl, title, t]);
 
   const handleCastToggle = useCallback(async () => {
     if (castConnected) {
@@ -409,6 +404,10 @@ export function HLSPlayer({
     const { url, castResumeSec } = await buildCastUrl();
     if (import.meta.env.DEV) console.log("[Cast] SDK cast url:", url, "mode:", streamInfo.directPlayUrl ? "direct" : "transcode");
     const outcome = await startCast(url, title, castResumeSec);
+    if (outcome === "no-devices") {
+      toast.error(t("player.cast.noDevices"));
+      return;
+    }
     if (outcome !== "session-failed") return;
     // No chained fallback to the fling here either: it would run after this
     // failure, outside the tap's user activation, and the browser refuses to

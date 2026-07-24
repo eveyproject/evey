@@ -11,6 +11,7 @@ import (
 	otelcodes "go.opentelemetry.io/otel/codes"
 
 	appcast "github.com/evey-project/evey/internal/app/chromecast"
+	"github.com/evey-project/evey/internal/pkg/network"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
@@ -19,7 +20,7 @@ const castMaxBodySize = 4096
 // castClient is the minimal surface of appcast.Service used by chromecast handlers.
 // It exists so handlers can be unit-tested with a fake implementation.
 type castClient interface {
-	Discover(ctx context.Context) ([]appcast.Device, error)
+	Discover(ctx context.Context, clientIP string) ([]appcast.Device, error)
 	Play(ctx context.Context, uuid, mediaURL, title, contentType string) error
 	Stop(ctx context.Context, uuid string) error
 	Pause(ctx context.Context, uuid string) error
@@ -32,7 +33,14 @@ func castDevicesHandler(castSvc castClient) http.HandlerFunc {
 		ctx, span := tracing.StartSpan(r.Context(), "http.chromecast.Devices")
 		defer span.End()
 		r = r.WithContext(ctx)
-		devices, err := castSvc.Discover(r.Context())
+		// The client's IP feeds the unicast subnet-probe fallback: when mDNS
+		// multicast is dead (Docker bridge), their own /24 is where their
+		// Chromecast lives.
+		var clientIP string
+		if ip := network.ClientIP(r); ip != nil {
+			clientIP = ip.String()
+		}
+		devices, err := castSvc.Discover(r.Context(), clientIP)
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, "discovery failed")

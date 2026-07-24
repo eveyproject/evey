@@ -54,6 +54,13 @@ func (d *Detector) DetectIP(ip net.IP) NetworkType {
 	return WAN
 }
 
+// ClientIP resolves the request's real client IP. Safe to trust at handler
+// time: the proxy middleware has already collapsed X-Forwarded-For down to
+// the single authoritative client address (see proxy.go).
+func ClientIP(r *http.Request) net.IP {
+	return clientIP(r)
+}
+
 func clientIP(r *http.Request) net.IP {
 	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
 		parts := strings.SplitN(xff, ",", 2)

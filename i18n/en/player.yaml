@@ -156,7 +156,7 @@ streamInfo:
     audio_resync_requested: Audio resync requested
     decision_pinned: Choice pinned for this session
 cast:
-  noDevices: No cast devices found on the server's network.
+  noDevices: "No cast device found - neither on the server's network nor on yours."
   loadFailed: "Could not start playback on the cast device."
   pickerRefused: "The browser refused to open the cast picker (media not ready yet). Wait a few seconds and try again."
   connectFailed: "Could not connect to the cast device. It answered but the session failed - check it is not already casting, then try again."

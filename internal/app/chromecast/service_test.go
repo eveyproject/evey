@@ -3,6 +3,7 @@ package chromecast
 import (
 	"context"
 	"errors"
+	"net"
 	"sync"
 	"testing"
 	"time"
@@ -14,18 +15,18 @@ import (
 func newTestSvc(devices ...domaincast.Device) (*Service, *castfakes.FakeDiscoverer, *castfakes.FakeSessionFactory) {
 	disc := &castfakes.FakeDiscoverer{Devices: devices}
 	fac := castfakes.NewFakeSessionFactory()
-	return NewWithPorts(disc, fac), disc, fac
+	return NewWithPorts(disc, fac, nil), disc, fac
 }
 
 func TestDiscover_Cached(t *testing.T) {
 	dev := domaincast.Device{UUID: "u1", Name: "Living", Addr: "1.2.3.4", Port: 8009}
 	svc, disc, _ := newTestSvc(dev)
 
-	d1, err := svc.Discover(context.Background())
+	d1, err := svc.Discover(context.Background(), "")
 	if err != nil || len(d1) != 1 || d1[0].UUID != "u1" {
 		t.Fatalf("first discover: %v %+v", err, d1)
 	}
-	d2, err := svc.Discover(context.Background())
+	d2, err := svc.Discover(context.Background(), "")
 	if err != nil || len(d2) != 1 {
 		t.Fatalf("second discover: %v %+v", err, d2)
 	}
@@ -37,7 +38,7 @@ func TestDiscover_Cached(t *testing.T) {
 func TestDiscover_Error(t *testing.T) {
 	svc, disc, _ := newTestSvc()
 	disc.Err = errors.New("net down")
-	if _, err := svc.Discover(context.Background()); err == nil {
+	if _, err := svc.Discover(context.Background(), ""); err == nil {
 		t.Fatal("expected error")
 	}
 }
@@ -53,7 +54,7 @@ func TestPlay_DeviceNotFound(t *testing.T) {
 func TestPlay_Happy(t *testing.T) {
 	dev := domaincast.Device{UUID: "u1", Name: "Living"}
 	svc, _, fac := newTestSvc(dev)
-	if _, err := svc.Discover(context.Background()); err != nil {
+	if _, err := svc.Discover(context.Background(), ""); err != nil {
 		t.Fatal(err)
 	}
 	if err := svc.Play(context.Background(), "u1", "http://x/y.mp4", "title", ""); err != nil {
@@ -74,7 +75,7 @@ func TestPlay_Happy(t *testing.T) {
 func TestPlay_CustomContentType(t *testing.T) {
 	dev := domaincast.Device{UUID: "u1"}
 	svc, _, fac := newTestSvc(dev)
-	_, _ = svc.Discover(context.Background())
+	_, _ = svc.Discover(context.Background(), "")
 	if err := svc.Play(context.Background(), "u1", "http://x/a.mkv", "", "video/x-matroska"); err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +87,7 @@ func TestPlay_CustomContentType(t *testing.T) {
 func TestPauseUnpauseSeekVolume(t *testing.T) {
 	dev := domaincast.Device{UUID: "u1"}
 	svc, _, fac := newTestSvc(dev)
-	_, _ = svc.Discover(context.Background())
+	_, _ = svc.Discover(context.Background(), "")
 
 	if err := svc.Pause(context.Background(), "u1"); err != nil {
 		t.Fatal(err)
@@ -109,7 +110,7 @@ func TestPauseUnpauseSeekVolume(t *testing.T) {
 func TestStop_ClosesAndRemovesSession(t *testing.T) {
 	dev := domaincast.Device{UUID: "u1"}
 	svc, _, fac := newTestSvc(dev)
-	_, _ = svc.Discover(context.Background())
+	_, _ = svc.Discover(context.Background(), "")
 	// open session
 	_ = svc.Pause(context.Background(), "u1")
 
@@ -128,7 +129,7 @@ func TestStop_ClosesAndRemovesSession(t *testing.T) {
 func TestStop_NoSessionIsNoop(t *testing.T) {
 	dev := domaincast.Device{UUID: "u1"}
 	svc, _, _ := newTestSvc(dev)
-	_, _ = svc.Discover(context.Background())
+	_, _ = svc.Discover(context.Background(), "")
 	if err := svc.Stop(context.Background(), "u1"); err != nil {
 		t.Fatalf("expected noop, got %v", err)
 	}
@@ -137,7 +138,7 @@ func TestStop_NoSessionIsNoop(t *testing.T) {
 func TestStatus_AggregatesSessionSnapshot(t *testing.T) {
 	dev := domaincast.Device{UUID: "u1", Name: "Living"}
 	svc, _, fac := newTestSvc(dev)
-	_, _ = svc.Discover(context.Background())
+	_, _ = svc.Discover(context.Background(), "")
 	_ = svc.Pause(context.Background(), "u1") // ensures session exists
 	fac.Sessions["u1"].StatusReturn = domaincast.MediaStatus{
 		App: "YouTube", PlayerState: "PLAYING", CurrentTime: 12, Duration: 300, Volume: 0.8, Muted: false,
@@ -155,7 +156,7 @@ func TestStatus_AggregatesSessionSnapshot(t *testing.T) {
 func TestGetOrConnect_ReconnectsWhenDead(t *testing.T) {
 	dev := domaincast.Device{UUID: "u1"}
 	svc, _, fac := newTestSvc(dev)
-	_, _ = svc.Discover(context.Background())
+	_, _ = svc.Discover(context.Background(), "")
 	_ = svc.Pause(context.Background(), "u1")
 
 	first := fac.Sessions["u1"]
@@ -179,7 +180,7 @@ func TestGetOrConnect_ReconnectsWhenDead(t *testing.T) {
 func TestConnectError_PropagatesOnPlay(t *testing.T) {
 	dev := domaincast.Device{UUID: "u1"}
 	svc, _, fac := newTestSvc(dev)
-	_, _ = svc.Discover(context.Background())
+	_, _ = svc.Discover(context.Background(), "")
 	fac.Err = errors.New("connect refused")
 	if err := svc.Play(context.Background(), "u1", "http://x", "", ""); err == nil {
 		t.Fatal("expected connect error")
@@ -190,7 +191,7 @@ func TestClose_ClosesAllSessions(t *testing.T) {
 	dev1 := domaincast.Device{UUID: "u1"}
 	dev2 := domaincast.Device{UUID: "u2"}
 	svc, _, fac := newTestSvc(dev1, dev2)
-	_, _ = svc.Discover(context.Background())
+	_, _ = svc.Discover(context.Background(), "")
 	_ = svc.Pause(context.Background(), "u1")
 	_ = svc.Pause(context.Background(), "u2")
 
@@ -236,7 +237,7 @@ func (f *latchFactory) callCount() int {
 
 func TestGetOrConnect_SingleflightPerDevice(t *testing.T) {
 	fac := newLatchFactory()
-	svc := NewWithPorts(&castfakes.FakeDiscoverer{}, fac)
+	svc := NewWithPorts(&castfakes.FakeDiscoverer{}, fac, nil)
 	dev := &domaincast.Device{UUID: "u1"}
 
 	const N = 5
@@ -268,7 +269,7 @@ func TestGetOrConnect_SingleflightPerDevice(t *testing.T) {
 
 func TestGetOrConnect_DistinctDevicesRunInParallel(t *testing.T) {
 	fac := newLatchFactory()
-	svc := NewWithPorts(&castfakes.FakeDiscoverer{}, fac)
+	svc := NewWithPorts(&castfakes.FakeDiscoverer{}, fac, nil)
 
 	go func() { _, _ = svc.getOrConnect(&domaincast.Device{UUID: "u1"}) }()
 	go func() { _, _ = svc.getOrConnect(&domaincast.Device{UUID: "u2"}) }()
@@ -311,5 +312,120 @@ func TestDedupeDevices_EmptyUUIDKeepsDistinctDevices(t *testing.T) {
 	})
 	if len(out) != 2 {
 		t.Fatalf("two addresses must survive an empty uuid, got %d: %+v", len(out), out)
+	}
+}
+
+// --- unicast subnet-probe fallback ------------------------------------------
+// mDNS multicast never leaves a Docker bridge network, so in the common
+// container deployment Discover returned [] forever while the server could
+// perfectly well drive the Chromecast over unicast (observed in prod
+// 2026-07-24). The prober is that unicast path; these tests pin when it runs.
+
+func TestDiscover_ProbeFallback_WhenMDNSEmpty(t *testing.T) {
+	dev := domaincast.Device{UUID: "tcp-192.168.1.42", Name: "Chromecast (192.168.1.42)", Addr: "192.168.1.42", Port: 8009}
+	disc := &castfakes.FakeDiscoverer{} // mDNS finds nothing
+	prober := &castfakes.FakeSubnetProber{Devices: []domaincast.Device{dev}}
+	svc := NewWithPorts(disc, castfakes.NewFakeSessionFactory(), prober)
+
+	got, err := svc.Discover(context.Background(), "192.168.1.23")
+	if err != nil || len(got) != 1 || got[0].UUID != "tcp-192.168.1.42" {
+		t.Fatalf("probe fallback: %v %+v", err, got)
+	}
+	if prober.Calls != 1 || prober.LastIP != "192.168.1.23" {
+		t.Fatalf("prober not fed the client IP: calls=%d ip=%q", prober.Calls, prober.LastIP)
+	}
+}
+
+func TestDiscover_NoProbe_WhenMDNSFindsDevices(t *testing.T) {
+	dev := domaincast.Device{UUID: "u1", Addr: "10.0.0.9", Port: 8009}
+	disc := &castfakes.FakeDiscoverer{Devices: []domaincast.Device{dev}}
+	prober := &castfakes.FakeSubnetProber{}
+	svc := NewWithPorts(disc, castfakes.NewFakeSessionFactory(), prober)
+
+	if _, err := svc.Discover(context.Background(), "192.168.1.23"); err != nil {
+		t.Fatal(err)
+	}
+	if prober.Calls != 0 {
+		t.Fatalf("probe must not run when mDNS already answered, got %d calls", prober.Calls)
+	}
+}
+
+func TestDiscover_NoProbe_WithoutClientIP(t *testing.T) {
+	disc := &castfakes.FakeDiscoverer{}
+	prober := &castfakes.FakeSubnetProber{}
+	svc := NewWithPorts(disc, castfakes.NewFakeSessionFactory(), prober)
+
+	if _, err := svc.Discover(context.Background(), ""); err != nil {
+		t.Fatal(err)
+	}
+	if prober.Calls != 0 {
+		t.Fatalf("no client hint means nothing to scan, got %d calls", prober.Calls)
+	}
+}
+
+func TestDiscover_EmptyResultKeepsKnownDevices(t *testing.T) {
+	// A user picks a device from the list, thinks, taps Play after the cache
+	// TTL: the re-scan coming back empty must not have evicted the device the
+	// Play call is about to look up.
+	dev := domaincast.Device{UUID: "u1", Addr: "10.0.0.9", Port: 8009}
+	disc := &castfakes.FakeDiscoverer{Devices: []domaincast.Device{dev}}
+	svc := NewWithPorts(disc, castfakes.NewFakeSessionFactory(), nil)
+
+	if _, err := svc.Discover(context.Background(), ""); err != nil {
+		t.Fatal(err)
+	}
+	// Expire the cache and make the next scan come back empty.
+	svc.mu.Lock()
+	svc.lastScan = time.Time{}
+	svc.mu.Unlock()
+	disc.Devices = nil
+
+	if _, err := svc.Discover(context.Background(), ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.findDevice("u1"); err != nil {
+		t.Fatalf("known device evicted by an empty re-scan: %v", err)
+	}
+}
+
+func TestTCPSubnetProber_RefusesPublicAndInvalidIPs(t *testing.T) {
+	dialed := 0
+	p := &tcpSubnetProber{dial: func(_, _ string, _ time.Duration) (net.Conn, error) {
+		dialed++
+		return nil, errors.New("refused")
+	}}
+	for _, ip := range []string{"", "not-an-ip", "8.8.8.8", "2001:db8::1"} {
+		devs, err := p.ProbeSubnet(context.Background(), ip)
+		if err != nil || devs != nil {
+			t.Fatalf("ip %q: expected nil,nil got %v,%v", ip, devs, err)
+		}
+	}
+	if dialed != 0 {
+		t.Fatalf("must never scan around a public or invalid IP, dialed %d times", dialed)
+	}
+}
+
+func TestTCPSubnetProber_FindsOpenCastPorts(t *testing.T) {
+	// The prober scans the client's whole /24 on the CASTV2 port and reports
+	// each open port as a device with a stable, addr-derived identity.
+	p := &tcpSubnetProber{dial: func(_, addr string, _ time.Duration) (net.Conn, error) {
+		if addr == "192.168.1.42:8009" || addr == "192.168.1.7:8009" {
+			c, s := net.Pipe()
+			go func() { _ = s.Close() }()
+			return c, nil
+		}
+		return nil, errors.New("refused")
+	}}
+	devs, err := p.ProbeSubnet(context.Background(), "192.168.1.23")
+	if err != nil || len(devs) != 2 {
+		t.Fatalf("expected 2 devices: %v %+v", err, devs)
+	}
+	if devs[0].UUID != "tcp-192.168.1.42" && devs[1].UUID != "tcp-192.168.1.42" {
+		t.Fatalf("missing stable uuid: %+v", devs)
+	}
+	for _, d := range devs {
+		if d.Port != 8009 || d.Name == "" {
+			t.Fatalf("bad device: %+v", d)
+		}
 	}
 }

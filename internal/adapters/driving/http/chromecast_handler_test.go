@@ -22,7 +22,7 @@ type fakeCastClient struct {
 	played, stopped, paused, seeked               bool
 }
 
-func (f *fakeCastClient) Discover(_ context.Context) ([]appcast.Device, error) {
+func (f *fakeCastClient) Discover(_ context.Context, _ string) ([]appcast.Device, error) {
 	return f.devices, f.err
 }
 func (f *fakeCastClient) Play(_ context.Context, uuid, url, title, ct string) error {

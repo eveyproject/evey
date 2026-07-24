@@ -157,7 +157,7 @@ streamInfo:
     decision_pinned: Choix figé pour cette session
 jumpToChapter: "Aller au chapitre : {{chapter}}"
 cast:
-  noDevices: Aucun appareil de diffusion trouvé sur le réseau du serveur.
+  noDevices: "Aucun appareil de diffusion trouvé - ni sur le réseau du serveur, ni sur le vôtre."
   loadFailed: "Impossible de lancer la lecture sur l'appareil de diffusion."
   pickerRefused: "Le navigateur a refusé d'ouvrir le sélecteur de diffusion (média pas encore prêt). Patientez quelques secondes puis réessayez."
   connectFailed: "Connexion à l'appareil de diffusion impossible. Il a répondu mais la session a échoué - vérifiez qu'il ne diffuse pas déjà, puis réessayez."
