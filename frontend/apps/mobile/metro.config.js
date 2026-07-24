@@ -15,4 +15,11 @@ config.resolver.nodeModulesPaths = [
 config.resolver.disableHierarchicalLookup = true;
 config.resolver.unstable_enableSymlinks = true;
 
+// Tests never belong in the app bundle. A single *.test.tsx dropped inside
+// app/ becomes an expo-router route, drags vitest -> vite into the bundle and
+// kills the release build at 92% with an opaque SyntaxError in
+// vite/module-runner (2026-07-25). The blockList makes that class of mistake
+// fail fast at resolution instead.
+config.resolver.blockList = [/\.test\.(ts|tsx|js|jsx)$/];
+
 module.exports = withNativeWind(config, { input: "./global.css" });

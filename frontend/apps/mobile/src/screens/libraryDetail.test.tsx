@@ -77,7 +77,7 @@ vi.mock("expo-router", () => ({
 }));
 
 // --- ThemeProvider -------------------------------------------------------------------
-vi.mock("../../../src/providers/ThemeProvider", () => ({
+vi.mock("../providers/ThemeProvider", () => ({
   useTheme: () => ({
     colors: {
       bg: "#000",
@@ -99,17 +99,17 @@ vi.mock("../../../src/providers/ThemeProvider", () => ({
 
 // --- misc hooks/components the screen depends on, stubbed to keep this a
 // --- focused render test of the shuffle behavior --------------------------------------
-vi.mock("../../../src/hooks/useAuthenticatedImage", () => ({
+vi.mock("../hooks/useAuthenticatedImage", () => ({
   useAuthHeaders: () => undefined,
 }));
-vi.mock("../../../src/hooks/useDebounce", () => ({
+vi.mock("../hooks/useDebounce", () => ({
   useDebounce: (v: unknown) => v,
 }));
-vi.mock("../../../src/hooks/useFavorite", () => ({
+vi.mock("../hooks/useFavorite", () => ({
   useBulkFavorite: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
-vi.mock("../../../src/components/AddToPlaylistSheet", () => ({ AddToPlaylistSheet: () => null }));
-vi.mock("../../../src/components/Skeleton", () => ({ Skeleton: () => null }));
+vi.mock("../components/AddToPlaylistSheet", () => ({ AddToPlaylistSheet: () => null }));
+vi.mock("../components/Skeleton", () => ({ Skeleton: () => null }));
 
 // --- @evey/store -----------------------------------------------------------------------
 const { toastErrorMock, toastInfoMock } = vi.hoisted(() => ({
@@ -142,7 +142,7 @@ vi.mock("@evey/api", () => ({
 }));
 
 // -------------------------------------------------------------------------------------
-import LibraryDetailScreen from "./[libraryId]";
+import LibraryDetailScreen from "../../app/(auth)/library/[libraryId]";
 
 beforeEach(() => {
   vi.clearAllMocks();
