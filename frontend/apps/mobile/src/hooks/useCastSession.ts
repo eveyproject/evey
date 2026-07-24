@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import type { VideoPlayer } from "expo-video";
 import type { V1StreamInfo } from "@evey/api";
+import { eveyFetch } from "@evey/api";
 import { setAudioBoost } from "../lib/audioBoost";
 import { fetchStreamToken } from "./usePlaySession";
 import { buildCastStreamUrl, pickCastProfile } from "../lib/castUrl";
@@ -76,6 +77,19 @@ export function useCastSession({
   const castLoadMedia = useCallback(async (client: any) => {
     if (!streamUrl || !title) return;
     muteLocalPlayer();
+    // The profile table keys on modelName SUBSTRINGS whose exact 2024-device
+    // values (Chromecast HD, Google TV Streamer) are published nowhere - this
+    // beacon puts the raw string in the admin logs on the first real
+    // connection, so the table gets corrected on evidence, not folklore.
+    eveyFetch({
+      url: `/api/v1/media/${encodeURIComponent(mediaId)}/player-event`,
+      method: "POST",
+      data: {
+        type: "cast_receiver_model",
+        details: `model=${castDevice?.modelName ?? "unknown"}`,
+        fatal: false, code: 0, variant: 0, segment: 0, posSec: 0,
+      },
+    }).catch(() => { /* telemetry must never break a cast */ });
     let castUrl = streamUrl;
     // The receiver's fetches only feed server-side progress tracking when
     // ridden on a purpose=cast token (see cast_observe.go) - the local

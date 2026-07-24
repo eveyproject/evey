@@ -167,3 +167,26 @@ describe("useCastSession", () => {
     expect(castedUrl.searchParams.get("token")).toBe("cast-tok-999");
   });
 });
+
+  // The per-model profile table maps SDK modelName substrings that could NOT
+  // be verified online for the 2024 devices (Chromecast HD, Google TV
+  // Streamer) - nobody publishes the exact md= strings. This beacon is how
+  // the real strings reach the admin logs from the FIRST real-device
+  // connection, so the table can be corrected on evidence instead of folklore.
+  it("reports the receiver's raw modelName through the player-event beacon on load", async () => {
+    castState = 4;
+    const loadMedia = vi.fn().mockResolvedValue(undefined);
+    castClientInstance = { loadMedia };
+    castDeviceModelName = "Chromecast Ultra";
+    eveyFetchMock.mockResolvedValue({ token: "cast-tok", mediaId: "m1" });
+
+    const { result } = mount(fakePlayer());
+    await act(async () => { await result.current.handleCast(); });
+
+    const beacon = eveyFetchMock.mock.calls
+      .map((c) => c[0] as { url: string; data?: { type?: string; details?: string } })
+      .find((c) => c.url.includes("/player-event"));
+    expect(beacon).toBeDefined();
+    expect(beacon!.data!.type).toBe("cast_receiver_model");
+    expect(beacon!.data!.details).toContain("model=Chromecast Ultra");
+  });
