@@ -7,6 +7,7 @@ import { setZustandStorage } from "@evey/store";
 import { queryClient } from "../src/lib/query-client";
 import { ThemeProvider } from "../src/providers/ThemeProvider";
 import { ErrorBoundary } from "../src/components/ErrorBoundary";
+import { ToastContainer } from "../src/components/ToastContainer";
 import { initFetcher } from "../src/lib/fetcher-setup";
 import { getServerUrl } from "../src/lib/server-config";
 import { applyServerLanguage, initI18n } from "../src/i18n";
@@ -54,6 +55,7 @@ export default function RootLayout() {
           <ErrorBoundary>
             <Stack screenOptions={{ headerShown: false }} />
           </ErrorBoundary>
+          <ToastContainer />
         </ThemeProvider>
       </SafeAreaProvider>
     </QueryClientProvider>
