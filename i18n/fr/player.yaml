@@ -160,6 +160,8 @@ cast:
   noDevices: "Aucun appareil de diffusion trouvé - ni sur le réseau du serveur, ni sur le vôtre."
   loadFailed: "Impossible de lancer la lecture sur l'appareil de diffusion."
   pickerRefused: "Le navigateur a refusé d'ouvrir le sélecteur de diffusion (média pas encore prêt). Patientez quelques secondes puis réessayez."
+  usePlayOn: "Plusieurs de vos appareils Evey sont en ligne - utilisez le bouton « Lire sur » dans la barre du lecteur pour choisir."
+  mobileWebHint: "Ce navigateur ne peut pas caster vers un Chromecast. Utilisez l'application mobile Evey, ou activez « Site pour ordinateur » dans Chrome puis réessayez."
   connectFailed: "Connexion à l'appareil de diffusion impossible. Il a répondu mais la session a échoué - vérifiez qu'il ne diffuse pas déjà, puis réessayez."
   notFound: "Aucun Chromecast trouvé. Vérifiez qu'il est allumé et connecté au même Wi-Fi que cet appareil."
 playOn:

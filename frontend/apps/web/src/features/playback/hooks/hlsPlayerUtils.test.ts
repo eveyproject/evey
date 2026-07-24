@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { startPlayback, planCastLoad, pickCastTapPath, castVideoPreload } from "./hlsPlayerUtils";
+import { startPlayback, planCastLoad, pickCastTapPath, castVideoPreload, pickPlayOnFallback } from "./hlsPlayerUtils";
 import type { SubtitleStream } from "../SubtitleSelector";
 
 const mockCaps = vi.hoisted(() => ({
@@ -453,5 +453,26 @@ describe("castVideoPreload (fling element preload)", () => {
 
   it("stays lazy where the SDK owns the tap (desktop, weak-NAS bandwidth)", () => {
     expect(castVideoPreload(false)).toBe("none");
+  });
+});
+
+describe("pickPlayOnFallback (NAT-proof cast fallback)", () => {
+  // Remote users don't live on the server's LAN: their Chromecast is
+  // unreachable from the server AND Chrome Android refuses both browser cast
+  // APIs. Their own Evey clients (TV app) on the Play On WebSocket are the
+  // one channel that works from anywhere - the cast tap must use it.
+  it("sends straight to a single connected device - that is what the tap meant", () => {
+    const d = { id: "tv1", name: "Salon" };
+    expect(pickPlayOnFallback([d])).toEqual({ action: "send", device: d });
+  });
+
+  it("never guesses between several devices - route to the picker", () => {
+    expect(pickPlayOnFallback([{ id: "a" }, { id: "b" }])).toEqual({ action: "picker" });
+  });
+
+  it("offers nothing when no device is connected", () => {
+    expect(pickPlayOnFallback([])).toEqual({ action: "none" });
+    expect(pickPlayOnFallback(undefined)).toEqual({ action: "none" });
+    expect(pickPlayOnFallback(null)).toEqual({ action: "none" });
   });
 });

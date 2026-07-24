@@ -1741,5 +1741,7 @@
   "player.watchTogether": "Watch Together",
   "player.cast.connectFailed": "Could not connect to the cast device. It answered but the session failed - check it is not already casting, then try again.",
   "player.cast.loadFailed": "Could not start playback on the cast device.",
-  "player.cast.pickerRefused": "The browser refused to open the cast picker (media not ready yet). Wait a few seconds and try again."
+  "player.cast.pickerRefused": "The browser refused to open the cast picker (media not ready yet). Wait a few seconds and try again.",
+  "player.cast.usePlayOn": "Several of your Evey devices are online - use the Play On button in the player bar to choose one.",
+  "player.cast.mobileWebHint": "This browser cannot cast to a Chromecast. Use the Evey mobile app, or enable \"Desktop site\" in Chrome and try again."
 }

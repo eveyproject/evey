@@ -184,6 +184,22 @@ export function pickCastTapPath(s: {
   return s.castSdkReady ? "sdk" : "fling";
 }
 
+// When the LAN cast paths find nothing, the user's own Evey clients (TV app,
+// another tab) reachable over their persistent WebSocket are the NAT-proof
+// fallback - the one that works for users who don't live on the server's LAN.
+// Exactly one device: send straight to it, that's what the tap meant. Several:
+// don't guess which TV - point at the Play On picker. None: nothing to offer.
+export type PlayOnFallback<D> =
+  | { action: "send"; device: D }
+  | { action: "picker" }
+  | { action: "none" };
+
+export function pickPlayOnFallback<D>(devices: readonly D[] | undefined | null): PlayOnFallback<D> {
+  if (!devices || devices.length === 0) return { action: "none" };
+  if (devices.length === 1) return { action: "send", device: devices[0] };
+  return { action: "picker" };
+}
+
 // Chromium only ever opens the Remote Playback picker for an element whose
 // duration is KNOWN: remote_playback.cc drops every availability URL while
 // duration is NaN, and prompt() then rejects instantly with NotAllowedError

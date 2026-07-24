@@ -160,6 +160,8 @@ cast:
   noDevices: 在服务器网络中未找到投屏设备。
   loadFailed: "无法在投屏设备上开始播放。"
   pickerRefused: "浏览器拒绝打开投屏选择器（媒体尚未就绪）。请稍等几秒后重试。"
+  usePlayOn: "您有多台 Evey 设备在线 - 请使用播放器栏中的“在其他设备上播放”按钮选择一台。"
+  mobileWebHint: "此浏览器无法投屏到 Chromecast。请使用 Evey 移动应用，或在 Chrome 中开启“桌面版网站”后重试。"
   connectFailed: "无法连接到投放设备。设备有响应，但会话失败 - 请确认它没有正在投放，然后重试。"
   notFound: "未找到 Chromecast。请确保它已开启并与本设备连接到同一 Wi-Fi。"
 playOn:

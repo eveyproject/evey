@@ -160,6 +160,8 @@ cast:
   noDevices: Keine Cast-Geräte im Netzwerk des Servers gefunden.
   loadFailed: "Wiedergabe auf dem Cast-Gerät konnte nicht gestartet werden."
   pickerRefused: "Der Browser hat das Öffnen der Cast-Auswahl verweigert (Medium noch nicht bereit). Warten Sie einige Sekunden und versuchen Sie es erneut."
+  usePlayOn: "Mehrere Ihrer Evey-Geräte sind online - wählen Sie eines über die Play-On-Schaltfläche in der Player-Leiste."
+  mobileWebHint: "Dieser Browser kann nicht an einen Chromecast senden. Nutzen Sie die Evey-App oder aktivieren Sie \"Desktopwebsite\" in Chrome und versuchen Sie es erneut."
   connectFailed: "Verbindung zum Übertragungsgerät fehlgeschlagen. Es hat geantwortet, aber die Sitzung schlug fehl - prüfen Sie, ob es nicht bereits überträgt, und versuchen Sie es erneut."
   notFound: "Kein Chromecast gefunden. Stellen Sie sicher, dass er eingeschaltet und mit demselben WLAN wie dieses Gerät verbunden ist."
 playOn:

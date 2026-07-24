@@ -31,7 +31,8 @@ import {
   setSubtitleStyle,
   type SubtitleStyle,
 } from "@/hooks/usePlaybackPrefs";
-import { buildTranscodeHlsUrl, castVideoPreload, getSelectedBurnInTrack, pickCastTapPath, planCastLoad, resolveDefaultAudio, resolveDefaultSubtitle } from "./hooks/hlsPlayerUtils";
+import { eveyFetch } from "@evey/api";
+import { buildTranscodeHlsUrl, castVideoPreload, getSelectedBurnInTrack, pickCastTapPath, pickPlayOnFallback, planCastLoad, resolveDefaultAudio, resolveDefaultSubtitle } from "./hooks/hlsPlayerUtils";
 import { useDirectPlayback } from "./hooks/useDirectPlayback";
 import { useTranscodePlayback, type ShedReason } from "./hooks/useTranscodePlayback";
 import { useWasmAudioPlayback } from "./wasmaudio/useWasmAudioPlayback";
@@ -373,9 +374,32 @@ export function HLSPlayer({
     const { url, castResumeSec } = await buildCastUrl();
     const server = await startCast(url, title, castResumeSec, { skipSdk: true });
     if (server === "connected" || server === "load-failed" || server === "dismissed") return;
+    // NAT-proof fallback for users who don't live on the server's LAN: their
+    // own Evey clients (TV app, another tab) hold a WebSocket to the server
+    // and take a relayed loadAndPlay - the same channel as the Play On picker.
+    try {
+      const resp = await eveyFetch<{ devices: { id: string; name: string }[] }>({ url: "/api/v1/devices", method: "GET" });
+      const fallback = pickPlayOnFallback(resp?.devices);
+      if (fallback.action === "send") {
+        await eveyFetch({
+          url: `/api/v1/devices/${encodeURIComponent(fallback.device.id)}/command`,
+          method: "POST",
+          data: { type: "loadAndPlay", mediaId, positionMs: Math.max(0, Math.floor(positionRef.current * 1000)) },
+        });
+        try { videoRef.current?.pause(); } catch { /* element released */ }
+        toast.success(t("player.playOn.sent", { name: fallback.device.name }));
+        return;
+      }
+      if (fallback.action === "picker") {
+        // Several Evey devices online - don't guess which TV. The Play On
+        // button in the control bar lists them; send the user there.
+        toast.info(t("player.cast.usePlayOn"));
+        return;
+      }
+    } catch { /* device offline or relay down - fall through to the fling */ }
     // Fling fallback, still inside the tap's transient activation: the server
-    // round-trip is fast (device cache) and activation survives short awaits -
-    // what kills it is consumption, and nothing above consumes it.
+    // round-trips are fast and activation survives short awaits - what kills
+    // it is consumption, and nothing above consumes it.
     el.muted = false;
     const outcome = await remotePlayback.prompt();
     if (outcome === "connected") {
@@ -391,10 +415,12 @@ export function HLSPlayer({
       return;
     }
     if (outcome === "dismissed") return; // the user's choice, stay silent
-    // Both paths failed. ONE message, matching what actually happened: the
-    // 2026-07-24 lesson is that a cast button must never eat a tap silently.
-    toast.error(t(server === "no-devices" ? "player.cast.noDevices" : "player.cast.connectFailed"));
-  }, [remotePlayback, startCast, buildCastUrl, title, t]);
+    // Every path failed. ONE message, and an ACTIONABLE one: for a remote
+    // mobile-web user with a bare Chromecast there is no working browser path
+    // (Chrome refuses both cast APIs there), so say what DOES work instead of
+    // a dead-end "no devices" - the 2026-07-24 lesson twice over.
+    toast.error(t(server === "no-devices" ? "player.cast.mobileWebHint" : "player.cast.connectFailed"));
+  }, [remotePlayback, startCast, buildCastUrl, title, t, mediaId]);
 
   const handleCastToggle = useCallback(async () => {
     if (castConnected) {
