@@ -103,13 +103,19 @@ export interface PlaySessionResult {
 // (useLocalSearchParams), which a deep link controls. Every id is
 // percent-encoded so a crafted "..%2Fadmin" id cannot pivot the authenticated
 // request onto another API path.
-export async function fetchStreamToken(mediaId: string): Promise<string> {
+export async function fetchStreamToken(mediaId: string, opts?: { cast?: boolean }): Promise<string> {
   // Native player (expo-video/ExoPlayer/AVPlayer): like a Chromecast or a web
   // native <video>, it fetches segments itself and can't re-mint the short
   // sliding token mid-stream, so a pause would 401 on the 5-minute default.
   // purpose=native returns the long-lived (12h) window instead.
+  //
+  // opts.cast requests the CAST-marked variant of that same long-lived
+  // window: the server's cast progress derivation (cast_observe.go) only
+  // treats a token with Cast=true as a signal, so casting the native token
+  // makes the receiver's fetches invisible to server-side progress tracking.
+  const purpose = opts?.cast ? "cast" : "native";
   const res = await eveyFetch<StreamTokenResponse>({
-    url: `/api/v1/media/${encodeURIComponent(mediaId)}/stream-token?purpose=native`,
+    url: `/api/v1/media/${encodeURIComponent(mediaId)}/stream-token?purpose=${purpose}`,
     method: "POST",
   });
   return res.token;

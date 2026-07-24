@@ -509,8 +509,13 @@ export default function PlayerScreen() {
 
   const getPositionMs = useCallback(() => {
     if (!mountedRef.current) return 0;
+    // While casting, the local player sits paused/muted (see useCastSession's
+    // muteLocalPlayer) - reporting ITS position froze progress mid-cast and
+    // made resume/"watched" wrong. The receiver's own position is the only
+    // one moving during a cast session.
+    if (castConnected) return castCurrentTime * 1000;
     try { return (player?.currentTime ?? 0) * 1000; } catch { return 0; }
-  }, [player]);
+  }, [player, castConnected, castCurrentTime]);
 
   const getIsPaused = useCallback(() => {
     if (!mountedRef.current) return true;

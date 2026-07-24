@@ -1,10 +1,20 @@
 import { useCallback, useEffect, useRef } from "react";
 import type { VideoPlayer } from "expo-video";
 import { setAudioBoost } from "../lib/audioBoost";
+import { fetchStreamToken } from "./usePlaySession";
 import {
   CastContext, useCastStateHook, useRemoteMediaClientHook,
   useMediaStatusHook, CastStateEnum,
 } from "./useChromecast";
+
+// Swaps the URL's token param for a cast-purpose one, preserving every other
+// query param (codecs, remux, ...). Only the CASTED url is touched - the
+// local player keeps its native-purpose token untouched.
+function withCastToken(url: string, castToken: string): string {
+  const u = new URL(url);
+  u.searchParams.set("token", castToken);
+  return u.toString();
+}
 
 interface UseCastSessionArgs {
   player: VideoPlayer;
@@ -56,7 +66,18 @@ export function useCastSession({
   const castLoadMedia = useCallback(async (client: any) => {
     if (!streamUrl || !title) return;
     muteLocalPlayer();
-    const castUrl = streamUrl;
+    let castUrl = streamUrl;
+    // The receiver's fetches only feed server-side progress tracking when
+    // ridden on a purpose=cast token (see cast_observe.go) - the local
+    // player's purpose=native token in streamUrl is invisible to it. Falling
+    // back to the native token on mint failure still plays, just without
+    // server-derived progress - better than a broken cast.
+    try {
+      const castToken = await fetchStreamToken(mediaId, { cast: true });
+      castUrl = withCastToken(streamUrl, castToken);
+    } catch (err) {
+      console.warn("[Cast] cast token mint failed, casting with native token:", err);
+    }
     console.log("[Cast] loadMedia URL:", castUrl);
     const isHls = castUrl.includes("m3u8");
     try {
