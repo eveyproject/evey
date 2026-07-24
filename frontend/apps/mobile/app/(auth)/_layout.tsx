@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Redirect, Stack } from "expo-router";
 import { useAuthStore } from "@evey/store";
 import { refreshAccessTokenIfNeeded } from "../../src/lib/auth-refresh";
+import { useDeviceRegistration } from "../../src/hooks/useDeviceRegistration";
 import { DrawerProvider } from "../../src/providers/DrawerProvider";
 import { SideDrawer } from "../../src/components/SideDrawer";
 import { MiniPlayer } from "../../src/components/MiniPlayer";
@@ -24,6 +25,10 @@ export default function AuthLayout() {
   const profileId = useAuthStore((s) => s.profileId);
   const expired = !!accessToken && isTokenExpired(accessToken);
   const [refreshFailed, setRefreshFailed] = useState(false);
+  // Registers this app as a Play On target. No-ops internally while
+  // accessToken/serverUrl aren't ready, so it's safe to call unconditionally
+  // here (must be, since hooks can't sit after the early returns below).
+  useDeviceRegistration();
 
   // An expired ACCESS token is not a logout: a valid refresh token usually
   // still sits in SecureStore (access TTL is 15 min). Swap it for a fresh JWT
