@@ -160,6 +160,42 @@ export function planCastLoad(
   return { url: buildTranscodeHlsUrl(mediaId, sessionToken, audioTrack, null, 0, 0, gapless), resumeSec };
 }
 
+// --- Cast button contract -------------------------------------------------
+// The cast button broke silently twice (2026-07-22 and 2026-07-24 in prod).
+// These two functions ARE the button's behavior, extracted pure so the tests
+// in hlsPlayerUtils.test.ts lock it. Do not reroute the tap or change the
+// preload without a red test first and a device validation.
+
+// One tap = one path, decided BEFORE the tap runs anything: chaining a second
+// cast path after a failed one runs outside the tap's user activation and the
+// browser refuses to open its picker (InvalidAccessError, measured in prod).
+// A live session always wins the tap and stops itself.
+export type CastTapPath = "stop-sdk" | "stop-fling" | "fling" | "sdk";
+
+export function pickCastTapPath(s: {
+  castConnected: boolean;
+  remoteConnected: boolean;
+  preferFling: boolean;
+  castSdkReady: boolean;
+}): CastTapPath {
+  if (s.castConnected) return "stop-sdk";
+  if (s.remoteConnected) return "stop-fling";
+  if (s.preferFling) return "fling";
+  return s.castSdkReady ? "sdk" : "fling";
+}
+
+// Chromium only ever opens the Remote Playback picker for an element whose
+// duration is KNOWN: remote_playback.cc drops every availability URL while
+// duration is NaN, and prompt() then rejects instantly with NotAllowedError
+// ("The prompt was dismissed") - no picker, 18ms, measured in prod 2026-07-24.
+// preload="none" guaranteed duration stayed NaN forever, so the fling was
+// structurally dead. The fling element must load metadata where the fling is
+// the tap's path (Android); elsewhere it stays lazy - the SDK path doesn't
+// read the element, and a weak NAS shouldn't pay a metadata fetch for nothing.
+export function castVideoPreload(preferFling: boolean): "metadata" | "none" {
+  return preferFling ? "metadata" : "none";
+}
+
 // matchLang returns true when a stream's language or title matches a candidate
 // language code (case-insensitive, trimmed).
 function matchLang(

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
 
-import { useRemotePlayback } from "./useRemotePlayback";
+import { useRemotePlayback, classifyPromptRejection, INSTANT_REJECT_MS } from "./useRemotePlayback";
 
 // A minimal stand-in for HTMLMediaElement.remote (the Remote Playback API).
 // watchAvailability resolves to a callback id and invokes the callback with
@@ -125,11 +125,45 @@ describe("useRemotePlayback", () => {
     remote.prompt.mockResolvedValueOnce(undefined);
     await act(async () => { expect(await result.current.prompt()).toBe("connected"); });
 
+    // An INSTANT NotAllowedError is the browser refusing to open the picker
+    // (no human can see and close a dialog in 0ms) - prod 2026-07-24: 18ms
+    // rejections, 7 taps into the void, nothing on screen. It must surface
+    // as "refused" so the caller can say something, never as a quiet
+    // "dismissed".
     remote.prompt.mockRejectedValueOnce(Object.assign(new Error("x"), { name: "NotAllowedError" }));
-    await act(async () => { expect(await result.current.prompt()).toBe("dismissed"); });
+    await act(async () => { expect(await result.current.prompt()).toBe("refused"); });
 
     remote.prompt.mockRejectedValueOnce(Object.assign(new Error("x"), { name: "NotFoundError" }));
     await act(async () => { expect(await result.current.prompt()).toBe("error"); });
+  });
+
+  it("a SLOW NotAllowedError is a real dismissal and stays silent", async () => {
+    // The user saw the picker and closed it - that is a choice to respect,
+    // not an error to toast. Time is what separates it from a refusal.
+    vi.useFakeTimers();
+    try {
+      const { video, remote } = fakeVideoWithRemote();
+      const { result } = renderHook(() => useRemotePlayback(video));
+      remote.prompt.mockImplementationOnce(async () => {
+        vi.advanceTimersByTime(INSTANT_REJECT_MS + 2000);
+        throw Object.assign(new Error("x"), { name: "NotAllowedError" });
+      });
+      await act(async () => { expect(await result.current.prompt()).toBe("dismissed"); });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  describe("classifyPromptRejection", () => {
+    it("splits NotAllowedError by elapsed time, everything else is an error", () => {
+      expect(classifyPromptRejection("NotAllowedError", 18)).toBe("refused");
+      expect(classifyPromptRejection("NotAllowedError", INSTANT_REJECT_MS - 1)).toBe("refused");
+      expect(classifyPromptRejection("NotAllowedError", INSTANT_REJECT_MS)).toBe("dismissed");
+      expect(classifyPromptRejection("NotAllowedError", 4200)).toBe("dismissed");
+      expect(classifyPromptRejection("NotFoundError", 18)).toBe("error");
+      expect(classifyPromptRejection("NotSupportedError", 4200)).toBe("error");
+      expect(classifyPromptRejection(undefined, 18)).toBe("error");
+    });
   });
 
   it("promptForUrl distinguishes handoff, dismissal, and real failure", async () => {
@@ -143,10 +177,11 @@ describe("useRemotePlayback", () => {
       await expect(result.current.promptForUrl("https://x/m.m3u8")).resolves.toBe("connected");
     });
 
-    const dismissed = new DOMException("dismissed", "NotAllowedError");
-    remote.prompt.mockRejectedValueOnce(dismissed);
+    // Instant NotAllowedError = the browser refused before any picker showed.
+    const refused = new DOMException("dismissed", "NotAllowedError");
+    remote.prompt.mockRejectedValueOnce(refused);
     await act(async () => {
-      await expect(result.current.promptForUrl("https://x/m.m3u8")).resolves.toBe("dismissed");
+      await expect(result.current.promptForUrl("https://x/m.m3u8")).resolves.toBe("refused");
     });
 
     remote.prompt.mockRejectedValueOnce(new DOMException("boom", "InvalidStateError"));
@@ -189,6 +224,11 @@ describe("useRemotePlayback", () => {
       // "did his TV show up?" - the single fact no log could answer before.
       expect(attempt.details).toContain("available=true");
       expect(attempt.details).toContain("supported=true");
+      // duration/readyState are THE facts behind an instant NotAllowedError
+      // (Chromium refuses the picker while duration is NaN) - the beacon must
+      // carry them so prod can tell a load problem from a device problem.
+      expect(attempt.details).toContain("duration=");
+      expect(attempt.details).toContain("readyState=");
     });
 
     it("reports available=false when no device was ever seen", async () => {
@@ -211,20 +251,22 @@ describe("useRemotePlayback", () => {
       await act(async () => { await result.current.promptForUrl("https://x/m.m3u8"); });
       expect(outcomes().at(-1).details).toBe("connected");
 
-      // A dismissal now carries its exception name too: NotAllowedError means
-      // EITHER the user closed the picker OR the browser refused (spent user
-      // activation). Collapsing both to "dismissed" is what hid a real failure
-      // behind a harmless-looking label for weeks.
+      // An INSTANT NotAllowedError is a browser refusal, not a user choice,
+      // and the beacon says so - with the elapsed time that proves it.
+      // Collapsing refusals into "dismissed" is what hid a structurally dead
+      // cast path behind a harmless-looking label for weeks.
       remote.prompt.mockRejectedValueOnce(new DOMException("dismissed", "NotAllowedError"));
       await act(async () => { await result.current.promptForUrl("https://x/m.m3u8"); });
-      expect(outcomes().at(-1).details).toBe("dismissed:NotAllowedError");
+      expect(outcomes().at(-1).details).toContain("refused:NotAllowedError");
+      expect(outcomes().at(-1).details).toContain("elapsedMs=");
+      expect(outcomes().at(-1).fatal).toBe(true);
 
       // The DOMException NAME is the diagnostic payload: NotSupportedError
       // (source not flingable) and NotFoundError (no device took it) are
       // completely different bugs, and the old empty catch erased both.
       remote.prompt.mockRejectedValueOnce(new DOMException("boom", "NotSupportedError"));
       await act(async () => { await result.current.promptForUrl("https://x/m.m3u8"); });
-      expect(outcomes().at(-1).details).toBe("error:NotSupportedError");
+      expect(outcomes().at(-1).details).toContain("error:NotSupportedError");
       expect(outcomes().at(-1).fatal).toBe(true);
     });
 

@@ -29,7 +29,22 @@ interface RemotePlayback {
   prompt(): Promise<RemotePromptOutcome>;
 }
 
-export type RemotePromptOutcome = "connected" | "dismissed" | "error";
+export type RemotePromptOutcome = "connected" | "dismissed" | "refused" | "error";
+
+// Chromium rejects prompt() with the SAME NotAllowedError for two opposite
+// things: the user closing the picker, and the browser refusing to open it at
+// all (measured in prod 2026-07-24: rejection 18ms after the tap, activation
+// still valid - remote_playback.cc cancels the prompt when the element's
+// duration is unknown and its availability-URL list is therefore empty).
+// A human cannot see and close a picker in under this many milliseconds, so
+// elapsed time is what separates "refused" (a bug to surface) from
+// "dismissed" (a choice to respect silently).
+export const INSTANT_REJECT_MS = 500;
+
+export function classifyPromptRejection(errName: string | undefined, elapsedMs: number): RemotePromptOutcome {
+  if (errName === "NotAllowedError") return elapsedMs < INSTANT_REJECT_MS ? "refused" : "dismissed";
+  return "error";
+}
 
 function remoteOf(video: HTMLVideoElement | null): RemotePlayback | null {
   const r = (video as unknown as { remote?: RemotePlayback } | null)?.remote;
@@ -74,11 +89,16 @@ export function useRemotePlayback(
       details: `available=${availableRef.current} supported=${remote != null}`
         + ` activation=${activation ?? "n/a"}`
         + ` src=${video?.currentSrc ? "yes" : video?.src ? "set" : "none"}`
-        + ` state=${(remote as { state?: string } | null)?.state ?? "n/a"}`,
+        + ` state=${(remote as { state?: string } | null)?.state ?? "n/a"}`
+        // duration/readyState are THE facts behind an instant NotAllowedError:
+        // Chromium refuses to open the picker while duration is NaN (metadata
+        // never loaded), and no server log can see the element's load state.
+        + ` duration=${video?.duration ?? "n/a"}`
+        + ` readyState=${video?.readyState ?? "n/a"}`,
     });
   }, [video]);
 
-  const reportOutcome = useCallback((outcome: RemotePromptOutcome, errName?: string) => {
+  const reportOutcome = useCallback((outcome: RemotePromptOutcome, errName?: string, elapsedMs?: number) => {
     reportRef.current({
       type: "cast_prompt_result",
       // The DOMException name is the whole diagnosis: NotSupportedError (the
@@ -88,8 +108,9 @@ export function useRemotePlayback(
       // NotAllowedError covers both a user closing the picker and a browser
       // refusing outright, and collapsing them to "dismissed" is exactly what
       // made a real failure look like a user cancelling for weeks.
-      details: errName ? `${outcome}:${errName}` : outcome,
-      fatal: outcome === "error",
+      details: (errName ? `${outcome}:${errName}` : outcome)
+        + (elapsedMs != null ? ` elapsedMs=${Math.round(elapsedMs)}` : ""),
+      fatal: outcome === "error" || outcome === "refused",
     });
   }, []);
 
@@ -148,14 +169,16 @@ export function useRemotePlayback(
     const remote = remoteOf(video);
     if (!remote) return "error";
     reportAttempt();
+    const startedAt = Date.now();
     try {
       await remote.prompt();
       reportOutcome("connected");
       return "connected";
     } catch (err) {
       const name = (err as DOMException | null)?.name;
-      const outcome: RemotePromptOutcome = name === "NotAllowedError" ? "dismissed" : "error";
-      reportOutcome(outcome, name);
+      const elapsed = Date.now() - startedAt;
+      const outcome = classifyPromptRejection(name, elapsed);
+      reportOutcome(outcome, name, elapsed);
       return outcome;
     }
   }, [video, reportAttempt, reportOutcome]);
@@ -172,16 +195,16 @@ export function useRemotePlayback(
     if (!remote) return "error";
     reportAttempt();
     video.src = url;
+    const startedAt = Date.now();
     try {
       await remote.prompt();
       reportOutcome("connected");
       return "connected";
     } catch (err) {
-      // NotAllowedError covers both a dismissed picker and an expired user
-      // activation - neither deserves an error toast.
       const name = (err as DOMException | null)?.name;
-      const outcome: RemotePromptOutcome = name === "NotAllowedError" ? "dismissed" : "error";
-      reportOutcome(outcome, name);
+      const elapsed = Date.now() - startedAt;
+      const outcome = classifyPromptRejection(name, elapsed);
+      reportOutcome(outcome, name, elapsed);
       return outcome;
     }
   }, [video, reportAttempt, reportOutcome]);

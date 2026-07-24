@@ -31,7 +31,7 @@ import {
   setSubtitleStyle,
   type SubtitleStyle,
 } from "@/hooks/usePlaybackPrefs";
-import { buildTranscodeHlsUrl, getSelectedBurnInTrack, planCastLoad, resolveDefaultAudio, resolveDefaultSubtitle } from "./hooks/hlsPlayerUtils";
+import { buildTranscodeHlsUrl, castVideoPreload, getSelectedBurnInTrack, pickCastTapPath, planCastLoad, resolveDefaultAudio, resolveDefaultSubtitle } from "./hooks/hlsPlayerUtils";
 import { useDirectPlayback } from "./hooks/useDirectPlayback";
 import { useTranscodePlayback, type ShedReason } from "./hooks/useTranscodePlayback";
 import { useWasmAudioPlayback } from "./wasmaudio/useWasmAudioPlayback";
@@ -385,6 +385,12 @@ export function HLSPlayer({
       // device (the SDK path gets autoplay from its LoadRequest; this one has
       // to ask).
       el.play().catch(() => { /* receiver may auto-start on its own */ });
+    } else if (outcome === "refused") {
+      // The browser rejected before any picker could appear (instant
+      // NotAllowedError - see classifyPromptRejection). Staying silent here is
+      // what turned a dead code path into "the button is broken": 7 taps into
+      // the void, prod 2026-07-24. Say something, every time.
+      toast.error(t("player.cast.pickerRefused"));
     } else if (outcome === "error") {
       // Deliberately NO fallback to the Cast SDK here. Chaining a second cast
       // path after a failed one costs awaits, and the tap's user activation is
@@ -937,7 +943,10 @@ export function HLSPlayer({
           but visually gone. It carries a real HLS/direct source URL - the only
           thing that can be flung to a Chromecast - while the main player stays
           on MSE. muted+playsInline so it never makes noise if the UA autoplays. */}
-      <video ref={(el) => { castVideoRef.current = el; setCastVideoEl(el); }} preload="none" muted playsInline aria-hidden="true" tabIndex={-1} style={{ position: "absolute", width: 1, height: 1, opacity: 0, pointerEvents: "none" }} />
+      {/* preload: Chromium never opens the fling picker while this element's
+          duration is NaN (see castVideoPreload) - metadata MUST load on the
+          platforms where the fling is the tap's path. */}
+      <video ref={(el) => { castVideoRef.current = el; setCastVideoEl(el); }} preload={castVideoPreload(preferFling)} muted playsInline aria-hidden="true" tabIndex={-1} style={{ position: "absolute", width: 1, height: 1, opacity: 0, pointerEvents: "none" }} />
 
       {/* Top-right cluster: Watch together, then the cast icon to its right.
           Fades with the control bars (auto-hide) so it doesn't stay pinned
@@ -974,13 +983,14 @@ export function HLSPlayer({
                 // A live session always wins the click: SDK sessions stop via
                 // handleCastToggle, Remote Playback ones via the hook's stop()
                 // (re-prompting mid-session would reload the receiver instead
-                // of stopping it). Otherwise start with the path that works on
-                // this platform (preferFling), each falling back to the other.
-                castConnected ? handleCastToggle
-                : remoteConnected ? remotePlayback.stop
-                : preferFling ? handleMobileCast
-                : castSdkReady ? handleCastToggle
-                : handleMobileCast
+                // of stopping it). The routing itself lives in pickCastTapPath
+                // (pure, test-locked): one tap, one path, no chained fallback.
+                {
+                  "stop-sdk": handleCastToggle,
+                  "stop-fling": remotePlayback.stop,
+                  fling: handleMobileCast,
+                  sdk: handleCastToggle,
+                }[pickCastTapPath({ castConnected, remoteConnected, preferFling, castSdkReady })]
               }
               aria-label={castConnected || remoteConnected ? t("player.controls.stopCast") : t("player.controls.cast")}
               title={castConnected && castDeviceName ? castDeviceName : undefined}

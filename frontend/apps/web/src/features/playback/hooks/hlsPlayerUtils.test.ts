@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { startPlayback, planCastLoad } from "./hlsPlayerUtils";
+import { startPlayback, planCastLoad, pickCastTapPath, castVideoPreload } from "./hlsPlayerUtils";
 import type { SubtitleStream } from "../SubtitleSelector";
 
 const mockCaps = vi.hoisted(() => ({
@@ -405,5 +405,53 @@ describe("planCastLoad", () => {
     const plan = planCastLoad("/files/movie.mp4?token=abc", "tok", "m1", 0, 12.4, false);
     expect(plan.url).toBe("/files/movie.mp4?token=abc");
     expect(plan.resumeSec).toBe(12);
+  });
+});
+
+// --- Cast button safety net -------------------------------------------------
+// The cast button broke silently twice in prod (2026-07-22, 2026-07-24). These
+// tests lock its two contracts: the tap routing (one tap = one path) and the
+// fling element's preload (Chromium refuses to open the picker while the
+// element's duration is NaN). If one of these fails, the button is broken on a
+// real phone - fix the regression, not the test.
+describe("pickCastTapPath (cast button routing)", () => {
+  const base = { castConnected: false, remoteConnected: false, preferFling: false, castSdkReady: false };
+
+  it("a live SDK session always wins the tap and stops itself", () => {
+    expect(pickCastTapPath({ ...base, castConnected: true, remoteConnected: true, preferFling: true, castSdkReady: true })).toBe("stop-sdk");
+    expect(pickCastTapPath({ ...base, castConnected: true })).toBe("stop-sdk");
+  });
+
+  it("a live fling session stops via the hook, never by re-prompting", () => {
+    // Re-prompting mid-session reloads the receiver instead of stopping it.
+    expect(pickCastTapPath({ ...base, remoteConnected: true, preferFling: true, castSdkReady: true })).toBe("stop-fling");
+  });
+
+  it("Android (preferFling) goes to the fling even when the SDK claims ready", () => {
+    // Chrome Android reports the SDK as ready but cannot complete a session
+    // (measured in prod 2026-07-22: sdk=true then session error, same phone
+    // connects fine in desktop-site mode). The fling is the only mobile path.
+    expect(pickCastTapPath({ ...base, preferFling: true, castSdkReady: true })).toBe("fling");
+    expect(pickCastTapPath({ ...base, preferFling: true })).toBe("fling");
+  });
+
+  it("desktop goes to the SDK when ready, else falls back to the fling", () => {
+    expect(pickCastTapPath({ ...base, castSdkReady: true })).toBe("sdk");
+    expect(pickCastTapPath(base)).toBe("fling");
+  });
+});
+
+describe("castVideoPreload (fling element preload)", () => {
+  it("loads metadata where the fling is the tap's path", () => {
+    // Chromium's remote_playback.cc drops every availability URL while the
+    // element's duration is NaN, and prompt() then rejects INSTANTLY with
+    // NotAllowedError - no picker, 18ms, measured in prod 2026-07-24. With
+    // preload="none" the metadata never loaded, so the fling was structurally
+    // dead on Android. This value is the fix; do not "optimize" it back.
+    expect(castVideoPreload(true)).toBe("metadata");
+  });
+
+  it("stays lazy where the SDK owns the tap (desktop, weak-NAS bandwidth)", () => {
+    expect(castVideoPreload(false)).toBe("none");
   });
 });
