@@ -344,12 +344,12 @@ func securityHeadersMiddleware(httpsOnly bool, next http.Handler) http.Handler {
 		// standalone - the proxy is not there to repair it.
 		// frame-src is the Cast SDK's own iframe, script-src alone is not enough.
 		//
-		// /cast-receiver.html est la page CHARGÉE PAR LE CHROMECAST (Web Receiver
-		// custom déclaré dans la Google Cast Console) : le player CAF y injecte
-		// styles, fonts et images depuis gstatic en plus du SDK - la politique
-		// applicative les bloquerait en silence sur la TV (backdrop cassé, zéro
-		// log). La variante n'élargit QUE cette page ; l'app garde la politique
-		// stricte.
+		// /cast-receiver.html is the page LOADED BY THE CHROMECAST (custom Web
+		// Receiver declared in the Google Cast Console): the CAF player injects
+		// styles, fonts and images from gstatic on top of the SDK - the app's
+		// policy would silently block them on the TV (broken backdrop, zero
+		// log). This variant widens ONLY this page; the app keeps the strict
+		// policy.
 		if r.URL.Path == "/cast-receiver.html" {
 			w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://www.gstatic.com; img-src 'self' data: https: blob:; media-src 'self' blob: https:; worker-src 'self' blob:; font-src 'self' data: https://www.gstatic.com; connect-src 'self' https: wss:; frame-src https://www.gstatic.com")
 		} else {

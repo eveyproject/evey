@@ -59,11 +59,11 @@ export interface WasmAudioEngineOptions {
   // should tear the engine down and fall back to the AAC transcode path.
   onFatal?: (reason: string) => void;
   leadCompensationSec?: number;
-  // credentials des fetches playlist/segments. Le web (même origine) garde
-  // "include" (cookie hls). Le Web Receiver Cast est CROSS-origine avec le
-  // serveur média : le CORS token-auth reflète l'Origin SANS
-  // Allow-Credentials, donc une requête credentialed y serait REJETÉE par le
-  // navigateur - le receiver passe "omit", le token dans l'URL suffit.
+  // Credentials for playlist/segment fetches. The web (same-origin) keeps
+  // "include" (hls cookie). The Cast Web Receiver is CROSS-origin with the
+  // media server: the CORS token-auth reflects the Origin WITHOUT
+  // Allow-Credentials, so a credentialed request would be REJECTED by the
+  // browser - the receiver passes "omit", the token in the URL is enough.
   credentials?: RequestCredentials;
 }
 
@@ -91,10 +91,10 @@ export class WasmAudioEngine {
   private readonly video: HTMLVideoElement;
   private readonly playlistUrl: string;
   private readonly opts: WasmAudioEngineOptions;
-  // Compensation d'avance audio : base statique (opts/défaut) supplantée par
-  // la MESURE dès qu'elle est mûre - requestVideoFrameCallback donne la frame
-  // réellement affichée, outputLatency la sortie audio ; l'écart des deux est
-  // la vraie latence du pipeline (0,1 s desktop, 0,5-0,6 s sur TV cast).
+  // Audio-lead compensation: static base (opts/default) superseded by the
+  // MEASUREMENT once it's mature - requestVideoFrameCallback gives the frame
+  // actually displayed, outputLatency the audio output; the gap between the
+  // two is the pipeline's real latency (0.1s desktop, 0.5-0.6s on a cast TV).
   private readonly leadCompBase: number;
   private readonly leadEstimator = new AVLatencyEstimator();
   private rvfcHandle: number | null = null;
@@ -430,9 +430,9 @@ export class WasmAudioEngine {
     return this.leadEstimator.estimate ?? this.leadCompBase;
   }
 
-  // Boucle de mesure A/V : à chaque frame PRÉSENTÉE, échantillonne
-  // (retard d'affichage vidéo) - (latence de sortie audio). Best-effort :
-  // sans requestVideoFrameCallback, la base statique reste seule en jeu.
+  // A/V measurement loop: on every PRESENTED frame, sample
+  // (video display delay) - (audio output latency). Best-effort:
+  // without requestVideoFrameCallback, only the static base is used.
   private startLatencyMeasurement(): void {
     const v = this.video as HTMLVideoElement & {
       requestVideoFrameCallback?: (cb: (now: number, meta: { mediaTime: number; expectedDisplayTime: number }) => void) => number;

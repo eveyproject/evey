@@ -22,10 +22,10 @@ interface UsePlayerGesturesArgs {
   getBrightness: () => number;
   skipForwardSeconds?: number;
   skipBackwardSeconds?: number;
-  /** Vrai quand un panneau ancré (réglages...) est ouvert : les swipes
-   *  volume/luminosité sont suspendus (ils voleraient le scroll du panneau)
-   *  et un tap sur la vidéo ferme le panneau - même contrat que le clic
-   *  overlay du player web. */
+  /** True when a docked panel (settings...) is open: volume/brightness
+   *  swipes are suspended (they would steal the panel's scroll) and a tap
+   *  on the video closes the panel - same contract as the web player's
+   *  overlay click. */
   hasOpenPanel?: () => boolean;
   onCloseOverlays?: () => void;
 }
@@ -78,9 +78,9 @@ export function usePlayerGestures({
   const panResponder = useMemo(
     () =>
       PanResponder.create({
-        // Panneau ancré ouvert : ne pas prendre le responder du tout, sinon le
-        // ScrollView du panneau ne reçoit jamais les moves (le scrim posé par
-        // l'écran player gère la fermeture au tap).
+        // Docked panel open: don't claim the responder at all, otherwise the
+        // panel's ScrollView never receives moves (the scrim set by the
+        // player screen handles closing on tap).
         onStartShouldSetPanResponder: () => !cb.current.hasOpenPanel?.(),
         onMoveShouldSetPanResponder: (_, gs) =>
           !cb.current.hasOpenPanel?.() &&
@@ -146,8 +146,8 @@ export function usePlayerGestures({
           const isSmallMove = Math.abs(gs.dx) < 20 && Math.abs(gs.dy) < 20;
           if (!isSmallMove) return;
 
-          // Panneau ouvert : le tap ferme le panneau, rien d'autre (web :
-          // handleOverlayClick fait exactement ça avant tout play/pause).
+          // Panel open: the tap closes the panel, nothing else (web:
+          // handleOverlayClick does exactly this before any play/pause).
           if (cb.current.hasOpenPanel?.()) {
             cb.current.onCloseOverlays?.();
             return;

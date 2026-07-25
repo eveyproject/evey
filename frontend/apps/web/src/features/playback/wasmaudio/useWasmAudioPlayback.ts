@@ -3,8 +3,8 @@ import { buildTranscodeHlsUrl } from "../hooks/hlsPlayerUtils";
 import { WasmAudioEngine } from "./WasmAudioEngine";
 import { extractAudioURI, injectToken } from "./wasmAudioShared";
 
-// Ré-export de compatibilité : les helpers purs vivent dans wasmAudioShared
-// (partagés avec le Web Receiver Cast, qui ne doit pas tirer React/hls.js).
+// Compatibility re-export: the pure helpers live in wasmAudioShared
+// (shared with the Cast Web Receiver, which must not pull in React/hls.js).
 export { extractAudioURI, injectToken } from "./wasmAudioShared";
 
 interface UseWasmAudioPlaybackArgs {

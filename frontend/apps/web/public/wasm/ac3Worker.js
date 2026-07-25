@@ -25,11 +25,11 @@ async function init(wasmUrl, wasmExecUrl) {
   // importScripts pulls it in synchronously without eval.
   importScripts(wasmExecUrl);
   const go = new self.Go();
-  // instantiateStreaming d'abord : c'est la SEULE forme que le cache de code
-  // compilé de Chrome (clé = URL) sait réutiliser - déterminant sur un CPU de
-  // TV (receiver cast) où la compilation domine le délai d'arrivée du son, et
-  // ça permet au préchauffage compileStreaming de la page de payer d'avance.
-  // Repli bytes pour les moteurs sans streaming ou un Content-Type manquant.
+  // instantiateStreaming first: it's the ONLY form Chrome's compiled-code
+  // cache (keyed by URL) can reuse - decisive on a TV CPU (cast receiver)
+  // where compilation dominates the time-to-sound, and it lets the page's
+  // compileStreaming warmup pay off ahead of time.
+  // Bytes fallback for engines without streaming or a missing Content-Type.
   let instance;
   try {
     const res = await WebAssembly.instantiateStreaming(fetch(wasmUrl), go.importObject);

@@ -46,8 +46,8 @@ interface PlayerControlsRowProps {
   onToggleFullscreen: () => void;
 }
 
-// Mêmes glyphes que le player web : flèche circulaire avec le nombre de
-// secondes incrusté (le web les dessine en SVG inline, on reprend les paths).
+// Same glyphs as the web player: circular arrow with the number of seconds
+// embedded (the web draws them as inline SVG, we reuse the paths).
 function SkipBackIcon({ seconds }: { seconds: number }) {
   return (
     <Svg width={22} height={22} viewBox="0 0 24 24">
@@ -66,11 +66,11 @@ function SkipForwardIcon({ seconds }: { seconds: number }) {
   );
 }
 
-// Rangée de transport, copie de la barre du player web : épisode/chapitre
-// précédent, -Ns, play/pause, +Ns, chapitre/épisode suivant, temps, volume,
-// puis un bouton « ⋯ » qui révèle la rangée secondaire flottante (chapitres,
-// réglages, infos flux, minuteur, PiP, plein écran) - exactement le même
-// regroupement que le web sous le breakpoint sm.
+// Transport row, copy of the web player's bar: previous episode/chapter,
+// -Ns, play/pause, +Ns, next chapter/episode, time, volume, then a "..."
+// button that reveals the floating secondary row (chapters, settings,
+// stream info, timer, PiP, fullscreen) - exactly the same grouping as
+// the web under the sm breakpoint.
 export function PlayerControlsRow({
   isPlaying,
   isBuffering,
@@ -106,9 +106,9 @@ export function PlayerControlsRow({
   const { t } = useTranslation();
   const [overflowOpen, setOverflowOpen] = useState(false);
 
-  // Comme le web : le panneau réglages vit dans la rangée secondaire, donc
-  // celle-ci reste ouverte tant que lui l'est ; sinon elle se referme quand
-  // les contrôles se cachent (le parent démonte cette rangée).
+  // Like the web: the settings panel lives in the secondary row, so it
+  // stays open as long as the panel is; otherwise it closes when the
+  // controls hide (the parent unmounts this row).
   useEffect(() => {
     if (!settingsOpen) return;
     setOverflowOpen(true);
@@ -309,8 +309,8 @@ const styles = StyleSheet.create({
     fontVariant: ["tabular-nums"],
     textAlign: "center",
   },
-  // Rangée secondaire flottante au-dessus de la barre, alignée à droite -
-  // même placement que la rangée « overflow » du web sous sm.
+  // Floating secondary row above the bar, right-aligned - same placement
+  // as the web's "overflow" row under sm.
   overflowRow: {
     position: "absolute",
     bottom: "100%",

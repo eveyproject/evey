@@ -1,6 +1,6 @@
-// Helpers purs du chemin wasm-audio, partagés entre le player web (hook React)
-// et le Web Receiver Cast (page standalone) : les garder ici évite au bundle du
-// receiver de tirer React + hls.js via useWasmAudioPlayback.
+// Pure helpers for the wasm-audio path, shared between the web player (React
+// hook) and the Cast Web Receiver (standalone page): keeping them here keeps
+// the receiver bundle from pulling in React + hls.js via useWasmAudioPlayback.
 
 // extractAudioURI pulls the out-of-band AC-3/E-AC-3 rendition URI the server
 // named in the video-only master (#EVEY-AUDIO-URI:"..."). Absent means the

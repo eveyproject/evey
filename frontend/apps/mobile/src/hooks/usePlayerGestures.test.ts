@@ -139,8 +139,8 @@ describe("usePlayerGestures", () => {
     });
   });
 
-  // Panneau ancré (réglages) ouvert : le PanResponder doit s'effacer - sans ça
-  // il volait le scroll du panneau et un swipe vertical y changeait le volume.
+  // Docked panel (settings) open: the PanResponder must yield - without this
+  // it stole the panel's scroll and a vertical swipe there changed the volume.
   describe("panel open", () => {
     it("does not claim the responder while a panel is open", () => {
       const { config } = setup({ hasOpenPanel: () => true });

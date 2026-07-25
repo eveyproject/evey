@@ -77,16 +77,16 @@ const PROFILES: Array<{ match: (m: string) => boolean; profile: CastProfile }> =
     // string ever observed through the cast_receiver_model beacon in prod
     // (2026-07-25). HEVC 4K and HDR10 panel; h264 held at 1080p - Amlogic
     // h264 decode above L4.2 is not a given.
-    // PAS de Dolby ici : la certification « Dolby Audio » couvre les apps
-    // Android de la TV, pas son runtime cast. Déclarer eac3/ac3 a fait servir
-    // l'E-AC-3 en passthrough au Default Media Receiver et 3 casts sur 3 ont
-    // fini figés sur le backdrop (prod 2026-07-25), quand les MÊMES fichiers
-    // jouaient la veille via le transcode AAC du profil plancher. Même règle
-    // que l'Ultra : ne jamais parier sur le passthrough Dolby d'un receiver.
-    // Jellyfin est arrivé à la même conclusion : leur receiver Chromecast
-    // custom hardcode hasEAC3Support()/hasAC3Support() à FALSE (« problems
-    // getting it to work with HLS ») alors qu'il POURRAIT sonder
-    // canDisplayType - l'audio cast HLS y est aac/mp3/opus, point.
+    // NO Dolby here: the "Dolby Audio" certification covers the TV's Android
+    // apps, not its cast runtime. Declaring eac3/ac3 got E-AC-3 served as
+    // passthrough to the Default Media Receiver and 3 out of 3 casts ended
+    // up stuck on the backdrop (prod 2026-07-25), when the SAME files played
+    // fine the day before via the floor profile's AAC transcode. Same rule
+    // as the Ultra: never bet on a receiver's Dolby passthrough.
+    // Jellyfin reached the same conclusion: their custom Chromecast receiver
+    // hardcodes hasEAC3Support()/hasAC3Support() to FALSE ("problems
+    // getting it to work with HLS") even though it COULD probe
+    // canDisplayType - HLS cast audio there is aac/mp3/opus, period.
     // (jellyfin-chromecast src/components/codecSupportHelper.ts)
     match: (m) => m.includes("mitv"),
     profile: { videoCodecs: ["h264", "hevc", "vp9"], audioCodecs: ["aac", "mp3", "opus", "flac"], hdr: true, maxHeight: 2160, h264MaxHeight: 1080 },

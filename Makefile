@@ -48,12 +48,12 @@ build:
 # this after pulling or after bumping the ac3go pin (go get -tool ...@version).
 # In CI/Docker the `wasmbuild` stage does the same. Runs in the evey-server
 # container (Go toolchain + module cache).
-# TinyGo, pas le go standard : 391 Ko contre 2,9 Mo, compilation navigateur ~5x
-# plus rapide - déterminant pour le receiver Cast qui compile ce module sur le
-# CPU d'une TV (10 s -> ~2 s mesurés le 2026-07-25). Exige l'entrypoint
-# streaming d'ac3go (>= v0.0.0-20260725211506) : l'ancien accumulait le PCM sur
-# le tas Go et TinyGo gonflait à 768 Mo. ⚠️ le shim wasm_exec.js est CELUI DE
-# TINYGO, incompatible avec celui de go - toujours livrer les deux ensemble.
+# TinyGo, not standard go: 391 KB vs 2.9 MB, ~5x faster browser compile -
+# decisive for the Cast receiver which compiles this module on a TV's CPU
+# (10s -> ~2s measured 2026-07-25). Requires ac3go's streaming entrypoint
+# (>= v0.0.0-20260725211506): the old one accumulated PCM on the Go heap and
+# TinyGo ballooned to 768 MB. Warning: the wasm_exec.js shim is TINYGO'S,
+# incompatible with standard go's - always ship both together.
 wasm-decoder:
 	docker run --rm -v $(PWD):/src -w /src -e HOME=/tmp -e GOFLAGS=-mod=mod \
 	  tinygo/tinygo:0.41.1 sh -c '\

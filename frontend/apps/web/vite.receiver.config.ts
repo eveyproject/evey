@@ -1,11 +1,11 @@
 import { defineConfig } from "vite";
 import { resolve } from "path";
 
-// Build STANDALONE du Web Receiver Cast, pour l'hébergement statique hors
-// serveur (GitHub Pages de l'org - servi à la racine, les chemins /wasm/ et
-// /assets/ absolus tiennent). Une seule entrée ; publicDir coupé : le public/
-// de l'app pèse lourd et seuls les artefacts wasm sont nécessaires - copiés
-// par l'assemblage (`pnpm run build:cast-receiver` puis cp de public/wasm).
+// STANDALONE build of the Cast Web Receiver, for static hosting off the
+// server (org's GitHub Pages - served at the root, so absolute /wasm/ and
+// /assets/ paths hold). Single entry; publicDir disabled: the app's public/
+// is heavy and only the wasm artifacts are needed - copied by the assembly
+// step (`pnpm run build:cast-receiver` then cp from public/wasm).
 export default defineConfig({
   resolve: {
     alias: {

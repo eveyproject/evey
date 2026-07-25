@@ -6,12 +6,12 @@ import { eveyFetch } from "@evey/api";
 import { toast } from "@evey/store";
 import i18n from "@/i18n";
 
-// Web Receiver custom Evey (Cast Console D36A449B → https://cast.eveyproject.org) :
-// il sonde les capacités RÉELLES du device (canDisplayType) et décode
-// l'AC-3/E-AC-3 sur la TV via ac3go wasm - le Default Media Receiver
-// ("CC1AD845") ne savait ni l'un ni l'autre et échouait en silence.
-// ⚠️ Tant que l'app console est Unpublished, seuls les devices de test
-// enregistrés peuvent le lancer - publier AVANT tout déploiement public.
+// Custom Evey Web Receiver (Cast Console D36A449B -> https://cast.eveyproject.org):
+// it probes the device's REAL capabilities (canDisplayType) and decodes
+// AC-3/E-AC-3 on the TV via ac3go wasm - the Default Media Receiver
+// ("CC1AD845") could do neither and failed silently.
+// Warning: while the app console is Unpublished, only registered test
+// devices can launch it - publish BEFORE any public deployment.
 const CAST_APP_ID = "D36A449B";
 const TAG = "[Cast]";
 

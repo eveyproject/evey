@@ -21,11 +21,11 @@ RUN buf generate --template buf.gen.local.yaml
 # ── Stage 2b: Build the ac3go WebAssembly decoder (browser AC-3/E-AC-3 path) ──
 # Built from the pinned module (go.mod `tool` directive), not committed. The web
 # player loads it from /wasm/ac3go.wasm to decode AC-3/E-AC-3 client-side.
-# TinyGo : module 391 Ko (vs 2,9 Mo en go standard), compilation navigateur ~5x
-# plus rapide - le receiver Cast compile ce module sur le CPU d'une TV. Le shim
-# wasm_exec.js est CELUI DE TINYGO (incompatible avec celui de go standard).
-# Requiert l'entrypoint streaming d'ac3go (pin >= v0.0.0-20260725211506) sans
-# lequel le tas TinyGo gonfle à 768 Mo sur un long décodage.
+# TinyGo: 391 KB module (vs 2.9 MB with standard go), ~5x faster browser
+# compile - the Cast receiver compiles this module on a TV's CPU. The
+# wasm_exec.js shim is TINYGO'S (incompatible with standard go's).
+# Requires ac3go's streaming entrypoint (pin >= v0.0.0-20260725211506),
+# without which the TinyGo heap balloons to 768 MB on a long decode.
 FROM tinygo/tinygo:0.41.1 AS wasmbuild
 WORKDIR /src
 COPY go.mod go.sum ./

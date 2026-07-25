@@ -340,9 +340,9 @@ func (r *statusRecorder) Flush() {
 	}
 }
 
-// Hijack relaie au writer sous-jacent : l'upgrade websocket (/api/v1/devices/ws)
-// type-asserte http.Hijacker sur CE wrapper et paniquait sinon, tuant
-// l'enregistrement des devices Play On derrière InstrumentHandler.
+// Hijack forwards to the underlying writer: the websocket upgrade
+// (/api/v1/devices/ws) type-asserts http.Hijacker on THIS wrapper and used to
+// panic otherwise, killing Play On device registration behind InstrumentHandler.
 func (r *statusRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	if h, ok := r.ResponseWriter.(http.Hijacker); ok {
 		return h.Hijack()

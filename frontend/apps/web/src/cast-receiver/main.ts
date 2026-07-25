@@ -1,19 +1,19 @@
-// Point d'entrée du Web Receiver Cast custom (page /cast-receiver.html,
-// déclarée dans la Google Cast Console). Rôles :
-//   1. re-négocier le master HLS avec les capacités RÉELLES du device
-//      (probeReceiverCaps + rewriteCastMasterUrl - fini la table par modèle) ;
-//   2. décoder l'AC-3/E-AC-3 SUR la TV via ac3go wasm quand le runtime cast ne
-//      le fait pas nativement (master video-only + WasmAudioEngine, le même
-//      moteur que le player web) ; repli automatique sur l'AAC transcodé si le
-//      wasm ne démarre pas ;
-//   3. afficher les erreurs de lecture À L'ÉCRAN - le Default Media Receiver
-//      échoue en silence, c'est ce qui a rendu les incidents cast indiagnosticables.
+// Entry point for the custom Cast Web Receiver (page /cast-receiver.html,
+// declared in the Google Cast Console). Roles:
+//   1. renegotiate the HLS master against the device's REAL capabilities
+//      (probeReceiverCaps + rewriteCastMasterUrl - no more per-model table);
+//   2. decode AC-3/E-AC-3 ON the TV via ac3go wasm when the cast runtime does
+//      not do it natively (video-only master + WasmAudioEngine, the same
+//      engine as the web player); automatic fallback to transcoded AAC if
+//      the wasm does not start;
+//   3. show playback errors ON SCREEN - the Default Media Receiver fails
+//      silently, which is what made cast incidents undiagnosable.
 import { WasmAudioEngine } from "@/features/playback/wasmaudio/WasmAudioEngine";
 import { extractAudioURI } from "@/features/playback/wasmaudio/wasmAudioShared";
 import { absoluteWithToken, probeReceiverCaps, rewriteCastMasterUrl, stripWasmAudio } from "./receiverLogic";
 
-// Le SDK CAF est chargé par un <script> gstatic dans la page ; ses types ne
-// sont pas packagés - accès volontairement non typé, borné à ce fichier.
+// The CAF SDK is loaded by a gstatic <script> in the page; its types are
+// not packaged - deliberately untyped access, scoped to this file.
 /* eslint-disable @typescript-eslint/no-explicit-any */
 declare const cast: any;
 
@@ -31,23 +31,23 @@ let engine: WasmAudioEngine | null = null;
 let wasmDisabled = false;
 let currentUrl = "";
 let wasmRequested = false;
-// Génération de LOAD : un nouveau LOAD invalide tout démarrage de moteur en
-// cours (le start est asynchrone et parallèle au chargement CAF).
+// LOAD generation: a new LOAD invalidates any engine start in progress
+// (the start is async and runs in parallel with the CAF load).
 let loadGen = 0;
 let engineStarting = false;
 
-// Préchauffage : télécharger (cache HTTP) et COMPILER (cache de code V8, clé =
-// URL, exploité par l'instantiateStreaming du worker) le décodeur pendant le
-// splash - sur le CPU d'une TV, la compilation Go-wasm est le coût dominant du
-// délai d'arrivée du son. Best-effort intégral : un échec ici ne change rien,
-// le vrai chargement le repayera.
+// Warmup: download (HTTP cache) and COMPILE (V8 code cache, keyed by URL,
+// exploited by the worker's instantiateStreaming) the decoder during the
+// splash - on a TV's CPU, Go-wasm compilation is the dominant cost of
+// time-to-sound. Fully best-effort: a failure here changes nothing,
+// the real load will pay for it again.
 for (const asset of ["/wasm/ac3Worker.js", "/wasm/wasm_exec.js"]) {
   void fetch(asset).catch(() => {});
 }
 try {
   void WebAssembly.compileStreaming(fetch("/wasm/ac3go.wasm")).catch(() => {});
 } catch {
-  /* runtime sans compileStreaming : le repli bytes du worker s'en charge */
+  /* runtime without compileStreaming: the worker's bytes fallback handles it */
 }
 
 function destroyEngine(): void {
@@ -55,8 +55,8 @@ function destroyEngine(): void {
   engine = null;
 }
 
-// tokenFromUrl lit le token purpose=cast que le sender a baké dans l'URL - le
-// receiver n'a aucune autre identité, ce token est TOUTE son autorisation.
+// tokenFromUrl reads the purpose=cast token the sender baked into the URL - the
+// receiver has no other identity, this token is ALL of its authorization.
 function tokenFromUrl(rawUrl: string): string {
   try {
     return new URL(rawUrl).searchParams.get("token") ?? "";
@@ -65,10 +65,10 @@ function tokenFromUrl(rawUrl: string): string {
   }
 }
 
-// findMediaElement va chercher le <video> que le player CAF rend dans le
-// shadow DOM de <cast-media-player>. Pas d'API publique pour ça : si Google
-// referme le shadow root un jour, le retour null déclenche simplement le repli
-// AAC - jamais un écran noir muet.
+// findMediaElement fetches the <video> the CAF player renders in the shadow
+// DOM of <cast-media-player>. No public API for this: if Google closes the
+// shadow root off one day, returning null simply triggers the AAC fallback -
+// never a silent black screen.
 function findMediaElement(): HTMLVideoElement | null {
   const cmp = document.querySelector("cast-media-player");
   const inShadow = cmp?.shadowRoot?.querySelector("video");
@@ -76,8 +76,8 @@ function findMediaElement(): HTMLVideoElement | null {
   return document.querySelector("video");
 }
 
-// Repli : recharger le MÊME contenu sans wasmAudio - le serveur re-sert le
-// master AAC muxé. wasmDisabled est un latch : on ne retente pas en boucle.
+// Fallback: reload the SAME content without wasmAudio - the server re-serves
+// the muxed AAC master. wasmDisabled is a latch: we don't retry in a loop.
 function fallbackToMuxedAudio(reason: string): void {
   if (!wasmRequested) return;
   wasmRequested = false;
@@ -97,8 +97,8 @@ function fallbackToMuxedAudio(reason: string): void {
   playerManager.load(request).catch((e: unknown) => showDebug(`repli AAC impossible: ${String(e)}`));
 }
 
-// L'élément <video> de CAF n'existe qu'une fois le premier LOAD en cours de
-// traitement : au démarrage anticipé (dès l'interception), on le guette.
+// CAF's <video> element only exists once the first LOAD is being processed:
+// at early start (as soon as we intercept), we poll for it.
 async function findMediaElementWithRetry(timeoutMs: number): Promise<HTMLVideoElement | null> {
   const deadline = Date.now() + timeoutMs;
   for (;;) {
@@ -109,11 +109,11 @@ async function findMediaElementWithRetry(timeoutMs: number): Promise<HTMLVideoEl
   }
 }
 
-// Démarré dès l'INTERCEPTION du LOAD (pas à PLAYER_LOAD_COMPLETE) : le fetch du
-// master, l'attente du <video> et le boot du worker wasm courent en parallèle
-// du chargement CAF - c'est ce qui absorbe les secondes de silence au départ.
-// Sans risque de désynchro : le moteur ne joue que lorsque la vidéo AVANCE
-// (stall gate côté engine), démarrer tôt ne fait que préparer.
+// Started as soon as the LOAD is INTERCEPTED (not at PLAYER_LOAD_COMPLETE):
+// the master fetch, the <video> wait and the wasm worker boot all run in
+// parallel with the CAF load - that's what absorbs the initial seconds of
+// silence. No desync risk: the engine only plays once the video ADVANCES
+// (stall gate on the engine side), starting early just prepares things.
 async function startWasmEngine(): Promise<void> {
   if (engine || engineStarting) return;
   engineStarting = true;
@@ -128,30 +128,30 @@ async function startWasmEngine(): Promise<void> {
         return r.text();
       }),
     ]);
-    if (gen !== loadGen) return; // un autre LOAD est passé entre-temps
+    if (gen !== loadGen) return; // another LOAD happened in the meantime
     if (!video) {
       fallbackToMuxedAudio("video element introuvable");
       return;
     }
     const audioUri = extractAudioURI(masterText);
     if (!audioUri) {
-      // Le serveur n'a pas pris le chemin wasm (piste non-Dolby) : le master
-      // servi est déjà l'AAC muxé, rien à faire.
+      // The server did not take the wasm path (non-Dolby track): the master
+      // served is already muxed AAC, nothing to do.
       wasmRequested = false;
       return;
     }
     const playlistUrl = new URL(audioUri, url).toString();
     engine = new WasmAudioEngine(video, playlistUrl, {
-      // Résolution ABSOLUE contre le serveur média : le receiver peut être
-      // hébergé ailleurs (GitHub Pages, domaine projet). Et credentials omit :
-      // le CORS token-auth du serveur ne répond pas Allow-Credentials.
+      // ABSOLUTE resolution against the media server: the receiver can be
+      // hosted elsewhere (GitHub Pages, project domain). And credentials
+      // omit: the server's CORS token-auth does not answer Allow-Credentials.
       resolveUrl: (u) => absoluteWithToken(u, playlistUrl, token),
       credentials: "omit",
-      // Compensation d'avance audio : le pipeline d'affichage d'une TV retarde
-      // l'image bien plus que le 0,1 s desktop du moteur - mesuré ~0,5-0,6 s
-      // d'avance audio sur la Mi TV (2026-07-25). Valeur à calibrer sur retour
-      // utilisateur : augmenter si le son reste en avance, diminuer s'il est
-      // passé en retard.
+      // Audio-lead compensation: a TV's display pipeline delays the picture
+      // much more than the engine's 0.1s desktop figure - measured ~0.5-0.6s
+      // of audio lead on the Mi TV (2026-07-25). Value to calibrate from user
+      // feedback: increase if the sound stays ahead, decrease if it swings
+      // behind.
       leadCompensationSec: 0.65,
       onFatal: () => fallbackToMuxedAudio("moteur ac3go"),
     });
@@ -170,9 +170,9 @@ playerManager.setMessageInterceptor(
     try {
       return interceptLoad(request);
     } catch (err) {
-      // Une exception ici ferait échouer le LOAD en silence (905 sans réseau).
-      // On l'affiche À L'ÉCRAN et on laisse passer la requête INTACTE : l'URL
-      // du sender mobile est déjà négociée AAC - le chemin qui marche.
+      // An exception here would silently fail the LOAD (905 with no network).
+      // We show it ON SCREEN and let the request through INTACT: the mobile
+      // sender's URL is already AAC-negotiated - the path that works.
       showDebug(`interceptor: ${String(err).slice(0, 160)}`);
       wasmRequested = false;
       currentUrl = request?.media?.contentUrl || request?.media?.contentId || "";
@@ -195,27 +195,28 @@ function interceptLoad(request: any): any {
       (mime, codec, w, h) => context.canDisplayType(mime, codec, w, h),
       systemHdr,
     );
-    // v1 : ZÉRO passthrough Dolby, même si la sonde dit oui - position Jellyfin
-    // (hasEAC3Support hardcodé false « problems getting it to work with HLS »),
-    // confirmée le 25/07 au soir : la Mi TV se sonde Dolby-capable via EDID et
-    // le player CAF échoue quand même le LOAD (code 905) sur le master ec-3.
-    // L'audio passe donc par ac3go wasm (https) ou le transcode AAC serveur.
+    // v1: ZERO Dolby passthrough, even if the probe says yes - Jellyfin's
+    // position (hasEAC3Support hardcoded false, "problems getting it to work
+    // with HLS"), confirmed on the evening of 07-25: the Mi TV probes itself
+    // Dolby-capable via EDID and the CAF player still fails the LOAD (code
+    // 905) on the ec-3 master. So audio goes through ac3go wasm (https) or
+    // the server's AAC transcode.
     const caps = { ...probed, nativeDolby: false };
     const wasmCapable = typeof WebAssembly !== "undefined" && !wasmDisabled;
-    // window.location.protocol : une instance http: sur le LAN n'a pas droit
-    // aux fetch JS (mixed content) - la décision wasm en tient compte.
+    // window.location.protocol: an http: instance on the LAN is not allowed
+    // JS fetches (mixed content) - the wasm decision accounts for this.
     const rewritten = rewriteCastMasterUrl(rawUrl, caps, wasmCapable, window.location.protocol);
     if (rewritten) {
       media.contentId = rewritten.url;
       media.contentUrl = rewritten.url;
       media.contentType = "application/x-mpegurl";
-      // fMP4 explicite : sans ces hints le receiver assume MPEG2-TS et charge
-      // pour toujours sans image (même fix que le sender web/mobile).
+      // Explicit fMP4: without these hints the receiver assumes MPEG2-TS and
+      // loads forever with no picture (same fix as the web/mobile sender).
       media.hlsSegmentFormat = cast.framework.messages.HlsSegmentFormat.FMP4;
       media.hlsVideoSegmentFormat = cast.framework.messages.HlsVideoSegmentFormat.FMP4;
       currentUrl = rewritten.url;
       wasmRequested = rewritten.wasmAudio;
-      // Départ ANTICIPÉ du moteur audio, en parallèle du chargement CAF.
+      // EARLY start of the audio engine, in parallel with the CAF load.
       if (wasmRequested) void startWasmEngine();
     } else {
       currentUrl = rawUrl;
@@ -224,21 +225,21 @@ function interceptLoad(request: any): any {
     return request;
 }
 
-// Filet : si le démarrage anticipé n'a pas abouti (élément vidéo tardif...),
-// on retente une fois le chargement CAF terminé - l'ancien déclencheur.
+// Safety net: if the early start did not succeed (late video element...),
+// retry once the CAF load has finished - the old trigger.
 playerManager.addEventListener(cast.framework.events.EventType.PLAYER_LOAD_COMPLETE, () => {
   if (wasmRequested && !engine) void startWasmEngine();
 });
 
-// Les erreurs du player s'affichent À L'ÉCRAN : c'est le receiver de debug que
-// le DMR n'a jamais été. detailedErrorCode + la raison brute + la décision de
-// négociation : tout ce qu'il faut pour diagnostiquer sur une photo de TV.
+// Player errors show ON SCREEN: this is the debug receiver the DMR never was.
+// detailedErrorCode + the raw reason + the negotiation decision: everything
+// needed to diagnose from a photo of the TV.
 playerManager.addEventListener(cast.framework.events.EventType.ERROR, (event: any) => {
   const code = event?.detailedErrorCode ?? "?";
   let extra = "";
   try {
     extra = JSON.stringify(event?.error ?? event?.reason ?? {}).slice(0, 140);
-  } catch { /* l'écran reste le canal : jamais d'exception ici */ }
+  } catch { /* the screen stays the channel: never throw here */ }
   const mode = wasmRequested ? "wasm" : "aac";
   const host = (() => { try { return new URL(currentUrl).host; } catch { return "?"; } })();
   showDebug(`Erreur lecture code=${code} mode=${mode} src=${host} ${extra}`);

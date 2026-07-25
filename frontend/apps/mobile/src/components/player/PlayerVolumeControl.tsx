@@ -6,29 +6,29 @@ import { useTheme } from "../../providers/ThemeProvider";
 import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
 
 interface PlayerVolumeControlProps {
-  /** Niveau continu 0-2 : 0-1 suit le volume natif, 1-2 est l'amplification. */
+  /** Continuous level 0-2: 0-1 tracks native volume, 1-2 is the amplification. */
   volume: number;
   muted: boolean;
   onToggleMute: () => void;
   onVolumeChange: (value: number) => void;
 }
 
-// Copie du PlayerVolumeControl web : icône mute + barre 0-2 dont la moitié
-// haute (au-delà de 100 %) se remplit en couleur warning pour signaler
-// l'amplification, + pourcentage à droite.
+// Copy of the web PlayerVolumeControl: mute icon + a 0-2 bar whose top half
+// (beyond 100%) fills with the warning color to signal amplification,
+// plus a percentage on the right.
 export function PlayerVolumeControl({ volume, muted, onToggleMute, onVolumeChange }: PlayerVolumeControlProps) {
   const { t } = useTranslation();
   const theme = useTheme();
   const widthRef = useRef(0);
-  // Comme le web sous le breakpoint sm : en largeur étroite (portrait), seule
-  // l'icône reste - la barre et le pourcentage n'apparaissent qu'en paysage.
+  // Like the web under the sm breakpoint: in narrow width (portrait), only
+  // the icon remains - the bar and percentage only appear in landscape.
   const { width: windowW } = useWindowDimensions();
   const compact = windowW < 600;
 
   const level = muted ? 0 : volume;
   const boosted = level > 1;
   const pct = Math.round(level * 100);
-  const fillPct = (level / 2) * 100; // la barre couvre 0..2, 100 % tombe au milieu
+  const fillPct = (level / 2) * 100; // the bar covers 0..2, 100% lands in the middle
 
   const valueFromX = useCallback((x: number) => {
     const w = widthRef.current;

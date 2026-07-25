@@ -18,9 +18,9 @@ func cspFor(t *testing.T, path string) string {
 	return rec.Header().Get("Content-Security-Policy")
 }
 
-// La page receiver Cast (/cast-receiver.html) tourne sur la TV : le player CAF
-// y charge scripts MAIS AUSSI styles, fonts et images depuis gstatic - la CSP
-// applicative (style-src 'self') les bloquerait en silence sur le Chromecast.
+// The Cast receiver page (/cast-receiver.html) runs on the TV: the CAF player
+// loads not just scripts but also styles, fonts and images from gstatic - the
+// app's CSP (style-src 'self') would silently block them on the Chromecast.
 func TestSecurityHeaders_CastReceiverCSPAllowsCAF(t *testing.T) {
 	t.Parallel()
 	csp := cspFor(t, "/cast-receiver.html")
@@ -29,12 +29,12 @@ func TestSecurityHeaders_CastReceiverCSPAllowsCAF(t *testing.T) {
 	}
 	for _, directive := range []string{"script-src", "style-src", "font-src", "img-src"} {
 		seg := segmentOf(csp, directive)
-		// Le schéma large `https:` couvre gstatic tout autant que le host explicite.
+		// The broad `https:` scheme covers gstatic just as well as the explicit host.
 		if !strings.Contains(seg, "https://www.gstatic.com") && !strings.Contains(seg, "https:") {
 			t.Fatalf("%s must allow gstatic for the CAF player, got %q", directive, seg)
 		}
 	}
-	// Le wasm ac3go + MSE restent nécessaires sur la TV.
+	// The ac3go wasm + MSE are still needed on the TV.
 	if !strings.Contains(csp, "wasm-unsafe-eval") {
 		t.Fatalf("receiver CSP must keep wasm-unsafe-eval, got %q", csp)
 	}
@@ -43,8 +43,8 @@ func TestSecurityHeaders_CastReceiverCSPAllowsCAF(t *testing.T) {
 	}
 }
 
-// La politique DURCIE de l'app ne doit pas s'élargir : seul le receiver reçoit
-// la variante gstatic étendue.
+// The app's HARDENED policy must not widen: only the receiver gets the
+// extended gstatic variant.
 func TestSecurityHeaders_AppCSPUnchanged(t *testing.T) {
 	t.Parallel()
 	csp := cspFor(t, "/")
@@ -56,7 +56,7 @@ func TestSecurityHeaders_AppCSPUnchanged(t *testing.T) {
 	}
 }
 
-// segmentOf isole une directive d'une politique CSP ("style-src ...;").
+// segmentOf isolates one directive from a CSP policy ("style-src ...;").
 func segmentOf(csp, directive string) string {
 	for part := range strings.SplitSeq(csp, ";") {
 		part = strings.TrimSpace(part)

@@ -55,8 +55,8 @@ function useQualityOptions() {
   ];
 }
 
-// Barre horizontale minimaliste pour la luminosité (mêmes mécanismes tactiles
-// que PlayerVolumeControl, pleine largeur du panneau).
+// Minimalist horizontal bar for brightness (same touch mechanics as
+// PlayerVolumeControl, full width of the panel).
 function HSlider({ value, min, max, onChange, accessibilityLabel }: {
   value: number;
   min: number;
@@ -99,10 +99,10 @@ function HSlider({ value, min, max, onChange, accessibilityLabel }: {
   );
 }
 
-// Copie du SettingsPanel web : menu principal (Qualité en liste directe, puis
-// lignes Audio / Sous-titres / Vitesse ouvrant un sous-menu, et la luminosité
-// en bas), sous-menus avec entête retour. S'ancre AU-DESSUS de l'engrenage,
-// aligné à droite, comme la popup web.
+// Copy of the web SettingsPanel: main menu (Quality as a direct list, then
+// Audio / Subtitles / Speed rows opening a submenu, and brightness at the
+// bottom), submenus with a back header. Anchors ABOVE the gear icon,
+// right-aligned, like the web popup.
 export function PlayerSettingsPanel({
   audioStreams,
   currentAudioIndex,
@@ -204,10 +204,10 @@ export function PlayerSettingsPanel({
         style,
       ]}
     >
-      {/* La contrainte de hauteur vit sur le ScrollView, pas sur le panneau :
-          un maxHeight sur le parent clippe le contenu sans borner la viewport
-          de scroll (le ScrollView croit avoir la hauteur du contenu et ne
-          défile jamais). */}
+      {/* The height constraint lives on the ScrollView, not on the panel:
+          a maxHeight on the parent clips the content without bounding the
+          scroll viewport (the ScrollView thinks it has the content's height
+          and never scrolls). */}
       <ScrollView style={{ maxHeight: screenH * 0.6 }}>
         {menu === "main" && (
           <>

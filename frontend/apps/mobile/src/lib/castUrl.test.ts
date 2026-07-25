@@ -156,13 +156,13 @@ describe("buildCastStreamUrl", () => {
 });
 
 describe("pickCastProfile - evidence-driven entries from the prod beacon", () => {
-  // MiTV-AFMU0 (an Amlogic Android TV). La certification « Dolby Audio » vaut pour
-  // les apps ANDROID de la TV, pas pour son runtime cast : servir l'E-AC-3 en
-  // passthrough au Default Media Receiver a fait échouer 3 casts sur 3 en prod
-  // le 2026-07-25 (TV figée sur le backdrop, zéro segment audio demandé),
-  // alors que la MÊME TV jouait les MÊMES fichiers la veille quand le profil
-  // plancher forçait le transcode AAC. Même philosophie que l'entrée Ultra :
-  // ne JAMAIS parier sur le passthrough Dolby d'un receiver cast.
+  // MiTV-AFMU0 (an Amlogic Android TV). The "Dolby Audio" certification holds for
+  // the TV's ANDROID apps, not for its cast runtime: serving E-AC-3 as
+  // passthrough to the Default Media Receiver made 3 out of 3 casts fail in
+  // prod on 2026-07-25 (TV stuck on the backdrop, zero audio segment
+  // requested), while the SAME TV played the SAME files the day before when
+  // the floor profile forced the AAC transcode. Same philosophy as the Ultra
+  // entry: NEVER bet on a cast receiver's Dolby passthrough.
   it("never hands the Mi TV cast receiver Dolby passthrough - AAC is what plays", () => {
     const p = pickCastProfile("MiTV-AFMU0");
     expect(p.audioCodecs).not.toContain("eac3");

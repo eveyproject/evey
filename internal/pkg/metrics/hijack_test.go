@@ -9,10 +9,10 @@ import (
 	"testing"
 )
 
-// hijackableRecorder prouve que statusRecorder relaie Hijack : sans ce relais,
-// l'upgrade websocket de /api/v1/devices/ws panique en prod
-// (`*metrics.statusRecorder is not http.Hijacker`) et l'enregistrement des
-// devices (Play On) est mort pour tout client derrière InstrumentHandler.
+// hijackableRecorder proves that statusRecorder forwards Hijack: without this
+// forwarding, the websocket upgrade at /api/v1/devices/ws panics in prod
+// (`*metrics.statusRecorder is not http.Hijacker`) and Play On device
+// registration is dead for any client behind InstrumentHandler.
 type hijackableRecorder struct {
 	*httptest.ResponseRecorder
 	hijacked int

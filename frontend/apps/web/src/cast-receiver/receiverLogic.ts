@@ -1,15 +1,15 @@
-// Logique PURE du Web Receiver Cast custom : le receiver tourne SUR la TV,
-// donc il peut sonder ses propres capacités (canDisplayType) au lieu de faire
-// confiance à une table statique par modèle côté sender - la table Mi TV a
-// menti une fois (E-AC-3 « certifié Dolby » que le runtime cast ne joue pas,
-// prod 2026-07-25) ; un probe local ne peut pas.
+// PURE logic for the custom Cast Web Receiver: the receiver runs ON the TV,
+// so it can probe its own capabilities (canDisplayType) instead of trusting a
+// static per-model table on the sender side - the Mi TV table lied once
+// (E-AC-3 "Dolby certified" that the cast runtime does not actually play,
+// prod 2026-07-25); a local probe cannot.
 //
-// Politique audio, alignée sur l'évidence Jellyfin (leur receiver hardcode
-// EAC3/AC3 à false sur HLS) ET sur notre incident : le passthrough Dolby n'est
-// tenté QUE si le device le sonde vrai lui-même ; sinon l'audio est soit
-// transcodé AAC par le serveur, soit décodé SUR LA TV par ac3go wasm
-// (wasmAudio=1 - le serveur ne prend ce chemin que si la piste est AC-3/E-AC-3,
-// sinon il retombe de lui-même sur le master AAC muxé).
+// Audio policy, aligned with Jellyfin's evidence (their receiver hardcodes
+// EAC3/AC3 to false on HLS) AND our incident: Dolby passthrough is only
+// attempted if the device itself probes true; otherwise audio is either
+// transcoded AAC by the server, or decoded ON THE TV by ac3go wasm
+// (wasmAudio=1 - the server only takes this path if the track is AC-3/E-AC-3,
+// otherwise it falls back on its own to the muxed AAC master).
 
 export type CanDisplayType = (
   mimeType: string,
@@ -25,34 +25,34 @@ export interface ReceiverCaps {
   nativeDolby: boolean;
 }
 
-// Codec strings de sonde - mêmes formes que le codecSupportHelper de
-// jellyfin-chromecast : h264 High L4.0, HEVC Main10 L5.1, VP9 profile 2 10-bit.
+// Probe codec strings - same shapes as jellyfin-chromecast's
+// codecSupportHelper: h264 High L4.0, HEVC Main10 L5.1, VP9 profile 2 10-bit.
 const PROBE_H264 = ["video/mp4", "avc1.640028"] as const;
 const PROBE_HEVC = ["video/mp4", "hev1.2.4.L153.B0"] as const;
 const PROBE_VP9 = ["video/webm", "vp09.02.51.10"] as const;
-// HDR10 : HEVC Main10 + transfert PQ (SMPTE ST 2084) via la forme longue vp09,
-// la seule syntaxe canDisplayType qui exprime un transfert HDR sans Dolby Vision.
+// HDR10: HEVC Main10 + PQ transfer (SMPTE ST 2084) via the long-form vp09,
+// the only canDisplayType syntax that expresses an HDR transfer without Dolby Vision.
 const PROBE_HDR = ["video/webm", "vp09.02.51.10.01.09.16.09.01"] as const;
 
 export function probeReceiverCaps(canDisplayType: CanDisplayType, systemHdr: boolean): ReceiverCaps {
   const videoCodecs: string[] = [];
-  // h264 est le plancher universel des receivers : présent même si la sonde
-  // du profil High échoue (un receiver sans h264 n'existe pas).
+  // h264 is the universal receiver floor: present even if the High profile
+  // probe fails (a receiver without h264 does not exist).
   videoCodecs.push("h264");
   if (canDisplayType(PROBE_HEVC[0], PROBE_HEVC[1])) videoCodecs.push("hevc");
   if (canDisplayType(PROBE_VP9[0], PROBE_VP9[1])) videoCodecs.push("vp9");
 
-  // 4K sondée sur le codec le plus capable disponible ; un échec = plafond 1080p.
+  // 4K probed on the most capable codec available; a failure means a 1080p ceiling.
   const fourKProbe = videoCodecs.includes("hevc") ? PROBE_HEVC : PROBE_H264;
   const maxHeight = canDisplayType(fourKProbe[0], fourKProbe[1], 3840, 2160) ? 2160 : 1080;
 
-  // HDR : le signal système (DeviceCapabilities.IS_HDR_SUPPORTED, câblé par
-  // l'appelant) OU une sonde de transfert PQ positive.
+  // HDR: the system signal (DeviceCapabilities.IS_HDR_SUPPORTED, wired by
+  // the caller) OR a positive PQ transfer probe.
   const hdr = systemHdr || canDisplayType(PROBE_HDR[0], PROBE_HDR[1]);
 
-  // Dolby passthrough : uniquement si le device lui-même le sonde vrai (EDID /
-  // réglage Google Home). C'est la sonde que Jellyfin a écrite puis commentée ;
-  // notre repli à nous si elle ment est le reload sans wasm/dolby côté receiver.
+  // Dolby passthrough: only if the device itself probes true (EDID /
+  // Google Home setting). This is the probe Jellyfin wrote then commented out;
+  // our own fallback if it lies is the reload without wasm/dolby on the receiver side.
   const nativeDolby =
     canDisplayType("audio/mp4", "ec-3") && canDisplayType("audio/mp4", "ac-3");
 
@@ -66,16 +66,16 @@ export interface RewrittenLoad {
 
 const BASE_AUDIO = ["aac", "mp3", "opus", "flac"];
 
-// rewriteCastMasterUrl re-négocie NOTRE master HLS avec les caps réellement
-// sondées. Toute autre URL (direct play /stream, contenu tiers) est laissée
-// telle quelle - retour null.
+// rewriteCastMasterUrl renegotiates OUR HLS master with the actually probed
+// caps. Any other URL (direct play /stream, third-party content) is left
+// as-is - returns null.
 //
-// pageProtocol = le schéma de la PAGE receiver (https: en prod, exigence Cast
-// Console). Une instance Evey auto-hébergée en http: sur son LAN reste
-// jouable : le player CAF a le droit de charger du média http: depuis une page
-// https: (doc Google Cast), mais NOS fetch JS (master wasm, segments ac3go)
-// sont du mixed content actif et seraient bloqués - donc jamais de wasmAudio
-// vers un serveur http:.
+// pageProtocol = the scheme of the receiver PAGE (https: in prod, Cast
+// Console requirement). A self-hosted Evey instance on http: on its LAN
+// stays playable: the CAF player is allowed to load http: media from an
+// https: page (Google Cast doc), but OUR JS fetches (wasm master, ac3go
+// segments) are active mixed content and would be blocked - so never
+// wasmAudio toward an http: server.
 export function rewriteCastMasterUrl(
   rawUrl: string,
   caps: ReceiverCaps,
@@ -106,11 +106,11 @@ export function rewriteCastMasterUrl(
   return { url: u.toString(), wasmAudio };
 }
 
-// absoluteWithToken résout une URL de playlist/segment contre le SERVEUR MÉDIA
-// (l'URL de base absolue) et y injecte le token le plus frais. Jamais contre
-// l'origine de la page : le receiver peut être hébergé ailleurs que l'instance
-// (GitHub Pages, domaine projet) - l'injectToken du web (même-origine) rend un
-// chemin relatif qui partirait vers l'hôte du receiver et ferait 404.
+// absoluteWithToken resolves a playlist/segment URL against the MEDIA SERVER
+// (the absolute base URL) and injects the freshest token into it. Never
+// against the page's origin: the receiver may be hosted elsewhere than the
+// instance (GitHub Pages, project domain) - the web's injectToken (same-origin)
+// would produce a relative path that goes to the receiver's host and 404s.
 export function absoluteWithToken(url: string, baseUrl: string, token: string): string {
   try {
     const abs = new URL(url, baseUrl);
@@ -121,8 +121,8 @@ export function absoluteWithToken(url: string, baseUrl: string, token: string): 
   }
 }
 
-// stripWasmAudio est le repli quand ac3go ne démarre pas sur la TV : recharger
-// le MÊME master sans wasmAudio fait re-servir l'audio AAC muxé par le serveur.
+// stripWasmAudio is the fallback when ac3go does not start on the TV:
+// reloading the SAME master without wasmAudio re-serves the muxed AAC audio.
 export function stripWasmAudio(rawUrl: string): string {
   try {
     const u = new URL(rawUrl);
