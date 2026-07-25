@@ -30,9 +30,10 @@ FROM tinygo/tinygo:0.41.1 AS wasmbuild
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download github.com/gravity-zero/ac3go
-RUN mkdir -p /out \
-    && tinygo build -target wasm -no-debug -opt=z -o /out/ac3go.wasm github.com/gravity-zero/ac3go/cmd/ac3go-wasm \
-    && cp /usr/local/tinygo/targets/wasm_exec.js /out/wasm_exec.js
+# /tmp, not /: the tinygo image runs as a non-root user.
+RUN mkdir -p /tmp/out \
+    && tinygo build -target wasm -no-debug -opt=z -o /tmp/out/ac3go.wasm github.com/gravity-zero/ac3go/cmd/ac3go-wasm \
+    && cp /usr/local/tinygo/targets/wasm_exec.js /tmp/out/wasm_exec.js
 
 # ── Stage 3: Build frontend ──
 FROM node:22-alpine AS frontend
@@ -52,7 +53,7 @@ COPY frontend/ .
 COPY --from=protogen /src/gen/evey/v1/ /gen/evey/v1/
 # The ac3go wasm decoder + Go runtime shim are built (not committed); place them
 # in the web app's public dir so vite build ships them at /wasm/.
-COPY --from=wasmbuild /out/ac3go.wasm /out/wasm_exec.js apps/web/public/wasm/
+COPY --from=wasmbuild /tmp/out/ac3go.wasm /tmp/out/wasm_exec.js apps/web/public/wasm/
 RUN cd packages/api \
     && npx orval --config orval.config.ts \
     && cd ../.. \
