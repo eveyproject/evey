@@ -608,9 +608,10 @@ func TestManifestGenerator_Master_WithAudioRenditions_EmitsEXTXMEDIA(t *testing.
 	require.NoError(t, err)
 	lines := nonEmptyLines(out)
 
-	// Track 0 = DEFAULT, AUTOSELECT YES; track 1 = both NO.
+	// AudioTrack defaults to 0: track 0 = DEFAULT; every rendition is
+	// AUTOSELECT=YES so a client can switch to any track itself.
 	assert.True(t, containsLine(lines, `#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aud",NAME="English",DEFAULT=YES,AUTOSELECT=YES,LANGUAGE="en",URI="audio_0.m3u8`))
-	assert.True(t, containsLine(lines, `#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aud",NAME="Français",DEFAULT=NO,AUTOSELECT=NO,LANGUAGE="fr",URI="audio_1.m3u8`))
+	assert.True(t, containsLine(lines, `#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aud",NAME="Français",DEFAULT=NO,AUTOSELECT=YES,LANGUAGE="fr",URI="audio_1.m3u8`))
 
 	// Every STREAM-INF must now carry AUDIO="aud".
 	for _, l := range lines {
@@ -618,6 +619,27 @@ func TestManifestGenerator_Master_WithAudioRenditions_EmitsEXTXMEDIA(t *testing.
 			assert.Contains(t, l, `AUDIO="aud"`, "STREAM-INF must link to the audio group: %s", l)
 		}
 	}
+}
+
+// The language-switch bug: the master always marked the first rendition
+// DEFAULT, so ?audioTrack=1 changed nothing the player auto-selected and the
+// audio stayed on track 0 (French) on both web and mobile. The requested
+// track must be the DEFAULT one. Confirmed by diffing the live master.
+func TestManifestGenerator_Master_AudioTrack_MarksRequestedRenditionDefault(t *testing.T) {
+	g := NewManifestGenerator()
+	in := baseInput(single360p, 10.0)
+	in.AudioTrack = 1
+	in.AudioRenditions = []AudioRendition{
+		{SourceTrackIdx: 0, Name: "English", LanguageCode: "en"},
+		{SourceTrackIdx: 1, Name: "Français", LanguageCode: "fr"},
+	}
+	out, err := g.Master(in)
+	require.NoError(t, err)
+	lines := nonEmptyLines(out)
+
+	// The requested track (1, Français) is DEFAULT=YES; track 0 drops to NO.
+	assert.True(t, containsLine(lines, `#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aud",NAME="English",DEFAULT=NO,AUTOSELECT=YES,LANGUAGE="en",URI="audio_0.m3u8`))
+	assert.True(t, containsLine(lines, `#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aud",NAME="Français",DEFAULT=YES,AUTOSELECT=YES,LANGUAGE="fr",URI="audio_1.m3u8`))
 }
 
 func TestManifestGenerator_Master_AudioRendition_LanguageOptional(t *testing.T) {

@@ -296,12 +296,27 @@ func (g *ManifestGenerator) Master(in ManifestInput) (string, error) {
 	audioGroup := ""
 	if len(in.AudioRenditions) > 0 && !in.ExternalAudio {
 		audioGroup = "aud"
+		// Mark the REQUESTED audio track (in.AudioTrack, 0-based among audio
+		// streams) as DEFAULT=YES so the player auto-selects it. Before this
+		// the FIRST rendition was always DEFAULT, so switching language via
+		// ?audioTrack= changed the segment URLs but never the DEFAULT flag -
+		// the player kept the original language on BOTH web and mobile (root
+		// cause found by diffing the served master, 2026-07-25). Fall back to
+		// the first rendition when the request is out of range so a default
+		// always exists. AUTOSELECT=YES on every rendition so a client can
+		// still switch tracks itself.
+		defaultRenditionIdx := 0
+		for j, r := range in.AudioRenditions {
+			if r.SourceTrackIdx == in.AudioTrack {
+				defaultRenditionIdx = j
+				break
+			}
+		}
 		for i, r := range in.AudioRenditions {
 			def := "NO"
-			autoSel := "NO"
-			if i == 0 {
+			autoSel := "YES"
+			if i == defaultRenditionIdx {
 				def = "YES"
-				autoSel = "YES"
 			}
 			name := r.Name
 			if name == "" {
