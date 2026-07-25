@@ -156,13 +156,22 @@ describe("buildCastStreamUrl", () => {
 });
 
 describe("pickCastProfile - evidence-driven entries from the prod beacon", () => {
-  // MiTV-AFMU0: first real model string collected by cast_receiver_model
-  // (2026-07-25). a tablet brand Mi TV 4S - Dolby Audio certified, HEVC 4K HDR10.
-  // Before this entry it fell to the floor and its E-AC3 default track was
-  // pointlessly transcoded to AAC.
-  it("gives the Mi TV its Dolby and HEVC back", () => {
+  // MiTV-AFMU0 (an Amlogic Android TV). La certification « Dolby Audio » vaut pour
+  // les apps ANDROID de la TV, pas pour son runtime cast : servir l'E-AC-3 en
+  // passthrough au Default Media Receiver a fait échouer 3 casts sur 3 en prod
+  // le 2026-07-25 (TV figée sur le backdrop, zéro segment audio demandé),
+  // alors que la MÊME TV jouait les MÊMES fichiers la veille quand le profil
+  // plancher forçait le transcode AAC. Même philosophie que l'entrée Ultra :
+  // ne JAMAIS parier sur le passthrough Dolby d'un receiver cast.
+  it("never hands the Mi TV cast receiver Dolby passthrough - AAC is what plays", () => {
     const p = pickCastProfile("MiTV-AFMU0");
-    expect(p.audioCodecs).toContain("eac3");
+    expect(p.audioCodecs).not.toContain("eac3");
+    expect(p.audioCodecs).not.toContain("ac3");
+    expect(p.audioCodecs).toContain("aac");
+  });
+
+  it("keeps the Mi TV's video capabilities (HEVC 4K, HDR, h264 at 1080p)", () => {
+    const p = pickCastProfile("MiTV-AFMU0");
     expect(p.videoCodecs).toContain("hevc");
     expect(p.hdr).toBe(true);
     expect(p.h264MaxHeight).toBe(1080);
