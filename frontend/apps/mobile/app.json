@@ -50,7 +50,12 @@
         }
       ],
       "expo-localization",
-      "react-native-google-cast",
+      [
+        "react-native-google-cast",
+        {
+          "receiverApplicationId": "D36A449B"
+        }
+      ],
       "@kesha-antonov/react-native-background-downloader"
     ]
   }
