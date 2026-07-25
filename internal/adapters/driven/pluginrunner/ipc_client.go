@@ -16,7 +16,13 @@ import (
 )
 
 const (
-	ipcConnectTimeout = 10 * time.Second
+	// Plafond d'attente du bind du socket plugin. Généreux VOLONTAIREMENT :
+	// l'attente est coupée dès que le process meurt (waitForSocket surveille
+	// procDone), donc le plafond ne joue que pour un process bien vivant mais
+	// lent à démarrer. À 10 s, un node lancé pendant le scan de boot +
+	// le backfill keyframe et déprioritisé (nice 10) expirait avant son bind,
+	// et le plugin était parqué en Error alors qu'il tournait (prod 07-22).
+	ipcConnectTimeout = 90 * time.Second
 	ipcCallTimeout    = 5 * time.Second
 	sockPollInterval  = 100 * time.Millisecond
 )
@@ -26,11 +32,15 @@ type ipcClient struct {
 	plugin pluginv1.PluginServiceClient
 }
 
-func newIPCClient(sockPath string) (*ipcClient, error) {
+// newIPCClient attend le bind du socket puis ouvre la connexion gRPC. procDone
+// est le canal fermé quand le process du plugin meurt : il permet d'arrêter
+// l'attente tout de suite au lieu de brûler le plafond sur un process disparu
+// (passer nil = pas de surveillance, utilisé par les tests).
+func newIPCClient(sockPath string, procDone <-chan struct{}) (*ipcClient, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), ipcConnectTimeout)
 	defer cancel()
 
-	if err := waitForSocket(ctx, sockPath); err != nil {
+	if err := waitForSocket(ctx, sockPath, procDone); err != nil {
 		return nil, fmt.Errorf("wait for plugin socket: %w", err)
 	}
 
@@ -113,7 +123,12 @@ func (c *ipcClient) Close() error {
 	return nil
 }
 
-func waitForSocket(ctx context.Context, sockPath string) error {
+// waitForSocket sonde le socket jusqu'à ce qu'un dial aboutisse. Deux sorties
+// d'échec, à ne pas confondre côté admin : le process est mort avant de binder
+// (cause réelle, son code de sortie et son stdout sont exploitables), ou il est
+// toujours vivant et n'a pas bindé dans le plafond (bien plus rare depuis que le
+// plafond est large - cf ipcConnectTimeout).
+func waitForSocket(ctx context.Context, sockPath string, procDone <-chan struct{}) error {
 	dir := filepath.Dir(sockPath)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("create socket dir: %w", err)
@@ -126,6 +141,14 @@ func waitForSocket(ctx context.Context, sockPath string) error {
 		select {
 		case <-ctx.Done():
 			return fmt.Errorf("timeout waiting for socket %s", sockPath)
+		case <-procDone:
+			// Un dernier essai : le process peut avoir bindé puis rendu l'âme
+			// entre deux tics, et dans ce cas le socket est exploitable.
+			if conn, err := net.DialTimeout("unix", sockPath, sockPollInterval); err == nil {
+				conn.Close()
+				return nil
+			}
+			return fmt.Errorf("plugin process exited before binding %s", sockPath)
 		case <-ticker.C:
 			// Try to actually dial, not just check file existence
 			conn, err := net.DialTimeout("unix", sockPath, sockPollInterval)

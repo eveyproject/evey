@@ -445,7 +445,7 @@ func (r *Runner) connectIPC(parentCtx context.Context, entry *processEntry, p *p
 			slog.Error("panic in connectIPC", slog.Any("recover", rv), slog.String("plugin", p.ID))
 		}
 	}()
-	client, err := newIPCClient(entry.sockPath)
+	client, err := newIPCClient(entry.sockPath, entry.done)
 	if err != nil {
 		// The socket never came up. The process has very likely already
 		// crashed - its exit reason (with captured output) is far more useful

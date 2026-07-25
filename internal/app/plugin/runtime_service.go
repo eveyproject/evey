@@ -208,7 +208,16 @@ func (s *RuntimeService) DisablePlugin(ctx context.Context, id string) error {
 	return s.plugins.Update(ctx, p)
 }
 
-// AutoStartPlugins starts all plugins that were running before shutdown.
+// AutoStartPlugins starts all plugins that were running before shutdown, plus
+// those left in Error.
+//
+// Le retry des Error est délibéré : un boot est un état neuf, et la cause d'un
+// échec de lancement est souvent transitoire (contention I/O du scan initial,
+// runtime pas encore prêt). Sans ça, un unique ratage parquait le plugin en
+// Error DÉFINITIVEMENT - weather-v2 est resté mort 3 jours en prod (07-22 → 07-25)
+// et aucun des 3 reboots ne l'a récupéré. Un plugin réellement cassé se remettra
+// en Error avec un message frais, ce qui vaut mieux qu'un message vieux de 3 jours.
+// Un plugin DÉSACTIVÉ reste à l'arrêt : c'est une décision de l'admin.
 func (s *RuntimeService) AutoStartPlugins(ctx context.Context) {
 	all, err := s.plugins.List(ctx)
 	if err != nil {
@@ -216,7 +225,7 @@ func (s *RuntimeService) AutoStartPlugins(ctx context.Context) {
 		return
 	}
 	for _, p := range all {
-		if !p.Enabled || (p.Status != plugin.Running && p.Status != plugin.Initializing) {
+		if !p.Enabled || (p.Status != plugin.Running && p.Status != plugin.Initializing && p.Status != plugin.Error) {
 			continue
 		}
 		if p.IsTheme() {
@@ -238,7 +247,9 @@ func (s *RuntimeService) AutoStartPlugins(ctx context.Context) {
 				slog.Warn("persist rebuilt plugin fields", slog.String("pluginID", p.ID), slog.Any("err", upErr))
 			}
 		}
-		slog.Info("auto-starting plugin", slog.String("pluginID", p.ID), slog.String("name", p.Name))
+		retryingAfterError := p.Status == plugin.Error
+		slog.Info("auto-starting plugin", slog.String("pluginID", p.ID), slog.String("name", p.Name),
+			slog.Bool("retry_after_error", retryingAfterError))
 		if startErr := s.runner.Start(ctx, p); startErr != nil {
 			slog.Warn("auto-start plugin failed", slog.String("pluginID", p.ID), slog.Any("err", startErr))
 			p.Status = plugin.Error
@@ -246,8 +257,25 @@ func (s *RuntimeService) AutoStartPlugins(ctx context.Context) {
 			if updateErr := s.plugins.Update(ctx, p); updateErr != nil {
 				slog.Warn("update plugin status", slog.String("pluginID", p.ID), slog.Any("err", updateErr))
 			}
-		} else if s.permChecker != nil {
+			continue
+		}
+		if s.permChecker != nil {
 			s.permChecker.LoadPermissions(p.ID, p.Permissions)
+		}
+		// Un plugin repris depuis Error : le process est lancé mais l'IPC n'est
+		// pas encore établi. Passer en Initializing et effacer le message du
+		// boot précédent, sinon le panel admin continue d'afficher la panne
+		// périmée comme si elle était en cours jusqu'à ce que HandleIPCResult
+		// tranche. Les plugins déjà Running/Initializing ne sont PAS touchés :
+		// les repasser en Initializing élargirait à chaque boot la fenêtre où
+		// DisablePlugin (qui n'arrête le runner que sur Running) laisserait un
+		// process orphelin.
+		if retryingAfterError {
+			p.Status = plugin.Initializing
+			p.ErrorMessage = ""
+			if updateErr := s.plugins.Update(ctx, p); updateErr != nil {
+				slog.Warn("update plugin status", slog.String("pluginID", p.ID), slog.Any("err", updateErr))
+			}
 		}
 	}
 }

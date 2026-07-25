@@ -342,6 +342,56 @@ func TestAutoStartPlugins_SkipsCSS(t *testing.T) {
 	assert.False(t, healthy, "CSS theme should not be started via runner")
 }
 
+// Régression prod 2026-07-22 : weather-v2 a raté son bind de socket une seule
+// fois (boot chargé), s'est retrouvé en Error, et les 3 reboots suivants l'ont
+// SAUTÉ parce qu'AutoStartPlugins n'acceptait que Running/Initializing. Le
+// plugin est resté mort 3 jours sans qu'aucun reboot ne le récupère. Un
+// boot est justement le moment où une panne transitoire doit être réessayée.
+func TestAutoStartPlugins_RetriesPluginsLeftInError(t *testing.T) {
+	pluginRepo := plgfakes.NewFakePluginRepository()
+	runner := plgfakes.NewFakePluginRunner()
+	parser := plgfakes.NewFakeManifestParser()
+	bus := sharedfakes.NewFakeEventBus()
+	svc := appplugin.NewRuntimeService(pluginRepo, plgfakes.NewFakePluginRuntimeRepository(), runner, parser, bus)
+
+	ctx := context.Background()
+	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
+		ID: "plg-errored", Name: "errored-plugin", Language: "nodejs",
+		Status: plugindomain.Error, Enabled: true,
+		ErrorMessage: "wait for plugin socket: timeout waiting for socket",
+	}))
+
+	svc.AutoStartPlugins(ctx)
+
+	healthy, _ := runner.Health(ctx, "plg-errored")
+	assert.True(t, healthy, "un plugin activé laissé en Error doit être réessayé au boot")
+
+	p, err := pluginRepo.GetByID(ctx, "plg-errored")
+	require.NoError(t, err)
+	assert.Empty(t, p.ErrorMessage, "le message d'erreur périmé doit être effacé par un start réussi")
+}
+
+// Un plugin DÉSACTIVÉ en Error reste à l'arrêt : le retry au boot ne doit pas
+// ressusciter ce que l'admin a explicitement coupé.
+func TestAutoStartPlugins_SkipsDisabledEvenInError(t *testing.T) {
+	pluginRepo := plgfakes.NewFakePluginRepository()
+	runner := plgfakes.NewFakePluginRunner()
+	parser := plgfakes.NewFakeManifestParser()
+	bus := sharedfakes.NewFakeEventBus()
+	svc := appplugin.NewRuntimeService(pluginRepo, plgfakes.NewFakePluginRuntimeRepository(), runner, parser, bus)
+
+	ctx := context.Background()
+	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
+		ID: "plg-err-disabled", Name: "errored-disabled", Language: "nodejs",
+		Status: plugindomain.Error, Enabled: false,
+	}))
+
+	svc.AutoStartPlugins(ctx)
+
+	healthy, _ := runner.Health(ctx, "plg-err-disabled")
+	assert.False(t, healthy)
+}
+
 func TestAutoStartPlugins_RebuildsMissingFields(t *testing.T) {
 	pluginRepo := plgfakes.NewFakePluginRepository()
 	runner := plgfakes.NewFakePluginRunner()
