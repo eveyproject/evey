@@ -44,6 +44,10 @@ import { toast } from "@evey/store";
 import { AddToPlaylistSheet } from "../../../src/components/AddToPlaylistSheet";
 import { useParentalGate } from "../../../src/hooks/useParentalGate";
 import { ParentalPINModal } from "../../../src/components/ParentalPINModal";
+import { MediaHeroBackdrop } from "../../../src/components/media/MediaHeroBackdrop";
+import { backdropWidthForViewport } from "../../../src/components/media/backdropWidth";
+import { hasMediaFile } from "../../../src/components/media/mediaFile";
+import { buildPublicShareUrl } from "../../../src/components/media/shareLink";
 
 const POSTER_WIDTH = 100;
 const POSTER_HEIGHT = POSTER_WIDTH * 1.5;
@@ -424,6 +428,12 @@ export default function MediaDetailScreen() {
   }, []);
   const isLandscape = screenW > screenH;
   const heroHeight = isLandscape ? screenH * 0.55 : screenH * 0.4;
+  // Dimensions().scale IS the device pixel ratio for the window - reused here
+  // instead of importing PixelRatio separately since Dimensions is already
+  // pulled in above. Falls back to 1x if a test double's Dimensions mock
+  // omits it.
+  const pixelRatio = Dimensions.get("window").scale || 1;
+  const backdropWidth = backdropWidthForViewport(screenW, pixelRatio);
   const [selectedSeason, setSelectedSeason] = useState<string | null>(null);
   // Episodes render inside the screen's single outer ScrollView (see below), so a
   // nested FlatList would trip "VirtualizedLists should never be nested inside
@@ -444,15 +454,21 @@ export default function MediaDetailScreen() {
   });
   const profileId = useAuthStore((s) => s.profileId);
   const isAdmin = useAuthStore((s) => s.isAdmin);
-  // Admin-only: mint a PUBLIC download link and open the native share sheet.
+  // Admin-only: mint a PUBLIC download link and hand it off via the native
+  // share sheet - the mobile equivalent of the web's clipboard copy (there is
+  // no clipboard API in this app; SyncPlayBar's room-code "copy" uses the same
+  // Share.share() trick). The toast fires as soon as the link is ready, same
+  // as the web's instant "copied" feedback, independent of what the user does
+  // with the share sheet afterwards.
   const createShareLink = useShareServiceCreateShareLink({
     mutation: {
       onSuccess: async (res) => {
-        const url = res?.url ? `${serverUrl}${res.url}` : "";
+        const url = buildPublicShareUrl(serverUrl, res?.url);
         if (!url) {
           toast.error(t("media.library.shareFailed"));
           return;
         }
+        toast.success(t("media.library.shareLinkCopied"));
         try {
           await Share.share({ message: url });
         } catch {
@@ -630,36 +646,14 @@ export default function MediaDetailScreen() {
   return (
     <ScrollView style={{ flex: 1, backgroundColor: theme.colors.bg }} contentContainerStyle={{ paddingLeft: insets.left, paddingRight: insets.right, paddingBottom: insets.bottom }}>
       {/* Hero backdrop */}
-      <View style={{ width: "100%", height: heroHeight }}>
-        {serverUrl && id ? (
-          <Image
-            source={{ uri: artworkUrl(serverUrl, id, "backdrop"), headers: authHeaders }}
-            style={{ width: "100%", height: "100%" }}
-            contentFit="cover"
-            transition={300}
-          />
-        ) : (
-          <View style={{ width: "100%", height: "100%", backgroundColor: theme.colors.surface }} />
-        )}
-        {/* Gradient overlay (stacked opacity layers) */}
-        <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: heroHeight * 0.6 }}>
-          <View style={{ flex: 1, backgroundColor: theme.colors.bg, opacity: 0.2 }} />
-          <View style={{ flex: 1, backgroundColor: theme.colors.bg, opacity: 0.5 }} />
-          <View style={{ flex: 1, backgroundColor: theme.colors.bg, opacity: 0.8 }} />
-          <View style={{ flex: 1, backgroundColor: theme.colors.bg, opacity: 1 }} />
-        </View>
-        {/* Back button */}
-        <Pressable
-          onPress={() => router.back()}
-          hitSlop={12}
-          accessible={true}
-          accessibilityLabel={t("common.back")}
-          accessibilityRole="button"
-          style={{ position: "absolute", top: insets.top + 8, left: insets.left + 8, width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center" }}
-        >
-          <Ionicons name="chevron-back" size={22} color="#fff" />
-        </Pressable>
-      </View>
+      <MediaHeroBackdrop
+        uri={serverUrl && id ? artworkUrl(serverUrl, id, "backdrop", backdropWidth) : undefined}
+        headers={authHeaders}
+        height={heroHeight}
+        onBack={() => router.back()}
+        topInset={insets.top}
+        leftInset={insets.left}
+      />
 
       {/* Content overlapping hero */}
       <View style={{ paddingHorizontal: theme.spacing.md, marginTop: -POSTER_HEIGHT * 0.5, ...(isLandscape ? { flexDirection: "row", gap: theme.spacing.lg } : {}) }}>
@@ -895,7 +889,7 @@ export default function MediaDetailScreen() {
               {t("media.detail.addToPlaylist")}
             </Text>
           </Pressable>
-          {!isSeries && !isSeason && (
+          {!isSeries && !isSeason && hasMediaFile(media) && (
             <Pressable
               onPress={async () => {
                 if (!id || !media?.title) return;
@@ -954,7 +948,7 @@ export default function MediaDetailScreen() {
               </Text>
             </Pressable>
           )}
-          {isAdmin && id && !isSeries && !isSeason && (
+          {isAdmin && id && !isSeries && !isSeason && hasMediaFile(media) && (
             <Pressable
               onPress={() => createShareLink.mutate({ mediaItemId: id, data: { durationHours: 48 } })}
               disabled={createShareLink.isPending}
@@ -968,12 +962,12 @@ export default function MediaDetailScreen() {
                 opacity: createShareLink.isPending ? 0.6 : 1,
               }}
               accessible={true}
-              accessibilityLabel={t("media.detail.shareLink")}
+              accessibilityLabel={t("media.library.shareLink")}
               accessibilityRole="button"
             >
               <Ionicons name="share-social-outline" size={20} color={theme.colors.text} />
               <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: "600", marginLeft: 6 }}>
-                {t("media.detail.shareLink")}
+                {t("media.library.shareLink")}
               </Text>
             </Pressable>
           )}
