@@ -147,6 +147,12 @@ async function startWasmEngine(): Promise<void> {
       // le CORS token-auth du serveur ne répond pas Allow-Credentials.
       resolveUrl: (u) => absoluteWithToken(u, playlistUrl, token),
       credentials: "omit",
+      // Compensation d'avance audio : le pipeline d'affichage d'une TV retarde
+      // l'image bien plus que le 0,1 s desktop du moteur - mesuré ~0,5-0,6 s
+      // d'avance audio sur la Mi TV (2026-07-25). Valeur à calibrer sur retour
+      // utilisateur : augmenter si le son reste en avance, diminuer s'il est
+      // passé en retard.
+      leadCompensationSec: 0.65,
       onFatal: () => fallbackToMuxedAudio("moteur ac3go"),
     });
     await engine.start();
