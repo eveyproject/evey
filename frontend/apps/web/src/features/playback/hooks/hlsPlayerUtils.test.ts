@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { startPlayback, planCastLoad, pickCastTapPath, castVideoPreload, pickPlayOnFallback } from "./hlsPlayerUtils";
+import { startPlayback, planCastLoad, pickCastTapPath, castVideoPreload, pickPlayOnFallback, pickTranscodeAudioSwitchPath } from "./hlsPlayerUtils";
 import type { SubtitleStream } from "../SubtitleSelector";
 
 const mockCaps = vi.hoisted(() => ({
@@ -474,5 +474,41 @@ describe("pickPlayOnFallback (NAT-proof cast fallback)", () => {
     expect(pickPlayOnFallback([])).toEqual({ action: "none" });
     expect(pickPlayOnFallback(undefined)).toEqual({ action: "none" });
     expect(pickPlayOnFallback(null)).toEqual({ action: "none" });
+  });
+});
+
+describe("pickTranscodeAudioSwitchPath (audio switch = client-side rendition select)", () => {
+  // Le master transcode expose TOUTES les pistes audio en renditions : changer
+  // de piste = hls.audioTrack, instantané, découplé du flag DEFAULT (le restart
+  // de session rejouait l'ancienne piste tant que le serveur marquait la 1re
+  // rendition DEFAULT=YES - « je reste en français »).
+  const base = {
+    hasHls: true,
+    wasmActiveNow: false,
+    wasmActiveForTarget: false,
+    audioRenditionCount: 2,
+    targetTrackIndex: 1,
+  };
+
+  it("switches client-side when hls.js already has the target rendition", () => {
+    expect(pickTranscodeAudioSwitchPath(base)).toBe("hls-rendition");
+  });
+
+  it("restarts on native HLS (Safari): no hls.js instance to drive", () => {
+    expect(pickTranscodeAudioSwitchPath({ ...base, hasHls: false })).toBe("restart");
+  });
+
+  it("restarts when wasm audio is active now: the engine is wired per session", () => {
+    expect(pickTranscodeAudioSwitchPath({ ...base, wasmActiveNow: true })).toBe("restart");
+  });
+
+  it("restarts when the TARGET track needs the wasm pipeline", () => {
+    expect(pickTranscodeAudioSwitchPath({ ...base, wasmActiveForTarget: true })).toBe("restart");
+  });
+
+  it("restarts when the rendition is missing from the parsed manifest", () => {
+    expect(pickTranscodeAudioSwitchPath({ ...base, targetTrackIndex: 2 })).toBe("restart");
+    expect(pickTranscodeAudioSwitchPath({ ...base, targetTrackIndex: -1 })).toBe("restart");
+    expect(pickTranscodeAudioSwitchPath({ ...base, audioRenditionCount: 0 })).toBe("restart");
   });
 });

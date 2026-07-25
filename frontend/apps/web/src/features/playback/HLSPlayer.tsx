@@ -32,7 +32,7 @@ import {
   type SubtitleStyle,
 } from "@/hooks/usePlaybackPrefs";
 import { eveyFetch } from "@evey/api";
-import { buildTranscodeHlsUrl, castVideoPreload, getSelectedBurnInTrack, pickCastTapPath, pickPlayOnFallback, planCastLoad, resolveDefaultAudio, resolveDefaultSubtitle } from "./hooks/hlsPlayerUtils";
+import { buildTranscodeHlsUrl, castVideoPreload, getSelectedBurnInTrack, pickCastTapPath, pickPlayOnFallback, pickTranscodeAudioSwitchPath, planCastLoad, resolveDefaultAudio, resolveDefaultSubtitle } from "./hooks/hlsPlayerUtils";
 import { useDirectPlayback } from "./hooks/useDirectPlayback";
 import { useTranscodePlayback, type ShedReason } from "./hooks/useTranscodePlayback";
 import { useWasmAudioPlayback } from "./wasmaudio/useWasmAudioPlayback";
@@ -215,6 +215,14 @@ export function HLSPlayer({
   // If so, we must not override with profile prefs when they load asynchronously.
   const userPickedAudioRef = useRef(false);
   const userPickedSubtitleRef = useRef(false);
+
+  // Piste audio choisie via la bascule CLIENTE hls.js (transcode) : elle ne
+  // passe pas par currentTrackIndex, dont tout changement détruit/reconstruit
+  // l'instance et redémarre la session. Les rebuilds naturels (refresh de
+  // token, changement de sous-titres/offset) relisent ce ref pour construire
+  // l'URL et re-sélectionner la rendition - sans lui, ils rejoueraient
+  // l'ancienne piste.
+  const audioTrackOverrideRef = useRef<number | null>(null);
 
   // When the profile finishes loading, apply its audio/subtitle preferences if
   // the user hasn't picked a track manually and the initial resolution used no
@@ -527,7 +535,9 @@ export function HLSPlayer({
       const dp = streamInfo.directPlayUrl;
       url = dp.includes("token=") ? dp : `${dp}${dp.includes("?") ? "&" : "?"}token=${encodeURIComponent(sessionTok)}`;
     } else {
-      url = buildTranscodeHlsUrl(mediaId, sessionTok, currentTrackIndex, null, 0, 0, gapless);
+      // La bascule cliente hls.js ne passe pas par currentTrackIndex : le ref
+      // porte la piste réellement écoutée au moment où le cast se prépare.
+      url = buildTranscodeHlsUrl(mediaId, sessionTok, audioTrackOverrideRef.current ?? currentTrackIndex, null, 0, 0, gapless);
     }
     if (castToken) {
       const u = new URL(url, window.location.origin);
@@ -605,6 +615,7 @@ export function HLSPlayer({
     setAppliedAudioOffsetMs(0);
     setShedReason(null);
     setWasmAudioDisabled(false);
+    audioTrackOverrideRef.current = null;
   }, [mediaId]);
 
   // The wasm-audio path applies when: we're on the HLS/transcode pipeline, the
@@ -625,7 +636,7 @@ export function HLSPlayer({
 
   const { transcodeStartTime, setTranscodeStartTime, hlsLevels, autoLevelHeight } = useTranscodePlayback({
     videoRef, hlsRef, positionRef, transcodeOffsetRef,
-    wasPausedRef, streamTokenRef, onStreamTokenRefreshRef,
+    wasPausedRef, streamTokenRef, onStreamTokenRefreshRef, audioTrackOverrideRef,
     transcodeMode, mediaId, currentTrackIndex, selectedBurnInTrack,
     startPositionMs, onEnded, setIsBuffering: setIsBufferingDebounced, setFatalError,
     setShedReason,
@@ -923,7 +934,6 @@ export function HLSPlayer({
     const stream = audioStreams.find((s) => s.index === index);
     setCurrentAudioIndex(index);
     if (stream) {
-      setCurrentTrackIndex(stream.trackIndex);
       const lang = stream.language ?? stream.title ?? null;
       setPreferredAudioLang(lang);
       if (seriesId && lang) {
@@ -933,6 +943,7 @@ export function HLSPlayer({
     }
 
     if (!transcodeMode) {
+      if (stream) setCurrentTrackIndex(stream.trackIndex);
       if (hlsRef.current) {
         hlsRef.current.audioTrack = stream?.trackIndex ?? 0;
         return;
@@ -944,9 +955,32 @@ export function HLSPlayer({
       for (let i = 0; i < tracks.length; i++) {
         tracks[i].enabled = tracks[i].id === String(index);
       }
-    } else {
-      setTranscodeStartTime(positionRef.current);
+      return;
     }
+
+    // Transcode : le master expose déjà toutes les pistes en renditions, donc
+    // changer de piste = hls.audioTrack, instantané, sans toucher à la session
+    // (DEFAULT et switch sont décorrélés - même mécanisme que le mobile).
+    // currentTrackIndex n'est PAS mis à jour sur ce chemin : tout changement
+    // détruit l'instance et relance le transcode, ce qui coupait la lecture.
+    const target = stream?.trackIndex ?? 0;
+    const wasmForTarget =
+      !wasmAudioDisabled && canWasmDecodeAC3() && isWasmDecodableAudioCodec(stream?.codec);
+    const path = pickTranscodeAudioSwitchPath({
+      hasHls: !!hlsRef.current,
+      wasmActiveNow: wasmAudioActive,
+      wasmActiveForTarget: wasmForTarget,
+      audioRenditionCount: hlsRef.current?.audioTracks.length ?? 0,
+      targetTrackIndex: target,
+    });
+    if (path === "hls-rendition" && hlsRef.current) {
+      audioTrackOverrideRef.current = target;
+      hlsRef.current.audioTrack = target;
+      return;
+    }
+    audioTrackOverrideRef.current = null;
+    setCurrentTrackIndex(target);
+    setTranscodeStartTime(positionRef.current);
   }
 
   return (

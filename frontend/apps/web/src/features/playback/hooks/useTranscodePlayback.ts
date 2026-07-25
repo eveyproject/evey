@@ -67,6 +67,11 @@ interface UseTranscodePlaybackArgs {
   transcodeMode: boolean;
   mediaId: string;
   currentTrackIndex: number;
+  /** Piste choisie par la bascule CLIENTE hls.js (hls.audioTrack), qui ne
+   * transite pas par currentTrackIndex pour ne pas détruire l'instance. Les
+   * rebuilds naturels (refresh de token, sous-titres, offset) la relisent pour
+   * l'URL et re-sélectionnent la rendition après MANIFEST_PARSED. */
+  audioTrackOverrideRef?: React.MutableRefObject<number | null>;
   selectedBurnInTrack: number | null;
   startPositionMs: number;
   onEnded?: () => void;
@@ -97,6 +102,7 @@ export function useTranscodePlayback({
   transcodeMode,
   mediaId,
   currentTrackIndex,
+  audioTrackOverrideRef,
   selectedBurnInTrack,
   startPositionMs,
   onEnded,
@@ -151,7 +157,7 @@ export function useTranscodePlayback({
     const hlsUrl = buildTranscodeHlsUrl(
       mediaId,
       streamTokenRef.current,
-      currentTrackIndex,
+      audioTrackOverrideRef?.current ?? currentTrackIndex,
       selectedBurnInTrack,
       0, // server ignores startSec on the VOD path
       audioOffsetMs,
@@ -267,6 +273,14 @@ export function useTranscodePlayback({
 
     hls.on(Hls.Events.MANIFEST_PARSED, () => {
       setHlsLevels(hls.levels.map((l) => l.height));
+      // Re-sélectionne la piste choisie via la bascule cliente : ce rebuild-ci
+      // (refresh de token, sous-titres, offset) n'est pas passé par
+      // currentTrackIndex, et le DEFAULT du master ne suffit pas à re-viser la
+      // rendition quand l'URL portait l'ancienne piste.
+      const override = audioTrackOverrideRef?.current;
+      if (override != null && override >= 0 && override < hls.audioTracks.length && hls.audioTrack !== override) {
+        hls.audioTrack = override;
+      }
       // NB: hls.js ABR is intentionally NOT used on this transcode path - the
       // level-sync effect in HLSPlayer PINS a single rung (top for Auto, the chosen
       // one for manual) because free ABR loads several rungs at once on a transcode
@@ -359,7 +373,7 @@ export function useTranscodePlayback({
                 data.details === "levelLoadTimeOut";
               if (isManifestLevel) {
                 const seekPos = transcodeOffsetRef.current + (video.currentTime || 0);
-                const freshUrl = buildTranscodeHlsUrl(mediaId, newToken, currentTrackIndex, selectedBurnInTrack, seekPos, audioOffsetMs, gapless, wasmAudio);
+                const freshUrl = buildTranscodeHlsUrl(mediaId, newToken, audioTrackOverrideRef?.current ?? currentTrackIndex, selectedBurnInTrack, seekPos, audioOffsetMs, gapless, wasmAudio);
                 hls.loadSource(freshUrl);
                 hls.startLoad();
               } else {
@@ -403,7 +417,7 @@ export function useTranscodePlayback({
             // At position 0 the state setter is a no-op (same value, no
             // re-render): refetch the master in place instead, 401-style. The
             // fresh master carries freshly sealed URLs.
-            const freshUrl = buildTranscodeHlsUrl(mediaId, streamTokenRef.current, currentTrackIndex, selectedBurnInTrack, 0, audioOffsetMs, gapless, wasmAudio);
+            const freshUrl = buildTranscodeHlsUrl(mediaId, streamTokenRef.current, audioTrackOverrideRef?.current ?? currentTrackIndex, selectedBurnInTrack, 0, audioOffsetMs, gapless, wasmAudio);
             hls.loadSource(freshUrl);
             hls.startLoad();
           }

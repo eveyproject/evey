@@ -200,6 +200,30 @@ export function pickPlayOnFallback<D>(devices: readonly D[] | undefined | null):
   return { action: "picker" };
 }
 
+export type TranscodeAudioSwitchPath = "hls-rendition" | "restart";
+
+// Changer de piste audio en transcode = sélection CLIENTE d'une rendition que
+// le master expose déjà (hls.audioTrack), instantanée et découplée du flag
+// DEFAULT - redémarrer la session ne servait qu'à déplacer DEFAULT=YES et
+// coupait la lecture. Le restart ne reste légitime que là où l'instance
+// courante ne peut pas jouer la rendition cible :
+//   - HLS natif (Safari) : pas d'instance hls.js à piloter ;
+//   - wasm audio impliqué (actuel OU cible) : le moteur AC-3 est câblé par
+//     session (master video-only + rendition dédiée) ;
+//   - rendition absente du manifeste parsé.
+export function pickTranscodeAudioSwitchPath(s: {
+  hasHls: boolean;
+  wasmActiveNow: boolean;
+  wasmActiveForTarget: boolean;
+  audioRenditionCount: number;
+  targetTrackIndex: number;
+}): TranscodeAudioSwitchPath {
+  if (!s.hasHls) return "restart";
+  if (s.wasmActiveNow || s.wasmActiveForTarget) return "restart";
+  if (s.targetTrackIndex < 0 || s.targetTrackIndex >= s.audioRenditionCount) return "restart";
+  return "hls-rendition";
+}
+
 // Chromium only ever opens the Remote Playback picker for an element whose
 // duration is KNOWN: remote_playback.cc drops every availability URL while
 // duration is NaN, and prompt() then rejects instantly with NotAllowedError
