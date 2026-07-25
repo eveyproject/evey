@@ -10,6 +10,7 @@ import {
   StyleSheet,
   Dimensions,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "../providers/ThemeProvider";
 import { FONT_SIZE } from "@evey/theme";
 
@@ -25,6 +26,7 @@ interface BottomSheetProps {
 export function BottomSheet({ visible, onClose, title, children }: BottomSheetProps) {
   const { t } = useTranslation();
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
 
   useEffect(() => {
@@ -49,7 +51,22 @@ export function BottomSheet({ visible, onClose, title, children }: BottomSheetPr
       <Pressable style={[styles.backdrop, { backgroundColor: theme.colors.overlay }]} onPress={onClose} accessible={true} accessibilityLabel={t("common.close", "Close")} accessibilityRole="button">
         <View />
       </Pressable>
-      <Animated.View style={[styles.sheet, { transform: [{ translateY }], backgroundColor: theme.colors.surface }]}>
+      {/* Safe-area padding so the last options never land under the gesture
+          nav bar / bottom cutout (the "exclusion zone"), and so the sheet
+          clears the left/right cutouts in landscape - the player is often
+          watched sideways. Without this the bottom rows were unreachable. */}
+      <Animated.View
+        style={[
+          styles.sheet,
+          {
+            transform: [{ translateY }],
+            backgroundColor: theme.colors.surface,
+            paddingBottom: Math.max(20, insets.bottom + 12),
+            paddingLeft: insets.left,
+            paddingRight: insets.right,
+          },
+        ]}
+      >
         <View style={[styles.handle, { backgroundColor: theme.colors.textMuted }]} />
         <Text style={[styles.title, { color: theme.colors.text, borderBottomColor: theme.colors.divider }]}>{title}</Text>
         <ScrollView style={styles.content} bounces={false}>
