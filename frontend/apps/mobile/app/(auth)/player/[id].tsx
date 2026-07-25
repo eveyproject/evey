@@ -661,7 +661,7 @@ export default function PlayerScreen() {
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: "#000" }]}>
+    <View style={[styles.container, { backgroundColor: "#000", marginTop: -insets.top }]}>
       <StatusBar hidden />
 
       <View style={{ width: screenW, height: screenH }} {...panResponder.panHandlers}>
