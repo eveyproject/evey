@@ -594,6 +594,19 @@ export default function HomeScreen() {
             .map((lib) => (
               <LibraryFeedRow key={`library:${lib.id}`} libraryId={lib.id!} name={lib.name ?? ""} libraryType={lib.type} onItemPress={handleItemPress} />
             ))}
+          {/* Installed home.section plugins the user has NOT yet added to their
+              feed still render here, exactly like the web home's
+              excludeRegistered PluginSlot. Without this an enabled plugin
+              (e.g. weather-v2) stayed invisible on mobile until the user
+              opened Customize and saved - it was only auto-added to the
+              customize modal's local state, never to the rendered feed. */}
+          {Object.keys(pluginNames)
+            .filter((id) => !feedConfigs.some((c) => c.feedType === `plugin:${id}`))
+            .map((id) => (
+              <View key={`plugin:${id}`} style={{ marginVertical: theme.spacing.sm, marginHorizontal: theme.spacing.md }}>
+                <PluginSlot name="home.section" pluginId={id} />
+              </View>
+            ))}
         </View>
       </ScrollView>
       <FeedCustomizeModal
