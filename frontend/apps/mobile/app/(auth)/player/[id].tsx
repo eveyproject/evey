@@ -168,8 +168,14 @@ export default function PlayerScreen() {
     [streamInfo],
   );
 
-  // Set initial selected audio index from default stream
+  // Set initial selected audio index from default stream. Once the user has
+  // manually picked a track, this must NOT run again: restartWithTracks
+  // re-derives audioStreams (new reference), which re-fired this effect and
+  // reset the choice back to the isDefault track - the user's language change
+  // silently reverted. Mirrors the web player's userPickedAudioRef guard.
+  const userPickedAudioRef = useRef(false);
   useEffect(() => {
+    if (userPickedAudioRef.current) return;
     const def = audioStreams.find((s) => s.isDefault);
     if (def) setSelectedAudioIndex(def.index);
     else if (audioStreams.length > 0) setSelectedAudioIndex(audioStreams[0].index);
@@ -530,6 +536,7 @@ export default function PlayerScreen() {
 
   const handleAudioSelect = useCallback(
     (index: number) => {
+      userPickedAudioRef.current = true;
       setSelectedAudioIndex(index);
       resumeAfterRestartRef.current = player?.playing ?? true;
       restartWithTracks(index, selectedSubtitleIndex ?? undefined, selectedQuality || undefined);
