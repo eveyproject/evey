@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { startPlayback, planCastLoad, pickCastTapPath, castVideoPreload, pickPlayOnFallback, pickTranscodeAudioSwitchPath, pickPinnedLevel } from "./hlsPlayerUtils";
+import { startPlayback, planCastLoad, pickCastTapPath, castVideoPreload, pickPlayOnFallback, pickTranscodeAudioSwitchPath, pickPinnedLevel, liftForcedMuteOnNextGesture } from "./hlsPlayerUtils";
 import type { SubtitleStream } from "../SubtitleSelector";
 
 const mockCaps = vi.hoisted(() => ({
@@ -514,13 +514,12 @@ describe("pickTranscodeAudioSwitchPath (audio switch = client-side rendition sel
 });
 
 describe("pickPinnedLevel", () => {
-  // Le bug qu'il ferme : le pin du rung vivait dans un useEffect dépendant
-  // d'un state posé DANS MANIFEST_PARSED. Entre les deux, hls.js démarre son
-  // chargement en ABR libre et va chercher le level 0 (le plus bas) - soit un
-  // SECOND ffmpeg sur le même hash. Sur un NAS calibré à un seul encodage
-  // concurrent, les deux décodages 4K se privent l'un l'autre et le premier
-  // segment n'arrive jamais (prod 2026-07-25 : 480p + 1080p lancés à 43 ms
-  // d'intervalle, segment 0 toujours absent 9,5 s plus tard).
+  // The bug this closes: the rung pin lived in a useEffect depending on state
+  // set INSIDE MANIFEST_PARSED. In between, hls.js starts loading on free ABR
+  // and fetches level 0 (the lowest) - a SECOND ffmpeg on the same hash. On a
+  // NAS calibrated for one concurrent encode the two 4K decodes starve each
+  // other and the first segment never lands (prod 2026-07-25: 480p + 1080p
+  // spawned 43 ms apart, segment 0 still missing 9.5 s later).
   it("pins the TOP rung in Auto", () => {
     expect(pickPinnedLevel({ levelHeights: [480, 720, 1080], desiredHeight: 0 })).toBe(2);
   });
@@ -541,5 +540,72 @@ describe("pickPinnedLevel", () => {
 
   it("pins the only rung of a single-rendition ladder", () => {
     expect(pickPinnedLevel({ levelHeights: [1080], desiredHeight: 0 })).toBe(0);
+  });
+});
+
+// The mute that sticks after a track switch. `startPlayback` runs on EVERY
+// MANIFEST_PARSED, so on every hls.js instance rebuild (audio track, subtitles,
+// offset, token refresh). Its last-resort branch deliberately leaves the
+// element muted - a fair trade on a cold start ("muted playback beats none"),
+// a silent regression when the viewer was already listening. And since the
+// video element survives the rebuild, the mute sticks until the viewer touches
+// the volume control themselves.
+describe("liftForcedMuteOnNextGesture", () => {
+  function mutedVideo() {
+    return { muted: true } as unknown as HTMLVideoElement;
+  }
+
+  it("lifts the forced mute on the next click", () => {
+    const video = mutedVideo();
+    liftForcedMuteOnNextGesture(video);
+    document.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(video.muted).toBe(false);
+  });
+
+  it("lifts it on the next keystroke too", () => {
+    const video = mutedVideo();
+    liftForcedMuteOnNextGesture(video);
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+    expect(video.muted).toBe(false);
+  });
+
+  it("disarms after one gesture: a later mute is the viewer's own choice", () => {
+    const video = mutedVideo();
+    liftForcedMuteOnNextGesture(video);
+    document.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    video.muted = true; // the viewer mutes deliberately
+    document.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(video.muted, "one lift only, otherwise we fight the viewer").toBe(true);
+  });
+
+  it("does not fight the `m` shortcut, which toggles the mute itself", () => {
+    // The `m` key toggles the mute. If the recovery lifted it just before, the
+    // toggle would put it back - the viewer would press `m` to get the sound
+    // back and get the opposite.
+    const video = mutedVideo();
+    liftForcedMuteOnNextGesture(video);
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "m", bubbles: true }));
+    expect(video.muted).toBe(true);
+  });
+
+  it("leaves the sound alone when something already restored it", () => {
+    // The volume button lifted the mute before the click reached the document.
+    const video = { muted: false } as unknown as HTMLVideoElement;
+    let touched = false;
+    Object.defineProperty(video, "muted", {
+      get: () => false,
+      set: () => { touched = true; },
+    });
+    liftForcedMuteOnNextGesture(video);
+    document.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(touched, "force nothing when the sound is already back").toBe(false);
+  });
+
+  it("can be disarmed explicitly (teardown)", () => {
+    const video = mutedVideo();
+    const disarm = liftForcedMuteOnNextGesture(video);
+    disarm();
+    document.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(video.muted).toBe(true);
   });
 });

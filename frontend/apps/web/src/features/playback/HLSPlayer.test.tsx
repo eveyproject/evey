@@ -497,19 +497,19 @@ describe("HLSPlayer: server load-shed (503) overlays", () => {
   });
 });
 
-// Anti-régression du "buffering au démarrage" : le rung DOIT être épinglé
-// pendant MANIFEST_PARSED, pas au re-render suivant. Le pin vivait dans un
-// useEffect dépendant d'un state posé par ce même handler, donc hls.js avait
-// le temps de partir en ABR libre et d'aller chercher le level 0 - un SECOND
-// ffmpeg sur le même hash, sur un serveur qui n'en tient qu'un.
+// Regression guard for the "buffering on start": the rung MUST be pinned
+// during MANIFEST_PARSED, not on the next re-render. The pin lived in a
+// useEffect depending on state set by that same handler, so hls.js had time to
+// start on free ABR and fetch level 0 - a SECOND ffmpeg on the same hash, on a
+// host that only sustains one.
 describe("HLSPlayer: transcode rung pinning", () => {
   it("pins the top rung DURING MANIFEST_PARSED, before any fragment can load", () => {
     renderPlayer({ ...DEFAULT_STREAM_INFO, playMethod: "PLAY_METHOD_TRANSCODE" });
     const hls = lastHlsInstance!;
     hls.levels = [{ height: 480 }, { height: 720 }, { height: 1080 }];
 
-    // Volontairement HORS act(): on veut l'état laissé par le handler lui-même,
-    // avant que React n'ait flushé quoi que ce soit.
+    // Deliberately OUTSIDE act(): we want the state left by the handler itself,
+    // before React has flushed anything.
     for (const h of hlsEventListeners["hlsManifestParsed"] ?? []) h();
 
     expect(hls.currentLevel).toBe(2);

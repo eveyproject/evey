@@ -216,17 +216,16 @@ export function HLSPlayer({
   const userPickedAudioRef = useRef(false);
   const userPickedSubtitleRef = useRef(false);
 
-  // Piste audio choisie via la bascule CLIENTE hls.js (transcode) : elle ne
-  // passe pas par currentTrackIndex, dont tout changement détruit/reconstruit
-  // l'instance et redémarre la session. Les rebuilds naturels (refresh de
-  // token, changement de sous-titres/offset) relisent ce ref pour construire
-  // l'URL et re-sélectionner la rendition - sans lui, ils rejoueraient
-  // l'ancienne piste.
+  // Audio track picked by the CLIENT-side hls.js switch (transcode): it does
+  // not go through currentTrackIndex, whose every change destroys/rebuilds the
+  // instance and restarts the session. Natural rebuilds (token refresh,
+  // subtitle/offset change) read this ref back to build the URL and re-select
+  // the rendition - without it they would replay the previous track.
   const audioTrackOverrideRef = useRef<number | null>(null);
 
-  // Hauteur du rung voulu, lisible sans re-render : le hook l'épingle DANS
-  // MANIFEST_PARSED, avant le premier fragment. L'effet de synchro plus bas
-  // reste responsable des changements pendant la lecture.
+  // Height of the wanted rung, readable without a re-render: the hook pins it
+  // INSIDE MANIFEST_PARSED, before the first fragment. The sync effect below
+  // stays responsible for changes made during playback.
   const pinnedQualityRef = useRef(0);
   pinnedQualityRef.current = autoQuality ? 0 : currentQuality;
 
@@ -541,8 +540,9 @@ export function HLSPlayer({
       const dp = streamInfo.directPlayUrl;
       url = dp.includes("token=") ? dp : `${dp}${dp.includes("?") ? "&" : "?"}token=${encodeURIComponent(sessionTok)}`;
     } else {
-      // La bascule cliente hls.js ne passe pas par currentTrackIndex : le ref
-      // porte la piste réellement écoutée au moment où le cast se prépare.
+      // The client-side hls.js switch does not go through currentTrackIndex:
+      // the ref carries the track actually being listened to when the cast is
+      // being prepared.
       url = buildTranscodeHlsUrl(mediaId, sessionTok, audioTrackOverrideRef.current ?? currentTrackIndex, null, 0, 0, gapless);
     }
     if (castToken) {
@@ -889,9 +889,9 @@ export function HLSPlayer({
     // to a fixed index pins one rung (and disables ABR). "Auto" pins the TOP
     // (calibrated-sustainable) rung - one decode, stable, no switching - and the
     // viewer drops manually via the picker for a title too heavy to hold it.
-    // Même helper que le pin de MANIFEST_PARSED, pour que les deux chemins ne
-    // puissent pas diverger : ici on couvre les changements PENDANT la lecture
-    // (le viewer qui bascule Auto <-> une hauteur), le hook couvre le démarrage.
+    // Same helper as the MANIFEST_PARSED pin, so the two paths cannot diverge:
+    // this one covers changes made DURING playback (the viewer toggling Auto
+    // <-> a height), the hook covers the start.
     const pinned = pickPinnedLevel({
       levelHeights: hls.levels.map((l: { height: number }) => l.height),
       desiredHeight: autoQuality ? 0 : currentQuality,
@@ -965,11 +965,11 @@ export function HLSPlayer({
       return;
     }
 
-    // Transcode : le master expose déjà toutes les pistes en renditions, donc
-    // changer de piste = hls.audioTrack, instantané, sans toucher à la session
-    // (DEFAULT et switch sont décorrélés - même mécanisme que le mobile).
-    // currentTrackIndex n'est PAS mis à jour sur ce chemin : tout changement
-    // détruit l'instance et relance le transcode, ce qui coupait la lecture.
+    // Transcode: the master already exposes every track as a rendition, so
+    // switching track is hls.audioTrack - instant, without touching the session
+    // (DEFAULT and the switch are decoupled - same mechanism as mobile).
+    // currentTrackIndex is NOT updated on this path: any change destroys the
+    // instance and restarts the transcode, which used to cut playback.
     const target = stream?.trackIndex ?? 0;
     const wasmForTarget =
       !wasmAudioDisabled && canWasmDecodeAC3() && isWasmDecodableAudioCodec(stream?.codec);

@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Hls from "hls.js";
-import { buildTranscodeHlsUrl, pickPinnedLevel, prefersNativeHLS, startPlayback } from "./hlsPlayerUtils";
+import { buildTranscodeHlsUrl, liftForcedMuteOnNextGesture, pickPinnedLevel, prefersNativeHLS, startPlayback } from "./hlsPlayerUtils";
 import { createPlayerEventReporter } from "../playerEventReporter";
 
 // Mirrors the server's shed contract (HTTP 503 on a refused playback start):
@@ -67,16 +67,15 @@ interface UseTranscodePlaybackArgs {
   transcodeMode: boolean;
   mediaId: string;
   currentTrackIndex: number;
-  /** Piste choisie par la bascule CLIENTE hls.js (hls.audioTrack), qui ne
-   * transite pas par currentTrackIndex pour ne pas détruire l'instance. Les
-   * rebuilds naturels (refresh de token, sous-titres, offset) la relisent pour
-   * l'URL et re-sélectionnent la rendition après MANIFEST_PARSED. */
+  /** Track picked by the CLIENT-side hls.js switch (hls.audioTrack), which
+   * deliberately does not go through currentTrackIndex so the instance is not
+   * destroyed. Natural rebuilds (token refresh, subtitles, offset) read it back
+   * for the URL and re-select the rendition after MANIFEST_PARSED. */
   audioTrackOverrideRef?: React.MutableRefObject<number | null>;
-  /** Hauteur du rung voulu (0 = Auto -> le rung du haut). Lu DANS
-   * MANIFEST_PARSED pour épingler le level avant que hls.js ne charge son
-   * premier fragment. Une ref, pas une prop : la valeur doit être lisible sans
-   * re-render, et l'effet de synchro dans HLSPlayer continue de gérer les
-   * changements en cours de lecture. */
+  /** Height of the wanted rung (0 = Auto -> the top rung). Read INSIDE
+   * MANIFEST_PARSED to pin the level before hls.js loads its first fragment. A
+   * ref, not a prop: the value must be readable without a re-render, and the
+   * sync effect in HLSPlayer still handles changes made during playback. */
   pinnedQualityRef?: React.MutableRefObject<number>;
   selectedBurnInTrack: number | null;
   startPositionMs: number;
@@ -127,6 +126,10 @@ export function useTranscodePlayback({
   // hls.js instance (audio/quality switches rebuild the instance).
   const reportPlayerEvent = useMemo(() => createPlayerEventReporter(mediaId), [mediaId]);
   const [hlsLevels, setHlsLevels] = useState<number[]>([]);
+  // Disarm handle for the forced-mute recovery: at most one armed at a time,
+  // and removed on unmount so no document listener outlives the player.
+  const disarmMuteLiftRef = useRef<(() => void) | null>(null);
+  useEffect(() => () => { disarmMuteLiftRef.current?.(); disarmMuteLiftRef.current = null; }, []);
   // Height (px) of the rung hls.js is actually playing right now. Surfaced so the
   // settings panel can show "Auto (1080p)" instead of a redundant bare "Auto".
   const [autoLevelHeight, setAutoLevelHeight] = useState(0);
@@ -279,12 +282,11 @@ export function useTranscodePlayback({
     });
 
     hls.on(Hls.Events.MANIFEST_PARSED, () => {
-      // Épingle le rung ICI, avant tout chargement de fragment. L'effet de
-      // synchro dans HLSPlayer ne suffit pas : il dépend d'un state posé par
-      // setHlsLevels juste en dessous, donc il arrive un re-render trop tard,
-      // et dans cet intervalle hls.js part en ABR libre sur le level 0 - un
-      // SECOND ffmpeg sur le même hash, alors qu'un seul encodage tient sur la
-      // machine (cf pickPinnedLevel).
+      // Pin the rung HERE, before any fragment load. The sync effect in
+      // HLSPlayer is not enough: it depends on state set by setHlsLevels just
+      // below, so it lands one re-render too late, and in that window hls.js
+      // starts on free ABR at level 0 - a SECOND ffmpeg on the same hash, on a
+      // host that only sustains one encode (see pickPinnedLevel).
       const pinned = pickPinnedLevel({
         levelHeights: hls.levels.map((l) => l.height),
         desiredHeight: pinnedQualityRef?.current ?? 0,
@@ -293,10 +295,10 @@ export function useTranscodePlayback({
         hls.currentLevel = pinned;
       }
       setHlsLevels(hls.levels.map((l) => l.height));
-      // Re-sélectionne la piste choisie via la bascule cliente : ce rebuild-ci
-      // (refresh de token, sous-titres, offset) n'est pas passé par
-      // currentTrackIndex, et le DEFAULT du master ne suffit pas à re-viser la
-      // rendition quand l'URL portait l'ancienne piste.
+      // Re-select the track chosen by the client-side switch: this rebuild
+      // (token refresh, subtitles, offset) did not go through
+      // currentTrackIndex, and the master's DEFAULT is not enough to re-aim the
+      // rendition when the URL carried the previous track.
       const override = audioTrackOverrideRef?.current;
       if (override != null && override >= 0 && override < hls.audioTracks.length && hls.audioTrack !== override) {
         hls.audioTrack = override;
@@ -317,9 +319,24 @@ export function useTranscodePlayback({
       } else if (video.currentTime !== 0) {
         video.currentTime = 0;
       }
+      // The video ELEMENT survives the rebuild, so its mute state here is the
+      // viewer's intent from just before the switch, not a default.
+      const wantedSound = !video.muted;
+      // A rebuild while PAUSED must not resume playback - the native-HLS branch
+      // already honoured wasPausedRef, this one did not, so switching track
+      // while paused started the film again on its own.
+      if (wasPausedRef.current) return;
       // Sound or nothing: a browser that blocks the autoplay leaves the video
       // paused and unmuted, and the controls' play button starts it on one click.
-      void startPlayback(video);
+      void startPlayback(video).then(() => {
+        // The browser forced a muted start while the viewer was listening.
+        // Without this recovery the mute sticks for the rest of the viewing
+        // (the element is never recreated); the next gesture lifts it.
+        if (wantedSound && video.muted) {
+          disarmMuteLiftRef.current?.();
+          disarmMuteLiftRef.current = liftForcedMuteOnNextGesture(video);
+        }
+      });
     });
 
     let retries = 0;

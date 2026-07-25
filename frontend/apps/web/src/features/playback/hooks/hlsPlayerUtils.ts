@@ -200,22 +200,22 @@ export function pickPlayOnFallback<D>(devices: readonly D[] | undefined | null):
   return { action: "picker" };
 }
 
-// Index du rung à ÉPINGLER dès que le manifeste est parsé - -1 = rien à
-// épingler (pas encore de levels).
+// Index of the rung to PIN as soon as the manifest is parsed - -1 = nothing to
+// pin (no levels yet).
 //
-// Épingler `hls.currentLevel` coupe l'ABR de hls.js, ce que ce chemin veut :
-// chaque rung est un ffmpeg distinct côté serveur, donc un probe ABR = un
-// second décodage 4K concurrent. Ça ne marche que si le pin arrive AVANT que
-// hls.js ne charge son premier fragment : laissé à un useEffect React (donc à
-// un re-render de retard), hls.js part en ABR libre et va chercher le level 0.
-// Vu en prod le 2026-07-25 : un 480p et un 1080p lancés à 43 ms d'intervalle
-// sur un serveur calibré à UN encodage, segment 0 toujours absent 9,5 s après.
+// Pinning `hls.currentLevel` disables hls.js ABR, which is what this path
+// wants: every rung is a separate ffmpeg server-side, so one ABR probe is a
+// second concurrent 4K decode. It only works if the pin lands BEFORE hls.js
+// loads its first fragment: left to a React effect (so one re-render late),
+// hls.js starts on free ABR and fetches level 0. Seen in prod on 2026-07-25: a
+// 480p and a 1080p spawned 43 ms apart on a host calibrated for ONE encode,
+// segment 0 still missing 9.5 s later.
 //
-// desiredHeight <= 0 = "Auto" -> le rung du HAUT (celui que la calibration dit
-// soutenable), un seul décodage, pas de bascule. Une hauteur choisie mais
-// absente de l'échelle (ladder rogné par l'admission depuis le choix) retombe
-// sur le haut plutôt que de ne rien épingler : ne rien épingler, c'est rendre
-// la main à l'ABR libre, exactement ce qu'on évite.
+// desiredHeight <= 0 means "Auto" -> the TOP rung (the one calibration says is
+// sustainable), one decode, no switching. A height that was chosen but is gone
+// from the ladder (trimmed by admission since) falls back to the top rather
+// than pinning nothing: pinning nothing hands control back to free ABR, which
+// is exactly what this avoids.
 export function pickPinnedLevel(s: { levelHeights: readonly number[]; desiredHeight: number }): number {
   if (s.levelHeights.length === 0) return -1;
   const top = s.levelHeights.length - 1;
@@ -224,17 +224,53 @@ export function pickPinnedLevel(s: { levelHeights: readonly number[]; desiredHei
   return idx >= 0 ? idx : top;
 }
 
+// Recovers from a mute the BROWSER imposed, not the viewer: lift it on the next
+// real gesture, then disarm.
+//
+// startPlayback runs on every MANIFEST_PARSED, so on every hls.js instance
+// rebuild (audio track, subtitles, offset, token refresh). Its last-resort
+// branch deliberately leaves the element muted - the right trade on a cold
+// start, a silent regression when the viewer was already listening. And since
+// the video element survives the rebuild, that mute stuck until they touched
+// the volume control themselves.
+//
+// A real gesture lifts the autoplay policy, so the next click or keystroke is
+// exactly when the sound can come back.
+//
+// Two guards, because this recovery must never fight an explicit intent:
+//   - the `m` key toggles the mute itself, so lifting just before would invert
+//     the gesture (pressing `m` to get the sound back would cut it again);
+//   - the volume button is handled before the click reaches the document, so if
+//     the sound is already back we touch nothing.
+export function liftForcedMuteOnNextGesture(video: HTMLVideoElement): () => void {
+  const disarm = () => {
+    document.removeEventListener("click", onGesture);
+    document.removeEventListener("keydown", onGesture);
+  };
+  const onGesture = (e: Event) => {
+    if (e.type === "keydown" && (e as KeyboardEvent).key === "m") {
+      disarm();
+      return;
+    }
+    disarm();
+    if (video.muted) video.muted = false;
+  };
+  document.addEventListener("click", onGesture);
+  document.addEventListener("keydown", onGesture);
+  return disarm;
+}
+
 export type TranscodeAudioSwitchPath = "hls-rendition" | "restart";
 
-// Changer de piste audio en transcode = sélection CLIENTE d'une rendition que
-// le master expose déjà (hls.audioTrack), instantanée et découplée du flag
-// DEFAULT - redémarrer la session ne servait qu'à déplacer DEFAULT=YES et
-// coupait la lecture. Le restart ne reste légitime que là où l'instance
-// courante ne peut pas jouer la rendition cible :
-//   - HLS natif (Safari) : pas d'instance hls.js à piloter ;
-//   - wasm audio impliqué (actuel OU cible) : le moteur AC-3 est câblé par
-//     session (master video-only + rendition dédiée) ;
-//   - rendition absente du manifeste parsé.
+// Switching audio track on a transcode is a CLIENT-side selection of a
+// rendition the master already exposes (hls.audioTrack): instant, and decoupled
+// from the DEFAULT flag - restarting the session only ever moved DEFAULT=YES
+// around and cut playback. A restart stays legitimate only where the current
+// instance cannot play the target rendition:
+//   - native HLS (Safari): no hls.js instance to drive;
+//   - wasm audio involved (current OR target): the AC-3 engine is wired per
+//     session (video-only master + dedicated rendition);
+//   - rendition absent from the parsed manifest.
 export function pickTranscodeAudioSwitchPath(s: {
   hasHls: boolean;
   wasmActiveNow: boolean;
