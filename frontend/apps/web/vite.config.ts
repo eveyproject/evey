@@ -19,6 +19,12 @@ export default defineConfig({
   },
   build: {
     rollupOptions: {
+      // Deux pages : l'app SPA et le Web Receiver Cast custom (chargé par le
+      // Chromecast à /cast-receiver.html, déclaré dans la Google Cast Console).
+      input: {
+        main: resolve(__dirname, "index.html"),
+        castReceiver: resolve(__dirname, "cast-receiver.html"),
+      },
       output: {
         // Vite 8 swapped rollup for rolldown, which exposes manualChunks
         // only as a function (the object form is silently dropped). Function

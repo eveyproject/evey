@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Evey Cast Receiver</title>
+    <!-- Le SDK Web Receiver CAF v3 : uniquement chargeable depuis gstatic,
+         la CSP serveur de cette page l'autorise explicitement. -->
+    <script src="https://www.gstatic.com/cast/sdk/libs/caf_receiver/v3/cast_receiver_framework.js"></script>
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        background: #0b0f19;
+        overflow: hidden;
+      }
+      /* Splash idle : le logo texte Evey, même accent que l'app. */
+      cast-media-player {
+        --splash-background: #0b0f19;
+        --splash-image: none;
+        --logo-image: none;
+        --theme-hue: 240;
+        --progress-color: #7c7ff2;
+      }
+      #idle-brand {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #7c7ff2;
+        font-family: system-ui, sans-serif;
+        font-size: 8vmin;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        pointer-events: none;
+      }
+      /* Overlay de debug : les erreurs de lecture s'affichent SUR la TV au
+         lieu de mourir en silence comme sur le Default Media Receiver. */
+      #dbg {
+        display: none;
+        position: absolute;
+        left: 2vmin;
+        bottom: 2vmin;
+        max-width: 90vw;
+        padding: 1vmin 2vmin;
+        background: rgba(0, 0, 0, 0.75);
+        color: #ffb454;
+        font-family: monospace;
+        font-size: 2.5vmin;
+        border-radius: 0.8vmin;
+        z-index: 10;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="idle-brand">Evey</div>
+    <cast-media-player></cast-media-player>
+    <div id="dbg"></div>
+    <script type="module" src="/src/cast-receiver/main.ts"></script>
+  </body>
+</html>

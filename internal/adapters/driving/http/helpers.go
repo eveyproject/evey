@@ -343,7 +343,18 @@ func securityHeadersMiddleware(httpsOnly bool, next http.Handler) http.Handler {
 		// them to, and got a silently broken player. Keep this policy correct
 		// standalone - the proxy is not there to repair it.
 		// frame-src is the Cast SDK's own iframe, script-src alone is not enough.
-		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob:; media-src 'self' blob:; worker-src 'self' blob:; font-src 'self' data:; connect-src 'self' https: wss:; frame-src https://www.gstatic.com")
+		//
+		// /cast-receiver.html est la page CHARGÉE PAR LE CHROMECAST (Web Receiver
+		// custom déclaré dans la Google Cast Console) : le player CAF y injecte
+		// styles, fonts et images depuis gstatic en plus du SDK - la politique
+		// applicative les bloquerait en silence sur la TV (backdrop cassé, zéro
+		// log). La variante n'élargit QUE cette page ; l'app garde la politique
+		// stricte.
+		if r.URL.Path == "/cast-receiver.html" {
+			w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://www.gstatic.com; img-src 'self' data: https: blob:; media-src 'self' blob: https:; worker-src 'self' blob:; font-src 'self' data: https://www.gstatic.com; connect-src 'self' https: wss:; frame-src https://www.gstatic.com")
+		} else {
+			w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob:; media-src 'self' blob:; worker-src 'self' blob:; font-src 'self' data:; connect-src 'self' https: wss:; frame-src https://www.gstatic.com")
+		}
 		if httpsOnly || r.TLS != nil {
 			w.Header().Set("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
 		}
