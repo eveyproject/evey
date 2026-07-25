@@ -115,6 +115,21 @@ async function startWasmEngine(): Promise<void> {
 playerManager.setMessageInterceptor(
   cast.framework.messages.MessageType.LOAD,
   (request: any) => {
+    try {
+      return interceptLoad(request);
+    } catch (err) {
+      // Une exception ici ferait échouer le LOAD en silence (905 sans réseau).
+      // On l'affiche À L'ÉCRAN et on laisse passer la requête INTACTE : l'URL
+      // du sender mobile est déjà négociée AAC - le chemin qui marche.
+      showDebug(`interceptor: ${String(err).slice(0, 160)}`);
+      wasmRequested = false;
+      currentUrl = request?.media?.contentUrl || request?.media?.contentId || "";
+      return request;
+    }
+  },
+);
+
+function interceptLoad(request: any): any {
     destroyEngine();
     showDebug("");
     const media = request.media;
@@ -152,8 +167,7 @@ playerManager.setMessageInterceptor(
       wasmRequested = false;
     }
     return request;
-  },
-);
+}
 
 playerManager.addEventListener(cast.framework.events.EventType.PLAYER_LOAD_COMPLETE, () => {
   if (wasmRequested) void startWasmEngine();
