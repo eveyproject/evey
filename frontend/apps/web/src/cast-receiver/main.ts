@@ -31,6 +31,24 @@ let engine: WasmAudioEngine | null = null;
 let wasmDisabled = false;
 let currentUrl = "";
 let wasmRequested = false;
+// Génération de LOAD : un nouveau LOAD invalide tout démarrage de moteur en
+// cours (le start est asynchrone et parallèle au chargement CAF).
+let loadGen = 0;
+let engineStarting = false;
+
+// Préchauffage : télécharger (cache HTTP) et COMPILER (cache de code V8, clé =
+// URL, exploité par l'instantiateStreaming du worker) le décodeur pendant le
+// splash - sur le CPU d'une TV, la compilation Go-wasm est le coût dominant du
+// délai d'arrivée du son. Best-effort intégral : un échec ici ne change rien,
+// le vrai chargement le repayera.
+for (const asset of ["/wasm/ac3Worker.js", "/wasm/wasm_exec.js"]) {
+  void fetch(asset).catch(() => {});
+}
+try {
+  void WebAssembly.compileStreaming(fetch("/wasm/ac3go.wasm")).catch(() => {});
+} catch {
+  /* runtime sans compileStreaming : le repli bytes du worker s'en charge */
+}
 
 function destroyEngine(): void {
   engine?.destroy();
@@ -79,24 +97,50 @@ function fallbackToMuxedAudio(reason: string): void {
   playerManager.load(request).catch((e: unknown) => showDebug(`repli AAC impossible: ${String(e)}`));
 }
 
-async function startWasmEngine(): Promise<void> {
-  const video = findMediaElement();
-  if (!video) {
-    fallbackToMuxedAudio("video element introuvable");
-    return;
+// L'élément <video> de CAF n'existe qu'une fois le premier LOAD en cours de
+// traitement : au démarrage anticipé (dès l'interception), on le guette.
+async function findMediaElementWithRetry(timeoutMs: number): Promise<HTMLVideoElement | null> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const v = findMediaElement();
+    if (v) return v;
+    if (Date.now() > deadline) return null;
+    await new Promise((r) => setTimeout(r, 250));
   }
-  const token = tokenFromUrl(currentUrl);
+}
+
+// Démarré dès l'INTERCEPTION du LOAD (pas à PLAYER_LOAD_COMPLETE) : le fetch du
+// master, l'attente du <video> et le boot du worker wasm courent en parallèle
+// du chargement CAF - c'est ce qui absorbe les secondes de silence au départ.
+// Sans risque de désynchro : le moteur ne joue que lorsque la vidéo AVANCE
+// (stall gate côté engine), démarrer tôt ne fait que préparer.
+async function startWasmEngine(): Promise<void> {
+  if (engine || engineStarting) return;
+  engineStarting = true;
+  const gen = loadGen;
+  const url = currentUrl;
+  const token = tokenFromUrl(url);
   try {
-    const resp = await fetch(currentUrl, { mode: "cors" });
-    if (!resp.ok) throw new Error(`master ${resp.status}`);
-    const audioUri = extractAudioURI(await resp.text());
+    const [video, masterText] = await Promise.all([
+      findMediaElementWithRetry(10_000),
+      fetch(url, { mode: "cors" }).then((r) => {
+        if (!r.ok) throw new Error(`master ${r.status}`);
+        return r.text();
+      }),
+    ]);
+    if (gen !== loadGen) return; // un autre LOAD est passé entre-temps
+    if (!video) {
+      fallbackToMuxedAudio("video element introuvable");
+      return;
+    }
+    const audioUri = extractAudioURI(masterText);
     if (!audioUri) {
       // Le serveur n'a pas pris le chemin wasm (piste non-Dolby) : le master
       // servi est déjà l'AAC muxé, rien à faire.
       wasmRequested = false;
       return;
     }
-    const playlistUrl = new URL(audioUri, currentUrl).toString();
+    const playlistUrl = new URL(audioUri, url).toString();
     engine = new WasmAudioEngine(video, playlistUrl, {
       // Résolution ABSOLUE contre le serveur média : le receiver peut être
       // hébergé ailleurs (GitHub Pages, domaine projet). Et credentials omit :
@@ -108,7 +152,9 @@ async function startWasmEngine(): Promise<void> {
     await engine.start();
     showDebug("");
   } catch (err) {
-    fallbackToMuxedAudio(String(err));
+    if (gen === loadGen) fallbackToMuxedAudio(String(err));
+  } finally {
+    engineStarting = false;
   }
 }
 
@@ -130,6 +176,7 @@ playerManager.setMessageInterceptor(
 );
 
 function interceptLoad(request: any): any {
+    loadGen++;
     destroyEngine();
     showDebug("");
     const media = request.media;
@@ -162,6 +209,8 @@ function interceptLoad(request: any): any {
       media.hlsVideoSegmentFormat = cast.framework.messages.HlsVideoSegmentFormat.FMP4;
       currentUrl = rewritten.url;
       wasmRequested = rewritten.wasmAudio;
+      // Départ ANTICIPÉ du moteur audio, en parallèle du chargement CAF.
+      if (wasmRequested) void startWasmEngine();
     } else {
       currentUrl = rawUrl;
       wasmRequested = false;
@@ -169,8 +218,10 @@ function interceptLoad(request: any): any {
     return request;
 }
 
+// Filet : si le démarrage anticipé n'a pas abouti (élément vidéo tardif...),
+// on retente une fois le chargement CAF terminé - l'ancien déclencheur.
 playerManager.addEventListener(cast.framework.events.EventType.PLAYER_LOAD_COMPLETE, () => {
-  if (wasmRequested) void startWasmEngine();
+  if (wasmRequested && !engine) void startWasmEngine();
 });
 
 // Les erreurs du player s'affichent À L'ÉCRAN : c'est le receiver de debug que

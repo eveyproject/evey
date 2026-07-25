@@ -25,10 +25,22 @@ async function init(wasmUrl, wasmExecUrl) {
   // importScripts pulls it in synchronously without eval.
   importScripts(wasmExecUrl);
   const go = new self.Go();
-  const resp = await fetch(wasmUrl);
-  if (!resp.ok) throw new Error("fetch " + wasmUrl + " -> " + resp.status);
-  const bytes = await resp.arrayBuffer();
-  const { instance } = await WebAssembly.instantiate(bytes, go.importObject);
+  // instantiateStreaming d'abord : c'est la SEULE forme que le cache de code
+  // compilé de Chrome (clé = URL) sait réutiliser - déterminant sur un CPU de
+  // TV (receiver cast) où la compilation domine le délai d'arrivée du son, et
+  // ça permet au préchauffage compileStreaming de la page de payer d'avance.
+  // Repli bytes pour les moteurs sans streaming ou un Content-Type manquant.
+  let instance;
+  try {
+    const res = await WebAssembly.instantiateStreaming(fetch(wasmUrl), go.importObject);
+    instance = res.instance;
+  } catch (_) {
+    const resp = await fetch(wasmUrl);
+    if (!resp.ok) throw new Error("fetch " + wasmUrl + " -> " + resp.status);
+    const bytes = await resp.arrayBuffer();
+    const res = await WebAssembly.instantiate(bytes, go.importObject);
+    instance = res.instance;
+  }
   // go.run keeps the Go runtime alive (the module's main is `select{}`); do not
   // await it - it never resolves. The exported callbacks are ready synchronously
   // once run has registered the global.
