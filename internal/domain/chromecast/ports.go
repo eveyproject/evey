@@ -38,6 +38,10 @@ type SubnetProber interface {
 // CastSession represents a live connection to a single cast device.
 type CastSession interface {
 	Load(mediaURL, contentType string) error
+	// LoadApp launches the given receiver app with mediaURL as the LOAD
+	// contentId. Implementations return once the launch outcome is known,
+	// never blocking until playback ends.
+	LoadApp(appID, mediaURL string) error
 	Pause() error
 	Unpause() error
 	StopMedia() error

@@ -51,6 +51,8 @@ func (f *FakeSubnetProber) ProbeSubnet(_ context.Context, clientIP string) ([]ch
 type FakeSession struct {
 	Loaded       string
 	ContentType  string
+	AppLaunched  string
+	AppMediaURL  string
 	Paused       bool
 	Unpaused     bool
 	Stopped      bool
@@ -61,6 +63,7 @@ type FakeSession struct {
 	Closed       bool
 
 	LoadErr    error
+	LoadAppErr error
 	PauseErr   error
 	UnpauseErr error
 	StopErr    error
@@ -81,6 +84,15 @@ func (f *FakeSession) Load(mediaURL, contentType string) error {
 	}
 	f.Loaded = mediaURL
 	f.ContentType = contentType
+	return nil
+}
+
+func (f *FakeSession) LoadApp(appID, mediaURL string) error {
+	if f.LoadAppErr != nil {
+		return f.LoadAppErr
+	}
+	f.AppLaunched = appID
+	f.AppMediaURL = mediaURL
 	return nil
 }
 

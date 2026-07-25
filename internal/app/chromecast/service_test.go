@@ -51,7 +51,7 @@ func TestPlay_DeviceNotFound(t *testing.T) {
 	}
 }
 
-func TestPlay_Happy(t *testing.T) {
+func TestPlay_LaunchesEveyReceiver(t *testing.T) {
 	dev := domaincast.Device{UUID: "u1", Name: "Living"}
 	svc, _, fac := newTestSvc(dev)
 	if _, err := svc.Discover(context.Background(), ""); err != nil {
@@ -64,23 +64,91 @@ func TestPlay_Happy(t *testing.T) {
 	if sess == nil {
 		t.Fatal("expected session created")
 	}
+	if sess.AppLaunched != eveyCastReceiverAppID {
+		t.Fatalf("expected evey receiver launched, got %q", sess.AppLaunched)
+	}
+	if sess.AppMediaURL != "http://x/y.mp4" {
+		t.Fatalf("expected media url handed to receiver, got %q", sess.AppMediaURL)
+	}
+	if sess.Loaded != "" {
+		t.Fatalf("default receiver must not be used when the evey receiver works, got %q", sess.Loaded)
+	}
+}
+
+func TestPlay_FallsBackToDefaultReceiver(t *testing.T) {
+	dev := domaincast.Device{UUID: "u1"}
+	svc, _, fac := newTestSvc(dev)
+	_, _ = svc.Discover(context.Background(), "")
+	sess := castfakes.NewFakeSession()
+	sess.LoadAppErr = errors.New("app unavailable")
+	fac.Sessions["u1"] = sess
+
+	if err := svc.Play(context.Background(), "u1", "http://x/y.mp4", "", ""); err != nil {
+		t.Fatal(err)
+	}
 	if sess.Loaded != "http://x/y.mp4" {
-		t.Fatalf("expected loaded url, got %q", sess.Loaded)
+		t.Fatalf("expected DMR fallback load, got %q", sess.Loaded)
 	}
 	if sess.ContentType != "video/mp4" {
 		t.Fatalf("expected default contentType video/mp4, got %q", sess.ContentType)
 	}
 }
 
-func TestPlay_CustomContentType(t *testing.T) {
+func TestPlay_FallbackKeepsCustomContentType(t *testing.T) {
 	dev := domaincast.Device{UUID: "u1"}
 	svc, _, fac := newTestSvc(dev)
 	_, _ = svc.Discover(context.Background(), "")
+	sess := castfakes.NewFakeSession()
+	sess.LoadAppErr = errors.New("app unavailable")
+	fac.Sessions["u1"] = sess
+
 	if err := svc.Play(context.Background(), "u1", "http://x/a.mkv", "", "video/x-matroska"); err != nil {
 		t.Fatal(err)
 	}
-	if fac.Sessions["u1"].ContentType != "video/x-matroska" {
+	if sess.ContentType != "video/x-matroska" {
 		t.Fatal("expected custom contentType kept")
+	}
+}
+
+func TestPlay_ErrorWhenBothReceiversFail(t *testing.T) {
+	dev := domaincast.Device{UUID: "u1"}
+	svc, _, fac := newTestSvc(dev)
+	_, _ = svc.Discover(context.Background(), "")
+	sess := castfakes.NewFakeSession()
+	sess.LoadAppErr = errors.New("app unavailable")
+	sess.LoadErr = errors.New("load refused")
+	fac.Sessions["u1"] = sess
+
+	if err := svc.Play(context.Background(), "u1", "http://x/y.mp4", "", ""); err == nil {
+		t.Fatal("expected error when both receivers fail")
+	}
+}
+
+// awaitLaunchOutcome adapts go-chromecast's blocking LoadApp contract: the lib
+// call returning EARLY is the failure signal (error = LAUNCH failed, nil =
+// LOAD_FAILED mapped to "media finished"), silence through the window means
+// the receiver is up and playing.
+func TestAwaitLaunchOutcome_LaunchError(t *testing.T) {
+	done := make(chan error, 1)
+	done <- errors.New("launch refused")
+	if err := awaitLaunchOutcome(done, nil); err == nil {
+		t.Fatal("expected launch error to propagate")
+	}
+}
+
+func TestAwaitLaunchOutcome_EarlyNilMeansLoadFailed(t *testing.T) {
+	done := make(chan error, 1)
+	done <- nil
+	if err := awaitLaunchOutcome(done, nil); err == nil {
+		t.Fatal("an early nil return is a LOAD_FAILED, not a success")
+	}
+}
+
+func TestAwaitLaunchOutcome_SilenceThroughWindowIsSuccess(t *testing.T) {
+	window := make(chan time.Time, 1)
+	window <- time.Time{}
+	if err := awaitLaunchOutcome(make(chan error), window); err != nil {
+		t.Fatalf("expected success on window expiry, got %v", err)
 	}
 }
 

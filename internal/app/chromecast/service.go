@@ -19,6 +19,12 @@ import (
 const (
 	cacheTTL         = 60 * time.Second
 	discoveryTimeout = 5 * time.Second
+
+	// eveyCastReceiverAppID is the published Evey Web Receiver (Cast Console,
+	// served from https://cast.eveyproject.org). Unlike the Default Media
+	// Receiver it probes the TV's real codec capabilities and decodes AC-3 in
+	// wasm - same app ID as the web and mobile senders.
+	eveyCastReceiverAppID = "D36A449B"
 )
 
 // Device is re-exported from the domain for backwards compatibility with handlers.
@@ -219,6 +225,17 @@ func (s *Service) Play(ctx context.Context, uuid, mediaURL, title string, conten
 		return err
 	}
 
+	// The custom receiver comes first; the Default Media Receiver stays as
+	// fallback for devices that cannot load it (no internet on the TV, app
+	// rejected the media...).
+	appErr := sess.LoadApp(eveyCastReceiverAppID, mediaURL)
+	if appErr == nil {
+		slog.Info("chromecast: playing (evey receiver)", slog.String("device", device.Name), slog.String("url", mediaURL))
+		return nil
+	}
+	slog.Warn("chromecast: evey receiver failed, falling back to default receiver",
+		slog.String("device", device.Name), slog.Any("err", appErr))
+
 	if contentType == "" {
 		contentType = "video/mp4"
 	}
@@ -226,7 +243,7 @@ func (s *Service) Play(ctx context.Context, uuid, mediaURL, title string, conten
 	if err := sess.Load(mediaURL, contentType); err != nil {
 		return fmt.Errorf("load media: %w", err)
 	}
-	slog.Info("chromecast: playing", slog.String("device", device.Name), slog.String("url", mediaURL))
+	slog.Info("chromecast: playing (default receiver)", slog.String("device", device.Name), slog.String("url", mediaURL))
 	return nil
 }
 
@@ -496,8 +513,39 @@ type appSession struct {
 	app *application.Application
 }
 
+// receiverLaunchWindow bounds how long LoadApp waits for a launch failure to
+// surface: LAUNCH errors within ~5s (lib request timeout) and a LOAD_FAILED
+// arrives seconds after the receiver page is up. Past that, playback started.
+const receiverLaunchWindow = 12 * time.Second
+
 func (s *appSession) Load(mediaURL, contentType string) error {
-	return s.app.Load(mediaURL, 0, contentType, false, false, false)
+	// detach=true: without it the lib parks in MediaWait until playback ENDS,
+	// pinning the HTTP handler that called Play for the whole film.
+	return s.app.Load(mediaURL, 0, contentType, false, true, false)
+}
+
+func (s *appSession) LoadApp(appID, mediaURL string) error {
+	done := make(chan error, 1)
+	go func() { done <- s.app.LoadApp(appID, mediaURL) }()
+	return awaitLaunchOutcome(done, time.After(receiverLaunchWindow))
+}
+
+// awaitLaunchOutcome adapts go-chromecast's blocking LoadApp contract into a
+// launch result. The lib call only returns BEFORE playback ends when something
+// went wrong: an error for a failed LAUNCH, nil when the receiver reported
+// LOAD_FAILED (mapped to "media finished" internally). Silence through the
+// whole window is therefore the success signal; the goroutine keeps draining
+// the lib call in the background until the media actually stops.
+func awaitLaunchOutcome(done <-chan error, window <-chan time.Time) error {
+	select {
+	case err := <-done:
+		if err != nil {
+			return err
+		}
+		return fmt.Errorf("receiver rejected the media (LOAD_FAILED)")
+	case <-window:
+		return nil
+	}
 }
 
 func (s *appSession) Pause() error   { return s.app.Pause() }
