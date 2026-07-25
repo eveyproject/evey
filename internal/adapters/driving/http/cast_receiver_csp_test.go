@@ -58,7 +58,7 @@ func TestSecurityHeaders_AppCSPUnchanged(t *testing.T) {
 
 // segmentOf isole une directive d'une politique CSP ("style-src ...;").
 func segmentOf(csp, directive string) string {
-	for _, part := range strings.Split(csp, ";") {
+	for part := range strings.SplitSeq(csp, ";") {
 		part = strings.TrimSpace(part)
 		if strings.HasPrefix(part, directive+" ") || part == directive {
 			return part

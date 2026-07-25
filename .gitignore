@@ -56,6 +56,9 @@ frontend/apps/*/node_modules/
 frontend/packages/*/node_modules/
 frontend/apps/web/dist/
 frontend/apps/*/dist/
+# Sortie de build du Web Receiver cast (bundle minifié) : suivi par personne,
+# mais oxlint tourne en --deny-warnings et le lintait comme du source.
+frontend/apps/*/dist-cast-receiver/
 frontend/packages/api/src/generated/
 frontend/.turbo/
 frontend/**/.turbo/
