@@ -48,12 +48,14 @@ import { GestureIndicators } from "../../../src/components/player/GestureIndicat
 import { NextEpisodeOverlay } from "../../../src/components/player/NextEpisodeOverlay";
 import { PlayerSeekBar } from "../../../src/components/player/PlayerSeekBar";
 import { PlayerControlsRow, type SheetName } from "../../../src/components/player/PlayerControlsRow";
+import { PlayerTopRightCluster } from "../../../src/components/player/PlayerTopRightCluster";
+import { PlayerMoreSheet } from "../../../src/components/player/PlayerMoreSheet";
+import { useControlsAutoHide } from "../../../src/components/player/useControlsAutoHide";
 
 const IMAGE_SUBTITLE_CODECS = new Set([
   "pgssub", "hdmv_pgs_subtitle", "dvd_subtitle", "dvbsub", "xsub",
 ]);
 
-const CONTROLS_TIMEOUT = 3000;
 const WATCHED_THRESHOLD = 0.9;
 
 export default function PlayerScreen() {
@@ -128,7 +130,6 @@ export default function PlayerScreen() {
   const mountedRef = useRef(true);
   useEffect(() => { return () => { mountedRef.current = false; void releaseAudioBoost(); }; }, []);
 
-  const [showControls, setShowControls] = useState(true);
   const [activeSheet, setActiveSheet] = useState<null | SheetName>(null);
   const [selectedAudioIndex, setSelectedAudioIndex] = useState<number>(0);
   const [selectedSubtitleIndex, setSelectedSubtitleIndex] = useState<number | null>(null);
@@ -200,7 +201,6 @@ export default function PlayerScreen() {
   // and the real playback position (the "wobbly" seek).
   const seekingRef = useRef(false);
   const volumeBaseRef = useRef(1);
-  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [syncCreating, setSyncCreating] = useState(false);
   const [syncJoining, setSyncJoining] = useState(false);
   const sleepTimer = useSleepTimer({
@@ -328,27 +328,13 @@ export default function PlayerScreen() {
     return () => stopSession();
   }, [stopSession]);
 
-  const resetHideTimer = useCallback(() => {
-    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
-    setShowControls(true);
-    hideTimerRef.current = setTimeout(() => setShowControls(false), CONTROLS_TIMEOUT);
-  }, []);
-
-  useEffect(() => {
-    resetHideTimer();
-    return () => {
-      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
-    };
-  }, [resetHideTimer]);
-
-  const toggleControls = useCallback(() => {
-    if (showControls) {
-      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
-      setShowControls(false);
-    } else {
-      resetHideTimer();
-    }
-  }, [showControls, resetHideTimer]);
+  // Controls stay up 4.5s after the last interaction, and never auto-hide
+  // while paused or while a sheet (audio/subtitle/more/sync/...) is open -
+  // see useControlsAutoHide for the timer semantics, unit-tested there.
+  const { showControls, resetHideTimer, toggleControls } = useControlsAutoHide({
+    isPlaying,
+    hasOpenPanel: activeSheet !== null,
+  });
 
   const togglePlayPause = useCallback(() => {
     if (!player) return;
@@ -719,6 +705,21 @@ export default function PlayerScreen() {
               </Text>
             </View>
 
+            {/* Top-right cluster: watch-together, then cast (matches the web
+                player layout) - fades with the rest of the controls. */}
+            <PlayerTopRightCluster
+              syncConnected={syncPlay.state.connected}
+              castConnected={castConnected}
+              castAvailable={!!CastContext}
+              onCast={() => { handleCast(); resetHideTimer(); }}
+              onSyncPress={() => {
+                if (syncPlay.state.connected) syncPlay.leaveRoom();
+                else setActiveSheet("syncPlay");
+                resetHideTimer();
+              }}
+              style={{ paddingTop: Math.max(16, insets.top), paddingRight: Math.max(20, insets.right) }}
+            />
+
             <View style={[styles.bottomControls, { paddingBottom: Math.max(20, insets.bottom), paddingLeft: Math.max(20, insets.left), paddingRight: Math.max(20, insets.right) }]}>
               <PlayerSeekBar
                 mediaId={mediaId}
@@ -731,31 +732,20 @@ export default function PlayerScreen() {
                 onScrubbingChange={(s) => { seekingRef.current = s; }}
               />
 
-              {/* Controls row - playback transport on the left, settings/track
-                  pickers/cast on the right (matches the web player layout). */}
+              {/* Controls row - playback transport, track pickers, fullscreen and
+                  "more" (matches the web player layout). */}
               <PlayerControlsRow
                 isPlaying={isPlaying}
                 currentTime={currentTime}
                 effectiveDuration={effectiveDuration}
                 skipFwd={skipFwd}
                 skipBwd={skipBwd}
-                playbackSpeed={playbackSpeed}
                 isFullscreen={isFullscreen}
-                pipSupported={pipSupported}
-                hasChapters={chapters.length > 0}
                 audioTrackCount={audioStreams.length}
                 subtitleTrackCount={subtitleStreams.length}
-                sleepTimerState={sleepTimer.state}
-                syncConnected={syncPlay.state.connected}
-                castConnected={castConnected}
-                castAvailable={!!CastContext}
                 onSeekBy={seekBy}
                 onTogglePlayPause={togglePlayPause}
-                onCycleSpeed={cycleSpeed}
-                onPip={handlePip}
                 onToggleFullscreen={toggleFullscreen}
-                onCast={handleCast}
-                onSyncPress={() => syncPlay.state.connected ? syncPlay.leaveRoom() : setActiveSheet("syncPlay")}
                 onOpenSheet={setActiveSheet}
               />
             </View>
@@ -778,6 +768,18 @@ export default function PlayerScreen() {
           </View>
         )}
       </View>
+
+      <PlayerMoreSheet
+        visible={activeSheet === "more"}
+        onClose={() => setActiveSheet(null)}
+        hasChapters={chapters.length > 0}
+        playbackSpeed={playbackSpeed}
+        onCycleSpeed={cycleSpeed}
+        sleepTimerState={sleepTimer.state}
+        pipSupported={pipSupported}
+        onPip={handlePip}
+        onOpenSheet={setActiveSheet}
+      />
 
       <AudioTrackPicker
         visible={activeSheet === "audio"}
