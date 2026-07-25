@@ -51,6 +51,7 @@ export default function AdminDashboard() {
   const navItems = [
     { label: t("admin.users.title"), icon: "people-outline", path: "/admin/users" },
     { label: t("admin.nav.libraries"), icon: "library-outline", path: "/admin/libraries" },
+    { label: t("admin.nav.mediaRequests"), icon: "mail-open-outline", path: "/admin/media-requests" },
     { label: t("admin.sessions.title"), icon: "play-circle-outline", path: "/admin/sessions" },
     { label: t("admin.activity.title", "Activity"), icon: "analytics-outline", path: "/admin/activity" },
     { label: t("admin.nav.plugins", "Plugins"), icon: "extension-puzzle-outline", path: "/admin/plugins" },
