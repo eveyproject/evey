@@ -431,24 +431,40 @@ func appendInputModifiers(args []string, readRate float64) []string {
 	return args
 }
 
-// av1ColdStartBurstSec is how many opening seconds an AV1 transcode reads at full
-// speed before the -readrate pace kicks in (ffmpeg -readrate_initial_burst). ~5
-// segments - enough to fill the player's startup buffer and cover a seek.
-const av1ColdStartBurstSec = "15"
+// transcodeColdStartBurstSec is how many opening seconds a PACED transcode
+// reads at full speed before the -readrate pace kicks in (ffmpeg
+// -readrate_initial_burst, ≥6.1 - present in the bundled jellyfin-ffmpeg7 and
+// already relied on by the copy rung). ~5 segments: enough to fill the player's
+// startup buffer and to cover a seek's cold start.
+const transcodeColdStartBurstSec = "15"
 
 // appendTranscodeInputModifiers emits the input pacing for a TRANSCODE session:
-// -readrate N, plus -readrate_initial_burst for AV1 only. SVT-AV1 has a high
-// cold-start latency, and at 1.5x the FIRST 3 s segment reads its input at only
-// 1.5x - so a fresh play or seek waited seconds for segment one and the player
-// stalled (worst at 1080p, where the throughput margin is already thin). The
-// burst reads the opening seconds at full speed so the first segments land
-// immediately; steady state still paces at readRate (the adaptive throttle then
-// pauses a fat buffer). h264/h265 keep the plain pace - low encoder latency, and
-// a startup CPU burst is undesirable on the weak-NAS multi-stream case.
-func appendTranscodeInputModifiers(args []string, readRate float64, codec string) []string {
+// -readrate N plus the cold-start burst, for EVERY codec.
+//
+// The burst was AV1-only at first, blamed on SVT-AV1's encoder latency. That
+// was the wrong variable: what makes the opening segments late is the INPUT
+// pace, and it is codec-blind. At 1.5x, the third 3 s segment cannot exist
+// before 9/1.5 = 6 s of reading plus ffmpeg's startup, no matter how fast the
+// encoder downstream is. Measured in prod 2026-07-25 on a 4K HEVC HDR -> h264
+// 1080p transcode: the player abandoned a segment at 7.75 s that was
+// arithmetically unreachable, on a host that was NOT saturated. Worse, pacing
+// from the first frame grows the viewer's buffer at only 0.5x real time (1.5
+// produced - 1.0 consumed), so nothing absorbs an early hiccup - the reason
+// this path felt worse than an unpaced server on identical hardware.
+//
+// The original reservation (a startup CPU burst is undesirable when several
+// streams share a weak NAS) is bounded on both ends: the burst lasts a fixed
+// handful of seconds, and the VideoSessionLimiter already caps how many
+// encodes may exist at once from the host's own calibration. Steady state is
+// unchanged - still readRate, with the adaptive throttle pausing a fat buffer.
+//
+// readRate == 0 (the HW orchestrator, which self-throttles with SIGSTOP
+// instead) emits neither flag: the burst rides ON the pace, and an unpaced
+// session must stay byte-identical.
+func appendTranscodeInputModifiers(args []string, readRate float64) []string {
 	args = appendInputModifiers(args, readRate)
-	if readRate > 0 && normalizeVideoCodec(codec) == "av1" {
-		args = append(args, "-readrate_initial_burst", av1ColdStartBurstSec)
+	if readRate > 0 {
+		args = append(args, "-readrate_initial_burst", transcodeColdStartBurstSec)
 	}
 	return args
 }
@@ -784,10 +800,10 @@ func buildSingleTranscodeArgs(opts transcoding.HLSProcessOpts) []string {
 	if opts.StartSec > 0 {
 		args = append(args, "-ss", fmt.Sprintf("%.3f", opts.StartSec))
 	}
-	args = appendTranscodeInputModifiers(args, opts.ReadRate, opts.VideoCodec)
+	args = appendTranscodeInputModifiers(args, opts.ReadRate)
 	args = append(args, "-i", opts.FilePath)
 	args = appendAudioDelayInput(args, opts, opts.StartSec, func(a []string) []string {
-		return appendTranscodeInputModifiers(a, opts.ReadRate, opts.VideoCodec)
+		return appendTranscodeInputModifiers(a, opts.ReadRate)
 	})
 
 	deint := deinterlaceFilterFor(opts)
@@ -867,10 +883,10 @@ func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
 	if opts.StartSec > 0 {
 		args = append(args, "-ss", fmt.Sprintf("%.3f", opts.StartSec))
 	}
-	args = appendTranscodeInputModifiers(args, opts.ReadRate, opts.VideoCodec)
+	args = appendTranscodeInputModifiers(args, opts.ReadRate)
 	args = append(args, "-i", opts.FilePath)
 	args = appendAudioDelayInput(args, opts, opts.StartSec, func(a []string) []string {
-		return appendTranscodeInputModifiers(a, opts.ReadRate, opts.VideoCodec)
+		return appendTranscodeInputModifiers(a, opts.ReadRate)
 	})
 	// Preserve source PTS in the output so an fMP4 fragment carries a
 	// tfdt that matches the EXTINF position the Go-precomputed VOD

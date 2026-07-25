@@ -550,10 +550,19 @@ func TestBuildFFmpegArgs_VideoCodecOverride_AV1_Mapping(t *testing.T) {
 	assert.NotContains(t, joined, "veryfast", "libsvtav1 rejects the named x264 preset")
 }
 
-// AV1 transcode gets a cold-start input burst (full-speed opening seconds before
-// the -readrate pace) to mask SVT-AV1's high first-segment latency; h264/h265
-// keep the plain pace.
-func TestBuildFFmpegArgs_AV1_ColdStartBurst(t *testing.T) {
+// EVERY paced transcode gets a cold-start input burst: the opening seconds are
+// read at full speed before the -readrate pace applies.
+//
+// This used to be AV1-only, on the theory that only SVT-AV1's encoder latency
+// made the first segment late. That was the wrong variable. The binding
+// constraint at startup is the INPUT PACE, which is codec-blind: at 1.5x, the
+// third 3 s segment cannot exist before 9/1.5 = 6 s of reading plus ffmpeg's
+// startup, whatever encoder is downstream. Measured in prod on 2026-07-25 (4K
+// HEVC HDR -> h264 1080p): the player gave up at 7.75 s on a segment that was
+// arithmetically unreachable, on a host that was NOT saturated. Pacing from the
+// first frame also means the viewer's buffer only grows at 0.5x real time
+// (1.5 produced - 1.0 consumed), so nothing absorbs an early hiccup.
+func TestBuildFFmpegArgs_Transcode_ColdStartBurst(t *testing.T) {
 	base := transcoding.HLSProcessOpts{
 		OutputDir:     "/tmp/test",
 		FilePath:      "/f.mkv",
@@ -562,17 +571,39 @@ func TestBuildFFmpegArgs_AV1_ColdStartBurst(t *testing.T) {
 		AudioDecision: "copy",
 		ReadRate:      1.5,
 	}
-	av1 := base
-	av1.VideoCodec = "av1"
-	j := strings.Join(ffmpeg.BuildFFmpegArgs(av1), " ")
-	assert.Contains(t, j, "-readrate 1.5")
-	assert.Contains(t, j, "-readrate_initial_burst 15", "AV1 transcode needs the cold-start burst")
 
-	h264 := base
-	h264.VideoCodec = "h264"
-	jh := strings.Join(ffmpeg.BuildFFmpegArgs(h264), " ")
-	assert.Contains(t, jh, "-readrate 1.5")
-	assert.NotContains(t, jh, "readrate_initial_burst", "h264 keeps the plain pace (no startup CPU burst)")
+	for _, codec := range []string{"av1", "h264", "hevc"} {
+		j := strings.Join(ffmpeg.BuildFFmpegArgs(withVideoCodec(base, codec)), " ")
+		assert.Contains(t, j, "-readrate 1.5", codec)
+		assert.Contains(t, j, "-readrate_initial_burst 15",
+			"%s transcode needs the cold-start burst: the input pace, not the encoder, is what makes segment 0 late", codec)
+		// Input option: ffmpeg ignores it after -i.
+		assert.Less(t, strings.Index(j, "-readrate_initial_burst"), strings.Index(j, "-i "),
+			"%s: -readrate_initial_burst must precede -i", codec)
+	}
+}
+
+// The burst rides ON the pace: an unpaced producer (the HW orchestrator leaves
+// ReadRate 0 and self-throttles with SIGSTOP instead) must stay byte-identical.
+func TestBuildFFmpegArgs_Transcode_NoPaceNoBurst(t *testing.T) {
+	base := transcoding.HLSProcessOpts{
+		OutputDir:     "/tmp/test",
+		FilePath:      "/f.mkv",
+		Profiles:      transcoding.DefaultHLSProfiles[:1],
+		VideoDecision: "transcode",
+		AudioDecision: "copy",
+		ReadRate:      0,
+	}
+	for _, codec := range []string{"av1", "h264", "hevc"} {
+		j := strings.Join(ffmpeg.BuildFFmpegArgs(withVideoCodec(base, codec)), " ")
+		assert.NotContains(t, j, "-readrate", "%s: an unpaced session emits no pacing flags at all", codec)
+		assert.NotContains(t, j, "readrate_initial_burst", codec)
+	}
+}
+
+func withVideoCodec(o transcoding.HLSProcessOpts, codec string) transcoding.HLSProcessOpts {
+	o.VideoCodec = codec
+	return o
 }
 
 // Same guard on the multi-variant software path (the per-rung builder also
