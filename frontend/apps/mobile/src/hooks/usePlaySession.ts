@@ -137,11 +137,20 @@ function appendCodecParams(params: URLSearchParams): void {
   if (getDeviceHdrSupport()) params.set("hdr", "1");
 }
 
+// audioTrack/subtitleTrack are 0-based indices AMONG the audio/subtitle
+// streams (what the server's clampAudioTrack expects), NOT the absolute
+// media-stream index. They MUST land in the HLS master URL: the manifest's
+// audio is chosen by ?audioTrack= (transcode_handler_vod.go), and - just as
+// important - without them the URL is identical for every track, so switching
+// language rebuilt the same URL and the native player never reloaded, leaving
+// the audio on the default track. This mirrors the web buildTranscodeHlsUrl.
 export function buildStreamUrl(
   serverUrl: string,
   mediaId: string,
   streamInfo: V1StreamInfo,
   token: string,
+  audioTrack?: number,
+  subtitleTrack?: number | null,
 ): string {
   if (streamInfo.playMethod === "PLAY_METHOD_DIRECT_PLAY") {
     return `${serverUrl}/api/v1/media/${encodeURIComponent(mediaId)}/stream?token=${token}`;
@@ -149,15 +158,33 @@ export function buildStreamUrl(
   if (streamInfo.playMethod === "PLAY_METHOD_DIRECT_STREAM") {
     const p = new URLSearchParams({ token, remux: "1" });
     appendCodecParams(p);
+    if (audioTrack != null && audioTrack >= 0) p.set("audioTrack", String(audioTrack));
+    if (subtitleTrack != null && subtitleTrack >= 0) p.set("subtitleTrack", String(subtitleTrack));
     return `${serverUrl}/api/v1/media/${encodeURIComponent(mediaId)}/transcode?${p.toString()}`;
   }
   const params = new URLSearchParams({ token });
   appendCodecParams(params);
+  if (audioTrack != null && audioTrack >= 0) params.set("audioTrack", String(audioTrack));
+  if (subtitleTrack != null && subtitleTrack >= 0) params.set("subtitleTrack", String(subtitleTrack));
   // Server publishes a complete VOD manifest from t=0 (no live-edge snap), so
   // there is no start offset to declare: the player seeks natively on the
   // absolute timeline. A startSec param used to be sent here, but no handler
   // ever parsed it - it only tricked the client into offsetting its clock.
   return `${serverUrl}/api/v1/media/${encodeURIComponent(mediaId)}/hls/master.m3u8?${params.toString()}`;
+}
+
+// The 0-based position of an absolute media-stream index among streams of one
+// type (audio/subtitle). Returns undefined when the index is unset (<=0) or
+// not found, so buildStreamUrl omits the param and the server keeps its default.
+function typeRelativeIndex(
+  streamInfo: V1StreamInfo | undefined,
+  type: "MEDIA_STREAM_TYPE_AUDIO" | "MEDIA_STREAM_TYPE_SUBTITLE",
+  absoluteIndex: number | undefined,
+): number | undefined {
+  if (absoluteIndex == null || absoluteIndex <= 0) return undefined;
+  const ofType = (streamInfo?.mediaStreams ?? []).filter((s) => s.type === type);
+  const pos = ofType.findIndex((s) => (s.index ?? -1) === absoluteIndex);
+  return pos >= 0 ? pos : undefined;
 }
 
 export function usePlaySession(mediaId: string): PlaySessionResult {
@@ -221,7 +248,12 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
           tokenRef.current = token;
         }
         setStreamToken(token);
-        const url = buildStreamUrl(serverUrl, mediaId, info, token);
+        // Convert the absolute stream indices the caller passed (from the
+        // picker's s.index) to the 0-based per-type indices the manifest URL
+        // needs, so a language switch produces a DIFFERENT url that reloads.
+        const audioTrack = typeRelativeIndex(info, "MEDIA_STREAM_TYPE_AUDIO", audioStreamIndex);
+        const subtitleTrack = typeRelativeIndex(info, "MEDIA_STREAM_TYPE_SUBTITLE", subtitleStreamIndex);
+        const url = buildStreamUrl(serverUrl, mediaId, info, token, audioTrack, subtitleTrack);
 
         // Direct play streams the original file with no orchestrator involved,
         // so it cannot be shed - only probe the transcode/HLS paths.

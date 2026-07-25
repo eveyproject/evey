@@ -66,6 +66,28 @@ describe("buildStreamUrl", () => {
     expect(url).toContain("videoCodecs=");
   });
 
+  // The language-switch bug: the manifest's audio is chosen by ?audioTrack=
+  // (0-based among audio streams, clampAudioTrack), and the native player only
+  // reloads when the URL changes. Omitting the param rebuilt the SAME url for
+  // every track, so the audio stayed on the default. These pin both the param
+  // and that a different track yields a different url.
+  it("carries the 0-based audioTrack/subtitleTrack in the HLS URL", async () => {
+    const { buildStreamUrl } = await import("./usePlaySession");
+    const url = buildStreamUrl("http://srv", "m1", { playMethod: "PLAY_METHOD_TRANSCODE" }, "tok", 1, 0);
+    expect(url).toContain("audioTrack=1");
+    expect(url).toContain("subtitleTrack=0");
+  });
+
+  it("produces a DIFFERENT URL per audio track so the player reloads on switch", async () => {
+    const { buildStreamUrl } = await import("./usePlaySession");
+    const info = { playMethod: "PLAY_METHOD_TRANSCODE" } as const;
+    const track0 = buildStreamUrl("http://srv", "m1", info, "tok", 0);
+    const track1 = buildStreamUrl("http://srv", "m1", info, "tok", 1);
+    expect(track0).not.toBe(track1);
+    // No track selected -> no param (server keeps its default).
+    expect(buildStreamUrl("http://srv", "m1", info, "tok")).not.toContain("audioTrack=");
+  });
+
   it("declares mkv/webm containers on Android so a compatible MKV direct-plays", async () => {
     const { buildStreamUrl } = await import("./usePlaySession");
     const url = buildStreamUrl("http://srv", "m1", { playMethod: "PLAY_METHOD_TRANSCODE" }, "tok");
