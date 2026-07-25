@@ -46,7 +46,7 @@ describe("pickCastProfile", () => {
   });
 
   it("falls back to the gen 1-3 floor for unknown receivers", () => {
-    expect(pickCastProfile("MiTV-AESP0")).toMatchObject({ videoCodecs: ["h264"], hdr: false, maxHeight: 1080 });
+    expect(pickCastProfile("BRAVIA 4K VH2")).toMatchObject({ videoCodecs: ["h264"], hdr: false, maxHeight: 1080 });
     expect(pickCastProfile("")).toMatchObject({ videoCodecs: ["h264"], maxHeight: 1080 });
     expect(pickCastProfile(null)).toMatchObject({ videoCodecs: ["h264"], maxHeight: 1080 });
     expect(pickCastProfile(undefined)).toMatchObject({ videoCodecs: ["h264"], maxHeight: 1080 });
@@ -152,5 +152,19 @@ describe("buildCastStreamUrl", () => {
       "tok", pickCastProfile(null),
     );
     expect(url).toContain(encodeURIComponent("..%2Fadmin"));
+  });
+});
+
+describe("pickCastProfile - evidence-driven entries from the prod beacon", () => {
+  // MiTV-AFMU0: first real model string collected by cast_receiver_model
+  // (2026-07-25). a tablet brand Mi TV 4S - Dolby Audio certified, HEVC 4K HDR10.
+  // Before this entry it fell to the floor and its E-AC3 default track was
+  // pointlessly transcoded to AAC.
+  it("gives the Mi TV its Dolby and HEVC back", () => {
+    const p = pickCastProfile("MiTV-AFMU0");
+    expect(p.audioCodecs).toContain("eac3");
+    expect(p.videoCodecs).toContain("hevc");
+    expect(p.hdr).toBe(true);
+    expect(p.h264MaxHeight).toBe(1080);
   });
 });

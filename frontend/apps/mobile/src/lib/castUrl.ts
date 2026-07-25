@@ -73,6 +73,16 @@ const PROFILES: Array<{ match: (m: string) => boolean; profile: CastProfile }> =
     profile: { videoCodecs: ["h264", "vp9"], audioCodecs: ["aac", "mp3", "opus", "flac"], hdr: false, maxHeight: 720, h264MaxHeight: 720 },
   },
   {
+    // MiTV-AFMU0 (built-in cast, Android TV, Amlogic): first model
+    // string ever observed through the cast_receiver_model beacon in prod
+    // (2026-07-25). Dolby Audio certified (AC-3/E-AC-3 decoded on the TV
+    // itself), HEVC 4K and HDR10 panel. h264 held at 1080p - Amlogic h264
+    // decode above L4.2 is not a given, and the copy rung matters more than
+    // an unproven 4K h264 direct.
+    match: (m) => m.includes("mitv"),
+    profile: { videoCodecs: ["h264", "hevc", "vp9"], audioCodecs: ["aac", "mp3", "opus", "flac", "eac3", "ac3"], hdr: true, maxHeight: 2160, h264MaxHeight: 1080 },
+  },
+  {
     // Chromecast gen 1/2 ("Eureka Dongle") and gen 3: H.264 High L4.1/L4.2,
     // VP8. SDR only, no Dolby decoder at all.
     match: (m) => m.includes("chromecast") || m.includes("eureka"),
