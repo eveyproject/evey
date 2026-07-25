@@ -13,6 +13,7 @@ import (
 	"github.com/evey-project/evey/internal/adapters/driven/ffmpeg"
 	"github.com/evey-project/evey/internal/adapters/driven/filesystem"
 	itunesadapter "github.com/evey-project/evey/internal/adapters/driven/itunes"
+	musicbrainzadapter "github.com/evey-project/evey/internal/adapters/driven/musicbrainz"
 	"github.com/evey-project/evey/internal/adapters/driven/opensubtitles"
 	"github.com/evey-project/evey/internal/adapters/driven/pluginrunner"
 	"github.com/evey-project/evey/internal/adapters/driven/postgres"
@@ -103,7 +104,19 @@ func buildMusicServices(ctx context.Context, cfg *config.Config, infra *infraDep
 	// ISO-BMFF/EBML) and ALAC (dropped sample entry) fall through to ffprobe. The
 	// dispatcher is stateless, so a fresh instance over the same ffprobe fallback.
 	musicSvc.CommandService().WithProber(proberpkg.New(infra.prober, nil, nil))
-	musicSvc.CommandService().WithAlbumArtFetcher(itunesadapter.NewAlbumArtFetcher(infra.metadataHTTP), cfg.Transcoding.CacheDir)
+	// Chaîne de sources d'artwork, dans cet ordre pour une raison : MusicBrainz
+	// identifie la sortie par une requête PAR CHAMPS et ne peut donc pas
+	// confondre deux albums d'un même artiste, là où la recherche plein-texte
+	// d'iTunes retombe sur l'album le plus populaire quand le titre n'est pas
+	// indexé (prod 07-25 : pochette de Hybrid Theory sur deux albums Linkin
+	// Park). iTunes reste en bout de chaîne pour les albums absents de Cover Art
+	// Archive - sans risque, il vérifie désormais la correspondance lui aussi.
+	// L'artwork EMBARQUÉ dans les fichiers reste prioritaire sur toute la chaîne
+	// (cf FetchMissingAlbumArt).
+	musicSvc.CommandService().WithAlbumArtFetcher(appmusic.NewChainAlbumArtFetcher(
+		musicbrainzadapter.NewAlbumArtFetcher(infra.metadataHTTP),
+		itunesadapter.NewAlbumArtFetcher(infra.metadataHTTP),
+	), cfg.Transcoding.CacheDir)
 	if infra.musicSearch != nil {
 		musicSvc.CommandService().WithSearchIndex(infra.musicSearch)
 		musicSvc.QueryService().WithSearchIndex(infra.musicSearch)
