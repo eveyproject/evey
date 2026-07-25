@@ -229,6 +229,23 @@ func (s *CommandService) FetchMissingAlbumArt(ctx context.Context, libraryID str
 		if ak.Artist == "" || ak.Album == "" || ak.AlbumFolder == "" {
 			continue
 		}
+		// L'artwork embarqué dans le fichier audio est autoritaire : ne jamais
+		// aller le contredire avec une devinette externe. Sans ce garde-fou, la
+		// recherche iTunes partait pour TOUS les albums et SetAlbumCoverArtURL
+		// écrasait ensuite la pochette de toutes les pistes du dossier - les MP3
+		// de "Apple Essentials" portaient la bonne pochette et affichaient celle
+		// de Hybrid Theory (prod 07-25).
+		if ak.HasEmbeddedArt {
+			continue
+		}
+		// La base peut MENTIR sur l'absence de pochette embarquée : les URLs
+		// embarquées écrasées par l'ancien fetch ne reviennent pas d'elles-mêmes
+		// (un scan ne ré-upsert pas un fichier inchangé). On rouvre donc un
+		// fichier du dossier pour trancher, et on restaure le cas échéant. Coût
+		// borné : une lecture de tags par album sans artwork connu, pas par piste.
+		if s.restoreEmbeddedAlbumArt(ctx, libraryID, ak.AlbumFolder) {
+			continue
+		}
 		// Gate on the on-disk file, not the DB cover_art_url: an album whose
 		// URL is set but whose cached image was wiped (cache cleared) must be
 		// re-fetched, otherwise the poster stays broken forever. When the file
@@ -236,11 +253,26 @@ func (s *CommandService) FetchMissingAlbumArt(ctx context.Context, libraryID str
 		hash := albumArtHash(ak.AlbumFolder, "")
 		dst := filepath.Join(s.albumArtDir, hash+".jpg")
 		if _, statErr := os.Stat(dst); statErr == nil {
-			continue
+			// ... sauf si l'image a été écrite AVANT que le fetcher ne vérifie
+			// que le résultat correspondait bien à l'album demandé : elle peut
+			// être la pochette d'un tout autre album, et le garde-fou os.Stat
+			// scellait ce mauvais choix à vie. Les images vérifiées portent un
+			// témoin à côté d'elles ; celles qui n'en ont pas sont recontrôlées
+			// UNE fois, puis deviennent témoignées à leur tour.
+			if _, vErr := os.Stat(verifiedMarkerPath(dst)); vErr == nil {
+				continue
+			}
+			slog.Info("music: re-checking an album art fetched before match verification",
+				slog.String("artist", ak.Artist), slog.String("album", ak.Album))
 		}
 		data, _, ferr := s.albumArtFetcher.Fetch(ctx, ak.Artist, ak.Album)
 		if ferr != nil {
-			if !os.IsNotExist(ferr) {
+			if os.IsNotExist(ferr) {
+				// Aucune correspondance : si une image non vérifiée traînait, elle
+				// montrait un autre album. La retirer plutôt que de la laisser
+				// mentir - l'UI affiche alors son placeholder.
+				s.dropUnverifiedAlbumArt(ctx, libraryID, ak.AlbumFolder, dst)
+			} else {
 				slog.Warn("music: fetch album art", slog.String("artist", ak.Artist), slog.String("album", ak.Album), slog.Any("err", ferr))
 			}
 			continue
@@ -251,6 +283,12 @@ func (s *CommandService) FetchMissingAlbumArt(ctx context.Context, libraryID str
 			slog.Warn("music: write album art", slog.String("path", dst), slog.Any("err", werr))
 			continue
 		}
+		// Témoin de vérification : sa présence dit « cette image a été retenue
+		// par un fetcher qui contrôle la correspondance », donc on ne la
+		// recontrôlera plus.
+		if werr := os.WriteFile(verifiedMarkerPath(dst), []byte(ak.Artist+"|"+ak.Album+"\n"), 0o644); werr != nil {
+			slog.Warn("music: write album art marker", slog.String("path", verifiedMarkerPath(dst)), slog.Any("err", werr))
+		}
 		url := "/api/v1/music/album-art/" + hash
 		if uerr := s.tracks.SetAlbumCoverArtURL(ctx, shared.LibraryID(libraryID), ak.AlbumFolder, url); uerr != nil {
 			slog.Warn("music: set cover url", slog.String("album_folder", ak.AlbumFolder), slog.Any("err", uerr))
@@ -259,6 +297,87 @@ func (s *CommandService) FetchMissingAlbumArt(ctx context.Context, libraryID str
 		fetched++
 	}
 	return fetched, nil
+}
+
+// verifiedMarkerPath renvoie le chemin du témoin accompagnant une image
+// d'album. Son existence signifie que l'image a été retenue par un fetcher
+// vérifiant la correspondance (artiste, album) - voir matchingArtwork côté
+// adaptateur iTunes.
+func verifiedMarkerPath(imagePath string) string { return imagePath + ".matched" }
+
+// dropUnverifiedAlbumArt retire une image récupérée avant l'ère de la
+// vérification quand la source ne reconnaît plus l'album, et remet à vide la
+// pochette des pistes du dossier pour que l'UI retombe sur son placeholder.
+// Ne touche à rien si l'image portait déjà son témoin.
+func (s *CommandService) dropUnverifiedAlbumArt(ctx context.Context, libraryID, albumFolder, imagePath string) {
+	if _, err := os.Stat(imagePath); err != nil {
+		return // rien en cache : il n'y a jamais eu de fausse pochette à retirer
+	}
+	if _, err := os.Stat(verifiedMarkerPath(imagePath)); err == nil {
+		return // vérifiée en son temps : ce n'est pas à nous de la juger
+	}
+	if err := os.Remove(imagePath); err != nil {
+		slog.Warn("music: remove unverified album art", slog.String("path", imagePath), slog.Any("err", err))
+		return
+	}
+	if err := s.tracks.SetAlbumCoverArtURL(ctx, shared.LibraryID(libraryID), albumFolder, ""); err != nil {
+		slog.Warn("music: clear cover url", slog.String("album_folder", albumFolder), slog.Any("err", err))
+		return
+	}
+	slog.Info("music: dropped an album art that matched no album at the source",
+		slog.String("album_folder", albumFolder))
+}
+
+// restoreEmbeddedAlbumArt cherche une pochette EMBARQUÉE parmi les fichiers du
+// dossier et, si elle en trouve une, rétablit l'URL correspondante sur la piste
+// concernée. Renvoie true dès qu'une pochette locale existe : l'appelant doit
+// alors s'abstenir de toute récupération externe.
+//
+// S'arrête au PREMIER fichier porteur d'une pochette : une seule URL embarquée
+// dans le dossier suffit, GetAlbums préférant l'embarqué à l'externe.
+func (s *CommandService) restoreEmbeddedAlbumArt(ctx context.Context, libraryID, albumFolder string) bool {
+	if s.scanner == nil {
+		return false
+	}
+	tracks, err := s.tracks.ListByAlbumFolder(ctx, shared.LibraryID(libraryID), albumFolder)
+	if err != nil {
+		slog.Warn("music: list album folder for embedded art", slog.String("album_folder", albumFolder), slog.Any("err", err))
+		return false
+	}
+	for i := range tracks {
+		if ctx.Err() != nil {
+			return false
+		}
+		t := &tracks[i]
+		if !hasEmbeddedPicture(s.scanner, t.FilePath) {
+			continue
+		}
+		embeddedURL := fmt.Sprintf("/api/v1/music/tracks/%s/art", t.ID)
+		if t.CoverArtURL == embeddedURL {
+			return true
+		}
+		if setErr := s.tracks.SetTrackCoverArtURL(ctx, t.ID, embeddedURL); setErr != nil {
+			slog.Warn("music: restore embedded album art", slog.String("track_id", t.ID), slog.Any("err", setErr))
+			return false
+		}
+		slog.Info("music: restored embedded album art over a fetched one",
+			slog.String("album_folder", albumFolder), slog.String("track_id", t.ID))
+		return true
+	}
+	return false
+}
+
+func hasEmbeddedPicture(scanner music.MusicScanner, path string) bool {
+	f, err := scanner.OpenFile(path)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+	m, err := tag.ReadFrom(f)
+	if err != nil {
+		return false
+	}
+	return m.Picture() != nil
 }
 
 type trackJob struct {

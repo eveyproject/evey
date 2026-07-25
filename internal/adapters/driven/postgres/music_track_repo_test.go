@@ -265,6 +265,88 @@ func TestMusicTrackRepo_GetAlbums(t *testing.T) {
 	assert.Equal(t, music.AlbumID("/music/the-album"), albums[0].ID)
 }
 
+// Régression prod 2026-07-25 : la pochette d'album était `MIN(cover_art_url)`,
+// donc un choix LEXICOGRAPHIQUE. Or "/api/v1/music/album-art/…" < "/api/v1/music/
+// tracks/…" ('a' < 't'), si bien qu'une seule ligne portant une pochette iTunes
+// écrasait les pochettes EMBARQUÉES correctes de tout le dossier. Sur la
+// bibliothèque du user, l'album "Apple Essentials" de Linkin Park embarquait la
+// bonne pochette dans ses MP3 et affichait quand même celle de Hybrid Theory,
+// devinée par iTunes. L'artwork embarqué dans le fichier est la source
+// autoritaire : il doit gagner.
+func TestMusicTrackRepo_GetAlbums_EmbeddedArtBeatsFetchedArt(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	libRepo := postgres.NewLibraryRepository(db)
+	repo := postgres.NewMusicTrackRepository(db)
+	ctx := context.Background()
+
+	lib := newTestLibrary("mt-lib-art")
+	lib.Type = "music"
+	require.NoError(t, libRepo.Create(ctx, lib))
+
+	// Une piste porte une pochette embarquée (CoverArtURL non vide à l'upsert),
+	// l'autre non. Seul SetAlbumCoverArtURL sait écrire une URL album-art, donc
+	// on reproduit le geste exact du fetcher iTunes.
+	embedded := newTestTrack("mt-art-a", lib.ID, "In The End", "Linkin Park", "Apple Essentials")
+	embedded.FilePath = "/music/essentials/01.mp3"
+	embedded.CoverArtURL = "/api/v1/music/tracks/placeholder/art" // non vide = le fichier a une pochette
+	persistedA, err := repo.Upsert(ctx, embedded)
+	require.NoError(t, err)
+
+	noArt := newTestTrack("mt-art-b", lib.ID, "Numb", "Linkin Park", "Apple Essentials")
+	noArt.FilePath = "/music/essentials/02.mp3"
+	noArt.CoverArtURL = ""
+	_, err = repo.Upsert(ctx, noArt)
+	require.NoError(t, err)
+
+	require.NoError(t, repo.SetAlbumCoverArtURL(ctx, lib.ID, "/music/essentials",
+		"/api/v1/music/album-art/deadbeefdeadbeef"))
+
+	// 1. Le fetcher ne doit pas avoir écrasé la pochette embarquée.
+	trA, err := repo.GetByID(ctx, persistedA)
+	require.NoError(t, err)
+	require.NotNil(t, trA)
+	assert.Equal(t, "/api/v1/music/tracks/"+persistedA+"/art", trA.CoverArtURL,
+		"SetAlbumCoverArtURL ne doit jamais écraser une pochette venue du fichier")
+
+	// 2. Et l'album doit exposer la pochette embarquée, pas celle devinée.
+	albums, err := repo.GetAlbums(ctx, lib.ID)
+	require.NoError(t, err)
+	require.Len(t, albums, 1)
+	assert.Equal(t, "/api/v1/music/tracks/"+persistedA+"/art", albums[0].CoverArtURL,
+		"la pochette embarquée doit gagner contre une pochette récupérée en externe")
+}
+
+// Sans aucune pochette embarquée, l'artwork externe reste servi : le correctif
+// ci-dessus est une PRÉFÉRENCE, pas un rejet de l'artwork iTunes.
+func TestMusicTrackRepo_GetAlbums_FetchedArtStillServedWithoutEmbedded(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	libRepo := postgres.NewLibraryRepository(db)
+	repo := postgres.NewMusicTrackRepository(db)
+	ctx := context.Background()
+
+	lib := newTestLibrary("mt-lib-art2")
+	lib.Type = "music"
+	require.NoError(t, libRepo.Create(ctx, lib))
+
+	tr := newTestTrack("mt-art-c", lib.ID, "School", "Supertramp", "Crime Of The Century")
+	tr.FilePath = "/music/crime/01.flac"
+	tr.CoverArtURL = "" // aucune pochette dans le fichier
+	_, err := repo.Upsert(ctx, tr)
+	require.NoError(t, err)
+
+	require.NoError(t, repo.SetAlbumCoverArtURL(ctx, lib.ID, "/music/crime",
+		"/api/v1/music/album-art/cafecafecafecafe"))
+
+	albums, err := repo.GetAlbums(ctx, lib.ID)
+	require.NoError(t, err)
+	require.Len(t, albums, 1)
+	assert.Equal(t, "/api/v1/music/album-art/cafecafecafecafe", albums[0].CoverArtURL)
+}
+
 // TestMusicTrackRepo_GetArtists_AlbumCountByFolder proves the artist album count
 // matches the folder-based album identity GetAlbums uses: one album tag spread
 // over two folders is two albums, not one (the old COUNT(DISTINCT album) reported

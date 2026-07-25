@@ -42,6 +42,12 @@ type TrackWriter interface {
 	Delete(ctx context.Context, id string) error
 	UpdateFilePath(ctx context.Context, id, newPath string, modTime time.Time) error
 	SetAlbumCoverArtURL(ctx context.Context, libraryID shared.LibraryID, albumFolder, url string) error
+
+	// SetTrackCoverArtURL fixe la pochette d'UNE piste. Sert à restaurer une
+	// pochette embarquée qu'un fetch externe avait écrasée : un scan ne
+	// ré-upsert pas un fichier inchangé, donc sans ce chemin la pochette du
+	// fichier ne revient jamais d'elle-même.
+	SetTrackCoverArtURL(ctx context.Context, trackID, url string) error
 }
 
 // TrackRepository is the full track store surface (reads + writes).
@@ -82,6 +88,11 @@ type AlbumKey struct {
 	AlbumFolder string
 	Artist      string
 	Album       string
+	// HasEmbeddedArt vaut true dès qu'une piste du dossier porte une pochette
+	// lue dans le fichier audio lui-même. Un fetcher externe doit alors
+	// s'abstenir : le fichier est la source autoritaire, et une devinette
+	// externe ne peut que la contredire.
+	HasEmbeddedArt bool
 }
 
 // ScannedAudioFile represents a discovered audio file during directory walking.

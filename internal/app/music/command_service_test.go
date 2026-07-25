@@ -117,6 +117,263 @@ func TestCommandService_FetchMissingAlbumArt_HappyPath(t *testing.T) {
 	}
 }
 
+// Régression prod 2026-07-25 : le fetcher externe partait pour TOUS les albums
+// dont l'image cache manquait sur disque, sans regarder si les fichiers audio
+// portaient déjà leur pochette EMBARQUÉE - et écrasait ensuite le cover_art_url
+// de toutes les pistes du dossier. Les MP3 de "Apple Essentials" (Linkin Park)
+// embarquaient la bonne pochette et affichaient celle de Hybrid Theory, devinée
+// par iTunes. Le fichier audio est autoritaire : on ne va pas deviner à sa place.
+func TestCommandService_FetchMissingAlbumArt_SkipsAlbumsThatAlreadyHaveEmbeddedArt(t *testing.T) {
+	cmd, repo, _ := newCmdWithFakes(t)
+	fetcher := &fakeFetcher{data: []byte("ITUNESGUESS"), mime: "image/jpeg"}
+	cmd.WithAlbumArtFetcher(fetcher, t.TempDir())
+
+	libID := "lib1"
+	embedded := "/api/v1/music/tracks/t1/art"
+	_, _ = repo.Upsert(context.Background(), music.Track{
+		ID: "t1", LibraryID: shared.LibraryID(libID), Title: "In The End",
+		Artist: "Linkin Park", AlbumArtist: "Linkin Park", Album: "Apple Essentials",
+		FilePath: "/m/Essentials/01.mp3", CoverArtURL: embedded,
+	})
+
+	n, err := cmd.FetchMissingAlbumArt(context.Background(), libID)
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if n != 0 {
+		t.Fatalf("aucun fetch attendu pour un album à pochette embarquée, obtenu %d", n)
+	}
+	if got := fetcher.calls.Load(); got != 0 {
+		t.Errorf("la source externe ne doit pas être interrogée (%d appels)", got)
+	}
+	tr, _ := repo.GetByID(context.Background(), "t1")
+	if tr == nil || tr.CoverArtURL != embedded {
+		t.Fatalf("la pochette embarquée doit être conservée intacte, obtenu %+v", tr)
+	}
+}
+
+// mp3WithEmbeddedPicture forge un MP3 minimal portant une frame ID3v2.3 APIC,
+// telle que dhowden/tag la lit. Pas de fixture binaire au dépôt : la structure
+// du tag est justement ce que le test doit exercer.
+func mp3WithEmbeddedPicture(t *testing.T) []byte {
+	t.Helper()
+	jpeg := []byte{0xFF, 0xD8, 0xFF, 0xE0, 'f', 'a', 'k', 'e'}
+
+	var frame []byte
+	frame = append(frame, "image/jpeg"...)
+	frame = append(frame, 0x00) // fin du MIME
+	frame = append(frame, 0x03) // type d'image : front cover
+	frame = append(frame, 0x00) // description vide
+	frame = append(frame, jpeg...)
+
+	body := []byte{0x00} // encodage texte : ISO-8859-1
+	body = append(body, frame...)
+
+	syncsafe := func(n int) []byte {
+		return []byte{byte(n >> 21 & 0x7F), byte(n >> 14 & 0x7F), byte(n >> 7 & 0x7F), byte(n & 0x7F)}
+	}
+	be32 := func(n int) []byte {
+		return []byte{byte(n >> 24), byte(n >> 16), byte(n >> 8), byte(n)}
+	}
+
+	var frames []byte
+	frames = append(frames, "APIC"...)
+	frames = append(frames, be32(len(body))...) // ID3v2.3 : taille brute, pas syncsafe
+	frames = append(frames, 0x00, 0x00)         // flags
+	frames = append(frames, body...)
+
+	out := []byte("ID3")
+	out = append(out, 0x03, 0x00) // version 2.3.0
+	out = append(out, 0x00)       // flags
+	out = append(out, syncsafe(len(frames))...)
+	out = append(out, frames...)
+	return out
+}
+
+// Régression prod 2026-07-25, chemin de RÉPARATION. L'ancien fetch avait écrasé
+// en base les URLs de pochette embarquée de tout le dossier ; comme un scan ne
+// ré-upsert pas un fichier inchangé, elles ne revenaient jamais et l'album
+// restait collé sur la mauvaise image. La base ne peut donc pas être crue sur
+// l'absence de pochette : il faut rouvrir un fichier du dossier pour trancher.
+func TestCommandService_FetchMissingAlbumArt_RestoresEmbeddedArtClobberedInDB(t *testing.T) {
+	cmd, repo, scanner := newCmdWithFakes(t)
+	fetcher := &fakeFetcher{data: []byte("ITUNESGUESS"), mime: "image/jpeg"}
+	cmd.WithAlbumArtFetcher(fetcher, t.TempDir())
+
+	libID := "lib1"
+	path := "/m/Essentials/01.mp3"
+	scanner.FileData = map[string][]byte{path: mp3WithEmbeddedPicture(t)}
+
+	// État exact de la prod : la piste PORTE une pochette dans son fichier, mais
+	// sa ligne en base a été écrasée par une URL album-art.
+	_, _ = repo.Upsert(context.Background(), music.Track{
+		ID: "t1", LibraryID: shared.LibraryID(libID), Title: "In The End",
+		Artist: "Linkin Park", AlbumArtist: "Linkin Park", Album: "Apple Essentials",
+		FilePath: path,
+	})
+	if err := repo.SetAlbumCoverArtURL(context.Background(), shared.LibraryID(libID),
+		"/m/Essentials", "/api/v1/music/album-art/deadbeef"); err != nil {
+		t.Fatalf("seed fetched art: %v", err)
+	}
+
+	n, err := cmd.FetchMissingAlbumArt(context.Background(), libID)
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if n != 0 || fetcher.calls.Load() != 0 {
+		t.Fatalf("la pochette locale doit court-circuiter la source externe (n=%d, appels=%d)", n, fetcher.calls.Load())
+	}
+	tr, _ := repo.GetByID(context.Background(), "t1")
+	if tr == nil || tr.CoverArtURL != "/api/v1/music/tracks/t1/art" {
+		t.Fatalf("la pochette embarquée doit être restaurée, obtenu %+v", tr)
+	}
+}
+
+// Sans pochette dans le fichier, la récupération externe reste le seul recours :
+// la réparation ci-dessus ne doit pas bloquer le cas normal.
+func TestCommandService_FetchMissingAlbumArt_FallsBackToFetcherWithoutLocalArt(t *testing.T) {
+	cmd, repo, scanner := newCmdWithFakes(t)
+	fetcher := &fakeFetcher{data: []byte("IMGBYTES"), mime: "image/jpeg"}
+	cmd.WithAlbumArtFetcher(fetcher, t.TempDir())
+
+	libID := "lib1"
+	path := "/m/Crime/01.flac"
+	scanner.FileData = map[string][]byte{path: []byte("pas un fichier taggé")}
+
+	_, _ = repo.Upsert(context.Background(), music.Track{
+		ID: "t9", LibraryID: shared.LibraryID(libID), Title: "School",
+		Artist: "Supertramp", AlbumArtist: "Supertramp", Album: "Crime Of The Century",
+		FilePath: path,
+	})
+
+	n, err := cmd.FetchMissingAlbumArt(context.Background(), libID)
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if n != 1 || fetcher.calls.Load() != 1 {
+		t.Fatalf("la source externe doit être utilisée (n=%d, appels=%d)", n, fetcher.calls.Load())
+	}
+}
+
+// Régression prod 2026-07-25, cas "From Zero" : aucune pochette dans les
+// fichiers, et une image récupérée AVANT que le fetcher ne vérifie la
+// correspondance - donc la pochette d'un autre album. Le garde-fou os.Stat
+// scellait ce mauvais choix définitivement. Une image sans témoin doit être
+// recontrôlée une fois, et retirée si la source ne reconnaît plus l'album.
+func TestCommandService_FetchMissingAlbumArt_DropsAnUnverifiedImageTheSourceNoLongerMatches(t *testing.T) {
+	cmd, repo, scanner := newCmdWithFakes(t)
+	dir := t.TempDir()
+	// os.ErrNotExist = "aucun résultat ne correspond à l'album demandé".
+	fetcher := &fakeFetcher{err: os.ErrNotExist}
+	cmd.WithAlbumArtFetcher(fetcher, dir)
+
+	libID := "lib1"
+	path := "/m/FromZero/01.flac"
+	scanner.FileData = map[string][]byte{path: []byte("flac sans pochette")}
+	_, _ = repo.Upsert(context.Background(), music.Track{
+		ID: "fz1", LibraryID: shared.LibraryID(libID), Title: "The Emptiness Machine",
+		Artist: "Linkin Park", AlbumArtist: "Linkin Park", Album: "From Zero",
+		FilePath: path,
+	})
+
+	// Image héritée de l'ancien fetch non vérifié (la pochette de Hybrid Theory),
+	// SANS témoin de vérification.
+	sum := sha256.Sum256([]byte("/m/FromZero" + "|"))
+	hash := hex.EncodeToString(sum[:])
+	stale := filepath.Join(cmd.AlbumArtDir(), hash+".jpg")
+	if err := os.MkdirAll(cmd.AlbumArtDir(), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(stale, []byte("WRONGCOVER"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.SetAlbumCoverArtURL(context.Background(), shared.LibraryID(libID),
+		"/m/FromZero", "/api/v1/music/album-art/"+hash); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := cmd.FetchMissingAlbumArt(context.Background(), libID); err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if fetcher.calls.Load() != 1 {
+		t.Fatalf("l'image sans témoin doit être recontrôlée une fois, obtenu %d appels", fetcher.calls.Load())
+	}
+	if _, err := os.Stat(stale); !os.IsNotExist(err) {
+		t.Error("l'image qui ne correspond à aucun album doit être retirée du cache")
+	}
+	tr, _ := repo.GetByID(context.Background(), "fz1")
+	if tr == nil || tr.CoverArtURL != "" {
+		t.Errorf("la pochette doit repasser à vide pour laisser le placeholder, obtenu %+v", tr)
+	}
+}
+
+// Une image DÉJÀ vérifiée n'est jamais recontrôlée : le témoin évite de
+// re-solliciter la source externe à chaque scan.
+func TestCommandService_FetchMissingAlbumArt_TrustsAnAlreadyVerifiedImage(t *testing.T) {
+	cmd, repo, _ := newCmdWithFakes(t)
+	fetcher := &fakeFetcher{data: []byte("IMG"), mime: "image/jpeg"}
+	cmd.WithAlbumArtFetcher(fetcher, t.TempDir())
+
+	libID := "lib1"
+	_, _ = repo.Upsert(context.Background(), music.Track{
+		ID: "v1", LibraryID: shared.LibraryID(libID), Title: "School",
+		Artist: "Supertramp", AlbumArtist: "Supertramp", Album: "Crime Of The Century",
+		FilePath: "/m/Crime/01.flac",
+	})
+
+	sum := sha256.Sum256([]byte("/m/Crime" + "|"))
+	hash := hex.EncodeToString(sum[:])
+	if err := os.MkdirAll(cmd.AlbumArtDir(), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	img := filepath.Join(cmd.AlbumArtDir(), hash+".jpg")
+	if err := os.WriteFile(img, []byte("GOODCOVER"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(img+".matched", []byte("Supertramp|Crime Of The Century\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := cmd.FetchMissingAlbumArt(context.Background(), libID); err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if fetcher.calls.Load() != 0 {
+		t.Errorf("une image témoignée ne doit pas relancer de fetch (%d appels)", fetcher.calls.Load())
+	}
+	if b, _ := os.ReadFile(img); string(b) != "GOODCOVER" {
+		t.Errorf("l'image vérifiée doit rester intacte, obtenu %q", b)
+	}
+}
+
+// Un album dont SEULES quelques pistes portent une pochette embarquée compte
+// comme pourvu : la pochette de l'album se lit sur l'une de ses pistes, donc
+// aller en chercher une autre en externe ne peut que la contredire.
+func TestCommandService_FetchMissingAlbumArt_PartialEmbeddedArtIsEnough(t *testing.T) {
+	cmd, repo, _ := newCmdWithFakes(t)
+	fetcher := &fakeFetcher{data: []byte("ITUNESGUESS"), mime: "image/jpeg"}
+	cmd.WithAlbumArtFetcher(fetcher, t.TempDir())
+
+	libID := "lib1"
+	_, _ = repo.Upsert(context.Background(), music.Track{
+		ID: "p1", LibraryID: shared.LibraryID(libID), Title: "A",
+		Artist: "Band", AlbumArtist: "Band", Album: "Half Tagged",
+		FilePath: "/m/Half/01.mp3", CoverArtURL: "/api/v1/music/tracks/p1/art",
+	})
+	_, _ = repo.Upsert(context.Background(), music.Track{
+		ID: "p2", LibraryID: shared.LibraryID(libID), Title: "B",
+		Artist: "Band", AlbumArtist: "Band", Album: "Half Tagged",
+		FilePath: "/m/Half/02.mp3",
+	})
+
+	n, err := cmd.FetchMissingAlbumArt(context.Background(), libID)
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if n != 0 || fetcher.calls.Load() != 0 {
+		t.Fatalf("aucun fetch attendu (n=%d, appels=%d)", n, fetcher.calls.Load())
+	}
+}
+
 // Regression: an album whose cover_art_url is already set in the DB but whose
 // cached image was wiped from disk (cache cleared) must be re-fetched, not left
 // broken. The old "missing art = empty URL" gate skipped it forever.
@@ -167,11 +424,19 @@ func TestCommandService_FetchMissingAlbumArt_SkipsWhenFilePresent(t *testing.T) 
 	libID := "lib1"
 	sum := sha256.Sum256([]byte("/m/AlbumX" + "|"))
 	hash := hex.EncodeToString(sum[:])
-	// Pre-create the cached image so the gate skips the fetch.
+	// Pre-create the cached image so the gate skips the fetch. Le témoin
+	// ".matched" fait désormais partie de « image présente » : une image SANS
+	// témoin vient de l'ancien fetcher non vérifié et doit être recontrôlée une
+	// fois (cf DropsAnUnverifiedImage…), donc son absence ne ferait plus sauter
+	// le fetch.
 	if err := os.MkdirAll(cmd.AlbumArtDir(), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(cmd.AlbumArtDir(), hash+".jpg"), []byte("EXISTING"), 0o644); err != nil {
+	img := filepath.Join(cmd.AlbumArtDir(), hash+".jpg")
+	if err := os.WriteFile(img, []byte("EXISTING"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(img+".matched", []byte("ArtistA|AlbumX\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	_, _ = repo.Upsert(context.Background(), music.Track{

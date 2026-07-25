@@ -347,7 +347,16 @@ func (r *MusicTrackRepository) GetAlbums(ctx context.Context, libraryID shared.L
 		       MIN(year) AS year,
 		       COUNT(*)  AS track_count,
 		       SUM(duration) AS duration,
-		       MIN(NULLIF(cover_art_url,'')) AS cover_art_url
+		       -- Préférence EXPLICITE pour la pochette embarquée dans le fichier
+		       -- (/music/tracks/<id>/art) sur celle récupérée en externe
+		       -- (/music/album-art/<hash>). Un simple MIN() tranchait par ordre
+		       -- alphabétique, et 'a' < 't' : une seule ligne iTunes suffisait à
+		       -- masquer les pochettes embarquées correctes de tout le dossier.
+		       -- L'artwork du fichier est la source autoritaire.
+		       COALESCE(
+		           MIN(NULLIF(cover_art_url,'')) FILTER (WHERE cover_art_url LIKE '/api/v1/music/tracks/%'),
+		           MIN(NULLIF(cover_art_url,''))
+		       ) AS cover_art_url
 		FROM music_tracks
 		WHERE library_id=$1
 		GROUP BY album_folder
@@ -551,7 +560,11 @@ func (r *MusicTrackRepository) ListAllAlbums(ctx context.Context, libraryID shar
 		           mode() WITHIN GROUP (ORDER BY NULLIF(album_artist,'')),
 		           mode() WITHIN GROUP (ORDER BY NULLIF(artist,'')),
 		           ''
-		       ) AS display_artist
+		       ) AS display_artist,
+		       -- Une seule piste à pochette embarquée suffit à pourvoir l'album :
+		       -- le service saute alors le fetch externe au lieu d'écraser une
+		       -- pochette qui vient du fichier lui-même.
+		       BOOL_OR(cover_art_url LIKE '/api/v1/music/tracks/%') AS has_embedded_art
 		FROM music_tracks
 		WHERE library_id=$1
 		GROUP BY album_folder
@@ -571,11 +584,14 @@ func (r *MusicTrackRepository) ListAllAlbums(ctx context.Context, libraryID shar
 	var out []music.AlbumKey
 	for rows.Next() {
 		var k music.AlbumKey
-		if err := rows.Scan(&k.AlbumFolder, &k.Album, &k.Artist); err != nil {
+		// BOOL_OR renvoie NULL sur un groupe entièrement NULL : NullBool absorbe.
+		var hasEmbedded sql.NullBool
+		if err := rows.Scan(&k.AlbumFolder, &k.Album, &k.Artist, &hasEmbedded); err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
 			return nil, err
 		}
+		k.HasEmbeddedArt = hasEmbedded.Valid && hasEmbedded.Bool
 		out = append(out, k)
 	}
 	if err := rows.Err(); err != nil {
@@ -586,10 +602,33 @@ func (r *MusicTrackRepository) ListAllAlbums(ctx context.Context, libraryID shar
 	return out, nil
 }
 
+// SetTrackCoverArtURL fixe la pochette d'une seule piste, sans passer par
+// l'upsert (qui exige les métadonnées complètes du fichier).
+func (r *MusicTrackRepository) SetTrackCoverArtURL(ctx context.Context, trackID, url string) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.musictrack.SetTrackCoverArtURL")
+	defer span.End()
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `
+		UPDATE music_tracks SET cover_art_url=$2, updated_at=NOW() WHERE id=$1`,
+		trackID, url)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	return err
+}
+
 // SetAlbumCoverArtURL applies a cover art URL to every track sharing the
 // same album_folder. Using the folder as the key keeps the semantics
 // aligned with GetAlbums / ListAlbumsMissingArt and avoids mis-stamping
 // tracks when tag values disagree within the folder.
+//
+// Les pistes portant une pochette EMBARQUÉE sont exclues : elles sont la source
+// autoritaire. L'UPDATE écrasait tout le dossier, y compris ces pistes - et
+// comme un scan ne ré-upsert PAS un fichier inchangé, la pochette embarquée ne
+// revenait jamais. C'est ce qui a durablement collé la pochette de Hybrid Theory
+// sur "Apple Essentials" en prod (07-25).
 func (r *MusicTrackRepository) SetAlbumCoverArtURL(ctx context.Context, libraryID shared.LibraryID, albumFolder, url string) error {
 	ctx, span := tracing.StartSpan(ctx, "postgres.musictrack.SetAlbumCoverArtURL")
 	defer span.End()
@@ -599,7 +638,8 @@ func (r *MusicTrackRepository) SetAlbumCoverArtURL(ctx context.Context, libraryI
 	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `
 		UPDATE music_tracks
 		SET cover_art_url=$3, updated_at=NOW()
-		WHERE library_id=$1 AND album_folder=$2`,
+		WHERE library_id=$1 AND album_folder=$2
+		  AND cover_art_url NOT LIKE '/api/v1/music/tracks/%'`,
 		libraryID, albumFolder, url)
 	if err != nil {
 		span.RecordError(err)

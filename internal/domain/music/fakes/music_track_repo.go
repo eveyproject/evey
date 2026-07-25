@@ -274,7 +274,11 @@ func (r *FakeMusicTrackRepository) GetAlbums(_ context.Context, libraryID shared
 		}
 		agg.trackCnt++
 		agg.duration += t.Duration
-		if agg.cover == "" && t.CoverArtURL != "" {
+		// Même préférence que le repo postgres : la pochette EMBARQUÉE dans le
+		// fichier bat celle récupérée en externe. Le fake prenait « la première
+		// non vide », donc il ne pouvait pas voir le bug de préséance qui a fait
+		// afficher la pochette de Hybrid Theory sur deux albums Linkin Park.
+		if t.CoverArtURL != "" && (agg.cover == "" || preferredCoverArt(t.CoverArtURL, agg.cover)) {
 			agg.cover = t.CoverArtURL
 		}
 	}
@@ -293,6 +297,24 @@ func (r *FakeMusicTrackRepository) GetAlbums(_ context.Context, libraryID shared
 		})
 	}
 	return out, nil
+}
+
+// embeddedArtPrefix est le préfixe des URLs de pochette lues dans le fichier
+// audio lui-même, par opposition à /api/v1/music/album-art/<hash> qui désigne
+// une image récupérée auprès d'une source externe.
+const embeddedArtPrefix = "/api/v1/music/tracks/"
+
+// preferredCoverArt dit si candidate doit remplacer current : seule une pochette
+// embarquée détrône une pochette externe. Entre deux du même genre on garde la
+// plus petite lexicographiquement, pour que le résultat soit déterministe comme
+// le MIN() du repo postgres.
+func preferredCoverArt(candidate, current string) bool {
+	candEmbedded := strings.HasPrefix(candidate, embeddedArtPrefix)
+	curEmbedded := strings.HasPrefix(current, embeddedArtPrefix)
+	if candEmbedded != curEmbedded {
+		return candEmbedded
+	}
+	return candidate < current
 }
 
 // modeString returns the key with the highest count. Ties are broken
@@ -388,9 +410,10 @@ func (r *FakeMusicTrackRepository) ListAllAlbums(_ context.Context, libraryID sh
 	// caller decides what to fetch by checking the on-disk file. Display
 	// album/artist are the folder's majority.
 	type folderAgg struct {
-		folder   string
-		albumCnt map[string]int
-		artCnt   map[string]int
+		folder      string
+		albumCnt    map[string]int
+		artCnt      map[string]int
+		hasEmbedded bool
 	}
 	m := make(map[string]*folderAgg)
 	for _, t := range r.tracks {
@@ -412,6 +435,9 @@ func (r *FakeMusicTrackRepository) ListAllAlbums(_ context.Context, libraryID sh
 		if a != "" {
 			agg.artCnt[a]++
 		}
+		if strings.HasPrefix(t.CoverArtURL, embeddedArtPrefix) {
+			agg.hasEmbedded = true
+		}
 	}
 	var out []music.AlbumKey
 	for _, agg := range m {
@@ -423,12 +449,28 @@ func (r *FakeMusicTrackRepository) ListAllAlbums(_ context.Context, libraryID sh
 			continue
 		}
 		out = append(out, music.AlbumKey{
-			AlbumFolder: agg.folder,
-			Album:       album,
-			Artist:      artist,
+			AlbumFolder:    agg.folder,
+			Album:          album,
+			Artist:         artist,
+			HasEmbeddedArt: agg.hasEmbedded,
 		})
 	}
 	return out, nil
+}
+
+func (r *FakeMusicTrackRepository) SetTrackCoverArtURL(_ context.Context, trackID, url string) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	t, ok := r.tracks[trackID]
+	if !ok {
+		return shared.ErrNotFound
+	}
+	t.CoverArtURL = url
+	r.tracks[trackID] = t
+	return nil
 }
 
 func (r *FakeMusicTrackRepository) SetAlbumCoverArtURL(_ context.Context, libraryID shared.LibraryID, albumFolder, url string) error {
@@ -439,6 +481,10 @@ func (r *FakeMusicTrackRepository) SetAlbumCoverArtURL(_ context.Context, librar
 	defer r.mu.Unlock()
 	for id, t := range r.tracks {
 		if t.LibraryID != libraryID || t.AlbumFolder != albumFolder {
+			continue
+		}
+		// Comme le repo postgres : une pochette embarquée n'est jamais écrasée.
+		if strings.HasPrefix(t.CoverArtURL, embeddedArtPrefix) {
 			continue
 		}
 		t.CoverArtURL = url

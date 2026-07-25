@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/evey-project/evey/internal/pkg/ssrf"
+	"github.com/evey-project/evey/internal/pkg/titlematch"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
@@ -24,19 +25,28 @@ const (
 
 type AlbumArtFetcher struct {
 	httpClient *http.Client
+	endpoint   string
 }
 
 func NewAlbumArtFetcher(client *http.Client) *AlbumArtFetcher {
 	if client == nil {
 		client = ssrf.SafeHTTPClient(defaultTimeout)
 	}
-	return &AlbumArtFetcher{httpClient: client}
+	return &AlbumArtFetcher{httpClient: client, endpoint: searchEndpoint}
+}
+
+// SetSearchEndpointForTest redirige la recherche vers un serveur de test.
+// Réservé aux tests : la production doit taper l'API iTunes publique.
+func (f *AlbumArtFetcher) SetSearchEndpointForTest(url string) { f.endpoint = url }
+
+type searchResult struct {
+	ArtistName     string `json:"artistName"`
+	CollectionName string `json:"collectionName"`
+	ArtworkURL100  string `json:"artworkUrl100"`
 }
 
 type searchResponse struct {
-	Results []struct {
-		ArtworkURL100 string `json:"artworkUrl100"`
-	} `json:"results"`
+	Results []searchResult `json:"results"`
 }
 
 // Fetch queries iTunes for (artist, album) and returns the JPEG bytes of the
@@ -52,9 +62,13 @@ func (f *AlbumArtFetcher) Fetch(ctx context.Context, artist, album string) ([]by
 	q := url.Values{}
 	q.Set("term", artist+" "+album)
 	q.Set("entity", "album")
-	q.Set("limit", "1")
+	// Plusieurs résultats, PAS un seul : la recherche plein-texte d'iTunes
+	// classe par popularité, donc le premier hit est très souvent l'album
+	// vedette de l'artiste et non celui demandé. On récupère un lot et on
+	// choisit celui qui correspond vraiment (matchingArtwork).
+	q.Set("limit", "25")
 	q.Set("country", "US")
-	u := searchEndpoint + "?" + q.Encode()
+	u := f.endpoint + "?" + q.Encode()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
@@ -73,11 +87,15 @@ func (f *AlbumArtFetcher) Fetch(ctx context.Context, artist, album string) ([]by
 	if err := json.NewDecoder(resp.Body).Decode(&sr); err != nil {
 		return nil, "", fmt.Errorf("itunes: decode: %w", err)
 	}
-	if len(sr.Results) == 0 || sr.Results[0].ArtworkURL100 == "" {
+	art100, ok := matchingArtwork(sr.Results, artist, album)
+	if !ok {
+		// Aucun résultat ne correspond à l'album demandé. On abandonne au lieu
+		// de servir la pochette d'un AUTRE album : l'appelant retombe alors sur
+		// le placeholder, ce qui est honnête, là où une fausse pochette trompe.
 		return nil, "", os.ErrNotExist
 	}
 
-	artURL := strings.Replace(sr.Results[0].ArtworkURL100, "100x100bb", "600x600bb", 1)
+	artURL := strings.Replace(art100, "100x100bb", "600x600bb", 1)
 
 	artReq, err := http.NewRequestWithContext(ctx, http.MethodGet, artURL, nil)
 	if err != nil {
@@ -96,4 +114,25 @@ func (f *AlbumArtFetcher) Fetch(ctx context.Context, artist, album string) ([]by
 		return nil, "", fmt.Errorf("itunes: read art: %w", err)
 	}
 	return data, "image/jpeg", nil
+}
+
+// matchingArtwork retient le premier résultat dont l'ARTISTE et l'ALBUM
+// correspondent vraiment à la demande, et renvoie ok=false si aucun ne
+// correspond. Sans ce filtre, iTunes servait l'album vedette de l'artiste dès
+// que le titre demandé n'était pas indexé : "Linkin Park From Zero" renvoie
+// "Hybrid Theory (Deluxe Edition)" en premier résultat.
+func matchingArtwork(results []searchResult, artist, album string) (string, bool) {
+	for _, r := range results {
+		if r.ArtworkURL100 == "" {
+			continue
+		}
+		if !titlematch.Equivalent(r.ArtistName, artist) {
+			continue
+		}
+		if !titlematch.Equivalent(r.CollectionName, album) {
+			continue
+		}
+		return r.ArtworkURL100, true
+	}
+	return "", false
 }
