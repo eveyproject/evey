@@ -70,7 +70,7 @@ require (
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/grandcat/zeroconf v1.0.0 // indirect
-	github.com/gravity-zero/ac3go v0.0.0-20260718104335-0e8e5d676ef4 // indirect
+	github.com/gravity-zero/ac3go v0.0.0-20260725211506-1c0c5883d854 // indirect
 	github.com/h2non/filetype v1.1.3 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect

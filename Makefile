@@ -48,11 +48,18 @@ build:
 # this after pulling or after bumping the ac3go pin (go get -tool ...@version).
 # In CI/Docker the `wasmbuild` stage does the same. Runs in the evey-server
 # container (Go toolchain + module cache).
+# TinyGo, pas le go standard : 391 Ko contre 2,9 Mo, compilation navigateur ~5x
+# plus rapide - déterminant pour le receiver Cast qui compile ce module sur le
+# CPU d'une TV (10 s -> ~2 s mesurés le 2026-07-25). Exige l'entrypoint
+# streaming d'ac3go (>= v0.0.0-20260725211506) : l'ancien accumulait le PCM sur
+# le tas Go et TinyGo gonflait à 768 Mo. ⚠️ le shim wasm_exec.js est CELUI DE
+# TINYGO, incompatible avec celui de go - toujours livrer les deux ensemble.
 wasm-decoder:
-	docker exec -e GOTOOLCHAIN=auto evey-server sh -c 'cd /app \
-	  && GOOS=js GOARCH=wasm CGO_ENABLED=0 go build -o frontend/apps/web/public/wasm/ac3go.wasm github.com/gravity-zero/ac3go/cmd/ac3go-wasm \
-	  && cp "$$(go env GOROOT)/lib/wasm/wasm_exec.js" frontend/apps/web/public/wasm/wasm_exec.js'
-	@echo "✅ ac3go.wasm + wasm_exec.js rebuilt in frontend/apps/web/public/wasm/"
+	docker run --rm -v $(PWD):/src -w /src -e HOME=/tmp -e GOFLAGS=-mod=mod \
+	  tinygo/tinygo:0.41.1 sh -c '\
+	  tinygo build -target wasm -no-debug -opt=z -o frontend/apps/web/public/wasm/ac3go.wasm github.com/gravity-zero/ac3go/cmd/ac3go-wasm \
+	  && cp /usr/local/tinygo/targets/wasm_exec.js frontend/apps/web/public/wasm/wasm_exec.js'
+	@echo "✅ ac3go.wasm (TinyGo) + wasm_exec.js (shim TinyGo) rebuilt in frontend/apps/web/public/wasm/"
 
 test: test-image
 	docker run --rm \

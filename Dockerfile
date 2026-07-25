@@ -21,9 +21,18 @@ RUN buf generate --template buf.gen.local.yaml
 # ── Stage 2b: Build the ac3go WebAssembly decoder (browser AC-3/E-AC-3 path) ──
 # Built from the pinned module (go.mod `tool` directive), not committed. The web
 # player loads it from /wasm/ac3go.wasm to decode AC-3/E-AC-3 client-side.
-FROM gomod AS wasmbuild
-RUN GOOS=js GOARCH=wasm CGO_ENABLED=0 go build -o /out/ac3go.wasm github.com/gravity-zero/ac3go/cmd/ac3go-wasm \
-    && cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" /out/wasm_exec.js
+# TinyGo : module 391 Ko (vs 2,9 Mo en go standard), compilation navigateur ~5x
+# plus rapide - le receiver Cast compile ce module sur le CPU d'une TV. Le shim
+# wasm_exec.js est CELUI DE TINYGO (incompatible avec celui de go standard).
+# Requiert l'entrypoint streaming d'ac3go (pin >= v0.0.0-20260725211506) sans
+# lequel le tas TinyGo gonfle à 768 Mo sur un long décodage.
+FROM tinygo/tinygo:0.41.1 AS wasmbuild
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download github.com/gravity-zero/ac3go
+RUN mkdir -p /out \
+    && tinygo build -target wasm -no-debug -opt=z -o /out/ac3go.wasm github.com/gravity-zero/ac3go/cmd/ac3go-wasm \
+    && cp /usr/local/tinygo/targets/wasm_exec.js /out/wasm_exec.js
 
 # ── Stage 3: Build frontend ──
 FROM node:22-alpine AS frontend
