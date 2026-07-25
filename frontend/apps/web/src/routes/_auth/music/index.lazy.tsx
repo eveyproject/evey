@@ -967,7 +967,13 @@ function AlbumsTab({ albums, loading, libraryID, onAlbumClick }: { albums: Album
       {albums.map((a) => (
         <div
           key={a.ID}
-          className="relative rounded-[var(--radius-md)] overflow-hidden bg-[var(--surface-raised)] border border-[var(--border)] hover:border-[var(--accent)] transition-colors-fast group"
+          // Largeur FIXE, calée sur MediaCard (w-40 sm:w-48 = les minima des
+          // pistes de MediaGrid). MediaGrid pose `justify-items-start` pour
+          // aligner ces cartes à largeur fixe : sans largeur déclarée, la carte
+          // se dimensionne sur son contenu, donc sur la longueur du titre, et la
+          // pochette en aspect-square suivait - titre long = vignette géante,
+          // titre court = vignette minuscule.
+          className="evey-album-card relative w-40 sm:w-48 rounded-[var(--radius-md)] overflow-hidden bg-[var(--surface-raised)] border border-[var(--border)] hover:border-[var(--accent)] transition-colors-fast group"
         >
           <div
             role="button"
