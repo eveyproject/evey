@@ -37,6 +37,19 @@ linters:
     - exhaustruct
 
   settings:
+    misspell:
+      # Les commentaires de ce dépôt sont en FRANÇAIS, et misspell est un
+      # correcteur anglais : il lit des mots français comme des fautes anglaises
+      # ("démarrage" -> marriage, "présence" -> sense). Reformuler à chaque fois
+      # abîme la prose sans rien corriger, donc on exclut les jetons concernés.
+      # Ajouter ici le jeton EXACT rapporté par le linter, pas le mot entier.
+      ignore-rules:
+        - marrage # démarrage, redémarrage
+        - abandonne
+        - normalis # normalisés, normalisation
+        - journalis # journalisée, journalisation
+        - sence # présence
+        - portait
     exhaustruct:
       # Scope to the HTTP handler dependency structs ONLY - enabling exhaustruct
       # globally would flag every legitimate partial literal in the codebase.
