@@ -15,6 +15,7 @@ package httpapi
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
@@ -121,7 +122,7 @@ func (h *hlsVODServe) resolvePlan(r *http.Request, mediaID string, item *domainl
 	if err != nil {
 		return nil, err
 	}
-	return &requestPlan{
+	rp := &requestPlan{
 		Plan:       plan,
 		Decision:   plan.Decision,
 		Profiles:   plan.Ladder,
@@ -129,7 +130,39 @@ func (h *hlsVODServe) resolvePlan(r *http.Request, mediaID string, item *domainl
 		FP:         plan.Fingerprint,
 		FPHash:     plan.FingerprintHash,
 		IsCopy:     plan.Packager == apptranscoding.PackagerCopyFFmpeg,
-	}, nil
+	}
+	h.reclaimSupersededHash(r, mediaID, rp)
+	return rp, nil
+}
+
+// reclaimSupersededHash hands back the video-encode slot of the hash THIS
+// stream just left. A track switch, a subtitle burn-in change or an audio
+// offset are all Hash() dimensions, so they re-fingerprint the same viewing
+// session and the server sees a brand-new stream: the limiter bills both, and
+// the abandoned encoder keeps its slot until the paused/idle sweeps reap it
+// minutes later. On a box calibrated at one concurrent encode that made the
+// switch fail with "too many streams" - refused by the viewer's own dead
+// encoder (observed live 2026-07-25: two fingerprints for one media, a:0 then
+// a:1, the second shed while the first held the only slot for 58 s).
+//
+// Only fires for a hash NO other stream is on (see StreamHashRegistry), and
+// only on the encoding path: a copy rung takes no slot, so there is nothing to
+// reclaim and nothing to gain from tearing it down.
+func (h *hlsVODServe) reclaimSupersededHash(r *http.Request, mediaID string, rp *requestPlan) {
+	if h.streamHashes == nil || rp.IsCopy || rp.FPHash == "" {
+		return
+	}
+	superseded, ok := h.streamHashes.Bind(RawTokenFromContext(r.Context()), mediaID, rp.FPHash)
+	if !ok || h.reclaimHash == nil {
+		return
+	}
+	if killed := h.reclaimHash(superseded, "stream_superseded"); killed > 0 {
+		slog.InfoContext(r.Context(), "hls-vod: reclaimed the encoder this stream just left",
+			slog.String("media_id", mediaID),
+			slog.String("superseded_hash", superseded),
+			slog.String("now_on_hash", rp.FPHash),
+			slog.Int("killed", killed))
+	}
 }
 
 // itemID is string(item.ID), nil-safe - the MediaID the resolver keys the

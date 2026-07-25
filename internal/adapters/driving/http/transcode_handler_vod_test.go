@@ -116,6 +116,10 @@ func buildVODHandler(t *testing.T, libSvc MediaStreamsGetter, libAccess LibraryA
 		orchestrator:         orch,
 		useFMP4:              true, // matches the production default (fMP4 everywhere)
 		segmentWaitTimeout:   5 * time.Second,
+		// Wired like production so the supersede path is the one under test,
+		// not a nil-guard; reclaimHash stays nil (no producer to tear down)
+		// until a test injects one.
+		streamHashes: apptranscoding.NewStreamHashRegistry(0, 0),
 	}
 	return h, cacheDir
 }

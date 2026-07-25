@@ -37,6 +37,29 @@ func (p *SoftwareProducer) RemoveSession(mediaItemID string) {
 	}
 }
 
+// RemoveHash kills every session encoding for ONE decision hash and reports
+// how many it killed. The surgical counterpart of RemoveSession: a viewer who
+// switched audio track (or subtitle burn-in, or audio offset) re-fingerprints
+// the same viewing session, so the hash they left is dead weight holding a
+// video-encode slot - but the OTHER hashes of the same media may still have a
+// live viewer on them, and RemoveSession (media-wide) would take those down
+// too. Callers must have established that nobody is on this hash anymore (see
+// StreamHashRegistry). Disk segments are preserved exactly like every other
+// kill path, so a viewer who switches back replays the cache instantly.
+// No-op on an empty or unknown hash.
+func (p *SoftwareProducer) RemoveHash(hash, reason string) int {
+	if hash == "" {
+		return 0
+	}
+	p.mu.Lock()
+	toKill := append([]*swSession(nil), p.sessions[hash]...)
+	p.mu.Unlock()
+	for _, s := range toKill {
+		p.killSession(s, reason)
+	}
+	return len(toKill)
+}
+
 // killSession stops ffmpeg, cancels its context, and releases the cache pending
 // refcount. Idempotent. Does NOT delete disk segments (a rewind may want them);
 // the idle GC and Close handle disk cleanup.

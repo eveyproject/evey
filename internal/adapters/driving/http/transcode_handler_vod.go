@@ -79,6 +79,17 @@ type hlsVODServe struct {
 	// admissionBind reports the fingerprint hash built under a pin so the
 	// shaper can freeze the ceiling while that session holds a slot. Optional.
 	admissionBind func(key, fingerprintHash string)
+
+	// streamHashes remembers which decision hash each PLAYBACK STREAM (one
+	// player instance, keyed by its stream token) currently sits on, so a
+	// track/subtitle/offset switch - which re-fingerprints the SAME viewing
+	// session - can be told apart from a genuine second viewer. Optional: nil
+	// disables the reclaim below entirely (prior behaviour).
+	streamHashes *apptranscoding.StreamHashRegistry
+	// reclaimHash kills the encoders of a hash no stream is on anymore and
+	// returns how many died. Paired with streamHashes: without it the registry
+	// would observe supersessions and do nothing. Optional.
+	reclaimHash func(hash, reason string) int
 	// admissionFrozenLadder / admissionFreezeLadder read-verbatim the shaped ABR
 	// ladder EMITTED ONCE for a stream: profilesForDecision freezes its output on
 	// the admission pin and every later manifest-/segment-time call reads it back

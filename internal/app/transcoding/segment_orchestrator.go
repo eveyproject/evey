@@ -881,6 +881,25 @@ func (o *SegmentOrchestrator) RemoveSession(mediaItemID string) {
 	}
 }
 
+// RemoveHash kills every rafale producing for ONE decision hash and reports
+// how many it killed - the surgical counterpart of RemoveSession above, with
+// the same contract as SoftwareProducer.RemoveHash: a viewer who changed a
+// decision input (audio track, sub burn-in, offset) left this hash behind,
+// while the media's OTHER hashes may still have a live viewer that a
+// media-wide kill would take down with it. No-op on an empty or unknown hash.
+func (o *SegmentOrchestrator) RemoveHash(hash, reason string) int {
+	if hash == "" {
+		return 0
+	}
+	o.mu.Lock()
+	toKill := append([]*orchestratorSession(nil), o.sessions[hash]...)
+	o.mu.Unlock()
+	for _, s := range toKill {
+		o.killSession(s, reason)
+	}
+	return len(toKill)
+}
+
 // Compile-time assertion: the orchestrator IS the hardware StreamProducer.
 // It already carried EnsureSegmentRange / PreWarm / NotifyClientHint /
 // ActiveSessionCount / RemoveSession / Close; Profiles + WaitBudget below

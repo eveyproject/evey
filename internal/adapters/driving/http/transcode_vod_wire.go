@@ -127,6 +127,9 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 		admissionBind:         admissionBindOf(s.VideoAdmissionShaper),
 		admissionFrozenLadder: frozenLadderOf(s.VideoAdmissionShaper),
 		admissionFreezeLadder: freezeLadderOf(s.VideoAdmissionShaper),
+		// Per-stream hash bookkeeping: pure in-memory, no dependency, so it is
+		// always on. reclaimHash is attached below, once both producers exist.
+		streamHashes: apptranscoding.NewStreamHashRegistry(0, 0),
 		mediaLookup:           mediaLookup,
 		classLookup:           classLookup,
 		prefsLookup:           prefsLookup,
@@ -313,6 +316,16 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 	// reuses the handler's resolveHW + hwTonemapWanted so the routing matches
 	// exactly what tags the fingerprint (HW vs SW segments share the cache).
 	h.selector = apptranscoding.NewProducerSelector(software, orch, h.hwRouteUsable)
+
+	// Fan the superseded-hash reclaim across BOTH encoding producers: a stream
+	// can switch track while its encoder lives on either route (a hw stream
+	// spilled to software, or the reverse after a demotion), and only the one
+	// actually holding the hash has anything to kill. The copy producer is
+	// deliberately excluded - a remux takes no video-encode slot, so tearing it
+	// down would cost a viewer their playback and free nothing.
+	h.reclaimHash = func(hash, reason string) int {
+		return software.RemoveHash(hash, reason) + orch.RemoveHash(hash, reason)
+	}
 
 	// Shutdown teardown for the producers built HERE: the software producer and
 	// the optional copy producer own long-lived ffmpeg sessions that would
