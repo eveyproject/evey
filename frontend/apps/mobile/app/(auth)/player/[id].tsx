@@ -32,6 +32,7 @@ import { useChapters } from "../../../src/hooks/useChapters";
 import { useSleepTimer } from "../../../src/hooks/useSleepTimer";
 import { SleepTimerPicker } from "../../../src/components/SleepTimerPicker";
 import { AudioTrackPicker, type AudioStream } from "../../../src/components/AudioTrackPicker";
+import { pickNativeAudioTrack } from "../../../src/lib/audioTrackMatch";
 import { SubtitlePicker, type SubtitleStream } from "../../../src/components/SubtitlePicker";
 import { QualityPicker } from "../../../src/components/QualityPicker";
 import { ChaptersPicker } from "../../../src/components/ChaptersPicker";
@@ -132,6 +133,9 @@ export default function PlayerScreen() {
 
   const [activeSheet, setActiveSheet] = useState<null | SheetName>(null);
   const [selectedAudioIndex, setSelectedAudioIndex] = useState<number>(0);
+  // Audio tracks the NATIVE player exposes from the HLS manifest - the source
+  // of truth for a no-reload client-side switch (see handleAudioSelect).
+  const [nativeAudioTracks, setNativeAudioTracks] = useState<{ id?: string; language?: string; label?: string }[]>([]);
   const [selectedSubtitleIndex, setSelectedSubtitleIndex] = useState<number | null>(null);
   const [selectedQuality, setSelectedQuality] = useState(0);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
@@ -280,10 +284,22 @@ export default function PlayerScreen() {
       if (!mountedRef.current) return;
       try { setIsPlaying(player.playing); } catch (err) { console.warn("released", err); }
     });
+    // The native player parses the HLS audio group into availableAudioTracks
+    // once the manifest loads. Switching a track is then a client-side select
+    // (player.audioTrack = ...), instant and with no reload - the right
+    // mechanism, decoupled from the manifest DEFAULT flag. Read the current
+    // value AND subscribe to changes (it is empty until the manifest resolves).
+    const readAudioTracks = () => {
+      if (!mountedRef.current) return;
+      try { setNativeAudioTracks(player.availableAudioTracks ?? []); } catch { /* released */ }
+    };
+    readAudioTracks();
+    const audioTracksSub = player.addListener("availableAudioTracksChange", readAudioTracks);
     return () => {
       timeSub.remove();
       statusSub.remove();
       playSub.remove();
+      audioTracksSub.remove();
     };
   }, [player]);
 
@@ -538,10 +554,26 @@ export default function PlayerScreen() {
     (index: number) => {
       userPickedAudioRef.current = true;
       setSelectedAudioIndex(index);
+      const stream = audioStreams.find((s) => s.index === index);
+      // Prefer an instant, no-reload client-side switch on the native player -
+      // the audio group is already in the manifest, so this is decoupled from
+      // the DEFAULT flag and from any transcode restart. Fall back to a restart
+      // only when the native tracks aren't parsed yet or don't line up.
+      const nativeTrack = stream
+        ? pickNativeAudioTrack(nativeAudioTracks, stream.trackIndex, stream.language)
+        : null;
+      if (nativeTrack && player) {
+        try {
+          (player as unknown as { audioTrack: unknown }).audioTrack = nativeTrack;
+          return;
+        } catch (err) {
+          console.warn("[player] native audioTrack switch failed, restarting:", err);
+        }
+      }
       resumeAfterRestartRef.current = player?.playing ?? true;
       restartWithTracks(index, selectedSubtitleIndex ?? undefined, selectedQuality || undefined);
     },
-    [player, restartWithTracks, selectedSubtitleIndex, selectedQuality],
+    [player, nativeAudioTracks, audioStreams, restartWithTracks, selectedSubtitleIndex, selectedQuality],
   );
 
   const handleSubtitleSelect = useCallback(
