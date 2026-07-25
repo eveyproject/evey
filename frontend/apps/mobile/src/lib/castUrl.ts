@@ -83,6 +83,11 @@ const PROFILES: Array<{ match: (m: string) => boolean; profile: CastProfile }> =
     // fini figés sur le backdrop (prod 2026-07-25), quand les MÊMES fichiers
     // jouaient la veille via le transcode AAC du profil plancher. Même règle
     // que l'Ultra : ne jamais parier sur le passthrough Dolby d'un receiver.
+    // Jellyfin est arrivé à la même conclusion : leur receiver Chromecast
+    // custom hardcode hasEAC3Support()/hasAC3Support() à FALSE (« problems
+    // getting it to work with HLS ») alors qu'il POURRAIT sonder
+    // canDisplayType - l'audio cast HLS y est aac/mp3/opus, point.
+    // (jellyfin-chromecast src/components/codecSupportHelper.ts)
     match: (m) => m.includes("mitv"),
     profile: { videoCodecs: ["h264", "hevc", "vp9"], audioCodecs: ["aac", "mp3", "opus", "flac"], hdr: true, maxHeight: 2160, h264MaxHeight: 1080 },
   },
