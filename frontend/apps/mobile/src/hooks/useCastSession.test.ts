@@ -5,6 +5,7 @@ const showCastDialog = vi.fn();
 let castState = 0; // NOT_CONNECTED
 let castClientInstance: { loadMedia: ReturnType<typeof vi.fn> } | null = null;
 let castDeviceModelName: string | null = null;
+let sessionDeviceModelName: string | null = null;
 
 vi.mock("./useChromecast", () => ({
   CastContext: { showCastDialog: () => showCastDialog() },
@@ -13,6 +14,7 @@ vi.mock("./useChromecast", () => ({
   useRemoteMediaClientHook: () => castClientInstance,
   useMediaStatusHook: () => null,
   useCastDeviceHook: () => (castDeviceModelName ? { modelName: castDeviceModelName } : null),
+  getConnectedDeviceModelName: async () => sessionDeviceModelName,
 }));
 
 const setAudioBoost = vi.fn();
@@ -70,6 +72,7 @@ beforeEach(() => {
   castState = 0;
   castClientInstance = null;
   castDeviceModelName = null;
+  sessionDeviceModelName = null;
   showCastDialog.mockReset();
   setAudioBoost.mockReset();
   eveyFetchMock.mockReset();
@@ -188,5 +191,53 @@ describe("useCastSession", () => {
       .find((c) => c.url.includes("/player-event"));
     expect(beacon).toBeDefined();
     expect(beacon!.data!.type).toBe("cast_receiver_model");
+    expect(beacon!.data!.details).toContain("model=Chromecast Ultra");
+  });
+
+  // First real-device test (a series episode, 2026-07-25 00:51): title and controls
+  // showed but the TV spun forever and NEVER fetched from the server. Two
+  // causes, both fixed here and locked by these tests:
+  // - the Default Media Receiver plays contentId; we sent the raw media UUID
+  //   there (the working web path sends the URL as contentId);
+  // - our HLS is fMP4: without the hlsVideoSegmentFormat=FMP4 hint the
+  //   receiver assumes MPEG2-TS and "loads forever with no picture" (the
+  //   exact web fix validated on this TV on 2026-07-22, never ported).
+  it("loads media with the URL as contentId and fMP4 hints for HLS", async () => {
+    castState = 4;
+    const loadMedia = vi.fn().mockResolvedValue(undefined);
+    castClientInstance = { loadMedia };
+    eveyFetchMock.mockResolvedValue({ token: "cast-tok", mediaId: "m1" });
+
+    const { result } = mount(fakePlayer());
+    await act(async () => { await result.current.handleCast(); });
+
+    // Auto-load effect + explicit handleCast both fire (same code path);
+    // assert on the last call like the other tests here.
+    expect(loadMedia).toHaveBeenCalled();
+    const info = loadMedia.mock.calls[loadMedia.mock.calls.length - 1][0].mediaInfo;
+    expect(info.contentId).toBe(info.contentUrl);
+    expect(info.contentUrl).toContain("m3u8");
+    expect(info.hlsVideoSegmentFormat).toBe("FMP4");
+    expect(info.hlsSegmentFormat).toBe("FMP4");
+  });
+
+  // The useCastDevice hook delivers the device on a later render than the
+  // auto-load, so reading it at load time reported model=unknown for a real
+  // TV and silently floored the capability profile. The session is the
+  // authoritative source at that instant.
+  it("reads the receiver model from the live session, not the stale hook", async () => {
+    castState = 4;
+    const loadMedia = vi.fn().mockResolvedValue(undefined);
+    castClientInstance = { loadMedia };
+    castDeviceModelName = null; // hook has not delivered yet
+    sessionDeviceModelName = "Chromecast Ultra";
+    eveyFetchMock.mockResolvedValue({ token: "cast-tok", mediaId: "m1" });
+
+    const { result } = mount(fakePlayer());
+    await act(async () => { await result.current.handleCast(); });
+
+    const beacon = eveyFetchMock.mock.calls
+      .map((c) => c[0] as { url: string; data?: { details?: string } })
+      .find((c) => c.url.includes("/player-event"));
     expect(beacon!.data!.details).toContain("model=Chromecast Ultra");
   });

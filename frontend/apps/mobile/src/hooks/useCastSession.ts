@@ -8,6 +8,7 @@ import { buildCastStreamUrl, pickCastProfile } from "../lib/castUrl";
 import {
   CastContext, useCastStateHook, useRemoteMediaClientHook,
   useMediaStatusHook, useCastDeviceHook, CastStateEnum,
+  getConnectedDeviceModelName,
 } from "./useChromecast";
 
 // Swaps the URL's token param for a cast-purpose one, preserving every other
@@ -77,6 +78,11 @@ export function useCastSession({
   const castLoadMedia = useCallback(async (client: any) => {
     if (!streamUrl || !title) return;
     muteLocalPlayer();
+    // The device comes from the LIVE session, not the useCastDevice hook: the
+    // hook only delivers on a later render, and the auto-load fires right on
+    // connection - reading it here reported model=unknown for a real TV and
+    // silently floored the capability profile (prod, 2026-07-25 00:51).
+    const modelName = (await getConnectedDeviceModelName()) ?? castDevice?.modelName ?? null;
     // The profile table keys on modelName SUBSTRINGS whose exact 2024-device
     // values (Chromecast HD, Google TV Streamer) are published nowhere - this
     // beacon puts the raw string in the admin logs on the first real
@@ -86,7 +92,7 @@ export function useCastSession({
       method: "POST",
       data: {
         type: "cast_receiver_model",
-        details: `model=${castDevice?.modelName ?? "unknown"}`,
+        details: `model=${modelName ?? "unknown"}`,
         fatal: false, code: 0, variant: 0, segment: 0, posSec: 0,
       },
     }).catch(() => { /* telemetry must never break a cast */ });
@@ -103,7 +109,7 @@ export function useCastSession({
         // streamInfo/the receiver's profile (instead of casting the
         // phone-negotiated streamUrl) is what stops a copy rung the
         // Chromecast can't decode from producing a black screen on the TV.
-        const profile = pickCastProfile(castDevice?.modelName);
+        const profile = pickCastProfile(modelName);
         castUrl = buildCastStreamUrl(serverUrl, mediaId, streamInfo, castToken, profile);
       } else {
         castUrl = withCastToken(streamUrl, castToken);
@@ -117,11 +123,20 @@ export function useCastSession({
       await client.loadMedia({
         autoplay: true,
         mediaInfo: {
-          contentId: mediaId,
+          // The Default Media Receiver PLAYS contentId - handing it the raw
+          // media UUID left the TV spinning forever without a single request
+          // to the server (first real-device test, a series episode, 2026-07-25).
+          // The web sender that works on this TV sends the URL as contentId;
+          // do exactly the same, contentUrl kept for CAF receivers.
+          contentId: castUrl,
           contentUrl: castUrl,
           contentType: isHls ? "application/x-mpegurl" : "video/mp4",
           streamType: "buffered",
           metadata: { type: "movie", title },
+          // Our HLS segments are fMP4: without these hints the receiver
+          // assumes MPEG2-TS and loads forever with no picture - the exact
+          // web fix validated on this TV on 2026-07-22 (b9bc22c98), ported.
+          ...(isHls ? { hlsSegmentFormat: "FMP4", hlsVideoSegmentFormat: "FMP4" } : {}),
         },
         startTime: currentTime,
       });

@@ -19,3 +19,19 @@ export const useMediaStatusHook = safe?.useMediaStatus ?? (() => null);
 // native module, no device info, buildCastStreamUrl falls back to the floor.
 export const useCastDeviceHook = safe?.useCastDevice ?? (() => null);
 export const CastStateEnum = safe?.CastState ?? { CONNECTED: "connected" };
+
+// Imperative device read for the moment of loadMedia: the useCastDevice hook
+// delivers the device on a LATER render, so the auto-load that fires right on
+// connection still sees null and the capability profile silently falls back
+// to the floor (observed in prod: beacon "model=unknown" while a real TV was
+// connected). The session is authoritative and available synchronously after
+// connect.
+export async function getConnectedDeviceModelName(): Promise<string | null> {
+  try {
+    const session = await CastContext?.getSessionManager?.()?.getCurrentCastSession?.();
+    const device = await session?.getCastDevice?.();
+    return device?.modelName ?? null;
+  } catch {
+    return null;
+  }
+}
