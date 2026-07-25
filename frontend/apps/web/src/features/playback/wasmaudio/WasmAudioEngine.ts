@@ -17,6 +17,8 @@
 // Web Audio's SMPTE L,R,C,LFE,Ls,Rs so the browser routes (and downmixes to
 // stereo outputs) correctly; other channel counts pass straight through.
 
+import { AVLatencyEstimator } from "./avLatencyEstimator";
+
 const WASM_URL = "/wasm/ac3go.wasm";
 const WASM_EXEC_URL = "/wasm/wasm_exec.js";
 const WORKER_URL = "/wasm/ac3Worker.js";
@@ -89,7 +91,13 @@ export class WasmAudioEngine {
   private readonly video: HTMLVideoElement;
   private readonly playlistUrl: string;
   private readonly opts: WasmAudioEngineOptions;
-  private readonly leadComp: number;
+  // Compensation d'avance audio : base statique (opts/défaut) supplantée par
+  // la MESURE dès qu'elle est mûre - requestVideoFrameCallback donne la frame
+  // réellement affichée, outputLatency la sortie audio ; l'écart des deux est
+  // la vraie latence du pipeline (0,1 s desktop, 0,5-0,6 s sur TV cast).
+  private readonly leadCompBase: number;
+  private readonly leadEstimator = new AVLatencyEstimator();
+  private rvfcHandle: number | null = null;
 
   private worker: Worker | null = null;
   private ctx: AudioContext | null = null;
@@ -140,7 +148,7 @@ export class WasmAudioEngine {
     this.video = video;
     this.playlistUrl = playlistUrl;
     this.opts = opts;
-    this.leadComp = opts.leadCompensationSec ?? DEFAULT_LEAD_COMP_SEC;
+    this.leadCompBase = opts.leadCompensationSec ?? DEFAULT_LEAD_COMP_SEC;
   }
 
   private resolve(url: string): string {
@@ -418,7 +426,38 @@ export class WasmAudioEngine {
     this.scheduledIdx.clear();
   }
 
+  private get leadComp(): number {
+    return this.leadEstimator.estimate ?? this.leadCompBase;
+  }
+
+  // Boucle de mesure A/V : à chaque frame PRÉSENTÉE, échantillonne
+  // (retard d'affichage vidéo) - (latence de sortie audio). Best-effort :
+  // sans requestVideoFrameCallback, la base statique reste seule en jeu.
+  private startLatencyMeasurement(): void {
+    const v = this.video as HTMLVideoElement & {
+      requestVideoFrameCallback?: (cb: (now: number, meta: { mediaTime: number; expectedDisplayTime: number }) => void) => number;
+      cancelVideoFrameCallback?: (handle: number) => void;
+    };
+    if (typeof v.requestVideoFrameCallback !== "function") return;
+    const loop = (now: number, meta: { mediaTime: number; expectedDisplayTime: number }): void => {
+      if (this.destroyed) return;
+      if (!this.video.paused) {
+        const videoLagSec =
+          (this.video.currentTime - meta.mediaTime) +
+          Math.max(0, (meta.expectedDisplayTime - now) / 1000);
+        const audioLatSec =
+          (this.ctx as (AudioContext & { outputLatency?: number }) | null)?.outputLatency ??
+          this.ctx?.baseLatency ??
+          0;
+        this.leadEstimator.update(videoLagSec - audioLatSec);
+      }
+      this.rvfcHandle = v.requestVideoFrameCallback!(loop);
+    };
+    this.rvfcHandle = v.requestVideoFrameCallback(loop);
+  }
+
   private startScheduling(): void {
+    this.startLatencyMeasurement();
     this.lastCt = this.video.currentTime;
     void this.pump(); // start decoding immediately, don't wait a tick
     this.timer = setInterval(() => this.tick(), SCHEDULE_TICK_MS);
@@ -625,6 +664,11 @@ export class WasmAudioEngine {
   destroy(): void {
     if (this.destroyed) return;
     this.destroyed = true;
+    if (this.rvfcHandle !== null) {
+      (this.video as HTMLVideoElement & { cancelVideoFrameCallback?: (h: number) => void })
+        .cancelVideoFrameCallback?.(this.rvfcHandle);
+      this.rvfcHandle = null;
+    }
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
     this.clearScheduled();
