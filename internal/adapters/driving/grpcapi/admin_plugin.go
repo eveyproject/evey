@@ -427,63 +427,26 @@ func (d *adminPluginHandler) GetPluginLogs(ctx context.Context, req *eveyv1.GetP
 		span.SetStatus(otelcodes.Error, "invalid plugin id")
 		return nil, status.Error(codes.InvalidArgument, "invalid plugin id")
 	}
-	logPath := filepath.Join(d.logDir, "plugins", req.PluginId+".log")
-	f, err := os.Open(logPath) //nolint:gosec
+	paths, err := pluginLogFiles(filepath.Join(d.logDir, "plugins"), req.PluginId)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return &eveyv1.GetPluginLogsResponse{}, nil
-		}
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError(ctx, "open log", err)
+		return nil, internalError(ctx, "list logs", err)
 	}
-	defer f.Close()
 
 	filterLevel := strings.ToUpper(req.Level)
 	var all []*eveyv1.PluginLogEntry
-	sc := bufio.NewScanner(f)
-	for sc.Scan() {
-		line := sc.Bytes()
-		var raw map[string]json.RawMessage
-		if err := json.Unmarshal(line, &raw); err != nil {
-			continue
-		}
-		var level, msg string
-		var ts time.Time
-		if v, ok := raw["level"]; ok {
-			json.Unmarshal(v, &level) //nolint:errcheck
-		}
-		if v, ok := raw["msg"]; ok {
-			json.Unmarshal(v, &msg) //nolint:errcheck
-		}
-		if v, ok := raw["time"]; ok {
-			var t string
-			if json.Unmarshal(v, &t) == nil {
-				ts, _ = time.Parse(time.RFC3339Nano, t) //nolint:errcheck // best-effort parse, zero time is acceptable
+	for _, logPath := range paths {
+		entries, readErr := readPluginLogFile(logPath, filterLevel)
+		if readErr != nil {
+			if errors.Is(readErr, os.ErrNotExist) {
+				continue // rotation/purge concurrente
 			}
+			span.RecordError(readErr)
+			span.SetStatus(otelcodes.Error, readErr.Error())
+			return nil, internalError(ctx, "open log", readErr)
 		}
-		if filterLevel != "" && !strings.EqualFold(level, filterLevel) {
-			continue
-		}
-		fields := make(map[string]string)
-		for k, v := range raw {
-			if k == "level" || k == "msg" || k == "time" || k == "plugin_id" {
-				continue
-			}
-			var s string
-			if json.Unmarshal(v, &s) == nil {
-				fields[k] = s
-			}
-		}
-		entry := &eveyv1.PluginLogEntry{
-			Level:   level,
-			Message: msg,
-			Fields:  fields,
-		}
-		if !ts.IsZero() {
-			entry.Timestamp = timestamppb.New(ts)
-		}
-		all = append(all, entry)
+		all = append(all, entries...)
 	}
 
 	total := int32(len(all))
@@ -492,11 +455,162 @@ func (d *adminPluginHandler) GetPluginLogs(ctx context.Context, req *eveyv1.GetP
 	if offset >= len(all) {
 		return &eveyv1.GetPluginLogsResponse{Total: total}, nil
 	}
+	// Sans offset explicite, un "limit" tronque la FIN et non le début : on lit
+	// des logs pour voir ce qui vient de se passer. Le panel admin demande
+	// limit=100 sans offset - il aurait affiché les 100 plus VIEILLES lignes,
+	// c'est-à-dire potentiellement plusieurs jours avant la panne à diagnostiquer.
+	// Total reste le compte complet, donc la pagination explicite (offset > 0)
+	// garde sa sémantique chronologique habituelle.
+	if offset == 0 && limit > 0 && limit < len(all) {
+		return &eveyv1.GetPluginLogsResponse{Entries: all[len(all)-limit:], Total: total}, nil
+	}
 	all = all[offset:]
 	if limit > 0 && limit < len(all) {
 		all = all[:limit]
 	}
 	return &eveyv1.GetPluginLogsResponse{Entries: all, Total: total}, nil
+}
+
+// pluginLogFiles liste les fichiers de log d'un plugin, du plus ancien au plus
+// récent. PluginLogger écrit "<id>-YYYY-MM-DD.log" (plus "<id>-YYYY-MM-DD-HH.log"
+// quand la taille force une rotation intra-journée) : le lecteur cherchait
+// "<id>.log", un nom que rien n'écrit, donc le visualiseur du panel admin
+// renvoyait total=0 en permanence. Le nom nu reste accepté par compatibilité.
+// Volontairement ReadDir + préfixe plutôt que filepath.Glob : un pluginID n'est
+// validé que contre les séparateurs et "..", donc un motif comme "plg-*" passerait
+// la garde et ferait fusionner les logs de TOUS les plugins - exactement la
+// confusion de périmètre que la garde de traversée existante cherche à empêcher.
+func pluginLogFiles(dir, pluginID string) ([]string, error) {
+	ents, err := os.ReadDir(dir)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil // aucun plugin n'a encore logué
+		}
+		return nil, err
+	}
+
+	// os.ReadDir trie par nom, et pour des noms datés (YYYY-MM-DD, puis -HH pour
+	// les rotations de taille intra-journée) l'ordre lexicographique EST l'ordre
+	// chronologique.
+	var dated []string
+	var plain string
+	for _, e := range ents {
+		if e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		switch {
+		case name == pluginID+".log":
+			plain = filepath.Join(dir, name) // nom nu : gardé par compatibilité
+		case strings.HasPrefix(name, pluginID+"-") && strings.HasSuffix(name, ".log"):
+			dated = append(dated, filepath.Join(dir, name))
+		}
+	}
+	if plain != "" {
+		dated = append([]string{plain}, dated...)
+	}
+	return dated, nil
+}
+
+// readPluginLogFile lit un fichier de log plugin. Trois formes de lignes
+// coexistent dans le MÊME fichier et doivent toutes ressortir :
+//   - JSON structuré (plugins qui loguent en JSON),
+//   - "<RFC3339> [LEVEL] message" (les lignes écrites par PluginLogger.WriteLog),
+//   - stdout/stderr brut du plugin, sans aucune structure - c'est la majorité du
+//     volume, et c'est précisément ce qui manquait à l'admin pendant l'incident
+//     weather-v2 : le "listening on ..." du plugin prouvait que le process
+//     tournait, alors que le serveur affichait un timeout de socket.
+func readPluginLogFile(path, filterLevel string) ([]*eveyv1.PluginLogEntry, error) {
+	f, err := os.Open(path) //nolint:gosec // chemin construit à partir d'un pluginID validé (pas de séparateur ni "..")
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	var entries []*eveyv1.PluginLogEntry
+	sc := bufio.NewScanner(f)
+	// Une ligne de stdout de plugin peut être longue (stack trace sur une ligne) :
+	// le buffer par défaut de 64 KiB ferait échouer le scan et tronquerait la
+	// suite du fichier en silence.
+	sc.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	for sc.Scan() {
+		line := strings.TrimRight(sc.Text(), "\r")
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		entry := parsePluginLogLine(line)
+		if filterLevel != "" && !strings.EqualFold(entry.Level, filterLevel) {
+			continue
+		}
+		entries = append(entries, entry)
+	}
+	if scErr := sc.Err(); scErr != nil {
+		return nil, scErr
+	}
+	return entries, nil
+}
+
+func parsePluginLogLine(line string) *eveyv1.PluginLogEntry {
+	if strings.HasPrefix(strings.TrimSpace(line), "{") {
+		if entry, ok := parseJSONLogLine(line); ok {
+			return entry
+		}
+	}
+
+	entry := &eveyv1.PluginLogEntry{Fields: map[string]string{}}
+	rest := line
+	// Horodatage en tête, tel que posé par WriteLog.
+	if ts, after, ok := strings.Cut(line, " "); ok {
+		if t, tErr := time.Parse(time.RFC3339, ts); tErr == nil {
+			entry.Timestamp = timestamppb.New(t)
+			rest = after
+		}
+	}
+	// Niveau entre crochets, tel que posé par WriteLog / la plupart des plugins.
+	if strings.HasPrefix(rest, "[") {
+		if lvl, after, ok := strings.Cut(rest[1:], "]"); ok && !strings.ContainsAny(lvl, " \t") {
+			entry.Level = strings.ToUpper(lvl)
+			rest = strings.TrimPrefix(after, " ")
+		}
+	}
+	entry.Message = rest
+	return entry
+}
+
+func parseJSONLogLine(line string) (*eveyv1.PluginLogEntry, bool) {
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(line), &raw); err != nil {
+		return nil, false
+	}
+	var level, msg string
+	var ts time.Time
+	if v, ok := raw["level"]; ok {
+		json.Unmarshal(v, &level) //nolint:errcheck
+	}
+	if v, ok := raw["msg"]; ok {
+		json.Unmarshal(v, &msg) //nolint:errcheck
+	}
+	if v, ok := raw["time"]; ok {
+		var t string
+		if json.Unmarshal(v, &t) == nil {
+			ts, _ = time.Parse(time.RFC3339Nano, t) //nolint:errcheck // best-effort parse, zero time is acceptable
+		}
+	}
+	fields := make(map[string]string)
+	for k, v := range raw {
+		if k == "level" || k == "msg" || k == "time" || k == "plugin_id" {
+			continue
+		}
+		var s string
+		if json.Unmarshal(v, &s) == nil {
+			fields[k] = s
+		}
+	}
+	entry := &eveyv1.PluginLogEntry{Level: level, Message: msg, Fields: fields}
+	if !ts.IsZero() {
+		entry.Timestamp = timestamppb.New(ts)
+	}
+	return entry, true
 }
 
 // GetPluginResourceLimits returns the per-plugin caps the runner is currently

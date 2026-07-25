@@ -497,7 +497,10 @@ export function PluginCard({ plugin, onEnable, onDisable, onUninstall, toggling 
                     entry.level === "WARN" ? "text-[var(--badge-warning-text,#fde047)] shrink-0" :
                     "text-[var(--text-muted)] shrink-0"
                   }>
-                    {entry.level ?? "INFO"}
+                    {/* `||` et non `??` : une ligne de stdout brut du plugin
+                        arrive avec un niveau VIDE, pas absent - `??` laissait
+                        alors la colonne blanche. */}
+                    {entry.level || "INFO"}
                   </span>
                   <span className="text-[var(--text-muted)] shrink-0">
                     {entry.timestamp ? new Date(entry.timestamp).toLocaleTimeString() : ""}
