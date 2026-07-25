@@ -245,6 +245,7 @@ detail:
   downloadStarted: 开始下载
   downloadComplete: 下载完成
   downloadFailed: 下载失败
+  downloadNoSpace: "设备存储空间不足，无法完成此下载。"
   communityRating: 社区：{{average}}/5（{{count}} 条评分）
   identify:
     title: "在 TMDB 上识别"

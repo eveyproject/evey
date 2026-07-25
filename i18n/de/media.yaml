@@ -245,6 +245,7 @@ detail:
   downloadStarted: Download gestartet
   downloadComplete: Download abgeschlossen
   downloadFailed: Download fehlgeschlagen
+  downloadNoSpace: "Nicht genug Speicherplatz auf dem Gerät für diesen Download."
   communityRating: 'Community: {{average}}/5 ({{count}} Bewertungen)'
   identify:
     title: Auf TMDB identifizieren

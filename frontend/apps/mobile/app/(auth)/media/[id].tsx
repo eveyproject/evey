@@ -901,8 +901,16 @@ export default function MediaDetailScreen() {
                 try {
                   await startDownload(id, media.title, (p) => setDownloadProgress(p));
                   toast.success(t("media.detail.downloadComplete"));
-                } catch {
-                  toast.error(t("media.detail.downloadFailed"));
+                } catch (err) {
+                  // Surface the real cause instead of a blanket "failed": a
+                  // disk-space rejection right after the "started" toast reads
+                  // as a contradictory success+error to the user (reported on
+                  // a 2.8 GB file). NOT_ENOUGH_SPACE is the one client failure
+                  // the user can act on.
+                  const msg = err instanceof Error && err.message === "NOT_ENOUGH_SPACE"
+                    ? t("media.detail.downloadNoSpace")
+                    : t("media.detail.downloadFailed");
+                  toast.error(msg);
                 } finally {
                   setDownloadProgress(null);
                 }

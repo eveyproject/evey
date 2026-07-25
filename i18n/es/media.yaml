@@ -245,6 +245,7 @@ detail:
   downloadStarted: Descarga iniciada
   downloadComplete: Descarga completada
   downloadFailed: Error en la descarga
+  downloadNoSpace: "No hay suficiente espacio de almacenamiento en el dispositivo para esta descarga."
   communityRating: 'Comunidad: {{average}}/5 ({{count}} valoraciones)'
   identify:
     title: "Identificar en TMDB"

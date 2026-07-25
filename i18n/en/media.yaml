@@ -256,6 +256,7 @@ detail:
   downloadStarted: Download started
   downloadComplete: Download complete
   downloadFailed: Download failed
+  downloadNoSpace: "Not enough storage space on the device for this download."
   communityRating: 'Community: {{average}}/5 ({{count}} ratings)'
 certBody:
   FR: CSA

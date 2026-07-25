@@ -588,24 +588,24 @@ export default function HomeScreen() {
             <Ionicons name="options-outline" size={16} color={theme.colors.textMuted} />
             <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>{t("media.home.customize") || "Customize"}</Text>
           </Pressable>
-          {feedConfigs.filter((c) => c.enabled !== false).map((c) => renderSection(c.feedType ?? ""))}
-          {(librariesData?.libraries ?? [])
-            .filter((lib) => lib.id && !feedConfigs.some((c) => c.feedType === `library:${lib.id}`))
-            .map((lib) => (
-              <LibraryFeedRow key={`library:${lib.id}`} libraryId={lib.id!} name={lib.name ?? ""} libraryType={lib.type} onItemPress={handleItemPress} />
-            ))}
           {/* Installed home.section plugins the user has NOT yet added to their
-              feed still render here, exactly like the web home's
-              excludeRegistered PluginSlot. Without this an enabled plugin
-              (e.g. weather-v2) stayed invisible on mobile until the user
-              opened Customize and saved - it was only auto-added to the
-              customize modal's local state, never to the rendered feed. */}
+              feed render at the TOP, matching both the web home and the
+              customize modal (which auto-prepends new plugins with a negative
+              displayOrder). Rendering them at the bottom made the weather
+              widget land under every feed row - the user had to reorder it by
+              hand. A home.section plugin is a hero widget; it belongs first. */}
           {Object.keys(pluginNames)
             .filter((id) => !feedConfigs.some((c) => c.feedType === `plugin:${id}`))
             .map((id) => (
               <View key={`plugin:${id}`} style={{ marginVertical: theme.spacing.sm, marginHorizontal: theme.spacing.md }}>
                 <PluginSlot name="home.section" pluginId={id} />
               </View>
+            ))}
+          {feedConfigs.filter((c) => c.enabled !== false).map((c) => renderSection(c.feedType ?? ""))}
+          {(librariesData?.libraries ?? [])
+            .filter((lib) => lib.id && !feedConfigs.some((c) => c.feedType === `library:${lib.id}`))
+            .map((lib) => (
+              <LibraryFeedRow key={`library:${lib.id}`} libraryId={lib.id!} name={lib.name ?? ""} libraryType={lib.type} onItemPress={handleItemPress} />
             ))}
         </View>
       </ScrollView>

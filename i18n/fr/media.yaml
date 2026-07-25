@@ -256,6 +256,7 @@ detail:
   downloadStarted: Téléchargement lancé
   downloadComplete: Téléchargement terminé
   downloadFailed: Échec du téléchargement
+  downloadNoSpace: "Espace de stockage insuffisant sur l'appareil pour ce téléchargement."
   communityRating: 'Communauté : {{average}}/5 ({{count}} avis)'
 certBody:
   FR: CSA
