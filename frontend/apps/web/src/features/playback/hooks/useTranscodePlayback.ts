@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import Hls from "hls.js";
-import { buildTranscodeHlsUrl, prefersNativeHLS, startPlayback } from "./hlsPlayerUtils";
+import { buildTranscodeHlsUrl, pickPinnedLevel, prefersNativeHLS, startPlayback } from "./hlsPlayerUtils";
 import { createPlayerEventReporter } from "../playerEventReporter";
 
 // Mirrors the server's shed contract (HTTP 503 on a refused playback start):
@@ -72,6 +72,12 @@ interface UseTranscodePlaybackArgs {
    * rebuilds naturels (refresh de token, sous-titres, offset) la relisent pour
    * l'URL et re-sélectionnent la rendition après MANIFEST_PARSED. */
   audioTrackOverrideRef?: React.MutableRefObject<number | null>;
+  /** Hauteur du rung voulu (0 = Auto -> le rung du haut). Lu DANS
+   * MANIFEST_PARSED pour épingler le level avant que hls.js ne charge son
+   * premier fragment. Une ref, pas une prop : la valeur doit être lisible sans
+   * re-render, et l'effet de synchro dans HLSPlayer continue de gérer les
+   * changements en cours de lecture. */
+  pinnedQualityRef?: React.MutableRefObject<number>;
   selectedBurnInTrack: number | null;
   startPositionMs: number;
   onEnded?: () => void;
@@ -103,6 +109,7 @@ export function useTranscodePlayback({
   mediaId,
   currentTrackIndex,
   audioTrackOverrideRef,
+  pinnedQualityRef,
   selectedBurnInTrack,
   startPositionMs,
   onEnded,
@@ -272,6 +279,19 @@ export function useTranscodePlayback({
     });
 
     hls.on(Hls.Events.MANIFEST_PARSED, () => {
+      // Épingle le rung ICI, avant tout chargement de fragment. L'effet de
+      // synchro dans HLSPlayer ne suffit pas : il dépend d'un state posé par
+      // setHlsLevels juste en dessous, donc il arrive un re-render trop tard,
+      // et dans cet intervalle hls.js part en ABR libre sur le level 0 - un
+      // SECOND ffmpeg sur le même hash, alors qu'un seul encodage tient sur la
+      // machine (cf pickPinnedLevel).
+      const pinned = pickPinnedLevel({
+        levelHeights: hls.levels.map((l) => l.height),
+        desiredHeight: pinnedQualityRef?.current ?? 0,
+      });
+      if (pinned >= 0 && hls.currentLevel !== pinned) {
+        hls.currentLevel = pinned;
+      }
       setHlsLevels(hls.levels.map((l) => l.height));
       // Re-sélectionne la piste choisie via la bascule cliente : ce rebuild-ci
       // (refresh de token, sous-titres, offset) n'est pas passé par

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { startPlayback, planCastLoad, pickCastTapPath, castVideoPreload, pickPlayOnFallback, pickTranscodeAudioSwitchPath } from "./hlsPlayerUtils";
+import { startPlayback, planCastLoad, pickCastTapPath, castVideoPreload, pickPlayOnFallback, pickTranscodeAudioSwitchPath, pickPinnedLevel } from "./hlsPlayerUtils";
 import type { SubtitleStream } from "../SubtitleSelector";
 
 const mockCaps = vi.hoisted(() => ({
@@ -510,5 +510,36 @@ describe("pickTranscodeAudioSwitchPath (audio switch = client-side rendition sel
     expect(pickTranscodeAudioSwitchPath({ ...base, targetTrackIndex: 2 })).toBe("restart");
     expect(pickTranscodeAudioSwitchPath({ ...base, targetTrackIndex: -1 })).toBe("restart");
     expect(pickTranscodeAudioSwitchPath({ ...base, audioRenditionCount: 0 })).toBe("restart");
+  });
+});
+
+describe("pickPinnedLevel", () => {
+  // Le bug qu'il ferme : le pin du rung vivait dans un useEffect dépendant
+  // d'un state posé DANS MANIFEST_PARSED. Entre les deux, hls.js démarre son
+  // chargement en ABR libre et va chercher le level 0 (le plus bas) - soit un
+  // SECOND ffmpeg sur le même hash. Sur un NAS calibré à un seul encodage
+  // concurrent, les deux décodages 4K se privent l'un l'autre et le premier
+  // segment n'arrive jamais (prod 2026-07-25 : 480p + 1080p lancés à 43 ms
+  // d'intervalle, segment 0 toujours absent 9,5 s plus tard).
+  it("pins the TOP rung in Auto", () => {
+    expect(pickPinnedLevel({ levelHeights: [480, 720, 1080], desiredHeight: 0 })).toBe(2);
+  });
+
+  it("pins the chosen rung when the viewer picked one", () => {
+    expect(pickPinnedLevel({ levelHeights: [480, 720, 1080], desiredHeight: 720 })).toBe(1);
+  });
+
+  it("falls back to the TOP rung when the chosen height is gone from the ladder", () => {
+    // A shaped/trimmed ladder can drop the rung a viewer picked earlier. Landing
+    // on the top rung keeps ONE encoder; leaving it unpinned re-enables free ABR.
+    expect(pickPinnedLevel({ levelHeights: [480, 720], desiredHeight: 1080 })).toBe(1);
+  });
+
+  it("pins nothing before the manifest is parsed", () => {
+    expect(pickPinnedLevel({ levelHeights: [], desiredHeight: 1080 })).toBe(-1);
+  });
+
+  it("pins the only rung of a single-rendition ladder", () => {
+    expect(pickPinnedLevel({ levelHeights: [1080], desiredHeight: 0 })).toBe(0);
   });
 });

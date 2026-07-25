@@ -32,7 +32,7 @@ import {
   type SubtitleStyle,
 } from "@/hooks/usePlaybackPrefs";
 import { eveyFetch } from "@evey/api";
-import { buildTranscodeHlsUrl, castVideoPreload, getSelectedBurnInTrack, pickCastTapPath, pickPlayOnFallback, pickTranscodeAudioSwitchPath, planCastLoad, resolveDefaultAudio, resolveDefaultSubtitle } from "./hooks/hlsPlayerUtils";
+import { buildTranscodeHlsUrl, castVideoPreload, getSelectedBurnInTrack, pickCastTapPath, pickPinnedLevel, pickPlayOnFallback, pickTranscodeAudioSwitchPath, planCastLoad, resolveDefaultAudio, resolveDefaultSubtitle } from "./hooks/hlsPlayerUtils";
 import { useDirectPlayback } from "./hooks/useDirectPlayback";
 import { useTranscodePlayback, type ShedReason } from "./hooks/useTranscodePlayback";
 import { useWasmAudioPlayback } from "./wasmaudio/useWasmAudioPlayback";
@@ -223,6 +223,12 @@ export function HLSPlayer({
   // l'URL et re-sélectionner la rendition - sans lui, ils rejoueraient
   // l'ancienne piste.
   const audioTrackOverrideRef = useRef<number | null>(null);
+
+  // Hauteur du rung voulu, lisible sans re-render : le hook l'épingle DANS
+  // MANIFEST_PARSED, avant le premier fragment. L'effet de synchro plus bas
+  // reste responsable des changements pendant la lecture.
+  const pinnedQualityRef = useRef(0);
+  pinnedQualityRef.current = autoQuality ? 0 : currentQuality;
 
   // When the profile finishes loading, apply its audio/subtitle preferences if
   // the user hasn't picked a track manually and the initial resolution used no
@@ -637,6 +643,7 @@ export function HLSPlayer({
   const { transcodeStartTime, setTranscodeStartTime, hlsLevels, autoLevelHeight } = useTranscodePlayback({
     videoRef, hlsRef, positionRef, transcodeOffsetRef,
     wasPausedRef, streamTokenRef, onStreamTokenRefreshRef, audioTrackOverrideRef,
+    pinnedQualityRef,
     transcodeMode, mediaId, currentTrackIndex, selectedBurnInTrack,
     startPositionMs, onEnded, setIsBuffering: setIsBufferingDebounced, setFatalError,
     setShedReason,
@@ -882,14 +889,14 @@ export function HLSPlayer({
     // to a fixed index pins one rung (and disables ABR). "Auto" pins the TOP
     // (calibrated-sustainable) rung - one decode, stable, no switching - and the
     // viewer drops manually via the picker for a title too heavy to hold it.
-    if (autoQuality) {
-      hls.currentLevel = hls.levels.length > 0 ? hls.levels.length - 1 : -1;
-    } else if (currentQuality > 0) {
-      const idx = hls.levels.findIndex((l: { height: number }) => l.height === currentQuality);
-      if (idx >= 0) hls.currentLevel = idx;
-    } else {
-      hls.currentLevel = hls.levels.length > 0 ? hls.levels.length - 1 : -1;
-    }
+    // Même helper que le pin de MANIFEST_PARSED, pour que les deux chemins ne
+    // puissent pas diverger : ici on couvre les changements PENDANT la lecture
+    // (le viewer qui bascule Auto <-> une hauteur), le hook couvre le démarrage.
+    const pinned = pickPinnedLevel({
+      levelHeights: hls.levels.map((l: { height: number }) => l.height),
+      desiredHeight: autoQuality ? 0 : currentQuality,
+    });
+    hls.currentLevel = pinned;
     // hlsLevels MUST be a dep: this effect's mount run happens BEFORE hls.js
     // has parsed the manifest (hls.levels is empty → currentLevel=-1, which
     // ENABLES free ABR instead of pinning). Nothing else re-runs the effect

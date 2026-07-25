@@ -200,6 +200,30 @@ export function pickPlayOnFallback<D>(devices: readonly D[] | undefined | null):
   return { action: "picker" };
 }
 
+// Index du rung à ÉPINGLER dès que le manifeste est parsé - -1 = rien à
+// épingler (pas encore de levels).
+//
+// Épingler `hls.currentLevel` coupe l'ABR de hls.js, ce que ce chemin veut :
+// chaque rung est un ffmpeg distinct côté serveur, donc un probe ABR = un
+// second décodage 4K concurrent. Ça ne marche que si le pin arrive AVANT que
+// hls.js ne charge son premier fragment : laissé à un useEffect React (donc à
+// un re-render de retard), hls.js part en ABR libre et va chercher le level 0.
+// Vu en prod le 2026-07-25 : un 480p et un 1080p lancés à 43 ms d'intervalle
+// sur un serveur calibré à UN encodage, segment 0 toujours absent 9,5 s après.
+//
+// desiredHeight <= 0 = "Auto" -> le rung du HAUT (celui que la calibration dit
+// soutenable), un seul décodage, pas de bascule. Une hauteur choisie mais
+// absente de l'échelle (ladder rogné par l'admission depuis le choix) retombe
+// sur le haut plutôt que de ne rien épingler : ne rien épingler, c'est rendre
+// la main à l'ABR libre, exactement ce qu'on évite.
+export function pickPinnedLevel(s: { levelHeights: readonly number[]; desiredHeight: number }): number {
+  if (s.levelHeights.length === 0) return -1;
+  const top = s.levelHeights.length - 1;
+  if (s.desiredHeight <= 0) return top;
+  const idx = s.levelHeights.indexOf(s.desiredHeight);
+  return idx >= 0 ? idx : top;
+}
+
 export type TranscodeAudioSwitchPath = "hls-rendition" | "restart";
 
 // Changer de piste audio en transcode = sélection CLIENTE d'une rendition que
