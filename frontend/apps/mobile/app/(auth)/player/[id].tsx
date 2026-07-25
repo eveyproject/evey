@@ -32,6 +32,7 @@ import { useChapters } from "../../../src/hooks/useChapters";
 import { useSleepTimer } from "../../../src/hooks/useSleepTimer";
 import { SleepTimerPicker } from "../../../src/components/SleepTimerPicker";
 import { pickNativeAudioTrack } from "../../../src/lib/audioTrackMatch";
+import { playerExit } from "../../../src/lib/playerExit";
 import { ChaptersPicker } from "../../../src/components/ChaptersPicker";
 import { StreamInfoPanel } from "../../../src/components/StreamInfoPanel";
 import { SkipIntroOverlay } from "../../../src/components/SkipIntroOverlay";
@@ -54,8 +55,8 @@ import {
 } from "../../../src/components/player/PlayerSettingsPanel";
 import { useControlsAutoHide } from "../../../src/components/player/useControlsAutoHide";
 
-// Sheets encore portés par un BottomSheet ; l'audio / les sous-titres / la
-// qualité / la vitesse vivent désormais dans le panneau réglages (parité web).
+// Sheets still carried by a BottomSheet; audio / subtitles / quality / speed
+// now live in the settings panel (web parity).
 type SheetName = "chapters" | "streamInfo" | "sleepTimer" | "syncPlay";
 
 const IMAGE_SUBTITLE_CODECS = new Set([
@@ -124,8 +125,8 @@ export default function PlayerScreen() {
   }, [isEpisode, parentItem?.indexNumber, media?.indexNumber]);
   const playerTitle = episodeLabel ? `${episodeLabel} - ${media?.title ?? ""}` : (media?.title ?? "");
 
-  // Épisodes voisins de la même saison, pour les boutons épisode
-  // précédent/suivant de la barre de transport (parité player web).
+  // Sibling episodes of the same season, for the previous/next episode
+  // buttons of the transport bar (web player parity).
   const { data: siblingsData } = useLibraryServiceListMediaItems(
     { parentId: media?.parentId ?? "", "pagination.pageSize": 500 } as never,
     { query: { enabled: !!media?.parentId && isEpisode } } as never,
@@ -155,8 +156,8 @@ export default function PlayerScreen() {
 
   const [activeSheet, setActiveSheet] = useState<null | SheetName>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  // Lu par le PanResponder des gestes (construit une seule fois) : un state
-  // capturé dans sa closure serait figé, le ref reste toujours à jour.
+  // Read by the gestures' PanResponder (built once): a state captured in
+  // its closure would be frozen, the ref always stays up to date.
   const settingsOpenRef = useRef(false);
   useEffect(() => { settingsOpenRef.current = settingsOpen; }, [settingsOpen]);
   const [selectedAudioIndex, setSelectedAudioIndex] = useState<number>(0);
@@ -229,8 +230,8 @@ export default function PlayerScreen() {
   // same reset discipline as autoMarkedRef / startedRef below.
   useEffect(() => {
     setNativeError(null);
-    // Un panneau/sheet resté ouvert n'a pas de sens sur le média suivant
-    // (auto-next-episode ou nouvelle navigation réutilisent cet écran).
+    // A panel/sheet left open makes no sense on the next media
+    // (auto-next-episode or a new navigation reuse this screen).
     setActiveSheet(null);
     setSettingsOpen(false);
   }, [mediaId]);
@@ -309,8 +310,8 @@ export default function PlayerScreen() {
     const statusSub = player.addListener("statusChange", (ev) => {
       if (!mountedRef.current) return;
       try { setIsPlaying(player.playing); setDuration(player.duration); } catch (err) { console.warn("released", err); }
-      // "loading" en cours de lecture = stall réseau/segments : le web affiche
-      // un petit spinner discret dans la barre, on fait pareil.
+      // "loading" while playing = network/segment stall: the web shows a
+      // small discreet spinner in the bar, we do the same.
       setIsBuffering(ev.status === "loading");
       if (ev.status === "error") {
         console.warn("[player] native playback error:", ev.error?.message);
@@ -363,8 +364,8 @@ export default function PlayerScreen() {
   }, []);
 
   const [isFullscreen, setIsFullscreen] = useState(false);
-  // Hauteur mesurée du bloc bas (seekbar + rangée) : sert d'ancre en pixels au
-  // panneau réglages, rendu au-dessus de la barre.
+  // Measured height of the bottom block (seekbar + row): serves as the
+  // pixel anchor for the settings panel, rendered above the bar.
   const [controlsHeight, setControlsHeight] = useState(0);
   const toggleFullscreen = useCallback(() => {
     setIsFullscreen((prev) => {
@@ -378,13 +379,25 @@ export default function PlayerScreen() {
     });
   }, []);
 
+  // Same exit contract as the web player's back button (playerUtils.playerExit):
+  // pop the player's own history entry when there is one - safe because episode
+  // changes REPLACE - otherwise (deep link, notification) REPLACE toward the
+  // media page (an episode exits to its season) so no player entry is ever
+  // left behind for a later back press to walk into.
+  const handleBack = useCallback(() => {
+    stopSession();
+    const exit = playerExit(router.canGoBack(), mediaId, media);
+    if (exit.action === "back") router.back();
+    else router.replace(`/media/${exit.mediaId}` as never);
+  }, [stopSession, mediaId, media]);
+
   useEffect(() => {
     const sub = BackHandler.addEventListener("hardwareBackPress", () => {
-      router.back();
+      handleBack();
       return true;
     });
     return () => sub.remove();
-  }, []);
+  }, [handleBack]);
 
   useEffect(() => {
     return () => stopSession();
@@ -487,8 +500,8 @@ export default function PlayerScreen() {
       void setAudioBoost(v > 1 ? v : 1);
       volumeBaseRef.current = v;
       setVolume(v);
-      // Glisser la barre au-dessus de zéro vaut « je veux du son maintenant » :
-      // même levée de mute implicite que le player web.
+      // Dragging the bar above zero means "I want sound now": same implicit
+      // unmute as the web player.
       if (v > 0 && player.muted) {
         player.muted = false;
         setMuted(false);
@@ -517,8 +530,8 @@ export default function PlayerScreen() {
     },
     [],
   );
-  // Le curseur du panneau réglages doit partir de la luminosité système
-  // réelle, pas d'un 100 % arbitraire.
+  // The settings panel's slider must start from the real system brightness,
+  // not an arbitrary 100%.
   useEffect(() => {
     try {
       const Brightness = require("expo-brightness");
@@ -614,8 +627,8 @@ export default function PlayerScreen() {
   const remoteCallbacks = useMemo(() => ({
     onRemotePause: () => { try { player?.pause(); } catch (err) { console.warn("released", err); } },
     onRemotePlay: () => { try { player?.play(); } catch (err) { console.warn("released", err); } },
-    onRemoteStop: () => { stopSession(); router.back(); },
-  }), [player, stopSession]);
+    onRemoteStop: () => handleBack(),
+  }), [player, handleBack]);
 
   useProgressReporter(sessionId, getPositionMs, getIsPaused, getVolume, getIsMuted, remoteCallbacks);
 
@@ -707,9 +720,9 @@ export default function PlayerScreen() {
     resetHideTimer();
   }, [player, resetHideTimer]);
 
-  // Chapitre courant + sauts chapitre précédent/suivant, même logique que le
-  // web : « précédent » revient d'abord au début du chapitre en cours si on y
-  // est depuis plus de 3 s, sinon au chapitre d'avant.
+  // Current chapter + previous/next chapter jumps, same logic as the web:
+  // "previous" first returns to the start of the current chapter if we've
+  // been in it for more than 3s, otherwise to the previous chapter.
   const currentChapterIndex = useMemo(() => {
     let idx = -1;
     const ms = currentTime * 1000;
@@ -734,11 +747,6 @@ export default function PlayerScreen() {
       handleChapterSeek(current.startTimeMs / 1000);
     }
   }, [chapters, currentChapterIndex, currentTime, handleChapterSeek]);
-
-  const handleBack = useCallback(() => {
-    stopSession();
-    router.back();
-  }, [stopSession]);
 
   // Server-side load shed (HTTP 503): distinct from isError below - nothing is
   // broken, the server just isn't ready to serve THIS request yet, for one of
@@ -792,7 +800,7 @@ export default function PlayerScreen() {
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: "#000", marginTop: -insets.top }]}>
+    <View style={[styles.container, { backgroundColor: "#000" }]}>
       <StatusBar hidden />
 
       <View style={{ width: screenW, height: screenH }} {...panResponder.panHandlers}>
@@ -825,9 +833,9 @@ export default function PlayerScreen() {
 
         {nextEp.visible && nextEp.nextEpisode && <NextEpisodeOverlay nextEp={nextEp} />}
 
-        {/* Scrim invisible sous le panneau réglages : un tap hors du panneau le
-            ferme (équivalent du handleOverlayClick web). Les gestes du player
-            sont suspendus tant que le panneau est ouvert. */}
+        {/* Invisible scrim under the settings panel: a tap outside the panel
+            closes it (equivalent of the web's handleOverlayClick). The
+            player's gestures are suspended while the panel is open. */}
         {settingsOpen && (
           <Pressable
             style={StyleSheet.absoluteFill}
@@ -877,8 +885,8 @@ export default function PlayerScreen() {
                 onScrubbingChange={(s) => { seekingRef.current = s; }}
               />
 
-              {/* Rangée de transport, copie de la barre web : épisodes/chapitres,
-                  ±Ns, temps, volume, puis « ⋯ » vers la rangée secondaire. */}
+              {/* Transport row, copy of the web bar: episodes/chapters,
+                  +/-Ns, time, volume, then "..." toward the secondary row. */}
               <PlayerControlsRow
                 isPlaying={isPlaying}
                 isBuffering={isBuffering}
@@ -914,11 +922,11 @@ export default function PlayerScreen() {
 
             </View>
 
-            {/* Panneau réglages ancré au-dessus de la barre, aligné à droite -
-                même popup que l'engrenage du player web. Frère de la barre et
-                positionné en pixels : un bottom en pourcentage cassait la
-                hauteur mesurée du ScrollView (panneau dessiné mais zone
-                tactile réduite à quelques pixels). */}
+            {/* Settings panel anchored above the bar, right-aligned - same
+                popup as the web player's gear icon. Sibling of the bar and
+                positioned in pixels: a percentage bottom broke the
+                ScrollView's measured height (panel drawn but the touch
+                area shrunk to a few pixels). */}
             {settingsOpen && (
               <PlayerSettingsPanel
                 audioStreams={audioStreams}
