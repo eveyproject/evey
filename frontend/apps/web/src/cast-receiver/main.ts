@@ -123,10 +123,16 @@ playerManager.setMessageInterceptor(
 
     const deviceCaps = context.getDeviceCapabilities() ?? {};
     const systemHdr = deviceCaps[cast.framework.system.DeviceCapabilities.IS_HDR_SUPPORTED] === true;
-    const caps = probeReceiverCaps(
+    const probed = probeReceiverCaps(
       (mime, codec, w, h) => context.canDisplayType(mime, codec, w, h),
       systemHdr,
     );
+    // v1 : ZÉRO passthrough Dolby, même si la sonde dit oui - position Jellyfin
+    // (hasEAC3Support hardcodé false « problems getting it to work with HLS »),
+    // confirmée le 25/07 au soir : la Mi TV se sonde Dolby-capable via EDID et
+    // le player CAF échoue quand même le LOAD (code 905) sur le master ec-3.
+    // L'audio passe donc par ac3go wasm (https) ou le transcode AAC serveur.
+    const caps = { ...probed, nativeDolby: false };
     const wasmCapable = typeof WebAssembly !== "undefined" && !wasmDisabled;
     // window.location.protocol : une instance http: sur le LAN n'a pas droit
     // aux fetch JS (mixed content) - la décision wasm en tient compte.
@@ -154,11 +160,17 @@ playerManager.addEventListener(cast.framework.events.EventType.PLAYER_LOAD_COMPL
 });
 
 // Les erreurs du player s'affichent À L'ÉCRAN : c'est le receiver de debug que
-// le DMR n'a jamais été. detailedErrorCode est la donnée qui manquait à chaque
-// incident cast passé.
+// le DMR n'a jamais été. detailedErrorCode + la raison brute + la décision de
+// négociation : tout ce qu'il faut pour diagnostiquer sur une photo de TV.
 playerManager.addEventListener(cast.framework.events.EventType.ERROR, (event: any) => {
   const code = event?.detailedErrorCode ?? "?";
-  showDebug(`Erreur lecture (code ${code})`);
+  let extra = "";
+  try {
+    extra = JSON.stringify(event?.error ?? event?.reason ?? {}).slice(0, 140);
+  } catch { /* l'écran reste le canal : jamais d'exception ici */ }
+  const mode = wasmRequested ? "wasm" : "aac";
+  const host = (() => { try { return new URL(currentUrl).host; } catch { return "?"; } })();
+  showDebug(`Erreur lecture code=${code} mode=${mode} src=${host} ${extra}`);
 });
 
 context.addEventListener(cast.framework.system.EventType.SHUTDOWN, () => destroyEngine());
