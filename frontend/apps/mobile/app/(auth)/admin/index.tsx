@@ -64,6 +64,7 @@ export default function AdminDashboard() {
     { label: t("common.feeds.title"), icon: "grid-outline", path: "/admin/feeds" },
     { label: t("admin.remoteAccess.title"), icon: "globe-outline", path: "/admin/remote-access" },
     { label: t("admin.analytics.title"), icon: "bar-chart-outline", path: "/admin/analytics" },
+    { label: t("admin.nav.qoe"), icon: "speedometer-outline", path: "/admin/qoe" },
     { label: t("admin.backup.title", "Database Backup"), icon: "cloud-download-outline", path: "/admin/backup" },
     { label: t("admin.nav.webhooks", "Webhooks"), icon: "link-outline", path: "/admin/webhooks" },
   ];
