@@ -1,106 +1,294 @@
-import { View, Text, Pressable, StyleSheet } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { useState, useEffect } from "react";
+import { View, Text, Pressable, ActivityIndicator, StyleSheet } from "react-native";
+import { Ionicons, MaterialIcons } from "@expo/vector-icons";
+import Svg, { Path, Text as SvgText } from "react-native-svg";
 import { useTranslation } from "react-i18next";
 import { formatTime } from "../../lib/formatTime";
 import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
+import { PlayerVolumeControl } from "./PlayerVolumeControl";
 
-// "more" opens PlayerMoreSheet (chapters/quality/speed/sleep timer/stream
-// info/PiP - see the 2026-07-25 declutter pass). "audio"/"subtitle"/"syncPlay"
-// stay direct entry points; cast has no sheet, it lives in the top-right cluster.
-export type SheetName = "audio" | "subtitle" | "quality" | "chapters" | "streamInfo" | "sleepTimer" | "syncPlay" | "more";
+export interface EpisodeNeighbor {
+  id: string;
+  title?: string;
+  indexNumber?: number;
+}
 
 interface PlayerControlsRowProps {
   isPlaying: boolean;
+  isBuffering: boolean;
   currentTime: number;
   effectiveDuration: number;
   skipFwd: number;
   skipBwd: number;
   isFullscreen: boolean;
-  audioTrackCount: number;
-  subtitleTrackCount: number;
+  volume: number;
+  muted: boolean;
+  prevEpisode: EpisodeNeighbor | null;
+  nextEpisode: EpisodeNeighbor | null;
+  hasPrevChapter: boolean;
+  hasNextChapter: boolean;
+  hasChapters: boolean;
+  settingsOpen: boolean;
+  sleepTimerActive: boolean;
+  pipSupported: boolean;
   onSeekBy: (seconds: number) => void;
   onTogglePlayPause: () => void;
+  onToggleMute: () => void;
+  onVolumeChange: (value: number) => void;
+  onEpisodeChange: (id: string) => void;
+  onPrevChapter: () => void;
+  onNextChapter: () => void;
+  onOpenChapters: () => void;
+  onToggleSettings: () => void;
+  onOpenStreamInfo: () => void;
+  onOpenSleepTimer: () => void;
+  onPip: () => void;
   onToggleFullscreen: () => void;
-  onOpenSheet: (sheet: SheetName) => void;
 }
 
-// Bottom transport bar: play/pause, seek +/-, the timeline (rendered above by
-// PlayerSeekBar), audio/subtitle tracks, fullscreen, and a single "more" button
-// for everything secondary. Cast and "watch together" moved to the top-right
-// cluster; chapters/quality/speed/sleep timer/stream info/PiP moved into the
-// "more" sheet - see PlayerMoreSheet. This trims the row from ~13 buttons to 6.
+// Mêmes glyphes que le player web : flèche circulaire avec le nombre de
+// secondes incrusté (le web les dessine en SVG inline, on reprend les paths).
+function SkipBackIcon({ seconds }: { seconds: number }) {
+  return (
+    <Svg width={22} height={22} viewBox="0 0 24 24">
+      <Path fill="#fff" d="M11.99 5V1l-5 5 5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6h-2c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z" />
+      <SvgText x="12" y="15.5" textAnchor="middle" fontSize="7" fontWeight="bold" fill="#fff">{seconds}</SvgText>
+    </Svg>
+  );
+}
+
+function SkipForwardIcon({ seconds }: { seconds: number }) {
+  return (
+    <Svg width={22} height={22} viewBox="0 0 24 24">
+      <Path fill="#fff" d="M12.01 5V1l5 5-5 5V7c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z" />
+      <SvgText x="12" y="15.5" textAnchor="middle" fontSize="7" fontWeight="bold" fill="#fff">{seconds}</SvgText>
+    </Svg>
+  );
+}
+
+// Rangée de transport, copie de la barre du player web : épisode/chapitre
+// précédent, -Ns, play/pause, +Ns, chapitre/épisode suivant, temps, volume,
+// puis un bouton « ⋯ » qui révèle la rangée secondaire flottante (chapitres,
+// réglages, infos flux, minuteur, PiP, plein écran) - exactement le même
+// regroupement que le web sous le breakpoint sm.
 export function PlayerControlsRow({
   isPlaying,
+  isBuffering,
   currentTime,
   effectiveDuration,
   skipFwd,
   skipBwd,
   isFullscreen,
-  audioTrackCount,
-  subtitleTrackCount,
+  volume,
+  muted,
+  prevEpisode,
+  nextEpisode,
+  hasPrevChapter,
+  hasNextChapter,
+  hasChapters,
+  settingsOpen,
+  sleepTimerActive,
+  pipSupported,
   onSeekBy,
   onTogglePlayPause,
+  onToggleMute,
+  onVolumeChange,
+  onEpisodeChange,
+  onPrevChapter,
+  onNextChapter,
+  onOpenChapters,
+  onToggleSettings,
+  onOpenStreamInfo,
+  onOpenSleepTimer,
+  onPip,
   onToggleFullscreen,
-  onOpenSheet,
 }: PlayerControlsRowProps) {
   const { t } = useTranslation();
+  const [overflowOpen, setOverflowOpen] = useState(false);
+
+  // Comme le web : le panneau réglages vit dans la rangée secondaire, donc
+  // celle-ci reste ouverte tant que lui l'est ; sinon elle se referme quand
+  // les contrôles se cachent (le parent démonte cette rangée).
+  useEffect(() => {
+    if (!settingsOpen) return;
+    setOverflowOpen(true);
+  }, [settingsOpen]);
+
   return (
-    <View style={[styles.controlsRow, { marginTop: 4 }]}>
-      <Pressable onPress={() => onSeekBy(-skipBwd)} hitSlop={12} style={styles.controlBtn} accessible={true} accessibilityLabel={t("player.controls.rewind", { seconds: skipBwd })} accessibilityRole="button">
-        <Ionicons name="play-back" size={ICON_SIZE.lg} color="#fff" />
-      </Pressable>
-      <Pressable onPress={onTogglePlayPause} hitSlop={12} style={styles.controlBtn} accessible={true} accessibilityLabel={isPlaying ? t("player.controls.pause") : t("player.controls.play")} accessibilityRole="button">
-        <Ionicons name={isPlaying ? "pause" : "play"} size={ICON_SIZE.xl} color="#fff" />
-      </Pressable>
-      <Pressable onPress={() => onSeekBy(skipFwd)} hitSlop={12} style={styles.controlBtn} accessible={true} accessibilityLabel={t("player.controls.forward", { seconds: skipFwd })} accessibilityRole="button">
-        <Ionicons name="play-forward" size={ICON_SIZE.lg} color="#fff" />
-      </Pressable>
-      <Text style={styles.timeText}>{formatTime(currentTime)} / {formatTime(effectiveDuration)}</Text>
-      <View style={{ flex: 1 }} />
-      {audioTrackCount > 1 && (
+    <View style={styles.controlsRow}>
+      {prevEpisode && (
         <Pressable
-          onPress={() => onOpenSheet("audio")}
+          onPress={() => onEpisodeChange(prevEpisode.id)}
           hitSlop={8}
-          style={styles.trackButton}
+          style={styles.controlBtn}
           accessible={true}
-          accessibilityLabel={t("player.settings.audio")}
+          accessibilityLabel={t("player.controls.previousEpisode")}
           accessibilityRole="button"
         >
-          <Ionicons name="volume-high" size={ICON_SIZE.lg} color="#fff" />
+          <Ionicons name="play-skip-back" size={ICON_SIZE.lg} color="#fff" />
         </Pressable>
       )}
-      {subtitleTrackCount > 0 && (
+      {hasPrevChapter && (
         <Pressable
-          onPress={() => onOpenSheet("subtitle")}
+          onPress={onPrevChapter}
           hitSlop={8}
-          style={styles.trackButton}
+          style={styles.controlBtn}
           accessible={true}
-          accessibilityLabel={t("player.settings.subtitles")}
+          accessibilityLabel={t("player.controls.chapters")}
           accessibilityRole="button"
         >
-          <Ionicons name="chatbubble-ellipses" size={ICON_SIZE.lg} color="#fff" />
+          <MaterialIcons name="first-page" size={ICON_SIZE.xl} color="#fff" />
         </Pressable>
       )}
       <Pressable
-        onPress={() => onOpenSheet("more")}
-        hitSlop={8}
-        style={styles.trackButton}
+        onPress={() => onSeekBy(-skipBwd)}
+        hitSlop={10}
+        style={styles.controlBtn}
         accessible={true}
-        accessibilityLabel={t("player.settings.more", "More options")}
+        accessibilityLabel={t("player.controls.rewind", { seconds: skipBwd })}
+        accessibilityRole="button"
+      >
+        <SkipBackIcon seconds={skipBwd} />
+      </Pressable>
+      <Pressable
+        onPress={onTogglePlayPause}
+        hitSlop={10}
+        style={styles.controlBtn}
+        accessible={true}
+        accessibilityLabel={isPlaying ? t("player.controls.pause") : t("player.controls.play")}
+        accessibilityRole="button"
+      >
+        <Ionicons name={isPlaying ? "pause" : "play"} size={ICON_SIZE["2xl"]} color="#fff" />
+      </Pressable>
+      <Pressable
+        onPress={() => onSeekBy(skipFwd)}
+        hitSlop={10}
+        style={styles.controlBtn}
+        accessible={true}
+        accessibilityLabel={t("player.controls.forward", { seconds: skipFwd })}
+        accessibilityRole="button"
+      >
+        <SkipForwardIcon seconds={skipFwd} />
+      </Pressable>
+      {hasNextChapter && (
+        <Pressable
+          onPress={onNextChapter}
+          hitSlop={8}
+          style={styles.controlBtn}
+          accessible={true}
+          accessibilityLabel={t("player.controls.chapters")}
+          accessibilityRole="button"
+        >
+          <MaterialIcons name="last-page" size={ICON_SIZE.xl} color="#fff" />
+        </Pressable>
+      )}
+      {nextEpisode && (
+        <Pressable
+          onPress={() => onEpisodeChange(nextEpisode.id)}
+          hitSlop={8}
+          style={styles.controlBtn}
+          accessible={true}
+          accessibilityLabel={t("player.controls.nextEpisode")}
+          accessibilityRole="button"
+        >
+          <Ionicons name="play-skip-forward" size={ICON_SIZE.lg} color="#fff" />
+        </Pressable>
+      )}
+
+      <Text style={styles.timeText}>{formatTime(currentTime)} / {formatTime(effectiveDuration)}</Text>
+
+      <PlayerVolumeControl
+        volume={volume}
+        muted={muted}
+        onToggleMute={onToggleMute}
+        onVolumeChange={onVolumeChange}
+      />
+
+      {isBuffering && isPlaying && (
+        <ActivityIndicator size="small" color="rgba(255,255,255,0.7)" />
+      )}
+
+      <View style={{ flex: 1 }} />
+
+      <Pressable
+        onPress={() => setOverflowOpen((v) => !v)}
+        hitSlop={8}
+        style={styles.controlBtn}
+        accessible={true}
+        accessibilityLabel={t("player.controls.more")}
         accessibilityRole="button"
       >
         <Ionicons name="ellipsis-horizontal" size={ICON_SIZE.lg} color="#fff" />
       </Pressable>
-      <Pressable
-        onPress={onToggleFullscreen}
-        hitSlop={8}
-        style={styles.trackButton}
-        accessible={true}
-        accessibilityLabel={isFullscreen ? t("player.controls.exitFullscreen", "Exit fullscreen") : t("player.controls.fullscreen", "Fullscreen")}
-        accessibilityRole="button"
-      >
-        <Ionicons name={isFullscreen ? "contract-outline" : "expand-outline"} size={ICON_SIZE.lg} color="#fff" />
-      </Pressable>
+
+      {overflowOpen && (
+        <View style={styles.overflowRow}>
+          {hasChapters && (
+            <Pressable
+              onPress={onOpenChapters}
+              hitSlop={8}
+              style={styles.controlBtn}
+              accessible={true}
+              accessibilityLabel={t("player.controls.chapters")}
+              accessibilityRole="button"
+            >
+              <Ionicons name="book-outline" size={ICON_SIZE.lg} color="#fff" />
+            </Pressable>
+          )}
+          <Pressable
+            onPress={onToggleSettings}
+            hitSlop={8}
+            style={styles.controlBtn}
+            accessible={true}
+            accessibilityLabel={t("player.controls.settings")}
+            accessibilityRole="button"
+          >
+            <Ionicons name="settings-sharp" size={ICON_SIZE.lg} color="#fff" />
+          </Pressable>
+          <Pressable
+            onPress={onOpenStreamInfo}
+            hitSlop={8}
+            style={styles.controlBtn}
+            accessible={true}
+            accessibilityLabel={t("player.streamInfo.title", "Stream Info")}
+            accessibilityRole="button"
+          >
+            <Ionicons name="information-circle-outline" size={ICON_SIZE.lg} color="#fff" />
+          </Pressable>
+          <Pressable
+            onPress={onOpenSleepTimer}
+            hitSlop={8}
+            style={styles.controlBtn}
+            accessible={true}
+            accessibilityLabel={t("player.settings.sleepTimer", "Sleep timer")}
+            accessibilityRole="button"
+          >
+            <Ionicons name={sleepTimerActive ? "moon" : "moon-outline"} size={ICON_SIZE.lg} color="#fff" />
+          </Pressable>
+          {pipSupported && (
+            <Pressable
+              onPress={onPip}
+              hitSlop={8}
+              style={styles.controlBtn}
+              accessible={true}
+              accessibilityLabel={t("player.controls.pip")}
+              accessibilityRole="button"
+            >
+              <Ionicons name="albums-outline" size={ICON_SIZE.lg} color="#fff" />
+            </Pressable>
+          )}
+          <Pressable
+            onPress={onToggleFullscreen}
+            hitSlop={8}
+            style={styles.controlBtn}
+            accessible={true}
+            accessibilityLabel={isFullscreen ? t("player.controls.exitFullscreen") : t("player.controls.fullscreen")}
+            accessibilityRole="button"
+          >
+            <Ionicons name={isFullscreen ? "contract-outline" : "expand-outline"} size={ICON_SIZE.lg} color="#fff" />
+          </Pressable>
+        </View>
+      )}
     </View>
   );
 }
@@ -109,9 +297,8 @@ const styles = StyleSheet.create({
   controlsRow: {
     flexDirection: "row",
     alignItems: "center",
-    flexWrap: "wrap",
-    rowGap: 8,
-    columnGap: 12,
+    columnGap: 10,
+    marginTop: 4,
   },
   controlBtn: {
     padding: 4,
@@ -120,15 +307,21 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: FONT_SIZE.xs,
     fontVariant: ["tabular-nums"],
-    minWidth: 50,
     textAlign: "center",
   },
-  trackButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "rgba(255,255,255,0.15)",
-    justifyContent: "center",
+  // Rangée secondaire flottante au-dessus de la barre, alignée à droite -
+  // même placement que la rangée « overflow » du web sous sm.
+  overflowRow: {
+    position: "absolute",
+    bottom: "100%",
+    right: 0,
+    marginBottom: 8,
+    flexDirection: "row",
     alignItems: "center",
+    columnGap: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: "rgba(0,0,0,0.85)",
   },
 });

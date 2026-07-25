@@ -31,10 +31,7 @@ import { useNextEpisode } from "../../../src/hooks/useNextEpisode";
 import { useChapters } from "../../../src/hooks/useChapters";
 import { useSleepTimer } from "../../../src/hooks/useSleepTimer";
 import { SleepTimerPicker } from "../../../src/components/SleepTimerPicker";
-import { AudioTrackPicker, type AudioStream } from "../../../src/components/AudioTrackPicker";
 import { pickNativeAudioTrack } from "../../../src/lib/audioTrackMatch";
-import { SubtitlePicker, type SubtitleStream } from "../../../src/components/SubtitlePicker";
-import { QualityPicker } from "../../../src/components/QualityPicker";
 import { ChaptersPicker } from "../../../src/components/ChaptersPicker";
 import { StreamInfoPanel } from "../../../src/components/StreamInfoPanel";
 import { SkipIntroOverlay } from "../../../src/components/SkipIntroOverlay";
@@ -48,10 +45,18 @@ import { CastControllerScreen } from "../../../src/components/player/CastControl
 import { GestureIndicators } from "../../../src/components/player/GestureIndicators";
 import { NextEpisodeOverlay } from "../../../src/components/player/NextEpisodeOverlay";
 import { PlayerSeekBar } from "../../../src/components/player/PlayerSeekBar";
-import { PlayerControlsRow, type SheetName } from "../../../src/components/player/PlayerControlsRow";
+import { PlayerControlsRow } from "../../../src/components/player/PlayerControlsRow";
 import { PlayerTopRightCluster } from "../../../src/components/player/PlayerTopRightCluster";
-import { PlayerMoreSheet } from "../../../src/components/player/PlayerMoreSheet";
+import {
+  PlayerSettingsPanel,
+  type AudioStream,
+  type SubtitleStream,
+} from "../../../src/components/player/PlayerSettingsPanel";
 import { useControlsAutoHide } from "../../../src/components/player/useControlsAutoHide";
+
+// Sheets encore portés par un BottomSheet ; l'audio / les sous-titres / la
+// qualité / la vitesse vivent désormais dans le panneau réglages (parité web).
+type SheetName = "chapters" | "streamInfo" | "sleepTimer" | "syncPlay";
 
 const IMAGE_SUBTITLE_CODECS = new Set([
   "pgssub", "hdmv_pgs_subtitle", "dvd_subtitle", "dvbsub", "xsub",
@@ -118,6 +123,23 @@ export default function PlayerScreen() {
     return null;
   }, [isEpisode, parentItem?.indexNumber, media?.indexNumber]);
   const playerTitle = episodeLabel ? `${episodeLabel} - ${media?.title ?? ""}` : (media?.title ?? "");
+
+  // Épisodes voisins de la même saison, pour les boutons épisode
+  // précédent/suivant de la barre de transport (parité player web).
+  const { data: siblingsData } = useLibraryServiceListMediaItems(
+    { parentId: media?.parentId ?? "", "pagination.pageSize": 500 } as never,
+    { query: { enabled: !!media?.parentId && isEpisode } } as never,
+  );
+  const { prevEpisode, nextEpisode } = useMemo(() => {
+    const items = siblingsData?.items;
+    if (!isEpisode || !items || items.length === 0) return { prevEpisode: null, nextEpisode: null };
+    const sorted = [...items].sort((a, b) => (a.indexNumber ?? 0) - (b.indexNumber ?? 0));
+    const idx = sorted.findIndex((e) => e.id === mediaId);
+    return {
+      prevEpisode: idx > 0 ? sorted[idx - 1] : null,
+      nextEpisode: idx >= 0 && idx < sorted.length - 1 ? sorted[idx + 1] : null,
+    };
+  }, [siblingsData?.items, isEpisode, mediaId]);
   // Don't open a play session for a series/season - the redirect above will
   // remount us on a real episode in a tick. Passing "" makes usePlaySession
   // hold its initial loading state instead of hitting /transcode and 404'ing.
@@ -132,6 +154,11 @@ export default function PlayerScreen() {
   useEffect(() => { return () => { mountedRef.current = false; void releaseAudioBoost(); }; }, []);
 
   const [activeSheet, setActiveSheet] = useState<null | SheetName>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  // Lu par le PanResponder des gestes (construit une seule fois) : un state
+  // capturé dans sa closure serait figé, le ref reste toujours à jour.
+  const settingsOpenRef = useRef(false);
+  useEffect(() => { settingsOpenRef.current = settingsOpen; }, [settingsOpen]);
   const [selectedAudioIndex, setSelectedAudioIndex] = useState<number>(0);
   // Audio tracks the NATIVE player exposes from the HLS manifest - the source
   // of truth for a no-reload client-side switch (see handleAudioSelect).
@@ -187,7 +214,10 @@ export default function PlayerScreen() {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isBuffering, setIsBuffering] = useState(false);
   const [volume, setVolume] = useState(1);
+  const [muted, setMuted] = useState(false);
+  const [brightness, setBrightness] = useState(1);
   // A fatal native failure (decoder error, 401 on a segment, broken manifest)
   // surfaces ONLY through the player's statusChange event - isError from
   // usePlaySession covers just the session-start network call. Ignoring it
@@ -199,6 +229,10 @@ export default function PlayerScreen() {
   // same reset discipline as autoMarkedRef / startedRef below.
   useEffect(() => {
     setNativeError(null);
+    // Un panneau/sheet resté ouvert n'a pas de sens sur le média suivant
+    // (auto-next-episode ou nouvelle navigation réutilisent cet écran).
+    setActiveSheet(null);
+    setSettingsOpen(false);
   }, [mediaId]);
   // Whether the NEXT player instance should start playing. Changing tracks or
   // quality recreates the native player, whose setup used to call play()
@@ -275,6 +309,9 @@ export default function PlayerScreen() {
     const statusSub = player.addListener("statusChange", (ev) => {
       if (!mountedRef.current) return;
       try { setIsPlaying(player.playing); setDuration(player.duration); } catch (err) { console.warn("released", err); }
+      // "loading" en cours de lecture = stall réseau/segments : le web affiche
+      // un petit spinner discret dans la barre, on fait pareil.
+      setIsBuffering(ev.status === "loading");
       if (ev.status === "error") {
         console.warn("[player] native playback error:", ev.error?.message);
         setNativeError(ev.error?.message ?? "playback error");
@@ -326,6 +363,9 @@ export default function PlayerScreen() {
   }, []);
 
   const [isFullscreen, setIsFullscreen] = useState(false);
+  // Hauteur mesurée du bloc bas (seekbar + rangée) : sert d'ancre en pixels au
+  // panneau réglages, rendu au-dessus de la barre.
+  const [controlsHeight, setControlsHeight] = useState(0);
   const toggleFullscreen = useCallback(() => {
     setIsFullscreen((prev) => {
       const next = !prev;
@@ -355,7 +395,7 @@ export default function PlayerScreen() {
   // see useControlsAutoHide for the timer semantics, unit-tested there.
   const { showControls, resetHideTimer, toggleControls } = useControlsAutoHide({
     isPlaying,
-    hasOpenPanel: activeSheet !== null,
+    hasOpenPanel: activeSheet !== null || settingsOpen,
   });
 
   const togglePlayPause = useCallback(() => {
@@ -447,9 +487,23 @@ export default function PlayerScreen() {
       void setAudioBoost(v > 1 ? v : 1);
       volumeBaseRef.current = v;
       setVolume(v);
+      // Glisser la barre au-dessus de zéro vaut « je veux du son maintenant » :
+      // même levée de mute implicite que le player web.
+      if (v > 0 && player.muted) {
+        player.muted = false;
+        setMuted(false);
+      }
     },
     [player],
   );
+
+  const toggleMute = useCallback(() => {
+    if (!player) return;
+    try {
+      player.muted = !player.muted;
+      setMuted(player.muted);
+    } catch (err) { console.warn("released", err); }
+  }, [player]);
 
   const brightnessBaseRef = useRef(1);
   const handleBrightnessChange = useCallback(
@@ -458,10 +512,23 @@ export default function PlayerScreen() {
         const Brightness = require("expo-brightness");
         await Brightness.setBrightnessAsync(value);
         brightnessBaseRef.current = value;
+        setBrightness(value);
       } catch (err) { console.warn("expo-brightness not available", err); }
     },
     [],
   );
+  // Le curseur du panneau réglages doit partir de la luminosité système
+  // réelle, pas d'un 100 % arbitraire.
+  useEffect(() => {
+    try {
+      const Brightness = require("expo-brightness");
+      Brightness.getBrightnessAsync().then((v: number) => {
+        if (!mountedRef.current) return;
+        brightnessBaseRef.current = v;
+        setBrightness(v);
+      });
+    } catch (err) { console.warn("expo-brightness not available", err); }
+  }, []);
 
   const getGestureVolume = useCallback(() => volumeBaseRef.current, []);
   const getGestureBrightness = useCallback(() => brightnessBaseRef.current, []);
@@ -476,6 +543,8 @@ export default function PlayerScreen() {
     getBrightness: getGestureBrightness,
     skipForwardSeconds: skipFwd,
     skipBackwardSeconds: skipBwd,
+    hasOpenPanel: () => settingsOpenRef.current,
+    onCloseOverlays: () => setSettingsOpen(false),
   });
 
   useEffect(() => cleanup, [cleanup]);
@@ -632,16 +701,39 @@ export default function PlayerScreen() {
     } catch (err) { console.warn("PiP unavailable", err); }
   }, []);
 
-  const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2] as const;
-  const cycleSpeed = useCallback(() => {
-    setPlaybackSpeed((prev) => {
-      const idx = SPEEDS.indexOf(prev as (typeof SPEEDS)[number]);
-      const next = SPEEDS[(idx + 1) % SPEEDS.length];
-      if (player) player.playbackRate = next;
-      return next;
-    });
+  const handleSpeedSelect = useCallback((speed: number) => {
+    setPlaybackSpeed(speed);
+    if (player) player.playbackRate = speed;
     resetHideTimer();
   }, [player, resetHideTimer]);
+
+  // Chapitre courant + sauts chapitre précédent/suivant, même logique que le
+  // web : « précédent » revient d'abord au début du chapitre en cours si on y
+  // est depuis plus de 3 s, sinon au chapitre d'avant.
+  const currentChapterIndex = useMemo(() => {
+    let idx = -1;
+    const ms = currentTime * 1000;
+    for (let i = 0; i < chapters.length; i++) {
+      if (ms >= chapters[i].startTimeMs) idx = i;
+    }
+    return idx;
+  }, [chapters, currentTime]);
+
+  const skipToNextChapter = useCallback(() => {
+    const nextIdx = currentChapterIndex >= 0 ? currentChapterIndex + 1 : 0;
+    if (nextIdx < chapters.length) handleChapterSeek(chapters[nextIdx].startTimeMs / 1000);
+  }, [chapters, currentChapterIndex, handleChapterSeek]);
+
+  const skipToPrevChapter = useCallback(() => {
+    const current = currentChapterIndex >= 0 ? chapters[currentChapterIndex] : null;
+    if (!current) return;
+    const elapsed = currentTime - current.startTimeMs / 1000;
+    if (currentChapterIndex > 0 && elapsed <= 3) {
+      handleChapterSeek(chapters[currentChapterIndex - 1].startTimeMs / 1000);
+    } else {
+      handleChapterSeek(current.startTimeMs / 1000);
+    }
+  }, [chapters, currentChapterIndex, currentTime, handleChapterSeek]);
 
   const handleBack = useCallback(() => {
     stopSession();
@@ -733,6 +825,17 @@ export default function PlayerScreen() {
 
         {nextEp.visible && nextEp.nextEpisode && <NextEpisodeOverlay nextEp={nextEp} />}
 
+        {/* Scrim invisible sous le panneau réglages : un tap hors du panneau le
+            ferme (équivalent du handleOverlayClick web). Les gestes du player
+            sont suspendus tant que le panneau est ouvert. */}
+        {settingsOpen && (
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setSettingsOpen(false)}
+            accessible={false}
+          />
+        )}
+
         {showControls && (
           <View style={styles.overlay} pointerEvents="box-none">
             <View style={[styles.topBar, { top: 0, paddingTop: Math.max(16, insets.top), paddingLeft: Math.max(20, insets.left), paddingRight: Math.max(20, insets.right) }]}>
@@ -759,7 +862,10 @@ export default function PlayerScreen() {
               style={{ paddingTop: Math.max(16, insets.top), paddingRight: Math.max(20, insets.right) }}
             />
 
-            <View style={[styles.bottomControls, { paddingBottom: Math.max(20, insets.bottom), paddingLeft: Math.max(20, insets.left), paddingRight: Math.max(20, insets.right) }]}>
+            <View
+              style={[styles.bottomControls, { paddingBottom: Math.max(20, insets.bottom), paddingLeft: Math.max(20, insets.left), paddingRight: Math.max(20, insets.right) }]}
+              onLayout={(e) => setControlsHeight(e.nativeEvent.layout.height)}
+            >
               <PlayerSeekBar
                 mediaId={mediaId}
                 progress={seekProgress}
@@ -771,23 +877,70 @@ export default function PlayerScreen() {
                 onScrubbingChange={(s) => { seekingRef.current = s; }}
               />
 
-              {/* Controls row - playback transport, track pickers, fullscreen and
-                  "more" (matches the web player layout). */}
+              {/* Rangée de transport, copie de la barre web : épisodes/chapitres,
+                  ±Ns, temps, volume, puis « ⋯ » vers la rangée secondaire. */}
               <PlayerControlsRow
                 isPlaying={isPlaying}
+                isBuffering={isBuffering}
                 currentTime={currentTime}
                 effectiveDuration={effectiveDuration}
                 skipFwd={skipFwd}
                 skipBwd={skipBwd}
                 isFullscreen={isFullscreen}
-                audioTrackCount={audioStreams.length}
-                subtitleTrackCount={subtitleStreams.length}
+                volume={volume}
+                muted={muted}
+                prevEpisode={prevEpisode?.id ? { id: prevEpisode.id } : null}
+                nextEpisode={nextEpisode?.id ? { id: nextEpisode.id } : null}
+                hasPrevChapter={chapters.length > 0 && currentChapterIndex > 0}
+                hasNextChapter={chapters.length > 0 && currentChapterIndex >= 0 && currentChapterIndex < chapters.length - 1}
+                hasChapters={chapters.length > 0}
+                settingsOpen={settingsOpen}
+                sleepTimerActive={sleepTimer.state !== null}
+                pipSupported={pipSupported}
                 onSeekBy={seekBy}
                 onTogglePlayPause={togglePlayPause}
+                onToggleMute={toggleMute}
+                onVolumeChange={handleVolumeChange}
+                onEpisodeChange={handleNavigateEpisode}
+                onPrevChapter={skipToPrevChapter}
+                onNextChapter={skipToNextChapter}
+                onOpenChapters={() => setActiveSheet("chapters")}
+                onToggleSettings={() => { setSettingsOpen((v) => !v); resetHideTimer(); }}
+                onOpenStreamInfo={() => setActiveSheet("streamInfo")}
+                onOpenSleepTimer={() => setActiveSheet("sleepTimer")}
+                onPip={handlePip}
                 onToggleFullscreen={toggleFullscreen}
-                onOpenSheet={setActiveSheet}
               />
+
             </View>
+
+            {/* Panneau réglages ancré au-dessus de la barre, aligné à droite -
+                même popup que l'engrenage du player web. Frère de la barre et
+                positionné en pixels : un bottom en pourcentage cassait la
+                hauteur mesurée du ScrollView (panneau dessiné mais zone
+                tactile réduite à quelques pixels). */}
+            {settingsOpen && (
+              <PlayerSettingsPanel
+                audioStreams={audioStreams}
+                currentAudioIndex={selectedAudioIndex}
+                onAudioChange={handleAudioSelect}
+                subtitleStreams={subtitleStreams}
+                currentSubtitleIndex={selectedSubtitleIndex}
+                onSubtitleChange={handleSubtitleSelect}
+                currentQuality={selectedQuality}
+                onQualityChange={handleQualitySelect}
+                playbackSpeed={playbackSpeed}
+                onSpeedChange={handleSpeedSelect}
+                brightness={brightness}
+                onBrightnessChange={handleBrightnessChange}
+                onClose={() => setSettingsOpen(false)}
+                style={{
+                  position: "absolute",
+                  right: Math.max(20, insets.right),
+                  bottom: controlsHeight + 8,
+                }}
+              />
+            )}
           </View>
         )}
 
@@ -807,41 +960,6 @@ export default function PlayerScreen() {
           </View>
         )}
       </View>
-
-      <PlayerMoreSheet
-        visible={activeSheet === "more"}
-        onClose={() => setActiveSheet(null)}
-        hasChapters={chapters.length > 0}
-        playbackSpeed={playbackSpeed}
-        onCycleSpeed={cycleSpeed}
-        sleepTimerState={sleepTimer.state}
-        pipSupported={pipSupported}
-        onPip={handlePip}
-        onOpenSheet={setActiveSheet}
-      />
-
-      <AudioTrackPicker
-        visible={activeSheet === "audio"}
-        onClose={() => setActiveSheet(null)}
-        streams={audioStreams}
-        currentIndex={selectedAudioIndex}
-        onSelect={handleAudioSelect}
-      />
-
-      <SubtitlePicker
-        visible={activeSheet === "subtitle"}
-        onClose={() => setActiveSheet(null)}
-        streams={subtitleStreams}
-        currentIndex={selectedSubtitleIndex}
-        onSelect={handleSubtitleSelect}
-      />
-
-      <QualityPicker
-        visible={activeSheet === "quality"}
-        onClose={() => setActiveSheet(null)}
-        currentQuality={selectedQuality}
-        onSelect={handleQualitySelect}
-      />
 
       <ChaptersPicker
         visible={activeSheet === "chapters"}

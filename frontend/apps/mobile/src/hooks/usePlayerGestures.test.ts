@@ -11,7 +11,7 @@ vi.mock("react-native", () => ({
 import { renderHook, act } from "@testing-library/react";
 import { usePlayerGestures } from "./usePlayerGestures";
 
-function setup(extra: Partial<{ skipForwardSeconds: number; skipBackwardSeconds: number }> = {}) {
+function setup(extra: Partial<{ skipForwardSeconds: number; skipBackwardSeconds: number; hasOpenPanel: () => boolean; onCloseOverlays: () => void }> = {}) {
   const cbs = {
     onSeekBy: vi.fn(),
     onTogglePlayPause: vi.fn(),
@@ -136,6 +136,40 @@ describe("usePlayerGestures", () => {
       config.onPanResponderRelease(makeEvt(700, 220), makeGS({ dy: -60 }));
 
       expect(cbs.onToggleControls).not.toHaveBeenCalled();
+    });
+  });
+
+  // Panneau ancré (réglages) ouvert : le PanResponder doit s'effacer - sans ça
+  // il volait le scroll du panneau et un swipe vertical y changeait le volume.
+  describe("panel open", () => {
+    it("does not claim the responder while a panel is open", () => {
+      const { config } = setup({ hasOpenPanel: () => true });
+
+      expect(config.onStartShouldSetPanResponder()).toBe(false);
+      expect(config.onMoveShouldSetPanResponder(makeEvt(700), makeGS({ dy: -60 }))).toBe(false);
+    });
+
+    it("claims the responder again once the panel closes", () => {
+      let open = true;
+      const { config } = setup({ hasOpenPanel: () => open });
+
+      expect(config.onStartShouldSetPanResponder()).toBe(false);
+      open = false;
+      expect(config.onStartShouldSetPanResponder()).toBe(true);
+      expect(config.onMoveShouldSetPanResponder(makeEvt(700), makeGS({ dy: -60 }))).toBe(true);
+    });
+
+    it("a tap with a panel open closes it and does nothing else", () => {
+      const onCloseOverlays = vi.fn();
+      const { config, cbs } = setup({ hasOpenPanel: () => true, onCloseOverlays });
+
+      config.onPanResponderGrant(makeEvt(500), makeGS());
+      config.onPanResponderRelease(makeEvt(500), makeGS());
+      act(() => { vi.advanceTimersByTime(400); });
+
+      expect(onCloseOverlays).toHaveBeenCalledTimes(1);
+      expect(cbs.onToggleControls).not.toHaveBeenCalled();
+      expect(cbs.onTogglePlayPause).not.toHaveBeenCalled();
     });
   });
 });

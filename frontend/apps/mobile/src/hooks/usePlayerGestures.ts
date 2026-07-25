@@ -22,6 +22,12 @@ interface UsePlayerGesturesArgs {
   getBrightness: () => number;
   skipForwardSeconds?: number;
   skipBackwardSeconds?: number;
+  /** Vrai quand un panneau ancré (réglages...) est ouvert : les swipes
+   *  volume/luminosité sont suspendus (ils voleraient le scroll du panneau)
+   *  et un tap sur la vidéo ferme le panneau - même contrat que le clic
+   *  overlay du player web. */
+  hasOpenPanel?: () => boolean;
+  onCloseOverlays?: () => void;
 }
 
 export function usePlayerGestures({
@@ -34,6 +40,8 @@ export function usePlayerGestures({
   getBrightness,
   skipForwardSeconds = 30,
   skipBackwardSeconds = 30,
+  hasOpenPanel,
+  onCloseOverlays,
 }: UsePlayerGesturesArgs) {
   const [seekFlash, setSeekFlash] = useState<"left" | "right" | null>(null);
   const [volumeIndicator, setVolumeIndicator] = useState<number | null>(null);
@@ -53,10 +61,12 @@ export function usePlayerGestures({
   const cb = useRef({
     onSeekBy, onTogglePlayPause, onToggleControls, onVolumeChange,
     onBrightnessChange, getVolume, getBrightness, skipForwardSeconds, skipBackwardSeconds,
+    hasOpenPanel, onCloseOverlays,
   });
   cb.current = {
     onSeekBy, onTogglePlayPause, onToggleControls, onVolumeChange,
     onBrightnessChange, getVolume, getBrightness, skipForwardSeconds, skipBackwardSeconds,
+    hasOpenPanel, onCloseOverlays,
   };
 
   const flashSeek = useCallback((side: "left" | "right") => {
@@ -68,8 +78,12 @@ export function usePlayerGestures({
   const panResponder = useMemo(
     () =>
       PanResponder.create({
-        onStartShouldSetPanResponder: () => true,
+        // Panneau ancré ouvert : ne pas prendre le responder du tout, sinon le
+        // ScrollView du panneau ne reçoit jamais les moves (le scrim posé par
+        // l'écran player gère la fermeture au tap).
+        onStartShouldSetPanResponder: () => !cb.current.hasOpenPanel?.(),
         onMoveShouldSetPanResponder: (_, gs) =>
+          !cb.current.hasOpenPanel?.() &&
           Math.abs(gs.dy) > SWIPE_THRESHOLD && Math.abs(gs.dy) > Math.abs(gs.dx) * 1.2,
 
         onPanResponderGrant: () => {
@@ -131,6 +145,13 @@ export function usePlayerGestures({
           // Tap detection
           const isSmallMove = Math.abs(gs.dx) < 20 && Math.abs(gs.dy) < 20;
           if (!isSmallMove) return;
+
+          // Panneau ouvert : le tap ferme le panneau, rien d'autre (web :
+          // handleOverlayClick fait exactement ça avant tout play/pause).
+          if (cb.current.hasOpenPanel?.()) {
+            cb.current.onCloseOverlays?.();
+            return;
+          }
 
           const { width } = Dimensions.get("window");
           const tapX = evt.nativeEvent.pageX;
