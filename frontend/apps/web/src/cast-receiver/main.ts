@@ -9,8 +9,8 @@
 //   3. afficher les erreurs de lecture À L'ÉCRAN - le Default Media Receiver
 //      échoue en silence, c'est ce qui a rendu les incidents cast indiagnosticables.
 import { WasmAudioEngine } from "@/features/playback/wasmaudio/WasmAudioEngine";
-import { extractAudioURI, injectToken } from "@/features/playback/wasmaudio/wasmAudioShared";
-import { probeReceiverCaps, rewriteCastMasterUrl, stripWasmAudio } from "./receiverLogic";
+import { extractAudioURI } from "@/features/playback/wasmaudio/wasmAudioShared";
+import { absoluteWithToken, probeReceiverCaps, rewriteCastMasterUrl, stripWasmAudio } from "./receiverLogic";
 
 // Le SDK CAF est chargé par un <script> gstatic dans la page ; ses types ne
 // sont pas packagés - accès volontairement non typé, borné à ce fichier.
@@ -98,7 +98,11 @@ async function startWasmEngine(): Promise<void> {
     }
     const playlistUrl = new URL(audioUri, currentUrl).toString();
     engine = new WasmAudioEngine(video, playlistUrl, {
-      resolveUrl: (u) => injectToken(u, token),
+      // Résolution ABSOLUE contre le serveur média : le receiver peut être
+      // hébergé ailleurs (GitHub Pages, domaine projet). Et credentials omit :
+      // le CORS token-auth du serveur ne répond pas Allow-Credentials.
+      resolveUrl: (u) => absoluteWithToken(u, playlistUrl, token),
+      credentials: "omit",
       onFatal: () => fallbackToMuxedAudio("moteur ac3go"),
     });
     await engine.start();
@@ -124,7 +128,9 @@ playerManager.setMessageInterceptor(
       systemHdr,
     );
     const wasmCapable = typeof WebAssembly !== "undefined" && !wasmDisabled;
-    const rewritten = rewriteCastMasterUrl(rawUrl, caps, wasmCapable);
+    // window.location.protocol : une instance http: sur le LAN n'a pas droit
+    // aux fetch JS (mixed content) - la décision wasm en tient compte.
+    const rewritten = rewriteCastMasterUrl(rawUrl, caps, wasmCapable, window.location.protocol);
     if (rewritten) {
       media.contentId = rewritten.url;
       media.contentUrl = rewritten.url;

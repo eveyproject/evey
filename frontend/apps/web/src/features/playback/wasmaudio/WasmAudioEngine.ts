@@ -57,6 +57,12 @@ export interface WasmAudioEngineOptions {
   // should tear the engine down and fall back to the AAC transcode path.
   onFatal?: (reason: string) => void;
   leadCompensationSec?: number;
+  // credentials des fetches playlist/segments. Le web (même origine) garde
+  // "include" (cookie hls). Le Web Receiver Cast est CROSS-origine avec le
+  // serveur média : le CORS token-auth reflète l'Origin SANS
+  // Allow-Credentials, donc une requête credentialed y serait REJETÉE par le
+  // navigateur - le receiver passe "omit", le token dans l'URL suffit.
+  credentials?: RequestCredentials;
 }
 
 // outputMix maps each Web Audio OUTPUT channel to the decoder source channels to
@@ -166,7 +172,7 @@ export class WasmAudioEngine {
   // --- playlist -----------------------------------------------------------
 
   private async loadPlaylist(): Promise<void> {
-    const resp = await fetch(this.resolve(this.playlistUrl), { credentials: "include" });
+    const resp = await fetch(this.resolve(this.playlistUrl), { credentials: this.opts.credentials ?? "include" });
     if (!resp.ok) throw new Error(`audio playlist ${resp.status}`);
     const text = await resp.text();
     const base = new URL(this.playlistUrl, window.location.origin);
@@ -233,7 +239,7 @@ export class WasmAudioEngine {
         reject(new Error("no worker"));
         return;
       }
-      fetch(this.resolve(seg.url), { credentials: "include" })
+      fetch(this.resolve(seg.url), { credentials: this.opts.credentials ?? "include" })
         .then((r) => {
           if (!r.ok) throw new Error(`segment ${r.status}`);
           return r.arrayBuffer();

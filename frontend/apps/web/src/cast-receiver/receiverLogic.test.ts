@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { probeReceiverCaps, rewriteCastMasterUrl, stripWasmAudio, type CanDisplayType } from "./receiverLogic";
+import { absoluteWithToken, probeReceiverCaps, rewriteCastMasterUrl, stripWasmAudio, type CanDisplayType } from "./receiverLogic";
 
 // canDisplayType factice : décode ce que `yes` liste (match par sous-chaîne du
 // codec string), refuse le reste. La résolution 4K n'est accordée que si
@@ -89,5 +89,62 @@ describe("stripWasmAudio - le repli quand le moteur wasm meurt sur la TV", () =>
     expect(u.searchParams.has("wasmAudio")).toBe(false);
     expect(u.searchParams.get("token")).toBe("tok");
     expect(u.searchParams.get("audioCodecs")).toBe("aac");
+  });
+});
+
+describe("absoluteWithToken - le receiver peut être hébergé HORS du serveur média", () => {
+  // Hébergé sur GitHub Pages (ou tout autre domaine), le receiver résout les
+  // URLs de playlist/segments contre le SERVEUR MÉDIA, jamais contre sa propre
+  // origine - injectToken (web, même-origine) rend un chemin relatif qui
+  // partirait vers github.io et ferait 404.
+  it("garde l'origine du serveur média et rafraîchit le token", () => {
+    const out = absoluteWithToken(
+      "audio_1.m3u8?token=stale",
+      "https://evey.example/api/v1/media/m1/hls/master.m3u8?token=fresh",
+      "fresh",
+    );
+    expect(out).toBe("https://evey.example/api/v1/media/m1/hls/audio_1.m3u8?token=fresh");
+  });
+
+  it("laisse une URL déjà absolue sur son propre host", () => {
+    const out = absoluteWithToken("https://evey.example/seg1.m4s?a=1", "https://other.example/x", "tok");
+    const u = new URL(out);
+    expect(u.host).toBe("evey.example");
+    expect(u.searchParams.get("token")).toBe("tok");
+    expect(u.searchParams.get("a")).toBe("1");
+  });
+
+  it("sans token, résout absolu sans en inventer un", () => {
+    const out = absoluteWithToken("seg1.m4s", "https://evey.example/hls/audio.m3u8", "");
+    expect(out).toBe("https://evey.example/hls/seg1.m4s");
+  });
+});
+
+describe("mixed content - instance Evey en HTTP sur le LAN, receiver en HTTPS", () => {
+  // La page receiver est forcément HTTPS (exigence Cast Console). Le player
+  // CAF a le droit de charger du MÉDIA http: (doc Google), mais nos fetch JS
+  // (master wasm, segments ac3go) sont du mixed content actif : bloqués.
+  // Donc : jamais de wasmAudio vers un serveur http: - l'AAC muxé que le
+  // player CAF charge nativement est le seul chemin qui marche là-bas.
+  const HTTP_MASTER = "http://192.168.1.50:8096/api/v1/media/m1/hls/master.m3u8?token=tok";
+
+  it("ne demande jamais wasmAudio à un serveur http: depuis une page https:", () => {
+    const caps = probeReceiverCaps(fakeCDT(["avc1", "hev1"]), false);
+    const out = rewriteCastMasterUrl(HTTP_MASTER, caps, true, "https:")!;
+    const u = new URL(out.url);
+    expect(u.searchParams.has("wasmAudio")).toBe(false);
+    expect(out.wasmAudio).toBe(false);
+    // Le reste de la négociation (vidéo) reste actif : le player CAF, lui,
+    // peut charger ce master http.
+    expect(u.searchParams.get("videoCodecs")).toBe("h264,hevc");
+  });
+
+  it("garde le chemin wasm quand le serveur est https:", () => {
+    const caps = probeReceiverCaps(fakeCDT(["avc1"]), false);
+    const out = rewriteCastMasterUrl(
+      "https://evey.example/api/v1/media/m1/hls/master.m3u8?token=tok",
+      caps, true, "https:",
+    )!;
+    expect(out.wasmAudio).toBe(true);
   });
 });

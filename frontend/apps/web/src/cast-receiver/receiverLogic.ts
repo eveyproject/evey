@@ -69,10 +69,18 @@ const BASE_AUDIO = ["aac", "mp3", "opus", "flac"];
 // rewriteCastMasterUrl re-négocie NOTRE master HLS avec les caps réellement
 // sondées. Toute autre URL (direct play /stream, contenu tiers) est laissée
 // telle quelle - retour null.
+//
+// pageProtocol = le schéma de la PAGE receiver (https: en prod, exigence Cast
+// Console). Une instance Evey auto-hébergée en http: sur son LAN reste
+// jouable : le player CAF a le droit de charger du média http: depuis une page
+// https: (doc Google Cast), mais NOS fetch JS (master wasm, segments ac3go)
+// sont du mixed content actif et seraient bloqués - donc jamais de wasmAudio
+// vers un serveur http:.
 export function rewriteCastMasterUrl(
   rawUrl: string,
   caps: ReceiverCaps,
   wasmCapable: boolean,
+  pageProtocol = "https:",
 ): RewrittenLoad | null {
   let u: URL;
   try {
@@ -88,13 +96,29 @@ export function rewriteCastMasterUrl(
   if (caps.hdr) u.searchParams.set("hdr", "1");
   else u.searchParams.delete("hdr");
 
-  const wasmAudio = !caps.nativeDolby && wasmCapable;
+  const mixedContent = pageProtocol === "https:" && u.protocol === "http:";
+  const wasmAudio = !caps.nativeDolby && wasmCapable && !mixedContent;
   const audio = caps.nativeDolby ? [...BASE_AUDIO, "eac3", "ac3"] : BASE_AUDIO;
   u.searchParams.set("audioCodecs", audio.join(","));
   if (wasmAudio) u.searchParams.set("wasmAudio", "1");
   else u.searchParams.delete("wasmAudio");
 
   return { url: u.toString(), wasmAudio };
+}
+
+// absoluteWithToken résout une URL de playlist/segment contre le SERVEUR MÉDIA
+// (l'URL de base absolue) et y injecte le token le plus frais. Jamais contre
+// l'origine de la page : le receiver peut être hébergé ailleurs que l'instance
+// (GitHub Pages, domaine projet) - l'injectToken du web (même-origine) rend un
+// chemin relatif qui partirait vers l'hôte du receiver et ferait 404.
+export function absoluteWithToken(url: string, baseUrl: string, token: string): string {
+  try {
+    const abs = new URL(url, baseUrl);
+    if (token) abs.searchParams.set("token", token);
+    return abs.toString();
+  } catch {
+    return url;
+  }
 }
 
 // stripWasmAudio est le repli quand ac3go ne démarre pas sur la TV : recharger
