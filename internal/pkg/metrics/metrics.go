@@ -1,6 +1,8 @@
 package metrics
 
 import (
+	"bufio"
+	"fmt"
 	"net"
 	"net/http"
 	"strconv"
@@ -336,6 +338,16 @@ func (r *statusRecorder) Flush() {
 	if f, ok := r.ResponseWriter.(http.Flusher); ok {
 		f.Flush()
 	}
+}
+
+// Hijack relaie au writer sous-jacent : l'upgrade websocket (/api/v1/devices/ws)
+// type-asserte http.Hijacker sur CE wrapper et paniquait sinon, tuant
+// l'enregistrement des devices Play On derrière InstrumentHandler.
+func (r *statusRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	if h, ok := r.ResponseWriter.(http.Hijacker); ok {
+		return h.Hijack()
+	}
+	return nil, nil, fmt.Errorf("metrics: underlying ResponseWriter (%T) does not support hijacking", r.ResponseWriter)
 }
 
 // SanitizePath replaces high-cardinality path segments (IDs, UUIDs, tokens, numerics)
