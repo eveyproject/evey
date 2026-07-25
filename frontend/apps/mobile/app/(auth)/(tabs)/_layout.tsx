@@ -15,7 +15,7 @@ import { UserMenu } from "../../../src/components/layout/UserMenu";
 function BurgerButton({ theme }: { theme: ReturnType<typeof useTheme> }) {
   const { toggle } = useDrawer();
   return (
-    <Pressable onPress={toggle} style={{ marginLeft: 16, padding: 4 }} accessibilityRole="button" accessibilityLabel="Open menu">
+    <Pressable onPress={toggle} style={{ marginLeft: 6, padding: 4 }} accessibilityRole="button" accessibilityLabel="Open menu">
       <Ionicons name="menu" size={24} color={theme.colors.text} />
     </Pressable>
   );
@@ -26,7 +26,7 @@ function HeaderRight({ theme }: { theme: ReturnType<typeof useTheme> }) {
   const count = notifData?.count ?? 0;
 
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginRight: 8 }}>
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginRight: 2 }}>
       <Pressable onPress={() => router.push("/notifications")} style={{ padding: 6 }}>
         <Ionicons name="notifications-outline" size={22} color={theme.colors.text} />
         {count > 0 && (
