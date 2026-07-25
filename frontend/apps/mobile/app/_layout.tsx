@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { AppState, StatusBar, View } from "react-native";
 import { Stack } from "expo-router";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import * as SecureStore from "expo-secure-store";
 import { setZustandStorage } from "@evey/store";
 import { queryClient } from "../src/lib/query-client";
@@ -84,15 +84,14 @@ export default function RootLayout() {
   );
 }
 
-// Edge-to-edge is enabled on Android (Expo SDK 55 default), so the system
-// status bar overlays the app surface. Native Stack headers in expo-router
-// don't auto-add the inset, so push the whole nav tree down by safeAreaTop
-// to keep headers below the status bar / camera notch.
+// Native Stack headers already account for the status bar / camera notch
+// inset on their own, so this wrapper must NOT add a paddingTop here - doing
+// so used to double the top margin on every screen with a header. Screens
+// without a native header are responsible for their own inset.
 function RootStack() {
-  const insets = useSafeAreaInsets();
   const theme = useTheme();
   return (
-    <View style={{ flex: 1, paddingTop: insets.top, backgroundColor: theme.colors.bg }}>
+    <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
       <StatusBar barStyle={isLightBg(theme.colors.bg) ? "dark-content" : "light-content"} />
       <Stack screenOptions={{ headerShown: false }} />
     </View>

@@ -83,7 +83,12 @@ export default function RegionScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
-      <Stack.Screen options={{ title: t("common.region.title") }} />
+      <Stack.Screen options={{
+        headerShown: true,
+        title: t("common.region.title"),
+        headerStyle: { backgroundColor: theme.colors.surface },
+        headerTintColor: theme.colors.text,
+      }} />
       <TextInput
         placeholder={t("common.search") || "Search"}
         placeholderTextColor={theme.colors.textMuted}

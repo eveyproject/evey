@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { View, Text, FlatList, Pressable, Alert, RefreshControl, StyleSheet } from "react-native";
 import { Image } from "expo-image";
-import { router } from "expo-router";
+import { router, Stack } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
@@ -196,28 +196,17 @@ export default function HistoryScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
-      <View style={{
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-        paddingHorizontal: theme.spacing.md,
-        paddingTop: theme.spacing.lg,
-        paddingBottom: theme.spacing.sm,
-      }}>
-        <Pressable onPress={() => router.back()} accessible accessibilityLabel="Back" accessibilityRole="button">
-          <Ionicons name="chevron-back" size={24} color={theme.colors.text} />
-        </Pressable>
-        <Text style={{ color: theme.colors.text, fontSize: 18, fontWeight: "600" }}>
-          {t("auth.watchHistory.title", "Watch History")}
-        </Text>
-        {items.length > 0 ? (
+      <Stack.Screen options={{
+        headerShown: true,
+        title: t("auth.watchHistory.title", "Watch History"),
+        headerStyle: { backgroundColor: theme.colors.surface },
+        headerTintColor: theme.colors.text,
+        headerRight: () => items.length > 0 ? (
           <Pressable onPress={handleClear} accessible accessibilityLabel={t("auth.watchHistory.clearHistory")} accessibilityRole="button">
             <Ionicons name="trash-outline" size={22} color={theme.colors.textMuted} />
           </Pressable>
-        ) : (
-          <View style={{ width: 22 }} />
-        )}
-      </View>
+        ) : undefined,
+      }} />
 
       {!isLoading && items.length === 0 ? (
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: theme.spacing.xl }}>

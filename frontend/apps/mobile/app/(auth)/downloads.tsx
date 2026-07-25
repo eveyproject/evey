@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { View, Text, FlatList, Pressable, Alert, StyleSheet } from "react-native";
-import { router, useFocusEffect } from "expo-router";
+import { router, Stack, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../../src/providers/ThemeProvider";
@@ -160,22 +160,12 @@ export default function DownloadsScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
-      <View style={{
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-        paddingHorizontal: theme.spacing.md,
-        paddingTop: theme.spacing.lg,
-        paddingBottom: theme.spacing.sm,
-      }}>
-        <Pressable onPress={() => router.back()} accessible accessibilityLabel={t("common.back", "Back")} accessibilityRole="button">
-          <Ionicons name="chevron-back" size={24} color={theme.colors.text} />
-        </Pressable>
-        <Text style={{ color: theme.colors.text, fontSize: 18, fontWeight: "600" }}>
-          {t("downloads.title", "Downloads")}
-        </Text>
-        <View style={{ width: 24 }} />
-      </View>
+      <Stack.Screen options={{
+        headerShown: true,
+        title: t("downloads.title", "Downloads"),
+        headerStyle: { backgroundColor: theme.colors.surface },
+        headerTintColor: theme.colors.text,
+      }} />
 
       {items.length > 0 && (
         <Text style={{

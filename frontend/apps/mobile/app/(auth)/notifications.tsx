@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { View, Text, FlatList, Pressable, Alert, RefreshControl, StyleSheet } from "react-native";
-import { router } from "expo-router";
+import { router, Stack } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
@@ -218,40 +218,32 @@ export default function NotificationsScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
-      <View style={{
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-        paddingHorizontal: theme.spacing.md,
-        paddingTop: theme.spacing.lg,
-        paddingBottom: theme.spacing.sm,
-      }}>
-        <Pressable onPress={() => router.back()} accessible accessibilityLabel="Back" accessibilityRole="button">
-          <Ionicons name="chevron-back" size={24} color={theme.colors.text} />
-        </Pressable>
-        <Text style={{ color: theme.colors.text, fontSize: 18, fontWeight: "600" }}>
-          {t("common.notifications.title")}
-        </Text>
-        <View style={{ flexDirection: "row", gap: theme.spacing.sm }}>
-          {hasUnread && (
-            <Pressable
-              onPress={() => markAllRead.mutate({ data: {} })}
-              disabled={markAllRead.isPending}
-              accessible
-              accessibilityLabel={t("common.markAllRead")}
-              accessibilityRole="button"
-            >
-              <Ionicons name="checkmark-done-outline" size={22} color={theme.colors.accent} />
-            </Pressable>
-          )}
-          {notifications.length > 0 && (
-            <Pressable onPress={handleClearAll} accessible accessibilityLabel="Clear all" accessibilityRole="button">
-              <Ionicons name="trash-outline" size={22} color={theme.colors.textMuted} />
-            </Pressable>
-          )}
-          {!hasUnread && notifications.length === 0 && <View style={{ width: 22 }} />}
-        </View>
-      </View>
+      <Stack.Screen options={{
+        headerShown: true,
+        title: t("common.notifications.title"),
+        headerStyle: { backgroundColor: theme.colors.surface },
+        headerTintColor: theme.colors.text,
+        headerRight: () => (
+          <View style={{ flexDirection: "row", gap: theme.spacing.sm }}>
+            {hasUnread && (
+              <Pressable
+                onPress={() => markAllRead.mutate({ data: {} })}
+                disabled={markAllRead.isPending}
+                accessible
+                accessibilityLabel={t("common.markAllRead")}
+                accessibilityRole="button"
+              >
+                <Ionicons name="checkmark-done-outline" size={22} color={theme.colors.accent} />
+              </Pressable>
+            )}
+            {notifications.length > 0 && (
+              <Pressable onPress={handleClearAll} accessible accessibilityLabel="Clear all" accessibilityRole="button">
+                <Ionicons name="trash-outline" size={22} color={theme.colors.textMuted} />
+              </Pressable>
+            )}
+          </View>
+        ),
+      }} />
 
       {!isLoading && notifications.length === 0 ? (
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: theme.spacing.xl }}>

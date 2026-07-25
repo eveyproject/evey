@@ -644,7 +644,7 @@ export default function MediaDetailScreen() {
   }).slice(0, 3);
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: theme.colors.bg, marginTop: -insets.top }} contentContainerStyle={{ paddingLeft: insets.left, paddingRight: insets.right, paddingBottom: insets.bottom }}>
+    <ScrollView style={{ flex: 1, backgroundColor: theme.colors.bg }} contentContainerStyle={{ paddingLeft: insets.left, paddingRight: insets.right, paddingBottom: insets.bottom }}>
       {/* Hero backdrop */}
       <MediaHeroBackdrop
         uri={serverUrl && id ? artworkUrl(serverUrl, id, "backdrop", backdropWidth) : undefined}

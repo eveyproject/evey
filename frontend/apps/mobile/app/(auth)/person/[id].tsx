@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { Image } from "expo-image";
-import { useLocalSearchParams, router } from "expo-router";
+import { useLocalSearchParams, router, Stack } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { eveyFetch, useLibraryServiceListMediaItems } from "@evey/api";
@@ -68,6 +68,13 @@ export default function PersonDetailScreen() {
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: theme.colors.bg }}>
+      <Stack.Screen options={{
+        headerShown: true,
+        title: name,
+        headerStyle: { backgroundColor: theme.colors.surface },
+        headerTintColor: theme.colors.text,
+      }} />
+
       {/* Header */}
       <View
         style={{

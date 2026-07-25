@@ -34,6 +34,10 @@ const pushMock = vi.fn();
 const backMock = vi.fn();
 vi.mock("expo-router", () => ({
   router: { push: (...a: unknown[]) => pushMock(...a), back: (...a: unknown[]) => backMock(...a) },
+  Stack: {
+    Screen: ({ options }: any) =>
+      React.createElement("div", { "data-testid": "stack-screen", title: options?.title }),
+  },
   // No real navigator in this test - just run the focus callback on mount,
   // matching how useFocusEffect behaves the first time a screen mounts.
   useFocusEffect: (cb: () => void | (() => void)) => {
@@ -134,12 +138,5 @@ describe("DownloadsScreen", () => {
     });
     // Re-lists after a successful delete.
     expect(getDownloadsMock.mock.calls.length).toBeGreaterThanOrEqual(2);
-  });
-
-  it("navigates back when the back button is pressed", async () => {
-    render(<DownloadsScreen />);
-    await waitFor(() => expect(screen.getByText("Movie 1")).toBeTruthy());
-    fireEvent.click(screen.getByLabelText("Back"));
-    expect(backMock).toHaveBeenCalled();
   });
 });
