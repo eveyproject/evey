@@ -90,6 +90,26 @@ type AudioDelayProber interface {
 // codec priming sits at ~20-40ms, the defect class at hundreds of ms.
 const AudioDelayFlagSec = 0.1
 
+// AudioTailProber measures how far BEFORE the container's declared duration
+// the audio content actually ends: the largest gap, in seconds, between the
+// declared duration and the last audio packet of any audio track (0 = the
+// audio runs to the end). The defect class (prod 2026-07-26, "Scary Movie"):
+// a mux whose audio track dies minutes before the video's end - structurally
+// healthy, invisible to the index/damage checks, yet the VOD playlists promise
+// audio segments that can never exist. Satisfied by the ffmpeg adapter
+// (per-track DURATION tags head-only, tail packet read as fallback); optional
+// (nil skips the probe). Primitive-typed on purpose - the driven adapter
+// implements it without importing this package.
+type AudioTailProber interface {
+	ProbeAudioTailGapSec(ctx context.Context, path string) (float64, error)
+}
+
+// AudioShortfallFlagSec is the floor above which an audio track ending before
+// the declared duration is surfaced as a defect. Ordinary muxes leave up to a
+// couple of seconds of slack (priming, final-cluster rounding); the defect
+// class is measured in minutes (249 s on the file that motivated this).
+const AudioShortfallFlagSec = 10.0
+
 // AudioDelayRemuxer repairs the audio start-delay defect AT THE FILE level:
 // a remux that shifts the late audio content back onto the video, with the
 // same fail-safe contract as the reindexer (rewrite to a temp, re-verify,
@@ -136,6 +156,13 @@ type SeekStatus struct {
 	// journal). Harmless: any reindex rewrite drops them. Distinct from Damaged
 	// so a whole file is never shown as corrupt just for carrying tail junk.
 	TrailingJunk bool
+	// AudioShortfallSec > AudioShortfallFlagSec → an audio track ends that far
+	// BEFORE the container's declared duration (mux defect: silent credits on
+	// that track, and - before the playback-side silence fill - a hard player
+	// error at the wall). NOT repairable: the audio's tail is simply absent
+	// from the file; playback fills it with silence, a real fix means
+	// re-acquiring the source. 0 when clean or not probed.
+	AudioShortfallSec float64
 }
 
 // ScanResult bundles the per-file statuses with rollup counts.
@@ -149,6 +176,7 @@ type ScanResult struct {
 	Damaged        int // count with mid-file corruption (resync-repairable)
 	WrongContainer int // count that are MP4/MOV mislabelled .mkv (rename/remux, not reindex)
 	TrailingJunk   int // count carrying surplus bytes past the Segment end (harmless, a rewrite drops them)
+	AudioShort     int // count whose audio ends before the declared duration (re-acquire; playback fills silence)
 }
 
 // Failure records one file a batch job could not process.
@@ -199,6 +227,7 @@ type SeekIndexService struct {
 	fileState  FileStateRefresher // optional; see WithFileStateRefresher
 	audioDelay AudioDelayProber   // optional; see WithAudioDelayProber
 	audioRemux AudioDelayRemuxer  // optional; see WithAudioRemuxer
+	audioTail  AudioTailProber    // optional; see WithAudioTailProber
 	diagnoser  mkv.Diagnoser      // optional; see WithDiagnoser
 	logger     *slog.Logger
 
@@ -289,6 +318,16 @@ func (s *SeekIndexService) WithAudioDelayProber(p AudioDelayProber) *SeekIndexSe
 // Optional and chainable; without it the remux entry points fail cleanly.
 func (s *SeekIndexService) WithAudioRemuxer(r AudioDelayRemuxer) *SeekIndexService {
 	s.audioRemux = r
+	return s
+}
+
+// WithAudioTailProber wires the audio tail-gap diagnosis into scans: does the
+// audio content actually reach the container's declared duration? Runs after
+// the mkvgo triage (and is skipped for a wrong-container file, whose Matroska
+// duration is meaningless). Optional and chainable; without it
+// AudioShortfallSec stays 0 everywhere.
+func (s *SeekIndexService) WithAudioTailProber(p AudioTailProber) *SeekIndexService {
+	s.audioTail = p
 	return s
 }
 

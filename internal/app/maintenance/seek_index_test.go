@@ -500,6 +500,155 @@ func TestSeekIndexService_ScanWithDiagnoser(t *testing.T) {
 	assert.Empty(t, reidx.reindexed, "a scan never mutates files")
 }
 
+// fakeAudioTailProber answers the audio tail-gap probe from a canned map and
+// records which paths were probed (so a test can assert the probe is SKIPPED
+// where it makes no sense).
+type fakeAudioTailProber struct {
+	gaps   map[string]float64
+	probed []string
+}
+
+func (f *fakeAudioTailProber) ProbeAudioTailGapSec(_ context.Context, p string) (float64, error) {
+	f.probed = append(f.probed, p)
+	g, ok := f.gaps[p]
+	if !ok {
+		return 0, os.ErrInvalid
+	}
+	return g, nil
+}
+
+// An audio track ending BEFORE the container's declared duration (mux defect:
+// prod 2026-07-26, "Scary Movie", fr track dead for the last 4 min of credits)
+// must surface as its own category: it is invisible to the index/damage checks
+// (the file is structurally healthy) yet it used to kill playback at the wall.
+// There is deliberately NO automated repair - the content simply is not in the
+// file; playback fills the tail with silence, the operator re-acquires for a
+// real fix.
+func TestSeekIndexService_AudioTrackShortfall(t *testing.T) {
+	dir := t.TempDir()
+	short := filepath.Join(dir, "short_audio.mkv") // audio dies 249s before the end
+	near := filepath.Join(dir, "near_end.mkv")     // audio ends 2s early: normal mux slack
+	fake := filepath.Join(dir, "reallymp4.mkv")    // wrong container: probe is pointless
+	failing := filepath.Join(dir, "probe_fails.mkv")
+	for _, p := range []string{short, near, fake, failing} {
+		require.NoError(t, os.WriteFile(p, []byte("x"), 0o644))
+	}
+	reidx := &fakeReindexer{hasIndex: map[string]bool{short: true, near: true, fake: false, failing: true}}
+	cat := fakeCatalog{files: []appmaintenance.MediaRef{
+		{MediaID: "m1", Title: "Short", Path: short},
+		{MediaID: "m2", Title: "Near", Path: near},
+		{MediaID: "m3", Title: "FakeMkv", Path: fake},
+		{MediaID: "m4", Title: "ProbeFails", Path: failing},
+	}}
+	tail := &fakeAudioTailProber{gaps: map[string]float64{short: 249.6, near: 2.0}}
+	svc := appmaintenance.NewSeekIndexService(reidx, cat, nil).
+		WithDiagnoser(fakeDiagnoser{byPath: map[string]*mkv.Diagnosis{
+			short:   {Healthy: true},
+			near:    {Healthy: true},
+			fake:    {Findings: []mkv.DiagnosisFinding{{Kind: "wrong-container"}}},
+			failing: {Healthy: true},
+		}}).
+		WithAudioTailProber(tail)
+
+	require.NoError(t, svc.StartScan(context.Background(), ""))
+	st := waitIdle(t, svc)
+	require.NotNil(t, st.Last)
+	assert.Empty(t, st.Last.Err)
+
+	res, _, ok := svc.CachedScan("")
+	require.True(t, ok)
+	byID := map[string]appmaintenance.SeekStatus{}
+	for _, it := range res.Items {
+		byID[it.MediaID] = it
+	}
+
+	assert.InDelta(t, 249.6, byID["m1"].AudioShortfallSec, 1e-9,
+		"a track ending far before the declared duration is the defect")
+	assert.Zero(t, byID["m2"].AudioShortfallSec,
+		"a couple of seconds of mux slack is normal, not a defect")
+	assert.Zero(t, byID["m3"].AudioShortfallSec)
+	assert.NotContains(t, tail.probed, fake,
+		"a wrong-container file has no Matroska audio tail to probe")
+	assert.Zero(t, byID["m4"].AudioShortfallSec, "a probe failure is secondary diagnostics, not a defect")
+	assert.Equal(t, 4, res.Total, "a probe failure must not drop the file from the scan")
+
+	assert.Equal(t, 1, res.AudioShort, "rollup counts only the real shortfall")
+	assert.Empty(t, reidx.reindexed, "a scan never mutates files")
+}
+
+// The shortfall must NOT put the file into any repair bucket: the audio's tail
+// does not exist in the file, so neither a reindex nor an audio remux can bring
+// it back - "Repair all" must leave the file untouched.
+func TestSeekIndexService_AudioTrackShortfall_NotRepairable(t *testing.T) {
+	dir := t.TempDir()
+	short := filepath.Join(dir, "short_audio.mkv")
+	require.NoError(t, os.WriteFile(short, []byte("x"), 0o644))
+	reidx := &fakeReindexer{hasIndex: map[string]bool{short: true}}
+	cat := fakeCatalog{files: []appmaintenance.MediaRef{{MediaID: "m1", Title: "Short", Path: short}}}
+	tail := &fakeAudioTailProber{gaps: map[string]float64{short: 249.6}}
+	svc := appmaintenance.NewSeekIndexService(reidx, cat, nil).
+		WithDiagnoser(fakeDiagnoser{byPath: map[string]*mkv.Diagnosis{short: {Healthy: true}}}).
+		WithAudioTailProber(tail)
+
+	require.NoError(t, svc.StartRepairLibrary(context.Background(), "", appmaintenance.ReindexRunOptions{}, true))
+	waitIdle(t, svc)
+
+	assert.Empty(t, reidx.reindexed, "a shortfall is not an index defect")
+	res, _, ok := svc.CachedScan("")
+	require.True(t, ok)
+	assert.Equal(t, 1, res.AudioShort, "the flag survives the repair pass untouched")
+}
+
+// After a restart the persisted scan must restore EVERY rollup, not just the
+// original three: truncated/damaged/wrong-container/trailing-junk (and the
+// audio shortfall) all read 0 on the stat cards after a reboot while the rows
+// still carried their badges - the load path had its own, incomplete rollup
+// loop.
+func TestSeekIndexService_PersistedScan_RestoresAllRollups(t *testing.T) {
+	dir := t.TempDir()
+	names := []string{"trunc.mkv", "damaged.mkv", "fake.mkv", "junk.mkv", "short.mkv"}
+	paths := make([]string, len(names))
+	refs := make([]appmaintenance.MediaRef, len(names))
+	for i, n := range names {
+		paths[i] = filepath.Join(dir, n)
+		require.NoError(t, os.WriteFile(paths[i], []byte("x"), 0o644))
+		refs[i] = appmaintenance.MediaRef{MediaID: fmt.Sprintf("m%d", i+1), Title: n, Path: paths[i]}
+	}
+	state := t.TempDir()
+	reidx := &fakeReindexer{hasIndex: map[string]bool{}}
+	cat := fakeCatalog{files: refs}
+	tail := &fakeAudioTailProber{gaps: map[string]float64{paths[4]: 300}}
+	svc1 := appmaintenance.NewSeekIndexService(reidx, cat, nil).
+		WithDiagnoser(fakeDiagnoser{byPath: map[string]*mkv.Diagnosis{
+			paths[0]: {Findings: []mkv.DiagnosisFinding{{Kind: "damaged"}}, Truncated: true, DamagedBytes: 1},
+			paths[1]: {Findings: []mkv.DiagnosisFinding{{Kind: "damaged"}}, DamagedBytes: 2048},
+			paths[2]: {Findings: []mkv.DiagnosisFinding{{Kind: "wrong-container"}}},
+			paths[3]: {Findings: []mkv.DiagnosisFinding{{Kind: "trailing-junk"}}},
+			paths[4]: {Healthy: true},
+		}}).
+		WithAudioTailProber(tail).
+		WithStateDir(state)
+
+	require.NoError(t, svc1.StartScan(context.Background(), ""))
+	waitIdle(t, svc1)
+	res1, _, ok := svc1.CachedScan("")
+	require.True(t, ok)
+
+	svc2 := appmaintenance.NewSeekIndexService(reidx, cat, nil).WithStateDir(state)
+	res2, _, ok := svc2.CachedScan("")
+	require.True(t, ok)
+	assert.Equal(t, res1.Truncated, res2.Truncated, "truncated rollup must survive the restart")
+	assert.Equal(t, res1.Damaged, res2.Damaged, "damaged rollup must survive the restart")
+	assert.Equal(t, res1.WrongContainer, res2.WrongContainer, "wrong-container rollup must survive the restart")
+	assert.Equal(t, res1.TrailingJunk, res2.TrailingJunk, "trailing-junk rollup must survive the restart")
+	assert.Equal(t, res1.AudioShort, res2.AudioShort, "audio-shortfall rollup must survive the restart")
+	assert.Positive(t, res2.Truncated)
+	assert.Positive(t, res2.Damaged)
+	assert.Positive(t, res2.WrongContainer)
+	assert.Positive(t, res2.TrailingJunk)
+	assert.Positive(t, res2.AudioShort)
+}
+
 // A .mkv that is really MP4/MOV (mkvgo's wrong-container finding) has no
 // Matroska seek index to build: it must be kept OUT of the missing-index bucket
 // (so "Repair all" never wastes a doomed reindex on it) and surfaced in its own

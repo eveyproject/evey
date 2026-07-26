@@ -66,26 +66,7 @@ func (s *SeekIndexService) scanAndCache(ctx context.Context, libraryID string) (
 		}
 		res.Items = append(res.Items, st)
 		res.Total++
-		if !st.HasIndex {
-			res.MissingIndex++
-		}
-		if st.HasBackup {
-			res.WithBackup++
-		}
-		if st.AudioDelaySec > AudioDelayFlagSec {
-			res.AudioDelayed++
-		}
-		if st.Truncated {
-			res.Truncated++
-		} else if st.DamagedBytes > 0 {
-			res.Damaged++
-		}
-		if st.WrongContainer {
-			res.WrongContainer++
-		}
-		if st.TrailingJunk {
-			res.TrailingJunk++
-		}
+		addToRollups(&res, st)
 	}
 
 	s.mu.Lock()
@@ -122,7 +103,30 @@ func (s *SeekIndexService) probeFile(ctx context.Context, f MediaRef) (SeekStatu
 			slog.String("path", f.Path), slog.Any("err", bakErr))
 	}
 	st.HasBackup = hasBak
+	s.probeAudioTail(ctx, f.Path, &st)
 	return st, true
+}
+
+// probeAudioTail fills AudioShortfallSec: how far before the declared duration
+// the audio content actually ends. Skipped for a wrong-container file (its
+// Matroska duration is meaningless) and for a truncated one (the WHOLE tail is
+// missing - the shortfall would only restate it). Secondary diagnostics: a
+// probe failure logs and leaves 0 rather than dropping the file. Gaps under
+// AudioShortfallFlagSec are ordinary mux slack (priming, final-cluster
+// rounding) and stay unreported so the flag means what the UI says it means.
+func (s *SeekIndexService) probeAudioTail(ctx context.Context, path string, st *SeekStatus) {
+	if s.audioTail == nil || st.WrongContainer || st.Truncated {
+		return
+	}
+	gap, err := s.audioTail.ProbeAudioTailGapSec(ctx, path)
+	if err != nil {
+		s.logger.Warn("seek-index scan: audio tail probe failed",
+			slog.String("path", path), slog.Any("err", err))
+		return
+	}
+	if gap > AudioShortfallFlagSec {
+		st.AudioShortfallSec = gap
+	}
 }
 
 // diagnose fills the defect fields of st (HasIndex, AudioDelaySec, Truncated,
@@ -171,6 +175,47 @@ func (s *SeekIndexService) diagnose(ctx context.Context, path string, st *SeekSt
 	return true
 }
 
+// addToRollups folds one file's status into the result's rollup counters. THE
+// single rollup rule - the scan loop, the cached-file update and the persisted
+// -scan reload all fold through here, so a new category cannot be counted in
+// one path and silently read 0 in another (the persisted-scan reload used to
+// recompute only three of seven counters after a restart).
+func addToRollups(res *ScanResult, st SeekStatus) {
+	if !st.HasIndex {
+		res.MissingIndex++
+	}
+	if st.HasBackup {
+		res.WithBackup++
+	}
+	if st.AudioDelaySec > AudioDelayFlagSec {
+		res.AudioDelayed++
+	}
+	if st.Truncated {
+		res.Truncated++
+	} else if st.DamagedBytes > 0 {
+		res.Damaged++
+	}
+	if st.WrongContainer {
+		res.WrongContainer++
+	}
+	if st.TrailingJunk {
+		res.TrailingJunk++
+	}
+	if st.AudioShortfallSec > AudioShortfallFlagSec {
+		res.AudioShort++
+	}
+}
+
+// recomputeRollups rebuilds every rollup counter from the items.
+func recomputeRollups(res *ScanResult) {
+	res.MissingIndex, res.WithBackup, res.AudioDelayed = 0, 0, 0
+	res.Truncated, res.Damaged, res.WrongContainer = 0, 0, 0
+	res.TrailingJunk, res.AudioShort = 0, 0
+	for _, it := range res.Items {
+		addToRollups(res, it)
+	}
+}
+
 // updateCachedFile mutates the entry for path in every cached scan and fixes
 // the rollups, so the UI reflects repairs without a full re-scan.
 func (s *SeekIndexService) updateCachedFile(path string, mut func(*SeekStatus)) {
@@ -187,31 +232,7 @@ func (s *SeekIndexService) updateCachedFile(path string, mut func(*SeekStatus)) 
 		if !changed {
 			continue
 		}
-		c.res.MissingIndex, c.res.WithBackup, c.res.AudioDelayed = 0, 0, 0
-		c.res.Truncated, c.res.Damaged, c.res.WrongContainer = 0, 0, 0
-		c.res.TrailingJunk = 0
-		for _, it := range c.res.Items {
-			if !it.HasIndex {
-				c.res.MissingIndex++
-			}
-			if it.HasBackup {
-				c.res.WithBackup++
-			}
-			if it.AudioDelaySec > AudioDelayFlagSec {
-				c.res.AudioDelayed++
-			}
-			if it.Truncated {
-				c.res.Truncated++
-			} else if it.DamagedBytes > 0 {
-				c.res.Damaged++
-			}
-			if it.WrongContainer {
-				c.res.WrongContainer++
-			}
-			if it.TrailingJunk {
-				c.res.TrailingJunk++
-			}
-		}
+		recomputeRollups(&c.res)
 		s.scans[key] = c
 	}
 }

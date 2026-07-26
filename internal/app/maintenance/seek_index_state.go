@@ -102,17 +102,11 @@ func (s *SeekIndexService) loadScans() {
 		var res ScanResult
 		res.Items = p.Items
 		res.Total = len(p.Items)
-		for _, it := range p.Items {
-			if !it.HasIndex {
-				res.MissingIndex++
-			}
-			if it.HasBackup {
-				res.WithBackup++
-			}
-			if it.AudioDelaySec > AudioDelayFlagSec {
-				res.AudioDelayed++
-			}
-		}
+		// One shared rule for ALL counters: this loop used to recompute only
+		// three of them, so truncated/damaged/wrong-container/trailing-junk
+		// stat cards silently read 0 after every restart while the row badges
+		// still showed the defects.
+		recomputeRollups(&res)
 		s.scans[k] = cachedScan{res: res, at: p.At}
 	}
 }

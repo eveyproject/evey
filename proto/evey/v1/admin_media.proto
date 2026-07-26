@@ -217,6 +217,14 @@ message SeekIndexItem {
   // re-download. Surfaced on its own so a whole file is never flagged as corrupt
   // just for carrying tail junk.
   bool trailing_junk = 12;
+  // audio_shortfall_sec > 0 = an audio track ends this many seconds BEFORE the
+  // container's declared duration (mux defect: dead audio over the credits).
+  // The file is structurally healthy, so no index/damage check sees it, but
+  // players used to die at the wall (playback now fills the tail with
+  // silence). NOT repairable - the audio's tail is absent from the file; the
+  // remedy is re-acquiring the source. Only gaps past the ~10s defect floor
+  // are reported (ordinary muxes leave a couple of seconds of slack).
+  double audio_shortfall_sec = 13;
 }
 
 message ScanSeekIndexRequest {
@@ -244,6 +252,9 @@ message ScanSeekIndexResponse {
   int32 wrong_container = 11;
   // Count carrying surplus bytes past the Segment end (harmless, a rewrite drops them).
   int32 trailing_junk = 12;
+  // Count whose audio ends before the declared duration (re-acquire the
+  // source; playback fills the missing tail with silence meanwhile).
+  int32 audio_short = 13;
   // Live per-filesystem numbers for the un-indexed candidates, so the client
   // can advise for/against backups (their accumulation persists the SUM of
   // the candidates) and flag files whose rewrite temp copy will not fit.
