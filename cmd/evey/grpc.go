@@ -70,10 +70,12 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		WithAudioRemuxer(mkvgo.NewAudioRetimer(ffmpeg.NewAudioRemuxer("ffmpeg", "ffprobe"))).
 		// Audio tail-gap probe: does the audio content reach the declared
 		// duration? Catches the truncated-audio-track mux (structurally
-		// healthy file, dead audio over the credits) the mkvgo triage cannot
-		// see. NOT repairable - the tail is absent from the file; playback
-		// fills it with silence, the operator re-acquires for a real fix.
-		WithAudioTailProber(ffmpeg.NewProber("ffprobe")).
+		// healthy file, dead audio over the credits) ops.Diagnose cannot
+		// see. mkvgo-only: per-track DURATION tags at the head, Cue-seek
+		// cluster walk of the tail as fallback. NOT repairable - the tail is
+		// absent from the file; playback fills it with silence, the operator
+		// re-acquires for a real fix.
+		WithAudioTailProber(mkvgo.NewAudioTailProber()).
 		// Scans survive restarts and batch jobs reuse them as phase 1; a job
 		// killed by a redeploy resurfaces as "interrupted" instead of
 		// vanishing (the operator used to believe the batch had finished).
