@@ -4,11 +4,14 @@ import { router } from "expo-router";
 import { getServerUrl } from "./server-config";
 import { clearRefreshToken } from "./refresh-token";
 import { forceRefresh } from "./auth-refresh";
+import { eveyClientUserAgent } from "./clientIdentity";
 
 export async function initFetcher() {
   const serverUrl = await getServerUrl();
   if (serverUrl) setBaseURL(serverUrl);
-  setExtraHeaders({ "X-Persistent-Session": "true" });
+  // The User-Agent identifies this app (instead of okhttp's default) in the
+  // admin logs and on the online panel - see clientIdentity.ts.
+  setExtraHeaders({ "X-Persistent-Session": "true", "User-Agent": eveyClientUserAgent() });
 
   setTokenProvider(() => useAuthStore.getState().accessToken);
   setTokensUpdater((access) => useAuthStore.getState().setTokens(access));

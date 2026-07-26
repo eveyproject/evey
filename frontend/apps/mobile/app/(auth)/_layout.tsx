@@ -3,6 +3,7 @@ import { Redirect, Stack } from "expo-router";
 import { useAuthStore } from "@evey/store";
 import { refreshAccessTokenIfNeeded } from "../../src/lib/auth-refresh";
 import { useDeviceRegistration } from "../../src/hooks/useDeviceRegistration";
+import { usePresenceHeartbeat } from "../../src/hooks/usePresenceHeartbeat";
 import { DrawerProvider } from "../../src/providers/DrawerProvider";
 import { SideDrawer } from "../../src/components/SideDrawer";
 import { MiniPlayer } from "../../src/components/MiniPlayer";
@@ -29,6 +30,9 @@ export default function AuthLayout() {
   // accessToken/serverUrl aren't ready, so it's safe to call unconditionally
   // here (must be, since hooks can't sit after the early returns below).
   useDeviceRegistration();
+  // Foreground presence beats for the admin "online" panel - enabled only
+  // once fully authenticated, for the same hook-order reason as above.
+  usePresenceHeartbeat(!!accessToken && !expired && !!profileId);
 
   // An expired ACCESS token is not a logout: a valid refresh token usually
   // still sits in SecureStore (access TTL is 15 min). Swap it for a fresh JWT

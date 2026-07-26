@@ -2,6 +2,7 @@ import { View } from "react-native";
 import { Redirect, Stack } from "expo-router";
 import { useAuthStore } from "@evey/store";
 import { useDeviceRegistration } from "../../src/hooks/useDeviceRegistration";
+import { usePresenceHeartbeat } from "../../src/hooks/usePresenceHeartbeat";
 import { TVMusicPlayer } from "../../src/components/TVMusicPlayer";
 
 function isTokenExpired(token: string): boolean {
@@ -23,6 +24,9 @@ export default function AuthLayout() {
   // authenticated (the hook bails if accessToken/serverUrl are absent),
   // so calling it before the redirect-on-no-auth guard is safe.
   useDeviceRegistration();
+  // Foreground presence beats for the admin "online" panel - enabled only
+  // once fully authenticated (hooks can't sit after the guards below).
+  usePresenceHeartbeat(!!accessToken && !isTokenExpired(accessToken) && !!profileId);
 
   if (!accessToken || isTokenExpired(accessToken)) {
     if (accessToken) logout();
