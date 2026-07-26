@@ -10,7 +10,7 @@
 //      silently, which is what made cast incidents undiagnosable.
 import { WasmAudioEngine } from "@/features/playback/wasmaudio/WasmAudioEngine";
 import { extractAudioURI } from "@/features/playback/wasmaudio/wasmAudioShared";
-import { absoluteWithToken, probeReceiverCaps, rewriteCastMasterUrl, stripWasmAudio } from "./receiverLogic";
+import { absoluteWithToken, buildPlayerEventUrl, probeReceiverCaps, rewriteCastMasterUrl, stripWasmAudio } from "./receiverLogic";
 
 // The CAF SDK is loaded by a gstatic <script> in the page; its types are
 // not packaged - deliberately untyped access, scoped to this file.
@@ -31,6 +31,15 @@ let engine: WasmAudioEngine | null = null;
 let wasmDisabled = false;
 let currentUrl = "";
 let wasmRequested = false;
+// Armed after a real END_OF_STREAM (idle timeout is disabled, see the
+// receiver options at the bottom); any new LOAD/PLAY disarms it.
+let endShutdownTimer: ReturnType<typeof setTimeout> | null = null;
+function cancelEndShutdown(): void {
+  if (endShutdownTimer) {
+    clearTimeout(endShutdownTimer);
+    endShutdownTimer = null;
+  }
+}
 // LOAD generation: a new LOAD invalidates any engine start in progress
 // (the start is async and runs in parallel with the CAF load).
 let loadGen = 0;
@@ -53,6 +62,30 @@ try {
 function destroyEngine(): void {
   engine?.destroy();
   engine = null;
+}
+
+// Telemetry beacon to the media server, authenticated by the cast stream
+// token riding in currentUrl. On-screen debug is invisible once the incident
+// is over (2026-07-26: TV died 3-5 min into a cast, server logs blank) -
+// these land as WARN lines next to the session's ffmpeg lines. The body is a
+// plain string so the POST stays a CORS "simple request": the token-auth CORS
+// reflects the origin but a preflighted JSON POST would need OPTIONS handling.
+function reportEvent(type: string, details: string, fatal = false): void {
+  try {
+    const url = buildPlayerEventUrl(currentUrl);
+    if (!url) return;
+    let posSec = 0;
+    try {
+      posSec = playerManager.getCurrentTimeSec() || 0;
+    } catch { /* player torn down already */ }
+    void fetch(url, {
+      method: "POST",
+      mode: "cors",
+      credentials: "omit",
+      keepalive: true,
+      body: JSON.stringify({ type, details: details.slice(0, 200), fatal, code: 0, variant: 0, segment: 0, posSec }),
+    }).catch(() => {});
+  } catch { /* telemetry must never break playback */ }
 }
 
 // tokenFromUrl reads the purpose=cast token the sender baked into the URL - the
@@ -84,6 +117,7 @@ function fallbackToMuxedAudio(reason: string): void {
   wasmDisabled = true;
   destroyEngine();
   showDebug(`wasm audio indisponible (${reason}) - repli AAC`);
+  reportEvent("cast_receiver_wasm_fallback", reason);
   const url = stripWasmAudio(currentUrl);
   const request = new cast.framework.messages.LoadRequestData();
   request.media = new cast.framework.messages.MediaInformation();
@@ -184,6 +218,7 @@ playerManager.setMessageInterceptor(
 function interceptLoad(request: any): any {
     loadGen++;
     destroyEngine();
+    cancelEndShutdown();
     showDebug("");
     const media = request.media;
     if (!media) return request;
@@ -243,8 +278,71 @@ playerManager.addEventListener(cast.framework.events.EventType.ERROR, (event: an
   const mode = wasmRequested ? "wasm" : "aac";
   const host = (() => { try { return new URL(currentUrl).host; } catch { return "?"; } })();
   showDebug(`Erreur lecture code=${code} mode=${mode} src=${host} ${extra}`);
+  reportEvent("cast_receiver_error", `code=${code} mode=${mode} ${extra}`, true);
 });
 
-context.addEventListener(cast.framework.system.EventType.SHUTDOWN, () => destroyEngine());
+// Every way a playback can END, with its reason: END_OF_STREAM is the only
+// normal one - ERROR/STOPPED/INTERRUPTED at an unexpected position is exactly
+// the invisible TV-side death being chased.
+playerManager.addEventListener(cast.framework.events.EventType.MEDIA_FINISHED, (event: any) => {
+  const reason = event?.endedReason ?? "?";
+  reportEvent("cast_receiver_finished", `reason=${reason}`, reason !== "END_OF_STREAM");
+});
 
-context.start();
+playerManager.addEventListener(cast.framework.events.EventType.PLAYER_LOAD_COMPLETE, () => {
+  reportEvent("cast_receiver_loaded", `mode=${wasmRequested ? "wasm" : "native"}`);
+});
+
+// A sender vanishing (phone frozen/killed by its OEM) must NOT stop playback
+// per the Cast contract - this beacon timestamps the disconnect so the gap to
+// any later death is measurable in the logs.
+context.addEventListener(cast.framework.system.EventType.SENDER_DISCONNECTED, (event: any) => {
+  let remaining = -1;
+  try {
+    remaining = context.getSenders()?.length ?? -1;
+  } catch { /* count is best-effort */ }
+  reportEvent("cast_receiver_sender_gone", `reason=${event?.reason ?? "?"} senders=${remaining}`);
+});
+
+context.addEventListener(cast.framework.system.EventType.SHUTDOWN, () => {
+  reportEvent("cast_receiver_shutdown", "receiver shutdown");
+  destroyEngine();
+});
+
+// Belt and suspenders against the 2026-07-26 death (TV stops 3-5 min after
+// the phone freezes, while the Cast contract says an implicit sender loss
+// must not stop playback):
+// - maxInactivity 1800s: a FROZEN sender (OEM freeze, WiFi asleep) stops
+//   heartbeating without closing its socket; the default (10s) then reports
+//   the sender lost within seconds and arms whatever teardown follows.
+//   Jellyfin's own receiver documents the effect ("it quits once the client
+//   closes the connection").
+// - disableIdleTimeout: if playback silently IDLEs, stay up (with the debug
+//   overlay + telemetry) instead of a silent teardown minutes later. A
+//   genuine END_OF_STREAM closes the receiver explicitly below.
+const receiverOptions = new cast.framework.CastReceiverOptions();
+receiverOptions.maxInactivity = 1800;
+receiverOptions.disableIdleTimeout = true;
+
+// With the idle timeout disabled, a finished film would leave the receiver
+// up forever: close it ourselves after a grace window (long enough for a
+// sender to chain the next episode).
+const END_SHUTDOWN_GRACE_MS = 60_000;
+playerManager.addEventListener(cast.framework.events.EventType.MEDIA_FINISHED, (event: any) => {
+  if (event?.endedReason !== "END_OF_STREAM") return;
+  cancelEndShutdown();
+  endShutdownTimer = setTimeout(() => {
+    try {
+      context.stop();
+    } catch { /* platform already tearing down */ }
+  }, END_SHUTDOWN_GRACE_MS);
+});
+playerManager.setMessageInterceptor(
+  cast.framework.messages.MessageType.PLAY,
+  (request: any) => {
+    cancelEndShutdown();
+    return request;
+  },
+);
+
+context.start(receiverOptions);

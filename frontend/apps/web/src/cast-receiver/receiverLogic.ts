@@ -121,6 +121,23 @@ export function absoluteWithToken(url: string, baseUrl: string, token: string): 
   }
 }
 
+// buildPlayerEventUrl derives the telemetry endpoint from the casted stream
+// URL: same origin, same media id, same stream token (the receiver's only
+// identity - the server pins that token to its own media). Null for
+// third-party or tokenless URLs: no door, no beacon. Motivated 2026-07-26: a
+// TV-side cast death 3-5 min in left the server logs completely blank.
+export function buildPlayerEventUrl(streamUrl: string): string | null {
+  try {
+    const u = new URL(streamUrl);
+    const m = /^(.*\/api\/v1\/media\/[^/]+)\//.exec(u.pathname + "/");
+    const token = u.searchParams.get("token");
+    if (!m || !token) return null;
+    return `${u.origin}${m[1]}/player-event?token=${encodeURIComponent(token)}`;
+  } catch {
+    return null;
+  }
+}
+
 // stripWasmAudio is the fallback when ac3go does not start on the TV:
 // reloading the SAME master without wasmAudio re-serves the muxed AAC audio.
 export function stripWasmAudio(rawUrl: string): string {

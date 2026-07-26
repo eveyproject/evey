@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { absoluteWithToken, probeReceiverCaps, rewriteCastMasterUrl, stripWasmAudio, type CanDisplayType } from "./receiverLogic";
+import { absoluteWithToken, buildPlayerEventUrl, probeReceiverCaps, rewriteCastMasterUrl, stripWasmAudio, type CanDisplayType } from "./receiverLogic";
 
 // Fake canDisplayType: allows what `yes` lists (substring match on the
 // codec string), refuses the rest. 4K resolution is only granted if
@@ -146,5 +146,30 @@ describe("mixed content - Evey instance on HTTP on the LAN, receiver on HTTPS", 
       caps, true, "https:",
     )!;
     expect(out.wasmAudio).toBe(true);
+  });
+});
+
+describe("buildPlayerEventUrl - the receiver's telemetry door", () => {
+  // 2026-07-26: the TV stopped 3-5 min into a cast while the phone slept, and
+  // the server logs had NOT ONE line about why - the receiver shows its errors
+  // on the TV screen only. This URL is how CAF errors/idle reasons become
+  // server-side log lines, authenticated by the cast stream token the sender
+  // baked into the master URL.
+  it("derives origin, media id and token from the casted master URL", () => {
+    expect(
+      buildPlayerEventUrl("https://evey.example/api/v1/media/m-42/hls/master.m3u8?token=tok-1&wasmAudio=1"),
+    ).toBe("https://evey.example/api/v1/media/m-42/player-event?token=tok-1");
+  });
+
+  it("works for direct-play stream URLs too", () => {
+    expect(
+      buildPlayerEventUrl("https://evey.example/api/v1/media/abc/stream?token=t2"),
+    ).toBe("https://evey.example/api/v1/media/abc/player-event?token=t2");
+  });
+
+  it("returns null for third-party or tokenless URLs", () => {
+    expect(buildPlayerEventUrl("https://example.com/video.mp4")).toBeNull();
+    expect(buildPlayerEventUrl("https://evey.example/api/v1/media/m1/hls/master.m3u8")).toBeNull();
+    expect(buildPlayerEventUrl("not a url")).toBeNull();
   });
 });
