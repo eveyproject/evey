@@ -324,13 +324,17 @@ func mapClientProfileToTarget(client transcoding.ClientProfile) PlayabilityTarge
 // same three-value verdict space ops.Playability uses ("direct-play" /
 // "remux" / "transcode"), so the two can be compared directly:
 //   - VideoDecision == "transcode" -> "transcode" (matches regardless of PlayMethod)
-//   - PlayMethod == "direct_stream" -> "remux" (video copied, container remuxed)
+//   - PlayMethod "direct_stream" OR "transcode" (with the video copied)
+//     -> "remux": both repackage the container around untouched video samples,
+//     which is what ops.Playability calls a remux. Folding the HLS-with-copy
+//     case to "direct-play" made every such session log a spurious divergence
+//     against mkvgo's correct "remux" (seen live 2026-07-26).
 //   - otherwise -> "direct-play"
 func eveyVideoVerdict(d *transcoding.PlaybackDecision) string {
 	if d.VideoDecision == "transcode" {
 		return "transcode"
 	}
-	if d.PlayMethod == "direct_stream" {
+	if d.PlayMethod == "direct_stream" || d.PlayMethod == "transcode" {
 		return "remux"
 	}
 	return "direct-play"

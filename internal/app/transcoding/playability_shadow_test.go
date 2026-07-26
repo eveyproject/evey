@@ -254,6 +254,12 @@ func TestEveyVideoVerdict(t *testing.T) {
 		{"transcode wins regardless of play method", &domaintranscoding.PlaybackDecision{PlayMethod: "transcode", VideoDecision: "transcode"}, "transcode"},
 		{"direct_stream with copy video is a remux", &domaintranscoding.PlaybackDecision{PlayMethod: "direct_stream", VideoDecision: "copy"}, "remux"},
 		{"direct_play with copy video is direct-play", &domaintranscoding.PlaybackDecision{PlayMethod: "direct_play", VideoDecision: "copy"}, "direct-play"},
+		// The HLS pipeline with a copied video stream repackages the container -
+		// that IS a remux in ops.Playability's vocabulary. Folding it to
+		// "direct-play" made every copy-into-HLS session log a spurious
+		// divergence against mkvgo's (correct) "remux" (seen live 2026-07-26 on
+		// an MKV whose container the client could not read).
+		{"transcode method with copy video is a remux", &domaintranscoding.PlaybackDecision{PlayMethod: "transcode", VideoDecision: "copy"}, "remux"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
