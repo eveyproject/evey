@@ -152,6 +152,11 @@ function LastJobCard({ last }: { last: NonNullable<V1GetSeekIndexJobResponse["la
   const kind = t(KIND_KEYS[last.kind ?? ""] ?? KIND_KEYS.scan);
   const failed = last.failed ?? 0;
   const failures = last.failures ?? [];
+  // "Processed" counts files the job LOOKED at, skips included. A run that
+  // repaired nothing and one that repaired everything both read "138/138", which
+  // is how a repair batch skipping 133 files went unnoticed for days (prod
+  // 2026-07-26). The skipped count is the difference, so it is shown.
+  const skipped = last.skipped ?? 0;
 
   return (
     <Card data-testid="seek-index-last-job">
@@ -165,6 +170,15 @@ function LastJobCard({ last }: { last: NonNullable<V1GetSeekIndexJobResponse["la
             failed,
           })}
         </span>
+        {skipped > 0 && (
+          <span
+            className="text-[var(--text-muted)]"
+            title={t("admin.seekIndex.jobSkippedHint")}
+            data-testid="seek-index-skipped-count"
+          >
+            {t("admin.seekIndex.jobSkippedCount", { count: skipped })}
+          </span>
+        )}
         {failed > 0 ? (
           <Badge variant="warning">{t("admin.seekIndex.jobFailedCount", { count: failed })}</Badge>
         ) : !last.error ? (
@@ -249,10 +263,13 @@ function SeekIndexPage() {
   const wrongContainer = result?.wrongContainer ?? 0;
   const trailingJunk = result?.trailingJunk ?? 0;
   const audioShort = result?.audioShort ?? 0;
+  const seekCoarse = result?.seekCoarse ?? 0;
   // What "Repair all" will actually act on: the missing-index count minus the
-  // truncated files the batch (rightly) skips - advertising the raw missing
-  // count promised repairs the job then silently declined.
-  const repairable = items.filter((it) => !it.hasIndex && !it.truncated).length;
+  // files the batch (rightly) skips - advertising the raw missing count
+  // promised repairs the job then silently declined. Truncated: the tail is
+  // gone, no repair exists. Coarse: already rebuilt once and still too sparse
+  // to seek, because the encode's keyframes are the limit, not the index.
+  const repairable = items.filter((it) => !it.hasIndex && !it.truncated && !it.seekCoarse).length;
   // Per-filesystem numbers for the candidates: Evey pre-sets the safe backup
   // choice itself (a nearly-full volume must not accumulate one copy per
   // repaired file) and flags files whose rewrite temp copy will not fit.
@@ -276,6 +293,16 @@ function SeekIndexPage() {
               kind,
               done: last.done ?? 0,
               failed: last.failed ?? 0,
+            }),
+          );
+        } else if ((last.skipped ?? 0) > 0) {
+          // Never announce a plain success on a run that mostly skipped: that
+          // toast is what made a no-op repair batch look like a repaired library.
+          toast.success(
+            t("admin.seekIndex.jobCompletedSkipped", {
+              kind,
+              done: (last.done ?? 0) - (last.skipped ?? 0),
+              skipped: last.skipped ?? 0,
             }),
           );
         } else {
@@ -509,6 +536,16 @@ function SeekIndexPage() {
                 </dd>
               </Card>
             )}
+            {seekCoarse > 0 && (
+              <Card>
+                <dt className="text-xs font-medium mb-1 text-[var(--text-muted)]">
+                  {t("admin.seekIndex.statsSeekCoarse")}
+                </dt>
+                <dd className="text-xl font-bold text-[var(--text)]" data-testid="seek-index-coarse-count">
+                  {seekCoarse}
+                </dd>
+              </Card>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -573,6 +610,14 @@ function SeekIndexPage() {
                       <td className="px-4 py-3 whitespace-nowrap" data-label={t("admin.seekIndex.tableHeaders.status")}>
                         {it.hasIndex ? (
                           <Badge variant="success">{t("admin.seekIndex.statusIndexed")}</Badge>
+                        ) : it.seekCoarse ? (
+                          // Not "missing": the index exists and was rebuilt, it
+                          // just cannot be finer than the encode's keyframes.
+                          // Showing the repairable badge here promised a fix
+                          // that no repair can deliver.
+                          <span title={t("admin.seekIndex.seekCoarseHint")} className="inline-block">
+                            <Badge variant="info">{t("admin.seekIndex.seekCoarseBadge")}</Badge>
+                          </span>
                         ) : (
                           <Badge variant="warning">{t("admin.seekIndex.statusMissing")}</Badge>
                         )}
@@ -648,10 +693,12 @@ function SeekIndexPage() {
                           )}
                           {/* No repair exists for a truncated file - the tail is
                               simply absent, a real attempt always fails a verify
-                              step - so no button is offered (the badge's tooltip
-                              says why); the batch's needsReindex skips them for
-                              the same reason. */}
-                          {!it.hasIndex && !it.truncated && (
+                              step - nor for a coarse one, whose index was already
+                              rebuilt and cannot beat the encode's keyframes. No
+                              button is offered (the badge's tooltip says why);
+                              the batch's needsReindex skips both for the same
+                              reason. */}
+                          {!it.hasIndex && !it.truncated && !it.seekCoarse && (
                             <Button
                               variant="secondary"
                               className="text-xs"
@@ -668,7 +715,7 @@ function SeekIndexPage() {
                               {t("admin.seekIndex.repair")}
                             </Button>
                           )}
-                          {!it.hasIndex && !it.truncated && (
+                          {!it.hasIndex && !it.truncated && !it.seekCoarse && (
                             <Button
                               variant="ghost"
                               className="text-xs"

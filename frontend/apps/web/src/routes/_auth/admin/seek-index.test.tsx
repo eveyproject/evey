@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mockScan = vi.fn();
@@ -172,6 +172,52 @@ describe("SeekIndexPage", () => {
     // missingIndex=2 but one of them is truncated (skipped by the batch):
     // 1 repairable + 1 delayed audio.
     expect(screen.getByTestId("seek-index-repair-all-btn")).toHaveTextContent("Repair all (2)");
+  });
+
+  // A file rebuilt once and still too coarse to seek is NOT a repair candidate:
+  // its cues cannot beat the encode's own keyframes. It used to show as
+  // "Missing" with repair buttons, and every "Repair all" queued it for a job
+  // that skipped it - the loop that left 134 prod files flagged after a
+  // 138-file run.
+  it("a coarse-index file gets its own badge, no repair button and no place in the repair count", async () => {
+    const coarse = {
+      ...scanned,
+      data: {
+        ...scanned.data,
+        items: [
+          ...scanned.data.items,
+          { mediaId: "mi-8", title: "Movie G", path: "/media/g.mkv", hasIndex: false, hasBackup: false, sizeBytes: "4096", container: "mkv", seekCoarse: true },
+        ],
+        total: 7,
+        seekCoarse: 1,
+      },
+    };
+    mockScan.mockReturnValue(coarse);
+    const Page = await getPage();
+    render(React.createElement(Page));
+
+    expect(screen.getByTestId("seek-index-coarse-count")).toHaveTextContent("1");
+    const row = screen.getByText("Movie G").closest("tr")!;
+    // Its own badge, NOT the repairable "Missing" one.
+    expect(within(row).getByText("Coarse seeking")).toBeInTheDocument();
+    expect(within(row).queryByText("Missing")).toBeNull();
+    expect(row.querySelector('[data-testid="seek-index-repair-btn"]')).toBeNull();
+    expect(row.querySelector('[data-testid="seek-index-repair-resync-btn"]')).toBeNull();
+    // Unchanged by the extra flagged file: the batch cannot act on it.
+    expect(screen.getByTestId("seek-index-repair-all-btn")).toHaveTextContent("Repair all (2)");
+  });
+
+  // "138/138 processed" read identically whether the job repaired 138 files or
+  // skipped 133 of them. The skipped count is the whole difference.
+  it("a job that mostly skipped says so instead of reading as a clean sweep", async () => {
+    mockScan.mockReturnValue(scanned);
+    mockJob.mockReturnValue({
+      data: { running: false, last: { kind: "reindex", done: 138, failed: 1, skipped: 133, total: 138 } },
+      queryKey: ["job"],
+    });
+    const Page = await getPage();
+    render(React.createElement(Page));
+    expect(screen.getByTestId("seek-index-skipped-count")).toHaveTextContent("133 skipped");
   });
 
   it("a delayed-audio file shows the badge with the probed seconds", async () => {

@@ -1,20 +1,29 @@
 package mkvgo
 
-// audio_tail_probe.go - does the audio content actually reach the container's
-// declared duration? The defect this measures (prod 2026-07-26, "Scary
-// Movie"): a mux whose audio track dies minutes before the video's end. The
-// file is structurally healthy - index fine, sizes coherent - so ops.Diagnose
-// cannot see it, yet the VOD playlists (synthesized from the DECLARED
-// duration) promise audio segments that can never exist.
+// audio_tail_probe.go - does the audio content run as far as the VIDEO does?
+// The defect this measures (prod 2026-07-26, "Scary Movie"): a mux whose audio
+// track dies minutes before the video's end. The file is structurally healthy -
+// index fine, sizes coherent - so ops.Diagnose cannot see it, yet the VOD
+// playlists (synthesized from the declared duration) promise audio segments
+// that can never exist.
+//
+// The reference is the video's own end, NOT the container's declared duration.
+// That duration is a number some muxer wrote, and a bad remux over-states it
+// routinely (duration inherited from an uncut source, a botched concat). When
+// it is the liar, the video stops early too - and measuring the audio against
+// it produced a confident "Audio -154s" on files whose tracks were perfectly
+// aligned. Comparing content to content, one track against another, is the only
+// claim this probe can actually stand behind. The declared duration is kept
+// only as a ceiling, and as the sole reference for an audio-only container.
 //
 // mkvgo-only, two stages, cheapest first:
 //  1. HEAD: mkvmerge and ffmpeg stamp every track with a DURATION tag
-//     (TagTrackUID-targeted SimpleTag); when every audio track carries one,
-//     one metadata read settles the gap.
+//     (TagTrackUID-targeted SimpleTag); when every audio AND video track
+//     carries one, a single metadata read settles the gap.
 //  2. TAIL: otherwise seek to a Cue point a window before the declared end
-//     and walk the final clusters, keeping each audio track's LAST block
-//     timecode - widening the window in steps so a deep gap is still
-//     measured without ever scanning the whole file.
+//     and walk the final clusters, keeping each track's LAST block timecode -
+//     widening the window in steps so a deep gap is still measured without
+//     ever scanning the whole file.
 
 import (
 	"bufio"
@@ -50,12 +59,11 @@ type AudioTailProber struct{}
 
 func NewAudioTailProber() *AudioTailProber { return &AudioTailProber{} }
 
-// ProbeAudioTailGapSec returns the largest gap, in seconds, between the
-// container's declared duration and the last audio content of any audio
-// track. 0 = every audio track reaches the end, or the question cannot be
-// answered cheaply (no declared duration, no audio, or - for the tail walk -
-// no Cue index to seek with; such files are already flagged by the index
-// triage).
+// ProbeAudioTailGapSec returns the largest gap, in seconds, between where the
+// video content ends and where each audio track's content ends. 0 = every
+// audio track runs as far as the video, or the question cannot be answered
+// cheaply (no declared duration, no audio, or - for the tail walk - no Cue
+// index to seek with; such files are already flagged by the index triage).
 func (p *AudioTailProber) ProbeAudioTailGapSec(ctx context.Context, path string) (float64, error) {
 	// WithTags: the DURATION fast path reads them. WithCues: the tail walk
 	// seeks with them - both are dropped from the metadata path by default.
@@ -67,35 +75,69 @@ func (p *AudioTailProber) ProbeAudioTailGapSec(ctx context.Context, path string)
 	if durSec <= 0 {
 		return 0, nil
 	}
-	var audio []extmkv.Track
+	var audio, video []extmkv.Track
 	for _, t := range meta.Tracks {
-		if t.Type == extmkv.AudioTrack {
+		switch t.Type {
+		case extmkv.AudioTrack:
 			audio = append(audio, t)
+		case extmkv.VideoTrack:
+			video = append(video, t)
 		}
 	}
 	if len(audio) == 0 {
 		return 0, nil
 	}
 
-	ends := audioTagEnds(meta, audio)
-	if len(ends) == len(audio) {
-		gap := 0.0
-		for _, end := range ends {
-			if g := durSec - end; g > gap {
-				gap = g
-			}
-		}
-		return gap, nil
+	// The video tracks are measured too, and the fast path needs ALL of them
+	// tagged: a gap computed from a tagged audio track against an untagged
+	// video one would silently fall back on the declared duration, which is the
+	// very reference this probe stopped trusting. Muxers tag every track or
+	// none, so the fast path is not lost in practice.
+	ends := trackTagEnds(meta, audio, video)
+	if len(ends) == len(audio)+len(video) {
+		return tailGap(durSec, audio, video, ends), nil
 	}
-	return probeAudioTailGapFromClusters(ctx, path, meta, audio, ends)
+	return probeAudioTailGapFromClusters(ctx, path, meta, audio, video, ends)
 }
 
-// audioTagEnds resolves each audio track's end time from its DURATION tag
+// tailGap turns per-track end times into the reported shortfall: how far the
+// worst audio track falls short of the reference end. The reference is where
+// the VIDEO stops, capped by the declared duration (a video running past the
+// declaration is a different anomaly, not this probe's to report). With no
+// video track - an .mka - the declaration is the only reference there is.
+func tailGap(durSec float64, audio, video []extmkv.Track, ends map[uint64]float64) float64 {
+	ref := durSec
+	videoEnd, measured := 0.0, false
+	for _, tr := range video {
+		if e, ok := ends[tr.ID]; ok {
+			measured = true
+			if e > videoEnd {
+				videoEnd = e
+			}
+		}
+	}
+	if measured && videoEnd < ref {
+		ref = videoEnd
+	}
+	gap := 0.0
+	for _, tr := range audio {
+		end, ok := ends[tr.ID]
+		if !ok {
+			continue
+		}
+		if g := ref - end; g > gap {
+			gap = g
+		}
+	}
+	return gap
+}
+
+// trackTagEnds resolves each track's end time from its DURATION tag
 // (TagTrackUID-targeted). Tracks without a parseable tag are absent from the
 // result - the caller falls back to the tail walk for those.
-func audioTagEnds(meta *extmkv.Container, audio []extmkv.Track) map[uint64]float64 {
+func trackTagEnds(meta *extmkv.Container, groups ...[]extmkv.Track) map[uint64]float64 {
 	ends := make(map[uint64]float64)
-	for _, tr := range audio {
+	for _, tr := range concatTracks(groups...) {
 		if tr.UID == 0 {
 			continue
 		}
@@ -133,11 +175,13 @@ func durationTagSeconds(s string) (float64, bool) {
 }
 
 // probeAudioTailGapFromClusters is the tail fallback: seek to a Cue point a
-// window before the declared end and record each audio track's last block
-// timecode, widening the window until every untagged track has answered. A
-// track still silent after the widest window is reported at the window's
-// start - a lower bound on its gap.
-func probeAudioTailGapFromClusters(ctx context.Context, path string, meta *extmkv.Container, audio []extmkv.Track, tagEnds map[uint64]float64) (float64, error) {
+// window before the declared end and record each track's last block timecode -
+// video included, since it is the reference the audio is judged against -
+// widening the window until every untagged track has answered. A track still
+// silent after the widest window is placed AT the window start: a lower bound,
+// and the same one for video and audio, so a file whose picture and sound both
+// stop early reports no gap rather than a fabricated one.
+func probeAudioTailGapFromClusters(ctx context.Context, path string, meta *extmkv.Container, audio, video []extmkv.Track, tagEnds map[uint64]float64) (float64, error) {
 	if len(meta.Cues) == 0 {
 		// Nothing to seek with. Such a file is already flagged by the index
 		// triage (no-index -> reindex); a head-to-tail walk here could mean
@@ -149,9 +193,10 @@ func probeAudioTailGapFromClusters(ctx context.Context, path string, meta *extmk
 		scale = 1_000_000
 	}
 	durSec := float64(meta.DurationMs) / 1000
+	tracks := concatTracks(audio, video)
 
 	pending := make(map[uint64]bool)
-	for _, tr := range audio {
+	for _, tr := range tracks {
 		if _, ok := tagEnds[tr.ID]; !ok {
 			pending[tr.ID] = true
 		}
@@ -174,28 +219,36 @@ func probeAudioTailGapFromClusters(ctx context.Context, path string, meta *extmk
 		}
 	}
 
-	gap := 0.0
-	consider := func(endSec float64) {
-		if g := durSec - endSec; g > gap {
-			gap = g
-		}
-	}
-	for _, end := range tagEnds {
-		consider(end)
-	}
-	for _, tr := range audio {
-		if _, tagged := tagEnds[tr.ID]; tagged {
-			continue
-		}
-		if ticks, ok := lastTicks[tr.ID]; ok {
-			consider(float64(ticks) * float64(scale) / 1e9)
-		} else {
+	ends := make(map[uint64]float64, len(tracks))
+	for _, tr := range tracks {
+		tagged, hasTag := tagEnds[tr.ID]
+		ticks, walked := lastTicks[tr.ID]
+		switch {
+		case hasTag:
+			ends[tr.ID] = tagged
+		case walked:
+			ends[tr.ID] = float64(ticks) * float64(scale) / 1e9
+		default:
 			// No block inside the widest window walked: the track ends at
 			// least there. Lower bound, already far past any threshold.
-			consider(float64(windowStartMs) / 1000)
+			ends[tr.ID] = float64(windowStartMs) / 1000
 		}
 	}
-	return gap, nil
+	return tailGap(durSec, audio, video, ends), nil
+}
+
+// concatTracks flattens the audio/video groups into one slice - the several
+// places that must treat "every track we measure" uniformly.
+func concatTracks(groups ...[]extmkv.Track) []extmkv.Track {
+	var n int
+	for _, g := range groups {
+		n += len(g)
+	}
+	out := make([]extmkv.Track, 0, n)
+	for _, g := range groups {
+		out = append(out, g...)
+	}
+	return out
 }
 
 // cueOffsetAtOrBefore returns the absolute file offset of the last Cue point

@@ -172,13 +172,36 @@ type SeekStatus struct {
 	// so a whole file is never shown as corrupt just for carrying tail junk.
 	TrailingJunk bool
 	// AudioShortfallSec > AudioShortfallFlagSec → an audio track ends that far
-	// BEFORE the container's declared duration (mux defect: silent credits on
-	// that track, and - before the playback-side silence fill - a hard player
-	// error at the wall). NOT repairable: the audio's tail is simply absent
-	// from the file; playback fills it with silence, a real fix means
-	// re-acquiring the source. 0 when clean or not probed.
+	// BEFORE THE VIDEO does (mux defect: silent credits on that track, and -
+	// before the playback-side silence fill - a hard player error at the wall).
+	// Measured against the video's real end rather than the container's
+	// declared duration, which is itself only a muxer's claim: an over-stated
+	// duration made every such file look like an audio defect. NOT repairable:
+	// the audio's tail is simply absent from the file; playback fills it with
+	// silence, a real fix means re-acquiring the source. 0 when clean or not
+	// probed.
 	AudioShortfallSec float64
+	// IndexSparse → the video cues are keyed right but too far apart to seek
+	// into (mkvgo "index-sparse"). It is an index defect like the others, so
+	// HasIndex is false; this says WHICH one, because it is the only one a
+	// rebuild can fail to improve.
+	IndexSparse bool
+	// ReindexAttempted → this file's index was actually rewritten by a repair
+	// (not skipped) since it was last modified. Set by the repair itself and
+	// carried by the incremental re-scan, which only reuses a status whose
+	// (size, mtime) fingerprint still matches - so re-acquiring the source
+	// clears it, which is exactly right.
+	ReindexAttempted bool
 }
+
+// SeekCoarse reports a file whose index was rebuilt and is STILL too coarse to
+// seek into: the encode's own keyframes are further apart than a seek can
+// tolerate, and no index can be denser than the keyframes it names. Such a file
+// is deliberately kept OUT of the repair queue - offering a repair that cannot
+// change anything is the sterile loop this whole path exists to avoid (prod
+// 2026-07-26: 138 files "repaired", 134 still flagged). The remedy is a
+// re-encode or a better source, neither of which evey performs.
+func (st SeekStatus) SeekCoarse() bool { return st.IndexSparse && st.ReindexAttempted }
 
 // ScanResult bundles the per-file statuses with rollup counts.
 type ScanResult struct {
@@ -192,6 +215,7 @@ type ScanResult struct {
 	WrongContainer int // count that are MP4/MOV mislabelled .mkv (rename/remux, not reindex)
 	TrailingJunk   int // count carrying surplus bytes past the Segment end (harmless, a rewrite drops them)
 	AudioShort     int // count whose audio ends before the declared duration (re-acquire; playback fills silence)
+	SeekCoarse     int // count rebuilt and still too coarse to seek into (re-encode; no repair can improve them)
 }
 
 // Failure records one file a batch job could not process.

@@ -115,17 +115,17 @@ func (a *Adapter) HasSeekIndex(ctx context.Context, path string) (bool, error) {
 		return false, nil
 	}
 	// A probe positive only proves a Cues ELEMENT sits at the SeekHead offset.
-	// Repacks in the wild ship an EMPTY/garbage Cues body (phantom index), or
-	// one keyed onto the audio track only (every seek then lands mid-GOP) -
-	// exactly the files a repair must flag. Confirm through CueHealth, which
-	// judges the video-keyed cues alone (the ones a video seek actually uses),
-	// not raw Cues presence: a non-empty index that never names a video
-	// keyframe is functionally no index at all.
+	// Repacks in the wild ship an EMPTY/garbage Cues body (phantom index), one
+	// keyed onto the audio track only (every seek then lands mid-GOP), or one
+	// so coarse a seek lands a minute from its target - exactly the files a
+	// repair must flag. Take CueHealth's WHOLE verdict, not one of its
+	// components: judging `VideoCues > 0` answers "is any video cue present?",
+	// which "index-sparse" satisfies by definition (see ReindexInPlace).
 	ch, err := ops.CueHealth(ctx, path)
 	if err != nil {
 		return false, fmt.Errorf("mkvgo has-seek-index: %w", err)
 	}
-	return ch.VideoCues > 0, nil
+	return ch.Healthy, nil
 }
 
 // rewriteHeadroomBytes is the safety margin demanded on top of the source
@@ -265,16 +265,21 @@ func (a *Adapter) ReindexInPlace(ctx context.Context, path string, opts mkv.Rein
 		// Presence is not usability. A phantom index - an empty body, entries
 		// keyed only on the audio track, a Cues element the SeekHead never
 		// names - counts as "indexed" by a raw entry count while the scan's
-		// judge (CueHealth: the video-keyed cues a seek actually uses) keeps
-		// flagging the file. That disagreement pinned 129 production files in
-		// a sterile loop: flagged by every scan, skipped as "already indexed"
-		// by every repair, forever. Skip only what the scan itself would call
-		// indexed.
+		// judge (CueHealth) keeps flagging the file. That disagreement pinned
+		// 129 production files in a sterile loop: flagged by every scan,
+		// skipped as "already indexed" by every repair, forever.
+		//
+		// Skip only what the scan itself would call indexed, and take the
+		// verdict WHOLE. Judging one component (`VideoCues > 0`) closed the
+		// misskeyed case and left the loop open for "index-sparse" - video
+		// cues that exist and are too far apart to seek into, so VideoCues > 0
+		// holds by definition. Prod 2026-07-26: 138 files "repaired", 134
+		// still flagged afterwards.
 		ch, chErr := ops.CueHealth(ctx, path)
 		if chErr != nil {
 			return mkv.ReindexResult{}, fmt.Errorf("reindex: cue health: %w", chErr)
 		}
-		if ch.VideoCues > 0 {
+		if ch.Healthy {
 			return mkv.ReindexResult{Skipped: true}, nil // usable index - nothing to do
 		}
 	}

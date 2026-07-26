@@ -22,14 +22,14 @@ import (
 	"github.com/gravity-zero/mkvgo/mkv/reader"
 )
 
-func audioTracksOf(meta *extmkv.Container) []extmkv.Track {
-	var audio []extmkv.Track
+func tracksOf(meta *extmkv.Container, kind extmkv.TrackType) []extmkv.Track {
+	var out []extmkv.Track
 	for _, tr := range meta.Tracks {
-		if tr.Type == extmkv.AudioTrack {
-			audio = append(audio, tr)
+		if tr.Type == kind {
+			out = append(out, tr)
 		}
 	}
-	return audio
+	return out
 }
 
 func genTailMKV(t *testing.T, ctx context.Context, dir, name string, audioSec int) string {
@@ -86,8 +86,8 @@ func TestAudioTailProbeIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	audio := audioTracksOf(meta)
-	gap2, err := probeAudioTailGapFromClusters(ctx, short, meta, audio, map[uint64]float64{})
+	gap2, err := probeAudioTailGapFromClusters(ctx, short, meta,
+		tracksOf(meta, extmkv.AudioTrack), tracksOf(meta, extmkv.VideoTrack), map[uint64]float64{})
 	if err != nil {
 		t.Fatalf("cluster walk: %v", err)
 	}
@@ -107,7 +107,8 @@ func TestAudioTailProbeIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	hgap2, err := probeAudioTailGapFromClusters(ctx, healthy, hmeta, audioTracksOf(hmeta), map[uint64]float64{})
+	hgap2, err := probeAudioTailGapFromClusters(ctx, healthy, hmeta,
+		tracksOf(hmeta, extmkv.AudioTrack), tracksOf(hmeta, extmkv.VideoTrack), map[uint64]float64{})
 	if err != nil {
 		t.Fatal(err)
 	}

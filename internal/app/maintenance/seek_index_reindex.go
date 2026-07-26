@@ -87,13 +87,7 @@ func (s *SeekIndexService) StartReindexLibrary(_ context.Context, libraryID stri
 		// instead of a queued job that dies at its first phase. The job's own
 		// re-scan below keeps the authority when the cache is absent or stale.
 		if scan, _, ok := s.CachedScan(libraryID); ok {
-			var kept []SeekStatus
-			for _, it := range scan.Items {
-				if !it.HasIndex {
-					kept = append(kept, it)
-				}
-			}
-			if err := preflight(kept); err != nil {
+			if err := preflight(reindexCandidates(scan.Items, opts.Resync)); err != nil {
 				return err
 			}
 		}
@@ -114,7 +108,7 @@ func (s *SeekIndexService) StartReindexLibrary(_ context.Context, libraryID stri
 		}
 	}
 	return s.startBatch(JobReindex, libraryID, preflight,
-		func(it SeekStatus) bool { return !it.HasIndex },
+		func(it SeekStatus) bool { return needsReindex(it, opts.Resync) },
 		func(bg context.Context, path string) (bool, error) {
 			res, err := s.reindexer.ReindexInPlace(bg, path, opts)
 			if err != nil {
@@ -123,13 +117,7 @@ func (s *SeekIndexService) StartReindexLibrary(_ context.Context, libraryID stri
 			if !res.Skipped {
 				s.refreshFileState(bg, path)
 				hasBak := res.BackupPath != ""
-				s.updateCachedFile(path, func(st *SeekStatus) {
-					st.HasIndex = true
-					st.HasBackup = hasBak
-					st.DamagedBytes = 0
-					st.Truncated = false
-					st.TrailingJunk = false
-				})
+				s.noteReindexed(bg, path, hasBak)
 				if hasBak && run.BackupWindow > 0 {
 					window = append(window, path)
 					if len(window) > run.BackupWindow {
@@ -163,13 +151,7 @@ func (s *SeekIndexService) reindexStep(bg context.Context, path string, opts mkv
 	}
 	s.refreshFileState(bg, path)
 	hasBak := res.BackupPath != ""
-	s.updateCachedFile(path, func(st *SeekStatus) {
-		st.HasIndex = true
-		st.HasBackup = hasBak
-		st.DamagedBytes = 0
-		st.Truncated = false
-		st.TrailingJunk = false
-	})
+	s.noteReindexed(bg, path, hasBak)
 	if hasBak && rb != nil && rb.max > 0 {
 		rb.window = append(rb.window, path)
 		if len(rb.window) > rb.max {
@@ -202,6 +184,11 @@ func (s *SeekIndexService) drainRollingBackups(bg context.Context, rb *rollingBa
 // the operator can only fix by re-acquiring the source, never by repairing.
 func needsReindex(it SeekStatus, resync bool) bool {
 	if it.Truncated {
+		return false
+	}
+	// Already rebuilt once and still too coarse: the encode's keyframes, not
+	// the index, are the limit. Re-offering it every run is the sterile loop.
+	if it.SeekCoarse() {
 		return false
 	}
 	if !it.HasIndex {
@@ -309,14 +296,7 @@ func (s *SeekIndexService) StartReindexMedia(ctx context.Context, mediaID string
 		}
 		if !res.Skipped {
 			s.refreshFileState(bg, path)
-			hasBak := res.BackupPath != ""
-			s.updateCachedFile(path, func(st *SeekStatus) {
-				st.HasIndex = true
-				st.HasBackup = hasBak
-				st.DamagedBytes = 0
-				st.Truncated = false
-				st.TrailingJunk = false
-			})
+			s.noteReindexed(bg, path, res.BackupPath != "")
 			s.logDamagedRanges(path, res.DamagedRanges)
 		}
 		return res.Skipped, nil

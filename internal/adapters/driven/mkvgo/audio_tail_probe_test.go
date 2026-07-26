@@ -49,7 +49,7 @@ func TestAudioTagEnds_ResolvesPerTrackUID(t *testing.T) {
 		{ID: 3, UID: 73, Type: extmkv.AudioTrack},
 		{ID: 4, UID: 0, Type: extmkv.AudioTrack}, // no UID -> cannot match a tag
 	}
-	ends := audioTagEnds(meta, audio)
+	ends := trackTagEnds(meta, audio)
 	assert.InDelta(t, 95.700, ends[1], 1e-6)
 	assert.InDelta(t, 99.851, ends[2], 1e-6, "lowercase tag name must parse the same")
 	_, ok := ends[3]
@@ -121,4 +121,35 @@ func TestCueOffsetAtOrBefore(t *testing.T) {
 	assert.Equal(t, int64(1000+17_000), cueOffsetAtOrBefore(meta, 500_000))
 	assert.Equal(t, int64(1000+0), cueOffsetAtOrBefore(meta, 10),
 		"a target before every cue falls back to the first")
+}
+
+// THE FALSE ACCUSATION (prod 2026-07-26). Every gap this probe reported was
+// measured against the container's DECLARED duration - itself a number written
+// by whatever muxed the file, and one that a bad remux routinely over-states.
+// When the declaration is the liar, the VIDEO stops early too, and blaming the
+// audio produces a badge like "Audio -154s" on a file whose tracks are
+// perfectly aligned. The reference must be where the video actually ends.
+func TestTailGap_ReferenceIsTheVideoEndNotTheDeclaredDuration(t *testing.T) {
+	audio := []extmkv.Track{{ID: 1, Type: extmkv.AudioTrack}}
+	video := []extmkv.Track{{ID: 2, Type: extmkv.VideoTrack}}
+
+	// The container declares 3600s; both tracks stop together at 3446s. The
+	// declaration is wrong, the mux is not: nothing to report.
+	assert.Zero(t, tailGap(3600, audio, video, map[uint64]float64{1: 3446, 2: 3446}),
+		"tracks that end together are aligned, whatever the container declares")
+
+	// The real defect: the video runs to the end, the audio dies 154s early.
+	assert.InDelta(t, 154.0, tailGap(3600, audio, video, map[uint64]float64{1: 3446, 2: 3600}), 1e-9)
+
+	// A video that outlives the declared duration must not inflate the gap
+	// beyond it - that is a different anomaly, and not this probe's to report.
+	assert.InDelta(t, 154.0, tailGap(3600, audio, video, map[uint64]float64{1: 3446, 2: 4000}), 1e-9)
+
+	// Audio-only container (.mka): no video to compare against, the declared
+	// duration stays the only reference there is.
+	assert.InDelta(t, 154.0, tailGap(3600, audio, nil, map[uint64]float64{1: 3446}), 1e-9)
+
+	// Several audio tracks: the worst one is reported.
+	audio2 := []extmkv.Track{{ID: 1, Type: extmkv.AudioTrack}, {ID: 3, Type: extmkv.AudioTrack}}
+	assert.InDelta(t, 154.0, tailGap(3600, audio2, video, map[uint64]float64{1: 3446, 3: 3599, 2: 3600}), 1e-9)
 }

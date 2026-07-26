@@ -33,6 +33,10 @@ type fakeReindexer struct {
 	restored  []string
 	deleted   []string
 	gate      chan struct{} // when non-nil, ReindexInPlace blocks until it's closed
+	// onReindexed fires after a successful rewrite, before the service
+	// re-diagnoses the file - the hook a test needs to make the fake diagnoser
+	// answer differently once the file has actually been repaired.
+	onReindexed func(path string)
 }
 
 func (f *fakeReindexer) HasSeekIndex(_ context.Context, p string) (bool, error) {
@@ -60,7 +64,11 @@ func (f *fakeReindexer) ReindexInPlace(_ context.Context, p string, _ mkv.Reinde
 		f.hasBackup = map[string]bool{}
 	}
 	f.hasBackup[p] = true // the rewrite leaves a .mkvgobak, like the real adapter
+	hook := f.onReindexed
 	f.mu.Unlock()
+	if hook != nil {
+		hook(p)
+	}
 	return mkv.ReindexResult{BackupPath: p + ".mkvgobak", SrcBytes: 100, DstBytes: 90}, nil
 }
 func (f *fakeReindexer) SupportsInPlace() bool { return false }

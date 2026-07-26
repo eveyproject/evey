@@ -57,6 +57,22 @@ func (d *Diagnosis) HasIndexDefect() bool {
 	return false
 }
 
+// IndexSparse reports the one index defect a rebuild may be POWERLESS against:
+// the cues are keyed on the video track (nothing misskeyed, nothing stale) but
+// too far apart for a seek to land near its target. Usually the muxer simply
+// cued one keyframe in ten and a reindex fixes it - but when the encode's own
+// keyframes are that far apart, no index can be denser than the keyframes it
+// names, and re-running the repair forever would achieve nothing. The scan
+// pairs this with SeekStatus.ReindexAttempted to tell the two apart.
+func (d *Diagnosis) IndexSparse() bool {
+	for _, f := range d.Findings {
+		if f.Kind == "index-sparse" {
+			return true
+		}
+	}
+	return false
+}
+
 // WrongContainer reports that the file's extension lies about its content: a
 // .mkv whose bytes are really ISO base media (MP4/MOV). mkvgo (>= v0.25.0)
 // returns this as a structured finding instead of erroring. It has no seek-index

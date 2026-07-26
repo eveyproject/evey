@@ -145,9 +145,9 @@ func (s *SeekIndexService) probeFile(ctx context.Context, f MediaRef, prev map[s
 	return st, reused, true
 }
 
-// probeAudioTail fills AudioShortfallSec: how far before the declared duration
-// the audio content actually ends. Skipped for a wrong-container file (its
-// Matroska duration is meaningless) and for a truncated one (the WHOLE tail is
+// probeAudioTail fills AudioShortfallSec: how far before the VIDEO's end the
+// audio content stops. Skipped for a wrong-container file (its Matroska
+// duration is meaningless) and for a truncated one (the WHOLE tail is
 // missing - the shortfall would only restate it). Secondary diagnostics: a
 // probe failure logs and leaves 0 rather than dropping the file. Gaps under
 // AudioShortfallFlagSec are ordinary mux slack (priming, final-cluster
@@ -185,6 +185,7 @@ func (s *SeekIndexService) diagnose(ctx context.Context, path string, st *SeekSt
 		// would fail on it; treat it as "has index" so it never lands in the
 		// reindex list, and surface it through its own WrongContainer flag instead.
 		st.HasIndex = st.WrongContainer || !d.HasIndexDefect()
+		st.IndexSparse = !st.WrongContainer && d.IndexSparse()
 		st.AudioDelaySec = float64(d.MaxAudioDelayMs()) / 1000
 		st.Truncated = d.Truncated
 		st.MissingTailBytes = d.MissingTailBytes
@@ -220,7 +221,13 @@ func (s *SeekIndexService) diagnose(ctx context.Context, path string, st *SeekSt
 // one path and silently read 0 in another (the persisted-scan reload used to
 // recompute only three of seven counters after a restart).
 func addToRollups(res *ScanResult, st SeekStatus) {
-	if !st.HasIndex {
+	// A rebuilt-and-still-coarse file has no usable index either, but counting
+	// it as "missing" would put it back in a repair queue that can do nothing
+	// for it. It gets its own bucket instead - see SeekStatus.SeekCoarse.
+	switch {
+	case st.SeekCoarse():
+		res.SeekCoarse++
+	case !st.HasIndex:
 		res.MissingIndex++
 	}
 	if st.HasBackup {
@@ -249,7 +256,7 @@ func addToRollups(res *ScanResult, st SeekStatus) {
 func recomputeRollups(res *ScanResult) {
 	res.MissingIndex, res.WithBackup, res.AudioDelayed = 0, 0, 0
 	res.Truncated, res.Damaged, res.WrongContainer = 0, 0, 0
-	res.TrailingJunk, res.AudioShort = 0, 0
+	res.TrailingJunk, res.AudioShort, res.SeekCoarse = 0, 0, 0
 	for _, it := range res.Items {
 		addToRollups(res, it)
 	}
@@ -274,4 +281,45 @@ func (s *SeekIndexService) updateCachedFile(path string, mut func(*SeekStatus)) 
 		recomputeRollups(&c.res)
 		s.scans[key] = c
 	}
+}
+
+// noteReindexed folds a successful rewrite into the cached scan by RE-DIAGNOSING
+// the file instead of declaring victory. A rewrite always produces an index, but
+// not necessarily a usable one: an encode whose own keyframes sit a minute apart
+// comes back "index-sparse" however faithfully it is rebuilt. Asserting
+// HasIndex = true regardless showed the operator a repair that had not happened,
+// and the next scan re-flagged the file for a repair that would skip it - the
+// sterile loop again, one level up.
+//
+// Re-stamping (size, mtime) is what makes the verdict STICK: the incremental
+// re-scan reuses a status only while that fingerprint holds, so ReindexAttempted
+// survives exactly as long as the bytes we judged do. Re-acquiring the source
+// clears it and the file gets a fresh chance, which is the behaviour we want.
+//
+// Best-effort by design: with no diagnoser wired (or an unreadable file) it
+// keeps the historic optimistic answer rather than inventing a defect.
+func (s *SeekIndexService) noteReindexed(ctx context.Context, path string, hasBak bool) {
+	var fresh SeekStatus
+	ok := s.diagnoser != nil && s.diagnose(ctx, path, &fresh)
+	var size, mtime int64
+	if fi, err := os.Stat(path); err == nil {
+		size, mtime = fi.Size(), fi.ModTime().Unix()
+	}
+	s.updateCachedFile(path, func(st *SeekStatus) {
+		st.HasBackup = hasBak
+		st.ReindexAttempted = true
+		if size > 0 {
+			st.SizeBytes, st.ModTimeUnix = size, mtime
+		}
+		if !ok {
+			st.HasIndex, st.IndexSparse = true, false
+			st.DamagedBytes, st.Truncated, st.TrailingJunk = 0, false, false
+			return
+		}
+		st.HasIndex, st.IndexSparse = fresh.HasIndex, fresh.IndexSparse
+		st.WrongContainer = fresh.WrongContainer
+		st.Truncated, st.MissingTailBytes = fresh.Truncated, fresh.MissingTailBytes
+		st.DamagedBytes, st.TrailingJunk = fresh.DamagedBytes, fresh.TrailingJunk
+		st.AudioDelaySec = fresh.AudioDelaySec
+	})
 }

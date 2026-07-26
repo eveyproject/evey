@@ -217,18 +217,28 @@ message SeekIndexItem {
   // re-download. Surfaced on its own so a whole file is never flagged as corrupt
   // just for carrying tail junk.
   bool trailing_junk = 12;
-  // audio_shortfall_sec > 0 = an audio track ends this many seconds BEFORE the
-  // container's declared duration (mux defect: dead audio over the credits).
-  // The file is structurally healthy, so no index/damage check sees it, but
-  // players used to die at the wall (playback now fills the tail with
-  // silence). NOT repairable - the audio's tail is absent from the file; the
-  // remedy is re-acquiring the source. Only gaps past the ~10s defect floor
-  // are reported (ordinary muxes leave a couple of seconds of slack).
+  // audio_shortfall_sec > 0 = an audio track stops this many seconds BEFORE
+  // the VIDEO does (mux defect: dead audio over the credits). Measured against
+  // the picture's real end, not the container's declared duration - that
+  // duration is only a muxer's claim, and an over-stated one made aligned
+  // files look like audio defects. The file is structurally healthy, so no
+  // index/damage check sees it, but players used to die at the wall (playback
+  // now fills the tail with silence). NOT repairable - the audio's tail is
+  // absent from the file; the remedy is re-acquiring the source. Only gaps
+  // past the ~10s defect floor are reported (ordinary muxes leave a couple of
+  // seconds of slack).
   double audio_shortfall_sec = 13;
   // missing_tail_bytes quantifies truncated: how many declared bytes are
   // absent from the end of the file. The magnitude routes the decision - a
   // 9 KB stub is invisible in playback, 41 MB is a missing final scene.
   int64 missing_tail_bytes = 14;
+  // seek_coarse = the index was rebuilt and is STILL too coarse to seek into:
+  // the encode's own keyframes sit further apart than a seek can tolerate, and
+  // no index can be denser than the keyframes it names. Reported apart from
+  // missing_index precisely so it stays OUT of the repair queue - offering a
+  // repair that cannot change anything is what pinned 134 prod files. The
+  // remedy is a re-encode or a better source.
+  bool seek_coarse = 15;
 }
 
 message ScanSeekIndexRequest {
@@ -259,6 +269,9 @@ message ScanSeekIndexResponse {
   // Count whose audio ends before the declared duration (re-acquire the
   // source; playback fills the missing tail with silence meanwhile).
   int32 audio_short = 13;
+  // Count rebuilt and still too coarse to seek into (see seek_coarse). These
+  // are NOT part of missing_index: no repair can improve them.
+  int32 seek_coarse = 14;
   // Live per-filesystem numbers for the un-indexed candidates, so the client
   // can advise for/against backups (their accumulation persists the SUM of
   // the candidates) and flag files whose rewrite temp copy will not fit.
