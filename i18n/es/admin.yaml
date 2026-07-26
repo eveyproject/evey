@@ -12,7 +12,7 @@ nav:
   libraries: Bibliotecas
   transcoding: Transcodificación
   artworks: Cache de artworks
-  seekIndex: "Índice Cue"
+  seekIndex: "Salud de archivos"
   usersAccess: Usuarios y acceso
   users: Usuarios
   mediaRequests: Solicitudes de contenido
@@ -1136,8 +1136,8 @@ segments:
   propagateError: "Error al propagar"
 
 seekIndex:
-  title: "Reparación del índice Cue"
-  description: "Los archivos MKV/WebM multiplexados sin índice Cue buscan y reanudan con lentitud. El análisis es de solo lectura; la reparación reconstruye el índice in situ (y también puede corregir el audio retrasado) y conserva el original como copia .mkvgobak restaurable. Reparar toda la biblioteca es una operación larga: reescribe archivos y puede tardar horas."
+  title: "Salud de los archivos multimedia"
+  description: "Un análisis de solo lectura clasifica cada archivo MKV/WebM: índice de búsqueda ausente o inutilizable, audio retrasado, descargas incompletas, daños en mitad del archivo, contenedores mal etiquetados, bytes sobrantes, pistas de audio que terminan antes de los créditos. La reparación reconstruye el índice en el sitio (y también puede corregir el audio retrasado) y conserva el original como copia .mkvgobak restaurable. Reparar toda la biblioteca es una operación larga - reescribe archivos y puede tardar horas."
   readOnlyNote: "La reparación escribe en tus carpetas de medios. Si están montadas en solo lectura (:ro en docker-compose), móntalas con escritura y reinicia los contenedores primero - el análisis sí funciona."
   alsoAudio: "Reparar también el audio retrasado ({{count}})"
   alsoAudioHint: "Remultiplexa cada archivo marcado para realinear su audio con el vídeo. Añade tiempo: los archivos de audio también se reescriben."
@@ -1185,6 +1185,9 @@ seekIndex:
   wrongContainerHint: "This .mkv is really an MP4/MOV file: it has no Matroska index to build. Rename or remux it to .mp4 (a reindex would fail)."
   trailingJunkBadge: "Bytes sobrantes"
   trailingJunkHint: "Surplus bytes remain PAST the declared Segment end - the media is complete and plays fine. Harmless: any reindex (rewrite) drops them. No re-download or resync needed."
+  statsAudioShort: "El audio termina antes"
+  audioShortBadge: "Audio -{{sec}}s"
+  audioShortHint: "Una pista de audio termina {{sec}}s antes de la duración declarada del contenedor (créditos en silencio en esa pista). El archivo está sano por lo demás y la reproducción rellena el final que falta con silencio. No hay reparación posible - ese audio simplemente no está en el archivo; vuelve a obtener la fuente para una corrección real."
   repair: "Reparar"
   repairResync: "Reparar de todos modos"
   repairResyncHint: "Reconstruye el índice omitiendo la región corrupta: recupera todo lo anterior y posterior, solo pierde el tramo dañado (una fracción de segundo). Conserva una copia."

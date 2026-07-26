@@ -11,7 +11,7 @@ nav:
   libraries: Libraries
   transcoding: Transcoding
   artworks: Artworks Cache
-  seekIndex: "Cue Index"
+  seekIndex: "File Health"
   usersAccess: Users & Access
   users: Users
   mediaRequests: Media Requests
@@ -1136,8 +1136,8 @@ segments:
   propagateError: "Failed to propagate"
 
 seekIndex:
-  title: "Cue Index Repair"
-  description: "MKV/WebM files muxed without a Cue index seek and resume slowly. Scanning is read-only; repairing rebuilds the index in place (and can also fix delayed audio) and keeps the original as a .mkvgobak backup you can roll back to. Repairing the whole library is a long operation - it rewrites files and can take hours."
+  title: "Media File Health"
+  description: "One read-only scan triages every MKV/WebM file: missing or unusable seek index, delayed audio, incomplete downloads, mid-file damage, mislabelled containers, trailing bytes, audio tracks ending before the credits. Repairing rebuilds the index in place (and can also fix delayed audio) and keeps the original as a .mkvgobak backup you can roll back to. Repairing the whole library is a long operation - it rewrites files and can take hours."
   readOnlyNote: "Repairing writes to your media folders. If they are mounted read-only (:ro in docker-compose), remount them read-write and restart the containers first - scanning still works."
   alsoAudio: "Also repair delayed audio ({{count}})"
   alsoAudioHint: "Remuxes each flagged file so its audio lands back on the video. Adds time - the audio files are rewritten too."
@@ -1185,6 +1185,9 @@ seekIndex:
   wrongContainerHint: "This .mkv is really an MP4/MOV file: it has no Matroska index to build. Rename or remux it to .mp4 (a reindex would fail)."
   trailingJunkBadge: "Trailing bytes"
   trailingJunkHint: "Surplus bytes remain PAST the declared Segment end - the media is complete and plays fine. Harmless: any reindex (rewrite) drops them. No re-download or resync needed."
+  statsAudioShort: "Audio ends early"
+  audioShortBadge: "Audio -{{sec}}s"
+  audioShortHint: "An audio track ends {{sec}}s before the container's declared duration (silent credits on that track). The file is otherwise healthy and playback fills the missing tail with silence. No repair can help - the audio simply is not in the file; re-acquire the source for a real fix."
   repair: Repair
   repairResync: "Repair anyway"
   repairResyncHint: "Rebuild the index skipping the corrupted region: recovers everything before and after, loses only the damaged span (a fraction of a second). Keeps a backup."

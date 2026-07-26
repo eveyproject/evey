@@ -12,7 +12,7 @@ nav:
   libraries: Bibliotheken
   transcoding: Transkodierung
   artworks: Artwork-Cache
-  seekIndex: "Cue-Index"
+  seekIndex: "Dateizustand"
   usersAccess: Benutzer & Zugriff
   users: Benutzer
   mediaRequests: Medienanfragen
@@ -1136,8 +1136,8 @@ segments:
   propagateError: "Übertragen fehlgeschlagen"
 
 seekIndex:
-  title: "Cue-Index-Reparatur"
-  description: "Ohne Cue-Index gemuxte MKV/WebM-Dateien spulen und setzen langsam fort. Der Scan ist schreibgeschützt; die Reparatur baut den Index vor Ort neu auf (und kann auch verzögertes Audio korrigieren) und behält das Original als .mkvgobak-Sicherung. Die gesamte Bibliothek zu reparieren ist ein langer Vorgang - Dateien werden neu geschrieben, das kann Stunden dauern."
+  title: "Zustand der Mediendateien"
+  description: "Ein Nur-Lese-Scan prüft jede MKV/WebM-Datei: fehlender oder unbrauchbarer Suchindex, verzögertes Audio, unvollständige Downloads, Schäden mitten in der Datei, falsch benannte Container, überschüssige Bytes, Audiospuren, die vor dem Abspann enden. Die Reparatur baut den Index an Ort und Stelle neu auf (und kann auch verzögertes Audio korrigieren) und bewahrt das Original als wiederherstellbares .mkvgobak-Backup. Die ganze Bibliothek zu reparieren ist eine lange Operation - sie schreibt Dateien neu und kann Stunden dauern."
   readOnlyNote: "Die Reparatur schreibt in deine Medienordner. Sind sie schreibgeschützt eingebunden (:ro in docker-compose), binde sie zuerst beschreibbar ein und starte die Container neu - der Scan funktioniert trotzdem."
   alsoAudio: "Auch verzögertes Audio reparieren ({{count}})"
   alsoAudioHint: "Remuxt jede markierte Datei, damit ihr Audio wieder zum Video passt. Kostet Zeit - die Audiodateien werden ebenfalls neu geschrieben."
@@ -1185,6 +1185,9 @@ seekIndex:
   wrongContainerHint: "This .mkv is really an MP4/MOV file: it has no Matroska index to build. Rename or remux it to .mp4 (a reindex would fail)."
   trailingJunkBadge: "Überschüssige Bytes"
   trailingJunkHint: "Surplus bytes remain PAST the declared Segment end - the media is complete and plays fine. Harmless: any reindex (rewrite) drops them. No re-download or resync needed."
+  statsAudioShort: "Audio endet zu früh"
+  audioShortBadge: "Audio -{{sec}}s"
+  audioShortHint: "Eine Audiospur endet {{sec}}s vor der deklarierten Dauer des Containers (stummer Abspann auf dieser Spur). Die Datei ist ansonsten intakt; die Wiedergabe füllt das fehlende Ende mit Stille. Keine Reparatur möglich - dieses Audio ist schlicht nicht in der Datei; für eine echte Korrektur die Quelle neu beziehen."
   repair: "Reparieren"
   repairResync: "Trotzdem reparieren"
   repairResyncHint: "Baut den Index neu und überspringt den beschädigten Bereich: rettet alles davor und danach, verliert nur die beschädigte Spanne (Sekundenbruchteil). Behält eine Sicherung."

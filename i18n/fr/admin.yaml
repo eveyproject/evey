@@ -11,7 +11,7 @@ nav:
   libraries: Bibliothèques
   transcoding: Transcodage
   artworks: Cache artworks
-  seekIndex: "Index Cue"
+  seekIndex: "Santé des fichiers"
   usersAccess: Utilisateurs et accès
   users: Utilisateurs
   mediaRequests: Demandes de média
@@ -1135,8 +1135,8 @@ segments:
   propagateError: "Erreur lors de la propagation"
 
 seekIndex:
-  title: "Réparation de l'index Cue"
-  description: "Les fichiers MKV/WebM muxés sans index Cue sautent et reprennent lentement. L'analyse est en lecture seule ; la réparation reconstruit l'index sur place (et peut aussi corriger l'audio décalé) et conserve l'original en sauvegarde .mkvgobak restaurable. Réparer toute la bibliothèque est une opération longue - elle réécrit les fichiers et peut durer des heures."
+  title: "Santé des fichiers médias"
+  description: "Une analyse en lecture seule fait le tri de chaque fichier MKV/WebM : index de lecture absent ou inutilisable, audio décalé, téléchargements incomplets, corruption en milieu de fichier, mauvais conteneur, octets excédentaires, pistes audio qui s'arrêtent avant le générique. La réparation reconstruit l'index sur place (et peut aussi corriger l'audio décalé) et conserve l'original en sauvegarde .mkvgobak restaurable. Réparer toute la bibliothèque est une opération longue - elle réécrit les fichiers et peut durer des heures."
   readOnlyNote: "La réparation écrit dans tes dossiers médias. S'ils sont montés en lecture seule (:ro dans docker-compose), remonte-les en lecture-écriture et redémarre les conteneurs d'abord - l'analyse, elle, fonctionne."
   alsoAudio: "Réparer aussi l'audio décalé ({{count}})"
   alsoAudioHint: "Remuxe chaque fichier signalé pour recaler son audio sur la vidéo. Ajoute du temps - les fichiers audio sont aussi réécrits."
@@ -1184,6 +1184,9 @@ seekIndex:
   wrongContainerHint: "Ce .mkv est en réalité un fichier MP4/MOV : il n'a pas d'index Matroska à construire. Le renommer ou le remuxer en .mp4 (une réindexation échouerait)."
   trailingJunkBadge: "Octets excédentaires"
   trailingJunkHint: "Des octets superflus subsistent APRÈS la fin déclarée du Segment - le media est complet et lisible. Inoffensif : n'importe quelle réindexation (rewrite) les supprime. Ni re-téléchargement ni resync nécessaires."
+  statsAudioShort: "Audio écourté"
+  audioShortBadge: "Audio -{{sec}}s"
+  audioShortHint: "Une piste audio se termine {{sec}}s avant la durée déclarée du conteneur (générique muet sur cette piste). Le fichier est sain par ailleurs et la lecture comble la fin manquante en silence. Aucune réparation possible - cet audio n'est simplement pas dans le fichier ; re-télécharger la source pour un vrai correctif."
   repair: "Réparer"
   repairResync: "Réparer quand même"
   repairResyncHint: "Reconstruit l'index en sautant la zone corrompue : récupère tout avant et après, ne perd que la portion abîmée (une fraction de seconde). Conserve une sauvegarde."
