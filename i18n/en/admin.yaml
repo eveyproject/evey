@@ -11,7 +11,7 @@ nav:
   libraries: Libraries
   transcoding: Transcoding
   artworks: Artworks Cache
-  seekIndex: "File Health"
+  seekIndex: "Media Health"
   usersAccess: Users & Access
   users: Users
   mediaRequests: Media Requests
@@ -1136,7 +1136,7 @@ segments:
   propagateError: "Failed to propagate"
 
 seekIndex:
-  title: "Media File Health"
+  title: "Media Health"
   description: "One read-only scan triages every MKV/WebM file: missing or unusable seek index, delayed audio, incomplete downloads, mid-file damage, mislabelled containers, trailing bytes, audio tracks ending before the credits. Repairing rebuilds the index in place (and can also fix delayed audio) and keeps the original as a .mkvgobak backup you can roll back to. Repairing the whole library is a long operation - it rewrites files and can take hours."
   readOnlyNote: "Repairing writes to your media folders. If they are mounted read-only (:ro in docker-compose), remount them read-write and restart the containers first - scanning still works."
   alsoAudio: "Also repair delayed audio ({{count}})"

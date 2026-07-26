@@ -12,7 +12,7 @@ nav:
   libraries: Bibliotecas
   transcoding: Transcodificación
   artworks: Cache de artworks
-  seekIndex: "Salud de archivos"
+  seekIndex: "Salud de medios"
   usersAccess: Usuarios y acceso
   users: Usuarios
   mediaRequests: Solicitudes de contenido
@@ -1136,7 +1136,7 @@ segments:
   propagateError: "Error al propagar"
 
 seekIndex:
-  title: "Salud de los archivos multimedia"
+  title: "Salud de los medios"
   description: "Un análisis de solo lectura clasifica cada archivo MKV/WebM: índice de búsqueda ausente o inutilizable, audio retrasado, descargas incompletas, daños en mitad del archivo, contenedores mal etiquetados, bytes sobrantes, pistas de audio que terminan antes de los créditos. La reparación reconstruye el índice en el sitio (y también puede corregir el audio retrasado) y conserva el original como copia .mkvgobak restaurable. Reparar toda la biblioteca es una operación larga - reescribe archivos y puede tardar horas."
   readOnlyNote: "La reparación escribe en tus carpetas de medios. Si están montadas en solo lectura (:ro en docker-compose), móntalas con escritura y reinicia los contenedores primero - el análisis sí funciona."
   alsoAudio: "Reparar también el audio retrasado ({{count}})"

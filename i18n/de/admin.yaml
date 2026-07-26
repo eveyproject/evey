@@ -12,7 +12,7 @@ nav:
   libraries: Bibliotheken
   transcoding: Transkodierung
   artworks: Artwork-Cache
-  seekIndex: "Dateizustand"
+  seekIndex: "Medienzustand"
   usersAccess: Benutzer & Zugriff
   users: Benutzer
   mediaRequests: Medienanfragen
@@ -1136,7 +1136,7 @@ segments:
   propagateError: "Übertragen fehlgeschlagen"
 
 seekIndex:
-  title: "Zustand der Mediendateien"
+  title: "Medienzustand"
   description: "Ein Nur-Lese-Scan prüft jede MKV/WebM-Datei: fehlender oder unbrauchbarer Suchindex, verzögertes Audio, unvollständige Downloads, Schäden mitten in der Datei, falsch benannte Container, überschüssige Bytes, Audiospuren, die vor dem Abspann enden. Die Reparatur baut den Index an Ort und Stelle neu auf (und kann auch verzögertes Audio korrigieren) und bewahrt das Original als wiederherstellbares .mkvgobak-Backup. Die ganze Bibliothek zu reparieren ist eine lange Operation - sie schreibt Dateien neu und kann Stunden dauern."
   readOnlyNote: "Die Reparatur schreibt in deine Medienordner. Sind sie schreibgeschützt eingebunden (:ro in docker-compose), binde sie zuerst beschreibbar ein und starte die Container neu - der Scan funktioniert trotzdem."
   alsoAudio: "Auch verzögertes Audio reparieren ({{count}})"

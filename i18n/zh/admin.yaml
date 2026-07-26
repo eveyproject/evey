@@ -12,7 +12,7 @@ nav:
   libraries: "媒体库"
   transcoding: "转码"
   artworks: "图片缓存"
-  seekIndex: "文件健康"
+  seekIndex: "媒体健康"
   usersAccess: "用户与访问"
   users: "用户"
   mediaRequests: "媒体请求"
@@ -1136,7 +1136,7 @@ segments:
   propagateError: "传播失败"
 
 seekIndex:
-  title: "媒体文件健康"
+  title: "媒体健康"
   description: "一次只读扫描即可对每个 MKV/WebM 文件分类:缺失或不可用的检索索引、音频延迟、下载不完整、文件中段损坏、容器标注错误、多余字节、在片尾前就结束的音轨。修复会就地重建索引(也可以顺带修正延迟的音频),并把原文件保留为可回滚的 .mkvgobak 备份。修复整个媒体库耗时很长 - 它会重写文件,可能需要数小时。"
   readOnlyNote: "修复会写入媒体文件夹。如果它们以只读方式挂载（docker-compose 中的 :ro），请先改为可写挂载并重启容器--扫描不受影响。"
   alsoAudio: "同时修复延迟的音频（{{count}}）"
