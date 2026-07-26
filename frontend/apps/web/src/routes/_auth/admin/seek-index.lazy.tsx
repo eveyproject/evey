@@ -248,6 +248,7 @@ function SeekIndexPage() {
   const delayedAudio = result?.audioDelayed ?? 0;
   const wrongContainer = result?.wrongContainer ?? 0;
   const trailingJunk = result?.trailingJunk ?? 0;
+  const audioShort = result?.audioShort ?? 0;
   // Per-filesystem numbers for the candidates: Evey pre-sets the safe backup
   // choice itself (a nearly-full volume must not accumulate one copy per
   // repaired file) and flags files whose rewrite temp copy will not fit.
@@ -344,7 +345,20 @@ function SeekIndexPage() {
   });
 
   const visible = onlyAttention
-    ? items.filter((it) => !it.hasIndex || it.hasBackup || audioDelayed(it) || it.wrongContainer)
+    ? items.filter(
+        (it) =>
+          !it.hasIndex ||
+          it.hasBackup ||
+          audioDelayed(it) ||
+          it.wrongContainer ||
+          // Files whose defect has no automated repair still NEED the
+          // operator's attention - truncated/damaged/short-audio all mean
+          // "re-acquire the source", and hiding them under the default filter
+          // made the badges unreachable without unticking it.
+          it.truncated ||
+          Number(it.damagedBytes ?? 0) > 0 ||
+          (it.audioShortfallSec ?? 0) > 0,
+      )
     : items;
   const busy = running || startScan.isPending;
 
@@ -481,6 +495,16 @@ function SeekIndexPage() {
                 </dd>
               </Card>
             )}
+            {audioShort > 0 && (
+              <Card>
+                <dt className="text-xs font-medium mb-1 text-[var(--text-muted)]">
+                  {t("admin.seekIndex.statsAudioShort")}
+                </dt>
+                <dd className="text-xl font-bold text-[var(--text)]" data-testid="seek-index-audio-short-count">
+                  {audioShort}
+                </dd>
+              </Card>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -581,6 +605,20 @@ function SeekIndexPage() {
                         {it.trailingJunk && (
                           <span title={t("admin.seekIndex.trailingJunkHint")} className="ml-1.5 inline-block">
                             <Badge variant="info">{t("admin.seekIndex.trailingJunkBadge")}</Badge>
+                          </span>
+                        )}
+                        {(it.audioShortfallSec ?? 0) > 0 && (
+                          <span
+                            title={t("admin.seekIndex.audioShortHint", {
+                              sec: Math.round(it.audioShortfallSec ?? 0),
+                            })}
+                            className="ml-1.5 inline-block"
+                          >
+                            <Badge variant="warning">
+                              {t("admin.seekIndex.audioShortBadge", {
+                                sec: Math.round(it.audioShortfallSec ?? 0),
+                              })}
+                            </Badge>
                           </span>
                         )}
                       </td>

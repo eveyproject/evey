@@ -48,11 +48,13 @@ const scanned = {
       { mediaId: "mi-2", title: "Movie B", path: "/media/b.mkv", hasIndex: true, hasBackup: true, sizeBytes: "2147483648", container: "mkv" },
       { mediaId: "mi-3", title: "Movie C", path: "/media/c.webm", hasIndex: true, hasBackup: false, sizeBytes: "1024", container: "webm" },
       { mediaId: "mi-4", title: "Movie D", path: "/media/d.mkv", hasIndex: true, hasBackup: false, sizeBytes: "4096", container: "mkv", audioDelaySec: 0.9 },
+      { mediaId: "mi-6", title: "Movie E", path: "/media/e.mkv", hasIndex: true, hasBackup: false, sizeBytes: "8192", container: "mkv", audioShortfallSec: 249.6 },
     ],
-    total: 4,
+    total: 5,
     missingIndex: 1,
     withBackup: 1,
     audioDelayed: 1,
+    audioShort: 1,
     scannedAtMs: "1765584000000",
   },
   isError: false,
@@ -127,11 +129,24 @@ describe("SeekIndexPage", () => {
     expect(screen.getByTestId("seek-index-audio-delay-count")).toHaveTextContent("1");
     expect(screen.getByTestId("seek-index-scanned-at")).toBeInTheDocument();
     // mi-3 is healthy (indexed, no backup, aligned audio) → hidden by the
-    // default filter; mi-4's delayed audio keeps it visible.
-    expect(screen.getAllByTestId("seek-index-row")).toHaveLength(3);
+    // default filter; mi-4's delayed audio and mi-6's short audio keep them
+    // visible.
+    expect(screen.getAllByTestId("seek-index-row")).toHaveLength(4);
     expect(screen.getByText("Movie A")).toBeInTheDocument();
     expect(screen.getByText("Movie D")).toBeInTheDocument();
     expect(screen.queryByText("Movie C")).not.toBeInTheDocument();
+  });
+
+  it("a short-audio file (track ends before the declared duration) shows its card and badge", async () => {
+    mockScan.mockReturnValue(scanned);
+    const Page = await getPage();
+    render(React.createElement(Page));
+    // Its own rollup card (the file is structurally healthy, so no other
+    // counter would ever surface it)...
+    expect(screen.getByTestId("seek-index-audio-short-count")).toHaveTextContent("1");
+    // ...and the per-row badge carrying the measured gap.
+    expect(screen.getByText("Audio -250s")).toBeInTheDocument();
+    expect(screen.getByText("Movie E")).toBeInTheDocument();
   });
 
   it("a delayed-audio file shows the badge with the probed seconds", async () => {
@@ -222,7 +237,7 @@ describe("SeekIndexPage", () => {
     const Page = await getPage();
     render(React.createElement(Page));
     fireEvent.click(screen.getByRole("checkbox"));
-    expect(screen.getAllByTestId("seek-index-row")).toHaveLength(4);
+    expect(screen.getAllByTestId("seek-index-row")).toHaveLength(5);
     expect(screen.getByText("Movie C")).toBeInTheDocument();
   });
 
