@@ -422,7 +422,10 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	// a server-side trace. Registered regardless of the transcoding pipeline -
 	// direct play fails too.
 	if s.PlayerEventRL != nil {
-		mux.HandleFunc("POST /api/v1/media/{id}/player-event", auth(ratelimit.MiddlewareFunc(s.PlayerEventRL, playerEventHandler(slog.Default()))))
+		// streamAuth (not auth): the cast receiver reports playback deaths with
+		// its ?token= stream token - it has no user JWT. The handler pins a
+		// stream token to its own media id.
+		mux.HandleFunc("POST /api/v1/media/{id}/player-event", streamAuth(ratelimit.MiddlewareFunc(s.PlayerEventRL, playerEventHandler(slog.Default()))))
 	}
 	mux.HandleFunc("POST /api/v1/media/{id}/artwork/{artworkId}/select", auth(selectArtworkHandler(s.ArtworkRepo, s.LibQuerySvc, s.LibraryAccessRepo)))
 	mux.HandleFunc("GET /api/v1/media/{id}/download", streamAuth(ratelimit.MiddlewareFunc(s.GlobalRL, s.StreamMeter.Middleware(downloadHandler(s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo, parentalChk)))))

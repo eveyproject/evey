@@ -2,12 +2,15 @@ package httpapi
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	shared "github.com/evey-project/evey/internal/domain/shared"
 )
 
 // The 2026-07-15 incident: a viewer watched a rainbow-garbled screen for
@@ -93,6 +96,51 @@ func TestPlayerEvent_RejectsAndClamps(t *testing.T) {
 	}
 	if details, _ := line["details"].(string); len(details) > 200 {
 		t.Fatalf("details logged at %d chars, want clamped to 200", len(details))
+	}
+}
+
+// The cast receiver has no user JWT - its stream token (?token=, purpose=cast)
+// is its whole identity. The route accepts it via streamAuth, and the handler
+// must pin the beacon to the token's OWN media: a leaked cast token must not
+// let anyone spray beacons onto arbitrary media ids (2026-07-26: the receiver
+// telemetry that diagnoses TV-side cast deaths rides on this).
+func postPlayerEventWithStreamToken(t *testing.T, logger *slog.Logger, pathMediaID, tokenMediaID string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/media/"+pathMediaID+"/player-event",
+		strings.NewReader(`{"type":"cast_receiver_error","details":"code=905"}`))
+	req.SetPathValue("id", pathMediaID)
+	ctx := context.WithValue(req.Context(), streamTokenCtxKey, &shared.StreamToken{
+		UserID:      "usr-cast",
+		MediaItemID: shared.MediaItemID(tokenMediaID),
+		Scope:       "stream",
+		Cast:        true,
+	})
+	rec := httptest.NewRecorder()
+	playerEventHandler(logger)(rec, req.WithContext(ctx))
+	return rec
+}
+
+func TestPlayerEvent_StreamTokenBoundToItsOwnMedia(t *testing.T) {
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&buf, nil))
+
+	if rec := postPlayerEventWithStreamToken(t, logger, "media-1", "media-1"); rec.Code != http.StatusNoContent {
+		t.Fatalf("matching token: status = %d, want 204 (body=%s)", rec.Code, rec.Body.String())
+	}
+	var line map[string]any
+	if err := json.Unmarshal(buf.Bytes(), &line); err != nil {
+		t.Fatalf("log line: %v", err)
+	}
+	if line["media_id"] != "media-1" || line["type"] != "cast_receiver_error" {
+		t.Fatalf("unexpected log line: %v", line)
+	}
+
+	buf.Reset()
+	if rec := postPlayerEventWithStreamToken(t, logger, "media-OTHER", "media-1"); rec.Code != http.StatusForbidden {
+		t.Fatalf("cross-media token: status = %d, want 403", rec.Code)
+	}
+	if buf.Len() != 0 {
+		t.Fatalf("cross-media beacon must not be logged, got %q", buf.String())
 	}
 }
 

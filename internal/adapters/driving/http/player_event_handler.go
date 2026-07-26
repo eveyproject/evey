@@ -56,6 +56,13 @@ func playerEventHandler(logger *slog.Logger) http.HandlerFunc {
 			http.Error(w, `{"message":"missing media id"}`, http.StatusBadRequest)
 			return
 		}
+		// A stream token (the cast receiver's only identity - it has no user
+		// JWT) is pinned to its own media: a leaked token must not become a
+		// door to spray beacons onto arbitrary media ids.
+		if st, ok := StreamTokenFromContext(r.Context()); ok && st != nil && string(st.MediaItemID) != mediaID {
+			http.Error(w, `{"message":"token not valid for this media"}`, http.StatusForbidden)
+			return
+		}
 		var body playerEventBody
 		r.Body = http.MaxBytesReader(w, r.Body, playerEventMaxBody)
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
