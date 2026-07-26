@@ -53,20 +53,29 @@ func (s *SeekIndexService) scanAndCache(ctx context.Context, libraryID string) (
 	}
 	s.setPhase(PhaseScanning, len(candidates))
 
+	prev := s.previousStatuses()
+	reused := 0
 	var res ScanResult
 	for _, f := range candidates {
 		if ctx.Err() != nil {
 			return res, ctx.Err()
 		}
 		s.setCurrent(f.Path)
-		st, ok := s.probeFile(ctx, f)
+		st, wasReused, ok := s.probeFile(ctx, f, prev)
 		s.recordDone(false)
 		if !ok {
 			continue
 		}
+		if wasReused {
+			reused++
+		}
 		res.Items = append(res.Items, st)
 		res.Total++
 		addToRollups(&res, st)
+	}
+	if reused > 0 {
+		s.logger.Info("seek-index scan: reused unchanged diagnoses",
+			slog.Int("reused", reused), slog.Int("total", res.Total))
 	}
 
 	s.mu.Lock()
@@ -76,25 +85,55 @@ func (s *SeekIndexService) scanAndCache(ctx context.Context, libraryID string) (
 	return res, nil
 }
 
-func (s *SeekIndexService) probeFile(ctx context.Context, f MediaRef) (SeekStatus, bool) {
+// previousStatuses snapshots every cached SeekStatus by path (all scopes) so
+// an incremental re-scan can reuse the diagnosis of unchanged files.
+func (s *SeekIndexService) previousStatuses() map[string]SeekStatus {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	prev := make(map[string]SeekStatus)
+	for _, c := range s.scans {
+		for _, it := range c.res.Items {
+			prev[it.Path] = it
+		}
+	}
+	return prev
+}
+
+func (s *SeekIndexService) probeFile(ctx context.Context, f MediaRef, prev map[string]SeekStatus) (st SeekStatus, reused, ok bool) {
 	fi, statErr := os.Stat(f.Path)
 	if statErr != nil {
 		// File recorded in the DB but missing/unreadable on disk - skip it
 		// rather than reporting a misleading "no index".
 		s.logger.Warn("seek-index scan: file unreadable, skipping",
 			slog.String("path", f.Path), slog.Any("err", statErr))
-		return SeekStatus{}, false
+		return SeekStatus{}, false, false
 	}
-	st := SeekStatus{
-		MediaID:   f.MediaID,
-		Title:     f.Title,
-		Path:      f.Path,
-		Container: containerOf(f.Path),
-		SizeBytes: fi.Size(),
+
+	// Incremental reuse: (size, mtime) unchanged since the last completed scan
+	// → the file's bytes are the same, so its diagnosis is too. Only the
+	// backup flag is live state (a rollback/purge changes it without touching
+	// the media), so it is re-stat'ed below either way.
+	if p, hit := prev[f.Path]; hit && p.ModTimeUnix != 0 &&
+		p.SizeBytes == fi.Size() && p.ModTimeUnix == fi.ModTime().Unix() {
+		st = p
+		// Identity may have moved (rename in the DB) even when the file did not.
+		st.MediaID, st.Title = f.MediaID, f.Title
+		reused = true
+	} else {
+		st = SeekStatus{
+			MediaID:     f.MediaID,
+			Title:       f.Title,
+			Path:        f.Path,
+			Container:   containerOf(f.Path),
+			SizeBytes:   fi.Size(),
+			ModTimeUnix: fi.ModTime().Unix(),
+		}
+		if !s.diagnose(ctx, f.Path, &st) {
+			return SeekStatus{}, false, false
+		}
+		s.probeAudioTail(ctx, f.Path, &st)
 	}
-	if !s.diagnose(ctx, f.Path, &st) {
-		return SeekStatus{}, false
-	}
+
 	hasBak, bakErr := s.reindexer.HasBackup(ctx, f.Path)
 	if bakErr != nil {
 		// Backup status is secondary diagnostics - a probe failure must not
@@ -103,8 +142,7 @@ func (s *SeekIndexService) probeFile(ctx context.Context, f MediaRef) (SeekStatu
 			slog.String("path", f.Path), slog.Any("err", bakErr))
 	}
 	st.HasBackup = hasBak
-	s.probeAudioTail(ctx, f.Path, &st)
-	return st, true
+	return st, reused, true
 }
 
 // probeAudioTail fills AudioShortfallSec: how far before the declared duration

@@ -424,12 +424,17 @@ func (f fakeAudioDelayProber) ProbeMaxAudioStartDelaySec(_ context.Context, p st
 }
 
 // fakeDiagnoser answers from a canned map; an unknown path errors so the scan
-// drops it (a file it cannot parse at all).
+// drops it (a file it cannot parse at all). calls counts Diagnose invocations
+// per path so a test can prove a cached diagnosis was REUSED (not re-probed).
 type fakeDiagnoser struct {
 	byPath map[string]*mkv.Diagnosis
+	calls  map[string]int
 }
 
 func (f fakeDiagnoser) Diagnose(_ context.Context, p string) (*mkv.Diagnosis, error) {
+	if f.calls != nil {
+		f.calls[p]++
+	}
 	d, ok := f.byPath[p]
 	if !ok {
 		return nil, os.ErrInvalid
@@ -647,6 +652,91 @@ func TestSeekIndexService_PersistedScan_RestoresAllRollups(t *testing.T) {
 	assert.Positive(t, res2.WrongContainer)
 	assert.Positive(t, res2.TrailingJunk)
 	assert.Positive(t, res2.AudioShort)
+}
+
+// A re-scan must not re-diagnose files that have not changed since the last
+// completed scan: in prod, diagnosing 6651 files takes ~1h30 (per-file head
+// seeks + first-cluster reads on NAS disks), and virtually none of them change
+// between two scans. (size, mtime) unchanged → the cached SeekStatus is
+// reused; only the backup stat (cheap) is refreshed. A touched file is
+// re-diagnosed for real.
+func TestSeekIndexService_Rescan_ReusesUnchangedDiagnoses(t *testing.T) {
+	dir := t.TempDir()
+	stable := filepath.Join(dir, "stable.mkv")
+	touched := filepath.Join(dir, "touched.mkv")
+	for _, p := range []string{stable, touched} {
+		require.NoError(t, os.WriteFile(p, []byte("x"), 0o644))
+	}
+	reidx := &fakeReindexer{hasIndex: map[string]bool{stable: true, touched: true}}
+	cat := fakeCatalog{files: []appmaintenance.MediaRef{
+		{MediaID: "m1", Title: "Stable", Path: stable},
+		{MediaID: "m2", Title: "Touched", Path: touched},
+	}}
+	diag := fakeDiagnoser{calls: map[string]int{}, byPath: map[string]*mkv.Diagnosis{
+		stable:  {Findings: []mkv.DiagnosisFinding{{Kind: "trailing-junk"}}, AudioDelaysMs: map[uint64]int64{1: 900}},
+		touched: {Healthy: true},
+	}}
+	tail := &fakeAudioTailProber{gaps: map[string]float64{stable: 300, touched: 0}}
+	svc := appmaintenance.NewSeekIndexService(reidx, cat, nil).
+		WithDiagnoser(diag).WithAudioTailProber(tail)
+
+	require.NoError(t, svc.StartScan(context.Background(), ""))
+	waitIdle(t, svc)
+	require.Equal(t, 1, diag.calls[stable])
+	require.Len(t, tail.probed, 2)
+
+	// Touch one file (mtime changes), leave the other alone.
+	future := time.Now().Add(2 * time.Second)
+	require.NoError(t, os.Chtimes(touched, future, future))
+
+	require.NoError(t, svc.StartScan(context.Background(), ""))
+	waitIdle(t, svc)
+
+	assert.Equal(t, 1, diag.calls[stable], "an unchanged file must NOT be re-diagnosed")
+	assert.Equal(t, 2, diag.calls[touched], "a touched file must be re-diagnosed")
+	assert.Equal(t, []string{stable, touched, touched}, tail.probed,
+		"the tail probe follows the same reuse rule")
+
+	// The reused entry keeps every diagnosed fact and the rollups stay right.
+	res, _, ok := svc.CachedScan("")
+	require.True(t, ok)
+	byID := map[string]appmaintenance.SeekStatus{}
+	for _, it := range res.Items {
+		byID[it.MediaID] = it
+	}
+	assert.True(t, byID["m1"].TrailingJunk)
+	assert.InDelta(t, 0.9, byID["m1"].AudioDelaySec, 1e-9)
+	assert.InDelta(t, 300, byID["m1"].AudioShortfallSec, 1e-9)
+	assert.Equal(t, 1, res.TrailingJunk)
+	assert.Equal(t, 1, res.AudioShort)
+}
+
+// The backup flag must stay LIVE on a reused entry: a rollback/purge between
+// two scans changes it without touching the media file itself.
+func TestSeekIndexService_Rescan_RefreshesBackupOnReusedEntry(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "f.mkv")
+	require.NoError(t, os.WriteFile(p, []byte("x"), 0o644))
+	reidx := &fakeReindexer{hasIndex: map[string]bool{p: true}, hasBackup: map[string]bool{p: false}}
+	cat := fakeCatalog{files: []appmaintenance.MediaRef{{MediaID: "m1", Title: "F", Path: p}}}
+	diag := fakeDiagnoser{calls: map[string]int{}, byPath: map[string]*mkv.Diagnosis{p: {Healthy: true}}}
+	svc := appmaintenance.NewSeekIndexService(reidx, cat, nil).WithDiagnoser(diag)
+
+	require.NoError(t, svc.StartScan(context.Background(), ""))
+	waitIdle(t, svc)
+
+	// A backup appears without the media file changing.
+	reidx.mu.Lock()
+	reidx.hasBackup[p] = true
+	reidx.mu.Unlock()
+
+	require.NoError(t, svc.StartScan(context.Background(), ""))
+	waitIdle(t, svc)
+	res, _, ok := svc.CachedScan("")
+	require.True(t, ok)
+	assert.True(t, res.Items[0].HasBackup, "backup status must be re-stat'ed even on a reused diagnosis")
+	assert.Equal(t, 1, res.WithBackup)
+	assert.Equal(t, 1, diag.calls[p], "the reuse must still have skipped the diagnose")
 }
 
 // A .mkv that is really MP4/MOV (mkvgo's wrong-container finding) has no

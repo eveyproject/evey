@@ -132,6 +132,16 @@ type SeekStatus struct {
 	HasIndex  bool // false → muxed without Cues → slow seek/resume
 	HasBackup bool // a .mkvgobak exists → a prior reindex is rollback-able
 	SizeBytes int64
+	// ModTimeUnix is the file's mtime at diagnosis time. Together with
+	// SizeBytes it is the change fingerprint an incremental re-scan compares:
+	// unchanged → the whole diagnosis is REUSED without touching the file
+	// (in prod, diagnosing 6651 files costs ~1h30 of head seeks and
+	// first-cluster reads; between two scans virtually none of them changed).
+	// The same trade the library scan's scanindex makes: an in-place edit
+	// that preserves size AND mtime keeps a stale diagnosis until either
+	// moves - deliberate tooling does not do that, and every evey repair
+	// re-stamps the fingerprint itself.
+	ModTimeUnix int64
 	// AudioDelaySec > AudioDelayFlagSec → the audio track starts that far
 	// after the video (mux defect → constant A/V desync on copied audio).
 	// Playback with TRANSCODED audio auto-cancels it; the flag tells the
