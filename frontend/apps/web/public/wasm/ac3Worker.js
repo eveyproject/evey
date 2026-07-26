@@ -20,34 +20,71 @@ function post(msg, transfer) {
   self.postMessage(msg, transfer || []);
 }
 
-async function init(wasmUrl, wasmExecUrl) {
+/* loadRuntime imports the shim + instantiates the wasm module, once.
+ * bustCache=true bypasses the HTTP cache on BOTH files: the shim and the wasm
+ * are only compatible within the same build generation (standard-go and tinygo
+ * wasm_exec.js are mutually incompatible), and without cache-busting a redeploy
+ * could pair a cached old half with a fresh new one - an instant LinkError
+ * (seen in prod 2026-07-26 on the go->tinygo switch). importScripts has no
+ * cache option, so the bust rides a throwaway query param instead. */
+async function loadRuntime(wasmUrl, wasmExecUrl, bustCache) {
   // wasm_exec.js is Go's runtime shim; it defines self.Go. Classic worker →
-  // importScripts pulls it in synchronously without eval.
-  importScripts(wasmExecUrl);
+  // importScripts pulls it in synchronously without eval. Re-importing on the
+  // retry simply reassigns self.Go - both shim flavors assign the global.
+  const execUrl = bustCache
+    ? wasmExecUrl + (wasmExecUrl.includes("?") ? "&" : "?") + "reload=" + Date.now()
+    : wasmExecUrl;
+  importScripts(execUrl);
   const go = new self.Go();
-  // instantiateStreaming first: it's the ONLY form Chrome's compiled-code
-  // cache (keyed by URL) can reuse - decisive on a TV CPU (cast receiver)
-  // where compilation dominates the time-to-sound, and it lets the page's
-  // compileStreaming warmup pay off ahead of time.
-  // Bytes fallback for engines without streaming or a missing Content-Type.
   let instance;
-  try {
-    const res = await WebAssembly.instantiateStreaming(fetch(wasmUrl), go.importObject);
-    instance = res.instance;
-  } catch (_) {
-    const resp = await fetch(wasmUrl);
+  if (bustCache) {
+    const resp = await fetch(wasmUrl, { cache: "reload" });
     if (!resp.ok) throw new Error("fetch " + wasmUrl + " -> " + resp.status);
-    const bytes = await resp.arrayBuffer();
-    const res = await WebAssembly.instantiate(bytes, go.importObject);
+    const res = await WebAssembly.instantiate(await resp.arrayBuffer(), go.importObject);
     instance = res.instance;
+  } else {
+    // instantiateStreaming first: it's the ONLY form Chrome's compiled-code
+    // cache (keyed by URL) can reuse - decisive on a TV CPU (cast receiver)
+    // where compilation dominates the time-to-sound, and it lets the page's
+    // compileStreaming warmup pay off ahead of time.
+    // Bytes fallback for engines without streaming or a missing Content-Type.
+    try {
+      const res = await WebAssembly.instantiateStreaming(fetch(wasmUrl), go.importObject);
+      instance = res.instance;
+    } catch (_) {
+      const resp = await fetch(wasmUrl);
+      if (!resp.ok) throw new Error("fetch " + wasmUrl + " -> " + resp.status);
+      const bytes = await resp.arrayBuffer();
+      const res = await WebAssembly.instantiate(bytes, go.importObject);
+      instance = res.instance;
+    }
   }
   // go.run keeps the Go runtime alive (the module's main is `select{}`); do not
   // await it - it never resolves. The exported callbacks are ready synchronously
   // once run has registered the global.
   go.run(instance);
-  ac3 = self.Ac3Go;
-  if (!ac3 || typeof ac3.decode !== "function") {
+  const mod = self.Ac3Go;
+  if (!mod || typeof mod.decode !== "function") {
     throw new Error("ac3go module did not register a decode()");
+  }
+  return mod;
+}
+
+async function init(wasmUrl, wasmExecUrl) {
+  try {
+    ac3 = await loadRuntime(wasmUrl, wasmExecUrl, false);
+  } catch (firstErr) {
+    // Self-healing: a first failure is most often the stale-cache mix above -
+    // retry ONCE with the HTTP cache bypassed before giving up (giving up
+    // latches the host's fallback to the AAC transcode for the whole title).
+    try {
+      ac3 = await loadRuntime(wasmUrl, wasmExecUrl, true);
+    } catch (retryErr) {
+      throw new Error(
+        "init failed (" + String((firstErr && firstErr.message) || firstErr) +
+        "); cache-bypass retry failed (" + String((retryErr && retryErr.message) || retryErr) + ")",
+      );
+    }
   }
 }
 
