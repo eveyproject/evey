@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"testing"
+	"time"
 
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
@@ -530,6 +531,9 @@ func (r *fakeTrickplayRepo) Create(_ context.Context, _ *domainlibrary.Trickplay
 	return nil
 }
 func (r *fakeTrickplayRepo) Delete(_ context.Context, _ shared.MediaItemID) error { return nil }
+func (r *fakeTrickplayRepo) RecordFailure(_ context.Context, _ shared.MediaItemID, _ int64, _ time.Time, _ string) error {
+	return nil
+}
 
 func (r *fakeTrickplayRepoWithManifest) GetByMediaItemID(_ context.Context, _ shared.MediaItemID) (*domainlibrary.TrickplayManifest, error) {
 	return r.manifest, nil
@@ -551,6 +555,9 @@ func (r *fakeTrickplayRepoWithManifest) Create(_ context.Context, _ *domainlibra
 	return nil
 }
 func (r *fakeTrickplayRepoWithManifest) Delete(_ context.Context, _ shared.MediaItemID) error {
+	return nil
+}
+func (r *fakeTrickplayRepoWithManifest) RecordFailure(_ context.Context, _ shared.MediaItemID, _ int64, _ time.Time, _ string) error {
 	return nil
 }
 

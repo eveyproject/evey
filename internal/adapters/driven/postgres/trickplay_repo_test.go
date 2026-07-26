@@ -174,6 +174,81 @@ func TestTrickplayRepo_GetByMediaItemIDs_EmptyInput(t *testing.T) {
 	assert.Empty(t, got)
 }
 
+// seedTrickplayMovie inserts a movie with a file carrying the exact size and
+// mod time a failure record is matched against.
+func seedTrickplayMovie(t *testing.T, itemRepo *postgres.MediaItemRepository, libID shared.LibraryID, id string, size int64, mod time.Time) {
+	t.Helper()
+	item := newTestMediaItem(id, libID)
+	item.File = &library.MediaFile{Path: "/media/" + id + ".mkv", Size: size, ModTime: mod}
+	require.NoError(t, itemRepo.Create(context.Background(), item))
+}
+
+func TestTrickplayRepo_ListMissing_SkipsRecordedFailures(t *testing.T) {
+	// A recorded failure suppresses the item ONLY while the media_files row
+	// still matches the recorded (size, mod time) pair: the failure was a
+	// verdict on those exact bytes. A replaced file no longer matches and the
+	// item re-enters the candidates; before this existed the same failing
+	// files were re-attempted at every single boot (prod 2026-07-26).
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	tpRepo := postgres.NewTrickplayRepository(db)
+	ctx := context.Background()
+
+	mod := time.Date(2026, 7, 26, 10, 0, 0, 0, time.UTC)
+	lib := newTestLibrary("tplib5")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	seedTrickplayMovie(t, itemRepo, lib.ID, "tpf-m1", 100, mod)
+	seedTrickplayMovie(t, itemRepo, lib.ID, "tpf-m2", 200, mod)
+
+	ids, err := tpRepo.ListMissingMediaItemIDs(ctx)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{"tpf-m1", "tpf-m2"}, ids)
+
+	require.NoError(t, tpRepo.RecordFailure(ctx, "tpf-m1", 100, mod, "ffprobe: exit status 1"))
+	ids, err = tpRepo.ListMissingMediaItemIDs(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"tpf-m2"}, ids, "a failure matching the current file suppresses the item")
+
+	// A STALE failure (recorded against other bytes) must not suppress.
+	require.NoError(t, tpRepo.RecordFailure(ctx, "tpf-m2", 999, mod, "old failure"))
+	ids, err = tpRepo.ListMissingMediaItemIDs(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"tpf-m2"}, ids, "a failure recorded against a different size no longer matches")
+}
+
+func TestTrickplayRepo_CreateClearsRecordedFailure(t *testing.T) {
+	// A successful generation settles the question the failure recorded: once
+	// the manifest is later deleted (regeneration flows), the item must come
+	// back as a candidate instead of staying suppressed by a stale failure.
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	tpRepo := postgres.NewTrickplayRepository(db)
+	ctx := context.Background()
+
+	mod := time.Date(2026, 7, 26, 10, 0, 0, 0, time.UTC)
+	lib := newTestLibrary("tplib6")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	seedTrickplayMovie(t, itemRepo, lib.ID, "tpf-m3", 100, mod)
+
+	require.NoError(t, tpRepo.RecordFailure(ctx, "tpf-m3", 100, mod, "ffprobe: exit status 1"))
+	require.NoError(t, tpRepo.Create(ctx, &library.TrickplayManifest{
+		ID: "tpf-man-1", MediaItemID: "tpf-m3", Interval: 7, Width: 320,
+		TileWidth: 5, TileHeight: 5, ImageCount: 1, ImagePath: "/cache/tpf-m3",
+		CreatedAt: time.Now().UTC().Truncate(time.Millisecond),
+	}))
+	require.NoError(t, tpRepo.Delete(ctx, "tpf-m3"))
+
+	ids, err := tpRepo.ListMissingMediaItemIDs(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"tpf-m3"}, ids, "Create cleared the failure; without a manifest the item is a candidate again")
+}
+
 func TestTrickplayRepo_Delete(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()

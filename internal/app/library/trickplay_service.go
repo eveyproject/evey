@@ -164,6 +164,7 @@ func (s *TrickplayService) GenerateTrickplay(ctx context.Context, mediaItemID st
 	workers := cpuutil.TrickplayWorkers(adaptive)
 	result, err := s.trickplayGen.Generate(ctx, item.File.Path, outputDir, interval, width, tileWidth, tileHeight, workers, item.File.Duration.Milliseconds())
 	if err != nil {
+		s.recordGenerationFailure(ctx, mediaItemID, item.File, err)
 		return fmt.Errorf("generate trickplay: %w", err)
 	}
 
@@ -197,6 +198,28 @@ func (s *TrickplayService) GenerateTrickplay(ctx context.Context, mediaItemID st
 		})
 	}
 	return nil
+}
+
+// recordGenerationFailure persists a PERMANENT generation failure so the
+// missing-list stops re-serving the item at every boot (the same two files
+// were re-attempted on each restart before this existed). Transient
+// conditions are exempt: a context error says nothing about the file (a
+// shutdown mid-batch or a blown time budget on a busy NAS), and a file the OS
+// can't stat may heal (unmounted share). The recorded size+mod time are the
+// DB's - the values ListMissingMediaItemIDs compares against - so a later
+// rescan of a replaced file invalidates the record naturally. Best-effort: a
+// failed write only logs, the next sweep simply retries.
+func (s *TrickplayService) recordGenerationFailure(ctx context.Context, mediaItemID string, file *library.MediaFile, genErr error) {
+	if errors.Is(genErr, context.Canceled) || errors.Is(genErr, context.DeadlineExceeded) {
+		return
+	}
+	if _, statErr := os.Stat(file.Path); statErr != nil {
+		return
+	}
+	if err := s.trickplayRepo.RecordFailure(ctx, shared.MediaItemID(mediaItemID), file.Size, file.ModTime, genErr.Error()); err != nil {
+		slog.Warn("trickplay: record failure failed",
+			slog.String("media_id", mediaItemID), slog.Any("err", err))
+	}
 }
 
 // trickplaySidecar is the JSON payload written next to the sprites. Stores the

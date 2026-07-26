@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"time"
 
 	"github.com/lib/pq"
 	"go.opentelemetry.io/otel/attribute"
@@ -42,6 +43,41 @@ func (r *TrickplayRepository) Create(ctx context.Context, m *library.TrickplayMa
 		   created_at = EXCLUDED.created_at`,
 		m.ID, m.MediaItemID, m.Interval, m.Width, m.Height, m.TileWidth, m.TileHeight, m.ImageCount, m.ImagePath, m.CreatedAt,
 	)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	// A success settles the question a recorded failure asked - without this,
+	// deleting the manifest later would leave the item suppressed forever.
+	if _, err := txFromCtx(ctx, r.db).ExecContext(ctx,
+		`DELETE FROM trickplay_failures WHERE media_item_id = $1`, string(m.MediaItemID)); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
+}
+
+// RecordFailure remembers that generation failed against this exact file so
+// ListMissingMediaItemIDs stops re-serving the item while the media_files row
+// still matches the recorded (size, mod time) pair. Upsert: a later failure
+// against replaced bytes overwrites the stale record.
+func (r *TrickplayRepository) RecordFailure(ctx context.Context, mediaItemID shared.MediaItemID, fileSize int64, modTime time.Time, reason string) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.trickplay.RecordFailure")
+	defer span.End()
+	span.SetAttributes(attribute.String("media_item.id", string(mediaItemID)))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
+		`INSERT INTO trickplay_failures (media_item_id, file_size, mod_time, reason)
+		 VALUES ($1, $2, $3, $4)
+		 ON CONFLICT (media_item_id) DO UPDATE SET
+		   file_size = EXCLUDED.file_size,
+		   mod_time = EXCLUDED.mod_time,
+		   reason = EXCLUDED.reason,
+		   failed_at = now()`,
+		string(mediaItemID), fileSize, modTime, reason)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -144,6 +180,11 @@ func (r *TrickplayRepository) ListMissingMediaItemIDs(ctx context.Context) ([]st
 		 WHERE mf.file_path != ''
 		   AND mi.type IN ('movie', 'episode')
 		   AND NOT EXISTS (SELECT 1 FROM trickplay_manifests tm WHERE tm.media_item_id = mi.id)
+		   AND NOT EXISTS (
+		     SELECT 1 FROM trickplay_failures tf
+		     WHERE tf.media_item_id = mi.id
+		       AND tf.file_size = mf.file_size
+		       AND tf.mod_time = mf.mod_time)
 		 ORDER BY mi.added_at DESC
 		 LIMIT 10000`)
 	if err != nil {

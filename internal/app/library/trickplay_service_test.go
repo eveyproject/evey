@@ -3,6 +3,8 @@ package library_test
 import (
 	"context"
 	"errors"
+	"fmt"
+	"os"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -227,6 +229,73 @@ func TestTrickplay_GenerateAllMissingTrickplays_ContinuesAfterItemError(t *testi
 	}, 3*time.Second, 20*time.Millisecond)
 	cancel()
 	time.Sleep(50 * time.Millisecond)
+}
+
+// --- GenerateTrickplay failure persistence ---
+
+func TestTrickplay_GenerateTrickplay_PermanentFailureIsRecorded(t *testing.T) {
+	t.Parallel()
+	// The file is present on disk and the generator still failed (the prod
+	// 2026-07-26 case: ffprobe exit 1 on the same two files at every boot).
+	// The failure must be recorded against the file's size+mod time so the
+	// missing-list stops re-serving it.
+	f, err := os.CreateTemp(t.TempDir(), "*.mkv")
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
+
+	repo := newMissingIDsRepo(nil)
+	gen := &countingGen{failOn: map[string]error{f.Name(): errors.New("ffprobe: exit status 1")}}
+	media := libfakes.NewFakeMediaItemCommandRepo()
+	mod := time.Date(2026, 7, 26, 10, 0, 0, 0, time.UTC)
+	require.NoError(t, media.Create(context.Background(), &library.MediaItem{
+		ID: "m1", File: &library.MediaFile{Path: f.Name(), Size: 12345, ModTime: mod}, Title: "A",
+	}))
+	svc := applib.NewTrickplayService(repo, gen, t.TempDir(), media, sharedfakes.NewFakeEventBus(), nil)
+
+	require.Error(t, svc.GenerateTrickplay(context.Background(), "m1"))
+	failures := repo.Failures()
+	require.Len(t, failures, 1, "a permanent generation failure must be recorded")
+	assert.Equal(t, shared.MediaItemID("m1"), failures[0].MediaItemID)
+	assert.Equal(t, int64(12345), failures[0].FileSize)
+	assert.Equal(t, mod, failures[0].ModTime)
+	assert.Contains(t, failures[0].Reason, "ffprobe")
+}
+
+func TestTrickplay_GenerateTrickplay_MissingFileFailureNotRecorded(t *testing.T) {
+	t.Parallel()
+	// The file is gone (unmounted share): transient, the next sweep may find it
+	// healed. Recording now would freeze a failure the bytes never caused.
+	repo := newMissingIDsRepo(nil)
+	gen := &countingGen{failOn: map[string]error{"/gone/a.mkv": errors.New("no such file")}}
+	media := libfakes.NewFakeMediaItemCommandRepo()
+	require.NoError(t, media.Create(context.Background(), &library.MediaItem{
+		ID: "m1", File: &library.MediaFile{Path: "/gone/a.mkv", Size: 1}, Title: "A",
+	}))
+	svc := applib.NewTrickplayService(repo, gen, t.TempDir(), media, sharedfakes.NewFakeEventBus(), nil)
+
+	require.Error(t, svc.GenerateTrickplay(context.Background(), "m1"))
+	assert.Empty(t, repo.Failures(), "missing file ⇒ transient, nothing recorded")
+}
+
+func TestTrickplay_GenerateTrickplay_ContextErrorNotRecorded(t *testing.T) {
+	t.Parallel()
+	// A cancelled/timed-out generation says nothing about the file: a shutdown
+	// mid-batch or a 30-min budget blown by a busy NAS must not permanently
+	// blacklist a healthy item.
+	f, err := os.CreateTemp(t.TempDir(), "*.mkv")
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
+
+	repo := newMissingIDsRepo(nil)
+	gen := &countingGen{failOn: map[string]error{f.Name(): fmt.Errorf("ffmpeg: %w", context.Canceled)}}
+	media := libfakes.NewFakeMediaItemCommandRepo()
+	require.NoError(t, media.Create(context.Background(), &library.MediaItem{
+		ID: "m1", File: &library.MediaFile{Path: f.Name(), Size: 1}, Title: "A",
+	}))
+	svc := applib.NewTrickplayService(repo, gen, t.TempDir(), media, sharedfakes.NewFakeEventBus(), nil)
+
+	require.Error(t, svc.GenerateTrickplay(context.Background(), "m1"))
+	assert.Empty(t, repo.Failures(), "a context error is never a verdict on the file")
 }
 
 // --- GenerateTrickplay concurrency ---

@@ -3,15 +3,17 @@ package fakes
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
 )
 
 type FakeTrickplayRepository struct {
-	mu    sync.RWMutex
-	items map[string]*library.TrickplayManifest
-	Err   error
+	mu       sync.RWMutex
+	items    map[string]*library.TrickplayManifest
+	failures []TrickplayFailure
+	Err      error
 }
 
 func NewFakeTrickplayRepository() *FakeTrickplayRepository {
@@ -83,6 +85,33 @@ func (r *FakeTrickplayRepository) ListMissingMediaItemIDs(_ context.Context) ([]
 		return nil, r.Err
 	}
 	return nil, nil
+}
+
+// TrickplayFailure is one RecordFailure call, exposed for test assertions.
+type TrickplayFailure struct {
+	MediaItemID shared.MediaItemID
+	FileSize    int64
+	ModTime     time.Time
+	Reason      string
+}
+
+func (r *FakeTrickplayRepository) RecordFailure(_ context.Context, mediaItemID shared.MediaItemID, fileSize int64, modTime time.Time, reason string) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.failures = append(r.failures, TrickplayFailure{
+		MediaItemID: mediaItemID, FileSize: fileSize, ModTime: modTime, Reason: reason,
+	})
+	return nil
+}
+
+// Failures snapshots the recorded generation failures.
+func (r *FakeTrickplayRepository) Failures() []TrickplayFailure {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return append([]TrickplayFailure(nil), r.failures...)
 }
 
 // cloneTrickplayManifest detaches the stored record from the caller's

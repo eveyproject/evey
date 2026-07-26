@@ -394,8 +394,15 @@ type TrickplayQueryRepo interface {
 
 type TrickplayRepository interface {
 	TrickplayQueryRepo
+	// Create stores the manifest and clears any recorded generation failure
+	// for the item - a success settles the question the failure recorded.
 	Create(ctx context.Context, manifest *TrickplayManifest) error
 	Delete(ctx context.Context, mediaItemID shared.MediaItemID) error
+	// RecordFailure remembers that generation failed against this exact file
+	// (identified by size + mod time) so ListMissingMediaItemIDs stops
+	// re-serving the item at every boot. A replaced file no longer matches the
+	// recorded pair and re-enters the candidates naturally.
+	RecordFailure(ctx context.Context, mediaItemID shared.MediaItemID, fileSize int64, modTime time.Time, reason string) error
 }
 
 // UserRating values: -1=dislike, 0=neutral/removed, 1=like
