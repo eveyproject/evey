@@ -11,6 +11,7 @@ import { useServerUrl } from "../src/hooks/useServerUrl";
 import { setRefreshToken } from "../src/lib/refresh-token";
 import { getSavedCredentials, saveCredentials, clearSavedCredentials } from "../src/lib/saved-credentials";
 import { useBiometricAvailable, useBiometricEnabled, authenticateBiometric } from "../src/hooks/useBiometric";
+import { PasswordInput } from "../src/components/PasswordInput";
 
 export default function Login() {
   const theme = useTheme();
@@ -169,12 +170,11 @@ export default function Login() {
         accessible={true}
         accessibilityLabel="Username"
       />
-      <TextInput
+      <PasswordInput
         placeholder={t("auth.login.password")}
         placeholderTextColor={theme.colors.textMuted}
         value={password}
         onChangeText={setPassword}
-        secureTextEntry
         style={inputStyle}
         accessible={true}
         accessibilityLabel="Password"

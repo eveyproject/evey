@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useUserServiceRegisterWithInvite } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { useTheme } from "../src/providers/ThemeProvider";
+import { PasswordInput } from "../src/components/PasswordInput";
 
 export default function Register() {
   const theme = useTheme();
@@ -108,22 +109,20 @@ export default function Register() {
         accessible={true}
         accessibilityLabel="Email"
       />
-      <TextInput
+      <PasswordInput
         placeholder={t("auth.register.password")}
         placeholderTextColor={theme.colors.textMuted}
         value={password}
         onChangeText={setPassword}
-        secureTextEntry
         style={inputStyle}
         accessible={true}
         accessibilityLabel="Password"
       />
-      <TextInput
+      <PasswordInput
         placeholder={t("auth.register.confirmPassword")}
         placeholderTextColor={theme.colors.textMuted}
         value={confirm}
         onChangeText={setConfirm}
-        secureTextEntry
         style={inputStyle}
         accessible={true}
         accessibilityLabel="Confirm password"
