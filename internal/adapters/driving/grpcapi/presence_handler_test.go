@@ -34,6 +34,40 @@ func TestPresenceHeartbeat_TouchesTrackerAndCounts(t *testing.T) {
 	}
 }
 
+// One tracker row per device but user-level totals: the same account beating
+// from the web app and the mobile app must list both devices while the "N
+// users online" figure stays 1 (2026-07-26, mobile presence wiring).
+func TestPresenceListOnline_TwoDevicesOneUser(t *testing.T) {
+	h := &presenceHandler{tracker: presence.NewTracker()}
+	claims := &user.Claims{UserID: "usr-a", Username: "alice"}
+	webCtx := interceptors.WithUserAgent(
+		interceptors.ContextWithClaims(context.Background(), claims), "Mozilla/5.0 Chrome/126")
+	mobileCtx := interceptors.WithUserAgent(
+		interceptors.ContextWithClaims(context.Background(), claims), "EveyMobile (Android 14; SM-G991B)")
+
+	if _, err := h.Heartbeat(webCtx, &eveyv1.HeartbeatRequest{}); err != nil {
+		t.Fatalf("web Heartbeat: %v", err)
+	}
+	resp, err := h.Heartbeat(mobileCtx, &eveyv1.HeartbeatRequest{})
+	if err != nil {
+		t.Fatalf("mobile Heartbeat: %v", err)
+	}
+	if resp.OnlineCount != 1 {
+		t.Fatalf("online_count must be distinct users (1), got %d", resp.OnlineCount)
+	}
+
+	online, err := h.ListOnline(webCtx, &eveyv1.ListOnlineRequest{})
+	if err != nil {
+		t.Fatalf("ListOnline: %v", err)
+	}
+	if len(online.Users) != 2 {
+		t.Fatalf("want one row per device (2), got %d", len(online.Users))
+	}
+	if online.Total != 1 {
+		t.Fatalf("total must be distinct users (1), got %d", online.Total)
+	}
+}
+
 func TestPresenceHeartbeat_RequiresAuth(t *testing.T) {
 	h := &presenceHandler{tracker: presence.NewTracker()}
 	_, err := h.Heartbeat(context.Background(), &eveyv1.HeartbeatRequest{})

@@ -51,5 +51,7 @@ func (h *presenceHandler) ListOnline(_ context.Context, _ *eveyv1.ListOnlineRequ
 			IdleSeconds:  idle,
 		})
 	}
-	return &eveyv1.ListOnlineResponse{Users: users, Total: int32(len(users))}, nil
+	// Users has one row per DEVICE; Total stays the distinct-USER figure the
+	// panel's "N users online" header wants (an account on web + mobile is 1).
+	return &eveyv1.ListOnlineResponse{Users: users, Total: int32(h.tracker.Count())}, nil
 }

@@ -118,6 +118,12 @@ func WithClientIP(ctx context.Context, ip string) context.Context {
 	return context.WithValue(ctx, clientIPKey{}, ip)
 }
 
+// WithUserAgent stamps a user agent onto ctx - same test/handler symmetry as
+// WithClientIP above.
+func WithUserAgent(ctx context.Context, ua string) context.Context {
+	return context.WithValue(ctx, userAgentKey{}, ua)
+}
+
 func PersistentSessionFromCtx(ctx context.Context) bool {
 	v, _ := ctx.Value(persistentSessionKey{}).(bool)
 	return v

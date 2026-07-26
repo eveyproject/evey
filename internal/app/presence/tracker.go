@@ -17,8 +17,9 @@ import (
 // user drops off the list.
 const DefaultWindow = 90 * time.Second
 
-// Entry is one online user's live presence snapshot. The latest heartbeat wins,
-// so a user who switches profile or device shows their current one.
+// Entry is one online DEVICE's live presence snapshot: the same account on the
+// web app and the mobile app is two entries. The latest heartbeat for a given
+// (user, user agent) wins, so a profile switch on one device updates in place.
 type Entry struct {
 	UserID    string
 	Username  string
@@ -29,40 +30,51 @@ type Entry struct {
 	LastSeen  time.Time
 }
 
-// Tracker is a concurrency-safe presence registry keyed by user id.
+// Tracker is a concurrency-safe presence registry keyed by (user id, user
+// agent). Keying by user alone made the row of an admin browsing the web
+// panel while testing the mobile app flap between the two devices every beat
+// (2026-07-26); one row per device is also what the future TV app needs.
 type Tracker struct {
 	mu     sync.Mutex
-	byUser map[string]Entry
+	byKey  map[string]Entry
 	window time.Duration
 	nowFn  func() time.Time
 }
 
 // NewTracker builds a tracker with the default online window.
 func NewTracker() *Tracker {
-	return &Tracker{byUser: make(map[string]Entry), window: DefaultWindow, nowFn: time.Now}
+	return &Tracker{byKey: make(map[string]Entry), window: DefaultWindow, nowFn: time.Now}
 }
 
-// Touch records that e.UserID was just seen, refreshing their snapshot. A blank
-// user id is ignored (unauthenticated callers never appear).
+// entryKey separates devices of one account by user agent - stable for a
+// given app/browser session, no client cooperation needed. The NUL separator
+// cannot appear in either part.
+func entryKey(e Entry) string {
+	return e.UserID + "\x00" + e.UserAgent
+}
+
+// Touch records that e.UserID was just seen on e.UserAgent, refreshing that
+// device's snapshot. A blank user id is ignored (unauthenticated callers
+// never appear).
 func (t *Tracker) Touch(e Entry) {
 	if e.UserID == "" {
 		return
 	}
 	t.mu.Lock()
 	e.LastSeen = t.nowFn()
-	t.byUser[e.UserID] = e
+	t.byKey[entryKey(e)] = e
 	t.mu.Unlock()
 }
 
-// Online returns everyone seen within the window, most-recently-seen first, and
-// lazily drops anyone who has since gone stale.
+// Online returns every device seen within the window, most-recently-seen
+// first, and lazily drops any that has since gone stale.
 func (t *Tracker) Online() []Entry {
 	cutoff := t.nowFn().Add(-t.window)
 	t.mu.Lock()
-	out := make([]Entry, 0, len(t.byUser))
-	for id, e := range t.byUser {
+	out := make([]Entry, 0, len(t.byKey))
+	for key, e := range t.byKey {
 		if e.LastSeen.Before(cutoff) {
-			delete(t.byUser, id)
+			delete(t.byKey, key)
 			continue
 		}
 		out = append(out, e)
@@ -72,7 +84,12 @@ func (t *Tracker) Online() []Entry {
 	return out
 }
 
-// Count returns the number of currently-online users (and GCs stale entries).
+// Count returns the number of currently-online distinct USERS (and GCs stale
+// entries): "1 user on two devices" still counts as one.
 func (t *Tracker) Count() int {
-	return len(t.Online())
+	users := make(map[string]struct{})
+	for _, e := range t.Online() {
+		users[e.UserID] = struct{}{}
+	}
+	return len(users)
 }

@@ -1,37 +1,12 @@
 import { Avatar } from "@/components/ui/Avatar";
-import { Radio, Shield, Monitor, Smartphone, Tv } from "lucide-react";
+import { Radio, Shield } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { usePresenceServiceListOnline } from "@evey/api";
 import type { V1OnlineUser } from "@evey/api";
 import { ICON } from "@/constants/iconSizes";
+import { deviceIcon, deviceLabel } from "./onlineDevice";
 
 const REFRESH_INTERVAL = 5_000;
-
-function deviceIcon(ua: string) {
-  const s = ua.toLowerCase();
-  if (/(tv|tizen|webos|crkey|appletv)/.test(s)) return Tv;
-  if (/(mobile|android|iphone|ipad)/.test(s)) return Smartphone;
-  return Monitor;
-}
-
-// A short, human label for a raw user-agent (browser + OS best-effort).
-function deviceLabel(ua: string): string {
-  if (!ua) return "";
-  const s = ua.toLowerCase();
-  let browser = "";
-  if (s.includes("edg/")) browser = "Edge";
-  else if (s.includes("chrome/") && !s.includes("chromium")) browser = "Chrome";
-  else if (s.includes("firefox/")) browser = "Firefox";
-  else if (s.includes("safari/") && !s.includes("chrome")) browser = "Safari";
-  else if (s.startsWith("curl")) browser = "curl";
-  let os = "";
-  if (s.includes("windows")) os = "Windows";
-  else if (s.includes("android")) os = "Android";
-  else if (s.includes("iphone") || s.includes("ipad")) os = "iOS";
-  else if (s.includes("mac os")) os = "macOS";
-  else if (s.includes("linux")) os = "Linux";
-  return [browser, os].filter(Boolean).join(" · ") || ua.slice(0, 24);
-}
 
 // OnlineNow is a compact dashboard card of who is connected right now (live
 // heartbeat presence), sized to sit beside the Now Playing panel.
@@ -73,7 +48,9 @@ export function OnlineNow() {
             const dev = deviceLabel(u.userAgent ?? "");
             return (
               <li
-                key={u.userId}
+                // One row per DEVICE since the tracker keys on (user, user
+                // agent): the same account on web + mobile is two rows.
+                key={`${u.userId}|${u.userAgent ?? ""}`}
                 className="flex items-center gap-3 px-4 py-2.5 hover:bg-[var(--surface-raised)] transition-colors"
               >
                 <Avatar initial={(u.username ?? "?").charAt(0).toUpperCase()} size={32} />
