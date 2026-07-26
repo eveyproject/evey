@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -159,14 +160,17 @@ func TestComplexityWorker_SkipsItemWithZeroDuration(t *testing.T) {
 	assert.Empty(t, repo.setsSnapshot(), "zero duration ⇒ classifier can't sample, skip")
 }
 
-func TestComplexityWorker_ClassifierErrorWithZeroSamplesSkipsPersist(t *testing.T) {
+func TestComplexityWorker_ClassifierErrorOnMissingFileSkipsPersist(t *testing.T) {
+	// The file is gone (unmounted share, deleted) - a transient condition the
+	// next sweep may find healed. Persisting a verdict now would freeze a
+	// classification the real bytes never got a chance to inform.
 	const id = "media-4"
 	repo := &fakeComplexityRepo{unclassified: []string{id}}
 	classifier := &fakeClassifier{err: errors.New("ffmpeg exited 1")}
 	reader := &fakeMediaReader{items: map[string]*domainlibrary.MediaItem{
 		id: {
 			ID:   shared.MediaItemID(id),
-			File: &domainlibrary.MediaFile{Path: "/x.mkv", Duration: mustDuration(t, time.Hour)},
+			File: &domainlibrary.MediaFile{Path: "/nonexistent/x.mkv", Duration: mustDuration(t, time.Hour)},
 		},
 	}}
 	w := NewComplexityWorker(repo, classifier, reader, ComplexityWorkerOpts{
@@ -174,7 +178,38 @@ func TestComplexityWorker_ClassifierErrorWithZeroSamplesSkipsPersist(t *testing.
 	}, slog.New(slog.NewTextHandler(io.Discard, nil)))
 
 	w.processBatch(context.Background())
-	assert.Empty(t, repo.setsSnapshot(), "classify failed with no samples ⇒ no row written")
+	assert.Empty(t, repo.setsSnapshot(), "missing file ⇒ transient, no row written, retry later")
+}
+
+func TestComplexityWorker_ClassifierErrorOnPresentFilePersistsFallback(t *testing.T) {
+	// The file IS there and ffmpeg still hard-failed: retrying next sweep would
+	// fail identically forever (the 2026-07-26 prod loop: the same unclassifiable
+	// items re-listed every batch, 24 attempts/min around the clock). Settle the
+	// question with the sample-free heuristic instead of never persisting.
+	const id = "media-5"
+	f, err := os.CreateTemp(t.TempDir(), "*.mkv")
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
+
+	repo := &fakeComplexityRepo{unclassified: []string{id}}
+	classifier := &fakeClassifier{err: errors.New("ffmpeg exited 1")}
+	reader := &fakeMediaReader{items: map[string]*domainlibrary.MediaItem{
+		id: {
+			ID:   shared.MediaItemID(id),
+			File: &domainlibrary.MediaFile{Path: f.Name(), Duration: mustDuration(t, time.Hour)},
+		},
+	}}
+	w := NewComplexityWorker(repo, classifier, reader, ComplexityWorkerOpts{
+		BatchSize: 5,
+	}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+
+	w.processBatch(context.Background())
+	sets := repo.setsSnapshot()
+	require.Len(t, sets, 1, "permanent classify failure must persist a fallback verdict")
+	assert.Equal(t, id, sets[0].mediaItemID)
+	assert.Equal(t, domaintranscoding.ClassFilmNormal, sets[0].class,
+		"no samples + no known facts ⇒ the sample-free default")
+	assert.Zero(t, sets[0].metrics.FramesSampled)
 }
 
 func TestComplexityWorker_StartStopIdempotent(t *testing.T) {

@@ -3,6 +3,7 @@ package transcoding
 import (
 	"context"
 	"log/slog"
+	"os"
 	"runtime/debug"
 	"sync"
 	"time"
@@ -216,11 +217,27 @@ func (w *ComplexityWorker) classifyOne(ctx context.Context, mediaItemID string) 
 
 	metrics, err := w.classifier.Classify(ctx, item.File.Path, durationSec, known)
 	if err != nil && metrics.FramesSampled == 0 {
-		w.logger.Warn("complexity: classify failed",
+		// Transient vs permanent (same doctrine as mkvgo AnalyzeFrameRateMode):
+		// a file the OS can't even stat may heal (unmounted share) - leave the
+		// row NULL so the next sweep retries. A present file that still
+		// hard-fails would fail identically every sweep; ListUnclassified would
+		// re-serve it forever (the 2026-07-26 prod loop). Settle it with the
+		// sample-free heuristic on the known source facts instead.
+		if _, statErr := os.Stat(item.File.Path); statErr != nil {
+			w.logger.Warn("complexity: classify failed, source unavailable - will retry",
+				slog.String("media_id", mediaItemID),
+				slog.String("path", item.File.Path),
+				slog.Any("err", err))
+			return
+		}
+		w.logger.Warn("complexity: classify failed on a readable file, persisting sample-free fallback",
 			slog.String("media_id", mediaItemID),
 			slog.String("path", item.File.Path),
 			slog.Any("err", err))
-		return
+		metrics = domaintranscoding.ComplexityMetrics{
+			SourceBitrateKbps: known.BitrateBps / 1000,
+			SourceHeight:      known.Height,
+		}
 	}
 	class := domaintranscoding.Classify(metrics)
 	if setErr := w.repo.Set(ctx, mediaItemID, class, metrics, time.Now()); setErr != nil {

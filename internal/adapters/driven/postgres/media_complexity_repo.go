@@ -98,14 +98,20 @@ func (r *MediaComplexityRepo) ListUnclassified(ctx context.Context, limit int) (
 	if limit <= 0 || limit > 1000 {
 		limit = 50
 	}
-	// Only items that actually have a file the classifier can probe -
-	// no file = nothing to sample.
+	// Only items the classifier can actually sample: a video file with a known
+	// duration. Tracks/photos and zero-duration rows made the worker skip
+	// without persisting, so this query re-served the same IDs on every batch,
+	// forever (prod 2026-07-26: a continuous silent retry loop). The type list
+	// mirrors trickplay's ListMissingMediaItemIDs; a zero duration re-enters
+	// the candidate set by itself once a later scan fills it in.
 	const q = `
 		SELECT mi.id
 		FROM media_items mi
 		INNER JOIN media_files mf ON mf.media_item_id = mi.id
 		WHERE mi.complexity_class IS NULL
 		  AND mf.file_path <> ''
+		  AND mi.type IN ('movie', 'episode')
+		  AND mf.duration_ms > 0
 		ORDER BY mi.added_at ASC
 		LIMIT $1`
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, q, limit)

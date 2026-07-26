@@ -23,7 +23,9 @@ type ComplexityRepo interface {
 	Set(ctx context.Context, mediaItemID string, class ContentClass, metrics ComplexityMetrics, computedAt time.Time) error
 
 	// ListUnclassified returns up to `limit` media item IDs that have no
-	// complexity row yet. Used by the idle worker to pace classification.
+	// complexity row yet AND are classifiable at all: video items (movie/
+	// episode) with a known duration. Serving never-classifiable rows would
+	// re-queue the same IDs forever, since a skip persists nothing.
 	// Ordering is repo-defined; the postgres impl returns oldest-first so
 	// older content gets classified ahead of new additions.
 	ListUnclassified(ctx context.Context, limit int) ([]string, error)
