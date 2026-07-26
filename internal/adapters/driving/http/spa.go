@@ -26,13 +26,37 @@ func spaHandler(dir string) http.Handler {
 		cleaned := filepath.Clean(r.URL.Path)
 		fullPath := filepath.Join(dir, cleaned)
 		if _, err := os.Stat(fullPath); err == nil {
+			setStaticCachePolicy(w, cleaned)
 			r.URL.Path = cleaned
 			fileServer.ServeHTTP(w, r)
 			return
 		}
 
 		// SPA fallback: serve index.html for all other paths
+		setStaticCachePolicy(w, "/index.html")
 		r.URL.Path = "/"
 		fileServer.ServeHTTP(w, r)
 	})
+}
+
+// setStaticCachePolicy sets Cache-Control per static-file class:
+//
+//   - /assets/*: Vite content-hashes the filename, so a changed file IS a new
+//     URL - cache forever.
+//   - everything else (/wasm/*, index.html, manifest, icons): mutable content
+//     at a FIXED url - no-cache forces revalidation on every use (unchanged
+//     files still ride Last-Modified 304s, so the cost is one conditional
+//     request). Without ANY header here browsers fell back to HEURISTIC
+//     freshness, and /wasm/ paid for it in prod (2026-07-26): a redeploy that
+//     swapped the ac3go build generation (go -> tinygo, incompatible
+//     wasm_exec.js shims) left one half cached and one half fresh - instant
+//     LinkError in the worker, silent fallback to the AAC transcode. The two
+//     halves are only compatible within one build, and only revalidation
+//     keeps them moving in lockstep.
+func setStaticCachePolicy(w http.ResponseWriter, cleanedPath string) {
+	if strings.HasPrefix(cleanedPath, "/assets/") {
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		return
+	}
+	w.Header().Set("Cache-Control", "no-cache")
 }
