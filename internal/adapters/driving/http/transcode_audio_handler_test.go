@@ -147,6 +147,20 @@ func TestBuildAudioFingerprint_DerivesChannelsFromSourceTrack(t *testing.T) {
 	}
 }
 
+// The declared media duration rides the fingerprint (transport only, never
+// hashed) so the orchestrator can BOUND the silence generator it spawns when
+// the audio track ends before that duration. Without it the orchestrator has
+// no bound and must refuse the tail instead of synthesizing it.
+func TestBuildAudioFingerprint_CarriesSourceDurationForSilenceBound(t *testing.T) {
+	item, streams := testMediaItemWithAudioStreams() // 60 s declared duration
+	h := buildAudioServe(t, true, &testFakeStreamsGetter{item: item, streams: streams}, nil, nil, nil)
+	r := httptest.NewRequest(http.MethodGet, "/hls/audio_0.m3u8", nil)
+
+	fp := h.buildAudioFingerprint(r, "m1", item, 0)
+	assert.InDelta(t, 60.0, fp.SourceDurationSec, 0.001,
+		"the declared duration must reach the orchestrator to bound a silence tail")
+}
+
 // The rendition must not emit more channels than a browser can decode. Deriving
 // the count from the SOURCE alone (my fix for the stereo downmix) went too far the
 // other way: a Dolby Atmos 7.1 track yielded `-ac 8`, the SourceBuffer refused the

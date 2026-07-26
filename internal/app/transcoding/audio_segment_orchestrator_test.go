@@ -428,6 +428,246 @@ func TestAudioOrchestrator_EnsureAudioInit_DoesNotHingeOnSegmentZero(t *testing.
 		"the init must be served off any live session, not off segment 0")
 }
 
+// ============================================================================
+// Audio track ending before the declared duration (truncated tail)
+// ============================================================================
+//
+// Real-world case (prod 2026-07-26, "Scary Movie"): the selected E-AC-3 track
+// ends at 5742 s while the container declares 5991.6 s. The VOD playlist is
+// synthesized from the DECLARED duration, so the player asks for segments the
+// source cannot yield: ffmpeg -ss past the last audio packet exits ~instantly
+// with zero output, the session is reaped, Wait fails, the client retries and
+// respawns - 92 ffmpeg spawns for ONE segment were logged before the player
+// gave up with a fatal "cannot play at any quality". These tests pin the
+// graceful path: mark where the stream really ends, then serve the promised
+// tail as SILENCE so playback (and resume) just continues through it.
+
+// naturalDeathNoOutput returns an onStart callback simulating ffmpeg seeked
+// past the last audio packet: it exits immediately (naturally - NOT stopped by
+// the orchestrator) without producing its start segment.
+func naturalDeathNoOutput() func(transcoding.AudioProcessOpts) *audioFakeHandle {
+	return func(_ transcoding.AudioProcessOpts) *audioFakeHandle {
+		h := newAudioFakeHandle()
+		h.closeHandle()
+		return h
+	}
+}
+
+// A session dying naturally without producing its own start segment marks the
+// stream end; the next request at/past that point must be served as a bounded
+// silence session instead of respawning ffmpeg against the same wall.
+func TestAudioOrchestrator_TrackEndingEarly_ServesSilentTail(t *testing.T) {
+	cache, _ := newTestCache(t)
+	fp := minimalAudioFp()
+	fp.MaxAudioChannels = 6
+	fp.SourceDurationSec = 5991.611 // container-declared duration
+
+	proc := newFakeAudioProcess()
+	proc.onStart = func(opts transcoding.AudioProcessOpts) *audioFakeHandle {
+		if opts.SilenceDurationSec > 0 {
+			// The silence generator produces its segments like any session.
+			for i := opts.StartNumber; i <= opts.StartNumber+2; i++ {
+				writeAudioSegment(t, cache, fp, i)
+			}
+			return newAudioFakeHandle()
+		}
+		return naturalDeathNoOutput()(opts)
+	}
+
+	o := NewAudioSegmentOrchestrator(cache, proc)
+	defer func() { _ = o.Close() }()
+
+	// First request: the real session dies against the end-of-stream wall.
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	require.Error(t, o.EnsureAudioSegment(ctx, fp, 1914))
+	cancel()
+	require.Eventually(t, func() bool { return o.ActiveCount() == 0 },
+		2*time.Second, 10*time.Millisecond, "dead session must be reaped")
+
+	// Second request: served as silence, not another doomed ffmpeg -ss.
+	require.NoError(t, o.EnsureAudioSegment(context.Background(), fp, 1914),
+		"past the recorded stream end the tail must be served as silence")
+
+	last := proc.optsAt(proc.startCount() - 1)
+	assert.Positive(t, last.SilenceDurationSec, "tail session must be a silence generator")
+	assert.Equal(t, 1914, last.StartNumber, "silence must be numbered at the requested segment")
+	assert.InDelta(t, 1914*ManifestSegmentSeconds, last.StartSec, 0.001)
+	assert.InDelta(t, 5991.611-1914*ManifestSegmentSeconds, last.SilenceDurationSec, 0.01,
+		"silence must be bounded to the declared duration, not run forever")
+	assert.Equal(t, 6, last.MaxAudioChannels, "silence must keep the rendition's channel layout")
+
+	// Forward playback rides the silence session - no per-segment respawn.
+	spawns := proc.startCount()
+	require.NoError(t, o.EnsureAudioSegment(context.Background(), fp, 1915))
+	assert.Equal(t, spawns, proc.startCount(), "the silence session must cover subsequent segments")
+}
+
+// Without a declared duration to bound the silence, the orchestrator cannot
+// synthesize a tail - but it must STILL not respawn ffmpeg against the wall:
+// the recorded stream end short-circuits to a stable sentinel the handler can
+// map to a non-retryable status.
+func TestAudioOrchestrator_TrackEndingEarly_NoDuration_ReturnsSentinel(t *testing.T) {
+	cache, _ := newTestCache(t)
+	fp := minimalAudioFp() // SourceDurationSec zero: unknown
+
+	proc := newFakeAudioProcess()
+	proc.onStart = naturalDeathNoOutput()
+
+	o := NewAudioSegmentOrchestrator(cache, proc)
+	defer func() { _ = o.Close() }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	require.Error(t, o.EnsureAudioSegment(ctx, fp, 1914))
+	cancel()
+	require.Eventually(t, func() bool { return o.ActiveCount() == 0 },
+		2*time.Second, 10*time.Millisecond)
+
+	err := o.EnsureAudioSegment(context.Background(), fp, 1914)
+	require.ErrorIs(t, err, ErrAudioPastEndOfStream)
+	assert.Equal(t, 1, proc.startCount(), "the wall must be remembered - no second doomed spawn")
+}
+
+// A passthrough ("copy") rendition feeds the wasm AC-3 decoder: synthesizing an
+// AAC silence tail would hand that decoder segments it cannot read. The copy
+// path gets the stable sentinel instead - its client already skips a missing
+// tail gracefully.
+func TestAudioOrchestrator_TrackEndingEarly_CopyRendition_NoSilence(t *testing.T) {
+	cache, _ := newTestCache(t)
+	fp := minimalAudioFp()
+	fp.AudioCodec = "copy"
+	fp.SourceDurationSec = 5991.611
+
+	proc := newFakeAudioProcess()
+	proc.onStart = naturalDeathNoOutput()
+
+	o := NewAudioSegmentOrchestrator(cache, proc)
+	defer func() { _ = o.Close() }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	require.Error(t, o.EnsureAudioSegment(ctx, fp, 1914))
+	cancel()
+	require.Eventually(t, func() bool { return o.ActiveCount() == 0 },
+		2*time.Second, 10*time.Millisecond)
+
+	err := o.EnsureAudioSegment(context.Background(), fp, 1914)
+	require.ErrorIs(t, err, ErrAudioPastEndOfStream)
+	assert.Equal(t, 1, proc.startCount(), "no AAC silence may be synthesized for a passthrough rendition")
+}
+
+// A request BEFORE the recorded end keeps the normal path: the marker only
+// gates segments at/after the point the stream proved to end.
+func TestAudioOrchestrator_TrackEndingEarly_EarlierSegmentsUnaffected(t *testing.T) {
+	cache, _ := newTestCache(t)
+	fp := minimalAudioFp()
+	fp.SourceDurationSec = 5991.611
+
+	proc := newFakeAudioProcess()
+	proc.onStart = func(opts transcoding.AudioProcessOpts) *audioFakeHandle {
+		if opts.StartNumber >= 1914 && opts.SilenceDurationSec == 0 {
+			return naturalDeathNoOutput()(opts)
+		}
+		writeAudioSegment(t, cache, fp, opts.StartNumber)
+		return newAudioFakeHandle()
+	}
+
+	o := NewAudioSegmentOrchestrator(cache, proc)
+	defer func() { _ = o.Close() }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	require.Error(t, o.EnsureAudioSegment(ctx, fp, 1914))
+	cancel()
+	require.Eventually(t, func() bool { return o.ActiveCount() == 0 },
+		2*time.Second, 10*time.Millisecond)
+
+	require.NoError(t, o.EnsureAudioSegment(context.Background(), fp, 100),
+		"segments before the recorded end must keep spawning real sessions")
+	last := proc.optsAt(proc.startCount() - 1)
+	assert.Zero(t, last.SilenceDurationSec, "a pre-end request is a REAL session, not silence")
+}
+
+// A session the ORCHESTRATOR itself stopped (eviction, Close) must not record a
+// stream end: only a natural ffmpeg exit proves the source ran dry there.
+func TestAudioOrchestrator_EvictedSession_DoesNotMarkStreamEnd(t *testing.T) {
+	cache, _ := newTestCache(t)
+	fp := minimalAudioFp()
+	fp.SourceDurationSec = 5991.611
+
+	proc := newFakeAudioProcess()
+	proc.onStart = func(_ transcoding.AudioProcessOpts) *audioFakeHandle {
+		// Sessions never produce anything and never exit on their own: only
+		// the eviction cap stops them.
+		return newAudioFakeHandle()
+	}
+
+	o := NewAudioSegmentOrchestrator(cache, proc)
+	defer func() { _ = o.Close() }()
+
+	// Scrub repeatedly: each far-apart seek spawns a session; past the per-hash
+	// cap the oldest is evicted (stopped by the orchestrator, start seg unproduced).
+	for i, seg := range []int{100, 400, 700, 1000, 1300} {
+		ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+		_ = o.EnsureAudioSegment(ctx, fp, seg)
+		cancel()
+		_ = i
+	}
+	require.Eventually(t, func() bool { return o.ActiveCount() <= maxAudioSessionsPerHash },
+		2*time.Second, 10*time.Millisecond)
+
+	// A later request at an evicted session's position must spawn a REAL session
+	// (no silence, no sentinel): eviction proved nothing about the stream.
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	err := o.EnsureAudioSegment(ctx, fp, 100)
+	cancel()
+	require.NotErrorIs(t, err, ErrAudioPastEndOfStream,
+		"an orchestrator-stopped session must not be read as end-of-stream")
+	for i := range proc.startCount() {
+		assert.Zero(t, proc.optsAt(i).SilenceDurationSec,
+			"no silence session may be spawned off an eviction")
+	}
+}
+
+// Repeated dead spawns on the SAME start segment - for ANY reason the reap
+// cannot classify as end-of-stream - must trip a breaker instead of hammering
+// ffmpeg forever (prod log: 92 spawns for one segment).
+func TestAudioOrchestrator_RepeatedDeadSpawns_TripBreaker(t *testing.T) {
+	cache, _ := newTestCache(t)
+	fp := minimalAudioFp()
+	fp.SourceDurationSec = 5991.611
+
+	proc := newFakeAudioProcess()
+	proc.onStart = func(opts transcoding.AudioProcessOpts) *audioFakeHandle {
+		// Even the silence generator keeps dying without output (e.g. broken
+		// ffmpeg build): the breaker is the last line against a spawn storm.
+		return naturalDeathNoOutput()(opts)
+	}
+
+	o := NewAudioSegmentOrchestrator(cache, proc)
+	defer func() { _ = o.Close() }()
+
+	for range audioSpawnStrikeLimit + 3 {
+		ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+		_ = o.EnsureAudioSegment(ctx, fp, 1914)
+		cancel()
+		require.Eventually(t, func() bool { return o.ActiveCount() == 0 },
+			2*time.Second, 5*time.Millisecond)
+	}
+
+	err := o.EnsureAudioSegment(context.Background(), fp, 1914)
+	require.Error(t, err, "past the strike limit the orchestrator must stop spawning")
+	assert.LessOrEqual(t, proc.startCount(), audioSpawnStrikeLimit+1,
+		"spawns must be bounded by the breaker, not by the client giving up")
+}
+
+// SourceDurationSec is transport for the silence bound, NOT an encode input: it
+// must never fork the cache hash (same bytes, same segments, same dir).
+func TestAudioFingerprint_SourceDurationSec_DoesNotForkHash(t *testing.T) {
+	a := minimalAudioFp()
+	b := minimalAudioFp()
+	b.SourceDurationSec = 5991.611
+	assert.Equal(t, a.Hash(), b.Hash(),
+		"SourceDurationSec must not be part of the cache identity")
+}
+
 // And it must ride the session the resume already spawned rather than starting a
 // second ffmpeg at t=0 to transcode an hour and a half of audio nobody asked for.
 func TestAudioOrchestrator_EnsureAudioInit_RidesTheSeekSession(t *testing.T) {

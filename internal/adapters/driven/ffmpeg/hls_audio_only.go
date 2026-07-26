@@ -30,26 +30,49 @@ func BuildFFmpegAudioOnlyArgs(opts transcoding.AudioProcessOpts) []string {
 	t := opts.SourceTrackIdx
 	prefix := fmt.Sprintf("audio_%d", t)
 
+	silence := opts.SilenceDurationSec > 0
+
 	var args []string
 	args = append(args, "-nostdin")
 
-	if opts.StartSec > 0 {
-		args = append(args, "-ss", fmt.Sprintf("%.3f", opts.StartSec))
+	switch {
+	case silence:
+		// Silence tail: the source's audio track ends before the declared
+		// duration, so reading it here yields nothing - generate the promised
+		// span as silence instead. No -ss (the lavfi graph starts at 0; the
+		// rebase pump shifts the fragments to absolute time, same contract as
+		// any seeked session) and no pacing (encoding minutes of silence is
+		// trivial). -t bounds the graph - anullsrc is otherwise infinite.
+		args = append(args,
+			"-f", "lavfi",
+			"-t", fmt.Sprintf("%.3f", opts.SilenceDurationSec),
+			"-i", fmt.Sprintf("anullsrc=r=48000:%s", silenceChannelLayout(opts.MaxAudioChannels)),
+		)
+	default:
+		if opts.StartSec > 0 {
+			args = append(args, "-ss", fmt.Sprintf("%.3f", opts.StartSec))
+		}
+		// Pace the input like the copy rung does (readrate + full-speed initial burst).
+		// This is a SINGLE long-lived ffmpeg re-encoding the whole remaining audio track
+		// to EOF: left unpaced (readRate 0) it decodes AC-3/E-AC-3 and re-encodes AAC
+		// flat-out on start and on every seek, spiking ~a full core per client on a weak
+		// NAS. `-readrate` bounds that to N× real-time so the same fixed work spreads
+		// across playback; the burst keeps startup/seek instant. ReadRate 0 stays
+		// byte-identical AND CPU-profile-identical to the pre-pacing behaviour.
+		args = appendInputModifiers(args, opts.ReadRate)
+		args = appendCopyPacingBurst(args, opts.ReadRate)
+		args = append(args, "-i", opts.FilePath)
 	}
-	// Pace the input like the copy rung does (readrate + full-speed initial burst).
-	// This is a SINGLE long-lived ffmpeg re-encoding the whole remaining audio track
-	// to EOF: left unpaced (readRate 0) it decodes AC-3/E-AC-3 and re-encodes AAC
-	// flat-out on start and on every seek, spiking ~a full core per client on a weak
-	// NAS. `-readrate` bounds that to N× real-time so the same fixed work spreads
-	// across playback; the burst keeps startup/seek instant. ReadRate 0 stays
-	// byte-identical AND CPU-profile-identical to the pre-pacing behaviour.
-	args = appendInputModifiers(args, opts.ReadRate)
-	args = appendCopyPacingBurst(args, opts.ReadRate)
-	args = append(args, "-i", opts.FilePath)
 
 	// Suppress all video streams; only the selected audio track is muxed.
 	args = append(args, "-vn")
-	args = append(args, "-map", fmt.Sprintf("0:a:%d", t))
+	if silence {
+		// The lavfi graph exposes exactly one audio stream; the SOURCE track
+		// index only survives in the output naming (audio_T_*).
+		args = append(args, "-map", "0:a:0")
+	} else {
+		args = append(args, "-map", fmt.Sprintf("0:a:%d", t))
+	}
 
 	encoder := resolveAudioEncoder(opts.AudioCodec)
 	args = append(args, "-c:a", encoder)
@@ -93,7 +116,8 @@ func BuildFFmpegAudioOnlyArgs(opts transcoding.AudioProcessOpts) []string {
 	// passthrough rendition is served verbatim regardless of the normalize knob -
 	// the wasm-audio path never re-encodes, so audio normalization simply does
 	// not apply to it (the AudioFingerprint below drops it too for AC-3 copy).
-	if opts.AudioNormalize && !isCopy {
+	// Silence skips it too: measuring loudness on digital zero is pointless.
+	if opts.AudioNormalize && !isCopy && !silence {
 		args = append(args, "-af", "loudnorm=I=-16:TP=-1.5:LRA=11:linear=true")
 	}
 
@@ -111,6 +135,23 @@ func BuildFFmpegAudioOnlyArgs(opts transcoding.AudioProcessOpts) []string {
 		filepath.Join(opts.OutputDir, fmt.Sprintf("%s.m3u8", prefix)),
 	)
 	return args
+}
+
+// silenceChannelLayout maps a channel count to anullsrc's cl= parameter so the
+// silent tail keeps the rendition's layout (a 5.1 rendition switching to stereo
+// mid-stream would force an MSE re-init for nothing). Unknown counts fall back
+// to stereo, mirroring resolveAudioChannels' conservative default.
+func silenceChannelLayout(channels int) string {
+	switch channels {
+	case 1:
+		return "cl=mono"
+	case 6:
+		return "cl=5.1"
+	case 8:
+		return "cl=7.1"
+	default:
+		return "cl=stereo"
+	}
 }
 
 // needsAudioFMP4Rebase reports whether this audio session's fragments must have

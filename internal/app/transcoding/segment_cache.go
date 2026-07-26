@@ -214,6 +214,13 @@ type AudioFingerprint struct {
 	AudioBitrate     int64 // kbps; 0 = encoder default
 	AudioNormalize   bool
 	MaxAudioChannels int
+
+	// SourceDurationSec is the container-declared media duration, in seconds.
+	// TRANSPORT ONLY - deliberately excluded from Hash(): it is not an encode
+	// input (same bytes either way), it merely lets the orchestrator BOUND the
+	// silence generator it spawns when the audio track proves to end before
+	// this duration (see AudioSegmentOrchestrator's stream-end handling).
+	SourceDurationSec float64
 }
 
 // Hash returns the canonical 64-bit hex fingerprint for an audio rendition.

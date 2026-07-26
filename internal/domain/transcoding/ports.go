@@ -102,6 +102,17 @@ type AudioProcessOpts struct {
 	// Paired with a full-speed initial burst (appendCopyPacingBurst) so cold start
 	// and seeks still fill the player's buffer instantly before the cap engages.
 	ReadRate float64
+
+	// SilenceDurationSec > 0 turns the session into a bounded SILENCE generator:
+	// the input becomes `-f lavfi -i anullsrc` (FilePath is ignored) producing
+	// SilenceDurationSec seconds of silent audio, segmented and numbered exactly
+	// like a real session (StartNumber/StartSec still apply for the fMP4 rebase).
+	// Purpose: an audio track that ends BEFORE the container's declared duration
+	// leaves the VOD playlist promising segments no -ss on the source can yield;
+	// the generator keeps that promise so playback just continues through the
+	// silent tail instead of dying on missing segments. The bound is mandatory -
+	// an unbounded anullsrc would encode forever.
+	SilenceDurationSec float64
 }
 
 // HLSProcessHandle controls a running HLS transcode.

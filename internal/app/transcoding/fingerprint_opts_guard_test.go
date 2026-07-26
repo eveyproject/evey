@@ -204,6 +204,8 @@ var (
 	}
 	audioFingerprintNonEncoderFields = map[string]string{
 		"MediaID": "cache addressing only - two items sharing a source path must not share segments",
+		"SourceDurationSec": "transport for the silence-tail bound - not an encode input, deliberately " +
+			"NOT hashed (TestAudioFingerprint_SourceDurationSec_DoesNotForkHash pins that)",
 	}
 )
 

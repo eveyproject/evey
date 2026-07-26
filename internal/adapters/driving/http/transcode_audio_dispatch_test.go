@@ -20,6 +20,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
 )
 
 // buildVODHandlerWithAudio wires an hlsVODServe that has a real *audioServe
@@ -161,6 +163,21 @@ func TestDispatchAudioSegment_SegAudioNil_404(t *testing.T) {
 	)
 	w := doAudioDispatchRequest(h, "m1", "audio_0_005.m4s")
 	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+// A segment past the recorded end of the audio stream is GONE, not a transient
+// 503: hls.js retries 503s and every retry used to respawn a doomed ffmpeg
+// against the same wall (prod 2026-07-26: 92 spawns for one segment of a track
+// ending 4 min before the container's declared duration). 410 is the stable
+// "this will never exist" answer.
+func TestDispatchAudioSegment_PastEndOfStream_410(t *testing.T) {
+	item, streams := testMediaItemWithAudioStreams()
+	libSvc := &testFakeStreamsGetter{item: item, streams: streams}
+	h := buildVODHandlerWithAudio(t, libSvc, allowAll(), testFakeParentalChecker{},
+		&fakeAudioEnsurer{err: apptranscoding.ErrAudioPastEndOfStream})
+
+	w := doAudioDispatchRequest(h, "m1", "audio_0_1914.m4s")
+	assert.Equal(t, http.StatusGone, w.Code)
 }
 
 // audio_0_005.m4s with wired audioServe but ensurer failing → 503.

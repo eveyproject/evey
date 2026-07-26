@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"os"
@@ -210,6 +211,18 @@ func (h *audioServe) serveSegmentFile(w http.ResponseWriter, r *http.Request, me
 	waitCtx, cancel := context.WithTimeout(r.Context(), h.segmentWaitTimeout)
 	defer cancel()
 	if err := h.audioOrch.EnsureAudioSegment(waitCtx, fp, segIdx); err != nil {
+		// Past the proven end of the source audio stream (and no silence tail
+		// possible), the segment will NEVER exist: 410 tells the player to stop
+		// retrying. A 503 here made hls.js hammer the endpoint, each retry
+		// respawning a doomed ffmpeg (92 spawns for one segment, prod 07-26).
+		if errors.Is(err, apptranscoding.ErrAudioPastEndOfStream) {
+			slog.InfoContext(r.Context(), "audio rendition: segment past end of source stream",
+				slog.String("media_id", mediaID),
+				slog.Int("track_idx", trackIdx),
+				slog.Int("seg_idx", segIdx))
+			http.Error(w, `{"message":"audio stream ends before this segment"}`, http.StatusGone)
+			return
+		}
 		slog.WarnContext(r.Context(), "audio rendition: ensure segment failed",
 			slog.String("media_id", mediaID),
 			slog.Int("track_idx", trackIdx),
@@ -259,6 +272,10 @@ func (h *audioServe) buildAudioFingerprint(r *http.Request, mediaID string, item
 	// loudnorm) - zero audio CPU on the server. Distinct AudioCodec forks the
 	// segment cache, so the AAC and passthrough renditions never alias. Gated on
 	// the source actually being AC-3/E-AC-3; anything else keeps the AAC path.
+	// Transport, not encode input (never hashed): lets the orchestrator bound
+	// the silence tail it synthesizes when the track ends before this duration.
+	durationSec := float64(item.File.Duration.Milliseconds()) / 1000.0
+
 	if wasmAudioRequested(r) {
 		if c := strings.ToLower(h.sourceAudioCodecForTrack(r.Context(), mediaID, trackIdx)); c == "ac3" || c == "eac3" {
 			return apptranscoding.AudioFingerprint{
@@ -269,17 +286,19 @@ func (h *audioServe) buildAudioFingerprint(r *http.Request, mediaID string, item
 				// A stream copy takes no bitrate/channel/normalize input - they are
 				// left zero so the arg builder emits a pure passthrough and the hash
 				// stays stable.
+				SourceDurationSec: durationSec,
 			}
 		}
 	}
 	return apptranscoding.AudioFingerprint{
-		MediaID:          mediaID,
-		SourcePath:       item.File.Path,
-		SourceTrackIdx:   trackIdx,
-		AudioCodec:       "aac",
-		AudioBitrate:     domaintranscoding.AudioRenditionBaseKbps, // scaled to the channel count at arg-build
-		AudioNormalize:   h.audioNormalizeGetter != nil && h.audioNormalizeGetter(r.Context()),
-		MaxAudioChannels: h.sourceAudioChannels(r.Context(), mediaID, trackIdx),
+		MediaID:           mediaID,
+		SourcePath:        item.File.Path,
+		SourceTrackIdx:    trackIdx,
+		AudioCodec:        "aac",
+		AudioBitrate:      domaintranscoding.AudioRenditionBaseKbps, // scaled to the channel count at arg-build
+		AudioNormalize:    h.audioNormalizeGetter != nil && h.audioNormalizeGetter(r.Context()),
+		MaxAudioChannels:  h.sourceAudioChannels(r.Context(), mediaID, trackIdx),
+		SourceDurationSec: durationSec,
 	}
 }
 

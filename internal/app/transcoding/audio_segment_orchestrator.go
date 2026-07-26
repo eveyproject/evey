@@ -2,6 +2,7 @@ package transcoding
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"runtime/debug"
@@ -10,6 +11,21 @@ import (
 
 	"github.com/evey-project/evey/internal/domain/transcoding"
 )
+
+// ErrAudioPastEndOfStream reports that the requested segment lies at/after the
+// point where the source audio track PROVED to end (a session seeked there
+// exited naturally with zero output) and no silence tail can be synthesized
+// (unknown duration, or a passthrough rendition whose client decodes the raw
+// codec). Handlers map it to a stable, non-retryable status: the prod failure
+// mode this replaces was a 503 the player retried, each retry respawning a
+// doomed ffmpeg - 92 spawns for one segment (2026-07-26).
+var ErrAudioPastEndOfStream = errors.New("audio: segment past the end of the source audio stream")
+
+// ErrAudioSessionBroken reports that consecutive spawns for the same start
+// segment all died without producing it, for reasons the reap could not
+// classify as end-of-stream. The breaker stops the spawn storm; the entry
+// expires (audioSpawnStrikeTTL) so a transient cause self-heals.
+var ErrAudioSessionBroken = errors.New("audio: repeated dead sessions for this segment")
 
 // AudioSegmentOrchestrator manages audio-only ffmpeg sessions for HLS EXT-X-MEDIA
 // renditions. Sessions are keyed by (AudioFingerprint.Hash(), start segment):
@@ -30,7 +46,45 @@ type AudioSegmentOrchestrator struct {
 
 	mu       sync.Mutex
 	sessions map[string]*audioSession // keyed by sessionKey(hash, startSeg)
+
+	// streamEnd records, per rendition hash, the earliest start segment at
+	// which a session died NATURALLY without producing any output - the proof
+	// that the source audio track ends there, before the container's declared
+	// duration (playlists are synthesized from that declared duration, so the
+	// player keeps asking). Requests at/past the mark are served as a bounded
+	// silence tail instead of respawning ffmpeg against the same wall.
+	// TTL'd: a repaired/replaced file at the same path must not stay muted.
+	streamEnd map[string]audioStreamEndMark
+
+	// strikes counts consecutive spawns per (hash, startSeg) that died without
+	// producing their start segment - the generic breaker behind the specific
+	// streamEnd handling (covers crash loops the reap cannot classify).
+	strikes map[string]audioSpawnStrikes
 }
+
+type audioStreamEndMark struct {
+	seg int
+	at  time.Time
+}
+
+type audioSpawnStrikes struct {
+	count int
+	last  time.Time
+}
+
+// audioSpawnStrikeLimit is how many consecutive no-output session deaths on the
+// same start segment are tolerated before the breaker refuses further spawns.
+const audioSpawnStrikeLimit = 3
+
+// audioSpawnStrikeTTL is how long a tripped breaker (and its strike count)
+// stays in force; past it the next request may try a fresh spawn again.
+const audioSpawnStrikeTTL = 5 * time.Minute
+
+// audioStreamEndTTL bounds how long a recorded stream end is trusted. The mark
+// lives on the rendition hash, which does not change when the FILE's content
+// does (same path, same encode params) - so a repaired source re-proves its
+// end at most this much later.
+const audioStreamEndTTL = 30 * time.Minute
 
 // audioSessionLookahead is how far AHEAD of a session's start segment that
 // session is still considered the right one to wait on. ffmpeg audio-only runs
@@ -73,6 +127,13 @@ type audioSession struct {
 	startedAt time.Time
 	startSeg  int    // segment this ffmpeg was started at (-ss / -start_number)
 	hash      string // AudioFingerprint.Hash(), without the start-segment suffix
+	silence   bool   // bounded anullsrc tail, not a real source read
+
+	// stopped marks a session the ORCHESTRATOR killed (eviction, Close), set
+	// under o.mu BEFORE Stop() is called. The reap goroutine reads it (under
+	// o.mu) to tell an orchestrator kill from a NATURAL ffmpeg exit - only the
+	// latter, with zero output, proves the source audio stream ended.
+	stopped bool
 }
 
 // NewAudioSegmentOrchestrator wires the segment cache and audio process together.
@@ -88,6 +149,8 @@ func NewAudioSegmentOrchestrator(
 		shutdownCtx:    shutdownCtx,
 		shutdownCancel: shutdownCancel,
 		sessions:       make(map[string]*audioSession),
+		streamEnd:      make(map[string]audioStreamEndMark),
+		strikes:        make(map[string]audioSpawnStrikes),
 	}
 }
 
@@ -165,7 +228,26 @@ func (o *AudioSegmentOrchestrator) ensureSession(ctx context.Context, fp AudioFi
 	if o.coveringSessionLocked(audioHash, segIdx) {
 		return nil
 	}
-	return o.spawnSessionLocked(fp, audioHash, segIdx)
+
+	// Past the proven end of the source audio stream, a real spawn is doomed:
+	// serve the playlist's promised tail as bounded silence instead. The copy
+	// (passthrough) rendition cannot - its client decodes the raw AC-3/E-AC-3
+	// and would choke on AAC silence - so it gets the stable sentinel; the wasm
+	// engine already skips a missing tail gracefully.
+	if mark, ok := o.streamEnd[audioHash]; ok {
+		if time.Since(mark.at) >= audioStreamEndTTL {
+			delete(o.streamEnd, audioHash)
+		} else if segIdx >= mark.seg {
+			silenceDur := fp.SourceDurationSec - float64(segIdx)*ManifestSegmentSeconds
+			if fp.AudioCodec == "copy" || silenceDur <= 0 {
+				return fmt.Errorf("audio session: seg %d >= proven stream end %d: %w",
+					segIdx, mark.seg, ErrAudioPastEndOfStream)
+			}
+			return o.spawnSessionLocked(fp, audioHash, segIdx, silenceDur)
+		}
+	}
+
+	return o.spawnSessionLocked(fp, audioHash, segIdx, 0)
 }
 
 // ensureSessionForInit guarantees SOME live session for this rendition, without
@@ -180,12 +262,28 @@ func (o *AudioSegmentOrchestrator) ensureSessionForInit(fp AudioFingerprint, aud
 			return nil
 		}
 	}
-	return o.spawnSessionLocked(fp, audioHash, 0)
+	return o.spawnSessionLocked(fp, audioHash, 0, 0)
 }
 
 // spawnSessionLocked starts one ffmpeg audio session at segIdx and registers it.
-// Caller holds o.mu and has already decided no existing session fits.
-func (o *AudioSegmentOrchestrator) spawnSessionLocked(fp AudioFingerprint, audioHash string, segIdx int) error {
+// silenceDur > 0 makes it a bounded silence generator (see ensureSession's
+// stream-end handling) instead of a source read. Caller holds o.mu and has
+// already decided no existing session fits.
+func (o *AudioSegmentOrchestrator) spawnSessionLocked(fp AudioFingerprint, audioHash string, segIdx int, silenceDur float64) error {
+	// Breaker: consecutive spawns at this start segment that died without
+	// producing it stop here instead of storming ffmpeg (92 spawns for one
+	// segment in prod 2026-07-26). Checked at THE spawn choke point so every
+	// caller - segment, init, silence tail - is bounded; the entry expires so
+	// a transient cause self-heals.
+	key := audioSessionKey(audioHash, segIdx)
+	if s, ok := o.strikes[key]; ok && s.count >= audioSpawnStrikeLimit {
+		if time.Since(s.last) < audioSpawnStrikeTTL {
+			return fmt.Errorf("audio session: %d consecutive dead spawns at seg %d: %w",
+				s.count, segIdx, ErrAudioSessionBroken)
+		}
+		delete(o.strikes, key) // cooled down - allow a fresh attempt
+	}
+
 	o.evictOldestLocked(audioHash)
 
 	outputDir, err := o.cache.DirFor(audioHash)
@@ -210,7 +308,12 @@ func (o *AudioSegmentOrchestrator) spawnSessionLocked(fp AudioFingerprint, audio
 		AudioNormalize: fp.AudioNormalize,
 		// Bound the CPU-bound AC-3/E-AC-3→AAC re-encode so it doesn't burst a full
 		// core per client on start/seek. See audioRenditionReadRate.
-		ReadRate: audioRenditionReadRate,
+		ReadRate:           audioRenditionReadRate,
+		SilenceDurationSec: silenceDur,
+	}
+	if silenceDur > 0 {
+		// Encoding a few minutes of silence is trivial - no pacing.
+		opts.ReadRate = 0
 	}
 
 	// Use the orchestrator's long-lived context so the ffmpeg process survives
@@ -230,6 +333,7 @@ func (o *AudioSegmentOrchestrator) spawnSessionLocked(fp AudioFingerprint, audio
 		startedAt: time.Now(),
 		startSeg:  segIdx,
 		hash:      audioHash,
+		silence:   silenceDur > 0,
 	}
 	sessKey := audioSessionKey(audioHash, segIdx)
 	o.sessions[sessKey] = sess
@@ -239,7 +343,8 @@ func (o *AudioSegmentOrchestrator) spawnSessionLocked(fp AudioFingerprint, audio
 		slog.String("media_id", fp.MediaID),
 		slog.Int("track", fp.SourceTrackIdx),
 		slog.Int("start_seg", segIdx),
-		slog.String("codec", fp.AudioCodec))
+		slog.String("codec", fp.AudioCodec),
+		slog.Bool("silence_tail", sess.silence))
 
 	// Reap goroutine: remove the session when ffmpeg exits (naturally or via cancel).
 	// cancel() is idempotent - the goroutine owns it from here.
@@ -254,8 +359,45 @@ func (o *AudioSegmentOrchestrator) spawnSessionLocked(fp AudioFingerprint, audio
 		case <-sessionCtx.Done():
 		}
 
+		// Disk stat outside the lock: did this session produce its own start
+		// segment before exiting?
+		startKey := SegmentKey{
+			DecisionHash: audioHash,
+			VariantIdx:   fp.SourceTrackIdx,
+			SegmentIdx:   segIdx,
+			Kind:         KindAudio,
+		}
+		producedStart := o.cache.IsReady(startKey, true)
+
 		o.mu.Lock()
 		delete(o.sessions, sessKey)
+		if producedStart {
+			// A healthy run clears the strike history for this start segment.
+			delete(o.strikes, sessKey)
+		} else {
+			s := o.strikes[sessKey]
+			s.count++
+			s.last = time.Now()
+			o.strikes[sessKey] = s
+
+			// Natural exit + zero output + a real source read = the audio
+			// stream ends at/before this session's start. Record the earliest
+			// such point; requests past it become the silence tail. An
+			// orchestrator kill (eviction/Close) or a classified failure
+			// proves nothing about the source.
+			natural := !sess.stopped && o.shutdownCtx.Err() == nil &&
+				handle.Err() == nil && handle.Failure() == transcoding.FailureNone
+			if natural && !sess.silence {
+				if mark, ok := o.streamEnd[audioHash]; !ok || segIdx < mark.seg {
+					o.streamEnd[audioHash] = audioStreamEndMark{seg: segIdx, at: time.Now()}
+					o.logger.Warn("audio_orchestrator: source audio stream ends before declared duration",
+						slog.String("hash", audioHash),
+						slog.String("media_id", fp.MediaID),
+						slog.Int("track", fp.SourceTrackIdx),
+						slog.Int("end_seg", segIdx))
+				}
+			}
+		}
 		o.mu.Unlock()
 
 		sess.mu.Lock()
@@ -313,6 +455,9 @@ func (o *AudioSegmentOrchestrator) evictOldestLocked(audioHash string) {
 	o.logger.Debug("audio_orchestrator: evicting oldest session (per-hash cap)",
 		slog.String("hash", audioHash),
 		slog.Int("start_seg", oldest.startSeg))
+	// Set under o.mu (the caller holds it) BEFORE Stop() so the reap goroutine
+	// never mistakes this kill for a natural end-of-stream exit.
+	oldest.stopped = true
 	_ = oldest.handle.Stop() //nolint:errcheck // best-effort: the reap goroutine unblocks on Done() and cleans up
 }
 
@@ -329,10 +474,13 @@ func (o *AudioSegmentOrchestrator) Close() error {
 	// Cancel the long-lived context - all session reap goroutines unblock via Done().
 	o.shutdownCancel()
 
-	// Snapshot live sessions under the lock, then stop them outside.
+	// Snapshot live sessions under the lock, then stop them outside. stopped is
+	// set here (under the lock) so no reap racing the shutdown reads a natural
+	// exit out of a kill.
 	o.mu.Lock()
 	toStop := make([]*audioSession, 0, len(o.sessions))
 	for _, sess := range o.sessions {
+		sess.stopped = true
 		toStop = append(toStop, sess)
 	}
 	o.sessions = make(map[string]*audioSession)
