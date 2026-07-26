@@ -49,12 +49,14 @@ const scanned = {
       { mediaId: "mi-3", title: "Movie C", path: "/media/c.webm", hasIndex: true, hasBackup: false, sizeBytes: "1024", container: "webm" },
       { mediaId: "mi-4", title: "Movie D", path: "/media/d.mkv", hasIndex: true, hasBackup: false, sizeBytes: "4096", container: "mkv", audioDelaySec: 0.9 },
       { mediaId: "mi-6", title: "Movie E", path: "/media/e.mkv", hasIndex: true, hasBackup: false, sizeBytes: "8192", container: "mkv", audioShortfallSec: 249.6 },
+      { mediaId: "mi-7", title: "Movie F", path: "/media/f.mkv", hasIndex: false, hasBackup: false, sizeBytes: "2219689920", container: "mkv", truncated: true, missingTailBytes: "41080408" },
     ],
-    total: 5,
-    missingIndex: 1,
+    total: 6,
+    missingIndex: 2,
     withBackup: 1,
     audioDelayed: 1,
     audioShort: 1,
+    truncated: 1,
     scannedAtMs: "1765584000000",
   },
   isError: false,
@@ -125,13 +127,13 @@ describe("SeekIndexPage", () => {
     mockScan.mockReturnValue(scanned);
     const Page = await getPage();
     render(React.createElement(Page));
-    expect(screen.getByTestId("seek-index-missing-count")).toHaveTextContent("1");
+    expect(screen.getByTestId("seek-index-missing-count")).toHaveTextContent("2");
     expect(screen.getByTestId("seek-index-audio-delay-count")).toHaveTextContent("1");
     expect(screen.getByTestId("seek-index-scanned-at")).toBeInTheDocument();
     // mi-3 is healthy (indexed, no backup, aligned audio) → hidden by the
-    // default filter; mi-4's delayed audio and mi-6's short audio keep them
-    // visible.
-    expect(screen.getAllByTestId("seek-index-row")).toHaveLength(4);
+    // default filter; mi-4's delayed audio, mi-6's short audio and mi-7's
+    // truncation keep them visible.
+    expect(screen.getAllByTestId("seek-index-row")).toHaveLength(5);
     expect(screen.getByText("Movie A")).toBeInTheDocument();
     expect(screen.getByText("Movie D")).toBeInTheDocument();
     expect(screen.queryByText("Movie C")).not.toBeInTheDocument();
@@ -147,6 +149,29 @@ describe("SeekIndexPage", () => {
     // ...and the per-row badge carrying the measured gap.
     expect(screen.getByText("Audio -250s")).toBeInTheDocument();
     expect(screen.getByText("Movie E")).toBeInTheDocument();
+  });
+
+  it("a truncated file shows the missing-tail magnitude and offers NO repair", async () => {
+    mockScan.mockReturnValue(scanned);
+    const Page = await getPage();
+    render(React.createElement(Page));
+    // The magnitude is what routes the decision (a 9 KB stub vs a missing
+    // final scene) - the bare "incomplete" badge hid it.
+    expect(screen.getByText("Incomplete - missing tail ~39.2 MB")).toBeInTheDocument();
+    // No repair can bring absent bytes back: offering the buttons promised a
+    // guaranteed spurious failure (the batch already skips these files).
+    const row = screen.getByText("Movie F").closest("tr")!;
+    expect(row.querySelector('[data-testid="seek-index-repair-btn"]')).toBeNull();
+    expect(row.querySelector('[data-testid="seek-index-repair-resync-btn"]')).toBeNull();
+  });
+
+  it("Repair all advertises only what the batch will actually repair", async () => {
+    mockScan.mockReturnValue(scanned);
+    const Page = await getPage();
+    render(React.createElement(Page));
+    // missingIndex=2 but one of them is truncated (skipped by the batch):
+    // 1 repairable + 1 delayed audio.
+    expect(screen.getByTestId("seek-index-repair-all-btn")).toHaveTextContent("Repair all (2)");
   });
 
   it("a delayed-audio file shows the badge with the probed seconds", async () => {
@@ -237,7 +262,7 @@ describe("SeekIndexPage", () => {
     const Page = await getPage();
     render(React.createElement(Page));
     fireEvent.click(screen.getByRole("checkbox"));
-    expect(screen.getAllByTestId("seek-index-row")).toHaveLength(5);
+    expect(screen.getAllByTestId("seek-index-row")).toHaveLength(6);
     expect(screen.getByText("Movie C")).toBeInTheDocument();
   });
 

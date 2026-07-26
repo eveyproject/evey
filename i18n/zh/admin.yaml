@@ -1179,6 +1179,8 @@ seekIndex:
   backupDeleted: "备份已删除"
   audioDelayBadge: "音频 +{{sec}}s"
   truncatedBadge: "下载不完整"
+  truncatedSizeBadge: "不完整 - 缺失结尾 ~{{size}}"
+  repairHint: "重建检索索引。构造上安全:重写到临时副本、完整重新校验、原子交换 - 原文件保留为可回滚的 .mkvgobak 备份。"
   damagedBadge: "已损坏 ~{{size}}"
   truncatedHint: "此文件是不完整的下载：结尾缺失且任何工具都无法恢复。请重新获取源文件 - 重新同步只能重建一个可播放的开头，而非整部影片。"
   wrongContainerBadge: "Wrong container"

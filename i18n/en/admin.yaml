@@ -1166,7 +1166,7 @@ seekIndex:
     file: File
     container: Container
     size: Size
-    status: Seek index
+    status: Diagnostics
   statusIndexed: Indexed
   statusMissing: Missing
   backupBadge: Backup
@@ -1179,8 +1179,9 @@ seekIndex:
   backupDeleted: "Backup deleted"
   audioDelayBadge: "Audio +{{sec}}s"
   truncatedBadge: "Incomplete download"
+  truncatedSizeBadge: "Incomplete - missing tail ~{{size}}"
   damagedBadge: "Damaged ~{{size}}"
-  truncatedHint: "This file is an incomplete download: its end is missing and no tool can recover it. Re-acquire the source - a resync would only rebuild a playable prefix, not the whole film."
+  truncatedHint: "This file is an incomplete download: its last bytes never arrived and no tool can recover them - it plays fine up to the cut, then stops. Re-acquire the source for a complete copy; no repair applies, so none is offered."
   wrongContainerBadge: "Wrong container"
   wrongContainerHint: "This .mkv is really an MP4/MOV file: it has no Matroska index to build. Rename or remux it to .mp4 (a reindex would fail)."
   trailingJunkBadge: "Trailing bytes"
@@ -1189,8 +1190,9 @@ seekIndex:
   audioShortBadge: "Audio -{{sec}}s"
   audioShortHint: "An audio track ends {{sec}}s before the container's declared duration (silent credits on that track). The file is otherwise healthy and playback fills the missing tail with silence. No repair can help - the audio simply is not in the file; re-acquire the source for a real fix."
   repair: Repair
-  repairResync: "Repair anyway"
-  repairResyncHint: "Rebuild the index skipping the corrupted region: recovers everything before and after, loses only the damaged span (a fraction of a second). Keeps a backup."
+  repairHint: "Rebuilds the seek index. Safe by construction: rewritten to a temp copy, fully re-validated (tracks, duration, real on-disk index), then swapped in with an atomic rename - the original is kept as a .mkvgobak you can roll back to, and any failed check refuses the swap and leaves the file untouched."
+  repairResync: "Resync repair"
+  repairResyncHint: "For a file a normal repair refused (corrupted region): the tolerant rewrite skips the damaged span and resynchronises - everything before and after is recovered, only the damaged bytes are lost. Always keeps a backup."
   jobRemuxAudio: "Audio repair"
   remuxAudioBtn: "Fix audio"
   remuxAudioStarted: "Audio repair started"

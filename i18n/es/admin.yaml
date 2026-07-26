@@ -1179,6 +1179,8 @@ seekIndex:
   backupDeleted: "Copia eliminada"
   audioDelayBadge: "Audio +{{sec}}s"
   truncatedBadge: "Descarga incompleta"
+  truncatedSizeBadge: "Incompleto - falta el final ~{{size}}"
+  repairHint: "Reconstruye el índice de búsqueda. Seguro por construcción: reescritura a una copia temporal, revalidación completa, intercambio atómico - el original se conserva como .mkvgobak restaurable."
   damagedBadge: "Dañado ~{{size}}"
   truncatedHint: "Este archivo es una descarga incompleta: le falta el final y ninguna herramienta puede recuperarlo. Vuelve a obtener la fuente - un resync solo reconstruiría un principio reproducible, no la película entera."
   wrongContainerBadge: "Wrong container"

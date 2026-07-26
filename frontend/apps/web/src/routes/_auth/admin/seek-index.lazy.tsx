@@ -249,6 +249,10 @@ function SeekIndexPage() {
   const wrongContainer = result?.wrongContainer ?? 0;
   const trailingJunk = result?.trailingJunk ?? 0;
   const audioShort = result?.audioShort ?? 0;
+  // What "Repair all" will actually act on: the missing-index count minus the
+  // truncated files the batch (rightly) skips - advertising the raw missing
+  // count promised repairs the job then silently declined.
+  const repairable = items.filter((it) => !it.hasIndex && !it.truncated).length;
   // Per-filesystem numbers for the candidates: Evey pre-sets the safe backup
   // choice itself (a nearly-full volume must not accumulate one copy per
   // repaired file) and flags files whose rewrite temp copy will not fit.
@@ -396,7 +400,7 @@ function SeekIndexPage() {
           <>
             <Button
               variant="secondary"
-              disabled={(missing === 0 && delayedAudio === 0) || busy}
+              disabled={(repairable === 0 && delayedAudio === 0) || busy}
               onClick={() => {
                 // Pre-set the safe choices; the operator can still flip them.
                 setKeepBackups(!backupsRisky);
@@ -405,7 +409,7 @@ function SeekIndexPage() {
               }}
               data-testid="seek-index-repair-all-btn"
             >
-              {t("admin.seekIndex.repairAll", { count: missing + delayedAudio })}
+              {t("admin.seekIndex.repairAll", { count: repairable + delayedAudio })}
             </Button>
             <Button
               variant="secondary"
@@ -585,9 +589,15 @@ function SeekIndexPage() {
                           </Badge>
                         )}
                         {it.truncated ? (
-                          <Badge variant="error" className="ml-1.5">
-                            {t("admin.seekIndex.truncatedBadge")}
-                          </Badge>
+                          <span title={t("admin.seekIndex.truncatedHint")} className="ml-1.5 inline-block">
+                            <Badge variant="error">
+                              {Number(it.missingTailBytes ?? 0) > 0
+                                ? t("admin.seekIndex.truncatedSizeBadge", {
+                                    size: formatSize(Number(it.missingTailBytes ?? 0)),
+                                  })
+                                : t("admin.seekIndex.truncatedBadge")}
+                            </Badge>
+                          </span>
                         ) : (
                           Number(it.damagedBytes ?? 0) > 0 && (
                             <Badge variant="warning" className="ml-1.5">
@@ -636,7 +646,12 @@ function SeekIndexPage() {
                               {t("admin.seekIndex.remuxAudioBtn")}
                             </Button>
                           )}
-                          {!it.hasIndex && (
+                          {/* No repair exists for a truncated file - the tail is
+                              simply absent, a real attempt always fails a verify
+                              step - so no button is offered (the badge's tooltip
+                              says why); the batch's needsReindex skips them for
+                              the same reason. */}
+                          {!it.hasIndex && !it.truncated && (
                             <Button
                               variant="secondary"
                               className="text-xs"
@@ -646,13 +661,14 @@ function SeekIndexPage() {
                                 repairOne.variables?.mediaId === it.mediaId &&
                                 !repairOne.variables?.data?.resync
                               }
+                              title={t("admin.seekIndex.repairHint")}
                               onClick={() => it.mediaId && repairOne.mutate({ mediaId: it.mediaId, data: { mode: "auto" } })}
                               data-testid="seek-index-repair-btn"
                             >
                               {t("admin.seekIndex.repair")}
                             </Button>
                           )}
-                          {!it.hasIndex && (
+                          {!it.hasIndex && !it.truncated && (
                             <Button
                               variant="ghost"
                               className="text-xs"
@@ -662,9 +678,7 @@ function SeekIndexPage() {
                                 repairOne.variables?.mediaId === it.mediaId &&
                                 repairOne.variables?.data?.resync === true
                               }
-                              title={t(
-                                it.truncated ? "admin.seekIndex.truncatedHint" : "admin.seekIndex.repairResyncHint",
-                              )}
+                              title={t("admin.seekIndex.repairResyncHint")}
                               onClick={() => it.mediaId && repairOne.mutate({ mediaId: it.mediaId, data: { resync: true } })}
                               data-testid="seek-index-repair-resync-btn"
                             >
@@ -722,7 +736,7 @@ function SeekIndexPage() {
             ? t("admin.seekIndex.rollbackAllConfirm", { count: withBackup })
             : confirmBatch === "purge"
               ? t("admin.seekIndex.purgeAllConfirm", { count: withBackup })
-              : t("admin.seekIndex.repairAllConfirm", { count: missing })}
+              : t("admin.seekIndex.repairAllConfirm", { count: repairable })}
         </p>
         {confirmBatch === "repair" && repairVolumes.length > 0 && (
           <ul className="mb-4 flex flex-col gap-1" data-testid="seek-index-volumes">
