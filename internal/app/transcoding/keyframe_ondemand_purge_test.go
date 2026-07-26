@@ -29,10 +29,13 @@ func (p *purgeProber) ProbeKeyframes(context.Context, string) ([]int64, error) {
 
 type purgeStore struct{}
 
-func (purgeStore) ListVideoKeyframesMissing(context.Context, int, []string) ([]string, error) {
+func (purgeStore) ListVideoKeyframesMissing(context.Context, int, []string, int16) ([]string, error) {
 	return nil, nil
 }
 func (purgeStore) SetKeyframes(context.Context, shared.MediaItemID, []int64) (int, error) {
+	return 1, nil
+}
+func (purgeStore) MarkKeyframesUnindexable(context.Context, shared.MediaItemID, int16) (int, error) {
 	return 1, nil
 }
 

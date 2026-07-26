@@ -370,8 +370,10 @@ func (r *MediaStreamRepository) SetIdetInterlaced(ctx context.Context, mediaItem
 //     so indexing its keyframes would be pure waste.
 //
 // Like ListVideoLevelMissing, the query is the keyframe backfill worker's
-// resumability mechanism (it shrinks as keyframes get filled).
-func (r *MediaStreamRepository) ListVideoKeyframesMissing(ctx context.Context, limit int, exclude []string) ([]string, error) {
+// resumability mechanism (it shrinks as keyframes get filled). Rows stamped
+// unindexable at probeVersion or later (see MarkKeyframesUnindexable) are
+// settled questions and stay out until the prober version is bumped.
+func (r *MediaStreamRepository) ListVideoKeyframesMissing(ctx context.Context, limit int, exclude []string, probeVersion int16) ([]string, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.media_stream.ListVideoKeyframesMissing")
 	defer span.End()
 	span.SetAttributes(attribute.Int("limit", limit), attribute.Int("exclude.count", len(exclude)))
@@ -384,13 +386,14 @@ func (r *MediaStreamRepository) ListVideoKeyframesMissing(ctx context.Context, l
 		`SELECT DISTINCT media_item_id FROM media_streams
 		 WHERE stream_type = 'video'
 		   AND level IS NOT NULL AND keyframes_ms IS NULL
+		   AND keyframes_probe_version < $3
 		   AND (lower(codec) = 'h264'
 		     OR (lower(codec) IN ('hevc', 'av1', 'vp9') AND color_transfer IS NOT NULL
 		         AND (dovi_profile IS NULL
 		           OR (dovi_profile = 8 AND dovi_bl_compat IN (1, 2, 4)))))
 		   AND NOT (media_item_id = ANY($1))
 		 ORDER BY media_item_id
-		 LIMIT $2`, pq.Array(exclude), limit)
+		 LIMIT $2`, pq.Array(exclude), limit, probeVersion)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -437,6 +440,33 @@ func (r *MediaStreamRepository) SetKeyframes(ctx context.Context, mediaItemID sh
 		`UPDATE media_streams SET keyframes_ms = $1
 		 WHERE media_item_id = $2 AND stream_type = 'video' AND keyframes_ms IS NULL`,
 		pq.Array(keyframesMS), string(mediaItemID))
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	return int(n), nil
+}
+
+// MarkKeyframesUnindexable stamps the item's index-less video stream(s) with
+// the prober version that settled on "no keyframe index possible" - the probe
+// looked at real bytes and found nothing extractable (avi and friends), so
+// retrying at the same prober version is guaranteed waste. Scoped to
+// keyframes_ms IS NULL: an indexed row already left the candidate set and must
+// keep its 0 stamp. A rescan of a replaced file recreates the stream rows
+// (fresh 0), and a version bump re-opens stamped rows - both paths lead back
+// into ListVideoKeyframesMissing naturally.
+func (r *MediaStreamRepository) MarkKeyframesUnindexable(ctx context.Context, mediaItemID shared.MediaItemID, probeVersion int16) (int, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.media_stream.MarkKeyframesUnindexable")
+	defer span.End()
+	span.SetAttributes(attribute.String("media_item.id", string(mediaItemID)), attribute.Int("probe_version", int(probeVersion)))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
+		`UPDATE media_streams SET keyframes_probe_version = $1
+		 WHERE media_item_id = $2 AND stream_type = 'video' AND keyframes_ms IS NULL`,
+		probeVersion, string(mediaItemID))
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

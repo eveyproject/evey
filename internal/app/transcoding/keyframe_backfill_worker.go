@@ -3,6 +3,7 @@ package transcoding
 import (
 	"context"
 	"log/slog"
+	"os"
 	"runtime/debug"
 	"sync"
 	"time"
@@ -16,12 +17,28 @@ import (
 // Implemented by the media-stream repository.
 type KeyframeBackfillStore interface {
 	// ListVideoKeyframesMissing returns up to `limit` media item IDs with an h264
-	// video stream that has a level but no keyframe index yet, excluding `exclude`.
-	ListVideoKeyframesMissing(ctx context.Context, limit int, exclude []string) ([]string, error)
+	// video stream that has a level but no keyframe index yet, excluding `exclude`
+	// and rows already stamped by a prober >= probeVersion (a probe that settled
+	// on "no index possible" - see MarkKeyframesUnindexable).
+	ListVideoKeyframesMissing(ctx context.Context, limit int, exclude []string, probeVersion int16) ([]string, error)
 	// SetKeyframes stores the keyframe index (ms) on the item's video stream(s),
 	// only where currently NULL, never deleting. Returns rows updated.
 	SetKeyframes(ctx context.Context, mediaItemID shared.MediaItemID, keyframesMS []int64) (int, error)
+	// MarkKeyframesUnindexable stamps the item's index-less video stream(s) with
+	// probeVersion: the prober looked at the real bytes and no keyframe index can
+	// be extracted (exotic container, no readable structure). Keeps the row out
+	// of the candidate query until the prober version is bumped or the file is
+	// replaced (a rescan recreates the stream rows). Returns rows updated.
+	MarkKeyframesUnindexable(ctx context.Context, mediaItemID shared.MediaItemID, probeVersion int16) (int, error)
 }
+
+// KeyframeProbeAlgoVersion identifies the keyframe prober that last settled a
+// "no index possible" verdict. Same doctrine as FrameRateAlgoVersion: BUMP IT
+// when the prober learns to read containers it previously could not (say, avi)
+// and every stamped row becomes a candidate again - no DB surgery, no admin
+// action. Before this existed, an unindexable file was re-probed on every boot,
+// forever (prod 2026-07-26: 68 avi files re-walked at each restart).
+const KeyframeProbeAlgoVersion int16 = 1
 
 // KeyframeProber extracts a video file's keyframe presentation times (ms).
 type KeyframeProber interface {
@@ -276,7 +293,7 @@ func (w *KeyframeBackfillWorker) processBatch(ctx context.Context) int {
 }
 
 func (w *KeyframeBackfillWorker) processKeyframeBatch(ctx context.Context) int {
-	ids, err := w.store.ListVideoKeyframesMissing(ctx, w.batchSize, w.excluded())
+	ids, err := w.store.ListVideoKeyframesMissing(ctx, w.batchSize, w.excluded(), KeyframeProbeAlgoVersion)
 	if err != nil {
 		w.logger.Warn("keyframe backfill: list candidates failed", slog.Any("err", err))
 		return 0
@@ -326,10 +343,28 @@ func (w *KeyframeBackfillWorker) backfillOne(ctx context.Context, mediaItemID st
 
 	kf, engine, err := w.probeKeyframes(ctx, item.File.Path)
 	if err != nil || len(kf) == 0 {
-		w.logger.Warn("keyframe backfill: probe failed or empty",
+		// Transient vs permanent, the AnalyzeFrameRateMode doctrine: a file the
+		// OS can't stat may heal (unmounted share) - skip for this run only. A
+		// present file the prober still can't index (avi and friends) yields the
+		// same nothing on every sweep; before the stamp existed those files were
+		// re-walked at every single boot. The stamp clears on a version bump or
+		// when a rescan of a replaced file recreates the stream rows.
+		if _, statErr := os.Stat(item.File.Path); statErr != nil {
+			w.logger.Warn("keyframe backfill: probe failed, source unavailable - will retry",
+				slog.String("media_id", mediaItemID),
+				slog.String("path", item.File.Path),
+				slog.Any("err", err))
+			return false
+		}
+		if _, markErr := w.store.MarkKeyframesUnindexable(ctx, shared.MediaItemID(mediaItemID), KeyframeProbeAlgoVersion); markErr != nil {
+			w.logger.Warn("keyframe backfill: stamp unindexable failed",
+				slog.String("media_id", mediaItemID), slog.Any("err", markErr))
+			return false
+		}
+		w.logger.Info("keyframe backfill: no index possible, stamped",
 			slog.String("media_id", mediaItemID),
 			slog.String("path", item.File.Path),
-			slog.Any("err", err))
+			slog.Any("probe_err", err))
 		return false
 	}
 

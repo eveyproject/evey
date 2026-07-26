@@ -383,7 +383,7 @@ func TestMediaStreamRepo_KeyframesScopeFillRoundtrip(t *testing.T) {
 		{ID: "kf-f-v", MediaItemID: itemF.ID, StreamIndex: 0, StreamType: "video", Codec: "hevc", Level: new(153)},
 	}))
 
-	ids, err := streamRepo.ListVideoKeyframesMissing(ctx, 10, nil)
+	ids, err := streamRepo.ListVideoKeyframesMissing(ctx, 10, nil, 1)
 	require.NoError(t, err)
 	assert.Equal(t, []string{string(itemA.ID), string(itemC.ID), string(itemE.ID)}, ids,
 		"candidates = copy-eligible streams only (h264 leveled; hevc probed, not DoVi-incompatible)")
@@ -399,7 +399,7 @@ func TestMediaStreamRepo_KeyframesScopeFillRoundtrip(t *testing.T) {
 	require.Len(t, got, 1)
 	assert.Equal(t, kf, got[0].Keyframes, "keyframes round-trip through the bigint[] column")
 
-	after, err := streamRepo.ListVideoKeyframesMissing(ctx, 10, nil)
+	after, err := streamRepo.ListVideoKeyframesMissing(ctx, 10, nil, 1)
 	require.NoError(t, err)
 	assert.Equal(t, []string{string(itemC.ID), string(itemE.ID)}, after,
 		"an indexed item is no longer a candidate; the hevc candidates remain")
@@ -411,6 +411,79 @@ func TestMediaStreamRepo_KeyframesScopeFillRoundtrip(t *testing.T) {
 	n3, err := streamRepo.SetKeyframes(ctx, itemB.ID, nil)
 	require.NoError(t, err)
 	assert.Equal(t, 0, n3, "empty keyframes write nothing")
+}
+
+func TestMediaStreamRepo_KeyframeCandidates_StampedUnindexableDropOut(t *testing.T) {
+	// A probe that settles on "no index possible" stamps the row at the current
+	// prober version; the candidate query must stop re-serving it (it used to
+	// come back on every boot, forever - prod 2026-07-26, 68 avi files). A
+	// version bump re-opens every stamped row: the supported "the prober
+	// learned this container" path, mirroring frame_rate_algo_version.
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	streamRepo := postgres.NewMediaStreamRepository(db)
+	ctx := context.Background()
+
+	lib := newTestLibrary("kflib3")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	itemA := newTestMediaItem("kfM1", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, itemA))
+	itemB := newTestMediaItem("kfM2", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, itemB))
+	require.NoError(t, streamRepo.CreateBatch(ctx, []*library.MediaStream{
+		{ID: "kfm1-v", MediaItemID: itemA.ID, StreamIndex: 0, StreamType: "video", Codec: "h264", Level: new(40)},
+		{ID: "kfm2-v", MediaItemID: itemB.ID, StreamIndex: 0, StreamType: "video", Codec: "h264", Level: new(40)},
+	}))
+
+	const version int16 = 1
+	ids, err := streamRepo.ListVideoKeyframesMissing(ctx, 10, nil, version)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{string(itemA.ID), string(itemB.ID)}, ids)
+
+	n, err := streamRepo.MarkKeyframesUnindexable(ctx, itemA.ID, version)
+	require.NoError(t, err)
+	assert.Equal(t, 1, n)
+
+	ids, err = streamRepo.ListVideoKeyframesMissing(ctx, 10, nil, version)
+	require.NoError(t, err)
+	assert.Equal(t, []string{string(itemB.ID)}, ids, "a stamped row must drop out of the candidates")
+
+	ids, err = streamRepo.ListVideoKeyframesMissing(ctx, 10, nil, version+1)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{string(itemA.ID), string(itemB.ID)}, ids,
+		"a prober version bump re-opens rows stamped by the older prober")
+}
+
+func TestMediaStreamRepo_MarkKeyframesUnindexable_NeverTouchesIndexedRows(t *testing.T) {
+	// The stamp only concerns rows the probe could NOT index; a row holding a
+	// real keyframe index already dropped out through keyframes_ms IS NOT NULL
+	// and must never be restamped.
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	streamRepo := postgres.NewMediaStreamRepository(db)
+	ctx := context.Background()
+
+	lib := newTestLibrary("kflib4")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	item := newTestMediaItem("kfM3", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, item))
+	require.NoError(t, streamRepo.CreateBatch(ctx, []*library.MediaStream{
+		{ID: "kfm3-v", MediaItemID: item.ID, StreamIndex: 0, StreamType: "video", Codec: "h264", Level: new(40)},
+	}))
+
+	n, err := streamRepo.SetKeyframes(ctx, item.ID, []int64{0, 2000, 4000})
+	require.NoError(t, err)
+	require.Equal(t, 1, n)
+
+	n, err = streamRepo.MarkKeyframesUnindexable(ctx, item.ID, 1)
+	require.NoError(t, err)
+	assert.Zero(t, n, "an indexed row is out of scope for the unindexable stamp")
 }
 
 // TestMediaStreamRepo_FrameRateMode_RoundTrip verifies frame_rate_mode

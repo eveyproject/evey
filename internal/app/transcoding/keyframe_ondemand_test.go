@@ -21,8 +21,12 @@ type fakeKfStore struct {
 	setCalls int
 }
 
-func (f *fakeKfStore) ListVideoKeyframesMissing(context.Context, int, []string) ([]string, error) {
+func (f *fakeKfStore) ListVideoKeyframesMissing(context.Context, int, []string, int16) ([]string, error) {
 	return nil, nil
+}
+
+func (f *fakeKfStore) MarkKeyframesUnindexable(context.Context, shared.MediaItemID, int16) (int, error) {
+	return 1, nil
 }
 
 func (f *fakeKfStore) SetKeyframes(_ context.Context, id shared.MediaItemID, kf []int64) (int, error) {

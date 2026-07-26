@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -35,6 +36,15 @@ type fakeKeyframeStore struct {
 	reclassifyCalls  []fakeReclassifyCall
 	reclassifyReturn int
 	reclassifyErr    error
+
+	listProbeVersions []int16 // probeVersion arg on each ListVideoKeyframesMissing call
+	markCalls         []fakeMarkCall
+	markErr           error
+}
+
+type fakeMarkCall struct {
+	id      string
+	version int16
 }
 
 type fakeStaleListCall struct {
@@ -49,16 +59,30 @@ type fakeReclassifyCall struct {
 	version int16
 }
 
-func (s *fakeKeyframeStore) ListVideoKeyframesMissing(_ context.Context, limit int, exclude []string) ([]string, error) {
+func (s *fakeKeyframeStore) ListVideoKeyframesMissing(_ context.Context, limit int, exclude []string, probeVersion int16) ([]string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.listCalls = append(s.listCalls, fakeListCall{limit: limit, exclude: append([]string(nil), exclude...)})
+	s.listProbeVersions = append(s.listProbeVersions, probeVersion)
 	if len(s.queue) == 0 {
 		return nil, nil
 	}
 	out := s.queue[0]
 	s.queue = s.queue[1:]
 	return out, nil
+}
+
+func (s *fakeKeyframeStore) MarkKeyframesUnindexable(_ context.Context, id shared.MediaItemID, probeVersion int16) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.markCalls = append(s.markCalls, fakeMarkCall{id: string(id), version: probeVersion})
+	return 1, s.markErr
+}
+
+func (s *fakeKeyframeStore) marked() []fakeMarkCall {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]fakeMarkCall(nil), s.markCalls...)
 }
 
 func (s *fakeKeyframeStore) SetKeyframes(_ context.Context, id shared.MediaItemID, _ []int64) (int, error) {
@@ -208,6 +232,47 @@ func TestKeyframeBackfill_EmptyProbeMarks(t *testing.T) {
 	w.processBatch(context.Background())
 	assert.Empty(t, store.setTargets(), "no keyframes ⇒ no write")
 	assert.True(t, w.attemptedHas("m1"))
+	assert.Empty(t, store.marked(), "missing file ⇒ transient, never stamped unindexable")
+}
+
+func TestKeyframeBackfill_EmptyProbeOnPresentFileStampsUnindexable(t *testing.T) {
+	// The prober looked at real bytes and found no extractable index (the avi
+	// case): re-probing the same file at the next boot yields the same nothing.
+	// Stamp the verdict so the candidate query stops re-serving it; a prober
+	// that learns the container bumps KeyframeProbeAlgoVersion to retry all.
+	f, err := os.CreateTemp(t.TempDir(), "*.avi")
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
+
+	store := &fakeKeyframeStore{queue: [][]string{{"m1"}}, setReturn: 1}
+	w := newKeyframeWorker(store, oneItemReader("m1", f.Name()), &fakeKeyframeProber{kf: nil})
+	w.processBatch(context.Background())
+	assert.Empty(t, store.setTargets(), "no keyframes ⇒ no index write")
+	assert.Equal(t, []fakeMarkCall{{id: "m1", version: KeyframeProbeAlgoVersion}}, store.marked(),
+		"present file + empty probe ⇒ stamped unindexable at the current prober version")
+}
+
+func TestKeyframeBackfill_ProbeErrorOnPresentFileStampsUnindexable(t *testing.T) {
+	// Same reasoning as the empty probe: the file is there, ffprobe/mkvgo still
+	// cannot make sense of it, and would fail identically on every sweep.
+	f, err := os.CreateTemp(t.TempDir(), "*.avi")
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
+
+	store := &fakeKeyframeStore{queue: [][]string{{"m1"}}, setReturn: 1}
+	w := newKeyframeWorker(store, oneItemReader("m1", f.Name()), &fakeKeyframeProber{err: errors.New("ffprobe boom")})
+	w.processBatch(context.Background())
+	assert.Empty(t, store.setTargets())
+	assert.Equal(t, []fakeMarkCall{{id: "m1", version: KeyframeProbeAlgoVersion}}, store.marked())
+}
+
+func TestKeyframeBackfill_ListCarriesProbeVersion(t *testing.T) {
+	store := &fakeKeyframeStore{queue: [][]string{{"m1"}}, setReturn: 1}
+	w := newKeyframeWorker(store, oneItemReader("m1", "/media/m1.mkv"), &fakeKeyframeProber{kf: []int64{0, 100}})
+	w.processBatch(context.Background())
+	require.NotEmpty(t, store.listProbeVersions)
+	assert.Equal(t, KeyframeProbeAlgoVersion, store.listProbeVersions[0],
+		"the candidate query must exclude rows stamped at the current prober version")
 }
 
 func TestKeyframeBackfill_NoRowUpdatedMarks(t *testing.T) {
