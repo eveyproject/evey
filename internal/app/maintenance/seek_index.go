@@ -152,6 +152,11 @@ type SeekStatus struct {
 	// playable prefix. The operator must re-acquire the source. Only a
 	// diagnosing scan (WithDiagnoser) can tell this apart from Damaged.
 	Truncated bool
+	// MissingTailBytes quantifies Truncated: how many declared bytes are
+	// absent from the end. The magnitude routes the operator's decision - a
+	// 9 KB stub is invisible in playback, 41 MB is a missing final scene.
+	// 0 when not truncated or not measurable.
+	MissingTailBytes int64
 	// DamagedBytes > 0 → the file has mid-file corruption a resync repair can
 	// skip past, losing this many bytes (repairable in full otherwise). 0 when
 	// clean or not diagnosed.

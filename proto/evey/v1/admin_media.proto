@@ -225,6 +225,10 @@ message SeekIndexItem {
   // remedy is re-acquiring the source. Only gaps past the ~10s defect floor
   // are reported (ordinary muxes leave a couple of seconds of slack).
   double audio_shortfall_sec = 13;
+  // missing_tail_bytes quantifies truncated: how many declared bytes are
+  // absent from the end of the file. The magnitude routes the decision - a
+  // 9 KB stub is invisible in playback, 41 MB is a missing final scene.
+  int64 missing_tail_bytes = 14;
 }
 
 message ScanSeekIndexRequest {

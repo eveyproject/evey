@@ -187,6 +187,7 @@ func (s *SeekIndexService) diagnose(ctx context.Context, path string, st *SeekSt
 		st.HasIndex = st.WrongContainer || !d.HasIndexDefect()
 		st.AudioDelaySec = float64(d.MaxAudioDelayMs()) / 1000
 		st.Truncated = d.Truncated
+		st.MissingTailBytes = d.MissingTailBytes
 		st.DamagedBytes = d.DamagedBytes
 		st.TrailingJunk = d.TrailingJunk()
 		return true

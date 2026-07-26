@@ -213,6 +213,7 @@ func (d *adminMediaHandler) ScanSeekIndex(ctx context.Context, req *eveyv1.ScanS
 			WrongContainer:    it.WrongContainer,
 			TrailingJunk:      it.TrailingJunk,
 			AudioShortfallSec: it.AudioShortfallSec,
+			MissingTailBytes:  it.MissingTailBytes,
 		})
 	}
 	// Live per-volume numbers (free space vs candidate sizes) so the client

@@ -8,7 +8,38 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	extmatroska "github.com/gravity-zero/mkvgo/matroska"
 )
+
+// The truncated verdict must come from mkvgo's CLASSIFIED finding, not the raw
+// salvage-walk TruncatedTail bit. Proven wrong on prod bytes (2026-07-26,
+// "Scary movie 1"): declared end 9 bytes SHORT of the file size (trailing
+// junk) + mid-file damage - the walk's tail hit EOF inside the junk, so
+// TruncatedTail was true and the adapter mislabeled a complete, playable file
+// "incomplete download / re-acquire the source".
+func TestMapDiagnosis_TruncatedFollowsTheFinding(t *testing.T) {
+	// Scary-movie-1 shape: damaged + trailing-junk findings, NO truncated one.
+	junky := mapDiagnosis(&extmatroska.Diagnosis{
+		Findings: []extmatroska.Finding{
+			{Kind: "damaged", Detail: "1 damaged range(s)"},
+			{Kind: "trailing-junk", Detail: "9 byte(s) beyond the declared Segment end"},
+		},
+		Damage: &extmatroska.SalvageReport{TruncatedTail: true, BytesSkipped: 268405},
+	})
+	assert.False(t, junky.Truncated, "no truncated finding -> not an incomplete download")
+	assert.True(t, junky.TrailingJunk())
+	assert.EqualValues(t, 268405, junky.DamagedBytes, "the mid-file damage stays resync-repairable")
+
+	// A genuine incomplete download carries the classified finding.
+	cut := mapDiagnosis(&extmatroska.Diagnosis{
+		Findings: []extmatroska.Finding{
+			{Kind: "truncated", Detail: "the source ends early"},
+		},
+		Damage: &extmatroska.SalvageReport{TruncatedTail: true},
+	})
+	assert.True(t, cut.Truncated)
+}
 
 // A complete MKV with surplus bytes appended PAST its declared Segment end is
 // trailing junk, not damage: mkvgo v0.25 raises the `trailing-junk` finding

@@ -21,6 +21,13 @@ type DiagnosisFinding struct {
 type Diagnosis struct {
 	Healthy  bool
 	Findings []DiagnosisFinding
+	// MissingTailBytes is how many declared bytes are absent from the end of
+	// the file (declared Segment end minus real size) when Truncated. The
+	// MAGNITUDE is what routes the operator's decision: a 9 KB stub cut off a
+	// 937 MB episode is invisible in playback, 41 MB is a missing final scene
+	// - both were shown as the same bare "incomplete download" badge before.
+	// 0 when not truncated or not measurable.
+	MissingTailBytes int64
 	// Truncated: the damage runs to the end of the file - an incomplete
 	// download whose missing tail no tool can recover. The operator must
 	// re-acquire the source; a resync would only produce a playable prefix.
