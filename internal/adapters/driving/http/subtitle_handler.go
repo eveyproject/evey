@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/evey-project/evey/internal/pkg/langcode"
 	extmkv "github.com/gravity-zero/mkvgo/mkv"
 	mkvops "github.com/gravity-zero/mkvgo/mkv/ops"
 	"github.com/gravity-zero/mkvgo/mkv/reader"
@@ -219,6 +220,39 @@ func extractMkvgoSubtitleWebVTT(ctx context.Context, ext, filePath string, track
 	return mkvops.ExtractSubtitleWebVTT(ctx, filePath, trackID, w)
 }
 
+// subtitleLanguageMatches reports whether the DB's language tag and mkvgo's can
+// denote the same track language. The two sides speak different conventions -
+// the DB stores ffprobe's BCP-47-ish tag ("fr-FR"), a Matroska language element
+// is usually a bare ISO 639-2 code ("fre") - so raw equality rejected the track
+// on EVERY playback of such a file (prod 2026-07-26: db_lang=fr-FR vs
+// mkvgo_lang=fre, permanent silent fallback to the ffmpeg fork). Primary
+// subtags fold through langcode.Normalize; region subtags only disqualify when
+// BOTH sides carry one, so a genuine ordinal drift between fr-FR and fr-CA
+// tracks in the same file is still caught while a region-less "fre" matches
+// either. Empty on either side means "unknown" and never rejects.
+func subtitleLanguageMatches(dbLang, mkvLang string) bool {
+	if dbLang == "" || mkvLang == "" {
+		return true
+	}
+	dbPrimary, dbRegion := splitLangTag(dbLang)
+	mkvPrimary, mkvRegion := splitLangTag(mkvLang)
+	if langcode.Normalize(dbPrimary) != langcode.Normalize(mkvPrimary) {
+		return false
+	}
+	return dbRegion == "" || mkvRegion == "" || dbRegion == mkvRegion
+}
+
+// splitLangTag lower-cases tag and splits it at the first '-'/'_' into the
+// primary language subtag and the rest (region/script/variant, compared as an
+// opaque suffix by subtitleLanguageMatches).
+func splitLangTag(tag string) (primary, rest string) {
+	tag = strings.ToLower(strings.TrimSpace(tag))
+	if i := strings.IndexAny(tag, "-_"); i > 0 {
+		return tag[:i], tag[i+1:]
+	}
+	return tag, ""
+}
+
 // tryMKVGoSubtitle attempts to serve embedded subtitle trackIndex from the
 // container at filePath (an EBML or ISO-BMFF file, per ext) as WebVTT, in-process
 // via mkvgo. It returns true only when the subtitle was successfully buffered and
@@ -272,7 +306,7 @@ func tryMKVGoSubtitle(ctx context.Context, w http.ResponseWriter, r *http.Reques
 
 	// Language guard: only enforced when both sides carry a non-empty tag.
 	// Empty language on either side means "unknown" - don't reject.
-	if matchedLanguage != "" && mkvTrack.Language != "" && matchedLanguage != mkvTrack.Language {
+	if !subtitleLanguageMatches(matchedLanguage, mkvTrack.Language) {
 		slog.WarnContext(ctx, "subtitle: mkvgo language mismatch vs DB, falling back to ffmpeg",
 			slog.String("path", filePath),
 			slog.String("db_lang", matchedLanguage),
