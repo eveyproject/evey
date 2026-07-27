@@ -25,28 +25,15 @@ import { useMusicQueueStore, type QueueTrack } from "../../../src/stores/musicQu
 import { AddToPlaylistSheet } from "../../../src/components/AddToPlaylistSheet";
 import { startDownload, getDownloadPath } from "../../../src/lib/downloads";
 import { toast } from "@evey/store";
+import { TrackArt } from "../../../src/components/music/TrackArt";
+import { MusicPlaylistsTab } from "../../../src/components/music/MusicPlaylistsTab";
+import type { Track } from "../../../src/components/music/musicTypes";
+import { shuffleArray } from "../../../src/lib/shuffleArray";
 
 interface LibraryItem {
   id: string;
   name: string;
   type: string;
-}
-
-// Field names match the JSON the gRPC gateway emits - protojson serializes
-// proto field `track_number` as `trackNumber`, `id` as `id`, etc. The web app
-// maps these to its own PascalCase domain types in a select(); we just read
-// the wire shape directly here.
-interface Track {
-  id: string;
-  title: string;
-  artist: string;
-  album: string;
-  albumArtist?: string;
-  duration: number;
-  trackNumber: number;
-  coverArtUrl?: string;
-  genre?: string;
-  year?: number;
 }
 
 interface MusicAlbum {
@@ -65,7 +52,7 @@ interface MusicArtist {
   albumCount: number;
 }
 
-type Tab = "tracks" | "albums" | "artists";
+type Tab = "tracks" | "albums" | "artists" | "playlists";
 
 const NUM_ALBUM_COLS = 2;
 const screenWidth = Dimensions.get("window").width;
@@ -108,17 +95,6 @@ function useMusicTracks(libraryID: string | undefined, search?: string, albumID?
   });
 }
 
-// Fisher-Yates shuffle, mirrors the web app's shuffleTracks - builds an
-// ephemeral randomized queue without persisting anything server-side.
-function shuffleTracks<T>(arr: T[]): T[] {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
-
 function useMusicAlbums(libraryID: string | undefined) {
   return useQuery({
     queryKey: ["music", "albums", libraryID],
@@ -137,45 +113,6 @@ function useMusicArtists(libraryID: string | undefined) {
     select: (d) => d.artists ?? [],
     staleTime: 60_000,
   });
-}
-
-// Per-track cover art, mirroring the web app's TrackArt: try the dedicated
-// track-art endpoint, fall back to a placeholder icon on 404/error.
-function TrackArt({
-  trackID,
-  size,
-  authHeaders,
-  serverUrl,
-  theme,
-}: {
-  trackID: string;
-  size: number;
-  authHeaders: { Authorization: string } | undefined;
-  serverUrl: string | undefined;
-  theme: ReturnType<typeof useTheme>;
-}) {
-  const [error, setError] = useState(false);
-  const uri = serverUrl ? `${serverUrl}/api/v1/music/tracks/${trackID}/art` : undefined;
-  if (error || !uri) {
-    return (
-      <View
-        style={[
-          styles.trackArtPlaceholder,
-          { width: size, height: size, borderRadius: theme.radii.sm, backgroundColor: theme.colors.surfaceRaised },
-        ]}
-      >
-        <Ionicons name="musical-notes" size={size * 0.5} color={theme.colors.textMuted} />
-      </View>
-    );
-  }
-  return (
-    <Image
-      source={{ uri, headers: authHeaders }}
-      style={{ width: size, height: size, borderRadius: theme.radii.sm }}
-      contentFit="cover"
-      onError={() => setError(true)}
-    />
-  );
 }
 
 export default function MusicScreen() {
@@ -279,7 +216,7 @@ export default function MusicScreen() {
   const handleShufflePlay = useCallback(() => {
     const pool = tracks ?? [];
     if (pool.length === 0) return;
-    const shuffled = shuffleTracks(pool).map((t): QueueTrack => ({
+    const shuffled = shuffleArray(pool).map((t): QueueTrack => ({
       id: t.id,
       title: t.title,
       artist: t.artist,
@@ -497,7 +434,7 @@ export default function MusicScreen() {
     );
   }
 
-  const isLoading = tab === "tracks" ? tracksLoading : tab === "albums" ? albumsLoading : artistsLoading;
+  const isLoading = tab === "tracks" ? tracksLoading : tab === "albums" ? albumsLoading : tab === "artists" ? artistsLoading : false;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
@@ -530,21 +467,21 @@ export default function MusicScreen() {
 
       {/* Tab switcher */}
       <View style={[styles.tabBar, { marginHorizontal: theme.spacing.md, marginTop: theme.spacing.md, backgroundColor: theme.colors.surface, borderRadius: theme.radii.sm }]}>
-        {(["tracks", "albums", "artists"] as Tab[]).map((t) => (
+        {(["tracks", "albums", "artists", "playlists"] as Tab[]).map((tabKey) => (
           <TouchableOpacity
-            key={t}
+            key={tabKey}
             activeOpacity={0.8}
-            onPress={() => setTab(t)}
+            onPress={() => setTab(tabKey)}
             style={[
               styles.tabButton,
               {
-                backgroundColor: tab === t ? theme.colors.accent : "transparent",
+                backgroundColor: tab === tabKey ? theme.colors.accent : "transparent",
                 borderRadius: theme.radii.sm,
               },
             ]}
           >
-            <Text style={{ color: tab === t ? theme.colors.onAccent : theme.colors.textMuted, fontSize: 14, fontWeight: "600", textTransform: "capitalize" }}>
-              {t}
+            <Text style={{ color: tab === tabKey ? theme.colors.onAccent : theme.colors.textMuted, fontSize: 14, fontWeight: "600" }}>
+              {t(`media.music.${tabKey}`)}
             </Text>
           </TouchableOpacity>
         ))}
@@ -742,7 +679,7 @@ export default function MusicScreen() {
             </View>
           }
         />
-      ) : (
+      ) : tab === "artists" ? (
         <FlatList
           key="artists"
           data={artists ?? []}
@@ -757,6 +694,8 @@ export default function MusicScreen() {
             </View>
           }
         />
+      ) : (
+        <MusicPlaylistsTab libraryTracks={tracks ?? []} />
       )}
 
       {/* Queue modal */}
@@ -816,7 +755,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   trackIndex: { width: 28, alignItems: "center" },
-  trackArtPlaceholder: { justifyContent: "center", alignItems: "center" },
   trackInfo: { flex: 1, paddingHorizontal: 10 },
   trackTitle: { fontSize: 14, fontWeight: "500" },
   addBtn: { padding: 6, marginLeft: 8 },
