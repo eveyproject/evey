@@ -22,7 +22,7 @@ import {
   type V1TitleCandidate,
   type V1MediaRequestProto,
 } from "@evey/api";
-import { toast, useAuthStore } from "@evey/store";
+import { toast } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { Skeleton } from "../../../src/components/Skeleton";
 
@@ -82,32 +82,6 @@ export default function RequestsScreen() {
   const [scope, setScope] = useState<SearchScope>("video");
   const [query, setQuery] = useState("");
   const [submittedQuery, setSubmittedQuery] = useState("");
-
-  // Impersonation ("connect as" from admin/users.tsx) has no exit path on
-  // mobile otherwise - the admin stays stuck as the target user until logout.
-  const impersonatedBy = useAuthStore((s) => s.impersonatedBy);
-  const impersonatedUsername = useAuthStore((s) => s.impersonatedUsername);
-  const exitImpersonation = useAuthStore((s) => s.exitImpersonation);
-
-  function handleExitImpersonation() {
-    exitImpersonation();
-    queryClient.clear();
-  }
-
-  const impersonationBanner = impersonatedBy ? (
-    <View style={[styles.impersonationBanner, { backgroundColor: theme.colors.warning + "33" }]}>
-      <Text style={{ color: theme.colors.text, fontSize: 12, flex: 1 }} numberOfLines={1}>
-        {impersonatedUsername
-          ? t("admin.users.impersonationBanner", { name: impersonatedUsername })
-          : t("admin.users.impersonationBannerGeneric")}
-      </Text>
-      <TouchableOpacity onPress={handleExitImpersonation} accessibilityRole="button">
-        <Text style={{ color: theme.colors.warning, fontSize: 12, fontWeight: "700" }}>
-          {t("admin.users.exitImpersonation")}
-        </Text>
-      </TouchableOpacity>
-    </View>
-  ) : null;
 
   const { data: policy, isLoading: policyLoading } = useMediaRequestServiceGetRequestPolicy();
   const canRequest = policy?.canRequest === true;
@@ -173,7 +147,6 @@ export default function RequestsScreen() {
   if (policyLoading) {
     return (
       <View style={[styles.container, styles.center, { backgroundColor: theme.colors.bg }]}>
-        {impersonationBanner}
       </View>
     );
   }
@@ -181,7 +154,6 @@ export default function RequestsScreen() {
   if (!canRequest) {
     return (
       <View style={[styles.container, styles.center, { backgroundColor: theme.colors.bg }]}>
-        {impersonationBanner}
         <Ionicons name="mail-unread-outline" size={48} color={theme.colors.textMuted} />
         <Text style={[styles.emptyTitle, { color: theme.colors.text }]}>{t("requests.disabledTitle")}</Text>
         <Text style={[styles.emptyDesc, { color: theme.colors.textMuted }]}>{t("requests.disabledDesc")}</Text>
@@ -191,7 +163,6 @@ export default function RequestsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
-      {impersonationBanner}
       <Text style={[styles.header, { color: theme.colors.text, marginTop: theme.spacing.xl }]}>
         {t("requests.title")}
       </Text>
@@ -384,7 +355,6 @@ export default function RequestsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { justifyContent: "center", alignItems: "center", paddingHorizontal: 32 },
-  impersonationBanner: { flexDirection: "row", alignItems: "center", alignSelf: "stretch", gap: 12, paddingHorizontal: 16, paddingVertical: 8 },
   header: { fontSize: 28, fontWeight: "700", paddingHorizontal: 16 },
   emptyTitle: { fontSize: 16, fontWeight: "600", marginTop: 12, textAlign: "center" },
   emptyDesc: { fontSize: 13, marginTop: 4, textAlign: "center" },

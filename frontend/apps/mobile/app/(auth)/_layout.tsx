@@ -9,6 +9,7 @@ import { SideDrawer } from "../../src/components/SideDrawer";
 import { MiniPlayer } from "../../src/components/MiniPlayer";
 import { MusicMiniPlayer } from "../../src/components/MusicMiniPlayer";
 import { OfflineBanner } from "../../src/components/OfflineBanner";
+import { ImpersonationBanner } from "../../src/components/ImpersonationBanner";
 
 function isTokenExpired(token: string): boolean {
   try {
@@ -67,6 +68,7 @@ export default function AuthLayout() {
       <MiniPlayer />
       <MusicMiniPlayer />
       <OfflineBanner />
+      <ImpersonationBanner />
     </DrawerProvider>
   );
 }
