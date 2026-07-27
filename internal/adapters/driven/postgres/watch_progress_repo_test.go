@@ -209,6 +209,97 @@ func TestWatchProgressRepo_Upsert_UpdatesOnConflict(t *testing.T) {
 	assert.Equal(t, 2, got.PlayCount)
 }
 
+// TestWatchProgressRepo_Upsert_StaleWriteDoesNotRegressPosition proves a tick
+// that arrives late (e.g. a retried request, or a second device whose tick
+// was in flight before a fresher one landed) cannot roll the stored position
+// backwards. The guard is on last_played_at freshness, not on position value,
+// so it must NOT block a legitimate rewind (see the next test).
+func TestWatchProgressRepo_Upsert_StaleWriteDoesNotRegressPosition(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	userRepo := postgres.NewUserRepository(db)
+	profileRepo := postgres.NewProfileRepository(db)
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	wpRepo := postgres.NewWatchProgressRepository(db)
+	ctx := context.Background()
+
+	u := newTestUser("wpu4")
+	require.NoError(t, userRepo.Create(ctx, u))
+	p := newTestProfile("wpp4", u.ID)
+	require.NoError(t, profileRepo.Create(ctx, p))
+	lib := newTestLibrary("wplib4")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	item := newTestMediaItem("wpmi4", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, item))
+
+	now := time.Now().UTC().Truncate(time.Millisecond)
+	older := now.Add(-10 * time.Second)
+
+	// Fresher tick lands first: position 90s.
+	require.NoError(t, wpRepo.Upsert(ctx, &playback.WatchProgress{
+		ID: "wp4", ProfileID: p.ID, MediaItemID: item.ID,
+		Position: mustWPDuration(t, 90000), LastPlayedAt: now,
+	}))
+
+	// A stale tick (older last_played_at) arrives afterwards - e.g. a second
+	// device's tick that was in flight, or a client retry of a request the
+	// server already applied. It must NOT drag the position back to 20s.
+	require.NoError(t, wpRepo.Upsert(ctx, &playback.WatchProgress{
+		ID: "wp4", ProfileID: p.ID, MediaItemID: item.ID,
+		Position: mustWPDuration(t, 20000), LastPlayedAt: older,
+	}))
+
+	got, err := wpRepo.GetByProfileAndMedia(ctx, string(p.ID), string(item.ID))
+	require.NoError(t, err)
+	assert.Equal(t, int64(90000), got.Position.Milliseconds(), "stale write must not regress position")
+	assert.True(t, got.LastPlayedAt.Equal(now), "last_played_at must not move backwards either")
+}
+
+// TestWatchProgressRepo_Upsert_VoluntaryRewindIsApplied proves the guard is
+// about freshness, not position magnitude: a user who rewinds is followed by
+// a NEWER tick reporting a LOWER position, and that must be applied.
+func TestWatchProgressRepo_Upsert_VoluntaryRewindIsApplied(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	userRepo := postgres.NewUserRepository(db)
+	profileRepo := postgres.NewProfileRepository(db)
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	wpRepo := postgres.NewWatchProgressRepository(db)
+	ctx := context.Background()
+
+	u := newTestUser("wpu5")
+	require.NoError(t, userRepo.Create(ctx, u))
+	p := newTestProfile("wpp5", u.ID)
+	require.NoError(t, profileRepo.Create(ctx, p))
+	lib := newTestLibrary("wplib5")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	item := newTestMediaItem("wpmi5", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, item))
+
+	now := time.Now().UTC().Truncate(time.Millisecond)
+	later := now.Add(10 * time.Second)
+
+	require.NoError(t, wpRepo.Upsert(ctx, &playback.WatchProgress{
+		ID: "wp5", ProfileID: p.ID, MediaItemID: item.ID,
+		Position: mustWPDuration(t, 90000), LastPlayedAt: now,
+	}))
+
+	// User rewinds to 20s; the next tick reporting that is NEWER, so it must win.
+	require.NoError(t, wpRepo.Upsert(ctx, &playback.WatchProgress{
+		ID: "wp5", ProfileID: p.ID, MediaItemID: item.ID,
+		Position: mustWPDuration(t, 20000), LastPlayedAt: later,
+	}))
+
+	got, err := wpRepo.GetByProfileAndMedia(ctx, string(p.ID), string(item.ID))
+	require.NoError(t, err)
+	assert.Equal(t, int64(20000), got.Position.Milliseconds(), "a fresher tick reporting a rewind must be applied")
+	assert.True(t, got.LastPlayedAt.Equal(later))
+}
+
 func TestWatchProgressRepo_GetByProfile(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()

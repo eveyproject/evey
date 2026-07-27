@@ -233,6 +233,54 @@ func TestWatchProgressBuffer_ConcurrentEnqueueAndFlush(t *testing.T) {
 	}, 2*time.Second, 5*time.Millisecond)
 }
 
+// TestWatchProgressBuffer_Enqueue_IgnoresStaleTick proves that a late-arriving
+// tick with an OLDER LastPlayedAt (e.g. a second device whose write was in
+// flight, or a network reorder) cannot overwrite an already-buffered fresher
+// entry before it is even flushed to the repo. Without this, the buffer's
+// fold-by-key would silently drop the fresher position in memory - the DB's
+// own freshness guard never gets a chance to reject it because only one
+// entry per key ever reaches Upsert.
+func TestWatchProgressBuffer_Enqueue_IgnoresStaleTick(t *testing.T) {
+	t.Parallel()
+	repo := newCountingProgressRepo()
+	buf := appplayback.NewWatchProgressBuffer(repo, time.Hour)
+
+	now := time.Now()
+	older := now.Add(-10 * time.Second)
+
+	buf.Enqueue(&playback.WatchProgress{ProfileID: "p1", MediaItemID: "m1", Position: mustDurationMs(90000), LastPlayedAt: now})
+	buf.Enqueue(&playback.WatchProgress{ProfileID: "p1", MediaItemID: "m1", Position: mustDurationMs(20000), LastPlayedAt: older})
+
+	n := buf.Flush(context.Background())
+	assert.Equal(t, 1, n)
+
+	wp, err := repo.GetByProfileAndMedia(context.Background(), "p1", "m1")
+	require.NoError(t, err)
+	assert.Equal(t, int64(90000), wp.Position.Milliseconds(), "stale in-flight tick must not overwrite the fresher buffered one")
+}
+
+// TestWatchProgressBuffer_Enqueue_AppliesVoluntaryRewind mirrors the repo-level
+// test: a fresher tick reporting a lower position (the user rewound) must
+// still replace the buffered entry.
+func TestWatchProgressBuffer_Enqueue_AppliesVoluntaryRewind(t *testing.T) {
+	t.Parallel()
+	repo := newCountingProgressRepo()
+	buf := appplayback.NewWatchProgressBuffer(repo, time.Hour)
+
+	now := time.Now()
+	later := now.Add(10 * time.Second)
+
+	buf.Enqueue(&playback.WatchProgress{ProfileID: "p1", MediaItemID: "m1", Position: mustDurationMs(90000), LastPlayedAt: now})
+	buf.Enqueue(&playback.WatchProgress{ProfileID: "p1", MediaItemID: "m1", Position: mustDurationMs(20000), LastPlayedAt: later})
+
+	n := buf.Flush(context.Background())
+	assert.Equal(t, 1, n)
+
+	wp, err := repo.GetByProfileAndMedia(context.Background(), "p1", "m1")
+	require.NoError(t, err)
+	assert.Equal(t, int64(20000), wp.Position.Milliseconds(), "a fresher tick reporting a rewind must replace the buffered one")
+}
+
 // --- Integration: CommandService with buffer wired in ---
 
 func TestCommandService_ReportProgressBySession_BuffersWrite(t *testing.T) {

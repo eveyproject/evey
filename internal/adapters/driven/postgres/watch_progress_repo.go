@@ -58,17 +58,30 @@ func (r *WatchProgressRepository) Upsert(ctx context.Context, wp *playback.Watch
 	// PlayCount=0 (the common ReportProgress* path) never regress the
 	// counter. Callers wanting to set an absolute value still can - the
 	// incoming PlayCount wins when it's higher.
+	//
+	// position_ms/last_played_at are guarded on FRESHNESS, not on position
+	// value: a tick can only move the stored position if its last_played_at
+	// is at least as recent as what's already stored. This lets a user
+	// rewind on purpose (a fresher tick reporting a lower position still
+	// wins) while rejecting a stale write - a late-arriving retry, or a
+	// second device whose tick was in flight - that would otherwise drag an
+	// already-more-advanced position backwards. last_played_at itself only
+	// ever moves forward (GREATEST) so a late write can't even reset the
+	// freshness clock for the next comparison.
 	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`INSERT INTO watch_progress (id, profile_id, media_item_id, position_ms, completed, play_count, last_played_at)
 		 VALUES ($1,$2,$3,$4,$5,$6,$7)
 		 ON CONFLICT (profile_id, media_item_id) DO UPDATE SET
-		   position_ms = EXCLUDED.position_ms,
+		   position_ms = CASE
+		     WHEN EXCLUDED.last_played_at >= watch_progress.last_played_at THEN EXCLUDED.position_ms
+		     ELSE watch_progress.position_ms
+		   END,
 		   completed = (watch_progress.completed OR EXCLUDED.completed),
 		   play_count = CASE
 		     WHEN EXCLUDED.completed AND NOT watch_progress.completed THEN watch_progress.play_count + 1
 		     ELSE GREATEST(watch_progress.play_count, EXCLUDED.play_count)
 		   END,
-		   last_played_at = EXCLUDED.last_played_at`,
+		   last_played_at = GREATEST(watch_progress.last_played_at, EXCLUDED.last_played_at)`,
 		wp.ID, wp.ProfileID, wp.MediaItemID, wp.Position.Milliseconds(), wp.Completed, wp.PlayCount, wp.LastPlayedAt,
 	)
 	if err != nil {

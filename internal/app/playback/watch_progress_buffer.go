@@ -63,13 +63,24 @@ func NewWatchProgressBuffer(repo playback.ProgressCommandRepo, interval time.Dur
 
 // Enqueue records the latest progress for (profileID, mediaItemID), folding
 // any earlier pending entry. Returns immediately - no I/O on the hot path.
+//
+// The fold keeps whichever entry has the freshest LastPlayedAt, not simply
+// whichever Enqueue call happened to run last: only one entry per key ever
+// survives to be flushed, so a stale tick (a second device's in-flight write,
+// or a reordered retry) that lost the race to Enqueue must not silently
+// overwrite an already-buffered, more recent position - the DB's own
+// freshness guard never gets a chance to catch it since it only sees the
+// survivor. A fresher tick reporting a lower position (a voluntary rewind)
+// still replaces the buffered entry, same semantics as the DB guard.
 func (b *WatchProgressBuffer) Enqueue(wp *playback.WatchProgress) {
 	if wp == nil {
 		return
 	}
 	k := watchProgressKey{profileID: wp.ProfileID, mediaItemID: wp.MediaItemID}
 	b.mu.Lock()
-	b.pending[k] = wp
+	if existing, ok := b.pending[k]; !ok || !wp.LastPlayedAt.Before(existing.LastPlayedAt) {
+		b.pending[k] = wp
+	}
 	b.mu.Unlock()
 }
 
