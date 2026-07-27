@@ -159,7 +159,7 @@ func subtitleHandler(libSvc MediaStreamsGetter, baseURL string, libraryAccess Li
 		setCORSHeaders(w, r, baseURL)
 		cmd.Stdout = w
 		if err := cmd.Start(); err != nil {
-			slog.ErrorContext(ctx, "ffmpeg subtitle start", slog.Any("err", err))
+			logInternal(ctx, "ffmpeg subtitle start", err)
 			return
 		}
 		go func() {

@@ -713,8 +713,7 @@ func (h *playbackHandler) GetWatchHistory(ctx context.Context, req *eveyv1.GetWa
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		slog.ErrorContext(ctx, "get watch history", slog.Any("err", err))
-		return nil, status.Errorf(codes.Internal, "internal error")
+		return nil, internalError(ctx, "get watch history", err)
 	}
 	allowedIDs, _ := h.getAllowedLibraryIDs(ctx)
 	resp := &eveyv1.GetWatchHistoryResponse{Pagination: &eveyv1.PaginationResponse{}}
@@ -911,8 +910,7 @@ func (h *playbackHandler) GetNextUp(ctx context.Context, req *eveyv1.GetNextUpRe
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		slog.ErrorContext(ctx, "get media items for next up", slog.Any("err", err))
-		return nil, status.Errorf(codes.Internal, "internal error")
+		return nil, internalError(ctx, "get media items for next up", err)
 	}
 	allowedIDs, _ := h.getAllowedLibraryIDs(ctx)
 	// Parental gate: GetNextUp returns full media-item protos (title/overview/
