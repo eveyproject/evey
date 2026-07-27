@@ -143,7 +143,8 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 
 		SubtitleSvc: deps.media.subtitleSvc,
 
-		BackupSvc: deps.backupSvc,
+		BackupSvc:  deps.backupSvc,
+		WebhookSvc: deps.engagement.webhookSvc,
 
 		PushSubRepo:    deps.repos.pushSubRepo,
 		VAPIDPublicKey: resolveVAPIDPublicKey(deps.repos.serverCfgRepo, cfg),

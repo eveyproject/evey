@@ -44,7 +44,10 @@ func (r *fakeWebhookRepo) GetByID(_ context.Context, id string) (*webhookdomain.
 			return c, nil
 		}
 	}
-	return nil, nil
+	// Matches the contract every other Repository implementation (postgres,
+	// domain/webhook/fakes) honors: a missing id is shared.ErrNotFound, not a
+	// nil/nil that callers can't distinguish from "found, empty config".
+	return nil, shared.ErrNotFound
 }
 
 func (r *fakeWebhookRepo) List(_ context.Context) ([]*webhookdomain.Config, error) {
@@ -863,3 +866,76 @@ func TestHandleAny_DeliveryIDHeaderStableAcrossRetries(t *testing.T) {
 }
 
 func (f *fakeDeliveryRepo) Purge(_ context.Context, _ time.Time) (int64, error) { return 0, nil }
+
+func TestServiceTest_Success(t *testing.T) {
+	t.Parallel()
+	repo := &fakeWebhookRepo{}
+	deliveries := &fakeDeliveryRepo{}
+	bus := sharedfakes.NewFakeEventBus()
+	sender := &programmableSender{responder: func(_ int) (int, error) { return http.StatusOK, nil }}
+	svc := newTestServiceWithSender(repo, deliveries, bus, sender)
+
+	repo.mu.Lock()
+	repo.data = append(repo.data, &webhookdomain.Config{
+		ID: "wh-1", URL: "http://hook.example", Events: []string{"*"}, Enabled: true,
+	})
+	repo.mu.Unlock()
+
+	result, err := svc.Test(context.Background(), "wh-1")
+	if err != nil {
+		t.Fatalf("Test: %v", err)
+	}
+	if result.StatusCode != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", result.StatusCode)
+	}
+
+	// The test ping must go through the exact same audited path as a real
+	// event, marked distinctly so it doesn't get confused with one.
+	waitForDeliveries(t, deliveries, 1, 2*time.Second)
+	deliveries.mu.Lock()
+	d := deliveries.data[0]
+	deliveries.mu.Unlock()
+	if d.Event != "webhook.test" {
+		t.Fatalf("expected delivery Event %q, got %q", "webhook.test", d.Event)
+	}
+	if d.WebhookID != "wh-1" {
+		t.Fatalf("expected delivery WebhookID %q, got %q", "wh-1", d.WebhookID)
+	}
+}
+
+func TestServiceTest_NotFound(t *testing.T) {
+	t.Parallel()
+	repo := &fakeWebhookRepo{}
+	deliveries := &fakeDeliveryRepo{}
+	bus := sharedfakes.NewFakeEventBus()
+	svc, _ := newTestService(repo, deliveries, bus)
+
+	_, err := svc.Test(context.Background(), "missing")
+	if !errors.Is(err, shared.ErrNotFound) {
+		t.Fatalf("expected shared.ErrNotFound, got %v", err)
+	}
+}
+
+func TestServiceTest_DeliveryFailed(t *testing.T) {
+	t.Parallel()
+	repo := &fakeWebhookRepo{}
+	deliveries := &fakeDeliveryRepo{}
+	bus := sharedfakes.NewFakeEventBus()
+	sender := &programmableSender{responder: func(_ int) (int, error) { return http.StatusServiceUnavailable, nil }}
+	svc := newTestServiceWithSender(repo, deliveries, bus, sender)
+	svc.SetRetryDelays([]time.Duration{1 * time.Millisecond})
+
+	repo.mu.Lock()
+	repo.data = append(repo.data, &webhookdomain.Config{
+		ID: "wh-2", URL: "http://hook.example", Events: []string{"*"}, Enabled: true,
+	})
+	repo.mu.Unlock()
+
+	_, err := svc.Test(context.Background(), "wh-2")
+	if !errors.Is(err, webhook.ErrDeliveryFailed) {
+		t.Fatalf("expected ErrDeliveryFailed, got %v", err)
+	}
+	if err.Error() == webhook.ErrDeliveryFailed.Error() {
+		t.Fatal("expected the receiver's status to be included in the error message")
+	}
+}

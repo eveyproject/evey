@@ -30,6 +30,7 @@ import (
 	appsyncplay "github.com/evey-project/evey/internal/app/syncplay"
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
 	appuser "github.com/evey-project/evey/internal/app/user"
+	appwebhook "github.com/evey-project/evey/internal/app/webhook"
 	"github.com/evey-project/evey/internal/config"
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/notification"
@@ -213,6 +214,13 @@ type HTTPServer struct {
 
 	// Backup
 	BackupSvc *appbackup.Service
+
+	// WebhookSvc backs the admin "Test" ping (POST /api/v1/admin/webhooks/{id}/test).
+	// Every other webhook CRUD route goes through grpc-gateway from the proto
+	// definition - this is the one manual HTTP route in the webhook surface,
+	// since there is no RPC for it. Nil-safe: unset skips registration, so a
+	// server built without this wired keeps working, just without the route.
+	WebhookSvc *appwebhook.Service
 
 	// Push
 	PushSubRepo    notification.PushSubscriptionRepository
@@ -632,6 +640,11 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	mux.HandleFunc("POST /api/v1/syncplay/join-code", ratelimit.MiddlewareFunc(s.LoginRL, syncplayJoinByCodeHandler(s.SyncPlayHub, s.StreamTokenStore)))
 	registerDeviceRoutes(mux, s.DeviceRegistry, s.TokenGen)                            // Play On: WebSocket + REST
 	registerBackupRoutes(mux, s.BackupSvc, s.TokenGen, s.AdminHeavyRL, s.AdminWriteRL) // binary: download/restore
+	if s.WebhookSvc != nil {
+		// grpc-gateway serves Create/List/Update/Delete/ListDeliveries from the
+		// proto; "test" has no RPC, hence the manual route registered here.
+		registerWebhookRoutes(mux, s.WebhookSvc, s.TokenGen, s.AdminHeavyRL)
+	}
 	registerRemoteAccessRoutes(mux, s.Cfg, s.TokenGen, s.CfgStore, s.AdminWriteRL)
 	registerServerSettingsRoutes(mux, s.Cfg, s.CfgStore, s.TokenGen, s.TranscodingSvc, hwModeControllerOf(s.CalibrationSvc), s.LoginRL, s.GlobalRL, s.AdminWriteRL)
 	registerBackgroundTasksRoute(mux, s.TokenGen)

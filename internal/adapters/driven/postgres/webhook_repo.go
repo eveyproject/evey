@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"time"
 
@@ -67,6 +68,12 @@ func (r *WebhookRepository) GetByID(ctx context.Context, id string) (*webhook.Co
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
+		// Every other repo here maps a missing row onto the domain error; this
+		// one did not, so callers checking errors.Is(err, shared.ErrNotFound)
+		// fell through to their 500 branch instead of answering 404.
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, shared.ErrNotFound
+		}
 		return nil, err
 	}
 	if err := json.Unmarshal(headersJSON, &cfg.Headers); err != nil {

@@ -30,6 +30,12 @@ var defaultRetryDelays = []time.Duration{1 * time.Second, 5 * time.Second, 30 * 
 // than a generic Internal error. Distinguishable with errors.Is.
 var ErrInvalidConfig = errors.New("invalid webhook configuration")
 
+// ErrDeliveryFailed wraps a Test() attempt that never got a 2xx response (network
+// error, timeout, or non-2xx after every retry) so the transport can map it to a
+// client-visible error rather than a generic Internal one - an admin clicking
+// "Test" needs to know their webhook target is broken, not see a muted 500.
+var ErrDeliveryFailed = errors.New("webhook test delivery failed")
+
 type Service struct {
 	repo        webhook.Repository
 	deliveries  webhook.DeliveryRepository
@@ -94,7 +100,7 @@ func (s *Service) handleAny(ctx context.Context, ev shared.Event) {
 				}()
 				dCtx, cancel := context.WithTimeout(ctx, deliveryTimeout)
 				defer cancel()
-				s.deliver(dCtx, c, ev.EventName(), ev)
+				_, _ = s.deliver(dCtx, c, ev.EventName(), ev)
 			}(cfg)
 		default:
 			s.log.Warn("webhook: delivery queue full, dropping", slog.String("webhook", cfg.ID))
@@ -102,10 +108,14 @@ func (s *Service) handleAny(ctx context.Context, ev shared.Event) {
 	}
 }
 
-func (s *Service) deliver(ctx context.Context, cfg *webhook.Config, eventName string, payload any) {
+// deliver sends one event to cfg's URL (signing, retries, timeout) and audits
+// the attempt. It returns the outcome (lastErr empty on a 2xx, statusCode the
+// receiver's response) so callers like Test - which need to report success or
+// failure back to an admin - don't have to duplicate the send/retry logic.
+func (s *Service) deliver(ctx context.Context, cfg *webhook.Config, eventName string, payload any) (lastErr string, statusCode int) {
 	if err := s.validateURL(cfg.URL); err != nil {
 		s.log.Warn("webhook URL blocked", slog.String("webhook", cfg.ID), slog.Any("err", err))
-		return
+		return err.Error(), 0
 	}
 
 	body, err := json.Marshal(map[string]any{
@@ -114,7 +124,7 @@ func (s *Service) deliver(ctx context.Context, cfg *webhook.Config, eventName st
 	})
 	if err != nil {
 		s.log.Warn("webhook: marshal payload failed", slog.String("webhookID", cfg.ID), slog.Any("err", err))
-		return
+		return err.Error(), 0
 	}
 
 	// The delivery id is minted BEFORE sending and rides every attempt as the
@@ -124,7 +134,7 @@ func (s *Service) deliver(ctx context.Context, cfg *webhook.Config, eventName st
 	// id was stored server-side only - never sent - leaving consumers no way
 	// to tell a retry from a genuinely new event.
 	deliveryID := uuid.New().String()
-	lastErr, statusCode := s.attemptDeliver(ctx, cfg, deliveryID, body)
+	lastErr, statusCode = s.attemptDeliver(ctx, cfg, deliveryID, body)
 
 	// Persist the audit on a context detached from the delivery deadline. The
 	// retry budget (1+5+30s) can exceed deliveryTimeout (30s), so when retries
@@ -143,6 +153,7 @@ func (s *Service) deliver(ctx context.Context, cfg *webhook.Config, eventName st
 	}); err != nil {
 		s.log.Warn("store webhook delivery failed", slog.String("webhookID", cfg.ID), slog.Any("err", err))
 	}
+	return lastErr, statusCode
 }
 
 func (s *Service) attemptDeliver(ctx context.Context, cfg *webhook.Config, deliveryID string, body []byte) (string, int) {
@@ -229,4 +240,39 @@ func (s *Service) ListDeliveries(ctx context.Context, webhookID string, limit in
 	ctx, span := tracing.StartSpan(ctx, "app.webhook.ListDeliveries")
 	defer span.End()
 	return s.deliveries.ListByWebhook(ctx, webhookID, limit)
+}
+
+// testEventName marks a delivery as an operator-triggered test rather than a
+// real domain event, so it is distinguishable in the delivery audit log.
+const testEventName = "webhook.test"
+
+// TestResult is the outcome of a manual "Test" ping, returned so the caller
+// (the admin HTTP handler) can report both success and failure without
+// reaching into delivery internals.
+type TestResult struct {
+	StatusCode int
+	DurationMS int64
+}
+
+// Test sends a synthetic event through the exact same delivery path as real
+// events (HMAC signature, headers, retries, timeout), so a successful test
+// proves the configured URL is actually reachable - not just well-formed. The
+// attempt is recorded in the delivery audit log like any other delivery.
+func (s *Service) Test(ctx context.Context, id string) (*TestResult, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.webhook.Test")
+	defer span.End()
+
+	cfg, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	dCtx, cancel := context.WithTimeout(ctx, deliveryTimeout)
+	defer cancel()
+	start := time.Now()
+	lastErr, statusCode := s.deliver(dCtx, cfg, testEventName, map[string]string{"message": "This is a test event from Evey"})
+	if lastErr != "" {
+		return nil, fmt.Errorf("%w: %s", ErrDeliveryFailed, lastErr)
+	}
+	return &TestResult{StatusCode: statusCode, DurationMS: time.Since(start).Milliseconds()}, nil
 }
