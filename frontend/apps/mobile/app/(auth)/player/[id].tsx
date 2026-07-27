@@ -1023,7 +1023,7 @@ export default function PlayerScreen() {
             <Pressable
               key={ep.id}
               style={[styles.episodeRow, { borderBottomColor: theme.colors.border }]}
-              onPress={() => { handleNavigateEpisode(ep.id); setActiveSheet(null); }}
+              onPress={() => { if (ep.id) handleNavigateEpisode(ep.id); setActiveSheet(null); }}
               accessible={true}
               accessibilityLabel={ep.title || `E${ep.indexNumber ?? "?"}`}
               accessibilityRole="button"

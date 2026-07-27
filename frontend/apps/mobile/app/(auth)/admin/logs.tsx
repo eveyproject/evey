@@ -129,7 +129,7 @@ const LogRow = memo(function LogRow({
 }: {
   entry: LogEntry;
   theme: ReturnType<typeof useTheme>;
-  t: (k: string, d?: string | Record<string, unknown>) => string;
+  t: ReturnType<typeof useTranslation>["t"];
 }) {
   const [open, setOpen] = useState(false);
 
