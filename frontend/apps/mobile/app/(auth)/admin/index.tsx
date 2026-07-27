@@ -20,6 +20,7 @@ import {
 import { toast } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { usePluginSlotEntries } from "../../../src/features/plugins/PluginSlot";
+import { formatBytes } from "../../../src/lib/formatBytes";
 
 function StatCard({ label, value, icon, theme }: { label: string; value: string | number; icon: string; theme: ReturnType<typeof useTheme> }) {
   return (
@@ -52,14 +53,6 @@ function formatBps(bps: string | number | undefined): string {
   if (n >= 1e6) return `${(n / 1e6).toFixed(1)} Mbps`;
   if (n >= 1e3) return `${(n / 1e3).toFixed(0)} kbps`;
   return `${n} bps`;
-}
-
-function formatBytes(bytes: string | number | undefined): string {
-  const n = typeof bytes === "string" ? parseInt(bytes, 10) : (bytes ?? 0);
-  if (n > 1e12) return `${(n / 1e12).toFixed(2)} TB`;
-  if (n > 1e9) return `${(n / 1e9).toFixed(1)} GB`;
-  if (n > 1e6) return `${(n / 1e6).toFixed(1)} MB`;
-  return `${n} B`;
 }
 
 function getUsageColor(pct: number, theme: ReturnType<typeof useTheme>): string {
@@ -478,7 +471,7 @@ export default function AdminDashboard() {
 
   const pluginEntries = usePluginSlotEntries("admin.nav");
 
-  const { data: dashboard, refetch: refetchDash } = useAdminSystemServiceGetDashboard({ query: { refetchInterval: 10_000 } });
+  const { data: dashboard, refetch: refetchDash } = useAdminSystemServiceGetDashboard({ query: { refetchInterval: 10_000, refetchIntervalInBackground: false } });
   const { data: sysInfo, refetch: refetchSys } = useAdminSystemServiceGetSystemInfo();
   const { data: moviesData, refetch: refetchMovies } = useLibraryServiceListMediaItems({
     type: "MEDIA_ITEM_TYPE_MOVIE" as never,

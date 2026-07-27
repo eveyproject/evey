@@ -46,6 +46,7 @@ function useSessions() {
     queryFn: () => eveyFetch<{ sessions: ActiveSession[] }>({ url: "/api/v1/admin/sessions/active", method: "GET" }),
     select: (d) => d.sessions ?? [],
     refetchInterval: REFRESH_INTERVAL,
+    refetchIntervalInBackground: false,
   });
 }
 

@@ -9,6 +9,7 @@ import {
   useAdminSystemServiceGetSystemInfo,
 } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
+import { formatBytes } from "../../../src/lib/formatBytes";
 
 const HISTORY_SIZE = 30;
 
@@ -22,14 +23,6 @@ function formatUptime(seconds?: string): string {
   if (h > 0) return `${h}h ${m}m`;
   if (m > 0) return `${m}m ${s % 60}s`;
   return `${s}s`;
-}
-
-function formatBytes(bytes?: string): string {
-  const n = parseInt(bytes ?? "0");
-  if (n > 1e12) return `${(n / 1e12).toFixed(2)} TB`;
-  if (n > 1e9) return `${(n / 1e9).toFixed(1)} GB`;
-  if (n > 1e6) return `${(n / 1e6).toFixed(1)} MB`;
-  return `${n} B`;
 }
 
 function formatBps(bps: number): string {

@@ -12,6 +12,7 @@ import { useTheme } from "../../providers/ThemeProvider";
 import { FONT_SIZE } from "@evey/theme";
 import { BottomSheet } from "../../components/BottomSheet";
 import { supportedLanguages } from "../../i18n";
+import { regionOptions } from "../../lib/regionOptions";
 
 interface Props {
   open: boolean;
@@ -32,33 +33,6 @@ type UpdateProfileData = {
 };
 
 const MAX_AGE_OPTIONS = ["", "0", "6", "7", "10", "12", "13", "14", "15", "16", "17", "18"];
-
-// Fallback used when Intl.supportedValuesOf("region") isn't available on the
-// JS engine (older Hermes/JSC): a reasonably broad set of common markets,
-// not the full ISO-3166 list.
-const FALLBACK_REGIONS = [
-  "US", "GB", "FR", "DE", "ES", "IT", "PT", "NL", "BE", "CH",
-  "AT", "SE", "NO", "DK", "FI", "PL", "IE", "GR", "CZ", "HU",
-  "RO", "BG", "HR", "RU", "UA", "TR", "IL", "SA", "AE", "EG",
-  "ZA", "NG", "KE", "IN", "PK", "BD", "CN", "JP", "KR", "TW",
-  "HK", "SG", "MY", "TH", "VN", "PH", "ID", "AU", "NZ", "CA",
-  "MX", "BR", "AR", "CL", "CO", "PE",
-];
-
-function regionOptions(locale: string): { code: string; label: string }[] {
-  try {
-    const sv = (Intl as unknown as { supportedValuesOf?: (k: string) => string[] }).supportedValuesOf;
-    const dynamic: string[] = typeof sv === "function" ? sv("region") : [];
-    const codes = dynamic.length > 0 ? dynamic : FALLBACK_REGIONS;
-    const names = new Intl.DisplayNames([locale], { type: "region" });
-    return codes
-      .filter((c) => /^[A-Z]{2}$/.test(c))
-      .map((c) => ({ code: c, label: names.of(c) ?? c }))
-      .sort((a, b) => a.label.localeCompare(b.label, locale));
-  } catch {
-    return FALLBACK_REGIONS.map((c) => ({ code: c, label: c }));
-  }
-}
 
 export function EditProfileDialog({ open, onClose, profile, userId, hasKidsProfile }: Props) {
   const theme = useTheme();

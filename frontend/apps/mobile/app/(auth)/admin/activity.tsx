@@ -32,16 +32,9 @@ interface AuditEntry {
   createdAt?: string;
 }
 import { useTheme } from "../../../src/providers/ThemeProvider";
+import { formatBytes } from "../../../src/lib/formatBytes";
 
 type Tab = "play" | "audit" | "stats";
-
-function formatBytes(bytes?: string): string {
-  const n = parseInt(bytes ?? "0");
-  if (n > 1e12) return `${(n / 1e12).toFixed(1)} TB`;
-  if (n > 1e9) return `${(n / 1e9).toFixed(1)} GB`;
-  if (n > 1e6) return `${(n / 1e6).toFixed(1)} MB`;
-  return `${n} B`;
-}
 
 function formatMs(ms?: string): string {
   const n = parseInt(ms ?? "0");
@@ -203,6 +196,7 @@ function BackgroundTasksCard() {
     queryKey: ["/api/v1/admin/background-tasks"],
     queryFn: () => eveyFetch<BgTask[]>({ url: "/api/v1/admin/background-tasks", method: "GET" }),
     refetchInterval: 5000,
+    refetchIntervalInBackground: false,
   });
   if (!data || data.length === 0) return null;
 
