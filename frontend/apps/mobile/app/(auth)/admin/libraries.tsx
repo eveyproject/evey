@@ -103,7 +103,7 @@ function useSchedule(libraryId: string) {
 }
 
 function formatScheduleDate(iso?: string | null): string {
-  if (!iso) return "—";
+  if (!iso) return "-";
   try {
     return new Date(iso).toLocaleString();
   } catch {
@@ -348,7 +348,7 @@ function LibraryRow({
           {" · "}
           {totalItems != null
             ? t("admin.libraries.items", { count: totalItems, defaultValue: "{{count}} items" })
-            : "—"}
+            : "-"}
           {" · "}
           {t("admin.libraries.lastScan", "Last scan")}: {lastScan}
         </Text>
