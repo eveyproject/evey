@@ -5,8 +5,9 @@ import {
   completeHandler,
   directories,
 } from "@kesha-antonov/react-native-background-downloader";
-import { eveyFetch } from "@evey/api";
+import { eveyFetch, libraryServiceGetMediaItem } from "@evey/api";
 import { getServerUrl } from "./server-config";
+import { canPlayOffline, OfflineAccessError, type OfflineProfileInfo } from "./offlineAccess";
 
 // Persistent download index: same path as before so existing offline files
 // remain visible after the background-downloader migration. The lib writes
@@ -21,6 +22,17 @@ export interface DownloadedMedia {
   filePath: string;
   fileSize: number;
   downloadedAt: string;
+  /**
+   * Authorization context captured at download time - who downloaded it and
+   * how restricted that content classification was. Absent on entries that
+   * predate this field (see offlineAccess.ts's canPlayOffline, which never
+   * retroactively blocks those on that basis alone).
+   */
+  downloadedByProfileId?: string;
+  downloadedByIsKids?: boolean;
+  downloadedByMaxAge?: number;
+  officialRating?: string;
+  certificationsByCountry?: Record<string, string>;
 }
 
 const INDEX_FILE = `${DOWNLOAD_DIR}index.json`;
@@ -170,7 +182,24 @@ export function getInFlightDownloads(): InFlightDownload[] {
   }));
 }
 
-async function persistDownloaded(mediaItemId: string, title: string, destPath: string, totalBytes: number) {
+// Authorization context captured at the moment a download starts - see
+// offlineAccess.ts's canPlayOffline, which consumes these fields later to
+// decide whether a DIFFERENT (more restricted) profile may replay this file.
+interface DownloadAuthContext {
+  downloadedByProfileId?: string;
+  downloadedByIsKids?: boolean;
+  downloadedByMaxAge?: number;
+  officialRating?: string;
+  certificationsByCountry?: Record<string, string>;
+}
+
+async function persistDownloaded(
+  mediaItemId: string,
+  title: string,
+  destPath: string,
+  totalBytes: number,
+  authContext?: DownloadAuthContext,
+) {
   const index = await readIndex();
   // Replace any existing entry with the same id so retry-after-failure keeps
   // a single row instead of accumulating duplicates.
@@ -181,6 +210,7 @@ async function persistDownloaded(mediaItemId: string, title: string, destPath: s
     filePath: destPath,
     fileSize: totalBytes,
     downloadedAt: new Date().toISOString(),
+    ...authContext,
   });
   await writeIndex(without);
 }
@@ -191,7 +221,7 @@ async function persistDownloaded(mediaItemId: string, title: string, destPath: s
  */
 const DISK_HEADROOM_BYTES = 200 * 1024 * 1024;
 
-export interface StartDownloadOptions {
+export interface StartDownloadOptions extends DownloadAuthContext {
   /** Defaults to "video" - pass "audio" for music tracks. */
   kind?: "video" | "audio";
   /** Container name or mime type of the source file, e.g. item.containerFormat. */
@@ -242,15 +272,24 @@ export async function startDownload(
   inFlight.set(mediaItemId, { totalBytes: 0, downloadedBytes: 0 });
   inFlightTitles.set(mediaItemId, title);
 
+  const authContext: DownloadAuthContext = {
+    downloadedByProfileId: opts?.downloadedByProfileId,
+    downloadedByIsKids: opts?.downloadedByIsKids,
+    downloadedByMaxAge: opts?.downloadedByMaxAge,
+    officialRating: opts?.officialRating,
+    certificationsByCountry: opts?.certificationsByCountry,
+  };
+
   return new Promise<string>((resolve, reject) => {
     const task = createDownloadTask({
       id: mediaItemId,
       url: streamUrl,
       destination: destPath,
-      // ext rides along in the native module's own persisted metadata (same
-      // round-trip title already relies on) so rehydrateBackgroundDownloads
-      // can rebuild the exact same destPath after an app restart.
-      metadata: { title, ext },
+      // ext + authContext ride along in the native module's own persisted
+      // metadata (same round-trip title already relies on) so
+      // rehydrateBackgroundDownloads can rebuild the exact same destPath and
+      // offline-access record after an app restart.
+      metadata: { title, ext, authContext },
     });
 
     task
@@ -292,7 +331,7 @@ export async function startDownload(
         const state = inFlight.get(mediaItemId);
         const totalBytes = state?.totalBytes ?? 0;
         try {
-          await persistDownloaded(mediaItemId, title, destPath, totalBytes);
+          await persistDownloaded(mediaItemId, title, destPath, totalBytes, authContext);
         } catch (err) {
           if (process.env.NODE_ENV !== "production") console.warn("persist download index", err);
         }
@@ -337,11 +376,14 @@ export async function rehydrateBackgroundDownloads(): Promise<void> {
   }
   for (const task of tasks) {
     const mediaItemId = task.id;
-    const meta = (task.metadata as { title?: string; ext?: string }) ?? {};
+    const meta = (task.metadata as { title?: string; ext?: string; authContext?: DownloadAuthContext }) ?? {};
     const title = meta.title ?? mediaItemId;
     // ext falls back to "mp4" for downloads started before this field existed -
     // those were always .mp4, so the fallback reconstructs the exact same path.
     const destPath = destPathFor(mediaItemId, meta.ext ?? "mp4");
+    // authContext is absent for downloads started before this field existed -
+    // persistDownloaded then simply omits it (legacy entry, see offlineAccess.ts).
+    const authContext = meta.authContext;
     inFlight.set(mediaItemId, { totalBytes: 0, downloadedBytes: 0 });
     inFlightTitles.set(mediaItemId, title);
     task
@@ -367,7 +409,7 @@ export async function rehydrateBackgroundDownloads(): Promise<void> {
           } catch { /* silent */ }
         }
         try {
-          await persistDownloaded(mediaItemId, title, destPath, totalBytes);
+          await persistDownloaded(mediaItemId, title, destPath, totalBytes, authContext);
         } catch { /* silent */ }
         inFlight.delete(mediaItemId);
         inFlightTitles.delete(mediaItemId);
@@ -393,10 +435,7 @@ export async function deleteDownload(mediaItemId: string): Promise<void> {
   await writeIndex(index.filter((i) => i.mediaItemId !== mediaItemId));
 }
 
-export async function getDownloadPath(mediaItemId: string): Promise<string | null> {
-  const index = await readIndex();
-  const item = index.find((i) => i.mediaItemId === mediaItemId);
-  if (!item) return null;
+async function resolveExistingPath(item: DownloadedMedia, mediaItemId: string): Promise<string | null> {
   const info = await FileSystem.getInfoAsync(item.filePath);
   if (info.exists) return item.filePath;
   // The index stores the exact path used at download time, so this normally
@@ -409,6 +448,76 @@ export async function getDownloadPath(mediaItemId: string): Promise<string | nul
     if (candidateInfo.exists) return candidate;
   }
   return null;
+}
+
+// Developer-actionable messages for OfflineAccessError - not shown to end
+// users verbatim; the UI maps `.reason` to a translated string instead (see
+// downloads.tsx).
+function offlineDenialMessage(reason: OfflineAccessError["reason"]): string {
+  switch (reason) {
+    case "expired":
+      return "Download is past its offline TTL and must be re-downloaded.";
+    case "age-gated":
+      return "Download exceeds the active profile's parental age cap.";
+    case "more-restricted-profile":
+      return "Download belongs to a less restricted profile than the one active now.";
+    case "unknown-profile":
+      return "No active profile is available to authorize this download.";
+    case "revoked":
+      return "Server revoked access to this title (library access or parental settings changed).";
+  }
+}
+
+export interface GetDownloadPathOptions {
+  /** The profile currently active on the device. Omitted = legacy behavior
+   * (existence check only, no offline-access gate) for call sites not yet
+   * migrated to pass it. */
+  activeProfile?: OfflineProfileInfo;
+  /** Injectable clock for tests; defaults to Date.now(). */
+  now?: number;
+}
+
+/**
+ * Resolves the on-disk path for a downloaded media item, or throws
+ * OfflineAccessError when the ACTIVE profile is not authorized to replay it
+ * (expired, age-gated, or downloaded by a less restricted profile - see
+ * offlineAccess.ts). When online, also revalidates against the server (an
+ * existing generated call, not a new endpoint) since library access or
+ * parental settings may have been revoked since the download; only an
+ * explicit 401/403/404 is treated as revocation so a genuinely offline
+ * device (e.g. on a flight) keeps playing from the local decision alone.
+ */
+export async function getDownloadPath(
+  mediaItemId: string,
+  options?: GetDownloadPathOptions,
+): Promise<string | null> {
+  const index = await readIndex();
+  const item = index.find((i) => i.mediaItemId === mediaItemId);
+  if (!item) return null;
+
+  const filePath = await resolveExistingPath(item, mediaItemId);
+  if (!filePath) return null;
+
+  if (options?.activeProfile) {
+    const decision = canPlayOffline(item, options.activeProfile, options.now ?? Date.now());
+    if (!decision.allowed) {
+      throw new OfflineAccessError(decision.reason!, offlineDenialMessage(decision.reason!));
+    }
+
+    try {
+      await libraryServiceGetMediaItem(mediaItemId);
+    } catch (err) {
+      const status = (err as { httpStatus?: number } | undefined)?.httpStatus;
+      if (status === 401 || status === 403 || status === 404) {
+        throw new OfflineAccessError("revoked", offlineDenialMessage("revoked"));
+      }
+      // Any other failure (offline, timeout, 5xx) - fall back to the local
+      // decision computed above; don't let a flaky/absent network block
+      // legitimate offline playback.
+    }
+  }
+
+  return filePath;
 }
 
 export async function getTotalDownloadSize(): Promise<number> {

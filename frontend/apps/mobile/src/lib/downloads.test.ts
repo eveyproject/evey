@@ -57,6 +57,10 @@ vi.mock("@kesha-antonov/react-native-background-downloader", () => ({
 
 vi.mock("@evey/api", () => ({
   eveyFetch: vi.fn().mockResolvedValue({ token: "stream-tok-123", mediaId: "m3" }),
+  // Reused (not a new endpoint) by getDownloadPath's online revalidation - it
+  // already 404s/403s server-side when library access or the parental gate
+  // no longer authorizes this profile for the item.
+  libraryServiceGetMediaItem: vi.fn().mockResolvedValue({ id: "m1" }),
 }));
 
 vi.mock("./server-config", () => ({
@@ -66,8 +70,9 @@ vi.mock("./server-config", () => ({
 import * as FileSystem from "expo-file-system";
 const fsMock = FileSystem as unknown as Record<string, ReturnType<typeof vi.fn>>;
 
-import { eveyFetch } from "@evey/api";
+import { eveyFetch, libraryServiceGetMediaItem } from "@evey/api";
 const eveyFetchMock = eveyFetch as ReturnType<typeof vi.fn>;
+const getMediaItemMock = libraryServiceGetMediaItem as ReturnType<typeof vi.fn>;
 
 import {
   createDownloadTask,
@@ -310,6 +315,65 @@ describe("getDownloadPath", () => {
   it("returns null if not in index", async () => {
     const path = await getDownloadPath("unknown");
     expect(path).toBeNull();
+  });
+
+  it("does not gate when no activeProfile is passed (legacy call sites not yet migrated)", async () => {
+    fsMock.getInfoAsync.mockResolvedValue({ exists: true });
+    const path = await getDownloadPath("m1");
+    expect(path).toBe("/data/user/0/app/files/downloads/m1.mp4");
+    expect(getMediaItemMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("getDownloadPath offline-access gate + online revalidation", () => {
+  const restrictedIndex = [
+    {
+      mediaItemId: "m1",
+      title: "Movie 1",
+      filePath: "/data/user/0/app/files/downloads/m1.mp4",
+      fileSize: 1000,
+      downloadedAt: "2026-07-01T00:00:00.000Z",
+      downloadedByProfileId: "adult-1",
+      downloadedByIsKids: false,
+    },
+  ];
+
+  beforeEach(() => {
+    fsMock.readAsStringAsync.mockResolvedValue(JSON.stringify(restrictedIndex));
+    fsMock.getInfoAsync.mockResolvedValue({ exists: true });
+  });
+
+  it("throws OfflineAccessError when the active profile is more restricted than the downloader", async () => {
+    await expect(
+      getDownloadPath("m1", { activeProfile: { id: "kid-1", isKids: true, maxAge: 10 } }),
+    ).rejects.toMatchObject({ name: "OfflineAccessError", reason: "more-restricted-profile" });
+  });
+
+  it("throws OfflineAccessError when the entry is expired", async () => {
+    const farFuture = Date.parse("2026-07-01T00:00:00.000Z") + 40 * 24 * 60 * 60 * 1000;
+    await expect(
+      getDownloadPath("m1", { activeProfile: { id: "adult-1" }, now: farFuture }),
+    ).rejects.toMatchObject({ name: "OfflineAccessError", reason: "expired" });
+  });
+
+  it("returns the path when the active profile is authorized and the server confirms access", async () => {
+    getMediaItemMock.mockResolvedValueOnce({ id: "m1" });
+    const path = await getDownloadPath("m1", { activeProfile: { id: "adult-1" } });
+    expect(path).toBe("/data/user/0/app/files/downloads/m1.mp4");
+    expect(getMediaItemMock).toHaveBeenCalledWith("m1");
+  });
+
+  it("throws OfflineAccessError('revoked') when the server explicitly refuses access (403/404)", async () => {
+    getMediaItemMock.mockRejectedValueOnce(Object.assign(new Error("Forbidden"), { httpStatus: 403 }));
+    await expect(
+      getDownloadPath("m1", { activeProfile: { id: "adult-1" } }),
+    ).rejects.toMatchObject({ name: "OfflineAccessError", reason: "revoked" });
+  });
+
+  it("falls back to the local decision when revalidation merely fails to reach the server (offline)", async () => {
+    getMediaItemMock.mockRejectedValueOnce(new Error("network request failed"));
+    const path = await getDownloadPath("m1", { activeProfile: { id: "adult-1" } });
+    expect(path).toBe("/data/user/0/app/files/downloads/m1.mp4");
   });
 });
 

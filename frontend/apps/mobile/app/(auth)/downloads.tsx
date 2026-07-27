@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { View, Text, FlatList, Pressable, Alert, StyleSheet, ActivityIndicator } from "react-native";
 import { router, Stack, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
+import { useAuthStore } from "@evey/store";
+import { useUserServiceGetCurrentUser, useUserServiceListProfiles } from "@evey/api";
 import { useTheme } from "../../src/providers/ThemeProvider";
 import {
   getDownloads,
@@ -13,6 +15,7 @@ import {
   getInFlightDownloads,
   type DownloadedMedia,
 } from "../../src/lib/downloads";
+import { canPlayOffline, type OfflineDenialReason, type OfflineProfileInfo } from "../../src/lib/offlineAccess";
 
 // A download still running is invisible in getDownloads() - an item only
 // enters that persisted index once it completes - so this screen merges in
@@ -20,6 +23,22 @@ import {
 // action) until they finish and get picked up by the next refresh().
 interface DownloadListItem extends DownloadedMedia {
   inProgress?: boolean;
+}
+
+// Translated label for a denial reason - deletion always stays available
+// regardless of the reason (point 5 of the offline-access fix: the user must
+// be able to reclaim the disk space of a download they can no longer play).
+function denialLabel(t: ReturnType<typeof useTranslation>["t"], reason: OfflineDenialReason): string {
+  switch (reason) {
+    case "expired":
+      return t("downloads.badge.expired", "Expired - re-download to watch offline again");
+    case "age-gated":
+      return t("downloads.badge.ageGated", "Not available for this profile");
+    case "more-restricted-profile":
+      return t("downloads.badge.moreRestricted", "Downloaded by another profile");
+    case "unknown-profile":
+      return t("downloads.badge.unavailable", "Unavailable offline");
+  }
 }
 
 function formatSize(bytes: number): string {
@@ -37,9 +56,10 @@ interface DownloadRowProps {
   item: DownloadListItem;
   onDelete: (mediaItemId: string) => void;
   deleting: boolean;
+  activeProfile: OfflineProfileInfo;
 }
 
-function DownloadRow({ item, onDelete, deleting }: DownloadRowProps) {
+function DownloadRow({ item, onDelete, deleting, activeProfile }: DownloadRowProps) {
   const theme = useTheme();
   const { t } = useTranslation();
   // Live progress for a download that's still running: either a placeholder
@@ -52,9 +72,15 @@ function DownloadRow({ item, onDelete, deleting }: DownloadRowProps) {
     return subscribeToProgress(item.mediaItemId, setProgress);
   }, [item.mediaItemId]);
 
+  // An in-flight placeholder has no downloadedAt/rating yet to judge - only
+  // gate completed entries. Deletion (below) always stays available so the
+  // user can reclaim disk space for something they can no longer play.
+  const decision = item.inProgress ? { allowed: true as const } : canPlayOffline(item, activeProfile, Date.now());
+  const blocked = !decision.allowed;
+
   return (
     <Pressable
-      onPress={() => { if (!item.inProgress) router.push(`/media/${item.mediaItemId}`); }}
+      onPress={() => { if (!item.inProgress && !blocked) router.push(`/media/${item.mediaItemId}`); }}
       style={{
         flexDirection: "row",
         alignItems: "center",
@@ -63,6 +89,7 @@ function DownloadRow({ item, onDelete, deleting }: DownloadRowProps) {
         borderBottomWidth: StyleSheet.hairlineWidth,
         borderBottomColor: theme.colors.border,
         backgroundColor: theme.colors.surface,
+        opacity: blocked ? 0.5 : 1,
       }}
       accessible
       accessibilityLabel={item.title}
@@ -97,6 +124,11 @@ function DownloadRow({ item, onDelete, deleting }: DownloadRowProps) {
             {progress != null && Number.isFinite(progress) && (
               <Text style={{ color: theme.colors.accent, fontSize: 11 }}>
                 {t("downloads.inProgress", "{{percent}}%", { percent: Math.round(progress * 100) })}
+              </Text>
+            )}
+            {blocked && decision.reason && (
+              <Text style={{ color: theme.colors.warning, fontSize: 11, fontWeight: "600" }}>
+                {denialLabel(t, decision.reason)}
               </Text>
             )}
           </>
@@ -134,6 +166,17 @@ export default function DownloadsScreen() {
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [hasInFlight, setHasInFlight] = useState(false);
+
+  // Same shape used by canPlayOffline (see offlineAccess.ts) - built here from
+  // the active profile so each row can be marked as expired/not-playable for
+  // this profile without changing the persisted download itself.
+  const profileId = useAuthStore((s) => s.profileId);
+  const { data: user } = useUserServiceGetCurrentUser();
+  const { data: profilesResp } = useUserServiceListProfiles(user?.id ?? "", { query: { enabled: !!user?.id } } as never);
+  const activeProfile: OfflineProfileInfo = useMemo(() => {
+    const profile = profilesResp?.profiles?.find((p) => p.id === profileId);
+    return { id: profileId, isKids: profile?.isKids, maxAge: profile?.maxAge, region: profile?.region };
+  }, [profileId, profilesResp]);
 
   const refresh = useCallback(async () => {
     const [downloads, total] = await Promise.all([getDownloads(), getTotalDownloadSize()]);
@@ -201,9 +244,14 @@ export default function DownloadsScreen() {
 
   const renderItem = useCallback(
     ({ item }: { item: DownloadListItem }) => (
-      <DownloadRow item={item} onDelete={handleDelete} deleting={deletingId === item.mediaItemId} />
+      <DownloadRow
+        item={item}
+        onDelete={handleDelete}
+        deleting={deletingId === item.mediaItemId}
+        activeProfile={activeProfile}
+      />
     ),
-    [handleDelete, deletingId],
+    [handleDelete, deletingId, activeProfile],
   );
 
   return (

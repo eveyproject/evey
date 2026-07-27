@@ -63,7 +63,7 @@ vi.mock("../providers/ThemeProvider", () => ({
   useTheme: () => ({
     colors: {
       bg: "#000", surface: "#111", surfaceRaised: "#222", text: "#fff",
-      textMuted: "#888", accent: "#f00", border: "#333",
+      textMuted: "#888", accent: "#f00", border: "#333", warning: "#f90",
     },
     radii: { sm: 4, md: 8 },
     spacing: { sm: 8, md: 12, lg: 16, xl: 24 },
@@ -85,6 +85,19 @@ vi.mock("../lib/downloads", () => ({
   getInFlightDownloads: (...a: unknown[]) => getInFlightDownloadsMock(...a),
 }));
 
+// --- @evey/store / @evey/api (active profile used to gate each row) -------------------
+// An unrestricted adult profile by default - none of the existing rows in
+// these tests carry auth-context fields, so canPlayOffline allows them all
+// (legacy entries are never retroactively blocked - see offlineAccess.ts).
+vi.mock("@evey/store", () => ({
+  useAuthStore: (selector: (s: { profileId: string | null }) => unknown) => selector({ profileId: "profile-1" }),
+}));
+const useUserServiceListProfilesMock = vi.fn(() => ({ data: { profiles: [{ id: "profile-1", isKids: false }] } }));
+vi.mock("@evey/api", () => ({
+  useUserServiceGetCurrentUser: () => ({ data: { id: "user-1" } }),
+  useUserServiceListProfiles: (...a: unknown[]) => useUserServiceListProfilesMock(...a),
+}));
+
 // -------------------------------------------------------------------------------------
 import DownloadsScreen from "../../app/(auth)/downloads";
 
@@ -99,6 +112,7 @@ beforeEach(() => {
   getTotalDownloadSizeMock.mockResolvedValue(4_000_000);
   deleteDownloadMock.mockResolvedValue(undefined);
   getInFlightDownloadsMock.mockReturnValue([]);
+  useUserServiceListProfilesMock.mockReturnValue({ data: { profiles: [{ id: "profile-1", isKids: false }] } });
 });
 
 describe("DownloadsScreen", () => {
@@ -164,5 +178,39 @@ describe("DownloadsScreen", () => {
 
     await waitFor(() => expect(screen.getByText("Movie 1")).toBeTruthy());
     expect(screen.getAllByText("Movie 1")).toHaveLength(1);
+  });
+
+  it("marks an expired download with a badge but keeps it deletable", async () => {
+    getDownloadsMock.mockResolvedValue([
+      { mediaItemId: "old", title: "Old Movie", filePath: "/downloads/old.mp4", fileSize: 1000, downloadedAt: "2020-01-01T00:00:00.000Z" },
+    ]);
+
+    render(<DownloadsScreen />);
+
+    await waitFor(() => expect(screen.getByText("Old Movie")).toBeTruthy());
+    expect(screen.getByText("Expired - re-download to watch offline again")).toBeTruthy();
+    expect(screen.getAllByLabelText("Delete download")).toHaveLength(1);
+  });
+
+  it("marks a download made by a different, more restricted profile with a badge", async () => {
+    getDownloadsMock.mockResolvedValue([
+      {
+        mediaItemId: "adult-dl",
+        title: "Adult Movie",
+        filePath: "/downloads/adult-dl.mp4",
+        fileSize: 1000,
+        downloadedAt: new Date().toISOString(),
+        downloadedByProfileId: "someone-else",
+        downloadedByIsKids: false,
+      },
+    ]);
+    useUserServiceListProfilesMock.mockReturnValue({
+      data: { profiles: [{ id: "profile-1", isKids: true, maxAge: 10 }] },
+    });
+
+    render(<DownloadsScreen />);
+
+    await waitFor(() => expect(screen.getByText("Adult Movie")).toBeTruthy());
+    expect(screen.getByText("Downloaded by another profile")).toBeTruthy();
   });
 });
