@@ -6,17 +6,7 @@ import { useAuthStore } from "@evey/store";
 import { PieChart, BarChart } from "react-native-gifted-charts";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../../src/providers/ThemeProvider";
-
-const CHART_COLORS = [
-  "#818cf8",
-  "#f59e0b",
-  "#10b981",
-  "#ef4444",
-  "#8b5cf6",
-  "#ec4899",
-  "#14b8a6",
-  "#f97316",
-];
+import { chartColorAt } from "../../../src/lib/chartPalette";
 
 const GENRE_FR: Record<string, string> = {
   Action: "Action",
@@ -110,7 +100,7 @@ export default function StatsScreen() {
   const genres = [...(data.genres ?? [])].sort((a, b) => parseInt(b.totalTimeMs ?? "0") - parseInt(a.totalTimeMs ?? "0"));
   const pieData = genres.slice(0, 8).map((g, i) => ({
     value: parseInt(g.totalTimeMs ?? "0") || 1,
-    color: CHART_COLORS[i % CHART_COLORS.length],
+    color: chartColorAt(theme, i),
     text: translateGenre(g.genre ?? "", lang),
     percent: Math.round(g.percent ?? 0),
   }));

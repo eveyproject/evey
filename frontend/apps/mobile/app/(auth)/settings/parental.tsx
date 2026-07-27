@@ -279,9 +279,9 @@ export default function ParentalSettingsScreen() {
             ]}
           >
             {updateParental.isPending ? (
-              <ActivityIndicator color="#fff" size="small" />
+              <ActivityIndicator color={theme.colors.onAccent} size="small" />
             ) : (
-              <Text style={{ color: "#fff", fontWeight: "600" }}>
+              <Text style={{ color: theme.colors.onAccent, fontWeight: "600" }}>
                 {hasPin
                   ? t("auth.settings.parental.pin.updatePin", "Mettre à jour le code PIN")
                   : t("auth.settings.parental.pin.savePin", "Enregistrer le PIN")}

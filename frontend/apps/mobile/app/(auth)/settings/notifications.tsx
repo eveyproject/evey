@@ -148,9 +148,9 @@ export default function NotificationSettingsScreen() {
               }}
             >
               {update.isPending ? (
-                <ActivityIndicator color="#fff" size="small" />
+                <ActivityIndicator color={theme.colors.onAccent} size="small" />
               ) : (
-                <Text style={{ color: "#fff", fontWeight: "600", fontSize: 16 }}>
+                <Text style={{ color: theme.colors.onAccent, fontWeight: "600", fontSize: 16 }}>
                   {t("common.save")}
                 </Text>
               )}

@@ -224,6 +224,8 @@ export default function SettingsScreen() {
               <Text style={s.avatarText}>{initial}</Text>
             )}
             <View style={s.avatarOverlay}>
+              {/* avatarOverlay's background is theme.colors.overlay, a scrim that stays
+                  near-black on every theme, so a fixed white icon always has contrast here */}
               <Ionicons name="camera" size={16} color="#fff" />
             </View>
           </Pressable>
@@ -232,7 +234,7 @@ export default function SettingsScreen() {
               <Text style={{ color: theme.colors.text, fontSize: 18, fontWeight: "700" }}>{user?.username ?? "..."}</Text>
               {isAdmin && (
                 <View style={{ backgroundColor: theme.colors.accent, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 }}>
-                  <Text style={{ color: "#fff", fontSize: 9, fontWeight: "700" }}>ADMIN</Text>
+                  <Text style={{ color: theme.colors.onAccent, fontSize: 9, fontWeight: "700" }}>ADMIN</Text>
                 </View>
               )}
             </View>
@@ -295,9 +297,9 @@ export default function SettingsScreen() {
               accessibilityRole="button"
             >
               {updateUser.isPending ? (
-                <ActivityIndicator color="#fff" size="small" />
+                <ActivityIndicator color={theme.colors.onAccent} size="small" />
               ) : (
-                <Text style={{ color: "#fff", fontWeight: "600", fontSize: 14 }}>{t("common.save") || "Save"}</Text>
+                <Text style={{ color: theme.colors.onAccent, fontWeight: "600", fontSize: 14 }}>{t("common.save") || "Save"}</Text>
               )}
             </Pressable>
           </View>
@@ -401,7 +403,7 @@ export default function SettingsScreen() {
             accessibilityLabel={t("auth.settings.quickConnect.authorize")}
             accessibilityRole="button"
           >
-            {authorizeQc.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Text style={{ color: "#fff", fontWeight: "600", fontSize: 14 }}>{t("auth.settings.quickConnect.authorize")}</Text>}
+            {authorizeQc.isPending ? <ActivityIndicator color={theme.colors.onAccent} size="small" /> : <Text style={{ color: theme.colors.onAccent, fontWeight: "600", fontSize: 14 }}>{t("auth.settings.quickConnect.authorize")}</Text>}
           </Pressable>
         </View>
         {qcSuccess && (
@@ -439,8 +441,10 @@ const sStyles = (t: ReturnType<typeof useTheme>) =>
     container: { flex: 1, backgroundColor: t.colors.bg },
     profileCard: { padding: t.spacing.md },
     avatar: { width: 56, height: 56, borderRadius: 28, justifyContent: "center", alignItems: "center" },
-    avatarText: { color: "#fff", fontSize: 24, fontWeight: "700" },
-    avatarOverlay: { position: "absolute" as const, bottom: 0, right: 0, width: 22, height: 22, borderRadius: 11, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center" },
+    avatarText: { color: t.colors.onAccent, fontSize: 24, fontWeight: "700" },
+    // fixed dark scrim (not derived from theme) so the camera icon reads
+    // consistently regardless of the underlying avatar photo's colours
+    avatarOverlay: { position: "absolute" as const, bottom: 0, right: 0, width: 22, height: 22, borderRadius: 11, backgroundColor: t.colors.overlay, justifyContent: "center", alignItems: "center" },
     editInput: {
       backgroundColor: t.colors.bg,
       color: t.colors.text,

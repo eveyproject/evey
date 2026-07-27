@@ -73,7 +73,7 @@ export default function QrScanScreen() {
           onPress={requestPermission}
           style={{ backgroundColor: theme.colors.accent, borderRadius: theme.radii.md, paddingVertical: 10, paddingHorizontal: 24 }}
         >
-          <Text style={{ color: "#fff", fontWeight: "600" }}>{t("auth.settings.quickConnect.grantPermission")}</Text>
+          <Text style={{ color: theme.colors.onAccent, fontWeight: "600" }}>{t("auth.settings.quickConnect.grantPermission")}</Text>
         </Pressable>
       </View>
     );
@@ -89,6 +89,7 @@ export default function QrScanScreen() {
         barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
       />
       <View style={styles.overlay}>
+        {/* fixed white: sits over the live camera feed, see rationale on `styles` below */}
         <View style={[styles.frame, { borderColor: scanned ? theme.colors.accent : "#fff" }]} />
         <Text style={styles.hint}>{t("auth.settings.quickConnect.scanHint")}</Text>
         {authorizeQc.isPending && (
@@ -107,6 +108,10 @@ export default function QrScanScreen() {
   );
 }
 
+// Colours below (black container fallback, white text/frame, black text
+// shadow, translucent white retry button) are fixed on purpose: this screen
+// is a full-bleed camera viewfinder, so the chrome sits over live video, not
+// the app's themed background, and must stay legible regardless of theme.
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#000" },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
