@@ -116,6 +116,12 @@ vi.mock("../components/Skeleton", () => ({ Skeleton: () => null }));
 // The grid now renders the shared MediaCard (pulls in image/watch hooks); the
 // shuffle tests only exercise the shuffle button, so stub it out.
 vi.mock("../components/MediaCard", () => ({ MediaCard: () => null }));
+// The filters bottom sheet pulls in the real BottomSheet, which imports
+// react-native-safe-area-context - unparseable under vitest without its own
+// mock (see media-detail-episodes.test.tsx). Irrelevant to the shuffle tests
+// this file exercises, so stub the whole panel out instead of also mocking
+// safe-area-context here.
+vi.mock("../components/library/LibraryFiltersPanel", () => ({ LibraryFiltersPanel: () => null }));
 
 // --- @evey/store -----------------------------------------------------------------------
 const { toastErrorMock, toastInfoMock } = vi.hoisted(() => ({
@@ -145,6 +151,12 @@ vi.mock("@evey/api", () => ({
   useLibraryServiceListMediaItems: (...args: unknown[]) => listMediaItemsMock(...args),
   libraryServiceListMediaItems: (...args: unknown[]) => rawListMediaItemsMock(...args),
   useLibraryServiceSearchMedia: (...args: unknown[]) => searchMediaMock(...args),
+  // Neither of the two new hooks the screen wires for advanced filters (see
+  // libraryFilterUtils.ts) matter to these shuffle-only tests: no test here
+  // sets genres/year/rating, so serverFiltersActive stays false and this
+  // hook is disabled - a static "no data" stub is enough to satisfy the call.
+  useLibraryServiceFilterMediaItems: () => ({ data: undefined, isLoading: false, isError: false, isFetching: false, refetch: vi.fn() }),
+  useLibraryServiceListGenres: () => ({ data: undefined }),
   usePlaybackServiceGetWatchHistory: () => ({ data: undefined }),
   usePlaybackServiceMarkAsWatched: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false }),
   usePlaybackServiceMarkAsUnwatched: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false }),

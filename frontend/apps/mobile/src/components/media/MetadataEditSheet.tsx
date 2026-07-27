@@ -14,8 +14,8 @@ import {
 } from "@evey/api";
 import { toast } from "@evey/store";
 import { FONT_SIZE } from "@evey/theme";
-import { useTheme } from "../../src/providers/ThemeProvider";
-import { BottomSheet } from "../../src/components/BottomSheet";
+import { useTheme } from "../../providers/ThemeProvider";
+import { BottomSheet } from "../BottomSheet";
 import {
   METADATA_FIELD_MAP,
   buildInitialMetadataForm,

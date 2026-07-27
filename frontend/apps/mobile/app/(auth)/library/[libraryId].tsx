@@ -20,6 +20,8 @@ import { useTranslation } from "react-i18next";
 import {
   useLibraryServiceGetLibrary,
   useLibraryServiceListMediaItems,
+  useLibraryServiceFilterMediaItems,
+  useLibraryServiceListGenres,
   useLibraryServiceSearchMedia,
   usePlaybackServiceMarkAsWatched,
   usePlaybackServiceMarkAsUnwatched,
@@ -46,6 +48,15 @@ import { MediaCard } from "../../../src/components/MediaCard";
 import { useCollections } from "../../../src/api/collections";
 import { artworkUrl } from "../../../src/lib/artwork";
 import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
+import { LibraryFiltersPanel } from "../../../src/components/library/LibraryFiltersPanel";
+import {
+  collectFilterOptions,
+  applyLocalFacetFilters,
+  hasServerFilters,
+  countActiveFilters,
+  buildFilterMediaItemsParams,
+  computeNextFilterOffset,
+} from "../../../src/components/library/libraryFilterUtils";
 
 const NUM_COLUMNS = 3;
 const SPACING = 8;
@@ -54,25 +65,6 @@ const ITEM_WIDTH = (screenWidth - SPACING * (NUM_COLUMNS + 1)) / NUM_COLUMNS;
 const POSTER_HEIGHT = ITEM_WIDTH * 1.5;
 const ROW_HEIGHT = POSTER_HEIGHT + 30 + SPACING;
 const PAGE_SIZE = 30;
-
-const SORT_OPTIONS: Array<{
-  labelKey: string;
-  value: LibraryServiceListMediaItemsSortField;
-}> = [
-  { labelKey: "media.library.titleSort", value: "MEDIA_SORT_FIELD_TITLE" },
-  { labelKey: "media.library.year", value: "MEDIA_SORT_FIELD_YEAR" },
-  { labelKey: "media.library.ratingSort", value: "MEDIA_SORT_FIELD_RATING" },
-  { labelKey: "media.library.dateAdded", value: "MEDIA_SORT_FIELD_DATE_ADDED" },
-];
-
-const SHOW_TYPE_OPTIONS: Array<{
-  labelKey: string;
-  value: LibraryServiceListMediaItemsType;
-}> = [
-  { labelKey: "media.library.series", value: "MEDIA_ITEM_TYPE_SERIES" },
-  { labelKey: "media.library.seasons", value: "MEDIA_ITEM_TYPE_SEASON" },
-  { labelKey: "media.library.episodes", value: "MEDIA_ITEM_TYPE_EPISODE" },
-];
 
 const COMMON_GENRES = [
   "Action",
@@ -145,6 +137,14 @@ export default function LibraryDetailScreen() {
   const [hasMore, setHasMore] = useState(true);
   const prevDataRef = useRef<unknown>(null);
 
+  // Server-filtered path (genres/year/rating - see hasServerFilters below):
+  // offset-paginated, mirrors the allItems/page accumulation above but for
+  // LibraryService.FilterMediaItems, which has no cursor/page support.
+  const [filterOffset, setFilterOffset] = useState(0);
+  const [filterItems, setFilterItems] = useState<V1MediaItem[]>([]);
+  const [filterNextOffset, setFilterNextOffset] = useState<number | undefined>(undefined);
+  const prevFilterDataRef = useRef<unknown>(null);
+
   const [sortField, setSortField] =
     useState<LibraryServiceListMediaItemsSortField>(
       "MEDIA_SORT_FIELD_TITLE",
@@ -152,14 +152,18 @@ export default function LibraryDetailScreen() {
   const [sortOrder, setSortOrder] =
     useState<LibraryServiceListMediaItemsSortOrder>("SORT_ORDER_ASC");
   const [genre, setGenre] = useState("");
+  const [genres, setGenres] = useState<string[]>([]);
   const [typeFilter, setTypeFilter] = useState<LibraryServiceListMediaItemsType | "">("");
   const [searchText, setSearchText] = useState("");
   const debouncedSearch = useDebounce(searchText, 300);
   const [showFilters, setShowFilters] = useState(false);
   const [yearMin, setYearMin] = useState("");
   const [yearMax, setYearMax] = useState("");
-  const [ratingMin, setRatingMin] = useState("");
-  const [ratingMax, setRatingMax] = useState("");
+  const [minRating, setMinRating] = useState<number | undefined>(undefined);
+  const [resolutions, setResolutions] = useState<string[]>([]);
+  const [codecs, setCodecs] = useState<string[]>([]);
+  const [audioLangs, setAudioLangs] = useState<string[]>([]);
+  const [subLangs, setSubLangs] = useState<string[]>([]);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [bulkMode, setBulkMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -226,19 +230,55 @@ export default function LibraryDetailScreen() {
   const { data: library } = useLibraryServiceGetLibrary(libraryId ?? "");
   const isShowLibrary = library?.type === "LIBRARY_TYPE_SHOWS";
 
-  const { data, isLoading, isError, isFetching, refetch } =
-    useLibraryServiceListMediaItems(
-      {
-        libraryId,
-        ...(typeFilter ? { type: typeFilter } : {}),
-        ...(genre ? { genre } : {}),
-        sortField,
-        sortOrder,
-        "pagination.page": page,
-        "pagination.pageSize": PAGE_SIZE,
-      },
-      { query: { enabled: !!libraryId } },
-    );
+  const yearFromNum = yearMin ? parseInt(yearMin, 10) : undefined;
+  const yearToNum = yearMax ? parseInt(yearMax, 10) : undefined;
+  // Only genres (multi)/year/rating have a real LibraryService.FilterMediaItems
+  // param (see buildFilterMediaItemsParams) - resolution/codec/audio+subtitle
+  // language have none, so they never switch the active endpoint, only the
+  // client-side narrowing further down.
+  const serverFiltersActive = hasServerFilters({ genres, yearFrom: yearFromNum, yearTo: yearToNum, minRating });
+
+  const {
+    data: regularData,
+    isLoading: isRegularLoading,
+    isError: isRegularError,
+    isFetching: isRegularFetching,
+    refetch: refetchRegular,
+  } = useLibraryServiceListMediaItems(
+    {
+      libraryId,
+      ...(typeFilter ? { type: typeFilter } : {}),
+      ...(genre ? { genre } : {}),
+      sortField,
+      sortOrder,
+      "pagination.page": page,
+      "pagination.pageSize": PAGE_SIZE,
+    },
+    { query: { enabled: !!libraryId && !serverFiltersActive } },
+  );
+
+  const {
+    data: filterData,
+    isLoading: isFilterLoading,
+    isError: isFilterError,
+    isFetching: isFilterFetching,
+    refetch: refetchFilter,
+  } = useLibraryServiceFilterMediaItems(
+    buildFilterMediaItemsParams({
+      libraryId: libraryId ?? "",
+      type: typeFilter || undefined,
+      genre: genre || undefined,
+      genres,
+      yearFrom: yearFromNum,
+      yearTo: yearToNum,
+      minRating,
+      sortField,
+      sortOrder,
+      limit: PAGE_SIZE,
+      offset: filterOffset,
+    }),
+    { query: { enabled: !!libraryId && serverFiltersActive } },
+  );
 
   // Server-side title search, scoped to this library, replacing the previous
   // client-side filter over already-loaded pages (which missed anything not
@@ -264,6 +304,18 @@ export default function LibraryDetailScreen() {
     },
     { query: { enabled: searchActive && !!libraryId } },
   );
+
+  // Full distinct genre set for this library (not just what's loaded so far -
+  // same gap web's ListGenres endpoint fixed for the desktop chips). Gated on
+  // showFilters like web gates it on filtersOpen, to avoid an extra request
+  // on every library visit.
+  const { data: genresData } = useLibraryServiceListGenres(libraryId ?? "", {
+    query: { enabled: !!libraryId && showFilters },
+  });
+  const availableGenres = useMemo(() => {
+    const fetched = genresData?.genres ?? [];
+    return Array.from(new Set([...COMMON_GENRES, ...fetched])).sort();
+  }, [genresData?.genres]);
 
   // Watched status + resume progress for the badge/progress-bar overlay
   // MediaCard already supports. Same source and shape as useWatchedMap
@@ -300,79 +352,119 @@ export default function LibraryDetailScreen() {
     setAllItems([]);
     setHasMore(true);
     prevDataRef.current = null;
+    setFilterOffset(0);
+    setFilterItems([]);
+    setFilterNextOffset(undefined);
+    prevFilterDataRef.current = null;
   }, []);
 
   useEffect(() => {
     resetAndRefetch();
-  }, [sortField, sortOrder, genre, typeFilter, resetAndRefetch]);
+    // genres/yearMin/yearMax/minRating flip serverFiltersActive, which
+    // switches the active endpoint - both accumulations reset together since
+    // only one of them is ever fetched at a time (see the enabled: flags
+    // above), so resetting the inactive one is a no-op, not a bug.
+  }, [sortField, sortOrder, genre, typeFilter, genres, yearMin, yearMax, minRating, resetAndRefetch]);
 
   useEffect(() => {
-    if (!data || data === prevDataRef.current) return;
-    prevDataRef.current = data;
-    const newItems = data.items ?? [];
+    if (!regularData || regularData === prevDataRef.current) return;
+    prevDataRef.current = regularData;
+    const newItems = regularData.items ?? [];
     if (page === 1) {
       setAllItems(newItems);
     } else {
       setAllItems((prev) => [...prev, ...newItems]);
     }
-    const totalPages = data.pagination?.totalPages ?? 1;
+    const totalPages = regularData.pagination?.totalPages ?? 1;
     setHasMore(page < totalPages);
-  }, [data, page]);
+  }, [regularData, page]);
+
+  useEffect(() => {
+    if (!filterData || filterData === prevFilterDataRef.current) return;
+    prevFilterDataRef.current = filterData;
+    const newItems = filterData.items ?? [];
+    if (filterOffset === 0) {
+      setFilterItems(newItems);
+    } else {
+      setFilterItems((prev) => [...prev, ...newItems]);
+    }
+    const total = filterData.total ?? 0;
+    const fetchedSoFar = filterOffset + newItems.length;
+    setFilterNextOffset(computeNextFilterOffset(fetchedSoFar, newItems.length, total, PAGE_SIZE));
+  }, [filterData, filterOffset]);
 
   const totalItems = searchActive
     ? (searchData?.totalHits ?? 0)
-    : (data?.pagination?.totalItems ?? 0);
+    : serverFiltersActive
+      ? (filterData?.total ?? 0)
+      : (regularData?.pagination?.totalItems ?? 0);
 
-  // Title search now hits the server (searchData) - only rating stays a pure
-  // client-side facet in both paths, since SearchMediaRequest has no rating
-  // param. Year is skipped here while searching because it's already sent as
-  // a server param above; the regular (non-search) path still filters it
-  // client-side since ListMediaItems has no year param.
-  const displayItems = useMemo(() => {
-    let items = searchActive ? (searchData?.items ?? []) : allItems;
-    if (!searchActive) {
-      if (yearMin) {
-        const min = parseInt(yearMin);
-        items = items.filter((item) => (item.year ?? 0) >= min);
-      }
-      if (yearMax) {
-        const max = parseInt(yearMax);
-        items = items.filter((item) => (item.year ?? 9999) <= max);
-      }
-    }
-    if (ratingMin) {
-      const min = parseFloat(ratingMin);
-      items = items.filter((item) => (item.communityRating ?? 0) >= min);
-    }
-    if (ratingMax) {
-      const max = parseFloat(ratingMax);
-      items = items.filter((item) => (item.communityRating ?? 10) <= max);
-    }
-    return items;
-  }, [searchActive, searchData, allItems, yearMin, yearMax, ratingMin, ratingMax]);
+  // Whatever the active (non-search-narrowed) endpoint returned so far -
+  // used both as the display source and as the facet sample below.
+  const rawItems = searchActive ? (searchData?.items ?? []) : serverFiltersActive ? filterItems : allItems;
 
-  // Collect genres from loaded items
-  const availableGenres = useMemo(() => {
-    const set = new Set<string>();
-    for (const item of allItems) {
-      for (const g of item.genres ?? []) set.add(g);
-    }
-    const merged = Array.from(
-      new Set([...COMMON_GENRES, ...Array.from(set)]),
-    ).sort();
-    return merged;
-  }, [allItems]);
+  // Resolution/codec/audio+subtitle language have no server param at all
+  // (see LibraryServiceFilterMediaItemsParams) - always narrowed client-side,
+  // exactly like web's applyLocalFilters. Genres/minRating already went
+  // server-side via FilterMediaItems when !searchActive; SearchMediaRequest
+  // has neither, so they get a client top-up only while searching.
+  const displayItems = useMemo(
+    () =>
+      applyLocalFacetFilters(rawItems, {
+        resolutions,
+        codecs,
+        audioLangs,
+        subLangs,
+        genres: searchActive ? genres : undefined,
+        minRating: searchActive ? minRating : undefined,
+      }),
+    [rawItems, resolutions, codecs, audioLangs, subLangs, searchActive, genres, minRating],
+  );
+
+  // Facet options are sampled from whatever's currently loaded (same source
+  // the genre chips used before) rather than a dedicated sampling query -
+  // kept independent of the facet selections themselves (built from rawItems,
+  // not displayItems) so picking one facet doesn't shrink the others' options.
+  const availableFacets = useMemo(() => collectFilterOptions(rawItems), [rawItems]);
+
+  const filterCount = useMemo(
+    () =>
+      countActiveFilters({
+        type: typeFilter,
+        genre,
+        genres,
+        resolutions,
+        codecs,
+        audioLangs,
+        subLangs,
+        yearFrom: yearFromNum,
+        yearTo: yearToNum,
+        minRating,
+      }),
+    [typeFilter, genre, genres, resolutions, codecs, audioLangs, subLangs, yearFromNum, yearToNum, minRating],
+  );
+  const anyFilterOrSearchActive = filterCount > 0 || searchActive;
+
+  // Unified view over whichever of the three endpoints is currently driving
+  // the screen (search / server-filtered / regular list), so the render
+  // below doesn't need a 3-way branch at every call site.
+  const activeIsLoading = searchActive ? isSearchLoading : serverFiltersActive ? isFilterLoading : isRegularLoading;
+  const activeIsFetching = searchActive ? isSearchLoading : serverFiltersActive ? isFilterFetching : isRegularFetching;
+  const activeIsError = searchActive ? isSearchError : serverFiltersActive ? isFilterError : isRegularError;
+  const activeRefetch = searchActive ? refetchSearch : serverFiltersActive ? refetchFilter : refetchRegular;
+  const isFirstPage = searchActive ? true : serverFiltersActive ? filterOffset === 0 : page === 1;
 
   const [shuffling, setShuffling] = useState(false);
-  // Search results and year/rating facets can't be honored by the random-page
-  // probe below (search has no page offset; year/rating have no server
-  // param), so whenever any of them is active, shuffle draws from what's
-  // actually on screen (displayItems) instead. With no such filter, shuffle
-  // the WHOLE library via a random page offset (pageSize 1) instead of just
-  // the scrolled-in slice - the genre/type quick-filters, if any, still apply
-  // server-side since they're baked into the probe request.
+  // Search results and client-only facets (resolution/codec/language) can't
+  // be honored by the random-page probe below (search has no page offset;
+  // those facets have no server param at all), so whenever any of them - or
+  // a server filter (genres/year/rating) - is active, shuffle draws from
+  // what's actually on screen (displayItems) instead. With no such filter,
+  // shuffle the WHOLE library via a random page offset (pageSize 1) instead
+  // of just the scrolled-in slice - the genre/type quick-filters, if any,
+  // still apply server-side since they're baked into the probe request.
   const hasLocalFilters = Boolean(
-    debouncedSearch.trim() || yearMin || yearMax || ratingMin || ratingMax,
+    debouncedSearch.trim() || resolutions.length || codecs.length || audioLangs.length || subLangs.length || serverFiltersActive,
   );
   const handleShuffle = useCallback(async () => {
     if (shuffling || !libraryId) return;
@@ -405,19 +497,29 @@ export default function LibraryDetailScreen() {
 
   const handleRefresh = useCallback(() => {
     if (searchActive) { void refetchSearch(); return; }
+    if (serverFiltersActive) {
+      setFilterOffset(0);
+      setFilterNextOffset(undefined);
+      prevFilterDataRef.current = null;
+      return;
+    }
     setPage(1);
     setHasMore(true);
     prevDataRef.current = null;
-  }, [searchActive, refetchSearch]);
+  }, [searchActive, serverFiltersActive, refetchSearch]);
 
   const handleEndReached = useCallback(() => {
     // Search returns a single fixed-size page (top-N by relevance), no
     // cursor/offset to page through - so scrolling never advances it.
     if (searchActive) return;
-    if (!isFetching && hasMore) {
+    if (serverFiltersActive) {
+      if (!isFilterFetching && filterNextOffset != null) setFilterOffset(filterNextOffset);
+      return;
+    }
+    if (!isRegularFetching && hasMore) {
       setPage((p) => p + 1);
     }
-  }, [searchActive, isFetching, hasMore]);
+  }, [searchActive, serverFiltersActive, isFilterFetching, filterNextOffset, isRegularFetching, hasMore]);
 
   const renderItem = useCallback(
     ({ item }: { item: V1MediaItem }) => {
@@ -557,9 +659,6 @@ export default function LibraryDetailScreen() {
     [theme, router, authHeaders, serverUrl, bulkMode, selected, toggleSelect, handleLongPress],
   );
 
-  const isActiveSort = (f: LibraryServiceListMediaItemsSortField) =>
-    sortField === f;
-
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
       <Stack.Screen
@@ -571,7 +670,7 @@ export default function LibraryDetailScreen() {
         }}
       />
 
-      {(searchActive ? isSearchError : isError) ? (
+      {activeIsError ? (
         <View
           style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
         >
@@ -580,7 +679,7 @@ export default function LibraryDetailScreen() {
           >
             {t("common.loadError")}
           </Text>
-          <Pressable onPress={() => (searchActive ? refetchSearch() : refetch())}>
+          <Pressable onPress={() => void activeRefetch()}>
             <Text style={{ color: theme.colors.accent }}>
               {t("common.retry")}
             </Text>
@@ -632,10 +731,7 @@ export default function LibraryDetailScreen() {
                 }}
               >
                 {t("media.library.filters")}
-                {(() => {
-                  const c = (typeFilter ? 1 : 0) + (genre ? 1 : 0) + (yearMin || yearMax ? 1 : 0) + (ratingMin || ratingMax ? 1 : 0);
-                  return c ? ` (${c})` : "";
-                })()}
+                {filterCount ? ` (${filterCount})` : ""}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -684,362 +780,61 @@ export default function LibraryDetailScreen() {
           {/* Item count */}
           <View style={[styles.countRow, { paddingHorizontal: SPACING }]}>
             <Text style={[styles.countText, { color: theme.colors.textMuted }]}>
-              {debouncedSearch.trim() || yearMin || yearMax || ratingMin || ratingMax
+              {anyFilterOrSearchActive
                 ? `${displayItems.length} / ${totalItems}`
                 : `${totalItems}`}{" "}
               {totalItems === 1 ? "item" : "items"}
             </Text>
           </View>
 
-          {/* Filters panel */}
-          {showFilters && (
-            <View
-              style={[
-                styles.filterPanel,
-                {
-                  backgroundColor: theme.colors.surface,
-                  marginHorizontal: SPACING,
-                  borderRadius: theme.radii.md,
-                  padding: 12,
-                  marginBottom: 8,
-                },
-              ]}
-            >
-              {/* Sort */}
-              <Text
-                style={[
-                  styles.filterLabel,
-                  { color: theme.colors.textMuted },
-                ]}
-              >
-                {t("media.search.sortBy")}
-              </Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={{ marginBottom: 10 }}
-              >
-                {SORT_OPTIONS.map((opt) => (
-                  <TouchableOpacity
-                    key={opt.value}
-                    style={[
-                      styles.chip,
-                      {
-                        backgroundColor: isActiveSort(opt.value)
-                          ? theme.colors.accent
-                          : theme.colors.surfaceRaised,
-                        borderRadius: theme.radii.sm,
-                      },
-                    ]}
-                    activeOpacity={0.7}
-                    onPress={() => setSortField(opt.value)}
-                  >
-                    <Text
-                      style={{
-                        color: isActiveSort(opt.value)
-                          ? theme.colors.onAccent
-                          : theme.colors.text,
-                        fontSize: 13,
-                      }}
-                    >
-                      {t(opt.labelKey)}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-
-              {/* Sort order */}
-              <View style={{ flexDirection: "row", gap: 8, marginBottom: 10 }}>
-                <TouchableOpacity
-                  style={[
-                    styles.chip,
-                    {
-                      backgroundColor:
-                        sortOrder === "SORT_ORDER_ASC"
-                          ? theme.colors.accent
-                          : theme.colors.surfaceRaised,
-                      borderRadius: theme.radii.sm,
-                    },
-                  ]}
-                  activeOpacity={0.7}
-                  onPress={() => setSortOrder("SORT_ORDER_ASC")}
-                >
-                  <Text
-                    style={{
-                      color:
-                        sortOrder === "SORT_ORDER_ASC"
-                          ? theme.colors.onAccent
-                          : theme.colors.text,
-                      fontSize: 13,
-                    }}
-                  >
-                    ↑ {t("media.library.ascending") || "A-Z"}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.chip,
-                    {
-                      backgroundColor:
-                        sortOrder === "SORT_ORDER_DESC"
-                          ? theme.colors.accent
-                          : theme.colors.surfaceRaised,
-                      borderRadius: theme.radii.sm,
-                    },
-                  ]}
-                  activeOpacity={0.7}
-                  onPress={() => setSortOrder("SORT_ORDER_DESC")}
-                >
-                  <Text
-                    style={{
-                      color:
-                        sortOrder === "SORT_ORDER_DESC"
-                          ? theme.colors.onAccent
-                          : theme.colors.text,
-                      fontSize: 13,
-                    }}
-                  >
-                    ↓ {t("media.library.descending") || "Z-A"}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* Type (series/seasons/episodes) - shown only for SHOWS libraries */}
-              {isShowLibrary && (
-                <>
-                  <Text
-                    style={[
-                      styles.filterLabel,
-                      { color: theme.colors.textMuted, marginTop: 10 },
-                    ]}
-                  >
-                    {t("media.library.type", "Type")}
-                  </Text>
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    style={{ marginBottom: 10 }}
-                  >
-                    <TouchableOpacity
-                      style={[
-                        styles.chip,
-                        {
-                          backgroundColor: !typeFilter
-                            ? theme.colors.accent
-                            : theme.colors.surfaceRaised,
-                          borderRadius: theme.radii.sm,
-                        },
-                      ]}
-                      activeOpacity={0.7}
-                      onPress={() => setTypeFilter("")}
-                    >
-                      <Text
-                        style={{
-                          color: !typeFilter ? theme.colors.onAccent : theme.colors.text,
-                          fontSize: 13,
-                        }}
-                      >
-                        {t("media.library.typeAll", "All")}
-                      </Text>
-                    </TouchableOpacity>
-                    {SHOW_TYPE_OPTIONS.map((opt) => (
-                      <TouchableOpacity
-                        key={opt.value}
-                        style={[
-                          styles.chip,
-                          {
-                            backgroundColor:
-                              typeFilter === opt.value
-                                ? theme.colors.accent
-                                : theme.colors.surfaceRaised,
-                            borderRadius: theme.radii.sm,
-                          },
-                        ]}
-                        activeOpacity={0.7}
-                        onPress={() => setTypeFilter(opt.value)}
-                      >
-                        <Text
-                          style={{
-                            color: typeFilter === opt.value ? theme.colors.onAccent : theme.colors.text,
-                            fontSize: 13,
-                          }}
-                        >
-                          {t(opt.labelKey)}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                </>
-              )}
-
-              {/* Genre */}
-              <Text
-                style={[
-                  styles.filterLabel,
-                  { color: theme.colors.textMuted },
-                ]}
-              >
-                {t("media.library.genreLabel")}
-              </Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-              >
-                <TouchableOpacity
-                  style={[
-                    styles.chip,
-                    {
-                      backgroundColor: !genre
-                        ? theme.colors.accent
-                        : theme.colors.surfaceRaised,
-                      borderRadius: theme.radii.sm,
-                    },
-                  ]}
-                  activeOpacity={0.7}
-                  onPress={() => setGenre("")}
-                >
-                  <Text
-                    style={{
-                      color: !genre ? theme.colors.onAccent : theme.colors.text,
-                      fontSize: 13,
-                    }}
-                  >
-                    {t("media.search.allGenres") || "All"}
-                  </Text>
-                </TouchableOpacity>
-                {availableGenres.map((g) => (
-                  <TouchableOpacity
-                    key={g}
-                    style={[
-                      styles.chip,
-                      {
-                        backgroundColor:
-                          genre === g
-                            ? theme.colors.accent
-                            : theme.colors.surfaceRaised,
-                        borderRadius: theme.radii.sm,
-                      },
-                    ]}
-                    activeOpacity={0.7}
-                    onPress={() => setGenre(genre === g ? "" : g)}
-                  >
-                    <Text
-                      style={{
-                        color:
-                          genre === g ? theme.colors.onAccent : theme.colors.text,
-                        fontSize: 13,
-                      }}
-                    >
-                      {g}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-
-              {/* Year range */}
-              <Text
-                style={[
-                  styles.filterLabel,
-                  { color: theme.colors.textMuted, marginTop: 10 },
-                ]}
-              >
-                {t("media.search.year")}
-              </Text>
-              <View style={{ flexDirection: "row", gap: 8 }}>
-                <TextInput
-                  placeholder={t("media.search.fromYear")}
-                  placeholderTextColor={theme.colors.textMuted}
-                  value={yearMin}
-                  onChangeText={(v) => setYearMin(v.replace(/\D/g, ""))}
-                  keyboardType="number-pad"
-                  maxLength={4}
-                  style={{
-                    flex: 1,
-                    backgroundColor: theme.colors.bg,
-                    color: theme.colors.text,
-                    borderRadius: theme.radii.sm,
-                    paddingVertical: 8,
-                    paddingHorizontal: 10,
-                    fontSize: 13,
-                    borderWidth: 1,
-                    borderColor: theme.colors.border,
-                  }}
-                />
-                <TextInput
-                  placeholder={t("media.search.toYear")}
-                  placeholderTextColor={theme.colors.textMuted}
-                  value={yearMax}
-                  onChangeText={(v) => setYearMax(v.replace(/\D/g, ""))}
-                  keyboardType="number-pad"
-                  maxLength={4}
-                  style={{
-                    flex: 1,
-                    backgroundColor: theme.colors.bg,
-                    color: theme.colors.text,
-                    borderRadius: theme.radii.sm,
-                    paddingVertical: 8,
-                    paddingHorizontal: 10,
-                    fontSize: 13,
-                    borderWidth: 1,
-                    borderColor: theme.colors.border,
-                  }}
-                />
-              </View>
-
-              {/* Rating range */}
-              <Text
-                style={[
-                  styles.filterLabel,
-                  { color: theme.colors.textMuted, marginTop: 10 },
-                ]}
-              >
-                {t("media.library.ratingSort")}
-              </Text>
-              <View style={{ flexDirection: "row", gap: 8 }}>
-                <TextInput
-                  placeholder="0"
-                  placeholderTextColor={theme.colors.textMuted}
-                  value={ratingMin}
-                  onChangeText={(v) => setRatingMin(v.replace(/[^0-9.]/g, ""))}
-                  keyboardType="decimal-pad"
-                  maxLength={4}
-                  style={{
-                    flex: 1,
-                    backgroundColor: theme.colors.bg,
-                    color: theme.colors.text,
-                    borderRadius: theme.radii.sm,
-                    paddingVertical: 8,
-                    paddingHorizontal: 10,
-                    fontSize: 13,
-                    borderWidth: 1,
-                    borderColor: theme.colors.border,
-                  }}
-                />
-                <TextInput
-                  placeholder="10"
-                  placeholderTextColor={theme.colors.textMuted}
-                  value={ratingMax}
-                  onChangeText={(v) => setRatingMax(v.replace(/[^0-9.]/g, ""))}
-                  keyboardType="decimal-pad"
-                  maxLength={4}
-                  style={{
-                    flex: 1,
-                    backgroundColor: theme.colors.bg,
-                    color: theme.colors.text,
-                    borderRadius: theme.radii.sm,
-                    paddingVertical: 8,
-                    paddingHorizontal: 10,
-                    fontSize: 13,
-                    borderWidth: 1,
-                    borderColor: theme.colors.border,
-                  }}
-                />
-              </View>
-            </View>
-          )}
+          {/* Filters bottom sheet */}
+          <LibraryFiltersPanel
+            visible={showFilters}
+            onClose={() => setShowFilters(false)}
+            sortField={sortField}
+            onSortFieldChange={setSortField}
+            sortOrder={sortOrder}
+            onSortOrderChange={setSortOrder}
+            isShowLibrary={isShowLibrary}
+            typeFilter={typeFilter}
+            onTypeFilterChange={setTypeFilter}
+            genreText={genre}
+            onGenreTextChange={setGenre}
+            genres={genres}
+            onGenresChange={setGenres}
+            availableGenres={availableGenres}
+            yearMin={yearMin}
+            onYearMinChange={setYearMin}
+            yearMax={yearMax}
+            onYearMaxChange={setYearMax}
+            minRating={minRating}
+            onMinRatingChange={setMinRating}
+            resolutions={resolutions}
+            onResolutionsChange={setResolutions}
+            codecs={codecs}
+            onCodecsChange={setCodecs}
+            audioLangs={audioLangs}
+            onAudioLangsChange={setAudioLangs}
+            subLangs={subLangs}
+            onSubLangsChange={setSubLangs}
+            availableFacets={availableFacets}
+            activeCount={filterCount}
+            onReset={() => {
+              setTypeFilter("");
+              setGenre("");
+              setGenres([]);
+              setResolutions([]);
+              setCodecs([]);
+              setAudioLangs([]);
+              setSubLangs([]);
+              setYearMin("");
+              setYearMax("");
+              setMinRating(undefined);
+            }}
+          />
 
           {/* Grid / List */}
-          {(searchActive ? isSearchLoading : (isLoading && page === 1)) ? (
+          {(activeIsLoading && isFirstPage) ? (
             viewMode === "grid" ? (
               <View
                 style={{
@@ -1110,7 +905,7 @@ export default function LibraryDetailScreen() {
               renderItem={renderItem}
               numColumns={NUM_COLUMNS}
               contentContainerStyle={{ paddingTop: SPACING }}
-              refreshing={searchActive ? isSearchLoading : (isFetching && page === 1)}
+              refreshing={activeIsFetching && isFirstPage}
               onRefresh={handleRefresh}
               onEndReached={handleEndReached}
               onEndReachedThreshold={0.5}
@@ -1120,7 +915,7 @@ export default function LibraryDetailScreen() {
               windowSize={5}
               removeClippedSubviews={true}
               ListFooterComponent={
-                isFetching && page > 1 ? (
+                activeIsFetching && !isFirstPage ? (
                   <ActivityIndicator
                     color={theme.colors.accent}
                     style={{ marginVertical: 16 }}
@@ -1130,7 +925,7 @@ export default function LibraryDetailScreen() {
               ListEmptyComponent={
                 <View style={styles.center}>
                   <Text style={{ color: theme.colors.textMuted }}>
-                    {typeFilter || genre || debouncedSearch.trim() || yearMin || yearMax || ratingMin || ratingMax
+                    {anyFilterOrSearchActive
                       ? t("media.library.noItemsFiltered") || t("common.noItems")
                       : t("common.noItems")}
                   </Text>
@@ -1145,7 +940,7 @@ export default function LibraryDetailScreen() {
               renderItem={renderListItem}
               contentContainerStyle={{ padding: SPACING }}
               ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
-              refreshing={searchActive ? isSearchLoading : (isFetching && page === 1)}
+              refreshing={activeIsFetching && isFirstPage}
               onRefresh={handleRefresh}
               onEndReached={handleEndReached}
               onEndReachedThreshold={0.5}
@@ -1154,7 +949,7 @@ export default function LibraryDetailScreen() {
               windowSize={5}
               removeClippedSubviews={true}
               ListFooterComponent={
-                isFetching && page > 1 ? (
+                activeIsFetching && !isFirstPage ? (
                   <ActivityIndicator
                     color={theme.colors.accent}
                     style={{ marginVertical: 16 }}
@@ -1164,7 +959,7 @@ export default function LibraryDetailScreen() {
               ListEmptyComponent={
                 <View style={styles.center}>
                   <Text style={{ color: theme.colors.textMuted }}>
-                    {typeFilter || genre || debouncedSearch.trim() || yearMin || yearMax || ratingMin || ratingMax
+                    {anyFilterOrSearchActive
                       ? t("media.library.noItemsFiltered") || t("common.noItems")
                       : t("common.noItems")}
                   </Text>
@@ -1343,19 +1138,6 @@ const styles = StyleSheet.create({
   },
   countRow: { paddingVertical: 4 },
   countText: { fontSize: 12 },
-  filterPanel: {},
-  filterLabel: {
-    fontSize: 11,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginBottom: 6,
-  },
-  chip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    marginRight: 6,
-  },
   listRow: {
     flexDirection: "row",
     alignItems: "center",
