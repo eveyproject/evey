@@ -83,10 +83,10 @@ export default function ProfileSelect() {
     })();
   }, [biometricAvailable, biometricEnabled, loading, t, toggleBiometric]);
 
-  const switchProfile = useCallback(async (target: V1Profile): Promise<boolean> => {
-    if (!target.id) return false;
+  const switchProfile = useCallback(async (target: V1Profile, pinToken?: string): Promise<"ok" | "pin" | "fail"> => {
+    if (!target.id) return "fail";
     try {
-      const resp = await userServiceRefreshToken({ profileId: target.id });
+      const resp = await userServiceRefreshToken({ profileId: target.id, pinToken });
       if (resp.accessToken) {
         useAuthStore.getState().setTokens(resp.accessToken);
       } else {
@@ -98,11 +98,15 @@ export default function ProfileSelect() {
         await SecureStore.setItemAsync(LAST_PROFILE_KEY, target.id);
       } catch { /* ignore */ }
       await qc.invalidateQueries();
-      return true;
+      return "ok";
     } catch (err) {
+      // 403 = the server wants a parental PIN proof (gated source or
+      // PIN-carrying target). The refresh token is not consumed, so a retry
+      // with a pinToken works.
+      if (!pinToken && (err as { httpStatus?: number }).httpStatus === 403) return "pin";
       console.warn("profile switch failed", err);
       toast.error(err instanceof Error ? err.message : t("auth.profile.switchFailed", "Could not switch profile"));
-      return false;
+      return "fail";
     }
   }, [qc, setProfile, t]);
 
@@ -115,9 +119,10 @@ export default function ProfileSelect() {
       return;
     }
     setBusy(p.id);
-    const ok = await switchProfile(p);
+    const res = await switchProfile(p);
     setBusy(null);
-    if (ok) router.replace("/(auth)/(tabs)");
+    if (res === "ok") router.replace("/(auth)/(tabs)");
+    else if (res === "pin") setPinTarget(p);
   }, [busy, currentIsKids, switchProfile]);
 
   // Auto-skip when no kids profile exists.
@@ -217,13 +222,14 @@ export default function ProfileSelect() {
       {pinTarget && (
         <PinPromptDialog
           target={pinTarget}
+          fallback={currentProfile}
           onCancel={() => setPinTarget(null)}
-          onVerified={async (target) => {
+          onVerified={async (target, pinToken) => {
             setPinTarget(null);
             setBusy(target.id ?? null);
-            const ok = await switchProfile(target);
+            const res = await switchProfile(target, pinToken);
             setBusy(null);
-            if (ok) router.replace("/(auth)/(tabs)");
+            if (res === "ok") router.replace("/(auth)/(tabs)");
           }}
         />
       )}

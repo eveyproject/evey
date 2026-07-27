@@ -8,11 +8,40 @@ import { FONT_SIZE } from "@evey/theme";
 
 interface Props {
   target: V1Profile;
+  /**
+   * Second profile whose PIN also authorises the switch. The server accepts
+   * a proof from EITHER the target (when it carries a PIN) or the gated
+   * SOURCE profile (when the target has none) - the client cannot tell which
+   * one holds a PIN, so the same entry is tried against both. Verifying a
+   * profile without a PIN simply fails and falls through.
+   */
+  fallback?: V1Profile;
   onCancel: () => void;
-  onVerified: (target: V1Profile) => void | Promise<void>;
+  // pinToken is the short-lived proof returned by verify-pin; it must be passed
+  // to the profile switch (RefreshToken) to authorise leaving a kids profile.
+  onVerified: (target: V1Profile, pinToken?: string) => void | Promise<void>;
 }
 
-export function PinPromptDialog({ target, onCancel, onVerified }: Props) {
+// tryVerify returns the pinToken ("" when the server marked valid without
+// minting one - legacy contract), null when this profile rejected the PIN or
+// carries none (fall through to the fallback profile), and RETHROWS a real
+// network failure (no httpStatus) so the dialog surfaces it instead of a
+// misleading "Incorrect PIN".
+async function tryVerify(profileId: string | undefined, pin: string): Promise<string | null> {
+  if (!profileId) return null;
+  try {
+    const resp = await parentalServiceVerifyPin(profileId, { pin });
+    if (!resp.valid) return null;
+    return resp.pinToken ?? "";
+  } catch (err) {
+    if ((err as { httpStatus?: number }).httpStatus !== undefined) {
+      return null; // server said no (no PIN on this profile, bad request) - fall through
+    }
+    throw err;
+  }
+}
+
+export function PinPromptDialog({ target, fallback, onCancel, onVerified }: Props) {
   const theme = useTheme();
   const { t } = useTranslation();
   const [pin, setPin] = useState("");
@@ -35,14 +64,17 @@ export function PinPromptDialog({ target, onCancel, onVerified }: Props) {
     setSubmitting(true);
     setError(null);
     try {
-      const resp = await parentalServiceVerifyPin(target.id, { pin });
-      if (!resp.valid) {
+      let pinToken = await tryVerify(target.id, pin);
+      if (pinToken === null && fallback?.id && fallback.id !== target.id) {
+        pinToken = await tryVerify(fallback.id, pin);
+      }
+      if (pinToken === null) {
         setError(t("auth.profile.select.pinWrong", "Incorrect PIN"));
         setPin("");
         inputRef.current?.focus();
         return;
       }
-      await onVerified(target);
+      await onVerified(target, pinToken || undefined);
     } catch (err) {
       setError(err instanceof Error ? err.message : t("auth.profile.select.pinWrong", "Incorrect PIN"));
       setPin("");
@@ -62,7 +94,9 @@ export function PinPromptDialog({ target, onCancel, onVerified }: Props) {
             {t("auth.profile.select.pinPromptTitle", "Enter PIN")}
           </Text>
           <Text style={[s.desc, { color: theme.colors.textMuted }]}>
-            {t("auth.profile.select.pinPromptBody", "Enter the PIN for \"{{name}}\" to continue.", { name: target.name ?? "" })}
+            {fallback
+              ? t("auth.profile.select.pinPromptBodyGeneric", "Enter the parental PIN to continue.")
+              : t("auth.profile.select.pinPromptBody", "Enter the PIN for \"{{name}}\" to continue.", { name: target.name ?? "" })}
           </Text>
 
           <TextInput
