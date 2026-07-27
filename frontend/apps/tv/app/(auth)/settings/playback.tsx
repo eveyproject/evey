@@ -11,20 +11,38 @@ import {
 } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 
+// ISO 639-1 (2-letter) to match the audio_languages/subtitle_languages
+// convention shared with web (LanguageSettings.tsx) and mobile (settings/
+// playback.tsx) - the preference is stored per-profile and read by every
+// client's track resolution, so all three must agree on the same codes.
 const LANG_OPTIONS = [
   { value: "", label: "None" },
-  { value: "eng", label: "English" },
-  { value: "fre", label: "Français" },
-  { value: "spa", label: "Español" },
-  { value: "ger", label: "Deutsch" },
-  { value: "ita", label: "Italiano" },
-  { value: "por", label: "Português" },
-  { value: "jpn", label: "日本語" },
-  { value: "kor", label: "한국어" },
-  { value: "chi", label: "中文" },
-  { value: "rus", label: "Русский" },
-  { value: "ara", label: "العربية" },
+  { value: "en", label: "English" },
+  { value: "fr", label: "Français" },
+  { value: "es", label: "Español" },
+  { value: "de", label: "Deutsch" },
+  { value: "it", label: "Italiano" },
+  { value: "pt", label: "Português" },
+  { value: "ja", label: "日本語" },
+  { value: "ko", label: "한국어" },
+  { value: "zh", label: "中文" },
+  { value: "ru", label: "Русский" },
+  { value: "ar", label: "العربية" },
 ];
+
+// This screen used to save ISO 639-2/B codes ("fre", "ger", ...) under these
+// same preference keys. Map them to 639-1 on read so a value saved before
+// this fix still highlights the matching option instead of showing none
+// selected, until the user re-saves under the new 2-letter code.
+const LEGACY_LANG_MAP: Record<string, string> = {
+  eng: "en", fre: "fr", spa: "es", ger: "de", ita: "it",
+  por: "pt", jpn: "ja", kor: "ko", chi: "zh", rus: "ru", ara: "ar",
+};
+
+function legacyLangToIso1(code: string | undefined): string | undefined {
+  if (code === undefined) return undefined;
+  return LEGACY_LANG_MAP[code] ?? code;
+}
 
 const BITRATE_OPTIONS = [
   { value: "0", label: "Unlimited" },
@@ -103,8 +121,8 @@ export default function PlaybackSettingsScreen() {
   useEffect(() => {
     const prefs: PrefMap = defaultProfile?.preferences ?? {};
     if (prefs.max_bitrate_kbps) setBitrate(prefs.max_bitrate_kbps);
-    if (prefs.default_subtitle_language) setSubtitleLang(prefs.default_subtitle_language);
-    if (prefs.default_audio_language) setAudioLang(prefs.default_audio_language);
+    if (prefs.default_subtitle_language) setSubtitleLang(legacyLangToIso1(prefs.default_subtitle_language) ?? "");
+    if (prefs.default_audio_language) setAudioLang(legacyLangToIso1(prefs.default_audio_language) ?? "");
     if (prefs.preferred_video_codec) setVideoCodec(prefs.preferred_video_codec);
     if (prefs.preferred_audio_codec) setAudioCodec(prefs.preferred_audio_codec);
     if (prefs.max_audio_channels) setAudioChannels(prefs.max_audio_channels);

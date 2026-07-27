@@ -214,6 +214,48 @@ describe("resolveDefaultAudio", () => {
     const result = resolveDefaultAudio(audioStreams, undefined, () => ({ audioLang: "jpn" }), () => "fre");
     expect(result).toEqual(audioStreams[1]);
   });
+
+  // Regression: user preferences are stored as ISO 639-1 (LanguageSettings.tsx
+  // writes "fr"), but the manifest carries whatever the source file's mkvgo/
+  // ffprobe tags used - almost always ISO 639-2, and for French specifically
+  // either the bibliographic "fre" or the terminological "fra" form. A strict
+  // string compare between "fr" and "fre"/"fra" never matches, so the user's
+  // pick was silently ignored.
+  it("matches an ISO 639-1 preference against a 639-2/B stream language (fre)", () => {
+    const bStreams = [
+      { index: 0, trackIndex: 0, language: "eng" },
+      { index: 1, trackIndex: 1, language: "fre" },
+    ];
+    const result = resolveDefaultAudio(bStreams, undefined, () => null, () => "fr");
+    expect(result).toEqual(bStreams[1]);
+  });
+
+  it("matches an ISO 639-1 preference against a 639-2/T stream language (fra)", () => {
+    const tStreams = [
+      { index: 0, trackIndex: 0, language: "eng" },
+      { index: 1, trackIndex: 1, language: "fra" },
+    ];
+    const result = resolveDefaultAudio(tStreams, undefined, () => null, () => "fr");
+    expect(result).toEqual(tStreams[1]);
+  });
+
+  it("matches an ISO 639-1 preference against a BCP-47 region-tagged stream language (fr-FR)", () => {
+    const bcp47Streams = [
+      { index: 0, trackIndex: 0, language: "en-US" },
+      { index: 1, trackIndex: 1, language: "fr-FR" },
+    ];
+    const result = resolveDefaultAudio(bcp47Streams, undefined, () => null, () => "fr");
+    expect(result).toEqual(bcp47Streams[1]);
+  });
+
+  it("does not use a naive 2-letter slice: German (ger/deu -> de) must not collide with Georgian (ge)", () => {
+    const streams = [
+      { index: 0, trackIndex: 0, language: "ger" },
+      { index: 1, trackIndex: 1, language: "geo" },
+    ];
+    expect(resolveDefaultAudio(streams, undefined, () => null, () => "de")).toEqual(streams[0]);
+    expect(resolveDefaultAudio(streams, undefined, () => null, () => "ka")).toEqual(streams[1]);
+  });
 });
 
 describe("resolveDefaultSubtitle", () => {
