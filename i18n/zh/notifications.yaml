@@ -1,3 +1,4 @@
+unreadBanner: "{{count}} 条未读通知"
 push:
   new_movie:
     title: "新电影：{label}"

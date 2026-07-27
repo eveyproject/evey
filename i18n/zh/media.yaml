@@ -185,6 +185,8 @@ detail:
   markUnwatched: 标记为未看
   markedWatched: 已标记为已看
   markedUnwatched: 已标记为未看
+  markWatchedFailed: "标记为已看失败"
+  markUnwatchedFailed: "标记为未看失败"
   addToPlaylist: 添加到播放列表
   yourRating: "您的评分"
   editMetadata: 编辑元数据
@@ -450,6 +452,9 @@ playlist:
   addRule: 添加规则
   field: 字段
   op: 运算符
+  opGte: "大于或等于"
+  opLte: "小于或等于"
+  opEq: "等于"
   value: 值
   playlists: 播放列表
   notFound: 未找到播放列表。

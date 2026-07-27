@@ -351,10 +351,10 @@ export default function HomeScreen() {
           style={styles.notifBanner}
         >
           <Text style={{ color: theme.colors.accent, fontSize: 20, fontWeight: "600" }}>
-            {t(
-              "notifications.unreadBanner",
-              `${unreadCount} unread notification${unreadCount !== 1 ? "s" : ""}`,
-            )}
+            {t("notifications.unreadBanner", {
+              count: unreadCount,
+              defaultValue: `${unreadCount} unread notification${unreadCount !== 1 ? "s" : ""}`,
+            })}
           </Text>
         </FocusableCard>
       )}

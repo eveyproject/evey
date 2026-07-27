@@ -102,6 +102,8 @@ notifications:
   title: "Notifications"
   markRead: "Marquer comme lu"
   markAllRead: "Tout marquer comme lu"
+  markReadFailed: "Échec du marquage comme lu"
+  markAllReadFailed: "Échec du marquage de tout comme lu"
   deleteAll: "Tout supprimer"
   deleteAllTitle: "Supprimer toutes les notifications"
   deleteAllConfirm: "Cela supprimera définitivement toutes vos notifications. Cette action est irréversible."

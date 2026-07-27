@@ -6,6 +6,8 @@ serverConnect:
   connect: कनेक्ट
   connectionFailed: कनेक्शन विफल
   unreachable: सर्वर तक पहुंचने में असमर्थ
+  urlLabel: "सर्वर URL"
+  useDiscovered: "खोजा गया सर्वर {{url}} उपयोग करें"
 settings:
   themeDark: Dark
   themeLight: Light

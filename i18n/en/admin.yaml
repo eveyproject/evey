@@ -274,6 +274,7 @@ users:
   role: Role
   user: User
   userCreated: User created
+  userCreatedAccessFailed: "User created, but library access could not be applied"
   userDeleted: "User \"{{name}}\" deleted"
   userDisabled: User disabled
   userEnabled: User enabled
@@ -312,6 +313,8 @@ users:
   copyLink: Copy Link
   linkCopied: Link copied to clipboard
   revoke: Revoke
+  shareInviteNamed: "Share invite {{code}}"
+  revokeInviteNamed: "Revoke invite {{code}}"
   revokeInviteTitle: Revoke Invite
   revokeInviteConfirm: Revoke this invite link? It will no longer be usable.
   inviteRevoked: Invite link revoked
@@ -349,6 +352,9 @@ mediaRequests:
   approve: Approve
   reject: Reject
   later: Later
+  approveNamed: "Approve {{title}}"
+  rejectNamed: "Reject {{title}}"
+  laterNamed: "Postpone {{title}}"
   notePlaceholder: "Optional note for the requester..."
   requestedBy: "Requested by {{name}}"
   answeredNote: "Note: {{note}}"
@@ -377,6 +383,13 @@ libraries:
   libraryUpdated: "Library \"{{name}}\" updated"
   libraryDeleted: "Library \"{{name}}\" deleted"
   editLibrary: Edit Library
+  editLibraryNamed: "Edit {{name}}"
+  scanLibraryNamed: "Scan {{name}}"
+  scheduleLibraryNamed: "Scan schedule for {{name}}"
+  matchOrphansNamed: "Match orphans for {{name}}"
+  refreshMetadataNamed: "Refresh metadata for {{name}}"
+  deleteLibraryNamed: "Delete {{name}}"
+  removePathNamed: "Remove path {{index}}"
   failedDelete: Failed to delete library
   scanStarted: Scan started
   failedScan: Failed to start scan

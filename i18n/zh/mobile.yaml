@@ -6,6 +6,8 @@ serverConnect:
   connect: 连接
   connectionFailed: 连接失败
   unreachable: 无法连接到服务器
+  urlLabel: "服务器 URL"
+  useDiscovered: "使用已发现的服务器 {{url}}"
 settings:
   themeDark: Dark
   themeLight: Light

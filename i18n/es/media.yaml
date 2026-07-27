@@ -185,6 +185,8 @@ detail:
   markUnwatched: Marcar como no visto
   markedWatched: Marcado como visto
   markedUnwatched: Marcado como no visto
+  markWatchedFailed: "No se pudo marcar como visto"
+  markUnwatchedFailed: "No se pudo marcar como no visto"
   addToPlaylist: Añadir a lista de reproducción
   yourRating: "Tu valoración"
   editMetadata: Editar metadatos
@@ -450,6 +452,9 @@ playlist:
   addRule: Agregar regla
   field: Campo
   op: Operador
+  opGte: "Mayor o igual que"
+  opLte: "Menor o igual que"
+  opEq: "Igual a"
   value: Valor
   playlists: Listas de reproducción
   notFound: Lista de reproducción no encontrada.

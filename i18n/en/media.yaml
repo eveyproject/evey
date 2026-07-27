@@ -185,6 +185,8 @@ detail:
   markUnwatched: Mark Unwatched
   markedWatched: Marked as watched
   markedUnwatched: Marked as unwatched
+  markWatchedFailed: Could not mark as watched
+  markUnwatchedFailed: Could not mark as unwatched
   addToPlaylist: Add to Playlist
   yourRating: "Your rating"
   editMetadata: Edit Metadata
@@ -451,6 +453,9 @@ playlist:
   addRule: Add Rule
   field: Field
   op: Operator
+  opGte: Greater than or equal to
+  opLte: Less than or equal to
+  opEq: Equal to
   value: Value
   playlists: Playlists
   noItems: No items

@@ -102,6 +102,8 @@ notifications:
   title: "सूचनाएं"
   markRead: "पढ़ा हुआ चिह्नित करें"
   markAllRead: "सभी पढ़ा हुआ चिह्नित करें"
+  markReadFailed: "पढ़ा हुआ चिह्नित करने में विफल"
+  markAllReadFailed: "सभी को पढ़ा हुआ चिह्नित करने में विफल"
   deleteAll: "सभी मिटाएं"
   deleteAllTitle: "सभी सूचनाएं मिटाएं"
   deleteAllConfirm: "यह आपकी सभी सूचनाओं को स्थायी रूप से मिटा देगा। यह क्रिया पूर्ववत नहीं की जा सकती।"

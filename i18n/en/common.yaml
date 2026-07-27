@@ -98,6 +98,8 @@ notifications:
   title: Notifications
   markRead: Mark read
   markAllRead: Mark all read
+  markReadFailed: Failed to mark as read
+  markAllReadFailed: Failed to mark all as read
   deleteAll: Delete all
   deleteAllTitle: Delete all notifications
   deleteAllConfirm: This will permanently delete all your notifications. This action cannot be undone.

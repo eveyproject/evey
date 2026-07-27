@@ -6,6 +6,8 @@ serverConnect:
   connect: Connect
   connectionFailed: Connection failed
   unreachable: Unable to reach server
+  urlLabel: "Server URL"
+  useDiscovered: "Use discovered server {{url}}"
 settings:
   server: Server
   themeDark: Dark

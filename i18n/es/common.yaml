@@ -102,6 +102,8 @@ notifications:
   title: "Notificaciones"
   markRead: "Marcar como leída"
   markAllRead: "Marcar todas como leídas"
+  markReadFailed: "Error al marcar como leída"
+  markAllReadFailed: "Error al marcar todas como leídas"
   deleteAll: "Eliminar todas"
   deleteAllTitle: "Eliminar todas las notificaciones"
   deleteAllConfirm: "Esto eliminará permanentemente todas tus notificaciones. Esta acción no se puede deshacer."

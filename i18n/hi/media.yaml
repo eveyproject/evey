@@ -185,6 +185,8 @@ detail:
   markUnwatched: नहीं देखा चिह्नित करें
   markedWatched: देखा हुआ चिह्नित किया
   markedUnwatched: नहीं देखा चिह्नित किया
+  markWatchedFailed: "देखा हुआ चिह्नित नहीं किया जा सका"
+  markUnwatchedFailed: "अदेखा चिह्नित नहीं किया जा सका"
   addToPlaylist: प्लेलिस्ट में जोड़ें
   yourRating: "आपकी रेटिंग"
   editMetadata: मेटाडेटा संपादित करें
@@ -450,6 +452,9 @@ playlist:
   addRule: नियम जोड़ें
   field: फ़ील्ड
   op: ऑपरेटर
+  opGte: "इससे बड़ा या बराबर"
+  opLte: "इससे छोटा या बराबर"
+  opEq: "बराबर"
   value: मान
   playlists: प्लेलिस्ट
   notFound: प्लेलिस्ट नहीं मिली।

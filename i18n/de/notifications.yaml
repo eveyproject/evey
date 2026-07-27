@@ -1,3 +1,4 @@
+unreadBanner: "{{count}} ungelesene Benachrichtigungen"
 push:
   new_movie:
     title: "Neuer Film: {label}"

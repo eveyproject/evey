@@ -274,6 +274,7 @@ users:
   role: Rolle
   user: Benutzer
   userCreated: Benutzer erstellt
+  userCreatedAccessFailed: "Benutzer erstellt, aber der Bibliothekszugriff konnte nicht angewendet werden"
   userDeleted: "Benutzer \"{{name}}\" gelöscht"
   userDisabled: Benutzer deaktiviert
   userEnabled: Benutzer aktiviert
@@ -312,6 +313,8 @@ users:
   copyLink: Link kopieren
   linkCopied: Link in Zwischenablage kopiert
   revoke: Widerrufen
+  shareInviteNamed: "Einladung {{code}} teilen"
+  revokeInviteNamed: "Einladung {{code}} widerrufen"
   revokeInviteTitle: Einladung widerrufen
   revokeInviteConfirm: Diesen Einladungslink widerrufen? Er wird nicht mehr verwendbar sein.
   inviteRevoked: Einladungslink widerrufen
@@ -349,6 +352,9 @@ mediaRequests:
   approve: Genehmigen
   reject: Ablehnen
   later: Später
+  approveNamed: "{{title}} genehmigen"
+  rejectNamed: "{{title}} ablehnen"
+  laterNamed: "{{title}} verschieben"
   notePlaceholder: "Optionale Notiz für den Anfragenden…"
   requestedBy: "Angefragt von {{name}}"
   answeredNote: "Hinweis: {{note}}"
@@ -377,6 +383,13 @@ libraries:
   libraryUpdated: "Bibliothek \"{{name}}\" aktualisiert"
   libraryDeleted: "Bibliothek \"{{name}}\" gelöscht"
   editLibrary: Bibliothek bearbeiten
+  editLibraryNamed: "{{name}} bearbeiten"
+  scanLibraryNamed: "{{name}} scannen"
+  scheduleLibraryNamed: "Scan-Zeitplan für {{name}}"
+  matchOrphansNamed: "Waisen abgleichen für {{name}}"
+  refreshMetadataNamed: "Metadaten aktualisieren für {{name}}"
+  deleteLibraryNamed: "{{name}} löschen"
+  removePathNamed: "Pfad {{index}} entfernen"
   failedDelete: Bibliothek konnte nicht gelöscht werden
   scanStarted: Scan gestartet
   failedScan: Scan konnte nicht gestartet werden

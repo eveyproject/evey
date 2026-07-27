@@ -98,6 +98,8 @@ notifications:
   title: Benachrichtigungen
   markRead: Als gelesen markieren
   markAllRead: Alle als gelesen markieren
+  markReadFailed: "Konnte nicht als gelesen markiert werden"
+  markAllReadFailed: "Konnten nicht alle als gelesen markiert werden"
   deleteAll: Alle löschen
   deleteAllTitle: Alle Benachrichtigungen löschen
   deleteAllConfirm: Dies löscht alle Ihre Benachrichtigungen dauerhaft. Diese Aktion kann nicht rückgängig gemacht werden.

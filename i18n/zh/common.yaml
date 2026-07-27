@@ -102,6 +102,8 @@ notifications:
   title: "通知"
   markRead: "标记已读"
   markAllRead: "全部标记已读"
+  markReadFailed: "标记已读失败"
+  markAllReadFailed: "全部标记已读失败"
   deleteAll: "全部删除"
   deleteAllTitle: "删除所有通知"
   deleteAllConfirm: "这将永久删除您的所有通知。此操作无法撤销。"
