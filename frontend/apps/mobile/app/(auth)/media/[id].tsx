@@ -29,10 +29,13 @@ import {
   useUserServiceGetCurrentUser,
   useUserServiceListProfiles,
   useShareServiceCreateShareLink,
+  useRatingServiceGetMyThumbRating,
+  ratingServicePutThumbRating,
+  getRatingServiceGetMyThumbRatingQueryKey,
 } from "@evey/api";
 import type { V1MediaItem, V1MediaPerson, V1Trailer } from "@evey/api";
 import { useAuthStore } from "@evey/store";
-import { useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
@@ -426,6 +429,36 @@ function FileInfoSection({ item }: { item: V1MediaItem }) {
   );
 }
 
+// Mirrors apps/web/src/hooks/useRating.ts (like=1, dislike=-1, 0=cleared),
+// inlined here rather than shared since only this file is in scope.
+function useMyThumbRating(mediaId: string | undefined) {
+  return useRatingServiceGetMyThumbRating(mediaId ?? "", {
+    query: { enabled: !!mediaId, select: (d) => d.value ?? 0, staleTime: 60_000 },
+  });
+}
+
+function useSetThumbRating(mediaId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (value: number) => ratingServicePutThumbRating(mediaId ?? "", { value }),
+    onMutate: async (value: number) => {
+      if (!mediaId) return { prev: undefined };
+      const key = getRatingServiceGetMyThumbRatingQueryKey(mediaId);
+      await qc.cancelQueries({ queryKey: key });
+      const prev = qc.getQueryData<{ value?: number }>(key);
+      qc.setQueryData(key, { value });
+      return { prev };
+    },
+    onError: (_err: Error, _vars: number, ctx?: { prev?: { value?: number } }) => {
+      if (ctx?.prev !== undefined && mediaId)
+        qc.setQueryData(getRatingServiceGetMyThumbRatingQueryKey(mediaId), ctx.prev);
+    },
+    onSettled: () => {
+      if (mediaId) void qc.invalidateQueries({ queryKey: getRatingServiceGetMyThumbRatingQueryKey(mediaId) });
+    },
+  });
+}
+
 function InfoBadge({ label }: { label: string }) {
   const theme = useTheme();
   return (
@@ -516,6 +549,8 @@ export default function MediaDetailScreen() {
 
   const { data: isFavorite } = useIsFavorite(id);
   const toggleFavorite = useToggleFavorite(id);
+  const { data: myRating = 0 } = useMyThumbRating(id);
+  const setThumbRating = useSetThumbRating(id);
 
   const [playlistSheetOpen, setPlaylistSheetOpen] = useState(false);
   const [watchedOverride, setWatchedOverride] = useState<boolean | null>(null);
@@ -934,6 +969,52 @@ export default function MediaDetailScreen() {
             <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: "600", marginLeft: 6 }}>
               {isFavorite ? t("media.detail.favorited") : t("media.detail.favorite")}
             </Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => setThumbRating.mutate(myRating === 1 ? 0 : 1)}
+            disabled={setThumbRating.isPending}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              backgroundColor: myRating === 1 ? theme.colors.success : theme.colors.surface,
+              borderRadius: theme.radii.md,
+              paddingVertical: theme.spacing.sm,
+              paddingHorizontal: theme.spacing.md,
+              opacity: setThumbRating.isPending ? 0.5 : 1,
+            }}
+            accessible={true}
+            accessibilityLabel={myRating === 1 ? t("media.rating.removeLike") : t("media.rating.like")}
+            accessibilityRole="button"
+          >
+            <Ionicons
+              name={myRating === 1 ? "thumbs-up" : "thumbs-up-outline"}
+              size={20}
+              color={myRating === 1 ? theme.colors.onAccent : theme.colors.text}
+            />
+          </Pressable>
+
+          <Pressable
+            onPress={() => setThumbRating.mutate(myRating === -1 ? 0 : -1)}
+            disabled={setThumbRating.isPending}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              backgroundColor: myRating === -1 ? theme.colors.danger : theme.colors.surface,
+              borderRadius: theme.radii.md,
+              paddingVertical: theme.spacing.sm,
+              paddingHorizontal: theme.spacing.md,
+              opacity: setThumbRating.isPending ? 0.5 : 1,
+            }}
+            accessible={true}
+            accessibilityLabel={myRating === -1 ? t("media.rating.removeDislike") : t("media.rating.dislike")}
+            accessibilityRole="button"
+          >
+            <Ionicons
+              name={myRating === -1 ? "thumbs-down" : "thumbs-down-outline"}
+              size={20}
+              color={myRating === -1 ? theme.colors.onAccent : theme.colors.text}
+            />
           </Pressable>
 
           {!isSeries && !isSeason && (
