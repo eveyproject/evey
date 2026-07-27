@@ -470,6 +470,174 @@ func TestUpdate(t *testing.T) {
 	}
 }
 
+// maskFor mirrors grpcapi.maskSecret's format without importing the driving
+// adapter from an app-layer test (that would be a layering violation even
+// from a _test package). It exists purely so these tests can construct "what
+// a client received on a prior read and is now echoing back" inputs.
+func maskFor(s string) string {
+	if s == "" {
+		return ""
+	}
+	if len(s) <= 4 {
+		return "****"
+	}
+	return s[:4] + "****"
+}
+
+// TestUpdate_SecretMaskEcho_KeepsStoredSecret covers the actual data-destruction
+// bug: both admin UIs read a webhook (secret always masked, e.g. "supe****"),
+// then round-trip that same masked string back on the next Update. Without a
+// server-side merge, that overwrites the real secret with the mask, and every
+// subsequent delivery is signed with "supe****" - rejected silently by the
+// receiver.
+func TestUpdate_SecretMaskEcho_KeepsStoredSecret(t *testing.T) {
+	t.Parallel()
+	repo := &fakeWebhookRepo{}
+	deliveries := &fakeDeliveryRepo{}
+	bus := sharedfakes.NewFakeEventBus()
+	svc, _ := newTestService(repo, deliveries, bus)
+
+	ctx := context.Background()
+	realSecret := "supersecretvalue"
+	cfg := &webhookdomain.Config{Name: "orig", URL: "http://orig.com", Events: []string{"*"}, Enabled: true, Secret: realSecret}
+	if err := svc.Create(ctx, cfg); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	update := &webhookdomain.Config{ID: cfg.ID, Name: "updated", URL: "http://orig.com", Events: []string{"*"}, Enabled: true, Secret: maskFor(realSecret)}
+	if err := svc.Update(ctx, update); err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+
+	stored, err := repo.GetByID(ctx, cfg.ID)
+	if err != nil {
+		t.Fatalf("GetByID: %v", err)
+	}
+	if stored.Secret != realSecret {
+		t.Fatalf("secret got overwritten by its own mask: got %q, want %q", stored.Secret, realSecret)
+	}
+}
+
+// TestUpdate_NewSecret_IsStored covers the legitimate "operator rotates the
+// secret" path - must still work after the mask-echo fix.
+func TestUpdate_NewSecret_IsStored(t *testing.T) {
+	t.Parallel()
+	repo := &fakeWebhookRepo{}
+	deliveries := &fakeDeliveryRepo{}
+	bus := sharedfakes.NewFakeEventBus()
+	svc, _ := newTestService(repo, deliveries, bus)
+
+	ctx := context.Background()
+	cfg := &webhookdomain.Config{Name: "orig", URL: "http://orig.com", Events: []string{"*"}, Enabled: true, Secret: "old-secret-value"}
+	if err := svc.Create(ctx, cfg); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	update := &webhookdomain.Config{ID: cfg.ID, Name: "orig", URL: "http://orig.com", Events: []string{"*"}, Enabled: true, Secret: "brand-new-secret"}
+	if err := svc.Update(ctx, update); err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+
+	stored, err := repo.GetByID(ctx, cfg.ID)
+	if err != nil {
+		t.Fatalf("GetByID: %v", err)
+	}
+	if stored.Secret != "brand-new-secret" {
+		t.Fatalf("got secret %q, want brand-new-secret", stored.Secret)
+	}
+}
+
+// TestUpdate_EmptySecret_KeepsStoredSecret: proto3 can't distinguish "field
+// absent" from "empty string" on a bare string field, so an empty secret from
+// either UI must be treated as "no change", not as "clear it".
+func TestUpdate_EmptySecret_KeepsStoredSecret(t *testing.T) {
+	t.Parallel()
+	repo := &fakeWebhookRepo{}
+	deliveries := &fakeDeliveryRepo{}
+	bus := sharedfakes.NewFakeEventBus()
+	svc, _ := newTestService(repo, deliveries, bus)
+
+	ctx := context.Background()
+	cfg := &webhookdomain.Config{Name: "orig", URL: "http://orig.com", Events: []string{"*"}, Enabled: true, Secret: "keep-me-secret"}
+	if err := svc.Create(ctx, cfg); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	update := &webhookdomain.Config{ID: cfg.ID, Name: "orig", URL: "http://orig.com", Events: []string{"*"}, Enabled: true, Secret: ""}
+	if err := svc.Update(ctx, update); err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+
+	stored, err := repo.GetByID(ctx, cfg.ID)
+	if err != nil {
+		t.Fatalf("GetByID: %v", err)
+	}
+	if stored.Secret != "keep-me-secret" {
+		t.Fatalf("got secret %q, want keep-me-secret (unchanged)", stored.Secret)
+	}
+}
+
+// TestUpdate_EmptyStoredSecret_NewSecretIsStored: a webhook created without a
+// secret must still be able to get one via Update.
+func TestUpdate_EmptyStoredSecret_NewSecretIsStored(t *testing.T) {
+	t.Parallel()
+	repo := &fakeWebhookRepo{}
+	deliveries := &fakeDeliveryRepo{}
+	bus := sharedfakes.NewFakeEventBus()
+	svc, _ := newTestService(repo, deliveries, bus)
+
+	ctx := context.Background()
+	cfg := &webhookdomain.Config{Name: "orig", URL: "http://orig.com", Events: []string{"*"}, Enabled: true}
+	if err := svc.Create(ctx, cfg); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	update := &webhookdomain.Config{ID: cfg.ID, Name: "orig", URL: "http://orig.com", Events: []string{"*"}, Enabled: true, Secret: "first-real-secret"}
+	if err := svc.Update(ctx, update); err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+
+	stored, err := repo.GetByID(ctx, cfg.ID)
+	if err != nil {
+		t.Fatalf("GetByID: %v", err)
+	}
+	if stored.Secret != "first-real-secret" {
+		t.Fatalf("got secret %q, want first-real-secret", stored.Secret)
+	}
+}
+
+// TestUpdate_NewSecretContainingAsterisks_IsStoredVerbatim proves the merge
+// decision reconstructs the mask from the STORED secret and compares against
+// that, rather than doing a naive "contains a star" check - a real secret is
+// free to contain asterisks and must not be mistaken for an echoed mask.
+func TestUpdate_NewSecretContainingAsterisks_IsStoredVerbatim(t *testing.T) {
+	t.Parallel()
+	repo := &fakeWebhookRepo{}
+	deliveries := &fakeDeliveryRepo{}
+	bus := sharedfakes.NewFakeEventBus()
+	svc, _ := newTestService(repo, deliveries, bus)
+
+	ctx := context.Background()
+	cfg := &webhookdomain.Config{Name: "orig", URL: "http://orig.com", Events: []string{"*"}, Enabled: true, Secret: "old-secret-value"}
+	if err := svc.Create(ctx, cfg); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	newSecret := "a***b***c"
+	update := &webhookdomain.Config{ID: cfg.ID, Name: "orig", URL: "http://orig.com", Events: []string{"*"}, Enabled: true, Secret: newSecret}
+	if err := svc.Update(ctx, update); err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+
+	stored, err := repo.GetByID(ctx, cfg.ID)
+	if err != nil {
+		t.Fatalf("GetByID: %v", err)
+	}
+	if stored.Secret != newSecret {
+		t.Fatalf("got secret %q, want %q stored verbatim", stored.Secret, newSecret)
+	}
+}
+
 func TestHandleAny_DeliveryRecordsError(t *testing.T) {
 	t.Parallel()
 	repo := &fakeWebhookRepo{}

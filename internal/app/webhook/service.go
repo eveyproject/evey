@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -227,7 +228,68 @@ func (s *Service) Update(ctx context.Context, cfg *webhook.Config) error {
 	if err := s.validateURL(cfg.URL); err != nil {
 		return fmt.Errorf("%w: invalid URL: %w", ErrInvalidConfig, err)
 	}
+
+	// The client never sees a webhook's secret in clear (grpcapi masks it on
+	// every read), so whatever it sends back on Update is either that mask or
+	// an empty string - never proof of an intentional change. Both admin UIs
+	// round-trip the value they last read, so trusting cfg.Secret verbatim
+	// here would overwrite a working secret with "abcd****" and every future
+	// delivery would be signed with the mask and silently rejected by the
+	// receiver. Resolve against the currently stored secret instead: keep it
+	// unless the client actually sent a genuinely new one. If the record can't
+	// be read (e.g. a transient repo error), fall through and let repo.Update
+	// fail the same way it always did - we only skip the merge, not the write.
+	if existing, err := s.repo.GetByID(ctx, cfg.ID); err == nil {
+		cfg.Secret = resolveUpdatedSecret(existing.Secret, cfg.Secret)
+	} else if !errors.Is(err, shared.ErrNotFound) {
+		s.log.WarnContext(ctx, "webhook: could not read existing config before update, secret merge skipped", slog.String("webhookID", cfg.ID), slog.Any("err", err))
+	}
+
 	return s.repo.Update(ctx, cfg)
+}
+
+// resolveUpdatedSecret decides what secret Update should persist, given the
+// currently stored one and whatever the client sent. It exists to close a
+// data-destruction bug: a client can only ever have seen the masked secret
+// (grpcapi.webhookConfigToProto never returns it in clear), so an incoming
+// value that reproduces that mask - or is empty, since proto3 can't tell
+// "absent" from "" on a bare string field - means "unchanged", not "clear it
+// out" or "here is the real secret". Only a value that does NOT match the
+// mask of the stored secret is treated as an intentional rotation.
+func resolveUpdatedSecret(stored, incoming string) string {
+	if incoming == "" {
+		return stored
+	}
+	if constantTimeEqualStrings(incoming, maskStoredSecret(stored)) {
+		return stored
+	}
+	return incoming
+}
+
+// maskStoredSecret mirrors grpcapi.maskSecret exactly. The app layer can't
+// import that driving adapter (it would invert the hexagonal dependency and,
+// since grpcapi already imports this package, create an import cycle), yet
+// this is the only place that holds both the stored secret and the incoming
+// value, so the merge decision has to live here. Keep this in lockstep with
+// grpcapi.maskSecret if that format ever changes.
+func maskStoredSecret(s string) string {
+	if s == "" {
+		return ""
+	}
+	if len(s) <= 4 {
+		return "****"
+	}
+	return s[:4] + "****"
+}
+
+// constantTimeEqualStrings compares two secret-derived values without leaking
+// timing information, matching the ConstantTimeCompare pattern already used
+// for CSRF and scrape-token checks elsewhere in this codebase.
+func constantTimeEqualStrings(a, b string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(a), []byte(b)) == 1
 }
 
 func (s *Service) Delete(ctx context.Context, id string) error {
