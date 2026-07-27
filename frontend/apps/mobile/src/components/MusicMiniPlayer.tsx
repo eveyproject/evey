@@ -11,6 +11,7 @@ import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
+import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@evey/store";
 import { useMusicQueueStore } from "../stores/musicQueue";
 import { useTheme } from "../providers/ThemeProvider";
@@ -19,6 +20,7 @@ import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
 
 function MusicMiniPlayerImpl() {
   const theme = useTheme();
+  const { t } = useTranslation();
   const serverUrl = useServerUrl();
   const accessToken = useAuthStore((s) => s.accessToken);
 
@@ -118,22 +120,22 @@ function MusicMiniPlayerImpl() {
             {[track.artist, track.album].filter(Boolean).join(" · ") || "-"}
           </Text>
         </View>
-        <Pressable onPress={previous} hitSlop={8} accessibilityLabel="Previous track" accessibilityRole="button">
+        <Pressable onPress={previous} hitSlop={8} accessibilityLabel={t("mobile.music.previousTrack")} accessibilityRole="button">
           <Ionicons name="play-skip-back" size={ICON_SIZE.xl} color={theme.colors.text} />
         </Pressable>
         <Pressable
           onPress={togglePlay}
           hitSlop={8}
-          accessibilityLabel={isPlayingState ? "Pause" : "Play"}
+          accessibilityLabel={isPlayingState ? t("player.controls.pause") : t("player.controls.play")}
           accessibilityRole="button"
           style={{ marginHorizontal: 10 }}
         >
           <Ionicons name={isPlayingState ? "pause" : "play"} size={ICON_SIZE.xl} color={theme.colors.text} />
         </Pressable>
-        <Pressable onPress={next} hitSlop={8} accessibilityLabel="Next track" accessibilityRole="button">
+        <Pressable onPress={next} hitSlop={8} accessibilityLabel={t("mobile.music.nextTrack")} accessibilityRole="button">
           <Ionicons name="play-skip-forward" size={ICON_SIZE.xl} color={theme.colors.text} />
         </Pressable>
-        <Pressable onPress={onClose} hitSlop={8} accessibilityLabel="Close player" accessibilityRole="button" style={{ marginLeft: 10 }}>
+        <Pressable onPress={onClose} hitSlop={8} accessibilityLabel={t("mobile.music.closePlayer")} accessibilityRole="button" style={{ marginLeft: 10 }}>
           <Ionicons name="close" size={ICON_SIZE.lg} color={theme.colors.textMuted} />
         </Pressable>
       </View>

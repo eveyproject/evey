@@ -27,6 +27,8 @@ auth:
   enableBiometricDesc: Use biometrics to unlock the app next time.
   haveInvite: Have an invite? Sign up
   rememberMe: Remember me
+  hidePassword: Hide password
+  showPassword: Show password
 profileSelect:
   title: Who's watching?
 servers:
@@ -44,3 +46,7 @@ servers:
   deleteConfirmMessage: "{{name}} will be removed from your saved servers. Sign-in tokens for this server will also be cleared."
   cantDeleteOnlyServer: "Can't delete the only saved server"
   switchedTo: "Switched to {{name}}"
+music:
+  previousTrack: Previous track
+  nextTrack: Next track
+  closePlayer: Close player

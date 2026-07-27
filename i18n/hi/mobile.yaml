@@ -27,6 +27,8 @@ auth:
   enableBiometricDesc: अगली बार ऐप अनलॉक करने के लिए बायोमेट्रिक्स का उपयोग करें।
   haveInvite: निमंत्रण है? साइन अप करें
   rememberMe: मुझे याद रखें
+  hidePassword: पासवर्ड छुपाएं
+  showPassword: पासवर्ड दिखाएं
 profileSelect:
   title: कौन देख रहा है?
 servers:
@@ -44,3 +46,7 @@ servers:
   deleteConfirmMessage: "{{name}} आपके सहेजे गए सर्वरों से हटा दिया जाएगा। इस सर्वर के लिए साइन-इन टोकन भी साफ कर दिए जाएंगे।"
   cantDeleteOnlyServer: एकमात्र सहेजे गए सर्वर को हटाया नहीं जा सकता
   switchedTo: "{{name}} पर स्विच किया"
+music:
+  previousTrack: पिछला ट्रैक
+  nextTrack: अगला ट्रैक
+  closePlayer: प्लेयर बंद करें

@@ -84,7 +84,7 @@ export default function Register() {
         autoCorrect={false}
         style={inputStyle}
         accessible={true}
-        accessibilityLabel="Invite code"
+        accessibilityLabel={t("auth.register.inviteCode")}
       />
       <TextInput
         placeholder={t("auth.register.username")}
@@ -95,7 +95,7 @@ export default function Register() {
         autoCorrect={false}
         style={inputStyle}
         accessible={true}
-        accessibilityLabel="Username"
+        accessibilityLabel={t("auth.register.username")}
       />
       <TextInput
         placeholder={t("auth.register.email")}
@@ -107,7 +107,7 @@ export default function Register() {
         keyboardType="email-address"
         style={inputStyle}
         accessible={true}
-        accessibilityLabel="Email"
+        accessibilityLabel={t("auth.register.email")}
       />
       <PasswordInput
         placeholder={t("auth.register.password")}
@@ -116,7 +116,7 @@ export default function Register() {
         onChangeText={setPassword}
         style={inputStyle}
         accessible={true}
-        accessibilityLabel="Password"
+        accessibilityLabel={t("auth.register.password")}
       />
       <PasswordInput
         placeholder={t("auth.register.confirmPassword")}
@@ -125,7 +125,7 @@ export default function Register() {
         onChangeText={setConfirm}
         style={inputStyle}
         accessible={true}
-        accessibilityLabel="Confirm password"
+        accessibilityLabel={t("auth.register.confirmPassword")}
       />
 
       {!!validationError && (

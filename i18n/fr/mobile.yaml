@@ -27,6 +27,8 @@ auth:
   enableBiometricDesc: Utilisez la biométrie pour déverrouiller l'app la prochaine fois.
   haveInvite: Vous avez une invitation ? Inscrivez-vous
   rememberMe: Se souvenir de moi
+  hidePassword: Masquer le mot de passe
+  showPassword: Afficher le mot de passe
 profileSelect:
   title: Qui regarde ?
 servers:
@@ -44,3 +46,7 @@ servers:
   deleteConfirmMessage: "{{name}} sera retire de vos serveurs enregistres. Les jetons de connexion pour ce serveur seront aussi supprimes."
   cantDeleteOnlyServer: Impossible de supprimer le seul serveur enregistre
   switchedTo: "Passe sur {{name}}"
+music:
+  previousTrack: Piste precedente
+  nextTrack: Piste suivante
+  closePlayer: Fermer le lecteur

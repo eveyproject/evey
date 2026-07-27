@@ -27,6 +27,8 @@ auth:
   enableBiometricDesc: Nutze Biometrie, um die App beim nächsten Mal zu entsperren.
   haveInvite: Einladung erhalten? Registrieren
   rememberMe: Angemeldet bleiben
+  hidePassword: Passwort ausblenden
+  showPassword: Passwort anzeigen
 profileSelect:
   title: Wer schaut?
 servers:
@@ -44,3 +46,7 @@ servers:
   deleteConfirmMessage: "{{name}} wird aus Ihren gespeicherten Servern entfernt. Anmelde-Tokens fur diesen Server werden ebenfalls geloscht."
   cantDeleteOnlyServer: Der einzige gespeicherte Server kann nicht geloscht werden
   switchedTo: "Zu {{name}} gewechselt"
+music:
+  previousTrack: "Vorheriger Titel"
+  nextTrack: "Nachster Titel"
+  closePlayer: "Player schliessen"

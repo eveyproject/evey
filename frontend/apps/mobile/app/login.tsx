@@ -168,7 +168,7 @@ export default function Login() {
         autoCorrect={false}
         style={inputStyle}
         accessible={true}
-        accessibilityLabel="Username"
+        accessibilityLabel={t("auth.login.username")}
       />
       <PasswordInput
         placeholder={t("auth.login.password")}
@@ -177,7 +177,7 @@ export default function Login() {
         onChangeText={setPassword}
         style={inputStyle}
         accessible={true}
-        accessibilityLabel="Password"
+        accessibilityLabel={t("auth.login.password")}
       />
       <Pressable
         onPress={() => setRemember((r) => !r)}

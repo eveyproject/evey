@@ -144,7 +144,11 @@ function LoginPage() {
             required
           />
           {login.error && (
-            <p className="text-sm text-center text-[var(--color-danger)]" data-testid="login-error">
+            <p
+              className="text-sm text-center text-[var(--color-danger)]"
+              data-testid="login-error"
+              role="alert"
+            >
               {friendlyLoginError(login.error, t)}
             </p>
           )}
