@@ -254,7 +254,12 @@ func (c *Client) Download(ctx context.Context, fileID int, destPath string) (str
 	if err != nil {
 		return "", fmt.Errorf("create subtitle file: %w", err)
 	}
-	defer f.Close()
+	closed := false
+	defer func() {
+		if !closed {
+			f.Close()
+		}
+	}()
 
 	// Cap at 10MB to prevent DoS from oversized subtitle responses
 	if _, err := io.Copy(f, io.LimitReader(fileResp.Body, 10*1024*1024)); err != nil {
@@ -262,6 +267,14 @@ func (c *Client) Download(ctx context.Context, fileID int, destPath string) (str
 			slog.Warn("remove partial subtitle", slog.Any("err", removeErr))
 		}
 		return "", fmt.Errorf("write subtitle file: %w", err)
+	}
+
+	closed = true
+	if err := f.Close(); err != nil {
+		if removeErr := os.Remove(filePath); removeErr != nil {
+			slog.Warn("remove partial subtitle", slog.Any("err", removeErr))
+		}
+		return "", fmt.Errorf("close subtitle file: %w", err)
 	}
 
 	slog.Info("subtitle downloaded", slog.Int("file_id", fileID), slog.String("path", filePath))

@@ -133,12 +133,26 @@ func avatarUploadHandler(
 			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 			return
 		}
-		defer out.Close()
+		outClosed := false
+		defer func() {
+			if !outClosed {
+				out.Close()
+			}
+		}()
 
 		if _, err := io.Copy(out, file); err != nil {
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, "write avatar file failed")
 			slog.Error("write avatar file", slog.Any("err", err))
+			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			return
+		}
+
+		outClosed = true
+		if err := out.Close(); err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, "close avatar file failed")
+			slog.Error("close avatar file", slog.Any("err", err))
 			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 			return
 		}
