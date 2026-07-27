@@ -51,6 +51,7 @@ import { MediaHeroBackdrop } from "../../../src/components/media/MediaHeroBackdr
 import { backdropWidthForViewport } from "../../../src/components/media/backdropWidth";
 import { hasMediaFile } from "../../../src/components/media/mediaFile";
 import { buildPublicShareUrl } from "../../../src/components/media/shareLink";
+import { MetadataEditSheet } from "../../../src/components/media/MetadataEditSheet";
 
 const POSTER_WIDTH = 100;
 const POSTER_HEIGHT = POSTER_WIDTH * 1.5;
@@ -553,6 +554,7 @@ export default function MediaDetailScreen() {
   const setThumbRating = useSetThumbRating(id);
 
   const [playlistSheetOpen, setPlaylistSheetOpen] = useState(false);
+  const [metadataSheetOpen, setMetadataSheetOpen] = useState(false);
   const [watchedOverride, setWatchedOverride] = useState<boolean | null>(null);
   const watched = watchedOverride ?? (watchProgress?.played === true);
 
@@ -1167,6 +1169,27 @@ export default function MediaDetailScreen() {
           )}
           {isAdmin && id && (
             <Pressable
+              onPress={() => setMetadataSheetOpen(true)}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                backgroundColor: theme.colors.surface,
+                borderRadius: theme.radii.md,
+                paddingVertical: theme.spacing.sm,
+                paddingHorizontal: theme.spacing.md,
+              }}
+              accessible={true}
+              accessibilityLabel={t("media.detail.editMetadata")}
+              accessibilityRole="button"
+            >
+              <Ionicons name="create-outline" size={20} color={theme.colors.text} />
+              <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: "600", marginLeft: 6 }}>
+                {t("media.detail.editMetadata")}
+              </Text>
+            </Pressable>
+          )}
+          {isAdmin && id && (
+            <Pressable
               onPress={() => router.push(`/admin/media/${id}` as never)}
               style={{
                 flexDirection: "row",
@@ -1388,6 +1411,19 @@ export default function MediaDetailScreen() {
           onClose={() => { setShowPinModal(false); setPendingPlayTarget(null); }}
           onVerified={handlePinVerified}
           profileId={gateProfileId}
+        />
+      ) : null}
+
+      {/* Defense in depth: re-check isAdmin at the mount point, not just at the
+          toggle button, so a stale metadataSheetOpen=true can never render the
+          editor for a non-admin (e.g. after an admin demotes their own account
+          mid-session). */}
+      {isAdmin && media ? (
+        <MetadataEditSheet
+          visible={metadataSheetOpen}
+          onClose={() => setMetadataSheetOpen(false)}
+          item={media}
+          onSaved={() => void refetch()}
         />
       ) : null}
     </ScrollView>
