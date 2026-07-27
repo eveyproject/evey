@@ -224,6 +224,8 @@ func (h *HostServer) RegisterPlugin(pluginID string) (string, error) {
 	srv := grpc.NewServer(
 		grpc.Creds(NewPeerCredsTransport()),
 		grpc.ChainUnaryInterceptor(unaryInterceptors...),
+		// HostService messages are small; don't rely on grpc's 4 MB default.
+		grpc.MaxRecvMsgSize(1<<20),
 	)
 	pluginv1.RegisterHostServiceServer(srv, h)
 	entry.grpcSrv = srv

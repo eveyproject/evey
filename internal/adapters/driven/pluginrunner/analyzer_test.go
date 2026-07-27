@@ -2002,3 +2002,124 @@ console.log(evil());
 		t.Errorf("stored constructor must trigger, got: %+v", report.Findings)
 	}
 }
+
+// TestAnalyzePlugin_ChildProcessImport_Aliased: analyzer must flag the import
+// of the child_process module itself, not just the qualified call - the old
+// rule only matched `child_process.exec(` literally, so binding the module to
+// a variable first (the common real-world pattern) slipped through undetected.
+func TestAnalyzePlugin_ChildProcessImport_Aliased(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "main.js", `
+const cp = require("child_process");
+cp.exec("id");
+`)
+	report, err := AnalyzePlugin(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Safe {
+		t.Fatal("expected unsafe plugin (aliased child_process require)")
+	}
+	found := false
+	for _, f := range report.Findings {
+		if f.Category == "shell_exec" && f.Severity == SeverityCritical {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected shell_exec critical finding, got: %+v", report.Findings)
+	}
+}
+
+func TestAnalyzePlugin_ChildProcessImport_ChainedCall(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "main.js", `require("child_process").spawnSync("env", []);`)
+
+	report, err := AnalyzePlugin(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Safe {
+		t.Fatal("expected unsafe plugin (chained child_process require)")
+	}
+	found := false
+	for _, f := range report.Findings {
+		if f.Category == "shell_exec" && f.Severity == SeverityCritical {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected shell_exec critical finding, got: %+v", report.Findings)
+	}
+}
+
+func TestAnalyzePlugin_ChildProcessImport_StoredMethodRef(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "main.js", `
+const s = require("child_process").spawnSync;
+s("env", []);
+`)
+	report, err := AnalyzePlugin(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Safe {
+		t.Fatal("expected unsafe plugin (stored method ref off child_process require)")
+	}
+	found := false
+	for _, f := range report.Findings {
+		if f.Category == "shell_exec" && f.Severity == SeverityCritical {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected shell_exec critical finding, got: %+v", report.Findings)
+	}
+}
+
+func TestAnalyzePlugin_ChildProcessImport_ESImport(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "main.js", `import cp from "child_process";
+cp.execSync("id");
+`)
+	report, err := AnalyzePlugin(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Safe {
+		t.Fatal("expected unsafe plugin (ES import of child_process)")
+	}
+	found := false
+	for _, f := range report.Findings {
+		if f.Category == "shell_exec" && f.Severity == SeverityCritical {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected shell_exec critical finding, got: %+v", report.Findings)
+	}
+}
+
+// TestAnalyzePlugin_ChildProcessImport_NoFalsePositive: a module whose name
+// merely contains the "child_process" substring (but isn't the module) and a
+// member-access `.exec(` on an unrelated object must NOT be flagged by the
+// new literal-import rule.
+func TestAnalyzePlugin_ChildProcessImport_NoFalsePositive(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "main.js", `
+const logger = require("child_process_logger");
+pool.exec("SELECT 1");
+`)
+	report, err := AnalyzePlugin(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range report.Findings {
+		if f.Category == "shell_exec" {
+			t.Errorf("unexpected shell_exec finding for non-child_process module/member-access exec: %+v", f)
+		}
+	}
+	if !report.Safe {
+		t.Errorf("expected safe plugin, got findings: %+v", report.Findings)
+	}
+}

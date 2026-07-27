@@ -61,6 +61,17 @@ var analyzerRules = []analyzerRule{
 	// because `Exec` / `Spawn` are class names in three.js / R3F.
 	{regexp.MustCompile(`(?:^|[\s;(,{=])(?:exec|spawn)\s*\(`), SeverityCritical, "shell_exec", "bare exec/spawn call", nil},
 	{regexp.MustCompile(`(?i)(os\.popen|commands\.getoutput|backtick)`), SeverityCritical, "shell_exec", "shell command execution via pipe", nil},
+	// Node.js child_process import - flagged on the IMPORT itself, independent
+	// of how the binding is used downstream. The qualified-call rule above
+	// (`child_process\.(exec|...)`) only matches the literal token
+	// `child_process.` right before the method, so `const cp =
+	// require("child_process"); cp.exec(...)`, `require("child_process").spawnSync(...)`
+	// and a stored method reference all slipped through with zero findings.
+	// Bounding the module name to exact quotes (`["']child_process["']`)
+	// keeps `require("child_process_logger")` from false-positiving.
+	// String-concatenation evasion (`"child_" + "process"`) is already
+	// covered by the obfuscation rule below - not duplicated here.
+	{regexp.MustCompile(`(?i)require\s*\(\s*["']child_process["']\s*\)|import\s+[^;\n]*\bfrom\s+["']child_process["']|import\s*\(\s*["']child_process["']\s*\)`), SeverityCritical, "shell_exec", "Node.js child_process import (shell/process execution)", nil},
 
 	// Network - outbound connections.
 	// Qualified network APIs first (always meaningful).
