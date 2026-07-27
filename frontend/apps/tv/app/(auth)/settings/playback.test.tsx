@@ -56,7 +56,7 @@ vi.mock("@evey/api", () => ({
   getUserServiceListProfilesQueryKey: (id: string) => ["profiles", id],
 }));
 
-import PlaybackSettingsScreen from "./playback";
+import PlaybackSettingsScreen, { resolveLangPref } from "./playback";
 
 const DEFAULT_PROFILE = { id: "prof-1", isDefault: true, preferences: {} };
 
@@ -118,5 +118,53 @@ describe("PlaybackSettingsScreen (TV)", () => {
     render(<PlaybackSettingsScreen />);
     const bitrateButton = screen.getByLabelText("8 Mbps") as HTMLButtonElement;
     expect(bitrateButton.disabled).toBe(true);
+  });
+
+  it("saves the audio language under the shared audio_languages key (not the legacy default_audio_language)", () => {
+    render(<PlaybackSettingsScreen />);
+    // "Default Subtitle Language" renders before "Default Audio Language", so
+    // the second "Français" row (index 1) belongs to the audio language section.
+    fireEvent.click(screen.getAllByLabelText("Français")[1]);
+    expect(mutateMock).toHaveBeenCalledWith({
+      id: "prof-1",
+      data: { preferences: { audio_languages: "fr" } },
+    });
+  });
+
+  it("saves the subtitle language under the shared subtitle_languages key", () => {
+    render(<PlaybackSettingsScreen />);
+    fireEvent.click(screen.getAllByLabelText("Español")[0]);
+    expect(mutateMock).toHaveBeenCalledWith({
+      id: "prof-1",
+      data: { preferences: { subtitle_languages: "es" } },
+    });
+  });
+});
+
+describe("resolveLangPref", () => {
+  it("prefers the shared key over the legacy one when both are present", () => {
+    expect(
+      resolveLangPref(
+        { audio_languages: "de", default_audio_language: "eng" },
+        "audio_languages",
+        "default_audio_language",
+      ),
+    ).toBe("de");
+  });
+
+  it("takes only the first code of a multi-language CSV value", () => {
+    expect(
+      resolveLangPref({ audio_languages: "fr,en,es" }, "audio_languages", "default_audio_language"),
+    ).toBe("fr");
+  });
+
+  it("falls back to the legacy key, converting its ISO 639-2/B code to ISO 639-1", () => {
+    expect(
+      resolveLangPref({ default_subtitle_language: "ger" }, "subtitle_languages", "default_subtitle_language"),
+    ).toBe("de");
+  });
+
+  it("returns an empty string when neither key is set", () => {
+    expect(resolveLangPref({}, "audio_languages", "default_audio_language")).toBe("");
   });
 });

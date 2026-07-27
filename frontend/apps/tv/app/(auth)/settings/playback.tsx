@@ -15,19 +15,22 @@ import { useTheme } from "../../../src/providers/ThemeProvider";
 // convention shared with web (LanguageSettings.tsx) and mobile (settings/
 // playback.tsx) - the preference is stored per-profile and read by every
 // client's track resolution, so all three must agree on the same codes.
+// Language names are each language's own endonym (not translated) - same
+// choice web/mobile made, and consistent with the untranslated codec proper
+// nouns (H.264, AC3, ...) below. "None" reuses web's common.noPreference key.
 const LANG_OPTIONS = [
-  { value: "", label: "None" },
-  { value: "en", label: "English" },
-  { value: "fr", label: "Français" },
-  { value: "es", label: "Español" },
-  { value: "de", label: "Deutsch" },
-  { value: "it", label: "Italiano" },
-  { value: "pt", label: "Português" },
-  { value: "ja", label: "日本語" },
-  { value: "ko", label: "한국어" },
-  { value: "zh", label: "中文" },
-  { value: "ru", label: "Русский" },
-  { value: "ar", label: "العربية" },
+  { value: "", labelKey: "common.noPreference", fallback: "No preference" },
+  { value: "en", labelKey: "", fallback: "English" },
+  { value: "fr", labelKey: "", fallback: "Français" },
+  { value: "es", labelKey: "", fallback: "Español" },
+  { value: "de", labelKey: "", fallback: "Deutsch" },
+  { value: "it", labelKey: "", fallback: "Italiano" },
+  { value: "pt", labelKey: "", fallback: "Português" },
+  { value: "ja", labelKey: "", fallback: "日本語" },
+  { value: "ko", labelKey: "", fallback: "한국어" },
+  { value: "zh", labelKey: "", fallback: "中文" },
+  { value: "ru", labelKey: "", fallback: "Русский" },
+  { value: "ar", labelKey: "", fallback: "العربية" },
 ];
 
 // This screen used to save ISO 639-2/B codes ("fre", "ger", ...) under these
@@ -44,15 +47,31 @@ function legacyLangToIso1(code: string | undefined): string | undefined {
   return LEGACY_LANG_MAP[code] ?? code;
 }
 
+// Resolves one language preference for this profile. audio_languages/
+// subtitle_languages is the shared web/mobile/tv convention (CSV of ISO 639-1
+// codes, first entry = highest priority); this screen only ever writes a
+// single code, so we read just the first entry. Falls back to the TV-only
+// default_audio_language/default_subtitle_language key (soft migration on
+// read) so a language picked before this fix stays selected until re-saved.
+export function resolveLangPref(
+  prefs: PrefMap,
+  sharedKey: "audio_languages" | "subtitle_languages",
+  legacyKey: "default_audio_language" | "default_subtitle_language",
+): string {
+  const raw = prefs[sharedKey] ?? legacyLangToIso1(prefs[legacyKey]);
+  if (raw === undefined) return "";
+  return raw.split(",")[0]?.trim() ?? "";
+}
+
 const BITRATE_OPTIONS = [
-  { value: "0", label: "Unlimited" },
-  { value: "2000", label: "2 Mbps" },
-  { value: "4000", label: "4 Mbps" },
-  { value: "8000", label: "8 Mbps" },
-  { value: "10000", label: "10 Mbps" },
-  { value: "15000", label: "15 Mbps" },
-  { value: "20000", label: "20 Mbps" },
-  { value: "40000", label: "40 Mbps" },
+  { value: "0", labelKey: "auth.settings.playback.bitrateUnlimited", fallback: "Unlimited" },
+  { value: "2000", labelKey: "", fallback: "2 Mbps" },
+  { value: "4000", labelKey: "", fallback: "4 Mbps" },
+  { value: "8000", labelKey: "", fallback: "8 Mbps" },
+  { value: "10000", labelKey: "", fallback: "10 Mbps" },
+  { value: "15000", labelKey: "", fallback: "15 Mbps" },
+  { value: "20000", labelKey: "", fallback: "20 Mbps" },
+  { value: "40000", labelKey: "", fallback: "40 Mbps" },
 ];
 
 const VIDEO_CODEC_OPTIONS = [
@@ -121,8 +140,8 @@ export default function PlaybackSettingsScreen() {
   useEffect(() => {
     const prefs: PrefMap = defaultProfile?.preferences ?? {};
     if (prefs.max_bitrate_kbps) setBitrate(prefs.max_bitrate_kbps);
-    if (prefs.default_subtitle_language) setSubtitleLang(legacyLangToIso1(prefs.default_subtitle_language) ?? "");
-    if (prefs.default_audio_language) setAudioLang(legacyLangToIso1(prefs.default_audio_language) ?? "");
+    setSubtitleLang(resolveLangPref(prefs, "subtitle_languages", "default_subtitle_language"));
+    setAudioLang(resolveLangPref(prefs, "audio_languages", "default_audio_language"));
     if (prefs.preferred_video_codec) setVideoCodec(prefs.preferred_video_codec);
     if (prefs.preferred_audio_codec) setAudioCodec(prefs.preferred_audio_codec);
     if (prefs.max_audio_channels) setAudioChannels(prefs.max_audio_channels);
@@ -159,11 +178,11 @@ export default function PlaybackSettingsScreen() {
   }
   function handleSubtitleLang(v: string) {
     setSubtitleLang(v);
-    savePref({ default_subtitle_language: v });
+    savePref({ subtitle_languages: v });
   }
   function handleAudioLang(v: string) {
     setAudioLang(v);
-    savePref({ default_audio_language: v });
+    savePref({ audio_languages: v });
   }
   function handleVideoCodec(v: string) {
     setVideoCodec(v);
@@ -261,7 +280,7 @@ export default function PlaybackSettingsScreen() {
           <OptionRow
             key={opt.value}
             rowKey={`bitrate-${opt.value}`}
-            label={opt.label}
+            label={labelOf(opt)}
             selected={bitrate === opt.value}
             onPress={() => handleBitrate(opt.value)}
             hasTVPreferredFocus={i === 0}
@@ -326,7 +345,7 @@ export default function PlaybackSettingsScreen() {
           <OptionRow
             key={opt.value}
             rowKey={`subtitle-lang-${opt.value}`}
-            label={opt.label}
+            label={labelOf(opt)}
             selected={subtitleLang === opt.value}
             onPress={() => handleSubtitleLang(opt.value)}
           />
@@ -342,7 +361,7 @@ export default function PlaybackSettingsScreen() {
           <OptionRow
             key={opt.value}
             rowKey={`audio-lang-${opt.value}`}
-            label={opt.label}
+            label={labelOf(opt)}
             selected={audioLang === opt.value}
             onPress={() => handleAudioLang(opt.value)}
           />
