@@ -9,7 +9,7 @@ type Theme = ReturnType<typeof useTheme>;
 // One badge that can carry a longer explanation. RN has no hover tooltip, so
 // pressing the badge surfaces the same text the web title="..." attribute
 // shows on hover.
-function HintBadge({ label, hint, color, theme }: { label: string; hint?: string; color: string; theme: Theme }) {
+function HintBadge({ label, hint, color }: { label: string; hint?: string; color: string }) {
   const badge = (
     <View style={[styles.badge, { backgroundColor: color + "22" }]}>
       <Text style={{ color, fontSize: 10, fontWeight: "600" }}>{label}</Text>
@@ -79,27 +79,25 @@ export function SeekIndexItemRow({
         </View>
 
         {item.hasIndex ? (
-          <HintBadge label={t("admin.seekIndex.statusIndexed")} color={theme.colors.success} theme={theme} />
+          <HintBadge label={t("admin.seekIndex.statusIndexed")} color={theme.colors.success} />
         ) : item.seekCoarse ? (
           <HintBadge
             label={t("admin.seekIndex.seekCoarseBadge")}
             hint={t("admin.seekIndex.seekCoarseHint")}
             color={theme.colors.info}
-            theme={theme}
           />
         ) : (
-          <HintBadge label={t("admin.seekIndex.statusMissing")} color={theme.colors.warning} theme={theme} />
+          <HintBadge label={t("admin.seekIndex.statusMissing")} color={theme.colors.warning} />
         )}
 
         {item.hasBackup && (
-          <HintBadge label={t("admin.seekIndex.backupBadge")} color={theme.colors.info} theme={theme} />
+          <HintBadge label={t("admin.seekIndex.backupBadge")} color={theme.colors.info} />
         )}
 
         {delayed && (
           <HintBadge
             label={t("admin.seekIndex.audioDelayBadge", { sec: (item.audioDelaySec ?? 0).toFixed(1) })}
             color={theme.colors.warning}
-            theme={theme}
           />
         )}
 
@@ -112,14 +110,12 @@ export function SeekIndexItemRow({
             }
             hint={t("admin.seekIndex.truncatedHint")}
             color={theme.colors.error}
-            theme={theme}
           />
         ) : (
           damagedBytes > 0 && (
             <HintBadge
               label={t("admin.seekIndex.damagedBadge", { size: formatSize(damagedBytes) })}
               color={theme.colors.warning}
-              theme={theme}
             />
           )
         )}
@@ -129,7 +125,6 @@ export function SeekIndexItemRow({
             label={t("admin.seekIndex.wrongContainerBadge")}
             hint={t("admin.seekIndex.wrongContainerHint")}
             color={theme.colors.error}
-            theme={theme}
           />
         )}
 
@@ -138,7 +133,6 @@ export function SeekIndexItemRow({
             label={t("admin.seekIndex.trailingJunkBadge")}
             hint={t("admin.seekIndex.trailingJunkHint")}
             color={theme.colors.info}
-            theme={theme}
           />
         )}
 
@@ -147,7 +141,6 @@ export function SeekIndexItemRow({
             label={t("admin.seekIndex.audioShortBadge", { sec: Math.round(audioShortfallSec) })}
             hint={t("admin.seekIndex.audioShortHint", { sec: Math.round(audioShortfallSec) })}
             color={theme.colors.warning}
-            theme={theme}
           />
         )}
       </View>
