@@ -5,8 +5,11 @@ import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { eveyFetch } from "@evey/api";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { toast } from "@evey/store";
+import { toast, useAuthStore } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
+import { formatBytes } from "../../../src/lib/formatBytes";
+import { downloadBackupFile, restoreExistingBackup } from "../../../src/components/admin/backup/backupFileOps";
+import { isBackupRestorable } from "../../../src/components/admin/backup/backupTransfer";
 
 interface Backup {
   id: string;
@@ -28,14 +31,7 @@ interface BackupSchedule {
 const BACKUPS_KEY = ["admin", "backups"];
 const SCHEDULE_KEY = ["admin", "backup-schedule"];
 
-function formatSize(bytes: number): string {
-  if (!bytes) return "0 B";
-  const units = ["B", "KB", "MB", "GB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(1024));
-  return `${(bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0)} ${units[i]}`;
-}
-
-function isValidCron(expr: string): boolean {
+export function isValidCron(expr: string): boolean {
   return expr.trim().split(/\s+/).length === 5;
 }
 
@@ -48,9 +44,7 @@ function useBackups() {
 }
 
 // ScheduleSection mirrors the web ScheduleSection (routes/_auth/admin/backup.lazy.tsx):
-// cron + retention + enabled toggle, plus a manual "Run now" trigger. Backup
-// download/restore (multipart upload) is deliberately NOT ported here - it's
-// heavy on React Native and left for a follow-up.
+// cron + retention + enabled toggle, plus a manual "Run now" trigger.
 function ScheduleSection() {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -223,6 +217,7 @@ export default function AdminBackupScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
   const qc = useQueryClient();
+  const accessToken = useAuthStore((s) => s.accessToken);
 
   const { data: backups, isLoading, refetch } = useBackups();
 
@@ -244,6 +239,18 @@ export default function AdminBackupScreen() {
     onError: (err: Error) => toast.error(err.message || t("admin.backup.failedDeleteBackup")),
   });
 
+  const downloadBackup = useMutation({
+    mutationFn: (backup: Backup) => downloadBackupFile(backup, accessToken),
+    onSuccess: () => toast.success(t("media.downloadComplete")),
+    onError: (err: Error) => toast.error(err.message || t("media.downloadFailed")),
+  });
+
+  const restoreBackup = useMutation({
+    mutationFn: (backup: Backup) => restoreExistingBackup(backup, accessToken),
+    onSuccess: () => toast.success(t("admin.backup.restoreCompleted")),
+    onError: (err: Error) => toast.error(err.message || t("admin.backup.restoreFailed")),
+  });
+
   const handleDelete = useCallback((backup: Backup) => {
     Alert.alert(
       t("admin.backup.deleteBackupTitle"),
@@ -255,24 +262,58 @@ export default function AdminBackupScreen() {
     );
   }, [deleteBackup, t]);
 
-  const renderBackup = useCallback(({ item }: { item: Backup }) => (
-    <View style={[styles.card, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}>
-      <View style={{ flex: 1, gap: 2 }}>
-        <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: "600", fontFamily: "monospace" }} numberOfLines={1}>
-          {item.id}
-        </Text>
-        <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>
-          {new Date(item.createdAt).toLocaleString()} · {formatSize(item.size)}
-        </Text>
-        {item.version && (
-          <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>v{item.version}</Text>
-        )}
+  // Restoring overwrites the whole live database - same destructive
+  // confirmation contract as the web app's BackupRow.handleRestore modal.
+  const handleRestore = useCallback((backup: Backup) => {
+    Alert.alert(
+      t("admin.backup.restoreBackupTitle"),
+      t("admin.backup.restoreConfirm", { date: new Date(backup.createdAt).toLocaleString() }),
+      [
+        { text: t("common.cancel"), style: "cancel" },
+        { text: t("common.restore"), style: "destructive", onPress: () => restoreBackup.mutate(backup) },
+      ],
+    );
+  }, [restoreBackup, t]);
+
+  const renderBackup = useCallback(({ item }: { item: Backup }) => {
+    const restorable = isBackupRestorable(item);
+    const downloading = downloadBackup.isPending && downloadBackup.variables?.id === item.id;
+    const restoring = restoreBackup.isPending && restoreBackup.variables?.id === item.id;
+    return (
+      <View style={[styles.card, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}>
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: "600", fontFamily: "monospace" }} numberOfLines={1}>
+            {item.id}
+          </Text>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>
+            {new Date(item.createdAt).toLocaleString()} · {formatBytes(item.size)}
+          </Text>
+          {item.version && (
+            <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>v{item.version}</Text>
+          )}
+        </View>
+        <View style={{ flexDirection: "row", gap: 16 }}>
+          <Pressable onPress={() => downloadBackup.mutate(item)} disabled={!restorable || downloading} hitSlop={8}>
+            {downloading ? (
+              <ActivityIndicator size="small" color={theme.colors.text} />
+            ) : (
+              <Ionicons name="download-outline" size={20} color={restorable ? theme.colors.text : theme.colors.textMuted} />
+            )}
+          </Pressable>
+          <Pressable onPress={() => handleRestore(item)} disabled={!restorable || restoring} hitSlop={8}>
+            {restoring ? (
+              <ActivityIndicator size="small" color={theme.colors.text} />
+            ) : (
+              <Ionicons name="refresh-outline" size={20} color={restorable ? theme.colors.text : theme.colors.textMuted} />
+            )}
+          </Pressable>
+          <Pressable onPress={() => handleDelete(item)} hitSlop={8}>
+            <Ionicons name="trash-outline" size={20} color={theme.colors.error} />
+          </Pressable>
+        </View>
       </View>
-      <Pressable onPress={() => handleDelete(item)} hitSlop={8}>
-        <Ionicons name="trash-outline" size={20} color={theme.colors.error} />
-      </Pressable>
-    </View>
-  ), [theme, handleDelete]);
+    );
+  }, [theme, handleDelete, handleRestore, downloadBackup, restoreBackup]);
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
