@@ -153,6 +153,9 @@ vi.mock("@evey/api", () => ({
   useUserServiceGetCurrentUser: () => ({ data: { id: "user-1" } }),
   useUserServiceListProfiles: () => ({ data: { profiles: [{ id: "profile-1", isDefault: true, region: "US" }] } }),
   useShareServiceCreateShareLink: () => ({ mutate: vi.fn(), isPending: false }),
+  useRatingServiceGetMyThumbRating: () => ({ data: undefined }),
+  ratingServicePutThumbRating: vi.fn(() => Promise.resolve({})),
+  getRatingServiceGetMyThumbRatingQueryKey: () => ["rating"],
 }));
 
 // -------------------------------------------------------------------------------------

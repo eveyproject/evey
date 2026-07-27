@@ -113,6 +113,9 @@ vi.mock("../hooks/useFavorite", () => ({
 }));
 vi.mock("../components/AddToPlaylistSheet", () => ({ AddToPlaylistSheet: () => null }));
 vi.mock("../components/Skeleton", () => ({ Skeleton: () => null }));
+// The grid now renders the shared MediaCard (pulls in image/watch hooks); the
+// shuffle tests only exercise the shuffle button, so stub it out.
+vi.mock("../components/MediaCard", () => ({ MediaCard: () => null }));
 
 // --- @evey/store -----------------------------------------------------------------------
 const { toastErrorMock, toastInfoMock } = vi.hoisted(() => ({
@@ -131,15 +134,18 @@ const ITEMS = [
   { id: "mi-3", title: "Gamma", genres: ["Action"], year: 2003 },
 ];
 
-const { listMediaItemsMock, rawListMediaItemsMock } = vi.hoisted(() => ({
+const { listMediaItemsMock, rawListMediaItemsMock, searchMediaMock } = vi.hoisted(() => ({
   listMediaItemsMock: vi.fn(),
   rawListMediaItemsMock: vi.fn(),
+  searchMediaMock: vi.fn(),
 }));
 
 vi.mock("@evey/api", () => ({
   useLibraryServiceGetLibrary: () => ({ data: { id: LIBRARY_ID, name: "My Library" } }),
   useLibraryServiceListMediaItems: (...args: unknown[]) => listMediaItemsMock(...args),
   libraryServiceListMediaItems: (...args: unknown[]) => rawListMediaItemsMock(...args),
+  useLibraryServiceSearchMedia: (...args: unknown[]) => searchMediaMock(...args),
+  usePlaybackServiceGetWatchHistory: () => ({ data: undefined }),
   usePlaybackServiceMarkAsWatched: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false }),
   usePlaybackServiceMarkAsUnwatched: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false }),
 }));
@@ -155,6 +161,15 @@ beforeEach(() => {
   // re-syncs allItems on every render instead of only the first.
   listMediaItemsMock.mockImplementation(() => ({
     data: { items: ITEMS, pagination: { totalItems: ITEMS.length, totalPages: 1 } },
+    isLoading: false,
+    isError: false,
+    isFetching: false,
+    refetch: vi.fn(),
+  }));
+  // Server search is dormant by default (no text filter); tests that exercise
+  // the filter path override this to return matching items.
+  searchMediaMock.mockImplementation(() => ({
+    data: undefined,
     isLoading: false,
     isError: false,
     isFetching: false,
@@ -181,6 +196,16 @@ describe("LibraryDetailScreen shuffle", () => {
 
   it("shuffles within the displayed items when a text filter is active, without hitting the whole-library probe", async () => {
     vi.spyOn(Math, "random").mockReturnValue(0);
+    // With a text filter active, the screen now hits the server search
+    // (useLibraryServiceSearchMedia) and shuffles within those results - never
+    // the whole-library probe.
+    searchMediaMock.mockImplementation(() => ({
+      data: { items: [{ id: "mi-2", title: "Beta" }], totalHits: 1 },
+      isLoading: false,
+      isError: false,
+      isFetching: false,
+      refetch: vi.fn(),
+    }));
     render(<LibraryDetailScreen />);
 
     fireEvent.change(screen.getByPlaceholderText("media.library.filterByName"), {
