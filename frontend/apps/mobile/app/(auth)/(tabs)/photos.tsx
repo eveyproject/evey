@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
   ScrollView,
 } from "react-native";
 import { Image } from "expo-image";
+import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { eveyFetch } from "@evey/api";
@@ -99,12 +100,22 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / 1024).toFixed(0)} KB`;
 }
 
-function usePhotos(libraryID: string | undefined) {
+// 2000 keeps the nested (non-virtualized) grid within a reasonable render
+// budget while covering the vast majority of real-world photo libraries;
+// `total` from the response is surfaced separately so users can tell when
+// the library exceeds this cap.
+const PHOTOS_LIMIT = 2000;
+
+function usePhotos(libraryID: string | undefined, album?: string) {
   return useQuery({
-    queryKey: ["photos", "list", libraryID],
-    queryFn: () => eveyFetch<{ photos: Photo[]; total: number }>({ url: `/api/v1/photos?library_id=${libraryID}&limit=200`, method: "GET" }),
+    queryKey: ["photos", "list", libraryID, album],
+    queryFn: () =>
+      eveyFetch<{ photos: Photo[]; total: number }>({
+        url: `/api/v1/photos?library_id=${libraryID}&limit=${PHOTOS_LIMIT}${album ? `&album=${encodeURIComponent(album)}` : ""}`,
+        method: "GET",
+      }),
     enabled: !!libraryID,
-    select: (d) => d.photos ?? [],
+    select: (d) => ({ photos: d.photos ?? [], total: d.total ?? 0 }),
     staleTime: 30_000,
   });
 }
@@ -116,26 +127,54 @@ export default function PhotosScreen() {
   const serverUrl = useServerUrl();
 
   const [selectedLibraryID, setSelectedLibraryID] = useState<string | undefined>(undefined);
-  const [lightboxPhoto, setLightboxPhoto] = useState<Photo | null>(null);
+  const [selectedAlbum, setSelectedAlbum] = useState<string | undefined>(undefined);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [rotation, setRotation] = useState(0);
 
   const { data: libraries, isLoading: libLoading } = usePhotoLibraries();
   const activeLibraryID = selectedLibraryID ?? libraries?.[0]?.id;
   const { data: albums, isLoading: albumsLoading } = useAlbums(activeLibraryID);
-  const { data: photos, isLoading: photosLoading } = usePhotos(activeLibraryID);
+  const { data: photosData, isLoading: photosLoading } = usePhotos(activeLibraryID, selectedAlbum);
+  const photos = photosData?.photos ?? [];
+  const photosTotal = photosData?.total ?? 0;
+  const lightboxPhoto = lightboxIndex !== null ? photos[lightboxIndex] : undefined;
   const { data: photoDetail } = usePhotoDetail(lightboxPhoto?.id);
+
+  // A stale index would otherwise index into a freshly filtered list when
+  // switching library/album - showing the wrong photo, or auto-opening the
+  // lightbox on a photo the user never clicked.
+  useEffect(() => {
+    setLightboxIndex(null);
+  }, [selectedAlbum, activeLibraryID]);
+
+  useEffect(() => {
+    setRotation(0);
+  }, [lightboxIndex]);
 
   const photoUrl = useCallback(
     (id: string) => (serverUrl ? `${serverUrl}/api/v1/photos/${id}/serve` : undefined),
     [serverUrl],
   );
 
+  const photoThumbUrl = useCallback(
+    (id: string) => (serverUrl ? `${serverUrl}/api/v1/photos/${id}/serve?w=400&fmt=webp` : undefined),
+    [serverUrl],
+  );
+
+  const closeLightbox = useCallback(() => setLightboxIndex(null), []);
+  const prevPhoto = useCallback(() => setLightboxIndex((i) => (i !== null && i > 0 ? i - 1 : i)), []);
+  const nextPhoto = useCallback(
+    () => setLightboxIndex((i) => (i !== null && i < photos.length - 1 ? i + 1 : i)),
+    [photos.length],
+  );
+
   const renderPhoto = useCallback(
-    ({ item }: { item: Photo }) => {
-      const uri = photoUrl(item.id);
+    ({ item, index }: { item: Photo; index: number }) => {
+      const uri = photoThumbUrl(item.id);
       return (
         <TouchableOpacity
           activeOpacity={0.85}
-          onPress={() => setLightboxPhoto(item)}
+          onPress={() => setLightboxIndex(index)}
           style={{ width: PHOTO_SIZE, height: PHOTO_SIZE, margin: SPACING / 2 }}
         >
           {uri ? (
@@ -153,14 +192,18 @@ export default function PhotosScreen() {
         </TouchableOpacity>
       );
     },
-    [photoUrl, authHeaders, theme],
+    [photoThumbUrl, authHeaders, theme],
   );
 
   const renderAlbum = useCallback(
     ({ item }: { item: Album }) => {
-      const coverUri = item.coverPhotoId ? photoUrl(item.coverPhotoId) : undefined;
+      const coverUri = item.coverPhotoId ? photoThumbUrl(item.coverPhotoId) : undefined;
       return (
-        <View style={[styles.albumCard, { width: ALBUM_SIZE, backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}>
+        <TouchableOpacity
+          activeOpacity={0.85}
+          onPress={() => setSelectedAlbum(item.name)}
+          style={[styles.albumCard, { width: ALBUM_SIZE, backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
+        >
           {coverUri ? (
             <Image
               source={{ uri: coverUri, headers: authHeaders }}
@@ -175,10 +218,10 @@ export default function PhotosScreen() {
           )}
           <Text style={[styles.albumTitle, { color: theme.colors.text }]} numberOfLines={1}>{item.name}</Text>
           <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>{item.photoCount} photo{item.photoCount !== 1 ? "s" : ""}</Text>
-        </View>
+        </TouchableOpacity>
       );
     },
-    [photoUrl, authHeaders, theme],
+    [photoThumbUrl, authHeaders, theme],
   );
 
   if (libLoading) {
@@ -233,66 +276,134 @@ export default function PhotosScreen() {
           </ScrollView>
         )}
 
-        {/* Albums section */}
-        <View style={{ paddingHorizontal: theme.spacing.md, marginTop: theme.spacing.lg }}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{t("media.photos.albums")}</Text>
-          {albumsLoading ? (
-            <View style={styles.albumGrid}>
-              {Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} width={ALBUM_SIZE} height={ALBUM_SIZE} borderRadius={theme.radii.md} style={{ marginBottom: theme.spacing.sm }} />
-              ))}
-            </View>
-          ) : !albums || albums.length === 0 ? (
-            <Text style={{ color: theme.colors.textMuted, fontSize: 13, marginBottom: theme.spacing.md }}>{t("media.photos.noAlbums")}</Text>
-          ) : (
-            <FlatList
-              data={albums}
-              keyExtractor={(item) => item.name}
-              renderItem={renderAlbum}
-              numColumns={NUM_ALBUM_COLS}
-              scrollEnabled={false}
-              columnWrapperStyle={{ gap: theme.spacing.sm, marginBottom: theme.spacing.sm }}
-            />
-          )}
-        </View>
+        {/* Albums section (hidden while drilled into one album) */}
+        {!selectedAlbum && (
+          <View style={{ paddingHorizontal: theme.spacing.md, marginTop: theme.spacing.lg }}>
+            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{t("media.photos.albums")}</Text>
+            {albumsLoading ? (
+              <View style={styles.albumGrid}>
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <Skeleton key={i} width={ALBUM_SIZE} height={ALBUM_SIZE} borderRadius={theme.radii.md} style={{ marginBottom: theme.spacing.sm }} />
+                ))}
+              </View>
+            ) : !albums || albums.length === 0 ? (
+              <Text style={{ color: theme.colors.textMuted, fontSize: 13, marginBottom: theme.spacing.md }}>{t("media.photos.noAlbums")}</Text>
+            ) : (
+              <FlatList
+                data={albums}
+                keyExtractor={(item) => item.name}
+                renderItem={renderAlbum}
+                numColumns={NUM_ALBUM_COLS}
+                scrollEnabled={false}
+                columnWrapperStyle={{ gap: theme.spacing.sm, marginBottom: theme.spacing.sm }}
+              />
+            )}
+          </View>
+        )}
 
-        {/* All photos section */}
+        {/* Photos section - all photos, or the selected album's photos when drilled in */}
         <View style={{ marginTop: theme.spacing.md }}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.text, paddingHorizontal: theme.spacing.md }]}>{t("media.photos.allPhotos")}</Text>
+          {selectedAlbum ? (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: theme.spacing.md, marginBottom: theme.spacing.sm }}>
+              <TouchableOpacity
+                onPress={() => setSelectedAlbum(undefined)}
+                activeOpacity={0.7}
+                style={{ flexDirection: "row", alignItems: "center" }}
+              >
+                <Ionicons name="chevron-back" size={16} color={theme.colors.textMuted} />
+                <Text style={{ color: theme.colors.textMuted, fontSize: 13 }}>{t("media.photos.albums")}</Text>
+              </TouchableOpacity>
+              <Text style={{ color: theme.colors.textMuted, fontSize: 13 }}>/</Text>
+              <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: "600", flexShrink: 1 }} numberOfLines={1}>
+                {selectedAlbum.split("/").pop()}
+              </Text>
+            </View>
+          ) : (
+            <Text style={[styles.sectionTitle, { color: theme.colors.text, paddingHorizontal: theme.spacing.md }]}>{t("media.photos.allPhotos")}</Text>
+          )}
           {photosLoading ? (
             <View style={styles.skeletonGrid}>
               {Array.from({ length: 12 }).map((_, i) => (
                 <Skeleton key={i} width={PHOTO_SIZE} height={PHOTO_SIZE} borderRadius={0} style={{ margin: SPACING / 2 }} />
               ))}
             </View>
-          ) : !photos || photos.length === 0 ? (
+          ) : photos.length === 0 ? (
             <Text style={{ color: theme.colors.textMuted, fontSize: 13, paddingHorizontal: theme.spacing.md, marginBottom: theme.spacing.lg }}>{t("media.photos.noPhotos")}</Text>
           ) : (
-            <FlatList
-              data={photos}
-              keyExtractor={(item) => item.id}
-              renderItem={renderPhoto}
-              numColumns={NUM_PHOTO_COLS}
-              scrollEnabled={false}
-              contentContainerStyle={{ paddingHorizontal: SPACING / 2 }}
-            />
+            <>
+              <FlatList
+                data={photos}
+                keyExtractor={(item) => item.id}
+                renderItem={renderPhoto}
+                numColumns={NUM_PHOTO_COLS}
+                scrollEnabled={false}
+                contentContainerStyle={{ paddingHorizontal: SPACING / 2 }}
+              />
+              {photosTotal > 0 && (
+                <Text style={{ color: theme.colors.textMuted, fontSize: 12, textAlign: "right", paddingHorizontal: theme.spacing.md, marginTop: 4 }}>
+                  {t("media.photos.photoCount", { count: photosTotal })}
+                </Text>
+              )}
+            </>
           )}
         </View>
       </ScrollView>
 
       {/* Lightbox */}
-      <Modal visible={!!lightboxPhoto} transparent animationType="fade" onRequestClose={() => setLightboxPhoto(null)}>
-        <Pressable style={styles.lightboxBg} onPress={() => setLightboxPhoto(null)}>
+      <Modal visible={lightboxIndex !== null} transparent animationType="fade" onRequestClose={closeLightbox}>
+        <Pressable style={styles.lightboxBg} onPress={closeLightbox}>
+          <View style={styles.lightboxTopBar}>
+            <TouchableOpacity
+              onPress={(e) => { e.stopPropagation(); setRotation((r) => (r + 270) % 360); }}
+              hitSlop={10}
+              accessibilityLabel={t("common.rotateLeft")}
+            >
+              <Ionicons name="arrow-undo-outline" size={24} color="#fff" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={(e) => { e.stopPropagation(); setRotation((r) => (r + 90) % 360); }}
+              hitSlop={10}
+              accessibilityLabel={t("common.rotateRight")}
+            >
+              <Ionicons name="arrow-redo-outline" size={24} color="#fff" />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={closeLightbox} hitSlop={10} accessibilityLabel={t("common.aria.close")}>
+              <Ionicons name="close" size={28} color="#fff" />
+            </TouchableOpacity>
+          </View>
+
+          {lightboxIndex !== null && lightboxIndex > 0 && (
+            <TouchableOpacity
+              onPress={(e) => { e.stopPropagation(); prevPhoto(); }}
+              style={[styles.lightboxNav, { left: 8 }]}
+              hitSlop={10}
+              accessibilityLabel={t("common.previous")}
+            >
+              <Ionicons name="chevron-back" size={28} color="#fff" />
+            </TouchableOpacity>
+          )}
+          {lightboxIndex !== null && lightboxIndex < photos.length - 1 && (
+            <TouchableOpacity
+              onPress={(e) => { e.stopPropagation(); nextPhoto(); }}
+              style={[styles.lightboxNav, { right: 8 }]}
+              hitSlop={10}
+              accessibilityLabel={t("common.next")}
+            >
+              <Ionicons name="chevron-forward" size={28} color="#fff" />
+            </TouchableOpacity>
+          )}
+
           {lightboxPhoto && serverUrl && (
             <Image
               source={{ uri: photoUrl(lightboxPhoto.id), headers: authHeaders }}
-              style={styles.lightboxImage}
+              style={[styles.lightboxImage, { transform: [{ rotate: `${rotation}deg` }] }]}
               contentFit="contain"
             />
           )}
           {lightboxPhoto && (
             <View style={styles.lightboxMeta}>
               <Text style={styles.lightboxTitle} numberOfLines={1}>{lightboxPhoto.title || lightboxPhoto.album || ""}</Text>
+              <Text style={styles.lightboxInfo}>{(lightboxIndex ?? 0) + 1} / {photos.length}</Text>
               {photoDetail && (
                 <View style={{ gap: 2, marginTop: 6, alignItems: "center" }}>
                   {photoDetail.width > 0 && photoDetail.height > 0 && (
@@ -341,6 +452,24 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.92)",
     justifyContent: "center",
     alignItems: "center",
+  },
+  lightboxTopBar: {
+    position: "absolute",
+    top: 48,
+    right: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 20,
+    zIndex: 1,
+  },
+  lightboxNav: {
+    position: "absolute",
+    top: "50%",
+    marginTop: -20,
+    padding: 8,
+    borderRadius: 999,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    zIndex: 1,
   },
   lightboxImage: {
     width: screenWidth,
