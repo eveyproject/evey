@@ -49,11 +49,11 @@ export function ProfileSwitcher({ profiles, activeProfileId, size = 30 }: Props)
 
   const others = profiles.filter((p) => p.id && p.id !== active?.id);
 
-  const doSwitch = useCallback(async (target: V1Profile) => {
-    if (!target.id) return;
+  const doSwitch = useCallback(async (target: V1Profile, pinToken?: string): Promise<"ok" | "pin" | "fail"> => {
+    if (!target.id) return "fail";
     setSwitching(target.id);
     try {
-      const resp = await userServiceRefreshToken({ profileId: target.id });
+      const resp = await userServiceRefreshToken({ profileId: target.id, pinToken });
       if (resp.accessToken) useAuthStore.getState().setTokens(resp.accessToken);
       try {
         await SecureStore.setItemAsync(LAST_PROFILE_KEY, target.id);
@@ -61,9 +61,14 @@ export function ProfileSwitcher({ profiles, activeProfileId, size = 30 }: Props)
       await qc.invalidateQueries();
       setSwitchOpen(false);
       setMenuOpen(false);
+      return "ok";
     } catch (err) {
+      // 403 = the server wants a parental PIN proof (gated source or PIN-carrying
+      // target). The refresh token is not consumed, so a retry with a pinToken works.
+      if (!pinToken && (err as { httpStatus?: number }).httpStatus === 403) return "pin";
       console.warn("profile switch failed", err);
       toast.error(err instanceof Error ? err.message : t("auth.profile.switchFailed", "Could not switch profile"));
+      return "fail";
     } finally {
       setSwitching(null);
     }
@@ -78,7 +83,7 @@ export function ProfileSwitcher({ profiles, activeProfileId, size = 30 }: Props)
       setPinTarget(target);
       return;
     }
-    await doSwitch(target);
+    if ((await doSwitch(target)) === "pin") setPinTarget(target);
   }, [active, doSwitch, switching]);
 
   const go = useCallback((to: string) => {
@@ -265,10 +270,11 @@ export function ProfileSwitcher({ profiles, activeProfileId, size = 30 }: Props)
       {pinTarget && (
         <PinPromptDialog
           target={pinTarget}
+          fallback={active}
           onCancel={() => setPinTarget(null)}
-          onVerified={async (target) => {
+          onVerified={async (target, pinToken) => {
             setPinTarget(null);
-            await doSwitch(target);
+            await doSwitch(target, pinToken);
           }}
         />
       )}

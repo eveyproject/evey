@@ -60,10 +60,10 @@ function DecisionBadge({ decision }: { decision?: string }) {
   const isWasm = decision === "wasm";
   const bg = isWasm ? theme.colors.accent : isCopy ? theme.colors.success : theme.colors.warning;
   const label = isWasm
-    ? t("player.streamInfo.decision.wasm", "Décodé client")
+    ? t("player.streamInfo.decisionWasm", "Décodé client")
     : isCopy
-      ? t("player.streamInfo.decision.copy", "Copié")
-      : t("player.streamInfo.decision.transcode", "Transcodé");
+      ? t("player.streamInfo.decisionCopy", "Copié")
+      : t("player.streamInfo.decisionTranscode", "Transcodé");
   return (
     <View style={[styles.badge, { backgroundColor: bg }]}>
       <Text style={[styles.badgeText, { color: theme.colors.bg }]}>{label}</Text>
