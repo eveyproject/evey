@@ -2,8 +2,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 
 const reportProgressMock = vi.fn();
+const eveyFetchMock = vi.fn();
 vi.mock("@evey/api", () => ({
   playbackServiceReportProgress: (...args: unknown[]) => reportProgressMock(...args),
+  eveyFetch: (...args: unknown[]) => eveyFetchMock(...args),
 }));
 
 const toastInfoMock = vi.fn();
@@ -11,13 +13,15 @@ vi.mock("@evey/store", () => ({
   toast: { info: (...args: unknown[]) => toastInfoMock(...args) },
 }));
 
-import { useProgressReporter } from "./useProgressReporter";
+import { useProgressReporter, shouldTriggerPrewarm, PREWARM_PROGRESS_THRESHOLD } from "./useProgressReporter";
 
 beforeEach(() => {
   vi.useFakeTimers();
   reportProgressMock.mockReset();
+  eveyFetchMock.mockReset();
   toastInfoMock.mockReset();
   reportProgressMock.mockResolvedValue(undefined);
+  eveyFetchMock.mockResolvedValue(undefined);
 });
 afterEach(() => { vi.useRealTimers(); });
 
@@ -160,5 +164,109 @@ describe("useProgressReporter", () => {
     // tick 4: retries (errorCount=3, 3%3 === 0)
     await act(async () => { vi.advanceTimersByTime(3_000); });
     expect(reportProgressMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("shouldTriggerPrewarm (pure rule)", () => {
+  const base = { mediaId: "m1", isEpisode: true, prewarmedMediaId: null as string | null };
+
+  it("is false strictly below the threshold", () => {
+    expect(shouldTriggerPrewarm({ ...base, positionMs: 8499, durationMs: 10_000 })).toBe(false);
+  });
+
+  it("is true exactly at the threshold", () => {
+    expect(PREWARM_PROGRESS_THRESHOLD).toBe(0.85);
+    expect(shouldTriggerPrewarm({ ...base, positionMs: 8500, durationMs: 10_000 })).toBe(true);
+  });
+
+  it("is true above the threshold", () => {
+    expect(shouldTriggerPrewarm({ ...base, positionMs: 9500, durationMs: 10_000 })).toBe(true);
+  });
+
+  it("is false after a rewind back below the threshold", () => {
+    expect(shouldTriggerPrewarm({ ...base, positionMs: 2000, durationMs: 10_000 })).toBe(false);
+  });
+
+  it("is false once already prewarmed for this media, even if the user rewinds and crosses the threshold again", () => {
+    expect(shouldTriggerPrewarm({ ...base, positionMs: 9500, durationMs: 10_000, prewarmedMediaId: "m1" })).toBe(false);
+  });
+
+  it("is true again once the media item changes", () => {
+    expect(shouldTriggerPrewarm({ ...base, positionMs: 9500, durationMs: 10_000, prewarmedMediaId: "m0" })).toBe(true);
+  });
+
+  it("is false without a mediaId", () => {
+    expect(shouldTriggerPrewarm({ ...base, mediaId: undefined, positionMs: 9500, durationMs: 10_000 })).toBe(false);
+  });
+
+  it("is false when not an episode", () => {
+    expect(shouldTriggerPrewarm({ ...base, isEpisode: false, positionMs: 9500, durationMs: 10_000 })).toBe(false);
+  });
+
+  it("is false when duration is unknown", () => {
+    expect(shouldTriggerPrewarm({ ...base, positionMs: 9500, durationMs: 0 })).toBe(false);
+  });
+});
+
+describe("useProgressReporter prewarm-next wiring", () => {
+  it("POSTs prewarm-next exactly once when crossing the threshold, never again for the same media", async () => {
+    let pos = 8600; // 86% of a 10s (10_000ms) episode
+    renderHook(() =>
+      useProgressReporter("s1", () => pos, undefined, undefined, undefined, undefined, {
+        mediaId: "ep1",
+        isEpisode: true,
+        getDurationMs: () => 10_000,
+      }),
+    );
+
+    await act(async () => { vi.advanceTimersByTime(3_000); });
+    expect(eveyFetchMock).toHaveBeenCalledTimes(1);
+    expect(eveyFetchMock).toHaveBeenCalledWith({ url: "/api/v1/media/ep1/prewarm-next", method: "POST" });
+
+    // Every subsequent tick (progress keeps climbing) must not re-fire -
+    // a POST per tick would hammer the transcoder on weak hardware.
+    pos = 9200;
+    await act(async () => { vi.advanceTimersByTime(3_000); });
+    pos = 9800;
+    await act(async () => { vi.advanceTimersByTime(3_000); });
+    expect(eveyFetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not POST while under the threshold", async () => {
+    const pos = 1000;
+    renderHook(() =>
+      useProgressReporter("s1", () => pos, undefined, undefined, undefined, undefined, {
+        mediaId: "ep1",
+        isEpisode: true,
+        getDurationMs: () => 10_000,
+      }),
+    );
+
+    await act(async () => { vi.advanceTimersByTime(9_000); });
+    expect(eveyFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("fires again for a new media item after already firing once for the previous one", async () => {
+    let mediaId = "ep1";
+    let pos = 8600;
+    const { rerender } = renderHook(
+      ({ id, position }: { id: string; position: number }) =>
+        useProgressReporter("s1", () => position, undefined, undefined, undefined, undefined, {
+          mediaId: id,
+          isEpisode: true,
+          getDurationMs: () => 10_000,
+        }),
+      { initialProps: { id: mediaId, position: pos } },
+    );
+
+    await act(async () => { vi.advanceTimersByTime(3_000); });
+    expect(eveyFetchMock).toHaveBeenCalledTimes(1);
+
+    mediaId = "ep2";
+    pos = 8700;
+    rerender({ id: mediaId, position: pos });
+    await act(async () => { vi.advanceTimersByTime(3_000); });
+    expect(eveyFetchMock).toHaveBeenCalledTimes(2);
+    expect(eveyFetchMock).toHaveBeenLastCalledWith({ url: "/api/v1/media/ep2/prewarm-next", method: "POST" });
   });
 });

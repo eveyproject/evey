@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { playbackServiceReportProgress } from "@evey/api";
+import { playbackServiceReportProgress, eveyFetch } from "@evey/api";
 import { toast } from "@evey/store";
 
 const INTERVAL_MS = 3_000;
@@ -10,6 +10,48 @@ interface ProgressReporterCallbacks {
   onRemoteStop?: () => void;
 }
 
+// 0.85 = trigger at ~85% of duration - same threshold and route as the web
+// player (ProgressReporter.tsx), giving ffmpeg a few seconds of head-time to
+// land the next episode's first segments before the autoplay handoff. On the
+// NAS-class hardware this project targets, a cold transcode start is exactly
+// the stall this prewarm exists to avoid.
+export const PREWARM_PROGRESS_THRESHOLD = 0.85;
+
+interface ShouldTriggerPrewarmParams {
+  mediaId?: string;
+  isEpisode?: boolean;
+  positionMs: number;
+  durationMs: number;
+  /** The mediaId already prewarmed for the current mount, or null. */
+  prewarmedMediaId: string | null;
+}
+
+// Pure trigger rule, kept separate from the interval/fetch plumbing so it can
+// be exhaustively tested without rendering a hook. Once-per-media is enforced
+// by the caller comparing prewarmedMediaId against mediaId - a POST per tick
+// would hammer the transcoder on weak hardware.
+export function shouldTriggerPrewarm({
+  mediaId,
+  isEpisode,
+  positionMs,
+  durationMs,
+  prewarmedMediaId,
+}: ShouldTriggerPrewarmParams): boolean {
+  if (!mediaId || !isEpisode) return false;
+  if (prewarmedMediaId === mediaId) return false;
+  if (durationMs <= 0) return false;
+  return positionMs / durationMs >= PREWARM_PROGRESS_THRESHOLD;
+}
+
+interface PrewarmNextOptions {
+  /** Current media item id - drives the predictive next-episode warm-up. */
+  mediaId?: string;
+  /** Gates the warm-up to series episodes, matching the web player. */
+  isEpisode?: boolean;
+  /** Total duration of the current item, in milliseconds. */
+  getDurationMs?: () => number;
+}
+
 export function useProgressReporter(
   sessionId: string | null,
   getCurrentPositionMs: () => number,
@@ -17,6 +59,7 @@ export function useProgressReporter(
   getVolume?: () => number,
   getIsMuted?: () => boolean,
   callbacks?: ProgressReporterCallbacks,
+  prewarm?: PrewarmNextOptions,
 ) {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pendingRef = useRef(false);
@@ -31,6 +74,9 @@ export function useProgressReporter(
   getIsMutedRef.current = getIsMuted;
   const cbRef = useRef(callbacks);
   cbRef.current = callbacks;
+  const prewarmRef = useRef(prewarm);
+  prewarmRef.current = prewarm;
+  const prewarmedMediaIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -51,6 +97,27 @@ export function useProgressReporter(
           volumeLevel: Math.round((getVolumeRef.current?.() ?? 1) * 100),
         });
         errorCountRef.current = 0;
+
+        const pn = prewarmRef.current;
+        if (pn?.mediaId) {
+          const durationMs = pn.getDurationMs?.() ?? 0;
+          if (
+            shouldTriggerPrewarm({
+              mediaId: pn.mediaId,
+              isEpisode: pn.isEpisode,
+              positionMs: getPositionRef.current(),
+              durationMs,
+              prewarmedMediaId: prewarmedMediaIdRef.current,
+            })
+          ) {
+            prewarmedMediaIdRef.current = pn.mediaId;
+            eveyFetch<{ next_media_item_id?: string }>({
+              url: `/api/v1/media/${encodeURIComponent(pn.mediaId)}/prewarm-next`,
+              method: "POST",
+            }).catch((err) => console.warn("prewarm-next failed (non-fatal)", err));
+          }
+        }
+
         if (res?.remoteCommand) {
           if (res.remoteCommand === "pause") {
             cbRef.current?.onRemotePause?.();

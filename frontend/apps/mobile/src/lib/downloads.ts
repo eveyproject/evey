@@ -4,6 +4,7 @@ import {
   getExistingDownloadTasks,
   completeHandler,
   directories,
+  type DownloadTask,
 } from "@kesha-antonov/react-native-background-downloader";
 import { eveyFetch, libraryServiceGetMediaItem } from "@evey/api";
 import { getServerUrl } from "./server-config";
@@ -46,6 +47,17 @@ const inFlight = new Map<string, { totalBytes: number; downloadedBytes: number }
 // listed in the Downloads screen before it ever reaches the persisted index
 // (an item only enters that index once .done() fires).
 const inFlightTitles = new Map<string, string>();
+
+// The task handle for a running download, kept so the Downloads screen can
+// cancel it (task.stop() below). destPath rides along because stopTask()
+// leaves a partial file on disk that .error()/.done() never fires for -
+// cancelDownload has to clean it up itself.
+interface ActiveDownloadHandle {
+  task: DownloadTask;
+  destPath: string;
+  unsubscribe?: () => void;
+}
+const activeDownloads = new Map<string, ActiveDownloadHandle>();
 
 async function ensureDir() {
   const info = await FileSystem.getInfoAsync(DOWNLOAD_DIR);
@@ -292,6 +304,8 @@ export async function startDownload(
       metadata: { title, ext, authContext },
     });
 
+    activeDownloads.set(mediaItemId, { task, destPath, unsubscribe: unsubscribeProgress });
+
     task
       .begin(({ expectedBytes }) => {
         const state = inFlight.get(mediaItemId);
@@ -312,6 +326,7 @@ export async function startDownload(
             task.stop();
             inFlight.delete(mediaItemId);
             inFlightTitles.delete(mediaItemId);
+            activeDownloads.delete(mediaItemId);
             unsubscribeProgress?.();
             void FileSystem.deleteAsync(destPath, { idempotent: true }).catch(() => undefined);
             reject(new Error("NOT_ENOUGH_SPACE"));
@@ -337,6 +352,7 @@ export async function startDownload(
         }
         inFlight.delete(mediaItemId);
         inFlightTitles.delete(mediaItemId);
+        activeDownloads.delete(mediaItemId);
         completeHandler(mediaItemId);
         unsubscribeProgress?.();
         resolve(destPath);
@@ -344,6 +360,7 @@ export async function startDownload(
       .error(async ({ error }) => {
         inFlight.delete(mediaItemId);
         inFlightTitles.delete(mediaItemId);
+        activeDownloads.delete(mediaItemId);
         completeHandler(mediaItemId);
         unsubscribeProgress?.();
         // A failed download leaves a partial file at destPath that never enters
@@ -386,6 +403,7 @@ export async function rehydrateBackgroundDownloads(): Promise<void> {
     const authContext = meta.authContext;
     inFlight.set(mediaItemId, { totalBytes: 0, downloadedBytes: 0 });
     inFlightTitles.set(mediaItemId, title);
+    activeDownloads.set(mediaItemId, { task, destPath });
     task
       .progress(({ bytesDownloaded, bytesTotal }) => {
         const state = inFlight.get(mediaItemId);
@@ -413,17 +431,45 @@ export async function rehydrateBackgroundDownloads(): Promise<void> {
         } catch { /* silent */ }
         inFlight.delete(mediaItemId);
         inFlightTitles.delete(mediaItemId);
+        activeDownloads.delete(mediaItemId);
         completeHandler(mediaItemId);
       })
       .error(async () => {
         inFlight.delete(mediaItemId);
         inFlightTitles.delete(mediaItemId);
+        activeDownloads.delete(mediaItemId);
         completeHandler(mediaItemId);
         // Same leak as startDownload's error handler: the partial file never
         // entered the index, so it's otherwise unreachable by deleteDownload.
         try { await FileSystem.deleteAsync(destPath, { idempotent: true }); } catch (err) { console.warn("caught", err); }
       });
   }
+}
+
+// Whether mediaItemId has a download currently running that can be stopped -
+// the Downloads screen uses this to decide whether to render a cancel action
+// on an in-flight row.
+export function isDownloadCancelable(mediaItemId: string): boolean {
+  return activeDownloads.has(mediaItemId);
+}
+
+/**
+ * Cancels a running download. Reuses the same background-downloader task
+ * handle startDownload/rehydrateBackgroundDownloads register - stopTask()
+ * cancels the native transfer but (unlike done()/error()) never fires a JS
+ * event, so the in-flight bookkeeping and the partial file it leaves behind
+ * have to be cleaned up here rather than relying on the task's own handlers.
+ */
+export async function cancelDownload(mediaItemId: string): Promise<void> {
+  const handle = activeDownloads.get(mediaItemId);
+  if (!handle) return;
+  activeDownloads.delete(mediaItemId);
+  inFlight.delete(mediaItemId);
+  inFlightTitles.delete(mediaItemId);
+  handle.unsubscribe?.();
+  try { await handle.task.stop(); } catch (err) { console.warn("caught", err); }
+  completeHandler(mediaItemId);
+  try { await FileSystem.deleteAsync(handle.destPath, { idempotent: true }); } catch (err) { console.warn("caught", err); }
 }
 
 export async function deleteDownload(mediaItemId: string): Promise<void> {

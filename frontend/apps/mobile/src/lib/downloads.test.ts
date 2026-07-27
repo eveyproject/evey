@@ -85,6 +85,8 @@ import {
   getDownloads,
   startDownload,
   deleteDownload,
+  cancelDownload,
+  isDownloadCancelable,
   getDownloadPath,
   getTotalDownloadSize,
   rehydrateBackgroundDownloads,
@@ -193,6 +195,44 @@ describe("startDownload", () => {
       expect.stringContaining("evey-m6.mp4"),
       { idempotent: true },
     );
+  });
+});
+
+describe("cancelDownload", () => {
+  it("reports a running download as cancelable, and not once settled", async () => {
+    const pending = startDownload("m7", "Movie 7");
+    const handlers = await waitForTask("m7");
+    expect(isDownloadCancelable("m7")).toBe(true);
+
+    handlers.done?.({ id: "m7" });
+    await pending;
+    expect(isDownloadCancelable("m7")).toBe(false);
+  });
+
+  it("stops the native task and cleans up in-flight state + the partial file", async () => {
+    const pending = startDownload("m8", "Movie 8");
+    await waitForTask("m8");
+    expect(getInFlightDownloads().some((d) => d.mediaItemId === "m8")).toBe(true);
+
+    await cancelDownload("m8");
+
+    expect(taskStops).toContain("m8");
+    expect(isDownloadCancelable("m8")).toBe(false);
+    expect(getInFlightDownloads().some((d) => d.mediaItemId === "m8")).toBe(false);
+    expect(fsMock.deleteAsync).toHaveBeenCalledWith(
+      expect.stringContaining("evey-m8.mp4"),
+      { idempotent: true },
+    );
+
+    // The now-orphaned promise from startDownload never settles once stopped
+    // (stopTask fires neither done() nor error() on the native side) - this
+    // is a fire-and-forget cancel, not something callers await.
+    void pending;
+  });
+
+  it("is a no-op for a mediaId with nothing in flight", async () => {
+    await expect(cancelDownload("unknown")).resolves.toBeUndefined();
+    expect(taskStops).not.toContain("unknown");
   });
 });
 

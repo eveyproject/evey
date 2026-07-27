@@ -9,6 +9,7 @@ import { useTheme } from "../../src/providers/ThemeProvider";
 import {
   getDownloads,
   deleteDownload,
+  cancelDownload,
   getTotalDownloadSize,
   subscribeToProgress,
   getInFlightProgress,
@@ -55,11 +56,13 @@ function formatDate(iso: string): string {
 interface DownloadRowProps {
   item: DownloadListItem;
   onDelete: (mediaItemId: string) => void;
+  onCancel: (mediaItemId: string) => void;
   deleting: boolean;
+  canceling: boolean;
   activeProfile: OfflineProfileInfo;
 }
 
-function DownloadRow({ item, onDelete, deleting, activeProfile }: DownloadRowProps) {
+function DownloadRow({ item, onDelete, onCancel, deleting, canceling, activeProfile }: DownloadRowProps) {
   const theme = useTheme();
   const { t } = useTranslation();
   // Live progress for a download that's still running: either a placeholder
@@ -136,7 +139,20 @@ function DownloadRow({ item, onDelete, deleting, activeProfile }: DownloadRowPro
       </View>
 
       {item.inProgress ? (
-        <ActivityIndicator size="small" color={theme.colors.accent} />
+        <View style={{ flexDirection: "row", alignItems: "center", gap: theme.spacing.sm }}>
+          <ActivityIndicator size="small" color={theme.colors.accent} />
+          <Pressable
+            onPress={() => onCancel(item.mediaItemId)}
+            disabled={canceling}
+            hitSlop={8}
+            accessible
+            accessibilityLabel={t("downloads.cancel", "Cancel download")}
+            accessibilityRole="button"
+            style={{ opacity: canceling ? 0.5 : 1 }}
+          >
+            <Ionicons name="close-circle-outline" size={20} color={theme.colors.textMuted} />
+          </Pressable>
+        </View>
       ) : (
         <Pressable
           onPress={() => onDelete(item.mediaItemId)}
@@ -165,6 +181,7 @@ export default function DownloadsScreen() {
   const [totalSize, setTotalSize] = useState(0);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [cancelingId, setCancelingId] = useState<string | null>(null);
   const [hasInFlight, setHasInFlight] = useState(false);
 
   // Same shape used by canPlayOffline (see offlineAccess.ts) - built here from
@@ -242,16 +259,42 @@ export default function DownloadsScreen() {
     );
   }, [items, refresh, t]);
 
+  const handleCancel = useCallback((mediaItemId: string) => {
+    const item = items.find((i) => i.mediaItemId === mediaItemId);
+    Alert.alert(
+      t("downloads.cancelTitle", "Cancel download"),
+      t("downloads.cancelConfirm", "Stop downloading \"{{title}}\"?", { title: item?.title ?? "" }),
+      [
+        { text: t("common.cancel", "Cancel"), style: "cancel" },
+        {
+          text: t("downloads.cancelAction", "Stop"),
+          style: "destructive",
+          onPress: async () => {
+            setCancelingId(mediaItemId);
+            try {
+              await cancelDownload(mediaItemId);
+              await refresh();
+            } finally {
+              setCancelingId(null);
+            }
+          },
+        },
+      ],
+    );
+  }, [items, refresh, t]);
+
   const renderItem = useCallback(
     ({ item }: { item: DownloadListItem }) => (
       <DownloadRow
         item={item}
         onDelete={handleDelete}
+        onCancel={handleCancel}
         deleting={deletingId === item.mediaItemId}
+        canceling={cancelingId === item.mediaItemId}
         activeProfile={activeProfile}
       />
     ),
-    [handleDelete, deletingId, activeProfile],
+    [handleDelete, handleCancel, deletingId, cancelingId, activeProfile],
   );
 
   return (

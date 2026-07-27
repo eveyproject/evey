@@ -22,6 +22,14 @@ interface FeedConfig {
   feedType?: string;
   enabled?: boolean;
   displayOrder?: number;
+  maxItems?: number;
+}
+
+// Normalizes a configured row size to a usable positive int, falling back to
+// the historical default (20) when unset/invalid. Mirrors web's home.lazy.tsx
+// (`cfg.maxItems && cfg.maxItems > 0 ? cfg.maxItems : undefined`).
+function resolveMaxItems(maxItems: number | undefined, fallback: number): number {
+  return maxItems && maxItems > 0 ? maxItems : fallback;
 }
 import { useAuthStore, toast } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
@@ -38,7 +46,7 @@ const SCREEN_WIDTH = Dimensions.get("window").width;
 interface MusicAlbumLite { id?: string; title?: string; artist?: string; coverArtUrl?: string }
 interface PhotoAlbumLite { name?: string; coverPhotoId?: string; photoCount?: number }
 
-function MusicLibraryRow({ libraryId, name }: { libraryId: string; name: string }) {
+function MusicLibraryRow({ libraryId, name, maxItems }: { libraryId: string; name: string; maxItems?: number }) {
   const theme = useTheme();
   const serverUrl = useServerUrl();
   const accessToken = useAuthStore((s) => s.accessToken);
@@ -49,7 +57,7 @@ function MusicLibraryRow({ libraryId, name }: { libraryId: string; name: string 
     select: (d) => d.albums ?? [],
     staleTime: 60_000,
   });
-  const albums = (data ?? []).slice(0, 20);
+  const albums = (data ?? []).slice(0, resolveMaxItems(maxItems, 20));
   if (!isLoading && albums.length === 0) return null;
   const tokenParam = accessToken ? `?token=${encodeURIComponent(accessToken)}` : "";
   // The album card is 120dp - decoding the full-res original for a strip of
@@ -96,7 +104,7 @@ function MusicLibraryRow({ libraryId, name }: { libraryId: string; name: string 
   );
 }
 
-function PhotoLibraryRow({ libraryId, name }: { libraryId: string; name: string }) {
+function PhotoLibraryRow({ libraryId, name, maxItems }: { libraryId: string; name: string; maxItems?: number }) {
   const theme = useTheme();
   const serverUrl = useServerUrl();
   const accessToken = useAuthStore((s) => s.accessToken);
@@ -107,7 +115,7 @@ function PhotoLibraryRow({ libraryId, name }: { libraryId: string; name: string 
     select: (d) => d.albums ?? [],
     staleTime: 60_000,
   });
-  const albums = (data ?? []).slice(0, 20);
+  const albums = (data ?? []).slice(0, resolveMaxItems(maxItems, 20));
   if (!isLoading && albums.length === 0) return null;
   const tokenParam = accessToken ? `?token=${encodeURIComponent(accessToken)}` : "";
   return (
@@ -145,27 +153,29 @@ function PhotoLibraryRow({ libraryId, name }: { libraryId: string; name: string 
   );
 }
 
-function LibraryFeedRow({ libraryId, name, libraryType, onItemPress }: { libraryId: string; name: string; libraryType?: string; onItemPress: (item: V1MediaItem) => void }) {
+function LibraryFeedRow({ libraryId, name, libraryType, maxItems, onItemPress }: { libraryId: string; name: string; libraryType?: string; maxItems?: number; onItemPress: (item: V1MediaItem) => void }) {
   // Music + photo libraries don't live in the media_items table - they have
   // their own tables hit via /music/albums and /photos/albums. Fall back to
   // /library/list otherwise (movies/shows).
-  if (libraryType === "LIBRARY_TYPE_MUSIC") return <MusicLibraryRow libraryId={libraryId} name={name} />;
-  if (libraryType === "LIBRARY_TYPE_PHOTOS") return <PhotoLibraryRow libraryId={libraryId} name={name} />;
+  if (libraryType === "LIBRARY_TYPE_MUSIC") return <MusicLibraryRow libraryId={libraryId} name={name} maxItems={maxItems} />;
+  if (libraryType === "LIBRARY_TYPE_PHOTOS") return <PhotoLibraryRow libraryId={libraryId} name={name} maxItems={maxItems} />;
 
   const typeFilter = libraryType === "LIBRARY_TYPE_SHOWS"
     ? "MEDIA_ITEM_TYPE_SERIES"
     : libraryType === "LIBRARY_TYPE_MOVIES"
       ? "MEDIA_ITEM_TYPE_MOVIE"
       : undefined;
+  const visibleTarget = resolveMaxItems(maxItems, 20);
   // Over-fetch: the server list doesn't filter by watched state, so pull a
-  // wider page than the 20 the row actually shows and filter client-side
-  // below, keeping the row full after watched items are dropped. Mirrors
-  // web's MediaItemsLibrarySlider (home.lazy.tsx).
+  // wider page than the row actually shows and filter client-side below,
+  // keeping the row full after watched items are dropped. The fetched window
+  // scales with maxItems so a configured larger row doesn't come up short
+  // after the watched-filter. Mirrors web's MediaItemsLibrarySlider (home.lazy.tsx).
   // eslint-disable-next-line react-hooks/rules-of-hooks
   const { data, isLoading } = useLibraryServiceListMediaItems({
     libraryId,
     ...(typeFilter ? { type: typeFilter as never } : {}),
-    "pagination.pageSize": 40,
+    "pagination.pageSize": Math.max(40, visibleTarget * 2),
     sortField: "MEDIA_SORT_FIELD_DATE_ADDED" as never,
     sortOrder: "SORT_ORDER_DESC" as never,
   });
@@ -178,8 +188,8 @@ function LibraryFeedRow({ libraryId, name, libraryType, onItemPress }: { library
     () =>
       (data?.items ?? [])
         .filter((i): i is V1MediaItem => !!i.id && !watchedMap.get(i.id))
-        .slice(0, 20),
-    [data?.items, watchedMap],
+        .slice(0, visibleTarget),
+    [data?.items, watchedMap, visibleTarget],
   );
 
   if (!isLoading && items.length === 0) return null;
@@ -401,13 +411,34 @@ export default function HomeScreen() {
   const { t } = useTranslation();
   const profileId = useAuthStore((s) => s.profileId) ?? "";
 
-  const resume = usePlaybackServiceGetResumeItems({ limit: 20 });
-  const nextUp = usePlaybackServiceGetNextUp({ limit: 20 });
-  const recommended = useFeedServiceRecommended({ limit: 20 });
-  const popular = useMostPopular(20);
-  const collections = useCollections();
   const { data: feedConfigData } = useFeedServiceGetFeedConfig({ profileId });
   const { data: librariesData } = useLibraryServiceListLibraries();
+
+  // Computed ahead of the section data hooks below so their `limit`/`maxItems`
+  // can honor the admin-configured row size instead of a figée 20 - the user
+  // sets this per-section in Customize and previously saw no effect (see
+  // web's home.lazy.tsx, which already honors cfg.maxItems).
+  const feedConfigs = useMemo(() => {
+    const configs = feedConfigData?.configs ?? [];
+    if (configs.length === 0) {
+      return FEED_TYPES.map((ft, i) => ({ feedType: ft, enabled: true, displayOrder: i, maxItems: undefined as number | undefined }));
+    }
+    return [...configs].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
+  }, [feedConfigData]);
+
+  const maxItemsByType = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const c of feedConfigs) {
+      if (c.feedType && c.maxItems && c.maxItems > 0) map[c.feedType] = c.maxItems;
+    }
+    return map;
+  }, [feedConfigs]);
+
+  const resume = usePlaybackServiceGetResumeItems({ limit: resolveMaxItems(maxItemsByType.resume_playback, 20) });
+  const nextUp = usePlaybackServiceGetNextUp({ limit: resolveMaxItems(maxItemsByType.next_episode, 20) });
+  const recommended = useFeedServiceRecommended({ limit: resolveMaxItems(maxItemsByType.recommended, 20) });
+  const popular = useMostPopular(resolveMaxItems(maxItemsByType.most_popular, 20));
+  const collections = useCollections();
   const libraryNames = useMemo(() => {
     const map: Record<string, string> = {};
     for (const lib of librariesData?.libraries ?? []) {
@@ -443,14 +474,6 @@ export default function HomeScreen() {
 
   const [refreshing, setRefreshing] = useState(false);
   const [showCustomize, setShowCustomize] = useState(false);
-
-  const feedConfigs = useMemo(() => {
-    const configs = feedConfigData?.configs ?? [];
-    if (configs.length === 0) {
-      return FEED_TYPES.map((ft, i) => ({ feedType: ft, enabled: true, displayOrder: i }));
-    }
-    return [...configs].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
-  }, [feedConfigData]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -510,15 +533,20 @@ export default function HomeScreen() {
     router.push(`/media/${item.id}`);
   }, []);
 
-  function renderSection(feedType: string) {
+  function renderSection(cfg: FeedConfig) {
+    const feedType = cfg.feedType ?? "";
+    const maxItems = cfg.maxItems && cfg.maxItems > 0 ? cfg.maxItems : undefined;
     switch (feedType) {
       case "resume_playback":
       case "continue_watching":
         return <MediaRow key={feedType} title={t("common.feeds.labels.resume_playback")} items={resume.data?.items ?? []} onItemPress={handleItemPress} watchPercents={watchPercents} />;
       case "next_episode":
         return <MediaRow key={feedType} title={t("media.home.upNext")} items={nextUp.data?.items ?? []} onItemPress={handleItemPress} />;
-      case "collections":
-        return <CollectionRow key={feedType} title={t("media.home.collections")} collections={collections.data?.collections ?? []} />;
+      case "collections": {
+        const allCollections = collections.data?.collections ?? [];
+        const cols = maxItems ? allCollections.slice(0, maxItems) : allCollections;
+        return <CollectionRow key={feedType} title={t("media.home.collections")} collections={cols} />;
+      }
       case "recommended":
         return <MediaRow key={feedType} title={t("media.home.recommendedForYou")} items={recommendedItems} onItemPress={handleItemPress} />;
       case "most_popular":
@@ -528,7 +556,7 @@ export default function HomeScreen() {
           const libId = feedType.replace("library:", "");
           const lib = (librariesData?.libraries ?? []).find((l) => l.id === libId);
           if (!lib) return null;
-          return <LibraryFeedRow key={feedType} libraryId={libId} name={lib.name ?? ""} libraryType={lib.type} onItemPress={handleItemPress} />;
+          return <LibraryFeedRow key={feedType} libraryId={libId} name={lib.name ?? ""} libraryType={lib.type} maxItems={maxItems} onItemPress={handleItemPress} />;
         }
         if (feedType.startsWith("plugin:")) {
           const pluginId = feedType.replace("plugin:", "");
@@ -597,7 +625,7 @@ export default function HomeScreen() {
                 <PluginSlot name="home.section" pluginId={id} />
               </View>
             ))}
-          {feedConfigs.filter((c) => c.enabled !== false).map((c) => renderSection(c.feedType ?? ""))}
+          {feedConfigs.filter((c) => c.enabled !== false).map((c) => renderSection(c))}
           {(librariesData?.libraries ?? [])
             .filter((lib) => lib.id && !feedConfigs.some((c) => c.feedType === `library:${lib.id}`))
             .map((lib) => (
