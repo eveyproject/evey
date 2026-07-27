@@ -13,20 +13,37 @@ import {
 import { useMutation } from "@tanstack/react-query";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 
+// Values are ISO 639-1 (2-letter) to match the audio_languages/subtitle_languages
+// convention written by web (frontend/apps/web/src/features/user/LanguageSettings.tsx)
+// and read by HLSPlayer's track resolution.
 const LANG_OPTIONS = [
   { value: "", label: "None" },
-  { value: "eng", label: "English" },
-  { value: "fre", label: "Fran\u00e7ais" },
-  { value: "spa", label: "Espa\u00f1ol" },
-  { value: "ger", label: "Deutsch" },
-  { value: "ita", label: "Italiano" },
-  { value: "por", label: "Portugu\u00eas" },
-  { value: "jpn", label: "\u65e5\u672c\u8a9e" },
-  { value: "kor", label: "\ud55c\uad6d\uc5b4" },
-  { value: "chi", label: "\u4e2d\u6587" },
-  { value: "rus", label: "\u0420\u0443\u0441\u0441\u043a\u0438\u0439" },
-  { value: "ara", label: "\u0627\u0644\u0639\u0631\u0628\u064a\u0629" },
+  { value: "en", label: "English" },
+  { value: "fr", label: "Fran\u00e7ais" },
+  { value: "es", label: "Espa\u00f1ol" },
+  { value: "de", label: "Deutsch" },
+  { value: "it", label: "Italiano" },
+  { value: "pt", label: "Portugu\u00eas" },
+  { value: "ja", label: "\u65e5\u672c\u8a9e" },
+  { value: "ko", label: "\ud55c\uad6d\uc5b4" },
+  { value: "zh", label: "\u4e2d\u6587" },
+  { value: "ru", label: "\u0420\u0443\u0441\u0441\u043a\u0438\u0439" },
+  { value: "ar", label: "\u0627\u0644\u0639\u0631\u0628\u064a\u0629" },
 ];
+
+// Older mobile builds stored a single ISO 639-2/B code under
+// default_audio_language/default_subtitle_language. Map the ones this screen
+// ever wrote to their ISO 639-1 equivalent so upgrading users keep their pick
+// selected until they re-save under the new key.
+const LEGACY_LANG_MAP: Record<string, string> = {
+  eng: "en", fre: "fr", spa: "es", ger: "de", ita: "it",
+  por: "pt", jpn: "ja", kor: "ko", chi: "zh", rus: "ru", ara: "ar",
+};
+
+function legacyLangToIso1(code: string | undefined): string | undefined {
+  if (code === undefined) return undefined;
+  return LEGACY_LANG_MAP[code] ?? code;
+}
 
 const BITRATE_OPTIONS = [
   { value: "0", label: "Unlimited" },
@@ -107,8 +124,13 @@ export default function PlaybackSettingsScreen() {
     const prefs: PrefMap = defaultProfile?.preferences ?? {};
     if (prefs.max_bitrate_kbps) setBitrate(prefs.max_bitrate_kbps);
     if (prefs.max_bitrate_cellular_kbps) setCellularBitrate(prefs.max_bitrate_cellular_kbps);
-    if (prefs.default_subtitle_language) setSubtitleLang(prefs.default_subtitle_language);
-    if (prefs.default_audio_language) setAudioLang(prefs.default_audio_language);
+    // audio_languages/subtitle_languages is the shared web/tv convention (CSV
+    // of ISO 639-1 codes in profile.preferences). Fall back to the legacy
+    // mobile-only keys when the new ones are absent (soft migration on read).
+    const rawAudio = prefs.audio_languages ?? legacyLangToIso1(prefs.default_audio_language);
+    const rawSubtitle = prefs.subtitle_languages ?? legacyLangToIso1(prefs.default_subtitle_language);
+    if (rawAudio !== undefined) setAudioLang(rawAudio.split(",")[0]?.trim() ?? "");
+    if (rawSubtitle !== undefined) setSubtitleLang(rawSubtitle.split(",")[0]?.trim() ?? "");
     if (prefs.preferred_video_codec) setVideoCodec(prefs.preferred_video_codec);
     if (prefs.preferred_audio_codec) setAudioCodec(prefs.preferred_audio_codec);
     if (prefs.max_audio_channels) setAudioChannels(prefs.max_audio_channels);
@@ -156,11 +178,11 @@ export default function PlaybackSettingsScreen() {
   }
   function handleSubtitleLang(v: string) {
     setSubtitleLang(v);
-    savePref({ default_subtitle_language: v });
+    savePref({ subtitle_languages: v });
   }
   function handleAudioLang(v: string) {
     setAudioLang(v);
-    savePref({ default_audio_language: v });
+    savePref({ audio_languages: v });
   }
   function handleVideoCodec(v: string) {
     setVideoCodec(v);
