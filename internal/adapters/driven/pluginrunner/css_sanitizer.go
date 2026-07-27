@@ -31,13 +31,21 @@ var (
 	// to slip past reURLExternal, which requires the closing paren).
 	reURLExternalUnterminated = regexp.MustCompile(`(?i)url\s*\(\s*['"]?\s*(https?://|//)[^)]*$`)
 
-	// reImageSetExternal catches external references fetched WITHOUT ever
-	// using the url() token: image-set()/-webkit-image-set() accept a bare
-	// quoted string as their first argument, and are valid in any
-	// image-valued property (list-style-image, cursor, border-image-source,
+	// reImageSetStart locates the opening `(` of an image-set()/-webkit-image-set()
+	// call. image-set() accepts any number of comma-separated candidates
+	// (each a quoted string or a url()), and is valid in any image-valued
+	// property (list-style-image, cursor, border-image-source,
 	// -webkit-mask-image, background(-image), ...). The property name is
 	// irrelevant here since the fetch happens inside the function call.
-	reImageSetExternal = regexp.MustCompile(`(?i)(?:-webkit-)?image-set\s*\(\s*["'](?:https?://|//)[^;{})]*\)`)
+	reImageSetStart = regexp.MustCompile(`(?i)(?:-webkit-)?image-set\s*\(`)
+
+	// reImageSetCandidateExternal matches a quoted (or bare protocol-relative)
+	// external candidate ANYWHERE inside an already paren-bounded image-set(...)
+	// span - not just the first argument. A flat regex anchored at the open
+	// paren only ever catches the first candidate; later comma-separated
+	// candidates need no url() token, so they must be found by scanning the
+	// whole bounded span instead.
+	reImageSetCandidateExternal = regexp.MustCompile(`(?i)["'](?:https?://|//)`)
 
 	// reCustomPropExternalURL catches an external URL stashed in a custom
 	// property (--x: "https://...") and later referenced indirectly via
@@ -70,6 +78,15 @@ var (
 
 	// z-index clamping: any z-index value > 999.
 	reZIndex = regexp.MustCompile(`(?i)\bz-index\s*:\s*(\d+)\b`)
+
+	// reNestableAtRule matches "grouping" at-rules whose block contains nested
+	// rule blocks (@media, @supports, @layer, @container, @scope, the obsolete
+	// @document), as opposed to: statement at-rules that end in `;` with no
+	// block at all (@import, @charset, @namespace - these never reach the
+	// brace-boundary scanners below), and declaration/percentage-selector
+	// at-rules (@keyframes, @font-face, @page) which this pass deliberately
+	// does not recurse into - their content is not a selector to re-check.
+	reNestableAtRule = regexp.MustCompile(`(?i)^\s*@(?:-\w+-)?(?:media|supports|layer|container|scope|document)\b`)
 )
 
 // RegexCSSSanitizer implements plugin.CSSSanitizer using regex-based rules.
@@ -142,12 +159,7 @@ func SanitizeCSS(input []byte) ([]byte, []string) {
 		css = reURLExternalUnterminated.ReplaceAllString(css, "none")
 	}
 
-	if matches := reImageSetExternal.FindAllString(css, -1); len(matches) > 0 {
-		for _, m := range matches {
-			warnings = append(warnings, "removed external image-set() reference: "+strings.TrimSpace(m))
-		}
-		css = reImageSetExternal.ReplaceAllString(css, "none")
-	}
+	css = stripImageSetExternalCandidates(css, &warnings)
 
 	if matches := reCustomPropExternalURL.FindAllString(css, -1); len(matches) > 0 {
 		for _, m := range matches {
@@ -207,7 +219,18 @@ func stripRulesWithSensitiveSelectors(css string, warnings *[]string) string {
 			*warnings = append(*warnings, "dropped malformed/unbalanced CSS block after: "+strings.TrimSpace(selector))
 			break
 		}
-		if reSensitiveSelector.MatchString(decodeCSSEscapes(selector)) {
+		if reNestableAtRule.MatchString(decodeCSSEscapes(selector)) {
+			// A sensitive rule can be nested inside a grouping at-rule
+			// (@media/@supports/@layer/...); recurse into the block's
+			// content so it is still caught, while non-offending sibling
+			// rules inside the same at-rule are preserved.
+			inner := remaining[braceOpen+1 : closeIdx]
+			recursed := stripRulesWithSensitiveSelectors(inner, warnings)
+			result.WriteString(selector)
+			result.WriteString("{")
+			result.WriteString(recursed)
+			result.WriteString("}")
+		} else if reSensitiveSelector.MatchString(decodeCSSEscapes(selector)) {
 			*warnings = append(*warnings, "removed rule targeting sensitive selector: "+strings.TrimSpace(selector))
 		} else {
 			result.WriteString(remaining[:closeIdx+1])
@@ -349,6 +372,82 @@ func skipBareURL(s string, i int) (int, bool) {
 	return -1, false
 }
 
+// findMatchingParen returns the index of the ')' that closes the '(' at openIdx,
+// skipping over string literals and escape sequences so a quoted ')' (e.g. inside
+// a candidate string) can never desync the depth count. Returns -1 if the call is
+// truncated or never closes.
+func findMatchingParen(s string, openIdx int) int {
+	depth := 0
+	n := len(s)
+	i := openIdx
+	for i < n {
+		switch c := s[i]; c {
+		case '\\':
+			i = skipCSSEscape(s, i)
+		case '"', '\'':
+			end := skipCSSString(s, i)
+			if end < 0 {
+				return -1
+			}
+			i = end
+		case '(':
+			depth++
+			i++
+		case ')':
+			depth--
+			if depth == 0 {
+				return i
+			}
+			i++
+		default:
+			i++
+		}
+	}
+	return -1
+}
+
+// stripImageSetExternalCandidates neutralizes an image-set()/-webkit-image-set()
+// call as soon as ANY of its comma-separated candidates - first or later - is an
+// external (http(s):// or protocol-relative) string. A flat regex anchored right
+// after the opening paren only ever sees the first candidate; a second candidate
+// like `image-set("a.png" 1x, "https://evil/x" 2x)` has no url() token and no
+// fixed offset from `(` for a naive pattern to anchor on, so the call must be
+// bounded with paren-matching (findMatchingParen) and its whole interior scanned.
+func stripImageSetExternalCandidates(css string, warnings *[]string) string {
+	locs := reImageSetStart.FindAllStringIndex(css, -1)
+	if len(locs) == 0 {
+		return css
+	}
+	var result strings.Builder
+	last := 0
+	for _, loc := range locs {
+		start, openParen := loc[0], loc[1]-1
+		if start < last {
+			// Falls inside a span already neutralized by a previous iteration.
+			continue
+		}
+		closeParen := findMatchingParen(css, openParen)
+		if closeParen < 0 {
+			// Unterminated call: fail closed rather than leave a partially
+			// inspected image-set() in the output.
+			result.WriteString(css[last:start])
+			result.WriteString("none")
+			*warnings = append(*warnings, "removed unterminated image-set() call")
+			last = len(css)
+			continue
+		}
+		inner := css[openParen+1 : closeParen]
+		if reImageSetCandidateExternal.MatchString(inner) {
+			result.WriteString(css[last:start])
+			result.WriteString("none")
+			*warnings = append(*warnings, "removed external image-set() candidate: "+strings.TrimSpace(css[start:closeParen+1]))
+			last = closeParen + 1
+		}
+	}
+	result.WriteString(css[last:])
+	return result.String()
+}
+
 // stripFullScreenOverlays removes CSS rule blocks that combine position:fixed|sticky
 // with full-viewport geometry (top:0, left:0, width:100vw or height:100vh).
 // This prevents themes from rendering full-screen phishing overlays.
@@ -381,17 +480,24 @@ func stripFullScreenOverlays(css string, warnings *[]string) string {
 }
 
 // isFullScreenOverlay returns true when a CSS block contains position:fixed|sticky
-// combined with at least two of: top/right/bottom/left (any zero-unit), inset:0, width:100vw, height:100vh.
+// combined with at least two of: top/right/bottom/left (any zero-unit), inset:0, width:100vw, height:100vh,
+// AND at least one of those signals is a viewport-dimension signal (width:100vw, height:100vh, or
+// inset:0/four-sides-zero). A plain fixed header pinned with top:0;left:0 but sized by content
+// (e.g. height:48px, width:auto) has only offset signals and no viewport-dimension signal, so it
+// is not flagged - offsets alone are common for legitimate fixed headers/toolbars.
 // inset:0 (the shorthand that sets all four sides) counts as two signals on its own
 // because it is semantically equivalent to top:0 + right:0 + bottom:0 + left:0.
 func isFullScreenOverlay(block string) bool {
 	if !rePosFixed.MatchString(block) {
 		return false
 	}
-	// inset:0 is equivalent to all four sides pinned to zero; treat it as two signals.
+	// inset:0 is equivalent to all four sides pinned to zero; treat it as two signals,
+	// and it is itself a viewport-dimension-equivalent signal.
 	if reFullInset.MatchString(block) {
 		return true
 	}
+	hasViewportDim := reFullWidth.MatchString(block) || reFullHeight.MatchString(block)
+
 	count := 0
 	if reFullTop.MatchString(block) {
 		count++
@@ -411,7 +517,14 @@ func isFullScreenOverlay(block string) bool {
 	if reFullHeight.MatchString(block) {
 		count++
 	}
-	return count >= 2
+	// Four offset sides pinned to zero is semantically equivalent to inset:0, even
+	// without a viewport-dimension declaration - keep this case blocked.
+	fourSides := reFullTop.MatchString(block) && reFullRight.MatchString(block) &&
+		reFullBottom.MatchString(block) && reFullLeft.MatchString(block)
+	if fourSides {
+		return true
+	}
+	return count >= 2 && hasViewportDim
 }
 
 // stripPointerEventsOnInteractive removes pointer-events:none declarations from
@@ -434,7 +547,18 @@ func stripPointerEventsOnInteractive(css string, warnings *[]string) string {
 		selector := remaining[:braceOpen]
 		block := remaining[braceOpen : closeIdx+1]
 
-		if reInteractiveSelector.MatchString(decodeCSSEscapes(selector)) && rePointerEventsNone.MatchString(decodeCSSEscapes(block)) {
+		if reNestableAtRule.MatchString(decodeCSSEscapes(selector)) {
+			// pointer-events:none on an interactive element can be nested
+			// inside a grouping at-rule (@media/@supports/@layer/...);
+			// recurse into the block's content so it is still caught, while
+			// non-offending sibling rules inside the same at-rule are kept.
+			inner := remaining[braceOpen+1 : closeIdx]
+			recursed := stripPointerEventsOnInteractive(inner, warnings)
+			result.WriteString(selector)
+			result.WriteString("{")
+			result.WriteString(recursed)
+			result.WriteString("}")
+		} else if reInteractiveSelector.MatchString(decodeCSSEscapes(selector)) && rePointerEventsNone.MatchString(decodeCSSEscapes(block)) {
 			// Remove only the pointer-events:none declaration, keep rest of block.
 			cleaned := rePointerEventsNone.ReplaceAllString(block, "/* pointer-events removed */")
 			*warnings = append(*warnings, "removed pointer-events:none from interactive selector: "+strings.TrimSpace(selector))

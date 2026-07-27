@@ -879,6 +879,129 @@ func TestSanitizeCSS_Redteam_ImportNoWhitespace(t *testing.T) {
 	}
 }
 
+// ---- Residual holes (2026-07-27 re-red-team) ----
+
+func TestSanitizeCSS_ImageSetExternal_NonFirstCandidate(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{"plain background", `body{background:image-set("a.png" 1x, "https://192.0.2.1/exfil" 2x)}`},
+		{"mask-image with url() first candidate", `.x{mask-image:image-set(url(a.png) 1x, "https://192.0.2.1/exfil" 2x)}`},
+		{"custom property", `:root{--i:image-set("a.png" 1x, "https://192.0.2.1/exfil" 2x)}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			out, warns := SanitizeCSS([]byte(tt.input))
+			if containsString(out, "192.0.2.1") {
+				t.Errorf("non-first image-set() candidate not neutralized: %s", out)
+			}
+			if len(warns) == 0 {
+				t.Error("expected warning for image-set() external candidate")
+			}
+		})
+	}
+}
+
+func TestSanitizeCSS_ImageSetExternal_AllLocalCandidatesPreserved(t *testing.T) {
+	input := []byte(`body{background:image-set("a.png" 1x, "b.png" 2x)}`)
+	out, warns := SanitizeCSS(input)
+	if !containsString(out, "a.png") || !containsString(out, "b.png") {
+		t.Errorf("all-local image-set() incorrectly modified: %s", out)
+	}
+	if len(warns) != 0 {
+		t.Errorf("unexpected warnings for all-local image-set(): %v", warns)
+	}
+}
+
+func TestSanitizeCSS_AtRuleNesting_SensitiveSelectorAndPointerEvents(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		bad   string
+	}{
+		{"media password", `@media screen{input[type=password]{opacity:0}}`, "opacity:0"},
+		{"supports admin-panel", `@supports(display:grid){.admin-panel{display:none}}`, "display:none"},
+		{"layer token-field", `@layer theme{.token-field{color:transparent}}`, "color:transparent"},
+		{"media pointer-events button", `@media screen{button{pointer-events:none}}`, "pointer-events:none"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			out, warns := SanitizeCSS([]byte(tt.input))
+			if containsString(out, tt.bad) {
+				t.Errorf("nested at-rule sensitive rule not stripped: %s", out)
+			}
+			if len(warns) == 0 {
+				t.Error("expected warning for nested at-rule strip")
+			}
+		})
+	}
+}
+
+func TestSanitizeCSS_AtRuleNesting_SafeRulesPreserved(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{"media normal", `@media screen{.normal{color:red}}`},
+		{"keyframes", `@keyframes x{from{opacity:0}}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			out, warns := SanitizeCSS([]byte(tt.input))
+			if string(out) != tt.input {
+				t.Errorf("safe nested at-rule modified:\ngot:  %s\nwant: %s", out, tt.input)
+			}
+			if len(warns) != 0 {
+				t.Errorf("unexpected warnings: %v", warns)
+			}
+		})
+	}
+}
+
+func TestSanitizeCSS_FixedHeader_NotOverlay(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{"no dimension", `.header{position:fixed;top:0;left:0;height:48px}`},
+		{"height px, width percent (not viewport unit)", `.header{position:fixed;top:0;left:0;height:48px;width:100%}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			out, warns := SanitizeCSS([]byte(tt.input))
+			if string(out) != tt.input {
+				t.Errorf("legitimate fixed header incorrectly removed:\ngot:  %s\nwant: %s", out, tt.input)
+			}
+			if len(warns) != 0 {
+				t.Errorf("unexpected warnings for fixed header: %v", warns)
+			}
+		})
+	}
+}
+
+func TestSanitizeCSS_FixedHeader_RealOverlaysStillBlocked(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{"inset:0", `.ov{position:fixed;inset:0}`},
+		{"top/left + viewport dims", `.ov{position:fixed;top:0;left:0;width:100vw;height:100vh}`},
+		{"four sides = inset equivalent", `.ov{position:fixed;top:0;left:0;right:0;bottom:0}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			out, warns := SanitizeCSS([]byte(tt.input))
+			if containsString(out, "position:fixed") {
+				t.Errorf("real overlay not blocked: %s", out)
+			}
+			if len(warns) == 0 {
+				t.Error("expected warning for overlay removal")
+			}
+		})
+	}
+}
+
 func containsString(b []byte, s string) bool {
 	return len(b) > 0 && len(s) > 0 && string(b) != "" && contains(string(b), s)
 }
