@@ -88,6 +88,10 @@ func (c *countingMediaItemGetter) count(id string) int {
 // once, so without memoisation this pair is re-queried once per episode
 // instead of once per season.
 func TestArtwork_ParentChainMemoized_AcrossSiblingRequests(t *testing.T) {
+	// Test-only: guarantee a clean slate regardless of what a PRIOR test (or a
+	// prior run of this same test) left behind - see resetArtworkMemoCaches.
+	resetArtworkMemoCaches()
+
 	const numEpisodes = 5
 	seasonSourceURL := "https://img.example/season-poster.jpg"
 

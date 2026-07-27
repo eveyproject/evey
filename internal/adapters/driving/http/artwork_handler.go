@@ -73,6 +73,18 @@ func artworkCacheKey(dep any, id string) string {
 	return fmt.Sprintf("%p:%s", dep, id)
 }
 
+// resetArtworkMemoCaches clears the process-wide artwork parent-chain
+// memoisation caches. Test-only (unexported, unused outside *_test.go): the
+// production repo/getter live for the whole process, so their addresses are
+// never freed and reused - but a test that constructs many short-lived fakes
+// sharing a common ancestor id (e.g. "season1") in a tight loop CAN hit a
+// still-live entry keyed off a just-freed fake's reused address. Calling this
+// at the top of such a test sidesteps depending on GC timing.
+func resetArtworkMemoCaches() {
+	artworkRecordsCache, _ = pkgcache.New[[]*domainmeta.ArtworkRecord](0)
+	artworkParentIDCache, _ = pkgcache.New[string](0)
+}
+
 // allowedWidths caps variant creation to a fixed set so the cache stays bounded.
 // 0 is the sentinel for "no resize".
 //
