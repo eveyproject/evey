@@ -100,11 +100,12 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / 1024).toFixed(0)} KB`;
 }
 
-// 2000 keeps the nested (non-virtualized) grid within a reasonable render
-// budget while covering the vast majority of real-world photo libraries;
-// `total` from the response is surfaced separately so users can tell when
-// the library exceeds this cap.
-const PHOTOS_LIMIT = 2000;
+// 5000 matches the web client's cap (index.lazy.tsx); the grid below is a
+// real virtualized FlatList (not nested inside a ScrollView) so raising this
+// no longer risks rendering thousands of offscreen tiles at once. `total`
+// from the response is surfaced separately so users can tell when the
+// library exceeds this cap.
+const PHOTOS_LIMIT = 5000;
 
 function usePhotos(libraryID: string | undefined, album?: string) {
   return useQuery({
@@ -246,108 +247,118 @@ export default function PhotosScreen() {
     );
   }
 
-  return (
-    <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
-      <ScrollView>
-        <Text style={[styles.header, { color: theme.colors.text, marginTop: theme.spacing.xl, paddingHorizontal: theme.spacing.md }]}>{t("media.photos.title")}</Text>
+  // Everything above the photo grid (title, library picker, albums, section
+  // title / breadcrumb, and the loading/empty states for the grid itself)
+  // rides in as the FlatList header rather than a wrapping ScrollView, so
+  // the grid below stays a single real scroll container and can virtualize
+  // (windowed rendering) instead of mounting every tile up front.
+  const listHeader = (
+    <>
+      <Text style={[styles.header, { color: theme.colors.text, marginTop: theme.spacing.xl, paddingHorizontal: theme.spacing.md }]}>{t("media.photos.title")}</Text>
 
-        {/* Library picker */}
-        {libraries.length > 1 && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingHorizontal: theme.spacing.md, marginTop: theme.spacing.sm }}>
-            {libraries.map((lib) => (
-              <TouchableOpacity
-                key={lib.id}
-                activeOpacity={0.7}
-                onPress={() => setSelectedLibraryID(lib.id)}
-                style={[
-                  styles.libChip,
-                  {
-                    backgroundColor: activeLibraryID === lib.id ? theme.colors.accent : theme.colors.surface,
-                    borderRadius: theme.radii.sm,
-                    marginRight: theme.spacing.sm,
-                  },
-                ]}
-              >
-                <Text style={{ color: activeLibraryID === lib.id ? theme.colors.onAccent : theme.colors.text, fontSize: 13, fontWeight: "600" }}>
-                  {lib.name}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        )}
-
-        {/* Albums section (hidden while drilled into one album) */}
-        {!selectedAlbum && (
-          <View style={{ paddingHorizontal: theme.spacing.md, marginTop: theme.spacing.lg }}>
-            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{t("media.photos.albums")}</Text>
-            {albumsLoading ? (
-              <View style={styles.albumGrid}>
-                {Array.from({ length: 4 }).map((_, i) => (
-                  <Skeleton key={i} width={ALBUM_SIZE} height={ALBUM_SIZE} borderRadius={theme.radii.md} style={{ marginBottom: theme.spacing.sm }} />
-                ))}
-              </View>
-            ) : !albums || albums.length === 0 ? (
-              <Text style={{ color: theme.colors.textMuted, fontSize: 13, marginBottom: theme.spacing.md }}>{t("media.photos.noAlbums")}</Text>
-            ) : (
-              <FlatList
-                data={albums}
-                keyExtractor={(item) => item.name}
-                renderItem={renderAlbum}
-                numColumns={NUM_ALBUM_COLS}
-                scrollEnabled={false}
-                columnWrapperStyle={{ gap: theme.spacing.sm, marginBottom: theme.spacing.sm }}
-              />
-            )}
-          </View>
-        )}
-
-        {/* Photos section - all photos, or the selected album's photos when drilled in */}
-        <View style={{ marginTop: theme.spacing.md }}>
-          {selectedAlbum ? (
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: theme.spacing.md, marginBottom: theme.spacing.sm }}>
-              <TouchableOpacity
-                onPress={() => setSelectedAlbum(undefined)}
-                activeOpacity={0.7}
-                style={{ flexDirection: "row", alignItems: "center" }}
-              >
-                <Ionicons name="chevron-back" size={16} color={theme.colors.textMuted} />
-                <Text style={{ color: theme.colors.textMuted, fontSize: 13 }}>{t("media.photos.albums")}</Text>
-              </TouchableOpacity>
-              <Text style={{ color: theme.colors.textMuted, fontSize: 13 }}>/</Text>
-              <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: "600", flexShrink: 1 }} numberOfLines={1}>
-                {selectedAlbum.split("/").pop()}
+      {/* Library picker */}
+      {libraries.length > 1 && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingHorizontal: theme.spacing.md, marginTop: theme.spacing.sm }}>
+          {libraries.map((lib) => (
+            <TouchableOpacity
+              key={lib.id}
+              activeOpacity={0.7}
+              onPress={() => setSelectedLibraryID(lib.id)}
+              style={[
+                styles.libChip,
+                {
+                  backgroundColor: activeLibraryID === lib.id ? theme.colors.accent : theme.colors.surface,
+                  borderRadius: theme.radii.sm,
+                  marginRight: theme.spacing.sm,
+                },
+              ]}
+            >
+              <Text style={{ color: activeLibraryID === lib.id ? theme.colors.onAccent : theme.colors.text, fontSize: 13, fontWeight: "600" }}>
+                {lib.name}
               </Text>
-            </View>
-          ) : (
-            <Text style={[styles.sectionTitle, { color: theme.colors.text, paddingHorizontal: theme.spacing.md }]}>{t("media.photos.allPhotos")}</Text>
-          )}
-          {photosLoading ? (
-            <View style={styles.skeletonGrid}>
-              {Array.from({ length: 12 }).map((_, i) => (
-                <Skeleton key={i} width={PHOTO_SIZE} height={PHOTO_SIZE} borderRadius={0} style={{ margin: SPACING / 2 }} />
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      )}
+
+      {/* Albums section (hidden while drilled into one album). Small, bounded
+          dataset (one row of covers) so a non-virtualized inner FlatList
+          here is fine - it lives inside the header, not the scrolling grid. */}
+      {!selectedAlbum && (
+        <View style={{ paddingHorizontal: theme.spacing.md, marginTop: theme.spacing.lg }}>
+          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{t("media.photos.albums")}</Text>
+          {albumsLoading ? (
+            <View style={styles.albumGrid}>
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} width={ALBUM_SIZE} height={ALBUM_SIZE} borderRadius={theme.radii.md} style={{ marginBottom: theme.spacing.sm }} />
               ))}
             </View>
-          ) : photos.length === 0 ? (
-            <Text style={{ color: theme.colors.textMuted, fontSize: 13, paddingHorizontal: theme.spacing.md, marginBottom: theme.spacing.lg }}>{t("media.photos.noPhotos")}</Text>
+          ) : !albums || albums.length === 0 ? (
+            <Text style={{ color: theme.colors.textMuted, fontSize: 13, marginBottom: theme.spacing.md }}>{t("media.photos.noAlbums")}</Text>
           ) : (
-            <>
-              <FlatList
-                data={photos}
-                keyExtractor={(item) => item.id}
-                renderItem={renderPhoto}
-                numColumns={NUM_PHOTO_COLS}
-                scrollEnabled={false}
-                contentContainerStyle={{ paddingHorizontal: SPACING / 2 }}
-              />
-              {photosTotal > 0 && (
-                <Text style={{ color: theme.colors.textMuted, fontSize: 12, textAlign: "right", paddingHorizontal: theme.spacing.md, marginTop: 4 }}>
-                  {t("media.photos.photoCount", { count: photosTotal })}
-                </Text>
-              )}
-            </>
+            <FlatList
+              data={albums}
+              keyExtractor={(item) => item.name}
+              renderItem={renderAlbum}
+              numColumns={NUM_ALBUM_COLS}
+              scrollEnabled={false}
+              columnWrapperStyle={{ gap: theme.spacing.sm, marginBottom: theme.spacing.sm }}
+            />
           )}
         </View>
-      </ScrollView>
+      )}
+
+      {/* Photos section heading - all photos, or the selected album's breadcrumb */}
+      <View style={{ marginTop: theme.spacing.md }}>
+        {selectedAlbum ? (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: theme.spacing.md, marginBottom: theme.spacing.sm }}>
+            <TouchableOpacity
+              onPress={() => setSelectedAlbum(undefined)}
+              activeOpacity={0.7}
+              style={{ flexDirection: "row", alignItems: "center" }}
+            >
+              <Ionicons name="chevron-back" size={16} color={theme.colors.textMuted} />
+              <Text style={{ color: theme.colors.textMuted, fontSize: 13 }}>{t("media.photos.albums")}</Text>
+            </TouchableOpacity>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 13 }}>/</Text>
+            <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: "600", flexShrink: 1 }} numberOfLines={1}>
+              {selectedAlbum.split("/").pop()}
+            </Text>
+          </View>
+        ) : (
+          <Text style={[styles.sectionTitle, { color: theme.colors.text, paddingHorizontal: theme.spacing.md }]}>{t("media.photos.allPhotos")}</Text>
+        )}
+        {photosLoading ? (
+          <View style={styles.skeletonGrid}>
+            {Array.from({ length: 12 }).map((_, i) => (
+              <Skeleton key={i} width={PHOTO_SIZE} height={PHOTO_SIZE} borderRadius={0} style={{ margin: SPACING / 2 }} />
+            ))}
+          </View>
+        ) : photos.length === 0 ? (
+          <Text style={{ color: theme.colors.textMuted, fontSize: 13, paddingHorizontal: theme.spacing.md, marginBottom: theme.spacing.lg }}>{t("media.photos.noPhotos")}</Text>
+        ) : null}
+      </View>
+    </>
+  );
+
+  const listFooter =
+    !photosLoading && photosTotal > 0 ? (
+      <Text style={{ color: theme.colors.textMuted, fontSize: 12, textAlign: "right", paddingHorizontal: theme.spacing.md, marginTop: 4, marginBottom: theme.spacing.lg }}>
+        {t("media.photos.photoCount", { count: photosTotal })}
+      </Text>
+    ) : null;
+
+  return (
+    <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
+      <FlatList
+        data={photosLoading ? [] : photos}
+        keyExtractor={(item) => item.id}
+        renderItem={renderPhoto}
+        numColumns={NUM_PHOTO_COLS}
+        ListHeaderComponent={listHeader}
+        ListFooterComponent={listFooter}
+        contentContainerStyle={{ paddingHorizontal: SPACING / 2 }}
+      />
 
       {/* Lightbox */}
       <Modal visible={lightboxIndex !== null} transparent animationType="fade" onRequestClose={closeLightbox}>
