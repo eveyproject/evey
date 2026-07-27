@@ -4,9 +4,9 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack } from "expo-router";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import {
   useLibraryServiceListLibraries,
   useLibraryServiceScanLibrary,
@@ -14,6 +14,7 @@ import {
   useLibraryServiceUpdateLibrary,
   useLibraryServiceDeleteLibrary,
   getLibraryServiceListLibrariesQueryKey,
+  eveyFetch,
 } from "@evey/api";
 import type { V1Library, V1LibraryType } from "@evey/api";
 import { toast } from "@evey/store";
@@ -32,6 +33,7 @@ const LIBRARY_TYPES: { value: V1LibraryType; labelKey: string; fallback: string 
   { value: "LIBRARY_TYPE_SHOWS", labelKey: "admin.libraries.types.shows", fallback: "TV Shows" },
   { value: "LIBRARY_TYPE_MUSIC", labelKey: "admin.libraries.types.music", fallback: "Music" },
   { value: "LIBRARY_TYPE_PHOTOS", labelKey: "admin.libraries.types.photos", fallback: "Photos" },
+  { value: "LIBRARY_TYPE_BOOKS", labelKey: "admin.libraries.types.books", fallback: "Books" },
 ];
 
 interface LibraryFormData {
@@ -60,6 +62,350 @@ function formFromLibrary(lib: V1Library): LibraryFormData {
   };
 }
 
+interface LibraryStat {
+  id: string;
+  lastScannedAt?: string | null;
+  itemCount?: number;
+}
+
+interface ScanSchedule {
+  libraryId: string;
+  cron: string;
+  enabled: boolean;
+  lastRunAt?: string | null;
+  nextRunAt?: string | null;
+}
+
+function useLibraryStats() {
+  return useQuery<LibraryStat[]>({
+    queryKey: ["/api/v1/admin/library-stats"],
+    queryFn: async () => {
+      const json = await eveyFetch<{ stats: LibraryStat[] }>({ url: "/api/v1/admin/library-stats", method: "GET" });
+      return json.stats ?? [];
+    },
+    staleTime: 30_000,
+  });
+}
+
+function useSchedule(libraryId: string) {
+  return useQuery<ScanSchedule | null>({
+    queryKey: ["/api/v1/libraries", libraryId, "schedule"],
+    queryFn: async () => {
+      const data = await eveyFetch<{ schedule: ScanSchedule | null }>({
+        url: `/api/v1/libraries/${libraryId}/schedule`,
+        method: "GET",
+      });
+      return data.schedule;
+    },
+    enabled: !!libraryId,
+    staleTime: 30_000,
+  });
+}
+
+function formatScheduleDate(iso?: string | null): string {
+  if (!iso) return "—";
+  try {
+    return new Date(iso).toLocaleString();
+  } catch {
+    return iso;
+  }
+}
+
+function ScheduleModal({ library, onClose }: { library: V1Library; onClose: () => void }) {
+  const theme = useTheme();
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const { data: schedule, isLoading } = useSchedule(library.id!);
+  const [preset, setPreset] = useState("");
+  const [customCron, setCustomCron] = useState("");
+  const [enabled, setEnabled] = useState(true);
+
+  const PRESET_SCHEDULES = [
+    { value: "0 */6 * * *", label: t("admin.libraries.presets.every6h", "Every 6 hours") },
+    { value: "0 */12 * * *", label: t("admin.libraries.presets.every12h", "Every 12 hours") },
+    { value: "0 3 * * *", label: t("admin.libraries.presets.daily3am", "Daily at 3am") },
+    { value: "0 3 * * 0", label: t("admin.libraries.presets.weekly3am", "Weekly (Sun 3am)") },
+    { value: "custom", label: t("admin.libraries.presets.customCron", "Custom cron") },
+  ];
+
+  useEffect(() => {
+    if (schedule) {
+      setEnabled(schedule.enabled);
+      const match = PRESET_SCHEDULES.find((p) => p.value === schedule.cron);
+      if (match) {
+        setPreset(schedule.cron);
+      } else {
+        setPreset("custom");
+        setCustomCron(schedule.cron);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- PRESET_SCHEDULES uses t() so its identity changes every render; only sync when the schedule prop changes
+  }, [schedule]);
+
+  const cronValue = preset === "custom" ? customCron : preset;
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      await eveyFetch<{ schedule: ScanSchedule }>({
+        url: `/api/v1/libraries/${library.id}/schedule`,
+        method: "PUT",
+        data: { cron: cronValue, enabled },
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/v1/libraries", library.id, "schedule"] });
+      toast.success(t("admin.libraries.scheduleSaved", "Scan schedule saved"));
+      onClose();
+    },
+    onError: (err: Error) => toast.error(err.message || t("admin.libraries.failedSchedule", "Failed to save schedule")),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      await eveyFetch<void>({
+        url: `/api/v1/libraries/${library.id}/schedule`,
+        method: "DELETE",
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/v1/libraries", library.id, "schedule"] });
+      toast.success(t("admin.libraries.scheduleRemoved", "Schedule removed"));
+      onClose();
+    },
+    onError: (err: Error) => toast.error(err.message || t("admin.libraries.failedRemoveSchedule", "Failed to remove schedule")),
+  });
+
+  return (
+    <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
+      <View style={[styles.modalHeader, { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border }]}>
+        <Pressable onPress={onClose} hitSlop={8}>
+          <Text style={{ color: theme.colors.accent, fontSize: 15 }}>{t("common.cancel", "Cancel")}</Text>
+        </Pressable>
+        <Text style={{ color: theme.colors.text, fontSize: 17, fontWeight: "600" }} numberOfLines={1}>
+          {t("admin.libraries.scanScheduleTitle", { name: library.name, defaultValue: "Scan schedule - {{name}}" })}
+        </Text>
+        <Pressable onPress={() => saveMutation.mutate()} disabled={!cronValue || saveMutation.isPending} hitSlop={8}>
+          <Text style={{ color: cronValue ? theme.colors.accent : theme.colors.textMuted, fontSize: 15, fontWeight: "600" }}>
+            {saveMutation.isPending ? (t("common.loading", "...")) : t("common.save", "Save")}
+          </Text>
+        </Pressable>
+      </View>
+
+      <ScrollView contentContainerStyle={{ padding: 16, gap: 20 }}>
+        {isLoading ? (
+          <ActivityIndicator color={theme.colors.accent} style={{ paddingVertical: 24 }} />
+        ) : (
+          <>
+            <View style={{ gap: 8 }}>
+              <Text style={[styles.label, { color: theme.colors.text }]}>
+                {t("admin.libraries.scanFrequency", "Scan frequency")}
+              </Text>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                {PRESET_SCHEDULES.map((p) => {
+                  const selected = preset === p.value;
+                  return (
+                    <Pressable
+                      key={p.value}
+                      onPress={() => {
+                        setPreset(p.value);
+                        if (p.value !== "custom") setCustomCron("");
+                      }}
+                      style={[
+                        styles.typeChip,
+                        {
+                          backgroundColor: selected ? theme.colors.accent : theme.colors.surface,
+                          borderColor: selected ? theme.colors.accent : theme.colors.border,
+                        },
+                      ]}
+                    >
+                      <Text style={{ color: selected ? theme.colors.onAccent : theme.colors.text, fontSize: 13 }}>{p.label}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+
+            {preset === "custom" && (
+              <View style={{ gap: 6 }}>
+                <Text style={[styles.label, { color: theme.colors.text }]}>
+                  {t("admin.libraries.cronExpression", "Cron expression")}
+                </Text>
+                <TextInput
+                  style={[styles.input, { backgroundColor: theme.colors.surface, color: theme.colors.text, borderColor: theme.colors.border }]}
+                  value={customCron}
+                  onChangeText={setCustomCron}
+                  placeholder="0 */6 * * *"
+                  placeholderTextColor={theme.colors.textMuted}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+              </View>
+            )}
+
+            <View style={styles.switchRow}>
+              <Text style={{ color: theme.colors.text, fontSize: 14, flex: 1 }}>
+                {t("common.enabled", "Enabled")}
+              </Text>
+              <Switch
+                value={enabled}
+                onValueChange={setEnabled}
+                trackColor={{ true: theme.colors.accent, false: theme.colors.surfaceRaised }}
+              />
+            </View>
+
+            {schedule && (schedule.lastRunAt || schedule.nextRunAt) && (
+              <View style={{ gap: 2 }}>
+                {schedule.lastRunAt && (
+                  <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>
+                    {t("admin.libraries.lastRun", { date: formatScheduleDate(schedule.lastRunAt), defaultValue: "Last run: {{date}}" })}
+                  </Text>
+                )}
+                {schedule.nextRunAt && (
+                  <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>
+                    {t("admin.libraries.nextRun", { date: formatScheduleDate(schedule.nextRunAt), defaultValue: "Next run: {{date}}" })}
+                  </Text>
+                )}
+              </View>
+            )}
+
+            {schedule && (
+              <Pressable onPress={() => deleteMutation.mutate()} disabled={deleteMutation.isPending} style={{ paddingVertical: 8 }}>
+                <Text style={{ color: theme.colors.error, fontSize: 14, textAlign: "center" }}>
+                  {deleteMutation.isPending ? t("common.loading", "...") : t("common.remove", "Remove")}
+                </Text>
+              </Pressable>
+            )}
+          </>
+        )}
+      </ScrollView>
+    </View>
+  );
+}
+
+function LibraryRow({
+  library,
+  stats,
+  onEdit,
+  onScan,
+  onDelete,
+  scanPending,
+}: {
+  library: V1Library;
+  stats: LibraryStat[];
+  onEdit: (lib: V1Library) => void;
+  onScan: (lib: V1Library) => void;
+  onDelete: (lib: V1Library) => void;
+  scanPending: boolean;
+}) {
+  const theme = useTheme();
+  const { t } = useTranslation();
+  const [showSchedule, setShowSchedule] = useState(false);
+  const { data: schedule } = useSchedule(library.id ?? "");
+
+  const refreshMetadata = useMutation({
+    mutationFn: () =>
+      eveyFetch({
+        url: "/api/v1/admin/media/refresh-metadata",
+        method: "POST",
+        data: { libraryId: library.id },
+      }),
+    onSuccess: () => toast.success(t("admin.libraries.refreshAllMetadataStarted", "Metadata refresh started")),
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const matchOrphans = useMutation<{ queued?: number }, Error>({
+    mutationFn: () =>
+      eveyFetch({
+        url: "/api/v1/admin/media/match-orphans",
+        method: "POST",
+        data: { libraryId: library.id },
+      }),
+    onSuccess: (resp) => {
+      const queued = resp?.queued ?? 0;
+      if (queued === 0) {
+        toast.info(t("admin.libraries.matchOrphansEmpty", "No orphan files found"));
+      } else {
+        toast.success(t("admin.libraries.matchOrphansStarted", { count: queued, defaultValue: "Matching {{count}} orphan files" }));
+      }
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const icon = TYPE_ICONS[library.type ?? ""] ?? "folder-outline";
+  const libStat = stats.find((s) => s.id === library.id);
+  const lastScan = libStat?.lastScannedAt
+    ? new Date(libStat.lastScannedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+    : t("common.never", "Never");
+  const totalItems = libStat?.itemCount;
+
+  return (
+    <View style={[styles.card, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}>
+      <Ionicons name={icon as never} size={28} color={theme.colors.accent} />
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text style={{ color: theme.colors.text, fontSize: 15, fontWeight: "600" }}>{library.name}</Text>
+        <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>
+          {library.type?.replace("LIBRARY_TYPE_", "")}
+          {" · "}
+          {totalItems != null
+            ? t("admin.libraries.items", { count: totalItems, defaultValue: "{{count}} items" })
+            : "—"}
+          {" · "}
+          {t("admin.libraries.lastScan", "Last scan")}: {lastScan}
+        </Text>
+        {library.paths && library.paths.length > 0 && (
+          <Text style={{ color: theme.colors.textMuted, fontSize: 11 }} numberOfLines={1}>
+            {library.paths.join(", ")}
+          </Text>
+        )}
+        <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>
+          {schedule?.enabled
+            ? t("admin.libraries.tableHeaders.nextScan", "Next scan") + ": " + (schedule.nextRunAt ? formatScheduleDate(schedule.nextRunAt) : t("common.enabled", "Enabled"))
+            : t("admin.libraries.off", "Scan schedule off")}
+        </Text>
+      </View>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 4, justifyContent: "flex-end", maxWidth: 96 }}>
+        <Pressable onPress={() => onEdit(library)} hitSlop={8} style={{ padding: 4 }}>
+          <Ionicons name="pencil-outline" size={18} color={theme.colors.accent} />
+        </Pressable>
+        <Pressable
+          onPress={() => onScan(library)}
+          disabled={scanPending}
+          hitSlop={8}
+          style={{ padding: 4 }}
+        >
+          <Ionicons name="refresh-outline" size={18} color={theme.colors.accent} />
+        </Pressable>
+        <Pressable onPress={() => setShowSchedule(true)} hitSlop={8} style={{ padding: 4 }}>
+          <Ionicons name="calendar-outline" size={18} color={theme.colors.accent} />
+        </Pressable>
+        <Pressable
+          onPress={() => matchOrphans.mutate()}
+          disabled={matchOrphans.isPending}
+          hitSlop={8}
+          style={{ padding: 4 }}
+        >
+          <Ionicons name="link-outline" size={18} color={theme.colors.accent} />
+        </Pressable>
+        <Pressable
+          onPress={() => refreshMetadata.mutate()}
+          disabled={refreshMetadata.isPending}
+          hitSlop={8}
+          style={{ padding: 4 }}
+        >
+          <Ionicons name="cloud-download-outline" size={18} color={theme.colors.accent} />
+        </Pressable>
+        <Pressable onPress={() => onDelete(library)} hitSlop={8} style={{ padding: 4 }}>
+          <Ionicons name="trash-outline" size={18} color={theme.colors.error} />
+        </Pressable>
+      </View>
+
+      <Modal visible={showSchedule} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowSchedule(false)}>
+        <ScheduleModal library={library} onClose={() => setShowSchedule(false)} />
+      </Modal>
+    </View>
+  );
+}
+
 export default function AdminLibrariesScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -67,6 +413,7 @@ export default function AdminLibrariesScreen() {
 
   const { data, isLoading, refetch } = useLibraryServiceListLibraries();
   const libraries = data?.libraries ?? [];
+  const { data: stats = [] } = useLibraryStats();
 
   const [modalVisible, setModalVisible] = useState(false);
   const [editingLibrary, setEditingLibrary] = useState<V1Library | null>(null);
@@ -105,6 +452,7 @@ export default function AdminLibrariesScreen() {
     mutation: {
       onSuccess: () => {
         qc.invalidateQueries({ queryKey: getLibraryServiceListLibrariesQueryKey() });
+        qc.invalidateQueries({ queryKey: ["/api/v1/admin/library-stats"] });
         toast.success(t("admin.libraries.libraryDeleted") || "Library deleted");
       },
       onError: () => toast.error(t("common.error") || "Failed to delete library"),
@@ -203,45 +551,16 @@ export default function AdminLibrariesScreen() {
   const isPending = isEdit ? updateLib.isPending : createLib.isPending;
   const canSubmit = form.name.trim() !== "" && form.paths.some((p) => p.trim() !== "") && !isPending;
 
-  const renderLibrary = useCallback(({ item }: { item: V1Library }) => {
-    const icon = TYPE_ICONS[item.type ?? ""] ?? "folder-outline";
-    const lastScan = item.lastScannedAt
-      ? new Date(item.lastScannedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
-      : t("common.never", "Never");
-
-    return (
-      <View style={[styles.card, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}>
-        <Ionicons name={icon as never} size={28} color={theme.colors.accent} />
-        <View style={{ flex: 1, gap: 2 }}>
-          <Text style={{ color: theme.colors.text, fontSize: 15, fontWeight: "600" }}>{item.name}</Text>
-          <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>
-            {item.type?.replace("LIBRARY_TYPE_", "")} · {t("admin.libraries.lastScan", "Last scan")}: {lastScan}
-          </Text>
-          {item.paths && item.paths.length > 0 && (
-            <Text style={{ color: theme.colors.textMuted, fontSize: 11 }} numberOfLines={1}>
-              {item.paths.join(", ")}
-            </Text>
-          )}
-        </View>
-        <View style={{ flexDirection: "row", gap: 4 }}>
-          <Pressable onPress={() => openEdit(item)} hitSlop={8} style={{ padding: 4 }}>
-            <Ionicons name="pencil-outline" size={18} color={theme.colors.accent} />
-          </Pressable>
-          <Pressable
-            onPress={() => handleScan(item)}
-            disabled={scanLibrary.isPending}
-            hitSlop={8}
-            style={{ padding: 4 }}
-          >
-            <Ionicons name="refresh-outline" size={18} color={theme.colors.accent} />
-          </Pressable>
-          <Pressable onPress={() => handleDelete(item)} hitSlop={8} style={{ padding: 4 }}>
-            <Ionicons name="trash-outline" size={18} color={theme.colors.error} />
-          </Pressable>
-        </View>
-      </View>
-    );
-  }, [theme, handleScan, handleDelete, openEdit, scanLibrary.isPending, t]);
+  const renderLibrary = useCallback(({ item }: { item: V1Library }) => (
+    <LibraryRow
+      library={item}
+      stats={stats}
+      onEdit={openEdit}
+      onScan={handleScan}
+      onDelete={handleDelete}
+      scanPending={scanLibrary.isPending}
+    />
+  ), [stats, openEdit, handleScan, handleDelete, scanLibrary.isPending]);
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>

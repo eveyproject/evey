@@ -9,6 +9,7 @@ import {
   useUserServiceCreateUser,
   useUserServiceDeleteUser,
   useUserServiceDisableUser,
+  useUserServiceImpersonateUser,
   getUserServiceListUsersQueryKey,
   useLibraryServiceListLibraries,
   useUserServiceListInviteLinks,
@@ -18,9 +19,10 @@ import {
   eveyFetch,
 } from "@evey/api";
 import type { V1User, V1InviteLink } from "@evey/api";
-import { toast } from "@evey/store";
+import { toast, useAuthStore } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
+import { BitrateModal } from "./users/BitrateModal";
 
 interface LibraryInfo {
   id: string;
@@ -283,8 +285,28 @@ export default function AdminUsersScreen() {
   const [newEmail, setNewEmail] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [newIsAdmin, setNewIsAdmin] = useState(false);
+  const [newMaxProfiles, setNewMaxProfiles] = useState("0");
+  const [newMaxDevicesPerProfile, setNewMaxDevicesPerProfile] = useState("0");
   const [newSelectedLibs, setNewSelectedLibs] = useState<Set<string>>(new Set());
   const [libAccessUser, setLibAccessUser] = useState<V1User | null>(null);
+  const [bitrateUser, setBitrateUser] = useState<V1User | null>(null);
+
+  const doImpersonate = useAuthStore((s) => s.impersonate);
+  const impersonateUser = useUserServiceImpersonateUser({
+    mutation: {
+      onSuccess: async (data) => {
+        if (!data.accessToken) return;
+        // Stash the admin token, swap to the target's, land on the home tabs.
+        // Clear the query cache so admin-session data (which sees every library
+        // unfiltered) is not served stale under the target's identity - every
+        // query refetches with the impersonation token.
+        doImpersonate(data.accessToken);
+        qc.clear();
+        router.replace("/(auth)/(tabs)");
+      },
+      onError: (err: Error) => toast.error(err.message || t("admin.users.failedImpersonate", "Failed to impersonate user")),
+    },
+  });
 
   const { data, isLoading, refetch } = useUserServiceListUsers();
   const users = data?.users ?? [];
@@ -321,6 +343,8 @@ export default function AdminUsersScreen() {
         setNewEmail("");
         setNewPassword("");
         setNewIsAdmin(false);
+        setNewMaxProfiles("0");
+        setNewMaxDevicesPerProfile("0");
         setNewSelectedLibs(new Set());
         await qc.invalidateQueries({ queryKey: getUserServiceListUsersQueryKey() });
       },
@@ -349,12 +373,21 @@ export default function AdminUsersScreen() {
 
   const handleCreate = useCallback(async () => {
     if (!newUsername.trim() || !newPassword.trim()) return;
+    const parsedMaxProfiles = Number.isFinite(Number(newMaxProfiles)) ? Math.max(0, Math.trunc(Number(newMaxProfiles))) : 0;
+    const parsedMaxDevices = Number.isFinite(Number(newMaxDevicesPerProfile)) ? Math.max(0, Math.trunc(Number(newMaxDevicesPerProfile))) : 0;
     try {
       await createUser.mutateAsync({
-        data: { username: newUsername.trim(), email: newEmail.trim() || undefined, password: newPassword.trim(), isAdmin: newIsAdmin },
+        data: {
+          username: newUsername.trim(),
+          email: newEmail.trim() || undefined,
+          password: newPassword.trim(),
+          isAdmin: newIsAdmin,
+          maxProfiles: parsedMaxProfiles,
+          maxDevicesPerProfile: parsedMaxDevices,
+        },
       });
     } catch {}
-  }, [newUsername, newEmail, newPassword, newIsAdmin, newSelectedLibs, createUser]);
+  }, [newUsername, newEmail, newPassword, newIsAdmin, newMaxProfiles, newMaxDevicesPerProfile, newSelectedLibs, createUser]);
 
   const handleDelete = useCallback((user: V1User) => {
     Alert.alert(t("common.delete"), `${t("common.delete")} ${user.username}?`, [
@@ -368,6 +401,11 @@ export default function AdminUsersScreen() {
     disableUser.mutate({ id: user.id, params: { disabled: user.enabled !== false } });
   }, [disableUser]);
 
+  const handleImpersonate = useCallback((user: V1User) => {
+    if (!user.id) return;
+    impersonateUser.mutate({ userId: user.id, data: {} });
+  }, [impersonateUser]);
+
   const renderUser = useCallback(({ item }: { item: V1User }) => (
     <View style={[styles.userCard, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}>
       <View style={[styles.avatar, { backgroundColor: theme.colors.accent }]}>
@@ -376,9 +414,13 @@ export default function AdminUsersScreen() {
       <View style={{ flex: 1 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
           <Text style={{ color: theme.colors.text, fontSize: 15, fontWeight: "600" }}>{item.username}</Text>
-          {item.isAdmin && (
+          {item.isAdmin ? (
             <View style={{ backgroundColor: theme.colors.accent, borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1 }}>
               <Text style={{ color: "#fff", fontSize: 9, fontWeight: "700" }}>ADMIN</Text>
+            </View>
+          ) : (
+            <View style={{ backgroundColor: theme.colors.surfaceRaised, borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1 }}>
+              <Text style={{ color: theme.colors.textMuted, fontSize: 9, fontWeight: "700" }}>USER</Text>
             </View>
           )}
           {item.enabled === false && (
@@ -388,6 +430,11 @@ export default function AdminUsersScreen() {
           )}
         </View>
         <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>{item.email || "-"}</Text>
+        <Text style={{ color: theme.colors.textMuted, fontSize: 10, marginTop: 2 }}>
+          {t("admin.users.registered", "Registered")}: {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : "-"}
+          {"  ·  "}
+          {t("admin.users.lastLogin", "Last login")}: {item.lastLogin ? new Date(item.lastLogin).toLocaleDateString() : "-"}
+        </Text>
       </View>
       <Pressable
         onPress={() => item.id && router.push(`/admin/users/${item.id}` as never)}
@@ -410,6 +457,27 @@ export default function AdminUsersScreen() {
         </Pressable>
       )}
       <Pressable
+        onPress={() => setBitrateUser(item)}
+        hitSlop={8}
+        style={{ padding: 4 }}
+        accessibilityRole="button"
+        accessibilityLabel={t("admin.users.bitrate", "Bitrate limit")}
+      >
+        <Ionicons name="speedometer-outline" size={18} color={theme.colors.textMuted} />
+      </Pressable>
+      {item.enabled !== false && (
+        <Pressable
+          onPress={() => handleImpersonate(item)}
+          disabled={impersonateUser.isPending}
+          hitSlop={8}
+          style={{ padding: 4 }}
+          accessibilityRole="button"
+          accessibilityLabel={t("admin.users.impersonate", "Impersonate")}
+        >
+          <Ionicons name="log-in-outline" size={18} color={theme.colors.textMuted} />
+        </Pressable>
+      )}
+      <Pressable
         onPress={() => handleToggleDisable(item)}
         hitSlop={8}
         style={{ padding: 4 }}
@@ -428,7 +496,7 @@ export default function AdminUsersScreen() {
         <Ionicons name="trash-outline" size={18} color={theme.colors.error} />
       </Pressable>
     </View>
-  ), [theme, handleDelete, handleToggleDisable, setLibAccessUser, router, t]);
+  ), [theme, handleDelete, handleToggleDisable, handleImpersonate, impersonateUser.isPending, setLibAccessUser, setBitrateUser, router, t]);
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
@@ -476,6 +544,38 @@ export default function AdminUsersScreen() {
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
               <Text style={{ color: theme.colors.text, fontSize: 15 }}>{t("admin.users.admin")}</Text>
               <Switch value={newIsAdmin} onValueChange={setNewIsAdmin} trackColor={{ true: theme.colors.accent }} />
+            </View>
+            <View style={{ marginBottom: 4 }}>
+              <Text style={{ color: theme.colors.textMuted, fontSize: 13, marginBottom: 4 }}>
+                {t("admin.users.maxProfiles", "Max profiles")}
+              </Text>
+              <TextInput
+                placeholder="0"
+                placeholderTextColor={theme.colors.textMuted}
+                value={newMaxProfiles}
+                onChangeText={setNewMaxProfiles}
+                keyboardType="number-pad"
+                style={[styles.input, { backgroundColor: theme.colors.bg, color: theme.colors.text, borderRadius: theme.radii.md }]}
+              />
+              <Text style={{ color: theme.colors.textMuted, fontSize: 11, marginTop: -8, marginBottom: 12 }}>
+                {t("admin.users.maxProfilesHelp", "0 = unlimited")}
+              </Text>
+            </View>
+            <View style={{ marginBottom: 4 }}>
+              <Text style={{ color: theme.colors.textMuted, fontSize: 13, marginBottom: 4 }}>
+                {t("admin.users.maxDevicesPerProfile", "Max devices per profile")}
+              </Text>
+              <TextInput
+                placeholder="0"
+                placeholderTextColor={theme.colors.textMuted}
+                value={newMaxDevicesPerProfile}
+                onChangeText={setNewMaxDevicesPerProfile}
+                keyboardType="number-pad"
+                style={[styles.input, { backgroundColor: theme.colors.bg, color: theme.colors.text, borderRadius: theme.radii.md }]}
+              />
+              <Text style={{ color: theme.colors.textMuted, fontSize: 11, marginTop: -8, marginBottom: 12 }}>
+                {t("admin.users.maxDevicesPerProfileHelp", "0 = unlimited")}
+              </Text>
             </View>
             {!newIsAdmin && libraries.length > 0 && (
               <View style={{ marginBottom: 16 }}>
@@ -528,6 +628,14 @@ export default function AdminUsersScreen() {
           visible={!!libAccessUser}
           onClose={() => setLibAccessUser(null)}
           theme={theme}
+        />
+      )}
+
+      {bitrateUser && (
+        <BitrateModal
+          user={bitrateUser}
+          visible={!!bitrateUser}
+          onClose={() => setBitrateUser(null)}
         />
       )}
     </View>
