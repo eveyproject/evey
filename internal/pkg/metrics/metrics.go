@@ -283,7 +283,40 @@ var (
 		Name: "evey_ratelimit_rejected_total",
 		Help: "Requests rejected by the per-method per-IP rate limiter, by method.",
 	}, []string{"method"})
+
+	// PluginUp is 1 while a plugin's last known status is Running, 0 while it
+	// is Error or stopped. The plugin subsystem previously had no metric at
+	// all: weather-v2 sat in Error for 3 days in prod with only a log line and
+	// a DB column to notice it - nothing to alert on.
+	PluginUp = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "evey_plugin_up",
+		Help: "1 if the plugin's last known status is Running, 0 if Error or stopped.",
+	}, []string{"plugin_id"})
+
+	// PluginErrorsTotal counts every transition of a plugin into Error status
+	// (spawn failure, IPC failure, auto-start retry failure). A rising count
+	// with a flat PluginUp=0 for the same plugin_id is the retry loop that
+	// used to be invisible.
+	PluginErrorsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "evey_plugin_errors_total",
+		Help: "Total transitions of a plugin into Error status, by plugin_id.",
+	}, []string{"plugin_id"})
 )
+
+// SetPluginUp records whether the given plugin is currently up (Running) or
+// not (Error/stopped).
+func SetPluginUp(id string, up bool) {
+	v := 0.0
+	if up {
+		v = 1.0
+	}
+	PluginUp.WithLabelValues(id).Set(v)
+}
+
+// IncPluginError records a plugin transitioning into Error status.
+func IncPluginError(id string) {
+	PluginErrorsTotal.WithLabelValues(id).Inc()
+}
 
 func init() {
 	prometheus.MustRegister(
@@ -300,6 +333,7 @@ func init() {
 		HLSVODThrottlePause, HLSVODThrottleResume, HLSVODStarvationResumes,
 		QoEIngestEvents, QoEIngestDrops,
 		RateLimitRejected,
+		PluginUp, PluginErrorsTotal,
 	)
 }
 

@@ -9,6 +9,7 @@ import (
 
 	"github.com/evey-project/evey/internal/domain/plugin"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/metrics"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
@@ -78,6 +79,7 @@ func (s *RuntimeService) StartPlugin(ctx context.Context, id string) error {
 	if p.IsTheme() {
 		p.Status = plugin.Running
 		p.ErrorMessage = ""
+		metrics.SetPluginUp(p.ID, true)
 		return s.plugins.Update(ctx, p)
 	}
 	if p.InstallDir == "" {
@@ -86,6 +88,8 @@ func (s *RuntimeService) StartPlugin(ctx context.Context, id string) error {
 	if err := s.runner.Start(ctx, p); err != nil {
 		p.Status = plugin.Error
 		p.ErrorMessage = err.Error()
+		metrics.IncPluginError(p.ID)
+		metrics.SetPluginUp(p.ID, false)
 		if updateErr := s.plugins.Update(ctx, p); updateErr != nil {
 			slog.Warn("update plugin status failed", slog.String("pluginID", p.ID), slog.Any("err", updateErr))
 		}
@@ -96,6 +100,7 @@ func (s *RuntimeService) StartPlugin(ctx context.Context, id string) error {
 	}
 	p.Status = plugin.Running
 	p.ErrorMessage = ""
+	metrics.SetPluginUp(p.ID, true)
 	if err := s.plugins.Update(ctx, p); err != nil {
 		slog.Warn("update plugin status failed", slog.String("pluginID", p.ID), slog.Any("err", err))
 	}
@@ -185,6 +190,7 @@ func (s *RuntimeService) EnablePlugin(ctx context.Context, id string) error {
 	if p.IsTheme() {
 		p.Status = plugin.Running
 		p.ErrorMessage = ""
+		metrics.SetPluginUp(p.ID, true)
 		return s.plugins.Update(ctx, p)
 	}
 	return s.StartPlugin(ctx, id)
@@ -254,6 +260,8 @@ func (s *RuntimeService) AutoStartPlugins(ctx context.Context) {
 			slog.Warn("auto-start plugin failed", slog.String("pluginID", p.ID), slog.Any("err", startErr))
 			p.Status = plugin.Error
 			p.ErrorMessage = startErr.Error()
+			metrics.IncPluginError(p.ID)
+			metrics.SetPluginUp(p.ID, false)
 			if updateErr := s.plugins.Update(ctx, p); updateErr != nil {
 				slog.Warn("update plugin status", slog.String("pluginID", p.ID), slog.Any("err", updateErr))
 			}
@@ -307,9 +315,12 @@ func (s *RuntimeService) HandleIPCResult(pluginID string, ipcErr error) {
 	if ipcErr != nil {
 		p.Status = plugin.Error
 		p.ErrorMessage = ipcErr.Error()
+		metrics.IncPluginError(p.ID)
+		metrics.SetPluginUp(p.ID, false)
 	} else {
 		p.Status = plugin.Running
 		p.ErrorMessage = ""
+		metrics.SetPluginUp(p.ID, true)
 	}
 	if upErr := s.plugins.Update(ctx, p); upErr != nil {
 		slog.Warn("update plugin status after IPC", slog.String("pluginID", pluginID), slog.Any("err", upErr))

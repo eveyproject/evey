@@ -75,3 +75,22 @@ func TestHLSSessionsGauge(t *testing.T) {
 	// verify it can be set without panic
 	metrics.HLSSessionsGauge.Set(0)
 }
+
+func TestPluginMetrics(t *testing.T) {
+	metrics.SetPluginUp("plugin-test", true)
+	metrics.IncPluginError("plugin-test")
+	metrics.SetPluginUp("plugin-test", false)
+
+	h := metrics.Handler()
+	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	req.RemoteAddr = "127.0.0.1:9090"
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	body := w.Body.String()
+	if !strings.Contains(body, "evey_plugin_up") {
+		t.Fatal("response missing evey_plugin_up metric")
+	}
+	if !strings.Contains(body, "evey_plugin_errors_total") {
+		t.Fatal("response missing evey_plugin_errors_total metric")
+	}
+}
