@@ -7,6 +7,7 @@ import { eveyFetch } from "@evey/api";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
+import { TrickplayPreview } from "../../../src/components/TrickplayPreview";
 
 interface ActiveSession {
   sessionId: string;
@@ -31,6 +32,9 @@ interface ActiveSession {
   seasonNumber: number;
   episodeNumber: number;
   isPaused: boolean;
+  videoDecision: string;
+  audioDecision: string;
+  castDeviceName: string;
 }
 
 const REFRESH_INTERVAL = 5_000;
@@ -55,10 +59,21 @@ function formatMs(ms: number): string {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
+function formatElapsed(startedAt: string): string {
+  const diff = Date.now() - new Date(startedAt).getTime();
+  return formatMs(diff);
+}
+
 function formatBandwidth(bps: number): string {
   if (bps > 1e6) return `${(bps / 1e6).toFixed(1)} Mbps`;
   if (bps > 1e3) return `${(bps / 1e3).toFixed(0)} Kbps`;
   return `${bps} bps`;
+}
+
+// trackEngine derives the serving tool per track: the copy rung is served by
+// mkvgo's on-demand packager (default), any re-encode by ffmpeg.
+function trackEngine(decision: string): string {
+  return decision === "transcode" ? "ffmpeg" : "mkvgo";
 }
 
 function playMethodLabel(method: string, t: (k: string) => string): string {
@@ -68,6 +83,56 @@ function playMethodLabel(method: string, t: (k: string) => string): string {
     case "transcode": return t("admin.sessions.transcode");
     default: return method || "Direct";
   }
+}
+
+// TrackBadges renders the per-track serving detail (copy vs transcode, served
+// codec, engine) so an operator can tell a copy rung from a real transcode.
+function TrackBadges({ session, theme, t }: {
+  session: ActiveSession;
+  theme: ReturnType<typeof useTheme>;
+  t: (k: string, d?: string | Record<string, unknown>) => string;
+}) {
+  const vDec = session.videoDecision ?? "";
+  const aDec = session.audioDecision ?? "";
+  if (!vDec && !aDec) return null;
+
+  const rows: Array<{ id: string; icon: "film-outline" | "volume-high-outline"; kind: string; decision: string; detail: string }> = [];
+  if (vDec) rows.push({
+    id: "video",
+    icon: "film-outline",
+    kind: t("admin.sessions.track.video"),
+    decision: vDec,
+    detail: [session.videoCodec, session.resolution].filter(Boolean).join(", "),
+  });
+  if (aDec) rows.push({
+    id: "audio",
+    icon: "volume-high-outline",
+    kind: t("admin.sessions.track.audio"),
+    decision: aDec,
+    detail: session.audioCodec ?? "",
+  });
+
+  return (
+    <View style={{ gap: 2, marginTop: 2 }}>
+      {rows.map((r) => {
+        const isTranscode = r.decision === "transcode";
+        const decLabel = t(`admin.sessions.track.${r.id}${isTranscode ? "Transcoded" : "Copied"}`);
+        return (
+          <View key={r.id} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+            <Ionicons name={r.icon} size={11} color={theme.colors.textMuted} />
+            <Text style={{ color: theme.colors.text, fontSize: 10 }}>{r.kind}:</Text>
+            <View style={[styles.badge, { backgroundColor: isTranscode ? "#f59e0b20" : "#22c55e20" }]}>
+              <Text style={{ fontSize: 9, fontWeight: "600", color: isTranscode ? theme.colors.warning : theme.colors.success }}>
+                {decLabel}
+              </Text>
+            </View>
+            {r.detail ? <Text style={{ color: theme.colors.textMuted, fontSize: 10 }}>({r.detail})</Text> : null}
+            <Text style={{ color: theme.colors.textMuted, fontSize: 10, opacity: 0.7 }}>· {trackEngine(r.decision)}</Text>
+          </View>
+        );
+      })}
+    </View>
+  );
 }
 
 function SessionCard({ session, theme, t, onKill, onCommand }: {
@@ -107,19 +172,26 @@ function SessionCard({ session, theme, t, onKill, onCommand }: {
       <View style={styles.progressLabels}>
         <Text style={{ color: theme.colors.textMuted, fontSize: 10 }}>{formatMs(positionMs)}</Text>
         <Text style={{ color: theme.colors.textMuted, fontSize: 10 }}>
-          {remaining ? `-${remaining}` : formatMs(durationMs)}
+          {remaining
+            ? `-${remaining}`
+            : `${formatElapsed(session.startedAt ?? "")} ${t("admin.sessions.elapsed")}`}
         </Text>
       </View>
 
-      {/* Title + series info */}
-      <Text style={{ color: theme.colors.text, fontSize: 14, fontWeight: "600" }} numberOfLines={1}>
-        {session.mediaTitle || t("common.unknown", "Unknown")}
-      </Text>
-      {hasSeriesInfo && (
-        <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginTop: 1 }} numberOfLines={1}>
-          {session.seriesTitle} - {seriesLabel}
-        </Text>
-      )}
+      {/* Title + series info + trickplay thumbnail */}
+      <View style={{ flexDirection: "row", gap: 10, alignItems: "center" }}>
+        <TrickplayPreview mediaId={session.mediaItemId ?? ""} currentTime={positionMs / 1000} visible />
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={{ color: theme.colors.text, fontSize: 14, fontWeight: "600" }} numberOfLines={1}>
+            {session.mediaTitle || t("common.unknown", "Unknown")}
+          </Text>
+          {hasSeriesInfo && (
+            <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginTop: 1 }} numberOfLines={1}>
+              {session.seriesTitle} - {seriesLabel}
+            </Text>
+          )}
+        </View>
+      </View>
 
       {/* Play method + codec badges */}
       <View style={styles.badgeRow}>
@@ -152,6 +224,9 @@ function SessionCard({ session, theme, t, onKill, onCommand }: {
         ) : null}
       </View>
 
+      {/* Per-track (video/audio) decision + engine detail */}
+      <TrackBadges session={session} theme={theme} t={t} />
+
       {/* User + device + controls */}
       <View style={styles.userRow}>
         <View style={[styles.avatar, { backgroundColor: theme.colors.accent }]}>
@@ -167,6 +242,14 @@ function SessionCard({ session, theme, t, onKill, onCommand }: {
             {session.deviceName || session.clientIp}
             {session.deviceType ? ` (${session.deviceType})` : ""}
           </Text>
+          {session.castDeviceName ? (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 1 }}>
+              <Ionicons name="tv-outline" size={11} color={theme.colors.accent} />
+              <Text style={{ color: theme.colors.accent, fontSize: 11 }} numberOfLines={1}>
+                {t("admin.sessions.castingTo", { device: session.castDeviceName })}
+              </Text>
+            </View>
+          ) : null}
         </View>
 
         {/* Controls */}
