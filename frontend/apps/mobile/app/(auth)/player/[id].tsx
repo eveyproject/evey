@@ -87,12 +87,6 @@ export default function PlayerScreen() {
   // hangs/fails in the background); it does mean the video itself plays from
   // disk and isn't blocked on the network being reachable.
   const [localFilePath, setLocalFilePath] = useState<string | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    if (!mediaId) { setLocalFilePath(null); return; }
-    getDownloadPath(mediaId).then((p) => { if (!cancelled) setLocalFilePath(p); });
-    return () => { cancelled = true; };
-  }, [mediaId]);
 
   const { data: media } = useLibraryServiceGetMediaItem(mediaId);
   // Series and seasons have no underlying file, so the streaming endpoints 404.
@@ -244,6 +238,28 @@ export default function PlayerScreen() {
       profilesRespForPrefs?.profiles?.[0],
     [profilesRespForPrefs, activeProfileId],
   );
+
+  // Resolving the on-disk path is an AUTHORIZATION decision, not a file lookup:
+  // downstream, a truthy localFilePath deliberately bypasses the server's shed
+  // and error branches so a downloaded title plays with no network. That bypass
+  // is only sound if the path itself was gated - otherwise a kids profile
+  // replays whatever an adult downloaded earlier. Denied, expired or revoked
+  // resolves to null, which falls back to the normal online path.
+  useEffect(() => {
+    let cancelled = false;
+    if (!mediaId) { setLocalFilePath(null); return; }
+    getDownloadPath(mediaId, {
+      activeProfile: {
+        id: activeProfileId ?? undefined,
+        isKids: activeProfile?.isKids,
+        maxAge: activeProfile?.maxAge,
+        region: activeProfile?.region,
+      },
+    })
+      .then((p) => { if (!cancelled) setLocalFilePath(p); })
+      .catch(() => { if (!cancelled) setLocalFilePath(null); });
+    return () => { cancelled = true; };
+  }, [mediaId, activeProfileId, activeProfile]);
   const profileAudioLangs = useMemo((): string[] => {
     const raw = activeProfile?.preferences?.["audio_languages"] ?? "";
     return raw.split(",").map((s) => s.trim()).filter(Boolean);
