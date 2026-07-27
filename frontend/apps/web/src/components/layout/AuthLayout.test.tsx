@@ -22,6 +22,10 @@ vi.mock("./TopBar", () => ({
   TopBar: () => <div data-testid="topbar">TopBar</div>,
 }));
 
+vi.mock("./OfflineBanner", () => ({
+  OfflineBanner: () => <div data-testid="offline-banner-mount" />,
+}));
+
 vi.mock("@/features/music/GlobalAudioPlayer", () => ({
   GlobalAudioPlayer: () => null,
 }));
@@ -54,6 +58,11 @@ describe("AuthLayout", () => {
     render(<AuthLayout><div>Content</div></AuthLayout>);
     expect(screen.getByTestId("sidebar")).toBeInTheDocument();
     expect(screen.getByTestId("topbar")).toBeInTheDocument();
+  });
+
+  it("mounts the offline banner", () => {
+    render(<AuthLayout><div>Content</div></AuthLayout>);
+    expect(screen.getByTestId("offline-banner-mount")).toBeInTheDocument();
   });
 
   it("renders only children on player route (no sidebar/topbar)", () => {

@@ -7,11 +7,13 @@ import { useAuthStore, toast, type PersistedAuthState } from "@evey/store";
 import { setTokenProvider, setTokensUpdater, setLocaleProvider, userServiceRefreshToken } from "@evey/api";
 import { useLocaleStore } from "@evey/store";
 import { registerServiceWorker } from "@/lib/webpush";
+import { setupOnlineManager } from "@/lib/online-manager";
 import { ThemeLoader } from "@/features/themes/ThemeLoader";
 import "./i18n";
 import "./styles/main.css";
 
 registerServiceWorker();
+setupOnlineManager();
 
 // Wire auth token into the API fetcher
 setTokenProvider(() => useAuthStore.getState().accessToken);

@@ -4,6 +4,7 @@ import { Menu } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
+import { OfflineBanner } from "./OfflineBanner";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { KeyboardShortcutsHelp } from "@/components/ui/KeyboardShortcutsHelp";
 import { GlobalAudioPlayer } from "@/features/music/GlobalAudioPlayer";
@@ -46,6 +47,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
 
   return (
     <div className="flex h-dvh overflow-hidden">
+      <OfflineBanner />
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:fixed focus:z-popover focus:top-2 focus:left-2 focus:px-4 focus:py-2 focus:rounded-[var(--radius-md)] focus:bg-[var(--accent)] focus:text-[var(--filter-active-text)] focus:text-sm focus:font-medium"
