@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Dimensions,
   StyleSheet,
+  Modal,
 } from "react-native";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
@@ -19,12 +20,17 @@ import { useTranslation } from "react-i18next";
 import {
   useLibraryServiceGetLibrary,
   useLibraryServiceListMediaItems,
+  useLibraryServiceSearchMedia,
   usePlaybackServiceMarkAsWatched,
   usePlaybackServiceMarkAsUnwatched,
+  usePlaybackServiceGetWatchHistory,
+  collectionServiceAddCollectionItem,
   libraryServiceListMediaItems,
 } from "@evey/api";
 import type {
   V1MediaItem,
+  V1MediaStream,
+  LibraryServiceListMediaItemsType,
   LibraryServiceListMediaItemsSortField,
   LibraryServiceListMediaItemsSortOrder,
 } from "@evey/api";
@@ -36,7 +42,10 @@ import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useDebounce } from "../../../src/hooks/useDebounce";
 import { useBulkFavorite } from "../../../src/hooks/useFavorite";
 import { AddToPlaylistSheet } from "../../../src/components/AddToPlaylistSheet";
+import { MediaCard } from "../../../src/components/MediaCard";
+import { useCollections } from "../../../src/api/collections";
 import { artworkUrl } from "../../../src/lib/artwork";
+import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
 
 const NUM_COLUMNS = 3;
 const SPACING = 8;
@@ -54,6 +63,15 @@ const SORT_OPTIONS: Array<{
   { labelKey: "media.library.year", value: "MEDIA_SORT_FIELD_YEAR" },
   { labelKey: "media.library.ratingSort", value: "MEDIA_SORT_FIELD_RATING" },
   { labelKey: "media.library.dateAdded", value: "MEDIA_SORT_FIELD_DATE_ADDED" },
+];
+
+const SHOW_TYPE_OPTIONS: Array<{
+  labelKey: string;
+  value: LibraryServiceListMediaItemsType;
+}> = [
+  { labelKey: "media.library.series", value: "MEDIA_ITEM_TYPE_SERIES" },
+  { labelKey: "media.library.seasons", value: "MEDIA_ITEM_TYPE_SEASON" },
+  { labelKey: "media.library.episodes", value: "MEDIA_ITEM_TYPE_EPISODE" },
 ];
 
 const COMMON_GENRES = [
@@ -93,6 +111,30 @@ function formatType(type?: string): string {
   return "";
 }
 
+// Mirrors web's streamLabels.ts (frontend/apps/web/src/features/library/streamLabels.ts)
+// - kept local since the mobile app has no package shared with web for this.
+function videoStream(streams?: V1MediaStream[]): V1MediaStream | undefined {
+  return streams?.find((s) => s.type === "MEDIA_STREAM_TYPE_VIDEO");
+}
+
+function isHdrStream(stream?: V1MediaStream): boolean {
+  if (!stream) return false;
+  const transfer = stream.colorTransfer?.trim().toLowerCase();
+  if (transfer === "smpte2084" || transfer === "arib-std-b67") return true;
+  const cs = stream.colorSpace?.trim().toLowerCase() ?? "";
+  return cs.startsWith("bt2020") && (stream.bitDepth ?? 0) >= 10;
+}
+
+function resolutionLabel(stream?: V1MediaStream): string | null {
+  const h = stream?.height ?? 0;
+  if (h <= 0) return null;
+  if (h >= 2160) return "4K";
+  if (h >= 1440) return "1440p";
+  if (h >= 1080) return "1080p";
+  if (h >= 720) return "720p";
+  return `${h}p`;
+}
+
 export default function LibraryDetailScreen() {
   const { libraryId } = useLocalSearchParams<{ libraryId: string }>();
   const theme = useTheme();
@@ -110,6 +152,7 @@ export default function LibraryDetailScreen() {
   const [sortOrder, setSortOrder] =
     useState<LibraryServiceListMediaItemsSortOrder>("SORT_ORDER_ASC");
   const [genre, setGenre] = useState("");
+  const [typeFilter, setTypeFilter] = useState<LibraryServiceListMediaItemsType | "">("");
   const [searchText, setSearchText] = useState("");
   const debouncedSearch = useDebounce(searchText, 300);
   const [showFilters, setShowFilters] = useState(false);
@@ -126,6 +169,7 @@ export default function LibraryDetailScreen() {
   const markUnwatched = usePlaybackServiceMarkAsUnwatched({ mutation: { onSuccess: () => toast.success(t("media.library.markedUnwatched", "Marked unwatched")) } });
   const bulkFavorite = useBulkFavorite();
   const [showBulkPlaylist, setShowBulkPlaylist] = useState(false);
+  const [showBulkCollection, setShowBulkCollection] = useState(false);
 
   const toggleSelect = useCallback((id: string) => {
     setSelected((prev) => {
@@ -180,11 +224,13 @@ export default function LibraryDetailScreen() {
   const authHeaders = useAuthHeaders();
   const serverUrl = useServerUrl();
   const { data: library } = useLibraryServiceGetLibrary(libraryId ?? "");
+  const isShowLibrary = library?.type === "LIBRARY_TYPE_SHOWS";
 
   const { data, isLoading, isError, isFetching, refetch } =
     useLibraryServiceListMediaItems(
       {
         libraryId,
+        ...(typeFilter ? { type: typeFilter } : {}),
         ...(genre ? { genre } : {}),
         sortField,
         sortOrder,
@@ -193,6 +239,54 @@ export default function LibraryDetailScreen() {
       },
       { query: { enabled: !!libraryId } },
     );
+
+  // Server-side title search, scoped to this library, replacing the previous
+  // client-side filter over already-loaded pages (which missed anything not
+  // in the currently fetched slice). Mirrors web's $libraryId.lazy.tsx.
+  const trimmedSearch = debouncedSearch.trim();
+  const searchActive = trimmedSearch.length > 0;
+  const {
+    data: searchData,
+    isLoading: isSearchLoading,
+    isError: isSearchError,
+    refetch: refetchSearch,
+  } = useLibraryServiceSearchMedia(
+    {
+      libraryId,
+      query: trimmedSearch,
+      ...(typeFilter ? { type: typeFilter } : {}),
+      ...(genre ? { genre } : {}),
+      ...(yearMin ? { yearMin: parseInt(yearMin) } : {}),
+      ...(yearMax ? { yearMax: parseInt(yearMax) } : {}),
+      sortField,
+      sortOrder,
+      limit: 60,
+    },
+    { query: { enabled: searchActive && !!libraryId } },
+  );
+
+  // Watched status + resume progress for the badge/progress-bar overlay
+  // MediaCard already supports. Same source and shape as useWatchedMap
+  // (src/hooks/useWatchedMap.ts), read directly here so the percent-complete
+  // map can be derived from the same single fetch instead of duplicating it.
+  const { data: watchHistoryData } = usePlaybackServiceGetWatchHistory(
+    { limit: 500 },
+    { query: { staleTime: 30_000 } },
+  );
+  const watchedMap = useMemo(() => {
+    const map = new Map<string, boolean>();
+    for (const w of watchHistoryData?.items ?? []) {
+      if (w.mediaItemId && w.played) map.set(w.mediaItemId, true);
+    }
+    return map;
+  }, [watchHistoryData]);
+  const percentMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const w of watchHistoryData?.items ?? []) {
+      if (w.mediaItemId && w.percentComplete != null) map.set(w.mediaItemId, w.percentComplete);
+    }
+    return map;
+  }, [watchHistoryData]);
 
   // Reset pagination when filters/sort change. Declared BEFORE the accumulate
   // effect ON PURPOSE: React runs effects in declaration order, so when a
@@ -210,7 +304,7 @@ export default function LibraryDetailScreen() {
 
   useEffect(() => {
     resetAndRefetch();
-  }, [sortField, sortOrder, genre, resetAndRefetch]);
+  }, [sortField, sortOrder, genre, typeFilter, resetAndRefetch]);
 
   useEffect(() => {
     if (!data || data === prevDataRef.current) return;
@@ -225,22 +319,26 @@ export default function LibraryDetailScreen() {
     setHasMore(page < totalPages);
   }, [data, page]);
 
-  const totalItems = data?.pagination?.totalItems ?? 0;
+  const totalItems = searchActive
+    ? (searchData?.totalHits ?? 0)
+    : (data?.pagination?.totalItems ?? 0);
 
-  // Client-side text + year/rating filter
+  // Title search now hits the server (searchData) - only rating stays a pure
+  // client-side facet in both paths, since SearchMediaRequest has no rating
+  // param. Year is skipped here while searching because it's already sent as
+  // a server param above; the regular (non-search) path still filters it
+  // client-side since ListMediaItems has no year param.
   const displayItems = useMemo(() => {
-    let items = allItems;
-    if (debouncedSearch.trim()) {
-      const lower = debouncedSearch.toLowerCase();
-      items = items.filter((item) => item.title?.toLowerCase().includes(lower));
-    }
-    if (yearMin) {
-      const min = parseInt(yearMin);
-      items = items.filter((item) => (item.year ?? 0) >= min);
-    }
-    if (yearMax) {
-      const max = parseInt(yearMax);
-      items = items.filter((item) => (item.year ?? 9999) <= max);
+    let items = searchActive ? (searchData?.items ?? []) : allItems;
+    if (!searchActive) {
+      if (yearMin) {
+        const min = parseInt(yearMin);
+        items = items.filter((item) => (item.year ?? 0) >= min);
+      }
+      if (yearMax) {
+        const max = parseInt(yearMax);
+        items = items.filter((item) => (item.year ?? 9999) <= max);
+      }
     }
     if (ratingMin) {
       const min = parseFloat(ratingMin);
@@ -251,7 +349,7 @@ export default function LibraryDetailScreen() {
       items = items.filter((item) => (item.communityRating ?? 10) <= max);
     }
     return items;
-  }, [allItems, debouncedSearch, yearMin, yearMax, ratingMin, ratingMax]);
+  }, [searchActive, searchData, allItems, yearMin, yearMax, ratingMin, ratingMax]);
 
   // Collect genres from loaded items
   const availableGenres = useMemo(() => {
@@ -266,12 +364,13 @@ export default function LibraryDetailScreen() {
   }, [allItems]);
 
   const [shuffling, setShuffling] = useState(false);
-  // Text/year/rating filters only exist client-side (no server param), so a
-  // shuffle while any of them is active must draw from what's actually on
-  // screen (displayItems) to honor the facet. With no such filter, shuffle
+  // Search results and year/rating facets can't be honored by the random-page
+  // probe below (search has no page offset; year/rating have no server
+  // param), so whenever any of them is active, shuffle draws from what's
+  // actually on screen (displayItems) instead. With no such filter, shuffle
   // the WHOLE library via a random page offset (pageSize 1) instead of just
-  // the scrolled-in slice - the genre quick-filter, if any, still applies
-  // server-side since it's baked into the probe request.
+  // the scrolled-in slice - the genre/type quick-filters, if any, still apply
+  // server-side since they're baked into the probe request.
   const hasLocalFilters = Boolean(
     debouncedSearch.trim() || yearMin || yearMax || ratingMin || ratingMax,
   );
@@ -286,7 +385,7 @@ export default function LibraryDetailScreen() {
     }
     setShuffling(true);
     try {
-      const base = { libraryId, ...(genre ? { genre } : {}) };
+      const base = { libraryId, ...(typeFilter ? { type: typeFilter } : {}), ...(genre ? { genre } : {}) };
       const probe = await libraryServiceListMediaItems({ ...base, "pagination.page": 1, "pagination.pageSize": 1 });
       const total = probe.pagination?.totalItems ?? 0;
       if (total === 0) { toast.info(t("common.shuffleEmpty")); return; }
@@ -302,90 +401,98 @@ export default function LibraryDetailScreen() {
     } finally {
       setShuffling(false);
     }
-  }, [shuffling, libraryId, hasLocalFilters, displayItems, genre, router, t]);
+  }, [shuffling, libraryId, hasLocalFilters, displayItems, typeFilter, genre, router, t]);
 
   const handleRefresh = useCallback(() => {
+    if (searchActive) { void refetchSearch(); return; }
     setPage(1);
     setHasMore(true);
     prevDataRef.current = null;
-  }, []);
+  }, [searchActive, refetchSearch]);
 
   const handleEndReached = useCallback(() => {
+    // Search returns a single fixed-size page (top-N by relevance), no
+    // cursor/offset to page through - so scrolling never advances it.
+    if (searchActive) return;
     if (!isFetching && hasMore) {
       setPage((p) => p + 1);
     }
-  }, [isFetching, hasMore]);
+  }, [searchActive, isFetching, hasMore]);
 
   const renderItem = useCallback(
     ({ item }: { item: V1MediaItem }) => {
-      const poster = getPoster(item, serverUrl);
       const isSelected = bulkMode && selected.has(item.id ?? "");
+      const watched = item.id ? watchedMap.get(item.id) === true : false;
+      const watchPercent = item.id ? percentMap.get(item.id) : undefined;
+      const hasProgress = watchPercent != null && watchPercent > 0;
+      const vStream = videoStream(item.streams);
+      const resLabel = resolutionLabel(vStream);
+      const hdr = isHdrStream(vStream);
+      const rating = item.communityRating ?? 0;
+      // MediaCard renders its own Pressable + a marginRight: theme.spacing.sm
+      // (== SPACING here) on its outer box, so its `width` prop must be
+      // narrowed by that amount for the card's total footprint to still
+      // match this cell's declared ITEM_WIDTH - otherwise the 3-column grid
+      // overflows to the right by SPACING per column.
       return (
-        <TouchableOpacity
-          style={[
-            styles.gridItem,
-            {
-              width: ITEM_WIDTH,
-              marginLeft: SPACING,
-              marginBottom: SPACING,
-              opacity: bulkMode && !isSelected ? 0.5 : 1,
-            },
-          ]}
-          activeOpacity={0.7}
-          onPress={() => bulkMode ? toggleSelect(item.id ?? "") : router.push(`/media/${item.id}`)}
-          onLongPress={() => !bulkMode && handleLongPress(item.id ?? "")}
-        >
-          {isSelected && (
-            <View style={styles.checkmark}>
-              <Ionicons name="checkmark-circle" size={22} color={theme.colors.accent} />
-            </View>
-          )}
-          {poster ? (
-            <Image
-              source={{ uri: poster, headers: authHeaders }}
-              style={[
-                styles.poster,
-                {
-                  width: ITEM_WIDTH,
-                  height: POSTER_HEIGHT,
-                  borderRadius: theme.radii.sm,
-                },
-              ]}
-              contentFit="cover"
-              transition={200}
+        <View style={{ width: ITEM_WIDTH, marginLeft: SPACING, marginBottom: SPACING }}>
+          <View style={{ opacity: bulkMode && !isSelected ? 0.5 : 1 }}>
+            <MediaCard
+              item={item}
+              width={ITEM_WIDTH - SPACING}
+              watchPercent={watchPercent}
+              watched={watched}
             />
-          ) : (
-            <View
-              style={[
-                styles.posterPlaceholder,
-                {
-                  width: ITEM_WIDTH,
-                  height: POSTER_HEIGHT,
-                  borderRadius: theme.radii.sm,
-                  backgroundColor: theme.colors.surfaceRaised,
-                },
-              ]}
-            >
-              <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>
-                {t("common.noPoster")}
-              </Text>
-            </View>
-          )}
-          <Text
-            style={[styles.title, { color: theme.colors.text }]}
-            numberOfLines={2}
-          >
-            {item.title}
-          </Text>
-          {item.year ? (
-            <Text style={[styles.year, { color: theme.colors.textMuted }]}>
-              {item.year}
-            </Text>
-          ) : null}
-        </TouchableOpacity>
+            {rating > 0 && (
+              <View
+                style={[
+                  styles.techBadge,
+                  { bottom: hasProgress ? 14 : 6, right: 6, backgroundColor: theme.colors.surfaceRaised, borderRadius: theme.radii.sm },
+                ]}
+                pointerEvents="none"
+              >
+                <Ionicons name="star" size={10} color={theme.colors.warning} />
+                <Text style={[styles.techBadgeText, { color: theme.colors.text }]}>
+                  {rating.toFixed(1)}
+                </Text>
+              </View>
+            )}
+            {(resLabel || hdr) && (
+              <View style={[styles.techBadgeRow, { bottom: hasProgress ? 14 : 6, left: 6 }]} pointerEvents="none">
+                {resLabel && (
+                  <View style={[styles.techBadge, { backgroundColor: theme.colors.surfaceRaised, borderRadius: theme.radii.sm }]}>
+                    <Text style={[styles.techBadgeText, { color: theme.colors.text }]}>{resLabel}</Text>
+                  </View>
+                )}
+                {hdr && (
+                  <View style={[styles.techBadge, { backgroundColor: theme.colors.accent, borderRadius: theme.radii.sm }]}>
+                    <Text style={[styles.techBadgeText, { color: theme.colors.onAccent }]}>HDR</Text>
+                  </View>
+                )}
+              </View>
+            )}
+            {isSelected && (
+              <View style={styles.selectCheckmark} pointerEvents="none">
+                <Ionicons name="checkmark-circle" size={22} color={theme.colors.accent} />
+              </View>
+            )}
+          </View>
+          {/* Transparent, full-cover overlay: MediaCard has its own internal
+              Pressable, which would otherwise win the touch responder
+              negotiation over this cell's tap-to-open/long-press-to-select
+              behavior since it's the deeper view. Placed last (topmost in
+              paint order) so it alone captures touches for this cell. */}
+          <Pressable
+            style={StyleSheet.absoluteFillObject}
+            onPress={() => bulkMode ? toggleSelect(item.id ?? "") : router.push(`/media/${item.id}`)}
+            onLongPress={() => !bulkMode && handleLongPress(item.id ?? "")}
+            accessibilityRole="button"
+            accessibilityLabel={item.title}
+          />
+        </View>
       );
     },
-    [theme, router, authHeaders, serverUrl, t, bulkMode, selected, toggleSelect, handleLongPress],
+    [theme, router, bulkMode, selected, watchedMap, percentMap, toggleSelect, handleLongPress],
   );
 
   const renderListItem = useCallback(
@@ -464,7 +571,7 @@ export default function LibraryDetailScreen() {
         }}
       />
 
-      {isError ? (
+      {(searchActive ? isSearchError : isError) ? (
         <View
           style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
         >
@@ -473,7 +580,7 @@ export default function LibraryDetailScreen() {
           >
             {t("common.loadError")}
           </Text>
-          <Pressable onPress={() => refetch()}>
+          <Pressable onPress={() => (searchActive ? refetchSearch() : refetch())}>
             <Text style={{ color: theme.colors.accent }}>
               {t("common.retry")}
             </Text>
@@ -526,7 +633,7 @@ export default function LibraryDetailScreen() {
               >
                 {t("media.library.filters")}
                 {(() => {
-                  const c = (genre ? 1 : 0) + (yearMin || yearMax ? 1 : 0) + (ratingMin || ratingMax ? 1 : 0);
+                  const c = (typeFilter ? 1 : 0) + (genre ? 1 : 0) + (yearMin || yearMax ? 1 : 0) + (ratingMin || ratingMax ? 1 : 0);
                   return c ? ` (${c})` : "";
                 })()}
               </Text>
@@ -697,6 +804,74 @@ export default function LibraryDetailScreen() {
                 </TouchableOpacity>
               </View>
 
+              {/* Type (series/seasons/episodes) - shown only for SHOWS libraries */}
+              {isShowLibrary && (
+                <>
+                  <Text
+                    style={[
+                      styles.filterLabel,
+                      { color: theme.colors.textMuted, marginTop: 10 },
+                    ]}
+                  >
+                    {t("media.library.type", "Type")}
+                  </Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={{ marginBottom: 10 }}
+                  >
+                    <TouchableOpacity
+                      style={[
+                        styles.chip,
+                        {
+                          backgroundColor: !typeFilter
+                            ? theme.colors.accent
+                            : theme.colors.surfaceRaised,
+                          borderRadius: theme.radii.sm,
+                        },
+                      ]}
+                      activeOpacity={0.7}
+                      onPress={() => setTypeFilter("")}
+                    >
+                      <Text
+                        style={{
+                          color: !typeFilter ? theme.colors.onAccent : theme.colors.text,
+                          fontSize: 13,
+                        }}
+                      >
+                        {t("media.library.typeAll", "All")}
+                      </Text>
+                    </TouchableOpacity>
+                    {SHOW_TYPE_OPTIONS.map((opt) => (
+                      <TouchableOpacity
+                        key={opt.value}
+                        style={[
+                          styles.chip,
+                          {
+                            backgroundColor:
+                              typeFilter === opt.value
+                                ? theme.colors.accent
+                                : theme.colors.surfaceRaised,
+                            borderRadius: theme.radii.sm,
+                          },
+                        ]}
+                        activeOpacity={0.7}
+                        onPress={() => setTypeFilter(opt.value)}
+                      >
+                        <Text
+                          style={{
+                            color: typeFilter === opt.value ? theme.colors.onAccent : theme.colors.text,
+                            fontSize: 13,
+                          }}
+                        >
+                          {t(opt.labelKey)}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </>
+              )}
+
               {/* Genre */}
               <Text
                 style={[
@@ -864,7 +1039,7 @@ export default function LibraryDetailScreen() {
           )}
 
           {/* Grid / List */}
-          {isLoading && page === 1 ? (
+          {(searchActive ? isSearchLoading : (isLoading && page === 1)) ? (
             viewMode === "grid" ? (
               <View
                 style={{
@@ -935,7 +1110,7 @@ export default function LibraryDetailScreen() {
               renderItem={renderItem}
               numColumns={NUM_COLUMNS}
               contentContainerStyle={{ paddingTop: SPACING }}
-              refreshing={isFetching && page === 1}
+              refreshing={searchActive ? isSearchLoading : (isFetching && page === 1)}
               onRefresh={handleRefresh}
               onEndReached={handleEndReached}
               onEndReachedThreshold={0.5}
@@ -955,7 +1130,7 @@ export default function LibraryDetailScreen() {
               ListEmptyComponent={
                 <View style={styles.center}>
                   <Text style={{ color: theme.colors.textMuted }}>
-                    {genre || debouncedSearch.trim() || yearMin || yearMax || ratingMin || ratingMax
+                    {typeFilter || genre || debouncedSearch.trim() || yearMin || yearMax || ratingMin || ratingMax
                       ? t("media.library.noItemsFiltered") || t("common.noItems")
                       : t("common.noItems")}
                   </Text>
@@ -970,7 +1145,7 @@ export default function LibraryDetailScreen() {
               renderItem={renderListItem}
               contentContainerStyle={{ padding: SPACING }}
               ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
-              refreshing={isFetching && page === 1}
+              refreshing={searchActive ? isSearchLoading : (isFetching && page === 1)}
               onRefresh={handleRefresh}
               onEndReached={handleEndReached}
               onEndReachedThreshold={0.5}
@@ -989,7 +1164,7 @@ export default function LibraryDetailScreen() {
               ListEmptyComponent={
                 <View style={styles.center}>
                   <Text style={{ color: theme.colors.textMuted }}>
-                    {genre || debouncedSearch.trim() || yearMin || yearMax || ratingMin || ratingMax
+                    {typeFilter || genre || debouncedSearch.trim() || yearMin || yearMax || ratingMin || ratingMax
                       ? t("media.library.noItemsFiltered") || t("common.noItems")
                       : t("common.noItems")}
                   </Text>
@@ -1021,6 +1196,10 @@ export default function LibraryDetailScreen() {
               <Ionicons name="add-circle-outline" size={20} color={theme.colors.accent} />
               <Text style={{ color: theme.colors.text, fontSize: 11 }}>{t("media.detail.addToPlaylist", "Playlist")}</Text>
             </Pressable>
+            <Pressable onPress={() => setShowBulkCollection(true)} style={styles.bulkBtn} accessible accessibilityLabel={t("media.library.addToCollection", "Add to collection")} accessibilityRole="button">
+              <Ionicons name="albums-outline" size={20} color={theme.colors.accent} />
+              <Text style={{ color: theme.colors.text, fontSize: 11 }}>{t("media.library.addToCollection", "Add to collection")}</Text>
+            </Pressable>
             <Pressable onPress={exitBulk} style={styles.bulkBtn} accessible accessibilityLabel={t("common.cancel")} accessibilityRole="button">
               <Ionicons name="close" size={20} color={theme.colors.error} />
               <Text style={{ color: theme.colors.text, fontSize: 11 }}>{t("common.cancel")}</Text>
@@ -1035,7 +1214,107 @@ export default function LibraryDetailScreen() {
           onClose={() => { setShowBulkPlaylist(false); exitBulk(); }}
         />
       )}
+      {showBulkCollection && selected.size > 0 && (
+        <BulkAddToCollectionSheet
+          visible={showBulkCollection}
+          mediaItemIds={Array.from(selected)}
+          onClose={() => { setShowBulkCollection(false); exitBulk(); }}
+        />
+      )}
     </View>
+  );
+}
+
+// Mobile has no shared "add to collection" sheet (unlike AddToPlaylistSheet),
+// so this mirrors that component's structure locally rather than growing a
+// new shared component outside this screen's whitelist. Reuses the existing
+// useCollections list hook and the generated collectionServiceAddCollectionItem
+// mutation - same pieces web's AddToCollectionModal is built from.
+function BulkAddToCollectionSheet({
+  visible,
+  mediaItemIds,
+  onClose,
+}: {
+  visible: boolean;
+  mediaItemIds: string[];
+  onClose: () => void;
+}) {
+  const theme = useTheme();
+  const { t } = useTranslation();
+  const { data, isLoading } = useCollections();
+  const collections = data?.collections ?? [];
+  const [pendingId, setPendingId] = useState<string | null>(null);
+
+  async function handleAdd(collectionId: string, name: string) {
+    setPendingId(collectionId);
+    try {
+      await Promise.all(
+        mediaItemIds.map((id) => collectionServiceAddCollectionItem(collectionId, { mediaItemId: id, sortOrder: 0 })),
+      );
+      toast.success(t("media.collections.itemsAdded", { count: mediaItemIds.length, name }));
+      onClose();
+    } catch {
+      toast.error(t("media.collections.addFailed"));
+    } finally {
+      setPendingId(null);
+    }
+  }
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <Pressable style={[collectionSheetStyles.backdrop, { backgroundColor: theme.colors.overlay }]} onPress={onClose}>
+        <Pressable
+          style={[collectionSheetStyles.sheet, { backgroundColor: theme.colors.surface, borderTopLeftRadius: theme.radii.lg, borderTopRightRadius: theme.radii.lg }]}
+          onPress={(e) => e.stopPropagation()}
+        >
+          <View style={collectionSheetStyles.handle}>
+            <View style={[collectionSheetStyles.handleBar, { backgroundColor: theme.colors.textMuted }]} />
+          </View>
+          <Text style={[collectionSheetStyles.title, { color: theme.colors.text }]}>
+            {t("media.contextMenu.addToCollection", "Add to Collection")}
+          </Text>
+
+          {isLoading ? (
+            <ActivityIndicator color={theme.colors.accent} style={{ marginTop: 24 }} />
+          ) : collections.length === 0 ? (
+            <Text style={[collectionSheetStyles.empty, { color: theme.colors.textMuted }]}>
+              {t("media.collections.noCollectionsAvailable")}
+            </Text>
+          ) : (
+            <FlatList
+              data={collections}
+              keyExtractor={(item) => item.id}
+              style={{ maxHeight: 320 }}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[collectionSheetStyles.row, { borderBottomColor: theme.colors.border }]}
+                  activeOpacity={0.7}
+                  onPress={() => void handleAdd(item.id, item.name)}
+                  disabled={pendingId !== null}
+                >
+                  <Ionicons name="albums" size={ICON_SIZE.lg} color={theme.colors.accent} />
+                  <Text style={[collectionSheetStyles.collectionName, { color: theme.colors.text }]} numberOfLines={1}>
+                    {item.name}
+                  </Text>
+                  {pendingId === item.id ? (
+                    <ActivityIndicator size="small" color={theme.colors.accent} />
+                  ) : (
+                    <Ionicons name="add-circle-outline" size={ICON_SIZE.lg} color={theme.colors.textMuted} />
+                  )}
+                </TouchableOpacity>
+              )}
+            />
+          )}
+
+          <TouchableOpacity
+            style={[collectionSheetStyles.closeBtn, { backgroundColor: theme.colors.surfaceRaised, borderRadius: theme.radii.md }]}
+            onPress={onClose}
+          >
+            <Text style={[collectionSheetStyles.closeBtnText, { color: theme.colors.text }]}>{t("common.close", "Close")}</Text>
+          </TouchableOpacity>
+        </Pressable>
+      </Pressable>
+    </Modal>
   );
 }
 
@@ -1077,23 +1356,6 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     marginRight: 6,
   },
-  gridItem: { alignItems: "center" },
-  poster: { width: "100%" },
-  posterPlaceholder: {
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  title: {
-    fontSize: 12,
-    fontWeight: "500",
-    marginTop: 4,
-    textAlign: "center",
-  },
-  year: {
-    fontSize: 10,
-    marginTop: 1,
-    textAlign: "center",
-  },
   listRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -1101,7 +1363,30 @@ const styles = StyleSheet.create({
   },
   listThumb: { width: 48, height: 72, marginRight: 12 },
   listInfo: { flex: 1 },
-  checkmark: { position: "absolute", top: 4, right: 4, zIndex: 1, backgroundColor: "rgba(0,0,0,0.5)", borderRadius: 12 },
+  selectCheckmark: { position: "absolute", top: 6, left: 6, zIndex: 1 },
+  techBadge: {
+    position: "absolute",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+  },
+  techBadgeText: { fontSize: 10, fontWeight: "700" },
+  techBadgeRow: { position: "absolute", flexDirection: "row", gap: 4 },
   bulkBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 10, borderTopWidth: StyleSheet.hairlineWidth },
   bulkBtn: { alignItems: "center", gap: 2 },
+});
+
+const collectionSheetStyles = StyleSheet.create({
+  backdrop: { flex: 1, justifyContent: "flex-end" },
+  sheet: { paddingBottom: 34, paddingHorizontal: 16 },
+  handle: { alignItems: "center", paddingVertical: 10 },
+  handleBar: { width: 40, height: 4, borderRadius: 2, opacity: 0.4 },
+  title: { fontSize: FONT_SIZE.lg, fontWeight: "700", marginBottom: 12 },
+  empty: { fontSize: FONT_SIZE.sm, textAlign: "center", marginTop: 24 },
+  row: { flexDirection: "row", alignItems: "center", paddingVertical: 14, gap: 12, borderBottomWidth: StyleSheet.hairlineWidth },
+  collectionName: { flex: 1, fontSize: FONT_SIZE.sm, fontWeight: "500" },
+  closeBtn: { marginTop: 16, paddingVertical: 12, alignItems: "center" },
+  closeBtnText: { fontSize: FONT_SIZE.sm, fontWeight: "600" },
 });
