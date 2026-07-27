@@ -260,13 +260,9 @@ func (h *audioServe) serveSegmentFile(w http.ResponseWriter, r *http.Request, me
 // muxed path this rung replaces preserves the layout, and the hybrid rung is
 // meant to serve the source's audio, not a quietly degraded one. Both fields are
 // hashed, so a channel change forks the cache instead of aliasing.
-//
-// TODO(audio-rendition): wire MakePlaybackDecisionWithPrefs result for the
-// audio-only path so passthrough is chosen when the source codec is AC-3 /
-// E-AC-3 and the client advertises support.
 func (h *audioServe) buildAudioFingerprint(r *http.Request, mediaID string, item *domainlibrary.MediaItem, trackIdx int, videoCompositionDelay float64) apptranscoding.AudioFingerprint {
-	// wasm-audio passthrough (realises the TODO above): a Chrome/Firefox-class
-	// client that runs the ac3go wasm decoder asks (?wasmAudio=1) for the source
+	// wasm-audio passthrough: a Chrome/Firefox-class client that runs the
+	// ac3go wasm decoder asks (?wasmAudio=1) for the source
 	// AC-3/E-AC-3 served VERBATIM instead of re-encoded to AAC. AudioCodec="copy"
 	// makes BuildFFmpegAudioOnlyArgs stream-copy it (no -b:a/-ac/-ar/-af, no
 	// loudnorm) - zero audio CPU on the server. Distinct AudioCodec forks the

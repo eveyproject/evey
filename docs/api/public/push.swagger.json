@@ -90,38 +90,6 @@
         ]
       }
     },
-    "/api/v1/push/register": {
-      "post": {
-        "operationId": "PushService_RegisterDevice",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/v1RegisterDeviceResponse"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/rpcStatus"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "body",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/v1RegisterDeviceRequest"
-            }
-          }
-        ],
-        "tags": [
-          "PushService"
-        ]
-      }
-    },
     "/api/v1/push/subscriptions": {
       "get": {
         "operationId": "PushService_ListWebPushSubscriptions",
@@ -162,36 +130,6 @@
         "parameters": [
           {
             "name": "endpoint",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          }
-        ],
-        "tags": [
-          "PushService"
-        ]
-      }
-    },
-    "/api/v1/push/unregister": {
-      "delete": {
-        "operationId": "PushService_UnregisterDevice",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/v1UnregisterDeviceResponse"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/rpcStatus"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "token",
             "in": "query",
             "required": false,
             "type": "string"
@@ -375,26 +313,6 @@
         }
       }
     },
-    "v1RegisterDeviceRequest": {
-      "type": "object",
-      "properties": {
-        "token": {
-          "type": "string"
-        },
-        "platform": {
-          "type": "string",
-          "title": "\"ios\", \"android\", \"web\""
-        }
-      }
-    },
-    "v1RegisterDeviceResponse": {
-      "type": "object",
-      "properties": {
-        "ok": {
-          "type": "boolean"
-        }
-      }
-    },
     "v1RegisterWebPushRequest": {
       "type": "object",
       "properties": {
@@ -410,14 +328,6 @@
       }
     },
     "v1RegisterWebPushResponse": {
-      "type": "object",
-      "properties": {
-        "ok": {
-          "type": "boolean"
-        }
-      }
-    },
-    "v1UnregisterDeviceResponse": {
       "type": "object",
       "properties": {
         "ok": {

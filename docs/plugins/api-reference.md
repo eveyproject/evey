@@ -62,13 +62,15 @@ config_schema:               # optional; JSON Schema object describing plugin co
 
 The plugin process communicates with the Evey host via gRPC over a Unix domain socket. The socket path is passed in the `EVEY_PLUGIN_SOCK` environment variable at startup.
 
-The host authenticates the plugin by verifying the process's PID via `SO_PEERCRED` immediately after `cmd.Start`. The plugin must not fork before connecting.
+The host authenticates the plugin process by verifying its PID via `SO_PEERCRED` immediately after `cmd.Start` - no token is issued to the process itself.
 
 ```
 EVEY_PLUGIN_SOCK=/tmp/evey/plugins/<plugin_id>/host.sock
 EVEY_PLUGIN_ID=<plugin_id>
-EVEY_PLUGIN_TOKEN=<jwt>        # short-lived token scoped to this plugin + user session
+EVEY_HOST_SOCK=<path>          # socket the plugin can dial back to reach the host
 ```
+
+A separate, short-lived JWT (5 minutes, scoped to `plugin_id` + `user_id`) is issued on demand via the `IssuePluginToken` RPC - the plugin's *frontend iframe* fetches one to authenticate its own `public`/`prefs`-scoped calls. It has no relation to the backend socket above and is never handed to the plugin process at startup.
 
 The gRPC service definitions are in `proto/plugin/v1/plugin_api.proto`. Language-specific SDK stubs are generated from that proto and can be included in the plugin ZIP or vendored alongside. Stubs ship pre-generated for several languages (`sdk/<lang>/`); to target one that isn't bundled, see [dev-setup.md → Generating stubs for another language](dev-setup.md#generating-stubs-for-another-language).
 

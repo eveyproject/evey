@@ -97,7 +97,7 @@ EVEY_TRANSCODING_SINGLE_VARIANT=0
 
 ### Encode calibration sample
 
-At boot (and on `POST /admin/transcode/calibration/recalibrate`) the bench
+At boot (and on `POST /api/v1/admin/transcode/calibration/recalibrate`) the bench
 measures the host's realtime encode ceiling against a 4K clip, separately for
 SDR and HDR (`software_max_height` / `software_hdr_max_height`). The clip's
 decode + tonemap + encode cost is what the cap is derived from, so a

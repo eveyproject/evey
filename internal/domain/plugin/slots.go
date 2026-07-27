@@ -10,11 +10,14 @@ type SlotMeta struct {
 }
 
 // AllowedSlots enumerates every slot a plugin is permitted to mount in.
-// Critical paths (admin/*, login/*, setup/*, profile/security/*) are
-// intentionally absent - plugins must never inject UI there.
+// Critical paths (existing admin screens, login/*, setup/*, profile/security/*)
+// are intentionally absent - plugins must never inject UI there. The one
+// exception is admin.nav (see below), a single controlled nav entry that
+// opens the plugin's own sandboxed page rather than injecting into an
+// existing admin screen.
 //
 // Slots NOT included and why:
-//   - admin.*      : admin area is privileged; plugin injection there is a privilege-escalation vector.
+//   - admin.* (beyond admin.nav) : admin area is privileged; injecting into an existing admin screen is a privilege-escalation vector.
 //   - login.*      : login path is authentication-critical; even cosmetic injection can be used for phishing.
 //   - setup.*      : first-run setup handles credentials; same risk as login.
 //   - profile.security.* : security settings (PIN, password); injection would undermine access controls.
@@ -37,7 +40,8 @@ var AllowedSlots = map[string]SlotMeta{
 }
 
 // IsSlotAllowed returns true when a plugin is permitted to mount in this slot.
-// Critical paths (admin/*, login/*, setup/*, profile/security/*) are never allowed.
+// Critical paths (existing admin screens, login/*, setup/*, profile/security/*)
+// are never allowed; admin.nav is the sole controlled exception (see AllowedSlots).
 func IsSlotAllowed(slot string) bool {
 	_, ok := AllowedSlots[slot]
 	return ok
