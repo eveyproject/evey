@@ -10,6 +10,7 @@ import {
   useWebhookServiceDeleteWebhook,
   useWebhookServiceUpdateWebhook,
   getWebhookServiceListWebhooksQueryKey,
+  eveyFetch,
 } from "@evey/api";
 import type { V1WebhookConfig } from "@evey/api";
 import { toast } from "@evey/store";
@@ -34,6 +35,83 @@ const EVENT_TYPES = [
   "backup.created",
   "backup.failed",
 ] as const;
+
+function WebhookRow({
+  webhook,
+  onEdit,
+  onToggle,
+  onDelete,
+}: {
+  webhook: V1WebhookConfig;
+  onEdit: (wh: V1WebhookConfig) => void;
+  onToggle: (wh: V1WebhookConfig) => void;
+  onDelete: (wh: V1WebhookConfig) => void;
+}) {
+  const theme = useTheme();
+  const { t } = useTranslation();
+  const [testing, setTesting] = useState(false);
+
+  async function handleTest() {
+    if (!webhook.id) return;
+    setTesting(true);
+    try {
+      await eveyFetch<void>({
+        url: `/api/v1/admin/webhooks/${webhook.id}/test`,
+        method: "POST",
+      });
+      toast.success(t("admin.webhooks.testPingSent", "Ping de test envoyé"));
+    } catch {
+      toast.error(t("admin.webhooks.testPingFailed", "Échec du ping de test"));
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  return (
+    <View style={[styles.card, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}>
+      <Pressable onPress={() => onEdit(webhook)} style={{ flex: 1, gap: 2 }}>
+        <Text style={{ color: theme.colors.text, fontSize: 14, fontWeight: "600" }} numberOfLines={1}>
+          {webhook.name || webhook.url}
+        </Text>
+        {webhook.name ? (
+          <Text style={{ color: theme.colors.textMuted, fontSize: 11 }} numberOfLines={1}>{webhook.url}</Text>
+        ) : null}
+        {(webhook.events?.length ?? 0) > 0 && (
+          <Text style={{ color: theme.colors.textMuted, fontSize: 10 }} numberOfLines={1}>
+            {webhook.events!.join(", ")}
+          </Text>
+        )}
+      </Pressable>
+      <Pressable
+        onPress={handleTest}
+        disabled={testing}
+        hitSlop={8}
+        accessibilityRole="button"
+        accessibilityLabel={t("common.test", "Tester")}
+        style={{ opacity: testing ? 0.5 : 1 }}
+      >
+        {testing ? (
+          <ActivityIndicator size="small" color={theme.colors.accent} />
+        ) : (
+          <Ionicons name="paper-plane-outline" size={18} color={theme.colors.accent} />
+        )}
+      </Pressable>
+      <Switch
+        value={webhook.enabled}
+        onValueChange={() => onToggle(webhook)}
+        trackColor={{ true: theme.colors.accent, false: theme.colors.surfaceRaised }}
+      />
+      <Pressable
+        onPress={() => onDelete(webhook)}
+        hitSlop={8}
+        accessibilityRole="button"
+        accessibilityLabel={t("common.delete")}
+      >
+        <Ionicons name="trash-outline" size={18} color={theme.colors.error} />
+      </Pressable>
+    </View>
+  );
+}
 
 export default function AdminWebhooksScreen() {
   const theme = useTheme();
@@ -185,34 +263,12 @@ export default function AdminWebhooksScreen() {
           refreshing={false}
           onRefresh={refetch}
           renderItem={({ item }) => (
-            <View style={[styles.card, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}>
-              <Pressable onPress={() => openEdit(item)} style={{ flex: 1, gap: 2 }}>
-                <Text style={{ color: theme.colors.text, fontSize: 14, fontWeight: "600" }} numberOfLines={1}>
-                  {item.name || item.url}
-                </Text>
-                {item.name ? (
-                  <Text style={{ color: theme.colors.textMuted, fontSize: 11 }} numberOfLines={1}>{item.url}</Text>
-                ) : null}
-                {(item.events?.length ?? 0) > 0 && (
-                  <Text style={{ color: theme.colors.textMuted, fontSize: 10 }} numberOfLines={1}>
-                    {item.events!.join(", ")}
-                  </Text>
-                )}
-              </Pressable>
-              <Switch
-                value={item.enabled}
-                onValueChange={() => handleToggle(item)}
-                trackColor={{ true: theme.colors.accent, false: theme.colors.surfaceRaised }}
-              />
-              <Pressable
-                onPress={() => handleDelete(item)}
-                hitSlop={8}
-                accessibilityRole="button"
-                accessibilityLabel={t("common.delete")}
-              >
-                <Ionicons name="trash-outline" size={18} color={theme.colors.error} />
-              </Pressable>
-            </View>
+            <WebhookRow
+              webhook={item}
+              onEdit={openEdit}
+              onToggle={handleToggle}
+              onDelete={handleDelete}
+            />
           )}
           ListEmptyComponent={
             <View style={{ alignItems: "center", paddingTop: 60 }}>

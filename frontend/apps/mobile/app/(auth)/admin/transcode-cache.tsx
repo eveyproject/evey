@@ -1,5 +1,5 @@
-import { useState, useCallback } from "react";
-import { View, Text, FlatList, Pressable, Alert, ActivityIndicator, StyleSheet } from "react-native";
+import { useState, useEffect, useCallback } from "react";
+import { View, Text, FlatList, Pressable, Alert, ActivityIndicator, StyleSheet, TextInput, Switch } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -20,7 +20,13 @@ interface CacheInfo {
   files: CacheFile[];
 }
 
+interface ConfigEntry {
+  key: string;
+  value: string;
+}
+
 const CACHE_KEY = ["admin", "transcode-cache"];
+const CONFIG_KEY = ["admin", "server-config", "transcoding"];
 
 function formatSize(bytes: number): string {
   if (bytes === 0) return "0 B";
@@ -31,6 +37,105 @@ function formatSize(bytes: number): string {
 
 function formatDate(d: string): string {
   return new Date(d).toLocaleString();
+}
+
+async function setConfigKey(key: string, value: string) {
+  await eveyFetch<void>({ url: `/api/v1/admin/server-config/${key}`, method: "PUT", data: { value } });
+}
+
+function TranscodingSettings() {
+  const theme = useTheme();
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+
+  const { data: config, isLoading } = useQuery<Record<string, string>>({
+    queryKey: CONFIG_KEY,
+    queryFn: async () => {
+      const res = await eveyFetch<{ entries: ConfigEntry[] }>({ url: "/api/v1/admin/server-config", method: "GET" });
+      const map: Record<string, string> = {};
+      for (const e of res.entries ?? []) map[e.key] = e.value;
+      return map;
+    },
+  });
+
+  const [maxConcurrent, setMaxConcurrent] = useState("2");
+  const [throttle, setThrottle] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!config) return;
+    setMaxConcurrent(config["transcoding.max_concurrent"] ?? "2");
+    setThrottle(config["transcoding.throttle"] !== "false");
+  }, [config]);
+
+  const handleSave = useCallback(async () => {
+    setSaving(true);
+    try {
+      await setConfigKey("transcoding.max_concurrent", maxConcurrent);
+      await setConfigKey("transcoding.throttle", throttle ? "true" : "false");
+      await qc.invalidateQueries({ queryKey: CONFIG_KEY });
+      toast.success(t("admin.transcodeCache.settingsSaved", "Réglages de transcodage enregistrés"));
+    } catch {
+      toast.error(t("admin.transcodeCache.settingsSaveFailed", "Échec de l'enregistrement"));
+    }
+    setSaving(false);
+  }, [maxConcurrent, throttle, qc, t]);
+
+  if (isLoading) {
+    return (
+      <View style={[styles.section, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md, alignItems: "center" }]}>
+        <ActivityIndicator color={theme.colors.accent} />
+      </View>
+    );
+  }
+
+  return (
+    <View style={[styles.section, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md, gap: 12 }]}>
+      <Text style={{ color: theme.colors.text, fontSize: 14, fontWeight: "600" }}>
+        {t("admin.transcodeCache.transcodingSettings", "Réglages de transcodage")}
+      </Text>
+
+      <View style={{ gap: 4 }}>
+        <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>
+          {t("admin.transcodeCache.maxConcurrent", "Transcodages simultanés max")}
+        </Text>
+        <TextInput
+          value={maxConcurrent}
+          onChangeText={setMaxConcurrent}
+          keyboardType="numeric"
+          maxLength={2}
+          style={[styles.configInput, {
+            color: theme.colors.text,
+            borderColor: theme.colors.border,
+            backgroundColor: theme.colors.bg,
+          }]}
+        />
+      </View>
+
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+        <Text style={{ color: theme.colors.text, fontSize: 13 }}>
+          {t("admin.transcodeCache.throttle", "Limiter le débit de transcodage")}
+        </Text>
+        <Switch
+          value={throttle}
+          onValueChange={setThrottle}
+          trackColor={{ true: theme.colors.accent, false: theme.colors.surfaceRaised }}
+        />
+      </View>
+
+      <Pressable
+        onPress={handleSave}
+        disabled={saving}
+        style={[styles.saveBtn, { backgroundColor: theme.colors.accent, borderRadius: theme.radii.sm, opacity: saving ? 0.5 : 1 }]}
+      >
+        {saving ? (
+          <ActivityIndicator size="small" color={theme.colors.onAccent} />
+        ) : (
+          <Text style={{ color: theme.colors.onAccent, fontWeight: "600", fontSize: 13 }}>{t("common.save", "Enregistrer")}</Text>
+        )}
+      </Pressable>
+    </View>
+  );
 }
 
 export default function AdminTranscodeCacheScreen() {
@@ -131,6 +236,8 @@ export default function AdminTranscodeCacheScreen() {
           refreshing={false}
           ListHeaderComponent={
             <View style={{ padding: 16, gap: 12 }}>
+              <TranscodingSettings />
+
               {/* Stats */}
               <View style={{ flexDirection: "row", gap: 12 }}>
                 <View style={[styles.statCard, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}>
@@ -204,4 +311,13 @@ const styles = StyleSheet.create({
   section: { padding: 16 },
   fileRow: { flexDirection: "row", alignItems: "center", paddingVertical: 12, paddingHorizontal: 16, borderBottomWidth: StyleSheet.hairlineWidth },
   dangerBtn: { paddingVertical: 14, alignItems: "center", justifyContent: "center", flexDirection: "row" },
+  configInput: {
+    width: 64,
+    fontSize: 14,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 6,
+  },
+  saveBtn: { paddingVertical: 10, alignItems: "center", justifyContent: "center" },
 });

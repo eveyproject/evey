@@ -1,7 +1,7 @@
-import { View, Text, FlatList, Pressable, Alert, ActivityIndicator, StyleSheet } from "react-native";
+import { View, Text, FlatList, Pressable, TextInput, Switch, Alert, ActivityIndicator, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack } from "expo-router";
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { eveyFetch } from "@evey/api";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -15,7 +15,18 @@ interface Backup {
   size: number;
 }
 
+interface BackupSchedule {
+  cronExpression: string;
+  enabled: boolean;
+  retentionDays: number;
+  lastRunAt?: string;
+  nextRunAt?: string;
+  lastStatus?: string;
+  lastError?: string;
+}
+
 const BACKUPS_KEY = ["admin", "backups"];
+const SCHEDULE_KEY = ["admin", "backup-schedule"];
 
 function formatSize(bytes: number): string {
   if (!bytes) return "0 B";
@@ -24,12 +35,188 @@ function formatSize(bytes: number): string {
   return `${(bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0)} ${units[i]}`;
 }
 
+function isValidCron(expr: string): boolean {
+  return expr.trim().split(/\s+/).length === 5;
+}
+
 function useBackups() {
   return useQuery({
     queryKey: BACKUPS_KEY,
     queryFn: () => eveyFetch<{ backups: Backup[] }>({ url: "/api/v1/admin/backups", method: "GET" }),
     select: (d) => d.backups ?? [],
   });
+}
+
+// ScheduleSection mirrors the web ScheduleSection (routes/_auth/admin/backup.lazy.tsx):
+// cron + retention + enabled toggle, plus a manual "Run now" trigger. Backup
+// download/restore (multipart upload) is deliberately NOT ported here - it's
+// heavy on React Native and left for a follow-up.
+function ScheduleSection() {
+  const theme = useTheme();
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+
+  const { data: schedule, isLoading } = useQuery<BackupSchedule>({
+    queryKey: SCHEDULE_KEY,
+    queryFn: () => eveyFetch<BackupSchedule>({ url: "/api/v1/admin/backup-schedule", method: "GET" }),
+  });
+
+  const [cron, setCron] = useState<string | undefined>(undefined);
+  const [retention, setRetention] = useState<number | undefined>(undefined);
+  const [enabled, setEnabled] = useState<boolean | undefined>(undefined);
+
+  const effectiveCron = cron ?? schedule?.cronExpression ?? "";
+  const effectiveRetention = retention ?? schedule?.retentionDays ?? 7;
+  const effectiveEnabled = enabled ?? schedule?.enabled ?? false;
+  const dirty = cron !== undefined || retention !== undefined || enabled !== undefined;
+  const cronError = effectiveCron && !isValidCron(effectiveCron)
+    ? t("admin.backup.schedule.cronInvalid", "Doit contenir 5 champs (minute heure jour mois jour_semaine)")
+    : undefined;
+
+  const saveMutation = useMutation({
+    mutationFn: () =>
+      eveyFetch<BackupSchedule>({
+        url: "/api/v1/admin/backup-schedule",
+        method: "PATCH",
+        data: { cronExpression: effectiveCron, retentionDays: effectiveRetention, enabled: effectiveEnabled },
+      }),
+    onSuccess: (data) => {
+      qc.setQueryData(SCHEDULE_KEY, data);
+      setCron(undefined);
+      setRetention(undefined);
+      setEnabled(undefined);
+      toast.success(t("admin.backup.schedule.saved", "Planification enregistrée"));
+    },
+    onError: (err: Error) => toast.error(err.message || t("admin.backup.schedule.saveFailed", "Échec de l'enregistrement")),
+  });
+
+  const runMutation = useMutation({
+    mutationFn: () => eveyFetch<void>({ url: "/api/v1/admin/backup-schedule/run", method: "POST" }),
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: BACKUPS_KEY }),
+        qc.invalidateQueries({ queryKey: SCHEDULE_KEY }),
+      ]);
+      toast.success(t("admin.backup.schedule.runStarted", "Sauvegarde lancée"));
+    },
+    onError: (err: Error) => toast.error(err.message || t("admin.backup.schedule.runFailed", "Échec du lancement")),
+  });
+
+  const lastStatus = schedule?.lastStatus ?? "";
+  const statusColor = lastStatus === "success" ? theme.colors.success : lastStatus === "failed" ? theme.colors.error : theme.colors.textMuted;
+  const statusLabel = lastStatus === "success"
+    ? t("admin.backup.schedule.statusSuccess", "Succès")
+    : lastStatus === "failed"
+      ? t("admin.backup.schedule.statusFailed", "Échec")
+      : t("admin.backup.schedule.statusUnknown", "Inconnu");
+
+  return (
+    <View style={[styles.card, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md, flexDirection: "column", alignItems: "stretch", gap: 12 }]}>
+      <View>
+        <Text style={{ color: theme.colors.text, fontSize: 15, fontWeight: "600" }}>
+          {t("admin.backup.schedule.title", "Planification")}
+        </Text>
+        <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginTop: 2 }}>
+          {t("admin.backup.schedule.description", "Sauvegarde automatique récurrente de la base de données")}
+        </Text>
+      </View>
+
+      {isLoading ? (
+        <ActivityIndicator color={theme.colors.accent} />
+      ) : (
+        <>
+          <View style={{ gap: 4 }}>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>
+              {t("admin.backup.schedule.cronLabel", "Expression cron")}
+            </Text>
+            <TextInput
+              value={effectiveCron}
+              onChangeText={setCron}
+              placeholder="0 3 * * *"
+              placeholderTextColor={theme.colors.textMuted}
+              autoCapitalize="none"
+              style={[styles.input, { color: theme.colors.text, borderColor: cronError ? theme.colors.error : theme.colors.border, backgroundColor: theme.colors.bg }]}
+            />
+            {cronError ? (
+              <Text style={{ color: theme.colors.error, fontSize: 11 }}>{cronError}</Text>
+            ) : (
+              <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>
+                {t("admin.backup.schedule.cronHelp", "Format cron standard (minute heure jour mois jour_semaine)")}
+              </Text>
+            )}
+          </View>
+
+          <View style={{ gap: 4 }}>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>
+              {t("admin.backup.schedule.retentionLabel", "Rétention (jours)")}
+            </Text>
+            <TextInput
+              value={String(effectiveRetention)}
+              onChangeText={(text) => {
+                const v = Number(text);
+                setRetention(Number.isFinite(v) && text !== "" ? Math.max(1, v) : effectiveRetention);
+              }}
+              keyboardType="numeric"
+              style={[styles.input, { color: theme.colors.text, borderColor: theme.colors.border, backgroundColor: theme.colors.bg, width: 80 }]}
+            />
+            <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>
+              {t("admin.backup.schedule.retentionHelp", "Les sauvegardes plus anciennes sont supprimées automatiquement")}
+            </Text>
+          </View>
+
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+            <Text style={{ color: theme.colors.text, fontSize: 13 }}>
+              {t("admin.backup.schedule.enabledLabel", "Activer la planification")}
+            </Text>
+            <Switch
+              value={effectiveEnabled}
+              onValueChange={setEnabled}
+              trackColor={{ true: theme.colors.accent, false: theme.colors.surfaceRaised }}
+            />
+          </View>
+
+          <View style={{ gap: 2 }}>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>
+              {schedule?.lastRunAt
+                ? t("admin.backup.schedule.lastRun", { time: new Date(schedule.lastRunAt).toLocaleString(), defaultValue: `Dernière exécution : ${new Date(schedule.lastRunAt).toLocaleString()}` })
+                : t("admin.backup.schedule.lastRunNever", "Jamais exécutée")}
+            </Text>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>
+              {schedule?.nextRunAt
+                ? t("admin.backup.schedule.nextRun", { time: new Date(schedule.nextRunAt).toLocaleString(), defaultValue: `Prochaine exécution : ${new Date(schedule.nextRunAt).toLocaleString()}` })
+                : t("admin.backup.schedule.nextRunNotScheduled", "Non planifiée")}
+            </Text>
+            <Text style={{ color: statusColor, fontSize: 11, fontWeight: "600" }}>{statusLabel}</Text>
+          </View>
+
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            <Pressable
+              onPress={() => saveMutation.mutate()}
+              disabled={!dirty || !!cronError || saveMutation.isPending}
+              style={[styles.smallBtn, { backgroundColor: theme.colors.accent, borderRadius: theme.radii.sm, opacity: (!dirty || !!cronError) ? 0.5 : 1 }]}
+            >
+              {saveMutation.isPending ? (
+                <ActivityIndicator size="small" color={theme.colors.onAccent} />
+              ) : (
+                <Text style={{ color: theme.colors.onAccent, fontWeight: "600", fontSize: 13 }}>{t("admin.backup.schedule.save", "Enregistrer")}</Text>
+              )}
+            </Pressable>
+            <Pressable
+              onPress={() => runMutation.mutate()}
+              disabled={runMutation.isPending}
+              style={[styles.smallBtn, { backgroundColor: theme.colors.surfaceRaised, borderRadius: theme.radii.sm, opacity: runMutation.isPending ? 0.5 : 1 }]}
+            >
+              {runMutation.isPending ? (
+                <ActivityIndicator size="small" color={theme.colors.text} />
+              ) : (
+                <Text style={{ color: theme.colors.text, fontWeight: "600", fontSize: 13 }}>{t("admin.backup.schedule.runNow", "Lancer maintenant")}</Text>
+              )}
+            </Pressable>
+          </View>
+        </>
+      )}
+    </View>
+  );
 }
 
 export default function AdminBackupScreen() {
@@ -118,6 +305,11 @@ export default function AdminBackupScreen() {
         contentContainerStyle={{ paddingHorizontal: 16, gap: 8, paddingBottom: 32 }}
         refreshing={isLoading}
         onRefresh={refetch}
+        ListHeaderComponent={
+          <View style={{ marginBottom: 8 }}>
+            <ScheduleSection />
+          </View>
+        }
         ListEmptyComponent={
           isLoading ? null : (
             <View style={{ alignItems: "center", paddingTop: 60 }}>
@@ -136,4 +328,12 @@ export default function AdminBackupScreen() {
 const styles = StyleSheet.create({
   card: { flexDirection: "row", alignItems: "center", padding: 14, gap: 12 },
   createBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginHorizontal: 16, marginVertical: 12, paddingVertical: 12 },
+  input: {
+    fontSize: 14,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 6,
+  },
+  smallBtn: { flex: 1, paddingVertical: 10, alignItems: "center", justifyContent: "center" },
 });

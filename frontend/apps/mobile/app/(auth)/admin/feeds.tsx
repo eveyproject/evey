@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { View, Text, ScrollView, Switch, Pressable, ActivityIndicator, StyleSheet, RefreshControl } from "react-native";
+import { View, Text, ScrollView, Switch, Pressable, ActivityIndicator, StyleSheet, RefreshControl, TextInput } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -102,6 +102,11 @@ export default function AdminFeedsScreen() {
     setDirty(true);
   };
 
+  const setMaxItems = (i: number, v: number) => {
+    setRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, maxItems: v } : r)));
+    setDirty(true);
+  };
+
   const handleSave = useCallback(async () => {
     try {
       await batchUpdate.mutateAsync({ data: { configs: rows } });
@@ -151,9 +156,28 @@ export default function AdminFeedsScreen() {
                 <Text style={{ color: row.enabled ? theme.colors.text : theme.colors.textMuted, fontSize: 15, fontWeight: "500" }}>
                   {feedLabel(t, row.feedType, libraryNames)}
                 </Text>
-                <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>
-                  Max {row.maxItems} items
-                </Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>
+                    {t("common.feeds.maxItems", "Éléments max")}
+                  </Text>
+                  <TextInput
+                    value={String(row.maxItems)}
+                    onChangeText={(text) => {
+                      // Guard NaN (empty / non-numeric input): keep the old value
+                      // rather than persisting NaN to the backend on Save.
+                      const v = Number(text);
+                      setMaxItems(i, Number.isFinite(v) && text !== "" ? Math.min(100, Math.max(1, v)) : row.maxItems);
+                    }}
+                    keyboardType="numeric"
+                    maxLength={3}
+                    accessibilityLabel={`${t("common.feeds.maxItems", "Éléments max")}: ${feedLabel(t, row.feedType, libraryNames)}`}
+                    style={[styles.maxItemsInput, {
+                      color: theme.colors.text,
+                      borderColor: theme.colors.border,
+                      backgroundColor: theme.colors.bg,
+                    }]}
+                  />
+                </View>
               </View>
 
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
@@ -181,5 +205,13 @@ export default function AdminFeedsScreen() {
 
 const styles = StyleSheet.create({
   card: { flexDirection: "row", alignItems: "center", padding: 14, gap: 12 },
+  maxItemsInput: {
+    width: 44,
+    fontSize: 12,
+    textAlign: "center",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 6,
+    paddingVertical: 2,
+  },
 });
 

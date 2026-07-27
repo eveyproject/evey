@@ -43,6 +43,26 @@ function useStartDownload() {
   });
 }
 
+function useBackfillBlurhashes() {
+  return useMutation<{ jobId: string; total: number }, Error>({
+    mutationFn: () =>
+      eveyFetch<{ jobId: string; total: number }>({
+        url: "/api/v1/admin/artworks/backfill-blurhashes",
+        method: "POST",
+      }),
+  });
+}
+
+function usePurgeVariants() {
+  return useMutation<{ removed: number }, Error>({
+    mutationFn: () =>
+      eveyFetch<{ removed: number }>({
+        url: "/api/v1/admin/artworks/purge-variants",
+        method: "POST",
+      }),
+  });
+}
+
 function useJobStatus(jobId: string | null) {
   return useQuery<JobStatus>({
     queryKey: ["admin", "artworks", "job", jobId],
@@ -53,7 +73,10 @@ function useJobStatus(jobId: string | null) {
       }),
     enabled: !!jobId,
     refetchInterval: (query) => {
-      if (query.state.data?.status === "done") return false;
+      const s = query.state.data?.status;
+      // "failed" was missing here: a failed job kept refetching every 2s
+      // forever with no toast telling the admin it stopped progressing.
+      if (s === "done" || s === "failed") return false;
       return 2000;
     },
     staleTime: 0,
@@ -74,14 +97,19 @@ export default function ArtworksAdminScreen() {
 
   const { data: stats, isLoading: statsLoading } = useArtworkStats();
   const startDownload = useStartDownload();
+  const backfillBlurhashes = useBackfillBlurhashes();
+  const purgeVariants = usePurgeVariants();
   const { data: job } = useJobStatus(jobId);
 
   useEffect(() => {
-    if (!job) return;
-    if (job.status === "done" && !prevDoneRef.current) {
+    if (!job || prevDoneRef.current) return;
+    if (job.status === "done") {
       prevDoneRef.current = true;
       qc.invalidateQueries({ queryKey: STATS_QUERY_KEY });
       toast.success(t("admin.artworks.downloadComplete", "Artwork download complete"));
+    } else if (job.status === "failed") {
+      prevDoneRef.current = true;
+      toast.error(t("admin.artworks.downloadJobFailed", "Le job de téléchargement a échoué"));
     }
   }, [job, qc, t]);
 
@@ -90,6 +118,29 @@ export default function ArtworksAdminScreen() {
     startDownload.mutate(undefined, {
       onSuccess: (data) => setJobId(data.jobId),
       onError: () => toast.error(t("admin.artworks.downloadFailed", "Download failed")),
+    });
+  }
+
+  function handleBackfillBlurhashes() {
+    prevDoneRef.current = false;
+    backfillBlurhashes.mutate(undefined, {
+      onSuccess: (data) => setJobId(data.jobId),
+      onError: () =>
+        toast.error(t("admin.artworks.backfillBlurhashesFailed", "Échec du backfill des blurhash")),
+    });
+  }
+
+  function handlePurgeVariants() {
+    purgeVariants.mutate(undefined, {
+      onSuccess: (data) =>
+        toast.success(
+          t("admin.artworks.purgeVariantsSuccess", {
+            count: data.removed,
+            defaultValue: `${data.removed} variante(s) corrompue(s) supprimée(s)`,
+          }),
+        ),
+      onError: () =>
+        toast.error(t("admin.artworks.purgeVariantsFailed", "Échec de la purge des variantes")),
     });
   }
 
@@ -213,6 +264,68 @@ export default function ArtworksAdminScreen() {
           </View>
         ) : null}
       </View>
+
+      {/* Blurhash backfill */}
+      <View style={s.card}>
+        <Text style={s.cardTitle}>
+          {t("admin.artworks.backfillBlurhashesSection", "Backfill des blurhash")}
+        </Text>
+        <Text style={[s.muted, { marginBottom: theme.spacing.md }]}>
+          {t(
+            "admin.artworks.backfillBlurhashesDesc",
+            "Régénère le placeholder blurhash des artworks ingérées avant l'ajout de cette colonne.",
+          )}
+        </Text>
+        <Pressable
+          onPress={handleBackfillBlurhashes}
+          disabled={backfillBlurhashes.isPending}
+          style={[s.btn, backfillBlurhashes.isPending && s.btnDisabled]}
+          accessibilityRole="button"
+          accessibilityLabel={t("admin.artworks.backfillBlurhashesRun", "Lancer le backfill")}
+        >
+          {backfillBlurhashes.isPending ? (
+            <ActivityIndicator color={theme.colors.onAccent} size="small" />
+          ) : (
+            <Ionicons name="image-outline" size={18} color={theme.colors.onAccent} />
+          )}
+          <Text style={s.btnText}>
+            {backfillBlurhashes.isPending
+              ? t("admin.artworks.backfillBlurhashesRunning", "Backfill en cours…")
+              : t("admin.artworks.backfillBlurhashesRun", "Lancer le backfill")}
+          </Text>
+        </Pressable>
+      </View>
+
+      {/* Purge corrupt variants */}
+      <View style={s.card}>
+        <Text style={s.cardTitle}>
+          {t("admin.artworks.purgeVariantsSection", "Purger les variantes corrompues")}
+        </Text>
+        <Text style={[s.muted, { marginBottom: theme.spacing.md }]}>
+          {t(
+            "admin.artworks.purgeVariantsDesc",
+            "Supprime les variantes redimensionnées de 0 octet laissées par un resize échoué ou expiré.",
+          )}
+        </Text>
+        <Pressable
+          onPress={handlePurgeVariants}
+          disabled={purgeVariants.isPending}
+          style={[s.btnSecondary, purgeVariants.isPending && s.btnDisabled]}
+          accessibilityRole="button"
+          accessibilityLabel={t("admin.artworks.purgeVariantsRun", "Purger")}
+        >
+          {purgeVariants.isPending ? (
+            <ActivityIndicator color={theme.colors.text} size="small" />
+          ) : (
+            <Ionicons name="trash-outline" size={18} color={theme.colors.text} />
+          )}
+          <Text style={s.btnSecondaryText}>
+            {purgeVariants.isPending
+              ? t("admin.artworks.purgeVariantsRunning", "Purge en cours…")
+              : t("admin.artworks.purgeVariantsRun", "Purger")}
+          </Text>
+        </Pressable>
+      </View>
     </ScrollView>
   );
 }
@@ -272,6 +385,17 @@ function makeStyles(t: ReturnType<typeof useTheme>) {
     },
     btnDisabled: { opacity: 0.5 },
     btnText: { color: t.colors.onAccent, fontSize: 14, fontWeight: "600" },
+    btnSecondary: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: t.spacing.sm,
+      backgroundColor: t.colors.surfaceRaised,
+      paddingVertical: t.spacing.sm + 2,
+      paddingHorizontal: t.spacing.md,
+      borderRadius: t.radii.md,
+    },
+    btnSecondaryText: { color: t.colors.text, fontSize: 14, fontWeight: "600" },
     errorLine: { color: t.colors.textMuted, fontFamily: "monospace", fontSize: 10 },
   });
 }
