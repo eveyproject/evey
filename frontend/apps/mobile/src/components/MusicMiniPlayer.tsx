@@ -6,13 +6,15 @@
 // Web has GlobalAudioPlayer.tsx; this is the RN equivalent. expo-av's
 // ExponentAV native module is gone from Expo Go on SDK 55, so we use
 // expo-audio's hook-based API instead.
-import { memo, useCallback, useEffect, useRef } from "react";
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { View, Text, Pressable, StyleSheet, type GestureResponderEvent } from "react-native";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
 import { useTranslation } from "react-i18next";
-import { useAuthStore } from "@evey/store";
+import { router } from "expo-router";
+import { eveyFetch } from "@evey/api";
+import { useAuthStore, toast } from "@evey/store";
 import { useMusicQueueStore } from "../stores/musicQueue";
 import { useTheme } from "../providers/ThemeProvider";
 import { useServerUrl } from "../hooks/useServerUrl";
@@ -27,7 +29,10 @@ function MusicMiniPlayerImpl() {
   const queue = useMusicQueueStore((s) => s.queue);
   const currentIndex = useMusicQueueStore((s) => s.currentIndex);
   const isPlayingState = useMusicQueueStore((s) => s.isPlaying);
+  const shuffle = useMusicQueueStore((s) => s.shuffle);
+  const source = useMusicQueueStore((s) => s.source);
   const togglePlay = useMusicQueueStore((s) => s.togglePlay);
+  const toggleShuffle = useMusicQueueStore((s) => s.toggleShuffle);
   const next = useMusicQueueStore((s) => s.next);
   const previous = useMusicQueueStore((s) => s.previous);
   const clear = useMusicQueueStore((s) => s.clear);
@@ -49,6 +54,13 @@ function MusicMiniPlayerImpl() {
 
   // Track which URL is currently loaded so we don't redundantly call replace.
   const loadedUriRef = useRef<string | null>(null);
+
+  // Tap/drag-to-seek state: measured bar width, the fraction tracked during
+  // the responder gesture, and the value shown while actively scrubbing
+  // (falls back to the real playback progress once released).
+  const seekBarWidthRef = useRef(0);
+  const seekPctRef = useRef(0);
+  const [scrubPct, setScrubPct] = useState<number | null>(null);
 
   useEffect(() => {
     if (!streamUri) return;
@@ -83,28 +95,125 @@ function MusicMiniPlayerImpl() {
     }
   }, [status.didJustFinish, next]);
 
+  // Scrobble a finished track once per playthrough - feeds the playlist
+  // generator's taste signal, mirrors the web GlobalAudioPlayer. Guarded by
+  // streamUri so a duplicate finish tick for the same track doesn't
+  // double-count; resets naturally when the track changes.
+  const recordedUriRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!status.didJustFinish || !track || !streamUri) return;
+    if (recordedUriRef.current === streamUri) return;
+    recordedUriRef.current = streamUri;
+    void eveyFetch({ url: `/api/v1/music/tracks/${track.id}/played`, method: "POST" }).catch(() => {});
+  }, [status.didJustFinish, track, streamUri]);
+
+  // Detect a track that never loads (dead transcode, expired token, 404) and
+  // skip it instead of leaving the mini-player stuck silent - expo-audio's
+  // AudioStatus carries no explicit error field, so a load-grace-period is
+  // the only cross-platform failure signal available. Counts consecutive
+  // failures so a systemic outage (every track dead) stops and surfaces one
+  // error instead of cycling the queue forever.
+  const statusRef = useRef(status);
+  statusRef.current = status;
+  const isPlayingRef = useRef(isPlayingState);
+  isPlayingRef.current = isPlayingState;
+  const failureCountRef = useRef(0);
+
+  useEffect(() => {
+    if (status.isLoaded) failureCountRef.current = 0;
+  }, [status.isLoaded]);
+
+  useEffect(() => {
+    if (!streamUri) return;
+    const timer = setTimeout(() => {
+      if (!isPlayingRef.current) return;
+      const s = statusRef.current;
+      if (s.isLoaded || s.playing) return;
+      failureCountRef.current += 1;
+      if (failureCountRef.current >= Math.max(queue.length, 1)) {
+        failureCountRef.current = 0;
+        toast.error(t("common.error"));
+        togglePlay();
+        return;
+      }
+      next();
+    }, 8000);
+    return () => clearTimeout(timer);
+    // Timer is keyed per-track by streamUri only; queue/next/togglePlay/t are
+    // read at fire time via refs/closures, not tracked as effect deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [streamUri]);
+
   const onClose = useCallback(() => {
     try { player.pause(); } catch { /* released */ }
     loadedUriRef.current = null;
     clear();
   }, [clear, player]);
 
+  const goToSource = useCallback(() => {
+    if (!source) return;
+    router.push("/(auth)/(tabs)/music");
+  }, [source]);
+
   if (!track) return null;
 
   const duration = (status.duration ?? track.duration ?? 0);
   const position = status.currentTime ?? 0;
   const progress = duration > 0 ? position / duration : 0;
+  const displayedProgress = scrubPct ?? progress;
   const artUri = serverUrl
     ? `${serverUrl}/api/v1/music/tracks/${track.id}/art?token=${encodeURIComponent(accessToken ?? "")}`
     : undefined;
+
+  const pctFromX = (x: number) => {
+    const w = seekBarWidthRef.current;
+    if (w <= 0) return 0;
+    return Math.max(0, Math.min(1, x / w));
+  };
+
+  const commitSeek = (pct: number) => {
+    if (duration <= 0) return;
+    try { void player.seekTo(pct * duration); } catch { /* released */ }
+  };
+
+  const titleNode = (
+    <Text numberOfLines={1} style={{ color: theme.colors.text, fontSize: FONT_SIZE.xs, fontWeight: "600" }}>
+      {track.title || "-"}
+    </Text>
+  );
 
   return (
     <View
       style={[styles.root, { backgroundColor: theme.colors.surfaceRaised, borderTopColor: theme.colors.border }]}
       accessibilityLabel="Music player"
     >
-      <View style={[styles.progressTrack, { backgroundColor: theme.colors.border }]}>
-        <View style={[styles.progressFill, { width: `${Math.max(0, Math.min(100, progress * 100))}%`, backgroundColor: theme.colors.accent }]} />
+      <View
+        style={styles.seekBarContainer}
+        accessible
+        accessibilityRole="adjustable"
+        accessibilityLabel={t("media.music.seekPosition")}
+        accessibilityValue={{ min: 0, max: 100, now: Math.round(progress * 100) }}
+        onLayout={(e) => { seekBarWidthRef.current = e.nativeEvent.layout.width; }}
+        onStartShouldSetResponder={() => true}
+        onMoveShouldSetResponder={() => true}
+        onResponderGrant={(e: GestureResponderEvent) => {
+          const pct = pctFromX(e.nativeEvent.locationX);
+          seekPctRef.current = pct;
+          setScrubPct(pct);
+        }}
+        onResponderMove={(e: GestureResponderEvent) => {
+          const pct = pctFromX(e.nativeEvent.locationX);
+          seekPctRef.current = pct;
+          setScrubPct(pct);
+        }}
+        onResponderRelease={() => {
+          commitSeek(seekPctRef.current);
+          setScrubPct(null);
+        }}
+      >
+        <View style={[styles.progressTrack, { backgroundColor: theme.colors.border }]}>
+          <View style={[styles.progressFill, { width: `${Math.max(0, Math.min(100, displayedProgress * 100))}%`, backgroundColor: theme.colors.accent }]} />
+        </View>
       </View>
       <View style={styles.row}>
         <View style={styles.cover}>
@@ -115,11 +224,25 @@ function MusicMiniPlayerImpl() {
           )}
         </View>
         <View style={{ flex: 1, marginLeft: 10, minWidth: 0 }}>
-          <Text numberOfLines={1} style={{ color: theme.colors.text, fontSize: FONT_SIZE.xs, fontWeight: "600" }}>{track.title || "-"}</Text>
+          {source ? (
+            <Pressable onPress={goToSource} accessibilityRole="button" accessibilityLabel={source.label}>
+              {titleNode}
+            </Pressable>
+          ) : titleNode}
           <Text numberOfLines={1} style={{ color: theme.colors.textMuted, fontSize: FONT_SIZE.xs }}>
             {[track.artist, track.album].filter(Boolean).join(" · ") || "-"}
           </Text>
         </View>
+        <Pressable
+          onPress={toggleShuffle}
+          hitSlop={8}
+          accessibilityLabel={t("media.music.shuffle")}
+          accessibilityRole="button"
+          accessibilityState={{ selected: shuffle }}
+          style={{ marginRight: 4 }}
+        >
+          <Ionicons name="shuffle" size={ICON_SIZE.md} color={shuffle ? theme.colors.accent : theme.colors.textMuted} />
+        </Pressable>
         <Pressable onPress={previous} hitSlop={8} accessibilityLabel={t("mobile.music.previousTrack")} accessibilityRole="button">
           <Ionicons name="play-skip-back" size={ICON_SIZE.xl} color={theme.colors.text} />
         </Pressable>
@@ -158,11 +281,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
+  seekBarContainer: {
+    height: 16,
+    justifyContent: "center",
+    marginBottom: 2,
+  },
   progressTrack: {
     height: 2,
     borderRadius: 1,
     overflow: "hidden",
-    marginBottom: 6,
   },
   progressFill: {
     height: 2,
