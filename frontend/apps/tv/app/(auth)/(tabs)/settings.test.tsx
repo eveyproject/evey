@@ -65,11 +65,13 @@ const currentUserMock = vi.fn();
 const listProfilesMock = vi.fn();
 const updateProfileMock = vi.fn();
 const systemInfoMock = vi.fn();
+const userServiceLogoutMock = vi.fn();
 vi.mock("@evey/api", () => ({
   useUserServiceGetCurrentUser: (...args: unknown[]) => currentUserMock(...args),
   useUserServiceListProfiles: (...args: unknown[]) => listProfilesMock(...args),
   useUserServiceUpdateProfile: (...args: unknown[]) => updateProfileMock(...args),
   useAdminSystemServiceGetSystemInfo: (...args: unknown[]) => systemInfoMock(...args),
+  userServiceLogout: (...args: unknown[]) => userServiceLogoutMock(...args),
   eveyFetch: vi.fn(),
 }));
 
@@ -81,6 +83,7 @@ beforeEach(() => {
   listProfilesMock.mockReturnValue({ data: { profiles: [{ id: "prof-1", isDefault: true }] } });
   updateProfileMock.mockReturnValue({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false });
   systemInfoMock.mockReturnValue({ data: { version: "1.0.0" } });
+  userServiceLogoutMock.mockResolvedValue({});
 });
 
 describe("SettingsScreen (TV) playback entry", () => {
@@ -93,5 +96,32 @@ describe("SettingsScreen (TV) playback entry", () => {
     render(<SettingsScreen />);
     fireEvent.click(screen.getByLabelText("auth.settings.tabs.playback"));
     expect(pushMock).toHaveBeenCalledWith("/(auth)/settings/playback");
+  });
+});
+
+describe("SettingsScreen (TV) sign out revokes the server session", () => {
+  it("calls the logout RPC so the refresh token is revoked server-side, not just cleared locally", () => {
+    render(<SettingsScreen />);
+    fireEvent.click(screen.getByLabelText("mobile.settings.signOut"));
+    expect(userServiceLogoutMock).toHaveBeenCalledWith({});
+  });
+
+  it("clears local session state and navigates away immediately, without waiting on the network call", () => {
+    userServiceLogoutMock.mockReturnValue(new Promise(() => {})); // never resolves
+    render(<SettingsScreen />);
+    fireEvent.click(screen.getByLabelText("mobile.settings.signOut"));
+    expect(logoutMock).toHaveBeenCalled();
+    expect(replaceMock).toHaveBeenCalledWith("/login");
+  });
+
+  it("still leaves the local session cleared when the offline TV can't reach the server", async () => {
+    userServiceLogoutMock.mockRejectedValue(Object.assign(new Error("network down"), { httpStatus: undefined }));
+    render(<SettingsScreen />);
+    fireEvent.click(screen.getByLabelText("mobile.settings.signOut"));
+    expect(logoutMock).toHaveBeenCalled();
+    expect(replaceMock).toHaveBeenCalledWith("/login");
+    // Let the rejected promise settle - it must be swallowed, not thrown as
+    // an unhandled rejection that would fail this test.
+    await new Promise((r) => setTimeout(r, 0));
   });
 });

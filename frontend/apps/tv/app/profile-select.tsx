@@ -1,16 +1,34 @@
-import { useEffect } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { View, Text, ActivityIndicator, StyleSheet } from "react-native";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { useUserServiceGetCurrentUser, useUserServiceListProfiles } from "@evey/api";
-import { useAuthStore } from "@evey/store";
+import { useQueryClient } from "@tanstack/react-query";
+import { useUserServiceGetCurrentUser, useUserServiceListProfiles, userServiceRefreshToken } from "@evey/api";
+import type { V1Profile } from "@evey/api";
+import { useAuthStore, toast } from "@evey/store";
 import { useTheme } from "../src/providers/ThemeProvider";
 import { FocusableCard } from "../src/components/FocusableCard";
+import { ParentalPINModal } from "../src/components/ParentalPINModal";
+
+type SwitchOutcome = "ok" | "pin" | "fail";
+
+// Exported for unit testing: the server signals "this switch needs a
+// parental PIN proof" via a bare 403 (RefreshToken, internal/app/user/auth.go
+// RefreshToken) - a 403 received on a retry that ALREADY carried a pinToken
+// means the proof itself was wrong/expired, which is a hard failure, not a
+// second PIN prompt loop.
+export function classifySwitchFailure(err: unknown, hadPinToken: boolean): "pin" | "fail" {
+  const status = (err as { httpStatus?: number } | undefined)?.httpStatus;
+  if (!hadPinToken && status === 403) return "pin";
+  return "fail";
+}
 
 export default function ProfileSelect() {
   const theme = useTheme();
   const { t } = useTranslation();
+  const qc = useQueryClient();
   const setProfile = useAuthStore((s) => s.setProfile);
+  const activeProfileId = useAuthStore((s) => s.profileId);
 
   const { data: user } = useUserServiceGetCurrentUser();
   const userId = user?.id;
@@ -21,6 +39,9 @@ export default function ProfileSelect() {
 
   const profiles = profilesData?.profiles ?? [];
 
+  const [busy, setBusy] = useState<string | null>(null);
+  const [pinTarget, setPinTarget] = useState<V1Profile | null>(null);
+
   useEffect(() => {
     if (!isLoading && profiles.length === 1 && profiles[0].id) {
       setProfile(profiles[0].id);
@@ -28,9 +49,44 @@ export default function ProfileSelect() {
     }
   }, [isLoading, profiles, setProfile]);
 
-  function handleSelect(profileId: string) {
-    setProfile(profileId);
-    router.replace("/(auth)/(tabs)");
+  // Applies the switch only once the SERVER has confirmed it (RefreshToken).
+  // The JWT carries the profile_id every parental gate keys off, so a local
+  // setProfile() without a matching server-side grant would leave the app
+  // showing a restricted-content screen for a profile the token doesn't
+  // actually authorise - the historical bug (setProfile only, no round trip).
+  const switchProfile = useCallback(async (target: V1Profile, pinToken?: string): Promise<SwitchOutcome> => {
+    if (!target.id) return "fail";
+    try {
+      const resp = await userServiceRefreshToken({ profileId: target.id, pinToken });
+      if (resp.accessToken) useAuthStore.getState().setTokens(resp.accessToken);
+      await qc.invalidateQueries();
+      return "ok";
+    } catch (err) {
+      return classifySwitchFailure(err, !!pinToken);
+    }
+  }, [qc]);
+
+  async function handleSelect(profileId: string) {
+    if (busy) return;
+    const target = profiles.find((p) => p.id === profileId);
+    if (!target?.id) return;
+    setBusy(target.id);
+    const res = await switchProfile(target);
+    setBusy(null);
+    if (res === "ok") router.replace("/(auth)/(tabs)");
+    else if (res === "pin") setPinTarget(target);
+    else toast.error(t("auth.profile.switchFailed", "Could not switch profile"));
+  }
+
+  async function handlePinVerified(pinToken?: string) {
+    const target = pinTarget;
+    if (!target?.id) return;
+    setPinTarget(null);
+    setBusy(target.id);
+    const res = await switchProfile(target, pinToken);
+    setBusy(null);
+    if (res === "ok") router.replace("/(auth)/(tabs)");
+    else toast.error(t("auth.profile.switchFailed", "Could not switch profile"));
   }
 
   if (isLoading || profiles.length <= 1) {
@@ -52,7 +108,7 @@ export default function ProfileSelect() {
           return (
             <FocusableCard
               key={profile.id}
-              onPress={() => profile.id && handleSelect(profile.id)}
+              onPress={() => profile.id && void handleSelect(profile.id)}
               hasTVPreferredFocus={index === 0}
               style={styles.card}
               focusedStyle={{ borderColor: theme.colors.accent }}
@@ -63,10 +119,20 @@ export default function ProfileSelect() {
               <Text style={[styles.profileName, { color: theme.colors.text }]} numberOfLines={1}>
                 {profile.name}
               </Text>
+              {busy === profile.id && <ActivityIndicator color={theme.colors.accent} size="small" />}
             </FocusableCard>
           );
         })}
       </View>
+      {pinTarget?.id ? (
+        <ParentalPINModal
+          visible
+          profileId={pinTarget.id}
+          fallbackProfileId={activeProfileId ?? undefined}
+          onClose={() => setPinTarget(null)}
+          onVerified={(pinToken) => void handlePinVerified(pinToken)}
+        />
+      ) : null}
     </View>
   );
 }

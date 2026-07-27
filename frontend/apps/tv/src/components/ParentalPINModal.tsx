@@ -10,8 +10,29 @@ import { FONT_SIZE } from "@evey/theme";
 interface ParentalPINModalProps {
   visible: boolean;
   onClose: () => void;
-  onVerified: () => void;
+  // pinToken is the short-lived server proof minted by verify-pin; callers
+  // that only need to unlock content viewing on the CURRENT profile can
+  // ignore it, but a profile switch must forward it to RefreshToken to
+  // authorise leaving a restricted profile server-side.
+  onVerified: (pinToken?: string) => void;
   profileId: string;
+  // Second profile whose PIN also authorises the action (e.g. the currently
+  // active kids profile when the switch TARGET carries no PIN of its own).
+  // The client cannot know which profile actually holds the PIN, so the
+  // same digits are tried against both - mirrors web/mobile PinPromptDialog.
+  fallbackProfileId?: string;
+}
+
+interface VerifyPinResponse {
+  valid: boolean;
+  pinToken?: string;
+}
+
+// Exported for unit testing: a failed check against the primary profile is
+// only worth retrying against a second profile when one is actually
+// configured and distinct from the one that just failed.
+export function shouldTryFallback(primaryProfileId: string, fallbackProfileId: string | undefined): boolean {
+  return !!fallbackProfileId && fallbackProfileId !== primaryProfileId;
 }
 
 const PIN_LENGTH = 4;
@@ -25,7 +46,7 @@ const KEYPAD_ROWS: (string | null)[][] = [
   [null, "0", "del"],
 ];
 
-export function ParentalPINModal({ visible, onClose, onVerified, profileId }: ParentalPINModalProps) {
+export function ParentalPINModal({ visible, onClose, onVerified, profileId, fallbackProfileId }: ParentalPINModalProps) {
   const { t } = useTranslation();
   const theme = useTheme();
   const [pin, setPin] = useState("");
@@ -39,26 +60,34 @@ export function ParentalPINModal({ visible, onClose, onVerified, profileId }: Pa
     }
   }, [visible]);
 
+  async function verifyAgainst(targetProfileId: string, candidate: string): Promise<VerifyPinResponse | null> {
+    try {
+      return await eveyFetch<VerifyPinResponse>({
+        url: `/api/v1/profiles/${targetProfileId}/parental/verify-pin`,
+        method: "POST",
+        data: { pin: candidate },
+      });
+    } catch {
+      return null;
+    }
+  }
+
   async function handleSubmit(candidate: string) {
     if (candidate.length < PIN_LENGTH || loading) return;
     setLoading(true);
     setError(null);
     try {
-      const result = await eveyFetch<{ valid: boolean }>({
-        url: `/api/v1/profiles/${profileId}/parental/verify-pin`,
-        method: "POST",
-        data: { pin: candidate },
-      });
-      if (result.valid) {
+      let result = await verifyAgainst(profileId, candidate);
+      if (!result?.valid && shouldTryFallback(profileId, fallbackProfileId)) {
+        result = await verifyAgainst(fallbackProfileId as string, candidate);
+      }
+      if (result?.valid) {
         markUnlocked(profileId);
-        onVerified();
+        onVerified(result.pinToken);
       } else {
         setError(t("common.parental.pinIncorrect", "Incorrect PIN"));
         setPin("");
       }
-    } catch {
-      setError(t("common.parental.pinIncorrect", "Incorrect PIN"));
-      setPin("");
     } finally {
       setLoading(false);
     }

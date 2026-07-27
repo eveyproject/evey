@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import { View, Text, ScrollView, Pressable, StyleSheet } from "react-native";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { useUserServiceGetCurrentUser, useUserServiceListProfiles, useUserServiceUpdateProfile, useAdminSystemServiceGetSystemInfo, eveyFetch } from "@evey/api";
+import { useUserServiceGetCurrentUser, useUserServiceListProfiles, useUserServiceUpdateProfile, useAdminSystemServiceGetSystemInfo, userServiceLogout, eveyFetch } from "@evey/api";
 import { useAuthStore, useThemeStore, useLocaleStore } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useServerUrlNullable } from "../../../src/hooks/useServerUrl";
@@ -55,8 +55,16 @@ export default function SettingsScreen() {
   }
 
   function handleSignOut() {
+    // Clear local state and navigate FIRST: on a shared/offline TV, sign-out
+    // must never appear to hang, or worse, silently stay logged in, waiting
+    // on a network call. The server-side revoke is best-effort and its
+    // failure must never be allowed to leave the refresh/stream tokens alive
+    // while the UI already shows the login screen.
     logout();
     router.replace("/login");
+    void userServiceLogout({}).catch((err) => {
+      console.warn("logout revoke failed", err);
+    });
   }
 
   const rowStyle = useCallback(
