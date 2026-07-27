@@ -44,7 +44,7 @@ func castDevicesHandler(castSvc castClient) http.HandlerFunc {
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, "discovery failed")
-			slog.Error("chromecast discover", slog.Any("err", err))
+			slog.ErrorContext(ctx, "chromecast discover", slog.Any("err", err))
 			http.Error(w, `{"message":"discovery failed"}`, http.StatusInternalServerError)
 			return
 		}
@@ -84,7 +84,7 @@ func castPlayHandler(castSvc castClient) http.HandlerFunc {
 		if err := castSvc.Play(r.Context(), body.DeviceUUID, body.MediaURL, body.Title, body.ContentType); err != nil {
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, "play failed")
-			slog.Error("chromecast play", slog.Any("err", err))
+			slog.ErrorContext(ctx, "chromecast play", slog.Any("err", err))
 			http.Error(w, `{"message":"play failed"}`, http.StatusInternalServerError)
 			return
 		}
@@ -116,7 +116,7 @@ func castStopHandler(castSvc castClient) http.HandlerFunc {
 		if err := castSvc.Stop(r.Context(), body.DeviceUUID); err != nil {
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, "stop failed")
-			slog.Error("chromecast stop", slog.Any("err", err))
+			slog.ErrorContext(ctx, "chromecast stop", slog.Any("err", err))
 			http.Error(w, `{"message":"stop failed"}`, http.StatusInternalServerError)
 			return
 		}
@@ -148,7 +148,7 @@ func castPauseHandler(castSvc castClient) http.HandlerFunc {
 		if err := castSvc.Pause(r.Context(), body.DeviceUUID); err != nil {
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, "pause failed")
-			slog.Error("chromecast pause", slog.Any("err", err))
+			slog.ErrorContext(ctx, "chromecast pause", slog.Any("err", err))
 			http.Error(w, `{"message":"pause failed"}`, http.StatusInternalServerError)
 			return
 		}
@@ -181,7 +181,7 @@ func castSeekHandler(castSvc castClient) http.HandlerFunc {
 		if err := castSvc.Seek(r.Context(), body.DeviceUUID, body.PositionSec); err != nil {
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, "seek failed")
-			slog.Error("chromecast seek", slog.Any("err", err))
+			slog.ErrorContext(ctx, "chromecast seek", slog.Any("err", err))
 			http.Error(w, `{"message":"seek failed"}`, http.StatusInternalServerError)
 			return
 		}
@@ -206,7 +206,7 @@ func castStatusHandler(castSvc castClient) http.HandlerFunc {
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, "status failed")
-			slog.Error("chromecast status", slog.Any("err", err))
+			slog.ErrorContext(ctx, "chromecast status", slog.Any("err", err))
 			http.Error(w, `{"message":"status failed"}`, http.StatusInternalServerError)
 			return
 		}

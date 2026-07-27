@@ -470,7 +470,7 @@ func (h *hlsVODServe) serveMaster(w http.ResponseWriter, r *http.Request, mediaI
 	// probe and the manifest input read the same resolution.
 	rp, err := h.resolvePlan(r, mediaID, item, streams)
 	if err != nil {
-		h.writeManifestErr(w, span, err, mediaID)
+		h.writeManifestErr(r.Context(), w, span, err, mediaID)
 		return
 	}
 
@@ -484,7 +484,7 @@ func (h *hlsVODServe) serveMaster(w http.ResponseWriter, r *http.Request, mediaI
 
 	in, err := h.buildManifestInputWith(r, mediaID, item, streams, rp)
 	if err != nil {
-		h.writeManifestErr(w, span, err, mediaID)
+		h.writeManifestErr(r.Context(), w, span, err, mediaID)
 		return
 	}
 
@@ -575,13 +575,13 @@ func (h *hlsVODServe) serveVariant(w http.ResponseWriter, r *http.Request, media
 	// read the same decision/fingerprint by construction.
 	rp, err := h.resolvePlan(r, mediaID, item, streams)
 	if err != nil {
-		h.writeManifestErr(w, span, err, mediaID)
+		h.writeManifestErr(r.Context(), w, span, err, mediaID)
 		return
 	}
 
 	in, err := h.buildManifestInputWith(r, mediaID, item, streams, rp)
 	if err != nil {
-		h.writeManifestErr(w, span, err, mediaID)
+		h.writeManifestErr(r.Context(), w, span, err, mediaID)
 		return
 	}
 	if h.refuseStaleFP(w, r, rp.FPHash, mediaID, file) {
@@ -696,7 +696,7 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 	// segment key) reads this same resolution.
 	rp, err := h.resolvePlan(r, mediaID, item, streams)
 	if err != nil {
-		h.writeManifestErr(w, span, err, mediaID)
+		h.writeManifestErr(r.Context(), w, span, err, mediaID)
 		return
 	}
 
@@ -941,7 +941,7 @@ func (e *durationMissingError) Error() string {
 	return fmt.Sprintf("durationMissingError: media %s has no duration_ms", e.mediaID)
 }
 
-func (h *hlsVODServe) writeManifestErr(w http.ResponseWriter, span trace.Span, err error, mediaID string) {
+func (h *hlsVODServe) writeManifestErr(ctx context.Context, w http.ResponseWriter, span trace.Span, err error, mediaID string) {
 	var dme *durationMissingError
 	if errors.As(err, &dme) {
 		span.SetStatus(codes.Error, "duration missing")
@@ -953,6 +953,11 @@ func (h *hlsVODServe) writeManifestErr(w http.ResponseWriter, span trace.Span, e
 	}
 	span.RecordError(err)
 	span.SetStatus(codes.Error, "buildManifestInput")
+	// span.RecordError is a no-op unless OTLP tracing is configured, which is
+	// not the default on a self-hosted NAS - without this line, the single
+	// most-hit read path failed with zero server-side trace of why.
+	slog.ErrorContext(ctx, "hls-vod: manifest build failed",
+		slog.String("media_id", mediaID), slog.Any("err", err))
 	http.Error(w, `{"message":"manifest error"}`, http.StatusInternalServerError)
 }
 

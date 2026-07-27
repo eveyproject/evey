@@ -403,8 +403,7 @@ func registerPluginUploadRoute(mux *http.ServeMux, tokenGen domainuser.TokenGene
 		if tmpErr != nil {
 			span.RecordError(tmpErr)
 			span.SetStatus(otelcodes.Error, "tmp file creation failed")
-			slog.Error("create temp file for plugin upload", slog.Any("err", tmpErr))
-			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			internalError(ctx, w, "create temp file for plugin upload", tmpErr)
 			return
 		}
 		tmpName := tmpFile.Name()
@@ -418,15 +417,13 @@ func registerPluginUploadRoute(mux *http.ServeMux, tokenGen domainuser.TokenGene
 		if _, cpErr := io.Copy(tmpFile, file); cpErr != nil {
 			span.RecordError(cpErr)
 			span.SetStatus(otelcodes.Error, "write plugin upload failed")
-			slog.Error("write plugin upload", slog.Any("err", cpErr))
-			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			internalError(ctx, w, "write plugin upload", cpErr)
 			return
 		}
 		if closeErr := tmpFile.Close(); closeErr != nil {
 			span.RecordError(closeErr)
 			span.SetStatus(otelcodes.Error, "flush plugin upload failed")
-			slog.Error("close plugin upload temp file", slog.Any("err", closeErr))
-			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			internalError(ctx, w, "close plugin upload temp file", closeErr)
 			return
 		}
 
@@ -454,7 +451,7 @@ func registerPluginUploadRoute(mux *http.ServeMux, tokenGen domainuser.TokenGene
 		if installErr != nil {
 			span.RecordError(installErr)
 			span.SetStatus(otelcodes.Error, "install plugin failed")
-			slog.Error("install uploaded plugin", slog.Any("err", installErr))
+			slog.ErrorContext(ctx, "install uploaded plugin", slog.Any("err", installErr))
 			if errors.Is(installErr, appplugin.ErrPluginPermissionEscalation) {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusPreconditionRequired)
@@ -543,8 +540,7 @@ func registerPluginPreviewRoute(mux *http.ServeMux, tokenGen domainuser.TokenGen
 		if tmpErr != nil {
 			span.RecordError(tmpErr)
 			span.SetStatus(otelcodes.Error, "tmp file creation failed")
-			slog.Error("create temp file for plugin preview", slog.Any("err", tmpErr))
-			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			internalError(ctx, w, "create temp file for plugin preview", tmpErr)
 			return
 		}
 		tmpName := tmpFile.Name()
@@ -558,15 +554,13 @@ func registerPluginPreviewRoute(mux *http.ServeMux, tokenGen domainuser.TokenGen
 		if _, cpErr := io.Copy(tmpFile, file); cpErr != nil {
 			span.RecordError(cpErr)
 			span.SetStatus(otelcodes.Error, "write plugin preview upload failed")
-			slog.Error("write plugin preview upload", slog.Any("err", cpErr))
-			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			internalError(ctx, w, "write plugin preview upload", cpErr)
 			return
 		}
 		if closeErr := tmpFile.Close(); closeErr != nil {
 			span.RecordError(closeErr)
 			span.SetStatus(otelcodes.Error, "flush plugin preview failed")
-			slog.Error("close plugin preview temp file", slog.Any("err", closeErr))
-			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			internalError(ctx, w, "close plugin preview temp file", closeErr)
 			return
 		}
 

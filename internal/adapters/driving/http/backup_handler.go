@@ -30,8 +30,7 @@ func registerBackupRoutes(mux *http.ServeMux, svc *appbackup.Service, tokenGen d
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, "create backup failed")
-			slog.Error("create backup failed", slog.Any("err", err))
-			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			internalError(ctx, w, "create backup failed", err)
 			return
 		}
 		span.SetAttributes(attribute.String("backup_id", m.ID))
@@ -130,7 +129,7 @@ func registerBackupRoutes(mux *http.ServeMux, svc *appbackup.Service, tokenGen d
 				slog.Warn("restore backup rejected: invalid or tampered archive", slog.Any("err", err))
 				http.Error(w, `{"message":"backup rejected: invalid or tampered archive"}`, http.StatusUnprocessableEntity)
 			} else {
-				slog.Error("restore backup failed", slog.Any("err", err))
+				slog.ErrorContext(ctx, "restore backup failed", slog.Any("err", err))
 				http.Error(w, `{"message":"restore failed"}`, http.StatusInternalServerError)
 			}
 			return
@@ -155,7 +154,7 @@ func registerBackupRoutes(mux *http.ServeMux, svc *appbackup.Service, tokenGen d
 				http.Error(w, `{"message":"backup not found"}`, http.StatusNotFound)
 			} else {
 				span.SetStatus(otelcodes.Error, "backup delete failed")
-				slog.Error("backup delete failed", slog.String("backup_id", backupID), slog.Any("err", err))
+				slog.ErrorContext(ctx, "backup delete failed", slog.String("backup_id", backupID), slog.Any("err", err))
 				http.Error(w, `{"message":"backup delete failed"}`, http.StatusInternalServerError)
 			}
 			return

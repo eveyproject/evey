@@ -92,7 +92,7 @@ func registerOIDCRoutes(mux *http.ServeMux, oidcSvc *appuser.OIDCService, httpsO
 				return
 			}
 			span.SetStatus(codes.Error, "handle callback failed")
-			slog.Error("oidc callback: handle failed", slog.Any("err", err))
+			slog.ErrorContext(ctx, "oidc callback: handle failed", slog.Any("err", err))
 			http.Redirect(w, r, "/login?oidc_error=1", http.StatusFound)
 			return
 		}
