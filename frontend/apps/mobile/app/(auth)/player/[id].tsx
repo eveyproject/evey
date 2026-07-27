@@ -754,7 +754,13 @@ export default function PlayerScreen() {
     onRemoteStop: () => handleBack(),
   }), [player, handleBack]);
 
-  useProgressReporter(sessionId, getPositionMs, getIsPaused, getVolume, getIsMuted, remoteCallbacks);
+  // Prewarm the next episode near the end so the hand-off does not wait on a
+  // cold transcode start - the difference is very visible on a weak NAS.
+  useProgressReporter(sessionId, getPositionMs, getIsPaused, getVolume, getIsMuted, remoteCallbacks, {
+    mediaId,
+    isEpisode,
+    getDurationMs: () => effectiveDuration * 1000,
+  });
 
   const handleAudioSelect = useCallback(
     (index: number) => {
