@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 // Document Picture-in-Picture brings the WHOLE player UI (controls, progress
 // bar, subtitles, chapter skip, next episode prompt, ...) into a separate
@@ -54,14 +54,35 @@ export function useDocumentPiP(selector = "[data-player-container]"): UseDocumen
   // they're only valid for the lifetime of one open/close pair.
   const originalParent = useRef<Node | null>(null);
   const originalNextSibling = useRef<Node | null>(null);
+  // The moved container itself, so the unmount cleanup (which has no access
+  // to open()'s local `container` variable) can restore it synchronously.
+  const movedContainer = useRef<HTMLElement | null>(null);
+  const pipWindowRef = useRef<Window | null>(null);
 
   useEffect(() => {
     setAvailable(typeof window !== "undefined" && !!window.documentPictureInPicture);
   }, []);
 
+  // Puts the moved container back where it came from. Idempotent: once
+  // restored, originalParent is cleared, so a second call (e.g. both the
+  // unmount cleanup and the later async `pagehide` event) is a no-op.
+  const restore = useCallback(() => {
+    const container = movedContainer.current;
+    const parent = originalParent.current;
+    if (!container || !parent) return;
+    const next = originalNextSibling.current;
+    if (next && next.parentNode === parent) {
+      parent.insertBefore(container, next);
+    } else {
+      parent.appendChild(container);
+    }
+    originalParent.current = null;
+    originalNextSibling.current = null;
+    movedContainer.current = null;
+  }, []);
+
   const close = useCallback(() => {
-    const pipWindow = window.documentPictureInPicture?.window;
-    if (pipWindow) pipWindow.close();
+    pipWindowRef.current?.close();
   }, []);
 
   const open = useCallback(async () => {
@@ -85,6 +106,8 @@ export function useDocumentPiP(selector = "[data-player-container]"): UseDocumen
     // becomes the PiP body.
     originalParent.current = container.parentNode;
     originalNextSibling.current = container.nextSibling;
+    movedContainer.current = container;
+    pipWindowRef.current = pipWindow;
 
     pipWindow.document.body.append(container);
     // The PiP window starts blank; give it Evey's dark theme so the
@@ -100,23 +123,15 @@ export function useDocumentPiP(selector = "[data-player-container]"): UseDocumen
       "pagehide",
       () => {
         // Restore in the same DOM position so subsequent fullscreen, layout
-        // observers, etc. keep working without confusion.
-        const parent = originalParent.current;
-        const next = originalNextSibling.current;
-        if (parent) {
-          if (next && next.parentNode === parent) {
-            parent.insertBefore(container, next);
-          } else {
-            parent.appendChild(container);
-          }
-        }
-        originalParent.current = null;
-        originalNextSibling.current = null;
+        // observers, etc. keep working without confusion. No-op if the
+        // unmount cleanup already restored the node synchronously.
+        restore();
+        pipWindowRef.current = null;
         setIsOpen(false);
       },
       { once: true },
     );
-  }, [selector]);
+  }, [selector, restore]);
 
   const toggle = useCallback(async () => {
     if (!available) return;
@@ -127,17 +142,23 @@ export function useDocumentPiP(selector = "[data-player-container]"): UseDocumen
     }
   }, [available, isOpen, open, close]);
 
-  // Defensive cleanup: if the React tree owning this hook unmounts while
-  // the PiP is still open, the moved DOM node would become an orphan
-  // (its React fiber is gone and nobody will restore it). Close the PiP
-  // before unmount so the pagehide handler puts it back first.
-  useEffect(() => {
+  // Defensive cleanup: if the React tree owning this hook unmounts while the
+  // PiP is still open (e.g. episode change remounts HLSPlayer via key=mediaId),
+  // the moved DOM node is still a child of the PiP window's body. React's
+  // commit phase will try to removeChild() it from what it thinks is the
+  // parent, throwing NotFoundError. `pagehide` would put it back, but that
+  // event fires asynchronously - too late for the synchronous unmount commit.
+  //
+  // useLayoutEffect cleanups run synchronously, BEFORE React detaches/removes
+  // the subtree, so restoring here wins the race: by the time React's own
+  // removeChild runs, the node is already back under its original parent.
+  useLayoutEffect(() => {
     return () => {
-      if (window.documentPictureInPicture?.window) {
-        window.documentPictureInPicture.window.close();
-      }
+      restore();
+      pipWindowRef.current?.close();
+      pipWindowRef.current = null;
     };
-  }, []);
+  }, [restore]);
 
   return { available, isOpen, toggle };
 }
