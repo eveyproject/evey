@@ -18,6 +18,13 @@ function makeJwt(expSeconds: number) {
   return `${header}.${payload}.sig`;
 }
 
+function makeTrack(id: string, title: string, artist = "") {
+  return {
+    ID: id, Title: title, Artist: artist, Album: "", AlbumArtist: "", Year: 0,
+    TrackNumber: 0, DiskNumber: 0, Duration: 0, FilePath: "", MimeType: "", Genre: "", CoverArtURL: "",
+  };
+}
+
 beforeEach(() => {
   mockNavigate.mockClear();
   // reset both stores between tests
@@ -207,6 +214,69 @@ describe("GlobalAudioPlayer", () => {
       (c) => String((c[0] as { url?: string })?.url).includes("/played"),
     );
     expect(playedCalls).toHaveLength(1);
+  });
+
+  describe("queue panel", () => {
+    beforeEach(() => {
+      useAuthStore.setState({ accessToken: makeJwt(9999999999) });
+      useMusicPlayerStore.setState({
+        playing: makeTrack("track-1", "Song A", "Artist A"),
+        queue: [makeTrack("track-1", "Song A", "Artist A"), makeTrack("track-2", "Song B", "Artist B")],
+        shuffle: false,
+        externallyPaused: false,
+        source: null,
+      });
+    });
+
+    it("is hidden until the queue button is toggled", () => {
+      render(<GlobalAudioPlayer />);
+      expect(screen.queryByRole("dialog")).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "Queue" }));
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
+
+    it("lists every queued track and marks the current one", () => {
+      render(<GlobalAudioPlayer />);
+      fireEvent.click(screen.getByRole("button", { name: "Queue" }));
+
+      expect(screen.getByRole("button", { name: /Song A/ })).toHaveAttribute("aria-current", "true");
+      expect(screen.getByRole("button", { name: /Song B/ })).not.toHaveAttribute("aria-current");
+    });
+
+    it("jumps to a track when its row is clicked", () => {
+      render(<GlobalAudioPlayer />);
+      fireEvent.click(screen.getByRole("button", { name: "Queue" }));
+      fireEvent.click(screen.getByRole("button", { name: /Song B/ }));
+
+      expect(useMusicPlayerStore.getState().playing?.ID).toBe("track-2");
+      // Jumping must not drop the queue.
+      expect(useMusicPlayerStore.getState().queue.map((t) => t.ID)).toEqual(["track-1", "track-2"]);
+    });
+
+    it("removes a non-playing track without disturbing playback", () => {
+      render(<GlobalAudioPlayer />);
+      fireEvent.click(screen.getByRole("button", { name: "Queue" }));
+      fireEvent.click(screen.getAllByRole("button", { name: "Remove from queue" })[1]);
+
+      expect(useMusicPlayerStore.getState().queue.map((t) => t.ID)).toEqual(["track-1"]);
+      expect(useMusicPlayerStore.getState().playing?.ID).toBe("track-1");
+    });
+
+    it("removing the currently playing track advances to its neighbour", () => {
+      render(<GlobalAudioPlayer />);
+      fireEvent.click(screen.getByRole("button", { name: "Queue" }));
+      fireEvent.click(screen.getAllByRole("button", { name: "Remove from queue" })[0]);
+
+      expect(useMusicPlayerStore.getState().playing?.ID).toBe("track-2");
+      expect(useMusicPlayerStore.getState().queue.map((t) => t.ID)).toEqual(["track-2"]);
+    });
+
+    it("shows an empty message when the queue has no other tracks", () => {
+      useMusicPlayerStore.setState({ queue: [] });
+      render(<GlobalAudioPlayer />);
+      fireEvent.click(screen.getByRole("button", { name: "Queue" }));
+      expect(screen.getByText("Queue empty")).toBeInTheDocument();
+    });
   });
 });
 

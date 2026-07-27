@@ -5,6 +5,7 @@ import {
   useLibraryServiceListLibraries,
   usePhotoServiceListPhotos,
   usePhotoServiceListPhotoAlbums,
+  usePhotoServiceGetPhoto,
 } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { useTranslation } from "react-i18next";
@@ -13,6 +14,7 @@ import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { Images, ChevronLeft, ChevronRight, X, RotateCcw, RotateCw } from "lucide-react";
 import { Blurhash } from "react-blurhash";
 import { ICON } from "@/constants/iconSizes";
+import { formatFileSize } from "@/features/library/mediaDetailUtils";
 
 export const Route = createLazyFileRoute("/_auth/photos/")({
   component: PhotosPage,
@@ -108,6 +110,29 @@ function usePhotos(libraryID: string | undefined, album?: string, limit = 5000, 
   );
 }
 
+// GetPhoto returns cameraModel, which ListPhotos doesn't project - the rest
+// of the EXIF strip (width/height/fileSize/takenAt) is already on the Photo
+// the caller has, so this only fetches the one field missing from the list.
+function usePhotoCameraModel(photoId: string | undefined) {
+  return usePhotoServiceGetPhoto(photoId ?? "", {
+    query: {
+      enabled: !!photoId,
+      select: (d) => d.cameraModel ?? "",
+      staleTime: 60_000,
+    },
+  });
+}
+
+function formatTakenAt(takenAt: string): string {
+  return new Date(takenAt).toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 // ---- Lightbox ----
 
 interface LightboxProps {
@@ -125,6 +150,7 @@ function Lightbox({ photos, index, onClose, onPrev, onNext }: LightboxProps) {
   const tokenParam = accessToken ? `?token=${encodeURIComponent(accessToken)}` : "";
   const [rotation, setRotation] = useState(0);
   const dialogRef = useRef<HTMLDivElement>(null);
+  const { data: cameraModel } = usePhotoCameraModel(photo?.ID);
 
   useFocusTrap(dialogRef, Boolean(photo));
 
@@ -211,6 +237,14 @@ function Lightbox({ photos, index, onClose, onPrev, onNext }: LightboxProps) {
           <span className="font-medium">{photo.Title}</span>
           {photo.Album && <span className="ml-2 text-[var(--text-muted)]">- {photo.Album}</span>}
           <span className="ml-2 text-[var(--text-muted)]">{index + 1} / {photos.length}</span>
+        </div>
+        <div className="flex flex-col items-center gap-0.5 text-xs text-[var(--text-muted)]">
+          {photo.Width > 0 && photo.Height > 0 && (
+            <span>{photo.Width} x {photo.Height}</span>
+          )}
+          {photo.FileSize > 0 && <span>{formatFileSize(String(photo.FileSize))}</span>}
+          {photo.TakenAt && <span>{formatTakenAt(photo.TakenAt)}</span>}
+          {cameraModel && <span>{cameraModel}</span>}
         </div>
       </div>
     </div>

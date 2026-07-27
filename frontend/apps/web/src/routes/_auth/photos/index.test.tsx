@@ -21,6 +21,7 @@ vi.mock("@evey/api", () => ({
   useLibraryServiceListLibraries: (opts: { query?: { select?: (d: unknown) => unknown } }) => sel(libsHook(), opts),
   usePhotoServiceListPhotoAlbums: (_p: unknown, opts: { query?: { select?: (d: unknown) => unknown } }) => sel(albumsHook(), opts),
   usePhotoServiceListPhotos: (_p: unknown, opts: { query?: { select?: (d: unknown) => unknown } }) => sel(photosListHook(), opts),
+  usePhotoServiceGetPhoto: (_id: string, opts: { query?: { select?: (d: unknown) => unknown } }) => sel({ data: { cameraModel: "" } }, opts),
   photoServiceDeletePhoto: vi.fn(),
 }));
 vi.mock("@evey/store", () => ({
