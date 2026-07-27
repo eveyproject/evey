@@ -16,7 +16,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { useLocalSearchParams } from "expo-router";
-import { eveyFetch } from "@evey/api";
+import { eveyFetch, useUserServiceGetCurrentUser, useUserServiceListProfiles } from "@evey/api";
 import { Skeleton } from "../../../src/components/Skeleton";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
@@ -25,7 +25,8 @@ import { useDebounce } from "../../../src/hooks/useDebounce";
 import { useMusicQueueStore, type QueueTrack } from "../../../src/stores/musicQueue";
 import { AddToPlaylistSheet } from "../../../src/components/AddToPlaylistSheet";
 import { startDownload, getDownloadPath } from "../../../src/lib/downloads";
-import { toast } from "@evey/store";
+import { buildDownloadAuthContext } from "../../../src/lib/downloadContext";
+import { toast, useAuthStore } from "@evey/store";
 import { TrackArt } from "../../../src/components/music/TrackArt";
 import { MusicPlaylistsTab } from "../../../src/components/music/MusicPlaylistsTab";
 import type { Track } from "../../../src/components/music/musicTypes";
@@ -123,6 +124,25 @@ export default function MusicScreen() {
   const { t } = useTranslation();
   const authHeaders = useAuthHeaders();
   const serverUrl = useServerUrl();
+  // Same active-profile resolution as the player screen (player/[id].tsx's
+  // activeProfile) and the media detail screen - so a track download captures
+  // the exact profile identity/restriction that getDownloadPath's offline
+  // gate will later check. Tracks carry no age classification (see Track in
+  // musicTypes.ts), so buildDownloadAuthContext below is only ever given the
+  // profile identity for music downloads.
+  const activeProfileId = useAuthStore((s) => s.profileId);
+  const { data: currentUserForProfile } = useUserServiceGetCurrentUser();
+  const { data: profilesRespForProfile } = useUserServiceListProfiles(
+    currentUserForProfile?.id ?? "",
+    { query: { enabled: !!currentUserForProfile?.id } } as never,
+  );
+  const activeProfile = useMemo(
+    () =>
+      profilesRespForProfile?.profiles?.find((p) => p.id === activeProfileId) ??
+      profilesRespForProfile?.profiles?.find((p) => p.isDefault) ??
+      profilesRespForProfile?.profiles?.[0],
+    [profilesRespForProfile, activeProfileId],
+  );
 
   const [tab, setTab] = useState<Tab>("tracks");
   const [selectedLibraryID, setSelectedLibraryID] = useState<string | undefined>(undefined);
@@ -271,6 +291,9 @@ export default function MusicScreen() {
             // (same ones the web app's mintDownloadToken/track download use).
             tokenUrl: `/api/v1/download-token/${encodeURIComponent(track.id)}`,
             downloadPath: `/api/v1/music/tracks/${encodeURIComponent(track.id)}/download`,
+            // Track carries no rating field (music isn't age-classified in
+            // this schema) - only the downloader's profile identity is captured.
+            ...buildDownloadAuthContext(activeProfile, undefined),
           },
         );
         toast.success(t("media.detail.downloadComplete"));
@@ -287,7 +310,7 @@ export default function MusicScreen() {
         });
       }
     },
-    [trackDownloads, t],
+    [trackDownloads, t, activeProfile],
   );
 
   // The server also exposes a whole-album .zip archive
@@ -326,6 +349,7 @@ export default function MusicScreen() {
               kind: "audio",
               tokenUrl: `/api/v1/download-token/${encodeURIComponent(track.id)}`,
               downloadPath: `/api/v1/music/tracks/${encodeURIComponent(track.id)}/download`,
+              ...buildDownloadAuthContext(activeProfile, undefined),
             },
           );
           perTrackProgress[track.id] = 1;
@@ -344,7 +368,7 @@ export default function MusicScreen() {
         });
       }
     },
-    [albumDownloads, activeLibraryID, t],
+    [albumDownloads, activeLibraryID, t, activeProfile],
   );
 
   const albumArtUri = useCallback(

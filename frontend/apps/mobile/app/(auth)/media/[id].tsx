@@ -43,6 +43,7 @@ import { artworkUrl } from "../../../src/lib/artwork";
 import { certInfoForLocale } from "../../../src/lib/certifications";
 import { useIsFavorite, useToggleFavorite } from "../../../src/hooks/useFavorite";
 import { startDownload, getDownloadPath } from "../../../src/lib/downloads";
+import { buildDownloadAuthContext } from "../../../src/lib/downloadContext";
 import { toast } from "@evey/store";
 import { AddToPlaylistSheet } from "../../../src/components/AddToPlaylistSheet";
 import { useParentalGate } from "../../../src/hooks/useParentalGate";
@@ -522,6 +523,16 @@ export default function MediaDetailScreen() {
   });
   const profileId = useAuthStore((s) => s.profileId);
   const isAdmin = useAuthStore((s) => s.isAdmin);
+  // Same active-profile resolution as the player screen (player/[id].tsx's
+  // activeProfile) - reused here so a download captures the exact profile
+  // identity/restriction that getDownloadPath's offline gate will later check.
+  const activeProfile = useMemo(
+    () =>
+      profilesResp?.profiles?.find((p) => p.id === profileId) ??
+      profilesResp?.profiles?.find((p) => p.isDefault) ??
+      profilesResp?.profiles?.[0],
+    [profilesResp, profileId],
+  );
   // Admin-only: mint a PUBLIC download link and hand it off via the native
   // share sheet - the mobile equivalent of the web's clipboard copy (there is
   // no clipboard API in this app; SyncPlayBar's room-code "copy" uses the same
@@ -661,7 +672,18 @@ export default function MediaDetailScreen() {
           ep.id,
           ep.title ?? ep.id,
           (p) => setEpisodeDownloads((s) => ({ ...s, [ep.id!]: p })),
-          { kind: "video", formatHint: ep.containerFormat },
+          {
+            kind: "video",
+            formatHint: ep.containerFormat,
+            // An episode rarely carries its own classification - it inherits
+            // the series' rating, which is what this screen's own parental
+            // gate above (useParentalGate(media?.officialRating)) already
+            // relies on.
+            ...buildDownloadAuthContext(activeProfile, {
+              officialRating: ep.officialRating ?? media?.officialRating,
+              certificationsByCountry: ep.certificationsByCountry ?? media?.certificationsByCountry,
+            }),
+          },
         );
         if (!opts?.silent) toast.success(t("media.detail.downloadComplete"));
       } catch (err) {
@@ -680,7 +702,7 @@ export default function MediaDetailScreen() {
         });
       }
     },
-    [episodeDownloads, t],
+    [episodeDownloads, t, activeProfile, media],
   );
 
   // "Download all" for the currently shown episode list (the active season,
@@ -1087,7 +1109,12 @@ export default function MediaDetailScreen() {
                 setDownloadProgress(NaN);
                 toast.info(t("media.detail.downloadStarted"));
                 try {
-                  await startDownload(id, media.title, (p) => setDownloadProgress(p));
+                  await startDownload(id, media.title, (p) => setDownloadProgress(p),
+                    buildDownloadAuthContext(activeProfile, {
+                      officialRating: media.officialRating,
+                      certificationsByCountry: media.certificationsByCountry,
+                    }),
+                  );
                   toast.success(t("media.detail.downloadComplete"));
                 } catch (err) {
                   // Surface the real cause instead of a blanket "failed": a

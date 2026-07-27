@@ -90,6 +90,8 @@ import {
   rehydrateBackgroundDownloads,
   getInFlightDownloads,
 } from "./downloads";
+import { buildDownloadAuthContext } from "./downloadContext";
+import { canPlayOffline } from "./offlineAccess";
 
 const sampleIndex = [
   { mediaItemId: "m1", title: "Movie 1", filePath: "/data/user/0/app/files/downloads/m1.mp4", fileSize: 1000, downloadedAt: "2025-01-01" },
@@ -562,5 +564,88 @@ describe("getDownloadPath extension fallback", () => {
 
     const path = await getDownloadPath("old1");
     expect(path).toBe("/data/user/0/app/files/Documents/evey-old1.mkv");
+  });
+});
+
+// End-to-end proof that the offline-access guard is no longer inert: a
+// screen wires buildDownloadAuthContext into startDownload's opts exactly as
+// media/[id].tsx and music.tsx now do, and the resulting persisted entry is
+// what actually gets a kids profile refused - not just canPlayOffline in
+// isolation with a hand-built entry.
+describe("startDownload + buildDownloadAuthContext wiring closes the offline-access gap", () => {
+  const adultProfile = { id: "adult-1", isKids: false };
+  const kidProfile = { id: "kid-1", isKids: true, maxAge: 10 };
+
+  // fsMock.readAsStringAsync is a static mock (see beforeEach) - it doesn't
+  // echo back what writeAsStringAsync just persisted, so getDownloads() alone
+  // can't be used to read the entry back. Instead, read the exact JSON the
+  // write call received, matching the existing "creates a background..." test
+  // above, then feed it back to readAsStringAsync so a subsequent
+  // getDownloadPath() call reads that same persisted entry.
+  function lastWrittenIndex(): Array<Record<string, unknown>> {
+    return JSON.parse(fsMock.writeAsStringAsync.mock.calls.at(-1)![1]);
+  }
+
+  it("persists the downloader's identity on the entry startDownload writes", async () => {
+    const pending = startDownload(
+      "m30",
+      "Adult Movie",
+      undefined,
+      buildDownloadAuthContext(adultProfile, { officialRating: "R" }),
+    );
+    const handlers = await waitForTask("m30");
+    handlers.begin?.({ expectedBytes: 1000, headers: {} });
+    handlers.done?.({ id: "m30" });
+    await pending;
+
+    const entry = lastWrittenIndex().find((e) => e.mediaItemId === "m30")!;
+    expect(entry.downloadedByProfileId).toBe("adult-1");
+    expect(entry.downloadedByIsKids).toBe(false);
+    expect(entry.officialRating).toBe("R");
+  });
+
+  it("refuses a kids profile replaying a title downloaded by an adult, via the real persisted entry", async () => {
+    const pending = startDownload(
+      "m31",
+      "Another Adult Movie",
+      undefined,
+      buildDownloadAuthContext(adultProfile, {}),
+    );
+    const handlers = await waitForTask("m31");
+    handlers.begin?.({ expectedBytes: 1000, headers: {} });
+    handlers.done?.({ id: "m31" });
+    await pending;
+
+    const written = lastWrittenIndex();
+    const entry = written.find((e) => e.mediaItemId === "m31") as unknown as import("./downloads").DownloadedMedia;
+
+    const decision = canPlayOffline(entry, kidProfile, Date.now());
+    expect(decision).toEqual({ allowed: false, reason: "more-restricted-profile" });
+
+    // getDownloadPath is what the real callers (player, media detail) invoke -
+    // proves the whole chain, not just the pure decision function. Feed back
+    // the exact JSON just persisted so readIndex() sees this download.
+    fsMock.readAsStringAsync.mockResolvedValueOnce(JSON.stringify(written));
+    fsMock.getInfoAsync.mockResolvedValue({ exists: true });
+    await expect(
+      getDownloadPath("m31", { activeProfile: kidProfile }),
+    ).rejects.toMatchObject({ name: "OfflineAccessError", reason: "more-restricted-profile" });
+  });
+
+  it("still allows the downloading adult profile itself to replay it", async () => {
+    const pending = startDownload(
+      "m32",
+      "Adult Movie Three",
+      undefined,
+      buildDownloadAuthContext(adultProfile, {}),
+    );
+    const handlers = await waitForTask("m32");
+    handlers.begin?.({ expectedBytes: 1000, headers: {} });
+    handlers.done?.({ id: "m32" });
+    await pending;
+
+    const written = lastWrittenIndex();
+    const entry = written.find((e) => e.mediaItemId === "m32") as unknown as import("./downloads").DownloadedMedia;
+    expect(canPlayOffline(entry, adultProfile, Date.now())).toEqual({ allowed: true });
   });
 });
