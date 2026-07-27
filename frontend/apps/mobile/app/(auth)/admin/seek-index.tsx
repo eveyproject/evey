@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { View, Text, FlatList, Pressable, ScrollView, ActivityIndicator, Alert, StyleSheet } from "react-native";
+import { View, Text, FlatList, Pressable, ScrollView, ActivityIndicator, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -13,11 +13,16 @@ import {
   useAdminMediaServiceRollbackMediaSeekIndex,
   useAdminMediaServiceReindexLibrarySeekIndex,
   useAdminMediaServiceRollbackLibrarySeekIndex,
+  useAdminMediaServiceRemuxAudioMedia,
+  useAdminMediaServiceDeleteSeekIndexBackup,
+  useAdminMediaServicePurgeSeekIndexBackups,
 } from "@evey/api";
-import type { V1SeekIndexItem, V1GetSeekIndexJobResponse } from "@evey/api";
+import type { V1GetSeekIndexJobResponse } from "@evey/api";
 import { toast } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
-import { audioDelayed, formatSize, baseName } from "../../../src/components/admin/seekIndexHelpers";
+import { audioDelayed, baseName, errText, repairableCount, volumeBackupsRisky, BACKUP_WINDOW } from "../../../src/components/admin/seekIndexHelpers";
+import { SeekIndexItemRow } from "../../../src/components/admin/seekIndex/SeekIndexItemRow";
+import { RepairConfirmModal, type BatchKind } from "../../../src/components/admin/seekIndex/RepairConfirmModal";
 
 const SCAN_QUERY_BASE = "/api/v1/admin/media/seek-index";
 
@@ -75,12 +80,18 @@ function LastJobCard({ last, theme }: { last: NonNullable<V1GetSeekIndexJobRespo
   const { t } = useTranslation();
   const kind = t(KIND_KEYS[last.kind ?? ""] ?? KIND_KEYS.scan);
   const failed = last.failed ?? 0;
+  const skipped = last.skipped ?? 0;
 
   return (
     <View style={[styles.card, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}>
       <Text style={{ color: theme.colors.text, fontSize: 13 }}>
         {t("admin.seekIndex.lastJobLine", { kind, done: last.done ?? 0, total: last.total ?? 0, failed })}
       </Text>
+      {skipped > 0 ? (
+        <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginTop: 4 }}>
+          {t("admin.seekIndex.jobSkippedCount", { count: skipped })}
+        </Text>
+      ) : null}
       {last.error ? (
         <Text style={{ color: theme.colors.error, fontSize: 12, marginTop: 4 }}>
           {t("admin.seekIndex.lastJobError", { error: last.error })}
@@ -95,100 +106,19 @@ function LastJobCard({ last, theme }: { last: NonNullable<V1GetSeekIndexJobRespo
   );
 }
 
-function SeekIndexItemRow({
-  item,
-  theme,
-  busy,
-  onRepair,
-  onRollback,
-  repairPending,
-  rollbackPending,
-}: {
-  item: V1SeekIndexItem;
-  theme: ReturnType<typeof useTheme>;
-  busy: boolean;
-  onRepair: (mediaId: string) => void;
-  onRollback: (mediaId: string) => void;
-  repairPending: boolean;
-  rollbackPending: boolean;
-}) {
-  const { t } = useTranslation();
-
-  return (
-    <View style={[styles.card, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}>
-      <Text style={{ color: theme.colors.text, fontSize: 14, fontWeight: "600" }} numberOfLines={1}>
-        {item.title || item.path}
-      </Text>
-      <Text style={{ color: theme.colors.textMuted, fontSize: 11, fontFamily: "monospace" }} numberOfLines={1}>
-        {item.path}
-      </Text>
-      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
-        <View style={[styles.badge, { backgroundColor: theme.colors.bg }]}>
-          <Text style={{ color: theme.colors.textMuted, fontSize: 10 }}>{(item.container ?? "").toUpperCase()}</Text>
-        </View>
-        <View style={[styles.badge, { backgroundColor: theme.colors.bg }]}>
-          <Text style={{ color: theme.colors.textMuted, fontSize: 10 }}>{formatSize(Number(item.sizeBytes ?? 0))}</Text>
-        </View>
-        {item.hasIndex ? (
-          <View style={[styles.badge, { backgroundColor: theme.colors.success + "22" }]}>
-            <Text style={{ color: theme.colors.success, fontSize: 10, fontWeight: "600" }}>{t("admin.seekIndex.statusIndexed")}</Text>
-          </View>
-        ) : (
-          <View style={[styles.badge, { backgroundColor: theme.colors.warning + "22" }]}>
-            <Text style={{ color: theme.colors.warning, fontSize: 10, fontWeight: "600" }}>{t("admin.seekIndex.statusMissing")}</Text>
-          </View>
-        )}
-        {item.hasBackup ? (
-          <View style={[styles.badge, { backgroundColor: theme.colors.accent + "22" }]}>
-            <Text style={{ color: theme.colors.accent, fontSize: 10, fontWeight: "600" }}>{t("admin.seekIndex.backupBadge")}</Text>
-          </View>
-        ) : null}
-        {audioDelayed(item) ? (
-          <View style={[styles.badge, { backgroundColor: theme.colors.warning + "22" }]}>
-            <Text style={{ color: theme.colors.warning, fontSize: 10, fontWeight: "600" }}>
-              {t("admin.seekIndex.audioDelayBadge", { sec: (item.audioDelaySec ?? 0).toFixed(1) })}
-            </Text>
-          </View>
-        ) : null}
-      </View>
-      <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
-        {!item.hasIndex && (
-          <Pressable
-            disabled={busy}
-            onPress={() => item.mediaId && onRepair(item.mediaId)}
-            style={[styles.smallBtn, { backgroundColor: theme.colors.accent, opacity: busy ? 0.6 : 1 }]}
-          >
-            {repairPending ? (
-              <ActivityIndicator color={theme.colors.onAccent} size="small" />
-            ) : (
-              <Text style={{ color: theme.colors.onAccent, fontSize: 12, fontWeight: "600" }}>{t("admin.seekIndex.repair")}</Text>
-            )}
-          </Pressable>
-        )}
-        {item.hasBackup && (
-          <Pressable
-            disabled={busy}
-            onPress={() => item.mediaId && onRollback(item.mediaId)}
-            style={[styles.smallBtn, { backgroundColor: theme.colors.bg, opacity: busy ? 0.6 : 1 }]}
-          >
-            {rollbackPending ? (
-              <ActivityIndicator color={theme.colors.text} size="small" />
-            ) : (
-              <Text style={{ color: theme.colors.text, fontSize: 12, fontWeight: "600" }}>{t("admin.seekIndex.rollback")}</Text>
-            )}
-          </Pressable>
-        )}
-      </View>
-    </View>
-  );
-}
-
 export default function AdminSeekIndexScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [libraryId, setLibraryId] = useState("");
   const [onlyAttention, setOnlyAttention] = useState(true);
+  const [confirmBatch, setConfirmBatch] = useState<BatchKind | null>(null);
+  // keepBackups/alsoAudio mirror the web modal: strategy is always "auto", the
+  // operator only picks whether backups survive the run and whether delayed
+  // audio is folded into the same job. Pre-set from live scan data when the
+  // dialog opens (see openRepairAll below).
+  const [keepBackups, setKeepBackups] = useState(true);
+  const [alsoAudio, setAlsoAudio] = useState(true);
 
   const { data: libData } = useLibraryServiceListLibraries();
   const libraries = libData?.libraries ?? [];
@@ -208,6 +138,14 @@ export default function AdminSeekIndexScreen() {
   const missing = result?.missingIndex ?? 0;
   const withBackup = result?.withBackup ?? 0;
   const delayedAudio = result?.audioDelayed ?? 0;
+  const wrongContainer = result?.wrongContainer ?? 0;
+  const trailingJunk = result?.trailingJunk ?? 0;
+  const audioShort = result?.audioShort ?? 0;
+  const seekCoarse = result?.seekCoarse ?? 0;
+  // What "Repair all" actually acts on - see repairableCount's doc comment.
+  const repairable = repairableCount(items);
+  const repairVolumes = (result?.volumes ?? []).filter((v) => (v.missingFiles ?? 0) > 0);
+  const backupsRisky = repairVolumes.some(volumeBackupsRisky);
 
   const prevRunning = useRef(false);
   useEffect(() => {
@@ -220,6 +158,10 @@ export default function AdminSeekIndexScreen() {
           toast.error(t("admin.seekIndex.lastJobError", { error: last.error }));
         } else if ((last.failed ?? 0) > 0) {
           toast.error(t("admin.seekIndex.jobCompletedFailures", { kind, done: last.done ?? 0, failed: last.failed ?? 0 }));
+        } else if ((last.skipped ?? 0) > 0) {
+          toast.success(
+            t("admin.seekIndex.jobCompletedSkipped", { kind, done: (last.done ?? 0) - (last.skipped ?? 0), skipped: last.skipped ?? 0 }),
+          );
         } else {
           toast.success(t("admin.seekIndex.jobCompleted", { kind, done: last.done ?? 0 }));
         }
@@ -232,7 +174,7 @@ export default function AdminSeekIndexScreen() {
     toast.info(t(msgKey));
     void queryClient.invalidateQueries({ queryKey: jobQuery.queryKey ?? [] });
   };
-  const onStartError = () => toast.error(t("admin.seekIndex.startFailed"));
+  const onStartError = (err: { message?: string } | null) => toast.error(errText(err, t("admin.seekIndex.startFailed")));
 
   const startScan = useAdminMediaServiceStartSeekIndexScan({
     mutation: { onSuccess: onStarted("admin.seekIndex.scanStarted"), onError: onStartError },
@@ -249,36 +191,62 @@ export default function AdminSeekIndexScreen() {
   const rollbackLib = useAdminMediaServiceRollbackLibrarySeekIndex({
     mutation: { onSuccess: onStarted("admin.seekIndex.rollbackStarted"), onError: onStartError },
   });
+  const remuxAudioOne = useAdminMediaServiceRemuxAudioMedia({
+    mutation: { onSuccess: onStarted("admin.seekIndex.remuxAudioStarted"), onError: onStartError },
+  });
+  // Synchronous (an unlink server-side): refresh the cached scan directly
+  // instead of the job-completion path the batch mutations rely on.
+  const deleteBackup = useAdminMediaServiceDeleteSeekIndexBackup({
+    mutation: {
+      onSuccess: () => {
+        toast.success(t("admin.seekIndex.backupDeleted"));
+        void queryClient.invalidateQueries({ queryKey: [SCAN_QUERY_BASE] });
+      },
+      onError: onStartError,
+    },
+  });
+  const purgeLib = useAdminMediaServicePurgeSeekIndexBackups({
+    mutation: { onSuccess: onStarted("admin.seekIndex.purgeStarted"), onError: onStartError },
+  });
 
-  const visible = onlyAttention ? items.filter((it) => !it.hasIndex || it.hasBackup || audioDelayed(it)) : items;
+  const visible = onlyAttention
+    ? items.filter(
+        (it) =>
+          !it.hasIndex ||
+          it.hasBackup ||
+          audioDelayed(it) ||
+          it.wrongContainer ||
+          it.truncated ||
+          Number(it.damagedBytes ?? 0) > 0 ||
+          (it.audioShortfallSec ?? 0) > 0,
+      )
+    : items;
   const busy = running || startScan.isPending;
 
-  function confirmRepairAll() {
-    Alert.alert(
-      t("admin.seekIndex.repairAllConfirmTitle"),
-      t("admin.seekIndex.repairAllConfirm", { count: missing }),
-      [
-        { text: t("common.cancel"), style: "cancel" },
-        {
-          text: t("common.confirm"),
-          onPress: () =>
-            repairLib.mutate({
-              data: { ...(libraryId ? { libraryId } : {}), mode: "auto", includeAudio: delayedAudio > 0, deepVerify: false },
-            }),
-        },
-      ],
-    );
+  function openRepairAll() {
+    // Pre-set the safe choices; the operator can still flip them in the modal.
+    setKeepBackups(!backupsRisky);
+    setAlsoAudio(delayedAudio > 0);
+    setConfirmBatch("repair");
   }
 
-  function confirmRollbackAll() {
-    Alert.alert(
-      t("admin.seekIndex.rollbackAllConfirmTitle"),
-      t("admin.seekIndex.rollbackAllConfirm", { count: withBackup }),
-      [
-        { text: t("common.cancel"), style: "cancel" },
-        { text: t("common.confirm"), onPress: () => rollbackLib.mutate({ data: libraryId ? { libraryId } : {} }) },
-      ],
-    );
+  function confirmBatchAction() {
+    if (confirmBatch === "rollback") {
+      rollbackLib.mutate({ data: libraryId ? { libraryId } : {} });
+    } else if (confirmBatch === "purge") {
+      purgeLib.mutate({ data: libraryId ? { libraryId } : {} });
+    } else if (confirmBatch === "repair") {
+      repairLib.mutate({
+        data: {
+          ...(libraryId ? { libraryId } : {}),
+          mode: "auto",
+          includeAudio: alsoAudio,
+          deepVerify: !keepBackups,
+          ...(keepBackups ? {} : { backupWindow: BACKUP_WINDOW }),
+        },
+      });
+    }
+    setConfirmBatch(null);
   }
 
   return (
@@ -300,9 +268,15 @@ export default function AdminSeekIndexScreen() {
             theme={theme}
             busy={busy}
             onRepair={(mediaId) => repairOne.mutate({ mediaId, data: { mode: "auto" } })}
+            onRepairResync={(mediaId) => repairOne.mutate({ mediaId, data: { resync: true } })}
             onRollback={(mediaId) => rollbackOne.mutate({ mediaId })}
-            repairPending={repairOne.isPending && repairOne.variables?.mediaId === item.mediaId}
+            onRemuxAudio={(mediaId) => remuxAudioOne.mutate({ mediaId })}
+            onDeleteBackup={(mediaId) => deleteBackup.mutate({ data: { mediaId } })}
+            repairPending={repairOne.isPending && repairOne.variables?.mediaId === item.mediaId && !repairOne.variables?.data?.resync}
+            repairResyncPending={repairOne.isPending && repairOne.variables?.mediaId === item.mediaId && repairOne.variables?.data?.resync === true}
             rollbackPending={rollbackOne.isPending && rollbackOne.variables?.mediaId === item.mediaId}
+            remuxAudioPending={remuxAudioOne.isPending && remuxAudioOne.variables?.mediaId === item.mediaId}
+            deleteBackupPending={deleteBackup.isPending && deleteBackup.variables?.data?.mediaId === item.mediaId}
           />
         )}
         ListHeaderComponent={
@@ -347,17 +321,24 @@ export default function AdminSeekIndexScreen() {
                   </Text>
                 )}
               </Pressable>
-              {result && (missing > 0 || delayedAudio > 0) && (
-                <Pressable disabled={busy} onPress={confirmRepairAll} style={[styles.smallBtn, { backgroundColor: theme.colors.bg, opacity: busy ? 0.6 : 1 }]}>
+              {result && (repairable > 0 || delayedAudio > 0) && (
+                <Pressable disabled={busy} onPress={openRepairAll} style={[styles.smallBtn, { backgroundColor: theme.colors.bg, opacity: busy ? 0.6 : 1 }]}>
                   <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: "600" }}>
-                    {t("admin.seekIndex.repairAll", { count: missing + delayedAudio })}
+                    {t("admin.seekIndex.repairAll", { count: repairable + delayedAudio })}
                   </Text>
                 </Pressable>
               )}
               {result && withBackup > 0 && (
-                <Pressable disabled={busy} onPress={confirmRollbackAll} style={[styles.smallBtn, { backgroundColor: theme.colors.bg, opacity: busy ? 0.6 : 1 }]}>
+                <Pressable disabled={busy} onPress={() => setConfirmBatch("rollback")} style={[styles.smallBtn, { backgroundColor: theme.colors.bg, opacity: busy ? 0.6 : 1 }]}>
                   <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: "600" }}>
                     {t("admin.seekIndex.rollbackAll", { count: withBackup })}
+                  </Text>
+                </Pressable>
+              )}
+              {result && withBackup > 0 && (
+                <Pressable disabled={busy} onPress={() => setConfirmBatch("purge")} style={[styles.smallBtn, { backgroundColor: theme.colors.bg, opacity: busy ? 0.6 : 1 }]}>
+                  <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: "600" }}>
+                    {t("admin.seekIndex.purgeAll", { count: withBackup })}
                   </Text>
                 </Pressable>
               )}
@@ -367,17 +348,21 @@ export default function AdminSeekIndexScreen() {
             {!running && job?.last ? <LastJobCard last={job.last} theme={theme} /> : null}
 
             {scan.isError ? (
-              <Text style={{ color: theme.colors.error, fontSize: 13 }}>{t("admin.seekIndex.scanFailed")}</Text>
+              <Text style={{ color: theme.colors.error, fontSize: 13 }}>{errText(scan.error, t("admin.seekIndex.scanFailed"))}</Text>
             ) : null}
 
             {result && (
               <>
-                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
                   <StatChip label={t("admin.seekIndex.statsInspected")} value={result.total ?? 0} theme={theme} />
                   <StatChip label={t("admin.seekIndex.statsMissing")} value={missing} theme={theme} />
                   <StatChip label={t("admin.seekIndex.statsBackup")} value={withBackup} theme={theme} />
                   <StatChip label={t("admin.seekIndex.statsAudioDelay")} value={delayedAudio} theme={theme} />
-                </View>
+                  {wrongContainer > 0 && <StatChip label={t("admin.seekIndex.statsWrongContainer")} value={wrongContainer} theme={theme} />}
+                  {trailingJunk > 0 && <StatChip label={t("admin.seekIndex.statsTrailingJunk")} value={trailingJunk} theme={theme} />}
+                  {audioShort > 0 && <StatChip label={t("admin.seekIndex.statsAudioShort")} value={audioShort} theme={theme} />}
+                  {seekCoarse > 0 && <StatChip label={t("admin.seekIndex.statsSeekCoarse")} value={seekCoarse} theme={theme} />}
+                </ScrollView>
 
                 <Pressable
                   onPress={() => setOnlyAttention((v) => !v)}
@@ -409,6 +394,22 @@ export default function AdminSeekIndexScreen() {
           )
         }
       />
+
+      <RepairConfirmModal
+        theme={theme}
+        batch={confirmBatch}
+        onClose={() => setConfirmBatch(null)}
+        onConfirm={confirmBatchAction}
+        pending={repairLib.isPending || rollbackLib.isPending || purgeLib.isPending}
+        repairableCount={repairable}
+        withBackupCount={withBackup}
+        delayedAudioCount={delayedAudio}
+        volumes={repairVolumes}
+        keepBackups={keepBackups}
+        setKeepBackups={setKeepBackups}
+        alsoAudio={alsoAudio}
+        setAlsoAudio={setAlsoAudio}
+      />
     </View>
   );
 }
@@ -418,7 +419,6 @@ const styles = StyleSheet.create({
   statChip: { padding: 12, minWidth: 80, alignItems: "center" },
   statValue: { fontSize: 20, fontWeight: "700" },
   statLabel: { fontSize: 11, textAlign: "center" },
-  badge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 },
   filterChip: { paddingHorizontal: 12, paddingVertical: 8 },
   smallBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, alignItems: "center", justifyContent: "center", minWidth: 70 },
 });
