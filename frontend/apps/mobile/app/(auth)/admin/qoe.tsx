@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { View, Text, ScrollView, Pressable, RefreshControl, ActivityIndicator, StyleSheet } from "react-native";
+import { View, Text, ScrollView, Pressable, RefreshControl, ActivityIndicator, StyleSheet, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -205,10 +205,23 @@ function EncodeOverridesCard({ theme }: { theme: ReturnType<typeof useTheme> }) 
     }
   }, [refetch, t]);
 
+  const overridesTitle = t("admin.qoe.overrides.title", "Automatic quality limits");
+  const overridesHelp = t(
+    "admin.qoe.overrides.help",
+    "Players continuously report how playback is going - buffer level, stalls and bandwidth (an industry standard called CMCD). When one kind of source keeps stalling viewers, Evey lowers its quality limit for a while to stop the stalls, then lifts it again automatically.",
+  );
+
   return (
     <View style={{ gap: 8 }}>
       <View style={{ gap: 2 }}>
-        <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>{t("admin.qoe.overrides.title", "Automatic quality limits")}</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginHorizontal: 16, marginTop: 20, marginBottom: 8 }}>
+          <Text style={[styles.sectionTitle, { color: theme.colors.textMuted, marginHorizontal: 0, marginTop: 0, marginBottom: 0 }]}>
+            {overridesTitle}
+          </Text>
+          <Pressable onPress={() => Alert.alert(overridesTitle, overridesHelp)} hitSlop={8} accessibilityRole="button" accessibilityLabel={overridesHelp}>
+            <Ionicons name="information-circle-outline" size={15} color={theme.colors.textMuted} />
+          </Pressable>
+        </View>
         <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginHorizontal: 16, marginTop: -4 }}>
           {t("admin.qoe.overrides.subtitle", "Automatic adjustments based on how playback actually goes (buffering, throughput), on top of the calibrated ceiling.")}
         </Text>

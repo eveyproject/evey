@@ -46,7 +46,9 @@ function StatCard({ label, value, icon, theme }: { label: string; value: number;
 
 function TopMediaList({ items, theme }: { items: TopMedia[]; theme: ReturnType<typeof useTheme> }) {
   const { t } = useTranslation();
-  const maxPlays = Math.max(...items.map((i) => i.playCount ?? 0), 1);
+  // Bar reflects watch time, not play count: a media replayed briefly many
+  // times shouldn't outrank one watched once, in full, for hours.
+  const maxDuration = Math.max(...items.map((i) => parseInt(i.totalDurationSeconds ?? "0", 10)), 1);
 
   if (items.length === 0) {
     return (
@@ -58,26 +60,29 @@ function TopMediaList({ items, theme }: { items: TopMedia[]; theme: ReturnType<t
 
   return (
     <View style={[styles.listCard, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}>
-      {items.map((item, i) => (
-        <View key={item.mediaItemId ?? i} style={[styles.listRow, { borderBottomColor: theme.colors.border }]}>
-          <View style={{ flex: 1, gap: 4 }}>
-            <Text style={{ color: theme.colors.text, fontSize: 14, fontWeight: "500" }} numberOfLines={1}>
-              {item.title ?? "-"}
-            </Text>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <View style={[styles.barBg, { backgroundColor: theme.colors.border }]}>
-                <View style={[styles.barFill, { backgroundColor: theme.colors.accent, width: `${Math.round(((item.playCount ?? 0) / maxPlays) * 100)}%` }]} />
-              </View>
-              <Text style={{ color: theme.colors.textMuted, fontSize: 11, width: 28, textAlign: "right" }}>
-                {item.playCount ?? 0}
+      {items.map((item, i) => {
+        const duration = parseInt(item.totalDurationSeconds ?? "0", 10);
+        return (
+          <View key={item.mediaItemId ?? i} style={[styles.listRow, { borderBottomColor: theme.colors.border }]}>
+            <View style={{ flex: 1, gap: 4 }}>
+              <Text style={{ color: theme.colors.text, fontSize: 14, fontWeight: "500" }} numberOfLines={1}>
+                {item.title ?? "-"}
               </Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <View style={[styles.barBg, { backgroundColor: theme.colors.border }]}>
+                  <View style={[styles.barFill, { backgroundColor: theme.colors.accent, width: `${Math.round((duration / maxDuration) * 100)}%` }]} />
+                </View>
+                <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>
+                  {formatDuration(item.totalDurationSeconds)}
+                </Text>
+              </View>
             </View>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 11, width: 40, textAlign: "right" }}>
+              {item.playCount ?? 0}
+            </Text>
           </View>
-          <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>
-            {formatDuration(item.totalDurationSeconds)}
-          </Text>
-        </View>
-      ))}
+        );
+      })}
     </View>
   );
 }

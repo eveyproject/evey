@@ -1,13 +1,18 @@
-import { View, Text, FlatList, Pressable, ActivityIndicator, StyleSheet } from "react-native";
+import { View, Text, FlatList, Pressable, ActivityIndicator, StyleSheet, Share } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack } from "expo-router";
 import { useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
+import { useQuery } from "@tanstack/react-query";
 import {
   useActivityServiceGetPlayHistory,
   useActivityServiceGetServerStats,
   useAdminSessionServiceGetAuditLog,
+  activityServiceGetPlayHistory,
+  activityServiceGetServerStats,
+  eveyFetch,
 } from "@evey/api";
+import { toast } from "@evey/store";
 // Types from generated schemas - not re-exported from @evey/api index
 interface PlayEntry {
   id?: string;
@@ -186,6 +191,56 @@ function AuditLogTab() {
   );
 }
 
+type BgTask = { name: string; state: string; detail?: string; processed: number; lastActiveAt?: string };
+
+// Mirrors the web BackgroundTasksCard: shows what the background workers are
+// doing right now so an operator understands why the CPU isn't idle. Polls
+// every 5s for a live-ish view.
+function BackgroundTasksCard() {
+  const theme = useTheme();
+  const { t } = useTranslation();
+  const { data } = useQuery<BgTask[]>({
+    queryKey: ["/api/v1/admin/background-tasks"],
+    queryFn: () => eveyFetch<BgTask[]>({ url: "/api/v1/admin/background-tasks", method: "GET" }),
+    refetchInterval: 5000,
+  });
+  if (!data || data.length === 0) return null;
+
+  return (
+    <View style={[styles.section, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}>
+      <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+        {t("admin.activity.backgroundTasks", "Background tasks")}
+      </Text>
+      {data.map((task) => {
+        const running = task.state === "running";
+        return (
+          <View key={task.name} style={[styles.listRow, { borderBottomColor: theme.colors.border }]}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
+              <View
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: 4,
+                  backgroundColor: running ? theme.colors.success : theme.colors.border,
+                }}
+              />
+              <Text style={{ color: theme.colors.text, fontSize: 13, flex: 1 }} numberOfLines={1}>
+                {t(`admin.activity.bgTask.${task.name}`, task.name)}
+                {running && task.detail ? ` · ${task.detail}` : ""}
+              </Text>
+            </View>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>
+              {running ? t("admin.activity.bgRunning", "running") : t("admin.activity.bgIdle", "idle")}
+              {" · "}
+              {t("admin.activity.bgProcessed", "{{n}} done", { n: task.processed })}
+            </Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
 function StatsTab() {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -201,9 +256,11 @@ function StatsTab() {
 
   const cards: Array<{ label: string; value: string | number; icon: string }> = [
     { label: t("admin.activity.stats.totalPlays", "Total Plays"), value: data?.totalPlays ?? 0, icon: "play-outline" },
+    { label: t("admin.activity.stats.totalPlayTime", "Play Time"), value: formatMs(data?.totalPlayTimeMs), icon: "time-outline" },
     { label: t("admin.activity.stats.totalUsers", "Users"), value: data?.totalUsers ?? 0, icon: "people-outline" },
     { label: t("admin.activity.stats.totalMedia", "Media Items"), value: data?.totalMediaItems ?? 0, icon: "film-outline" },
     { label: t("admin.activity.stats.bandwidth", "Bandwidth"), value: formatBytes(data?.totalBandwidthBytes), icon: "cloud-download-outline" },
+    { label: t("admin.activity.stats.storage", "Storage"), value: formatBytes(data?.totalStorageBytes), icon: "server-outline" },
   ];
 
   return (
@@ -223,6 +280,8 @@ function StatsTab() {
               </View>
             ))}
           </View>
+
+          <BackgroundTasksCard />
 
           {data?.popularMedia && data.popularMedia.length > 0 && (
             <View style={[styles.section, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}>
@@ -265,6 +324,30 @@ export default function AdminActivityScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
   const [tab, setTab] = useState<Tab>("play");
+  const [exporting, setExporting] = useState(false);
+
+  const handleExport = useCallback(async () => {
+    setExporting(true);
+    try {
+      const timestamp = new Date().toISOString().slice(0, 10);
+      let data: unknown;
+      let filename: string;
+      if (tab === "play") {
+        data = await activityServiceGetPlayHistory({ "pagination.pageSize": 10000 });
+        filename = `play-history-${timestamp}.json`;
+      } else if (tab === "audit") {
+        data = await eveyFetch<unknown>({ url: "/api/v1/admin/audit-log?limit=10000", method: "GET" });
+        filename = `audit-log-${timestamp}.json`;
+      } else {
+        data = await activityServiceGetServerStats();
+        filename = `server-stats-${timestamp}.json`;
+      }
+      await Share.share({ title: filename, message: JSON.stringify(data, null, 2) });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t("common.export", "Export JSON"));
+    }
+    setExporting(false);
+  }, [tab, t]);
 
   const tabs: Array<{ id: Tab; label: string }> = [
     { id: "play", label: t("admin.activity.tabs.playHistory", "Play History") },
@@ -279,6 +362,21 @@ export default function AdminActivityScreen() {
         title: t("admin.activity.title", "Activity"),
         headerStyle: { backgroundColor: theme.colors.surface },
         headerTintColor: theme.colors.text,
+        headerRight: () => (
+          <Pressable
+            onPress={handleExport}
+            disabled={exporting}
+            style={{ marginRight: 8, opacity: exporting ? 0.5 : 1 }}
+            accessibilityRole="button"
+            accessibilityLabel={t("common.export", "Export JSON")}
+          >
+            {exporting ? (
+              <ActivityIndicator size="small" color={theme.colors.accent} />
+            ) : (
+              <Ionicons name="download-outline" size={22} color={theme.colors.accent} />
+            )}
+          </Pressable>
+        ),
       }} />
 
       <View style={[styles.tabBar, { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border }]}>
