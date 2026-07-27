@@ -25,22 +25,29 @@ import (
 const artworkResizeTimeout = 10 * time.Second
 
 // artworkResizeGroup collapses concurrent requests for the SAME resized
-// variant into one ffmpeg invocation. A poster grid loading dozens of cold
-// thumbnails, or two tabs open on the same title, otherwise raced two ffmpeg
-// processes to write the identical dstPath - wasted work, and a torn file if
-// one lost the race mid-write. Same motif as the remux handler's own
-// singleflight.Group (remux_handler.go): keyed on the output path, winner's
-// error is shared with waiters but never cached, so the next request retries.
+// variant, OR the same full-resolution WebP conversion (see resolveWebP /
+// ensureArtworkWebP below), into one ffmpeg invocation. A poster grid loading
+// dozens of cold thumbnails, or two tabs open on the same title, otherwise
+// raced two ffmpeg processes to write the identical dstPath - wasted work,
+// and a torn file if one lost the race mid-write. Same motif as the remux
+// handler's own singleflight.Group (remux_handler.go): keyed on the output
+// path, winner's error is shared with waiters but never cached, so the next
+// request retries. The two flows share this one group rather than each
+// getting their own - see ensureArtworkWebP for why their keys still can't
+// collide.
 var artworkResizeGroup singleflight.Group
 
-// artworkResizeMaxConcurrent bounds how many ffmpeg resize processes run at
-// once, across ALL in-flight artwork requests. The NAS this project targets
-// can barely sustain the operator's configured HLS session count (operators
-// are told to floor TranscodingConfig.MaxSessions at 1-2 on the weakest
-// hardware, see config.go) - a cold poster grid must not pile a dozen extra
-// ffmpeg processes on top of that and starve the transcode an actual viewer
-// is waiting on. 2 matches that same floor: enough to keep a grid moving,
-// low enough that it can never itself become the bottleneck.
+// artworkResizeMaxConcurrent bounds how many ffmpeg resize OR full-resolution
+// WebP conversion processes run at once, across ALL in-flight artwork
+// requests. The NAS this project targets can barely sustain the operator's
+// configured HLS session count (operators are told to floor
+// TranscodingConfig.MaxSessions at 1-2 on the weakest hardware, see
+// config.go) - a cold poster grid must not pile a dozen extra ffmpeg
+// processes on top of that and starve the transcode an actual viewer is
+// waiting on. 2 matches that same floor: enough to keep a grid moving, low
+// enough that it can never itself become the bottleneck. Both flows share
+// this one budget - a full-res WebP conversion is exactly as expensive as a
+// resize for this purpose, so there's no reason to give them separate caps.
 const artworkResizeMaxConcurrent = 2
 
 var artworkResizeSem = make(chan struct{}, artworkResizeMaxConcurrent)
@@ -401,13 +408,25 @@ func (h *mediaServe) cachedParentID(ctx context.Context, id string) (string, err
 	return parent.ParentID, nil
 }
 
+// resolveWebP returns the path to a full-resolution WebP copy of rec's local
+// artwork, generating it if needed. rec.WebPPath is read and written ONLY from
+// inside ensureArtworkWebP's singleflight closure (never here directly): the
+// SAME *ArtworkRecord can be shared across concurrent sibling requests (see
+// cachedArtworkRecords, the ancestor/parent-chain memoisation a season's
+// episodes all hit), so a bare pre-check here - before any goroutine has
+// entered the singleflight call - would read that field unsynchronized with
+// another goroutine's write to it, a genuine data race, not just a missed
+// coalescing opportunity. h.imgConverter itself never changes after the
+// handler is constructed, so the h.imgConverter == nil case is the one
+// rec.WebPPath read that's safe outside the flight: no request ever mutates
+// the field when there is no converter to run.
 func (h *mediaServe) resolveWebP(ctx context.Context, rec *domainmeta.ArtworkRecord) string {
-	if rec.WebPPath != nil && *rec.WebPPath != "" {
-		if _, err := os.Stat(*rec.WebPPath); err == nil {
-			return *rec.WebPPath
-		}
-	}
 	if h.imgConverter == nil || rec.LocalPath == nil || *rec.LocalPath == "" {
+		if rec.WebPPath != nil && *rec.WebPPath != "" {
+			if _, err := os.Stat(*rec.WebPPath); err == nil {
+				return *rec.WebPPath
+			}
+		}
 		return ""
 	}
 	ext := ""
@@ -415,17 +434,65 @@ func (h *mediaServe) resolveWebP(ctx context.Context, rec *domainmeta.ArtworkRec
 		ext = (*rec.LocalPath)[idx:]
 	}
 	webpPath := strings.TrimSuffix(*rec.LocalPath, ext) + ".webp"
-	if err := h.imgConverter.ConvertToWebP(ctx, *rec.LocalPath, webpPath, 80); err != nil {
+	if err := h.ensureArtworkWebP(ctx, *rec.LocalPath, webpPath, rec); err != nil {
 		slog.WarnContext(ctx, "webp convert", slog.String("src", *rec.LocalPath), slog.Any("err", err))
 		return ""
 	}
-	rec.WebPPath = &webpPath
-	if h.artworkWriter != nil {
-		if err := h.artworkWriter.UpdateWebPPath(ctx, rec.ID, webpPath); err != nil {
-			slog.WarnContext(ctx, "save webp path", slog.Any("err", err))
-		}
-	}
 	return webpPath
+}
+
+// ensureArtworkWebP guarantees webpPath holds a valid full-resolution WebP
+// conversion of srcPath, converting it at most once even when many concurrent
+// requests target the SAME source image (a poster grid cold-loading, or two
+// tabs on the same title, previously raced N ConvertToWebP calls onto the
+// identical destination file - same defect ensureArtworkVariant already fixes
+// for the resized-variant path above). Reuses that SAME artworkResizeGroup
+// and artworkResizeSem rather than a second pair: it's the same limited
+// ffmpeg budget on the same weak NAS, whether the call resizes or just
+// re-encodes to WebP at full resolution.
+//
+// Keyed with a "webp:" prefix so this flow's singleflight keys can never
+// collide with ensureArtworkVariant's: today a resized variant path always
+// carries a "_wN" suffix a full-res webp path lacks (buildVariantPath vs the
+// TrimSuffix+".webp" above), so in practice the two are already distinct
+// strings - the prefix just stops that from being a silent invariant a future
+// naming change could break.
+//
+// The rec.WebPPath check happens INSIDE the closure, not before Do() is
+// called: singleflight's own internal mutex is what makes this safe across
+// the concurrent-sibling-record case above (its Lock/Unlock pairs establish
+// the happens-before a bare field read outside Do() would not get), and it
+// also does what ensureArtworkVariant's re-check-under-flight does for the
+// resize path - a request queued behind another one targeting the same image
+// may find it already produced by the time it gets to run.
+func (h *mediaServe) ensureArtworkWebP(ctx context.Context, srcPath, webpPath string, rec *domainmeta.ArtworkRecord) error {
+	_, err, _ := artworkResizeGroup.Do("webp:"+webpPath, func() (any, error) {
+		if rec.WebPPath != nil && *rec.WebPPath != "" {
+			if _, statErr := os.Stat(*rec.WebPPath); statErr == nil {
+				return nil, nil
+			}
+		}
+		artworkResizeSem <- struct{}{}
+		defer func() { <-artworkResizeSem }()
+		// Detached from the triggering request, identical contract to
+		// ensureArtworkVariant: a client that navigates away mid-convert must
+		// not abort the work every OTHER waiter on this same image is blocked
+		// on - including the DB persist right below, which every waiter also
+		// depends on to observe rec.WebPPath as set.
+		convertCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), artworkResizeTimeout)
+		defer cancel()
+		if err := h.imgConverter.ConvertToWebP(convertCtx, srcPath, webpPath, 80); err != nil {
+			return nil, err
+		}
+		rec.WebPPath = &webpPath
+		if h.artworkWriter != nil {
+			if err := h.artworkWriter.UpdateWebPPath(convertCtx, rec.ID, webpPath); err != nil {
+				slog.WarnContext(convertCtx, "save webp path", slog.Any("err", err))
+			}
+		}
+		return nil, nil
+	})
+	return err
 }
 
 func selectArtworkHandler(artworkRepo ArtworkRepo, libSvc MediaItemGetter, libraryAccess LibraryAccessChecker) http.HandlerFunc {

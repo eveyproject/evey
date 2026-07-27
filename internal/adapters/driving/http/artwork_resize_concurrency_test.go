@@ -34,19 +34,49 @@ func (staticLibraryAccessChecker) HasAccess(_ context.Context, _ shared.UserID, 
 // a test observe exactly how many resize calls are in flight at once, and how
 // many total calls were made - the two properties single-flight and the
 // concurrency bound must respectively collapse and cap.
+//
+// ConvertToWebP (the full-resolution, non-resized path) gets its OWN
+// entered/release/counters below: a test exercising the resize path only
+// (the two tests in this file) must never have its "exactly one entry"
+// assertions perturbed by an unrelated ConvertToWebP call, and vice versa.
 type blockingImageConverter struct {
 	entered chan struct{}
 	release chan struct{}
 	calls   atomic.Int32
 	peak    atomic.Int32
 	current atomic.Int32
+
+	webpEntered chan struct{}
+	webpRelease chan struct{}
+	webpCalls   atomic.Int32
+	webpPeak    atomic.Int32
+	webpCurrent atomic.Int32
 }
 
 func newBlockingImageConverter() *blockingImageConverter {
-	return &blockingImageConverter{entered: make(chan struct{}, 64), release: make(chan struct{})}
+	return &blockingImageConverter{
+		entered:     make(chan struct{}, 64),
+		release:     make(chan struct{}),
+		webpEntered: make(chan struct{}, 64),
+		webpRelease: make(chan struct{}),
+	}
 }
 
 func (c *blockingImageConverter) ConvertToWebP(_ context.Context, _, dst string, _ int) error {
+	c.webpCalls.Add(1)
+	cur := c.webpCurrent.Add(1)
+	for {
+		p := c.webpPeak.Load()
+		if cur <= p {
+			break
+		}
+		if c.webpPeak.CompareAndSwap(p, cur) {
+			break
+		}
+	}
+	c.webpEntered <- struct{}{}
+	<-c.webpRelease
+	c.webpCurrent.Add(-1)
 	return os.WriteFile(dst, []byte("full"), 0644)
 }
 
