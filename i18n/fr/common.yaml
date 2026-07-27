@@ -47,6 +47,7 @@ appearanceDesc: "Choisissez votre thème et votre langue."
 theme: Thème
 language: Langue
 languageDesc: Choisissez votre langue préférée
+languageSyncFailed: Langue enregistrée localement, mais la synchronisation avec le serveur a échoué
 audioLanguage: Langue audio préférée
 audioLanguageDesc: Piste audio par défaut lorsqu'un fichier contient plusieurs langues
 subtitleLanguage: Langue des sous-titres préférée
@@ -56,6 +57,7 @@ region:
   title: Région
   desc: Utilisée pour les classifications de contenu et les préférences régionales.
   auto: Automatique
+  updateFailed: Échec de la mise à jour de la région
 newKey: Nouvelle clé
 copyKey: Copier la clé
 unableToLoadNotifications: Impossible de charger les notifications
@@ -180,6 +182,8 @@ feeds:
   customize: Personnaliser
   customizeTitle: "Personnaliser l'accueil"
   resetDefaults: "Réinitialiser"
+  moveUp: Déplacer la section vers le haut
+  moveDown: Déplacer la section vers le bas
   labels:
     resume_playback: "Reprendre la lecture"
     next_up: "À suivre"

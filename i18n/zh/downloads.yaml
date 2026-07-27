@@ -4,4 +4,5 @@ deleteTitle: 删除下载
 deleteConfirm: 从此设备移除"{{title}}"？
 empty: 暂无下载
 inProgress: "{{percent}}%"
+downloading: "下载中..."
 totalSize: "此设备已使用 {{size}}"

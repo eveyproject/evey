@@ -47,6 +47,7 @@ appearanceDesc: "Wählen Sie Ihr Farbdesign und Ihre Sprache."
 theme: Design
 language: Sprache
 languageDesc: Wählen Sie Ihre bevorzugte Sprache
+languageSyncFailed: Sprache lokal gespeichert, aber Synchronisierung mit dem Server ist fehlgeschlagen
 audioLanguage: Bevorzugte Audiosprache
 audioLanguageDesc: Standard-Audiospur, wenn eine Datei mehrere Sprachen hat
 subtitleLanguage: Bevorzugte Untertitelsprache
@@ -56,6 +57,7 @@ region:
   title: Region
   desc: Für Inhaltsklassifizierungen und regionale Einstellungen.
   auto: Automatisch
+  updateFailed: Region konnte nicht aktualisiert werden
 newKey: Neuer Schlüssel
 copyKey: Schlüssel kopieren
 unableToLoadNotifications: Benachrichtigungen konnten nicht geladen werden
@@ -196,6 +198,8 @@ feeds:
   customize: Anpassen
   customizeTitle: Startseite anpassen
   resetDefaults: Zurücksetzen
+  moveUp: Bereich nach oben verschieben
+  moveDown: Bereich nach unten verschieben
   labels:
     resume_playback: Wiedergabe fortsetzen
     next_up: Als Nächstes

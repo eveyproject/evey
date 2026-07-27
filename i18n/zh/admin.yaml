@@ -51,6 +51,7 @@ logs:
   resultCount_other: "{{count}} 条记录"
   liveCount_one: "{{count}} 条实时记录"
   liveCount_other: "{{count}} 条实时记录"
+  liveUnavailableMobile: "移动端暂不支持实时跟踪 - 请使用下方的搜索。"
   sessionId: "会话 ID"
   userId: "用户 ID"
   mediaId: "媒体 ID"
@@ -135,6 +136,7 @@ plugin:
   hashCopied: "哈希值已复制"
   sandboxedFront: "沙箱小部件"
   frontLoadError: "小部件加载失败"
+  updateApplied: "插件已更新"
   state:
     running: "运行中"
     starting: "启动中…"
@@ -184,6 +186,8 @@ plugins:
   installPlugin: "安装插件"
   uploadFile: "上传文件"
   fromUrl: "从 URL 安装"
+  installFromUrl: "从 URL 安装"
+  installFromUrlHint: "粘贴插件 .zip 的 URL - 可选择附加 #sha256:<hash> 以验证下载。"
   chooseFile: "选择文件..."
   previewInstall: "预览并安装"
   pluginFileZip: "插件文件 (.zip)"
@@ -199,6 +203,7 @@ plugins:
   subprocessRequired: "需要子进程权限"
   subprocessWarning: "此插件可以执行系统命令，绕过 seccomp 沙箱。请仅在信任作者时安装。"
   noPlugins: "未安装任何插件。"
+  notFound: "此插件未安装、未启用，或没有管理页面。"
   pluginEnabled: "插件已启用"
   pluginDisabled: "插件已禁用"
   pluginInstalled: "插件已安装"
@@ -206,6 +211,8 @@ plugins:
   failedEnable: "启用插件失败"
   failedDisable: "禁用插件失败"
   failedUninstall: "卸载插件失败"
+  toggleFailed: "切换插件状态失败"
+  uninstallFailed: "卸载插件失败"
   uninstallTitle: "卸载插件"
   uninstallConfirm: "确定卸载插件「{{name}}」？此操作无法撤销。"
   selectFileFirst: "请先选择插件文件"
@@ -247,6 +254,8 @@ dashboard:
   ffmpeg: "FFmpeg"
   uptime: "运行时间"
   autoRefresh: "更新于 {{time}} · 每 {{interval}} 自动刷新"
+
+scanning: "扫描中..."
 
 users:
   maxProfilesInvalid: "最大配置文件数必须是大于等于 0 的整数"
@@ -314,6 +323,7 @@ users:
   inviteLibraries: "可访问的媒体库"
   inviteLibrariesHelp: "留空则授予所有媒体库的访问权限。"
   noUsers: "未找到用户"
+  userNotFound: "未找到用户"
   noInvites: "没有邀请链接"
   editUser: "编辑用户"
   failedCreateInvite: "创建邀请链接失败"
@@ -744,6 +754,12 @@ serverConfig:
   introProvidersTidbSubmit: "向 TheIntroDB 贡献检测结果"
   introProvidersTidbSubmitDesc: "启用后，高置信度的 phash 检测结果（>= 95%）将匿名提交至 TheIntroDB。需要有效的 API 密钥。选择性参与。"
 
+intro:
+  enabled: "启用社区片头/回顾提供商"
+  providersTitle: "片头提供商"
+  restartHint: "重启服务器以使更改生效。"
+  tidbSubmit: "将检测到的片段提交给 TheIntroDB"
+
 remoteAccess:
   title: "远程访问"
   enableRemoteAccess: "启用远程访问"
@@ -808,6 +824,7 @@ transcodeCache:
   transcodingSettings: "转码设置"
   hwAccelNote: "硬件加速在服务器配置 → 编码校准中设置。"
   hwAccelNoteLink: "前往服务器配置"
+  hwDevices: "硬件加速"
 
 dashboardStats:
   movies: "电影"
@@ -1126,6 +1143,9 @@ segments:
   timeline: "时间轴"
   emptyState: "未检测到片段。请在下方添加片段或启动自动检测。"
   addLabel: "添加："
+  add: "添加片段："
+  start: "开始 分:秒"
+  end: "结束 分:秒"
   startLabel: "开始 分:秒"
   endLabel: "结束 分:秒"
   noChanges: "没有需要保存的更改。"

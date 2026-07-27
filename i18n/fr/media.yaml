@@ -258,6 +258,11 @@ detail:
   downloadFailed: Échec du téléchargement
   downloadNoSpace: "Espace de stockage insuffisant sur l'appareil pour ce téléchargement."
   communityRating: 'Communauté : {{average}}/5 ({{count}} avis)'
+  downloadAllEpisodes: Tout télécharger
+  invalidRating: La note doit être comprise entre 0 et 10
+  invalidYear: Année invalide
+  showMoreEpisodes: Voir plus
+  tooLong: La valeur est trop longue
 certBody:
   FR: CSA
   US: MPAA
@@ -342,6 +347,7 @@ music:
   playlistCreated: Playlist créée
   addedToPlaylist: Ajouté à la playlist
   createPlaylistPrompt: Nom de la playlist
+  removeFromQueue: Retirer de la file
 photos:
   title: Photos
   albums: Albums
@@ -357,6 +363,8 @@ photos:
   photoCount_other: "{{count}} photos"
 created: Créé
 updated: Mis à jour
+downloadComplete: Téléchargement terminé
+downloadFailed: Échec du téléchargement
 syncplay:
   connected: Connecté
   connecting: "Connexion..."
@@ -386,6 +394,8 @@ syncplay:
   join: Rejoindre une salle
   joinRoom: Rejoindre
   codeLabel: Code
+  codeInput: Code de la salle
+  invalidCode: Saisis le code de salle à 5 chiffres.
   members: membres
   sharedTrack: Piste partagée
   followingHost: "Vous êtes synchronisé avec l'hôte."

@@ -74,6 +74,7 @@ fonts:
   comicSans: "Comic Sans"
 quality:
   original: "原画质"
+  auto: "自动"
 nextEpisodeOverlay:
   upNext: "即将播放"
   nextIn: "{{seconds}} 秒后播放"

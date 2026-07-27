@@ -247,6 +247,11 @@ detail:
   downloadFailed: 下载失败
   downloadNoSpace: "设备存储空间不足，无法完成此下载。"
   communityRating: 社区：{{average}}/5（{{count}} 条评分）
+  downloadAllEpisodes: "全部下载"
+  invalidRating: "评分必须介于 0 到 10 之间"
+  invalidYear: "无效的年份"
+  showMoreEpisodes: "显示更多"
+  tooLong: "值过长"
   identify:
     title: "在 TMDB 上识别"
     openButton: "在 TMDB 上识别"
@@ -342,6 +347,7 @@ music:
   playlistCreated: 播放列表已创建
   addedToPlaylist: 已添加到播放列表
   createPlaylistPrompt: 播放列表名称
+  removeFromQueue: "从队列移除"
 photos:
   title: 照片
   albums: 相册
@@ -357,6 +363,8 @@ photos:
   photoCount_other: "{{count}} 张照片"
 created: 已创建
 updated: 已更新
+downloadComplete: "下载完成"
+downloadFailed: "下载失败"
 syncplay:
   connected: 已连接
   connecting: "连接中..."
@@ -386,6 +394,8 @@ syncplay:
   join: 加入房间
   joinRoom: 加入
   codeLabel: 代码
+  codeInput: "房间代码"
+  invalidCode: "请输入 5 位房间代码。"
   members: 成员
   sharedTrack: 共享曲目
   followingHost: "您已与主持人同步。"

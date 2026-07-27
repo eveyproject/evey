@@ -124,6 +124,7 @@ profile:
     title: Manage Profiles
     description: "Add, edit, or remove profiles. The default profile cannot be deleted."
     createProfile: Create Profile
+    noProfiles: No profiles yet.
     deleteConfirm: "Delete profile \"{{name}}\"? This cannot be undone."
     defaultProfileBadge: Default
     kidsBadge: Kids
@@ -142,6 +143,7 @@ profile:
     maxAge: Max age rating
     locale: Language
     region: Region
+    localeAuto: Automatic
 settings:
   title: Settings
   tabs:
@@ -202,6 +204,7 @@ settings:
     passwordMismatch: Passwords do not match
     passwordMin: Password must be at least 8 characters
     profileUpdated: Profile updated
+    updateFailed: Update failed
   parental:
     title: Parental Controls
     enable: Enable parental controls

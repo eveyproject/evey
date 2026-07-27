@@ -4,4 +4,5 @@ deleteTitle: Supprimer le téléchargement
 deleteConfirm: Retirer "{{title}}" de cet appareil ?
 empty: Aucun téléchargement pour le moment
 inProgress: "{{percent}}%"
+downloading: Téléchargement...
 totalSize: "{{size}} utilisés sur cet appareil"

@@ -124,6 +124,7 @@ profile:
     title: "प्रोफ़ाइल प्रबंधित करें"
     description: "प्रोफ़ाइल जोड़ें, संपादित करें या हटाएँ। डिफ़ॉल्ट प्रोफ़ाइल को हटाया नहीं जा सकता।"
     createProfile: "प्रोफ़ाइल बनाएँ"
+    noProfiles: "अभी तक कोई प्रोफ़ाइल नहीं।"
     deleteConfirm: "प्रोफ़ाइल \"{{name}}\" हटाएँ? यह क्रिया पूर्ववत नहीं की जा सकती।"
     defaultProfileBadge: "डिफ़ॉल्ट"
     kidsBadge: "बच्चा"
@@ -142,6 +143,7 @@ profile:
     maxAge: "अधिकतम आयु रेटिंग"
     locale: "भाषा"
     region: "क्षेत्र"
+    localeAuto: "स्वचालित"
 settings:
   title: "सेटिंग्स"
   tabs:
@@ -202,6 +204,7 @@ settings:
     passwordMismatch: "पासवर्ड मेल नहीं खाते"
     passwordMin: "पासवर्ड कम से कम 8 अक्षरों का होना चाहिए"
     profileUpdated: प्रोफ़ाइल अपडेट हुई
+    updateFailed: "अपडेट करने में विफल"
   parental:
     title: "अभिभावक नियंत्रण"
     enable: "अभिभावक नियंत्रण सक्षम करें"

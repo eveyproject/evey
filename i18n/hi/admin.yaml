@@ -51,6 +51,7 @@ logs:
   resultCount_other: "{{count}} प्रविष्टियां"
   liveCount_one: "{{count}} लाइव प्रविष्टि"
   liveCount_other: "{{count}} लाइव प्रविष्टियां"
+  liveUnavailableMobile: "मोबाइल पर लाइव ट्रैकिंग अभी उपलब्ध नहीं है - नीचे दी गई खोज का उपयोग करें।"
   sessionId: "सत्र ID"
   userId: "उपयोगकर्ता ID"
   mediaId: "मीडिया ID"
@@ -135,6 +136,7 @@ plugin:
   hashCopied: "हैश कॉपी हो गया"
   sandboxedFront: "सैंडबॉक्स्ड विजेट"
   frontLoadError: "विजेट लोड करने में विफल"
+  updateApplied: "प्लगइन अपडेट किया गया"
   state:
     running: "चल रहा है"
     starting: "शुरू हो रहा है…"
@@ -184,6 +186,8 @@ plugins:
   installPlugin: "प्लगइन इंस्टॉल करें"
   uploadFile: "फ़ाइल अपलोड करें"
   fromUrl: "URL से"
+  installFromUrl: "URL से इंस्टॉल करें"
+  installFromUrlHint: "प्लगइन .zip URL पेस्ट करें - डाउनलोड सत्यापित करने के लिए वैकल्पिक रूप से #sha256:<hash> जोड़ें।"
   chooseFile: "फ़ाइल चुनें..."
   previewInstall: "पूर्वावलोकन और इंस्टॉल"
   pluginFileZip: "प्लगइन फ़ाइल (.zip)"
@@ -199,6 +203,7 @@ plugins:
   subprocessRequired: "सबप्रोसेस अनुमति आवश्यक"
   subprocessWarning: "यह प्लगइन सिस्टम कमांड चला सकता है, seccomp सैंडबॉक्स को बायपास करते हुए। केवल तभी इंस्टॉल करें जब आप लेखक पर भरोसा करते हैं।"
   noPlugins: "कोई प्लगइन इंस्टॉल नहीं है।"
+  notFound: "यह प्लगइन इंस्टॉल नहीं है, सक्षम नहीं है, या इसका कोई एडमिन पेज नहीं है।"
   pluginEnabled: "प्लगइन सक्षम"
   pluginDisabled: "प्लगइन अक्षम"
   pluginInstalled: "प्लगइन इंस्टॉल हुआ"
@@ -206,6 +211,8 @@ plugins:
   failedEnable: "प्लगइन सक्षम करने में विफल"
   failedDisable: "प्लगइन अक्षम करने में विफल"
   failedUninstall: "प्लगइन अनइंस्टॉल करने में विफल"
+  toggleFailed: "प्लगइन की स्थिति बदलने में विफल"
+  uninstallFailed: "प्लगइन अनइंस्टॉल करने में विफल"
   uninstallTitle: "प्लगइन अनइंस्टॉल करें"
   uninstallConfirm: "प्लगइन \"{{name}}\" अनइंस्टॉल करें? यह क्रिया पूर्ववत नहीं की जा सकती।"
   selectFileFirst: "पहले प्लगइन फ़ाइल चुनें"
@@ -247,6 +254,8 @@ dashboard:
   ffmpeg: "FFmpeg"
   uptime: "अपटाइम"
   autoRefresh: "अपडेट {{time}} · हर {{interval}} ऑटो-रिफ्रेश"
+
+scanning: "स्कैन हो रहा है..."
 
 users:
   maxProfilesInvalid: "अधिकतम प्रोफ़ाइल एक पूर्ण संख्या >= 0 होनी चाहिए"
@@ -314,6 +323,7 @@ users:
   inviteLibraries: "सुलभ लाइब्रेरी"
   inviteLibrariesHelp: "सभी लाइब्रेरी तक पहुँच देने के लिए खाली छोड़ें।"
   noUsers: "कोई उपयोगकर्ता नहीं मिला"
+  userNotFound: "उपयोगकर्ता नहीं मिला"
   noInvites: "कोई आमंत्रण लिंक नहीं"
   editUser: "उपयोगकर्ता संपादित करें"
   failedCreateInvite: "आमंत्रण लिंक बनाने में विफल"
@@ -744,6 +754,12 @@ serverConfig:
   introProvidersTidbSubmit: "TheIntroDB में पहचान योगदान करें"
   introProvidersTidbSubmitDesc: "सक्षम होने पर, उच्च-विश्वास phash पहचान (>= 95%) अनाम रूप से TheIntroDB को भेजी जाती हैं। वैध API कुंजी आवश्यक है। Opt-in।"
 
+intro:
+  enabled: "सामुदायिक इंट्रो/रीकैप प्रदाता सक्षम करें"
+  providersTitle: "इंट्रो प्रदाता"
+  restartHint: "परिवर्तन लागू होने के लिए सर्वर पुनरारंभ करें।"
+  tidbSubmit: "पहचाने गए सेगमेंट TheIntroDB को सबमिट करें"
+
 remoteAccess:
   title: "रिमोट एक्सेस"
   enableRemoteAccess: "रिमोट एक्सेस सक्षम करें"
@@ -808,6 +824,7 @@ transcodeCache:
   transcodingSettings: "ट्रांसकोडिंग सेटिंग्स"
   hwAccelNote: "हार्डवेयर एक्सेलेरेशन सर्वर कॉन्फ़िगरेशन → एन्कोड कैलिब्रेशन में कॉन्फ़िगर किया जाता है।"
   hwAccelNoteLink: "सर्वर कॉन्फ़िगरेशन पर जाएं"
+  hwDevices: "हार्डवेयर एक्सेलेरेशन"
 
 dashboardStats:
   movies: "फ़िल्में"
@@ -1126,6 +1143,9 @@ segments:
   timeline: "टाइमलाइन"
   emptyState: "कोई सेगमेंट नहीं मिला। नीचे एक सेगमेंट जोड़ें या स्वचालित पहचान चलाएं।"
   addLabel: "जोड़ें:"
+  add: "सेगमेंट जोड़ें:"
+  start: "प्रारंभ mm:ss"
+  end: "अंत mm:ss"
   startLabel: "प्रारंभ mm:ss"
   endLabel: "अंत mm:ss"
   noChanges: "सहेजने के लिए कोई बदलाव नहीं।"

@@ -247,6 +247,11 @@ detail:
   downloadFailed: Download fehlgeschlagen
   downloadNoSpace: "Nicht genug Speicherplatz auf dem Gerät für diesen Download."
   communityRating: 'Community: {{average}}/5 ({{count}} Bewertungen)'
+  downloadAllEpisodes: Alle herunterladen
+  invalidRating: Bewertung muss zwischen 0 und 10 liegen
+  invalidYear: Ungültiges Jahr
+  showMoreEpisodes: Mehr anzeigen
+  tooLong: Wert ist zu lang
   identify:
     title: Auf TMDB identifizieren
     openButton: Auf TMDB identifizieren
@@ -342,6 +347,7 @@ music:
   playlistCreated: Playlist erstellt
   addedToPlaylist: Zur Playlist hinzugefügt
   createPlaylistPrompt: Playlist-Name
+  removeFromQueue: Aus Warteschlange entfernen
 photos:
   title: Fotos
   albums: Alben
@@ -357,6 +363,8 @@ photos:
   photoCount_other: "{{count}} Fotos"
 created: Erstellt
 updated: Aktualisiert
+downloadComplete: Download abgeschlossen
+downloadFailed: Download fehlgeschlagen
 syncplay:
   connected: Verbunden
   connecting: "Verbinden..."
@@ -386,6 +394,8 @@ syncplay:
   join: Raum beitreten
   joinRoom: Beitreten
   codeLabel: Code
+  codeInput: Raumcode
+  invalidCode: Gib den 5-stelligen Raumcode ein.
   members: Mitglieder
   sharedTrack: Geteilter Titel
   followingHost: "Sie sind mit dem Host synchronisiert."

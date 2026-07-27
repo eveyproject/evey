@@ -124,6 +124,7 @@ profile:
     title: "管理个人资料"
     description: "添加、编辑或删除个人资料。默认个人资料无法删除。"
     createProfile: "创建个人资料"
+    noProfiles: "暂无个人资料。"
     deleteConfirm: "删除个人资料 \"{{name}}\"？此操作无法撤消。"
     defaultProfileBadge: "默认"
     kidsBadge: "儿童"
@@ -142,6 +143,7 @@ profile:
     maxAge: "最大年龄分级"
     locale: "语言"
     region: "地区"
+    localeAuto: "自动"
 settings:
   title: "设置"
   tabs:
@@ -202,6 +204,7 @@ settings:
     passwordMismatch: "密码不匹配"
     passwordMin: "密码至少需要 8 个字符"
     profileUpdated: 个人资料已更新
+    updateFailed: "更新失败"
   parental:
     title: "家长控制"
     enable: "启用家长控制"

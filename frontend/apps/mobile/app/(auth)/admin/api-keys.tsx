@@ -107,7 +107,7 @@ export default function AdminAPIKeysScreen() {
             onPress={() => setShowCreate(true)}
             style={{ marginRight: 16 }}
             accessibilityRole="button"
-            accessibilityLabel={t("apiKeys.newKeyTitle")}
+            accessibilityLabel={t("auth.apiKeys.newKeyTitle")}
           >
             <Ionicons name="add" size={24} color={theme.colors.accent} />
           </Pressable>
@@ -154,7 +154,7 @@ export default function AdminAPIKeysScreen() {
                   onPress={() => handleRevoke(item.id, item.name)}
                   hitSlop={8}
                   accessibilityRole="button"
-                  accessibilityLabel={t("apiKeys.revokeTitle")}
+                  accessibilityLabel={t("auth.apiKeys.revokeTitle")}
                 >
                   <Ionicons name="trash-outline" size={18} color={theme.colors.error} />
                 </Pressable>

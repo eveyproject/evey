@@ -74,6 +74,7 @@ fonts:
   comicSans: Comic Sans
 quality:
   original: Original
+  auto: Auto
 nextEpisodeOverlay:
   upNext: Up Next
   nextIn: "Next in {{seconds}}s"

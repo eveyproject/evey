@@ -51,6 +51,7 @@ logs:
   resultCount_other: "{{count}} Einträge"
   liveCount_one: "{{count}} Live-Eintrag"
   liveCount_other: "{{count}} Live-Einträge"
+  liveUnavailableMobile: Live-Verfolgung ist auf Mobilgeräten noch nicht verfügbar - nutze die Suche unten.
   sessionId: Sitzungs-ID
   userId: Benutzer-ID
   mediaId: Medien-ID
@@ -135,6 +136,7 @@ plugin:
   hashCopied: "Hash kopiert"
   sandboxedFront: Sandboxed-Front-Modul
   frontLoadError: Front-Modul konnte nicht geladen werden
+  updateApplied: Plugin aktualisiert
   state:
     running: Läuft
     starting: "Startet..."
@@ -184,6 +186,8 @@ plugins:
   installPlugin: Plugin installieren
   uploadFile: Datei hochladen
   fromUrl: Von URL
+  installFromUrl: Von URL installieren
+  installFromUrlHint: "Füge die URL eines Plugin-.zip ein - optional #sha256:<hash> anhängen, um den Download zu verifizieren."
   chooseFile: "Datei auswählen..."
   previewInstall: Vorschau & Installieren
   pluginFileZip: Plugin-Datei (.zip)
@@ -199,6 +203,7 @@ plugins:
   subprocessRequired: Unterprozess-Berechtigung erforderlich
   subprocessWarning: Dieses Plugin kann Systembefehle ausführen und die seccomp-Sandbox umgehen. Nur installieren, wenn Sie dem Autor vertrauen.
   noPlugins: Keine Plugins installiert.
+  notFound: Dieses Plugin ist nicht installiert, nicht aktiviert oder hat keine Admin-Seite.
   pluginEnabled: Plugin aktiviert
   pluginDisabled: Plugin deaktiviert
   pluginInstalled: Plugin installiert
@@ -206,6 +211,8 @@ plugins:
   failedEnable: Plugin konnte nicht aktiviert werden
   failedDisable: Plugin konnte nicht deaktiviert werden
   failedUninstall: Plugin konnte nicht deinstalliert werden
+  toggleFailed: Plugin-Status konnte nicht geändert werden
+  uninstallFailed: Plugin konnte nicht deinstalliert werden
   uninstallTitle: Plugin deinstallieren
   uninstallConfirm: "Plugin \"{{name}}\" deinstallieren? Dies kann nicht rückgängig gemacht werden."
   selectFileFirst: Bitte zuerst eine Plugin-Datei auswählen
@@ -247,6 +254,8 @@ dashboard:
   ffmpeg: FFmpeg
   uptime: Betriebszeit
   autoRefresh: "Aktualisiert {{time}} · automatische Aktualisierung alle {{interval}}"
+
+scanning: Wird gescannt...
 
 users:
   maxProfilesInvalid: "Maximale Profilanzahl muss eine ganze Zahl >= 0 sein"
@@ -314,6 +323,7 @@ users:
   inviteLibraries: Zugängliche Bibliotheken
   inviteLibrariesHelp: "Leer lassen, um Zugriff auf alle Bibliotheken zu gewähren."
   noUsers: Keine Benutzer gefunden
+  userNotFound: Benutzer nicht gefunden
   noInvites: Keine Einladungslinks
   editUser: Benutzer bearbeiten
   failedCreateInvite: Einladungslink konnte nicht erstellt werden
@@ -744,6 +754,12 @@ serverConfig:
   artworkRetryDone: "Erneuter Download abgeschlossen: {{succeeded}} erfolgreich, {{failed}} fehlgeschlagen."
   artworkRetryStarted: "Artwork-Wiederholung gestartet - läuft im Hintergrund."
 
+intro:
+  enabled: Community-Intro-/Recap-Anbieter aktivieren
+  providersTitle: Intro-Anbieter
+  restartHint: Serverneustart erforderlich, damit die Änderungen wirksam werden.
+  tidbSubmit: Erkannte Segmente an TheIntroDB übermitteln
+
 remoteAccess:
   title: Fernzugriff
   enableRemoteAccess: Fernzugriff aktivieren
@@ -808,6 +824,7 @@ transcodeCache:
   transcodingSettings: "Transkodierungs-Einstellungen"
   hwAccelNote: "Die Hardware-Beschleunigung wird in Serverkonfiguration → Encode-Kalibrierung konfiguriert."
   hwAccelNoteLink: "Zur Serverkonfiguration"
+  hwDevices: Hardware-Beschleunigung
 
 dashboardStats:
   movies: Filme
@@ -1126,6 +1143,9 @@ segments:
   timeline: Timeline
   emptyState: "Kein Segment erkannt. Füge unten ein Segment hinzu oder starte die automatische Erkennung."
   addLabel: "Hinzufügen:"
+  add: "Segment hinzufügen:"
+  start: "Start mm:ss"
+  end: "Ende mm:ss"
   startLabel: "Start mm:ss"
   endLabel: "Ende mm:ss"
   noChanges: "Keine Änderungen zu speichern."

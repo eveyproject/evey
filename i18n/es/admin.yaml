@@ -51,6 +51,7 @@ logs:
   resultCount_other: "{{count}} entradas"
   liveCount_one: "{{count}} entrada en vivo"
   liveCount_other: "{{count}} entradas en vivo"
+  liveUnavailableMobile: El seguimiento en vivo aún no está disponible en móvil - usa la búsqueda de abajo.
   sessionId: ID de sesión
   userId: ID de usuario
   mediaId: ID de medio
@@ -135,6 +136,7 @@ plugin:
   hashCopied: "Hash copiado"
   sandboxedFront: Módulo frontal aislado
   frontLoadError: Error al cargar el módulo frontal
+  updateApplied: Plugin actualizado
   state:
     running: En ejecución
     starting: "Iniciando…"
@@ -184,6 +186,8 @@ plugins:
   installPlugin: "Instalar Plugin"
   uploadFile: "Subir archivo"
   fromUrl: "Desde URL"
+  installFromUrl: Instalar desde URL
+  installFromUrlHint: "Pega la URL de un .zip de plugin - opcionalmente añade #sha256:<hash> para verificar la descarga."
   chooseFile: "Elegir archivo..."
   previewInstall: "Vista previa e instalar"
   pluginFileZip: "Archivo de plugin (.zip)"
@@ -199,6 +203,7 @@ plugins:
   subprocessRequired: "Permiso de subproceso requerido"
   subprocessWarning: "Este plugin puede ejecutar comandos del sistema, evitando el sandbox seccomp. Solo instálalo si confías en el autor."
   noPlugins: "No hay plugins instalados."
+  notFound: Este plugin no está instalado, no está activado o no tiene página de administración.
   pluginEnabled: "Plugin activado"
   pluginDisabled: "Plugin desactivado"
   pluginInstalled: "Plugin instalado"
@@ -206,6 +211,8 @@ plugins:
   failedEnable: "Error al activar el plugin"
   failedDisable: "Error al desactivar el plugin"
   failedUninstall: "Error al desinstalar el plugin"
+  toggleFailed: Error al cambiar el estado del plugin
+  uninstallFailed: Error al desinstalar el plugin
   uninstallTitle: "Desinstalar Plugin"
   uninstallConfirm: "¿Desinstalar el plugin \"{{name}}\"? Esta acción no se puede deshacer."
   selectFileFirst: "Selecciona un archivo de plugin primero"
@@ -247,6 +254,8 @@ dashboard:
   ffmpeg: "FFmpeg"
   uptime: "Tiempo activo"
   autoRefresh: "Actualizado {{time}} · se actualiza cada {{interval}}"
+
+scanning: Escaneando...
 
 users:
   maxProfilesInvalid: "El máximo de perfiles debe ser un número entero >= 0"
@@ -314,6 +323,7 @@ users:
   inviteLibraries: "Bibliotecas accesibles"
   inviteLibrariesHelp: "Dejar vacío para conceder acceso a todas las bibliotecas."
   noUsers: "No se encontraron usuarios"
+  userNotFound: Usuario no encontrado
   noInvites: "Sin enlaces de invitación"
   editUser: "Editar usuario"
   failedCreateInvite: "Error al crear el enlace de invitación"
@@ -744,6 +754,12 @@ serverConfig:
   introProvidersTidbSubmit: "Contribuir detecciones a TheIntroDB"
   introProvidersTidbSubmitDesc: "Cuando está activado, las detecciones phash de alta confianza (>= 95%) se envían anónimamente a TheIntroDB. Requiere una clave API válida. Opt-in."
 
+intro:
+  enabled: Activar proveedores comunitarios de intro/recap
+  providersTitle: Proveedores de intro
+  restartHint: Reinicia el servidor para que los cambios surtan efecto.
+  tidbSubmit: Enviar segmentos detectados a TheIntroDB
+
 remoteAccess:
   title: "Acceso remoto"
   enableRemoteAccess: "Activar acceso remoto"
@@ -808,6 +824,7 @@ transcodeCache:
   transcodingSettings: "Ajustes de transcodificación"
   hwAccelNote: "La aceleración de hardware se configura en Configuración del servidor → Calibración de codificación."
   hwAccelNoteLink: "Ir a Configuración del servidor"
+  hwDevices: Aceleración de hardware
 
 dashboardStats:
   movies: "Películas"
@@ -1126,6 +1143,9 @@ segments:
   timeline: "Línea de tiempo"
   emptyState: "No se detectó ningún segmento. Añade uno abajo o activa la detección automática."
   addLabel: "Añadir:"
+  add: "Añadir segmento:"
+  start: "Inicio mm:ss"
+  end: "Fin mm:ss"
   startLabel: "Inicio mm:ss"
   endLabel: "Fin mm:ss"
   noChanges: "No hay cambios que guardar."

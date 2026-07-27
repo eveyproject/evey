@@ -51,6 +51,7 @@ logs:
   resultCount_other: "{{count}} entrées"
   liveCount_one: "{{count}} entrée en direct"
   liveCount_other: "{{count}} entrées en direct"
+  liveUnavailableMobile: "Le suivi en direct n'est pas encore disponible sur mobile - utilise la recherche ci-dessous."
   sessionId: ID de session
   userId: ID utilisateur
   mediaId: ID média
@@ -134,6 +135,7 @@ plugin:
   hashCopied: "Empreinte copiée"
   sandboxedFront: Module frontal isolé
   frontLoadError: "Échec du chargement du module frontal"
+  updateApplied: Plugin mis à jour
   state:
     running: "En cours d'exécution"
     starting: "Démarrage…"
@@ -183,6 +185,8 @@ plugins:
   installPlugin: "Installer un Plugin"
   uploadFile: "Téléverser un fichier"
   fromUrl: "Depuis une URL"
+  installFromUrl: Installer depuis une URL
+  installFromUrlHint: "Colle l'URL d'un .zip de plugin - ajoute éventuellement #sha256:<hash> pour vérifier le téléchargement."
   chooseFile: "Choisir un fichier..."
   previewInstall: "Aperçu et installation"
   pluginFileZip: "Fichier plugin (.zip)"
@@ -198,6 +202,7 @@ plugins:
   subprocessRequired: "Permission de sous-processus requise"
   subprocessWarning: "Ce plugin peut exécuter des commandes système, contournant le sandbox seccomp. Installez-le uniquement si vous faites confiance à l'auteur."
   noPlugins: "Aucun plugin installé."
+  notFound: "Ce plugin n'est pas installé, pas activé, ou n'a pas de page d'administration."
   pluginEnabled: "Plugin activé"
   pluginDisabled: "Plugin désactivé"
   pluginInstalled: "Plugin installé"
@@ -205,6 +210,8 @@ plugins:
   failedEnable: "Échec de l'activation du plugin"
   failedDisable: "Échec de la désactivation du plugin"
   failedUninstall: "Échec de la désinstallation du plugin"
+  toggleFailed: "Échec du changement d'état du plugin"
+  uninstallFailed: Échec de la désinstallation du plugin
   uninstallTitle: "Désinstaller le Plugin"
   uninstallConfirm: "Désinstaller le plugin \"{{name}}\" ? Cette action est irréversible."
   selectFileFirst: "Sélectionnez d'abord un fichier plugin"
@@ -246,6 +253,8 @@ dashboard:
   ffmpeg: "FFmpeg"
   uptime: "Disponibilité"
   autoRefresh: "Mis à jour {{time}} · actualisation automatique toutes les {{interval}}"
+
+scanning: Analyse en cours...
 
 users:
   maxProfilesInvalid: "Le nombre maximum de profils doit être un entier >= 0"
@@ -313,6 +322,7 @@ users:
   inviteLibraries: "Bibliothèques accessibles"
   inviteLibrariesHelp: "Aucune sélection = toutes les bibliothèques visibles."
   noUsers: "Aucun utilisateur trouvé"
+  userNotFound: Utilisateur introuvable
   noInvites: "Aucun lien d'invitation"
   editUser: "Modifier l'utilisateur"
   failedCreateInvite: "Échec de la création du lien d'invitation"
@@ -743,6 +753,12 @@ serverConfig:
   introProvidersTidbSubmit: Contribuer les détections à TheIntroDB
   introProvidersTidbSubmitDesc: "Quand activé, les détections phash avec une confiance >= 95 % sont envoyées à TheIntroDB. Nécessite une clé API valide. Opt-in."
 
+intro:
+  enabled: "Activer les fournisseurs communautaires d'intro/récap"
+  providersTitle: "Fournisseurs d'intro"
+  restartHint: Redémarre le serveur pour que les changements prennent effet.
+  tidbSubmit: Soumettre les segments détectés à TheIntroDB
+
 remoteAccess:
   title: "Accès distant"
   enableRemoteAccess: "Activer l'accès distant"
@@ -807,6 +823,7 @@ transcodeCache:
   transcodingSettings: "Paramètres de transcodage"
   hwAccelNote: "L'accélération matérielle se configure dans Configuration serveur → Calibration d'encodage."
   hwAccelNoteLink: "Aller à Configuration serveur"
+  hwDevices: Accélération matérielle
 
 dashboardStats:
   movies: "Films"
@@ -1125,6 +1142,9 @@ segments:
   timeline: Timeline
   emptyState: "Aucun segment détecté. Ajoutez un segment ci-dessous ou déclenchez la détection auto."
   addLabel: "Ajouter :"
+  add: "Ajouter un segment :"
+  start: "Début mm:ss"
+  end: "Fin mm:ss"
   startLabel: "Début mm:ss"
   endLabel: "Fin mm:ss"
   noChanges: "Aucune modification à sauvegarder."

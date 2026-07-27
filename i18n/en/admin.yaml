@@ -51,6 +51,7 @@ logs:
   resultCount_other: "{{count}} entries"
   liveCount_one: "{{count}} live entry"
   liveCount_other: "{{count}} live entries"
+  liveUnavailableMobile: "Live tail isn't available on mobile yet - use the search below."
   sessionId: Session ID
   userId: User ID
   mediaId: Media ID
@@ -135,6 +136,7 @@ plugin:
   hashCopied: "Hash copied"
   sandboxedFront: Sandboxed front module
   frontLoadError: Front module failed to load
+  updateApplied: Plugin updated
   state:
     running: Running
     starting: "Starting..."
@@ -173,6 +175,8 @@ plugins:
   installPlugin: Install Plugin
   uploadFile: Upload File
   fromUrl: From URL
+  installFromUrl: Install from URL
+  installFromUrlHint: "Paste a plugin .zip URL - optionally append #sha256:<hash> to verify the download."
   chooseFile: "Choose file..."
   previewInstall: Preview & Install
   pluginFileZip: Plugin file (.zip)
@@ -188,6 +192,7 @@ plugins:
   subprocessRequired: Subprocess Permission Required
   subprocessWarning: This plugin can execute system commands, bypassing the seccomp sandbox. Only install if you trust the author.
   noPlugins: No plugins installed.
+  notFound: This plugin is not installed, enabled, or has no admin page.
   pluginEnabled: Plugin enabled
   pluginDisabled: Plugin disabled
   pluginInstalled: Plugin installed
@@ -195,6 +200,8 @@ plugins:
   failedEnable: Failed to enable plugin
   failedDisable: Failed to disable plugin
   failedUninstall: Failed to uninstall plugin
+  toggleFailed: Failed to toggle plugin
+  uninstallFailed: Failed to uninstall plugin
   uninstallTitle: Uninstall Plugin
   uninstallConfirm: "Uninstall plugin \"{{name}}\"? This cannot be undone."
   selectFileFirst: Select a plugin file first
@@ -247,6 +254,8 @@ dashboard:
   ffmpeg: FFmpeg
   uptime: Uptime
   autoRefresh: "Updated {{time}} · auto-refreshes every {{interval}}"
+
+scanning: Scanning...
 
 users:
   maxProfilesInvalid: "Max profiles must be a whole number >= 0"
@@ -314,6 +323,7 @@ users:
   inviteLibraries: Accessible libraries
   inviteLibrariesHelp: "Leave empty to grant access to all libraries."
   noUsers: No users found
+  userNotFound: User not found
   noInvites: No invite links
   editUser: Edit User
   failedCreateInvite: Failed to create invite link
@@ -744,6 +754,12 @@ serverConfig:
   introProvidersTidbSubmit: Contribute detections back to TheIntroDB
   introProvidersTidbSubmitDesc: When enabled, high-confidence phash detections (>= 95%) are submitted anonymously to TheIntroDB. Requires a valid API key. Opt-in.
 
+intro:
+  enabled: Enable community intro/recap providers
+  providersTitle: Intro Providers
+  restartHint: Restart server for changes to take effect.
+  tidbSubmit: Submit detected segments to TIDB
+
 remoteAccess:
   title: Remote Access
   enableRemoteAccess: Enable Remote Access
@@ -808,6 +824,7 @@ transcodeCache:
   transcodingSettings: "Transcoding Settings"
   hwAccelNote: "Hardware acceleration is configured in Server Config → Encode calibration."
   hwAccelNoteLink: "Go to Server Config"
+  hwDevices: Hardware Acceleration
 
 dashboardStats:
   movies: Movies
@@ -1126,6 +1143,9 @@ segments:
   timeline: Timeline
   emptyState: "No segment detected. Add a segment below or trigger auto detection."
   addLabel: "Add:"
+  add: "Add segment:"
+  start: "Start mm:ss"
+  end: "End mm:ss"
   startLabel: "Start mm:ss"
   endLabel: "End mm:ss"
   noChanges: "No changes to save."

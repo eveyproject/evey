@@ -47,6 +47,7 @@ appearanceDesc: "Choose your color theme and language."
 theme: Theme
 language: Language
 languageDesc: Choose your preferred language
+languageSyncFailed: "Language saved locally but couldn't sync to server"
 audioLanguage: Preferred Audio Language
 audioLanguageDesc: Default audio track when a file has multiple languages
 subtitleLanguage: Preferred Subtitle Language
@@ -56,6 +57,7 @@ region:
   title: Region
   desc: Used for content classifications and regional preferences.
   auto: Automatic
+  updateFailed: Failed to update region
 newKey: New Key
 copyKey: Copy Key
 unableToLoadNotifications: Unable to load notifications
@@ -196,6 +198,8 @@ feeds:
   customize: Customize
   customizeTitle: Customize Homepage
   resetDefaults: Reset to Defaults
+  moveUp: Move section up
+  moveDown: Move section down
   labels:
     resume_playback: Resume Playback
     next_up: Up Next

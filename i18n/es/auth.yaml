@@ -124,6 +124,7 @@ profile:
     title: "Gestionar perfiles"
     description: "Añade, edita o elimina perfiles. El perfil predeterminado no se puede eliminar."
     createProfile: "Crear perfil"
+    noProfiles: Aún no hay perfiles.
     deleteConfirm: "¿Eliminar el perfil \"{{name}}\"? Esta acción no se puede deshacer."
     defaultProfileBadge: "Predeterminado"
     kidsBadge: "Infantil"
@@ -142,6 +143,7 @@ profile:
     maxAge: "Clasificación de edad máxima"
     locale: "Idioma"
     region: "Región"
+    localeAuto: Automático
 settings:
   title: "Ajustes"
   tabs:
@@ -202,6 +204,7 @@ settings:
     passwordMismatch: "Las contraseñas no coinciden"
     passwordMin: "La contraseña debe tener al menos 8 caracteres"
     profileUpdated: Perfil actualizado
+    updateFailed: Error al actualizar
   parental:
     title: "Control parental"
     enable: "Activar control parental"

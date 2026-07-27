@@ -4,4 +4,5 @@ deleteTitle: Delete download
 deleteConfirm: Remove "{{title}}" from this device?
 empty: No downloads yet
 inProgress: "{{percent}}%"
+downloading: Downloading...
 totalSize: "{{size}} used on this device"

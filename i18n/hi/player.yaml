@@ -74,6 +74,7 @@ fonts:
   comicSans: "Comic Sans"
 quality:
   original: "मूल"
+  auto: "स्वचालित"
 nextEpisodeOverlay:
   upNext: "आगे आ रहा है"
   nextIn: "{{seconds}} सेकंड में अगला"

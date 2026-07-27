@@ -258,6 +258,11 @@ detail:
   downloadFailed: Download failed
   downloadNoSpace: "Not enough storage space on the device for this download."
   communityRating: 'Community: {{average}}/5 ({{count}} ratings)'
+  downloadAllEpisodes: Download all
+  invalidRating: Rating must be between 0 and 10
+  invalidYear: Invalid year
+  showMoreEpisodes: Show more
+  tooLong: Value is too long
 certBody:
   FR: CSA
   US: MPAA
@@ -342,6 +347,7 @@ music:
   playlistCreated: Playlist created
   addedToPlaylist: Added to playlist
   createPlaylistPrompt: Playlist name
+  removeFromQueue: Remove from queue
 photos:
   title: Photos
   albums: Albums
@@ -357,6 +363,8 @@ photos:
   photoCount_other: "{{count}} photos"
 created: Created
 updated: Updated
+downloadComplete: Download complete
+downloadFailed: Download failed
 syncplay:
   connected: Connected
   connecting: "Connecting..."
@@ -386,6 +394,8 @@ syncplay:
   join: Join a room
   joinRoom: Join room
   codeLabel: Code
+  codeInput: Room code
+  invalidCode: Enter the 5-digit room code.
   members: members
   sharedTrack: Shared track
   followingHost: "You're synced with the host."

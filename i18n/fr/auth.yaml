@@ -124,6 +124,7 @@ profile:
     title: "Gérer les profils"
     description: "Ajouter, modifier ou supprimer des profils. Le profil par défaut ne peut pas être supprimé."
     createProfile: "Créer un profil"
+    noProfiles: Pas encore de profil.
     deleteConfirm: "Supprimer le profil \"{{name}}\" ? Cette action est irréversible."
     defaultProfileBadge: "Par défaut"
     kidsBadge: "Enfant"
@@ -142,6 +143,7 @@ profile:
     maxAge: "Âge maximum"
     locale: "Langue"
     region: "Région"
+    localeAuto: Automatique
 settings:
   title: "Paramètres"
   tabs:
@@ -202,6 +204,7 @@ settings:
     passwordMismatch: "Les mots de passe ne correspondent pas"
     passwordMin: "Le mot de passe doit contenir au moins 8 caractères"
     profileUpdated: Profil mis à jour
+    updateFailed: Échec de la mise à jour
   parental:
     title: "Contrôle parental"
     enable: "Activer le contrôle parental"

@@ -47,6 +47,7 @@ appearanceDesc: "Elige tu tema y tu idioma."
 theme: "Tema"
 language: "Idioma"
 languageDesc: "Elige tu idioma preferido"
+languageSyncFailed: Idioma guardado localmente, pero no se pudo sincronizar con el servidor
 audioLanguage: "Idioma de audio preferido"
 audioLanguageDesc: "Pista de audio predeterminada cuando un archivo tiene varios idiomas"
 subtitleLanguage: "Idioma de subtítulos preferido"
@@ -56,6 +57,7 @@ region:
   title: "Región"
   desc: "Usada para clasificaciones de contenido y preferencias regionales."
   auto: "Automático"
+  updateFailed: Error al actualizar la región
 newKey: "Nueva clave"
 copyKey: "Copiar clave"
 unableToLoadNotifications: "No se pudieron cargar las notificaciones"
@@ -180,6 +182,8 @@ feeds:
   customize: Personalizar
   customizeTitle: "Personalizar inicio"
   resetDefaults: "Restablecer"
+  moveUp: Mover sección hacia arriba
+  moveDown: Mover sección hacia abajo
   labels:
     resume_playback: "Reanudar reproducción"
     next_up: "A continuación"

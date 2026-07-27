@@ -247,6 +247,11 @@ detail:
   downloadFailed: डाउनलोड विफल
   downloadNoSpace: "इस डाउनलोड के लिए डिवाइस पर पर्याप्त संग्रहण स्थान नहीं है।"
   communityRating: 'समुदाय: {{average}}/5 ({{count}} रेटिंग)'
+  downloadAllEpisodes: "सभी डाउनलोड करें"
+  invalidRating: "रेटिंग 0 और 10 के बीच होनी चाहिए"
+  invalidYear: "अमान्य वर्ष"
+  showMoreEpisodes: "अधिक दिखाएं"
+  tooLong: "मान बहुत लंबा है"
   identify:
     title: "TMDB पर पहचानें"
     openButton: "TMDB पर पहचानें"
@@ -342,6 +347,7 @@ music:
   playlistCreated: प्लेलिस्ट बनाई गई
   addedToPlaylist: प्लेलिस्ट में जोड़ा गया
   createPlaylistPrompt: प्लेलिस्ट का नाम
+  removeFromQueue: "कतार से हटाएं"
 photos:
   title: फ़ोटो
   albums: एल्बम
@@ -357,6 +363,8 @@ photos:
   photoCount_other: "{{count}} फ़ोटो"
 created: बनाया गया
 updated: अपडेट किया गया
+downloadComplete: "डाउनलोड पूरा हुआ"
+downloadFailed: "डाउनलोड विफल"
 syncplay:
   connected: कनेक्ट हो गया
   connecting: "कनेक्ट हो रहा है..."
@@ -386,6 +394,8 @@ syncplay:
   join: कमरे में शामिल हों
   joinRoom: शामिल हों
   codeLabel: कोड
+  codeInput: "कमरे का कोड"
+  invalidCode: "5 अंकों का कमरा कोड दर्ज करें।"
   members: सदस्य
   sharedTrack: साझा ट्रैक
   followingHost: "आप होस्ट के साथ सिंक हैं।"
