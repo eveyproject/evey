@@ -24,6 +24,15 @@ interface ServerSettings {
   hwAccelEnabled: SettingValue<boolean>;
   loginRateLimit: SettingValue<number>;
   globalRateLimit: SettingValue<number>;
+  logLevel: SettingValue<string>;
+  libraryWatcherEnabled: SettingValue<boolean>;
+  periodicScanInterval: SettingValue<string>;
+  skipPreviewEnabled: SettingValue<boolean>;
+  auditRetentionDays: SettingValue<number>;
+  metricsRetentionDays: SettingValue<number>;
+  qoeRetentionDays: SettingValue<number>;
+  playSessionRetentionDays: SettingValue<number>;
+  transcodeCacheMaxGB: SettingValue<number>;
 }
 
 interface ConfigEntry {
@@ -35,11 +44,13 @@ const SETTINGS_KEY = ["admin", "server-settings"];
 const SERVER_CONFIG_ENTRIES_KEY = ["admin", "server-config-entries"];
 
 const API_KEY_FIELDS = [
-  { dbKey: "api.tmdb_key", labelKey: "admin.serverConfig.apiKeys.tmdb", labelFallback: "TMDB Key" },
-  { dbKey: "api.omdb_key", labelKey: "admin.serverConfig.apiKeys.omdb", labelFallback: "OMDb Key" },
-  { dbKey: "api.opensubtitles_key", labelKey: "admin.serverConfig.apiKeys.opensubtitles", labelFallback: "OpenSubtitles Key" },
-  { dbKey: "api.tidb_key", labelKey: "admin.serverConfig.apiKeys.tidb", labelFallback: "TIDB Key" },
+  { dbKey: "api.tmdb_key", labelKey: "admin.serverConfig.apiKeys.tmdb", labelFallback: "TMDB Key", hasDefault: true },
+  { dbKey: "api.omdb_key", labelKey: "admin.serverConfig.apiKeys.omdb", labelFallback: "OMDb Key", hasDefault: false },
+  { dbKey: "api.opensubtitles_key", labelKey: "admin.serverConfig.apiKeys.opensubtitles", labelFallback: "OpenSubtitles Key", hasDefault: false },
+  { dbKey: "api.tidb_key", labelKey: "admin.serverConfig.apiKeys.tidb", labelFallback: "TIDB Key", hasDefault: false },
 ] as const;
+
+const LOG_LEVELS = ["debug", "info", "warn", "error"] as const;
 
 export default function AdminServerConfigScreen() {
   const theme = useTheme();
@@ -87,6 +98,15 @@ export default function AdminServerConfigScreen() {
   const [hwAccel, setHwAccel] = useState(false);
   const [loginRate, setLoginRate] = useState("");
   const [globalRate, setGlobalRate] = useState("");
+  const [logLevel, setLogLevel] = useState("");
+  const [libraryWatcher, setLibraryWatcher] = useState(true);
+  const [scanInterval, setScanInterval] = useState("");
+  const [skipPreview, setSkipPreview] = useState(false);
+  const [auditDays, setAuditDays] = useState("");
+  const [metricsDays, setMetricsDays] = useState("");
+  const [qoeDays, setQoeDays] = useState("");
+  const [sessionDays, setSessionDays] = useState("");
+  const [cacheGB, setCacheGB] = useState("");
   const [settingsDirty, setSettingsDirty] = useState(false);
 
   useEffect(() => {
@@ -95,6 +115,15 @@ export default function AdminServerConfigScreen() {
       setHwAccel(settings.hwAccelEnabled.value);
       setLoginRate(settings.loginRateLimit.source === "override" ? String(settings.loginRateLimit.value) : "");
       setGlobalRate(settings.globalRateLimit.source === "override" ? String(settings.globalRateLimit.value) : "");
+      setLogLevel(settings.logLevel?.source === "override" ? String(settings.logLevel.value) : "");
+      setLibraryWatcher(settings.libraryWatcherEnabled?.value ?? true);
+      setScanInterval(settings.periodicScanInterval?.source === "override" ? String(settings.periodicScanInterval.value) : "");
+      setSkipPreview(settings.skipPreviewEnabled?.value ?? false);
+      setAuditDays(settings.auditRetentionDays?.source === "override" ? String(settings.auditRetentionDays.value) : "");
+      setMetricsDays(settings.metricsRetentionDays?.source === "override" ? String(settings.metricsRetentionDays.value) : "");
+      setQoeDays(settings.qoeRetentionDays?.source === "override" ? String(settings.qoeRetentionDays.value) : "");
+      setSessionDays(settings.playSessionRetentionDays?.source === "override" ? String(settings.playSessionRetentionDays.value) : "");
+      setCacheGB(settings.transcodeCacheMaxGB?.source === "override" ? String(settings.transcodeCacheMaxGB.value) : "");
       setSettingsDirty(false);
     }
   }, [settings]);
@@ -131,13 +160,26 @@ export default function AdminServerConfigScreen() {
       body.hwMode = hwAccel ? "auto" : "off";
       if (loginRate) body.loginRateLimit = parseInt(loginRate, 10);
       if (globalRate) body.globalRateLimit = parseInt(globalRate, 10);
+      if (logLevel) body.logLevel = logLevel;
+      body.libraryWatcherEnabled = libraryWatcher;
+      if (scanInterval) body.periodicScanInterval = scanInterval;
+      body.skipPreviewEnabled = skipPreview;
+      if (auditDays) body.auditRetentionDays = parseInt(auditDays, 10);
+      if (metricsDays) body.metricsRetentionDays = parseInt(metricsDays, 10);
+      if (qoeDays) body.qoeRetentionDays = parseInt(qoeDays, 10);
+      if (sessionDays) body.playSessionRetentionDays = parseInt(sessionDays, 10);
+      if (cacheGB) body.transcodeCacheMaxGB = parseInt(cacheGB, 10);
       await saveMutation.mutateAsync(body);
     } catch {
       // Not silent: saveMutation.onError above already surfaces a toast.
       // This just swallows the rejection mutateAsync re-throws so it doesn't
       // also warn as an unhandled promise.
     }
-  }, [maxTranscodes, hwAccel, loginRate, globalRate, saveMutation]);
+  }, [
+    maxTranscodes, hwAccel, loginRate, globalRate, logLevel, libraryWatcher,
+    scanInterval, skipPreview, auditDays, metricsDays, qoeDays, sessionDays,
+    cacheGB, saveMutation,
+  ]);
 
   const { data: configEntries, refetch: refetchEntries } = useQuery<ConfigEntry[]>({
     queryKey: SERVER_CONFIG_ENTRIES_KEY,
@@ -152,6 +194,7 @@ export default function AdminServerConfigScreen() {
   }
 
   const [apiKeyDrafts, setApiKeyDrafts] = useState<Record<string, string>>({});
+  const [apiKeyShown, setApiKeyShown] = useState<Record<string, boolean>>({});
 
   const saveConfigEntry = useMutation({
     mutationFn: ({ key, value }: { key: string; value: string }) =>
@@ -176,6 +219,8 @@ export default function AdminServerConfigScreen() {
   const introEnabled = getEntryValue("intro_providers.enabled") === "true";
   const tidbKey = getEntryValue("api.tidb_key");
   const tidbSubmitEnabled = getEntryValue("intro_providers.tidb_submit_enabled") === "true";
+  const trickplayEnabled = getEntryValue("trickplay.enabled") !== "false";
+  const trickplayAdaptiveCpu = getEntryValue("trickplay.adaptive_cpu") !== "false";
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -247,19 +292,50 @@ export default function AdminServerConfigScreen() {
             {API_KEY_FIELDS.map((field) => {
               const current = getEntryValue(field.dbKey);
               const draft = apiKeyDrafts[field.dbKey] ?? current;
+              const isShown = apiKeyShown[field.dbKey] ?? false;
               return (
                 <View key={field.dbKey}>
-                  <Text style={s.label}>{t(field.labelKey, field.labelFallback)}</Text>
-                  <TextInput
-                    value={draft}
-                    onChangeText={(v) => setApiKeyDrafts((p) => ({ ...p, [field.dbKey]: v }))}
-                    style={s.input}
-                    placeholderTextColor={theme.colors.textMuted}
-                    placeholder={field.labelFallback}
-                    autoComplete="off"
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                  />
+                  <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 6, marginTop: 16, marginBottom: 6 }}>
+                    <Text style={[s.label, { marginTop: 0, marginBottom: 0 }]}>{t(field.labelKey, field.labelFallback)}</Text>
+                    {field.hasDefault && !current && (
+                      <View style={[staticStyles.badge, { backgroundColor: theme.colors.surfaceRaised }]}>
+                        <Text style={{ color: theme.colors.textMuted, fontSize: 10 }}>
+                          {t("admin.serverConfig.apiKeys.usingDefault", "Clé par défaut")}
+                        </Text>
+                      </View>
+                    )}
+                    {!!current && (
+                      <View style={[staticStyles.badge, { backgroundColor: theme.colors.surfaceRaised }]}>
+                        <Text style={{ color: theme.colors.accent, fontSize: 10 }}>
+                          {t("admin.serverConfig.apiKeys.usingCustom", "Clé personnalisée")}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <TextInput
+                      value={draft}
+                      onChangeText={(v) => setApiKeyDrafts((p) => ({ ...p, [field.dbKey]: v }))}
+                      style={[s.input, { flex: 1 }]}
+                      placeholderTextColor={theme.colors.textMuted}
+                      placeholder={field.labelFallback}
+                      autoComplete="off"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      secureTextEntry={!isShown}
+                    />
+                    <Pressable
+                      onPress={() => setApiKeyShown((p) => ({ ...p, [field.dbKey]: !p[field.dbKey] }))}
+                      style={[staticStyles.showBtn, { borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceRaised }]}
+                      hitSlop={8}
+                      accessibilityRole="button"
+                      accessibilityLabel={isShown ? t("admin.serverConfig.hide", "Masquer") : t("admin.serverConfig.show", "Afficher")}
+                    >
+                      <Text style={{ color: theme.colors.textMuted, fontSize: 12, fontWeight: "600" }}>
+                        {isShown ? t("admin.serverConfig.hide", "Masquer") : t("admin.serverConfig.show", "Afficher")}
+                      </Text>
+                    </Pressable>
+                  </View>
                   <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
                     <Pressable
                       onPress={() => saveConfigEntry.mutate({ key: field.dbKey, value: draft })}
@@ -322,6 +398,40 @@ export default function AdminServerConfigScreen() {
             </Text>
           </>
 
+          {/* Trickplay section */}
+          <>
+            <View style={{ height: 1, backgroundColor: theme.colors.border, marginVertical: 24 }} />
+            <Text style={s.sectionTitle}>{t("admin.serverConfig.trickplayTitle", "Trickplay")}</Text>
+
+            <View style={staticStyles.switchRow}>
+              <Text style={{ color: theme.colors.text, fontSize: 15, flex: 1, marginRight: 12 }}>
+                {t("admin.serverConfig.trickplayEnabled", "Générer les vignettes trickplay")}
+              </Text>
+              <Switch
+                value={trickplayEnabled}
+                onValueChange={(v) => saveConfigEntry.mutate({ key: "trickplay.enabled", value: v ? "true" : "false" })}
+                trackColor={{ false: theme.colors.border, true: theme.colors.accent }}
+                disabled={saveConfigEntry.isPending}
+              />
+            </View>
+
+            <View style={staticStyles.switchRow}>
+              <Text style={{ color: theme.colors.text, fontSize: 15, flex: 1, marginRight: 12 }}>
+                {t("admin.serverConfig.trickplayAdaptiveCpu", "Adapter la charge CPU dynamiquement")}
+              </Text>
+              <Switch
+                value={trickplayAdaptiveCpu}
+                onValueChange={(v) => saveConfigEntry.mutate({ key: "trickplay.adaptive_cpu", value: v ? "true" : "false" })}
+                trackColor={{ false: theme.colors.border, true: theme.colors.accent }}
+                disabled={saveConfigEntry.isPending || !trickplayEnabled}
+              />
+            </View>
+
+            <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginTop: 8 }}>
+              {t("admin.serverConfig.trickplayAdaptiveCpuDesc", "Réduit automatiquement la cadence de génération quand le CPU est chargé.")}
+            </Text>
+          </>
+
           {settings ? (
             <>
               <View style={{ height: 1, backgroundColor: theme.colors.border, marginVertical: 24 }} />
@@ -373,6 +483,135 @@ export default function AdminServerConfigScreen() {
               />
               <DefaultHint setting={settings.globalRateLimit} field="globalRateLimit" />
 
+              <Text style={s.label}>{t("admin.serverSettings.logLevel", "Niveau de log")}</Text>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                <Pressable
+                  onPress={() => { setLogLevel(""); setSettingsDirty(true); }}
+                  style={[staticStyles.chip, { borderColor: theme.colors.border, backgroundColor: logLevel === "" ? theme.colors.accent : theme.colors.surface }]}
+                >
+                  <Text style={{ color: logLevel === "" ? theme.colors.onAccent : theme.colors.textMuted, fontSize: 13 }}>
+                    {t("admin.serverConfig.envDefault", "Défaut env")} ({settings.logLevel?.default ?? "info"})
+                  </Text>
+                </Pressable>
+                {LOG_LEVELS.map((lvl) => (
+                  <Pressable
+                    key={lvl}
+                    onPress={() => { setLogLevel(lvl); setSettingsDirty(true); }}
+                    style={[staticStyles.chip, { borderColor: theme.colors.border, backgroundColor: logLevel === lvl ? theme.colors.accent : theme.colors.surface }]}
+                  >
+                    <Text style={{ color: logLevel === lvl ? theme.colors.onAccent : theme.colors.text, fontSize: 13 }}>{lvl}</Text>
+                  </Pressable>
+                ))}
+              </View>
+              {settings.logLevel && <DefaultHint setting={settings.logLevel} field="logLevel" />}
+
+              <Text style={s.label}>{t("admin.serverSettings.libraryWatcher", "Surveillance des bibliothèques")}</Text>
+              <View style={staticStyles.switchRow}>
+                <Text style={{ color: theme.colors.textMuted, fontSize: 12, flex: 1, marginRight: 12 }}>
+                  {t("admin.serverSettings.restartHint", "Nécessite un redémarrage du serveur.")}
+                </Text>
+                <Switch
+                  value={libraryWatcher}
+                  onValueChange={(v) => { setLibraryWatcher(v); setSettingsDirty(true); }}
+                  trackColor={{ false: theme.colors.border, true: theme.colors.accent }}
+                />
+              </View>
+              {settings.libraryWatcherEnabled && <DefaultHint setting={settings.libraryWatcherEnabled} field="libraryWatcherEnabled" />}
+
+              <Text style={s.label}>
+                {t("admin.serverSettings.periodicScanInterval", "Intervalle de scan périodique")} {t("admin.serverSettings.restartHint", "Nécessite un redémarrage du serveur.")}
+              </Text>
+              <TextInput
+                value={scanInterval}
+                onChangeText={(v) => { setScanInterval(v); setSettingsDirty(true); }}
+                style={s.input}
+                placeholderTextColor={theme.colors.textMuted}
+                placeholder={String(settings.periodicScanInterval?.default ?? "2m")}
+                autoCapitalize="none"
+              />
+              {settings.periodicScanInterval && <DefaultHint setting={settings.periodicScanInterval} field="periodicScanInterval" />}
+
+              <Text style={s.label}>{t("admin.serverSettings.skipPreview", "Ignorer la génération de prévisualisations")}</Text>
+              <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginBottom: 6 }}>
+                {t("admin.serverSettings.skipPreviewInfo", "Désactive la génération des vignettes trickplay pendant le scan pour économiser du CPU.")}
+              </Text>
+              <View style={staticStyles.switchRow}>
+                <Text style={{ color: theme.colors.text, fontSize: 15 }}>
+                  {skipPreview ? t("common.enabled", "Activé") : t("common.disabled", "Désactivé")}
+                </Text>
+                <Switch
+                  value={skipPreview}
+                  onValueChange={(v) => { setSkipPreview(v); setSettingsDirty(true); }}
+                  trackColor={{ false: theme.colors.border, true: theme.colors.accent }}
+                />
+              </View>
+              {settings.skipPreviewEnabled && <DefaultHint setting={settings.skipPreviewEnabled} field="skipPreviewEnabled" />}
+
+              <Text style={s.label}>
+                {t("admin.serverSettings.auditRetentionDays", "Rétention des logs d'audit (jours, 0 = illimité)")} {t("admin.serverSettings.retentionSweepHint", "(s'applique à la prochaine purge quotidienne)")}
+              </Text>
+              <TextInput
+                value={auditDays}
+                onChangeText={(v) => { setAuditDays(v); setSettingsDirty(true); }}
+                style={s.input}
+                placeholderTextColor={theme.colors.textMuted}
+                placeholder={String(settings.auditRetentionDays?.default ?? 0)}
+                keyboardType="numeric"
+              />
+              {settings.auditRetentionDays && <DefaultHint setting={settings.auditRetentionDays} field="auditRetentionDays" />}
+
+              <Text style={s.label}>
+                {t("admin.serverSettings.metricsRetentionDays", "Rétention des métriques serveur (jours)")} {t("admin.serverSettings.retentionSweepHint", "(s'applique à la prochaine purge quotidienne)")}
+              </Text>
+              <TextInput
+                value={metricsDays}
+                onChangeText={(v) => { setMetricsDays(v); setSettingsDirty(true); }}
+                style={s.input}
+                placeholderTextColor={theme.colors.textMuted}
+                placeholder={String(settings.metricsRetentionDays?.default ?? 90)}
+                keyboardType="numeric"
+              />
+              {settings.metricsRetentionDays && <DefaultHint setting={settings.metricsRetentionDays} field="metricsRetentionDays" />}
+
+              <Text style={s.label}>
+                {t("admin.serverSettings.qoeRetentionDays", "Rétention de la qualité de lecture (QoE, jours)")} {t("admin.serverSettings.retentionSweepHint", "(s'applique à la prochaine purge quotidienne)")}
+              </Text>
+              <TextInput
+                value={qoeDays}
+                onChangeText={(v) => { setQoeDays(v); setSettingsDirty(true); }}
+                style={s.input}
+                placeholderTextColor={theme.colors.textMuted}
+                placeholder={String(settings.qoeRetentionDays?.default ?? 30)}
+                keyboardType="numeric"
+              />
+              {settings.qoeRetentionDays && <DefaultHint setting={settings.qoeRetentionDays} field="qoeRetentionDays" />}
+
+              <Text style={s.label}>
+                {t("admin.serverSettings.playSessionRetentionDays", "Rétention de l'historique de lecture (jours, 0 = illimité)")} {t("admin.serverSettings.retentionSweepHint", "(s'applique à la prochaine purge quotidienne)")}
+              </Text>
+              <TextInput
+                value={sessionDays}
+                onChangeText={(v) => { setSessionDays(v); setSettingsDirty(true); }}
+                style={s.input}
+                placeholderTextColor={theme.colors.textMuted}
+                placeholder={String(settings.playSessionRetentionDays?.default ?? 0)}
+                keyboardType="numeric"
+              />
+              {settings.playSessionRetentionDays && <DefaultHint setting={settings.playSessionRetentionDays} field="playSessionRetentionDays" />}
+
+              <Text style={s.label}>
+                {t("admin.serverSettings.transcodeCacheMaxGB", "Budget du cache de transcodage (Go)")} {t("admin.serverSettings.restartHint", "Nécessite un redémarrage du serveur.")}
+              </Text>
+              <TextInput
+                value={cacheGB}
+                onChangeText={(v) => { setCacheGB(v); setSettingsDirty(true); }}
+                style={s.input}
+                placeholderTextColor={theme.colors.textMuted}
+                placeholder={String(settings.transcodeCacheMaxGB?.default ?? 50)}
+                keyboardType="numeric"
+              />
+              {settings.transcodeCacheMaxGB && <DefaultHint setting={settings.transcodeCacheMaxGB} field="transcodeCacheMaxGB" />}
+
               <Pressable
                 onPress={handleSaveSettings}
                 disabled={!settingsDirty || saveMutation.isPending}
@@ -401,4 +640,7 @@ const formStyles = (t: ReturnType<typeof useTheme>) => StyleSheet.create({
 
 const staticStyles = StyleSheet.create({
   switchRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 8 },
+  badge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+  showBtn: { paddingHorizontal: 10, paddingVertical: 10, borderRadius: 8, borderWidth: StyleSheet.hairlineWidth },
+  chip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, borderWidth: StyleSheet.hairlineWidth },
 });
