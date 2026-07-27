@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { View, Text, FlatList, Pressable, Alert, StyleSheet } from "react-native";
+import { View, Text, FlatList, Pressable, Alert, StyleSheet, ActivityIndicator } from "react-native";
 import { router, Stack, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
@@ -10,8 +10,17 @@ import {
   getTotalDownloadSize,
   subscribeToProgress,
   getInFlightProgress,
+  getInFlightDownloads,
   type DownloadedMedia,
 } from "../../src/lib/downloads";
+
+// A download still running is invisible in getDownloads() - an item only
+// enters that persisted index once it completes - so this screen merges in
+// the in-flight ones as placeholder rows (no file on disk yet, no delete
+// action) until they finish and get picked up by the next refresh().
+interface DownloadListItem extends DownloadedMedia {
+  inProgress?: boolean;
+}
 
 function formatSize(bytes: number): string {
   if (!bytes || bytes <= 0) return "0 B";
@@ -25,7 +34,7 @@ function formatDate(iso: string): string {
 }
 
 interface DownloadRowProps {
-  item: DownloadedMedia;
+  item: DownloadListItem;
   onDelete: (mediaItemId: string) => void;
   deleting: boolean;
 }
@@ -33,10 +42,10 @@ interface DownloadRowProps {
 function DownloadRow({ item, onDelete, deleting }: DownloadRowProps) {
   const theme = useTheme();
   const { t } = useTranslation();
-  // Live progress for a download that's still running (e.g. resumed from
-  // rehydrateBackgroundDownloads after the app was killed). Once the item is
-  // in the persisted index it's already complete, so this only ever shows a
-  // non-null fraction in the brief window right after a retry.
+  // Live progress for a download that's still running: either a placeholder
+  // row for an in-flight download (see the merge in DownloadsScreen below) or
+  // one resumed from rehydrateBackgroundDownloads right after the app was
+  // killed, in the brief window before it settles into the persisted index.
   const [progress, setProgress] = useState<number | null>(getInFlightProgress(item.mediaItemId));
 
   useEffect(() => {
@@ -45,7 +54,7 @@ function DownloadRow({ item, onDelete, deleting }: DownloadRowProps) {
 
   return (
     <Pressable
-      onPress={() => router.push(`/media/${item.mediaItemId}`)}
+      onPress={() => { if (!item.inProgress) router.push(`/media/${item.mediaItemId}`); }}
       style={{
         flexDirection: "row",
         alignItems: "center",
@@ -67,54 +76,84 @@ function DownloadRow({ item, onDelete, deleting }: DownloadRowProps) {
         alignItems: "center",
         justifyContent: "center",
       }}>
-        <Ionicons name="download" size={18} color={theme.colors.accent} />
+        <Ionicons name={item.inProgress ? "cloud-download-outline" : "download"} size={18} color={theme.colors.accent} />
       </View>
 
       <View style={{ flex: 1, gap: 2 }}>
         <Text style={{ color: theme.colors.text, fontSize: 14, fontWeight: "500" }} numberOfLines={1}>
           {item.title}
         </Text>
-        <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>
-          {formatSize(item.fileSize)} · {formatDate(item.downloadedAt)}
-        </Text>
-        {progress != null && Number.isFinite(progress) && (
-          <Text style={{ color: theme.colors.accent, fontSize: 11 }}>
-            {t("downloads.inProgress", "{{percent}}%", { percent: Math.round(progress * 100) })}
+        {item.inProgress ? (
+          <Text style={{ color: theme.colors.accent, fontSize: 12 }}>
+            {progress != null && Number.isFinite(progress)
+              ? t("downloads.inProgress", "{{percent}}%", { percent: Math.round(progress * 100) })
+              : t("downloads.downloading", "Downloading…")}
           </Text>
+        ) : (
+          <>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>
+              {formatSize(item.fileSize)} · {formatDate(item.downloadedAt)}
+            </Text>
+            {progress != null && Number.isFinite(progress) && (
+              <Text style={{ color: theme.colors.accent, fontSize: 11 }}>
+                {t("downloads.inProgress", "{{percent}}%", { percent: Math.round(progress * 100) })}
+              </Text>
+            )}
+          </>
         )}
       </View>
 
-      <Pressable
-        onPress={() => onDelete(item.mediaItemId)}
-        disabled={deleting}
-        hitSlop={8}
-        accessible
-        accessibilityLabel={t("downloads.delete", "Delete download")}
-        accessibilityRole="button"
-        style={{ opacity: deleting ? 0.5 : 1 }}
-      >
-        <Ionicons name="trash-outline" size={20} color={theme.colors.textMuted} />
-      </Pressable>
+      {item.inProgress ? (
+        <ActivityIndicator size="small" color={theme.colors.accent} />
+      ) : (
+        <Pressable
+          onPress={() => onDelete(item.mediaItemId)}
+          disabled={deleting}
+          hitSlop={8}
+          accessible
+          accessibilityLabel={t("downloads.delete", "Delete download")}
+          accessibilityRole="button"
+          style={{ opacity: deleting ? 0.5 : 1 }}
+        >
+          <Ionicons name="trash-outline" size={20} color={theme.colors.textMuted} />
+        </Pressable>
+      )}
     </Pressable>
   );
 }
 
-function downloadKeyExtractor(item: DownloadedMedia) {
+function downloadKeyExtractor(item: DownloadListItem) {
   return item.mediaItemId;
 }
 
 export default function DownloadsScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
-  const [items, setItems] = useState<DownloadedMedia[]>([]);
+  const [items, setItems] = useState<DownloadListItem[]>([]);
   const [totalSize, setTotalSize] = useState(0);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [hasInFlight, setHasInFlight] = useState(false);
 
   const refresh = useCallback(async () => {
     const [downloads, total] = await Promise.all([getDownloads(), getTotalDownloadSize()]);
-    setItems(downloads);
+    const completedIds = new Set(downloads.map((d) => d.mediaItemId));
+    // A download not yet in the completed index (still running) is otherwise
+    // invisible on this screen until it finishes - list it as a placeholder
+    // row instead, ahead of the completed ones.
+    const inFlightOnly = getInFlightDownloads()
+      .filter((d) => !completedIds.has(d.mediaItemId))
+      .map((d): DownloadListItem => ({
+        mediaItemId: d.mediaItemId,
+        title: d.title,
+        filePath: "",
+        fileSize: 0,
+        downloadedAt: new Date().toISOString(),
+        inProgress: true,
+      }));
+    setItems([...inFlightOnly, ...downloads]);
     setTotalSize(total);
+    setHasInFlight(inFlightOnly.length > 0);
     setLoading(false);
   }, []);
 
@@ -126,6 +165,15 @@ export default function DownloadsScreen() {
       void refresh();
     }, [refresh]),
   );
+
+  // While an in-flight placeholder is showing, poll so it flips over to the
+  // completed row (with its real size/date) shortly after the download
+  // finishes, without requiring the user to leave and refocus this screen.
+  useEffect(() => {
+    if (!hasInFlight) return;
+    const interval = setInterval(() => { void refresh(); }, 1500);
+    return () => clearInterval(interval);
+  }, [hasInFlight, refresh]);
 
   const handleDelete = useCallback((mediaItemId: string) => {
     const item = items.find((i) => i.mediaItemId === mediaItemId);
@@ -152,7 +200,7 @@ export default function DownloadsScreen() {
   }, [items, refresh, t]);
 
   const renderItem = useCallback(
-    ({ item }: { item: DownloadedMedia }) => (
+    ({ item }: { item: DownloadListItem }) => (
       <DownloadRow item={item} onDelete={handleDelete} deleting={deletingId === item.mediaItemId} />
     ),
     [handleDelete, deletingId],

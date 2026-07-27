@@ -207,3 +207,33 @@ describe("MediaDetailScreen episode list", () => {
     expect(screen.queryByRole("button", { name: "Show more" })).toBeNull();
   });
 });
+
+describe("MediaDetailScreen episode downloads", () => {
+  // Idle download buttons render icon-only (no accessible text), so this
+  // mirrors episodeButton() above and queries the accessibilityLabel prop
+  // directly rather than relying on text content for the accessible name.
+  function downloadButtons(): NodeListOf<Element> {
+    return document.querySelectorAll('button[accessibilitylabel="common.download"]');
+  }
+
+  it("shows no per-episode download button when no episode has a media file", () => {
+    render(<MediaDetailScreen />, { wrapper: makeWrapper() });
+    expect(downloadButtons().length).toBe(0);
+  });
+
+  it("hides the bulk 'Download all' button when no episode has a media file", () => {
+    render(<MediaDetailScreen />, { wrapper: makeWrapper() });
+    expect(screen.queryByRole("button", { name: "Download all" })).toBeNull();
+  });
+
+  it("shows a per-episode download button and the bulk button once an episode has a media file", () => {
+    (allEpisodes[0] as { fileSize?: string }).fileSize = "123456";
+    try {
+      render(<MediaDetailScreen />, { wrapper: makeWrapper() });
+      expect(downloadButtons().length).toBe(1);
+      expect(screen.getByRole("button", { name: "Download all" })).toBeTruthy();
+    } finally {
+      delete (allEpisodes[0] as { fileSize?: string }).fileSize;
+    }
+  });
+});

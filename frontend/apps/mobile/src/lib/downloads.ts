@@ -30,6 +30,10 @@ const INDEX_FILE = `${DOWNLOAD_DIR}index.json`;
 type ProgressListener = (pct: number) => void;
 const progressListeners = new Map<string, Set<ProgressListener>>();
 const inFlight = new Map<string, { totalBytes: number; downloadedBytes: number }>();
+// Title alongside inFlight, kept separately so a download-in-progress can be
+// listed in the Downloads screen before it ever reaches the persisted index
+// (an item only enters that index once .done() fires).
+const inFlightTitles = new Map<string, string>();
 
 async function ensureDir() {
   const info = await FileSystem.getInfoAsync(DOWNLOAD_DIR);
@@ -70,10 +74,59 @@ function assertMediaId(id: string): void {
 }
 
 // destPath under directories.documents (system-managed by the native module).
-// Keep the .mp4 extension so Android's MediaScanner indexes the file and the
-// system player can open it from the downloads folder if needed.
-function destPathFor(mediaItemId: string): string {
-  return `${directories.documents}/evey-${mediaItemId}.mp4`;
+// The extension is kept real (not always .mp4) so Android's MediaScanner
+// indexes the file correctly and the system player/file manager can open it.
+function destPathFor(mediaItemId: string, ext: string): string {
+  return `${directories.documents}/evey-${mediaItemId}.${ext}`;
+}
+
+// Container/mime aliases that don't map 1:1 to a file extension.
+const EXT_ALIASES: Record<string, string> = {
+  matroska: "mkv",
+  "x-matroska": "mkv",
+  quicktime: "mov",
+  mpegts: "ts",
+  "mp2t": "ts",
+  "x-msvideo": "avi",
+  "x-ms-wmv": "wmv",
+  asf: "wmv",
+  mpeg4: "mp4",
+  "3gpp": "3gp",
+  mpga: "mp3",
+  mpeg: "mp3",
+  "x-wav": "wav",
+  wave: "wav",
+  "x-m4a": "m4a",
+  mp4a: "m4a",
+  alac: "m4a",
+  "x-flac": "flac",
+  oga: "ogg",
+  vorbis: "ogg",
+};
+
+const KNOWN_VIDEO_EXT = new Set(["mp4", "mkv", "mov", "webm", "avi", "ts", "wmv", "m4v", "3gp"]);
+const KNOWN_AUDIO_EXT = new Set(["mp3", "flac", "ogg", "wav", "m4a", "aac", "opus", "wma"]);
+const ALL_KNOWN_EXT = [...KNOWN_VIDEO_EXT, ...KNOWN_AUDIO_EXT];
+
+// Accepts a container name ("mkv", "matroska") or a mime type
+// ("video/x-matroska", "audio/mpeg") and returns a bare extension recognized
+// for the given kind, or undefined if the hint isn't usable.
+function extFromHint(hint: string | undefined, kind: "video" | "audio"): string | undefined {
+  if (!hint) return undefined;
+  const subtype = hint.includes("/") ? hint.split("/")[1] : hint;
+  const clean = subtype.split(";")[0].trim().toLowerCase().replace(/^\./, "");
+  const known = kind === "audio" ? KNOWN_AUDIO_EXT : KNOWN_VIDEO_EXT;
+  if (known.has(clean)) return clean;
+  const aliased = EXT_ALIASES[clean];
+  if (aliased && known.has(aliased)) return aliased;
+  return undefined;
+}
+
+// Derives the on-disk extension for a download: from the item's own
+// container/mime hint when the caller has one (video containerFormat, or an
+// audio mime type), else the historical default per media kind.
+function resolveExtension(kind: "video" | "audio", hint?: string): string {
+  return extFromHint(hint, kind) ?? (kind === "audio" ? "mp3" : "mp4");
 }
 
 function notifyProgress(id: string, pct: number) {
@@ -102,6 +155,21 @@ export function getInFlightProgress(mediaItemId: string): number | null {
   return state.downloadedBytes / state.totalBytes;
 }
 
+export interface InFlightDownload {
+  mediaItemId: string;
+  title: string;
+}
+
+// Downloads currently running but not yet in the persisted index (an item
+// only enters that index once .done() fires) - lets the Downloads screen show
+// something in-progress instead of it being invisible until it finishes.
+export function getInFlightDownloads(): InFlightDownload[] {
+  return Array.from(inFlight.keys()).map((mediaItemId) => ({
+    mediaItemId,
+    title: inFlightTitles.get(mediaItemId) ?? mediaItemId,
+  }));
+}
+
 async function persistDownloaded(mediaItemId: string, title: string, destPath: string, totalBytes: number) {
   const index = await readIndex();
   // Replace any existing entry with the same id so retry-after-failure keeps
@@ -123,22 +191,48 @@ async function persistDownloaded(mediaItemId: string, title: string, destPath: s
  */
 const DISK_HEADROOM_BYTES = 200 * 1024 * 1024;
 
+export interface StartDownloadOptions {
+  /** Defaults to "video" - pass "audio" for music tracks. */
+  kind?: "video" | "audio";
+  /** Container name or mime type of the source file, e.g. item.containerFormat. */
+  formatHint?: string;
+  /**
+   * Overrides the default POST /api/v1/media/{id}/stream-token mint endpoint.
+   * A music track isn't a library media item - it mints through the generic
+   * /api/v1/download-token/{id} endpoint instead (same one the web app's
+   * mintDownloadToken uses for tracks/albums/collections/playlists).
+   */
+  tokenUrl?: string;
+  /**
+   * Overrides the default /api/v1/media/{id}/download path (server-relative,
+   * no query string) - a music track downloads from /api/v1/music/tracks/{id}/download.
+   */
+  downloadPath?: string;
+}
+
 export async function startDownload(
   mediaItemId: string,
   title: string,
   onProgress?: (progress: number) => void,
+  opts?: StartDownloadOptions,
 ): Promise<string> {
   assertMediaId(mediaItemId);
   await ensureDir();
   const serverUrl = await getServerUrl();
   if (!serverUrl) throw new Error("Not authenticated");
 
-  const { token } = await eveyFetch<{ token: string; mediaId: string }>({
-    url: `/api/v1/media/${mediaItemId}/stream-token`,
+  const kind = opts?.kind ?? "video";
+  const ext = resolveExtension(kind, opts?.formatHint);
+
+  const tokenUrl = opts?.tokenUrl ?? `/api/v1/media/${mediaItemId}/stream-token`;
+  const downloadPath = opts?.downloadPath ?? `/api/v1/media/${mediaItemId}/download`;
+
+  const { token } = await eveyFetch<{ token: string }>({
+    url: tokenUrl,
     method: "POST",
   });
-  const streamUrl = `${serverUrl}/api/v1/media/${mediaItemId}/download?token=${token}`;
-  const destPath = destPathFor(mediaItemId);
+  const streamUrl = `${serverUrl}${downloadPath}?token=${token}`;
+  const destPath = destPathFor(mediaItemId, ext);
 
   // Keep the unsubscribe so the progress listener is removed when the download
   // settles - otherwise every download permanently leaks its callback into the
@@ -146,13 +240,17 @@ export async function startDownload(
   // has since left).
   const unsubscribeProgress = onProgress ? subscribeToProgress(mediaItemId, onProgress) : undefined;
   inFlight.set(mediaItemId, { totalBytes: 0, downloadedBytes: 0 });
+  inFlightTitles.set(mediaItemId, title);
 
   return new Promise<string>((resolve, reject) => {
     const task = createDownloadTask({
       id: mediaItemId,
       url: streamUrl,
       destination: destPath,
-      metadata: { title },
+      // ext rides along in the native module's own persisted metadata (same
+      // round-trip title already relies on) so rehydrateBackgroundDownloads
+      // can rebuild the exact same destPath after an app restart.
+      metadata: { title, ext },
     });
 
     task
@@ -174,6 +272,7 @@ export async function startDownload(
           if (typeof free === "number" && free > 0 && expectedBytes + DISK_HEADROOM_BYTES > free) {
             task.stop();
             inFlight.delete(mediaItemId);
+            inFlightTitles.delete(mediaItemId);
             unsubscribeProgress?.();
             void FileSystem.deleteAsync(destPath, { idempotent: true }).catch(() => undefined);
             reject(new Error("NOT_ENOUGH_SPACE"));
@@ -198,12 +297,14 @@ export async function startDownload(
           if (process.env.NODE_ENV !== "production") console.warn("persist download index", err);
         }
         inFlight.delete(mediaItemId);
+        inFlightTitles.delete(mediaItemId);
         completeHandler(mediaItemId);
         unsubscribeProgress?.();
         resolve(destPath);
       })
       .error(async ({ error }) => {
         inFlight.delete(mediaItemId);
+        inFlightTitles.delete(mediaItemId);
         completeHandler(mediaItemId);
         unsubscribeProgress?.();
         // A failed download leaves a partial file at destPath that never enters
@@ -236,9 +337,13 @@ export async function rehydrateBackgroundDownloads(): Promise<void> {
   }
   for (const task of tasks) {
     const mediaItemId = task.id;
-    const title = (task.metadata as { title?: string })?.title ?? mediaItemId;
-    const destPath = destPathFor(mediaItemId);
+    const meta = (task.metadata as { title?: string; ext?: string }) ?? {};
+    const title = meta.title ?? mediaItemId;
+    // ext falls back to "mp4" for downloads started before this field existed -
+    // those were always .mp4, so the fallback reconstructs the exact same path.
+    const destPath = destPathFor(mediaItemId, meta.ext ?? "mp4");
     inFlight.set(mediaItemId, { totalBytes: 0, downloadedBytes: 0 });
+    inFlightTitles.set(mediaItemId, title);
     task
       .progress(({ bytesDownloaded, bytesTotal }) => {
         const state = inFlight.get(mediaItemId);
@@ -265,10 +370,12 @@ export async function rehydrateBackgroundDownloads(): Promise<void> {
           await persistDownloaded(mediaItemId, title, destPath, totalBytes);
         } catch { /* silent */ }
         inFlight.delete(mediaItemId);
+        inFlightTitles.delete(mediaItemId);
         completeHandler(mediaItemId);
       })
       .error(async () => {
         inFlight.delete(mediaItemId);
+        inFlightTitles.delete(mediaItemId);
         completeHandler(mediaItemId);
         // Same leak as startDownload's error handler: the partial file never
         // entered the index, so it's otherwise unreachable by deleteDownload.
@@ -291,7 +398,17 @@ export async function getDownloadPath(mediaItemId: string): Promise<string | nul
   const item = index.find((i) => i.mediaItemId === mediaItemId);
   if (!item) return null;
   const info = await FileSystem.getInfoAsync(item.filePath);
-  return info.exists ? item.filePath : null;
+  if (info.exists) return item.filePath;
+  // The index stores the exact path used at download time, so this normally
+  // never runs - kept as a tolerant fallback for an index entry that predates
+  // the dynamic extension (or was hand-edited) and no longer matches disk.
+  for (const ext of ALL_KNOWN_EXT) {
+    const candidate = destPathFor(mediaItemId, ext);
+    if (candidate === item.filePath) continue;
+    const candidateInfo = await FileSystem.getInfoAsync(candidate);
+    if (candidateInfo.exists) return candidate;
+  }
+  return null;
 }
 
 export async function getTotalDownloadSize(): Promise<number> {

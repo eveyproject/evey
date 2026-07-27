@@ -83,6 +83,7 @@ import {
   getDownloadPath,
   getTotalDownloadSize,
   rehydrateBackgroundDownloads,
+  getInFlightDownloads,
 } from "./downloads";
 
 const sampleIndex = [
@@ -383,5 +384,119 @@ describe("startDownload disk-space guard", () => {
     handlers.done?.({ id: "small" });
 
     await expect(pending).resolves.toContain("evey-small.mp4");
+  });
+});
+
+// A movie stored as MKV or a music track must not be forced onto a hardcoded
+// .mp4 name - MediaScanner/system players rely on the real extension.
+describe("startDownload extension resolution", () => {
+  it("defaults to .mp4 for a video download with no format hint", async () => {
+    const pending = startDownload("v1", "Movie", undefined, { kind: "video" });
+    const handlers = await waitForTask("v1");
+    handlers.done?.({ id: "v1" });
+    await expect(pending).resolves.toContain("evey-v1.mp4");
+  });
+
+  it("uses the item's container format for a video download", async () => {
+    const pending = startDownload("v2", "Movie MKV", undefined, { kind: "video", formatHint: "matroska" });
+    const handlers = await waitForTask("v2");
+    handlers.done?.({ id: "v2" });
+    await expect(pending).resolves.toContain("evey-v2.mkv");
+  });
+
+  it("defaults to .mp3 for an audio download with no format hint", async () => {
+    const pending = startDownload("a1", "Track", undefined, { kind: "audio" });
+    const handlers = await waitForTask("a1");
+    handlers.done?.({ id: "a1" });
+    await expect(pending).resolves.toContain("evey-a1.mp3");
+  });
+
+  it("derives the extension from a mime type hint", async () => {
+    const pending = startDownload("a2", "Lossless Track", undefined, { kind: "audio", formatHint: "audio/flac" });
+    const handlers = await waitForTask("a2");
+    handlers.done?.({ id: "a2" });
+    await expect(pending).resolves.toContain("evey-a2.flac");
+  });
+
+  it("falls back to the default when the hint isn't a recognized container/mime", async () => {
+    const pending = startDownload("a3", "Unknown Track", undefined, { kind: "audio", formatHint: "application/octet-stream" });
+    const handlers = await waitForTask("a3");
+    handlers.done?.({ id: "a3" });
+    await expect(pending).resolves.toContain("evey-a3.mp3");
+  });
+});
+
+// A music track is not a library media item: it mints its download token
+// through the generic /api/v1/download-token/{id} endpoint and downloads from
+// /api/v1/music/tracks/{id}/download, not the movie/episode-only
+// /api/v1/media/{id}/... routes - a naive reuse of the defaults 404s.
+describe("startDownload endpoint overrides (non-media resources, e.g. music tracks)", () => {
+  it("mints through tokenUrl and downloads through downloadPath when provided", async () => {
+    const pending = startDownload("track-1", "Some Song", undefined, {
+      kind: "audio",
+      tokenUrl: "/api/v1/download-token/track-1",
+      downloadPath: "/api/v1/music/tracks/track-1/download",
+    });
+    const handlers = await waitForTask("track-1");
+
+    expect(eveyFetchMock).toHaveBeenCalledWith({
+      url: "/api/v1/download-token/track-1",
+      method: "POST",
+    });
+    expect(createDownloadTaskMock).toHaveBeenCalledWith(expect.objectContaining({
+      url: "https://evey.test/api/v1/music/tracks/track-1/download?token=stream-tok-123",
+      destination: expect.stringContaining("evey-track-1.mp3"),
+    }));
+
+    handlers.done?.({ id: "track-1" });
+    await pending;
+  });
+
+  it("defaults to the media stream-token/download routes when no override is given", async () => {
+    const pending = startDownload("m20", "Movie 20");
+    const handlers = await waitForTask("m20");
+
+    expect(eveyFetchMock).toHaveBeenCalledWith({
+      url: "/api/v1/media/m20/stream-token",
+      method: "POST",
+    });
+    expect(createDownloadTaskMock).toHaveBeenCalledWith(expect.objectContaining({
+      url: "https://evey.test/api/v1/media/m20/download?token=stream-tok-123",
+    }));
+
+    handlers.done?.({ id: "m20" });
+    await pending;
+  });
+});
+
+describe("getInFlightDownloads", () => {
+  it("lists downloads that have not reached the persisted index yet", async () => {
+    const pending = startDownload("if1", "In Flight Movie");
+    await waitForTask("if1");
+
+    const inFlightList = getInFlightDownloads();
+    expect(inFlightList).toEqual(expect.arrayContaining([
+      { mediaItemId: "if1", title: "In Flight Movie" },
+    ]));
+
+    const handlers = await waitForTask("if1");
+    handlers.done?.({ id: "if1" });
+    await pending;
+
+    expect(getInFlightDownloads().some((d) => d.mediaItemId === "if1")).toBe(false);
+  });
+});
+
+describe("getDownloadPath extension fallback", () => {
+  it("finds the file on disk under a different known extension than the index records", async () => {
+    fsMock.readAsStringAsync.mockResolvedValue(JSON.stringify([
+      { mediaItemId: "old1", title: "Old", filePath: "/data/user/0/app/files/Documents/evey-old1.mp4", fileSize: 100, downloadedAt: "2025-01-01" },
+    ]));
+    fsMock.getInfoAsync.mockImplementation(async (path: string) => ({
+      exists: path === "/data/user/0/app/files/Documents/evey-old1.mkv",
+    }));
+
+    const path = await getDownloadPath("old1");
+    expect(path).toBe("/data/user/0/app/files/Documents/evey-old1.mkv");
   });
 });

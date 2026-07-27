@@ -162,7 +162,17 @@ const CastCard = memo(function CastCard({ person }: { person: V1MediaPerson }) {
   );
 });
 
-const EpisodeRow = memo(function EpisodeRow({ item, serverUrl, theme, authHeaders }: { item: V1MediaItem; serverUrl: string; theme: ReturnType<typeof useTheme>; authHeaders?: { Authorization: string } }) {
+const EpisodeRow = memo(function EpisodeRow({
+  item, serverUrl, theme, authHeaders, downloadProgress, onDownload,
+}: {
+  item: V1MediaItem;
+  serverUrl: string;
+  theme: ReturnType<typeof useTheme>;
+  authHeaders?: { Authorization: string };
+  downloadProgress?: number;
+  onDownload?: (item: V1MediaItem) => void;
+}) {
+  const { t } = useTranslation();
   const episodeUri = item.id ? artworkUrl(serverUrl, item.id, "poster", 240) : undefined;
   const { data: progress } = usePlaybackServiceGetWatchProgress(item.id ?? "", undefined, {
     query: { enabled: !!item.id, retry: false },
@@ -170,6 +180,7 @@ const EpisodeRow = memo(function EpisodeRow({ item, serverUrl, theme, authHeader
   const posMs = Number(progress?.positionMs ?? 0);
   const durMs = Number(progress?.durationMs ?? 0);
   const percent = durMs > 0 ? (posMs / durMs) * 100 : 0;
+  const downloadable = !!onDownload && hasMediaFile(item);
 
   return (
     <Pressable
@@ -215,6 +226,29 @@ const EpisodeRow = memo(function EpisodeRow({ item, serverUrl, theme, authHeader
           </Text>
         ) : null}
       </View>
+      {downloadable ? (
+        <Pressable
+          onPress={(e) => { e.stopPropagation(); onDownload!(item); }}
+          disabled={downloadProgress !== undefined}
+          hitSlop={8}
+          style={{ justifyContent: "center", paddingHorizontal: theme.spacing.sm }}
+          accessible={true}
+          accessibilityLabel={t("common.download") || "Download"}
+          accessibilityRole="button"
+        >
+          {downloadProgress !== undefined ? (
+            Number.isFinite(downloadProgress) ? (
+              <Text style={{ color: theme.colors.accent, fontSize: 11, fontWeight: "700" }}>
+                {Math.round(downloadProgress * 100)}%
+              </Text>
+            ) : (
+              <Ionicons name="cloud-download" size={18} color={theme.colors.accent} />
+            )
+          ) : (
+            <Ionicons name="download-outline" size={18} color={theme.colors.textMuted} />
+          )}
+        </Pressable>
+      ) : null}
     </Pressable>
   );
 });
@@ -493,6 +527,11 @@ export default function MediaDetailScreen() {
   // null = idle, 0..1 = downloading with known total, NaN = downloading
   // with unknown total (server omits Content-Length).
   const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
+  // Per-episode progress: a key is only present while that episode's
+  // download is running (0..1 known total, NaN unknown) - absent means idle,
+  // matching EpisodeRow's `downloadProgress === undefined` idle check.
+  const [episodeDownloads, setEpisodeDownloads] = useState<Record<string, number>>({});
+  const [bulkDownload, setBulkDownload] = useState<{ done: number; total: number } | null>(null);
 
   const invalidateWatched = useCallback(() => {
     if (id) void qc.invalidateQueries({ queryKey: [`/api/v1/playback/${id}/progress`] });
@@ -564,6 +603,72 @@ export default function MediaDetailScreen() {
     () => (isSeries ? [...children].sort((a, b) => (a.indexNumber ?? 0) - (b.indexNumber ?? 0)) : []),
     [isSeries, children],
   );
+
+  // Downloads a single episode (single-file, same server endpoint as a
+  // movie). Shared by the per-episode button and the "download all" loop
+  // below; `silent` skips the per-item toasts during a bulk run so the user
+  // gets one start/finish toast for the whole batch instead of N of them.
+  const downloadEpisodeFile = useCallback(
+    async (ep: V1MediaItem, opts?: { silent?: boolean }) => {
+      if (!ep.id) return;
+      if (episodeDownloads[ep.id] !== undefined) return;
+      const existing = await getDownloadPath(ep.id);
+      if (existing) {
+        if (!opts?.silent) toast.info(t("media.detail.alreadyDownloaded"));
+        return;
+      }
+      setEpisodeDownloads((s) => ({ ...s, [ep.id!]: NaN }));
+      if (!opts?.silent) toast.info(t("media.detail.downloadStarted"));
+      try {
+        await startDownload(
+          ep.id,
+          ep.title ?? ep.id,
+          (p) => setEpisodeDownloads((s) => ({ ...s, [ep.id!]: p })),
+          { kind: "video", formatHint: ep.containerFormat },
+        );
+        if (!opts?.silent) toast.success(t("media.detail.downloadComplete"));
+      } catch (err) {
+        if (!opts?.silent) {
+          const msg = err instanceof Error && err.message === "NOT_ENOUGH_SPACE"
+            ? t("media.detail.downloadNoSpace")
+            : t("media.detail.downloadFailed");
+          toast.error(msg);
+        }
+        throw err;
+      } finally {
+        setEpisodeDownloads((s) => {
+          const next = { ...s };
+          delete next[ep.id!];
+          return next;
+        });
+      }
+    },
+    [episodeDownloads, t],
+  );
+
+  // "Download all" for the currently shown episode list (the active season,
+  // for both a season screen and a series screen). Sequenced one at a time -
+  // not a Promise.all - so a 24-episode season doesn't fire 24 concurrent
+  // background downloads at once.
+  const handleDownloadAllEpisodes = useCallback(async () => {
+    if (bulkDownload) return;
+    const targets = episodes.filter((ep) => ep.id && hasMediaFile(ep));
+    if (targets.length === 0) return;
+    setBulkDownload({ done: 0, total: targets.length });
+    toast.info(t("media.detail.downloadStarted"));
+    let done = 0;
+    for (const ep of targets) {
+      try {
+        await downloadEpisodeFile(ep, { silent: true });
+      } catch {
+        // One failed episode must not stop the rest of the season from queuing.
+      }
+      done += 1;
+      setBulkDownload({ done, total: targets.length });
+    }
+    setBulkDownload(null);
+    toast.success(t("media.detail.downloadComplete"));
+  }, [episodes, downloadEpisodeFile, bulkDownload, t]);
 
   const people = media?.people ?? [];
   const actors = useMemo(
@@ -1092,11 +1197,42 @@ export default function MediaDetailScreen() {
         {/* Episodes list */}
         {(isSeries || isSeason) && episodes.length > 0 ? (
           <View style={{ marginTop: theme.spacing.md }}>
-            <Text style={{ color: theme.colors.text, fontSize: 16, fontWeight: "600", marginBottom: theme.spacing.sm }}>
-              {t("media.detail.episodes")}
-            </Text>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: theme.spacing.sm }}>
+              <Text style={{ color: theme.colors.text, fontSize: 16, fontWeight: "600" }}>
+                {t("media.detail.episodes")}
+              </Text>
+              {episodes.some((ep) => hasMediaFile(ep)) ? (
+                <Pressable
+                  onPress={() => { void handleDownloadAllEpisodes(); }}
+                  disabled={bulkDownload !== null}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 4, opacity: bulkDownload !== null ? 0.6 : 1 }}
+                  accessible={true}
+                  accessibilityLabel={t("media.detail.downloadAllEpisodes", "Download all")}
+                  accessibilityRole="button"
+                >
+                  {bulkDownload !== null ? (
+                    <ActivityIndicator size={14} color={theme.colors.accent} />
+                  ) : (
+                    <Ionicons name="download-outline" size={16} color={theme.colors.accent} />
+                  )}
+                  <Text style={{ color: theme.colors.accent, fontSize: 13, fontWeight: "600" }}>
+                    {bulkDownload !== null
+                      ? `${bulkDownload.done}/${bulkDownload.total}`
+                      : t("media.detail.downloadAllEpisodes", "Download all")}
+                  </Text>
+                </Pressable>
+              ) : null}
+            </View>
             {episodes.slice(0, visibleEpisodeCount).map((ep) => (
-              <EpisodeRow key={ep.id} item={ep} serverUrl={serverUrl} theme={theme} authHeaders={authHeaders} />
+              <EpisodeRow
+                key={ep.id}
+                item={ep}
+                serverUrl={serverUrl}
+                theme={theme}
+                authHeaders={authHeaders}
+                downloadProgress={ep.id ? episodeDownloads[ep.id] : undefined}
+                onDownload={(item) => { void downloadEpisodeFile(item); }}
+              />
             ))}
             {episodes.length > visibleEpisodeCount ? (
               <Pressable

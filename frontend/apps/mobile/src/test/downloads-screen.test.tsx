@@ -20,6 +20,7 @@ vi.mock("react-native", () => ({
         React.createElement(React.Fragment, { key: keyExtractor(item) }, renderItem({ item })),
       ),
     ),
+  ActivityIndicator: (p: any) => React.createElement("div", { "data-testid": "activity-indicator", ...p }),
   Alert: { alert: vi.fn() },
   StyleSheet: { create: (s: any) => s, hairlineWidth: 1 },
 }));
@@ -74,12 +75,14 @@ const getDownloadsMock = vi.fn();
 const deleteDownloadMock = vi.fn();
 const getTotalDownloadSizeMock = vi.fn();
 const getInFlightProgressMock = vi.fn(() => null as number | null);
+const getInFlightDownloadsMock = vi.fn(() => [] as { mediaItemId: string; title: string }[]);
 vi.mock("../lib/downloads", () => ({
   getDownloads: (...a: unknown[]) => getDownloadsMock(...a),
   deleteDownload: (...a: unknown[]) => deleteDownloadMock(...a),
   getTotalDownloadSize: (...a: unknown[]) => getTotalDownloadSizeMock(...a),
   subscribeToProgress: () => () => {},
   getInFlightProgress: (...a: unknown[]) => getInFlightProgressMock(...a),
+  getInFlightDownloads: (...a: unknown[]) => getInFlightDownloadsMock(...a),
 }));
 
 // -------------------------------------------------------------------------------------
@@ -95,6 +98,7 @@ beforeEach(() => {
   getDownloadsMock.mockResolvedValue(SAMPLE);
   getTotalDownloadSizeMock.mockResolvedValue(4_000_000);
   deleteDownloadMock.mockResolvedValue(undefined);
+  getInFlightDownloadsMock.mockReturnValue([]);
 });
 
 describe("DownloadsScreen", () => {
@@ -138,5 +142,27 @@ describe("DownloadsScreen", () => {
     });
     // Re-lists after a successful delete.
     expect(getDownloadsMock.mock.calls.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("shows an in-flight download as a placeholder row ahead of completed ones", async () => {
+    getInFlightDownloadsMock.mockReturnValue([{ mediaItemId: "m3", title: "Movie 3 (downloading)" }]);
+
+    render(<DownloadsScreen />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Movie 3 (downloading)")).toBeTruthy();
+      expect(screen.getByText("Movie 1")).toBeTruthy();
+    });
+    // No delete action while it's still downloading - nothing to delete yet.
+    expect(screen.getAllByLabelText("Delete download")).toHaveLength(2);
+  });
+
+  it("does not duplicate a download that is both in-flight and already in the completed index", async () => {
+    getInFlightDownloadsMock.mockReturnValue([{ mediaItemId: "m1", title: "Movie 1" }]);
+
+    render(<DownloadsScreen />);
+
+    await waitFor(() => expect(screen.getByText("Movie 1")).toBeTruthy());
+    expect(screen.getAllByText("Movie 1")).toHaveLength(1);
   });
 });

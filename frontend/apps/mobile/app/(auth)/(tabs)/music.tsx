@@ -23,6 +23,8 @@ import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useDebounce } from "../../../src/hooks/useDebounce";
 import { useMusicQueueStore, type QueueTrack } from "../../../src/stores/musicQueue";
 import { AddToPlaylistSheet } from "../../../src/components/AddToPlaylistSheet";
+import { startDownload, getDownloadPath } from "../../../src/lib/downloads";
+import { toast } from "@evey/store";
 
 interface LibraryItem {
   id: string;
@@ -131,6 +133,9 @@ export default function MusicScreen() {
   const [playlistTrackId, setPlaylistTrackId] = useState<string | null>(null);
   const [trackSearch, setTrackSearch] = useState("");
   const debouncedTrackSearch = useDebounce(trackSearch.trim(), 300);
+  // Per-track download progress: a key is only present while that track's
+  // download is running (0..1 known total, NaN unknown) - absent means idle.
+  const [trackDownloads, setTrackDownloads] = useState<Record<string, number>>({});
 
   const queue = useMusicQueueStore((s) => s.queue);
   const currentIndex = useMusicQueueStore((s) => s.currentIndex);
@@ -154,6 +159,46 @@ export default function MusicScreen() {
     }));
     setQueue(allTracks, index);
   }, [tracks, setQueue]);
+
+  // Tracks are single-file media items - same server endpoint and startDownload
+  // path as a movie/episode download, just tagged "audio" for the extension.
+  const handleDownloadTrack = useCallback(
+    async (track: Track) => {
+      if (trackDownloads[track.id] !== undefined) return;
+      const existing = await getDownloadPath(track.id);
+      if (existing) { toast.info(t("media.detail.alreadyDownloaded")); return; }
+      setTrackDownloads((s) => ({ ...s, [track.id]: NaN }));
+      toast.info(t("media.detail.downloadStarted"));
+      try {
+        await startDownload(
+          track.id,
+          track.title || track.id,
+          (p) => setTrackDownloads((s) => ({ ...s, [track.id]: p })),
+          {
+            kind: "audio",
+            // A track isn't a library media item - it mints through the
+            // generic download-token endpoint and its own download route
+            // (same ones the web app's mintDownloadToken/track download use).
+            tokenUrl: `/api/v1/download-token/${encodeURIComponent(track.id)}`,
+            downloadPath: `/api/v1/music/tracks/${encodeURIComponent(track.id)}/download`,
+          },
+        );
+        toast.success(t("media.detail.downloadComplete"));
+      } catch (err) {
+        const msg = err instanceof Error && err.message === "NOT_ENOUGH_SPACE"
+          ? t("media.detail.downloadNoSpace")
+          : t("media.detail.downloadFailed");
+        toast.error(msg);
+      } finally {
+        setTrackDownloads((s) => {
+          const next = { ...s };
+          delete next[track.id];
+          return next;
+        });
+      }
+    },
+    [trackDownloads, t],
+  );
 
   const albumArtUri = useCallback(
     (albumID: string) => (serverUrl ? `${serverUrl}/api/v1/music/albums/${albumID}/artwork` : undefined),
@@ -184,6 +229,28 @@ export default function MusicScreen() {
         <Pressable
           onPress={(e) => {
             e.stopPropagation();
+            void handleDownloadTrack(item);
+          }}
+          disabled={trackDownloads[item.id] !== undefined}
+          hitSlop={8}
+          style={styles.addBtn}
+          accessibilityLabel={t("common.download") || "Download"}
+        >
+          {trackDownloads[item.id] !== undefined ? (
+            Number.isFinite(trackDownloads[item.id]) ? (
+              <Text style={{ color: theme.colors.accent, fontSize: 10, fontWeight: "700" }}>
+                {Math.round(trackDownloads[item.id] * 100)}%
+              </Text>
+            ) : (
+              <Ionicons name="cloud-download-outline" size={20} color={theme.colors.accent} />
+            )
+          ) : (
+            <Ionicons name="download-outline" size={20} color={theme.colors.textMuted} />
+          )}
+        </Pressable>
+        <Pressable
+          onPress={(e) => {
+            e.stopPropagation();
             setPlaylistTrackId(item.id);
           }}
           hitSlop={8}
@@ -194,7 +261,7 @@ export default function MusicScreen() {
         </Pressable>
       </TouchableOpacity>
     );},
-    [theme, currentIndex, queue, handlePlayTrack],
+    [theme, currentIndex, queue, handlePlayTrack, trackDownloads, handleDownloadTrack, t],
   );
 
   const renderAlbum = useCallback(
@@ -309,7 +376,7 @@ export default function MusicScreen() {
                 },
               ]}
             >
-              <Text style={{ color: activeLibraryID === lib.id ? "#fff" : theme.colors.text, fontSize: 13, fontWeight: "600" }}>
+              <Text style={{ color: activeLibraryID === lib.id ? theme.colors.onAccent : theme.colors.text, fontSize: 13, fontWeight: "600" }}>
                 {lib.name}
               </Text>
             </TouchableOpacity>
@@ -332,7 +399,7 @@ export default function MusicScreen() {
               },
             ]}
           >
-            <Text style={{ color: tab === t ? "#fff" : theme.colors.textMuted, fontSize: 14, fontWeight: "600", textTransform: "capitalize" }}>
+            <Text style={{ color: tab === t ? theme.colors.onAccent : theme.colors.textMuted, fontSize: 14, fontWeight: "600", textTransform: "capitalize" }}>
               {t}
             </Text>
           </TouchableOpacity>
