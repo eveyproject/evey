@@ -72,8 +72,8 @@ describe("ErrorBoundary (TV)", () => {
       </ErrorBoundary>,
     );
 
-    expect(screen.getByText("common.loadError")).toBeTruthy();
-    const retryBtn = screen.getByText("common.retry").closest("button");
+    expect(screen.getByText("common.somethingWentWrong")).toBeTruthy();
+    const retryBtn = screen.getByText("common.tryAgain").closest("button");
     const homeBtn = screen.getByText("common.nav.home").closest("button");
     expect(retryBtn).toBeTruthy();
     expect(homeBtn).toBeTruthy();
@@ -91,10 +91,10 @@ describe("ErrorBoundary (TV)", () => {
       </ErrorBoundary>,
     );
 
-    fireEvent.click(screen.getByText("common.retry"));
+    fireEvent.click(screen.getByText("common.tryAgain"));
 
     // The child throws deterministically, so the boundary re-crashes right away.
-    expect(screen.getByText("common.loadError")).toBeTruthy();
+    expect(screen.getByText("common.somethingWentWrong")).toBeTruthy();
   });
 
   it("navigates back to the home tab when Go Home is pressed", () => {

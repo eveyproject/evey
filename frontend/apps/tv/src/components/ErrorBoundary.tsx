@@ -44,7 +44,7 @@ class ErrorBoundaryInner extends Component<Props, State> {
       return (
         <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
           <Text style={[styles.icon, { color: theme.colors.error }]}>!</Text>
-          <Text style={[styles.title, { color: theme.colors.text }]}>{t("common.loadError")}</Text>
+          <Text style={[styles.title, { color: theme.colors.text }]}>{t("common.somethingWentWrong")}</Text>
           <Text style={[styles.message, { color: theme.colors.textMuted }]} numberOfLines={3}>
             {this.state.error?.message ?? t("common.error")}
           </Text>
@@ -55,10 +55,10 @@ class ErrorBoundaryInner extends Component<Props, State> {
             <FocusableCard
               onPress={this.handleRetry}
               hasTVPreferredFocus={true}
-              accessibilityLabel={t("common.retry")}
+              accessibilityLabel={t("common.tryAgain")}
               style={[styles.actionBtn, { backgroundColor: theme.colors.accent }]}
             >
-              <Text style={[styles.retryText, { color: theme.colors.onAccent }]}>{t("common.retry")}</Text>
+              <Text style={[styles.retryText, { color: theme.colors.onAccent }]}>{t("common.tryAgain")}</Text>
             </FocusableCard>
             <FocusableCard
               onPress={this.handleGoHome}
