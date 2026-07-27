@@ -43,17 +43,25 @@ export function ShedScreen({ shedReason, onRetry, onBack }: ShedScreenProps) {
 
 interface ErrorScreenProps {
   onBack: () => void;
+  // Optional: absent for a caller that has nothing sensible to retry (kept
+  // optional rather than forcing every call site to pass a no-op).
+  onRetry?: () => void;
 }
 
-export function ErrorScreen({ onBack }: ErrorScreenProps) {
+export function ErrorScreen({ onBack, onRetry }: ErrorScreenProps) {
   const theme = useTheme();
   const { t } = useTranslation();
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
       <StatusBar hidden />
       <Text style={{ color: theme.colors.text, fontSize: FONT_SIZE.base }}>{t("player.failedToLoadStream")}</Text>
+      {onRetry && (
+        <Pressable onPress={onRetry} style={{ marginTop: 16 }}>
+          <Text style={{ color: theme.colors.accent, fontSize: FONT_SIZE.base, fontWeight: "600" }}>{t("player.retry")}</Text>
+        </Pressable>
+      )}
       <Pressable onPress={onBack} style={{ marginTop: 16 }}>
-        <Text style={{ color: theme.colors.accent, fontSize: FONT_SIZE.base }}>{t("player.goBack")}</Text>
+        <Text style={{ color: theme.colors.textMuted, fontSize: FONT_SIZE.sm }}>{t("player.goBack")}</Text>
       </Pressable>
     </View>
   );

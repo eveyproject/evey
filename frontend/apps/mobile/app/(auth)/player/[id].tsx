@@ -25,6 +25,8 @@ import {
   useLibraryServiceGetMediaItem,
   useLibraryServiceListMediaItems,
   usePlaybackServiceMarkAsWatched,
+  useUserServiceGetCurrentUser,
+  useUserServiceListProfiles,
 } from "@evey/api";
 import { usePlaySession } from "../../../src/hooks/usePlaySession";
 import { useProgressReporter } from "../../../src/hooks/useProgressReporter";
@@ -34,7 +36,7 @@ import { useNextEpisode } from "../../../src/hooks/useNextEpisode";
 import { useChapters } from "../../../src/hooks/useChapters";
 import { useSleepTimer } from "../../../src/hooks/useSleepTimer";
 import { SleepTimerPicker } from "../../../src/components/SleepTimerPicker";
-import { pickNativeAudioTrack } from "../../../src/lib/audioTrackMatch";
+import { pickNativeAudioTrack, pickPreferredStreamIndex } from "../../../src/lib/audioTrackMatch";
 import { playerExit } from "../../../src/lib/playerExit";
 import { ChaptersPicker } from "../../../src/components/ChaptersPicker";
 import { StreamInfoPanel } from "../../../src/components/StreamInfoPanel";
@@ -224,7 +226,35 @@ export default function PlayerScreen() {
     [streamInfo],
   );
 
-  // Set initial selected audio index from default stream. Once the user has
+  // Profile audio/subtitle language preference (audio_languages/subtitle_languages,
+  // CSV of ISO 639-1 codes in profile.preferences - shared web/tv/mobile convention,
+  // see settings/playback.tsx). Mirrors the web player's HLSPlayer.tsx: applied
+  // to the initial track resolution below, but never overrides an explicit
+  // in-session pick (userPickedAudioRef / userPickedSubtitleRef).
+  const activeProfileId = useAuthStore((s) => s.profileId);
+  const { data: currentUserForPrefs } = useUserServiceGetCurrentUser();
+  const { data: profilesRespForPrefs } = useUserServiceListProfiles(
+    currentUserForPrefs?.id ?? "",
+    { query: { enabled: !!currentUserForPrefs?.id } } as never,
+  );
+  const activeProfile = useMemo(
+    () =>
+      profilesRespForPrefs?.profiles?.find((p) => p.id === activeProfileId) ??
+      profilesRespForPrefs?.profiles?.find((p) => p.isDefault) ??
+      profilesRespForPrefs?.profiles?.[0],
+    [profilesRespForPrefs, activeProfileId],
+  );
+  const profileAudioLangs = useMemo((): string[] => {
+    const raw = activeProfile?.preferences?.["audio_languages"] ?? "";
+    return raw.split(",").map((s) => s.trim()).filter(Boolean);
+  }, [activeProfile]);
+  const profileSubtitleLangs = useMemo((): string[] => {
+    const raw = activeProfile?.preferences?.["subtitle_languages"] ?? "";
+    return raw.split(",").map((s) => s.trim()).filter(Boolean);
+  }, [activeProfile]);
+
+  // Set initial selected audio index: profile preference first, then the
+  // manifest's isDefault stream, then the first stream. Once the user has
   // manually picked a track, this must NOT run again: restartWithTracks
   // re-derives audioStreams (new reference), which re-fired this effect and
   // reset the choice back to the isDefault track - the user's language change
@@ -232,10 +262,23 @@ export default function PlayerScreen() {
   const userPickedAudioRef = useRef(false);
   useEffect(() => {
     if (userPickedAudioRef.current) return;
+    const preferred = pickPreferredStreamIndex(audioStreams, profileAudioLangs);
+    if (preferred !== null) { setSelectedAudioIndex(preferred); return; }
     const def = audioStreams.find((s) => s.isDefault);
     if (def) setSelectedAudioIndex(def.index);
     else if (audioStreams.length > 0) setSelectedAudioIndex(audioStreams[0].index);
-  }, [audioStreams]);
+  }, [audioStreams, profileAudioLangs]);
+
+  // Same guard for subtitles: applies the profile's subtitle_languages
+  // preference once, and never once the user has picked a subtitle by hand
+  // (see handleSubtitleSelect). No preference match means "no subtitle" -
+  // mobile has no isDefault-subtitle fallback (matches prior behaviour).
+  const userPickedSubtitleRef = useRef(false);
+  useEffect(() => {
+    if (userPickedSubtitleRef.current) return;
+    const preferred = pickPreferredStreamIndex(subtitleStreams, profileSubtitleLangs);
+    if (preferred !== null) setSelectedSubtitleIndex(preferred);
+  }, [subtitleStreams, profileSubtitleLangs]);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -725,6 +768,7 @@ export default function PlayerScreen() {
 
   const handleSubtitleSelect = useCallback(
     (index: number | null) => {
+      userPickedSubtitleRef.current = true;
       setSelectedSubtitleIndex(index);
       resumeAfterRestartRef.current = player?.playing ?? true;
       if (index === null) {
@@ -838,7 +882,20 @@ export default function PlayerScreen() {
   // error is different: it means THIS playback died (network or local file),
   // so it always surfaces.
   if (nativeError || (isError && !localFilePath)) {
-    return <ErrorScreen onBack={handleBack} />;
+    return (
+      <ErrorScreen
+        onBack={handleBack}
+        onRetry={() => {
+          // Clear the latched native error (see the mediaId-change effect
+          // above for why it must be reset explicitly) and restart the
+          // session with the same track/quality selection - same "user
+          // wants playback back" contract as ShedScreen's onRetry above.
+          setNativeError(null);
+          resumeAfterRestartRef.current = true;
+          restartWithTracks(selectedAudioIndex, selectedSubtitleIndex ?? undefined, selectedQuality || undefined);
+        }}
+      />
+    );
   }
 
   if (!localFilePath && (isLoading || !streamUrl)) {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { pickNativeAudioTrack } from "./audioTrackMatch";
+import { pickNativeAudioTrack, pickPreferredStreamIndex } from "./audioTrackMatch";
 
 describe("pickNativeAudioTrack", () => {
   const tracks = [
@@ -23,5 +23,46 @@ describe("pickNativeAudioTrack", () => {
 
   it("returns null when nothing matches so the caller restarts instead", () => {
     expect(pickNativeAudioTrack([{ language: "de", label: "Deutsch" }], 9, "fre")).toBeNull();
+  });
+
+  it("does not confuse Slovak (slo) with a Slovenian native track", () => {
+    // A naive slice(0,2) normalization turns "slo" (Slovak) into "sl", which
+    // collides with Slovenian's real 639-1 code - the wrong track would match.
+    const slovenianOnly = [{ language: "slv", label: "Slovenian" }];
+    expect(pickNativeAudioTrack(slovenianOnly, 9, "slo")).toBeNull();
+  });
+
+  it("matches German (ger/deu, 639-2) against a native 'de' (639-1) track", () => {
+    // A naive slice(0,2) of "ger" gives "ge", which never matches "de".
+    const germanTrack = [{ language: "de", label: "Deutsch" }];
+    expect(pickNativeAudioTrack(germanTrack, 9, "ger")?.label).toBe("Deutsch");
+  });
+});
+
+describe("pickPreferredStreamIndex", () => {
+  const streams = [
+    { index: 0, language: "eng" },
+    { index: 1, language: "fre" },
+    { index: 2, language: "jpn" },
+  ];
+
+  it("returns the index of the first preference found in the streams", () => {
+    expect(pickPreferredStreamIndex(streams, ["ja", "fr"])).toBe(2);
+  });
+
+  it("skips a preferred language absent from the file and tries the next", () => {
+    expect(pickPreferredStreamIndex(streams, ["de", "fr"])).toBe(1);
+  });
+
+  it("is 639-2/639-1 aware (German preference matches a 'ger' stream)", () => {
+    expect(pickPreferredStreamIndex([{ index: 0, language: "ger" }], ["de"])).toBe(0);
+  });
+
+  it("returns null when no preference matches anything in the file", () => {
+    expect(pickPreferredStreamIndex(streams, ["de", "ko"])).toBeNull();
+  });
+
+  it("returns null for an empty preference list", () => {
+    expect(pickPreferredStreamIndex(streams, [])).toBeNull();
   });
 });
