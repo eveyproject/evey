@@ -345,8 +345,8 @@ func (s *CommandService) RefreshToken(ctx context.Context, token, requestedProfi
 		// JWT epoch, which is harmless here: the access token generated below
 		// is minted with the fresh epoch).
 		if s.tokenRevoker != nil {
-			if err := s.tokenRevoker.Revoke(ctx, string(u.ID)); err != nil {
-				slog.WarnContext(ctx, "revoke stream tokens on profile switch", slog.Any("err", err))
+			if revokeErr := s.tokenRevoker.Revoke(ctx, string(u.ID)); revokeErr != nil {
+				slog.WarnContext(ctx, "revoke stream tokens on profile switch", slog.Any("err", revokeErr))
 			}
 		}
 	}

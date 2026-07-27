@@ -322,8 +322,21 @@ func (h *mediaServe) findArtworkRecords(ctx context.Context, mediaID, artType, p
 	// a self-referential or cyclic parent_id (poisoned/buggy row) from spinning
 	// this loop forever.
 	const maxParentDepth = 8
+	depth := 0
 	for range maxParentDepth {
-		records, err := h.cachedArtworkRecords(ctx, lookupID)
+		var records []*domainmeta.ArtworkRecord
+		var err error
+		if depth == 0 {
+			// The requested item's OWN artwork is unique to this one request -
+			// no sibling ever shares mediaID - so there is nothing to gain by
+			// memoising it; fetch directly, exactly as before.
+			records, err = h.artworkRepo.GetByMediaItem(ctx, lookupID)
+		} else {
+			// From here on, lookupID is an ANCESTOR (season/series) that every
+			// sibling under it repeats this same walk to reach - memoise it
+			// (see artworkRecordsCache).
+			records, err = h.cachedArtworkRecords(ctx, lookupID)
+		}
 		if err != nil {
 			return nil
 		}
@@ -339,6 +352,7 @@ func (h *mediaServe) findArtworkRecords(ctx context.Context, mediaID, artType, p
 			return nil
 		}
 		nextParentID = pid
+		depth++
 	}
 	return nil
 }

@@ -94,7 +94,7 @@ func TestArtwork_ResizeSingleFlight_ConcurrentSameVariant(t *testing.T) {
 	const N = 10
 	var wg sync.WaitGroup
 	codes := make([]int, N)
-	for i := 0; i < N; i++ {
+	for i := range N {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
@@ -148,7 +148,7 @@ func TestArtwork_ResizeConcurrency_BoundedBySemaphore(t *testing.T) {
 	tmp := t.TempDir()
 	conv := newBlockingImageConverter()
 	handlers := make([]http.Handler, N)
-	for i := 0; i < N; i++ {
+	for i := range N {
 		imgPath := filepath.Join(tmp, fmt.Sprintf("poster%d.jpg", i))
 		if err := os.WriteFile(imgPath, []byte("orig"), 0644); err != nil {
 			t.Fatal(err)
@@ -167,7 +167,7 @@ func TestArtwork_ResizeConcurrency_BoundedBySemaphore(t *testing.T) {
 	}
 
 	var wg sync.WaitGroup
-	for i := 0; i < N; i++ {
+	for i := range N {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
@@ -187,7 +187,7 @@ func TestArtwork_ResizeConcurrency_BoundedBySemaphore(t *testing.T) {
 
 	// Exactly artworkResizeMaxConcurrent requests should be able to enter the
 	// converter concurrently.
-	for i := 0; i < artworkResizeMaxConcurrent; i++ {
+	for i := range artworkResizeMaxConcurrent {
 		select {
 		case <-conv.entered:
 		case <-time.After(2 * time.Second):

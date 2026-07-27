@@ -219,7 +219,8 @@ func stripRulesWithSensitiveSelectors(css string, warnings *[]string) string {
 			*warnings = append(*warnings, "dropped malformed/unbalanced CSS block after: "+strings.TrimSpace(selector))
 			break
 		}
-		if reNestableAtRule.MatchString(decodeCSSEscapes(selector)) {
+		switch {
+		case reNestableAtRule.MatchString(decodeCSSEscapes(selector)):
 			// A sensitive rule can be nested inside a grouping at-rule
 			// (@media/@supports/@layer/...); recurse into the block's
 			// content so it is still caught, while non-offending sibling
@@ -230,9 +231,9 @@ func stripRulesWithSensitiveSelectors(css string, warnings *[]string) string {
 			result.WriteString("{")
 			result.WriteString(recursed)
 			result.WriteString("}")
-		} else if reSensitiveSelector.MatchString(decodeCSSEscapes(selector)) {
+		case reSensitiveSelector.MatchString(decodeCSSEscapes(selector)):
 			*warnings = append(*warnings, "removed rule targeting sensitive selector: "+strings.TrimSpace(selector))
-		} else {
+		default:
 			result.WriteString(remaining[:closeIdx+1])
 		}
 		remaining = remaining[closeIdx+1:]
@@ -547,7 +548,8 @@ func stripPointerEventsOnInteractive(css string, warnings *[]string) string {
 		selector := remaining[:braceOpen]
 		block := remaining[braceOpen : closeIdx+1]
 
-		if reNestableAtRule.MatchString(decodeCSSEscapes(selector)) {
+		switch {
+		case reNestableAtRule.MatchString(decodeCSSEscapes(selector)):
 			// pointer-events:none on an interactive element can be nested
 			// inside a grouping at-rule (@media/@supports/@layer/...);
 			// recurse into the block's content so it is still caught, while
@@ -558,13 +560,13 @@ func stripPointerEventsOnInteractive(css string, warnings *[]string) string {
 			result.WriteString("{")
 			result.WriteString(recursed)
 			result.WriteString("}")
-		} else if reInteractiveSelector.MatchString(decodeCSSEscapes(selector)) && rePointerEventsNone.MatchString(decodeCSSEscapes(block)) {
+		case reInteractiveSelector.MatchString(decodeCSSEscapes(selector)) && rePointerEventsNone.MatchString(decodeCSSEscapes(block)):
 			// Remove only the pointer-events:none declaration, keep rest of block.
 			cleaned := rePointerEventsNone.ReplaceAllString(block, "/* pointer-events removed */")
 			*warnings = append(*warnings, "removed pointer-events:none from interactive selector: "+strings.TrimSpace(selector))
 			result.WriteString(selector)
 			result.WriteString(cleaned)
-		} else {
+		default:
 			result.WriteString(remaining[:closeIdx+1])
 		}
 		remaining = remaining[closeIdx+1:]

@@ -99,7 +99,7 @@ func TestArtwork_ParentChainMemoized_AcrossSiblingRequests(t *testing.T) {
 		// episodes deliberately carry no artwork record of their own, forcing
 		// the walk up to the season on every single request.
 	}
-	for i := 0; i < numEpisodes; i++ {
+	for i := range numEpisodes {
 		id := fmt.Sprintf("ep%d", i)
 		items[id] = &domainlibrary.MediaItem{ID: shared.MediaItemID(id), LibraryID: "lib1", ParentID: "season1"}
 	}
@@ -109,7 +109,7 @@ func TestArtwork_ParentChainMemoized_AcrossSiblingRequests(t *testing.T) {
 
 	h := mediaHandler(getter, repo, "http://localhost", allowAll())
 
-	for i := 0; i < numEpisodes; i++ {
+	for i := range numEpisodes {
 		id := fmt.Sprintf("ep%d", i)
 		req := httptest.NewRequest(http.MethodGet, "/api/v1/media/"+id+"/artwork/poster", nil)
 		req.SetPathValue("id", id)
