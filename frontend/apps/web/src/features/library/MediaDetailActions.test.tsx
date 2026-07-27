@@ -1,6 +1,6 @@
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MediaDetailActions } from "./MediaDetailActions";
 
@@ -22,10 +22,11 @@ vi.mock("@evey/api", () => ({
   useLibraryServiceGetMediaItem: () => ({ data: undefined }),
 }));
 
+let mockIsAdmin = false;
 vi.mock("@evey/store", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
   useAuthStore: (sel: (s: { accessToken: string; profileId: string | null; isAdmin: boolean }) => unknown) =>
-    sel({ accessToken: "tok", profileId: "profile-1", isAdmin: false }),
+    sel({ accessToken: "tok", profileId: "profile-1", isAdmin: mockIsAdmin }),
 }));
 
 vi.mock("@/hooks/useParentalGate", () => ({
@@ -43,6 +44,10 @@ vi.mock("../playback/DownloadButton", () => ({
 
 vi.mock("./FavoriteButton", () => ({
   FavoriteButton: () => <button data-testid="favorite-btn">Favorite</button>,
+}));
+
+vi.mock("./ShareLinkButton", () => ({
+  ShareLinkButton: () => <button data-testid="share-link-btn">Share</button>,
 }));
 
 vi.mock("./RatingButtons", () => ({
@@ -118,6 +123,10 @@ const defaultProps = {
 };
 
 describe("MediaDetailActions", () => {
+  beforeEach(() => {
+    mockIsAdmin = false;
+  });
+
   it("renders tagline", () => {
     render(<MediaDetailActions {...defaultProps} />, { wrapper: Wrapper });
     expect(screen.getByText("Your mind is the scene of the crime.")).toBeInTheDocument();
@@ -195,14 +204,25 @@ describe("MediaDetailActions", () => {
     expect(screen.getByTestId("rating-buttons")).toBeInTheDocument();
   });
 
-  it("shows edit modal when editing=true", () => {
+  it("shows edit modal when editing=true and user is admin", () => {
+    mockIsAdmin = true;
     render(<MediaDetailActions {...defaultProps} editing />, { wrapper: Wrapper });
     expect(screen.getByTestId("modal")).toBeInTheDocument();
     expect(screen.getByTestId("metadata-edit")).toBeInTheDocument();
   });
 
   it("hides edit modal when editing=false", () => {
+    mockIsAdmin = true;
     render(<MediaDetailActions {...defaultProps} editing={false} />, { wrapper: Wrapper });
+    expect(screen.queryByTestId("modal")).not.toBeInTheDocument();
+  });
+
+  // Defense in depth: editing=true alone must not be enough - a non-admin
+  // (or an admin demoted mid-session, leaving a stale editing=true) must never
+  // get the metadata editor mounted, matching the mobile detail screen.
+  it("hides edit modal when editing=true but user is not admin", () => {
+    mockIsAdmin = false;
+    render(<MediaDetailActions {...defaultProps} editing />, { wrapper: Wrapper });
     expect(screen.queryByTestId("modal")).not.toBeInTheDocument();
   });
 

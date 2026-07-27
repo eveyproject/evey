@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import type { V1MediaItem } from "@evey/api";
 import { useUserServiceGetCurrentUser, useUserServiceListProfiles } from "@evey/api";
 import { useTranslation } from "react-i18next";
+import { useAuthStore } from "@evey/store";
 import { Pencil } from "lucide-react";
 import { ACTION_ICON_BOX } from "@/components/ui/Button";
 import { ICON } from "@/constants/iconSizes";
@@ -48,6 +49,7 @@ export function MediaDetailHero({
   children,
 }: MediaDetailHeroProps) {
   const { t, i18n } = useTranslation();
+  const isAdmin = useAuthStore((s) => s.isAdmin);
   const { data: currentUser } = useUserServiceGetCurrentUser();
   const { data: profilesResp } = useUserServiceListProfiles(currentUser?.id ?? "", { query: { enabled: !!currentUser?.id } });
   const profileRegion = (profilesResp?.profiles?.find((p) => p.isDefault) ?? profilesResp?.profiles?.[0])?.region;
@@ -222,7 +224,10 @@ export function MediaDetailHero({
             className="max-w-[14ch] text-4xl sm:text-6xl lg:text-7xl font-medium tracking-[-0.035em] leading-[0.95] text-white text-balance [text-shadow:0_2px_24px_rgb(0_0_0/0.55)]"
             data-testid="media-title"
           >{item.title}</h1>
-          {item.id && (
+          {/* Client-side gate only: the server is what actually enforces this,
+              this just stops a non-admin from seeing controls that would fail
+              anyway (parity with the mobile detail screen). */}
+          {item.id && isAdmin && (
             <button
               onClick={onEditToggle}
               title={t("media.detail.editMetadata")}

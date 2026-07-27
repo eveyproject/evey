@@ -240,7 +240,10 @@ export function MediaDetailActions({
           profileId={profileId}
         />
       )}
-      {item.id && (
+      {/* Defense in depth: re-check isAdmin at the mount point, not just at the
+          toggle button in MediaDetailHero, so a stale editing=true can never
+          render the editor for a non-admin (e.g. after losing admin mid-session). */}
+      {item.id && isAdmin && (
         <Modal open={editing} onClose={() => setEditing(false)} title={t("media.detail.editMetadata")} size="4xl">
           <div className="overflow-y-auto max-h-[76vh]">
             <MetadataEditPanel

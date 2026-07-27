@@ -82,7 +82,12 @@ function LibraryAccessModal({ user, visible, onClose, theme }: { user: V1User; v
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose} />
+      <Pressable
+        style={styles.backdrop}
+        onPress={onClose}
+        accessibilityElementsHidden={true}
+        importantForAccessibility="no-hide-descendants"
+      />
       <View style={[styles.sheet, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.lg }]}>
         <Text style={{ color: theme.colors.text, fontSize: 18, fontWeight: "700", marginBottom: 8 }}>
           {t("admin.users.libraryAccessTitle", { name: user.username })}
@@ -101,6 +106,10 @@ function LibraryAccessModal({ user, visible, onClose, theme }: { user: V1User; v
                 key={lib.id}
                 onPress={() => handleToggle(lib.id)}
                 style={[styles.libRow, { backgroundColor: theme.colors.bg, borderRadius: theme.radii.md }]}
+                accessible={true}
+                accessibilityLabel={lib.name}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: selected.has(lib.id) }}
               >
                 <Ionicons
                   name={selected.has(lib.id) ? "checkbox" : "square-outline"}
@@ -113,7 +122,13 @@ function LibraryAccessModal({ user, visible, onClose, theme }: { user: V1User; v
           </ScrollView>
         )}
         {selected.size > 0 && (
-          <Pressable onPress={() => setSelected(new Set())} style={{ paddingVertical: 8 }}>
+          <Pressable
+            onPress={() => setSelected(new Set())}
+            style={{ paddingVertical: 8 }}
+            accessible={true}
+            accessibilityLabel={t("admin.users.clearAllUnrestricted")}
+            accessibilityRole="button"
+          >
             <Text style={{ color: theme.colors.accent, fontSize: 13, textAlign: "center" }}>
               {t("admin.users.clearAllUnrestricted")}
             </Text>
@@ -125,10 +140,23 @@ function LibraryAccessModal({ user, visible, onClose, theme }: { user: V1User; v
           </View>
         )}
         <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
-          <Pressable onPress={onClose} style={[styles.createBtn, { flex: 1, backgroundColor: theme.colors.bg, borderRadius: theme.radii.md }]}>
+          <Pressable
+            onPress={onClose}
+            style={[styles.createBtn, { flex: 1, backgroundColor: theme.colors.bg, borderRadius: theme.radii.md }]}
+            accessible={true}
+            accessibilityLabel={t("common.cancel")}
+            accessibilityRole="button"
+          >
             <Text style={{ color: theme.colors.text, fontWeight: "600", fontSize: 15 }}>{t("common.cancel")}</Text>
           </Pressable>
-          <Pressable onPress={handleSave} disabled={saving} style={[styles.createBtn, { flex: 1, backgroundColor: theme.colors.accent, borderRadius: theme.radii.md, opacity: saving ? 0.5 : 1 }]}>
+          <Pressable
+            onPress={handleSave}
+            disabled={saving}
+            style={[styles.createBtn, { flex: 1, backgroundColor: theme.colors.accent, borderRadius: theme.radii.md, opacity: saving ? 0.5 : 1 }]}
+            accessible={true}
+            accessibilityLabel={t("common.save")}
+            accessibilityRole="button"
+          >
             {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={{ color: "#fff", fontWeight: "600", fontSize: 15 }}>{t("common.save")}</Text>}
           </Pressable>
         </View>
@@ -203,7 +231,13 @@ function InviteLinksSection({ theme }: { theme: ReturnType<typeof useTheme> }) {
         <Text style={{ color: theme.colors.text, fontSize: 17, fontWeight: "700" }}>
           {t("admin.users.inviteLinks", "Invite Links")}
         </Text>
-        <Pressable onPress={() => setShowCreate(true)} hitSlop={8}>
+        <Pressable
+          onPress={() => setShowCreate(true)}
+          hitSlop={8}
+          accessible={true}
+          accessibilityLabel={t("admin.users.createInviteLink", "Create Invite Link")}
+          accessibilityRole="button"
+        >
           <Ionicons name="add-circle-outline" size={24} color={theme.colors.accent} />
         </Pressable>
       </View>
@@ -232,10 +266,24 @@ function InviteLinksSection({ theme }: { theme: ReturnType<typeof useTheme> }) {
                 </Text>
               </View>
             </View>
-            <Pressable onPress={() => handleShare(link)} hitSlop={8} style={{ padding: 4 }}>
+            <Pressable
+              onPress={() => handleShare(link)}
+              hitSlop={8}
+              style={{ padding: 4 }}
+              accessible={true}
+              accessibilityLabel={t("admin.users.shareInviteNamed", "Share invite {{code}}", { code: link.code })}
+              accessibilityRole="button"
+            >
               <Ionicons name="share-outline" size={18} color={theme.colors.accent} />
             </Pressable>
-            <Pressable onPress={() => handleRevoke(link)} hitSlop={8} style={{ padding: 4 }}>
+            <Pressable
+              onPress={() => handleRevoke(link)}
+              hitSlop={8}
+              style={{ padding: 4 }}
+              accessible={true}
+              accessibilityLabel={t("admin.users.revokeInviteNamed", "Revoke invite {{code}}", { code: link.code })}
+              accessibilityRole="button"
+            >
               <Ionicons name="trash-outline" size={18} color="#ef4444" />
             </Pressable>
           </View>
@@ -243,7 +291,12 @@ function InviteLinksSection({ theme }: { theme: ReturnType<typeof useTheme> }) {
       )}
 
       <Modal visible={showCreate} transparent animationType="slide" onRequestClose={() => setShowCreate(false)}>
-        <Pressable style={styles.backdrop} onPress={() => setShowCreate(false)} />
+        <Pressable
+          style={styles.backdrop}
+          onPress={() => setShowCreate(false)}
+          accessibilityElementsHidden={true}
+          importantForAccessibility="no-hide-descendants"
+        />
         <View style={[styles.sheet, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.lg }]}>
           <Text style={{ color: theme.colors.text, fontSize: 18, fontWeight: "700", marginBottom: 16 }}>
             {t("admin.users.createInviteLink", "Create Invite Link")}
@@ -255,11 +308,16 @@ function InviteLinksSection({ theme }: { theme: ReturnType<typeof useTheme> }) {
             onChangeText={setMaxUses}
             keyboardType="number-pad"
             style={[styles.input, { backgroundColor: theme.colors.bg, color: theme.colors.text, borderRadius: theme.radii.md }]}
+            accessible={true}
+            accessibilityLabel={t("admin.users.maxUsesLabel", "Max uses (empty = unlimited)")}
           />
           <Pressable
             onPress={handleCreate}
             disabled={createInvite.isPending}
             style={[styles.createBtn, { backgroundColor: theme.colors.accent, borderRadius: theme.radii.md, opacity: createInvite.isPending ? 0.5 : 1 }]}
+            accessible={true}
+            accessibilityLabel={t("common.create", "Create")}
+            accessibilityRole="button"
           >
             {createInvite.isPending ? (
               <ActivityIndicator color="#fff" size="small" />
@@ -326,6 +384,7 @@ export default function AdminUsersScreen() {
     mutation: {
       onSuccess: async (data) => {
         const userId = data?.id;
+        let libraryAccessFailed = false;
         if (userId && !newIsAdmin && newSelectedLibs.size > 0) {
           try {
             await eveyFetch<void>({
@@ -334,10 +393,17 @@ export default function AdminUsersScreen() {
               data: { libraryIds: Array.from(newSelectedLibs) },
             });
           } catch {
-            toast.error(t("admin.users.failedLibraryAccess"));
+            libraryAccessFailed = true;
           }
         }
-        toast.success(t("admin.users.userCreated"));
+        // The user row always exists at this point - what may have failed is
+        // the follow-up library-access grant. Reporting a plain "created"
+        // success here would hide that the admin still has no libraries.
+        if (libraryAccessFailed) {
+          toast.error(t("admin.users.userCreatedAccessFailed", "User created, but library access could not be applied"));
+        } else {
+          toast.success(t("admin.users.userCreated"));
+        }
         setShowCreate(false);
         setNewUsername("");
         setNewEmail("");
@@ -506,7 +572,13 @@ export default function AdminUsersScreen() {
         headerStyle: { backgroundColor: theme.colors.surface },
         headerTintColor: theme.colors.text,
         headerRight: () => (
-          <Pressable onPress={() => setShowCreate(true)} style={{ marginRight: 16 }}>
+          <Pressable
+            onPress={() => setShowCreate(true)}
+            style={{ marginRight: 16 }}
+            accessible={true}
+            accessibilityLabel={t("admin.users.createUser")}
+            accessibilityRole="button"
+          >
             <Ionicons name="add" size={24} color={theme.colors.accent} />
           </Pressable>
         ),
@@ -534,7 +606,12 @@ export default function AdminUsersScreen() {
       )}
 
       <Modal visible={showCreate} transparent animationType="slide" onRequestClose={() => setShowCreate(false)}>
-        <Pressable style={styles.backdrop} onPress={() => setShowCreate(false)} />
+        <Pressable
+          style={styles.backdrop}
+          onPress={() => setShowCreate(false)}
+          accessibilityElementsHidden={true}
+          importantForAccessibility="no-hide-descendants"
+        />
         <View style={[styles.sheet, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.lg }]}>
           <Text style={{ color: theme.colors.text, fontSize: 18, fontWeight: "700", marginBottom: 16 }}>{t("admin.users.createUser")}</Text>
           <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
@@ -597,6 +674,10 @@ export default function AdminUsersScreen() {
                     key={lib.id}
                     onPress={() => handleToggleNewLib(lib.id!)}
                     style={[styles.libRow, { backgroundColor: theme.colors.bg, borderRadius: theme.radii.md }]}
+                    accessible={true}
+                    accessibilityLabel={lib.name ?? lib.id}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: newSelectedLibs.has(lib.id!) }}
                   >
                     <Ionicons
                       name={newSelectedLibs.has(lib.id!) ? "checkbox" : "square-outline"}
@@ -607,7 +688,13 @@ export default function AdminUsersScreen() {
                   </Pressable>
                 ))}
                 {newSelectedLibs.size > 0 && (
-                  <Pressable onPress={() => setNewSelectedLibs(new Set())} style={{ paddingVertical: 6 }}>
+                  <Pressable
+                    onPress={() => setNewSelectedLibs(new Set())}
+                    style={{ paddingVertical: 6 }}
+                    accessible={true}
+                    accessibilityLabel={t("admin.users.clearAllUnrestricted")}
+                    accessibilityRole="button"
+                  >
                     <Text style={{ color: theme.colors.accent, fontSize: 13, textAlign: "center" }}>
                       {t("admin.users.clearAllUnrestricted")}
                     </Text>
@@ -616,7 +703,14 @@ export default function AdminUsersScreen() {
               </View>
             )}
           </ScrollView>
-          <Pressable onPress={handleCreate} disabled={createUser.isPending} style={[styles.createBtn, { backgroundColor: theme.colors.accent, borderRadius: theme.radii.md, opacity: createUser.isPending ? 0.5 : 1 }]}>
+          <Pressable
+            onPress={handleCreate}
+            disabled={createUser.isPending}
+            style={[styles.createBtn, { backgroundColor: theme.colors.accent, borderRadius: theme.radii.md, opacity: createUser.isPending ? 0.5 : 1 }]}
+            accessible={true}
+            accessibilityLabel={t("common.create")}
+            accessibilityRole="button"
+          >
             <Text style={{ color: "#fff", fontWeight: "600", fontSize: 15 }}>{t("common.create")}</Text>
           </Pressable>
         </View>

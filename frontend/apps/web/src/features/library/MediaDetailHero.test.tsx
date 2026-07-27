@@ -1,6 +1,6 @@
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { MediaDetailHero } from "./MediaDetailHero";
 
 vi.mock("@tanstack/react-router", () => ({
@@ -14,6 +14,13 @@ vi.mock("@tanstack/react-router", () => ({
 vi.mock("@evey/api", () => ({
   useUserServiceGetCurrentUser: () => ({ data: undefined }),
   useUserServiceListProfiles: () => ({ data: undefined }),
+}));
+
+// Defaults to admin so the pre-existing edit-button tests keep exercising the
+// button itself; the non-admin gating gets its own dedicated test below.
+let mockIsAdmin = true;
+vi.mock("@evey/store", () => ({
+  useAuthStore: (sel: (s: { isAdmin: boolean }) => unknown) => sel({ isAdmin: mockIsAdmin }),
 }));
 
 vi.mock("@/components/ui/BackButton", () => ({
@@ -47,6 +54,10 @@ const defaultProps = {
 };
 
 describe("MediaDetailHero", () => {
+  beforeEach(() => {
+    mockIsAdmin = true;
+  });
+
   it("renders title", () => {
     render(<MediaDetailHero {...defaultProps} />);
     expect(screen.getByTestId("media-title")).toHaveTextContent("Inception");
@@ -139,6 +150,14 @@ describe("MediaDetailHero", () => {
     const editBtn = screen.getByRole("button", { name: /edit/i });
     fireEvent.click(editBtn);
     expect(onEditToggle).toHaveBeenCalledOnce();
+  });
+
+  // Client-side hardening only - the server is the real gate - but a non-admin
+  // should not see a control that would fail server-side anyway.
+  it("hides the edit-metadata button for a non-admin", () => {
+    mockIsAdmin = false;
+    render(<MediaDetailHero {...defaultProps} />);
+    expect(screen.queryByTestId("media-edit-toggle-btn")).not.toBeInTheDocument();
   });
 
   it("renders parent item link", () => {

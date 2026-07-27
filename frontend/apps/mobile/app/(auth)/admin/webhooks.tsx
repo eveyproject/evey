@@ -231,9 +231,12 @@ export default function AdminWebhooksScreen() {
 
   const handleToggle = useCallback((wh: V1WebhookConfig) => {
     if (!wh.id) return;
+    // UpdateWebhook is a full replace (proto3 scalar, no "field not sent"
+    // semantics server-side) - omitting secret here would clear the signing
+    // key on every enable/disable flip, so it must ride along unchanged.
     toggleEnabled.mutate({
       id: wh.id,
-      data: { name: wh.name, url: wh.url, events: wh.events, enabled: !wh.enabled },
+      data: { name: wh.name, url: wh.url, events: wh.events, secret: wh.secret, enabled: !wh.enabled },
     });
   }, [toggleEnabled]);
 
