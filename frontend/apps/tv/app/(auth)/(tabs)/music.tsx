@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { View, Text, ScrollView, FlatList, ActivityIndicator, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { router } from "expo-router";
@@ -39,6 +39,15 @@ function trackToQueueTrack(t: V1Track): QueueTrack {
 
 function RowSeparator() {
   return <View style={{ width: 16 }} />;
+}
+
+// The music screen has three horizontal rows (artists, albums, tracks) that
+// can each be empty independently. Only the first row that actually has
+// items should claim the TV remote's initial focus - otherwise every row's
+// first card fights for it simultaneously.
+export function selectMusicFocusSection(sectionHasItems: boolean[]): number | null {
+  const idx = sectionHasItems.findIndex(Boolean);
+  return idx === -1 ? null : idx;
 }
 
 function useMusicLibraries() {
@@ -214,7 +223,7 @@ function LibraryChip({
         { backgroundColor: active ? theme.colors.accent : theme.colors.surface, borderRadius: theme.radii.sm },
       ]}
     >
-      <Text style={{ color: active ? theme.colors.bg : theme.colors.text, fontSize: 16, fontWeight: "600" }}>
+      <Text style={{ color: active ? theme.colors.onAccent : theme.colors.text, fontSize: 16, fontWeight: "600" }}>
         {library.name}
       </Text>
     </FocusableCard>
@@ -279,6 +288,16 @@ export default function MusicScreen() {
     { query: { enabled: !!activeLibraryID, select: (d) => d.tracks ?? [] } },
   );
 
+  const focusSection = useMemo(
+    () =>
+      selectMusicFocusSection([
+        (artists ?? []).length > 0,
+        (albums ?? []).length > 0,
+        (tracks ?? []).length > 0,
+      ]),
+    [artists, albums, tracks],
+  );
+
   function handlePlayTrack(index: number) {
     setQueue((tracks ?? []).map(trackToQueueTrack), index);
   }
@@ -327,7 +346,13 @@ export default function MusicScreen() {
           data={artists ?? []}
           keyExtractor={(item) => item.id ?? ""}
           renderItem={({ item, index }) => (
-            <ArtistCard artist={item} serverUrl={serverUrl} authHeaders={authHeaders} isFirst={index === 0} libraryId={libraryId} />
+            <ArtistCard
+              artist={item}
+              serverUrl={serverUrl}
+              authHeaders={authHeaders}
+              isFirst={index === 0 && focusSection === 0}
+              libraryId={libraryId}
+            />
           )}
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={{ paddingHorizontal: 24 }}
@@ -347,7 +372,13 @@ export default function MusicScreen() {
           data={albums ?? []}
           keyExtractor={(item) => item.id ?? ""}
           renderItem={({ item, index }) => (
-            <AlbumCard album={item} serverUrl={serverUrl} authHeaders={authHeaders} isFirst={index === 0} libraryId={libraryId} />
+            <AlbumCard
+              album={item}
+              serverUrl={serverUrl}
+              authHeaders={authHeaders}
+              isFirst={index === 0 && focusSection === 1}
+              libraryId={libraryId}
+            />
           )}
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={{ paddingHorizontal: 24 }}
@@ -371,7 +402,7 @@ export default function MusicScreen() {
               track={item}
               serverUrl={serverUrl}
               authHeaders={authHeaders}
-              isFirst={index === 0}
+              isFirst={index === 0 && focusSection === 2}
               isPlaying={!!item.id && item.id === currentTrackId}
               onPress={() => handlePlayTrack(index)}
             />

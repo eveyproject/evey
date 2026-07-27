@@ -27,6 +27,36 @@ function TVSearchSeparator() {
   return <View style={{ height: 12 }} />;
 }
 
+// The screen shows at most one results view at a time (error, loading,
+// prompt, empty, or a single results list) - each with its own first-item
+// hasTVPreferredFocus. Making the choice an explicit, testable function
+// (instead of an inline JSX ternary) proves by construction that exactly
+// one view - and so exactly one initial-focus claimant - is ever rendered.
+export type SearchResultsView =
+  | "error"
+  | "loading"
+  | "prompt"
+  | "musicEmpty"
+  | "musicResults"
+  | "mediaEmpty"
+  | "mediaResults";
+
+export function selectSearchResultsView(params: {
+  searchKind: "media" | "music";
+  isError: boolean;
+  activeLoading: boolean;
+  hasQuery: boolean;
+  musicItemsCount: number;
+  mediaItemsCount: number;
+}): SearchResultsView {
+  const { searchKind, isError, activeLoading, hasQuery, musicItemsCount, mediaItemsCount } = params;
+  if (searchKind === "media" && isError && hasQuery) return "error";
+  if (activeLoading && hasQuery) return "loading";
+  if (!hasQuery) return "prompt";
+  if (searchKind === "music") return musicItemsCount === 0 ? "musicEmpty" : "musicResults";
+  return mediaItemsCount === 0 ? "mediaEmpty" : "mediaResults";
+}
+
 function ScopeTab({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
   const theme = useTheme();
   const [focused, setFocused] = useState(false);
@@ -74,6 +104,14 @@ export default function SearchScreen() {
   const items = data?.items ?? [];
   const musicItems = musicData?.tracks ?? [];
   const activeLoading = searchKind === "media" ? isLoading : musicLoading;
+  const resultsView = selectSearchResultsView({
+    searchKind,
+    isError,
+    activeLoading,
+    hasQuery: debouncedQuery.length > 0,
+    musicItemsCount: musicItems.length,
+    mediaItemsCount: items.length,
+  });
 
   const renderMusicItem = useCallback(({ item, index }: { item: V1Track; index: number }) => (
     <FocusableCard
@@ -144,7 +182,7 @@ export default function SearchScreen() {
         onFocus={() => setInputFocused(true)}
         onBlur={() => setInputFocused(false)}
         accessible={true}
-        accessibilityLabel="Search media"
+        accessibilityLabel={t("media.search.placeholder")}
       />
 
       {/* Scope selector: video catalog (default) vs music */}
@@ -153,42 +191,40 @@ export default function SearchScreen() {
         <ScopeTab label={t("media.search.sectionMusic")} active={searchKind === "music"} onPress={() => setSearchKind("music")} />
       </View>
 
-      {searchKind === "media" && isError && debouncedQuery.length > 0 ? (
+      {resultsView === "error" ? (
         <View style={styles.center}>
           <Text style={{ color: theme.colors.textMuted, fontSize: 22, marginBottom: 12 }}>{t("common.loadError")}</Text>
-          <Pressable onPress={() => refetch()}>
+          <FocusableCard onPress={() => refetch()} hasTVPreferredFocus>
             <Text style={{ color: theme.colors.accent, fontSize: 20 }}>{t("common.retry")}</Text>
-          </Pressable>
+          </FocusableCard>
         </View>
-      ) : activeLoading && debouncedQuery.length > 0 ? (
+      ) : resultsView === "loading" ? (
         <View style={styles.center}>
           <ActivityIndicator color={theme.colors.accent} size="large" />
         </View>
-      ) : debouncedQuery.length === 0 ? (
+      ) : resultsView === "prompt" ? (
         <View style={styles.center}>
           <Text style={{ color: theme.colors.textMuted, fontSize: 22 }}>
             {t("media.search.searchLibrary")}
           </Text>
         </View>
-      ) : searchKind === "music" ? (
-        musicItems.length === 0 ? (
-          <View style={styles.center}>
-            <Text style={{ color: theme.colors.textMuted, fontSize: 22 }}>{t("media.search.noResults")}</Text>
-          </View>
-        ) : (
-          <FlatList
-            data={musicItems}
-            keyExtractor={tvTrackKeyExtractor}
-            renderItem={renderMusicItem}
-            contentContainerStyle={{ padding: 24 }}
-            ItemSeparatorComponent={TVSearchSeparator}
-            initialNumToRender={6}
-            maxToRenderPerBatch={10}
-            windowSize={5}
-            removeClippedSubviews={true}
-          />
-        )
-      ) : items.length === 0 ? (
+      ) : resultsView === "musicEmpty" ? (
+        <View style={styles.center}>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 22 }}>{t("media.search.noResults")}</Text>
+        </View>
+      ) : resultsView === "musicResults" ? (
+        <FlatList
+          data={musicItems}
+          keyExtractor={tvTrackKeyExtractor}
+          renderItem={renderMusicItem}
+          contentContainerStyle={{ padding: 24 }}
+          ItemSeparatorComponent={TVSearchSeparator}
+          initialNumToRender={6}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          removeClippedSubviews={true}
+        />
+      ) : resultsView === "mediaEmpty" ? (
         <View style={styles.center}>
           <Text style={{ color: theme.colors.textMuted, fontSize: 22 }}>{t("media.search.noResults")}</Text>
         </View>

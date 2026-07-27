@@ -108,7 +108,7 @@ vi.mock("@evey/api", () => ({
   useNotificationServiceGetUnreadCount: (...args: unknown[]) => unreadCountMock(...args),
 }));
 
-import HomeScreen from "./index";
+import HomeScreen, { selectHomeFocusTarget } from "./index";
 
 const HERO_ITEM = {
   id: "mi-hero-1",
@@ -125,6 +125,21 @@ beforeEach(() => {
   nextUpMock.mockReturnValue({ data: { items: [] }, isLoading: false });
   listMediaItemsMock.mockReturnValue({ data: { items: [HERO_ITEM] }, isLoading: false });
   unreadCountMock.mockReturnValue({ data: { count: 0 } });
+});
+
+describe("selectHomeFocusTarget (initial TV remote focus)", () => {
+  it("picks the hero Play button whenever the hero is visible, even if rows also have items", () => {
+    expect(selectHomeFocusTarget(true, [true, true, true])).toBe("hero");
+  });
+
+  it("falls back to the first non-empty row, in on-screen order, when there is no hero", () => {
+    expect(selectHomeFocusTarget(false, [false, true, true])).toBe(1);
+    expect(selectHomeFocusTarget(false, [true, false, false])).toBe(0);
+  });
+
+  it("returns null when nothing is visible so no element claims initial focus", () => {
+    expect(selectHomeFocusTarget(false, [false, false, false])).toBeNull();
+  });
 });
 
 describe("HomeScreen hero play button (TV parental gate)", () => {

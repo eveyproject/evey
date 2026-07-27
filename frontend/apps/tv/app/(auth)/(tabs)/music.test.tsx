@@ -74,7 +74,7 @@ vi.mock("@evey/api", () => ({
 }));
 
 import { useMusicQueueStore } from "../../../src/stores/musicQueue";
-import MusicScreen from "./music";
+import MusicScreen, { selectMusicFocusSection } from "./music";
 
 const LIBRARIES = [{ id: "lib-music-1", name: "My Music", type: "LIBRARY_TYPE_MUSIC" }];
 const ARTISTS = [
@@ -95,6 +95,18 @@ beforeEach(() => {
   getArtistsMock.mockReturnValue({ data: ARTISTS, isLoading: false });
   getAlbumsMock.mockReturnValue({ data: ALBUMS, isLoading: false });
   listTracksMock.mockReturnValue({ data: TRACKS, isLoading: false });
+});
+
+describe("selectMusicFocusSection (initial TV remote focus)", () => {
+  it("picks the first section that actually has items", () => {
+    expect(selectMusicFocusSection([true, true, true])).toBe(0);
+    expect(selectMusicFocusSection([false, true, true])).toBe(1);
+    expect(selectMusicFocusSection([false, false, true])).toBe(2);
+  });
+
+  it("returns null when every section is empty", () => {
+    expect(selectMusicFocusSection([false, false, false])).toBeNull();
+  });
 });
 
 describe("MusicScreen (TV)", () => {

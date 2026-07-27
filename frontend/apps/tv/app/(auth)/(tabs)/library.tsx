@@ -6,23 +6,26 @@ import { useTheme } from "../../../src/providers/ThemeProvider";
 import type { V1Library, V1LibraryType } from "@evey/api";
 import { FocusableCard } from "../../../src/components/FocusableCard";
 
-const LIBRARY_TYPE_LABELS: Record<string, string> = {
-  LIBRARY_TYPE_MOVIES: "Movies",
-  LIBRARY_TYPE_SHOWS: "Shows",
-  LIBRARY_TYPE_MUSIC: "Music",
-  LIBRARY_TYPE_PHOTOS: "Photos",
-  LIBRARY_TYPE_BOOKS: "Books",
+// Mirrors the mobile/web LIBRARY_TYPE_KEYS mapping (apps/mobile/app/(auth)/(tabs)/library.tsx,
+// apps/web/src/routes/_auth/library/index.lazy.tsx): reuse the same i18n keys rather than
+// duplicating hardcoded English labels.
+const LIBRARY_TYPE_KEYS: Record<string, string> = {
+  LIBRARY_TYPE_MOVIES: "media.library.movies",
+  LIBRARY_TYPE_SHOWS: "media.library.tvShows",
+  LIBRARY_TYPE_MUSIC: "media.library.music",
+  LIBRARY_TYPE_PHOTOS: "media.library.photos",
+  LIBRARY_TYPE_BOOKS: "media.library.books",
 };
 
-function getTypeLabel(type?: V1LibraryType): string {
-  return (type && LIBRARY_TYPE_LABELS[type]) || "Library";
+function getTypeLabelKey(type?: V1LibraryType): string {
+  return (type && LIBRARY_TYPE_KEYS[type]) || "media.library.title";
 }
 
 export default function LibraryScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
   const router = useRouter();
-  const { data, isLoading, isError } = useLibraryServiceListLibraries();
+  const { data, isLoading, isError, refetch } = useLibraryServiceListLibraries();
 
   const libraries = data?.libraries ?? [];
 
@@ -34,7 +37,7 @@ export default function LibraryScreen() {
     >
       <Text style={[styles.name, { color: theme.colors.text }]}>{item.name}</Text>
       <Text style={[styles.type, { color: theme.colors.textMuted }]}>
-        {getTypeLabel(item.type)}
+        {t(getTypeLabelKey(item.type))}
       </Text>
     </FocusableCard>
   );
@@ -50,7 +53,16 @@ export default function LibraryScreen() {
   if (isError) {
     return (
       <View style={[styles.center, { backgroundColor: theme.colors.bg }]}>
-        <Text style={{ color: theme.colors.textMuted, fontSize: 22 }}>Failed to load libraries</Text>
+        <Text style={{ color: theme.colors.textMuted, fontSize: 22, marginBottom: 16 }}>
+          {t("common.loadError")}
+        </Text>
+        <FocusableCard
+          onPress={() => refetch()}
+          hasTVPreferredFocus
+          style={[styles.linkCard, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
+        >
+          <Text style={[styles.linkText, { color: theme.colors.accent }]}>{t("common.retry")}</Text>
+        </FocusableCard>
       </View>
     );
   }

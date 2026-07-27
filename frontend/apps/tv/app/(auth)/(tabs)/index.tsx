@@ -42,6 +42,21 @@ function RowSeparator() {
   return <View style={{ width: 16 }} />;
 }
 
+// The home screen must hand the TV remote's initial focus to exactly one
+// element. The hero's Play button is the deliberate default (it's the
+// screen's primary call to action); when there's no hero to show (no
+// recently-added items), focus falls back to the first row that actually
+// has items, in on-screen order, so the remote is never left with nowhere
+// to go.
+export function selectHomeFocusTarget(
+  heroVisible: boolean,
+  rowHasItems: boolean[],
+): "hero" | number | null {
+  if (heroVisible) return "hero";
+  const idx = rowHasItems.findIndex(Boolean);
+  return idx === -1 ? null : idx;
+}
+
 function MediaCard({
   item,
   serverUrl,
@@ -105,12 +120,14 @@ function MediaRow({
   serverUrl,
   authHeaders,
   watchPercents,
+  focusFirst,
 }: {
   title: string;
   items: V1MediaItem[];
   serverUrl: string;
   authHeaders?: { Authorization: string };
   watchPercents?: Record<string, number>;
+  focusFirst?: boolean;
 }) {
   const theme = useTheme();
   if (items.length === 0) return null;
@@ -127,7 +144,7 @@ function MediaRow({
             item={item}
             serverUrl={serverUrl}
             authHeaders={authHeaders}
-            isFirst={index === 0}
+            isFirst={index === 0 && !!focusFirst}
             watchPercent={item.id ? watchPercents?.[item.id] : undefined}
           />
         )}
@@ -151,10 +168,12 @@ function HeroBanner({
   items,
   serverUrl,
   authHeaders,
+  focusPlay,
 }: {
   items: V1MediaItem[];
   serverUrl: string;
   authHeaders?: { Authorization: string };
+  focusPlay?: boolean;
 }) {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -240,11 +259,11 @@ function HeroBanner({
         <View style={styles.heroButtons}>
           <FocusableCard
             onPress={handlePlay}
-            hasTVPreferredFocus
+            hasTVPreferredFocus={focusPlay}
             style={[styles.heroPlayBtn, { backgroundColor: theme.colors.accent }]}
             accessibilityLabel={t("media.detail.play")}
           >
-            <Text style={[styles.heroBtnLabel, { color: theme.colors.bg }]}>{t("media.detail.play")}</Text>
+            <Text style={[styles.heroBtnLabel, { color: theme.colors.onAccent }]}>{t("media.detail.play")}</Text>
           </FocusableCard>
           <FocusableCard
             onPress={() => id && router.push(`/media/${id}`)}
@@ -309,6 +328,13 @@ export default function HomeScreen() {
     return map;
   }, [resume.data?.progress]);
 
+  const recentlyAddedItems = recentlyAdded.data?.items ?? [];
+  const rowItems = [resume.data?.items ?? [], nextUp.data?.items ?? [], recentlyAddedItems];
+  const focusTarget = selectHomeFocusTarget(
+    recentlyAddedItems.length > 0,
+    rowItems.map((items) => items.length > 0),
+  );
+
   if (isLoading) {
     return (
       <View style={[styles.loading, { backgroundColor: theme.colors.bg }]}>
@@ -325,30 +351,41 @@ export default function HomeScreen() {
           style={styles.notifBanner}
         >
           <Text style={{ color: theme.colors.accent, fontSize: 20, fontWeight: "600" }}>
-            {unreadCount} unread notification{unreadCount !== 1 ? "s" : ""}
+            {t(
+              "notifications.unreadBanner",
+              `${unreadCount} unread notification${unreadCount !== 1 ? "s" : ""}`,
+            )}
           </Text>
         </FocusableCard>
       )}
-      <HeroBanner items={recentlyAdded.data?.items ?? []} serverUrl={serverUrl} authHeaders={authHeaders} />
+      <HeroBanner
+        items={recentlyAddedItems}
+        serverUrl={serverUrl}
+        authHeaders={authHeaders}
+        focusPlay={focusTarget === "hero"}
+      />
       <PluginSlot name="home.section" />
       <MediaRow
         title={t("media.home.continueWatching")}
-        items={resume.data?.items ?? []}
+        items={rowItems[0]}
         serverUrl={serverUrl}
         authHeaders={authHeaders}
         watchPercents={watchPercents}
+        focusFirst={focusTarget === 0}
       />
       <MediaRow
         title={t("media.home.upNext")}
-        items={nextUp.data?.items ?? []}
+        items={rowItems[1]}
         serverUrl={serverUrl}
         authHeaders={authHeaders}
+        focusFirst={focusTarget === 1}
       />
       <MediaRow
         title={t("media.home.recentlyAdded")}
-        items={recentlyAdded.data?.items ?? []}
+        items={rowItems[2]}
         serverUrl={serverUrl}
         authHeaders={authHeaders}
+        focusFirst={focusTarget === 2}
       />
     </ScrollView>
   );
