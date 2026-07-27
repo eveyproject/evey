@@ -37,7 +37,17 @@ export default function PlaylistsScreen() {
         )}
         ListEmptyComponent={
           <View style={styles.center}>
-            <Text style={{ color: theme.colors.textMuted, fontSize: 22 }}>No playlists</Text>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 22, marginBottom: 16 }}>{t("common.noPlaylists")}</Text>
+            {/* Focusable target for the empty state - without it the remote has
+                nowhere to go and gets stuck on this screen (no other control
+                is rendered when the list is empty). */}
+            <FocusableCard
+              onPress={() => router.push("/(auth)/(tabs)/library")}
+              hasTVPreferredFocus
+              style={[styles.emptyAction, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
+            >
+              <Text style={{ color: theme.colors.accent, fontSize: 18, fontWeight: "600" }}>{t("media.library.libraries")}</Text>
+            </FocusableCard>
           </View>
         }
       />
@@ -90,4 +100,5 @@ const styles = StyleSheet.create({
   name: { fontSize: 22, fontWeight: "600" },
   desc: { fontSize: 16, marginTop: 2 },
   meta: { fontSize: 14, marginTop: 2 },
+  emptyAction: { paddingHorizontal: 24, paddingVertical: 14 },
 });

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { View, Text, FlatList, ScrollView, Pressable, ActivityIndicator, StyleSheet } from "react-native";
+import { View, Text, FlatList, ScrollView, Pressable, TextInput, ActivityIndicator, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
@@ -8,15 +8,28 @@ import {
   useLibraryServiceGetLibrary,
   useLibraryServiceListMediaItems,
   useLibraryServiceListGenres,
+  useLibraryServiceSearchMedia,
+  usePlaybackServiceGetWatchHistory,
   libraryServiceListMediaItems,
 } from "@evey/api";
-import type { V1MediaItem } from "@evey/api";
+import type {
+  V1MediaItem,
+  V1MediaStream,
+  V1WatchProgress,
+  LibraryServiceListMediaItemsType,
+  LibraryServiceListMediaItemsSortField,
+  LibraryServiceListMediaItemsSortOrder,
+  LibraryServiceSearchMediaType,
+  LibraryServiceSearchMediaSortField,
+  LibraryServiceSearchMediaSortOrder,
+} from "@evey/api";
 import { toast } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { FocusableCard } from "../../../src/components/FocusableCard";
 import { artworkUrl } from "../../../src/lib/artwork";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
+import { useDebounce } from "../../../src/hooks/useDebounce";
 import { CARD_WIDTH_GRID, POSTER_RATIO, LABEL_BLOCK_HEIGHT, GRID_GAP } from "../../../src/lib/tvLayout";
 
 const NUM_COLUMNS = 5;
@@ -24,6 +37,20 @@ const CARD_WIDTH = CARD_WIDTH_GRID;
 const POSTER_HEIGHT = CARD_WIDTH * POSTER_RATIO;
 const ROW_HEIGHT = POSTER_HEIGHT + LABEL_BLOCK_HEIGHT + GRID_GAP;
 const PAGE_SIZE = 30;
+const SEARCH_LIMIT = 120;
+
+const SORT_KEYS: Array<{ labelKey: string; value: LibraryServiceListMediaItemsSortField }> = [
+  { labelKey: "media.library.titleSort", value: "MEDIA_SORT_FIELD_TITLE" },
+  { labelKey: "media.library.year", value: "MEDIA_SORT_FIELD_YEAR" },
+  { labelKey: "media.library.ratingSort", value: "MEDIA_SORT_FIELD_RATING" },
+  { labelKey: "media.library.dateAdded", value: "MEDIA_SORT_FIELD_DATE_ADDED" },
+];
+
+const TYPE_KEYS: Array<{ labelKey: string; value: LibraryServiceListMediaItemsType }> = [
+  { labelKey: "media.library.series", value: "MEDIA_ITEM_TYPE_SERIES" },
+  { labelKey: "media.library.seasons", value: "MEDIA_ITEM_TYPE_SEASON" },
+  { labelKey: "media.library.episodes", value: "MEDIA_ITEM_TYPE_EPISODE" },
+];
 
 function tvLibKeyExtractor(item: V1MediaItem) {
   return item.id ?? "";
@@ -35,16 +62,104 @@ const tvLibGetItemLayout = (_: unknown, index: number) => ({
   index,
 });
 
-// D-pad genre filter: a row of focusable chips (same pattern as the search
-// screen's ScopeTab) rather than a dropdown, which has no natural TV/remote
-// affordance.
-function GenreChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+// --- Pure helpers (unit-tested in [libraryId].pure.test.ts) -----------------
+
+export interface BuildMediaListParamsInput {
+  libraryId: string;
+  type?: LibraryServiceListMediaItemsType | "";
+  genre?: string;
+  sortField: LibraryServiceListMediaItemsSortField;
+  sortOrder: LibraryServiceListMediaItemsSortOrder;
+  page: number;
+  pageSize: number;
+}
+
+// Single source of truth for the ListMediaItems query params, so the sort/
+// type/genre wiring can be unit-tested without rendering the screen.
+export function buildMediaListParams(input: BuildMediaListParamsInput) {
+  return {
+    libraryId: input.libraryId,
+    ...(input.type ? { type: input.type } : {}),
+    ...(input.genre ? { genre: input.genre } : {}),
+    sortField: input.sortField,
+    sortOrder: input.sortOrder,
+    "pagination.page": input.page,
+    "pagination.pageSize": input.pageSize,
+  };
+}
+
+export interface BuildLibrarySearchParamsInput {
+  libraryId: string;
+  query: string;
+  type?: LibraryServiceListMediaItemsType | "";
+  genre?: string;
+  sortField: LibraryServiceListMediaItemsSortField;
+  sortOrder: LibraryServiceListMediaItemsSortOrder;
+  limit: number;
+}
+
+// SearchMedia's type/sortField/sortOrder enums share the same string values
+// as ListMediaItems's - the cast avoids importing/maintaining a parallel set
+// of literals purely to satisfy two structurally-identical generated types.
+export function buildLibrarySearchParams(input: BuildLibrarySearchParamsInput) {
+  return {
+    libraryId: input.libraryId,
+    query: input.query,
+    ...(input.type ? { type: input.type as unknown as LibraryServiceSearchMediaType } : {}),
+    ...(input.genre ? { genre: input.genre } : {}),
+    sortField: input.sortField as unknown as LibraryServiceSearchMediaSortField,
+    sortOrder: input.sortOrder as unknown as LibraryServiceSearchMediaSortOrder,
+    limit: input.limit,
+  };
+}
+
+// Mirrors web's streamLabels.ts / mobile's local copy - kept local since
+// there is no package shared across the three frontend apps for this.
+export function videoStream(streams?: V1MediaStream[]): V1MediaStream | undefined {
+  return streams?.find((s) => s.type === "MEDIA_STREAM_TYPE_VIDEO");
+}
+
+export function isHdrStream(stream?: V1MediaStream): boolean {
+  if (!stream) return false;
+  const transfer = stream.colorTransfer?.trim().toLowerCase();
+  if (transfer === "smpte2084" || transfer === "arib-std-b67") return true;
+  const cs = stream.colorSpace?.trim().toLowerCase() ?? "";
+  return cs.startsWith("bt2020") && (stream.bitDepth ?? 0) >= 10;
+}
+
+export function resolutionLabel(stream?: V1MediaStream): string | null {
+  const h = stream?.height ?? 0;
+  if (h <= 0) return null;
+  if (h >= 2160) return "4K";
+  if (h >= 1440) return "1440p";
+  if (h >= 1080) return "1080p";
+  if (h >= 720) return "720p";
+  return `${h}p`;
+}
+
+export function buildWatchProgressMaps(items: V1WatchProgress[]): {
+  watchedMap: Map<string, boolean>;
+  percentMap: Map<string, number>;
+} {
+  const watchedMap = new Map<string, boolean>();
+  const percentMap = new Map<string, number>();
+  for (const w of items) {
+    if (w.mediaItemId && w.played) watchedMap.set(w.mediaItemId, true);
+    if (w.mediaItemId && w.percentComplete != null) percentMap.set(w.mediaItemId, w.percentComplete);
+  }
+  return { watchedMap, percentMap };
+}
+
+// D-pad genre/sort/type filter: a row of focusable chips (same pattern as the
+// search screen's ScopeTab) rather than a dropdown, which has no natural TV/
+// remote affordance.
+function Chip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
   const theme = useTheme();
   return (
     <FocusableCard
       onPress={onPress}
       style={[
-        styles.genreChip,
+        styles.chip,
         { backgroundColor: active ? theme.colors.accent : theme.colors.surface },
       ]}
       accessibilityLabel={label}
@@ -66,6 +181,12 @@ export default function LibraryDetailScreen() {
   const [allItems, setAllItems] = useState<V1MediaItem[]>([]);
   const [hasMore, setHasMore] = useState(true);
   const [genre, setGenre] = useState("");
+  const [typeFilter, setTypeFilter] = useState<LibraryServiceListMediaItemsType | "">("");
+  const [sortField, setSortField] = useState<LibraryServiceListMediaItemsSortField>("MEDIA_SORT_FIELD_TITLE");
+  const [sortOrder, setSortOrder] = useState<LibraryServiceListMediaItemsSortOrder>("SORT_ORDER_ASC");
+  const [searchText, setSearchText] = useState("");
+  const [searchFocused, setSearchFocused] = useState(false);
+  const debouncedSearch = useDebounce(searchText, 300);
   const [shuffling, setShuffling] = useState(false);
   // Ref latch, not just the state flag: a second remote OK press before the
   // setShuffling(true) re-render would read the old state and slip a second
@@ -75,35 +196,54 @@ export default function LibraryDetailScreen() {
   const prevDataRef = useRef<unknown>(null);
 
   const { data: library } = useLibraryServiceGetLibrary(libraryId ?? "");
+  const isShowLibrary = library?.type === "LIBRARY_TYPE_SHOWS";
   const { data: genresData } = useLibraryServiceListGenres(libraryId ?? "", {
     query: { enabled: !!libraryId },
   });
   const genres = genresData?.genres ?? [];
 
+  const trimmedSearch = debouncedSearch.trim();
+  const searchActive = trimmedSearch.length > 0;
+  const hasActiveFilters = Boolean(genre || typeFilter || searchActive);
+
   const { data, isLoading, isError, isFetching, refetch } = useLibraryServiceListMediaItems(
-    {
-      libraryId,
-      ...(genre ? { genre } : {}),
-      "pagination.page": page,
-      "pagination.pageSize": PAGE_SIZE,
-    },
-    { query: { enabled: !!libraryId } },
+    buildMediaListParams({ libraryId: libraryId ?? "", type: typeFilter, genre, sortField, sortOrder, page, pageSize: PAGE_SIZE }),
+    { query: { enabled: !!libraryId && !searchActive } },
   );
 
-  // Reset pagination when the genre filter changes. Declared BEFORE the
+  const {
+    data: searchData,
+    isLoading: isSearchLoading,
+    isError: isSearchError,
+    refetch: refetchSearch,
+  } = useLibraryServiceSearchMedia(
+    buildLibrarySearchParams({ libraryId: libraryId ?? "", query: trimmedSearch, type: typeFilter, genre, sortField, sortOrder, limit: SEARCH_LIMIT }),
+    { query: { enabled: searchActive && !!libraryId } },
+  );
+
+  // Watched/progress overlay data, same source used by the history screen.
+  // Fetched at a generous limit so the map covers everything likely to be
+  // visible in one library, mirroring mobile's equivalent (limit: 500).
+  const { data: watchHistoryData } = usePlaybackServiceGetWatchHistory(
+    { limit: 500 },
+    { query: { enabled: !!libraryId, staleTime: 30_000 } },
+  );
+  const { watchedMap, percentMap } = buildWatchProgressMaps(watchHistoryData?.items ?? []);
+
+  // Reset pagination when a filter/sort param changes. Declared BEFORE the
   // accumulate effect ON PURPOSE: React runs effects in declaration order, so
-  // on the render where genre flips to a value whose page-1 is already cached
+  // on the render where a filter flips to a value whose page-1 is already cached
   // (query resolves synchronously), this clear must run FIRST and the
   // accumulate effect repopulates SECOND. The reverse order let the accumulate
   // fill allItems and this clear wipe it to [] with no re-run (its [data,page]
-  // deps were unchanged) - a persistent empty grid on the common peek-a-genre-
-  // then-back-to-All flow over a static library.
+  // deps were unchanged) - a persistent empty grid on the common peek-a-facet-
+  // then-back-to-default flow over a static library.
   useEffect(() => {
     setPage(1);
     setAllItems([]);
     setHasMore(true);
     prevDataRef.current = null;
-  }, [genre]);
+  }, [genre, typeFilter, sortField, sortOrder]);
 
   useEffect(() => {
     if (!data || data === prevDataRef.current) return;
@@ -118,17 +258,26 @@ export default function LibraryDetailScreen() {
     setHasMore(page < totalPages);
   }, [data, page]);
 
-  // Shuffle play: no local-only facet exists on this screen (the genre
-  // filter is server-side), so a shuffle always draws from the WHOLE library
-  // via a random page offset (pageSize 1) rather than the loaded slice -
-  // the genre filter, if any, still applies server-side since it's baked
-  // into the probe request.
+  const displayItems = searchActive ? (searchData?.items ?? []) : allItems;
+
+  // Shuffle play: with a search or type/genre facet active, shuffle among
+  // what's actually on screen so the pick honors it. With no facet, shuffle
+  // the WHOLE library via a random page offset (pageSize 1) rather than the
+  // loaded slice - the genre/type filter, if any, still applies server-side
+  // since it's baked into the probe request.
   const handleShuffle = useCallback(async () => {
     if (shufflingRef.current || !libraryId) return;
     shufflingRef.current = true;
     setShuffling(true);
     try {
-      const base = { libraryId, ...(genre ? { genre } : {}) };
+      if (searchActive) {
+        if (displayItems.length === 0) { toast.info(t("common.shuffleEmpty")); return; }
+        const pick = displayItems[Math.floor(Math.random() * displayItems.length)];
+        if (pick?.id) router.push(`/player/${pick.id}`);
+        else toast.error(t("common.shuffleFailed"));
+        return;
+      }
+      const base = { libraryId, ...(typeFilter ? { type: typeFilter } : {}), ...(genre ? { genre } : {}) };
       const probe = await libraryServiceListMediaItems({ ...base, "pagination.page": 1, "pagination.pageSize": 1 });
       const total = probe.pagination?.totalItems ?? 0;
       if (total === 0) { toast.info(t("common.shuffleEmpty")); return; }
@@ -145,16 +294,24 @@ export default function LibraryDetailScreen() {
       shufflingRef.current = false;
       setShuffling(false);
     }
-  }, [libraryId, genre, router, t]);
+  }, [libraryId, genre, typeFilter, searchActive, displayItems, router, t]);
 
   const handleEndReached = useCallback(() => {
+    if (searchActive) return; // search returns a single fixed-size page, no cursor to page through
     if (!isFetching && hasMore) setPage((p) => p + 1);
-  }, [isFetching, hasMore]);
+  }, [searchActive, isFetching, hasMore]);
 
   const renderItem = useCallback(
     ({ item, index }: { item: V1MediaItem; index: number }) => {
       const posterUri = item.id ? artworkUrl(serverUrl, item.id, "poster", CARD_WIDTH * 2) : undefined;
       const blurhash = (item.artwork ?? []).find((a) => a.type === "ARTWORK_TYPE_PRIMARY")?.blurhash;
+      const vStream = videoStream(item.streams);
+      const resLabel = resolutionLabel(vStream);
+      const hdr = isHdrStream(vStream);
+      const rating = item.communityRating ?? 0;
+      const watched = item.id ? watchedMap.get(item.id) === true : false;
+      const percent = item.id ? percentMap.get(item.id) : undefined;
+      const hasProgress = percent != null && percent > 0;
       return (
         <FocusableCard
           onPress={() => router.push(`/media/${item.id}`)}
@@ -175,6 +332,52 @@ export default function LibraryDetailScreen() {
             ) : (
               <Text style={{ color: theme.colors.textMuted, fontSize: 18 }}>?</Text>
             )}
+
+            {rating > 0 && (
+              <View
+                style={[
+                  styles.techBadge,
+                  { bottom: hasProgress ? 14 : 6, right: 6, backgroundColor: theme.colors.surfaceRaised, borderRadius: theme.radii.sm },
+                ]}
+                pointerEvents="none"
+              >
+                <Ionicons name="star" size={11} color={theme.colors.warning} />
+                <Text style={[styles.techBadgeText, { color: theme.colors.text }]}>{rating.toFixed(1)}</Text>
+              </View>
+            )}
+
+            {(resLabel || hdr) && (
+              <View style={[styles.techBadgeRow, { bottom: hasProgress ? 14 : 6, left: 6 }]} pointerEvents="none">
+                {resLabel && (
+                  <View style={[styles.techBadge, { backgroundColor: theme.colors.surfaceRaised, borderRadius: theme.radii.sm }]}>
+                    <Text style={[styles.techBadgeText, { color: theme.colors.text }]}>{resLabel}</Text>
+                  </View>
+                )}
+                {hdr && (
+                  <View style={[styles.techBadge, { backgroundColor: theme.colors.accent, borderRadius: theme.radii.sm }]}>
+                    <Text style={[styles.techBadgeText, { color: theme.colors.onAccent }]}>HDR</Text>
+                  </View>
+                )}
+              </View>
+            )}
+
+            {item.id && (
+              <View
+                style={[
+                  styles.watchedBadge,
+                  { backgroundColor: watched ? theme.colors.success : theme.colors.overlay },
+                ]}
+                pointerEvents="none"
+              >
+                <Ionicons name="checkmark" size={12} color={watched ? theme.colors.onAccent : theme.colors.textMuted} />
+              </View>
+            )}
+
+            {hasProgress && (
+              <View style={[styles.progressTrack, { backgroundColor: theme.colors.border }]} pointerEvents="none">
+                <View style={[styles.progressFill, { width: `${Math.min(100, Math.max(0, percent))}%`, backgroundColor: theme.colors.accent }]} />
+              </View>
+            )}
           </View>
           <Text style={[styles.title, { color: theme.colors.text }]} numberOfLines={2}>
             {item.title}
@@ -182,8 +385,13 @@ export default function LibraryDetailScreen() {
         </FocusableCard>
       );
     },
-    [theme, router, serverUrl, authHeaders],
+    [theme, router, serverUrl, authHeaders, watchedMap, percentMap],
   );
+
+  const activeIsLoading = searchActive ? isSearchLoading : isLoading;
+  const activeIsError = searchActive ? isSearchError : isError;
+  const activeRefetch = searchActive ? refetchSearch : refetch;
+  const isFirstPage = searchActive ? true : page === 1;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
@@ -195,20 +403,42 @@ export default function LibraryDetailScreen() {
           headerTintColor: theme.colors.text,
         }}
       />
-      {isError ? (
+      {activeIsError ? (
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
           <Text style={{ color: theme.colors.textMuted, fontSize: 22, marginBottom: 12 }}>{t("common.loadError")}</Text>
-          <Pressable onPress={() => refetch()}>
+          <Pressable onPress={() => activeRefetch()}>
             <Text style={{ color: theme.colors.accent, fontSize: 20 }}>{t("common.retry")}</Text>
           </Pressable>
         </View>
       ) : (
         <>
+          <TextInput
+            style={[
+              styles.searchInput,
+              {
+                backgroundColor: theme.colors.surface,
+                color: theme.colors.text,
+                borderRadius: theme.radii.md,
+                borderColor: searchFocused ? theme.colors.accent : theme.colors.border,
+              },
+            ]}
+            placeholder={t("media.library.filterByName")}
+            placeholderTextColor={theme.colors.textMuted}
+            value={searchText}
+            onChangeText={setSearchText}
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="search"
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setSearchFocused(false)}
+            accessibilityLabel={t("media.library.filterByName")}
+          />
+
           <View style={styles.toolbar}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ gap: 12 }}>
-              <GenreChip label={t("media.search.allGenres") || "All"} active={!genre} onPress={() => setGenre("")} />
+              <Chip label={t("media.search.allGenres") || "All"} active={!genre} onPress={() => setGenre("")} />
               {genres.map((g) => (
-                <GenreChip key={g} label={g} active={genre === g} onPress={() => setGenre(genre === g ? "" : g)} />
+                <Chip key={g} label={g} active={genre === g} onPress={() => setGenre(genre === g ? "" : g)} />
               ))}
             </ScrollView>
             <FocusableCard
@@ -224,13 +454,40 @@ export default function LibraryDetailScreen() {
               <Text style={{ color: theme.colors.text, fontSize: 18, fontWeight: "600" }}>{t("common.shufflePlay")}</Text>
             </FocusableCard>
           </View>
-          {isLoading && page === 1 ? (
+
+          <View style={styles.toolbar}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ gap: 12 }}>
+              {SORT_KEYS.map((s) => (
+                <Chip key={s.value} label={t(s.labelKey)} active={sortField === s.value} onPress={() => setSortField(s.value)} />
+              ))}
+            </ScrollView>
+            <FocusableCard
+              onPress={() => setSortOrder(sortOrder === "SORT_ORDER_ASC" ? "SORT_ORDER_DESC" : "SORT_ORDER_ASC")}
+              style={[styles.shuffleBtn, { backgroundColor: theme.colors.surface }]}
+              accessibilityLabel={sortOrder === "SORT_ORDER_ASC" ? t("common.sortAscending") : t("common.sortDescending")}
+            >
+              <Ionicons name={sortOrder === "SORT_ORDER_ASC" ? "arrow-up" : "arrow-down"} size={22} color={theme.colors.text} />
+            </FocusableCard>
+          </View>
+
+          {isShowLibrary && (
+            <View style={styles.toolbar}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ gap: 12 }}>
+                <Chip label={t("media.search.allGenres") || "All"} active={!typeFilter} onPress={() => setTypeFilter("")} />
+                {TYPE_KEYS.map((tk) => (
+                  <Chip key={tk.value} label={t(tk.labelKey)} active={typeFilter === tk.value} onPress={() => setTypeFilter(typeFilter === tk.value ? "" : tk.value)} />
+                ))}
+              </ScrollView>
+            </View>
+          )}
+
+          {activeIsLoading && isFirstPage ? (
             <View style={styles.center}>
               <ActivityIndicator color={theme.colors.accent} size="large" />
             </View>
           ) : (
             <FlatList
-              data={allItems}
+              data={displayItems}
               keyExtractor={tvLibKeyExtractor}
               renderItem={renderItem}
               numColumns={NUM_COLUMNS}
@@ -238,19 +495,21 @@ export default function LibraryDetailScreen() {
               columnWrapperStyle={{ gap: 16, marginBottom: 16 }}
               onEndReached={handleEndReached}
               onEndReachedThreshold={0.5}
-              getItemLayout={tvLibGetItemLayout}
+              getItemLayout={searchActive ? undefined : tvLibGetItemLayout}
               initialNumToRender={10}
               maxToRenderPerBatch={15}
               windowSize={5}
               removeClippedSubviews={true}
               ListFooterComponent={
-                isFetching && page > 1 ? (
+                isFetching && page > 1 && !searchActive ? (
                   <ActivityIndicator color={theme.colors.accent} style={{ marginVertical: 24 }} />
                 ) : null
               }
               ListEmptyComponent={
                 <View style={styles.center}>
-                  <Text style={{ color: theme.colors.textMuted, fontSize: 22 }}>{t("common.noItems")}</Text>
+                  <Text style={{ color: theme.colors.textMuted, fontSize: 22 }}>
+                    {hasActiveFilters ? t("media.library.noItemsFiltered") : t("common.noItems")}
+                  </Text>
                 </View>
               }
             />
@@ -264,6 +523,14 @@ export default function LibraryDetailScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, justifyContent: "center", alignItems: "center", paddingTop: 80 },
+  searchInput: {
+    marginHorizontal: 24,
+    marginTop: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    fontSize: 18,
+    borderWidth: 3,
+  },
   toolbar: {
     flexDirection: "row",
     alignItems: "center",
@@ -271,7 +538,7 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     gap: 16,
   },
-  genreChip: {
+  chip: {
     paddingHorizontal: 20,
     paddingVertical: 10,
   },
@@ -290,4 +557,32 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   title: { fontSize: 16, fontWeight: "500", marginTop: 8, textAlign: "center" },
+  techBadge: {
+    position: "absolute",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+  },
+  techBadgeText: { fontSize: 11, fontWeight: "700" },
+  techBadgeRow: { position: "absolute", flexDirection: "row", gap: 4 },
+  watchedBadge: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  progressTrack: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 4,
+  },
+  progressFill: { height: "100%" },
 });

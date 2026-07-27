@@ -13,6 +13,13 @@ vi.mock("react-native", () => ({
   View: ({ children, ...p }: any) => React.createElement("div", p, children),
   Text: ({ children, ...p }: any) => React.createElement("span", p, children),
   ScrollView: ({ children, ...p }: any) => React.createElement("div", p, children),
+  TextInput: ({ onChangeText, value, accessibilityLabel, ...p }: any) =>
+    React.createElement("input", {
+      "aria-label": accessibilityLabel,
+      value,
+      onChange: (e: any) => onChangeText?.(e.target.value),
+      ...p,
+    }),
   Pressable: ({ children, onPress, accessibilityLabel, ...p }: any) =>
     React.createElement("button", { onClick: onPress, "aria-label": accessibilityLabel, ...p }, children),
   FlatList: ({ data, renderItem, keyExtractor, ListEmptyComponent }: any) => {
@@ -92,15 +99,19 @@ vi.mock("@evey/store", () => ({
 }));
 
 // --- @evey/api mock --------------------------------------------------------------------
-const { listMediaItemsMock, listGenresMock, rawListMediaItemsMock } = vi.hoisted(() => ({
+const { listMediaItemsMock, listGenresMock, rawListMediaItemsMock, searchMediaMock, watchHistoryMock } = vi.hoisted(() => ({
   listMediaItemsMock: vi.fn(),
   listGenresMock: vi.fn(),
   rawListMediaItemsMock: vi.fn(),
+  searchMediaMock: vi.fn(),
+  watchHistoryMock: vi.fn(),
 }));
 vi.mock("@evey/api", () => ({
   useLibraryServiceGetLibrary: () => ({ data: { id: LIBRARY_ID, name: "My Library" } }),
   useLibraryServiceListMediaItems: (...args: unknown[]) => listMediaItemsMock(...args),
   useLibraryServiceListGenres: (...args: unknown[]) => listGenresMock(...args),
+  useLibraryServiceSearchMedia: (...args: unknown[]) => searchMediaMock(...args),
+  usePlaybackServiceGetWatchHistory: (...args: unknown[]) => watchHistoryMock(...args),
   libraryServiceListMediaItems: (...args: unknown[]) => rawListMediaItemsMock(...args),
 }));
 
@@ -122,6 +133,8 @@ beforeEach(() => {
     refetch: vi.fn(),
   }));
   listGenresMock.mockReturnValue({ data: { genres: ["Action", "Drama"] } });
+  searchMediaMock.mockReturnValue({ data: { items: [] }, isLoading: false, isError: false, refetch: vi.fn() });
+  watchHistoryMock.mockReturnValue({ data: { items: [] } });
 });
 
 describe("TV LibraryDetailScreen genre filter", () => {

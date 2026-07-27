@@ -1,5 +1,6 @@
 import { View, Text, FlatList, ActivityIndicator, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useCollections, type Collection } from "../../../src/api/collections";
 import { FocusableCard } from "../../../src/components/FocusableCard";
@@ -8,6 +9,7 @@ const NUM_COLUMNS = 5;
 
 export default function CollectionsScreen() {
   const theme = useTheme();
+  const { t } = useTranslation();
   const router = useRouter();
   const { data, isLoading } = useCollections();
 
@@ -40,7 +42,17 @@ export default function CollectionsScreen() {
         )}
         ListEmptyComponent={
           <View style={styles.center}>
-            <Text style={{ color: theme.colors.textMuted, fontSize: 22 }}>No collections</Text>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 22, marginBottom: 16 }}>{t("common.noCollections")}</Text>
+            {/* Focusable target for the empty state - without it the remote has
+                nowhere to go and gets stuck on this screen (no other control
+                is rendered when the list is empty). */}
+            <FocusableCard
+              onPress={() => router.push("/(auth)/(tabs)/library")}
+              hasTVPreferredFocus
+              style={[styles.emptyAction, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
+            >
+              <Text style={{ color: theme.colors.accent, fontSize: 18, fontWeight: "600" }}>{t("media.library.libraries")}</Text>
+            </FocusableCard>
           </View>
         }
       />
@@ -84,4 +96,5 @@ const styles = StyleSheet.create({
   card: { flex: 1, margin: 8, padding: 12, alignItems: "center" },
   placeholder: { width: 160, height: 240, justifyContent: "center", alignItems: "center" },
   name: { fontSize: 18, fontWeight: "600", marginTop: 8, textAlign: "center" },
+  emptyAction: { paddingHorizontal: 24, paddingVertical: 14 },
 });

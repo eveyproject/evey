@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { View, Text, FlatList, ActivityIndicator, StyleSheet } from "react-native";
 import { router } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   usePlaybackServiceGetWatchHistory,
@@ -40,6 +41,7 @@ function TVHistorySeparator() {
 
 export default function HistoryScreen() {
   const theme = useTheme();
+  const { t } = useTranslation();
   const qc = useQueryClient();
 
   const { data, isLoading } = usePlaybackServiceGetWatchHistory({ limit: 50 });
@@ -77,11 +79,21 @@ export default function HistoryScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
-      <Text style={[styles.header, { color: theme.colors.text }]}>Watch History</Text>
+      <Text style={[styles.header, { color: theme.colors.text }]}>{t("common.watchHistory.title")}</Text>
 
       {items.length === 0 ? (
         <View style={styles.center}>
-          <Text style={{ color: theme.colors.textMuted, fontSize: 22 }}>No watch history</Text>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 22, marginBottom: 16 }}>{t("auth.watchHistory.noHistory")}</Text>
+          {/* Focusable target for the empty state - without it the remote has
+              nowhere to go and gets stuck on this screen (no other control
+              is rendered when the list is empty). */}
+          <FocusableCard
+            onPress={() => router.push("/(auth)/(tabs)/library")}
+            hasTVPreferredFocus
+            style={[styles.emptyAction, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
+          >
+            <Text style={{ color: theme.colors.accent, fontSize: 18, fontWeight: "600" }}>{t("media.library.libraries")}</Text>
+          </FocusableCard>
         </View>
       ) : (
         <FlatList
@@ -154,4 +166,5 @@ const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", padding: 20 },
   progressBar: { width: 120, height: 6, borderRadius: 3, overflow: "hidden" },
   progressFill: { height: "100%", borderRadius: 3 },
+  emptyAction: { paddingHorizontal: 24, paddingVertical: 14 },
 });

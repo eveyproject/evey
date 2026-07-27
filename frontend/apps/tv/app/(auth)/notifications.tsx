@@ -123,7 +123,7 @@ export default function NotificationsScreen() {
             onPress={() => markAllRead.mutate({ data: {} })}
             style={[styles.markAllBtn, { backgroundColor: theme.colors.surface }]}
           >
-            <Text style={{ color: theme.colors.accent, fontSize: 18, fontWeight: "600" }}>Mark all read</Text>
+            <Text style={{ color: theme.colors.accent, fontSize: 18, fontWeight: "600" }}>{t("common.notifications.markAllRead")}</Text>
           </FocusableCard>
         )}
       </View>
