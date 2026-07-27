@@ -32,7 +32,12 @@ export default function ForgotPassword() {
         <Text style={{ color: theme.colors.textMuted, fontSize: 14, textAlign: "center", marginBottom: theme.spacing.lg }}>
           {t("auth.forgotPassword.emailSent")}
         </Text>
-        <Pressable onPress={() => router.back()}>
+        <Pressable
+          onPress={() => router.back()}
+          accessible={true}
+          accessibilityLabel={t("auth.forgotPassword.backToLogin")}
+          accessibilityRole="button"
+        >
           <Text style={{ color: theme.colors.accent, textAlign: "center", fontSize: 14 }}>
             {t("auth.forgotPassword.backToLogin")}
           </Text>
@@ -54,7 +59,7 @@ export default function ForgotPassword() {
         autoCapitalize="none"
         keyboardType="email-address"
         accessible={true}
-        accessibilityLabel="Email address"
+        accessibilityLabel={t("auth.forgotPassword.email")}
         style={{
           backgroundColor: theme.colors.surface,
           color: theme.colors.text,
@@ -69,7 +74,7 @@ export default function ForgotPassword() {
         onPress={handleSubmit}
         disabled={requestReset.isPending}
         accessible={true}
-        accessibilityLabel="Send reset link"
+        accessibilityLabel={t("auth.forgotPassword.submit")}
         accessibilityRole="button"
         style={{
           backgroundColor: theme.colors.accent,

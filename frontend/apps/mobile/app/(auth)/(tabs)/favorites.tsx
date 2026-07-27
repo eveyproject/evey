@@ -163,11 +163,16 @@ export default function FavoritesScreen() {
             </View>
           )}
           {posterUri ? (
+            // Decorative: the enclosing TouchableOpacity already carries the
+            // media title as its accessibilityLabel.
             <Image
               source={{ uri: posterUri, headers: authHeaders }}
               style={{ width: ITEM_WIDTH, height: POSTER_HEIGHT, borderRadius: theme.radii.sm }}
               contentFit="cover"
               transition={200}
+              accessible={false}
+              accessibilityElementsHidden={true}
+              importantForAccessibility="no-hide-descendants"
             />
           ) : (
             <View
@@ -248,6 +253,8 @@ export default function FavoritesScreen() {
         onChangeText={setSearchText}
         autoCapitalize="none"
         autoCorrect={false}
+        accessible={true}
+        accessibilityLabel={t("media.library.filterByName") || "Search..."}
       />
 
       {/* Type filter chips */}

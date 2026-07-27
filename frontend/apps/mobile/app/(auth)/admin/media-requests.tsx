@@ -99,6 +99,9 @@ function RequestRow({ request, theme }: { request: V1MediaRequestProto; theme: R
               disabled={answer.isPending}
               onPress={() => handleAnswer("approved")}
               style={[styles.actionBtn, { backgroundColor: theme.colors.accent, opacity: answer.isPending ? 0.6 : 1 }]}
+              accessible={true}
+              accessibilityLabel={t("admin.mediaRequests.approveNamed", "Approve {{title}}", { title: request.title })}
+              accessibilityRole="button"
             >
               <Text style={{ color: theme.colors.onAccent, fontSize: 13, fontWeight: "600" }}>{t("admin.mediaRequests.approve")}</Text>
             </Pressable>
@@ -106,6 +109,9 @@ function RequestRow({ request, theme }: { request: V1MediaRequestProto; theme: R
               disabled={answer.isPending}
               onPress={() => handleAnswer("rejected")}
               style={[styles.actionBtn, { backgroundColor: theme.colors.error, opacity: answer.isPending ? 0.6 : 1 }]}
+              accessible={true}
+              accessibilityLabel={t("admin.mediaRequests.rejectNamed", "Reject {{title}}", { title: request.title })}
+              accessibilityRole="button"
             >
               <Text style={{ color: "#fff", fontSize: 13, fontWeight: "600" }}>{t("admin.mediaRequests.reject")}</Text>
             </Pressable>
@@ -113,6 +119,9 @@ function RequestRow({ request, theme }: { request: V1MediaRequestProto; theme: R
               disabled={answer.isPending}
               onPress={() => handleAnswer("later")}
               style={[styles.actionBtn, { backgroundColor: theme.colors.bg, opacity: answer.isPending ? 0.6 : 1 }]}
+              accessible={true}
+              accessibilityLabel={t("admin.mediaRequests.laterNamed", "Postpone {{title}}", { title: request.title })}
+              accessibilityRole="button"
             >
               <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: "600" }}>{t("admin.mediaRequests.later")}</Text>
             </Pressable>
@@ -156,6 +165,8 @@ function QueueTab({ theme }: { theme: ReturnType<typeof useTheme> }) {
                 styles.filterChip,
                 { backgroundColor: filter === f ? theme.colors.accent : theme.colors.surfaceRaised, borderRadius: theme.radii.md },
               ]}
+              accessible={true}
+              accessibilityLabel={t(`admin.mediaRequests.filter${capitalizeStatus(f)}`)}
               accessibilityRole="button"
               accessibilityState={{ selected: filter === f }}
             >
@@ -198,7 +209,12 @@ function AddOverrideModal({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose} />
+      <Pressable
+        style={styles.backdrop}
+        onPress={onClose}
+        accessibilityElementsHidden={true}
+        importantForAccessibility="no-hide-descendants"
+      />
       <View style={[styles.sheet, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.lg }]}>
         <Text style={{ color: theme.colors.text, fontSize: 18, fontWeight: "700", marginBottom: 12 }}>
           {t("admin.mediaRequests.addOverride")}
@@ -215,6 +231,10 @@ function AddOverrideModal({
                 styles.modeChip,
                 { backgroundColor: mode === opt.value ? theme.colors.accent : theme.colors.bg, borderRadius: theme.radii.sm },
               ]}
+              accessible={true}
+              accessibilityLabel={opt.label}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: mode === opt.value }}
             >
               <Text style={{ color: mode === opt.value ? theme.colors.onAccent : theme.colors.text, fontSize: 13, fontWeight: "600" }}>
                 {opt.label}
@@ -236,6 +256,9 @@ function AddOverrideModal({
                   disabled={pending}
                   onPress={() => item.id && onPick(item.id, mode)}
                   style={[styles.userRow, { borderBottomColor: theme.colors.border }]}
+                  accessible={true}
+                  accessibilityLabel={item.username ?? item.id}
+                  accessibilityRole="button"
                 >
                   <Text style={{ color: theme.colors.text, fontSize: 15 }}>{item.username ?? item.id}</Text>
                   <Ionicons name="chevron-forward" size={16} color={theme.colors.textMuted} />
@@ -244,7 +267,13 @@ function AddOverrideModal({
             />
           )}
         </View>
-        <Pressable onPress={onClose} style={{ paddingVertical: 12, alignItems: "center" }}>
+        <Pressable
+          onPress={onClose}
+          style={{ paddingVertical: 12, alignItems: "center" }}
+          accessible={true}
+          accessibilityLabel={t("common.cancel")}
+          accessibilityRole="button"
+        >
           <Text style={{ color: theme.colors.accent, fontWeight: "600", fontSize: 15 }}>{t("common.cancel")}</Text>
         </Pressable>
       </View>
@@ -326,7 +355,13 @@ function AccessTab({ theme }: { theme: ReturnType<typeof useTheme> }) {
               {t("admin.mediaRequests.accessOverridesTitle")}
             </Text>
             {availableUsers.length > 0 && (
-              <Pressable onPress={() => setShowAdd(true)} hitSlop={8}>
+              <Pressable
+                onPress={() => setShowAdd(true)}
+                hitSlop={8}
+                accessible={true}
+                accessibilityLabel={t("admin.mediaRequests.addOverride")}
+                accessibilityRole="button"
+              >
                 <Ionicons name="add-circle-outline" size={24} color={theme.colors.accent} />
               </Pressable>
             )}
@@ -360,6 +395,10 @@ function AccessTab({ theme }: { theme: ReturnType<typeof useTheme> }) {
                     styles.modeChip,
                     { backgroundColor: active ? theme.colors.accent : theme.colors.bg, borderRadius: theme.radii.sm },
                   ]}
+                  accessible={true}
+                  accessibilityLabel={`${opt.label} - ${item.username}`}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: active }}
                 >
                   <Text style={{ color: active ? theme.colors.onAccent : theme.colors.textMuted, fontSize: 11, fontWeight: "600" }}>
                     {opt.label}
@@ -412,6 +451,10 @@ export default function AdminMediaRequestsScreen() {
               styles.tabBtn,
               { backgroundColor: tab === id ? theme.colors.accent : "transparent", borderRadius: theme.radii.sm },
             ]}
+            accessible={true}
+            accessibilityLabel={label}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: tab === id }}
           >
             <Text style={{ color: tab === id ? theme.colors.onAccent : theme.colors.textMuted, fontSize: 13, fontWeight: "600" }}>
               {label}

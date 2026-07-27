@@ -210,7 +210,7 @@ export default function ServerConnect() {
         autoCorrect={false}
         keyboardType="url"
         accessible={true}
-        accessibilityLabel="Server URL"
+        accessibilityLabel={t("mobile.serverConnect.urlLabel", "Server URL")}
         style={inputStyle}
       />
       <Pressable
@@ -232,6 +232,13 @@ export default function ServerConnect() {
         onPress={handleScan}
         disabled={scanning}
         style={s.scanBtn}
+        accessible={true}
+        accessibilityLabel={
+          scanning
+            ? t("admin.scanning", "Scanning...")
+            : t("mobile.serverConnect.scanLocalNetwork", "Scan local network")
+        }
+        accessibilityRole="button"
       >
         {scanning ? (
           <ActivityIndicator color={theme.colors.accent} size="small" />
@@ -263,6 +270,9 @@ export default function ServerConnect() {
                 borderRadius: theme.radii.sm,
                 marginBottom: 4,
               }}
+              accessible={true}
+              accessibilityLabel={t("mobile.serverConnect.useDiscovered", "Use discovered server {{url}}", { url: sv.url })}
+              accessibilityRole="button"
             >
               <Ionicons name="server-outline" size={16} color={theme.colors.accent} />
               <Text style={{ color: theme.colors.text, fontSize: 14, flex: 1 }}>{sv.url}</Text>

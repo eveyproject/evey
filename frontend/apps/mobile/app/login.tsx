@@ -152,7 +152,13 @@ export default function Login() {
         {t("auth.login.signIn")}
       </Text>
       {serverUrl && (
-        <Pressable onPress={() => router.push("/server-connect")} style={{ marginBottom: theme.spacing.lg, flexDirection: "row", alignItems: "center", gap: 4 }}>
+        <Pressable
+          onPress={() => router.push("/server-connect")}
+          style={{ marginBottom: theme.spacing.lg, flexDirection: "row", alignItems: "center", gap: 4 }}
+          accessible={true}
+          accessibilityLabel={t("mobile.settings.changeServer", "Change server")}
+          accessibilityRole="button"
+        >
           <Text style={{ color: theme.colors.textMuted, fontSize: 12 }} numberOfLines={1}>
             {serverUrl.replace(/^https?:\/\//, "")}
           </Text>
@@ -200,7 +206,7 @@ export default function Login() {
         onPress={handleLogin}
         disabled={isPending}
         accessible={true}
-        accessibilityLabel="Sign in"
+        accessibilityLabel={t("auth.login.signIn")}
         accessibilityRole="button"
         style={{
           backgroundColor: theme.colors.accent,
@@ -215,10 +221,22 @@ export default function Login() {
           <Text style={{ color: "#fff", fontWeight: "600", fontSize: 16 }}>{t("auth.login.signIn")}</Text>
         )}
       </Pressable>
-      <Pressable onPress={() => router.push("/forgot-password")} style={{ marginTop: theme.spacing.md }}>
+      <Pressable
+        onPress={() => router.push("/forgot-password")}
+        style={{ marginTop: theme.spacing.md }}
+        accessible={true}
+        accessibilityLabel={t("auth.login.forgotPassword")}
+        accessibilityRole="button"
+      >
         <Text style={{ color: theme.colors.accent, textAlign: "center" }}>{t("auth.login.forgotPassword")}</Text>
       </Pressable>
-      <Pressable onPress={() => router.push("/register")} style={{ marginTop: theme.spacing.sm }}>
+      <Pressable
+        onPress={() => router.push("/register")}
+        style={{ marginTop: theme.spacing.sm }}
+        accessible={true}
+        accessibilityLabel={t("mobile.auth.haveInvite", "Have an invite? Sign up")}
+        accessibilityRole="button"
+      >
         <Text style={{ color: theme.colors.accent, textAlign: "center" }}>
           {t("mobile.auth.haveInvite", "Have an invite? Sign up")}
         </Text>
@@ -228,6 +246,9 @@ export default function Login() {
         <Pressable
           onPress={handleBiometricLogin}
           style={{ marginTop: theme.spacing.md, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 }}
+          accessible={true}
+          accessibilityLabel={t("mobile.auth.unlockBiometric") || "Unlock with biometrics"}
+          accessibilityRole="button"
         >
           <Ionicons name={biometricType === "face" ? "scan-outline" : "finger-print-outline"} size={20} color={theme.colors.accent} />
           <Text style={{ color: theme.colors.accent, fontSize: 14, fontWeight: "600" }}>
@@ -241,7 +262,7 @@ export default function Login() {
         <Pressable
           onPress={() => router.push("/quick-connect")}
           accessible={true}
-          accessibilityLabel="Quick Connect"
+          accessibilityLabel={t("auth.settings.quickConnect.title")}
           accessibilityRole="button"
           style={{
             borderWidth: 1,
@@ -270,7 +291,7 @@ export default function Login() {
               onPress={() => void handleOidcLogin()}
               disabled={oidcLoading}
               accessible={true}
-              accessibilityLabel="Sign in with SSO"
+              accessibilityLabel={t("auth.login.signInWithSSO", "Sign in with SSO")}
               accessibilityRole="button"
               style={{
                 borderWidth: 1,

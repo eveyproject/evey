@@ -129,7 +129,11 @@ export default function Register() {
       />
 
       {!!validationError && (
-        <Text style={{ color: theme.colors.error, textAlign: "center", marginBottom: theme.spacing.md }}>
+        <Text
+          style={{ color: theme.colors.error, textAlign: "center", marginBottom: theme.spacing.md }}
+          accessibilityRole="alert"
+          accessibilityLiveRegion="polite"
+        >
           {validationError}
         </Text>
       )}
@@ -138,7 +142,7 @@ export default function Register() {
         onPress={handleRegister}
         disabled={isPending || !canSubmit}
         accessible={true}
-        accessibilityLabel="Create account"
+        accessibilityLabel={t("auth.register.createAccountBtn")}
         accessibilityRole="button"
         style={{
           backgroundColor: canSubmit ? theme.colors.accent : theme.colors.border,
@@ -156,7 +160,13 @@ export default function Register() {
         )}
       </Pressable>
 
-      <Pressable onPress={() => router.back()} style={{ marginTop: theme.spacing.md }}>
+      <Pressable
+        onPress={() => router.back()}
+        style={{ marginTop: theme.spacing.md }}
+        accessible={true}
+        accessibilityLabel={`${t("auth.register.alreadyHaveAccount")} ${t("auth.register.signIn")}`}
+        accessibilityRole="button"
+      >
         <Text style={{ color: theme.colors.accent, textAlign: "center" }}>
           {t("auth.register.alreadyHaveAccount")} {t("auth.register.signIn")}
         </Text>

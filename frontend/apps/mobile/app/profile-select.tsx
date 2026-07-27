@@ -186,10 +186,15 @@ export default function ProfileSelect() {
             >
               <View style={[s.avatar, { backgroundColor: theme.colors.accent, overflow: "hidden" }]}>
                 {avatarUrl ? (
+                  // Decorative: the parent Pressable already carries the
+                  // profile name as its accessibilityLabel.
                   <Image
                     source={{ uri: avatarUrl }}
                     style={{ width: 96, height: 96, borderRadius: 48 }}
                     contentFit="cover"
+                    accessible={false}
+                    accessibilityElementsHidden={true}
+                    importantForAccessibility="no-hide-descendants"
                   />
                 ) : (
                   <Text style={s.avatarText}>{initial}</Text>

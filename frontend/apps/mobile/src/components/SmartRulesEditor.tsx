@@ -21,18 +21,27 @@ const FIELD_LABELS: Record<RuleField, string> = {
   library_id: "Library",
 };
 
+// Maps the (untranslated) chip copy above to its existing i18n key, used only
+// for the accessibility label so screen readers announce a real word.
+const FIELD_I18N_KEYS: Record<RuleField, string> = {
+  genre: "media.playlist.fieldGenre",
+  year: "media.playlist.fieldYear",
+  type: "media.playlist.fieldType",
+  library_id: "media.playlist.fieldLibrary",
+};
+
 const ALL_FIELDS: RuleField[] = ["genre", "year", "type", "library_id"];
 
-const YEAR_OPERATORS: { value: Operator; label: string }[] = [
-  { value: "gte", label: ">=" },
-  { value: "lte", label: "<=" },
-  { value: "eq", label: "=" },
+const YEAR_OPERATORS: { value: Operator; label: string; a11yKey: string; a11yFallback: string }[] = [
+  { value: "gte", label: ">=", a11yKey: "media.playlist.opGte", a11yFallback: "Greater than or equal to" },
+  { value: "lte", label: "<=", a11yKey: "media.playlist.opLte", a11yFallback: "Less than or equal to" },
+  { value: "eq", label: "=", a11yKey: "media.playlist.opEq", a11yFallback: "Equal to" },
 ];
 
 const MEDIA_TYPES = [
-  { value: "MEDIA_ITEM_TYPE_MOVIE", label: "Movie" },
-  { value: "MEDIA_ITEM_TYPE_SERIES", label: "Series" },
-  { value: "MEDIA_ITEM_TYPE_EPISODE", label: "Episode" },
+  { value: "MEDIA_ITEM_TYPE_MOVIE", label: "Movie", i18nKey: "media.playlist.typeMovie" },
+  { value: "MEDIA_ITEM_TYPE_SERIES", label: "Series", i18nKey: "media.playlist.typeSeries" },
+  { value: "MEDIA_ITEM_TYPE_EPISODE", label: "Episode", i18nKey: "media.playlist.typeEpisode" },
 ];
 
 const COMMON_GENRES = [
@@ -85,7 +94,12 @@ export function SmartRulesEditor({ visible, onClose, rules, onSave }: Props) {
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={[styles.backdrop, { backgroundColor: theme.colors.overlay }]} onPress={onClose} />
+      <Pressable
+        style={[styles.backdrop, { backgroundColor: theme.colors.overlay }]}
+        onPress={onClose}
+        accessibilityElementsHidden={true}
+        importantForAccessibility="no-hide-descendants"
+      />
       <View style={[styles.sheet, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.lg }]}>
         <Text style={[styles.title, { color: theme.colors.text }]}>
           {t("media.playlist.smartRules") || "Smart Rules"}
@@ -101,6 +115,10 @@ export function SmartRulesEditor({ visible, onClose, rules, onSave }: Props) {
                     key={f}
                     onPress={() => updateRule(idx, defaultRule(f))}
                     style={[styles.chip, { backgroundColor: rule.field === f ? theme.colors.accent : theme.colors.surfaceRaised, borderRadius: theme.radii.sm }]}
+                    accessible={true}
+                    accessibilityLabel={t(FIELD_I18N_KEYS[f], FIELD_LABELS[f])}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: rule.field === f }}
                   >
                     <Text style={{ color: rule.field === f ? theme.colors.onAccent : theme.colors.text, fontSize: FONT_SIZE.xs }}>{FIELD_LABELS[f]}</Text>
                   </Pressable>
@@ -116,6 +134,10 @@ export function SmartRulesEditor({ visible, onClose, rules, onSave }: Props) {
                         key={op.value}
                         onPress={() => updateRule(idx, { ...rule, operator: op.value })}
                         style={[styles.chip, { backgroundColor: rule.operator === op.value ? theme.colors.accent : theme.colors.surfaceRaised, borderRadius: theme.radii.sm }]}
+                        accessible={true}
+                        accessibilityLabel={t(op.a11yKey, op.a11yFallback)}
+                        accessibilityRole="radio"
+                        accessibilityState={{ selected: rule.operator === op.value }}
                       >
                         <Text style={{ color: rule.operator === op.value ? theme.colors.onAccent : theme.colors.text, fontSize: FONT_SIZE.xs }}>{op.label}</Text>
                       </Pressable>
@@ -141,6 +163,10 @@ export function SmartRulesEditor({ visible, onClose, rules, onSave }: Props) {
                         key={mt.value}
                         onPress={() => updateRule(idx, { ...rule, value: mt.value })}
                         style={[styles.chip, { backgroundColor: rule.value === mt.value ? theme.colors.accent : theme.colors.surfaceRaised, borderRadius: theme.radii.sm }]}
+                        accessible={true}
+                        accessibilityLabel={t(mt.i18nKey, mt.label)}
+                        accessibilityRole="radio"
+                        accessibilityState={{ selected: rule.value === mt.value }}
                       >
                         <Text style={{ color: rule.value === mt.value ? theme.colors.onAccent : theme.colors.text, fontSize: FONT_SIZE.xs }}>{mt.label}</Text>
                       </Pressable>
@@ -153,6 +179,10 @@ export function SmartRulesEditor({ visible, onClose, rules, onSave }: Props) {
                         key={g}
                         onPress={() => updateRule(idx, { ...rule, value: g })}
                         style={[styles.chip, { backgroundColor: rule.value === g ? theme.colors.accent : theme.colors.surfaceRaised, borderRadius: theme.radii.sm }]}
+                        accessible={true}
+                        accessibilityLabel={g}
+                        accessibilityRole="radio"
+                        accessibilityState={{ selected: rule.value === g }}
                       >
                         <Text style={{ color: rule.value === g ? theme.colors.onAccent : theme.colors.text, fontSize: FONT_SIZE.xs }}>{g}</Text>
                       </Pressable>
@@ -181,17 +211,35 @@ export function SmartRulesEditor({ visible, onClose, rules, onSave }: Props) {
             </View>
           ))}
 
-          <Pressable onPress={addRule} style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 12 }}>
+          <Pressable
+            onPress={addRule}
+            style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 12 }}
+            accessible={true}
+            accessibilityLabel={t("media.playlist.addRule", "Add Rule")}
+            accessibilityRole="button"
+          >
             <Ionicons name="add-circle-outline" size={ICON_SIZE.lg} color={theme.colors.accent} />
             <Text style={{ color: theme.colors.accent, fontSize: FONT_SIZE.sm, fontWeight: "500" }}>Add Rule</Text>
           </Pressable>
         </ScrollView>
 
         <View style={{ flexDirection: "row", gap: 8, marginTop: 16 }}>
-          <Pressable onPress={handleSave} style={[styles.saveBtn, { backgroundColor: theme.colors.accent, borderRadius: theme.radii.md, flex: 1 }]}>
+          <Pressable
+            onPress={handleSave}
+            style={[styles.saveBtn, { backgroundColor: theme.colors.accent, borderRadius: theme.radii.md, flex: 1 }]}
+            accessible={true}
+            accessibilityLabel={t("common.save")}
+            accessibilityRole="button"
+          >
             <Text style={{ color: theme.colors.onAccent, fontWeight: "600", fontSize: FONT_SIZE.sm }}>{t("common.save")}</Text>
           </Pressable>
-          <Pressable onPress={onClose} style={[styles.cancelBtn, { backgroundColor: theme.colors.surfaceRaised, borderRadius: theme.radii.md, flex: 1 }]}>
+          <Pressable
+            onPress={onClose}
+            style={[styles.cancelBtn, { backgroundColor: theme.colors.surfaceRaised, borderRadius: theme.radii.md, flex: 1 }]}
+            accessible={true}
+            accessibilityLabel={t("common.cancel")}
+            accessibilityRole="button"
+          >
             <Text style={{ color: theme.colors.text, fontWeight: "500", fontSize: FONT_SIZE.sm }}>{t("common.cancel")}</Text>
           </Pressable>
         </View>

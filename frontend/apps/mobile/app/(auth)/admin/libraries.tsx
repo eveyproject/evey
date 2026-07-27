@@ -178,13 +178,26 @@ function ScheduleModal({ library, onClose }: { library: V1Library; onClose: () =
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
       <View style={[styles.modalHeader, { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border }]}>
-        <Pressable onPress={onClose} hitSlop={8}>
+        <Pressable
+          onPress={onClose}
+          hitSlop={8}
+          accessible={true}
+          accessibilityLabel={t("common.cancel", "Cancel")}
+          accessibilityRole="button"
+        >
           <Text style={{ color: theme.colors.accent, fontSize: 15 }}>{t("common.cancel", "Cancel")}</Text>
         </Pressable>
         <Text style={{ color: theme.colors.text, fontSize: 17, fontWeight: "600" }} numberOfLines={1}>
           {t("admin.libraries.scanScheduleTitle", { name: library.name, defaultValue: "Scan schedule - {{name}}" })}
         </Text>
-        <Pressable onPress={() => saveMutation.mutate()} disabled={!cronValue || saveMutation.isPending} hitSlop={8}>
+        <Pressable
+          onPress={() => saveMutation.mutate()}
+          disabled={!cronValue || saveMutation.isPending}
+          hitSlop={8}
+          accessible={true}
+          accessibilityLabel={t("common.save", "Save")}
+          accessibilityRole="button"
+        >
           <Text style={{ color: cronValue ? theme.colors.accent : theme.colors.textMuted, fontSize: 15, fontWeight: "600" }}>
             {saveMutation.isPending ? (t("common.loading", "...")) : t("common.save", "Save")}
           </Text>
@@ -217,6 +230,10 @@ function ScheduleModal({ library, onClose }: { library: V1Library; onClose: () =
                           borderColor: selected ? theme.colors.accent : theme.colors.border,
                         },
                       ]}
+                      accessible={true}
+                      accessibilityLabel={p.label}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected }}
                     >
                       <Text style={{ color: selected ? theme.colors.onAccent : theme.colors.text, fontSize: 13 }}>{p.label}</Text>
                     </Pressable>
@@ -269,7 +286,14 @@ function ScheduleModal({ library, onClose }: { library: V1Library; onClose: () =
             )}
 
             {schedule && (
-              <Pressable onPress={() => deleteMutation.mutate()} disabled={deleteMutation.isPending} style={{ paddingVertical: 8 }}>
+              <Pressable
+                onPress={() => deleteMutation.mutate()}
+                disabled={deleteMutation.isPending}
+                style={{ paddingVertical: 8 }}
+                accessible={true}
+                accessibilityLabel={t("common.remove", "Remove")}
+                accessibilityRole="button"
+              >
                 <Text style={{ color: theme.colors.error, fontSize: 14, textAlign: "center" }}>
                   {deleteMutation.isPending ? t("common.loading", "...") : t("common.remove", "Remove")}
                 </Text>
@@ -364,7 +388,14 @@ function LibraryRow({
         </Text>
       </View>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 4, justifyContent: "flex-end", maxWidth: 96 }}>
-        <Pressable onPress={() => onEdit(library)} hitSlop={8} style={{ padding: 4 }}>
+        <Pressable
+          onPress={() => onEdit(library)}
+          hitSlop={8}
+          style={{ padding: 4 }}
+          accessible={true}
+          accessibilityLabel={t("admin.libraries.editLibraryNamed", "Edit {{name}}", { name: library.name })}
+          accessibilityRole="button"
+        >
           <Ionicons name="pencil-outline" size={18} color={theme.colors.accent} />
         </Pressable>
         <Pressable
@@ -372,10 +403,20 @@ function LibraryRow({
           disabled={scanPending}
           hitSlop={8}
           style={{ padding: 4 }}
+          accessible={true}
+          accessibilityLabel={t("admin.libraries.scanLibraryNamed", "Scan {{name}}", { name: library.name })}
+          accessibilityRole="button"
         >
           <Ionicons name="refresh-outline" size={18} color={theme.colors.accent} />
         </Pressable>
-        <Pressable onPress={() => setShowSchedule(true)} hitSlop={8} style={{ padding: 4 }}>
+        <Pressable
+          onPress={() => setShowSchedule(true)}
+          hitSlop={8}
+          style={{ padding: 4 }}
+          accessible={true}
+          accessibilityLabel={t("admin.libraries.scheduleLibraryNamed", "Scan schedule for {{name}}", { name: library.name })}
+          accessibilityRole="button"
+        >
           <Ionicons name="calendar-outline" size={18} color={theme.colors.accent} />
         </Pressable>
         <Pressable
@@ -383,6 +424,9 @@ function LibraryRow({
           disabled={matchOrphans.isPending}
           hitSlop={8}
           style={{ padding: 4 }}
+          accessible={true}
+          accessibilityLabel={t("admin.libraries.matchOrphansNamed", "Match orphans for {{name}}", { name: library.name })}
+          accessibilityRole="button"
         >
           <Ionicons name="link-outline" size={18} color={theme.colors.accent} />
         </Pressable>
@@ -391,10 +435,20 @@ function LibraryRow({
           disabled={refreshMetadata.isPending}
           hitSlop={8}
           style={{ padding: 4 }}
+          accessible={true}
+          accessibilityLabel={t("admin.libraries.refreshMetadataNamed", "Refresh metadata for {{name}}", { name: library.name })}
+          accessibilityRole="button"
         >
           <Ionicons name="cloud-download-outline" size={18} color={theme.colors.accent} />
         </Pressable>
-        <Pressable onPress={() => onDelete(library)} hitSlop={8} style={{ padding: 4 }}>
+        <Pressable
+          onPress={() => onDelete(library)}
+          hitSlop={8}
+          style={{ padding: 4 }}
+          accessible={true}
+          accessibilityLabel={t("admin.libraries.deleteLibraryNamed", "Delete {{name}}", { name: library.name })}
+          accessibilityRole="button"
+        >
           <Ionicons name="trash-outline" size={18} color={theme.colors.error} />
         </Pressable>
       </View>
@@ -570,7 +624,13 @@ export default function AdminLibrariesScreen() {
         headerStyle: { backgroundColor: theme.colors.surface },
         headerTintColor: theme.colors.text,
         headerRight: () => (
-          <Pressable onPress={openCreate} style={{ marginRight: 8 }}>
+          <Pressable
+            onPress={openCreate}
+            style={{ marginRight: 8 }}
+            accessible={true}
+            accessibilityLabel={t("admin.libraries.addLibrary", "Add Library")}
+            accessibilityRole="button"
+          >
             <Ionicons name="add-circle-outline" size={26} color={theme.colors.accent} />
           </Pressable>
         ),
@@ -598,7 +658,13 @@ export default function AdminLibrariesScreen() {
       <Modal visible={modalVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={closeModal}>
         <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
           <View style={[styles.modalHeader, { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border }]}>
-            <Pressable onPress={closeModal} hitSlop={8}>
+            <Pressable
+              onPress={closeModal}
+              hitSlop={8}
+              accessible={true}
+              accessibilityLabel={t("common.cancel") || "Cancel"}
+              accessibilityRole="button"
+            >
               <Text style={{ color: theme.colors.accent, fontSize: 15 }}>{t("common.cancel") || "Cancel"}</Text>
             </Pressable>
             <Text style={{ color: theme.colors.text, fontSize: 17, fontWeight: "600" }}>
@@ -606,7 +672,14 @@ export default function AdminLibrariesScreen() {
                 ? (t("admin.libraries.editLibrary") || "Edit Library")
                 : (t("admin.libraries.addLibrary") || "Add Library")}
             </Text>
-            <Pressable onPress={handleSubmit} disabled={!canSubmit} hitSlop={8}>
+            <Pressable
+              onPress={handleSubmit}
+              disabled={!canSubmit}
+              hitSlop={8}
+              accessible={true}
+              accessibilityLabel={isEdit ? (t("common.save") || "Save") : (t("common.create") || "Create")}
+              accessibilityRole="button"
+            >
               <Text style={{ color: canSubmit ? theme.colors.accent : theme.colors.textMuted, fontSize: 15, fontWeight: "600" }}>
                 {isPending
                   ? (t("common.loading") || "...")
@@ -650,6 +723,10 @@ export default function AdminLibrariesScreen() {
                             borderColor: selected ? theme.colors.accent : theme.colors.border,
                           },
                         ]}
+                        accessible={true}
+                        accessibilityLabel={t(lt.labelKey) || lt.fallback}
+                        accessibilityRole="radio"
+                        accessibilityState={{ selected }}
                       >
                         <Ionicons
                           name={(TYPE_ICONS[lt.value] ?? "folder-outline") as never}
@@ -683,13 +760,26 @@ export default function AdminLibrariesScreen() {
                     autoCorrect={false}
                   />
                   {form.paths.length > 1 && (
-                    <Pressable onPress={() => removePath(i)} hitSlop={8} style={{ padding: 4 }}>
+                    <Pressable
+                      onPress={() => removePath(i)}
+                      hitSlop={8}
+                      style={{ padding: 4 }}
+                      accessible={true}
+                      accessibilityLabel={t("admin.libraries.removePathNamed", "Remove path {{index}}", { index: i + 1 })}
+                      accessibilityRole="button"
+                    >
                       <Ionicons name="close-circle" size={22} color={theme.colors.error} />
                     </Pressable>
                   )}
                 </View>
               ))}
-              <Pressable onPress={addPath} style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingTop: 4 }}>
+              <Pressable
+                onPress={addPath}
+                style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingTop: 4 }}
+                accessible={true}
+                accessibilityLabel={t("admin.libraries.addPath") || "Add path"}
+                accessibilityRole="button"
+              >
                 <Ionicons name="add-circle-outline" size={18} color={theme.colors.accent} />
                 <Text style={{ color: theme.colors.accent, fontSize: 13 }}>
                   {t("admin.libraries.addPath") || "Add path"}
