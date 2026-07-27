@@ -18,6 +18,9 @@ import { setAudioBoost, releaseAudioBoost } from "../../../src/lib/audioBoost";
 import { getDownloadPath } from "../../../src/lib/downloads";
 import { useTranslation } from "react-i18next";
 import { toast, useAuthStore } from "@evey/store";
+import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
+import { useTheme } from "../../../src/providers/ThemeProvider";
+import { BottomSheet } from "../../../src/components/BottomSheet";
 import {
   useLibraryServiceGetMediaItem,
   useLibraryServiceListMediaItems,
@@ -57,7 +60,7 @@ import { useControlsAutoHide } from "../../../src/components/player/useControlsA
 
 // Sheets still carried by a BottomSheet; audio / subtitles / quality / speed
 // now live in the settings panel (web parity).
-type SheetName = "chapters" | "streamInfo" | "sleepTimer" | "syncPlay";
+type SheetName = "chapters" | "streamInfo" | "sleepTimer" | "syncPlay" | "episodes";
 
 const IMAGE_SUBTITLE_CODECS = new Set([
   "pgssub", "hdmv_pgs_subtitle", "dvd_subtitle", "dvbsub", "xsub",
@@ -68,6 +71,7 @@ const WATCHED_THRESHOLD = 0.9;
 export default function PlayerScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { t } = useTranslation();
+  const theme = useTheme();
   const { width: screenW, height: screenH } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const mediaId = id ?? "";
@@ -141,6 +145,16 @@ export default function PlayerScreen() {
       nextEpisode: idx >= 0 && idx < sorted.length - 1 ? sorted[idx + 1] : null,
     };
   }, [siblingsData?.items, isEpisode, mediaId]);
+  // Full current-season episode list for the Episodes panel (web parity's
+  // EpisodesPanel). Reuses siblingsData - no extra hook. A season selector
+  // would need the series' other seasons, which aren't loaded anywhere in
+  // this screen; out of scope here (see dispatch note), so this panel is
+  // scoped to the current season only.
+  const seasonEpisodes = useMemo(() => {
+    const items = siblingsData?.items;
+    if (!isEpisode || !items) return [];
+    return [...items].sort((a, b) => (a.indexNumber ?? 0) - (b.indexNumber ?? 0));
+  }, [siblingsData?.items, isEpisode]);
   // Don't open a play session for a series/season - the redirect above will
   // remount us on a real episode in a tick. Passing "" makes usePlaySession
   // hold its initial loading state instead of hitting /transcode and 404'ing.
@@ -887,38 +901,59 @@ export default function PlayerScreen() {
 
               {/* Transport row, copy of the web bar: episodes/chapters,
                   +/-Ns, time, volume, then "..." toward the secondary row. */}
-              <PlayerControlsRow
-                isPlaying={isPlaying}
-                isBuffering={isBuffering}
-                currentTime={currentTime}
-                effectiveDuration={effectiveDuration}
-                skipFwd={skipFwd}
-                skipBwd={skipBwd}
-                isFullscreen={isFullscreen}
-                volume={volume}
-                muted={muted}
-                prevEpisode={prevEpisode?.id ? { id: prevEpisode.id } : null}
-                nextEpisode={nextEpisode?.id ? { id: nextEpisode.id } : null}
-                hasPrevChapter={chapters.length > 0 && currentChapterIndex > 0}
-                hasNextChapter={chapters.length > 0 && currentChapterIndex >= 0 && currentChapterIndex < chapters.length - 1}
-                hasChapters={chapters.length > 0}
-                settingsOpen={settingsOpen}
-                sleepTimerActive={sleepTimer.state !== null}
-                pipSupported={pipSupported}
-                onSeekBy={seekBy}
-                onTogglePlayPause={togglePlayPause}
-                onToggleMute={toggleMute}
-                onVolumeChange={handleVolumeChange}
-                onEpisodeChange={handleNavigateEpisode}
-                onPrevChapter={skipToPrevChapter}
-                onNextChapter={skipToNextChapter}
-                onOpenChapters={() => setActiveSheet("chapters")}
-                onToggleSettings={() => { setSettingsOpen((v) => !v); resetHideTimer(); }}
-                onOpenStreamInfo={() => setActiveSheet("streamInfo")}
-                onOpenSleepTimer={() => setActiveSheet("sleepTimer")}
-                onPip={handlePip}
-                onToggleFullscreen={toggleFullscreen}
-              />
+              <View style={styles.transportRow}>
+                <View style={{ flex: 1 }}>
+                  <PlayerControlsRow
+                    isPlaying={isPlaying}
+                    isBuffering={isBuffering}
+                    currentTime={currentTime}
+                    effectiveDuration={effectiveDuration}
+                    skipFwd={skipFwd}
+                    skipBwd={skipBwd}
+                    isFullscreen={isFullscreen}
+                    volume={volume}
+                    muted={muted}
+                    prevEpisode={prevEpisode?.id ? { id: prevEpisode.id } : null}
+                    nextEpisode={nextEpisode?.id ? { id: nextEpisode.id } : null}
+                    hasPrevChapter={chapters.length > 0 && currentChapterIndex > 0}
+                    hasNextChapter={chapters.length > 0 && currentChapterIndex >= 0 && currentChapterIndex < chapters.length - 1}
+                    hasChapters={chapters.length > 0}
+                    settingsOpen={settingsOpen}
+                    sleepTimerActive={sleepTimer.state !== null}
+                    pipSupported={pipSupported}
+                    onSeekBy={seekBy}
+                    onTogglePlayPause={togglePlayPause}
+                    onToggleMute={toggleMute}
+                    onVolumeChange={handleVolumeChange}
+                    onEpisodeChange={handleNavigateEpisode}
+                    onPrevChapter={skipToPrevChapter}
+                    onNextChapter={skipToNextChapter}
+                    onOpenChapters={() => setActiveSheet("chapters")}
+                    onToggleSettings={() => { setSettingsOpen((v) => !v); resetHideTimer(); }}
+                    onOpenStreamInfo={() => setActiveSheet("streamInfo")}
+                    onOpenSleepTimer={() => setActiveSheet("sleepTimer")}
+                    onPip={handlePip}
+                    onToggleFullscreen={toggleFullscreen}
+                  />
+                </View>
+
+                {/* Episodes panel entry point (web parity: PlayerEpisodesPanel).
+                    Only current-season episodes are listed here - see the
+                    seasonEpisodes comment above for why there's no season
+                    selector. */}
+                {seasonEpisodes.length > 1 && (
+                  <Pressable
+                    onPress={() => { setActiveSheet("episodes"); resetHideTimer(); }}
+                    hitSlop={8}
+                    style={styles.episodesBtn}
+                    accessible={true}
+                    accessibilityLabel={t("player.controls.episodes", "Épisodes")}
+                    accessibilityRole="button"
+                  >
+                    <Ionicons name="list" size={ICON_SIZE.lg} color="#fff" />
+                  </Pressable>
+                )}
+              </View>
 
             </View>
 
@@ -976,6 +1011,38 @@ export default function PlayerScreen() {
         currentTimeMs={currentTime * 1000}
         onSeek={handleChapterSeek}
       />
+
+      <BottomSheet
+        visible={activeSheet === "episodes"}
+        onClose={() => setActiveSheet(null)}
+        title={t("player.controls.episodes", "Épisodes")}
+      >
+        {seasonEpisodes.map((ep) => {
+          const isActive = ep.id === mediaId;
+          return (
+            <Pressable
+              key={ep.id}
+              style={[styles.episodeRow, { borderBottomColor: theme.colors.border }]}
+              onPress={() => { handleNavigateEpisode(ep.id); setActiveSheet(null); }}
+              accessible={true}
+              accessibilityLabel={ep.title || `E${ep.indexNumber ?? "?"}`}
+              accessibilityRole="button"
+              accessibilityState={{ selected: isActive }}
+            >
+              <Text style={[styles.episodeIndex, { color: theme.colors.textMuted }]}>
+                E{ep.indexNumber ?? "?"}
+              </Text>
+              <Text
+                style={[styles.episodeTitle, { color: isActive ? theme.colors.accent : theme.colors.text }]}
+                numberOfLines={1}
+              >
+                {ep.title}
+              </Text>
+              {isActive && <Ionicons name="checkmark" size={ICON_SIZE.sm} color={theme.colors.accent} />}
+            </Pressable>
+          );
+        })}
+      </BottomSheet>
 
       <StreamInfoPanel
         visible={activeSheet === "streamInfo"}
@@ -1063,5 +1130,29 @@ const styles = StyleSheet.create({
     bottom: 0,
     paddingHorizontal: 20,
     zIndex: 2,
+  },
+  transportRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  episodesBtn: {
+    padding: 4,
+    marginLeft: 4,
+  },
+  episodeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    gap: 10,
+  },
+  episodeIndex: {
+    fontSize: FONT_SIZE.xs,
+    fontVariant: ["tabular-nums"],
+    width: 32,
+  },
+  episodeTitle: {
+    fontSize: FONT_SIZE.sm,
+    flex: 1,
   },
 });
