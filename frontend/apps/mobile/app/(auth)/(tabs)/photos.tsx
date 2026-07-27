@@ -225,7 +225,7 @@ export default function PhotosScreen() {
                   },
                 ]}
               >
-                <Text style={{ color: activeLibraryID === lib.id ? "#fff" : theme.colors.text, fontSize: 13, fontWeight: "600" }}>
+                <Text style={{ color: activeLibraryID === lib.id ? theme.colors.onAccent : theme.colors.text, fontSize: 13, fontWeight: "600" }}>
                   {lib.name}
                 </Text>
               </TouchableOpacity>

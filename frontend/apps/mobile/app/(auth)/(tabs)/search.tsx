@@ -52,10 +52,6 @@ const COMMON_GENRES = [
   "Thriller", "War", "Western",
 ];
 
-function getPoster(item: V1MediaItem): string | undefined {
-  return item.artwork?.find((a) => a.type === "ARTWORK_TYPE_PRIMARY")?.url;
-}
-
 function formatType(type?: string): string {
   if (!type) return "";
   return type.replace("MEDIA_ITEM_TYPE_", "").toLowerCase();
@@ -223,7 +219,7 @@ export default function SearchScreen() {
 
   const renderItem = useCallback(
     ({ item }: { item: V1MediaItem }) => {
-      const poster = getPoster(item) ?? (serverUrl && item.id ? artworkUrl(serverUrl, item.id, "poster", 200) : undefined);
+      const poster = serverUrl && item.id ? artworkUrl(serverUrl, item.id, "poster", 200) : undefined;
       return (
         <TouchableOpacity
           style={[
@@ -315,7 +311,7 @@ export default function SearchScreen() {
               onPress={() => setSearchKind(k)}
               style={[styles.chip, { backgroundColor: searchKind === k ? theme.colors.accent : theme.colors.surfaceRaised, borderRadius: theme.radii.sm, marginRight: 0 }]}
             >
-              <Text style={{ color: searchKind === k ? "#fff" : theme.colors.text, fontSize: 13, fontWeight: "600" }}>
+              <Text style={{ color: searchKind === k ? theme.colors.onAccent : theme.colors.text, fontSize: 13, fontWeight: "600" }}>
                 {k === "media" ? t("media.search.sectionMedia") : t("media.search.sectionMusic")}
               </Text>
             </TouchableOpacity>
@@ -351,7 +347,7 @@ export default function SearchScreen() {
                   style={{
                     color:
                       typeFilter === f.value
-                        ? "#fff"
+                        ? theme.colors.onAccent
                         : theme.colors.text,
                     fontSize: 13,
                   }}
@@ -376,7 +372,7 @@ export default function SearchScreen() {
             >
               <Text
                 style={{
-                  color: showFilters ? "#fff" : theme.colors.text,
+                  color: showFilters ? theme.colors.onAccent : theme.colors.text,
                   fontSize: 13,
                 }}
               >
@@ -446,7 +442,7 @@ export default function SearchScreen() {
                 >
                   <Text
                     style={{
-                      color: !genre ? "#fff" : theme.colors.text,
+                      color: !genre ? theme.colors.onAccent : theme.colors.text,
                       fontSize: 13,
                     }}
                   >
@@ -472,7 +468,7 @@ export default function SearchScreen() {
                     <Text
                       style={{
                         color:
-                          genre === g ? "#fff" : theme.colors.text,
+                          genre === g ? theme.colors.onAccent : theme.colors.text,
                         fontSize: 13,
                       }}
                     >
@@ -520,7 +516,7 @@ export default function SearchScreen() {
                       <Text
                         style={{
                           color: active
-                            ? "#fff"
+                            ? theme.colors.onAccent
                             : theme.colors.text,
                           fontSize: 13,
                         }}

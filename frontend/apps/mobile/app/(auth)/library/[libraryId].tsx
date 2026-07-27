@@ -32,9 +32,11 @@ import { useAuthStore } from "@evey/store";
 import { toast } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
+import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useDebounce } from "../../../src/hooks/useDebounce";
 import { useBulkFavorite } from "../../../src/hooks/useFavorite";
 import { AddToPlaylistSheet } from "../../../src/components/AddToPlaylistSheet";
+import { artworkUrl } from "../../../src/lib/artwork";
 
 const NUM_COLUMNS = 3;
 const SPACING = 8;
@@ -81,8 +83,8 @@ const libraryGetItemLayout = (_: unknown, index: number) => ({
   index,
 });
 
-function getPoster(item: V1MediaItem): string | undefined {
-  return item.artwork?.find((a) => a.type === "ARTWORK_TYPE_PRIMARY")?.url;
+function getPoster(item: V1MediaItem, serverUrl: string | undefined): string | undefined {
+  return serverUrl && item.id ? artworkUrl(serverUrl, item.id, "poster", 300) : undefined;
 }
 
 function formatType(type?: string): string {
@@ -176,6 +178,7 @@ export default function LibraryDetailScreen() {
   }, [selected, bulkFavorite, exitBulk, t]);
 
   const authHeaders = useAuthHeaders();
+  const serverUrl = useServerUrl();
   const { data: library } = useLibraryServiceGetLibrary(libraryId ?? "");
 
   const { data, isLoading, isError, isFetching, refetch } =
@@ -315,7 +318,7 @@ export default function LibraryDetailScreen() {
 
   const renderItem = useCallback(
     ({ item }: { item: V1MediaItem }) => {
-      const poster = getPoster(item);
+      const poster = getPoster(item, serverUrl);
       const isSelected = bulkMode && selected.has(item.id ?? "");
       return (
         <TouchableOpacity
@@ -382,12 +385,12 @@ export default function LibraryDetailScreen() {
         </TouchableOpacity>
       );
     },
-    [theme, router, authHeaders, t, bulkMode, selected, toggleSelect, handleLongPress],
+    [theme, router, authHeaders, serverUrl, t, bulkMode, selected, toggleSelect, handleLongPress],
   );
 
   const renderListItem = useCallback(
     ({ item }: { item: V1MediaItem }) => {
-      const poster = getPoster(item);
+      const poster = getPoster(item, serverUrl);
       const isSelected = bulkMode && selected.has(item.id ?? "");
       return (
         <TouchableOpacity
@@ -444,7 +447,7 @@ export default function LibraryDetailScreen() {
         </TouchableOpacity>
       );
     },
-    [theme, router, authHeaders, bulkMode, selected, toggleSelect, handleLongPress],
+    [theme, router, authHeaders, serverUrl, bulkMode, selected, toggleSelect, handleLongPress],
   );
 
   const isActiveSort = (f: LibraryServiceListMediaItemsSortField) =>
@@ -516,7 +519,7 @@ export default function LibraryDetailScreen() {
             >
               <Text
                 style={{
-                  color: showFilters ? "#fff" : theme.colors.textMuted,
+                  color: showFilters ? theme.colors.onAccent : theme.colors.textMuted,
                   fontSize: 13,
                   fontWeight: "600",
                 }}
@@ -627,7 +630,7 @@ export default function LibraryDetailScreen() {
                     <Text
                       style={{
                         color: isActiveSort(opt.value)
-                          ? "#fff"
+                          ? theme.colors.onAccent
                           : theme.colors.text,
                         fontSize: 13,
                       }}
@@ -658,7 +661,7 @@ export default function LibraryDetailScreen() {
                     style={{
                       color:
                         sortOrder === "SORT_ORDER_ASC"
-                          ? "#fff"
+                          ? theme.colors.onAccent
                           : theme.colors.text,
                       fontSize: 13,
                     }}
@@ -684,7 +687,7 @@ export default function LibraryDetailScreen() {
                     style={{
                       color:
                         sortOrder === "SORT_ORDER_DESC"
-                          ? "#fff"
+                          ? theme.colors.onAccent
                           : theme.colors.text,
                       fontSize: 13,
                     }}
@@ -722,7 +725,7 @@ export default function LibraryDetailScreen() {
                 >
                   <Text
                     style={{
-                      color: !genre ? "#fff" : theme.colors.text,
+                      color: !genre ? theme.colors.onAccent : theme.colors.text,
                       fontSize: 13,
                     }}
                   >
@@ -748,7 +751,7 @@ export default function LibraryDetailScreen() {
                     <Text
                       style={{
                         color:
-                          genre === g ? "#fff" : theme.colors.text,
+                          genre === g ? theme.colors.onAccent : theme.colors.text,
                         fontSize: 13,
                       }}
                     >

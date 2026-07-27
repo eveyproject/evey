@@ -103,7 +103,7 @@ export function HeaderSearch() {
                 style={[styles.scopeChip, { backgroundColor: kind === k ? theme.colors.accent : "transparent" }]}
                 accessibilityRole="button"
               >
-                <Text style={{ color: kind === k ? "#fff" : theme.colors.textMuted, fontSize: FONT_SIZE.xs, fontWeight: "600" }}>
+                <Text style={{ color: kind === k ? theme.colors.onAccent : theme.colors.textMuted, fontSize: FONT_SIZE.xs, fontWeight: "600" }}>
                   {k === "media" ? t("media.search.sectionMedia") : t("media.search.sectionMusic")}
                 </Text>
               </Pressable>

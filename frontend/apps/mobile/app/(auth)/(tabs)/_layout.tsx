@@ -6,6 +6,7 @@
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Stack, router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { useNotificationServiceGetUnreadCount } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useDrawer } from "../../../src/providers/DrawerProvider";
@@ -22,16 +23,22 @@ function BurgerButton({ theme }: { theme: ReturnType<typeof useTheme> }) {
 }
 
 function HeaderRight({ theme }: { theme: ReturnType<typeof useTheme> }) {
+  const { t } = useTranslation();
   const { data: notifData } = useNotificationServiceGetUnreadCount();
   const count = notifData?.count ?? 0;
 
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginRight: 2 }}>
-      <Pressable onPress={() => router.push("/notifications")} style={{ padding: 6 }}>
+      <Pressable
+        onPress={() => router.push("/notifications")}
+        style={{ padding: 6 }}
+        accessibilityRole="button"
+        accessibilityLabel={t("common.notifications.title")}
+      >
         <Ionicons name="notifications-outline" size={22} color={theme.colors.text} />
         {count > 0 && (
           <View style={[styles.badge, { backgroundColor: theme.colors.accent }]}>
-            <Text style={styles.badgeText}>{count > 9 ? "9+" : count}</Text>
+            <Text style={[styles.badgeText, { color: theme.colors.onAccent }]}>{count > 9 ? "9+" : count}</Text>
           </View>
         )}
       </Pressable>
@@ -78,5 +85,5 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 2,
   },
-  badgeText: { color: "#fff", fontSize: 9, fontWeight: "700" },
+  badgeText: { fontSize: 9, fontWeight: "700" },
 });
