@@ -3,6 +3,7 @@ package favorite
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 
 	"github.com/evey-project/evey/internal/domain/favorite/fakes"
@@ -215,6 +216,69 @@ func TestList_LimitOverMax(t *testing.T) {
 	if len(items) != 5 {
 		t.Fatalf("expected 5 items, got %d", len(items))
 	}
+}
+
+// TestSetFavorite_ConcurrentAddIsIdempotent proves the race behind "a retry
+// after timeout inverts the favorite": two callers both wanting the item
+// favorited (e.g. the original request and a client retry after a lost
+// response) must never leave the item un-favorited, no matter how they
+// interleave. Toggle's read-then-flip can't offer this guarantee even when
+// callers guard it with an IsFavorite check first, because the check and the
+// flip are two separate calls (TOCTOU). SetFavorite must go straight to the
+// already-idempotent repo primitives (Add: ON CONFLICT DO NOTHING, Remove: a
+// DELETE that no-ops when absent) so concurrent identical calls converge.
+func TestSetFavorite_ConcurrentAddIsIdempotent(t *testing.T) {
+	t.Parallel()
+	svc := newTestService()
+	ctx := context.Background()
+
+	const n = 20
+	var wg sync.WaitGroup
+	wg.Add(n)
+	for range n {
+		go func() {
+			defer wg.Done()
+			_, err := svc.SetFavorite(ctx, "p1", "m1", true)
+			assert.NoError(t, err)
+		}()
+	}
+	wg.Wait()
+
+	ok, err := svc.IsFavorite(ctx, "p1", "m1")
+	require.NoError(t, err)
+	assert.True(t, ok, "concurrent duplicate 'add' calls must converge to favorited")
+}
+
+func TestSetFavorite_RepeatedRemoveStaysIdempotent(t *testing.T) {
+	t.Parallel()
+	svc := newTestService()
+	ctx := context.Background()
+
+	_, err := svc.SetFavorite(ctx, "p1", "m1", true)
+	require.NoError(t, err)
+
+	for range 3 {
+		_, removeErr := svc.SetFavorite(ctx, "p1", "m1", false)
+		require.NoError(t, removeErr)
+	}
+
+	ok, err := svc.IsFavorite(ctx, "p1", "m1")
+	require.NoError(t, err)
+	assert.False(t, ok)
+}
+
+func TestSetFavorite_ReturnsTargetState(t *testing.T) {
+	t.Parallel()
+	svc := newTestService()
+	ctx := context.Background()
+
+	added, err := svc.SetFavorite(ctx, "p1", "m1", true)
+	require.NoError(t, err)
+	assert.True(t, added)
+
+	removed, err := svc.SetFavorite(ctx, "p1", "m1", false)
+	require.NoError(t, err)
+	assert.False(t, removed)
 }
 
 func TestList_Pagination(t *testing.T) {
