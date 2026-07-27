@@ -50,7 +50,7 @@ function GenreChip({ label, active, onPress }: { label: string; active: boolean;
       accessibilityLabel={label}
       accessibilityState={{ selected: active }}
     >
-      <Text style={{ color: active ? "#fff" : theme.colors.text, fontSize: 18, fontWeight: "600" }}>{label}</Text>
+      <Text style={{ color: active ? theme.colors.onAccent : theme.colors.text, fontSize: 18, fontWeight: "600" }}>{label}</Text>
     </FocusableCard>
   );
 }

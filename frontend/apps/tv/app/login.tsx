@@ -108,7 +108,7 @@ export default function Login() {
         {isPending ? (
           <ActivityIndicator color="#fff" />
         ) : (
-          <Text style={styles.buttonText}>{t("auth.login.signIn")}</Text>
+          <Text style={[styles.buttonText, { color: theme.colors.onAccent }]}>{t("auth.login.signIn")}</Text>
         )}
       </Pressable>
 
@@ -168,7 +168,6 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   buttonText: {
-    color: "#fff",
     fontWeight: "700",
     fontSize: 22,
   },

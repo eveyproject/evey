@@ -47,7 +47,7 @@ function ScopeTab({ label, active, onPress }: { label: string; active: boolean; 
         backgroundColor: active ? theme.colors.accent : theme.colors.surface,
       }}
     >
-      <Text style={{ color: active ? "#fff" : theme.colors.text, fontSize: 18, fontWeight: "600" }}>{label}</Text>
+      <Text style={{ color: active ? theme.colors.onAccent : theme.colors.text, fontSize: 18, fontWeight: "600" }}>{label}</Text>
     </Pressable>
   );
 }

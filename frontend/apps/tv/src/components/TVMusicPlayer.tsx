@@ -43,7 +43,7 @@ function FocusCtrl({
         backgroundColor: focused ? theme.colors.accent : "transparent",
       }}
     >
-      <Ionicons name={name} size={size} color={focused ? "#fff" : theme.colors.text} />
+      <Ionicons name={name} size={size} color={focused ? theme.colors.onAccent : theme.colors.text} />
     </Pressable>
   );
 }

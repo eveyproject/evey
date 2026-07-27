@@ -235,7 +235,7 @@ export default function MediaDetailScreen() {
             },
           ]}
         >
-          <Text style={styles.playText}>
+          <Text style={[styles.playText, { color: theme.colors.onAccent }]}>
             {hasProgress ? `${t("media.resume", "Resume")} ${formatProgress(resumeMs)}` : t("player.controls.play")}
           </Text>
         </Pressable>
@@ -335,7 +335,7 @@ export default function MediaDetailScreen() {
                     },
                   ]}
                 >
-                  <Text style={{ color: active ? "#fff" : theme.colors.text, fontSize: 18, fontWeight: "600" }}>
+                  <Text style={{ color: active ? theme.colors.onAccent : theme.colors.text, fontSize: 18, fontWeight: "600" }}>
                     {season.title}
                   </Text>
                 </Pressable>
@@ -446,7 +446,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 3,
   },
-  playText: { color: "#fff", fontWeight: "700", fontSize: 22 },
+  playText: { fontWeight: "700", fontSize: 22 },
   actionBtn: {
     paddingVertical: 16,
     paddingHorizontal: 32,

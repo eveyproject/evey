@@ -58,7 +58,7 @@ export default function ProfileSelect() {
               focusedStyle={{ borderColor: theme.colors.accent }}
             >
               <View style={[styles.avatar, { backgroundColor: theme.colors.accent }]}>
-                <Text style={styles.avatarText}>{initial}</Text>
+                <Text style={[styles.avatarText, { color: theme.colors.onAccent }]}>{initial}</Text>
               </View>
               <Text style={[styles.profileName, { color: theme.colors.text }]} numberOfLines={1}>
                 {profile.name}
@@ -108,7 +108,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   avatarText: {
-    color: "#fff",
     fontSize: 48,
     fontWeight: "bold",
   },

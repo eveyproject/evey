@@ -45,7 +45,7 @@ export function NextEpisodeOverlay({ visible, ended, countdown, nextEpisode, onP
           accessibilityLabel={t("player.nextEpisodeOverlay.playNow", "Play now")}
           style={[styles.button, { backgroundColor: theme.colors.accent }]}
         >
-          <Text style={styles.playText}>{t("player.nextEpisodeOverlay.playNow", "Play now")}</Text>
+          <Text style={[styles.playText, { color: theme.colors.onAccent }]}>{t("player.nextEpisodeOverlay.playNow", "Play now")}</Text>
         </FocusableCard>
         <FocusableCard
           onPress={onCancel}
@@ -92,7 +92,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   playText: {
-    color: "#fff",
     fontWeight: "700",
     fontSize: FONT_SIZE.base,
   },

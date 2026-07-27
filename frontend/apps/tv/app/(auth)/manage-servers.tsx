@@ -166,7 +166,7 @@ export default function ManageServersScreen() {
                 accessibilityRole="button"
                 style={[s.modalBtn, s.modalBtnPrimary, { borderColor: renameSaveFocused ? "#fff" : theme.colors.accent }]}
               >
-                <Text style={[s.modalBtnText, { color: "#fff", fontWeight: "700" }]}>{t("common.save", "Save")}</Text>
+                <Text style={[s.modalBtnText, { color: theme.colors.onAccent, fontWeight: "700" }]}>{t("common.save", "Save")}</Text>
               </Pressable>
             </View>
           </View>
@@ -338,7 +338,7 @@ const msStyles = (theme: ReturnType<typeof useTheme>) => StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
-  badgeText: { color: "#fff", fontSize: 13, fontWeight: "700" },
+  badgeText: { color: theme.colors.onAccent, fontSize: 13, fontWeight: "700" },
   actions: {
     flexDirection: "row",
     alignItems: "center",
