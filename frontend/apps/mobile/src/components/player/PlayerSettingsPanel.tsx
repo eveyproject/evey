@@ -124,6 +124,13 @@ export function PlayerSettingsPanel({
   const { height: screenH } = useWindowDimensions();
   const QUALITY_OPTIONS = useQualityOptions();
   const [menu, setMenu] = useState<"main" | "audio" | "subtitles" | "speed">("main");
+  // No prop currently exposes the manifest's dynamic rungs to this panel
+  // (unlike the web SettingsPanel's `availableQualities`), so Auto reuses
+  // the existing quality=0 "no forced height" path: the caller already
+  // treats 0 as "let the native HLS player pick" (`selectedQuality ||
+  // undefined` in the player screen). autoQuality only tracks which row to
+  // highlight; it resets on reopen since the panel unmounts on close.
+  const [autoQuality, setAutoQuality] = useState(currentQuality === 0);
 
   const select = (fn: () => void) => {
     fn();
@@ -214,12 +221,17 @@ export function PlayerSettingsPanel({
             <Text style={[styles.sectionHeader, { color: theme.colors.textMuted }]}>
               {t("player.settings.quality")}
             </Text>
+            <OptionRow
+              label={t("player.quality.auto", "Auto")}
+              active={autoQuality}
+              onPress={() => select(() => { setAutoQuality(true); onQualityChange(0); })}
+            />
             {QUALITY_OPTIONS.map((q) => (
               <OptionRow
                 key={q.value}
                 label={q.label}
-                active={q.value === currentQuality}
-                onPress={() => select(() => onQualityChange(q.value))}
+                active={!autoQuality && q.value === currentQuality}
+                onPress={() => select(() => { setAutoQuality(false); onQualityChange(q.value); })}
               />
             ))}
             {audioStreams.length > 0 && (
