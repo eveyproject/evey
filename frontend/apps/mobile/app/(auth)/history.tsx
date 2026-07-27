@@ -1,13 +1,15 @@
-import { useState, useCallback, useEffect } from "react";
-import { View, Text, FlatList, Pressable, Alert, RefreshControl, StyleSheet } from "react-native";
+import { useState, useCallback, useEffect, useMemo } from "react";
+import { View, Text, SectionList, Pressable, Alert, RefreshControl, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { router, Stack } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   usePlaybackServiceGetWatchHistory,
   usePlaybackServiceMarkAsUnwatched,
+  usePlaybackServiceClearWatchHistory,
   getPlaybackServiceGetWatchHistoryQueryKey,
 } from "@evey/api";
 import type { V1WatchProgress } from "@evey/api";
@@ -36,18 +38,52 @@ function formatDate(iso: string | undefined): string {
   });
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// Mirrors the web WatchHistory grouping so both clients bucket the same way.
+function getDateGroupLabel(iso: string | undefined, t: TFunction): string {
+  if (!iso) return t("common.unknown", "Unknown");
+  const date = new Date(iso);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const itemDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const diffDays = Math.floor((today.getTime() - itemDate.getTime()) / DAY_MS);
+
+  if (diffDays === 0) return t("auth.watchHistory.today", "Today");
+  if (diffDays === 1) return t("auth.watchHistory.yesterday", "Yesterday");
+  if (diffDays < 7) return t("auth.watchHistory.thisWeek", "This Week");
+  if (diffDays < 30) return t("auth.watchHistory.thisMonth", "This Month");
+  return date.toLocaleDateString(undefined, { year: "numeric", month: "long" });
+}
+
+// Server now returns title + (for episodes) series title + season/episode
+// numbers, so we show a real label instead of the bare media id.
+function getItemLabel(item: V1WatchProgress, t: TFunction): string {
+  const title = item.title?.trim();
+  if (item.mediaType === "episode") {
+    const s = item.parentIndexNumber;
+    const e = item.indexNumber;
+    const code = s && e ? `S${String(s).padStart(2, "0")}E${String(e).padStart(2, "0")}` : e ? `E${e}` : "";
+    const parts = [item.seriesTitle?.trim(), code, title].filter(Boolean);
+    if (parts.length) return parts.join(" · ");
+  }
+  return title || t("auth.watchHistory.unknownMedia", "Unknown media");
+}
+
 function HistoryItem({ item, onRemove, isPending }: {
   item: V1WatchProgress;
   onRemove: () => void;
   isPending: boolean;
 }) {
   const theme = useTheme();
+  const { t } = useTranslation();
   const serverUrl = useServerUrl();
   const imageUri = item.mediaItemId
     ? `${serverUrl}/api/v1/media/${item.mediaItemId}/artwork/poster?w=200`
     : undefined;
   const imageSource = useAuthenticatedImage(imageUri);
   const pct = item.percentComplete ?? 0;
+  const label = getItemLabel(item, t);
 
   return (
     <Pressable
@@ -62,7 +98,7 @@ function HistoryItem({ item, onRemove, isPending }: {
         backgroundColor: theme.colors.surface,
       }}
       accessible
-      accessibilityLabel={item.mediaItemId ?? "History item"}
+      accessibilityLabel={label}
       accessibilityRole="button"
     >
       <View style={{
@@ -79,7 +115,7 @@ function HistoryItem({ item, onRemove, isPending }: {
 
       <View style={{ flex: 1, gap: 2 }}>
         <Text style={{ color: theme.colors.text, fontSize: 14, fontWeight: "500" }} numberOfLines={1}>
-          {item.mediaItemId?.slice(0, 8)}
+          {label}
           {item.playCount && item.playCount > 1 ? ` (x${item.playCount})` : ""}
         </Text>
         <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>
@@ -143,12 +179,33 @@ export default function HistoryScreen() {
 
   const items = allItems;
 
+  const sections = useMemo(() => {
+    const grouped = items.reduce<Record<string, V1WatchProgress[]>>((acc, item) => {
+      const group = getDateGroupLabel(item.lastPlayedAt, t);
+      (acc[group] ??= []).push(item);
+      return acc;
+    }, {});
+    return Object.entries(grouped).map(([title, data]) => ({ title, data }));
+  }, [items, t]);
+
   const unwatch = usePlaybackServiceMarkAsUnwatched({
     mutation: {
       onSuccess: () => {
         void qc.invalidateQueries({ queryKey: getPlaybackServiceGetWatchHistoryQueryKey() });
       },
       onError: () => toast.error(t("media.history.removeFailed", "Failed to remove from history")),
+    },
+  });
+
+  const clearAll = usePlaybackServiceClearWatchHistory({
+    mutation: {
+      onSuccess: () => {
+        setPage(1);
+        setHasMore(true);
+        void qc.invalidateQueries({ queryKey: getPlaybackServiceGetWatchHistoryQueryKey() });
+        toast.success(t("auth.watchHistory.cleared", "History cleared"));
+      },
+      onError: () => toast.error(t("auth.watchHistory.clearFailed", "Failed to clear history")),
     },
   });
 
@@ -186,9 +243,7 @@ export default function HistoryScreen() {
         {
           text: t("auth.watchHistory.clearAll"),
           style: "destructive",
-          onPress: () => {
-            void qc.invalidateQueries({ queryKey: getPlaybackServiceGetWatchHistoryQueryKey() });
-          },
+          onPress: () => clearAll.mutate({}),
         },
       ],
     );
@@ -216,10 +271,28 @@ export default function HistoryScreen() {
           </Text>
         </View>
       ) : (
-        <FlatList
-          data={items}
+        <SectionList
+          sections={sections}
           keyExtractor={historyKeyExtractor}
           renderItem={renderHistoryItem}
+          renderSectionHeader={({ section }) => (
+            <View style={{
+              paddingHorizontal: theme.spacing.md,
+              paddingTop: theme.spacing.sm,
+              paddingBottom: theme.spacing.xs,
+              backgroundColor: theme.colors.bg,
+            }}>
+              <Text style={{
+                color: theme.colors.textMuted,
+                fontSize: 12,
+                fontWeight: "600",
+                textTransform: "uppercase",
+                letterSpacing: 0.5,
+              }}>
+                {section.title}
+              </Text>
+            </View>
+          )}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.accent} />
           }
@@ -230,6 +303,7 @@ export default function HistoryScreen() {
           maxToRenderPerBatch={10}
           windowSize={5}
           removeClippedSubviews={true}
+          stickySectionHeadersEnabled={false}
         />
       )}
     </View>
