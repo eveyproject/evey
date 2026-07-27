@@ -23,10 +23,10 @@ import { useDebounce } from "../../../src/hooks/useDebounce";
 import { artworkUrl } from "../../../src/lib/artwork";
 import { useMusicQueueStore } from "../../../src/stores/musicQueue";
 import { searchTrackMusicSource } from "../../../src/components/music/musicSource";
+import { MAX_SEARCH_HISTORY, pushSearchHistory, removeSearchHistoryEntry } from "../../../src/components/library/searchHistory";
 import * as SecureStore from "expo-secure-store";
 
 const HISTORY_KEY = "evey-search-history";
-const MAX_HISTORY = 10;
 
 function loadSearchHistory(): string[] {
   try {
@@ -39,7 +39,7 @@ function loadSearchHistory(): string[] {
 
 function saveSearchHistory(history: string[]) {
   try {
-    SecureStore.setItem(HISTORY_KEY, JSON.stringify(history.slice(0, MAX_HISTORY)));
+    SecureStore.setItem(HISTORY_KEY, JSON.stringify(history.slice(0, MAX_SEARCH_HISTORY)));
   } catch (err) { console.warn("caught", err); }
 }
 
@@ -119,8 +119,7 @@ export default function SearchScreen() {
     if (!trimmed || trimmed === lastSubmitted.current) return;
     lastSubmitted.current = trimmed;
     setSearchHistory((prev) => {
-      const filtered = prev.filter((h) => h !== trimmed);
-      const updated = [trimmed, ...filtered].slice(0, MAX_HISTORY);
+      const updated = pushSearchHistory(prev, trimmed);
       saveSearchHistory(updated);
       return updated;
     });
@@ -129,6 +128,16 @@ export default function SearchScreen() {
   const clearHistory = useCallback(() => {
     setSearchHistory([]);
     saveSearchHistory([]);
+  }, []);
+
+  // Removes a single recent-search entry, mirroring web's per-entry remove
+  // button (search.lazy.tsx:354-360) - mobile previously only had "clear all".
+  const removeHistoryEntry = useCallback((entry: string) => {
+    setSearchHistory((prev) => {
+      const updated = removeSearchHistoryEntry(prev, entry);
+      saveSearchHistory(updated);
+      return updated;
+    });
   }, []);
 
   // Save to history when the debounced query stabilizes. Using useEffect
@@ -638,15 +647,27 @@ export default function SearchScreen() {
               </Pressable>
             </View>
             {searchHistory.map((h) => (
-              <Pressable
+              <View
                 key={h}
-                onPress={() => setQuery(h)}
                 style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.colors.border }}
               >
-                <Ionicons name="time-outline" size={16} color={theme.colors.textMuted} />
-                <Text style={{ color: theme.colors.text, fontSize: 14, flex: 1 }}>{h}</Text>
-                <Ionicons name="arrow-up-outline" size={14} color={theme.colors.textMuted} style={{ transform: [{ rotate: "-45deg" }] }} />
-              </Pressable>
+                <Pressable
+                  onPress={() => setQuery(h)}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}
+                >
+                  <Ionicons name="time-outline" size={16} color={theme.colors.textMuted} />
+                  <Text style={{ color: theme.colors.text, fontSize: 14, flex: 1 }}>{h}</Text>
+                  <Ionicons name="arrow-up-outline" size={14} color={theme.colors.textMuted} style={{ transform: [{ rotate: "-45deg" }] }} />
+                </Pressable>
+                <Pressable
+                  onPress={() => removeHistoryEntry(h)}
+                  accessibilityRole="button"
+                  accessibilityLabel={t("common.removeItem", { item: h })}
+                  hitSlop={8}
+                >
+                  <Ionicons name="close" size={16} color={theme.colors.textMuted} />
+                </Pressable>
+              </View>
             ))}
           </View>
         ) : (

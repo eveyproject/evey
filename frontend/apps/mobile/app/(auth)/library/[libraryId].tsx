@@ -43,9 +43,9 @@ import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useDebounce } from "../../../src/hooks/useDebounce";
 import { useBulkFavorite } from "../../../src/hooks/useFavorite";
-import { AddToPlaylistSheet } from "../../../src/components/AddToPlaylistSheet";
 import { MediaCard } from "../../../src/components/MediaCard";
 import { useCollections } from "../../../src/api/collections";
+import { usePlaylistList, useAddToPlaylist } from "../../../src/api/playlists";
 import { artworkUrl } from "../../../src/lib/artwork";
 import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
 import { LibraryFiltersPanel } from "../../../src/components/library/LibraryFiltersPanel";
@@ -56,6 +56,10 @@ import {
   countActiveFilters,
   buildFilterMediaItemsParams,
   computeNextFilterOffset,
+  buildBulkMediaIds,
+  selectableMediaIds,
+  defaultTypeFilterFor,
+  shouldAutoFetchMore,
 } from "../../../src/components/library/libraryFilterUtils";
 
 const NUM_COLUMNS = 3;
@@ -154,6 +158,13 @@ export default function LibraryDetailScreen() {
   const [genre, setGenre] = useState("");
   const [genres, setGenres] = useState<string[]>([]);
   const [typeFilter, setTypeFilter] = useState<LibraryServiceListMediaItemsType | "">("");
+  // Once the user (or an explicit "reset filters") has touched the type
+  // filter, the library-type default below must never override it again.
+  const typeFilterTouchedRef = useRef(false);
+  const handleTypeFilterChange = useCallback((v: LibraryServiceListMediaItemsType | "") => {
+    typeFilterTouchedRef.current = true;
+    setTypeFilter(v);
+  }, []);
   const [searchText, setSearchText] = useState("");
   const debouncedSearch = useDebounce(searchText, 300);
   const [showFilters, setShowFilters] = useState(false);
@@ -230,6 +241,16 @@ export default function LibraryDetailScreen() {
   const { data: library } = useLibraryServiceGetLibrary(libraryId ?? "");
   const isShowLibrary = library?.type === "LIBRARY_TYPE_SHOWS";
 
+  // Mirrors web's default-type-filter effect ($libraryId.lazy.tsx:192-200):
+  // a shows library starts filtered to series-only, a movies library to
+  // movies-only - otherwise a shows library's grid mixes series/seasons/
+  // episodes on first visit. Skipped once the user has touched the filter.
+  useEffect(() => {
+    if (!library || typeFilterTouchedRef.current) return;
+    const def = defaultTypeFilterFor(library.type);
+    if (def) setTypeFilter(def);
+  }, [library]);
+
   const yearFromNum = yearMin ? parseInt(yearMin, 10) : undefined;
   const yearToNum = yearMax ? parseInt(yearMax, 10) : undefined;
   // Only genres (multi)/year/rating have a real LibraryService.FilterMediaItems
@@ -300,7 +321,8 @@ export default function LibraryDetailScreen() {
       ...(yearMax ? { yearMax: parseInt(yearMax) } : {}),
       sortField,
       sortOrder,
-      limit: 60,
+      // Matches web's in-library search limit ($libraryId.lazy.tsx:321).
+      limit: 120,
     },
     { query: { enabled: searchActive && !!libraryId } },
   );
@@ -520,6 +542,30 @@ export default function LibraryDetailScreen() {
       setPage((p) => p + 1);
     }
   }, [searchActive, serverFiltersActive, isFilterFetching, filterNextOffset, isRegularFetching, hasMore]);
+
+  // Whether the active (non-search) endpoint still has more pages - unified
+  // over the regular/filter paths so the fetch-until-filled effect below
+  // doesn't need its own 3-way branch.
+  const canFetchMore = searchActive ? false : serverFiltersActive ? filterNextOffset != null : hasMore;
+
+  // Fetch-until-filled: client-only facets (resolution/codec/language) can
+  // narrow the currently loaded page down to a list too short to reach the
+  // scroll bottom and trigger onEndReached, leaving a near-empty grid even
+  // though more matching items exist further in the library. Mirrors web's
+  // effect ($libraryId.lazy.tsx:406-415).
+  useEffect(() => {
+    if (
+      !shouldAutoFetchMore({
+        hasLocalFilters,
+        hasMore: canFetchMore,
+        isFetching: activeIsFetching,
+        filteredCount: displayItems.length,
+        loadedCount: rawItems.length,
+      })
+    )
+      return;
+    handleEndReached();
+  }, [hasLocalFilters, canFetchMore, activeIsFetching, displayItems.length, rawItems.length, handleEndReached]);
 
   const renderItem = useCallback(
     ({ item }: { item: V1MediaItem }) => {
@@ -797,7 +843,7 @@ export default function LibraryDetailScreen() {
             onSortOrderChange={setSortOrder}
             isShowLibrary={isShowLibrary}
             typeFilter={typeFilter}
-            onTypeFilterChange={setTypeFilter}
+            onTypeFilterChange={handleTypeFilterChange}
             genreText={genre}
             onGenreTextChange={setGenre}
             genres={genres}
@@ -820,6 +866,7 @@ export default function LibraryDetailScreen() {
             availableFacets={availableFacets}
             activeCount={filterCount}
             onReset={() => {
+              typeFilterTouchedRef.current = true;
               setTypeFilter("");
               setGenre("");
               setGenres([]);
@@ -973,7 +1020,17 @@ export default function LibraryDetailScreen() {
       {/* Bulk action bar */}
       {bulkMode && (
         <View style={[styles.bulkBar, { backgroundColor: theme.colors.surfaceRaised, borderTopColor: theme.colors.border }]}>
-          <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: "600" }}>{t("common.selectedCount", "{{count}} selected", { count: selected.size })}</Text>
+          <View style={styles.bulkBarTopRow}>
+            <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: "600" }}>{t("common.selectedCount", "{{count}} selected", { count: selected.size })}</Text>
+            <View style={{ flexDirection: "row", gap: 14 }}>
+              <Pressable onPress={() => setSelected(new Set(selectableMediaIds(displayItems)))} accessibilityRole="button">
+                <Text style={{ color: theme.colors.accent, fontSize: 12 }}>{t("common.selectAll")}</Text>
+              </Pressable>
+              <Pressable onPress={() => setSelected(new Set())} accessibilityRole="button">
+                <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>{t("common.deselectAll")}</Text>
+              </Pressable>
+            </View>
+          </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
             <Pressable onPress={bulkMarkWatched} style={styles.bulkBtn} accessible accessibilityLabel={t("media.library.markWatched", "Mark watched")} accessibilityRole="button">
               <Ionicons name="checkmark-circle-outline" size={20} color={theme.colors.accent} />
@@ -1003,20 +1060,112 @@ export default function LibraryDetailScreen() {
         </View>
       )}
       {showBulkPlaylist && selected.size > 0 && (
-        <AddToPlaylistSheet
+        <BulkAddToPlaylistSheet
           visible={showBulkPlaylist}
-          mediaItemId={Array.from(selected)[0]}
+          mediaItemIds={buildBulkMediaIds(selected)}
           onClose={() => { setShowBulkPlaylist(false); exitBulk(); }}
         />
       )}
       {showBulkCollection && selected.size > 0 && (
         <BulkAddToCollectionSheet
           visible={showBulkCollection}
-          mediaItemIds={Array.from(selected)}
+          mediaItemIds={buildBulkMediaIds(selected)}
           onClose={() => { setShowBulkCollection(false); exitBulk(); }}
         />
       )}
     </View>
+  );
+}
+
+// The shared AddToPlaylistSheet only accepts a single mediaItemId (built for
+// the per-item long-press menu), so bulk add needs its own sheet - mirrors
+// BulkAddToCollectionSheet just below and web's BulkPlaylistModal
+// (library/BulkPlaylistModal.tsx), both of which add the FULL selection via
+// Promise.all instead of a single id (the bug this fixes).
+function BulkAddToPlaylistSheet({
+  visible,
+  mediaItemIds,
+  onClose,
+}: {
+  visible: boolean;
+  mediaItemIds: string[];
+  onClose: () => void;
+}) {
+  const theme = useTheme();
+  const { t } = useTranslation();
+  const { data: playlists, isLoading } = usePlaylistList();
+  const addTo = useAddToPlaylist();
+  const manualPlaylists = (playlists ?? []).filter((p) => p.type === "manual");
+  const [pendingId, setPendingId] = useState<string | null>(null);
+
+  async function handleAdd(playlistId: string, name: string) {
+    setPendingId(playlistId);
+    try {
+      await Promise.all(mediaItemIds.map((id) => addTo.mutateAsync({ playlistId, mediaItemId: id })));
+      toast.success(t("media.library.itemsAddedToPlaylist", { count: mediaItemIds.length, name }));
+      onClose();
+    } catch {
+      toast.error(t("media.library.failedAddPlaylist"));
+    } finally {
+      setPendingId(null);
+    }
+  }
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <Pressable style={[collectionSheetStyles.backdrop, { backgroundColor: theme.colors.overlay }]} onPress={onClose}>
+        <Pressable
+          style={[collectionSheetStyles.sheet, { backgroundColor: theme.colors.surface, borderTopLeftRadius: theme.radii.lg, borderTopRightRadius: theme.radii.lg }]}
+          onPress={(e) => e.stopPropagation()}
+        >
+          <View style={collectionSheetStyles.handle}>
+            <View style={[collectionSheetStyles.handleBar, { backgroundColor: theme.colors.textMuted }]} />
+          </View>
+          <Text style={[collectionSheetStyles.title, { color: theme.colors.text }]}>
+            {t("media.library.addToPlaylist")}
+          </Text>
+
+          {isLoading ? (
+            <ActivityIndicator color={theme.colors.accent} style={{ marginTop: 24 }} />
+          ) : manualPlaylists.length === 0 ? (
+            <Text style={[collectionSheetStyles.empty, { color: theme.colors.textMuted }]}>
+              {t("media.library.noPlaylists")}
+            </Text>
+          ) : (
+            <FlatList
+              data={manualPlaylists}
+              keyExtractor={(item) => item.id}
+              style={{ maxHeight: 320 }}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[collectionSheetStyles.row, { borderBottomColor: theme.colors.border }]}
+                  activeOpacity={0.7}
+                  onPress={() => void handleAdd(item.id, item.name)}
+                  disabled={pendingId !== null}
+                >
+                  <Ionicons name="list" size={ICON_SIZE.lg} color={theme.colors.accent} />
+                  <Text style={[collectionSheetStyles.collectionName, { color: theme.colors.text }]} numberOfLines={1}>
+                    {item.name}
+                  </Text>
+                  {pendingId === item.id ? (
+                    <ActivityIndicator size="small" color={theme.colors.accent} />
+                  ) : (
+                    <Ionicons name="add-circle-outline" size={ICON_SIZE.lg} color={theme.colors.textMuted} />
+                  )}
+                </TouchableOpacity>
+              )}
+            />
+          )}
+
+          <TouchableOpacity
+            style={[collectionSheetStyles.closeBtn, { backgroundColor: theme.colors.surfaceRaised, borderRadius: theme.radii.md }]}
+            onPress={onClose}
+          >
+            <Text style={[collectionSheetStyles.closeBtnText, { color: theme.colors.text }]}>{t("common.close", "Close")}</Text>
+          </TouchableOpacity>
+        </Pressable>
+      </Pressable>
+    </Modal>
   );
 }
 
@@ -1156,7 +1305,8 @@ const styles = StyleSheet.create({
   },
   techBadgeText: { fontSize: 10, fontWeight: "700" },
   techBadgeRow: { position: "absolute", flexDirection: "row", gap: 4 },
-  bulkBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 10, borderTopWidth: StyleSheet.hairlineWidth },
+  bulkBar: { paddingHorizontal: 16, paddingVertical: 10, borderTopWidth: StyleSheet.hairlineWidth },
+  bulkBarTopRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
   bulkBtn: { alignItems: "center", gap: 2 },
 });
 

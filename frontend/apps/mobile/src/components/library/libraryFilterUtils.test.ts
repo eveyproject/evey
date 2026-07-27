@@ -9,6 +9,10 @@ import {
   countActiveFilters,
   buildFilterMediaItemsParams,
   computeNextFilterOffset,
+  buildBulkMediaIds,
+  selectableMediaIds,
+  defaultTypeFilterFor,
+  shouldAutoFetchMore,
 } from "./libraryFilterUtils";
 
 function item(overrides: Partial<V1MediaItem> = {}): V1MediaItem {
@@ -249,5 +253,90 @@ describe("computeNextFilterOffset", () => {
 
   it("returns the running total as the next offset otherwise", () => {
     expect(computeNextFilterOffset(30, 30, 100, 30)).toBe(30);
+  });
+});
+
+// Regression test for the bulk-add-to-playlist bug: mobile used to call
+// Array.from(selected)[0], adding only the FIRST selected item to a playlist/
+// collection instead of the whole selection (web sends the full mediaIds
+// array - see $libraryId.lazy.tsx:538-540).
+describe("buildBulkMediaIds", () => {
+  it("returns every selected id, not just the first", () => {
+    const selected = new Set(["mi-1", "mi-2", "mi-3"]);
+    expect(buildBulkMediaIds(selected)).toEqual(["mi-1", "mi-2", "mi-3"]);
+  });
+
+  it("returns an empty array for an empty selection", () => {
+    expect(buildBulkMediaIds(new Set())).toEqual([]);
+  });
+});
+
+describe("selectableMediaIds", () => {
+  it("collects ids of the given items, skipping ones with no id", () => {
+    const items: V1MediaItem[] = [
+      item({ id: "mi-1" }),
+      item({ id: undefined }),
+      item({ id: "mi-2" }),
+    ];
+    expect(selectableMediaIds(items)).toEqual(["mi-1", "mi-2"]);
+  });
+
+  it("returns an empty array for an empty list", () => {
+    expect(selectableMediaIds([])).toEqual([]);
+  });
+});
+
+// Mirrors web's DEFAULT_TYPE_FILTER ($libraryId.lazy.tsx:78-81): a shows
+// library defaults to series-only, a movies library to movies-only, so a
+// mixed series/season/episode grid isn't the first thing the user sees.
+describe("defaultTypeFilterFor", () => {
+  it("defaults a shows library to series", () => {
+    expect(defaultTypeFilterFor("LIBRARY_TYPE_SHOWS")).toBe("MEDIA_ITEM_TYPE_SERIES");
+  });
+
+  it("defaults a movies library to movies", () => {
+    expect(defaultTypeFilterFor("LIBRARY_TYPE_MOVIES")).toBe("MEDIA_ITEM_TYPE_MOVIE");
+  });
+
+  it("has no default for other library types", () => {
+    expect(defaultTypeFilterFor("LIBRARY_TYPE_MUSIC")).toBe("");
+    expect(defaultTypeFilterFor(undefined)).toBe("");
+  });
+});
+
+// Mirrors web's fetch-until-filled effect ($libraryId.lazy.tsx:406-415): when
+// client-only facets narrow the currently loaded page down to a short list,
+// keep fetching more pages until the filtered count reaches the fill target
+// or the loaded-item safety cap is hit.
+describe("shouldAutoFetchMore", () => {
+  const base = { hasLocalFilters: true, hasMore: true, isFetching: false, filteredCount: 2, loadedCount: 30 };
+
+  it("fetches more when local filters are narrowing a short page", () => {
+    expect(shouldAutoFetchMore(base)).toBe(true);
+  });
+
+  it("does nothing without any local filter", () => {
+    expect(shouldAutoFetchMore({ ...base, hasLocalFilters: false })).toBe(false);
+  });
+
+  it("does nothing once there's no more to fetch", () => {
+    expect(shouldAutoFetchMore({ ...base, hasMore: false })).toBe(false);
+  });
+
+  it("does nothing while a fetch is already in flight", () => {
+    expect(shouldAutoFetchMore({ ...base, isFetching: true })).toBe(false);
+  });
+
+  it("stops once the filtered count reaches the fill target", () => {
+    expect(shouldAutoFetchMore({ ...base, filteredCount: 24 })).toBe(false);
+  });
+
+  it("stops once the loaded item count hits the safety cap", () => {
+    expect(shouldAutoFetchMore({ ...base, loadedCount: 500 })).toBe(false);
+  });
+
+  it("honors custom fillTarget/itemCap overrides", () => {
+    expect(shouldAutoFetchMore({ ...base, filteredCount: 5, fillTarget: 5 })).toBe(false);
+    expect(shouldAutoFetchMore({ ...base, loadedCount: 50, itemCap: 50 })).toBe(false);
   });
 });
