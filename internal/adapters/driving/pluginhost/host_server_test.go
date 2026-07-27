@@ -4,9 +4,12 @@ import (
 	"context"
 	"errors"
 	"maps"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	pluginv1 "github.com/evey-project/evey/gen/plugin/v1"
 	"github.com/evey-project/evey/internal/domain/library"
@@ -501,6 +504,42 @@ func TestMediaItemToProto_NoYear(t *testing.T) {
 	assert.Nil(t, pb.ProviderIds)
 }
 
+func TestMediaItemToProto_Nil(t *testing.T) {
+	assert.NotPanics(t, func() {
+		assert.Nil(t, mediaItemToProto(nil))
+	})
+}
+
+// nilItemMediaQuerier simulates a repo returning a nil item with a nil error,
+// a contract violation GetByID's error-based callers don't guard against on
+// their own - GetMediaItem must not panic dereferencing the result.
+type nilItemMediaQuerier struct{}
+
+func (nilItemMediaQuerier) GetByID(_ context.Context, _ shared.MediaItemID) (*library.MediaItem, error) {
+	return nil, nil
+}
+
+func (nilItemMediaQuerier) List(_ context.Context, _ library.ListMediaItemsFilter) ([]*library.MediaItem, error) {
+	return nil, nil
+}
+
+func (nilItemMediaQuerier) Count(_ context.Context, _ library.ListMediaItemsFilter) (int, error) {
+	return 0, nil
+}
+
+func TestHostGetMediaItem_NilItemNilError_NotFoundNotPanic(t *testing.T) {
+	h := NewHostServer(nilItemMediaQuerier{}, &fakeConfigStore{plugins: map[string]*plugindomain.Plugin{}}, &fakeEventBus{}, &fakePluginLogger{}, nil)
+	ctx := ctxWithPluginID("plg-1")
+
+	assert.NotPanics(t, func() {
+		_, err := h.GetMediaItem(ctx, &pluginv1.GetMediaItemRequest{Id: "m1"})
+		require.Error(t, err)
+		st, ok := status.FromError(err)
+		require.True(t, ok)
+		assert.Equal(t, codes.NotFound, st.Code())
+	})
+}
+
 // --- pluginEmittedEvent ---
 
 func TestPluginEmittedEvent_EventName(t *testing.T) {
@@ -613,4 +652,69 @@ func TestHostDataStore_Unimplemented(t *testing.T) {
 	require.Error(t, err)
 	st, _ := status.FromError(err)
 	assert.Equal(t, codes.Unimplemented, st.Code())
+}
+
+// --- Panic recovery ---
+
+// panickyMediaQuerier simulates a handler dependency blowing up mid-call -
+// the kind of bug that, on the plugin host's socket, would otherwise take
+// down the whole Evey process since it's the only gRPC surface reachable
+// by third-party (plugin) code.
+type panickyMediaQuerier struct{}
+
+func (panickyMediaQuerier) GetByID(_ context.Context, _ shared.MediaItemID) (*library.MediaItem, error) {
+	panic("boom")
+}
+
+func (panickyMediaQuerier) List(_ context.Context, _ library.ListMediaItemsFilter) ([]*library.MediaItem, error) {
+	return nil, nil
+}
+
+func (panickyMediaQuerier) Count(_ context.Context, _ library.ListMediaItemsFilter) (int, error) {
+	return 0, nil
+}
+
+// TestHostServer_PanicRecovered_ServerSurvives drives a real HostService RPC
+// over the per-plugin Unix socket (auth + ratelimit + handler chain, exactly
+// as a plugin process would) into a handler whose dependency panics. It
+// proves RecoveryUnary turns that into codes.Internal instead of crashing
+// the listener - and that a follow-up RPC on the same server still works.
+func TestHostServer_PanicRecovered_ServerSurvives(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("test relies on sock_dir mode 0700 owned by current uid")
+	}
+	tmp := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(tmp, "plugins"), 0o755))
+
+	h := NewHostServer(
+		panickyMediaQuerier{},
+		&fakeConfigStore{plugins: map[string]*plugindomain.Plugin{"plg-panic": {ID: "plg-panic"}}},
+		&fakeEventBus{},
+		&fakePluginLogger{},
+		nil,
+	)
+	t.Cleanup(h.Stop)
+
+	sockPath, err := h.RegisterPlugin("plg-panic")
+	require.NoError(t, err)
+	defer h.UnregisterPlugin("plg-panic")
+	h.SetExpectedPID("plg-panic", int32(os.Getpid()))
+
+	_, client := dialPluginSock(t, sockPath)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	_, err = client.GetMediaItem(ctx, &pluginv1.GetMediaItemRequest{Id: "m1"})
+	require.Error(t, err)
+	st, ok := status.FromError(err)
+	require.True(t, ok)
+	assert.Equal(t, codes.Internal, st.Code())
+
+	// The server (and its process) must survive: a follow-up RPC on the same
+	// gRPC server still gets a normal response rather than a broken pipe.
+	ctx2, cancel2 := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel2()
+	_, err = client.GetConfig(ctx2, &pluginv1.GetConfigRequest{Key: "k"})
+	require.NoError(t, err)
 }

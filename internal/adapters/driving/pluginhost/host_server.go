@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	pluginv1 "github.com/evey-project/evey/gen/plugin/v1"
+	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
 	"github.com/evey-project/evey/internal/domain/library"
 	plugindomain "github.com/evey-project/evey/internal/domain/plugin"
 	"github.com/evey-project/evey/internal/domain/shared"
@@ -207,17 +208,22 @@ func (h *HostServer) RegisterPlugin(pluginID string) (string, error) {
 		listener: lis,
 	}
 
-	interceptors := []grpc.UnaryServerInterceptor{
+	// RecoveryUnary goes first so it also catches a panic inside auth/ratelimit,
+	// not just the RPC handler - this is the only gRPC surface reachable by
+	// third-party plugin code, so an unrecovered panic here would crash the
+	// whole Evey process.
+	unaryInterceptors := []grpc.UnaryServerInterceptor{
+		interceptors.RecoveryUnary(),
 		h.makePluginAuthInterceptor(entry),
 		h.makeRateLimitInterceptor(entry),
 	}
 	if h.permInterceptor != nil {
-		interceptors = append(interceptors, h.permInterceptor)
+		unaryInterceptors = append(unaryInterceptors, h.permInterceptor)
 	}
 
 	srv := grpc.NewServer(
 		grpc.Creds(NewPeerCredsTransport()),
-		grpc.ChainUnaryInterceptor(interceptors...),
+		grpc.ChainUnaryInterceptor(unaryInterceptors...),
 	)
 	pluginv1.RegisterHostServiceServer(srv, h)
 	entry.grpcSrv = srv
@@ -341,7 +347,7 @@ func (h *HostServer) GetMediaItem(ctx context.Context, req *pluginv1.GetMediaIte
 		return nil, status.Error(codes.InvalidArgument, "id required")
 	}
 	item, err := h.mediaItems.GetByID(ctx, shared.MediaItemID(req.Id))
-	if err != nil {
+	if err != nil || item == nil {
 		return nil, status.Errorf(codes.NotFound, "media item %s not found", req.Id)
 	}
 	return mediaItemToProto(item), nil
@@ -535,6 +541,9 @@ func (h *HostServer) ListDataKeys(ctx context.Context, _ *pluginv1.ListDataKeysR
 }
 
 func mediaItemToProto(item *library.MediaItem) *pluginv1.MediaItem {
+	if item == nil {
+		return nil
+	}
 	pb := &pluginv1.MediaItem{
 		Id:        string(item.ID),
 		LibraryId: string(item.LibraryID),
