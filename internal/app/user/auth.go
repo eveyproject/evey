@@ -332,6 +332,23 @@ func (s *CommandService) RefreshToken(ctx context.Context, token, requestedProfi
 				}
 			}
 		}
+
+		// A profile switch is authorised at this point (PIN gate passed, if it
+		// applied) - but any opaque stream/cast token already minted under the
+		// OLD profile is a capability that outlives the switch: httpStreamAuthMiddleware
+		// resolves its claims from shared.StreamToken.ProfileID, frozen at mint
+		// time, not from the profile active now. Left alone that token keeps
+		// serving media under the old profile's parental rules after the
+		// session has moved to a more restrictive one - the exact bypass the
+		// PIN gate above exists to close. Purging via the same TokenRevoker used
+		// by DisableUser/ChangePassword cuts it immediately (it also bumps the
+		// JWT epoch, which is harmless here: the access token generated below
+		// is minted with the fresh epoch).
+		if s.tokenRevoker != nil {
+			if err := s.tokenRevoker.Revoke(ctx, string(u.ID)); err != nil {
+				slog.WarnContext(ctx, "revoke stream tokens on profile switch", slog.Any("err", err))
+			}
+		}
 	}
 
 	// The access token is pure JWT signing - keep it outside the transaction.
@@ -544,11 +561,16 @@ func (s *CommandService) Logout(ctx context.Context, userID string) error {
 	if err := s.refreshTkns.DeleteByUserID(ctx, shared.UserID(userID)); err != nil {
 		return fmt.Errorf("CommandService.Logout: %w", err)
 	}
-	// TODO(parent): wire streamTokenStore.RevokeByUser here. CommandService has
-	// no access to media.StreamTokenStore (not a field, not injectable without
-	// re-wiring the constructor across callers), so a logged-out user's opaque
-	// stream/cast token (up to 12h, now capped at 24h absolute) still survives
-	// until it expires on its own.
+	// Cut outstanding stream/cast tokens (up to 12h TTL) on the same path used
+	// by DisableUser/ChangePassword: tokenRevoker is the compositeTokenRevoker
+	// wired in wire.go, which bumps the JWT epoch AND calls
+	// media.StreamTokenStore.RevokeByUser. Without this a logged-out user's
+	// opaque stream token keeps serving media bytes until it expires on its own.
+	if s.tokenRevoker != nil {
+		if err := s.tokenRevoker.Revoke(ctx, userID); err != nil {
+			slog.WarnContext(ctx, "revoke access/stream tokens on logout", slog.Any("err", err))
+		}
+	}
 	return nil
 }
 

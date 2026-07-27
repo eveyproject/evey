@@ -41,7 +41,7 @@ func downloadTokenHandler(store *appmedia.StreamTokenStore) http.HandlerFunc {
 			http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
 			return
 		}
-		token := store.Create(claims.UserID, claims.ProfileID, id)
+		token := store.Create(shared.UserID(claims.UserID), shared.ProfileID(claims.ProfileID), shared.MediaItemID(id))
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(map[string]string{"token": token}); err != nil {
 			slog.WarnContext(r.Context(), "download token encode failed", slog.Any("err", err))

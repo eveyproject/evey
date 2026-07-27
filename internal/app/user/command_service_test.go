@@ -605,6 +605,63 @@ func TestRefreshToken_SwitchOutOfUngatedNonKids_NoPIN(t *testing.T) {
 	require.NoError(t, err, "an unrestricted profile must switch without a PIN")
 }
 
+// TestRefreshToken_SwitchRevokesStreamTokensMintedUnderOldProfile proves the
+// serve-time revalidation gap: a stream/cast token minted while profile A was
+// active must not go on serving media once the session has moved to profile
+// B - otherwise a kid profile (or any more-restrictive target) inherits every
+// opaque token an unrestricted profile already had in flight, which is the
+// exact parental bypass the PIN gate above is meant to close. Reusing the
+// same TokenRevoker plumbing as DisableUser/ChangePassword purges those stale
+// tokens (via media.StreamTokenStore.RevokeByUser) the instant the switch is
+// authorised, so any request still riding the old token is cut.
+func TestRefreshToken_SwitchRevokesStreamTokensMintedUnderOldProfile(t *testing.T) {
+	d := newAuthTestDeps()
+	rev := &recordingRevoker{}
+	CommandWithTokenRevoker(rev)(d.svc)
+	ctx := context.Background()
+	seedAuthUser(t, d, "u1", "alice", "pw", false, true)
+	_ = d.profiles.Create(ctx, &user.Profile{ID: "p-adult", UserID: "u1", Name: "Adult", IsDefault: true, Parental: &user.ParentalSettings{PINHash: "h"}})
+	_ = d.profiles.Create(ctx, &user.Profile{ID: "p-other", UserID: "u1", Name: "Other"})
+
+	raw := "switch-revoke-token"
+	h := sha256.Sum256([]byte(raw))
+	other := shared.ProfileID("p-other")
+	_ = d.refreshTkns.Create(ctx, &user.RefreshToken{
+		ID: "rt1", UserID: "u1", TokenHash: hex.EncodeToString(h[:]),
+		ProfileID: &other, ExpiresAt: time.Now().Add(24 * time.Hour),
+	})
+
+	_, _, err := d.svc.RefreshToken(ctx, raw, "p-adult", "")
+	require.NoError(t, err)
+
+	require.Len(t, rev.revoked, 1, "profile switch must revoke the user's outstanding stream tokens")
+	require.Equal(t, "u1", rev.revoked[0])
+}
+
+// A silent refresh (no profile change) must NOT revoke anything - it would
+// otherwise cut every in-flight stream on each routine token renewal.
+func TestRefreshToken_SilentRefreshDoesNotRevokeStreamTokens(t *testing.T) {
+	d := newAuthTestDeps()
+	rev := &recordingRevoker{}
+	CommandWithTokenRevoker(rev)(d.svc)
+	ctx := context.Background()
+	seedAuthUser(t, d, "u1", "alice", "pw", false, true)
+	_ = d.profiles.Create(ctx, &user.Profile{ID: "p-other", UserID: "u1", Name: "Other", IsDefault: true})
+
+	raw := "silent-refresh-token"
+	h := sha256.Sum256([]byte(raw))
+	other := shared.ProfileID("p-other")
+	_ = d.refreshTkns.Create(ctx, &user.RefreshToken{
+		ID: "rt1", UserID: "u1", TokenHash: hex.EncodeToString(h[:]),
+		ProfileID: &other, ExpiresAt: time.Now().Add(24 * time.Hour),
+	})
+
+	_, _, err := d.svc.RefreshToken(ctx, raw, "", "")
+	require.NoError(t, err)
+
+	require.Empty(t, rev.revoked, "a silent refresh on the same profile must not purge live streams")
+}
+
 // The real-world bypass: the escape profile has NO PIN of its own, so the
 // legacy "prove the target's PIN" rule could demand nothing. Leaving a gated
 // profile must still be refused - its OWN PIN authorises the exit.
@@ -987,6 +1044,27 @@ func TestLogout_RepoError(t *testing.T) {
 	err := d.svc.Logout(context.Background(), "u1")
 	if err == nil {
 		t.Fatal("expected error")
+	}
+}
+
+// TestLogout_RevokesStreamTokens proves Logout cuts the user's outstanding
+// stream/cast tokens (via the same TokenRevoker used by DisableUser /
+// ChangePassword), not just their refresh token. Without this, a logged-out
+// user's opaque stream token (up to 12h TTL) keeps serving media bytes long
+// after the session ended.
+func TestLogout_RevokesStreamTokens(t *testing.T) {
+	d := newAuthTestDeps()
+	rev := &recordingRevoker{}
+	CommandWithTokenRevoker(rev)(d.svc)
+	ctx := context.Background()
+	_ = d.refreshTkns.Create(ctx, &user.RefreshToken{ID: "rt1", UserID: "u1", TokenHash: "h1", ExpiresAt: time.Now().Add(time.Hour)})
+
+	if err := d.svc.Logout(ctx, "u1"); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(rev.revoked) != 1 || rev.revoked[0] != "u1" {
+		t.Errorf("want one revoke for u1, got %v", rev.revoked)
 	}
 }
 

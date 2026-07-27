@@ -10,6 +10,7 @@ import (
 	otelcodes "go.opentelemetry.io/otel/codes"
 
 	appmedia "github.com/evey-project/evey/internal/app/media"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
@@ -51,11 +52,11 @@ func streamTokenHandler(tokenGen domainuser.TokenGenerator, store *appmedia.Stre
 			// Cast-marked: the receiver's fetches on this token feed the
 			// server-side cast progress tracker (the only playback signal
 			// once the sender's browser closes).
-			token = store.CreateCast(claims.UserID, claims.ProfileID, mediaID, appmedia.CastStreamTokenTTL)
+			token = store.CreateCast(shared.UserID(claims.UserID), shared.ProfileID(claims.ProfileID), shared.MediaItemID(mediaID), appmedia.CastStreamTokenTTL)
 		case "native":
-			token = store.CreateWithTTL(claims.UserID, claims.ProfileID, mediaID, appmedia.CastStreamTokenTTL)
+			token = store.CreateWithTTL(shared.UserID(claims.UserID), shared.ProfileID(claims.ProfileID), shared.MediaItemID(mediaID), appmedia.CastStreamTokenTTL)
 		default:
-			token = store.Create(claims.UserID, claims.ProfileID, mediaID)
+			token = store.Create(shared.UserID(claims.UserID), shared.ProfileID(claims.ProfileID), shared.MediaItemID(mediaID))
 		}
 
 		w.Header().Set("Content-Type", "application/json")
@@ -63,7 +64,7 @@ func streamTokenHandler(tokenGen domainuser.TokenGenerator, store *appmedia.Stre
 			"token":   token,
 			"mediaId": mediaID,
 		}); err != nil {
-			slog.Warn("stream token encode failed", slog.Any("err", err))
+			slog.WarnContext(r.Context(), "stream token encode failed", slog.Any("err", err))
 		}
 	}
 }

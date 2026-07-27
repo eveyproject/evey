@@ -44,7 +44,7 @@ func spriteCredential(r *http.Request, store *appmedia.StreamTokenStore, claims 
 		return ""
 	}
 	return "?token=" + url.QueryEscape(
-		store.CreateWithTTL(claims.UserID, claims.ProfileID, mediaID, appmedia.CastStreamTokenTTL))
+		store.CreateWithTTL(shared.UserID(claims.UserID), shared.ProfileID(claims.ProfileID), shared.MediaItemID(mediaID), appmedia.CastStreamTokenTTL))
 }
 
 func trickplayManifestHandler(libSvc TrickplayGetter, baseURL string, libraryAccess LibraryAccessChecker, mediaGetter MediaItemGetter, parental ParentalChecker, tokenStore *appmedia.StreamTokenStore) http.HandlerFunc {
@@ -113,7 +113,7 @@ func trickplayManifestHandler(libSvc TrickplayGetter, baseURL string, libraryAcc
 		// (interval-based timing was wrong when keyframes are sparse.)
 		frameMs, sidecarErr := readSidecarTimestamps(manifest.ImagePath)
 		if sidecarErr != nil || len(frameMs) == 0 {
-			slog.Warn("trickplay: missing or empty sidecar",
+			slog.WarnContext(r.Context(), "trickplay: missing or empty sidecar",
 				slog.String("media_id", mediaID),
 				slog.String("image_path", manifest.ImagePath),
 				slog.Any("err", sidecarErr),
@@ -300,13 +300,13 @@ func trickplayGenerateHandler(libSvc TrickplayGenerator, serverCtx context.Conte
 		go func() {
 			defer func() {
 				if r := recover(); r != nil {
-					slog.Error("recovered panic in trickplay generation", "panic", r)
+					slog.ErrorContext(serverCtx, "recovered panic in trickplay generation", "panic", r)
 				}
 			}()
 			ctx, cancel := context.WithTimeout(serverCtx, 5*time.Minute)
 			defer cancel()
 			if err := libSvc.GenerateTrickplay(ctx, mediaID); err != nil {
-				slog.Error("trickplay generation failed", slog.String("media_id", mediaID), slog.Any("err", err))
+				slog.ErrorContext(ctx, "trickplay generation failed", slog.String("media_id", mediaID), slog.Any("err", err))
 			} else {
 				slog.Info("trickplay generated", slog.String("media_id", mediaID))
 			}

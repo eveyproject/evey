@@ -69,7 +69,12 @@ func NewStreamTokenStoreForTest(ttl time.Duration, now func() time.Time) *Stream
 	return s
 }
 
-func (s *StreamTokenStore) Create(userID, profileID, mediaItemID string) string {
+// Create, CreateWithTTL and CreateCast take shared.UserID / shared.ProfileID /
+// shared.MediaItemID (not bare strings) so three consecutive same-typed
+// arguments can no longer be silently swapped at a call site - a positional
+// mix-up here mints a token bound to the wrong user/profile/media, which is a
+// security bug (wrong parental scope, wrong owner), not just a wrong result.
+func (s *StreamTokenStore) Create(userID shared.UserID, profileID shared.ProfileID, mediaItemID shared.MediaItemID) string {
 	return s.CreateWithTTL(userID, profileID, mediaItemID, s.ttl)
 }
 
@@ -77,7 +82,7 @@ func (s *StreamTokenStore) Create(userID, profileID, mediaItemID string) string 
 // playback, where the short default would expire during the Chromecast's
 // buffer-quiet stretches. profileID may be empty (the streaming rate limiter
 // then falls back to userID).
-func (s *StreamTokenStore) CreateWithTTL(userID, profileID, mediaItemID string, ttl time.Duration) string {
+func (s *StreamTokenStore) CreateWithTTL(userID shared.UserID, profileID shared.ProfileID, mediaItemID shared.MediaItemID, ttl time.Duration) string {
 	if ttl <= 0 {
 		ttl = s.ttl
 	}
@@ -85,9 +90,9 @@ func (s *StreamTokenStore) CreateWithTTL(userID, profileID, mediaItemID string, 
 	s.issuedAt.Store(token, s.now())
 	s.tokens.Store(token, &shared.StreamToken{
 		Token:       token,
-		UserID:      shared.UserID(userID),
-		ProfileID:   shared.ProfileID(profileID),
-		MediaItemID: shared.MediaItemID(mediaItemID),
+		UserID:      userID,
+		ProfileID:   profileID,
+		MediaItemID: mediaItemID,
 		Scope:       shared.ScopeStream,
 		ExpiresAt:   s.now().Add(ttl),
 		TTL:         ttl,
@@ -97,7 +102,7 @@ func (s *StreamTokenStore) CreateWithTTL(userID, profileID, mediaItemID string, 
 
 // CreateCast mints the long-TTL token handed to a cast receiver, marked so the
 // cast progress tracker can key on its fetches (see shared.StreamToken.Cast).
-func (s *StreamTokenStore) CreateCast(userID, profileID, mediaItemID string, ttl time.Duration) string {
+func (s *StreamTokenStore) CreateCast(userID shared.UserID, profileID shared.ProfileID, mediaItemID shared.MediaItemID, ttl time.Duration) string {
 	if ttl <= 0 {
 		ttl = s.ttl
 	}
@@ -105,9 +110,9 @@ func (s *StreamTokenStore) CreateCast(userID, profileID, mediaItemID string, ttl
 	s.issuedAt.Store(token, s.now())
 	s.tokens.Store(token, &shared.StreamToken{
 		Token:       token,
-		UserID:      shared.UserID(userID),
-		ProfileID:   shared.ProfileID(profileID),
-		MediaItemID: shared.MediaItemID(mediaItemID),
+		UserID:      userID,
+		ProfileID:   profileID,
+		MediaItemID: mediaItemID,
 		Scope:       shared.ScopeStream,
 		Cast:        true,
 		ExpiresAt:   s.now().Add(ttl),
@@ -192,11 +197,22 @@ func (s *StreamTokenStore) Revoke(token string) {
 }
 
 // RevokeByUser deletes every stream token minted for userID and returns how
-// many were removed. Called on a security event (ban, password reset) so a
-// banned user's long-lived cast/native token (up to 12h) is cut immediately
-// instead of surviving until expiry - the JWT epoch bump alone left that gap,
-// since opaque stream tokens are not epoch-guarded. Guest tokens (no user) are
-// untouched.
+// many were removed. Called on a security event (ban, password reset, logout,
+// profile switch) so a stale long-lived cast/native token (up to 12h) is cut
+// immediately instead of surviving until expiry - the JWT epoch bump alone
+// left that gap, since opaque stream tokens are not epoch-guarded.
+//
+// Cast tokens (CreateCast) DO carry the minting user's UserID and are covered
+// here like any other token. Syncplay guest tokens (CreateGuestToken) are the
+// one deliberate exception: they are minted for an UNAUTHENTICATED "watch
+// together" participant who has no account at all (Scope
+// shared.ScopeSyncplayGuest, UserID always empty), so there is no user
+// identity to key a revocation on in the first place - a guest session is
+// bounded by its own short TTL and by its single-media-item scope
+// (requireDownloadTokenBinding refuses it outside streaming), not by any
+// user's login/ban/logout lifecycle. This is out of scope by construction,
+// not an oversight: RevokeByUser("") is a deliberate no-op (see below) and a
+// guest token's UserID is always "".
 func (s *StreamTokenStore) RevokeByUser(userID string) int {
 	if userID == "" {
 		return 0
