@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const eveyFetchMock = vi.fn();
 vi.mock("@evey/api", () => ({ eveyFetch: (...args: unknown[]) => eveyFetchMock(...args) }));
 
-import { usePlaylistList, usePlaylistDetail, useAddToPlaylist } from "./playlists";
+import { usePlaylistList, usePlaylistDetail, useAddToPlaylist, useUpdatePlaylist } from "./playlists";
 import { renderHook, waitFor, act } from "@testing-library/react";
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -109,6 +109,27 @@ describe("useAddToPlaylist", () => {
       url: "/api/v1/playlists/p1/items",
       method: "POST",
       data: { mediaItemId: "m1" },
+    });
+  });
+});
+
+describe("useUpdatePlaylist", () => {
+  // The proto declares UpdatePlaylist as PATCH (proto/evey/v1/playlist.proto);
+  // the client used to send PUT, which grpc-gateway's generated mux 404s.
+  it("sends PATCH (not PUT) to /api/v1/playlists/:id", async () => {
+    eveyFetchMock.mockResolvedValue(undefined);
+
+    const { result } = renderHook(() => useUpdatePlaylist(), { wrapper: createWrapper() });
+
+    await act(async () => {
+      result.current.mutate({ id: "p1", name: "Renamed" });
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(eveyFetchMock).toHaveBeenCalledWith({
+      url: "/api/v1/playlists/p1",
+      method: "PATCH",
+      data: { name: "Renamed" },
     });
   });
 });

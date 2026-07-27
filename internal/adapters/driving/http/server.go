@@ -440,7 +440,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 		// streamAuth (not auth): the cast receiver reports playback deaths with
 		// its ?token= stream token - it has no user JWT. The handler pins a
 		// stream token to its own media id.
-		mux.HandleFunc("POST /api/v1/media/{id}/player-event", streamAuth(ratelimit.MiddlewareFunc(s.PlayerEventRL, playerEventHandler(slog.Default()))))
+		mux.HandleFunc("POST /api/v1/media/{id}/player-event", streamAuth(ratelimit.MiddlewareFunc(s.PlayerEventRL, playerEventHandler(slog.Default(), WithPlayerEventLibraryGuard(s.LibQuerySvc, s.LibraryAccessRepo, parentalChk)))))
 	}
 	mux.HandleFunc("POST /api/v1/media/{id}/artwork/{artworkId}/select", auth(selectArtworkHandler(s.ArtworkRepo, s.LibQuerySvc, s.LibraryAccessRepo)))
 	mux.HandleFunc("GET /api/v1/media/{id}/download", streamAuth(ratelimit.MiddlewareFunc(s.GlobalRL, s.StreamMeter.Middleware(downloadHandler(s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo, parentalChk)))))
@@ -633,8 +633,8 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	}
 
 	// JSON CRUD → gRPC: favorites, playlists, metadata overrides, transcode cache/profiles, library access, admin
-	registerPhotoRoutes(mux, s.PhotoSvc, s.TokenGen, s.LibraryAccessRepo, s.LibQuerySvc, s.ServerCtx, s.PhotoTranscoder, s.PhotoCacheDir) // binary: photo/serve
-	registerSyncPlayRoutes(mux, s.SyncPlayHub, s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo, s.StreamTokenStore)                        // binary: WebSocket
+	registerPhotoRoutes(mux, s.PhotoSvc, s.TokenGen, s.LibraryAccessRepo, s.LibQuerySvc, s.ServerCtx, s.PhotoTranscoder, s.PhotoCacheDir)             // binary: photo/serve
+	registerSyncPlayRoutes(mux, s.SyncPlayHub, s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo, s.StreamTokenStore, withSyncPlayParental(parentalChk)) // binary: WebSocket
 	// PUBLIC: a "watch together" guest exchanges a room code for a streaming-only
 	// guest token. Rate-limited (LoginRL) against 5-digit code brute-force.
 	mux.HandleFunc("POST /api/v1/syncplay/join-code", ratelimit.MiddlewareFunc(s.LoginRL, syncplayJoinByCodeHandler(s.SyncPlayHub, s.StreamTokenStore)))
@@ -650,6 +650,12 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	registerBackgroundTasksRoute(mux, s.TokenGen)
 	registerPlaybackSettingsRoutes(mux, s.Cfg, s.TokenGen, s.AdminWriteRL)
 	registerParentalRoutes(mux, s.ProfileRepo, s.UserRepo, s.Hasher, s.TokenGen)
+	// The web + mobile admin panels both call GET/PATCH
+	// .../admin/users/{id}/bitrate-limit, but neither the proto nor this mux
+	// ever exposed it - the "max bitrate per user" modal has 404'd since it
+	// shipped. UserQuerySvc/UserRepo are the same core deps registerParentalRoutes
+	// already uses just above, so this needs no new wiring.
+	registerUserBitrateRoutes(mux, s.UserQuerySvc, appuser.NewBitrateLimitSetter(s.UserRepo), s.TokenGen, s.AdminWriteRL)
 	if s.DataDir != "" {
 		registerAvatarRoutes(mux, s.ProfileRepo, s.TokenGen, s.DataDir)
 	}

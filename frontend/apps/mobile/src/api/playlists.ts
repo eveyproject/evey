@@ -169,7 +169,9 @@ export function useUpdatePlaylist() {
     mutationFn: ({ id, ...body }: { id: string; name?: string; description?: string; rules?: { field: string; operator: string; value: string }[] }) =>
       eveyFetch<void>({
         url: `/api/v1/playlists/${id}`,
-        method: "PUT",
+        // The proto declares UpdatePlaylist as PATCH (proto/evey/v1/playlist.proto);
+        // PUT 404'd against grpc-gateway's generated mux.
+        method: "PATCH",
         data: body,
       }),
     onSuccess: (_, vars) => {

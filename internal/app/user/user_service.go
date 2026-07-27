@@ -193,13 +193,7 @@ func (s *UserService) UpdateUser(ctx context.Context, u *user.User) error {
 func (s *UserService) SetUserBitrateLimit(ctx context.Context, userID string, maxBitrateKbps int) error {
 	ctx, span := tracing.StartSpan(ctx, "app.user.SetUserBitrateLimit")
 	defer span.End()
-	u, err := s.users.GetByID(ctx, shared.UserID(userID))
-	if err != nil {
-		return fmt.Errorf("UserService.SetUserBitrateLimit: %w", err)
-	}
-	u.MaxBitrateKbps = maxBitrateKbps
-	u.UpdatedAt = time.Now()
-	if err := s.users.Update(ctx, u); err != nil {
+	if err := setBitrateLimit(ctx, s.users, userID, maxBitrateKbps); err != nil {
 		return fmt.Errorf("UserService.SetUserBitrateLimit: %w", err)
 	}
 	return nil

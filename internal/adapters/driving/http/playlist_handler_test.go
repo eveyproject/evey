@@ -256,3 +256,136 @@ func TestGeneratePlaylist_NilClaims_401(t *testing.T) {
 // genTokens (which returns Claims internally). The import is consumed by
 // withHTTPClaims via testClaims in other test files; add a sentinel usage here.
 var _ = domainuser.Claims{}
+
+// --- reorderItems tests ---
+
+// stubPlaylistReorderer records the arguments ReorderItems was called with and
+// returns the configured error, letting tests drive both the ownership-mapped
+// 404 path and the happy path without a real playlist/postgres repo.
+type stubPlaylistReorderer struct {
+	err              error
+	capturedPlaylist string
+	capturedProfile  string
+	capturedIDs      []string
+}
+
+func (s *stubPlaylistReorderer) ReorderItems(_ context.Context, playlistID, profileID string, mediaItemIDs []string) error {
+	s.capturedPlaylist = playlistID
+	s.capturedProfile = profileID
+	s.capturedIDs = mediaItemIDs
+	return s.err
+}
+
+// buildPlaylistReorderMux wires just the reorder route (PUT
+// /api/v1/playlists/{id}/items/reorder) against the given reorderer stub.
+func buildPlaylistReorderMux(t *testing.T, reorder *stubPlaylistReorderer) (*http.ServeMux, string) {
+	t.Helper()
+	jwtGen, _, userTok := genTokens(t)
+	mux := http.NewServeMux()
+	h := &playlistHandler{reorder: reorder}
+	authMw := httpAuthMiddleware(jwtGen)
+	mux.HandleFunc("PUT /api/v1/playlists/{id}/items/reorder", authMw(h.reorderItems))
+	return mux, userTok
+}
+
+func reorderBody(items []map[string]any) *bytes.Reader {
+	b, _ := json.Marshal(map[string]any{"items": items})
+	return bytes.NewReader(b)
+}
+
+// TestReorderPlaylistItems_HappyPath verifies the item ids are extracted in
+// sortOrder order (not necessarily array order) and forwarded to the service
+// along with the caller's profile id.
+func TestReorderPlaylistItems_HappyPath(t *testing.T) {
+	reorder := &stubPlaylistReorderer{}
+	mux, userTok := buildPlaylistReorderMux(t, reorder)
+
+	body := reorderBody([]map[string]any{
+		{"mediaItemId": "b", "sortOrder": 1},
+		{"mediaItemId": "a", "sortOrder": 0},
+	})
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/playlists/pl-1/items/reorder", body)
+	req.Header.Set("Authorization", "Bearer "+userTok)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if reorder.capturedPlaylist != "pl-1" {
+		t.Errorf("expected playlist id pl-1, got %q", reorder.capturedPlaylist)
+	}
+	if reorder.capturedProfile != "prof-1" {
+		t.Errorf("expected profile id prof-1 from the caller's token, got %q", reorder.capturedProfile)
+	}
+	if got := reorder.capturedIDs; len(got) != 2 || got[0] != "a" || got[1] != "b" {
+		t.Errorf("expected ids sorted by sortOrder [a b], got %v", got)
+	}
+}
+
+// TestReorderPlaylistItems_NotOwner verifies that ErrNotOwner (like a
+// not-found playlist) maps to 404, matching GetPlaylist/AddPlaylistItem -
+// existence of a playlist owned by someone else must not leak.
+func TestReorderPlaylistItems_NotOwner(t *testing.T) {
+	reorder := &stubPlaylistReorderer{err: appplaylist.ErrNotOwner}
+	mux, userTok := buildPlaylistReorderMux(t, reorder)
+
+	body := reorderBody([]map[string]any{{"mediaItemId": "a", "sortOrder": 0}})
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/playlists/pl-1/items/reorder", body)
+	req.Header.Set("Authorization", "Bearer "+userTok)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+// TestReorderPlaylistItems_Unauthenticated verifies a request without a valid
+// Bearer token receives a 401.
+func TestReorderPlaylistItems_Unauthenticated(t *testing.T) {
+	mux, _ := buildPlaylistReorderMux(t, &stubPlaylistReorderer{})
+
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/playlists/pl-1/items/reorder", reorderBody(nil))
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", w.Code)
+	}
+}
+
+// TestReorderPlaylistItems_EmptyItems verifies an empty items array is
+// rejected with 400 instead of silently forwarding a no-op reorder.
+func TestReorderPlaylistItems_EmptyItems(t *testing.T) {
+	reorder := &stubPlaylistReorderer{}
+	mux, userTok := buildPlaylistReorderMux(t, reorder)
+
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/playlists/pl-1/items/reorder", reorderBody(nil))
+	req.Header.Set("Authorization", "Bearer "+userTok)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+// TestReorderPlaylistItems_RouteMissingBeforeThisChange documents the bug:
+// before this route was registered, PUT .../items/reorder 404'd on any mux
+// that only knows the pre-existing playlist routes (the proto declares no
+// reorder RPC either - grep proof in the report). Runs against the exact
+// same buildPlaylistMux helper the generate/download tests use, with no
+// reorder route added, to pin the pre-fix behaviour as a regression guard.
+func TestReorderPlaylistItems_RouteMissingOnLegacyMux(t *testing.T) {
+	mux, userTok := buildPlaylistMux(t, &stubPlaylistGenerator{}, allowAll())
+
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/playlists/pl-1/items/reorder", reorderBody([]map[string]any{{"mediaItemId": "a", "sortOrder": 0}}))
+	req.Header.Set("Authorization", "Bearer "+userTok)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 (route not registered), got %d", w.Code)
+	}
+}

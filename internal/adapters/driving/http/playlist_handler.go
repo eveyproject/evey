@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -40,11 +41,19 @@ type musicTrackResolver interface {
 	GetTrack(ctx context.Context, id string) (*music.Track, error)
 }
 
+// playlistReorderer persists a new item order for a manual playlist. The
+// service enforces ownership the same way GetByID/GetItems do (ErrNotOwner),
+// so a caller can only reorder a playlist it owns.
+type playlistReorderer interface {
+	ReorderItems(ctx context.Context, playlistID, profileID string, mediaItemIDs []string) error
+}
+
 type playlistHandler struct {
 	plSvc      playlistArchiveSource
 	gen        playlistGenerator
 	libSvc     MediaArchiveSource
 	music      musicTrackResolver
+	reorder    playlistReorderer
 	libChecker LibraryAccessChecker
 	parental   ParentalChecker
 	baseURL    string
@@ -52,7 +61,7 @@ type playlistHandler struct {
 
 func registerPlaylistRoutes(mux *http.ServeMux, plSvc *appplaylist.Service, gen playlistGenerator, libSvc MediaArchiveSource, musicSvc musicTrackResolver, tokenGen domainuser.TokenGenerator, libChecker LibraryAccessChecker, parental ParentalChecker, baseURL string, rl *ratelimit.Limiter) {
 	authMw := httpAuthMiddleware(tokenGen)
-	h := &playlistHandler{plSvc: plSvc, gen: gen, libSvc: libSvc, music: musicSvc, libChecker: libChecker, parental: parental, baseURL: baseURL}
+	h := &playlistHandler{plSvc: plSvc, gen: gen, libSvc: libSvc, music: musicSvc, reorder: plSvc, libChecker: libChecker, parental: parental, baseURL: baseURL}
 	// Like a collection ZIP, a playlist can fan out to many large files - a
 	// heavier amplification vector than a single-file download, so rate-limit it.
 	// streamAuth: opaque per-resource download token accepted alongside the
@@ -62,6 +71,75 @@ func registerPlaylistRoutes(mux *http.ServeMux, plSvc *appplaylist.Service, gen 
 	// Generating scans the whole music library + the user's playlists - also
 	// heavier than a normal call, so it shares the rate limiter.
 	mux.HandleFunc("POST /api/v1/playlists/generate", ratelimit.MiddlewareFunc(rl, authMw(h.generatePlaylist)))
+	// The proto only declares Add/Remove for playlist items - no reorder RPC -
+	// so the mobile app's drag-to-reorder screen has 404'd since it shipped.
+	// The domain already tracks item order (sort_order + a Reorder repo method
+	// the CommandService exposes as ReorderItems), so this is a manual route
+	// wiring an existing capability rather than new business logic.
+	mux.HandleFunc("PUT /api/v1/playlists/{id}/items/reorder", authMw(h.reorderItems))
+}
+
+// reorderItemsRequest mirrors the mobile client's body: an array of
+// {mediaItemId, sortOrder} pairs. sortOrder is authoritative (not array
+// position) so a client that doesn't pre-sort still lands correctly.
+type reorderItemsRequest struct {
+	Items []struct {
+		MediaItemID string `json:"mediaItemId"`
+		SortOrder   int    `json:"sortOrder"`
+	} `json:"items"`
+}
+
+// reorderItems persists a new item order for a playlist the caller owns.
+// Body: {"items":[{"mediaItemId":"...","sortOrder":0}, ...]}.
+func (h *playlistHandler) reorderItems(w http.ResponseWriter, r *http.Request) {
+	ctx, span := tracing.StartSpan(r.Context(), "http.playlist.ReorderItems")
+	defer span.End()
+	r = r.WithContext(ctx)
+	claims := HTTPClaimsFromContext(r.Context())
+	if claims == nil {
+		http.Error(w, `{"message":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+	playlistID := r.PathValue("id")
+	span.SetAttributes(attribute.String("playlist_id", playlistID))
+
+	var body reorderItemsRequest
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1 MiB cap on JSON body
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		span.SetStatus(otelcodes.Error, "invalid request body")
+		http.Error(w, `{"message":"invalid request body"}`, http.StatusBadRequest)
+		return
+	}
+	sort.SliceStable(body.Items, func(i, j int) bool { return body.Items[i].SortOrder < body.Items[j].SortOrder })
+	ids := make([]string, 0, len(body.Items))
+	for _, it := range body.Items {
+		if it.MediaItemID == "" {
+			continue
+		}
+		ids = append(ids, it.MediaItemID)
+	}
+	if len(ids) == 0 {
+		span.SetStatus(otelcodes.Error, "empty items")
+		http.Error(w, `{"message":"items is required"}`, http.StatusBadRequest)
+		return
+	}
+
+	if err := h.reorder.ReorderItems(r.Context(), playlistID, claims.ProfileID, ids); err != nil {
+		span.RecordError(err)
+		if errors.Is(err, appplaylist.ErrNotOwner) || errors.Is(err, shared.ErrNotFound) {
+			// NotFound, not PermissionDenied: a playlist owned by another
+			// profile must be indistinguishable from a non-existent one
+			// (matches GetPlaylist/AddPlaylistItem/RemovePlaylistItem).
+			span.SetStatus(otelcodes.Error, "playlist not found")
+			http.Error(w, `{"message":"playlist not found"}`, http.StatusNotFound)
+			return
+		}
+		span.SetStatus(otelcodes.Error, "reorder failed")
+		slog.ErrorContext(r.Context(), "playlist reorder failed", slog.String("playlist_id", playlistID), slog.Any("err", err))
+		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+		return
+	}
+	jsonEncodeResponse(w, map[string]string{"message": "reordered"})
 }
 
 // generatePlaylist builds and persists a taste-weighted music playlist for the
