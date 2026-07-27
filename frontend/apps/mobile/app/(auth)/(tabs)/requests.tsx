@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -26,13 +27,31 @@ import { useTheme } from "../../../src/providers/ThemeProvider";
 import { Skeleton } from "../../../src/components/Skeleton";
 
 type MediaType = "movie" | "tv" | "music";
+// The search scopes offered to the user: movies and series are ONE scope
+// (two provider queries merged client-side), matching the web app - music
+// stays its own scope.
+type SearchScope = "video" | "music";
 type Tab = "search" | "mine";
 
-const TYPES: { key: MediaType; labelKey: string; icon: keyof typeof Ionicons.glyphMap }[] = [
-  { key: "movie", labelKey: "requests.typeMovie", icon: "film-outline" },
-  { key: "tv", labelKey: "requests.typeSeries", icon: "tv-outline" },
+const SCOPES: { key: SearchScope; labelKey: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+  { key: "video", labelKey: "requests.typeVideo", icon: "film-outline" },
   { key: "music", labelKey: "requests.typeMusic", icon: "musical-notes-outline" },
 ];
+
+// A search candidate tagged with the concrete request type it will be
+// submitted as - needed once movies and series share one result list.
+type TaggedCandidate = V1TitleCandidate & { requestType: MediaType };
+
+// interleave merges two ranked lists preserving each one's own order
+// (movie[0], tv[0], movie[1], tv[1], ...) so neither type buries the other.
+function interleave<T>(a: T[], b: T[]): T[] {
+  const out: T[] = [];
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    if (i < a.length) out.push(a[i]);
+    if (i < b.length) out.push(b[i]);
+  }
+  return out;
+}
 
 const statusColor = (theme: ReturnType<typeof useTheme>, status?: string) => {
   switch (status) {
@@ -43,8 +62,10 @@ const statusColor = (theme: ReturnType<typeof useTheme>, status?: string) => {
   }
 };
 
-function candidateKey(c: { provider?: string; providerId?: string }) {
-  return `${c.provider ?? ""}:${c.providerId ?? ""}`;
+// candidateKey includes the media type: with movies and series in one list,
+// a TMDB movie id and a TMDB tv id can collide numerically.
+function candidateKey(c: { mediaType?: string; provider?: string; providerId?: string }) {
+  return `${c.mediaType ?? ""}:${c.provider ?? ""}:${c.providerId ?? ""}`;
 }
 
 function capitalize(s?: string) {
@@ -55,9 +76,10 @@ function capitalize(s?: string) {
 export default function RequestsScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
+  const router = useRouter();
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<Tab>("search");
-  const [mediaType, setMediaType] = useState<MediaType>("movie");
+  const [scope, setScope] = useState<SearchScope>("video");
   const [query, setQuery] = useState("");
   const [submittedQuery, setSubmittedQuery] = useState("");
 
@@ -71,11 +93,33 @@ export default function RequestsScreen() {
   const myRequests = myRequestsResp?.items ?? [];
   const requestedKeys = useMemo(() => new Set(myRequests.map((r) => candidateKey(r))), [myRequests]);
 
-  const { data: searchData, isFetching: searching } = useMediaRequestServiceSearchTitles(
-    { mediaType, query: submittedQuery },
-    { query: { enabled: canRequest && submittedQuery.trim().length > 0 } },
+  // Video scope fires BOTH provider searches and merges them; the server's
+  // SearchTitles contract stays single-type. Music keeps its own single query.
+  const searchEnabled = canRequest && submittedQuery.trim().length > 0;
+  const movieQ = useMediaRequestServiceSearchTitles(
+    { mediaType: "movie", query: submittedQuery },
+    { query: { enabled: searchEnabled && scope === "video" } },
   );
-  const results = searchData?.results ?? [];
+  const tvQ = useMediaRequestServiceSearchTitles(
+    { mediaType: "tv", query: submittedQuery },
+    { query: { enabled: searchEnabled && scope === "video" } },
+  );
+  const musicQ = useMediaRequestServiceSearchTitles(
+    { mediaType: "music", query: submittedQuery },
+    { query: { enabled: searchEnabled && scope === "music" } },
+  );
+
+  const searching = scope === "video" ? movieQ.isFetching || tvQ.isFetching : musicQ.isFetching;
+
+  const results: TaggedCandidate[] = useMemo(() => {
+    if (scope === "music") {
+      return (musicQ.data?.results ?? []).map((r) => ({ ...r, requestType: "music" as const }));
+    }
+    return interleave<TaggedCandidate>(
+      (movieQ.data?.results ?? []).map((r) => ({ ...r, requestType: "movie" as const })),
+      (tvQ.data?.results ?? []).map((r) => ({ ...r, requestType: "tv" as const })),
+    );
+  }, [scope, movieQ.data, tvQ.data, musicQ.data]);
 
   const createRequest = useMediaRequestServiceCreateRequest({
     mutation: {
@@ -87,10 +131,10 @@ export default function RequestsScreen() {
     },
   });
 
-  function handleRequest(candidate: V1TitleCandidate) {
+  function handleRequest(candidate: TaggedCandidate) {
     createRequest.mutate({
       data: {
-        mediaType,
+        mediaType: candidate.requestType,
         provider: candidate.provider,
         providerId: candidate.providerId,
         title: candidate.title,
@@ -144,20 +188,20 @@ export default function RequestsScreen() {
       {tab === "search" ? (
         <View style={{ flex: 1 }}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
-            {TYPES.map((tp) => (
+            {SCOPES.map((sc) => (
               <TouchableOpacity
-                key={tp.key}
+                key={sc.key}
                 style={[
                   styles.chip,
-                  { backgroundColor: mediaType === tp.key ? theme.colors.accent : theme.colors.surfaceRaised },
+                  { backgroundColor: scope === sc.key ? theme.colors.accent : theme.colors.surfaceRaised },
                 ]}
-                onPress={() => { setMediaType(tp.key); setSubmittedQuery(""); }}
+                onPress={() => { setScope(sc.key); setSubmittedQuery(""); }}
                 accessibilityRole="radio"
-                accessibilityState={{ selected: mediaType === tp.key }}
+                accessibilityState={{ selected: scope === sc.key }}
               >
-                <Ionicons name={tp.icon} size={14} color={mediaType === tp.key ? theme.colors.onAccent : theme.colors.text} />
-                <Text style={{ color: mediaType === tp.key ? theme.colors.onAccent : theme.colors.text, fontSize: 13, marginLeft: 4 }}>
-                  {t(tp.labelKey)}
+                <Ionicons name={sc.icon} size={14} color={scope === sc.key ? theme.colors.onAccent : theme.colors.text} />
+                <Text style={{ color: scope === sc.key ? theme.colors.onAccent : theme.colors.text, fontSize: 13, marginLeft: 4 }}>
+                  {t(sc.labelKey)}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -193,35 +237,60 @@ export default function RequestsScreen() {
           ) : (
             <FlatList
               data={results}
-              keyExtractor={candidateKey}
+              keyExtractor={(item) => candidateKey({ ...item, mediaType: item.requestType })}
               contentContainerStyle={{ paddingBottom: 24 }}
               renderItem={({ item }) => {
-                const already = requestedKeys.has(candidateKey(item));
+                const already = requestedKeys.has(candidateKey({ ...item, mediaType: item.requestType }));
+                const inLibrary = item.inLibrary === true;
                 return (
                   <View style={styles.resultRow}>
-                    {item.posterUrl ? (
-                      <Image source={{ uri: item.posterUrl }} style={{ width: 48, height: 72, borderRadius: theme.radii.sm }} contentFit="cover" />
-                    ) : (
-                      <View style={{ width: 48, height: 72, borderRadius: theme.radii.sm, backgroundColor: theme.colors.surfaceRaised }} />
-                    )}
+                    <View style={{ width: 48, height: 72 }}>
+                      {item.posterUrl ? (
+                        <Image source={{ uri: item.posterUrl }} style={{ width: 48, height: 72, borderRadius: theme.radii.sm }} contentFit="cover" />
+                      ) : (
+                        <View style={{ width: 48, height: 72, borderRadius: theme.radii.sm, backgroundColor: theme.colors.surfaceRaised }} />
+                      )}
+                      {inLibrary && (
+                        <View style={[styles.inLibraryBadge, { backgroundColor: theme.colors.overlay }]}>
+                          <Ionicons name="checkmark-circle" size={10} color={theme.colors.text} />
+                        </View>
+                      )}
+                    </View>
                     <View style={{ flex: 1, marginLeft: 10 }}>
                       <Text style={{ color: theme.colors.text, fontSize: 14, fontWeight: "600" }} numberOfLines={2}>
                         {item.title}{item.year != null && item.year > 0 ? ` (${item.year})` : ""}
                       </Text>
+                      {inLibrary && (
+                        <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginTop: 2 }}>
+                          {t("requests.inLibrary")}
+                        </Text>
+                      )}
                     </View>
-                    <TouchableOpacity
-                      style={[
-                        styles.requestBtn,
-                        { backgroundColor: already ? theme.colors.surfaceRaised : theme.colors.accent },
-                      ]}
-                      disabled={already || createRequest.isPending}
-                      onPress={() => handleRequest(item)}
-                      accessibilityRole="button"
-                    >
-                      <Text style={{ color: already ? theme.colors.textMuted : theme.colors.onAccent, fontSize: 12, fontWeight: "600" }}>
-                        {already ? t("requests.requested") : t("requests.request")}
-                      </Text>
-                    </TouchableOpacity>
+                    {inLibrary && item.mediaItemId ? (
+                      <TouchableOpacity
+                        style={[styles.requestBtn, { backgroundColor: theme.colors.surfaceRaised }]}
+                        onPress={() => router.push(`/media/${item.mediaItemId}`)}
+                        accessibilityRole="button"
+                      >
+                        <Text style={{ color: theme.colors.text, fontSize: 12, fontWeight: "600" }}>
+                          {t("requests.watchNow")}
+                        </Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <TouchableOpacity
+                        style={[
+                          styles.requestBtn,
+                          { backgroundColor: already ? theme.colors.surfaceRaised : theme.colors.accent },
+                        ]}
+                        disabled={already || createRequest.isPending}
+                        onPress={() => handleRequest(item)}
+                        accessibilityRole="button"
+                      >
+                        <Text style={{ color: already ? theme.colors.textMuted : theme.colors.onAccent, fontSize: 12, fontWeight: "600" }}>
+                          {already ? t("requests.requested") : t("requests.request")}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 );
               }}
@@ -279,4 +348,14 @@ const styles = StyleSheet.create({
   hint: { textAlign: "center", fontSize: 13, marginTop: 24, paddingHorizontal: 16 },
   resultRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 8 },
   requestBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
+  inLibraryBadge: {
+    position: "absolute",
+    bottom: 2,
+    right: 2,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 });
