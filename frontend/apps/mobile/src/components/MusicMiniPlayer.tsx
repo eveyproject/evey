@@ -7,7 +7,7 @@
 // ExponentAV native module is gone from Expo Go on SDK 55, so we use
 // expo-audio's hook-based API instead.
 import { memo, useCallback, useEffect, useRef, useState } from "react";
-import { View, Text, Pressable, StyleSheet, type GestureResponderEvent } from "react-native";
+import { View, Text, Pressable, StyleSheet, AppState, Platform, type GestureResponderEvent } from "react-native";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
@@ -19,6 +19,22 @@ import { useMusicQueueStore } from "../stores/musicQueue";
 import { useTheme } from "../providers/ThemeProvider";
 import { useServerUrl } from "../hooks/useServerUrl";
 import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
+import { shouldRecordScrobble } from "../lib/musicScrobble";
+
+// One nowplaying "session" per mini-player mount (not one per track), so the
+// admin "En cours de lecture" panel shows a single updating tile instead of a
+// new row every time the track changes - mirrors the web GlobalAudioPlayer.
+const nowPlayingSessionId = `music-mobile-${
+  typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
+}`;
+
+function nowPlayingDeviceName(): string {
+  if (Platform.OS === "ios") return "iPhone";
+  if (Platform.OS === "android") return "Android Phone";
+  return "Mobile";
+}
 
 function MusicMiniPlayerImpl() {
   const theme = useTheme();
@@ -96,16 +112,16 @@ function MusicMiniPlayerImpl() {
   }, [status.didJustFinish, next]);
 
   // Scrobble a finished track once per playthrough - feeds the playlist
-  // generator's taste signal, mirrors the web GlobalAudioPlayer. Guarded by
-  // streamUri so a duplicate finish tick for the same track doesn't
-  // double-count; resets naturally when the track changes.
-  const recordedUriRef = useRef<string | null>(null);
+  // generator's taste signal, mirrors the web GlobalAudioPlayer. The dedup
+  // decision itself lives in the pure shouldRecordScrobble (musicScrobble.ts)
+  // so it's unit-tested; this effect only wires it to the network call.
+  const lastRecordedTrackIdRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!status.didJustFinish || !track || !streamUri) return;
-    if (recordedUriRef.current === streamUri) return;
-    recordedUriRef.current = streamUri;
-    void eveyFetch({ url: `/api/v1/music/tracks/${track.id}/played`, method: "POST" }).catch(() => {});
-  }, [status.didJustFinish, track, streamUri]);
+    const trackId = track?.id ?? null;
+    if (!shouldRecordScrobble({ didJustFinish: !!status.didJustFinish, trackId, lastRecordedTrackId: lastRecordedTrackIdRef.current })) return;
+    lastRecordedTrackIdRef.current = trackId;
+    void eveyFetch({ url: `/api/v1/music/tracks/${trackId}/played`, method: "POST" }).catch(() => {});
+  }, [status.didJustFinish, track]);
 
   // Detect a track that never loads (dead transcode, expired token, 404) and
   // skip it instead of leaving the mini-player stuck silent - expo-audio's
@@ -149,6 +165,73 @@ function MusicMiniPlayerImpl() {
     loadedUriRef.current = null;
     clear();
   }, [clear, player]);
+
+  // Report this playback to the admin "En cours de lecture" panel every ~10s,
+  // mirroring the web GlobalAudioPlayer, and apply any remoteCommand it
+  // queues back (play/pause/stop). Foreground-only: the audio session
+  // survives backgrounding, but beating from the background would keep
+  // spending battery/data on a session the admin can't meaningfully act on
+  // anymore, so heartbeating stops there and resumes when the app returns.
+  useEffect(() => {
+    if (!track) return;
+    const trackId = track.id;
+    let cancelled = false;
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+
+    async function beat() {
+      try {
+        const data = await eveyFetch<{ remoteCommand?: string }>({
+          url: "/api/v1/music/nowplaying",
+          method: "POST",
+          data: {
+            sessionId: nowPlayingSessionId,
+            trackId,
+            deviceName: nowPlayingDeviceName(),
+            positionMs: Math.floor((statusRef.current.currentTime ?? 0) * 1000),
+            isPaused: !statusRef.current.playing,
+          },
+        });
+        if (cancelled) return;
+        const cmd = data?.remoteCommand;
+        if (!cmd) return;
+        if (cmd === "pause") {
+          if (isPlayingRef.current) togglePlay();
+        } else if (cmd === "play") {
+          if (!isPlayingRef.current) togglePlay();
+        } else if (cmd === "stop") {
+          onClose();
+        }
+      } catch { /* best-effort telemetry, never disrupt playback */ }
+    }
+
+    function start() {
+      if (intervalId != null) return;
+      void beat();
+      intervalId = setInterval(() => void beat(), 10_000);
+    }
+    function stop() {
+      if (intervalId != null) {
+        clearInterval(intervalId);
+        intervalId = null;
+      }
+    }
+
+    if (AppState.currentState === "active") start();
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") start();
+      else stop();
+    });
+
+    return () => {
+      cancelled = true;
+      stop();
+      sub.remove();
+    };
+    // Keyed by track id only, mirroring the web GlobalAudioPlayer's
+    // [playing?.ID] heartbeat effect - togglePlay/onClose are stable store
+    // actions, read here via closure rather than restarting the interval.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [track?.id]);
 
   const goToSource = useCallback(() => {
     if (!source) return;
