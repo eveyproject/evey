@@ -315,8 +315,11 @@ Plugins may inject UI only in explicitly allowed slots. Critical paths are inten
 | `player.overlay` | Yes | Player overlay UI |
 | `settings.user.appearance` | Yes | Appearance section in user settings |
 | `sidebar.bottom` | Yes | Bottom area of the navigation tray |
+| `admin.nav` | Yes | One nav entry in the admin panel opening the plugin's own sandboxed page - does not inject into existing admin screens |
 
-**Never allowed:** `admin.*`, `login.*`, `setup.*`, `profile.security.*` - these paths are authentication/privilege-critical and plugin injection there is a privilege-escalation or phishing vector.
+**Never allowed:** `admin.*` (except `admin.nav`), `login.*`, `setup.*`, `profile.security.*` - these paths are authentication/privilege-critical and plugin injection there is a privilege-escalation or phishing vector.
+
+`admin.nav` content is still sandboxed like any other slot: it renders inside an `<iframe sandbox="allow-scripts">` (no `allow-same-origin`) with CSP `default-src 'none'`, so it is third-party content displayed in the admin area, not an admin capability granted to the plugin.
 
 Source: `internal/domain/plugin/slots.go`.
 

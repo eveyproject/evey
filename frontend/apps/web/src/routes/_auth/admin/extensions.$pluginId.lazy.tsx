@@ -9,9 +9,11 @@ export const Route = createLazyFileRoute("/_auth/admin/extensions/$pluginId")({
 });
 
 // Dedicated full-page route for a plugin's admin.nav module. The sidebar entry
-// links here (instead of embedding the iframe inline), so the plugin gets a
-// real /admin URL it can also navigate to via the bridge (navigate() allows
-// /admin/*).
+// links here (instead of embedding the iframe inline), giving the plugin a
+// real /admin URL to render into. The bridge's navigate() cannot be used to
+// reach this or any other /admin/* route from inside the iframe - the
+// allow-list (isAllowedNavPath) only covers /home, /library, /media, /player,
+// /settings, /search.
 function PluginExtensionPage() {
   const { pluginId } = Route.useParams();
   const entry = usePluginSlotEntries("admin.nav").find((e) => e.pluginId === pluginId);

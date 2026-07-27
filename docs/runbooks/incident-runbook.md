@@ -178,7 +178,8 @@ docker logs --since 30m evey-server 2>&1 | grep -iE 'plugin|pluginrunner|panic'
 ```
 
 **Fix**:
-- Disable the offending plugin from the admin panel.
+- Try a surgical restart first, no container downtime: `POST /api/v1/admin/plugins/<id>/enable`. This works even when the plugin is already `enabled` but stuck in `Error` status - `StartPlugin`'s guard relaunches it as soon as the status is not `Running`. Prefer this over restarting the whole server, especially when SSH access to the host is not readily available.
+- If the surgical restart does not clear it, disable the offending plugin from the admin panel instead.
 - If the server itself is unstable, restart: `docker compose restart evey`.
 - Inspect plugin files at `./evey-data/plugins/` (host) == `/data/plugins` (container). Remove the broken plugin zip/dir, restart.
 - Send the panic trace + plugin id to the plugin author.
