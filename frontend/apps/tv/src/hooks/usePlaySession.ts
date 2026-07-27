@@ -8,12 +8,12 @@ import {
 } from "@evey/api";
 import type { V1StreamInfo, V1WatchProgress } from "@evey/api";
 import { getServerUrl } from "../lib/server-config";
+import { getDeviceAudioCodecs } from "../lib/deviceCodecs";
 
 const DEVICE_ID = "evey-tv";
 const DEVICE_NAME = "Evey TV";
 
 const VIDEO_CODECS = ["h264", "hevc", "vp9"];
-const AUDIO_CODECS = ["aac", "mp3", "opus", "flac", "ac3", "eac3"];
 const CONTAINERS = ["mp4", "hls"];
 
 interface StreamTokenResponse {
@@ -86,7 +86,7 @@ async function fetchStreamToken(mediaId: string): Promise<string> {
 
 function appendCodecParams(params: URLSearchParams): void {
   params.set("videoCodecs", VIDEO_CODECS.join(","));
-  params.set("audioCodecs", AUDIO_CODECS.join(","));
+  params.set("audioCodecs", getDeviceAudioCodecs().join(","));
   params.set("containers", CONTAINERS.join(","));
 }
 
@@ -144,7 +144,7 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
         const [info, wp] = await Promise.all([
           playbackServiceGetStreamInfo(mediaId, {
             supportedCodecs: VIDEO_CODECS,
-            supportedAudioCodecs: AUDIO_CODECS,
+            supportedAudioCodecs: getDeviceAudioCodecs(),
             supportedContainers: CONTAINERS,
             maxWidth: Math.round(screen.width * (screen.scale ?? 1)),
             maxHeight: maxHeight && maxHeight > 0 ? Math.min(maxHeight, screenH) : screenH,
