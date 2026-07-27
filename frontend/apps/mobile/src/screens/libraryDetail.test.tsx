@@ -102,6 +102,9 @@ vi.mock("../providers/ThemeProvider", () => ({
 vi.mock("../hooks/useAuthenticatedImage", () => ({
   useAuthHeaders: () => undefined,
 }));
+// useServerUrl pulls in server-config -> expo-secure-store, which has no native
+// module under jsdom; mock it like the other screen tests do.
+vi.mock("../hooks/useServerUrl", () => ({ useServerUrl: () => "http://test-server" }));
 vi.mock("../hooks/useDebounce", () => ({
   useDebounce: (v: unknown) => v,
 }));

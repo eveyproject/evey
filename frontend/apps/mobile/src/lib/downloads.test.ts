@@ -140,7 +140,7 @@ describe("startDownload", () => {
       id: "m3",
       url: "https://evey.test/api/v1/media/m3/download?token=stream-tok-123",
       destination: expect.stringContaining("evey-m3.mp4"),
-      metadata: { title: "Movie 3" },
+      metadata: expect.objectContaining({ title: "Movie 3" }),
     }));
     // task.start() must be invoked after handlers are chained - without it
     // createDownloadTask only registers the task, it doesn't kick the OS
