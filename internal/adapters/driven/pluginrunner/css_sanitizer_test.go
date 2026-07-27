@@ -706,6 +706,179 @@ func TestSanitizeCSS_EscapeBypass_SimpleEscapeInIdentifier(t *testing.T) {
 	}
 }
 
+// ---- Red-team regression tests (2026-07-27 audit) ----
+//
+// These prove that the brace-confusion and external-URL-detection bypasses
+// found in the pre-auth theme.css sanitizer are neutralized. Cases are
+// adapted from the red-team harness at
+// ~/evey-audit-2026-07-27/redteam-css-tests/ (css_brace_confusion_redteam_test.go,
+// css_redteam_probe_test.go); that harness proves the bypass exists, these
+// tests prove the fix holds.
+
+func TestSanitizeCSS_Redteam_OverlayBehindContentBraceClose(t *testing.T) {
+	// content:"}" desyncs a byte-level brace counter: it "closes" the block
+	// before the overlay declarations are ever inspected.
+	input := []byte(`.aurora-splash{content:"}";position:fixed;inset:0;width:100vw;height:100vh;background:#0b0f1a}`)
+	out, warns := SanitizeCSS(input)
+	if containsString(out, "position:fixed") || containsString(out, "inset:0") {
+		t.Errorf("overlay hidden behind content:\"}\" survived: %s", out)
+	}
+	if len(warns) == 0 {
+		t.Error("expected warning for overlay removal")
+	}
+}
+
+func TestSanitizeCSS_Redteam_UnbalancedContentBraceDropsFollowingRules(t *testing.T) {
+	// content:"{" desyncs the counter the other way: a naive scanner never
+	// finds a matching close and (pre-fix) recopied the entire remainder,
+	// including an overlay, a password-field rule and a clickjacking rule,
+	// completely uninspected.
+	input := []byte(`.decoy{content:"{"}` +
+		`#ovl{position:fixed;inset:0;background:#000;z-index:999}` +
+		` input[type=password]{opacity:0.01;background:#fff}` +
+		` button{pointer-events:none}`)
+	out, warns := SanitizeCSS(input)
+	for _, marker := range []string{"position:fixed", "inset:0", "type=password", "pointer-events:none"} {
+		if containsString(out, marker) {
+			t.Errorf("marker %q survived unbalanced-brace bypass: %s", marker, out)
+		}
+	}
+	if len(warns) == 0 {
+		t.Error("expected warnings for dropped/stripped rules")
+	}
+}
+
+func TestSanitizeCSS_Redteam_SensitiveSelectorBehindUnbalancedBrace(t *testing.T) {
+	input := []byte(`.brand{content:"{"}` + "\n" + `.token-badge{position:absolute;left:-9999px}`)
+	out, warns := SanitizeCSS(input)
+	if containsString(out, ".token-badge") {
+		t.Errorf(".token-badge rule survived unbalanced-brace bypass: %s", out)
+	}
+	if len(warns) == 0 {
+		t.Error("expected warning for sensitive selector removal")
+	}
+}
+
+func TestSanitizeCSS_Redteam_PasswordSelectorBehindContentBraceClose(t *testing.T) {
+	input := []byte(`.decoy{color:#111;content:"{"}` + "\n" + `input[type=password]{opacity:0;position:fixed;top:40%;left:40%}`)
+	out, warns := SanitizeCSS(input)
+	if containsString(out, "type=password") {
+		t.Errorf("password-field rule survived content-brace bypass: %s", out)
+	}
+	if len(warns) == 0 {
+		t.Error("expected warning for sensitive selector removal")
+	}
+}
+
+func TestSanitizeCSS_Redteam_CommentContainingBraceDoesNotDesync(t *testing.T) {
+	// A CSS comment containing } must not be counted as a real closing brace.
+	input := []byte(`.ov{/* } */position:fixed;inset:0;width:100vw;height:100vh}`)
+	out, warns := SanitizeCSS(input)
+	if containsString(out, "position:fixed") {
+		t.Errorf("overlay hidden behind a comment brace survived: %s", out)
+	}
+	if len(warns) == 0 {
+		t.Error("expected warning for overlay removal")
+	}
+}
+
+func TestSanitizeCSS_Redteam_HexEscapedBraceDoesNotDesync(t *testing.T) {
+	// \7d decodes to '}' but must never be treated as a structural
+	// delimiter during brace counting - only after the block boundaries
+	// are already established.
+	input := []byte(`.ov{content:"\7d";position:fixed;inset:0;width:100vw;height:100vh}`)
+	out, warns := SanitizeCSS(input)
+	if containsString(out, "position:fixed") {
+		t.Errorf("overlay hidden behind hex-escaped brace survived: %s", out)
+	}
+	if len(warns) == 0 {
+		t.Error("expected warning for overlay removal")
+	}
+}
+
+func TestSanitizeCSS_Redteam_NestedAtRuleOverlayStripped(t *testing.T) {
+	input := []byte(`@media screen{.ov{content:"}";position:fixed;inset:0;width:100vw;height:100vh}}`)
+	out, warns := SanitizeCSS(input)
+	if containsString(out, "position:fixed") {
+		t.Errorf("overlay nested in @media survived: %s", out)
+	}
+	if len(warns) == 0 {
+		t.Error("expected warning for overlay removal")
+	}
+}
+
+func TestSanitizeCSS_Redteam_ImageSetBareStringExternalURL(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{"plain image-set", `body{background-image:image-set("https://evil.example/a.png" 1x)}`},
+		{"webkit image-set", `body{background-image:-webkit-image-set("https://evil.example/a.png" 1x)}`},
+		{"list-style-image", `li{list-style-image:image-set("https://evil.example/b.png" 1x)}`},
+		{"border-image-source", `div{border-image-source:image-set("https://evil.example/c.png" 1x)}`},
+		{"cursor", `a{cursor:image-set("https://evil.example/d.png" 1x),pointer}`},
+		{"mask-image", `div{-webkit-mask-image:image-set("https://evil.example/e.png" 1x)}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			out, warns := SanitizeCSS([]byte(tt.input))
+			if containsString(out, "evil.example") {
+				t.Errorf("external URL via image-set() not neutralized: %s", out)
+			}
+			if len(warns) == 0 {
+				t.Error("expected warning for external image-set URL")
+			}
+		})
+	}
+}
+
+func TestSanitizeCSS_Redteam_ImageSetViaCustomPropertyVar(t *testing.T) {
+	// The external URL sits in a custom property, referenced indirectly via
+	// var() inside image-set() - the regex can't resolve var() to fetch it
+	// but neutralizing the custom property declaration itself defangs it.
+	input := []byte(`:root{--u:"https://evil.example/a.png"}body{background-image:image-set(var(--u) 1x)}`)
+	out, warns := SanitizeCSS(input)
+	if containsString(out, "evil.example") {
+		t.Errorf("external URL smuggled via custom property survived: %s", out)
+	}
+	if len(warns) == 0 {
+		t.Error("expected warning for external URL in custom property")
+	}
+}
+
+func TestSanitizeCSS_Redteam_UnterminatedURLAtEOF(t *testing.T) {
+	input := []byte(`body{background-image:url(https://evil.example/beacon.png`)
+	out, warns := SanitizeCSS(input)
+	if containsString(out, "evil.example") {
+		t.Errorf("unterminated url() at EOF survived: %s", out)
+	}
+	_ = warns
+}
+
+func TestSanitizeCSS_Redteam_ImportNoWhitespace(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{"double quote", `@import"https://evil.example/x.css";body{color:#111}`},
+		{"single quote", `@import'https://evil.example/x.css';body{color:#111}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			out, warns := SanitizeCSS([]byte(tt.input))
+			if containsString(out, "@import") || containsString(out, "evil.example") {
+				t.Errorf("@import without whitespace not stripped: %s", out)
+			}
+			if !containsString(out, "color:#111") {
+				t.Error("valid trailing CSS was incorrectly removed")
+			}
+			if len(warns) == 0 {
+				t.Error("expected warning for @import removal")
+			}
+		})
+	}
+}
+
 func containsString(b []byte, s string) bool {
 	return len(b) > 0 && len(s) > 0 && string(b) != "" && contains(string(b), s)
 }

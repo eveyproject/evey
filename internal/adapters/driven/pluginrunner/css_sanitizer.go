@@ -16,12 +16,35 @@ import (
 const reZeroVal = `0(?:px|%|r?em|v[hw])?(?:$|[^\d.])`
 
 var (
-	reImport        = regexp.MustCompile(`(?i)@import\s+[^;]+;?`)
+	// @import\b (not @import\s+) so that a scheme-quote glued directly onto
+	// the keyword - `@import"https://evil/x.css";` - is still matched; the
+	// word boundary still rejects unrelated at-rules like @important.
+	reImport        = regexp.MustCompile(`(?i)@import\b\s*[^;]+;?`)
 	reURLExternal   = regexp.MustCompile(`(?i)url\s*\(\s*['"]?\s*(https?://|//)[^)]*\)`)
 	reURLJavascript = regexp.MustCompile(`(?i)url\s*\(\s*['"]?\s*javascript\s*:[^)]*\)`)
 	reExpression    = regexp.MustCompile(`(?i)expression\s*\([^)]*\)`)
 	reMozBinding    = regexp.MustCompile(`(?i)-moz-binding\s*:[^;}"]+[;}]?`)
 	reBehavior      = regexp.MustCompile(`(?i)\bbehavior\s*:[^;}"]+[;}]?`)
+
+	// reURLExternalUnterminated catches a url(...) that is never closed with
+	// a `)` before EOF (e.g. truncated by a proxy, or deliberately malformed
+	// to slip past reURLExternal, which requires the closing paren).
+	reURLExternalUnterminated = regexp.MustCompile(`(?i)url\s*\(\s*['"]?\s*(https?://|//)[^)]*$`)
+
+	// reImageSetExternal catches external references fetched WITHOUT ever
+	// using the url() token: image-set()/-webkit-image-set() accept a bare
+	// quoted string as their first argument, and are valid in any
+	// image-valued property (list-style-image, cursor, border-image-source,
+	// -webkit-mask-image, background(-image), ...). The property name is
+	// irrelevant here since the fetch happens inside the function call.
+	reImageSetExternal = regexp.MustCompile(`(?i)(?:-webkit-)?image-set\s*\(\s*["'](?:https?://|//)[^;{})]*\)`)
+
+	// reCustomPropExternalURL catches an external URL stashed in a custom
+	// property (--x: "https://...") and later referenced indirectly via
+	// var(--x) - most commonly inside image-set(), which the regex above
+	// cannot resolve. Neutralizing the property at its declaration defangs
+	// every var(--x) use site without needing to track references.
+	reCustomPropExternalURL = regexp.MustCompile(`(?i)(--[a-zA-Z0-9_-]+)\s*:\s*["']?(?:https?://|//)[^;}"']*["']?`)
 
 	// Sensitive selector patterns that should not be styled by themes.
 	reSensitiveSelector = regexp.MustCompile(`(?i)\[type\s*=\s*["']?(password|hidden)["']?\]|\.admin-[a-z0-9_-]*|\.token-[a-z0-9_-]*|\.secret-[a-z0-9_-]*`)
@@ -69,12 +92,26 @@ func SanitizeCSS(input []byte) ([]byte, []string) {
 	css := string(input)
 	var warnings []string
 
-	// Normalize CSS escape sequences before applying detection/removal (M2).
-	// CSS escape sequences (e.g. `\3a ` → `:`, `\65 ` → `e`) can be used to bypass
-	// literal-string regex matching. By decoding escapes first, all subsequent
-	// detection regexes run against the semantically equivalent plain form.
-	// The sanitized (decoded) string is what we return; it is functionally identical
-	// to the original as interpreted by a CSS parser.
+	// Structural (brace-boundary) passes run FIRST, directly on the raw,
+	// still-escaped CSS. findMatchingBrace is string/comment/url()-aware, so
+	// a `}`/`{` embedded in a string literal, a comment, or a url() value
+	// never desynchronizes the block boundaries these passes rely on.
+	// Escape sequences (e.g. `\7d`) are skipped as opaque tokens during brace
+	// counting - never decoded first - so an escaped brace can never act as
+	// a structural delimiter. Selector/block text is decoded on the fly ONLY
+	// for pattern matching inside these passes; the decoded copy never
+	// replaces the text used for further boundary detection.
+	css = stripRulesWithSensitiveSelectors(css, &warnings)
+	css = stripFullScreenOverlays(css, &warnings)
+	css = stripPointerEventsOnInteractive(css, &warnings)
+
+	// Normalize CSS escape sequences now that block structure has already
+	// been determined (M2). CSS escape sequences (e.g. `\3a ` → `:`, `\65 ` →
+	// `e`) can be used to bypass literal-string regex matching. By decoding
+	// escapes here, all remaining (flat, non-brace-aware) detection regexes
+	// run against the semantically equivalent plain form. The sanitized
+	// (decoded) string is what we return; it is functionally identical to
+	// the original as interpreted by a CSS parser.
 	css = decodeCSSEscapes(css)
 
 	if matches := reImport.FindAllString(css, -1); len(matches) > 0 {
@@ -98,6 +135,27 @@ func SanitizeCSS(input []byte) ([]byte, []string) {
 		css = reURLExternal.ReplaceAllString(css, "none")
 	}
 
+	if matches := reURLExternalUnterminated.FindAllString(css, -1); len(matches) > 0 {
+		for _, m := range matches {
+			warnings = append(warnings, "removed unterminated external url: "+strings.TrimSpace(m))
+		}
+		css = reURLExternalUnterminated.ReplaceAllString(css, "none")
+	}
+
+	if matches := reImageSetExternal.FindAllString(css, -1); len(matches) > 0 {
+		for _, m := range matches {
+			warnings = append(warnings, "removed external image-set() reference: "+strings.TrimSpace(m))
+		}
+		css = reImageSetExternal.ReplaceAllString(css, "none")
+	}
+
+	if matches := reCustomPropExternalURL.FindAllString(css, -1); len(matches) > 0 {
+		for _, m := range matches {
+			warnings = append(warnings, "neutralized external URL in custom property: "+strings.TrimSpace(m))
+		}
+		css = reCustomPropExternalURL.ReplaceAllString(css, "$1: initial")
+	}
+
 	if matches := reExpression.FindAllString(css, -1); len(matches) > 0 {
 		for _, m := range matches {
 			warnings = append(warnings, "removed expression(): "+strings.TrimSpace(m))
@@ -119,15 +177,6 @@ func SanitizeCSS(input []byte) ([]byte, []string) {
 		css = reBehavior.ReplaceAllString(css, "")
 	}
 
-	// Strip rules containing sensitive selectors (password inputs, admin/token/secret classes).
-	css = stripRulesWithSensitiveSelectors(css, &warnings)
-
-	// Block full-screen overlay rules: position:fixed|sticky + top:0 + left:0 + full viewport size.
-	css = stripFullScreenOverlays(css, &warnings)
-
-	// Strip pointer-events:none on interactive elements (anti-clickjacking).
-	css = stripPointerEventsOnInteractive(css, &warnings)
-
 	// Clamp z-index > 999 to 999.
 	css = clampZIndex(css, &warnings)
 
@@ -136,7 +185,8 @@ func SanitizeCSS(input []byte) ([]byte, []string) {
 
 // stripRulesWithSensitiveSelectors removes entire CSS rule blocks that target
 // sensitive element selectors (password inputs, .admin-*, .token-*, .secret-*).
-// CSS escape sequences are decoded upstream by SanitizeCSS before this runs.
+// Operates on raw, still-escaped CSS: the selector is decoded on the fly for
+// matching only (see SanitizeCSS for why decoding happens here, not upstream).
 func stripRulesWithSensitiveSelectors(css string, warnings *[]string) string {
 	// We process the CSS looking for selector+block pairs where the selector matches.
 	// Strategy: scan for { } blocks and check the preceding selector text.
@@ -149,46 +199,154 @@ func stripRulesWithSensitiveSelectors(css string, warnings *[]string) string {
 			break
 		}
 		selector := remaining[:braceOpen]
-		if reSensitiveSelector.MatchString(selector) {
-			// Find the matching closing brace (handle nesting).
-			closeIdx := findMatchingBrace(remaining, braceOpen)
-			if closeIdx < 0 {
-				// Malformed: drop the rest.
-				*warnings = append(*warnings, "removed rule with sensitive selector (malformed block): "+strings.TrimSpace(selector))
-				break
-			}
-			*warnings = append(*warnings, "removed rule targeting sensitive selector: "+strings.TrimSpace(selector))
-			remaining = remaining[closeIdx+1:]
-		} else {
-			// Safe selector: emit up to and including the closing brace.
-			closeIdx := findMatchingBrace(remaining, braceOpen)
-			if closeIdx < 0 {
-				result.WriteString(remaining)
-				break
-			}
-			result.WriteString(remaining[:closeIdx+1])
-			remaining = remaining[closeIdx+1:]
+		closeIdx := findMatchingBrace(remaining, braceOpen)
+		if closeIdx < 0 {
+			// Malformed/unbalanced block: we can no longer trust where this
+			// or any later block ends, so fail closed and drop the rest
+			// rather than recopy unchecked text that might hide a rule.
+			*warnings = append(*warnings, "dropped malformed/unbalanced CSS block after: "+strings.TrimSpace(selector))
+			break
 		}
+		if reSensitiveSelector.MatchString(decodeCSSEscapes(selector)) {
+			*warnings = append(*warnings, "removed rule targeting sensitive selector: "+strings.TrimSpace(selector))
+		} else {
+			result.WriteString(remaining[:closeIdx+1])
+		}
+		remaining = remaining[closeIdx+1:]
 	}
 	return result.String()
 }
 
 // findMatchingBrace returns the index of the } that closes the { at openIdx,
-// accounting for nested braces. Returns -1 if not found.
+// accounting for nested braces. It is aware of CSS string literals ('...'
+// and "..."), comments (/* ... */), url(...) values, and escape sequences,
+// none of which may contribute a structural { or } - a byte-for-byte count
+// is fooled by any of these (e.g. content:"}" or content:"{" desyncs a naive
+// counter, letting the attacker's real payload run past uninspected).
+// Returns -1 if the block is truncated or never closes.
 func findMatchingBrace(s string, openIdx int) int {
 	depth := 0
-	for i := openIdx; i < len(s); i++ {
-		switch s[i] {
+	n := len(s)
+	i := openIdx
+	for i < n {
+		switch c := s[i]; c {
+		case '\\':
+			i = skipCSSEscape(s, i)
+		case '"', '\'':
+			end := skipCSSString(s, i)
+			if end < 0 {
+				return -1
+			}
+			i = end
+		case '/':
+			if i+1 < n && s[i+1] == '*' {
+				end := strings.Index(s[i+2:], "*/")
+				if end < 0 {
+					return -1
+				}
+				i = i + 2 + end + 2
+			} else {
+				i++
+			}
+		case 'u', 'U':
+			if i+4 <= n && strings.EqualFold(s[i:i+4], "url(") {
+				end, ok := skipBareURL(s, i)
+				if !ok {
+					return -1
+				}
+				i = end
+			} else {
+				i++
+			}
 		case '{':
 			depth++
+			i++
 		case '}':
 			depth--
 			if depth == 0 {
 				return i
 			}
+			i++
+		default:
+			i++
 		}
 	}
 	return -1
+}
+
+// skipCSSEscape returns the index immediately after the CSS escape sequence
+// starting at s[i] (s[i] must be '\\'). Per CSS Syntax Level 3 §4.3.7, an
+// escape is 1-6 hex digits with an optional single trailing whitespace, or
+// any other single character. The escaped code point is consumed as part of
+// the surrounding token; it is never re-interpreted as a structural
+// character, so `\7d` can never act as a literal closing brace during brace
+// counting - regardless of what character it decodes to.
+func skipCSSEscape(s string, i int) int {
+	n := len(s)
+	if i+1 >= n {
+		return i + 1
+	}
+	j := i + 1
+	hexEnd := j
+	for hexEnd < n && hexEnd-j < 6 && isHexDigit(s[hexEnd]) {
+		hexEnd++
+	}
+	if hexEnd > j {
+		if hexEnd < n && (s[hexEnd] == ' ' || s[hexEnd] == '\t' || s[hexEnd] == '\n' || s[hexEnd] == '\r' || s[hexEnd] == '\f') {
+			hexEnd++
+		}
+		return hexEnd
+	}
+	// Simple escape: backslash + one literal character.
+	return i + 2
+}
+
+// skipCSSString returns the index of the character immediately after the
+// closing quote of a string starting at s[i] (a ' or "), or -1 if the string
+// is never closed before EOF. An escaped quote inside the string does not
+// terminate it.
+func skipCSSString(s string, i int) int {
+	quote := s[i]
+	n := len(s)
+	j := i + 1
+	for j < n {
+		switch s[j] {
+		case '\\':
+			j = skipCSSEscape(s, j)
+		case quote:
+			return j + 1
+		default:
+			j++
+		}
+	}
+	return -1
+}
+
+// skipBareURL returns the index immediately after the closing ) of an
+// unquoted url(...) value starting at the 'u'/'U' of "url(" at s[i], or
+// false if it is never closed before EOF. Content inside is opaque: a brace
+// found there is not structural CSS. A quoted url(...) is left for the
+// normal string handling in findMatchingBrace to consume.
+func skipBareURL(s string, i int) (int, bool) {
+	n := len(s)
+	j := i + 4 // len("url(")
+	for j < n && (s[j] == ' ' || s[j] == '\t' || s[j] == '\n' || s[j] == '\r' || s[j] == '\f') {
+		j++
+	}
+	if j < n && (s[j] == '"' || s[j] == '\'') {
+		return i + 4, true
+	}
+	for j < n {
+		switch s[j] {
+		case '\\':
+			j = skipCSSEscape(s, j)
+		case ')':
+			return j + 1, true
+		default:
+			j++
+		}
+	}
+	return -1, false
 }
 
 // stripFullScreenOverlays removes CSS rule blocks that combine position:fixed|sticky
@@ -205,19 +363,19 @@ func stripFullScreenOverlays(css string, warnings *[]string) string {
 		}
 		closeIdx := findMatchingBrace(remaining, braceOpen)
 		if closeIdx < 0 {
-			result.WriteString(remaining)
+			// Malformed/unbalanced block: fail closed, drop the rest.
+			*warnings = append(*warnings, "dropped malformed/unbalanced CSS block")
 			break
 		}
 		block := remaining[braceOpen : closeIdx+1]
 		selector := remaining[:braceOpen]
 
-		if isFullScreenOverlay(block) {
+		if isFullScreenOverlay(decodeCSSEscapes(block)) {
 			*warnings = append(*warnings, "removed full-screen overlay rule: "+strings.TrimSpace(selector))
-			remaining = remaining[closeIdx+1:]
 		} else {
 			result.WriteString(remaining[:closeIdx+1])
-			remaining = remaining[closeIdx+1:]
 		}
+		remaining = remaining[closeIdx+1:]
 	}
 	return result.String()
 }
@@ -269,13 +427,14 @@ func stripPointerEventsOnInteractive(css string, warnings *[]string) string {
 		}
 		closeIdx := findMatchingBrace(remaining, braceOpen)
 		if closeIdx < 0 {
-			result.WriteString(remaining)
+			// Malformed/unbalanced block: fail closed, drop the rest.
+			*warnings = append(*warnings, "dropped malformed/unbalanced CSS block")
 			break
 		}
 		selector := remaining[:braceOpen]
 		block := remaining[braceOpen : closeIdx+1]
 
-		if reInteractiveSelector.MatchString(selector) && rePointerEventsNone.MatchString(block) {
+		if reInteractiveSelector.MatchString(decodeCSSEscapes(selector)) && rePointerEventsNone.MatchString(decodeCSSEscapes(block)) {
 			// Remove only the pointer-events:none declaration, keep rest of block.
 			cleaned := rePointerEventsNone.ReplaceAllString(block, "/* pointer-events removed */")
 			*warnings = append(*warnings, "removed pointer-events:none from interactive selector: "+strings.TrimSpace(selector))
