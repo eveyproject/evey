@@ -9,7 +9,6 @@ import { useQueryClient, useQuery } from "@tanstack/react-query";
 import {
   usePlaybackServiceGetResumeItems,
   usePlaybackServiceGetNextUp,
-  useFeedServiceRecentlyAdded,
   useFeedServiceRecommended,
   useFeedServiceGetFeedConfig,
   useFeedServiceUpdateProfileFeedConfig,
@@ -27,6 +26,7 @@ interface FeedConfig {
 import { useAuthStore, toast } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { MediaRow } from "../../../src/components/MediaRow";
+import { useWatchedMap } from "../../../src/hooks/useWatchedMap";
 import { useCollections } from "../../../src/api/collections";
 import { useMostPopular } from "../../../src/hooks/usePopular";
 import { CollectionRow } from "../../../src/components/CollectionRow";
@@ -157,19 +157,29 @@ function LibraryFeedRow({ libraryId, name, libraryType, onItemPress }: { library
     : libraryType === "LIBRARY_TYPE_MOVIES"
       ? "MEDIA_ITEM_TYPE_MOVIE"
       : undefined;
+  // Over-fetch: the server list doesn't filter by watched state, so pull a
+  // wider page than the 20 the row actually shows and filter client-side
+  // below, keeping the row full after watched items are dropped. Mirrors
+  // web's MediaItemsLibrarySlider (home.lazy.tsx).
   // eslint-disable-next-line react-hooks/rules-of-hooks
   const { data, isLoading } = useLibraryServiceListMediaItems({
     libraryId,
     ...(typeFilter ? { type: typeFilter as never } : {}),
-    "pagination.pageSize": 20,
+    "pagination.pageSize": 40,
     sortField: "MEDIA_SORT_FIELD_DATE_ADDED" as never,
     sortOrder: "SORT_ORDER_DESC" as never,
   });
 
   // eslint-disable-next-line react-hooks/rules-of-hooks
+  const watchedMap = useWatchedMap();
+
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const items = useMemo(
-    () => (data?.items ?? []).filter((i): i is V1MediaItem => !!i.id),
-    [data?.items],
+    () =>
+      (data?.items ?? [])
+        .filter((i): i is V1MediaItem => !!i.id && !watchedMap.get(i.id))
+        .slice(0, 20),
+    [data?.items, watchedMap],
   );
 
   if (!isLoading && items.length === 0) return null;
@@ -177,13 +187,17 @@ function LibraryFeedRow({ libraryId, name, libraryType, onItemPress }: { library
   return <MediaRow title={name} items={items} onItemPress={onItemPress} />;
 }
 
+// "recently_added" is intentionally absent: it duplicated the per-library
+// rows below (which already sort by date added), matching web's home which
+// never rendered it as a dedicated shelf. Dropping it from FEED_TYPES also
+// makes the customize modal treat any already-persisted "recently_added"
+// row as an orphan and prune it automatically.
 const FEED_TYPES = [
   "resume_playback",
   "next_episode",
   "collections",
   "recommended",
   "most_popular",
-  "recently_added",
 ] as const;
 
 const FEED_LABELS: Record<string, string> = {
@@ -389,7 +403,6 @@ export default function HomeScreen() {
 
   const resume = usePlaybackServiceGetResumeItems({ limit: 20 });
   const nextUp = usePlaybackServiceGetNextUp({ limit: 20 });
-  const recentlyAdded = useFeedServiceRecentlyAdded({ daysWindow: 30, limit: 20 });
   const recommended = useFeedServiceRecommended({ limit: 20 });
   const popular = useMostPopular(20);
   const collections = useCollections();
@@ -444,18 +457,16 @@ export default function HomeScreen() {
     await Promise.all([
       resume.refetch(),
       nextUp.refetch(),
-      recentlyAdded.refetch(),
       recommended.refetch(),
       popular.refetch(),
       collections.refetch(),
     ]);
     setRefreshing(false);
-  }, [resume, nextUp, recentlyAdded, recommended, popular, collections]);
+  }, [resume, nextUp, recommended, popular, collections]);
 
   const isLoading =
     resume.isLoading ||
     nextUp.isLoading ||
-    recentlyAdded.isLoading ||
     recommended.isLoading ||
     popular.isLoading ||
     collections.isLoading;
@@ -474,19 +485,6 @@ export default function HomeScreen() {
   // MediaCard placeholder path (which reads item.artwork) works without the
   // mobile MediaRow having to grow a parallel blurhash prop. The card's
   // hash extractor is already tolerant of unknown fields on artwork.
-  const recentItems = useMemo(
-    () =>
-      (recentlyAdded.data?.items ?? [])
-        .filter((i) => !!i.mediaItemId)
-        .map((i) => ({
-          id: i.mediaItemId,
-          title: i.title,
-          type: i.type,
-          artwork: i.primaryBlurhash ? [{ type: "ARTWORK_TYPE_PRIMARY", blurhash: i.primaryBlurhash }] : undefined,
-        }) as V1MediaItem),
-    [recentlyAdded.data?.items],
-  );
-
   const recommendedItems = useMemo(
     () =>
       (recommended.data?.items ?? [])
@@ -525,8 +523,6 @@ export default function HomeScreen() {
         return <MediaRow key={feedType} title={t("media.home.recommendedForYou")} items={recommendedItems} onItemPress={handleItemPress} />;
       case "most_popular":
         return <MediaRow key={feedType} title={t("media.home.mostPopular")} items={popularItems} onItemPress={handleItemPress} />;
-      case "recently_added":
-        return <MediaRow key={feedType} title={t("media.home.recentlyAdded")} items={recentItems} onItemPress={handleItemPress} />;
       default:
         if (feedType.startsWith("library:")) {
           const libId = feedType.replace("library:", "");
