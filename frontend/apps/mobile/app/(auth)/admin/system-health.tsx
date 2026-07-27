@@ -32,6 +32,13 @@ function formatBytes(bytes?: string): string {
   return `${n} B`;
 }
 
+function formatBps(bps: number): string {
+  if (bps >= 1e9) return `${(bps / 1e9).toFixed(2)} Gbps`;
+  if (bps >= 1e6) return `${(bps / 1e6).toFixed(1)} Mbps`;
+  if (bps >= 1e3) return `${(bps / 1e3).toFixed(0)} kbps`;
+  return `${Math.max(0, bps)} bps`;
+}
+
 function getUsageColor(pct: number, theme: { colors: { error: string; warning: string; success: string } }): string {
   if (pct > 85) return theme.colors.error;
   if (pct > 70) return theme.colors.warning;
@@ -68,13 +75,17 @@ export default function SystemHealthScreen() {
 
   const cpuHistory = useRef<number[]>([]);
   const memHistory = useRef<number[]>([]);
+  const bwHistory = useRef<number[]>([]);
+  const streamingBps = Number(dashboard?.streamingBps ?? -1);
   useEffect(() => {
     cpuHistory.current = [...cpuHistory.current.slice(-(HISTORY_SIZE - 1)), cpuPct];
     memHistory.current = [...memHistory.current.slice(-(HISTORY_SIZE - 1)), memPct];
-  }, [cpuPct, memPct]);
+    bwHistory.current = [...bwHistory.current.slice(-(HISTORY_SIZE - 1)), Math.max(0, streamingBps)];
+  }, [cpuPct, memPct, streamingBps]);
 
   const cpuData = cpuHistory.current.map((v) => ({ value: v }));
   const memData = memHistory.current.map((v) => ({ value: v }));
+  const bwData = bwHistory.current.map((v) => ({ value: v }));
 
   const activityItems = [
     { label: t("admin.systemHealth.activeStreams"), value: dashboard?.activeStreams ?? 0, icon: "play-outline" as const },
@@ -169,6 +180,50 @@ export default function SystemHealthScreen() {
         )}
       </View>
 
+      {/* Bandwidth */}
+      <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>
+        {t("admin.systemHealth.bandwidth")}
+      </Text>
+      <View style={[styles.card, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md, marginHorizontal: 16 }]}>
+        <View style={styles.metricRow}>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 13 }}>{t("admin.systemHealth.bandwidth")}</Text>
+          <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: "700" }}>
+            {streamingBps >= 0 ? formatBps(streamingBps) : "-"}
+          </Text>
+        </View>
+        {bwData.length > 1 && (
+          <View style={{ marginTop: 8 }}>
+            <LineChart
+              data={bwData}
+              width={260}
+              height={50}
+              hideDataPoints
+              hideYAxisText
+              hideAxesAndRules
+              color={theme.colors.accent}
+              thickness={2}
+              curved
+              areaChart
+              startFillColor={theme.colors.accent}
+              endFillColor="transparent"
+              startOpacity={0.3}
+              endOpacity={0}
+              isAnimated={false}
+            />
+          </View>
+        )}
+        <View style={[styles.metricRow, { marginTop: 8 }]}>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>
+            {t("admin.systemHealth.bandwidthTheoretical", { rate: formatBps(Number(dashboard?.activeSessionsBps ?? 0)) })}
+          </Text>
+        </View>
+        <View style={styles.metricRow}>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>
+            {t("admin.systemHealth.bandwidthServed", { size: formatBytes(dashboard?.streamingBytesTotal) })}
+          </Text>
+        </View>
+      </View>
+
       {/* Activity */}
       <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>
         {t("admin.systemHealth.activitySection", "Activity")}
@@ -195,10 +250,17 @@ export default function SystemHealthScreen() {
               const total = parseInt(s.totalBytes ?? "1");
               const pct = total > 0 ? Math.round((used / total) * 100) : 0;
               const color = getUsageColor(pct, theme);
+              // One card per physical disk. When several libraries live on the same
+              // drive the backend groups them, so list every path sharing this disk.
+              const displayPaths = s.paths && s.paths.length > 0 ? s.paths : [s.path ?? ""];
               return (
                 <View key={i} style={[styles.card, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}>
                   <View style={styles.metricRow}>
-                    <Text style={{ color: theme.colors.text, fontSize: 13, fontFamily: "monospace" }} numberOfLines={1}>{s.path ?? ""}</Text>
+                    <View style={{ flex: 1, gap: 2 }}>
+                      {displayPaths.map((p) => (
+                        <Text key={p} style={{ color: theme.colors.text, fontSize: 13, fontFamily: "monospace" }} numberOfLines={1}>{p}</Text>
+                      ))}
+                    </View>
                     <Text style={{ color, fontSize: 13, fontWeight: "700" }}>{pct}%</Text>
                   </View>
                   <ProgressBar pct={pct} color={color} />
@@ -207,12 +269,57 @@ export default function SystemHealthScreen() {
                       {t("admin.systemHealth.used", { size: formatBytes(s.usedBytes) })}
                     </Text>
                     <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>
+                      {t("admin.systemHealth.free", { size: formatBytes(s.freeBytes) })}
+                    </Text>
+                    <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>
                       {t("admin.systemHealth.total", { size: formatBytes(s.totalBytes) })}
                     </Text>
                   </View>
                 </View>
               );
             })}
+          </View>
+        </>
+      )}
+
+      {/* Video Transcode Capacity */}
+      {sysInfo?.videoSessions && (
+        <>
+          <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>
+            {t("admin.systemHealth.videoCapacitySection")}
+          </Text>
+          <View style={[styles.card, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md, marginHorizontal: 16, gap: 6 }]}>
+            <View style={styles.metricRow}>
+              <Text style={{ color: theme.colors.textMuted, fontSize: 13 }}>{t("admin.systemHealth.videoCapacityTitle")}</Text>
+              <Text style={{ color: theme.colors.text, fontSize: 15, fontWeight: "700" }}>
+                {t("admin.systemHealth.videoCapacityRatio", {
+                  active: sysInfo.videoSessions.active ?? 0,
+                  limit: sysInfo.videoSessions.effectiveLimit ?? 0,
+                })}
+              </Text>
+            </View>
+            {(sysInfo.videoSessions.effectiveLimit ?? 0) < (sysInfo.videoSessions.autoCapacity ?? 0) && (
+              <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>
+                {t("admin.systemHealth.videoCapacityAutoNote", { auto: sysInfo.videoSessions.autoCapacity ?? 0 })}
+              </Text>
+            )}
+            {sysInfo.videoSessions.evidence?.derived === false ? (
+              <Text style={{ color: theme.colors.warning, fontSize: 11 }}>
+                {t("admin.systemHealth.videoCapacityNotMeasured")}
+              </Text>
+            ) : sysInfo.videoSessions.evidence ? (
+              <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>
+                {t("admin.systemHealth.videoCapacityEvidence", {
+                  height: sysInfo.videoSessions.evidence.height ?? 0,
+                  fps: (sysInfo.videoSessions.evidence.fps ?? 0).toFixed(1),
+                  requiredFps: (sysInfo.videoSessions.evidence.requiredFps ?? 0).toFixed(1),
+                  cpuBudget: sysInfo.videoSessions.evidence.cpuBudget ?? 0,
+                })}
+              </Text>
+            ) : null}
+            <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>
+              {t("admin.systemHealth.videoCapacityHint")}
+            </Text>
           </View>
         </>
       )}
@@ -238,6 +345,22 @@ export default function SystemHealthScreen() {
                 </View>
               ) : null
             )}
+            {sysInfo?.hwDevices && sysInfo.hwDevices.length > 0 && (
+              <View style={[styles.infoRow, { borderTopColor: theme.colors.border, flexDirection: "column", alignItems: "flex-start", gap: 6 }]}>
+                <Text style={{ color: theme.colors.textMuted, fontSize: 11, textTransform: "uppercase" }}>
+                  {t("admin.systemHealth.hwAcceleration")}
+                </Text>
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                  {sysInfo.hwDevices.map((d, i) => (
+                    <View key={i} style={[styles.hwBadge, { backgroundColor: theme.colors.bg }]}>
+                      <Text style={{ color: theme.colors.accent, fontSize: 11, fontWeight: "600" }}>
+                        {(d.type?.replace("HW_ACCEL_TYPE_", "") ?? "?")} - {d.name ?? "unknown"}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
           </View>
         )}
       </View>
@@ -255,4 +378,5 @@ const styles = StyleSheet.create({
   statCard: { flex: 1, minWidth: "45%", padding: 16, alignItems: "center", gap: 4 },
   collapseHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   infoRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 10, borderTopWidth: StyleSheet.hairlineWidth },
+  hwBadge: { paddingVertical: 4, paddingHorizontal: 8, borderRadius: 6 },
 });
