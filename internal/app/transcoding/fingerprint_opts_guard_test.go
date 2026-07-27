@@ -201,6 +201,10 @@ var (
 		"AudioBitrate":     "AudioProcessOpts.AudioBitrate",
 		"AudioNormalize":   "AudioProcessOpts.AudioNormalize",
 		"MaxAudioChannels": "AudioProcessOpts.MaxAudioChannels",
+		// Not an encode input in the codec sense, but it does reach ffmpeg (as
+		// -output_ts_offset) and it changes the emitted bytes, so it belongs here
+		// rather than in the exempt map.
+		"VideoCompositionDelay": "AudioProcessOpts.VideoCompositionDelay",
 	}
 	audioFingerprintNonEncoderFields = map[string]string{
 		"MediaID": "cache addressing only - two items sharing a source path must not share segments",

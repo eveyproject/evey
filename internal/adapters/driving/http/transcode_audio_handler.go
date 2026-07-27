@@ -56,7 +56,7 @@ func (h *audioServe) audioRenditionEnabled() bool {
 // /hls/{file}) - the on-the-wire URL the manifest emits resolves relative to
 // /api/v1/media/{id}/hls/master.m3u8, so the dispatcher is the actual
 // production code path.
-func (h *audioServe) servePlaylistFile(w http.ResponseWriter, r *http.Request, mediaID string, trackIdx int) {
+func (h *audioServe) servePlaylistFile(w http.ResponseWriter, r *http.Request, mediaID string, trackIdx int, videoCompositionDelay float64) {
 	if !h.audioRenditionEnabled() && !wasmAudioRequested(r) {
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return
@@ -133,7 +133,7 @@ func (h *audioServe) servePlaylistFile(w http.ResponseWriter, r *http.Request, m
 		slog.Int("track_idx", trackIdx))
 }
 
-func (h *audioServe) serveInitFile(w http.ResponseWriter, r *http.Request, mediaID string, trackIdx int) {
+func (h *audioServe) serveInitFile(w http.ResponseWriter, r *http.Request, mediaID string, trackIdx int, videoCompositionDelay float64) {
 	if !h.audioRenditionEnabled() && !wasmAudioRequested(r) {
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return
@@ -152,7 +152,7 @@ func (h *audioServe) serveInitFile(w http.ResponseWriter, r *http.Request, media
 		return
 	}
 
-	fp := h.buildAudioFingerprint(r, mediaID, item, trackIdx)
+	fp := h.buildAudioFingerprint(r, mediaID, item, trackIdx, videoCompositionDelay)
 
 	// The init describes the codec, not a position: it is served off whatever
 	// session is live. Asking for segment 0 here (as this once did) makes every
@@ -187,7 +187,7 @@ func (h *audioServe) serveInitFile(w http.ResponseWriter, r *http.Request, media
 	http.ServeFile(w, r, path)
 }
 
-func (h *audioServe) serveSegmentFile(w http.ResponseWriter, r *http.Request, mediaID string, trackIdx, segIdx int) {
+func (h *audioServe) serveSegmentFile(w http.ResponseWriter, r *http.Request, mediaID string, trackIdx, segIdx int, videoCompositionDelay float64) {
 	if !h.audioRenditionEnabled() && !wasmAudioRequested(r) {
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return
@@ -206,7 +206,7 @@ func (h *audioServe) serveSegmentFile(w http.ResponseWriter, r *http.Request, me
 		return
 	}
 
-	fp := h.buildAudioFingerprint(r, mediaID, item, trackIdx)
+	fp := h.buildAudioFingerprint(r, mediaID, item, trackIdx, videoCompositionDelay)
 
 	waitCtx, cancel := context.WithTimeout(r.Context(), h.segmentWaitTimeout)
 	defer cancel()
@@ -264,7 +264,7 @@ func (h *audioServe) serveSegmentFile(w http.ResponseWriter, r *http.Request, me
 // TODO(audio-rendition): wire MakePlaybackDecisionWithPrefs result for the
 // audio-only path so passthrough is chosen when the source codec is AC-3 /
 // E-AC-3 and the client advertises support.
-func (h *audioServe) buildAudioFingerprint(r *http.Request, mediaID string, item *domainlibrary.MediaItem, trackIdx int) apptranscoding.AudioFingerprint {
+func (h *audioServe) buildAudioFingerprint(r *http.Request, mediaID string, item *domainlibrary.MediaItem, trackIdx int, videoCompositionDelay float64) apptranscoding.AudioFingerprint {
 	// wasm-audio passthrough (realises the TODO above): a Chrome/Firefox-class
 	// client that runs the ac3go wasm decoder asks (?wasmAudio=1) for the source
 	// AC-3/E-AC-3 served VERBATIM instead of re-encoded to AAC. AudioCodec="copy"
@@ -283,6 +283,9 @@ func (h *audioServe) buildAudioFingerprint(r *http.Request, mediaID string, item
 				SourcePath:     item.File.Path,
 				SourceTrackIdx: trackIdx,
 				AudioCodec:     "copy",
+				// The shift is the video MUXER's, not the codec's: a passthrough
+				// rendition rides the same timeline as an AAC one.
+				VideoCompositionDelay: videoCompositionDelay,
 				// A stream copy takes no bitrate/channel/normalize input - they are
 				// left zero so the arg builder emits a pure passthrough and the hash
 				// stays stable.
@@ -299,6 +302,9 @@ func (h *audioServe) buildAudioFingerprint(r *http.Request, mediaID string, item
 		AudioNormalize:    h.audioNormalizeGetter != nil && h.audioNormalizeGetter(r.Context()),
 		MaxAudioChannels:  h.sourceAudioChannels(r.Context(), mediaID, trackIdx),
 		SourceDurationSec: durationSec,
+		// Non-zero only when the video is packaged by the ffmpeg copy fallback
+		// instead of mkvgo - see transcode_audio_sync.go.
+		VideoCompositionDelay: videoCompositionDelay,
 	}
 }
 

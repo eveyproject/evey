@@ -309,6 +309,13 @@ type HTTPServer struct {
 	// audio normalize getter (closure capturing serverCfgRepo)
 	AudioNormalizeGetter func(ctx context.Context) bool
 
+	// VideoCompositionDelayProbe reports how late a source's video is presented
+	// once packaged as MP4 (has_b_frames/fps). The audio-rendition path shifts
+	// its output by this when the video is packaged by the ffmpeg copy fallback
+	// rather than mkvgo, or the audio runs audibly early. Injected because this
+	// package must not depend on the ffmpeg adapter. nil = no compensation.
+	VideoCompositionDelayProbe func(ctx context.Context, path string) float64
+
 	// User stream/bitrate adapters
 	UserMaxStreams UserMaxStreamsGetter
 	UserBitrate    UserBitrateGetter
@@ -648,11 +655,11 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 			go func() {
 				defer func() {
 					if r := recover(); r != nil {
-						slog.Error("panic in RefreshAllTranslations goroutine", slog.Any("recover", r))
+						slog.ErrorContext(s.ServerCtx, "panic in RefreshAllTranslations goroutine", slog.Any("recover", r))
 					}
 				}()
 				if err := s.MetadataCmdSvc.RefreshAllTranslations(s.ServerCtx, nil); err != nil {
-					slog.Error("refresh all translations", slog.Any("err", err))
+					slog.ErrorContext(s.ServerCtx, "refresh all translations", slog.Any("err", err))
 				} else {
 					slog.Info("refresh all translations complete")
 				}

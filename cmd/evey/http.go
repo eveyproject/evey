@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/evey-project/evey/internal/adapters/driven/ffmpeg"
 	"log/slog"
 	"net/http"
 	"runtime/debug"
@@ -195,19 +196,24 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		PasswordResetRL:    passwordResetRL,
 		OIDCLoginRL:        oidcLoginRL,
 
-		Translator:             deps.translator,
-		AudioNormalizeGetter:   audioNormalizeGetter,
-		UserMaxStreams:         httpapi.NewUserMaxStreamsAdapter(deps.repos.userRepo),
-		UserBitrate:            httpapi.NewUserBitrateAdapter(deps.user.querySvc),
-		ProfilePrefs:           httpapi.NewProfilePrefsAdapter(deps.user.querySvc),
-		FrameExtractor:         deps.frameExtractor,
-		CopySeekProber:         deps.copySeekProber,
-		OnDemandPackager:       deps.onDemandPackager,
-		PlaybackActivity:       deps.playbackActivity,
-		OnDemandConcatPackager: deps.onDemandConcatPackager,
-		HLSAESSecret:           deps.hlsAESSecret,
-		IntroDetector:          deps.library.introDetectionSvc,
-		StreamMeter:            deps.engagement.streamMeter,
+		Translator:           deps.translator,
+		AudioNormalizeGetter: audioNormalizeGetter,
+		// Audio renditions ride the video's timeline. mkvgo presents at 0, the
+		// ffmpeg copy fallback presents late by has_b_frames/fps - the HTTP layer
+		// asks this probe how much to shift by. Best-effort: it returns 0 on any
+		// failure, which is the uncompensated behaviour.
+		VideoCompositionDelayProbe: ffmpeg.BundledVideoCompositionDelaySec,
+		UserMaxStreams:             httpapi.NewUserMaxStreamsAdapter(deps.repos.userRepo),
+		UserBitrate:                httpapi.NewUserBitrateAdapter(deps.user.querySvc),
+		ProfilePrefs:               httpapi.NewProfilePrefsAdapter(deps.user.querySvc),
+		FrameExtractor:             deps.frameExtractor,
+		CopySeekProber:             deps.copySeekProber,
+		OnDemandPackager:           deps.onDemandPackager,
+		PlaybackActivity:           deps.playbackActivity,
+		OnDemandConcatPackager:     deps.onDemandConcatPackager,
+		HLSAESSecret:               deps.hlsAESSecret,
+		IntroDetector:              deps.library.introDetectionSvc,
+		StreamMeter:                deps.engagement.streamMeter,
 	}
 
 	srv.RegisterRoutes(mux, gwMux)

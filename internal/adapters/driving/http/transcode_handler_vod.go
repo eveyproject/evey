@@ -34,6 +34,12 @@ type hlsVODServe struct {
 	audioNormalizeGetter func(ctx context.Context) bool
 	userMaxStreams       UserMaxStreamsGetter
 
+	// compositionDelayProbe measures how late a source's video is presented
+	// once packaged as MP4 (has_b_frames/fps). Injected so this adapter keeps
+	// no ffprobe dependency of its own. nil = no compensation, the pre-fix
+	// behaviour. See transcode_audio_sync.go for what it is used for.
+	compositionDelayProbe func(ctx context.Context, path string) float64
+
 	manifestGen *apptranscoding.ManifestGenerator
 	cache       *apptranscoding.SegmentCache
 
@@ -331,9 +337,9 @@ func (h *hlsVODServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	case vodSegmentNameRE.MatchString(file):
 		h.serveSegment(w, r, mediaID, file, item, streams, span)
 	case audioPlaylistNameRE.MatchString(file):
-		h.dispatchAudioPlaylist(w, r, mediaID, file, span)
+		h.dispatchAudioPlaylist(w, r, mediaID, file, item, streams, span)
 	case audioSegmentNameRE.MatchString(file):
-		h.dispatchAudioSegment(w, r, mediaID, file, span)
+		h.dispatchAudioSegment(w, r, mediaID, file, item, streams, span)
 	default:
 		span.SetStatus(codes.Error, "unknown hls path")
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
@@ -347,7 +353,7 @@ func (h *hlsVODServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 // route - Go 1.22+ ServeMux refuses wildcards that don't cover a whole
 // path segment - and we don't want to either, because the URLs the manifest
 // emits are *relative* to /hls/master.m3u8 and thus resolve into /hls/{file}.
-func (h *hlsVODServe) dispatchAudioPlaylist(w http.ResponseWriter, r *http.Request, mediaID, file string, span trace.Span) {
+func (h *hlsVODServe) dispatchAudioPlaylist(w http.ResponseWriter, r *http.Request, mediaID, file string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, span trace.Span) {
 	if h.audio == nil {
 		span.SetStatus(codes.Error, "audio rendition not wired")
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
@@ -355,10 +361,10 @@ func (h *hlsVODServe) dispatchAudioPlaylist(w http.ResponseWriter, r *http.Reque
 	}
 	m := audioPlaylistNameRE.FindStringSubmatch(file)
 	trackIdx := atoiIndex(m[1])
-	h.audio.servePlaylistFile(w, r, mediaID, trackIdx)
+	h.audio.servePlaylistFile(w, r, mediaID, trackIdx, h.videoCompositionDelaySec(r, mediaID, item, streams))
 }
 
-func (h *hlsVODServe) dispatchAudioSegment(w http.ResponseWriter, r *http.Request, mediaID, file string, span trace.Span) {
+func (h *hlsVODServe) dispatchAudioSegment(w http.ResponseWriter, r *http.Request, mediaID, file string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, span trace.Span) {
 	if h.audio == nil {
 		span.SetStatus(codes.Error, "audio rendition not wired")
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
@@ -368,11 +374,11 @@ func (h *hlsVODServe) dispatchAudioSegment(w http.ResponseWriter, r *http.Reques
 	trackIdx := atoiIndex(m[1])
 	if m[2] == "" {
 		// _init.mp4
-		h.audio.serveInitFile(w, r, mediaID, trackIdx)
+		h.audio.serveInitFile(w, r, mediaID, trackIdx, h.videoCompositionDelaySec(r, mediaID, item, streams))
 		return
 	}
 	segIdx := atoiIndex(m[2])
-	h.audio.serveSegmentFile(w, r, mediaID, trackIdx, segIdx)
+	h.audio.serveSegmentFile(w, r, mediaID, trackIdx, segIdx, h.videoCompositionDelaySec(r, mediaID, item, streams))
 }
 
 // commonAuth runs auth + access + parental and resolves the media item +
@@ -945,7 +951,7 @@ func (h *hlsVODServe) writeManifestErr(ctx context.Context, w http.ResponseWrite
 	var dme *durationMissingError
 	if errors.As(err, &dme) {
 		span.SetStatus(codes.Error, "duration missing")
-		slog.Warn("hls-vod: duration missing",
+		slog.WarnContext(ctx, "hls-vod: duration missing",
 			slog.String("media_id", mediaID))
 		w.Header().Set("Retry-After", "5")
 		http.Error(w, `{"message":"media duration not yet probed, retry"}`, http.StatusServiceUnavailable)

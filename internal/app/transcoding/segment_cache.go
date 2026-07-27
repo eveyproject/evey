@@ -221,6 +221,18 @@ type AudioFingerprint struct {
 	// silence generator it spawns when the audio track proves to end before
 	// this duration (see AudioSegmentOrchestrator's stream-end handling).
 	SourceDurationSec float64
+
+	// VideoCompositionDelay is the seconds the VIDEO's first frame is presented
+	// late for the packaging THIS session's video actually uses: 0 when mkvgo
+	// packages it (it presents at 0), has_b_frames/fps when the video falls back
+	// to ffmpeg `-c:v copy` in fMP4 (MP4 forbids a negative DTS). The audio
+	// rendition is its own stream starting at 0, so without this shift it runs
+	// EARLY by exactly that much - audible past ~45 ms.
+	//
+	// HASHED, unlike SourceDurationSec above: the shift moves the OUTPUT
+	// timestamps, so shifted and unshifted segments are different bytes and must
+	// never alias in the cache.
+	VideoCompositionDelay float64
 }
 
 // Hash returns the canonical 64-bit hex fingerprint for an audio rendition.
@@ -237,6 +249,9 @@ func (a AudioFingerprint) Hash() string {
 	fmt.Fprintf(&b, "abitrate=%d\n", a.AudioBitrate)
 	fmt.Fprintf(&b, "anorm=%t\n", a.AudioNormalize)
 	fmt.Fprintf(&b, "ach=%d\n", a.MaxAudioChannels)
+	// Milliseconds, not the raw float: the probe is quantised to the frame
+	// anyway, and a %f of a float64 would fork the cache on rounding noise.
+	fmt.Fprintf(&b, "vcd=%d\n", int64(a.VideoCompositionDelay*1000+0.5))
 	sum := sha256.Sum256([]byte(b.String()))
 	return hex.EncodeToString(sum[:])[:16]
 }

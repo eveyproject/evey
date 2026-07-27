@@ -310,6 +310,10 @@ func (o *AudioSegmentOrchestrator) spawnSessionLocked(fp AudioFingerprint, audio
 		// core per client on start/seek. See audioRenditionReadRate.
 		ReadRate:           audioRenditionReadRate,
 		SilenceDurationSec: silenceDur,
+		// Land on the video's timeline. Non-zero only when the video is packaged
+		// by the ffmpeg copy fallback rather than mkvgo; the fingerprint carries
+		// it (and hashes it) so a session and its cache entry always agree.
+		VideoCompositionDelay: fp.VideoCompositionDelay,
 	}
 	if silenceDur > 0 {
 		// Encoding a few minutes of silence is trivial - no pacing.

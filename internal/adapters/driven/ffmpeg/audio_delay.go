@@ -225,6 +225,13 @@ var videoCompositionDelayCache sync.Map
 //
 // Best-effort: any probe failure returns 0 (no shift), which is the pre-feature
 // behaviour - a rendition must never fail to start because a probe did.
+// BundledVideoCompositionDelaySec is VideoCompositionDelaySec against the
+// bundled ffprobe. It exists so callers that only know a path (the HTTP audio
+// rendition wiring) do not have to name the binary themselves.
+func BundledVideoCompositionDelaySec(ctx context.Context, filePath string) float64 {
+	return VideoCompositionDelaySec(ctx, audioDelayProbeBinary, filePath)
+}
+
 func VideoCompositionDelaySec(ctx context.Context, ffprobeBinary, filePath string) float64 {
 	fi, err := os.Stat(filePath)
 	if err != nil {
