@@ -20,6 +20,12 @@ import {
 } from "@evey/api";
 import { toast } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
+import {
+  type ConfigFieldSchema,
+  normaliseOptions,
+  validateConfigField,
+  parseEscalationEntries,
+} from "../../../src/components/admin/plugins/pluginConfigUtils";
 
 type Theme = ReturnType<typeof useTheme>;
 
@@ -49,20 +55,6 @@ interface Plugin {
   sourceHash?: string;
   errorMessage?: string;
   analysisReport?: PluginAnalysisReport;
-}
-
-// parseEscalationEntries pulls "permission:network, capability:foo, ..." out
-// of the gRPC error message produced by checkPermissionEscalation server-side
-// (mirrors apps/web/src/routes/_auth/admin/plugins.lazy.tsx).
-function parseEscalationEntries(msg: string): string[] {
-  const marker = "new entries requested: ";
-  const idx = msg.indexOf(marker);
-  if (idx < 0) return [];
-  return msg
-    .slice(idx + marker.length)
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
 }
 
 const STATE_LABEL_KEYS: Record<string, string> = {
@@ -111,37 +103,6 @@ function StatusBadge({ label, color }: { label: string; color: string }) {
 }
 
 // --- Per-plugin configuration panel, driven by configSchemaJson --------
-
-interface ConfigFieldSchema {
-  type?: string;
-  label?: string;
-  description?: string;
-  default?: unknown;
-  required?: boolean;
-  options?: Array<string | { value: string; label?: string }>;
-  min?: number;
-  max?: number;
-}
-
-function normaliseOptions(opts: ConfigFieldSchema["options"]): Array<{ value: string; label: string }> {
-  return (opts ?? []).map((o) =>
-    typeof o === "string"
-      ? { value: o, label: o }
-      : { value: String(o.value), label: o.label ?? String(o.value) },
-  );
-}
-
-function validateConfigField(key: string, value: string, schema: ConfigFieldSchema): string | undefined {
-  if (schema.required && value.trim() === "") return `${key} est requis`;
-  if ((schema.type === "integer" || schema.type === "number") && value !== "") {
-    const n = Number(value);
-    if (isNaN(n)) return `${key} doit être un nombre`;
-    if (schema.type === "integer" && !Number.isInteger(n)) return `${key} doit être un entier`;
-    if (schema.min !== undefined && n < schema.min) return `${key} doit être >= ${schema.min}`;
-    if (schema.max !== undefined && n > schema.max) return `${key} doit être <= ${schema.max}`;
-  }
-  return undefined;
-}
 
 function SchemaField({
   fieldKey,
