@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"syscall"
 
 	"github.com/evey-project/evey/internal/domain/plugin"
@@ -31,7 +32,11 @@ func (r *Runner) applySandbox(parentCtx context.Context, p *plugin.Plugin, cmd *
 	case sandboxModeBubblewrap, sandboxModeStrict:
 		return r.applyBwrapSandbox(parentCtx, p, cmd, mode)
 	case sandboxModeLandlock:
-		return r.applyLandlockSandbox(parentCtx, p, cmd)
+		cleanup, err := r.applyLandlockSandbox(parentCtx, p, cmd)
+		if err == nil {
+			r.injectLauncherRlimits(cmd)
+		}
+		return cleanup, err
 	default:
 		return nil, r.applyBasicSandbox(parentCtx, p, cmd)
 	}
@@ -73,6 +78,7 @@ func (r *Runner) applyBasicSandbox(parentCtx context.Context, p *plugin.Plugin, 
 		cmd.Path = launcher
 		du, dg := r.pluginDropArgs(true)                              // basic = the case uid-sep protects ("auto" enables here)
 		cmd.Args = buildLauncherArgv(launcher, p, cmd, false, du, dg) // best-effort Landlock
+		r.injectLauncherRlimits(cmd)
 		cmd.Env = overrideEnv(cmd.Env, map[string]string{"HOME": pluginDir, "TMPDIR": pluginDir})
 		launcherApplied = true
 	} else {
@@ -180,6 +186,38 @@ func (r *Runner) applyBwrapSandbox(parentCtx context.Context, p *plugin.Plugin, 
 	// was retired when direct plugin egress was cut in favour of the broker);
 	// the cleanup contract is kept nil-safe for callers and future use.
 	return nil, nil
+}
+
+// injectLauncherRlimits splices evey-plugin-launcher's own -rlimit-as/
+// -rlimit-nproc flags into an already-built launcher argv (landlock mode, or
+// basic mode when the launcher is available). The launcher applies these via
+// unix.Setrlimit on itself right before its own execve of the plugin
+// (cmd/evey-plugin-launcher/landlock_linux.go), so the kernel-hard ceiling
+// survives into the plugin process with zero extra exec hops. That matters:
+// Go's os/exec has no SysProcAttr hook to set rlimits on a child directly, and
+// wrapping the target in a "sh -c 'ulimit ...; exec ...'" shim would add an
+// execve the seccomp/LD_PRELOAD denylist installed for non-"subprocess"
+// plugins would itself block (sandbox/sandbox.c denies execve/execveat).
+// Reuses the SAME memory/PID caps the resource monitor already enforces
+// post-hoc (r.limitsSnapshot) - one source of truth, so the hard kernel cap
+// and the userspace sweep never disagree.
+//
+// Bubblewrap (plain and "strict") and the basic mode's LD_PRELOAD-only
+// fallback (launcher absent) are NOT covered here: bwrap has no native rlimit
+// option, and the same execve-denylist conflict rules out a shell shim there
+// too. That gap is a known follow-up, not silently swallowed.
+func (r *Runner) injectLauncherRlimits(cmd *exec.Cmd) {
+	idx := slices.Index(cmd.Args, "--")
+	if idx < 0 {
+		return // defensive: buildLauncherArgv always appends "--"
+	}
+	lim, _, _ := r.limitsSnapshot()
+	cfg := lim.defaults()
+	flags := []string{
+		"-rlimit-as", strconv.FormatInt(cfg.memBytes, 10),
+		"-rlimit-nproc", strconv.Itoa(cfg.pidsMax),
+	}
+	cmd.Args = slices.Insert(cmd.Args, idx, flags...)
 }
 
 func pluginSysProcAttr() *syscall.SysProcAttr {
