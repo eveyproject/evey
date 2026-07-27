@@ -4,6 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../../providers/ThemeProvider";
 import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
+import { formatOffsetMs, stepOffsetMs } from "./audioSync";
 
 export interface AudioStream {
   index: number;
@@ -41,7 +42,70 @@ interface PlayerSettingsPanelProps {
   brightness: number;
   onBrightnessChange: (value: number) => void;
   onClose: () => void;
+  // Audio resync (lip-sync): optional - a caller that doesn't pass
+  // onAudioOffsetChange gets no offset row, same convention as the web panel.
+  audioOffsetMs?: number;
+  onAudioOffsetChange?: (ms: number) => void;
+  // Only meaningful during transcoded playback - the server re-encodes the
+  // audio with a shifted input, which direct play has no re-encode step for.
+  audioOffsetAvailable?: boolean;
   style?: StyleProp<ViewStyle>;
+}
+
+// Shared +/- control for a millisecond resync value: hold-free discrete
+// steps, clamped by the caller's onChange, with a quick reset to zero. Mirrors
+// the web's OffsetStepper (PlayerSettingsPanel.tsx:130-187 on the web app).
+function OffsetStepper({ label, valueMs, onChange, disabled, hint }: {
+  label: string;
+  valueMs: number;
+  onChange: (ms: number) => void;
+  disabled?: boolean;
+  hint?: string;
+}) {
+  const theme = useTheme();
+  return (
+    <View style={offsetStyles.block}>
+      <View style={offsetStyles.header}>
+        <Text style={[offsetStyles.label, { color: theme.colors.textMuted }]}>{label}</Text>
+        <Text style={[offsetStyles.value, { color: valueMs !== 0 ? theme.colors.accent : theme.colors.textMuted }]}>
+          {formatOffsetMs(valueMs)}
+        </Text>
+      </View>
+      <View style={offsetStyles.row}>
+        <Pressable
+          onPress={() => onChange(stepOffsetMs(valueMs, -1))}
+          disabled={disabled}
+          style={[offsetStyles.btn, { backgroundColor: theme.colors.surfaceRaised, opacity: disabled ? 0.4 : 1 }]}
+          accessible={true}
+          accessibilityLabel={`${label} -`}
+          accessibilityRole="button"
+        >
+          <Text style={[offsetStyles.btnText, { color: theme.colors.text }]}>-</Text>
+        </Pressable>
+        <Pressable
+          onPress={() => onChange(0)}
+          disabled={disabled || valueMs === 0}
+          style={[offsetStyles.resetBtn, { opacity: disabled || valueMs === 0 ? 0.4 : 1 }]}
+          accessible={true}
+          accessibilityLabel={`${label} 0`}
+          accessibilityRole="button"
+        >
+          <Text style={[offsetStyles.resetText, { color: theme.colors.textMuted }]}>0</Text>
+        </Pressable>
+        <Pressable
+          onPress={() => onChange(stepOffsetMs(valueMs, 1))}
+          disabled={disabled}
+          style={[offsetStyles.btn, { backgroundColor: theme.colors.surfaceRaised, opacity: disabled ? 0.4 : 1 }]}
+          accessible={true}
+          accessibilityLabel={`${label} +`}
+          accessibilityRole="button"
+        >
+          <Text style={[offsetStyles.btnText, { color: theme.colors.text }]}>+</Text>
+        </Pressable>
+      </View>
+      {hint && <Text style={[offsetStyles.hint, { color: theme.colors.textMuted }]}>{hint}</Text>}
+    </View>
+  );
 }
 
 function useQualityOptions() {
@@ -117,6 +181,9 @@ export function PlayerSettingsPanel({
   brightness,
   onBrightnessChange,
   onClose,
+  audioOffsetMs = 0,
+  onAudioOffsetChange,
+  audioOffsetAvailable = true,
   style,
 }: PlayerSettingsPanelProps) {
   const { t } = useTranslation();
@@ -272,6 +339,18 @@ export function PlayerSettingsPanel({
         {menu === "audio" && (
           <>
             <SubMenuHeader label={t("player.settings.audio")} />
+            {onAudioOffsetChange && (
+              <>
+                <OffsetStepper
+                  label={t("player.settings.audioSync")}
+                  valueMs={audioOffsetMs}
+                  onChange={onAudioOffsetChange}
+                  disabled={!audioOffsetAvailable}
+                  hint={audioOffsetAvailable ? t("player.settings.audioSyncHint") : t("player.settings.audioSyncUnavailable")}
+                />
+                <Divider />
+              </>
+            )}
             {audioStreams.map((s) => {
               const label = s.title ?? s.language ?? t("media.track", { number: s.index });
               return (
@@ -326,6 +405,55 @@ export function PlayerSettingsPanel({
     </View>
   );
 }
+
+const offsetStyles = StyleSheet.create({
+  block: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 6,
+  },
+  label: {
+    fontSize: FONT_SIZE.xs,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 1,
+  },
+  value: {
+    fontSize: FONT_SIZE.xs,
+    fontVariant: ["tabular-nums"],
+  },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  btn: {
+    flex: 1,
+    paddingVertical: 6,
+    borderRadius: 6,
+    alignItems: "center",
+  },
+  btnText: {
+    fontSize: FONT_SIZE.sm,
+  },
+  resetBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  resetText: {
+    fontSize: FONT_SIZE.xs,
+  },
+  hint: {
+    marginTop: 4,
+    fontSize: FONT_SIZE.xs,
+    lineHeight: 15,
+  },
+});
 
 const sliderStyles = StyleSheet.create({
   touch: {

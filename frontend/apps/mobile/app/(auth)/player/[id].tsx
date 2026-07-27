@@ -51,6 +51,7 @@ import { NextEpisodeOverlay } from "../../../src/components/player/NextEpisodeOv
 import { PlayerSeekBar } from "../../../src/components/player/PlayerSeekBar";
 import { PlayerControlsRow } from "../../../src/components/player/PlayerControlsRow";
 import { PlayerTopRightCluster } from "../../../src/components/player/PlayerTopRightCluster";
+import { withAudioOffsetParam } from "../../../src/components/player/audioSync";
 import {
   PlayerSettingsPanel,
   type AudioStream,
@@ -181,6 +182,15 @@ export default function PlayerScreen() {
   const [selectedSubtitleIndex, setSelectedSubtitleIndex] = useState<number | null>(null);
   const [selectedQuality, setSelectedQuality] = useState(0);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  // Audio resync (lip-sync). Mirrors the web player: audioOffsetMs is the
+  // raw value the stepper shows, appliedAudioOffsetMs is what's baked into
+  // the stream URL - debounced so a burst of taps coalesces into one restart
+  // of the native player (see the debounce effect below, next to `player`).
+  const [audioOffsetMs, setAudioOffsetMs] = useState(0);
+  const [appliedAudioOffsetMs, setAppliedAudioOffsetMs] = useState(0);
+  // Only transcoded playback can re-encode the audio with a shifted input -
+  // direct play serves the original file bytes untouched.
+  const audioOffsetAvailable = !!streamInfo && streamInfo.playMethod !== "PLAY_METHOD_DIRECT_PLAY";
 
   const audioStreams: AudioStream[] = useMemo(
     () =>
@@ -248,6 +258,9 @@ export default function PlayerScreen() {
     // (auto-next-episode or a new navigation reuse this screen).
     setActiveSheet(null);
     setSettingsOpen(false);
+    // A resync dialed in for the previous title means nothing on the next one.
+    setAudioOffsetMs(0);
+    setAppliedAudioOffsetMs(0);
   }, [mediaId]);
   // Whether the NEXT player instance should start playing. Changing tracks or
   // quality recreates the native player, whose setup used to call play()
@@ -255,6 +268,14 @@ export default function PlayerScreen() {
   // change. Handlers snapshot the playing state right before restarting;
   // defaults to true so first entry (and next-episode remounts) autoplay.
   const resumeAfterRestartRef = useRef(true);
+  // Mirrors currentTime without going through React state - read by the
+  // audio-offset debounce below so it can snapshot the playhead without
+  // re-firing that effect on every timeUpdate tick (currentTime changes ~2x/s).
+  const currentTimeRef = useRef(0);
+  // Set right before an audio-offset restart to the pre-restart playhead, so
+  // the next player instance's setup callback resumes there instead of at the
+  // stale server-reported watch progress (see the `player` useVideoPlayer call).
+  const audioOffsetResumeRef = useRef<number | null>(null);
   // While the user scrubs the timeline, freeze the live timeUpdate: otherwise it
   // overwrites the scrubbed position ~4×/s and the thumb jumps between the finger
   // and the real playback position (the "wobbly" seek).
@@ -285,8 +306,13 @@ export default function PlayerScreen() {
     }
     if (!streamUrl) return null;
     const isHls = streamUrl.includes("m3u8");
+    // Audio resync: baked into the manifest URL like the web's
+    // buildTranscodeHlsUrl (see audioSync.ts) - the server re-encodes the
+    // audio with a shifted input on the very next fetch of this source, no
+    // separate restart-session call needed.
+    const uri = audioOffsetAvailable ? withAudioOffsetParam(streamUrl, appliedAudioOffsetMs) : streamUrl;
     return {
-      uri: streamUrl,
+      uri,
       ...(isHls ? { contentType: "hls" as const } : {}),
       // Also send the opaque stream token as a Bearer header: the server accepts
       // cookie/Bearer/query, so if the native player forwards the source headers
@@ -295,7 +321,7 @@ export default function PlayerScreen() {
       // headers on the manifest's relative segment/redirect fetches).
       ...(streamToken ? { headers: { Authorization: `Bearer ${streamToken}` } } : {}),
     };
-  }, [streamUrl, streamToken, localFilePath]);
+  }, [streamUrl, streamToken, localFilePath, audioOffsetAvailable, appliedAudioOffsetMs]);
 
   const resumePositionSec = useMemo(() => {
     if (!progress?.positionMs || progress.played) return 0;
@@ -305,7 +331,14 @@ export default function PlayerScreen() {
 
   const player = useVideoPlayer(videoSource, (p) => {
     p.timeUpdateEventInterval = 0.5;
-    if (resumePositionSec > 0) {
+    // An audio-offset restart takes priority: it always has a live playhead to
+    // resume at, whereas resumePositionSec can be a stale server-reported
+    // progress (see audioOffsetResumeRef's declaration above).
+    const offsetResumeSec = audioOffsetResumeRef.current;
+    if (offsetResumeSec !== null) {
+      p.currentTime = offsetResumeSec;
+      audioOffsetResumeRef.current = null;
+    } else if (resumePositionSec > 0) {
       p.currentTime = resumePositionSec;
     }
     if (resumeAfterRestartRef.current) p.play();
@@ -313,12 +346,30 @@ export default function PlayerScreen() {
 
   useEffect(() => { syncPlayRef.current = { player }; }, [player]);
 
+  // Debounced audio-offset restart: coalesces a burst of stepper taps into
+  // ONE reload of the native player, matching the web's 1200ms debounce
+  // (HLSPlayer.tsx). Reads player/currentTime via refs, not effect deps -
+  // including them would restart this timer on every timeUpdate tick (~2/s)
+  // and the debounce would never fire.
+  useEffect(() => {
+    if (!audioOffsetAvailable) return;
+    if (audioOffsetMs === appliedAudioOffsetMs) return;
+    const id = setTimeout(() => {
+      resumeAfterRestartRef.current = player?.playing ?? true;
+      audioOffsetResumeRef.current = currentTimeRef.current;
+      setAppliedAudioOffsetMs(audioOffsetMs);
+    }, 1200);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [audioOffsetMs, appliedAudioOffsetMs, audioOffsetAvailable]);
+
   useEffect(() => {
     if (!player) return;
     const timeSub = player.addListener("timeUpdate", (ev) => {
       if (!mountedRef.current) return;
       if (seekingRef.current) return; // frozen while scrubbing - see seekingRef
       setCurrentTime(ev.currentTime);
+      currentTimeRef.current = ev.currentTime;
       try { setDuration(player.duration); } catch (err) { console.warn("released", err); }
     });
     const statusSub = player.addListener("statusChange", (ev) => {
@@ -976,6 +1027,9 @@ export default function PlayerScreen() {
                 onSpeedChange={handleSpeedSelect}
                 brightness={brightness}
                 onBrightnessChange={handleBrightnessChange}
+                audioOffsetMs={audioOffsetMs}
+                onAudioOffsetChange={setAudioOffsetMs}
+                audioOffsetAvailable={audioOffsetAvailable}
                 onClose={() => setSettingsOpen(false)}
                 style={{
                   position: "absolute",
