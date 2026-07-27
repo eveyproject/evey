@@ -44,14 +44,14 @@ func introDetectionHandler(tokenGen TokenVerifier, svc IntroDetectionTrigger, li
 		if r.URL.Query().Get("dry_run") == "true" {
 			segs, err := svc.DetectIntroDryRun(r.Context(), mediaID)
 			if err != nil {
-				slog.Warn("intro detection dry-run failed",
+				slog.WarnContext(ctx, "intro detection dry-run failed",
 					slog.String("media_id", mediaID), slog.Any("err", err))
 				http.Error(w, `{"message":"detection failed"}`, http.StatusInternalServerError)
 				return
 			}
 			w.Header().Set("Content-Type", "application/json")
 			if encErr := json.NewEncoder(w).Encode(segs); encErr != nil {
-				slog.Warn("intro detection dry-run encode failed",
+				slog.WarnContext(ctx, "intro detection dry-run encode failed",
 					slog.String("media_id", mediaID), slog.Any("err", encErr))
 			}
 			return
@@ -62,7 +62,7 @@ func introDetectionHandler(tokenGen TokenVerifier, svc IntroDetectionTrigger, li
 		go func() {
 			defer func() {
 				if rec := recover(); rec != nil {
-					slog.Error("panic in intro detection goroutine",
+					slog.ErrorContext(detached, "panic in intro detection goroutine",
 						slog.String("media_id", mediaID),
 						slog.Any("recover", rec),
 						slog.String("stack", string(debug.Stack())),
@@ -70,7 +70,7 @@ func introDetectionHandler(tokenGen TokenVerifier, svc IntroDetectionTrigger, li
 				}
 			}()
 			if err := svc.DetectIntro(detached, mediaID); err != nil {
-				slog.Warn("intro detection failed",
+				slog.WarnContext(detached, "intro detection failed",
 					slog.String("media_id", mediaID),
 					slog.Any("err", err),
 				)
@@ -108,7 +108,7 @@ func libraryIntroBackfillHandler(tokenGen TokenVerifier, svc IntroDetectionTrigg
 		go func() {
 			defer func() {
 				if rec := recover(); rec != nil {
-					slog.Error("panic in library intro backfill goroutine",
+					slog.ErrorContext(detached, "panic in library intro backfill goroutine",
 						slog.String("library_id", libraryID),
 						slog.Any("recover", rec),
 						slog.String("stack", string(debug.Stack())),
@@ -117,7 +117,7 @@ func libraryIntroBackfillHandler(tokenGen TokenVerifier, svc IntroDetectionTrigg
 			}()
 			n, err := svc.BackfillLibrary(detached, libraryID)
 			if err != nil {
-				slog.Warn("library intro backfill failed",
+				slog.WarnContext(detached, "library intro backfill failed",
 					slog.String("library_id", libraryID), slog.Any("err", err))
 				return
 			}

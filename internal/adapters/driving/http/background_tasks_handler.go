@@ -22,7 +22,7 @@ func registerBackgroundTasksRoute(mux *http.ServeMux, tokenGen TokenVerifier) {
 		defer span.End()
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(bgtasks.Snapshot()); err != nil {
-			slog.Warn("background-tasks: encode failed", slog.Any("err", err))
+			slog.WarnContext(r.Context(), "background-tasks: encode failed", slog.Any("err", err))
 		}
 	}))
 }

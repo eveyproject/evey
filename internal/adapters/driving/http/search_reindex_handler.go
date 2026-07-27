@@ -27,12 +27,12 @@ func searchReindexHandler(svc SearchReindexer, serverCtx context.Context) http.H
 		go func() {
 			defer func() {
 				if rec := recover(); rec != nil {
-					slog.Error("recovered panic in search reindex", slog.Any("error", rec))
+					slog.ErrorContext(serverCtx, "recovered panic in search reindex", slog.Any("error", rec))
 				}
 			}()
 			n, err := svc.ReindexSearch(serverCtx, libraryID, nil)
 			if err != nil {
-				slog.Error("search reindex failed", slog.String("library_id", libraryID), slog.Any("err", err))
+				slog.ErrorContext(serverCtx, "search reindex failed", slog.String("library_id", libraryID), slog.Any("err", err))
 				return
 			}
 			slog.Info("search reindex finished", slog.Int("indexed", n), slog.String("library_id", libraryID))
@@ -40,7 +40,7 @@ func searchReindexHandler(svc SearchReindexer, serverCtx context.Context) http.H
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusAccepted)
 		if _, err := w.Write([]byte(`{"message":"search reindex started"}`)); err != nil {
-			slog.Warn("search reindex: write response", slog.Any("err", err))
+			slog.WarnContext(r.Context(), "search reindex: write response", slog.Any("err", err))
 		}
 	}
 }

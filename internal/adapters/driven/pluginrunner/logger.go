@@ -175,7 +175,7 @@ func (l *PluginLogger) StartCleanup(ctx context.Context, lister PluginLister) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				slog.Error("panic recovered in plugin log cleanup", "error", r, "stack", string(debug.Stack()))
+				slog.ErrorContext(ctx, "panic recovered in plugin log cleanup", "error", r, "stack", string(debug.Stack()))
 			}
 		}()
 		// Run once at startup
@@ -244,7 +244,7 @@ func extractDateFromFilename(name string) (time.Time, bool) {
 func (l *PluginLogger) cleanOrphanLogs(ctx context.Context, lister PluginLister) {
 	ids, err := lister.ListIDs(ctx)
 	if err != nil {
-		slog.Warn("plugin logger: list plugins for cleanup", slog.Any("err", err))
+		slog.WarnContext(ctx, "plugin logger: list plugins for cleanup", slog.Any("err", err))
 		return
 	}
 

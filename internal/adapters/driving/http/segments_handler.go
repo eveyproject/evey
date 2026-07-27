@@ -96,7 +96,7 @@ func segmentsHandler(svc SegmentsGetter, baseURL string, libraryAccess LibraryAc
 		w.Header().Set("Content-Type", "application/json")
 		setCORSHeaders(w, r, baseURL)
 		if err := json.NewEncoder(w).Encode(map[string]any{"segments": out}); err != nil {
-			slog.Warn("json encode failed", slog.Any("err", err))
+			slog.WarnContext(r.Context(), "json encode failed", slog.Any("err", err))
 		}
 	}
 }

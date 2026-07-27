@@ -116,7 +116,7 @@ func (r *Runner) Start(parentCtx context.Context, p *plugin.Plugin) error {
 	// read-only plugin dir must not block the start.
 	if r.sdkStubs != nil && p.InstallDir != "" {
 		if cpErr := r.sdkStubs.CopySDKStubs(p.Language, p.InstallDir); cpErr != nil {
-			slog.Warn("refresh SDK stubs", slog.String("pluginID", p.ID), slog.Any("err", cpErr))
+			slog.WarnContext(parentCtx, "refresh SDK stubs", slog.String("pluginID", p.ID), slog.Any("err", cpErr))
 		}
 	}
 
@@ -442,7 +442,7 @@ func classifyExitError(err error) string {
 func (r *Runner) connectIPC(parentCtx context.Context, entry *processEntry, p *plugin.Plugin) {
 	defer func() {
 		if rv := recover(); rv != nil {
-			slog.Error("panic in connectIPC", slog.Any("recover", rv), slog.String("plugin", p.ID))
+			slog.ErrorContext(parentCtx, "panic in connectIPC", slog.Any("recover", rv), slog.String("plugin", p.ID))
 		}
 	}()
 	client, err := newIPCClient(entry.sockPath, entry.done)
@@ -458,7 +458,7 @@ func (r *Runner) connectIPC(parentCtx context.Context, entry *processEntry, p *p
 		if cr := entry.getCrashReason(); cr != "" {
 			err = fmt.Errorf("plugin exited before becoming ready: %s", cr)
 		}
-		slog.Warn("plugin IPC connect failed", slog.String("pluginID", p.ID), slog.Any("err", err))
+		slog.WarnContext(parentCtx, "plugin IPC connect failed", slog.String("pluginID", p.ID), slog.Any("err", err))
 		if r.onIPCResult != nil {
 			r.onIPCResult(p.ID, err)
 		}
@@ -477,7 +477,7 @@ func (r *Runner) connectIPC(parentCtx context.Context, entry *processEntry, p *p
 	initCtx, cancel := context.WithTimeout(parentCtx, ipcCallTimeout)
 	defer cancel()
 	if initErr := client.Initialize(initCtx, p.ID, cfgMap, hostVersion); initErr != nil {
-		slog.Warn("plugin Initialize failed", slog.String("pluginID", p.ID), slog.Any("err", initErr))
+		slog.WarnContext(parentCtx, "plugin Initialize failed", slog.String("pluginID", p.ID), slog.Any("err", initErr))
 		if r.onIPCResult != nil {
 			r.onIPCResult(p.ID, initErr)
 		}

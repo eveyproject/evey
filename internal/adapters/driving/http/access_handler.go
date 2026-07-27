@@ -96,7 +96,7 @@ func registerRemoteAccessRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen
 		if store != nil {
 			if data, err := json.Marshal(snapshot); err == nil {
 				if err2 := store.Set(r.Context(), remoteAccessConfigKey, string(data)); err2 != nil {
-					slog.Warn("remote-access: persist config failed", slog.Any("err", err2))
+					slog.WarnContext(ctx, "remote-access: persist config failed", slog.Any("err", err2))
 				}
 			}
 		}
@@ -115,7 +115,7 @@ func registerRemoteAccessRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen
 		}
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(map[string]any{"interfaces": ifaces}); err != nil {
-			slog.Warn("json encode failed", slog.Any("err", err))
+			slog.WarnContext(r.Context(), "json encode failed", slog.Any("err", err))
 		}
 	}))
 }
@@ -137,7 +137,7 @@ func registerPlaybackSettingsRoutes(mux *http.ServeMux, cfg *config.Config, toke
 			"skipForwardSeconds":  fwd,
 			"skipBackwardSeconds": bwd,
 		}); err != nil {
-			slog.Warn("json encode failed", slog.Any("err", err))
+			slog.WarnContext(r.Context(), "json encode failed", slog.Any("err", err))
 		}
 	}))
 
@@ -171,7 +171,7 @@ func registerPlaybackSettingsRoutes(mux *http.ServeMux, cfg *config.Config, toke
 			"skipForwardSeconds":  fwd,
 			"skipBackwardSeconds": bwd,
 		}); err != nil {
-			slog.Warn("json encode failed", slog.Any("err", err))
+			slog.WarnContext(ctx, "json encode failed", slog.Any("err", err))
 		}
 	})))
 }

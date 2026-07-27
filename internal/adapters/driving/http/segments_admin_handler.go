@@ -47,7 +47,7 @@ func setSegmentHandler(tokenGen TokenVerifier, svc IntroDetectionTrigger, librar
 		}
 		if err := svc.SetManualSegment(r.Context(), mediaID, body.Type, body.StartMs, body.EndMs); err != nil {
 			span.RecordError(err)
-			slog.Warn("set manual segment failed", slog.String("media_id", mediaID), slog.Any("err", err))
+			slog.WarnContext(ctx, "set manual segment failed", slog.String("media_id", mediaID), slog.Any("err", err))
 			http.Error(w, `{"message":"`+err.Error()+`"}`, http.StatusBadRequest)
 			return
 		}
@@ -116,7 +116,7 @@ func propagateSegmentHandler(tokenGen TokenVerifier, svc IntroDetectionTrigger, 
 		ids, err := svc.PropagateSegment(r.Context(), mediaID, segType)
 		if err != nil {
 			span.RecordError(err)
-			slog.Warn("propagate failed", slog.String("media_id", mediaID), slog.Any("err", err))
+			slog.WarnContext(ctx, "propagate failed", slog.String("media_id", mediaID), slog.Any("err", err))
 			http.Error(w, `{"message":"`+err.Error()+`"}`, http.StatusInternalServerError)
 			return
 		}
@@ -125,7 +125,7 @@ func propagateSegmentHandler(tokenGen TokenVerifier, svc IntroDetectionTrigger, 
 			"propagatedTo": ids,
 			"count":        len(ids),
 		}); encErr != nil {
-			slog.Warn("encode propagate response", slog.Any("err", encErr))
+			slog.WarnContext(ctx, "encode propagate response", slog.Any("err", encErr))
 		}
 	})
 }

@@ -44,7 +44,7 @@ func registerBackupRoutes(mux *http.ServeMux, svc *appbackup.Service, tokenGen d
 			"tables":    m.Tables,
 			"size":      m.Size,
 		}); encErr != nil {
-			slog.Warn("json encode failed", slog.Any("err", encErr))
+			slog.WarnContext(ctx, "json encode failed", slog.Any("err", encErr))
 		}
 	})))
 
@@ -76,7 +76,7 @@ func registerBackupRoutes(mux *http.ServeMux, svc *appbackup.Service, tokenGen d
 		}
 		w.Header().Set("Content-Type", "application/json")
 		if encErr := json.NewEncoder(w).Encode(map[string]any{"backups": items}); encErr != nil {
-			slog.Warn("json encode failed", slog.Any("err", encErr))
+			slog.WarnContext(ctx, "json encode failed", slog.Any("err", encErr))
 		}
 	}))
 
@@ -97,7 +97,7 @@ func registerBackupRoutes(mux *http.ServeMux, svc *appbackup.Service, tokenGen d
 		w.Header().Set("Content-Type", "application/gzip")
 		w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.tar.gz"`, m.ID))
 		if _, cpErr := io.Copy(w, rc); cpErr != nil {
-			slog.Warn("backup download copy", slog.Any("err", cpErr))
+			slog.WarnContext(ctx, "backup download copy", slog.Any("err", cpErr))
 		}
 	}))
 
@@ -126,7 +126,7 @@ func registerBackupRoutes(mux *http.ServeMux, svc *appbackup.Service, tokenGen d
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, "restore failed")
 			if errors.Is(err, appbackup.ErrInvalidBackup) {
-				slog.Warn("restore backup rejected: invalid or tampered archive", slog.Any("err", err))
+				slog.WarnContext(ctx, "restore backup rejected: invalid or tampered archive", slog.Any("err", err))
 				http.Error(w, `{"message":"backup rejected: invalid or tampered archive"}`, http.StatusUnprocessableEntity)
 			} else {
 				slog.ErrorContext(ctx, "restore backup failed", slog.Any("err", err))
@@ -137,7 +137,7 @@ func registerBackupRoutes(mux *http.ServeMux, svc *appbackup.Service, tokenGen d
 		slog.Info("backup restored successfully")
 		w.Header().Set("Content-Type", "application/json")
 		if _, writeErr := w.Write([]byte(`{"ok":true}`)); writeErr != nil {
-			slog.Warn("write failed", slog.Any("err", writeErr))
+			slog.WarnContext(ctx, "write failed", slog.Any("err", writeErr))
 		}
 	})))
 

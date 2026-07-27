@@ -91,7 +91,7 @@ func registerAvailableRuntimesRoute(mux *http.ServeMux, tokenGen domainuser.Toke
 		if err := json.NewEncoder(w).Encode(map[string]any{"runtimes": runtimes}); err != nil {
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, "json encode failed")
-			slog.Warn("json encode failed", slog.Any("err", err))
+			slog.WarnContext(r.Context(), "json encode failed", slog.Any("err", err))
 		}
 	}))
 }

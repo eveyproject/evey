@@ -36,7 +36,7 @@ func registerOIDCRoutes(mux *http.ServeMux, oidcSvc *appuser.OIDCService, httpsO
 		defer span.End()
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(map[string]any{"enabled": true}); err != nil {
-			slog.Warn("json encode failed", slog.Any("err", err))
+			slog.WarnContext(r.Context(), "json encode failed", slog.Any("err", err))
 		}
 	})
 
@@ -78,7 +78,7 @@ func registerOIDCRoutes(mux *http.ServeMux, oidcSvc *appuser.OIDCService, httpsO
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "invalid state")
-			slog.Warn("oidc callback: invalid state", slog.Any("err", err))
+			slog.WarnContext(ctx, "oidc callback: invalid state", slog.Any("err", err))
 			http.Error(w, "invalid state", http.StatusBadRequest)
 			return
 		}
@@ -153,7 +153,7 @@ func registerOIDCRoutes(mux *http.ServeMux, oidcSvc *appuser.OIDCService, httpsO
 		})
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(map[string]any{"accessToken": cookie.Value}); err != nil {
-			slog.Warn("json encode failed", slog.Any("err", err))
+			slog.WarnContext(r.Context(), "json encode failed", slog.Any("err", err))
 		}
 	})
 }

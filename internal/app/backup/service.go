@@ -191,7 +191,7 @@ func (s *Service) RestoreBackup(ctx context.Context, data io.Reader) error {
 	// Schema version guard. Backups created before this field was added carry an
 	// empty SchemaVersion - skip the check rather than breaking existing backups.
 	if archive.manifest.SchemaVersion == "" {
-		slog.Warn("restore: backup predates schema-version stamping, skipping schema check")
+		slog.WarnContext(ctx, "restore: backup predates schema-version stamping, skipping schema check")
 	} else if archive.manifest.SchemaVersion != currentSchemaVersion {
 		return fmt.Errorf("restore: backup schema version %q does not match current schema %q; restore aborted to avoid corruption",
 			archive.manifest.SchemaVersion, currentSchemaVersion)
@@ -224,11 +224,11 @@ func (s *Service) StartScheduler(ctx context.Context, intervalHours, retentionDa
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				slog.Error("panic in backup scheduler", slog.Any("recover", r))
+				slog.ErrorContext(ctx, "panic in backup scheduler", slog.Any("recover", r))
 			}
 		}()
 		if err := s.CleanupOldBackups(ctx, retentionDays); err != nil {
-			slog.Warn("backup retention cleanup", slog.Any("err", err))
+			slog.WarnContext(ctx, "backup retention cleanup", slog.Any("err", err))
 		}
 		for _, ch := range initDone {
 			if ch != nil {
@@ -254,21 +254,21 @@ func (s *Service) StartScheduler(ctx context.Context, intervalHours, retentionDa
 // without waiting on the hour-scale ticker.
 func (s *Service) runScheduledBackupCycle(ctx context.Context, retentionDays int) {
 	if _, err := s.CreateBackup(ctx); err != nil {
-		slog.Warn("scheduled backup failed", slog.Any("err", err))
+		slog.WarnContext(ctx, "scheduled backup failed", slog.Any("err", err))
 		if s.events != nil {
 			evt := backup.BackupFailed{
 				Error:      err.Error(),
 				OccurredAt: time.Now(),
 			}
 			if pubErr := s.events.Publish(ctx, evt); pubErr != nil {
-				slog.Warn("publish backup.failed event", slog.Any("err", pubErr))
+				slog.WarnContext(ctx, "publish backup.failed event", slog.Any("err", pubErr))
 			}
 		}
 	} else {
 		slog.Info("scheduled backup created")
 	}
 	if err := s.CleanupOldBackups(ctx, retentionDays); err != nil {
-		slog.Warn("backup retention cleanup", slog.Any("err", err))
+		slog.WarnContext(ctx, "backup retention cleanup", slog.Any("err", err))
 	}
 }
 

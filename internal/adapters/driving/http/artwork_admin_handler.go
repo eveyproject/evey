@@ -78,7 +78,7 @@ func registerArtworkAdminRoutes(
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, err.Error())
-			slog.Warn("artwork stats", slog.Any("err", err))
+			slog.WarnContext(ctx, "artwork stats", slog.Any("err", err))
 			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 			return
 		}
@@ -90,7 +90,7 @@ func registerArtworkAdminRoutes(
 		}
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(resp); err != nil {
-			slog.Warn("artwork stats: json encode", slog.Any("err", err))
+			slog.WarnContext(ctx, "artwork stats: json encode", slog.Any("err", err))
 		}
 	}))
 
@@ -105,7 +105,7 @@ func registerArtworkAdminRoutes(
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, err.Error())
-			slog.Warn("artwork download-all: start", slog.Any("err", err))
+			slog.WarnContext(ctx, "artwork download-all: start", slog.Any("err", err))
 			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 			return
 		}
@@ -115,7 +115,7 @@ func registerArtworkAdminRoutes(
 		}
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(resp); err != nil {
-			slog.Warn("artwork download-all: json encode", slog.Any("err", err))
+			slog.WarnContext(ctx, "artwork download-all: json encode", slog.Any("err", err))
 		}
 	}))
 
@@ -138,13 +138,13 @@ func registerArtworkAdminRoutes(
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, err.Error())
-			slog.Warn("artwork retry-missing: start", slog.Any("err", err))
+			slog.WarnContext(ctx, "artwork retry-missing: start", slog.Any("err", err))
 			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(map[string]any{"jobId": jobID, "total": total}); err != nil {
-			slog.Warn("artwork retry-missing: json encode", slog.Any("err", err))
+			slog.WarnContext(ctx, "artwork retry-missing: json encode", slog.Any("err", err))
 		}
 	}))
 
@@ -165,13 +165,13 @@ func registerArtworkAdminRoutes(
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, err.Error())
-			slog.Warn("artwork backfill-blurhashes: start", slog.Any("err", err))
+			slog.WarnContext(ctx, "artwork backfill-blurhashes: start", slog.Any("err", err))
 			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(map[string]any{"jobId": jobID, "total": total}); err != nil {
-			slog.Warn("artwork backfill-blurhashes: json encode", slog.Any("err", err))
+			slog.WarnContext(ctx, "artwork backfill-blurhashes: json encode", slog.Any("err", err))
 		}
 	}))
 
@@ -189,13 +189,13 @@ func registerArtworkAdminRoutes(
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, err.Error())
-			slog.Warn("artwork purge-variants", slog.Any("err", err))
+			slog.WarnContext(ctx, "artwork purge-variants", slog.Any("err", err))
 			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(map[string]any{"removed": removed}); err != nil {
-			slog.Warn("artwork purge-variants: json encode", slog.Any("err", err))
+			slog.WarnContext(ctx, "artwork purge-variants: json encode", slog.Any("err", err))
 		}
 	}))
 
@@ -229,7 +229,7 @@ func registerArtworkAdminRoutes(
 		}
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(resp); err != nil {
-			slog.Warn("artwork download-all status: json encode", slog.Any("err", err))
+			slog.WarnContext(ctx, "artwork download-all status: json encode", slog.Any("err", err))
 		}
 	}))
 }

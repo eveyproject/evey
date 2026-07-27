@@ -33,7 +33,7 @@ func registerPluginSecurityDashboardRoute(mux *http.ServeMux, tokenGen domainuse
 			if claims != nil {
 				userID = claims.UserID
 			}
-			slog.Error("plugin security dashboard", slog.String("user_id", userID), slog.Any("err", err))
+			slog.ErrorContext(ctx, "plugin security dashboard", slog.String("user_id", userID), slog.Any("err", err))
 			http.Error(w, `{"message":"internal server error"}`, http.StatusInternalServerError)
 			return
 		}
@@ -47,7 +47,7 @@ func registerPluginSecurityDashboardRoute(mux *http.ServeMux, tokenGen domainuse
 			// an admin learns about a degraded sandbox before installing one.
 			"sandbox": svc.SandboxStatus(),
 		}); err != nil {
-			slog.Warn("plugin security dashboard: json encode", slog.Any("err", err))
+			slog.WarnContext(ctx, "plugin security dashboard: json encode", slog.Any("err", err))
 		}
 	}))
 }

@@ -43,7 +43,7 @@ func registerQoEDashboardRoute(mux *http.ServeMux, tokenGen domainuser.TokenGene
 			if claims != nil {
 				userID = claims.UserID
 			}
-			slog.Error("qoe dashboard", slog.String("user_id", userID), slog.Any("err", err))
+			slog.ErrorContext(ctx, "qoe dashboard", slog.String("user_id", userID), slog.Any("err", err))
 			http.Error(w, `{"message":"internal server error"}`, http.StatusInternalServerError)
 			return
 		}
@@ -55,7 +55,7 @@ func registerQoEDashboardRoute(mux *http.ServeMux, tokenGen domainuser.TokenGene
 		}
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(dash); err != nil {
-			slog.Warn("qoe dashboard: json encode", slog.Any("err", err))
+			slog.WarnContext(ctx, "qoe dashboard: json encode", slog.Any("err", err))
 		}
 	}))
 }

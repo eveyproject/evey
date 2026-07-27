@@ -47,7 +47,7 @@ func httpAuthMiddleware(verifier TokenVerifier) func(http.HandlerFunc) http.Hand
 				// per-attempt login log in user/command_service.go. Never log
 				// the token itself.
 				metrics.AuthFailuresTotal.WithLabelValues("invalid_token").Inc()
-				slog.Warn("auth rejected", slog.String("reason", "invalid_token"),
+				slog.WarnContext(r.Context(), "auth rejected", slog.String("reason", "invalid_token"),
 					slog.String("method", r.Method), slog.String("path", r.URL.Path))
 				http.Error(w, `{"message":"unauthorized"}`, http.StatusUnauthorized)
 				return

@@ -82,7 +82,7 @@ func registerPluginPublicRoutes(mux *http.ServeMux, tokenGen domainuser.TokenGen
 
 		w.Header().Set("Content-Type", "application/json")
 		if encErr := json.NewEncoder(w).Encode(map[string]any{"plugins": result}); encErr != nil {
-			slog.Warn("encode public plugins", slog.Any("err", encErr))
+			slog.WarnContext(ctx, "encode public plugins", slog.Any("err", encErr))
 		}
 	}))
 
@@ -115,7 +115,7 @@ func registerPluginPublicRoutes(mux *http.ServeMux, tokenGen domainuser.TokenGen
 
 		w.Header().Set("Content-Type", "application/json")
 		if encErr := json.NewEncoder(w).Encode(map[string]any{"values": cfg}); encErr != nil {
-			slog.Warn("encode plugin config", slog.Any("err", encErr))
+			slog.WarnContext(ctx, "encode plugin config", slog.Any("err", encErr))
 		}
 	}))
 }

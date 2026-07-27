@@ -91,7 +91,7 @@ func transcodeCalibrationGetHandler(svc calibrationSvc) http.HandlerFunc {
 		if err := json.NewEncoder(w).Encode(resp); err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "encode capability")
-			slog.Warn("calibration: GET encode failed", slog.Any("err", err))
+			slog.WarnContext(r.Context(), "calibration: GET encode failed", slog.Any("err", err))
 		}
 	}
 }
@@ -122,7 +122,7 @@ func transcodeOverridesGetHandler(lister capOverrideLister) http.HandlerFunc {
 		}); err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "encode overrides")
-			slog.Warn("calibration: GET overrides encode failed", slog.Any("err", err))
+			slog.WarnContext(r.Context(), "calibration: GET overrides encode failed", slog.Any("err", err))
 		}
 	}
 }
@@ -160,7 +160,7 @@ func transcodeOverrideResetHandler(svc capOverrideResetter) http.HandlerFunc {
 		if _, err := svc.ResetOverride(runCtx, sourceClass); err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "reset override")
-			slog.Warn("calibration: override reset failed",
+			slog.WarnContext(runCtx, "calibration: override reset failed",
 				slog.String("source_class", sourceClass), slog.Any("err", err))
 			http.Error(w, `{"message":"reset failed"}`, http.StatusInternalServerError)
 			return
@@ -202,14 +202,14 @@ func transcodeRecalibrateHandler(svc calibrationSvc) http.HandlerFunc {
 			}
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "recalibrate failed")
-			slog.Warn("calibration: recalibrate failed", slog.Any("err", err))
+			slog.WarnContext(runCtx, "calibration: recalibrate failed", slog.Any("err", err))
 			http.Error(w, `{"message":"recalibration failed"}`, http.StatusInternalServerError)
 			return
 		}
 
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(publicEncodeCapability{EncodeCapability: svc.Current()}); err != nil {
-			slog.Warn("calibration: recalibrate response encode failed", slog.Any("err", err))
+			slog.WarnContext(r.Context(), "calibration: recalibrate response encode failed", slog.Any("err", err))
 		}
 	}
 }

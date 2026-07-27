@@ -53,7 +53,7 @@ func csrfMiddleware(httpsOnly bool, next http.Handler) http.Handler {
 
 			header := r.Header.Get(csrfHeaderName)
 			if header == "" {
-				slog.Warn("csrf header missing on session request", slog.String("path", r.URL.Path))
+				slog.WarnContext(r.Context(), "csrf header missing on session request", slog.String("path", r.URL.Path))
 				http.Error(w, `{"message":"csrf token missing"}`, http.StatusForbidden)
 				return
 			}
@@ -64,7 +64,7 @@ func csrfMiddleware(httpsOnly bool, next http.Handler) http.Handler {
 				return
 			}
 			if subtle.ConstantTimeCompare([]byte(header), []byte(cookie.Value)) != 1 {
-				slog.Warn("csrf token mismatch", slog.String("path", r.URL.Path))
+				slog.WarnContext(r.Context(), "csrf token mismatch", slog.String("path", r.URL.Path))
 				http.Error(w, `{"message":"csrf token invalid"}`, http.StatusForbidden)
 				return
 			}
@@ -74,7 +74,7 @@ func csrfMiddleware(httpsOnly bool, next http.Handler) http.Handler {
 		if _, err := r.Cookie(csrfCookieName); err != nil {
 			token, genErr := generateCSRFToken()
 			if genErr != nil {
-				slog.Error("csrf token generation failed", slog.Any("err", genErr))
+				slog.ErrorContext(r.Context(), "csrf token generation failed", slog.Any("err", genErr))
 				http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 				return
 			}

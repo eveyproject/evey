@@ -109,7 +109,7 @@ func avatarUploadHandler(
 		if err := os.MkdirAll(avatarDir, 0o755); err != nil {
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, "mkdir avatar dir failed")
-			slog.Error("create avatar dir", slog.Any("err", err))
+			slog.ErrorContext(ctx, "create avatar dir", slog.Any("err", err))
 			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 			return
 		}
@@ -118,7 +118,7 @@ func avatarUploadHandler(
 		if profile.AvatarPath != nil {
 			oldPath := filepath.Join(dataDir, *profile.AvatarPath)
 			if err := os.Remove(oldPath); err != nil && !os.IsNotExist(err) {
-				slog.Warn("remove old avatar", slog.String("path", oldPath), slog.Any("err", err))
+				slog.WarnContext(ctx, "remove old avatar", slog.String("path", oldPath), slog.Any("err", err))
 			}
 		}
 
@@ -129,7 +129,7 @@ func avatarUploadHandler(
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, "create avatar file failed")
-			slog.Error("create avatar file", slog.Any("err", err))
+			slog.ErrorContext(ctx, "create avatar file", slog.Any("err", err))
 			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 			return
 		}
@@ -143,7 +143,7 @@ func avatarUploadHandler(
 		if _, err := io.Copy(out, file); err != nil {
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, "write avatar file failed")
-			slog.Error("write avatar file", slog.Any("err", err))
+			slog.ErrorContext(ctx, "write avatar file", slog.Any("err", err))
 			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 			return
 		}
@@ -152,7 +152,7 @@ func avatarUploadHandler(
 		if err := out.Close(); err != nil {
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, "close avatar file failed")
-			slog.Error("close avatar file", slog.Any("err", err))
+			slog.ErrorContext(ctx, "close avatar file", slog.Any("err", err))
 			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 			return
 		}
@@ -162,14 +162,14 @@ func avatarUploadHandler(
 		if err := profileRepo.Update(r.Context(), profile); err != nil {
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, "update profile failed")
-			slog.Error("update profile avatar", slog.Any("err", err))
+			slog.ErrorContext(ctx, "update profile avatar", slog.Any("err", err))
 			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 			return
 		}
 
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(map[string]string{"avatarPath": avatarPath}); err != nil {
-			slog.Error("encode avatar response", slog.Any("err", err))
+			slog.ErrorContext(ctx, "encode avatar response", slog.Any("err", err))
 		}
 	}
 }

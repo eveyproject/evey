@@ -325,6 +325,6 @@ func (r *Runner) publishPluginError(ctx context.Context, pluginID, msg string) {
 		ErrorMessage: msg,
 		OccurredAt:   time.Now(),
 	}); err != nil {
-		slog.Warn("publish plugin.error failed", slog.String("plugin", pluginID), slog.Any("err", err))
+		slog.WarnContext(ctx, "publish plugin.error failed", slog.String("plugin", pluginID), slog.Any("err", err))
 	}
 }

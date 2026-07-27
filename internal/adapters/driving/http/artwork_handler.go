@@ -341,7 +341,7 @@ func selectArtworkHandler(artworkRepo ArtworkRepo, libSvc MediaItemGetter, libra
 		for _, rec := range records {
 			if rec.Type == selected.Type && rec.ID != selected.ID && rec.SortOrder < selected.SortOrder {
 				if err := artworkRepo.UpdateSortOrder(r.Context(), rec.ID, selected.SortOrder); err != nil {
-					slog.Error("artwork sort update (demote)", slog.Any("err", err))
+					slog.ErrorContext(r.Context(), "artwork sort update (demote)", slog.Any("err", err))
 					http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 					return
 				}
@@ -352,7 +352,7 @@ func selectArtworkHandler(artworkRepo ArtworkRepo, libSvc MediaItemGetter, libra
 		// {"ok":true} when it fails made the UI show a new poster that reverted on
 		// the next refresh.
 		if err := artworkRepo.UpdateSortOrder(r.Context(), selected.ID, -1); err != nil {
-			slog.Error("artwork sort update (promote)", slog.Any("err", err))
+			slog.ErrorContext(r.Context(), "artwork sort update (promote)", slog.Any("err", err))
 			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 			return
 		}

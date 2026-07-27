@@ -80,7 +80,7 @@ func (r *Runner) applyBasicSandbox(parentCtx context.Context, p *plugin.Plugin, 
 		// that survives execve. Losing it is a real degradation, so surface it
 		// instead of swallowing the error - what follows is LD_PRELOAD-only (for
 		// non-subprocess plugins) or a fail-closed refusal (subprocess, below).
-		slog.Warn("plugin launcher unavailable; basic sandbox degraded",
+		slog.WarnContext(parentCtx, "plugin launcher unavailable; basic sandbox degraded",
 			slog.String("plugin_id", p.ID),
 			slog.Any("err", err))
 	}
@@ -97,12 +97,12 @@ func (r *Runner) applyBasicSandbox(parentCtx context.Context, p *plugin.Plugin, 
 			return nil
 		}
 		if !r.allowMissingSandbox {
-			slog.Error("refusing to start subprocess plugin without launcher confinement",
+			slog.ErrorContext(parentCtx, "refusing to start subprocess plugin without launcher confinement",
 				slog.String("plugin_id", p.ID))
 			r.publishPluginError(parentCtx, p.ID, "plugin launcher unavailable; subprocess plugin refused start")
 			return fmt.Errorf("plugin %s: %w", p.ID, ErrSandboxUnavailable)
 		}
-		slog.Warn("starting subprocess plugin without sandbox (dev override)",
+		slog.WarnContext(parentCtx, "starting subprocess plugin without sandbox (dev override)",
 			slog.String("plugin_id", p.ID))
 		return nil
 	}
@@ -112,13 +112,13 @@ func (r *Runner) applyBasicSandbox(parentCtx context.Context, p *plugin.Plugin, 
 		return nil
 	}
 	if !r.allowMissingSandbox {
-		slog.Error("refusing to start plugin without sandbox",
+		slog.ErrorContext(parentCtx, "refusing to start plugin without sandbox",
 			slog.String("plugin_id", p.ID),
 			slog.String("sandbox_lib", sandboxLibPath))
 		r.publishPluginError(parentCtx, p.ID, "sandbox library unavailable; plugin refused start")
 		return fmt.Errorf("plugin %s: %w", p.ID, ErrSandboxUnavailable)
 	}
-	slog.Warn("starting plugin without sandbox (dev override)",
+	slog.WarnContext(parentCtx, "starting plugin without sandbox (dev override)",
 		slog.String("plugin_id", p.ID))
 	return nil
 }
@@ -130,7 +130,7 @@ func (r *Runner) applyBasicSandbox(parentCtx context.Context, p *plugin.Plugin, 
 func (r *Runner) applyBwrapSandbox(parentCtx context.Context, p *plugin.Plugin, cmd *exec.Cmd, mode string) (func(), error) {
 	bwrapPath, err := exec.LookPath("bwrap")
 	if err != nil {
-		slog.Error("bwrap not found in PATH",
+		slog.ErrorContext(parentCtx, "bwrap not found in PATH",
 			slog.String("plugin_id", p.ID),
 			slog.String("sandbox_mode", mode))
 		r.publishPluginError(parentCtx, p.ID, "bwrap binary missing; plugin refused start")
@@ -161,13 +161,13 @@ func (r *Runner) applyBwrapSandbox(parentCtx context.Context, p *plugin.Plugin, 
 		case libPath != "":
 			cmd.Env = append(cmd.Env, "LD_PRELOAD="+libPath)
 		case !r.allowMissingSandbox:
-			slog.Error("refusing to start plugin without seccomp lib (strict mode)",
+			slog.ErrorContext(parentCtx, "refusing to start plugin without seccomp lib (strict mode)",
 				slog.String("plugin_id", p.ID),
 				slog.String("sandbox_lib", sandboxLibPath))
 			r.publishPluginError(parentCtx, p.ID, "sandbox library unavailable; plugin refused start (strict)")
 			return nil, fmt.Errorf("plugin %s: %w", p.ID, ErrSandboxUnavailable)
 		default:
-			slog.Warn("strict mode without seccomp lib (dev override)",
+			slog.WarnContext(parentCtx, "strict mode without seccomp lib (dev override)",
 				slog.String("plugin_id", p.ID))
 		}
 	}

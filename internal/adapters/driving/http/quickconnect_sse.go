@@ -105,7 +105,7 @@ func quickConnectSSEHandler(hub *quickconnecthub.Hub, checker qcTokenChecker) ht
 			case <-ch:
 				access, refresh, authorized, err := checker.checkAndGenerateTokens(r.Context(), code, persistent)
 				if err != nil || !authorized {
-					slog.Warn("quickconnect sse: check failed after notify", slog.Any("err", err))
+					slog.WarnContext(r.Context(), "quickconnect sse: check failed after notify", slog.Any("err", err))
 					fmt.Fprintf(w, "data: {\"event\":\"error\"}\n\n")
 					flusher.Flush()
 					return

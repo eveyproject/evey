@@ -278,7 +278,7 @@ func registerServerSettingsRoutes(
 
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(resp); err != nil {
-			slog.Warn("json encode failed", slog.Any("err", err))
+			slog.WarnContext(r.Context(), "json encode failed", slog.Any("err", err))
 		}
 	}))
 
@@ -409,7 +409,7 @@ func registerServerSettingsRoutes(
 						ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 						defer cancel()
 						if err := hwMode.SetHWMode(ctx, mode); err != nil {
-							slog.Warn("settings: live HW-mode re-bench failed (persisted intent still applies on next bench)",
+							slog.WarnContext(ctx, "settings: live HW-mode re-bench failed (persisted intent still applies on next bench)",
 								slog.String("mode", string(mode)), slog.Any("err", err))
 						}
 					}()
@@ -583,7 +583,7 @@ func registerServerSettingsRoutes(
 			overridden[u.cfgKey] = true
 			if store != nil {
 				if err := store.Set(r.Context(), u.cfgKey, serialized); err != nil {
-					slog.Warn("persist server setting", slog.String("key", u.cfgKey), slog.Any("err", err))
+					slog.WarnContext(r.Context(), "persist server setting", slog.String("key", u.cfgKey), slog.Any("err", err))
 				}
 			}
 			if u.sideEffect != nil {
@@ -608,7 +608,7 @@ func registerServerSettingsRoutes(
 			}
 			if store != nil {
 				if err := store.Delete(r.Context(), def.cfgKey); err != nil {
-					slog.Warn("delete server setting override, keeping current value", slog.String("key", def.cfgKey), slog.Any("err", err))
+					slog.WarnContext(r.Context(), "delete server setting override, keeping current value", slog.String("key", def.cfgKey), slog.Any("err", err))
 					continue
 				}
 			}
@@ -625,7 +625,7 @@ func registerServerSettingsRoutes(
 		resp := buildResponse()
 		mu.RUnlock()
 		if err := json.NewEncoder(w).Encode(resp); err != nil {
-			slog.Warn("json encode failed", slog.Any("err", err))
+			slog.WarnContext(r.Context(), "json encode failed", slog.Any("err", err))
 		}
 	})))
 }

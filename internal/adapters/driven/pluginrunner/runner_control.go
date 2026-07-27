@@ -37,11 +37,11 @@ func (r *Runner) Stop(ctx context.Context, pluginID string) error {
 	if ipc != nil {
 		shutdownCtx, shutdownCancel := context.WithTimeout(ctx, ipcCallTimeout)
 		if err := ipc.Shutdown(shutdownCtx, "host requested shutdown"); err != nil {
-			slog.Warn("plugin Shutdown RPC failed", slog.String("pluginID", pluginID), slog.Any("err", err))
+			slog.WarnContext(ctx, "plugin Shutdown RPC failed", slog.String("pluginID", pluginID), slog.Any("err", err))
 		}
 		shutdownCancel()
 		if err := ipc.Close(); err != nil {
-			slog.Warn("close plugin IPC", slog.Any("err", err))
+			slog.WarnContext(ctx, "close plugin IPC", slog.Any("err", err))
 		}
 	}
 
@@ -51,14 +51,14 @@ func (r *Runner) Stop(ctx context.Context, pluginID string) error {
 	}
 
 	if err := entry.cmd.Process.Signal(syscall.SIGTERM); err != nil {
-		slog.Warn("send SIGTERM to plugin", slog.Any("err", err))
+		slog.WarnContext(ctx, "send SIGTERM to plugin", slog.Any("err", err))
 	}
 
 	select {
 	case <-entry.done:
 	case <-time.After(shutdownTimeout):
 		if err := entry.cmd.Process.Signal(syscall.SIGKILL); err != nil {
-			slog.Warn("send SIGKILL to plugin", slog.Any("err", err))
+			slog.WarnContext(ctx, "send SIGKILL to plugin", slog.Any("err", err))
 		}
 		select {
 		case <-entry.done:
@@ -68,7 +68,7 @@ func (r *Runner) Stop(ctx context.Context, pluginID string) error {
 
 	// Remove entire socket subdirectory
 	if err := os.RemoveAll(filepath.Dir(entry.sockPath)); err != nil {
-		slog.Warn("remove plugin sock dir", slog.Any("err", err))
+		slog.WarnContext(ctx, "remove plugin sock dir", slog.Any("err", err))
 	}
 
 	if entry.hostsCleanup != nil {

@@ -125,7 +125,7 @@ func buildLauncherArgv(launcher string, p *plugin.Plugin, cmd *exec.Cmd, require
 func (r *Runner) applyLandlockSandbox(parentCtx context.Context, p *plugin.Plugin, cmd *exec.Cmd) (func(), error) {
 	launcher, err := launcherPath()
 	if err != nil {
-		slog.Error("evey-plugin-launcher not found",
+		slog.ErrorContext(parentCtx, "evey-plugin-launcher not found",
 			slog.String("plugin_id", p.ID), slog.Any("err", err))
 		r.publishPluginError(parentCtx, p.ID, "plugin launcher missing; plugin refused start")
 		return nil, fmt.Errorf("plugin %s: sandbox_mode=landlock requires %s: %w", p.ID, launcherBinaryName, err)
@@ -156,12 +156,12 @@ func (r *Runner) applyLandlockSandbox(parentCtx context.Context, p *plugin.Plugi
 		case libPath != "":
 			cmd.Env = append(cmd.Env, "LD_PRELOAD="+libPath)
 		case !r.allowMissingSandbox:
-			slog.Error("refusing to start plugin without seccomp lib (landlock mode)",
+			slog.ErrorContext(parentCtx, "refusing to start plugin without seccomp lib (landlock mode)",
 				slog.String("plugin_id", p.ID), slog.String("sandbox_lib", sandboxLibPath))
 			r.publishPluginError(parentCtx, p.ID, "sandbox library unavailable; plugin refused start")
 			return nil, fmt.Errorf("plugin %s: %w", p.ID, ErrSandboxUnavailable)
 		default:
-			slog.Warn("landlock mode without seccomp lib (dev override)",
+			slog.WarnContext(parentCtx, "landlock mode without seccomp lib (dev override)",
 				slog.String("plugin_id", p.ID))
 		}
 	}

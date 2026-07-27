@@ -53,7 +53,7 @@ func castDevicesHandler(castSvc castClient) http.HandlerFunc {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(devices); err != nil {
-			slog.Warn("json encode failed", slog.Any("err", err))
+			slog.WarnContext(ctx, "json encode failed", slog.Any("err", err))
 		}
 	}
 }
@@ -212,7 +212,7 @@ func castStatusHandler(castSvc castClient) http.HandlerFunc {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(status); err != nil {
-			slog.Warn("json encode failed", slog.Any("err", err))
+			slog.WarnContext(ctx, "json encode failed", slog.Any("err", err))
 		}
 	}
 }

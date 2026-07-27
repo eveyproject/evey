@@ -196,7 +196,7 @@ func openAPIPublicHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		once.Do(build)
 		if cErr != nil {
-			slog.Error("openapi: build public spec", slog.Any("err", cErr))
+			slog.ErrorContext(r.Context(), "openapi: build public spec", slog.Any("err", cErr))
 			http.Error(w, `{"message":"openapi spec unavailable"}`, http.StatusServiceUnavailable)
 			return
 		}

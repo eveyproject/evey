@@ -238,7 +238,7 @@ func (s *OIDCService) HandleCallback(ctx context.Context, code, expectedNonce st
 
 	roles, err := s.userRoles.GetRolesByUserID(ctx, u.ID)
 	if err != nil {
-		slog.Warn("oidc: get roles", slog.String("userID", string(u.ID)), slog.Any("err", err))
+		slog.WarnContext(ctx, "oidc: get roles", slog.String("userID", string(u.ID)), slog.Any("err", err))
 	}
 	var perms []string
 	for _, r := range roles {
@@ -252,7 +252,7 @@ func (s *OIDCService) HandleCallback(ctx context.Context, code, expectedNonce st
 	// token. An SSO callback that errors is visible and retryable.
 	profs, pErr := s.profiles.GetByUserID(ctx, u.ID)
 	if pErr != nil {
-		slog.Warn("oidc: profile lookup failed, refusing rather than issuing a profile-less token",
+		slog.WarnContext(ctx, "oidc: profile lookup failed, refusing rather than issuing a profile-less token",
 			slog.String("userID", string(u.ID)), slog.Any("err", pErr))
 		return "", "", "", fmt.Errorf("oidc: load profiles: %w", pErr)
 	}
@@ -291,10 +291,10 @@ func (s *OIDCService) HandleCallback(ctx context.Context, code, expectedNonce st
 
 	evt := domainuser.LoginSucceeded{UserID: u.ID, AuthMethod: "oidc", OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evt); err != nil {
-		slog.Warn("oidc: publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
+		slog.WarnContext(ctx, "oidc: publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
 	}
 	if err := s.userRepo.TouchLastLogin(ctx, u.ID, evt.OccurredAt); err != nil {
-		slog.Warn("oidc: touch last_login", slog.String("user_id", string(u.ID)), slog.Any("err", err))
+		slog.WarnContext(ctx, "oidc: touch last_login", slog.String("user_id", string(u.ID)), slog.Any("err", err))
 	}
 
 	return accessToken, refreshToken, rawIDToken, nil
@@ -308,7 +308,7 @@ func (s *OIDCService) findOrCreateUser(ctx context.Context, sub, email, preferre
 		}
 		u.UpdatedAt = time.Now()
 		if updateErr := s.userRepo.Update(ctx, u); updateErr != nil {
-			slog.Warn("oidc: update user timestamp", slog.String("user_id", string(u.ID)), slog.Any("err", updateErr))
+			slog.WarnContext(ctx, "oidc: update user timestamp", slog.String("user_id", string(u.ID)), slog.Any("err", updateErr))
 		}
 		return u, nil
 	}
@@ -318,11 +318,11 @@ func (s *OIDCService) findOrCreateUser(ctx context.Context, sub, email, preferre
 	// require the IdP to have verified it: a lax provider could otherwise assert
 	// an arbitrary address in an allowed domain to slip past the allowlist.
 	if len(s.allowedEmailDomains) > 0 && !emailVerified {
-		slog.Warn("oidc: unverified email rejected under domain allowlist", slog.String("email", email))
+		slog.WarnContext(ctx, "oidc: unverified email rejected under domain allowlist", slog.String("email", email))
 		return nil, ErrEmailDomainNotAllowed
 	}
 	if !IsEmailAllowed(email, s.allowedEmailDomains) {
-		slog.Warn("oidc: email domain not allowed", slog.String("email", email))
+		slog.WarnContext(ctx, "oidc: email domain not allowed", slog.String("email", email))
 		return nil, ErrEmailDomainNotAllowed
 	}
 
@@ -390,7 +390,7 @@ func (s *OIDCService) findOrCreateUser(ctx context.Context, sub, email, preferre
 
 	evt := domainuser.UserCreated{UserID: newUser.ID, Username: newUser.Username, OccurredAt: now}
 	if err := s.events.Publish(ctx, evt); err != nil {
-		slog.Warn("oidc: publish user.created", slog.Any("err", err))
+		slog.WarnContext(ctx, "oidc: publish user.created", slog.Any("err", err))
 	}
 
 	return newUser, nil

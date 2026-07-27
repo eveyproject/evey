@@ -32,7 +32,7 @@ func dlnaRenderersHandler(dlnaSvc dlnaClient) http.HandlerFunc {
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, "discovery failed")
-			slog.Error("dlna discover", slog.Any("err", err))
+			slog.ErrorContext(ctx, "dlna discover", slog.Any("err", err))
 			http.Error(w, `{"message":"discovery failed"}`, http.StatusInternalServerError)
 			return
 		}
@@ -41,7 +41,7 @@ func dlnaRenderersHandler(dlnaSvc dlnaClient) http.HandlerFunc {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(renderers); err != nil {
-			slog.Warn("json encode failed", slog.Any("err", err))
+			slog.WarnContext(ctx, "json encode failed", slog.Any("err", err))
 		}
 	}
 }
@@ -71,7 +71,7 @@ func dlnaPlayHandler(dlnaSvc dlnaClient) http.HandlerFunc {
 		if err := dlnaSvc.Play(r.Context(), body.RendererID, body.MediaURL, body.Title); err != nil {
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, "play failed")
-			slog.Error("dlna play", slog.Any("err", err))
+			slog.ErrorContext(ctx, "dlna play", slog.Any("err", err))
 			http.Error(w, `{"message":"play failed"}`, http.StatusInternalServerError)
 			return
 		}
@@ -103,7 +103,7 @@ func dlnaStopHandler(dlnaSvc dlnaClient) http.HandlerFunc {
 		if err := dlnaSvc.Stop(r.Context(), body.RendererID); err != nil {
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, "stop failed")
-			slog.Error("dlna stop", slog.Any("err", err))
+			slog.ErrorContext(ctx, "dlna stop", slog.Any("err", err))
 			http.Error(w, `{"message":"stop failed"}`, http.StatusInternalServerError)
 			return
 		}
@@ -135,7 +135,7 @@ func dlnaPauseHandler(dlnaSvc dlnaClient) http.HandlerFunc {
 		if err := dlnaSvc.Pause(r.Context(), body.RendererID); err != nil {
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, "pause failed")
-			slog.Error("dlna pause", slog.Any("err", err))
+			slog.ErrorContext(ctx, "dlna pause", slog.Any("err", err))
 			http.Error(w, `{"message":"pause failed"}`, http.StatusInternalServerError)
 			return
 		}

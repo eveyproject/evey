@@ -263,7 +263,7 @@ func tokenRedactMiddleware(store streamTokenValidator, httpsOnly bool, next http
 				// Logged so a Chromecast disconnect caused by a vanished token (server
 				// restart wiped the in-memory store; token actually expired) is visible
 				// instead of being silently spanned away.
-				slog.Warn("stream token: opaque token validation failed",
+				slog.WarnContext(r.Context(), "stream token: opaque token validation failed",
 					slog.String("path", r.URL.Path),
 					slog.String("user_agent", r.UserAgent()),
 					slog.Int("token_len", len(rawTok)))

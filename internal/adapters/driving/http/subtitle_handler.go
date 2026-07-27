@@ -92,7 +92,7 @@ func subtitleHandler(libSvc MediaStreamsGetter, baseURL string, libraryAccess Li
 			// valid text track from a forged ?track= index or a bitmap subtitle.
 			// Silently falling through used to spawn ffmpeg on the unvalidated
 			// index, emitting a broken/empty stream with no error signal.
-			slog.Warn("subtitle: get media streams", slog.String("media_id", mediaID), slog.Any("err", serr))
+			slog.WarnContext(r.Context(), "subtitle: get media streams", slog.String("media_id", mediaID), slog.Any("err", serr))
 			span.SetStatus(otelcodes.Error, "media streams unavailable")
 			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 			return
@@ -159,20 +159,20 @@ func subtitleHandler(libSvc MediaStreamsGetter, baseURL string, libraryAccess Li
 		setCORSHeaders(w, r, baseURL)
 		cmd.Stdout = w
 		if err := cmd.Start(); err != nil {
-			slog.Error("ffmpeg subtitle start", slog.Any("err", err))
+			slog.ErrorContext(ctx, "ffmpeg subtitle start", slog.Any("err", err))
 			return
 		}
 		go func() {
 			defer func() {
 				if r := recover(); r != nil {
-					slog.Error("panic recovered in subtitle ffmpeg cancel", "error", r, "stack", string(debug.Stack()))
+					slog.ErrorContext(ctx, "panic recovered in subtitle ffmpeg cancel", "error", r, "stack", string(debug.Stack()))
 				}
 			}()
 			<-r.Context().Done()
 			cancel()
 		}()
 		if err := cmd.Wait(); err != nil && ctx.Err() == nil {
-			slog.Warn("ffmpeg subtitle", slog.String("media_id", mediaID), slog.Any("err", err))
+			slog.WarnContext(ctx, "ffmpeg subtitle", slog.String("media_id", mediaID), slog.Any("err", err))
 		}
 	}
 }
@@ -373,7 +373,7 @@ func serveExternalSubtitle(w http.ResponseWriter, r *http.Request, path, baseDir
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				slog.Error("panic recovered in external subtitle ffmpeg cancel", "error", r, "stack", string(debug.Stack()))
+				slog.ErrorContext(ctx, "panic recovered in external subtitle ffmpeg cancel", "error", r, "stack", string(debug.Stack()))
 			}
 		}()
 		<-r.Context().Done()

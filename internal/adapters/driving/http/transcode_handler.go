@@ -113,7 +113,7 @@ func chaptersHandler(libSvc ChaptersGetter, baseURL string, libraryAccess Librar
 		w.Header().Set("Content-Type", "application/json")
 		setCORSHeaders(w, r, baseURL)
 		if err := json.NewEncoder(w).Encode(map[string]any{"chapters": out}); err != nil {
-			slog.Warn("json encode failed", slog.Any("err", err))
+			slog.WarnContext(r.Context(), "json encode failed", slog.Any("err", err))
 		}
 	}
 }
@@ -153,14 +153,14 @@ func libraryStatsHandler(libSvc LibraryLister, counter LibraryItemCounter) http.
 				if n, cerr := counter.CountByLibrary(r.Context(), lib.ID, string(lib.Type)); cerr == nil {
 					count = n
 				} else {
-					slog.Warn("library-stats count failed", slog.String("lib", string(lib.ID)), slog.Any("err", cerr))
+					slog.WarnContext(ctx, "library-stats count failed", slog.String("lib", string(lib.ID)), slog.Any("err", cerr))
 				}
 			}
 			stats = append(stats, libStat{ID: string(lib.ID), LastScannedAt: ts, ItemCount: count})
 		}
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(map[string]any{"stats": stats}); err != nil {
-			slog.Warn("json encode failed", slog.Any("err", err))
+			slog.WarnContext(ctx, "json encode failed", slog.Any("err", err))
 		}
 	}
 }
@@ -425,7 +425,7 @@ func (h *transcodeServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				slog.Error("panic recovered in transcode ffmpeg cancel", "error", r, "stack", string(debug.Stack()))
+				slog.ErrorContext(ctx, "panic recovered in transcode ffmpeg cancel", "error", r, "stack", string(debug.Stack()))
 			}
 		}()
 		<-r.Context().Done()

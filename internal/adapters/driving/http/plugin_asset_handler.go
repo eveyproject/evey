@@ -460,7 +460,7 @@ func registerPluginUploadRoute(mux *http.ServeMux, tokenGen domainuser.TokenGene
 					"permission_changes": true,
 					"new_entries":        extractEscalationEntries(installErr.Error()),
 				}); encErr != nil {
-					slog.Warn("encode escalation response", slog.Any("err", encErr))
+					slog.WarnContext(ctx, "encode escalation response", slog.Any("err", encErr))
 				}
 				return
 			}
@@ -491,7 +491,7 @@ func registerPluginUploadRoute(mux *http.ServeMux, tokenGen domainuser.TokenGene
 					"issues":     issues,
 					"categories": categories,
 				}); encErr != nil {
-					slog.Warn("encode blocked response", slog.Any("err", encErr))
+					slog.WarnContext(ctx, "encode blocked response", slog.Any("err", encErr))
 				}
 			} else {
 				http.Error(w, `{"message":"plugin installation failed"}`, http.StatusInternalServerError)
@@ -512,7 +512,7 @@ func registerPluginUploadRoute(mux *http.ServeMux, tokenGen domainuser.TokenGene
 			"name":        p.Name,
 			"permissions": perms,
 		}); encErr != nil {
-			slog.Warn("encode plugin response", slog.Any("err", encErr))
+			slog.WarnContext(ctx, "encode plugin response", slog.Any("err", encErr))
 		}
 	})))
 }
@@ -568,7 +568,7 @@ func registerPluginPreviewRoute(mux *http.ServeMux, tokenGen domainuser.TokenGen
 		if previewErr != nil {
 			span.RecordError(previewErr)
 			span.SetStatus(otelcodes.Error, "preview plugin failed")
-			slog.Warn("preview plugin", slog.Any("err", previewErr))
+			slog.WarnContext(ctx, "preview plugin", slog.Any("err", previewErr))
 			http.Error(w, `{"message":"plugin preview failed"}`, http.StatusBadRequest)
 			return
 		}
@@ -650,7 +650,7 @@ func registerPluginPreviewRoute(mux *http.ServeMux, tokenGen domainuser.TokenGen
 
 		w.Header().Set("Content-Type", "application/json")
 		if encErr := json.NewEncoder(w).Encode(resp); encErr != nil {
-			slog.Warn("encode plugin preview", slog.Any("err", encErr))
+			slog.WarnContext(ctx, "encode plugin preview", slog.Any("err", encErr))
 		}
 	})))
 }
