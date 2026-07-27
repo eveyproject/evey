@@ -18,6 +18,7 @@ import { useTheme } from "../../src/providers/ThemeProvider";
 import { useServerUrl } from "../../src/hooks/useServerUrl";
 import { useAuthenticatedImage } from "../../src/hooks/useAuthenticatedImage";
 import { ProgressBar } from "../../src/components/ProgressBar";
+import { groupHistoryByDate } from "../../src/lib/historyGrouping";
 
 function formatDuration(ms: string | undefined): string {
   if (!ms) return "";
@@ -36,24 +37,6 @@ function formatDate(iso: string | undefined): string {
     hour: "2-digit",
     minute: "2-digit",
   });
-}
-
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-// Mirrors the web WatchHistory grouping so both clients bucket the same way.
-function getDateGroupLabel(iso: string | undefined, t: TFunction): string {
-  if (!iso) return t("common.unknown", "Unknown");
-  const date = new Date(iso);
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const itemDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  const diffDays = Math.floor((today.getTime() - itemDate.getTime()) / DAY_MS);
-
-  if (diffDays === 0) return t("auth.watchHistory.today", "Today");
-  if (diffDays === 1) return t("auth.watchHistory.yesterday", "Yesterday");
-  if (diffDays < 7) return t("auth.watchHistory.thisWeek", "This Week");
-  if (diffDays < 30) return t("auth.watchHistory.thisMonth", "This Month");
-  return date.toLocaleDateString(undefined, { year: "numeric", month: "long" });
 }
 
 // Server now returns title + (for episodes) series title + season/episode
@@ -179,14 +162,10 @@ export default function HistoryScreen() {
 
   const items = allItems;
 
-  const sections = useMemo(() => {
-    const grouped = items.reduce<Record<string, V1WatchProgress[]>>((acc, item) => {
-      const group = getDateGroupLabel(item.lastPlayedAt, t);
-      (acc[group] ??= []).push(item);
-      return acc;
-    }, {});
-    return Object.entries(grouped).map(([title, data]) => ({ title, data }));
-  }, [items, t]);
+  const sections = useMemo(
+    () => groupHistoryByDate(items, (item) => item.lastPlayedAt, t),
+    [items, t],
+  );
 
   const unwatch = usePlaybackServiceMarkAsUnwatched({
     mutation: {
