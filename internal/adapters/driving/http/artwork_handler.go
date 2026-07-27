@@ -12,15 +12,66 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 	otelcodes "go.opentelemetry.io/otel/codes"
+	"golang.org/x/sync/singleflight"
 
 	domainmeta "github.com/evey-project/evey/internal/domain/metadata"
 	"github.com/evey-project/evey/internal/domain/shared"
+	pkgcache "github.com/evey-project/evey/internal/pkg/cache"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 	"github.com/evey-project/evey/internal/pkg/urlvalidator"
 )
 
 // artworkResizeTimeout bounds the ffmpeg call for a single poster resize.
 const artworkResizeTimeout = 10 * time.Second
+
+// artworkResizeGroup collapses concurrent requests for the SAME resized
+// variant into one ffmpeg invocation. A poster grid loading dozens of cold
+// thumbnails, or two tabs open on the same title, otherwise raced two ffmpeg
+// processes to write the identical dstPath - wasted work, and a torn file if
+// one lost the race mid-write. Same motif as the remux handler's own
+// singleflight.Group (remux_handler.go): keyed on the output path, winner's
+// error is shared with waiters but never cached, so the next request retries.
+var artworkResizeGroup singleflight.Group
+
+// artworkResizeMaxConcurrent bounds how many ffmpeg resize processes run at
+// once, across ALL in-flight artwork requests. The NAS this project targets
+// can barely sustain the operator's configured HLS session count (operators
+// are told to floor TranscodingConfig.MaxSessions at 1-2 on the weakest
+// hardware, see config.go) - a cold poster grid must not pile a dozen extra
+// ffmpeg processes on top of that and starve the transcode an actual viewer
+// is waiting on. 2 matches that same floor: enough to keep a grid moving,
+// low enough that it can never itself become the bottleneck.
+const artworkResizeMaxConcurrent = 2
+
+var artworkResizeSem = make(chan struct{}, artworkResizeMaxConcurrent)
+
+// artworkMemoTTL bounds how long the parent-chain walk's lookups (below) are
+// reused. Short on purpose: an admin picking new primary art, or a scan
+// finding a poster, must become visible quickly - this only needs to survive
+// one grid render, not outlive it.
+const artworkMemoTTL = 30 * time.Second
+
+// artworkRecordsCache and artworkParentIDCache memoise findArtworkRecords'
+// parent-chain walk: a season/series with no episode-level art gets its
+// GetByMediaItem+GetMediaItem pair re-run by EVERY sibling episode's artwork
+// request, and a grid renders dozens of siblings at once. Keyed by the
+// concrete repo/getter identity plus the looked-up id: production wires
+// exactly one of each for the process lifetime, so this is a plain identity
+// cache there; keying in the dependency keeps independent callers (and, in
+// tests, independent fakes that reuse the same media IDs) from bleeding into
+// each other.
+//
+// No background janitor (cleanupInterval=0): Get's own lazy-expiry plus the
+// cache's LRU cap already bound memory, so there is no goroutine to shut down.
+var artworkRecordsCache, _ = pkgcache.New[[]*domainmeta.ArtworkRecord](0)
+var artworkParentIDCache, _ = pkgcache.New[string](0)
+
+// artworkCacheKey scopes a memoised lookup to both the dependency instance
+// (so distinct ArtworkReader/MediaItemGetter wirings never collide) and the
+// looked-up id.
+func artworkCacheKey(dep any, id string) string {
+	return fmt.Sprintf("%p:%s", dep, id)
+}
 
 // allowedWidths caps variant creation to a fixed set so the cache stays bounded.
 // 0 is the sentinel for "no resize".
@@ -75,6 +126,32 @@ func removeVariant(path string) {
 	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 		slog.Warn("artwork variant cleanup", slog.String("path", path), slog.Any("err", err))
 	}
+}
+
+// ensureArtworkVariant guarantees variantPath holds a valid (non-empty)
+// resized WebP for srcPath, generating it at most once even when many
+// concurrent requests target the SAME variant (artworkResizeGroup), and never
+// running more than artworkResizeMaxConcurrent ffmpeg resizes at a time
+// across DIFFERENT variants (artworkResizeSem).
+func (h *mediaServe) ensureArtworkVariant(ctx context.Context, srcPath, variantPath string, width int) error {
+	_, err, _ := artworkResizeGroup.Do(variantPath, func() (any, error) {
+		// Re-check under the flight: a request that queued behind another one
+		// targeting the same variant may find it already produced (and valid)
+		// by the time it gets to run.
+		if fi, statErr := os.Stat(variantPath); statErr == nil && fi.Size() > 0 {
+			return nil, nil
+		}
+		artworkResizeSem <- struct{}{}
+		defer func() { <-artworkResizeSem }()
+		// Detached from the triggering request: a client that navigates away
+		// mid-resize must not abort the ffmpeg run every OTHER waiter on this
+		// same variant is blocked on - identical contract to the remux
+		// handler's own singleflight (remux_handler.go).
+		resizeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), artworkResizeTimeout)
+		defer cancel()
+		return nil, h.imgConverter.ResizeAndConvertToWebP(resizeCtx, srcPath, variantPath, width, 80)
+	})
+	return err
 }
 
 func (h *mediaServe) handleArtwork(w http.ResponseWriter, r *http.Request) {
@@ -148,11 +225,10 @@ func (h *mediaServe) handleArtwork(w http.ResponseWriter, r *http.Request) {
 						// then freezes the broken image in clients - the cause of a
 						// poster vanishing at just one srcSet width (e.g. w=500).
 						if fi, statErr := os.Stat(variantPath); statErr != nil || fi.Size() == 0 {
-							// Not cached yet - generate with 10 s timeout so a slow ffmpeg
+							// Not cached yet - generate (single-flighted, concurrency-capped;
+							// see ensureArtworkVariant) with a 10 s timeout so a slow ffmpeg
 							// doesn't block the response indefinitely.
-							ctx10, cancel := context.WithTimeout(r.Context(), artworkResizeTimeout)
-							defer cancel()
-							if resErr := h.imgConverter.ResizeAndConvertToWebP(ctx10, *rec.LocalPath, variantPath, requestedWidth, 80); resErr != nil {
+							if resErr := h.ensureArtworkVariant(r.Context(), *rec.LocalPath, variantPath, requestedWidth); resErr != nil {
 								slog.WarnContext(r.Context(), "artwork resize", slog.String("src", *rec.LocalPath), slog.Int("width", requestedWidth), slog.Any("err", resErr))
 								removeVariant(variantPath) // drop any partial/empty output so it isn't served next time
 								variantPath = ""           // fall through to full-res WebP
@@ -247,7 +323,7 @@ func (h *mediaServe) findArtworkRecords(ctx context.Context, mediaID, artType, p
 	// this loop forever.
 	const maxParentDepth = 8
 	for range maxParentDepth {
-		records, err := h.artworkRepo.GetByMediaItem(ctx, lookupID)
+		records, err := h.cachedArtworkRecords(ctx, lookupID)
 		if err != nil {
 			return nil
 		}
@@ -258,13 +334,45 @@ func (h *mediaServe) findArtworkRecords(ctx context.Context, mediaID, artType, p
 			return nil
 		}
 		lookupID = nextParentID
-		parent, err := h.libSvc.GetMediaItem(ctx, lookupID)
+		pid, err := h.cachedParentID(ctx, lookupID)
 		if err != nil {
 			return nil
 		}
-		nextParentID = parent.ParentID
+		nextParentID = pid
 	}
 	return nil
+}
+
+// cachedArtworkRecords wraps h.artworkRepo.GetByMediaItem with the short-TTL
+// memoisation described at artworkRecordsCache: a season/series artwork
+// lookup that many sibling episodes share within one grid render is fetched
+// once instead of once per sibling.
+func (h *mediaServe) cachedArtworkRecords(ctx context.Context, id string) ([]*domainmeta.ArtworkRecord, error) {
+	key := artworkCacheKey(h.artworkRepo, id)
+	if recs, ok := artworkRecordsCache.Get(key); ok {
+		return recs, nil
+	}
+	recs, err := h.artworkRepo.GetByMediaItem(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	artworkRecordsCache.Set(key, recs, artworkMemoTTL)
+	return recs, nil
+}
+
+// cachedParentID wraps h.libSvc.GetMediaItem with the same short-TTL
+// memoisation, returning just the ParentID the parent-chain walk needs.
+func (h *mediaServe) cachedParentID(ctx context.Context, id string) (string, error) {
+	key := artworkCacheKey(h.libSvc, id)
+	if pid, ok := artworkParentIDCache.Get(key); ok {
+		return pid, nil
+	}
+	parent, err := h.libSvc.GetMediaItem(ctx, id)
+	if err != nil {
+		return "", err
+	}
+	artworkParentIDCache.Set(key, parent.ParentID, artworkMemoTTL)
+	return parent.ParentID, nil
 }
 
 func (h *mediaServe) resolveWebP(ctx context.Context, rec *domainmeta.ArtworkRecord) string {
@@ -356,6 +464,10 @@ func selectArtworkHandler(artworkRepo ArtworkRepo, libSvc MediaItemGetter, libra
 			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 			return
 		}
+		// The sort order just changed on disk; drop the memoised records for
+		// this id (see artworkRecordsCache) so the next artwork request sees
+		// the new primary immediately instead of waiting out its TTL.
+		artworkRecordsCache.Delete(artworkCacheKey(artworkRepo, mediaID))
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"ok":true}`))
 	}
