@@ -680,9 +680,6 @@ func (panickyMediaQuerier) Count(_ context.Context, _ library.ListMediaItemsFilt
 // proves RecoveryUnary turns that into codes.Internal instead of crashing
 // the listener - and that a follow-up RPC on the same server still works.
 func TestHostServer_PanicRecovered_ServerSurvives(t *testing.T) {
-	if os.Getuid() == 0 {
-		t.Skip("test relies on sock_dir mode 0700 owned by current uid")
-	}
 	tmp := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(tmp, "plugins"), 0o755))
 

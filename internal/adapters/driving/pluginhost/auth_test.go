@@ -55,9 +55,6 @@ func newRegisteredHost(t *testing.T, plugins map[string]*plugindomain.Plugin) *H
 }
 
 func TestAuthInterceptor_RejectsBeforePIDBound(t *testing.T) {
-	if os.Getuid() == 0 {
-		t.Skip("test relies on sock_dir mode 0700 owned by current uid")
-	}
 	h := newRegisteredHost(t, map[string]*plugindomain.Plugin{"plg-test": {ID: "plg-test"}})
 
 	sockPath, err := h.RegisterPlugin("plg-test")
@@ -78,9 +75,6 @@ func TestAuthInterceptor_RejectsBeforePIDBound(t *testing.T) {
 }
 
 func TestAuthInterceptor_AcceptsMatchingPID(t *testing.T) {
-	if os.Getuid() == 0 {
-		t.Skip("test relies on sock_dir mode 0700 owned by current uid")
-	}
 	h := newRegisteredHost(t, map[string]*plugindomain.Plugin{
 		"plg-test": {ID: "plg-test", Config: map[string]any{"foo": "bar"}},
 	})
@@ -105,9 +99,6 @@ func TestAuthInterceptor_AcceptsMatchingPID(t *testing.T) {
 }
 
 func TestAuthInterceptor_RejectsPIDMismatch(t *testing.T) {
-	if os.Getuid() == 0 {
-		t.Skip("test relies on sock_dir mode 0700 owned by current uid")
-	}
 	h := newRegisteredHost(t, map[string]*plugindomain.Plugin{"plg-test": {ID: "plg-test"}})
 
 	sockPath, err := h.RegisterPlugin("plg-test")
@@ -143,9 +134,6 @@ func TestAuthInterceptor_RejectsPIDMismatch(t *testing.T) {
 // victim socket, the call from our PID is rejected - pluginID comes from
 // the listener closure, never from the wire.
 func TestAuthInterceptor_NoSpoofingViaCrossSocket(t *testing.T) {
-	if os.Getuid() == 0 {
-		t.Skip("test relies on sock_dir mode 0700 owned by current uid")
-	}
 	h := newRegisteredHost(t, map[string]*plugindomain.Plugin{
 		"plg-attacker": {ID: "plg-attacker"},
 		"plg-victim":   {ID: "plg-victim", Config: map[string]any{"secret": "leak-me"}},
@@ -181,9 +169,6 @@ func TestAuthInterceptor_NoSpoofingViaCrossSocket(t *testing.T) {
 }
 
 func TestRegisterPlugin_DoubleRegister_SelfHeals(t *testing.T) {
-	if os.Getuid() == 0 {
-		t.Skip("test relies on sock_dir mode 0700 owned by current uid")
-	}
 	h := newRegisteredHost(t, map[string]*plugindomain.Plugin{"plg-dup": {ID: "plg-dup"}})
 
 	_, err := h.RegisterPlugin("plg-dup")
@@ -206,9 +191,6 @@ func TestRegisterPlugin_EmptyID(t *testing.T) {
 }
 
 func TestUnregisterPlugin_Idempotent(t *testing.T) {
-	if os.Getuid() == 0 {
-		t.Skip("test relies on sock_dir mode 0700 owned by current uid")
-	}
 	h := newRegisteredHost(t, map[string]*plugindomain.Plugin{"plg-idem": {ID: "plg-idem"}})
 
 	_, err := h.RegisterPlugin("plg-idem")
@@ -221,9 +203,6 @@ func TestUnregisterPlugin_Idempotent(t *testing.T) {
 // their respective sockets to exercise the per-plugin gRPC server fanout
 // under load and confirm cross-plugin isolation under concurrency.
 func TestAuthInterceptor_ConcurrentPlugins(t *testing.T) {
-	if os.Getuid() == 0 {
-		t.Skip("test relies on sock_dir mode 0700 owned by current uid")
-	}
 	plugins := map[string]*plugindomain.Plugin{}
 	for _, id := range []string{"plg-a", "plg-b", "plg-c"} {
 		plugins[id] = &plugindomain.Plugin{ID: id, Config: map[string]any{"id": id}}
