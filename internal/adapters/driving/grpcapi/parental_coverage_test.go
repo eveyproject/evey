@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/evey-project/evey/internal/domain/library"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/reflect/protoregistry"
@@ -241,6 +243,37 @@ func TestAllMediaReturningRPCsAreParentalClassified(t *testing.T) {
 	for m := range parentalKnownGap {
 		require.Truef(t, real[m], "parentalKnownGap lists %s but no such media-returning evey.v1 RPC exists", m)
 	}
+}
+
+// The age cap comparison in mediaItemBlockedByParental is `worstAge > pf.maxAge`,
+// i.e. inclusive: a title rated exactly at the cap must be ALLOWED. A mutant
+// flipping `>` to `>=` would over-block (e.g. reject PG-13 under a 13-year cap)
+// and no existing test exercises the exact boundary - they all use a clear
+// margin either side. Ratings resolved via ratings.WorstCaseMinAge (see
+// internal/domain/ratings/ratings.go): US "PG-13" -> 13, "TV-14" -> 14, "G" -> 0.
+func TestMediaItemBlockedByParental_AgeBoundary(t *testing.T) {
+	maxAge13 := 13
+	pf13 := parentalFilter{maxAge: maxAge13, region: "US"}
+
+	pg13 := &library.MediaItem{
+		Classification: &library.MediaClassification{OfficialRating: "PG-13"},
+	}
+	assert.False(t, mediaItemBlockedByParental(pf13, pg13),
+		"worstAge == maxAge must be allowed (inclusive cap)")
+
+	tv14 := &library.MediaItem{
+		Classification: &library.MediaClassification{OfficialRating: "TV-14"},
+	}
+	assert.True(t, mediaItemBlockedByParental(pf13, tv14),
+		"worstAge one year over the cap must be blocked")
+
+	maxAge0 := 0
+	pf0 := parentalFilter{maxAge: maxAge0, region: "US"}
+	allAges := &library.MediaItem{
+		Classification: &library.MediaClassification{OfficialRating: "G"},
+	}
+	assert.False(t, mediaItemBlockedByParental(pf0, allAges),
+		"an all-ages rating must be allowed even at the strictest cap")
 }
 
 // Every exemption must carry a real justification - an empty string would let

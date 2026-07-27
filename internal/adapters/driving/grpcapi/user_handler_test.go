@@ -248,6 +248,29 @@ func TestUpdateUser_NonAdminCannotSetCaps(t *testing.T) {
 	}
 }
 
+// A non-admin must not be able to grant themselves admin rights by setting
+// IsAdmin=true on their own UpdateUser call.
+func TestUpdateUser_NonAdminCannotEscalateAdmin(t *testing.T) {
+	env := setupUserHandler()
+	seedUser(t, env, &user.User{ID: "usr-1", Username: "alice", Email: "a@b.com"}, "pass12345678")
+
+	ctx := userCtx("usr-1", "prf-1")
+	trueVal := true
+	_, err := env.handler.UpdateUser(ctx, &eveyv1.UpdateUserRequest{
+		Id:      "usr-1",
+		IsAdmin: &trueVal,
+	})
+	assertCode(t, err, codes.PermissionDenied)
+
+	stored, err := env.userRepo.GetByID(context.Background(), shared.UserID("usr-1"))
+	if err != nil {
+		t.Fatalf("GetByID: %v", err)
+	}
+	if stored.IsAdmin {
+		t.Fatal("user escalated to admin despite PermissionDenied response")
+	}
+}
+
 func TestUpdateUser_AdminCanSetCaps(t *testing.T) {
 	env := setupUserHandler()
 	seedUser(t, env, &user.User{ID: "usr-admin", Username: "root", Email: "r@b.com", IsAdmin: true}, "pass12345678")
