@@ -48,10 +48,36 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function SectionHeader({ title }: { title: string }) {
+// The decision belongs to its stream, not to a lonely row at the bottom of
+// the section: colour-coded so copied (untouched, good) is visually distinct
+// from transcoded (re-encoded, costly) and wasm (decoded client-side, not
+// transcoded at all).
+function DecisionBadge({ decision }: { decision?: string }) {
+  const { t } = useTranslation();
+  const theme = useTheme();
+  if (!decision) return null;
+  const isCopy = decision === "copy" || decision === "direct";
+  const isWasm = decision === "wasm";
+  const bg = isWasm ? theme.colors.accent : isCopy ? theme.colors.success : theme.colors.warning;
+  const label = isWasm
+    ? t("player.streamInfo.decision.wasm", "Décodé client")
+    : isCopy
+      ? t("player.streamInfo.decision.copy", "Copié")
+      : t("player.streamInfo.decision.transcode", "Transcodé");
+  return (
+    <View style={[styles.badge, { backgroundColor: bg }]}>
+      <Text style={[styles.badgeText, { color: theme.colors.bg }]}>{label}</Text>
+    </View>
+  );
+}
+
+function SectionHeader({ title, decision }: { title: string; decision?: string }) {
   const theme = useTheme();
   return (
-    <Text style={[styles.section, { color: theme.colors.accent }]}>{title}</Text>
+    <View style={styles.sectionHeader}>
+      <Text style={[styles.section, { color: theme.colors.accent }]}>{title}</Text>
+      <DecisionBadge decision={decision} />
+    </View>
   );
 }
 
@@ -81,7 +107,7 @@ export function StreamInfoPanel({ visible, onClose, streamInfo }: StreamInfoPane
 
       {videoStream && (
         <>
-          <SectionHeader title={t("player.streamInfo.video", "Video")} />
+          <SectionHeader title={t("player.streamInfo.video", "Video")} decision={streamInfo.videoDecision} />
           <InfoRow label={t("player.streamInfo.codec", "Codec")} value={(videoStream.codec ?? "-").toUpperCase()} />
           {videoStream.width && videoStream.height && (
             <InfoRow label={t("player.streamInfo.resolution", "Resolution")} value={`${videoStream.width}×${videoStream.height}`} />
@@ -98,15 +124,12 @@ export function StreamInfoPanel({ visible, onClose, streamInfo }: StreamInfoPane
           {videoStream.pixelFormat && (
             <InfoRow label={t("player.streamInfo.pixelFormat", "Pixel Format")} value={videoStream.pixelFormat} />
           )}
-          {streamInfo.videoDecision && (
-            <InfoRow label={t("player.streamInfo.decision", "Decision")} value={streamInfo.videoDecision} />
-          )}
         </>
       )}
 
       {audioStream && (
         <>
-          <SectionHeader title={t("player.streamInfo.audio", "Audio")} />
+          <SectionHeader title={t("player.streamInfo.audio", "Audio")} decision={streamInfo.audioDecision} />
           <InfoRow label={t("player.streamInfo.codec", "Codec")} value={(audioStream.codec ?? "-").toUpperCase()} />
           {audioStream.channels && (
             <InfoRow label={t("player.streamInfo.channels", "Channels")} value={formatChannels(audioStream.channels)} />
@@ -120,16 +143,20 @@ export function StreamInfoPanel({ visible, onClose, streamInfo }: StreamInfoPane
           {audioStream.sampleRate && (
             <InfoRow label={t("player.streamInfo.sampleRate", "Sample Rate")} value={`${audioStream.sampleRate} Hz`} />
           )}
-          {streamInfo.audioDecision && (
-            <InfoRow label={t("player.streamInfo.decision", "Decision")} value={streamInfo.audioDecision} />
-          )}
         </>
       )}
 
       {streamInfo.transcodeReasons && streamInfo.transcodeReasons.length > 0 && (
         <>
           <SectionHeader title={t("player.streamInfo.transcodeReasons", "Transcode Reasons")} />
-          <Text style={[styles.reasons, { color: theme.colors.textMuted }]}>{streamInfo.transcodeReasons.join(", ")}</Text>
+          {streamInfo.transcodeReasons.map((reason) => (
+            <View key={reason} style={styles.reasonRow}>
+              <Text style={[styles.reasonBullet, { color: theme.colors.warning }]}>{"•"}</Text>
+              <Text style={[styles.reasons, { color: theme.colors.textMuted }]}>
+                {t(`player.streamInfo.reason.${reason}`, reason.replace(/_/g, " "))}
+              </Text>
+            </View>
+          ))}
         </>
       )}
     </BottomSheet>
@@ -142,8 +169,23 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     textTransform: "uppercase",
     letterSpacing: 0.5,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
     marginTop: 16,
     marginBottom: 6,
+  },
+  badge: {
+    marginLeft: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  badgeText: {
+    fontSize: FONT_SIZE.xs,
+    fontWeight: "700",
+    textTransform: "uppercase",
   },
   row: {
     flexDirection: "row",
@@ -162,8 +204,17 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     marginLeft: 12,
   },
+  reasonRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 6,
+    paddingVertical: 4,
+  },
+  reasonBullet: {
+    fontSize: FONT_SIZE.xs,
+  },
   reasons: {
     fontSize: FONT_SIZE.xs,
-    paddingVertical: 6,
+    flexShrink: 1,
   },
 });
