@@ -11,6 +11,7 @@ import {
   getNotificationServiceGetUnreadCountQueryKey,
 } from "@evey/api";
 import type { V1Notification } from "@evey/api";
+import { toast } from "@evey/store";
 import { useTheme } from "../../src/providers/ThemeProvider";
 import { FocusableCard } from "../../src/components/FocusableCard";
 
@@ -75,11 +76,17 @@ export default function NotificationsScreen() {
   };
 
   const markRead = useNotificationServiceMarkRead({
-    mutation: { onSuccess: invalidateAll },
+    mutation: {
+      onSuccess: invalidateAll,
+      onError: () => toast.error(t("common.notifications.markReadFailed", "Could not mark as read")),
+    },
   });
 
   const markAllRead = useNotificationServiceMarkAllRead({
-    mutation: { onSuccess: invalidateAll },
+    mutation: {
+      onSuccess: invalidateAll,
+      onError: () => toast.error(t("common.notifications.markAllReadFailed", "Could not mark all as read")),
+    },
   });
 
   const hasUnread = notifications.some((n) => !n.readAt);

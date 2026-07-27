@@ -8,6 +8,7 @@ import {
   StyleSheet,
 } from "react-native";
 import { useTranslation } from "react-i18next";
+import { toast } from "@evey/store";
 import { useTheme } from "../providers/ThemeProvider";
 import { usePlaylistList, useAddToPlaylist } from "../api/playlists";
 import { FocusableCard } from "./FocusableCard";
@@ -34,10 +35,11 @@ export function AddToPlaylistSheet({ visible, mediaItemId, onClose }: Props) {
         { playlistId, mediaItemId },
         {
           onSuccess: () => setAddedIds((prev) => new Set(prev).add(playlistId)),
+          onError: () => toast.error(t("media.playlist.addError")),
         },
       );
     },
-    [addTo, mediaItemId],
+    [addTo, mediaItemId, t],
   );
 
   return (

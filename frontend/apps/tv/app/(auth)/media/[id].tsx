@@ -10,7 +10,7 @@ import {
   usePlaybackServiceMarkAsUnwatched,
 } from "@evey/api";
 import type { V1MediaPerson } from "@evey/api";
-import { useAuthStore } from "@evey/store";
+import { useAuthStore, toast } from "@evey/store";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTheme } from "../../../src/providers/ThemeProvider";
@@ -88,11 +88,13 @@ export default function MediaDetailScreen() {
   const markWatched = usePlaybackServiceMarkAsWatched({
     mutation: {
       onSuccess: () => { setWatchedOverride(true); invalidateWatched(); },
+      onError: () => toast.error(t("media.detail.markWatchedFailed", "Could not mark as watched")),
     },
   });
   const markUnwatched = usePlaybackServiceMarkAsUnwatched({
     mutation: {
       onSuccess: () => { setWatchedOverride(false); invalidateWatched(); },
+      onError: () => toast.error(t("media.detail.markUnwatchedFailed", "Could not mark as unwatched")),
     },
   });
 
