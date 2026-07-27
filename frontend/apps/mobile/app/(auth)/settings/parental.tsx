@@ -32,17 +32,26 @@ export default function ParentalSettingsScreen() {
   const { data: parental } = useParentalServiceGetParentalSettings(profileId, { query: { enabled: !!profileId } } as never);
 
   const enabled = parental?.enabled ?? false;
+  const hasPin = parental?.hasPin ?? false;
   const [maxAge, setMaxAge] = useState<string>("");
   const [pin, setPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
+  const [currentPin, setCurrentPin] = useState("");
+  const [password, setPassword] = useState("");
 
   useEffect(() => {
     setMaxAge(parental?.maxAge != null ? String(parental.maxAge) : "");
   }, [parental?.maxAge]);
 
   const updateParental = useMutation({
-    mutationFn: (body: { enabled?: boolean; maxAge?: number; unsetMaxAge?: boolean; newPin?: string }) =>
-      parentalServiceUpdateParentalSettings(profileId, body),
+    mutationFn: (body: {
+      enabled?: boolean;
+      maxAge?: number;
+      unsetMaxAge?: boolean;
+      newPin?: string;
+      currentPin?: string;
+      currentPassword?: string;
+    }) => parentalServiceUpdateParentalSettings(profileId, body),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: getParentalServiceGetParentalSettingsQueryKey(profileId) });
     },
@@ -66,18 +75,40 @@ export default function ParentalSettingsScreen() {
 
   function handleSavePin() {
     if (pin.length !== 4) {
-      Alert.alert(t("auth.settings.parental.pin.mustBe4", "PIN must be 4 digits"));
+      Alert.alert(t("auth.settings.parental.pin.mustBe4", "Le PIN doit contenir 4 chiffres"));
       return;
     }
     if (pin !== confirmPin) {
-      Alert.alert(t("auth.settings.parental.pin.mismatch", "PINs do not match"));
+      Alert.alert(t("auth.settings.parental.pin.mismatch", "Les PIN ne correspondent pas"));
+      return;
+    }
+    // Rotation requires the current PIN; the first-time set requires the
+    // account password instead - otherwise a stolen JWT could silently
+    // lock the owner out of (or seize) their profile's parental gate.
+    if (hasPin && currentPin.length !== 4) {
+      Alert.alert(t("auth.settings.parental.pin.currentPinRequired", "Saisir le code PIN actuel"));
+      return;
+    }
+    if (!hasPin && password === "") {
+      Alert.alert(t("auth.settings.parental.pin.passwordRequired", "Mot de passe requis pour définir un PIN la première fois"));
       return;
     }
     if (!profileId) return;
-    updateParental.mutate({ newPin: pin });
-    setPin("");
-    setConfirmPin("");
-    Alert.alert(t("auth.settings.parental.pin.saved", "PIN saved"));
+    const body: { newPin: string; currentPin?: string; currentPassword?: string } = { newPin: pin };
+    if (hasPin) {
+      body.currentPin = currentPin;
+    } else {
+      body.currentPassword = password;
+    }
+    updateParental.mutate(body, {
+      onSuccess: () => {
+        setPin("");
+        setConfirmPin("");
+        setCurrentPin("");
+        setPassword("");
+        Alert.alert(t("auth.settings.parental.pin.saved", "PIN enregistré"));
+      },
+    });
   }
 
   const s = styles(theme);
@@ -132,19 +163,44 @@ export default function ParentalSettingsScreen() {
       </View>
 
       {/* PIN */}
-      <Text style={s.sectionTitle}>{t("auth.settings.parental.pin.title", "PIN")}</Text>
+      <Text style={s.sectionTitle}>
+        {hasPin
+          ? t("auth.settings.parental.pin.changeTitle", "Changer le code PIN")
+          : t("auth.settings.parental.pin.title", "Définir le PIN")}
+      </Text>
       <View style={s.section}>
         <View style={{ padding: theme.spacing.md }}>
           <Text style={s.hint}>
-            {t("auth.settings.parental.pin.description", "Set a 4-digit PIN to unlock restricted content")}
+            {t("auth.settings.parental.pin.description", "PIN à 4 chiffres pour déverrouiller le contenu restreint.")}
           </Text>
+          {hasPin && (
+            <TextInput
+              secureTextEntry
+              keyboardType="number-pad"
+              maxLength={4}
+              value={currentPin}
+              onChangeText={(v) => setCurrentPin(v.replace(/\D/g, "").slice(0, 4))}
+              placeholder={t("auth.settings.parental.pin.currentPin", "Code PIN actuel")}
+              placeholderTextColor={theme.colors.textMuted}
+              editable={enabled}
+              style={[
+                s.input,
+                {
+                  backgroundColor: theme.colors.bg,
+                  color: theme.colors.text,
+                  borderColor: theme.colors.border,
+                },
+                !enabled && { opacity: 0.4 },
+              ]}
+            />
+          )}
           <TextInput
             secureTextEntry
             keyboardType="number-pad"
             maxLength={4}
             value={pin}
             onChangeText={(v) => setPin(v.replace(/\D/g, "").slice(0, 4))}
-            placeholder={t("auth.settings.parental.pin.newPin", "New PIN")}
+            placeholder={t("auth.settings.parental.pin.newPin", "Nouveau PIN")}
             placeholderTextColor={theme.colors.textMuted}
             editable={enabled}
             style={[
@@ -163,7 +219,7 @@ export default function ParentalSettingsScreen() {
             maxLength={4}
             value={confirmPin}
             onChangeText={(v) => setConfirmPin(v.replace(/\D/g, "").slice(0, 4))}
-            placeholder={t("auth.settings.parental.pin.confirmPin", "Confirm PIN")}
+            placeholder={t("auth.settings.parental.pin.confirmPin", "Confirmer le PIN")}
             placeholderTextColor={theme.colors.textMuted}
             editable={enabled}
             style={[
@@ -176,13 +232,48 @@ export default function ParentalSettingsScreen() {
               !enabled && { opacity: 0.4 },
             ]}
           />
+          {!hasPin && (
+            <TextInput
+              secureTextEntry
+              autoComplete="current-password"
+              value={password}
+              onChangeText={setPassword}
+              placeholder={t("auth.settings.parental.pin.passwordReauth", "Mot de passe du compte")}
+              placeholderTextColor={theme.colors.textMuted}
+              editable={enabled}
+              style={[
+                s.input,
+                {
+                  fontFamily: undefined,
+                  letterSpacing: 0,
+                  textAlign: "left",
+                  backgroundColor: theme.colors.bg,
+                  color: theme.colors.text,
+                  borderColor: theme.colors.border,
+                },
+                !enabled && { opacity: 0.4 },
+              ]}
+            />
+          )}
           <Pressable
             onPress={handleSavePin}
-            disabled={!enabled || pin.length < 4 || updateParental.isPending}
+            disabled={
+              !enabled ||
+              pin.length < 4 ||
+              (hasPin && currentPin.length < 4) ||
+              (!hasPin && password === "") ||
+              updateParental.isPending
+            }
             style={[
               s.saveBtn,
               {
-                backgroundColor: !enabled || pin.length < 4 ? theme.colors.border : theme.colors.accent,
+                backgroundColor:
+                  !enabled ||
+                  pin.length < 4 ||
+                  (hasPin && currentPin.length < 4) ||
+                  (!hasPin && password === "")
+                    ? theme.colors.border
+                    : theme.colors.accent,
                 borderRadius: theme.radii.md,
               },
             ]}
@@ -191,7 +282,9 @@ export default function ParentalSettingsScreen() {
               <ActivityIndicator color="#fff" size="small" />
             ) : (
               <Text style={{ color: "#fff", fontWeight: "600" }}>
-                {t("auth.settings.parental.pin.savePin", "Save PIN")}
+                {hasPin
+                  ? t("auth.settings.parental.pin.updatePin", "Mettre à jour le code PIN")
+                  : t("auth.settings.parental.pin.savePin", "Enregistrer le PIN")}
               </Text>
             )}
           </Pressable>
