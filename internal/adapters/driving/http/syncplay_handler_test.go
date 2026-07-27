@@ -361,6 +361,109 @@ func TestSyncPlayWS_GuestToken(t *testing.T) {
 	}
 }
 
+// TestSyncPlayWS_ParentalBlocked_NotFound proves that joining a "watch
+// together" room is gated by the profile's parental settings, exactly like
+// the HLS/byte/token stream handlers (checkParental). A kids profile that
+// knows the room id (e.g. shared by the adult who created it) must not be
+// able to join a room built around an adult title just because library
+// access happens to be granted.
+func TestSyncPlayWS_ParentalBlocked_NotFound(t *testing.T) {
+	t.Parallel()
+	tokenGen := newTestJWTGen(t)
+	repo := newFakeSyncPlayRepo()
+	hub := appsyncplay.NewHub(repo)
+	mediaGetter := newFakeMediaGetter()
+	mediaGetter.items["media-1"] = &domainlibrary.MediaItem{ID: "media-1", LibraryID: "lib-1"}
+
+	room := createTestRoom(t, hub, "host-parental", "media-1")
+
+	mux := http.NewServeMux()
+	registerSyncPlayRoutes(mux, hub, tokenGen, mediaGetter, allowAll(), fakeGuestTokens{}, withSyncPlayParental(alwaysBlockChecker{}))
+
+	claims := domainuser.Claims{UserID: "kid-1", Username: "Kid", IsAdmin: false, ProfileID: "kid-profile"}
+	token, err := tokenGen.GenerateAccessToken(claims)
+	if err != nil {
+		t.Fatalf("GenerateAccessToken: %v", err)
+	}
+	wsReq := httptest.NewRequest(http.MethodGet, "/api/v1/syncplay/rooms/"+room.ID+"/ws", nil)
+	wsReq.Header.Set("Authorization", "Bearer "+token)
+	// The room's host must also be a member so the parental gate - not the
+	// membership check - is what would otherwise let this request through.
+	if err := hub.JoinRoom(context.Background(), room.ID, "kid-1", "Kid"); err != nil {
+		t.Fatalf("hub.JoinRoom: %v", err)
+	}
+	wsW := httptest.NewRecorder()
+	mux.ServeHTTP(wsW, wsReq)
+
+	if wsW.Code != http.StatusNotFound {
+		t.Errorf("expected 404 when parental-blocked, got %d (%s)", wsW.Code, wsW.Body.String())
+	}
+}
+
+// TestSyncPlayWS_ParentalAllowed_NotBlocked is the anti-over-block guard: a
+// profile the parental checker does NOT restrict must keep joining exactly as
+// before. The project has already been bitten by an over-strict parental gate
+// (see memory/parental_campaign_2026_07_20.md); this proves the eligible path
+// still works once the gate is wired.
+func TestSyncPlayWS_ParentalAllowed_NotBlocked(t *testing.T) {
+	t.Parallel()
+	tokenGen := newTestJWTGen(t)
+	repo := newFakeSyncPlayRepo()
+	hub := appsyncplay.NewHub(repo)
+	mediaGetter := newFakeMediaGetter()
+	mediaGetter.items["media-1"] = &domainlibrary.MediaItem{ID: "media-1", LibraryID: "lib-1"}
+
+	room := createTestRoom(t, hub, "host-ok", "media-1")
+
+	mux := http.NewServeMux()
+	registerSyncPlayRoutes(mux, hub, tokenGen, mediaGetter, allowAll(), fakeGuestTokens{}, withSyncPlayParental(allowAllParental{}))
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	claims := domainuser.Claims{UserID: "host-ok", Username: "Host", IsAdmin: false, ProfileID: "adult-profile"}
+	token, err := tokenGen.GenerateAccessToken(claims)
+	if err != nil {
+		t.Fatalf("GenerateAccessToken: %v", err)
+	}
+	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "/api/v1/syncplay/rooms/" + room.ID + "/ws"
+	ws, _, err := dialWS(wsURL, srv.URL, token)
+	if err != nil {
+		t.Fatalf("host should connect when the parental checker allows the item, got: %v", err)
+	}
+	ws.Close()
+}
+
+// TestSyncPlayWS_ParentalAdminBypass proves an admin profile is exempt from
+// the parental gate, mirroring checkParental's own admin bypass (see
+// parental_test.go) and every other stream handler wired with it.
+func TestSyncPlayWS_ParentalAdminBypass(t *testing.T) {
+	t.Parallel()
+	tokenGen := newTestJWTGen(t)
+	repo := newFakeSyncPlayRepo()
+	hub := appsyncplay.NewHub(repo)
+	mediaGetter := newFakeMediaGetter()
+	mediaGetter.items["media-1"] = &domainlibrary.MediaItem{ID: "media-1", LibraryID: "lib-1"}
+
+	room := createTestRoom(t, hub, "host-admin", "media-1")
+
+	mux := http.NewServeMux()
+	registerSyncPlayRoutes(mux, hub, tokenGen, mediaGetter, allowAll(), fakeGuestTokens{}, withSyncPlayParental(alwaysBlockChecker{}))
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	claims := domainuser.Claims{UserID: "host-admin", Username: "Admin", IsAdmin: true}
+	token, err := tokenGen.GenerateAccessToken(claims)
+	if err != nil {
+		t.Fatalf("GenerateAccessToken: %v", err)
+	}
+	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "/api/v1/syncplay/rooms/" + room.ID + "/ws"
+	ws, _, err := dialWS(wsURL, srv.URL, token)
+	if err != nil {
+		t.Fatalf("admin must bypass the parental gate, got: %v", err)
+	}
+	ws.Close()
+}
+
 func TestSyncPlayWS_NoToken_401(t *testing.T) {
 	t.Parallel()
 	mux, _, _ := newSyncPlayTestMux(t)

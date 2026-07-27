@@ -10,7 +10,9 @@ import (
 	"strings"
 	"testing"
 
+	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	shared "github.com/evey-project/evey/internal/domain/shared"
+	domainuser "github.com/evey-project/evey/internal/domain/user"
 )
 
 // The 2026-07-15 incident: a viewer watched a rainbow-garbled screen for
@@ -141,6 +143,115 @@ func TestPlayerEvent_StreamTokenBoundToItsOwnMedia(t *testing.T) {
 	}
 	if buf.Len() != 0 {
 		t.Fatalf("cross-media beacon must not be logged, got %q", buf.String())
+	}
+}
+
+// postPlayerEventAsClaims mirrors postPlayerEvent but injects JWT claims
+// into the context, wiring the optional library/parental guard.
+func postPlayerEventAsClaims(t *testing.T, logger *slog.Logger, claims *domainuser.Claims, opts ...PlayerEventOption) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/media/media-1/player-event", strings.NewReader(`{"type":"hls_fatal"}`))
+	req.SetPathValue("id", "media-1")
+	req = withHTTPClaims(req, claims)
+	rec := httptest.NewRecorder()
+	playerEventHandler(logger, opts...)(rec, req)
+	return rec
+}
+
+// TestPlayerEvent_NoGuardWired_UnchangedBehavior proves the guard is a no-op
+// until a caller wires WithPlayerEventLibraryGuard - the migration aid that
+// keeps the beacon route working exactly as before server.go passes the new
+// dependencies in.
+func TestPlayerEvent_NoGuardWired_UnchangedBehavior(t *testing.T) {
+	logger := slog.New(slog.NewJSONHandler(&bytes.Buffer{}, nil))
+	rec := postPlayerEventAsClaims(t, logger, &domainuser.Claims{UserID: "u1"})
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204 (no guard wired)", rec.Code)
+	}
+}
+
+// TestPlayerEvent_LibraryAccessDenied_NotFound proves that once the guard is
+// wired, a JWT holder without access to media-1's library can no longer push
+// events onto it (previously: any valid JWT could target any media_id).
+func TestPlayerEvent_LibraryAccessDenied_NotFound(t *testing.T) {
+	logger := slog.New(slog.NewJSONHandler(&bytes.Buffer{}, nil))
+	media := newFakeMediaGetter()
+	media.items["media-1"] = &domainlibrary.MediaItem{ID: "media-1", LibraryID: "lib-restricted"}
+	guard := WithPlayerEventLibraryGuard(media, denyAll(), nil)
+
+	rec := postPlayerEventAsClaims(t, logger, &domainuser.Claims{UserID: "attacker"}, guard)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404 (library access denied)", rec.Code)
+	}
+}
+
+// TestPlayerEvent_LibraryAccessAllowed_NotBlocked is the anti-over-block
+// guard: a caller with real access to the media's library must keep working.
+func TestPlayerEvent_LibraryAccessAllowed_NotBlocked(t *testing.T) {
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&buf, nil))
+	media := newFakeMediaGetter()
+	media.items["media-1"] = &domainlibrary.MediaItem{ID: "media-1", LibraryID: "lib-1"}
+	guard := WithPlayerEventLibraryGuard(media, allowAll(), allowAllParental{})
+
+	rec := postPlayerEventAsClaims(t, logger, &domainuser.Claims{UserID: "u1"}, guard)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204 (library access allowed)", rec.Code)
+	}
+}
+
+// TestPlayerEvent_ParentalBlocked_NotFound proves the parental gate applies
+// once wired: library access alone isn't enough for a kids profile pointed at
+// an adult title.
+func TestPlayerEvent_ParentalBlocked_NotFound(t *testing.T) {
+	logger := slog.New(slog.NewJSONHandler(&bytes.Buffer{}, nil))
+	media := newFakeMediaGetter()
+	media.items["media-1"] = &domainlibrary.MediaItem{ID: "media-1", LibraryID: "lib-1"}
+	guard := WithPlayerEventLibraryGuard(media, allowAll(), alwaysBlockChecker{})
+
+	rec := postPlayerEventAsClaims(t, logger, &domainuser.Claims{UserID: "kid", ProfileID: "kid-profile"}, guard)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404 (parental blocked)", rec.Code)
+	}
+}
+
+// TestPlayerEvent_AdminBypassesParental mirrors checkParental's own admin
+// bypass: an admin profile must not be blocked even by an always-block
+// checker.
+func TestPlayerEvent_AdminBypassesParental(t *testing.T) {
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&buf, nil))
+	media := newFakeMediaGetter()
+	media.items["media-1"] = &domainlibrary.MediaItem{ID: "media-1", LibraryID: "lib-1"}
+	guard := WithPlayerEventLibraryGuard(media, allowAll(), alwaysBlockChecker{})
+
+	rec := postPlayerEventAsClaims(t, logger, &domainuser.Claims{UserID: "admin", IsAdmin: true}, guard)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204 (admin bypasses parental)", rec.Code)
+	}
+}
+
+// TestPlayerEvent_StreamTokenBypassesGuardEvenWhenWired proves the cast
+// receiver's stream-token path keeps working unchanged even once the
+// claims-based guard is wired: the token's own media scope is the
+// authorization, not the (absent) JWT claims.
+func TestPlayerEvent_StreamTokenBypassesGuardEvenWhenWired(t *testing.T) {
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&buf, nil))
+	media := newFakeMediaGetter() // empty: a claims-based lookup would 404
+	guard := WithPlayerEventLibraryGuard(media, denyAll(), alwaysBlockChecker{})
+
+	// Construct the handler WITH the guard wired, deny-all/block-all - a
+	// matching stream token must still pass, unaffected by either.
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/media/media-1/player-event", strings.NewReader(`{"type":"cast_receiver_error"}`))
+	req.SetPathValue("id", "media-1")
+	ctx := context.WithValue(req.Context(), streamTokenCtxKey, &shared.StreamToken{
+		UserID: "usr-cast", MediaItemID: "media-1", Scope: "stream", Cast: true,
+	})
+	rec2 := httptest.NewRecorder()
+	playerEventHandler(logger, guard)(rec2, req.WithContext(ctx))
+	if rec2.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204 (stream token bypasses the claims guard)", rec2.Code)
 	}
 }
 

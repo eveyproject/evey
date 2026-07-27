@@ -43,12 +43,46 @@ type playerEventBody struct {
 	PosSec  float64 `json:"posSec"`
 }
 
+// playerEventDeps carries the optional library/parental guard for
+// playerEventHandler. Left zero-valued, the handler behaves exactly as
+// before (no media_id ownership check) - this is a deliberate migration
+// aid: the guard only activates once a caller wires it via
+// WithPlayerEventLibraryGuard, so adding it here cannot regress the beacon
+// route before its production registration (server.go) is updated to pass
+// the dependencies.
+type playerEventDeps struct {
+	media      mediaLibraryGetter
+	libChecker LibraryAccessChecker
+	parental   ParentalChecker
+}
+
+// PlayerEventOption configures playerEventHandler's optional dependencies.
+type PlayerEventOption func(*playerEventDeps)
+
+// WithPlayerEventLibraryGuard closes the "any JWT can push events onto an
+// arbitrary media_id" gap: a JWT-authenticated caller must have library
+// access to (and not be parental-blocked from) the media_id it reports on,
+// exactly like the other handlers gated via checkLibraryAccess/checkParental.
+// It does not apply to a stream-token caller (e.g. the cast receiver) -
+// that token is already scoped to its own media_id, checked below.
+func WithPlayerEventLibraryGuard(media mediaLibraryGetter, libChecker LibraryAccessChecker, parental ParentalChecker) PlayerEventOption {
+	return func(d *playerEventDeps) {
+		d.media = media
+		d.libChecker = libChecker
+		d.parental = parental
+	}
+}
+
 // playerEventHandler accepts POST /api/v1/media/{id}/player-event and turns
 // the body into one WARN log line. It never fails playback-side flows: the
 // player fires and forgets.
-func playerEventHandler(logger *slog.Logger) http.HandlerFunc {
+func playerEventHandler(logger *slog.Logger, opts ...PlayerEventOption) http.HandlerFunc {
 	if logger == nil {
 		logger = slog.Default()
+	}
+	var deps playerEventDeps
+	for _, opt := range opts {
+		opt(&deps)
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		mediaID := r.PathValue("id")
@@ -58,10 +92,29 @@ func playerEventHandler(logger *slog.Logger) http.HandlerFunc {
 		}
 		// A stream token (the cast receiver's only identity - it has no user
 		// JWT) is pinned to its own media: a leaked token must not become a
-		// door to spray beacons onto arbitrary media ids.
-		if st, ok := StreamTokenFromContext(r.Context()); ok && st != nil && string(st.MediaItemID) != mediaID {
-			http.Error(w, `{"message":"token not valid for this media"}`, http.StatusForbidden)
-			return
+		// door to spray beacons onto arbitrary media ids. The token itself IS
+		// the authorization here (same model as the syncplay guest path), so
+		// it skips the claims-based library/parental guard below.
+		if st, ok := StreamTokenFromContext(r.Context()); ok && st != nil {
+			if string(st.MediaItemID) != mediaID {
+				http.Error(w, `{"message":"token not valid for this media"}`, http.StatusForbidden)
+				return
+			}
+		} else if deps.media != nil {
+			claims := HTTPClaimsFromContext(r.Context())
+			item, err := deps.media.GetMediaItem(r.Context(), mediaID)
+			if err != nil || item == nil {
+				// Mirror checkLibraryAccess's not-found response so an unknown
+				// media_id and one the caller can't see are indistinguishable.
+				http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+				return
+			}
+			if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, deps.libChecker) {
+				return
+			}
+			if !checkParental(r.Context(), w, claims, item, deps.parental) {
+				return
+			}
 		}
 		var body playerEventBody
 		r.Body = http.MaxBytesReader(w, r.Body, playerEventMaxBody)

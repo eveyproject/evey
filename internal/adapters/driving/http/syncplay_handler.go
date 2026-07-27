@@ -36,15 +36,31 @@ type syncplayHandler struct {
 	media       mediaLibraryGetter
 	libChecker  LibraryAccessChecker
 	guestTokens guestTokenValidator
+	// parental gates a joining member the same way the HLS/byte/token stream
+	// handlers do (see parental.go). May be nil - checkParental no-ops then.
+	parental ParentalChecker
 }
 
-func registerSyncPlayRoutes(mux *http.ServeMux, hub *appsyncplay.Hub, tokenGen domainuser.TokenGenerator, mediaGetter mediaLibraryGetter, libChecker LibraryAccessChecker, guestTokens guestTokenValidator) {
+// syncPlayOption configures optional syncplayHandler dependencies. Added as a
+// trailing variadic parameter so existing registerSyncPlayRoutes call sites
+// keep compiling unchanged.
+type syncPlayOption func(*syncplayHandler)
+
+// withSyncPlayParental wires the parental gate onto the ws upgrade handler.
+func withSyncPlayParental(pc ParentalChecker) syncPlayOption {
+	return func(h *syncplayHandler) { h.parental = pc }
+}
+
+func registerSyncPlayRoutes(mux *http.ServeMux, hub *appsyncplay.Hub, tokenGen domainuser.TokenGenerator, mediaGetter mediaLibraryGetter, libChecker LibraryAccessChecker, guestTokens guestTokenValidator, opts ...syncPlayOption) {
 	h := &syncplayHandler{
 		hub:         hub,
 		tokenGen:    tokenGen,
 		media:       mediaGetter,
 		libChecker:  libChecker,
 		guestTokens: guestTokens,
+	}
+	for _, opt := range opts {
+		opt(h)
 	}
 	// WebSocket uses Sec-WebSocket-Protocol for auth - can't use standard middleware
 	mux.Handle("/api/v1/syncplay/rooms/{id}/ws", http.HandlerFunc(h.wsUpgradeHandler))
@@ -225,6 +241,15 @@ func (s *syncplayHandler) wsUpgradeHandler(w http.ResponseWriter, r *http.Reques
 			}
 			if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, s.libChecker) {
 				span.SetStatus(otelcodes.Error, "library access denied")
+				span.End()
+				return
+			}
+			// Library access only proves the profile can see the LIBRARY; a kids
+			// profile that learns a room id out-of-band (shared by the adult who
+			// created it) must still be refused the specific adult title, same as
+			// the HLS/byte/token stream handlers (checkParental).
+			if !checkParental(r.Context(), w, claims, item, s.parental) {
+				span.SetStatus(otelcodes.Error, "parental blocked")
 				span.End()
 				return
 			}
