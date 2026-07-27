@@ -544,6 +544,11 @@ func (s *CommandService) Logout(ctx context.Context, userID string) error {
 	if err := s.refreshTkns.DeleteByUserID(ctx, shared.UserID(userID)); err != nil {
 		return fmt.Errorf("CommandService.Logout: %w", err)
 	}
+	// TODO(parent): wire streamTokenStore.RevokeByUser here. CommandService has
+	// no access to media.StreamTokenStore (not a field, not injectable without
+	// re-wiring the constructor across callers), so a logged-out user's opaque
+	// stream/cast token (up to 12h, now capped at 24h absolute) still survives
+	// until it expires on its own.
 	return nil
 }
 

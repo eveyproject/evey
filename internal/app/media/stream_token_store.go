@@ -19,6 +19,14 @@ const (
 	// dodges this by re-validating on every xhr, the cast can't). 12h
 	// comfortably covers any single playback session.
 	CastStreamTokenTTL = 12 * time.Hour
+	// maxAbsoluteStreamTokenTTL is the hard ceiling on a token's lifetime,
+	// independent of the sliding renewal in Validate. Without it a token kept
+	// alive by regular traffic (e.g. a stuck cast receiver polling forever)
+	// never dies and outlives any logout/ban that only touches refresh tokens.
+	// 24h is comfortably above CastStreamTokenTTL (12h) so a legitimate single
+	// cast/playback session is never cut mid-stream, while still bounding the
+	// worst case to about a day.
+	maxAbsoluteStreamTokenTTL = 24 * time.Hour
 )
 
 type StreamTokenStore struct {
@@ -27,8 +35,14 @@ type StreamTokenStore struct {
 	// unchecked type assertions in Validate / cleanupLoop are invariant-safe by
 	// construction - a bare v.(*shared.StreamToken) / key.(string) cannot panic.
 	tokens sync.Map
-	ttl    time.Duration
-	done   chan struct{}
+	// issuedAt maps token string → time.Time, the instant the token was
+	// minted. shared.StreamToken itself has no IssuedAt field (it's outside
+	// this package's whitelist), so the absolute-lifetime cap is tracked here
+	// instead, set once at creation and never mutated afterwards - same
+	// race-free contract as tokens/now below.
+	issuedAt sync.Map
+	ttl      time.Duration
+	done     chan struct{}
 	// now is set once at construction and never mutated afterwards, so the
 	// concurrent reads from the Validate hot path and the cleanupLoop
 	// goroutine are race-free without a mutex.
@@ -68,6 +82,7 @@ func (s *StreamTokenStore) CreateWithTTL(userID, profileID, mediaItemID string, 
 		ttl = s.ttl
 	}
 	token := uuid.New().String()
+	s.issuedAt.Store(token, s.now())
 	s.tokens.Store(token, &shared.StreamToken{
 		Token:       token,
 		UserID:      shared.UserID(userID),
@@ -87,6 +102,7 @@ func (s *StreamTokenStore) CreateCast(userID, profileID, mediaItemID string, ttl
 		ttl = s.ttl
 	}
 	token := uuid.New().String()
+	s.issuedAt.Store(token, s.now())
 	s.tokens.Store(token, &shared.StreamToken{
 		Token:       token,
 		UserID:      shared.UserID(userID),
@@ -109,6 +125,7 @@ func (s *StreamTokenStore) CreateGuestToken(mediaItemID string, ttl time.Duratio
 		ttl = s.ttl
 	}
 	token := uuid.New().String()
+	s.issuedAt.Store(token, s.now())
 	s.tokens.Store(token, &shared.StreamToken{
 		Token:       token,
 		MediaItemID: shared.MediaItemID(mediaItemID),
@@ -149,7 +166,17 @@ func (s *StreamTokenStore) Validate(token, mediaItemID string) (*shared.StreamTo
 	// every reader sees an immutable snapshot; the loaded st is never written,
 	// so copying it here is safe too.
 	renewed := *st
-	renewed.ExpiresAt = s.now().Add(ttl)
+	slidExpiry := s.now().Add(ttl)
+	// Cap the slide at IssuedAt + maxAbsoluteStreamTokenTTL: a token renewed
+	// forever by steady traffic must still die eventually. Once the absolute
+	// deadline itself is in the past, ExpiresAt is set to it (not extended),
+	// so the very next Validate call hits the expiry check above and rejects.
+	if issued, ok := s.issuedAt.Load(token); ok {
+		if absolute := issued.(time.Time).Add(maxAbsoluteStreamTokenTTL); absolute.Before(slidExpiry) {
+			slidExpiry = absolute
+		}
+	}
+	renewed.ExpiresAt = slidExpiry
 	s.tokens.Store(token, &renewed)
 	return &renewed, true
 }
@@ -161,6 +188,7 @@ func (s *StreamTokenStore) ValidateAny(token string) (*shared.StreamToken, bool)
 
 func (s *StreamTokenStore) Revoke(token string) {
 	s.tokens.Delete(token)
+	s.issuedAt.Delete(token)
 }
 
 // RevokeByUser deletes every stream token minted for userID and returns how
@@ -178,6 +206,7 @@ func (s *StreamTokenStore) RevokeByUser(userID string) int {
 		st, ok := value.(*shared.StreamToken)
 		if ok && string(st.UserID) == userID {
 			s.tokens.Delete(key)
+			s.issuedAt.Delete(key)
 			revoked++
 		}
 		return true
@@ -214,6 +243,7 @@ func (s *StreamTokenStore) purgeExpired(now time.Time) {
 		st := value.(*shared.StreamToken)
 		if now.After(st.ExpiresAt) {
 			s.tokens.Delete(key)
+			s.issuedAt.Delete(key)
 			slog.Debug("stream token expired", slog.String("token", key.(string)))
 		}
 		return true

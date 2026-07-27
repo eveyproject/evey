@@ -262,3 +262,44 @@ func TestStreamTokenStore_RevokeByUser(t *testing.T) {
 
 	assert.Equal(t, 0, store.RevokeByUser(""), "empty userID is a no-op")
 }
+
+// TestStreamTokenStore_AbsoluteLifetimeCap proves a token cannot be kept alive
+// forever by steady traffic sliding its TTL: past the 24h absolute cap from
+// creation, Validate must reject it even though each individual renewal
+// happened well within its own 12h sliding window.
+func TestStreamTokenStore_AbsoluteLifetimeCap(t *testing.T) {
+	fakeNow := time.Now()
+	store := media.NewStreamTokenStoreForTest(media.CastStreamTokenTTL, func() time.Time { return fakeNow })
+	defer store.Stop()
+
+	token := store.CreateWithTTL("user-1", "profile-1", "media-1", media.CastStreamTokenTTL)
+
+	// Renew every 6h, well inside the 12h sliding window each time. After 4
+	// renewals exactly 24h has elapsed since creation - the absolute cap
+	// caps ExpiresAt at that instant but doesn't reject yet (not strictly past it).
+	for range 4 {
+		fakeNow = fakeNow.Add(6 * time.Hour)
+		_, ok := store.Validate(token, "media-1")
+		require.True(t, ok, "renewal within both the sliding window and the absolute cap must succeed")
+	}
+
+	// One more tick past the 24h absolute cap: the sliding window (12h) would
+	// still allow it, but the absolute lifetime must not.
+	fakeNow = fakeNow.Add(1 * time.Hour)
+	_, ok := store.Validate(token, "media-1")
+	assert.False(t, ok, "token past the absolute lifetime cap must be rejected even mid-sliding-window")
+}
+
+// TestStreamTokenStore_NormalTokenSurvivesUnderCap proves the absolute cap
+// does not interfere with ordinary tokens well within it.
+func TestStreamTokenStore_NormalTokenSurvivesUnderCap(t *testing.T) {
+	fakeNow := time.Now()
+	store := media.NewStreamTokenStoreForTest(2*time.Hour, func() time.Time { return fakeNow })
+	defer store.Stop()
+
+	token := store.Create("user-1", "profile-1", "media-1")
+
+	fakeNow = fakeNow.Add(1 * time.Hour)
+	_, ok := store.Validate(token, "media-1")
+	assert.True(t, ok, "a token renewed well within the absolute cap must stay valid")
+}
