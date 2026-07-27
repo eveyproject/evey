@@ -4,8 +4,13 @@ import { useTheme } from "../providers/ThemeProvider";
 import { FocusableCard } from "./FocusableCard";
 import { FONT_SIZE } from "@evey/theme";
 
+// value=0 sends no maxHeight cap other than usePlaySession's own screen-height
+// clamp, i.e. "the best rendition the device's screen and the server's ABR
+// ladder can agree on" - the same idea as the web player's "Auto" ABR mode, just
+// resolved server-side once per session instead of continuously in-JS. Labelled
+// to match, so it isn't mistaken for "no adaptive behavior at all".
 const QUALITY_OPTIONS = [
-  { label: "Original", value: 0 },
+  { label: "Auto", value: 0 },
   { label: "1080p", value: 1080 },
   { label: "720p", value: 720 },
   { label: "480p", value: 480 },
@@ -36,6 +41,7 @@ export function QualityPicker({ visible, currentQuality, onSelect, onClose }: Pr
           <View style={styles.list}>
             {QUALITY_OPTIONS.map((q, i) => {
               const active = q.value === currentQuality;
+              const label = q.value === 0 ? t("player.settings.auto", "Auto") : q.label;
               return (
                 <FocusableCard
                   key={q.value}
@@ -44,11 +50,11 @@ export function QualityPicker({ visible, currentQuality, onSelect, onClose }: Pr
                     onSelect(q.value);
                     onClose();
                   }}
-                  accessibilityLabel={active ? `${q.label}, ${t("common.selected", "selected")}` : q.label}
+                  accessibilityLabel={active ? `${label}, ${t("common.selected", "selected")}` : label}
                   style={[styles.row, { borderBottomColor: theme.colors.border }]}
                 >
                   <Text style={[styles.label, { color: active ? theme.colors.accent : theme.colors.text }]}>
-                    {q.label}
+                    {label}
                   </Text>
                   {active && (
                     <Text style={[styles.check, { color: theme.colors.accent }]}>{"\u2713"}</Text>

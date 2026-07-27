@@ -50,6 +50,15 @@ export function useNextEpisode({
     return siblings[idx + 1];
   })();
 
+  // Manual "previous episode" control (see task item 2): the auto-advance only ever
+  // goes forward, so this is computed independently and never drives the countdown.
+  const previousEpisode = (() => {
+    if (!siblings || !media?.id) return null;
+    const idx = siblings.findIndex((e) => e.id === media.id);
+    if (idx <= 0) return null;
+    return siblings[idx - 1];
+  })();
+
   const isInCredits =
     duration > 0 && currentTime > 0 && duration - currentTime <= CREDITS_THRESHOLD_SEC;
   const videoEnded = duration > 0 && currentTime >= duration - 0.5;
@@ -95,12 +104,18 @@ export function useNextEpisode({
     if (intervalRef.current) clearInterval(intervalRef.current);
   }, []);
 
+  const playPrevious = useCallback(() => {
+    if (previousEpisode?.id) onNavigate(previousEpisode.id);
+  }, [previousEpisode, onNavigate]);
+
   return {
     visible,
     ended,
     countdown,
     nextEpisode,
+    previousEpisode,
     playNow,
+    playPrevious,
     cancel,
   };
 }

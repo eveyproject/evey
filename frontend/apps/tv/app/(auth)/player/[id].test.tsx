@@ -3,6 +3,10 @@ import { render, fireEvent, screen, act } from "@testing-library/react";
 import React from "react";
 
 // --- React Native mock -----------------------------------------------------
+// useTVEventHandler captures the screen's own callback so tests can simulate a
+// remote keypress directly, the same way playerListeners lets a test simulate
+// a native player event.
+let capturedTVHandler: ((evt: { eventType: string }) => void) | null = null;
 vi.mock("react-native", () => ({
   View: ({ children, ...p }: any) => React.createElement("div", p, children),
   Text: ({ children, ...p }: any) => React.createElement("span", p, children),
@@ -11,7 +15,7 @@ vi.mock("react-native", () => ({
   ActivityIndicator: (p: any) => React.createElement("div", { "data-testid": "spinner", ...p }),
   StyleSheet: { create: (s: any) => s, absoluteFillObject: {} },
   useWindowDimensions: () => ({ width: 1920, height: 1080 }),
-  useTVEventHandler: () => {},
+  useTVEventHandler: (cb: (evt: { eventType: string }) => void) => { capturedTVHandler = cb; },
 }));
 
 // --- expo-video mock ---------------------------------------------------------
@@ -71,8 +75,16 @@ vi.mock("@expo/vector-icons", () => ({
 const replaceMock = vi.fn();
 const backMock = vi.fn();
 const localSearchParamsMock = vi.fn();
+// canGoBack defaults to true so the existing back()-based tests below are
+// unaffected by the playerExit contract (see src/hooks/playerExit.ts) - a
+// dedicated describe block further down drives the false branch.
+const canGoBackMock = vi.fn(() => true);
 vi.mock("expo-router", () => ({
-  router: { replace: (...args: unknown[]) => replaceMock(...args), back: (...args: unknown[]) => backMock(...args) },
+  router: {
+    replace: (...args: unknown[]) => replaceMock(...args),
+    back: (...args: unknown[]) => backMock(...args),
+    canGoBack: () => canGoBackMock(),
+  },
   useLocalSearchParams: () => localSearchParamsMock(),
 }));
 
@@ -129,6 +141,19 @@ vi.mock("../../../src/hooks/useProgressReporter", () => ({
 vi.mock("../../../src/hooks/usePlaybackSettings", () => ({
   usePlaybackSettings: () => ({ data: { skipForwardSeconds: 30, skipBackwardSeconds: 30 } }),
 }));
+// useChapters is a real react-query hook (unmocked, it would need a
+// QueryClientProvider this test never sets up) - mocked flat like every other
+// data hook here. findCurrentChapterIndex is a plain re-export, safe to keep real.
+vi.mock("../../../src/hooks/useChapters", async () => {
+  const actual = await vi.importActual<typeof import("../../../src/hooks/useChapters")>(
+    "../../../src/hooks/useChapters",
+  );
+  return { ...actual, useChapters: () => ({ data: [] }) };
+});
+const sleepTimerStateMock = { state: null, setMinutes: vi.fn(), setEndOfEpisode: vi.fn(), cancel: vi.fn() };
+vi.mock("../../../src/hooks/useSleepTimer", () => ({
+  useSleepTimer: () => sleepTimerStateMock,
+}));
 
 // --- useNextEpisode mock: captures the onNavigate callback the screen wires
 // up so tests can simulate both the auto-advance countdown and the "play
@@ -152,6 +177,10 @@ vi.mock("../../../src/components/QualityPicker", () => ({
 vi.mock("../../../src/components/AudioTrackPicker", () => ({ AudioTrackPicker: () => null }));
 vi.mock("../../../src/components/SubtitlePicker", () => ({ SubtitlePicker: () => null }));
 vi.mock("../../../src/components/TrackOptionsMenu", () => ({ TrackOptionsMenu: () => null }));
+vi.mock("../../../src/components/ChaptersPicker", () => ({ ChaptersPicker: () => null }));
+vi.mock("../../../src/components/SleepTimerPicker", () => ({ SleepTimerPicker: () => null }));
+vi.mock("../../../src/components/VolumePicker", () => ({ VolumePicker: () => null }));
+vi.mock("../../../src/components/StreamInfoPanel", () => ({ StreamInfoPanel: () => null }));
 vi.mock("../../../src/components/SkipIntroButton", () => ({ SkipIntroButton: () => null }));
 vi.mock("../../../src/components/NextEpisodeOverlay", () => ({ NextEpisodeOverlay: () => null }));
 
@@ -184,6 +213,8 @@ beforeEach(() => {
   playerListeners.clear();
   playerMock.playing = false;
   lastSourceUri = null;
+  capturedTVHandler = null;
+  canGoBackMock.mockReturnValue(true);
   sessionState.streamUrl = "http://srv.test/stream.m3u8";
   restartWithTracksMock.mockImplementation(() => {
     sessionState.streamUrl = "http://srv.test/stream.m3u8?restarted=1";
@@ -199,7 +230,9 @@ beforeEach(() => {
     ended: false,
     countdown: 5,
     nextEpisode: { id: "ep-2", officialRating: "R" },
+    previousEpisode: { id: "ep-0", officialRating: "G" },
     playNow: () => capturedOnNavigate?.("ep-2"),
+    playPrevious: () => capturedOnNavigate?.("ep-0"),
     cancel: vi.fn(),
   });
 });
@@ -337,5 +370,109 @@ describe("track change keeps the pause state (TV)", () => {
     fireEvent.click(screen.getByLabelText("pick-quality"));
     rerender(<PlayerScreen />);
     expect(playMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+// A fatal native error otherwise offered no way forward (item 8): retrying
+// re-issues the same session start the picker rows already use.
+describe("retry after a fatal native error (TV)", () => {
+  it("clears the error and restarts the session on retry", () => {
+    render(<PlayerScreen />);
+    act(() => {
+      playerListeners.get("statusChange")?.({ status: "error", error: { message: "decoder died" } });
+    });
+    expect(screen.getByText("Failed to load stream")).toBeTruthy();
+
+    fireEvent.click(screen.getByText("player.retry"));
+    expect(restartWithTracksMock).toHaveBeenCalled();
+    expect(screen.queryByText("Failed to load stream")).toBeNull();
+  });
+
+  // The player is recreated per media (mediaId changes on next-episode
+  // navigation), but nativeError previously survived the change - a decoder
+  // error on episode 1 stayed glued to episode 2's screen.
+  it("resets a stale native error when the media changes", () => {
+    const { rerender } = render(<PlayerScreen />);
+    act(() => {
+      playerListeners.get("statusChange")?.({ status: "error", error: { message: "decoder died" } });
+    });
+    expect(screen.getByText("Failed to load stream")).toBeTruthy();
+
+    localSearchParamsMock.mockReturnValue({ id: "ep-2" });
+    getMediaItemMock.mockReturnValue({ data: { id: "ep-2", type: "MEDIA_ITEM_TYPE_EPISODE", title: "Episode 2" } });
+    rerender(<PlayerScreen />);
+
+    expect(screen.queryByText("Failed to load stream")).toBeNull();
+  });
+});
+
+// Same contract as the web/mobile back button (src/hooks/playerExit.ts): pop
+// the history entry when there is one, otherwise land on the media page.
+describe("player exit contract (TV)", () => {
+  it("pops history on menu/back when one exists", () => {
+    canGoBackMock.mockReturnValue(true);
+    render(<PlayerScreen />);
+    act(() => { capturedTVHandler?.({ eventType: "menu" }); });
+    expect(backMock).toHaveBeenCalled();
+    expect(replaceMock).not.toHaveBeenCalledWith(expect.stringContaining("/media/"));
+  });
+
+  it("replaces toward the media page when there is nothing to pop", () => {
+    canGoBackMock.mockReturnValue(false);
+    render(<PlayerScreen />);
+    act(() => { capturedTVHandler?.({ eventType: "back" }); });
+    expect(backMock).not.toHaveBeenCalled();
+    expect(replaceMock).toHaveBeenCalledWith("/media/ep-1");
+  });
+});
+
+// Manual previous/next episode controls (item 2) - distinct from the
+// auto-advance countdown, reachable via the long-press D-pad keys.
+describe("manual previous/next episode (TV)", () => {
+  it("navigates to the next episode on longDown when no PIN is required", () => {
+    render(<PlayerScreen />);
+    act(() => { capturedTVHandler?.({ eventType: "longDown" }); });
+    expect(replaceMock).toHaveBeenCalledWith("/(auth)/player/ep-2");
+  });
+
+  it("navigates to the previous episode on longUp when no PIN is required", () => {
+    render(<PlayerScreen />);
+    act(() => { capturedTVHandler?.({ eventType: "longUp" }); });
+    expect(replaceMock).toHaveBeenCalledWith("/(auth)/player/ep-0");
+  });
+
+  it("gates the previous episode independently of the next episode's rating", () => {
+    // Next episode ("R") is not gated, but the previous one ("G") is - proves
+    // the two directions use independent parental gates.
+    needsPinMock.mockImplementation((rating) => rating === "G");
+    render(<PlayerScreen />);
+
+    act(() => { capturedTVHandler?.({ eventType: "longDown" }); });
+    expect(replaceMock).toHaveBeenCalledWith("/(auth)/player/ep-2");
+
+    replaceMock.mockClear();
+    act(() => { capturedTVHandler?.({ eventType: "longUp" }); });
+    expect(replaceMock).not.toHaveBeenCalled();
+    expect(screen.getByTestId("pin-modal")).toBeTruthy();
+  });
+});
+
+// Accelerated seek (item 1): longLeft/longRight move by a larger step than a
+// plain left/right, computed by playerSeek.ts's seekDeltaForKey.
+describe("remote seek (TV)", () => {
+  it("seeks by the plain skip amount on left/right", () => {
+    render(<PlayerScreen />);
+    act(() => { capturedTVHandler?.({ eventType: "right" }); });
+    expect(playerMock.seekBy).toHaveBeenCalledWith(30);
+    act(() => { capturedTVHandler?.({ eventType: "left" }); });
+    expect(playerMock.seekBy).toHaveBeenCalledWith(-30);
+  });
+
+  it("seeks by an accelerated step on a held longLeft/longRight", () => {
+    render(<PlayerScreen />);
+    act(() => { capturedTVHandler?.({ eventType: "longRight" }); });
+    expect(playerMock.seekBy).toHaveBeenCalledWith(120); // 30s * 4x multiplier
+    act(() => { capturedTVHandler?.({ eventType: "longLeft" }); });
+    expect(playerMock.seekBy).toHaveBeenCalledWith(-120);
   });
 });

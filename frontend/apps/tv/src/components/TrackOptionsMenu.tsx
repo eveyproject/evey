@@ -11,13 +11,27 @@ interface TrackOptionsMenuProps {
   hasSubtitleOptions: boolean;
   onOpenAudio: () => void;
   onOpenSubtitles: () => void;
+  // All optional/additive: every existing call site (just Audio + Subtitles)
+  // keeps working unchanged.
+  hasChapters?: boolean;
+  onOpenChapters?: () => void;
+  onOpenSleepTimer?: () => void;
+  onOpenVolume?: () => void;
+  hasStreamInfo?: boolean;
+  onOpenStreamInfo?: () => void;
 }
 
 /**
  * Entry point opened via a long-press of the D-pad select button. The main
  * player screen already claims every plain D-pad direction (seek/speed/
- * quality), so track selection lives one level down behind this menu instead
- * of competing for a free direction.
+ * quality) plus their long-press variants (accelerated seek, prev/next
+ * episode), so every other option lives one level down behind this menu
+ * instead of competing for a free key combination.
+ *
+ * Rows are built as a single filtered list so exactly one gets
+ * hasTVPreferredFocus, regardless of which rows a given call site opts into -
+ * two concurrent hasTVPreferredFocus on conditionally-rendered rows is the bug
+ * this shape avoids.
  */
 export function TrackOptionsMenu({
   visible,
@@ -26,9 +40,29 @@ export function TrackOptionsMenu({
   hasSubtitleOptions,
   onOpenAudio,
   onOpenSubtitles,
+  hasChapters,
+  onOpenChapters,
+  onOpenSleepTimer,
+  onOpenVolume,
+  hasStreamInfo,
+  onOpenStreamInfo,
 }: TrackOptionsMenuProps) {
   const { t } = useTranslation();
   const theme = useTheme();
+
+  const items: { key: string; label: string; onPress: () => void }[] = [];
+  if (hasAudioOptions) items.push({ key: "audio", label: t("player.settings.audio"), onPress: onOpenAudio });
+  if (hasSubtitleOptions) items.push({ key: "subtitles", label: t("player.settings.subtitles"), onPress: onOpenSubtitles });
+  if (hasChapters && onOpenChapters) {
+    items.push({ key: "chapters", label: t("player.controls.chapters", "Chapters"), onPress: onOpenChapters });
+  }
+  if (onOpenVolume) items.push({ key: "volume", label: t("player.controls.volume", "Volume"), onPress: onOpenVolume });
+  if (onOpenSleepTimer) {
+    items.push({ key: "sleepTimer", label: t("player.settings.sleepTimer", "Sleep timer"), onPress: onOpenSleepTimer });
+  }
+  if (hasStreamInfo && onOpenStreamInfo) {
+    items.push({ key: "streamInfo", label: t("player.streamInfo.title", "Stream Info"), onPress: onOpenStreamInfo });
+  }
 
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
@@ -38,26 +72,17 @@ export function TrackOptionsMenu({
             {t("player.settings.trackOptions", "Audio & Subtitles")}
           </Text>
           <View style={styles.list}>
-            {hasAudioOptions && (
+            {items.map((item, i) => (
               <FocusableCard
-                hasTVPreferredFocus={true}
-                onPress={onOpenAudio}
-                accessibilityLabel={t("player.settings.audio")}
+                key={item.key}
+                hasTVPreferredFocus={i === 0}
+                onPress={item.onPress}
+                accessibilityLabel={item.label}
                 style={[styles.row, { borderBottomColor: theme.colors.border }]}
               >
-                <Text style={[styles.label, { color: theme.colors.text }]}>{t("player.settings.audio")}</Text>
+                <Text style={[styles.label, { color: theme.colors.text }]}>{item.label}</Text>
               </FocusableCard>
-            )}
-            {hasSubtitleOptions && (
-              <FocusableCard
-                hasTVPreferredFocus={!hasAudioOptions}
-                onPress={onOpenSubtitles}
-                accessibilityLabel={t("player.settings.subtitles")}
-                style={[styles.row, { borderBottomColor: theme.colors.border }]}
-              >
-                <Text style={[styles.label, { color: theme.colors.text }]}>{t("player.settings.subtitles")}</Text>
-              </FocusableCard>
-            )}
+            ))}
           </View>
         </Pressable>
       </Pressable>

@@ -15,10 +15,18 @@ import { usePlaySession } from "../../../src/hooks/usePlaySession";
 import { useProgressReporter } from "../../../src/hooks/useProgressReporter";
 import { usePlaybackSettings } from "../../../src/hooks/usePlaybackSettings";
 import { useNextEpisode } from "../../../src/hooks/useNextEpisode";
+import { useChapters } from "../../../src/hooks/useChapters";
+import { useSleepTimer } from "../../../src/hooks/useSleepTimer";
+import { seekDeltaForKey, clampSeekTarget, shouldReleaseSeekPreview } from "../../../src/hooks/playerSeek";
+import { playerExit } from "../../../src/hooks/playerExit";
 import { QualityPicker } from "../../../src/components/QualityPicker";
 import { AudioTrackPicker, type AudioStream } from "../../../src/components/AudioTrackPicker";
 import { SubtitlePicker, type SubtitleStream } from "../../../src/components/SubtitlePicker";
 import { TrackOptionsMenu } from "../../../src/components/TrackOptionsMenu";
+import { ChaptersPicker } from "../../../src/components/ChaptersPicker";
+import { SleepTimerPicker } from "../../../src/components/SleepTimerPicker";
+import { VolumePicker } from "../../../src/components/VolumePicker";
+import { StreamInfoPanel } from "../../../src/components/StreamInfoPanel";
 import { SkipIntroButton } from "../../../src/components/SkipIntroButton";
 import { NextEpisodeOverlay } from "../../../src/components/NextEpisodeOverlay";
 import { useParentalGate } from "../../../src/hooks/useParentalGate";
@@ -55,6 +63,10 @@ export default function PlayerScreen() {
   const [showTrackMenu, setShowTrackMenu] = useState(false);
   const [showAudioPicker, setShowAudioPicker] = useState(false);
   const [showSubtitlePicker, setShowSubtitlePicker] = useState(false);
+  const [showChaptersPicker, setShowChaptersPicker] = useState(false);
+  const [showSleepTimerPicker, setShowSleepTimerPicker] = useState(false);
+  const [showVolumePicker, setShowVolumePicker] = useState(false);
+  const [showStreamInfoPanel, setShowStreamInfoPanel] = useState(false);
   const [skipVisible, setSkipVisible] = useState(false);
   const [selectedQuality, setSelectedQuality] = useState(0);
   const [selectedAudioIndex, setSelectedAudioIndex] = useState<number>(0);
@@ -63,11 +75,23 @@ export default function PlayerScreen() {
   const [duration, setDuration] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const [volumePct, setVolumePct] = useState(100);
+  const [muted, setMuted] = useState(false);
+  // Local target position shown the instant a seek key is pressed, released once
+  // the real playhead (fed by the player's own timeUpdate listener) catches up -
+  // see playerSeek.ts. Without this the progress bar only moved on the next
+  // timeUpdate tick, which read as unresponsive during an accelerated hold.
+  const [seekPreviewSec, setSeekPreviewSec] = useState<number | null>(null);
   // A fatal native failure (decoder error, 401 on a segment, broken manifest)
   // surfaces ONLY through the player's statusChange event - isError from
   // usePlaySession covers just the session-start network call. Ignoring it
   // left a black screen with live controls.
   const [nativeError, setNativeError] = useState<string | null>(null);
+  // The native player is recreated per media (new streamUrl), but this state
+  // wasn't reset with it - a fatal error on one item stayed glued to the screen
+  // of the NEXT one (e.g. after a next-episode auto-advance), showing a dead
+  // error screen over a stream that hadn't even started yet.
+  useEffect(() => { setNativeError(null); }, [mediaId]);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Whether the NEXT player instance should start playing. Changing tracks or
   // quality recreates the native player, whose setup used to call play()
@@ -115,6 +139,9 @@ export default function PlayerScreen() {
     else if (audioStreams.length > 0) setSelectedAudioIndex(audioStreams[0].index);
   }, [audioStreams]);
 
+  const { data: chaptersData } = useChapters(mediaId);
+  const chapters = chaptersData ?? [];
+
   const videoSource = useMemo(() => {
     if (!streamUrl) return null;
     const isHls = streamUrl.includes("m3u8");
@@ -143,6 +170,7 @@ export default function PlayerScreen() {
     const timeSub = player.addListener("timeUpdate", (ev) => {
       setCurrentTime(ev.currentTime);
       setDuration(player.duration);
+      setSeekPreviewSec((prev) => (prev !== null && shouldReleaseSeekPreview(ev.currentTime, prev) ? null : prev));
     });
     const statusSub = player.addListener("statusChange", (ev) => {
       setIsPlaying(player.playing);
@@ -227,6 +255,22 @@ export default function PlayerScreen() {
     [player, resetHideTimer],
   );
 
+  // Remote-driven seek: left/right (plain skip) and longLeft/longRight
+  // (accelerated, native TV "hold" events - see playerSeek.ts). Updates a local
+  // preview position immediately so the progress bar moves on the SAME frame as
+  // the keypress instead of waiting for the player's next timeUpdate tick.
+  const seekByKey = useCallback(
+    (type: string) => {
+      const delta = seekDeltaForKey(type, skipBwd, skipFwd);
+      if (delta === 0) return;
+      const base = seekPreviewSec ?? currentTime;
+      const target = clampSeekTarget(base, delta, duration);
+      setSeekPreviewSec(target);
+      seekBy(delta);
+    },
+    [skipBwd, skipFwd, seekPreviewSec, currentTime, duration, seekBy],
+  );
+
   const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2] as const;
   const cycleSpeed = useCallback(() => {
     setPlaybackSpeed((prev) => {
@@ -272,10 +316,39 @@ export default function PlayerScreen() {
     [player],
   );
 
+  const handleToggleMute = useCallback(() => {
+    setMuted((prev) => {
+      const next = !prev;
+      if (player) player.muted = next;
+      return next;
+    });
+    resetHideTimer();
+  }, [player, resetHideTimer]);
+
+  const handleVolumeSelect = useCallback(
+    (pct: number) => {
+      setVolumePct(pct);
+      setMuted(false);
+      if (player) {
+        player.volume = pct / 100;
+        player.muted = false;
+      }
+      resetHideTimer();
+    },
+    [player, resetHideTimer],
+  );
+
+  // Same exit contract as the web/mobile player's back button (playerExit):
+  // pop the player's own history entry when there is one - safe because episode
+  // changes REPLACE - otherwise (deep link, device "loadAndPlay" command)
+  // REPLACE toward the media page (an episode exits to its season) so no
+  // player entry is ever left behind for a later back press to walk into.
   const handleBack = useCallback(() => {
     stopSession();
-    router.back();
-  }, [stopSession]);
+    const exit = playerExit(router.canGoBack(), mediaId, media);
+    if (exit.action === "back") router.back();
+    else router.replace(`/media/${exit.mediaId}` as never);
+  }, [stopSession, mediaId, media]);
 
   const handleNavigateEpisode = useCallback(
     (episodeId: string) => {
@@ -350,13 +423,66 @@ export default function PlayerScreen() {
     }
   }, [pendingNextEpisodeId, handleNavigateEpisode]);
 
+  // Manual "next episode" control (item 2): same gate as the auto-advance,
+  // triggered on demand instead of by the countdown.
+  const handleManualNextEpisode = useCallback(() => {
+    if (nextEp.nextEpisode?.id) gatedNavigateEpisode(nextEp.nextEpisode.id);
+  }, [nextEp.nextEpisode, gatedNavigateEpisode]);
+
+  // Manual "previous episode" control: never driven by the auto-advance
+  // countdown, so it is gated independently on the PREVIOUS episode's own
+  // rating rather than reusing the next-episode gate above.
+  const { needsPin: prevEpNeedsPin, profileId: prevEpGateProfileId } = useParentalGate(
+    nextEp.previousEpisode?.officialRating,
+  );
+  const [showPrevEpPinModal, setShowPrevEpPinModal] = useState(false);
+
+  const handlePreviousEpisode = useCallback(() => {
+    if (!nextEp.previousEpisode?.id) return;
+    if (prevEpNeedsPin()) {
+      setShowPrevEpPinModal(true);
+      return;
+    }
+    handleNavigateEpisode(nextEp.previousEpisode.id);
+  }, [nextEp.previousEpisode, prevEpNeedsPin, handleNavigateEpisode]);
+
+  const handlePrevEpPinVerified = useCallback(() => {
+    setShowPrevEpPinModal(false);
+    if (nextEp.previousEpisode?.id) handleNavigateEpisode(nextEp.previousEpisode.id);
+  }, [nextEp.previousEpisode, handleNavigateEpisode]);
+
+  const sleepTimer = useSleepTimer({ onMinutesFire: () => player?.pause() });
+
+  // "End of episode" sleep mode has no countdown of its own - it rides the same
+  // "ended" signal the next-episode auto-advance uses. Cancelling the
+  // auto-advance too stops it from starting the next item right after pausing.
+  useEffect(() => {
+    if (nextEp.ended && sleepTimer.state?.kind === "endOfEpisode") {
+      player?.pause();
+      sleepTimer.cancel();
+      nextEp.cancel();
+    }
+  }, [nextEp.ended, sleepTimer.state?.kind, player, sleepTimer.cancel, nextEp.cancel]);
+
   const anyOverlayOpen =
-    showQualityPicker || showTrackMenu || showAudioPicker || showSubtitlePicker || nextEp.visible;
+    showQualityPicker || showTrackMenu || showAudioPicker || showSubtitlePicker ||
+    showChaptersPicker || showSleepTimerPicker || showVolumePicker || showStreamInfoPanel ||
+    nextEp.visible;
 
   // D-pad remote handler. The callback param is annotated explicitly: the
   // react-native-tvos alias resolves per-app, and the hoisted classic RN
   // types (shared workspace) leave HWEvent unresolvable in some installs -
   // a structural annotation keeps tsc deterministic everywhere.
+  //
+  // Full remote map (every plain direction plus its long-press variant is
+  // claimed, so anything else lives behind the longSelect options menu):
+  //   select/playPause  -> toggle play/pause
+  //   longSelect        -> options menu (audio/subtitles/chapters/volume/sleep/info)
+  //   left/right        -> skip back/forward
+  //   longLeft/longRight-> accelerated seek (native TV "hold" events)
+  //   up / longUp       -> cycle speed / previous episode
+  //   down / longDown   -> quality picker / next episode
+  //   menu/back         -> exit (playerExit contract)
   useTVEventHandler((evt: { eventType: string } | undefined) => {
     if (!evt) return;
     const type = evt.eventType;
@@ -374,18 +500,18 @@ export default function PlayerScreen() {
     if (type === "select" || type === "playPause") {
       togglePlayPause();
     } else if (type === "longSelect") {
-      if (showControls && (audioStreams.length > 1 || subtitleStreams.length > 0)) {
-        setShowTrackMenu(true);
-      }
-    } else if (type === "left") {
-      seekBy(-skipBwd);
-    } else if (type === "right") {
-      seekBy(skipFwd);
+      if (showControls) setShowTrackMenu(true);
+    } else if (type === "left" || type === "right" || type === "longLeft" || type === "longRight") {
+      seekByKey(type);
     } else if (type === "up") {
       cycleSpeed();
+    } else if (type === "longUp") {
+      if (showControls) handlePreviousEpisode();
     } else if (type === "down") {
       if (showControls) setShowQualityPicker(true);
       else resetHideTimer();
+    } else if (type === "longDown") {
+      if (showControls) handleManualNextEpisode();
     } else if (type === "menu" || type === "back") {
       if (showControls) handleBack();
       else resetHideTimer();
@@ -421,11 +547,10 @@ export default function PlayerScreen() {
         }
       },
       onRemoteStop: () => {
-        stopSession();
-        router.back();
+        handleBack();
       },
     }),
-    [player, stopSession],
+    [player, handleBack],
   );
 
   useProgressReporter(sessionId, getPositionMs, getIsPaused, undefined, undefined, remoteCallbacks);
@@ -465,9 +590,24 @@ export default function PlayerScreen() {
   if (isError || nativeError) {
     return (
       <View style={[styles.container, { backgroundColor: "#000" }]}>
-        <Text style={{ color: "#fff", fontSize: 24 }}>Failed to load stream</Text>
-        <Pressable onPress={handleBack} style={{ marginTop: 24 }}>
-          <Text style={{ color: theme.colors.accent, fontSize: 22 }}>Go back</Text>
+        <Text style={{ color: "#fff", fontSize: 24 }}>
+          {t("player.streamError.title", "Failed to load stream")}
+        </Text>
+        <Pressable
+          onPress={() => {
+            // A fatal native error otherwise stays glued to the screen even if
+            // the retry succeeds - see the nativeError reset effect above for
+            // the twin bug (a stale error surviving a media CHANGE).
+            setNativeError(null);
+            resumeAfterRestartRef.current = true;
+            restartWithTracks(selectedAudioIndex, selectedSubtitleIndex ?? undefined, selectedQuality || undefined);
+          }}
+          style={{ marginTop: 24 }}
+        >
+          <Text style={{ color: theme.colors.accent, fontSize: 22, fontWeight: "600" }}>{t("player.retry")}</Text>
+        </Pressable>
+        <Pressable onPress={handleBack} style={{ marginTop: 20 }}>
+          <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 18 }}>{t("player.goBack", "Go back")}</Text>
         </Pressable>
       </View>
     );
@@ -481,7 +621,10 @@ export default function PlayerScreen() {
     );
   }
 
-  const seekProgress = duration > 0 ? currentTime / duration : 0;
+  // The preview position (set the instant a seek key fires) takes over the
+  // display until the real playhead catches up - see playerSeek.ts.
+  const displayTime = seekPreviewSec ?? currentTime;
+  const seekProgress = duration > 0 ? displayTime / duration : 0;
 
   return (
     <View style={[styles.container, { backgroundColor: "#000" }]}>
@@ -512,6 +655,24 @@ export default function PlayerScreen() {
           setShowTrackMenu(false);
           setShowSubtitlePicker(true);
         }}
+        hasChapters={chapters.length > 0}
+        onOpenChapters={() => {
+          setShowTrackMenu(false);
+          setShowChaptersPicker(true);
+        }}
+        onOpenVolume={() => {
+          setShowTrackMenu(false);
+          setShowVolumePicker(true);
+        }}
+        onOpenSleepTimer={() => {
+          setShowTrackMenu(false);
+          setShowSleepTimerPicker(true);
+        }}
+        hasStreamInfo={!!streamInfo}
+        onOpenStreamInfo={() => {
+          setShowTrackMenu(false);
+          setShowStreamInfoPanel(true);
+        }}
       />
 
       <AudioTrackPicker
@@ -528,6 +689,38 @@ export default function PlayerScreen() {
         currentIndex={selectedSubtitleIndex}
         onSelect={handleSubtitleSelect}
         onClose={() => setShowSubtitlePicker(false)}
+      />
+
+      <ChaptersPicker
+        visible={showChaptersPicker}
+        onClose={() => setShowChaptersPicker(false)}
+        chapters={chapters}
+        currentTimeMs={currentTime * 1000}
+        onSeek={(sec) => { if (player) player.currentTime = sec; }}
+      />
+
+      <VolumePicker
+        visible={showVolumePicker}
+        onClose={() => setShowVolumePicker(false)}
+        volumePct={volumePct}
+        muted={muted}
+        onSelect={handleVolumeSelect}
+        onToggleMute={handleToggleMute}
+      />
+
+      <SleepTimerPicker
+        visible={showSleepTimerPicker}
+        onClose={() => setShowSleepTimerPicker(false)}
+        state={sleepTimer.state}
+        onPickMinutes={sleepTimer.setMinutes}
+        onPickEndOfEpisode={sleepTimer.setEndOfEpisode}
+        onCancel={sleepTimer.cancel}
+      />
+
+      <StreamInfoPanel
+        visible={showStreamInfoPanel}
+        onClose={() => setShowStreamInfoPanel(false)}
+        streamInfo={streamInfo ?? null}
       />
 
       <SkipIntroButton mediaId={mediaId} currentTime={currentTime} onSkip={handleSkipIntro} onVisibleChange={setSkipVisible} />
@@ -559,6 +752,15 @@ export default function PlayerScreen() {
         />
       ) : null}
 
+      {prevEpGateProfileId ? (
+        <ParentalPINModal
+          visible={showPrevEpPinModal}
+          onClose={() => setShowPrevEpPinModal(false)}
+          onVerified={handlePrevEpPinVerified}
+          profileId={prevEpGateProfileId}
+        />
+      ) : null}
+
       {showControls && (
         <View style={styles.overlay} pointerEvents="box-none">
           {/* Top bar */}
@@ -578,8 +780,18 @@ export default function PlayerScreen() {
             </View>
           </View>
 
-          {/* Center play/pause indicator */}
+          {/* Center play/pause indicator. The previous/next episode chips are
+              decorative (like the seek-amount bubbles) - the actual controls
+              are the longUp/longDown remote keys (handlePreviousEpisode/
+              handleManualNextEpisode above), not a focusable button, so they
+              never compete with the global D-pad handler for the native
+              focus engine. */}
           <View style={styles.centerControls}>
+            {nextEp.previousEpisode && (
+              <View style={styles.episodeHint}>
+                <Text style={styles.episodeHintText}>{"\u23EE"}</Text>
+              </View>
+            )}
             <View style={styles.seekHint}>
               <Text style={styles.seekHintText}>-{skipBwd}s</Text>
             </View>
@@ -589,14 +801,25 @@ export default function PlayerScreen() {
             <View style={styles.seekHint}>
               <Text style={styles.seekHintText}>+{skipFwd}s</Text>
             </View>
+            {nextEp.nextEpisode && (
+              <View style={styles.episodeHint}>
+                <Text style={styles.episodeHintText}>{"\u23ED"}</Text>
+              </View>
+            )}
           </View>
 
           {/* Bottom bar */}
           <View style={styles.bottomBar}>
-            <Text style={styles.timeText}>{formatTime(currentTime)}</Text>
+            <Text style={styles.timeText}>{formatTime(displayTime)}</Text>
             <View style={styles.seekBarTrack}>
               <View style={[styles.seekBarFill, { flex: seekProgress }]} />
               <View style={{ flex: 1 - seekProgress }} />
+              {duration > 0 &&
+                chapters.map((ch, i) => {
+                  const pct = (ch.startTimeMs / 1000 / duration) * 100;
+                  if (pct <= 0 || pct >= 100) return null;
+                  return <View key={i} style={[styles.chapterNotch, { left: `${pct}%` }]} />;
+                })}
             </View>
             <Text style={styles.timeText}>{formatTime(duration)}</Text>
           </View>
@@ -680,6 +903,18 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: "bold",
   },
+  episodeHint: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "rgba(255,255,255,0.1)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  episodeHintText: {
+    color: "rgba(255,255,255,0.85)",
+    fontSize: 20,
+  },
   bottomBar: {
     flexDirection: "row",
     alignItems: "center",
@@ -704,5 +939,12 @@ const styles = StyleSheet.create({
   },
   seekBarFill: {
     backgroundColor: "#fff",
+  },
+  chapterNotch: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    width: 2,
+    backgroundColor: "rgba(0,0,0,0.5)",
   },
 });

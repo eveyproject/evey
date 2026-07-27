@@ -113,6 +113,48 @@ describe("useNextEpisode", () => {
     expect(onNavigate).toHaveBeenCalledWith("ep2");
   });
 
+  it("finds previous episode from siblings", () => {
+    const onNavigate = vi.fn();
+    const { result } = renderHook(
+      () => useNextEpisode({ media: ep2, currentTime: 0, duration: 100, onNavigate }),
+      { wrapper: createWrapper() },
+    );
+
+    expect(result.current.previousEpisode?.id).toBe("ep1");
+  });
+
+  it("returns null previousEpisode for the first episode", () => {
+    const onNavigate = vi.fn();
+    const { result } = renderHook(
+      () => useNextEpisode({ media: ep1, currentTime: 0, duration: 100, onNavigate }),
+      { wrapper: createWrapper() },
+    );
+
+    expect(result.current.previousEpisode).toBeNull();
+  });
+
+  it("playPrevious navigates to the previous episode", () => {
+    const onNavigate = vi.fn();
+    const { result } = renderHook(
+      () => useNextEpisode({ media: ep2, currentTime: 0, duration: 100, onNavigate }),
+      { wrapper: createWrapper() },
+    );
+
+    act(() => { result.current.playPrevious(); });
+    expect(onNavigate).toHaveBeenCalledWith("ep1");
+  });
+
+  it("playPrevious is a no-op on the first episode", () => {
+    const onNavigate = vi.fn();
+    const { result } = renderHook(
+      () => useNextEpisode({ media: ep1, currentTime: 0, duration: 100, onNavigate }),
+      { wrapper: createWrapper() },
+    );
+
+    act(() => { result.current.playPrevious(); });
+    expect(onNavigate).not.toHaveBeenCalled();
+  });
+
   it("not visible for non-episode media", () => {
     listMediaItemsMock.mockReturnValue({ data: undefined });
     const movie = { id: "m1", type: "MEDIA_ITEM_TYPE_MOVIE" } as V1MediaItem;
