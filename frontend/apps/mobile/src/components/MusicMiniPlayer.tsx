@@ -233,9 +233,18 @@ function MusicMiniPlayerImpl() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [track?.id]);
 
+  // Carry WHICH source, not just "the music tab": landing on an unfiltered
+  // library is not going back to the album you were listening to. The music
+  // screen reads these params and restores the matching filter.
   const goToSource = useCallback(() => {
     if (!source) return;
-    router.push("/(auth)/(tabs)/music");
+    const params =
+      source.type === "playlist"
+        ? { playlistId: source.id }
+        : source.type === "album"
+          ? { album: source.id, albumLabel: source.label }
+          : { artist: source.id };
+    router.push({ pathname: "/(auth)/(tabs)/music", params });
   }, [source]);
 
   if (!track) return null;

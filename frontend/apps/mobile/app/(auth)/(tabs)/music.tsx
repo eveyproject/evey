@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import {
   View,
   Text,
@@ -15,6 +15,7 @@ import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
+import { useLocalSearchParams } from "expo-router";
 import { eveyFetch } from "@evey/api";
 import { Skeleton } from "../../../src/components/Skeleton";
 import { useTheme } from "../../../src/providers/ThemeProvider";
@@ -29,6 +30,8 @@ import { TrackArt } from "../../../src/components/music/TrackArt";
 import { MusicPlaylistsTab } from "../../../src/components/music/MusicPlaylistsTab";
 import type { Track } from "../../../src/components/music/musicTypes";
 import { shuffleArray } from "../../../src/lib/shuffleArray";
+import { trackListMusicSource, restoreMusicFilterFromParams } from "../../../src/components/music/musicSource";
+import { averageAlbumProgress } from "../../../src/components/music/albumDownloadProgress";
 
 interface LibraryItem {
   id: string;
@@ -130,6 +133,8 @@ export default function MusicScreen() {
   // Per-track download progress: a key is only present while that track's
   // download is running (0..1 known total, NaN unknown) - absent means idle.
   const [trackDownloads, setTrackDownloads] = useState<Record<string, number>>({});
+  // Per-album download progress, same idle/absent convention as trackDownloads.
+  const [albumDownloads, setAlbumDownloads] = useState<Record<string, number>>({});
   // "Hard" filters set by tapping an album/artist card - shown as a
   // dismissible chip above the track list, mirroring the web app.
   const [albumFilter, setAlbumFilter] = useState<string | null>(null);
@@ -139,6 +144,25 @@ export default function MusicScreen() {
   const [genreFilter, setGenreFilter] = useState("");
   const [yearFilter, setYearFilter] = useState(0);
   const [artistPickFilter, setArtistPickFilter] = useState("");
+  // Target playlist to auto-open in the playlists tab, restored from
+  // navigation params (see the restore effect below).
+  const [playlistTargetId, setPlaylistTargetId] = useState<string | null>(null);
+
+  // Restores the album/artist/playlist filter this screen was launched with -
+  // fed by the mini-player's "back to source" link (and any deep link that
+  // reuses the same param shape). A restored album/artist/playlist target
+  // always wins over whatever filter was showing before navigating away.
+  const navParams = useLocalSearchParams<{ tab?: string; album?: string; albumLabel?: string; artist?: string; playlistId?: string }>();
+  useEffect(() => {
+    const restored = restoreMusicFilterFromParams(navParams);
+    if (!restored) return;
+    setTab(restored.tab);
+    setAlbumFilter(restored.albumFilter);
+    setAlbumFilterLabel(restored.albumFilterLabel);
+    setArtistFilter(restored.artistFilter);
+    setPlaylistTargetId(restored.playlistId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navParams.tab, navParams.album, navParams.albumLabel, navParams.artist, navParams.playlistId]);
 
   const queue = useMusicQueueStore((s) => s.queue);
   const currentIndex = useMusicQueueStore((s) => s.currentIndex);
@@ -208,8 +232,8 @@ export default function MusicScreen() {
       album: t.album,
       duration: t.duration,
     }));
-    setQueue(allTracks, index);
-  }, [filteredTracks, setQueue]);
+    setQueue(allTracks, index, trackListMusicSource(albumFilter, albumFilterLabel, artistFilter));
+  }, [filteredTracks, setQueue, albumFilter, albumFilterLabel, artistFilter]);
 
   // "Shuffle play" the whole (album/search-scoped) library listing - an
   // ephemeral randomized queue, not a saved playlist.
@@ -223,8 +247,8 @@ export default function MusicScreen() {
       album: t.album,
       duration: t.duration,
     }));
-    setQueue(shuffled, 0);
-  }, [tracks, setQueue]);
+    setQueue(shuffled, 0, trackListMusicSource(albumFilter, albumFilterLabel, artistFilter));
+  }, [tracks, setQueue, albumFilter, albumFilterLabel, artistFilter]);
 
   // Tracks are single-file media items - same server endpoint and startDownload
   // path as a movie/episode download, just tagged "audio" for the extension.
@@ -264,6 +288,63 @@ export default function MusicScreen() {
       }
     },
     [trackDownloads, t],
+  );
+
+  // The server also exposes a whole-album .zip archive
+  // (GET /api/v1/music/albums/download, used by the web app's downloadAlbum),
+  // but the mobile downloader (downloads.ts) has no unzip step and its
+  // persisted index maps one media id to one offline-playable file - a zip
+  // can't be represented there. Downloading every track of the album
+  // individually through the existing per-track mechanism gets to the same
+  // practical result (the whole album available offline) without extending
+  // that model.
+  const handleDownloadAlbum = useCallback(
+    async (album: MusicAlbum) => {
+      if (albumDownloads[album.id] !== undefined) return;
+      if (!activeLibraryID) return;
+      setAlbumDownloads((s) => ({ ...s, [album.id]: 0 }));
+      toast.info(t("media.detail.downloadStarted"));
+      try {
+        const { tracks: albumTracks } = await eveyFetch<{ tracks: Track[] }>({
+          url: `/api/v1/music/tracks?library_id=${activeLibraryID}&album_id=${encodeURIComponent(album.id)}&limit=200`,
+          method: "GET",
+        });
+        const perTrackProgress: Record<string, number> = {};
+        let downloadedAny = false;
+        for (const track of albumTracks ?? []) {
+          const existing = await getDownloadPath(track.id);
+          if (existing) { perTrackProgress[track.id] = 1; continue; }
+          downloadedAny = true;
+          await startDownload(
+            track.id,
+            track.title || track.id,
+            (p) => {
+              perTrackProgress[track.id] = p;
+              setAlbumDownloads((s) => ({ ...s, [album.id]: averageAlbumProgress(Object.values(perTrackProgress)) }));
+            },
+            {
+              kind: "audio",
+              tokenUrl: `/api/v1/download-token/${encodeURIComponent(track.id)}`,
+              downloadPath: `/api/v1/music/tracks/${encodeURIComponent(track.id)}/download`,
+            },
+          );
+          perTrackProgress[track.id] = 1;
+        }
+        toast.success(downloadedAny ? t("media.detail.downloadComplete") : t("media.detail.alreadyDownloaded"));
+      } catch (err) {
+        const msg = err instanceof Error && err.message === "NOT_ENOUGH_SPACE"
+          ? t("media.detail.downloadNoSpace")
+          : t("media.detail.downloadFailed");
+        toast.error(msg);
+      } finally {
+        setAlbumDownloads((s) => {
+          const next = { ...s };
+          delete next[album.id];
+          return next;
+        });
+      }
+    },
+    [albumDownloads, activeLibraryID, t],
   );
 
   const albumArtUri = useCallback(
@@ -366,6 +447,28 @@ export default function MusicScreen() {
               <Text style={{ fontSize: 36 }}>🎵</Text>
             </View>
           )}
+          <Pressable
+            onPress={(e) => {
+              e.stopPropagation();
+              void handleDownloadAlbum(item);
+            }}
+            disabled={albumDownloads[item.id] !== undefined}
+            hitSlop={8}
+            style={[styles.albumDownloadBtn, { backgroundColor: theme.colors.surface }]}
+            accessibilityLabel={t("media.music.downloadAlbum")}
+          >
+            {albumDownloads[item.id] !== undefined ? (
+              Number.isFinite(albumDownloads[item.id]) ? (
+                <Text style={{ color: theme.colors.accent, fontSize: 10, fontWeight: "700" }}>
+                  {Math.round(albumDownloads[item.id] * 100)}%
+                </Text>
+              ) : (
+                <Ionicons name="cloud-download-outline" size={18} color={theme.colors.accent} />
+              )
+            ) : (
+              <Ionicons name="download-outline" size={18} color={theme.colors.textMuted} />
+            )}
+          </Pressable>
           <View style={{ padding: 8 }}>
             <Text style={[styles.albumTitle, { color: theme.colors.text }]} numberOfLines={1}>{item.title || "-"}</Text>
             <Text style={{ color: theme.colors.textMuted, fontSize: 11 }} numberOfLines={1}>{item.artist || "-"}</Text>
@@ -376,7 +479,7 @@ export default function MusicScreen() {
         </TouchableOpacity>
       );
     },
-    [albumArtUri, authHeaders, theme, serverUrl, setTab],
+    [albumArtUri, authHeaders, theme, serverUrl, setTab, handleDownloadAlbum, albumDownloads, t],
   );
 
   // Hooks must run on every render in the same order - keep all useCallback
@@ -695,7 +798,7 @@ export default function MusicScreen() {
           }
         />
       ) : (
-        <MusicPlaylistsTab libraryTracks={tracks ?? []} />
+        <MusicPlaylistsTab libraryTracks={tracks ?? []} initialSelectedId={playlistTargetId} />
       )}
 
       {/* Queue modal */}
@@ -759,6 +862,16 @@ const styles = StyleSheet.create({
   trackTitle: { fontSize: 14, fontWeight: "500" },
   addBtn: { padding: 6, marginLeft: 8 },
   albumCard: { overflow: "hidden" },
+  albumDownloadBtn: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   albumTitle: { fontSize: 13, fontWeight: "600" },
   artPlaceholder: { justifyContent: "center", alignItems: "center" },
   albumsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 16 },

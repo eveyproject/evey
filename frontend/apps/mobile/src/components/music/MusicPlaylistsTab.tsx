@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { View, Text, FlatList, TouchableOpacity, Pressable, Alert, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
@@ -27,16 +27,26 @@ interface Props {
   // (artist, album, duration, cover) is joined from this list, same as the
   // web app's PlaylistsTab joining against its own `allTracks`.
   libraryTracks: Track[];
+  // Opens straight into this playlist when set - used by the music screen to
+  // restore the exact playlist view a queue's "back to source" link points
+  // to. Not a plain useState initializer: this tab stays mounted across
+  // repeat navigations to a *different* target playlist, so it must react to
+  // prop changes rather than only seed the initial render.
+  initialSelectedId?: string | null;
 }
 
-export function MusicPlaylistsTab({ libraryTracks }: Props) {
+export function MusicPlaylistsTab({ libraryTracks, initialSelectedId = null }: Props) {
   const theme = useTheme();
   const { t } = useTranslation();
   const authHeaders = useAuthHeaders();
   const serverUrl = useServerUrl();
   const setQueue = useMusicQueueStore((s) => s.setQueue);
 
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(initialSelectedId);
+
+  useEffect(() => {
+    if (initialSelectedId) setSelectedId(initialSelectedId);
+  }, [initialSelectedId]);
 
   const { data: playlists, isLoading: listLoading } = usePlaylistList();
   const { data: detail, isLoading: detailLoading } = usePlaylistDetail(selectedId ?? "");

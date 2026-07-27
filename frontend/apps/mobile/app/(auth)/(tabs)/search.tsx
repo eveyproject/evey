@@ -22,6 +22,7 @@ import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useDebounce } from "../../../src/hooks/useDebounce";
 import { artworkUrl } from "../../../src/lib/artwork";
 import { useMusicQueueStore } from "../../../src/stores/musicQueue";
+import { searchTrackMusicSource } from "../../../src/components/music/musicSource";
 import * as SecureStore from "expo-secure-store";
 
 const HISTORY_KEY = "evey-search-history";
@@ -167,7 +168,7 @@ export default function SearchScreen() {
       artist: tr.artist ?? "",
       album: tr.album ?? "",
       duration: tr.duration ?? 0,
-    }], 0);
+    }], 0, searchTrackMusicSource(tr.albumId, tr.album));
   }, [setQueue]);
 
   const renderMusicItem = useCallback(({ item }: { item: V1Track }) => {

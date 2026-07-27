@@ -11,6 +11,7 @@ import { useDebounce } from "../hooks/useDebounce";
 import { useAuthHeaders } from "../hooks/useAuthenticatedImage";
 import { useServerUrl } from "../hooks/useServerUrl";
 import { useMusicQueueStore } from "../stores/musicQueue";
+import { searchTrackMusicSource } from "./music/musicSource";
 import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
 
 export function HeaderSearch() {
@@ -54,7 +55,7 @@ export function HeaderSearch() {
       artist: tr.artist ?? "",
       album: tr.album ?? "",
       duration: tr.duration ?? 0,
-    }], 0);
+    }], 0, searchTrackMusicSource(tr.albumId, tr.album));
   }, [setQueue]);
 
   const handleSubmit = useCallback(() => {

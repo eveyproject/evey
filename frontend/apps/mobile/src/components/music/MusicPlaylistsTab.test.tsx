@@ -164,6 +164,28 @@ describe("MusicPlaylistsTab", () => {
     expect(removeMutateMock).toHaveBeenCalledWith({ playlistId: "p1", mediaItemId: "t1" });
   });
 
+  it("opens directly into the requested playlist via initialSelectedId", () => {
+    usePlaylistDetailMock.mockReturnValue({
+      data: { id: "p1", name: "Road Trip", items: [{ media_item_id: "t1" }] },
+      isLoading: false,
+    });
+    render(<MusicPlaylistsTab libraryTracks={LIBRARY_TRACKS} initialSelectedId="p1" />);
+    expect(screen.getByText("Song A")).toBeTruthy();
+  });
+
+  it("re-opens a new target playlist when initialSelectedId changes on an already-mounted tab", () => {
+    usePlaylistDetailMock.mockReturnValue({ data: undefined, isLoading: false });
+    const { rerender } = render(<MusicPlaylistsTab libraryTracks={LIBRARY_TRACKS} initialSelectedId={null} />);
+    expect(screen.getByText("Road Trip")).toBeTruthy();
+
+    usePlaylistDetailMock.mockReturnValue({
+      data: { id: "p1", name: "Road Trip", items: [{ media_item_id: "t2" }] },
+      isLoading: false,
+    });
+    rerender(<MusicPlaylistsTab libraryTracks={LIBRARY_TRACKS} initialSelectedId="p1" />);
+    expect(screen.getByText("Song B")).toBeTruthy();
+  });
+
   it("deletes a playlist after confirming the destructive alert action", async () => {
     const { Alert } = await import("react-native");
     (Alert.alert as unknown as ReturnType<typeof vi.fn>).mockImplementation(
