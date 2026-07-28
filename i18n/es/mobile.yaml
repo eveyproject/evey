@@ -12,6 +12,7 @@ settings:
   themeDark: Dark
   themeLight: Light
   themeAmoled: AMOLED
+  themeOptionA11y: "Tema {{name}}"
   server: Servidor
   changeServer: Cambiar servidor
   signOut: Cerrar sesion

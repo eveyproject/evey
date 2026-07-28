@@ -88,7 +88,10 @@ export default function SettingsScreen() {
       <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>{t("mobile.settings.server")}</Text>
       <View style={[styles.section, { backgroundColor: theme.colors.surface }]}>
         <View style={styles.infoRow}>
-          <Text style={[styles.label, { color: theme.colors.text }]}>{t("admin.webhooks.url", "URL")}</Text>
+          {/* mobile.serverConnect.urlLabel, not admin.webhooks.url: this row is
+              the server this TV is paired with, so it must not inherit whatever
+              wording the admin webhook form settles on. */}
+          <Text style={[styles.label, { color: theme.colors.text }]}>{t("mobile.serverConnect.urlLabel", "Server URL")}</Text>
           <Text style={[styles.value, { color: theme.colors.textMuted }]}>{serverUrl ?? "..."}</Text>
         </View>
         <Pressable
@@ -108,7 +111,9 @@ export default function SettingsScreen() {
       <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>{t("auth.settings.tabs.account")}</Text>
       <View style={[styles.section, { backgroundColor: theme.colors.surface }]}>
         <View style={styles.infoRow}>
-          <Text style={[styles.label, { color: theme.colors.text }]}>{t("admin.users.user", "User")}</Text>
+          {/* auth.login.username, not admin.users.user: this is the signed-in
+              account on this TV, not a row in the admin user table. */}
+          <Text style={[styles.label, { color: theme.colors.text }]}>{t("auth.login.username", "Username")}</Text>
           <Text style={[styles.value, { color: theme.colors.textMuted }]}>{user?.username ?? "..."}</Text>
         </View>
         <Pressable
@@ -203,6 +208,9 @@ export default function SettingsScreen() {
       {/* Appearance */}
       <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>{t("auth.settings.tabs.appearance")}</Text>
       <View style={[styles.section, { backgroundColor: theme.colors.surface }]}>
+        {/* The a11y label is "<name> theme", not just "<name>": on a remote the
+            reader announces this row with no surrounding context, and "AMOLED"
+            alone does not say what it selects. */}
         {THEME_OPTIONS.map((opt) => (
           <Pressable
             key={opt.value}
@@ -211,7 +219,7 @@ export default function SettingsScreen() {
             onFocus={() => setFocusedItem(`theme-${opt.value}`)}
             onBlur={() => setFocusedItem(null)}
             accessible={true}
-            accessibilityLabel={t(opt.labelKey, opt.fallback)}
+            accessibilityLabel={t("mobile.settings.themeOptionA11y", "{{name}} theme", { name: t(opt.labelKey, opt.fallback) })}
             accessibilityRole="button"
           >
             <Text style={[styles.label, { color: theme.colors.text }]}>{t(opt.labelKey, opt.fallback)}</Text>
