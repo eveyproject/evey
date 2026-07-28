@@ -2,7 +2,7 @@
   "expo": {
     "name": "Evey",
     "slug": "evey",
-    "version": "0.0.1-beta.13",
+    "version": "0.0.1-beta.15",
     "orientation": "default",
     "userInterfaceStyle": "automatic",
     "scheme": "evey",
@@ -28,7 +28,8 @@
     "android": {
       "package": "com.evey.app",
       "permissions": [
-        "android.permission.POST_NOTIFICATIONS"
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
       ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
@@ -37,6 +38,7 @@
     },
     "plugins": [
       "./plugins/withCleartextTraffic",
+      "./plugins/withCastMediaNotification",
       "expo-router",
       [
         "expo-video",

@@ -8,6 +8,10 @@
        sender (Bouygtel4K box, 2026-07-26) cut the playback. The runtime
        request lives in lib/castNotificationPermission.ts. -->
   <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+  <!-- Permission du service declare plus bas. Depuis targetSdk 34 un service
+       de premier plan doit annoncer son type ET detenir la permission
+       correspondante, sinon Android refuse son demarrage. -->
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"/>
   <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" tools:replace="android:maxSdkVersion"/>
   <!-- The app never records audio (expo-camera is only used for QR barcode
        scanning, expo-audio only for playback) - but expo-audio and expo-camera
@@ -35,6 +39,17 @@
          console is Unpublished, only registered test devices load it - publish
          before distributing this APK. -->
     <meta-data android:name="com.reactnative.googlecast.RECEIVER_APPLICATION_ID" android:value="D36A449B"/>
+    <!-- Le Cast SDK PORTE la classe MediaNotificationService mais ne la
+         declare dans aucun de ses AAR (play-services-cast-framework 22.3.1 ne
+         declare que MediaIntentReceiver et ReconnectionService) : c'est a
+         l'app de le faire. Sans cette ligne le service ne demarre jamais, la
+         notification media Cast n'existe pas, et rien n'empeche Android de
+         geler l'app des qu'elle quitte le premier plan - le recepteur perd
+         alors son sender et la box le demonte (prod 2026-07-28 18:40 UTC :
+         ReportProgress mort net 21 s apres le debut du cast, reprise a la
+         reactivation de l'ecran a 18:53:16). C'est le chainon qui manquait a
+         POST_NOTIFICATIONS ajoutee en beta.12. -->
+    <service android:name="com.google.android.gms.cast.framework.media.MediaNotificationService" android:exported="false" android:foregroundServiceType="mediaPlayback"/>
     <meta-data android:name="expo.modules.updates.ENABLED" android:value="false"/>
     <meta-data android:name="expo.modules.updates.EXPO_UPDATES_CHECK_ON_LAUNCH" android:value="ALWAYS"/>
     <meta-data android:name="expo.modules.updates.EXPO_UPDATES_LAUNCH_WAIT_MS" android:value="0"/>

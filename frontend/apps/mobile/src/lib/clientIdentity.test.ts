@@ -5,9 +5,16 @@ import { vi } from "vitest";
 // unreadable in the admin logs and rendered with a desktop icon on the online
 // panel. The app now identifies itself with a product UA the panel and the
 // future TV app (EveyTV) share the shape of.
+//
+// La version de build a ete ajoutee le 2026-07-28 : en pleine chasse au cast
+// coupe, les logs prod montraient "EveyMobile (Android 13; Phone)" sans dire
+// QUEL build parlait. Impossible de trancher entre "le correctif ne marche
+// pas" et "le correctif n'est pas installe" sans aller le demander a
+// l'utilisateur. Un diagnostic ne doit pas dependre d'une question posee.
 let platformOS = "android";
 let platformVersion: number | string = 34;
 let platformConstants: Record<string, string> | undefined = { Release: "14", Model: "SM-G991B" };
+let nativeAppVersion: string | null = "0.0.1-beta.14";
 
 vi.mock("react-native", () => ({
   get Platform() {
@@ -15,24 +22,52 @@ vi.mock("react-native", () => ({
   },
 }));
 
+vi.mock("expo-constants", () => ({
+  default: {
+    get nativeAppVersion() {
+      return nativeAppVersion;
+    },
+  },
+}));
+
 import { eveyClientUserAgent } from "./clientIdentity";
 
 describe("eveyClientUserAgent", () => {
-  it("builds an EveyMobile UA with Android release and device model", () => {
+  it("builds an EveyMobile UA with build version, Android release and device model", () => {
     platformOS = "android";
     platformConstants = { Release: "14", Model: "SM-G991B" };
-    expect(eveyClientUserAgent()).toBe("EveyMobile (Android 14; SM-G991B)");
+    nativeAppVersion = "0.0.1-beta.14";
+    expect(eveyClientUserAgent()).toBe("EveyMobile/0.0.1-beta.14 (Android 14; SM-G991B)");
   });
 
   it("degrades gracefully when the platform constants are missing", () => {
     platformOS = "android";
     platformConstants = undefined;
-    expect(eveyClientUserAgent()).toBe("EveyMobile (Android)");
+    nativeAppVersion = "0.0.1-beta.14";
+    expect(eveyClientUserAgent()).toBe("EveyMobile/0.0.1-beta.14 (Android)");
+  });
+
+  it("omet la version plutot que d'ecrire un mensonge quand elle est absente", () => {
+    platformOS = "android";
+    platformConstants = { Release: "14", Model: "SM-G991B" };
+    nativeAppVersion = null;
+    expect(eveyClientUserAgent()).toBe("EveyMobile (Android 14; SM-G991B)");
   });
 
   it("labels iOS with its version", () => {
     platformOS = "ios";
     platformVersion = "17.4";
-    expect(eveyClientUserAgent()).toBe("EveyMobile (iOS 17.4)");
+    nativeAppVersion = "0.0.1-beta.14";
+    expect(eveyClientUserAgent()).toBe("EveyMobile/0.0.1-beta.14 (iOS 17.4)");
+  });
+
+  it("garde le prefixe que le panneau admin teste (startsWith eveymobile)", () => {
+    platformOS = "android";
+    platformConstants = { Release: "14", Model: "SM-G991B" };
+    nativeAppVersion = "0.0.1-beta.14";
+    expect(eveyClientUserAgent().toLowerCase().startsWith("eveymobile")).toBe(true);
+    // Le modele est lu entre "; " et ")" par onlineDevice.ts : la version
+    // ajoutee avant la parenthese ne doit pas deplacer ce reperage.
+    expect(/;\s*([^)]+)\)/.exec(eveyClientUserAgent())?.[1]).toBe("SM-G991B");
   });
 });

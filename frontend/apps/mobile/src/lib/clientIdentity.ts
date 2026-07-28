@@ -1,4 +1,5 @@
 import { Platform } from "react-native";
+import Constants from "expo-constants";
 
 // Every API request used to reach the server as "okhttp/4.12.0" - unreadable
 // in the admin logs (the player-event handler logs the raw User-Agent as
@@ -6,12 +7,22 @@ import { Platform } from "react-native";
 // UA rides on all fetcher requests via setExtraHeaders (okhttp and the iOS
 // stack both honor a User-Agent header override). The TV app ships the same
 // shape as "EveyTV (...)" so the panel can tell the three clients apart.
+//
+// La version de build est dans le jeton produit ("EveyMobile/0.0.1-beta.14"),
+// avant la parenthese : le panneau admin reconnait le client par
+// startsWith("eveymobile") et lit le modele entre "; " et ")", les deux
+// continuent donc de marcher. Motivation (2026-07-28) : pendant la chasse au
+// cast coupe, les logs prod ne disaient pas QUEL build parlait, ce qui rendait
+// indecidable "le correctif ne marche pas" contre "le correctif n'est pas
+// installe". nativeAppVersion vient du versionName de l'APK, pas du manifeste
+// JS : c'est la verite du binaire reellement installe.
 export function eveyClientUserAgent(): string {
+  const version = Constants.nativeAppVersion ? `/${Constants.nativeAppVersion}` : "";
   if (Platform.OS === "android") {
     const c = (Platform as unknown as { constants?: { Release?: string; Model?: string } }).constants;
     const release = c?.Release ? ` ${c.Release}` : "";
     const model = c?.Model ? `; ${c.Model}` : "";
-    return `EveyMobile (Android${release}${model})`;
+    return `EveyMobile${version} (Android${release}${model})`;
   }
-  return `EveyMobile (iOS ${Platform.Version})`;
+  return `EveyMobile${version} (iOS ${Platform.Version})`;
 }
