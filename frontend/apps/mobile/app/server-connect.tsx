@@ -318,10 +318,10 @@ const scStyles = (theme: ReturnType<typeof useTheme>) => StyleSheet.create({
     paddingVertical: 2,
     marginLeft: theme.spacing.sm,
   },
-  badgeText: { color: "#fff", fontSize: 10, fontWeight: "700" },
+  badgeText: { color: theme.colors.onAccent, fontSize: 10, fontWeight: "700" },
   sectionLabel: { fontSize: 13, fontWeight: "600", textTransform: "uppercase", marginBottom: theme.spacing.sm },
   connectBtn: { padding: theme.spacing.md, alignItems: "center" },
-  connectBtnText: { color: "#fff", fontWeight: "600", fontSize: 16 },
+  connectBtnText: { color: theme.colors.onAccent, fontWeight: "600", fontSize: 16 },
   scanBtn: { marginTop: theme.spacing.md, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
   scanText: { fontSize: 14 },
 });

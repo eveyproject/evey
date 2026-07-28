@@ -218,7 +218,7 @@ export default function Login() {
         {isPending ? (
           <ActivityIndicator color={theme.colors.text} />
         ) : (
-          <Text style={{ color: "#fff", fontWeight: "600", fontSize: 16 }}>{t("auth.login.signIn")}</Text>
+          <Text style={{ color: theme.colors.onAccent, fontWeight: "600", fontSize: 16 }}>{t("auth.login.signIn")}</Text>
         )}
       </Pressable>
       <Pressable

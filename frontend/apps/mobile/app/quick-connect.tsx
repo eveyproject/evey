@@ -150,7 +150,7 @@ export default function QuickConnectScreen() {
         accessibilityRole="button"
       >
         <Text style={{ fontSize: 16 }}>📷</Text>
-        <Text style={{ color: "#fff", fontSize: 15, fontWeight: "600" }}>{t("auth.settings.quickConnect.scanQr") || "Scan QR Code"}</Text>
+        <Text style={{ color: theme.colors.onAccent, fontSize: 15, fontWeight: "600" }}>{t("auth.settings.quickConnect.scanQr") || "Scan QR Code"}</Text>
       </Pressable>
 
       <Pressable

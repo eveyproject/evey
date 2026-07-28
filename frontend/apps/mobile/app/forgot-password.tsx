@@ -85,9 +85,9 @@ export default function ForgotPassword() {
         }}
       >
         {requestReset.isPending ? (
-          <ActivityIndicator color="#fff" />
+          <ActivityIndicator color={theme.colors.onAccent} />
         ) : (
-          <Text style={{ color: "#fff", fontWeight: "600", fontSize: 16 }}>{t("auth.forgotPassword.submit")}</Text>
+          <Text style={{ color: theme.colors.onAccent, fontWeight: "600", fontSize: 16 }}>{t("auth.forgotPassword.submit")}</Text>
         )}
       </Pressable>
     </View>

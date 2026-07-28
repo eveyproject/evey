@@ -286,7 +286,7 @@ const styles = (t: ReturnType<typeof useTheme>) =>
       alignItems: "center",
     },
     avatarText: {
-      color: "#fff",
+      color: t.colors.onAccent,
       fontSize: 38,
       fontWeight: "700",
     },

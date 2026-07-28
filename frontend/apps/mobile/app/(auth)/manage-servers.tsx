@@ -202,7 +202,7 @@ export default function ManageServersScreen() {
                 <Text style={{ color: theme.colors.text }}>{t("common.cancel")}</Text>
               </Pressable>
               <Pressable onPress={commitRename} style={[s.modalBtn, { backgroundColor: theme.colors.accent, borderColor: theme.colors.accent }]}>
-                <Text style={{ color: "#fff", fontWeight: "600" }}>{t("common.save", "Save")}</Text>
+                <Text style={{ color: theme.colors.onAccent, fontWeight: "600" }}>{t("common.save", "Save")}</Text>
               </Pressable>
             </View>
           </Pressable>
@@ -250,7 +250,7 @@ const msStyles = (theme: ReturnType<typeof useTheme>) => StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
   },
-  badgeText: { color: "#fff", fontSize: 10, fontWeight: "700" },
+  badgeText: { color: theme.colors.onAccent, fontSize: 10, fontWeight: "700" },
   actions: {
     flexDirection: "row",
     alignItems: "center",
