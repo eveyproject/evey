@@ -286,8 +286,8 @@ func (h *audioHandle) run(ctx context.Context) {
 		if r := recover(); r != nil {
 			slog.Error("panic in hls audio ffmpeg run loop",
 				slog.Any("recover", r), slog.String("stack", string(debug.Stack())))
-			h.err = fmt.Errorf("panic in hls audio transcoder run loop: %v", r)
-			h.setExitErr(h.err)
+			h.setErr(fmt.Errorf("panic in hls audio transcoder run loop: %v", r))
+			h.setExitErr(h.Err())
 			h.cancel()
 			h.closeReady()
 		}
@@ -295,7 +295,7 @@ func (h *audioHandle) run(ctx context.Context) {
 
 	playlistPath := filepath.Join(h.outputDir, h.playlistName)
 	if err := waitForFile(ctx, h.procExited, playlistPath, 30*time.Second, 100*time.Millisecond); err != nil {
-		h.err = fmt.Errorf("waiting for %s: %w", h.playlistName, err)
+		h.setErr(fmt.Errorf("waiting for %s: %w", h.playlistName, err))
 		h.cancel()
 		we := h.awaitProcExit()
 		h.setExitErr(we)
@@ -320,7 +320,7 @@ func (h *audioHandle) run(ctx context.Context) {
 func (h *audioHandle) WaitReady(ctx context.Context) error {
 	select {
 	case <-h.ready:
-		return h.err
+		return h.Err()
 	case <-ctx.Done():
 		return ctx.Err()
 	}
@@ -352,7 +352,21 @@ func (h *audioHandle) Stop() error {
 }
 
 func (h *audioHandle) Done() <-chan struct{} { return h.done }
-func (h *audioHandle) Err() error            { return h.err }
+
+// Err/setErr guard h.err with the handle mutex: the orchestrator's natural
+// exit bookkeeping calls Err() at any moment, concurrently with run()'s error
+// paths writing it (race detector-proven, 2026-07-29).
+func (h *audioHandle) Err() error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.err
+}
+
+func (h *audioHandle) setErr(err error) {
+	h.mu.Lock()
+	h.err = err
+	h.mu.Unlock()
+}
 
 // Failure classifies the audio process exit. Audio-only renditions never use a
 // video HW encoder, so a fault here is never a video-HW capability problem; the

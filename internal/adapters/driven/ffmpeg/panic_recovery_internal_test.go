@@ -167,3 +167,40 @@ func TestAudioHandleRun_PanicRecovered(t *testing.T) {
 		t.Error("a panicked session must not classify as FailureNone")
 	}
 }
+
+// Err() may be called by the orchestrator at any moment (its natural-exit
+// bookkeeping), concurrently with run() writing h.err on its error paths.
+// Both sides must go through the handle's mutex - the race detector is the
+// assertion here.
+func TestAudioHandleErr_RaceWithRunErrorPath(t *testing.T) {
+	h := &audioHandle{
+		outputDir:    t.TempDir(),
+		playlistName: "audio.m3u8",
+		cmd:          nil,
+		ready:        make(chan struct{}),
+		done:         make(chan struct{}),
+		procExited:   make(chan struct{}),
+		stderr:       newRingBuffer(1024),
+		cancel:       func() {},
+	}
+	close(h.procExited)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // waitForFile fails immediately -> run() writes h.err
+
+	stop := make(chan struct{})
+	go func() {
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+				_ = h.Err()
+			}
+		}
+	}()
+	h.run(ctx)
+	close(stop)
+	if h.Err() == nil {
+		t.Fatal("run's error branch must surface through Err()")
+	}
+}
