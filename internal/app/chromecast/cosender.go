@@ -48,6 +48,16 @@ const (
 //
 // The co-sender is strictly PASSIVE: it never issues a media command. The
 // tests pin that property.
+//
+// UNVERIFIED ON DEVICE (2026-07-29). Everything above rests on one assumption
+// that no measurement has confirmed yet: that the box counts ANY connected
+// sender, so a passive CONNECT on the running app's transport id cancels its
+// "last sender disconnected" teardown. If its heuristic instead keys on the
+// sender that LAUNCHED the app, or on the media session owner, this code holds
+// a seat the box does not count and the TV still dies at ~3min40. The check is
+// cheap and does not need this comment removed to run: freeze the phone and
+// watch whether cast_receiver_alive beacons keep arriving past 4 minutes.
+// Until that is observed, treat this as a plausible fix, not a proven one.
 type CoSender struct {
 	factory  domaincast.SessionFactory
 	prober   domaincast.SubnetProber
