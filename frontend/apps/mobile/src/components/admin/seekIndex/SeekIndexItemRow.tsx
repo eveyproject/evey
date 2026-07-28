@@ -163,6 +163,7 @@ export function SeekIndexItemRow({
           <Pressable
             disabled={busy}
             onPress={() => item.mediaId && onRepair(item.mediaId)}
+            onLongPress={() => Alert.alert(t("admin.seekIndex.repair"), t("admin.seekIndex.repairHint"))}
             style={[stylesCard.smallBtn, { backgroundColor: theme.colors.accent, opacity: busy ? 0.6 : 1 }]}
           >
             {repairPending ? (
@@ -176,6 +177,7 @@ export function SeekIndexItemRow({
           <Pressable
             disabled={busy}
             onPress={() => item.mediaId && onRepairResync(item.mediaId)}
+            onLongPress={() => Alert.alert(t("admin.seekIndex.repairResync"), t("admin.seekIndex.repairResyncHint"))}
             style={[stylesCard.smallBtn, { backgroundColor: theme.colors.bg, opacity: busy ? 0.6 : 1 }]}
           >
             {repairResyncPending ? (

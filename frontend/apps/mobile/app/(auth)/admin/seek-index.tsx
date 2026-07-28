@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { View, Text, FlatList, Pressable, ScrollView, ActivityIndicator, StyleSheet } from "react-native";
+import { View, Text, FlatList, Pressable, ScrollView, ActivityIndicator, Alert, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -81,16 +81,29 @@ function LastJobCard({ last, theme }: { last: NonNullable<V1GetSeekIndexJobRespo
   const kind = t(KIND_KEYS[last.kind ?? ""] ?? KIND_KEYS.scan);
   const failed = last.failed ?? 0;
   const skipped = last.skipped ?? 0;
+  const isSuccess = failed === 0 && !last.error;
 
   return (
     <View style={[styles.card, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}>
-      <Text style={{ color: theme.colors.text, fontSize: 13 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+        <Text style={{ color: theme.colors.text, fontSize: 12, fontWeight: "600" }}>{t("admin.seekIndex.lastJob")}</Text>
+        {isSuccess ? (
+          <View style={[styles.badge, { backgroundColor: theme.colors.success + "22" }]}>
+            <Text style={{ color: theme.colors.success, fontSize: 10, fontWeight: "600" }}>
+              {t("admin.seekIndex.lastJobOk")}
+            </Text>
+          </View>
+        ) : null}
+      </View>
+      <Text style={{ color: theme.colors.text, fontSize: 13, marginTop: 4 }}>
         {t("admin.seekIndex.lastJobLine", { kind, done: last.done ?? 0, total: last.total ?? 0, failed })}
       </Text>
       {skipped > 0 ? (
-        <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginTop: 4 }}>
-          {t("admin.seekIndex.jobSkippedCount", { count: skipped })}
-        </Text>
+        <Pressable onPress={() => Alert.alert(t("admin.seekIndex.jobSkippedCount", { count: skipped }), t("admin.seekIndex.jobSkippedHint"))}>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginTop: 4 }}>
+            {t("admin.seekIndex.jobSkippedCount", { count: skipped })}
+          </Text>
+        </Pressable>
       ) : null}
       {last.error ? (
         <Text style={{ color: theme.colors.error, fontSize: 12, marginTop: 4 }}>
@@ -281,10 +294,12 @@ export default function AdminSeekIndexScreen() {
         )}
         ListHeaderComponent={
           <View style={{ gap: 12, marginBottom: 12 }}>
-            <View style={[styles.card, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}>
+            <View style={[styles.card, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md, gap: 6 }]}>
               <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>{t("admin.seekIndex.description")}</Text>
+              <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>{t("admin.seekIndex.readOnlyNote")}</Text>
             </View>
 
+            <Text style={{ color: theme.colors.textMuted, fontSize: 11, fontWeight: "600" }}>{t("admin.seekIndex.library")}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
               <Pressable
                 onPress={() => setLibraryId("")}
@@ -364,15 +379,20 @@ export default function AdminSeekIndexScreen() {
                   {seekCoarse > 0 && <StatChip label={t("admin.seekIndex.statsSeekCoarse")} value={seekCoarse} theme={theme} />}
                 </ScrollView>
 
-                <Pressable
-                  onPress={() => setOnlyAttention((v) => !v)}
-                  style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
-                  accessibilityRole="checkbox"
-                  accessibilityState={{ checked: onlyAttention }}
-                >
-                  <Ionicons name={onlyAttention ? "checkbox" : "square-outline"} size={20} color={onlyAttention ? theme.colors.accent : theme.colors.textMuted} />
-                  <Text style={{ color: theme.colors.text, fontSize: 13 }}>{t("admin.seekIndex.onlyAttention")}</Text>
-                </Pressable>
+                <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                  <Pressable
+                    onPress={() => setOnlyAttention((v) => !v)}
+                    style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: onlyAttention }}
+                  >
+                    <Ionicons name={onlyAttention ? "checkbox" : "square-outline"} size={20} color={onlyAttention ? theme.colors.accent : theme.colors.textMuted} />
+                    <Text style={{ color: theme.colors.text, fontSize: 13 }}>{t("admin.seekIndex.onlyAttention")}</Text>
+                  </Pressable>
+                  <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>
+                    {t("admin.seekIndex.scannedAt", { date: new Date(Number(result.scannedAtMs)).toLocaleString() })}
+                  </Text>
+                </View>
               </>
             )}
           </View>
@@ -381,7 +401,10 @@ export default function AdminSeekIndexScreen() {
           !result ? (
             <View style={{ alignItems: "center", paddingTop: 40 }}>
               <Ionicons name="build-outline" size={48} color={theme.colors.textMuted} />
-              <Text style={{ color: theme.colors.textMuted, marginTop: 12, textAlign: "center" }}>
+              <Text style={{ color: theme.colors.text, fontSize: 15, fontWeight: "600", marginTop: 12, textAlign: "center" }}>
+                {t("admin.seekIndex.emptyTitle")}
+              </Text>
+              <Text style={{ color: theme.colors.textMuted, marginTop: 4, textAlign: "center" }}>
                 {t("admin.seekIndex.emptyDescription")}
               </Text>
             </View>
@@ -421,4 +444,5 @@ const styles = StyleSheet.create({
   statLabel: { fontSize: 11, textAlign: "center" },
   filterChip: { paddingHorizontal: 12, paddingVertical: 8 },
   smallBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, alignItems: "center", justifyContent: "center", minWidth: 70 },
+  badge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 },
 });
