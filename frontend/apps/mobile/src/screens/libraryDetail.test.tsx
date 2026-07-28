@@ -69,10 +69,10 @@ vi.mock("react-i18next", () => ({
 }));
 
 // --- expo-router ---------------------------------------------------------------------
-const { pushMock, LIBRARY_ID } = vi.hoisted(() => ({ pushMock: vi.fn(), LIBRARY_ID: "lib-1" }));
+const { pushMock, replaceMock, LIBRARY_ID } = vi.hoisted(() => ({ pushMock: vi.fn(), replaceMock: vi.fn(), LIBRARY_ID: "lib-1" }));
 vi.mock("expo-router", () => ({
   useLocalSearchParams: () => ({ libraryId: LIBRARY_ID }),
-  useRouter: () => ({ push: pushMock }),
+  useRouter: () => ({ push: pushMock, replace: replaceMock }),
   Stack: { Screen: () => null },
 }));
 
@@ -140,14 +140,20 @@ const ITEMS = [
   { id: "mi-3", title: "Gamma", genres: ["Action"], year: 2003 },
 ];
 
-const { listMediaItemsMock, rawListMediaItemsMock, searchMediaMock } = vi.hoisted(() => ({
+const { listMediaItemsMock, rawListMediaItemsMock, searchMediaMock, getLibraryMock } = vi.hoisted(() => ({
+  getLibraryMock: vi.fn(),
   listMediaItemsMock: vi.fn(),
   rawListMediaItemsMock: vi.fn(),
   searchMediaMock: vi.fn(),
 }));
 
-vi.mock("@evey/api", () => ({
-  useLibraryServiceGetLibrary: () => ({ data: { id: LIBRARY_ID, name: "My Library" } }),
+// importOriginal, not a hand-written object: the pure helpers (dedicatedRouteFor,
+// defaultTypeFilterFor, shouldAutoFetchMore, hasMoreFromCursor) must be the REAL
+// ones. Stubbing them lets the screen pass against a fiction - which is exactly
+// how the totalPages freeze survived a green suite. Only the hooks are faked.
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
+  useLibraryServiceGetLibrary: () => getLibraryMock(),
   useLibraryServiceListMediaItems: (...args: unknown[]) => listMediaItemsMock(...args),
   libraryServiceListMediaItems: (...args: unknown[]) => rawListMediaItemsMock(...args),
   useLibraryServiceSearchMedia: (...args: unknown[]) => searchMediaMock(...args),
@@ -160,10 +166,6 @@ vi.mock("@evey/api", () => ({
   usePlaybackServiceGetWatchHistory: () => ({ data: undefined }),
   usePlaybackServiceMarkAsWatched: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false }),
   usePlaybackServiceMarkAsUnwatched: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false }),
-  // Pure helper - use the REAL one. Stubbing it would let pagination pass
-  // against a fiction, which is how the totalPages freeze survived a green
-  // suite (see packages/api/src/pagination.test.ts).
-  hasMoreFromCursor: (p?: { nextCursor?: string }) => !!p?.nextCursor,
 }));
 
 // -------------------------------------------------------------------------------------
@@ -171,6 +173,9 @@ import LibraryDetailScreen from "../../app/(auth)/library/[libraryId]";
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // Default: an untyped library, i.e. one browsed through this screen. The
+  // dedicated-library tests below override the type.
+  getLibraryMock.mockReturnValue({ data: { id: LIBRARY_ID, name: "My Library" } });
   // A fresh object per call (rather than mockReturnValue's single shared
   // reference) mirrors react-query returning a new result object per fetch,
   // so the screen's data-changed effect (keyed on referential identity)
@@ -245,4 +250,39 @@ describe("LibraryDetailScreen shuffle", () => {
     await waitFor(() => expect(toastErrorMock).toHaveBeenCalledWith("common.shuffleFailed"));
     expect(pushMock).not.toHaveBeenCalled();
   });
+});
+
+// The 2026-07-28 report: "bibliothèque > Musique" opened an empty grid while
+// production held 3 albums. Music tracks are not media_items, so the endpoint
+// this screen queries correctly answers zero rows - the screen simply must not
+// be the one showing them. Web has redirected these types since forever;
+// mobile never did.
+describe("LibraryDetailScreen dedicated libraries", () => {
+  it.each([
+    ["LIBRARY_TYPE_MUSIC", "/music"],
+    ["LIBRARY_TYPE_PHOTOS", "/photos"],
+  ])("sends a %s library to its own screen instead of the media grid", async (type, route) => {
+    getLibraryMock.mockReturnValue({ data: { id: LIBRARY_ID, name: "My Library", type } });
+
+    render(<LibraryDetailScreen />);
+
+    // replace, not push: the empty grid must not remain as a back target.
+    await waitFor(() => expect(replaceMock).toHaveBeenCalledWith(route));
+    expect(pushMock).not.toHaveBeenCalled();
+  });
+
+  it.each(["LIBRARY_TYPE_MOVIES", "LIBRARY_TYPE_SHOWS", undefined])(
+    "keeps browsing a %s library here",
+    async (type) => {
+      getLibraryMock.mockReturnValue({ data: { id: LIBRARY_ID, name: "My Library", type } });
+
+      render(<LibraryDetailScreen />);
+
+      // MediaCard is stubbed out in this file, so assert on the navigation
+      // decision rather than on rendered rows: the screen must keep the user
+      // here and query the media list itself.
+      await waitFor(() => expect(listMediaItemsMock).toHaveBeenCalled());
+      expect(replaceMock).not.toHaveBeenCalled();
+    },
+  );
 });

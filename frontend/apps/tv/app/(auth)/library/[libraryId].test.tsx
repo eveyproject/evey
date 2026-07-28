@@ -106,17 +106,17 @@ const { listMediaItemsMock, listGenresMock, rawListMediaItemsMock, searchMediaMo
   searchMediaMock: vi.fn(),
   watchHistoryMock: vi.fn(),
 }));
-vi.mock("@evey/api", () => ({
+// importOriginal, not a hand-written object: the pure helpers must be the REAL
+// ones, so the screen cannot pass against a stub that disagrees with shipped
+// behaviour. Only the hooks are faked.
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
   useLibraryServiceGetLibrary: () => ({ data: { id: LIBRARY_ID, name: "My Library" } }),
   useLibraryServiceListMediaItems: (...args: unknown[]) => listMediaItemsMock(...args),
   useLibraryServiceListGenres: (...args: unknown[]) => listGenresMock(...args),
   useLibraryServiceSearchMedia: (...args: unknown[]) => searchMediaMock(...args),
   usePlaybackServiceGetWatchHistory: (...args: unknown[]) => watchHistoryMock(...args),
   libraryServiceListMediaItems: (...args: unknown[]) => rawListMediaItemsMock(...args),
-  // Pure helper - use the REAL one. Stubbing it here would let the screen's
-  // pagination pass against a fiction, which is exactly how the totalPages
-  // freeze survived a green suite.
-  hasMoreFromCursor: (p?: { nextCursor?: string }) => !!p?.nextCursor,
 }));
 
 // -------------------------------------------------------------------------------------

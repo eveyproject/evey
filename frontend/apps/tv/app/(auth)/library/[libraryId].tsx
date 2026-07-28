@@ -8,6 +8,8 @@ import {
   useLibraryServiceGetLibrary,
   useLibraryServiceListMediaItems,
   hasMoreFromCursor,
+  dedicatedRouteFor,
+  IN_LIBRARY_SEARCH_LIMIT,
   useLibraryServiceListGenres,
   useLibraryServiceSearchMedia,
   usePlaybackServiceGetWatchHistory,
@@ -38,7 +40,11 @@ const CARD_WIDTH = CARD_WIDTH_GRID;
 const POSTER_HEIGHT = CARD_WIDTH * POSTER_RATIO;
 const ROW_HEIGHT = POSTER_HEIGHT + LABEL_BLOCK_HEIGHT + GRID_GAP;
 const PAGE_SIZE = 30;
-const SEARCH_LIMIT = 120;
+// The dedicated screens this app implements. The TV has a music screen but no
+// photos one, so dedicatedRouteFor is told exactly that and a photo library
+// keeps browsing normally rather than being sent to a route that does not
+// exist here.
+const TV_DEDICATED_ROUTES = ["/music"];
 
 const SORT_KEYS: Array<{ labelKey: string; value: LibraryServiceListMediaItemsSortField }> = [
   { labelKey: "media.library.titleSort", value: "MEDIA_SORT_FIELD_TITLE" },
@@ -202,6 +208,14 @@ export default function LibraryDetailScreen() {
 
   const { data: library } = useLibraryServiceGetLibrary(libraryId ?? "");
   const isShowLibrary = library?.type === "LIBRARY_TYPE_SHOWS";
+
+  // A music library holds no media_items, so browsing it here renders an empty
+  // grid over a full library. Send it to the music screen instead, as web has
+  // always done. replace(), so the empty grid is not left as a back target.
+  const dedicated = dedicatedRouteFor(library?.type, TV_DEDICATED_ROUTES);
+  useEffect(() => {
+    if (dedicated) router.replace(dedicated);
+  }, [dedicated, router]);
   const { data: genresData } = useLibraryServiceListGenres(libraryId ?? "", {
     query: { enabled: !!libraryId },
   });
@@ -229,7 +243,7 @@ export default function LibraryDetailScreen() {
     isError: isSearchError,
     refetch: refetchSearch,
   } = useLibraryServiceSearchMedia(
-    buildLibrarySearchParams({ libraryId: libraryId ?? "", query: trimmedSearch, type: typeFilter, genre, sortField, sortOrder, limit: SEARCH_LIMIT }),
+    buildLibrarySearchParams({ libraryId: libraryId ?? "", query: trimmedSearch, type: typeFilter, genre, sortField, sortOrder, limit: IN_LIBRARY_SEARCH_LIMIT }),
     { query: { enabled: searchActive && !!libraryId } },
   );
 

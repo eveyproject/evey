@@ -12,6 +12,10 @@ import {
   libraryServiceSearchMedia,
   usePlaybackServiceMarkAsWatched,
   usePlaybackServiceMarkAsUnwatched,
+  dedicatedRouteFor,
+  defaultTypeFilterFor,
+  shouldAutoFetchMore,
+  IN_LIBRARY_SEARCH_LIMIT,
 } from "@evey/api";
 import type {
   LibraryServiceListMediaItemsType,
@@ -63,22 +67,15 @@ const SORT_KEYS: Array<{ labelKey: string; value: LibraryServiceListMediaItemsSo
 ];
 
 const PAGE_SIZE = 48;
-// Fetch-until-filled safety bounds (local-filter path only).
-// Stop auto-fetching once the visible filtered count reaches the target OR the
-// total loaded item count exceeds the hard cap - prevents loading an entire
-// huge library when only a handful of items match the local facet.
-const AUTO_FETCH_FILL_TARGET = 24;
-const AUTO_FETCH_ITEM_CAP = 500;
 
-const DEDICATED_ROUTES: Partial<Record<string, string>> = {
-  LIBRARY_TYPE_PHOTOS: "/photos",
-  LIBRARY_TYPE_MUSIC: "/music",
-};
+// The dedicated screens this app implements, handed to dedicatedRouteFor so a
+// library type is never redirected to a route that does not exist here.
+const WEB_DEDICATED_ROUTES = ["/photos", "/music"];
 
-const DEFAULT_TYPE_FILTER: Partial<Record<string, LibraryServiceListMediaItemsType>> = {
-  LIBRARY_TYPE_SHOWS: "MEDIA_ITEM_TYPE_SERIES",
-  LIBRARY_TYPE_MOVIES: "MEDIA_ITEM_TYPE_MOVIE",
-};
+// AUTO_FETCH_*, DEDICATED_ROUTES and DEFAULT_TYPE_FILTER used to be declared
+// here and hand-copied into mobile/TV. They live in @evey/api (libraryRules.ts)
+// now, so the three clients cannot drift; rulesGuard.test.ts fails the build if
+// a local copy reappears.
 
 function LibraryPage() {
   const { t } = useTranslation();
@@ -191,10 +188,10 @@ function LibraryPage() {
 
   useEffect(() => {
     if (!library) return;
-    const dedicated = DEDICATED_ROUTES[library.type ?? ""];
+    const dedicated = dedicatedRouteFor(library.type, WEB_DEDICATED_ROUTES);
     if (dedicated) { void navigate({ to: dedicated, replace: true }); return; }
     if (typeFilter !== undefined) return;
-    const type = DEFAULT_TYPE_FILTER[library.type ?? ""];
+    const type = defaultTypeFilterFor(library.type);
     if (type) void navigate({ to: "/library/$libraryId", params: { libraryId: slug }, search: { ...search, type }, replace: true });
   // eslint-disable-next-line react-hooks/exhaustive-deps -- search/slug excluded: search is a new object each render, slug is stable but derived from params already covered
   }, [library?.type, typeFilter, navigate]);
@@ -318,7 +315,7 @@ function LibraryPage() {
           // mid-search returned stale cached results.
           sortField: sortField as unknown as LibraryServiceSearchMediaSortField,
           sortOrder: sortOrder as unknown as LibraryServiceSearchMediaSortOrder,
-          limit: 120,
+          limit: IN_LIBRARY_SEARCH_LIMIT,
         },
         signal,
       ),
@@ -398,18 +395,20 @@ function LibraryPage() {
   // Proactive fetch-until-filled: when client-side facets (resolution, codec,
   // audio/sub lang…) are active the filtered list can be short - not tall
   // enough to reach the scroll bottom and trigger onEndReached. We therefore
-  // fetch the next server page proactively until the filtered count reaches
-  // AUTO_FETCH_FILL_TARGET or the total loaded items hit AUTO_FETCH_ITEM_CAP.
+  // fetch the next server page proactively until enough matches are visible
+  // or the loaded-item cap is hit (shouldAutoFetchMore, @evey/api).
   // isFetchingNextPage prevents overlapping fetches; hasMore short-circuits
   // when the server has no further pages (including when searchActive, because
   // hasMore is false for the one-shot search path).
   useEffect(() => {
     if (
-      !hasLocalFilters ||
-      !hasMore ||
-      activeQuery.isFetchingNextPage ||
-      localFiltered.length >= AUTO_FETCH_FILL_TARGET ||
-      items.length >= AUTO_FETCH_ITEM_CAP
+      !shouldAutoFetchMore({
+        hasLocalFilters,
+        hasMore,
+        isFetching: activeQuery.isFetchingNextPage,
+        filteredCount: localFiltered.length,
+        loadedCount: items.length,
+      })
     ) return;
     void activeQuery.fetchNextPage();
   }, [hasLocalFilters, hasMore, activeQuery.isFetchingNextPage, activeQuery.fetchNextPage, localFiltered.length, items.length]);

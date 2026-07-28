@@ -260,48 +260,7 @@ export function selectableMediaIds(items: V1MediaItem[]): string[] {
   return items.map((i) => i.id ?? "").filter((id) => id.length > 0);
 }
 
-// --- Default type filter per library type ---
-
-// Mirrors web's DEFAULT_TYPE_FILTER ($libraryId.lazy.tsx:78-81): a shows
-// library starts filtered to series-only (not a series/season/episode mix),
-// a movies library to movies-only. Other library types have no default.
-export const DEFAULT_TYPE_FILTER: Partial<Record<string, LibraryServiceListMediaItemsType>> = {
-  LIBRARY_TYPE_SHOWS: "MEDIA_ITEM_TYPE_SERIES",
-  LIBRARY_TYPE_MOVIES: "MEDIA_ITEM_TYPE_MOVIE",
-};
-
-export function defaultTypeFilterFor(libraryType: string | undefined): LibraryServiceListMediaItemsType | "" {
-  return DEFAULT_TYPE_FILTER[libraryType ?? ""] ?? "";
-}
-
-// --- Fetch-until-filled (client-only facets narrowing a short page) ---
-
-// Mirrors web's AUTO_FETCH_FILL_TARGET/AUTO_FETCH_ITEM_CAP
-// ($libraryId.lazy.tsx:70-71).
-export const AUTO_FETCH_FILL_TARGET = 24;
-export const AUTO_FETCH_ITEM_CAP = 500;
-
-export interface ShouldAutoFetchMoreInput {
-  hasLocalFilters: boolean;
-  hasMore: boolean;
-  isFetching: boolean;
-  filteredCount: number;
-  loadedCount: number;
-  fillTarget?: number;
-  itemCap?: number;
-}
-
-// Mirrors web's fetch-until-filled effect ($libraryId.lazy.tsx:406-415): when
-// client-only facets (resolution/codec/language) narrow the currently loaded
-// page down to a short list, the grid never reaches the scroll bottom to
-// trigger the normal onEndReached load-more - so keep proactively fetching
-// the next server page until the filtered count reaches the fill target or
-// the total loaded items hit the safety cap.
-export function shouldAutoFetchMore(input: ShouldAutoFetchMoreInput): boolean {
-  const fillTarget = input.fillTarget ?? AUTO_FETCH_FILL_TARGET;
-  const itemCap = input.itemCap ?? AUTO_FETCH_ITEM_CAP;
-  if (!input.hasLocalFilters || !input.hasMore || input.isFetching) return false;
-  if (input.filteredCount >= fillTarget) return false;
-  if (input.loadedCount >= itemCap) return false;
-  return true;
-}
+// Default type filter, fetch-until-filled policy and the dedicated-route table
+// used to live here as copies of web's. They now live in @evey/api
+// (libraryRules.ts) so the three clients share one definition; rulesGuard.test.ts
+// fails the build if a local copy comes back.

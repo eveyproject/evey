@@ -21,6 +21,9 @@ import {
   useLibraryServiceGetLibrary,
   useLibraryServiceListMediaItems,
   hasMoreFromCursor,
+  defaultTypeFilterFor,
+  shouldAutoFetchMore,
+  dedicatedRouteFor,
   useLibraryServiceFilterMediaItems,
   useLibraryServiceListGenres,
   useLibraryServiceSearchMedia,
@@ -59,8 +62,6 @@ import {
   computeNextFilterOffset,
   buildBulkMediaIds,
   selectableMediaIds,
-  defaultTypeFilterFor,
-  shouldAutoFetchMore,
 } from "../../../src/components/library/libraryFilterUtils";
 
 const NUM_COLUMNS = 3;
@@ -70,6 +71,10 @@ const ITEM_WIDTH = (screenWidth - SPACING * (NUM_COLUMNS + 1)) / NUM_COLUMNS;
 const POSTER_HEIGHT = ITEM_WIDTH * 1.5;
 const ROW_HEIGHT = POSTER_HEIGHT + 30 + SPACING;
 const PAGE_SIZE = 30;
+
+// The dedicated screens this app implements, handed to dedicatedRouteFor so a
+// library type is never redirected to a route that does not exist here.
+const MOBILE_DEDICATED_ROUTES = ["/photos", "/music"];
 
 const COMMON_GENRES = [
   "Action",
@@ -251,8 +256,21 @@ export default function LibraryDetailScreen() {
   const { data: library } = useLibraryServiceGetLibrary(libraryId ?? "");
   const isShowLibrary = library?.type === "LIBRARY_TYPE_SHOWS";
 
-  // Mirrors web's default-type-filter effect ($libraryId.lazy.tsx:192-200):
-  // a shows library starts filtered to series-only, a movies library to
+  // Music and photo libraries are not browsable through this screen at all:
+  // their content is not media_items, so ListMediaItems correctly returns zero
+  // rows and the grid renders empty over a full library (production: 3 albums
+  // behind a "0 items" Musique). Web has redirected them to their own screens
+  // since forever; mobile never did. Handled HERE rather than at the tap site
+  // so a deep link or a restored back-stack entry lands right too.
+  //
+  // replace(), not push(): the empty grid must not stay behind as a back
+  // target.
+  const dedicated = dedicatedRouteFor(library?.type, MOBILE_DEDICATED_ROUTES);
+  useEffect(() => {
+    if (dedicated) router.replace(dedicated);
+  }, [dedicated, router]);
+
+  // A shows library starts filtered to series-only, a movies library to
   // movies-only - otherwise a shows library's grid mixes series/seasons/
   // episodes on first visit. Skipped once the user has touched the filter.
   useEffect(() => {

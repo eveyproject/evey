@@ -7,7 +7,11 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      "@evey/api": resolve(__dirname, "../../packages/api/src/fetcher.ts"),
+      // Point at the package INDEX, like web does. Aliasing straight to fetcher.ts
+      // made every shared export (library rules, pagination helpers) invisible to
+      // these apps' tests, so a screen test could only ever run against
+      // hand-written stubs of code that ships.
+      "@evey/api": resolve(__dirname, "../../packages/api/src/index.ts"),
       "@evey/store": resolve(__dirname, "../../packages/store/src/index.ts"),
       "@evey/theme": resolve(__dirname, "../../packages/theme/src/index.ts"),
       "react-native": resolve(__dirname, "./src/test/__mocks__/react-native.ts"),

@@ -11,6 +11,7 @@ import { useTranslation } from "react-i18next";
 import {
   useLibraryServiceListLibraries,
   useLibraryServiceListMediaItems,
+  hasMediaItemCount,
 } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import type { V1Library, V1LibraryType } from "@evey/api";
@@ -35,14 +36,25 @@ function getTypeIcon(type?: V1LibraryType): string {
   return (type && LIBRARY_TYPE_ICONS[type]) || "📁";
 }
 
-function LibraryItemCount({ libraryId }: { libraryId: string }) {
+// Music and photo libraries hold no media_items (their content lives in the
+// music/photo domains), so this endpoint answers 0 for them - which rendered a
+// confident "0 items" under a Musique library holding 3 albums. Those types
+// get no count rather than a wrong one; the dedicated screen shows the real
+// figures. Guarded by hasMediaItemCount so it can never drift from the
+// redirect table that decides which types are dedicated.
+function LibraryItemCount({ libraryId, libraryType }: { libraryId: string; libraryType?: string }) {
   const { t } = useTranslation();
   const theme = useTheme();
-  const { data } = useLibraryServiceListMediaItems({
-    libraryId,
-    "pagination.page": 1,
-    "pagination.pageSize": 1,
-  });
+  const countable = hasMediaItemCount(libraryType);
+  const { data } = useLibraryServiceListMediaItems(
+    {
+      libraryId,
+      "pagination.page": 1,
+      "pagination.pageSize": 1,
+    },
+    { query: { enabled: countable } },
+  );
+  if (!countable) return null;
   const total = data?.pagination?.totalItems;
   if (total === undefined) return null;
   return (
@@ -101,7 +113,7 @@ export default function LibraryScreen() {
               </Text>
             </View>
           </View>
-          {item.id && <LibraryItemCount libraryId={item.id} />}
+          {item.id && <LibraryItemCount libraryId={item.id} libraryType={item.type} />}
           {item.updatedAt && (
             <Text style={[styles.updated, { color: theme.colors.textMuted }]}>
               {t("media.updated")}{" "}
