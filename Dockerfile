@@ -21,16 +21,10 @@ RUN buf generate --template buf.gen.local.yaml
 # ── Stage 2b: Build the ac3go WebAssembly decoder (browser AC-3/E-AC-3 path) ──
 # Built from the pinned module (go.mod `tool` directive), not committed. The web
 # player loads it from /wasm/ac3go.wasm to decode AC-3/E-AC-3 client-side.
-# STANDARD go, deliberately NOT TinyGo. TinyGo (0.41) never runs finalizers,
-# so its syscall/js bridge never releases a js.Value: every PCM Uint8Array
-# crossing the bridge stays pinned in the shim's _values table forever.
-# Measured 2026-07-28 (Node harness, 100 segments): +6.75 MB and +101 refs
-# retained PER 3s SEGMENT - 135 MB/min of AC-3 playback - which memory-killed
-# the cast receiver on 1-2 GB Android TV boxes at the ~3 min mark with no
-# error event. Standard go's runtime does release refs (flat over the same
-# run). The 2.9 MB module and slower TV-side compile are the price; revisit
-# only if TinyGo ships working finalizers. The wasm_exec.js shim must match
-# the compiler that built the module - always ship both together.
+# Standard go, NOT TinyGo: TinyGo never runs finalizers, so its js bridge
+# leaks every crossing value (+6.75 MB/segment measured 2026-07-28) - that
+# memory-killed the cast receiver at ~3 min. Ship wasm_exec.js from the same
+# compiler as the module.
 FROM golang:1.26.5-alpine AS wasmbuild
 WORKDIR /src
 COPY go.mod go.sum ./
