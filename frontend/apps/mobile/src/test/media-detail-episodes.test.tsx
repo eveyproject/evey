@@ -70,25 +70,29 @@ vi.mock("react-native-safe-area-context", () => ({
 }));
 
 // --- ThemeProvider -------------------------------------------------------------------
-vi.mock("../providers/ThemeProvider", () => ({
-  useTheme: () => ({
-    colors: {
-      bg: "#000",
-      surface: "#111",
-      surfaceRaised: "#222",
-      text: "#fff",
-      textMuted: "#888",
-      accent: "#f00",
-      onAccent: "#fff",
-      border: "#333",
-      error: "#e00",
-      warning: "#fa0",
-      success: "#0f0",
-    },
-    radii: { lg: 12, md: 8, sm: 4 },
-    spacing: { xl: 24, lg: 16, md: 12, sm: 8 },
-  }),
-}));
+// ONE frozen object, returned by identity. The real provider memoises its
+// tokens, so `theme` is referentially stable in production; a mock that built
+// a fresh object per call would hand every memo()'d child a changed prop and
+// silently re-render the whole episode list on each "Show more" - making the
+// test both far slower than the app AND blind to memoisation regressions.
+const MOCK_THEME = {
+  colors: {
+    bg: "#000",
+    surface: "#111",
+    surfaceRaised: "#222",
+    text: "#fff",
+    textMuted: "#888",
+    accent: "#f00",
+    onAccent: "#fff",
+    border: "#333",
+    error: "#e00",
+    warning: "#fa0",
+    success: "#0f0",
+  },
+  radii: { lg: 12, md: 8, sm: 4 },
+  spacing: { xl: 24, lg: 16, md: 12, sm: 8 },
+};
+vi.mock("../providers/ThemeProvider", () => ({ useTheme: () => MOCK_THEME }));
 
 // --- misc hooks / libs the screen depends on, stubbed to keep this a focused
 // --- render test of the episode list rather than an integration test -------------------
@@ -198,6 +202,12 @@ describe("MediaDetailScreen episode list", () => {
     expect(episodeButton("Episode 41")).toBeNull();
   });
 
+  // Explicit timeout, NOT a global testTimeout bump: this one test walks the
+  // whole 100-episode season into the DOM (five render passes, ~2.3s locally),
+  // and a CI runner at half that speed overran the 5s default. The cost is the
+  // jsdom mount of 100 rich rows - measured, not guessed: making the memo()
+  // around EpisodeRow genuinely effective moved it by 4%. Raising the default
+  // for every test would have hidden the next slow one instead.
   it("hides the 'Show more' button once every episode is visible", () => {
     render(<MediaDetailScreen />, { wrapper: makeWrapper() });
 
@@ -208,7 +218,7 @@ describe("MediaDetailScreen episode list", () => {
 
     expect(episodeButton(`Episode ${EPISODE_COUNT}`)).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Show more" })).toBeNull();
-  });
+  }, 20_000);
 });
 
 describe("MediaDetailScreen episode downloads", () => {

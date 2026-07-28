@@ -579,6 +579,10 @@ export default function MediaDetailScreen() {
   // download is running (0..1 known total, NaN unknown) - absent means idle,
   // matching EpisodeRow's `downloadProgress === undefined` idle check.
   const [episodeDownloads, setEpisodeDownloads] = useState<Record<string, number>>({});
+  // Mirror of episodeDownloads for the in-flight guard in downloadEpisodeFile,
+  // so that callback can stay identity-stable across progress ticks.
+  const episodeDownloadsRef = useRef(episodeDownloads);
+  episodeDownloadsRef.current = episodeDownloads;
   const [bulkDownload, setBulkDownload] = useState<{ done: number; total: number } | null>(null);
 
   const invalidateWatched = useCallback(() => {
@@ -659,7 +663,11 @@ export default function MediaDetailScreen() {
   const downloadEpisodeFile = useCallback(
     async (ep: V1MediaItem, opts?: { silent?: boolean }) => {
       if (!ep.id) return;
-      if (episodeDownloads[ep.id] !== undefined) return;
+      // Read the in-flight set through a ref, not the state value: depending on
+      // episodeDownloads would give this callback a new identity on every
+      // progress tick, which in turn re-renders EVERY memoised EpisodeRow
+      // instead of just the one that is downloading.
+      if (episodeDownloadsRef.current[ep.id] !== undefined) return;
       const existing = await getDownloadPath(ep.id);
       if (existing) {
         if (!opts?.silent) toast.info(t("media.detail.alreadyDownloaded"));
@@ -702,7 +710,16 @@ export default function MediaDetailScreen() {
         });
       }
     },
-    [episodeDownloads, t, activeProfile, media],
+    [t, activeProfile, media],
+  );
+
+  // Stable prop for EpisodeRow. Passing an inline arrow here made the memo()
+  // around EpisodeRow inert: every "Show more" tap re-rendered the whole list
+  // (280 rows across four taps on a 100-episode season) instead of only the
+  // twenty newly revealed ones.
+  const handleEpisodeDownload = useCallback(
+    (ep: V1MediaItem) => { void downloadEpisodeFile(ep); },
+    [downloadEpisodeFile],
   );
 
   // "Download all" for the currently shown episode list (the active season,
@@ -1362,7 +1379,7 @@ export default function MediaDetailScreen() {
                 theme={theme}
                 authHeaders={authHeaders}
                 downloadProgress={ep.id ? episodeDownloads[ep.id] : undefined}
-                onDownload={(item) => { void downloadEpisodeFile(item); }}
+                onDownload={handleEpisodeDownload}
               />
             ))}
             {episodes.length > visibleEpisodeCount ? (
