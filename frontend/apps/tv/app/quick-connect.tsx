@@ -137,7 +137,7 @@ export default function QuickConnectScreen() {
         onFocus={() => setBackFocused(true)}
         onBlur={() => setBackFocused(false)}
         accessible={true}
-        accessibilityLabel="Back to login"
+        accessibilityLabel={t("auth.forgotPassword.backToLogin")}
         accessibilityRole="button"
         style={[
           styles.backButton,

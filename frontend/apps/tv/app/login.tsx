@@ -55,7 +55,7 @@ export default function Login() {
         onFocus={() => setUserFocused(true)}
         onBlur={() => setUserFocused(false)}
         accessible={true}
-        accessibilityLabel="Username"
+        accessibilityLabel={t("auth.login.username")}
         style={[
           styles.input,
           {
@@ -76,7 +76,7 @@ export default function Login() {
         onBlur={() => setPassFocused(false)}
         onSubmitEditing={handleLogin}
         accessible={true}
-        accessibilityLabel="Password"
+        accessibilityLabel={t("auth.login.password")}
         style={[
           styles.input,
           {
@@ -94,7 +94,7 @@ export default function Login() {
         onFocus={() => setLoginBtnFocused(true)}
         onBlur={() => setLoginBtnFocused(false)}
         accessible={true}
-        accessibilityLabel="Sign in"
+        accessibilityLabel={t("auth.login.signIn")}
         accessibilityRole="button"
         style={[
           styles.button,
@@ -120,7 +120,7 @@ export default function Login() {
         onBlur={() => setQcBtnFocused(false)}
         hasTVPreferredFocus={true}
         accessible={true}
-        accessibilityLabel="Quick Connect"
+        accessibilityLabel={t("auth.settings.quickConnect.title")}
         accessibilityRole="button"
         style={[
           styles.qcButton,

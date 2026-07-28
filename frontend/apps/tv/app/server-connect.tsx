@@ -163,7 +163,7 @@ export default function ServerConnect() {
         onBlur={() => setInputFocused(false)}
         onSubmitEditing={handleConnect}
         accessible={true}
-        accessibilityLabel="Server URL"
+        accessibilityLabel={t("mobile.serverConnect.urlLabel", "Server URL")}
         style={[
           s.input,
           {
