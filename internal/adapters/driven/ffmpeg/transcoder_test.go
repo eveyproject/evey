@@ -2,6 +2,7 @@ package ffmpeg
 
 import (
 	"context"
+	"time"
 	"testing"
 
 	"github.com/evey-project/evey/internal/domain/transcoding"
@@ -416,5 +417,29 @@ func TestMapVideoEncoder(t *testing.T) {
 			got := mapVideoEncoder(tt.codec, tt.hw)
 			assert.Equal(t, tt.expect, got)
 		})
+	}
+}
+
+// The job context must survive the START caller's context: the RPC that
+// launches a batch transcode ends (or its progress stream closes) long before
+// the encode does, and that must not kill ffmpeg mid-file. Stop/natural-exit
+// keep their own cancel.
+func TestDetachedJobContext_SurvivesCallerCancel(t *testing.T) {
+	parent, cancelParent := context.WithCancel(context.Background())
+	jobCtx, cancelJob := detachedJobContext(parent)
+	defer cancelJob()
+
+	cancelParent()
+	select {
+	case <-jobCtx.Done():
+		t.Fatal("job context died with the caller's context")
+	case <-time.After(20 * time.Millisecond):
+	}
+
+	cancelJob()
+	select {
+	case <-jobCtx.Done():
+	case <-time.After(time.Second):
+		t.Fatal("job's own cancel must still work")
 	}
 }

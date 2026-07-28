@@ -41,7 +41,7 @@ func NewTranscoder(binaryPath, outputDir string) *Transcoder {
 func (t *Transcoder) Start(ctx context.Context, job *transcoding.TranscodeJob) (string, error) {
 	args := t.BuildTranscodeArgs(job)
 
-	jobCtx, cancel := context.WithCancel(ctx)
+	jobCtx, cancel := detachedJobContext(ctx)
 	cmd := exec.CommandContext(jobCtx, t.binaryPath, args...)
 
 	stderr, err := cmd.StderrPipe()
@@ -73,6 +73,10 @@ func (t *Transcoder) Start(ctx context.Context, job *transcoding.TranscodeJob) (
 				slog.Warn("transcoder wait", slog.String("jobID", job.ID), slog.Any("err", err))
 			}
 			t.jobs.Delete(job.ID)
+			// Natural exit must release the job context too - WithCancel leaks
+			// its resources until cancel is called, and nothing else calls it
+			// on this path (Stop() is the only other caller).
+			cancel()
 		}()
 		scanner := bufio.NewScanner(stderr)
 		scanner.Buffer(make([]byte, 64*1024), 64*1024)
@@ -96,6 +100,14 @@ func (t *Transcoder) Start(ctx context.Context, job *transcoding.TranscodeJob) (
 	}()
 
 	return job.ID, nil
+}
+
+// detachedJobContext derives the ffmpeg job's context: cancellable (Stop, and
+// the natural-exit cleanup) but NOT tied to the caller's request context - a
+// batch transcode outlives the RPC that started it, and the progress stream
+// closing must not kill an encode mid-file.
+func detachedJobContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithCancel(context.WithoutCancel(ctx))
 }
 
 func (t *Transcoder) Stop(_ context.Context, jobID string) error {
