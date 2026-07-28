@@ -36,4 +36,9 @@ describe("deviceLabel", () => {
   it("keeps the browser + OS label for web clients", () => {
     expect(deviceLabel("Mozilla/5.0 (Windows NT 10.0) Chrome/126.0 Safari/537.36")).toBe("Chrome · Windows");
   });
+
+  it("labels a beaconing cast receiver as the Chromecast device", () => {
+    expect(deviceLabel("EveyCast (Chromecast)")).toBe("Chromecast");
+    expect(deviceIcon("EveyCast (Chromecast)")).toBe(Tv);
+  });
 });

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/evey-project/evey/internal/app/presence"
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	shared "github.com/evey-project/evey/internal/domain/shared"
 	domainuser "github.com/evey-project/evey/internal/domain/user"
@@ -401,5 +402,93 @@ func TestPlayerEvent_FatalAndErrorTypesStayWarn(t *testing.T) {
 		if msg != "player-client: playback error reported" {
 			t.Fatalf("%s: msg = %q", body, msg)
 		}
+	}
+}
+
+// --- cast presence + session touch (TV-driven now-playing) ----------------
+
+type fakeCastPresence struct{ entries []presence.Entry }
+
+func (f *fakeCastPresence) Touch(e presence.Entry) { f.entries = append(f.entries, e) }
+
+type sessionTouch struct {
+	profileID, mediaID string
+	posMs              int64
+}
+
+func postCastBeaconWithPresence(t *testing.T, tr CastPresenceToucher, touch CastSessionTouch, eventType, body string, castToken bool) {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/media/media-1/player-event", strings.NewReader(body))
+	req.SetPathValue("id", "media-1")
+	req.RemoteAddr = "192.168.1.42:51000"
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Fuchsia) CrKey/1.56")
+	if castToken {
+		ctx := context.WithValue(req.Context(), streamTokenCtxKey, &shared.StreamToken{
+			UserID: "usr-cast", ProfileID: "prof-cast", MediaItemID: "media-1", Scope: "stream", Cast: true,
+		})
+		req = req.WithContext(ctx)
+	}
+	rec := httptest.NewRecorder()
+	logger := slog.New(slog.NewJSONHandler(&bytes.Buffer{}, nil))
+	playerEventHandler(logger,
+		WithPlayerEventCastPresence(tr, func(context.Context, string) string { return "gravity" }),
+		WithPlayerEventCastSession(touch),
+	)(rec, req)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204 (body=%s)", rec.Code, rec.Body.String())
+	}
+}
+
+// A TV liveness beacon must (1) surface the Chromecast as an online DEVICE of
+// the casting user and (2) refresh the play session's position/updated_at -
+// the phone that started the cast is frozen and its own signals are gone.
+func TestPlayerEvent_CastBeaconTouchesPresenceAndSession(t *testing.T) {
+	tr := &fakeCastPresence{}
+	var touches []sessionTouch
+	touch := func(_ context.Context, profileID, mediaID string, posMs int64) {
+		touches = append(touches, sessionTouch{profileID, mediaID, posMs})
+	}
+	postCastBeaconWithPresence(t, tr, touch, "cast_receiver_alive", `{"type":"cast_receiver_alive","posSec":214.2}`, true)
+
+	if len(tr.entries) != 1 {
+		t.Fatalf("presence entries = %d, want 1", len(tr.entries))
+	}
+	e := tr.entries[0]
+	if e.UserID != "usr-cast" || e.Username != "gravity" || e.ProfileID != "prof-cast" {
+		t.Fatalf("presence identity = %+v", e)
+	}
+	if e.UserAgent != "EveyCast (Chromecast)" {
+		t.Fatalf("presence UA = %q, want the EveyCast product UA", e.UserAgent)
+	}
+	if e.ClientIP != "192.168.1.42" {
+		t.Fatalf("presence IP = %q", e.ClientIP)
+	}
+	if len(touches) != 1 || touches[0] != (sessionTouch{"prof-cast", "media-1", 214200}) {
+		t.Fatalf("session touches = %+v", touches)
+	}
+}
+
+// End-of-life beacons must NOT refresh presence or the session: the TV is
+// going away, letting the entries age out is the point.
+func TestPlayerEvent_CastEndBeaconsDoNotTouch(t *testing.T) {
+	tr := &fakeCastPresence{}
+	var touches []sessionTouch
+	touch := func(_ context.Context, p, m string, pos int64) { touches = append(touches, sessionTouch{p, m, pos}) }
+	postCastBeaconWithPresence(t, tr, touch, "cast_receiver_shutdown", `{"type":"cast_receiver_shutdown"}`, true)
+	postCastBeaconWithPresence(t, tr, touch, "cast_receiver_finished", `{"type":"cast_receiver_finished"}`, true)
+	if len(tr.entries) != 0 || len(touches) != 0 {
+		t.Fatalf("end beacons must not touch (presence=%d touches=%d)", len(tr.entries), len(touches))
+	}
+}
+
+// The phone's own beacons ride a JWT: no cast presence, no session touch (the
+// RPC ReportProgress path already covers the phone).
+func TestPlayerEvent_CastPresenceIgnoresNonCastCallers(t *testing.T) {
+	tr := &fakeCastPresence{}
+	var touches []sessionTouch
+	touch := func(_ context.Context, p, m string, pos int64) { touches = append(touches, sessionTouch{p, m, pos}) }
+	postCastBeaconWithPresence(t, tr, touch, "cast_receiver_alive", `{"type":"cast_receiver_alive","posSec":10}`, false)
+	if len(tr.entries) != 0 || len(touches) != 0 {
+		t.Fatalf("JWT caller must not create cast presence (presence=%d touches=%d)", len(tr.entries), len(touches))
 	}
 }

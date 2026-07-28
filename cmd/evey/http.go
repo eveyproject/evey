@@ -177,6 +177,23 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		DLNASvc:                    appdlna.New(cfg.EffectiveBaseURL()),
 		CastSvc:                    appcast.New(cfg.EffectiveBaseURL()),
 		CastCoSenderSvc:            castCoSender,
+		// Receiver beacons feed the same presence registry as the app
+		// heartbeats, plus a session keepalive: a cast whose phone froze stays
+		// a visible, positioned now-playing session driven by the TV itself.
+		CastPresence: deps.presenceTracker,
+		CastResolveUsername: func(ctx context.Context, userID string) string {
+			u, err := deps.user.querySvc.GetUserByID(ctx, userID)
+			if err != nil || u == nil {
+				return ""
+			}
+			return u.Username
+		},
+		CastSessionKeepalive: func(ctx context.Context, profileID, mediaItemID string, positionMs int64) {
+			if _, err := deps.media.playbackSvc.CommandService().TouchCastSession(ctx, profileID, mediaItemID, positionMs); err != nil {
+				slog.WarnContext(ctx, "cast session keepalive failed",
+					slog.String("profile_id", profileID), slog.String("media_id", mediaItemID), slog.Any("err", err))
+			}
+		},
 
 		CfgStore:  deps.cfgStore,
 		ServerCtx: ctx,

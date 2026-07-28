@@ -477,6 +477,34 @@ func (s *CommandService) ConsumeRemoteCommand(ctx context.Context, sessionID str
 	return s.sessions.ConsumeRemoteCommand(ctx, sessionID)
 }
 
+// TouchCastSession refreshes the ACTIVE session of (profile, media) from a
+// cast receiver's liveness beacon: position + updated_at, through the same
+// guarded UpdateProgress the phone's ticks use (a racing StopStream can never
+// be resurrected). During a cast the PHONE owns ReportProgress, and an OEM
+// freeze silences it - without this, the stale reaper ends the session ~2min
+// later while the TV plays on, and the now-playing panel goes blind. The
+// receiver beats only while playing, so IsPaused is false by construction;
+// the device name the phone set at cast start is preserved. Returns whether
+// an active session was found and refreshed.
+func (s *CommandService) TouchCastSession(ctx context.Context, profileID, mediaItemID string, positionMs int64) (bool, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.playback.TouchCastSession")
+	defer span.End()
+	if profileID == "" || mediaItemID == "" || positionMs < 0 {
+		return false, nil
+	}
+	sessions, err := s.sessionQueries.GetActiveByProfile(ctx, profileID)
+	if err != nil {
+		return false, err
+	}
+	for _, sess := range sessions {
+		if sess == nil || string(sess.MediaItemID) != mediaItemID {
+			continue
+		}
+		return s.sessions.UpdateProgress(ctx, sess.ID, positionMs, false, sess.CastDeviceName)
+	}
+	return false, nil
+}
+
 func (s *CommandService) CleanupStaleSessions(ctx context.Context, maxAge time.Duration) (int, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.playback.CleanupStaleSessions")
 	defer span.End()

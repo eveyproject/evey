@@ -13,7 +13,7 @@ function eveyModel(ua: string): string | undefined {
 
 export function deviceIcon(ua: string) {
   const s = ua.toLowerCase();
-  if (s.startsWith("eveytv")) return Tv;
+  if (s.startsWith("eveytv") || s.startsWith("eveycast")) return Tv;
   if (s.startsWith("eveymobile")) return Smartphone;
   if (/(tv|tizen|webos|crkey|appletv)/.test(s)) return Tv;
   if (/(mobile|android|iphone|ipad)/.test(s)) return Smartphone;
@@ -26,6 +26,11 @@ export function deviceLabel(ua: string): string {
   const s = ua.toLowerCase();
   if (s.startsWith("eveytv")) {
     return ["Evey TV", eveyModel(ua)].filter(Boolean).join(" · ");
+  }
+  if (s.startsWith("eveycast")) {
+    // Server-synthesized UA for a beaconing cast receiver ("EveyCast
+    // (Chromecast)"): the TV itself, present even while the phone is frozen.
+    return /\(([^)]+)\)/.exec(ua)?.[1]?.trim() || "Chromecast";
   }
   if (s.startsWith("eveymobile")) {
     const os = s.includes("ios") ? "iOS" : "Android";

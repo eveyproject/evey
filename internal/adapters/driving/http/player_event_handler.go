@@ -14,11 +14,13 @@ package httpapi
 // route, body capped, type whitelisted to [a-z0-9_], free text clamped.
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
 	"strings"
 
+	"github.com/evey-project/evey/internal/app/presence"
 	"github.com/evey-project/evey/internal/pkg/network"
 )
 
@@ -58,7 +60,25 @@ type playerEventDeps struct {
 	libChecker LibraryAccessChecker
 	parental   ParentalChecker
 	coSender   CastCoSender
+
+	// Cast presence + TV-driven session keepalive (2026-07-29): during a cast
+	// the PHONE carries ReportProgress, and an OEM freeze silences it - the
+	// admin panel then loses the session (~2min reaper) and shows nobody
+	// online while the TV plays on. The receiver's own beacons are the truth.
+	castPresence    CastPresenceToucher
+	resolveUsername func(ctx context.Context, userID string) string
+	castSession     CastSessionTouch
 }
+
+// CastPresenceToucher is the presence tracker's slice this handler needs.
+type CastPresenceToucher interface {
+	Touch(e presence.Entry)
+}
+
+// CastSessionTouch refreshes the active play session of (profile, media) from
+// a receiver liveness beacon - position AND updated_at, so the stale-session
+// reaper leaves a phone-orphaned cast alone. Fire-and-forget by contract.
+type CastSessionTouch func(ctx context.Context, profileID, mediaItemID string, positionMs int64)
 
 // CastCoSender is the server-side second Cast sender (app/chromecast.CoSender).
 // The receiver's beacons drive it: they arrive FROM the TV, so their source
@@ -77,6 +97,22 @@ type PlayerEventOption func(*playerEventDeps)
 // WithPlayerEventCoSender wires the cast co-sender into the beacon route.
 func WithPlayerEventCoSender(cs CastCoSender) PlayerEventOption {
 	return func(d *playerEventDeps) { d.coSender = cs }
+}
+
+// WithPlayerEventCastPresence surfaces a beaconing cast receiver as an online
+// DEVICE of the casting user ("EveyCast (Chromecast)" in the admin panel).
+// resolveUsername maps the stream token's user id to a display name; nil or a
+// blank result leaves the username empty.
+func WithPlayerEventCastPresence(tr CastPresenceToucher, resolveUsername func(ctx context.Context, userID string) string) PlayerEventOption {
+	return func(d *playerEventDeps) {
+		d.castPresence = tr
+		d.resolveUsername = resolveUsername
+	}
+}
+
+// WithPlayerEventCastSession wires the TV-driven session keepalive.
+func WithPlayerEventCastSession(touch CastSessionTouch) PlayerEventOption {
+	return func(d *playerEventDeps) { d.castSession = touch }
 }
 
 // WithPlayerEventLibraryGuard closes the "any JWT can push events onto an
@@ -152,6 +188,7 @@ func playerEventHandler(logger *slog.Logger, opts ...PlayerEventOption) http.Han
 			userID = claims.UserID
 		}
 		notifyCoSender(r, deps.coSender, body.Type)
+		notifyCastLiveness(r, &deps, mediaID, body.Type, body.PosSec)
 
 		// Severity follows what the event IS. The route carries telemetry
 		// (liveness beats every 30s, load/model/shutdown markers) alongside
@@ -210,6 +247,45 @@ func notifyCoSender(r *http.Request, cs CastCoSender, eventType string) {
 		cs.Attach(ip.String())
 	case "cast_receiver_shutdown", "cast_receiver_finished":
 		cs.Detach(ip.String())
+	}
+}
+
+// notifyCastLiveness turns a receiver liveness beacon (loaded/alive, cast
+// stream token only) into (1) a presence touch - the Chromecast shows up as an
+// online device of the casting user - and (2) a play-session refresh, so the
+// now-playing panel keeps tracking a cast whose phone froze. End-of-life
+// beacons (shutdown/finished) deliberately touch nothing: aging out is the
+// point. The phone's own JWT beacons are excluded - its RPCs cover it.
+func notifyCastLiveness(r *http.Request, deps *playerEventDeps, mediaID, eventType string, posSec float64) {
+	if eventType != "cast_receiver_loaded" && eventType != "cast_receiver_alive" {
+		return
+	}
+	st, ok := StreamTokenFromContext(r.Context())
+	if !ok || st == nil || !st.Cast || st.UserID == "" {
+		return
+	}
+	if deps.castPresence != nil {
+		username := ""
+		if deps.resolveUsername != nil {
+			username = deps.resolveUsername(r.Context(), string(st.UserID))
+		}
+		clientIP := ""
+		if ip := network.ClientIP(r); ip != nil {
+			clientIP = ip.String()
+		}
+		deps.castPresence.Touch(presence.Entry{
+			UserID:    string(st.UserID),
+			Username:  username,
+			ProfileID: string(st.ProfileID),
+			ClientIP:  clientIP,
+			// A product UA the online panel maps to a TV chip, like the mobile
+			// and TV apps' own UAs - the receiver's raw CrKey string would
+			// render as a desktop Chrome on Linux.
+			UserAgent: "EveyCast (Chromecast)",
+		})
+	}
+	if deps.castSession != nil && posSec > 0 {
+		deps.castSession(r.Context(), string(st.ProfileID), mediaID, int64(posSec*1000))
 	}
 }
 

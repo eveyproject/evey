@@ -32,6 +32,7 @@ import (
 	appphoto "github.com/evey-project/evey/internal/app/photo"
 	appplayback "github.com/evey-project/evey/internal/app/playback"
 	appplugin "github.com/evey-project/evey/internal/app/plugin"
+	apppresence "github.com/evey-project/evey/internal/app/presence"
 	appqoe "github.com/evey-project/evey/internal/app/qoe"
 	apprating "github.com/evey-project/evey/internal/app/rating"
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
@@ -864,7 +865,8 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// have evicted a hash mid-write if ever re-wired.)
 
 	return &appDeps{
-		bus:        bus,
+		bus:             bus,
+		presenceTracker: apppresence.NewTracker(),
 		bgStoppers: bgStoppers,
 		// The media-item repo doubles as the seek-index fingerprint refresher, so a
 		// reindexed file isn't re-probed (and its keyframe index dropped) by the

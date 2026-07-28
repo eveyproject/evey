@@ -13,7 +13,6 @@ import (
 	"github.com/evey-project/evey/internal/adapters/driving/grpcapi"
 	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
 	appmaintenance "github.com/evey-project/evey/internal/app/maintenance"
-	apppresence "github.com/evey-project/evey/internal/app/presence"
 	"github.com/evey-project/evey/internal/config"
 	eveylogger "github.com/evey-project/evey/internal/pkg/logger"
 	"github.com/evey-project/evey/internal/pkg/quickconnecthub"
@@ -149,7 +148,7 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		LoadTestBaseURL:        deps.loadTestBaseURL,
 		LoadTestPublicURL:      deps.loadTestPublicURL,
 		LoadTestTokens:         deps.auth.tokenGen,
-		Presence:               apppresence.NewTracker(),
+		Presence:               deps.presenceTracker,
 		RestartFn:              selfRestartFn(),
 	}
 
