@@ -113,6 +113,10 @@ vi.mock("@evey/api", () => ({
   useLibraryServiceSearchMedia: (...args: unknown[]) => searchMediaMock(...args),
   usePlaybackServiceGetWatchHistory: (...args: unknown[]) => watchHistoryMock(...args),
   libraryServiceListMediaItems: (...args: unknown[]) => rawListMediaItemsMock(...args),
+  // Pure helper - use the REAL one. Stubbing it here would let the screen's
+  // pagination pass against a fiction, which is exactly how the totalPages
+  // freeze survived a green suite.
+  hasMoreFromCursor: (p?: { nextCursor?: string }) => !!p?.nextCursor,
 }));
 
 // -------------------------------------------------------------------------------------
@@ -126,7 +130,9 @@ const ITEMS = [
 beforeEach(() => {
   vi.clearAllMocks();
   listMediaItemsMock.mockImplementation(() => ({
-    data: { items: ITEMS, pagination: { totalItems: ITEMS.length, totalPages: 1 } },
+    // Shaped like the real server response: totalPages is ALWAYS 0 (never
+    // populated server-side) and the end of the list is an empty nextCursor.
+    data: { items: ITEMS, pagination: { totalItems: ITEMS.length, totalPages: 0, nextCursor: "" } },
     isLoading: false,
     isError: false,
     isFetching: false,

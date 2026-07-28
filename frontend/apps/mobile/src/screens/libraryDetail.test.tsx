@@ -160,6 +160,10 @@ vi.mock("@evey/api", () => ({
   usePlaybackServiceGetWatchHistory: () => ({ data: undefined }),
   usePlaybackServiceMarkAsWatched: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false }),
   usePlaybackServiceMarkAsUnwatched: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false }),
+  // Pure helper - use the REAL one. Stubbing it would let pagination pass
+  // against a fiction, which is how the totalPages freeze survived a green
+  // suite (see packages/api/src/pagination.test.ts).
+  hasMoreFromCursor: (p?: { nextCursor?: string }) => !!p?.nextCursor,
 }));
 
 // -------------------------------------------------------------------------------------
@@ -172,7 +176,9 @@ beforeEach(() => {
   // so the screen's data-changed effect (keyed on referential identity)
   // re-syncs allItems on every render instead of only the first.
   listMediaItemsMock.mockImplementation(() => ({
-    data: { items: ITEMS, pagination: { totalItems: ITEMS.length, totalPages: 1 } },
+    // Shaped like the real server response: totalPages is ALWAYS 0 (the server
+    // never populates it) and the end of the list is an empty nextCursor.
+    data: { items: ITEMS, pagination: { totalItems: ITEMS.length, totalPages: 0, nextCursor: "" } },
     isLoading: false,
     isError: false,
     isFetching: false,

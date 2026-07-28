@@ -7,6 +7,7 @@ import { useTranslation } from "react-i18next";
 import {
   useLibraryServiceGetLibrary,
   useLibraryServiceListMediaItems,
+  hasMoreFromCursor,
   useLibraryServiceListGenres,
   useLibraryServiceSearchMedia,
   usePlaybackServiceGetWatchHistory,
@@ -70,12 +71,16 @@ export interface BuildMediaListParamsInput {
   genre?: string;
   sortField: LibraryServiceListMediaItemsSortField;
   sortOrder: LibraryServiceListMediaItemsSortOrder;
-  page: number;
+  cursor: string;
   pageSize: number;
 }
 
 // Single source of truth for the ListMediaItems query params, so the sort/
 // type/genre wiring can be unit-tested without rendering the screen.
+// Keyset-paginated (opaque server cursor), like web and mobile: the previous
+// `pagination.page` + `totalPages` pairing could never advance, because the
+// server never populates total_pages (always 0), so the TV froze on the first
+// page of every library.
 export function buildMediaListParams(input: BuildMediaListParamsInput) {
   return {
     libraryId: input.libraryId,
@@ -83,8 +88,8 @@ export function buildMediaListParams(input: BuildMediaListParamsInput) {
     ...(input.genre ? { genre: input.genre } : {}),
     sortField: input.sortField,
     sortOrder: input.sortOrder,
-    "pagination.page": input.page,
     "pagination.pageSize": input.pageSize,
+    ...(input.cursor ? { "pagination.cursor": input.cursor } : {}),
   };
 }
 
@@ -177,7 +182,7 @@ export default function LibraryDetailScreen() {
   const router = useRouter();
   const serverUrl = useServerUrl();
   const authHeaders = useAuthHeaders();
-  const [page, setPage] = useState(1);
+  const [cursor, setCursor] = useState("");
   const [allItems, setAllItems] = useState<V1MediaItem[]>([]);
   const [hasMore, setHasMore] = useState(true);
   const [genre, setGenre] = useState("");
@@ -207,8 +212,15 @@ export default function LibraryDetailScreen() {
   const hasActiveFilters = Boolean(genre || typeFilter || searchActive);
 
   const { data, isLoading, isError, isFetching, refetch } = useLibraryServiceListMediaItems(
-    buildMediaListParams({ libraryId: libraryId ?? "", type: typeFilter, genre, sortField, sortOrder, page, pageSize: PAGE_SIZE }),
-    { query: { enabled: !!libraryId && !searchActive } },
+    buildMediaListParams({ libraryId: libraryId ?? "", type: typeFilter, genre, sortField, sortOrder, cursor, pageSize: PAGE_SIZE }),
+    {
+      query: {
+        enabled: !!libraryId && !searchActive,
+        // See mobile: one cache key per cursor, and a spent cursor is never
+        // read again, so don't let superseded pages pile up next to allItems.
+        gcTime: 30_000,
+      },
+    },
   );
 
   const {
@@ -239,7 +251,7 @@ export default function LibraryDetailScreen() {
   // deps were unchanged) - a persistent empty grid on the common peek-a-facet-
   // then-back-to-default flow over a static library.
   useEffect(() => {
-    setPage(1);
+    setCursor("");
     setAllItems([]);
     setHasMore(true);
     prevDataRef.current = null;
@@ -249,14 +261,13 @@ export default function LibraryDetailScreen() {
     if (!data || data === prevDataRef.current) return;
     prevDataRef.current = data;
     const newItems = data.items ?? [];
-    if (page === 1) {
+    if (!cursor) {
       setAllItems(newItems);
     } else {
       setAllItems((prev) => [...prev, ...newItems]);
     }
-    const totalPages = data.pagination?.totalPages ?? 1;
-    setHasMore(page < totalPages);
-  }, [data, page]);
+    setHasMore(hasMoreFromCursor(data.pagination));
+  }, [data, cursor]);
 
   const displayItems = searchActive ? (searchData?.items ?? []) : allItems;
 
@@ -298,8 +309,11 @@ export default function LibraryDetailScreen() {
 
   const handleEndReached = useCallback(() => {
     if (searchActive) return; // search returns a single fixed-size page, no cursor to page through
-    if (!isFetching && hasMore) setPage((p) => p + 1);
-  }, [searchActive, isFetching, hasMore]);
+    // Guarding on isFetching and on the cursor actually changing keeps a held-
+    // down remote from firing the same cursor twice before the fetch resolves.
+    const next = data?.pagination?.nextCursor;
+    if (!isFetching && hasMore && next && next !== cursor) setCursor(next);
+  }, [searchActive, isFetching, hasMore, data, cursor]);
 
   const renderItem = useCallback(
     ({ item, index }: { item: V1MediaItem; index: number }) => {
@@ -391,7 +405,7 @@ export default function LibraryDetailScreen() {
   const activeIsLoading = searchActive ? isSearchLoading : isLoading;
   const activeIsError = searchActive ? isSearchError : isError;
   const activeRefetch = searchActive ? refetchSearch : refetch;
-  const isFirstPage = searchActive ? true : page === 1;
+  const isFirstPage = searchActive ? true : cursor === "";
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
@@ -501,7 +515,7 @@ export default function LibraryDetailScreen() {
               windowSize={5}
               removeClippedSubviews={true}
               ListFooterComponent={
-                isFetching && page > 1 && !searchActive ? (
+                isFetching && !isFirstPage && !searchActive ? (
                   <ActivityIndicator color={theme.colors.accent} style={{ marginVertical: 24 }} />
                 ) : null
               }

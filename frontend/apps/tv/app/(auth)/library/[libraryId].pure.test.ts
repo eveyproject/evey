@@ -47,7 +47,7 @@ import {
 } from "./[libraryId]";
 
 describe("buildMediaListParams", () => {
-  it("always sends sortField/sortOrder and omits empty type/genre", () => {
+  it("sends no cursor on the first page (server starts from the top)", () => {
     expect(
       buildMediaListParams({
         libraryId: "lib-1",
@@ -55,29 +55,38 @@ describe("buildMediaListParams", () => {
         genre: "",
         sortField: "MEDIA_SORT_FIELD_TITLE",
         sortOrder: "SORT_ORDER_ASC",
-        page: 1,
+        cursor: "",
         pageSize: 30,
       }),
     ).toEqual({
       libraryId: "lib-1",
       sortField: "MEDIA_SORT_FIELD_TITLE",
       sortOrder: "SORT_ORDER_ASC",
-      "pagination.page": 1,
       "pagination.pageSize": 30,
     });
   });
 
-  it("includes type and genre when set", () => {
+  // The screen used to page by `pagination.page` and stop on `totalPages`,
+  // which the server never populates - the TV froze on the first 30 items of
+  // every library. Keyset paging is also constant-cost per page instead of
+  // making the DB skip `offset` rows, which matters on the NAS target.
+  it("carries the server cursor on later pages, never a page number", () => {
     const params = buildMediaListParams({
       libraryId: "lib-1",
       type: "MEDIA_ITEM_TYPE_SERIES",
       genre: "Action",
       sortField: "MEDIA_SORT_FIELD_YEAR",
       sortOrder: "SORT_ORDER_DESC",
-      page: 2,
+      cursor: "eyJmIjoieWVhciIsInYiOiIxOTk5In0",
       pageSize: 30,
     });
-    expect(params).toMatchObject({ type: "MEDIA_ITEM_TYPE_SERIES", genre: "Action", sortOrder: "SORT_ORDER_DESC" });
+    expect(params).toMatchObject({
+      type: "MEDIA_ITEM_TYPE_SERIES",
+      genre: "Action",
+      sortOrder: "SORT_ORDER_DESC",
+      "pagination.cursor": "eyJmIjoieWVhciIsInYiOiIxOTk5In0",
+    });
+    expect(params).not.toHaveProperty("pagination.page");
   });
 });
 

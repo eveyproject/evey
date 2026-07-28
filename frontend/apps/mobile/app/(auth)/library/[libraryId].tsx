@@ -20,6 +20,7 @@ import { useTranslation } from "react-i18next";
 import {
   useLibraryServiceGetLibrary,
   useLibraryServiceListMediaItems,
+  hasMoreFromCursor,
   useLibraryServiceFilterMediaItems,
   useLibraryServiceListGenres,
   useLibraryServiceSearchMedia,
@@ -136,7 +137,16 @@ export default function LibraryDetailScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
   const router = useRouter();
-  const [page, setPage] = useState(1);
+  // Regular path: KEYSET pagination, driven by the opaque cursor the server
+  // returns, exactly like web ($libraryId.lazy.tsx). It used to page by
+  // `pagination.page` and stop on `pagination.totalPages`, but the server NEVER
+  // populates total_pages (library_handler_mediaitems.go builds the response
+  // with TotalItems/Page/PageSize/NextCursor only), so the field is always 0:
+  // `0 ?? 1` keeps the 0, `page < 0` is false, and every library froze at its
+  // first 30 items. Keyset also costs the DB a constant per page instead of
+  // skipping `offset` rows, which matters at 8k items on a weak NAS, and it
+  // stays stable while a scan inserts rows underneath us.
+  const [cursor, setCursor] = useState("");
   const [allItems, setAllItems] = useState<V1MediaItem[]>([]);
   const [hasMore, setHasMore] = useState(true);
   const prevDataRef = useRef<unknown>(null);
@@ -272,10 +282,21 @@ export default function LibraryDetailScreen() {
       ...(genre ? { genre } : {}),
       sortField,
       sortOrder,
-      "pagination.page": page,
       "pagination.pageSize": PAGE_SIZE,
+      ...(cursor ? { "pagination.cursor": cursor } : {}),
     },
-    { query: { enabled: !!libraryId && !serverFiltersActive } },
+    {
+      query: {
+        enabled: !!libraryId && !serverFiltersActive,
+        // Every cursor is its own cache key, so without this a deep scroll
+        // through an 8k-item library would hold ~270 superseded pages in the
+        // React Query cache (default gcTime: 5 min) ON TOP of the accumulated
+        // allItems - the same rows twice, on a phone. Nothing ever reads a
+        // spent cursor again (we only move forward, and any filter/sort change
+        // resets to the top), so drop them promptly.
+        gcTime: 30_000,
+      },
+    },
   );
 
   const {
@@ -370,7 +391,7 @@ export default function LibraryDetailScreen() {
   // wipe it with no re-run ([data,page] deps unchanged) - a persistent empty
   // grid on the common peek-a-genre-then-back flow over a static library.
   const resetAndRefetch = useCallback(() => {
-    setPage(1);
+    setCursor("");
     setAllItems([]);
     setHasMore(true);
     prevDataRef.current = null;
@@ -392,14 +413,13 @@ export default function LibraryDetailScreen() {
     if (!regularData || regularData === prevDataRef.current) return;
     prevDataRef.current = regularData;
     const newItems = regularData.items ?? [];
-    if (page === 1) {
+    if (!cursor) {
       setAllItems(newItems);
     } else {
       setAllItems((prev) => [...prev, ...newItems]);
     }
-    const totalPages = regularData.pagination?.totalPages ?? 1;
-    setHasMore(page < totalPages);
-  }, [regularData, page]);
+    setHasMore(hasMoreFromCursor(regularData.pagination));
+  }, [regularData, cursor]);
 
   useEffect(() => {
     if (!filterData || filterData === prevFilterDataRef.current) return;
@@ -474,7 +494,7 @@ export default function LibraryDetailScreen() {
   const activeIsFetching = searchActive ? isSearchLoading : serverFiltersActive ? isFilterFetching : isRegularFetching;
   const activeIsError = searchActive ? isSearchError : serverFiltersActive ? isFilterError : isRegularError;
   const activeRefetch = searchActive ? refetchSearch : serverFiltersActive ? refetchFilter : refetchRegular;
-  const isFirstPage = searchActive ? true : serverFiltersActive ? filterOffset === 0 : page === 1;
+  const isFirstPage = searchActive ? true : serverFiltersActive ? filterOffset === 0 : cursor === "";
 
   const [shuffling, setShuffling] = useState(false);
   // Search results and client-only facets (resolution/codec/language) can't
@@ -525,7 +545,7 @@ export default function LibraryDetailScreen() {
       prevFilterDataRef.current = null;
       return;
     }
-    setPage(1);
+    setCursor("");
     setHasMore(true);
     prevDataRef.current = null;
   }, [searchActive, serverFiltersActive, refetchSearch]);
@@ -538,10 +558,14 @@ export default function LibraryDetailScreen() {
       if (!isFilterFetching && filterNextOffset != null) setFilterOffset(filterNextOffset);
       return;
     }
-    if (!isRegularFetching && hasMore) {
-      setPage((p) => p + 1);
+    // Advance to the cursor the last page handed us. Guarding on
+    // isRegularFetching keeps a fast scroll from firing the same cursor twice
+    // (FlatList can call onEndReached again before the fetch resolves).
+    const next = regularData?.pagination?.nextCursor;
+    if (!isRegularFetching && hasMore && next && next !== cursor) {
+      setCursor(next);
     }
-  }, [searchActive, serverFiltersActive, isFilterFetching, filterNextOffset, isRegularFetching, hasMore]);
+  }, [searchActive, serverFiltersActive, isFilterFetching, filterNextOffset, isRegularFetching, hasMore, regularData, cursor]);
 
   // Whether the active (non-search) endpoint still has more pages - unified
   // over the regular/filter paths so the fetch-until-filled effect below
