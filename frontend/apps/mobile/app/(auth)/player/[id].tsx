@@ -18,7 +18,7 @@ import { setAudioBoost, releaseAudioBoost } from "../../../src/lib/audioBoost";
 import { getDownloadPath } from "../../../src/lib/downloads";
 import { useTranslation } from "react-i18next";
 import { toast, useAuthStore } from "@evey/store";
-import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
+import { ICON_SIZE } from "@evey/theme";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { BottomSheet } from "../../../src/components/BottomSheet";
 import {
@@ -39,6 +39,7 @@ import { SleepTimerPicker } from "../../../src/components/SleepTimerPicker";
 import { pickNativeAudioTrack, pickPreferredStreamIndex } from "../../../src/lib/audioTrackMatch";
 import { playerExit } from "../../../src/lib/playerExit";
 import { ChaptersPicker } from "../../../src/components/ChaptersPicker";
+import { PlayerEpisodesPanel } from "../../../src/components/player/PlayerEpisodesPanel";
 import { StreamInfoPanel } from "../../../src/components/StreamInfoPanel";
 import { SkipIntroOverlay } from "../../../src/components/SkipIntroOverlay";
 import { CastContext } from "../../../src/hooks/useChromecast";
@@ -149,16 +150,57 @@ export default function PlayerScreen() {
       nextEpisode: idx >= 0 && idx < sorted.length - 1 ? sorted[idx + 1] : null,
     };
   }, [siblingsData?.items, isEpisode, mediaId]);
-  // Full current-season episode list for the Episodes panel (web parity's
-  // EpisodesPanel). Reuses siblingsData - no extra hook. A season selector
-  // would need the series' other seasons, which aren't loaded anywhere in
-  // this screen; out of scope here (see dispatch note), so this panel is
-  // scoped to the current season only.
-  const seasonEpisodes = useMemo(() => {
+  // Full current-season episode list, used both for the transport bar's
+  // prev/next buttons above (always bound to the current season, web parity)
+  // and to gate the Episodes button below.
+  const currentSeasonEpisodes = useMemo(() => {
     const items = siblingsData?.items;
     if (!isEpisode || !items) return [];
-    return [...items].sort((a, b) => (a.indexNumber ?? 0) - (b.indexNumber ?? 0));
+    return items
+      .filter((ep): ep is typeof ep & { id: string } => !!ep.id)
+      .sort((a, b) => (a.indexNumber ?? 0) - (b.indexNumber ?? 0));
   }, [siblingsData?.items, isEpisode]);
+
+  // Series' other seasons, for the Episodes panel's season selector (web
+  // parity's EpisodesPanel). Lazily fetched: most sessions never open the
+  // panel, so there's no reason to always pull every season of the series.
+  const [episodesPanelOpened, setEpisodesPanelOpened] = useState(false);
+  const seriesId = parentItem?.parentId ?? "";
+  const { data: seasonsData } = useLibraryServiceListMediaItems(
+    { parentId: seriesId, "pagination.pageSize": 500 } as never,
+    { query: { enabled: !!seriesId && isEpisode && episodesPanelOpened } } as never,
+  );
+  const seasons = useMemo(() => {
+    const items = seasonsData?.items;
+    if (!items) return [];
+    return items
+      .filter((s): s is typeof s & { id: string } => !!s.id)
+      .sort((a, b) => (a.indexNumber ?? 0) - (b.indexNumber ?? 0));
+  }, [seasonsData?.items]);
+
+  // Season picked in the panel's selector - defaults to (and resets whenever
+  // the player mounts on a new episode to) the current episode's season.
+  const [selectedSeasonId, setSelectedSeasonId] = useState(media?.parentId ?? "");
+  useEffect(() => {
+    if (media?.parentId) setSelectedSeasonId(media.parentId);
+  }, [media?.parentId]);
+
+  // Episodes of whichever OTHER season the user picked in the selector -
+  // siblingsData/currentSeasonEpisodes above already covers the current one,
+  // so this only fires once the user actually switches season.
+  const { data: otherSeasonEpisodesData } = useLibraryServiceListMediaItems(
+    { parentId: selectedSeasonId, "pagination.pageSize": 500 } as never,
+    { query: { enabled: !!selectedSeasonId && selectedSeasonId !== media?.parentId } } as never,
+  );
+  const panelEpisodes = useMemo(() => {
+    if (!isEpisode) return [];
+    if (selectedSeasonId === media?.parentId) return currentSeasonEpisodes;
+    const items = otherSeasonEpisodesData?.items;
+    if (!items) return [];
+    return items
+      .filter((ep): ep is typeof ep & { id: string } => !!ep.id)
+      .sort((a, b) => (a.indexNumber ?? 0) - (b.indexNumber ?? 0));
+  }, [isEpisode, selectedSeasonId, media?.parentId, currentSeasonEpisodes, otherSeasonEpisodesData?.items]);
   // Don't open a play session for a series/season - the redirect above will
   // remount us on a real episode in a tick. Passing "" makes usePlaySession
   // hold its initial loading state instead of hitting /transcode and 404'ing.
@@ -1124,13 +1166,10 @@ export default function PlayerScreen() {
                   />
                 </View>
 
-                {/* Episodes panel entry point (web parity: PlayerEpisodesPanel).
-                    Only current-season episodes are listed here - see the
-                    seasonEpisodes comment above for why there's no season
-                    selector. */}
-                {seasonEpisodes.length > 1 && (
+                {/* Episodes panel entry point (web parity: PlayerEpisodesPanel). */}
+                {currentSeasonEpisodes.length > 1 && (
                   <Pressable
-                    onPress={() => { setActiveSheet("episodes"); resetHideTimer(); }}
+                    onPress={() => { setEpisodesPanelOpened(true); setActiveSheet("episodes"); resetHideTimer(); }}
                     hitSlop={8}
                     style={styles.episodesBtn}
                     accessible={true}
@@ -1211,31 +1250,14 @@ export default function PlayerScreen() {
         onClose={() => setActiveSheet(null)}
         title={t("player.controls.episodes", "Épisodes")}
       >
-        {seasonEpisodes.map((ep) => {
-          const isActive = ep.id === mediaId;
-          return (
-            <Pressable
-              key={ep.id}
-              style={[styles.episodeRow, { borderBottomColor: theme.colors.border }]}
-              onPress={() => { if (ep.id) handleNavigateEpisode(ep.id); setActiveSheet(null); }}
-              accessible={true}
-              accessibilityLabel={ep.title || `E${ep.indexNumber ?? "?"}`}
-              accessibilityRole="button"
-              accessibilityState={{ selected: isActive }}
-            >
-              <Text style={[styles.episodeIndex, { color: theme.colors.textMuted }]}>
-                E{ep.indexNumber ?? "?"}
-              </Text>
-              <Text
-                style={[styles.episodeTitle, { color: isActive ? theme.colors.accent : theme.colors.text }]}
-                numberOfLines={1}
-              >
-                {ep.title}
-              </Text>
-              {isActive && <Ionicons name="checkmark" size={ICON_SIZE.sm} color={theme.colors.accent} />}
-            </Pressable>
-          );
-        })}
+        <PlayerEpisodesPanel
+          seasons={seasons}
+          currentSeasonId={selectedSeasonId}
+          episodes={panelEpisodes}
+          currentEpisodeId={mediaId}
+          onSeasonChange={setSelectedSeasonId}
+          onEpisodeChange={(episodeId) => { handleNavigateEpisode(episodeId); setActiveSheet(null); }}
+        />
       </BottomSheet>
 
       <StreamInfoPanel
@@ -1332,21 +1354,5 @@ const styles = StyleSheet.create({
   episodesBtn: {
     padding: 4,
     marginLeft: 4,
-  },
-  episodeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    gap: 10,
-  },
-  episodeIndex: {
-    fontSize: FONT_SIZE.xs,
-    fontVariant: ["tabular-nums"],
-    width: 32,
-  },
-  episodeTitle: {
-    fontSize: FONT_SIZE.sm,
-    flex: 1,
   },
 });
