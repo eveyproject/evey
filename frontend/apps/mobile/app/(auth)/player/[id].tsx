@@ -60,6 +60,13 @@ import {
   type SubtitleStream,
 } from "../../../src/components/player/PlayerSettingsPanel";
 import { useControlsAutoHide } from "../../../src/components/player/useControlsAutoHide";
+import { SubtitleOverlay } from "../../../src/components/player/SubtitleOverlay";
+import {
+  DEFAULT_SUBTITLE_STYLE,
+  getSubtitleStylePref,
+  saveSubtitleStylePref,
+  type SubtitleStyle,
+} from "../../../src/lib/subtitleStyle";
 
 // Sheets still carried by a BottomSheet; audio / subtitles / quality / speed
 // now live in the settings panel (web parity).
@@ -187,6 +194,24 @@ export default function PlayerScreen() {
   // Only transcoded playback can re-encode the audio with a shifted input -
   // direct play serves the original file bytes untouched.
   const audioOffsetAvailable = !!streamInfo && streamInfo.playMethod !== "PLAY_METHOD_DIRECT_PLAY";
+
+  // Client-rendered text subtitles (SubtitleOverlay): style is a device-wide
+  // preference (loaded once below, see the SecureStore-backed effect), the
+  // resync offset is per-title like audioOffsetMs (reset on mediaId change).
+  const [subtitleStyle, setSubtitleStyle] = useState<SubtitleStyle>(DEFAULT_SUBTITLE_STYLE);
+  const [subtitleOffsetMs, setSubtitleOffsetMs] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    getSubtitleStylePref().then((saved) => { if (!cancelled && saved) setSubtitleStyle(saved); });
+    return () => { cancelled = true; };
+  }, []);
+  const handleSubtitleStyleChange = useCallback((patch: Partial<SubtitleStyle>) => {
+    setSubtitleStyle((prev) => {
+      const next = { ...prev, ...patch };
+      void saveSubtitleStylePref(next);
+      return next;
+    });
+  }, []);
 
   const audioStreams: AudioStream[] = useMemo(
     () =>
@@ -320,6 +345,7 @@ export default function PlayerScreen() {
     // A resync dialed in for the previous title means nothing on the next one.
     setAudioOffsetMs(0);
     setAppliedAudioOffsetMs(0);
+    setSubtitleOffsetMs(0);
   }, [mediaId]);
   // Whether the NEXT player instance should start playing. Changing tracks or
   // quality recreates the native player, whose setup used to call play()
@@ -791,16 +817,33 @@ export default function PlayerScreen() {
   const handleSubtitleSelect = useCallback(
     (index: number | null) => {
       userPickedSubtitleRef.current = true;
+      const prevStream = subtitleStreams.find((s) => s.index === selectedSubtitleIndex);
+      const nextStream = index === null ? null : subtitleStreams.find((s) => s.index === index);
       setSelectedSubtitleIndex(index);
+      // Text (non-burn-in) subtitles render client-side via SubtitleOverlay -
+      // no manifest change needed, so switching between them (or off) is
+      // instant with no session restart. Only PGS/VobSub tracks still need a
+      // restart: the server has to burn them into the video itself.
+      const needsRestart = !!prevStream?.burnIn || !!nextStream?.burnIn;
+      if (!needsRestart) return;
       resumeAfterRestartRef.current = player?.playing ?? true;
-      if (index === null) {
-        restartWithTracks(selectedAudioIndex, undefined, selectedQuality || undefined);
+      if (nextStream?.burnIn) {
+        restartWithTracks(selectedAudioIndex, index ?? undefined, selectedQuality || undefined);
       } else {
-        restartWithTracks(selectedAudioIndex, index, selectedQuality || undefined);
+        restartWithTracks(selectedAudioIndex, undefined, selectedQuality || undefined);
       }
     },
-    [player, restartWithTracks, selectedAudioIndex, selectedQuality],
+    [player, restartWithTracks, selectedAudioIndex, selectedQuality, subtitleStreams, selectedSubtitleIndex],
   );
+
+  // The subtitle stream (if any) SubtitleOverlay should render client-side:
+  // null when off, or when the current selection is a burn-in image track the
+  // server already draws into the video (avoids a doubled rendering).
+  const clientSubtitleIndex = useMemo(() => {
+    if (selectedSubtitleIndex === null) return null;
+    const stream = subtitleStreams.find((s) => s.index === selectedSubtitleIndex);
+    return stream && !stream.burnIn ? selectedSubtitleIndex : null;
+  }, [selectedSubtitleIndex, subtitleStreams]);
 
   const handleQualitySelect = useCallback(
     (quality: number) => {
@@ -977,6 +1020,20 @@ export default function PlayerScreen() {
 
         {nextEp.visible && nextEp.nextEpisode && <NextEpisodeOverlay nextEp={nextEp} />}
 
+        {/* Client-side WebVTT rendering: expo-video exposes native subtitle
+            TRACK SELECTION only (no cue access, no styling), so a text
+            (non-burn-in) subtitle is rendered here instead - see
+            handleSubtitleSelect/clientSubtitleIndex above for how the native
+            track is kept off to avoid a doubled rendering. Sits below the
+            controls (rendered after this in the tree = drawn on top). */}
+        <SubtitleOverlay
+          mediaId={mediaId}
+          subtitleIndex={clientSubtitleIndex}
+          currentTimeSec={currentTime}
+          offsetMs={subtitleOffsetMs}
+          style={subtitleStyle}
+        />
+
         {/* Invisible scrim under the settings panel: a tap outside the panel
             closes it (equivalent of the web's handleOverlayClick). The
             player's gestures are suspended while the panel is open. */}
@@ -1109,6 +1166,10 @@ export default function PlayerScreen() {
                 audioOffsetMs={audioOffsetMs}
                 onAudioOffsetChange={setAudioOffsetMs}
                 audioOffsetAvailable={audioOffsetAvailable}
+                subtitleStyle={subtitleStyle}
+                onSubtitleStyleChange={handleSubtitleStyleChange}
+                subtitleOffsetMs={subtitleOffsetMs}
+                onSubtitleOffsetChange={setSubtitleOffsetMs}
                 onClose={() => setSettingsOpen(false)}
                 style={{
                   position: "absolute",

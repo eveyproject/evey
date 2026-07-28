@@ -5,6 +5,12 @@ import { useTranslation } from "react-i18next";
 import { useTheme } from "../../providers/ThemeProvider";
 import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
 import { formatOffsetMs, stepOffsetMs } from "./audioSync";
+import {
+  DEFAULT_SUBTITLE_STYLE,
+  SUBTITLE_BG_COLORS,
+  SUBTITLE_TEXT_COLORS,
+  type SubtitleStyle,
+} from "../../lib/subtitleStyle";
 
 export interface AudioStream {
   index: number;
@@ -49,6 +55,13 @@ interface PlayerSettingsPanelProps {
   // Only meaningful during transcoded playback - the server re-encodes the
   // audio with a shifted input, which direct play has no re-encode step for.
   audioOffsetAvailable?: boolean;
+  // Client-rendered subtitle style/resync (SubtitleOverlay): optional, same
+  // convention - a caller that doesn't pass onSubtitleStyleChange gets no
+  // "Subtitle Style" entry, matching the web panel's onSubtitleStyleChange gate.
+  subtitleStyle?: SubtitleStyle;
+  onSubtitleStyleChange?: (patch: Partial<SubtitleStyle>) => void;
+  subtitleOffsetMs?: number;
+  onSubtitleOffsetChange?: (ms: number) => void;
   style?: StyleProp<ViewStyle>;
 }
 
@@ -184,13 +197,17 @@ export function PlayerSettingsPanel({
   audioOffsetMs = 0,
   onAudioOffsetChange,
   audioOffsetAvailable = true,
+  subtitleStyle = DEFAULT_SUBTITLE_STYLE,
+  onSubtitleStyleChange,
+  subtitleOffsetMs = 0,
+  onSubtitleOffsetChange,
   style,
 }: PlayerSettingsPanelProps) {
   const { t } = useTranslation();
   const theme = useTheme();
   const { height: screenH } = useWindowDimensions();
   const QUALITY_OPTIONS = useQualityOptions();
-  const [menu, setMenu] = useState<"main" | "audio" | "subtitles" | "speed">("main");
+  const [menu, setMenu] = useState<"main" | "audio" | "subtitles" | "speed" | "subtitle-style">("main");
   // No prop currently exposes the manifest's dynamic rungs to this panel
   // (unlike the web SettingsPanel's `availableQualities`), so Auto reuses
   // the existing quality=0 "no forced height" path: the caller already
@@ -249,6 +266,24 @@ export function PlayerSettingsPanel({
           <Text style={[styles.navValueText, { color: theme.colors.textMuted }]} numberOfLines={1}>{value}</Text>
           <Ionicons name="chevron-forward" size={ICON_SIZE.sm} color={theme.colors.textMuted} />
         </View>
+      </Pressable>
+    );
+  }
+
+  // Same row as NavRow but with no "current value" preview - used for the
+  // Subtitle Style entry, which is a settings screen, not a picker (mirrors
+  // the web panel's plain chevron button for the same entry).
+  function ChevronRow({ label, onPress }: { label: string; onPress: () => void }) {
+    return (
+      <Pressable
+        style={styles.optionRow}
+        onPress={onPress}
+        accessible={true}
+        accessibilityLabel={label}
+        accessibilityRole="button"
+      >
+        <Text style={[styles.optionLabel, { color: theme.colors.text }]}>{label}</Text>
+        <Ionicons name="chevron-forward" size={ICON_SIZE.sm} color={theme.colors.textMuted} />
       </Pressable>
     );
   }
@@ -315,6 +350,12 @@ export function PlayerSettingsPanel({
             )}
             <Divider />
             <NavRow label={t("player.settings.speed")} value={currentSpeedLabel} onPress={() => setMenu("speed")} />
+            {onSubtitleStyleChange && (
+              <>
+                <Divider />
+                <ChevronRow label={t("player.settings.subtitleStyle")} onPress={() => setMenu("subtitle-style")} />
+              </>
+            )}
             <Divider />
             <View style={styles.brightnessBlock}>
               <View style={styles.brightnessHeader}>
@@ -401,10 +442,223 @@ export function PlayerSettingsPanel({
             ))}
           </>
         )}
+
+        {menu === "subtitle-style" && onSubtitleStyleChange && (
+          <>
+            <SubMenuHeader label={t("player.settings.subtitleStyle")} />
+            {onSubtitleOffsetChange && (
+              <OffsetStepper
+                label={t("player.settings.subtitleSync")}
+                valueMs={subtitleOffsetMs}
+                onChange={onSubtitleOffsetChange}
+                hint={t("player.settings.subtitleSyncHint")}
+              />
+            )}
+            <View style={subtitleStyleStyles.block}>
+              <View style={subtitleStyleStyles.header}>
+                <Text style={[subtitleStyleStyles.label, { color: theme.colors.textMuted }]}>
+                  {t("player.subtitleStyle.size")}
+                </Text>
+                <Text style={[subtitleStyleStyles.value, { color: theme.colors.textMuted }]}>
+                  {subtitleStyle.fontSize}%
+                </Text>
+              </View>
+              <HSlider
+                value={subtitleStyle.fontSize}
+                min={50}
+                max={200}
+                onChange={(v) => onSubtitleStyleChange({ fontSize: Math.round(v / 10) * 10 })}
+                accessibilityLabel={t("player.subtitleStyle.size")}
+              />
+            </View>
+            <View style={subtitleStyleStyles.block}>
+              <Text style={[subtitleStyleStyles.label, { color: theme.colors.textMuted }]}>
+                {t("player.subtitleStyle.textColor")}
+              </Text>
+              <View style={subtitleStyleStyles.swatchRow}>
+                {SUBTITLE_TEXT_COLORS.map((c) => (
+                  <Pressable
+                    key={c.value}
+                    onPress={() => onSubtitleStyleChange({ color: c.value })}
+                    accessible={true}
+                    accessibilityLabel={t(c.labelKey)}
+                    accessibilityRole="button"
+                    style={[
+                      subtitleStyleStyles.swatch,
+                      {
+                        backgroundColor: c.value,
+                        borderColor: subtitleStyle.color === c.value ? theme.colors.accent : "transparent",
+                      },
+                    ]}
+                  />
+                ))}
+              </View>
+            </View>
+            <View style={subtitleStyleStyles.block}>
+              <View style={subtitleStyleStyles.header}>
+                <Text style={[subtitleStyleStyles.label, { color: theme.colors.textMuted }]}>
+                  {t("player.subtitleStyle.background")}
+                </Text>
+                <Text style={[subtitleStyleStyles.value, { color: theme.colors.textMuted }]}>
+                  {subtitleStyle.bgOpacity}%
+                </Text>
+              </View>
+              <View style={subtitleStyleStyles.swatchRow}>
+                {SUBTITLE_BG_COLORS.map((c) => (
+                  <Pressable
+                    key={c.labelKey}
+                    onPress={() => onSubtitleStyleChange({
+                      bgColor: c.value,
+                      bgOpacity: c.opacity !== undefined ? c.opacity : subtitleStyle.bgOpacity,
+                    })}
+                    accessible={true}
+                    accessibilityLabel={t(c.labelKey)}
+                    accessibilityRole="button"
+                    style={[
+                      subtitleStyleStyles.swatch,
+                      subtitleStyleStyles.swatchBordered,
+                      {
+                        backgroundColor: c.value,
+                        borderColor: subtitleStyle.bgColor === c.value ? theme.colors.accent : theme.colors.border,
+                      },
+                    ]}
+                  />
+                ))}
+              </View>
+              <HSlider
+                value={subtitleStyle.bgOpacity}
+                min={0}
+                max={100}
+                onChange={(v) => onSubtitleStyleChange({ bgOpacity: Math.round(v / 5) * 5 })}
+                accessibilityLabel={t("player.subtitleStyle.background")}
+              />
+            </View>
+            <View style={subtitleStyleStyles.block}>
+              <Text style={[subtitleStyleStyles.label, { color: theme.colors.textMuted }]}>
+                {t("player.subtitleStyle.position")}
+              </Text>
+              <View style={subtitleStyleStyles.posRow}>
+                {(["bottom", "top"] as const).map((pos) => (
+                  <Pressable
+                    key={pos}
+                    onPress={() => onSubtitleStyleChange({ position: pos })}
+                    accessible={true}
+                    accessibilityLabel={t(`player.subtitleStyle.${pos}`)}
+                    accessibilityRole="button"
+                    style={[
+                      subtitleStyleStyles.posBtn,
+                      {
+                        backgroundColor: subtitleStyle.position === pos ? theme.colors.accent : theme.colors.surfaceRaised,
+                        borderColor: theme.colors.border,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={{
+                        fontSize: FONT_SIZE.xs,
+                        color: subtitleStyle.position === pos ? theme.colors.onAccent : theme.colors.text,
+                      }}
+                    >
+                      {t(`player.subtitleStyle.${pos}`)}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+            <Pressable
+              onPress={() => onSubtitleStyleChange({ shadow: !subtitleStyle.shadow })}
+              style={subtitleStyleStyles.shadowRow}
+              accessible={true}
+              accessibilityLabel={t("player.subtitleStyle.textShadow")}
+              accessibilityRole="button"
+            >
+              <View
+                style={[
+                  subtitleStyleStyles.checkbox,
+                  {
+                    borderColor: theme.colors.border,
+                    backgroundColor: subtitleStyle.shadow ? theme.colors.accent : "transparent",
+                  },
+                ]}
+              >
+                {subtitleStyle.shadow && <Ionicons name="checkmark" size={10} color={theme.colors.onAccent} />}
+              </View>
+              <Text style={[subtitleStyleStyles.label, { color: theme.colors.textMuted }]}>
+                {t("player.subtitleStyle.textShadow")}
+              </Text>
+            </Pressable>
+          </>
+        )}
       </ScrollView>
     </View>
   );
 }
+
+const subtitleStyleStyles = StyleSheet.create({
+  block: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 6,
+  },
+  label: {
+    fontSize: FONT_SIZE.xs,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 1,
+  },
+  value: {
+    fontSize: FONT_SIZE.xs,
+    fontVariant: ["tabular-nums"],
+  },
+  swatchRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 4,
+    marginBottom: 6,
+  },
+  swatch: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+  },
+  swatchBordered: {
+    borderRadius: 4,
+    borderWidth: 1,
+  },
+  posRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 4,
+  },
+  posBtn: {
+    flex: 1,
+    paddingVertical: 6,
+    borderRadius: 6,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: "center",
+  },
+  shadowRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  checkbox: {
+    width: 16,
+    height: 16,
+    borderRadius: 4,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+});
 
 const offsetStyles = StyleSheet.create({
   block: {
