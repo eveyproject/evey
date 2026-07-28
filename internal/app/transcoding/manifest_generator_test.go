@@ -237,6 +237,34 @@ func TestManifestGenerator_Master_ExternalAudio_AudioURITag(t *testing.T) {
 	assert.NotContains(t, out2, "#EVEY-AUDIO-URI")
 }
 
+func TestManifestGenerator_Master_ExternalAudio_AacURITag(t *testing.T) {
+	g := NewManifestGenerator()
+	in := baseInput(single360p, 10.0)
+	in.ChosenVideoCodec = "h264"
+	in.ExternalAudio = true
+	in.ExternalAudioURI = "od_audio1.m3u8?token=abc"
+	in.ExternalAudioAACURI = "audio_0.m3u8?token=abc"
+	out, err := g.Master(in)
+	require.NoError(t, err)
+
+	// The relay tag names the AAC rendition the client decodes NATIVELY while
+	// the wasm decoder boots; hls.js ignores it like the AC-3 tag.
+	assert.Contains(t, out, `#EVEY-AUDIO-AAC-URI:"audio_0.m3u8?token=abc"`)
+
+	// No tag when ExternalAudio is off, or when no AAC URI was provided.
+	in2 := baseInput(single360p, 10.0)
+	in2.ExternalAudioAACURI = "audio_0.m3u8"
+	out2, err := g.Master(in2)
+	require.NoError(t, err)
+	assert.NotContains(t, out2, "#EVEY-AUDIO-AAC-URI")
+	in3 := baseInput(single360p, 10.0)
+	in3.ExternalAudio = true
+	in3.ExternalAudioURI = "od_audio1.m3u8"
+	out3, err := g.Master(in3)
+	require.NoError(t, err)
+	assert.NotContains(t, out3, "#EVEY-AUDIO-AAC-URI")
+}
+
 func TestManifestGenerator_Master_WasmAudio_QueryParam(t *testing.T) {
 	g := NewManifestGenerator()
 	in := baseInput(single360p, 10.0)

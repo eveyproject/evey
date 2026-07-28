@@ -280,6 +280,15 @@ func (h *hlsVODServe) buildWasmAudioMaster(r *http.Request, mediaID string, item
 		// so its init/segment requests resolve to the same passthrough bytes.
 		in.ExternalAudioURI = fmt.Sprintf("audio_%d.m3u8%s", audioTrack, apptranscoding.QuerySuffixFor(in))
 	}
+	// Bi-source relay: also name the AAC rendition of the same track so the
+	// client gets sound via native decode while the wasm decoder boots. The URI
+	// must NOT carry wasmAudio=1 (that flips the handler to the AC-3 copy), and
+	// is only advertised when the AAC rendition handlers are enabled at all.
+	if h.audioRenditionEnabled {
+		aacIn := in
+		aacIn.WasmAudio = false
+		in.ExternalAudioAACURI = fmt.Sprintf("audio_%d.m3u8%s", audioTrack, apptranscoding.QuerySuffixFor(aacIn))
+	}
 	return h.manifestGen.Master(in)
 }
 

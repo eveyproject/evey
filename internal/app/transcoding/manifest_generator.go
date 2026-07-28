@@ -125,6 +125,14 @@ type ManifestInput struct {
 	// packaged the audio. Empty emits no tag.
 	ExternalAudioURI string
 
+	// ExternalAudioAACURI, when ExternalAudio is set, is emitted as a
+	// `#EVEY-AUDIO-AAC-URI:"<uri>"` tag naming the AAC transcode rendition of
+	// the SAME track (audio_{k}.m3u8, no wasmAudio param - with it the handler
+	// serves the AC-3 copy). The bi-source relay client decodes it NATIVELY for
+	// instant sound while the wasm decoder boots, then hands over to the AC-3
+	// rendition at a segment boundary. Empty emits no tag (no relay offered).
+	ExternalAudioAACURI string
+
 	// WasmAudio bakes `wasmAudio=1` into every URI this manifest emits. It is a
 	// decision input on the AUDIO rendition path (like the codec lists on the
 	// video path): it flips buildAudioFingerprint from the AAC re-encode to an
@@ -264,6 +272,9 @@ func (g *ManifestGenerator) Master(in ManifestInput) (string, error) {
 	// whether mkvgo or ffmpeg packaged the audio (see field doc).
 	if in.ExternalAudio && in.ExternalAudioURI != "" {
 		fmt.Fprintf(&b, "#EVEY-AUDIO-URI:%q\n", in.ExternalAudioURI)
+	}
+	if in.ExternalAudio && in.ExternalAudioAACURI != "" {
+		fmt.Fprintf(&b, "#EVEY-AUDIO-AAC-URI:%q\n", in.ExternalAudioAACURI)
 	}
 
 	// When audio is served as a SEPARATE rendition it is always transcoded to AAC

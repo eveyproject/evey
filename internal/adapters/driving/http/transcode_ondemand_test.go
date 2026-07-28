@@ -262,6 +262,49 @@ func TestBuildWasmAudioMaster_AudioRenditionURI(t *testing.T) {
 	assert.NotContains(t, on, "od_audio2.m3u8", "a trimmed plan has no audio2 to reference")
 }
 
+// The wasm-audio master must ALSO name the AAC rendition of the same track
+// (#EVEY-AUDIO-AAC-URI) so the client can start with native decode while the
+// wasm decoder boots (bi-source relay), and that URI must NOT carry wasmAudio=1
+// (with it, the audio handler serves the AC-3 copy, not AAC). Only emitted when
+// the audio-rendition feature is on - its handlers 404 otherwise.
+func TestBuildWasmAudioMaster_AacRelayURI(t *testing.T) {
+	h := newCopyTestHandler(t)
+	h.manifestGen = apptranscoding.NewManifestGenerator()
+	dur, err := shared.NewDurationMs(60000)
+	require.NoError(t, err)
+	item := &domainlibrary.MediaItem{File: &domainlibrary.MediaFile{Path: "/m.mkv", Size: 1 << 20, Duration: dur, Bitrate: 4_000_000}}
+	ch := func(n int) *int { return &n }
+	vw, vh, lvl := 1920, 1080, 40
+	streams := []*domainlibrary.MediaStream{
+		{StreamType: domainlibrary.StreamTypeVideo, Codec: "h264", Profile: "High", Width: &vw, Height: &vh, Level: &lvl, Keyframes: []int64{0, 6000, 12000}},
+		{StreamType: domainlibrary.StreamTypeAudio, Codec: "ac3", Channels: ch(6), IsDefault: true},
+		{StreamType: domainlibrary.StreamTypeAudio, Codec: "ac3", Channels: ch(6)},
+	}
+	mkReq := func() *http.Request {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/master.m3u8?wasmAudio=1&audioTrack=1&videoCodecs=h264&audioCodecs=aac&containers=mp4", nil)
+		return req.WithContext(context.WithValue(req.Context(), httpClaimsCtxKey{}, &domainuser.Claims{UserID: "u1", ProfileID: "p1"}))
+	}
+
+	h.audioRenditionEnabled = true
+	master, err := h.buildWasmAudioMaster(mkReq(), "m1", item, streams, true, true, 1)
+	require.NoError(t, err)
+	assert.Contains(t, master, `#EVEY-AUDIO-AAC-URI:"audio_1.m3u8?`, "relay tag names the AAC rendition of the SAME track")
+	aacLine := ""
+	for _, line := range strings.Split(master, "\n") {
+		if strings.HasPrefix(line, "#EVEY-AUDIO-AAC-URI:") {
+			aacLine = line
+		}
+	}
+	assert.Contains(t, aacLine, "audioTrack=1", "decision params ride the AAC URI")
+	assert.NotContains(t, aacLine, "wasmAudio", "wasmAudio=1 on the AAC URI would serve the AC-3 copy instead")
+
+	// Feature off: the AAC handlers 404, so the tag must not be advertised.
+	h.audioRenditionEnabled = false
+	master, err = h.buildWasmAudioMaster(mkReq(), "m1", item, streams, true, true, 1)
+	require.NoError(t, err)
+	assert.NotContains(t, master, "#EVEY-AUDIO-AAC-URI")
+}
+
 func TestServeOnDemandResource_Segment(t *testing.T) {
 	h := newCopyTestHandler(t)
 	h.onDemand = &fakeOnDemandPackager{plan: &fakeOnDemandPlan{
