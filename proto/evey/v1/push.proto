@@ -75,6 +75,14 @@ message ListDevicesResponse {
   repeated Device devices = 1;
 }
 
+// Burned names - ADR-0004 (§2, "never reuse"). The FCM-era native push
+// registration RPCs RegisterDevice/UnregisterDevice and their four messages
+// (RegisterDeviceRequest/Response, UnregisterDeviceRequest/Response) were
+// deleted in-place in e5808ef76 instead of going through the deprecation
+// window. Nothing replaced them - Web Push below is the whole surface now.
+// These names must never be reused for a different shape: a beta APK compiled
+// against the old stubs is still in testers' hands.
+
 // Web Push messages
 
 message GetVAPIDKeyRequest {}

@@ -78,6 +78,15 @@ service PlaybackService {
       delete: "/api/v1/playback/history"
     };
   }
+
+  // Burned names - ADR-0004 (§2, "never reuse"). GetPlaybackDifficulties (bulk
+  // "playback difficulty" badge for list views) was added in 860da77e8 and
+  // deleted in-place nine hours later in f7be73ea6, because the badge it fed
+  // was judged misleading and pulled on purpose. Its messages
+  // (GetPlaybackDifficultiesRequest/Response, PlaybackDifficulty) are gone with
+  // it and are NOT coming back; the names must never be reused for a different
+  // shape. Protobuf has no `reserved` for RPC or message names, so this comment
+  // is the enforcement.
 }
 
 enum PlayMethod {
