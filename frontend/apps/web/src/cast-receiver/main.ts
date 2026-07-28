@@ -11,6 +11,7 @@
 import { WasmAudioEngine } from "@/features/playback/wasmaudio/WasmAudioEngine";
 import { extractAudioURI } from "@/features/playback/wasmaudio/wasmAudioShared";
 import { absoluteWithToken, buildPlayerEventUrl, probeReceiverCaps, rewriteCastMasterUrl, stripWasmAudio } from "./receiverLogic";
+import { createAliveHeartbeat, postPlayerEvent } from "./receiverBeacon";
 
 // The CAF SDK is loaded by a gstatic <script> in the page; its types are
 // not packaged - deliberately untyped access, scoped to this file.
@@ -67,26 +68,35 @@ function destroyEngine(): void {
 // Telemetry beacon to the media server, authenticated by the cast stream
 // token riding in currentUrl. On-screen debug is invisible once the incident
 // is over (2026-07-26: TV died 3-5 min into a cast, server logs blank) -
-// these land as WARN lines next to the session's ffmpeg lines. The body is a
-// plain string so the POST stays a CORS "simple request": the token-auth CORS
-// reflects the origin but a preflighted JSON POST would need OPTIONS handling.
+// these land as WARN lines next to the session's ffmpeg lines.
+//
+// sendBeacon FIRST (transport in receiverBeacon.ts): the events that matter
+// most - finished, shutdown - fire while the platform is tearing the page
+// down, and a fetch() loses that race. Proof: on 2026-07-27 a CLEAN stop
+// (server StopStream at 19:10:37) produced neither cast_receiver_finished nor
+// cast_receiver_shutdown. sendBeacon is handed to the user agent, which
+// delivers it after the document dies.
 function reportEvent(type: string, details: string, fatal = false): void {
+  let posSec = 0;
   try {
-    const url = buildPlayerEventUrl(currentUrl);
-    if (!url) return;
-    let posSec = 0;
-    try {
-      posSec = playerManager.getCurrentTimeSec() || 0;
-    } catch { /* player torn down already */ }
-    void fetch(url, {
-      method: "POST",
-      mode: "cors",
-      credentials: "omit",
-      keepalive: true,
-      body: JSON.stringify({ type, details: details.slice(0, 200), fatal, code: 0, variant: 0, segment: 0, posSec }),
-    }).catch(() => {});
-  } catch { /* telemetry must never break playback */ }
+    posSec = playerManager.getCurrentTimeSec() || 0;
+  } catch { /* player torn down already */ }
+  postPlayerEvent(buildPlayerEventUrl(currentUrl), { type, details, fatal, posSec }, {
+    sendBeacon: typeof navigator !== "undefined" && navigator.sendBeacon
+      ? (u, b) => navigator.sendBeacon(u, b)
+      : undefined,
+    fetchFn: (u, init) => void fetch(u, init).catch(() => {}),
+  });
 }
+
+// Periodic proof of life. The whole point: a TV that dies without managing to
+// say anything (platform kill, renderer crash, power cut) leaves its LAST
+// heartbeat as the timestamp of its death, to the half-minute. Two incidents
+// in a row went undiagnosed for exactly the lack of it. Armed on LOAD
+// COMPLETE, disarmed on anything that ends playback.
+const aliveHeartbeat = createAliveHeartbeat(() => {
+  reportEvent("cast_receiver_alive", `mode=${wasmRequested ? "wasm" : "native"}`);
+});
 
 // tokenFromUrl reads the purpose=cast token the sender baked into the URL - the
 // receiver has no other identity, this token is ALL of its authorization.
@@ -286,11 +296,13 @@ playerManager.addEventListener(cast.framework.events.EventType.ERROR, (event: an
 // the invisible TV-side death being chased.
 playerManager.addEventListener(cast.framework.events.EventType.MEDIA_FINISHED, (event: any) => {
   const reason = event?.endedReason ?? "?";
+  aliveHeartbeat.stop(); // plus rien ne joue : le battement mentirait
   reportEvent("cast_receiver_finished", `reason=${reason}`, reason !== "END_OF_STREAM");
 });
 
 playerManager.addEventListener(cast.framework.events.EventType.PLAYER_LOAD_COMPLETE, () => {
   reportEvent("cast_receiver_loaded", `mode=${wasmRequested ? "wasm" : "native"}`);
+  aliveHeartbeat.start();
 });
 
 // A sender vanishing (phone frozen/killed by its OEM) must NOT stop playback
@@ -305,9 +317,21 @@ context.addEventListener(cast.framework.system.EventType.SENDER_DISCONNECTED, (e
 });
 
 context.addEventListener(cast.framework.system.EventType.SHUTDOWN, () => {
+  aliveHeartbeat.stop();
   reportEvent("cast_receiver_shutdown", "receiver shutdown");
   destroyEngine();
 });
+
+// Dernier filet : la plateforme peut demonter la page sans passer par SHUTDOWN
+// (c'est l'hypothese qui reste pour la mort invisible du 07-28). pagehide est
+// l'evenement que les agents garantissent encore utilisable pour un
+// sendBeacon, la ou unload ne l'est plus.
+if (typeof window !== "undefined") {
+  window.addEventListener("pagehide", () => {
+    aliveHeartbeat.stop();
+    reportEvent("cast_receiver_shutdown", "pagehide");
+  });
+}
 
 // Belt and suspenders against the 2026-07-26 death (TV stops 3-5 min after
 // the phone freezes, while the Cast contract says an implicit sender loss
