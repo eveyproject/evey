@@ -12,6 +12,15 @@
        de premier plan doit annoncer son type ET detenir la permission
        correspondante, sinon Android refuse son demarrage. -->
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"/>
+  <!-- Verrous tenus pendant une session Cast par cast/CastKeepAlive.kt. Un
+       service de premier plan empeche le GEL du processus mais ne retient pas
+       le CPU : ecran eteint, le CPU se suspend, les PONG du heartbeat CASTV2
+       ne partent plus, la box ferme la socket sender et demonte le recepteur
+       (mesure prod 2026-07-28 : mort de la TV 3 min 40 apres le silence du
+       telephone). Le wakelock partiel est la piece porteuse, c'est ce que
+       tient jellyfin-android ; le WifiLock est la ceinture en plus. -->
+  <uses-permission android:name="android.permission.WAKE_LOCK"/>
+  <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
   <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" tools:replace="android:maxSdkVersion"/>
   <!-- The app never records audio (expo-camera is only used for QR barcode
        scanning, expo-audio only for playback) - but expo-audio and expo-camera
@@ -50,6 +59,13 @@
          reactivation de l'ecran a 18:53:16). C'est le chainon qui manquait a
          POST_NOTIFICATIONS ajoutee en beta.12. -->
     <service android:name="com.google.android.gms.cast.framework.media.MediaNotificationService" android:exported="false" android:foregroundServiceType="mediaPlayback"/>
+    <!-- GoogleCastOptionsProvider (react-native-google-cast) appelle
+         setExpandedControllerActivityClassName() SANS condition, alors que le
+         plugin expo du paquet ne declare cette activite que si on lui passe
+         expandedController: true. La notification media du SDK visait donc un
+         composant absent du manifeste. On la declare pour que la pile Cast
+         soit complete plutot que d'a moitie exister. -->
+    <activity android:name="com.reactnative.googlecast.RNGCExpandedControllerActivity" android:exported="false"/>
     <meta-data android:name="expo.modules.updates.ENABLED" android:value="false"/>
     <meta-data android:name="expo.modules.updates.EXPO_UPDATES_CHECK_ON_LAUNCH" android:value="ALWAYS"/>
     <meta-data android:name="expo.modules.updates.EXPO_UPDATES_LAUNCH_WAIT_MS" android:value="0"/>

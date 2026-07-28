@@ -14,6 +14,8 @@ import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint
 import expo.modules.ApplicationLifecycleDispatcher
 import expo.modules.ExpoReactHostFactory
 
+import com.evey.app.cast.CastKeepAlive
+
 class MainApplication : Application(), ReactApplication {
 
   override val reactHost: ReactHost by lazy {
@@ -36,6 +38,11 @@ class MainApplication : Application(), ReactApplication {
       ReleaseLevel.STABLE
     }
     loadReactNative(this)
+    // Verrous CPU/Wi-Fi tenus pendant une session Cast. Branche ici, sur le
+    // thread principal, parce que CastContext l'exige - et cote natif plutot
+    // que via un pont JS : c'est justement le JS qui meurt quand l'ecran
+    // s'eteint, il ne peut donc pas etre celui qui relache.
+    CastKeepAlive.install(this)
     ApplicationLifecycleDispatcher.onApplicationCreate(this)
   }
 
