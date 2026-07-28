@@ -300,6 +300,7 @@ watchHistory:
   plays: "{{count}} Wiedergaben"
   watched: Angesehen
   unknownMedia: Unbekanntes Medium
+  removeFromHistory: Aus dem Verlauf entfernen
   noHistory: Kein Wiedergabeverlauf
   noHistoryDesc: Beginnen Sie etwas anzuschauen, um Ihren Verlauf hier zu sehen.
   clearHistory: Verlauf löschen

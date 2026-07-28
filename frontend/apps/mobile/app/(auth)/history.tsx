@@ -11,6 +11,7 @@ import {
   usePlaybackServiceMarkAsUnwatched,
   usePlaybackServiceClearWatchHistory,
   getPlaybackServiceGetWatchHistoryQueryKey,
+  watchHistoryLabel,
 } from "@evey/api";
 import type { V1WatchProgress } from "@evey/api";
 import { toast } from "@evey/store";
@@ -39,18 +40,11 @@ function formatDate(iso: string | undefined): string {
   });
 }
 
-// Server now returns title + (for episodes) series title + season/episode
-// numbers, so we show a real label instead of the bare media id.
+// The formatting itself lives in @evey/api so web, mobile and TV cannot drift
+// apart again; only the localized fallback stays here, since `t` differs
+// between the web and React Native apps.
 function getItemLabel(item: V1WatchProgress, t: TFunction): string {
-  const title = item.title?.trim();
-  if (item.mediaType === "episode") {
-    const s = item.parentIndexNumber;
-    const e = item.indexNumber;
-    const code = s && e ? `S${String(s).padStart(2, "0")}E${String(e).padStart(2, "0")}` : e ? `E${e}` : "";
-    const parts = [item.seriesTitle?.trim(), code, title].filter(Boolean);
-    if (parts.length) return parts.join(" · ");
-  }
-  return title || t("auth.watchHistory.unknownMedia", "Unknown media");
+  return watchHistoryLabel(item) ?? t("auth.watchHistory.unknownMedia", "Unknown media");
 }
 
 function HistoryItem({ item, onRemove, isPending }: {
@@ -122,7 +116,7 @@ function HistoryItem({ item, onRemove, isPending }: {
         disabled={isPending}
         hitSlop={8}
         accessible
-        accessibilityLabel="Remove"
+        accessibilityLabel={t("auth.watchHistory.removeFromHistory", "Remove from history")}
         accessibilityRole="button"
         style={{ opacity: isPending ? 0.5 : 1 }}
       >

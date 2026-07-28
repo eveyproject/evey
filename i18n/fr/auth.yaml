@@ -300,6 +300,7 @@ watchHistory:
   plays: "{{count}} lectures"
   watched: "Regardé"
   unknownMedia: "Média inconnu"
+  removeFromHistory: "Retirer de l'historique"
   noHistory: "Aucun historique de lecture"
   noHistoryDesc: "Commencez à regarder quelque chose pour voir votre historique ici."
   clearHistory: "Effacer l'historique"

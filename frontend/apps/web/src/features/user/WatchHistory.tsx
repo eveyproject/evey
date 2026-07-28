@@ -6,6 +6,7 @@ import {
   usePlaybackServiceMarkAsUnwatched,
   usePlaybackServiceClearWatchHistory,
   getPlaybackServiceGetWatchHistoryQueryKey,
+  watchHistoryLabel,
 } from "@evey/api";
 import { toast } from "@evey/store";
 import { Link } from "@tanstack/react-router";
@@ -92,19 +93,9 @@ function HistoryItem({ item }: { item: WatchProgress }) {
     ? `/api/v1/media/${item.mediaItemId}/artwork/poster`
     : undefined;
 
-  // Server now returns title + (for episodes) series title + season/episode
-  // numbers, so we show a real label instead of the bare media id.
-  const label = (() => {
-    const title = item.title?.trim();
-    if (item.mediaType === "episode") {
-      const s = item.parentIndexNumber;
-      const e = item.indexNumber;
-      const code = s && e ? `S${String(s).padStart(2, "0")}E${String(e).padStart(2, "0")}` : e ? `E${e}` : "";
-      const parts = [item.seriesTitle?.trim(), code, title].filter(Boolean);
-      if (parts.length) return parts.join(" · ");
-    }
-    return title || t("auth.watchHistory.unknownMedia", "Unknown media");
-  })();
+  // The formatting itself lives in @evey/api so web, mobile and TV cannot drift
+  // apart again; only the localized fallback stays here.
+  const label = watchHistoryLabel(item) ?? t("auth.watchHistory.unknownMedia", "Unknown media");
 
   return (
     <div className="flex items-center gap-3 py-3 border-b border-[var(--border)] last:border-0" data-testid="history-item">

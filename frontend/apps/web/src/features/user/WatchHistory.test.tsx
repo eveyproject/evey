@@ -20,7 +20,11 @@ const clearAll = vi.fn();
 
 vi.mock("@evey/store", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
-vi.mock("@evey/api", () => ({
+// importOriginal, not a bare factory: watchHistoryLabel is a PURE formatter,
+// not a network hook, so the component must exercise the real one. Stubbing it
+// out would let a label regression pass this suite.
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
   usePlaybackServiceGetWatchHistory: () => ({
     data: {
       items: [

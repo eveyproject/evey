@@ -7,6 +7,7 @@ import {
   usePlaybackServiceGetWatchHistory,
   usePlaybackServiceMarkAsUnwatched,
   getPlaybackServiceGetWatchHistoryQueryKey,
+  watchHistoryLabel,
 } from "@evey/api";
 import type { V1WatchProgress } from "@evey/api";
 import { toast } from "@evey/store";
@@ -119,8 +120,8 @@ function HistoryItem({
   theme,
   isFirst,
   onPress,
-  onRemove: _onRemove,
-  isPending: _isPending,
+  onRemove,
+  isPending,
 }: {
   item: V1WatchProgress;
   theme: ReturnType<typeof useTheme>;
@@ -129,9 +130,12 @@ function HistoryItem({
   onRemove: () => void;
   isPending: boolean;
 }) {
+  const { t } = useTranslation();
   const pct = item.percentComplete ?? 0;
+  const label = watchHistoryLabel(item) ?? t("auth.watchHistory.unknownMedia", "Unknown media");
 
   return (
+    <View style={styles.rowWrap}>
     <FocusableCard
       onPress={onPress}
       hasTVPreferredFocus={isFirst}
@@ -139,7 +143,7 @@ function HistoryItem({
     >
       <View style={{ flex: 1, gap: 4 }}>
         <Text style={{ color: theme.colors.text, fontSize: 20, fontWeight: "500" }} numberOfLines={1}>
-          {item.mediaItemId?.slice(0, 8)}
+          {label}
           {item.playCount && item.playCount > 1 ? ` (x${item.playCount})` : ""}
         </Text>
         <Text style={{ color: theme.colors.textMuted, fontSize: 16 }}>
@@ -158,6 +162,20 @@ function HistoryItem({
         </View>
       </View>
     </FocusableCard>
+    {/* A remote has no swipe and no long-press, so the removal action has to be
+        its own focusable sibling rather than a gesture on the row. Without it
+        the mutation below was wired but unreachable. */}
+    <FocusableCard
+      onPress={onRemove}
+      disabled={isPending}
+      accessibilityLabel={t("auth.watchHistory.removeFromHistory", "Remove from history")}
+      style={[styles.removeAction, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
+    >
+      <Text style={{ color: isPending ? theme.colors.textMuted : theme.colors.danger, fontSize: 18, fontWeight: "600" }}>
+        {t("common.remove", "Remove")}
+      </Text>
+    </FocusableCard>
+    </View>
   );
 }
 
@@ -165,7 +183,9 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
   header: { fontSize: 36, fontWeight: "700", paddingHorizontal: 24, paddingTop: 32, paddingBottom: 16 },
-  row: { flexDirection: "row", alignItems: "center", padding: 20 },
+  rowWrap: { flexDirection: "row", alignItems: "stretch", gap: 12 },
+  row: { flex: 1, flexDirection: "row", alignItems: "center", padding: 20 },
+  removeAction: { justifyContent: "center", paddingHorizontal: 24 },
   progressBar: { width: 120, height: 6, borderRadius: 3, overflow: "hidden" },
   progressFill: { height: "100%", borderRadius: 3 },
   emptyAction: { paddingHorizontal: 24, paddingVertical: 14 },

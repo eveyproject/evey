@@ -13,6 +13,10 @@ interface FocusableCardProps {
   // colour-only "active" chip is invisible without it. Optional, so every
   // existing call site is unchanged.
   accessibilityState?: AccessibilityState;
+  // disabled stops the Pressable AND tells the screen reader, so an in-flight
+  // action cannot be re-fired by a second click of the remote. Merged into
+  // accessibilityState rather than overriding whatever the caller passed.
+  disabled?: boolean;
 }
 
 export const FocusableCard = React.memo(function FocusableCard({
@@ -23,6 +27,7 @@ export const FocusableCard = React.memo(function FocusableCard({
   hasTVPreferredFocus,
   accessibilityLabel,
   accessibilityState,
+  disabled,
 }: FocusableCardProps) {
   const [focused, setFocused] = useState(false);
   const theme = useTheme();
@@ -35,6 +40,7 @@ export const FocusableCard = React.memo(function FocusableCard({
       onPress={onPress}
       onFocus={handleFocus}
       onBlur={handleBlur}
+      disabled={disabled}
       hasTVPreferredFocus={hasTVPreferredFocus}
       style={[
         styles.card,
@@ -45,7 +51,7 @@ export const FocusableCard = React.memo(function FocusableCard({
       accessible={true}
       accessibilityLabel={accessibilityLabel}
       accessibilityRole="button"
-      accessibilityState={accessibilityState}
+      accessibilityState={disabled ? { ...accessibilityState, disabled: true } : accessibilityState}
     >
       {children}
     </Pressable>
