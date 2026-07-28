@@ -17,6 +17,8 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+
+	"github.com/evey-project/evey/internal/pkg/network"
 )
 
 const (
@@ -54,10 +56,27 @@ type playerEventDeps struct {
 	media      mediaLibraryGetter
 	libChecker LibraryAccessChecker
 	parental   ParentalChecker
+	coSender   CastCoSender
+}
+
+// CastCoSender is the server-side second Cast sender (app/chromecast.CoSender).
+// The receiver's beacons drive it: they arrive FROM the TV, so their source
+// address both names the device to attach to and re-arms the attach every 30s.
+// It exists because an OEM-frozen phone leaves the box with zero senders and
+// the box then tears the receiver down (~3min40 measured in prod, 2026-07-28);
+// a sender that never sleeps makes that state unreachable.
+type CastCoSender interface {
+	Attach(addr string)
+	Detach(addr string)
 }
 
 // PlayerEventOption configures playerEventHandler's optional dependencies.
 type PlayerEventOption func(*playerEventDeps)
+
+// WithPlayerEventCoSender wires the cast co-sender into the beacon route.
+func WithPlayerEventCoSender(cs CastCoSender) PlayerEventOption {
+	return func(d *playerEventDeps) { d.coSender = cs }
+}
 
 // WithPlayerEventLibraryGuard closes the "any JWT can push events onto an
 // arbitrary media_id" gap: a JWT-authenticated caller must have library
@@ -131,6 +150,8 @@ func playerEventHandler(logger *slog.Logger, opts ...PlayerEventOption) http.Han
 		if claims := HTTPClaimsFromContext(r.Context()); claims != nil {
 			userID = claims.UserID
 		}
+		notifyCoSender(r, deps.coSender, body.Type)
+
 		logger.Warn("player-client: playback error reported",
 			// The component drives the admin log search's where=player filter:
 			// an operator investigating an incident finds the client's view of
@@ -148,6 +169,33 @@ func playerEventHandler(logger *slog.Logger, opts ...PlayerEventOption) http.Han
 			slog.String("device", clampString(r.UserAgent(), playerEventMaxDetail)),
 		)
 		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+// notifyCoSender turns a RECEIVER beacon into a co-sender attach/detach.
+// Gated three ways: only a cast stream-token caller (the phone's own beacons
+// ride a JWT and would name the PHONE's address, not the TV's), only loaded/
+// alive/end types, and only a private IPv4 source - a public address is
+// unreachable on 8009 anyway, and this must never become a knob to make the
+// server dial arbitrary internet hosts. Attach is non-blocking by contract,
+// so the beacon's 204 is never delayed.
+func notifyCoSender(r *http.Request, cs CastCoSender, eventType string) {
+	if cs == nil {
+		return
+	}
+	st, ok := StreamTokenFromContext(r.Context())
+	if !ok || st == nil || !st.Cast {
+		return
+	}
+	ip := network.ClientIP(r)
+	if ip == nil || ip.To4() == nil || !ip.IsPrivate() {
+		return
+	}
+	switch eventType {
+	case "cast_receiver_loaded", "cast_receiver_alive":
+		cs.Attach(ip.String())
+	case "cast_receiver_shutdown", "cast_receiver_finished":
+		cs.Detach(ip.String())
 	}
 }
 

@@ -263,3 +263,83 @@ func TestClassify_PlayerClientComponentIsPlayer(t *testing.T) {
 		t.Fatalf("where = %q, want %q", where, wherePlayer)
 	}
 }
+
+// --- co-sender trigger ---
+
+// The co-sender protects a cast session from its own phone: when the mobile
+// sender freezes, the box tears the receiver down as "last sender
+// disconnected" (~3min40 measured in prod, 2026-07-28). Each receiver beacon
+// arrives FROM the TV, so its source address IS the TV - the beacon both
+// names the target and re-arms the attach every 30s.
+type fakeCoSender struct {
+	attached []string
+	detached []string
+}
+
+func (f *fakeCoSender) Attach(addr string) { f.attached = append(f.attached, addr) }
+func (f *fakeCoSender) Detach(addr string) { f.detached = append(f.detached, addr) }
+
+func postReceiverBeacon(t *testing.T, cs CastCoSender, eventType, remoteAddr string, castToken bool) {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/media/media-1/player-event",
+		strings.NewReader(`{"type":"`+eventType+`"}`))
+	req.SetPathValue("id", "media-1")
+	req.RemoteAddr = remoteAddr
+	if castToken {
+		ctx := context.WithValue(req.Context(), streamTokenCtxKey, &shared.StreamToken{
+			UserID: "usr-cast", MediaItemID: "media-1", Scope: "stream", Cast: true,
+		})
+		req = req.WithContext(ctx)
+	}
+	rec := httptest.NewRecorder()
+	logger := slog.New(slog.NewJSONHandler(&bytes.Buffer{}, nil))
+	playerEventHandler(logger, WithPlayerEventCoSender(cs))(rec, req)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204 (body=%s)", rec.Code, rec.Body.String())
+	}
+}
+
+func TestPlayerEvent_CoSenderAttachOnAliveBeacons(t *testing.T) {
+	cs := &fakeCoSender{}
+	postReceiverBeacon(t, cs, "cast_receiver_loaded", "192.168.1.42:51000", true)
+	postReceiverBeacon(t, cs, "cast_receiver_alive", "192.168.1.42:51001", true)
+	if len(cs.attached) != 2 || cs.attached[0] != "192.168.1.42" {
+		t.Fatalf("attached = %v, want two attaches for 192.168.1.42", cs.attached)
+	}
+	if len(cs.detached) != 0 {
+		t.Fatalf("no detach expected, got %v", cs.detached)
+	}
+}
+
+func TestPlayerEvent_CoSenderDetachOnSessionEnd(t *testing.T) {
+	cs := &fakeCoSender{}
+	postReceiverBeacon(t, cs, "cast_receiver_shutdown", "192.168.1.42:51000", true)
+	postReceiverBeacon(t, cs, "cast_receiver_finished", "192.168.1.42:51001", true)
+	if len(cs.detached) != 2 {
+		t.Fatalf("detached = %v, want two detaches", cs.detached)
+	}
+	if len(cs.attached) != 0 {
+		t.Fatalf("no attach expected, got %v", cs.attached)
+	}
+}
+
+func TestPlayerEvent_CoSenderIgnoresNonCastCallers(t *testing.T) {
+	// The phone's own beacons (JWT, no cast stream token) name the PHONE's
+	// address, not the TV's: attaching to it would dial the wrong device.
+	cs := &fakeCoSender{}
+	postReceiverBeacon(t, cs, "cast_receiver_loaded", "192.168.1.10:40000", false)
+	if len(cs.attached) != 0 {
+		t.Fatalf("JWT caller must not trigger the co-sender, got %v", cs.attached)
+	}
+}
+
+func TestPlayerEvent_CoSenderIgnoresPublicAddresses(t *testing.T) {
+	// A remote user's TV posts beacons from a public IP: the server cannot
+	// reach it on 8009, and this must never become a knob to make the server
+	// dial arbitrary internet hosts.
+	cs := &fakeCoSender{}
+	postReceiverBeacon(t, cs, "cast_receiver_alive", "203.0.113.7:44000", true)
+	if len(cs.attached) != 0 {
+		t.Fatalf("public caller must not trigger the co-sender, got %v", cs.attached)
+	}
+}

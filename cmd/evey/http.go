@@ -59,6 +59,12 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 	// a genuine error storm's first wave; the refill caps a hostile or looping
 	// client at a rate the log files shrug off.
 	playerEventRL := ratelimit.NewWithBurst(20, 30.0)
+	// Cast co-sender: the server holds a second sender seat on any LAN TV
+	// running the Evey receiver, so a phone frozen by its OEM (measured in
+	// prod 2026-07-28: box tears the receiver down ~3min40 after the phone
+	// goes silent, despite FGS + wakelock on the phone) can no longer take
+	// the session down with it. Driven by the receiver's beacons.
+	castCoSender := appcast.NewCoSender(appcast.NewAppSessionFactory())
 	go func() {
 		<-ctx.Done()
 		loginRL.Stop()
@@ -170,6 +176,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		WebDir:                     cfg.Server.WebDir,
 		DLNASvc:                    appdlna.New(cfg.EffectiveBaseURL()),
 		CastSvc:                    appcast.New(cfg.EffectiveBaseURL()),
+		CastCoSenderSvc:            castCoSender,
 
 		CfgStore:  deps.cfgStore,
 		ServerCtx: ctx,
@@ -226,6 +233,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 	// Idempotent; the HW orchestrator has its own deferred CleanupAll in main.
 	go func() {
 		<-ctx.Done()
+		castCoSender.Close()
 		srv.CloseTranscodeProducers()
 		// Stop the on-demand plan cache's janitor goroutine (created
 		// unconditionally in wire, independent of the VOD handler).
