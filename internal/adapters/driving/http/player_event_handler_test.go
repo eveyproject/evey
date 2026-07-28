@@ -343,3 +343,63 @@ func TestPlayerEvent_CoSenderIgnoresPublicAddresses(t *testing.T) {
 		t.Fatalf("public caller must not trigger the co-sender, got %v", cs.attached)
 	}
 }
+
+// --- severity: telemetry is not an error ---
+
+// 2026-07-28, first evening with the receiver's alive heartbeat in prod: a
+// perfectly healthy 10-minute cast wrote 27 WARN "playback error reported"
+// lines - the operator's log view drowned in fake errors (the user flagged
+// it). A liveness beat is not an error; only what the player REPORTS as fatal
+// (or an explicit error/fatal type) deserves WARN.
+func postEventCaptureLog(t *testing.T, body string) (level, msg string) {
+	t.Helper()
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&buf, nil))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/media/media-1/player-event", strings.NewReader(body))
+	req.SetPathValue("id", "media-1")
+	rec := httptest.NewRecorder()
+	playerEventHandler(logger)(rec, req)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d (body=%s)", rec.Code, rec.Body.String())
+	}
+	var line map[string]any
+	if err := json.Unmarshal(buf.Bytes(), &line); err != nil {
+		t.Fatalf("no log line: %v", err)
+	}
+	lvl, _ := line["level"].(string)
+	m, _ := line["msg"].(string)
+	if comp, _ := line["component"].(string); comp != "player_client" {
+		t.Fatalf("component = %q, the admin where=player filter keys on it", comp)
+	}
+	return lvl, m
+}
+
+func TestPlayerEvent_TelemetryLogsAtInfo(t *testing.T) {
+	for _, typ := range []string{"cast_receiver_alive", "cast_receiver_loaded", "cast_receiver_model", "cast_receiver_shutdown"} {
+		lvl, msg := postEventCaptureLog(t, `{"type":"`+typ+`","fatal":false}`)
+		if lvl != "INFO" {
+			t.Fatalf("%s: level = %s, want INFO (telemetry is not an error)", typ, lvl)
+		}
+		if msg != "player-client: playback event reported" {
+			t.Fatalf("%s: msg = %q", typ, msg)
+		}
+	}
+}
+
+func TestPlayerEvent_FatalAndErrorTypesStayWarn(t *testing.T) {
+	cases := []string{
+		`{"type":"cast_receiver_finished","fatal":true}`,  // INTERRUPTED
+		`{"type":"cast_receiver_error","fatal":false}`,    // type names an error even if the flag is off
+		`{"type":"hls_fatal","fatal":false}`,              // legacy web beacon
+		`{"type":"video_element_error","fatal":false}`,    // legacy web beacon
+	}
+	for _, body := range cases {
+		lvl, msg := postEventCaptureLog(t, body)
+		if lvl != "WARN" {
+			t.Fatalf("%s: level = %s, want WARN", body, lvl)
+		}
+		if msg != "player-client: playback error reported" {
+			t.Fatalf("%s: msg = %q", body, msg)
+		}
+	}
+}

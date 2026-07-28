@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/evey-project/evey/internal/pkg/network"
 )
@@ -152,7 +153,20 @@ func playerEventHandler(logger *slog.Logger, opts ...PlayerEventOption) http.Han
 		}
 		notifyCoSender(r, deps.coSender, body.Type)
 
-		logger.Warn("player-client: playback error reported",
+		// Severity follows what the event IS. The route carries telemetry
+		// (liveness beats every 30s, load/model/shutdown markers) alongside
+		// genuine failures, and logging everything WARN drowned the admin log
+		// view in fake errors - 27 on one healthy 10-minute cast (2026-07-28).
+		// WARN is reserved for what the player flags fatal or an explicit
+		// error/fatal type; everything else is INFO, same component, so the
+		// where=player filter still shows the full story in one place.
+		logLine := logger.Info
+		msg := "player-client: playback event reported"
+		if body.Fatal || strings.Contains(body.Type, "error") || strings.Contains(body.Type, "fatal") {
+			logLine = logger.Warn
+			msg = "player-client: playback error reported"
+		}
+		logLine(msg,
 			// The component drives the admin log search's where=player filter:
 			// an operator investigating an incident finds the client's view of
 			// it right next to the server's ffmpeg/session lines.
