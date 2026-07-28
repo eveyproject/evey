@@ -39,7 +39,7 @@ export default function FavoritesScreen() {
           <Text style={{ color: theme.colors.textMuted, fontSize: 18 }}>?</Text>
         </View>
         <Text style={[styles.title, { color: theme.colors.text }]} numberOfLines={2}>
-          {item.title ?? "Untitled"}
+          {item.title ?? t("common.untitled", "Untitled")}
         </Text>
         {item.year != null && (
           <Text style={{ color: theme.colors.textMuted, fontSize: 14, textAlign: "center" }}>
