@@ -11,7 +11,7 @@
 import { WasmAudioEngine } from "@/features/playback/wasmaudio/WasmAudioEngine";
 import { extractAudioURI } from "@/features/playback/wasmaudio/wasmAudioShared";
 import { absoluteWithToken, buildPlayerEventUrl, probeReceiverCaps, rewriteCastMasterUrl, stripWasmAudio } from "./receiverLogic";
-import { createAliveHeartbeat, postPlayerEvent } from "./receiverBeacon";
+import { createAliveHeartbeat, postPlayerEvent, readHeapMB } from "./receiverBeacon";
 
 // The CAF SDK is loaded by a gstatic <script> in the page; its types are
 // not packaged - deliberately untyped access, scoped to this file.
@@ -27,6 +27,11 @@ function showDebug(text: string): void {
   dbg.textContent = text;
   dbg.style.display = text ? "block" : "none";
 }
+
+// Kill-switch for TV-side wasm audio, OFF since 2026-07-28 (see the comment
+// at the decision site in interceptLoad). Flip back only with heap telemetry
+// (mem= on the alive beacons) proving the device holds it.
+const CAST_WASM_ENABLED = false;
 
 let engine: WasmAudioEngine | null = null;
 let wasmDisabled = false;
@@ -95,7 +100,9 @@ function reportEvent(type: string, details: string, fatal = false): void {
 // in a row went undiagnosed for exactly the lack of it. Armed on LOAD
 // COMPLETE, disarmed on anything that ends playback.
 const aliveHeartbeat = createAliveHeartbeat(() => {
-  reportEvent("cast_receiver_alive", `mode=${wasmRequested ? "wasm" : "native"}`);
+  // mem: JS heap in MB (-1 if unavailable). A heap climbing beacon after
+  // beacon toward the death names a memory kill; a flat one exonerates it.
+  reportEvent("cast_receiver_alive", `mode=${wasmRequested ? "wasm" : "native"} mem=${readHeapMB()}`);
 });
 
 // tokenFromUrl reads the purpose=cast token the sender baked into the URL - the
@@ -247,7 +254,18 @@ function interceptLoad(request: any): any {
     // 905) on the ec-3 master. So audio goes through ac3go wasm (https) or
     // the server's AAC transcode.
     const caps = { ...probed, nativeDolby: false };
-    const wasmCapable = typeof WebAssembly !== "undefined" && !wasmDisabled;
+    // wasm DISABLED on the cast receiver (2026-07-28). Every one of the
+    // evening's cast deaths ran mode=wasm and died 3-4 minutes in with NO
+    // event at all - not even pagehide despite sendBeacon - the signature of
+    // the platform memory-killing the page. A Go-wasm AC-3 decoder plus its
+    // PCM scheduling buffers is real memory on a 1-2GB Android TV box, and it
+    // is the single thing this receiver does that Jellyfin's (which casts
+    // reliably on the same boxes) does not: their audio is ALWAYS transcoded
+    // server-side, the TV only ever sees codecs it decodes natively. Same
+    // policy here now: the server's AAC rendition carries the audio, and the
+    // wasm engine (kept below for the fallback machinery and a future
+    // re-enable on proven-capable devices) stays cold.
+    const wasmCapable = CAST_WASM_ENABLED && typeof WebAssembly !== "undefined" && !wasmDisabled;
     // window.location.protocol: an http: instance on the LAN is not allowed
     // JS fetches (mixed content) - the wasm decision accounts for this.
     const rewritten = rewriteCastMasterUrl(rawUrl, caps, wasmCapable, window.location.protocol);

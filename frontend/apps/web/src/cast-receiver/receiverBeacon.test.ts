@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { ALIVE_BEACON_MS, createAliveHeartbeat, postPlayerEvent } from "./receiverBeacon";
+import { ALIVE_BEACON_MS, createAliveHeartbeat, postPlayerEvent, readHeapMB } from "./receiverBeacon";
 
 // Pourquoi ces tests existent : la telemetrie posee le 2026-07-26 devait nommer
 // la cause des morts de cast cote TV. Elle ne l'a JAMAIS fait, deux fois de
@@ -90,5 +90,23 @@ describe("createAliveHeartbeat - la derniere preuve de vie date la mort de la TV
     // playerEventRL = NewWithBurst(20, 30.0) cote serveur : un battement toutes
     // les 30 s laisse la rafale intacte meme sur un film entier.
     expect(ALIVE_BEACON_MS).toBeGreaterThanOrEqual(30_000);
+  });
+});
+
+describe("readHeapMB - la taille du tas JS voyage sur chaque battement", () => {
+  it("convertit usedJSHeapSize en MB entiers", () => {
+    expect(readHeapMB({ memory: { usedJSHeapSize: 150 * 1024 * 1024 } })).toBe(150);
+  });
+
+  it("renvoie -1 quand le runtime n'expose pas performance.memory", () => {
+    expect(readHeapMB({})).toBe(-1);
+    expect(readHeapMB({ memory: {} })).toBe(-1);
+    expect(readHeapMB({ memory: { usedJSHeapSize: Number.NaN } })).toBe(-1);
+    expect(readHeapMB({ memory: { usedJSHeapSize: -5 } })).toBe(-1);
+  });
+
+  it("ne jette jamais, meme sur un objet hostile", () => {
+    const trap = new Proxy({}, { get() { throw new Error("boom"); } });
+    expect(readHeapMB(trap)).toBe(-1);
   });
 });

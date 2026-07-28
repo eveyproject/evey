@@ -77,6 +77,26 @@ export interface AliveHeartbeat {
   stop(): void;
 }
 
+// readHeapMB reports the JS heap in MB, or -1 when the runtime does not
+// expose it. Chrome's non-standard performance.memory is exactly what a cast
+// device runs. Motivation (2026-07-28): the receiver died 3-4 minutes into
+// every cast with NO event at all - the signature of a platform memory kill.
+// Riding the heap size on each alive beacon turns the next ordinary cast into
+// the experiment: a heap that climbs toward the death is the proof, a flat
+// one is the refutation.
+export function readHeapMB(perf?: unknown): number {
+  try {
+    const p = (perf ?? (typeof performance !== "undefined" ? performance : undefined)) as
+      | { memory?: { usedJSHeapSize?: number } }
+      | undefined;
+    const used = p?.memory?.usedJSHeapSize;
+    if (typeof used !== "number" || !isFinite(used) || used < 0) return -1;
+    return Math.round(used / (1024 * 1024));
+  } catch {
+    return -1;
+  }
+}
+
 // createAliveHeartbeat ne bat PAS immediatement au demarrage : le
 // cast_receiver_loaded qui vient de partir est deja la preuve de vie de
 // l'instant zero, un battement colle dessus ne dirait rien de plus.
