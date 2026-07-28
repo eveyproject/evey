@@ -93,7 +93,7 @@ function CollectionCard({
         </Text>
         {col.rules && col.rules.length > 0 && (
           <View style={{ backgroundColor: theme.colors.accent, borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1 }}>
-            <Text style={{ color: "#fff", fontSize: 9, fontWeight: "700" }}>SMART</Text>
+            <Text style={{ color: theme.colors.onAccent, fontSize: 9, fontWeight: "700" }}>SMART</Text>
           </View>
         )}
       </View>
@@ -173,9 +173,9 @@ function CreateCollectionModal({
               style={[styles.modalBtn, { backgroundColor: theme.colors.accent, opacity: !name.trim() || createMut.isPending ? 0.5 : 1 }]}
             >
               {createMut.isPending ? (
-                <ActivityIndicator size="small" color="#fff" />
+                <ActivityIndicator size="small" color={theme.colors.onAccent} />
               ) : (
-                <Text style={{ color: "#fff", fontWeight: "600" }}>{t("common.create", "Create")}</Text>
+                <Text style={{ color: theme.colors.onAccent, fontWeight: "600" }}>{t("common.create", "Create")}</Text>
               )}
             </TouchableOpacity>
           </View>

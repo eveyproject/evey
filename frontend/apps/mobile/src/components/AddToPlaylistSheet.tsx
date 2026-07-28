@@ -137,9 +137,9 @@ export function AddToPlaylistSheet({ visible, mediaItemId, mediaType, onClose }:
                 style={[styles.createBtn, { backgroundColor: theme.colors.accent, opacity: !newName.trim() ? 0.5 : 1 }]}
               >
                 {createPl.isPending ? (
-                  <ActivityIndicator color="#fff" size="small" />
+                  <ActivityIndicator color={theme.colors.onAccent} size="small" />
                 ) : (
-                  <Ionicons name="checkmark" size={ICON_SIZE.lg} color="#fff" />
+                  <Ionicons name="checkmark" size={ICON_SIZE.lg} color={theme.colors.onAccent} />
                 )}
               </TouchableOpacity>
             </View>

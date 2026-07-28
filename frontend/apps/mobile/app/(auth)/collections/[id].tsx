@@ -123,9 +123,9 @@ function EditCollectionModal({
               style={[styles.modalBtn, { backgroundColor: theme.colors.accent, opacity: !name.trim() || updateMut.isPending ? 0.5 : 1 }]}
             >
               {updateMut.isPending ? (
-                <ActivityIndicator size="small" color="#fff" />
+                <ActivityIndicator size="small" color={theme.colors.onAccent} />
               ) : (
-                <Text style={{ color: "#fff", fontWeight: "600" }}>{t("common.save", "Save")}</Text>
+                <Text style={{ color: theme.colors.onAccent, fontWeight: "600" }}>{t("common.save", "Save")}</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -228,7 +228,7 @@ export default function CollectionDetailScreen() {
                 <Ionicons name="pencil-outline" size={22} color={theme.colors.text} />
               </TouchableOpacity>
               <TouchableOpacity onPress={confirmDelete}>
-                <Ionicons name="trash-outline" size={22} color="#e57373" />
+                <Ionicons name="trash-outline" size={22} color={theme.colors.danger} />
               </TouchableOpacity>
             </View>
           ),

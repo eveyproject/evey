@@ -959,8 +959,8 @@ export default function MediaDetailScreen() {
           accessibilityLabel={hasProgress ? t("media.detail.resume") : t("media.detail.play")}
           accessibilityRole="button"
         >
-          <Ionicons name="play" size={18} color="#fff" />
-          <Text style={{ color: "#fff", fontWeight: "700", fontSize: 16 }}>
+          <Ionicons name="play" size={18} color={theme.colors.onAccent} />
+          <Text style={{ color: theme.colors.onAccent, fontWeight: "700", fontSize: 16 }}>
             {hasProgress
               ? `${t("media.detail.resume")} ${formatProgress(resumeMs)}`
               : t("media.detail.play")}
@@ -1315,7 +1315,7 @@ export default function MediaDetailScreen() {
                     accessibilityLabel={label}
                     accessibilityRole="tab"
                   >
-                    <Text style={{ color: active ? "#fff" : theme.colors.text, fontSize: 13, fontWeight: "600" }}>
+                    <Text style={{ color: active ? theme.colors.onAccent : theme.colors.text, fontSize: 13, fontWeight: "600" }}>
                       {label}
                     </Text>
                   </Pressable>

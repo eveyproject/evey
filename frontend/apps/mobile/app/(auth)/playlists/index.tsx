@@ -68,7 +68,7 @@ function PlaylistCard({
         ) : null}
         {playlist.type?.includes("SMART") ? (
           <View style={{ backgroundColor: theme.colors.accent, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1, alignSelf: "flex-start", marginTop: 2 }}>
-            <Text style={{ color: "#fff", fontSize: 10, fontWeight: "700" }}>SMART</Text>
+            <Text style={{ color: theme.colors.onAccent, fontSize: 10, fontWeight: "700" }}>SMART</Text>
           </View>
         ) : null}
       </View>
@@ -253,7 +253,7 @@ export default function PlaylistsScreen() {
                 >
                   <Text
                     style={{
-                      color: newType === type ? "#fff" : theme.colors.text,
+                      color: newType === type ? theme.colors.onAccent : theme.colors.text,
                       fontWeight: "600",
                       fontSize: 13,
                     }}
@@ -282,7 +282,7 @@ export default function PlaylistsScreen() {
                   },
                 ]}
               >
-                <Text style={{ color: "#fff", fontWeight: "600" }}>
+                <Text style={{ color: theme.colors.onAccent, fontWeight: "600" }}>
                   {createMutation.isPending ? "..." : t("common.create")}
                 </Text>
               </TouchableOpacity>
