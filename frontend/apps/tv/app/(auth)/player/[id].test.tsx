@@ -109,8 +109,8 @@ const getWatchProgressMock = vi.fn();
 // manifest's isDefault stream, matching this suite's prior behaviour. The
 // dedicated language-preference tests below override these with their own
 // vi.mocked(...).mockReturnValue.
-const getCurrentUserMock = vi.fn(() => ({ data: undefined }));
-const listProfilesMock = vi.fn(() => ({ data: undefined }));
+const getCurrentUserMock = vi.fn((..._args: unknown[]): { data: unknown } => ({ data: undefined }));
+const listProfilesMock = vi.fn((..._args: unknown[]): { data: unknown } => ({ data: undefined }));
 vi.mock("@evey/api", () => ({
   useLibraryServiceGetMediaItem: (...args: unknown[]) => getMediaItemMock(...args),
   usePlaybackServiceMarkAsWatched: (...args: unknown[]) => markAsWatchedMock(...args),
