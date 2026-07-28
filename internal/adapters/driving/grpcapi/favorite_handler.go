@@ -135,19 +135,12 @@ func (h *favoriteHandler) AddFavorite(ctx context.Context, req *eveyv1.AddFavori
 	if accessErr := h.requireMediaAccess(ctx, req.MediaItemId); accessErr != nil {
 		return nil, fmt.Errorf("favoriteHandler.AddFavorite: %w", accessErr)
 	}
-	// AddFavorite must be idempotent: the underlying Toggle flips state, so a
-	// double-tap (slow heart button, optimistic-UI re-fire, a retry after a lost
-	// response) used to silently UN-favorite the item. Guard on current state
-	// like RemoveFavorite does - only add when not already favorited - so the
-	// end state is always "favorited" no matter how many times it's called.
-	isFav, err := h.svc.IsFavorite(ctx, profileID, req.MediaItemId)
-	if err != nil {
-		return nil, internalError(ctx, "check favorite", err)
-	}
-	if !isFav {
-		if _, err := h.svc.Toggle(ctx, profileID, req.MediaItemId); err != nil {
-			return nil, internalError(ctx, "add favorite", err)
-		}
+	// State-setting, not toggling. A read-then-toggle looks idempotent but is
+	// not: two concurrent double-taps can both read "not favorited" and both
+	// flip, cancelling out. SetFavorite writes the target state directly and the
+	// repo is idempotent underneath, so any number of concurrent calls converge.
+	if _, err := h.svc.SetFavorite(ctx, profileID, req.MediaItemId, true); err != nil {
+		return nil, internalError(ctx, "add favorite", err)
 	}
 	return &eveyv1.AddFavoriteResponse{IsFavorite: true}, nil
 }
@@ -166,14 +159,9 @@ func (h *favoriteHandler) RemoveFavorite(ctx context.Context, req *eveyv1.Remove
 	if accessErr := h.requireMediaAccess(ctx, req.MediaItemId); accessErr != nil {
 		return nil, fmt.Errorf("favoriteHandler.RemoveFavorite: %w", accessErr)
 	}
-	isFav, err := h.svc.IsFavorite(ctx, profileID, req.MediaItemId)
-	if err != nil {
-		return nil, internalError(ctx, "check favorite", err)
-	}
-	if isFav {
-		if _, err := h.svc.Toggle(ctx, profileID, req.MediaItemId); err != nil {
-			return nil, internalError(ctx, "remove favorite", err)
-		}
+	// Same reasoning as AddFavorite: set the target state, do not toggle.
+	if _, err := h.svc.SetFavorite(ctx, profileID, req.MediaItemId, false); err != nil {
+		return nil, internalError(ctx, "remove favorite", err)
 	}
 	return &eveyv1.RemoveFavoriteResponse{}, nil
 }
