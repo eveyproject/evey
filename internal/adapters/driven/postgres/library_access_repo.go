@@ -52,9 +52,13 @@ func (r *LibraryAccessRepository) GrantMany(ctx context.Context, userID shared.U
 	for i, id := range libraryIDs {
 		ids[i] = string(id)
 	}
+	// Joined against libraries: invite links carry their library ids as JSONB
+	// (no FK), so a library deleted after the invite was minted used to blow
+	// the FK here and fail the WHOLE registration transaction. Stale ids are
+	// skipped; surviving ones are granted.
 	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`INSERT INTO library_access (user_id, library_id)
-		 SELECT $1, unnest($2::text[])
+		 SELECT $1, l.id FROM libraries l WHERE l.id = ANY($2::text[])
 		 ON CONFLICT DO NOTHING`,
 		string(userID), pq.Array(ids))
 	return err

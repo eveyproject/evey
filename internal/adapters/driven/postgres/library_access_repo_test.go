@@ -149,3 +149,28 @@ func TestLibraryAccessRepo_ListUsersWithRestrictions(t *testing.T) {
 	assert.Contains(t, m, shared.UserID(u.ID))
 	assert.Contains(t, m[shared.UserID(u.ID)], shared.LibraryID(lib.ID))
 }
+
+// An invite link stores its library ids as JSONB - no FK. Delete one of those
+// libraries and every redemption of the invite used to die on the FK violation
+// inside GrantMany, taking the whole registration transaction with it. Stale
+// ids must be skipped; surviving ones must still be granted.
+func TestLibraryAccessRepo_GrantMany_SkipsDeletedLibraries(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	userRepo := postgres.NewUserRepository(db)
+	libRepo := postgres.NewLibraryRepository(db)
+	accessRepo := postgres.NewLibraryAccessRepository(db)
+	ctx := context.Background()
+
+	u := newTestUser("gm-u")
+	require.NoError(t, userRepo.Create(ctx, u))
+	lib := newTestLibrary("gm-lib")
+	require.NoError(t, libRepo.Create(ctx, lib))
+
+	err := accessRepo.GrantMany(ctx, shared.UserID(u.ID), []shared.LibraryID{shared.LibraryID(lib.ID), "lib-deleted-long-ago"})
+	require.NoError(t, err, "a stale invite library id must not fail the grant")
+
+	ok, err := accessRepo.HasAccess(ctx, shared.UserID(u.ID), shared.LibraryID(lib.ID))
+	require.NoError(t, err)
+	assert.True(t, ok, "the surviving library is still granted")
+}
