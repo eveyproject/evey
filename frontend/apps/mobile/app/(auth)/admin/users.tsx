@@ -157,7 +157,7 @@ function LibraryAccessModal({ user, visible, onClose, theme }: { user: V1User; v
             accessibilityLabel={t("common.save")}
             accessibilityRole="button"
           >
-            {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={{ color: "#fff", fontWeight: "600", fontSize: 15 }}>{t("common.save")}</Text>}
+            {saving ? <ActivityIndicator color={theme.colors.onAccent} size="small" /> : <Text style={{ color: theme.colors.onAccent, fontWeight: "600", fontSize: 15 }}>{t("common.save")}</Text>}
           </Pressable>
         </View>
       </View>
@@ -284,7 +284,7 @@ function InviteLinksSection({ theme }: { theme: ReturnType<typeof useTheme> }) {
               accessibilityLabel={t("admin.users.revokeInviteNamed", "Revoke invite {{code}}", { code: link.code })}
               accessibilityRole="button"
             >
-              <Ionicons name="trash-outline" size={18} color="#ef4444" />
+              <Ionicons name="trash-outline" size={18} color={theme.colors.danger} />
             </Pressable>
           </View>
         ))
@@ -320,9 +320,9 @@ function InviteLinksSection({ theme }: { theme: ReturnType<typeof useTheme> }) {
             accessibilityRole="button"
           >
             {createInvite.isPending ? (
-              <ActivityIndicator color="#fff" size="small" />
+              <ActivityIndicator color={theme.colors.onAccent} size="small" />
             ) : (
-              <Text style={{ color: "#fff", fontWeight: "600", fontSize: 15 }}>
+              <Text style={{ color: theme.colors.onAccent, fontWeight: "600", fontSize: 15 }}>
                 {t("common.create", "Create")}
               </Text>
             )}
@@ -475,14 +475,14 @@ export default function AdminUsersScreen() {
   const renderUser = useCallback(({ item }: { item: V1User }) => (
     <View style={[styles.userCard, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}>
       <View style={[styles.avatar, { backgroundColor: theme.colors.accent }]}>
-        <Text style={{ color: "#fff", fontWeight: "700" }}>{item.username?.[0]?.toUpperCase() ?? "?"}</Text>
+        <Text style={{ color: theme.colors.onAccent, fontWeight: "700" }}>{item.username?.[0]?.toUpperCase() ?? "?"}</Text>
       </View>
       <View style={{ flex: 1 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
           <Text style={{ color: theme.colors.text, fontSize: 15, fontWeight: "600" }}>{item.username}</Text>
           {item.isAdmin ? (
             <View style={{ backgroundColor: theme.colors.accent, borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1 }}>
-              <Text style={{ color: "#fff", fontSize: 9, fontWeight: "700" }}>ADMIN</Text>
+              <Text style={{ color: theme.colors.onAccent, fontSize: 9, fontWeight: "700" }}>ADMIN</Text>
             </View>
           ) : (
             <View style={{ backgroundColor: theme.colors.surfaceRaised, borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1 }}>
@@ -711,7 +711,7 @@ export default function AdminUsersScreen() {
             accessibilityLabel={t("common.create")}
             accessibilityRole="button"
           >
-            <Text style={{ color: "#fff", fontWeight: "600", fontSize: 15 }}>{t("common.create")}</Text>
+            <Text style={{ color: theme.colors.onAccent, fontWeight: "600", fontSize: 15 }}>{t("common.create")}</Text>
           </Pressable>
         </View>
       </Modal>
