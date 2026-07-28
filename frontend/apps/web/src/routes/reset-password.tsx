@@ -107,7 +107,7 @@ function ResetPasswordPage() {
             required
           />
           {error && (
-            <p className="text-sm text-center text-[var(--color-danger)]">{error}</p>
+            <p className="text-sm text-center text-[var(--color-danger)]" role="alert">{error}</p>
           )}
           <Button type="submit" loading={resetPassword.isPending} className="w-full">
             {t("auth.resetPassword.submit")}

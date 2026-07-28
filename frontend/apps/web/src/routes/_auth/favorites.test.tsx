@@ -33,7 +33,13 @@ vi.mock("@/features/library/MediaCard", () => ({
 }));
 
 vi.mock("@/components/ui/EmptyState", () => ({
-  EmptyState: ({ title }: { title: string }) => React.createElement("div", null, title),
+  EmptyState: ({ title, action }: { title: string; action?: { label: string; onClick: () => void } }) =>
+    React.createElement(
+      "div",
+      null,
+      title,
+      action ? React.createElement("button", { onClick: action.onClick }, action.label) : null,
+    ),
 }));
 
 vi.mock("@/components/ui/Skeleton", () => ({
@@ -102,6 +108,27 @@ describe("FavoritesPage", () => {
     const FavoritesPage = (mod.Route as unknown as { component: React.ComponentType }).component;
     render(React.createElement(FavoritesPage), { wrapper: createWrapper() });
     expect(screen.getByText("No favorites yet")).toBeInTheDocument();
+  });
+
+  it("shows a distinct error state with a retry action when the fetch fails - never 'No favorites yet'", async () => {
+    const refetch = vi.fn();
+    const { useFavoritesList } = await import("@/hooks/useFavorite");
+    vi.mocked(useFavoritesList).mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      error: Object.assign(new Error("boom"), { httpStatus: 500 }),
+      refetch,
+    } as never);
+    const mod = await import("./favorites.lazy");
+    const FavoritesPage = (mod.Route as unknown as { component: React.ComponentType }).component;
+    render(React.createElement(FavoritesPage), { wrapper: createWrapper() });
+
+    expect(screen.getByText("Something went wrong")).toBeInTheDocument();
+    expect(screen.queryByText("No favorites yet")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(refetch).toHaveBeenCalled();
   });
 
   it("renders favorite items in grid", async () => {

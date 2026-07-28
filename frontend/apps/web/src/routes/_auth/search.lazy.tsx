@@ -13,6 +13,7 @@ import { MediaCardWithModals as MediaCard } from "@/features/library/MediaCardWi
 import { useRecentSearches } from "@/hooks/useRecentSearches";
 import { useDebounce } from "@/hooks/useDebounce";
 import { FilterChip } from "@/components/ui/FilterChip";
+import { classifyError } from "@/utils/errorClassification";
 
 export const Route = createLazyFileRoute("/_auth/search")({
   component: SearchPage,
@@ -98,7 +99,7 @@ function SearchPage() {
   const parsedYearMin = yearMin ? parseInt(yearMin, 10) : undefined;
   const parsedYearMax = yearMax ? parseInt(yearMax, 10) : undefined;
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["/api/v1/media/search", debouncedQuery, typeFilter, genre, parsedYearMin, parsedYearMax, sort.field, sort.order],
     queryFn: ({ signal }) =>
       libraryServiceSearchMedia(
@@ -126,7 +127,7 @@ function SearchPage() {
 
   // Music search (separate index, cross-library) - only when the music scope is
   // selected.
-  const { data: musicData, isLoading: musicLoading, isError: musicIsError } = useQuery({
+  const { data: musicData, isLoading: musicLoading, isError: musicIsError, error: musicError, refetch: refetchMusic } = useQuery({
     queryKey: ["/api/v1/music/search", debouncedQuery],
     queryFn: ({ signal }) => musicServiceSearchMusic({ query: debouncedQuery, limit: 40 }, signal),
     enabled: debouncedQuery.length > 1 && searchKind === "music",
@@ -395,8 +396,13 @@ function SearchPage() {
         >
           <EmptyState
             icon={<TriangleAlert size={ICON["4xl"]} strokeWidth={1.5} />}
-            title={t("common.errorBoundary.title")}
-            description={t("common.errorBoundary.description")}
+            title={classifyError(musicError) === "offline" ? t("common.offline.title", "Offline") : t("common.errorBoundary.title")}
+            description={
+              classifyError(musicError) === "offline"
+                ? t("common.offline.description", "Check your internet connection and try again.")
+                : t("common.errorBoundary.description")
+            }
+            action={{ label: t("common.retry", "Retry"), onClick: () => void refetchMusic() }}
           />
         </div>
       )}
@@ -407,8 +413,13 @@ function SearchPage() {
         >
           <EmptyState
             icon={<TriangleAlert size={ICON["4xl"]} strokeWidth={1.5} />}
-            title={t("common.errorBoundary.title")}
-            description={t("common.errorBoundary.description")}
+            title={classifyError(error) === "offline" ? t("common.offline.title", "Offline") : t("common.errorBoundary.title")}
+            description={
+              classifyError(error) === "offline"
+                ? t("common.offline.description", "Check your internet connection and try again.")
+                : t("common.errorBoundary.description")
+            }
+            action={{ label: t("common.retry", "Retry"), onClick: () => void refetch() }}
           />
         </div>
       )}

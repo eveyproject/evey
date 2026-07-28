@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
-import { Folder } from "lucide-react";
+import { Folder, TriangleAlert } from "lucide-react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { usePlaybackServiceMarkAsWatched, usePlaybackServiceMarkAsUnwatched } from "@evey/api";
 import { useTranslation } from "react-i18next";
@@ -15,6 +15,7 @@ import { AddToCollectionModal } from "@/features/collection/AddToCollectionModal
 import { Modal } from "@/components/ui/Modal";
 import { toast, useAuthStore } from "@evey/store";
 import { useQueryClient } from "@tanstack/react-query";
+import { classifyError } from "@/utils/errorClassification";
 
 export const Route = createLazyFileRoute("/_auth/favorites")({
   component: FavoritesPage,
@@ -80,7 +81,7 @@ function BulkPlaylistModal({
 
 function FavoritesPage() {
   const { t } = useTranslation();
-    const { data: favorites, isLoading } = useFavoritesList();
+    const { data: favorites, isLoading, isError, error, refetch } = useFavoritesList();
   const [sort, setSort] = useState<SortKey>("dateAdded");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [search, setSearch] = useState("");
@@ -239,6 +240,24 @@ function FavoritesPage() {
 
       {isLoading ? (
         <MediaGridSkeleton />
+      ) : isError ? (
+        // Same failure/emptiness bug as library/photos/music: without this branch
+        // a failed fetch renders as "no favorites yet", telling the user their
+        // list is empty when the server is actually unreachable.
+        <div
+          className="rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]"
+        >
+          <EmptyState
+            icon={<TriangleAlert size={48} strokeWidth={1.5} />}
+            title={classifyError(error) === "offline" ? t("common.offline.title", "Offline") : t("common.errorBoundary.title")}
+            description={
+              classifyError(error) === "offline"
+                ? t("common.offline.description", "Check your internet connection and try again.")
+                : t("common.errorBoundary.description")
+            }
+            action={{ label: t("common.retry", "Retry"), onClick: () => void refetch() }}
+          />
+        </div>
       ) : !favorites || favorites.length === 0 ? (
         <div
           className="rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]"

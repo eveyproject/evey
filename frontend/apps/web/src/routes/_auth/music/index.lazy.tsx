@@ -22,9 +22,11 @@ import { useAuthStore, useMusicPlayerStore, toast, type MusicSource } from "@eve
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { startTokenDownload } from "@/utils/downloadToken";
-import { Music, X, Plus, Trash2, ArrowLeft, Download, Shuffle, Sparkles } from "lucide-react";
+import { Music, X, Plus, Trash2, ArrowLeft, Download, Shuffle, Sparkles, TriangleAlert } from "lucide-react";
 import { useGeneratePlaylist } from "@/features/playlist/api";
 import { ICON } from "@/constants/iconSizes";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { classifyError } from "@/utils/errorClassification";
 
 export const Route = createLazyFileRoute("/_auth/music/")({
   component: MusicPage,
@@ -357,14 +359,14 @@ function MusicPage() {
   const [artistSelectFilter, setArtistSelectFilter] = useState<string>("");
   const search = useDebounce(searchInput, 300);
 
-  const { data: libraries, isLoading: libLoading } = useMusicLibraries();
+  const { data: libraries, isLoading: libLoading, isError: libError, error: libErrorObj, refetch: refetchLibraries } = useMusicLibraries();
 
   const firstLib = libraries?.[0];
   const activeLibraryID = selectedLibraryID ?? firstLib?.id;
 
-  const { data: tracks, isLoading: tracksLoading } = useMusicTracks(activeLibraryID, search, albumFilter ?? undefined);
-  const { data: albums, isLoading: albumsLoading } = useMusicAlbums(activeLibraryID);
-  const { data: artists, isLoading: artistsLoading } = useMusicArtists(activeLibraryID);
+  const { data: tracks, isLoading: tracksLoading, isError: tracksError, error: tracksErrorObj, refetch: refetchTracks } = useMusicTracks(activeLibraryID, search, albumFilter ?? undefined);
+  const { data: albums, isLoading: albumsLoading, isError: albumsError, error: albumsErrorObj, refetch: refetchAlbums } = useMusicAlbums(activeLibraryID);
+  const { data: artists, isLoading: artistsLoading, isError: artistsError, error: artistsErrorObj, refetch: refetchArtists } = useMusicArtists(activeLibraryID);
 
   // albumFilter holds the opaque album id; resolve a human label for the chip /
   // play-source from the loaded album list, falling back to a loaded track's
@@ -396,6 +398,26 @@ function MusicPage() {
     return (
       <div className="flex-1 p-6">
         <div className="animate-pulse h-8 w-48 rounded mb-6 bg-[var(--surface-raised)]" />
+      </div>
+    );
+  }
+
+  if (libError) {
+    // Without this branch a failed fetch fell through to "no libraries",
+    // telling the user their music collection vanished instead of the server
+    // being unreachable.
+    return (
+      <div className="flex-1 p-6">
+        <EmptyState
+          icon={<TriangleAlert size={48} strokeWidth={1.5} />}
+          title={classifyError(libErrorObj) === "offline" ? t("common.offline.title", "Offline") : t("common.errorBoundary.title")}
+          description={
+            classifyError(libErrorObj) === "offline"
+              ? t("common.offline.description", "Check your internet connection and try again.")
+              : t("common.errorBoundary.description")
+          }
+          action={{ label: t("common.retry", "Retry"), onClick: () => void refetchLibraries() }}
+        />
       </div>
     );
   }
@@ -453,6 +475,9 @@ function MusicPage() {
         <TracksTab
           allTracks={tracks ?? []}
           loading={tracksLoading}
+          isError={tracksError}
+          error={tracksErrorObj}
+          onRetry={() => void refetchTracks()}
           playing={playing}
           onPlay={(tr, filtered) =>
             handlePlay(
@@ -484,6 +509,9 @@ function MusicPage() {
         <AlbumsTab
           albums={albums ?? []}
           loading={albumsLoading}
+          isError={albumsError}
+          error={albumsErrorObj}
+          onRetry={() => void refetchAlbums()}
           libraryID={activeLibraryID}
           onAlbumClick={(a) => { setAlbumFilter(a.ID); setArtistFilter(null); setTab("tracks"); }}
         />
@@ -492,6 +520,9 @@ function MusicPage() {
         <ArtistsTab
           artists={artists ?? []}
           loading={artistsLoading}
+          isError={artistsError}
+          error={artistsErrorObj}
+          onRetry={() => void refetchArtists()}
           onArtistClick={(a) => { setArtistFilter(a.Name); setAlbumFilter(null); setTab("tracks"); }}
         />
       )}
@@ -720,6 +751,9 @@ const TRACKS_PAGE_SIZE = 50;
 function TracksTab({
   allTracks,
   loading,
+  isError,
+  error,
+  onRetry,
   playing,
   onPlay,
   search,
@@ -738,6 +772,9 @@ function TracksTab({
 }: {
   allTracks: Track[];
   loading: boolean;
+  isError?: boolean;
+  error?: unknown;
+  onRetry?: () => void;
   playing: Track | null;
   onPlay: (t: Track, filtered: Track[]) => void;
   search: string;
@@ -870,8 +907,22 @@ function TracksTab({
         )}
       </div>
       {loading && <p className="text-[var(--text-muted)]">{t("media.music.loading")}</p>}
-      {!loading && !tracks.length && <p className="text-[var(--text-muted)]">{search ? t("media.music.noTracksSearch") : t("media.music.noTracks")}</p>}
-      {!loading && tracks.length > 0 && <table className="w-full border-collapse text-sm">
+      {!loading && isError && (
+        // A failed track fetch must not collapse into "no tracks found" - that
+        // reads as an empty library when the server actually errored.
+        <EmptyState
+          icon={<TriangleAlert size={48} strokeWidth={1.5} />}
+          title={classifyError(error) === "offline" ? t("common.offline.title", "Offline") : t("common.errorBoundary.title")}
+          description={
+            classifyError(error) === "offline"
+              ? t("common.offline.description", "Check your internet connection and try again.")
+              : t("common.errorBoundary.description")
+          }
+          action={onRetry ? { label: t("common.retry", "Retry"), onClick: onRetry } : undefined}
+        />
+      )}
+      {!loading && !isError && !tracks.length && <p className="text-[var(--text-muted)]">{search ? t("media.music.noTracksSearch") : t("media.music.noTracks")}</p>}
+      {!loading && !isError && tracks.length > 0 && <table className="w-full border-collapse text-sm">
         <thead>
           <tr className="text-[var(--text-muted)] text-left border-b border-[var(--border)]">
             <th className="px-3 py-2">#</th>
@@ -945,10 +996,42 @@ function TracksTab({
   );
 }
 
-function AlbumsTab({ albums, loading, libraryID, onAlbumClick }: { albums: Album[]; loading: boolean; libraryID: string | undefined; onAlbumClick: (a: Album) => void }) {
+function AlbumsTab({
+  albums,
+  loading,
+  isError,
+  error,
+  onRetry,
+  libraryID,
+  onAlbumClick,
+}: {
+  albums: Album[];
+  loading: boolean;
+  isError?: boolean;
+  error?: unknown;
+  onRetry?: () => void;
+  libraryID: string | undefined;
+  onAlbumClick: (a: Album) => void;
+}) {
   const { t } = useTranslation();
   const accessToken = useAuthStore((s) => s.accessToken);
   const tokenParam = accessToken ? `?token=${encodeURIComponent(accessToken)}` : "";
+  // A failed album fetch must not collapse into "no albums found" - that reads
+  // as an empty library when the server actually errored.
+  if (!loading && isError) {
+    return (
+      <EmptyState
+        icon={<TriangleAlert size={48} strokeWidth={1.5} />}
+        title={classifyError(error) === "offline" ? t("common.offline.title", "Offline") : t("common.errorBoundary.title")}
+        description={
+          classifyError(error) === "offline"
+            ? t("common.offline.description", "Check your internet connection and try again.")
+            : t("common.errorBoundary.description")
+        }
+        action={onRetry ? { label: t("common.retry", "Retry"), onClick: onRetry } : undefined}
+      />
+    );
+  }
   if (!loading && !albums.length) return <p className="text-[var(--text-muted)]">{t("media.music.noAlbums")}</p>;
 
   async function downloadAlbum(a: Album) {
@@ -1016,7 +1099,21 @@ function AlbumsTab({ albums, loading, libraryID, onAlbumClick }: { albums: Album
   );
 }
 
-function ArtistsTab({ artists, loading, onArtistClick }: { artists: Artist[]; loading: boolean; onArtistClick: (a: Artist) => void }) {
+function ArtistsTab({
+  artists,
+  loading,
+  isError,
+  error,
+  onRetry,
+  onArtistClick,
+}: {
+  artists: Artist[];
+  loading: boolean;
+  isError?: boolean;
+  error?: unknown;
+  onRetry?: () => void;
+  onArtistClick: (a: Artist) => void;
+}) {
   const { t } = useTranslation();
   const accessToken = useAuthStore((s) => s.accessToken);
   const tokenParam = accessToken ? `?token=${encodeURIComponent(accessToken)}` : "";
@@ -1026,6 +1123,22 @@ function ArtistsTab({ artists, loading, onArtistClick }: { artists: Artist[]; lo
   useEffect(() => { setScrollParent(document.getElementById("main-content")); }, []);
 
   if (loading) return <p className="text-[var(--text-muted)]">{t("media.music.loading")}</p>;
+  // A failed artist fetch must not collapse into "no artists found" - that
+  // reads as an empty library when the server actually errored.
+  if (isError) {
+    return (
+      <EmptyState
+        icon={<TriangleAlert size={48} strokeWidth={1.5} />}
+        title={classifyError(error) === "offline" ? t("common.offline.title", "Offline") : t("common.errorBoundary.title")}
+        description={
+          classifyError(error) === "offline"
+            ? t("common.offline.description", "Check your internet connection and try again.")
+            : t("common.errorBoundary.description")
+        }
+        action={onRetry ? { label: t("common.retry", "Retry"), onClick: onRetry } : undefined}
+      />
+    );
+  }
   if (!artists.length) return <p className="text-[var(--text-muted)]">{t("media.music.noArtists")}</p>;
 
   return (

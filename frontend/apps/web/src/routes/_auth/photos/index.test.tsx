@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
@@ -34,9 +34,16 @@ vi.mock("lucide-react", () => ({
   ChevronRight: () => React.createElement("span"),
   X: () => React.createElement("span"),
   Trash2: () => React.createElement("span"),
+  TriangleAlert: () => React.createElement("span"),
 }));
 vi.mock("@/components/ui/EmptyState", () => ({
-  EmptyState: ({ title }: { title: string }) => React.createElement("div", null, title),
+  EmptyState: ({ title, action }: { title: string; action?: { label: string; onClick: () => void } }) =>
+    React.createElement(
+      "div",
+      null,
+      title,
+      action ? React.createElement("button", { onClick: action.onClick }, action.label) : null,
+    ),
 }));
 
 function createWrapper() {
@@ -76,5 +83,42 @@ describe("PhotosPage", () => {
     const PhotosPage = (mod.Route as unknown as { component: React.ComponentType }).component;
     render(React.createElement(PhotosPage), { wrapper: createWrapper() });
     await waitFor(() => expect(screen.getByText("Vacation")).toBeInTheDocument());
+  });
+
+  it("shows a distinct error state with a retry action when the libraries fetch fails - never 'no photo libraries'", async () => {
+    const refetch = vi.fn();
+    libsHook.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      error: Object.assign(new Error("boom"), { httpStatus: 500 }),
+      refetch,
+    });
+    const mod = await import("./index.lazy");
+    const PhotosPage = (mod.Route as unknown as { component: React.ComponentType }).component;
+    render(React.createElement(PhotosPage), { wrapper: createWrapper() });
+
+    await waitFor(() => expect(screen.getByText("Something went wrong")).toBeInTheDocument());
+    expect(screen.queryByText(/no photo libraries/i)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(refetch).toHaveBeenCalled();
+  });
+
+  it("shows a distinct error state for the album grid when the albums fetch fails - never 'no albums'", async () => {
+    libsHook.mockReturnValue({ data: { libraries: [{ id: "lib1", name: "My Photos", type: "LIBRARY_TYPE_PHOTOS" }] }, isLoading: false });
+    albumsHook.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      error: Object.assign(new Error("boom"), { httpStatus: 500 }),
+      refetch: vi.fn(),
+    });
+    const mod = await import("./index.lazy");
+    const PhotosPage = (mod.Route as unknown as { component: React.ComponentType }).component;
+    render(React.createElement(PhotosPage), { wrapper: createWrapper() });
+
+    await waitFor(() => expect(screen.getByText("Something went wrong")).toBeInTheDocument());
+    expect(screen.queryByText(/no albums/i)).not.toBeInTheDocument();
   });
 });

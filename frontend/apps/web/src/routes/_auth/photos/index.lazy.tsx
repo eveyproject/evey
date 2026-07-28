@@ -11,14 +11,36 @@ import { useAuthStore } from "@evey/store";
 import { useTranslation } from "react-i18next";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
-import { Images, ChevronLeft, ChevronRight, X, RotateCcw, RotateCw } from "lucide-react";
+import { Images, ChevronLeft, ChevronRight, X, RotateCcw, RotateCw, TriangleAlert } from "lucide-react";
 import { Blurhash } from "react-blurhash";
 import { ICON } from "@/constants/iconSizes";
 import { formatFileSize } from "@/features/library/mediaDetailUtils";
+import { classifyError } from "@/utils/errorClassification";
 
 export const Route = createLazyFileRoute("/_auth/photos/")({
   component: PhotosPage,
 });
+
+// FetchErrorState is the shared visual for "the request failed" - distinct from
+// "the list came back empty" so a server error never renders as an empty photo
+// library. Reused across the library selector, the album grid and the photo
+// grid, which all can fail independently.
+function FetchErrorState({ error, onRetry }: { error: unknown; onRetry: () => void }) {
+  const { t } = useTranslation();
+  const offline = classifyError(error) === "offline";
+  return (
+    <EmptyState
+      icon={<TriangleAlert size={48} strokeWidth={1.5} />}
+      title={offline ? t("common.offline.title", "Offline") : t("common.errorBoundary.title")}
+      description={
+        offline
+          ? t("common.offline.description", "Check your internet connection and try again.")
+          : t("common.errorBoundary.description")
+      }
+      action={{ label: t("common.retry", "Retry"), onClick: onRetry }}
+    />
+  );
+}
 
 // ---- Types ----
 
@@ -293,6 +315,9 @@ function PhotoCell({ photo, thumbParam, onClick }: { photo: Photo; thumbParam: s
 interface PhotoGridProps {
   photos: Photo[];
   onPhotoClick: (index: number) => void;
+  isError?: boolean;
+  error?: unknown;
+  onRetry?: () => void;
 }
 
 const PHOTO_COL_BREAKPOINTS = [
@@ -321,7 +346,7 @@ function findScrollParent(el: HTMLElement | null): HTMLElement {
   return (document.scrollingElement as HTMLElement) ?? document.documentElement;
 }
 
-function PhotoGrid({ photos, onPhotoClick }: PhotoGridProps) {
+function PhotoGrid({ photos, onPhotoClick, isError, error, onRetry }: PhotoGridProps) {
   const { t } = useTranslation();
   const accessToken = useAuthStore((s) => s.accessToken);
   const thumbParam = `?${accessToken ? `token=${encodeURIComponent(accessToken)}&` : ""}w=400&fmt=webp`;
@@ -362,6 +387,9 @@ function PhotoGrid({ photos, onPhotoClick }: PhotoGridProps) {
     scrollMargin: parentRef.current && scrollEl ? parentRef.current.getBoundingClientRect().top - scrollEl.getBoundingClientRect().top + scrollEl.scrollTop : 0,
   });
 
+  // A failed photo fetch must not collapse into "no photos" - that reads as an
+  // empty album/library when the server actually errored.
+  if (isError) return <FetchErrorState error={error} onRetry={onRetry ?? (() => {})} />;
   if (photos.length === 0) return <EmptyState title={t("media.photos.noPhotos")} description={t("media.photos.noPhotosDesc")} />;
 
   return (
@@ -405,12 +433,18 @@ function PhotoGrid({ photos, onPhotoClick }: PhotoGridProps) {
 interface AlbumGridProps {
   albums: Album[];
   onAlbumClick: (album: Album) => void;
+  isError?: boolean;
+  error?: unknown;
+  onRetry?: () => void;
 }
 
-function AlbumGrid({ albums, onAlbumClick }: AlbumGridProps) {
+function AlbumGrid({ albums, onAlbumClick, isError, error, onRetry }: AlbumGridProps) {
   const { t } = useTranslation();
   const accessToken = useAuthStore((s) => s.accessToken);
   const thumbParam = `?${accessToken ? `token=${encodeURIComponent(accessToken)}&` : ""}w=400&fmt=webp`;
+  // A failed album fetch must not collapse into "no albums" - that reads as an
+  // empty library when the server actually errored.
+  if (isError) return <FetchErrorState error={error} onRetry={onRetry ?? (() => {})} />;
   if (albums.length === 0) return <EmptyState title={t("media.photos.noAlbums")} description={t("media.photos.noAlbumsDesc")} />;
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
@@ -451,7 +485,7 @@ type View = "albums" | "photos";
 
 function PhotosPage() {
   const { t } = useTranslation();
-  const { data: libraries, isLoading: libLoading } = usePhotoLibraries();
+  const { data: libraries, isLoading: libLoading, isError: libError, error: libErrorObj, refetch: refetchLibraries } = usePhotoLibraries();
   const [selectedLibraryID, setSelectedLibraryID] = useState<string | undefined>(undefined);
   const [view, setView] = useState<View>("albums");
   const [selectedAlbum, setSelectedAlbum] = useState<string | undefined>(undefined);
@@ -460,8 +494,8 @@ function PhotosPage() {
   const firstLib = libraries?.[0];
   const activeLibraryID = selectedLibraryID ?? firstLib?.id;
 
-  const { data: albumsData, isLoading: albumsLoading } = useAlbums(activeLibraryID);
-  const { data: photosData, isLoading: photosLoading } = usePhotos(activeLibraryID, selectedAlbum);
+  const { data: albumsData, isLoading: albumsLoading, isError: albumsError, error: albumsErrorObj, refetch: refetchAlbums } = useAlbums(activeLibraryID);
+  const { data: photosData, isLoading: photosLoading, isError: photosError, error: photosErrorObj, refetch: refetchPhotos } = usePhotos(activeLibraryID, selectedAlbum);
 
   const displayedPhotos = photosData?.photos ?? [];
 
@@ -487,6 +521,17 @@ function PhotosPage() {
             <div key={i} className="animate-pulse aspect-square rounded-[var(--radius-lg)] bg-[var(--surface-raised)]" />
           ))}
         </div>
+      </div>
+    );
+  }
+
+  if (libError) {
+    // Without this branch a failed fetch fell through to "no photo libraries",
+    // telling the user their photos vanished instead of the server being
+    // unreachable.
+    return (
+      <div className="flex-1 p-6">
+        <FetchErrorState error={libErrorObj} onRetry={() => void refetchLibraries()} />
       </div>
     );
   }
@@ -553,6 +598,9 @@ function PhotosPage() {
           ) : (
             <AlbumGrid
               albums={albumsData ?? []}
+              isError={albumsError}
+              error={albumsErrorObj}
+              onRetry={() => void refetchAlbums()}
               onAlbumClick={(album) => { setSelectedAlbum(album.Name); setView("photos"); }}
             />
           )}
@@ -583,6 +631,9 @@ function PhotosPage() {
           ) : (
             <PhotoGrid
               photos={displayedPhotos}
+              isError={photosError}
+              error={photosErrorObj}
+              onRetry={() => void refetchPhotos()}
               onPhotoClick={openLightbox}
             />
           )}

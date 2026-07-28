@@ -92,7 +92,7 @@ export function PinPromptDialog({ target, fallback, onCancel, onVerified }: Prop
           data-testid="profile-pin-prompt-input"
         />
         {error && (
-          <p className="text-sm text-[var(--color-danger)]" data-testid="profile-pin-prompt-error">{error}</p>
+          <p className="text-sm text-[var(--color-danger)]" data-testid="profile-pin-prompt-error" role="alert">{error}</p>
         )}
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="ghost" type="button" onClick={onCancel}>

@@ -135,7 +135,7 @@ function SchemaField({
             onChange={(e) => onChange(e.target.value)}
           />
           {description}
-          {error && <span className="text-xs text-[var(--color-danger)]">{error}</span>}
+          {error && <span className="text-xs text-[var(--color-danger)]" role="alert">{error}</span>}
         </div>
       );
 

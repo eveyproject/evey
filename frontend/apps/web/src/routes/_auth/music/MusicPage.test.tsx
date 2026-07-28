@@ -120,7 +120,7 @@ describe("MusicPage", () => {
   });
 
   it("shows no libraries message when no music library exists", async () => {
-    
+
     mockLibrariesHook.mockReturnValue({ data: { libraries: [] }, isLoading: false });
 
     const mod = await import("./index.lazy");
@@ -131,6 +131,28 @@ describe("MusicPage", () => {
     await waitFor(() => {
       expect(screen.getByText(/No music libraries/i)).toBeInTheDocument();
     });
+  });
+
+  it("shows a distinct error state with a retry action when the libraries fetch fails - never 'No music libraries'", async () => {
+    const refetch = vi.fn();
+    mockLibrariesHook.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      error: Object.assign(new Error("boom"), { httpStatus: 500 }),
+      refetch,
+    });
+
+    const mod = await import("./index.lazy");
+    const MusicPage = (mod.Route as unknown as { component: React.ComponentType }).component;
+
+    render(React.createElement(MusicPage), { wrapper: createWrapper() });
+
+    await waitFor(() => expect(screen.getByText("Something went wrong")).toBeInTheDocument());
+    expect(screen.queryByText(/No music libraries/i)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(refetch).toHaveBeenCalled();
   });
 
   it("renders Music heading and track list", async () => {

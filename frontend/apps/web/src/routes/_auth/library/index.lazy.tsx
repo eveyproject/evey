@@ -1,4 +1,4 @@
-import { Film, Monitor, Music, Folder, ChevronRight } from "lucide-react";
+import { Film, Monitor, Music, Folder, ChevronRight, TriangleAlert } from "lucide-react";
 import { createLazyFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useLibraryServiceListLibraries, useLibraryServiceListMediaItems, useMusicServiceListTracks, usePhotoServiceListPhotos } from "@evey/api";
@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { slugify } from "@/utils/slugify";
+import { classifyError } from "@/utils/errorClassification";
 
 export const Route = createLazyFileRoute("/_auth/library/")({
   component: LibraryIndex,
@@ -142,7 +143,7 @@ function LibraryCard({ library }: { library: V1Library }) {
 function LibraryIndex() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { data, isLoading } = useLibraryServiceListLibraries();
+  const { data, isLoading, isError, error, refetch } = useLibraryServiceListLibraries();
   const libraries = data?.libraries ?? [];
 
   return (
@@ -165,6 +166,23 @@ function LibraryIndex() {
           {Array.from({ length: 3 }).map((_, i) => (
             <LibraryCardSkeleton key={i} />
           ))}
+        </div>
+      ) : isError ? (
+        // A failed fetch must never be shown as "no libraries" - the user would
+        // believe their collection is gone rather than the server being unreachable.
+        <div
+          className="rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]"
+        >
+          <EmptyState
+            icon={<TriangleAlert size={48} strokeWidth={1.5} />}
+            title={classifyError(error) === "offline" ? t("common.offline.title", "Offline") : t("common.errorBoundary.title")}
+            description={
+              classifyError(error) === "offline"
+                ? t("common.offline.description", "Check your internet connection and try again.")
+                : t("common.errorBoundary.description")
+            }
+            action={{ label: t("common.retry", "Retry"), onClick: () => void refetch() }}
+          />
         </div>
       ) : libraries.length === 0 ? (
         <div

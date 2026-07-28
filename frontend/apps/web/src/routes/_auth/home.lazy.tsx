@@ -24,6 +24,7 @@ import { useWatchedMap } from "@/hooks/useWatchedMap";
 import { PluginSlot } from "@/features/plugins/PluginSlot";
 import { CustomizePanel } from "@/features/home/CustomizePanel";
 import { NextUpRow } from "@/features/home/NextUpRow";
+import { classifyError } from "@/utils/errorClassification";
 
 export const Route = createLazyFileRoute("/_auth/home")({
   component: HomePage,
@@ -243,9 +244,9 @@ function HomePage() {
   const profileId = useAuthStore((s) => s.profileId);
   const [customizeOpen, setCustomizeOpen] = useState(false);
 
-  const { data: librariesData, isLoading: librariesLoading, isError: librariesIsError } = useLibraryServiceListLibraries();
+  const { data: librariesData, isLoading: librariesLoading, isError: librariesIsError, error: librariesErrorObj, refetch: refetchLibraries } = useLibraryServiceListLibraries();
   const libraries = librariesData?.libraries ?? [];
-  const { data: recentlyAdded, isLoading: recentLoading, isError: recentIsError } = useFeedServiceRecentlyAdded();
+  const { data: recentlyAdded, isLoading: recentLoading, isError: recentIsError, error: recentErrorObj, refetch: refetchRecent } = useFeedServiceRecentlyAdded();
   const { data: feedConfig, isError: feedConfigError } = useFeedServiceGetFeedConfig(
     { profileId: profileId ?? undefined },
     { query: { retry: 1, staleTime: 60_000 } },
@@ -253,6 +254,10 @@ function HomePage() {
   const hasContent = (recentlyAdded?.items ?? []).length > 0 || libraries.length > 0;
   const isLoading = librariesLoading || recentLoading;
   const isContentError = librariesIsError || recentIsError;
+  // Whichever of the two failed drives the error copy - librariesErrorObj first,
+  // since a broken library list is the more common/actionable failure.
+  const contentError = librariesIsError ? librariesErrorObj : recentErrorObj;
+  const retryContent = () => { void refetchLibraries(); void refetchRecent(); };
 
   const allSections = useMemo(() => {
     const configs = feedConfig?.configs;
@@ -295,8 +300,13 @@ function HomePage() {
         {!isLoading && isContentError ? (
           <EmptyState
             icon={<TriangleAlert size={48} strokeWidth={1.5} />}
-            title={t("common.errorBoundary.title")}
-            description={t("common.errorBoundary.description")}
+            title={classifyError(contentError) === "offline" ? t("common.offline.title", "Offline") : t("common.errorBoundary.title")}
+            description={
+              classifyError(contentError) === "offline"
+                ? t("common.offline.description", "Check your internet connection and try again.")
+                : t("common.errorBoundary.description")
+            }
+            action={{ label: t("common.retry", "Retry"), onClick: retryContent }}
           />
         ) : !isLoading && !hasContent ? (
           <EmptyState

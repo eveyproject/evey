@@ -14,10 +14,17 @@ vi.mock("@tanstack/react-router", () => ({
 
 vi.mock("@evey/api", () => ({
   libraryServiceSearchMedia: vi.fn(() => Promise.resolve({ items: [], totalHits: 0 })),
+  musicServiceSearchMusic: vi.fn(() => Promise.resolve({ tracks: [] })),
 }));
 
 vi.mock("@/components/ui/EmptyState", () => ({
-  EmptyState: ({ title }: { title: string }) => React.createElement("div", { "data-testid": "empty-state" }, title),
+  EmptyState: ({ title, action }: { title: string; action?: { label: string; onClick: () => void } }) =>
+    React.createElement(
+      "div",
+      { "data-testid": "empty-state" },
+      title,
+      action ? React.createElement("button", { onClick: action.onClick }, action.label) : null,
+    ),
 }));
 
 vi.mock("@/components/ui/Skeleton", () => ({
@@ -115,6 +122,35 @@ describe("SearchPage", () => {
     const input = screen.getByTestId("search-page-input");
     fireEvent.change(input, { target: { value: "xyzunknown" } });
     await waitFor(() => expect(screen.getByText(/No results for/i)).toBeInTheDocument(), { timeout: 2000 });
+  });
+
+  it("shows a distinct error state with a retry action when the media search fails", async () => {
+    vi.useRealTimers();
+    const { libraryServiceSearchMedia } = await import("@evey/api");
+    vi.mocked(libraryServiceSearchMedia).mockRejectedValue(Object.assign(new Error("boom"), { httpStatus: 500 }));
+    const SearchPage = await getSearchPage();
+    render(React.createElement(SearchPage), { wrapper: createWrapper() });
+    const input = screen.getByTestId("search-page-input");
+    fireEvent.change(input, { target: { value: "xyzunknown" } });
+    await waitFor(() => expect(screen.getByText("Something went wrong")).toBeInTheDocument(), { timeout: 2000 });
+    expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+  });
+
+  it("shows a distinct error state with a retry action when the music search fails", async () => {
+    vi.useRealTimers();
+    const { musicServiceSearchMusic } = await import("@evey/api");
+    vi.mocked(musicServiceSearchMusic).mockRejectedValue(Object.assign(new Error("boom"), { httpStatus: 500 }));
+    const SearchPage = await getSearchPage();
+    render(React.createElement(SearchPage), { wrapper: createWrapper() });
+    const input = screen.getByTestId("search-page-input");
+    fireEvent.change(input, { target: { value: "xyzunknown" } });
+    await waitFor(() => expect(screen.getByTestId("search-kind-toggle")).toBeInTheDocument(), { timeout: 2000 });
+    // The music-scope label ("Music") isn't in this test's static translation
+    // fixture - select the second toggle button by position instead of text.
+    const musicToggle = screen.getByTestId("search-kind-toggle").querySelectorAll("button")[1];
+    fireEvent.click(musicToggle);
+    await waitFor(() => expect(screen.getByText("Something went wrong")).toBeInTheDocument(), { timeout: 2000 });
+    expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
   });
 
   it("renders recent searches when available", async () => {
