@@ -96,6 +96,36 @@ func TestBuildLauncherArgv_UIDSeparation(t *testing.T) {
 	})
 }
 
+// TestBuildLauncherArgv_DenyFork pins the escape hatch that keeps legitimate
+// plugin development workable: process creation is denied in the kernel by
+// default, and declaring the "subprocess" permission - the same one that
+// already governs the LD_PRELOAD shim and the execve denial - lifts it. Without
+// this pairing, a plugin that legitimately spawns a child would be unfixable
+// by its author.
+func TestBuildLauncherArgv_DenyFork(t *testing.T) {
+	cmd := exec.Command("/usr/bin/node", "/data/plugins/weather/main.js")
+
+	t.Run("denied by default", func(t *testing.T) {
+		p := &plugin.Plugin{ID: "weather", InstallDir: "/data/plugins/weather"}
+		args := buildLauncherArgv("/bin/true", p, cmd, false, 0, 0)
+		idx := slices.Index(args, "-deny-fork")
+		require.GreaterOrEqual(t, idx, 0, "-deny-fork must be present for a plugin without subprocess")
+		sep := slices.Index(args, "--")
+		require.GreaterOrEqual(t, sep, 0)
+		assert.Less(t, idx, sep, "-deny-fork must precede the -- separator (it is a launcher flag)")
+	})
+
+	t.Run("lifted by the subprocess permission", func(t *testing.T) {
+		p := &plugin.Plugin{
+			ID: "runner", InstallDir: "/data/plugins/runner",
+			Permissions: []string{subprocessPerm},
+		}
+		args := buildLauncherArgv("/bin/true", p, cmd, false, 0, 0)
+		assert.NotContains(t, args, "-deny-fork",
+			"a plugin that declared subprocess must keep the right to spawn children")
+	})
+}
+
 func TestUIDSepApplies(t *testing.T) {
 	cases := []struct {
 		mode    string

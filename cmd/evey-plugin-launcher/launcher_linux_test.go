@@ -22,6 +22,13 @@ import (
 // otherwise it runs the normal test suite. This exercises the real launcher
 // end-to-end without a separate `go build`.
 func TestMain(m *testing.M) {
+	// Checked FIRST and via argv, not env: the launcher execs the probe with its
+	// own environment, so an env marker would also match the launcher process
+	// itself. argv[1] tells them apart unambiguously (the launcher's own argv
+	// always starts with a flag).
+	if len(os.Args) > 1 && os.Args[1] == forkProbeArg {
+		os.Exit(forkProbeMain())
+	}
 	if os.Getenv("EVEY_LAUNCHER_REEXEC") == "1" {
 		os.Exit(run(os.Args[1:]))
 	}

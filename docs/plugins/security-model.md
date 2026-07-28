@@ -162,6 +162,11 @@ bwrap's own namespace isolation instead (plus the LD_PRELOAD shim in `strict`).
   launcher EPERMs `socket(AF_INET/AF_INET6)` at the kernel: no IP egress, holding
   even on Landlock ABI <4. `AF_UNIX` stays allowed for the HostService gRPC
   socket.
+- **`-deny-fork`** - for every plugin **without** the `subprocess` permission,
+  process creation is EPERM'd at the kernel (`fork`, `vfork`, `clone` without
+  `CLONE_THREAD`); thread creation is untouched, so node, Python and Go runtimes
+  are unaffected. `clone3` returns `ENOSYS`, not `EPERM`, so glibc falls back to
+  the inspectable `clone(2)` instead of failing thread creation outright.
 - **Server `PR_SET_DUMPABLE=0`** - the server marks itself non-dumpable at
   startup, so a same-uid plugin cannot read `/proc/<server>/{mem,environ,maps}`
   (the in-memory JWT key, `DB_PASSWORD`, `MEILI_MASTER_KEY`).
@@ -267,7 +272,7 @@ Plugin frontend modules run inside an `<iframe>` with:
 | Permission | What it grants |
 |---|---|
 | `network` | Plugin may make outbound network connections. **Must** be combined with a non-empty `external_fetch` list - refused at install without it. |
-| `subprocess` | Plugin may spawn child processes. Without it, the LD_PRELOAD seccomp shim blocks `execve`/`execveat` for interpreted plugins. (The launcher's kernel seccomp does not deny `execve` - it must exec the plugin - but any child inherits the kernel filter + the Landlock domain.) |
+| `subprocess` | Plugin may spawn child processes. Without it, two layers apply: the LD_PRELOAD seccomp shim blocks `execve`/`execveat` for interpreted plugins, and the launcher's `-deny-fork` blocks process creation itself (`fork`/`vfork`/`clone` without `CLONE_THREAD`) in the kernel. Threads keep working either way. (The launcher's kernel seccomp does not deny `execve` - it must exec the plugin - but any child inherits the kernel filter + the Landlock domain.) |
 | `native-binary` | Plugin may ship `.so`/`.dll`/`.exe`/`.wasm`/`.jar` or embedded archives. Admin sees and must accept the opaque code at install preview. |
 | `filesystem` | Declared intent to access the filesystem beyond the plugin's own directory. Enforced at audit; not yet a hard sandbox rule (see Known limits). |
 | `media.read` | Plugin may call `MediaRead` RPCs: read media file metadata and stream access. |

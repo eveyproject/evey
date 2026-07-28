@@ -4,7 +4,6 @@ import (
 	"context"
 	"os/exec"
 	"slices"
-	"strconv"
 	"testing"
 
 	"github.com/evey-project/evey/internal/domain/plugin"
@@ -12,12 +11,44 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestApplySandbox_Landlock_InjectsLauncherRlimits proves the launcher argv
-// carries the SAME memory/PID caps the resource monitor enforces post-hoc
-// (r.limitsSnapshot), so a plugin that allocates without bound now hits a
-// kernel RLIMIT_AS failure immediately instead of only after the next ~2s
-// sweep notices its RSS.
-func TestApplySandbox_Landlock_InjectsLauncherRlimits(t *testing.T) {
+// Regression guard for the 2026-07-28 production outage: weather-v2 (nodejs)
+// died at every boot with
+//
+//	runtime: failed to create new OS thread (have 6 already; errno=11)
+//	runtime: may need to increase max user processes (ulimit -u)
+//	fatal error: newosproc
+//
+// because the launcher argv carried -rlimit-as/-rlimit-nproc derived from the
+// resource monitor's RSS/PID quota. Both flags are the wrong kernel primitive
+// for a per-plugin quota, and the launcher's own flag documentation already
+// said so ("risky for node", "per-UID, leaks across plugins sharing the UID"):
+//
+//   - RLIMIT_NPROC counts every task of the REAL UID, host-wide. Under
+//     landlock the plugin keeps the server's uid (pluginDropArgs(false)
+//     returns 0,0 unless uid-sep is "on"), so the cap is measured against the
+//     server's own thread count. evey-server alone runs far past 64 tasks, so
+//     the very next clone() in the launcher returned EAGAIN - before it ever
+//     reached the plugin. Reproduced verbatim: `ulimit -u 64` on a uid with
+//     123 live tasks kills any Go binary at startup.
+//   - RLIMIT_AS caps VIRTUAL address space, not RSS. V8 reserves a multi-GB
+//     cage regardless of heap use, so 256 MiB is fatal at boot:
+//     "Fatal process out of memory: Failed to reserve virtual memory for
+//     CodeRange". The Go runtime reserves large arenas too. Any AS value loose
+//     enough for node would never bind before the RSS sweep does.
+//
+// Per-plugin memory and PID quotas stay where they work: the resource monitor
+// polls /proc per process (procRSSBytes / procThreads) and kills on overrun.
+// The launcher flags themselves are kept - an operator running a single
+// non-node plugin on a dedicated uid can still pass them by hand.
+func assertNoRlimitFlags(t *testing.T, args []string) {
+	t.Helper()
+	assert.Equal(t, -1, slices.Index(args, "-rlimit-as"),
+		"-rlimit-as must not be injected: it caps virtual address space, which V8 reserves in GB")
+	assert.Equal(t, -1, slices.Index(args, "-rlimit-nproc"),
+		"-rlimit-nproc must not be injected: it is per-UID and counts the server's own threads")
+}
+
+func TestApplySandbox_Landlock_DoesNotInjectRlimits(t *testing.T) {
 	t.Setenv("EVEY_PLUGIN_LAUNCHER", "/bin/true")
 
 	r := NewRunner().WithSandboxMode(sandboxModeLandlock).WithAllowMissingSandbox(true)
@@ -31,27 +62,19 @@ func TestApplySandbox_Landlock_InjectsLauncherRlimits(t *testing.T) {
 		cleanup()
 	}
 
-	asIdx := slices.Index(cmd.Args, "-rlimit-as")
-	require.GreaterOrEqual(t, asIdx, 0, "-rlimit-as must be present")
-	assert.Equal(t, strconv.FormatInt(123*1024*1024, 10), cmd.Args[asIdx+1])
+	assertNoRlimitFlags(t, cmd.Args)
 
-	nprocIdx := slices.Index(cmd.Args, "-rlimit-nproc")
-	require.GreaterOrEqual(t, nprocIdx, 0, "-rlimit-nproc must be present")
-	assert.Equal(t, "42", cmd.Args[nprocIdx+1])
-
+	// The launcher wrapping itself must stay intact - only the rlimit flags go.
 	sep := slices.Index(cmd.Args, "--")
-	require.GreaterOrEqual(t, sep, 0)
-	assert.Less(t, asIdx, sep, "-rlimit-as must precede the -- separator (it is a launcher flag)")
-	assert.Less(t, nprocIdx, sep, "-rlimit-nproc must precede the -- separator (it is a launcher flag)")
-
-	// The original command stays intact at the tail.
+	require.GreaterOrEqual(t, sep, 0, "launcher argv must still carry the -- separator")
 	assert.Equal(t, "/usr/bin/node", cmd.Args[len(cmd.Args)-2])
 	assert.Equal(t, "/data/plugins/weather/main.js", cmd.Args[len(cmd.Args)-1])
 }
 
-// TestApplySandbox_BasicWithLauncher_InjectsRlimits covers the other launcher-
-// backed path (sandbox_mode=basic, launcher available): same caps must apply.
-func TestApplySandbox_BasicWithLauncher_InjectsRlimits(t *testing.T) {
+// TestApplySandbox_BasicWithLauncher_DoesNotInjectRlimits covers the other
+// launcher-backed path (sandbox_mode=basic, launcher available). It shares the
+// uid with the server just as often, so it carries the same hazard.
+func TestApplySandbox_BasicWithLauncher_DoesNotInjectRlimits(t *testing.T) {
 	t.Setenv("EVEY_PLUGIN_LAUNCHER", "/bin/true")
 
 	r := NewRunner().WithSandboxMode(sandboxModeBasic).WithAllowMissingSandbox(true)
@@ -62,32 +85,18 @@ func TestApplySandbox_BasicWithLauncher_InjectsRlimits(t *testing.T) {
 	_, err := r.applySandbox(context.Background(), p, cmd)
 	require.NoError(t, err)
 
-	asIdx := slices.Index(cmd.Args, "-rlimit-as")
-	require.GreaterOrEqual(t, asIdx, 0, "-rlimit-as must be present under basic+launcher too")
-	assert.Equal(t, strconv.FormatInt(64*1024*1024, 10), cmd.Args[asIdx+1])
-	nprocIdx := slices.Index(cmd.Args, "-rlimit-nproc")
-	require.GreaterOrEqual(t, nprocIdx, 0)
-	assert.Equal(t, "8", cmd.Args[nprocIdx+1])
+	assertNoRlimitFlags(t, cmd.Args)
 }
 
-// TestApplySandbox_Landlock_RlimitsUseConfiguredDefaults proves the injected
-// values come from the SAME defaulted source checkResources() reads (no
-// separate hardcoded constant): with no explicit WithResourceLimits call, the
-// launcher must receive the package defaults (defaultMemBytes/defaultPIDsMax).
-func TestApplySandbox_Landlock_RlimitsUseConfiguredDefaults(t *testing.T) {
-	t.Setenv("EVEY_PLUGIN_LAUNCHER", "/bin/true")
+// TestResourceMonitor_StillCarriesTheQuotas pins the replacement contract: the
+// caps are not lost, they live in the userspace sweep. Without this, dropping
+// the rlimit injection could be mistaken for dropping the quota itself.
+func TestResourceMonitor_StillCarriesTheQuotas(t *testing.T) {
+	r := NewRunner()
+	r.WithResourceLimits(123*1024*1024, 42)
 
-	r := NewRunner().WithSandboxMode(sandboxModeLandlock).WithAllowMissingSandbox(true)
-	p := &plugin.Plugin{ID: "weather", InstallDir: "/data/plugins/weather"}
-	cmd := exec.Command("/usr/bin/node", "/data/plugins/weather/main.js")
-
-	_, err := r.applySandbox(context.Background(), p, cmd)
-	require.NoError(t, err)
-
-	asIdx := slices.Index(cmd.Args, "-rlimit-as")
-	require.GreaterOrEqual(t, asIdx, 0)
-	assert.Equal(t, strconv.FormatInt(defaultMemBytes, 10), cmd.Args[asIdx+1])
-	nprocIdx := slices.Index(cmd.Args, "-rlimit-nproc")
-	require.GreaterOrEqual(t, nprocIdx, 0)
-	assert.Equal(t, strconv.Itoa(defaultPIDsMax), cmd.Args[nprocIdx+1])
+	lim, _, _ := r.limitsSnapshot()
+	cfg := lim.defaults()
+	assert.Equal(t, int64(123*1024*1024), cfg.memBytes, "RSS quota must survive for checkResources")
+	assert.Equal(t, 42, cfg.pidsMax, "PID quota must survive for checkResources")
 }

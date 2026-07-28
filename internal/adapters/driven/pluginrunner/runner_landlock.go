@@ -101,6 +101,22 @@ func buildLauncherArgv(launcher string, p *plugin.Plugin, cmd *exec.Cmd, require
 	// no-op. AF_UNIX (the host broker socket) is untouched.
 	args = append(args, "-seccomp", "-deny-inet")
 
+	// -deny-fork: refuse process creation (fork/vfork, and clone without
+	// CLONE_THREAD) in the kernel. This is the half of the resource story an
+	// rlimit cannot do - the userspace sweep polls /proc every ~2s, and a fork
+	// bomb saturates the PID table long before the next tick. Thread creation
+	// stays allowed, so node/python/Go runtimes are untouched.
+	//
+	// Gated on the SAME permission that already governs the LD_PRELOAD shim: a
+	// plugin declaring "subprocess" is asking to spawn children and keeps the
+	// right to. Without it, execve is already denied by libevey-sandbox.so, so
+	// forking could only ever clone the plugin itself - no legitimate use, and
+	// the analyzer flags the imports that lead there (child_process, os.popen)
+	// at upload time so the author learns which permission to declare.
+	if !slices.Contains(p.Permissions, subprocessPerm) {
+		args = append(args, "-deny-fork")
+	}
+
 	// Drop to the dedicated plugin uid (distinct from the server) when uid
 	// separation is on and the server is non-root; the launcher carries
 	// cap_setuid for this. dropUID==0 leaves the plugin at the server's uid.

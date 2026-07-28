@@ -71,6 +71,7 @@ type config struct {
 
 	seccomp  bool // install the kernel seccomp denylist before exec
 	denyInet bool // also EPERM socket(AF_INET/AF_INET6) - no TCP/UDP egress
+	denyFork bool // also EPERM process creation (threads stay allowed)
 }
 
 func main() {
@@ -116,6 +117,7 @@ func run(argv []string) int {
 	require := fs.Bool("require-landlock", false, "exit non-zero if Landlock cannot be enforced (fail closed)")
 	seccompFlag := fs.Bool("seccomp", false, "install a kernel seccomp denylist (ptrace/mount/unshare/kill/…) before exec")
 	denyInetFlag := fs.Bool("deny-inet", false, "also EPERM socket(AF_INET/AF_INET6): block all TCP/UDP egress (no network permission)")
+	denyForkFlag := fs.Bool("deny-fork", false, "also EPERM process creation - fork/vfork and clone without CLONE_THREAD (threads keep working; use for plugins without the subprocess permission)")
 	uidFlag := fs.Int("uid", 0, "setuid to this uid before exec (0 = no drop; needs the cap_setuid file capability or a root parent)")
 	gidFlag := fs.Int("gid", 0, "setgid to this (shared) gid before exec; used with -uid")
 	uidBestEffort := fs.Bool("uid-besteffort", false, "if the uid drop fails, warn and run as the server uid instead of refusing (the plugin stays confined by the other layers)")
@@ -137,6 +139,7 @@ func run(argv []string) int {
 		netConnectPorts: netConnect,
 		seccomp:         *seccompFlag,
 		denyInet:        *denyInetFlag,
+		denyFork:        *denyForkFlag,
 	}
 
 	// Privilege drop FIRST: before any OS thread is locked and before seccomp
@@ -182,7 +185,7 @@ func run(argv []string) int {
 	// without seccomp degrades to Landlock + the LD_PRELOAD shim rather than
 	// refusing to run. The filter is inherited across execve into the plugin.
 	if cfg.seccomp {
-		if err := applySeccomp(cfg.denyInet); err != nil {
+		if err := applySeccomp(cfg.denyInet, cfg.denyFork); err != nil {
 			fmt.Fprintf(os.Stderr, "evey-plugin-launcher: WARNING seccomp filter not installed: %v\n", err)
 		}
 	}

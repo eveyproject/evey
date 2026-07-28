@@ -20,6 +20,8 @@ const (
 	bpfJA  = 0x00
 	bpfK   = 0x00
 	bpfRET = 0x06
+	bpfALU = 0x04
+	bpfAND = 0x50
 )
 
 // struct seccomp_data field offsets (nr __u32 @0, arch __u32 @4, args[0] __u64
@@ -36,6 +38,7 @@ const (
 	retErrno       = 0x00050000 // SECCOMP_RET_ERRNO (| errno)
 	retAllow       = 0x7fff0000 // SECCOMP_RET_ALLOW
 	epermData      = 1          // EPERM, fits in SECCOMP_RET_DATA
+	enosysData     = 38         // ENOSYS, fits in SECCOMP_RET_DATA
 )
 
 const (
@@ -70,7 +73,14 @@ func deniedSyscalls() []uint32 {
 // (the kernel equivalent of bubblewrap's --unshare-net: a plugin without the
 // network permission cannot open a TCP/UDP socket at all, so IP-literal egress
 // can't sidestep the DNS allowlist). AF_UNIX is untouched so HostService gRPC works.
-func buildSeccompFilter(denyInet bool) []unix.SockFilter {
+//
+// denyFork refuses PROCESS creation while leaving THREAD creation alone, which
+// is what makes it safe to apply to every plugin that has not asked for the
+// "subprocess" permission: node, python and Go all create threads and none of
+// them needs to fork to run. It is the kernel-hard cap the userspace resource
+// sweep cannot provide (it polls every ~2s; a fork bomb is faster than that).
+// See appendDenyForkRules for the per-syscall reasoning.
+func buildSeccompFilter(denyInet, denyFork bool) []unix.SockFilter {
 	f := []unix.SockFilter{
 		{Code: bpfLD | bpfW | bpfABS, K: offArch},
 		{Code: bpfJMP | bpfJEQ | bpfK, Jt: 1, Jf: 0, K: auditArch}, // arch ok → skip kill
@@ -95,8 +105,52 @@ func buildSeccompFilter(denyInet bool) []unix.SockFilter {
 			unix.SockFilter{Code: bpfRET | bpfK, K: retErrno | epermData},
 		)
 	}
+	if denyFork {
+		f = appendDenyForkRules(f)
+	}
 	f = append(f, unix.SockFilter{Code: bpfRET | bpfK, K: retAllow})
 	return f
+}
+
+// appendDenyForkRules blocks the three ways a process is created on Linux while
+// leaving pthread_create working. Each block is self-contained (local jump
+// offsets only), so it composes with the denylist above and the final ALLOW.
+//
+// clone3 gets ENOSYS, NOT EPERM. Seccomp cannot dereference the struct
+// clone_args pointer clone3 takes, so its flags are invisible to a classic-BPF
+// filter and the syscall cannot be inspected the way clone(2) can. ENOSYS is
+// the contract glibc >= 2.34 already handles: pthread_create tries clone3 first
+// and falls back to clone(2) when the kernel reports it missing (the same trick
+// Docker's default profile uses). EPERM here would abort thread creation and
+// break every node and python plugin - exactly the class of breakage this whole
+// change exists to undo.
+//
+// fork/vfork carry no flags to inspect and are always a new process, so they
+// are denied outright. They only exist on some arches (arm64 has neither;
+// glibc goes through clone there), hence the per-arch list.
+//
+// clone(2) is the one that needs argument inspection: the SAME syscall creates
+// a thread and a process, told apart by CLONE_THREAD in args[0]. Allow it set,
+// deny it clear.
+func appendDenyForkRules(f []unix.SockFilter) []unix.SockFilter {
+	f = append(f,
+		unix.SockFilter{Code: bpfJMP | bpfJEQ | bpfK, Jt: 0, Jf: 1, K: uint32(unix.SYS_CLONE3)},
+		unix.SockFilter{Code: bpfRET | bpfK, K: retErrno | enosysData},
+	)
+	for _, nr := range legacyForkSyscalls() {
+		f = append(f,
+			unix.SockFilter{Code: bpfJMP | bpfJEQ | bpfK, Jt: 0, Jf: 1, K: nr},
+			unix.SockFilter{Code: bpfRET | bpfK, K: retErrno | epermData},
+		)
+	}
+	return append(f,
+		unix.SockFilter{Code: bpfJMP | bpfJEQ | bpfK, Jt: 0, Jf: 5, K: uint32(unix.SYS_CLONE)}, // not clone → ALLOW
+		unix.SockFilter{Code: bpfLD | bpfW | bpfABS, K: offArg0},                                // A = clone flags (low 32)
+		unix.SockFilter{Code: bpfALU | bpfAND | bpfK, K: uint32(unix.CLONE_THREAD)},
+		unix.SockFilter{Code: bpfJMP | bpfJEQ | bpfK, Jt: 1, Jf: 0, K: 0}, // CLONE_THREAD clear → EPERM
+		unix.SockFilter{Code: bpfJMP | bpfJA, K: 1},                       // thread → ALLOW
+		unix.SockFilter{Code: bpfRET | bpfK, K: retErrno | epermData},
+	)
 }
 
 // applySeccomp installs the denylist on the CALLING thread. It must be the last
@@ -104,12 +158,12 @@ func buildSeccompFilter(denyInet bool) []unix.SockFilter {
 // the exec-ing thread is constrained here - which is correct, because execve
 // preserves the filter into the (single-threaded) plugin image, and the rest of
 // the launcher's Go runtime threads stay unfiltered until they're replaced.
-func applySeccomp(denyInet bool) error {
+func applySeccomp(denyInet, denyFork bool) error {
 	runtime.LockOSThread()
 	if err := unix.Prctl(unix.PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0); err != nil {
 		return fmt.Errorf("PR_SET_NO_NEW_PRIVS: %w", err)
 	}
-	filter := buildSeccompFilter(denyInet)
+	filter := buildSeccompFilter(denyInet, denyFork)
 	prog := unix.SockFprog{Len: uint16(len(filter)), Filter: &filter[0]}
 	err := unix.Prctl(unix.PR_SET_SECCOMP, uintptr(unix.SECCOMP_MODE_FILTER), uintptr(unsafe.Pointer(&prog)), 0, 0)
 	runtime.KeepAlive(&prog)

@@ -24,6 +24,9 @@ func TestLauncherSeccomp(t *testing.T) {
 		seccompChild(true)
 		return
 	}
+	// Process creation has its own end-to-end probe behind a real launcher exec
+	// (denyfork_linux_test.go): it needs the filter to be INHERITED across
+	// execve, which this in-process child cannot show.
 
 	for _, tc := range []struct{ name, mode string }{
 		{"base denylist", "base"},
@@ -38,7 +41,7 @@ func TestLauncherSeccomp(t *testing.T) {
 }
 
 func seccompChild(denyInet bool) {
-	if err := applySeccomp(denyInet); err != nil {
+	if err := applySeccomp(denyInet, false); err != nil {
 		fmt.Fprintf(os.Stderr, "applySeccomp: %v\n", err)
 		os.Exit(10)
 	}

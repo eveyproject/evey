@@ -4,6 +4,7 @@
 #include <linux/audit.h>
 #include <sys/prctl.h>
 #include <sys/syscall.h>
+#include <sched.h>
 #include <stddef.h>
 #include <errno.h>
 
@@ -54,6 +55,12 @@
 #endif
 #ifndef __NR_tgkill
 #define __NR_tgkill 234
+#endif
+#ifndef __NR_clone3
+#define __NR_clone3 435
+#endif
+#ifndef CLONE_THREAD
+#define CLONE_THREAD 0x00010000
 #endif
 
 /*
@@ -165,6 +172,36 @@ static struct sock_filter filter[] = {
     DENY(__NR_add_key),
     DENY(__NR_request_key),
     DENY(__NR_keyctl),
+
+    /* Process creation - LAST, because the clone block below loads args[0] into
+     * A and every DENY above needs A to still hold the syscall number.
+     *
+     * This library is preloaded ONLY into plugins that did not ask for the
+     * "subprocess" permission, and execve is already denied for them above:
+     * forking could therefore never do anything but duplicate the plugin
+     * itself, which is the fork-bomb primitive and nothing else. Threads stay
+     * allowed, so node/python/Go runtimes are unaffected.
+     *
+     * clone3 gets ENOSYS, not EPERM: seccomp cannot dereference the struct
+     * clone_args pointer it takes, so its flags are invisible here. ENOSYS
+     * makes glibc >= 2.34 fall back to clone(2) - which we CAN inspect - and
+     * pthread_create keeps working. EPERM would break every threaded runtime. */
+    BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_clone3, 0, 1),
+    BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | (ENOSYS & SECCOMP_RET_DATA)),
+#ifdef __NR_fork
+    DENY(__NR_fork),
+#endif
+#ifdef __NR_vfork
+    DENY(__NR_vfork),
+#endif
+    /* clone(2): the same syscall makes a thread or a process, told apart by
+     * CLONE_THREAD in args[0]. Allow it set, deny it clear. */
+    BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_clone, 0, 5),                        /* [0] not clone → ALLOW */
+    BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, args[0])),   /* [1] A = flags (low 32) */
+    BPF_STMT(BPF_ALU | BPF_AND | BPF_K, CLONE_THREAD),                            /* [2] A &= CLONE_THREAD */
+    BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 0, 1, 0),                                 /* [3] clear? → [5] deny */
+    BPF_STMT(BPF_JMP | BPF_JA, 1),                                                /* [4] thread → ALLOW */
+    BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | (EPERM & SECCOMP_RET_DATA)),    /* [5] deny */
 
     BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
 };

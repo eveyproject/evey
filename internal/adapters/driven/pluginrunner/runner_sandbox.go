@@ -8,7 +8,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
-	"strconv"
 	"syscall"
 
 	"github.com/evey-project/evey/internal/domain/plugin"
@@ -32,11 +31,7 @@ func (r *Runner) applySandbox(parentCtx context.Context, p *plugin.Plugin, cmd *
 	case sandboxModeBubblewrap, sandboxModeStrict:
 		return r.applyBwrapSandbox(parentCtx, p, cmd, mode)
 	case sandboxModeLandlock:
-		cleanup, err := r.applyLandlockSandbox(parentCtx, p, cmd)
-		if err == nil {
-			r.injectLauncherRlimits(cmd)
-		}
-		return cleanup, err
+		return r.applyLandlockSandbox(parentCtx, p, cmd)
 	default:
 		return nil, r.applyBasicSandbox(parentCtx, p, cmd)
 	}
@@ -78,7 +73,6 @@ func (r *Runner) applyBasicSandbox(parentCtx context.Context, p *plugin.Plugin, 
 		cmd.Path = launcher
 		du, dg := r.pluginDropArgs(true)                              // basic = the case uid-sep protects ("auto" enables here)
 		cmd.Args = buildLauncherArgv(launcher, p, cmd, false, du, dg) // best-effort Landlock
-		r.injectLauncherRlimits(cmd)
 		cmd.Env = overrideEnv(cmd.Env, map[string]string{"HOME": pluginDir, "TMPDIR": pluginDir})
 		launcherApplied = true
 	} else {
@@ -188,37 +182,30 @@ func (r *Runner) applyBwrapSandbox(parentCtx context.Context, p *plugin.Plugin, 
 	return nil, nil
 }
 
-// injectLauncherRlimits splices evey-plugin-launcher's own -rlimit-as/
-// -rlimit-nproc flags into an already-built launcher argv (landlock mode, or
-// basic mode when the launcher is available). The launcher applies these via
-// unix.Setrlimit on itself right before its own execve of the plugin
-// (cmd/evey-plugin-launcher/landlock_linux.go), so the kernel-hard ceiling
-// survives into the plugin process with zero extra exec hops. That matters:
-// Go's os/exec has no SysProcAttr hook to set rlimits on a child directly, and
-// wrapping the target in a "sh -c 'ulimit ...; exec ...'" shim would add an
-// execve the seccomp/LD_PRELOAD denylist installed for non-"subprocess"
-// plugins would itself block (sandbox/sandbox.c denies execve/execveat).
-// Reuses the SAME memory/PID caps the resource monitor already enforces
-// post-hoc (r.limitsSnapshot) - one source of truth, so the hard kernel cap
-// and the userspace sweep never disagree.
+// Deliberately absent: an injection of the launcher's -rlimit-as/-rlimit-nproc
+// flags derived from the resource monitor's quota. It shipped on 2026-07-28 and
+// took weather-v2 (nodejs) down at every boot in production; both flags are the
+// wrong kernel primitive for a per-plugin quota, and the launcher's own flag
+// help already said so ("risky for node", "per-UID, leaks across plugins").
 //
-// Bubblewrap (plain and "strict") and the basic mode's LD_PRELOAD-only
-// fallback (launcher absent) are NOT covered here: bwrap has no native rlimit
-// option, and the same execve-denylist conflict rules out a shell shim there
-// too. That gap is a known follow-up, not silently swallowed.
-func (r *Runner) injectLauncherRlimits(cmd *exec.Cmd) {
-	idx := slices.Index(cmd.Args, "--")
-	if idx < 0 {
-		return // defensive: buildLauncherArgv always appends "--"
-	}
-	lim, _, _ := r.limitsSnapshot()
-	cfg := lim.defaults()
-	flags := []string{
-		"-rlimit-as", strconv.FormatInt(cfg.memBytes, 10),
-		"-rlimit-nproc", strconv.Itoa(cfg.pidsMax),
-	}
-	cmd.Args = slices.Insert(cmd.Args, idx, flags...)
-}
+//   - RLIMIT_NPROC counts every task of the REAL UID, host-wide. Under Landlock
+//     the plugin keeps the server's uid (pluginDropArgs(false) returns 0,0
+//     unless uid-sep is "on"), so a 64-task cap is measured against the server's
+//     own thread count, which is already far past it: the launcher's next
+//     clone() returned EAGAIN and it died with "fatal error: newosproc" before
+//     ever exec'ing the plugin. No fixed value can work either - the baseline
+//     moves with every ffmpeg and library scan.
+//   - RLIMIT_AS caps VIRTUAL address space, not RSS. V8 reserves multi-GB
+//     regardless of heap use, so 256 MiB is fatal at startup ("Failed to
+//     reserve virtual memory for CodeRange"); the Go runtime reserves large
+//     arenas too. Any value loose enough for node sits above the host's RAM and
+//     would never bind before the RSS sweep does.
+//
+// The per-plugin quotas live where the semantics are right: checkResources
+// polls /proc per process (procRSSBytes / procThreads) and kills on overrun.
+// The kernel-hard half of the belt-and-braces is the seccomp process-creation
+// denial (-deny-fork, buildLauncherArgv), which caps the fork bomb the sweep's
+// ~2s poll window would otherwise miss. See runner_rlimit_test.go.
 
 func pluginSysProcAttr() *syscall.SysProcAttr {
 	a := &syscall.SysProcAttr{
