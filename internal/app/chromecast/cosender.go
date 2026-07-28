@@ -1,11 +1,23 @@
 package chromecast
 
 import (
+	"context"
 	"log/slog"
 	"sync"
 	"time"
 
 	domaincast "github.com/evey-project/evey/internal/domain/chromecast"
+)
+
+const (
+	// probeFallbackTimeout bounds one /24 sweep (254 dials at 400ms, 64 wide:
+	// ~2s nominal; the margin covers a congested Wi-Fi).
+	probeFallbackTimeout = 15 * time.Second
+	// emptyAppRelease is how many consecutive "no application at all" status
+	// reads are tolerated before the seat is released. At the default 30s
+	// interval this is 2 minutes - enough for any receiver boot or teardown
+	// blip, short enough not to pin an idle TV.
+	emptyAppRelease = 4
 )
 
 // CoSender keeps this server attached as a SECOND Cast sender on TVs that are
@@ -38,6 +50,7 @@ import (
 // tests pin that property.
 type CoSender struct {
 	factory  domaincast.SessionFactory
+	prober   domaincast.SubnetProber
 	appID    string
 	interval time.Duration
 	cooldown time.Duration
@@ -67,6 +80,15 @@ func WithCoSenderInterval(d time.Duration) CoSenderOption {
 // without a cooldown that is one doomed TLS dial per beacon.
 func WithCoSenderFailureCooldown(d time.Duration) CoSenderOption {
 	return func(c *CoSender) { c.cooldown = d }
+}
+
+// WithCoSenderProber arms the subnet fallback: when the beacon address does
+// not answer on the cast port, its /24 is scanned instead. Measured in prod
+// (2026-07-28 21:19): hairpin NAT hands us the ROUTER's address
+// (192.168.1.254), useless as a dial target - but its /24 is exactly where
+// the TV lives, and the picker's prober already knows how to walk it.
+func WithCoSenderProber(p domaincast.SubnetProber) CoSenderOption {
+	return func(c *CoSender) { c.prober = p }
 }
 
 // NewCoSender builds a co-sender for the Evey receiver app id.
@@ -136,23 +158,29 @@ func (c *CoSender) Close() {
 	c.wg.Wait()
 }
 
-// run owns the whole lifecycle of one device connection: connect, keepalive,
-// release. It never touches media.
+// releaseSlot frees addr so a later beacon can re-attach (next episode, TV
+// back on the network...). Only OUR registration is removed: a Detach+Attach
+// race may already have installed a fresh loop under the same address.
+func (c *CoSender) releaseSlot(addr string, stop <-chan struct{}) {
+	c.mu.Lock()
+	if ch, ok := c.active[addr]; ok && ch == stop {
+		delete(c.active, addr)
+	}
+	c.mu.Unlock()
+}
+
+func (c *CoSender) noteFailure(addr string) {
+	c.mu.Lock()
+	c.lastFail[addr] = time.Now()
+	c.mu.Unlock()
+}
+
+// run owns the lifecycle of the connection triggered by a beacon: connect,
+// keepalive, release. When the beacon address itself is not a cast device
+// (hairpin NAT hands us the router), it falls back to probing the /24.
 func (c *CoSender) run(addr string, stop <-chan struct{}) {
 	defer c.wg.Done()
-	defer func() {
-		// Whatever the exit path, the slot must free so a later beacon can
-		// re-attach (next episode, TV back on the network...).
-		c.mu.Lock()
-		if ch, ok := c.active[addr]; ok {
-			// Only remove OUR registration: a Detach+Attach race may already
-			// have installed a fresh loop under the same address.
-			if ch == stop {
-				delete(c.active, addr)
-			}
-		}
-		c.mu.Unlock()
-	}()
+	defer c.releaseSlot(addr, stop)
 
 	sess, err := c.factory.Connect(domaincast.Device{
 		UUID: "cosender-" + addr,
@@ -161,12 +189,79 @@ func (c *CoSender) run(addr string, stop <-chan struct{}) {
 		Port: castPort,
 	})
 	if err != nil {
-		c.mu.Lock()
-		c.lastFail[addr] = time.Now()
-		c.mu.Unlock()
-		slog.Info("cast co-sender: connect failed", slog.String("addr", addr), slog.Any("err", err))
+		c.noteFailure(addr)
+		slog.Info("cast co-sender: connect failed, probing subnet", slog.String("addr", addr), slog.Any("err", err))
+		c.probeFallback(addr)
 		return
 	}
+	c.keepAlive(addr, sess, stop)
+}
+
+// probeFallback scans the /24 around hint for cast devices and seats the
+// co-sender on every one that is running OUR receiver. The app-id check is
+// what keeps this honest: a neighbour's Chromecast on the same LAN answers
+// the port scan too, and we must neither hold a seat on it nor ever touch
+// its playback.
+func (c *CoSender) probeFallback(hint string) {
+	if c.prober == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), probeFallbackTimeout)
+	defer cancel()
+	devices, err := c.prober.ProbeSubnet(ctx, hint)
+	if err != nil {
+		slog.Info("cast co-sender: subnet probe failed", slog.String("hint", hint), slog.Any("err", err))
+		return
+	}
+	for _, dev := range devices {
+		if dev.Addr == hint {
+			continue // just failed to connect to it
+		}
+		c.attachVerified(dev)
+	}
+}
+
+// attachVerified connects to a probed device, keeps the seat only if the Evey
+// receiver is what's running there, and hands the session to the keepalive
+// loop under the device's REAL address.
+func (c *CoSender) attachVerified(dev domaincast.Device) {
+	c.mu.Lock()
+	if c.closed {
+		c.mu.Unlock()
+		return
+	}
+	if _, running := c.active[dev.Addr]; running {
+		c.mu.Unlock()
+		return
+	}
+	stop := make(chan struct{})
+	c.active[dev.Addr] = stop
+	c.mu.Unlock()
+
+	sess, err := c.factory.Connect(dev)
+	if err != nil {
+		c.releaseSlot(dev.Addr, stop)
+		return
+	}
+	st, err := sess.Status()
+	if err != nil || st.AppID != c.appID {
+		// Not our receiver (or not readable): release immediately, without
+		// ever having sent anything but the status reads.
+		_ = sess.Close()
+		c.releaseSlot(dev.Addr, stop)
+		return
+	}
+	c.wg.Add(1)
+	go func() {
+		defer c.wg.Done()
+		defer c.releaseSlot(dev.Addr, stop)
+		c.keepAlive(dev.Addr, sess, stop)
+	}()
+}
+
+// keepAlive holds the sender seat until the session is over, the device is
+// gone, or Detach/Close asks for release. It never touches media.
+func (c *CoSender) keepAlive(addr string, sess domaincast.CastSession, stop <-chan struct{}) {
 	defer func() {
 		if err := sess.Close(); err != nil {
 			slog.Warn("cast co-sender: close failed", slog.String("addr", addr), slog.Any("err", err))
@@ -177,6 +272,7 @@ func (c *CoSender) run(addr string, stop <-chan struct{}) {
 	ticker := time.NewTicker(c.interval)
 	defer ticker.Stop()
 	fails := 0
+	emptyStreak := 0
 	for {
 		select {
 		case <-stop:
@@ -199,13 +295,25 @@ func (c *CoSender) run(addr string, stop <-chan struct{}) {
 			if err != nil {
 				continue
 			}
-			if st.AppID != "" && st.AppID != c.appID {
+			switch {
+			case st.AppID == "":
+				// No application reported at all (receiver page closed, not
+				// even the backdrop up yet): tolerate a boot/teardown blip,
+				// but never hold a seat on an idle TV forever.
+				emptyStreak++
+				if emptyStreak >= emptyAppRelease {
+					slog.Info("cast co-sender: no app on device, releasing", slog.String("addr", addr))
+					return
+				}
+			case st.AppID != c.appID:
 				// The user moved the TV to another app: holding a sender seat
 				// on someone else's session serves nothing and would keep the
 				// TV awake for no reason.
 				slog.Info("cast co-sender: another app took the TV, releasing",
 					slog.String("addr", addr), slog.String("app_id", st.AppID))
 				return
+			default:
+				emptyStreak = 0
 			}
 		}
 	}

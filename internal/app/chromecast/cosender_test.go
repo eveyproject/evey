@@ -260,3 +260,132 @@ func TestCoSenderCloseReleasesEverything(t *testing.T) {
 		return c1 && c2
 	})
 }
+
+// --- subnet-probe fallback (hairpin NAT) ---
+
+// Measured in prod on 2026-07-28 21:19: once the proxy chain forwarded a real
+// LAN address, it was the ROUTER's (192.168.1.254, hairpin NAT rewrites the
+// TV's source on the way through the public domain). The beacon address is
+// then useless as a dial target, but its /24 is exactly where the TV lives -
+// and the tcpSubnetProber already knows how to enumerate cast devices there.
+// The co-sender must fall back to it, and must only seat itself on devices
+// actually running OUR receiver.
+
+type coFakeProber struct {
+	mu      sync.Mutex
+	devices []domaincast.Device
+	err     error
+	calls   int
+	hints   []string
+}
+
+func (p *coFakeProber) ProbeSubnet(_ context.Context, clientIP string) ([]domaincast.Device, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.calls += 1
+	p.hints = append(p.hints, clientIP)
+	return p.devices, p.err
+}
+
+func (p *coFakeProber) callCount() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.calls
+}
+
+func TestCoSenderProbesSubnetWhenBeaconAddrIsNotACastDevice(t *testing.T) {
+	f := newCoFakeFactory()
+	f.fail["192.168.1.254"] = true // the router: hairpin NAT source
+	f.sessions["192.168.1.23"] = &coFakeSession{appID: eveyCastReceiverAppID} // the TV
+	f.sessions["192.168.1.40"] = &coFakeSession{appID: "CC1AD845"}           // neighbour on another app
+	prober := &coFakeProber{devices: []domaincast.Device{
+		{UUID: "tcp-192.168.1.23", Addr: "192.168.1.23", Port: 8009},
+		{UUID: "tcp-192.168.1.40", Addr: "192.168.1.40", Port: 8009},
+	}}
+	cs := NewCoSender(f,
+		WithCoSenderInterval(10*time.Millisecond),
+		WithCoSenderFailureCooldown(50*time.Millisecond),
+		WithCoSenderProber(prober),
+	)
+	defer cs.Close()
+
+	cs.Attach("192.168.1.254")
+
+	// The TV running our receiver gets a keepalive loop...
+	waitFor(t, func() bool {
+		sess := f.session("192.168.1.23")
+		if sess == nil {
+			return false
+		}
+		_, alive, _ := sess.snapshot()
+		return alive >= 2
+	})
+	// ...the neighbour running another app is released, untouched.
+	waitFor(t, func() bool { closed, _, _ := f.session("192.168.1.40").snapshot(); return closed })
+	_, _, media := f.session("192.168.1.40").snapshot()
+	if len(media) != 0 {
+		t.Fatalf("verify must be passive, got %v on the foreign device", media)
+	}
+	if prober.hints[0] != "192.168.1.254" {
+		t.Fatalf("probe hint = %q, want the beacon address", prober.hints[0])
+	}
+}
+
+func TestCoSenderProbeFailureLandsInCooldown(t *testing.T) {
+	f := newCoFakeFactory()
+	f.fail["192.168.1.254"] = true
+	prober := &coFakeProber{err: context.DeadlineExceeded}
+	cs := NewCoSender(f,
+		WithCoSenderInterval(10*time.Millisecond),
+		WithCoSenderFailureCooldown(time.Hour),
+		WithCoSenderProber(prober),
+	)
+	defer cs.Close()
+
+	cs.Attach("192.168.1.254")
+	waitFor(t, func() bool { return prober.callCount() == 1 })
+	// The next beacons must not re-probe within the cooldown: a probe is 254
+	// dials, not something to repeat every 30s.
+	cs.Attach("192.168.1.254")
+	cs.Attach("192.168.1.254")
+	time.Sleep(30 * time.Millisecond)
+	if got := prober.callCount(); got != 1 {
+		t.Fatalf("probe must be cooled down, got %d calls", got)
+	}
+}
+
+func TestCoSenderDoesNotProbeWhenDirectConnectWorks(t *testing.T) {
+	f := newCoFakeFactory()
+	prober := &coFakeProber{}
+	cs := NewCoSender(f,
+		WithCoSenderInterval(10*time.Millisecond),
+		WithCoSenderFailureCooldown(50*time.Millisecond),
+		WithCoSenderProber(prober),
+	)
+	defer cs.Close()
+
+	cs.Attach("192.168.1.23")
+	waitFor(t, func() bool { return f.connectCount("192.168.1.23") == 1 })
+	time.Sleep(30 * time.Millisecond)
+	if got := prober.callCount(); got != 0 {
+		t.Fatalf("no probe expected on a direct hit, got %d", got)
+	}
+}
+
+func TestCoSenderReleasesWhenAppVanishes(t *testing.T) {
+	f := newCoFakeFactory()
+	cs := newTestCoSender(f)
+	defer cs.Close()
+
+	cs.Attach("192.168.1.23")
+	waitFor(t, func() bool { return f.connectCount("192.168.1.23") == 1 })
+
+	// Receiver page closed, no application reported at all (not even the
+	// backdrop): an empty app id forever must not hold a seat forever.
+	sess := f.session("192.168.1.23")
+	sess.mu.Lock()
+	sess.appID = ""
+	sess.mu.Unlock()
+
+	waitFor(t, func() bool { closed, _, _ := sess.snapshot(); return closed })
+}
