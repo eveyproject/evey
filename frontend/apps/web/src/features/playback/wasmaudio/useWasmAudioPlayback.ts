@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { buildTranscodeHlsUrl } from "../hooks/hlsPlayerUtils";
 import { WasmAudioEngine } from "./WasmAudioEngine";
-import { extractAudioURI, injectToken } from "./wasmAudioShared";
+import { extractAacAudioURI, extractAudioURI, injectToken } from "./wasmAudioShared";
 
 // Compatibility re-export: the pure helpers live in wasmAudioShared
 // (shared with the Cast Web Receiver, which must not pull in React/hls.js).
@@ -76,9 +76,14 @@ export function useWasmAudioPlayback({
         }
         const base = new URL(masterUrl, window.location.origin);
         const playlistUrl = new URL(audioUri, base).toString();
+        // Bi-source relay: sound starts on the natively decoded AAC rendition
+        // while the wasm decoder boots, then hands over at a segment boundary.
+        // Absent tag (feature off, older server) = classic wasm-only start.
+        const aacUri = extractAacAudioURI(text);
         const engine = new WasmAudioEngine(video, playlistUrl, {
           resolveUrl: (u) => injectToken(u, streamTokenRef.current),
           onFatal: () => onFallbackRef.current(),
+          aacPlaylistUrl: aacUri ? new URL(aacUri, base).toString() : undefined,
         });
         engineRef.current = engine;
         await engine.start();

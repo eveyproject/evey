@@ -20,6 +20,22 @@ export function extractAudioURI(masterText: string): string | null {
   return null;
 }
 
+// extractAacAudioURI pulls the AAC relay rendition URI (#EVEY-AUDIO-AAC-URI)
+// out of the video-only master. Absent on servers whose audio-rendition
+// feature is off, or predating the relay: the engine then simply waits for the
+// wasm leg, the pre-relay behaviour.
+export function extractAacAudioURI(masterText: string): string | null {
+  for (const raw of masterText.split("\n")) {
+    const line = raw.trim();
+    if (line.startsWith("#EVEY-AUDIO-AAC-URI:")) {
+      const v = line.slice("#EVEY-AUDIO-AAC-URI:".length).trim();
+      const m = v.match(/^"(.*)"$/);
+      return m ? m[1] : v;
+    }
+  }
+  return null;
+}
+
 // injectToken replaces (or adds) the token query param on a URL with the current
 // value, mirroring hls.js's xhrSetup so a long buffer-ahead can't 401 on a token
 // that has since rotated. Segment URIs the audio playlist lists carry a baked

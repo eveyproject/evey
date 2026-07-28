@@ -18,6 +18,7 @@
 // stereo outputs) correctly; other channel counts pass straight through.
 
 import { AVLatencyEstimator } from "./avLatencyEstimator";
+import { AAC_SAMPLES_PER_FRAME, adtsFromFrames, extractAacFrames, parseAacConfig, type AacConfig } from "./fmp4Adts";
 
 const WASM_URL = "/wasm/ac3go.wasm";
 const WASM_EXEC_URL = "/wasm/wasm_exec.js";
@@ -37,18 +38,25 @@ const RESYNC_THRESHOLD_SEC = 0.3;
 const DEFAULT_LEAD_COMP_SEC = 0.1;
 const SCHEDULE_TICK_MS = 100;
 
-interface Segment {
+export interface Segment {
   url: string; // resolved, absolute
   start: number; // media start time (s)
   dur: number; // EXTINF (s)
+  // native marks a segment decoded by the browser (AAC rendition via
+  // decodeAudioData) instead of the wasm worker - the relay's first leg.
+  native?: boolean;
+  // trimSec skips the head of the segment: the relay's first AC-3 segment may
+  // start before the hand-over boundary, and only the part after it may play.
+  trimSec?: number;
 }
 
-interface DecodedSegment {
-  channels: number;
-  sampleRate: number;
-  frames: number;
-  pcm: Float32Array; // interleaved
-}
+// Two decode outputs: the wasm worker hands raw interleaved PCM (remapped to
+// the browser's channel order at schedule time); the native leg hands the
+// AudioBuffer decodeAudioData built (already browser-ordered), plus the
+// offset of the preroll samples to skip (see decodeNativeSegment).
+type DecodedSegment =
+  | { kind: "pcm"; channels: number; sampleRate: number; frames: number; pcm: Float32Array }
+  | { kind: "buffer"; audioBuffer: AudioBuffer; offsetSec: number };
 
 export interface WasmAudioEngineOptions {
   // resolveUrl rewrites a URL with the freshest auth token before every fetch,
@@ -58,6 +66,15 @@ export interface WasmAudioEngineOptions {
   // playlist is unreadable, decode errors on the very first segments). The host
   // should tear the engine down and fall back to the AAC transcode path.
   onFatal?: (reason: string) => void;
+  // aacPlaylistUrl enables the bi-source relay: the AAC rendition of the SAME
+  // track (master's #EVEY-AUDIO-AAC-URI), decoded NATIVELY (decodeAudioData)
+  // for sound within seconds while the wasm decoder boots; the engine then
+  // hands over to the AC-3 playlist at a segment boundary. Either leg failing
+  // latches the other; only both failing is fatal.
+  aacPlaylistUrl?: string;
+  // onModeChange reports relay leg transitions ("aac", "wasm", "aac-latched")
+  // - telemetry only, no behaviour.
+  onModeChange?: (mode: string) => void;
   leadCompensationSec?: number;
   // Credentials for playlist/segment fetches. The web (same-origin) keeps
   // "include" (hls cookie). The Cast Web Receiver is CROSS-origin with the
@@ -87,6 +104,40 @@ export function outputMix(channels: number): Array<Array<[number, number]>> {
   return Array.from({ length: channels }, (_, i) => [[i, 1]] as Array<[number, number]>);
 }
 
+// planRelayHandover computes the AAC->AC-3 hand-over as pure data: which
+// native segments to keep (a prefix - live/scheduled audio is never
+// un-scheduled) and the AC-3 tail, its first segment trimmed to the boundary.
+// The boundary is the end of the LAST scheduled native segment, or ct plus a
+// small runway when nothing is scheduled yet. Null = no hand-over possible
+// (the film ends before the boundary); the native leg finishes it. Exported
+// for unit testing.
+export function planRelayHandover(
+  nativeSegs: Segment[],
+  ac3Segs: Segment[],
+  scheduledIdx: Iterable<number>,
+  currentTime: number,
+): { segments: Segment[]; keepPrefix: number } | null {
+  let boundary = currentTime + 2;
+  for (const idx of scheduledIdx) {
+    const s = nativeSegs[idx];
+    if (s) boundary = Math.max(boundary, s.start + s.dur);
+  }
+  let keep = 0;
+  while (keep < nativeSegs.length && nativeSegs[keep].start < boundary - 1e-3) keep++;
+  if (keep > 0) {
+    // Kept native segments play out in full: the boundary must sit at the last
+    // one's END, or its tail would overlap the trimmed AC-3 head.
+    const last = nativeSegs[keep - 1];
+    boundary = Math.max(boundary, last.start + last.dur);
+  }
+  const k = ac3Segs.findIndex((s) => s.start + s.dur > boundary + 1e-3);
+  if (k < 0) return null;
+  const tail = ac3Segs.slice(k).map((s, i) =>
+    i === 0 && s.start < boundary ? { ...s, trimSec: boundary - s.start } : s,
+  );
+  return { segments: [...nativeSegs.slice(0, keep), ...tail], keepPrefix: keep };
+}
+
 export class WasmAudioEngine {
   private readonly video: HTMLVideoElement;
   private readonly playlistUrl: string;
@@ -104,6 +155,23 @@ export class WasmAudioEngine {
   private gain: GainNode | null = null;
 
   private segments: Segment[] = [];
+  // Relay state. nativeState: "off" (classic wasm-only run), "active" (AAC leg
+  // is the current source), "failed" (latched off). wasmState: "pending" while
+  // the worker boots, "ready", "failed" (latched off - AAC keeps playing).
+  private nativeState: "off" | "active" | "failed" = "off";
+  private wasmState: "pending" | "ready" | "failed" = "pending";
+  private aacCfg: AacConfig | null = null;
+  private ac3Segments: Segment[] = [];
+  private switched = false;
+  // Timeline generation: bumped whenever this.segments is REPLACED (the
+  // hand-over, a leg failure). In-flight decodes captured under an older
+  // generation are discarded - their index points into a stale array.
+  private timelineGen = 0;
+  // Preroll cache: the last AAC frames of the most recently decoded native
+  // segment. Decoding segment N with the tail of N-1 prepended (then skipping
+  // those samples) gives the MDCT overlap its left context - without it every
+  // 3s boundary carries an audible ~20ms attack glitch.
+  private prerollCache: { idx: number; frames: Uint8Array[] } | null = null;
 
   private anchored = false;
   private anchorCtx = 0;
@@ -165,26 +233,47 @@ export class WasmAudioEngine {
     if (this.started || this.destroyed) return;
     this.started = true;
     try {
-      await this.loadPlaylist();
-      if (this.destroyed) return;
-      await this.initWorker();
+      if (this.opts.aacPlaylistUrl && (await this.startNativeLeg(this.opts.aacPlaylistUrl))) {
+        // Relay: sound rides the AAC leg NOW; the wasm leg boots in the
+        // background and takes over at a segment boundary once ready.
+        this.nativeState = "active";
+        void this.bootWasmLeg();
+      } else {
+        // Classic wasm-only run (or the AAC leg refused): everything must be
+        // up before scheduling starts.
+        await this.initWorker();
+        if (this.destroyed) return;
+        const { segs } = await this.loadPlaylist(this.playlistUrl);
+        this.segments = segs;
+        this.wasmState = "ready";
+      }
       if (this.destroyed) return;
       this.initAudio();
       this.attachVideoEvents();
       this.startScheduling();
+      this.opts.onModeChange?.(this.mode());
     } catch (err) {
       this.fatal(err instanceof Error ? err.message : String(err));
     }
   }
 
+  // mode reports the live source for telemetry: "aac" (native leg playing,
+  // wasm still booting), "wasm" (wasm leg playing - classic or post-handover),
+  // "aac-latched" (wasm failed, native carries the whole film).
+  mode(): string {
+    if (this.nativeState === "active") return this.wasmState === "failed" ? "aac-latched" : this.switched ? "wasm" : "aac";
+    return "wasm";
+  }
+
   // --- playlist -----------------------------------------------------------
 
-  private async loadPlaylist(): Promise<void> {
-    const resp = await fetch(this.resolve(this.playlistUrl), { credentials: this.opts.credentials ?? "include" });
+  private async loadPlaylist(url: string): Promise<{ segs: Segment[]; mapUri: string | null }> {
+    const resp = await fetch(this.resolve(url), { credentials: this.opts.credentials ?? "include" });
     if (!resp.ok) throw new Error(`audio playlist ${resp.status}`);
     const text = await resp.text();
-    const base = new URL(this.playlistUrl, window.location.origin);
+    const base = new URL(url, window.location.origin);
     const segs: Segment[] = [];
+    let mapUri: string | null = null;
     let start = 0;
     let pendingDur = 0;
     for (const raw of text.split("\n")) {
@@ -194,14 +283,117 @@ export class WasmAudioEngine {
         pendingDur = parseFloat(line.slice("#EXTINF:".length)) || 0;
         continue;
       }
-      if (line.startsWith("#")) continue; // EXT-X-MAP etc. - the init rides EXT-X-MAP, which the demuxer does not need per-segment (samples are self-describing)
-      const url = new URL(line, base).toString();
-      segs.push({ url, start, dur: pendingDur });
+      if (line.startsWith("#EXT-X-MAP:")) {
+        // The AC-3 demuxer never needs the init (samples are self-describing),
+        // but the native AAC leg does: its AudioSpecificConfig lives there.
+        const m = line.match(/URI="([^"]+)"/);
+        if (m) mapUri = new URL(m[1], base).toString();
+        continue;
+      }
+      if (line.startsWith("#")) continue;
+      const url2 = new URL(line, base).toString();
+      segs.push({ url: url2, start, dur: pendingDur });
       start += pendingDur;
       pendingDur = 0;
     }
     if (segs.length === 0) throw new Error("audio playlist has no segments");
+    return { segs, mapUri };
+  }
+
+  // --- native (AAC) leg ---------------------------------------------------
+
+  // startNativeLeg loads the AAC rendition playlist + init and prepares the
+  // native timeline. Returns false (never throws) when anything about the
+  // shape is off - the caller then falls back to the classic wasm-only start.
+  private async startNativeLeg(aacUrl: string): Promise<boolean> {
+    try {
+      const { segs, mapUri } = await this.loadPlaylist(aacUrl);
+      if (!mapUri) return false;
+      const initResp = await fetch(this.resolve(mapUri), { credentials: this.opts.credentials ?? "include" });
+      if (!initResp.ok) return false;
+      const cfg = parseAacConfig(new Uint8Array(await initResp.arrayBuffer()));
+      if (!cfg) return false;
+      this.aacCfg = cfg;
+      this.segments = segs.map((s) => ({ ...s, native: true }));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  // bootWasmLeg brings the wasm worker + AC-3 playlist up WHILE the native leg
+  // plays, then plans the hand-over. Failure latches the native leg as the
+  // sole source - strictly better than dying.
+  private async bootWasmLeg(): Promise<void> {
+    try {
+      await this.initWorker();
+      if (this.destroyed) return;
+      const { segs } = await this.loadPlaylist(this.playlistUrl);
+      if (this.destroyed) return;
+      this.ac3Segments = segs;
+      this.wasmState = "ready";
+      this.planHandover();
+    } catch (err) {
+      console.warn("[WasmAudioEngine] wasm leg failed, AAC latched:", err);
+      this.wasmState = "failed";
+      if (this.nativeState === "failed") {
+        this.fatal("both relay legs failed");
+        return;
+      }
+      this.opts.onModeChange?.(this.mode());
+    }
+  }
+
+  // failNativeLeg is the native counterpart of bootWasmLeg's catch: decode is
+  // broken (device without AAC decodeAudioData, hostile bytes). If the wasm
+  // leg is up, adopt its full timeline now; if it is still booting, planHandover
+  // will do it on arrival; if it failed too, nothing can play.
+  private failNativeLeg(reason: string): void {
+    if (this.nativeState !== "active") return;
+    this.nativeState = "failed";
+    console.warn("[WasmAudioEngine] native AAC leg failed:", reason);
+    if (this.wasmState === "ready") {
+      this.adoptTimeline(this.ac3Segments);
+      this.switched = true;
+      this.opts.onModeChange?.(this.mode());
+    } else if (this.wasmState === "failed") {
+      this.fatal("both relay legs failed");
+    }
+  }
+
+  // planHandover applies planRelayHandover's pure computation to the live
+  // engine state once the wasm leg is up.
+  private planHandover(): void {
+    if (this.destroyed || this.switched) return;
+    if (this.nativeState !== "active") {
+      // Native leg already failed: the AC-3 timeline is the only source.
+      this.adoptTimeline(this.ac3Segments);
+      this.switched = true;
+      this.opts.onModeChange?.(this.mode());
+      return;
+    }
+    const plan = planRelayHandover(this.segments, this.ac3Segments, this.scheduledIdx, this.video.currentTime);
+    if (!plan) return; // film ends before the boundary: the AAC leg finishes it
+    this.adoptTimeline(plan.segments, plan.keepPrefix);
+    this.switched = true;
+    this.opts.onModeChange?.(this.mode());
+  }
+
+  // adoptTimeline swaps this.segments and invalidates everything that indexes
+  // into the old array from keepPrefix onward. The generation bump makes any
+  // in-flight decode completion drop its result instead of caching it under an
+  // index that now names a different segment.
+  private adoptTimeline(segs: Segment[], keepPrefix = 0): void {
     this.segments = segs;
+    this.timelineGen++;
+    for (const idx of [...this.decodedCache.keys()]) {
+      if (idx >= keepPrefix) this.decodedCache.delete(idx);
+    }
+    for (const idx of [...this.scheduledIdx]) {
+      if (idx >= keepPrefix) this.scheduledIdx.delete(idx);
+    }
+    this.inflight.clear();
+    this.prerollCache = null;
   }
 
   // --- worker -------------------------------------------------------------
@@ -221,6 +413,7 @@ export class WasmAudioEngine {
           if (p) {
             this.pendingDecodes.delete(msg.id);
             p.resolve({
+              kind: "pcm",
               channels: msg.channels,
               sampleRate: msg.sampleRate,
               frames: msg.frames,
@@ -240,7 +433,8 @@ export class WasmAudioEngine {
     });
   }
 
-  private decodeSegment(seg: Segment): Promise<DecodedSegment> {
+  private decodeSegment(idx: number, seg: Segment): Promise<DecodedSegment> {
+    if (seg.native) return this.decodeNativeSegment(idx, seg);
     return new Promise<DecodedSegment>((resolve, reject) => {
       const worker = this.worker;
       if (!worker) {
@@ -262,6 +456,33 @@ export class WasmAudioEngine {
         })
         .catch(reject);
     });
+  }
+
+  // decodeNativeSegment: fetch the fMP4 AAC segment, demux its frames, wrap in
+  // ADTS, decodeAudioData. When the previous segment's tail frames are at hand
+  // (sequential pump - the common case) they are prepended and their samples
+  // skipped, giving the first real frame its MDCT left context.
+  private async decodeNativeSegment(idx: number, seg: Segment): Promise<DecodedSegment> {
+    const ctx = this.ctx;
+    const cfg = this.aacCfg;
+    if (!ctx || !cfg) throw new Error("native leg not initialised");
+    const r = await fetch(this.resolve(seg.url), { credentials: this.opts.credentials ?? "include" });
+    if (!r.ok) throw new Error(`segment ${r.status}`);
+    const bytes = new Uint8Array(await r.arrayBuffer());
+    const frames = extractAacFrames(bytes);
+    if (frames.length === 0) throw new Error("no AAC frames in segment");
+    const pre = this.prerollCache && this.prerollCache.idx === idx - 1 ? this.prerollCache.frames : [];
+    const adts = adtsFromFrames([...pre, ...frames], cfg);
+    // Copy into an exact-size ArrayBuffer: decodeAudioData detaches its input.
+    const adtsCopy = new ArrayBuffer(adts.byteLength);
+    new Uint8Array(adtsCopy).set(adts);
+    const audioBuffer = await ctx.decodeAudioData(adtsCopy);
+    this.prerollCache = { idx, frames: frames.slice(-2).map((f) => f.slice()) };
+    return {
+      kind: "buffer",
+      audioBuffer,
+      offsetSec: (pre.length * AAC_SAMPLES_PER_FRAME) / audioBuffer.sampleRate,
+    };
   }
 
   // --- audio graph --------------------------------------------------------
@@ -518,7 +739,9 @@ export class WasmAudioEngine {
   // of grinding through a stale window first (the deep-resume "no sound for
   // several seconds" bug). Runs regardless of anchor/stall so the buffer is warm.
   private async pump(): Promise<void> {
-    if (this.pumping || this.destroyed || !this.worker) return;
+    // The worker gate only applies to wasm segments: the native leg decodes
+    // through the AudioContext and must run while the worker still boots.
+    if (this.pumping || this.destroyed) return;
     this.pumping = true;
     try {
       while (!this.destroyed) {
@@ -535,24 +758,34 @@ export class WasmAudioEngine {
           if (seg.start > ct + BUFFER_AHEAD_SEC) break;
           if (seg.start + seg.dur <= ct - 0.05) continue; // wholly past
           if (this.decodedCache.has(idx) || this.inflight.has(idx)) continue;
+          if (!seg.native && !this.worker) continue; // wasm segment, worker not up yet
           target = idx;
           break;
         }
         if (target < 0) break; // window fully decoded
         const seg = this.segments[target];
+        const gen = this.timelineGen;
         this.inflight.add(target);
         try {
-          const d = await this.decodeSegment(seg);
+          const d = await this.decodeSegment(target, seg);
           if (this.destroyed) return;
+          if (gen !== this.timelineGen) continue; // timeline swapped mid-decode: stale index
           this.decodedCache.set(target, d);
           this.decodeFailStreak = 0;
         } catch (err) {
+          if (gen !== this.timelineGen) continue;
           // A single bad segment once playback is going must not kill it. But if
-          // NOTHING has ever scheduled and decodes keep failing, the stream is
-          // undecodable - fall back to the AAC transcode.
+          // NOTHING has ever scheduled and decodes keep failing, this source is
+          // undecodable - fail its leg (relay) or the engine (classic).
           if (!this.everScheduled) {
             this.decodeFailStreak++;
             if (this.decodeFailStreak >= 3) {
+              if (seg.native && this.wasmState !== "failed") {
+                // Device without usable AAC decode: hand everything to wasm.
+                this.decodeFailStreak = 0;
+                this.failNativeLeg("decode: " + (err instanceof Error ? err.message : String(err)));
+                continue;
+              }
               this.fatal("decode: " + (err instanceof Error ? err.message : String(err)));
               return;
             }
@@ -587,42 +820,65 @@ export class WasmAudioEngine {
   private scheduleDecoded(idx: number, seg: Segment, d: DecodedSegment): void {
     const ctx = this.ctx;
     if (!ctx || !this.gain) return;
-    const mix = outputMix(d.channels);
-    const ch = d.channels;
-    const buffer = ctx.createBuffer(mix.length, d.frames, d.sampleRate);
-    for (let co = 0; co < mix.length; co++) {
-      const out = buffer.getChannelData(co);
-      const taps = mix[co];
-      if (taps.length === 1) {
-        const src = taps[0][0];
-        for (let f = 0; f < d.frames; f++) out[f] = d.pcm[f * ch + src];
-      } else {
-        for (let f = 0; f < d.frames; f++) {
-          let s = 0;
-          for (let t = 0; t < taps.length; t++) s += d.pcm[f * ch + taps[t][0]] * taps[t][1];
-          out[f] = s;
+    let buffer: AudioBuffer;
+    // baseOffset positions the playable content inside the buffer: the native
+    // leg's preroll samples, plus the hand-over trim on the first AC-3 segment.
+    let baseOffset = seg.trimSec ?? 0;
+    if (d.kind === "pcm") {
+      const mix = outputMix(d.channels);
+      const ch = d.channels;
+      buffer = ctx.createBuffer(mix.length, d.frames, d.sampleRate);
+      for (let co = 0; co < mix.length; co++) {
+        const out = buffer.getChannelData(co);
+        const taps = mix[co];
+        if (taps.length === 1) {
+          const src = taps[0][0];
+          for (let f = 0; f < d.frames; f++) out[f] = d.pcm[f * ch + src];
+        } else {
+          for (let f = 0; f < d.frames; f++) {
+            let s = 0;
+            for (let t = 0; t < taps.length; t++) s += d.pcm[f * ch + taps[t][0]] * taps[t][1];
+            out[f] = s;
+          }
         }
       }
+    } else {
+      // decodeAudioData output is already in the browser's channel order.
+      buffer = d.audioBuffer;
+      baseOffset += d.offsetSec;
+    }
+    const trim = seg.trimSec ?? 0;
+    const effDur = seg.dur - trim; // media seconds this source may occupy
+    if (effDur <= 0) {
+      this.scheduledIdx.add(idx);
+      return;
     }
     const source = ctx.createBufferSource();
     source.buffer = buffer;
     source.playbackRate.value = this.anchorRate;
     source.connect(this.gain);
 
-    const startAt = this.ctxForMedia(seg.start) + this.leadComp;
+    const startAt = this.ctxForMedia(seg.start + trim) + this.leadComp;
     const now = ctx.currentTime;
+    let late = 0;
     if (startAt >= now) {
-      source.start(startAt);
+      source.start(startAt, baseOffset);
     } else {
       // We are late for this segment (resync landed mid-segment, or the fetch
       // lagged): start immediately, offset into the buffer so the sample under
       // the playhead plays now. The buffer offset is in media seconds, so the
       // wall-clock lateness is scaled back up by the rate.
-      const into = (now - startAt) * this.anchorRate;
-      if (into >= seg.dur) {
+      late = (now - startAt) * this.anchorRate;
+      if (late >= effDur) {
         return; // wholly in the past
       }
-      source.start(now, into);
+      source.start(now, baseOffset + late);
+    }
+    if (d.kind === "buffer") {
+      // A natively decoded buffer can run a hair longer than its EXTINF
+      // (preroll rounding, encoder tail): stop it AT the boundary so it can
+      // never talk over the next segment's scheduled start.
+      source.stop(Math.max(startAt, now) + (effDur - late) / this.anchorRate);
     }
     this.activeSources.add(source);
     this.scheduledIdx.add(idx);
@@ -643,6 +899,7 @@ export class WasmAudioEngine {
     ctxState: string;
     segments: number;
     decoded: number;
+    mode: string;
   } {
     const audioMediaTime = this.anchored
       ? this.anchorMedia + ((this.ctx?.currentTime ?? 0) - this.anchorCtx) * this.anchorRate
@@ -656,6 +913,7 @@ export class WasmAudioEngine {
       ctxState: this.ctx?.state ?? "none",
       segments: this.segments.length,
       decoded: this.decodedCache.size,
+      mode: this.mode(),
     };
   }
 

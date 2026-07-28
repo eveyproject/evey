@@ -9,7 +9,7 @@
 //   3. show playback errors ON SCREEN - the Default Media Receiver fails
 //      silently, which is what made cast incidents undiagnosable.
 import { WasmAudioEngine } from "@/features/playback/wasmaudio/WasmAudioEngine";
-import { extractAudioURI } from "@/features/playback/wasmaudio/wasmAudioShared";
+import { extractAacAudioURI, extractAudioURI } from "@/features/playback/wasmaudio/wasmAudioShared";
 import { absoluteWithToken, buildPlayerEventUrl, probeReceiverCaps, rewriteCastMasterUrl, stripWasmAudio } from "./receiverLogic";
 import { createAliveHeartbeat, postPlayerEvent, readHeapMB } from "./receiverBeacon";
 
@@ -28,9 +28,13 @@ function showDebug(text: string): void {
   dbg.style.display = text ? "block" : "none";
 }
 
-// TV-side wasm audio kill-switch, OFF since 2026-07-28. Flip back only with
-// mem= beacon proof that the device holds it.
-const CAST_WASM_ENABLED = false;
+// TV-side wasm audio kill-switch. OFF 2026-07-28 while the deployed decoder
+// was the leaking TinyGo build (+6.75MB pinned per segment, box dead at
+// ~3-4min); back ON 2026-07-29 with the standard-Go build (flat memory in the
+// differential harness) and the bi-source relay (native AAC sound while the
+// wasm boots). The mem= beacon on every alive heartbeat is the watch: a heap
+// climbing beacon after beacon means flip this OFF again.
+const CAST_WASM_ENABLED = true;
 
 let engine: WasmAudioEngine | null = null;
 let wasmDisabled = false;
@@ -101,7 +105,10 @@ function reportEvent(type: string, details: string, fatal = false): void {
 const aliveHeartbeat = createAliveHeartbeat(() => {
   // mem: JS heap in MB (-1 if unavailable). A heap climbing beacon after
   // beacon toward the death names a memory kill; a flat one exonerates it.
-  reportEvent("cast_receiver_alive", `mode=${wasmRequested ? "wasm" : "native"} mem=${readHeapMB()}`);
+  // mode: the engine's live relay leg (aac / wasm / aac-latched) when the
+  // engine runs, else native CAF playback.
+  const mode = engine ? engine.mode() : wasmRequested ? "wasm" : "native";
+  reportEvent("cast_receiver_alive", `mode=${mode} mem=${readHeapMB()}`);
 });
 
 // tokenFromUrl reads the purpose=cast token the sender baked into the URL - the
@@ -191,12 +198,21 @@ async function startWasmEngine(): Promise<void> {
       return;
     }
     const playlistUrl = new URL(audioUri, url).toString();
+    // Bi-source relay: the AAC rendition (native decodeAudioData) carries the
+    // first seconds - on a TV's CPU the Go-wasm compile is the dominant cost
+    // of time-to-sound - then the engine hands over to AC-3 + wasm at a
+    // segment boundary. Tag absent (older server) = wasm-only, as before.
+    const aacUri = extractAacAudioURI(masterText);
     engine = new WasmAudioEngine(video, playlistUrl, {
       // ABSOLUTE resolution against the media server: the receiver can be
       // hosted elsewhere (GitHub Pages, project domain). And credentials
       // omit: the server's CORS token-auth does not answer Allow-Credentials.
       resolveUrl: (u) => absoluteWithToken(u, playlistUrl, token),
       credentials: "omit",
+      aacPlaylistUrl: aacUri ? new URL(aacUri, url).toString() : undefined,
+      // Every relay transition lands in the server logs: the next cast names
+      // its audio path (aac -> wasm, or aac-latched) without a TV screenshot.
+      onModeChange: (mode) => reportEvent("cast_receiver_audio_mode", mode),
       // Audio-lead compensation: a TV's display pipeline delays the picture
       // much more than the engine's 0.1s desktop figure - measured ~0.5-0.6s
       // of audio lead on the Mi TV (2026-07-25). Value to calibrate from user
