@@ -18,8 +18,47 @@ import (
 	appphoto "github.com/evey-project/evey/internal/app/photo"
 	domainphoto "github.com/evey-project/evey/internal/domain/photo"
 	"github.com/evey-project/evey/internal/pkg/exifstrip"
+	"github.com/evey-project/evey/internal/pkg/ratelimit"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
+
+// photoAllowedWidths caps photo variant generation to a fixed set so the
+// on-disk cache stays bounded, mirroring artwork_handler.go's allowedWidths
+// (see its comment for the regression this pattern guards against: a
+// caller-chosen width that isn't snapped writes one file per distinct value
+// requested - here that meant up to 8192 variants for a single photo, since
+// nothing capped how many distinct widths a user could ask for). 400 is
+// included because it's the only width the web and mobile clients actually
+// request for photo thumbnails today; the rest give room for higher-density
+// variants without letting a caller pick an arbitrary width.
+var photoAllowedWidths = []int{200, 400, 800, 1600}
+
+// snapPhotoWidth parses raw (the ?w= query value) and snaps it to the
+// nearest entry in photoAllowedWidths. ok is false when raw is empty,
+// unparseable, or <= 0 - identical to the pre-fix contract, which treated
+// those cases as "no width requested" rather than an error.
+func snapPhotoWidth(raw string) (width int, ok bool) {
+	v, err := strconv.Atoi(raw)
+	if err != nil || v <= 0 {
+		return 0, false
+	}
+	best := photoAllowedWidths[0]
+	bestDiff := v - best
+	if bestDiff < 0 {
+		bestDiff = -bestDiff
+	}
+	for _, allowed := range photoAllowedWidths[1:] {
+		diff := v - allowed
+		if diff < 0 {
+			diff = -diff
+		}
+		if diff < bestDiff {
+			bestDiff = diff
+			best = allowed
+		}
+	}
+	return best, true
+}
 
 // PhotoTranscoder resizes/reformats photos into the cache dir.
 type PhotoTranscoder interface {
@@ -119,8 +158,8 @@ func (h *photoHandler) servePhoto(w http.ResponseWriter, r *http.Request) {
 func (h *photoHandler) serveTranscoded(w http.ResponseWriter, r *http.Request, p *domainphoto.Photo, wStr, fmtStr string) bool {
 	width := 0
 	if wStr != "" {
-		v, err := strconv.Atoi(wStr)
-		if err != nil || v <= 0 || v > 8192 {
+		v, ok := snapPhotoWidth(wStr)
+		if !ok {
 			return false
 		}
 		width = v
@@ -166,7 +205,11 @@ func (h *photoHandler) serveTranscoded(w http.ResponseWriter, r *http.Request, p
 	return true
 }
 
-func registerPhotoRoutes(mux *http.ServeMux, photoSvc *appphoto.Service, tokenGen domainuser.TokenGenerator, libChecker LibraryAccessChecker, libLister LibraryLister, _ context.Context, transcoder PhotoTranscoder, cacheDir string) {
+// registerPhotoRoutes wires the photo serve route. rl (nil = pass-through,
+// e.g. tests) rate-limits the same handler the snapshot/subtitle routes
+// already gate: an uncached ?w=/&fmt= request forks ffmpeg per request, the
+// same cost as those routes, so it must not ride the generous global limiter.
+func registerPhotoRoutes(mux *http.ServeMux, photoSvc *appphoto.Service, tokenGen domainuser.TokenGenerator, libChecker LibraryAccessChecker, libLister LibraryLister, _ context.Context, transcoder PhotoTranscoder, cacheDir string, rl *ratelimit.Limiter) {
 	authMw := httpAuthMiddleware(tokenGen)
 	h := &photoHandler{
 		photoSvc:   photoSvc,
@@ -175,5 +218,9 @@ func registerPhotoRoutes(mux *http.ServeMux, photoSvc *appphoto.Service, tokenGe
 		cacheDir:   cacheDir,
 		libLister:  libLister,
 	}
-	mux.HandleFunc("GET /api/v1/photos/{id}/serve", authMw(h.servePhoto))
+	serve := http.HandlerFunc(h.servePhoto)
+	if rl != nil {
+		serve = ratelimit.MiddlewareFunc(rl, serve)
+	}
+	mux.HandleFunc("GET /api/v1/photos/{id}/serve", authMw(serve))
 }

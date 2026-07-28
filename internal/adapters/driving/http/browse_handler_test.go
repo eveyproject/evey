@@ -65,6 +65,29 @@ func TestBrowseDirs_AbsoluteNonMediaPath_400(t *testing.T) {
 	}
 }
 
+// isUnderMediaRoot must anchor on a path separator: a sibling directory
+// whose name merely starts with "/media" ("/media-evil", "/media2") is a
+// different tree entirely and must never be treated as inside it.
+func TestIsUnderMediaRoot(t *testing.T) {
+	cases := []struct {
+		path string
+		want bool
+	}{
+		{"/media", true},
+		{"/media/movies", true},
+		{"/media-evil", false},
+		{"/media-evil/secret", false},
+		{"/media2", false},
+		{"/mediaX/foo", false},
+		{"/etc/passwd", false},
+	}
+	for _, c := range cases {
+		if got := isUnderMediaRoot(c.path); got != c.want {
+			t.Errorf("isUnderMediaRoot(%q) = %v, want %v", c.path, got, c.want)
+		}
+	}
+}
+
 func TestBrowseDirs_NoPath_200(t *testing.T) {
 	v := validUserValidator(true)
 	handler := httpAdminMiddleware(v)(browseDirsHandler())

@@ -26,6 +26,14 @@ import (
 
 const deviceCmdMaxBody = 4 << 10 // 4 KiB - commands are tiny JSON
 
+// deviceWSMaxFrameBytes caps one inbound WebSocket frame on the device
+// channel. Both the register frame and any future client ack/status frame
+// are tiny JSON, but x/net/websocket otherwise applies its 32MB default -
+// any connected device could make the server buffer/decode oversized
+// payloads at will. Same cap and same rationale as SyncPlay's
+// syncPlayMaxFrameBytes (syncplay_handler.go).
+const deviceWSMaxFrameBytes = 8 << 10
+
 type devicesHandler struct {
 	registry *appsyncplay.DeviceRegistry
 	tokenGen domainuser.TokenGenerator
@@ -129,6 +137,7 @@ func (h *devicesHandler) wsUpgradeHandler(w http.ResponseWriter, r *http.Request
 
 	websocket.Handler(func(ws *websocket.Conn) {
 		sender := &wsSender{ws: ws}
+		ws.MaxPayloadBytes = deviceWSMaxFrameBytes
 
 		// First frame: registration. Reject the connection if it doesn't
 		// arrive promptly or isn't a valid register request.

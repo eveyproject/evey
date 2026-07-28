@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/net/websocket"
+
 	appsyncplay "github.com/evey-project/evey/internal/app/syncplay"
 	domainsyncplay "github.com/evey-project/evey/internal/domain/syncplay"
 	syncplayfakes "github.com/evey-project/evey/internal/domain/syncplay/fakes"
@@ -131,6 +133,54 @@ func TestDevices_Command_OtherUsersDevice_404(t *testing.T) {
 	f.mux.ServeHTTP(w, req)
 	if w.Code != http.StatusNotFound {
 		t.Errorf("expected 404 cross-user, got %d", w.Code)
+	}
+}
+
+// The device WebSocket read loop used x/net/websocket's default 32MB frame
+// cap: any connected device could push oversized frames at the server, each
+// one costing a decode. The connection must refuse the frame rather than
+// buffer it - same contract SyncPlay's own WS already enforces (see
+// TestSyncPlayWS_RejectsOversizedFrame in syncplay_handler_test.go).
+func TestDevicesWS_RejectsOversizedFrame(t *testing.T) {
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("GenerateKey: %v", err)
+	}
+	tokenGen := auth.NewJWTGenerator(key, time.Minute)
+	registry := appsyncplay.NewDeviceRegistry()
+	mux := http.NewServeMux()
+	registerDeviceRoutes(mux, registry, tokenGen)
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	token, err := tokenGen.GenerateAccessToken(domainuser.Claims{UserID: "user-big"})
+	if err != nil {
+		t.Fatalf("GenerateAccessToken: %v", err)
+	}
+
+	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "/api/v1/devices/ws"
+	ws, _, err := dialWS(wsURL, srv.URL, token)
+	if err != nil {
+		t.Fatalf("ws dial: %v", err)
+	}
+	defer ws.Close()
+
+	reg := `{"type":"register","deviceId":"dev-big","name":"TV","deviceType":"tv"}`
+	if err := websocket.Message.Send(ws.Conn, reg); err != nil {
+		t.Fatalf("send register: %v", err)
+	}
+
+	// Well past any legitimate ack/status frame, well under the 32MB default.
+	huge := `{"type":"noop","x":"` + strings.Repeat("a", deviceWSMaxFrameBytes*2) + `"}`
+	if err := websocket.Message.Send(ws.Conn, huge); err != nil {
+		// The server may already have torn the connection down - that is a pass.
+		return
+	}
+	// The server must have closed the connection rather than kept serving it.
+	_ = ws.SetReadDeadline(time.Now().Add(3 * time.Second))
+	var after string
+	if err := websocket.Message.Receive(ws.Conn, &after); err == nil {
+		t.Error("server kept serving after an oversized frame; the payload cap is not applied")
 	}
 }
 

@@ -47,18 +47,31 @@ func (h *browseHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	jsonEncodeResponse(w, result)
 }
 
+// mediaBrowseRoot is the only tree an admin may browse to pick a library path.
+const mediaBrowseRoot = "/media"
+
+// isUnderMediaRoot reports whether p is mediaBrowseRoot itself or strictly
+// inside it. A bare strings.HasPrefix(p, mediaBrowseRoot) is NOT anchored on
+// a path separator, so a sibling directory whose name merely starts with the
+// same characters - "/media-evil", "/media2" - would pass: it shares the
+// string prefix but is a completely different tree the admin was never meant
+// to browse.
+func isUnderMediaRoot(p string) bool {
+	return p == mediaBrowseRoot || strings.HasPrefix(p, mediaBrowseRoot+string(filepath.Separator))
+}
+
 func (h *browseHandler) validatePath(w http.ResponseWriter, r *http.Request) (string, bool) {
 	dir := r.URL.Query().Get("path")
 	if dir == "" {
 		return "", true
 	}
 	dir = filepath.Clean(dir)
-	if !filepath.IsAbs(dir) || !strings.HasPrefix(dir, "/media") {
+	if !filepath.IsAbs(dir) || !isUnderMediaRoot(dir) {
 		http.Error(w, `{"message":"invalid path"}`, http.StatusBadRequest)
 		return "", false
 	}
 	resolved, err := filepath.EvalSymlinks(dir)
-	if err != nil || !strings.HasPrefix(resolved, "/media") {
+	if err != nil || !isUnderMediaRoot(resolved) {
 		http.Error(w, `{"message":"invalid path"}`, http.StatusBadRequest)
 		return "", false
 	}

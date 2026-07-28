@@ -84,7 +84,7 @@ func newPhotoTestMux(t *testing.T, checker LibraryAccessChecker) (*http.ServeMux
 	svc := appphoto.NewService(repo, bus, nil, nil)
 
 	mux := http.NewServeMux()
-	registerPhotoRoutes(mux, svc, tokenGen, checker, nil, context.Background(), nil, "")
+	registerPhotoRoutes(mux, svc, tokenGen, checker, nil, context.Background(), nil, "", nil)
 	return mux, token
 }
 

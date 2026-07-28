@@ -633,7 +633,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	}
 
 	// JSON CRUD → gRPC: favorites, playlists, metadata overrides, transcode cache/profiles, library access, admin
-	registerPhotoRoutes(mux, s.PhotoSvc, s.TokenGen, s.LibraryAccessRepo, s.LibQuerySvc, s.ServerCtx, s.PhotoTranscoder, s.PhotoCacheDir)             // binary: photo/serve
+	registerPhotoRoutes(mux, s.PhotoSvc, s.TokenGen, s.LibraryAccessRepo, s.LibQuerySvc, s.ServerCtx, s.PhotoTranscoder, s.PhotoCacheDir, s.SnapshotRL) // binary: photo/serve
 	registerSyncPlayRoutes(mux, s.SyncPlayHub, s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo, s.StreamTokenStore, withSyncPlayParental(parentalChk)) // binary: WebSocket
 	// PUBLIC: a "watch together" guest exchanges a room code for a streaming-only
 	// guest token. Rate-limited (LoginRL) against 5-digit code brute-force.

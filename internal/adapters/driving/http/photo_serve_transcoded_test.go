@@ -36,6 +36,19 @@ func (f *fakePhotoTranscoder) Transcode(_ context.Context, _, _ string, _ int, _
 	return f.err
 }
 
+// fakePhotoTranscoderWriter records every width it was invoked with and
+// writes a stub file at dst, exercising the cache-hit path the same way the
+// real ffmpeg-backed transcoder would (unlike fakePhotoTranscoder above,
+// which only records the call).
+type fakePhotoTranscoderWriter struct {
+	widths []int
+}
+
+func (f *fakePhotoTranscoderWriter) Transcode(_ context.Context, _, dst string, width int, _ string) error {
+	f.widths = append(f.widths, width)
+	return os.WriteFile(dst, []byte("stub"), 0o644)
+}
+
 // newPhotoMux builds a minimal mux with the photo serve route registered.
 func newPhotoMux(t *testing.T, repo *photofakes.FakeRepository, transcoder PhotoTranscoder, cacheDir string) (*http.ServeMux, string) {
 	t.Helper()
@@ -50,7 +63,7 @@ func newPhotoMux(t *testing.T, repo *photofakes.FakeRepository, transcoder Photo
 	require.NoError(t, err)
 	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil, photofakes.NewFakePhotoScanner())
 	mux := http.NewServeMux()
-	registerPhotoRoutes(mux, svc, tokenGen, allowAll(), nil, context.Background(), transcoder, cacheDir)
+	registerPhotoRoutes(mux, svc, tokenGen, allowAll(), nil, context.Background(), transcoder, cacheDir, nil)
 	return mux, token
 }
 
@@ -64,6 +77,34 @@ func seedPhoto(t *testing.T, repo *photofakes.FakeRepository, id, libID, filePat
 		MimeType:  mimeType,
 	})
 	require.NoError(t, err)
+}
+
+// --- tests: snapPhotoWidth ---
+
+func TestSnapPhotoWidth(t *testing.T) {
+	cases := []struct {
+		raw       string
+		wantOK    bool
+		wantWidth int
+	}{
+		{"", false, 0},
+		{"notanumber", false, 0},
+		{"0", false, 0},
+		{"-5", false, 0},
+		{"400", true, 400},                 // exact match
+		{"320", true, 400},                 // snaps up
+		{"150", true, 200},                 // snaps down
+		{"8192", true, 1600},               // previously-max value now bounded
+		{"1000000000000000000000", false, 0}, // Atoi overflow → invalid
+	}
+	for _, c := range cases {
+		width, ok := snapPhotoWidth(c.raw)
+		assert.Equal(t, c.wantOK, ok, "raw=%q", c.raw)
+		if c.wantOK {
+			assert.Equal(t, c.wantWidth, width, "raw=%q", c.raw)
+			assert.Contains(t, photoAllowedWidths, width, "snapped width must be one of the allowed set")
+		}
+	}
 }
 
 // --- tests: serveTranscoded (via servePhoto ?w= / ?fmt= params) ---
@@ -105,21 +146,53 @@ func TestServeTranscoded_ZeroWidth_FallsThrough(t *testing.T) {
 	assert.False(t, tc.called)
 }
 
-// Width > 8192: serveTranscoded returns false (v > 8192).
-func TestServeTranscoded_OversizedWidth_FallsThrough(t *testing.T) {
+// An arbitrary width (previously accepted verbatim up to 8192, one cache
+// file per distinct value - the disk-fill vector) must be SNAPPED to the
+// nearest entry in photoAllowedWidths rather than rejected or taken literally.
+func TestServeTranscoded_OversizedWidth_SnapsToNearestAllowed(t *testing.T) {
 	repo := photofakes.NewFakeRepository()
 	dir := t.TempDir()
 	seedPhoto(t, repo, "ph3", "lib-1", filepath.Join(dir, "nonexistent.jpg"), "image/jpeg")
-	tc := &fakePhotoTranscoder{}
+	tc := &fakePhotoTranscoderWriter{}
 
 	mux, token := newPhotoMux(t, repo, tc, dir)
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/photos/ph3/serve?w=9000", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/photos/ph3/serve?w=9000&fmt=webp", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusNotFound, w.Code)
-	assert.False(t, tc.called)
+	assert.Equal(t, http.StatusOK, w.Code)
+	require.Equal(t, []int{1600}, tc.widths, "9000 must snap to the highest allowed tier (1600), not be served/rejected as-is")
+}
+
+// Many distinct arbitrary widths above the highest tier must all collapse
+// onto the SAME cached variant instead of each writing its own file - the
+// exact disk-fill vector this fix closes (w=1..8192, one file per value).
+func TestServeTranscoded_ArbitraryWidths_CollapseOntoOneCachedVariant(t *testing.T) {
+	repo := photofakes.NewFakeRepository()
+	dir := t.TempDir()
+	seedPhoto(t, repo, "ph8", "lib-1", filepath.Join(dir, "nonexistent.jpg"), "image/jpeg")
+	tc := &fakePhotoTranscoderWriter{}
+
+	mux, token := newPhotoMux(t, repo, tc, dir)
+	for _, wq := range []string{"5000", "8000", "1601", "8192"} {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/photos/ph8/serve?w="+wq+"&fmt=webp", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		assert.Equal(t, http.StatusOK, rec.Code)
+	}
+
+	// Every request above snapped onto 1600 - the transcoder must have run
+	// exactly ONCE (the other 3 requests hit the cache), not once per distinct
+	// raw width.
+	assert.Equal(t, []int{1600}, tc.widths)
+
+	photoDir := filepath.Join(dir, "photos")
+	entries, err := os.ReadDir(photoDir)
+	require.NoError(t, err)
+	assert.Len(t, entries, 1, "arbitrary widths must collapse onto one cached variant file, not one per width")
+	assert.Equal(t, "ph8-w1600-webp.webp", entries[0].Name())
 }
 
 // Unknown fmt param: serveTranscoded returns false.
@@ -166,9 +239,11 @@ func TestServeTranscoded_CacheHit_ServesFile(t *testing.T) {
 	photoDir := filepath.Join(cacheDir, "photos")
 	require.NoError(t, os.MkdirAll(photoDir, 0o755))
 
-	// Compute the expected cache filename: p.ID + "-w" + width + "-webp.webp"
+	// Compute the expected cache filename: p.ID + "-w" + width + "-webp.webp".
+	// width is one of photoAllowedWidths verbatim (800) so the request below
+	// (?w=800) maps to it with no snapping ambiguity.
 	photoID := "ph6"
-	width := 640
+	width := 800
 	dstName := photoID + "-w" + strconv.Itoa(width) + "-webp.webp"
 	dstPath := filepath.Join(photoDir, dstName)
 	// Write a minimal stub file > 0 bytes so os.Stat sees size > 0.
@@ -178,7 +253,7 @@ func TestServeTranscoded_CacheHit_ServesFile(t *testing.T) {
 	tc := &fakePhotoTranscoder{}
 
 	mux, token := newPhotoMux(t, repo, tc, cacheDir)
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/photos/ph6/serve?w=640&fmt=webp", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/photos/ph6/serve?w=800&fmt=webp", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
