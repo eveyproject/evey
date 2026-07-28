@@ -109,7 +109,7 @@ func TestPlanBuildsForSource_CancellationNeverMemoised(t *testing.T) {
 	item := newAudioSyncItem(t)
 	r := onDemandReq()
 
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		if !h.planBuildsForSource(r, "m1", item, nil) {
 			t.Fatalf("call %d: a cancellation must resolve to true for this request", i)
 		}
@@ -128,7 +128,7 @@ func TestPlanBuildsForSource_RealFailureIsMemoised(t *testing.T) {
 	item := newAudioSyncItem(t)
 	r := onDemandReq()
 
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		if h.planBuildsForSource(r, "m1", item, nil) {
 			t.Fatalf("call %d: a real build failure must resolve to false", i)
 		}

@@ -482,15 +482,19 @@ func enforceKidsPINInvariant(ctx context.Context, profiles domainuser.ProfileRep
 	if err != nil {
 		return fmt.Errorf("load siblings: %w", err)
 	}
-	if err := domainuser.CheckKidsPINInvariant(p, siblings); err != nil {
-		return err
+	if invErr := domainuser.CheckKidsPINInvariant(p, siblings); invErr != nil {
+		return invErr
 	}
 	if users == nil {
 		return nil
 	}
-	owner, err := users.GetByID(ctx, p.UserID)
-	if err != nil || owner == nil {
-		return nil // owner lookup failing is not fatal - mirrors the CreateProfile precedent
+	// The owner lookup failing is not fatal - mirrors the CreateProfile
+	// precedent: the admin-cannot-be-kids check is a safety rail, not the
+	// invariant itself, and refusing an otherwise-valid profile write because a
+	// secondary read hiccuped would be worse than skipping the rail.
+	owner, ownerErr := users.GetByID(ctx, p.UserID)
+	if ownerErr != nil || owner == nil {
+		return nil //nolint:nilerr // deliberate: see comment above
 	}
 	return domainuser.CheckAdminCannotBeKids(owner.IsAdmin, p)
 }
