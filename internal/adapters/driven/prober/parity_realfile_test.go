@@ -99,6 +99,12 @@ func TestParity_AgainstFFprobe(t *testing.T) {
 		}
 	}
 	t.Logf("parity: %d fast-path, %d fell back to ffprobe (of %d files)", fastPath, fellBack, len(files))
+	// Every assertion above lives inside the fast-path branch. If mkvgo errored
+	// or the mapper bailed on ALL of them, the loop `continue`s throughout and
+	// the test reports GREEN having compared nothing - the exact shape of gate
+	// that cannot be seen going red. A run that produced zero fast-path files
+	// is a broken fixture (or a broken reader), never a pass.
+	require.Positivef(t, fastPath, "parity proved nothing: 0 of %d files took the mkvgo fast path (%d fell back)", len(files), fellBack)
 }
 
 // normCodec folds container-specific spellings of the same codec so the MP4

@@ -164,10 +164,13 @@ func TestAllMessages(t *testing.T) {
 }
 
 func TestNewFromDir_RealYAML(t *testing.T) {
+	// NOT a Skip: i18n/ is a committed directory at the repo root, so its
+	// absence means the layout moved (or the locales were deleted), not that
+	// the fixture is optional. Skipping there would silently retire the only
+	// test that parses the REAL YAML the server ships with.
 	root := "../../../i18n"
-	if _, err := os.Stat(root); os.IsNotExist(err) {
-		t.Skip("i18n dir not found")
-	}
+	_, err := os.Stat(root)
+	require.NoErrorf(t, err, "i18n/ must exist at the repo root - if it moved, fix this path rather than letting the test disappear")
 	tr, err := NewFromDir(root)
 	require.NoError(t, err, "real i18n YAML must parse without errors")
 	assert.NotEmpty(t, tr.T("en", "errors.auth.unauthenticated"))
