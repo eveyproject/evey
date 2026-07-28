@@ -25,6 +25,12 @@ export interface ThemeTokens {
     success: string;
     warning: string;
     info: string;
+    // Text painted ON a success/warning fill (chips, badges). No theme
+    // declares an on-colour for these two (unlike --filter-active-text for
+    // the accent and --on-danger), so they are DERIVED: whichever of near
+    // black / white contrasts better with the fill, per theme.
+    onSuccess: string;
+    onWarning: string;
   };
   radii: { sm: number; md: number; lg: number };
   spacing: { xs: number; sm: number; md: number; lg: number; xl: number };
@@ -42,6 +48,29 @@ const MOBILE_ERROR: Record<ThemeCSSName, string> = {
 // The spacing scale is a native-only concept (web uses Tailwind's scale, not
 // CSS vars), identical across themes.
 const SPACING = { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 } as const;
+
+// WCAG relative luminance of an sRGB hex - the same math contrast.test.ts
+// asserts the palette with. Non-hex input (a var() that failed to resolve)
+// reports mid-luminance so the caller's pick degrades to white-on-colour.
+function luminance(hex: string): number {
+  const h = hex.replace("#", "");
+  const full = h.length === 3 ? h.split("").map((c) => c + c).join("") : h;
+  if (!/^[0-9a-fA-F]{6}$/.test(full)) return 0.2;
+  const [r, g, b] = [0, 2, 4]
+    .map((i) => parseInt(full.slice(i, i + 2), 16) / 255)
+    .map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+// onColor picks the readable text colour for a filled chip: near-black or
+// white, whichever has the higher WCAG contrast ratio against the fill.
+export function onColor(fill: string): string {
+  const lum = luminance(fill);
+  const dark = 0.005; // luminance of #0a0a0a
+  const ratioDark = (lum + 0.05) / (dark + 0.05);
+  const ratioWhite = 1.05 / (lum + 0.05);
+  return ratioDark >= ratioWhite ? "#0a0a0a" : "#fff";
+}
 
 // Type and icon scales, in px, shared by web / mobile / TV.
 //
@@ -111,6 +140,8 @@ export function deriveTokens(name: ThemeCSSName): ThemeTokens {
       success: resolveVar(v, v["--success"]),
       warning: resolveVar(v, v["--warning"]),
       info: v["--accent"],
+      onSuccess: onColor(resolveVar(v, v["--success"])),
+      onWarning: onColor(resolveVar(v, v["--warning"])),
     },
     radii: { sm: px(v["--radius-sm"]), md: px(v["--radius-md"]), lg: px(v["--radius-lg"]) },
     spacing: { ...SPACING },

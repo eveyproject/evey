@@ -85,7 +85,7 @@ export const MediaCard = React.memo(function MediaCard({ item, onPress, width, w
             alignItems: "center",
             justifyContent: "center",
           }}>
-            <Ionicons name="checkmark" size={ICON_SIZE.sm} color="#fff" />
+            <Ionicons name="checkmark" size={ICON_SIZE.sm} color={theme.colors.onSuccess} />
           </View>
         )}
       </View>

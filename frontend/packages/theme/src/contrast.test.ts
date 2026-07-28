@@ -83,3 +83,22 @@ describe("theme contrast (WCAG AA)", () => {
     });
   }
 });
+
+// The derived onSuccess/onWarning tokens (tokens.ts computes best-of dark or
+// white against the fill) must actually clear AA on every theme - if a theme
+// ever ships a mid-luminance success/warning where NEITHER side reads, this
+// is the tripwire.
+import { deriveTokens } from "./tokens";
+import { THEME_NAMES } from "./themeVars";
+
+describe("derived on-colour tokens (mobile/TV chips)", () => {
+  for (const name of THEME_NAMES) {
+    const t = deriveTokens(name);
+    it(`${name}: text reads on the success fill`, () => {
+      expect(ratio(t.colors.onSuccess, t.colors.success)).toBeGreaterThanOrEqual(AA);
+    });
+    it(`${name}: text reads on the warning fill`, () => {
+      expect(ratio(t.colors.onWarning, t.colors.warning)).toBeGreaterThanOrEqual(AA);
+    });
+  }
+});
