@@ -21,19 +21,23 @@ RUN buf generate --template buf.gen.local.yaml
 # ── Stage 2b: Build the ac3go WebAssembly decoder (browser AC-3/E-AC-3 path) ──
 # Built from the pinned module (go.mod `tool` directive), not committed. The web
 # player loads it from /wasm/ac3go.wasm to decode AC-3/E-AC-3 client-side.
-# TinyGo: 391 KB module (vs 2.9 MB with standard go), ~5x faster browser
-# compile - the Cast receiver compiles this module on a TV's CPU. The
-# wasm_exec.js shim is TINYGO'S (incompatible with standard go's).
-# Requires ac3go's streaming entrypoint (pin >= v0.0.0-20260725211506),
-# without which the TinyGo heap balloons to 768 MB on a long decode.
-FROM tinygo/tinygo:0.41.1 AS wasmbuild
+# STANDARD go, deliberately NOT TinyGo. TinyGo (0.41) never runs finalizers,
+# so its syscall/js bridge never releases a js.Value: every PCM Uint8Array
+# crossing the bridge stays pinned in the shim's _values table forever.
+# Measured 2026-07-28 (Node harness, 100 segments): +6.75 MB and +101 refs
+# retained PER 3s SEGMENT - 135 MB/min of AC-3 playback - which memory-killed
+# the cast receiver on 1-2 GB Android TV boxes at the ~3 min mark with no
+# error event. Standard go's runtime does release refs (flat over the same
+# run). The 2.9 MB module and slower TV-side compile are the price; revisit
+# only if TinyGo ships working finalizers. The wasm_exec.js shim must match
+# the compiler that built the module - always ship both together.
+FROM golang:1.26.5-alpine AS wasmbuild
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download github.com/gravity-zero/ac3go
-# /tmp, not /: the tinygo image runs as a non-root user.
 RUN mkdir -p /tmp/out \
-    && tinygo build -target wasm -no-debug -opt=z -o /tmp/out/ac3go.wasm github.com/gravity-zero/ac3go/cmd/ac3go-wasm \
-    && cp /usr/local/tinygo/targets/wasm_exec.js /tmp/out/wasm_exec.js
+    && CGO_ENABLED=0 GOOS=js GOARCH=wasm go build -o /tmp/out/ac3go.wasm github.com/gravity-zero/ac3go/cmd/ac3go-wasm \
+    && cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" /tmp/out/wasm_exec.js
 
 # ── Stage 3: Build frontend ──
 FROM node:22-alpine AS frontend
