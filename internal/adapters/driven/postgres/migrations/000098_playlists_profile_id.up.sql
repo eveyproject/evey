@@ -4,6 +4,20 @@
 
 ALTER TABLE playlists ADD COLUMN profile_id TEXT;
 
+-- A prior rollback stashed the real per-profile ownership: restore it first,
+-- so a down/up round trip is lossless. Fresh installs skip this (no table).
+DO $$
+BEGIN
+    IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = '_mig000098_playlist_profiles') THEN
+        UPDATE playlists pl
+        SET profile_id = b.profile_id
+        FROM _mig000098_playlist_profiles b
+        WHERE pl.id = b.id
+          AND EXISTS (SELECT FROM profiles p WHERE p.id = b.profile_id);
+        DROP TABLE _mig000098_playlist_profiles;
+    END IF;
+END $$;
+
 -- Backfill: each existing playlist goes to its user's default profile (or the
 -- oldest profile if no default flag is set). Every user has at least one
 -- profile, so this leaves no NULLs; if it somehow does, the NOT NULL below
