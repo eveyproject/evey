@@ -214,6 +214,16 @@ func parseProbeSeconds(s string) (float64, bool) {
 // audio start-delay cache above: the value is a property of the file.
 var videoCompositionDelayCache sync.Map
 
+// videoCompositionDelayCacheLen and videoCompositionDelayCacheCap bound
+// videoCompositionDelayCache exactly like audioDelayCacheLen/audioDelayCacheCap
+// bound its sibling above: same failure mode (a server running for weeks
+// against a library whose files get replaced/re-encoded accumulates one entry
+// per stale identity forever), same fix (drop the whole map past the cap and
+// let entries re-derive lazily).
+var videoCompositionDelayCacheLen atomic.Int64
+
+const videoCompositionDelayCacheCap = 8192
+
 // VideoCompositionDelaySec is the seconds by which the source's VIDEO is
 // presented late once packaged as MP4: has_b_frames / fps.
 //
@@ -242,6 +252,10 @@ func VideoCompositionDelaySec(ctx context.Context, ffprobeBinary, filePath strin
 		return v.(float64)
 	}
 	d := probeVideoCompositionDelaySec(ctx, ffprobeBinary, filePath)
+	if videoCompositionDelayCacheLen.Add(1) > videoCompositionDelayCacheCap {
+		videoCompositionDelayCache.Clear()
+		videoCompositionDelayCacheLen.Store(1)
+	}
 	videoCompositionDelayCache.Store(key, d)
 	return d
 }

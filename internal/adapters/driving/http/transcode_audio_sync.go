@@ -6,9 +6,10 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"sync"
+	"time"
 
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
+	pkgcache "github.com/evey-project/evey/internal/pkg/cache"
 )
 
 // transcode_audio_sync.go answers one question for the audio-rendition path:
@@ -80,14 +81,14 @@ func (h *hlsVODServe) videoCompositionDelaySec(r *http.Request, mediaID string, 
 func (h *hlsVODServe) planBuildsForSource(r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream) bool {
 	key, ok := sourceIdentity(item.File.Path)
 	if ok {
-		if v, hit := planBuildMemo.Load(key); hit {
-			return v.(bool)
+		if v, hit := planBuildMemo.Get(key); hit {
+			return v
 		}
 	}
 	_, err := h.buildPlan(r, mediaID, item, streams)
 	if err == nil {
 		if ok {
-			planBuildMemo.Store(key, true)
+			planBuildMemo.Set(key, true, planBuildMemoTTL)
 		}
 		return true
 	}
@@ -95,15 +96,36 @@ func (h *hlsVODServe) planBuildsForSource(r *http.Request, mediaID string, item 
 		return true // tells us nothing about the file - do not memoise, do not shift
 	}
 	if ok {
-		planBuildMemo.Store(key, false)
+		planBuildMemo.Set(key, false, planBuildMemoTTL)
 	}
 	return false
 }
 
+// planBuildMemoTTL bounds how long a per-file verdict is trusted. Matched to
+// onDemandPlanTTL (internal/adapters/driven/mkvgo/ondemand.go, 30 min): this
+// memo answers "does mkvgo's own plan cache have (or build) a plan for this
+// identity", so keeping the two in lock-step means the memo is never trusted
+// past what it describes. It also self-heals a refusal caused by something
+// OTHER than the file's own bytes (a transient stat/read hiccup that is not a
+// context cancellation) within the same order of magnitude as the underlying
+// plan cache, instead of holding it wrong for the rest of the process.
+const planBuildMemoTTL = 30 * time.Minute
+
 // planBuildMemo caches the per-file "does PlanHLS build?" verdict. Keyed by
 // path+size+mtime like the ffmpeg adapter's own probe caches, so a repaired or
-// replaced file re-proves itself instead of inheriting a stale refusal.
-var planBuildMemo sync.Map
+// replaced file re-proves itself via a fresh key rather than inheriting a
+// stale refusal. A bounded TTL cache (not a bare sync.Map): a NAS running for
+// weeks against a library whose files keep getting replaced/re-encoded would
+// otherwise accumulate one entry per stale identity forever.
+var planBuildMemo, _ = pkgcache.New[bool](0)
+
+// resetPlanBuildMemoCache swaps planBuildMemo for one capped at maxSize.
+// Test-only (unexported, unused outside *_test.go): production always wants
+// the package default; a test proving the cache stays bounded wants a small,
+// fast-to-fill cap instead of inserting thousands of real entries.
+func resetPlanBuildMemoCache(maxSize int) {
+	planBuildMemo, _ = pkgcache.NewWithMaxSize[bool](0, maxSize)
+}
 
 func sourceIdentity(path string) (string, bool) {
 	fi, err := os.Stat(path)

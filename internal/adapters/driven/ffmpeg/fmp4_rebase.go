@@ -36,6 +36,13 @@ import (
 	"github.com/evey-project/evey/internal/pkg/metrics"
 )
 
+// closeSegmentFile applies the segment handle's final Close, as a var (not a
+// bare f.Close()) so a test can force the late-flush failure Close alone can
+// surface (ENOSPC, a dying NFS share) - the only way to exercise it
+// deterministically, since a real OS will not fail Close() to order on a
+// plain local file.
+var closeSegmentFile = func(f *os.File) error { return f.Close() }
+
 // scaleDelta converts deltaMs into timescale units, rounding to nearest.
 func scaleDelta(deltaMs int64, timescale uint32) int64 {
 	return (deltaMs*int64(timescale) + 500) / 1000
@@ -97,12 +104,26 @@ func childBoxes(buf []byte, start, end int, fn func(typ string, off, size int) b
 // Returns the FIRST traf's post-rebase tfdt in milliseconds (hlsenc writes
 // the video traf first), or -1 when the segment has none - the publish
 // pump's drift tripwire compares it against the keyframe plan.
-func rebaseFMP4Segment(path string, deltaMs int64, initTimescales map[uint32]uint32) (int64, error) {
+func rebaseFMP4Segment(path string, deltaMs int64, initTimescales map[uint32]uint32) (result int64, err error) {
 	f, err := os.OpenFile(path, os.O_RDWR, 0)
 	if err != nil {
 		return -1, err
 	}
-	defer f.Close()
+	// Close is checked, not fire-and-forget deferred: the WriteAt loop below
+	// can succeed into the page cache while a LATE flush failure only surfaces
+	// on Close. Missing that would let the pump's sweep rename a segment whose
+	// tail never reached disk - a TRUNCATED .m4s published as if it were valid,
+	// corrupting the stream with no error anywhere. Same class of bug already
+	// fixed once for avatar uploads (avatar_handler.go): check Close(), don't
+	// discard it.
+	defer func() {
+		if cerr := closeSegmentFile(f); cerr != nil {
+			if err == nil {
+				err = fmt.Errorf("fmp4: close after rebase write: %w", cerr)
+			}
+			result = -1 // withhold: the caller must not treat this as a valid tfdt
+		}
+	}()
 	fi, err := f.Stat()
 	if err != nil {
 		return -1, err

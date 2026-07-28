@@ -3,6 +3,7 @@ package ffmpeg
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -98,6 +99,58 @@ func TestRebaseShiftsTfdtAndSidx(t *testing.T) {
 	// timescale 1000 → 7500 units = 7500 ms; the pump's tripwire consumes this
 	if tfdtMs != 7500 {
 		t.Fatalf("returned first tfdt = %dms, want 7500", tfdtMs)
+	}
+}
+
+// A late flush failure only ever surfaces on Close (ENOSPC, a dying NFS
+// share); the WriteAt calls above it can report success into the page cache
+// regardless. rebaseFMP4Segment must turn that into a real error and a
+// withheld tfdt, or the pump's sweep would rename a truncated segment as if
+// it were valid.
+func TestRebaseFMP4Segment_CloseErrorWithholdsSegment(t *testing.T) {
+	p := writeTmp(t, synthSegment(1, 5000))
+
+	orig := closeSegmentFile
+	closeSegmentFile = func(f *os.File) error {
+		_ = f.Close() // still release the real fd; only report the failure
+		return errors.New("simulated flush failure")
+	}
+	t.Cleanup(func() { closeSegmentFile = orig })
+
+	tfdtMs, err := rebaseFMP4Segment(p, 2500, nil)
+	if err == nil {
+		t.Fatal("want an error when Close fails - a flush failure must not look like success")
+	}
+	if tfdtMs != -1 {
+		t.Fatalf("tfdtMs = %d, want -1: a Close failure must not hand back a value the caller could publish", tfdtMs)
+	}
+}
+
+// End-to-end through the pump's own publish gate: a segment whose Close
+// failed must never appear in pubDir. Before the fix, rebaseFMP4Segment
+// swallowed the Close error, so the pump's `if err != nil { continue }` guard
+// never triggered and os.Rename published the truncated segment as valid.
+func TestRunRebasePump_CloseErrorNeverPublishesSegment(t *testing.T) {
+	priv := t.TempDir()
+	pub := t.TempDir()
+	segName := "stream_0_0.m4s"
+	if err := os.WriteFile(filepath.Join(priv, segName), synthSegment(1, 5000), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	orig := closeSegmentFile
+	closeSegmentFile = func(f *os.File) error {
+		_ = f.Close()
+		return errors.New("simulated flush failure")
+	}
+	t.Cleanup(func() { closeSegmentFile = orig })
+
+	stop := make(chan struct{})
+	close(stop) // drives the pump straight to its final sweep, no ticker wait
+	runRebasePump(nil, stop, priv, pub, 2500, "stream", 0, nil, "copy")
+
+	if _, err := os.Stat(filepath.Join(pub, segName)); err == nil {
+		t.Fatal("segment must NOT be published when its Close failed - the client would receive corrupted bytes")
 	}
 }
 

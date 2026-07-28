@@ -1,11 +1,58 @@
 package ffmpeg
 
 import (
+	"context"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// writeFakeProbeScript drops a tiny shell "ffprobe" that ignores its args and
+// echoes fakeJSON - the same fake-binary technique used by prober_test.go, so
+// VideoCompositionDelaySec can be exercised without a real ffprobe.
+func writeFakeProbeScript(t *testing.T, fakeJSON string) string {
+	t.Helper()
+	script, err := os.CreateTemp("", "fake_ffprobe_*.sh")
+	require.NoError(t, err)
+	_, err = script.WriteString("#!/bin/sh\necho '" + fakeJSON + "'\n")
+	require.NoError(t, err)
+	require.NoError(t, script.Close())
+	require.NoError(t, os.Chmod(script.Name(), 0o755))
+	t.Cleanup(func() { os.Remove(script.Name()) })
+	return script.Name()
+}
+
+// videoCompositionDelayCache must stay bounded exactly like its sibling
+// audioDelayCache: on a NAS running for weeks against a library whose files
+// get replaced or re-encoded, one entry per stale (path,size,mtime) identity
+// kept forever is an unbounded leak. Seeding the counter at the cap and
+// proving a pre-existing entry gets dropped on the next Store is the fast way
+// to exercise the eviction without actually inserting 8192 entries.
+func TestVideoCompositionDelayCache_BoundedLikeSibling(t *testing.T) {
+	videoCompositionDelayCache.Clear()
+	videoCompositionDelayCacheLen.Store(0)
+	t.Cleanup(func() {
+		videoCompositionDelayCache.Clear()
+		videoCompositionDelayCacheLen.Store(0)
+	})
+
+	videoCompositionDelayCache.Store("stale-key", 0.042)
+	videoCompositionDelayCacheLen.Store(videoCompositionDelayCacheCap)
+
+	script := writeFakeProbeScript(t, `{"streams":[{"has_b_frames":1,"avg_frame_rate":"24000/1001"}]}`)
+	p := filepath.Join(t.TempDir(), "movie.mkv")
+	require.NoError(t, os.WriteFile(p, []byte("x"), 0o644))
+
+	got := VideoCompositionDelaySec(context.Background(), script, p)
+	assert.Greater(t, got, 0.0, "sanity: the probe itself must still work")
+
+	if _, ok := videoCompositionDelayCache.Load("stale-key"); ok {
+		t.Fatal("videoCompositionDelayCache grew past its cap without evicting - unbounded growth (the leak this test guards against)")
+	}
+}
 
 func TestParseAudioStartDelay(t *testing.T) {
 	// Shaped like `ffprobe -show_entries stream=codec_type,start_time:
