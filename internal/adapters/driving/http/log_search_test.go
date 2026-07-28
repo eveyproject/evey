@@ -275,3 +275,123 @@ func TestSearchLogs_WindowSurvivesVerboseRecentLines(t *testing.T) {
 		t.Fatalf("windowed search drowned by recent noise: total=%d entries=%d", res.Total, len(res.Entries))
 	}
 }
+
+// buildLogLines makes n distinct, time-ordered matching lines (oldest first,
+// which is the on-disk append order) so a test can assert exactly WHICH page
+// it got back, not merely how many rows.
+func buildLogLines(n int) []string {
+	out := make([]string, 0, n)
+	base, _ := time.Parse(time.RFC3339, "2026-07-01T00:00:00Z")
+	for i := range n {
+		out = append(out, `{"time":"`+base.Add(time.Duration(i)*time.Second).Format(time.RFC3339Nano)+
+			`","level":"INFO","msg":"needle","component":"grpc"}`)
+	}
+	return out
+}
+
+// Deep pagination must reach PAST the retain cap. This is the failure that
+// made a real prod investigation impossible on 2026-07-28: the search reported
+// total=N but every page beyond the cap came back EMPTY, so a line that was
+// genuinely on disk could not be produced as evidence. An offset the API
+// accepts (parseLogSearchInt allows up to 1e6) must actually return rows.
+func TestSearchLogs_DeepOffsetIsReachable(t *testing.T) {
+	dir := t.TempDir()
+	const n = logRetainCap + 250
+	writeLog(t, dir, "evey-2026-07-01.log", buildLogLines(n)...)
+
+	res, err := searchLogs(dir, logSearchFilter{Q: "needle", Offset: logRetainCap + 100, Limit: 50})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Total != n {
+		t.Fatalf("total = %d, want %d", res.Total, n)
+	}
+	if len(res.Entries) != 50 {
+		t.Fatalf("deep page came back with %d entries, want 50 - offsets past the retain cap are unreachable", len(res.Entries))
+	}
+}
+
+// Paging through the whole result set must yield every distinct line exactly
+// once: a page that silently repeats or skips rows is worse than an empty one,
+// because the operator cannot tell.
+func TestSearchLogs_PagesCoverEveryMatchExactlyOnce(t *testing.T) {
+	dir := t.TempDir()
+	const n = 1200
+	writeLog(t, dir, "evey-2026-07-01.log", buildLogLines(n)...)
+
+	seen := map[string]int{}
+	for off := 0; off < n; off += 100 {
+		res, err := searchLogs(dir, logSearchFilter{Q: "needle", Offset: off, Limit: 100})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, e := range res.Entries {
+			seen[e.Time]++
+		}
+	}
+	if len(seen) != n {
+		t.Fatalf("paging saw %d distinct lines, want %d", len(seen), n)
+	}
+	for ts, c := range seen {
+		if c != 1 {
+			t.Fatalf("line %s returned %d times across pages, want exactly 1", ts, c)
+		}
+	}
+}
+
+// `truncated` means "the SCAN was cut short, counts are a lower bound" - it is
+// the signal that tells an operator to narrow the query. Having more matches
+// than fit on one page is ordinary pagination and must NOT raise it, or the
+// flag cries wolf on every broad-but-complete search.
+func TestSearchLogs_TruncatedOnlyMeansScanBudgetHit(t *testing.T) {
+	dir := t.TempDir()
+	writeLog(t, dir, "evey-2026-07-01.log", buildLogLines(logRetainCap+500)...)
+
+	res, err := searchLogs(dir, logSearchFilter{Q: "needle", Limit: 100})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Truncated {
+		t.Fatal("truncated set on a complete scan that simply had more matches than one page")
+	}
+}
+
+// The scan walks files by mtime and lines bottom-up, so arrivals are only
+// ALMOST newest-first: around a rotation an older-by-mtime file can still hold
+// a newer line. A keeper that simply took the first `cap` arrivals would drop
+// it. This pins that the newest entries win regardless of arrival order.
+func TestSearchLogs_LateArrivingNewerEntryDisplacesAnOlderOne(t *testing.T) {
+	dir := t.TempDir()
+	// Written first so it ends up OLDER by mtime, hence scanned LAST - yet it
+	// holds the newest line of the whole set.
+	writeLog(t, dir, "evey-2026-06-30.log", `{"time":"2026-07-01T09:00:00Z","level":"INFO","msg":"needle","component":"grpc"}`)
+	time.Sleep(10 * time.Millisecond)
+	writeLog(t, dir, "evey-2026-07-01.log", buildLogLines(5)...)
+
+	res, err := searchLogs(dir, logSearchFilter{Q: "needle", Limit: 3})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Total != 6 {
+		t.Fatalf("total = %d, want 6", res.Total)
+	}
+	if len(res.Entries) != 3 || res.Entries[0].Time != "2026-07-01T09:00:00Z" {
+		t.Fatalf("newest line lost to arrival order: got %d entries, first=%q", len(res.Entries), res.Entries[0].Time)
+	}
+}
+
+// The counterpart to TestSearchLogs_TruncatedOnlyMeansScanBudgetHit: the flag
+// must still RISE when the scan really was cut short, otherwise the operator
+// reads a lower-bound total as if it were exact.
+func TestSearchLogs_TruncatedStillRisesOnScanBudget(t *testing.T) {
+	dir := t.TempDir()
+	writeLog(t, dir, "evey-2026-07-01.log", buildLogLines(logScanLineBudget+10)...)
+
+	res, err := searchLogs(dir, logSearchFilter{Q: "needle", Limit: 100})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.Truncated {
+		t.Fatal("scan budget was hit but truncated stayed false - total would read as exact")
+	}
+}

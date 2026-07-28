@@ -165,7 +165,9 @@ func parseLogSearchFilter(r *http.Request) logSearchFilter {
 		Since:     parseLogTime(q.Get("since")),
 		Until:     parseLogTime(q.Get("until")),
 		Limit:     parseLogSearchInt(q.Get("limit"), 200, 2000),
-		Offset:    parseLogSearchInt(q.Get("offset"), 0, 1_000_000),
+		// Clamped to what a single request can actually retain, so the API
+		// never accepts an offset it would answer with a silent empty page.
+		Offset: parseLogSearchInt(q.Get("offset"), 0, logRetainCapMax),
 	}
 	return f
 }

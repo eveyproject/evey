@@ -223,6 +223,11 @@ export function LogsExplorer() {
         signal,
       }),
     getNextPageParam: (last, all) => {
+      // An empty page ends the walk even when total is higher: the server
+      // clamps how deep a single search can page, and `fetched < total` alone
+      // would keep re-requesting the same offset forever once that floor is
+      // reached (the count never grows, so the condition never flips).
+      if (last.entries.length === 0) return undefined;
       const fetched = all.reduce((n, p) => n + p.entries.length, 0);
       return fetched < last.total ? fetched : undefined;
     },

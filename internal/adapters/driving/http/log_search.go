@@ -65,10 +65,23 @@ type logSearchResult struct {
 // larger read budget. Without that, a verbose day - a busy instance writes
 // well past logScanLineBudget lines a day - burns the whole scan budget on
 // recent noise and makes any older window return nothing at all.
+// logRetainCap sizes the retention window RELATIVE TO THE REQUESTED PAGE
+// (offset+limit), not as a flat ceiling on the whole result set. A flat cap
+// looks harmless but silently breaks deep pagination: the search reports
+// total=N while every page past the cap comes back EMPTY, so a line that IS
+// on disk cannot be produced as evidence. That is what blocked a real prod
+// investigation on 2026-07-28.
+//
+// logRetainCapMax bounds what a single request may hold in memory, and the
+// offset query parameter is clamped to it (parseLogSearchFilter) so the API
+// never accepts an offset it cannot actually serve. The common case
+// (offset=0, limit=200) now retains 200 entries where the old flat cap
+// retained 5000 - strictly less memory, and every accepted page is reachable.
 const (
 	logScanLineBudget = 300_000
 	logReadLineBudget = 5_000_000
 	logRetainCap      = 5_000
+	logRetainCapMax   = 50_000
 	logScannerMaxLine = 2 << 20 // 2 MiB: ffmpeg arg lines can be long
 )
 
@@ -82,8 +95,8 @@ func searchLogs(dir string, f logSearchFilter) (logSearchResult, error) {
 		return logSearchResult{}, err
 	}
 
+	keep := newestKeeper{cap: retainWindow(f)}
 	var (
-		matches []logSearchEntry
 		total   int
 		scanned int
 		read    int
@@ -134,15 +147,12 @@ scan:
 				continue
 			}
 			total++
-			if len(matches) < logRetainCap {
-				matches = append(matches, entry)
-			} else {
-				trunc = true
-			}
+			keep.add(entry)
 		}
 	}
 
 	// Newest first: slog "time" is RFC3339Nano and lexicographically sortable.
+	matches := keep.entries
 	sort.SliceStable(matches, func(i, j int) bool {
 		return matches[i].Time > matches[j].Time
 	})
@@ -159,6 +169,55 @@ scan:
 		Scanned:   scanned,
 		Truncated: trunc,
 	}, nil
+}
+
+// retainWindow sizes the retention buffer for one request: exactly the page
+// asked for (offset+limit), so any accepted offset is serveable. An unpaged
+// caller (Limit <= 0 - internal callers, not the HTTP layer, which always
+// defaults it) keeps the historical flat window.
+func retainWindow(f logSearchFilter) int {
+	n := logRetainCap
+	if f.Limit > 0 {
+		n = f.Offset + f.Limit
+	}
+	return max(1, min(n, logRetainCapMax))
+}
+
+// newestKeeper retains the `cap` newest entries it is shown, whatever order
+// they arrive in. The scan walks files newest-first and lines bottom-up, so
+// arrivals are ALMOST sorted - but log files overlap around a rotation, and a
+// keeper that just took the first `cap` arrivals would drop a genuinely newer
+// entry that shows up late. Since displacements only happen at those
+// boundaries, a linear scan for the current oldest is cheaper in practice than
+// the bookkeeping of a heap, and far easier to read.
+type newestKeeper struct {
+	cap     int
+	entries []logSearchEntry
+	oldest  int // index of the oldest retained entry; valid only once full
+}
+
+func (k *newestKeeper) add(e logSearchEntry) {
+	if len(k.entries) < k.cap {
+		k.entries = append(k.entries, e)
+		if len(k.entries) == k.cap {
+			k.reindexOldest()
+		}
+		return
+	}
+	if e.Time <= k.entries[k.oldest].Time {
+		return
+	}
+	k.entries[k.oldest] = e
+	k.reindexOldest()
+}
+
+func (k *newestKeeper) reindexOldest() {
+	k.oldest = 0
+	for i := 1; i < len(k.entries); i++ {
+		if k.entries[i].Time < k.entries[k.oldest].Time {
+			k.oldest = i
+		}
+	}
 }
 
 // readFileLines loads every line of a log file. Files are size-bounded by the
