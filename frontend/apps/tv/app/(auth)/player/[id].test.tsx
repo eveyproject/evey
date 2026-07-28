@@ -105,19 +105,32 @@ vi.mock("@evey/store", () => ({
 const getMediaItemMock = vi.fn();
 const markAsWatchedMock = vi.fn();
 const getWatchProgressMock = vi.fn();
+// No profile/preferences data by default - track resolution falls back to the
+// manifest's isDefault stream, matching this suite's prior behaviour. The
+// dedicated language-preference tests below override these with their own
+// vi.mocked(...).mockReturnValue.
+const getCurrentUserMock = vi.fn(() => ({ data: undefined }));
+const listProfilesMock = vi.fn(() => ({ data: undefined }));
 vi.mock("@evey/api", () => ({
   useLibraryServiceGetMediaItem: (...args: unknown[]) => getMediaItemMock(...args),
   usePlaybackServiceMarkAsWatched: (...args: unknown[]) => markAsWatchedMock(...args),
   usePlaybackServiceGetWatchProgress: (...args: unknown[]) => getWatchProgressMock(...args),
+  useUserServiceGetCurrentUser: (...args: unknown[]) => getCurrentUserMock(...args),
+  useUserServiceListProfiles: (...args: unknown[]) => listProfilesMock(...args),
 }));
 
 // --- usePlaySession mock -----------------------------------------------------------
 // streamUrl is mutable so a test can drive a track-change restart: the real
 // restartWithTracks tears the session down and comes back with a fresh URL,
 // which recreates the native player. The mock mutates the URL; the test then
-// rerenders to observe the recreated player's behavior.
+// rerenders to observe the recreated player's behavior. mediaStreams is
+// likewise mutable so the profile-language-preference tests can supply
+// audio/subtitle tracks without a dedicated mock module.
 const stopSessionMock = vi.fn();
-const sessionState = { streamUrl: "http://srv.test/stream.m3u8" };
+const sessionState = {
+  streamUrl: "http://srv.test/stream.m3u8",
+  mediaStreams: [] as { type: string; index: number; language?: string; isDefault?: boolean }[],
+};
 const restartWithTracksMock = vi.fn(() => {
   sessionState.streamUrl = "http://srv.test/stream.m3u8?restarted=1";
 });
@@ -125,7 +138,7 @@ vi.mock("../../../src/hooks/usePlaySession", () => ({
   usePlaySession: () => ({
     streamUrl: sessionState.streamUrl,
     sessionId: "sess-1",
-    streamInfo: { mediaStreams: [] },
+    streamInfo: { mediaStreams: sessionState.mediaStreams },
     isLoading: false,
     isError: false,
     stopSession: stopSessionMock,
@@ -174,8 +187,24 @@ vi.mock("../../../src/components/QualityPicker", () => ({
   QualityPicker: ({ onSelect }: { onSelect: (q: number) => void }) =>
     React.createElement("button", { "aria-label": "pick-quality", onClick: () => onSelect(720) }, "720p"),
 }));
-vi.mock("../../../src/components/AudioTrackPicker", () => ({ AudioTrackPicker: () => null }));
-vi.mock("../../../src/components/SubtitlePicker", () => ({ SubtitlePicker: () => null }));
+// AudioTrackPicker/SubtitlePicker capture currentIndex (and, for audio,
+// onSelect) so the profile language preference tests can assert which
+// stream the screen resolved as selected - and simulate a manual pick -
+// without needing the (visible-gated) picker UI itself.
+let lastAudioPickerProps: { currentIndex: number; onSelect: (i: number) => void } | null = null;
+vi.mock("../../../src/components/AudioTrackPicker", () => ({
+  AudioTrackPicker: (p: { currentIndex: number; onSelect: (i: number) => void }) => {
+    lastAudioPickerProps = p;
+    return null;
+  },
+}));
+let lastSubtitlePickerProps: { currentIndex: number | null } | null = null;
+vi.mock("../../../src/components/SubtitlePicker", () => ({
+  SubtitlePicker: (p: { currentIndex: number | null }) => {
+    lastSubtitlePickerProps = p;
+    return null;
+  },
+}));
 vi.mock("../../../src/components/TrackOptionsMenu", () => ({ TrackOptionsMenu: () => null }));
 vi.mock("../../../src/components/ChaptersPicker", () => ({ ChaptersPicker: () => null }));
 vi.mock("../../../src/components/SleepTimerPicker", () => ({ SleepTimerPicker: () => null }));
@@ -216,9 +245,14 @@ beforeEach(() => {
   capturedTVHandler = null;
   canGoBackMock.mockReturnValue(true);
   sessionState.streamUrl = "http://srv.test/stream.m3u8";
+  sessionState.mediaStreams = [];
   restartWithTracksMock.mockImplementation(() => {
     sessionState.streamUrl = "http://srv.test/stream.m3u8?restarted=1";
   });
+  getCurrentUserMock.mockReturnValue({ data: undefined });
+  listProfilesMock.mockReturnValue({ data: undefined });
+  lastAudioPickerProps = null;
+  lastSubtitlePickerProps = null;
   capturedOnNavigate = null;
   needsPinMock.mockImplementation(() => false);
   localSearchParamsMock.mockReturnValue({ id: "ep-1" });
@@ -474,5 +508,65 @@ describe("remote seek (TV)", () => {
     expect(playerMock.seekBy).toHaveBeenCalledWith(120); // 30s * 4x multiplier
     act(() => { capturedTVHandler?.({ eventType: "longLeft" }); });
     expect(playerMock.seekBy).toHaveBeenCalledWith(-120);
+  });
+});
+
+// Profile audio/subtitle language preference (audio_languages/subtitle_languages,
+// shared web/mobile/tv convention) must resolve the initial track, not just the
+// manifest's isDefault flag - mirrors the mobile player's equivalent wiring.
+describe("profile language preference (TV)", () => {
+  beforeEach(() => {
+    getCurrentUserMock.mockReturnValue({ data: { id: "user-1" } });
+    listProfilesMock.mockReturnValue({
+      data: {
+        profiles: [
+          { id: "prof-1", isDefault: true, preferences: { audio_languages: "de", subtitle_languages: "fr" } },
+        ],
+      },
+    });
+    sessionState.mediaStreams = [
+      { type: "MEDIA_STREAM_TYPE_AUDIO", index: 0, language: "eng", isDefault: true },
+      { type: "MEDIA_STREAM_TYPE_AUDIO", index: 1, language: "ger" },
+      { type: "MEDIA_STREAM_TYPE_SUBTITLE", index: 2, language: "fre" },
+      { type: "MEDIA_STREAM_TYPE_SUBTITLE", index: 3, language: "eng" },
+    ];
+  });
+
+  it("selects the audio stream matching the profile's preferred language over isDefault", () => {
+    render(<PlayerScreen />);
+    // 639-2 "ger" stream must be picked for a 639-1 "de" preference, ahead of
+    // the manifest's own isDefault ("eng") stream.
+    expect(lastAudioPickerProps?.currentIndex).toBe(1);
+  });
+
+  it("selects the subtitle stream matching the profile's preferred language", () => {
+    render(<PlayerScreen />);
+    // 639-2 "fre" stream must be picked for a 639-1 "fr" preference.
+    expect(lastSubtitlePickerProps?.currentIndex).toBe(2);
+  });
+
+  it("falls back to isDefault when no stream matches the preferred language", () => {
+    listProfilesMock.mockReturnValue({
+      data: {
+        profiles: [{ id: "prof-1", isDefault: true, preferences: { audio_languages: "ja" } }],
+      },
+    });
+    render(<PlayerScreen />);
+    expect(lastAudioPickerProps?.currentIndex).toBe(0);
+  });
+
+  it("does not re-apply the preference over a track the user picked manually", () => {
+    const { rerender } = render(<PlayerScreen />);
+    expect(lastAudioPickerProps?.currentIndex).toBe(1); // preference applied first
+
+    act(() => { lastAudioPickerProps?.onSelect(0); }); // user manually picks the English track
+    expect(lastAudioPickerProps?.currentIndex).toBe(0);
+
+    // A track/quality restart re-derives audioStreams (new array reference) -
+    // without the userPickedAudioRef guard this used to silently revert the
+    // user's pick back to the profile-preferred "de" track.
+    sessionState.mediaStreams = [...sessionState.mediaStreams];
+    rerender(<PlayerScreen />);
+    expect(lastAudioPickerProps?.currentIndex).toBe(0);
   });
 });

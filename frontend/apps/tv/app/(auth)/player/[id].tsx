@@ -8,6 +8,8 @@ import {
   useLibraryServiceGetMediaItem,
   usePlaybackServiceMarkAsWatched,
   usePlaybackServiceGetWatchProgress,
+  useUserServiceGetCurrentUser,
+  useUserServiceListProfiles,
 } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
@@ -16,6 +18,7 @@ import { useProgressReporter } from "../../../src/hooks/useProgressReporter";
 import { usePlaybackSettings } from "../../../src/hooks/usePlaybackSettings";
 import { useNextEpisode } from "../../../src/hooks/useNextEpisode";
 import { useChapters } from "../../../src/hooks/useChapters";
+import { pickPreferredStreamIndex } from "../../../src/lib/langMatch";
 import { useSleepTimer } from "../../../src/hooks/useSleepTimer";
 import { seekDeltaForKey, clampSeekTarget, shouldReleaseSeekPreview } from "../../../src/hooks/playerSeek";
 import { playerExit } from "../../../src/hooks/playerExit";
@@ -57,6 +60,34 @@ export default function PlayerScreen() {
   const { data: media } = useLibraryServiceGetMediaItem(mediaId);
   const { streamUrl, sessionId, streamInfo, isLoading, isError, shedReason, stopSession, restartWithTracks, progress } =
     usePlaySession(mediaId);
+  const profileId = useAuthStore((s) => s.profileId) ?? "";
+
+  // Profile audio/subtitle language preference (audio_languages/subtitle_languages,
+  // CSV of ISO 639-1 codes in profile.preferences - shared web/mobile/tv
+  // convention, see settings/playback.tsx). Mirrors the web player's
+  // HLSPlayer.tsx / mobile's player screen: applied to the initial track
+  // resolution below, but never overrides an explicit in-session pick
+  // (userPickedAudioRef / userPickedSubtitleRef).
+  const { data: currentUserForPrefs } = useUserServiceGetCurrentUser();
+  const { data: profilesRespForPrefs } = useUserServiceListProfiles(
+    currentUserForPrefs?.id ?? "",
+    { query: { enabled: !!currentUserForPrefs?.id } } as never,
+  );
+  const activeProfile = useMemo(
+    () =>
+      profilesRespForPrefs?.profiles?.find((p) => p.id === profileId) ??
+      profilesRespForPrefs?.profiles?.find((p) => p.isDefault) ??
+      profilesRespForPrefs?.profiles?.[0],
+    [profilesRespForPrefs, profileId],
+  );
+  const profileAudioLangs = useMemo((): string[] => {
+    const raw = activeProfile?.preferences?.["audio_languages"] ?? "";
+    return raw.split(",").map((s) => s.trim()).filter(Boolean);
+  }, [activeProfile]);
+  const profileSubtitleLangs = useMemo((): string[] => {
+    const raw = activeProfile?.preferences?.["subtitle_languages"] ?? "";
+    return raw.split(",").map((s) => s.trim()).filter(Boolean);
+  }, [activeProfile]);
 
   const [showControls, setShowControls] = useState(true);
   const [showQualityPicker, setShowQualityPicker] = useState(false);
@@ -132,12 +163,40 @@ export default function PlayerScreen() {
     [streamInfo],
   );
 
-  // Set initial selected audio index from the default stream.
+  // Set initial selected audio index: profile preference first, then the
+  // manifest's isDefault stream, then the first stream. Once the user has
+  // manually picked a track, this must NOT run again: restartWithTracks
+  // re-derives audioStreams (new reference), which would otherwise re-fire
+  // this effect and reset the choice back to the isDefault track.
+  const userPickedAudioRef = useRef(false);
   useEffect(() => {
+    if (userPickedAudioRef.current) return;
+    const preferred = pickPreferredStreamIndex(audioStreams, profileAudioLangs);
+    if (preferred !== null) { setSelectedAudioIndex(preferred); return; }
     const def = audioStreams.find((s) => s.isDefault);
     if (def) setSelectedAudioIndex(def.index);
     else if (audioStreams.length > 0) setSelectedAudioIndex(audioStreams[0].index);
-  }, [audioStreams]);
+  }, [audioStreams, profileAudioLangs]);
+
+  // Same guard for subtitles: applies the profile's subtitle_languages
+  // preference once, and never once the user has picked a subtitle by hand
+  // (see handleSubtitleSelect). No preference match leaves subtitles off -
+  // matches prior TV behaviour (no isDefault-subtitle fallback).
+  const userPickedSubtitleRef = useRef(false);
+  useEffect(() => {
+    if (userPickedSubtitleRef.current) return;
+    const preferred = pickPreferredStreamIndex(subtitleStreams, profileSubtitleLangs);
+    if (preferred !== null) setSelectedSubtitleIndex(preferred);
+  }, [subtitleStreams, profileSubtitleLangs]);
+
+  // A track pick made on the previous title means nothing on the next one
+  // (auto-next-episode or a new navigation reuses this screen) - without this
+  // reset, the profile language preference would never re-apply past the
+  // first item played in a session.
+  useEffect(() => {
+    userPickedAudioRef.current = false;
+    userPickedSubtitleRef.current = false;
+  }, [mediaId]);
 
   const { data: chaptersData } = useChapters(mediaId);
   const chapters = chaptersData ?? [];
@@ -198,7 +257,6 @@ export default function PlayerScreen() {
   // playback crosses 90%. The server's ReportProgressBySession path
   // hardcodes Completed=false so without this fix the user has to
   // manually toggle "watched" after every episode.
-  const profileId = useAuthStore((s) => s.profileId) ?? "";
   const { data: serverProgress } = usePlaybackServiceGetWatchProgress(
     mediaId,
     { profileId },
@@ -293,6 +351,7 @@ export default function PlayerScreen() {
 
   const handleAudioSelect = useCallback(
     (index: number) => {
+      userPickedAudioRef.current = true;
       setSelectedAudioIndex(index);
       resumeAfterRestartRef.current = player?.playing ?? true;
       restartWithTracks(index, selectedSubtitleIndex ?? undefined, selectedQuality || undefined);
@@ -302,6 +361,7 @@ export default function PlayerScreen() {
 
   const handleSubtitleSelect = useCallback(
     (index: number | null) => {
+      userPickedSubtitleRef.current = true;
       setSelectedSubtitleIndex(index);
       resumeAfterRestartRef.current = player?.playing ?? true;
       restartWithTracks(selectedAudioIndex, index ?? undefined, selectedQuality || undefined);
