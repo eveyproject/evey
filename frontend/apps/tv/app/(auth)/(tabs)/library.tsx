@@ -67,6 +67,13 @@ export default function LibraryScreen() {
     );
   }
 
+  // When there are no libraries yet, the FlatList below renders nothing and
+  // never claims hasTVPreferredFocus (that only fires on its first item) -
+  // without an explicit fallback here, this screen left the remote with no
+  // initial focus target at all. The two link cards are the only focusable
+  // elements left in that case.
+  const noLibraries = libraries.length === 0;
+
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
       <Text style={[styles.header, { color: theme.colors.text }]}>{t("common.nav.libraries")}</Text>
@@ -74,6 +81,7 @@ export default function LibraryScreen() {
       <View style={styles.linkRow}>
         <FocusableCard
           onPress={() => router.push("/(auth)/collections")}
+          hasTVPreferredFocus={noLibraries}
           style={[styles.linkCard, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
         >
           <Text style={[styles.linkText, { color: theme.colors.accent }]}>{t("common.collections")}</Text>

@@ -20,8 +20,15 @@ vi.mock("react-native", () => ({
       onChange: (e: any) => onChangeText?.(e.target.value),
       ...p,
     }),
-  Pressable: ({ children, onPress, accessibilityLabel, ...p }: any) =>
-    React.createElement("button", { onClick: onPress, "aria-label": accessibilityLabel, ...p }, children),
+  // hasTVPreferredFocus is surfaced as a data-* attribute: React silently
+  // drops a boolean value passed through an unrecognized DOM prop, so
+  // spreading it through as-is would make it unobservable in jsdom.
+  Pressable: ({ children, onPress, accessibilityLabel, hasTVPreferredFocus, ...p }: any) =>
+    React.createElement(
+      "button",
+      { onClick: onPress, "aria-label": accessibilityLabel, "data-tv-preferred-focus": hasTVPreferredFocus ? "true" : undefined, ...p },
+      children,
+    ),
   FlatList: ({ data, renderItem, keyExtractor, ListEmptyComponent }: any) => {
     if (!data || data.length === 0) {
       return ListEmptyComponent ? React.createElement(React.Fragment, null, ListEmptyComponent) : null;
@@ -141,6 +148,26 @@ beforeEach(() => {
   listGenresMock.mockReturnValue({ data: { genres: ["Action", "Drama"] } });
   searchMediaMock.mockReturnValue({ data: { items: [] }, isLoading: false, isError: false, refetch: vi.fn() });
   watchHistoryMock.mockReturnValue({ data: { items: [] } });
+});
+
+describe("TV LibraryDetailScreen error state", () => {
+  it("gives the remote a focusable retry action instead of leaving it with nowhere to go", () => {
+    const refetchMock = vi.fn();
+    listMediaItemsMock.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      isFetching: false,
+      refetch: refetchMock,
+    });
+    render(<LibraryDetailScreen />);
+
+    const retryBtn = screen.getByText("common.retry").closest("button");
+    expect(retryBtn?.getAttribute("data-tv-preferred-focus")).toBe("true");
+
+    fireEvent.click(retryBtn!);
+    expect(refetchMock).toHaveBeenCalled();
+  });
 });
 
 describe("TV LibraryDetailScreen genre filter", () => {

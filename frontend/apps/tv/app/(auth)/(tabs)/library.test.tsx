@@ -7,8 +7,16 @@ vi.mock("react-native", () => ({
   View: ({ children, ...p }: any) => React.createElement("div", p, children),
   Text: ({ children, ...p }: any) => React.createElement("span", p, children),
   ActivityIndicator: (p: any) => React.createElement("div", { "data-testid": "spinner", ...p }),
-  Pressable: ({ children, onPress, accessibilityLabel, ...p }: any) =>
-    React.createElement("button", { onClick: onPress, "aria-label": accessibilityLabel, ...p }, children),
+  // hasTVPreferredFocus is surfaced as a data-* attribute: React silently
+  // drops boolean values passed through an unrecognized DOM prop, so passing
+  // it through the ...p spread as-is (as other test files do) makes it
+  // unobservable in jsdom - a real gap this suite needs to assert on.
+  Pressable: ({ children, onPress, accessibilityLabel, hasTVPreferredFocus, ...p }: any) =>
+    React.createElement(
+      "button",
+      { onClick: onPress, "aria-label": accessibilityLabel, "data-tv-preferred-focus": hasTVPreferredFocus ? "true" : undefined, ...p },
+      children,
+    ),
   FlatList: ({ data, renderItem, keyExtractor }: any) => {
     if (!data || data.length === 0) return null;
     return React.createElement(
@@ -70,6 +78,18 @@ describe("LibraryScreen (TV) error state", () => {
     expect(screen.getByText("common.loadError")).toBeTruthy();
     fireEvent.click(screen.getByText("common.retry"));
     expect(refetchMock).toHaveBeenCalled();
+  });
+});
+
+describe("LibraryScreen (TV) empty state", () => {
+  it("gives the remote a focusable target when there are zero libraries yet", () => {
+    // The FlatList renders nothing and never fires its own hasTVPreferredFocus
+    // (that only triggers on its first item) - without a fallback, this
+    // screen used to strand the remote with no initial focus target.
+    listLibrariesMock.mockReturnValue({ data: { libraries: [] }, isLoading: false, isError: false, refetch: vi.fn() });
+    render(<LibraryScreen />);
+    const collectionsBtn = screen.getByText("common.collections").closest("button");
+    expect(collectionsBtn?.getAttribute("data-tv-preferred-focus")).toBe("true");
   });
 });
 

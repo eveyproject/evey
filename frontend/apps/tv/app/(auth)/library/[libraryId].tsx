@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { View, Text, FlatList, ScrollView, Pressable, TextInput, ActivityIndicator, StyleSheet } from "react-native";
+import { View, Text, FlatList, ScrollView, TextInput, ActivityIndicator, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
@@ -434,9 +434,12 @@ export default function LibraryDetailScreen() {
       {activeIsError ? (
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
           <Text style={{ color: theme.colors.textMuted, fontSize: 22, marginBottom: 12 }}>{t("common.loadError")}</Text>
-          <Pressable onPress={() => activeRefetch()}>
+          {/* A plain Pressable has no hasTVPreferredFocus, so nothing on this
+              error state claims initial remote focus - stranding the D-pad.
+              FocusableCard matches every other retry action in this app. */}
+          <FocusableCard onPress={() => activeRefetch()} hasTVPreferredFocus>
             <Text style={{ color: theme.colors.accent, fontSize: 20 }}>{t("common.retry")}</Text>
-          </Pressable>
+          </FocusableCard>
         </View>
       ) : (
         <>
