@@ -14,10 +14,18 @@ import Constants from "expo-constants";
 // continuent donc de marcher. Motivation (2026-07-28) : pendant la chasse au
 // cast coupe, les logs prod ne disaient pas QUEL build parlait, ce qui rendait
 // indecidable "le correctif ne marche pas" contre "le correctif n'est pas
-// installe". nativeAppVersion vient du versionName de l'APK, pas du manifeste
-// JS : c'est la verite du binaire reellement installe.
+// installe".
+//
+// La version vient d'expoConfig, embarque tel quel dans l'APK (assets/app.config)
+// au moment du build. Premiere tentative RATEE le meme jour :
+// `Constants.nativeAppVersion` n'existe pas dans expo-constants 55, et le type
+// du module se terminant par `Record<string, any>`, TypeScript l'a accepte
+// sans un mot - l'UA repartait sans version, en silence, et j'en ai tire la
+// mauvaise conclusion sur le build installe. Toute lecture d'un champ de
+// Constants doit etre verifiee contre le paquet, jamais supposee.
 export function eveyClientUserAgent(): string {
-  const version = Constants.nativeAppVersion ? `/${Constants.nativeAppVersion}` : "";
+  const appVersion = Constants.expoConfig?.version;
+  const version = appVersion ? `/${appVersion}` : "";
   if (Platform.OS === "android") {
     const c = (Platform as unknown as { constants?: { Release?: string; Model?: string } }).constants;
     const release = c?.Release ? ` ${c.Release}` : "";

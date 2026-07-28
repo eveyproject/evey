@@ -14,7 +14,7 @@ import { vi } from "vitest";
 let platformOS = "android";
 let platformVersion: number | string = 34;
 let platformConstants: Record<string, string> | undefined = { Release: "14", Model: "SM-G991B" };
-let nativeAppVersion: string | null = "0.0.1-beta.14";
+let appVersion: string | undefined = "0.0.1-beta.14";
 
 vi.mock("react-native", () => ({
   get Platform() {
@@ -22,10 +22,17 @@ vi.mock("react-native", () => ({
   },
 }));
 
+// Le mock reproduit la FORME REELLE d'expo-constants 55 : la version vit dans
+// expoConfig (embarque tel quel dans l'APK sous assets/app.config au build).
+// Piege paye le 2026-07-28 : `Constants.nativeAppVersion` n'existe pas dans
+// cette version, et le type se terminant par `Record<string, any>`, TypeScript
+// l'accepte sans broncher - l'UA repartait sans version, en silence. Un mock
+// qui invente un champ valide n'importe quel code : celui-ci ne doit exposer
+// QUE ce que le paquet expose vraiment.
 vi.mock("expo-constants", () => ({
   default: {
-    get nativeAppVersion() {
-      return nativeAppVersion;
+    get expoConfig() {
+      return appVersion === undefined ? null : { version: appVersion };
     },
   },
 }));
@@ -36,35 +43,35 @@ describe("eveyClientUserAgent", () => {
   it("builds an EveyMobile UA with build version, Android release and device model", () => {
     platformOS = "android";
     platformConstants = { Release: "14", Model: "SM-G991B" };
-    nativeAppVersion = "0.0.1-beta.14";
+    appVersion = "0.0.1-beta.14";
     expect(eveyClientUserAgent()).toBe("EveyMobile/0.0.1-beta.14 (Android 14; SM-G991B)");
   });
 
   it("degrades gracefully when the platform constants are missing", () => {
     platformOS = "android";
     platformConstants = undefined;
-    nativeAppVersion = "0.0.1-beta.14";
+    appVersion = "0.0.1-beta.14";
     expect(eveyClientUserAgent()).toBe("EveyMobile/0.0.1-beta.14 (Android)");
   });
 
   it("omet la version plutot que d'ecrire un mensonge quand elle est absente", () => {
     platformOS = "android";
     platformConstants = { Release: "14", Model: "SM-G991B" };
-    nativeAppVersion = null;
+    appVersion = undefined;
     expect(eveyClientUserAgent()).toBe("EveyMobile (Android 14; SM-G991B)");
   });
 
   it("labels iOS with its version", () => {
     platformOS = "ios";
     platformVersion = "17.4";
-    nativeAppVersion = "0.0.1-beta.14";
+    appVersion = "0.0.1-beta.14";
     expect(eveyClientUserAgent()).toBe("EveyMobile/0.0.1-beta.14 (iOS 17.4)");
   });
 
   it("garde le prefixe que le panneau admin teste (startsWith eveymobile)", () => {
     platformOS = "android";
     platformConstants = { Release: "14", Model: "SM-G991B" };
-    nativeAppVersion = "0.0.1-beta.14";
+    appVersion = "0.0.1-beta.14";
     expect(eveyClientUserAgent().toLowerCase().startsWith("eveymobile")).toBe(true);
     // Le modele est lu entre "; " et ")" par onlineDevice.ts : la version
     // ajoutee avant la parenthese ne doit pas deplacer ce reperage.
