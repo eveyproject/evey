@@ -255,7 +255,7 @@ export default function PlaybackSettingsScreen() {
       >
         <Text style={[styles.label, { color: theme.colors.text }]}>{label}</Text>
         {selected && (
-          <Text style={{ color: theme.colors.accent, fontSize: 22, fontWeight: "600" }}>OK</Text>
+          <Text style={{ color: theme.colors.accent, fontSize: 22, fontWeight: "600" }}>{"✓"}</Text>
         )}
       </Pressable>
     );

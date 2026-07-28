@@ -68,7 +68,7 @@ export default function CollectionDetailScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
-      <Text style={[styles.header, { color: theme.colors.text }]}>{col?.name ?? "Collection"}</Text>
+      <Text style={[styles.header, { color: theme.colors.text }]}>{col?.name ?? t("media.collections.title")}</Text>
       <FlatList
         data={items}
         keyExtractor={tvColKeyExtractor}

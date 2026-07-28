@@ -9,10 +9,12 @@ import { useServerUrlNullable } from "../../../src/hooks/useServerUrl";
 import { clearServerUrl } from "../../../src/lib/server-config";
 import { supportedLanguages } from "../../../src/i18n";
 
+// labelKey/fallback pairs mirror mobile's ThemeSelector.tsx builtInI18nKeys
+// mapping - same three built-in themes this TV settings screen exposes.
 const THEME_OPTIONS = [
-  { label: "Dark", value: "default" },
-  { label: "Light", value: "light-default" },
-  { label: "AMOLED", value: "amoled" },
+  { labelKey: "mobile.settings.themeDark", fallback: "Dark", value: "default" },
+  { labelKey: "mobile.settings.themeLight", fallback: "Light", value: "light-default" },
+  { labelKey: "mobile.settings.themeAmoled", fallback: "AMOLED", value: "amoled" },
 ] as const;
 
 export default function SettingsScreen() {
@@ -86,7 +88,7 @@ export default function SettingsScreen() {
       <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>{t("mobile.settings.server")}</Text>
       <View style={[styles.section, { backgroundColor: theme.colors.surface }]}>
         <View style={styles.infoRow}>
-          <Text style={[styles.label, { color: theme.colors.text }]}>URL</Text>
+          <Text style={[styles.label, { color: theme.colors.text }]}>{t("admin.webhooks.url", "URL")}</Text>
           <Text style={[styles.value, { color: theme.colors.textMuted }]}>{serverUrl ?? "..."}</Text>
         </View>
         <Pressable
@@ -106,7 +108,7 @@ export default function SettingsScreen() {
       <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>{t("auth.settings.tabs.account")}</Text>
       <View style={[styles.section, { backgroundColor: theme.colors.surface }]}>
         <View style={styles.infoRow}>
-          <Text style={[styles.label, { color: theme.colors.text }]}>User</Text>
+          <Text style={[styles.label, { color: theme.colors.text }]}>{t("admin.users.user", "User")}</Text>
           <Text style={[styles.value, { color: theme.colors.textMuted }]}>{user?.username ?? "..."}</Text>
         </View>
         <Pressable
@@ -192,7 +194,7 @@ export default function SettingsScreen() {
           >
             <Text style={[styles.label, { color: theme.colors.text }]}>{lang.label}</Text>
             {currentLang === lang.code && (
-              <Text style={{ color: theme.colors.accent, fontSize: 22, fontWeight: "600" }}>OK</Text>
+              <Text style={{ color: theme.colors.accent, fontSize: 22, fontWeight: "600" }}>{"✓"}</Text>
             )}
           </Pressable>
         ))}
@@ -209,12 +211,12 @@ export default function SettingsScreen() {
             onFocus={() => setFocusedItem(`theme-${opt.value}`)}
             onBlur={() => setFocusedItem(null)}
             accessible={true}
-            accessibilityLabel={`${opt.label} theme`}
+            accessibilityLabel={t(opt.labelKey, opt.fallback)}
             accessibilityRole="button"
           >
-            <Text style={[styles.label, { color: theme.colors.text }]}>{opt.label}</Text>
+            <Text style={[styles.label, { color: theme.colors.text }]}>{t(opt.labelKey, opt.fallback)}</Text>
             {currentTheme === opt.value && (
-              <Text style={{ color: theme.colors.accent, fontSize: 22, fontWeight: "600" }}>OK</Text>
+              <Text style={{ color: theme.colors.accent, fontSize: 22, fontWeight: "600" }}>{"✓"}</Text>
             )}
           </Pressable>
         ))}

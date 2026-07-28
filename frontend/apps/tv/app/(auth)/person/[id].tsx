@@ -55,7 +55,7 @@ export default function PersonDetailScreen() {
   const authHeaders = useAuthHeaders();
 
   const items = mediaData?.items ?? [];
-  const name = person?.name ?? "Unknown";
+  const name = person?.name ?? t("common.unknown");
   const initial = name[0]?.toUpperCase() ?? "?";
   const isLoading = personLoading || mediaLoading;
 
@@ -86,7 +86,7 @@ export default function PersonDetailScreen() {
               })}
               {person.deathday
                 ? ` - ${new Date(person.deathday).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}`
-                : ` (${Math.floor((Date.now() - new Date(person.birthday).getTime()) / 31557600000)} years old)`}
+                : ` (${Math.floor((Date.now() - new Date(person.birthday).getTime()) / 31557600000)} ${t("media.person.yearsOld")})`}
             </Text>
           ) : null}
           {person?.placeOfBirth ? (

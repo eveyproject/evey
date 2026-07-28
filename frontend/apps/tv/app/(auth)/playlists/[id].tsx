@@ -58,7 +58,7 @@ export default function PlaylistDetailScreen() {
         ListFooterComponent={
           items.length > 0 ? (
             <Text style={[styles.footer, { color: theme.colors.textMuted }]}>
-              {items.length} {items.length === 1 ? "item" : "items"}
+              {t("common.item", { count: items.length })}
             </Text>
           ) : null
         }

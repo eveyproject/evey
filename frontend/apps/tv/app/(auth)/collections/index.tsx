@@ -25,7 +25,7 @@ export default function CollectionsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
-      <Text style={[styles.header, { color: theme.colors.text }]}>Collections</Text>
+      <Text style={[styles.header, { color: theme.colors.text }]}>{t("common.collections")}</Text>
       <FlatList
         data={collections}
         keyExtractor={(item) => item.id}

@@ -72,7 +72,7 @@ export default function FavoritesScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
-      <Text style={[styles.header, { color: theme.colors.text }]}>Favorites</Text>
+      <Text style={[styles.header, { color: theme.colors.text }]}>{t("media.favorites.title")}</Text>
       <FlatList
         data={favorites ?? []}
         keyExtractor={tvFavKeyExtractor}
