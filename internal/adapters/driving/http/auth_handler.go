@@ -1,10 +1,12 @@
 package httpapi
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
@@ -440,31 +442,18 @@ func (h *parentalHandler) requireAccountPassword(w http.ResponseWriter, r *http.
 	return true
 }
 
-// applyPINChange handles the PIN mutation itself: clearing an existing PIN
-// (blocked if it would leave a sibling kids profile without a guardian PIN)
-// or hashing and storing a newly chosen one. A nil PIN means no change.
+// applyPINChange handles the PIN mutation itself: clearing an existing PIN or
+// hashing and storing a newly chosen one. A nil PIN means no change. Whether
+// clearing is actually allowed (no kids sibling left without a guardian PIN)
+// is NOT decided here - it used to reimplement that sibling scan inline,
+// duplicating (and able to drift from) the domain invariant; persistAndRespond
+// now re-validates the fully mutated profile through the single shared
+// enforceKidsPINInvariant choke point immediately before the write.
 func (h *parentalHandler) applyPINChange(w http.ResponseWriter, r *http.Request, span trace.Span, profile *domainuser.Profile, body parentalUpdateBody) bool {
 	if body.PIN == nil {
 		return true
 	}
 	if *body.PIN == "" {
-		// Clearing PIN is only allowed if this profile is kids OR no sibling is kids.
-		if !profile.IsKids {
-			siblings, sErr := h.profileRepo.GetByUserID(r.Context(), profile.UserID)
-			if sErr != nil {
-				span.RecordError(sErr)
-				span.SetStatus(codes.Error, "siblings lookup failed")
-				http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
-				return false
-			}
-			for _, s := range siblings {
-				if s != nil && s.ID != profile.ID && s.IsKids {
-					span.SetStatus(codes.Error, "kids sibling requires PIN")
-					http.Error(w, `{"message":"non-kids profile must have a PIN when a kids profile exists"}`, http.StatusConflict)
-					return false
-				}
-			}
-		}
 		profile.Parental.PINHash = ""
 		return true
 	}
@@ -479,9 +468,49 @@ func (h *parentalHandler) applyPINChange(w http.ResponseWriter, r *http.Request,
 	return true
 }
 
-// persistAndRespond saves the mutated profile and writes the success payload.
+// enforceKidsPINInvariant re-validates the domain kids/PIN data invariant
+// against candidate's CURRENT sibling state, immediately before writing a
+// profile. It is the single choke point every profile-mutating handler in
+// this file (and avatar_handler.go) routes through, instead of each one
+// re-deriving its own (and possibly diverging) copy of the rule.
+//
+// users may be nil (avatar_handler.go has no UserRepository dependency): the
+// admin-cannot-be-kids check is then skipped, which is safe because that
+// caller never touches IsKids.
+func enforceKidsPINInvariant(ctx context.Context, profiles domainuser.ProfileRepository, users domainuser.UserRepository, p *domainuser.Profile) error {
+	siblings, err := profiles.GetByUserID(ctx, p.UserID)
+	if err != nil {
+		return fmt.Errorf("load siblings: %w", err)
+	}
+	if err := domainuser.CheckKidsPINInvariant(p, siblings); err != nil {
+		return err
+	}
+	if users == nil {
+		return nil
+	}
+	owner, err := users.GetByID(ctx, p.UserID)
+	if err != nil || owner == nil {
+		return nil // owner lookup failing is not fatal - mirrors the CreateProfile precedent
+	}
+	return domainuser.CheckAdminCannotBeKids(owner.IsAdmin, p)
+}
+
+// persistAndRespond re-validates the invariant against the fully mutated
+// profile, then writes ONLY the parental_* columns (this handler never
+// touches any other field) and the success payload.
 func (h *parentalHandler) persistAndRespond(w http.ResponseWriter, r *http.Request, span trace.Span, profile *domainuser.Profile) {
-	if err := h.profileRepo.Update(r.Context(), profile); err != nil {
+	if err := enforceKidsPINInvariant(r.Context(), h.profileRepo, h.userRepo, profile); err != nil {
+		span.RecordError(err)
+		if errors.Is(err, domainuser.ErrKidsRequiresPIN) {
+			span.SetStatus(codes.Error, "kids sibling requires PIN")
+			http.Error(w, `{"message":"non-kids profile must have a PIN when a kids profile exists"}`, http.StatusConflict)
+			return
+		}
+		span.SetStatus(codes.Error, "invariant check failed")
+		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+		return
+	}
+	if err := h.profileRepo.UpdateParentalSettings(r.Context(), profile.ID, profile.Parental); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "profile update failed")
 		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)

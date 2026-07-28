@@ -107,6 +107,51 @@ func (r *FakeProfileRepository) Update(_ context.Context, p *user.Profile) error
 	return nil
 }
 
+// UpdateAvatarPath mirrors the postgres column-scoped write: it mutates ONLY
+// AvatarPath on the stored record, leaving Parental (and every other field)
+// untouched - a stale caller can never resurrect an old PIN through this path.
+func (r *FakeProfileRepository) UpdateAvatarPath(_ context.Context, id shared.ProfileID, avatarPath *string) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
+	p, ok := r.items[string(id)]
+	if !ok {
+		return ErrNotFound
+	}
+	p.AvatarPath = avatarPath
+	return nil
+}
+
+// UpdateParentalSettings mirrors the postgres column-scoped write: it mutates
+// ONLY Parental on the stored record, leaving AvatarPath (and every other
+// field) untouched.
+func (r *FakeProfileRepository) UpdateParentalSettings(_ context.Context, id shared.ProfileID, settings *user.ParentalSettings) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
+	p, ok := r.items[string(id)]
+	if !ok {
+		return ErrNotFound
+	}
+	if settings == nil {
+		p.Parental = nil
+		return nil
+	}
+	cp := *settings
+	p.Parental = &cp
+	return nil
+}
+
 func (r *FakeProfileRepository) GetAll(_ context.Context) ([]*user.Profile, error) {
 	if r.Err != nil {
 		return nil, r.Err

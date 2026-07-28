@@ -52,6 +52,17 @@ type ProfileRepository interface {
 	GetByUserID(ctx context.Context, userID shared.UserID) ([]*Profile, error)
 	GetAll(ctx context.Context) ([]*Profile, error)
 	Update(ctx context.Context, p *Profile) error
+	// UpdateAvatarPath writes ONLY avatar_path. Column-scoped by design (see
+	// TokenEpochRepository above): a profile snapshot read before a concurrent
+	// PIN write, then re-saved just to change its avatar, must not be able to
+	// resurrect the pre-PIN parental_pin_hash it still holds in memory - that
+	// full-row Update once erased a just-set parental PIN.
+	UpdateAvatarPath(ctx context.Context, id shared.ProfileID, avatarPath *string) error
+	// UpdateParentalSettings writes ONLY the parental_* columns - the mirror
+	// image of UpdateAvatarPath: a PIN/age/tags/enabled change must not
+	// overwrite a concurrently-changed avatar_path (or any other column)
+	// sourced from a stale in-memory snapshot.
+	UpdateParentalSettings(ctx context.Context, id shared.ProfileID, settings *ParentalSettings) error
 	Delete(ctx context.Context, id shared.ProfileID) error
 	// SetDefault atomically clears is_default on every other profile owned
 	// by userID and sets it on profileID. Returns ErrNotFound if profileID

@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -159,7 +160,27 @@ func avatarUploadHandler(
 
 		avatarPath := filepath.Join("avatars", filename)
 		profile.AvatarPath = &avatarPath
-		if err := profileRepo.Update(r.Context(), profile); err != nil {
+		// Re-validate the kids/PIN data invariant before writing. This handler
+		// never touches IsKids/Parental itself, but an audit found the write
+		// below had NO invariant check at all - closing that gap here catches
+		// any future field this handler starts touching, at negligible cost to
+		// the (unrelated) common case of just changing a picture.
+		if err := enforceKidsPINInvariant(r.Context(), profileRepo, nil, profile); err != nil {
+			span.RecordError(err)
+			if errors.Is(err, domainuser.ErrKidsRequiresPIN) {
+				span.SetStatus(otelcodes.Error, "kids sibling requires PIN")
+				http.Error(w, `{"message":"non-kids profile must have a PIN when a kids profile exists"}`, http.StatusConflict)
+				return
+			}
+			span.SetStatus(otelcodes.Error, "invariant check failed")
+			slog.ErrorContext(ctx, "avatar upload invariant check", slog.Any("err", err))
+			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			return
+		}
+		// Column-scoped write (see ProfileRepository.UpdateAvatarPath): a stale
+		// in-memory profile re-saving just its avatar path can no longer
+		// resurrect a PIN a concurrent request just cleared or rotated.
+		if err := profileRepo.UpdateAvatarPath(r.Context(), profile.ID, &avatarPath); err != nil {
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, "update profile failed")
 			slog.ErrorContext(ctx, "update profile avatar", slog.Any("err", err))

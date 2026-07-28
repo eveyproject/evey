@@ -357,7 +357,11 @@ func newKidsCallerMux(t *testing.T) (*http.ServeMux, *auth.JWTGenerator, string)
 		Parental: &domainuser.ParentalSettings{Enabled: true, MaxAge: &maxAge, BlockedTags: []string{"horror"}},
 	})
 	_ = profileRepo.Create(context.Background(), &domainuser.Profile{
+		// Must hold a PIN: it is the non-kids sibling of prof-kid, and the
+		// domain kids/PIN invariant (now enforced on every parental write,
+		// not just Create) rejects a household missing that guardian PIN.
 		ID: "prof-1", UserID: "user-1", Name: "Parent",
+		Parental: &domainuser.ParentalSettings{PINHash: "hashed:parent-pin"},
 	})
 	hasher := userfakes.NewFakePasswordHasher()
 	userRepo := userfakes.NewFakeUserRepository()

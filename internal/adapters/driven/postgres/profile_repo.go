@@ -237,6 +237,63 @@ func (r *ProfileRepository) Update(ctx context.Context, p *user.Profile) error {
 	return nil
 }
 
+// UpdateAvatarPath writes ONLY avatar_path. Narrow by design: the previous
+// avatar upload flow re-saved the WHOLE row (via Update) from a Profile it
+// had read earlier, so a concurrent parental-settings write landing in
+// between was silently erased - including a PIN just set by another request.
+// Scoping the SQL to the single column that actually changed makes that
+// clobber structurally impossible, with no need for a version/updated_at
+// column (profiles has none, and adding one is a migration out of scope here).
+func (r *ProfileRepository) UpdateAvatarPath(ctx context.Context, id shared.ProfileID, avatarPath *string) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.profile.UpdateAvatarPath")
+	defer span.End()
+	span.SetAttributes(attribute.String("profile.id", string(id)))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
+		`UPDATE profiles SET avatar_path=$1 WHERE id=$2`, avatarPath, string(id),
+	)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return fmt.Errorf("update profile avatar path: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		span.RecordError(shared.ErrNotFound)
+		span.SetStatus(codes.Error, shared.ErrNotFound.Error())
+		return shared.ErrNotFound
+	}
+	return nil
+}
+
+// UpdateParentalSettings writes ONLY the parental_* columns - the mirror
+// image of UpdateAvatarPath. Without this, saving a PIN/age/tags/enabled
+// change from a Profile read before a concurrent avatar upload landed would
+// silently revert that avatar_path back to its stale value.
+func (r *ProfileRepository) UpdateParentalSettings(ctx context.Context, id shared.ProfileID, settings *user.ParentalSettings) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.profile.UpdateParentalSettings")
+	defer span.End()
+	span.SetAttributes(attribute.String("profile.id", string(id)))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	pMaxAge, pBlockedTags, pPINHash, pEnabled := parentalToColumns(settings)
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
+		`UPDATE profiles SET parental_max_age=$1, parental_blocked_tags=$2, parental_pin_hash=$3, parental_enabled=$4 WHERE id=$5`,
+		pMaxAge, pq.Array(pBlockedTags), pPINHash, pEnabled, string(id),
+	)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return fmt.Errorf("update profile parental settings: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		span.RecordError(shared.ErrNotFound)
+		span.SetStatus(codes.Error, shared.ErrNotFound.Error())
+		return shared.ErrNotFound
+	}
+	return nil
+}
+
 func (r *ProfileRepository) SetDefault(ctx context.Context, userID shared.UserID, profileID shared.ProfileID) error {
 	ctx, span := tracing.StartSpan(ctx, "postgres.profile.SetDefault")
 	defer span.End()
