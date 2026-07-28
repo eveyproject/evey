@@ -48,18 +48,26 @@ build:
 # this after pulling or after bumping the ac3go pin (go get -tool ...@version).
 # In CI/Docker the `wasmbuild` stage does the same. Runs in the evey-server
 # container (Go toolchain + module cache).
-# TinyGo, not standard go: 391 KB vs 2.9 MB, ~5x faster browser compile -
-# decisive for the Cast receiver which compiles this module on a TV's CPU
-# (10s -> ~2s measured 2026-07-25). Requires ac3go's streaming entrypoint
-# (>= v0.0.0-20260725211506): the old one accumulated PCM on the Go heap and
-# TinyGo ballooned to 768 MB. Warning: the wasm_exec.js shim is TINYGO'S,
-# incompatible with standard go's - always ship both together.
+# STANDARD go, deliberately NOT TinyGo. TinyGo (0.41) never runs finalizers,
+# so its syscall/js bridge NEVER releases a js.Value: every PCM Uint8Array
+# crossing the bridge stays pinned in the shim's _values table forever.
+# Measured 2026-07-28 (100 decoded segments, Node harness): TinyGo retains
+# +6.75 MB and +101 refs PER SEGMENT, linearly - 135 MB/min of playback -
+# which memory-killed the cast receiver on 1-2 GB Android TV boxes at the
+# ~3 min mark, with no error event at all. Standard go stays flat (refs
+# constant, external memory sawtoothing with GC). The 2.9 MB download and
+# slower TV-side compile TinyGo was bought for (391 KB, 10s -> ~2s measured
+# 2026-07-25) are NOT worth a decoder that leaks its own output; revisit only
+# if TinyGo ships working finalizers. Warning: the wasm_exec.js shim must
+# always match the compiler that built the module - ship both together.
+# Builds from the sibling ../ac3go checkout (the module's home on this
+# machine), straight into public/wasm.
 wasm-decoder:
-	docker run --rm -v $(PWD):/src -w /src -e HOME=/tmp -e GOFLAGS=-mod=mod \
-	  tinygo/tinygo:0.41.1 sh -c '\
-	  tinygo build -target wasm -no-debug -opt=z -o frontend/apps/web/public/wasm/ac3go.wasm github.com/gravity-zero/ac3go/cmd/ac3go-wasm \
-	  && cp /usr/local/tinygo/targets/wasm_exec.js frontend/apps/web/public/wasm/wasm_exec.js'
-	@echo "✅ ac3go.wasm (TinyGo) + wasm_exec.js (shim TinyGo) rebuilt in frontend/apps/web/public/wasm/"
+	docker run --rm -v $(PWD)/../ac3go:/src/ac3go -v $(PWD)/frontend/apps/web/public/wasm:/out -w /src/ac3go -e HOME=/tmp \
+	  golang:1.26 sh -c '\
+	  CGO_ENABLED=0 GOOS=js GOARCH=wasm go build -o /out/ac3go.wasm ./cmd/ac3go-wasm \
+	  && cp "$$(go env GOROOT)/lib/wasm/wasm_exec.js" /out/wasm_exec.js'
+	@echo "✅ ac3go.wasm (standard go) + wasm_exec.js (go shim) rebuilt in frontend/apps/web/public/wasm/"
 
 test: test-image
 	docker run --rm \
