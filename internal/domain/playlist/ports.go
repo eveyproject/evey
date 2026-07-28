@@ -2,7 +2,17 @@ package playlist
 
 import (
 	"context"
+	"errors"
 )
+
+// ErrDuplicateName marks a Create/Update refused by the unique
+// (profile_id, name) constraint - one profile, one playlist per name.
+var ErrDuplicateName = errors.New("playlist name already used by this profile")
+
+// ErrMaxItemsReached marks an AddNextOrder refused by the item cap enforced
+// INSIDE the insert statement (the Go-side pre-check alone was racy: two
+// concurrent adds at cap-1 both passed it).
+var ErrMaxItemsReached = errors.New("playlist item cap reached")
 
 type PlaylistRepository interface {
 	Create(ctx context.Context, pl *Playlist) error
@@ -17,7 +27,10 @@ type PlaylistItemRepository interface {
 	// AddNextOrder appends item with its sort_order computed atomically in the
 	// INSERT (MAX(sort_order)+1), so two concurrent adds can't read the same
 	// order in Go and write colliding values. item.SortOrder is ignored.
-	AddNextOrder(ctx context.Context, item *PlaylistItem) error
+	// maxItems caps the playlist size inside the same statement; a full
+	// playlist returns ErrMaxItemsReached, an already-present item stays a
+	// silent no-op. maxItems <= 0 means uncapped.
+	AddNextOrder(ctx context.Context, item *PlaylistItem, maxItems int) error
 	Remove(ctx context.Context, playlistID, mediaItemID string) error
 	GetByPlaylistID(ctx context.Context, playlistID string) ([]*PlaylistItem, error)
 	// GetByPlaylistIDs is the batch form of GetByPlaylistID - one query for

@@ -100,6 +100,11 @@ func (h *playlistHandler) CreatePlaylist(ctx context.Context, req *eveyv1.Create
 	pl.SortBy = req.SortBy
 	pl.SortOrder = req.SortOrder
 	if err := h.svc.Create(ctx, pl); err != nil {
+		if errors.Is(err, playlist.ErrDuplicateName) {
+			// The double-tap that used to mint two identical playlists now
+			// surfaces as a clean conflict instead of a 500.
+			return nil, h.translator.TranslatedError(ctx, codes.AlreadyExists, "errors.playlist.duplicate_name")
+		}
 		return nil, internalError(ctx, "create playlist", err)
 	}
 	return playlistToProto(pl), nil
@@ -126,6 +131,9 @@ func (h *playlistHandler) UpdatePlaylist(ctx context.Context, req *eveyv1.Update
 			// NotFound, not PermissionDenied: a playlist owned by another profile
 			// must be indistinguishable from a non-existent one (matches GetPlaylist).
 			return nil, status.Error(codes.NotFound, "playlist not found")
+		}
+		if errors.Is(updateErr, playlist.ErrDuplicateName) {
+			return nil, h.translator.TranslatedError(ctx, codes.AlreadyExists, "errors.playlist.duplicate_name")
 		}
 		return nil, internalError(ctx, "update playlist", updateErr)
 	}

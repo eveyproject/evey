@@ -159,7 +159,7 @@ func TestPlaylistItemRepo_AddNextOrder(t *testing.T) {
 	for _, id := range mids {
 		require.NoError(t, plItemRepo.AddNextOrder(ctx, &domainplaylist.PlaylistItem{
 			PlaylistID: pl.ID, MediaItemID: shared.MediaItemID(id), AddedAt: now, MediaType: domainplaylist.MediaTypeVideo,
-		}))
+		}, 0))
 	}
 	// First insert over an empty playlist must land at order 0, then 1, 2.
 	items, err := plItemRepo.GetByPlaylistID(ctx, pl.ID)
@@ -172,7 +172,7 @@ func TestPlaylistItemRepo_AddNextOrder(t *testing.T) {
 	// A duplicate media item is a no-op (ON CONFLICT DO NOTHING).
 	require.NoError(t, plItemRepo.AddNextOrder(ctx, &domainplaylist.PlaylistItem{
 		PlaylistID: pl.ID, MediaItemID: shared.MediaItemID("ano-m1"), AddedAt: now, MediaType: domainplaylist.MediaTypeVideo,
-	}))
+	}, 0))
 	items, err = plItemRepo.GetByPlaylistID(ctx, pl.ID)
 	require.NoError(t, err)
 	assert.Len(t, items, 3, "duplicate add must be a no-op")
@@ -385,4 +385,87 @@ func TestPlaylistRepo_Delete(t *testing.T) {
 	items, err := plItemRepo.GetByPlaylistID(ctx, pl.ID)
 	require.NoError(t, err)
 	assert.Empty(t, items)
+}
+
+// A double-tapped Create used to land two identical playlists: the unique
+// (profile_id, name) index (migration 000148) now refuses the second one and
+// the repo surfaces the domain sentinel, not a raw pq error.
+func TestPlaylistRepo_DuplicateNameRefused(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	userRepo := postgres.NewUserRepository(db)
+	profileRepo := postgres.NewProfileRepository(db)
+	plRepo := postgres.NewPlaylistRepository(db)
+	ctx := context.Background()
+
+	u := newTestUser("dup-u")
+	require.NoError(t, userRepo.Create(ctx, u))
+	p := newTestProfile("dup-p", u.ID)
+	require.NoError(t, profileRepo.Create(ctx, p))
+
+	first := newTestPlaylist("dup-pl-1", string(p.ID))
+	first.Name = "Soirée"
+	require.NoError(t, plRepo.Create(ctx, first))
+
+	second := newTestPlaylist("dup-pl-2", string(p.ID))
+	second.Name = "Soirée"
+	err := plRepo.Create(ctx, second)
+	require.ErrorIs(t, err, domainplaylist.ErrDuplicateName)
+
+	// A DIFFERENT profile may reuse the name.
+	p2 := newTestProfile("dup-p2", u.ID)
+	require.NoError(t, profileRepo.Create(ctx, p2))
+	third := newTestPlaylist("dup-pl-3", string(p2.ID))
+	third.Name = "Soirée"
+	require.NoError(t, plRepo.Create(ctx, third))
+
+	// Renaming onto a taken name is the same violation.
+	second.Name = "Autre"
+	require.NoError(t, plRepo.Create(ctx, second))
+	second.Name = "Soirée"
+	require.ErrorIs(t, plRepo.Update(ctx, second), domainplaylist.ErrDuplicateName)
+}
+
+// The 500-item cap used to be a read-then-insert in Go: two concurrent adds at
+// 499 both passed. The cap now rides INSIDE the insert statement; the repo
+// reports the cap distinctly from the silent duplicate no-op.
+func TestPlaylistItemRepo_AddNextOrder_CapInsideInsert(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	userRepo := postgres.NewUserRepository(db)
+	profileRepo := postgres.NewProfileRepository(db)
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	plRepo := postgres.NewPlaylistRepository(db)
+	plItemRepo := postgres.NewPlaylistItemRepository(db)
+	ctx := context.Background()
+
+	u := newTestUser("cap-u")
+	require.NoError(t, userRepo.Create(ctx, u))
+	p := newTestProfile("cap-p", u.ID)
+	require.NoError(t, profileRepo.Create(ctx, p))
+	lib := newTestLibrary("cap-lib")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	for _, id := range []string{"cap-m1", "cap-m2", "cap-m3"} {
+		require.NoError(t, itemRepo.Create(ctx, newTestMediaItem(id, lib.ID)))
+	}
+	pl := newTestPlaylist("cap-pl", string(p.ID))
+	require.NoError(t, plRepo.Create(ctx, pl))
+
+	now := time.Now().UTC()
+	add := func(mid string, max int) error {
+		return plItemRepo.AddNextOrder(ctx, &domainplaylist.PlaylistItem{
+			PlaylistID: pl.ID, MediaItemID: shared.MediaItemID(mid), AddedAt: now, MediaType: domainplaylist.MediaTypeVideo,
+		}, max)
+	}
+	require.NoError(t, add("cap-m1", 2))
+	require.NoError(t, add("cap-m2", 2))
+	// Cap reached: the third insert must be refused ATOMICALLY by the statement.
+	require.ErrorIs(t, add("cap-m3", 2), domainplaylist.ErrMaxItemsReached)
+	// Re-adding an existing item stays the silent no-op it always was (the
+	// conflict path), NOT a cap error.
+	require.NoError(t, add("cap-m1", 3))
+	items, err := plItemRepo.GetByPlaylistID(ctx, pl.ID)
+	require.NoError(t, err)
+	assert.Len(t, items, 2)
 }

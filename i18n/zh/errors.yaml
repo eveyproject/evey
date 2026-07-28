@@ -21,6 +21,7 @@ playlist:
   cannot_add_smart: "无法手动向智能播放列表添加项目"
   cannot_remove_smart: "无法从智能播放列表中移除项目"
   limit_reached: "播放列表项目数量已达上限"
+  duplicate_name: "已存在同名播放列表"
 
 playback:
   parental_blocked: "内容被家长控制拦截"

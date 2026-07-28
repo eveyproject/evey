@@ -44,11 +44,22 @@ func (r *PlaylistRepository) Create(ctx context.Context, pl *playlist.Playlist) 
 		pl.ID, pl.Name, pl.Description, pl.ProfileID, pl.Type, rulesJSON, pl.SortBy, pl.SortOrder, pl.CreatedAt, pl.UpdatedAt,
 	)
 	if err != nil {
+		if isPlaylistNameConflict(err) {
+			return playlist.ErrDuplicateName
+		}
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		return fmt.Errorf("PlaylistRepo.Create: %w", err)
 	}
 	return nil
+}
+
+// isPlaylistNameConflict matches the unique (profile_id, name) index
+// (migration 000148) so a double-tapped Create or a rename onto a taken name
+// surfaces as the domain sentinel instead of a raw pq error.
+func isPlaylistNameConflict(err error) bool {
+	var pqErr *pq.Error
+	return errors.As(err, &pqErr) && pqErr.Code == "23505" && pqErr.Constraint == "idx_playlists_profile_name"
 }
 
 func (r *PlaylistRepository) GetByID(ctx context.Context, id string) (*playlist.Playlist, error) {
@@ -133,6 +144,9 @@ func (r *PlaylistRepository) Update(ctx context.Context, pl *playlist.Playlist) 
 		pl.Name, pl.Description, rulesJSON, pl.SortBy, pl.SortOrder, pl.UpdatedAt, pl.ID,
 	)
 	if err != nil {
+		if isPlaylistNameConflict(err) {
+			return playlist.ErrDuplicateName
+		}
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		return fmt.Errorf("PlaylistRepo.Update: %w", err)
@@ -198,7 +212,7 @@ func (r *PlaylistItemRepository) Add(ctx context.Context, item *playlist.Playlis
 	return nil
 }
 
-func (r *PlaylistItemRepository) AddNextOrder(ctx context.Context, item *playlist.PlaylistItem) error {
+func (r *PlaylistItemRepository) AddNextOrder(ctx context.Context, item *playlist.PlaylistItem, maxItems int) error {
 	ctx, span := tracing.StartSpan(ctx, "postgres.playlist_item.AddNextOrder")
 	defer span.End()
 	span.SetAttributes(attribute.String("playlist.id", item.PlaylistID), attribute.String("media_item.id", string(item.MediaItemID)))
@@ -211,17 +225,34 @@ func (r *PlaylistItemRepository) AddNextOrder(ctx context.Context, item *playlis
 	// Compute sort_order inside the INSERT (MAX+1) so two concurrent adds can't
 	// both read the same max in Go and write a colliding order. Aggregate over an
 	// empty playlist yields one row with MAX=NULL → order 0 for the first item.
-	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
+	// The item cap rides INSIDE the statement (HAVING): a Go-side read-then-
+	// insert let two concurrent adds at cap-1 both pass. cap <= 0 = uncapped.
+	cap64 := int64(maxItems)
+	if maxItems <= 0 {
+		cap64 = int64(^uint64(0) >> 1)
+	}
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`INSERT INTO playlist_items (playlist_id, media_item_id, sort_order, added_at, media_type)
 		 SELECT $1, $2, COALESCE(MAX(sort_order), -1) + 1, $3, $4
 		 FROM playlist_items WHERE playlist_id = $1
+		 HAVING COUNT(*) < $5
 		 ON CONFLICT DO NOTHING`,
-		item.PlaylistID, item.MediaItemID, item.AddedAt, mediaType,
+		item.PlaylistID, item.MediaItemID, item.AddedAt, mediaType, cap64,
 	)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		return fmt.Errorf("PlaylistItemRepo.AddNextOrder: %w", err)
+	}
+	if n, raErr := res.RowsAffected(); raErr == nil && n == 0 {
+		// Zero rows is EITHER the duplicate no-op (conflict) or the cap. Only
+		// the count says which; the extra query only runs on this cold path.
+		var count int64
+		if cErr := txFromCtx(ctx, r.db).QueryRowContext(ctx,
+			`SELECT COUNT(*) FROM playlist_items WHERE playlist_id = $1`, item.PlaylistID,
+		).Scan(&count); cErr == nil && count >= cap64 {
+			return playlist.ErrMaxItemsReached
+		}
 	}
 	return nil
 }

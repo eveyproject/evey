@@ -34,7 +34,7 @@ func (r *FakePlaylistItemRepository) Add(_ context.Context, item *playlist.Playl
 	return nil
 }
 
-func (r *FakePlaylistItemRepository) AddNextOrder(_ context.Context, item *playlist.PlaylistItem) error {
+func (r *FakePlaylistItemRepository) AddNextOrder(_ context.Context, item *playlist.PlaylistItem, maxItems int) error {
 	if r.Err != nil {
 		return r.Err
 	}
@@ -48,6 +48,9 @@ func (r *FakePlaylistItemRepository) AddNextOrder(_ context.Context, item *playl
 		if existing.SortOrder >= next {
 			next = existing.SortOrder + 1
 		}
+	}
+	if maxItems > 0 && len(r.items[item.PlaylistID]) >= maxItems {
+		return playlist.ErrMaxItemsReached
 	}
 	item.SortOrder = next
 	r.items[item.PlaylistID] = append(r.items[item.PlaylistID], item)

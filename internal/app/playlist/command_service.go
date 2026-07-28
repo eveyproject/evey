@@ -151,21 +151,19 @@ func (s *CommandService) AddItem(ctx context.Context, playlistID, mediaItemID, p
 			}
 		}
 	}
-	existing, err := s.items.GetByPlaylistID(ctx, playlistID)
-	if err != nil {
-		return fmt.Errorf("get items: %w", err)
-	}
-	if len(existing) >= maxItems {
-		return ErrMaxItems
-	}
-	// sort_order is computed atomically inside the INSERT (MAX+1), so two
-	// concurrent adds can't read the same order here and write a collision.
-	return s.items.AddNextOrder(ctx, &playlist.PlaylistItem{
+	// sort_order AND the item cap are enforced atomically inside the INSERT:
+	// the old Go-side count-then-insert let two concurrent adds at cap-1 both
+	// pass. The repo's sentinel maps back to this service's public error.
+	err = s.items.AddNextOrder(ctx, &playlist.PlaylistItem{
 		PlaylistID:  playlistID,
 		MediaItemID: shared.MediaItemID(mediaItemID),
 		AddedAt:     time.Now(),
 		MediaType:   mediaType,
-	})
+	}, maxItems)
+	if errors.Is(err, playlist.ErrMaxItemsReached) {
+		return ErrMaxItems
+	}
+	return err
 }
 
 func (s *CommandService) RemoveItem(ctx context.Context, playlistID, mediaItemID, profileID string) error {

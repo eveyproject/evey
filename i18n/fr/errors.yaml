@@ -21,6 +21,7 @@ playlist:
   cannot_add_smart: "Impossible d'ajouter manuellement des éléments à une liste intelligente"
   cannot_remove_smart: "Impossible de supprimer des éléments d'une liste intelligente"
   limit_reached: "Limite d'éléments de la liste atteinte"
+  duplicate_name: "Une liste avec ce nom existe déjà"
 
 playback:
   parental_blocked: "Contenu bloqué par le contrôle parental"

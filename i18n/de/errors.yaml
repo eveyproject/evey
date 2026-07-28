@@ -21,6 +21,7 @@ playlist:
   cannot_add_smart: "Elemente können nicht manuell zu einer Smart-Playlist hinzugefügt werden"
   cannot_remove_smart: "Elemente können nicht aus einer Smart-Playlist entfernt werden"
   limit_reached: "Playlist-Elementlimit erreicht"
+  duplicate_name: "Eine Playlist mit diesem Namen existiert bereits"
 
 playback:
   parental_blocked: "Inhalt durch Kindersicherung blockiert"
