@@ -386,12 +386,27 @@ export class WasmAudioEngine {
   private adoptTimeline(segs: Segment[], keepPrefix = 0): void {
     this.segments = segs;
     this.timelineGen++;
+    // planRelayHandover puts the boundary at/after the END of every scheduled
+    // segment, so nothing scheduled should ever sit past keepPrefix. If that
+    // invariant is ever broken, the already-STARTED sources beyond the prefix
+    // would keep playing UNDER the replacement segments (double audio) - so
+    // detect it and take the conservative reset: stop everything, let the next
+    // tick re-anchor and re-schedule from the (kept) cache. A brief hiccup
+    // beats seconds of doubled sound.
+    let staleScheduled = false;
     // Deleting during iteration is safe on JS Map/Set iterators.
     for (const idx of this.decodedCache.keys()) {
       if (idx >= keepPrefix) this.decodedCache.delete(idx);
     }
     for (const idx of this.scheduledIdx) {
-      if (idx >= keepPrefix) this.scheduledIdx.delete(idx);
+      if (idx >= keepPrefix) {
+        this.scheduledIdx.delete(idx);
+        staleScheduled = true;
+      }
+    }
+    if (staleScheduled) {
+      this.clearScheduled();
+      this.anchored = false;
     }
     this.inflight.clear();
     this.prerollCache = null;

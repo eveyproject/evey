@@ -108,25 +108,36 @@ export function extractAacFrames(seg: Uint8Array): Uint8Array[] {
         let defaultSize = 0;
         const tfhd = findBox(seg, ["tfhd"], traf.start + traf.hdrSize, traf.start + traf.size);
         if (tfhd) {
-          const dv = new DataView(seg.buffer, seg.byteOffset + tfhd.start + tfhd.hdrSize);
+          // DataView bounded to the BOX, not the whole segment buffer: a box
+          // whose declared size undercounts its fields must fail its own read
+          // (RangeError, caught by the decode path) instead of silently
+          // reading the neighbouring box's bytes as field values.
+          const dv = new DataView(seg.buffer, seg.byteOffset + tfhd.start + tfhd.hdrSize, tfhd.size - tfhd.hdrSize);
           const flags = dv.getUint32(0) & 0xffffff;
           let off = 8; // version/flags + track_ID
           if (flags & 0x01) off += 8;
           if (flags & 0x02) off += 4;
           if (flags & 0x08) off += 4;
-          if (flags & 0x10) defaultSize = dv.getUint32(off);
+          if ((flags & 0x10) && off + 4 <= dv.byteLength) defaultSize = dv.getUint32(off);
         }
         for (const trun of boxes(seg, traf.start + traf.hdrSize, traf.start + traf.size)) {
           if (trun.type !== "trun") continue;
-          const dv = new DataView(seg.buffer, seg.byteOffset + trun.start + trun.hdrSize);
+          const dv = new DataView(seg.buffer, seg.byteOffset + trun.start + trun.hdrSize, trun.size - trun.hdrSize);
+          if (dv.byteLength < 8) continue;
           const flags = dv.getUint32(0) & 0xffffff;
           const count = dv.getUint32(4);
+          // ~141 AAC frames in a 3s segment; a count in the millions is a lie
+          // (and would balloon pendingSizes on the no-per-sample-fields shape).
+          if (count > 100_000) continue;
           let p = 8;
           if (flags & 0x01) p += 4; // data-offset
           if (flags & 0x04) p += 4; // first-sample-flags
           for (let i = 0; i < count; i++) {
             if (flags & 0x100) p += 4; // duration
             if (flags & 0x200) {
+              // A count that overruns the box's actual bytes is malformed:
+              // stop at the box edge rather than trusting it.
+              if (p + 4 > dv.byteLength) break;
               pendingSizes.push(dv.getUint32(p));
               p += 4;
             } else {
