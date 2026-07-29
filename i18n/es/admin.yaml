@@ -784,6 +784,9 @@ remoteAccess:
   interface: "Interfaz"
   address: "Dirección"
   usingDefault: "Usando valor predeterminado"
+  lockoutRiskTitle: "Todos los usuarios remotos están bloqueados"
+  lockoutRiskMessage: "Este servidor es accesible desde Internet, pero el acceso remoto está desactivado. Cualquiera fuera de su red local recibe un error 403 en todas las páginas. Active el acceso remoto arriba para solucionar esto."
+  publishedInfo: "El acceso remoto está activado y este servidor es accesible desde Internet."
 
 systemHealth:
   title: "Estado del sistema"

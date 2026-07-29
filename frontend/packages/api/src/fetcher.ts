@@ -198,19 +198,31 @@ async function fetchWithRefresh(
   if (!response.ok) {
     let message = `${response.status} ${response.statusText}`;
     let retryAfterSeconds: number | undefined;
+    let errorCode: string | undefined;
     try {
-      const body = await response.clone().json() as { message?: string; retryAfterSeconds?: number };
+      const body = await response.clone().json() as { message?: string; retryAfterSeconds?: number; code?: unknown };
       if (body.message) message = body.message;
       if (typeof body.retryAfterSeconds === "number") retryAfterSeconds = body.retryAfterSeconds;
+      // A server-supplied machine code beats prose: the UI can translate a known
+      // cause instead of showing an English sentence from the API. Only string
+      // codes count - gRPC-gateway errors put a NUMBER in `code`.
+      if (typeof body.code === "string" && body.code !== "") errorCode = body.code;
     } catch {
       // ignore parse errors
+    }
+    // The remote-access gate refuses every off-LAN client on every route. Its
+    // header survives a body a proxy rewrote, and without this signal the app
+    // showed a generic failure while the real cause was one server toggle
+    // (2026-07-29 lockout: two days of diagnosis).
+    if (response.headers.get("X-Evey-Remote-Access") === "disabled") {
+      errorCode = "remote_access_disabled";
     }
     // A 429 must reach the UI with its WAIT attached: "too many requests" on
     // its own is unactionable and the user just retries into the wall
     // (2026-07-29). Header wins, body is the fallback for stripping proxies.
     const header = Number.parseInt(response.headers.get("Retry-After") ?? "", 10);
     if (Number.isFinite(header) && header > 0) retryAfterSeconds = header;
-    throw Object.assign(new Error(message), { httpStatus: response.status, retryAfterSeconds });
+    throw Object.assign(new Error(message), { httpStatus: response.status, retryAfterSeconds, errorCode });
   }
 
   return response;

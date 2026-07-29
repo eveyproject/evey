@@ -784,6 +784,9 @@ remoteAccess:
   interface: Interface
   address: Address
   usingDefault: "Using default value"
+  lockoutRiskTitle: "Every remote user is locked out"
+  lockoutRiskMessage: "This server is reachable from the Internet, but remote access is disabled. Anyone outside your local network gets a 403 error on every page. Enable remote access above to fix this."
+  publishedInfo: "Remote access is enabled and this server is reachable from the Internet."
 
 systemHealth:
   title: System Health

@@ -120,4 +120,27 @@ describe("RemoteAccessPage", () => {
     await waitFor(() => expect(screen.getByText("eth0")).toBeInTheDocument());
     expect(screen.getByText("192.168.1.100")).toBeInTheDocument();
   });
+
+  it("shows the lockout risk alert when the server is published but remote access is disabled", async () => {
+    mockUseRA.mockReturnValue({
+      data: { ...mockConfig, enabled: false, published: true, lockoutRisk: true },
+      isLoading: false,
+    });
+    mockUseNet.mockReturnValue({ data: undefined });
+    const Page = await getPage();
+    render(React.createElement(Page), { wrapper: createWrapper() });
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+    expect(screen.getByText("Every remote user is locked out")).toBeInTheDocument();
+  });
+
+  it("does not show the lockout risk alert when remote access is enabled", async () => {
+    mockUseRA.mockReturnValue({
+      data: { ...mockConfig, enabled: true, published: true, lockoutRisk: false },
+      isLoading: false,
+    });
+    mockUseNet.mockReturnValue({ data: undefined });
+    const Page = await getPage();
+    render(React.createElement(Page), { wrapper: createWrapper() });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
 });

@@ -13,6 +13,7 @@ import { getSavedCredentials, saveCredentials, clearSavedCredentials } from "../
 import { useBiometricAvailable, useBiometricEnabled, authenticateBiometric } from "../src/hooks/useBiometric";
 import { PasswordInput } from "../src/components/PasswordInput";
 import { formatWait, parseRateLimit } from "../src/lib/rateLimitMessage";
+import { isRemoteAccessDisabled, remoteAccessDisabledMessage } from "../src/lib/remoteAccessError";
 
 export default function Login() {
   const theme = useTheme();
@@ -137,6 +138,14 @@ export default function Login() {
             t("mobile.rateLimit.body", "Too many login attempts. Try again in {{wait}}.")
               .replace("{{wait}}", formatWait(limited.retryAfterSeconds, tCount)),
           );
+          return;
+        }
+        // A gated server refuses EVERY route to an off-LAN client - that is
+        // not a wrong password, and telling the user to check credentials
+        // sent one beta tester chasing a typo for two days (2026-07-29).
+        if (isRemoteAccessDisabled(err)) {
+          const { title, body } = remoteAccessDisabledMessage(t);
+          Alert.alert(title, body);
           return;
         }
         Alert.alert(

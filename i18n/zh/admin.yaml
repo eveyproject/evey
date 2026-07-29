@@ -784,6 +784,9 @@ remoteAccess:
   interface: "接口"
   address: "地址"
   usingDefault: "使用默认值"
+  lockoutRiskTitle: "所有远程用户均已被锁定"
+  lockoutRiskMessage: "此服务器可从互联网访问，但远程访问已禁用。局域网之外的任何人在所有页面上都会收到 403 错误。请在上方启用远程访问以解决此问题。"
+  publishedInfo: "远程访问已启用，且此服务器可从互联网访问。"
 
 systemHealth:
   title: "系统健康"

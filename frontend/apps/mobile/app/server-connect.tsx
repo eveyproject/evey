@@ -12,6 +12,7 @@ import { parseEveyHealth } from "../src/lib/serverIdentity";
 import { versionLabel } from "../src/lib/versionLabel";
 import { useTheme } from "../src/providers/ThemeProvider";
 import { scanLocalNetwork } from "../src/lib/network-scan";
+import { isRemoteAccessDisabled, remoteAccessDisabledMessage } from "../src/lib/remoteAccessError";
 
 // describeConnectError turns the near-useless "Network request failed" that
 // React Native's fetch throws into an actionable, cause-specific hint - the
@@ -134,6 +135,19 @@ export default function ServerConnect() {
     try {
       const res = await fetch(`${trimmed}/healthz`, { signal: ctrl.signal });
       if (!res.ok) {
+        // /healthz is exempt from the gate on stock Evey, but a reverse proxy
+        // in front can (and, for one beta tester, did) apply its own
+        // remote-access rule to every path - a server refusing outsiders is
+        // not the same failure as no server being there at all.
+        const refused = res.status === 403 && (
+          res.headers.get("X-Evey-Remote-Access") === "disabled"
+          || isRemoteAccessDisabled(await res.json().catch(() => null))
+        );
+        if (refused) {
+          const { title, body } = remoteAccessDisabledMessage(t);
+          Alert.alert(title, body);
+          return;
+        }
         throw new Error(`HTTP ${res.status}${res.statusText ? ` ${res.statusText}` : ""}`);
       }
       // 200 is not proof: require Evey's own health payload, or the app

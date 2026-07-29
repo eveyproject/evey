@@ -3,13 +3,14 @@ import { createLazyFileRoute } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "@evey/store";
+import { TriangleAlert, Info } from "lucide-react";
 import {
   useRemoteAccessServiceGetRemoteAccess,
   useRemoteAccessServiceGetNetworkInfo,
   remoteAccessServiceUpdateRemoteAccess,
   getRemoteAccessServiceGetRemoteAccessQueryKey,
 } from "@evey/api";
-import type { V1UpdateRemoteAccessRequest } from "@evey/api";
+import type { V1UpdateRemoteAccessRequest, V1RemoteAccessConfig } from "@evey/api";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -23,9 +24,17 @@ export const Route = createLazyFileRoute("/_auth/admin/remote-access")({
 
 const CONFIG_KEY = getRemoteAccessServiceGetRemoteAccessQueryKey();
 
+// `published`/`lockoutRisk` are computed server-side but not yet present in
+// the generated OpenAPI client - extend locally until it is regenerated.
+type RemoteAccessStatus = V1RemoteAccessConfig & {
+  published?: boolean;
+  lockoutRisk?: boolean;
+};
+
 function RemoteAccessPage() {
   const { t } = useTranslation();
-  const { data, isLoading } = useRemoteAccessServiceGetRemoteAccess();
+  const { data: rawData, isLoading } = useRemoteAccessServiceGetRemoteAccess();
+  const data = rawData as RemoteAccessStatus | undefined;
   const { data: netInfo } = useRemoteAccessServiceGetNetworkInfo();
   const queryClient = useQueryClient();
 
@@ -77,6 +86,42 @@ function RemoteAccessPage() {
           {data?.enabled ? t("common.enabled") : t("common.disabled")}
         </Badge>
       </div>
+
+      {!isLoading && data?.lockoutRisk && (
+        <div
+          role="alert"
+          className="rounded-[var(--radius-md)] border border-[color-mix(in_srgb,var(--color-danger)_40%,transparent)] bg-[color-mix(in_srgb,var(--color-danger)_5%,transparent)] p-3 flex items-start gap-3"
+        >
+          <TriangleAlert
+            size={20}
+            className="text-[var(--color-danger)] flex-shrink-0 mt-0.5"
+            strokeWidth={1.5}
+          />
+          <div className="flex flex-col gap-1">
+            <p className="text-sm font-semibold text-[var(--color-danger)]">
+              {t("admin.remoteAccess.lockoutRiskTitle")}
+            </p>
+            <p className="text-sm text-[var(--color-danger)]">
+              {t("admin.remoteAccess.lockoutRiskMessage")}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {!isLoading && !data?.lockoutRisk && data?.enabled && data?.published && (
+        <div
+          className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface-raised)] p-3 flex items-center gap-3"
+        >
+          <Info
+            size={18}
+            className="text-[var(--text-muted)] flex-shrink-0"
+            strokeWidth={1.5}
+          />
+          <p className="text-sm text-[var(--text-muted)]">
+            {t("admin.remoteAccess.publishedInfo")}
+          </p>
+        </div>
+      )}
 
       {isLoading ? (
         <div className="flex justify-center py-16">

@@ -784,6 +784,9 @@ remoteAccess:
   interface: Schnittstelle
   address: Adresse
   usingDefault: "Standardwert wird verwendet"
+  lockoutRiskTitle: "Alle entfernten Nutzer sind ausgesperrt"
+  lockoutRiskMessage: "Dieser Server ist aus dem Internet erreichbar, aber der Fernzugriff ist deaktiviert. Jeder außerhalb Ihres lokalen Netzwerks erhält auf jeder Seite einen 403-Fehler. Aktivieren Sie oben den Fernzugriff, um dies zu beheben."
+  publishedInfo: "Der Fernzugriff ist aktiviert und dieser Server ist aus dem Internet erreichbar."
 
 systemHealth:
   title: Systemzustand
