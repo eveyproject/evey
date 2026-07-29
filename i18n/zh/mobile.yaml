@@ -6,6 +6,7 @@ serverConnect:
   connect: 连接
   connectionFailed: 连接失败
   unreachableSaved: "{{url}} 无响应。请检查地址或网络连接。"
+  notEvey: "{{url}} 有响应，但不是 Evey 服务器。请检查地址（可能是 Wi-Fi 门户或运营商在应答）。"
   unreachable: 无法连接到服务器
   urlLabel: "服务器 URL"
   useDiscovered: "使用已发现的服务器 {{url}}"

@@ -41,9 +41,23 @@ describe("server-config", () => {
   });
 
   describe("pingServer", () => {
-    it("returns true on ok response", async () => {
-      globalThis.fetch = vi.fn().mockResolvedValue({ ok: true });
+    const eveyHealth = { status: "ok", db: "ok", version: "beta-0.0.1" };
+
+    it("returns true when an EVEY server answers", async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => eveyHealth });
       expect(await pingServer("http://srv")).toBe(true);
+    });
+
+    // A bare 200 used to be enough, so a captive portal / ISP hijack page
+    // passed as "connected" and every later API call failed silently.
+    it("returns false when something else answers 200", async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ message: "hi" }) });
+      expect(await pingServer("http://srv")).toBe(false);
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => { throw new Error("not json"); },
+      });
+      expect(await pingServer("http://srv")).toBe(false);
     });
 
     it("returns false on non-ok response", async () => {

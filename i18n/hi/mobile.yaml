@@ -6,6 +6,7 @@ serverConnect:
   connect: कनेक्ट
   connectionFailed: कनेक्शन विफल
   unreachableSaved: "{{url}} ने उत्तर नहीं दिया। पता या अपना कनेक्शन जांचें।"
+  notEvey: "{{url}} ने उत्तर दिया, लेकिन यह Evey सर्वर नहीं है। पता जांचें (कोई Wi-Fi पोर्टल या आपका ISP उत्तर दे सकता है)।"
   unreachable: सर्वर तक पहुंचने में असमर्थ
   urlLabel: "सर्वर URL"
   useDiscovered: "खोजा गया सर्वर {{url}} उपयोग करें"

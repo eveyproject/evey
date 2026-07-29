@@ -6,6 +6,7 @@ serverConnect:
   connect: Connexion
   connectionFailed: Connexion echouee
   unreachableSaved: "{{url}} ne répond pas. Vérifiez l'adresse ou votre connexion."
+  notEvey: "{{url}} a répondu, mais ce n'est pas un serveur Evey. Vérifiez l'adresse (un portail Wi-Fi ou votre FAI peut répondre à la place)."
   unreachable: Impossible de joindre le serveur
   urlLabel: "URL du serveur"
   useDiscovered: "Utiliser le serveur découvert {{url}}"

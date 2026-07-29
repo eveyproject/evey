@@ -1,4 +1,5 @@
 import * as SecureStore from "expo-secure-store";
+import { parseEveyHealth } from "./serverIdentity";
 
 const SERVER_URL_KEY = "evey-server-url";
 
@@ -15,14 +16,29 @@ export async function clearServerUrl(): Promise<void> {
   await SecureStore.deleteItemAsync(SERVER_URL_KEY);
 }
 
+// pingServer answers "is an EVEY server reachable at url" - not merely "does
+// something answer 200 there". See serverIdentity.ts for why the distinction
+// cost a beta tester an afternoon.
 export async function pingServer(url: string): Promise<boolean> {
+  return (await probeServer(url)) === "ok";
+}
+
+export type ServerProbe = "ok" | "not-evey" | "unreachable";
+
+// probeServer distinguishes the two failures the UI must NOT conflate: a host
+// that never answers, and a host that answers but is not Evey (captive
+// portal, ISP DNS hijack, router page).
+export async function probeServer(url: string, timeoutMs = 5000): Promise<ServerProbe> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
     const res = await fetch(`${url}/healthz`, { signal: controller.signal });
-    clearTimeout(timeout);
-    return res.ok;
+    if (!res.ok) return "unreachable";
+    const body: unknown = await res.json().catch(() => null);
+    return parseEveyHealth(body) ? "ok" : "not-evey";
   } catch {
-    return false;
+    return "unreachable";
+  } finally {
+    clearTimeout(timeout);
   }
 }

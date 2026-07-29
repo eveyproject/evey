@@ -5,9 +5,10 @@ import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { setBaseURL } from "@evey/api";
 import { useAuthStore, useServerListStore } from "@evey/store";
-import { setServerUrl, getServerUrl, pingServer } from "../src/lib/server-config";
+import { setServerUrl, getServerUrl, probeServer } from "../src/lib/server-config";
 import { initFetcher } from "../src/lib/fetcher-setup";
 import { applyServerLanguage, initI18n } from "../src/i18n";
+import { parseEveyHealth } from "../src/lib/serverIdentity";
 import { useTheme } from "../src/providers/ThemeProvider";
 import { scanLocalNetwork } from "../src/lib/network-scan";
 
@@ -83,12 +84,14 @@ export default function ServerConnect() {
     // ever reached a server (2026-07-29). Never offer a login we know cannot
     // be delivered.
     setLoading(true);
-    const reachable = await pingServer(server.url);
+    const probe = await probeServer(server.url);
     setLoading(false);
-    if (!reachable) {
+    if (probe !== "ok") {
       Alert.alert(
         t("mobile.serverConnect.connectionFailed", "Connection failed"),
-        t("mobile.serverConnect.unreachableSaved", "{{url}} did not answer. Check the address or your connection.").replace("{{url}}", server.url),
+        probe === "not-evey"
+          ? t("mobile.serverConnect.notEvey", "{{url}} answered, but it is not an Evey server.").replace("{{url}}", server.url)
+          : t("mobile.serverConnect.unreachableSaved", "{{url}} did not answer. Check the address or your connection.").replace("{{url}}", server.url),
       );
       return;
     }
@@ -131,6 +134,16 @@ export default function ServerConnect() {
       const res = await fetch(`${trimmed}/healthz`, { signal: ctrl.signal });
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}${res.statusText ? ` ${res.statusText}` : ""}`);
+      }
+      // 200 is not proof: require Evey's own health payload, or the app
+      // "connects" to a captive portal and every later call fails silently.
+      const health = parseEveyHealth(await res.json().catch(() => null));
+      if (!health) {
+        Alert.alert(
+          t("mobile.serverConnect.connectionFailed", "Connection failed"),
+          t("mobile.serverConnect.notEvey", "{{url}} answered, but it is not an Evey server.").replace("{{url}}", trimmed),
+        );
+        return;
       }
       await setServerUrl(trimmed);
       await initFetcher();
