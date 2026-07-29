@@ -17,6 +17,7 @@ const NAV_ITEMS: NavItem[] = [
   { labelKey: "common.nav.libraries", icon: "library", path: "/(auth)/(tabs)/library" },
   { labelKey: "common.nav.music", icon: "musical-notes", path: "/(auth)/(tabs)/music" },
   { labelKey: "common.nav.favorites", icon: "heart", path: "/(auth)/(tabs)/favorites" },
+  { labelKey: "common.nav.requests", icon: "mail-unread", path: "/(auth)/(tabs)/requests" },
   { labelKey: "common.nav.settings", icon: "settings", path: "/(auth)/(tabs)/settings" },
 ];
 
