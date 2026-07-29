@@ -57,13 +57,9 @@ func TestTouchCastSession_RefreshesTheActiveSession(t *testing.T) {
 	assert.False(t, got.IsPaused, "an alive-beating receiver is playing")
 }
 
-func TestTouchCastSession_NoActiveSessionIsANoOp(t *testing.T) {
-	t.Parallel()
-	svc, _ := newTouchSvc(t)
-	touched, err := svc.TouchCastSession(context.Background(), "prof-1", "media-1", 5_000)
-	require.NoError(t, err)
-	assert.False(t, touched)
-}
+// Superseded 2026-07-29: a positioned beacon with no session now RESURRECTS
+// one (see TestTouchCastSession_ResurrectsWhenNoActiveSession) - the no-op
+// contract hid a real playback from the panel in prod.
 
 func TestTouchCastSession_IgnoresOtherMediaOfTheProfile(t *testing.T) {
 	t.Parallel()
@@ -72,7 +68,7 @@ func TestTouchCastSession_IgnoresOtherMediaOfTheProfile(t *testing.T) {
 
 	touched, err := svc.TouchCastSession(context.Background(), "prof-1", "media-1", 5_000)
 	require.NoError(t, err)
-	assert.False(t, touched)
+	assert.True(t, touched, "resurrects a session for media-1 alongside")
 
 	got, err := sessions.GetByID(context.Background(), "s-1")
 	require.NoError(t, err)
@@ -143,4 +139,36 @@ func TestSetCastAudioPath_MapsModesOntoTheSession(t *testing.T) {
 
 	// No active session: a quiet no-op.
 	require.NoError(t, svc.SetCastAudioPath(context.Background(), "prof-1", "media-OTHER", "wasm"))
+}
+
+// Resurrection: prod 2026-07-29 - the phone re-cast from an already-mounted
+// player (no new StartStream) after its previous session had been reaped; the
+// TV played for real while "now playing" stayed empty and nothing was
+// pilotable. A positioned liveness beacon proves a genuine playback pinned to
+// (profile, media): create the minimal session row; the reaper ends it when
+// the beacons stop.
+func TestTouchCastSession_ResurrectsWhenNoActiveSession(t *testing.T) {
+	t.Parallel()
+	svc, sessions := newTouchSvc(t)
+
+	touched, err := svc.TouchCastSession(context.Background(), "prof-1", "media-1", 214_200)
+	require.NoError(t, err)
+	assert.True(t, touched, "a positioned beacon with no session must create one")
+
+	active, err := sessions.GetActiveByProfile(context.Background(), "prof-1")
+	require.NoError(t, err)
+	require.Len(t, active, 1)
+	assert.Equal(t, "media-1", string(active[0].MediaItemID))
+	assert.Equal(t, "Chromecast", active[0].DeviceName)
+	assert.Equal(t, "Chromecast", active[0].CastDeviceName)
+	require.NotNil(t, active[0].Position)
+	assert.Equal(t, int64(214_200), active[0].Position.Milliseconds())
+
+	// The next beacon touches the SAME session (no duplicate rows).
+	touched, err = svc.TouchCastSession(context.Background(), "prof-1", "media-1", 244_200)
+	require.NoError(t, err)
+	assert.True(t, touched)
+	active, err = sessions.GetActiveByProfile(context.Background(), "prof-1")
+	require.NoError(t, err)
+	assert.Len(t, active, 1)
 }

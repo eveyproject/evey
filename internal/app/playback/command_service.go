@@ -502,7 +502,29 @@ func (s *CommandService) TouchCastSession(ctx context.Context, profileID, mediaI
 		}
 		return s.sessions.UpdateProgress(ctx, sess.ID, positionMs, false, sess.CastDeviceName)
 	}
-	return false, nil
+	// Resurrection: a positioned beacon with NO active session is a real
+	// playback the panel cannot see - the phone re-cast from an already
+	// mounted player (no new StartStream) after its previous session was
+	// reaped (prod 2026-07-29). The beacon's token pins (profile, media), so
+	// a minimal row makes the cast visible and pilotable again; the stale
+	// reaper ends it when the beacons stop.
+	pos, dErr := shared.NewDurationMs(positionMs)
+	if dErr != nil {
+		return false, nil
+	}
+	sess := &playback.PlaySession{
+		ID:             id.New("ps-"),
+		ProfileID:      shared.ProfileID(profileID),
+		MediaItemID:    shared.MediaItemID(mediaItemID),
+		DeviceName:     "Chromecast",
+		CastDeviceName: "Chromecast",
+		StartedAt:      time.Now(),
+		Position:       &pos,
+	}
+	if err := s.sessions.Create(ctx, sess); err != nil {
+		return false, fmt.Errorf("TouchCastSession resurrect: %w", err)
+	}
+	return true, nil
 }
 
 // SetCastAudioPath mirrors the receiver's audio_mode beacon onto the active
