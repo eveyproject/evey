@@ -58,7 +58,7 @@ func RateLimitUnary(limiters map[string]*MethodLimiter) grpc.UnaryServerIntercep
 			ip = "unknown"
 		}
 		if !ml.Limiter.Allow(ip) {
-			recordRejection(info.FullMethod, ip)
+			recordRejection(ctx, info.FullMethod, ip)
 			sendRetryAfter(ctx, ml.RetryAfterSecs)
 			return nil, status.Error(codes.ResourceExhausted, "too many requests")
 		}
@@ -79,7 +79,7 @@ func RateLimitStream(limiters map[string]*MethodLimiter) grpc.StreamServerInterc
 			ip = "unknown"
 		}
 		if !ml.Limiter.Allow(ip) {
-			recordRejection(info.FullMethod, ip)
+			recordRejection(ctx, info.FullMethod, ip)
 			sendRetryAfter(ctx, ml.RetryAfterSecs)
 			return status.Error(codes.ResourceExhausted, "too many requests")
 		}
@@ -92,11 +92,24 @@ func RateLimitStream(limiters map[string]*MethodLimiter) grpc.StreamServerInterc
 // because the rate limiter runs before the logging interceptor, so a throttled
 // brute-force attempt is otherwise invisible. slog.String escapes the IP value,
 // so an attacker-supplied X-Forwarded-For cannot forge log lines here.
-func recordRejection(method, ip string) {
+func recordRejection(ctx context.Context, method, ip string) {
 	metrics.RateLimitRejected.WithLabelValues(method).Inc()
-	slog.Warn("ratelimit: request rejected",
+	attrs := []any{
 		slog.String("method", method),
-		slog.String("ip", ip))
+		slog.String("ip", ip),
+	}
+	// The bucket key alone is not diagnosable. Production showed every external
+	// client refused under ip=127.0.0.1 on 2026-07-29, and nothing in the line
+	// said whether that was "the proxy is not trusted so its XFF was dropped" or
+	// "no XFF ever arrived" - two different fixes. The resolution carries both.
+	if res, ok := ClientIPResolutionFromCtx(ctx); ok {
+		attrs = append(attrs,
+			slog.String("peer_ip", res.PeerIP),
+			slog.Bool("peer_trusted", res.PeerTrusted),
+			slog.String("xff", res.XFF),
+			slog.Bool("xff_honored", res.XFFHonored))
+	}
+	slog.WarnContext(ctx, "ratelimit: request rejected", attrs...)
 }
 
 func sendRetryAfter(ctx context.Context, secs int) {
