@@ -141,3 +141,59 @@ func TestCacheStore_DeleteFile_InvalidPath(t *testing.T) {
 	require.Error(t, store.DeleteFile(context.Background(), "foo/bar"))
 	require.Error(t, store.DeleteFile(context.Background(), "foo\\bar"))
 }
+
+// The admin cache page triggers a full recursive walk of the transcode cache.
+// On the weak-NAS target that walk is the expensive part, so a repeat open
+// inside the TTL must reuse the previous answer instead of re-walking.
+func TestCacheStore_GetCacheInfo_MemoizedWithinTTL(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.ts"), make([]byte, 1024), 0644))
+	store := filesystem.NewCacheStore(dir)
+
+	first, err := store.GetCacheInfo(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, int64(1024), first.TotalSize)
+
+	// A file appearing behind our back must NOT be picked up while the memo is
+	// warm - that is what proves the walk was skipped.
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "b.ts"), make([]byte, 4096), 0644))
+	second, err := store.GetCacheInfo(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, int64(1024), second.TotalSize, "second call inside the TTL should reuse the memo")
+}
+
+// Invalidation is not optional: an operator who clears the cache and still sees
+// the old size would reasonably conclude the button is broken.
+func TestCacheStore_ClearCache_InvalidatesMemo(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.ts"), make([]byte, 1024), 0644))
+	store := filesystem.NewCacheStore(dir)
+
+	warm, err := store.GetCacheInfo(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, int64(1024), warm.TotalSize)
+
+	require.NoError(t, store.ClearCache(context.Background()))
+	after, err := store.GetCacheInfo(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), after.TotalSize)
+	assert.Equal(t, 0, after.FileCount)
+}
+
+// Same reasoning for a single-file delete: the page that offers the button is
+// the page that shows the total.
+func TestCacheStore_DeleteFile_InvalidatesMemo(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.ts"), make([]byte, 1024), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "b.ts"), make([]byte, 2048), 0644))
+	store := filesystem.NewCacheStore(dir)
+
+	warm, err := store.GetCacheInfo(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, int64(3072), warm.TotalSize)
+
+	require.NoError(t, store.DeleteFile(context.Background(), "b.ts"))
+	after, err := store.GetCacheInfo(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, int64(1024), after.TotalSize)
+}

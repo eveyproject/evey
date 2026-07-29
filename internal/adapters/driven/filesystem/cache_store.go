@@ -9,20 +9,69 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/evey-project/evey/internal/domain/transcoding"
 )
 
+// cacheInfoTTL bounds how stale the admin cache page may be. GetCacheInfo
+// walks every hash directory of the transcode cache recursively, which is the
+// expensive part on the weak-NAS target this project aims at. The page is a
+// one-shot load (no refetch), so this only ever coalesces a reload or two
+// operators looking at once - and any change WE make invalidates immediately,
+// so the only thing that can be stale is a segment the transcoder wrote on its
+// own, which the next reload picks up.
+const cacheInfoTTL = 10 * time.Second
+
 type CacheStore struct {
 	dir string
+
+	mu     sync.Mutex
+	memo   *transcoding.CacheInfo
+	memoAt time.Time
+	nowFn  func() time.Time
 }
 
 func NewCacheStore(dir string) *CacheStore {
-	return &CacheStore{dir: dir}
+	return &CacheStore{dir: dir, nowFn: time.Now}
+}
+
+func (s *CacheStore) now() time.Time {
+	if s.nowFn == nil {
+		return time.Now()
+	}
+	return s.nowFn()
+}
+
+// invalidate drops the memo. Called by every method that MUTATES the cache:
+// an operator who clears the cache and still sees the old total would
+// reasonably conclude the button is broken.
+func (s *CacheStore) invalidate() {
+	s.mu.Lock()
+	s.memo = nil
+	s.mu.Unlock()
+}
+
+func (s *CacheStore) cached() *transcoding.CacheInfo {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.memo == nil || s.now().Sub(s.memoAt) >= cacheInfoTTL {
+		return nil
+	}
+	return s.memo
+}
+
+func (s *CacheStore) store(info *transcoding.CacheInfo) {
+	s.mu.Lock()
+	s.memo, s.memoAt = info, s.now()
+	s.mu.Unlock()
 }
 
 func (s *CacheStore) GetCacheInfo(_ context.Context) (*transcoding.CacheInfo, error) {
+	if hit := s.cached(); hit != nil {
+		return hit, nil
+	}
 	info := &transcoding.CacheInfo{}
 	entries, err := os.ReadDir(s.dir)
 	if err != nil {
@@ -80,6 +129,7 @@ func (s *CacheStore) GetCacheInfo(_ context.Context) (*transcoding.CacheInfo, er
 		info.TotalSize += fi.Size()
 		info.FileCount++
 	}
+	s.store(info)
 	return info, nil
 }
 
@@ -112,6 +162,7 @@ func dirStats(root string) (int64, time.Time) {
 }
 
 func (s *CacheStore) ClearCache(_ context.Context) error {
+	defer s.invalidate()
 	entries, err := os.ReadDir(s.dir)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -128,6 +179,7 @@ func (s *CacheStore) ClearCache(_ context.Context) error {
 }
 
 func (s *CacheStore) DeleteFile(_ context.Context, filename string) error {
+	defer s.invalidate()
 	if strings.Contains(filename, "..") {
 		return errors.New("invalid filename")
 	}

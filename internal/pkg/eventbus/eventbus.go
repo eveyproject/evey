@@ -153,7 +153,7 @@ func (b *InMemoryEventBus) dispatch(ctx context.Context, sub subscription, event
 			return
 		}
 
-		slog.Warn("eventbus: handler panicked, retrying",
+		slog.WarnContext(ctx, "eventbus: handler panicked, retrying",
 			slog.String("event", event.EventName()),
 			slog.String("sub", sub.id),
 			slog.Int("attempt", attempt+1),
@@ -163,7 +163,7 @@ func (b *InMemoryEventBus) dispatch(ctx context.Context, sub subscription, event
 		backoff := b.backoffDuration(attempt)
 		select {
 		case <-ctx.Done():
-			slog.Error("eventbus: ctx cancelled, aborting retry",
+			slog.ErrorContext(ctx, "eventbus: ctx cancelled, aborting retry",
 				slog.String("event", event.EventName()),
 				slog.String("sub", sub.id),
 				slog.Any("ctx_err", ctx.Err()))
@@ -173,7 +173,7 @@ func (b *InMemoryEventBus) dispatch(ctx context.Context, sub subscription, event
 		}
 	}
 
-	slog.Error("eventbus: all retries exhausted",
+	slog.ErrorContext(ctx, "eventbus: all retries exhausted",
 		slog.String("event", event.EventName()),
 		slog.String("sub", sub.id),
 		slog.Int("retries", b.retry.MaxRetries))

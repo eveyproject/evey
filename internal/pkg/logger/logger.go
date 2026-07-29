@@ -200,6 +200,8 @@ func StartCleanup(ctx context.Context, dir string, retentionDays int, initDone .
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
+				// No ctx: detached log-retention goroutine, and this is the
+				// logger's own bootstrap - there is no request in flight.
 				slog.Error("panic in log cleanup", slog.Any("recover", r))
 			}
 		}()

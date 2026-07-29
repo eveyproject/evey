@@ -52,6 +52,9 @@ func NewWithMaxSize[T any](cleanupInterval time.Duration, maxSize int) (*TTLCach
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
+				// No ctx: this is the detached cleanup ticker, started once at
+				// construction. It belongs to no request, so there is no
+				// request_id to correlate against.
 				slog.Error("recovered panic in cache cleanup", "panic", r)
 			}
 		}()
