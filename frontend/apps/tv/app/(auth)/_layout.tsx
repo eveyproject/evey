@@ -1,9 +1,11 @@
 import { View } from "react-native";
-import { Redirect, Stack } from "expo-router";
+import { Redirect, Stack, router, usePathname } from "expo-router";
 import { useAuthStore } from "@evey/store";
 import { useDeviceRegistration } from "../../src/hooks/useDeviceRegistration";
 import { usePresenceHeartbeat } from "../../src/hooks/usePresenceHeartbeat";
 import { TVMusicPlayer } from "../../src/components/TVMusicPlayer";
+import { HomeShortcutButton } from "../../src/components/HomeShortcutButton";
+import { isDeepScreenPath, HOME_PATH } from "../../src/lib/homeShortcut";
 
 function isTokenExpired(token: string): boolean {
   try {
@@ -20,6 +22,7 @@ export default function AuthLayout() {
   const accessToken = useAuthStore((s) => s.accessToken);
   const profileId = useAuthStore((s) => s.profileId);
   const logout = useAuthStore((s) => s.logout);
+  const pathname = usePathname();
   // Register this client as a Play On target. No-ops when not
   // authenticated (the hook bails if accessToken/serverUrl are absent),
   // so calling it before the redirect-on-no-auth guard is safe.
@@ -37,6 +40,9 @@ export default function AuthLayout() {
   return (
     <View style={{ flex: 1 }}>
       <Stack screenOptions={{ headerShown: false }} />
+      {isDeepScreenPath(pathname) && (
+        <HomeShortcutButton onPress={() => router.replace(HOME_PATH as never)} />
+      )}
       <TVMusicPlayer />
     </View>
   );
