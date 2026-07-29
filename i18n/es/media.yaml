@@ -516,6 +516,8 @@ search:
   searchLibrary: Busca en tu biblioteca multimedia
   searchLibraryDesc: Escribe al menos 2 caracteres para buscar en tus películas, series y más.
   clearSearch: Borrar búsqueda
+  voiceSearch: Búsqueda por voz
+  voiceSearchListening: Escuchando…
   filterByType: Filtrar por tipo
   filters: Filtros
   clearFilters: Borrar filtros

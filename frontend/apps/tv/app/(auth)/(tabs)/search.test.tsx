@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, fireEvent, screen } from "@testing-library/react";
+import { render, fireEvent, screen, waitFor } from "@testing-library/react";
 import React from "react";
 
 // --- React Native mock -----------------------------------------------------
@@ -79,6 +79,12 @@ vi.mock("@evey/api", () => ({
   useMusicServiceSearchMusic: (...args: unknown[]) => searchMusicMock(...args),
 }));
 
+// --- @evey/voice-search mock -----------------------------------------------
+const startVoiceSearchMock = vi.fn();
+vi.mock("@evey/voice-search", () => ({
+  startVoiceSearch: (...args: unknown[]) => startVoiceSearchMock(...args),
+}));
+
 import SearchScreen, { selectSearchResultsView } from "./search";
 
 const MEDIA_ITEM = { id: "mi-1", title: "Movie One", year: 2020, type: "MEDIA_ITEM_TYPE_MOVIE" };
@@ -87,6 +93,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   searchMediaMock.mockReturnValue({ data: { items: [] }, isLoading: false, isError: false, refetch: vi.fn() });
   searchMusicMock.mockReturnValue({ data: { tracks: [] }, isLoading: false });
+  startVoiceSearchMock.mockResolvedValue({ status: "unavailable" });
 });
 
 describe("selectSearchResultsView (initial TV remote focus)", () => {
@@ -141,6 +148,45 @@ describe("SearchScreen (TV) results", () => {
     searchMediaMock.mockReturnValue({ data: { items: [MEDIA_ITEM] }, isLoading: false, isError: false, refetch: vi.fn() });
     render(<SearchScreen />);
     fireEvent.change(screen.getByLabelText("media.search.placeholder"), { target: { value: "movie" } });
+    expect(screen.getByText("Movie One")).toBeTruthy();
+  });
+});
+
+describe("SearchScreen (TV) voice search", () => {
+  it("renders a focusable voice search target next to the keyboard input", () => {
+    render(<SearchScreen />);
+    expect(screen.getByLabelText("media.search.voiceSearch")).toBeTruthy();
+    // The keyboard path is untouched by the voice button merely existing.
+    expect(screen.getByLabelText("media.search.placeholder")).toBeTruthy();
+  });
+
+  it("does nothing when there is no recognizer - module absent, no device support, or the OS permission dialog was declined", async () => {
+    startVoiceSearchMock.mockResolvedValue({ status: "unavailable" });
+    render(<SearchScreen />);
+    fireEvent.click(screen.getByLabelText("media.search.voiceSearch"));
+    await waitFor(() => expect(startVoiceSearchMock).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText("Movie One")).toBeNull();
+    // The keyboard still works after a failed voice attempt.
+    fireEvent.change(screen.getByLabelText("media.search.placeholder"), { target: { value: "movie" } });
+    expect((screen.getByLabelText("media.search.placeholder") as HTMLInputElement).value).toBe("movie");
+  });
+
+  it("does nothing on cancellation or an unrecognized result", async () => {
+    startVoiceSearchMock.mockResolvedValue({ status: "empty" });
+    render(<SearchScreen />);
+    fireEvent.click(screen.getByLabelText("media.search.voiceSearch"));
+    await waitFor(() => expect(startVoiceSearchMock).toHaveBeenCalledTimes(1));
+    expect((screen.getByLabelText("media.search.placeholder") as HTMLInputElement).value).toBe("");
+  });
+
+  it("fills the search field with the recognized text and lets the existing search run", async () => {
+    searchMediaMock.mockReturnValue({ data: { items: [MEDIA_ITEM] }, isLoading: false, isError: false, refetch: vi.fn() });
+    startVoiceSearchMock.mockResolvedValue({ status: "recognized", text: "movie one" });
+    render(<SearchScreen />);
+    fireEvent.click(screen.getByLabelText("media.search.voiceSearch"));
+    await waitFor(() => {
+      expect((screen.getByLabelText("media.search.placeholder") as HTMLInputElement).value).toBe("movie one");
+    });
     expect(screen.getByText("Movie One")).toBeTruthy();
   });
 });

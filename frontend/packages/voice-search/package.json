@@ -1,0 +1,8 @@
+{
+  "name": "@evey/voice-search",
+  "version": "0.1.0",
+  "private": true,
+  "description": "System voice recognition for a TV remote's search box (Android only)",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts"
+}

@@ -44,6 +44,9 @@ importers:
       '@evey/theme':
         specifier: workspace:*
         version: link:../../packages/theme
+      '@evey/voice-search':
+        specifier: workspace:*
+        version: link:../../packages/voice-search
       '@expo/vector-icons':
         specifier: 15.1.1
         version: 15.1.1(expo-font@55.0.7)(react-native@0.83.6(@babel/core@7.29.0)(@react-native/metro-config@0.84.1(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)
@@ -189,6 +192,9 @@ importers:
       '@evey/theme':
         specifier: workspace:*
         version: link:../../packages/theme
+      '@evey/voice-search':
+        specifier: workspace:*
+        version: link:../../packages/voice-search
       '@expo/vector-icons':
         specifier: 15.1.1
         version: 15.1.1(expo-font@55.0.7)(react-native-tvos@0.83.1-0)(react@19.2.0)
@@ -406,6 +412,8 @@ importers:
         version: 5.0.3(@types/react@19.2.14)(immer@9.0.21)(react@19.2.0)(use-sync-external-store@1.6.0(react@19.2.0))
 
   packages/theme: {}
+
+  packages/voice-search: {}
 
 packages:
 

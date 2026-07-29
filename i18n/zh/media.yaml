@@ -516,6 +516,8 @@ search:
   searchLibrary: 搜索您的媒体库
   searchLibraryDesc: 输入至少 2 个字符以搜索所有电影、剧集等。
   clearSearch: 清除搜索
+  voiceSearch: 语音搜索
+  voiceSearchListening: 正在聆听…
   filterByType: 按类型筛选
   filters: 筛选
   clearFilters: 清除筛选

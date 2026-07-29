@@ -14,6 +14,7 @@
     "@evey/media-caps": "workspace:*",
     "@evey/store": "workspace:*",
     "@evey/theme": "workspace:*",
+    "@evey/voice-search": "workspace:*",
     "@expo/vector-icons": "15.1.1",
     "@tanstack/react-query": "5.100.9",
     "expo": "55.0.23",

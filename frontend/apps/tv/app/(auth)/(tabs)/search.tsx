@@ -5,6 +5,7 @@ import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useLibraryServiceSearchMedia, useMusicServiceSearchMusic } from "@evey/api";
 import type { V1MediaItem, V1Track } from "@evey/api";
+import { startVoiceSearch } from "@evey/voice-search";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useDebounce } from "../../../src/hooks/useDebounce";
 import { FocusableCard } from "../../../src/components/FocusableCard";
@@ -55,6 +56,47 @@ export function selectSearchResultsView(params: {
   if (!hasQuery) return "prompt";
   if (searchKind === "music") return musicItemsCount === 0 ? "musicEmpty" : "musicResults";
   return mediaItemsCount === 0 ? "mediaEmpty" : "mediaResults";
+}
+
+// Typing a title on a d-pad-driven virtual keyboard is the worst input a
+// remote has to offer - voice is the natural one here. Recognized text just
+// fills the same query state the keyboard does; it never bypasses or
+// reimplements the search itself. "unavailable" (no recognizer, no native
+// module, permission declined further up the OS) and "empty" (cancelled, or
+// nothing understood) are both deliberately silent: the keyboard next to
+// this button is always the fallback and must never be interrupted by it.
+function VoiceSearchButton({ onRecognized }: { onRecognized: (text: string) => void }) {
+  const theme = useTheme();
+  const { t } = useTranslation();
+  const [listening, setListening] = useState(false);
+
+  const handlePress = useCallback(async () => {
+    if (listening) return;
+    setListening(true);
+    try {
+      const result = await startVoiceSearch();
+      if (result.status === "recognized") {
+        onRecognized(result.text);
+      }
+    } finally {
+      setListening(false);
+    }
+  }, [listening, onRecognized]);
+
+  return (
+    <FocusableCard
+      onPress={handlePress}
+      disabled={listening}
+      accessibilityLabel={t(listening ? "media.search.voiceSearchListening" : "media.search.voiceSearch")}
+      style={[styles.voiceButton, { backgroundColor: theme.colors.accent, borderRadius: theme.radii.md }]}
+    >
+      {listening ? (
+        <ActivityIndicator color={theme.colors.onAccent} />
+      ) : (
+        <Ionicons name="mic" size={28} color={theme.colors.onAccent} />
+      )}
+    </FocusableCard>
+  );
 }
 
 function ScopeTab({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
@@ -162,28 +204,31 @@ export default function SearchScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
-      <TextInput
-        style={[
-          styles.input,
-          {
-            backgroundColor: theme.colors.surface,
-            color: theme.colors.text,
-            borderRadius: theme.radii.md,
-            borderColor: inputFocused ? theme.colors.accent : theme.colors.border,
-          },
-        ]}
-        placeholder={t("media.search.placeholder")}
-        placeholderTextColor={theme.colors.textMuted}
-        value={query}
-        onChangeText={setQuery}
-        autoCapitalize="none"
-        autoCorrect={false}
-        returnKeyType="search"
-        onFocus={() => setInputFocused(true)}
-        onBlur={() => setInputFocused(false)}
-        accessible={true}
-        accessibilityLabel={t("media.search.placeholder")}
-      />
+      <View style={styles.searchRow}>
+        <TextInput
+          style={[
+            styles.input,
+            {
+              backgroundColor: theme.colors.surface,
+              color: theme.colors.text,
+              borderRadius: theme.radii.md,
+              borderColor: inputFocused ? theme.colors.accent : theme.colors.border,
+            },
+          ]}
+          placeholder={t("media.search.placeholder")}
+          placeholderTextColor={theme.colors.textMuted}
+          value={query}
+          onChangeText={setQuery}
+          autoCapitalize="none"
+          autoCorrect={false}
+          returnKeyType="search"
+          onFocus={() => setInputFocused(true)}
+          onBlur={() => setInputFocused(false)}
+          accessible={true}
+          accessibilityLabel={t("media.search.placeholder")}
+        />
+        <VoiceSearchButton onRecognized={setQuery} />
+      </View>
 
       {/* Scope selector: video catalog (default) vs music */}
       <View style={{ flexDirection: "row", paddingHorizontal: 24, marginBottom: 8 }}>
@@ -248,14 +293,29 @@ export default function SearchScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
-  input: {
+  searchRow: {
+    flexDirection: "row",
+    alignItems: "center",
     marginHorizontal: 24,
     marginTop: 32,
     marginBottom: 16,
+  },
+  input: {
+    flex: 1,
     paddingHorizontal: 20,
     paddingVertical: 16,
     fontSize: 22,
     borderWidth: 3,
+  },
+  // Generous focus target on purpose - a TV remote is used at sofa distance,
+  // not with a mouse pointer, so this matches the thumbnails' footprint
+  // rather than a phone-sized icon button.
+  voiceButton: {
+    width: 72,
+    height: 72,
+    marginLeft: 16,
+    justifyContent: "center",
+    alignItems: "center",
   },
   row: {
     flexDirection: "row",

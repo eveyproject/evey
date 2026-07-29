@@ -516,6 +516,8 @@ search:
   searchLibrary: Rechercher dans votre médiathèque
   searchLibraryDesc: "Saisissez au moins 2 caractères pour rechercher parmi vos films, séries et plus."
   clearSearch: Effacer la recherche
+  voiceSearch: Recherche vocale
+  voiceSearchListening: "Écoute en cours…"
   filterByType: Filtrer par type
   filters: Filtres
   clearFilters: Effacer les filtres

@@ -516,6 +516,8 @@ search:
   searchLibrary: अपनी मीडिया लाइब्रेरी खोजें
   searchLibraryDesc: अपनी फ़िल्मों, सीरीज़ और अन्य में खोजने के लिए कम से कम 2 अक्षर टाइप करें।
   clearSearch: खोज साफ़ करें
+  voiceSearch: आवाज़ से खोजें
+  voiceSearchListening: सुन रहे हैं…
   filterByType: प्रकार से फ़िल्टर करें
   filters: फ़िल्टर
   clearFilters: फ़िल्टर साफ़ करें
