@@ -618,10 +618,16 @@ func (h *playbackHandler) ReportProgress(ctx context.Context, req *eveyv1.Report
 			return nil, tErr
 		}
 	}
-	// Consume remote command BEFORE updating the session (Update overwrites the row)
+	// Consume remote command BEFORE updating the session (Update overwrites the
+	// row). NOT while casting: the TV consumes its own commands via the alive
+	// beacon poll, and the phone's 3s tick used to win that race and apply
+	// "pause" to its muted LOCAL player - the admin's button then visibly did
+	// nothing on the TV (live repro 2026-07-29).
 	resp := &eveyv1.ReportProgressResponse{}
-	if cmd, cmdErr := h.cmd.ConsumeRemoteCommand(ctx, req.SessionId); cmdErr == nil && cmd != "" {
-		resp.RemoteCommand = cmd
+	if req.CastDeviceName == "" {
+		if cmd, cmdErr := h.cmd.ConsumeRemoteCommand(ctx, req.SessionId); cmdErr == nil && cmd != "" {
+			resp.RemoteCommand = cmd
+		}
 	}
 	if err := h.cmd.ReportProgressBySession(ctx, req.SessionId, req.PositionMs, req.IsPaused, req.CastDeviceName); err != nil {
 		span.RecordError(err)

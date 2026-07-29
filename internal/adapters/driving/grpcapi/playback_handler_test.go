@@ -1415,3 +1415,40 @@ func TestServedAudioBitrateBps(t *testing.T) {
 		})
 	}
 }
+
+// During a cast the TV consumes admin commands itself (its alive beacon polls
+// them); the phone's 3s progress tick must NOT win that race - it used to eat
+// "pause" and apply it to its own muted local player, so the admin's button
+// visibly did nothing on the TV (live repro 2026-07-29).
+func TestPlaybackHandler_ReportProgress_CastSessionDoesNotConsumeCommand(t *testing.T) {
+	h, _, _, _, _, _ := newTestPlaybackHandler()
+	ctx := pbAdminCtx()
+
+	startResp, err := h.StartStream(ctx, &eveyv1.StartStreamRequest{
+		MediaItemId: "mi-1",
+		PlayMethod:  eveyv1.PlayMethod_PLAY_METHOD_DIRECT_PLAY,
+		DeviceName:  "Phone",
+	})
+	require.NoError(t, err)
+	require.NoError(t, h.cmd.SetRemoteCommand(ctx, startResp.Id, "pause"))
+
+	// Phone tick WHILE CASTING (castDeviceName set): command left in place.
+	resp, err := h.ReportProgress(ctx, &eveyv1.ReportProgressRequest{
+		SessionId: startResp.Id, PositionMs: 1000, CastDeviceName: "Salon TV",
+	})
+	require.NoError(t, err)
+	assert.Empty(t, resp.RemoteCommand, "a casting phone must not consume the TV's command")
+
+	// The TV's poll gets it.
+	cmd, err := h.cmd.ConsumeCastCommand(ctx, "profile-1", "mi-1")
+	require.NoError(t, err)
+	assert.Equal(t, "pause", cmd)
+
+	// Local playback (no castDeviceName): the phone consumes as always.
+	require.NoError(t, h.cmd.SetRemoteCommand(ctx, startResp.Id, "play"))
+	resp, err = h.ReportProgress(ctx, &eveyv1.ReportProgressRequest{
+		SessionId: startResp.Id, PositionMs: 2000,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "play", resp.RemoteCommand)
+}
