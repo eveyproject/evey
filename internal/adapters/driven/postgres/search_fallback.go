@@ -37,62 +37,83 @@ func (s *SQLSearchFallback) Clear(_ context.Context) error {
 	return nil
 }
 
-func (s *SQLSearchFallback) Search(ctx context.Context, query string, filters map[string]string, sort []string, limit int64) ([]library.SearchHit, int64, error) {
-	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
-	defer cancel()
+// searchWhere builds the WHERE clause and its ordered args for the SQL
+// fallback, and reports whether there is anything to search for at all.
+//
+// A blank query with FILTERS is a legitimate search - "everything in the
+// Comedy genre" - and Meilisearch has always served it. This used to bail out
+// on a blank query whatever the filters, so any filter-only browse came back
+// empty while Meili was down. Only a request with neither text nor filter
+// returns false: that one must not turn into a full-catalog dump.
+func searchWhere(query string, filters map[string]string) (string, []any, bool) {
 	q := strings.TrimSpace(query)
-	if q == "" {
-		return nil, 0, nil
+	var clauses []string
+	var args []any
+	argN := 1
+
+	if q != "" {
+		pattern := "%" + likeEscape(q) + "%"
+		args = append(args, pattern, pattern)
+		// Match title/original_title AND (like Meilisearch's searchable attributes)
+		// translated titles and cast names, so a search for a foreign-language title or
+		// an actor name still finds results while Meili is down. EXISTS subqueries keep
+		// one row per media item (no JOIN fan-out, so no DISTINCT needed).
+		clauses = append(clauses, fmt.Sprintf(`(mi.title ILIKE $%d ESCAPE '\'
+		OR COALESCE(mi.original_title,'') ILIKE $%d ESCAPE '\'
+		OR EXISTS (SELECT 1 FROM media_item_translations mt
+			WHERE mt.media_item_id = mi.id AND mt.title ILIKE $%d ESCAPE '\')
+		OR EXISTS (SELECT 1 FROM media_people mp JOIN people pe ON pe.id = mp.person_id
+			WHERE mp.media_item_id = mi.id AND pe.name ILIKE $%d ESCAPE '\'))`, 1, 2, 1, 1))
+		argN = 3
 	}
 
-	pattern := "%" + likeEscape(q) + "%"
-	args := []any{pattern, pattern}
-	// Match title/original_title AND (like Meilisearch's searchable attributes)
-	// translated titles and cast names, so a search for a foreign-language title or
-	// an actor name still finds results while Meili is down. EXISTS subqueries keep
-	// one row per media item (no JOIN fan-out, so no DISTINCT needed).
-	where := `(mi.title ILIKE $1 ESCAPE '\'
-		OR COALESCE(mi.original_title,'') ILIKE $2 ESCAPE '\'
-		OR EXISTS (SELECT 1 FROM media_item_translations mt
-			WHERE mt.media_item_id = mi.id AND mt.title ILIKE $1 ESCAPE '\')
-		OR EXISTS (SELECT 1 FROM media_people mp JOIN people pe ON pe.id = mp.person_id
-			WHERE mp.media_item_id = mi.id AND pe.name ILIKE $1 ESCAPE '\'))`
-	argN := 3
-
 	if typ, ok := filters["type"]; ok && typ != "" {
-		where += fmt.Sprintf(" AND mi.type = $%d", argN)
+		clauses = append(clauses, fmt.Sprintf("mi.type = $%d", argN))
 		args = append(args, typ)
 		argN++
 	}
 	if libID, ok := filters["library_id"]; ok && libID != "" {
-		where += fmt.Sprintf(" AND mi.library_id = $%d", argN)
+		clauses = append(clauses, fmt.Sprintf("mi.library_id = $%d", argN))
 		args = append(args, libID)
 		argN++
 	}
 	// Genre and year filters: Meilisearch applies these (search_adapter filterable
 	// attributes), so the SQL fallback must too or a genre/year-filtered search
 	// silently returns unfiltered results while Meili is down. media_catalog (mc)
-	// is already joined below.
+	// is already joined by the caller.
 	if g, ok := filters["genres"]; ok && g != "" {
-		gj, err := json.Marshal([]string{g})
-		if err == nil {
-			where += fmt.Sprintf(" AND mc.genres @> $%d::jsonb", argN)
+		if gj, err := json.Marshal([]string{g}); err == nil {
+			clauses = append(clauses, fmt.Sprintf("mc.genres @> $%d::jsonb", argN))
 			args = append(args, string(gj))
 			argN++
 		}
 	}
 	if ymin, ok := filters["year_min"]; ok && ymin != "" {
 		if n, err := strconv.Atoi(ymin); err == nil {
-			where += fmt.Sprintf(" AND mc.year >= $%d", argN)
+			clauses = append(clauses, fmt.Sprintf("mc.year >= $%d", argN))
 			args = append(args, n)
 			argN++
 		}
 	}
 	if ymax, ok := filters["year_max"]; ok && ymax != "" {
 		if n, err := strconv.Atoi(ymax); err == nil {
-			where += fmt.Sprintf(" AND mc.year <= $%d", argN)
+			clauses = append(clauses, fmt.Sprintf("mc.year <= $%d", argN))
 			args = append(args, n)
 		}
+	}
+
+	if len(clauses) == 0 {
+		return "", nil, false
+	}
+	return strings.Join(clauses, " AND "), args, true
+}
+
+func (s *SQLSearchFallback) Search(ctx context.Context, query string, filters map[string]string, sort []string, limit int64) ([]library.SearchHit, int64, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	where, args, ok := searchWhere(query, filters)
+	if !ok {
+		return nil, 0, nil
 	}
 
 	if limit <= 0 {

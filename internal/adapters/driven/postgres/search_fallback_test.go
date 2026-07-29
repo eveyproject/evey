@@ -120,3 +120,44 @@ func TestSQLSearchFallback_Search_Integration(t *testing.T) {
 		assert.Equal(t, int64(0), total)
 	})
 }
+
+// The SQL fallback used to bail out on an empty query REGARDLESS of filters.
+// Meilisearch handles "no text, just a genre filter" fine, so nobody noticed
+// until the TV gained a genre-first browse screen: that screen is the first
+// caller with filters and no text, and it came back empty whenever Meili was
+// down. Filters alone are a legitimate search.
+func TestSearchWhere_EmptyQueryWithFilters_StillFilters(t *testing.T) {
+	where, args, ok := postgres.SearchWhereForTest("", map[string]string{"genres": "Comedy"})
+	require.True(t, ok, "a genre filter alone must still produce a query")
+	assert.NotContains(t, where, "ILIKE", "no text clause when there is no text")
+	assert.Contains(t, where, "mc.genres @>")
+	assert.Equal(t, []any{`["Comedy"]`}, args)
+}
+
+func TestSearchWhere_EmptyQueryNoFilters_NoQueryAtAll(t *testing.T) {
+	_, _, ok := postgres.SearchWhereForTest("   ", nil)
+	assert.False(t, ok, "no text and no filter is not a search, and must not dump the catalog")
+}
+
+// Placeholders must stay dense and 1-based whatever the combination, or the
+// args line up against the wrong $n.
+func TestSearchWhere_PlaceholdersAreDenseWithoutText(t *testing.T) {
+	where, args, ok := postgres.SearchWhereForTest("", map[string]string{
+		"type": "movie", "library_id": "lib-1", "year_min": "2000",
+	})
+	require.True(t, ok)
+	assert.Contains(t, where, "$1")
+	assert.Contains(t, where, "$2")
+	assert.Contains(t, where, "$3")
+	assert.NotContains(t, where, "$4")
+	assert.Equal(t, []any{"movie", "lib-1", 2000}, args)
+}
+
+func TestSearchWhere_TextAndFiltersKeepTextFirst(t *testing.T) {
+	where, args, ok := postgres.SearchWhereForTest("matrix", map[string]string{"type": "movie"})
+	require.True(t, ok)
+	assert.Contains(t, where, "ILIKE $1")
+	assert.Contains(t, where, "mi.type = $3", "filters start after the two text patterns")
+	assert.Len(t, args, 3)
+	assert.Equal(t, "movie", args[2])
+}
