@@ -5,7 +5,7 @@ import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { setBaseURL } from "@evey/api";
 import { useAuthStore, useServerListStore } from "@evey/store";
-import { setServerUrl, getServerUrl } from "../src/lib/server-config";
+import { setServerUrl, getServerUrl, pingServer } from "../src/lib/server-config";
 import { initFetcher } from "../src/lib/fetcher-setup";
 import { applyServerLanguage, initI18n } from "../src/i18n";
 import { useTheme } from "../src/providers/ThemeProvider";
@@ -77,10 +77,30 @@ export default function ServerConnect() {
   const handleSelectServer = useCallback(async (serverId: string) => {
     const server = servers[serverId];
     if (!server) return;
+    // Reachability FIRST, exactly like handleConnect and the boot redirect: a
+    // saved server that has since moved/died used to send the user straight to
+    // /login, where every attempt failed with no explanation because nothing
+    // ever reached a server (2026-07-29). Never offer a login we know cannot
+    // be delivered.
+    setLoading(true);
+    const reachable = await pingServer(server.url);
+    setLoading(false);
+    if (!reachable) {
+      Alert.alert(
+        t("mobile.serverConnect.connectionFailed", "Connection failed"),
+        t("mobile.serverConnect.unreachableSaved", "{{url}} did not answer. Check the address or your connection.").replace("{{url}}", server.url),
+      );
+      return;
+    }
     setActiveServer(serverId);
     setBaseURL(server.url);
     await setServerUrl(server.url);
     await initFetcher();
+    // Picking a SAVED/discovered server used to skip i18n entirely: on a first
+    // launch (boot found no server, so nothing initialised it) the user landed
+    // on /login with raw keys (2026-07-29). Same three calls as handleConnect.
+    await initI18n(server.url);
+    await applyServerLanguage(server.url);
     // Tokens for this server are rehydrated by the store; check now.
     const token = useAuthStore.getState().accessToken;
     if (token) {

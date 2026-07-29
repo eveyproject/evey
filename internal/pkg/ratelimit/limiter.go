@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -171,6 +172,36 @@ func clientIP(r *http.Request) string {
 	return r.RemoteAddr
 }
 
+// logger is the sink for refusal lines. Package-level (the middlewares are
+// constructed all over wire-up and threading a logger through every call site
+// would touch dozens of lines); nil = slog.Default().
+var logger atomic.Pointer[slog.Logger]
+
+// SetLogger overrides the refusal logger (tests). nil restores slog.Default().
+func SetLogger(l *slog.Logger) { logger.Store(l) }
+
+func refusalLogger() *slog.Logger {
+	if l := logger.Load(); l != nil {
+		return l
+	}
+	return slog.Default()
+}
+
+// refuse answers 429 AND logs it. Before this, a rate-limited client was
+// completely invisible server-side: a beta tester locked out of the mobile app
+// produced an empty log, which read as "the request never arrived" and cost an
+// afternoon of misdirected diagnosis (2026-07-29). Retry-After tells the client
+// when to come back instead of leaving it to guess.
+func refuse(w http.ResponseWriter, r *http.Request) {
+	refusalLogger().WarnContext(r.Context(), "rate limit: request refused",
+		slog.String("client_ip", clientIP(r)),
+		slog.String("path", r.URL.Path),
+		slog.String("method", r.Method),
+		slog.String("device", r.UserAgent()))
+	w.Header().Set("Retry-After", "60")
+	http.Error(w, `{"message":"too many requests"}`, http.StatusTooManyRequests)
+}
+
 func Middleware(limiter *Limiter, exemptPrefixes ...string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -181,7 +212,7 @@ func Middleware(limiter *Limiter, exemptPrefixes ...string) func(http.Handler) h
 				}
 			}
 			if !limiter.Allow(clientIP(r)) {
-				http.Error(w, `{"message":"too many requests"}`, http.StatusTooManyRequests)
+				refuse(w, r)
 				return
 			}
 			next.ServeHTTP(w, r)
@@ -192,7 +223,7 @@ func Middleware(limiter *Limiter, exemptPrefixes ...string) func(http.Handler) h
 func MiddlewareFunc(limiter *Limiter, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if !limiter.Allow(clientIP(r)) {
-			http.Error(w, `{"message":"too many requests"}`, http.StatusTooManyRequests)
+			refuse(w, r)
 			return
 		}
 		next(w, r)

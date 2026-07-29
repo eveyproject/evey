@@ -5,6 +5,7 @@ serverConnect:
   title: सर्वर से कनेक्ट करें
   connect: कनेक्ट
   connectionFailed: कनेक्शन विफल
+  unreachableSaved: "{{url}} ने उत्तर नहीं दिया। पता या अपना कनेक्शन जांचें।"
   unreachable: सर्वर तक पहुंचने में असमर्थ
   urlLabel: "सर्वर URL"
   useDiscovered: "खोजा गया सर्वर {{url}} उपयोग करें"

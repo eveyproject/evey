@@ -5,6 +5,7 @@ serverConnect:
   title: Mit Server verbinden
   connect: Verbinden
   connectionFailed: Verbindung fehlgeschlagen
+  unreachableSaved: "{{url}} hat nicht geantwortet. Prüfen Sie die Adresse oder Ihre Verbindung."
   unreachable: Server nicht erreichbar
   urlLabel: "Server-URL"
   useDiscovered: "Erkannten Server {{url}} verwenden"

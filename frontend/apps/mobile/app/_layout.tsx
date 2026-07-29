@@ -39,8 +39,13 @@ export default function RootLayout() {
       await initFetcher();
       const serverUrl =
         useServerListStore.getState().getActiveServer()?.url ?? await getServerUrl();
+      // ALWAYS initialise i18n - even with no server yet. Without this the
+      // first-launch screens (server-connect, then login) rendered raw keys
+      // until the app was restarted (2026-07-29). With no server the embedded
+      // English floor answers; the instance catalogue merges over it as soon
+      // as a server is set.
+      await initI18n(serverUrl ?? "");
       if (serverUrl) {
-        await initI18n(serverUrl);
         await applyServerLanguage(serverUrl);
         // Silently refresh a stale access token on cold start so the user
         // is not bounced to /login when the cached JWT has expired.

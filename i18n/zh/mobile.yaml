@@ -5,6 +5,7 @@ serverConnect:
   title: 连接到服务器
   connect: 连接
   connectionFailed: 连接失败
+  unreachableSaved: "{{url}} 无响应。请检查地址或网络连接。"
   unreachable: 无法连接到服务器
   urlLabel: "服务器 URL"
   useDiscovered: "使用已发现的服务器 {{url}}"

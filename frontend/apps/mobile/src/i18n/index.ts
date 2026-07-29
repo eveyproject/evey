@@ -3,6 +3,13 @@ import { initReactI18next } from "react-i18next";
 import HttpBackend from "i18next-http-backend";
 import { getLocales } from "expo-localization";
 import { useAuthStore, useLocaleStore } from "@evey/store";
+// Embedded English floor for the screens a user sees BEFORE any server is
+// reachable (server-connect, login, register, forgot-password). Translations
+// are normally served by the instance, so an unreachable/unconfigured server
+// used to render raw keys like "auth.login.signIn" (a beta tester's first
+// impression of the app, 2026-07-29). Regenerate from i18n/en/*.yaml when
+// those screens gain keys; the server catalogue always wins once loaded.
+import fallbackEn from "./fallback.en.json";
 
 export const supportedLanguages = [
   { code: "en", label: "English" },
@@ -29,8 +36,30 @@ function detectLanguage(): string {
   return "en";
 }
 
+// i18nLoaded reports that translations are actually IN MEMORY - not merely
+// that i18next was constructed. A failed HTTP load leaves i18next
+// "initialized" with an EMPTY catalogue, and every screen then renders raw
+// keys ("auth.login.signIn" on a beta tester's phone, 2026-07-29).
+export function i18nLoaded(): boolean {
+  return i18n.isInitialized && i18n.hasResourceBundle(i18n.language, "translation");
+}
+
 export async function initI18n(serverUrl: string) {
-  if (i18n.isInitialized) return i18n;
+  // Re-entrant on FAILURE: the old `isInitialized` guard made the first
+  // attempt final, so a boot with no server (or an offline first launch)
+  // condemned the whole session to raw keys. Reloading is cheap and idempotent.
+  if (i18n.isInitialized) {
+    if (!i18nLoaded()) {
+      try {
+        i18n.services.backendConnector.backend?.options &&
+          (i18n.services.backendConnector.backend.options.loadPath = `${serverUrl}/api/v1/i18n/{{lng}}`);
+        await i18n.reloadResources();
+      } catch {
+        /* still unreachable: the embedded fallback below keeps the UI readable */
+      }
+    }
+    return i18n;
+  }
 
   await i18n
     .use(HttpBackend)
@@ -45,6 +74,12 @@ export async function initI18n(serverUrl: string) {
       defaultNS: "translation",
       keySeparator: false,
       interpolation: { escapeValue: false },
+      // partialBundledLanguages + the embedded floor: the HTTP catalogue is
+      // still fetched and MERGED OVER these, so a reachable server keeps
+      // full, localized text; an unreachable one degrades to English words
+      // instead of key names.
+      partialBundledLanguages: true,
+      resources: { en: { translation: fallbackEn } },
     });
 
   return i18n;

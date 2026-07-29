@@ -1,8 +1,12 @@
 package ratelimit
 
 import (
+	"bytes"
+	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -487,5 +491,58 @@ func TestSetTrustedProxies_InvalidCIDRSkipped(t *testing.T) {
 
 	if n := len(trustedProxyNets); n != 1 {
 		t.Fatalf("invalid CIDR should be skipped: got %d trusted nets, want 1", n)
+	}
+}
+
+// A refused request used to leave NO trace at all: an operator investigating
+// "the app refuses my login" saw an empty log and concluded the request never
+// arrived (prod 2026-07-29, a beta tester locked out and invisible). Every
+// block now logs WHO was refused and WHERE, at WARN.
+func TestMiddleware_LogsRefusals(t *testing.T) {
+	var buf bytes.Buffer
+	SetLogger(slog.New(slog.NewJSONHandler(&buf, nil)))
+	t.Cleanup(func() { SetLogger(nil) })
+
+	lim := NewWithBurst(1, 0.001) // one token, effectively no refill
+	h := MiddlewareFunc(lim, func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", nil)
+	req.RemoteAddr = "203.0.113.7:5000"
+	req.Header.Set("User-Agent", "EveyMobile/0.0.1-beta.19 (Android 13; Phone)")
+
+	first := httptest.NewRecorder()
+	h(first, req)
+	if first.Code != http.StatusOK {
+		t.Fatalf("first call = %d, want 200", first.Code)
+	}
+	if buf.Len() != 0 {
+		t.Fatalf("an ALLOWED request must not log: %s", buf.String())
+	}
+
+	second := httptest.NewRecorder()
+	h(second, req)
+	if second.Code != http.StatusTooManyRequests {
+		t.Fatalf("second call = %d, want 429", second.Code)
+	}
+	if second.Header().Get("Retry-After") == "" {
+		t.Fatal("a 429 must carry Retry-After so the client can say when to try again")
+	}
+	var line map[string]any
+	if err := json.Unmarshal(buf.Bytes(), &line); err != nil {
+		t.Fatalf("no parseable log line for the refusal: %v (raw=%q)", err, buf.String())
+	}
+	if line["level"] != "WARN" {
+		t.Fatalf("level = %v, want WARN", line["level"])
+	}
+	for field, want := range map[string]any{
+		"client_ip": "203.0.113.7",
+		"path":      "/api/v1/auth/login",
+	} {
+		if line[field] != want {
+			t.Fatalf("log field %q = %v, want %v (line=%v)", field, line[field], want, line)
+		}
+	}
+	if dev, _ := line["device"].(string); !strings.Contains(dev, "EveyMobile") {
+		t.Fatalf("the refused client's user agent must be logged, got %v", line["device"])
 	}
 }
