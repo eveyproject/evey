@@ -257,16 +257,16 @@ func (c *CoSender) attachVerified(dev domaincast.Device) {
 	if err != nil || st.AppID != c.appID {
 		// Not our receiver (or not readable): release immediately, without
 		// ever having sent anything but the status reads.
-		_ = sess.Close()
+		if closeErr := sess.Close(); closeErr != nil {
+			slog.Debug("cast co-sender: close after status probe", slog.String("addr", dev.Addr), slog.Any("err", closeErr))
+		}
 		c.releaseSlot(dev.Addr, stop)
 		return
 	}
-	c.wg.Add(1)
-	go func() {
-		defer c.wg.Done()
+	c.wg.Go(func() {
 		defer c.releaseSlot(dev.Addr, stop)
 		c.keepAlive(dev.Addr, sess, stop)
-	}()
+	})
 }
 
 // keepAlive holds the sender seat until the session is over, the device is

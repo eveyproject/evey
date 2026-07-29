@@ -290,7 +290,7 @@ func TestBuildWasmAudioMaster_AacRelayURI(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, master, `#EVEY-AUDIO-AAC-URI:"audio_1.m3u8?`, "relay tag names the AAC rendition of the SAME track")
 	aacLine := ""
-	for _, line := range strings.Split(master, "\n") {
+	for line := range strings.SplitSeq(master, "\n") {
 		if strings.HasPrefix(line, "#EVEY-AUDIO-AAC-URI:") {
 			aacLine = line
 		}

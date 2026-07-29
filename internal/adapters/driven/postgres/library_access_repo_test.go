@@ -167,10 +167,10 @@ func TestLibraryAccessRepo_GrantMany_SkipsDeletedLibraries(t *testing.T) {
 	lib := newTestLibrary("gm-lib")
 	require.NoError(t, libRepo.Create(ctx, lib))
 
-	err := accessRepo.GrantMany(ctx, shared.UserID(u.ID), []shared.LibraryID{shared.LibraryID(lib.ID), "lib-deleted-long-ago"})
+	err := accessRepo.GrantMany(ctx, u.ID, []shared.LibraryID{shared.LibraryID(lib.ID), "lib-deleted-long-ago"})
 	require.NoError(t, err, "a stale invite library id must not fail the grant")
 
-	ok, err := accessRepo.HasAccess(ctx, shared.UserID(u.ID), shared.LibraryID(lib.ID))
+	ok, err := accessRepo.HasAccess(ctx, u.ID, shared.LibraryID(lib.ID))
 	require.NoError(t, err)
 	assert.True(t, ok, "the surviving library is still granted")
 }
