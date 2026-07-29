@@ -13,7 +13,7 @@ vi.mock("expo-secure-store", () => ({
   }),
 }));
 
-import { getServerUrl, setServerUrl, clearServerUrl, pingServer } from "./server-config";
+import { getServerUrl, setServerUrl, clearServerUrl, pingServer, resolveServerUrl } from "./server-config";
 
 beforeEach(() => {
   Object.keys(store).forEach((k) => delete store[k]);
@@ -69,5 +69,26 @@ describe("server-config", () => {
       globalThis.fetch = vi.fn().mockRejectedValue(new Error("timeout"));
       expect(await pingServer("http://srv")).toBe(false);
     });
+  });
+});
+
+// The API layer and the rest of the app must never disagree about WHICH
+// server this is. They did (initFetcher read only the legacy key), and a
+// divergence pointed every API call at nothing while the UI looked fine.
+describe("resolveServerUrl", () => {
+  it("prefers the active server of the multi-server store", async () => {
+    await setServerUrl("http://legacy:9091");
+    expect(await resolveServerUrl("http://active:9091")).toBe("http://active:9091");
+  });
+
+  it("falls back to the legacy key when no server is active", async () => {
+    await setServerUrl("http://legacy:9091");
+    expect(await resolveServerUrl(null)).toBe("http://legacy:9091");
+    expect(await resolveServerUrl(undefined)).toBe("http://legacy:9091");
+  });
+
+  it("returns null when neither knows a server", async () => {
+    await clearServerUrl();
+    expect(await resolveServerUrl(null)).toBeNull();
   });
 });

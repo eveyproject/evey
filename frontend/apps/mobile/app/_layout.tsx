@@ -10,7 +10,7 @@ import { ThemeProvider, useTheme } from "../src/providers/ThemeProvider";
 import { ToastContainer } from "../src/components/ToastContainer";
 import { ErrorBoundary } from "../src/components/ErrorBoundary";
 import { initFetcher } from "../src/lib/fetcher-setup";
-import { getServerUrl } from "../src/lib/server-config";
+import { getServerUrl, resolveServerUrl } from "../src/lib/server-config";
 import { migrateFromSingleServer, useServerListStore } from "@evey/store";
 import { applyServerLanguage, initI18n } from "../src/i18n";
 import { configureAudioSession } from "../src/lib/audio-session";
@@ -37,8 +37,7 @@ export default function RootLayout() {
         console.error("server migration failed:", err);
       }
       await initFetcher();
-      const serverUrl =
-        useServerListStore.getState().getActiveServer()?.url ?? await getServerUrl();
+      const serverUrl = await resolveServerUrl(useServerListStore.getState().getActiveServer()?.url);
       // ALWAYS initialise i18n - even with no server yet. Without this the
       // first-launch screens (server-connect, then login) rendered raw keys
       // until the app was restarted (2026-07-29). With no server the embedded

@@ -1,13 +1,15 @@
 import { setBaseURL, setTokenProvider, setTokensUpdater, setRefreshHandler, setUnauthorizedHandler, setLocaleProvider, setExtraHeaders } from "@evey/api";
-import { useAuthStore, useLocaleStore } from "@evey/store";
+import { useAuthStore, useLocaleStore, useServerListStore } from "@evey/store";
 import { router } from "expo-router";
-import { getServerUrl } from "./server-config";
+import { resolveServerUrl } from "./server-config";
 import { clearRefreshToken } from "./refresh-token";
 import { forceRefresh } from "./auth-refresh";
 import { eveyClientUserAgent } from "./clientIdentity";
 
 export async function initFetcher() {
-  const serverUrl = await getServerUrl();
+  // Same resolution as the boot and every screen: active server first, legacy
+  // key as the fallback (see resolveServerUrl for what divergence cost us).
+  const serverUrl = await resolveServerUrl(useServerListStore.getState().getActiveServer()?.url);
   if (serverUrl) setBaseURL(serverUrl);
   // The User-Agent identifies this app (instead of okhttp's default) in the
   // admin logs and on the online panel - see clientIdentity.ts.
