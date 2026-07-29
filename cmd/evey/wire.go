@@ -739,6 +739,10 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// that last write would defeat the tracker. Registered on the same drain
 	// as the transcode workers (before db.Close).
 	bgStoppers = append(bgStoppers, castProgress.Stop)
+	// Batch transcode jobs run on a context detached from their RPC (they must
+	// outlive the progress stream) - the server's shutdown is the one thing
+	// they must NOT outlive. Without this, SIGTERM mid-encode orphans ffmpeg.
+	bgStoppers = append(bgStoppers, infra.transcoder.StopAll)
 
 	// CMCD (CTA-5004) ingest sink. The HTTP handler parses the CMCD query
 	// param on every segment / master / variant fetch and ships an event

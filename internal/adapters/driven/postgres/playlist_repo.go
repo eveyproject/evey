@@ -225,8 +225,12 @@ func (r *PlaylistItemRepository) AddNextOrder(ctx context.Context, item *playlis
 	// Compute sort_order inside the INSERT (MAX+1) so two concurrent adds can't
 	// both read the same max in Go and write a colliding order. Aggregate over an
 	// empty playlist yields one row with MAX=NULL → order 0 for the first item.
-	// The item cap rides INSIDE the statement (HAVING): a Go-side read-then-
-	// insert let two concurrent adds at cap-1 both pass. cap <= 0 = uncapped.
+	// The item cap rides INSIDE the statement (HAVING). It NARROWS the old
+	// Go-side read-then-insert race to the statement window - under READ
+	// COMMITTED two simultaneous statements at cap-1 can still both pass
+	// (cap+1), which is accepted: the cap is an anti-abuse bound, not an
+	// invariant, and closing it fully would need an advisory lock + TxUnit
+	// on a hot path. cap <= 0 = uncapped.
 	cap64 := int64(maxItems)
 	if maxItems <= 0 {
 		cap64 = int64(^uint64(0) >> 1)

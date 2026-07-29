@@ -110,6 +110,19 @@ func detachedJobContext(ctx context.Context) (context.Context, context.CancelFun
 	return context.WithCancel(context.WithoutCancel(ctx))
 }
 
+// StopAll cancels every in-flight job: the shutdown counterpart of
+// detachedJobContext. Detached jobs survive their CALLER's context by design;
+// they must not survive the SERVER - without this, a SIGTERM mid-encode
+// leaves an orphaned ffmpeg running after the process exits.
+func (t *Transcoder) StopAll() {
+	t.jobs.Range(func(_, value any) bool {
+		if rj, ok := value.(*runningJob); ok {
+			rj.cancel()
+		}
+		return true
+	})
+}
+
 func (t *Transcoder) Stop(_ context.Context, jobID string) error {
 	v, ok := t.jobs.Load(jobID)
 	if !ok {
