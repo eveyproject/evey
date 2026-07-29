@@ -20,6 +20,7 @@ import { KeyboardShortcutsOverlay } from "./KeyboardShortcutsOverlay";
 import { DownloadButton } from "./DownloadButton";
 import type { Chapter } from "@/hooks/useChapters";
 import { usePlaybackSettings } from "@/hooks/usePlaybackSettings";
+import { useSleepTimer } from "@/hooks/useSleepTimer";
 import {
   getPreferredAudioLang,
   setPreferredAudioLang,
@@ -475,6 +476,18 @@ export function HLSPlayer({
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [isBuffering, setIsBuffering] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const sleepTimer = useSleepTimer({
+    onMinutesFire: () => {
+      try { videoRef.current?.pause(); } catch { /* element gone */ }
+      toast.info(t("player.sleepTimer.fired"));
+    },
+  });
+  // Read-latest mirror so the mount-only "ended" listener below (registered
+  // once per video element, not per render) can check the CURRENT sleep timer
+  // state without becoming a dependency that would tear down and re-attach
+  // the listener on every countdown tick.
+  const sleepTimerRef = useRef(sleepTimer);
+  sleepTimerRef.current = sleepTimer;
   // Debounced gate in front of setIsBuffering: the raw `waiting` event fires on
   // every micro-stall (segment boundary, fast seek, ABR switch) and flashing
   // the spinner over a video that resumes within a second reads as "the app is
@@ -848,7 +861,19 @@ export function HLSPlayer({
     if (!video) return;
     const onPlay = () => setIsPlaying(true);
     const onPause = () => setIsPlaying(false);
-    const onEnded = () => setIsPlaying(false);
+    const onEnded = () => {
+      setIsPlaying(false);
+      // "Stop at end of episode" sleep timer: the video already paused itself
+      // on "ended". Deliberately NOT cancelling the timer here - suppressing
+      // NextEpisodeOverlay's auto-advance is keyed off this same
+      // state.kind === "endOfEpisode" (see the JSX below), so clearing it in
+      // this same tick would race the overlay's own end-of-video effect and
+      // let the auto-advance slip through. The viewer dismisses it explicitly
+      // from Settings > Sleep timer > Cancel once they're done.
+      if (sleepTimerRef.current.state?.kind === "endOfEpisode") {
+        toast.info(t("player.sleepTimer.fired"));
+      }
+    };
     video.addEventListener("play", onPlay);
     video.addEventListener("pause", onPause);
     video.addEventListener("ended", onEnded);
@@ -1206,6 +1231,7 @@ export function HLSPlayer({
           duration={overlayDuration}
           onPlayNow={handleNextEpisode}
           onCancel={() => {}}
+          suppressAutoAdvance={sleepTimer.state?.kind === "endOfEpisode"}
         />
       )}
       <PlayerProvider
@@ -1275,6 +1301,10 @@ export function HLSPlayer({
           onCastSetMuted={castSetMuted}
           isBuffering={isBuffering}
           isPlaying={isPlaying}
+          sleepTimerState={sleepTimer.state}
+          onSleepTimerMinutes={sleepTimer.setMinutes}
+          onSleepTimerEndOfEpisode={sleepTimer.setEndOfEpisode}
+          onSleepTimerCancel={sleepTimer.cancel}
         />
       </PlayerProvider>
       {showShortcuts && <KeyboardShortcutsOverlay onClose={() => setShowShortcuts(false)} skipForwardSeconds={skipFwd} skipBackwardSeconds={skipBwd} />}

@@ -7,6 +7,10 @@ interface NextEpisodeOverlayProps {
   duration: number;
   onPlayNow: (id: string) => void;
   onCancel: () => void;
+  /** When true, never show the overlay or auto-advance - e.g. the viewer set
+   * a "stop at end of episode" sleep timer, which should just stop playback
+   * instead of offering to continue. */
+  suppressAutoAdvance?: boolean;
 }
 
 const CREDITS_THRESHOLD_SEC = 30;
@@ -18,6 +22,7 @@ export function NextEpisodeOverlay({
   duration,
   onPlayNow,
   onCancel,
+  suppressAutoAdvance = false,
 }: NextEpisodeOverlayProps) {
   const { t } = useTranslation();
   const [countdown, setCountdown] = useState(COUNTDOWN_SEC);
@@ -37,10 +42,10 @@ export function NextEpisodeOverlay({
     setEnded(videoEnded);
   }, [videoEnded]);
 
-  const visible = nextEpisode && !cancelled && (isInCredits || ended);
+  const visible = nextEpisode && !cancelled && !suppressAutoAdvance && (isInCredits || ended);
 
   useEffect(() => {
-    if (!ended || cancelled || !nextEpisode) return;
+    if (!ended || cancelled || !nextEpisode || suppressAutoAdvance) return;
     setCountdown(COUNTDOWN_SEC);
     intervalRef.current = setInterval(() => {
       setCountdown((prev) => prev - 1);
@@ -48,7 +53,7 @@ export function NextEpisodeOverlay({
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [ended, cancelled, nextEpisode]);
+  }, [ended, cancelled, nextEpisode, suppressAutoAdvance]);
 
   // Fire the advance exactly once per next-episode cycle. onPlayNow's identity
   // is not guaranteed stable by every caller, so without this guard any
@@ -66,12 +71,12 @@ export function NextEpisodeOverlay({
   }, [nextEpisode, onPlayNow]);
 
   useEffect(() => {
-    if (countdown <= 0 && nextEpisode && !cancelled && !firedRef.current) {
+    if (countdown <= 0 && nextEpisode && !cancelled && !firedRef.current && !suppressAutoAdvance) {
       firedRef.current = true;
       if (intervalRef.current) clearInterval(intervalRef.current);
       onPlayNow(nextEpisode.id);
     }
-  }, [countdown, nextEpisode, cancelled, onPlayNow]);
+  }, [countdown, nextEpisode, cancelled, onPlayNow, suppressAutoAdvance]);
 
   const handleCancel = useCallback(() => {
     setCancelled(true);

@@ -101,4 +101,16 @@ describe("NextEpisodeOverlay", () => {
     expect(screen.queryByText(/Next in/)).not.toBeInTheDocument();
     expect(screen.queryByText("Up Next")).not.toBeInTheDocument();
   });
+
+  // A "stop at end of episode" sleep timer should just stop playback, never
+  // offer to continue - suppressAutoAdvance must hide the overlay and never
+  // fire onPlayNow, even once the countdown would otherwise reach zero.
+  it("never shows or auto-advances when suppressAutoAdvance is set", () => {
+    const onPlayNow = vi.fn();
+    render(<NextEpisodeOverlay {...creditsProps({ onPlayNow, suppressAutoAdvance: true })} />);
+
+    expect(screen.queryByText("Up Next")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Next in/)).not.toBeInTheDocument();
+    expect(onPlayNow).not.toHaveBeenCalled();
+  });
 });

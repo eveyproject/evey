@@ -4,6 +4,7 @@ import { PlayOnPicker } from "./PlayOnPicker";
 import { startPlayback } from "./hooks/hlsPlayerUtils";
 import { useTranslation } from "react-i18next";
 import type { SubtitleStyle } from "@/hooks/usePlaybackPrefs";
+import type { SleepTimerState } from "@/hooks/useSleepTimer";
 import { PlayerVolumeControl } from "./PlayerVolumeControl";
 import { EpisodesPanel } from "./PlayerEpisodesPanel";
 import type { EpisodeNavItem, SeasonNavItem } from "./PlayerEpisodesPanel";
@@ -56,6 +57,10 @@ interface PlayerControlsProps {
   isBuffering?: boolean;
   /** True when the video element is actively playing (not paused / not yet started). */
   isPlaying?: boolean;
+  sleepTimerState?: SleepTimerState | null;
+  onSleepTimerMinutes?: (minutes: number) => void;
+  onSleepTimerEndOfEpisode?: () => void;
+  onSleepTimerCancel?: () => void;
 }
 
 function PlayerControlsInner({
@@ -89,6 +94,10 @@ function PlayerControlsInner({
   wasmAudioActive,
   isBuffering,
   isPlaying,
+  sleepTimerState,
+  onSleepTimerMinutes,
+  onSleepTimerEndOfEpisode,
+  onSleepTimerCancel,
 }: PlayerControlsProps) {
   const { t } = useTranslation();
   const ctx = usePlayerContext();
@@ -657,6 +666,10 @@ function PlayerControlsInner({
             brightness={brightness}
             onBrightnessChange={onBrightnessChange}
             availableQualities={availableQualities}
+            sleepTimerState={sleepTimerState}
+            onSleepTimerMinutes={onSleepTimerMinutes}
+            onSleepTimerEndOfEpisode={onSleepTimerEndOfEpisode}
+            onSleepTimerCancel={onSleepTimerCancel}
           />
 
           {/* Stream Info - surfaces the backend's playback decision (method,

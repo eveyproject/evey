@@ -59,6 +59,99 @@ describe("SettingsPanel", () => {
   });
 });
 
+describe("SettingsPanel sleep timer submenu", () => {
+  // Assertions use data-testid rather than translated copy: the sleep timer
+  // i18n keys are brand new and the test harness's translation fixture is a
+  // point-in-time snapshot of the backend catalogue, so relying on the
+  // rendered English string would be a false negative until that snapshot
+  // is refreshed.
+  it("shows sleep timer submenu with presets and end-of-episode option", async () => {
+    const user = userEvent.setup();
+    render(
+      <SettingsPanel
+        {...defaultProps}
+        open={true}
+        onSleepTimerMinutes={vi.fn()}
+        onSleepTimerEndOfEpisode={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId("sleep-timer-trigger")).toBeInTheDocument();
+    await user.click(screen.getByTestId("sleep-timer-trigger"));
+    expect(screen.getByTestId("sleep-timer-15")).toBeInTheDocument();
+    expect(screen.getByTestId("sleep-timer-90")).toBeInTheDocument();
+    expect(screen.getByTestId("sleep-timer-end-of-episode")).toBeInTheDocument();
+  });
+
+  it("calls onSleepTimerMinutes when a preset is picked", async () => {
+    const user = userEvent.setup();
+    const onSleepTimerMinutes = vi.fn();
+    render(
+      <SettingsPanel
+        {...defaultProps}
+        open={true}
+        onSleepTimerMinutes={onSleepTimerMinutes}
+      />,
+    );
+    await user.click(screen.getByTestId("sleep-timer-trigger"));
+    await user.click(screen.getByTestId("sleep-timer-30"));
+    expect(onSleepTimerMinutes).toHaveBeenCalledWith(30);
+  });
+
+  it("calls onSleepTimerEndOfEpisode when that option is picked", async () => {
+    const user = userEvent.setup();
+    const onSleepTimerEndOfEpisode = vi.fn();
+    render(
+      <SettingsPanel
+        {...defaultProps}
+        open={true}
+        onSleepTimerMinutes={vi.fn()}
+        onSleepTimerEndOfEpisode={onSleepTimerEndOfEpisode}
+      />,
+    );
+    await user.click(screen.getByTestId("sleep-timer-trigger"));
+    await user.click(screen.getByTestId("sleep-timer-end-of-episode"));
+    expect(onSleepTimerEndOfEpisode).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the cancel row only when a timer is active, and calls onSleepTimerCancel", async () => {
+    const user = userEvent.setup();
+    const onSleepTimerCancel = vi.fn();
+    render(
+      <SettingsPanel
+        {...defaultProps}
+        open={true}
+        onSleepTimerMinutes={vi.fn()}
+        onSleepTimerCancel={onSleepTimerCancel}
+        sleepTimerState={{ kind: "minutes", minutesLeft: 12 }}
+      />,
+    );
+    await user.click(screen.getByTestId("sleep-timer-trigger"));
+    expect(screen.getByTestId("sleep-timer-cancel")).toBeInTheDocument();
+    await user.click(screen.getByTestId("sleep-timer-cancel"));
+    expect(onSleepTimerCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not show the cancel row when no timer is active", async () => {
+    const user = userEvent.setup();
+    render(
+      <SettingsPanel
+        {...defaultProps}
+        open={true}
+        onSleepTimerMinutes={vi.fn()}
+        onSleepTimerCancel={vi.fn()}
+        sleepTimerState={null}
+      />,
+    );
+    await user.click(screen.getByTestId("sleep-timer-trigger"));
+    expect(screen.queryByTestId("sleep-timer-cancel")).not.toBeInTheDocument();
+  });
+
+  it("does not render the sleep timer entry without a handler", () => {
+    render(<SettingsPanel {...defaultProps} open={true} />);
+    expect(screen.queryByTestId("sleep-timer-trigger")).not.toBeInTheDocument();
+  });
+});
+
 describe("srtToVtt", () => {
   it("converts SRT comma timestamps to VTT periods under a WEBVTT header", () => {
     const srt = "1\n00:00:01,000 --> 00:00:03,500\nHello\n";

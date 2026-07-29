@@ -4,8 +4,13 @@ import { useTranslation } from "react-i18next";
 import { formatAudioTrackLabel, type AudioStream } from "./AudioTrackSelector";
 import type { SubtitleStream } from "./SubtitleSelector";
 import type { SubtitleStyle } from "@/hooks/usePlaybackPrefs";
+import type { SleepTimerState } from "@/hooks/useSleepTimer";
 import { SPEED_OPTIONS } from "./constants";
 import { nominalQualityTier } from "./playerUtils";
+
+// Mirrors the mobile/TV sleep timer presets (apps/mobile/src/components/SleepTimerPicker.tsx,
+// apps/tv/src/components/SleepTimerPicker.tsx).
+const SLEEP_TIMER_PRESETS_MIN = [15, 30, 45, 60, 90] as const;
 
 function useQualityOptions() {
   const { t } = useTranslation();
@@ -232,6 +237,11 @@ export interface SettingsPanelProps {
   brightness?: number;
   onBrightnessChange?: (value: number) => void;
   availableQualities?: number[];
+  /** Current sleep timer state, or null/undefined when no timer is active. */
+  sleepTimerState?: SleepTimerState | null;
+  onSleepTimerMinutes?: (minutes: number) => void;
+  onSleepTimerEndOfEpisode?: () => void;
+  onSleepTimerCancel?: () => void;
 }
 
 export function SettingsPanel({
@@ -261,6 +271,10 @@ export function SettingsPanel({
   brightness = 1,
   onBrightnessChange,
   availableQualities,
+  sleepTimerState = null,
+  onSleepTimerMinutes,
+  onSleepTimerEndOfEpisode,
+  onSleepTimerCancel,
 }: SettingsPanelProps) {
   const { t } = useTranslation();
   const allQualityOptions = useQualityOptions();
@@ -288,7 +302,7 @@ export function SettingsPanel({
   const subtitlePosition = subtitleStyle?.position ?? "bottom";
   const subtitleShadow = subtitleStyle?.shadow ?? false;
   const extSubInputRef = useRef<HTMLInputElement>(null);
-  const [menu, setMenu] = useState<"main" | "audio" | "subtitles" | "speed" | "subtitle-style">("main");
+  const [menu, setMenu] = useState<"main" | "audio" | "subtitles" | "speed" | "subtitle-style" | "sleep">("main");
 
   function toggle(e: React.MouseEvent) {
     e.stopPropagation();
@@ -313,6 +327,12 @@ export function SettingsPanel({
       ?? t("media.track", { number: currentSubtitleTrackIndex }));
 
   const currentSpeedLabel = playbackSpeed === 1 ? t("player.settings.normal") : `${playbackSpeed}x`;
+
+  const currentSleepLabel = sleepTimerState === null
+    ? t("player.settings.off")
+    : sleepTimerState.kind === "endOfEpisode"
+      ? t("player.sleepTimer.endOfEpisode")
+      : t("player.sleepTimer.minutes", { count: sleepTimerState.minutesLeft ?? 0 });
 
   return (
     <div className="relative">
@@ -414,6 +434,23 @@ export function SettingsPanel({
                   >
                     <span>{t("player.settings.subtitleStyle")}</span>
                     <ChevronRightIcon />
+                  </button>
+                </>
+              )}
+
+              {onSleepTimerMinutes && (
+                <>
+                  <div className="mx-3 my-1 border-t border-[var(--border)]" />
+                  <button
+                    onClick={() => setMenu("sleep")}
+                    data-testid="sleep-timer-trigger"
+                    className="flex items-center justify-between w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors-fast text-[var(--text)]"
+                  >
+                    <span>{t("player.settings.sleepTimer")}</span>
+                    <span className="flex items-center gap-1">
+                      <span className={`text-xs ${sleepTimerState !== null ? "text-[var(--accent)]" : "text-[var(--text-muted)]"}`}>{currentSleepLabel}</span>
+                      <ChevronRightIcon />
+                    </span>
                   </button>
                 </>
               )}
@@ -547,6 +584,51 @@ export function SettingsPanel({
                   {s === playbackSpeed && <CheckIcon />}
                 </button>
               ))}
+            </>
+          )}
+
+          {menu === "sleep" && onSleepTimerMinutes && (
+            <>
+              <SubMenuHeader label={t("player.settings.sleepTimer")} onBack={() => setMenu("main")} />
+              {SLEEP_TIMER_PRESETS_MIN.map((m) => {
+                const active = sleepTimerState?.kind === "minutes"
+                  && sleepTimerState.minutesLeft !== null
+                  && sleepTimerState.minutesLeft <= m
+                  && sleepTimerState.minutesLeft > m - 1;
+                return (
+                  <button
+                    key={m}
+                    onClick={() => select(() => onSleepTimerMinutes(m))}
+                    data-testid={`sleep-timer-${m}`}
+                    className={`flex items-center justify-between w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors-fast ${active ? "text-[var(--accent)]" : "text-[var(--text)]"}`}
+                  >
+                    <span>{t("player.sleepTimer.minutes", { count: m })}</span>
+                    {active && <CheckIcon />}
+                  </button>
+                );
+              })}
+              {onSleepTimerEndOfEpisode && (
+                <button
+                  onClick={() => select(() => onSleepTimerEndOfEpisode())}
+                  data-testid="sleep-timer-end-of-episode"
+                  className={`flex items-center justify-between w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors-fast ${sleepTimerState?.kind === "endOfEpisode" ? "text-[var(--accent)]" : "text-[var(--text)]"}`}
+                >
+                  <span>{t("player.sleepTimer.endOfEpisode")}</span>
+                  {sleepTimerState?.kind === "endOfEpisode" && <CheckIcon />}
+                </button>
+              )}
+              {sleepTimerState !== null && onSleepTimerCancel && (
+                <>
+                  <div className="mx-3 my-1 border-t border-[var(--border)]" />
+                  <button
+                    onClick={() => select(() => onSleepTimerCancel())}
+                    data-testid="sleep-timer-cancel"
+                    className="flex items-center justify-between w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors-fast text-[var(--text)]"
+                  >
+                    <span>{t("player.sleepTimer.cancel")}</span>
+                  </button>
+                </>
+              )}
             </>
           )}
 
