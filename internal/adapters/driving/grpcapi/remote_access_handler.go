@@ -57,6 +57,9 @@ func (h *remoteAccessHandler) UpdateRemoteAccess(ctx context.Context, req *eveyv
 	h.mu.Lock()
 	if req.Enabled != nil {
 		h.cfg.RemoteAccess.Enabled = *req.Enabled
+		// Mark it as an operator choice so the boot-time inference
+		// (config.ResolveRemoteAccess) never overrides it - see access_handler.go.
+		h.cfg.RemoteAccess.EnabledExplicit = true
 	}
 	if req.ExternalUrl != nil {
 		h.cfg.RemoteAccess.ExternalURL = *req.ExternalUrl

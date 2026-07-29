@@ -119,6 +119,10 @@ func run() error {
 			slog.WarnContext(ctx, "unmarshal remote access config", slog.Any("err", err))
 		}
 	}
+	// Settle Enabled AFTER both sources are in: a published instance serves its
+	// remote users unless the operator said otherwise, and either way the state
+	// is announced. Silence here is what made the 2026-07-29 lockout invisible.
+	logRemoteAccessDecision(ctx, config.ResolveRemoteAccess(&cfg.RemoteAccess, cfg.Server.BaseURL))
 
 	// load server settings overrides from DB
 	loadOverride(ctx, cfgStore, "server.name", parseStr, &cfg.Server.Name)
@@ -354,4 +358,26 @@ func parseBool(s string) (bool, bool) {
 func parseDuration(s string) (time.Duration, bool) {
 	d, err := time.ParseDuration(s)
 	return d, err == nil && d > 0
+}
+
+// logRemoteAccessDecision announces the remote-access state at boot, in the
+// operator's terms. The 2026-07-29 lockout was diagnosable in one line and that
+// line did not exist: a published server refusing every remote client logged
+// nothing at all, so the only signal was a user saying "it doesn't work".
+func logRemoteAccessDecision(ctx context.Context, res config.RemoteAccessResolution) {
+	switch {
+	case res.LockoutRisk:
+		// The one combination that cannot be right by accident: reachable from
+		// the internet, and refusing everyone who arrives that way.
+		slog.WarnContext(ctx, "remote access is DISABLED while this server is published - every client outside your local network will be refused on every route (HTTP 403 remote_access_disabled). Enable it in Admin > Remote access, or set EVEY_REMOTE_ACCESS_ENABLED=true",
+			slog.String("public_url", res.PublicURL),
+			slog.String("decision", string(res.Decision)))
+	case res.Decision == config.RemoteAccessInferredOn:
+		slog.InfoContext(ctx, "remote access enabled automatically: this server is published, so clients outside the local network are allowed. Set EVEY_REMOTE_ACCESS_ENABLED=false (or use Admin > Remote access) for a LAN-only instance",
+			slog.String("public_url", res.PublicURL))
+	default:
+		slog.InfoContext(ctx, "remote access state settled",
+			slog.String("decision", string(res.Decision)),
+			slog.Bool("public", res.PublicURL != ""))
+	}
 }

@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/evey-project/evey/internal/adapters/driven/postgres"
+	httpapi "github.com/evey-project/evey/internal/adapters/driving/http"
 	"github.com/evey-project/evey/internal/config"
 )
 
@@ -212,6 +213,14 @@ func adminDoctor(args []string) error {
 		}
 		res = append(res, checkWritableDir(d.name, d.path, uid, gid, *repair))
 	}
+
+	// The remote-access gate, checked BEFORE the external tools: a locked-out
+	// household is more urgent than a missing binary, and it is the one failure
+	// whose symptom ("it works for you, not for me") points nowhere useful.
+	// Read through the SAME two sources the server resolves at boot (env, then
+	// the persisted panel value) - judging on env alone would report a lockout
+	// on every instance configured from the panel.
+	res = append(res, checkRemoteAccess(effectiveRemoteAccess(db, cfg), cfg.Server.BaseURL))
 
 	// External tools.
 	res = append(res, checkTool("ffmpeg", "transcoding needs it"))
@@ -564,4 +573,58 @@ func isTTY(f *os.File) bool {
 		return false
 	}
 	return fi.Mode()&os.ModeCharDevice != 0
+}
+
+// checkRemoteAccess reports the one combination that cannot be right by
+// accident: a server published at a public URL while the remote-access gate
+// refuses every client that is not on the local network (HTTP 403 on every
+// route). It is a FAIL rather than a WARN because nothing works for anyone
+// outside the house - and the symptom people report ("it works on your phone,
+// not on mine") points at the client, not here.
+func checkRemoteAccess(ra config.RemoteAccessConfig, baseURL string) checkResult {
+	publicURL := ra.ExternalURL
+	if !config.IsPubliclyReachableURL(publicURL) {
+		publicURL = baseURL
+	}
+	published := config.IsPubliclyReachableURL(publicURL)
+
+	switch {
+	case published && !ra.Enabled:
+		return checkResult{
+			"remote access", "FAIL",
+			fmt.Sprintf("DISABLED while published at %s - every client outside your local network gets HTTP 403 on every route", publicURL),
+			"turn it on in Admin > Remote access (takes effect immediately), or set EVEY_REMOTE_ACCESS_ENABLED=true",
+		}
+	case published:
+		return checkResult{"remote access", "ok", "enabled, published at " + publicURL, ""}
+	case ra.Enabled:
+		return checkResult{"remote access", "ok", "enabled (no public URL configured)", ""}
+	default:
+		return checkResult{"remote access", "ok", "LAN-only (no public URL configured)", ""}
+	}
+}
+
+// effectiveRemoteAccess reproduces the server's own boot resolution so the
+// doctor judges what the server WILL do, not what the environment alone says:
+// env defaults, then the value the operator saved in the panel (which wins),
+// then the published-URL inference. Falls back to the env view when the DB is
+// unreachable - the database check above already reports that.
+func effectiveRemoteAccess(db *sql.DB, cfg *config.Config) config.RemoteAccessConfig {
+	ra := cfg.RemoteAccess
+	if db == nil {
+		config.ResolveRemoteAccess(&ra, cfg.Server.BaseURL)
+		return ra
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	store := httpapi.NewServerConfigStore(postgres.NewServerConfigRepository(db))
+	if raw, err := store.Get(ctx, httpapi.RemoteAccessConfigKey); err == nil && raw != "" {
+		if err := json.Unmarshal([]byte(raw), &ra); err != nil {
+			// Malformed row: the env view is the honest fallback, and the check
+			// below will still describe whatever it decides.
+			ra = cfg.RemoteAccess
+		}
+	}
+	config.ResolveRemoteAccess(&ra, cfg.Server.BaseURL)
+	return ra
 }

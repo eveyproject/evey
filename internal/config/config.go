@@ -180,7 +180,14 @@ type BackupConfig struct {
 }
 
 type RemoteAccessConfig struct {
-	Enabled              bool
+	Enabled bool
+	// EnabledExplicit records that Enabled is an OPERATOR CHOICE rather than a
+	// default: the env var was set, or the panel saved it. ResolveRemoteAccess
+	// never overrides a choice - it only fills in the blank when nobody made
+	// one. Without this flag "false" is ambiguous (chosen, or merely never
+	// touched), and that ambiguity is what locked every remote user out of a
+	// published instance on 2026-07-29. Persisted with the rest of the struct.
+	EnabledExplicit      bool
 	ExternalURL          string
 	LANNetworks          []string
 	MaxRemoteBitrateKbps int
@@ -751,7 +758,9 @@ func Load() (*Config, error) {
 			PluginDebug:         envBool("EVEY_PLUGIN_DEBUG", false),
 		},
 		RemoteAccess: RemoteAccessConfig{
-			Enabled:              envBool("EVEY_REMOTE_ACCESS_ENABLED", false),
+			Enabled: envBool("EVEY_REMOTE_ACCESS_ENABLED", false),
+			// Setting the variable at all IS the choice - including to "false".
+			EnabledExplicit:      envSet("EVEY_REMOTE_ACCESS_ENABLED"),
 			ExternalURL:          envStr("EVEY_REMOTE_ACCESS_EXTERNAL_URL", ""),
 			LANNetworks:          envStrSlice("EVEY_REMOTE_ACCESS_LAN_NETWORKS", []string{"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"}),
 			MaxRemoteBitrateKbps: envInt("EVEY_REMOTE_ACCESS_MAX_BITRATE_KBPS", 0),
@@ -811,6 +820,13 @@ func envInt(key string, fallback int) int {
 		}
 	}
 	return fallback
+}
+
+// envSet reports whether key was provided at all, non-empty - the difference
+// between "the operator chose this value" and "this is our default". envBool
+// cannot express it: envBool("X", false) returns false both ways.
+func envSet(key string) bool {
+	return strings.TrimSpace(os.Getenv(key)) != ""
 }
 
 func envBool(key string, fallback bool) bool {

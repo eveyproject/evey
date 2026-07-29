@@ -29,12 +29,21 @@ func registerRemoteAccessRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen
 		mu.RLock()
 		defer mu.RUnlock()
 		w.Header().Set("Content-Type", "application/json")
+		// published/lockoutRisk are the panel's warning signal: "this server is
+		// reachable from the internet AND refusing everyone who arrives that
+		// way". That state used to be invisible everywhere (2026-07-29), so it
+		// is now part of the payload rather than something an operator has to
+		// deduce from two unrelated fields.
+		published := config.IsPubliclyReachableURL(cfg.RemoteAccess.ExternalURL) ||
+			config.IsPubliclyReachableURL(cfg.Server.BaseURL)
 		if err := json.NewEncoder(w).Encode(map[string]any{
 			"enabled":              cfg.RemoteAccess.Enabled,
 			"externalUrl":          cfg.RemoteAccess.ExternalURL,
 			"serverBaseUrl":        cfg.Server.BaseURL,
 			"lanNetworks":          cfg.RemoteAccess.LANNetworks,
 			"maxRemoteBitrateKbps": cfg.RemoteAccess.MaxRemoteBitrateKbps,
+			"published":            published,
+			"lockoutRisk":          published && !cfg.RemoteAccess.Enabled,
 		}); err != nil {
 			slog.Warn("json encode failed", slog.Any("err", err))
 		}
@@ -66,6 +75,11 @@ func registerRemoteAccessRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen
 		mu.Lock()
 		if body.Enabled != nil {
 			cfg.RemoteAccess.Enabled = *body.Enabled
+			// The operator just stated a choice. Recording it stops
+			// config.ResolveRemoteAccess from inferring over it on the next boot -
+			// a deliberate LAN-only instance must stay LAN-only even though it
+			// has a public URL configured.
+			cfg.RemoteAccess.EnabledExplicit = true
 		}
 		if body.ExternalURL != nil {
 			if *body.ExternalURL == "" {
