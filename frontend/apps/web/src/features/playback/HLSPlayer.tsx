@@ -735,6 +735,12 @@ export function HLSPlayer({
   // picked via "c" never actually appeared.
   const handleSubtitleChange = useCallback((trackIndex: number | null) => {
     userPickedSubtitleRef.current = true;
+    // Picking a server track (or Off) must dethrone an uploaded external
+    // subtitle: useSubtitleManager gives the external file unconditional
+    // priority, so without this the menu changed state while the external
+    // file kept rendering (mobile got this right first, 2026-07-29). The
+    // manager's own effect revokes the blob URL when the value changes.
+    setExternalSubUrl(null);
     const prevBurnIn = selectedBurnInTrack;
     const nextSub = trackIndex !== null ? subtitleStreams.find((st) => st.trackIndex === trackIndex) : null;
     const nextBurnIn = nextSub?.burnIn ? trackIndex : null;
