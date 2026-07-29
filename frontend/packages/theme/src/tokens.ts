@@ -19,6 +19,10 @@ export interface ThemeTokens {
     danger: string;
     dangerHover: string;
     onAccent: string;
+    // Text painted ON a danger fill (destructive buttons). Unlike onSuccess /
+    // onWarning below this one is NOT derived: every theme declares
+    // --on-danger explicitly, and contrast.test.ts already asserts it.
+    onDanger: string;
     overlay: string;
     divider: string;
     shadow: string;
@@ -134,6 +138,7 @@ export function deriveTokens(name: ThemeCSSName): ThemeTokens {
       danger: resolveVar(v, v["--danger"]),
       dangerHover: v["--danger-hover"],
       onAccent: v["--filter-active-text"],
+      onDanger: v["--on-danger"],
       overlay: v["--overlay-bg"],
       divider: v["--glass-border"],
       shadow: "#000",

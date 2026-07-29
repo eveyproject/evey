@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { eveyFetch } from "@evey/api";
-import { themes, defaultTheme, type ThemeTokens, type ThemeName } from "@evey/theme";
+import { themes, defaultTheme, onColor, type ThemeTokens, type ThemeName } from "@evey/theme";
 import { useThemeStore } from "@evey/store";
 
 const ThemeContext = createContext<ThemeTokens>(defaultTheme);
@@ -22,8 +22,13 @@ interface PluginThemeInfo {
 // shape. Keep this in sync with the contract documented at the top of
 // `dark-blue-theme/theme.css`. Only colors are overridden; radii and
 // spacing keep the platform defaults.
-function mergeCSSVars(base: ThemeTokens, vars: Record<string, string>): ThemeTokens {
+export function mergeCSSVars(base: ThemeTokens, vars: Record<string, string>): ThemeTokens {
   const get = (k: string, fallback: string) => vars[k] ?? fallback;
+  // onSuccess/onWarning are DERIVED from the fill they sit on, so they have to
+  // be recomputed from the plugin's fill - keeping the base value would paint
+  // dark-theme text on a plugin's light fill.
+  const success = get("--success", base.colors.success);
+  const warning = get("--warning", base.colors.warning);
   return {
     ...base,
     colors: {
@@ -44,10 +49,13 @@ function mergeCSSVars(base: ThemeTokens, vars: Record<string, string>): ThemeTok
       divider:       get("--divider",          base.colors.divider),
       error:         get("--error",           base.colors.error),
       danger:        get("--color-danger",    base.colors.danger),
-      success:       get("--success",         base.colors.success),
-      warning:       get("--warning",         base.colors.warning),
+      success,
+      warning,
       info:          get("--accent",          base.colors.info),
       onAccent:      vars["--filter-active-text"] ?? vars["--overlay-text"] ?? base.colors.onAccent,
+      onSuccess:     onColor(success),
+      onWarning:     onColor(warning),
+      onDanger:      get("--on-danger",       base.colors.onDanger),
       shadow:        get("--shadow",          base.colors.shadow),
     },
   };
