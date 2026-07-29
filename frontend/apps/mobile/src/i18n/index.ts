@@ -51,8 +51,12 @@ export async function initI18n(serverUrl: string) {
   if (i18n.isInitialized) {
     if (!i18nLoaded()) {
       try {
-        i18n.services.backendConnector.backend?.options &&
-          (i18n.services.backendConnector.backend.options.loadPath = `${serverUrl}/api/v1/i18n/{{lng}}`);
+        // Re-point the backend at the server we now know about: the failed
+        // first init may have been built with none (first launch).
+        const backend = i18n.services.backendConnector.backend;
+        if (backend?.options && serverUrl) {
+          backend.options.loadPath = `${serverUrl}/api/v1/i18n/{{lng}}`;
+        }
         await i18n.reloadResources();
       } catch {
         /* still unreachable: the embedded fallback below keeps the UI readable */
