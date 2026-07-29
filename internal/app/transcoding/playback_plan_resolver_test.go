@@ -86,3 +86,33 @@ func TestPlanResolver_IsCopy_Gates(t *testing.T) {
 	assert.False(t, pr.IsCopy(copyDecision, resolverTestStreams(), 0),
 		"no copy producer wired → never a copy request")
 }
+
+// wasm ON on the cast receiver rides ?wasmAudio=1 on EVERY cast - including
+// media whose selected track is plain AAC. For those the server refuses the
+// wasm master (nothing to decode client-side) and serves the NORMAL muxed
+// master... but the fingerprint used to strip the audio track anyway
+// (atrack=-1): master advertising audio over audio-free segments = CAF error
+// 104/905 (prod, 2026-07-29). The strip must only apply when the selected
+// track actually rides the wasm path (AC-3/E-AC-3).
+func TestFingerprint_WasmAudioStripsAudioOnlyForDolbyTracks(t *testing.T) {
+	pr := &PlanResolver{UseFMP4: true}
+
+	req := resolverTestRequest()
+	req.WasmAudio = true
+	ch := 6
+	req.Streams = append(req.Streams, &library.MediaStream{StreamType: library.StreamTypeAudio, Codec: "aac", Channels: &ch})
+	plan, err := pr.Resolve(context.Background(), req)
+	require.NoError(t, err)
+	assert.Equal(t, 0, plan.Fingerprint.AudioTrack,
+		"an AAC track cannot ride the wasm path: the muxed master needs its audio in the segments")
+
+	// The same request on an AC-3 track: audio IS served out of band, the
+	// video segments must be audio-free.
+	reqAC3 := resolverTestRequest()
+	reqAC3.WasmAudio = true
+	reqAC3.Streams = append(reqAC3.Streams, &library.MediaStream{StreamType: library.StreamTypeAudio, Codec: "ac3", Channels: &ch})
+	planAC3, err := pr.Resolve(context.Background(), reqAC3)
+	require.NoError(t, err)
+	assert.Equal(t, -1, planAC3.Fingerprint.AudioTrack,
+		"an AC-3 track on the wasm path: segments are video-only")
+}

@@ -565,7 +565,20 @@ func (pr *PlanResolver) Fingerprint(ctx context.Context, req PlaybackRequest, de
 	// decoded client-side, so the ffmpeg video segments must carry no audio track
 	// (atrack=-1 forks the cache off the muxed ladder). Harmless when the video is
 	// served by mkvgo instead (this ffmpeg fingerprint is then unused).
-	if (pr.AudioRenditionEnabled && decision.VideoDecision == "copy") || req.WasmAudio {
+	//
+	// GATED ON THE TRACK CODEC, like the master and the audio handler: since
+	// wasm ON, the cast receiver rides ?wasmAudio=1 on EVERY cast, and for a
+	// plain-AAC track the server refuses the wasm master and serves the NORMAL
+	// muxed one - stripping the audio here anyway shipped audio-free segments
+	// under a master advertising audio (CAF 104/905, prod 2026-07-29).
+	wasmAudioApplies := false
+	if req.WasmAudio {
+		switch strings.ToLower(SourceAudioCodec(streams, audioTrack)) {
+		case "ac3", "eac3":
+			wasmAudioApplies = true
+		}
+	}
+	if (pr.AudioRenditionEnabled && decision.VideoDecision == "copy") || wasmAudioApplies {
 		videoAudioTrack = -1
 	}
 
