@@ -364,6 +364,8 @@ photos:
   noPhotoLibrariesDesc: Add a photo library in the Admin panel to get started.
   photoCount_one: "{{count}} photo"
   photoCount_other: "{{count}} photos"
+  positionOf: "{{current}} of {{total}}"
+  slideshowPaused: Paused
 created: Created
 updated: Updated
 downloadComplete: Download complete

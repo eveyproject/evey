@@ -1,0 +1,182 @@
+import { useCallback, useEffect, useState } from "react";
+import { View, Text, ActivityIndicator, StyleSheet, useTVEventHandler } from "react-native";
+import { Image } from "expo-image";
+import { router, useLocalSearchParams } from "expo-router";
+import { useTranslation } from "react-i18next";
+import { usePhotoServiceListPhotos } from "@evey/api";
+import { useServerUrl } from "../../../src/hooks/useServerUrl";
+import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
+import { FocusableCard } from "../../../src/components/FocusableCard";
+import { photoServeUrl, buildPhotoListParams, type TvPhoto } from "../../../src/lib/photoGrid";
+import {
+  SLIDESHOW_AUTOPLAY_INTERVAL_MS,
+  prevSlideshowIndex,
+  nextSlideshowIndex,
+  clampSlideshowIndex,
+  nextAutoplayIndex,
+} from "../../../src/lib/photoSlideshow";
+
+// Bounded fetch: enough metadata (id/title/blurhash - no image bytes) for a
+// large album's worth of slideshow navigation, without pulling an unbounded
+// library's listing into memory on a weak box. Actual photo bytes are
+// fetched one at a time below (plus, at most, the next photo for preload).
+const SLIDESHOW_FETCH_LIMIT = 1000;
+
+export default function PhotoSlideshowScreen() {
+  const { t } = useTranslation();
+  const serverUrl = useServerUrl();
+  const authHeaders = useAuthHeaders();
+  const { libraryId, album, startIndex } = useLocalSearchParams<{
+    libraryId: string;
+    album?: string;
+    startIndex?: string;
+  }>();
+
+  const { data, isLoading, isError, refetch } = usePhotoServiceListPhotos(
+    buildPhotoListParams({ libraryId: libraryId ?? "", album, limit: SLIDESHOW_FETCH_LIMIT, offset: 0 }),
+    { query: { enabled: !!libraryId } },
+  );
+  const photos: TvPhoto[] = data?.photos ?? [];
+  const total = photos.length;
+
+  const [index, setIndex] = useState(() => clampSlideshowIndex(Number(startIndex ?? 0) || 0, total));
+  const [paused, setPaused] = useState(false);
+
+  // total is unknown until the fetch resolves - re-clamp once it does rather
+  // than trusting the route param blindly (an album that shrank since the
+  // grid loaded would otherwise index past the end).
+  useEffect(() => {
+    setIndex((i) => clampSlideshowIndex(i, total));
+  }, [total]);
+
+  const exit = useCallback(() => {
+    if (router.canGoBack()) router.back();
+    else router.replace("/(auth)/photos");
+  }, []);
+
+  // Autoplay - cleared whenever paused or the album can't advance (0 or 1
+  // photo). Re-created per (paused, total) change so a concurrent library
+  // scan changing the album size is picked up on the next tick rather than
+  // advancing against stale bounds forever.
+  useEffect(() => {
+    if (paused || total <= 1) return;
+    const id = setInterval(() => {
+      setIndex((i) => nextAutoplayIndex(i, total));
+    }, SLIDESHOW_AUTOPLAY_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [paused, total]);
+
+  const current = photos[index];
+  const upcoming = total > 0 ? photos[(index + 1) % total] : undefined;
+
+  // Preload at most the next photo, full resolution - never the whole album.
+  useEffect(() => {
+    if (!serverUrl || !upcoming?.id || upcoming.id === current?.id) return;
+    Image.prefetch(photoServeUrl(serverUrl, upcoming.id), { headers: authHeaders }).catch(() => {
+      // Best-effort: a failed preload just means the next photo loads
+      // on-demand instead of instantly, not a broken slideshow.
+    });
+  }, [serverUrl, upcoming?.id, current?.id, authHeaders]);
+
+  const goPrev = useCallback(() => setIndex((i) => prevSlideshowIndex(i, total)), [total]);
+  const goNext = useCallback(() => setIndex((i) => nextSlideshowIndex(i, total)), [total]);
+  const togglePause = useCallback(() => setPaused((p) => !p), []);
+
+  // Global remote handler, same convention as the video player: this screen
+  // has no on-screen focusable controls for its normal (photo showing)
+  // state, so D-pad left/right/select/back are interpreted directly rather
+  // than routed through native TV focus. Back/menu always exits - the
+  // remote can never get stranded here even though nothing is focusable.
+  useTVEventHandler((evt: { eventType: string } | undefined) => {
+    if (!evt) return;
+    switch (evt.eventType) {
+      case "left":
+        goPrev();
+        break;
+      case "right":
+        goNext();
+        break;
+      case "select":
+      case "playPause":
+        togglePause();
+        break;
+      case "menu":
+      case "back":
+        exit();
+        break;
+      default:
+        break;
+    }
+  });
+
+  if (isLoading) {
+    return (
+      <View style={[styles.container, styles.center]}>
+        <ActivityIndicator color="#fff" size="large" />
+      </View>
+    );
+  }
+
+  if (isError || total === 0) {
+    return (
+      <View style={[styles.container, styles.center]}>
+        <Text style={styles.message}>{isError ? t("common.loadError") : t("media.photos.noPhotos")}</Text>
+        {isError && (
+          <FocusableCard onPress={() => refetch()} style={styles.actionButton}>
+            <Text style={styles.actionText}>{t("common.retry")}</Text>
+          </FocusableCard>
+        )}
+        <FocusableCard onPress={exit} hasTVPreferredFocus style={styles.actionButton} accessibilityLabel={t("common.aria.close")}>
+          <Text style={styles.actionText}>{t("common.aria.close")}</Text>
+        </FocusableCard>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      {current?.id && (
+        <Image
+          key={current.id}
+          source={{ uri: photoServeUrl(serverUrl, current.id), headers: authHeaders }}
+          style={StyleSheet.absoluteFill}
+          contentFit="contain"
+          placeholder={current.blurhash ? { blurhash: current.blurhash } : undefined}
+          placeholderContentFit="contain"
+          transition={200}
+        />
+      )}
+
+      <View style={styles.footer} pointerEvents="none">
+        {(current?.title || current?.album) && (
+          <Text style={styles.title} numberOfLines={1}>
+            {current?.title || current?.album}
+          </Text>
+        )}
+        <Text style={styles.counter}>{t("media.photos.positionOf", { current: index + 1, total })}</Text>
+        {paused && <Text style={styles.paused}>{t("media.photos.slideshowPaused")}</Text>}
+      </View>
+    </View>
+  );
+}
+
+// A fullscreen slideshow keeps fixed white-on-black chrome rather than theme
+// tokens, same convention as the video player's overlay - it lives on a
+// permanently black background regardless of the active theme.
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: "#000" },
+  center: { justifyContent: "center", alignItems: "center" },
+  message: { color: "#fff", fontSize: 22, marginBottom: 16, textAlign: "center", paddingHorizontal: 60 },
+  actionButton: { paddingHorizontal: 24, paddingVertical: 14, marginTop: 12 },
+  actionText: { color: "#fff", fontSize: 18, fontWeight: "600" },
+  footer: {
+    position: "absolute",
+    bottom: 32,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+  },
+  title: { color: "#fff", fontSize: 20, fontWeight: "500", marginBottom: 4 },
+  counter: { color: "rgba(255,255,255,0.7)", fontSize: 16 },
+  paused: { color: "rgba(255,255,255,0.9)", fontSize: 16, fontWeight: "600", marginTop: 6 },
+});

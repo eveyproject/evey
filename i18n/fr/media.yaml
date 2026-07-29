@@ -364,6 +364,8 @@ photos:
   noPhotoLibrariesDesc: "Ajoutez une bibliothèque de photos dans le panneau d'administration pour commencer."
   photoCount_one: "{{count}} photo"
   photoCount_other: "{{count}} photos"
+  positionOf: "{{current}} sur {{total}}"
+  slideshowPaused: En pause
 created: Créé
 updated: Mis à jour
 downloadComplete: Téléchargement terminé

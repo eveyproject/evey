@@ -364,6 +364,8 @@ photos:
   noPhotoLibrariesDesc: 请在管理面板中添加照片媒体库以开始使用。
   photoCount_one: "{{count}} 张照片"
   photoCount_other: "{{count}} 张照片"
+  positionOf: "第 {{current}} 张，共 {{total}} 张"
+  slideshowPaused: 已暂停
 created: 已创建
 updated: 已更新
 downloadComplete: "下载完成"

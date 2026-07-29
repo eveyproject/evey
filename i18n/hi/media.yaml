@@ -364,6 +364,8 @@ photos:
   noPhotoLibrariesDesc: शुरू करने के लिए एडमिन पैनल में फ़ोटो लाइब्रेरी जोड़ें।
   photoCount_one: "{{count}} फ़ोटो"
   photoCount_other: "{{count}} फ़ोटो"
+  positionOf: "{{total}} में से {{current}}"
+  slideshowPaused: रोका गया
 created: बनाया गया
 updated: अपडेट किया गया
 downloadComplete: "डाउनलोड पूरा हुआ"
