@@ -402,7 +402,11 @@ func registerServerSettingsRoutes(
 						// (matches the recover discipline of every other worker).
 						defer func() {
 							if rec := recover(); rec != nil {
-								slog.ErrorContext(r.Context(), "settings: HW-mode re-bench goroutine panic recovered",
+								// No ctx: the re-bench is detached and runs ~20 s
+								// past the PUT, which is why it builds its own
+								// timeout context below. r.Context() is cancelled
+								// long before a panic could land here.
+								slog.Error("settings: HW-mode re-bench goroutine panic recovered",
 									slog.Any("panic", rec))
 							}
 						}()

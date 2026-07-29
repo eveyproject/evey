@@ -123,7 +123,9 @@ func (h *musicHandler) fetchMissingArt(w http.ResponseWriter, r *http.Request) {
 		// best-effort maintenance scan must never crash the server.
 		defer func() {
 			if rec := recover(); rec != nil {
-				slog.ErrorContext(r.Context(), "music: fetch missing art panicked", slog.Any("panic", rec))
+				// bgCtx, not r.Context(): the request ctx is cancelled as soon
+				// as the 202 goes out, which is the whole reason bgCtx exists.
+				slog.ErrorContext(bgCtx, "music: fetch missing art panicked", slog.Any("panic", rec))
 			}
 		}()
 		ctx, span := tracing.StartSpan(bgCtx, "http.music.FetchMissingArt")
@@ -132,7 +134,7 @@ func (h *musicHandler) fetchMissingArt(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, "fetch missing art failed")
-			slog.ErrorContext(r.Context(), "music: fetch missing art", slog.Any("err", err))
+			slog.ErrorContext(ctx, "music: fetch missing art", slog.Any("err", err))
 			return
 		}
 		slog.Info("music: fetched missing album art", slog.Int("count", n))

@@ -154,11 +154,15 @@ func (h *adminHandler) handleRefreshAll(w http.ResponseWriter, r *http.Request) 
 	go func() {
 		defer func() {
 			if rec := recover(); rec != nil {
-				slog.ErrorContext(r.Context(), "recovered panic in bulk metadata refresh", slog.Any("error", rec))
+				// No ctx: this goroutine is detached and outlives the request,
+				// which is why the work below runs on h.serverCtx. r.Context()
+				// is already cancelled by the time a panic lands here.
+				slog.Error("recovered panic in bulk metadata refresh", slog.Any("error", rec))
 			}
 		}()
 		if err := h.metaCmd.AutoRefreshAllItems(h.serverCtx, libraryID); err != nil {
-			slog.ErrorContext(r.Context(), "bulk metadata refresh", slog.Any("err", err))
+			// h.serverCtx, not r.Context(): same detached goroutine as above.
+			slog.ErrorContext(h.serverCtx, "bulk metadata refresh", slog.Any("err", err))
 		}
 	}()
 	w.Header().Set("Content-Type", "application/json")
