@@ -1,0 +1,8 @@
+{
+  "name": "@evey/media-caps",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Audio output capability probe shared by the mobile and TV apps",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts"
+}

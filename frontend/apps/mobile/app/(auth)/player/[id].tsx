@@ -28,6 +28,7 @@ import {
   useUserServiceListProfiles,
 } from "@evey/api";
 import { usePlaySession } from "../../../src/hooks/usePlaySession";
+import { useAudioCapsBeacon } from "../../../src/hooks/useAudioCapsBeacon";
 import { useProgressReporter } from "../../../src/hooks/useProgressReporter";
 import { usePlayerGestures } from "../../../src/hooks/usePlayerGestures";
 import { usePlaybackSettings } from "../../../src/hooks/usePlaybackSettings";
@@ -86,6 +87,7 @@ export default function PlayerScreen() {
   const { width: screenW, height: screenH } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const mediaId = id ?? "";
+  useAudioCapsBeacon(mediaId);
 
   // Offline playback: if this media was downloaded, prefer the file already
   // on disk over the network stream. NOTE this only short-circuits the video

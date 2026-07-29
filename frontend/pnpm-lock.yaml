@@ -35,6 +35,9 @@ importers:
       '@evey/api':
         specifier: workspace:*
         version: link:../../packages/api
+      '@evey/media-caps':
+        specifier: workspace:*
+        version: link:../../packages/media-caps
       '@evey/store':
         specifier: workspace:*
         version: link:../../packages/store
@@ -177,6 +180,9 @@ importers:
       '@evey/api':
         specifier: workspace:*
         version: link:../../packages/api
+      '@evey/media-caps':
+        specifier: workspace:*
+        version: link:../../packages/media-caps
       '@evey/store':
         specifier: workspace:*
         version: link:../../packages/store
@@ -390,6 +396,8 @@ importers:
       typescript:
         specifier: 5.9.3
         version: 5.9.3
+
+  packages/media-caps: {}
 
   packages/store:
     dependencies:

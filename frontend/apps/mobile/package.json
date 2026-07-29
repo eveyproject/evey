@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@evey/api": "workspace:*",
+    "@evey/media-caps": "workspace:*",
     "@evey/store": "workspace:*",
     "@evey/theme": "workspace:*",
     "@expo/vector-icons": "15.1.1",
