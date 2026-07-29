@@ -77,6 +77,25 @@ describe("PlayerControls", () => {
     renderWithProvider();
     expect(screen.getByRole("button", { name: "Fullscreen" })).toBeInTheDocument();
   });
+
+  // Closing an open panel by clicking away used to be each panel's own job
+  // (PlayOnPicker carried a document listener). It now belongs to this
+  // component's shared openPanel state, so the behaviour has to be pinned
+  // HERE or it is covered nowhere - the panels' own tests can no longer see
+  // it. A click on the overlay must close the panel and NOT fall through to
+  // the click-to-fullscreen / play-pause handling underneath.
+  it("closes an open panel when the overlay is clicked, without toggling playback", async () => {
+    const user = userEvent.setup();
+    const { container } = renderWithProvider({ onSpeedChange: vi.fn() });
+
+    await user.click(screen.getByRole("button", { name: "Settings" }));
+    expect(screen.getByText("Quality")).toBeInTheDocument();
+
+    // The overlay IS the component's root: it carries onClick={handleOverlayClick}.
+    await user.click(container.firstElementChild as Element);
+
+    expect(screen.queryByText("Quality")).not.toBeInTheDocument();
+  });
 });
 
 describe("PlayerControls auto-hide vs keyboard focus", () => {
