@@ -597,3 +597,171 @@ func TestMiddleware_RefusalBodyCarriesRetryAfter(t *testing.T) {
 		t.Fatalf("Retry-After header = %q, body says %d - they must agree", h, body.RetryAfterSeconds)
 	}
 }
+
+// This is the exact production failure mode (2026-07-29): distinct clients
+// behind the SAME trusted reverse proxy must land in distinct buckets. If the
+// XFF reasoning were dropped (e.g. clientIP() always returned the peer, or
+// ignored X-Forwarded-For), both requests below would resolve to the same
+// peer IP and this test goes red - one client's login attempts would exhaust
+// a bucket shared by every other client behind the proxy.
+func TestClientIP_DistinctXFFsFromTrustedPeerGetSeparateBuckets(t *testing.T) {
+	t.Parallel()
+	resolve := func(xff string) string {
+		req := httptest.NewRequest("GET", "/login", nil)
+		req.RemoteAddr = "10.0.0.9:5000" // 10.0.0.0/8 is trusted by default
+		req.Header.Set("X-Forwarded-For", xff)
+		return clientIP(req)
+	}
+
+	ipA := resolve("198.51.100.11")
+	ipB := resolve("198.51.100.22")
+	require.NotEqual(t, ipA, ipB, "two distinct clients behind the same trusted proxy must resolve to distinct IPs")
+
+	lim := newTestLimiter(1)
+	assert.True(t, lim.Allow(ipA))
+	assert.True(t, lim.Allow(ipB), "a second distinct client must not be blocked by the first client's exhausted bucket")
+	assert.False(t, lim.Allow(ipA), "the first client's own bucket should now be exhausted")
+}
+
+// The refusal log must carry enough to diagnose WHY a bucket was keyed the
+// way it was, not just the outcome - an operator investigating "everyone gets
+// rate-limited together" needs the peer address, whether it was trusted, and
+// what (if anything) arrived in X-Forwarded-For.
+func TestMiddleware_LogsRefusalReasoning(t *testing.T) {
+	var buf bytes.Buffer
+	SetLogger(slog.New(slog.NewJSONHandler(&buf, nil)))
+	t.Cleanup(func() { SetLogger(nil) })
+
+	lim := NewWithBurst(1, 0.06)
+	h := MiddlewareFunc(lim, func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", nil)
+	req.RemoteAddr = "10.0.0.9:5000"
+	req.Header.Set("X-Forwarded-For", "198.51.100.5")
+
+	h(httptest.NewRecorder(), req)
+	h(httptest.NewRecorder(), req)
+
+	var line map[string]any
+	if err := json.Unmarshal(buf.Bytes(), &line); err != nil {
+		t.Fatalf("no parseable log line for the refusal: %v (raw=%q)", err, buf.String())
+	}
+	for field, want := range map[string]any{
+		"client_ip":    "198.51.100.5",
+		"peer_ip":      "10.0.0.9",
+		"peer_trusted": true,
+		"xff":          "198.51.100.5",
+	} {
+		if line[field] != want {
+			t.Fatalf("log field %q = %v, want %v (line=%v)", field, line[field], want, line)
+		}
+	}
+}
+
+// The misconfiguration this warns about (2026-07-29): the reverse proxy talks
+// to the backend over loopback, but EVEY_TRUSTED_PROXIES was narrowed to a
+// list that no longer covers loopback - so the proxy's own X-Forwarded-For is
+// ignored and every client behind it resolves to the SAME 127.0.0.1 bucket.
+func TestWarnMisroutedProxy_FiresOnLoopbackWithIgnoredXFF(t *testing.T) {
+	var buf bytes.Buffer
+	SetLogger(slog.New(slog.NewJSONHandler(&buf, nil)))
+	t.Cleanup(func() { SetLogger(nil) })
+	ResetMisconfigWarnForTest()
+	t.Cleanup(ResetMisconfigWarnForTest)
+
+	orig := trustedProxyNets
+	t.Cleanup(func() {
+		trustedProxyMu.Lock()
+		trustedProxyNets = orig
+		trustedProxyMu.Unlock()
+	})
+	// Narrow the trusted set so it no longer covers loopback - the exact
+	// misconfiguration a custom EVEY_TRUSTED_PROXIES can introduce.
+	SetTrustedProxies([]string{"203.0.113.0/24"})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", nil)
+	req.RemoteAddr = "127.0.0.1:5000"
+	req.Header.Set("X-Forwarded-For", "198.51.100.5")
+
+	res := resolveClientIPReasoned(req)
+	WarnMisroutedProxy(res)
+
+	if !strings.Contains(buf.String(), "EVEY_TRUSTED_PROXIES") {
+		t.Fatalf("expected a WARN naming EVEY_TRUSTED_PROXIES as the cause, got %q", buf.String())
+	}
+}
+
+// Correctly configured (proxy in the trusted set): no warning, no noise.
+func TestWarnMisroutedProxy_SilentWhenTrustedProxyCoversPeer(t *testing.T) {
+	var buf bytes.Buffer
+	SetLogger(slog.New(slog.NewJSONHandler(&buf, nil)))
+	t.Cleanup(func() { SetLogger(nil) })
+	ResetMisconfigWarnForTest()
+	t.Cleanup(ResetMisconfigWarnForTest)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", nil)
+	req.RemoteAddr = "127.0.0.1:5000" // in the default trusted set
+	req.Header.Set("X-Forwarded-For", "198.51.100.5")
+
+	res := resolveClientIPReasoned(req)
+	WarnMisroutedProxy(res)
+
+	if buf.Len() != 0 {
+		t.Fatalf("correctly configured trusted proxy must not warn: %s", buf.String())
+	}
+}
+
+// Also silent when no XFF ever arrived: that's a different failure (no proxy
+// header at all), not the "ignored despite present" misconfiguration this
+// warning targets.
+func TestWarnMisroutedProxy_SilentWithoutXFF(t *testing.T) {
+	var buf bytes.Buffer
+	SetLogger(slog.New(slog.NewJSONHandler(&buf, nil)))
+	t.Cleanup(func() { SetLogger(nil) })
+	ResetMisconfigWarnForTest()
+	t.Cleanup(ResetMisconfigWarnForTest)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", nil)
+	req.RemoteAddr = "127.0.0.1:5000"
+	// no X-Forwarded-For set
+
+	res := resolveClientIPReasoned(req)
+	WarnMisroutedProxy(res)
+
+	if buf.Len() != 0 {
+		t.Fatalf("no XFF at all must not trigger the trusted-proxy misconfig warning: %s", buf.String())
+	}
+}
+
+// One-shot: repeated refusals from misconfigured proxies must not spam the log.
+func TestWarnMisroutedProxy_FiresOnlyOnce(t *testing.T) {
+	var buf bytes.Buffer
+	SetLogger(slog.New(slog.NewJSONHandler(&buf, nil)))
+	t.Cleanup(func() { SetLogger(nil) })
+	ResetMisconfigWarnForTest()
+	t.Cleanup(ResetMisconfigWarnForTest)
+
+	orig := trustedProxyNets
+	t.Cleanup(func() {
+		trustedProxyMu.Lock()
+		trustedProxyNets = orig
+		trustedProxyMu.Unlock()
+	})
+	SetTrustedProxies([]string{"203.0.113.0/24"})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", nil)
+	req.RemoteAddr = "127.0.0.1:5000"
+	req.Header.Set("X-Forwarded-For", "198.51.100.5")
+
+	res := resolveClientIPReasoned(req)
+	WarnMisroutedProxy(res)
+	WarnMisroutedProxy(res)
+	WarnMisroutedProxy(res)
+
+	// "EVEY_TRUSTED_PROXIES" itself appears twice PER line (diagnosis + fix), so
+	// count log lines (records), not substring hits.
+	count := strings.Count(buf.String(), `"msg":"ratelimit: client resolved to loopback`)
+	if count != 1 {
+		t.Fatalf("the misconfig warning must fire once per process, got %d log lines: %s", count, buf.String())
+	}
+}

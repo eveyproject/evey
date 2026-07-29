@@ -1,11 +1,15 @@
 package interceptors_test
 
 import (
+	"bytes"
 	"context"
+	"log/slog"
 	"net"
+	"strings"
 	"testing"
 
 	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
+	"github.com/evey-project/evey/internal/pkg/ratelimit"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -211,4 +215,131 @@ func TestClientInfoUnary_PersistentSession_Absent(t *testing.T) {
 	_, err := interceptor(ctx, nil, info, handler)
 	require.NoError(t, err)
 	assert.False(t, interceptors.PersistentSessionFromCtx(captured))
+}
+
+// defaultTrustedProxies mirrors ratelimit's package-default trusted set, so
+// tests that narrow it via ratelimit.SetTrustedProxies can restore it without
+// leaking state into sibling tests in this package.
+var defaultTrustedProxies = []string{"127.0.0.0/8", "::1/128", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "fc00::/7"}
+
+func resolveViaInterceptor(t *testing.T, ctx context.Context) context.Context {
+	t.Helper()
+	interceptor := interceptors.ClientInfoUnary()
+	var captured context.Context
+	handler := func(ctx context.Context, req any) (any, error) {
+		captured = ctx
+		return "ok", nil
+	}
+	info := &grpc.UnaryServerInfo{FullMethod: "/test/Method"}
+	_, err := interceptor(ctx, nil, info, handler)
+	require.NoError(t, err)
+	return captured
+}
+
+// This is the exact production failure mode (2026-07-29): distinct clients
+// behind the SAME trusted peer must resolve to distinct IPs, or they'd share
+// one rate-limit bucket. If resolveClientIPReasoned dropped the x-real-ip
+// reasoning (e.g. always returned the peer address), ipA and ipB below would
+// be identical and this test goes red.
+func TestClientInfoUnary_DistinctXRealIPsGetSeparateBuckets(t *testing.T) {
+	trustedPeer := &peer.Peer{Addr: &net.TCPAddr{IP: net.ParseIP("10.0.0.5"), Port: 443}}
+	resolve := func(clientIP string) string {
+		md := metadata.Pairs("x-real-ip", clientIP)
+		ctx := metadata.NewIncomingContext(context.Background(), md)
+		ctx = peer.NewContext(ctx, trustedPeer)
+		return interceptors.ClientIPFromCtx(resolveViaInterceptor(t, ctx))
+	}
+
+	ipA := resolve("198.51.100.11")
+	ipB := resolve("198.51.100.22")
+	require.NotEqual(t, ipA, ipB, "two distinct clients behind the same trusted peer must resolve to distinct IPs")
+
+	lim := ratelimit.NewWithBurst(1, 0)
+	assert.True(t, lim.Allow(ipA))
+	assert.True(t, lim.Allow(ipB), "a second distinct client must not be blocked by the first client's exhausted bucket")
+	assert.False(t, lim.Allow(ipA), "the first client's own bucket should now be exhausted")
+}
+
+// The resolution reasoning must be reachable for callers explaining a
+// rate-limit decision, not just the winning IP.
+func TestClientInfoUnary_ClientIPResolutionFromCtx(t *testing.T) {
+	md := metadata.Pairs("x-forwarded-for", "198.51.100.5")
+	ctx := metadata.NewIncomingContext(context.Background(), md)
+	ctx = peer.NewContext(ctx, &peer.Peer{Addr: &net.TCPAddr{IP: net.ParseIP("10.0.0.5"), Port: 443}})
+
+	captured := resolveViaInterceptor(t, ctx)
+	res, ok := interceptors.ClientIPResolutionFromCtx(captured)
+	require.True(t, ok)
+	assert.Equal(t, "198.51.100.5", res.IP)
+	assert.Equal(t, "10.0.0.5", res.PeerIP)
+	assert.True(t, res.PeerTrusted)
+	assert.True(t, res.XFFHonored)
+	assert.Equal(t, "198.51.100.5", res.XFF)
+}
+
+func TestClientIPResolutionFromCtx_Absent(t *testing.T) {
+	_, ok := interceptors.ClientIPResolutionFromCtx(context.Background())
+	assert.False(t, ok)
+}
+
+// The misconfiguration this warns about (2026-07-29): the peer is loopback
+// but EVEY_TRUSTED_PROXIES was narrowed to a set that no longer covers it, so
+// its X-Forwarded-For is ignored and every remote client resolves to the SAME
+// 127.0.0.1 bucket.
+func TestClientInfoUnary_WarnsOnLoopbackDespiteForwardedFor(t *testing.T) {
+	var buf bytes.Buffer
+	ratelimit.SetLogger(slog.New(slog.NewJSONHandler(&buf, nil)))
+	t.Cleanup(func() { ratelimit.SetLogger(nil) })
+	ratelimit.ResetMisconfigWarnForTest()
+	t.Cleanup(ratelimit.ResetMisconfigWarnForTest)
+
+	ratelimit.SetTrustedProxies([]string{"203.0.113.0/24"})
+	t.Cleanup(func() { ratelimit.SetTrustedProxies(defaultTrustedProxies) })
+
+	md := metadata.Pairs("x-forwarded-for", "198.51.100.5")
+	ctx := metadata.NewIncomingContext(context.Background(), md)
+	ctx = peer.NewContext(ctx, &peer.Peer{Addr: &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 12345}})
+
+	resolveViaInterceptor(t, ctx)
+
+	require.Contains(t, buf.String(), "EVEY_TRUSTED_PROXIES", "a loopback client with an ignored X-Forwarded-For must warn about the trusted-proxy config")
+}
+
+// Correctly configured (peer covered by the trusted set): no warning.
+func TestClientInfoUnary_SilentWhenTrustedProxyCoversPeer(t *testing.T) {
+	var buf bytes.Buffer
+	ratelimit.SetLogger(slog.New(slog.NewJSONHandler(&buf, nil)))
+	t.Cleanup(func() { ratelimit.SetLogger(nil) })
+	ratelimit.ResetMisconfigWarnForTest()
+	t.Cleanup(ratelimit.ResetMisconfigWarnForTest)
+
+	md := metadata.Pairs("x-forwarded-for", "198.51.100.5")
+	ctx := metadata.NewIncomingContext(context.Background(), md)
+	ctx = peer.NewContext(ctx, &peer.Peer{Addr: &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 12345}}) // loopback IS trusted by default
+
+	resolveViaInterceptor(t, ctx)
+
+	if strings.Contains(buf.String(), "EVEY_TRUSTED_PROXIES") {
+		t.Fatalf("correctly configured trusted proxy must not warn: %s", buf.String())
+	}
+}
+
+// The untrusted-peer anti-spoof guard (TestClientInfoUnary_SpoofedXFFFromUntrustedPeerIgnored,
+// above) must not trip this warning either: a public peer is not loopback.
+func TestClientInfoUnary_SpoofedXFFFromUntrustedPeerDoesNotWarn(t *testing.T) {
+	var buf bytes.Buffer
+	ratelimit.SetLogger(slog.New(slog.NewJSONHandler(&buf, nil)))
+	t.Cleanup(func() { ratelimit.SetLogger(nil) })
+	ratelimit.ResetMisconfigWarnForTest()
+	t.Cleanup(ratelimit.ResetMisconfigWarnForTest)
+
+	md := metadata.Pairs("x-forwarded-for", "1.2.3.4")
+	ctx := metadata.NewIncomingContext(context.Background(), md)
+	ctx = peer.NewContext(ctx, &peer.Peer{Addr: &net.TCPAddr{IP: net.ParseIP("203.0.113.7"), Port: 40000}})
+
+	resolveViaInterceptor(t, ctx)
+
+	if buf.Len() != 0 {
+		t.Fatalf("an untrusted non-loopback peer must not trigger the misconfig warning: %s", buf.String())
+	}
 }

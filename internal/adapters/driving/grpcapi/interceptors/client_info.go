@@ -15,6 +15,7 @@ import (
 type userAgentKey struct{}
 type deviceNameKey struct{}
 type clientIPKey struct{}
+type clientIPResolutionKey struct{}
 type persistentSessionKey struct{}
 
 // ClientInfoUnary extracts user-agent, x-device-name, and client IP from gRPC metadata into context.
@@ -49,7 +50,9 @@ func enrichClientInfo(ctx context.Context) context.Context {
 	if vals := md.Get("x-persistent-session"); len(vals) > 0 && strings.EqualFold(vals[0], "true") {
 		ctx = context.WithValue(ctx, persistentSessionKey{}, true)
 	}
-	ctx = context.WithValue(ctx, clientIPKey{}, resolveClientIP(ctx, md))
+	resolved := resolveClientIPReasoned(ctx, md)
+	ctx = context.WithValue(ctx, clientIPKey{}, resolved.IP)
+	ctx = context.WithValue(ctx, clientIPResolutionKey{}, resolved)
 	return ctx
 }
 
@@ -63,7 +66,11 @@ func firstMD(md metadata.MD, keys ...string) string {
 	return ""
 }
 
-func resolveClientIP(ctx context.Context, md metadata.MD) string {
+// resolveClientIPReasoned makes the same trust decision as the HTTP layer's
+// clientIP(), but returns the reasoning behind it too (ratelimit.ProxyResolution)
+// rather than just the winning IP - so a caller trying to explain a rate-limit
+// decision (or WarnMisroutedProxy, below) doesn't have to re-derive it.
+func resolveClientIPReasoned(ctx context.Context, md metadata.MD) ratelimit.ProxyResolution {
 	// The immediate peer decides trust: proxy-supplied IP headers (x-real-ip,
 	// x-forwarded-for) are only honored when the request actually arrived from a
 	// trusted proxy (the reverse proxy, or the in-process HTTP->gRPC gateway).
@@ -82,17 +89,20 @@ func resolveClientIP(ctx context.Context, md metadata.MD) string {
 	// gateway/bufconn) - local and trusted. A parseable peer must be in the
 	// trusted-proxy set for its forwarded headers to count.
 	parsed := net.ParseIP(peerIP)
-	if parsed == nil || ratelimit.IsTrustedProxy(parsed) {
-		if ip := firstMD(md, "x-real-ip"); ip != "" {
-			return ip
-		}
-		if vals := md.Get("x-forwarded-for"); len(vals) > 0 {
-			if ip := strings.TrimSpace(strings.Split(vals[0], ",")[0]); ip != "" {
-				return ip
-			}
+	res := ratelimit.ProxyResolution{
+		IP:          peerIP,
+		PeerIP:      peerIP,
+		PeerTrusted: parsed == nil || ratelimit.IsTrustedProxy(parsed),
+	}
+	res.XFF = firstMD(md, "x-real-ip", "x-forwarded-for")
+	if res.PeerTrusted && res.XFF != "" {
+		if ip := strings.TrimSpace(strings.Split(res.XFF, ",")[0]); ip != "" {
+			res.IP = ip
+			res.XFFHonored = true
 		}
 	}
-	return peerIP
+	ratelimit.WarnMisroutedProxy(res)
+	return res
 }
 
 func UserAgentFromCtx(ctx context.Context) string {
@@ -108,6 +118,15 @@ func DeviceNameFromCtx(ctx context.Context) string {
 func ClientIPFromCtx(ctx context.Context) string {
 	v, _ := ctx.Value(clientIPKey{}).(string)
 	return v
+}
+
+// ClientIPResolutionFromCtx returns the reasoning behind the resolved client
+// IP - the peer address, whether it was trusted, and any forwarded-for value
+// seen - for callers that need to explain a rate-limit decision, not just its
+// outcome. See ratelimit.ProxyResolution.
+func ClientIPResolutionFromCtx(ctx context.Context) (ratelimit.ProxyResolution, bool) {
+	v, ok := ctx.Value(clientIPResolutionKey{}).(ratelimit.ProxyResolution)
+	return v, ok
 }
 
 // WithClientIP stamps the resolved client IP onto ctx. The client-info

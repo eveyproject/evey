@@ -167,29 +167,96 @@ func isTrustedProxy(ip net.IP) bool {
 // the same trust rule before honoring proxy-supplied IP headers.
 func IsTrustedProxy(ip net.IP) bool { return isTrustedProxy(ip) }
 
+// ProxyResolution captures the reasoning behind a resolved client IP, not just
+// the outcome. Before this, a refusal log showed only the winning IP: when
+// that IP was wrong (every external client resolving to the SAME loopback
+// bucket because the reverse proxy wasn't in EVEY_TRUSTED_PROXIES, prod
+// 2026-07-29), the log gave no way to tell WHY - it read like the requests
+// simply never arrived. HTTP (clientIP) and gRPC (resolveClientIP) both build
+// one of these so the same diagnostic reasoning is available at either edge.
+type ProxyResolution struct {
+	IP          string // the IP callers should key the rate limiter on
+	PeerIP      string // the immediate peer's address, before any header is applied
+	PeerTrusted bool   // whether PeerIP is in the trusted-proxy set
+	XFF         string // the raw X-Forwarded-For / x-real-ip value seen, "" if none arrived
+	XFFHonored  bool   // whether XFF actually decided IP (false => IP falls back to PeerIP)
+}
+
 func ClientIP(r *http.Request) string { return clientIP(r) }
 
-func clientIP(r *http.Request) string {
+func clientIP(r *http.Request) string { return resolveClientIPReasoned(r).IP }
+
+func resolveClientIPReasoned(r *http.Request) ProxyResolution {
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		host = r.RemoteAddr
 	}
-	peer := net.ParseIP(host)
-	if peer != nil && isTrustedProxy(peer) {
-		if fwd := r.Header.Get("X-Forwarded-For"); fwd != "" {
-			// take leftmost (client) IP from XFF
-			if idx := strings.Index(fwd, ","); idx != -1 {
-				fwd = fwd[:idx]
-			}
-			if ip := strings.TrimSpace(fwd); net.ParseIP(ip) != nil {
-				return ip
-			}
+	res := ProxyResolution{IP: host, PeerIP: host}
+	if peer := net.ParseIP(host); peer != nil {
+		res.PeerTrusted = isTrustedProxy(peer)
+	}
+	res.XFF = r.Header.Get("X-Forwarded-For")
+	if res.PeerTrusted && res.XFF != "" {
+		// take leftmost (client) IP from XFF
+		fwd := res.XFF
+		if idx := strings.Index(fwd, ","); idx != -1 {
+			fwd = fwd[:idx]
+		}
+		if ip := strings.TrimSpace(fwd); net.ParseIP(ip) != nil {
+			res.IP = ip
+			res.XFFHonored = true
 		}
 	}
-	if host != "" {
-		return host
+	return res
+}
+
+var (
+	misconfigWarnMu   sync.Mutex
+	misconfigWarnOnce = &sync.Once{}
+)
+
+// WarnMisroutedProxy flags the exact 2026-07-29 production failure mode: the
+// resolved IP is loopback even though a forwarded-for value arrived, which
+// only happens when the immediate peer (the reverse proxy) isn't covered by
+// EVEY_TRUSTED_PROXIES. When that's true, every external client keys the rate
+// limiter on the SAME loopback bucket - a single shared login budget for
+// every client behind the proxy, not one budget per client. Shared between
+// the HTTP (clientIP) and gRPC (resolveClientIP) resolvers so the same
+// misconfiguration is caught regardless of which edge sees the request first.
+//
+// One-shot per process: this is a static config fact, not a per-request one,
+// so repeating it on every refusal would just be log spam that operators
+// learn to ignore. A restart - already required to change
+// EVEY_TRUSTED_PROXIES - re-arms it if the misconfiguration is still there.
+func WarnMisroutedProxy(res ProxyResolution) {
+	if res.XFF == "" || res.XFFHonored {
+		return
 	}
-	return r.RemoteAddr
+	ip := net.ParseIP(res.IP)
+	if ip == nil || !ip.IsLoopback() {
+		return
+	}
+	misconfigWarnMu.Lock()
+	once := misconfigWarnOnce
+	misconfigWarnMu.Unlock()
+	once.Do(func() {
+		refusalLogger().Warn("ratelimit: client resolved to loopback despite a forwarded-for header being present - "+
+			"EVEY_TRUSTED_PROXIES likely does not cover the reverse proxy's address, so every remote client shares "+
+			"this one rate-limit bucket (fix: add the proxy's address to EVEY_TRUSTED_PROXIES)",
+			slog.String("peer_ip", res.PeerIP),
+			slog.Bool("peer_trusted", res.PeerTrusted),
+			slog.String("xff", res.XFF))
+	})
+}
+
+// ResetMisconfigWarnForTest re-arms WarnMisroutedProxy's one-shot guard.
+// Test-only: without it, whichever test happens to run first would consume
+// the Once and silently make every later "the warning must fire" assertion
+// pass for the wrong reason.
+func ResetMisconfigWarnForTest() {
+	misconfigWarnMu.Lock()
+	misconfigWarnOnce = &sync.Once{}
+	misconfigWarnMu.Unlock()
 }
 
 // logger is the sink for refusal lines. Package-level (the middlewares are
@@ -213,11 +280,16 @@ func refusalLogger() *slog.Logger {
 // afternoon of misdirected diagnosis (2026-07-29). Retry-After tells the client
 // when to come back instead of leaving it to guess.
 func refuse(w http.ResponseWriter, r *http.Request, retryAfter int) {
+	res := resolveClientIPReasoned(r)
+	WarnMisroutedProxy(res)
 	refusalLogger().WarnContext(r.Context(), "rate limit: request refused",
-		slog.String("client_ip", clientIP(r)),
+		slog.String("client_ip", res.IP),
 		slog.String("path", r.URL.Path),
 		slog.String("method", r.Method),
-		slog.String("device", r.UserAgent()))
+		slog.String("device", r.UserAgent()),
+		slog.String("peer_ip", res.PeerIP),
+		slog.Bool("peer_trusted", res.PeerTrusted),
+		slog.String("xff", res.XFF))
 	if retryAfter < 1 {
 		retryAfter = 1
 	}
