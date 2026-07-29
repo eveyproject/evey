@@ -36,6 +36,8 @@ import { NextEpisodeOverlay } from "../../../src/components/NextEpisodeOverlay";
 import { TrickplaySeekPreview } from "../../../src/components/TrickplaySeekPreview";
 import { useParentalGate } from "../../../src/hooks/useParentalGate";
 import { ParentalPINModal } from "../../../src/components/ParentalPINModal";
+import { useSyncplay } from "../../../src/hooks/useSyncplay";
+import { SyncplaySessionBadge } from "../../../src/components/SyncplaySessionBadge";
 
 const IMAGE_SUBTITLE_CODECS = new Set([
   "pgssub", "hdmv_pgs_subtitle", "dvd_subtitle", "dvbsub", "xsub",
@@ -53,7 +55,7 @@ function formatTime(seconds: number): string {
 }
 
 export default function PlayerScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, roomId } = useLocalSearchParams<{ id: string; roomId?: string }>();
   const theme = useTheme();
   const { t } = useTranslation();
   const mediaId = id ?? "";
@@ -256,6 +258,26 @@ export default function PlayerScreen() {
     return () => stopSession();
   }, [stopSession]);
 
+  // SyncPlay ("watch together"): TV only ever JOINS a room, landing here via
+  // a `?roomId=` param - see app/(auth)/syncplay/index.tsx and
+  // src/hooks/useSyncplay.ts for the join flow and the host-authority rule.
+  const [syncplayBadgeFocused, setSyncplayBadgeFocused] = useState(false);
+  const syncplay = useSyncplay({
+    getLocalPositionMs: () => (player?.currentTime ?? 0) * 1000,
+    onPlay: (posMs, shouldSeek) => {
+      if (shouldSeek && player) player.currentTime = posMs / 1000;
+      player?.play();
+    },
+    onPause: (posMs, shouldSeek) => {
+      if (shouldSeek && player) player.currentTime = posMs / 1000;
+      player?.pause();
+    },
+    onSeek: (posMs) => { if (player) player.currentTime = posMs / 1000; },
+  });
+  useEffect(() => {
+    if (roomId && !syncplay.state.roomId) syncplay.connect(roomId);
+  }, [roomId, syncplay.state.roomId, syncplay.connect]);
+
   // MaxResumePct=90 (the standard watched ceiling): trigger MarkAsWatched once
   // playback crosses 90%. The server's ReportProgressBySession path
   // hardcodes Completed=false so without this fix the user has to
@@ -294,10 +316,15 @@ export default function PlayerScreen() {
 
   const togglePlayPause = useCallback(() => {
     if (!player) return;
-    if (player.playing) player.pause();
-    else player.play();
+    if (player.playing) {
+      player.pause();
+      if (syncplay.state.connected) syncplay.sendPause(player.currentTime * 1000);
+    } else {
+      player.play();
+      if (syncplay.state.connected) syncplay.sendPlay(player.currentTime * 1000);
+    }
     resetHideTimer();
-  }, [player, resetHideTimer]);
+  }, [player, resetHideTimer, syncplay]);
 
   const { data: playbackSettings } = usePlaybackSettings();
   const skipFwd = playbackSettings?.skipForwardSeconds ?? 30;
@@ -560,6 +587,7 @@ export default function PlayerScreen() {
     // (the double-fire the audit found). The dedicated playPause remote key
     // still pauses during an intro.
     if (skipVisible && type === "select") return;
+    if (syncplayBadgeFocused && type === "select") return;
     if (type === "select" || type === "playPause") {
       togglePlayPause();
     } else if (type === "longSelect") {
@@ -832,6 +860,14 @@ export default function PlayerScreen() {
               {media?.title ?? ""}
             </Text>
             <View style={styles.badgeRow}>
+              <SyncplaySessionBadge
+                connected={syncplay.state.connected}
+                onFocusChange={setSyncplayBadgeFocused}
+                onPress={() => {
+                  if (syncplay.state.connected) syncplay.leaveRoom();
+                  else router.push("/(auth)/syncplay");
+                }}
+              />
               {selectedQuality > 0 && (
                 <View style={styles.speedBadge}>
                   <Text style={styles.speedText}>{selectedQuality}p</Text>

@@ -212,6 +212,7 @@ vi.mock("../../../src/components/VolumePicker", () => ({ VolumePicker: () => nul
 vi.mock("../../../src/components/StreamInfoPanel", () => ({ StreamInfoPanel: () => null }));
 vi.mock("../../../src/components/SkipIntroButton", () => ({ SkipIntroButton: () => null }));
 vi.mock("../../../src/components/NextEpisodeOverlay", () => ({ NextEpisodeOverlay: () => null }));
+vi.mock("../../../src/components/SyncplaySessionBadge", () => ({ SyncplaySessionBadge: () => null }));
 // TrickplaySeekPreview captures its own props so the remote-seek tests below
 // can assert the screen wires the live preview position through to it,
 // without needing this suite to also mock a manifest fetch.
@@ -234,6 +235,19 @@ vi.mock("../../../src/components/ParentalPINModal", () => ({
           React.createElement("button", { onClick: onClose, "aria-label": "cancel-pin" }, "cancel"),
         )
       : null,
+}));
+
+// --- useSyncplay mock ---------------------------------------------------------------
+// Disconnected/no-op by default: none of the existing suites below opt into a
+// SyncPlay session, so this must never throw or touch the player on its own.
+vi.mock("../../../src/hooks/useSyncplay", () => ({
+  useSyncplay: () => ({
+    state: { roomId: null, connected: false, isHost: false, members: [] },
+    connect: vi.fn(),
+    leaveRoom: vi.fn(),
+    sendPlay: vi.fn(),
+    sendPause: vi.fn(),
+  }),
 }));
 
 // --- useParentalGate mock ---------------------------------------------------------
