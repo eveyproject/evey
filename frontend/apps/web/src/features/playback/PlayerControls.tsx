@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, SkipBack, SkipForward, Pause, Play, Minimize, Maximize, PictureInPicture, PictureInPicture2, ChevronFirst, ChevronLast, Loader, MoreHorizontal, Cast } from "lucide-react";
-import { PlayOnPicker } from "./PlayOnPicker";
+import { RemotePlaybackMenu } from "./RemotePlaybackMenu";
 import { startPlayback } from "./hooks/hlsPlayerUtils";
 import { useTranslation } from "react-i18next";
 import type { SubtitleStyle } from "@/hooks/usePlaybackPrefs";
@@ -50,6 +50,16 @@ interface PlayerControlsProps {
   onCastSeek?: (timeSec: number) => boolean;
   onCastSetVolume?: (level: number) => void;
   onCastSetMuted?: (muted: boolean) => void;
+  /** Whether a Chromecast path exists in this browser at all (Cast SDK ready,
+   *  or the Chrome-Android Remote Playback API present). Gates the "Cast"
+   *  section of the unified remote-playback menu. */
+  castAvailable?: boolean;
+  /** Chrome-Android Remote Playback fling session connected (separate from
+   *  the Cast SDK's castConnected). */
+  remoteConnected?: boolean;
+  /** Single tap action for the Cast entry, already routed to the right
+   *  transport (Cast SDK vs Remote Playback fling) by the caller. */
+  onCastTrigger?: () => void;
   streamInfo?: V1StreamInfo;
   /** True when the AC-3/E-AC-3 audio is decoded client-side (ac3go wasm). */
   wasmAudioActive?: boolean;
@@ -90,6 +100,9 @@ function PlayerControlsInner({
   onCastSeek,
   onCastSetVolume,
   onCastSetMuted,
+  castAvailable,
+  remoteConnected,
+  onCastTrigger,
   streamInfo,
   wasmAudioActive,
   isBuffering,
@@ -137,7 +150,7 @@ function PlayerControlsInner({
   const currentChapterIndex = useActiveChapterIndex(chapters, videoRef, transcodeOffset, castTimeSec);
 
   const [visible, setVisible] = useState(true);
-  const [openPanel, setOpenPanel] = useState<"settings" | "episodes" | "chapters" | "streaminfo" | null>(null);
+  const [openPanel, setOpenPanel] = useState<"settings" | "episodes" | "chapters" | "streaminfo" | "remote" | null>(null);
   // On phones the secondary controls collapse behind a "⋯" button; this tracks
   // whether that overflow row is revealed. Inline (no overflow) from sm up.
   const [overflowOpen, setOverflowOpen] = useState(false);
@@ -683,15 +696,22 @@ function PlayerControlsInner({
             />
           )}
 
-          {/* Play On - server-brokered remote control of first-party
-              clients (TV app, mobile). Works for any browser, any
-              network - no Chromecast SDK required. */}
+          {/* Remote playback - single "send elsewhere" menu, unifying the
+              Chromecast SDK toggle and the server-brokered Play On device
+              list (Jellyfin-style), instead of two separate affordances. */}
           {mediaId && (
-            <PlayOnPicker mediaId={mediaId} getPositionMs={() => Math.floor(currentAbsoluteTime() * 1000)} />
+            <RemotePlaybackMenu
+              mediaId={mediaId}
+              getPositionMs={() => Math.floor(currentAbsoluteTime() * 1000)}
+              open={openPanel === "remote"}
+              onToggle={() => setOpenPanel(openPanel === "remote" ? null : "remote")}
+              castAvailable={castAvailable}
+              castConnected={castConnected}
+              remoteConnected={remoteConnected}
+              castDeviceName={castDeviceName}
+              onCastTrigger={onCastTrigger}
+            />
           )}
-
-          {/* Cast button moved to the top-right cluster (next to Watch Together)
-              in HLSPlayer; the cast STATE props below stay for remote control. */}
 
           {/* Picture-in-Picture (Document PiP when available, falls back to the legacy video-only PiP) */}
           {typeof document !== "undefined" && (docPiP.available || document.pictureInPictureEnabled) && (

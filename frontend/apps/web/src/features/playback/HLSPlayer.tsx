@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuthStore, toast } from "@evey/store";
 import { useUserServiceGetCurrentUser, useUserServiceListProfiles } from "@evey/api";
-import { RotateCcw, RotateCw, Play, Pause, Loader, TriangleAlert, Volume2, Sun, Cast, Users, Clock } from "lucide-react";
+import { RotateCcw, RotateCw, Play, Pause, Loader, TriangleAlert, Volume2, Sun, Users, Clock } from "lucide-react";
 import Hls from "hls.js";
 import type { V1StreamInfo } from "@evey/api";
 import type { AudioStream } from "./AudioTrackSelector";
@@ -1021,6 +1021,19 @@ export function HLSPlayer({
     setTranscodeStartTime(positionRef.current);
   }
 
+  // A live session always wins the tap: SDK sessions stop via handleCastToggle,
+  // Remote Playback ones via the hook's stop() (re-prompting mid-session would
+  // reload the receiver instead of stopping it). The routing itself lives in
+  // pickCastTapPath (pure, test-locked): one tap, one path, no chained
+  // fallback. Handed to the unified remote-playback menu's Cast entry - this
+  // component still owns which transport a tap resolves to.
+  const handleCastTap = {
+    "stop-sdk": handleCastToggle,
+    "stop-fling": remotePlayback.stop,
+    fling: handleMobileCast,
+    sdk: handleCastToggle,
+  }[pickCastTapPath({ castConnected, remoteConnected, preferFling, castSdkReady })];
+
   return (
     <div
       ref={containerRef}
@@ -1045,10 +1058,14 @@ export function HLSPlayer({
           platforms where the fling is the tap's path. */}
       <video ref={(el) => { castVideoRef.current = el; setCastVideoEl(el); }} preload={castVideoPreload(preferFling)} muted playsInline aria-hidden="true" tabIndex={-1} style={{ position: "absolute", width: 1, height: 1, opacity: 0, pointerEvents: "none" }} />
 
-      {/* Top-right cluster: Watch together, then the cast icon to its right.
-          Fades with the control bars (auto-hide) so it doesn't stay pinned
-          on screen during playback. */}
-      {(showWatchTogether || castAvailable) && (
+      {/* Top-right cluster: Watch together. The Cast trigger used to live
+          here too, as a separate button from the bottom bar's Play On picker
+          - both did "send this playback elsewhere". They're now one menu,
+          in the bottom control bar (see PlayerControls' RemotePlaybackMenu),
+          so nothing else needs to render at this position. Fades with the
+          control bars (auto-hide) so it doesn't stay pinned on screen during
+          playback. */}
+      {showWatchTogether && onWatchTogether && (
         <div
           className={`absolute top-4 right-4 z-[11] flex items-center gap-2 transition-opacity-fast duration-300 ${controlsVisible ? "opacity-100" : "opacity-0 pointer-events-none"}`}
           onMouseMove={() => revealControlsRef.current?.()}
@@ -1056,47 +1073,22 @@ export function HLSPlayer({
           // opacity-0 hides these buttons but leaves them in the tab order, and
           // pointer-events-none does not block the keyboard - so without this a
           // keyboard user tabbing after the controls auto-hide lands on "Watch
-          // together" and cast with no focus ring and nothing on screen, and
-          // Enter still fires them. They start or stop a cast blind.
+          // together" with no focus ring and nothing on screen, and Enter
+          // still fires it.
           //
-          // Revealing rather than removing them from the tab order: hiding them
-          // from the keyboard would make casting unreachable without a mouse.
+          // Revealing rather than removing it from the tab order: hiding it
+          // from the keyboard would make it unreachable without a mouse.
           onFocus={() => revealControlsRef.current?.()}
         >
-          {showWatchTogether && onWatchTogether && (
-            <button
-              aria-label={t("player.watchTogether")}
-              onClick={onWatchTogether}
-              className="flex items-center gap-2 px-3 py-2 rounded-full text-white text-sm font-medium transition-opacity-fast hover:opacity-80"
-              style={{ backgroundColor: "var(--overlay-bg)", border: "1px solid var(--overlay-btn-bg)" }}
-            >
-              <Users size={ICON.md} aria-hidden="true" />
-              {t("player.watchTogether")}
-            </button>
-          )}
-          {castAvailable && (
-            <button
-              onClick={
-                // A live session always wins the click: SDK sessions stop via
-                // handleCastToggle, Remote Playback ones via the hook's stop()
-                // (re-prompting mid-session would reload the receiver instead
-                // of stopping it). The routing itself lives in pickCastTapPath
-                // (pure, test-locked): one tap, one path, no chained fallback.
-                {
-                  "stop-sdk": handleCastToggle,
-                  "stop-fling": remotePlayback.stop,
-                  fling: handleMobileCast,
-                  sdk: handleCastToggle,
-                }[pickCastTapPath({ castConnected, remoteConnected, preferFling, castSdkReady })]
-              }
-              aria-label={castConnected || remoteConnected ? t("player.controls.stopCast") : t("player.controls.cast")}
-              title={castConnected && castDeviceName ? castDeviceName : undefined}
-              className={`flex items-center justify-center w-10 h-10 rounded-full text-white transition-opacity-fast hover:opacity-80 ${castConnected || remoteConnected ? "text-[var(--accent)]" : ""}`}
-              style={{ backgroundColor: "var(--overlay-bg)", border: "1px solid var(--overlay-btn-bg)" }}
-            >
-              <Cast size={ICON.lg} aria-hidden="true" />
-            </button>
-          )}
+          <button
+            aria-label={t("player.watchTogether")}
+            onClick={onWatchTogether}
+            className="flex items-center gap-2 px-3 py-2 rounded-full text-white text-sm font-medium transition-opacity-fast hover:opacity-80"
+            style={{ backgroundColor: "var(--overlay-bg)", border: "1px solid var(--overlay-btn-bg)" }}
+          >
+            <Users size={ICON.md} aria-hidden="true" />
+            {t("player.watchTogether")}
+          </button>
         </div>
       )}
       {seekFlash === "left" && (
@@ -1299,6 +1291,9 @@ export function HLSPlayer({
           onCastSeek={castSeek}
           onCastSetVolume={castSetVolume}
           onCastSetMuted={castSetMuted}
+          castAvailable={castAvailable}
+          remoteConnected={remoteConnected}
+          onCastTrigger={handleCastTap}
           isBuffering={isBuffering}
           isPlaying={isPlaying}
           sleepTimerState={sleepTimer.state}

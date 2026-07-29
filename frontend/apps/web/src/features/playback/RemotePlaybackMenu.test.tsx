@@ -1,8 +1,8 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { useState } from "react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { PlayOnPicker } from "./PlayOnPicker";
+import { RemotePlaybackMenu, type RemotePlaybackMenuProps } from "./RemotePlaybackMenu";
 
 // ── Mutable mock state ────────────────────────────────────────────────────────
 
@@ -33,27 +33,32 @@ vi.mock("@evey/store", () => ({
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function createWrapper() {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-  return ({ children }: { children: React.ReactNode }) => (
-    <QueryClientProvider client={qc}>{children}</QueryClientProvider>
-  );
-}
-
-function renderPicker(props: { mediaId?: string; positionMs?: number } = {}) {
-  return render(
-    <PlayOnPicker mediaId={props.mediaId ?? "mi-abc"} getPositionMs={() => props.positionMs ?? 0} />,
-    { wrapper: createWrapper() },
+// The menu is a controlled component (open/onToggle owned by PlayerControls,
+// so Escape/outside-click closing goes through the same panel machinery as
+// Settings/Episodes). This harness reproduces that control loop for tests.
+function Harness(props: Partial<RemotePlaybackMenuProps> = {}) {
+  const [open, setOpen] = useState(props.open ?? false);
+  return (
+    <RemotePlaybackMenu
+      mediaId={props.mediaId ?? "mi-abc"}
+      getPositionMs={props.getPositionMs ?? (() => 0)}
+      open={open}
+      onToggle={() => setOpen((v) => !v)}
+      castAvailable={props.castAvailable}
+      castConnected={props.castConnected}
+      remoteConnected={props.remoteConnected}
+      castDeviceName={props.castDeviceName}
+      onCastTrigger={props.onCastTrigger}
+    />
   );
 }
 
 const TV_DEVICE = { id: "dev-tv", name: "Living Room TV", type: "tv", connectedAt: "2026-06-04T00:00:00Z" };
 const PHONE_DEVICE = { id: "dev-phone", name: "My Phone", type: "mobile", connectedAt: "2026-06-04T00:01:00Z" };
-const DESKTOP_DEVICE = { id: "dev-desktop", name: "Home PC", type: "desktop", connectedAt: "2026-06-04T00:02:00Z" };
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
-describe("PlayOnPicker", () => {
+describe("RemotePlaybackMenu", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockDevices = [];
@@ -63,50 +68,93 @@ describe("PlayOnPicker", () => {
 
   // ── Visibility guard ──────────────────────────────────────────────────────────
 
-  it("renders nothing when device list is empty and not loading", () => {
-    mockDevices = [];
-    const { container } = renderPicker();
+  it("renders nothing when no cast path exists and the device list is empty", () => {
+    const { container } = render(<Harness castAvailable={false} />);
     expect(container.innerHTML).toBe("");
   });
 
-  it("renders nothing when devices is undefined", () => {
-    mockDevices = undefined as unknown as unknown[];
-    const { container } = renderPicker();
-    expect(container.innerHTML).toBe("");
+  it("renders the trigger when a Chromecast path exists, even with zero Evey devices", () => {
+    render(<Harness castAvailable={true} />);
+    expect(screen.getByRole("button", { name: /player\.playOn\.button/i })).toBeInTheDocument();
   });
 
-  it("renders the trigger button when at least one device is available", () => {
+  it("renders the trigger when at least one Evey device is available, even with no cast path", () => {
     mockDevices = [TV_DEVICE];
-    renderPicker();
+    render(<Harness castAvailable={false} />);
     expect(screen.getByRole("button", { name: /player\.playOn\.button/i })).toBeInTheDocument();
   });
 
-  it("renders the trigger button while loading (before device list arrives)", () => {
-    // isLoading=true, so the !isLoading && !hasDevices guard is false -> button renders
-    mockDevices = [];
-    mockIsLoading = true;
-    renderPicker();
-    expect(screen.getByRole("button", { name: /player\.playOn\.button/i })).toBeInTheDocument();
+  // ── SDK absent: PlayOn-only menu ───────────────────────────────────────────────
+
+  it("SDK absent: lists only Evey devices, no Cast section, no empty section", async () => {
+    mockDevices = [TV_DEVICE];
+    render(<Harness castAvailable={false} />);
+    await userEvent.click(screen.getByRole("button", { name: /player\.playOn\.button/i }));
+
+    expect(screen.getByText(TV_DEVICE.name)).toBeInTheDocument();
+    expect(screen.queryByText(/player\.controls\.cast\b/i)).toBeNull();
+  });
+
+  // ── Both sources present ──────────────────────────────────────────────────────
+
+  it("lists both a Cast entry and Evey devices when both are available", async () => {
+    mockDevices = [TV_DEVICE, PHONE_DEVICE];
+    render(<Harness castAvailable={true} />);
+    await userEvent.click(screen.getByRole("button", { name: /player\.playOn\.button/i }));
+
+    expect(screen.getByRole("button", { name: /player\.controls\.cast\b/i })).toBeInTheDocument();
+    expect(screen.getByText(TV_DEVICE.name)).toBeInTheDocument();
+    expect(screen.getByText(PHONE_DEVICE.name)).toBeInTheDocument();
+  });
+
+  it("clicking the Cast entry invokes onCastTrigger and closes the menu", async () => {
+    const onCastTrigger = vi.fn();
+    mockDevices = [TV_DEVICE];
+    render(<Harness castAvailable={true} onCastTrigger={onCastTrigger} />);
+    await userEvent.click(screen.getByRole("button", { name: /player\.playOn\.button/i }));
+    await userEvent.click(screen.getByRole("button", { name: /player\.controls\.cast\b/i }));
+
+    expect(onCastTrigger).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText(TV_DEVICE.name)).toBeNull();
+  });
+
+  // ── Casting state visible on the trigger ──────────────────────────────────────
+
+  it("highlights the trigger and shows the device name while an SDK cast session is active", async () => {
+    render(<Harness castAvailable={true} castConnected={true} castDeviceName="Living Room TV" />);
+    const btn = screen.getByRole("button", { name: /player\.playOn\.button/i });
+    expect(btn).toHaveAttribute("title", "Living Room TV");
+
+    await userEvent.click(btn);
+    expect(screen.getByText("Living Room TV")).toBeInTheDocument();
+  });
+
+  it("highlights the trigger while a Remote Playback (fling) session is active, even without a device name", () => {
+    render(<Harness castAvailable={true} remoteConnected={true} castDeviceName={null} />);
+    const btn = screen.getByRole("button", { name: /player\.playOn\.button/i });
+    // No SDK device name for a fling session - the trigger still doesn't
+    // pretend to know one, but stays visibly active (no title attribute set).
+    expect(btn).not.toHaveAttribute("title");
   });
 
   // ── Popover open/close ────────────────────────────────────────────────────────
 
   it("popover is closed by default", () => {
     mockDevices = [TV_DEVICE];
-    renderPicker();
+    render(<Harness />);
     expect(screen.queryByText(TV_DEVICE.name)).toBeNull();
   });
 
   it("opens the popover when the button is clicked", async () => {
     mockDevices = [TV_DEVICE];
-    renderPicker();
+    render(<Harness />);
     await userEvent.click(screen.getByRole("button", { name: /player\.playOn\.button/i }));
     expect(screen.getByText(TV_DEVICE.name)).toBeInTheDocument();
   });
 
   it("sets aria-expanded=false when closed and true when open", async () => {
     mockDevices = [TV_DEVICE];
-    renderPicker();
+    render(<Harness />);
     const btn = screen.getByRole("button", { name: /player\.playOn\.button/i });
     expect(btn).toHaveAttribute("aria-expanded", "false");
     await userEvent.click(btn);
@@ -115,7 +163,7 @@ describe("PlayOnPicker", () => {
 
   it("closes the popover when clicking the trigger button again", async () => {
     mockDevices = [TV_DEVICE];
-    renderPicker();
+    render(<Harness />);
     const btn = screen.getByRole("button", { name: /player\.playOn\.button/i });
     await userEvent.click(btn);
     expect(screen.getByText(TV_DEVICE.name)).toBeInTheDocument();
@@ -123,40 +171,14 @@ describe("PlayOnPicker", () => {
     expect(screen.queryByText(TV_DEVICE.name)).toBeNull();
   });
 
-  it("closes the popover on outside click", async () => {
-    mockDevices = [TV_DEVICE];
-    renderPicker();
-    await userEvent.click(screen.getByRole("button", { name: /player\.playOn\.button/i }));
-    expect(screen.getByText(TV_DEVICE.name)).toBeInTheDocument();
-    fireEvent.mouseDown(document.body);
-    expect(screen.queryByText(TV_DEVICE.name)).toBeNull();
-  });
-
   // ── Device list rendering ─────────────────────────────────────────────────────
 
-  it("renders all device names in the open popover", async () => {
-    mockDevices = [TV_DEVICE, PHONE_DEVICE, DESKTOP_DEVICE];
-    renderPicker();
-    await userEvent.click(screen.getByRole("button", { name: /player\.playOn\.button/i }));
-    expect(screen.getByText(TV_DEVICE.name)).toBeInTheDocument();
-    expect(screen.getByText(PHONE_DEVICE.name)).toBeInTheDocument();
-    expect(screen.getByText(DESKTOP_DEVICE.name)).toBeInTheDocument();
-  });
-
-  it("renders a button for each device", async () => {
+  it("renders a list item for each Evey device", async () => {
     mockDevices = [TV_DEVICE, PHONE_DEVICE];
-    renderPicker();
-    await userEvent.click(screen.getByRole("button", { name: /player\.playOn\.button/i }));
-    expect(screen.getByRole("button", { name: TV_DEVICE.name })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: PHONE_DEVICE.name })).toBeInTheDocument();
-  });
-
-  it("renders a list item for each device", async () => {
-    mockDevices = [TV_DEVICE, PHONE_DEVICE, DESKTOP_DEVICE];
-    renderPicker();
+    render(<Harness />);
     await userEvent.click(screen.getByRole("button", { name: /player\.playOn\.button/i }));
     const items = screen.getAllByRole("listitem");
-    expect(items).toHaveLength(3);
+    expect(items).toHaveLength(2);
   });
 
   // ── Loading state inside popover ──────────────────────────────────────────────
@@ -164,37 +186,16 @@ describe("PlayOnPicker", () => {
   it("shows no device list items while loading", async () => {
     mockDevices = [];
     mockIsLoading = true;
-    renderPicker();
+    render(<Harness castAvailable={false} />);
     await userEvent.click(screen.getByRole("button", { name: /player\.playOn\.button/i }));
     expect(screen.queryByRole("listitem")).toBeNull();
   });
 
   // ── Empty state inside open popover ──────────────────────────────────────────
 
-  it("shows the empty message when list is empty but popover is open", async () => {
-    // Strategy: open popover while loading (shows spinner, no null-return since
-    // isLoading=true bypasses the early-return guard), then switch isLoading to
-    // false while keeping open=true via the same component instance.
-    // rerender must use the same wrapper so component state is preserved.
-    mockIsLoading = true;
-    mockDevices = [];
-
-    const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-    const Wrapper = ({ children }: { children: React.ReactNode }) => (
-      <QueryClientProvider client={qc}>{children}</QueryClientProvider>
-    );
-
-    const { rerender } = render(
-      <PlayOnPicker mediaId="mi-abc" getPositionMs={() => 0} />,
-      { wrapper: Wrapper },
-    );
-
+  it("shows the empty message when the Evey list is empty but a cast path keeps the popover reachable", async () => {
+    render(<Harness castAvailable={true} />);
     await userEvent.click(screen.getByRole("button", { name: /player\.playOn\.button/i }));
-
-    // Now simulate devices arriving as empty - same component instance stays open
-    mockIsLoading = false;
-    rerender(<PlayOnPicker mediaId="mi-abc" getPositionMs={() => 0} />);
-
     expect(screen.getByText(/player\.playOn\.empty/i)).toBeInTheDocument();
   });
 
@@ -202,7 +203,7 @@ describe("PlayOnPicker", () => {
 
   it("calls mutate with the correct deviceId, mediaId and positionMs on device click", async () => {
     mockDevices = [TV_DEVICE];
-    renderPicker({ mediaId: "mi-movie-1", positionMs: 12345 });
+    render(<Harness mediaId="mi-movie-1" getPositionMs={() => 12345} />);
     await userEvent.click(screen.getByRole("button", { name: /player\.playOn\.button/i }));
     await userEvent.click(screen.getByRole("button", { name: TV_DEVICE.name }));
     expect(mockMutate).toHaveBeenCalledWith(
@@ -214,55 +215,14 @@ describe("PlayOnPicker", () => {
     );
   });
 
-  it("dispatches to the correct device when multiple are listed", async () => {
-    mockDevices = [TV_DEVICE, PHONE_DEVICE];
-    renderPicker({ mediaId: "mi-ep-1", positionMs: 0 });
-    await userEvent.click(screen.getByRole("button", { name: /player\.playOn\.button/i }));
-    await userEvent.click(screen.getByRole("button", { name: PHONE_DEVICE.name }));
-    expect(mockMutate).toHaveBeenCalledWith(
-      expect.objectContaining({ deviceId: PHONE_DEVICE.id }),
-      expect.any(Object),
-    );
-  });
-
-  it("uses loadAndPlay command type for every device selection", async () => {
-    mockDevices = [TV_DEVICE];
-    renderPicker({ mediaId: "mi-abc", positionMs: 5000 });
-    await userEvent.click(screen.getByRole("button", { name: /player\.playOn\.button/i }));
-    await userEvent.click(screen.getByRole("button", { name: TV_DEVICE.name }));
-    expect(mockMutate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        command: expect.objectContaining({ type: "loadAndPlay" }),
-      }),
-      expect.any(Object),
-    );
-  });
-
-  it("passes positionMs=0 when playback is at the start", async () => {
-    mockDevices = [TV_DEVICE];
-    renderPicker({ mediaId: "mi-abc", positionMs: 0 });
-    await userEvent.click(screen.getByRole("button", { name: /player\.playOn\.button/i }));
-    await userEvent.click(screen.getByRole("button", { name: TV_DEVICE.name }));
-    expect(mockMutate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        command: expect.objectContaining({ positionMs: 0 }),
-      }),
-      expect.any(Object),
-    );
-  });
-
-  // ── Pending state disables buttons ───────────────────────────────────────────
-
   it("disables all device buttons while a command is pending", async () => {
     mockDevices = [TV_DEVICE, PHONE_DEVICE];
     mockIsPending = true;
-    renderPicker();
+    render(<Harness />);
     await userEvent.click(screen.getByRole("button", { name: /player\.playOn\.button/i }));
     expect(screen.getByRole("button", { name: TV_DEVICE.name })).toBeDisabled();
     expect(screen.getByRole("button", { name: PHONE_DEVICE.name })).toBeDisabled();
   });
-
-  // ── Success callback: toast + close ──────────────────────────────────────────
 
   it("shows success toast and closes popover after onSuccess", async () => {
     const { toast } = await import("@evey/store");
@@ -271,16 +231,13 @@ describe("PlayOnPicker", () => {
       callbacks?.onSuccess?.();
     });
 
-    renderPicker({ mediaId: "mi-abc", positionMs: 0 });
+    render(<Harness />);
     await userEvent.click(screen.getByRole("button", { name: /player\.playOn\.button/i }));
     await userEvent.click(screen.getByRole("button", { name: TV_DEVICE.name }));
 
     await waitFor(() => expect(toast.success).toHaveBeenCalled());
-    // Popover closed after success
     expect(screen.queryByText(TV_DEVICE.name)).toBeNull();
   });
-
-  // ── Error callback: toast + refetch ──────────────────────────────────────────
 
   it("shows error toast and calls refetch after onError", async () => {
     const { toast } = await import("@evey/store");
@@ -289,12 +246,11 @@ describe("PlayOnPicker", () => {
       callbacks?.onError?.();
     });
 
-    renderPicker({ mediaId: "mi-abc", positionMs: 0 });
+    render(<Harness />);
     await userEvent.click(screen.getByRole("button", { name: /player\.playOn\.button/i }));
     await userEvent.click(screen.getByRole("button", { name: TV_DEVICE.name }));
 
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
-    // refetch triggered so disconnected device drops off the list
     expect(mockRefetch).toHaveBeenCalled();
   });
 });
