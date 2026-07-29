@@ -302,12 +302,17 @@ func (s *PlayabilityShadow) shouldLog(key string) bool {
 //
 // LIMITATION: ClientProfile carries no H.264/HEVC level ceiling, no Dolby
 // Vision signal, and no HEVC-Main10 / VP9-Profile2 (10-bit) signal, so those
-// ops.Target fields are left at their zero value: no level ceiling, DoVi and
-// 10-bit unsupported. That is the conservative choice mkvgo's own strictest
-// built-in targets (e.g. mse-generic) also make, so an unmapped-signal
-// divergence can only make mkvgo's verdict LOOK MORE PERMISSIVE than reality
-// (never the reverse) - worth knowing about should this shadow's divergence
-// log ever motivate widening ClientProfile with those signals.
+// ops.Target fields are left at their zero value. The two gaps skew mkvgo's
+// verdict in OPPOSITE directions: a zero level ceiling means "no limit", so a
+// level-bound divergence can only make mkvgo look more permissive than the
+// real client; DoVi/10-bit zero-valued mean "unsupported", so mkvgo demands a
+// transcode for every HEVC Main10 or Dolby Vision stream even when the real
+// client (and Evey's engine, with its per-profile DoVi matrix) plays it fine.
+// Every mkvgo="transcode" divergence whose reasons cite only Main10/DoVi/
+// VP9-Profile2 is therefore an EXPECTED mapping artifact, not evidence
+// against the real decision - confirmed on prod 2026-07-28/29 (6 such WARNs,
+// all 10-bit 2160p titles Evey was serving correctly). Widening ClientProfile
+// with those signals is what would make this class comparable.
 func mapClientProfileToTarget(client transcoding.ClientProfile) PlayabilityTarget {
 	return PlayabilityTarget{
 		Name:        "client-profile",
