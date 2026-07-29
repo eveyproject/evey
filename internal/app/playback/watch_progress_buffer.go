@@ -108,16 +108,22 @@ func (b *WatchProgressBuffer) snapshot() []*playback.WatchProgress {
 	return out
 }
 
-// Flush drains and upserts every pending entry. The repo lacks a batch API,
-// so we issue one Upsert per entry; failures are logged and the entry is
-// dropped (the next tick will re-enqueue a fresher position). Returns the
-// number of entries successfully persisted.
+// Flush drains and upserts every pending entry in ONE batch statement (the
+// per-entry loop cost one round trip per viewer per tick). If the batch
+// fails as a whole, it falls back to per-entry writes so one poisoned row
+// cannot cost every viewer's progress; failures are logged and dropped (the
+// next tick re-enqueues a fresher position). Returns the number persisted.
 func (b *WatchProgressBuffer) Flush(ctx context.Context) int {
 	ctx, span := tracing.StartSpan(ctx, "app.playback.WatchProgressBuffer.Flush")
 	defer span.End()
 	entries := b.snapshot()
 	if len(entries) == 0 {
 		return 0
+	}
+	if err := b.repo.UpsertMany(ctx, entries); err == nil {
+		return len(entries)
+	} else {
+		slog.Warn("watch progress batch flush failed, salvaging per entry", slog.Any("err", err))
 	}
 	persisted := 0
 	for _, wp := range entries {

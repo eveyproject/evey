@@ -46,6 +46,20 @@ func (r *countingProgressRepo) Upsert(ctx context.Context, wp *playback.WatchPro
 	return r.FakeWatchProgressRepository.Upsert(ctx, wp)
 }
 
+// UpsertMany must be overridden here too: Go embedding has no virtual
+// dispatch, so the embedded fake's UpsertMany would call ITS OWN Upsert and
+// the counter would read zero writes for a flush that persisted everything.
+// Counts only on SUCCESS: a failed batch is followed by the per-entry salvage
+// loop, whose Upsert calls count their own attempts - counting both would
+// double-book the same entries.
+func (r *countingProgressRepo) UpsertMany(ctx context.Context, entries []*playback.WatchProgress) error {
+	if err := r.FakeWatchProgressRepository.UpsertMany(ctx, entries); err != nil {
+		return err
+	}
+	r.calls.Add(int64(len(entries)))
+	return nil
+}
+
 func (r *countingProgressRepo) Calls() int64 { return r.calls.Load() }
 
 func TestWatchProgressBuffer_EnqueueDoesNotHitRepo(t *testing.T) {

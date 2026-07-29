@@ -12,6 +12,12 @@ type ProgressCommandRepo interface {
 	// auto-completion at 90% and explicit MarkAsWatched from being undone
 	// by a subsequent ReportProgressBySession tick.
 	Upsert(ctx context.Context, wp *WatchProgress) error
+	// UpsertMany is the batch form of Upsert - identical conflict semantics,
+	// one statement for the whole flush instead of one round trip per viewer.
+	// Entries MUST have distinct (profile, media) keys (ON CONFLICT cannot
+	// touch a row twice in one statement); the flusher's dedup map guarantees
+	// that. Empty input is a no-op.
+	UpsertMany(ctx context.Context, entries []*WatchProgress) error
 	// Delete removes the (profile, media) progress entry entirely, so the
 	// item appears never-watched again. Used by MarkAsUnwatched. No-op
 	// when no row exists.

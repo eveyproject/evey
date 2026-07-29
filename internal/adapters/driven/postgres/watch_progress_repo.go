@@ -6,7 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
+	"github.com/lib/pq"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 
@@ -88,6 +90,58 @@ func (r *WatchProgressRepository) Upsert(ctx context.Context, wp *playback.Watch
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		return fmt.Errorf("WatchProgressRepo.Upsert: %w", err)
+	}
+	return nil
+}
+
+// UpsertMany writes a whole flush in ONE statement. Same conflict clauses as
+// Upsert - the two must never drift, they implement the same contract.
+func (r *WatchProgressRepository) UpsertMany(ctx context.Context, entries []*playback.WatchProgress) error {
+	if len(entries) == 0 {
+		return nil
+	}
+	ctx, span := tracing.StartSpan(ctx, "postgres.watchprogress.UpsertMany")
+	defer span.End()
+	span.SetAttributes(attribute.Int("entries", len(entries)))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	ids := make([]string, len(entries))
+	profiles := make([]string, len(entries))
+	medias := make([]string, len(entries))
+	positions := make([]int64, len(entries))
+	completed := make([]bool, len(entries))
+	playCounts := make([]int64, len(entries))
+	lastPlayed := make([]time.Time, len(entries))
+	for i, wp := range entries {
+		ids[i] = wp.ID
+		profiles[i] = string(wp.ProfileID)
+		medias[i] = string(wp.MediaItemID)
+		positions[i] = wp.Position.Milliseconds()
+		completed[i] = wp.Completed
+		playCounts[i] = int64(wp.PlayCount)
+		lastPlayed[i] = wp.LastPlayedAt
+	}
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
+		`INSERT INTO watch_progress (id, profile_id, media_item_id, position_ms, completed, play_count, last_played_at)
+		 SELECT * FROM unnest($1::text[], $2::text[], $3::text[], $4::bigint[], $5::boolean[], $6::bigint[], $7::timestamptz[])
+		 ON CONFLICT (profile_id, media_item_id) DO UPDATE SET
+		   position_ms = CASE
+		     WHEN EXCLUDED.last_played_at >= watch_progress.last_played_at THEN EXCLUDED.position_ms
+		     ELSE watch_progress.position_ms
+		   END,
+		   completed = (watch_progress.completed OR EXCLUDED.completed),
+		   play_count = CASE
+		     WHEN EXCLUDED.completed AND NOT watch_progress.completed THEN watch_progress.play_count + 1
+		     ELSE GREATEST(watch_progress.play_count, EXCLUDED.play_count)
+		   END,
+		   last_played_at = GREATEST(watch_progress.last_played_at, EXCLUDED.last_played_at)`,
+		pq.Array(ids), pq.Array(profiles), pq.Array(medias), pq.Array(positions),
+		pq.BoolArray(completed), pq.Array(playCounts), pq.Array(lastPlayed),
+	)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return fmt.Errorf("WatchProgressRepo.UpsertMany: %w", err)
 	}
 	return nil
 }

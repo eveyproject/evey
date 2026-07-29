@@ -335,3 +335,63 @@ func TestWatchProgressRepo_GetByProfile(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, list, 2)
 }
+
+// UpsertMany must carry Upsert's EXACT conflict semantics (sticky completed,
+// freshness-guarded position, monotonic last_played_at) in one statement -
+// the flusher used to issue one round trip per viewer per tick.
+func TestWatchProgressRepo_UpsertMany_BatchSemantics(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	userRepo := postgres.NewUserRepository(db)
+	profileRepo := postgres.NewProfileRepository(db)
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	repo := postgres.NewWatchProgressRepository(db)
+	ctx := context.Background()
+
+	u := newTestUser("um-u")
+	require.NoError(t, userRepo.Create(ctx, u))
+	p := newTestProfile("um-p", u.ID)
+	require.NoError(t, profileRepo.Create(ctx, p))
+	lib := newTestLibrary("um-lib")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	for _, id := range []string{"um-m1", "um-m2"} {
+		require.NoError(t, itemRepo.Create(ctx, newTestMediaItem(id, lib.ID)))
+	}
+
+	base := time.Now().UTC().Truncate(time.Millisecond)
+	mk := func(id, media string, posMs int64, completed bool, at time.Time) *playback.WatchProgress {
+		pos, err := shared.NewDurationMs(posMs)
+		require.NoError(t, err)
+		return &playback.WatchProgress{
+			ID: id, ProfileID: p.ID, MediaItemID: shared.MediaItemID(media),
+			Position: pos, Completed: completed, LastPlayedAt: at,
+		}
+	}
+
+	// Fresh batch insert of two entries in ONE call.
+	require.NoError(t, repo.UpsertMany(ctx, []*playback.WatchProgress{
+		mk("um-w1", "um-m1", 10_000, false, base),
+		mk("um-w2", "um-m2", 20_000, true, base),
+	}))
+	got, err := repo.GetByProfileAndMedia(ctx, string(p.ID), "um-m1")
+	require.NoError(t, err)
+	assert.Equal(t, int64(10_000), got.Position.Milliseconds())
+
+	// Conflict batch: m1 fresher tick advances; m2 STALE tick must not drag
+	// the position back, and completed stays sticky.
+	require.NoError(t, repo.UpsertMany(ctx, []*playback.WatchProgress{
+		mk("um-w3", "um-m1", 30_000, false, base.Add(time.Minute)),
+		mk("um-w4", "um-m2", 5_000, false, base.Add(-time.Minute)),
+	}))
+	got, err = repo.GetByProfileAndMedia(ctx, string(p.ID), "um-m1")
+	require.NoError(t, err)
+	assert.Equal(t, int64(30_000), got.Position.Milliseconds(), "fresher tick advances")
+	got, err = repo.GetByProfileAndMedia(ctx, string(p.ID), "um-m2")
+	require.NoError(t, err)
+	assert.Equal(t, int64(20_000), got.Position.Milliseconds(), "stale tick rejected")
+	assert.True(t, got.Completed, "completed is sticky")
+
+	// Empty batch is a no-op.
+	require.NoError(t, repo.UpsertMany(ctx, nil))
+}

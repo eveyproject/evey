@@ -53,6 +53,16 @@ func (r *FakeWatchProgressRepository) Upsert(_ context.Context, wp *playback.Wat
 	return nil
 }
 
+// UpsertMany mirrors the batch port method: same semantics, entry by entry.
+func (r *FakeWatchProgressRepository) UpsertMany(ctx context.Context, entries []*playback.WatchProgress) error {
+	for _, wp := range entries {
+		if err := r.Upsert(ctx, wp); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (r *FakeWatchProgressRepository) Delete(_ context.Context, profileID, mediaItemID string) error {
 	if r.Err != nil {
 		return r.Err
