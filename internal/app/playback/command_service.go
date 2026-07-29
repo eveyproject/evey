@@ -505,6 +505,30 @@ func (s *CommandService) TouchCastSession(ctx context.Context, profileID, mediaI
 	return false, nil
 }
 
+// ConsumeCastCommand hands the pending remote command of the ACTIVE
+// (profile, media) session to the cast receiver polling via its alive beacon.
+// During a cast the phone used to be the only consumer (ReportProgress), so a
+// frozen phone took the admin's remote control down with it. Destructive
+// read: whichever consumer polls first gets the command, the other sees none.
+func (s *CommandService) ConsumeCastCommand(ctx context.Context, profileID, mediaItemID string) (string, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.playback.ConsumeCastCommand")
+	defer span.End()
+	if profileID == "" || mediaItemID == "" {
+		return "", nil
+	}
+	sessions, err := s.sessionQueries.GetActiveByProfile(ctx, profileID)
+	if err != nil {
+		return "", err
+	}
+	for _, sess := range sessions {
+		if sess == nil || string(sess.MediaItemID) != mediaItemID {
+			continue
+		}
+		return s.sessions.ConsumeRemoteCommand(ctx, sess.ID)
+	}
+	return "", nil
+}
+
 func (s *CommandService) CleanupStaleSessions(ctx context.Context, maxAge time.Duration) (int, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.playback.CleanupStaleSessions")
 	defer span.End()

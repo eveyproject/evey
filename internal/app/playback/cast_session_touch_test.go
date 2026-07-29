@@ -78,3 +78,35 @@ func TestTouchCastSession_IgnoresOtherMediaOfTheProfile(t *testing.T) {
 	require.NoError(t, err)
 	assert.Nil(t, got.Position, "the other media's session is untouched")
 }
+
+// ConsumeCastCommand routes an admin session command (pause/play/stop/message)
+// to the TV itself: the receiver's alive beacon polls it, so a frozen phone no
+// longer takes the admin's remote control down with it. Destructive read, same
+// as the phone's ReportProgress consume path.
+func TestConsumeCastCommand_DeliversThePendingCommandOnce(t *testing.T) {
+	t.Parallel()
+	svc, sessions := newTouchSvc(t)
+	require.NoError(t, sessions.Create(context.Background(), activeSession("s-1", "prof-1", "media-1", "Salon TV")))
+	require.NoError(t, svc.SetRemoteCommand(context.Background(), "s-1", "pause"))
+
+	cmd, err := svc.ConsumeCastCommand(context.Background(), "prof-1", "media-1")
+	require.NoError(t, err)
+	assert.Equal(t, "pause", cmd)
+
+	cmd, err = svc.ConsumeCastCommand(context.Background(), "prof-1", "media-1")
+	require.NoError(t, err)
+	assert.Empty(t, cmd, "a consumed command does not replay")
+}
+
+func TestConsumeCastCommand_NoSessionOrNoCommand(t *testing.T) {
+	t.Parallel()
+	svc, sessions := newTouchSvc(t)
+	cmd, err := svc.ConsumeCastCommand(context.Background(), "prof-1", "media-1")
+	require.NoError(t, err)
+	assert.Empty(t, cmd)
+
+	require.NoError(t, sessions.Create(context.Background(), activeSession("s-1", "prof-1", "media-1", "")))
+	cmd, err = svc.ConsumeCastCommand(context.Background(), "prof-1", "media-1")
+	require.NoError(t, err)
+	assert.Empty(t, cmd)
+}

@@ -492,3 +492,45 @@ func TestPlayerEvent_CastPresenceIgnoresNonCastCallers(t *testing.T) {
 		t.Fatalf("JWT caller must not create cast presence (presence=%d touches=%d)", len(tr.entries), len(touches))
 	}
 }
+
+// The alive beacon's RESPONSE carries the pending admin command: the receiver
+// polls every 30s with it, so pause/stop/message reach the TV even when the
+// phone that started the cast is frozen. Non-cast callers keep the bare 204.
+func TestPlayerEvent_CastAliveBeaconCarriesPendingCommand(t *testing.T) {
+	consume := func(_ context.Context, profileID, mediaID string) string {
+		if profileID == "prof-cast" && mediaID == "media-1" {
+			return "pause"
+		}
+		return ""
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/media/media-1/player-event",
+		strings.NewReader(`{"type":"cast_receiver_alive","posSec":10}`))
+	req.SetPathValue("id", "media-1")
+	req.RemoteAddr = "192.168.1.42:51000"
+	ctx := context.WithValue(req.Context(), streamTokenCtxKey, &shared.StreamToken{
+		UserID: "usr-cast", ProfileID: "prof-cast", MediaItemID: "media-1", Scope: "stream", Cast: true,
+	})
+	rec := httptest.NewRecorder()
+	logger := slog.New(slog.NewJSONHandler(&bytes.Buffer{}, nil))
+	playerEventHandler(logger, WithPlayerEventCastCommand(consume))(rec, req.WithContext(ctx))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 when a command is pending", rec.Code)
+	}
+	var body struct {
+		Command string `json:"command"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil || body.Command != "pause" {
+		t.Fatalf("body = %q err=%v, want {\"command\":\"pause\"}", rec.Body.String(), err)
+	}
+
+	// No pending command: plain 204, exactly the pre-feature shape.
+	rec2 := httptest.NewRecorder()
+	req2 := httptest.NewRequest(http.MethodPost, "/api/v1/media/media-1/player-event",
+		strings.NewReader(`{"type":"cast_receiver_alive"}`))
+	req2.SetPathValue("id", "media-1")
+	playerEventHandler(logger, WithPlayerEventCastCommand(func(context.Context, string, string) string { return "" }))(rec2, req2.WithContext(ctx))
+	if rec2.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204 without a pending command", rec2.Code)
+	}
+}

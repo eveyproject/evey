@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { ALIVE_BEACON_MS, createAliveHeartbeat, postPlayerEvent, readHeapMB } from "./receiverBeacon";
+import { ALIVE_BEACON_MS, createAliveHeartbeat, postPlayerEvent, postPlayerEventQuery, readHeapMB } from "./receiverBeacon";
 
 // Pourquoi ces tests existent : la telemetrie posee le 2026-07-26 devait nommer
 // la cause des morts de cast cote TV. Elle ne l'a JAMAIS fait, deux fois de
@@ -108,5 +108,46 @@ describe("readHeapMB - la taille du tas JS voyage sur chaque battement", () => {
   it("ne jette jamais, meme sur un objet hostile", () => {
     const trap = new Proxy({}, { get() { throw new Error("boom"); } });
     expect(readHeapMB(trap)).toBe(-1);
+  });
+});
+
+describe("postPlayerEventQuery", () => {
+  const mkResp = (status: number, body?: unknown) => ({
+    ok: status >= 200 && status < 300,
+    status,
+    json: async () => body,
+  });
+
+  it("returns the pending admin command carried by the response", async () => {
+    const cmd = await postPlayerEventQuery(
+      "https://srv/api/v1/media/m1/player-event?token=t",
+      { type: "cast_receiver_alive", posSec: 42 },
+      async () => mkResp(200, { command: "pause" }),
+    );
+    expect(cmd).toBe("pause");
+  });
+
+  it("returns null on the bare 204 (no pending command)", async () => {
+    const cmd = await postPlayerEventQuery("https://srv/e", { type: "cast_receiver_alive" }, async () => mkResp(204));
+    expect(cmd).toBeNull();
+  });
+
+  it("swallows network errors and malformed bodies - telemetry never breaks playback", async () => {
+    expect(await postPlayerEventQuery("https://srv/e", { type: "cast_receiver_alive" }, async () => {
+      throw new Error("net down");
+    })).toBeNull();
+    expect(await postPlayerEventQuery("https://srv/e", { type: "cast_receiver_alive" }, async () => mkResp(200, { command: 7 }))).toBeNull();
+    expect(await postPlayerEventQuery(null, { type: "cast_receiver_alive" }, async () => mkResp(200, { command: "pause" }))).toBeNull();
+  });
+
+  it("keeps the CORS-simple shape: string body, no Content-Type header", async () => {
+    let captured: RequestInit | undefined;
+    await postPlayerEventQuery("https://srv/e", { type: "cast_receiver_alive" }, async (_u, init) => {
+      captured = init;
+      return mkResp(204);
+    });
+    expect(typeof captured?.body).toBe("string");
+    expect(captured?.headers).toBeUndefined();
+    expect(captured?.credentials).toBe("omit");
   });
 });

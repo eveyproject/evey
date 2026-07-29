@@ -68,7 +68,13 @@ type playerEventDeps struct {
 	castPresence    CastPresenceToucher
 	resolveUsername func(ctx context.Context, userID string) string
 	castSession     CastSessionTouch
+	castCommand     CastCommandConsumer
 }
+
+// CastCommandConsumer hands the receiver the pending admin remote command of
+// its session ("pause", "play", "stop", "message:<text>"), or "" when none.
+// Destructive read - see playback.ConsumeCastCommand.
+type CastCommandConsumer func(ctx context.Context, profileID, mediaItemID string) string
 
 // CastPresenceToucher is the presence tracker's slice this handler needs.
 type CastPresenceToucher interface {
@@ -113,6 +119,13 @@ func WithPlayerEventCastPresence(tr CastPresenceToucher, resolveUsername func(ct
 // WithPlayerEventCastSession wires the TV-driven session keepalive.
 func WithPlayerEventCastSession(touch CastSessionTouch) PlayerEventOption {
 	return func(d *playerEventDeps) { d.castSession = touch }
+}
+
+// WithPlayerEventCastCommand makes the alive beacon's RESPONSE carry the
+// pending admin command: the receiver polls every 30s with it, so the admin
+// panel can pause/stop/message a cast whose phone is frozen.
+func WithPlayerEventCastCommand(consume CastCommandConsumer) PlayerEventOption {
+	return func(d *playerEventDeps) { d.castCommand = consume }
 }
 
 // WithPlayerEventLibraryGuard closes the "any JWT can push events onto an
@@ -219,8 +232,32 @@ func playerEventHandler(logger *slog.Logger, opts ...PlayerEventOption) http.Han
 			slog.Float64("pos_sec", body.PosSec),
 			slog.String("device", clampString(r.UserAgent(), playerEventMaxDetail)),
 		)
+		// The alive beacon doubles as the TV's command poll: a pending admin
+		// command rides back in the response body (200); the bare 204 stays
+		// the answer everywhere else - including for the deployed receivers
+		// that fire alive via sendBeacon and never read a response.
+		if cmd := pendingCastCommand(r, &deps, mediaID, body.Type); cmd != "" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(map[string]string{"command": cmd})
+			return
+		}
 		w.WriteHeader(http.StatusNoContent)
 	}
+}
+
+// pendingCastCommand consumes the session's remote command for a cast
+// receiver's liveness beacon; every other caller gets "" (the phone's own
+// RPC consume path already serves it).
+func pendingCastCommand(r *http.Request, deps *playerEventDeps, mediaID, eventType string) string {
+	if deps.castCommand == nil || (eventType != "cast_receiver_alive" && eventType != "cast_receiver_loaded") {
+		return ""
+	}
+	st, ok := StreamTokenFromContext(r.Context())
+	if !ok || st == nil || !st.Cast {
+		return ""
+	}
+	return deps.castCommand(r.Context(), string(st.ProfileID), mediaID)
 }
 
 // notifyCoSender turns a RECEIVER beacon into a co-sender attach/detach.

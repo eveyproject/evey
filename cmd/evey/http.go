@@ -194,6 +194,15 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 					slog.String("profile_id", profileID), slog.String("media_id", mediaItemID), slog.Any("err", err))
 			}
 		},
+		CastCommandConsume: func(ctx context.Context, profileID, mediaItemID string) string {
+			cmd, err := deps.media.playbackSvc.CommandService().ConsumeCastCommand(ctx, profileID, mediaItemID)
+			if err != nil {
+				slog.WarnContext(ctx, "cast command consume failed",
+					slog.String("profile_id", profileID), slog.String("media_id", mediaItemID), slog.Any("err", err))
+				return ""
+			}
+			return cmd
+		},
 
 		CfgStore:  deps.cfgStore,
 		ServerCtx: ctx,

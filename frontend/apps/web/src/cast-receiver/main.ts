@@ -11,7 +11,7 @@
 import { WasmAudioEngine } from "@/features/playback/wasmaudio/WasmAudioEngine";
 import { extractAacAudioURI, extractAudioURI } from "@/features/playback/wasmaudio/wasmAudioShared";
 import { absoluteWithToken, buildPlayerEventUrl, probeReceiverCaps, rewriteCastMasterUrl, stripWasmAudio } from "./receiverLogic";
-import { createAliveHeartbeat, postPlayerEvent, readHeapMB } from "./receiverBeacon";
+import { createAliveHeartbeat, postPlayerEvent, postPlayerEventQuery, readHeapMB } from "./receiverBeacon";
 
 // The CAF SDK is loaded by a gstatic <script> in the page; its types are
 // not packaged - deliberately untyped access, scoped to this file.
@@ -102,13 +102,46 @@ function reportEvent(type: string, details: string, fatal = false): void {
 // heartbeat as the timestamp of its death, to the half-minute. Two incidents
 // in a row went undiagnosed for exactly the lack of it. Armed on LOAD
 // COMPLETE, disarmed on anything that ends playback.
+// applyAdminCommand executes the admin panel's remote command ON the TV -
+// the phone used to be the only consumer, so a frozen phone was an
+// uncontrollable cast. Vocabulary mirrors the phone's consume path.
+function applyAdminCommand(cmd: string): void {
+  try {
+    if (cmd === "pause") {
+      playerManager.pause();
+    } else if (cmd === "play") {
+      playerManager.play();
+    } else if (cmd === "stop") {
+      context.stop();
+    } else if (cmd.startsWith("message:")) {
+      showDebug(`Message: ${cmd.slice(8)}`);
+      setTimeout(() => showDebug(""), 12_000);
+    }
+  } catch {
+    /* a command must never kill the receiver */
+  }
+}
+
 const aliveHeartbeat = createAliveHeartbeat(() => {
   // mem: JS heap in MB (-1 if unavailable). A heap climbing beacon after
   // beacon toward the death names a memory kill; a flat one exonerates it.
   // mode: the engine's live relay leg (aac / wasm / aac-latched) when the
   // engine runs, else native CAF playback.
   const mode = engine ? engine.mode() : wasmRequested ? "wasm" : "native";
-  reportEvent("cast_receiver_alive", `mode=${mode} mem=${readHeapMB()}`);
+  let posSec = 0;
+  try {
+    posSec = playerManager.getCurrentTimeSec() || 0;
+  } catch { /* player torn down already */ }
+  // The alive beat rides fetch (not sendBeacon): its RESPONSE carries the
+  // pending admin command. The death events keep sendBeacon - only they race
+  // the page teardown.
+  void postPlayerEventQuery(
+    buildPlayerEventUrl(currentUrl),
+    { type: "cast_receiver_alive", details: `mode=${mode} mem=${readHeapMB()}`, posSec },
+    (u, init) => fetch(u, init),
+  ).then((cmd) => {
+    if (cmd) applyAdminCommand(cmd);
+  });
 });
 
 // tokenFromUrl reads the purpose=cast token the sender baked into the URL - the

@@ -12,7 +12,10 @@ import (
 type FakePlaySessionRepository struct {
 	mu    sync.RWMutex
 	items map[string]*playback.PlaySession
-	Err   error
+	// commands holds one pending remote command per session, mirroring the
+	// real repo's set-then-destructive-consume contract.
+	commands map[string]string
+	Err      error
 	// LockCalls counts AcquireUserStreamLock invocations so tests can assert the
 	// count-then-create path serializes - e.g. that the device-cap branch takes
 	// the advisory lock too, not only the stream-cap branch.
@@ -20,7 +23,7 @@ type FakePlaySessionRepository struct {
 }
 
 func NewFakePlaySessionRepository() *FakePlaySessionRepository {
-	return &FakePlaySessionRepository{items: make(map[string]*playback.PlaySession)}
+	return &FakePlaySessionRepository{items: make(map[string]*playback.PlaySession), commands: make(map[string]string)}
 }
 
 func (r *FakePlaySessionRepository) Create(_ context.Context, session *playback.PlaySession) error {
@@ -206,15 +209,21 @@ func (r *FakePlaySessionRepository) PurgeEndedBefore(_ context.Context, cutoff t
 func (r *FakePlaySessionRepository) SetRemoteCommand(_ context.Context, sessionID, command string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if s, ok := r.items[sessionID]; ok {
-		_ = s
-		_ = command
+	if r.Err == nil {
+		r.commands[sessionID] = command
 	}
 	return r.Err
 }
 
-func (r *FakePlaySessionRepository) ConsumeRemoteCommand(_ context.Context, _ string) (string, error) {
-	return "", r.Err
+func (r *FakePlaySessionRepository) ConsumeRemoteCommand(_ context.Context, sessionID string) (string, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.Err != nil {
+		return "", r.Err
+	}
+	cmd := r.commands[sessionID]
+	delete(r.commands, sessionID)
+	return cmd, nil
 }
 
 // AcquireUserStreamLock is a no-op lock in the fake (the items mutex already

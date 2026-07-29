@@ -77,6 +77,40 @@ export interface AliveHeartbeat {
   stop(): void;
 }
 
+// postPlayerEventQuery envoie une balise via fetch et LIT la reponse : le
+// serveur glisse la commande admin en attente ("pause", "play", "stop",
+// "message:<txt>") dans le corps du battement alive - c'est ainsi que le
+// panneau admin pilote une TV dont le telephone est gele. Null = pas de
+// commande (204), erreur reseau, ou pas d'url. Reserve aux battements de VIE :
+// les evenements de mort restent sur sendBeacon (postPlayerEvent), qui seul
+// survit au demontage de la page.
+export async function postPlayerEventQuery(
+  url: string | null,
+  payload: PlayerEventPayload,
+  fetchFn: (url: string, init: RequestInit) => Promise<{ ok: boolean; status: number; json(): Promise<unknown> }>,
+): Promise<string | null> {
+  if (!url) return null;
+  const body = JSON.stringify({
+    type: payload.type,
+    details: (payload.details ?? "").slice(0, 200),
+    fatal: payload.fatal ?? false,
+    code: payload.code ?? 0,
+    variant: payload.variant ?? 0,
+    segment: payload.segment ?? 0,
+    posSec: payload.posSec ?? 0,
+  });
+  try {
+    // Corps en chaine simple sans Content-Type : requete "simple" au sens
+    // CORS, aucun preflight, comme postPlayerEvent.
+    const resp = await fetchFn(url, { method: "POST", mode: "cors", credentials: "omit", body });
+    if (!resp.ok || resp.status === 204) return null;
+    const data = (await resp.json()) as { command?: unknown };
+    return typeof data.command === "string" && data.command !== "" ? data.command : null;
+  } catch {
+    return null; // une telemetrie ne casse jamais une lecture
+  }
+}
+
 // readHeapMB reports the JS heap in MB, or -1 when the runtime does not
 // expose it. Chrome's non-standard performance.memory is exactly what a cast
 // device runs. Motivation (2026-07-28): the receiver died 3-4 minutes into
