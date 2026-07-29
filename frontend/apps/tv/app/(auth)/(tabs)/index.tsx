@@ -3,10 +3,13 @@ import { View, Text, ScrollView, FlatList, ActivityIndicator, StyleSheet } from 
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
+import { useQueries } from "@tanstack/react-query";
 import {
   usePlaybackServiceGetResumeItems,
   usePlaybackServiceGetNextUp,
   useLibraryServiceListMediaItems,
+  useLibraryServiceListLibraries,
+  getLibraryServiceListMediaItemsQueryOptions,
   useNotificationServiceGetUnreadCount,
 } from "@evey/api";
 import type { V1MediaItem } from "@evey/api";
@@ -19,6 +22,7 @@ import { PluginSlot } from "../../../src/features/plugins/PluginSlot";
 import { useParentalGate } from "../../../src/hooks/useParentalGate";
 import { ParentalPINModal } from "../../../src/components/ParentalPINModal";
 import { CARD_WIDTH_FEATURED, POSTER_RATIO, GRID_GAP } from "../../../src/lib/tvLayout";
+import { selectHomeLibraryRows, HOME_LIBRARY_ROW_PAGE_SIZE } from "../../../src/lib/homeLibraryRows";
 
 const CARD_WIDTH = CARD_WIDTH_FEATURED;
 const CARD_HEIGHT = CARD_WIDTH * POSTER_RATIO;
@@ -27,6 +31,10 @@ const CARD_TOTAL_WIDTH = CARD_WIDTH + GRID_GAP; // card + separator
 const HERO_COUNT = 5;
 const HERO_INTERVAL = 8000;
 const HERO_HEIGHT = 480;
+
+// rowItems/focusTarget hold the 3 static rows first, then one entry per
+// library row, in the same order as libraryRows/libraryRowQueries.
+const LIBRARY_ROWS_START = 3;
 
 const tvRowGetItemLayout = (_: unknown, index: number) => ({
   length: CARD_TOTAL_WIDTH,
@@ -316,7 +324,32 @@ export default function HomeScreen() {
     "pagination.pageSize": 20,
   });
 
-  const isLoading = resume.isLoading || nextUp.isLoading || recentlyAdded.isLoading;
+  // One "recently added" row per library, after the three transverse rows
+  // above. selectHomeLibraryRows bounds the count (see its own doc comment)
+  // so this never fires more than a handful of extra requests on the NAS-
+  // class hardware Evey targets, however many libraries the server has.
+  const libraries = useLibraryServiceListLibraries();
+  const libraryRows = useMemo(
+    () => selectHomeLibraryRows(libraries.data?.libraries ?? []),
+    [libraries.data],
+  );
+  const libraryRowQueries = useQueries({
+    queries: libraryRows.map((row) =>
+      getLibraryServiceListMediaItemsQueryOptions({
+        libraryId: row.id,
+        sortField: "MEDIA_SORT_FIELD_DATE_ADDED",
+        sortOrder: "SORT_ORDER_DESC",
+        "pagination.pageSize": HOME_LIBRARY_ROW_PAGE_SIZE,
+      }),
+    ),
+  });
+
+  const isLoading =
+    resume.isLoading ||
+    nextUp.isLoading ||
+    recentlyAdded.isLoading ||
+    libraries.isLoading ||
+    libraryRowQueries.some((q) => q.isLoading);
 
   const watchPercents = useMemo(() => {
     const map: Record<string, number> = {};
@@ -329,7 +362,12 @@ export default function HomeScreen() {
   }, [resume.data?.progress]);
 
   const recentlyAddedItems = recentlyAdded.data?.items ?? [];
-  const rowItems = [resume.data?.items ?? [], nextUp.data?.items ?? [], recentlyAddedItems];
+  const rowItems = [
+    resume.data?.items ?? [],
+    nextUp.data?.items ?? [],
+    recentlyAddedItems,
+    ...libraryRowQueries.map((q) => q.data?.items ?? []),
+  ];
   const focusTarget = selectHomeFocusTarget(
     recentlyAddedItems.length > 0,
     rowItems.map((items) => items.length > 0),
@@ -387,6 +425,16 @@ export default function HomeScreen() {
         authHeaders={authHeaders}
         focusFirst={focusTarget === 2}
       />
+      {libraryRows.map((row, i) => (
+        <MediaRow
+          key={row.id}
+          title={t("media.home.recentlyAddedInLibrary", { name: row.name })}
+          items={rowItems[LIBRARY_ROWS_START + i]}
+          serverUrl={serverUrl}
+          authHeaders={authHeaders}
+          focusFirst={focusTarget === LIBRARY_ROWS_START + i}
+        />
+      ))}
     </ScrollView>
   );
 }

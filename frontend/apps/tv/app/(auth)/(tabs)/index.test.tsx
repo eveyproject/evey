@@ -8,8 +8,17 @@ vi.mock("react-native", () => ({
   Text: ({ children, ...p }: any) => React.createElement("span", p, children),
   ScrollView: ({ children, ...p }: any) => React.createElement("div", p, children),
   ActivityIndicator: (p: any) => React.createElement("div", { "data-testid": "spinner", ...p }),
-  Pressable: ({ children, onPress, accessibilityLabel, ...p }: any) =>
-    React.createElement("button", { onClick: onPress, "aria-label": accessibilityLabel, ...p }, children),
+  // hasTVPreferredFocus is surfaced as a data-* attribute: React silently
+  // drops boolean values passed through an unrecognized DOM prop, so passing
+  // it through the ...p spread as-is (as other test files do) makes it
+  // unobservable in jsdom - a real gap the per-library-row focus tests below
+  // need to assert on.
+  Pressable: ({ children, onPress, accessibilityLabel, hasTVPreferredFocus, ...p }: any) =>
+    React.createElement(
+      "button",
+      { onClick: onPress, "aria-label": accessibilityLabel, "data-tv-preferred-focus": hasTVPreferredFocus ? "true" : undefined, ...p },
+      children,
+    ),
   FlatList: ({ data, renderItem, keyExtractor, ListEmptyComponent }: any) => {
     if (!data || data.length === 0) {
       return ListEmptyComponent ? React.createElement(ListEmptyComponent) : null;
@@ -41,8 +50,13 @@ vi.mock("expo-router", () => ({
 }));
 
 // --- react-i18next mock --------------------------------------------------------
+// The per-library row title interpolates {{name}}; render it as "<key>:<name>"
+// so tests can assert on a distinct string per library without a real i18next
+// instance.
 vi.mock("react-i18next", () => ({
-  useTranslation: () => ({ t: (key: string, fallback?: string) => fallback ?? key }),
+  useTranslation: () => ({
+    t: (key: string, opts?: { name?: string }) => (opts?.name ? `${key}:${opts.name}` : key),
+  }),
 }));
 
 // --- ThemeProvider mock ---------------------------------------------------------
@@ -96,15 +110,40 @@ vi.mock("../../../src/hooks/useParentalGate", () => ({
   useParentalGate: () => ({ needsPin: needsPinMock, profileId: "prof-1" }),
 }));
 
+// --- @tanstack/react-query mock ---------------------------------------------------
+// libraryRowResults maps a libraryId to the query result its row should see;
+// tests populate it per-library instead of relying on real react-query
+// machinery. getLibraryServiceListMediaItemsQueryOptionsMock tags each query
+// with the libraryId it was built for (via queryKey) so the useQueries mock
+// can look the right result up.
+const libraryRowResults = new Map<string, { data?: unknown; isLoading: boolean }>();
+const useQueriesMock = vi.fn((opts: { queries: Array<{ queryKey: readonly unknown[] }> }) =>
+  opts.queries.map(
+    (q) => libraryRowResults.get(q.queryKey[0] as string) ?? { data: { items: [] }, isLoading: false },
+  ),
+);
+vi.mock("@tanstack/react-query", () => ({
+  useQueries: (...args: unknown[]) => useQueriesMock(...(args as [{ queries: Array<{ queryKey: readonly unknown[] }> }])),
+}));
+
 // --- @evey/api mock --------------------------------------------------------------
 const resumeMock = vi.fn();
 const nextUpMock = vi.fn();
 const listMediaItemsMock = vi.fn();
 const unreadCountMock = vi.fn();
+const librariesMock = vi.fn();
+const getLibraryServiceListMediaItemsQueryOptionsMock = vi.fn((params: { libraryId: string }) => ({
+  queryKey: [params.libraryId],
+}));
 vi.mock("@evey/api", () => ({
   usePlaybackServiceGetResumeItems: (...args: unknown[]) => resumeMock(...args),
   usePlaybackServiceGetNextUp: (...args: unknown[]) => nextUpMock(...args),
   useLibraryServiceListMediaItems: (...args: unknown[]) => listMediaItemsMock(...args),
+  useLibraryServiceListLibraries: (...args: unknown[]) => librariesMock(...args),
+  getLibraryServiceListMediaItemsQueryOptions: (...args: unknown[]) =>
+    getLibraryServiceListMediaItemsQueryOptionsMock(
+      ...(args as [{ libraryId: string }]),
+    ),
   useNotificationServiceGetUnreadCount: (...args: unknown[]) => unreadCountMock(...args),
 }));
 
@@ -120,11 +159,14 @@ const HERO_ITEM = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  libraryRowResults.clear();
   needsPinMock.mockReturnValue(false);
   resumeMock.mockReturnValue({ data: { items: [], progress: [] }, isLoading: false });
   nextUpMock.mockReturnValue({ data: { items: [] }, isLoading: false });
   listMediaItemsMock.mockReturnValue({ data: { items: [HERO_ITEM] }, isLoading: false });
   unreadCountMock.mockReturnValue({ data: { count: 0 } });
+  // No libraries by default: existing tests exercise the 3 static rows only.
+  librariesMock.mockReturnValue({ data: { libraries: [] }, isLoading: false });
 });
 
 describe("selectHomeFocusTarget (initial TV remote focus)", () => {
@@ -175,5 +217,57 @@ describe("HomeScreen hero play button (TV parental gate)", () => {
     fireEvent.click(screen.getByLabelText("cancel-pin"));
     expect(pushMock).not.toHaveBeenCalled();
     expect(screen.queryByTestId("pin-modal")).toBeNull();
+  });
+});
+
+describe("HomeScreen per-library rows", () => {
+  beforeEach(() => {
+    librariesMock.mockReturnValue({
+      data: {
+        libraries: [
+          { id: "lib-1", name: "Movies" },
+          { id: "lib-2", name: "Empty Library" },
+        ],
+      },
+      isLoading: false,
+    });
+    libraryRowResults.set("lib-1", {
+      data: { items: [{ id: "mi-lib1-1", title: "Lib1 Movie" }] },
+      isLoading: false,
+    });
+    libraryRowResults.set("lib-2", { data: { items: [] }, isLoading: false });
+  });
+
+  it("renders a row titled after the library, for a library with recent items", () => {
+    render(<HomeScreen />);
+    expect(screen.getByText("media.home.recentlyAddedInLibrary:Movies")).toBeTruthy();
+  });
+
+  it("renders no row (no orphaned title) for a library with no recent items", () => {
+    render(<HomeScreen />);
+    expect(screen.queryByText("media.home.recentlyAddedInLibrary:Empty Library")).toBeNull();
+  });
+
+  it("queries each library's rows scoped to its own id, sorted by date added", () => {
+    render(<HomeScreen />);
+    expect(getLibraryServiceListMediaItemsQueryOptionsMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        libraryId: "lib-1",
+        sortField: "MEDIA_SORT_FIELD_DATE_ADDED",
+        sortOrder: "SORT_ORDER_DESC",
+      }),
+    );
+    expect(getLibraryServiceListMediaItemsQueryOptionsMock).toHaveBeenCalledWith(
+      expect.objectContaining({ libraryId: "lib-2" }),
+    );
+  });
+
+  it("keeps the initial D-pad focus coherent: falls through past the static rows to the first non-empty library row", () => {
+    resumeMock.mockReturnValue({ data: { items: [], progress: [] }, isLoading: false });
+    nextUpMock.mockReturnValue({ data: { items: [] }, isLoading: false });
+    listMediaItemsMock.mockReturnValue({ data: { items: [] }, isLoading: false }); // hides the hero too
+    render(<HomeScreen />);
+    const focused = document.querySelector('[data-tv-preferred-focus="true"]');
+    expect(focused?.textContent).toContain("Lib1 Movie");
   });
 });

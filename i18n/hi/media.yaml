@@ -8,6 +8,7 @@ home:
   continueWatching: देखना जारी रखें
   upNext: आगे आ रहा है
   recentlyAdded: हाल ही में जोड़ा गया
+  recentlyAddedInLibrary: "{{name}} में हाल ही में जोड़ा गया"
   mostPopular: सबसे लोकप्रिय
   recommendedForYou: आपके लिए अनुशंसित
   collections: संग्रह

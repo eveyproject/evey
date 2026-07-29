@@ -8,6 +8,7 @@ home:
   continueWatching: Reprendre la lecture
   upNext: À suivre
   recentlyAdded: Ajoutés récemment
+  recentlyAddedInLibrary: "Ajoutés récemment dans {{name}}"
   mostPopular: Les plus populaires
   recommendedForYou: Recommandé pour vous
   collections: Collections
