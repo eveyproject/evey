@@ -12,12 +12,7 @@ type Device struct {
 
 // MediaStatus is a provider-agnostic snapshot of the current media session.
 type MediaStatus struct {
-	App string
-	// AppID is the Cast application id of whatever is running on the device
-	// (e.g. "D36A449B" for the Evey receiver). The co-sender keys its "is
-	// this still OUR session" check on it: the display name is localized and
-	// operator-editable in the Cast console, the id is not.
-	AppID       string
+	App         string
 	PlayerState string
 	CurrentTime float32
 	Duration    float32

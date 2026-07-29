@@ -53,12 +53,6 @@ func New(_ string) *Service {
 	return NewWithPorts(&mdnsDiscoverer{}, &appSessionFactory{}, &tcpSubnetProber{})
 }
 
-// NewAppSessionFactory exposes the real go-chromecast session factory for
-// wiring the co-sender from cmd without exporting the adapter type itself.
-func NewAppSessionFactory() domaincast.SessionFactory {
-	return &appSessionFactory{}
-}
-
 // NewWithPorts builds a Service with injected ports (used in tests).
 // prober may be nil (no unicast fallback).
 func NewWithPorts(discoverer domaincast.Discoverer, factory domaincast.SessionFactory, prober domaincast.SubnetProber) *Service {
@@ -567,7 +561,6 @@ func (s *appSession) Status() (domaincast.MediaStatus, error) {
 	ms := domaincast.MediaStatus{}
 	if castApp != nil {
 		ms.App = castApp.DisplayName
-		ms.AppID = castApp.AppId
 	}
 	if media != nil {
 		ms.PlayerState = media.PlayerState

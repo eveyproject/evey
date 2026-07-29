@@ -263,11 +263,6 @@ type HTTPServer struct {
 
 	// Chromecast
 	CastSvc *appcast.Service
-	// CastCoSenderSvc keeps the server attached as a second sender on TVs
-	// running the Evey receiver, so an OEM-frozen phone can no longer leave
-	// the box with zero senders (the box then tears the receiver down). Fed
-	// by the receiver's own beacons on the player-event route.
-	CastCoSenderSvc CastCoSender
 	// CastPresence + CastSessionTouch surface a beaconing receiver in the
 	// admin panel: an online "EveyCast (Chromecast)" device entry and a live
 	// now-playing session, both independent of the (possibly frozen) phone.
@@ -454,9 +449,6 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 		// stream token to its own media id.
 		mux.HandleFunc("POST /api/v1/media/{id}/player-event", streamAuth(ratelimit.MiddlewareFunc(s.PlayerEventRL, playerEventHandler(slog.Default(),
 			WithPlayerEventLibraryGuard(s.LibQuerySvc, s.LibraryAccessRepo, parentalChk),
-			// The receiver's beacons double as the co-sender trigger: each one
-			// arrives FROM the TV and re-arms the server's sender seat on it.
-			WithPlayerEventCoSender(s.CastCoSenderSvc),
 			// And as the admin panel's cast signal: online device + live
 			// now-playing session, phone-independent.
 			WithPlayerEventCastPresence(s.CastPresence, s.CastResolveUsername),
