@@ -9,6 +9,7 @@ import { setServerUrl, getServerUrl, probeServer } from "../src/lib/server-confi
 import { initFetcher } from "../src/lib/fetcher-setup";
 import { applyServerLanguage, initI18n } from "../src/i18n";
 import { parseEveyHealth } from "../src/lib/serverIdentity";
+import { versionLabel } from "../src/lib/versionLabel";
 import { useTheme } from "../src/providers/ThemeProvider";
 import { scanLocalNetwork } from "../src/lib/network-scan";
 
@@ -288,7 +289,7 @@ export default function ServerConnect() {
       {discovered.length > 0 && (
         <View style={{ marginTop: theme.spacing.md }}>
           <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginBottom: theme.spacing.sm }}>
-            {discovered.length} server{discovered.length > 1 ? "s" : ""} found
+            {t("mobile.serverConnect.serversFound", "{{count}} server(s) found", { count: discovered.length })}
           </Text>
           {discovered.map((sv) => (
             <Pressable
@@ -309,7 +310,9 @@ export default function ServerConnect() {
             >
               <Ionicons name="server-outline" size={16} color={theme.colors.accent} />
               <Text style={{ color: theme.colors.text, fontSize: 14, flex: 1 }}>{sv.url}</Text>
-              {sv.version && <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>v{sv.version}</Text>}
+              {versionLabel(sv.version) !== "" && (
+                <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>{versionLabel(sv.version)}</Text>
+              )}
             </Pressable>
           ))}
         </View>

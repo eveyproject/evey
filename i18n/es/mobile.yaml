@@ -1,6 +1,8 @@
 serverConnect:
   hint: "Introduzca la URL de su instancia Evey autoalojada"
   scanLocalNetwork: "Escanear la red local"
+  serversFound_one: "{{count}} servidor encontrado"
+  serversFound_other: "{{count}} servidores encontrados"
   missingScheme: "Empiece la dirección con http:// o https://."
   title: Conectar al servidor
   connect: Conectar

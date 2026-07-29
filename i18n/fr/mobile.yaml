@@ -1,6 +1,8 @@
 serverConnect:
   hint: "Saisissez l'URL de votre instance Evey auto-hébergée"
   scanLocalNetwork: "Scanner le réseau local"
+  serversFound_one: "{{count}} serveur trouvé"
+  serversFound_other: "{{count}} serveurs trouvés"
   missingScheme: "Commencez l'adresse par http:// ou https://."
   title: Connexion au serveur
   connect: Connexion

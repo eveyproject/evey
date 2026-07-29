@@ -1,6 +1,8 @@
 serverConnect:
   hint: "अपने सेल्फ-होस्टेड Evey इंस्टेंस का URL दर्ज करें"
   scanLocalNetwork: "स्थानीय नेटवर्क स्कैन करें"
+  serversFound_one: "{{count}} सर्वर मिला"
+  serversFound_other: "{{count}} सर्वर मिले"
   missingScheme: "पता http:// या https:// से शुरू करें।"
   title: सर्वर से कनेक्ट करें
   connect: कनेक्ट
