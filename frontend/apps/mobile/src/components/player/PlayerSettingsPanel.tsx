@@ -62,6 +62,17 @@ interface PlayerSettingsPanelProps {
   onSubtitleStyleChange?: (patch: Partial<SubtitleStyle>) => void;
   subtitleOffsetMs?: number;
   onSubtitleOffsetChange?: (ms: number) => void;
+  // Externally-picked subtitle file (SRT/VTT/ASS uploaded client-side,
+  // converted to WebVTT and rendered by SubtitleOverlay - no server upload).
+  // Optional, same convention as onSubtitleStyleChange: a caller that doesn't
+  // pass onPickExternalSubtitle gets no "Upload" entry. externalSubtitleName
+  // surfaces the loaded file as its own selectable row, independent of
+  // whether it's currently active (externalSubtitleActive), mirroring how a
+  // server track stays listed while unselected.
+  externalSubtitleName?: string | null;
+  externalSubtitleActive?: boolean;
+  onPickExternalSubtitle?: () => void;
+  onSelectExternalSubtitle?: () => void;
   style?: StyleProp<ViewStyle>;
 }
 
@@ -201,6 +212,10 @@ export function PlayerSettingsPanel({
   onSubtitleStyleChange,
   subtitleOffsetMs = 0,
   onSubtitleOffsetChange,
+  externalSubtitleName = null,
+  externalSubtitleActive = false,
+  onPickExternalSubtitle,
+  onSelectExternalSubtitle,
   style,
 }: PlayerSettingsPanelProps) {
   const { t } = useTranslation();
@@ -227,7 +242,7 @@ export function PlayerSettingsPanel({
     ?? (audioStreams.length > 0 ? t("media.track", { number: currentAudioIndex }) : "-");
 
   const currentSubLabel = currentSubtitleIndex === null
-    ? t("player.settings.off")
+    ? (externalSubtitleActive && externalSubtitleName ? externalSubtitleName : t("player.settings.off"))
     : (subtitleStreams.find((s) => s.index === currentSubtitleIndex)?.title
       ?? subtitleStreams.find((s) => s.index === currentSubtitleIndex)?.language
       ?? t("media.track", { number: currentSubtitleIndex }));
@@ -342,7 +357,7 @@ export function PlayerSettingsPanel({
                 <NavRow label={t("player.settings.audio")} value={currentAudioLabel} onPress={() => setMenu("audio")} />
               </>
             )}
-            {subtitleStreams.length > 0 && (
+            {(subtitleStreams.length > 0 || !!onPickExternalSubtitle || !!externalSubtitleName) && (
               <>
                 <Divider />
                 <NavRow label={t("player.settings.subtitles")} value={currentSubLabel} onPress={() => setMenu("subtitles")} />
@@ -426,6 +441,32 @@ export function PlayerSettingsPanel({
                 />
               );
             })}
+            {externalSubtitleName && (
+              <OptionRow
+                label={externalSubtitleName}
+                active={externalSubtitleActive}
+                onPress={() => select(() => onSelectExternalSubtitle?.())}
+              />
+            )}
+            {onPickExternalSubtitle && (
+              <>
+                <Divider />
+                <Pressable
+                  style={styles.optionRow}
+                  onPress={onPickExternalSubtitle}
+                  accessible={true}
+                  accessibilityLabel={t("player.settings.uploadSubtitle")}
+                  accessibilityRole="button"
+                >
+                  <View style={styles.uploadRow}>
+                    <Ionicons name="cloud-upload-outline" size={ICON_SIZE.sm} color={theme.colors.text} />
+                    <Text style={[styles.optionLabel, { color: theme.colors.text }]}>
+                      {t("player.settings.uploadSubtitle")}
+                    </Text>
+                  </View>
+                </Pressable>
+              </>
+            )}
           </>
         )}
 
@@ -769,6 +810,11 @@ const styles = StyleSheet.create({
   optionLabel: {
     fontSize: FONT_SIZE.sm,
     flexShrink: 1,
+  },
+  uploadRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   optionSuffix: {
     fontSize: FONT_SIZE.xs,

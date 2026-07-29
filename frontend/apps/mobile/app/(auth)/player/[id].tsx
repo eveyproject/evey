@@ -67,6 +67,8 @@ import {
   saveSubtitleStylePref,
   type SubtitleStyle,
 } from "../../../src/lib/subtitleStyle";
+import { pickExternalSubtitle } from "../../../src/lib/externalSubtitle";
+import { parseVttCues, type SubtitleCue } from "../../../src/lib/subtitleCues";
 
 // Sheets still carried by a BottomSheet; audio / subtitles / quality / speed
 // now live in the settings panel (web parity).
@@ -253,6 +255,13 @@ export default function PlayerScreen() {
     });
   }, []);
 
+  // Client-picked external subtitle file (upload): purely client-side, same
+  // as the web player - converted to VTT and parsed once at pick time, then
+  // rendered by SubtitleOverlay like any other cue source. Reset on mediaId
+  // change alongside the other per-title subtitle state (see the mediaId
+  // reset effect below).
+  const [externalSubtitle, setExternalSubtitle] = useState<{ name: string; cues: SubtitleCue[] } | null>(null);
+
   const audioStreams: AudioStream[] = useMemo(
     () =>
       streamInfo?.mediaStreams
@@ -386,6 +395,8 @@ export default function PlayerScreen() {
     setAudioOffsetMs(0);
     setAppliedAudioOffsetMs(0);
     setSubtitleOffsetMs(0);
+    // An externally-picked subtitle file means nothing on the next title.
+    setExternalSubtitle(null);
   }, [mediaId]);
   // Whether the NEXT player instance should start playing. Changing tracks or
   // quality recreates the native player, whose setup used to call play()
@@ -854,27 +865,63 @@ export default function PlayerScreen() {
     [player, nativeAudioTracks, audioStreams, restartWithTracks, selectedSubtitleIndex, selectedQuality],
   );
 
-  const handleSubtitleSelect = useCallback(
-    (index: number | null) => {
-      userPickedSubtitleRef.current = true;
+  // Restarts the transcode when entering/leaving a burn-in (PGS/VobSub)
+  // subtitle - shared by native/server track selection and by switching to
+  // an externally-picked file, which always targets nextIndex=null (the
+  // server-side subtitle is deselected either way).
+  const restartForSubtitleChange = useCallback(
+    (nextIndex: number | null) => {
       const prevStream = subtitleStreams.find((s) => s.index === selectedSubtitleIndex);
-      const nextStream = index === null ? null : subtitleStreams.find((s) => s.index === index);
-      setSelectedSubtitleIndex(index);
-      // Text (non-burn-in) subtitles render client-side via SubtitleOverlay -
-      // no manifest change needed, so switching between them (or off) is
-      // instant with no session restart. Only PGS/VobSub tracks still need a
-      // restart: the server has to burn them into the video itself.
-      const needsRestart = !!prevStream?.burnIn || !!nextStream?.burnIn;
-      if (!needsRestart) return;
+      const nextStream = nextIndex === null ? null : subtitleStreams.find((s) => s.index === nextIndex);
+      if (!prevStream?.burnIn && !nextStream?.burnIn) return;
       resumeAfterRestartRef.current = player?.playing ?? true;
       if (nextStream?.burnIn) {
-        restartWithTracks(selectedAudioIndex, index ?? undefined, selectedQuality || undefined);
+        restartWithTracks(selectedAudioIndex, nextIndex ?? undefined, selectedQuality || undefined);
       } else {
         restartWithTracks(selectedAudioIndex, undefined, selectedQuality || undefined);
       }
     },
     [player, restartWithTracks, selectedAudioIndex, selectedQuality, subtitleStreams, selectedSubtitleIndex],
   );
+
+  const handleSubtitleSelect = useCallback(
+    (index: number | null) => {
+      userPickedSubtitleRef.current = true;
+      // Picking a native/server track (including Off) always drops any
+      // client-picked external subtitle - SubtitleOverlay renders at most
+      // one source at a time.
+      setExternalSubtitle(null);
+      // Text (non-burn-in) subtitles render client-side via SubtitleOverlay -
+      // no manifest change needed, so switching between them (or off) is
+      // instant with no session restart. Only PGS/VobSub tracks still need a
+      // restart: the server has to burn them into the video itself.
+      restartForSubtitleChange(index);
+      setSelectedSubtitleIndex(index);
+    },
+    [restartForSubtitleChange],
+  );
+
+  // Upload button in PlayerSettingsPanel: picks + converts a local subtitle
+  // file client-side (no server upload) and makes it the active subtitle,
+  // deselecting any server track the same way handleSubtitleSelect(null) does.
+  const handlePickExternalSubtitle = useCallback(async () => {
+    const picked = await pickExternalSubtitle();
+    if (!picked) return;
+    userPickedSubtitleRef.current = true;
+    restartForSubtitleChange(null);
+    setSelectedSubtitleIndex(null);
+    setExternalSubtitle({ name: picked.name, cues: parseVttCues(picked.vtt) });
+    setSettingsOpen(false);
+  }, [restartForSubtitleChange]);
+
+  // Re-selects an already-loaded external subtitle (e.g. after switching back
+  // from a server track) without re-picking the file.
+  const handleSelectExternalSubtitle = useCallback(() => {
+    if (!externalSubtitle) return;
+    userPickedSubtitleRef.current = true;
+    restartForSubtitleChange(null);
+    setSelectedSubtitleIndex(null);
+  }, [externalSubtitle, restartForSubtitleChange]);
 
   // The subtitle stream (if any) SubtitleOverlay should render client-side:
   // null when off, or when the current selection is a burn-in image track the
@@ -1072,6 +1119,7 @@ export default function PlayerScreen() {
           currentTimeSec={currentTime}
           offsetMs={subtitleOffsetMs}
           style={subtitleStyle}
+          externalCues={externalSubtitle?.cues ?? null}
         />
 
         {/* Invisible scrim under the settings panel: a tap outside the panel
@@ -1207,6 +1255,10 @@ export default function PlayerScreen() {
                 onSubtitleStyleChange={handleSubtitleStyleChange}
                 subtitleOffsetMs={subtitleOffsetMs}
                 onSubtitleOffsetChange={setSubtitleOffsetMs}
+                externalSubtitleName={externalSubtitle?.name ?? null}
+                externalSubtitleActive={!!externalSubtitle}
+                onPickExternalSubtitle={handlePickExternalSubtitle}
+                onSelectExternalSubtitle={handleSelectExternalSubtitle}
                 onClose={() => setSettingsOpen(false)}
                 style={{
                   position: "absolute",

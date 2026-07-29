@@ -13,6 +13,13 @@ interface SubtitleOverlayProps {
   currentTimeSec: number;
   offsetMs?: number;
   style: SubtitleStyle;
+  // Cues from a client-picked external file (upload button in
+  // PlayerSettingsPanel): when present, rendered instead of - and with
+  // priority over - any server subtitleIndex track, with no network fetch.
+  // Parsing (parseVttCues) happens once at pick time in the player screen;
+  // this component only applies the offset/style and does the active-cue
+  // lookup, same as it does for a server-fetched track.
+  externalCues?: SubtitleCue[] | null;
 }
 
 // Cached per (mediaId, subtitleIndex): switching back to an already-loaded
@@ -21,22 +28,25 @@ interface SubtitleOverlayProps {
 // same shape of problem (a VTT asset keyed by media/track).
 const cueCache = new Map<string, SubtitleCue[]>();
 
-function SubtitleOverlayImpl({ mediaId, subtitleIndex, currentTimeSec, offsetMs = 0, style }: SubtitleOverlayProps) {
+function SubtitleOverlayImpl({ mediaId, subtitleIndex, currentTimeSec, offsetMs = 0, style, externalCues = null }: SubtitleOverlayProps) {
   const { height: windowHeight } = useWindowDimensions();
-  const [cues, setCues] = useState<SubtitleCue[]>([]);
+  const [fetchedCues, setFetchedCues] = useState<SubtitleCue[]>([]);
 
   useEffect(() => {
+    // An external (client-picked) file skips the fetch entirely - its cues
+    // are already parsed and passed in directly.
+    if (externalCues) return;
     if (!mediaId || subtitleIndex === null) {
-      setCues([]);
+      setFetchedCues([]);
       return;
     }
     const key = `${mediaId}:${subtitleIndex}`;
     const cached = cueCache.get(key);
     if (cached) {
-      setCues(cached);
+      setFetchedCues(cached);
       return;
     }
-    setCues([]);
+    setFetchedCues([]);
     let cancelled = false;
     (async () => {
       try {
@@ -48,7 +58,7 @@ function SubtitleOverlayImpl({ mediaId, subtitleIndex, currentTimeSec, offsetMs 
         if (cancelled) return;
         const parsed = parseVttCues(text);
         cueCache.set(key, parsed);
-        setCues(parsed);
+        setFetchedCues(parsed);
       } catch (err) {
         console.warn("[subtitles] failed to load track for client-side rendering:", err);
       }
@@ -56,8 +66,9 @@ function SubtitleOverlayImpl({ mediaId, subtitleIndex, currentTimeSec, offsetMs 
     return () => {
       cancelled = true;
     };
-  }, [mediaId, subtitleIndex]);
+  }, [mediaId, subtitleIndex, externalCues]);
 
+  const cues = externalCues ?? fetchedCues;
   const shifted = useMemo(() => shiftCues(cues, offsetMs), [cues, offsetMs]);
   const activeIdx = useMemo(() => findActiveCueIndex(shifted, currentTimeSec), [shifted, currentTimeSec]);
 

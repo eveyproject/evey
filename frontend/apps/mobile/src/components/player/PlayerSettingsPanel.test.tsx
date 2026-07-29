@@ -58,6 +58,9 @@ vi.mock("../../providers/ThemeProvider", () => ({
 // just echo the raw key back and every accessibilityLabel assertion below
 // would be testing nothing.
 const TRANSLATIONS: Record<string, string> = {
+  "player.settings.subtitles": "Subtitles",
+  "player.settings.off": "Off",
+  "player.settings.uploadSubtitle": "Upload subtitle…",
   "player.settings.subtitleStyle": "Subtitle Style",
   "player.settings.subtitleSync": "Subtitle sync",
   "player.settings.subtitleSyncHint": "Positive = subtitles later. Applied instantly.",
@@ -101,6 +104,74 @@ const baseProps = {
   onBrightnessChange: vi.fn(),
   onClose: vi.fn(),
 };
+
+describe("PlayerSettingsPanel - external subtitle upload", () => {
+  it("hides the Subtitles entry entirely when there are no server tracks and no upload handler", () => {
+    const { queryByLabelText } = render(<PlayerSettingsPanel {...baseProps} />);
+    expect(queryByLabelText("Subtitles")).toBeNull();
+  });
+
+  it("shows the Subtitles entry (with only Off + Upload) when there are no server tracks but an upload handler is provided", () => {
+    const { getByLabelText, getByText } = render(
+      <PlayerSettingsPanel {...baseProps} onPickExternalSubtitle={vi.fn()} />,
+    );
+    fireEvent.click(getByLabelText("Subtitles"));
+    expect(getByText("Off")).toBeTruthy();
+    expect(getByText("Upload subtitle…")).toBeTruthy();
+  });
+
+  it("hides the Upload entry when onPickExternalSubtitle is not provided", () => {
+    const { getByLabelText, queryByText } = render(
+      <PlayerSettingsPanel {...baseProps} subtitleStreams={[{ index: 1, trackIndex: 0, language: "en" }]} />,
+    );
+    fireEvent.click(getByLabelText("Subtitles"));
+    expect(queryByText("Upload subtitle…")).toBeNull();
+  });
+
+  it("pressing Upload calls onPickExternalSubtitle and does not close the panel", () => {
+    const onPickExternalSubtitle = vi.fn();
+    const onClose = vi.fn();
+    const { getByLabelText } = render(
+      <PlayerSettingsPanel {...baseProps} onClose={onClose} onPickExternalSubtitle={onPickExternalSubtitle} />,
+    );
+    fireEvent.click(getByLabelText("Subtitles"));
+    fireEvent.click(getByLabelText("Upload subtitle…"));
+    expect(onPickExternalSubtitle).toHaveBeenCalledTimes(1);
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("lists the loaded external file as a selectable, checkable row", () => {
+    const onSelectExternalSubtitle = vi.fn();
+    const onClose = vi.fn();
+    const { getByLabelText, getByText } = render(
+      <PlayerSettingsPanel
+        {...baseProps}
+        onClose={onClose}
+        externalSubtitleName="movie.srt"
+        externalSubtitleActive={true}
+        onPickExternalSubtitle={vi.fn()}
+        onSelectExternalSubtitle={onSelectExternalSubtitle}
+      />,
+    );
+    fireEvent.click(getByLabelText("Subtitles"));
+    expect(getByText("movie.srt")).toBeTruthy();
+    fireEvent.click(getByLabelText("movie.srt"));
+    expect(onSelectExternalSubtitle).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the loaded file name as the current value when it is active and no server track is selected", () => {
+    const { getByLabelText } = render(
+      <PlayerSettingsPanel
+        {...baseProps}
+        externalSubtitleName="movie.srt"
+        externalSubtitleActive={true}
+        onPickExternalSubtitle={vi.fn()}
+      />,
+    );
+    expect(getByLabelText("Subtitles").textContent).toContain("movie.srt");
+  });
+});
 
 describe("PlayerSettingsPanel - subtitle style", () => {
   it("hides the Subtitle Style entry when onSubtitleStyleChange is not provided", () => {

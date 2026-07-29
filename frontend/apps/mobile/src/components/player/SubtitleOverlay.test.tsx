@@ -99,6 +99,52 @@ describe("SubtitleOverlay", () => {
     expect(styleAttr).toContain("rgba(30,58,95,0.5)");
   });
 
+  it("renders externalCues directly, without fetching", () => {
+    const externalCues = [{ start: 1, end: 3, text: "External line" }];
+    const { getByTestId } = render(
+      <SubtitleOverlay
+        mediaId="m6"
+        subtitleIndex={null}
+        currentTimeSec={2}
+        style={DEFAULT_SUBTITLE_STYLE}
+        externalCues={externalCues}
+      />,
+    );
+    expect(getByTestId("subtitle-text").textContent).toBe("External line");
+    expect(eveyFetchRawMock).not.toHaveBeenCalled();
+  });
+
+  it("prioritizes externalCues over a server subtitleIndex", () => {
+    const externalCues = [{ start: 1, end: 3, text: "External line" }];
+    const { getByTestId } = render(
+      <SubtitleOverlay
+        mediaId="m7"
+        subtitleIndex={3}
+        currentTimeSec={2}
+        style={DEFAULT_SUBTITLE_STYLE}
+        externalCues={externalCues}
+      />,
+    );
+    expect(getByTestId("subtitle-text").textContent).toBe("External line");
+    expect(eveyFetchRawMock).not.toHaveBeenCalled();
+  });
+
+  it("applies the resync offset to externalCues too", () => {
+    const externalCues = [{ start: 5, end: 7, text: "Second line" }];
+    // Same -1000ms shift as the fetched-cue offset test: 5-7s becomes 4-6s.
+    const { getByTestId } = render(
+      <SubtitleOverlay
+        mediaId="m8"
+        subtitleIndex={null}
+        currentTimeSec={4.5}
+        offsetMs={-1000}
+        style={DEFAULT_SUBTITLE_STYLE}
+        externalCues={externalCues}
+      />,
+    );
+    expect(getByTestId("subtitle-text").textContent).toBe("Second line");
+  });
+
   it("caches cues per (mediaId, subtitleIndex) - a second mount does not re-fetch", async () => {
     eveyFetchRawMock.mockResolvedValue({ text: () => Promise.resolve(VTT) });
     const { findByTestId, unmount } = render(
