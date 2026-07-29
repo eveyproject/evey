@@ -239,7 +239,7 @@ function NowPlayingCard({ session }: { session: V1ActiveSession }) {
                 receiver's audio_mode beacon rewrites audioDecision, so the
                 badge follows the REAL path in near real time. */}
             {session.audioDecision === "wasm" && session.videoDecision !== "transcode" ? (
-              <Badge variant="info">{t("admin.sessions.wasmAudio")}</Badge>
+              <Badge variant="info">{t("player.streamInfo.decisionWasm")}</Badge>
             ) : (
               <Badge variant={session.playMethod === "transcode" ? "warning" : "success"}>
                 {playMethodLabel(session.playMethod ?? "")}

@@ -475,7 +475,6 @@ sessions:
   directPlay: "डायरेक्ट प्ले"
   directStream: "डायरेक्ट स्ट्रीम"
   transcode: "ट्रांसकोड"
-  wasmAudio: "टीवी पर डिकोड किया गया ऑडियो (wasm)"
   track:
     video: "वीडियो"
     audio: "ऑडियो"
