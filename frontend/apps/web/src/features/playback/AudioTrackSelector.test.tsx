@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi } from "vitest";
 import { PlayerControls } from "./PlayerControls";
 import { PlayerProvider } from "./PlayerContext";
-import type { AudioStream } from "./AudioTrackSelector";
+import { formatAudioTrackLabel, formatChannelLayout, type AudioStream } from "./AudioTrackSelector";
 
 vi.mock("@/components/ui/Select", () => ({
   Select: () => null,
@@ -23,7 +23,7 @@ function createVideoRef() {
 }
 
 const audioStreams: AudioStream[] = [
-  { index: 0, trackIndex: 0, language: "eng", title: "English" },
+  { index: 0, trackIndex: 0, language: "eng", title: "English", channels: 6 },
   { index: 1, trackIndex: 1, language: "fra", title: "French" },
 ];
 
@@ -59,7 +59,7 @@ describe("AudioTrackSelector", () => {
     expect(screen.getByText("Audio")).toBeInTheDocument();
   });
 
-  it("renders available audio tracks in audio submenu", async () => {
+  it("renders available audio tracks in audio submenu, with the channel layout when known", async () => {
     const user = userEvent.setup();
     renderControls();
 
@@ -68,8 +68,44 @@ describe("AudioTrackSelector", () => {
 
     const buttons = screen.getAllByRole("button");
     const labels = buttons.map((b) => b.textContent);
-    expect(labels).toContain("English");
+    // 6 channels reads as 5.1; the track with no channel count stays bare.
+    expect(labels).toContain("English - 5.1");
     expect(labels).toContain("French");
+  });
+
+  describe("formatChannelLayout", () => {
+    it("maps the common counts to speaker-layout notation", () => {
+      expect(formatChannelLayout(1)).toBe("1.0");
+      expect(formatChannelLayout(2)).toBe("2.0");
+      expect(formatChannelLayout(6)).toBe("5.1");
+      expect(formatChannelLayout(8)).toBe("7.1");
+    });
+
+    it("falls back to a raw count rather than guessing an unknown layout", () => {
+      expect(formatChannelLayout(3)).toBe("3ch");
+      expect(formatChannelLayout(7)).toBe("7ch");
+    });
+
+    it("renders nothing when the count is missing or nonsensical", () => {
+      expect(formatChannelLayout(undefined)).toBe("");
+      expect(formatChannelLayout(0)).toBe("");
+      expect(formatChannelLayout(-2)).toBe("");
+    });
+  });
+
+  describe("formatAudioTrackLabel", () => {
+    it("prefers the title, then the language, then the caller's fallback", () => {
+      expect(formatAudioTrackLabel({ index: 0, trackIndex: 0, title: "Commentary", language: "eng" }, "Track 1"))
+        .toBe("Commentary");
+      expect(formatAudioTrackLabel({ index: 0, trackIndex: 0, language: "eng" }, "Track 1")).toBe("eng");
+      expect(formatAudioTrackLabel({ index: 0, trackIndex: 0 }, "Track 1")).toBe("Track 1");
+    });
+
+    it("appends the layout to whichever name was picked", () => {
+      expect(formatAudioTrackLabel({ index: 0, trackIndex: 0, language: "fra", channels: 8 }, "Track 1"))
+        .toBe("fra - 7.1");
+      expect(formatAudioTrackLabel({ index: 0, trackIndex: 0, channels: 2 }, "Track 1")).toBe("Track 1 - 2.0");
+    });
   });
 
   it("calls onAudioChange with selected track index", async () => {

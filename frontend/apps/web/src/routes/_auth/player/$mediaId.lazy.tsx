@@ -246,6 +246,7 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
           title: s.title,
           isDefault: s.isDefault,
           codec: s.codec,
+          channels: s.channels,
         })) ?? [],
     [streamInfo?.mediaStreams],
   );

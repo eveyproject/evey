@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { Check, ChevronLeft, ChevronRight, Settings, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import type { AudioStream } from "./AudioTrackSelector";
+import { formatAudioTrackLabel, type AudioStream } from "./AudioTrackSelector";
 import type { SubtitleStream } from "./SubtitleSelector";
 import type { SubtitleStyle } from "@/hooks/usePlaybackPrefs";
 import { SPEED_OPTIONS } from "./constants";
@@ -458,7 +458,7 @@ export function SettingsPanel({
                 </>
               )}
               {audioStreams.map((s) => {
-                const label = s.title ?? s.language ?? t("media.track", { number: s.index });
+                const label = formatAudioTrackLabel(s, t("media.track", { number: s.index }));
                 return (
                   <button
                     key={s.index}
