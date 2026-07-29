@@ -386,10 +386,11 @@ export class WasmAudioEngine {
   private adoptTimeline(segs: Segment[], keepPrefix = 0): void {
     this.segments = segs;
     this.timelineGen++;
-    for (const idx of [...this.decodedCache.keys()]) {
+    // Deleting during iteration is safe on JS Map/Set iterators.
+    for (const idx of this.decodedCache.keys()) {
       if (idx >= keepPrefix) this.decodedCache.delete(idx);
     }
-    for (const idx of [...this.scheduledIdx]) {
+    for (const idx of this.scheduledIdx) {
       if (idx >= keepPrefix) this.scheduledIdx.delete(idx);
     }
     this.inflight.clear();

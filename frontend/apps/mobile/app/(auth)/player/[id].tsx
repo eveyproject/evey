@@ -19,7 +19,6 @@ import { getDownloadPath } from "../../../src/lib/downloads";
 import { useTranslation } from "react-i18next";
 import { toast, useAuthStore } from "@evey/store";
 import { ICON_SIZE } from "@evey/theme";
-import { useTheme } from "../../../src/providers/ThemeProvider";
 import { BottomSheet } from "../../../src/components/BottomSheet";
 import {
   useLibraryServiceGetMediaItem,
@@ -82,7 +81,6 @@ const WATCHED_THRESHOLD = 0.9;
 export default function PlayerScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { t } = useTranslation();
-  const theme = useTheme();
   const { width: screenW, height: screenH } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const mediaId = id ?? "";
