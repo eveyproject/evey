@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuthStore } from "@evey/store";
 import { eveyFetch } from "@evey/api";
 import { useServerUrl } from "./useServerUrl";
@@ -221,17 +221,23 @@ export function useSyncplay(opts: UseSyncplayOptions) {
     }
   }, [state.roomId]);
 
-  return {
-    state,
-    connect,
-    leaveRoom,
-    // Sent unconditionally on local play/pause regardless of host status -
-    // the server is the sole enforcer of host-only authority (hub.go
-    // HandleCommand silently drops play/pause/seek from a non-host). This
-    // mirrors the web/mobile clients exactly: the local player always acts
-    // immediately on the user's own remote input, and the room command is
-    // just "try to also move the room", accepted or ignored server-side.
-    sendPlay: (ms: number) => send({ type: "play", positionMs: ms }),
-    sendPause: (ms: number) => send({ type: "pause", positionMs: ms }),
-  };
+  // Sent unconditionally on local play/pause regardless of host status - the
+  // server is the sole enforcer of host-only authority (hub.go HandleCommand
+  // silently drops play/pause/seek from a non-host). This mirrors the
+  // web/mobile clients exactly: the local player always acts immediately on
+  // the user's own remote input, and the room command is just "try to also
+  // move the room", accepted or ignored server-side.
+  const sendPlay = useCallback((ms: number) => send({ type: "play", positionMs: ms }), [send]);
+  const sendPause = useCallback((ms: number) => send({ type: "pause", positionMs: ms }), [send]);
+
+  // Memoised: the player screen feeds this object into the deps of its own
+  // useCallback for the remote's play/pause key. A fresh object (or fresh
+  // sendPlay/sendPause closures) every render would give that callback a new
+  // identity every render too, re-registering the TV key handler constantly -
+  // and this screen has already been bitten once by a double-firing select
+  // key, so handler churn is not somewhere to be casual.
+  return useMemo(
+    () => ({ state, connect, leaveRoom, sendPlay, sendPause }),
+    [state, connect, leaveRoom, sendPlay, sendPause],
+  );
 }
