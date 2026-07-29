@@ -344,12 +344,13 @@ export default function HomeScreen() {
     ),
   });
 
-  const isLoading =
-    resume.isLoading ||
-    nextUp.isLoading ||
-    recentlyAdded.isLoading ||
-    libraries.isLoading ||
-    libraryRowQueries.some((q) => q.isLoading);
+  // Deliberately NOT waiting on the per-library rows: on the weak-NAS target
+  // those are up to six extra queries, and gating the whole screen on the
+  // slowest one turns the home into a long blank spinner. The three transverse
+  // rows paint as soon as they are ready and library rows fill in behind them.
+  // Focus is safe either way: the hero wins it whenever anything was recently
+  // added, so a row arriving late cannot steal it.
+  const isLoading = resume.isLoading || nextUp.isLoading || recentlyAdded.isLoading;
 
   const watchPercents = useMemo(() => {
     const map: Record<string, number> = {};

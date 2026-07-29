@@ -225,8 +225,8 @@ describe("HomeScreen per-library rows", () => {
     librariesMock.mockReturnValue({
       data: {
         libraries: [
-          { id: "lib-1", name: "Movies" },
-          { id: "lib-2", name: "Empty Library" },
+          { id: "lib-1", name: "Movies", type: "LIBRARY_TYPE_MOVIES" },
+          { id: "lib-2", name: "Empty Library", type: "LIBRARY_TYPE_SHOWS" },
         ],
       },
       isLoading: false,

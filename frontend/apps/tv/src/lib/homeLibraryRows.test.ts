@@ -1,8 +1,9 @@
 import { describe, it, expect } from "vitest";
+import type { V1LibraryType } from "@evey/api";
 import { selectHomeLibraryRows, MAX_HOME_LIBRARY_ROWS } from "./homeLibraryRows";
 
-function lib(id: string, name: string) {
-  return { id, name };
+function lib(id: string, name: string, type: V1LibraryType = "LIBRARY_TYPE_MOVIES") {
+  return { id, name, type };
 }
 
 describe("selectHomeLibraryRows", () => {
@@ -19,12 +20,33 @@ describe("selectHomeLibraryRows", () => {
   });
 
   it("skips a library missing an id (cannot be queried)", () => {
-    const libraries = [lib("lib-1", "Movies"), { name: "No Id" }];
+    const libraries = [lib("lib-1", "Movies"), { name: "No Id", type: "LIBRARY_TYPE_MOVIES" as V1LibraryType }];
     expect(selectHomeLibraryRows(libraries)).toEqual([{ id: "lib-1", name: "Movies" }]);
   });
 
+  // A row card navigates to the VIDEO detail screen, so only the types that
+  // screen fits get a row. Photos have their own screen, music its own tab,
+  // and books no screen at all - sending a viewer there would be a dead end.
+  it("only rows movie and show libraries", () => {
+    const libraries = [
+      lib("lib-mov", "Films", "LIBRARY_TYPE_MOVIES"),
+      lib("lib-pho", "Photos", "LIBRARY_TYPE_PHOTOS"),
+      lib("lib-mus", "Musique", "LIBRARY_TYPE_MUSIC"),
+      lib("lib-boo", "Livres", "LIBRARY_TYPE_BOOKS"),
+      lib("lib-sho", "Séries", "LIBRARY_TYPE_SHOWS"),
+    ];
+    expect(selectHomeLibraryRows(libraries)).toEqual([
+      { id: "lib-mov", name: "Films" },
+      { id: "lib-sho", name: "Séries" },
+    ]);
+  });
+
+  it("skips a library with no type rather than guessing it is video", () => {
+    expect(selectHomeLibraryRows([{ id: "lib-1", name: "Mystery" }])).toEqual([]);
+  });
+
   it("skips a library missing a name (cannot be labeled)", () => {
-    const libraries = [lib("lib-1", "Movies"), { id: "lib-2" }];
+    const libraries = [lib("lib-1", "Movies"), { id: "lib-2", type: "LIBRARY_TYPE_MOVIES" as V1LibraryType }];
     expect(selectHomeLibraryRows(libraries)).toEqual([{ id: "lib-1", name: "Movies" }]);
   });
 
