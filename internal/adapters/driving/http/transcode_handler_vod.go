@@ -802,6 +802,18 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 	if err := producer.EnsureSegmentRange(r.Context(), fp, variantIdx, ensureSeg); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "ensure segment range")
+		if errors.Is(err, apptranscoding.ErrRungBusy) {
+			// A cross-rung ABR probe while the viewer's rung is actively
+			// encoding: answered FAST so the player abandons the up-switch
+			// (Shaka blacklists the variant briefly) instead of hanging the
+			// wait budget and churning the active encoder (prod 2026-07-29).
+			slog.InfoContext(r.Context(), "hls-vod: refusing cross-rung probe, active rung protected",
+				slog.String("media_id", mediaID),
+				slog.Int("variant", variantIdx),
+				slog.Int("seg", segmentIdx))
+			writeTooManyStreams(w, 5, "another rung of this title is actively encoding")
+			return
+		}
 		if errors.Is(err, apptranscoding.ErrCapacityExceeded) {
 			// Host at its global transcode cap (hardware path) - shed load
 			// gracefully. hls.js retries a 503 on a fragment fetch, so playback

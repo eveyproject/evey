@@ -586,6 +586,33 @@ func (p *SoftwareProducer) EnsureSegmentRange(ctx context.Context, fp DecisionFi
 		return nil
 	}
 
+	// Cross-rung spawn guard: while at the per-hash cap with every sibling
+	// HOT and ESTABLISHED (past the newborn shield - startup probes all rungs
+	// at once and must keep coexisting, cf the 2026-07-15 spinner) and NONE
+	// serving the requested rung, refuse the newcomer instead of letting the
+	// cap evict a hot encoder (see ErrRungBusy). Same-rung newcomers
+	// (multi-viewer, deep forward seeks) keep the spawn-alongside behaviour.
+	p.mu.Lock()
+	if len(p.sessions[hash]) >= p.opts.MaxSessionsPerHash {
+		now := time.Now()
+		allHotEstablished, sameRung := true, false
+		for _, sib := range p.sessions[hash] {
+			sib.mu.Lock()
+			if p.newbornLocked(sib, now) || now.Sub(sib.lastAccess) > activeRungWindow {
+				allHotEstablished = false
+			}
+			sib.mu.Unlock()
+			if sib.variantIdx == variantIdx {
+				sameRung = true
+			}
+		}
+		if allHotEstablished && !sameRung {
+			p.mu.Unlock()
+			return ErrRungBusy
+		}
+	}
+	p.mu.Unlock()
+
 	// Nothing reaches this position in time: either no session covers it, or the
 	// closest-behind one is a forward seek away (its frontier is too far below).
 	// Start a fresh encoder seeking (`-ss`) to segmentIdx, ALONGSIDE any existing
@@ -969,6 +996,20 @@ func (p *SoftwareProducer) PreWarm(fp DecisionFingerprint, variantIdx, startSegI
 		}
 	})
 }
+
+// ErrRungBusy refuses a cross-rung spawn while every live sibling encoder of
+// the hash is actively serving another rung. An ABR up-switch probe used to
+// spawn a second encoder, hit the per-hash cap and evict the rung the viewer
+// was WATCHING (lru_cap kill/respawn every ~20s, prod 2026-07-29 on a 4K
+// source). A weak host cannot encode two rungs of one title at once: the
+// probe gets a FAST 503 and the player stays on its rung.
+var ErrRungBusy = errors.New("software: another rung of this title is actively encoding")
+
+// activeRungWindow is how recently a sibling must have been accessed to count
+// as "actively serving". Comfortably above the segment cadence (a watched
+// rung is touched every few seconds); an abandoned rung falls idle within it,
+// so a DELIBERATE quality switch spawns normally after one window.
+const activeRungWindow = 10 * time.Second
 
 // touch bumps lastAccess on the session covering segmentIdx (cache-hit path) so
 // the GC doesn't reap a session whose segments are still being consumed from

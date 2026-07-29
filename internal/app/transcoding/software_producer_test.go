@@ -1238,3 +1238,71 @@ func TestSoftwareProducer_SweepIdle_ReclaimsFullyIdleHash(t *testing.T) {
 	_, err := os.Stat(hashDir)
 	require.True(t, os.IsNotExist(err), "a fully idle hash must still be reclaimed by the sweep")
 }
+
+// ============================================================================
+// Cross-rung spawn guard
+// ============================================================================
+
+// An ABR up-switch probe used to SPAWN a second encoder for another rung, hit
+// the per-hash cap and evict the rung the viewer was WATCHING - lru_cap
+// kill/respawn every ~20s all film long (prod 2026-07-29, 4K source). While
+// every live sibling is HOT and none serves the requested rung, the newcomer
+// is refused FAST: the player's probe gets its 503 immediately and stays on
+// its rung; the viewer's encoder is never yanked.
+func TestSoftwareProducer_HotSiblingRungRefusesACrossRungSpawn(t *testing.T) {
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess()
+	opts := swTestOpts()
+	opts.MaxSessionsPerHash = 1
+	p := NewSoftwareProducer(cache, proc, stubSource{path: "/m.mkv"}, opts, discardLogger())
+	defer p.Close()
+
+	fp := threeRungFingerprint(t)
+	hash := fp.Hash()
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 0))
+	require.Equal(t, 1, proc.startCount())
+	// Establish the viewer's rung: past the newborn shield, freshly accessed.
+	p.mu.Lock()
+	for _, s := range p.sessions[hash] {
+		s.mu.Lock()
+		s.spawnedAt = s.spawnedAt.Add(-time.Hour)
+		s.lastAccess = time.Now()
+		s.mu.Unlock()
+	}
+	p.mu.Unlock()
+
+	// The viewer's rung is HOT and ESTABLISHED: the probe is refused.
+	err := p.EnsureSegmentRange(context.Background(), fp, 2, 0)
+	require.ErrorIs(t, err, ErrRungBusy, "a cross-rung probe must not evict a hot encoder")
+	assert.Equal(t, 1, proc.startCount(), "no second encoder was spawned")
+	assert.Equal(t, 1, p.ActiveSessionCount())
+
+	// Once the sibling has gone idle past the protection window, a cross-rung
+	// request is a genuine switch: normal spawn (and LRU eviction) applies.
+	p.mu.Lock()
+	for _, s := range p.sessions[hash] {
+		s.mu.Lock()
+		s.lastAccess = s.lastAccess.Add(-time.Hour)
+		s.spawnedAt = s.spawnedAt.Add(-time.Hour)
+		s.mu.Unlock()
+	}
+	p.mu.Unlock()
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 2, 0))
+	assert.Equal(t, 2, proc.startCount(), "idle sibling: the rung switch spawns normally")
+}
+
+// The guard is CROSS-rung only: a same-variant deep forward seek keeps
+// today's spawn-alongside behaviour even while the sibling is hot.
+func TestSoftwareProducer_SameRungSeekStillSpawnsWhileHot(t *testing.T) {
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess()
+	opts := swTestOpts()
+	opts.MaxSessionsPerHash = 2
+	p := NewSoftwareProducer(cache, proc, stubSource{path: "/m.mkv"}, opts, discardLogger())
+	defer p.Close()
+
+	fp := minimalFingerprint(t)
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 0))
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 500))
+	assert.Equal(t, 2, proc.startCount(), "a deep same-rung seek spawns alongside, hot or not")
+}
