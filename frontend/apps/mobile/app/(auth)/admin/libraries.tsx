@@ -731,9 +731,9 @@ export default function AdminLibrariesScreen() {
                         <Ionicons
                           name={(TYPE_ICONS[lt.value] ?? "folder-outline") as never}
                           size={16}
-                          color={selected ? "#fff" : theme.colors.textMuted}
+                          color={selected ? theme.colors.onAccent : theme.colors.textMuted}
                         />
-                        <Text style={{ color: selected ? "#fff" : theme.colors.text, fontSize: 13 }}>
+                        <Text style={{ color: selected ? theme.colors.onAccent : theme.colors.text, fontSize: 13 }}>
                           {t(lt.labelKey) || lt.fallback}
                         </Text>
                       </Pressable>

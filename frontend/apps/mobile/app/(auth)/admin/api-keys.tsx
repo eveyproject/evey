@@ -234,7 +234,7 @@ export default function AdminAPIKeysScreen() {
             disabled={createKey.isPending || !keyName.trim()}
             style={[styles.createBtn, { backgroundColor: theme.colors.accent, borderRadius: theme.radii.md, opacity: !keyName.trim() ? 0.5 : 1 }]}
           >
-            <Text style={{ color: "#fff", fontWeight: "600" }}>{t("common.create")}</Text>
+            <Text style={{ color: theme.colors.onAccent, fontWeight: "600" }}>{t("common.create")}</Text>
           </Pressable>
         </View>
       </Modal>

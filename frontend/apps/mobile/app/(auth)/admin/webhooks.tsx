@@ -374,7 +374,7 @@ export default function AdminWebhooksScreen() {
             disabled={createWebhook.isPending || updateWebhook.isPending || !formUrl.trim()}
             style={[styles.submitBtn, { backgroundColor: theme.colors.accent, borderRadius: theme.radii.md, opacity: !formUrl.trim() ? 0.5 : 1 }]}
           >
-            <Text style={{ color: "#fff", fontWeight: "600" }}>
+            <Text style={{ color: theme.colors.onAccent, fontWeight: "600" }}>
               {editTarget ? t("common.save", "Save") : t("common.create", "Create")}
             </Text>
           </Pressable>

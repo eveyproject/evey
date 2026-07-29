@@ -19,6 +19,7 @@ import {
   eveyFetch,
 } from "@evey/api";
 import type { V1User, V1InviteLink } from "@evey/api";
+import { onColor } from "@evey/theme";
 import { toast, useAuthStore } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
@@ -491,7 +492,7 @@ export default function AdminUsersScreen() {
           )}
           {item.enabled === false && (
             <View style={{ backgroundColor: theme.colors.textMuted, borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1 }}>
-              <Text style={{ color: "#fff", fontSize: 9, fontWeight: "700" }}>DISABLED</Text>
+              <Text style={{ color: onColor(theme.colors.textMuted), fontSize: 9, fontWeight: "700" }}>DISABLED</Text>
             </View>
           )}
         </View>

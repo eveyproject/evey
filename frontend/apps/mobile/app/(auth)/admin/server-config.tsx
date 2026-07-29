@@ -281,7 +281,7 @@ export default function AdminServerConfigScreen() {
             disabled={updateConfig.isPending}
             style={[s.saveBtn, { opacity: updateConfig.isPending ? 0.5 : 1 }]}
           >
-            <Text style={{ color: "#fff", fontWeight: "600", fontSize: 15 }}>{t("common.save")}</Text>
+            <Text style={{ color: theme.colors.onAccent, fontWeight: "600", fontSize: 15 }}>{t("common.save")}</Text>
           </Pressable>
 
           {/* API Keys section */}
@@ -342,7 +342,7 @@ export default function AdminServerConfigScreen() {
                       disabled={saveConfigEntry.isPending}
                       style={[s.saveBtn, { flex: 1, marginTop: 0, opacity: saveConfigEntry.isPending ? 0.5 : 1 }]}
                     >
-                      <Text style={{ color: "#fff", fontWeight: "600", fontSize: 14 }}>{t("common.save")}</Text>
+                      <Text style={{ color: theme.colors.onAccent, fontWeight: "600", fontSize: 14 }}>{t("common.save")}</Text>
                     </Pressable>
                     {current && (
                       <Pressable
@@ -618,9 +618,9 @@ export default function AdminServerConfigScreen() {
                 style={[s.saveBtn, { opacity: !settingsDirty || saveMutation.isPending ? 0.5 : 1 }]}
               >
                 {saveMutation.isPending ? (
-                  <ActivityIndicator size="small" color="#fff" />
+                  <ActivityIndicator size="small" color={theme.colors.onAccent} />
                 ) : (
-                  <Text style={{ color: "#fff", fontWeight: "600", fontSize: 15 }}>{t("common.save")}</Text>
+                  <Text style={{ color: theme.colors.onAccent, fontWeight: "600", fontSize: 15 }}>{t("common.save")}</Text>
                 )}
               </Pressable>
             </>

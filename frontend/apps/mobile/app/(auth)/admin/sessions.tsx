@@ -122,7 +122,7 @@ function TrackBadges({ session, theme, t }: {
           <View key={r.id} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
             <Ionicons name={r.icon} size={11} color={theme.colors.textMuted} />
             <Text style={{ color: theme.colors.text, fontSize: 10 }}>{r.kind}:</Text>
-            <View style={[styles.badge, { backgroundColor: isTranscode ? "#f59e0b20" : "#22c55e20" }]}>
+            <View style={[styles.badge, { backgroundColor: isTranscode ? `${theme.colors.warning}20` : `${theme.colors.success}20` }]}>
               <Text style={{ fontSize: 9, fontWeight: "600", color: isTranscode ? theme.colors.warning : theme.colors.success }}>
                 {decLabel}
               </Text>
@@ -198,7 +198,7 @@ function SessionCard({ session, theme, t, onKill, onCommand }: {
       <View style={styles.badgeRow}>
         <View style={[
           styles.badge,
-          { backgroundColor: session.playMethod === "transcode" ? "#f59e0b20" : "#22c55e20" },
+          { backgroundColor: session.playMethod === "transcode" ? `${theme.colors.warning}20` : `${theme.colors.success}20` },
         ]}>
           <Text style={{
             fontSize: 10,
@@ -231,7 +231,7 @@ function SessionCard({ session, theme, t, onKill, onCommand }: {
       {/* User + device + controls */}
       <View style={styles.userRow}>
         <View style={[styles.avatar, { backgroundColor: theme.colors.accent }]}>
-          <Text style={{ color: "#fff", fontWeight: "700", fontSize: 13 }}>
+          <Text style={{ color: theme.colors.onAccent, fontWeight: "700", fontSize: 13 }}>
             {(session.profileName ?? "?").charAt(0).toUpperCase()}
           </Text>
         </View>

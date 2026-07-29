@@ -60,7 +60,7 @@ vi.mock("../../../src/providers/ThemeProvider", () => ({
   useTheme: () => ({
     colors: {
       bg: "#000", surface: "#111", surfaceRaised: "#222", text: "#fff",
-      textMuted: "#888", accent: "#f00", error: "#e00", border: "#333",
+      textMuted: "#888", accent: "#f00", error: "#e00", border: "#333", onAccent: "#fff",
     },
     radii: { sm: 4, md: 8, lg: 12 },
   }),

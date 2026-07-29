@@ -386,7 +386,7 @@ export default function AdminActivityScreen() {
               },
             ]}
           >
-            <Text style={{ color: tab === id ? "#fff" : theme.colors.textMuted, fontSize: 13, fontWeight: "600" }}>
+            <Text style={{ color: tab === id ? theme.colors.onAccent : theme.colors.textMuted, fontSize: 13, fontWeight: "600" }}>
               {label}
             </Text>
           </Pressable>

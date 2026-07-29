@@ -421,7 +421,7 @@ function makeStyles(theme: ReturnType<typeof useTheme>) {
       paddingHorizontal: 6,
       paddingVertical: 2,
     },
-    lockText: { color: "#000", fontSize: 10, fontWeight: "700" },
+    lockText: { color: theme.colors.onWarning, fontSize: 10, fontWeight: "700" },
     segSource: { color: theme.colors.textMuted, fontSize: 11 },
     inputRow: { flexDirection: "row", gap: 12, marginBottom: 12 },
     inputGroup: { flex: 1 },

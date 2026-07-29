@@ -330,11 +330,11 @@ export default function AdminBackupScreen() {
         style={[styles.createBtn, { backgroundColor: theme.colors.accent, borderRadius: theme.radii.md, opacity: createBackup.isPending ? 0.6 : 1 }]}
       >
         {createBackup.isPending ? (
-          <ActivityIndicator size="small" color="#fff" />
+          <ActivityIndicator size="small" color={theme.colors.onAccent} />
         ) : (
-          <Ionicons name="add-circle-outline" size={20} color="#fff" />
+          <Ionicons name="add-circle-outline" size={20} color={theme.colors.onAccent} />
         )}
-        <Text style={{ color: "#fff", fontSize: 15, fontWeight: "600" }}>
+        <Text style={{ color: theme.colors.onAccent, fontSize: 15, fontWeight: "600" }}>
           {t("admin.backup.createBackup")}
         </Text>
       </Pressable>

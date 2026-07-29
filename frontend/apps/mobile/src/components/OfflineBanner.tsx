@@ -36,8 +36,8 @@ function OfflineBannerImpl() {
       accessibilityLiveRegion="polite"
       accessibilityLabel={t("common.offline.title", "Offline")}
     >
-      <Ionicons name="cloud-offline-outline" size={ICON_SIZE.sm} color="#fff" />
-      <Text style={styles.text}>{t("common.offline.title", "Offline")}</Text>
+      <Ionicons name="cloud-offline-outline" size={ICON_SIZE.sm} color={theme.colors.onWarning} />
+      <Text style={[styles.text, { color: theme.colors.onWarning }]}>{t("common.offline.title", "Offline")}</Text>
     </View>
   );
 }
@@ -62,7 +62,6 @@ const styles = StyleSheet.create({
     elevation: 1000,
   },
   text: {
-    color: "#fff",
     fontSize: FONT_SIZE.xs,
     fontWeight: "600",
   },
