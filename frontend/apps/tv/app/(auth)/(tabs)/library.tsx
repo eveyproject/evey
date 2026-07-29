@@ -92,6 +92,16 @@ export default function LibraryScreen() {
         >
           <Text style={[styles.linkText, { color: theme.colors.accent }]}>{t("common.playlists")}</Text>
         </FocusableCard>
+        {/* Genres sits here rather than in the sidebar: the genre screens live
+            outside the (tabs) group, so a sidebar entry pointing at them would
+            make the sidebar itself disappear on arrival. Collections and
+            Playlists are reached the same way for the same reason. */}
+        <FocusableCard
+          onPress={() => router.push("/(auth)/genres")}
+          style={[styles.linkCard, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
+        >
+          <Text style={[styles.linkText, { color: theme.colors.accent }]}>{t("common.nav.genres")}</Text>
+        </FocusableCard>
       </View>
 
       <FlatList
