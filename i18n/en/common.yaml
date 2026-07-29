@@ -74,6 +74,7 @@ readMore: Read more
 noPoster: No poster
 noItems: No items
 noCollections: No collections
+noGenres: No genres yet
 playlists: Playlists
 noPlaylists: No playlists
 addToPlaylist: Add to Playlist
@@ -157,6 +158,7 @@ userStats:
 nav:
   home: Home
   libraries: Libraries
+  genres: Genres
   photos: Photos
   favorites: Favorites
   requests: Requests

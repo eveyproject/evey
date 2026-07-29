@@ -141,6 +141,7 @@ userStats:
 nav:
   home: "Inicio"
   libraries: "Bibliotecas"
+  genres: "Géneros"
   photos: "Fotos"
   favorites: "Favoritos"
   requests: "Solicitudes"
@@ -198,6 +199,7 @@ readMore: Leer más
 noPoster: Sin póster
 noItems: Sin elementos
 noCollections: Sin colecciones
+noGenres: Sin géneros todavía
 playlists: Playlists
 collections: Colecciones
 loadError: Error al cargar

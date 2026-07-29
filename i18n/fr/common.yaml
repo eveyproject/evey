@@ -141,6 +141,7 @@ userStats:
 nav:
   home: "Accueil"
   libraries: "Bibliothèques"
+  genres: "Genres"
   photos: "Photos"
   favorites: "Favoris"
   requests: "Demandes"
@@ -198,6 +199,7 @@ readMore: Lire la suite
 noPoster: Pas d'affiche
 noItems: Aucun élément
 noCollections: Aucune collection
+noGenres: Aucun genre pour le moment
 playlists: Playlists
 collections: Collections
 loadError: Échec du chargement

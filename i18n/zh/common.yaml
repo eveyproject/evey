@@ -141,6 +141,7 @@ userStats:
 nav:
   home: "首页"
   libraries: "媒体库"
+  genres: "类型"
   photos: "照片"
   favorites: "收藏"
   requests: "请求"
@@ -198,6 +199,7 @@ readMore: 阅读更多
 noPoster: 无海报
 noItems: 没有项目
 noCollections: 没有合集
+noGenres: 暂无类型
 playlists: 播放列表
 collections: 合集
 loadError: 加载失败

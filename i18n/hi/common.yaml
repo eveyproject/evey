@@ -141,6 +141,7 @@ userStats:
 nav:
   home: "होम"
   libraries: "लाइब्रेरी"
+  genres: "जॉनर"
   photos: "फ़ोटो"
   favorites: "पसंदीदा"
   requests: "अनुरोध"
@@ -198,6 +199,7 @@ readMore: और पढ़ें
 noPoster: कोई पोस्टर नहीं
 noItems: कोई आइटम नहीं
 noCollections: कोई संग्रह नहीं
+noGenres: अभी तक कोई जॉनर नहीं
 playlists: प्लेलिस्ट
 collections: संग्रह
 loadError: लोड करने में विफल
