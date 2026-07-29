@@ -121,6 +121,58 @@ export function absoluteWithToken(url: string, baseUrl: string, token: string): 
   }
 }
 
+// createStartGate synchronises the visible START of a wasm-audio cast: the
+// video-only master gives CAF nothing to wait for, so the picture used to
+// start 1-2s before the audio engine had its first decoded segment - a silent
+// start the muxed-AAC master never had (CAF holds until BOTH tracks are
+// ready). The gate holds autoplay until the engine reports its first decoded
+// audio, with a hard timeout so a broken audio path can never hold the
+// picture hostage. Pure state machine, injected timers, exported for tests.
+export interface StartGate {
+  // arm is called at LOAD interception (autoplay was stripped): starts the
+  // safety timeout.
+  arm(): void;
+  // audioReady releases the gate (first audio decoded).
+  audioReady(): void;
+  // skip releases immediately (the server did not take the wasm path, or the
+  // engine cannot run): nothing to wait for.
+  skip(): void;
+  // cancel disarms without playing (a NEW load superseded this one - its own
+  // request carries its own autoplay).
+  cancel(): void;
+}
+
+export function createStartGate(
+  play: () => void,
+  timeoutMs: number,
+  setTimer: (fn: () => void, ms: number) => ReturnType<typeof setTimeout> = setTimeout,
+  clearTimer: (t: ReturnType<typeof setTimeout>) => void = clearTimeout,
+): StartGate {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let released = false;
+  const release = () => {
+    if (released) return;
+    released = true;
+    if (timer !== null) clearTimer(timer);
+    timer = null;
+    play();
+  };
+  return {
+    arm() {
+      released = false;
+      if (timer !== null) clearTimer(timer);
+      timer = setTimer(release, timeoutMs);
+    },
+    audioReady: release,
+    skip: release,
+    cancel() {
+      released = true;
+      if (timer !== null) clearTimer(timer);
+      timer = null;
+    },
+  };
+}
+
 // buildPlayerEventUrl derives the telemetry endpoint from the casted stream
 // URL: same origin, same media id, same stream token (the receiver's only
 // identity - the server pins that token to its own media). Null for

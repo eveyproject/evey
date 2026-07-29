@@ -10,7 +10,7 @@
 //      silently, which is what made cast incidents undiagnosable.
 import { WasmAudioEngine } from "@/features/playback/wasmaudio/WasmAudioEngine";
 import { extractAacAudioURI, extractAudioURI } from "@/features/playback/wasmaudio/wasmAudioShared";
-import { absoluteWithToken, buildPlayerEventUrl, probeReceiverCaps, rewriteCastMasterUrl, stripWasmAudio } from "./receiverLogic";
+import { absoluteWithToken, buildPlayerEventUrl, createStartGate, probeReceiverCaps, rewriteCastMasterUrl, stripWasmAudio } from "./receiverLogic";
 import { createAliveHeartbeat, postPlayerEvent, postPlayerEventQuery, readHeapMB } from "./receiverBeacon";
 
 // The CAF SDK is loaded by a gstatic <script> in the page; its types are
@@ -53,6 +53,15 @@ function cancelEndShutdown(): void {
 // (the start is async and runs in parallel with the CAF load).
 let loadGen = 0;
 let engineStarting = false;
+// Start gate: hold the picture until the audio engine has its first decoded
+// segment, so the cast starts sound+image TOGETHER (the video-only master
+// gives CAF nothing to wait for; without this the first 1-2s play silent).
+// The 4s timeout means a broken audio path degrades to the old behaviour.
+const startGate = createStartGate(() => {
+  try {
+    playerManager.play();
+  } catch { /* torn down */ }
+}, 4000);
 
 // Warmup: download (HTTP cache) and COMPILE (V8 code cache, keyed by URL,
 // exploited by the worker's instantiateStreaming) the decoder during the
@@ -171,6 +180,7 @@ function fallbackToMuxedAudio(reason: string): void {
   if (!wasmRequested) return;
   wasmRequested = false;
   wasmDisabled = true;
+  startGate.cancel(); // the AAC reload below carries its own autoplay
   destroyEngine();
   showDebug(`wasm audio indisponible (${reason}) - repli AAC`);
   reportEvent("cast_receiver_wasm_fallback", reason);
@@ -226,8 +236,10 @@ async function startWasmEngine(): Promise<void> {
     const audioUri = extractAudioURI(masterText);
     if (!audioUri) {
       // The server did not take the wasm path (non-Dolby track): the master
-      // served is already muxed AAC, nothing to do.
+      // served is already muxed AAC, nothing to do - and nothing to hold the
+      // start for.
       wasmRequested = false;
+      startGate.skip();
       return;
     }
     const playlistUrl = new URL(audioUri, url).toString();
@@ -246,6 +258,8 @@ async function startWasmEngine(): Promise<void> {
       // Every relay transition lands in the server logs: the next cast names
       // its audio path (aac -> wasm, or aac-latched) without a TV screenshot.
       onModeChange: (mode) => reportEvent("cast_receiver_audio_mode", mode),
+      // Releases the start gate: picture and sound begin together.
+      onFirstAudio: () => startGate.audioReady(),
       // Audio-lead compensation: a TV's display pipeline delays the picture
       // much more than the engine's 0.1s desktop figure - measured ~0.5-0.6s
       // of audio lead on the Mi TV (2026-07-25). Value to calibrate from user
@@ -282,6 +296,7 @@ playerManager.setMessageInterceptor(
 
 function interceptLoad(request: any): any {
     loadGen++;
+    startGate.cancel(); // a new LOAD carries its own autoplay
     destroyEngine();
     cancelEndShutdown();
     showDebug("");
@@ -319,8 +334,14 @@ function interceptLoad(request: any): any {
       media.hlsVideoSegmentFormat = cast.framework.messages.HlsVideoSegmentFormat.FMP4;
       currentUrl = rewritten.url;
       wasmRequested = rewritten.wasmAudio;
-      // EARLY start of the audio engine, in parallel with the CAF load.
-      if (wasmRequested) void startWasmEngine();
+      if (wasmRequested) {
+        // Hold the visible start until the engine's first decoded segment
+        // (or the gate's timeout): sound and picture begin together.
+        request.autoplay = false;
+        startGate.arm();
+        // EARLY start of the audio engine, in parallel with the CAF load.
+        void startWasmEngine();
+      }
     } else {
       currentUrl = rawUrl;
       wasmRequested = false;

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { absoluteWithToken, buildPlayerEventUrl, probeReceiverCaps, rewriteCastMasterUrl, stripWasmAudio, type CanDisplayType } from "./receiverLogic";
+import { absoluteWithToken, buildPlayerEventUrl, createStartGate, probeReceiverCaps, rewriteCastMasterUrl, stripWasmAudio, type CanDisplayType } from "./receiverLogic";
 
 // Fake canDisplayType: allows what `yes` lists (substring match on the
 // codec string), refuses the rest. 4K resolution is only granted if
@@ -171,5 +171,60 @@ describe("buildPlayerEventUrl - the receiver's telemetry door", () => {
     expect(buildPlayerEventUrl("https://example.com/video.mp4")).toBeNull();
     expect(buildPlayerEventUrl("https://evey.example/api/v1/media/m1/hls/master.m3u8")).toBeNull();
     expect(buildPlayerEventUrl("not a url")).toBeNull();
+  });
+});
+
+describe("createStartGate", () => {
+  const mk = () => {
+    const calls: string[] = [];
+    let armed: (() => void) | null = null;
+    const gate = createStartGate(
+      () => calls.push("play"),
+      4000,
+      (fn) => { armed = fn; return 1 as unknown as ReturnType<typeof setTimeout>; },
+      () => { armed = null; },
+    );
+    return { gate, calls, fireTimeout: () => armed?.() };
+  };
+
+  it("plays once when the audio is ready, and never twice", () => {
+    const { gate, calls, fireTimeout } = mk();
+    gate.arm();
+    gate.audioReady();
+    gate.audioReady();
+    fireTimeout();
+    expect(calls).toEqual(["play"]);
+  });
+
+  it("the safety timeout releases a start whose audio never came", () => {
+    const { gate, calls, fireTimeout } = mk();
+    gate.arm();
+    fireTimeout();
+    expect(calls).toEqual(["play"]);
+  });
+
+  it("skip releases immediately (server did not take the wasm path)", () => {
+    const { gate, calls } = mk();
+    gate.arm();
+    gate.skip();
+    expect(calls).toEqual(["play"]);
+  });
+
+  it("cancel disarms without playing (a new LOAD supersedes)", () => {
+    const { gate, calls, fireTimeout } = mk();
+    gate.arm();
+    gate.cancel();
+    gate.audioReady();
+    fireTimeout();
+    expect(calls).toEqual([]);
+  });
+
+  it("re-arm after a cancel serves the next load", () => {
+    const { gate, calls } = mk();
+    gate.arm();
+    gate.cancel();
+    gate.arm();
+    gate.audioReady();
+    expect(calls).toEqual(["play"]);
   });
 });

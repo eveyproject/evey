@@ -75,6 +75,11 @@ export interface WasmAudioEngineOptions {
   // onModeChange reports relay leg transitions ("aac", "wasm", "aac-latched")
   // - telemetry only, no behaviour.
   onModeChange?: (mode: string) => void;
+  // onFirstAudio fires ONCE, when the first segment lands in the decode cache
+  // - i.e. the engine can produce sound the moment the picture advances. The
+  // cast receiver holds the video start on it so picture and sound begin
+  // together, like the muxed master did.
+  onFirstAudio?: () => void;
   leadCompensationSec?: number;
   // Credentials for playlist/segment fetches. The web (same-origin) keeps
   // "include" (hls cookie). The Cast Web Receiver is CROSS-origin with the
@@ -172,6 +177,8 @@ export class WasmAudioEngine {
   // those samples) gives the MDCT overlap its left context - without it every
   // 3s boundary carries an audible ~20ms attack glitch.
   private prerollCache: { idx: number; frames: Uint8Array[] } | null = null;
+  // One-shot latch for opts.onFirstAudio.
+  private firstAudioFired = false;
 
   private anchored = false;
   private anchorCtx = 0;
@@ -788,6 +795,12 @@ export class WasmAudioEngine {
           if (gen !== this.timelineGen) continue; // timeline swapped mid-decode: stale index
           this.decodedCache.set(target, d);
           this.decodeFailStreak = 0;
+          if (!this.firstAudioFired) {
+            // The pump decodes from the live playhead, so the FIRST cached
+            // segment is the one the start needs.
+            this.firstAudioFired = true;
+            this.opts.onFirstAudio?.();
+          }
         } catch (err) {
           if (gen !== this.timelineGen) continue;
           // A single bad segment once playback is going must not kill it. But if
