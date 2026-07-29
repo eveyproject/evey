@@ -21,10 +21,16 @@ export function isPlayableMediaType(type?: string): boolean {
 // the control only appears once the type filter narrows the view to episodes.
 // A movies library's items are always directly playable.
 export function canPlayAllForSelection(
-  isShowLibrary: boolean,
+  _isShowLibrary: boolean,
   typeFilter?: LibraryServiceListMediaItemsType | "",
 ): boolean {
-  if (!isShowLibrary) return true;
+  // Only an EPISODE selection. The player has no external queue: its sole
+  // auto-advance is useNextEpisode, which chains episodes within a season
+  // (isEpisode && parentId) and nothing else. On a movie selection the button
+  // would therefore play exactly one film and stop - a control whose label
+  // lies, and on a TV the viewer has no way to discover that. Pressing the
+  // first card already does that much, so there is nothing to offer there.
+  // Widen this the day the player gains a real queue, not before.
   return typeFilter === "MEDIA_ITEM_TYPE_EPISODE";
 }
 

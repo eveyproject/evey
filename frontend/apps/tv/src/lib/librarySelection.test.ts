@@ -28,9 +28,12 @@ describe("isPlayableMediaType", () => {
 });
 
 describe("canPlayAllForSelection", () => {
-  it("is always true for a movies library, regardless of the type filter", () => {
-    expect(canPlayAllForSelection(false, "")).toBe(true);
-    expect(canPlayAllForSelection(false, "MEDIA_ITEM_TYPE_MOVIE")).toBe(true);
+  // The player has no external queue - its only auto-advance chains episodes
+  // within a season. On movies the button would play one film and stop, so a
+  // control labelled "play all" would be lying to the viewer.
+  it("is false on a movies library, whose selection would never chain", () => {
+    expect(canPlayAllForSelection(false, "")).toBe(false);
+    expect(canPlayAllForSelection(false, "MEDIA_ITEM_TYPE_MOVIE")).toBe(false);
   });
 
   // The default shows-library view lists series, which have no stream of
@@ -43,8 +46,11 @@ describe("canPlayAllForSelection", () => {
     expect(canPlayAllForSelection(true, "MEDIA_ITEM_TYPE_SEASON")).toBe(false);
   });
 
-  it("is true on a shows library once filtered to episodes", () => {
+  // The one case that genuinely chains: useNextEpisode carries on through the
+  // season after the first episode starts.
+  it("is true on an episode selection, the only one that chains", () => {
     expect(canPlayAllForSelection(true, "MEDIA_ITEM_TYPE_EPISODE")).toBe(true);
+    expect(canPlayAllForSelection(false, "MEDIA_ITEM_TYPE_EPISODE")).toBe(true);
   });
 });
 

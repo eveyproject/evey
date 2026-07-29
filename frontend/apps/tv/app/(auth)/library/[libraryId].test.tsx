@@ -235,12 +235,34 @@ describe("TV LibraryDetailScreen shuffle", () => {
 });
 
 describe("TV LibraryDetailScreen play all", () => {
-  it("jumps straight to the first playable item of the current sort/filter selection", () => {
+  // The only selection that genuinely chains: the player's sole auto-advance
+  // is useNextEpisode, which carries on through the season.
+  it("jumps to the first episode of the current selection, which then chains", () => {
+    const episodes = [
+      { id: "ep-1", title: "S01E01", type: "MEDIA_ITEM_TYPE_EPISODE" },
+      { id: "ep-2", title: "S01E02", type: "MEDIA_ITEM_TYPE_EPISODE" },
+    ];
+    getLibraryMock.mockReturnValue({ data: { id: LIBRARY_ID, name: "Shows", type: "LIBRARY_TYPE_SHOWS" } });
+    listMediaItemsMock.mockImplementation(() => ({
+      data: { items: episodes, pagination: { totalItems: 2, totalPages: 0, nextCursor: "" } },
+      isLoading: false,
+      isError: false,
+      isFetching: false,
+      refetch: vi.fn(),
+    }));
     render(<LibraryDetailScreen />);
+    fireEvent.click(screen.getByLabelText("media.library.episodes"));
 
     fireEvent.click(screen.getByLabelText("common.playAll"));
 
-    expect(pushMock).toHaveBeenCalledWith("/player/mi-1");
+    expect(pushMock).toHaveBeenCalledWith("/player/ep-1");
+  });
+
+  // A movie selection never chains - the button would play one film and stop,
+  // so it must not be offered at all rather than lie about what it does.
+  it("does not render on a movies library, where nothing would chain", () => {
+    render(<LibraryDetailScreen />);
+    expect(screen.queryByLabelText("common.playAll")).toBeNull();
   });
 
   // A series/season row has no video stream of its own - showing the control
@@ -264,6 +286,7 @@ describe("TV LibraryDetailScreen play all", () => {
     // invocation defeats that and spins the component into an infinite
     // render loop.
     const unplayableItems = [{ id: "s-1", title: "A Show", type: "MEDIA_ITEM_TYPE_SERIES" }];
+    getLibraryMock.mockReturnValue({ data: { id: LIBRARY_ID, name: "Shows", type: "LIBRARY_TYPE_SHOWS" } });
     listMediaItemsMock.mockImplementation(() => ({
       data: {
         items: unplayableItems,
@@ -275,6 +298,7 @@ describe("TV LibraryDetailScreen play all", () => {
       refetch: vi.fn(),
     }));
     render(<LibraryDetailScreen />);
+    fireEvent.click(screen.getByLabelText("media.library.episodes"));
 
     fireEvent.click(screen.getByLabelText("common.playAll"));
 

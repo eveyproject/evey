@@ -41,11 +41,11 @@ const CARD_WIDTH = CARD_WIDTH_GRID;
 const POSTER_HEIGHT = CARD_WIDTH * POSTER_RATIO;
 const ROW_HEIGHT = POSTER_HEIGHT + LABEL_BLOCK_HEIGHT + GRID_GAP;
 const PAGE_SIZE = 30;
-// The dedicated screens this app implements. The TV has a music screen but no
-// photos one, so dedicatedRouteFor is told exactly that and a photo library
-// keeps browsing normally rather than being sent to a route that does not
-// exist here.
-const TV_DEDICATED_ROUTES = ["/music"];
+// The dedicated screens this app implements. A photo library now has its own
+// grid and remote-driven slideshow (app/(auth)/photos), so it goes there
+// instead of being browsed as a wall of poster-shaped cards whose detail page
+// is built for video.
+const TV_DEDICATED_ROUTES = ["/music", "/photos"];
 
 const SORT_KEYS: Array<{ labelKey: string; value: LibraryServiceListMediaItemsSortField }> = [
   { labelKey: "media.library.titleSort", value: "MEDIA_SORT_FIELD_TITLE" },
