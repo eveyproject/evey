@@ -187,6 +187,12 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 					slog.String("profile_id", profileID), slog.String("media_id", mediaItemID), slog.Any("err", err))
 			}
 		},
+		CastAudioModeTouch: func(ctx context.Context, profileID, mediaItemID, mode string) {
+			if err := deps.media.playbackSvc.CommandService().SetCastAudioPath(ctx, profileID, mediaItemID, mode); err != nil {
+				slog.WarnContext(ctx, "cast audio path update failed",
+					slog.String("profile_id", profileID), slog.String("media_id", mediaItemID), slog.Any("err", err))
+			}
+		},
 		CastCommandConsume: func(ctx context.Context, profileID, mediaItemID string) string {
 			cmd, err := deps.media.playbackSvc.CommandService().ConsumeCastCommand(ctx, profileID, mediaItemID)
 			if err != nil {

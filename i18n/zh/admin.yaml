@@ -475,6 +475,7 @@ sessions:
   directPlay: "直接播放"
   directStream: "直接串流"
   transcode: "转码"
+  wasmAudio: "电视端解码音频 (wasm)"
   track:
     video: "视频"
     audio: "音频"

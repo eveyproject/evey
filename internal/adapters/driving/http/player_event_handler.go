@@ -68,7 +68,13 @@ type playerEventDeps struct {
 	resolveUsername func(ctx context.Context, userID string) string
 	castSession     CastSessionTouch
 	castCommand     CastCommandConsumer
+	castAudioMode   CastAudioModeTouch
 }
+
+// CastAudioModeTouch mirrors the receiver's audio_mode beacon ("aac", "wasm",
+// "aac-latched") onto the active session, so the admin badge follows the REAL
+// audio path in near real time. Fire-and-forget by contract.
+type CastAudioModeTouch func(ctx context.Context, profileID, mediaItemID, mode string)
 
 // CastCommandConsumer hands the receiver the pending admin remote command of
 // its session ("pause", "play", "stop", "message:<text>"), or "" when none.
@@ -102,6 +108,11 @@ func WithPlayerEventCastPresence(tr CastPresenceToucher, resolveUsername func(ct
 // WithPlayerEventCastSession wires the TV-driven session keepalive.
 func WithPlayerEventCastSession(touch CastSessionTouch) PlayerEventOption {
 	return func(d *playerEventDeps) { d.castSession = touch }
+}
+
+// WithPlayerEventCastAudioMode wires the audio-path mirror.
+func WithPlayerEventCastAudioMode(touch CastAudioModeTouch) PlayerEventOption {
+	return func(d *playerEventDeps) { d.castAudioMode = touch }
 }
 
 // WithPlayerEventCastCommand makes the alive beacon's RESPONSE carry the
@@ -184,6 +195,7 @@ func playerEventHandler(logger *slog.Logger, opts ...PlayerEventOption) http.Han
 			userID = claims.UserID
 		}
 		notifyCastLiveness(r, &deps, mediaID, body.Type, body.PosSec)
+		notifyCastAudioMode(r, &deps, mediaID, body.Type, body.Details)
 
 		// Severity follows what the event IS. The route carries telemetry
 		// (liveness beats every 30s, load/model/shutdown markers) alongside
@@ -265,6 +277,19 @@ func notifyCastLiveness(r *http.Request, deps *playerEventDeps, mediaID, eventTy
 	if deps.castSession != nil && posSec > 0 {
 		deps.castSession(r.Context(), string(st.ProfileID), mediaID, int64(posSec*1000))
 	}
+}
+
+// notifyCastAudioMode forwards the receiver's relay-leg transition to the
+// session row (cast stream token only; the mode string rides in Details).
+func notifyCastAudioMode(r *http.Request, deps *playerEventDeps, mediaID, eventType, details string) {
+	if deps.castAudioMode == nil || eventType != "cast_receiver_audio_mode" {
+		return
+	}
+	st, ok := StreamTokenFromContext(r.Context())
+	if !ok || st == nil || !st.Cast {
+		return
+	}
+	deps.castAudioMode(r.Context(), string(st.ProfileID), mediaID, details)
 }
 
 // pendingCastCommand consumes the session's remote command for a cast

@@ -474,6 +474,7 @@ sessions:
   directPlay: "Lecture directe"
   directStream: "Remux"
   transcode: "Transcodage"
+  wasmAudio: "Audio décodé sur la TV (wasm)"
   track:
     video: "Vidéo"
     audio: "Audio"

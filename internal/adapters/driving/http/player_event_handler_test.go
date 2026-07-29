@@ -396,3 +396,35 @@ func TestPlayerEvent_CastAliveBeaconCarriesPendingCommand(t *testing.T) {
 		t.Fatalf("status = %d, want 204 without a pending command", rec2.Code)
 	}
 }
+
+// The relay's leg transition must reach the session row: the admin badge
+// shows "transcodage" during the AAC leg and flips once the TV's wasm takes
+// over (the server's ffmpeg dies at idle seconds later).
+func TestPlayerEvent_CastAudioModeReachesTheSession(t *testing.T) {
+	var got []string
+	touch := func(_ context.Context, profileID, mediaID, mode string) {
+		got = append(got, profileID+"|"+mediaID+"|"+mode)
+	}
+	post := func(body string, castToken bool) {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/media/media-1/player-event", strings.NewReader(body))
+		req.SetPathValue("id", "media-1")
+		if castToken {
+			ctx := context.WithValue(req.Context(), streamTokenCtxKey, &shared.StreamToken{
+				UserID: "usr-cast", ProfileID: "prof-cast", MediaItemID: "media-1", Scope: "stream", Cast: true,
+			})
+			req = req.WithContext(ctx)
+		}
+		rec := httptest.NewRecorder()
+		logger := slog.New(slog.NewJSONHandler(&bytes.Buffer{}, nil))
+		playerEventHandler(logger, WithPlayerEventCastAudioMode(touch))(rec, req)
+		if rec.Code != http.StatusNoContent {
+			t.Fatalf("status = %d (body=%s)", rec.Code, rec.Body.String())
+		}
+	}
+	post(`{"type":"cast_receiver_audio_mode","details":"wasm"}`, true)
+	post(`{"type":"cast_receiver_alive","details":"mode=wasm"}`, true)  // not an audio_mode event
+	post(`{"type":"cast_receiver_audio_mode","details":"aac"}`, false) // JWT caller: ignored
+	if len(got) != 1 || got[0] != "prof-cast|media-1|wasm" {
+		t.Fatalf("touches = %v, want exactly the cast audio_mode one", got)
+	}
+}

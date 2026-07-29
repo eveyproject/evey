@@ -505,6 +505,40 @@ func (s *CommandService) TouchCastSession(ctx context.Context, profileID, mediaI
 	return false, nil
 }
 
+// SetCastAudioPath mirrors the receiver's audio_mode beacon onto the active
+// session so the admin badge follows the REAL audio path: "aac" (and the
+// aac-latched fallback) IS a server transcode; "wasm" means the TV decodes
+// and the server's ffmpeg dies at idle seconds later. Unknown modes are
+// ignored - a future receiver string must not corrupt the column.
+func (s *CommandService) SetCastAudioPath(ctx context.Context, profileID, mediaItemID, mode string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.playback.SetCastAudioPath")
+	defer span.End()
+	var decision string
+	switch mode {
+	case "aac", "aac-latched":
+		decision = "transcode"
+	case "wasm":
+		decision = "wasm"
+	default:
+		return nil
+	}
+	if profileID == "" || mediaItemID == "" {
+		return nil
+	}
+	sessions, err := s.sessionQueries.GetActiveByProfile(ctx, profileID)
+	if err != nil {
+		return err
+	}
+	for _, sess := range sessions {
+		if sess == nil || string(sess.MediaItemID) != mediaItemID {
+			continue
+		}
+		_, err := s.sessions.SetSessionAudioDecision(ctx, sess.ID, decision)
+		return err
+	}
+	return nil
+}
+
 // ConsumeCastCommand hands the pending remote command of the ACTIVE
 // (profile, media) session to the cast receiver polling via its alive beacon.
 // During a cast the phone used to be the only consumer (ReportProgress), so a

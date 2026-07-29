@@ -270,6 +270,7 @@ type HTTPServer struct {
 	CastResolveUsername  func(ctx context.Context, userID string) string
 	CastSessionKeepalive CastSessionTouch
 	CastCommandConsume   CastCommandConsumer
+	CastAudioModeTouch   CastAudioModeTouch
 
 	// Config store for remote access persistence
 	CfgStore remoteAccessPersister
@@ -453,6 +454,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 			// now-playing session, phone-independent.
 			WithPlayerEventCastPresence(s.CastPresence, s.CastResolveUsername),
 			WithPlayerEventCastSession(s.CastSessionKeepalive),
+			WithPlayerEventCastAudioMode(s.CastAudioModeTouch),
 			WithPlayerEventCastCommand(s.CastCommandConsume)))))
 	}
 	mux.HandleFunc("POST /api/v1/media/{id}/artwork/{artworkId}/select", auth(selectArtworkHandler(s.ArtworkRepo, s.LibQuerySvc, s.LibraryAccessRepo)))

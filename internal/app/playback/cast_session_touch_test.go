@@ -110,3 +110,37 @@ func TestConsumeCastCommand_NoSessionOrNoCommand(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, cmd)
 }
+
+// SetCastAudioPath mirrors the receiver's audio_mode beacon onto the session
+// row so the admin panel's badge tells the truth in near real time: the AAC
+// leg IS a server transcode, the wasm leg is TV-side decode (the server's
+// ffmpeg dies at idle seconds later).
+func TestSetCastAudioPath_MapsModesOntoTheSession(t *testing.T) {
+	t.Parallel()
+	svc, sessions := newTouchSvc(t)
+	require.NoError(t, sessions.Create(context.Background(), activeSession("s-1", "prof-1", "media-1", "Salon TV")))
+
+	require.NoError(t, svc.SetCastAudioPath(context.Background(), "prof-1", "media-1", "wasm"))
+	got, err := sessions.GetByID(context.Background(), "s-1")
+	require.NoError(t, err)
+	assert.Equal(t, "wasm", got.AudioDecision)
+
+	require.NoError(t, svc.SetCastAudioPath(context.Background(), "prof-1", "media-1", "aac"))
+	got, err = sessions.GetByID(context.Background(), "s-1")
+	require.NoError(t, err)
+	assert.Equal(t, "transcode", got.AudioDecision, "the AAC leg is a server transcode")
+
+	require.NoError(t, svc.SetCastAudioPath(context.Background(), "prof-1", "media-1", "aac-latched"))
+	got, err = sessions.GetByID(context.Background(), "s-1")
+	require.NoError(t, err)
+	assert.Equal(t, "transcode", got.AudioDecision)
+
+	// Unknown mode strings from a future receiver: ignored, never written.
+	require.NoError(t, svc.SetCastAudioPath(context.Background(), "prof-1", "media-1", "weird"))
+	got, err = sessions.GetByID(context.Background(), "s-1")
+	require.NoError(t, err)
+	assert.Equal(t, "transcode", got.AudioDecision)
+
+	// No active session: a quiet no-op.
+	require.NoError(t, svc.SetCastAudioPath(context.Background(), "prof-1", "media-OTHER", "wasm"))
+}

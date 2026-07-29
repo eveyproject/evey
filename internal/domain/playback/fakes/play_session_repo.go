@@ -206,6 +206,20 @@ func (r *FakePlaySessionRepository) PurgeEndedBefore(_ context.Context, cutoff t
 	return purged, nil
 }
 
+func (r *FakePlaySessionRepository) SetSessionAudioDecision(_ context.Context, sessionID, decision string) (bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.Err != nil {
+		return false, r.Err
+	}
+	s, ok := r.items[sessionID]
+	if !ok || s.EndedAt != nil {
+		return false, nil
+	}
+	s.AudioDecision = decision
+	return true, nil
+}
+
 func (r *FakePlaySessionRepository) SetRemoteCommand(_ context.Context, sessionID, command string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()

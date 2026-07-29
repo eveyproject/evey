@@ -475,6 +475,7 @@ sessions:
   directPlay: "Reproducción directa"
   directStream: "Stream directo"
   transcode: "Transcodificación"
+  wasmAudio: "Audio decodificado en el TV (wasm)"
   track:
     video: "Video"
     audio: "Audio"

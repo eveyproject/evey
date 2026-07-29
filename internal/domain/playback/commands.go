@@ -39,6 +39,11 @@ type SessionCommandRepo interface {
 	// Returns whether a row was updated (false = the session already ended;
 	// the tick is a no-op for the live session, watch-progress still records).
 	UpdateProgress(ctx context.Context, sessionID string, positionMs int64, isPaused bool, castDeviceName string) (bool, error)
+	// SetSessionAudioDecision rewrites ONLY the live audio_decision of an
+	// ACTIVE session (ended_at IS NULL guard, like UpdateProgress). The cast
+	// receiver's audio_mode beacon drives it so the admin badge follows the
+	// REAL audio path (server AAC transcode vs TV-side wasm decode).
+	SetSessionAudioDecision(ctx context.Context, sessionID, decision string) (bool, error)
 	CloseStale(ctx context.Context, olderThan time.Duration) (int, error)
 	// PurgeEndedBefore deletes finished sessions (ended_at set) whose ended_at
 	// is older than the cutoff, bounding the table's growth. Active sessions

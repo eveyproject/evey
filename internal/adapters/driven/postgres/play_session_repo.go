@@ -70,6 +70,26 @@ func (r *PlaySessionRepository) Create(ctx context.Context, s *playback.PlaySess
 	return nil
 }
 
+// SetSessionAudioDecision rewrites the live audio_decision of an ACTIVE
+// session - the cast receiver's audio_mode beacon feeds it. Same ended_at
+// guard as UpdateProgress: a finished session is never rewritten.
+func (r *PlaySessionRepository) SetSessionAudioDecision(ctx context.Context, sessionID, decision string) (bool, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.playsession.SetSessionAudioDecision")
+	defer span.End()
+	span.SetAttributes(attribute.String("session.id", sessionID))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
+		`UPDATE play_sessions SET audio_decision = $2 WHERE id = $1 AND ended_at IS NULL`,
+		sessionID, decision)
+	if err != nil {
+		span.RecordError(err)
+		return false, fmt.Errorf("PlaySessionRepo.SetSessionAudioDecision: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	return n > 0, nil
+}
+
 // AcquireUserStreamLock takes a tx-scoped Postgres advisory lock keyed by
 // hashtext(userID). Serializes the MaxStreams quota check+Create pair so
 // concurrent StartStream calls can't race past the cap. Outside a tx the

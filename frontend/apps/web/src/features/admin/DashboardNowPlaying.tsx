@@ -233,9 +233,18 @@ function NowPlayingCard({ session }: { session: V1ActiveSession }) {
             )}
           </span>
           <div className="ml-auto flex items-center gap-2 shrink-0">
-            <Badge variant={session.playMethod === "transcode" ? "warning" : "success"}>
-              {playMethodLabel(session.playMethod ?? "")}
-            </Badge>
+            {/* The live decisions outrank the play method the client declared
+                at start: a cast begins on the server's AAC transcode, then the
+                TV's wasm decoder takes over and the server ffmpeg dies - the
+                receiver's audio_mode beacon rewrites audioDecision, so the
+                badge follows the REAL path in near real time. */}
+            {session.audioDecision === "wasm" && session.videoDecision !== "transcode" ? (
+              <Badge variant="info">{t("admin.sessions.wasmAudio")}</Badge>
+            ) : (
+              <Badge variant={session.playMethod === "transcode" ? "warning" : "success"}>
+                {playMethodLabel(session.playMethod ?? "")}
+              </Badge>
+            )}
             {session.resolution && (
               <span className="text-xs text-[var(--text-muted)]">{session.resolution}</span>
             )}

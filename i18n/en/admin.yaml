@@ -475,6 +475,7 @@ sessions:
   directPlay: Direct Play
   directStream: Remux
   transcode: Transcode
+  wasmAudio: "TV-decoded audio (wasm)"
   track:
     video: Video
     audio: Audio
