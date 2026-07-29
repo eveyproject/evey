@@ -215,6 +215,22 @@ func (s *PlayabilityShadow) observeOnce(ctx context.Context, path string, decisi
 		return
 	}
 
+	// A divergence this shadow is KNOWN to manufacture is not evidence about the
+	// real decision, and logging it at WARN is actively harmful: after the
+	// 2026-07-29 investigation read all 34 production WARNs one by one and found
+	// zero genuine disagreements, every 4K 10-bit title still re-logged one WARN
+	// per hour - noise that buries the first real divergence whenever one appears.
+	if artifact := knownMappingArtifact(eveyVerdict, mkvgoVerdict, mkvgoReasons, decision); artifact != "" {
+		s.logger.Debug("playability shadow: divergence explained by a known mapping gap",
+			slog.String("path", path),
+			slog.String("target", target.Name),
+			slog.String("evey_verdict", eveyVerdict),
+			slog.String("mkvgo_verdict", mkvgoVerdict),
+			slog.String("artifact", artifact),
+			slog.Any("mkvgo_reasons", mkvgoReasons))
+		return
+	}
+
 	key := path + "::" + targetFingerprint(target)
 	if !s.shouldLog(key) {
 		return
@@ -323,6 +339,72 @@ func mapClientProfileToTarget(client transcoding.ClientProfile) PlayabilityTarge
 		MaxHeight:   client.MaxHeight,
 		HDR:         client.SupportsHDR,
 	}
+}
+
+// unmappedCodecSignalReasons are the mkvgo reason strings produced by EXACTLY
+// the three ops.Target fields mapClientProfileToTarget cannot fill in
+// (HEVCMain10, VP9Profile2, DolbyVision - see its LIMITATION note). Because a
+// zero value means "unsupported" on mkvgo's side, mkvgo judges a client that is
+// strictly more restrictive than the real one and demands a transcode for
+// content Evey serves correctly. Matching on the reason text is what makes the
+// coupling checkable: each string below is emitted by one of those three fields
+// and by nothing else (mkvgo v0.25.1, mkv/ops/playability.go:207,211,215).
+//
+// Deliberately NOT here: "HDR10 static metadata is unsupported on target" -
+// PlayabilityTarget.HDR IS mapped (from ClientProfile.SupportsHDR), so an HDR
+// divergence is a real signal about a real client, not an artifact.
+var unmappedCodecSignalReasons = []string{
+	"HEVC Main10 (10-bit) is unsupported on target",
+	"VP9 Profile 2 (10-bit) is unsupported on target",
+	"Dolby Vision is unsupported on target",
+}
+
+// knownMappingArtifact names the artifact class a divergence belongs to, or ""
+// when the two engines genuinely disagree and an operator should see a WARN.
+//
+// Both classes were established by reading every production divergence of
+// 2026-07-24..29 (34 WARNs, zero genuine disagreements) - do not widen this
+// without the same kind of evidence, because every string added here is a real
+// divergence someone will stop seeing.
+func knownMappingArtifact(eveyVerdict, mkvgoVerdict string, reasons []string, d *transcoding.PlaybackDecision) string {
+	// Class 1: mkvgo demands a transcode ONLY because of a codec signal this
+	// mapping cannot express. If it cites anything else too, the other reason is
+	// real and the divergence must stay visible.
+	if mkvgoVerdict == "transcode" && len(reasons) > 0 && allUnmappedCodecSignals(reasons) {
+		return "unmapped-codec-signal"
+	}
+	// Class 2: Evey says remux where mkvgo says direct-play, with the video
+	// samples copied untouched. This is the global-verdict-vs-video-track
+	// asymmetry: mkvgo judges the VIDEO TRACK alone, while Evey's verdict covers
+	// the whole session, where an audio codec or the HLS container forces a
+	// repackage. Evey being STRICTER than mkvgo can never cause a playback
+	// failure, which is what makes this one safe to silence.
+	if eveyVerdict == "remux" && mkvgoVerdict == "direct-play" && d != nil && d.VideoDecision == "copy" {
+		return "global-vs-track-asymmetry"
+	}
+	return ""
+}
+
+// allUnmappedCodecSignals reports whether every reason is one of the strings
+// the unmapped ops.Target fields produce. An empty slice returns false: "no
+// reason at all" is not proof of an artifact.
+func allUnmappedCodecSignals(reasons []string) bool {
+	if len(reasons) == 0 {
+		return false
+	}
+	for _, r := range reasons {
+		matched := false
+		for _, known := range unmappedCodecSignalReasons {
+			if strings.TrimSpace(r) == known {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return false
+		}
+	}
+	return true
 }
 
 // eveyVideoVerdict folds the real decision's VideoDecision/PlayMethod into the

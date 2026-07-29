@@ -335,3 +335,121 @@ func TestMapClientProfileToTarget(t *testing.T) {
 	assert.Equal(t, client.MaxHeight, target.MaxHeight)
 	assert.True(t, target.HDR)
 }
+
+// The two artifact classes below are the ones the 2026-07-29 production
+// investigation proved benign (34 WARNs read one by one, zero genuine
+// disagreements). They must not reach WARN - asserted through the throttle map,
+// which only the WARN path writes to, so "no entry" means "never warned".
+
+func TestPlayabilityShadow_UnmappedCodecSignalIsNotWarned(t *testing.T) {
+	analyzer := &fakePlayabilityAnalyzer{report: &PlayabilityReport{
+		OverallVerdict: "transcode",
+		Tracks: []PlayabilityTrackVerdict{{
+			Type:    "video",
+			Verdict: "transcode",
+			// mkvgo's ops.Target got a zero HEVCMain10 because ClientProfile
+			// carries no such signal, so it demands a transcode for a 10-bit
+			// title Evey direct-plays correctly.
+			Reasons: []string{"HEVC Main10 (10-bit) is unsupported on target"},
+		}},
+	}}
+	repo := sharedfakes.NewFakeServerConfigRepository()
+	enableShadow(t, repo)
+	shadow := NewPlayabilityShadow(analyzer, repo, testLogger())
+
+	shadow.Observe(context.Background(), "/media/4k-10bit.mkv", copyDecision("direct_play", "copy"), domaintranscoding.ClientProfile{})
+	shadow.Wait()
+
+	assert.Equal(t, 1, analyzer.callCount(), "the comparison still runs")
+	shadow.mu.Lock()
+	entries := len(shadow.seen)
+	shadow.mu.Unlock()
+	assert.Zero(t, entries, "a known mapping artifact must not be logged as a divergence")
+}
+
+func TestPlayabilityShadow_GlobalVsTrackAsymmetryIsNotWarned(t *testing.T) {
+	analyzer := &fakePlayabilityAnalyzer{report: &PlayabilityReport{
+		OverallVerdict: "direct-play",
+		Tracks:         []PlayabilityTrackVerdict{{Type: "video", Verdict: "direct-play"}},
+	}}
+	repo := sharedfakes.NewFakeServerConfigRepository()
+	enableShadow(t, repo)
+	shadow := NewPlayabilityShadow(analyzer, repo, testLogger())
+
+	// Evey folds HLS-with-copied-video to "remux" while mkvgo judges the video
+	// track alone and says direct-play. Evey is the stricter of the two, which
+	// can never cause a playback failure.
+	shadow.Observe(context.Background(), "/media/movie.mkv", copyDecision("transcode", "copy"), domaintranscoding.ClientProfile{})
+	shadow.Wait()
+
+	shadow.mu.Lock()
+	entries := len(shadow.seen)
+	shadow.mu.Unlock()
+	assert.Zero(t, entries, "Evey being stricter than mkvgo is not a divergence worth a WARN")
+}
+
+func TestPlayabilityShadow_RealDivergenceStillWarns(t *testing.T) {
+	analyzer := &fakePlayabilityAnalyzer{report: &PlayabilityReport{
+		OverallVerdict: "transcode",
+		Tracks: []PlayabilityTrackVerdict{{
+			Type:    "video",
+			Verdict: "transcode",
+			// A width ceiling IS mapped, so this one is a real disagreement: if
+			// the filter ever swallowed it, a genuine bug would go unseen.
+			Reasons: []string{"width 3840 exceeds target max 1920"},
+		}},
+	}}
+	repo := sharedfakes.NewFakeServerConfigRepository()
+	enableShadow(t, repo)
+	shadow := NewPlayabilityShadow(analyzer, repo, testLogger())
+
+	shadow.Observe(context.Background(), "/media/movie.mkv", copyDecision("direct_play", "copy"), domaintranscoding.ClientProfile{})
+	shadow.Wait()
+
+	shadow.mu.Lock()
+	entries := len(shadow.seen)
+	shadow.mu.Unlock()
+	assert.Equal(t, 1, entries, "a real disagreement must still reach WARN")
+}
+
+func TestKnownMappingArtifact(t *testing.T) {
+	copied := &domaintranscoding.PlaybackDecision{VideoDecision: "copy"}
+	transcoded := &domaintranscoding.PlaybackDecision{VideoDecision: "transcode"}
+
+	tests := []struct {
+		name         string
+		evey, mkvgo  string
+		reasons      []string
+		decision     *domaintranscoding.PlaybackDecision
+		wantArtifact string
+	}{
+		{"main10 only", "direct-play", "transcode",
+			[]string{"HEVC Main10 (10-bit) is unsupported on target"}, copied, "unmapped-codec-signal"},
+		{"dovi only", "direct-play", "transcode",
+			[]string{"Dolby Vision is unsupported on target"}, copied, "unmapped-codec-signal"},
+		{"vp9 profile2 only", "direct-play", "transcode",
+			[]string{"VP9 Profile 2 (10-bit) is unsupported on target"}, copied, "unmapped-codec-signal"},
+		{"several unmapped signals together", "direct-play", "transcode",
+			[]string{"Dolby Vision is unsupported on target", "HEVC Main10 (10-bit) is unsupported on target"}, copied, "unmapped-codec-signal"},
+		// One real reason alongside an artifact one keeps the whole divergence
+		// visible: the real reason is the thing worth reading.
+		{"unmapped signal mixed with a real reason", "direct-play", "transcode",
+			[]string{"HEVC Main10 (10-bit) is unsupported on target", "height 2160 exceeds target max 1080"}, copied, ""},
+		// HDR IS mapped from ClientProfile.SupportsHDR, so this is a real signal.
+		{"hdr10 is a mapped signal", "direct-play", "transcode",
+			[]string{"HDR10 static metadata is unsupported on target"}, copied, ""},
+		{"transcode with no reason at all", "direct-play", "transcode", nil, copied, ""},
+		{"remux vs direct-play with video copied", "remux", "direct-play", nil, copied, "global-vs-track-asymmetry"},
+		// Evey transcoding the video while mkvgo direct-plays it is the opposite
+		// direction: Evey is doing MORE work than needed, which is a real finding.
+		{"remux vs direct-play with video transcoded", "remux", "direct-play", nil, transcoded, ""},
+		{"direct-play vs remux is a real divergence", "direct-play", "remux", nil, copied, ""},
+		{"nil decision never classifies as class 2", "remux", "direct-play", nil, nil, ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.wantArtifact, knownMappingArtifact(tt.evey, tt.mkvgo, tt.reasons, tt.decision))
+		})
+	}
+}
