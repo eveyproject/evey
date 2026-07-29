@@ -106,19 +106,20 @@ vi.mock("@evey/store", () => ({
 }));
 
 // --- @evey/api mock --------------------------------------------------------------------
-const { listMediaItemsMock, listGenresMock, rawListMediaItemsMock, searchMediaMock, watchHistoryMock } = vi.hoisted(() => ({
+const { listMediaItemsMock, listGenresMock, rawListMediaItemsMock, searchMediaMock, watchHistoryMock, getLibraryMock } = vi.hoisted(() => ({
   listMediaItemsMock: vi.fn(),
   listGenresMock: vi.fn(),
   rawListMediaItemsMock: vi.fn(),
   searchMediaMock: vi.fn(),
   watchHistoryMock: vi.fn(),
+  getLibraryMock: vi.fn(),
 }));
 // importOriginal, not a hand-written object: the pure helpers must be the REAL
 // ones, so the screen cannot pass against a stub that disagrees with shipped
 // behaviour. Only the hooks are faked.
 vi.mock("@evey/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@evey/api")>()),
-  useLibraryServiceGetLibrary: () => ({ data: { id: LIBRARY_ID, name: "My Library" } }),
+  useLibraryServiceGetLibrary: (...args: unknown[]) => getLibraryMock(...args),
   useLibraryServiceListMediaItems: (...args: unknown[]) => listMediaItemsMock(...args),
   useLibraryServiceListGenres: (...args: unknown[]) => listGenresMock(...args),
   useLibraryServiceSearchMedia: (...args: unknown[]) => searchMediaMock(...args),
@@ -130,12 +131,13 @@ vi.mock("@evey/api", async (importOriginal) => ({
 import LibraryDetailScreen from "./[libraryId]";
 
 const ITEMS = [
-  { id: "mi-1", title: "Alpha", genres: ["Action"] },
-  { id: "mi-2", title: "Beta", genres: ["Drama"] },
+  { id: "mi-1", title: "Alpha", genres: ["Action"], type: "MEDIA_ITEM_TYPE_MOVIE" },
+  { id: "mi-2", title: "Beta", genres: ["Drama"], type: "MEDIA_ITEM_TYPE_MOVIE" },
 ];
 
 beforeEach(() => {
   vi.clearAllMocks();
+  getLibraryMock.mockReturnValue({ data: { id: LIBRARY_ID, name: "My Library", type: "LIBRARY_TYPE_MOVIES" } });
   listMediaItemsMock.mockImplementation(() => ({
     // Shaped like the real server response: totalPages is ALWAYS 0 (never
     // populated server-side) and the end of the list is an empty nextCursor.
@@ -228,6 +230,55 @@ describe("TV LibraryDetailScreen shuffle", () => {
     fireEvent.click(screen.getByLabelText("common.shufflePlay"));
 
     await waitFor(() => expect(toastErrorMock).toHaveBeenCalledWith("common.shuffleFailed"));
+    expect(pushMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("TV LibraryDetailScreen play all", () => {
+  it("jumps straight to the first playable item of the current sort/filter selection", () => {
+    render(<LibraryDetailScreen />);
+
+    fireEvent.click(screen.getByLabelText("common.playAll"));
+
+    expect(pushMock).toHaveBeenCalledWith("/player/mi-1");
+  });
+
+  // A series/season row has no video stream of its own - showing the control
+  // over a default shows-library view would always be a dead click, so it is
+  // not rendered at all until the type filter narrows to episodes.
+  it("does not render on a shows library until filtered down to episodes", () => {
+    getLibraryMock.mockReturnValue({ data: { id: LIBRARY_ID, name: "Shows", type: "LIBRARY_TYPE_SHOWS" } });
+    render(<LibraryDetailScreen />);
+
+    expect(screen.queryByLabelText("common.playAll")).toBeNull();
+
+    fireEvent.click(screen.getByLabelText("media.library.episodes"));
+    expect(screen.getByLabelText("common.playAll")).toBeTruthy();
+  });
+
+  it("toasts instead of navigating when nothing in the current selection is playable", () => {
+    // A stable outer array, not a fresh literal per call: the accumulate
+    // effect keys off `data` identity, and the screen's own state setter
+    // (setAllItems) already bails out when the incoming items array is
+    // reference-equal to what's there - recreating it on every mock
+    // invocation defeats that and spins the component into an infinite
+    // render loop.
+    const unplayableItems = [{ id: "s-1", title: "A Show", type: "MEDIA_ITEM_TYPE_SERIES" }];
+    listMediaItemsMock.mockImplementation(() => ({
+      data: {
+        items: unplayableItems,
+        pagination: { totalItems: 1, totalPages: 0, nextCursor: "" },
+      },
+      isLoading: false,
+      isError: false,
+      isFetching: false,
+      refetch: vi.fn(),
+    }));
+    render(<LibraryDetailScreen />);
+
+    fireEvent.click(screen.getByLabelText("common.playAll"));
+
+    expect(toastInfoMock).toHaveBeenCalledWith("common.playAllEmpty");
     expect(pushMock).not.toHaveBeenCalled();
   });
 });

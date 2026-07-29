@@ -228,6 +228,8 @@ restartRequired: "Das passiert wiederholt. Bitte starte die App neu."
 shufflePlay: Zufallswiedergabe
 shuffleEmpty: Nichts zum Mischen vorhanden
 shuffleFailed: Konnte nichts zum Abspielen auswählen
+playAll: Alles abspielen
+playAllEmpty: Nichts Abspielbares in dieser Auswahl
 removeItem: "{{item}} entfernen"
 rotateLeft: Nach links drehen
 rotateRight: Nach rechts drehen

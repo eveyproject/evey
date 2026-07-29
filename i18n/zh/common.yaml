@@ -228,6 +228,8 @@ restartRequired: "问题持续出现。请重启应用。"
 shufflePlay: 随机播放
 shuffleEmpty: 没有可随机播放的内容
 shuffleFailed: 无法选择要播放的内容
+playAll: 全部播放
+playAllEmpty: 此选择中没有可播放的内容
 removeItem: "移除 {{item}}"
 rotateLeft: 向左旋转
 rotateRight: 向右旋转

@@ -228,6 +228,8 @@ restartRequired: "Le problème persiste. Veuillez redémarrer l'application."
 shufflePlay: Lecture aléatoire
 shuffleEmpty: Rien à lire ici
 shuffleFailed: Impossible de choisir un élément
+playAll: Tout lire
+playAllEmpty: Rien de lisible dans cette sélection
 removeItem: "Supprimer {{item}}"
 rotateLeft: Pivoter à gauche
 rotateRight: Pivoter à droite

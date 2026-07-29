@@ -228,6 +228,8 @@ restartRequired: "यह बार-बार हो रहा है। कृ�
 shufflePlay: शफ़ल चलाएँ
 shuffleEmpty: यहाँ चलाने के लिए कुछ नहीं
 shuffleFailed: चलाने के लिए कुछ चुना नहीं जा सका
+playAll: सभी चलाएँ
+playAllEmpty: इस चयन में चलाने लायक कुछ नहीं है
 removeItem: "{{item}} हटाएं"
 rotateLeft: बाईं ओर घुमाएं
 rotateRight: दाईं ओर घुमाएं

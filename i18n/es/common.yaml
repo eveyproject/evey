@@ -228,6 +228,8 @@ restartRequired: "Esto sigue ocurriendo. Reinicia la aplicación."
 shufflePlay: Reproduccion aleatoria
 shuffleEmpty: Nada que reproducir aqui
 shuffleFailed: No se pudo elegir nada para reproducir
+playAll: Reproducir todo
+playAllEmpty: Nada reproducible en esta seleccion
 removeItem: "Quitar {{item}}"
 rotateLeft: Girar a la izquierda
 rotateRight: Girar a la derecha

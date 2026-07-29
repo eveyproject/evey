@@ -34,6 +34,7 @@ import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { useDebounce } from "../../../src/hooks/useDebounce";
 import { CARD_WIDTH_GRID, POSTER_RATIO, LABEL_BLOCK_HEIGHT, GRID_GAP } from "../../../src/lib/tvLayout";
+import { canPlayAllForSelection, buildPlayAllQueue, pickRandomItem } from "../../../src/lib/librarySelection";
 
 const NUM_COLUMNS = 5;
 const CARD_WIDTH = CARD_WIDTH_GRID;
@@ -296,9 +297,12 @@ export default function LibraryDetailScreen() {
     setShuffling(true);
     try {
       if (searchActive) {
-        if (displayItems.length === 0) { toast.info(t("common.shuffleEmpty")); return; }
-        const pick = displayItems[Math.floor(Math.random() * displayItems.length)];
-        if (pick?.id) router.push(`/player/${pick.id}`);
+        // The search page has no cursor to page through - it IS the full
+        // result set for this query, so picking within it is not the
+        // pagination trap the whole-library path below avoids.
+        const pick = pickRandomItem(displayItems);
+        if (!pick) { toast.info(t("common.shuffleEmpty")); return; }
+        if (pick.id) router.push(`/player/${pick.id}`);
         else toast.error(t("common.shuffleFailed"));
         return;
       }
@@ -320,6 +324,25 @@ export default function LibraryDetailScreen() {
       setShuffling(false);
     }
   }, [libraryId, genre, typeFilter, searchActive, displayItems, router, t]);
+
+  // A series or a season has no video stream of its own, so "play all" only
+  // makes sense once the on-screen selection is directly playable: always on
+  // a movies library, and on a shows library only once the type filter has
+  // narrowed the view down to episodes. Elsewhere the control is not shown at
+  // all, rather than surfaced as a button that always no-ops.
+  const canPlayAll = canPlayAllForSelection(isShowLibrary, typeFilter);
+
+  // Only the first entry of the built queue is actually navigated to today:
+  // the player has no way to consume a queue beyond that (its own "up next"
+  // is series continuity, unrelated to this screen's sort/filter). The full
+  // ordered queue is still built here, in one place, ready to be handed to
+  // the player wholesale if it grows that capability later.
+  const handlePlayAll = useCallback(() => {
+    const queue = buildPlayAllQueue(displayItems);
+    const first = queue[0];
+    if (!first) { toast.info(t("common.playAllEmpty")); return; }
+    router.push(`/player/${first}`);
+  }, [displayItems, router, t]);
 
   const handleEndReached = useCallback(() => {
     if (searchActive) return; // search returns a single fixed-size page, no cursor to page through
@@ -472,6 +495,16 @@ export default function LibraryDetailScreen() {
                 <Chip key={g} label={g} active={genre === g} onPress={() => setGenre(genre === g ? "" : g)} />
               ))}
             </ScrollView>
+            {canPlayAll && (
+              <FocusableCard
+                onPress={handlePlayAll}
+                style={[styles.shuffleBtn, { backgroundColor: theme.colors.surface }]}
+                accessibilityLabel={t("common.playAll")}
+              >
+                <Ionicons name="play" size={24} color={theme.colors.text} />
+                <Text style={{ color: theme.colors.text, fontSize: 18, fontWeight: "600" }}>{t("common.playAll")}</Text>
+              </FocusableCard>
+            )}
             <FocusableCard
               onPress={handleShuffle}
               style={[styles.shuffleBtn, { backgroundColor: theme.colors.surface }]}

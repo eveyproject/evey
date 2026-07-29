@@ -228,6 +228,8 @@ restartRequired: "This keeps happening. Please restart the app."
 shufflePlay: Shuffle play
 shuffleEmpty: Nothing to shuffle here
 shuffleFailed: Couldn't pick something to play
+playAll: Play all
+playAllEmpty: Nothing playable in this selection
 removeItem: "Remove {{item}}"
 rotateLeft: Rotate left
 rotateRight: Rotate right
