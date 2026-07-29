@@ -20,6 +20,7 @@ import { Skeleton } from "../../../src/components/Skeleton";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
+import { prevLightboxIndex, nextLightboxIndex, rotateClockwise, rotateCounterClockwise } from "../../../src/lib/lightboxNav";
 
 interface LibraryItem {
   id: string;
@@ -163,9 +164,12 @@ export default function PhotosScreen() {
   );
 
   const closeLightbox = useCallback(() => setLightboxIndex(null), []);
-  const prevPhoto = useCallback(() => setLightboxIndex((i) => (i !== null && i > 0 ? i - 1 : i)), []);
+  const prevPhoto = useCallback(
+    () => setLightboxIndex((i) => (i !== null ? prevLightboxIndex(i, photos.length) : i)),
+    [photos.length],
+  );
   const nextPhoto = useCallback(
-    () => setLightboxIndex((i) => (i !== null && i < photos.length - 1 ? i + 1 : i)),
+    () => setLightboxIndex((i) => (i !== null ? nextLightboxIndex(i, photos.length) : i)),
     [photos.length],
   );
 
@@ -365,14 +369,14 @@ export default function PhotosScreen() {
         <Pressable style={styles.lightboxBg} onPress={closeLightbox}>
           <View style={styles.lightboxTopBar}>
             <TouchableOpacity
-              onPress={(e) => { e.stopPropagation(); setRotation((r) => (r + 270) % 360); }}
+              onPress={(e) => { e.stopPropagation(); setRotation(rotateCounterClockwise); }}
               hitSlop={10}
               accessibilityLabel={t("common.rotateLeft")}
             >
               <Ionicons name="arrow-undo-outline" size={24} color="#fff" />
             </TouchableOpacity>
             <TouchableOpacity
-              onPress={(e) => { e.stopPropagation(); setRotation((r) => (r + 90) % 360); }}
+              onPress={(e) => { e.stopPropagation(); setRotation(rotateClockwise); }}
               hitSlop={10}
               accessibilityLabel={t("common.rotateRight")}
             >
