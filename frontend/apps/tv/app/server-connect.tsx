@@ -188,7 +188,7 @@ export default function ServerConnect() {
         ]}
       >
         {loading ? (
-          <ActivityIndicator color="#fff" />
+          <ActivityIndicator color={theme.colors.onAccent} />
         ) : (
           <Text style={s.connectBtnText}>{t("mobile.serverConnect.connect", "Connect")}</Text>
         )}

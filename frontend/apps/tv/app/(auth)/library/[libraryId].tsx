@@ -397,7 +397,7 @@ export default function LibraryDetailScreen() {
                 ]}
                 pointerEvents="none"
               >
-                <Ionicons name="checkmark" size={12} color={watched ? theme.colors.onAccent : theme.colors.textMuted} />
+                <Ionicons name="checkmark" size={12} color={watched ? theme.colors.onSuccess : theme.colors.textMuted} />
               </View>
             )}
 

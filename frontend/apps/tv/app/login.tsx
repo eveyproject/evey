@@ -106,7 +106,7 @@ export default function Login() {
         ]}
       >
         {isPending ? (
-          <ActivityIndicator color="#fff" />
+          <ActivityIndicator color={theme.colors.onAccent} />
         ) : (
           <Text style={[styles.buttonText, { color: theme.colors.onAccent }]}>{t("auth.login.signIn")}</Text>
         )}

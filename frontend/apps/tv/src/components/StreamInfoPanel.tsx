@@ -57,7 +57,11 @@ function DecisionBadge({ decision }: { decision?: string }) {
   if (!decision) return null;
   const isCopy = decision === "copy" || decision === "direct";
   const isWasm = decision === "wasm";
+  // bg switches between accent/success/warning, so the label colour must
+  // follow: onAccent painted on a warning fill (or vice versa) is the exact
+  // WCAG AA regression this badge already caused once before.
   const bg = isWasm ? theme.colors.accent : isCopy ? theme.colors.success : theme.colors.warning;
+  const onBg = isWasm ? theme.colors.onAccent : isCopy ? theme.colors.onSuccess : theme.colors.onWarning;
   const label = isWasm
     ? t("player.streamInfo.decisionWasm", "Décodé client")
     : isCopy
@@ -65,7 +69,7 @@ function DecisionBadge({ decision }: { decision?: string }) {
       : t("player.streamInfo.decisionTranscode", "Transcodé");
   return (
     <View style={[styles.badge, { backgroundColor: bg }]}>
-      <Text style={[styles.badgeText, { color: theme.colors.onAccent }]}>{label}</Text>
+      <Text style={[styles.badgeText, { color: onBg }]}>{label}</Text>
     </View>
   );
 }
