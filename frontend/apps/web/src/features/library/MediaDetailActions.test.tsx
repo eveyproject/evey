@@ -243,4 +243,27 @@ describe("MediaDetailActions", () => {
     fireEvent.click(screen.getByTestId("play-button"));
     expect(mockNavigate).toHaveBeenCalledWith({ to: "/player/$mediaId", params: { mediaId: "m1" } });
   });
+
+  describe("segment editor entry point", () => {
+    it("is hidden from non-admins", () => {
+      render(<MediaDetailActions {...defaultProps} />, { wrapper: Wrapper });
+      expect(screen.queryByTestId("edit-segments-button")).not.toBeInTheDocument();
+    });
+
+    it("navigates an admin to the segment editor for this item", () => {
+      mockIsAdmin = true;
+      render(<MediaDetailActions {...defaultProps} />, { wrapper: Wrapper });
+      fireEvent.click(screen.getByTestId("edit-segments-button"));
+      expect(mockNavigate).toHaveBeenCalledWith({ to: "/admin/media/$mediaId", params: { mediaId: "m1" } });
+    });
+
+    // Unlike the share link, the entry point is not restricted to playable
+    // items: a series page is a legitimate way into the segment editor.
+    it("is shown on a series, which has no playable file of its own", () => {
+      mockIsAdmin = true;
+      const item = { ...baseItem, type: "MEDIA_ITEM_TYPE_SERIES" as const, filePath: undefined };
+      render(<MediaDetailActions {...defaultProps} item={item} />, { wrapper: Wrapper });
+      expect(screen.getByTestId("edit-segments-button")).toBeInTheDocument();
+    });
+  });
 });

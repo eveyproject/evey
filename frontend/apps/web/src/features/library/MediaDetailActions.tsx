@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { invalidateWatchedState } from "@/lib/invalidateWatchedState";
-import { Play, EyeOff, Eye, Plus } from "lucide-react";
+import { Play, EyeOff, Eye, Plus, SlidersHorizontal } from "lucide-react";
 import { ICON } from "@/constants/iconSizes";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "@tanstack/react-router";
@@ -209,6 +209,21 @@ export function MediaDetailActions({
           />
         )}
         {item.id && item.filePath && isAdmin && <ShareLinkButton mediaId={item.id} />}
+        {/* Segment editor. Unlike the share link just above, this is NOT
+            restricted to playable items: the mobile client gates it on
+            isAdmin && id alone, and a series/season page is a legitimate way
+            in. Keep the two conditions in sync with apps/mobile. */}
+        {item.id && isAdmin && (
+          <Button
+            variant="secondary"
+            size="lg"
+            data-testid="edit-segments-button"
+            onClick={() => navigate({ to: "/admin/media/$mediaId", params: { mediaId: item.id! } })}
+          >
+            <SlidersHorizontal size={ICON.md} />
+            {t("admin.segments.title")}
+          </Button>
+        )}
         {item.id && <FavoriteButton mediaId={item.id} size="lg" />}
         {item.id && <RatingButtons mediaId={item.id} />}
         {item.id && (
