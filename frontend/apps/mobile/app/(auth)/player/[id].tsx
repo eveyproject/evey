@@ -37,6 +37,7 @@ import { useChapters } from "../../../src/hooks/useChapters";
 import { useSleepTimer } from "../../../src/hooks/useSleepTimer";
 import { SleepTimerPicker } from "../../../src/components/SleepTimerPicker";
 import { pickNativeAudioTrack, pickPreferredStreamIndex } from "../../../src/lib/audioTrackMatch";
+import { reportedPlaybackState } from "../../../src/lib/castPlaybackState";
 import { playerExit } from "../../../src/lib/playerExit";
 import { ChaptersPicker } from "../../../src/components/ChaptersPicker";
 import { PlayerEpisodesPanel } from "../../../src/components/player/PlayerEpisodesPanel";
@@ -544,7 +545,7 @@ export default function PlayerScreen() {
     };
   }, [player]);
 
-  const { castConnected, castClient, castCurrentTime, castDuration, castIsPlaying, handleCast } = useCastSession({
+  const { castConnected, castClient, castCurrentTime, castDuration, castIsPlaying, castVolume, castIsMuted, handleCast } = useCastSession({
     player,
     volume,
     streamUrl,
@@ -812,20 +813,37 @@ export default function PlayerScreen() {
     try { return (player?.currentTime ?? 0) * 1000; } catch { return 0; }
   }, [player, castConnected, castCurrentTime]);
 
+  // While casting, the receiver owns all three of these, exactly as it owns the
+  // position above: the local player is parked paused at volume 0, so reporting
+  // it announced a muted, paused session for a television playing out loud.
+  const castPlaybackState = useMemo(
+    () => ({ connected: castConnected, isPlaying: castIsPlaying, volume: castVolume, isMuted: castIsMuted }),
+    [castConnected, castIsPlaying, castVolume, castIsMuted],
+  );
+
   const getIsPaused = useCallback(() => {
     if (!mountedRef.current) return true;
-    try { return !(player?.playing ?? false); } catch { return true; }
-  }, [player]);
+    try {
+      const local = { isPaused: !(player?.playing ?? false), volume: player?.volume ?? 1, isMuted: player?.muted ?? false };
+      return reportedPlaybackState(local, castPlaybackState).isPaused;
+    } catch { return true; }
+  }, [player, castPlaybackState]);
 
   const getVolume = useCallback(() => {
     if (!mountedRef.current) return 1;
-    try { return player?.volume ?? 1; } catch { return 1; }
-  }, [player]);
+    try {
+      const local = { isPaused: !(player?.playing ?? false), volume: player?.volume ?? 1, isMuted: player?.muted ?? false };
+      return reportedPlaybackState(local, castPlaybackState).volume;
+    } catch { return 1; }
+  }, [player, castPlaybackState]);
 
   const getIsMuted = useCallback(() => {
     if (!mountedRef.current) return false;
-    try { return player?.muted ?? false; } catch { return false; }
-  }, [player]);
+    try {
+      const local = { isPaused: !(player?.playing ?? false), volume: player?.volume ?? 1, isMuted: player?.muted ?? false };
+      return reportedPlaybackState(local, castPlaybackState).isMuted;
+    } catch { return false; }
+  }, [player, castPlaybackState]);
 
   const remoteCallbacks = useMemo(() => ({
     onRemotePause: () => { try { player?.pause(); } catch (err) { console.warn("released", err); } },

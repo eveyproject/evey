@@ -59,6 +59,11 @@ export function useCastSession({
   const castCurrentTime = castMediaStatus?.streamPosition ?? 0;
   const castDuration = castMediaStatus?.mediaInfo?.streamDuration ?? fallbackDurationSec;
   const castIsPlaying = castMediaStatus?.playerState === 2; // MediaPlayerState.PLAYING
+  // The receiver's own stream volume/mute. Needed because muteLocalPlayer parks
+  // the local player at volume 0: without these the session was reported as
+  // muted at 0% while the television played out loud (see castPlaybackState.ts).
+  const castVolume = castMediaStatus?.volume;
+  const castIsMuted = castMediaStatus?.isMuted;
 
   const muteLocalPlayer = useCallback(() => {
     if (!player) return;
@@ -179,5 +184,5 @@ export function useCastSession({
     }
   }, [castConnected, unmuteLocalPlayer]);
 
-  return { castConnected, castClient, castCurrentTime, castDuration, castIsPlaying, handleCast };
+  return { castConnected, castClient, castCurrentTime, castDuration, castIsPlaying, castVolume, castIsMuted, handleCast };
 }
