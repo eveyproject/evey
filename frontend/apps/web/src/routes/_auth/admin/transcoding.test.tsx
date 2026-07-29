@@ -28,6 +28,10 @@ vi.mock("@tanstack/react-router", () => ({
 // way - mockLoadTestStatus lets each test drive idle/running/report directly
 // instead of fighting the polling timer.
 let mockLoadTestStatus: unknown;
+// AdvancedTranscodingCard reads the same /admin/server-settings payload, so the
+// shape is overridable per test (it needs the requiresRestart flags, which the
+// concurrency knob does not carry).
+let mockServerSettings: unknown;
 
 vi.mock("@tanstack/react-query", async () => {
   const actual = await vi.importActual<typeof import("@tanstack/react-query")>("@tanstack/react-query");
@@ -36,7 +40,7 @@ vi.mock("@tanstack/react-query", async () => {
     useQuery: (opts: { queryKey?: unknown[] }) => {
       const key = JSON.stringify(opts?.queryKey ?? []);
       if (key.includes("server-settings")) {
-        return { data: { maxConcurrentTranscodes: { value: 2, default: 2, source: "default" } }, isLoading: false };
+        return { data: mockServerSettings, isLoading: false };
       }
       if (key.includes("load-test")) {
         return { data: mockLoadTestStatus, isLoading: false };
@@ -77,6 +81,14 @@ beforeEach(() => {
   mockSetConfigEntry.mockResolvedValue({});
   mockEveyFetch.mockReset().mockResolvedValue({});
   mockLoadTestStatus = undefined;
+  mockServerSettings = {
+    maxConcurrentTranscodes: { value: 2, default: 2, source: "default" },
+    transcodeMaxSessions: { value: 0, default: 0, source: "default", requiresRestart: true },
+    transcodeSingleVariant: { value: false, default: false, source: "default", requiresRestart: true },
+    transcodeHWPerVariant: { value: false, default: false, source: "default", requiresRestart: true },
+    softwareMaxHeight: { value: 0, default: 0, source: "default", requiresRestart: true },
+    softwareHDRMaxHeight: { value: 0, default: 0, source: "default", requiresRestart: true },
+  };
 });
 
 describe("TranscodingConfigPage capacity", () => {
@@ -645,5 +657,98 @@ describe("LoadTestCard", () => {
     render(React.createElement(Page), { wrapper: createWrapper() });
 
     expect(screen.queryByTestId("load-test-predicted")).toBeNull();
+  });
+});
+
+// The five knobs below were reachable only through environment variables until
+// 2026-07-30 (changing a playback ceiling meant editing a compose file and
+// recreating the container). They are snapshotted at boot, so the panel must
+// also say a restart is needed - and say it from the server's flag.
+describe("TranscodingConfigPage advanced limits", () => {
+  async function openAdvanced() {
+    const Page = await getPage();
+    render(React.createElement(Page), { wrapper: createWrapper() });
+    fireEvent.click(screen.getByRole("button", { name: /Advanced limits/i }));
+  }
+
+  it("exposes the five formerly env-only knobs", async () => {
+    await openAdvanced();
+    expect(screen.getByTestId("max-sessions-input")).toBeInTheDocument();
+    expect(screen.getByTestId("software-max-height-input")).toBeInTheDocument();
+    expect(screen.getByTestId("software-hdr-max-height-input")).toBeInTheDocument();
+    expect(screen.getByTestId("single-variant-toggle")).toBeInTheDocument();
+    expect(screen.getByTestId("hw-per-variant-toggle")).toBeInTheDocument();
+  });
+
+  it("warns that a restart is needed when the server flags it", async () => {
+    await openAdvanced();
+    expect(screen.getByTestId("advanced-restart-hint")).toBeInTheDocument();
+  });
+
+  it("does not warn when the server stops flagging a restart", async () => {
+    // Guards against the hint being hardcoded: a knob that becomes live later
+    // must stop warning without anyone editing this page.
+    mockServerSettings = {
+      maxConcurrentTranscodes: { value: 2, default: 2, source: "default" },
+      transcodeMaxSessions: { value: 0, default: 0, source: "default" },
+      transcodeSingleVariant: { value: false, default: false, source: "default" },
+      transcodeHWPerVariant: { value: false, default: false, source: "default" },
+      softwareMaxHeight: { value: 0, default: 0, source: "default" },
+      softwareHDRMaxHeight: { value: 0, default: 0, source: "default" },
+    };
+    await openAdvanced();
+    expect(screen.queryByTestId("advanced-restart-hint")).not.toBeInTheDocument();
+  });
+
+  it("leaves a non-overridden field blank rather than pre-filling the effective value", async () => {
+    // Pre-filling would turn every save into an override of a value the
+    // operator never chose.
+    await openAdvanced();
+    expect(screen.getByTestId("software-hdr-max-height-input")).toHaveValue(null);
+  });
+
+  it("shows an overridden value and saves it back", async () => {
+    mockServerSettings = {
+      maxConcurrentTranscodes: { value: 2, default: 2, source: "default" },
+      transcodeMaxSessions: { value: 0, default: 0, source: "default", requiresRestart: true },
+      transcodeSingleVariant: { value: false, default: false, source: "default", requiresRestart: true },
+      transcodeHWPerVariant: { value: false, default: false, source: "default", requiresRestart: true },
+      softwareMaxHeight: { value: 0, default: 0, source: "default", requiresRestart: true },
+      softwareHDRMaxHeight: { value: 1080, default: 0, source: "override", requiresRestart: true },
+    };
+    await openAdvanced();
+    expect(screen.getByTestId("software-hdr-max-height-input")).toHaveValue(1080);
+
+    fireEvent.change(screen.getByTestId("software-hdr-max-height-input"), { target: { value: "720" } });
+    fireEvent.click(screen.getByTestId("advanced-transcoding-save-btn"));
+
+    await waitFor(() => {
+      expect(mockEveyFetch).toHaveBeenCalledWith(expect.objectContaining({
+        url: "/api/v1/admin/server-settings",
+        method: "PUT",
+        data: expect.objectContaining({ softwareHDRMaxHeight: 720 }),
+      }));
+    });
+  });
+
+  it("clears an override with an explicit null when the field is emptied", async () => {
+    // Empty is Reset, NOT "save 0" - 0 is a meaningful value on these knobs.
+    mockServerSettings = {
+      maxConcurrentTranscodes: { value: 2, default: 2, source: "default" },
+      transcodeMaxSessions: { value: 4, default: 0, source: "override", requiresRestart: true },
+      transcodeSingleVariant: { value: false, default: false, source: "default", requiresRestart: true },
+      transcodeHWPerVariant: { value: false, default: false, source: "default", requiresRestart: true },
+      softwareMaxHeight: { value: 0, default: 0, source: "default", requiresRestart: true },
+      softwareHDRMaxHeight: { value: 0, default: 0, source: "default", requiresRestart: true },
+    };
+    await openAdvanced();
+    fireEvent.change(screen.getByTestId("max-sessions-input"), { target: { value: "" } });
+    fireEvent.click(screen.getByTestId("advanced-transcoding-save-btn"));
+
+    await waitFor(() => {
+      expect(mockEveyFetch).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ transcodeMaxSessions: null }),
+      }));
+    });
   });
 });

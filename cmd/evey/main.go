@@ -145,6 +145,17 @@ func run() error {
 	loadOverride(ctx, cfgStore, "metrics.qoe_retention_days", parseInt, &cfg.Metrics.QoERetentionDays)
 	loadOverride(ctx, cfgStore, "playback.session_retention_days", parseInt, &cfg.Playback.SessionRetentionDays)
 	loadOverride(ctx, cfgStore, "transcoding.cache_max_gb", parseInt, &cfg.Transcoding.CacheMaxGB)
+	// The five transcoding knobs that were env-only until 2026-07-30. Loading
+	// them HERE is what makes them work at all: wire.go snapshots each one below
+	// (orchestrator opts, the HLS session cap, the software ladder), so a value
+	// only saved to the panel would be ignored by every boot. This is also why
+	// the panel reports them as requiresRestart - the restart is the moment they
+	// take effect, and it has to find them.
+	loadOverride(ctx, cfgStore, "transcoding.max_sessions", parseInt, &cfg.Transcoding.MaxSessions)
+	loadOverride(ctx, cfgStore, "transcoding.single_variant", parseBool, &cfg.Transcoding.SingleVariant)
+	loadOverride(ctx, cfgStore, "transcoding.hw_per_variant", parseBool, &cfg.Transcoding.HWPerVariant)
+	loadOverride(ctx, cfgStore, "transcoding.software_max_height", parseInt, &cfg.Transcoding.SoftwareMaxHeightOverride)
+	loadOverride(ctx, cfgStore, "transcoding.software_hdr_max_height", parseInt, &cfg.Transcoding.SoftwareHDRMaxHeightOverride)
 	// The admin toggle persists the MODE only (settings_handler flips the gate in
 	// memory and returns the mode string), so derive the gate from the mode here.
 	// Loading the two independently lets them disagree: the panel shows hardware

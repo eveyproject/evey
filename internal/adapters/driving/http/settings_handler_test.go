@@ -675,3 +675,117 @@ func newSettingsTestEnvWithStore(t *testing.T, verifier TokenVerifier, store *fa
 	t.Cleanup(env.cleanup)
 	return env
 }
+
+// The five transcoding knobs that were env-only until 2026-07-30. They are the
+// operator's levers on weak hardware (the 720p-HDR ceiling was diagnosed in
+// production through EVEY_TRANSCODING_SOFTWARE_HDR_MAX_HEIGHT), so the panel has
+// to be able to set them - and to say that they need a restart, because wire.go
+// snapshots every one of them at boot.
+func TestServerSettings_Put_TranscodingKnobs_RoundTrip(t *testing.T) {
+	env := newSettingsTestEnv(t, validUserValidator(true))
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/admin/server-settings",
+		strings.NewReader(`{"transcodeMaxSessions":3,"transcodeSingleVariant":true,"transcodeHWPerVariant":true,"softwareMaxHeight":1080,"softwareHDRMaxHeight":720}`))
+	req.Header.Set("Authorization", "Bearer tok")
+	rec := httptest.NewRecorder()
+	env.mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if env.cfg.Transcoding.MaxSessions != 3 || !env.cfg.Transcoding.SingleVariant ||
+		!env.cfg.Transcoding.HWPerVariant || env.cfg.Transcoding.SoftwareMaxHeightOverride != 1080 ||
+		env.cfg.Transcoding.SoftwareHDRMaxHeightOverride != 720 {
+		t.Errorf("cfg not updated: sessions=%d single=%v perVariant=%v swMax=%d swHDRMax=%d",
+			env.cfg.Transcoding.MaxSessions, env.cfg.Transcoding.SingleVariant,
+			env.cfg.Transcoding.HWPerVariant, env.cfg.Transcoding.SoftwareMaxHeightOverride,
+			env.cfg.Transcoding.SoftwareHDRMaxHeightOverride)
+	}
+	// Persistence is the whole point: these are read back by main's loadOverride
+	// at the next boot, which is the moment they take effect.
+	for key, want := range map[string]string{
+		cfgKeyTranscodeMaxSessions:   "3",
+		cfgKeyTranscodeSingleVariant: "true",
+		cfgKeyTranscodeHWPerVariant:  "true",
+		cfgKeyTranscodeSWMaxHeight:   "1080",
+		cfgKeyTranscodeSWHDRMaxHt:    "720",
+	} {
+		if got := env.store.sets[key]; got != want {
+			t.Errorf("store[%s] = %q want %q", key, got, want)
+		}
+	}
+}
+
+// 0 is a MEANINGFUL value on the three numeric knobs ("no override"), so it must
+// be accepted and persisted - unlike transcodeCacheMaxGB, where 0 is nonsense.
+func TestServerSettings_Put_TranscodingKnobs_ZeroIsAValidOverride(t *testing.T) {
+	env := newSettingsTestEnv(t, validUserValidator(true))
+	env.cfg.Transcoding.SoftwareHDRMaxHeightOverride = 1080
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/admin/server-settings",
+		strings.NewReader(`{"softwareHDRMaxHeight":0}`))
+	req.Header.Set("Authorization", "Bearer tok")
+	env.mux.ServeHTTP(httptest.NewRecorder(), req)
+	if env.cfg.Transcoding.SoftwareHDRMaxHeightOverride != 0 {
+		t.Errorf("0 must be applied, got %d", env.cfg.Transcoding.SoftwareHDRMaxHeightOverride)
+	}
+	if got := env.store.sets[cfgKeyTranscodeSWHDRMaxHt]; got != "0" {
+		t.Errorf("store[%s] = %q want %q", cfgKeyTranscodeSWHDRMaxHt, got, "0")
+	}
+}
+
+func TestServerSettings_Put_TranscodingKnobs_RejectsNegative(t *testing.T) {
+	env := newSettingsTestEnv(t, validUserValidator(true))
+	env.cfg.Transcoding.MaxSessions = 2
+	env.cfg.Transcoding.SoftwareMaxHeightOverride = 1080
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/admin/server-settings",
+		strings.NewReader(`{"transcodeMaxSessions":-1,"softwareMaxHeight":-720}`))
+	req.Header.Set("Authorization", "Bearer tok")
+	env.mux.ServeHTTP(httptest.NewRecorder(), req)
+	if env.cfg.Transcoding.MaxSessions != 2 {
+		t.Errorf("negative sessions must be ignored, got %d", env.cfg.Transcoding.MaxSessions)
+	}
+	if env.cfg.Transcoding.SoftwareMaxHeightOverride != 1080 {
+		t.Errorf("negative height must be ignored, got %d", env.cfg.Transcoding.SoftwareMaxHeightOverride)
+	}
+	if _, ok := env.store.sets[cfgKeyTranscodeMaxSessions]; ok {
+		t.Errorf("ignored value must not be persisted")
+	}
+}
+
+// A saved value the running process ignores, with nothing saying so, reads as a
+// broken setting. The panel needs the flag to tell the operator to restart.
+func TestServerSettings_Get_TranscodingKnobsRequireRestart(t *testing.T) {
+	env := newSettingsTestEnv(t, validUserValidator(true))
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/server-settings", nil)
+	req.Header.Set("Authorization", "Bearer tok")
+	rec := httptest.NewRecorder()
+	env.mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	var resp map[string]settingValue
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("bad json: %v", err)
+	}
+	for _, key := range []string{
+		"transcodeMaxSessions", "transcodeSingleVariant", "transcodeHWPerVariant",
+		"softwareMaxHeight", "softwareHDRMaxHeight",
+		// Pre-existing boot-snapshotted settings whose contract was only ever a
+		// Go comment until now.
+		"transcodeCacheMaxGB", "libraryWatcherEnabled", "periodicScanInterval",
+	} {
+		v, ok := resp[key]
+		if !ok {
+			t.Errorf("GET response missing %q", key)
+			continue
+		}
+		if !v.RequiresRestart {
+			t.Errorf("%q must be flagged requiresRestart", key)
+		}
+	}
+	// A live-applied setting must NOT be flagged, or the panel would tell the
+	// operator to restart for a change that already took effect.
+	for _, key := range []string{"logLevel", "loginRateLimit", "qoeRetentionDays", "skipPreviewEnabled"} {
+		if v, ok := resp[key]; ok && v.RequiresRestart {
+			t.Errorf("%q applies live and must not be flagged requiresRestart", key)
+		}
+	}
+}

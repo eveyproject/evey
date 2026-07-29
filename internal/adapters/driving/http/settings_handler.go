@@ -44,6 +44,22 @@ const (
 	cfgKeyQoERetention     = "metrics.qoe_retention_days"
 	cfgKeySessionRetention = "playback.session_retention_days"
 	cfgKeyTranscodeCacheGB = "transcoding.cache_max_gb"
+	// The last five transcoding knobs that were env-only. They are the ones an
+	// operator on weak hardware actually reaches for - the 720p-HDR ceiling in
+	// particular was diagnosed and fixed in production through
+	// EVEY_TRANSCODING_SOFTWARE_HDR_MAX_HEIGHT, which means editing a compose
+	// file and recreating the container to change a playback ceiling.
+	//
+	// All five are read ONCE at boot (wire.go hands them to the orchestrator and
+	// to the software ladder), so unlike the retention windows they cannot take
+	// effect live. That is why settingDef carries requiresRestart: persisting a
+	// value the running process ignores, with nothing saying so, is worse than
+	// leaving it in the environment.
+	cfgKeyTranscodeSingleVariant = "transcoding.single_variant"
+	cfgKeyTranscodeMaxSessions   = "transcoding.max_sessions"
+	cfgKeyTranscodeHWPerVariant  = "transcoding.hw_per_variant"
+	cfgKeyTranscodeSWMaxHeight   = "transcoding.software_max_height"
+	cfgKeyTranscodeSWHDRMaxHt    = "transcoding.software_hdr_max_height"
 )
 
 // validAV1MaxHeights are the AV1 output height caps the panel offers. 0 = no cap
@@ -85,6 +101,13 @@ type settingValue struct {
 	Value   any    `json:"value"`
 	Default any    `json:"default"`
 	Source  string `json:"source"`
+	// RequiresRestart tells the panel that saving this key persists the value
+	// but does NOT change the running server. Several settings already had that
+	// contract (the cache budget, the watcher knobs) and it was documented only
+	// in a Go comment, so the panel showed a saved value the process was
+	// ignoring - the operator's next move is to wonder why the setting "did
+	// nothing". Omitted from the JSON when false to keep the payload quiet.
+	RequiresRestart bool `json:"requiresRestart,omitempty"`
 }
 
 type settingDef struct {
@@ -100,6 +123,11 @@ type settingDef struct {
 	// way (hw mode: "unset" has no runtime meaning, the operator picks one).
 	reset           func()
 	resetSideEffect func()
+	// requiresRestart marks a setting whose value is snapshotted at boot, so
+	// saving it persists the choice without changing the running process. Only
+	// meaningful on the GET side (it is reported to the panel); the PUT-side
+	// `updates` entries do not carry it.
+	requiresRestart bool
 }
 
 func registerServerSettingsRoutes(
@@ -185,11 +213,13 @@ func registerServerSettingsRoutes(
 		// takes effect on the next restart (no live setter). Surfaced so the
 		// values can be managed from the panel instead of the .env.
 		{jsonKey: "libraryWatcherEnabled", cfgKey: cfgKeyWatcherEnabled, defaultVal: true,
-			getter: func() any { return cfg.Library.WatcherEnabled },
-			reset:  func() { cfg.Library.WatcherEnabled = true }},
+			getter:          func() any { return cfg.Library.WatcherEnabled },
+			reset:           func() { cfg.Library.WatcherEnabled = true },
+			requiresRestart: true},
 		{jsonKey: "periodicScanInterval", cfgKey: cfgKeyScanInterval, defaultVal: "2m",
-			getter: func() any { return cfg.Library.PeriodicScanInterval.String() },
-			reset:  func() { cfg.Library.PeriodicScanInterval = 2 * time.Minute }},
+			getter:          func() any { return cfg.Library.PeriodicScanInterval.String() },
+			reset:           func() { cfg.Library.PeriodicScanInterval = 2 * time.Minute },
+			requiresRestart: true},
 		// Skip-preview is read live by the segments handler, so toggling it
 		// takes effect immediately (no restart).
 		{jsonKey: "skipPreviewEnabled", cfgKey: cfgKeySkipPreview, defaultVal: false,
@@ -238,8 +268,36 @@ func registerServerSettingsRoutes(
 		// change takes effect on the next restart - same contract as the
 		// library watcher settings above.
 		{jsonKey: "transcodeCacheMaxGB", cfgKey: cfgKeyTranscodeCacheGB, defaultVal: 50,
-			getter: func() any { return cfg.Transcoding.CacheMaxGB },
-			reset:  func() { cfg.Transcoding.CacheMaxGB = 50 }},
+			getter:          func() any { return cfg.Transcoding.CacheMaxGB },
+			reset:           func() { cfg.Transcoding.CacheMaxGB = 50 },
+			requiresRestart: true},
+		// The five formerly env-only transcoding knobs. Every one is snapshotted
+		// by wire.go at boot (the orchestrator's opts, the HLS session cap, the
+		// software ladder), hence requiresRestart on all of them.
+		//
+		// 0 means "no override" for the three numeric ones, NOT "zero height" /
+		// "no sessions": that is how the env vars already behaved, and inverting
+		// it here would silently cap a library at 0p or refuse every session.
+		{jsonKey: "transcodeMaxSessions", cfgKey: cfgKeyTranscodeMaxSessions, defaultVal: 0,
+			getter:          func() any { return cfg.Transcoding.MaxSessions },
+			reset:           func() { cfg.Transcoding.MaxSessions = 0 },
+			requiresRestart: true},
+		{jsonKey: "transcodeSingleVariant", cfgKey: cfgKeyTranscodeSingleVariant, defaultVal: false,
+			getter:          func() any { return cfg.Transcoding.SingleVariant },
+			reset:           func() { cfg.Transcoding.SingleVariant = false },
+			requiresRestart: true},
+		{jsonKey: "transcodeHWPerVariant", cfgKey: cfgKeyTranscodeHWPerVariant, defaultVal: false,
+			getter:          func() any { return cfg.Transcoding.HWPerVariant },
+			reset:           func() { cfg.Transcoding.HWPerVariant = false },
+			requiresRestart: true},
+		{jsonKey: "softwareMaxHeight", cfgKey: cfgKeyTranscodeSWMaxHeight, defaultVal: 0,
+			getter:          func() any { return cfg.Transcoding.SoftwareMaxHeightOverride },
+			reset:           func() { cfg.Transcoding.SoftwareMaxHeightOverride = 0 },
+			requiresRestart: true},
+		{jsonKey: "softwareHDRMaxHeight", cfgKey: cfgKeyTranscodeSWHDRMaxHt, defaultVal: 0,
+			getter:          func() any { return cfg.Transcoding.SoftwareHDRMaxHeightOverride },
+			reset:           func() { cfg.Transcoding.SoftwareHDRMaxHeightOverride = 0 },
+			requiresRestart: true},
 	}
 
 	// Seed `overridden` from the store: after a restart this map started empty
@@ -263,7 +321,12 @@ func registerServerSettingsRoutes(
 		resp := make(map[string]settingValue, len(settings))
 		cfg.WithReadLock(func() {
 			for _, s := range settings {
-				resp[s.jsonKey] = settingValue{Value: s.getter(), Default: s.defaultVal, Source: source(s.cfgKey)}
+				resp[s.jsonKey] = settingValue{
+					Value:           s.getter(),
+					Default:         s.defaultVal,
+					Source:          source(s.cfgKey),
+					RequiresRestart: s.requiresRestart,
+				}
 			}
 		})
 		return resp
@@ -305,6 +368,11 @@ func registerServerSettingsRoutes(
 			QoERetentionDays        *int    `json:"qoeRetentionDays"`
 			PlaySessionRetention    *int    `json:"playSessionRetentionDays"`
 			TranscodeCacheMaxGB     *int    `json:"transcodeCacheMaxGB"`
+			TranscodeMaxSessions    *int    `json:"transcodeMaxSessions"`
+			TranscodeSingleVariant  *bool   `json:"transcodeSingleVariant"`
+			TranscodeHWPerVariant   *bool   `json:"transcodeHWPerVariant"`
+			SoftwareMaxHeight       *int    `json:"softwareMaxHeight"`
+			SoftwareHDRMaxHeight    *int    `json:"softwareHDRMaxHeight"`
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1 MiB cap on JSON body
 		bodyBytes, err := io.ReadAll(r.Body)
@@ -569,6 +637,51 @@ func registerServerSettingsRoutes(
 					}
 					cfg.Transcoding.CacheMaxGB = *body.TranscodeCacheMaxGB
 					return strconv.Itoa(*body.TranscodeCacheMaxGB)
+				}},
+			// The five formerly env-only knobs. Negatives are refused rather than
+			// clamped: 0 already means "no override" here, so a negative is an
+			// operator mistake and silently turning it into 0 would look like the
+			// save worked. Clearing an override goes through the explicit-null
+			// Reset path, not through a sentinel value.
+			{cfgKey: cfgKeyTranscodeMaxSessions,
+				apply: func() string {
+					if body.TranscodeMaxSessions == nil || *body.TranscodeMaxSessions < 0 {
+						return ""
+					}
+					cfg.Transcoding.MaxSessions = *body.TranscodeMaxSessions
+					return strconv.Itoa(*body.TranscodeMaxSessions)
+				}},
+			{cfgKey: cfgKeyTranscodeSingleVariant,
+				apply: func() string {
+					if body.TranscodeSingleVariant == nil {
+						return ""
+					}
+					cfg.Transcoding.SingleVariant = *body.TranscodeSingleVariant
+					return strconv.FormatBool(*body.TranscodeSingleVariant)
+				}},
+			{cfgKey: cfgKeyTranscodeHWPerVariant,
+				apply: func() string {
+					if body.TranscodeHWPerVariant == nil {
+						return ""
+					}
+					cfg.Transcoding.HWPerVariant = *body.TranscodeHWPerVariant
+					return strconv.FormatBool(*body.TranscodeHWPerVariant)
+				}},
+			{cfgKey: cfgKeyTranscodeSWMaxHeight,
+				apply: func() string {
+					if body.SoftwareMaxHeight == nil || *body.SoftwareMaxHeight < 0 {
+						return ""
+					}
+					cfg.Transcoding.SoftwareMaxHeightOverride = *body.SoftwareMaxHeight
+					return strconv.Itoa(*body.SoftwareMaxHeight)
+				}},
+			{cfgKey: cfgKeyTranscodeSWHDRMaxHt,
+				apply: func() string {
+					if body.SoftwareHDRMaxHeight == nil || *body.SoftwareHDRMaxHeight < 0 {
+						return ""
+					}
+					cfg.Transcoding.SoftwareHDRMaxHeightOverride = *body.SoftwareHDRMaxHeight
+					return strconv.Itoa(*body.SoftwareHDRMaxHeight)
 				}},
 		}
 
