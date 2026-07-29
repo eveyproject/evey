@@ -1214,8 +1214,12 @@ export default function PlayerScreen() {
                   />
                 </View>
 
-                {/* Episodes panel entry point (web parity: PlayerEpisodesPanel). */}
-                {currentSeasonEpisodes.length > 1 && (
+                {/* Episodes panel entry point (web parity: PlayerEpisodesPanel,
+                    which gates on episodes.length > 0). It used to require > 1,
+                    which hid the button on a single-episode season - and with it
+                    the panel's SEASON SELECTOR, so the other seasons became
+                    unreachable from the player. */}
+                {currentSeasonEpisodes.length > 0 && (
                   <Pressable
                     onPress={() => { setEpisodesPanelOpened(true); setActiveSheet("episodes"); resetHideTimer(); }}
                     hitSlop={8}
