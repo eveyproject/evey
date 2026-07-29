@@ -197,13 +197,20 @@ async function fetchWithRefresh(
 
   if (!response.ok) {
     let message = `${response.status} ${response.statusText}`;
+    let retryAfterSeconds: number | undefined;
     try {
-      const body = await response.clone().json() as { message?: string };
+      const body = await response.clone().json() as { message?: string; retryAfterSeconds?: number };
       if (body.message) message = body.message;
+      if (typeof body.retryAfterSeconds === "number") retryAfterSeconds = body.retryAfterSeconds;
     } catch {
       // ignore parse errors
     }
-    throw Object.assign(new Error(message), { httpStatus: response.status });
+    // A 429 must reach the UI with its WAIT attached: "too many requests" on
+    // its own is unactionable and the user just retries into the wall
+    // (2026-07-29). Header wins, body is the fallback for stripping proxies.
+    const header = Number.parseInt(response.headers.get("Retry-After") ?? "", 10);
+    if (Number.isFinite(header) && header > 0) retryAfterSeconds = header;
+    throw Object.assign(new Error(message), { httpStatus: response.status, retryAfterSeconds });
   }
 
   return response;

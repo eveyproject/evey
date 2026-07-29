@@ -55,3 +55,8 @@ music:
   previousTrack: Pista anterior
   nextTrack: Pista siguiente
   closePlayer: Cerrar reproductor
+rateLimit:
+  title: "Demasiados intentos"
+  body: "Demasiados intentos de inicio de sesión. Inténtalo de nuevo en {{wait}}."
+  seconds: "{{count}} s"
+  minutes: "{{count}} min"

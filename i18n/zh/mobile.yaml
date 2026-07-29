@@ -55,3 +55,8 @@ music:
   previousTrack: 上一曲
   nextTrack: 下一曲
   closePlayer: 关闭播放器
+rateLimit:
+  title: "尝试次数过多"
+  body: "登录尝试次数过多。请在 {{wait}} 后重试。"
+  seconds: "{{count}} 秒"
+  minutes: "{{count}} 分钟"

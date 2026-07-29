@@ -55,3 +55,8 @@ music:
   previousTrack: पिछला ट्रैक
   nextTrack: अगला ट्रैक
   closePlayer: प्लेयर बंद करें
+rateLimit:
+  title: "बहुत अधिक प्रयास"
+  body: "बहुत अधिक लॉगिन प्रयास। {{wait}} में पुनः प्रयास करें।"
+  seconds: "{{count}} से"
+  minutes: "{{count}} मि"

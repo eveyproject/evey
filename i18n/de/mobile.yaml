@@ -55,3 +55,8 @@ music:
   previousTrack: "Vorheriger Titel"
   nextTrack: "Nachster Titel"
   closePlayer: "Player schliessen"
+rateLimit:
+  title: "Zu viele Versuche"
+  body: "Zu viele Anmeldeversuche. Versuchen Sie es in {{wait}} erneut."
+  seconds: "{{count}} s"
+  minutes: "{{count}} Min."

@@ -2,8 +2,10 @@ package ratelimit
 
 import (
 	"log/slog"
+	"math"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -82,6 +84,24 @@ func (l *Limiter) Allow(ip string) bool {
 	}
 	e.tokens--
 	return true
+}
+
+// RetryAfter returns how many seconds ip must wait for its next token, or 0
+// when it can call right now. A refusal without a delay is unactionable: the
+// user retries blindly and stays blocked (report 2026-07-29).
+func (l *Limiter) RetryAfter(ip string) int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	e, ok := l.visitors[ip]
+	if !ok || l.rate <= 0 {
+		return 0
+	}
+	tokens := e.tokens + time.Since(e.lastCheck).Seconds()*l.rate
+	if tokens >= 1 {
+		return 0
+	}
+	secs := (1 - tokens) / l.rate
+	return int(math.Ceil(secs))
 }
 
 func (l *Limiter) cleanup() {
@@ -192,14 +212,21 @@ func refusalLogger() *slog.Logger {
 // produced an empty log, which read as "the request never arrived" and cost an
 // afternoon of misdirected diagnosis (2026-07-29). Retry-After tells the client
 // when to come back instead of leaving it to guess.
-func refuse(w http.ResponseWriter, r *http.Request) {
+func refuse(w http.ResponseWriter, r *http.Request, retryAfter int) {
 	refusalLogger().WarnContext(r.Context(), "rate limit: request refused",
 		slog.String("client_ip", clientIP(r)),
 		slog.String("path", r.URL.Path),
 		slog.String("method", r.Method),
 		slog.String("device", r.UserAgent()))
-	w.Header().Set("Retry-After", "60")
-	http.Error(w, `{"message":"too many requests"}`, http.StatusTooManyRequests)
+	if retryAfter < 1 {
+		retryAfter = 1
+	}
+	w.Header().Set("Retry-After", strconv.Itoa(retryAfter))
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusTooManyRequests)
+	// retryAfterSeconds in the BODY too: a client that cannot read headers
+	// (or a proxy that strips them) still tells the user when to come back.
+	_, _ = w.Write([]byte(`{"message":"too many requests","retryAfterSeconds":` + strconv.Itoa(retryAfter) + `}`))
 }
 
 func Middleware(limiter *Limiter, exemptPrefixes ...string) func(http.Handler) http.Handler {
@@ -212,7 +239,7 @@ func Middleware(limiter *Limiter, exemptPrefixes ...string) func(http.Handler) h
 				}
 			}
 			if !limiter.Allow(clientIP(r)) {
-				refuse(w, r)
+				refuse(w, r, limiter.RetryAfter(clientIP(r)))
 				return
 			}
 			next.ServeHTTP(w, r)
@@ -223,7 +250,7 @@ func Middleware(limiter *Limiter, exemptPrefixes ...string) func(http.Handler) h
 func MiddlewareFunc(limiter *Limiter, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if !limiter.Allow(clientIP(r)) {
-			refuse(w, r)
+			refuse(w, r, limiter.RetryAfter(clientIP(r)))
 			return
 		}
 		next(w, r)

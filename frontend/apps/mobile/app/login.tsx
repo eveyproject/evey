@@ -12,6 +12,7 @@ import { setRefreshToken } from "../src/lib/refresh-token";
 import { getSavedCredentials, saveCredentials, clearSavedCredentials } from "../src/lib/saved-credentials";
 import { useBiometricAvailable, useBiometricEnabled, authenticateBiometric } from "../src/hooks/useBiometric";
 import { PasswordInput } from "../src/components/PasswordInput";
+import { formatWait, parseRateLimit } from "../src/lib/rateLimitMessage";
 
 export default function Login() {
   const theme = useTheme();
@@ -109,6 +110,10 @@ export default function Login() {
     }
   }
 
+  // t with a {{count}} param, for formatWait's unit strings.
+  const tCount = (key: string, fallback: string, params?: Record<string, number>) =>
+    t(key, fallback, params) as string;
+
   const { mutate: login, isPending } = useUserServiceLogin({
     mutation: {
       onSuccess: async (data) => {
@@ -121,6 +126,19 @@ export default function Login() {
         }
       },
       onError: (err) => {
+        // A rate-limited login is NOT a wrong password: telling the user to
+        // check their credentials sends them retrying into the wall. Name the
+        // block and the wait (2026-07-29).
+        const status = (err as { httpStatus?: number })?.httpStatus;
+        const limited = parseRateLimit(status ?? 0, null, err);
+        if (limited) {
+          Alert.alert(
+            t("mobile.rateLimit.title", "Too many attempts"),
+            t("mobile.rateLimit.body", "Too many login attempts. Try again in {{wait}}.")
+              .replace("{{wait}}", formatWait(limited.retryAfterSeconds, tCount)),
+          );
+          return;
+        }
         Alert.alert(
           t("auth.login.loginFailed"),
           err instanceof Error ? err.message : t("auth.login.invalidCredentials"),

@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -503,7 +504,7 @@ func TestMiddleware_LogsRefusals(t *testing.T) {
 	SetLogger(slog.New(slog.NewJSONHandler(&buf, nil)))
 	t.Cleanup(func() { SetLogger(nil) })
 
-	lim := NewWithBurst(1, 0.001) // one token, effectively no refill
+	lim := NewWithBurst(1, 0.06) // one token, refill so slow it never returns
 	h := MiddlewareFunc(lim, func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", nil)
@@ -544,5 +545,55 @@ func TestMiddleware_LogsRefusals(t *testing.T) {
 	}
 	if dev, _ := line["device"].(string); !strings.Contains(dev, "EveyMobile") {
 		t.Fatalf("the refused client's user agent must be logged, got %v", line["device"])
+	}
+}
+
+// A refused user must be told HOW LONG - "too many requests" with no delay
+// leaves them tapping blindly (user report 2026-07-29). Retry-After carries
+// the real wait computed from the bucket, not a fixed guess.
+func TestRetryAfter_ReportsTheRealWait(t *testing.T) {
+	lim := NewWithBurst(1, 30) // 30 tokens per MINUTE: one token every 2s
+	if !lim.Allow("1.2.3.4") {
+		t.Fatal("first call must pass")
+	}
+	if lim.Allow("1.2.3.4") {
+		t.Fatal("second call must be refused")
+	}
+	got := lim.RetryAfter("1.2.3.4")
+	if got < 1 || got > 3 {
+		t.Fatalf("RetryAfter = %ds, want ~2s (30/min = one token every 2s)", got)
+	}
+	// An unknown/allowed client owes nothing.
+	if n := lim.RetryAfter("9.9.9.9"); n != 0 {
+		t.Fatalf("RetryAfter for an unseen client = %d, want 0", n)
+	}
+}
+
+// The refusal body must carry the delay in a form a client can act on: the
+// mobile app turns it into "try again in N minutes".
+func TestMiddleware_RefusalBodyCarriesRetryAfter(t *testing.T) {
+	lim := NewWithBurst(1, 30)
+	h := MiddlewareFunc(lim, func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", nil)
+	req.RemoteAddr = "203.0.113.9:5000"
+	h(httptest.NewRecorder(), req)
+
+	rec := httptest.NewRecorder()
+	h(rec, req)
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("status = %d, want 429", rec.Code)
+	}
+	var body struct {
+		Message           string `json:"message"`
+		RetryAfterSeconds int    `json:"retryAfterSeconds"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unparseable refusal body %q: %v", rec.Body.String(), err)
+	}
+	if body.RetryAfterSeconds < 1 {
+		t.Fatalf("retryAfterSeconds = %d, want the real wait", body.RetryAfterSeconds)
+	}
+	if h := rec.Header().Get("Retry-After"); h != strconv.Itoa(body.RetryAfterSeconds) {
+		t.Fatalf("Retry-After header = %q, body says %d - they must agree", h, body.RetryAfterSeconds)
 	}
 }

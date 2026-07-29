@@ -55,3 +55,8 @@ music:
   previousTrack: Previous track
   nextTrack: Next track
   closePlayer: Close player
+rateLimit:
+  title: "Too many attempts"
+  body: "Too many login attempts. Try again in {{wait}}."
+  seconds: "{{count}} s"
+  minutes: "{{count}} min"

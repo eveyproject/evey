@@ -55,3 +55,8 @@ music:
   previousTrack: Piste precedente
   nextTrack: Piste suivante
   closePlayer: Fermer le lecteur
+rateLimit:
+  title: "Trop de tentatives"
+  body: "Trop de tentatives de connexion. Réessayez dans {{wait}}."
+  seconds: "{{count}} s"
+  minutes: "{{count}} min"

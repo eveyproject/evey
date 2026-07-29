@@ -5,7 +5,7 @@ import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { setBaseURL } from "@evey/api";
 import { useAuthStore, useServerListStore, toast } from "@evey/store";
-import { setServerUrl } from "../../src/lib/server-config";
+import { setServerUrl, probeServer } from "../../src/lib/server-config";
 import { initFetcher } from "../../src/lib/fetcher-setup";
 import { useTheme } from "../../src/providers/ThemeProvider";
 
@@ -67,6 +67,20 @@ export default function ManageServersScreen() {
   const handleSwitch = useCallback(async (id: string) => {
     const server = servers[id];
     if (!server) return;
+    // Reachability BEFORE switching: routing to /login against a server that
+    // cannot answer produces failures the user cannot interpret, and nothing
+    // reaches the real server's logs (2026-07-29). Same gate as
+    // server-connect and the boot redirect - no path to /login skips it.
+    const probe = await probeServer(server.url);
+    if (probe !== "ok") {
+      Alert.alert(
+        t("mobile.serverConnect.connectionFailed", "Connection failed"),
+        probe === "not-evey"
+          ? t("mobile.serverConnect.notEvey", "{{url}} answered, but it is not an Evey server.").replace("{{url}}", server.url)
+          : t("mobile.serverConnect.unreachableSaved", "{{url}} did not answer. Check the address or your connection.").replace("{{url}}", server.url),
+      );
+      return;
+    }
     setActiveServer(id);
     setBaseURL(server.url);
     await setServerUrl(server.url);
