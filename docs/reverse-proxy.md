@@ -116,3 +116,30 @@ docker compose -f docker-compose.yml -f examples/traefik/docker-compose.traefik.
 2. SSL tab: request a Let's Encrypt certificate.
 3. Advanced tab: paste the streaming `location` blocks from
    [`examples/nginx/evey.conf.template`](../examples/nginx/evey.conf.template) so playback isn't buffered.
+
+## Real client IPs and the remote-access gate
+
+Once your proxy forwards the real client address, Evey can tell a viewer at home
+from one on the internet. That is what the WAN bitrate cap and the remote-access
+gate act on, so the two settings only behave correctly together:
+
+- `EVEY_TRUSTED_PROXIES` must cover the proxy (`172.16.0.0/12` when it is a
+  container on the Docker network, `127.0.0.1/32` when it runs on the host).
+- Chained proxies each need to preserve `X-Forwarded-For`. In Caddy that is
+  `servers { trusted_proxies static private_ranges }`; nginx uses
+  `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`.
+
+**Turning this on changes who counts as remote.** Before it, every request looked
+like it came from the proxy's own private address, so everyone was classified
+LAN. After it, real remote clients are correctly identified - and if remote
+access is disabled they are refused on every route
+(`403 {"code":"remote_access_disabled"}`). That exact sequence locked a whole
+household out of a working server for two days: the proxy config changed, no
+application setting did, and the only visible symptom was clients failing with
+no server-side error.
+
+Evey now guards against it: remote access defaults to enabled whenever a public
+URL is configured, the state is logged at every boot, refusals are logged with
+the client IP, `evey admin doctor` fails loudly on "published but refusing", and
+the admin panel shows a warning. If you change proxy trust settings, check
+`evey admin doctor` afterwards.

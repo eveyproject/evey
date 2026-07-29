@@ -205,11 +205,34 @@ EVEY_LOG_LEVEL=info                    # debug, info, warn, error
 EVEY_LOG_RETENTION_DAYS=90
 ```
 
-### Remote access (WAN bitrate cap)
+### Remote access (who may connect from outside your network)
 ```env
+EVEY_REMOTE_ACCESS_ENABLED=                                              # unset = auto (see below); true/false to decide yourself
+EVEY_REMOTE_ACCESS_EXTERNAL_URL=                                         # the public address, if it differs from EVEY_SERVER_BASE_URL
 EVEY_REMOTE_ACCESS_LAN_NETWORKS=10.0.0.0/8,172.16.0.0/12,192.168.0.0/16  # CIDRs treated as LAN
 EVEY_REMOTE_ACCESS_MAX_BITRATE_KBPS=0                                    # 0 = no cap for remote (WAN) sessions
 ```
+
+**The gate.** When remote access is off, every client whose IP is not in
+`EVEY_REMOTE_ACCESS_LAN_NETWORKS` is refused on every route with
+`403 {"code":"remote_access_disabled"}`. It is a deployment choice ("this
+instance is for my own network"), not a security layer - authentication is what
+protects your library.
+
+**Auto by default.** Leave `EVEY_REMOTE_ACCESS_ENABLED` unset and the server
+decides at boot: if `EVEY_REMOTE_ACCESS_EXTERNAL_URL` or `EVEY_SERVER_BASE_URL`
+is a publicly reachable address, remote access is **enabled** (a server you
+published is meant to be reached); otherwise it stays LAN-only. The decision is
+logged at startup, and `evey admin doctor` reports it.
+
+Set the variable - or use **Admin > Remote access** - to decide explicitly; an
+explicit choice is never overridden by the inference. If you deliberately keep a
+published server LAN-only, the boot log carries a warning saying so, because the
+symptom otherwise reaching you is "it works on your phone but not on mine".
+
+> Behind a reverse proxy this only works when the proxy forwards the real client
+> IP and `EVEY_TRUSTED_PROXIES` covers the proxy. Otherwise every client looks
+> like the proxy's own address - see [reverse-proxy.md](reverse-proxy.md).
 
 When `EVEY_REMOTE_ACCESS_MAX_BITRATE_KBPS` is set, playback sessions whose
 client IP is classified WAN are capped to that bitrate; the cap only ever
