@@ -33,6 +33,7 @@ import { VolumePicker } from "../../../src/components/VolumePicker";
 import { StreamInfoPanel } from "../../../src/components/StreamInfoPanel";
 import { SkipIntroButton } from "../../../src/components/SkipIntroButton";
 import { NextEpisodeOverlay } from "../../../src/components/NextEpisodeOverlay";
+import { TrickplaySeekPreview } from "../../../src/components/TrickplaySeekPreview";
 import { useParentalGate } from "../../../src/hooks/useParentalGate";
 import { ParentalPINModal } from "../../../src/components/ParentalPINModal";
 
@@ -870,6 +871,16 @@ export default function PlayerScreen() {
             )}
           </View>
 
+          {/* Trickplay thumbnail: the D-pad seek gesture has no live video
+              preview to look at while it's happening (unlike a mouse
+              scrubber), so this is the only way to find a scene at three
+              metres without landing blind. Renders nothing on its own when
+              there's no manifest yet, no generated sprites, or a failed
+              fetch - the seek behaves exactly as it does today. */}
+          <View style={styles.trickplayWrap} pointerEvents="none">
+            <TrickplaySeekPreview mediaId={mediaId} previewTimeSec={seekPreviewSec} />
+          </View>
+
           {/* Bottom bar */}
           <View style={styles.bottomBar}>
             <Text style={styles.timeText}>{formatTime(displayTime)}</Text>
@@ -976,6 +987,10 @@ const styles = StyleSheet.create({
   episodeHintText: {
     color: "rgba(255,255,255,0.85)",
     fontSize: 20,
+  },
+  trickplayWrap: {
+    alignItems: "center",
+    marginBottom: 12,
   },
   bottomBar: {
     flexDirection: "row",

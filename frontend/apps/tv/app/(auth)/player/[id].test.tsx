@@ -212,6 +212,16 @@ vi.mock("../../../src/components/VolumePicker", () => ({ VolumePicker: () => nul
 vi.mock("../../../src/components/StreamInfoPanel", () => ({ StreamInfoPanel: () => null }));
 vi.mock("../../../src/components/SkipIntroButton", () => ({ SkipIntroButton: () => null }));
 vi.mock("../../../src/components/NextEpisodeOverlay", () => ({ NextEpisodeOverlay: () => null }));
+// TrickplaySeekPreview captures its own props so the remote-seek tests below
+// can assert the screen wires the live preview position through to it,
+// without needing this suite to also mock a manifest fetch.
+let lastTrickplayPreviewProps: { mediaId: string; previewTimeSec: number | null } | null = null;
+vi.mock("../../../src/components/TrickplaySeekPreview", () => ({
+  TrickplaySeekPreview: (p: { mediaId: string; previewTimeSec: number | null }) => {
+    lastTrickplayPreviewProps = p;
+    return null;
+  },
+}));
 
 // --- ParentalPINModal mock -------------------------------------------------------
 vi.mock("../../../src/components/ParentalPINModal", () => ({
@@ -253,6 +263,7 @@ beforeEach(() => {
   listProfilesMock.mockReturnValue({ data: undefined });
   lastAudioPickerProps = null;
   lastSubtitlePickerProps = null;
+  lastTrickplayPreviewProps = null;
   capturedOnNavigate = null;
   needsPinMock.mockImplementation(() => false);
   localSearchParamsMock.mockReturnValue({ id: "ep-1" });
@@ -508,6 +519,19 @@ describe("remote seek (TV)", () => {
     expect(playerMock.seekBy).toHaveBeenCalledWith(120); // 30s * 4x multiplier
     act(() => { capturedTVHandler?.({ eventType: "longLeft" }); });
     expect(playerMock.seekBy).toHaveBeenCalledWith(-120);
+  });
+
+  // The trickplay thumbnail (TrickplaySeekPreview) is the only feedback the
+  // user gets while holding left/right, since there's no live video preview
+  // during a D-pad seek - it must track the same locally-computed preview
+  // position the progress bar shows (seekPreviewSec), not the stale
+  // pre-seek playhead.
+  it("passes the live seek-preview position through to the trickplay thumbnail", () => {
+    render(<PlayerScreen />);
+    expect(lastTrickplayPreviewProps).toEqual({ mediaId: "ep-1", previewTimeSec: null });
+
+    act(() => { capturedTVHandler?.({ eventType: "right" }); });
+    expect(lastTrickplayPreviewProps).toEqual({ mediaId: "ep-1", previewTimeSec: 30 });
   });
 });
 
