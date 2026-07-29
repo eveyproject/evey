@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"sync"
+	"time"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	"github.com/evey-project/evey/internal/pkg/network"
@@ -104,16 +106,91 @@ func registerGateway(grpcAddr string) (http.Handler, *grpc.ClientConn) {
 	return mux, conn
 }
 
-func networkMiddleware(detector *network.Detector, remoteEnabled *bool) func(http.Handler) http.Handler {
+// remoteAccessRefusalCode is the stable token clients map onto "remote access is
+// disabled on this server". Prose in `message` is for humans and changes with
+// translations; this does not.
+const remoteAccessRefusalCode = "remote_access_disabled"
+
+// remoteAccessRefusalLogTTL bounds how often ONE client's refusal is logged. An
+// app that retries on a schedule must not bury the log, but the very first
+// refusal has to be visible immediately - a silent gate is what made the
+// 2026-07-29 lockout undiagnosable.
+const remoteAccessRefusalLogTTL = 5 * time.Minute
+
+// networkGateExempt reports whether path must be served even to a client the
+// remote-access gate refuses.
+//
+// /healthz: liveness - a gated server is not a dead server.
+// /api/v1/i18n/: the translation catalogue. Refusing it is what turned an
+// explainable "remote access is off" into an app rendering RAW KEYS
+// ("auth.login.signIn") on a beta tester's phone - the operator then hunts a
+// broken app instead of reading a message. A catalogue is public text; gating it
+// protects nothing and destroys the only channel left to explain the refusal.
+// /api/v1/setup/status: server identity/language, which the pre-auth screens
+// need to render at all (and which clients use to tell an Evey server from a
+// captive portal).
+//
+// Nothing here leaks library content or accepts credentials.
+func networkGateExempt(path string) bool {
+	return path == "/healthz" ||
+		path == "/api/v1/setup/status" ||
+		strings.HasPrefix(path, "/api/v1/i18n/")
+}
+
+func networkMiddleware(detector *network.Detector, remoteEnabled *bool, logger *slog.Logger) func(http.Handler) http.Handler {
+	if logger == nil {
+		logger = slog.Default()
+	}
+	var (
+		mu         sync.Mutex
+		lastLogged = map[string]time.Time{}
+	)
+	// shouldLog reports whether this client's refusal has not been logged within
+	// the TTL. Bounded: the map is swept whenever it grows past a scanner-sized
+	// number of distinct clients.
+	shouldLog := func(ip string) bool {
+		now := time.Now()
+		mu.Lock()
+		defer mu.Unlock()
+		if last, ok := lastLogged[ip]; ok && now.Sub(last) < remoteAccessRefusalLogTTL {
+			return false
+		}
+		lastLogged[ip] = now
+		if len(lastLogged) > 1024 {
+			for k, t := range lastLogged {
+				if now.Sub(t) >= remoteAccessRefusalLogTTL {
+					delete(lastLogged, k)
+				}
+			}
+		}
+		return true
+	}
+
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.URL.Path == "/healthz" {
+			if networkGateExempt(r.URL.Path) {
 				next.ServeHTTP(w, r)
 				return
 			}
 			nt := detector.Detect(r)
 			if nt == network.WAN && !*remoteEnabled {
-				http.Error(w, `{"message":"remote access disabled"}`, http.StatusForbidden)
+				clientIP := "unknown"
+				if ip := network.ClientIP(r); ip != nil {
+					clientIP = ip.String()
+				}
+				if shouldLog(clientIP) {
+					logger.WarnContext(r.Context(), "remote access disabled: refused a client outside the local network (enable it in Admin > Remote access if this is a published server)",
+						slog.String("client_ip", clientIP),
+						slog.String("path", r.URL.Path),
+						slog.String("method", r.Method),
+						slog.String("device", r.UserAgent()))
+				}
+				// Header first: it survives a client that never parses the body,
+				// and it makes the cause visible in a plain curl -I.
+				w.Header().Set("X-Evey-Remote-Access", "disabled")
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusForbidden)
+				_, _ = w.Write([]byte(`{"code":"` + remoteAccessRefusalCode + `","message":"remote access disabled"}`))
 				return
 			}
 			w.Header().Set("X-Evey-Network", string(nt))
