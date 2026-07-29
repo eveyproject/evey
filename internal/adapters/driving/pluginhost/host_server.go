@@ -237,6 +237,8 @@ func (h *HostServer) RegisterPlugin(pluginID string) (string, error) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
+				// Long-lived per-plugin gRPC server goroutine, not tied to any
+				// single request - no ctx to carry.
 				slog.Error("panic in host gRPC serve",
 					slog.String("plugin", pluginID), slog.Any("recover", r))
 			}
@@ -306,7 +308,7 @@ func (h *HostServer) makePluginAuthInterceptor(entry *pluginEntry) grpc.UnarySer
 			return nil, status.Error(codes.Unauthenticated, "plugin PID not bound yet")
 		}
 		if creds.PID != expected {
-			slog.Warn("plugin auth: PID mismatch - possible spoofing attempt",
+			slog.WarnContext(ctx, "plugin auth: PID mismatch - possible spoofing attempt",
 				slog.String("plugin", entry.pluginID),
 				slog.Int("expected_pid", int(expected)),
 				slog.Int("actual_pid", int(creds.PID)),

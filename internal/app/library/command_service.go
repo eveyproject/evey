@@ -176,7 +176,7 @@ func (s *CommandService) StartPeriodicScan(ctx context.Context, libQueries libra
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				slog.Error("panic recovered in periodic scan", "error", r, "stack", string(debug.Stack()))
+				slog.ErrorContext(ctx, "panic recovered in periodic scan", "error", r, "stack", string(debug.Stack()))
 			}
 		}()
 		ticker := time.NewTicker(interval)
@@ -228,7 +228,7 @@ func (s *CommandService) WithWatchHealth(unwatched func() map[string]bool) *Comm
 func (s *CommandService) runScanPass(ctx context.Context, libQueries library.LibraryQueryRepo, targetSet map[string]bool, reason string) {
 	libs, err := libQueries.List(ctx, library.ListLibrariesFilter{})
 	if err != nil {
-		slog.Warn("scan pass: list libraries", slog.String("reason", reason), slog.Any("err", err))
+		slog.WarnContext(ctx, "scan pass: list libraries", slog.String("reason", reason), slog.Any("err", err))
 		return
 	}
 	// Snapshot once per pass: a library whose watch is answering does not need
@@ -259,7 +259,7 @@ func (s *CommandService) runScanPass(ctx context.Context, libQueries library.Lib
 		added, scanErr := func() (a int, err error) {
 			defer func() {
 				if r := recover(); r != nil {
-					slog.Error("scan pass: panic recovered", slog.String("library", lib.Name), slog.Any("panic", r))
+					slog.ErrorContext(ctx, "scan pass: panic recovered", slog.String("library", lib.Name), slog.Any("panic", r))
 					err = fmt.Errorf("panic: %v", r)
 				}
 			}()

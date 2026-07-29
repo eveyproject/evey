@@ -301,7 +301,7 @@ func (s *TrickplayService) GenerateAllMissingTrickplays(ctx context.Context) (in
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				slog.Error("recovered panic in trickplay batch", slog.Any("error", r))
+				slog.ErrorContext(bgCtx, "recovered panic in trickplay batch", slog.Any("error", r))
 			}
 		}()
 		for _, id := range ids {
@@ -353,7 +353,7 @@ func (s *TrickplayService) StartTrickplayWorker(ctx context.Context) {
 			defer func() { <-sem }()
 			defer func() {
 				if r := recover(); r != nil {
-					slog.Error("recovered panic in trickplay worker", slog.Any("error", r))
+					slog.ErrorContext(ctx, "recovered panic in trickplay worker", slog.Any("error", r))
 				}
 			}()
 			tctx, cancel := context.WithTimeout(ctx, 2*time.Hour)
@@ -375,7 +375,7 @@ func (s *TrickplayService) StartBackgroundGeneration(ctx context.Context) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				slog.Error("recovered panic in trickplay background gen", slog.Any("error", r))
+				slog.ErrorContext(ctx, "recovered panic in trickplay background gen", slog.Any("error", r))
 			}
 		}()
 		select {

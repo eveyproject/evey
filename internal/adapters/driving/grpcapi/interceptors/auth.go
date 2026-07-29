@@ -107,12 +107,12 @@ func (i *AuthInterceptor) authorizePluginToken(ctx context.Context, claims *auth
 	}
 	scope, allowed := i.rbac.PluginMethodScopes[method]
 	if !allowed {
-		slog.Warn("plugin token denied: method not in plugin allowlist",
+		slog.WarnContext(ctx, "plugin token denied: method not in plugin allowlist",
 			slog.String("method", method), slog.String("plugin", claims.PluginID))
 		return i.translatedErr(ctx, codes.PermissionDenied, "errors.auth.insufficient_permissions")
 	}
 	if scope != "" && !claims.HasScope(scope) {
-		slog.Warn("plugin token denied: missing scope",
+		slog.WarnContext(ctx, "plugin token denied: missing scope",
 			slog.String("method", method), slog.String("required_scope", scope), slog.String("plugin", claims.PluginID))
 		return i.translatedErr(ctx, codes.PermissionDenied, "errors.auth.insufficient_permissions")
 	}
@@ -137,7 +137,7 @@ func (i *AuthInterceptor) enforceRBAC(ctx context.Context, method string) error 
 		// 1. Hard block list: auth / session / user-lifecycle / infra RPCs are
 		//    never reachable by an API key, even one whose user is admin.
 		if authpkg.InternalMethods[method] {
-			slog.Warn("api key blocked on internal method", slog.String("method", method), slog.String("user", claims.UserID))
+			slog.WarnContext(ctx, "api key blocked on internal method", slog.String("method", method), slog.String("user", claims.UserID))
 			return i.translatedErr(ctx, codes.PermissionDenied, "errors.auth.internal_method")
 		}
 
@@ -150,7 +150,7 @@ func (i *AuthInterceptor) enforceRBAC(ctx context.Context, method string) error 
 		//    admin API keys (RestartServer, arbitrary-file MKV attachment R/W,
 		//    session kill, webhook CRUD, ...).
 		if isAdminMethod && !hasScope && !hasPerm {
-			slog.Warn("api key blocked on unscoped admin method", slog.String("method", method), slog.String("user", claims.UserID))
+			slog.WarnContext(ctx, "api key blocked on unscoped admin method", slog.String("method", method), slog.String("user", claims.UserID))
 			return i.translatedErr(ctx, codes.PermissionDenied, "errors.auth.internal_method")
 		}
 
@@ -163,7 +163,7 @@ func (i *AuthInterceptor) enforceRBAC(ctx context.Context, method string) error 
 		if (hasScope || hasPerm) && (isAdminMethod || len(claims.Permissions) > 0) {
 			ok := (hasScope && claims.HasPermission(scope)) || (hasPerm && claims.HasPermission(perm))
 			if !ok {
-				slog.Warn("api key scope denied", slog.String("method", method), slog.String("required_scope", scope), slog.String("required_perm", perm))
+				slog.WarnContext(ctx, "api key scope denied", slog.String("method", method), slog.String("required_scope", scope), slog.String("required_perm", perm))
 				return i.translatedErr(ctx, codes.PermissionDenied, "errors.auth.insufficient_permissions")
 			}
 		}
@@ -220,13 +220,13 @@ func (i *AuthInterceptor) authenticateAPIKey(ctx context.Context, rawKey string)
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				slog.Error("recovered panic in api key last used update", "panic", r)
+				slog.ErrorContext(ctx, "recovered panic in api key last used update", "panic", r)
 			}
 		}()
 		bgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		if upErr := i.apiKeys.UpdateLastUsed(bgCtx, key.ID, time.Now()); upErr != nil {
-			slog.Warn("update api key last used", slog.String("keyID", key.ID), slog.Any("err", upErr))
+			slog.WarnContext(bgCtx, "update api key last used", slog.String("keyID", key.ID), slog.Any("err", upErr))
 		}
 	}()
 	ctx = context.WithValue(ctx, claimsKey{}, claims)

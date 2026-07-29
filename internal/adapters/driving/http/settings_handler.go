@@ -401,9 +401,9 @@ func registerServerSettingsRoutes(
 						// ffmpeg-probe parsing can't take down the whole server
 						// (matches the recover discipline of every other worker).
 						defer func() {
-							if r := recover(); r != nil {
-								slog.Error("settings: HW-mode re-bench goroutine panic recovered",
-									slog.Any("panic", r))
+							if rec := recover(); rec != nil {
+								slog.ErrorContext(r.Context(), "settings: HW-mode re-bench goroutine panic recovered",
+									slog.Any("panic", rec))
 							}
 						}()
 						ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)

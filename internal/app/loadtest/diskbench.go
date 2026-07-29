@@ -219,7 +219,7 @@ func measureDiskThroughput(ctx context.Context, candidates []MediaCandidate, rng
 				defer wg.Done()
 				defer func() {
 					if rec := recover(); rec != nil {
-						slog.Error("load-test disk device goroutine panicked", slog.Any("panic", rec))
+						slog.ErrorContext(benchCtx, "load-test disk device goroutine panicked", slog.Any("panic", rec))
 					}
 				}()
 				lvl := readDiskAtWidth(benchCtx, paths, readers, rng)
@@ -292,7 +292,7 @@ func readDiskAtWidth(ctx context.Context, paths []string, readers int, rng *rand
 			defer wg.Done()
 			defer func() {
 				if rec := recover(); rec != nil {
-					slog.Error("load-test disk reader goroutine panicked", slog.Any("panic", rec))
+					slog.ErrorContext(ctx, "load-test disk reader goroutine panicked", slog.Any("panic", rec))
 				}
 			}()
 			n, slowest := readChunks(ctx, path, offset)

@@ -128,7 +128,7 @@ func (s *CommandService) processPhotoJobs(ctx context.Context, libraryID string,
 			defer func() { <-sem }()
 			defer func() {
 				if r := recover(); r != nil {
-					slog.Error("photo: scan goroutine panic", slog.Any("recover", r), slog.String("path", j.path))
+					slog.ErrorContext(ctx, "photo: scan goroutine panic", slog.Any("recover", r), slog.String("path", j.path))
 				}
 			}()
 			if ctx.Err() != nil {

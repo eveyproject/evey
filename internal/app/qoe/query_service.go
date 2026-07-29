@@ -95,7 +95,7 @@ func (s *QueryService) GetDashboard(ctx context.Context, window time.Duration) (
 	recoverQoEQuery := func(slot int) {
 		if r := recover(); r != nil {
 			errs[slot] = fmt.Errorf("qoe dashboard query panicked: %v", r)
-			slog.Error("qoe: dashboard query goroutine panic recovered", slog.Int("slot", slot), slog.Any("panic", r))
+			slog.ErrorContext(ctx, "qoe: dashboard query goroutine panic recovered", slog.Int("slot", slot), slog.Any("panic", r))
 		}
 	}
 	go func() {

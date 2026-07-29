@@ -45,31 +45,31 @@ func (r *AnalyticsReader) GetAnalytics(ctx context.Context) (*activity.Analytics
 	)
 	wg.Add(8)
 
-	go r.safeRun(&wg, "top media", func() error {
+	go r.safeRun(ctx, &wg, "top media", func() error {
 		var err error
 		topMedia, err = r.fetchTopMedia(ctx)
 		return err
 	}, &errs[0])
 
-	go r.safeRun(&wg, "recent activity", func() error {
+	go r.safeRun(ctx, &wg, "recent activity", func() error {
 		var err error
 		recentActivity, err = r.fetchRecentActivity(ctx)
 		return err
 	}, &errs[1])
 
-	go r.safeRun(&wg, "plays today", func() error {
+	go r.safeRun(ctx, &wg, "plays today", func() error {
 		var err error
 		playsToday, err = r.fetchScalarCount(ctx, `SELECT COUNT(*) FROM play_sessions WHERE started_at >= CURRENT_DATE`)
 		return err
 	}, &errs[2])
 
-	go r.safeRun(&wg, "plays week", func() error {
+	go r.safeRun(ctx, &wg, "plays week", func() error {
 		var err error
 		playsWeek, err = r.fetchScalarCount(ctx, `SELECT COUNT(*) FROM play_sessions WHERE started_at >= date_trunc('week', NOW())`)
 		return err
 	}, &errs[3])
 
-	go r.safeRun(&wg, "active users", func() error {
+	go r.safeRun(ctx, &wg, "active users", func() error {
 		var err error
 		activeToday, err = r.fetchScalarCount(ctx, `
 			SELECT COUNT(DISTINCT p.user_id)
@@ -79,19 +79,19 @@ func (r *AnalyticsReader) GetAnalytics(ctx context.Context) (*activity.Analytics
 		return err
 	}, &errs[4])
 
-	go r.safeRun(&wg, "daily plays", func() error {
+	go r.safeRun(ctx, &wg, "daily plays", func() error {
 		var err error
 		dailyPlays, err = r.fetchDailyPlays(ctx)
 		return err
 	}, &errs[5])
 
-	go r.safeRun(&wg, "play methods", func() error {
+	go r.safeRun(ctx, &wg, "play methods", func() error {
 		var err error
 		playMethods, err = r.fetchPlayMethods(ctx)
 		return err
 	}, &errs[6])
 
-	go r.safeRun(&wg, "hourly plays", func() error {
+	go r.safeRun(ctx, &wg, "hourly plays", func() error {
 		var err error
 		hourlyPlays, err = r.fetchHourlyPlays(ctx)
 		return err
@@ -117,11 +117,11 @@ func (r *AnalyticsReader) GetAnalytics(ctx context.Context) (*activity.Analytics
 	}, nil
 }
 
-func (r *AnalyticsReader) safeRun(wg *sync.WaitGroup, label string, fn func() error, errOut *error) {
+func (r *AnalyticsReader) safeRun(ctx context.Context, wg *sync.WaitGroup, label string, fn func() error, errOut *error) {
 	defer wg.Done()
 	defer func() {
 		if rec := recover(); rec != nil {
-			slog.Error("panic recovered in analytics "+label, "error", rec, "stack", string(debug.Stack()))
+			slog.ErrorContext(ctx, "panic recovered in analytics "+label, "error", rec, "stack", string(debug.Stack()))
 		}
 	}()
 	*errOut = fn()

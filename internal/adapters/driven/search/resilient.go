@@ -35,7 +35,7 @@ func (r *ResilientSearch) enqueue(ctx context.Context, id, op string) {
 		return
 	}
 	if err := r.queue.Enqueue(context.WithoutCancel(ctx), id, op); err != nil {
-		slog.Error("search index: enqueue pending write failed (item may drift out of search)",
+		slog.ErrorContext(ctx, "search index: enqueue pending write failed (item may drift out of search)",
 			slog.String("media_item_id", id), slog.String("op", op), slog.Any("err", err))
 	}
 }
@@ -48,7 +48,7 @@ func (r *ResilientSearch) IndexMediaItem(ctx context.Context, item *library.Medi
 		return nil
 	}
 	if err := r.primary.IndexMediaItem(ctx, item, castNames); err != nil {
-		slog.Warn("search index: primary failed, queuing for replay", slog.Any("err", err))
+		slog.WarnContext(ctx, "search index: primary failed, queuing for replay", slog.Any("err", err))
 		r.enqueue(ctx, string(item.ID), library.SearchOpUpsert)
 	}
 	return nil
@@ -62,7 +62,7 @@ func (r *ResilientSearch) IndexMediaItemsBatch(ctx context.Context, items []*lib
 		return nil
 	}
 	if err := r.primary.IndexMediaItemsBatch(ctx, items); err != nil {
-		slog.Warn("search index batch: primary failed, queuing for replay", slog.Any("err", err), slog.Int("count", len(items)))
+		slog.WarnContext(ctx, "search index batch: primary failed, queuing for replay", slog.Any("err", err), slog.Int("count", len(items)))
 		for _, it := range items {
 			r.enqueue(ctx, string(it.ID), library.SearchOpUpsert)
 		}
@@ -78,7 +78,7 @@ func (r *ResilientSearch) RemoveMediaItem(ctx context.Context, id string) error 
 		return nil
 	}
 	if err := r.primary.RemoveMediaItem(ctx, id); err != nil {
-		slog.Warn("search remove: primary failed, queuing for replay", slog.Any("err", err))
+		slog.WarnContext(ctx, "search remove: primary failed, queuing for replay", slog.Any("err", err))
 		r.enqueue(ctx, id, library.SearchOpDelete)
 	}
 	return nil
@@ -108,7 +108,7 @@ func (r *ResilientSearch) Search(ctx context.Context, query string, filters map[
 		if err == nil {
 			return hits, total, nil
 		}
-		slog.Warn("search: primary failed, falling back to SQL", slog.Any("err", err))
+		slog.WarnContext(ctx, "search: primary failed, falling back to SQL", slog.Any("err", err))
 	}
 	return r.fallback.Search(ctx, query, filters, sort, limit)
 }

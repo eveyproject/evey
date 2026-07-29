@@ -173,7 +173,7 @@ func (r *Runner) runViewer(ctx context.Context, cfg Config, tierAtSpawn int, vt 
 				// and unblock the receiver with a failure sentinel.
 				defer func() {
 					if rec := recover(); rec != nil {
-						slog.Error("load-test audio fetch goroutine panicked", slog.Any("panic", rec))
+						slog.ErrorContext(ctx, "load-test audio fetch goroutine panicked", slog.Any("panic", rec))
 						audioDone <- -1
 					}
 				}()

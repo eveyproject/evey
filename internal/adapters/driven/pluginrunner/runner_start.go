@@ -372,6 +372,8 @@ func (r *Runner) trackLifecycle(entry *processEntry, cancel context.CancelFunc, 
 	defer close(entry.done)
 	defer func() {
 		if rv := recover(); rv != nil {
+			// Background lifecycle tracker: the request that started the
+			// plugin has long since returned by the time it exits/crashes.
 			slog.Error("panic in plugin runner", slog.Any("recover", rv), slog.String("plugin", p.ID))
 		}
 	}()

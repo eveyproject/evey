@@ -78,7 +78,7 @@ func buildInfra(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog *sl
 	var searchAdapter library.SearchIndex
 	var searchHealth httpapi.SearchHealthChecker
 	if sa, err := meili.NewSearchAdapter(cfg.Meilisearch.URL, cfg.Meilisearch.APIKey); err != nil {
-		slog.Warn("meilisearch unavailable, using SQL search fallback", slog.Any("err", err))
+		slog.WarnContext(ctx, "meilisearch unavailable, using SQL search fallback", slog.Any("err", err))
 		searchAdapter = search.NewResilient(nil, sqlFallback)
 	} else {
 		searchAdapter = search.NewResilient(sa, sqlFallback).WithQueue(r.PendingSearchWrite)
@@ -90,7 +90,7 @@ func buildInfra(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog *sl
 	musicSQLFallback := search.NewMusicRepoFallback(r.MusicTrack)
 	var musicSearch music.MusicSearchIndex
 	if msa, err := meili.NewMusicSearchAdapter(cfg.Meilisearch.URL, cfg.Meilisearch.APIKey); err != nil {
-		slog.Warn("meilisearch music index unavailable, using SQL search fallback", slog.Any("err", err))
+		slog.WarnContext(ctx, "meilisearch music index unavailable, using SQL search fallback", slog.Any("err", err))
 		musicSearch = search.NewResilientMusic(nil, musicSQLFallback)
 	} else {
 		musicSearch = search.NewResilientMusic(msa, musicSQLFallback)
@@ -196,7 +196,7 @@ func buildInfra(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog *sl
 
 	translator, i18nErr := eveyi18n.NewFromDir("i18n")
 	if i18nErr != nil {
-		slog.Warn("i18n load failed, using defaults", slog.Any("err", i18nErr))
+		slog.WarnContext(ctx, "i18n load failed, using defaults", slog.Any("err", i18nErr))
 		translator = eveyi18n.NewEmpty()
 	}
 
@@ -213,7 +213,7 @@ func buildInfra(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog *sl
 	// non-empty secret) and let the operator repair the file.
 	hlsAESSecret, secErr := auth.LoadOrGenerateSecret(filepath.Join(filepath.Dir(cfg.JWT.PrivateKeyPath), "hls_aes.key"), 32)
 	if secErr != nil {
-		slog.Error("hls aes secret unavailable - on-demand HLS encryption disabled until the file is repaired or removed",
+		slog.ErrorContext(ctx, "hls aes secret unavailable - on-demand HLS encryption disabled until the file is repaired or removed",
 			slog.Any("err", secErr))
 		hlsAESSecret = nil
 	}

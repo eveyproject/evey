@@ -284,7 +284,7 @@ func (h *audioHandle) run(ctx context.Context) {
 	// expires. Recover, mark the session failed, unblock the waiters.
 	defer func() {
 		if r := recover(); r != nil {
-			slog.Error("panic in hls audio ffmpeg run loop",
+			slog.ErrorContext(ctx, "panic in hls audio ffmpeg run loop",
 				slog.Any("recover", r), slog.String("stack", string(debug.Stack())))
 			h.setErr(fmt.Errorf("panic in hls audio transcoder run loop: %v", r))
 			h.setExitErr(h.Err())
@@ -311,7 +311,7 @@ func (h *audioHandle) run(ctx context.Context) {
 	we := h.awaitProcExit()
 	h.setExitErr(we)
 	if we != nil && ctx.Err() == nil {
-		slog.Warn("hls: ffmpeg audio-only exited with error",
+		slog.WarnContext(ctx, "hls: ffmpeg audio-only exited with error",
 			slog.Any("err", we),
 			slog.String("stderr_tail", h.stderr.String()))
 	}

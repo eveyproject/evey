@@ -185,7 +185,7 @@ func (e *Enricher) autoEnrichItem(ctx context.Context, item *domainlib.MediaItem
 func (e *Enricher) supplementItem(ctx context.Context, item *domainlib.MediaItem, primary *domainmetadata.MetadataResult, mediaType string, log *slog.Logger) {
 	defer func() {
 		if r := recover(); r != nil {
-			slog.Error("panic in supplementItem", slog.Any("recover", r), slog.String("title", item.Title))
+			slog.ErrorContext(ctx, "panic in supplementItem", slog.Any("recover", r), slog.String("title", item.Title))
 		}
 	}()
 	imdbID := primary.ProviderIDs["imdb"]
@@ -843,7 +843,7 @@ func (e *Enricher) autoEnrichAll(ctx context.Context, items []*domainlib.MediaIt
 		go func(it *domainlib.MediaItem) {
 			defer func() {
 				if r := recover(); r != nil {
-					slog.Error("panic recovered in metadata enricher", "error", r, "stack", string(debug.Stack()))
+					slog.ErrorContext(ctx, "panic recovered in metadata enricher", "error", r, "stack", string(debug.Stack()))
 				}
 			}()
 			defer wg.Done()

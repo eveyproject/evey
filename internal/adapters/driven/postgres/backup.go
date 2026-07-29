@@ -126,7 +126,7 @@ func (d *DatabaseDumper) DumpTables(ctx context.Context, tables []string) (io.Re
 		// deadlocking forever when the goroutine dies.
 		defer func() {
 			if r := recover(); r != nil {
-				slog.Error("panic in pg_dump copy goroutine", slog.Any("recover", r))
+				slog.ErrorContext(ctx, "panic in pg_dump copy goroutine", slog.Any("recover", r))
 				pw.CloseWithError(fmt.Errorf("pg_dump copy panic: %v", r))
 			}
 		}()

@@ -355,7 +355,7 @@ func (o *AudioSegmentOrchestrator) spawnSessionLocked(fp AudioFingerprint, audio
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				slog.Error("audio_segment_orchestrator: detached reap goroutine panic recovered", slog.Any("panic", r), slog.String("stack", string(debug.Stack())))
+				slog.ErrorContext(sessionCtx, "audio_segment_orchestrator: detached reap goroutine panic recovered", slog.Any("panic", r), slog.String("stack", string(debug.Stack())))
 			}
 		}()
 		select {

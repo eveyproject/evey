@@ -34,6 +34,7 @@ func main() {
 		return
 	}
 	if err := run(); err != nil {
+		// Process entry point, before any server/request context exists.
 		slog.Error("fatal", slog.Any("err", err))
 		os.Exit(1)
 	}
@@ -87,7 +88,7 @@ func run() error {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		if err := tracingShutdown(shutdownCtx); err != nil {
-			slog.Warn("tracing shutdown", slog.Any("err", err))
+			slog.WarnContext(shutdownCtx, "tracing shutdown", slog.Any("err", err))
 		}
 	}()
 
@@ -115,7 +116,7 @@ func run() error {
 	// load RemoteAccess persisted settings from DB
 	if raw, err2 := cfgStore.Get(ctx, httpapi.RemoteAccessConfigKey); err2 == nil && raw != "" {
 		if err := json.Unmarshal([]byte(raw), &cfg.RemoteAccess); err != nil {
-			slog.Warn("unmarshal remote access config", slog.Any("err", err))
+			slog.WarnContext(ctx, "unmarshal remote access config", slog.Any("err", err))
 		}
 	}
 
@@ -166,7 +167,7 @@ func run() error {
 		closeCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
 		if err := deps.media.qoeSink.Close(closeCtx); err != nil {
-			slog.Warn("qoe sink close", slog.Any("err", err))
+			slog.WarnContext(closeCtx, "qoe sink close", slog.Any("err", err))
 		}
 	}()
 
@@ -275,7 +276,7 @@ func run() error {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		if err := httpSrv.Shutdown(shutdownCtx); err != nil {
-			slog.Warn("http shutdown", slog.Any("err", err))
+			slog.WarnContext(shutdownCtx, "http shutdown", slog.Any("err", err))
 		}
 	}
 	deps.engagement.pluginHostServer.Stop()
@@ -293,7 +294,7 @@ func run() error {
 	deps.media.mediaItemCache.Stop() // stop the cache eviction loop like the other workers
 	if gwConn != nil {
 		if err := gwConn.Close(); err != nil {
-			slog.Warn("gateway conn close", slog.Any("err", err))
+			slog.WarnContext(ctx, "gateway conn close", slog.Any("err", err))
 		}
 	}
 	grpcSrv.Stop()
@@ -311,6 +312,7 @@ func (d *appDeps) stopBackgroundWorkers() {
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
+					// Server shutdown path: no request in flight, no ctx to carry.
 					slog.Error("shutdown: background worker stop panicked", slog.Any("panic", r))
 				}
 			}()

@@ -67,10 +67,10 @@ func (t *Transcoder) Start(ctx context.Context, job *transcoding.TranscodeJob) (
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				slog.Error("transcoder: panic in stderr reader", slog.Any("panic", r), slog.String("jobID", job.ID))
+				slog.ErrorContext(jobCtx, "transcoder: panic in stderr reader", slog.Any("panic", r), slog.String("jobID", job.ID))
 			}
 			if err := cmd.Wait(); err != nil {
-				slog.Warn("transcoder wait", slog.String("jobID", job.ID), slog.Any("err", err))
+				slog.WarnContext(jobCtx, "transcoder wait", slog.String("jobID", job.ID), slog.Any("err", err))
 			}
 			t.jobs.Delete(job.ID)
 			// Natural exit must release the job context too - WithCancel leaks

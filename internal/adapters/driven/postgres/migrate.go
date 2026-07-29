@@ -61,6 +61,7 @@ func RunMigrations(db *sql.DB, opts BackupOpts) error {
 
 	if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
 		if dumpPath != "" {
+			// Boot-time migration runner, before any request context exists.
 			slog.Error("migrations: Up failed - restore from backup",
 				slog.String("backup", dumpPath),
 				slog.Any("err", err))

@@ -32,6 +32,8 @@ func selfRestartFn() func() {
 		slog.Warn("admin restart: sending SIGTERM to self for graceful shutdown")
 		if p, err := os.FindProcess(os.Getpid()); err == nil {
 			if sigErr := p.Signal(syscall.SIGTERM); sigErr != nil {
+				// Fired by time.AfterFunc after the grace delay, detached from
+				// the RPC that requested the restart - no request ctx survives.
 				slog.Error("admin restart: SIGTERM self failed", slog.Any("err", sigErr))
 			}
 		}

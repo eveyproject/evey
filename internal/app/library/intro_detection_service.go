@@ -300,7 +300,7 @@ func (s *IntroDetectionService) StartWorker(ctx context.Context) {
 			mu.Unlock()
 			defer func() {
 				if r := recover(); r != nil {
-					slog.Error("recovered panic in intro detection worker", slog.Any("error", r))
+					slog.ErrorContext(ctx, "recovered panic in intro detection worker", slog.Any("error", r))
 				}
 			}()
 			run()
@@ -370,7 +370,7 @@ func (s *IntroDetectionService) StartWorker(ctx context.Context) {
 		}
 		defer func() {
 			if r := recover(); r != nil {
-				slog.Error("recovered panic in intro detection backfill", slog.Any("error", r))
+				slog.ErrorContext(ctx, "recovered panic in intro detection backfill", slog.Any("error", r))
 			}
 		}()
 		s.backfillMissingSeasons(ctx)
@@ -758,6 +758,8 @@ func (s *IntroDetectionService) detectIntroWithHint(ctx context.Context, mediaIt
 			go func() {
 				defer func() {
 					if r := recover(); r != nil {
+						// ADR-0007: deliberately detached from the request ctx, so no
+						// request id survives to correlate here.
 						slog.Error("panic recovered in intro_detection: contribute",
 							slog.Any("panic", r),
 							slog.String("stack", string(debug.Stack())))

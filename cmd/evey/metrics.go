@@ -20,7 +20,7 @@ func startMetricsCollector(ctx context.Context, db *sql.DB, hlsSessions *apptran
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				slog.Error("panic recovered in metrics HLS collector", "error", r, "stack", string(debug.Stack()))
+				slog.ErrorContext(ctx, "panic recovered in metrics HLS collector", "error", r, "stack", string(debug.Stack()))
 			}
 		}()
 		ticker := time.NewTicker(30 * time.Second)
@@ -47,7 +47,7 @@ func startMetricsCollector(ctx context.Context, db *sql.DB, hlsSessions *apptran
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				slog.Error("panic recovered in metrics DB collector", "error", r, "stack", string(debug.Stack()))
+				slog.ErrorContext(ctx, "panic recovered in metrics DB collector", "error", r, "stack", string(debug.Stack()))
 			}
 		}()
 		dbTicker := time.NewTicker(30 * time.Second)

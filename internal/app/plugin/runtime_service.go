@@ -227,7 +227,7 @@ func (s *RuntimeService) DisablePlugin(ctx context.Context, id string) error {
 func (s *RuntimeService) AutoStartPlugins(ctx context.Context) {
 	all, err := s.plugins.List(ctx)
 	if err != nil {
-		slog.Error("list plugins for auto-start", slog.Any("err", err))
+		slog.ErrorContext(ctx, "list plugins for auto-start", slog.Any("err", err))
 		return
 	}
 	for _, p := range all {

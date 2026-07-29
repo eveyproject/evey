@@ -140,7 +140,7 @@ func startOne(ctx context.Context, opts transcoding.HLSProcessOpts, noMaster boo
 // every rung at once.
 func startPerVariant(ctx context.Context, opts transcoding.HLSProcessOpts) (transcoding.HLSProcessHandle, error) {
 	procCtx, cancel := context.WithCancel(ctx)
-	c := &compositeHandle{cancel: cancel, done: make(chan struct{})}
+	c := &compositeHandle{ctx: procCtx, cancel: cancel, done: make(chan struct{})}
 	for i := range opts.Profiles {
 		sub := opts
 		sub.Profiles = []transcoding.HLSProfile{opts.Profiles[i]}

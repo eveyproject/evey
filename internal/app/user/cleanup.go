@@ -20,7 +20,7 @@ func (s *CommandService) StartCleanupWithInterval(ctx context.Context, interval 
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				slog.Error("panic in user cleanup", slog.Any("recover", r))
+				slog.ErrorContext(ctx, "panic in user cleanup", slog.Any("recover", r))
 			}
 		}()
 		s.runCleanup(ctx)
@@ -72,7 +72,7 @@ func (s *CommandService) StartLoginAttemptCleanup(ctx context.Context) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				slog.Error("login-attempt cleanup: panic recovered", slog.Any("panic", r))
+				slog.ErrorContext(ctx, "login-attempt cleanup: panic recovered", slog.Any("panic", r))
 			}
 		}()
 		sweep := func() {

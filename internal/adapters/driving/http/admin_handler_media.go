@@ -153,8 +153,8 @@ func (h *adminHandler) handleRefreshAll(w http.ResponseWriter, r *http.Request) 
 	h.audit(r, "refresh_all_metadata", "metadata", nil, nil)
 	go func() {
 		defer func() {
-			if r := recover(); r != nil {
-				slog.Error("recovered panic in bulk metadata refresh", slog.Any("error", r))
+			if rec := recover(); rec != nil {
+				slog.ErrorContext(r.Context(), "recovered panic in bulk metadata refresh", slog.Any("error", rec))
 			}
 		}()
 		if err := h.metaCmd.AutoRefreshAllItems(h.serverCtx, libraryID); err != nil {

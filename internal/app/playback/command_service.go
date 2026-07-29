@@ -630,7 +630,7 @@ func (s *CommandService) StartCleanupWithInterval(ctx context.Context, interval,
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				slog.Error("panic in playback cleanup", slog.Any("recover", r))
+				slog.ErrorContext(ctx, "panic in playback cleanup", slog.Any("recover", r))
 			}
 		}()
 		s.runCleanup(ctx, maxAge)

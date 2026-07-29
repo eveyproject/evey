@@ -78,7 +78,7 @@ func (s *InstallerService) UninstallPlugin(ctx context.Context, id string) error
 			}
 		}
 		if lastErr != nil {
-			slog.Error("plugin install dir not removed after retries (will be picked up by CleanupOrphans)",
+			slog.ErrorContext(ctx, "plugin install dir not removed after retries (will be picked up by CleanupOrphans)",
 				slog.String("pluginID", id), slog.String("dir", p.InstallDir), slog.Any("err", lastErr))
 		}
 	}
@@ -90,7 +90,7 @@ func (s *InstallerService) UninstallPlugin(ctx context.Context, id string) error
 	//    actually uninstalled). The admin can retry; a repeated attempt is
 	//    safe since steps 1-3 are idempotent.
 	if err := s.plugins.Delete(ctx, id); err != nil {
-		slog.Error("plugin DB delete failed (admin can retry)",
+		slog.ErrorContext(ctx, "plugin DB delete failed (admin can retry)",
 			slog.String("pluginID", id), slog.Any("err", err))
 		return fmt.Errorf("uninstall %s: delete plugin row: %w", id, err)
 	}

@@ -27,7 +27,7 @@ func (s *CommandService) handleBackupFailed(parentCtx context.Context, ev shared
 	// already served.
 	defer func() {
 		if rv := recover(); rv != nil {
-			slog.Error("handleBackupFailed panic recovered", slog.Any("panic", rv))
+			slog.ErrorContext(parentCtx, "handleBackupFailed panic recovered", slog.Any("panic", rv))
 		}
 	}()
 
@@ -70,7 +70,7 @@ func (s *CommandService) handlePluginError(parentCtx context.Context, ev shared.
 			if e, ok := ev.(plugin.PluginError); ok {
 				pluginID = e.PluginID
 			}
-			slog.Error("handlePluginError panic recovered",
+			slog.ErrorContext(parentCtx, "handlePluginError panic recovered",
 				slog.Any("panic", rv),
 				slog.String("plugin_id", pluginID))
 		}
@@ -136,7 +136,7 @@ func (s *CommandService) listAdminTargetProfiles(ctx context.Context) ([]*user.P
 func (s *CommandService) handleMediaRequestCreated(parentCtx context.Context, ev shared.Event) {
 	defer func() {
 		if rv := recover(); rv != nil {
-			slog.Error("handleMediaRequestCreated panic recovered", slog.Any("panic", rv))
+			slog.ErrorContext(parentCtx, "handleMediaRequestCreated panic recovered", slog.Any("panic", rv))
 		}
 	}()
 	ctx, cancel := context.WithTimeout(parentCtx, 30*time.Second)
@@ -176,7 +176,7 @@ func (s *CommandService) handleMediaRequestCreated(parentCtx context.Context, ev
 func (s *CommandService) handleRequestAnswered(parentCtx context.Context, ev shared.Event) {
 	defer func() {
 		if rv := recover(); rv != nil {
-			slog.Error("handleRequestAnswered panic recovered", slog.Any("panic", rv))
+			slog.ErrorContext(parentCtx, "handleRequestAnswered panic recovered", slog.Any("panic", rv))
 		}
 	}()
 	ctx, cancel := context.WithTimeout(parentCtx, 30*time.Second)

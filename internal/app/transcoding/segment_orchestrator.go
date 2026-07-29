@@ -643,7 +643,7 @@ func (o *SegmentOrchestrator) spawnSession(
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				slog.Error("segment_orchestrator: detached reap goroutine panic recovered", slog.Any("panic", r), slog.String("stack", string(debug.Stack())))
+				slog.ErrorContext(sessionCtx, "segment_orchestrator: detached reap goroutine panic recovered", slog.Any("panic", r), slog.String("stack", string(debug.Stack())))
 			}
 		}()
 		// Distinguish a natural ffmpeg exit (inspect why) from our own teardown
@@ -733,7 +733,7 @@ func (o *SegmentOrchestrator) spawnSession(
 		go func() {
 			defer func() {
 				if r := recover(); r != nil {
-					slog.Error("segment_orchestrator: detached HW watchdog goroutine panic recovered", slog.Any("panic", r), slog.String("stack", string(debug.Stack())))
+					slog.ErrorContext(sessionCtx, "segment_orchestrator: detached HW watchdog goroutine panic recovered", slog.Any("panic", r), slog.String("stack", string(debug.Stack())))
 				}
 			}()
 			t := time.NewTimer(o.opts.HWFirstSegmentTimeout)

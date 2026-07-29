@@ -158,7 +158,7 @@ func (g *GeneratorService) Generate(ctx context.Context, profileID string, libra
 			// There's no unit-of-work here, so compensate by deleting the
 			// just-created playlist (its items cascade) and surfacing the error.
 			if delErr := g.playlists.Delete(ctx, pl.ID); delErr != nil {
-				slog.Error("generate playlist: rollback after add failure",
+				slog.ErrorContext(ctx, "generate playlist: rollback after add failure",
 					slog.String("playlist_id", pl.ID), slog.Any("err", delErr))
 			}
 			return nil, fmt.Errorf("add playlist item: %w", err)

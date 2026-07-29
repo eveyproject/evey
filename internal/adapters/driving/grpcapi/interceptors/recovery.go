@@ -19,7 +19,7 @@ func RecoveryUnary() grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp any, err error) {
 		defer func() {
 			if r := recover(); r != nil {
-				slog.Error("panic recovered in gRPC handler",
+				slog.ErrorContext(ctx, "panic recovered in gRPC handler",
 					slog.String("method", info.FullMethod),
 					slog.Any("panic", r),
 					slog.String("stack", string(debug.Stack())))
@@ -36,6 +36,9 @@ func RecoveryStream() grpc.StreamServerInterceptor {
 	return func(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) (err error) {
 		defer func() {
 			if r := recover(); r != nil {
+				// Not ss.Context(): the panic may originate inside ss itself (a
+				// broken/incomplete ServerStream), and calling a method on it here
+				// would risk a second, unrecovered panic in the recovery path.
 				slog.Error("panic recovered in gRPC stream handler",
 					slog.String("method", info.FullMethod),
 					slog.Any("panic", r),

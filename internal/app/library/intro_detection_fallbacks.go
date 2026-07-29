@@ -69,7 +69,7 @@ func (s *IntroDetectionService) concurrentFallback(ctx context.Context, item *do
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				slog.Error("intro: audio fallback panic recovered",
+				slog.ErrorContext(cancelCtx, "intro: audio fallback panic recovered",
 					slog.Any("err", r), slog.String("stack", string(debug.Stack())))
 				ch <- result{err: fmt.Errorf("audio fallback panic: %v", r)}
 			}
@@ -85,7 +85,7 @@ func (s *IntroDetectionService) concurrentFallback(ctx context.Context, item *do
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				slog.Error("intro: subtitle-gap fallback panic recovered",
+				slog.ErrorContext(cancelCtx, "intro: subtitle-gap fallback panic recovered",
 					slog.Any("err", r), slog.String("stack", string(debug.Stack())))
 				ch <- result{err: fmt.Errorf("subtitle-gap fallback panic: %v", r)}
 			}

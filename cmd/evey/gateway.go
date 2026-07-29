@@ -19,6 +19,7 @@ import (
 func registerGateway(grpcAddr string) (http.Handler, *grpc.ClientConn) {
 	conn, err := grpc.NewClient(grpcAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
+		// Boot-time dial, before any request context exists.
 		slog.Error("grpc-gateway dial failed", slog.Any("err", err))
 		return nil, nil
 	}
@@ -97,7 +98,7 @@ func registerGateway(grpcAddr string) (http.Handler, *grpc.ClientConn) {
 		eveyv1.RegisterPushServiceHandler,
 	} {
 		if err := fn(ctx, mux, conn); err != nil {
-			slog.Error("gateway register failed", slog.Any("err", err))
+			slog.ErrorContext(ctx, "gateway register failed", slog.Any("err", err))
 		}
 	}
 	return mux, conn

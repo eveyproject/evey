@@ -361,6 +361,8 @@ const copyDriftToleranceMs = 500
 // mislabeled audio) would have tripped this. Divergence -> ERROR log + the
 // kind's drift metric; the segment is still published (a labeled, observable
 // degradation beats a stalled player).
+// No ctx parameter: called from runRebasePump, which only has done/stop
+// channels (shared helper, signature change out of scope for this pass).
 func verifySegmentTimeline(name, segPrefix string, tfdtMs int64, expectedStartMs func(int) (int64, bool), driftKind string) {
 	if expectedStartMs == nil || tfdtMs < 0 {
 		return
@@ -459,6 +461,8 @@ func runRebasePump(done <-chan struct{}, stop <-chan struct{}, privDir, pubDir s
 			if err != nil {
 				failures[name]++
 				if failures[name] == 3 {
+					// runRebasePump takes done/stop channels, not a ctx (shared by two
+					// call sites + a test); threading a ctx through is a signature change.
 					slog.Error("hls: copy rebase failed, segment withheld",
 						slog.String("segment", src), slog.Any("err", err))
 					published[name] = true // stop retrying; Wait times out → re-spawn

@@ -102,13 +102,13 @@ func buildEventWiring(ctx context.Context, cfg *config.Config, infra *infraDeps,
 			reconcileSearch := func() {
 				defer func() {
 					if r := recover(); r != nil {
-						slog.Error("panic recovered in search reconcile", "error", r, "stack", string(debug.Stack()))
+						slog.ErrorContext(ctx, "panic recovered in search reconcile", "error", r, "stack", string(debug.Stack()))
 					}
 				}()
 				rctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 				defer cancel()
 				if _, err := applibrary.ReconcileSearchIndex(rctx, infra.repos.MediaItemQuery, sa, sa, infra.repos.MediaItemTranslation); err != nil {
-					slog.Warn("search reconcile failed", slog.Any("err", err))
+					slog.WarnContext(rctx, "search reconcile failed", slog.Any("err", err))
 				}
 			}
 			go reconcileSearch()
@@ -136,13 +136,13 @@ func buildEventWiring(ctx context.Context, cfg *config.Config, infra *infraDeps,
 			drainSearch := func() {
 				defer func() {
 					if r := recover(); r != nil {
-						slog.Error("panic recovered in search write-queue drain", "error", r, "stack", string(debug.Stack()))
+						slog.ErrorContext(ctx, "panic recovered in search write-queue drain", "error", r, "stack", string(debug.Stack()))
 					}
 				}()
 				dctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 				defer cancel()
 				if _, err := applibrary.DrainSearchWriteQueue(dctx, infra.repos.PendingSearchWrite, infra.repos.MediaItemQuery, sa, infra.repos.MediaItemTranslation); err != nil {
-					slog.Warn("search write-queue drain failed (engine still down?)", slog.Any("err", err))
+					slog.WarnContext(dctx, "search write-queue drain failed (engine still down?)", slog.Any("err", err))
 				}
 			}
 			go drainSearch()
@@ -173,13 +173,13 @@ func buildEventWiring(ctx context.Context, cfg *config.Config, infra *infraDeps,
 			reconcileMusic := func() {
 				defer func() {
 					if r := recover(); r != nil {
-						slog.Error("panic recovered in music search reconcile", "error", r, "stack", string(debug.Stack()))
+						slog.ErrorContext(ctx, "panic recovered in music search reconcile", "error", r, "stack", string(debug.Stack()))
 					}
 				}()
 				rctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 				defer cancel()
 				if _, err := deps.media.musicSvc.CommandService().ReconcileTracks(rctx, msa, msa); err != nil {
-					slog.Warn("music search reconcile failed", slog.Any("err", err))
+					slog.WarnContext(rctx, "music search reconcile failed", slog.Any("err", err))
 				}
 			}
 			go reconcileMusic()

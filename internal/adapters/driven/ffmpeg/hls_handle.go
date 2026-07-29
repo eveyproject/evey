@@ -25,6 +25,7 @@ import (
 // surfaces a HW-capability class from any rung (so the orchestrator demotes the
 // host) else the first non-None; Stop/Pause/Resume fan out to every rung.
 type compositeHandle struct {
+	ctx     context.Context
 	subs    []*hlsHandle
 	cancel  context.CancelFunc
 	done    chan struct{}
@@ -36,7 +37,7 @@ func (c *compositeHandle) reap() {
 	defer close(c.done)
 	defer func() {
 		if r := recover(); r != nil {
-			slog.Error("panic in hls composite reap",
+			slog.ErrorContext(c.ctx, "panic in hls composite reap",
 				slog.Any("recover", r), slog.String("stack", string(debug.Stack())))
 		}
 	}()
@@ -171,7 +172,7 @@ func (h *hlsHandle) run(ctx context.Context) {
 	// fails fast instead of hanging until its budget/timeout expires.
 	defer func() {
 		if r := recover(); r != nil {
-			slog.Error("panic in hls ffmpeg run loop",
+			slog.ErrorContext(ctx, "panic in hls ffmpeg run loop",
 				slog.Any("recover", r), slog.String("stack", string(debug.Stack())))
 			h.err = fmt.Errorf("panic in hls transcoder run loop: %v", r)
 			h.setExitErr(h.err)
@@ -217,7 +218,7 @@ func (h *hlsHandle) run(ctx context.Context) {
 			}
 		}
 		if err := waitForSegment(ctx, h.procExited, h.opts.OutputDir, streamName, 10*time.Second, 100*time.Millisecond); err != nil {
-			slog.Warn("hls: first segment not yet ready, proceeding anyway", slog.String("output_dir", h.opts.OutputDir), slog.Int("variant", h.opts.VariantIndex), slog.Any("err", err))
+			slog.WarnContext(ctx, "hls: first segment not yet ready, proceeding anyway", slog.String("output_dir", h.opts.OutputDir), slog.Int("variant", h.opts.VariantIndex), slog.Any("err", err))
 		}
 	} else {
 		masterPath := filepath.Join(h.opts.OutputDir, "master.m3u8")
@@ -233,7 +234,7 @@ func (h *hlsHandle) run(ctx context.Context) {
 			return
 		}
 		if err := waitForSegment(ctx, h.procExited, h.opts.OutputDir, "stream_0", 10*time.Second, 100*time.Millisecond); err != nil {
-			slog.Warn("hls: first segment not yet ready, proceeding anyway", slog.String("output_dir", h.opts.OutputDir), slog.Int("variant", h.opts.VariantIndex), slog.Any("err", err))
+			slog.WarnContext(ctx, "hls: first segment not yet ready, proceeding anyway", slog.String("output_dir", h.opts.OutputDir), slog.Int("variant", h.opts.VariantIndex), slog.Any("err", err))
 		}
 	}
 
@@ -242,7 +243,7 @@ func (h *hlsHandle) run(ctx context.Context) {
 	we := h.awaitProcExit()
 	h.setExitErr(we)
 	if we != nil && ctx.Err() == nil {
-		slog.Warn("hls: ffmpeg exited with error",
+		slog.WarnContext(ctx, "hls: ffmpeg exited with error",
 			slog.Any("err", we),
 			slog.String("stderr_tail", h.stderr.String()))
 	}

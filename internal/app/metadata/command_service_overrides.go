@@ -108,6 +108,8 @@ func (s *CommandService) propagateTitleOverrideForOrphan(ctx context.Context, ov
 	go func(it *library.MediaItem) {
 		defer func() {
 			if r := recover(); r != nil {
+				// ADR-0007: deliberately detached from the request ctx (see comment
+				// above), so no request id survives to correlate here.
 				slog.Error("panic in title-override auto-enrich",
 					slog.Any("recover", r),
 					slog.String("media_item.id", string(it.ID)))
@@ -242,6 +244,8 @@ func (s *CommandService) ResetItemMetadata(ctx context.Context, mediaItemID stri
 		go func() {
 			defer func() {
 				if r := recover(); r != nil {
+					// ADR-0007: request ctx may already be done by the time this
+					// fires (see comment above); nothing correlatable to carry.
 					slog.Error("panic in metadata re-enrichment", slog.Any("recover", r))
 				}
 			}()

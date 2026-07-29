@@ -329,6 +329,9 @@ func (r *Runner) ensureSandboxLib() string {
 			r.sandboxLib = path
 			return
 		}
+		// sync.Once-guarded lazy probe with no fixed caller: threading a ctx
+		// here would arbitrarily pin the log to whichever call happened to win
+		// the race to run the closure.
 		slog.Error("sandbox lib missing - build-time artifact required",
 			slog.String("path", path))
 	})

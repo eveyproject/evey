@@ -150,7 +150,7 @@ func (b *WatchProgressBuffer) Start(ctx context.Context) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				slog.Error("panic in watch progress buffer flush", slog.Any("recover", r))
+				slog.ErrorContext(ctx, "panic in watch progress buffer flush", slog.Any("recover", r))
 			}
 			// Final flush on shutdown - uses a fresh context so a cancelled
 			// parent doesn't abort the last write. Bound it tightly to avoid
@@ -187,7 +187,7 @@ func (b *WatchProgressBuffer) Start(ctx context.Context) {
 func (b *WatchProgressBuffer) safeFlush(ctx context.Context) {
 	defer func() {
 		if r := recover(); r != nil {
-			slog.Error("watch progress flush panicked, continuing with the next tick",
+			slog.ErrorContext(ctx, "watch progress flush panicked, continuing with the next tick",
 				slog.Any("panic", r))
 		}
 	}()

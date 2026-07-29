@@ -105,7 +105,7 @@ func (s *CommandService) Start(ctx context.Context) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				slog.Error("recovered panic in notification service", slog.Any("error", r))
+				slog.ErrorContext(ctx, "recovered panic in notification service", slog.Any("error", r))
 			}
 		}()
 		ticker := time.NewTicker(dedupeWindow)
@@ -189,7 +189,7 @@ func (s *CommandService) StartCleanup(ctx context.Context, initDone ...chan<- st
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				slog.Error("recovered panic in notification cleanup", "panic", r)
+				slog.ErrorContext(ctx, "recovered panic in notification cleanup", "panic", r)
 			}
 		}()
 		if err := s.repo.CleanupExpired(ctx); err != nil {

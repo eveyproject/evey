@@ -237,7 +237,7 @@ func (s *CommandService) runBulkDownload(ctx context.Context, job *DownloadJob, 
 		go func() {
 			defer func() {
 				if r := recover(); r != nil {
-					slog.Error("panic in artwork bulk download",
+					slog.ErrorContext(ctx, "panic in artwork bulk download",
 						slog.Any("recover", r), slog.String("id", rec.ID))
 				}
 			}()
@@ -324,7 +324,7 @@ func (s *CommandService) StartRetryMissing(ctx, serverCtx context.Context) (stri
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				slog.Error("panic in retry-missing job", slog.Any("recover", r), slog.String("job", jobID))
+				slog.ErrorContext(serverCtx, "panic in retry-missing job", slog.Any("recover", r), slog.String("job", jobID))
 				job.Done.Store(true)
 			}
 		}()
@@ -361,7 +361,7 @@ func (s *CommandService) retryMissingRecords(ctx context.Context, job *DownloadJ
 		go func() {
 			defer func() {
 				if r := recover(); r != nil {
-					slog.Error("panic in retry missing artworks",
+					slog.ErrorContext(ctx, "panic in retry missing artworks",
 						slog.Any("recover", r), slog.String("id", rec.ID))
 				}
 			}()
@@ -456,7 +456,7 @@ func (s *CommandService) StartBackfillBlurhashes(ctx, serverCtx context.Context)
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				slog.Error("panic in backfill-blurhash job", slog.Any("recover", r), slog.String("job", jobID))
+				slog.ErrorContext(serverCtx, "panic in backfill-blurhash job", slog.Any("recover", r), slog.String("job", jobID))
 				job.Done.Store(true)
 			}
 		}()
@@ -496,7 +496,7 @@ func (s *CommandService) backfillBlurhashRecords(ctx context.Context, job *Downl
 		go func() {
 			defer func() {
 				if r := recover(); r != nil {
-					slog.Error("panic in backfill blurhash",
+					slog.ErrorContext(ctx, "panic in backfill blurhash",
 						slog.Any("recover", r), slog.String("id", rec.ID))
 				}
 			}()

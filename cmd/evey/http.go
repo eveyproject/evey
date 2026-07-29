@@ -272,11 +272,11 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				slog.Error("panic recovered in backup retention cleanup", "error", r, "stack", string(debug.Stack()))
+				slog.ErrorContext(ctx, "panic recovered in backup retention cleanup", "error", r, "stack", string(debug.Stack()))
 			}
 		}()
 		if err := deps.backupSvc.CleanupOldBackups(ctx, cfg.Backup.RetentionDays); err != nil {
-			slog.Warn("backup retention cleanup", slog.Any("err", err))
+			slog.WarnContext(ctx, "backup retention cleanup", slog.Any("err", err))
 		}
 	}()
 

@@ -105,20 +105,20 @@ func (s *CommandService) runRetention(ctx context.Context, auditDays, metricsDay
 	// purge. Recover, log, and let the next tick fire.
 	defer func() {
 		if r := recover(); r != nil {
-			slog.Error("retention purge panic recovered", slog.Any("panic", r))
+			slog.ErrorContext(ctx, "retention purge panic recovered", slog.Any("panic", r))
 		}
 	}()
 	now := time.Now()
 	if auditDays > 0 {
 		if n, err := s.PurgeOldAuditLogs(ctx, now.AddDate(0, 0, -auditDays)); err != nil {
-			slog.Warn("audit-log retention purge failed", slog.Any("err", err))
+			slog.WarnContext(ctx, "audit-log retention purge failed", slog.Any("err", err))
 		} else if n > 0 {
 			slog.Info("audit-log retention purge", slog.Int64("removed", n), slog.Int("retention_days", auditDays))
 		}
 	}
 	if metricsDays > 0 {
 		if err := s.PurgeOldMetrics(ctx, now.AddDate(0, 0, -metricsDays)); err != nil {
-			slog.Warn("server-metric retention purge failed", slog.Any("err", err))
+			slog.WarnContext(ctx, "server-metric retention purge failed", slog.Any("err", err))
 		}
 	}
 	// Webhook deliveries ride the audit-log retention window: both are operator
@@ -131,14 +131,14 @@ func (s *CommandService) runRetention(ctx context.Context, auditDays, metricsDay
 			days = defaultWebhookDeliveryRetentionDays
 		}
 		if n, err := s.webhookDeliveries.Purge(ctx, now.AddDate(0, 0, -days)); err != nil {
-			slog.Warn("webhook-delivery retention purge failed", slog.Any("err", err))
+			slog.WarnContext(ctx, "webhook-delivery retention purge failed", slog.Any("err", err))
 		} else if n > 0 {
 			slog.Info("webhook-delivery retention purge", slog.Int64("removed", n), slog.Int("retention_days", days))
 		}
 	}
 	if qoeDays > 0 && s.qoeEvents != nil {
 		if n, err := s.qoeEvents.Purge(ctx, now.AddDate(0, 0, -qoeDays)); err != nil {
-			slog.Warn("qoe retention purge failed", slog.Any("err", err))
+			slog.WarnContext(ctx, "qoe retention purge failed", slog.Any("err", err))
 		} else if n > 0 {
 			slog.Info("qoe retention purge", slog.Int64("removed", n), slog.Int("retention_days", qoeDays))
 		}
@@ -161,7 +161,7 @@ func (s *CommandService) StartRetentionPurge(ctx context.Context, retention func
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				slog.Error("retention purge panic recovered", slog.Any("panic", r))
+				slog.ErrorContext(ctx, "retention purge panic recovered", slog.Any("panic", r))
 			}
 		}()
 		pass := func() {

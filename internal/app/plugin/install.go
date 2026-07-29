@@ -414,7 +414,7 @@ func (s *InstallerService) validateStagedPlugin(ctx context.Context, p *plugin.P
 			// Fail-closed: without a clean analysis we cannot grant install -
 			// a third-party plugin could ship obfuscated malware that the
 			// regex analyzer choked on and we'd otherwise install it blind.
-			slog.Error("plugin static analysis failed", slog.String("pluginID", p.ID), slog.Any("err", analyzeErr))
+			slog.ErrorContext(ctx, "plugin static analysis failed", slog.String("pluginID", p.ID), slog.Any("err", analyzeErr))
 			return fmt.Errorf("plugin blocked: static analysis failed: %w", analyzeErr)
 		}
 		if !report.Safe {

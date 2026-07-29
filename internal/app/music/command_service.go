@@ -470,7 +470,7 @@ func (s *CommandService) processTrackJobs(ctx context.Context, libraryID string,
 			defer func() { <-sem }()
 			defer func() {
 				if r := recover(); r != nil {
-					slog.Error("music: scan goroutine panic", slog.Any("recover", r), slog.String("path", j.path))
+					slog.ErrorContext(ctx, "music: scan goroutine panic", slog.Any("recover", r), slog.String("path", j.path))
 				}
 			}()
 			if ctx.Err() != nil {
@@ -560,7 +560,7 @@ func (s *CommandService) kickAlbumArtFetch(libraryID string) {
 		defer s.albumArtInFlight.Delete(libraryID)
 		defer func() {
 			if rec := recover(); rec != nil {
-				slog.Error("music: fetch missing album art panic", slog.Any("recover", rec))
+				slog.ErrorContext(baseCtx, "music: fetch missing album art panic", slog.Any("recover", rec))
 			}
 		}()
 		bgCtx, cancel := context.WithTimeout(baseCtx, 10*time.Minute)
@@ -642,7 +642,7 @@ func (s *CommandService) parseTrackWithTimeout(ctx context.Context, path, librar
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				slog.Error("panic recovered in music parseTrack", "error", r, "stack", string(debug.Stack()))
+				slog.ErrorContext(tCtx, "panic recovered in music parseTrack", "error", r, "stack", string(debug.Stack()))
 			}
 		}()
 		t, err := s.parseTrack(tCtx, path, libraryID, mimeType, fileSize)
