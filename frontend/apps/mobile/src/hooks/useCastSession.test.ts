@@ -21,7 +21,7 @@ const setAudioBoost = vi.fn();
 vi.mock("../lib/audioBoost", () => ({ setAudioBoost: (v: number) => setAudioBoost(v) }));
 
 // The Cast media notification is the foreground service that keeps the sender
-// alive with the screen off (2026-07-26 Bouygtel4K cut). The permission ask
+// alive with the screen off (2026-07-26 operator-box cut). The permission ask
 // is mocked here; its own logic is covered in castNotificationPermission.test.ts.
 const ensureCastNotificationPermission = vi.fn().mockResolvedValue(undefined);
 vi.mock("../lib/castNotificationPermission", () => ({
@@ -108,7 +108,7 @@ describe("useCastSession", () => {
 
   // Without POST_NOTIFICATIONS the Cast media notification (foreground
   // service) never shows on Android 13+: Android freezes the app ~60s after
-  // screen-off and the Bouygtel4K stops playback when its sender vanishes
+  // screen-off and some operator boxes stop playback when its sender vanishes
   // (prod logs 2026-07-26 18:52:05, ReportProgress dying with no StopStream).
   // The tap on the cast button is the user-activation moment to ask.
   it("asks for the notification permission when the user initiates a cast", async () => {

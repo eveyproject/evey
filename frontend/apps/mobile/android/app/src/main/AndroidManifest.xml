@@ -5,7 +5,7 @@
   <!-- Android 13+: without this the Cast SDK's media notification (a
        foreground service) cannot show, Android freezes the app ~60s after
        the screen turns off, and receivers that do not survive losing their
-       sender (Bouygtel4K box, 2026-07-26) cut the playback. The runtime
+       sender (an operator box, 2026-07-26) cut the playback. The runtime
        request lives in lib/castNotificationPermission.ts. -->
   <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
   <!-- Permission du service declare plus bas. Depuis targetSdk 34 un service

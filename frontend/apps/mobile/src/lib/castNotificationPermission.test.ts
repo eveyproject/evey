@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // Regression harness for the 2026-07-26 cast cut: without POST_NOTIFICATIONS
 // the Cast SDK's media notification (a foreground service) never shows on
 // Android 13+, Android freezes the sender app ~60s after the screen turns
-// off, and the receiver loses its sender - operator boxes (Bouygtel4K) then
+// off, and the receiver loses its sender - operator boxes then
 // stop playback instead of continuing.
 const check = vi.fn();
 const request = vi.fn();

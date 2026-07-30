@@ -379,7 +379,7 @@ type TranscodingConfig struct {
 	AudioRenditionEnabled bool
 
 	// CastWasmAudioEnabled lets a CAST receiver run the browser wasm AC-3
-	// decoder. OFF by default: a Bouygtel4K was killed twice mid-film with that
+	// decoder. OFF by default: a low-end operator box was killed twice mid-film with that
 	// path in play (2026-07-30), and its decoder measured 3.13x real time, so the
 	// path bought it nothing - the AAC rendition plays the same film with sound.
 	// Browsers are unaffected; only a cast stream token is gated.

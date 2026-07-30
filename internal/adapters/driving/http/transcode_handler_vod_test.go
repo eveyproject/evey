@@ -212,7 +212,7 @@ func TestHLSVOD_Segment_OutOfRange_404(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, w.Code, "out-of-range segment must 404, not spawn+503")
 }
 
-// Regression (prod: a series episode, user the owner stalled at 46:43): a COPY rung
+// Regression (prod: a series episode, a beta tester stalled at 46:43): a COPY rung
 // cuts on source keyframes, which are routinely SHORTER than the transcode grid,
 // so it lists MORE segments than ceil(dur/grid). The forged-index guard used a
 // grid bound and false-404'd every copy segment past ceil(dur/grid) - the tail of

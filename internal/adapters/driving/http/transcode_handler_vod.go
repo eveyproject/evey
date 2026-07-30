@@ -212,7 +212,7 @@ type hlsVODServe struct {
 	// (browsers keep it: it is validated there and it is what plays Dolby
 	// without a transcode). Default OFF.
 	//
-	// A Bouygtel4K died twice mid-film, ~2min30 in, with the sound working and
+	// A low-end operator box died twice mid-film, ~2min30 in, with the sound working and
 	// both memory figures we can read flat and tiny (2026-07-30). The decoder
 	// measured 3.13x real time on that box, so the path buys it NOTHING anyway -
 	// the AAC rendition plays the same film with sound from the first second.

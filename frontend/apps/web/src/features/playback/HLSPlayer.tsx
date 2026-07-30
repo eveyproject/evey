@@ -295,7 +295,7 @@ export function HLSPlayer({
   // Gate on `supported` (the API exists = Chrome Android), not `available`
   // (watchAvailability): the availability signal on a preload=none element is
   // not guaranteed to fire, and the priority is that the button reliably
-  // appears - the OS picker then does device discovery on tap. the owner's
+  // appears - the OS picker then does device discovery on tap. One tester's
   // original bug was NO button at all; a button that opens an empty native
   // picker is strictly better and matches how most apps behave.
   const castAvailable = castSdkReady || remotePlayback.available || remotePlayback.supported;

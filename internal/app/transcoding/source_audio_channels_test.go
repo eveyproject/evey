@@ -8,7 +8,7 @@ import (
 )
 
 // The wasm-audio path hands the browser/receiver the ORIGINAL Dolby track to
-// decode itself. On 2026-07-30 a Chromecast on a Bouygtel4K was given an
+// decode itself. On 2026-07-30 a Chromecast on a low-end operator box was given an
 // E-AC-3 7.1 track: 8 channels to decode and fold, which the box could not
 // sustain - silent picture, then the receiver killed by the box. The server
 // needs the channel count to refuse that hand-off, so this is the fact it

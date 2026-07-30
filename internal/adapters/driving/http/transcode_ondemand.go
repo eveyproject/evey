@@ -179,7 +179,7 @@ func wasmAudioEffective(r *http.Request, castEnabled bool) bool {
 // wasmAudioMaxChannels is the widest layout we hand to a client-side decoder.
 // 5.1 is what the browser/receiver engine can fold and play comfortably; 7.1
 // adds two channels of decode plus the fold on top, and that is the exact
-// configuration that silenced a cast and got the receiver killed on a Bouygtel4K
+// configuration that silenced a cast and got the receiver killed on a low-end operator box
 // (2026-07-30). The AAC rendition renders those titles perfectly well.
 const wasmAudioMaxChannels = 6
 
@@ -216,7 +216,7 @@ func (h *hlsVODServe) serveWasmAudioMaster(w http.ResponseWriter, r *http.Reques
 	}
 	// Channel ceiling. The wasm path hands the client the ORIGINAL Dolby track
 	// to decode ITSELF. A 7.1 track means 8 channels decoded and then folded to
-	// 5.1, and a TV box does that while also decoding the video: on a Bouygtel4K
+	// 5.1, and a TV box does that while also decoding the video: on a low-end quad-A53 operator box
 	// (prod 2026-07-30) the audio arrived in fits, the picture ran silent, and
 	// the box killed the receiver twice. Refusing here returns the client to the
 	// normal muxed-AAC master - sound from the first second, on every client,

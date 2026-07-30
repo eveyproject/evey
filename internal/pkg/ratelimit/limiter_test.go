@@ -509,7 +509,7 @@ func TestMiddleware_LogsRefusals(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", nil)
 	req.RemoteAddr = "203.0.113.7:5000"
-	req.Header.Set("User-Agent", "EveyMobile/0.0.1-beta.19 (Android 13; Phone)")
+	req.Header.Set("User-Agent", "EveyMobile/0.0.1-beta.19 (Android 13; TestPhone)")
 
 	first := httptest.NewRecorder()
 	h(first, req)

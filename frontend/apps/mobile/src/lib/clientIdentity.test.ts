@@ -7,7 +7,7 @@ import { vi } from "vitest";
 // future TV app (EveyTV) share the shape of.
 //
 // La version de build a ete ajoutee le 2026-07-28 : en pleine chasse au cast
-// coupe, les logs prod montraient "EveyMobile (Android 13; Phone)" sans dire
+// coupe, les logs prod montraient "EveyMobile (Android 13; TestPhone)" sans dire
 // QUEL build parlait. Impossible de trancher entre "le correctif ne marche
 // pas" et "le correctif n'est pas installe" sans aller le demander a
 // l'utilisateur. Un diagnostic ne doit pas dependre d'une question posee.

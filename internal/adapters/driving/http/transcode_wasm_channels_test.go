@@ -9,7 +9,7 @@ import (
 
 // serveWasmAudioMaster hands the client the ORIGINAL Dolby track to decode
 // itself. On 2026-07-30 an E-AC-3 7.1 title (8 channels) was handed to a
-// Chromecast on a Bouygtel4K: the audio arrived in fits, the picture ran
+// Chromecast on a a low-end operator box: the audio arrived in fits, the picture ran
 // silent, and the box killed the receiver - twice. The ceiling below returns
 // those titles to the muxed-AAC master, which every client plays from the first
 // second. This pins the DECISION; the handler wiring reads the same helper.

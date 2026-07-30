@@ -78,7 +78,7 @@ export interface WasmAudioEngineOptions {
   onModeChange?: (mode: string) => void;
   // onDiagnostic reports WHY the relay took a decision the mode alone cannot
   // explain: a refused hand-over, a starvation fallback. Diagnosing the
-  // 2026-07-30 Bouygtel4K silent cast took hours of log archaeology precisely
+  // 2026-07-30 silent-cast incident took hours of log archaeology precisely
   // because "aac-latched" does not say what latched it. Telemetry only.
   onDiagnostic?: (detail: string) => void;
   // onFirstAudio fires ONCE, when the first segment lands in the decode cache

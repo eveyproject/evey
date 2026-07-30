@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { shouldHandover, isStarved, DEFAULT_STARVATION_MS } from "./relayGuard";
 
-// Prod, 2026-07-30, Bouygtel4K + E-AC-3 7.1: the relay handed over the moment
+// Prod, 2026-07-30, a weak quad-A53 operator box + E-AC-3 7.1: the relay handed over the moment
 // the wasm worker said "ready", the decoder could not keep up, the sound died
 // and the box killed the receiver. Twice. These pin both guards.
 

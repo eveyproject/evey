@@ -4,7 +4,7 @@ import { PermissionsAndroid, Platform } from "react-native";
 // that service is what keeps the sender app (and its network) alive once the
 // screen turns off. Without POST_NOTIFICATIONS on Android 13+ the notification
 // never shows, Android freezes the app ~60s into sleep, the receiver loses its
-// sender, and operator boxes (Bouygtel4K, 2026-07-26) stop playback instead of
+// sender, and operator boxes (2026-07-26) stop playback instead of
 // continuing like the Cast spec says. Asked at cast time, not at boot: the tap
 // on the cast button is the natural user-activation moment for the dialog.
 export async function ensureCastNotificationPermission(): Promise<void> {

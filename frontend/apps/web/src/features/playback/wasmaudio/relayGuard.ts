@@ -1,7 +1,7 @@
 // Guards around the AAC -> wasm hand-over of the bi-source relay.
 //
 // The hand-over used to fire on a single condition: the wasm worker reported
-// "ready". Ready is not the same as FAST ENOUGH. On a Bouygtel4K casting an
+// "ready". Ready is not the same as FAST ENOUGH. On a weak operator box casting an
 // E-AC-3 7.1 track (8 channels to decode, then folded to 5.1) the decoder could
 // not sustain real time: after the switch the engine fetched one audio segment
 // every ~18s for ~5s of content, the sound died, and the receiver was killed by
