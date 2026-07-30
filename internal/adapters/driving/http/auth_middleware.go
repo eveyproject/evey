@@ -48,8 +48,12 @@ func httpAuthMiddleware(verifier TokenVerifier) func(http.HandlerFunc) http.Hand
 				// per-attempt login log in user/command_service.go. Never log
 				// the token itself.
 				metrics.AuthFailuresTotal.WithLabelValues("invalid_token").Inc()
+				// The client address is what makes this bucket usable: without
+				// it a stuffing run is a pile of identical lines with nothing to
+				// group or block on.
 				slog.WarnContext(r.Context(), "auth rejected", slog.String("reason", "invalid_token"),
-					slog.String("method", r.Method), slog.String("path", r.URL.Path))
+					slog.String("method", r.Method), slog.String("path", r.URL.Path),
+					slog.String("client_ip", ratelimit.ClientIP(r)))
 				http.Error(w, `{"message":"unauthorized"}`, http.StatusUnauthorized)
 				return
 			}
