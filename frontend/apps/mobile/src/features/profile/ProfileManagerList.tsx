@@ -190,9 +190,9 @@ export function ProfileManagerList({ userId, profiles, canSetDefault = false }: 
                 accessibilityLabel={t("common.delete", "Delete")}
               >
                 {deleteProfile.isPending ? (
-                  <ActivityIndicator color={theme.colors.onAccent} size="small" />
+                  <ActivityIndicator color={theme.colors.onDanger} size="small" />
                 ) : (
-                  <Text style={[s.btnText, { color: theme.colors.onAccent }]}>{t("common.delete", "Delete")}</Text>
+                  <Text style={[s.btnText, { color: theme.colors.onDanger }]}>{t("common.delete", "Delete")}</Text>
                 )}
               </Pressable>
             </View>

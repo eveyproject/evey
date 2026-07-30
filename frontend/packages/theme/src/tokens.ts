@@ -16,6 +16,12 @@ export interface ThemeTokens {
     textMuted: string;
     border: string;
     error: string;
+    // Text painted ON the mobile-only `error` tint. Derived, NOT the same as
+    // onDanger: onDanger is declared per theme against --danger-bg, while
+    // `error` is a separate, LIGHTER tint (MOBILE_ERROR). Painting white on it
+    // failed WCAG AA on 4 of the 5 themes (2.77:1 to 3.76:1 against a 4.5:1
+    // bar) on the destructive buttons of the mobile admin screens.
+    onError: string;
     danger: string;
     dangerHover: string;
     onAccent: string;
@@ -73,7 +79,10 @@ export function onColor(fill: string): string {
   const dark = 0.005; // luminance of #0a0a0a
   const ratioDark = (lum + 0.05) / (dark + 0.05);
   const ratioWhite = 1.05 / (lum + 0.05);
-  return ratioDark >= ratioWhite ? "#0a0a0a" : "#fff";
+  // Six digits, always: this value is a public token that other code feeds
+  // back into colour maths, and a 3-digit form silently broke a contrast
+  // assertion into NaN rather than failing it.
+  return ratioDark >= ratioWhite ? "#0a0a0a" : "#ffffff";
 }
 
 // Type and icon scales, in px, shared by web / mobile / TV.
@@ -135,6 +144,7 @@ export function deriveTokens(name: ThemeCSSName): ThemeTokens {
       textMuted: v["--text-muted"],
       border: v["--border"],
       error: MOBILE_ERROR[name],
+      onError: onColor(MOBILE_ERROR[name]),
       danger: resolveVar(v, v["--danger"]),
       dangerHover: v["--danger-hover"],
       onAccent: v["--filter-active-text"],

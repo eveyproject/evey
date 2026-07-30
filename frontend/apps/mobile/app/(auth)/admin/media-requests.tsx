@@ -113,7 +113,7 @@ function RequestRow({ request, theme }: { request: V1MediaRequestProto; theme: R
               accessibilityLabel={t("admin.mediaRequests.rejectNamed", "Reject {{title}}", { title: request.title })}
               accessibilityRole="button"
             >
-              <Text style={{ color: "#fff", fontSize: 13, fontWeight: "600" }}>{t("admin.mediaRequests.reject")}</Text>
+              <Text style={{ color: theme.colors.onError, fontSize: 13, fontWeight: "600" }}>{t("admin.mediaRequests.reject")}</Text>
             </Pressable>
             <Pressable
               disabled={answer.isPending}

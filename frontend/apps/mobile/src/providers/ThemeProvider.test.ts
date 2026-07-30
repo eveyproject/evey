@@ -16,8 +16,10 @@ describe("mergeCSSVars - plugin theme overrides", () => {
     });
     expect(merged.colors.success).toBe("#0b3d0b");
     expect(merged.colors.warning).toBe("#4a2c00");
-    expect(merged.colors.onSuccess).toBe("#fff");
-    expect(merged.colors.onWarning).toBe("#fff");
+    // Canonical 6-digit form: onColor emits a public token, and the 3-digit
+    // one silently turned a contrast assertion into NaN.
+    expect(merged.colors.onSuccess).toBe("#ffffff");
+    expect(merged.colors.onWarning).toBe("#ffffff");
   });
 
   it("keeps the base on-colours when the plugin overrides nothing", () => {

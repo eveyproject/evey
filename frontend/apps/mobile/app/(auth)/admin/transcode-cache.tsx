@@ -292,8 +292,8 @@ export default function AdminTranscodeCacheScreen() {
                   disabled={clearAll.isPending}
                   style={[styles.dangerBtn, { backgroundColor: theme.colors.error, borderRadius: theme.radii.md, opacity: clearAll.isPending ? 0.5 : 1 }]}
                 >
-                  {clearAll.isPending && <ActivityIndicator size="small" color="#fff" style={{ marginRight: 8 }} />}
-                  <Text style={{ color: "#fff", fontWeight: "600", fontSize: 15 }}>
+                  {clearAll.isPending && <ActivityIndicator size="small" color={theme.colors.onError} style={{ marginRight: 8 }} />}
+                  <Text style={{ color: theme.colors.onError, fontWeight: "600", fontSize: 15 }}>
                     {t("admin.transcodeCache.clearAll", "Clear All Cache")}
                   </Text>
                 </Pressable>

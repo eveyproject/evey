@@ -3,7 +3,15 @@ import { themeVars } from "./themeVars";
 
 // WCAG 2.1 relative luminance, then the contrast ratio between two sRGB hexes.
 function luminance(hex: string): number {
-  const h = hex.replace("#", "");
+  const raw = hex.replace("#", "");
+  // Expand the 3-digit form, and refuse anything else outright. This used to
+  // slice past the end of a short hex and produce NaN, which every comparison
+  // then silently reported as "not >= 4.5" - an assertion that looks like it
+  // failed on contrast when it actually never ran.
+  const h = raw.length === 3 ? raw.split("").map((c) => c + c).join("") : raw;
+  if (!/^[0-9a-fA-F]{6}$/.test(h)) {
+    throw new Error(`luminance: not a colour this test can read: ${JSON.stringify(hex)}`);
+  }
   const channels = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16) / 255);
   const [r, g, b] = channels.map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
@@ -100,5 +108,22 @@ describe("derived on-colour tokens (mobile/TV chips)", () => {
     it(`${name}: text reads on the warning fill`, () => {
       expect(ratio(t.colors.onWarning, t.colors.warning)).toBeGreaterThanOrEqual(AA);
     });
+    // `error` is a mobile-only tint, SEPARATE from --danger-bg. The assertions
+    // above and the --on-danger one earlier both look at danger, so nothing
+    // covered this fill: the destructive buttons of the mobile admin screens
+    // painted plain white on it and failed AA on 4 of the 5 themes (2.77:1 to
+    // 3.76:1). A token is only safe once something asserts the pair it is used
+    // in - not the pair it resembles.
+    it(`${name}: text reads on the mobile error fill`, () => {
+      expect(ratio(t.colors.onError, t.colors.error)).toBeGreaterThanOrEqual(AA);
+    });
+    // NOT asserted here: onDanger against `danger`. onDanger is declared per
+    // theme against --danger-bg (#dc2626, ratio 4.84) and clears AA there, but
+    // `danger` resolves to --color-danger (#ef4444 on default/amoled), where
+    // white lands at 3.65:1. Widening the assertion to that pair fails two
+    // themes today, and fixing it means either darkening --color-danger or
+    // painting destructive labels near-black - a palette decision, not a test
+    // change. Tracked in the backlog rather than silently asserted or silently
+    // ignored.
   }
 });

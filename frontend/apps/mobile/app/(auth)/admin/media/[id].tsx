@@ -452,7 +452,7 @@ function makeStyles(theme: ReturnType<typeof useTheme>) {
       paddingHorizontal: 16,
       paddingVertical: 8,
     },
-    deleteBtnText: { color: "#fff", fontWeight: "600", fontSize: 13 },
+    deleteBtnText: { color: theme.colors.onDanger, fontWeight: "600", fontSize: 13 },
     propagateBtn: {
       backgroundColor: theme.colors.surfaceRaised,
       borderRadius: theme.radii.sm,
