@@ -3,8 +3,8 @@ package transcoding_test
 import (
 	"testing"
 
-	"github.com/evey-project/evey/internal/domain/library"
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
+	"github.com/evey-project/evey/internal/domain/library"
 )
 
 // The wasm-audio path hands the browser/receiver the ORIGINAL Dolby track to
@@ -14,13 +14,11 @@ import (
 // needs the channel count to refuse that hand-off, so this is the fact it
 // reads.
 
-func ch(n int) *int { return &n }
-
 func TestSourceAudioChannels(t *testing.T) {
 	streams := []*library.MediaStream{
 		{StreamType: "video", Codec: "h264"},
-		{StreamType: "audio", Codec: "eac3", Channels: ch(8)},
-		{StreamType: "audio", Codec: "ac3", Channels: ch(6)},
+		{StreamType: "audio", Codec: "eac3", Channels: new(8)},
+		{StreamType: "audio", Codec: "ac3", Channels: new(6)},
 		{StreamType: "subtitle", Codec: "subrip"},
 		{StreamType: "audio", Codec: "aac"}, // channel count unknown
 	}
@@ -53,7 +51,7 @@ func TestSourceAudioChannels(t *testing.T) {
 	})
 
 	t.Run("a nil stream in the slice does not panic", func(t *testing.T) {
-		withNil := []*library.MediaStream{nil, {StreamType: "audio", Codec: "ac3", Channels: ch(6)}}
+		withNil := []*library.MediaStream{nil, {StreamType: "audio", Codec: "ac3", Channels: new(6)}}
 		if got := apptranscoding.SourceAudioChannels(withNil, 0); got != 6 {
 			t.Errorf("= %d, want 6", got)
 		}
