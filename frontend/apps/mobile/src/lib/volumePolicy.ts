@@ -34,8 +34,17 @@ export function resolveVolume(level: number, opts: VolumePolicyOptions): VolumeT
     return { deviceFraction: null, playerVolume: Math.min(1, v), boostGain };
   }
 
-  // playerVolume stays at 1 in every case: letting it fade too would square the
-  // attenuation (50% of 50% sounds like 25%). Silence comes from the device
-  // reaching 0, and the boost only ever engages once the device is at maximum.
+  // Zero is the one level that must NOT reach the system: "no sound from Evey"
+  // is not "mute the tablet". Writing 0 to the shared media stream would also
+  // silence notifications and every other app, and leave the device muted after
+  // the user closes the player. So silence is produced by the player itself and
+  // the device keeps whatever level it was on.
+  if (v === 0) {
+    return { deviceFraction: null, playerVolume: 0, boostGain: 1 };
+  }
+
+  // Everywhere else playerVolume stays at 1: letting it fade too would square
+  // the attenuation (50% of 50% sounds like 25%). The boost only ever engages
+  // once the device is at maximum.
   return { deviceFraction: Math.min(1, v), playerVolume: 1, boostGain };
 }

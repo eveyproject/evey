@@ -20,8 +20,18 @@ describe("resolveVolume with a device volume control (Android)", () => {
     expect(resolveVolume(0.25, opts).playerVolume).toBe(1);
   });
 
-  it("silences through the device, not by muting the player", () => {
-    expect(resolveVolume(0, opts)).toEqual({ deviceFraction: 0, playerVolume: 1, boostGain: 1 });
+  it("silences EVEY at zero and leaves the device level alone", () => {
+    // Zero means "no sound from this app", not "mute the tablet". Writing 0 to
+    // the system stream would silence notifications and every other app, and
+    // leave the device muted after leaving the player.
+    expect(resolveVolume(0, opts)).toEqual({ deviceFraction: null, playerVolume: 0, boostGain: 1 });
+  });
+
+  it("keeps driving the device just above zero", () => {
+    // The silence rule is the endpoint only - the rest of the band still moves
+    // the system volume, which is the whole point of this policy.
+    expect(resolveVolume(0.05, opts).deviceFraction).toBeCloseTo(0.05, 3);
+    expect(resolveVolume(0.05, opts).playerVolume).toBe(1);
   });
 
   it("pins the device to max before amplifying above 100%", () => {
@@ -32,7 +42,9 @@ describe("resolveVolume with a device volume control (Android)", () => {
 
   it("clamps to the 0-2 range", () => {
     expect(resolveVolume(3, opts).boostGain).toBe(2);
-    expect(resolveVolume(-1, opts).deviceFraction).toBe(0);
+    // Clamped to zero, so it takes the silence rule: Evey goes quiet, the
+    // device keeps its level.
+    expect(resolveVolume(-1, opts)).toEqual({ deviceFraction: null, playerVolume: 0, boostGain: 1 });
   });
 });
 

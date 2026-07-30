@@ -630,9 +630,12 @@ export default function PlayerScreen() {
     if (!showControls || !hasDeviceVolumeControl()) return;
     let cancelled = false;
     void readDeviceVolumeFraction().then((fraction) => {
-      // Above 100% the bar is in the amplified zone, which the device volume
-      // cannot describe - leave it alone.
-      if (cancelled || fraction === null || volumeBaseRef.current > 1) return;
+      // Two levels the device cannot describe, and must not overwrite: above
+      // 100% the bar is in the amplified zone, and at 0 the user deliberately
+      // silenced Evey while the device stayed where it was - re-reading it there
+      // would bring the sound back on its own.
+      if (cancelled || fraction === null) return;
+      if (volumeBaseRef.current > 1 || volumeBaseRef.current === 0) return;
       volumeBaseRef.current = fraction;
       setVolume(fraction);
     });
