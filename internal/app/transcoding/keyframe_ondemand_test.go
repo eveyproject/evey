@@ -192,3 +192,116 @@ func TestKeyframeOnDemand_GlobalConcurrencyCap(t *testing.T) {
 		t.Fatal("expected at least one probe to run")
 	}
 }
+
+// ============================================================================
+// CFR/VFR classification on the on-demand path
+// ============================================================================
+
+type fakeOnDemandFRStore struct {
+	mu       sync.Mutex
+	ids      []string
+	modes    []string
+	versions []int16
+	setErr   error
+}
+
+func (f *fakeOnDemandFRStore) SetFrameRateMode(_ context.Context, id shared.MediaItemID, mode string, v int16) (int, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.ids = append(f.ids, string(id))
+	f.modes = append(f.modes, mode)
+	f.versions = append(f.versions, v)
+	return 1, f.setErr
+}
+
+func (f *fakeOnDemandFRStore) ListVideoFrameRateStale(context.Context, int, int16, []string) ([]string, error) {
+	return nil, nil
+}
+
+func (f *fakeOnDemandFRStore) ReclassifyFrameRateMode(context.Context, shared.MediaItemID, string, int16) (int, error) {
+	return 0, nil
+}
+
+func (f *fakeOnDemandFRStore) targets() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]string(nil), f.ids...)
+}
+
+type fakeOnDemandFRAnalyzer struct {
+	mode  string
+	err   error
+	calls atomic.Int32
+}
+
+func (a *fakeOnDemandFRAnalyzer) AnalyzeFrameRateMode(context.Context, string) (string, error) {
+	a.calls.Add(1)
+	return a.mode, a.err
+}
+
+// A file indexed on demand never reappears in the backfill queue, so if the
+// classification does not ride along HERE its frame-rate mode stays unknown
+// forever - and the copy gate fails open on unknown. That is a VFR source
+// direct-played, which is what the classifier exists to prevent.
+func TestKeyframeOnDemand_ClassifiesFrameRateAlongsideTheIndex(t *testing.T) {
+	store := &fakeKfStore{rows: 1}
+	frStore := &fakeOnDemandFRStore{}
+	prober := &fakeKfProber{kf: []int64{0, 6000, 12000}}
+	k := apptranscoding.NewKeyframeOnDemand(store, prober, nil).
+		WithFrameRateAnalyzer(&fakeOnDemandFRAnalyzer{mode: "vfr"}, frStore)
+
+	assert.True(t, k.TryIndex(context.Background(), "m1", "/f.mkv"))
+
+	assert.Equal(t, []string{"m1"}, frStore.targets(),
+		"the same walk that produced the keyframes must persist the frame-rate verdict")
+	assert.Equal(t, []string{"vfr"}, frStore.modes)
+	assert.Equal(t, []int16{apptranscoding.FrameRateAlgoVersion},
+		frStore.versions,
+		"the verdict must carry the current classifier version - an unstamped row is invisible to the re-classification drain")
+}
+
+// Classification is optional and best-effort in both directions: unwired it must
+// stay silent, and a failing or inconclusive analyzer must never write a verdict
+// (a persisted wrong answer would be worse than no answer - it is never
+// overwritten at the same version).
+func TestKeyframeOnDemand_FrameRateClassificationIsBestEffort(t *testing.T) {
+	cases := []struct {
+		name     string
+		analyzer *fakeOnDemandFRAnalyzer
+		wire     bool
+	}{
+		{name: "unwired", wire: false},
+		{name: "analyzer error", analyzer: &fakeOnDemandFRAnalyzer{err: errors.New("probe boom")}, wire: true},
+		{name: "inconclusive", analyzer: &fakeOnDemandFRAnalyzer{mode: ""}, wire: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			store := &fakeKfStore{rows: 1}
+			frStore := &fakeOnDemandFRStore{}
+			prober := &fakeKfProber{kf: []int64{0, 6000}}
+			k := apptranscoding.NewKeyframeOnDemand(store, prober, nil)
+			if tc.wire {
+				k = k.WithFrameRateAnalyzer(tc.analyzer, frStore)
+			}
+
+			assert.True(t, k.TryIndex(context.Background(), "m1", "/f.mkv"),
+				"the keyframe index must succeed regardless of the classification")
+			assert.Equal(t, []int64{0, 6000}, store.saved["m1"])
+			assert.Empty(t, frStore.targets(), "no verdict may be persisted")
+		})
+	}
+}
+
+// A persist failure is logged and swallowed: the keyframes are already written
+// and the negotiation must still report success, or a transient DB hiccup would
+// pin an otherwise copy-eligible file to transcode.
+func TestKeyframeOnDemand_FrameRatePersistFailureDoesNotFailTheIndex(t *testing.T) {
+	store := &fakeKfStore{rows: 1}
+	frStore := &fakeOnDemandFRStore{setErr: errors.New("db down")}
+	prober := &fakeKfProber{kf: []int64{0, 6000}}
+	k := apptranscoding.NewKeyframeOnDemand(store, prober, nil).
+		WithFrameRateAnalyzer(&fakeOnDemandFRAnalyzer{mode: "cfr"}, frStore)
+
+	assert.True(t, k.TryIndex(context.Background(), "m1", "/f.mkv"))
+	assert.Equal(t, []int64{0, 6000}, store.saved["m1"], "the keyframes stay written")
+}
