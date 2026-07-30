@@ -28,6 +28,23 @@ export interface CastPlaybackState {
   isMuted: boolean | undefined;
 }
 
+// resumePositionAfterCast decides where the LOCAL player should pick up once a
+// cast session ends, in seconds, or null to leave it alone.
+//
+// The local player was parked at whatever position the cast started from, so
+// after forty minutes on the television, disconnecting rewound the viewer to
+// where they had been forty minutes earlier. The receiver's last known position
+// is the one that reflects what was actually watched.
+//
+// Returns null when there is nothing trustworthy to seek to: no cast happened
+// in this session, or the receiver never reported a position (it was still
+// loading, or it failed). Seeking to 0 in those cases would invent a rewind
+// rather than fix one.
+export function resumePositionAfterCast(lastCastSec: number | null): number | null {
+  if (lastCastSec === null || !Number.isFinite(lastCastSec) || lastCastSec <= 0) return null;
+  return lastCastSec;
+}
+
 // reportedPlaybackState picks the source that is actually playing. Falls back
 // to the local state whenever no cast session is connected.
 export function reportedPlaybackState(

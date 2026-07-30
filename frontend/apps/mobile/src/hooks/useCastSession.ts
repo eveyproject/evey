@@ -7,6 +7,7 @@ import { fetchStreamToken } from "./usePlaySession";
 import { buildCastStreamUrl, pickCastProfile } from "../lib/castUrl";
 import { ensureCastNotificationPermission } from "../lib/castNotificationPermission";
 import { describeCastTracks, shouldReportTracks } from "../lib/castTrackBeacon";
+import { resumePositionAfterCast } from "../lib/castPlaybackState";
 import {
   CastContext, useCastStateHook, useRemoteMediaClientHook,
   useMediaStatusHook, useCastDeviceHook, CastStateEnum,
@@ -200,13 +201,33 @@ export function useCastSession({
     castLoadMedia(castClient);
   }, [castClient, castConnected, streamUrl, castLoadMedia]);
 
-  // Unmute local player when cast disconnects
+  // Track the receiver's last known position WHILE casting: by the time the
+  // session is gone, so is its media status, so it cannot be read at the moment
+  // it is needed.
+  const lastCastPositionRef = useRef<number | null>(null);
   useEffect(() => {
-    if (!castConnected) {
-      castLoadedForMedia.current = null;
-      unmuteLocalPlayer();
+    if (castConnected && castCurrentTime > 0) {
+      lastCastPositionRef.current = castCurrentTime;
     }
-  }, [castConnected, unmuteLocalPlayer]);
+  }, [castConnected, castCurrentTime]);
+
+  // Unmute the local player when the cast disconnects, and put it where the
+  // television actually got to - it was parked at the position the cast started
+  // from, so without this, stopping a cast rewound the viewer by the whole
+  // length of what they had just watched.
+  useEffect(() => {
+    if (castConnected) return;
+    castLoadedForMedia.current = null;
+    unmuteLocalPlayer();
+    const resumeAt = resumePositionAfterCast(lastCastPositionRef.current);
+    lastCastPositionRef.current = null;
+    if (resumeAt === null || !player) return;
+    try {
+      player.currentTime = resumeAt;
+    } catch (err) {
+      console.warn("released", err);
+    }
+  }, [castConnected, unmuteLocalPlayer, player]);
 
   return { castConnected, castClient, castCurrentTime, castDuration, castIsPlaying, castVolume, castIsMuted, handleCast };
 }

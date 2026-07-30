@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { reportedPlaybackState } from "./castPlaybackState";
+import { reportedPlaybackState, resumePositionAfterCast } from "./castPlaybackState";
 
 // The local player is parked while casting: paused, volume 0, and (on some
 // paths) muted. Every assertion below is about NOT reporting that.
@@ -70,5 +70,27 @@ describe("reportedPlaybackState", () => {
       isMuted: true,
     });
     expect(state).toEqual({ isPaused: false, volume: 0, isMuted: true });
+  });
+});
+
+describe("resumePositionAfterCast", () => {
+  it("resumes at the receiver's last known position", () => {
+    expect(resumePositionAfterCast(1830)).toBe(1830);
+  });
+
+  it("leaves the local player alone when no cast happened", () => {
+    // Seeking here would invent a rewind instead of fixing one.
+    expect(resumePositionAfterCast(null)).toBeNull();
+  });
+
+  it("leaves the local player alone when the receiver never reported a position", () => {
+    // Still loading, or it failed: 0 is not evidence of "watched nothing".
+    expect(resumePositionAfterCast(0)).toBeNull();
+  });
+
+  it("ignores a nonsensical position", () => {
+    expect(resumePositionAfterCast(-5)).toBeNull();
+    expect(resumePositionAfterCast(Number.NaN)).toBeNull();
+    expect(resumePositionAfterCast(Number.POSITIVE_INFINITY)).toBeNull();
   });
 });
