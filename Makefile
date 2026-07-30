@@ -136,6 +136,25 @@ mutation-test:
 	@docker build -q -t evey-mutation -f docker/Dockerfile.mutation . >/dev/null
 	@rm -rf $(MUTATION_SRC) && mkdir -p $(MUTATION_SRC)
 	@git archive HEAD | tar -x -C $(MUTATION_SRC)
+	@# `gen/` is gitignored, so git archive drops it - and WITHOUT it nothing that
+	@# imports the generated protobuf code compiles. gremlins buckets a test
+	@# command that fails to BUILD as KILLED, so the run then reports a perfect
+	@# 100% efficacy with zero survivors instead of erroring: a silently wrong
+	@# result. Proven on ./internal/adapters/driving/http (2026-07-30): 1647
+	@# "killed" in 7.6s, and a mutant it called KILLED survives a real test run.
+	@# Copy the generated tree in rather than trusting the archive.
+	@test -d gen || { echo "gen/ missing - run 'make proto-gen' first"; exit 1; }
+	@cp -r gen $(MUTATION_SRC)/gen
+	@# Guard against the same class of silent failure from any other cause: the
+	@# package's own tests must pass in the clean checkout BEFORE mutating. A
+	@# red baseline makes every mutant look killed.
+	@echo "→ baseline check on $(PKG)"
+	@docker run --rm --cpus 4 --memory 6g \
+	  --user "$$(id -u):$$(id -g)" \
+	  -e GOPATH=/tmp/go -e GOCACHE=/tmp/gocache -e HOME=/tmp \
+	  -v $(MUTATION_SRC):/src -w /src \
+	  evey-mutation go test $(PKG) -count=1 >/dev/null || \
+	  { echo "BASELINE RED on $(PKG) - a mutation run would report a fake 100%"; rm -rf $(MUTATION_SRC); exit 1; }
 	@echo "→ gremlins on $(PKG) (clean checkout, containerised, non-root)"
 	@docker run --rm --cpus 4 --memory 6g \
 	  --user "$$(id -u):$$(id -g)" \
