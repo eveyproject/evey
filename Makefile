@@ -201,8 +201,34 @@ ci-local-frontend:
 # a red pipeline never surprises you 10 minutes after the push. Everything here
 # is cache-backed (Go per package+flags, turbo per task), so an unchanged push
 # costs seconds; only what you actually touched is recomputed.
-pre-push: ci-fast-vet ci-fast-vuln ci-fast-build ci-fast-unit ci-fast-frontend ci-fast-sec ci-local-lint ci-arch repo-itest-gate transcode-itest-gate
-	@echo "✅ pre-push OK - quality gate green (vet + govulncheck + build + unit -race + frontend + gosec + lint + arch guards + repo suite + transcode contract)."
+pre-push: ci-fast-vet ci-fast-vuln ci-fast-build ci-fast-unit ci-fast-frontend ci-fast-sec ci-local-lint ci-arch ci-proto-breaking repo-itest-gate transcode-itest-gate
+	@echo "✅ pre-push OK - quality gate green (vet + govulncheck + build + unit -race + frontend + gosec + lint + arch guards + proto compat + repo suite + transcode contract)."
+
+# ci-proto-breaking: `buf breaking` against the published tip.
+#
+# This check lived ONLY in .github/workflows/ci.yml, and CI has been switched
+# off since 2026-07-29 (Actions quota). A push triggers nothing, so from that
+# day a breaking proto change - a removed field, a renumbered tag, a changed
+# type - would have shipped unnoticed, and the clients that consume these protos
+# are ALREADY DEPLOYED (a beta APK is on a tester's phone). A wire break there
+# is silent on the server and total on the client.
+#
+# Compares against origin/<branch>: the question a pre-push gate must answer is
+# "is what I am about to publish compatible with what is published". When the
+# remote ref is absent the target FAILS rather than passing - a gate that
+# silently no-ops is worse than no gate (same doctrine as transcode-itest-gate).
+# `safe.directory` is needed because the container runs as root over a tree
+# owned by the host user.
+PROTO_BRANCH ?= $(shell git rev-parse --abbrev-ref HEAD)
+ci-proto-breaking:
+	@echo "→ buf breaking (proto wire compat vs origin/$(PROTO_BRANCH))"
+	@git rev-parse --verify --quiet "origin/$(PROTO_BRANCH)" >/dev/null || { \
+	  echo "❌ origin/$(PROTO_BRANCH) is unknown locally - run 'git fetch origin' so this gate has something to compare against"; \
+	  exit 1; }
+	@docker exec -w /app evey-server sh -c '\
+	  git config --global --add safe.directory /app >/dev/null 2>&1; \
+	  git config --global --add safe.directory /app/.git >/dev/null 2>&1; \
+	  buf breaking --against ".git#ref=origin/$(PROTO_BRANCH)"'
 
 # ci-arch: the static architecture guards (TxUnit bypass, etc.) that need NO DB -
 # they only regex the source tree, so they run in milliseconds. Their sibling
