@@ -15,7 +15,7 @@ func newTestMKVHandler() (*mkvHandler, *mkvfakes.FakeContainerReader, *mkvfakes.
 	reader := mkvfakes.NewFakeContainerReader()
 	writer := mkvfakes.NewFakeContainerWriter()
 	svc := appmkv.NewService(reader, writer)
-	return &mkvHandler{svc: svc}, reader, writer
+	return &mkvHandler{svc: svc, userAccess: newPermissiveTestUserAccess()}, reader, writer
 }
 
 func seedContainer(reader *mkvfakes.FakeContainerReader) {

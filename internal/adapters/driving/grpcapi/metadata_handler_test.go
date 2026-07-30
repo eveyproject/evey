@@ -26,7 +26,7 @@ func newTestMetadataHandler() (*metadataHandler, *metafakes.FakeMetadataProvider
 	providers := []metadata.MetadataProvider{provider}
 	cmd := appmetadata.NewCommandService(overrideRepo, artworkRepo, metafakes.NewFakeArtworkDownloader(), events, providers)
 	query := appmetadata.NewQueryService(overrideRepo, artworkRepo, providers)
-	return &metadataHandler{cmd: cmd, query: query}, provider, artworkRepo, overrideRepo
+	return &metadataHandler{cmd: cmd, query: query, userAccess: newPermissiveTestUserAccess()}, provider, artworkRepo, overrideRepo
 }
 
 func TestMetadataGetArtwork(t *testing.T) {
@@ -211,7 +211,7 @@ func TestMetadataResearchMetadata_DropsOverridesAndResets(t *testing.T) {
 	cmd := appmetadata.NewCommandService(overrideRepo, artworkRepo, metafakes.NewFakeArtworkDownloader(), events, providers)
 	appmetadata.WithEnricher(&noopEnricher{}, mediaRepo)(cmd)
 	query := appmetadata.NewQueryService(overrideRepo, artworkRepo, providers)
-	h := &metadataHandler{cmd: cmd, query: query}
+	h := &metadataHandler{cmd: cmd, query: query, userAccess: newPermissiveTestUserAccess()}
 
 	ctx := context.Background()
 	if err := mediaRepo.Create(ctx, &library.MediaItem{

@@ -51,7 +51,7 @@ func (h *syncplayHandler) requireMediaAccess(ctx context.Context, mediaID, media
 			return status.Error(codes.NotFound, "media not found")
 		}
 		if h.userAccess == nil {
-			return nil
+			return errUserAccessNotConfigured(ctx, "syncplayHandler.requireMediaAccess")
 		}
 		ok, _ := h.userAccess.HasLibraryAccess(ctx, claims.UserID, string(t.LibraryID))
 		if !ok {
@@ -59,8 +59,11 @@ func (h *syncplayHandler) requireMediaAccess(ctx context.Context, mediaID, media
 		}
 		return nil
 	}
-	if claims.IsAdmin || h.userAccess == nil {
+	if claims.IsAdmin {
 		return nil
+	}
+	if h.userAccess == nil {
+		return errUserAccessNotConfigured(ctx, "syncplayHandler.requireMediaAccess")
 	}
 	item, err := h.libQuery.GetMediaItem(ctx, mediaID)
 	if err != nil || item == nil {

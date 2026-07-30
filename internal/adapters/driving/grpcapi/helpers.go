@@ -125,6 +125,19 @@ func internalError(ctx context.Context, op string, err error) error {
 	return status.Error(codes.Internal, "internal error")
 }
 
+// errUserAccessNotConfigured is returned by a handler's access guard when the
+// userAccess port is nil. wire.go always wires it in production, so this is
+// never a live prod condition - it is a safety net for a future wiring
+// regression. The guard used to treat a nil port as "no restrictions" (see
+// git history), which meant a wiring mistake would silently expose every
+// library to every non-admin caller instead of breaking loudly. Logging here
+// (rather than only returning the status) is what lets an operator diagnose
+// the regression from server logs even when the RPC caller ignores the error.
+func errUserAccessNotConfigured(ctx context.Context, op string) error {
+	slog.ErrorContext(ctx, op+": user access authorization service not configured")
+	return status.Error(codes.FailedPrecondition, "user access authorization service not configured")
+}
+
 // isClientCanceled reports whether err is the result of the caller going away
 // (a canceled context or its DB-driver projection) rather than a genuine
 // server-side failure.

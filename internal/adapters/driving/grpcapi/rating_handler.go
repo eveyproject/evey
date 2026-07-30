@@ -38,8 +38,11 @@ func (h *ratingHandler) requireMediaAccess(ctx context.Context, mediaItemID stri
 	if err != nil || item == nil {
 		return status.Error(codes.NotFound, "not found")
 	}
-	if claims.IsAdmin || h.userAccess == nil {
+	if claims.IsAdmin {
 		return nil
+	}
+	if h.userAccess == nil {
+		return errUserAccessNotConfigured(ctx, "ratingHandler.requireMediaAccess")
 	}
 	ok, accessErr := h.userAccess.HasLibraryAccess(ctx, claims.UserID, string(item.LibraryID))
 	if accessErr != nil || !ok {

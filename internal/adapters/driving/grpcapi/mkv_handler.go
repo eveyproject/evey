@@ -25,14 +25,21 @@ type mkvHandler struct {
 // users (ListChapters, used by the player's skip-intro fallback) so a non-admin
 // cannot read MKV metadata for files outside the libraries they have access to.
 // The path must resolve to a known media item the caller can see; admins bypass.
-// No-op when the access deps are unwired (keeps unit tests that build the
-// handler with only svc working). Mirrors metadataHandler.checkMediaItemAccess.
+// Denies when userAccess is unwired (fail closed); still a no-op when only
+// libQuery is unwired, since that is a read dependency, not the authorization
+// port. Mirrors metadataHandler.checkMediaItemAccess.
 func (h *mkvHandler) checkPathAccess(ctx context.Context, path string) error {
-	if h.userAccess == nil || h.libQuery == nil {
-		return nil
-	}
+	// Admin bypass is a claims check, independent of whether userAccess is
+	// wired, so it is resolved before the wiring check below - an unwired
+	// port must never turn an admin request into a denial.
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil || claims.IsAdmin {
+		return nil
+	}
+	if h.userAccess == nil {
+		return errUserAccessNotConfigured(ctx, "mkvHandler.checkPathAccess")
+	}
+	if h.libQuery == nil {
 		return nil
 	}
 	item, err := h.libQuery.GetMediaItemByFilePath(ctx, path)

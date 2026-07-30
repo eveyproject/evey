@@ -30,16 +30,22 @@ type playlistHandler struct {
 }
 
 // allowedLibraryIDs returns the library IDs the caller may see, or nil for full
-// access (admin, no restrictions configured, or userAccess not wired). Mirrors
+// access (admin / no restrictions configured). An unwired userAccess port
+// fails closed instead (non-nil empty slice). Mirrors
 // libraryHandler/playbackHandler.getAllowedLibraryIDs so GetPlaylistItems hides
 // metadata for items whose library the caller lost (or never had) access to.
 func (h *playlistHandler) allowedLibraryIDs(ctx context.Context) ([]string, error) {
-	if h.userAccess == nil {
-		return nil, nil
-	}
+	// Admin bypass is a claims check, independent of whether userAccess is
+	// wired, so it is resolved before the wiring check below - an unwired
+	// port must never turn an admin request into a denial.
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil || claims.IsAdmin {
 		return nil, nil
+	}
+	if h.userAccess == nil {
+		// nil reads as "full access" below (GetPlaylistItems); a wiring
+		// regression must deny instead, like a real zero-access user would get.
+		return []string{}, nil
 	}
 	ids, err := h.userAccess.GetLibraryAccessByUserID(ctx, claims.UserID)
 	if err != nil {

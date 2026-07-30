@@ -1047,8 +1047,11 @@ func (h *playbackHandler) requireMediaAccess(ctx context.Context, mediaItemID st
 	if claims == nil {
 		return status.Errorf(codes.Unauthenticated, "unauthenticated")
 	}
-	if claims.IsAdmin || h.userAccess == nil {
+	if claims.IsAdmin {
 		return nil
+	}
+	if h.userAccess == nil {
+		return errUserAccessNotConfigured(ctx, "playbackHandler.requireMediaAccess")
 	}
 	item, err := h.librarySvc.GetMediaItem(ctx, mediaItemID)
 	if err != nil {
@@ -1062,12 +1065,17 @@ func (h *playbackHandler) requireMediaAccess(ctx context.Context, mediaItemID st
 }
 
 func (h *playbackHandler) getAllowedLibraryIDs(ctx context.Context) ([]string, error) {
-	if h.userAccess == nil {
-		return nil, nil
-	}
+	// Admin bypass is a claims check, independent of whether userAccess is
+	// wired, so it is resolved before the wiring check below - an unwired
+	// port must never turn an admin request into a denial.
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil || claims.IsAdmin {
 		return nil, nil
+	}
+	if h.userAccess == nil {
+		// nil reads as "unrestricted" below; a wiring regression must deny
+		// instead, like a real zero-access user would get.
+		return []string{}, nil
 	}
 	ids, err := h.userAccess.GetLibraryAccessByUserID(ctx, claims.UserID)
 	if err != nil {

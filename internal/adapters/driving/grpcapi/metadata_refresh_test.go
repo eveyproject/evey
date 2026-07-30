@@ -64,7 +64,7 @@ func newRefreshMetadataHandler() (*metadataHandler, *metafakes.FakeMetadataProvi
 		appmetadata.WithEnricher(orphanBulkEnricher{}, mediaRepo),
 	)
 	query := appmetadata.NewQueryService(overrideRepo, artworkRepo, providers)
-	return &metadataHandler{cmd: cmd, query: query}, provider, mediaRepo
+	return &metadataHandler{cmd: cmd, query: query, userAccess: newPermissiveTestUserAccess()}, provider, mediaRepo
 }
 
 // Forcing provider=tmdb resolves the item's stored TMDB id and re-enriches -
@@ -145,7 +145,7 @@ func TestRefreshMetadata_NoProvider_NoTMDBID_FailedPrecondition(t *testing.T) {
 		appmetadata.WithEnricher(orphanBulkEnricher{}, mediaRepo),
 	)
 	query := appmetadata.NewQueryService(overrideRepo, artworkRepo, providers)
-	h := &metadataHandler{cmd: cmd, query: query}
+	h := &metadataHandler{cmd: cmd, query: query, userAccess: newPermissiveTestUserAccess()}
 
 	// Create an item with no TMDB ID.
 	ctx := context.Background()

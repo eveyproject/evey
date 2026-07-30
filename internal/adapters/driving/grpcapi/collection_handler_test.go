@@ -25,7 +25,7 @@ func newTestCollectionHandler() (*collectionHandler, *libraryfakes.FakeCollectio
 	queryRepo := libraryfakes.NewFakeCollectionQueryRepo(cmdRepo, mediaRepo)
 	smartQ := libraryfakes.NewFakeCollectionSmartQuerier()
 	svc := appcollection.NewService(cmdRepo, queryRepo, smartQ, mediaRepo)
-	return &collectionHandler{svc: svc}, cmdRepo
+	return &collectionHandler{svc: svc, userAccess: newPermissiveTestUserAccess()}, cmdRepo
 }
 
 var tmdbCounter int
@@ -88,6 +88,32 @@ func TestCollectionGetCollection_NotFound(t *testing.T) {
 	_, err := h.GetCollection(context.Background(), &eveyv1.GetCollectionRequest{Id: "nonexistent"})
 	if err == nil {
 		t.Error("expected error for nonexistent collection")
+	}
+}
+
+// TestCollectionGetCollection_UserAccessUnwired_DeniesNonAdmin proves the
+// hardening: a handler built with userAccess left nil (a wiring regression,
+// never true in production since wire.go always constructs it) must deny a
+// non-admin caller, not silently show every collection like the old
+// userAccess==nil fail-open guard did.
+func TestCollectionGetCollection_UserAccessUnwired_DeniesNonAdmin(t *testing.T) {
+	cmdRepo := libraryfakes.NewFakeCollectionCommandRepo()
+	mediaRepo := libraryfakes.NewFakeMediaItemRepository()
+	queryRepo := libraryfakes.NewFakeCollectionQueryRepo(cmdRepo, mediaRepo)
+	smartQ := libraryfakes.NewFakeCollectionSmartQuerier()
+	svc := appcollection.NewService(cmdRepo, queryRepo, smartQ, mediaRepo)
+	h := &collectionHandler{svc: svc} // userAccess intentionally left nil
+
+	seedCollection(cmdRepo, "col-1", "Some Collection")
+	mediaRepo.Create(context.Background(), &library.MediaItem{ID: "m1", LibraryID: "lib-1", Title: "A", Type: "movie"})
+	cmdRepo.LinkItem(context.Background(), "col-1", "m1", 0)
+
+	_, err := h.GetCollection(nonAdminCtx("user-1"), &eveyv1.GetCollectionRequest{Id: "col-1"})
+	if err == nil {
+		t.Fatal("expected NotFound: an unwired userAccess port must deny, not return everything")
+	}
+	if got := status.Code(err); got != codes.NotFound {
+		t.Fatalf("code: want NotFound, got %v", got)
 	}
 }
 
@@ -477,7 +503,7 @@ func newTestCollectionHandlerBatch() (*collectionHandler, *libraryfakes.FakeColl
 	queryRepo := libraryfakes.NewFakeCollectionQueryRepo(cmdRepo, mediaRepo)
 	smartQ := libraryfakes.NewFakeCollectionSmartQuerier()
 	svc := appcollection.NewService(cmdRepo, queryRepo, smartQ, mediaRepo)
-	return &collectionHandler{svc: svc}, cmdRepo, mediaRepo, queryRepo
+	return &collectionHandler{svc: svc, userAccess: newPermissiveTestUserAccess()}, cmdRepo, mediaRepo, queryRepo
 }
 
 // TestCollectionListCollections_BatchCalledOnce verifies that ListCollections
@@ -589,7 +615,7 @@ func TestCollectionListCollections_ParentalFilter_Batch(t *testing.T) {
 		userfakes.NewFakeInviteLinkRepository(),
 		userfakes.NewFakeQuickConnectRepository(),
 	)
-	h := &collectionHandler{svc: svc, userQuery: userQuery}
+	h := &collectionHandler{svc: svc, userQuery: userQuery, userAccess: newPermissiveTestUserAccess()}
 
 	// col-clean:  item rated "G" (US, age 0) and no blocked tags → should appear
 	// col-blocked: item rated "G" but tagged "violence" (blocked tag) → should be hidden

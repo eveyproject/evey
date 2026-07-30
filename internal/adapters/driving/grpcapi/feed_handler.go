@@ -37,7 +37,13 @@ func (h *feedHandler) requireMediaAccess(ctx context.Context, mediaItemID string
 	if claims == nil {
 		return status.Error(codes.Unauthenticated, "unauthenticated")
 	}
-	if claims.IsAdmin || h.userAccess == nil || h.libQuery == nil {
+	if claims.IsAdmin {
+		return nil
+	}
+	if h.userAccess == nil {
+		return errUserAccessNotConfigured(ctx, "feedHandler.requireMediaAccess")
+	}
+	if h.libQuery == nil {
 		return nil
 	}
 	item, err := h.libQuery.GetMediaItem(ctx, mediaItemID)

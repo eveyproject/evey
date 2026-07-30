@@ -28,8 +28,11 @@ func (h *favoriteHandler) requireMediaAccess(ctx context.Context, mediaItemID st
 	if claims == nil {
 		return status.Error(codes.Unauthenticated, "unauthenticated")
 	}
-	if claims.IsAdmin || h.userAccess == nil {
+	if claims.IsAdmin {
 		return nil
+	}
+	if h.userAccess == nil {
+		return errUserAccessNotConfigured(ctx, "favoriteHandler.requireMediaAccess")
 	}
 	item, err := h.libQuery.GetMediaItem(ctx, mediaItemID)
 	if err != nil || item == nil {

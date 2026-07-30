@@ -75,6 +75,7 @@ func newTestPlaybackHandler() (*playbackHandler, *pbfakes.FakePlaySessionReposit
 		query:      querySvc,
 		librarySvc: libQuerySvc,
 		userQuery:  userQuery,
+		userAccess: newPermissiveTestUserAccess(),
 	}
 	return h, sessionRepo, progressRepo, mediaQueryRepo, profileRepo, streamRepo
 }

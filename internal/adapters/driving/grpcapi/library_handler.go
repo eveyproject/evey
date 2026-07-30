@@ -157,7 +157,8 @@ func (h *libraryHandler) DeleteLibrary(ctx context.Context, req *eveyv1.DeleteLi
 	// Defense-in-depth IDOR check: RBAC already restricts this RPC to admins,
 	// but explicitly re-verify access for non-admin claims so a future RBAC
 	// misconfiguration cannot silently expose deletion of other libraries.
-	// Admins (and contexts without userAccess wired) short-circuit.
+	// Admins short-circuit; an unwired userAccess port denies instead of
+	// allowing (see checkLibraryAccess).
 	if ok, accessErr := h.checkLibraryAccess(ctx, shared.LibraryID(req.Id)); !ok {
 		if accessErr != nil {
 			span.RecordError(accessErr)
@@ -231,12 +232,19 @@ func (h *libraryHandler) filterLibrariesByAccess(ctx context.Context, libs []*li
 }
 
 func (h *libraryHandler) getAllowedLibraryIDs(ctx context.Context) ([]string, error) {
-	if h.userAccess == nil {
-		return nil, nil
-	}
+	// Admin bypass is a claims check, independent of whether userAccess is
+	// wired, so it is resolved before the wiring check below - an unwired
+	// port must never turn an admin request into a denial.
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil || claims.IsAdmin {
 		return nil, nil
+	}
+	if h.userAccess == nil {
+		// nil reads as "unrestricted" to filterLibrariesByAccess below; a
+		// wiring regression must not silently show every library to every
+		// non-admin, so return the same non-nil empty set a zero-access user
+		// would get.
+		return []string{}, nil
 	}
 	ids, err := h.userAccess.GetLibraryAccessByUserID(ctx, claims.UserID)
 	if err != nil {
@@ -261,12 +269,18 @@ func toLibraryIDs(ids []string) []shared.LibraryID {
 }
 
 func (h *libraryHandler) checkLibraryAccess(ctx context.Context, libraryID shared.LibraryID) (bool, error) {
-	if h.userAccess == nil {
-		return true, nil
-	}
+	// Admin bypass is a claims check, independent of whether userAccess is
+	// wired, so it is resolved before the wiring check below - an unwired
+	// port must never turn an admin request into a denial.
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil || claims.IsAdmin {
 		return true, nil
+	}
+	if h.userAccess == nil {
+		// Every caller of checkLibraryAccess treats a false result as "deny",
+		// logging the accompanying error. Returning true here would let a
+		// wiring regression silently permit deleting/updating any library.
+		return false, errUserAccessNotConfigured(ctx, "libraryHandler.checkLibraryAccess")
 	}
 	return h.userAccess.HasLibraryAccess(ctx, claims.UserID, string(libraryID))
 }

@@ -30,12 +30,15 @@ type photoHandler struct {
 }
 
 func (h *photoHandler) checkLibraryAccess(ctx context.Context, libraryID shared.LibraryID) error {
-	if h.userAccess == nil {
-		return nil
-	}
+	// Admin bypass is a claims check, independent of whether userAccess is
+	// wired, so it is resolved before the wiring check below - an unwired
+	// port must never turn an admin request into a denial.
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil || claims.IsAdmin {
 		return nil
+	}
+	if h.userAccess == nil {
+		return errUserAccessNotConfigured(ctx, "photoHandler.checkLibraryAccess")
 	}
 	ok, err := h.userAccess.HasLibraryAccess(ctx, claims.UserID, string(libraryID))
 	if err != nil {

@@ -340,12 +340,19 @@ func (h *collectionHandler) GetCollectionItems(ctx context.Context, req *eveyv1.
 }
 
 func (h *collectionHandler) allowedLibraryIDs(ctx context.Context) ([]string, error) {
-	if h.userAccess == nil {
-		return nil, nil
-	}
+	// Admin bypass is a claims check, independent of whether userAccess is
+	// wired, so it is resolved before the wiring check below - an unwired
+	// port must never turn an admin request into a denial.
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil || claims.IsAdmin {
 		return nil, nil
+	}
+	if h.userAccess == nil {
+		// nil here would be read by every caller as "unrestricted" (see the
+		// comment below): a wiring regression would silently show every
+		// collection to every non-admin. A non-nil empty slice keeps the same
+		// "denies everything" behaviour as a real zero-access user.
+		return []string{}, nil
 	}
 	ids, err := h.userAccess.GetLibraryAccessByUserID(ctx, claims.UserID)
 	if err != nil {
@@ -358,11 +365,11 @@ func (h *collectionHandler) allowedLibraryIDs(ctx context.Context) ([]string, er
 }
 
 // checkCollectionAccess verifies the caller can interact with the collection
-// identified by collectionID. Admins (and unauthenticated test contexts where
-// userAccess is nil) short-circuit. Non-admins must have library access on at
-// least one media item of the collection; otherwise NotFound is returned to
-// avoid leaking existence. Returns a gRPC status error suitable for direct
-// propagation to the client.
+// identified by collectionID. Admins short-circuit. Non-admins must have
+// library access on at least one media item of the collection; otherwise
+// NotFound is returned to avoid leaking existence. A handler with userAccess
+// unwired denies every non-admin the same way (see allowedLibraryIDs).
+// Returns a gRPC status error suitable for direct propagation to the client.
 func (h *collectionHandler) checkCollectionAccess(ctx context.Context, collectionID string) error {
 	allowed, err := h.allowedLibraryIDs(ctx)
 	if err != nil {

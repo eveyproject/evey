@@ -244,16 +244,22 @@ func (h *notificationHandler) UpdateGlobalNotificationSettings(ctx context.Conte
 }
 
 // allowedLibraryIDs returns the caller's accessible library IDs, or nil for an
-// unrestricted (admin / no-access-service) context. A non-nil error means the
-// access lookup failed and the caller MUST fail closed - returning nil on error
-// would be read as "unrestricted" and leak other libraries' notifications.
+// unrestricted admin context. A non-nil error means the access lookup failed
+// and the caller MUST fail closed - returning nil on error would be read as
+// "unrestricted" and leak other libraries' notifications. An unwired
+// userAccess port also fails closed (non-nil empty slice), not unrestricted.
 func (h *notificationHandler) allowedLibraryIDs(ctx context.Context) ([]string, error) {
-	if h.userAccess == nil {
-		return nil, nil
-	}
+	// Admin bypass is a claims check, independent of whether userAccess is
+	// wired, so it is resolved before the wiring check below - an unwired
+	// port must never turn an admin request into a denial.
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil || claims.IsAdmin {
 		return nil, nil
+	}
+	if h.userAccess == nil {
+		// nil reads as "unrestricted" below; a wiring regression must deny
+		// instead, like a real zero-access user would get.
+		return []string{}, nil
 	}
 	ids, err := h.userAccess.GetLibraryAccessByUserID(ctx, claims.UserID)
 	if err != nil {

@@ -25,7 +25,7 @@ func newTestTranscodingHandler() (*transcodingHandler, *tcfakes.FakeTranscoder, 
 	profileRepo := tcfakes.NewFakeTranscodeProfileRepository()
 	events := sharedfakes.NewFakeEventBus()
 	svc := apptranscoding.NewService(transcoder, hwDetector, jobRepo, profileRepo, events, 5)
-	return &transcodingHandler{svc: svc}, transcoder, jobRepo, profileRepo
+	return &transcodingHandler{svc: svc, userAccess: newPermissiveTestUserAccess()}, transcoder, jobRepo, profileRepo
 }
 
 // newTranscodingHandlerWithAccess wires libQuery + userAccess so the

@@ -131,7 +131,10 @@ func (h *transcodingHandler) checkJobAccess(ctx context.Context, jobID string) e
 	if jobID == "" {
 		return status.Error(codes.InvalidArgument, "job_id required")
 	}
-	if h.userAccess == nil || h.libQuery == nil {
+	if h.userAccess == nil {
+		return errUserAccessNotConfigured(ctx, "transcodingHandler.checkJobAccess")
+	}
+	if h.libQuery == nil {
 		return nil
 	}
 	claims := interceptors.ClaimsFromContext(ctx)

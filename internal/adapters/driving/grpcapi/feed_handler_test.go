@@ -36,7 +36,7 @@ func newFeedHandler() (*feedHandler, *feedfakes.FakeConfigCommandRepo, *feedfake
 	commands := appfeed.NewCommandService(cmdRepo, queryRepo)
 	queries := appfeed.NewQueryService(queryRepo, querier, analyzer)
 
-	h := &feedHandler{commands: commands, queries: queries}
+	h := &feedHandler{commands: commands, queries: queries, userAccess: newPermissiveTestUserAccess()}
 	return h, cmdRepo, queryRepo, querier
 }
 

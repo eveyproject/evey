@@ -179,12 +179,17 @@ func (h *shareHandler) ValidateShareLink(ctx context.Context, req *eveyv1.Valida
 }
 
 func (h *shareHandler) checkLibraryAccess(ctx context.Context, libraryID string) (bool, error) {
-	if h.userAccess == nil {
-		return true, nil
-	}
+	// Admin bypass is a claims check, independent of whether userAccess is
+	// wired, so it is resolved before the wiring check below - an unwired
+	// port must never turn an admin request into a denial.
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil || claims.IsAdmin {
 		return true, nil
+	}
+	if h.userAccess == nil {
+		// The caller treats false as "deny" (NotFound); true here would let a
+		// wiring regression silently create share links for any library.
+		return false, errUserAccessNotConfigured(ctx, "shareHandler.checkLibraryAccess")
 	}
 	return h.userAccess.HasLibraryAccess(ctx, claims.UserID, libraryID)
 }

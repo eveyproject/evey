@@ -13,6 +13,7 @@ import (
 	favfakes "github.com/evey-project/evey/internal/domain/favorite/fakes"
 	"github.com/evey-project/evey/internal/domain/library"
 	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
+	"github.com/evey-project/evey/internal/domain/shared"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 	"github.com/evey-project/evey/internal/domain/user"
 	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
@@ -22,10 +23,22 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// newTestFavoriteHandler wires a permissive userAccess (see
+// newPermissiveTestUserAccess) plus a libQuery seeded with the media item ids
+// used across this file's tests. requireMediaAccess now needs both to resolve
+// - unlike the old userAccess==nil fail-open guard, it must look the item up
+// to run HasLibraryAccess, so a nil libQuery would panic instead of no-op.
 func newTestFavoriteHandler() (*favoriteHandler, *favfakes.FakeRepository) {
 	repo := favfakes.NewFakeRepository()
 	svc := appfavorite.NewService(repo)
-	return &favoriteHandler{svc: svc}, repo
+	mediaQueryRepo := libfakes.NewFakeMediaItemQueryRepo()
+	for _, id := range []string{"m1", "m2", "nonexistent"} {
+		mediaQueryRepo.Seed(&library.MediaItem{ID: shared.MediaItemID(id), LibraryID: "lib-1", Title: id, Type: "movie"})
+	}
+	libQuerySvc := applibrary.NewQueryService(
+		libfakes.NewFakeLibraryQueryRepo(), mediaQueryRepo,
+		libfakes.NewFakeMediaStreamRepository(), libfakes.NewFakeSearchIndex())
+	return &favoriteHandler{svc: svc, libQuery: libQuerySvc, userAccess: newPermissiveTestUserAccess()}, repo
 }
 
 func TestFavoriteHandler_ListFavorites_Unauthenticated(t *testing.T) {
@@ -66,6 +79,22 @@ func TestFavoriteHandler_AddFavorite_Idempotent(t *testing.T) {
 	list, err := h.ListFavorites(ctx, &eveyv1.ListFavoritesRequest{})
 	require.NoError(t, err)
 	assert.Len(t, list.Items, 1)
+}
+
+// TestFavoriteHandler_AddFavorite_UserAccessUnwired_Denies proves the
+// hardening: a handler built with userAccess left nil (a wiring regression,
+// never true in production since wire.go always constructs it) must deny a
+// non-admin caller, not silently allow the write like the old
+// userAccess==nil fail-open guard did.
+func TestFavoriteHandler_AddFavorite_UserAccessUnwired_Denies(t *testing.T) {
+	repo := favfakes.NewFakeRepository()
+	svc := appfavorite.NewService(repo)
+	h := &favoriteHandler{svc: svc} // userAccess intentionally left nil
+	ctx := ctxWithClaims("user-1", "profile-1", false)
+
+	_, err := h.AddFavorite(ctx, &eveyv1.AddFavoriteRequest{MediaItemId: "m1"})
+	require.Error(t, err)
+	assert.Equal(t, codes.FailedPrecondition, status.Code(err))
 }
 
 func TestFavoriteHandler_AddFavorite_Unauthenticated(t *testing.T) {

@@ -32,12 +32,17 @@ type musicHandler struct {
 // "all" (admins and users with no per-library restriction). Mirrors the library
 // handler so cross-library music search can be access-filtered.
 func (h *musicHandler) allowedLibraryIDs(ctx context.Context) (map[string]bool, error) {
-	if h.userAccess == nil {
-		return nil, nil
-	}
+	// Admin bypass is a claims check, independent of whether userAccess is
+	// wired, so it is resolved before the wiring check below - an unwired
+	// port must never turn an admin request into a denial.
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil || claims.IsAdmin {
 		return nil, nil
+	}
+	if h.userAccess == nil {
+		// nil reads as "all libraries" below (ListTracks/SearchMusic); a wiring
+		// regression must deny instead, like a real zero-access user would get.
+		return map[string]bool{}, nil
 	}
 	ids, err := h.userAccess.GetLibraryAccessByUserID(ctx, claims.UserID)
 	if err != nil {
@@ -54,12 +59,15 @@ func (h *musicHandler) allowedLibraryIDs(ctx context.Context) (map[string]bool, 
 }
 
 func (h *musicHandler) checkLibraryAccess(ctx context.Context, libraryID string) error {
-	if h.userAccess == nil {
-		return nil
-	}
+	// Admin bypass is a claims check, independent of whether userAccess is
+	// wired, so it is resolved before the wiring check below - an unwired
+	// port must never turn an admin request into a denial.
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil || claims.IsAdmin {
 		return nil
+	}
+	if h.userAccess == nil {
+		return errUserAccessNotConfigured(ctx, "musicHandler.checkLibraryAccess")
 	}
 	ok, err := h.userAccess.HasLibraryAccess(ctx, claims.UserID, libraryID)
 	if err != nil {
