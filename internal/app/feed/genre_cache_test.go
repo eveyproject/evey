@@ -9,6 +9,7 @@ import (
 
 	appfeed "github.com/evey-project/evey/internal/app/feed"
 	notiffakes "github.com/evey-project/evey/internal/domain/notification/fakes"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -119,7 +120,7 @@ func TestCachedAnalyzer_PassthroughMethods(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 5, score)
 
-	batch, err := cached.GetFavoriteGenresBatch(ctx, []string{"p1", "p2"}, 3)
+	batch, err := cached.GetFavoriteGenresBatch(ctx, []shared.ProfileID{"p1", "p2"}, 3)
 	require.NoError(t, err)
 	assert.Len(t, batch, 2)
 }
@@ -129,7 +130,7 @@ type countingAnalyzer struct {
 	calls atomic.Int32
 }
 
-func (c *countingAnalyzer) GetFavoriteGenres(ctx context.Context, profileID string, minCount int) ([]string, error) {
+func (c *countingAnalyzer) GetFavoriteGenres(ctx context.Context, profileID shared.ProfileID, minCount int) ([]string, error) {
 	c.calls.Add(1)
 	return c.FakeWatchHistoryAnalyzer.GetFavoriteGenres(ctx, profileID, minCount)
 }
