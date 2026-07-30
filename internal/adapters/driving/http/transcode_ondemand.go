@@ -154,6 +154,28 @@ func wasmAudioRequested(r *http.Request) bool {
 	return r != nil && r.URL.Query().Get("wasmAudio") == "1"
 }
 
+// wasmAudioEffective is THE answer to "is the wasm-audio path actually in play
+// for this request" - what the client asked for, minus what the server refuses.
+//
+// Every decision must read THIS, never wasmAudioRequested alone. The master
+// handler and the segment fingerprint have to agree: when they disagreed on
+// 2026-07-29 the master advertised muxed audio over audio-free segments and the
+// Chromecast answered 104 then 905. The codec condition was made shared then;
+// the cast switch broke the agreement again the same evening, the same way,
+// within an hour of shipping. One function, read everywhere, is the only shape
+// that stops this recurring.
+func wasmAudioEffective(r *http.Request, castEnabled bool) bool {
+	if !wasmAudioRequested(r) {
+		return false
+	}
+	// A cast receiver is identified by its stream token, the only identity it
+	// has. Browsers are never gated by the cast switch.
+	if st, ok := StreamTokenFromContext(r.Context()); ok && st != nil && st.Cast && !castEnabled {
+		return false
+	}
+	return true
+}
+
 // wasmAudioMaxChannels is the widest layout we hand to a client-side decoder.
 // 5.1 is what the browser/receiver engine can fold and play comfortably; 7.1
 // adds two channels of decode plus the fold on top, and that is the exact
@@ -179,11 +201,10 @@ func (h *hlsVODServe) serveWasmAudioMaster(w http.ResponseWriter, r *http.Reques
 	if h.onDemand == nil || !wasmAudioRequested(r) || item == nil || item.File == nil || item.File.Path == "" {
 		return false
 	}
-	// Cast kill switch. A cast receiver is identified by its stream token, the
-	// only identity it has. Declining here hands the TV the ordinary muxed
-	// master: sound from the first second, and not a line of our wasm decoder
-	// runs on the box. See the field comment for why this is off by default.
-	if st, ok := StreamTokenFromContext(r.Context()); ok && st != nil && st.Cast && !h.castWasmAudioEnabled {
+	// Cast kill switch: declining here hands the TV the ordinary muxed master -
+	// sound from the first second, and not a line of our wasm decoder runs on
+	// the box. See the field comment for why this is off by default.
+	if wasmAudioRequested(r) && !wasmAudioEffective(r, h.castWasmAudioEnabled) {
 		slog.InfoContext(r.Context(), "hls-vod: wasm-audio disabled for cast receivers, serving the muxed master",
 			slog.String("media_id", mediaID))
 		return false

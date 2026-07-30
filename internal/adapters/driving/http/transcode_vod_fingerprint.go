@@ -168,7 +168,7 @@ func (h *hlsVODServe) buildManifestInputWith(r *http.Request, mediaID string, it
 		// MUXED fingerprint, mismatch the sealed fp, and 410 - breaking the ffmpeg
 		// video-transcode wasm path (the video never loads). Baking it here keeps
 		// the variant playlists' segment URIs self-consistent with the master.
-		WasmAudio:     wasmAudioRequested(r),
+		WasmAudio:     wasmAudioEffective(r, h.castWasmAudioEnabled),
 		AudioOffsetMs: audioOffsetMsQuery(r),
 		// The playback's FIRST playlist stamps its decision; children inherit
 		// the stamp verbatim so the whole session stays on one plan even if
@@ -274,7 +274,7 @@ func (h *hlsVODServe) makeDecision(ctx context.Context, streams []*domainlibrary
 		AudioOffsetMs:       audioOffsetMsQuery(r),
 		PinnedVideoDecision: r.URL.Query().Get("vd"),
 		PinnedAudioDecision: r.URL.Query().Get("ad"),
-		WasmAudio:           wasmAudioRequested(r),
+		WasmAudio:           wasmAudioEffective(r, h.castWasmAudioEnabled),
 	}
 	return h.planResolver().Decide(ctx, req)
 }

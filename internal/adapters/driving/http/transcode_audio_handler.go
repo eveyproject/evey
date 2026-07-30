@@ -51,13 +51,20 @@ func (h *audioServe) audioRenditionEnabled() bool {
 	return h.cfg != nil && h.cfg.Transcoding.AudioRenditionEnabled
 }
 
+// wasmAudio reports whether THIS request is really on the wasm-audio path -
+// the same answer the master handler and the fingerprint read, so the three
+// can never disagree (see wasmAudioEffective).
+func (h *audioServe) wasmAudio(r *http.Request) bool {
+	return wasmAudioEffective(r, h.cfg != nil && h.cfg.Transcoding.CastWasmAudioEnabled)
+}
+
 // servePlaylistFile is the auth-and-render path for the audio playlist,
 // called from the central hlsVODServe dispatcher (regex-routed via
 // /hls/{file}) - the on-the-wire URL the manifest emits resolves relative to
 // /api/v1/media/{id}/hls/master.m3u8, so the dispatcher is the actual
 // production code path.
 func (h *audioServe) servePlaylistFile(w http.ResponseWriter, r *http.Request, mediaID string, trackIdx int, videoCompositionDelay float64) {
-	if !h.audioRenditionEnabled() && !wasmAudioRequested(r) {
+	if !h.audioRenditionEnabled() && !h.wasmAudio(r) {
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return
 	}
@@ -114,7 +121,7 @@ func (h *audioServe) servePlaylistFile(w http.ResponseWriter, r *http.Request, m
 		HDRCapable: r.URL.Query().Get("hdr") == "1",
 		// wasm-audio passthrough: bake wasmAudio=1 into the segment/init URIs so
 		// their fingerprint matches this playlist's copy init (see field doc).
-		WasmAudio: wasmAudioRequested(r),
+		WasmAudio: h.wasmAudio(r),
 	}
 
 	out, err := h.manifestGen.AudioPlaylist(in, trackIdx)
@@ -134,7 +141,7 @@ func (h *audioServe) servePlaylistFile(w http.ResponseWriter, r *http.Request, m
 }
 
 func (h *audioServe) serveInitFile(w http.ResponseWriter, r *http.Request, mediaID string, trackIdx int, videoCompositionDelay float64) {
-	if !h.audioRenditionEnabled() && !wasmAudioRequested(r) {
+	if !h.audioRenditionEnabled() && !h.wasmAudio(r) {
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return
 	}
@@ -188,7 +195,7 @@ func (h *audioServe) serveInitFile(w http.ResponseWriter, r *http.Request, media
 }
 
 func (h *audioServe) serveSegmentFile(w http.ResponseWriter, r *http.Request, mediaID string, trackIdx, segIdx int, videoCompositionDelay float64) {
-	if !h.audioRenditionEnabled() && !wasmAudioRequested(r) {
+	if !h.audioRenditionEnabled() && !h.wasmAudio(r) {
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return
 	}
@@ -272,7 +279,7 @@ func (h *audioServe) buildAudioFingerprint(r *http.Request, mediaID string, item
 	// the silence tail it synthesizes when the track ends before this duration.
 	durationSec := float64(item.File.Duration.Milliseconds()) / 1000.0
 
-	if wasmAudioRequested(r) {
+	if h.wasmAudio(r) {
 		if c := strings.ToLower(h.sourceAudioCodecForTrack(r.Context(), mediaID, trackIdx)); c == "ac3" || c == "eac3" {
 			return apptranscoding.AudioFingerprint{
 				MediaID:        mediaID,

@@ -103,7 +103,7 @@ func (h *hlsVODServe) marshalPlaybackRequest(r *http.Request, mediaID string, it
 		AudioOffsetMs:       audioOffsetMsQuery(r),
 		PinnedVideoDecision: r.URL.Query().Get("vd"),
 		PinnedAudioDecision: r.URL.Query().Get("ad"),
-		WasmAudio:           wasmAudioRequested(r),
+		WasmAudio:           wasmAudioEffective(r, h.castWasmAudioEnabled),
 		SourceBytes:         sourceBytesOf(item),
 	}
 }
