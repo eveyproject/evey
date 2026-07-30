@@ -22,20 +22,18 @@ func videoStream(mutate func(*library.MediaStream)) *library.MediaStream {
 	return s
 }
 
-func strPtr(s string) *string { return &s }
-
 func TestSourceCopyVideoRange(t *testing.T) {
-	sdr := videoStream(func(s *library.MediaStream) { s.ColorTransfer = strPtr("bt709") })
+	sdr := videoStream(func(s *library.MediaStream) { s.ColorTransfer = new("bt709") })
 	if got := SourceCopyVideoRange([]*library.MediaStream{sdr}); got != "" {
 		t.Errorf("SDR must advertise no VIDEO-RANGE, got %q", got)
 	}
 
-	hlg := videoStream(func(s *library.MediaStream) { s.ColorTransfer = strPtr("arib-std-b67") })
+	hlg := videoStream(func(s *library.MediaStream) { s.ColorTransfer = new("arib-std-b67") })
 	if got := SourceCopyVideoRange([]*library.MediaStream{hlg}); got != "HLG" {
 		t.Errorf("HLG source = %q, want HLG", got)
 	}
 
-	pq := videoStream(func(s *library.MediaStream) { s.ColorTransfer = strPtr("smpte2084") })
+	pq := videoStream(func(s *library.MediaStream) { s.ColorTransfer = new("smpte2084") })
 	if got := SourceCopyVideoRange([]*library.MediaStream{pq}); got != "PQ" {
 		t.Errorf("PQ source = %q, want PQ", got)
 	}
@@ -191,7 +189,7 @@ func TestSourceDeinterlaceAll(t *testing.T) {
 }
 
 func TestSourceSAR(t *testing.T) {
-	anamorphic := videoStream(func(s *library.MediaStream) { s.SampleAspectRatio = strPtr("64:45") })
+	anamorphic := videoStream(func(s *library.MediaStream) { s.SampleAspectRatio = new("64:45") })
 	if got := SourceSAR([]*library.MediaStream{anamorphic}); got != "64:45" {
 		t.Errorf("SAR = %q, want 64:45", got)
 	}
