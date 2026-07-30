@@ -3,7 +3,8 @@
 	ci-local ci-local-lint ci-local-test ci-local-frontend ci-arch pre-push hooks \
 	migrate-up migrate-down migrate-version setup dev dev-down dev-logs \
 	infra frontend-typecheck \
-	mobile-build mobile-install mobile mobile-go
+	mobile-build mobile-install mobile mobile-go \
+	mutation-test
 
 BINARY=evey
 DC=docker compose --env-file .env.dev
@@ -102,6 +103,46 @@ lint:
 # regression ratchet. See gosec_eval memory for the triage.
 sec-scan:
 	golangci-lint run -c .golangci.gosec.yml ./...
+
+# ── Mutation testing ──────────────────────────────────────────────────────────
+# mutation-test: run gremlins over ONE package and report which mutants survive.
+#
+# A surviving mutant is a change to the production code that every test still
+# passes through - i.e. a line the suite does not actually verify. That is the
+# question "how many tests do we have?" cannot answer, and it found real gaps:
+# RetryAfter's arithmetic had 6 survivors because one assertion used a 1..3s
+# window where the answer is exactly 2s.
+#
+# Why a container and a clean checkout, not the host:
+#   - gremlins 0.5.0 walks the module root and has no --exclude. This repo's root
+#     also holds the bind-mounted Docker volumes (postgres-data/, caddy-data/,
+#     evey-data/), owned by root with restrictive modes, so the walk died on
+#     permission denied before running a single mutant. They are all gitignored,
+#     so `git archive` yields a tree where they simply do not exist - the problem
+#     is removed rather than worked around.
+#   - it recompiles and re-runs the package's tests once per mutant, which is the
+#     workload that wedges WSL. In a container it gets explicit cpu/memory caps.
+#   - it runs as the invoking user (not root), so the checkout stays writable
+#     without widening any permissions.
+#
+# Usage:  make mutation-test PKG=./internal/pkg/ratelimit/
+#         make mutation-test PKG=./internal/app/transcoding/ DRY=1
+# Scope it to ONE package: a whole-repo run is hours, and the report is only
+# actionable per package anyway.
+PKG ?= ./internal/pkg/ratelimit/
+MUTATION_SRC := $(CURDIR)/.mutation-src
+mutation-test:
+	@command -v git >/dev/null || { echo "git required"; exit 1; }
+	@docker build -q -t evey-mutation -f docker/Dockerfile.mutation . >/dev/null
+	@rm -rf $(MUTATION_SRC) && mkdir -p $(MUTATION_SRC)
+	@git archive HEAD | tar -x -C $(MUTATION_SRC)
+	@echo "→ gremlins on $(PKG) (clean checkout, containerised, non-root)"
+	@docker run --rm --cpus 4 --memory 6g \
+	  --user "$$(id -u):$$(id -g)" \
+	  -e GOPATH=/tmp/go -e GOCACHE=/tmp/gocache -e HOME=/tmp \
+	  -v $(MUTATION_SRC):/src -w /src \
+	  evey-mutation gremlins unleash $(if $(DRY),--dry-run,) $(PKG)
+	@rm -rf $(MUTATION_SRC)
 
 # ── Pré-CI locale ─────────────────────────────────────────────────────────────
 # Mirror exact des étapes CI (.github/workflows/ci.yml) qu'on peut rouler en
