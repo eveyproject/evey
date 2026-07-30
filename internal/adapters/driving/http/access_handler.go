@@ -5,12 +5,12 @@ import (
 	domainuser "github.com/evey-project/evey/internal/domain/user"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"sync"
 
 	otelcodes "go.opentelemetry.io/otel/codes"
 
 	"github.com/evey-project/evey/internal/config"
+	"github.com/evey-project/evey/internal/pkg/urlvalidator"
 	"github.com/evey-project/evey/internal/pkg/network"
 	"github.com/evey-project/evey/internal/pkg/ratelimit"
 	"github.com/evey-project/evey/internal/pkg/tracing"
@@ -84,17 +84,20 @@ func registerRemoteAccessRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen
 		if body.ExternalURL != nil {
 			if *body.ExternalURL == "" {
 				cfg.RemoteAccess.ExternalURL = ""
+			} else if err := urlvalidator.ValidateExternalURL(*body.ExternalURL); err != nil {
+				// The SAME validator the gRPC handler uses. This path had its own
+				// inline check (any http/https, any host), which accepted
+				// http://, localhost and 169.254.169.254 - and this is the path
+				// real traffic takes: Go 1.22+ ServeMux precedence puts this
+				// hand-written route ahead of the grpc-gateway one bound to the
+				// same method+path, so the hardened validator was dead code on
+				// the only route that runs.
+				span.RecordError(err)
+				span.SetStatus(otelcodes.Error, "invalid externalUrl")
+				mu.Unlock()
+				http.Error(w, `{"message":"invalid externalUrl: `+err.Error()+`"}`, http.StatusBadRequest)
+				return
 			} else {
-				u, err := url.Parse(*body.ExternalURL)
-				if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
-					if err != nil {
-						span.RecordError(err)
-					}
-					span.SetStatus(otelcodes.Error, "invalid externalUrl")
-					mu.Unlock()
-					http.Error(w, `{"message":"invalid externalUrl: must be http/https URL"}`, http.StatusBadRequest)
-					return
-				}
 				cfg.RemoteAccess.ExternalURL = *body.ExternalURL
 			}
 		}

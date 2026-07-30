@@ -226,3 +226,65 @@ func TestRemoteAccessPut_PersistsToStore(t *testing.T) {
 		t.Error("expected config to be persisted to store")
 	}
 }
+
+// The hardened validator (https-only, no loopback / RFC1918 / link-local) was
+// only ever called by the gRPC handler, while THIS hand-written route is the
+// one real traffic reaches: Go 1.22+ ServeMux precedence puts it ahead of the
+// grpc-gateway route bound to the same method and path. So the inline check
+// here - "any http or https URL with a host" - was the real policy, and it
+// accepted every address the validator exists to reject.
+func TestRemoteAccessPut_ExternalURL_RejectsUnsafeTargets(t *testing.T) {
+	for _, target := range []string{
+		"http://example.com",          // plain http
+		"https://localhost",           // loopback by name
+		"https://127.0.0.1",           // loopback by address
+		"https://192.168.1.10",        // RFC1918
+		"https://169.254.169.254",     // link-local / cloud metadata
+		"https://metadata.google.internal",
+	} {
+		t.Run(target, func(t *testing.T) {
+			mux, adminTok, _ := setupRemoteAccessMux(t)
+			b, _ := json.Marshal(map[string]any{"externalUrl": target})
+			req := httptest.NewRequest(http.MethodPut, "/api/v1/admin/remote-access", bytes.NewReader(b))
+			req.Header.Set("Authorization", "Bearer "+adminTok)
+			w := httptest.NewRecorder()
+			mux.ServeHTTP(w, req)
+			if w.Code != http.StatusBadRequest {
+				t.Fatalf("expected 400 for %q, got %d: %s", target, w.Code, w.Body.String())
+			}
+		})
+	}
+}
+
+func TestRemoteAccessPut_ExternalURL_AcceptsAPublicHTTPSURL(t *testing.T) {
+	mux, adminTok, _ := setupRemoteAccessMux(t)
+	b, _ := json.Marshal(map[string]any{"externalUrl": "https://evey.example.org"})
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/admin/remote-access", bytes.NewReader(b))
+	req.Header.Set("Authorization", "Bearer "+adminTok)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+// Clearing the URL must stay possible - it is how an operator turns a published
+// instance back into a LAN-only one, and an empty string is not a target.
+func TestRemoteAccessPut_ExternalURL_EmptyStillClears(t *testing.T) {
+	mux, adminTok, _ := setupRemoteAccessMux(t)
+	b, _ := json.Marshal(map[string]any{"externalUrl": ""})
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/admin/remote-access", bytes.NewReader(b))
+	req.Header.Set("Authorization", "Bearer "+adminTok)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var body map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body["externalUrl"] != "" {
+		t.Errorf("expected the external URL to be cleared, got %v", body["externalUrl"])
+	}
+}
