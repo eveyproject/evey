@@ -638,6 +638,7 @@ audit:
   entries: "{{count}} 条记录"
 
 serverConfig:
+  appliedOnRestart: "重启后生效"
   backgroundJobs:
     title: "后台任务"
     subtitle: "转码后台工作进程的运维设置--播放时的暂停行为、补齐任务及其节奏。"

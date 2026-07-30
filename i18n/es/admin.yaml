@@ -638,6 +638,7 @@ audit:
   entries: "{{count}} registros"
 
 serverConfig:
+  appliedOnRestart: "se aplica al reiniciar"
   backgroundJobs:
     title: "Tareas en segundo plano"
     subtitle: "Ajustes de operador para los procesos en segundo plano de la transcodificación: comportamiento de pausa, pasadas de relleno y su ritmo."

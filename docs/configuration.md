@@ -129,6 +129,34 @@ EVEY_TRANSCODING_HW_ACCEL_ENABLED=false
 
 See [transcoding.md](transcoding.md) for hardware setup.
 
+**Prefer the admin panel.** Concurrency, hardware acceleration, AV1, the cache
+budget and the advanced limits (max concurrent HLS sessions, software and
+software-HDR height ceilings, one-rung-at-a-time encoding, one hardware encoder
+per rung) all live under **Admin > Transcoding configuration**. Values saved
+there survive restarts and take precedence over the environment; the panel says
+which ones only take effect after a restart.
+
+**Background-worker flags** are set as rows under **Admin > Server
+configuration** (the panel suggests the keys, and shows the matching environment
+variable and expected value for each). All are read at boot, so they apply on
+restart:
+
+| Key | Value |
+| --- | --- |
+| `transcoding.keyframe_backfill` | `off` to disable the keyframe index backfill (default on) |
+| `transcoding.keyframe_backfill_batch` | items per pass, > 0 |
+| `transcoding.keyframe_backfill_pause_ms` | milliseconds between items, >= 0 |
+| `transcoding.keyframe_backfill_idle_sec` | seconds between idle passes, > 0 |
+| `transcoding.level_backfill` | `off` to disable the H.264/HEVC level backfill (default on) |
+| `transcoding.level_backfill_batch` | items per pass, > 0 |
+| `transcoding.level_backfill_pause_ms` | milliseconds between items, >= 0 |
+| `transcoding.level_backfill_idle_sec` | seconds between idle passes, > 0 |
+| `transcoding.pause_bg_on_playback` | `off` to keep background work running during playback (default on: it steps aside) |
+| `transcoding.snapshot_fastpath` | `off` to force the exact ffmpeg extractor instead of the mkvgo keyframe fast path |
+
+Each also has an environment equivalent (`EVEY_KEYFRAME_BACKFILL`,
+`EVEY_LEVEL_BACKFILL_BATCH`, ...), but the panel row wins.
+
 ### Plugins (sandbox & limits)
 ```env
 EVEY_PLUGINS_SANDBOX_MODE=auto         # auto|landlock|bubblewrap|strict|basic - auto picks the strongest your host supports

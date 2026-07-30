@@ -638,6 +638,7 @@ audit:
   entries: "{{count}} प्रविष्टियां"
 
 serverConfig:
+  appliedOnRestart: "रीस्टार्ट पर लागू"
   backgroundJobs:
     title: "पृष्ठभूमि कार्य"
     subtitle: "ट्रांसकोडिंग के पृष्ठभूमि वर्कर्स के लिए ऑपरेटर सेटिंग्स - पॉज़ व्यवहार, बैकफ़िल पास और उनकी गति।"

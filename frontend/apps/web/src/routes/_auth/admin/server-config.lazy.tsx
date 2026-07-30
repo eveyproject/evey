@@ -23,6 +23,7 @@ import { Switch } from "@/components/ui/Switch";
 import { CollapsibleCard } from "@/components/ui/CollapsibleCard";
 import { InfoTooltip } from "@/components/ui/InfoTooltip";
 import { FeedConfigCard } from "@/features/admin/FeedConfigCard";
+import { OPERATOR_FLAGS, findOperatorFlag } from "@/features/admin/operatorFlags";
 import { ISO_REGIONS } from "@/features/user/regionList";
 import { defaultRegionForLocale } from "@/features/user/regionDefaults";
 import { supportedLanguages } from "@/i18n";
@@ -494,16 +495,31 @@ function AddEntryRow() {
     });
   }
 
+  // Suggest the boot-time operator flags. They were always settable here, but
+  // only if you already knew the exact key to type - and nothing listed them.
+  const known = findOperatorFlag(key);
+
   return (
     <tr className="border-b border-[var(--border)] bg-[var(--surface)]">
       <td data-label={t("admin.serverConfig.tableHeaders.key")} className="px-4 py-3">
         <input
           placeholder="key"
           aria-label={t("admin.serverConfig.tableHeaders.key")}
+          list="operator-flag-keys"
           className="w-full px-2 py-1 rounded text-sm font-mono bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)]"
           value={key}
           onChange={(e) => setKey(e.target.value)}
         />
+        <datalist id="operator-flag-keys">
+          {OPERATOR_FLAGS.map((f) => (
+            <option key={f.key} value={f.key} />
+          ))}
+        </datalist>
+        {known && (
+          <p className="text-xs text-[var(--text-muted)] mt-1" data-testid="operator-flag-hint">
+            {known.valueHint} · {known.envVar} · {t("admin.serverConfig.appliedOnRestart", "applied on restart")}
+          </p>
+        )}
       </td>
       <td data-label={t("admin.serverConfig.tableHeaders.value")} className="px-4 py-3">
         <input

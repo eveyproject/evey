@@ -138,8 +138,30 @@ describe("ServerConfigPage", () => {
     mockUseQuery.mockReturnValue({ data: [], isLoading: false });
     const ServerConfigPage = await getServerConfigPage();
     render(React.createElement(ServerConfigPage), { wrapper: createWrapper() });
-    expect(screen.getByRole("textbox", { name: /^Key$/i })).toBeInTheDocument();
+    // The key input carries a datalist of the known operator flags, which makes
+    // its ARIA role combobox rather than textbox - the accessible NAME is what
+    // this test is about, and it is unchanged.
+    expect(screen.getByRole("combobox", { name: /^Key$/i })).toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: /^Value$/i })).toBeInTheDocument();
+  });
+
+  it("suggests the boot-time operator flags and explains a known key", async () => {
+    // These were always settable here, but only if you already knew the exact
+    // key to type - nothing listed them.
+    mockUseQuery.mockReturnValue({ data: [], isLoading: false });
+    const ServerConfigPage = await getServerConfigPage();
+    render(React.createElement(ServerConfigPage), { wrapper: createWrapper() });
+
+    const keyInput = screen.getByRole("combobox", { name: /^Key$/i });
+    expect(keyInput).toHaveAttribute("list", "operator-flag-keys");
+    expect(screen.queryByTestId("operator-flag-hint")).not.toBeInTheDocument();
+
+    fireEvent.change(keyInput, { target: { value: "transcoding.snapshot_fastpath" } });
+    expect(screen.getByTestId("operator-flag-hint").textContent).toContain("EVEY_SNAPSHOT_FASTPATH");
+
+    // A free-text key is still allowed; it just gets no hint.
+    fireEvent.change(keyInput, { target: { value: "some.custom.key" } });
+    expect(screen.queryByTestId("operator-flag-hint")).not.toBeInTheDocument();
   });
 
   it("Show/Hide button toggles password visibility", async () => {

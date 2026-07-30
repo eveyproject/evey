@@ -638,6 +638,7 @@ audit:
   entries: "{{count}} Einträge"
 
 serverConfig:
+  appliedOnRestart: "wird beim Neustart angewendet"
   backgroundJobs:
     title: "Hintergrundaufgaben"
     subtitle: "Betreiber-Einstellungen für die Hintergrund-Worker der Transkodierung - Pausenverhalten, Nachtrag-Durchläufe und deren Rhythmus."
