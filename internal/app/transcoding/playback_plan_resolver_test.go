@@ -116,3 +116,105 @@ func TestFingerprint_WasmAudioStripsAudioOnlyForDolbyTracks(t *testing.T) {
 	assert.Equal(t, -1, planAC3.Fingerprint.AudioTrack,
 		"an AC-3 track on the wasm path: segments are video-only")
 }
+
+// ============================================================================
+// HDR tonemap re-add: a transcoded rung is SDR BY CONTRACT
+// ============================================================================
+
+// hdrHEVCStreams is a PQ HEVC Main10 source, keyframe-indexed and levelled so
+// it is copy-eligible - the only shape where the re-add must NOT fire.
+func hdrHEVCStreams() []*library.MediaStream {
+	w, h := 3840, 2160
+	level, depth := 153, 10
+	pq := "smpte2084"
+	return []*library.MediaStream{{
+		StreamType:    library.StreamTypeVideo,
+		Codec:         "hevc",
+		Profile:       "Main 10",
+		Level:         &level,
+		Width:         &w,
+		Height:        &h,
+		BitDepth:      &depth,
+		ColorTransfer: &pq,
+		Keyframes:     []int64{0, 6000, 12000},
+	}}
+}
+
+func hdrRequest() PlaybackRequest {
+	req := resolverTestRequest()
+	req.Streams = hdrHEVCStreams()
+	return req
+}
+
+// hdrCapableClientRequest is the shape the re-add exists for: a client that
+// decodes the source AND advertises HDR, so the decision-level tonemap is
+// legitimately suppressed. Whether the tonemap comes back then depends purely
+// on whether the copy rung really serves it.
+func hdrCapableClientRequest() PlaybackRequest {
+	req := hdrRequest()
+	req.Container = "mp4"
+	req.Client = transcoding.ClientProfile{
+		VideoCodecs: []string{"h264", "hevc"},
+		AudioCodecs: []string{"aac"},
+		Containers:  []string{"mp4"},
+		SupportsHDR: true,
+	}
+	return req
+}
+
+// The master only advertises VIDEO-RANGE on the COPY rung, so an HDR source
+// that ends up RE-ENCODED must be tone-mapped. An hdr=1 client legitimately
+// suppresses the decision-level tonemap for the raw-serve path; when the copy
+// rung is unavailable that suppression left a PQ source x264-encoded without
+// tonemapping, which renders washed out (SATAVG 3.1 on prod bytes).
+func TestPlanResolver_Decide_ReAddsTonemapWhenHDRWillBeReEncoded(t *testing.T) {
+	pr := &PlanResolver{} // no copy producer wired -> this request re-encodes
+
+	// The hdr=1 client suppressed the decision-level tonemap; with no copy rung
+	// to carry the source VIDEO-RANGE, the re-add is the only thing left.
+	d := pr.Decide(context.Background(), hdrCapableClientRequest())
+
+	assert.Contains(t, d.TranscodeReasons, "hdr_tonemapping_needed",
+		"an HDR source that will not be served as a raw copy must be tone-mapped")
+	assert.Equal(t, "transcode", d.VideoDecision)
+	assert.NotEmpty(t, d.VideoCodec, "a forced transcode must name the output codec")
+}
+
+// The mirror image: when the copy rung really serves the source bytes, the
+// tonemap must NOT be re-added - the rung carries the source's own VIDEO-RANGE
+// and tone-mapping a raw copy is not even expressible.
+func TestPlanResolver_Decide_LeavesARawCopyUntonemapped(t *testing.T) {
+	pr := &PlanResolver{CopyProducer: &stubProducer{}}
+
+	d := pr.Decide(context.Background(), hdrCapableClientRequest())
+
+	require.Equal(t, "copy", d.VideoDecision,
+		"premise: an HDR-capable client on a copy-eligible source must reach the raw-copy path (reasons: %v)",
+		d.TranscodeReasons)
+	assert.NotContains(t, d.TranscodeReasons, "hdr_tonemapping_needed",
+		"a raw copy rung carries the source VIDEO-RANGE - re-adding a tonemap would be a lie")
+}
+
+// An SDR source must never acquire a tonemap it does not need: the re-add is
+// gated on the source really being HDR, not on the absence of a copy rung.
+func TestPlanResolver_Decide_NeverTonemapsAnSDRSource(t *testing.T) {
+	pr := &PlanResolver{}
+
+	d := pr.Decide(context.Background(), resolverTestRequest())
+
+	assert.NotContains(t, d.TranscodeReasons, "hdr_tonemapping_needed")
+}
+
+// The ad= audio pin has the same contract as vd=: "transcode" always holds,
+// because a re-encode is always serveable.
+func TestPlanResolver_Decide_HonorsAudioTranscodePin(t *testing.T) {
+	pr := &PlanResolver{}
+	req := resolverTestRequest()
+	req.PinnedAudioDecision = "transcode"
+
+	d := pr.Decide(context.Background(), req)
+
+	assert.Equal(t, "transcode", d.AudioDecision)
+	assert.Contains(t, d.TranscodeReasons, "decision_pinned")
+	assert.NotEmpty(t, d.AudioCodec, "a forced audio transcode must name the output codec")
+}
