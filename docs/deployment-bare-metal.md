@@ -247,6 +247,15 @@ walkthrough. Don't duplicate the table here. Notes specific to bare metal:
 - The server still serves **plain HTTP** - put a reverse proxy in front for TLS
   (`EVEY_SERVER_BASE_URL`, `EVEY_TRUSTED_PROXIES`, `EVEY_FORWARDED_PROTO`). See
   [reverse-proxy.md](reverse-proxy.md).
+- **The server opens TWO ports, and only one of them may be exposed.**
+  `EVEY_SERVER_PORT` (default `9090`) is the native gRPC listener; the HTTP API
+  your clients and reverse proxy talk to is **that port plus one** (`9091`).
+  Point your reverse proxy and your firewall at the HTTP port only. The gRPC
+  port is an internal transport: the remote-access network gate, which decides
+  whether clients outside your LAN may connect at all, is wired into the HTTP
+  chain and **does not cover the gRPC listener**. The Docker Compose file
+  publishes only the HTTP port for exactly this reason; on bare metal nothing
+  enforces it for you.
 - Migrations run automatically at startup; no separate migrate step.
 - The plugin resource caps (`EVEY_PLUGINS_MEMORY_MB`, `_PIDS_MAX`,
   `_DISK_MAX_MB`, `_CPU_NICE`) and the sandbox mode are admin-editable at runtime

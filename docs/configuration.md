@@ -241,6 +241,11 @@ EVEY_REMOTE_ACCESS_LAN_NETWORKS=10.0.0.0/8,172.16.0.0/12,192.168.0.0/16  # CIDRs
 EVEY_REMOTE_ACCESS_MAX_BITRATE_KBPS=0                                    # 0 = no cap for remote (WAN) sessions
 ```
 
+> ⚠️ The gate protects the **HTTP** listener (`EVEY_SERVER_PORT` + 1). The native
+> gRPC listener on `EVEY_SERVER_PORT` itself is an internal transport and is not
+> gated - publish only the HTTP port. Docker Compose already does; a bare-metal
+> or custom deployment must do it deliberately.
+
 **The gate.** When remote access is off, every client whose IP is not in
 `EVEY_REMOTE_ACCESS_LAN_NETWORKS` is refused on every route with
 `403 {"code":"remote_access_disabled"}`. It is a deployment choice ("this
