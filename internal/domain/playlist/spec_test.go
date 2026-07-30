@@ -2,6 +2,7 @@ package playlist
 
 import (
 	"errors"
+	"strings"
 	"testing"
 )
 
@@ -144,5 +145,54 @@ func TestGenreSpec_ToSQL_EscapesQuotes(t *testing.T) {
 	}
 	if got != `["Sci\"Fi"]` {
 		t.Fatalf("escaped genre = %q", got)
+	}
+}
+
+// Every ToSQL advances the shared placeholder index by EXACTLY one. Mutation
+// testing turned `*argIdx++` into a decrement and nothing failed - yet a wrong
+// index means the generated `$N` no longer lines up with the args slice, i.e. a
+// smart playlist silently filters on the wrong value (or the query errors out).
+func TestGenreSpec_ToSQL_AdvancesThePlaceholderIndexByOne(t *testing.T) {
+	idx := 1
+	clause, args := genreSpec{genre: "Drame"}.ToSQL(&idx)
+
+	if idx != 2 {
+		t.Errorf("argIdx = %d after one clause, want 2", idx)
+	}
+	if !strings.Contains(clause, "$1") {
+		t.Errorf("clause %q must reference the placeholder it consumed", clause)
+	}
+	if len(args) != 1 {
+		t.Fatalf("got %d args, want 1", len(args))
+	}
+
+	// A second clause must take the NEXT placeholder, which is the whole point
+	// of threading the index through.
+	clause2, _ := genreSpec{genre: "Action"}.ToSQL(&idx)
+	if idx != 3 {
+		t.Errorf("argIdx = %d after two clauses, want 3", idx)
+	}
+	if !strings.Contains(clause2, "$2") {
+		t.Errorf("second clause %q must reference $2", clause2)
+	}
+}
+
+// The rating filter is "at least", so a title sitting exactly on the threshold
+// is included. `>=` mutated to `>` survived, which would silently drop every
+// title whose rating equals the filter - the most common case for round numbers.
+func TestRatingGteSpec_IncludesTheExactThreshold(t *testing.T) {
+	spec := ratingGteSpec{min: 7}
+
+	if !spec.IsSatisfiedBy(Candidate{CommunityRating: floatPtr(7)}) {
+		t.Error("a rating exactly equal to the minimum must match")
+	}
+	if !spec.IsSatisfiedBy(Candidate{CommunityRating: floatPtr(7.1)}) {
+		t.Error("a rating above the minimum must match")
+	}
+	if spec.IsSatisfiedBy(Candidate{CommunityRating: floatPtr(6.9)}) {
+		t.Error("a rating below the minimum must not match")
+	}
+	if spec.IsSatisfiedBy(Candidate{CommunityRating: nil}) {
+		t.Error("an unrated title must not match a minimum-rating filter")
 	}
 }

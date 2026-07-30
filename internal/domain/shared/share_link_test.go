@@ -82,3 +82,36 @@ func TestShareLink_IsViewLimitReached(t *testing.T) {
 		})
 	}
 }
+
+// MaxViews is a POINTER: nil means unlimited, so a non-nil zero is a distinct,
+// reachable state - a link that is created already exhausted. Only negatives are
+// rejected, and mutation testing showed that `< 0` could become `<= 0` with the
+// whole suite still green, which would make a zero-view link impossible to
+// create at all.
+//
+// This pins the CURRENT contract rather than changing it: if zero should be
+// rejected, that is a product decision, and this test is where it would be made
+// visible.
+func TestShareLinkValidate_MaxViewsBoundary(t *testing.T) {
+	now := time.Now()
+	link := func(maxViews *int) *ShareLink {
+		return &ShareLink{
+			ID: "shr-1", Token: "tok", MediaItemID: "mi-1", CreatedBy: "usr-1",
+			CreatedAt: now, ExpiresAt: now.Add(time.Hour), MaxViews: maxViews,
+		}
+	}
+	zero, negative, positive := 0, -1, 5
+
+	if err := link(nil).Validate(); err != nil {
+		t.Errorf("nil MaxViews means unlimited and must validate: %v", err)
+	}
+	if err := link(&zero).Validate(); err != nil {
+		t.Errorf("a zero view budget is a real (already-exhausted) link, got %v", err)
+	}
+	if err := link(&positive).Validate(); err != nil {
+		t.Errorf("a positive budget must validate: %v", err)
+	}
+	if err := link(&negative).Validate(); err == nil {
+		t.Error("a negative view budget must be rejected")
+	}
+}
