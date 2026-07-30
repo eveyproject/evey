@@ -559,9 +559,12 @@ func TestRetryAfter_ReportsTheRealWait(t *testing.T) {
 	if lim.Allow("1.2.3.4") {
 		t.Fatal("second call must be refused")
 	}
-	got := lim.RetryAfter("1.2.3.4")
-	if got < 1 || got > 3 {
-		t.Fatalf("RetryAfter = %ds, want ~2s (30/min = one token every 2s)", got)
+	// EXACT, not a 1..3 window: mutation testing showed that window swallowed
+	// every arithmetic change in RetryAfter (swap the division for a
+	// multiplication, flip `1 - tokens`, move the `>= 1` boundary - all passed).
+	// The value a client is told to wait for is the whole point of the field.
+	if got := lim.RetryAfter("1.2.3.4"); got != 2 {
+		t.Fatalf("RetryAfter = %ds, want exactly 2s (30/min = one token every 2s)", got)
 	}
 	// An unknown/allowed client owes nothing.
 	if n := lim.RetryAfter("9.9.9.9"); n != 0 {
@@ -763,5 +766,83 @@ func TestWarnMisroutedProxy_FiresOnlyOnce(t *testing.T) {
 	count := strings.Count(buf.String(), `"msg":"ratelimit: client resolved to loopback`)
 	if count != 1 {
 		t.Fatalf("the misconfig warning must fire once per process, got %d log lines: %s", count, buf.String())
+	}
+}
+
+// RetryAfter's arithmetic, across several rates.
+//
+// One rate cannot distinguish a division from a multiplication (at rate 1.0 they
+// agree), so a single case is exactly what let the mutants live. These four
+// disagree under every mutation gremlins produced for this function.
+func TestRetryAfter_ArithmeticAcrossRates(t *testing.T) {
+	for _, tt := range []struct {
+		rpm  float64
+		want int // ceil(1 / (rpm/60)) seconds until the next token
+	}{
+		{rpm: 60, want: 1}, // one token per second
+		{rpm: 30, want: 2},
+		{rpm: 15, want: 4},
+		{rpm: 12, want: 5},
+	} {
+		t.Run(strconv.Itoa(int(tt.rpm))+"rpm", func(t *testing.T) {
+			lim := NewWithBurst(1, tt.rpm)
+			if !lim.Allow("c") {
+				t.Fatal("the first call must consume the single token")
+			}
+			if lim.Allow("c") {
+				t.Fatal("the second call must be refused")
+			}
+			if got := lim.RetryAfter("c"); got != tt.want {
+				t.Errorf("RetryAfter at %v/min = %ds, want %ds", tt.rpm, got, tt.want)
+			}
+		})
+	}
+}
+
+// A client that still holds a whole token owes nothing - the boundary is `>= 1`,
+// not `> 1`, and moving it by one is a silent change that made a refused client
+// retry immediately into the wall.
+func TestRetryAfter_BoundaryAtOneWholeToken(t *testing.T) {
+	lim := NewWithBurst(2, 60) // burst 2, one token per second
+	if !lim.Allow("c") {
+		t.Fatal("first call must pass")
+	}
+	// One token left: nothing owed.
+	if got := lim.RetryAfter("c"); got != 0 {
+		t.Errorf("with a full token in hand, RetryAfter = %d, want 0", got)
+	}
+	if !lim.Allow("c") {
+		t.Fatal("second call must pass, the burst is 2")
+	}
+	// Now empty: a real wait.
+	if got := lim.RetryAfter("c"); got != 1 {
+		t.Errorf("with an empty bucket at 60/min, RetryAfter = %d, want 1", got)
+	}
+}
+
+// A limiter with no rate cannot compute a wait - dividing by it would be a
+// division by zero, so the guard returns 0 rather than +Inf seconds.
+func TestRetryAfter_ZeroRateOwesNothing(t *testing.T) {
+	lim := NewWithBurst(1, 0)
+	lim.Allow("c")
+	if got := lim.RetryAfter("c"); got != 0 {
+		t.Errorf("RetryAfter with a zero rate = %d, want 0", got)
+	}
+}
+
+// SetLimit converts requests-per-MINUTE into a per-second rate. Nothing asserted
+// that conversion, so the /60 could become anything and every test stayed green.
+func TestSetLimit_ConvertsPerMinuteToPerSecond(t *testing.T) {
+	lim := NewWithBurst(1, 60)
+	if !lim.Allow("c") {
+		t.Fatal("first call must pass")
+	}
+	lim.SetLimit(30) // 30/min -> one token every 2s
+	if got := lim.RetryAfter("c"); got != 2 {
+		t.Errorf("after SetLimit(30), RetryAfter = %ds, want 2s", got)
+	}
+	lim.SetLimit(12) // 12/min -> one token every 5s
+	if got := lim.RetryAfter("c"); got != 5 {
+		t.Errorf("after SetLimit(12), RetryAfter = %ds, want 5s", got)
 	}
 }
