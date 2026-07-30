@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -104,4 +105,69 @@ func TestNotifyClientHint_AbsentBufferLengthIsIgnored(t *testing.T) {
 	if got := endSegOf(t, o, fp); got != before {
 		t.Errorf("endSeg %d -> %d: a missing bl must not move the window", before, got)
 	}
+}
+
+// ============================================================================
+// Session coverage window: reuse or spawn
+// ============================================================================
+
+// A live rafale covers [startSeg, endSeg], plus a LookAhead-wide "near ahead"
+// band it will extend into. Where that band ends decides whether a request
+// reuses the running encoder or spawns a second one - on a box that fits one
+// heavy transcode, a spurious spawn is the difference between playback and two
+// encoders splitting the CPU. Both edges are exact, so both are asserted.
+func TestEnsureSegmentRange_CoverageWindowEdges(t *testing.T) {
+	opts := testOpts() // LookAheadSegments 30
+	look := opts.LookAheadSegments
+
+	newOrch := func(t *testing.T) (*SegmentOrchestrator, *fakeProcess, DecisionFingerprint, int) {
+		t.Helper()
+		cache, _ := newTestCache(t)
+		proc := newFakeProcess()
+		o := NewSegmentOrchestrator(cache, proc, stubSource{path: "/media/test.mkv"}, opts, discardLogger())
+		t.Cleanup(o.Close)
+
+		fp := minimalFingerprint(t)
+		require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 0))
+		require.Equal(t, 1, proc.startCount(), "premise: exactly one encoder is running")
+		return o, proc, fp, endSegOf(t, o, fp)
+	}
+
+	t.Run("the last segment inside the window reuses", func(t *testing.T) {
+		o, proc, fp, end := newOrch(t)
+		require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, end))
+		assert.Equal(t, 1, proc.startCount(), "a segment AT endSeg is covered - no second encoder")
+	})
+
+	t.Run("the far edge of the near-ahead band reuses and extends", func(t *testing.T) {
+		o, proc, fp, end := newOrch(t)
+		require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, end+look))
+		assert.Equal(t, 1, proc.startCount(),
+			"a request exactly one lookahead past endSeg is still reachable - the rafale extends instead of respawning")
+		assert.Equal(t, end+look+look, endSegOf(t, o, fp),
+			"the window must be pushed to the request plus a fresh lookahead")
+	})
+
+	t.Run("one segment past the band spawns a fresh encoder", func(t *testing.T) {
+		o, proc, fp, end := newOrch(t)
+		require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, end+look+1))
+		assert.Equal(t, 2, proc.startCount(),
+			"beyond the band the paced encoder cannot reach in time - seek a fresh one rather than buffer forever")
+	})
+
+	t.Run("a backward seek below startSeg spawns alongside", func(t *testing.T) {
+		cache, _ := newTestCache(t)
+		proc := newFakeProcess()
+		o := NewSegmentOrchestrator(cache, proc, stubSource{path: "/media/test.mkv"}, opts, discardLogger())
+		defer o.Close()
+
+		fp := minimalFingerprint(t)
+		// Start deep, then ask for something strictly before it.
+		require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 500))
+		require.Equal(t, 1, proc.startCount())
+
+		require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 499))
+		assert.Equal(t, 2, proc.startCount(),
+			"the live window is [startSeg, +inf): a request below startSeg is not covered, whatever the distance")
+	})
 }
