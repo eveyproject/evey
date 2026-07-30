@@ -21,7 +21,8 @@ func castWasmPathOffered(castToken bool, switchOn bool) bool {
 		ctx = context.WithValue(ctx, streamTokenCtxKey, &shared.StreamToken{Cast: true})
 	}
 	st, ok := StreamTokenFromContext(ctx)
-	return !(ok && st != nil && st.Cast && !switchOn)
+	isGatedCast := ok && st != nil && st.Cast && !switchOn
+	return !isGatedCast
 }
 
 func TestCastWasmAudioKillSwitch(t *testing.T) {

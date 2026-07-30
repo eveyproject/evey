@@ -129,6 +129,16 @@ EVEY_TRANSCODING_HW_ACCEL_ENABLED=false
 
 See [transcoding.md](transcoding.md) for hardware setup.
 
+**Dolby audio on a Chromecast** (`EVEY_CAST_WASM_AUDIO_ENABLED`, default
+`false`). Evey can hand a cast receiver the original AC-3/E-AC-3 track and let
+it decode in WebAssembly on the TV, avoiding a transcode. It is **off for cast
+receivers** because one box (Bouygtel4K) was killed mid-film, twice, with that
+path in play - and its decoder measured 3.13x real time there, so it gained
+nothing anyway. With it off, a cast gets the ordinary muxed master with an AAC
+rendition: sound from the first second, on every device. Browsers are NOT
+affected - they keep the wasm decoder, which is validated there. Set it to
+`true` to re-enable it for casts.
+
 **Prefer the admin panel.** Concurrency, hardware acceleration, AV1, the cache
 budget and the advanced limits (max concurrent HLS sessions, software and
 software-HDR height ceilings, one-rung-at-a-time encoding, one hardware encoder
