@@ -180,3 +180,20 @@ func mustParseCIDRs(cidrs ...string) []*net.IPNet {
 	}
 	return out
 }
+
+// RemoteAccessStatus reports the two derived facts the admin panel needs:
+// whether this instance is published at a publicly reachable address, and
+// whether that combines with a disabled gate into a lockout - every client
+// outside the local network refused on every route.
+//
+// One function, called by both the HTTP and the gRPC handler, because they
+// answer the same question to the same panel. The pair had already been
+// computed inline in one of them; a second inline copy is how two callers start
+// disagreeing about whether the household is locked out.
+func RemoteAccessStatus(ra *RemoteAccessConfig, serverBaseURL string) (published, lockoutRisk bool) {
+	if ra == nil {
+		return false, false
+	}
+	published = IsPubliclyReachableURL(ra.ExternalURL) || IsPubliclyReachableURL(serverBaseURL)
+	return published, published && !ra.Enabled
+}

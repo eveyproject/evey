@@ -120,3 +120,46 @@ func TestResolveRemoteAccess(t *testing.T) {
 		}
 	})
 }
+
+// Both the HTTP and the gRPC handler answer the panel's "am I locking everyone
+// out?" question, and they used to compute it separately. One function now, so
+// they cannot drift into disagreeing about it.
+func TestRemoteAccessStatus(t *testing.T) {
+	tests := []struct {
+		name            string
+		externalURL     string
+		serverBaseURL   string
+		enabled         bool
+		wantPublished   bool
+		wantLockoutRisk bool
+	}{
+		{"published and refusing everyone", "https://evey.example.org", "", false, true, true},
+		{"published and serving them", "https://evey.example.org", "", true, true, false},
+		{"published through the server base url alone", "", "https://evey.example.org", false, true, true},
+		{"lan only, gate off - the normal private setup", "", "http://192.168.1.10:8080", false, false, false},
+		{"lan only, gate on - allowed, simply not published", "", "http://192.168.1.10:8080", true, false, false},
+		{"nothing configured at all", "", "", false, false, false},
+		// A container/compose name is not an address anyone can reach from
+		// outside, so it must not read as published.
+		{"internal service name is not published", "", "http://evey-server:8080", false, false, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ra := &RemoteAccessConfig{Enabled: tt.enabled, ExternalURL: tt.externalURL}
+			published, lockoutRisk := RemoteAccessStatus(ra, tt.serverBaseURL)
+			if published != tt.wantPublished {
+				t.Errorf("published = %v, want %v", published, tt.wantPublished)
+			}
+			if lockoutRisk != tt.wantLockoutRisk {
+				t.Errorf("lockoutRisk = %v, want %v", lockoutRisk, tt.wantLockoutRisk)
+			}
+		})
+	}
+}
+
+func TestRemoteAccessStatus_NilConfigIsNotALockout(t *testing.T) {
+	published, lockoutRisk := RemoteAccessStatus(nil, "https://evey.example.org")
+	if published || lockoutRisk {
+		t.Errorf("a nil config must not report a lockout, got published=%v lockoutRisk=%v", published, lockoutRisk)
+	}
+}

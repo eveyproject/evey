@@ -34,7 +34,7 @@ func (h *remoteAccessHandler) GetRemoteAccess(ctx context.Context, _ *eveyv1.Get
 	defer span.End()
 	h.mu.RLock()
 	defer h.mu.RUnlock()
-	out := raConfigToProto(&h.cfg.RemoteAccess)
+	out := raConfigToProto(&h.cfg.RemoteAccess, h.cfg.Server.BaseURL)
 	out.ServerBaseUrl = h.cfg.Server.BaseURL
 	return out, nil
 }
@@ -81,7 +81,7 @@ func (h *remoteAccessHandler) UpdateRemoteAccess(ctx context.Context, req *eveyv
 			}
 		}
 	}
-	out := raConfigToProto(&snapshot)
+	out := raConfigToProto(&snapshot, h.cfg.Server.BaseURL)
 	out.ServerBaseUrl = baseURL
 	return out, nil
 }
@@ -100,11 +100,19 @@ func (h *remoteAccessHandler) GetNetworkInfo(ctx context.Context, _ *eveyv1.GetN
 	return resp, nil
 }
 
-func raConfigToProto(c *config.RemoteAccessConfig) *eveyv1.RemoteAccessConfig {
+func raConfigToProto(c *config.RemoteAccessConfig, serverBaseURL string) *eveyv1.RemoteAccessConfig {
+	// server_base_url, published and lockout_risk are all declared by the proto.
+	// The first was declared and never filled; leaving a contract field empty is
+	// the same defect as not declaring it, with the added cost that a client can
+	// reasonably believe it.
+	published, lockoutRisk := config.RemoteAccessStatus(c, serverBaseURL)
 	return &eveyv1.RemoteAccessConfig{
 		Enabled:              c.Enabled,
 		ExternalUrl:          c.ExternalURL,
 		LanNetworks:          c.LANNetworks,
 		MaxRemoteBitrateKbps: int32(c.MaxRemoteBitrateKbps),
+		ServerBaseUrl:        serverBaseURL,
+		Published:            published,
+		LockoutRisk:          lockoutRisk,
 	}
 }

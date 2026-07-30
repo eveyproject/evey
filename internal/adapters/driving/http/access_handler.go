@@ -34,8 +34,7 @@ func registerRemoteAccessRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen
 		// way". That state used to be invisible everywhere (2026-07-29), so it
 		// is now part of the payload rather than something an operator has to
 		// deduce from two unrelated fields.
-		published := config.IsPubliclyReachableURL(cfg.RemoteAccess.ExternalURL) ||
-			config.IsPubliclyReachableURL(cfg.Server.BaseURL)
+		published, lockoutRisk := config.RemoteAccessStatus(&cfg.RemoteAccess, cfg.Server.BaseURL)
 		if err := json.NewEncoder(w).Encode(map[string]any{
 			"enabled":              cfg.RemoteAccess.Enabled,
 			"externalUrl":          cfg.RemoteAccess.ExternalURL,
@@ -43,7 +42,7 @@ func registerRemoteAccessRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen
 			"lanNetworks":          cfg.RemoteAccess.LANNetworks,
 			"maxRemoteBitrateKbps": cfg.RemoteAccess.MaxRemoteBitrateKbps,
 			"published":            published,
-			"lockoutRisk":          published && !cfg.RemoteAccess.Enabled,
+			"lockoutRisk":          lockoutRisk,
 		}); err != nil {
 			slog.Warn("json encode failed", slog.Any("err", err))
 		}

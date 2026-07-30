@@ -31,6 +31,17 @@ message RemoteAccessConfig {
   repeated string lan_networks = 3;
   int32 max_remote_bitrate_kbps = 4;
   string server_base_url = 5;
+  // Derived, read-only. The server already computed these to decide whether it
+  // is refusing everyone; the panel needs the same answer to warn about it, and
+  // deriving it again client-side would let the two disagree.
+  //
+  // published: this instance has a publicly reachable address configured.
+  // lockout_risk: published AND remote access off - every client outside the
+  // local network is being refused on every route. That state was invisible
+  // everywhere on 2026-07-29 and took two days to find, which is why it is part
+  // of the contract rather than something an operator has to infer.
+  bool published = 6;
+  bool lockout_risk = 7;
 }
 
 message UpdateRemoteAccessRequest {

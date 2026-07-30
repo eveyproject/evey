@@ -10,7 +10,7 @@ import {
   remoteAccessServiceUpdateRemoteAccess,
   getRemoteAccessServiceGetRemoteAccessQueryKey,
 } from "@evey/api";
-import type { V1UpdateRemoteAccessRequest, V1RemoteAccessConfig } from "@evey/api";
+import type { V1UpdateRemoteAccessRequest } from "@evey/api";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -24,17 +24,11 @@ export const Route = createLazyFileRoute("/_auth/admin/remote-access")({
 
 const CONFIG_KEY = getRemoteAccessServiceGetRemoteAccessQueryKey();
 
-// `published`/`lockoutRisk` are computed server-side but not yet present in
-// the generated OpenAPI client - extend locally until it is regenerated.
-type RemoteAccessStatus = V1RemoteAccessConfig & {
-  published?: boolean;
-  lockoutRisk?: boolean;
-};
-
 function RemoteAccessPage() {
   const { t } = useTranslation();
-  const { data: rawData, isLoading } = useRemoteAccessServiceGetRemoteAccess();
-  const data = rawData as RemoteAccessStatus | undefined;
+  // `published`/`lockoutRisk` are part of the proto contract now, so no local
+  // type extension and no cast: the generated client carries them.
+  const { data, isLoading } = useRemoteAccessServiceGetRemoteAccess();
   const { data: netInfo } = useRemoteAccessServiceGetNetworkInfo();
   const queryClient = useQueryClient();
 
