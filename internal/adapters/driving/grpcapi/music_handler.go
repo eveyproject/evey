@@ -59,24 +59,7 @@ func (h *musicHandler) allowedLibraryIDs(ctx context.Context) (map[string]bool, 
 }
 
 func (h *musicHandler) checkLibraryAccess(ctx context.Context, libraryID string) error {
-	// Admin bypass is a claims check, independent of whether userAccess is
-	// wired, so it is resolved before the wiring check below - an unwired
-	// port must never turn an admin request into a denial.
-	claims := interceptors.ClaimsFromContext(ctx)
-	if claims == nil || claims.IsAdmin {
-		return nil
-	}
-	if h.userAccess == nil {
-		return errUserAccessNotConfigured(ctx, "musicHandler.checkLibraryAccess")
-	}
-	ok, err := h.userAccess.HasLibraryAccess(ctx, claims.UserID, libraryID)
-	if err != nil {
-		return internalError(ctx, "check library access", err)
-	}
-	if !ok {
-		return status.Error(codes.PermissionDenied, "no access to library")
-	}
-	return nil
+	return libraryAccessOrStatus(ctx, h.userAccess, libraryID, "musicHandler.checkLibraryAccess")
 }
 
 func (h *musicHandler) ListTracks(ctx context.Context, req *eveyv1.ListTracksRequest) (*eveyv1.ListTracksResponse, error) {

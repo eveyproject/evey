@@ -269,20 +269,9 @@ func toLibraryIDs(ids []string) []shared.LibraryID {
 }
 
 func (h *libraryHandler) checkLibraryAccess(ctx context.Context, libraryID shared.LibraryID) (bool, error) {
-	// Admin bypass is a claims check, independent of whether userAccess is
-	// wired, so it is resolved before the wiring check below - an unwired
-	// port must never turn an admin request into a denial.
-	claims := interceptors.ClaimsFromContext(ctx)
-	if claims == nil || claims.IsAdmin {
-		return true, nil
-	}
-	if h.userAccess == nil {
-		// Every caller of checkLibraryAccess treats a false result as "deny",
-		// logging the accompanying error. Returning true here would let a
-		// wiring regression silently permit deleting/updating any library.
-		return false, errUserAccessNotConfigured(ctx, "libraryHandler.checkLibraryAccess")
-	}
-	return h.userAccess.HasLibraryAccess(ctx, claims.UserID, string(libraryID))
+	// Callers treat false as "deny" and log the error - see libraryAccessDecision
+	// for why a missing port denies rather than allows.
+	return libraryAccessDecision(ctx, h.userAccess, string(libraryID), "libraryHandler.checkLibraryAccess")
 }
 
 func (h *libraryHandler) GetLibrarySchedule(ctx context.Context, req *eveyv1.GetLibraryScheduleRequest) (*eveyv1.GetLibraryScheduleResponse, error) {

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
+	appuser "github.com/evey-project/evey/internal/app/user"
 	"github.com/evey-project/evey/internal/domain/user"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -133,6 +134,51 @@ func internalError(ctx context.Context, op string, err error) error {
 // library to every non-admin caller instead of breaking loudly. Logging here
 // (rather than only returning the status) is what lets an operator diagnose
 // the regression from server logs even when the RPC caller ignores the error.
+// libraryAccessDecision answers "may this caller touch this library?" - ONE
+// implementation of a security rule that four handlers (library, music, photo,
+// share) each carried their own byte-identical copy of.
+//
+// They agreed at the time this was extracted, which is exactly when to merge
+// them: this codebase's history is full of near-identical logic that diverged
+// silently, and a rule about who may read a library is the worst possible place
+// for that. The handlers still differ in how they REPORT the answer (some
+// return (bool, error), some a gRPC status), so only the decision is shared.
+//
+// Two invariants live here, both learned the hard way:
+//   - the admin bypass is a claims check and is resolved FIRST, independent of
+//     whether the port is wired: an unwired port must never turn an admin's
+//     request into a denial.
+//   - a missing port DENIES. Returning "allowed" would let a wiring regression
+//     silently expose every library.
+func libraryAccessDecision(ctx context.Context, userAccess *appuser.AccessService, libraryID, op string) (bool, error) {
+	claims := interceptors.ClaimsFromContext(ctx)
+	if claims == nil || claims.IsAdmin {
+		return true, nil
+	}
+	if userAccess == nil {
+		return false, errUserAccessNotConfigured(ctx, op)
+	}
+	return userAccess.HasLibraryAccess(ctx, claims.UserID, libraryID)
+}
+
+// libraryAccessOrStatus is libraryAccessDecision for the handlers that want a
+// gRPC status rather than a boolean: nil means allowed.
+func libraryAccessOrStatus(ctx context.Context, userAccess *appuser.AccessService, libraryID, op string) error {
+	ok, err := libraryAccessDecision(ctx, userAccess, libraryID, op)
+	if err != nil {
+		// A missing port already produced its own status; anything else is a
+		// lookup failure.
+		if status.Code(err) == codes.FailedPrecondition {
+			return err
+		}
+		return internalError(ctx, "check library access", err)
+	}
+	if !ok {
+		return status.Error(codes.PermissionDenied, "no access to library")
+	}
+	return nil
+}
+
 func errUserAccessNotConfigured(ctx context.Context, op string) error {
 	slog.ErrorContext(ctx, op+": user access authorization service not configured")
 	return status.Error(codes.FailedPrecondition, "user access authorization service not configured")

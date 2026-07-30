@@ -6,7 +6,6 @@ import (
 	"time"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
-	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
 	applibrary "github.com/evey-project/evey/internal/app/library"
 	appmedia "github.com/evey-project/evey/internal/app/media"
 	appuser "github.com/evey-project/evey/internal/app/user"
@@ -179,17 +178,6 @@ func (h *shareHandler) ValidateShareLink(ctx context.Context, req *eveyv1.Valida
 }
 
 func (h *shareHandler) checkLibraryAccess(ctx context.Context, libraryID string) (bool, error) {
-	// Admin bypass is a claims check, independent of whether userAccess is
-	// wired, so it is resolved before the wiring check below - an unwired
-	// port must never turn an admin request into a denial.
-	claims := interceptors.ClaimsFromContext(ctx)
-	if claims == nil || claims.IsAdmin {
-		return true, nil
-	}
-	if h.userAccess == nil {
-		// The caller treats false as "deny" (NotFound); true here would let a
-		// wiring regression silently create share links for any library.
-		return false, errUserAccessNotConfigured(ctx, "shareHandler.checkLibraryAccess")
-	}
-	return h.userAccess.HasLibraryAccess(ctx, claims.UserID, libraryID)
+	// The caller treats false as "deny" (NotFound).
+	return libraryAccessDecision(ctx, h.userAccess, libraryID, "shareHandler.checkLibraryAccess")
 }
