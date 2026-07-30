@@ -73,18 +73,33 @@ func (h *adminIntroHandler) BackfillIntroDetection(ctx context.Context, req *eve
 	// ADR-0007: detached ctx + defer recover. No outer timeout - a full library
 	// backfill can take hours on a cold catalogue and is bounded by the
 	// service's own concurrency limiter, not by a wall-clock deadline.
+	// Detached from the request, but NOT from its identity: WithoutCancel keeps
+	// the request/trace ids so this work stays correlatable, while never being
+	// cancelled when the RPC returns (which is immediately - this is the
+	// non-blocking path). Logging the recover under the request ctx, as this did,
+	// meant logging under a context that is already dead by the time a panic
+	// lands here.
+	bgCtx := context.WithoutCancel(ctx)
 	go func() {
 		defer func() {
 			h.backfillMu.Lock()
 			h.backfillRunning = false
 			h.backfillMu.Unlock()
 			if r := recover(); r != nil {
-				slog.ErrorContext(ctx, "panic recovered in admin intro backfill",
+				slog.ErrorContext(bgCtx, "panic recovered in admin intro backfill",
 					slog.Any("panic", r),
 					slog.String("stack", string(debug.Stack())))
 			}
 		}()
-		_, _ = h.backfill.BackfillLibrary(context.Background(), libraryID)
+		// The response tells the admin to watch the logs for progress, so an
+		// error that prevents any progress log from ever appearing must not be
+		// the one thing that stays silent: a failing list query left the admin
+		// watching an empty log forever.
+		if _, err := h.backfill.BackfillLibrary(bgCtx, libraryID); err != nil {
+			slog.ErrorContext(bgCtx, "admin intro backfill failed",
+				slog.String("library_id", libraryID),
+				slog.Any("err", err))
+		}
 	}()
 
 	// seasons_scheduled is not available synchronously in non-blocking mode -

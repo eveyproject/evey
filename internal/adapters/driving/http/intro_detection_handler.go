@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"runtime/debug"
 
+	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
@@ -50,7 +51,7 @@ func introDetectionHandler(tokenGen TokenVerifier, svc IntroDetectionTrigger, li
 				return
 			}
 			w.Header().Set("Content-Type", "application/json")
-			if encErr := json.NewEncoder(w).Encode(segs); encErr != nil {
+			if encErr := json.NewEncoder(w).Encode(toSegmentDTOs(segs)); encErr != nil {
 				slog.WarnContext(ctx, "intro detection dry-run encode failed",
 					slog.String("media_id", mediaID), slog.Any("err", encErr))
 			}
@@ -128,4 +129,39 @@ func libraryIntroBackfillHandler(tokenGen TokenVerifier, svc IntroDetectionTrigg
 		w.WriteHeader(http.StatusAccepted)
 		_, _ = w.Write([]byte(`{"status":"started"}`))
 	})
+}
+
+// segmentDTO is the wire shape of a detected segment.
+//
+// The domain type was encoded directly here, and it carries no struct tags, so
+// the JSON keys were bare Go field names ("ID", "MediaItemID") - unlike every
+// other endpoint. That also meant renaming a domain field silently changed this
+// payload with nothing to catch it: the offline eval harness that consumes
+// ?dry_run=true would just stop scoring, with no compile error anywhere.
+type segmentDTO struct {
+	ID          string  `json:"id"`
+	MediaItemID string  `json:"mediaItemId"`
+	Type        string  `json:"type"`
+	StartMs     int64   `json:"startMs"`
+	EndMs       int64   `json:"endMs"`
+	Confidence  float64 `json:"confidence"`
+	Source      string  `json:"source"`
+}
+
+func toSegmentDTOs(segs []domainlibrary.MediaSegment) []segmentDTO {
+	// Non-nil so an empty result encodes as [] rather than null - a harness
+	// iterating the response should not have to special-case it.
+	out := make([]segmentDTO, 0, len(segs))
+	for _, s := range segs {
+		out = append(out, segmentDTO{
+			ID:          s.ID,
+			MediaItemID: string(s.MediaItemID),
+			Type:        s.Type,
+			StartMs:     s.StartMs,
+			EndMs:       s.EndMs,
+			Confidence:  s.Confidence,
+			Source:      s.Source,
+		})
+	}
+	return out
 }

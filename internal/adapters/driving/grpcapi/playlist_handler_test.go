@@ -10,9 +10,12 @@ import (
 	appuser "github.com/evey-project/evey/internal/app/user"
 	"github.com/evey-project/evey/internal/domain/library"
 	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
+	"github.com/evey-project/evey/internal/domain/playlist"
 	playlistfakes "github.com/evey-project/evey/internal/domain/playlist/fakes"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -453,4 +456,35 @@ func TestPlaylistProfileIDIgnored(t *testing.T) {
 	if len(resp.Playlists) != 0 {
 		t.Errorf("expected 0 playlists, got %d", len(resp.Playlists))
 	}
+}
+
+// Smart playlists round-trip through these two converters and nothing exercised
+// them: `PLAYLIST_TYPE_SMART` appeared only in the production file. A bug that
+// silently downgrades a smart playlist to manual, or drops a rule field, would
+// ship with every playlist test green.
+func TestPlaylistTypeFromProto(t *testing.T) {
+	assert.Equal(t, playlist.Smart, playlistTypeFromProto(eveyv1.PlaylistType_PLAYLIST_TYPE_SMART))
+	assert.Equal(t, playlist.Manual, playlistTypeFromProto(eveyv1.PlaylistType_PLAYLIST_TYPE_MANUAL))
+	// Unknown / unspecified falls back to manual: a playlist whose type we
+	// cannot read must not become a rule-driven one by accident.
+	assert.Equal(t, playlist.Manual, playlistTypeFromProto(eveyv1.PlaylistType_PLAYLIST_TYPE_UNSPECIFIED))
+	assert.Equal(t, playlist.Manual, playlistTypeFromProto(eveyv1.PlaylistType(9999)))
+}
+
+func TestPlaylistRulesFromProto(t *testing.T) {
+	out := playlistRulesFromProto([]*eveyv1.PlaylistRule{
+		{Field: "genre", Operator: "eq", Value: "Drame"},
+		{Field: "year", Operator: "gte", Value: "2010"},
+	})
+	require.Len(t, out, 2)
+	assert.Equal(t, playlist.Rule{Field: "genre", Operator: "eq", Value: "Drame"}, out[0])
+	assert.Equal(t, playlist.Rule{Field: "year", Operator: "gte", Value: "2010"}, out[1])
+}
+
+func TestPlaylistRulesFromProto_EmptyIsNonNil(t *testing.T) {
+	// Non-nil so a smart playlist with no rules yet persists as an empty list
+	// rather than a null the domain would have to special-case.
+	out := playlistRulesFromProto(nil)
+	assert.NotNil(t, out)
+	assert.Empty(t, out)
 }

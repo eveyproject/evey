@@ -582,14 +582,18 @@ func isTTY(f *os.File) bool {
 // outside the house - and the symptom people report ("it works on your phone,
 // not on mine") points at the client, not here.
 func checkRemoteAccess(ra config.RemoteAccessConfig, baseURL string) checkResult {
+	// Same source of truth as the admin panel and the boot log. This used to
+	// re-derive "published" inline, which made three independent copies of one
+	// rule - and a doctor that disagrees with the panel about whether the
+	// household is locked out is worse than no doctor at all.
+	published, lockedOut := config.RemoteAccessStatus(&ra, baseURL)
 	publicURL := ra.ExternalURL
 	if !config.IsPubliclyReachableURL(publicURL) {
 		publicURL = baseURL
 	}
-	published := config.IsPubliclyReachableURL(publicURL)
 
 	switch {
-	case published && !ra.Enabled:
+	case lockedOut:
 		return checkResult{
 			"remote access", "FAIL",
 			fmt.Sprintf("DISABLED while published at %s - every client outside your local network gets HTTP 403 on every route", publicURL),
