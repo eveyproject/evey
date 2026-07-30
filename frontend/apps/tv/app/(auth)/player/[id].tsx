@@ -573,7 +573,22 @@ export default function PlayerScreen() {
   //   up / longUp       -> cycle speed / previous episode
   //   down / longDown   -> quality picker / next episode
   //   menu/back         -> exit (playerExit contract)
-  useTVEventHandler((evt: { eventType: string } | undefined) => {
+  // The subscription must be STABLE, the logic must be FRESH.
+  //
+  // react-native's useTVEventHandler keys its effect on the handler's identity
+  // (`useEffect(..., [handleEvent])`), so an inline arrow tears the native
+  // listener down and re-adds it on every render - and this screen re-renders
+  // about twice a second while playing (timeUpdateEventInterval = 0.5). A D-pad
+  // press landing in that remove/re-add gap is silently dropped, which reads as
+  // "the remote didn't respond". Same family as the syncplay churn fixed in
+  // 3df3e8afb, but this one is the subscription itself.
+  //
+  // The body below is left EXACTLY as it was and simply re-assigned each render:
+  // that keeps every value it closes over current without having to enumerate
+  // them as dependencies, which is where a stale-closure bug would creep in on
+  // a screen this stateful.
+  const remoteHandlerRef = useRef<(evt: { eventType: string } | undefined) => void>(() => {});
+  remoteHandlerRef.current = (evt: { eventType: string } | undefined) => {
     if (!evt) return;
     const type = evt.eventType;
 
@@ -607,7 +622,8 @@ export default function PlayerScreen() {
       if (showControls) handleBack();
       else resetHideTimer();
     }
-  });
+  };
+  useTVEventHandler(useCallback((evt: { eventType: string } | undefined) => remoteHandlerRef.current?.(evt), []));
 
   const getPositionMs = useCallback(() => {
     return (player?.currentTime ?? 0) * 1000;

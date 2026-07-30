@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, ActivityIndicator, StyleSheet, useTVEventHandler } from "react-native";
 import { Image } from "expo-image";
 import { router, useLocalSearchParams } from "expo-router";
@@ -87,7 +87,12 @@ export default function PhotoSlideshowScreen() {
   // state, so D-pad left/right/select/back are interpreted directly rather
   // than routed through native TV focus. Back/menu always exits - the
   // remote can never get stranded here even though nothing is focusable.
-  useTVEventHandler((evt: { eventType: string } | undefined) => {
+  // Stable subscription, fresh logic - see the same pattern in the TV player.
+  // useTVEventHandler re-subscribes whenever the handler's identity changes, so
+  // an inline arrow tears the native listener down on every render; here that is
+  // every autoplay tick, and a D-pad press landing in the gap is dropped.
+  const remoteHandlerRef = useRef<(evt: { eventType: string } | undefined) => void>(() => {});
+  remoteHandlerRef.current = (evt: { eventType: string } | undefined) => {
     if (!evt) return;
     switch (evt.eventType) {
       case "left":
@@ -107,7 +112,8 @@ export default function PhotoSlideshowScreen() {
       default:
         break;
     }
-  });
+  };
+  useTVEventHandler(useCallback((evt: { eventType: string } | undefined) => remoteHandlerRef.current?.(evt), []));
 
   if (isLoading) {
     return (
