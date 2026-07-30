@@ -329,12 +329,6 @@ function GenreTextFilter({
   );
 }
 
-const PREDEFINED_GENRES = [
-  "Action", "Adventure", "Animation", "Comedy", "Crime",
-  "Documentary", "Drama", "Fantasy", "Horror", "Mystery",
-  "Romance", "Sci-Fi", "Thriller", "Western",
-] as const;
-
 function GenreChips({
   availableGenres,
   selected,
@@ -344,8 +338,18 @@ function GenreChips({
   selected: string[];
   onChange: (v: string[]) => void;
 }) {
-  // Merge predefined list with any genres found in library data
-  const merged = Array.from(new Set([...PREDEFINED_GENRES, ...availableGenres])).sort();
+  // Only the genres the library actually contains (ListGenres), never a
+  // hardcoded list.
+  //
+  // A hardcoded English list used to be merged in here, and metadata providers
+  // return genres in the SERVER's language: a French library therefore showed
+  // "Action, Adventure, Animation, Aventure, Comedy, Comédie, ..." - the same
+  // genres twice, in two languages. Worse, the filter matches genre strings
+  // exactly, so every English chip that was not also a real genre matched
+  // nothing at all: half the chips were guaranteed empty results.
+  const merged = Array.from(new Set(availableGenres)).sort((a, b) =>
+    a.localeCompare(b),
+  );
   const { t } = useTranslation();
   if (merged.length === 0) return null;
   return (

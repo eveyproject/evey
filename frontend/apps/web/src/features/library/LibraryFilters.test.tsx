@@ -97,16 +97,48 @@ describe("LibraryFiltersPanel", () => {
     render(
       <LibraryFiltersPanel
         search={baseSearch}
-        availableGenres={[]}
+        availableGenres={["Action", "Drame"]}
         availableOptions={emptyOptions}
         onUpdate={onUpdate}
       />
     );
 
-    // PREDEFINED_GENRES includes "Action"
     fireEvent.click(screen.getByRole("button", { name: "Action" }));
 
     expect(onUpdate).toHaveBeenCalledWith({ genres: ["Action"] });
+  });
+
+  it("offers only the genres the library actually has, never a hardcoded list", () => {
+    // A hardcoded English list used to be merged in here. Metadata providers
+    // return genres in the server's language, so a French library showed the
+    // same genres twice ("Adventure" beside "Aventure") and the English chips
+    // matched nothing, because the filter compares the stored string exactly.
+    render(
+      <LibraryFiltersPanel
+        search={baseSearch}
+        availableGenres={["Aventure", "Comédie"]}
+        availableOptions={emptyOptions}
+        onUpdate={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Aventure" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Comédie" })).toBeInTheDocument();
+    for (const english of ["Adventure", "Comedy", "Action", "Sci-Fi", "Western"]) {
+      expect(screen.queryByRole("button", { name: english })).not.toBeInTheDocument();
+    }
+  });
+
+  it("renders no genre section at all when the library reports no genres", () => {
+    render(
+      <LibraryFiltersPanel
+        search={baseSearch}
+        availableGenres={[]}
+        availableOptions={emptyOptions}
+        onUpdate={vi.fn()}
+      />
+    );
+    expect(screen.queryByRole("button", { name: "Action" })).not.toBeInTheDocument();
   });
 
   it("resolution checkbox (span) click calls onUpdate with selected resolutions", () => {

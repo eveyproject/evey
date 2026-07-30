@@ -15,6 +15,7 @@ import { Skeleton } from "../../../src/components/Skeleton";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useLibraryServiceSearchMedia, useMusicServiceSearchMusic } from "@evey/api";
+import { useAllGenres } from "../../../src/hooks/useAllGenres";
 import type { V1MediaItem, V1Track } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
@@ -47,12 +48,6 @@ type MediaTypeFilter = "MEDIA_ITEM_TYPE_MOVIE" | "MEDIA_ITEM_TYPE_SERIES";
 type SortField = "MEDIA_SORT_FIELD_TITLE" | "MEDIA_SORT_FIELD_YEAR" | "MEDIA_SORT_FIELD_DATE_ADDED";
 type SortOrder = "SORT_ORDER_ASC" | "SORT_ORDER_DESC";
 
-const COMMON_GENRES = [
-  "Action", "Adventure", "Animation", "Comedy", "Crime", "Documentary",
-  "Drama", "Fantasy", "Horror", "Mystery", "Romance", "Sci-Fi",
-  "Thriller", "War", "Western",
-];
-
 function formatType(type?: string): string {
   if (!type) return "";
   return type.replace("MEDIA_ITEM_TYPE_", "").toLowerCase();
@@ -84,6 +79,10 @@ export default function SearchScreen() {
   const [yearMin, setYearMin] = useState("");
   const [yearMax, setYearMax] = useState("");
   const [showFilters, setShowFilters] = useState(false);
+  // Real genres from the user's libraries, not a hardcoded English list: the
+  // filter matches the stored genre string exactly, so English chips returned
+  // nothing at all on a French library.
+  const { data: availableGenres = [] } = useAllGenres(showFilters);
   const [sortField, setSortField] = useState<SortField | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder | undefined>(undefined);
 
@@ -459,7 +458,7 @@ export default function SearchScreen() {
                     {t("media.search.allGenres")}
                   </Text>
                 </TouchableOpacity>
-                {COMMON_GENRES.map((g) => (
+                {availableGenres.map((g) => (
                   <TouchableOpacity
                     key={g}
                     style={[

@@ -4,6 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../providers/ThemeProvider";
 import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
+import { useAllGenres } from "../hooks/useAllGenres";
 
 type RuleField = "genre" | "year" | "type" | "library_id";
 type Operator = "eq" | "gte" | "lte" | "gt" | "lt";
@@ -44,11 +45,6 @@ const MEDIA_TYPES = [
   { value: "MEDIA_ITEM_TYPE_EPISODE", label: "Episode", i18nKey: "media.playlist.typeEpisode" },
 ];
 
-const COMMON_GENRES = [
-  "Action", "Adventure", "Animation", "Comedy", "Crime", "Documentary",
-  "Drama", "Fantasy", "Horror", "Mystery", "Romance", "Sci-Fi", "Thriller",
-];
-
 function defaultRule(field: RuleField): SmartRule {
   if (field === "year") return { field: "year", operator: "gte", value: "" };
   if (field === "type") return { field: "type", operator: "eq", value: "MEDIA_ITEM_TYPE_MOVIE" };
@@ -67,6 +63,10 @@ export function SmartRulesEditor({ visible, onClose, rules, onSave }: Props) {
   const theme = useTheme();
   const { t } = useTranslation();
   const [local, setLocal] = useState<SmartRule[]>(rules);
+  // Real genres from the user's libraries. A hardcoded English list produced
+  // rules that could never match anything on a library whose metadata is in
+  // another language. Only fetched while the editor is open.
+  const { data: availableGenres = [] } = useAllGenres(visible);
 
   const addRule = useCallback(() => {
     setLocal((prev) => [...prev, defaultRule("genre")]);
@@ -174,7 +174,7 @@ export function SmartRulesEditor({ visible, onClose, rules, onSave }: Props) {
                   </ScrollView>
                 ) : rule.field === "genre" ? (
                   <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                    {COMMON_GENRES.map((g) => (
+                    {availableGenres.map((g) => (
                       <Pressable
                         key={g}
                         onPress={() => updateRule(idx, { ...rule, value: g })}
