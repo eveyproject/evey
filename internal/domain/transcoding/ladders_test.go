@@ -274,3 +274,67 @@ func TestBoostCappedTopRung_EmptyAndDegenerate(t *testing.T) {
 	assert.Empty(t, BoostCappedTopRung(boostTestLadder, nil))
 	assert.Equal(t, boostTestLadder, BoostCappedTopRung(boostTestLadder, boostTestLadder), "identical slices ⇒ unchanged")
 }
+
+// CapLadderToSource's "unknown source" guard is `<= 0`, on BOTH dimensions
+// independently. Both terms survived mutation testing because no test passed a
+// zero (or negative) width with a valid height, or the reverse - yet that is
+// exactly the shape of a partially-probed source, which is when this guard
+// matters: clipping a ladder against a height of 0 would leave nothing to play.
+func TestCapLadderToSource_UnknownDimensionsAreNotAClip(t *testing.T) {
+	ladder := []HLSProfile{
+		{Name: "720p", Height: 720, Width: 1280, VideoBitrate: 3000},
+		{Name: "1080p", Height: 1080, Width: 1920, VideoBitrate: 6000},
+	}
+	for _, tt := range []struct {
+		name string
+		w, h int
+	}{
+		{"both unknown", 0, 0},
+		{"width unknown only", 0, 1080},
+		{"height unknown only", 1920, 0},
+		{"negative width", -1, 1080},
+		{"negative height", 1920, -1},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			got := CapLadderToSource(ladder, tt.w, tt.h)
+			if len(got) != len(ladder) {
+				t.Fatalf("an unknown dimension must not clip: got %d rungs, want %d", len(got), len(ladder))
+			}
+		})
+	}
+
+	// And a known source does clip, so the guard is not simply always-true.
+	if got := CapLadderToSource(ladder, 1280, 720); len(got) != 1 {
+		t.Fatalf("a 720p source must clip the 1080p rung: got %d rungs", len(got))
+	}
+
+	// A rung LARGER than the known dimension is what makes the unknown-height
+	// case observable: the clip below caps on max(width, height), so with a
+	// valid width the missing height is otherwise invisible. Without the guard,
+	// a half-probed source would silently lose its top rung.
+	withUHD := append(append([]HLSProfile{}, ladder...),
+		HLSProfile{Name: "2160p", Height: 2160, Width: 3840, VideoBitrate: 15000})
+	if got := CapLadderToSource(withUHD, 1920, 0); len(got) != len(withUHD) {
+		t.Fatalf("an unknown height must keep every rung, even one above the known width: got %d, want %d",
+			len(got), len(withUHD))
+	}
+}
+
+// The "dropped rung carried more bitrate than the top survivor" rebalance
+// triggers on `<=`, and that boundary was unasserted: a dropped rung with the
+// SAME bitrate as the top must not trigger a rewrite.
+func TestCapLadder_EqualBitrateDoesNotRebalance(t *testing.T) {
+	// Two rungs at the same bitrate, the taller one about to be dropped by the
+	// height cap: nothing to redistribute.
+	ladder := []HLSProfile{
+		{Name: "480p", Height: 480, Width: 854, VideoBitrate: 3000},
+		{Name: "720p", Height: 720, Width: 1280, VideoBitrate: 3000},
+	}
+	got := CapLadderToSource(ladder, 854, 480)
+	if len(got) != 1 {
+		t.Fatalf("expected the 720p rung to be dropped, got %d rungs", len(got))
+	}
+	if got[0].VideoBitrate != 3000 {
+		t.Errorf("an equal-bitrate drop must leave the survivor untouched, got %d", got[0].VideoBitrate)
+	}
+}
