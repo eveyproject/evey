@@ -192,6 +192,7 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 		// buildManifestInput to populate AudioRenditions from the source
 		// audio streams and the master starts emitting EXT-X-MEDIA.
 		audioRenditionEnabled: s.Cfg != nil && s.Cfg.Transcoding.AudioRenditionEnabled,
+		castWasmAudioEnabled:  s.Cfg != nil && s.Cfg.Transcoding.CastWasmAudioEnabled,
 		serverLang: func() string {
 			if s.Cfg == nil {
 				return "en"

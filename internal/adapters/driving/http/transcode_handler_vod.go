@@ -208,6 +208,18 @@ type hlsVODServe struct {
 	// audio track and the dedicated audio pipeline serves them.
 	audioRenditionEnabled bool
 
+	// castWasmAudioEnabled gates the wasm-audio path FOR CAST RECEIVERS only
+	// (browsers keep it: it is validated there and it is what plays Dolby
+	// without a transcode). Default OFF.
+	//
+	// A Bouygtel4K died twice mid-film, ~2min30 in, with the sound working and
+	// both memory figures we can read flat and tiny (2026-07-30). The decoder
+	// measured 3.13x real time on that box, so the path buys it NOTHING anyway -
+	// the AAC rendition plays the same film with sound from the first second.
+	// Until the death is explained, a TV does not run our wasm decoder, and the
+	// operator can flip this back on without a deploy.
+	castWasmAudioEnabled bool
+
 	// audio handles the audio rendition routes (audio_T.m3u8 / init /
 	// segment). Routed through the same /hls/{file} entry point so the
 	// relative URLs the master playlist emits resolve correctly. Nil-safe

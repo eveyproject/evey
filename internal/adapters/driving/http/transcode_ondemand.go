@@ -179,6 +179,16 @@ func (h *hlsVODServe) serveWasmAudioMaster(w http.ResponseWriter, r *http.Reques
 	if h.onDemand == nil || !wasmAudioRequested(r) || item == nil || item.File == nil || item.File.Path == "" {
 		return false
 	}
+	// Cast kill switch. A cast receiver is identified by its stream token, the
+	// only identity it has. Declining here hands the TV the ordinary muxed
+	// master: sound from the first second, and not a line of our wasm decoder
+	// runs on the box. See the field comment for why this is off by default.
+	if st, ok := StreamTokenFromContext(r.Context()); ok && st != nil && st.Cast && !h.castWasmAudioEnabled {
+		slog.InfoContext(r.Context(), "hls-vod: wasm-audio disabled for cast receivers, serving the muxed master",
+			slog.String("media_id", mediaID))
+		return false
+	}
+
 	audioTrack := h.resolveAudioTrack(r, streams)
 	if c := strings.ToLower(sourceAudioCodec(streams, audioTrack)); c != "ac3" && c != "eac3" {
 		return false // nothing for the wasm decoder to do - use the normal paths

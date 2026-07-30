@@ -378,6 +378,13 @@ type TranscodingConfig struct {
 	// delay (VideoCompositionDelay). Opt out: EVEY_HLS_AUDIO_RENDITION_ENABLED=false.
 	AudioRenditionEnabled bool
 
+	// CastWasmAudioEnabled lets a CAST receiver run the browser wasm AC-3
+	// decoder. OFF by default: a Bouygtel4K was killed twice mid-film with that
+	// path in play (2026-07-30), and its decoder measured 3.13x real time, so the
+	// path bought it nothing - the AAC rendition plays the same film with sound.
+	// Browsers are unaffected; only a cast stream token is gated.
+	CastWasmAudioEnabled bool
+
 	// Encode-calibration bench sample sources. The bench measures the host's
 	// realtime encode ceiling against a 4K clip; a real-content clip calibrates
 	// far more honestly than the synthetic (which over-states decode+encode
@@ -705,6 +712,7 @@ func Load() (*Config, error) {
 			SoftwareHDRMaxHeightOverride: envInt("EVEY_TRANSCODING_SOFTWARE_HDR_MAX_HEIGHT", 0),
 			TrickplayCacheDir:            envStr("EVEY_TRICKPLAY_CACHE_DIR", "/cache/trickplay"),
 			AudioRenditionEnabled:        envBool("EVEY_HLS_AUDIO_RENDITION_ENABLED", true),
+			CastWasmAudioEnabled:         envBool("EVEY_CAST_WASM_AUDIO_ENABLED", false),
 			BenchSDRSamplePath:           envStr("EVEY_BENCH_SDR_SAMPLE", ""),
 			BenchSDRSampleURL:            envStr("EVEY_BENCH_SDR_SAMPLE_URL", ""),
 			BenchSDRSampleSHA256:         envStr("EVEY_BENCH_SDR_SAMPLE_SHA256", ""),
