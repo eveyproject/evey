@@ -15,6 +15,12 @@ import { Ionicons } from "@expo/vector-icons";
 import * as ScreenOrientation from "expo-screen-orientation";
 import * as NavigationBar from "expo-navigation-bar";
 import { setAudioBoost, releaseAudioBoost } from "../../../src/lib/audioBoost";
+import { resolveVolume } from "../../../src/lib/volumePolicy";
+import {
+  hasDeviceVolumeControl,
+  readDeviceVolumeFraction,
+  setDeviceVolumeFraction,
+} from "../../../src/lib/deviceVolume";
 import { getDownloadPath } from "../../../src/lib/downloads";
 import { useTranslation } from "react-i18next";
 import { toast, useAuthStore } from "@evey/store";
@@ -615,6 +621,24 @@ export default function PlayerScreen() {
     hasOpenPanel: activeSheet !== null || settingsOpen,
   });
 
+  // Show the level the device is REALLY at, not an assumed 100%. The bar drives
+  // the system volume now, so opening on the wrong value would make the first
+  // touch jump the sound. Re-read whenever the controls come back up: the
+  // hardware volume keys move the same setting behind our back, and a stale bar
+  // would silently undo what the user just pressed.
+  useEffect(() => {
+    if (!showControls || !hasDeviceVolumeControl()) return;
+    let cancelled = false;
+    void readDeviceVolumeFraction().then((fraction) => {
+      // Above 100% the bar is in the amplified zone, which the device volume
+      // cannot describe - leave it alone.
+      if (cancelled || fraction === null || volumeBaseRef.current > 1) return;
+      volumeBaseRef.current = fraction;
+      setVolume(fraction);
+    });
+    return () => { cancelled = true; };
+  }, [showControls]);
+
   const togglePlayPause = useCallback(() => {
     if (!player) return;
     if (player.playing) {
@@ -697,11 +721,15 @@ export default function PlayerScreen() {
   const handleVolumeChange = useCallback(
     (value: number) => {
       if (!player) return;
-      // 0-2 split: 0-1 rides the native element volume, 1-2 amplifies through the
-      // native LoudnessEnhancer (Android; no-op elsewhere until its module lands).
+      // Where the 0-2 bar lands is decided in ONE place (volumePolicy): on
+      // Android the 0-100% half drives the DEVICE media volume, so the >100%
+      // amplification has a full-scale signal to work with instead of one the
+      // device was already attenuating. Elsewhere it stays on the player element.
       const v = Math.max(0, Math.min(2, value));
-      player.volume = Math.min(1, v);
-      void setAudioBoost(v > 1 ? v : 1);
+      const targets = resolveVolume(v, { hasDeviceControl: hasDeviceVolumeControl() });
+      player.volume = targets.playerVolume;
+      if (targets.deviceFraction !== null) void setDeviceVolumeFraction(targets.deviceFraction);
+      void setAudioBoost(targets.boostGain);
       volumeBaseRef.current = v;
       setVolume(v);
       // Dragging the bar above zero means "I want sound now": same implicit
