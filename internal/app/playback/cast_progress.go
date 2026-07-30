@@ -147,7 +147,7 @@ func (t *CastProgressTracker) flushOnce(ctx context.Context) {
 
 	for _, w := range work {
 		if err := t.report(ctx, w.e.profileID, w.e.mediaItemID, w.posMs); err != nil {
-			slog.Warn("cast progress: derived report failed",
+			slog.WarnContext(ctx, "cast progress: derived report failed",
 				slog.String("profile_id", w.e.profileID),
 				slog.String("media_item_id", w.e.mediaItemID),
 				slog.Any("err", err))

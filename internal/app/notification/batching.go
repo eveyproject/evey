@@ -242,7 +242,7 @@ func (s *CommandService) emitNotifications(mediaType, title, seriesTitle, mediaI
 	profiles, err := s.profiles.GetAll(ctx)
 	if err != nil {
 		if !errors.Is(err, context.Canceled) {
-			slog.Warn("notification: list profiles failed", slog.Any("err", err))
+			slog.WarnContext(ctx, "notification: list profiles failed", slog.Any("err", err))
 		}
 		return
 	}
@@ -253,7 +253,7 @@ func (s *CommandService) emitNotifications(mediaType, title, seriesTitle, mediaI
 	}
 	allSettings, err := s.settings.GetByProfiles(ctx, profileIDs)
 	if err != nil {
-		slog.Warn("notification: get settings batch failed", slog.Any("err", err))
+		slog.WarnContext(ctx, "notification: get settings batch failed", slog.Any("err", err))
 		return
 	}
 
@@ -287,7 +287,7 @@ func (s *CommandService) emitNotifications(mediaType, title, seriesTitle, mediaI
 		var preloadErr error
 		recentByProfile, preloadErr = s.repo.FindRecentByProfilesTypeAndSeries(ctx, profileIDs, dedupTypes, seriesKey, since)
 		if preloadErr != nil {
-			slog.Warn("notification: preload recent series/season/episode notifications failed", slog.Any("err", preloadErr))
+			slog.WarnContext(ctx, "notification: preload recent series/season/episode notifications failed", slog.Any("err", preloadErr))
 			preloadFailed = true
 		}
 	}
@@ -323,7 +323,7 @@ func (s *CommandService) emitNotifications(mediaType, title, seriesTitle, mediaI
 		}
 		n, err := notification.NewNotification(uuid.New().String(), p.ID, notifType, notifTitle, opts...)
 		if err != nil {
-			slog.Warn("notification build failed", slog.String("profileID", string(p.ID)), slog.Any("err", err))
+			slog.WarnContext(ctx, "notification build failed", slog.String("profileID", string(p.ID)), slog.Any("err", err))
 			continue
 		}
 		s.persistAndDispatch(ctx, n, push.resolveTitle(s.translator, p.Locale))
@@ -378,7 +378,7 @@ func (s *CommandService) shouldSkipEpisodeNotif(ctx context.Context, profileID s
 	existing.Title = "new_episode:" + newTitle
 	existing.EpisodeCount = newCount
 	if updateErr := s.repo.Update(ctx, existing); updateErr != nil {
-		slog.Warn("notification: update grouped episode failed", slog.Any("err", updateErr))
+		slog.WarnContext(ctx, "notification: update grouped episode failed", slog.Any("err", updateErr))
 		return false // fail open
 	}
 	// Re-send push for the updated notification.
@@ -409,7 +409,7 @@ func (s *CommandService) fetchFavoriteGenres(
 	}
 	favs, err := s.analyzer.GetFavoriteGenresBatch(ctx, relevanceIDs, 3)
 	if err != nil {
-		slog.Warn("notification: batch get favorite genres failed", slog.Any("err", err))
+		slog.WarnContext(ctx, "notification: batch get favorite genres failed", slog.Any("err", err))
 		return nil, err
 	}
 	return favs, nil

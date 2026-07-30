@@ -61,7 +61,7 @@ func (s *UserService) revokeTokens(ctx context.Context, userID string) {
 		return
 	}
 	if err := s.tokenRevoker.Revoke(ctx, userID); err != nil {
-		slog.Warn("revoke access tokens", slog.String("userID", userID), slog.Any("err", err))
+		slog.WarnContext(ctx, "revoke access tokens", slog.String("userID", userID), slog.Any("err", err))
 	}
 }
 
@@ -155,11 +155,11 @@ func (s *UserService) CreateUser(ctx context.Context, callerIsAdmin bool, u *use
 
 	evtUserCreated := user.UserCreated{UserID: u.ID, Username: u.Username, IsAdmin: u.IsAdmin, OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evtUserCreated); err != nil {
-		slog.Warn("publish event", slog.String("event", evtUserCreated.EventName()), slog.Any("err", err))
+		slog.WarnContext(ctx, "publish event", slog.String("event", evtUserCreated.EventName()), slog.Any("err", err))
 	}
 	evtProfile := user.ProfileCreated{ProfileID: p.ID, UserID: p.UserID, Name: p.Name, OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evtProfile); err != nil {
-		slog.Warn("publish event", slog.String("event", evtProfile.EventName()), slog.Any("err", err))
+		slog.WarnContext(ctx, "publish event", slog.String("event", evtProfile.EventName()), slog.Any("err", err))
 	}
 	return nil
 }
@@ -238,7 +238,7 @@ func (s *UserService) ChangePassword(ctx context.Context, userID, newPassword st
 	s.revokeTokens(ctx, userID)
 	evt := user.PasswordChanged{UserID: shared.UserID(userID), OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evt); err != nil {
-		slog.Warn("publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
+		slog.WarnContext(ctx, "publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
 	}
 	return nil
 }
@@ -264,13 +264,13 @@ func (s *UserService) DeleteUser(ctx context.Context, userID string) error {
 		return fmt.Errorf("UserService.DeleteUser: %w", err)
 	}
 	if err := s.refreshTkns.DeleteByUserID(ctx, shared.UserID(userID)); err != nil {
-		slog.Warn("delete refresh tokens for deleted user failed", slog.String("userID", userID), slog.Any("err", err))
+		slog.WarnContext(ctx, "delete refresh tokens for deleted user failed", slog.String("userID", userID), slog.Any("err", err))
 	}
 	// No epoch bump: the row is gone, so the fail-closed epoch lookup already
 	// rejects any outstanding token for this user.
 	evtDeleted := user.UserDeleted{UserID: shared.UserID(userID), OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evtDeleted); err != nil {
-		slog.Warn("publish event", slog.String("event", evtDeleted.EventName()), slog.Any("err", err))
+		slog.WarnContext(ctx, "publish event", slog.String("event", evtDeleted.EventName()), slog.Any("err", err))
 	}
 	return nil
 }
@@ -298,12 +298,12 @@ func (s *UserService) DisableUser(ctx context.Context, userID string) error {
 		}
 	}
 	if err := s.refreshTkns.DeleteByUserID(ctx, shared.UserID(userID)); err != nil {
-		slog.Warn("delete refresh tokens for disabled user failed", slog.String("userID", userID), slog.Any("err", err))
+		slog.WarnContext(ctx, "delete refresh tokens for disabled user failed", slog.String("userID", userID), slog.Any("err", err))
 	}
 	s.revokeTokens(ctx, userID)
 	evtDisabled := user.UserDisabled{UserID: shared.UserID(userID), OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evtDisabled); err != nil {
-		slog.Warn("publish event", slog.String("event", evtDisabled.EventName()), slog.Any("err", err))
+		slog.WarnContext(ctx, "publish event", slog.String("event", evtDisabled.EventName()), slog.Any("err", err))
 	}
 	return nil
 }
@@ -324,7 +324,7 @@ func (s *UserService) EnableUser(ctx context.Context, userID string) error {
 	}
 	evt := user.UserEnabled{UserID: shared.UserID(userID), OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evt); err != nil {
-		slog.Warn("publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
+		slog.WarnContext(ctx, "publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
 	}
 	return nil
 }
@@ -354,7 +354,7 @@ func (s *UserService) CreateProfile(ctx context.Context, p *user.Profile) error 
 	}
 	evtProfileCreated := user.ProfileCreated{ProfileID: p.ID, UserID: p.UserID, Name: p.Name, OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evtProfileCreated); err != nil {
-		slog.Warn("publish event", slog.String("event", evtProfileCreated.EventName()), slog.Any("err", err))
+		slog.WarnContext(ctx, "publish event", slog.String("event", evtProfileCreated.EventName()), slog.Any("err", err))
 	}
 	return nil
 }
@@ -458,7 +458,7 @@ func (s *UserService) DeleteProfile(ctx context.Context, profileID string) error
 	}
 	evt := user.ProfileDeleted{ProfileID: shared.ProfileID(profileID), UserID: p.UserID, OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evt); err != nil {
-		slog.Warn("publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
+		slog.WarnContext(ctx, "publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
 	}
 	return nil
 }

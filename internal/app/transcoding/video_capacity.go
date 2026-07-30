@@ -124,7 +124,7 @@ func ResolveVideoSessionLimit(ctx context.Context, cfgRepo shared.ServerConfigRe
 	}
 	n, err := strconv.Atoi(val)
 	if err != nil || n <= 0 {
-		slog.Warn("transcoding: invalid transcoding.max_video_sessions, falling back to auto",
+		slog.WarnContext(ctx, "transcoding: invalid transcoding.max_video_sessions, falling back to auto",
 			slog.String("value", entry.Value))
 		return auto
 	}

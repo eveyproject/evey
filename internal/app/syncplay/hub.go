@@ -77,10 +77,10 @@ func (h *Hub) StartJanitor(ctx context.Context, interval, maxAge time.Duration) 
 	for {
 		if n, err := h.repo.DeleteStaleEmptyRooms(ctx, time.Now().Add(-maxAge)); err != nil {
 			if ctx.Err() == nil {
-				slog.Warn("syncplay janitor: sweep failed", slog.Any("err", err))
+				slog.WarnContext(ctx, "syncplay janitor: sweep failed", slog.Any("err", err))
 			}
 		} else if n > 0 {
-			slog.Info("syncplay janitor: swept stale rooms", slog.Int64("count", n))
+			slog.InfoContext(ctx, "syncplay janitor: swept stale rooms", slog.Int64("count", n))
 		}
 		select {
 		case <-ctx.Done():
@@ -269,7 +269,7 @@ func (h *Hub) ConnectMember(ctx context.Context, roomID, userID, username string
 		}
 		h.mu.Unlock()
 		if rmErr := h.repo.RemoveMember(ctx, roomID, userID); rmErr != nil {
-			slog.Warn("syncplay: rollback RemoveMember after Get failure",
+			slog.WarnContext(ctx, "syncplay: rollback RemoveMember after Get failure",
 				slog.String("roomID", roomID), slog.String("userID", userID), slog.Any("err", rmErr))
 		}
 		return nil, err
@@ -292,7 +292,7 @@ func (h *Hub) ConnectMember(ctx context.Context, roomID, userID, username string
 	}
 	if data, mErr := json.Marshal(stateMsg); mErr == nil {
 		if err := sender.SendMessage(data); err != nil {
-			slog.Warn("send initial state failed", slog.String("roomID", roomID), slog.String("userID", userID), slog.Any("err", err))
+			slog.WarnContext(ctx, "send initial state failed", slog.String("roomID", roomID), slog.String("userID", userID), slog.Any("err", err))
 		}
 	}
 

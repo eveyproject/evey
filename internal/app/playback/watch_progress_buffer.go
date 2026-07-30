@@ -123,12 +123,12 @@ func (b *WatchProgressBuffer) Flush(ctx context.Context) int {
 	if err := b.repo.UpsertMany(ctx, entries); err == nil {
 		return len(entries)
 	} else {
-		slog.Warn("watch progress batch flush failed, salvaging per entry", slog.Any("err", err))
+		slog.WarnContext(ctx, "watch progress batch flush failed, salvaging per entry", slog.Any("err", err))
 	}
 	persisted := 0
 	for _, wp := range entries {
 		if err := b.repo.Upsert(ctx, wp); err != nil {
-			slog.Warn("watch progress flush",
+			slog.WarnContext(ctx, "watch progress flush",
 				slog.String("profileID", string(wp.ProfileID)),
 				slog.String("mediaItemID", string(wp.MediaItemID)),
 				slog.Any("err", err),

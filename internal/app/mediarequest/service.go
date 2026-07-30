@@ -146,7 +146,7 @@ func (s *Service) markInLibrary(ctx context.Context, mediaType mediarequest.Medi
 	}
 	held, err := s.library.FindByProviderIDs(ctx, string(mediaType), keys)
 	if err != nil {
-		slog.Warn("media request: library lookup failed, candidates left unflagged",
+		slog.WarnContext(ctx, "media request: library lookup failed, candidates left unflagged",
 			slog.Any("err", err))
 		return
 	}
@@ -196,7 +196,7 @@ func (s *Service) heldInLibrary(ctx context.Context, mt mediarequest.MediaType, 
 	}
 	held, err := s.library.FindByProviderIDs(ctx, string(mt), []string{ProviderKey(provider, providerID)})
 	if err != nil {
-		slog.Warn("media request: library lookup failed on create, allowing", slog.Any("err", err))
+		slog.WarnContext(ctx, "media request: library lookup failed on create, allowing", slog.Any("err", err))
 		return false
 	}
 	_, ok := held[ProviderKey(provider, providerID)]
@@ -262,7 +262,7 @@ func (s *Service) CreateRequest(ctx context.Context, profileID shared.ProfileID,
 		OccurredAt: req.CreatedAt,
 	}
 	if err := s.events.Publish(ctx, evt); err != nil {
-		slog.Warn("publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
+		slog.WarnContext(ctx, "publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
 	}
 	return req, nil
 }
@@ -313,7 +313,7 @@ func (s *Service) Answer(ctx context.Context, requestID string, status mediarequ
 		OccurredAt: *req.AnsweredAt,
 	}
 	if err := s.events.Publish(ctx, evt); err != nil {
-		slog.Warn("publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
+		slog.WarnContext(ctx, "publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
 	}
 	return req, nil
 }

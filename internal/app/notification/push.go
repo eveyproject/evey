@@ -16,7 +16,7 @@ import (
 
 func (s *CommandService) persistAndDispatch(ctx context.Context, n *notification.Notification, pushTitle string) {
 	if createErr := s.repo.Create(ctx, n); createErr != nil {
-		slog.Warn("create notification failed", slog.String("profileID", string(n.ProfileID)), slog.Any("err", createErr))
+		slog.WarnContext(ctx, "create notification failed", slog.String("profileID", string(n.ProfileID)), slog.Any("err", createErr))
 		return
 	}
 	s.sendPush(ctx, string(n.ProfileID), pushTitle, n.Message)
@@ -29,7 +29,7 @@ func (s *CommandService) persistAndDispatch(ctx context.Context, n *notification
 		OccurredAt:     n.CreatedAt,
 	}
 	if pubErr := s.events.Publish(ctx, evt); pubErr != nil {
-		slog.Warn("publish notification.created", slog.Any("err", pubErr))
+		slog.WarnContext(ctx, "publish notification.created", slog.Any("err", pubErr))
 	}
 }
 
@@ -39,7 +39,7 @@ func (s *CommandService) sendPush(ctx context.Context, profileID, title, message
 	}
 	subs, err := s.subs.GetByProfile(ctx, profileID)
 	if err != nil {
-		slog.Warn("webpush: get subscriptions failed", slog.String("profileID", profileID), slog.Any("err", err))
+		slog.WarnContext(ctx, "webpush: get subscriptions failed", slog.String("profileID", profileID), slog.Any("err", err))
 		return
 	}
 	for _, sub := range subs {
@@ -51,11 +51,11 @@ func (s *CommandService) sendPush(ctx context.Context, profileID, title, message
 			// The endpoint is permanently dead (410); prune it so we stop
 			// retrying it on every future notification.
 			if delErr := s.subs.DeleteByEndpoint(ctx, string(sub.UserID), sub.Endpoint); delErr != nil {
-				slog.Warn("webpush: delete gone subscription failed", slog.String("endpoint", sub.Endpoint), slog.Any("err", delErr))
+				slog.WarnContext(ctx, "webpush: delete gone subscription failed", slog.String("endpoint", sub.Endpoint), slog.Any("err", delErr))
 			}
 			continue
 		}
-		slog.Warn("webpush: send failed", slog.String("profileID", profileID), slog.String("endpoint", sub.Endpoint), slog.Any("err", sendErr))
+		slog.WarnContext(ctx, "webpush: send failed", slog.String("profileID", profileID), slog.String("endpoint", sub.Endpoint), slog.Any("err", sendErr))
 	}
 }
 

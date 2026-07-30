@@ -39,14 +39,14 @@ func (s *CommandService) StartCleanupWithInterval(ctx context.Context, interval 
 
 func (s *CommandService) runCleanup(ctx context.Context) {
 	if err := s.refreshTkns.DeleteExpired(ctx); err != nil {
-		slog.Warn("refresh token cleanup", slog.Any("err", err))
+		slog.WarnContext(ctx, "refresh token cleanup", slog.Any("err", err))
 	}
 	if err := s.quickConnect.DeleteExpired(ctx); err != nil {
-		slog.Warn("quick connect cleanup", slog.Any("err", err))
+		slog.WarnContext(ctx, "quick connect cleanup", slog.Any("err", err))
 	}
 	if s.resetTokens != nil {
 		if err := s.resetTokens.DeleteExpired(ctx); err != nil {
-			slog.Warn("password reset token cleanup", slog.Any("err", err))
+			slog.WarnContext(ctx, "password reset token cleanup", slog.Any("err", err))
 		}
 	}
 }
@@ -78,11 +78,11 @@ func (s *CommandService) StartLoginAttemptCleanup(ctx context.Context) {
 		sweep := func() {
 			n, err := s.loginAttempts.PurgeStale(ctx, loginAttemptStaleAfter)
 			if err != nil {
-				slog.Warn("login-attempt cleanup failed", slog.Any("err", err))
+				slog.WarnContext(ctx, "login-attempt cleanup failed", slog.Any("err", err))
 				return
 			}
 			if n > 0 {
-				slog.Info("login-attempt cleanup", slog.Int64("removed", n))
+				slog.InfoContext(ctx, "login-attempt cleanup", slog.Int64("removed", n))
 			}
 		}
 		sweep()

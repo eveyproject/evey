@@ -170,7 +170,7 @@ func (g *GeneratorService) Generate(ctx context.Context, profileID string, libra
 func (g *GeneratorService) playCounts(ctx context.Context, profileID string) map[string]int {
 	counts, err := g.plays.PlayCountsForProfile(ctx, profileID)
 	if err != nil {
-		slog.Warn("generate playlist: play counts", slog.Any("err", err))
+		slog.WarnContext(ctx, "generate playlist: play counts", slog.Any("err", err))
 		return nil
 	}
 	return counts
@@ -182,7 +182,7 @@ func (g *GeneratorService) alreadyInPlaylists(ctx context.Context, profileID str
 	set := make(map[string]bool)
 	pls, err := g.playlists.List(ctx, profileID)
 	if err != nil {
-		slog.Warn("generate playlist: list profile playlists", slog.Any("err", err))
+		slog.WarnContext(ctx, "generate playlist: list profile playlists", slog.Any("err", err))
 		return set
 	}
 	if len(pls) == 0 {
@@ -194,7 +194,7 @@ func (g *GeneratorService) alreadyInPlaylists(ctx context.Context, profileID str
 	}
 	byPlaylist, err := g.items.GetByPlaylistIDs(ctx, ids)
 	if err != nil {
-		slog.Warn("generate playlist: batch lookup playlist items", slog.Any("err", err))
+		slog.WarnContext(ctx, "generate playlist: batch lookup playlist items", slog.Any("err", err))
 		return set
 	}
 	for _, items := range byPlaylist {
@@ -212,7 +212,7 @@ func (g *GeneratorService) alreadyInPlaylists(ctx context.Context, profileID str
 func (g *GeneratorService) genreAffinity(ctx context.Context, profileID string) map[string]float64 {
 	aff, err := g.plays.GenreAffinityForProfile(ctx, profileID)
 	if err != nil {
-		slog.Warn("generate playlist: genre affinity", slog.Any("err", err))
+		slog.WarnContext(ctx, "generate playlist: genre affinity", slog.Any("err", err))
 		return nil
 	}
 	return aff

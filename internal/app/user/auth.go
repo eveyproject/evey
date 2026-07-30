@@ -44,7 +44,7 @@ func (s *CommandService) Login(ctx context.Context, username, password string, t
 	password = strings.TrimSpace(password)
 	locked, lockErr := s.loginAttempts.IsLocked(ctx, username)
 	if lockErr != nil {
-		slog.Warn("login attempt IsLocked", slog.String("username", username), slog.Any("err", lockErr))
+		slog.WarnContext(ctx, "login attempt IsLocked", slog.String("username", username), slog.Any("err", lockErr))
 	}
 	if locked {
 		return "", "", ErrAccountLocked
@@ -58,12 +58,12 @@ func (s *CommandService) Login(ctx context.Context, username, password string, t
 		// usernames exist. Burn an equivalent bcrypt verify against a fixed hash.
 		_, _ = s.hasher.Verify(password, dummyLoginHash) //nolint:errcheck // constant-time burn; result intentionally discarded
 		if recErr := s.loginAttempts.Record(ctx, username, s.loginMaxFails, s.loginWindow); recErr != nil {
-			slog.Warn("login attempt Record", slog.String("username", username), slog.Any("err", recErr))
+			slog.WarnContext(ctx, "login attempt Record", slog.String("username", username), slog.Any("err", recErr))
 		}
 		// Per-attempt log (username only, never the password) so a
 		// credential-stuffing run is searchable, not just inferable from the
 		// rate-limit store's aggregate.
-		slog.Warn("login failed", slog.String("username", username), slog.String("reason", "unknown_user"))
+		slog.WarnContext(ctx, "login failed", slog.String("username", username), slog.String("reason", "unknown_user"))
 		return "", "", ErrInvalidCredentials
 	}
 	// Verify BEFORE the CanLogin gate so a disabled account costs the same bcrypt
@@ -77,13 +77,13 @@ func (s *CommandService) Login(ctx context.Context, username, password string, t
 	}
 	if err != nil || !ok {
 		if recErr := s.loginAttempts.Record(ctx, username, s.loginMaxFails, s.loginWindow); recErr != nil {
-			slog.Warn("login attempt Record", slog.String("username", username), slog.Any("err", recErr))
+			slog.WarnContext(ctx, "login attempt Record", slog.String("username", username), slog.Any("err", recErr))
 		}
-		slog.Warn("login failed", slog.String("username", username), slog.String("reason", "bad_password"))
+		slog.WarnContext(ctx, "login failed", slog.String("username", username), slog.String("reason", "bad_password"))
 		return "", "", ErrInvalidCredentials
 	}
 	if resetErr := s.loginAttempts.Reset(ctx, username); resetErr != nil {
-		slog.Warn("login attempt Reset", slog.String("username", username), slog.Any("err", resetErr))
+		slog.WarnContext(ctx, "login attempt Reset", slog.String("username", username), slog.Any("err", resetErr))
 	}
 
 	perms := s.collectPermissions(ctx, u.ID)
@@ -94,7 +94,7 @@ func (s *CommandService) Login(ctx context.Context, username, password string, t
 	// would issue an unrestricted token. Same reasoning as RefreshToken.
 	profs, pErr := s.profiles.GetByUserID(ctx, u.ID)
 	if pErr != nil {
-		slog.Warn("profile lookup failed, refusing rather than issuing a profile-less token",
+		slog.WarnContext(ctx, "profile lookup failed, refusing rather than issuing a profile-less token",
 			slog.String("userID", string(u.ID)), slog.Any("err", pErr))
 		return "", "", fmt.Errorf("load profiles: %w", pErr)
 	}
@@ -133,10 +133,10 @@ func (s *CommandService) Login(ctx context.Context, username, password string, t
 
 	evtLogin := user.LoginSucceeded{UserID: u.ID, AuthMethod: "local", OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evtLogin); err != nil {
-		slog.Warn("publish event", slog.String("event", evtLogin.EventName()), slog.Any("err", err))
+		slog.WarnContext(ctx, "publish event", slog.String("event", evtLogin.EventName()), slog.Any("err", err))
 	}
 	if err := s.users.TouchLastLogin(ctx, u.ID, evtLogin.OccurredAt); err != nil {
-		slog.Warn("touch last_login", slog.String("user_id", string(u.ID)), slog.Any("err", err))
+		slog.WarnContext(ctx, "touch last_login", slog.String("user_id", string(u.ID)), slog.Any("err", err))
 	}
 	return accessToken, refreshToken, nil
 }
@@ -160,7 +160,7 @@ func (s *CommandService) GenerateTokensForUser(ctx context.Context, userID strin
 	// would issue an unrestricted token. Same reasoning as RefreshToken.
 	profs, pErr := s.profiles.GetByUserID(ctx, u.ID)
 	if pErr != nil {
-		slog.Warn("profile lookup failed, refusing rather than issuing a profile-less token",
+		slog.WarnContext(ctx, "profile lookup failed, refusing rather than issuing a profile-less token",
 			slog.String("userID", string(u.ID)), slog.Any("err", pErr))
 		return "", "", fmt.Errorf("load profiles: %w", pErr)
 	}
@@ -278,7 +278,7 @@ func (s *CommandService) RefreshToken(ctx context.Context, token, requestedProfi
 		//
 		// Refusing logs the user out, which is recoverable. Handing out an
 		// unrestricted token is not.
-		slog.Warn("refresh: profile lookup failed, refusing rather than dropping the profile binding",
+		slog.WarnContext(ctx, "refresh: profile lookup failed, refusing rather than dropping the profile binding",
 			slog.String("userID", string(u.ID)), slog.Any("err", pErr))
 		return "", "", fmt.Errorf("refresh: load profiles: %w", pErr)
 	}
@@ -434,17 +434,17 @@ func (s *CommandService) validateRefreshToken(ctx context.Context, token string)
 
 	rt, err := s.refreshTkns.GetByTokenHash(ctx, hash)
 	if err != nil {
-		slog.Info("refresh rejected: token not found", slog.String("tokenPrefix", safeTokenPrefix(token)))
+		slog.InfoContext(ctx, "refresh rejected: token not found", slog.String("tokenPrefix", safeTokenPrefix(token)))
 		return nil, false, ErrInvalidCredentials
 	}
 
 	if rt.IsExpired() {
-		slog.Info("refresh rejected: token expired",
+		slog.InfoContext(ctx, "refresh rejected: token expired",
 			slog.String("userID", string(rt.UserID)),
 			slog.String("tokenID", rt.ID),
 			slog.Time("expiredAt", rt.ExpiresAt))
 		if delErr := s.refreshTkns.DeleteByID(ctx, rt.ID); delErr != nil {
-			slog.Warn("delete refresh token failed", slog.String("tokenID", rt.ID), slog.Any("err", delErr))
+			slog.WarnContext(ctx, "delete refresh token failed", slog.String("tokenID", rt.ID), slog.Any("err", delErr))
 		}
 		return nil, false, ErrInvalidCredentials
 	}
@@ -453,12 +453,12 @@ func (s *CommandService) validateRefreshToken(ctx context.Context, token string)
 		// nil UsedAt (legacy row claimed before the column existed) fails
 		// closed: no timestamp, no grace.
 		if rt.UsedAt != nil && time.Since(*rt.UsedAt) <= refreshRotationGrace {
-			slog.Info("refresh: rotated token within grace, issuing sibling session (multi-tab race loser)",
+			slog.InfoContext(ctx, "refresh: rotated token within grace, issuing sibling session (multi-tab race loser)",
 				slog.String("userID", string(rt.UserID)),
 				slog.String("tokenID", rt.ID))
 			return rt, true, nil
 		}
-		slog.Info("refresh rejected: token rotated outside the grace window (replay or long-stale client)",
+		slog.InfoContext(ctx, "refresh rejected: token rotated outside the grace window (replay or long-stale client)",
 			slog.String("userID", string(rt.UserID)),
 			slog.String("tokenID", rt.ID))
 		return nil, false, ErrInvalidCredentials
@@ -485,7 +485,7 @@ func (s *CommandService) markRefreshTokenUsed(ctx context.Context, rt *user.Refr
 		// race. Reject it, but DO NOT purge the user's other sessions; the
 		// in-flight refresh on the other client (or the next AppState resume
 		// retry) will use the new token and succeed.
-		slog.Info("refresh rejected: concurrent claim race",
+		slog.InfoContext(ctx, "refresh rejected: concurrent claim race",
 			slog.String("userID", string(rt.UserID)),
 			slog.String("tokenID", rt.ID))
 		return ErrInvalidCredentials
@@ -499,7 +499,7 @@ func (s *CommandService) markRefreshTokenUsed(ctx context.Context, rt *user.Refr
 func (s *CommandService) collectPermissions(ctx context.Context, userID shared.UserID) []string {
 	roles, err := s.userRoles.GetRolesByUserID(ctx, userID)
 	if err != nil {
-		slog.Warn("get roles by user failed", slog.String("userID", string(userID)), slog.Any("err", err))
+		slog.WarnContext(ctx, "get roles by user failed", slog.String("userID", string(userID)), slog.Any("err", err))
 		return nil
 	}
 	var perms []string

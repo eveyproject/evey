@@ -40,7 +40,7 @@ func (s *CommandService) handleBackupFailed(parentCtx context.Context, ev shared
 
 	profiles, err := s.profiles.GetAll(ctx)
 	if err != nil {
-		slog.Warn("notification: list profiles for backup.failed", slog.Any("err", err))
+		slog.WarnContext(ctx, "notification: list profiles for backup.failed", slog.Any("err", err))
 		return
 	}
 
@@ -54,7 +54,7 @@ func (s *CommandService) handleBackupFailed(parentCtx context.Context, ev shared
 			notification.WithNotificationExpiresAt(&expires),
 		)
 		if err != nil {
-			slog.Warn("notification build failed", slog.String("profileID", string(p.ID)), slog.Any("err", err))
+			slog.WarnContext(ctx, "notification build failed", slog.String("profileID", string(p.ID)), slog.Any("err", err))
 			continue
 		}
 		s.persistAndDispatch(ctx, n, push.resolveTitle(s.translator, p.Locale))
@@ -85,7 +85,7 @@ func (s *CommandService) handlePluginError(parentCtx context.Context, ev shared.
 
 	profiles, err := s.listAdminTargetProfiles(ctx)
 	if err != nil {
-		slog.Warn("notification: list admin profiles for plugin.error", slog.Any("err", err))
+		slog.WarnContext(ctx, "notification: list admin profiles for plugin.error", slog.Any("err", err))
 		return
 	}
 
@@ -111,12 +111,12 @@ func (s *CommandService) handlePluginError(parentCtx context.Context, ev shared.
 			notification.WithNotificationExpiresAt(&expires),
 		)
 		if err != nil {
-			slog.Warn("notification build failed", slog.String("profileID", string(p.ID)), slog.Any("err", err))
+			slog.WarnContext(ctx, "notification build failed", slog.String("profileID", string(p.ID)), slog.Any("err", err))
 			continue
 		}
 		s.persistAndDispatch(ctx, n, push.resolveTitle(s.translator, p.Locale))
 	}
-	slog.Info("plugin error notified",
+	slog.InfoContext(ctx, "plugin error notified",
 		slog.String("plugin_id", e.PluginID),
 		slog.Int("admins", len(profiles)))
 }
@@ -147,7 +147,7 @@ func (s *CommandService) handleMediaRequestCreated(parentCtx context.Context, ev
 	}
 	profiles, err := s.listAdminTargetProfiles(ctx)
 	if err != nil {
-		slog.Warn("notification: list admin profiles for media.request.created", slog.Any("err", err))
+		slog.WarnContext(ctx, "notification: list admin profiles for media.request.created", slog.Any("err", err))
 		return
 	}
 	title := "New media request: " + e.Title
@@ -164,12 +164,12 @@ func (s *CommandService) handleMediaRequestCreated(parentCtx context.Context, ev
 			notification.WithNotificationExpiresAt(&expires),
 		)
 		if err != nil {
-			slog.Warn("notification build failed", slog.String("profileID", string(p.ID)), slog.Any("err", err))
+			slog.WarnContext(ctx, "notification build failed", slog.String("profileID", string(p.ID)), slog.Any("err", err))
 			continue
 		}
 		s.persistAndDispatch(ctx, n, push.resolveTitle(s.translator, p.Locale))
 	}
-	slog.Info("media request notified to admins", slog.String("request_id", e.RequestID), slog.Int("admins", len(profiles)))
+	slog.InfoContext(ctx, "media request notified to admins", slog.String("request_id", e.RequestID), slog.Int("admins", len(profiles)))
 }
 
 // handleRequestAnswered notifies the requester of the operator's decision.
@@ -213,9 +213,9 @@ func (s *CommandService) handleRequestAnswered(parentCtx context.Context, ev sha
 		notification.WithNotificationExpiresAt(&expires),
 	)
 	if err != nil {
-		slog.Warn("notification build failed", slog.String("profileID", string(e.ProfileID)), slog.Any("err", err))
+		slog.WarnContext(ctx, "notification build failed", slog.String("profileID", string(e.ProfileID)), slog.Any("err", err))
 		return
 	}
 	s.persistAndDispatch(ctx, n, push.resolveTitle(s.translator, locale))
-	slog.Info("media request answer notified", slog.String("request_id", e.RequestID), slog.String("status", string(e.Status)))
+	slog.InfoContext(ctx, "media request answer notified", slog.String("request_id", e.RequestID), slog.String("status", string(e.Status)))
 }

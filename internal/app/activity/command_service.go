@@ -113,7 +113,7 @@ func (s *CommandService) runRetention(ctx context.Context, auditDays, metricsDay
 		if n, err := s.PurgeOldAuditLogs(ctx, now.AddDate(0, 0, -auditDays)); err != nil {
 			slog.WarnContext(ctx, "audit-log retention purge failed", slog.Any("err", err))
 		} else if n > 0 {
-			slog.Info("audit-log retention purge", slog.Int64("removed", n), slog.Int("retention_days", auditDays))
+			slog.InfoContext(ctx, "audit-log retention purge", slog.Int64("removed", n), slog.Int("retention_days", auditDays))
 		}
 	}
 	if metricsDays > 0 {
@@ -133,14 +133,14 @@ func (s *CommandService) runRetention(ctx context.Context, auditDays, metricsDay
 		if n, err := s.webhookDeliveries.Purge(ctx, now.AddDate(0, 0, -days)); err != nil {
 			slog.WarnContext(ctx, "webhook-delivery retention purge failed", slog.Any("err", err))
 		} else if n > 0 {
-			slog.Info("webhook-delivery retention purge", slog.Int64("removed", n), slog.Int("retention_days", days))
+			slog.InfoContext(ctx, "webhook-delivery retention purge", slog.Int64("removed", n), slog.Int("retention_days", days))
 		}
 	}
 	if qoeDays > 0 && s.qoeEvents != nil {
 		if n, err := s.qoeEvents.Purge(ctx, now.AddDate(0, 0, -qoeDays)); err != nil {
 			slog.WarnContext(ctx, "qoe retention purge failed", slog.Any("err", err))
 		} else if n > 0 {
-			slog.Info("qoe retention purge", slog.Int64("removed", n), slog.Int("retention_days", qoeDays))
+			slog.InfoContext(ctx, "qoe retention purge", slog.Int64("removed", n), slog.Int("retention_days", qoeDays))
 		}
 	}
 }
@@ -155,7 +155,7 @@ func (s *CommandService) runRetention(ctx context.Context, auditDays, metricsDay
 // It runs one pass at startup, then every 24h, and exits when ctx is done.
 func (s *CommandService) StartRetentionPurge(ctx context.Context, retention func() (auditDays, metricsDays, qoeDays int)) {
 	if retention == nil {
-		slog.Info("retention purge disabled: no retention getter wired")
+		slog.InfoContext(ctx, "retention purge disabled: no retention getter wired")
 		return
 	}
 	go func() {

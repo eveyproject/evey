@@ -123,11 +123,11 @@ func (s *CommandService) Setup(ctx context.Context, username, password, email st
 	// a phantom UserCreated/ProfileCreated.
 	evtSetupCreated := user.UserCreated{UserID: u.ID, Username: u.Username, IsAdmin: true, OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evtSetupCreated); err != nil {
-		slog.Warn("publish event", slog.String("event", evtSetupCreated.EventName()), slog.Any("err", err))
+		slog.WarnContext(ctx, "publish event", slog.String("event", evtSetupCreated.EventName()), slog.Any("err", err))
 	}
 	evtProfileCreated := user.ProfileCreated{ProfileID: p.ID, UserID: p.UserID, Name: p.Name, OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evtProfileCreated); err != nil {
-		slog.Warn("publish event", slog.String("event", evtProfileCreated.EventName()), slog.Any("err", err))
+		slog.WarnContext(ctx, "publish event", slog.String("event", evtProfileCreated.EventName()), slog.Any("err", err))
 	}
 
 	s.setupDone = true

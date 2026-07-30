@@ -154,7 +154,7 @@ func (pr *PlanResolver) Decide(ctx context.Context, req PlaybackRequest) transco
 		}
 	case "copy":
 		if d.VideoDecision != "copy" {
-			slog.Warn("hls-vod: pinned copy decision no longer serveable, session flips to transcode mid-play (player may need a restart)",
+			slog.WarnContext(ctx, "hls-vod: pinned copy decision no longer serveable, session flips to transcode mid-play (player may need a restart)",
 				slog.String("media_id", req.MediaID),
 				slog.String("reasons", strings.Join(d.TranscodeReasons, ",")))
 		}
@@ -174,7 +174,7 @@ func (pr *PlanResolver) Decide(ctx context.Context, req PlaybackRequest) transco
 		}
 	case "copy":
 		if d.AudioDecision != "copy" {
-			slog.Warn("hls-vod: pinned audio copy decision no longer serveable, session flips to transcoded audio mid-play",
+			slog.WarnContext(ctx, "hls-vod: pinned audio copy decision no longer serveable, session flips to transcoded audio mid-play",
 				slog.String("media_id", req.MediaID),
 				slog.String("reasons", strings.Join(d.TranscodeReasons, ",")))
 		}

@@ -159,7 +159,7 @@ func (s *CommandService) classifyProgress(ctx context.Context, mediaItemID strin
 	}
 	durMs, err := s.durations.GetMediaItemDurationMs(ctx, mediaItemID)
 	if err != nil {
-		slog.Debug("auto-complete: duration lookup failed",
+		slog.DebugContext(ctx, "auto-complete: duration lookup failed",
 			slog.String("mediaItemID", mediaItemID),
 			slog.Any("err", err))
 		return progressDecision{}
@@ -274,7 +274,7 @@ func (s *CommandService) StartStream(ctx context.Context, session *playback.Play
 		OccurredAt:  time.Now(),
 	}
 	if err := s.events.Publish(ctx, evtStarted); err != nil {
-		slog.Warn("publish event", slog.String("event", evtStarted.EventName()), slog.Any("err", err))
+		slog.WarnContext(ctx, "publish event", slog.String("event", evtStarted.EventName()), slog.Any("err", err))
 	}
 	return nil
 }
@@ -301,7 +301,7 @@ func (s *CommandService) StopStream(ctx context.Context, sessionID string) error
 		OccurredAt:  now,
 	}
 	if err := s.events.Publish(ctx, evtStopped); err != nil {
-		slog.Warn("publish event", slog.String("event", evtStopped.EventName()), slog.Any("err", err))
+		slog.WarnContext(ctx, "publish event", slog.String("event", evtStopped.EventName()), slog.Any("err", err))
 	}
 	return nil
 }
@@ -323,7 +323,7 @@ func (s *CommandService) ReportProgressBySession(ctx context.Context, sessionID 
 	pos, dErr := shared.NewDurationMs(positionMs)
 	safePositionMs := positionMs
 	if dErr != nil {
-		slog.Warn("invalid report progress position", slog.String("sessionID", sessionID), slog.Int64("ms", positionMs), slog.Any("err", dErr))
+		slog.WarnContext(ctx, "invalid report progress position", slog.String("sessionID", sessionID), slog.Int64("ms", positionMs), slog.Any("err", dErr))
 		safePositionMs = 0
 	} else {
 		session.Position = &pos
@@ -396,7 +396,7 @@ func (s *CommandService) ReportProgress(ctx context.Context, profileID, mediaIte
 		// Drop a malformed (e.g. negative) position rather than persisting a
 		// zero-valued Duration, which would silently reset the user's resume
 		// point to the start. ReportProgressBySession guards this the same way.
-		slog.Warn("invalid report progress position", slog.String("profileID", profileID), slog.Int64("ms", positionMs), slog.Any("err", dErr))
+		slog.WarnContext(ctx, "invalid report progress position", slog.String("profileID", profileID), slog.Int64("ms", positionMs), slog.Any("err", dErr))
 		return nil
 	}
 	// Caller-supplied completed is taken as-is when true (explicit
@@ -454,7 +454,7 @@ func (s *CommandService) MarkAsWatched(ctx context.Context, profileID, mediaItem
 		OccurredAt:  time.Now(),
 	}
 	if err := s.events.Publish(ctx, evtWatched); err != nil {
-		slog.Warn("publish event", slog.String("event", evtWatched.EventName()), slog.Any("err", err))
+		slog.WarnContext(ctx, "publish event", slog.String("event", evtWatched.EventName()), slog.Any("err", err))
 	}
 	return nil
 }
@@ -654,9 +654,9 @@ func (s *CommandService) StartCleanupWithInterval(ctx context.Context, interval,
 
 func (s *CommandService) runCleanup(ctx context.Context, maxAge time.Duration) {
 	if n, err := s.sessions.CloseStale(ctx, maxAge); err != nil {
-		slog.Warn("stale session cleanup", slog.Any("err", err))
+		slog.WarnContext(ctx, "stale session cleanup", slog.Any("err", err))
 	} else if n > 0 {
-		slog.Info("cleaned stale sessions", slog.Int("count", n))
+		slog.InfoContext(ctx, "cleaned stale sessions", slog.Int("count", n))
 	}
 
 	// Retention purge of finished sessions, gated to ~once/day (the stale sweep
@@ -671,9 +671,9 @@ func (s *CommandService) runCleanup(ctx context.Context, maxAge time.Duration) {
 		s.lastSessionPurge = time.Now()
 		cutoff := time.Now().AddDate(0, 0, -retentionDays)
 		if n, err := s.sessions.PurgeEndedBefore(ctx, cutoff); err != nil {
-			slog.Warn("play_session retention purge", slog.Any("err", err))
+			slog.WarnContext(ctx, "play_session retention purge", slog.Any("err", err))
 		} else if n > 0 {
-			slog.Info("purged old play sessions", slog.Int("count", n), slog.Int("retention_days", retentionDays))
+			slog.InfoContext(ctx, "purged old play sessions", slog.Int("count", n), slog.Int("retention_days", retentionDays))
 		}
 	}
 }

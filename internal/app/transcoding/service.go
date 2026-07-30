@@ -164,12 +164,12 @@ func (s *Service) StartTranscode(ctx context.Context, job *transcoding.Transcode
 		job.Status = transcoding.Failed
 		job.ErrorMessage = err.Error()
 		if updateErr := s.jobs.Update(ctx, job); updateErr != nil {
-			slog.Warn("update transcode job failed", slog.String("jobID", job.ID), slog.Any("err", updateErr))
+			slog.WarnContext(ctx, "update transcode job failed", slog.String("jobID", job.ID), slog.Any("err", updateErr))
 		}
 		metrics.TranscodeDuration.WithLabelValues("failed").Observe(time.Since(job.StartedAt).Seconds())
 		evtFailed := transcoding.TranscodeFailed{JobID: job.ID, MediaItemID: job.MediaItemID, ErrorMessage: err.Error(), OccurredAt: time.Now()}
 		if pubErr := s.events.Publish(ctx, evtFailed); pubErr != nil {
-			slog.Warn("publish event", slog.String("event", evtFailed.EventName()), slog.Any("err", pubErr))
+			slog.WarnContext(ctx, "publish event", slog.String("event", evtFailed.EventName()), slog.Any("err", pubErr))
 		}
 		s.refreshActiveGauge(ctx)
 		span.RecordError(err)
@@ -179,7 +179,7 @@ func (s *Service) StartTranscode(ctx context.Context, job *transcoding.Transcode
 
 	evtStarted := transcoding.TranscodeStarted{JobID: job.ID, MediaItemID: job.MediaItemID, OutputCodec: job.OutputCodec, OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evtStarted); err != nil {
-		slog.Warn("publish event", slog.String("event", evtStarted.EventName()), slog.Any("err", err))
+		slog.WarnContext(ctx, "publish event", slog.String("event", evtStarted.EventName()), slog.Any("err", err))
 	}
 	s.refreshActiveGauge(ctx)
 	return nil
@@ -232,14 +232,14 @@ func (s *Service) StopTranscode(ctx context.Context, jobID string) error {
 	now := time.Now()
 	job.EndedAt = &now
 	if err := s.jobs.Update(ctx, job); err != nil {
-		slog.Warn("update transcode job failed", slog.String("jobID", jobID), slog.Any("err", err))
+		slog.WarnContext(ctx, "update transcode job failed", slog.String("jobID", jobID), slog.Any("err", err))
 	}
 	if !job.StartedAt.IsZero() {
 		metrics.TranscodeDuration.WithLabelValues("cancelled").Observe(now.Sub(job.StartedAt).Seconds())
 	}
 	evtCancelled := transcoding.TranscodeCancelled{JobID: jobID, MediaItemID: job.MediaItemID, OccurredAt: now}
 	if err := s.events.Publish(ctx, evtCancelled); err != nil {
-		slog.Warn("publish event", slog.String("event", evtCancelled.EventName()), slog.Any("err", err))
+		slog.WarnContext(ctx, "publish event", slog.String("event", evtCancelled.EventName()), slog.Any("err", err))
 	}
 	s.refreshActiveGauge(ctx)
 	return nil
@@ -404,11 +404,11 @@ func (s *Service) pauseRunning(ctx context.Context) {
 			continue
 		}
 		if err := s.transcoder.Pause(ctx, j.ID); err != nil {
-			slog.Warn("bg-preempt: pause failed", slog.String("jobID", j.ID), slog.Any("err", err))
+			slog.WarnContext(ctx, "bg-preempt: pause failed", slog.String("jobID", j.ID), slog.Any("err", err))
 			continue
 		}
 		s.pausedJobs[j.ID] = true
-		slog.Info("bg-preempt: paused background transcode for live playback", slog.String("jobID", j.ID))
+		slog.InfoContext(ctx, "bg-preempt: paused background transcode for live playback", slog.String("jobID", j.ID))
 	}
 }
 
@@ -419,9 +419,9 @@ func (s *Service) resumePaused(ctx context.Context) {
 	defer s.pauseMu.Unlock()
 	for id := range s.pausedJobs {
 		if err := s.transcoder.Resume(ctx, id); err != nil {
-			slog.Warn("bg-preempt: resume failed (job gone?)", slog.String("jobID", id), slog.Any("err", err))
+			slog.WarnContext(ctx, "bg-preempt: resume failed (job gone?)", slog.String("jobID", id), slog.Any("err", err))
 		} else {
-			slog.Info("bg-preempt: resumed background transcode", slog.String("jobID", id))
+			slog.InfoContext(ctx, "bg-preempt: resumed background transcode", slog.String("jobID", id))
 		}
 		delete(s.pausedJobs, id)
 	}

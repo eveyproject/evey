@@ -174,7 +174,7 @@ func (s *AccessService) RegisterWithInvite(ctx context.Context, token, username,
 			if s.uow == nil {
 				// No tx: best-effort decrement so the slot doesn't leak.
 				if decErr := s.invites.DecrementUsedCount(ctx, invite.ID); decErr != nil {
-					slog.Warn("invite: decrement after user.Create failed", slog.String("inviteID", invite.ID), slog.Any("err", decErr))
+					slog.WarnContext(ctx, "invite: decrement after user.Create failed", slog.String("inviteID", invite.ID), slog.Any("err", decErr))
 				}
 			}
 			return fmt.Errorf("create user: %w", err)
@@ -210,12 +210,12 @@ func (s *AccessService) RegisterWithInvite(ctx context.Context, token, username,
 	// phantom UserCreated/ProfileCreated.
 	evtUserCreated := user.UserCreated{UserID: u.ID, Username: u.Username, OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evtUserCreated); err != nil {
-		slog.Warn("publish event", slog.String("event", evtUserCreated.EventName()), slog.Any("err", err))
+		slog.WarnContext(ctx, "publish event", slog.String("event", evtUserCreated.EventName()), slog.Any("err", err))
 	}
 	if p != nil {
 		evtProfile := user.ProfileCreated{ProfileID: p.ID, UserID: p.UserID, Name: p.Name, OccurredAt: time.Now()}
 		if err := s.events.Publish(ctx, evtProfile); err != nil {
-			slog.Warn("publish event", slog.String("event", evtProfile.EventName()), slog.Any("err", err))
+			slog.WarnContext(ctx, "publish event", slog.String("event", evtProfile.EventName()), slog.Any("err", err))
 		}
 	}
 	return u, nil
@@ -269,7 +269,7 @@ func (s *AccessService) CreateAPIKey(ctx context.Context, key *user.APIKeyModel)
 	}
 	evt := user.APIKeyCreated{KeyID: key.ID, UserID: key.UserID, Name: key.Name, OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evt); err != nil {
-		slog.Warn("publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
+		slog.WarnContext(ctx, "publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
 	}
 	return nil
 }
@@ -282,7 +282,7 @@ func (s *AccessService) RevokeAPIKey(ctx context.Context, keyID string) error {
 	}
 	evt := user.APIKeyRevoked{KeyID: keyID, OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evt); err != nil {
-		slog.Warn("publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
+		slog.WarnContext(ctx, "publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
 	}
 	return nil
 }

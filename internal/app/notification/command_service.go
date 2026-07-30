@@ -193,7 +193,7 @@ func (s *CommandService) StartCleanup(ctx context.Context, initDone ...chan<- st
 			}
 		}()
 		if err := s.repo.CleanupExpired(ctx); err != nil {
-			slog.Warn("notification cleanup", slog.Any("err", err))
+			slog.WarnContext(ctx, "notification cleanup", slog.Any("err", err))
 		}
 		for _, ch := range initDone {
 			if ch != nil {
@@ -208,7 +208,7 @@ func (s *CommandService) StartCleanup(ctx context.Context, initDone ...chan<- st
 				return
 			case <-ticker.C:
 				if err := s.repo.CleanupExpired(ctx); err != nil {
-					slog.Warn("notification cleanup", slog.Any("err", err))
+					slog.WarnContext(ctx, "notification cleanup", slog.Any("err", err))
 				}
 			}
 		}

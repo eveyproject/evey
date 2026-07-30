@@ -54,7 +54,7 @@ func (s *CommandService) RequestPasswordReset(ctx context.Context, email string)
 	}
 
 	if err := s.resetTokens.DeleteByUserID(ctx, u.ID); err != nil {
-		slog.Warn("cleanup old reset tokens", slog.String("userID", string(u.ID)), slog.Any("err", err))
+		slog.WarnContext(ctx, "cleanup old reset tokens", slog.String("userID", string(u.ID)), slog.Any("err", err))
 	}
 
 	rawToken := make([]byte, resetTokenBytes)
@@ -83,7 +83,7 @@ func (s *CommandService) RequestPasswordReset(ctx context.Context, email string)
 		OccurredAt: time.Now(),
 	}
 	if err := s.events.Publish(ctx, evt); err != nil {
-		slog.Warn("publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
+		slog.WarnContext(ctx, "publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
 	}
 	return nil
 }
@@ -151,13 +151,13 @@ func (s *CommandService) ResetPassword(ctx context.Context, rawToken, newPasswor
 	}
 	if s.tokenRevoker != nil {
 		if err := s.tokenRevoker.Revoke(ctx, string(u.ID)); err != nil {
-			slog.Warn("revoke access tokens after password reset", slog.Any("err", err))
+			slog.WarnContext(ctx, "revoke access tokens after password reset", slog.Any("err", err))
 		}
 	}
 
 	evt := user.PasswordChanged{UserID: u.ID, OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evt); err != nil {
-		slog.Warn("publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
+		slog.WarnContext(ctx, "publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
 	}
 	return nil
 }

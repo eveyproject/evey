@@ -23,7 +23,7 @@ func CommandWithEventBus(bus shared.EventBus) CommandServiceOption {
 				return
 			}
 			if err := s.EnsureLibraryFeedConfig(ctx, e.LibraryID, e.Name); err != nil {
-				slog.Warn("auto-create library feed config", slog.String("library", string(e.LibraryID)), slog.Any("err", err))
+				slog.WarnContext(ctx, "auto-create library feed config", slog.String("library", string(e.LibraryID)), slog.Any("err", err))
 			}
 		})
 		bus.Subscribe("library.deleted", func(ctx context.Context, ev shared.Event) {
@@ -32,7 +32,7 @@ func CommandWithEventBus(bus shared.EventBus) CommandServiceOption {
 				return
 			}
 			if err := s.DeleteLibraryFeedConfig(ctx, e.LibraryID); err != nil {
-				slog.Warn("auto-delete library feed config", slog.String("library", string(e.LibraryID)), slog.Any("err", err))
+				slog.WarnContext(ctx, "auto-delete library feed config", slog.String("library", string(e.LibraryID)), slog.Any("err", err))
 			}
 		})
 	}
@@ -57,7 +57,7 @@ func (s *CommandService) publish(ctx context.Context, ev shared.Event) {
 		return
 	}
 	if err := s.bus.Publish(ctx, ev); err != nil {
-		slog.Warn("publish feed event", slog.String("event", ev.EventName()), slog.Any("err", err))
+		slog.WarnContext(ctx, "publish feed event", slog.String("event", ev.EventName()), slog.Any("err", err))
 	}
 }
 

@@ -76,6 +76,6 @@ func (s *Service) publishChange(ctx context.Context, key, value string, deleted 
 		OccurredAt: time.Now(),
 	}
 	if err := s.events.Publish(ctx, evt); err != nil {
-		slog.Warn("publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
+		slog.WarnContext(ctx, "publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
 	}
 }
