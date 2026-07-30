@@ -294,12 +294,12 @@ func TestWatchHistoryAnalyzer_GetFavoriteGenresBatch_MatchesSingleProfile(t *tes
 	base := time.Now().UTC().Truncate(time.Millisecond)
 	// Profile A: 3 Action. Profile B: 2 Drame. Together they exceed no window,
 	// but a GLOBAL window instead of a per-profile one would mix them up.
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		s := newTestPlaySession(fmt.Sprintf("whabsa%d", i), string(pa.ID), string(action.ID))
 		s.StartedAt = base.Add(time.Duration(i) * time.Minute)
 		require.NoError(t, sessionRepo.Create(ctx, s))
 	}
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		s := newTestPlaySession(fmt.Sprintf("whabsb%d", i), string(pb.ID), string(drama.ID))
 		s.StartedAt = base.Add(time.Duration(i) * time.Minute)
 		require.NoError(t, sessionRepo.Create(ctx, s))
