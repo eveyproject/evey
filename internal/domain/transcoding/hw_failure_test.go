@@ -207,3 +207,37 @@ func TestPlanDemotion_UnsupportedOption_NoTuning_NoChange(t *testing.T) {
 		t.Errorf("tier = %q, want hw_minimal", d.RetryTier)
 	}
 }
+
+// `Changed` on an HW-init failure is an OR over five capability fields, and
+// every one of those terms survived mutation testing: the existing tests only
+// ever pass a FULLY populated capability, so any single term could be dropped or
+// negated and the OR still came out true.
+//
+// Changed drives whether the demotion is persisted as a capability change, so a
+// dropped term means "we disabled hardware but recorded nothing" for a host
+// whose only hardware signal was the field that got dropped.
+func TestPlanDemotion_HWInitChangedPerField(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		cap  EncodeCapability
+		want bool
+	}{
+		{"nothing hardware-ish to clear", EncodeCapability{}, false},
+		{"backend alone", EncodeCapability{HWBackend: "vaapi"}, true},
+		{"max height alone", EncodeCapability{HWMaxHeight: 1080}, true},
+		{"codecs alone", EncodeCapability{HWCodecs: []string{"h264"}}, true},
+		{"features alone", EncodeCapability{HWFeatures: []string{"tonemap"}}, true},
+		{"device alone", EncodeCapability{HWDevice: "/dev/dri/renderD128"}, true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			got := PlanDemotion(tt.cap, FailureHWInit, "h264")
+			if got.Changed != tt.want {
+				t.Errorf("Changed = %v, want %v (capability %+v)", got.Changed, tt.want, tt.cap)
+			}
+			// Whatever the answer, an init failure always falls back to software.
+			if got.RetryTier != TierSoftware {
+				t.Errorf("RetryTier = %v, want software", got.RetryTier)
+			}
+		})
+	}
+}

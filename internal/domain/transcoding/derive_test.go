@@ -206,3 +206,59 @@ func TestEncodeCapability_Report_Roundtrip(t *testing.T) {
 	assert.Equal(t, cap.HWMaxHeight, got.HWMaxHeight)
 	require.Equal(t, cap.HWBackend, got.HWBackend)
 }
+
+// withDefaults fills any zero-or-negative field from the default policy. Every
+// one of those guards survived mutation testing, because the tests only ever
+// passed a fully-populated policy or an entirely empty one - never a policy with
+// ONE field set, which is the case the function exists for.
+func TestDerivePolicyWithDefaults_FillsEachFieldIndependently(t *testing.T) {
+	d := DefaultDerivePolicy()
+
+	t.Run("a zero field takes the default", func(t *testing.T) {
+		got := DerivePolicy{}.withDefaults()
+		if got.Margin != d.Margin || got.AV1MarginMultiplier != d.AV1MarginMultiplier ||
+			got.SoftwareFloor != d.SoftwareFloor || got.SoftwareHDRFloor != d.SoftwareHDRFloor {
+			t.Fatalf("empty policy did not take the defaults: %+v", got)
+		}
+	})
+
+	t.Run("a negative field is treated as unset", func(t *testing.T) {
+		// The guard is `<= 0`, not `== 0`: a negative margin is nonsense and
+		// must fall back rather than be honoured.
+		got := DerivePolicy{Margin: -1, AV1MarginMultiplier: -1, SoftwareFloor: -1, SoftwareHDRFloor: -1}.withDefaults()
+		if got.Margin != d.Margin || got.AV1MarginMultiplier != d.AV1MarginMultiplier ||
+			got.SoftwareFloor != d.SoftwareFloor || got.SoftwareHDRFloor != d.SoftwareHDRFloor {
+			t.Fatalf("negative fields were not replaced: %+v", got)
+		}
+	})
+
+	// One field set at a time: proves each guard is independent, i.e. that
+	// setting Margin does not accidentally also keep a zero SoftwareFloor.
+	t.Run("a set field is preserved while the others default", func(t *testing.T) {
+		got := DerivePolicy{Margin: d.Margin + 0.5}.withDefaults()
+		if got.Margin != d.Margin+0.5 {
+			t.Errorf("Margin = %v, want the caller's value", got.Margin)
+		}
+		if got.SoftwareFloor != d.SoftwareFloor {
+			t.Errorf("SoftwareFloor = %v, want the default", got.SoftwareFloor)
+		}
+
+		got = DerivePolicy{SoftwareFloor: 999}.withDefaults()
+		if got.SoftwareFloor != 999 {
+			t.Errorf("SoftwareFloor = %v, want the caller's value", got.SoftwareFloor)
+		}
+		if got.Margin != d.Margin {
+			t.Errorf("Margin = %v, want the default", got.Margin)
+		}
+
+		got = DerivePolicy{AV1MarginMultiplier: 3}.withDefaults()
+		if got.AV1MarginMultiplier != 3 || got.Margin != d.Margin {
+			t.Errorf("AV1MarginMultiplier guard is not independent: %+v", got)
+		}
+
+		got = DerivePolicy{SoftwareHDRFloor: 42}.withDefaults()
+		if got.SoftwareHDRFloor != 42 || got.SoftwareFloor != d.SoftwareFloor {
+			t.Errorf("SoftwareHDRFloor guard is not independent: %+v", got)
+		}
+	})
+}
