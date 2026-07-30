@@ -140,19 +140,19 @@ func (s *CommandService) Stop() {
 	s.mu.Unlock()
 }
 
-func (s *CommandService) MarkRead(ctx context.Context, id, profileID string) error {
+func (s *CommandService) MarkRead(ctx context.Context, id string, profileID shared.ProfileID) error {
 	ctx, span := tracing.StartSpan(ctx, "app.notification.MarkRead")
 	defer span.End()
 	return s.repo.MarkRead(ctx, id, profileID)
 }
 
-func (s *CommandService) MarkAllRead(ctx context.Context, profileID string) error {
+func (s *CommandService) MarkAllRead(ctx context.Context, profileID shared.ProfileID) error {
 	ctx, span := tracing.StartSpan(ctx, "app.notification.MarkAllRead")
 	defer span.End()
 	return s.repo.MarkAllRead(ctx, profileID)
 }
 
-func (s *CommandService) DeleteAll(ctx context.Context, profileID string) error {
+func (s *CommandService) DeleteAll(ctx context.Context, profileID shared.ProfileID) error {
 	ctx, span := tracing.StartSpan(ctx, "app.notification.DeleteAll")
 	defer span.End()
 	return s.repo.DeleteAll(ctx, profileID)

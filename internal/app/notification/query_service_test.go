@@ -20,7 +20,7 @@ func mustCreate(t *testing.T, repo notification.Repository, profileID, id string
 	require.NoError(t, err)
 	require.NoError(t, repo.Create(context.Background(), n))
 	if read {
-		require.NoError(t, repo.MarkRead(context.Background(), id, profileID))
+		require.NoError(t, repo.MarkRead(context.Background(), id, shared.ProfileID(profileID)))
 	}
 }
 

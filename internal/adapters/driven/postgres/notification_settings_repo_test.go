@@ -36,7 +36,7 @@ func TestNotificationSettingsRepo_Upsert_GetByProfile(t *testing.T) {
 	}
 	require.NoError(t, repo.Upsert(ctx, s))
 
-	got, err := repo.GetByProfile(ctx, string(p.ID))
+	got, err := repo.GetByProfile(ctx, p.ID)
 	require.NoError(t, err)
 	assert.Equal(t, notification.LevelAll, got.MovieLevel)
 	assert.Equal(t, notification.LevelRelevant, got.SeriesLevel)
@@ -78,11 +78,11 @@ func TestNotificationSettingsRepo_GetByProfiles(t *testing.T) {
 		MusicLevel:  notification.LevelAll,
 	}))
 
-	result, err := repo.GetByProfiles(ctx, []string{string(p1.ID), string(p2.ID)})
+	result, err := repo.GetByProfiles(ctx, []shared.ProfileID{p1.ID, p2.ID})
 	require.NoError(t, err)
 	assert.Len(t, result, 2)
-	assert.NotNil(t, result[string(p1.ID)])
-	assert.NotNil(t, result[string(p2.ID)])
+	assert.NotNil(t, result[p1.ID])
+	assert.NotNil(t, result[p2.ID])
 }
 
 func TestNotificationSettingsRepo_UpsertGlobalDefaults(t *testing.T) {

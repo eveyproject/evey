@@ -9,6 +9,7 @@ import (
 	"github.com/evey-project/evey/internal/adapters/driven/postgres"
 	"github.com/evey-project/evey/internal/adapters/driven/postgres/testhelpers"
 	"github.com/evey-project/evey/internal/domain/playback"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -53,12 +54,12 @@ func TestWatchHistoryAnalyzer_GetFavoriteGenres(t *testing.T) {
 	require.NoError(t, sessionRepo.Create(ctx, s))
 
 	// minCount=3: only "Action" qualifies
-	genres, err := analyzer.GetFavoriteGenres(ctx, string(p.ID), 3)
+	genres, err := analyzer.GetFavoriteGenres(ctx, p.ID, 3)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"Action"}, genres)
 
 	// minCount=1: both qualify, Action first (higher count)
-	genres2, err := analyzer.GetFavoriteGenres(ctx, string(p.ID), 1)
+	genres2, err := analyzer.GetFavoriteGenres(ctx, p.ID, 1)
 	require.NoError(t, err)
 	assert.Contains(t, genres2, "Action")
 	assert.Contains(t, genres2, "Drama")
@@ -78,7 +79,7 @@ func TestWatchHistoryAnalyzer_GetFavoriteGenres_Empty(t *testing.T) {
 	p := newTestProfile("whap2", u.ID)
 	require.NoError(t, profileRepo.Create(ctx, p))
 
-	genres, err := analyzer.GetFavoriteGenres(ctx, string(p.ID), 1)
+	genres, err := analyzer.GetFavoriteGenres(ctx, p.ID, 1)
 	require.NoError(t, err)
 	assert.Empty(t, genres)
 }
@@ -120,7 +121,7 @@ func TestWatchHistoryAnalyzer_HasWatchedSeries(t *testing.T) {
 	require.NoError(t, itemRepo.Create(ctx, episode))
 
 	// no watch progress yet
-	watched, err := analyzer.HasWatchedSeries(ctx, string(p.ID), string(series.ID))
+	watched, err := analyzer.HasWatchedSeries(ctx, p.ID, string(series.ID))
 	require.NoError(t, err)
 	assert.False(t, watched)
 
@@ -135,7 +136,7 @@ func TestWatchHistoryAnalyzer_HasWatchedSeries(t *testing.T) {
 		LastPlayedAt: time.Now().UTC(),
 	}))
 
-	watched, err = analyzer.HasWatchedSeries(ctx, string(p.ID), string(series.ID))
+	watched, err = analyzer.HasWatchedSeries(ctx, p.ID, string(series.ID))
 	require.NoError(t, err)
 	assert.True(t, watched)
 }
@@ -174,7 +175,7 @@ func TestWatchHistoryAnalyzer_IsCurrentlyWatchingSeries(t *testing.T) {
 	require.NoError(t, itemRepo.Create(ctx, episode))
 
 	// no progress yet
-	inProgress, err := analyzer.IsCurrentlyWatchingSeries(ctx, string(p.ID), string(series.ID))
+	inProgress, err := analyzer.IsCurrentlyWatchingSeries(ctx, p.ID, string(series.ID))
 	require.NoError(t, err)
 	assert.False(t, inProgress)
 
@@ -189,7 +190,7 @@ func TestWatchHistoryAnalyzer_IsCurrentlyWatchingSeries(t *testing.T) {
 		LastPlayedAt: time.Now().UTC(),
 	}))
 
-	inProgress, err = analyzer.IsCurrentlyWatchingSeries(ctx, string(p.ID), string(series.ID))
+	inProgress, err = analyzer.IsCurrentlyWatchingSeries(ctx, p.ID, string(series.ID))
 	require.NoError(t, err)
 	assert.True(t, inProgress)
 
@@ -204,7 +205,7 @@ func TestWatchHistoryAnalyzer_IsCurrentlyWatchingSeries(t *testing.T) {
 		LastPlayedAt: time.Now().UTC(),
 	}))
 
-	inProgress, err = analyzer.IsCurrentlyWatchingSeries(ctx, string(p.ID), string(series.ID))
+	inProgress, err = analyzer.IsCurrentlyWatchingSeries(ctx, p.ID, string(series.ID))
 	require.NoError(t, err)
 	assert.False(t, inProgress)
 }
@@ -241,17 +242,17 @@ func TestWatchHistoryAnalyzer_CalculateRelevanceScore(t *testing.T) {
 	}
 
 	// 2 overlapping genres → score 2
-	score, err := analyzer.CalculateRelevanceScore(ctx, string(p.ID), []string{"Action", "Sci-Fi", "Drama"})
+	score, err := analyzer.CalculateRelevanceScore(ctx, p.ID, []string{"Action", "Sci-Fi", "Drama"})
 	require.NoError(t, err)
 	assert.Equal(t, 2, score)
 
 	// no overlap
-	score, err = analyzer.CalculateRelevanceScore(ctx, string(p.ID), []string{"Romance", "Horror"})
+	score, err = analyzer.CalculateRelevanceScore(ctx, p.ID, []string{"Romance", "Horror"})
 	require.NoError(t, err)
 	assert.Equal(t, 0, score)
 
 	// empty genres slice → always 0
-	score, err = analyzer.CalculateRelevanceScore(ctx, string(p.ID), []string{})
+	score, err = analyzer.CalculateRelevanceScore(ctx, p.ID, []string{})
 	require.NoError(t, err)
 	assert.Equal(t, 0, score)
 }
@@ -304,13 +305,13 @@ func TestWatchHistoryAnalyzer_GetFavoriteGenresBatch_MatchesSingleProfile(t *tes
 		require.NoError(t, sessionRepo.Create(ctx, s))
 	}
 
-	batch, err := analyzer.GetFavoriteGenresBatch(ctx, []string{string(pa.ID), string(pb.ID)}, 2)
+	batch, err := analyzer.GetFavoriteGenresBatch(ctx, []shared.ProfileID{pa.ID, pb.ID}, 2)
 	require.NoError(t, err)
-	assert.Equal(t, []string{"Action"}, batch[string(pa.ID)])
-	assert.Equal(t, []string{"Drame"}, batch[string(pb.ID)], "each profile keeps its own window")
+	assert.Equal(t, []string{"Action"}, batch[pa.ID])
+	assert.Equal(t, []string{"Drame"}, batch[pb.ID], "each profile keeps its own window")
 
 	// Same answer as the single-profile query, which is the whole point.
-	single, err := analyzer.GetFavoriteGenres(ctx, string(pa.ID), 2)
+	single, err := analyzer.GetFavoriteGenres(ctx, pa.ID, 2)
 	require.NoError(t, err)
-	assert.Equal(t, single, batch[string(pa.ID)])
+	assert.Equal(t, single, batch[pa.ID])
 }

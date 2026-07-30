@@ -247,9 +247,9 @@ func (s *CommandService) emitNotifications(mediaType, title, seriesTitle, mediaI
 		return
 	}
 
-	profileIDs := make([]string, len(profiles))
+	profileIDs := make([]shared.ProfileID, len(profiles))
 	for i, p := range profiles {
-		profileIDs[i] = string(p.ID)
+		profileIDs[i] = p.ID
 	}
 	allSettings, err := s.settings.GetByProfiles(ctx, profileIDs)
 	if err != nil {
@@ -280,7 +280,7 @@ func (s *CommandService) emitNotifications(mediaType, title, seriesTitle, mediaI
 	// on a library scan). A preload failure fails open: recentByProfile stays
 	// empty and preloadFailed makes shouldSkipEpisodeNotif never skip, so this
 	// batch behaves exactly like the per-profile query erroring used to.
-	var recentByProfile map[string][]*notification.Notification
+	var recentByProfile map[shared.ProfileID][]*notification.Notification
 	preloadFailed := false
 	if notifType == notification.TypeNewEpisode && seriesKey != "" {
 		dedupTypes := []notification.Type{notification.TypeNewSeries, notification.TypeNewSeason, notification.TypeNewEpisode}
@@ -293,19 +293,19 @@ func (s *CommandService) emitNotifications(mediaType, title, seriesTitle, mediaI
 	}
 
 	for _, p := range profiles {
-		cfg := allSettings[string(p.ID)]
+		cfg := allSettings[p.ID]
 		if cfg == nil {
 			continue
 		}
 		lvl := levelForType(cfg, notifType)
-		if !shouldNotify(lvl, genres, favoritesByProfile[string(p.ID)]) {
+		if !shouldNotify(lvl, genres, favoritesByProfile[p.ID]) {
 			continue
 		}
 
 		// For episode notifications with a series key, check for recent series/season
 		// notifications (skip) or recent episode notification (group/update).
 		if notifType == notification.TypeNewEpisode && seriesKey != "" {
-			if s.shouldSkipEpisodeNotif(ctx, string(p.ID), recentByProfile[string(p.ID)], preloadFailed, p.Locale, initialEpCount) {
+			if s.shouldSkipEpisodeNotif(ctx, p.ID, recentByProfile[p.ID], preloadFailed, p.Locale, initialEpCount) {
 				continue
 			}
 		}
@@ -342,7 +342,7 @@ func (s *CommandService) emitNotifications(mediaType, title, seriesTitle, mediaI
 // initialCount is the number of episodes this batch represents (1 for a single
 // episode, N for a pre-batched group). It is used to correctly compute the
 // accumulated count when merging into an existing notification.
-func (s *CommandService) shouldSkipEpisodeNotif(ctx context.Context, profileID string, recentNotifs []*notification.Notification, preloadFailed bool, locale string, initialCount int) bool {
+func (s *CommandService) shouldSkipEpisodeNotif(ctx context.Context, profileID shared.ProfileID, recentNotifs []*notification.Notification, preloadFailed bool, locale string, initialCount int) bool {
 	if preloadFailed {
 		return false // fail open: create the notification
 	}
@@ -389,19 +389,19 @@ func (s *CommandService) shouldSkipEpisodeNotif(ctx context.Context, profileID s
 func (s *CommandService) fetchFavoriteGenres(
 	ctx context.Context,
 	profiles []*user.Profile,
-	allSettings map[string]*notification.Settings,
+	allSettings map[shared.ProfileID]*notification.Settings,
 	notifType notification.Type,
 	genres []string,
-) (map[string][]string, error) {
-	var relevanceIDs []string
+) (map[shared.ProfileID][]string, error) {
+	var relevanceIDs []shared.ProfileID
 	for _, p := range profiles {
-		cfg := allSettings[string(p.ID)]
+		cfg := allSettings[p.ID]
 		if cfg == nil {
 			continue
 		}
 		lvl := levelForType(cfg, notifType)
 		if (lvl == notification.LevelRelevant || lvl == notification.LevelHighlyRelevant) && len(genres) > 0 {
-			relevanceIDs = append(relevanceIDs, string(p.ID))
+			relevanceIDs = append(relevanceIDs, p.ID)
 		}
 	}
 	if len(relevanceIDs) == 0 {

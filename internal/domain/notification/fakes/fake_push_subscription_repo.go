@@ -10,8 +10,8 @@ import (
 )
 
 type subEntry struct {
-	userID    string
-	profileID string
+	userID    shared.UserID
+	profileID shared.ProfileID
 	endpoint  string
 	p256dh    string
 	auth      string
@@ -27,7 +27,7 @@ func NewFakePushSubscriptionRepository() *FakePushSubscriptionRepository {
 	return &FakePushSubscriptionRepository{}
 }
 
-func (r *FakePushSubscriptionRepository) Upsert(_ context.Context, userID, profileID, endpoint, p256dh, auth string) error {
+func (r *FakePushSubscriptionRepository) Upsert(_ context.Context, userID shared.UserID, profileID shared.ProfileID, endpoint, p256dh, auth string) error {
 	if r.Err != nil {
 		return r.Err
 	}
@@ -43,7 +43,7 @@ func (r *FakePushSubscriptionRepository) Upsert(_ context.Context, userID, profi
 	return nil
 }
 
-func (r *FakePushSubscriptionRepository) DeleteByEndpoint(_ context.Context, userID, endpoint string) error {
+func (r *FakePushSubscriptionRepository) DeleteByEndpoint(_ context.Context, userID shared.UserID, endpoint string) error {
 	if r.Err != nil {
 		return r.Err
 	}
@@ -59,7 +59,7 @@ func (r *FakePushSubscriptionRepository) DeleteByEndpoint(_ context.Context, use
 	return nil
 }
 
-func (r *FakePushSubscriptionRepository) DeleteByUser(_ context.Context, userID string) error {
+func (r *FakePushSubscriptionRepository) DeleteByUser(_ context.Context, userID shared.UserID) error {
 	if r.Err != nil {
 		return r.Err
 	}
@@ -75,7 +75,7 @@ func (r *FakePushSubscriptionRepository) DeleteByUser(_ context.Context, userID 
 	return nil
 }
 
-func (r *FakePushSubscriptionRepository) GetByProfile(_ context.Context, profileID string) ([]notification.PushSubscription, error) {
+func (r *FakePushSubscriptionRepository) GetByProfile(_ context.Context, profileID shared.ProfileID) ([]notification.PushSubscription, error) {
 	if r.Err != nil {
 		return nil, r.Err
 	}
@@ -85,8 +85,8 @@ func (r *FakePushSubscriptionRepository) GetByProfile(_ context.Context, profile
 	for _, e := range r.entries {
 		if e.profileID == profileID {
 			out = append(out, notification.PushSubscription{
-				UserID:    shared.UserID(e.userID),
-				ProfileID: shared.ProfileID(e.profileID),
+				UserID:    e.userID,
+				ProfileID: e.profileID,
 				Endpoint:  e.endpoint,
 				P256dh:    e.p256dh,
 				Auth:      e.auth,
@@ -98,7 +98,7 @@ func (r *FakePushSubscriptionRepository) GetByProfile(_ context.Context, profile
 	return out, nil
 }
 
-func (r *FakePushSubscriptionRepository) ListByUser(_ context.Context, userID string) ([]notification.PushSubscription, error) {
+func (r *FakePushSubscriptionRepository) ListByUser(_ context.Context, userID shared.UserID) ([]notification.PushSubscription, error) {
 	if r.Err != nil {
 		return nil, r.Err
 	}
@@ -108,8 +108,8 @@ func (r *FakePushSubscriptionRepository) ListByUser(_ context.Context, userID st
 	for _, e := range r.entries {
 		if e.userID == userID {
 			out = append(out, notification.PushSubscription{
-				UserID:    shared.UserID(e.userID),
-				ProfileID: shared.ProfileID(e.profileID),
+				UserID:    e.userID,
+				ProfileID: e.profileID,
 				Endpoint:  e.endpoint,
 				P256dh:    e.p256dh,
 				Auth:      e.auth,

@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/evey-project/evey/internal/domain/notification"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
@@ -19,7 +20,7 @@ func (s *CommandService) persistAndDispatch(ctx context.Context, n *notification
 		slog.WarnContext(ctx, "create notification failed", slog.String("profileID", string(n.ProfileID)), slog.Any("err", createErr))
 		return
 	}
-	s.sendPush(ctx, string(n.ProfileID), pushTitle, n.Message)
+	s.sendPush(ctx, n.ProfileID, pushTitle, n.Message)
 	evt := notification.NotificationCreated{
 		NotificationID: n.ID,
 		ProfileID:      n.ProfileID,
@@ -33,13 +34,13 @@ func (s *CommandService) persistAndDispatch(ctx context.Context, n *notification
 	}
 }
 
-func (s *CommandService) sendPush(ctx context.Context, profileID, title, message string) {
+func (s *CommandService) sendPush(ctx context.Context, profileID shared.ProfileID, title, message string) {
 	if s.push == nil || s.subs == nil {
 		return
 	}
 	subs, err := s.subs.GetByProfile(ctx, profileID)
 	if err != nil {
-		slog.WarnContext(ctx, "webpush: get subscriptions failed", slog.String("profileID", profileID), slog.Any("err", err))
+		slog.WarnContext(ctx, "webpush: get subscriptions failed", slog.String("profileID", string(profileID)), slog.Any("err", err))
 		return
 	}
 	for _, sub := range subs {
@@ -50,16 +51,16 @@ func (s *CommandService) sendPush(ctx context.Context, profileID, title, message
 		if errors.Is(sendErr, notification.ErrSubscriptionGone) {
 			// The endpoint is permanently dead (410); prune it so we stop
 			// retrying it on every future notification.
-			if delErr := s.subs.DeleteByEndpoint(ctx, string(sub.UserID), sub.Endpoint); delErr != nil {
+			if delErr := s.subs.DeleteByEndpoint(ctx, sub.UserID, sub.Endpoint); delErr != nil {
 				slog.WarnContext(ctx, "webpush: delete gone subscription failed", slog.String("endpoint", sub.Endpoint), slog.Any("err", delErr))
 			}
 			continue
 		}
-		slog.WarnContext(ctx, "webpush: send failed", slog.String("profileID", profileID), slog.String("endpoint", sub.Endpoint), slog.Any("err", sendErr))
+		slog.WarnContext(ctx, "webpush: send failed", slog.String("profileID", string(profileID)), slog.String("endpoint", sub.Endpoint), slog.Any("err", sendErr))
 	}
 }
 
-func (s *CommandService) UpsertPushSubscription(ctx context.Context, userID, profileID, endpoint, p256dh, auth string) error {
+func (s *CommandService) UpsertPushSubscription(ctx context.Context, userID shared.UserID, profileID shared.ProfileID, endpoint, p256dh, auth string) error {
 	ctx, span := tracing.StartSpan(ctx, "app.notification.UpsertPushSubscription")
 	defer span.End()
 	if s.subs == nil {
@@ -68,7 +69,7 @@ func (s *CommandService) UpsertPushSubscription(ctx context.Context, userID, pro
 	return s.subs.Upsert(ctx, userID, profileID, endpoint, p256dh, auth)
 }
 
-func (s *CommandService) DeletePushByEndpoint(ctx context.Context, userID, endpoint string) error {
+func (s *CommandService) DeletePushByEndpoint(ctx context.Context, userID shared.UserID, endpoint string) error {
 	ctx, span := tracing.StartSpan(ctx, "app.notification.DeletePushByEndpoint")
 	defer span.End()
 	if s.subs == nil {
@@ -77,7 +78,7 @@ func (s *CommandService) DeletePushByEndpoint(ctx context.Context, userID, endpo
 	return s.subs.DeleteByEndpoint(ctx, userID, endpoint)
 }
 
-func (s *CommandService) DeletePushByUser(ctx context.Context, userID string) error {
+func (s *CommandService) DeletePushByUser(ctx context.Context, userID shared.UserID) error {
 	ctx, span := tracing.StartSpan(ctx, "app.notification.DeletePushByUser")
 	defer span.End()
 	if s.subs == nil {

@@ -37,7 +37,7 @@ func (h *notificationHandler) ListNotifications(ctx context.Context, req *eveyv1
 		return nil, fmt.Errorf("notificationHandler.ListNotifications: %w", err)
 	}
 	limit, offset := clampLimitOffset(req.Limit, req.Offset, 200)
-	items, err := h.query.List(ctx, profileID, req.UnreadOnly, limit, offset)
+	items, err := h.query.List(ctx, shared.ProfileID(profileID), req.UnreadOnly, limit, offset)
 	if err != nil {
 		return nil, internalError(ctx, "list notifications", err)
 	}
@@ -92,7 +92,7 @@ func (h *notificationHandler) MarkRead(ctx context.Context, req *eveyv1.MarkRead
 	if err != nil {
 		return nil, fmt.Errorf("notificationHandler.MarkRead: %w", err)
 	}
-	if err := h.cmd.MarkRead(ctx, req.Id, claims.ProfileID); err != nil {
+	if err := h.cmd.MarkRead(ctx, req.Id, shared.ProfileID(claims.ProfileID)); err != nil {
 		return nil, internalError(ctx, "mark read", err)
 	}
 	return &eveyv1.MarkReadResponse{}, nil
@@ -109,7 +109,7 @@ func (h *notificationHandler) MarkAllRead(ctx context.Context, req *eveyv1.MarkA
 	if err != nil {
 		return nil, fmt.Errorf("notificationHandler.MarkAllRead: %w", err)
 	}
-	if err := h.cmd.MarkAllRead(ctx, profileID); err != nil {
+	if err := h.cmd.MarkAllRead(ctx, shared.ProfileID(profileID)); err != nil {
 		return nil, internalError(ctx, "mark all read", err)
 	}
 	return &eveyv1.MarkAllReadResponse{}, nil
@@ -126,7 +126,7 @@ func (h *notificationHandler) GetUnreadCount(ctx context.Context, req *eveyv1.Ge
 	if err != nil {
 		return nil, fmt.Errorf("notificationHandler.GetUnreadCount: %w", err)
 	}
-	count, err := h.query.UnreadCount(ctx, profileID)
+	count, err := h.query.UnreadCount(ctx, shared.ProfileID(profileID))
 	if err != nil {
 		return nil, internalError(ctx, "unread count", err)
 	}
@@ -144,7 +144,7 @@ func (h *notificationHandler) DeleteAllNotifications(ctx context.Context, req *e
 	if err != nil {
 		return nil, fmt.Errorf("notificationHandler.DeleteAllNotifications: %w", err)
 	}
-	if err := h.cmd.DeleteAll(ctx, profileID); err != nil {
+	if err := h.cmd.DeleteAll(ctx, shared.ProfileID(profileID)); err != nil {
 		return nil, internalError(ctx, "delete all", err)
 	}
 	return &eveyv1.DeleteAllNotificationsResponse{}, nil
@@ -161,7 +161,7 @@ func (h *notificationHandler) GetNotificationSettings(ctx context.Context, req *
 	if err != nil {
 		return nil, fmt.Errorf("notificationHandler.GetNotificationSettings: %w", err)
 	}
-	s, err := h.query.GetSettings(ctx, profileID)
+	s, err := h.query.GetSettings(ctx, shared.ProfileID(profileID))
 	if err != nil {
 		return nil, internalError(ctx, "get settings", err)
 	}
@@ -207,7 +207,7 @@ func (h *notificationHandler) ListAdminNotifications(ctx context.Context, req *e
 		return nil, status.Errorf(codes.PermissionDenied, "admin role required")
 	}
 	adminLimit, adminOffset := clampLimitOffset(req.Limit, req.Offset, 200)
-	items, err := h.query.ListAdminOnly(ctx, claims.ProfileID, req.UnreadOnly, adminLimit, adminOffset)
+	items, err := h.query.ListAdminOnly(ctx, shared.ProfileID(claims.ProfileID), req.UnreadOnly, adminLimit, adminOffset)
 	if err != nil {
 		return nil, internalError(ctx, "list admin notifications", err)
 	}

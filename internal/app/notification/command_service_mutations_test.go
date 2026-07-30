@@ -575,7 +575,7 @@ type countingAnalyzer struct {
 	batchCalls int
 }
 
-func (c *countingAnalyzer) GetFavoriteGenresBatch(ctx context.Context, profileIDs []string, minCount int) (map[string][]string, error) {
+func (c *countingAnalyzer) GetFavoriteGenresBatch(ctx context.Context, profileIDs []shared.ProfileID, minCount int) (map[shared.ProfileID][]string, error) {
 	c.mu.Lock()
 	c.batchCalls++
 	c.mu.Unlock()

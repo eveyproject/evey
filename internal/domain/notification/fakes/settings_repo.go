@@ -10,37 +10,37 @@ import (
 
 type FakeSettingsRepository struct {
 	mu        sync.Mutex
-	byProfile map[string]*notification.Settings
+	byProfile map[shared.ProfileID]*notification.Settings
 	defaults  *notification.Settings
 	Err       error
 }
 
 func NewFakeSettingsRepository() *FakeSettingsRepository {
-	return &FakeSettingsRepository{byProfile: make(map[string]*notification.Settings)}
+	return &FakeSettingsRepository{byProfile: make(map[shared.ProfileID]*notification.Settings)}
 }
 
-func (r *FakeSettingsRepository) GetByProfiles(_ context.Context, profileIDs []string) (map[string]*notification.Settings, error) {
+func (r *FakeSettingsRepository) GetByProfiles(_ context.Context, profileIDs []shared.ProfileID) (map[shared.ProfileID]*notification.Settings, error) {
 	if r.Err != nil {
 		return nil, r.Err
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	result := make(map[string]*notification.Settings, len(profileIDs))
+	result := make(map[shared.ProfileID]*notification.Settings, len(profileIDs))
 	for _, id := range profileIDs {
 		if s, ok := r.byProfile[id]; ok {
 			result[id] = s
 		} else if r.defaults != nil {
 			cp := *r.defaults
-			cp.ProfileID = shared.ProfileID(id)
+			cp.ProfileID = id
 			result[id] = &cp
 		} else {
-			result[id] = &notification.Settings{ProfileID: shared.ProfileID(id), MovieLevel: notification.LevelAll, SeriesLevel: notification.LevelAll, MusicLevel: notification.LevelAll}
+			result[id] = &notification.Settings{ProfileID: id, MovieLevel: notification.LevelAll, SeriesLevel: notification.LevelAll, MusicLevel: notification.LevelAll}
 		}
 	}
 	return result, nil
 }
 
-func (r *FakeSettingsRepository) GetByProfile(_ context.Context, profileID string) (*notification.Settings, error) {
+func (r *FakeSettingsRepository) GetByProfile(_ context.Context, profileID shared.ProfileID) (*notification.Settings, error) {
 	if r.Err != nil {
 		return nil, r.Err
 	}
@@ -54,10 +54,10 @@ func (r *FakeSettingsRepository) GetByProfile(_ context.Context, profileID strin
 	}
 	if r.defaults != nil {
 		cp := *r.defaults
-		cp.ProfileID = shared.ProfileID(profileID)
+		cp.ProfileID = profileID
 		return &cp, nil
 	}
-	return &notification.Settings{ProfileID: shared.ProfileID(profileID), MovieLevel: notification.LevelAll, SeriesLevel: notification.LevelAll, MusicLevel: notification.LevelAll}, nil
+	return &notification.Settings{ProfileID: profileID, MovieLevel: notification.LevelAll, SeriesLevel: notification.LevelAll, MusicLevel: notification.LevelAll}, nil
 }
 
 func (r *FakeSettingsRepository) Upsert(_ context.Context, s *notification.Settings) error {
@@ -69,7 +69,7 @@ func (r *FakeSettingsRepository) Upsert(_ context.Context, s *notification.Setti
 	if r.Err != nil {
 		return r.Err
 	}
-	r.byProfile[string(s.ProfileID)] = s
+	r.byProfile[s.ProfileID] = s
 	return nil
 }
 

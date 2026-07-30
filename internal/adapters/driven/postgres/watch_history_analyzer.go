@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/evey-project/evey/internal/domain/notification"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
@@ -29,7 +30,7 @@ func NewWatchHistoryAnalyzer(db *sql.DB) *WatchHistoryAnalyzer {
 const favoriteGenresSessionWindow = 200
 
 // GetFavoriteGenres returns genres the profile has watched at least minCount times.
-func (a *WatchHistoryAnalyzer) GetFavoriteGenres(ctx context.Context, profileID string, minCount int) ([]string, error) {
+func (a *WatchHistoryAnalyzer) GetFavoriteGenres(ctx context.Context, profileID shared.ProfileID, minCount int) ([]string, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.watchhistory.GetFavoriteGenres")
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
@@ -51,7 +52,7 @@ func (a *WatchHistoryAnalyzer) GetFavoriteGenres(ctx context.Context, profileID 
 		GROUP BY genre
 		HAVING COUNT(*) >= $2
 		ORDER BY cnt DESC
-	`, profileID, minCount, favoriteGenresSessionWindow)
+	`, string(profileID), minCount, favoriteGenresSessionWindow)
 	if err != nil {
 		return nil, err
 	}
@@ -70,20 +71,20 @@ func (a *WatchHistoryAnalyzer) GetFavoriteGenres(ctx context.Context, profileID 
 }
 
 // GetFavoriteGenresBatch returns favorite genres for multiple profiles in a single query.
-func (a *WatchHistoryAnalyzer) GetFavoriteGenresBatch(ctx context.Context, profileIDs []string, minCount int) (map[string][]string, error) {
+func (a *WatchHistoryAnalyzer) GetFavoriteGenresBatch(ctx context.Context, profileIDs []shared.ProfileID, minCount int) (map[shared.ProfileID][]string, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.watchhistory.GetFavoriteGenresBatch")
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	if len(profileIDs) == 0 {
-		return map[string][]string{}, nil
+		return map[shared.ProfileID][]string{}, nil
 	}
 
 	args := make([]any, 0, len(profileIDs)+1)
 	placeholders := make([]string, len(profileIDs))
 	for i, pid := range profileIDs {
 		placeholders[i] = fmt.Sprintf("$%d", i+1)
-		args = append(args, pid)
+		args = append(args, string(pid))
 	}
 	args = append(args, minCount)
 
@@ -115,20 +116,20 @@ func (a *WatchHistoryAnalyzer) GetFavoriteGenresBatch(ctx context.Context, profi
 	}
 	defer rows.Close()
 
-	result := make(map[string][]string, len(profileIDs))
+	result := make(map[shared.ProfileID][]string, len(profileIDs))
 	for rows.Next() {
 		var profileID, genre string
 		var cnt int
 		if err := rows.Scan(&profileID, &genre, &cnt); err != nil {
 			return nil, err
 		}
-		result[profileID] = append(result[profileID], genre)
+		result[shared.ProfileID(profileID)] = append(result[shared.ProfileID(profileID)], genre)
 	}
 	return result, rows.Err()
 }
 
 // HasWatchedSeries returns true if the profile has any completed episodes in the series.
-func (a *WatchHistoryAnalyzer) HasWatchedSeries(ctx context.Context, profileID, mediaItemID string) (bool, error) {
+func (a *WatchHistoryAnalyzer) HasWatchedSeries(ctx context.Context, profileID shared.ProfileID, mediaItemID string) (bool, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.watchhistory.HasWatchedSeries")
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
@@ -143,12 +144,12 @@ func (a *WatchHistoryAnalyzer) HasWatchedSeries(ctx context.Context, profileID, 
 		      SELECT id FROM media_items WHERE parent_id = $2 AND type = 'season'
 		  )
 		  AND wp.completed = TRUE
-	`, profileID, mediaItemID).Scan(&count)
+	`, string(profileID), mediaItemID).Scan(&count)
 	return count > 0, err
 }
 
 // IsCurrentlyWatchingSeries returns true if the profile has an in-progress episode in the series.
-func (a *WatchHistoryAnalyzer) IsCurrentlyWatchingSeries(ctx context.Context, profileID, mediaItemID string) (bool, error) {
+func (a *WatchHistoryAnalyzer) IsCurrentlyWatchingSeries(ctx context.Context, profileID shared.ProfileID, mediaItemID string) (bool, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.watchhistory.IsCurrentlyWatchingSeries")
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
@@ -164,12 +165,12 @@ func (a *WatchHistoryAnalyzer) IsCurrentlyWatchingSeries(ctx context.Context, pr
 		  )
 		  AND wp.position_ms > 0
 		  AND wp.completed = FALSE
-	`, profileID, mediaItemID).Scan(&count)
+	`, string(profileID), mediaItemID).Scan(&count)
 	return count > 0, err
 }
 
 // CalculateRelevanceScore counts how many of the profile's favorite genres match the given genres.
-func (a *WatchHistoryAnalyzer) CalculateRelevanceScore(ctx context.Context, profileID string, genres []string) (int, error) {
+func (a *WatchHistoryAnalyzer) CalculateRelevanceScore(ctx context.Context, profileID shared.ProfileID, genres []string) (int, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.watchhistory.CalculateRelevanceScore")
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)

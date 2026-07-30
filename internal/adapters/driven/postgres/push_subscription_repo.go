@@ -8,6 +8,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 
 	"github.com/evey-project/evey/internal/domain/notification"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
@@ -19,10 +20,10 @@ func NewPushSubscriptionRepository(db *sql.DB) *PushSubscriptionRepository {
 	return &PushSubscriptionRepository{db: db}
 }
 
-func (r *PushSubscriptionRepository) Upsert(ctx context.Context, userID, profileID, endpoint, p256dh, auth string) error {
+func (r *PushSubscriptionRepository) Upsert(ctx context.Context, userID shared.UserID, profileID shared.ProfileID, endpoint, p256dh, auth string) error {
 	ctx, span := tracing.StartSpan(ctx, "postgres.push_subscription.Upsert")
 	defer span.End()
-	span.SetAttributes(attribute.String("user.id", userID), attribute.String("profile.id", profileID))
+	span.SetAttributes(attribute.String("user.id", string(userID)), attribute.String("profile.id", string(profileID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `
@@ -34,7 +35,7 @@ func (r *PushSubscriptionRepository) Upsert(ctx context.Context, userID, profile
 		    p256dh = EXCLUDED.p256dh,
 		    auth = EXCLUDED.auth,
 		    updated_at = NOW()
-	`, userID, profileID, endpoint, p256dh, auth)
+	`, string(userID), string(profileID), endpoint, p256dh, auth)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -43,13 +44,13 @@ func (r *PushSubscriptionRepository) Upsert(ctx context.Context, userID, profile
 	return nil
 }
 
-func (r *PushSubscriptionRepository) DeleteByEndpoint(ctx context.Context, userID, endpoint string) error {
+func (r *PushSubscriptionRepository) DeleteByEndpoint(ctx context.Context, userID shared.UserID, endpoint string) error {
 	ctx, span := tracing.StartSpan(ctx, "postgres.push_subscription.DeleteByEndpoint")
 	defer span.End()
-	span.SetAttributes(attribute.String("user.id", userID))
+	span.SetAttributes(attribute.String("user.id", string(userID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `DELETE FROM push_subscriptions WHERE endpoint = $1 AND user_id = $2`, endpoint, userID)
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `DELETE FROM push_subscriptions WHERE endpoint = $1 AND user_id = $2`, endpoint, string(userID))
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -58,13 +59,13 @@ func (r *PushSubscriptionRepository) DeleteByEndpoint(ctx context.Context, userI
 	return nil
 }
 
-func (r *PushSubscriptionRepository) DeleteByUser(ctx context.Context, userID string) error {
+func (r *PushSubscriptionRepository) DeleteByUser(ctx context.Context, userID shared.UserID) error {
 	ctx, span := tracing.StartSpan(ctx, "postgres.push_subscription.DeleteByUser")
 	defer span.End()
-	span.SetAttributes(attribute.String("user.id", userID))
+	span.SetAttributes(attribute.String("user.id", string(userID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `DELETE FROM push_subscriptions WHERE user_id = $1`, userID)
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `DELETE FROM push_subscriptions WHERE user_id = $1`, string(userID))
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -73,17 +74,17 @@ func (r *PushSubscriptionRepository) DeleteByUser(ctx context.Context, userID st
 	return nil
 }
 
-func (r *PushSubscriptionRepository) GetByProfile(ctx context.Context, profileID string) ([]notification.PushSubscription, error) {
+func (r *PushSubscriptionRepository) GetByProfile(ctx context.Context, profileID shared.ProfileID) ([]notification.PushSubscription, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.push_subscription.GetByProfile")
 	defer span.End()
-	span.SetAttributes(attribute.String("profile.id", profileID))
+	span.SetAttributes(attribute.String("profile.id", string(profileID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, `
 		SELECT id, user_id, profile_id, endpoint, p256dh, auth, created_at, updated_at
 		FROM push_subscriptions WHERE profile_id = $1
 		ORDER BY created_at DESC
-	`, profileID)
+	`, string(profileID))
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -99,17 +100,17 @@ func (r *PushSubscriptionRepository) GetByProfile(ctx context.Context, profileID
 	return result, nil
 }
 
-func (r *PushSubscriptionRepository) ListByUser(ctx context.Context, userID string) ([]notification.PushSubscription, error) {
+func (r *PushSubscriptionRepository) ListByUser(ctx context.Context, userID shared.UserID) ([]notification.PushSubscription, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.push_subscription.ListByUser")
 	defer span.End()
-	span.SetAttributes(attribute.String("user.id", userID))
+	span.SetAttributes(attribute.String("user.id", string(userID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, `
 		SELECT id, user_id, profile_id, endpoint, p256dh, auth, created_at, updated_at
 		FROM push_subscriptions WHERE user_id = $1
 		ORDER BY created_at DESC
-	`, userID)
+	`, string(userID))
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

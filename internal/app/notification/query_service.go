@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/evey-project/evey/internal/domain/notification"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
@@ -36,7 +37,7 @@ func NewQueryService(repo notification.Repository, settings notification.Setting
 // filters down. Sufficient for typical UI lists (5-50 items); if a profile
 // ends up with hundreds of admin-only events ahead of personal ones, the
 // caller should paginate. Capped at 1000 over-fetch to bound memory.
-func (s *QueryService) List(ctx context.Context, profileID string, unreadOnly bool, limit, offset int) ([]*notification.Notification, error) {
+func (s *QueryService) List(ctx context.Context, profileID shared.ProfileID, unreadOnly bool, limit, offset int) ([]*notification.Notification, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.notification.List")
 	defer span.End()
 	want := limit
@@ -71,7 +72,7 @@ func (s *QueryService) List(ctx context.Context, profileID string, unreadOnly bo
 //
 // Caller is responsible for RBAC - this service does no role check; the
 // calling handler must gate by RoleAdmin.
-func (s *QueryService) ListAdminOnly(ctx context.Context, profileID string, unreadOnly bool, limit, offset int) ([]*notification.Notification, error) {
+func (s *QueryService) ListAdminOnly(ctx context.Context, profileID shared.ProfileID, unreadOnly bool, limit, offset int) ([]*notification.Notification, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.notification.ListAdminOnly")
 	defer span.End()
 	want := limit
@@ -103,13 +104,13 @@ func (s *QueryService) ListAdminOnly(ctx context.Context, profileID string, unre
 // operational types excluded) via a single COUNT(*). The previous version
 // over-fetched up to 1000 rows and counted in memory, which silently capped the
 // badge at 1000 and shipped wide rows on every page load.
-func (s *QueryService) UnreadCount(ctx context.Context, profileID string) (int, error) {
+func (s *QueryService) UnreadCount(ctx context.Context, profileID shared.ProfileID) (int, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.notification.UnreadCount")
 	defer span.End()
 	return s.repo.UnreadCountExcludingTypes(ctx, profileID, notification.AdminOnlyTypes())
 }
 
-func (s *QueryService) GetSettings(ctx context.Context, profileID string) (*notification.Settings, error) {
+func (s *QueryService) GetSettings(ctx context.Context, profileID shared.ProfileID) (*notification.Settings, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.notification.GetSettings")
 	defer span.End()
 	return s.settings.GetByProfile(ctx, profileID)
@@ -121,7 +122,7 @@ func (s *QueryService) GetGlobalSettings(ctx context.Context) (*notification.Set
 	return s.settings.GetGlobalDefaults(ctx)
 }
 
-func (s *QueryService) ListPushSubscriptions(ctx context.Context, userID string) ([]notification.PushSubscription, error) {
+func (s *QueryService) ListPushSubscriptions(ctx context.Context, userID shared.UserID) ([]notification.PushSubscription, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.notification.ListPushSubscriptions")
 	defer span.End()
 	if s.subs == nil {

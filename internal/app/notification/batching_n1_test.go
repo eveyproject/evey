@@ -37,7 +37,7 @@ type countingNotifRepo struct {
 	failNext   bool
 }
 
-func (c *countingNotifRepo) FindRecentByProfilesTypeAndSeries(ctx context.Context, profileIDs []string, types []notifdom.Type, relatedMediaID string, since time.Time) (map[string][]*notifdom.Notification, error) {
+func (c *countingNotifRepo) FindRecentByProfilesTypeAndSeries(ctx context.Context, profileIDs []shared.ProfileID, types []notifdom.Type, relatedMediaID string, since time.Time) (map[shared.ProfileID][]*notifdom.Notification, error) {
 	c.mu.Lock()
 	c.batchCalls++
 	fail := c.failNext
@@ -96,7 +96,7 @@ func TestEpisodeNotifDedup_OneBatchQueryPerSeriesFlush(t *testing.T) {
 
 	// Sanity: every profile actually got its notification (the fix didn't break fan-out).
 	for i := range profileCount {
-		notifs, err := repo.ListByProfile(ctx, fmt.Sprintf("p%d", i), false, 0, 0)
+		notifs, err := repo.ListByProfile(ctx, shared.ProfileID(fmt.Sprintf("p%d", i)), false, 0, 0)
 		require.NoError(t, err)
 		assert.Len(t, notifs, 2, "profile %d should have one notification per series", i)
 	}
@@ -139,7 +139,7 @@ func TestEpisodeNotifDedup_PreloadFailureFailsOpen(t *testing.T) {
 
 	require.Equal(t, 1, repo.calls(), "preload must have been attempted exactly once")
 
-	for _, p := range []string{"p1", "p2"} {
+	for _, p := range []shared.ProfileID{"p1", "p2"} {
 		notifs, err := repo.ListByProfile(ctx, p, false, 0, 0)
 		require.NoError(t, err)
 		episodeCount := 0

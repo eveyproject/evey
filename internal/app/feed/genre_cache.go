@@ -69,8 +69,8 @@ func NewCachedAnalyzer(inner notification.WatchHistoryAnalyzer, ttl time.Duratio
 	return c
 }
 
-func (c *CachedAnalyzer) cacheKey(profileID string, minCount int) string {
-	return profileID + ":" + itoa(minCount)
+func (c *CachedAnalyzer) cacheKey(profileID shared.ProfileID, minCount int) string {
+	return string(profileID) + ":" + itoa(minCount)
 }
 
 func itoa(n int) string {
@@ -95,7 +95,7 @@ func itoa(n int) string {
 	return string(buf[pos:])
 }
 
-func (c *CachedAnalyzer) GetFavoriteGenres(ctx context.Context, profileID string, minCount int) ([]string, error) {
+func (c *CachedAnalyzer) GetFavoriteGenres(ctx context.Context, profileID shared.ProfileID, minCount int) ([]string, error) {
 	key := c.cacheKey(profileID, minCount)
 
 	now := c.clock.Now()
@@ -121,19 +121,19 @@ func (c *CachedAnalyzer) GetFavoriteGenres(ctx context.Context, profileID string
 	return genres, nil
 }
 
-func (c *CachedAnalyzer) GetFavoriteGenresBatch(ctx context.Context, profileIDs []string, minCount int) (map[string][]string, error) {
+func (c *CachedAnalyzer) GetFavoriteGenresBatch(ctx context.Context, profileIDs []shared.ProfileID, minCount int) (map[shared.ProfileID][]string, error) {
 	return c.inner.GetFavoriteGenresBatch(ctx, profileIDs, minCount)
 }
 
-func (c *CachedAnalyzer) HasWatchedSeries(ctx context.Context, profileID, mediaItemID string) (bool, error) {
+func (c *CachedAnalyzer) HasWatchedSeries(ctx context.Context, profileID shared.ProfileID, mediaItemID string) (bool, error) {
 	return c.inner.HasWatchedSeries(ctx, profileID, mediaItemID)
 }
 
-func (c *CachedAnalyzer) IsCurrentlyWatchingSeries(ctx context.Context, profileID, mediaItemID string) (bool, error) {
+func (c *CachedAnalyzer) IsCurrentlyWatchingSeries(ctx context.Context, profileID shared.ProfileID, mediaItemID string) (bool, error) {
 	return c.inner.IsCurrentlyWatchingSeries(ctx, profileID, mediaItemID)
 }
 
-func (c *CachedAnalyzer) CalculateRelevanceScore(ctx context.Context, profileID string, genres []string) (int, error) {
+func (c *CachedAnalyzer) CalculateRelevanceScore(ctx context.Context, profileID shared.ProfileID, genres []string) (int, error) {
 	return c.inner.CalculateRelevanceScore(ctx, profileID, genres)
 }
 

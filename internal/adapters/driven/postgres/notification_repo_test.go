@@ -196,7 +196,7 @@ func TestNotificationRepo_FindRecentByProfilesTypeAndSeries(t *testing.T) {
 	since := now.Add(-24 * time.Hour)
 	types := []notification.Type{notification.TypeNewSeries, notification.TypeNewSeason, notification.TypeNewEpisode}
 
-	byProfile, err := repo.FindRecentByProfilesTypeAndSeries(ctx, []string{"pBatchA", "pBatchB"}, types, "lib1:Foo", since)
+	byProfile, err := repo.FindRecentByProfilesTypeAndSeries(ctx, []shared.ProfileID{"pBatchA", "pBatchB"}, types, "lib1:Foo", since)
 	require.NoError(t, err)
 
 	require.Len(t, byProfile["pBatchA"], 1)

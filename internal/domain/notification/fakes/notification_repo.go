@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/evey-project/evey/internal/domain/notification"
+	"github.com/evey-project/evey/internal/domain/shared"
 )
 
 type FakeNotificationRepository struct {
@@ -31,7 +32,7 @@ func (r *FakeNotificationRepository) Create(_ context.Context, n *notification.N
 	return nil
 }
 
-func (r *FakeNotificationRepository) ListByProfile(_ context.Context, profileID string, unreadOnly bool, limit, offset int) ([]*notification.Notification, error) {
+func (r *FakeNotificationRepository) ListByProfile(_ context.Context, profileID shared.ProfileID, unreadOnly bool, limit, offset int) ([]*notification.Notification, error) {
 	if r.Err != nil {
 		return nil, r.Err
 	}
@@ -42,7 +43,7 @@ func (r *FakeNotificationRepository) ListByProfile(_ context.Context, profileID 
 	}
 	var out []*notification.Notification
 	for _, n := range r.items {
-		if string(n.ProfileID) != profileID {
+		if n.ProfileID != profileID {
 			continue
 		}
 		if unreadOnly && n.ReadAt != nil {
@@ -60,7 +61,7 @@ func (r *FakeNotificationRepository) ListByProfile(_ context.Context, profileID 
 	return out, nil
 }
 
-func (r *FakeNotificationRepository) MarkRead(_ context.Context, id, profileID string) error {
+func (r *FakeNotificationRepository) MarkRead(_ context.Context, id string, profileID shared.ProfileID) error {
 	if r.Err != nil {
 		return r.Err
 	}
@@ -71,7 +72,7 @@ func (r *FakeNotificationRepository) MarkRead(_ context.Context, id, profileID s
 	}
 	now := time.Now()
 	for _, n := range r.items {
-		if n.ID == id && string(n.ProfileID) == profileID {
+		if n.ID == id && n.ProfileID == profileID {
 			n.ReadAt = &now
 			return nil
 		}
@@ -79,7 +80,7 @@ func (r *FakeNotificationRepository) MarkRead(_ context.Context, id, profileID s
 	return nil
 }
 
-func (r *FakeNotificationRepository) MarkAllRead(_ context.Context, profileID string) error {
+func (r *FakeNotificationRepository) MarkAllRead(_ context.Context, profileID shared.ProfileID) error {
 	if r.Err != nil {
 		return r.Err
 	}
@@ -90,14 +91,14 @@ func (r *FakeNotificationRepository) MarkAllRead(_ context.Context, profileID st
 	}
 	now := time.Now()
 	for _, n := range r.items {
-		if string(n.ProfileID) == profileID && n.ReadAt == nil {
+		if n.ProfileID == profileID && n.ReadAt == nil {
 			n.ReadAt = &now
 		}
 	}
 	return nil
 }
 
-func (r *FakeNotificationRepository) UnreadCount(_ context.Context, profileID string) (int, error) {
+func (r *FakeNotificationRepository) UnreadCount(_ context.Context, profileID shared.ProfileID) (int, error) {
 	if r.Err != nil {
 		return 0, r.Err
 	}
@@ -108,14 +109,14 @@ func (r *FakeNotificationRepository) UnreadCount(_ context.Context, profileID st
 	}
 	count := 0
 	for _, n := range r.items {
-		if string(n.ProfileID) == profileID && n.ReadAt == nil {
+		if n.ProfileID == profileID && n.ReadAt == nil {
 			count++
 		}
 	}
 	return count, nil
 }
 
-func (r *FakeNotificationRepository) UnreadCountExcludingTypes(_ context.Context, profileID string, excludeTypes []notification.Type) (int, error) {
+func (r *FakeNotificationRepository) UnreadCountExcludingTypes(_ context.Context, profileID shared.ProfileID, excludeTypes []notification.Type) (int, error) {
 	if r.Err != nil {
 		return 0, r.Err
 	}
@@ -127,14 +128,14 @@ func (r *FakeNotificationRepository) UnreadCountExcludingTypes(_ context.Context
 	}
 	count := 0
 	for _, n := range r.items {
-		if string(n.ProfileID) == profileID && n.ReadAt == nil && !excluded[n.Type] {
+		if n.ProfileID == profileID && n.ReadAt == nil && !excluded[n.Type] {
 			count++
 		}
 	}
 	return count, nil
 }
 
-func (r *FakeNotificationRepository) DeleteAll(_ context.Context, profileID string) error {
+func (r *FakeNotificationRepository) DeleteAll(_ context.Context, profileID shared.ProfileID) error {
 	if r.Err != nil {
 		return r.Err
 	}
@@ -145,7 +146,7 @@ func (r *FakeNotificationRepository) DeleteAll(_ context.Context, profileID stri
 	}
 	var out []*notification.Notification
 	for _, n := range r.items {
-		if string(n.ProfileID) != profileID {
+		if n.ProfileID != profileID {
 			out = append(out, n)
 		}
 	}
@@ -173,7 +174,7 @@ func (r *FakeNotificationRepository) CleanupExpired(_ context.Context) error {
 	return nil
 }
 
-func (r *FakeNotificationRepository) FindRecentByProfilesTypeAndSeries(_ context.Context, profileIDs []string, types []notification.Type, relatedMediaID string, since time.Time) (map[string][]*notification.Notification, error) {
+func (r *FakeNotificationRepository) FindRecentByProfilesTypeAndSeries(_ context.Context, profileIDs []shared.ProfileID, types []notification.Type, relatedMediaID string, since time.Time) (map[shared.ProfileID][]*notification.Notification, error) {
 	if r.Err != nil {
 		return nil, r.Err
 	}
@@ -182,7 +183,7 @@ func (r *FakeNotificationRepository) FindRecentByProfilesTypeAndSeries(_ context
 	if r.Err != nil {
 		return nil, r.Err
 	}
-	profileSet := make(map[string]bool, len(profileIDs))
+	profileSet := make(map[shared.ProfileID]bool, len(profileIDs))
 	for _, id := range profileIDs {
 		profileSet[id] = true
 	}
@@ -190,9 +191,9 @@ func (r *FakeNotificationRepository) FindRecentByProfilesTypeAndSeries(_ context
 	for _, t := range types {
 		typeSet[t] = true
 	}
-	out := make(map[string][]*notification.Notification)
+	out := make(map[shared.ProfileID][]*notification.Notification)
 	for _, n := range r.items {
-		if !profileSet[string(n.ProfileID)] {
+		if !profileSet[n.ProfileID] {
 			continue
 		}
 		if !typeSet[n.Type] {
@@ -204,7 +205,7 @@ func (r *FakeNotificationRepository) FindRecentByProfilesTypeAndSeries(_ context
 		if n.CreatedAt.Before(since) {
 			continue
 		}
-		out[string(n.ProfileID)] = append(out[string(n.ProfileID)], n)
+		out[n.ProfileID] = append(out[n.ProfileID], n)
 	}
 	return out, nil
 }
@@ -216,7 +217,7 @@ func (r *FakeNotificationRepository) Update(_ context.Context, updated *notifica
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	for _, n := range r.items {
-		if n.ID == updated.ID && string(n.ProfileID) == string(updated.ProfileID) {
+		if n.ID == updated.ID && n.ProfileID == updated.ProfileID {
 			n.Title = updated.Title
 			n.EpisodeCount = updated.EpisodeCount
 			return nil

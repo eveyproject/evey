@@ -6,6 +6,7 @@ import (
 
 	"github.com/evey-project/evey/internal/domain/feed"
 	"github.com/evey-project/evey/internal/domain/notification"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
@@ -136,7 +137,7 @@ func (s *QueryService) RecentlyAdded(ctx context.Context, profileID string, days
 func (s *QueryService) Recommended(ctx context.Context, profileID string, limit int) ([]*feed.FeedItem, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.feed.Recommended")
 	defer span.End()
-	genres, err := s.analyzer.GetFavoriteGenres(ctx, profileID, 3)
+	genres, err := s.analyzer.GetFavoriteGenres(ctx, shared.ProfileID(profileID), 3)
 	if err != nil {
 		return nil, err
 	}

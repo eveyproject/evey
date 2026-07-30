@@ -21,16 +21,16 @@ func NewNotificationSettingsRepository(db *sql.DB) *NotificationSettingsReposito
 	return &NotificationSettingsRepository{db: db}
 }
 
-func (r *NotificationSettingsRepository) GetByProfile(ctx context.Context, profileID string) (*notification.Settings, error) {
+func (r *NotificationSettingsRepository) GetByProfile(ctx context.Context, profileID shared.ProfileID) (*notification.Settings, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.notification_settings.GetByProfile")
 	defer span.End()
-	span.SetAttributes(attribute.String("profile.id", profileID))
+	span.SetAttributes(attribute.String("profile.id", string(profileID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	s := &notification.Settings{ProfileID: shared.ProfileID(profileID)}
+	s := &notification.Settings{ProfileID: profileID}
 	var ml, sl, msl string
 	err := txFromCtx(ctx, r.db).QueryRowContext(ctx,
-		`SELECT movie_level, series_level, music_level FROM notification_settings WHERE profile_id = $1`, profileID,
+		`SELECT movie_level, series_level, music_level FROM notification_settings WHERE profile_id = $1`, string(profileID),
 	).Scan(&ml, &sl, &msl)
 	if err == sql.ErrNoRows {
 		// fall back to global defaults
@@ -44,23 +44,27 @@ func (r *NotificationSettingsRepository) GetByProfile(ctx context.Context, profi
 	s.MovieLevel = notification.Level(ml)
 	s.SeriesLevel = notification.Level(sl)
 	s.MusicLevel = notification.Level(msl)
-	s.ProfileID = shared.ProfileID(profileID)
+	s.ProfileID = profileID
 	return s, nil
 }
 
-func (r *NotificationSettingsRepository) GetByProfiles(ctx context.Context, profileIDs []string) (map[string]*notification.Settings, error) {
+func (r *NotificationSettingsRepository) GetByProfiles(ctx context.Context, profileIDs []shared.ProfileID) (map[shared.ProfileID]*notification.Settings, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.notification_settings.GetByProfiles")
 	defer span.End()
 	span.SetAttributes(attribute.Int("profile.count", len(profileIDs)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	result := make(map[string]*notification.Settings, len(profileIDs))
+	result := make(map[shared.ProfileID]*notification.Settings, len(profileIDs))
 	if len(profileIDs) == 0 {
 		return result, nil
 	}
+	strProfileIDs := make([]string, len(profileIDs))
+	for i, id := range profileIDs {
+		strProfileIDs[i] = string(id)
+	}
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT profile_id, movie_level, series_level, music_level FROM notification_settings WHERE profile_id = ANY($1)`,
-		pq.Array(profileIDs),
+		pq.Array(strProfileIDs),
 	)
 	if err != nil {
 		span.RecordError(err)
@@ -75,7 +79,7 @@ func (r *NotificationSettingsRepository) GetByProfiles(ctx context.Context, prof
 			span.SetStatus(codes.Error, scanErr.Error())
 			return nil, scanErr
 		}
-		result[pid] = &notification.Settings{
+		result[shared.ProfileID(pid)] = &notification.Settings{
 			ProfileID:   shared.ProfileID(pid),
 			MovieLevel:  notification.Level(ml),
 			SeriesLevel: notification.Level(sl),
@@ -95,7 +99,7 @@ func (r *NotificationSettingsRepository) GetByProfiles(ctx context.Context, prof
 	for _, pid := range profileIDs {
 		if _, ok := result[pid]; !ok {
 			cp := *defaults
-			cp.ProfileID = shared.ProfileID(pid)
+			cp.ProfileID = pid
 			result[pid] = &cp
 		}
 	}

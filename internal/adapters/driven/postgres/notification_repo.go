@@ -46,10 +46,10 @@ func (r *NotificationRepository) Create(ctx context.Context, n *notification.Not
 	return nil
 }
 
-func (r *NotificationRepository) ListByProfile(ctx context.Context, profileID string, unreadOnly bool, limit, offset int) ([]*notification.Notification, error) {
+func (r *NotificationRepository) ListByProfile(ctx context.Context, profileID shared.ProfileID, unreadOnly bool, limit, offset int) ([]*notification.Notification, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.notification.ListByProfile")
 	defer span.End()
-	span.SetAttributes(attribute.String("profile.id", profileID))
+	span.SetAttributes(attribute.String("profile.id", string(profileID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	q := `SELECT id, profile_id, type, title, message, media_item_id, related_media_id, episode_count, level, created_at, expires_at, read_at
@@ -62,7 +62,7 @@ func (r *NotificationRepository) ListByProfile(ctx context.Context, profileID st
 		limit = 200
 	}
 	q += ` LIMIT $2 OFFSET $3`
-	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, q, profileID, limit, offset)
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, q, string(profileID), limit, offset)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -82,7 +82,7 @@ func (r *NotificationRepository) ListByProfile(ctx context.Context, profileID st
 // notification fan-out: one query for every profile in the fan-out instead of
 // one query per profile, which was the O(profiles) round-trip on library scans
 // with many series x many profiles.
-func (r *NotificationRepository) FindRecentByProfilesTypeAndSeries(ctx context.Context, profileIDs []string, types []notification.Type, relatedMediaID string, since time.Time) (map[string][]*notification.Notification, error) {
+func (r *NotificationRepository) FindRecentByProfilesTypeAndSeries(ctx context.Context, profileIDs []shared.ProfileID, types []notification.Type, relatedMediaID string, since time.Time) (map[shared.ProfileID][]*notification.Notification, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.notification.FindRecentByProfilesTypeAndSeries")
 	defer span.End()
 	span.SetAttributes(attribute.Int("profile.count", len(profileIDs)))
@@ -90,12 +90,17 @@ func (r *NotificationRepository) FindRecentByProfilesTypeAndSeries(ctx context.C
 	defer cancel()
 
 	if len(profileIDs) == 0 {
-		return map[string][]*notification.Notification{}, nil
+		return map[shared.ProfileID][]*notification.Notification{}, nil
+	}
+
+	strProfileIDs := make([]string, len(profileIDs))
+	for i, id := range profileIDs {
+		strProfileIDs[i] = string(id)
 	}
 
 	placeholders := make([]string, len(types))
 	args := make([]interface{}, 0, len(types)+3)
-	args = append(args, pq.Array(profileIDs), relatedMediaID, since)
+	args = append(args, pq.Array(strProfileIDs), relatedMediaID, since)
 	for i, t := range types {
 		placeholders[i] = fmt.Sprintf("$%d", i+4)
 		args = append(args, string(t))
@@ -120,9 +125,9 @@ func (r *NotificationRepository) FindRecentByProfilesTypeAndSeries(ctx context.C
 		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
-	byProfile := make(map[string][]*notification.Notification, len(profileIDs))
+	byProfile := make(map[shared.ProfileID][]*notification.Notification, len(profileIDs))
 	for _, n := range result {
-		byProfile[string(n.ProfileID)] = append(byProfile[string(n.ProfileID)], n)
+		byProfile[n.ProfileID] = append(byProfile[n.ProfileID], n)
 	}
 	return byProfile, nil
 }
@@ -166,14 +171,14 @@ func scanNotifications(rows *sql.Rows) ([]*notification.Notification, error) {
 	return result, rows.Err()
 }
 
-func (r *NotificationRepository) MarkRead(ctx context.Context, id, profileID string) error {
+func (r *NotificationRepository) MarkRead(ctx context.Context, id string, profileID shared.ProfileID) error {
 	ctx, span := tracing.StartSpan(ctx, "postgres.notification.MarkRead")
 	defer span.End()
-	span.SetAttributes(attribute.String("notification.id", id), attribute.String("profile.id", profileID))
+	span.SetAttributes(attribute.String("notification.id", id), attribute.String("profile.id", string(profileID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	now := time.Now()
-	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `UPDATE notifications SET read_at = $1 WHERE id = $2 AND profile_id = $3 AND read_at IS NULL`, now, id, profileID)
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `UPDATE notifications SET read_at = $1 WHERE id = $2 AND profile_id = $3 AND read_at IS NULL`, now, id, string(profileID))
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -182,14 +187,14 @@ func (r *NotificationRepository) MarkRead(ctx context.Context, id, profileID str
 	return nil
 }
 
-func (r *NotificationRepository) MarkAllRead(ctx context.Context, profileID string) error {
+func (r *NotificationRepository) MarkAllRead(ctx context.Context, profileID shared.ProfileID) error {
 	ctx, span := tracing.StartSpan(ctx, "postgres.notification.MarkAllRead")
 	defer span.End()
-	span.SetAttributes(attribute.String("profile.id", profileID))
+	span.SetAttributes(attribute.String("profile.id", string(profileID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	now := time.Now()
-	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `UPDATE notifications SET read_at = $1 WHERE profile_id = $2 AND read_at IS NULL`, now, profileID)
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `UPDATE notifications SET read_at = $1 WHERE profile_id = $2 AND read_at IS NULL`, now, string(profileID))
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -198,15 +203,15 @@ func (r *NotificationRepository) MarkAllRead(ctx context.Context, profileID stri
 	return nil
 }
 
-func (r *NotificationRepository) UnreadCount(ctx context.Context, profileID string) (int, error) {
+func (r *NotificationRepository) UnreadCount(ctx context.Context, profileID shared.ProfileID) (int, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.notification.UnreadCount")
 	defer span.End()
-	span.SetAttributes(attribute.String("profile.id", profileID))
+	span.SetAttributes(attribute.String("profile.id", string(profileID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	var count int
 	err := txFromCtx(ctx, r.db).QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM notifications WHERE profile_id = $1 AND read_at IS NULL`, profileID,
+		`SELECT COUNT(*) FROM notifications WHERE profile_id = $1 AND read_at IS NULL`, string(profileID),
 	).Scan(&count)
 	if err != nil {
 		span.RecordError(err)
@@ -216,16 +221,16 @@ func (r *NotificationRepository) UnreadCount(ctx context.Context, profileID stri
 	return count, nil
 }
 
-func (r *NotificationRepository) UnreadCountExcludingTypes(ctx context.Context, profileID string, excludeTypes []notification.Type) (int, error) {
+func (r *NotificationRepository) UnreadCountExcludingTypes(ctx context.Context, profileID shared.ProfileID, excludeTypes []notification.Type) (int, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.notification.UnreadCountExcludingTypes")
 	defer span.End()
-	span.SetAttributes(attribute.String("profile.id", profileID))
+	span.SetAttributes(attribute.String("profile.id", string(profileID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 
 	query := `SELECT COUNT(*) FROM notifications WHERE profile_id = $1 AND read_at IS NULL`
 	args := make([]any, 0, len(excludeTypes)+1)
-	args = append(args, profileID)
+	args = append(args, string(profileID))
 	if len(excludeTypes) > 0 {
 		placeholders := make([]string, len(excludeTypes))
 		for i, t := range excludeTypes {
@@ -244,13 +249,13 @@ func (r *NotificationRepository) UnreadCountExcludingTypes(ctx context.Context, 
 	return count, nil
 }
 
-func (r *NotificationRepository) DeleteAll(ctx context.Context, profileID string) error {
+func (r *NotificationRepository) DeleteAll(ctx context.Context, profileID shared.ProfileID) error {
 	ctx, span := tracing.StartSpan(ctx, "postgres.notification.DeleteAll")
 	defer span.End()
-	span.SetAttributes(attribute.String("profile.id", profileID))
+	span.SetAttributes(attribute.String("profile.id", string(profileID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `DELETE FROM notifications WHERE profile_id = $1`, profileID)
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `DELETE FROM notifications WHERE profile_id = $1`, string(profileID))
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
