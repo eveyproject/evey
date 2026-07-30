@@ -276,3 +276,99 @@ func TestCapOverrideService_Tick_ExpiresThenPublishes(t *testing.T) {
 	assert.Len(t, active, 1, "the expired override must be gone from the enforced snapshot")
 	assert.Equal(t, "hevc/2160p", active[0].SourceClass)
 }
+
+// ============================================================================
+// Option defaults and the legacy-class height buckets
+// ============================================================================
+
+// The defaults are what a partially-configured service runs on. A TickInterval
+// of 0 panics time.NewTicker; a MinSamples of 0 lets a single unlucky playback
+// cap a whole source class; a StarvedThreshold of 0 caps EVERY class (0 >= 0).
+func TestCapOverrideServiceOpts_ApplyDefaults_FillsEveryZeroField(t *testing.T) {
+	var o CapOverrideServiceOpts
+	o.applyDefaults()
+
+	assert.Equal(t, 30*time.Minute, o.TickInterval)
+	assert.Equal(t, 24*time.Hour, o.AggregationWindow)
+	assert.Equal(t, 50, o.MinSamples)
+	assert.InDelta(t, 0.30, o.StarvedThreshold, 0.0001)
+	assert.Equal(t, 7*24*time.Hour, o.OverrideTTL)
+}
+
+// An operator's value must survive - including one that happens to match a
+// default, and one deliberately far from it.
+func TestCapOverrideServiceOpts_ApplyDefaults_KeepsCallerValues(t *testing.T) {
+	o := CapOverrideServiceOpts{
+		TickInterval:      time.Minute,
+		AggregationWindow: time.Hour,
+		MinSamples:        5,
+		StarvedThreshold:  0.9,
+		OverrideTTL:       time.Hour,
+	}
+	want := o
+	o.applyDefaults()
+
+	assert.Equal(t, want, o, "a fully specified options struct must come back unchanged")
+}
+
+// ⚠️ Documented, not endorsed: the guards test `== 0`, not `<= 0`, so a NEGATIVE
+// value passes straight through. A negative TickInterval panics time.NewTicker
+// in Start. Nothing in the repo passes one today (the only caller builds the
+// struct literally), so this pins the real behaviour rather than papering over
+// it - if a knob ever becomes operator-settable, the guard must become `<= 0`.
+func TestCapOverrideServiceOpts_ApplyDefaults_NegativesPassThroughUnguarded(t *testing.T) {
+	o := CapOverrideServiceOpts{TickInterval: -time.Second, MinSamples: -1, StarvedThreshold: -1}
+	o.applyDefaults()
+
+	assert.Equal(t, -time.Second, o.TickInterval, "the `== 0` guard does not catch negatives")
+	assert.Equal(t, -1, o.MinSamples)
+	assert.InDelta(t, -1.0, o.StarvedThreshold, 0.0001)
+}
+
+// The legacy (pre-per-codec) class strings bucket by height with >= boundaries.
+// Reading a boundary one rung off would make a 1440p source match the "2160p"
+// override - capping a stream that was never measured as starving.
+func TestCapOverrideService_OverrideForHeight_LegacyBucketBoundaries(t *testing.T) {
+	cases := []struct {
+		height    int
+		wantClass string
+	}{
+		{2160, "2160p"},
+		{2159, "1440p"}, // one below the 4K boundary drops a bucket
+		{1440, "1440p"},
+		{1439, "1080p"},
+		{1080, "1080p"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.wantClass+"/"+itoa(tc.height), func(t *testing.T) {
+			repo := &fakeCapOverrideRepo{}
+			s := NewCapOverrideService(repo, CapOverrideServiceOpts{}, nil)
+			assertNoError(t, repo.Upsert(context.Background(), domaintranscoding.CapOverride{
+				SourceClass: tc.wantClass, MaxHeight: 720,
+				AppliedAt: time.Now(), ExpiresAt: time.Now().Add(time.Hour),
+			}))
+			assertNoError(t, s.Refresh(context.Background()))
+
+			got, ok := s.OverrideForHeight("hevc", tc.height)
+			assert.True(t, ok, "height %d must fall in the %s legacy bucket", tc.height, tc.wantClass)
+			assert.Equal(t, tc.wantClass, got.SourceClass)
+		})
+	}
+}
+
+// Below 1080p there is no legacy bucket at all: those heights were never
+// capped by the pre-per-codec worker, so a legacy row must not match them.
+func TestCapOverrideService_OverrideForHeight_NoLegacyBucketBelow1080(t *testing.T) {
+	repo := &fakeCapOverrideRepo{}
+	s := NewCapOverrideService(repo, CapOverrideServiceOpts{}, nil)
+	assertNoError(t, repo.Upsert(context.Background(), domaintranscoding.CapOverride{
+		SourceClass: "1080p", MaxHeight: 720,
+		AppliedAt: time.Now(), ExpiresAt: time.Now().Add(time.Hour),
+	}))
+	assertNoError(t, s.Refresh(context.Background()))
+
+	_, ok := s.OverrideForHeight("hevc", 1079)
+	assert.False(t, ok, "a 1079-tall source has no legacy bucket and must not inherit the 1080p cap")
+}
+
