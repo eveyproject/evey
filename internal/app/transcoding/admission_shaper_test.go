@@ -553,13 +553,15 @@ func TestAdmission_StressLifecycle_PoolsNeverOverflowAndDrainToZero(t *testing.T
 		go func(v int) {
 			defer wg.Done()
 			natural := classes[v%len(classes)]
-			ladder := swLadder
+			// Named distinctly from the package-level `ladder` fixture: shadowing
+			// it here made the intent ambiguous at a glance.
+			viewerLadder := swLadder
 			if natural == LadderClassHW {
-				ladder = hwLadder
+				viewerLadder = hwLadder
 			}
 			key := fmt.Sprintf("title-%d", v%17) // some viewers share a title
 			for range 8 {
-				g := shaper.GrantRoute(key, natural, ladder, func() []int { return swLadder })
+				g := shaper.GrantRoute(key, natural, viewerLadder, func() []int { return swLadder })
 				if !g.OK {
 					continue // shed; the retry loops
 				}
@@ -649,4 +651,44 @@ func TestAdmissionShaper_NineLiveVariants_PinFailsSafeAsHeld(t *testing.T) {
 	held := shaper.anyBoundHeld(shaper.pins["title"])
 	shaper.mu.Unlock()
 	assert.True(t, held, "an over-capacity pin with live sessions fails safe as held")
+}
+
+// `top` is the MAXIMUM of the requested heights, not the first entry - callers
+// pass a ladder and nothing promises it is sorted. The max-scan and the
+// "was the ceiling trimmed?" comparisons that depend on it both survived
+// mutation testing, and `forced` is what tells the caller its ladder was cut.
+func TestAdmissionShaper_CeilingFor_TopIsTheMaxWhateverTheOrder(t *testing.T) {
+	shaper, _, _ := shaperFixture(t)
+
+	// Same set, deliberately unsorted: the answer must not depend on order.
+	h, forced := shaper.CeilingFor("s1", LadderClassSoftware, []int{720, 1440, 1080})
+	assert.Equal(t, 1440, h, "the tallest rung is the top, wherever it sits in the slice")
+	assert.False(t, forced, "granting the tallest requested rung is not a trim")
+
+	// A single-rung ladder: granting it is never forced.
+	shaper2, _, _ := shaperFixture(t)
+	h2, forced2 := shaper2.CeilingFor("s2", LadderClassSoftware, []int{720})
+	assert.Equal(t, 720, h2)
+	assert.False(t, forced2, "serving the only rung asked for is not a trim")
+}
+
+// forced must be FALSE when the grant equals the requested top and TRUE only
+// when it is strictly below - an off-by-one here either hides a real demotion
+// from the operator or reports one that did not happen.
+func TestAdmissionShaper_ForcedIsStrictlyBelowTheRequestedTop(t *testing.T) {
+	shaper, limiter, _ := shaperFixture(t)
+
+	// Ask for exactly what the host can serve alone: no trim.
+	h, forced := shaper.CeilingFor("s1", LadderClassSoftware, []int{1080})
+	assert.Equal(t, 1080, h)
+	assert.False(t, forced, "a grant equal to the requested top is not forced")
+
+	// Now load the box so the same request can only get 720.
+	shaper2, limiter2, _ := shaperFixture(t)
+	require.True(t, limiter2.TryAcquire("holder", LadderClassSoftware, 1440))
+	h2, forced2 := shaper2.CeilingFor("s2", LadderClassSoftware, ladder)
+	assert.Less(t, h2, 1440, "a loaded host must trim")
+	assert.True(t, forced2, "a grant below the requested top is forced")
+
+	_ = limiter
 }
