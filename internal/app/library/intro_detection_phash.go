@@ -92,7 +92,7 @@ func (s *IntroDetectionService) pHashPass(ctx context.Context, item *domainlibra
 	// handling.
 	trickByID, trickErr := s.trickplayRepo.GetByMediaItemIDs(ctx, candidateIDs)
 	if trickErr != nil {
-		slog.Warn("intro_detection: pHashPass batch trickplay read failed, siblings without a cached manifest will be skipped",
+		slog.WarnContext(ctx, "intro_detection: pHashPass batch trickplay read failed, siblings without a cached manifest will be skipped",
 			slog.Any("err", trickErr))
 		trickByID = nil
 	}
@@ -160,7 +160,7 @@ func (s *IntroDetectionService) pHashPass(ctx context.Context, item *domainlibra
 		filtered := candidates[:0]
 		for _, c := range candidates {
 			if c.startMs > cfg.MaxIntroStartMs {
-				slog.Debug("intro_detection.candidate_dropped_too_late",
+				slog.DebugContext(ctx, "intro_detection.candidate_dropped_too_late",
 					slog.String("media_id", string(item.ID)),
 					slog.Int64("candidate_start_ms", c.startMs),
 					slog.Int64("max_intro_start_ms", cfg.MaxIntroStartMs),
@@ -292,7 +292,7 @@ func (s *IntroDetectionService) extractEpisodeHashesCached(ctx context.Context, 
 	}); upsertErr != nil {
 		// Cache write failures are non-fatal: log and proceed with the freshly
 		// computed hashes so the pipeline still produces a result.
-		slog.Warn("intro_detection: cache upsert failed",
+		slog.WarnContext(ctx, "intro_detection: cache upsert failed",
 			slog.String("media_id", mediaItemID),
 			slog.Any("err", upsertErr),
 		)

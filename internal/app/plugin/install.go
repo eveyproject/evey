@@ -204,7 +204,7 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*p
 
 	evtInstalled := plugin.PluginInstalled{PluginID: p.ID, Name: p.Name, OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evtInstalled); err != nil {
-		slog.Warn("publish event", slog.String("event", evtInstalled.EventName()), slog.Any("err", err))
+		slog.WarnContext(ctx, "publish event", slog.String("event", evtInstalled.EventName()), slog.Any("err", err))
 	}
 	installOK = true
 	return p, nil
@@ -264,7 +264,7 @@ func (s *InstallerService) resolveExistingPlugin(ctx context.Context, manifest *
 		// passes every check do we tear down the old runtime and swap it in (see
 		// the swap below), so a FAILED upgrade rolls back to the old version with
 		// its files, row and config fully intact.
-		slog.Info("upgrading plugin in place", slog.String("name", manifest.Name),
+		slog.InfoContext(ctx, "upgrading plugin in place", slog.String("name", manifest.Name),
 			slog.String("id", existing.ID), slog.String("from", existing.Version), slog.String("to", manifest.Version))
 	}
 	return existing, nil
@@ -367,7 +367,7 @@ func (s *InstallerService) validateStagedPlugin(ctx context.Context, p *plugin.P
 		if readErr == nil {
 			sanitized, warns := s.cssSanitizer.SanitizeCSS(raw)
 			if len(warns) > 0 {
-				slog.Warn("css sanitizer cleaned theme at install", slog.String("pluginID", p.ID), slog.Any("warnings", warns))
+				slog.WarnContext(ctx, "css sanitizer cleaned theme at install", slog.String("pluginID", p.ID), slog.Any("warnings", warns))
 				// The write-back is the only sanitization barrier - theme_asset
 				// serves theme.css raw (and pre-auth on the login page). If it
 				// fails, fail the install so the deferred cleanup removes the dir
@@ -390,7 +390,7 @@ func (s *InstallerService) validateStagedPlugin(ctx context.Context, p *plugin.P
 		if readErr == nil {
 			scanErr, scanWarns := themejs.Scan(raw)
 			if len(scanWarns) > 0 {
-				slog.Warn("theme JS scanner warnings", slog.String("pluginID", p.ID), slog.Any("warnings", scanWarns))
+				slog.WarnContext(ctx, "theme JS scanner warnings", slog.String("pluginID", p.ID), slog.Any("warnings", scanWarns))
 			}
 			if scanErr != nil {
 				return fmt.Errorf("plugin blocked: theme.js contains forbidden pattern: %w", scanErr)
@@ -400,7 +400,7 @@ func (s *InstallerService) validateStagedPlugin(ctx context.Context, p *plugin.P
 
 	if p.InstallDir != "" && s.fs != nil {
 		if cpErr := s.fs.CopySDKStubs(p.Language, p.InstallDir); cpErr != nil {
-			slog.Warn("copy SDK stubs", slog.String("pluginID", p.ID), slog.Any("err", cpErr))
+			slog.WarnContext(ctx, "copy SDK stubs", slog.String("pluginID", p.ID), slog.Any("err", cpErr))
 		}
 	}
 
@@ -441,7 +441,7 @@ func (s *InstallerService) validateStagedPlugin(ctx context.Context, p *plugin.P
 		// findings and consents to the GPU residual risk deliberately.
 		if slices.Contains(p.Permissions, gpuPermission) {
 			report.Issues = append(report.Issues, gpuPermissionWarning)
-			slog.Warn("plugin declares hardware.gpu (highest-risk permission - render node grant)",
+			slog.WarnContext(ctx, "plugin declares hardware.gpu (highest-risk permission - render node grant)",
 				slog.String("pluginID", p.ID))
 		}
 		// Persist non-blocking warnings so the admin can audit them
@@ -494,10 +494,10 @@ func (s *InstallerService) swapUpgradeIntoPlace(ctx context.Context, existing *p
 		stopErr := s.runner.Stop(stopCtx, existing.ID)
 		cancel()
 		if stopErr != nil {
-			slog.Warn("stop old plugin before upgrade failed, killing",
+			slog.WarnContext(ctx, "stop old plugin before upgrade failed, killing",
 				slog.String("pluginID", existing.ID), slog.Any("err", stopErr))
 			if killErr := s.runner.Kill(existing.ID); killErr != nil {
-				slog.Warn("kill old plugin before upgrade failed",
+				slog.WarnContext(ctx, "kill old plugin before upgrade failed",
 					slog.String("pluginID", existing.ID), slog.Any("err", killErr))
 			}
 			time.Sleep(500 * time.Millisecond)
@@ -537,7 +537,7 @@ func (s *InstallerService) startPluginAndUpdateStatus(ctx context.Context, p *pl
 			p.Status = plugin.Error
 			p.ErrorMessage = err.Error()
 			if updateErr := s.plugins.Update(ctx, p); updateErr != nil {
-				slog.Warn("update plugin status failed", slog.String("pluginID", p.ID), slog.Any("err", updateErr))
+				slog.WarnContext(ctx, "update plugin status failed", slog.String("pluginID", p.ID), slog.Any("err", updateErr))
 			}
 			return true
 		}
@@ -553,7 +553,7 @@ func (s *InstallerService) startPluginAndUpdateStatus(ctx context.Context, p *pl
 		p.Status = plugin.Running
 	}
 	if err := s.plugins.Update(ctx, p); err != nil {
-		slog.Warn("update plugin status failed", slog.String("pluginID", p.ID), slog.Any("err", err))
+		slog.WarnContext(ctx, "update plugin status failed", slog.String("pluginID", p.ID), slog.Any("err", err))
 	}
 	return false
 }

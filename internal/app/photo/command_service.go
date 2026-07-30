@@ -95,12 +95,12 @@ func (s *CommandService) buildPhotoJobs(ctx context.Context, dir string, idx *sc
 
 		hash, hashErr := s.scanner.ComputeHash(f.Path)
 		if hashErr != nil {
-			slog.Warn("photo hash error", slog.String("path", f.Path), slog.Any("err", hashErr))
+			slog.WarnContext(ctx, "photo hash error", slog.String("path", f.Path), slog.Any("err", hashErr))
 		}
 
 		if movedID, isMove := idx.Moved(f.Path, hash); isMove {
 			if updateErr := s.repo.UpdateFilePath(ctx, movedID, f.Path, f.ModTime); updateErr != nil {
-				slog.Warn("photo update path", slog.String("id", movedID), slog.Any("err", updateErr))
+				slog.WarnContext(ctx, "photo update path", slog.String("id", movedID), slog.Any("err", updateErr))
 			}
 			return nil
 		}
@@ -187,16 +187,16 @@ func (s *CommandService) processOnePhoto(ctx context.Context, libraryID string, 
 		photo.WithBlurhash(blurhash),
 	)
 	if err != nil {
-		slog.Warn("photo scan: NewPhoto failed", slog.String("path", j.path), slog.Any("err", err))
+		slog.WarnContext(ctx, "photo scan: NewPhoto failed", slog.String("path", j.path), slog.Any("err", err))
 		return false
 	}
 
 	if upsertErr := s.repo.Upsert(ctx, *p); upsertErr != nil {
-		slog.Warn("photo upsert failed", slog.String("path", j.path), slog.Any("err", upsertErr))
+		slog.WarnContext(ctx, "photo upsert failed", slog.String("path", j.path), slog.Any("err", upsertErr))
 		return false
 	}
 	if pubErr := s.bus.Publish(ctx, photo.PhotoAdded{LibraryID: shared.LibraryID(libraryID), PhotoID: p.ID, Path: j.path, Title: title, Album: album, OccurredAt: time.Now()}); pubErr != nil {
-		slog.Warn("photo scan: PhotoAdded publish failed", slog.String("path", j.path), slog.Any("err", pubErr))
+		slog.WarnContext(ctx, "photo scan: PhotoAdded publish failed", slog.String("path", j.path), slog.Any("err", pubErr))
 	}
 	return true
 }
@@ -216,7 +216,7 @@ func (s *CommandService) DeletePhoto(ctx context.Context, photoID string) error 
 		return fmt.Errorf("CommandService.DeletePhoto: %w", err)
 	}
 	if pubErr := s.bus.Publish(ctx, photo.PhotoRemoved{PhotoID: photoID, LibraryID: libraryID, OccurredAt: time.Now()}); pubErr != nil {
-		slog.Warn("photo: PhotoRemoved publish failed", slog.String("photoID", photoID), slog.Any("err", pubErr))
+		slog.WarnContext(ctx, "photo: PhotoRemoved publish failed", slog.String("photoID", photoID), slog.Any("err", pubErr))
 	}
 	return nil
 }

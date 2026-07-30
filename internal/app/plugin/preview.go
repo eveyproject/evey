@@ -152,7 +152,7 @@ func (s *InstallerService) PreviewUpdate(ctx context.Context, pluginID, source s
 		if tmpErr == nil {
 			defer func() {
 				if rmErr := s.fs.RemoveAll(tmpDir); rmErr != nil {
-					slog.Warn("remove update preview tmpdir", slog.Any("err", rmErr))
+					slog.WarnContext(ctx, "remove update preview tmpdir", slog.Any("err", rmErr))
 				}
 			}()
 			if extErr := s.installer.Extract(localPath, tmpDir); extErr == nil {

@@ -78,7 +78,7 @@ func (s *ScanService) scanTVShowFiles(ctx context.Context, libraryID string, fil
 				}
 				ex.File.Fingerprint = fp
 				if updateErr := s.mediaItems.Update(ctx, ex); updateErr != nil {
-					slog.Warn("update media item fingerprint failed", slog.String("mediaItemID", string(ex.ID)), slog.Any("err", updateErr))
+					slog.WarnContext(ctx, "update media item fingerprint failed", slog.String("mediaItemID", string(ex.ID)), slog.Any("err", updateErr))
 				}
 			}
 			return ex, false, nil
@@ -118,7 +118,7 @@ func (s *ScanService) scanTVShowFiles(ctx context.Context, libraryID string, fil
 				library.WithMediaItemFile(&library.MediaFile{Fingerprint: fp}),
 			)
 			if buildErr != nil {
-				slog.Warn("scan: skipping series that fails domain invariants",
+				slog.WarnContext(ctx, "scan: skipping series that fails domain invariants",
 					slog.String("path", f.Path), slog.Any("err", buildErr))
 				continue
 			}
@@ -159,7 +159,7 @@ func (s *ScanService) scanTVShowFiles(ctx context.Context, libraryID string, fil
 				library.WithMediaItemIndexNumber(n),
 			)
 			if buildErr != nil {
-				slog.Warn("scan: skipping season that fails domain invariants",
+				slog.WarnContext(ctx, "scan: skipping season that fails domain invariants",
 					slog.String("path", f.Path), slog.Any("err", buildErr))
 				continue
 			}
@@ -203,7 +203,7 @@ func (s *ScanService) scanTVShowFiles(ctx context.Context, libraryID string, fil
 			// Skip this episode and keep scanning the rest - a single transient
 			// failure must not abort the whole library scan (the movie path
 			// already logs-and-continues; this kept aborting it).
-			slog.Warn("scan: skipping episode after upsert error",
+			slog.WarnContext(ctx, "scan: skipping episode after upsert error",
 				slog.String("path", episodeFile.Path), slog.Any("err", episodeErr))
 			continue
 		}

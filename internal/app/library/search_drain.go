@@ -110,7 +110,7 @@ func DrainSearchWriteQueue(
 		}
 	}
 	if drained > 0 {
-		slog.Info("search write-queue drained", slog.Int("count", drained))
+		slog.InfoContext(ctx, "search write-queue drained", slog.Int("count", drained))
 	}
 	return drained, nil
 }

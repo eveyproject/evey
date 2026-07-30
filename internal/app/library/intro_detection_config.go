@@ -115,7 +115,7 @@ func loadIntroConfig(ctx context.Context, repo shared.ServerConfigRepository) in
 	// Unmarshal into a copy so a partial JSON only overrides the listed fields.
 	override := cfg
 	if err := json.Unmarshal([]byte(entry.Value), &override); err != nil {
-		slog.Warn("intro_detection: invalid config JSON, using defaults",
+		slog.WarnContext(ctx, "intro_detection: invalid config JSON, using defaults",
 			slog.Any("err", err),
 		)
 		return cfg

@@ -372,7 +372,7 @@ func (e *Enricher) upsertPeople(ctx context.Context, mediaItemID string, people 
 	}
 	known, err := e.persons.GetByNamesBatch(ctx, uniqueNames)
 	if err != nil {
-		slog.Warn("preload persons failed, falling back to per-row lookup", slog.Any("err", err))
+		slog.WarnContext(ctx, "preload persons failed, falling back to per-row lookup", slog.Any("err", err))
 		known = map[string]*domainlib.Person{}
 	}
 
@@ -458,7 +458,7 @@ func (e *Enricher) findOrCreatePerson(ctx context.Context, p domainmetadata.Pers
 		}
 		if updated {
 			if err := e.persons.Update(ctx, person); err != nil {
-				slog.Warn("update person failed", slog.String("personID", person.ID), slog.Any("err", err))
+				slog.WarnContext(ctx, "update person failed", slog.String("personID", person.ID), slog.Any("err", err))
 			}
 		}
 		return person, person.Biography == "" && person.ProviderIDs["tmdb"] != "", nil
@@ -506,7 +506,7 @@ func (e *Enricher) refreshKnownPerson(ctx context.Context, p domainmetadata.Pers
 	}
 	if updated {
 		if err := e.persons.Update(ctx, person); err != nil {
-			slog.Warn("update person failed", slog.String("personID", person.ID), slog.Any("err", err))
+			slog.WarnContext(ctx, "update person failed", slog.String("personID", person.ID), slog.Any("err", err))
 		}
 	}
 	return person
@@ -546,7 +546,7 @@ func (e *Enricher) fetchPersonBio(ctx context.Context, person *domainlib.Person)
 				person.KnownFor = details.KnownFor
 			}
 			if err := e.persons.Update(ctx, person); err != nil {
-				slog.Warn("update person bio failed", slog.String("personID", person.ID), slog.Any("err", err))
+				slog.WarnContext(ctx, "update person bio failed", slog.String("personID", person.ID), slog.Any("err", err))
 			}
 		}
 	}
@@ -567,7 +567,7 @@ func (e *Enricher) indexSearch(ctx context.Context, item *domainlib.MediaItem, p
 		names = append(names, p.Name)
 	}
 	if err := e.search.IndexMediaItem(ctx, item, names); err != nil {
-		slog.Warn("index media item", slog.Any("err", err))
+		slog.WarnContext(ctx, "index media item", slog.Any("err", err))
 	}
 }
 
@@ -577,14 +577,14 @@ func (e *Enricher) linkCollection(ctx context.Context, mediaItemID string, ref *
 	}
 	col, err := e.collections.Upsert(ctx, ref.TmdbID, ref.Name, "", ref.PosterURL, ref.BackdropURL)
 	if err != nil {
-		slog.Warn("upsert collection", slog.Int("tmdb_id", ref.TmdbID), slog.Any("err", err))
+		slog.WarnContext(ctx, "upsert collection", slog.Int("tmdb_id", ref.TmdbID), slog.Any("err", err))
 		return
 	}
 	if col == nil {
 		return
 	}
 	if err := e.collections.LinkMediaItem(ctx, col.ID, mediaItemID, 0); err != nil {
-		slog.Warn("link media item to collection", slog.String("collection_id", col.ID), slog.String("media_item_id", mediaItemID), slog.Any("err", err))
+		slog.WarnContext(ctx, "link media item to collection", slog.String("collection_id", col.ID), slog.String("media_item_id", mediaItemID), slog.Any("err", err))
 	}
 }
 
@@ -609,7 +609,7 @@ func (e *Enricher) ClearTranslations(ctx context.Context, mediaItemID string) {
 		return
 	}
 	if err := e.mediaTranslations.DeleteByMediaItem(ctx, mediaItemID); err != nil {
-		slog.Warn("clear media translations", slog.String("item", mediaItemID), slog.Any("err", err))
+		slog.WarnContext(ctx, "clear media translations", slog.String("item", mediaItemID), slog.Any("err", err))
 	}
 }
 
@@ -623,7 +623,7 @@ func (e *Enricher) enrichTranslations(ctx context.Context, item *domainlib.Media
 	}
 	results, err := tp.FetchTranslations(ctx, providerID, mediaType, e.translationLocales)
 	if err != nil {
-		slog.Warn("fetch translations", slog.String("item", string(item.ID)), slog.Any("err", err))
+		slog.WarnContext(ctx, "fetch translations", slog.String("item", string(item.ID)), slog.Any("err", err))
 		return
 	}
 	if len(results) == 0 {
@@ -640,7 +640,7 @@ func (e *Enricher) enrichTranslations(ctx context.Context, item *domainlib.Media
 		})
 	}
 	if err := e.mediaTranslations.UpsertBatch(ctx, batch); err != nil {
-		slog.Warn("upsert media translations batch", slog.String("item", string(item.ID)), slog.Any("err", err))
+		slog.WarnContext(ctx, "upsert media translations batch", slog.String("item", string(item.ID)), slog.Any("err", err))
 		return
 	}
 	// Carry the translations on the item so the post-enrich search index picks
@@ -668,7 +668,7 @@ func (e *Enricher) EnrichPersonTranslations(ctx context.Context, person *domainl
 	}
 	bios, err := tp.FetchPersonTranslations(ctx, strconv.Itoa(tmdbID), e.translationLocales)
 	if err != nil {
-		slog.Warn("fetch person translations", slog.String("person", person.ID), slog.Any("err", err))
+		slog.WarnContext(ctx, "fetch person translations", slog.String("person", person.ID), slog.Any("err", err))
 		return
 	}
 	for locale, bio := range bios {
@@ -677,7 +677,7 @@ func (e *Enricher) EnrichPersonTranslations(ctx context.Context, person *domainl
 			Locale:    locale,
 			Biography: bio,
 		}); err != nil {
-			slog.Warn("upsert person translation", slog.String("locale", locale), slog.Any("err", err))
+			slog.WarnContext(ctx, "upsert person translation", slog.String("locale", locale), slog.Any("err", err))
 		}
 	}
 }

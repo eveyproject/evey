@@ -224,7 +224,7 @@ func (s *IntroDetectionService) discoverIntroByAudio(ctx context.Context, item *
 	if !found {
 		return none, false
 	}
-	slog.Info("intro_detection: chromaprint discovery",
+	slog.InfoContext(ctx, "intro_detection: chromaprint discovery",
 		slog.String("media_id", string(item.ID)),
 		slog.Int64("start_ms", startMs),
 		slog.Int64("end_ms", endMs),

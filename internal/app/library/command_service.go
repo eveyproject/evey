@@ -165,9 +165,9 @@ func (s *CommandService) StartPeriodicScan(ctx context.Context, libQueries libra
 		interval = 2 * time.Minute
 	}
 	if len(libraryIDs) > 0 {
-		slog.Info("periodic scan started (fallback for inotify-failed libraries)", slog.Duration("interval", interval), slog.Int("libraries", len(libraryIDs)))
+		slog.InfoContext(ctx, "periodic scan started (fallback for inotify-failed libraries)", slog.Duration("interval", interval), slog.Int("libraries", len(libraryIDs)))
 	} else {
-		slog.Info("periodic scan started (all libraries)", slog.Duration("interval", interval))
+		slog.InfoContext(ctx, "periodic scan started (all libraries)", slog.Duration("interval", interval))
 	}
 	targetSet := make(map[string]bool, len(libraryIDs))
 	for _, id := range libraryIDs {
@@ -189,10 +189,10 @@ func (s *CommandService) StartPeriodicScan(ctx context.Context, libQueries libra
 		// the server was stopped stay invisible for a whole interval. That was
 		// tolerable at a 2-minute cadence and is not once the fallback is
 		// spaced out.
-		slog.Info("library scan: startup pass beginning (inotify cannot see changes made while the server was down)")
+		slog.InfoContext(ctx, "library scan: startup pass beginning (inotify cannot see changes made while the server was down)")
 		s.runScanPass(ctx, libQueries, targetSet, "startup")
 		lastScan = time.Now()
-		slog.Info("library scan: startup pass complete",
+		slog.InfoContext(ctx, "library scan: startup pass complete",
 			slog.Duration("next_periodic_in", interval),
 			slog.Duration("watched_backstop_interval", watchedScanInterval))
 		for {
@@ -245,7 +245,7 @@ func (s *CommandService) runScanPass(ctx context.Context, libQueries library.Lib
 			// THE question someone will ask in production is "why is my library
 			// not being scanned". Answer it here, with the reason and when the
 			// backstop is next due - a silent skip is undebuggable remotely.
-			slog.Debug("scan pass: skipped, watch is alive and the backstop is not due",
+			slog.DebugContext(ctx, "scan pass: skipped, watch is alive and the backstop is not due",
 				slog.String("library", lib.Name), slog.String("library_id", string(lib.ID)),
 				slog.Duration("since_last_walk", s.sinceWatchedScan(string(lib.ID))),
 				slog.Duration("backstop_interval", watchedScanInterval))
@@ -267,17 +267,17 @@ func (s *CommandService) runScanPass(ctx context.Context, libQueries library.Lib
 			return
 		}()
 		if scanErr != nil {
-			slog.Debug("scan pass: skip", slog.String("library", lib.Name), slog.String("reason", reason), slog.Any("err", scanErr))
+			slog.DebugContext(ctx, "scan pass: skip", slog.String("library", lib.Name), slog.String("reason", reason), slog.Any("err", scanErr))
 			continue
 		}
 		// Always log the walk, not only when it found something: "the scan ran
 		// and found nothing" and "the scan never ran" are different diagnoses
 		// and used to look identical from the outside.
 		if added > 0 {
-			slog.Info("scan pass: new media found",
+			slog.InfoContext(ctx, "scan pass: new media found",
 				slog.String("library", lib.Name), slog.String("reason", scanReason), slog.Int("new", added))
 		} else {
-			slog.Debug("scan pass: completed, nothing new",
+			slog.DebugContext(ctx, "scan pass: completed, nothing new",
 				slog.String("library", lib.Name), slog.String("reason", scanReason))
 		}
 	}
@@ -368,7 +368,7 @@ func (s *CommandService) CreateLibrary(ctx context.Context, lib *library.Library
 		OccurredAt: now,
 	}
 	if err := s.events.Publish(ctx, evtCreated); err != nil {
-		slog.Warn("publish event", slog.String("event", evtCreated.EventName()), slog.Any("err", err))
+		slog.WarnContext(ctx, "publish event", slog.String("event", evtCreated.EventName()), slog.Any("err", err))
 	}
 	return nil
 }
@@ -394,7 +394,7 @@ func (s *CommandService) DeleteLibrary(ctx context.Context, id string) error {
 		OccurredAt: time.Now(),
 	}
 	if err := s.events.Publish(ctx, evtDeleted); err != nil {
-		slog.Warn("publish event", slog.String("event", evtDeleted.EventName()), slog.Any("err", err))
+		slog.WarnContext(ctx, "publish event", slog.String("event", evtDeleted.EventName()), slog.Any("err", err))
 	}
 	return nil
 }
@@ -412,7 +412,7 @@ func (s *CommandService) DeleteMediaItem(ctx context.Context, id string) error {
 	// failing here would only refuse a delete that already happened.
 	if s.search != nil {
 		if idxErr := s.search.RemoveMediaItem(ctx, id); idxErr != nil {
-			slog.Warn("library: search index remove failed",
+			slog.WarnContext(ctx, "library: search index remove failed",
 				slog.String("mediaItemID", id), slog.Any("err", idxErr))
 		}
 	}

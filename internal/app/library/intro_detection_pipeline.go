@@ -83,7 +83,7 @@ func (s *IntroDetectionService) runPipeline(ctx context.Context, item *domainlib
 			addedTypes = append(addedTypes, seg.Type)
 		}
 		if len(addedTypes) > 0 {
-			slog.Info("intro_detection.pipeline_decision",
+			slog.InfoContext(ctx, "intro_detection.pipeline_decision",
 				slog.String("media_id", mediaItemID),
 				slog.String("decision", decision),
 				slog.String("types", strings.Join(addedTypes, ",")),
@@ -96,7 +96,7 @@ func (s *IntroDetectionService) runPipeline(ctx context.Context, item *domainlib
 	// returns. Non-fatal on error - fall through to chapters/heuristics.
 	if s.metadataProvider != nil {
 		if mdSegs, mdErr := s.metadataProvider.GetSegments(ctx, item); mdErr != nil {
-			slog.Warn("intro_detection: metadata provider failed, falling back",
+			slog.WarnContext(ctx, "intro_detection: metadata provider failed, falling back",
 				slog.String("media_id", mediaItemID), slog.Any("err", mdErr))
 		} else {
 			add(mdSegs, "metadata_provider_match")
@@ -134,7 +134,7 @@ func (s *IntroDetectionService) runPipeline(ctx context.Context, item *domainlib
 	if needIntro() && s.isTrickplayEnabled(ctx) {
 		result, phashErr := s.pHashPass(ctx, item, cfg)
 		if phashErr != nil {
-			slog.Warn("intro_detection: phash pass failed, falling back",
+			slog.WarnContext(ctx, "intro_detection: phash pass failed, falling back",
 				slog.String("media_id", mediaItemID),
 				slog.Any("err", phashErr),
 			)
@@ -161,7 +161,7 @@ func (s *IntroDetectionService) runPipeline(ctx context.Context, item *domainlib
 				segs := s.refineIntroEndsBySubtitle(ctx, item.File.Path, classifyConfirmed(refined, cfg))
 				add(segs, "phash_confirmed")
 			} else {
-				slog.Info("intro_detection.pipeline_decision",
+				slog.InfoContext(ctx, "intro_detection.pipeline_decision",
 					slog.String("media_id", mediaItemID),
 					slog.Int("candidates_evaluated", len(result.candidates)),
 					slog.Int("siblings_total", len(result.siblings)),
@@ -193,7 +193,7 @@ func (s *IntroDetectionService) runPipeline(ctx context.Context, item *domainlib
 			if len(found) == 0 {
 				return nil, fbErr
 			}
-			slog.Warn("intro_detection: silence fallback failed",
+			slog.WarnContext(ctx, "intro_detection: silence fallback failed",
 				slog.String("media_id", mediaItemID), slog.Any("err", fbErr))
 		} else if startMs != 0 || endMs != 0 {
 			add([]domainlibrary.MediaSegment{{
@@ -277,7 +277,7 @@ func (s *IntroDetectionService) refineWithPrecisionPass(ctx context.Context, fil
 			source = "fixed_pad"
 		}
 
-		slog.Debug("intro_detection.refined",
+		slog.DebugContext(ctx, "intro_detection.refined",
 			slog.Int64("phash_start_ms", w.startMs),
 			slog.Int64("phash_end_ms", w.endMs),
 			slog.Int64("refined_start_ms", newStart),

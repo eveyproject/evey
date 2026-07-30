@@ -127,7 +127,7 @@ func (s *Service) discover(ctx context.Context) ([]Renderer, error) {
 		deadline = d
 	}
 	if err := conn.SetReadDeadline(deadline); err != nil {
-		slog.Warn("dlna set read deadline failed", slog.Any("err", err))
+		slog.WarnContext(ctx, "dlna set read deadline failed", slog.Any("err", err))
 	}
 
 	seen := make(map[string]struct{})
@@ -149,13 +149,13 @@ func (s *Service) discover(ctx context.Context) ([]Renderer, error) {
 
 		r, err := fetchDeviceDescription(ctx, location)
 		if err != nil {
-			slog.Debug("dlna: skip device", slog.String("location", location), slog.Any("err", err))
+			slog.DebugContext(ctx, "dlna: skip device", slog.String("location", location), slog.Any("err", err))
 			continue
 		}
 		renderers = append(renderers, *r)
 	}
 	renderers = dedupeRenderers(renderers)
-	slog.Info("dlna: discovery complete", slog.Int("count", len(renderers)))
+	slog.InfoContext(ctx, "dlna: discovery complete", slog.Int("count", len(renderers)))
 	return renderers, nil
 }
 
@@ -297,7 +297,7 @@ func (s *Service) Play(ctx context.Context, rendererID, mediaURL, title string) 
 	}); err != nil {
 		return fmt.Errorf("Play: %w", err)
 	}
-	slog.Info("dlna: playing", slog.String("renderer", r.Name), slog.String("url", mediaURL))
+	slog.InfoContext(ctx, "dlna: playing", slog.String("renderer", r.Name), slog.String("url", mediaURL))
 	return nil
 }
 

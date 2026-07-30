@@ -45,7 +45,7 @@ func loadParserConfig(ctx context.Context, repo shared.ServerConfigRepository) p
 		return cfg
 	}
 	if err := json.Unmarshal([]byte(entry.Value), &cfg); err != nil {
-		slog.Warn("parser_config: invalid JSON, using defaults", slog.Any("err", err))
+		slog.WarnContext(ctx, "parser_config: invalid JSON, using defaults", slog.Any("err", err))
 		return parserConfig{}
 	}
 	return cfg
@@ -65,7 +65,7 @@ func ApplyParserConfig(ctx context.Context, repo shared.ServerConfigRepository, 
 	if apply != nil {
 		apply(cfg.ExtraQualities, cfg.ExtraEditionSuffixes)
 	}
-	slog.Info("parser config applied",
+	slog.InfoContext(ctx, "parser config applied",
 		slog.Int("extra_qualities", len(cfg.ExtraQualities)),
 		slog.Int("extra_edition_suffixes", len(cfg.ExtraEditionSuffixes)),
 	)

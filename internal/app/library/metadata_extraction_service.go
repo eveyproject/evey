@@ -54,7 +54,7 @@ func (s *MetadataExtractionService) extractAndStoreChapters(ctx context.Context,
 		}
 	}
 	if err := s.chapters.ReplaceBatch(ctx, shared.MediaItemID(mediaItemID), chapters); err != nil {
-		slog.Warn("store chapters failed", slog.String("mediaItemID", mediaItemID), slog.Any("err", err))
+		slog.WarnContext(ctx, "store chapters failed", slog.String("mediaItemID", mediaItemID), slog.Any("err", err))
 	}
 }
 

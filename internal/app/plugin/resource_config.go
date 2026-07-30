@@ -87,7 +87,7 @@ func ResolveResourceConfig(ctx context.Context, repo shared.ServerConfigReposito
 		if validSandboxModes[m] {
 			v.SandboxMode = m
 		} else {
-			slog.Warn("plugin resource config: invalid sandbox mode, keeping default",
+			slog.WarnContext(ctx, "plugin resource config: invalid sandbox mode, keeping default",
 				slog.String("value", m), slog.String("default", v.SandboxMode))
 		}
 	}
@@ -105,7 +105,7 @@ func ApplyResourceConfig(ctx context.Context, repo shared.ServerConfigRepository
 		ctrl.SetCPUNice(v.CPUNice)
 		ctrl.SetSandboxMode(v.SandboxMode)
 	}
-	slog.Info("plugin resource config applied",
+	slog.InfoContext(ctx, "plugin resource config applied",
 		slog.Int("memory_mb", v.MemoryMB), slog.Int("pids_max", v.PIDsMax),
 		slog.Int("disk_max_mb", v.DiskMaxMB), slog.Int("cpu_nice", v.CPUNice),
 		slog.String("sandbox_mode", v.SandboxMode))
@@ -121,7 +121,7 @@ func overrideInt(ctx context.Context, repo shared.ServerConfigRepository, key st
 	}
 	n, err := strconv.Atoi(s)
 	if err != nil || n < minV || n > maxV {
-		slog.Warn("plugin resource config: invalid value, keeping default",
+		slog.WarnContext(ctx, "plugin resource config: invalid value, keeping default",
 			slog.String("key", key), slog.String("value", s), slog.Int("default", def))
 		return def
 	}

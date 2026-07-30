@@ -148,7 +148,7 @@ func (s *CommandService) ResearchMetadata(ctx context.Context, mediaItemID strin
 	// Audit-style event so admin tooling can surface the action.
 	evtRemoved := metadata.MetadataOverrideRemoved{MediaItemID: shared.MediaItemID(mediaItemID), FieldName: "*", OccurredAt: time.Now()}
 	if err = s.events.Publish(ctx, evtRemoved); err != nil {
-		slog.Warn("publish event", slog.String("event", evtRemoved.EventName()), slog.Any("err", err))
+		slog.WarnContext(ctx, "publish event", slog.String("event", evtRemoved.EventName()), slog.Any("err", err))
 	}
 
 	// 4. Re-fetch (state pre-enrich) so we hand the enricher the persisted form.
@@ -386,7 +386,7 @@ func (s *CommandService) StartEnrichmentWorker(ctx context.Context) {
 				select {
 				case queue <- string(e.MediaItemID):
 				default:
-					slog.Warn("enrich queue full, dropping", slog.String("media_id", string(e.MediaItemID)))
+					slog.WarnContext(ctx, "enrich queue full, dropping", slog.String("media_id", string(e.MediaItemID)))
 				}
 			}
 		})
@@ -425,7 +425,7 @@ func (s *CommandService) ReEnrichWithoutOverrides(ctx context.Context, be BulkIt
 	for offset := 0; ; offset += pageSize {
 		items, err := s.mediaItems.List(ctx, library.ListMediaItemsFilter{Limit: pageSize, Offset: offset})
 		if err != nil {
-			slog.Warn("re-enrich: list items", slog.Any("err", err))
+			slog.WarnContext(ctx, "re-enrich: list items", slog.Any("err", err))
 			return refreshed, skipped
 		}
 		if len(items) == 0 {
@@ -438,7 +438,7 @@ func (s *CommandService) ReEnrichWithoutOverrides(ctx context.Context, be BulkIt
 		}
 		overridden, oErr := s.overrides.ListOverriddenMediaItemIDs(ctx, ids)
 		if oErr != nil {
-			slog.Warn("re-enrich: batch check overrides", slog.Any("err", oErr))
+			slog.WarnContext(ctx, "re-enrich: batch check overrides", slog.Any("err", oErr))
 			return refreshed, skipped
 		}
 
@@ -451,7 +451,7 @@ func (s *CommandService) ReEnrichWithoutOverrides(ctx context.Context, be BulkIt
 			toEnrich = append(toEnrich, item)
 		}
 		if len(toEnrich) > 0 {
-			slog.Info("re-enrich: page",
+			slog.InfoContext(ctx, "re-enrich: page",
 				slog.Int("items", len(toEnrich)),
 				slog.Int("skipped_overrides", skipped),
 			)
@@ -463,6 +463,6 @@ func (s *CommandService) ReEnrichWithoutOverrides(ctx context.Context, be BulkIt
 			break
 		}
 	}
-	slog.Info("re-enrich: done", slog.Int("refreshed", refreshed), slog.Int("skipped", skipped))
+	slog.InfoContext(ctx, "re-enrich: done", slog.Int("refreshed", refreshed), slog.Int("skipped", skipped))
 	return refreshed, skipped
 }

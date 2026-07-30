@@ -139,7 +139,7 @@ func (s *TrickplayService) GenerateTrickplay(ctx context.Context, mediaItemID st
 		return nil
 	}
 	if !s.claimGeneration(mediaItemID) {
-		slog.Debug("trickplay generation already in progress, skipping", slog.String("media_item_id", mediaItemID))
+		slog.DebugContext(ctx, "trickplay generation already in progress, skipping", slog.String("media_item_id", mediaItemID))
 		return nil
 	}
 	defer s.releaseGeneration(mediaItemID)
@@ -217,7 +217,7 @@ func (s *TrickplayService) recordGenerationFailure(ctx context.Context, mediaIte
 		return
 	}
 	if err := s.trickplayRepo.RecordFailure(ctx, shared.MediaItemID(mediaItemID), file.Size, file.ModTime, genErr.Error()); err != nil {
-		slog.Warn("trickplay: record failure failed",
+		slog.WarnContext(ctx, "trickplay: record failure failed",
 			slog.String("media_id", mediaItemID), slog.Any("err", err))
 	}
 }
@@ -312,9 +312,9 @@ func (s *TrickplayService) GenerateAllMissingTrickplays(ctx context.Context) (in
 			err := s.GenerateTrickplay(itemCtx, id)
 			cancel()
 			if err != nil {
-				slog.Warn("trickplay generation failed", slog.String("media_id", id), slog.Any("err", err))
+				slog.WarnContext(bgCtx, "trickplay generation failed", slog.String("media_id", id), slog.Any("err", err))
 			} else {
-				slog.Info("trickplay generated", slog.String("media_id", id))
+				slog.InfoContext(bgCtx, "trickplay generated", slog.String("media_id", id))
 			}
 			// Throttle: pause between items to avoid hogging CPU
 			select {
@@ -346,7 +346,7 @@ func (s *TrickplayService) StartTrickplayWorker(ctx context.Context) {
 		select {
 		case sem <- struct{}{}:
 		default:
-			slog.Warn("trickplay queue full, dropping", slog.String("media_id", string(e.MediaItemID)))
+			slog.WarnContext(ctx, "trickplay queue full, dropping", slog.String("media_id", string(e.MediaItemID)))
 			return
 		}
 		go func() {
@@ -362,7 +362,7 @@ func (s *TrickplayService) StartTrickplayWorker(ctx context.Context) {
 				return
 			}
 			if err := s.GenerateTrickplay(tctx, string(e.MediaItemID)); err != nil {
-				slog.Warn("trickplay generation failed", slog.String("media_id", string(e.MediaItemID)), slog.Any("err", err))
+				slog.WarnContext(tctx, "trickplay generation failed", slog.String("media_id", string(e.MediaItemID)), slog.Any("err", err))
 			}
 		}()
 	})
@@ -386,14 +386,14 @@ func (s *TrickplayService) StartBackgroundGeneration(ctx context.Context) {
 		if !s.isTrickplayEnabled(ctx) {
 			return
 		}
-		slog.Info("trickplay: starting background generation of missing trickplays")
+		slog.InfoContext(ctx, "trickplay: starting background generation of missing trickplays")
 		n, err := s.GenerateAllMissingTrickplays(ctx)
 		if err != nil {
-			slog.Warn("trickplay: background generation failed", slog.Any("err", err))
+			slog.WarnContext(ctx, "trickplay: background generation failed", slog.Any("err", err))
 			return
 		}
 		if n > 0 {
-			slog.Info("trickplay: background generation queued", slog.Int("count", n))
+			slog.InfoContext(ctx, "trickplay: background generation queued", slog.Int("count", n))
 		}
 	}()
 }

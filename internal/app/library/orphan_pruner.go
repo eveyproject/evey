@@ -75,7 +75,7 @@ func (p *OrphanPruner) Prune(ctx context.Context, libraryID string, seenPaths ma
 	// play_sessions, playlist_items). Refuse. Also covers a library with no
 	// configured paths. A genuinely emptied library has len(dbPaths)==0.
 	if len(seenPaths) == 0 && len(dbPaths) > 0 {
-		slog.Warn("orphan prune skipped: scan saw no files but library is non-empty (likely a degraded mount); refusing to delete the catalog",
+		slog.WarnContext(ctx, "orphan prune skipped: scan saw no files but library is non-empty (likely a degraded mount); refusing to delete the catalog",
 			slog.String("library_id", libraryID), slog.Int("db_items", len(dbPaths)))
 		return 0, nil
 	}
@@ -98,13 +98,13 @@ func (p *OrphanPruner) Prune(ctx context.Context, libraryID string, seenPaths ma
 		orphanIDs = append(orphanIDs, id)
 	}
 	if skippedDegraded > 0 {
-		slog.Warn("orphan prune skipped some items under roots that scanned empty (likely a degraded mount)",
+		slog.WarnContext(ctx, "orphan prune skipped some items under roots that scanned empty (likely a degraded mount)",
 			slog.String("library_id", libraryID), slog.Int("skipped", skippedDegraded))
 	}
 	deleted := 0
 	if len(orphanIDs) > 0 {
 		if delErr := p.mediaItems.DeleteByIDs(ctx, orphanIDs); delErr != nil {
-			slog.Warn("batch delete orphaned media items failed", slog.Any("err", delErr))
+			slog.WarnContext(ctx, "batch delete orphaned media items failed", slog.Any("err", delErr))
 			// Fail closed: rows are still in the DB - do not de-index or emit
 			// removal events for items that were NOT deleted.
 		} else {
@@ -112,7 +112,7 @@ func (p *OrphanPruner) Prune(ctx context.Context, libraryID string, seenPaths ma
 			for _, id := range orphanIDs {
 				if p.search != nil {
 					if idxErr := p.search.RemoveMediaItem(ctx, id); idxErr != nil {
-						slog.Warn("remove orphan from search index failed", slog.String("id", id), slog.Any("err", idxErr))
+						slog.WarnContext(ctx, "remove orphan from search index failed", slog.String("id", id), slog.Any("err", idxErr))
 					}
 				}
 				evt := library.MediaItemRemoved{
@@ -121,7 +121,7 @@ func (p *OrphanPruner) Prune(ctx context.Context, libraryID string, seenPaths ma
 					OccurredAt:  time.Now(),
 				}
 				if pubErr := p.events.Publish(ctx, evt); pubErr != nil {
-					slog.Warn("publish event", slog.String("event", evt.EventName()), slog.Any("err", pubErr))
+					slog.WarnContext(ctx, "publish event", slog.String("event", evt.EventName()), slog.Any("err", pubErr))
 				}
 			}
 		}
@@ -129,7 +129,7 @@ func (p *OrphanPruner) Prune(ctx context.Context, libraryID string, seenPaths ma
 
 	pruned, pruneErr := p.pruneEmptyContainers(ctx, libraryID)
 	if pruneErr != nil {
-		slog.Warn("prune empty containers failed", slog.Any("err", pruneErr))
+		slog.WarnContext(ctx, "prune empty containers failed", slog.Any("err", pruneErr))
 	}
 
 	return deleted + pruned, nil
@@ -158,7 +158,7 @@ func (p *OrphanPruner) pruneEmptyContainers(ctx context.Context, libraryID strin
 			continue
 		}
 		if dErr := p.mediaItems.Delete(ctx, shared.MediaItemID(item.ID)); dErr != nil {
-			slog.Warn("delete empty season", slog.String("id", item.ID), slog.Any("err", dErr))
+			slog.WarnContext(ctx, "delete empty season", slog.String("id", item.ID), slog.Any("err", dErr))
 			continue
 		}
 		childCount[item.ParentID]--
@@ -172,12 +172,12 @@ func (p *OrphanPruner) pruneEmptyContainers(ctx context.Context, libraryID strin
 			continue
 		}
 		if dErr := p.mediaItems.Delete(ctx, shared.MediaItemID(item.ID)); dErr != nil {
-			slog.Warn("delete empty series", slog.String("id", item.ID), slog.Any("err", dErr))
+			slog.WarnContext(ctx, "delete empty series", slog.String("id", item.ID), slog.Any("err", dErr))
 			continue
 		}
 		if p.search != nil {
 			if rmErr := p.search.RemoveMediaItem(ctx, item.ID); rmErr != nil {
-				slog.Warn("remove empty series from search index", slog.String("id", item.ID), slog.Any("err", rmErr))
+				slog.WarnContext(ctx, "remove empty series from search index", slog.String("id", item.ID), slog.Any("err", rmErr))
 			}
 		}
 		pruned++

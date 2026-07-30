@@ -36,7 +36,7 @@ func (s *CommandService) SetOverride(ctx context.Context, override *metadata.Met
 	// Log-only: audit event - override already persisted above
 	evtOverride := metadata.MetadataOverrideSet{MediaItemID: override.MediaItemID, FieldName: override.FieldName, EditedBy: override.EditedBy, OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evtOverride); err != nil {
-		slog.Warn("publish event", slog.String("event", evtOverride.EventName()), slog.Any("err", err))
+		slog.WarnContext(ctx, "publish event", slog.String("event", evtOverride.EventName()), slog.Any("err", err))
 	}
 	// When an admin edits the title on an orphan item (no TMDB/IMDB IDs yet),
 	// the intent is "this is the correct title - please match it now". The
@@ -94,7 +94,7 @@ func (s *CommandService) propagateTitleOverrideForOrphan(ctx context.Context, ov
 	}
 	item.UpdatedAt = time.Now()
 	if err := s.mediaItems.Update(ctx, item); err != nil {
-		slog.Warn("propagate title override to media_items failed",
+		slog.WarnContext(ctx, "propagate title override to media_items failed",
 			slog.String("media_item.id", string(item.ID)),
 			slog.Any("err", err))
 		return
@@ -155,7 +155,7 @@ func (s *CommandService) ResetOverrides(ctx context.Context, mediaItemID string)
 	// Log-only: audit event - overrides already deleted above
 	evtRemoved := metadata.MetadataOverrideRemoved{MediaItemID: shared.MediaItemID(mediaItemID), FieldName: "*", OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evtRemoved); err != nil {
-		slog.Warn("publish event", slog.String("event", evtRemoved.EventName()), slog.Any("err", err))
+		slog.WarnContext(ctx, "publish event", slog.String("event", evtRemoved.EventName()), slog.Any("err", err))
 	}
 	return nil
 }

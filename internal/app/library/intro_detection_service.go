@@ -351,7 +351,7 @@ func (s *IntroDetectionService) StartWorker(ctx context.Context) {
 			id := string(e.MediaItemID)
 			runDeferred("movie:"+id, 0, func() {
 				if err := s.DetectIntro(ctx, id); err != nil {
-					slog.Warn("intro detection on trickplay.generated movie failed",
+					slog.WarnContext(ctx, "intro detection on trickplay.generated movie failed",
 						slog.String("media_id", id), slog.Any("err", err))
 				}
 			})
@@ -383,20 +383,20 @@ func (s *IntroDetectionService) StartWorker(ctx context.Context) {
 func (s *IntroDetectionService) backfillMissingSeasons(ctx context.Context) {
 	parentIDs, err := s.segmentRepo.ListSeasonsMissingSegments(ctx)
 	if err != nil {
-		slog.Warn("intro detection backfill: list seasons", slog.Any("err", err))
+		slog.WarnContext(ctx, "intro detection backfill: list seasons", slog.Any("err", err))
 		return
 	}
 	if len(parentIDs) == 0 {
 		return
 	}
-	slog.Info("intro detection backfill: starting", slog.Int("seasons", len(parentIDs)))
+	slog.InfoContext(ctx, "intro detection backfill: starting", slog.Int("seasons", len(parentIDs)))
 	for _, pid := range parentIDs {
 		if ctx.Err() != nil {
 			return
 		}
 		s.detectSeason(ctx, pid)
 	}
-	slog.Info("intro detection backfill: done")
+	slog.InfoContext(ctx, "intro detection backfill: done")
 }
 
 // BackfillLibrary runs the same detection loop as backfillMissingSeasons but
@@ -439,7 +439,7 @@ func (s *IntroDetectionService) BackfillLibrary(ctx context.Context, libraryID s
 	if len(parentIDs) == 0 {
 		return 0, nil
 	}
-	slog.Info("intro detection admin backfill: starting",
+	slog.InfoContext(ctx, "intro detection admin backfill: starting",
 		slog.String("library_id", libraryID),
 		slog.Int("seasons", len(parentIDs)))
 	for _, pid := range parentIDs {
@@ -448,7 +448,7 @@ func (s *IntroDetectionService) BackfillLibrary(ctx context.Context, libraryID s
 		}
 		s.detectSeason(ctx, pid)
 	}
-	slog.Info("intro detection admin backfill: done",
+	slog.InfoContext(ctx, "intro detection admin backfill: done",
 		slog.String("library_id", libraryID),
 		slog.Int("seasons", len(parentIDs)))
 	return len(parentIDs), nil
@@ -487,7 +487,7 @@ func (s *IntroDetectionService) detectSeason(ctx context.Context, parentID strin
 			Offset:   offset,
 		})
 		if err != nil {
-			slog.Warn("intro detection: list season episodes", slog.String("parent_id", parentID), slog.Any("err", err))
+			slog.WarnContext(ctx, "intro detection: list season episodes", slog.String("parent_id", parentID), slog.Any("err", err))
 			return
 		}
 		if len(siblings) == 0 {
@@ -505,7 +505,7 @@ func (s *IntroDetectionService) detectSeason(ctx context.Context, parentID strin
 		if batchErr != nil {
 			// Couldn't read existing segments; treat the whole page as
 			// uncovered and let detection re-run rather than skip it silently.
-			slog.Warn("intro detection: batch get existing segments", slog.String("parent_id", parentID), slog.Any("err", batchErr))
+			slog.WarnContext(ctx, "intro detection: batch get existing segments", slog.String("parent_id", parentID), slog.Any("err", batchErr))
 			existingByID = nil
 		}
 		// Pass 1: filter the page down to candidates needing detection (not
@@ -571,7 +571,7 @@ func (s *IntroDetectionService) detectSeason(ctx context.Context, parentID strin
 			// Fail open, matching the previous per-episode semantics (exErr != nil
 			// meant "don't skip"): treat nobody as exhausted rather than silently
 			// parking the whole page.
-			slog.Warn("intro detection: batch exhausted check", slog.String("parent_id", parentID), slog.Any("err", exErr))
+			slog.WarnContext(ctx, "intro detection: batch exhausted check", slog.String("parent_id", parentID), slog.Any("err", exErr))
 			exhaustedByID = nil
 		}
 
@@ -598,14 +598,14 @@ func (s *IntroDetectionService) detectSeason(ctx context.Context, parentID strin
 			if detErr != nil {
 				// A real failure (ffmpeg crash, I/O) - don't count it toward the cap
 				// so a transient problem doesn't park a detectable episode.
-				slog.Warn("intro detection failed", slog.String("media_id", string(ep.ID)), slog.Any("err", detErr))
+				slog.WarnContext(ctx, "intro detection failed", slog.String("media_id", string(ep.ID)), slog.Any("err", detErr))
 				continue
 			}
 			// Clean run: count it. If it found a good intro the episode is skipped
 			// next time via hasGoodIntro; if it found nothing/weak, this bounds the
 			// retries until introDetectionAlgoVersion bumps.
 			if recErr := s.segmentRepo.RecordIntroDetectionAttempt(ctx, string(ep.ID), introDetectionAlgoVersion); recErr != nil {
-				slog.Warn("intro detection: record attempt", slog.String("media_id", string(ep.ID)), slog.Any("err", recErr))
+				slog.WarnContext(ctx, "intro detection: record attempt", slog.String("media_id", string(ep.ID)), slog.Any("err", recErr))
 			}
 		}
 		if len(siblings) < pageSize {
@@ -702,7 +702,7 @@ func (s *IntroDetectionService) detectIntroWithHint(ctx context.Context, mediaIt
 	// End credits detection runs independently of the intro pipeline so that
 	// films (which produce no intro windows) also get a credits segment.
 	if seg, ecErr := s.detectEndCredits(ctx, item); ecErr != nil {
-		slog.Warn("intro_detection: end credits failed", slog.String("media_id", mediaItemID), slog.Any("err", ecErr))
+		slog.WarnContext(ctx, "intro_detection: end credits failed", slog.String("media_id", mediaItemID), slog.Any("err", ecErr))
 	} else if seg != nil {
 		segments = append(segments, *seg)
 	}
@@ -714,7 +714,7 @@ func (s *IntroDetectionService) detectIntroWithHint(ctx context.Context, mediaIt
 	}
 
 	if len(segments) == 0 {
-		slog.Info("intro_detection: no segments found", slog.String("media_id", mediaItemID))
+		slog.InfoContext(ctx, "intro_detection: no segments found", slog.String("media_id", mediaItemID))
 		return nil
 	}
 
@@ -728,7 +728,7 @@ func (s *IntroDetectionService) detectIntroWithHint(ctx context.Context, mediaIt
 		// (e.g. 9-1-1's ~2s title card), not noise.
 		if seg.Type == "intro" && isHeuristicSegmentSource(seg.Source) &&
 			seg.EndMs-seg.StartMs < minHeuristicIntroMs {
-			slog.Info("intro_detection: dropping degenerate heuristic intro",
+			slog.InfoContext(ctx, "intro_detection: dropping degenerate heuristic intro",
 				slog.String("media_id", mediaItemID),
 				slog.String("source", seg.Source),
 				slog.Int64("start_ms", seg.StartMs),
@@ -740,7 +740,7 @@ func (s *IntroDetectionService) detectIntroWithHint(ctx context.Context, mediaIt
 		if err := s.upsertSegmentRespectingManual(ctx, &seg); err != nil {
 			return fmt.Errorf("upsert segment %s: %w", seg.Type, err)
 		}
-		slog.Info("intro_detection: segment stored",
+		slog.InfoContext(ctx, "intro_detection: segment stored",
 			slog.String("media_id", mediaItemID),
 			slog.String("type", seg.Type),
 			slog.Int64("start_ms", seg.StartMs),
@@ -768,7 +768,7 @@ func (s *IntroDetectionService) detectIntroWithHint(ctx context.Context, mediaIt
 				cctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 				defer cancel()
 				if cErr := s.contributor.Contribute(cctx, itemCopy, segCopy); cErr != nil {
-					slog.Warn("intro_detection: segment contribution failed",
+					slog.WarnContext(cctx, "intro_detection: segment contribution failed",
 						slog.String("type", segCopy.Type), slog.Any("err", cErr))
 				}
 			}()

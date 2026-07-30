@@ -39,10 +39,10 @@ func (s *InstallerService) UninstallPlugin(ctx context.Context, id string) error
 		stopErr := s.runner.Stop(stopCtx, id)
 		cancel()
 		if stopErr != nil {
-			slog.Warn("plugin Stop failed, falling back to Kill",
+			slog.WarnContext(ctx, "plugin Stop failed, falling back to Kill",
 				slog.String("pluginID", id), slog.Any("err", stopErr))
 			if killErr := s.runner.Kill(id); killErr != nil {
-				slog.Warn("plugin Kill failed (will continue)",
+				slog.WarnContext(ctx, "plugin Kill failed (will continue)",
 					slog.String("pluginID", id), slog.Any("err", killErr))
 			}
 			// Give the kernel a beat to recycle any FDs the plugin held open
@@ -99,7 +99,7 @@ func (s *InstallerService) UninstallPlugin(ctx context.Context, id string) error
 	//    their references. Best-effort.
 	evtUninstalled := plugin.PluginUninstalled{PluginID: id, OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evtUninstalled); err != nil {
-		slog.Warn("publish event", slog.String("event", evtUninstalled.EventName()), slog.Any("err", err))
+		slog.WarnContext(ctx, "publish event", slog.String("event", evtUninstalled.EventName()), slog.Any("err", err))
 	}
 	return nil
 }
@@ -122,13 +122,13 @@ func (s *InstallerService) CleanupOrphans(ctx context.Context) int {
 	}
 	names, err := listDirs(s.pluginDir)
 	if err != nil {
-		slog.Warn("cleanup orphans: read plugin dir", slog.String("dir", s.pluginDir), slog.Any("err", err))
+		slog.WarnContext(ctx, "cleanup orphans: read plugin dir", slog.String("dir", s.pluginDir), slog.Any("err", err))
 		return 0
 	}
 
 	all, err := s.plugins.List(ctx)
 	if err != nil {
-		slog.Warn("cleanup orphans: list plugins from db", slog.Any("err", err))
+		slog.WarnContext(ctx, "cleanup orphans: list plugins from db", slog.Any("err", err))
 		return 0
 	}
 	known := make(map[string]struct{}, len(all))
@@ -146,15 +146,15 @@ func (s *InstallerService) CleanupOrphans(ctx context.Context) int {
 		}
 		full := filepath.Join(s.pluginDir, name)
 		if err := s.fs.RemoveAll(full); err != nil {
-			slog.Warn("cleanup orphans: remove dir failed",
+			slog.WarnContext(ctx, "cleanup orphans: remove dir failed",
 				slog.String("dir", full), slog.Any("err", err))
 			continue
 		}
-		slog.Info("cleanup orphans: removed orphan plugin dir", slog.String("dir", full))
+		slog.InfoContext(ctx, "cleanup orphans: removed orphan plugin dir", slog.String("dir", full))
 		removed++
 	}
 	if removed > 0 {
-		slog.Info("cleanup orphans: complete", slog.Int("removed", removed))
+		slog.InfoContext(ctx, "cleanup orphans: complete", slog.Int("removed", removed))
 	}
 	return removed
 }

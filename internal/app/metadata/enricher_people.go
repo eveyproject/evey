@@ -64,7 +64,7 @@ func (e *Enricher) EnrichAllPeopleBios(ctx context.Context, log *slog.Logger) (i
 			person.ThumbPath = &details.ThumbURL
 		}
 		if updateErr := e.persons.Update(ctx, person); updateErr != nil {
-			slog.Warn("update person bio", slog.String("name", person.Name), slog.Any("err", updateErr))
+			slog.WarnContext(ctx, "update person bio", slog.String("name", person.Name), slog.Any("err", updateErr))
 		} else {
 			enriched++
 			if log != nil {

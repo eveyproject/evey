@@ -81,7 +81,7 @@ func (m *IdleManager) SetEnabled(ctx context.Context, on bool) {
 	}
 	m.mu.Unlock()
 
-	slog.Info("plugin idle management", slog.Bool("enabled", on))
+	slog.InfoContext(ctx, "plugin idle management", slog.Bool("enabled", on))
 	for _, id := range toResume {
 		m.EnsureStarted(ctx, id)
 	}
@@ -133,10 +133,10 @@ func (m *IdleManager) EnsureStarted(ctx context.Context, pluginID string) {
 		return
 	}
 	if err := m.runner.Start(ctx, p); err != nil {
-		slog.Warn("resume suspended plugin failed", slog.String("pluginID", pluginID), slog.Any("err", err))
+		slog.WarnContext(ctx, "resume suspended plugin failed", slog.String("pluginID", pluginID), slog.Any("err", err))
 		return // keep it marked suspended; the next interaction retries
 	}
-	slog.Info("resumed suspended plugin", slog.String("pluginID", pluginID))
+	slog.InfoContext(ctx, "resumed suspended plugin", slog.String("pluginID", pluginID))
 	m.mu.Lock()
 	delete(m.suspended, pluginID)
 	m.last[pluginID] = m.now()
@@ -156,7 +156,7 @@ func (m *IdleManager) Sweep(ctx context.Context) {
 
 	all, err := m.plugins.List(ctx)
 	if err != nil {
-		slog.Warn("idle sweep: list plugins", slog.Any("err", err))
+		slog.WarnContext(ctx, "idle sweep: list plugins", slog.Any("err", err))
 		return
 	}
 
@@ -184,13 +184,13 @@ func (m *IdleManager) Sweep(ctx context.Context) {
 		m.mu.Unlock()
 
 		if err := m.runner.Stop(ctx, p.ID); err != nil {
-			slog.Warn("suspend idle plugin failed", slog.String("pluginID", p.ID), slog.Any("err", err))
+			slog.WarnContext(ctx, "suspend idle plugin failed", slog.String("pluginID", p.ID), slog.Any("err", err))
 			m.mu.Lock()
 			delete(m.suspended, p.ID)
 			m.mu.Unlock()
 			continue
 		}
-		slog.Info("suspended idle plugin (low memory profile)",
+		slog.InfoContext(ctx, "suspended idle plugin (low memory profile)",
 			slog.String("pluginID", p.ID),
 			slog.Duration("idle", now.Sub(lastSeen)))
 	}

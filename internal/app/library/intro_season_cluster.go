@@ -241,7 +241,7 @@ func (s *IntroDetectionService) clusterSeasonIntro(ctx context.Context, parentID
 			Confidence: 0.9,
 		}
 	}
-	slog.Info("intro_detection: season cluster",
+	slog.InfoContext(ctx, "intro_detection: season cluster",
 		slog.String("parent_id", parentID),
 		slog.Int("episodes", len(eps)),
 		slog.Int("carriers", len(cluster.carriers)),

@@ -30,7 +30,7 @@ func (s *IntroDetectionService) upsertSegmentRespectingManual(ctx context.Contex
 		return fmt.Errorf("upsert segment with manual-lock guard: %w", err)
 	}
 	if !applied {
-		slog.Info("intro_detection: skipping auto upsert, manual lock present",
+		slog.InfoContext(ctx, "intro_detection: skipping auto upsert, manual lock present",
 			slog.String("media_id", string(seg.MediaItemID)),
 			slog.String("type", seg.Type))
 	}
@@ -179,7 +179,7 @@ func (s *IntroDetectionService) PropagateSegment(ctx context.Context, refMediaIt
 		// than risk clobbering an operator "manual" mark we failed to read.
 		// Conservative on purpose: a partial/fail-open batch result here could
 		// silently propagate over a mark we simply couldn't verify.
-		slog.Warn("intro_detection: propagate skipping page, cannot read segments for manual-lock guard",
+		slog.WarnContext(ctx, "intro_detection: propagate skipping page, cannot read segments for manual-lock guard",
 			slog.Any("err", segBatchErr))
 		return propagatedTo, nil
 	}
@@ -189,7 +189,7 @@ func (s *IntroDetectionService) PropagateSegment(ctx context.Context, refMediaIt
 	// above, so a whole-batch failure degrading to "every id absent" is safe.
 	trickByID, trickBatchErr := s.trickplayRepo.GetByMediaItemIDs(ctx, siblingIDs)
 	if trickBatchErr != nil {
-		slog.Warn("intro_detection: propagate batch trickplay read failed, siblings without a cached manifest will be skipped",
+		slog.WarnContext(ctx, "intro_detection: propagate batch trickplay read failed, siblings without a cached manifest will be skipped",
 			slog.Any("err", trickBatchErr))
 		trickByID = nil
 	}
@@ -252,13 +252,13 @@ func (s *IntroDetectionService) PropagateSegment(ctx context.Context, refMediaIt
 		// propagation.
 		applied, upsertErr := s.segmentRepo.UpsertUnlessOperatorManual(ctx, seg)
 		if upsertErr != nil {
-			slog.Warn("propagate: upsert failed",
+			slog.WarnContext(ctx, "propagate: upsert failed",
 				slog.String("sibling", string(sib.ID)),
 				slog.Any("err", upsertErr))
 			continue
 		}
 		if !applied {
-			slog.Info("intro_detection: propagate skipped, operator manual lock won the race",
+			slog.InfoContext(ctx, "intro_detection: propagate skipped, operator manual lock won the race",
 				slog.String("sibling", string(sib.ID)))
 			continue
 		}

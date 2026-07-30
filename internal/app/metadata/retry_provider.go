@@ -50,7 +50,7 @@ func (r *RetryProvider) Search(ctx context.Context, query string, year *int, med
 		if waitErr := sleepBackoff(ctx, r.baseDelay, attempt); waitErr != nil {
 			return nil, waitErr
 		}
-		slog.Debug("retry provider search",
+		slog.DebugContext(ctx, "retry provider search",
 			slog.String("provider", r.inner.Name()),
 			slog.String("query", query),
 			slog.Int("attempt", attempt+1),
@@ -75,7 +75,7 @@ func (r *RetryProvider) GetByProviderID(ctx context.Context, providerID, mediaTy
 		if waitErr := sleepBackoff(ctx, r.baseDelay, attempt); waitErr != nil {
 			return nil, waitErr
 		}
-		slog.Debug("retry provider get-by-id",
+		slog.DebugContext(ctx, "retry provider get-by-id",
 			slog.String("provider", r.inner.Name()),
 			slog.String("provider_id", providerID),
 			slog.Int("attempt", attempt+1),

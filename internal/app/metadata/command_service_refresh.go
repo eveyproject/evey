@@ -40,7 +40,7 @@ func (s *CommandService) RefreshMetadata(ctx context.Context, mediaItemID, provi
 		// Log-only: notification event - actual metadata fetch already succeeded above
 		evt := metadata.MetadataRefreshed{MediaItemID: shared.MediaItemID(mediaItemID), Provider: providerName, OccurredAt: time.Now()}
 		if err := s.events.Publish(ctx, evt); err != nil {
-			slog.Warn("publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
+			slog.WarnContext(ctx, "publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
 		}
 		return result, nil
 	}
@@ -140,7 +140,7 @@ func (s *CommandService) RefreshItemMetadata(ctx context.Context, mediaItemID, t
 	}
 	evtTmdb := metadata.MetadataRefreshed{MediaItemID: shared.MediaItemID(mediaItemID), Provider: "tmdb", OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evtTmdb); err != nil {
-		slog.Warn("publish event", slog.String("event", evtTmdb.EventName()), slog.Any("err", err))
+		slog.WarnContext(ctx, "publish event", slog.String("event", evtTmdb.EventName()), slog.Any("err", err))
 	}
 	return nil
 }
@@ -198,7 +198,7 @@ func (s *CommandService) RefreshItemMetadataByIMDB(ctx context.Context, mediaIte
 	}
 	evtImdb := metadata.MetadataRefreshed{MediaItemID: shared.MediaItemID(mediaItemID), Provider: usedProvider, OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evtImdb); err != nil {
-		slog.Warn("publish event", slog.String("event", evtImdb.EventName()), slog.Any("err", err))
+		slog.WarnContext(ctx, "publish event", slog.String("event", evtImdb.EventName()), slog.Any("err", err))
 	}
 	return nil
 }

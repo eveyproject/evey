@@ -91,7 +91,7 @@ func (s *RuntimeService) StartPlugin(ctx context.Context, id string) error {
 		metrics.IncPluginError(p.ID)
 		metrics.SetPluginUp(p.ID, false)
 		if updateErr := s.plugins.Update(ctx, p); updateErr != nil {
-			slog.Warn("update plugin status failed", slog.String("pluginID", p.ID), slog.Any("err", updateErr))
+			slog.WarnContext(ctx, "update plugin status failed", slog.String("pluginID", p.ID), slog.Any("err", updateErr))
 		}
 		return fmt.Errorf("RuntimeService.StartPlugin: %w", err)
 	}
@@ -102,11 +102,11 @@ func (s *RuntimeService) StartPlugin(ctx context.Context, id string) error {
 	p.ErrorMessage = ""
 	metrics.SetPluginUp(p.ID, true)
 	if err := s.plugins.Update(ctx, p); err != nil {
-		slog.Warn("update plugin status failed", slog.String("pluginID", p.ID), slog.Any("err", err))
+		slog.WarnContext(ctx, "update plugin status failed", slog.String("pluginID", p.ID), slog.Any("err", err))
 	}
 	evtStarted := plugin.PluginStarted{PluginID: id, OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evtStarted); err != nil {
-		slog.Warn("publish event", slog.String("event", evtStarted.EventName()), slog.Any("err", err))
+		slog.WarnContext(ctx, "publish event", slog.String("event", evtStarted.EventName()), slog.Any("err", err))
 	}
 	return nil
 }
@@ -129,11 +129,11 @@ func (s *RuntimeService) StopPlugin(ctx context.Context, id string) error {
 	}
 	p.Status = plugin.Stopped
 	if err := s.plugins.Update(ctx, p); err != nil {
-		slog.Warn("update plugin status failed", slog.String("pluginID", p.ID), slog.Any("err", err))
+		slog.WarnContext(ctx, "update plugin status failed", slog.String("pluginID", p.ID), slog.Any("err", err))
 	}
 	evtStopped := plugin.PluginStopped{PluginID: id, OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evtStopped); err != nil {
-		slog.Warn("publish event", slog.String("event", evtStopped.EventName()), slog.Any("err", err))
+		slog.WarnContext(ctx, "publish event", slog.String("event", evtStopped.EventName()), slog.Any("err", err))
 	}
 	return nil
 }
@@ -148,7 +148,7 @@ func (s *RuntimeService) RestartRunningPlugins(ctx context.Context) {
 	defer span.End()
 	plugins, err := s.plugins.List(ctx)
 	if err != nil {
-		slog.Warn("restart running plugins: list failed", slog.Any("err", err))
+		slog.WarnContext(ctx, "restart running plugins: list failed", slog.Any("err", err))
 		return
 	}
 	for _, p := range plugins {
@@ -156,13 +156,13 @@ func (s *RuntimeService) RestartRunningPlugins(ctx context.Context) {
 			continue
 		}
 		if err := s.StopPlugin(ctx, p.ID); err != nil {
-			slog.Warn("restart running plugins: stop failed", slog.String("pluginID", p.ID), slog.Any("err", err))
+			slog.WarnContext(ctx, "restart running plugins: stop failed", slog.String("pluginID", p.ID), slog.Any("err", err))
 			continue
 		}
 		if err := s.StartPlugin(ctx, p.ID); err != nil {
 			// StartPlugin already set the plugin to Error + persisted it, so the
 			// failure surfaces in the dashboard; just record it and move on.
-			slog.Warn("restart running plugins: start failed under new mode", slog.String("pluginID", p.ID), slog.Any("err", err))
+			slog.WarnContext(ctx, "restart running plugins: start failed under new mode", slog.String("pluginID", p.ID), slog.Any("err", err))
 		}
 	}
 }
@@ -205,7 +205,7 @@ func (s *RuntimeService) DisablePlugin(ctx context.Context, id string) error {
 	}
 	if p.Status == plugin.Running {
 		if err := s.runner.Stop(ctx, id); err != nil {
-			slog.Warn("stop plugin runner failed", slog.String("pluginID", id), slog.Any("err", err))
+			slog.WarnContext(ctx, "stop plugin runner failed", slog.String("pluginID", id), slog.Any("err", err))
 		}
 		p.Status = plugin.Stopped
 	}
@@ -250,20 +250,20 @@ func (s *RuntimeService) AutoStartPlugins(ctx context.Context) {
 		}
 		if rebuilt {
 			if upErr := s.plugins.Update(ctx, p); upErr != nil {
-				slog.Warn("persist rebuilt plugin fields", slog.String("pluginID", p.ID), slog.Any("err", upErr))
+				slog.WarnContext(ctx, "persist rebuilt plugin fields", slog.String("pluginID", p.ID), slog.Any("err", upErr))
 			}
 		}
 		retryingAfterError := p.Status == plugin.Error
-		slog.Info("auto-starting plugin", slog.String("pluginID", p.ID), slog.String("name", p.Name),
+		slog.InfoContext(ctx, "auto-starting plugin", slog.String("pluginID", p.ID), slog.String("name", p.Name),
 			slog.Bool("retry_after_error", retryingAfterError))
 		if startErr := s.runner.Start(ctx, p); startErr != nil {
-			slog.Warn("auto-start plugin failed", slog.String("pluginID", p.ID), slog.Any("err", startErr))
+			slog.WarnContext(ctx, "auto-start plugin failed", slog.String("pluginID", p.ID), slog.Any("err", startErr))
 			p.Status = plugin.Error
 			p.ErrorMessage = startErr.Error()
 			metrics.IncPluginError(p.ID)
 			metrics.SetPluginUp(p.ID, false)
 			if updateErr := s.plugins.Update(ctx, p); updateErr != nil {
-				slog.Warn("update plugin status", slog.String("pluginID", p.ID), slog.Any("err", updateErr))
+				slog.WarnContext(ctx, "update plugin status", slog.String("pluginID", p.ID), slog.Any("err", updateErr))
 			}
 			continue
 		}
@@ -282,7 +282,7 @@ func (s *RuntimeService) AutoStartPlugins(ctx context.Context) {
 			p.Status = plugin.Initializing
 			p.ErrorMessage = ""
 			if updateErr := s.plugins.Update(ctx, p); updateErr != nil {
-				slog.Warn("update plugin status", slog.String("pluginID", p.ID), slog.Any("err", updateErr))
+				slog.WarnContext(ctx, "update plugin status", slog.String("pluginID", p.ID), slog.Any("err", updateErr))
 			}
 		}
 	}
@@ -323,7 +323,7 @@ func (s *RuntimeService) HandleIPCResult(pluginID string, ipcErr error) {
 		metrics.SetPluginUp(p.ID, true)
 	}
 	if upErr := s.plugins.Update(ctx, p); upErr != nil {
-		slog.Warn("update plugin status after IPC", slog.String("pluginID", pluginID), slog.Any("err", upErr))
+		slog.WarnContext(ctx, "update plugin status after IPC", slog.String("pluginID", pluginID), slog.Any("err", upErr))
 	}
 }
 

@@ -51,7 +51,7 @@ func ResolveMemoryProfile(ctx context.Context, repo shared.ServerConfigRepositor
 	case "", MemoryProfileAuto:
 		// fall through to auto resolution
 	default:
-		slog.Warn("invalid memory profile setting, resolving as auto",
+		slog.WarnContext(ctx, "invalid memory profile setting, resolving as auto",
 			slog.String("key", KeyMemoryProfile), slog.String("value", stored))
 	}
 	if budget > 0 && budget < autoLowThresholdBytes {

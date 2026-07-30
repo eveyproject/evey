@@ -37,7 +37,7 @@ func attachTranslations(ctx context.Context, tr reindexTranslationReader, batch 
 	}
 	byID, err := tr.GetByMediaItems(ctx, ids)
 	if err != nil {
-		slog.Warn("reindex: fetch translations (indexing without them)", slog.Any("err", err))
+		slog.WarnContext(ctx, "reindex: fetch translations (indexing without them)", slog.Any("err", err))
 		return
 	}
 	for _, it := range batch {
@@ -109,7 +109,7 @@ func ReindexSearchIndex(
 		}
 	}
 
-	slog.Info("search reindex complete", slog.Int("indexed", indexed), slog.String("library_id", libraryID))
+	slog.InfoContext(ctx, "search reindex complete", slog.Int("indexed", indexed), slog.String("library_id", libraryID))
 	return indexed, nil
 }
 
@@ -170,13 +170,13 @@ func ReconcileSearchIndex(
 	// the rebuild runs - acceptable for a 15-min reconcile, and far better than
 	// stale deleted items lingering in search indefinitely.)
 	if docCount > int64(dbCount) {
-		slog.Info("search reconcile: index larger than DB (stale docs from a dropped delete), wiping then rebuilding",
+		slog.InfoContext(ctx, "search reconcile: index larger than DB (stale docs from a dropped delete), wiping then rebuilding",
 			slog.Int64("index_docs", docCount), slog.Int("db_items", dbCount))
 		if err := search.Clear(ctx); err != nil {
 			return 0, fmt.Errorf("reconcile: clear oversized index: %w", err)
 		}
 	} else {
-		slog.Info("search reconcile: index behind the DB, rebuilding",
+		slog.InfoContext(ctx, "search reconcile: index behind the DB, rebuilding",
 			slog.Int64("index_docs", docCount), slog.Int("db_items", dbCount))
 	}
 
@@ -203,6 +203,6 @@ func ReconcileSearchIndex(
 			break
 		}
 	}
-	slog.Info("search reconcile complete", slog.Int("indexed", indexed))
+	slog.InfoContext(ctx, "search reconcile complete", slog.Int("indexed", indexed))
 	return indexed, nil
 }

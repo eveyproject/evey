@@ -586,7 +586,7 @@ func (e *Enricher) fetchBestCandidate(ctx context.Context, provider domainmetada
 							// (non-empty overview + no artwork/cast trips the
 							// non-force re-enrich guard and strands the item). Skip
 							// the provider so the chain falls through / retries.
-							slog.Warn("fetchBestCandidate: alt-title detail fetch failed, skipping provider",
+							slog.WarnContext(ctx, "fetchBestCandidate: alt-title detail fetch failed, skipping provider",
 								slog.String("provider", provider.Name()), slog.Any("err", fetchErr))
 							return nil
 						}
@@ -622,7 +622,7 @@ pickDone:
 		// stranding it in a degraded state until a manual refresh. Returning nil
 		// lets the chain fall through to the next provider; if every provider
 		// fails the item keeps its prior data and is retried next scan.
-		slog.Warn("fetchBestCandidate: detail fetch failed, skipping provider",
+		slog.WarnContext(ctx, "fetchBestCandidate: detail fetch failed, skipping provider",
 			slog.String("provider", provider.Name()),
 			slog.String("title", title),
 			slog.Any("err", err))

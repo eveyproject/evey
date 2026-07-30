@@ -58,7 +58,7 @@ func (r *CachingPersonRepo) GetByID(ctx context.Context, id string) (*library.Pe
 		person.ThumbPath = &details.ThumbURL
 	}
 	if updateErr := r.Update(ctx, person); updateErr != nil {
-		slog.Warn("cache person bio failed", slog.String("personID", person.ID), slog.Any("err", updateErr))
+		slog.WarnContext(ctx, "cache person bio failed", slog.String("personID", person.ID), slog.Any("err", updateErr))
 	}
 	if r.transFetcher != nil && r.personTranslations != nil && len(r.locales) > 0 {
 		if bios, bioErr := r.transFetcher.FetchPersonTranslations(ctx, person.Name, r.locales); bioErr == nil {
@@ -66,7 +66,7 @@ func (r *CachingPersonRepo) GetByID(ctx context.Context, id string) (*library.Pe
 				if uErr := r.personTranslations.Upsert(ctx, &library.PersonTranslation{
 					PersonID: person.ID, Locale: locale, Biography: bio,
 				}); uErr != nil {
-					slog.Warn("upsert person translation failed", slog.String("personID", person.ID), slog.String("locale", locale), slog.Any("err", uErr))
+					slog.WarnContext(ctx, "upsert person translation failed", slog.String("personID", person.ID), slog.String("locale", locale), slog.Any("err", uErr))
 				}
 			}
 		}

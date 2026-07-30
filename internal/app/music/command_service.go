@@ -112,11 +112,11 @@ func (s *CommandService) reindexTracksInto(ctx context.Context, search music.Mus
 		}
 		tracks, lerr := s.tracks.ListAllByLibrary(ctx, lib.ID)
 		if lerr != nil {
-			slog.Warn("music reindex: list tracks", slog.String("library", string(lib.ID)), slog.Any("err", lerr))
+			slog.WarnContext(ctx, "music reindex: list tracks", slog.String("library", string(lib.ID)), slog.Any("err", lerr))
 			continue
 		}
 		if ierr := search.IndexTracksBatch(ctx, tracks); ierr != nil {
-			slog.Warn("music reindex: batch index", slog.String("library", string(lib.ID)), slog.Any("err", ierr))
+			slog.WarnContext(ctx, "music reindex: batch index", slog.String("library", string(lib.ID)), slog.Any("err", ierr))
 			continue
 		}
 		indexed += len(tracks)
@@ -163,12 +163,12 @@ func (s *CommandService) ReconcileTracks(ctx context.Context, primary music.Musi
 	// doc with a manual reindex. Equal counts = in sync.
 	if docCount >= int64(dbCount) {
 		if docCount > int64(dbCount) {
-			slog.Warn("music search reconcile: index has more docs than the DB (stale doc from a dropped delete); a re-index only upserts and can't shrink it - wipe the search index and reindex to clear",
+			slog.WarnContext(ctx, "music search reconcile: index has more docs than the DB (stale doc from a dropped delete); a re-index only upserts and can't shrink it - wipe the search index and reindex to clear",
 				slog.Int64("index_docs", docCount), slog.Int("db_tracks", dbCount))
 		}
 		return 0, nil
 	}
-	slog.Info("music search reconcile: index behind the DB, rebuilding",
+	slog.InfoContext(ctx, "music search reconcile: index behind the DB, rebuilding",
 		slog.Int64("index_docs", docCount), slog.Int("db_tracks", dbCount))
 	return s.reindexTracksInto(ctx, primary)
 }
@@ -262,7 +262,7 @@ func (s *CommandService) FetchMissingAlbumArt(ctx context.Context, libraryID str
 			if _, vErr := os.Stat(verifiedMarkerPath(dst)); vErr == nil {
 				continue
 			}
-			slog.Info("music: re-checking an album art fetched before match verification",
+			slog.InfoContext(ctx, "music: re-checking an album art fetched before match verification",
 				slog.String("artist", ak.Artist), slog.String("album", ak.Album))
 		}
 		data, _, ferr := s.albumArtFetcher.Fetch(ctx, ak.Artist, ak.Album)
@@ -273,25 +273,25 @@ func (s *CommandService) FetchMissingAlbumArt(ctx context.Context, libraryID str
 				// mentir - l'UI affiche alors son placeholder.
 				s.dropUnverifiedAlbumArt(ctx, libraryID, ak.AlbumFolder, dst)
 			} else {
-				slog.Warn("music: fetch album art", slog.String("artist", ak.Artist), slog.String("album", ak.Album), slog.Any("err", ferr))
+				slog.WarnContext(ctx, "music: fetch album art", slog.String("artist", ak.Artist), slog.String("album", ak.Album), slog.Any("err", ferr))
 			}
 			continue
 		}
 		// hash/dst computed above (folder is the album identity, so two folders
 		// that share (artist, album) tags still get distinct files on disk).
 		if werr := os.WriteFile(dst, data, 0o644); werr != nil {
-			slog.Warn("music: write album art", slog.String("path", dst), slog.Any("err", werr))
+			slog.WarnContext(ctx, "music: write album art", slog.String("path", dst), slog.Any("err", werr))
 			continue
 		}
 		// Témoin de vérification : sa présence dit « cette image a été retenue
 		// par un fetcher qui contrôle la correspondance », donc on ne la
 		// recontrôlera plus.
 		if werr := os.WriteFile(verifiedMarkerPath(dst), []byte(ak.Artist+"|"+ak.Album+"\n"), 0o644); werr != nil {
-			slog.Warn("music: write album art marker", slog.String("path", verifiedMarkerPath(dst)), slog.Any("err", werr))
+			slog.WarnContext(ctx, "music: write album art marker", slog.String("path", verifiedMarkerPath(dst)), slog.Any("err", werr))
 		}
 		url := "/api/v1/music/album-art/" + hash
 		if uerr := s.tracks.SetAlbumCoverArtURL(ctx, shared.LibraryID(libraryID), ak.AlbumFolder, url); uerr != nil {
-			slog.Warn("music: set cover url", slog.String("album_folder", ak.AlbumFolder), slog.Any("err", uerr))
+			slog.WarnContext(ctx, "music: set cover url", slog.String("album_folder", ak.AlbumFolder), slog.Any("err", uerr))
 			continue
 		}
 		fetched++
@@ -317,14 +317,14 @@ func (s *CommandService) dropUnverifiedAlbumArt(ctx context.Context, libraryID, 
 		return // vérifiée en son temps : ce n'est pas à nous de la juger
 	}
 	if err := os.Remove(imagePath); err != nil {
-		slog.Warn("music: remove unverified album art", slog.String("path", imagePath), slog.Any("err", err))
+		slog.WarnContext(ctx, "music: remove unverified album art", slog.String("path", imagePath), slog.Any("err", err))
 		return
 	}
 	if err := s.tracks.SetAlbumCoverArtURL(ctx, shared.LibraryID(libraryID), albumFolder, ""); err != nil {
-		slog.Warn("music: clear cover url", slog.String("album_folder", albumFolder), slog.Any("err", err))
+		slog.WarnContext(ctx, "music: clear cover url", slog.String("album_folder", albumFolder), slog.Any("err", err))
 		return
 	}
-	slog.Info("music: dropped an album art that matched no album at the source",
+	slog.InfoContext(ctx, "music: dropped an album art that matched no album at the source",
 		slog.String("album_folder", albumFolder))
 }
 
@@ -341,7 +341,7 @@ func (s *CommandService) restoreEmbeddedAlbumArt(ctx context.Context, libraryID,
 	}
 	tracks, err := s.tracks.ListByAlbumFolder(ctx, shared.LibraryID(libraryID), albumFolder)
 	if err != nil {
-		slog.Warn("music: list album folder for embedded art", slog.String("album_folder", albumFolder), slog.Any("err", err))
+		slog.WarnContext(ctx, "music: list album folder for embedded art", slog.String("album_folder", albumFolder), slog.Any("err", err))
 		return false
 	}
 	for i := range tracks {
@@ -357,10 +357,10 @@ func (s *CommandService) restoreEmbeddedAlbumArt(ctx context.Context, libraryID,
 			return true
 		}
 		if setErr := s.tracks.SetTrackCoverArtURL(ctx, t.ID, embeddedURL); setErr != nil {
-			slog.Warn("music: restore embedded album art", slog.String("track_id", t.ID), slog.Any("err", setErr))
+			slog.WarnContext(ctx, "music: restore embedded album art", slog.String("track_id", t.ID), slog.Any("err", setErr))
 			return false
 		}
-		slog.Info("music: restored embedded album art over a fetched one",
+		slog.InfoContext(ctx, "music: restored embedded album art over a fetched one",
 			slog.String("album_folder", albumFolder), slog.String("track_id", t.ID))
 		return true
 	}
@@ -439,11 +439,11 @@ func (s *CommandService) buildTrackJobs(ctx context.Context, dir string, idx *sc
 		}
 		hash, hashErr := s.scanner.ComputeHash(f.Path)
 		if hashErr != nil {
-			slog.Warn("music scan: hash failed", slog.String("path", f.Path), slog.Any("err", hashErr))
+			slog.WarnContext(ctx, "music scan: hash failed", slog.String("path", f.Path), slog.Any("err", hashErr))
 		}
 		if movedID, isMove := idx.Moved(f.Path, hash); isMove {
 			if updateErr := s.tracks.UpdateFilePath(ctx, movedID, f.Path, f.ModTime); updateErr != nil {
-				slog.Warn("music scan: update path", slog.String("id", movedID), slog.Any("err", updateErr))
+				slog.WarnContext(ctx, "music scan: update path", slog.String("id", movedID), slog.Any("err", updateErr))
 			}
 			return nil
 		}
@@ -491,12 +491,12 @@ func (s *CommandService) processTrackJobs(ctx context.Context, libraryID string,
 func (s *CommandService) processOneTrack(ctx context.Context, libraryID string, j trackJob) bool {
 	t, parseErr := s.parseTrackWithTimeout(ctx, j.path, libraryID, j.mimeType, j.size)
 	if parseErr != nil {
-		slog.Warn("music scan: parse failed", slog.String("path", j.path), slog.Any("err", parseErr))
+		slog.WarnContext(ctx, "music scan: parse failed", slog.String("path", j.path), slog.Any("err", parseErr))
 		t, parseErr = music.NewTrack(uuid.New().String(), shared.LibraryID(libraryID), filepath.Base(j.path), j.path,
 			music.WithTrackFile(j.size, j.mimeType),
 		)
 		if parseErr != nil {
-			slog.Warn("music scan: fallback track build failed", slog.String("path", j.path), slog.Any("err", parseErr))
+			slog.WarnContext(ctx, "music scan: fallback track build failed", slog.String("path", j.path), slog.Any("err", parseErr))
 			return false
 		}
 	}
@@ -510,7 +510,7 @@ func (s *CommandService) processOneTrack(ctx context.Context, libraryID string, 
 
 	persistedID, upsertErr := s.tracks.Upsert(ctx, *t)
 	if upsertErr != nil {
-		slog.Warn("music scan: upsert failed", slog.String("path", j.path), slog.Any("err", upsertErr))
+		slog.WarnContext(ctx, "music scan: upsert failed", slog.String("path", j.path), slog.Any("err", upsertErr))
 		return false
 	}
 	// On a re-scan the ON CONFLICT path keeps the existing row's id, so the
@@ -522,18 +522,18 @@ func (s *CommandService) processOneTrack(ctx context.Context, libraryID string, 
 	// search), so log and continue.
 	if s.searchIndex != nil {
 		if idxErr := s.searchIndex.IndexTrack(ctx, *t); idxErr != nil {
-			slog.Warn("music scan: search index failed", slog.String("path", j.path), slog.Any("err", idxErr))
+			slog.WarnContext(ctx, "music scan: search index failed", slog.String("path", j.path), slog.Any("err", idxErr))
 		}
 	}
 	if pubErr := s.bus.Publish(ctx, music.TrackScanned{LibraryID: shared.LibraryID(libraryID), TrackID: t.ID, Title: t.Title, Path: j.path, OccurredAt: time.Now()}); pubErr != nil {
-		slog.Warn("music scan: event publish failed", slog.String("path", j.path), slog.Any("err", pubErr))
+		slog.WarnContext(ctx, "music scan: event publish failed", slog.String("path", j.path), slog.Any("err", pubErr))
 	}
 	if pubErr := s.bus.Publish(ctx, music.TrackAdded{LibraryID: shared.LibraryID(libraryID), TrackID: t.ID, Title: t.Title, Artist: t.Artist, OccurredAt: time.Now()}); pubErr != nil {
-		slog.Warn("music scan: TrackAdded publish failed", slog.String("path", j.path), slog.Any("err", pubErr))
+		slog.WarnContext(ctx, "music scan: TrackAdded publish failed", slog.String("path", j.path), slog.Any("err", pubErr))
 	}
 	if t.Album != "" {
 		if pubErr := s.bus.Publish(ctx, music.AlbumCreated{LibraryID: shared.LibraryID(libraryID), AlbumName: t.Album, Artist: t.Artist, OccurredAt: time.Now()}); pubErr != nil {
-			slog.Warn("music scan: AlbumCreated publish failed", slog.String("album", t.Album), slog.Any("err", pubErr))
+			slog.WarnContext(ctx, "music scan: AlbumCreated publish failed", slog.String("album", t.Album), slog.Any("err", pubErr))
 		}
 	}
 	return true
@@ -567,11 +567,11 @@ func (s *CommandService) kickAlbumArtFetch(libraryID string) {
 		defer cancel()
 		n, err := s.FetchMissingAlbumArt(bgCtx, libraryID)
 		if err != nil {
-			slog.Warn("music: fetch missing album art failed", slog.Any("err", err))
+			slog.WarnContext(bgCtx, "music: fetch missing album art failed", slog.Any("err", err))
 			return
 		}
 		if n > 0 {
-			slog.Info("music: fetched missing album arts", slog.Int("count", n), slog.String("library", libraryID))
+			slog.InfoContext(bgCtx, "music: fetched missing album arts", slog.Int("count", n), slog.String("library", libraryID))
 		}
 	}()
 }
@@ -594,7 +594,7 @@ func (s *CommandService) FetchMissingAlbumArtAllLibraries(ctx context.Context) (
 		}
 		n, err := s.FetchMissingAlbumArt(ctx, string(lib.ID))
 		if err != nil {
-			slog.Warn("music: fetch missing album art for library", slog.String("lib", string(lib.ID)), slog.Any("err", err))
+			slog.WarnContext(ctx, "music: fetch missing album art for library", slog.String("lib", string(lib.ID)), slog.Any("err", err))
 			continue
 		}
 		total += n
@@ -618,14 +618,14 @@ func (s *CommandService) DeleteTrack(ctx context.Context, trackID string) error 
 	}
 	if s.searchIndex != nil {
 		if idxErr := s.searchIndex.RemoveTrack(ctx, trackID); idxErr != nil {
-			slog.Warn("music: search index remove failed", slog.String("trackID", trackID), slog.Any("err", idxErr))
+			slog.WarnContext(ctx, "music: search index remove failed", slog.String("trackID", trackID), slog.Any("err", idxErr))
 		}
 	}
 	if pubErr := s.bus.Publish(ctx, music.TrackDeleted{TrackID: trackID, LibraryID: libraryID, OccurredAt: time.Now()}); pubErr != nil {
-		slog.Warn("music: TrackDeleted publish failed", slog.String("trackID", trackID), slog.Any("err", pubErr))
+		slog.WarnContext(ctx, "music: TrackDeleted publish failed", slog.String("trackID", trackID), slog.Any("err", pubErr))
 	}
 	if pubErr := s.bus.Publish(ctx, music.TrackRemoved{TrackID: trackID, LibraryID: libraryID, OccurredAt: time.Now()}); pubErr != nil {
-		slog.Warn("music: TrackRemoved publish failed", slog.String("trackID", trackID), slog.Any("err", pubErr))
+		slog.WarnContext(ctx, "music: TrackRemoved publish failed", slog.String("trackID", trackID), slog.Any("err", pubErr))
 	}
 	return nil
 }

@@ -67,7 +67,7 @@ func (s *IntroDetectionService) confirmAudioCandidatesChromaprint(ctx context.Co
 
 		targetFp, err := s.chromaprinter.Compute(ctx, item.File.Path, targetStartSec, targetDurSec)
 		if err != nil || len(targetFp) == 0 {
-			slog.Debug("intro_detection.candidate_evaluated",
+			slog.DebugContext(ctx, "intro_detection.candidate_evaluated",
 				slog.String("media_id", mediaID),
 				slog.Int64("candidate_start_ms", cand.startMs),
 				slog.Int64("candidate_end_ms", cand.endMs),
@@ -105,7 +105,7 @@ func (s *IntroDetectionService) confirmAudioCandidatesChromaprint(ctx context.Co
 		}
 
 		if len(drifts) < cfg.MinMatches {
-			slog.Debug("intro_detection.candidate_evaluated",
+			slog.DebugContext(ctx, "intro_detection.candidate_evaluated",
 				slog.String("media_id", mediaID),
 				slog.Int64("candidate_start_ms", cand.startMs),
 				slog.Int64("candidate_end_ms", cand.endMs),
@@ -127,7 +127,7 @@ func (s *IntroDetectionService) confirmAudioCandidatesChromaprint(ctx context.Co
 		coherenceRatio := float64(coherent) / float64(len(result.siblings))
 		minRatio := effectiveMinRatio(cfg, len(result.siblings))
 		if coherenceRatio < minRatio {
-			slog.Debug("intro_detection.candidate_evaluated",
+			slog.DebugContext(ctx, "intro_detection.candidate_evaluated",
 				slog.String("media_id", mediaID),
 				slog.Int64("candidate_start_ms", cand.startMs),
 				slog.Int64("candidate_end_ms", cand.endMs),
@@ -143,7 +143,7 @@ func (s *IntroDetectionService) confirmAudioCandidatesChromaprint(ctx context.Co
 			continue
 		}
 
-		slog.Debug("intro_detection.candidate_evaluated",
+		slog.DebugContext(ctx, "intro_detection.candidate_evaluated",
 			slog.String("media_id", mediaID),
 			slog.Int64("candidate_start_ms", cand.startMs),
 			slog.Int64("candidate_end_ms", cand.endMs),
@@ -214,7 +214,7 @@ func (s *IntroDetectionService) confirmAudioCandidates(ctx context.Context, item
 
 	mediaID := string(item.ID)
 	if item.File == nil || item.File.Path == "" || len(result.siblings) == 0 {
-		slog.Debug("intro_detection.candidate_evaluated",
+		slog.DebugContext(ctx, "intro_detection.candidate_evaluated",
 			slog.String("media_id", mediaID),
 			slog.Int("siblings_total", len(result.siblings)),
 			slog.String("decision", "rejected_no_target_or_siblings"),
@@ -235,7 +235,7 @@ func (s *IntroDetectionService) confirmAudioCandidates(ctx context.Context, item
 
 		targetFp, err := s.detector.AudioBandedFingerprint(ctx, item.File.Path, targetStartSec, targetDurSec, cfg.BinMs)
 		if err != nil || len(targetFp) == 0 {
-			slog.Debug("intro_detection.candidate_evaluated",
+			slog.DebugContext(ctx, "intro_detection.candidate_evaluated",
 				slog.String("media_id", mediaID),
 				slog.Int64("candidate_start_ms", cand.startMs),
 				slog.Int64("candidate_end_ms", cand.endMs),
@@ -274,7 +274,7 @@ func (s *IntroDetectionService) confirmAudioCandidates(ctx context.Context, item
 		}
 
 		if len(drifts) < cfg.MinMatches {
-			slog.Debug("intro_detection.candidate_evaluated",
+			slog.DebugContext(ctx, "intro_detection.candidate_evaluated",
 				slog.String("media_id", mediaID),
 				slog.Int64("candidate_start_ms", cand.startMs),
 				slog.Int64("candidate_end_ms", cand.endMs),
@@ -296,7 +296,7 @@ func (s *IntroDetectionService) confirmAudioCandidates(ctx context.Context, item
 		coherenceRatio := float64(coherent) / float64(len(result.siblings))
 		minRatio := effectiveMinRatio(cfg, len(result.siblings))
 		if coherenceRatio < minRatio {
-			slog.Debug("intro_detection.candidate_evaluated",
+			slog.DebugContext(ctx, "intro_detection.candidate_evaluated",
 				slog.String("media_id", mediaID),
 				slog.Int64("candidate_start_ms", cand.startMs),
 				slog.Int64("candidate_end_ms", cand.endMs),
@@ -313,7 +313,7 @@ func (s *IntroDetectionService) confirmAudioCandidates(ctx context.Context, item
 			continue
 		}
 
-		slog.Debug("intro_detection.candidate_evaluated",
+		slog.DebugContext(ctx, "intro_detection.candidate_evaluated",
 			slog.String("media_id", mediaID),
 			slog.Int64("candidate_start_ms", cand.startMs),
 			slog.Int64("candidate_end_ms", cand.endMs),
@@ -457,7 +457,7 @@ func (s *IntroDetectionService) extractEpisodeAudioCached(ctx context.Context, i
 	}); upsertErr != nil {
 		// Cache write failures are non-fatal: log and proceed with the freshly
 		// computed fingerprint so the pipeline still produces a result.
-		slog.Warn("intro_detection: audio cache upsert failed",
+		slog.WarnContext(ctx, "intro_detection: audio cache upsert failed",
 			slog.String("media_id", string(item.ID)),
 			slog.Any("err", upsertErr),
 		)

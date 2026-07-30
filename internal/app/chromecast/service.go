@@ -106,7 +106,7 @@ func (s *Service) Discover(ctx context.Context, clientIP string) ([]Device, erro
 	if len(devices) == 0 && s.prober != nil && clientIP != "" {
 		probed, probeErr := s.prober.ProbeSubnet(ctx, clientIP)
 		if probeErr != nil {
-			slog.Warn("chromecast: subnet probe failed", slog.Any("err", probeErr))
+			slog.WarnContext(ctx, "chromecast: subnet probe failed", slog.Any("err", probeErr))
 		} else {
 			devices = probed
 		}
@@ -230,10 +230,10 @@ func (s *Service) Play(ctx context.Context, uuid, mediaURL, title string, conten
 	// rejected the media...).
 	appErr := sess.LoadApp(eveyCastReceiverAppID, mediaURL)
 	if appErr == nil {
-		slog.Info("chromecast: playing (evey receiver)", slog.String("device", device.Name), slog.String("url", mediaURL))
+		slog.InfoContext(ctx, "chromecast: playing (evey receiver)", slog.String("device", device.Name), slog.String("url", mediaURL))
 		return nil
 	}
-	slog.Warn("chromecast: evey receiver failed, falling back to default receiver",
+	slog.WarnContext(ctx, "chromecast: evey receiver failed, falling back to default receiver",
 		slog.String("device", device.Name), slog.Any("err", appErr))
 
 	if contentType == "" {
@@ -243,7 +243,7 @@ func (s *Service) Play(ctx context.Context, uuid, mediaURL, title string, conten
 	if err := sess.Load(mediaURL, contentType); err != nil {
 		return fmt.Errorf("load media: %w", err)
 	}
-	slog.Info("chromecast: playing (default receiver)", slog.String("device", device.Name), slog.String("url", mediaURL))
+	slog.InfoContext(ctx, "chromecast: playing (default receiver)", slog.String("device", device.Name), slog.String("url", mediaURL))
 	return nil
 }
 
@@ -306,7 +306,7 @@ func (s *Service) Stop(ctx context.Context, uuid string) error {
 
 	stopErr := sess.StopMedia()
 	if err := sess.Close(); err != nil {
-		slog.Warn("chromecast session close failed", slog.Any("err", err))
+		slog.WarnContext(ctx, "chromecast session close failed", slog.Any("err", err))
 	}
 	if stopErr != nil {
 		return fmt.Errorf("stop: %w", stopErr)
@@ -413,7 +413,7 @@ func (mdnsDiscoverer) Discover(ctx context.Context) ([]domaincast.Device, error)
 		})
 	}
 	devices = dedupeDevices(devices)
-	slog.Info("chromecast: discovery complete", slog.Int("count", len(devices)))
+	slog.InfoContext(ctx, "chromecast: discovery complete", slog.Int("count", len(devices)))
 	return devices, nil
 }
 
@@ -492,7 +492,7 @@ func (p *tcpSubnetProber) ProbeSubnet(ctx context.Context, clientIP string) ([]d
 		return nil, err
 	}
 	sort.Slice(found, func(i, j int) bool { return found[i].Addr < found[j].Addr })
-	slog.Info("chromecast: subnet probe complete", slog.Int("count", len(found)))
+	slog.InfoContext(ctx, "chromecast: subnet probe complete", slog.Int("count", len(found)))
 	return found, nil
 }
 
