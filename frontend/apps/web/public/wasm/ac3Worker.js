@@ -20,6 +20,20 @@ function post(msg, transfer) {
   self.postMessage(msg, transfer || []);
 }
 
+/* wasmMemory is the module's linear memory. It is the ONLY honest memory
+ * figure for this decoder: performance.memory (the receiver's mem= beacon)
+ * reports the JS heap, which a growing WebAssembly.Memory never appears in.
+ * A cast that dies with a flat heap beacon was therefore unexplained - see
+ * the 2026-07-30 Bouygtel4K incident. */
+let wasmMemory = null;
+function wasmMemMB() {
+  try {
+    return wasmMemory ? Math.round(wasmMemory.buffer.byteLength / 1048576) : -1;
+  } catch (_) {
+    return -1;
+  }
+}
+
 /* loadRuntime imports the shim + instantiates the wasm module, once.
  * bustCache=true bypasses the HTTP cache on BOTH files: the shim and the wasm
  * are only compatible within the same build generation (standard-go and tinygo
@@ -41,6 +55,7 @@ async function loadRuntime(wasmUrl, wasmExecUrl, bustCache) {
     const resp = await fetch(wasmUrl, { cache: "reload" });
     if (!resp.ok) throw new Error("fetch " + wasmUrl + " -> " + resp.status);
     const res = await WebAssembly.instantiate(await resp.arrayBuffer(), go.importObject);
+    wasmMemory = res.instance.exports.mem || null;
     instance = res.instance;
   } else {
     // instantiateStreaming first: it's the ONLY form Chrome's compiled-code
@@ -50,12 +65,14 @@ async function loadRuntime(wasmUrl, wasmExecUrl, bustCache) {
     // Bytes fallback for engines without streaming or a missing Content-Type.
     try {
       const res = await WebAssembly.instantiateStreaming(fetch(wasmUrl), go.importObject);
+      wasmMemory = res.instance.exports.mem || null;
       instance = res.instance;
     } catch (_) {
       const resp = await fetch(wasmUrl);
       if (!resp.ok) throw new Error("fetch " + wasmUrl + " -> " + resp.status);
       const bytes = await resp.arrayBuffer();
       const res = await WebAssembly.instantiate(bytes, go.importObject);
+      wasmMemory = res.instance.exports.mem || null;
       instance = res.instance;
     }
   }
@@ -128,6 +145,7 @@ self.onmessage = async (e) => {
           sampleRate: res.sampleRate,
           frames: res.frames,
           pcm,
+          wasmMemMB: wasmMemMB(),
         },
         [pcm],
       );

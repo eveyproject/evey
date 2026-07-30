@@ -146,7 +146,7 @@ const aliveHeartbeat = createAliveHeartbeat(() => {
   // the page teardown.
   void postPlayerEventQuery(
     buildPlayerEventUrl(currentUrl),
-    { type: "cast_receiver_alive", details: `mode=${mode} mem=${readHeapMB()}`, posSec },
+    { type: "cast_receiver_alive", details: `mode=${mode} mem=${readHeapMB()} wasm=${engine?.decoderMemoryMB() ?? -1}`, posSec },
     (u, init) => fetch(u, init),
   ).then((cmd) => {
     if (cmd) applyAdminCommand(cmd);
@@ -258,6 +258,10 @@ async function startWasmEngine(): Promise<void> {
       // Every relay transition lands in the server logs: the next cast names
       // its audio path (aac -> wasm, or aac-latched) without a TV screenshot.
       onModeChange: (mode) => reportEvent("cast_receiver_audio_mode", mode),
+      // WHY the relay latched: a refused hand-over and a starvation fallback
+      // both read "aac-latched", and telling them apart from prod logs alone
+      // cost hours on 2026-07-30.
+      onDiagnostic: (detail) => reportEvent("cast_receiver_audio_guard", detail),
       // Releases the start gate: picture and sound begin together.
       onFirstAudio: () => startGate.audioReady(),
       // Audio-lead compensation: a TV's display pipeline delays the picture

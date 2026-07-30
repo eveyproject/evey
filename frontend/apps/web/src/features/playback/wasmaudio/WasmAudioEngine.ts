@@ -18,6 +18,7 @@
 // stereo outputs) correctly; other channel counts pass straight through.
 
 import { AVLatencyEstimator } from "./avLatencyEstimator";
+import { shouldHandover, isStarved, type HandoverVerdict } from "./relayGuard";
 import { AAC_SAMPLES_PER_FRAME, adtsFromFrames, extractAacFrames, parseAacConfig, type AacConfig } from "./fmp4Adts";
 
 const WASM_URL = "/wasm/ac3go.wasm";
@@ -75,6 +76,11 @@ export interface WasmAudioEngineOptions {
   // onModeChange reports relay leg transitions ("aac", "wasm", "aac-latched")
   // - telemetry only, no behaviour.
   onModeChange?: (mode: string) => void;
+  // onDiagnostic reports WHY the relay took a decision the mode alone cannot
+  // explain: a refused hand-over, a starvation fallback. Diagnosing the
+  // 2026-07-30 Bouygtel4K silent cast took hours of log archaeology precisely
+  // because "aac-latched" does not say what latched it. Telemetry only.
+  onDiagnostic?: (detail: string) => void;
   // onFirstAudio fires ONCE, when the first segment lands in the decode cache
   // - i.e. the engine can produce sound the moment the picture advances. The
   // cast receiver holds the video start on it so picture and sound begin
@@ -167,6 +173,18 @@ export class WasmAudioEngine {
   private wasmState: "pending" | "ready" | "failed" = "pending";
   private aacCfg: AacConfig | null = null;
   private ac3Segments: Segment[] = [];
+  // nativeSegments is the UNMERGED AAC timeline, kept for the whole session:
+  // after the hand-over this.segments is a merged array, so the starvation
+  // rescue would have nothing to hand the film back to.
+  private nativeSegments: Segment[] = [];
+  // lastWasmDecodeAt timestamps the last SUCCESSFUL wasm decode; 0 until the
+  // hand-over. The starvation watchdog reads it on every tick.
+  private lastWasmDecodeAt = 0;
+  // wasmMemMB is the decoder's linear memory as reported by the worker. The
+  // receiver's mem= beacon only sees the JS heap, which WebAssembly.Memory
+  // never appears in - so a memory death used to be indistinguishable from a
+  // flat, healthy heap (2026-07-30).
+  private wasmMemMB = -1;
   private switched = false;
   // Timeline generation: bumped whenever this.segments is REPLACED (the
   // hand-over, a leg failure). In-flight decodes captured under an older
@@ -267,6 +285,14 @@ export class WasmAudioEngine {
   // mode reports the live source for telemetry: "aac" (native leg playing,
   // wasm still booting), "wasm" (wasm leg playing - classic or post-handover),
   // "aac-latched" (wasm failed, native carries the whole film).
+  // decoderMemoryMB is the wasm module's LINEAR memory in MB, or -1 before the
+  // first decode. Deliberately separate from the receiver's mem= (the JS heap):
+  // a WebAssembly.Memory that grows never shows up there, so a flat heap beacon
+  // could not distinguish a healthy cast from one about to be memory-killed.
+  decoderMemoryMB(): number {
+    return this.wasmMemMB;
+  }
+
   mode(): string {
     if (this.nativeState === "active") return this.wasmState === "failed" ? "aac-latched" : this.switched ? "wasm" : "aac";
     return "wasm";
@@ -322,6 +348,7 @@ export class WasmAudioEngine {
       if (!cfg) return false;
       this.aacCfg = cfg;
       this.segments = segs.map((s) => ({ ...s, native: true }));
+      this.nativeSegments = this.segments;
       return true;
     } catch {
       return false;
@@ -338,6 +365,13 @@ export class WasmAudioEngine {
       const { segs } = await this.loadPlaylist(this.playlistUrl);
       if (this.destroyed) return;
       this.ac3Segments = segs;
+      // "Ready" is not "fast enough". Probe ONE real segment before handing the
+      // film over: on a weak box the decoder can be up and still be unable to
+      // sustain real time, which produces a silent picture and, a couple of
+      // minutes later, a receiver killed by the box (prod, 2026-07-30).
+      // Only relevant when there IS an AAC leg to stay on; the classic
+      // wasm-only path has no alternative and must not be blocked.
+      if (this.nativeState === "active" && !(await this.probeWasmLeg())) return;
       this.wasmState = "ready";
       this.planHandover();
     } catch (err) {
@@ -368,6 +402,71 @@ export class WasmAudioEngine {
     }
   }
 
+  // probeWasmLeg decodes ONE real AC-3 segment and asks relayGuard whether this
+  // device can carry the wasm leg. Returns false when the hand-over must NOT
+  // happen - the AAC leg then finishes the film (mode "aac-latched").
+  //
+  // The probe costs one segment decode, which the hand-over would have paid for
+  // anyway; the difference is that here the result is judged instead of assumed.
+  private async probeWasmLeg(): Promise<boolean> {
+    const seg = this.ac3Segments[this.ac3IndexAt(this.video.currentTime)];
+    if (!seg) return true; // nothing to probe: let the normal path decide
+    let verdict: HandoverVerdict;
+    try {
+      const t0 = Date.now();
+      const decoded = await this.decodeSegment(-1, seg);
+      const decodeMs = Date.now() - t0;
+      if (this.destroyed) return false;
+      verdict = shouldHandover({
+        decodeMs,
+        segmentDurSec: seg.dur,
+        channels: decoded.kind === "pcm" ? decoded.channels : (decoded.audioBuffer?.numberOfChannels ?? 0),
+      });
+    } catch (err) {
+      // A probe that cannot even decode is the clearest possible "no".
+      verdict = { ok: false, reason: "probe: " + (err instanceof Error ? err.message : String(err)) };
+    }
+    if (verdict.ok) return true;
+    this.latchNative(verdict.reason ?? "probe refused");
+    return false;
+  }
+
+  // latchNative pins the AAC leg as the sole source for the rest of the film and
+  // reports why. Used both by the pre-hand-over probe and by the starvation
+  // watchdog; wasmState="failed" is what makes mode() read "aac-latched" and
+  // stops any further hand-over attempt.
+  private latchNative(reason: string): void {
+    if (this.wasmState === "failed") return;
+    this.wasmState = "failed";
+    this.switched = false;
+    console.warn("[WasmAudioEngine] AAC latched:", reason);
+    this.opts.onDiagnostic?.(reason);
+    this.opts.onModeChange?.(this.mode());
+  }
+
+  // ac3IndexAt is segmentIndexAt against the AC-3 timeline, which is not
+  // this.segments until the hand-over has happened.
+  private ac3IndexAt(mediaTime: number): number {
+    for (let i = 0; i < this.ac3Segments.length; i++) {
+      const s = this.ac3Segments[i];
+      if (mediaTime < s.start + s.dur) return i;
+    }
+    return Math.max(0, this.ac3Segments.length - 1);
+  }
+
+  // revertToNativeLeg is the starvation rescue: the wasm leg stopped delivering
+  // while the picture kept running, so hand the REST of the film back to the AAC
+  // leg. Symmetric to the hand-over - planRelayHandover is direction-agnostic,
+  // it keeps the live prefix of the current timeline and splices the other one
+  // in at the boundary - so scheduled audio is never un-scheduled.
+  private revertToNativeLeg(reason: string): void {
+    if (this.destroyed || !this.switched || this.nativeState !== "active") return;
+    const plan = planRelayHandover(this.segments, this.nativeSegments, this.scheduledIdx, this.video.currentTime);
+    if (plan) this.adoptTimeline(plan.segments, plan.keepPrefix);
+    this.latchNative(reason);
+    void this.pump();
+  }
+
   // planHandover applies planRelayHandover's pure computation to the live
   // engine state once the wasm leg is up.
   private planHandover(): void {
@@ -383,6 +482,9 @@ export class WasmAudioEngine {
     if (!plan) return; // film ends before the boundary: the AAC leg finishes it
     this.adoptTimeline(plan.segments, plan.keepPrefix);
     this.switched = true;
+    // Start the starvation clock HERE: without a baseline the watchdog would
+    // read "no wasm decode since 1970" and fall back on its first tick.
+    this.lastWasmDecodeAt = Date.now();
     this.opts.onModeChange?.(this.mode());
   }
 
@@ -432,6 +534,7 @@ export class WasmAudioEngine {
         } else if (msg.type === "error") {
           reject(new Error("wasm init: " + msg.error));
         } else if (msg.type === "decoded") {
+          if (typeof msg.wasmMemMB === "number") this.wasmMemMB = msg.wasmMemMB;
           const p = this.pendingDecodes.get(msg.id);
           if (p) {
             this.pendingDecodes.delete(msg.id);
@@ -718,6 +821,19 @@ export class WasmAudioEngine {
     const advancing = !this.video.paused && ct > this.lastCt + 1e-3;
     this.lastCt = ct;
 
+    // Starvation rescue: the picture is running but the wasm leg has delivered
+    // nothing for a long while. On a box that cannot sustain the decode this is
+    // the difference between a film that finishes in AAC and a silent picture
+    // the receiver dies on (prod, 2026-07-30). Checked before the pause/stall
+    // returns below: a stalled picture is not "playing" and must not trip it.
+    if (isStarved({
+      switched: this.switched,
+      playing: advancing,
+      sinceLastDecodeMs: Date.now() - this.lastWasmDecodeAt,
+    })) {
+      this.revertToNativeLeg("starvation: no wasm audio decoded while the picture ran");
+    }
+
     if (this.video.paused) {
       // Pause: freeze the audio clock seamlessly and KEEP the anchor + scheduled
       // sources, so resume continues exactly where it stopped (both clocks froze
@@ -795,6 +911,9 @@ export class WasmAudioEngine {
           if (gen !== this.timelineGen) continue; // timeline swapped mid-decode: stale index
           this.decodedCache.set(target, d);
           this.decodeFailStreak = 0;
+          // Only wasm decodes feed the starvation watchdog: the native leg
+          // delivering is precisely NOT evidence that the wasm leg is alive.
+          if (!seg.native) this.lastWasmDecodeAt = Date.now();
           if (!this.firstAudioFired) {
             // The pump decodes from the live playhead, so the FIRST cached
             // segment is the one the start needs.
