@@ -434,8 +434,17 @@ func registerPluginUploadRoute(mux *http.ServeMux, tokenGen domainuser.TokenGene
 			sigPath := tmpName + ".sig"
 			defer os.Remove(sigPath) //nolint:errcheck
 			if sf, createErr := os.Create(sigPath); createErr == nil {
-				_, _ = io.Copy(sf, sigFile)
-				sf.Close()
+				// A partial write here produces a truncated .sig, and cosign
+				// then reports "signature verification failed" - which sends the
+				// admin looking for a bad signature instead of the disk problem
+				// that actually happened. Fails closed either way; the point is
+				// naming the real cause.
+				_, copyErr := io.Copy(sf, sigFile)
+				closeErr := sf.Close()
+				if copyErr != nil || closeErr != nil {
+					slog.WarnContext(ctx, "plugin signature upload could not be stored - verification will fail on a truncated file",
+						slog.Any("copy_err", copyErr), slog.Any("close_err", closeErr))
+				}
 			}
 			sigFile.Close()
 		}

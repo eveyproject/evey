@@ -13,6 +13,9 @@ type FakePlaySessionStatsReader struct {
 	MostPopular       []activity.MediaPlayCount
 	ActiveSessionsBps int64
 	Err               error
+
+	// LastMostPopularLimit is the limit GetMostPopular was last called with.
+	LastMostPopularLimit int
 }
 
 func (r *FakePlaySessionStatsReader) GetActiveSessionsBitrate(_ context.Context) (int64, error) {
@@ -44,6 +47,10 @@ func (r *FakePlaySessionStatsReader) GetServerStats(_ context.Context) (*activit
 }
 
 func (r *FakePlaySessionStatsReader) GetMostPopular(_ context.Context, _ string, limit int) ([]activity.MediaPlayCount, error) {
+	// Recorded so a caller's limit policy (e.g. "0 means the default 20") is
+	// assertable. It was not, so the test named after that default could only
+	// check the call did not error.
+	r.LastMostPopularLimit = limit
 	if r.Err != nil {
 		return nil, r.Err
 	}
