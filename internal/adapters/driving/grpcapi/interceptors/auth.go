@@ -11,6 +11,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/user"
 	authpkg "github.com/evey-project/evey/internal/pkg/auth"
 	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
+	"github.com/evey-project/evey/internal/pkg/metrics"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -130,6 +131,13 @@ func (i *AuthInterceptor) enforceRBAC(ctx context.Context, method string) error 
 	role, exists := i.rbac.MethodRoles[method]
 	isAdminMethod := exists && role == RoleAdmin
 	if isAdminMethod && !claims.IsAdmin {
+		// Refusing in silence is what made the 2026-07-29 lockout take two days:
+		// a client that cannot get in and a server that says nothing. Every
+		// neighbouring refusal in this file already logs; this one did not.
+		metrics.AuthzDeniedTotal.WithLabelValues("grpc", "admin_required").Inc()
+		slog.WarnContext(ctx, "admin access denied",
+			slog.String("method", method),
+			slog.String("user", claims.UserID))
 		return i.translatedErr(ctx, codes.PermissionDenied, "errors.auth.admin_access_required")
 	}
 

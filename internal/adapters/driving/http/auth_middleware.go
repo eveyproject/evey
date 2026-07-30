@@ -8,6 +8,7 @@ import (
 
 	domainuser "github.com/evey-project/evey/internal/domain/user"
 	"github.com/evey-project/evey/internal/pkg/metrics"
+	"github.com/evey-project/evey/internal/pkg/ratelimit"
 )
 
 type httpClaimsCtxKey struct{}
@@ -89,6 +90,13 @@ func httpAdminMiddleware(verifier TokenVerifier) func(http.HandlerFunc) http.Han
 		return authMw(func(w http.ResponseWriter, r *http.Request) {
 			claims := HTTPClaimsFromContext(r.Context())
 			if claims == nil || !claims.IsAdmin {
+				// Same reasoning as the gRPC interceptor: the invalid-token path
+				// a few lines up logs and counts, this one said nothing at all.
+				metrics.AuthzDeniedTotal.WithLabelValues("http", "admin_required").Inc()
+				slog.WarnContext(r.Context(), "admin access denied",
+					slog.String("method", r.Method),
+					slog.String("path", r.URL.Path),
+					slog.String("client_ip", ratelimit.ClientIP(r)))
 				http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 				return
 			}

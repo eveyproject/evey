@@ -9,6 +9,7 @@ import (
 	"time"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	"github.com/evey-project/evey/internal/pkg/metrics"
 	"github.com/evey-project/evey/internal/pkg/network"
 	"github.com/evey-project/evey/internal/pkg/ratelimit"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
@@ -185,6 +186,11 @@ func networkMiddleware(detector *network.Detector, remoteEnabled *bool, logger *
 						slog.String("method", r.Method),
 						slog.String("device", r.UserAgent()))
 				}
+				// Counted as well as logged: the log line is rate limited per
+				// address (so a retrying app cannot bury it), which is right for
+				// reading but useless for noticing. A counter is what turns "one
+				// client had a bad day" into "the whole household is locked out".
+				metrics.RemoteAccessRefusedTotal.Inc()
 				// Header first: it survives a client that never parses the body,
 				// and it makes the cause visible in a plain curl -I.
 				w.Header().Set("X-Evey-Remote-Access", "disabled")

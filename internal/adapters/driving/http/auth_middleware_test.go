@@ -9,6 +9,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/testutil"
 
 	"github.com/evey-project/evey/internal/domain/shared"
+	domainuser "github.com/evey-project/evey/internal/domain/user"
 	"github.com/evey-project/evey/internal/pkg/metrics"
 )
 
@@ -284,5 +285,56 @@ func TestScrapeOrAdmin_EmptyAuthorizationRejected(t *testing.T) {
 
 	if w.Code != http.StatusUnauthorized || ran {
 		t.Fatalf("no auth at all must be 401: got %d ran=%v", w.Code, ran)
+	}
+}
+
+// An admin refusal used to be completely silent - no log line, no metric -
+// while the invalid-token path two functions up counted and logged. That is the
+// same shape as the 2026-07-29 remote-access lockout: a refused caller and zero
+// server-side signal, which is precisely what made it undiagnosable.
+func TestHTTPAdminMiddleware_CountsDenials(t *testing.T) {
+	verifier := &fakeTokenVerifier{claims: &domainuser.Claims{UserID: "usr-1", IsAdmin: false}}
+	var ran bool
+	var uid string
+	var admin bool
+	h := httpAdminMiddleware(verifier)(recordingHandler(&ran, &uid, &admin))
+
+	before := testutil.ToFloat64(metrics.AuthzDeniedTotal.WithLabelValues("http", "admin_required"))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/server-settings", nil)
+	req.Header.Set("Authorization", "Bearer good.jwt.value")
+	w := httptest.NewRecorder()
+	h(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("want 403 for a non-admin, got %d", w.Code)
+	}
+	if ran {
+		t.Error("the wrapped admin handler must not run for a non-admin")
+	}
+	if got := testutil.ToFloat64(metrics.AuthzDeniedTotal.WithLabelValues("http", "admin_required")) - before; got != 1 {
+		t.Errorf("admin denial counter delta = %v, want 1", got)
+	}
+}
+
+func TestHTTPAdminMiddleware_AdminPasses(t *testing.T) {
+	verifier := &fakeTokenVerifier{claims: &domainuser.Claims{UserID: "usr-1", IsAdmin: true}}
+	var ran bool
+	var uid string
+	var admin bool
+	h := httpAdminMiddleware(verifier)(recordingHandler(&ran, &uid, &admin))
+
+	before := testutil.ToFloat64(metrics.AuthzDeniedTotal.WithLabelValues("http", "admin_required"))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/server-settings", nil)
+	req.Header.Set("Authorization", "Bearer good.jwt.value")
+	w := httptest.NewRecorder()
+	h(w, req)
+
+	if w.Code != http.StatusOK || !ran {
+		t.Fatalf("an admin must pass: code=%d ran=%v", w.Code, ran)
+	}
+	if got := testutil.ToFloat64(metrics.AuthzDeniedTotal.WithLabelValues("http", "admin_required")) - before; got != 0 {
+		t.Errorf("a successful admin call must not count as a denial (delta %v)", got)
 	}
 }

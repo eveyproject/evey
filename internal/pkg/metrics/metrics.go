@@ -46,6 +46,29 @@ var (
 		Help: "Rejected authentications on generic API routes.",
 	}, []string{"reason"})
 
+	// AuthzDeniedTotal counts callers who authenticated fine but were refused
+	// by an authorization rule. Distinct from AuthFailuresTotal above, which is
+	// about credentials: this one is "who you are is not enough for this".
+	//
+	// It exists because both admin-RBAC enforcement points (gRPC interceptor and
+	// the HTTP admin middleware) refused silently - no log, no metric - while
+	// every neighbouring path logged. That is the same shape as the 2026-07-29
+	// remote-access lockout: a refused client and zero server-side signal, which
+	// is what made it take two days to find. surface: "grpc" | "http".
+	AuthzDeniedTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "evey_authz_denied_total",
+		Help: "Authenticated callers refused by an authorization rule.",
+	}, []string{"surface", "reason"})
+
+	// RemoteAccessRefusedTotal counts clients turned away by the remote-access
+	// network gate. The refusal is logged (rate limited per address), but volume
+	// over time is what tells an operator "my whole household is locked out"
+	// rather than "one client had a bad day", and grep does not alert.
+	RemoteAccessRefusedTotal = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "evey_remote_access_refused_total",
+		Help: "Requests refused because remote access is disabled.",
+	})
+
 	DBConnectionsOpen = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "evey_db_connections_open",
 		Help: "Number of open DB connections.",
@@ -322,6 +345,7 @@ func init() {
 	prometheus.MustRegister(
 		HLSSessionsGauge, TranscodesActive,
 		HTTPRequestsTotal, HTTPRequestDuration, AuthFailuresTotal,
+		AuthzDeniedTotal, RemoteAccessRefusedTotal,
 		DBConnectionsOpen, DBConnectionsIdle, DBConnectionsInUse,
 		MediaItemsTotal,
 		AuthLatency, ScanQueueDepth, TranscodeQueueDepth,
