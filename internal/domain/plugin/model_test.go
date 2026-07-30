@@ -236,3 +236,64 @@ func TestPluginManifest_Validate_SlotWhitelist(t *testing.T) {
 		}
 	})
 }
+
+// The frontend `src` path-containment check, exercised through the public
+// manifest validation. Both of its guards survived mutation testing, and this
+// one decides which files a third-party plugin can expose through the asset
+// route - the prefix comparison is what stops "/web" from also matching
+// "/webroot-of-someone-else".
+func TestPluginManifest_FrontendSrcMustStayUnderWebRoot(t *testing.T) {
+	manifest := func(webRoot, src string) *plugin.PluginManifest {
+		return &plugin.PluginManifest{
+			Name: "p", Version: "1.0.0", Kind: plugin.KindTheme,
+			WebRoot:  webRoot,
+			Frontend: []plugin.FrontModule{{Slot: "home.section", Src: src}},
+		}
+	}
+
+	t.Run("a file directly under the web root is allowed", func(t *testing.T) {
+		if err := manifest("web", "web/app.js").Validate(); err != nil {
+			t.Fatalf("unexpected rejection: %v", err)
+		}
+	})
+
+	t.Run("the web root itself is allowed", func(t *testing.T) {
+		if err := manifest("web", "web").Validate(); err != nil {
+			t.Fatalf("unexpected rejection: %v", err)
+		}
+	})
+
+	t.Run("a nested file is allowed", func(t *testing.T) {
+		if err := manifest("web", "web/js/app.js").Validate(); err != nil {
+			t.Fatalf("unexpected rejection: %v", err)
+		}
+	})
+
+	// The separator in the prefix is the whole point: without it, a sibling
+	// directory whose name merely STARTS with the web root would pass.
+	t.Run("a sibling with a shared name prefix is refused", func(t *testing.T) {
+		if err := manifest("web", "website/app.js").Validate(); err == nil {
+			t.Fatal("web/ must not match website/")
+		}
+	})
+
+	t.Run("a path escaping upwards is refused", func(t *testing.T) {
+		if err := manifest("web", "web/../secrets.env").Validate(); err == nil {
+			t.Fatal("a traversal out of the web root must be refused")
+		}
+	})
+
+	t.Run("an unrelated path is refused", func(t *testing.T) {
+		if err := manifest("web", "other/app.js").Validate(); err == nil {
+			t.Fatal("a path outside the web root must be refused")
+		}
+	})
+
+	// A web root of "." is the plugin root: everything under it is in scope,
+	// so containment is vacuously satisfied.
+	t.Run("a dot web root allows anything beneath it", func(t *testing.T) {
+		if err := manifest(".", "anything/app.js").Validate(); err != nil {
+			t.Fatalf("a '.' web root should allow any relative path: %v", err)
+		}
+	})
+}
