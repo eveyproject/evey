@@ -352,6 +352,7 @@ music:
   createPlaylistPrompt: Playlist name
   removeFromQueue: Remove from queue
 photos:
+  openPhoto: "Photo {{n}}"
   title: Photos
   albums: Albums
   allPhotos: All Photos

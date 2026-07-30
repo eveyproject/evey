@@ -352,6 +352,7 @@ music:
   createPlaylistPrompt: 播放列表名称
   removeFromQueue: "从队列移除"
 photos:
+  openPhoto: "照片 {{n}}"
   title: 照片
   albums: 相册
   allPhotos: 所有照片

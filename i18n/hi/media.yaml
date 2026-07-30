@@ -352,6 +352,7 @@ music:
   createPlaylistPrompt: प्लेलिस्ट का नाम
   removeFromQueue: "कतार से हटाएं"
 photos:
+  openPhoto: "फ़ोटो {{n}}"
   title: फ़ोटो
   albums: एल्बम
   allPhotos: सभी फ़ोटो
