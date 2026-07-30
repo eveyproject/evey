@@ -95,6 +95,14 @@ EVEY_TRANSCODING_HW_PER_VARIANT=false
 EVEY_TRANSCODING_SINGLE_VARIANT=0
 ```
 
+> **These five now live in the admin panel** (Admin > Transcoding configuration >
+> Advanced limits): `HW_PER_VARIANT`, `SINGLE_VARIANT`, `MAX_SESSIONS`,
+> `SOFTWARE_MAX_HEIGHT` and `SOFTWARE_HDR_MAX_HEIGHT`. A value saved there is
+> persisted and wins over the environment, so you no longer have to edit a
+> compose file and recreate the container to change a playback ceiling. All five
+> are read at boot, and the panel says so: saving stores your choice, restarting
+> applies it.
+
 ### Encode calibration sample
 
 At boot (and on `POST /api/v1/admin/transcode/calibration/recalibrate`) the bench
