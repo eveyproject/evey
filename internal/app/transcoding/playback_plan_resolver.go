@@ -40,7 +40,10 @@ type PlanResolver struct {
 	CapOverride func(sourceCodec string, sourceHeight int) (transcoding.CapOverride, bool)
 
 	// ComplexityRepo + ClassLookup resolve the per-title ladder class;
-	// ClassLookupTTL bounds the hot-path cache entry (0 → cache forever).
+	// ClassLookupTTL bounds the hot-path cache entry. It must be > 0 to cache at
+	// all: TTLCache.Set stamps expiresAt = now + ttl and Get treats a passed
+	// expiry as a miss, so 0 stores an already-expired entry and every segment
+	// re-queries ComplexityRepo. (The http adapter wires 10s.)
 	ComplexityRepo transcoding.ComplexityRepo
 	ClassLookup    *pkgcache.TTLCache[transcoding.ContentClass]
 	ClassLookupTTL time.Duration
