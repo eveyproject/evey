@@ -186,19 +186,41 @@ func TestPlanIndexForLanding(t *testing.T) {
 	cases := []struct {
 		landing float64
 		want    int
+		why     string
 	}{
-		{0.0, 0},
-		{10.0, 1},  // exact boundary
-		{9.95, 1},  // boundary within rounding tolerance
-		{16.4, 2},  // mid-segment landing → containing segment
-		{22.99, 3}, // within 100ms of the next boundary → snaps forward
-		{29.0, 3},  // inside the tail
+		{landing: 0.0, want: 0},
+		{landing: 10.0, want: 1, why: "exact boundary"},
+		{landing: 9.95, want: 1, why: "boundary within rounding tolerance"},
+		{landing: 16.4, want: 2, why: "mid-segment landing → containing segment"},
+		{landing: 22.99, want: 3, why: "within 100ms of the next boundary → snaps forward"},
+		{landing: 29.0, want: 3, why: "inside the tail"},
+		// The 100 ms tolerance is a real boundary, and it is INCLUSIVE. These two
+		// cases sit one millisecond either side of it against the 13 s keyframe:
+		// snapping forward one segment too eagerly (or too late) shifts every
+		// video timestamp the session emits by a whole GOP while the re-encoded
+		// audio stays true - the post-deep-seek A/V desync this function exists
+		// to prevent.
+		{landing: 12.9, want: 2, why: "landing+tolerance lands exactly ON the boundary: inclusive, so it snaps forward"},
+		{landing: 12.8994, want: 1, why: "one millisecond short of the tolerance stays on the previous segment"},
+		// Same pair, read as a rounding contract: seconds→milliseconds ROUNDS.
+		// Truncating 12.8996 s to 12899 ms would drop it below the tolerance and
+		// re-produce a GOP the viewer already has.
+		{landing: 12.8996, want: 2, why: "12.8996 s rounds to 12900 ms, it does not truncate to 12899"},
+		{landing: 999.0, want: 3, why: "a landing past the plan clamps to the last segment"},
+		{landing: -5.0, want: 0, why: "a nonsense landing must not index below zero"},
 	}
 	for _, tc := range cases {
 		if got := planIndexForLanding(segs, tc.landing); got != tc.want {
-			t.Fatalf("planIndexForLanding(%v) = %d, want %d", tc.landing, got, tc.want)
+			t.Fatalf("planIndexForLanding(%v) = %d, want %d - %s", tc.landing, got, tc.want, tc.why)
 		}
 	}
+}
+
+// An empty plan must not panic the session start: a landing probe can race a
+// plan rebuild.
+func TestPlanIndexForLanding_EmptyPlan(t *testing.T) {
+	assert.Equal(t, 0, planIndexForLanding(nil, 12.0))
+	assert.Equal(t, 0, planIndexForLanding([]CopySegment{}, 12.0))
 }
 
 func TestSoftwareProducer_NeverSetsHWAccel(t *testing.T) {
