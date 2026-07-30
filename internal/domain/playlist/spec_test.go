@@ -182,14 +182,15 @@ func TestGenreSpec_ToSQL_AdvancesThePlaceholderIndexByOne(t *testing.T) {
 // title whose rating equals the filter - the most common case for round numbers.
 func TestRatingGteSpec_IncludesTheExactThreshold(t *testing.T) {
 	spec := ratingGteSpec{min: 7}
+	atThreshold, above, below := 7.0, 7.1, 6.9
 
-	if !spec.IsSatisfiedBy(Candidate{CommunityRating: floatPtr(7)}) {
+	if !spec.IsSatisfiedBy(Candidate{CommunityRating: &atThreshold}) {
 		t.Error("a rating exactly equal to the minimum must match")
 	}
-	if !spec.IsSatisfiedBy(Candidate{CommunityRating: floatPtr(7.1)}) {
+	if !spec.IsSatisfiedBy(Candidate{CommunityRating: &above}) {
 		t.Error("a rating above the minimum must match")
 	}
-	if spec.IsSatisfiedBy(Candidate{CommunityRating: floatPtr(6.9)}) {
+	if spec.IsSatisfiedBy(Candidate{CommunityRating: &below}) {
 		t.Error("a rating below the minimum must not match")
 	}
 	if spec.IsSatisfiedBy(Candidate{CommunityRating: nil}) {
