@@ -664,3 +664,50 @@ func TestSelectedAudioSpec_NoCommentaryFlagUnchanged(t *testing.T) {
 	d := apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), streams, "mkv", transcoding.DefaultWebProfile, 0, prefs)
 	assert.Equal(t, "transcode", d.AudioDecision, "default DTS (no commentary flag) must still be selected and transcoded")
 }
+
+// The selection has a third and fourth branch that no test reached: what
+// happens with NO default-flagged track at all. Four mutants survived in that
+// tail, and it is a common shape - plenty of remuxes flag nothing as default.
+func TestSelectedAudioSpec_NoDefaultFlagPrefersTheFirstNonCommentary(t *testing.T) {
+	streams := []*library.MediaStream{
+		{StreamType: "video", Codec: "h264", Width: new(1920), Height: new(1080), IsDefault: true},
+		// Nothing is flagged default. The commentary track comes FIRST, so
+		// picking "the first audio track" would play the commentary.
+		{StreamType: "audio", Codec: "dts", Channels: new(6), Commentary: true},
+		{StreamType: "audio", Codec: "aac", Channels: new(2)},
+	}
+	prefs := apptranscode.DefaultTranscodingPreferences()
+	d := apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), streams, "mkv", transcoding.DefaultWebProfile, 0, prefs)
+	assert.Equal(t, "copy", d.AudioDecision,
+		"with no default flag, the first NON-commentary track wins over the first track")
+}
+
+// And when nothing is flagged default AND every track is commentary, one must
+// still be served - commentary beats silence.
+func TestSelectedAudioSpec_NoDefaultAllCommentaryStillSelects(t *testing.T) {
+	streams := []*library.MediaStream{
+		{StreamType: "video", Codec: "h264", Width: new(1920), Height: new(1080), IsDefault: true},
+		{StreamType: "audio", Codec: "aac", Channels: new(2), Commentary: true},
+		{StreamType: "audio", Codec: "aac", Channels: new(2), Commentary: true},
+	}
+	prefs := apptranscode.DefaultTranscodingPreferences()
+	d := apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0, prefs)
+	assert.Equal(t, "copy", d.AudioDecision, "an all-commentary set with no default must still yield audio")
+}
+
+// A default-flagged NON-commentary track is returned unchanged, even when a
+// later non-commentary track exists - the default is the author's choice and
+// the commentary rule must not reorder anything else.
+func TestSelectedAudioSpec_NonCommentaryDefaultWinsOverLaterTracks(t *testing.T) {
+	streams := []*library.MediaStream{
+		{StreamType: "video", Codec: "h264", Width: new(1920), Height: new(1080), IsDefault: true},
+		// Default, non-commentary, but needs a transcode.
+		{StreamType: "audio", Codec: "dts", Channels: new(6), IsDefault: true},
+		// A copy-eligible alternative that must NOT be preferred.
+		{StreamType: "audio", Codec: "aac", Channels: new(2)},
+	}
+	prefs := apptranscode.DefaultTranscodingPreferences()
+	d := apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), streams, "mkv", transcoding.DefaultWebProfile, 0, prefs)
+	assert.Equal(t, "transcode", d.AudioDecision,
+		"a non-commentary default must be honoured even when a cheaper track exists")
+}
