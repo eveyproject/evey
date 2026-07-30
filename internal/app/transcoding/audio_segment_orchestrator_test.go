@@ -689,3 +689,164 @@ func TestAudioOrchestrator_EnsureAudioInit_RidesTheSeekSession(t *testing.T) {
 
 	assert.Equal(t, 1, proc.startCount(), "the init must ride the live session, not spawn a second ffmpeg")
 }
+
+// The stream-end mark is a MUTE: every request at or past it is served as
+// silence instead of a real encode. It is TTL'd precisely because that is a
+// destructive state to be wrong about - a repaired or replaced file at the same
+// path must not stay silent forever. A mark past its TTL must be dropped and a
+// real session attempted again.
+//
+// Both TTL comparisons here (this one and the breaker's cooldown) read a real
+// clock, so `>=` vs `>` differs only for a mark aged to the nanosecond - not
+// reachable from a test without an injectable clock. These cases pin the
+// BEHAVIOUR on each side, not the comparison operator.
+func TestAudioOrchestrator_StreamEndMark_ExpiresAndLetsARealSpawnRetry(t *testing.T) {
+	cache, _ := newTestCache(t)
+	fp := minimalAudioFp()
+	fp.SourceDurationSec = 5991.611
+
+	proc := newFakeAudioProcess()
+	proc.onStart = func(opts transcoding.AudioProcessOpts) *audioFakeHandle {
+		// The file is now repaired: a real session produces its segments.
+		writeAudioSegment(t, cache, fp, opts.StartNumber)
+		return newAudioFakeHandle()
+	}
+
+	o := NewAudioSegmentOrchestrator(cache, proc)
+	defer func() { _ = o.Close() }()
+
+	// Plant a stream-end mark older than its TTL, as a long-lived orchestrator
+	// would hold after the file was replaced on disk.
+	o.mu.Lock()
+	o.streamEnd[fp.Hash()] = audioStreamEndMark{seg: 1914, at: time.Now().Add(-audioStreamEndTTL - time.Minute)}
+	o.mu.Unlock()
+
+	require.NoError(t, o.EnsureAudioSegment(context.Background(), fp, 1914))
+
+	last := proc.optsAt(proc.startCount() - 1)
+	assert.Zero(t, last.SilenceDurationSec,
+		"an expired mark must yield a REAL session, not a silence tail - the file may have been repaired")
+
+	o.mu.Lock()
+	_, stillMarked := o.streamEnd[fp.Hash()]
+	o.mu.Unlock()
+	assert.False(t, stillMarked, "the expired mark must be dropped, not merely bypassed")
+}
+
+// A fresh mark is trusted: the same request under a mark INSIDE its TTL is
+// served as silence. This is the other side of the expiry boundary, so the two
+// together pin it.
+func TestAudioOrchestrator_StreamEndMark_WithinTTLStillMutes(t *testing.T) {
+	cache, _ := newTestCache(t)
+	fp := minimalAudioFp()
+	fp.SourceDurationSec = 5991.611
+
+	proc := newFakeAudioProcess()
+	proc.onStart = func(opts transcoding.AudioProcessOpts) *audioFakeHandle {
+		writeAudioSegment(t, cache, fp, opts.StartNumber)
+		return newAudioFakeHandle()
+	}
+
+	o := NewAudioSegmentOrchestrator(cache, proc)
+	defer func() { _ = o.Close() }()
+
+	o.mu.Lock()
+	o.streamEnd[fp.Hash()] = audioStreamEndMark{seg: 1914, at: time.Now()}
+	o.mu.Unlock()
+
+	require.NoError(t, o.EnsureAudioSegment(context.Background(), fp, 1914))
+	assert.Positive(t, proc.optsAt(proc.startCount()-1).SilenceDurationSec,
+		"a fresh mark must still mute - respawning ffmpeg against the same wall is what it prevents")
+}
+
+// A request landing EXACTLY on the declared duration has zero silence to
+// synthesize. Spawning a zero-length silence generator would be a doomed ffmpeg
+// - the same storm the mark exists to stop. It must return the stable sentinel
+// the handler maps to a non-retryable status.
+func TestAudioOrchestrator_StreamEnd_ZeroLengthTailReturnsSentinel(t *testing.T) {
+	cache, _ := newTestCache(t)
+	fp := minimalAudioFp()
+	const seg = 1914
+	fp.SourceDurationSec = seg * ManifestSegmentSeconds // exactly zero tail
+
+	proc := newFakeAudioProcess()
+	proc.onStart = func(opts transcoding.AudioProcessOpts) *audioFakeHandle {
+		writeAudioSegment(t, cache, fp, opts.StartNumber)
+		return newAudioFakeHandle()
+	}
+
+	o := NewAudioSegmentOrchestrator(cache, proc)
+	defer func() { _ = o.Close() }()
+
+	o.mu.Lock()
+	o.streamEnd[fp.Hash()] = audioStreamEndMark{seg: seg, at: time.Now()}
+	o.mu.Unlock()
+
+	err := o.EnsureAudioSegment(context.Background(), fp, seg)
+	require.ErrorIs(t, err, ErrAudioPastEndOfStream,
+		"a zero-length tail is not a silence session, it is the end of the stream")
+	assert.Zero(t, proc.startCount(), "no ffmpeg may be spawned for zero seconds of silence")
+}
+
+// The breaker trips at EXACTLY audioSpawnStrikeLimit strikes, and its cooldown
+// is exactly audioSpawnStrikeTTL. TestAudioOrchestrator_RepeatedDeadSpawns_TripBreaker
+// proves it trips at all by really killing sessions; this pins WHERE, by
+// planting the strike count directly - the accumulation path is not the thing
+// under test here, and driving it through real deaths cannot land on the
+// boundary reliably.
+//
+// One strike too late is another doomed ffmpeg on a box already misbehaving (92
+// spawns for one segment, prod 2026-07-26); one too early refuses a stream that
+// still had an attempt left.
+func TestAudioOrchestrator_Breaker_TripsAtExactlyTheStrikeLimit(t *testing.T) {
+	const seg = 1914
+
+	newOrch := func(t *testing.T, strikes audioSpawnStrikes) (*AudioSegmentOrchestrator, *fakeAudioProcess, AudioFingerprint) {
+		t.Helper()
+		cache, _ := newTestCache(t)
+		fp := minimalAudioFp()
+		proc := newFakeAudioProcess()
+		proc.onStart = func(opts transcoding.AudioProcessOpts) *audioFakeHandle {
+			writeAudioSegment(t, cache, fp, opts.StartNumber)
+			return newAudioFakeHandle()
+		}
+		o := NewAudioSegmentOrchestrator(cache, proc)
+		t.Cleanup(func() { _ = o.Close() })
+
+		o.mu.Lock()
+		o.strikes[audioSessionKey(fp.Hash(), seg)] = strikes
+		o.mu.Unlock()
+		return o, proc, fp
+	}
+
+	t.Run("one strike short still spawns", func(t *testing.T) {
+		o, proc, fp := newOrch(t, audioSpawnStrikes{count: audioSpawnStrikeLimit - 1, last: time.Now()})
+
+		require.NoError(t, o.EnsureAudioSegment(context.Background(), fp, seg))
+		assert.Positive(t, proc.startCount(), "below the limit the stream still gets its attempt")
+	})
+
+	t.Run("at the limit the breaker refuses", func(t *testing.T) {
+		o, proc, fp := newOrch(t, audioSpawnStrikes{count: audioSpawnStrikeLimit, last: time.Now()})
+
+		require.ErrorIs(t, o.EnsureAudioSegment(context.Background(), fp, seg), ErrAudioSessionBroken)
+		assert.Zero(t, proc.startCount(), "a tripped breaker must spawn nothing at all")
+	})
+
+	t.Run("a cooled-down breaker allows a fresh attempt", func(t *testing.T) {
+		// TTL'd so a transient cause self-heals: a repaired file must not stay
+		// refused for the lifetime of the process.
+		o, proc, fp := newOrch(t, audioSpawnStrikes{
+			count: audioSpawnStrikeLimit,
+			last:  time.Now().Add(-audioSpawnStrikeTTL - time.Second),
+		})
+
+		require.NoError(t, o.EnsureAudioSegment(context.Background(), fp, seg))
+		assert.Positive(t, proc.startCount(), "past the cooldown the breaker must let one through")
+
+		o.mu.Lock()
+		_, stillTripped := o.strikes[audioSessionKey(fp.Hash(), seg)]
+		o.mu.Unlock()
+		assert.False(t, stillTripped, "the cooled-down entry must be cleared, not merely bypassed")
+	})
+}
