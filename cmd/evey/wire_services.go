@@ -219,7 +219,7 @@ func startTranscodingWorkers(
 		}),
 		apptranscoding.ComplexityWorkerOpts{},
 		slog.Default(),
-	).WithVideoDims(r.MediaStream)
+	).WithVideoDims(r.MediaStream).WithActivePlayback(hlsVODRemover.ActivePlaybackCount)
 	complexityWorker.Start(ctx)
 	stoppers = append(stoppers, complexityWorker.Stop)
 

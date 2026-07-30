@@ -47,6 +47,12 @@ type ComplexityWorker struct {
 	idleInterval time.Duration
 	itemPause    time.Duration
 
+	// activePlayback reports how many streams are being served right now. Nil
+	// means "no gate", which is what this worker used to be - and the doc
+	// comment on startTranscodingWorkers already claimed EVERY worker yielded to
+	// playback, so a reader had no way to know this one did not.
+	activePlayback func() int
+
 	stop chan struct{}
 	done chan struct{}
 
@@ -139,6 +145,23 @@ func (w *ComplexityWorker) run(ctx context.Context) {
 		default:
 		}
 
+		// Step aside entirely while someone is watching. The classifier forks
+		// nice -19 ffmpeg bursts that only get SIGSTOPped once the shaper
+		// notices them, so up to a second of decode still lands on a box that
+		// is trying to serve a stream. Its two sibling backfill workers already
+		// skip their batch this way; one of those gates exists because an
+		// ungated pass stalled a Chromecast in production on 2026-07-19.
+		if w.playbackActive() {
+			select {
+			case <-time.After(w.idleInterval):
+			case <-w.stop:
+				return
+			case <-ctx.Done():
+				return
+			}
+			continue
+		}
+
 		processed := w.safeProcessBatch(ctx)
 		if processed == 0 {
 			// Nothing to do - sleep longer.
@@ -151,6 +174,22 @@ func (w *ComplexityWorker) run(ctx context.Context) {
 			}
 		}
 	}
+}
+
+// WithActivePlayback wires the live playback-session counter: while it reports
+// more than zero, the worker skips its batch instead of competing with a
+// stream. Chainable; nil leaves the worker ungated. Mirrors the identically
+// named option on KeyframeBackfillWorker and LevelBackfillWorker.
+func (w *ComplexityWorker) WithActivePlayback(count func() int) *ComplexityWorker {
+	w.activePlayback = count
+	return w
+}
+
+// playbackActive reports whether a stream is being served. Nil-safe: an unwired
+// counter means "cannot tell", and this worker is background work, so it keeps
+// running rather than stalling forever on a missing dependency.
+func (w *ComplexityWorker) playbackActive() bool {
+	return w.activePlayback != nil && w.activePlayback() > 0
 }
 
 // processBatch pulls one batch and classifies each item. Returns the count

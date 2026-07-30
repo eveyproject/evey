@@ -255,3 +255,42 @@ func TestComplexityWorker_StopBetweenItems(t *testing.T) {
 	n := <-done
 	assert.LessOrEqual(t, n, 2, "cancellation must stop the loop before all three items")
 }
+
+// The doc comment on startTranscodingWorkers already promised that EVERY
+// transcoding worker yields to live playback - this one did not, so a viewer
+// competed with nice -19 ffmpeg bursts the shaper only SIGSTOPs a beat later.
+func TestComplexityWorker_SkipsTheBatchWhilePlaybackIsActive(t *testing.T) {
+	repo := &fakeComplexityRepo{unclassified: []string{"a", "b", "c"}}
+	classifier := &fakeClassifier{out: domaintranscoding.ComplexityMetrics{FramesSampled: 1}}
+	w := NewComplexityWorker(repo, classifier, &fakeMediaReader{},
+		ComplexityWorkerOpts{BatchSize: 5, IdleInterval: time.Hour},
+		slog.New(slog.NewTextHandler(io.Discard, nil))).
+		WithActivePlayback(func() int { return 1 })
+
+	require.True(t, w.playbackActive(), "one active stream must gate the worker")
+
+	// The run loop must not reach processBatch at all: assert through the repo,
+	// which records every classification attempt.
+	w.Start(context.Background())
+	time.Sleep(50 * time.Millisecond)
+	w.Stop()
+
+	assert.Empty(t, repo.setsSnapshot(), "no item may be classified while a stream is being served")
+}
+
+func TestComplexityWorker_RunsWhenNothingIsPlaying(t *testing.T) {
+	w := NewComplexityWorker(&fakeComplexityRepo{}, &fakeClassifier{}, &fakeMediaReader{},
+		ComplexityWorkerOpts{IdleInterval: time.Hour},
+		slog.New(slog.NewTextHandler(io.Discard, nil))).
+		WithActivePlayback(func() int { return 0 })
+	assert.False(t, w.playbackActive())
+}
+
+// Background work must not stall forever because a dependency was not wired -
+// an unwired counter means "cannot tell", not "assume someone is watching".
+func TestComplexityWorker_UnwiredCounterDoesNotGate(t *testing.T) {
+	w := NewComplexityWorker(&fakeComplexityRepo{}, &fakeClassifier{}, &fakeMediaReader{},
+		ComplexityWorkerOpts{IdleInterval: time.Hour},
+		slog.New(slog.NewTextHandler(io.Discard, nil)))
+	assert.False(t, w.playbackActive())
+}
