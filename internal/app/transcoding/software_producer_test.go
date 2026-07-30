@@ -1306,3 +1306,82 @@ func TestSoftwareProducer_SameRungSeekStillSpawnsWhileHot(t *testing.T) {
 	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 500))
 	assert.Equal(t, 2, proc.startCount(), "a deep same-rung seek spawns alongside, hot or not")
 }
+
+// The HDR ceiling only ever LOWERS the software ceiling, and only once benched.
+// Both directions matter: a 0 means "never measured" (the SDR ceiling stands),
+// and a value at or above the SDR ceiling must not raise it - HDR software is
+// strictly heavier than SDR, so it can never sustain more.
+func TestSoftwareProducer_ProfilesHDRCeilingOnlyLowers(t *testing.T) {
+	cache, _ := newTestCache(t)
+	p := NewSoftwareProducer(cache, newFakeProcess(), stubSource{path: "/m.mkv"}, swTestOpts(), discardLogger())
+	defer p.Close()
+
+	base := transcoding.LadderFilmNormal // [360, 480, 720, 1080]
+	src := SourceDims{Width: 3840, Height: 2160, TenBit: true}
+	tonemap := transcoding.PlaybackDecision{TranscodeReasons: []string{"hdr_tonemapping_needed"}}
+
+	topOf := func(caps transcoding.EncodeCapability) int {
+		profiles := p.Profiles(base, src, tonemap, caps)
+		require.NotEmpty(t, profiles)
+		return profiles[len(profiles)-1].Height
+	}
+
+	assert.Equal(t, 1080, topOf(transcoding.EncodeCapability{SoftwareMaxHeight: 1080}),
+		"an unbenched HDR ceiling (0) must leave the SDR ceiling standing")
+	// Documented, not mutation-covered: at the boundary the assignment is a
+	// no-op by construction (maxH = maxH), so `<` and `<=` are equivalent here.
+	// The case stays because it pins the intent for a future refactor where the
+	// assignment stops being a no-op.
+	assert.Equal(t, 1080, topOf(transcoding.EncodeCapability{SoftwareMaxHeight: 1080, SoftwareHDRMaxHeight: 1080}),
+		"an HDR ceiling equal to the SDR one changes nothing")
+	assert.Equal(t, 1080, topOf(transcoding.EncodeCapability{SoftwareMaxHeight: 1080, SoftwareHDRMaxHeight: 2160}),
+		"the HDR ceiling must never RAISE the ladder - HDR software is heavier, not lighter")
+	assert.Equal(t, 720, topOf(transcoding.EncodeCapability{SoftwareMaxHeight: 1080, SoftwareHDRMaxHeight: 720}),
+		"a lower benched HDR ceiling is the one that holds")
+}
+
+// The HDR ceiling is gated on the DECISION asking for tone-mapping, not on the
+// source being 10-bit: a 10-bit source served to an HDR-capable client is not
+// tone-mapped, and capping it at the HDR ceiling would needlessly downgrade it.
+func TestSoftwareProducer_ProfilesIgnoresHDRCeilingWithoutTonemap(t *testing.T) {
+	cache, _ := newTestCache(t)
+	p := NewSoftwareProducer(cache, newFakeProcess(), stubSource{path: "/m.mkv"}, swTestOpts(), discardLogger())
+	defer p.Close()
+
+	profiles := p.Profiles(
+		transcoding.LadderFilmNormal,
+		SourceDims{Width: 3840, Height: 2160, TenBit: true},
+		transcoding.PlaybackDecision{}, // no hdr_tonemapping_needed
+		transcoding.EncodeCapability{SoftwareMaxHeight: 1080, SoftwareHDRMaxHeight: 480},
+	)
+
+	require.NotEmpty(t, profiles)
+	assert.Equal(t, 1080, profiles[len(profiles)-1].Height,
+		"no tone-mapping requested ⇒ the HDR ceiling does not apply")
+}
+
+// The copy rung's Name/Width/Height ride the cache fingerprint. A source whose
+// dimensions were never probed must still yield a DETERMINISTIC rung, or the
+// manifest and the segment fetch hash differently and the cache misses forever.
+func TestSoftwareProducer_ProfilesCopyRungStaysDeterministicWithoutSourceDims(t *testing.T) {
+	cache, _ := newTestCache(t)
+	p := NewSoftwareProducer(cache, newFakeProcess(), stubSource{path: "/m.mkv"}, swTestOpts(), discardLogger())
+	defer p.Close()
+	p.SetCopyMode(NewCopyPlanner(nil, nil), nil)
+
+	base := transcoding.LadderFilmNormal
+	caps := transcoding.EncodeCapability{SoftwareMaxHeight: 1080}
+
+	for _, src := range []SourceDims{
+		{Width: 0, Height: 0},
+		{Width: 1920, Height: 0},
+		{Width: 0, Height: 1080},
+		{Width: -1, Height: -1},
+	} {
+		profiles := p.Profiles(base, src, transcoding.PlaybackDecision{}, caps)
+		require.Len(t, profiles, 1)
+		assert.Equal(t, 1920, profiles[0].Width, "src %+v must fall back to the safe default", src)
+		assert.Equal(t, 1080, profiles[0].Height, "src %+v must fall back to the safe default", src)
+		assert.True(t, profiles[0].Copy)
+	}
+}
