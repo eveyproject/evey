@@ -188,3 +188,117 @@ func TestAnswer_RejectsNonAnswerStatus(t *testing.T) {
 		t.Error("expected error answering with a non-answer status")
 	}
 }
+
+// countingLookup records whether the library was consulted at all - which is
+// what the three guards in markInLibrary decide.
+type countingLookup struct {
+	calls int
+	held  map[string]string
+}
+
+func (c *countingLookup) FindByProviderIDs(_ context.Context, _ string, _ []string) (map[string]string, error) {
+	c.calls++
+	return c.held, nil
+}
+
+type resultProvider struct{ results []metadata.MetadataResult }
+
+func (p *resultProvider) Name() string { return "results" }
+func (p *resultProvider) Search(_ context.Context, _ string, _ *int, _ string) ([]metadata.MetadataResult, error) {
+	return p.results, nil
+}
+func (p *resultProvider) GetByProviderID(_ context.Context, _ string, _ string) (*metadata.MetadataResult, error) {
+	return nil, nil
+}
+
+// markInLibrary is gated by three independent conditions and mutation testing
+// showed each one could be negated with the suite still green. The music term in
+// particular is a documented product decision - music_tracks carries no
+// MusicBrainz id, so the only join would be on album title, and a wrong "you
+// already have this" is worse than showing no badge at all.
+func TestSearchTitles_LibraryLookupGuards(t *testing.T) {
+	results := []metadata.MetadataResult{{Title: "Dune", ProviderIDs: map[string]string{"results": "123"}}}
+
+	t.Run("music never reaches the library lookup", func(t *testing.T) {
+		lookup := &countingLookup{}
+		svc := appmediarequest.NewService(mrfakes.NewFakeRepository(), mrfakes.NewFakeAccess(true),
+			[]metadata.MetadataProvider{&resultProvider{results: results}}, &fakeBus{}).WithLibraryLookup(lookup)
+
+		if _, err := svc.SearchTitles(context.Background(), "usr-1", mediarequest.MediaTypeMusic, "Dune", nil); err != nil {
+			t.Fatalf("SearchTitles: %v", err)
+		}
+		if lookup.calls != 0 {
+			t.Errorf("the library was consulted %d times for music; a wrong in-library badge is worse than none", lookup.calls)
+		}
+	})
+
+	t.Run("a movie search does reach it", func(t *testing.T) {
+		lookup := &countingLookup{held: map[string]string{}}
+		svc := appmediarequest.NewService(mrfakes.NewFakeRepository(), mrfakes.NewFakeAccess(true),
+			[]metadata.MetadataProvider{&resultProvider{results: results}}, &fakeBus{}).WithLibraryLookup(lookup)
+
+		if _, err := svc.SearchTitles(context.Background(), "usr-1", mediarequest.MediaTypeMovie, "Dune", nil); err != nil {
+			t.Fatalf("SearchTitles: %v", err)
+		}
+		if lookup.calls != 1 {
+			t.Errorf("library consulted %d times for a movie search, want 1", lookup.calls)
+		}
+	})
+
+	t.Run("no candidates means no lookup", func(t *testing.T) {
+		lookup := &countingLookup{}
+		svc := appmediarequest.NewService(mrfakes.NewFakeRepository(), mrfakes.NewFakeAccess(true),
+			[]metadata.MetadataProvider{&resultProvider{results: nil}}, &fakeBus{}).WithLibraryLookup(lookup)
+
+		if _, err := svc.SearchTitles(context.Background(), "usr-1", mediarequest.MediaTypeMovie, "Dune", nil); err != nil {
+			t.Fatalf("SearchTitles: %v", err)
+		}
+		if lookup.calls != 0 {
+			t.Errorf("library consulted %d times with no candidates, want 0", lookup.calls)
+		}
+	})
+
+	t.Run("an unwired library is simply skipped", func(t *testing.T) {
+		// No WithLibraryLookup: the search must still succeed, unflagged.
+		svc := appmediarequest.NewService(mrfakes.NewFakeRepository(), mrfakes.NewFakeAccess(true),
+			[]metadata.MetadataProvider{&resultProvider{results: results}}, &fakeBus{})
+		out, err := svc.SearchTitles(context.Background(), "usr-1", mediarequest.MediaTypeMovie, "Dune", nil)
+		if err != nil {
+			t.Fatalf("SearchTitles without a library lookup must still work: %v", err)
+		}
+		if len(out) != 1 || out[0].InLibrary {
+			t.Errorf("candidates must come back unflagged, got %+v", out)
+		}
+	})
+}
+
+// failingBus rejects every publish, standing in for a saturated or broken bus.
+type failingBus struct{}
+
+func (failingBus) Publish(context.Context, shared.Event) error {
+	return errors.New("bus unavailable")
+}
+func (failingBus) Subscribe(string, func(context.Context, shared.Event)) string { return "" }
+func (failingBus) Unsubscribe(string)                                           {}
+
+// Telemetry must never decide whether the user's action succeeded: the request
+// is already persisted by the time the event is published. Both publish sites
+// survived mutation, meaning nothing asserted that contract.
+func TestCreateAndAnswer_SurviveAFailingEventBus(t *testing.T) {
+	repo := mrfakes.NewFakeRepository()
+	svc := appmediarequest.NewService(repo, mrfakes.NewFakeAccess(true), nil, failingBus{})
+
+	req, err := svc.CreateRequest(context.Background(), "prof-1", "usr-1", appmediarequest.CreateInput{
+		MediaType: mediarequest.MediaTypeMovie, Title: "Dune",
+	})
+	if err != nil {
+		t.Fatalf("a failing event bus must not fail the request: %v", err)
+	}
+	if req == nil {
+		t.Fatal("the request must still be returned")
+	}
+
+	if _, err := svc.Answer(context.Background(), req.ID, mediarequest.StatusApproved, "ok", "prof-admin"); err != nil {
+		t.Fatalf("a failing event bus must not fail the answer: %v", err)
+	}
+}
