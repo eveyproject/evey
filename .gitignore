@@ -127,3 +127,4 @@ bench/
 .claude/
 .mutation-src/
 .mutation-report.txt
+.bench-wasm/
