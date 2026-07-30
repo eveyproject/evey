@@ -72,6 +72,19 @@ var validAV1MaxHeights = map[int]bool{0: true, 720: true, 1080: true, 1440: true
 // software at that height. Bounded to the software bench ladder.
 var validSoftwareAV1Heights = map[int]bool{0: true, 480: true, 720: true, 1080: true, 1440: true}
 
+// validSoftwareHeights are the software transcode height ceilings the panel
+// offers, for both the SDR and the HDR knob. 0 = no cap. An allow-list rather
+// than "any non-negative int" for the same reason the AV1 ladders above use
+// one: these values reach the encoder ladder, and a typo like 10800 would build
+// a ladder no host can sustain while looking like a saved setting.
+var validSoftwareHeights = map[int]bool{0: true, 480: true, 720: true, 1080: true, 1440: true, 2160: true}
+
+// maxTranscodeSessions bounds the concurrent-HLS-session cap. 0 = no limit,
+// which is the documented meaning here; the ceiling only exists to reject a
+// value that is an obvious mistake (an accidental extra digit) rather than a
+// policy.
+const maxTranscodeSessions = 1000
+
 // hwModeController is the slice of CalibrationService the settings handler needs
 // to surface + apply the admin HW-acceleration mode. A nil controller (tests,
 // or a build without calibration) degrades to "mode reported from config, no
@@ -645,11 +658,15 @@ func registerServerSettingsRoutes(
 			// Reset path, not through a sentinel value.
 			{cfgKey: cfgKeyTranscodeMaxSessions,
 				apply: func() string {
-					if body.TranscodeMaxSessions == nil || *body.TranscodeMaxSessions < 0 {
+					if body.TranscodeMaxSessions == nil {
 						return ""
 					}
-					cfg.Transcoding.MaxSessions = *body.TranscodeMaxSessions
-					return strconv.Itoa(*body.TranscodeMaxSessions)
+					n := *body.TranscodeMaxSessions
+					if n < 0 || n > maxTranscodeSessions {
+						return "" // out of range -> ignore, keep the current value
+					}
+					cfg.Transcoding.MaxSessions = n
+					return strconv.Itoa(n)
 				}},
 			{cfgKey: cfgKeyTranscodeSingleVariant,
 				apply: func() string {
@@ -669,19 +686,27 @@ func registerServerSettingsRoutes(
 				}},
 			{cfgKey: cfgKeyTranscodeSWMaxHeight,
 				apply: func() string {
-					if body.SoftwareMaxHeight == nil || *body.SoftwareMaxHeight < 0 {
+					if body.SoftwareMaxHeight == nil {
 						return ""
 					}
-					cfg.Transcoding.SoftwareMaxHeightOverride = *body.SoftwareMaxHeight
-					return strconv.Itoa(*body.SoftwareMaxHeight)
+					h := *body.SoftwareMaxHeight
+					if !validSoftwareHeights[h] {
+						return "" // off the allowed ladder -> ignore, keep the current value
+					}
+					cfg.Transcoding.SoftwareMaxHeightOverride = h
+					return strconv.Itoa(h)
 				}},
 			{cfgKey: cfgKeyTranscodeSWHDRMaxHt,
 				apply: func() string {
-					if body.SoftwareHDRMaxHeight == nil || *body.SoftwareHDRMaxHeight < 0 {
+					if body.SoftwareHDRMaxHeight == nil {
 						return ""
 					}
-					cfg.Transcoding.SoftwareHDRMaxHeightOverride = *body.SoftwareHDRMaxHeight
-					return strconv.Itoa(*body.SoftwareHDRMaxHeight)
+					h := *body.SoftwareHDRMaxHeight
+					if !validSoftwareHeights[h] {
+						return "" // off the allowed ladder -> ignore, keep the current value
+					}
+					cfg.Transcoding.SoftwareHDRMaxHeightOverride = h
+					return strconv.Itoa(h)
 				}},
 		}
 

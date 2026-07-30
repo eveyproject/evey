@@ -789,3 +789,33 @@ func TestServerSettings_Get_TranscodingKnobsRequireRestart(t *testing.T) {
 		}
 	}
 }
+
+// Off-ladder heights are refused rather than clamped, same as the AV1 knobs:
+// these values build the encoder ladder, and an accidental extra digit that
+// looks saved is worse than a rejected save.
+func TestServerSettings_Put_TranscodingKnobs_RejectsOffLadderValues(t *testing.T) {
+	env := newSettingsTestEnv(t, validUserValidator(true))
+	env.cfg.Transcoding.SoftwareMaxHeightOverride = 1080
+	env.cfg.Transcoding.SoftwareHDRMaxHeightOverride = 1080
+	env.cfg.Transcoding.MaxSessions = 4
+
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/admin/server-settings",
+		strings.NewReader(`{"softwareMaxHeight":10800,"softwareHDRMaxHeight":999,"transcodeMaxSessions":2000000}`))
+	req.Header.Set("Authorization", "Bearer tok")
+	env.mux.ServeHTTP(httptest.NewRecorder(), req)
+
+	if env.cfg.Transcoding.SoftwareMaxHeightOverride != 1080 {
+		t.Errorf("off-ladder height must be ignored, got %d", env.cfg.Transcoding.SoftwareMaxHeightOverride)
+	}
+	if env.cfg.Transcoding.SoftwareHDRMaxHeightOverride != 1080 {
+		t.Errorf("off-ladder HDR height must be ignored, got %d", env.cfg.Transcoding.SoftwareHDRMaxHeightOverride)
+	}
+	if env.cfg.Transcoding.MaxSessions != 4 {
+		t.Errorf("absurd session cap must be ignored, got %d", env.cfg.Transcoding.MaxSessions)
+	}
+	for _, key := range []string{cfgKeyTranscodeSWMaxHeight, cfgKeyTranscodeSWHDRMaxHt, cfgKeyTranscodeMaxSessions} {
+		if _, ok := env.store.sets[key]; ok {
+			t.Errorf("rejected value must not be persisted (%s)", key)
+		}
+	}
+}

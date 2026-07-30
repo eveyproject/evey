@@ -77,22 +77,33 @@ func resolveClientIPReasoned(ctx context.Context, md metadata.MD) ratelimit.Prox
 	// Otherwise a client speaking gRPC directly could set x-forwarded-for to any
 	// value and evade the per-IP rate limiters (login, password reset, quick
 	// connect) - the exact bypass the HTTP layer's clientIP() already guards.
+	// "No peer address at all" and "a peer address that is not an IP" are NOT
+	// the same thing, and conflating them made the second one trusted. Only the
+	// first is genuinely local: an in-process transport (bufconn in tests) or a
+	// unix socket has no remote to distrust. An address that IS present but does
+	// not parse comes from somewhere, and honoring its forwarded headers would
+	// hand it the per-IP rate limiters (login, password reset, quick connect) -
+	// the very bypass the trust check exists to prevent. Fail closed there, the
+	// same way the HTTP side already does (ratelimit.resolveClientIPReasoned).
+	//
+	// The HTTP->gRPC gateway does not rely on the local case: it dials a real
+	// TCP loopback connection (cmd/evey/gateway.go), so its peer is 127.0.0.1,
+	// parseable, and trusted through EVEY_TRUSTED_PROXIES like any other proxy.
 	peerIP := ""
+	localTransport := true
 	if p, ok := peer.FromContext(ctx); ok && p.Addr != nil {
+		localTransport = p.Addr.Network() == "unix"
 		if host, _, err := net.SplitHostPort(p.Addr.String()); err == nil {
 			peerIP = host
 		} else {
 			peerIP = p.Addr.String()
 		}
 	}
-	// An unparseable peer address (nil) means an in-process transport (the
-	// gateway/bufconn) - local and trusted. A parseable peer must be in the
-	// trusted-proxy set for its forwarded headers to count.
 	parsed := net.ParseIP(peerIP)
 	res := ratelimit.ProxyResolution{
 		IP:          peerIP,
 		PeerIP:      peerIP,
-		PeerTrusted: parsed == nil || ratelimit.IsTrustedProxy(parsed),
+		PeerTrusted: localTransport || (parsed != nil && ratelimit.IsTrustedProxy(parsed)),
 	}
 	res.XFF = firstMD(md, "x-real-ip", "x-forwarded-for")
 	if res.PeerTrusted && res.XFF != "" {

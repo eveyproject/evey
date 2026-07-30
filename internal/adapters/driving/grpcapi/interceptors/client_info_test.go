@@ -343,3 +343,51 @@ func TestClientInfoUnary_SpoofedXFFFromUntrustedPeerDoesNotWarn(t *testing.T) {
 		t.Fatalf("an untrusted non-loopback peer must not trigger the misconfig warning: %s", buf.String())
 	}
 }
+
+// A peer address that is PRESENT but does not parse as an IP must not be
+// trusted. It used to be, because the code tested `net.ParseIP(peerIP) == nil`
+// to mean "in-process transport" - which is also true for any non-IP address.
+// Trusting it hands the caller the per-IP rate limiters via a forged header.
+func TestResolveClientIP_UnparseablePeerAddressIsNotTrusted(t *testing.T) {
+	ratelimit.SetTrustedProxies([]string{"10.0.0.0/8"})
+	t.Cleanup(func() { ratelimit.SetTrustedProxies(nil) })
+
+	md := metadata.Pairs("x-forwarded-for", "203.0.113.9")
+	ctx := peer.NewContext(metadata.NewIncomingContext(context.Background(), md),
+		&peer.Peer{Addr: fakeAddr{network: "weird", addr: "not-an-ip"}})
+
+	var got context.Context
+	_, _ = interceptors.ClientInfoUnary()(ctx, nil, &grpc.UnaryServerInfo{FullMethod: testMethod},
+		func(c context.Context, _ any) (any, error) { got = c; return nil, nil })
+
+	res, ok := interceptors.ClientIPResolutionFromCtx(got)
+	require.True(t, ok)
+	assert.False(t, res.PeerTrusted, "a present-but-unparseable peer must not be trusted")
+	assert.False(t, res.XFFHonored, "its forwarded header must be ignored")
+	assert.Equal(t, "not-an-ip", res.IP, "it must be keyed on the peer, not on the header")
+}
+
+// A unix socket has no remote to distrust - it stays local and trusted, so the
+// fix above does not break an in-process or socket-based transport.
+func TestResolveClientIP_UnixSocketPeerStaysTrusted(t *testing.T) {
+	ratelimit.SetTrustedProxies([]string{"10.0.0.0/8"})
+	t.Cleanup(func() { ratelimit.SetTrustedProxies(nil) })
+
+	md := metadata.Pairs("x-forwarded-for", "203.0.113.9")
+	ctx := peer.NewContext(metadata.NewIncomingContext(context.Background(), md),
+		&peer.Peer{Addr: fakeAddr{network: "unix", addr: "/run/evey.sock"}})
+
+	var got context.Context
+	_, _ = interceptors.ClientInfoUnary()(ctx, nil, &grpc.UnaryServerInfo{FullMethod: testMethod},
+		func(c context.Context, _ any) (any, error) { got = c; return nil, nil })
+
+	res, ok := interceptors.ClientIPResolutionFromCtx(got)
+	require.True(t, ok)
+	assert.True(t, res.PeerTrusted)
+	assert.Equal(t, "203.0.113.9", res.IP, "a local socket may forward a real client address")
+}
+
+type fakeAddr struct{ network, addr string }
+
+func (f fakeAddr) Network() string { return f.network }
+func (f fakeAddr) String() string  { return f.addr }
