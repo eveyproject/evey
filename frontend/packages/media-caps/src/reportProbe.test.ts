@@ -54,4 +54,21 @@ describe("reportAudioProbeOnce", () => {
     expect(await reportAudioProbeOnce(async () => aProbe, post)).toBe("skipped-already-sent");
     expect(post).toHaveBeenCalledTimes(1);
   });
+
+  it("posts once even when two callers race the probe", async () => {
+    // The latch can only be set after the probe resolves, so both callers used
+    // to clear the check and both post - a duplicate beacon in the admin log.
+    let releaseProbe: (v: AudioProbe) => void = () => {};
+    const probeFn = vi.fn(() => new Promise<AudioProbe | null>((res) => { releaseProbe = res; }));
+    const post = vi.fn(async () => ({}));
+
+    const first = reportAudioProbeOnce(probeFn, post);
+    const second = reportAudioProbeOnce(probeFn, post);
+    releaseProbe(aProbe);
+
+    const [a, b] = await Promise.all([first, second]);
+    expect(post).toHaveBeenCalledTimes(1);
+    expect(probeFn).toHaveBeenCalledTimes(1);
+    expect([a, b]).toEqual(["sent", "sent"]);
+  });
 });

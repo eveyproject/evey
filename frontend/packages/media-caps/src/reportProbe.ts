@@ -10,9 +10,17 @@ export type ReportOutcome = "sent" | "skipped-already-sent" | "skipped-no-probe"
 // beacon would bury the admin log the way the cast liveness beats once did.
 let alreadySent = false;
 
+// The latch alone is not enough: it can only be set AFTER the probe resolves
+// (a build with no native module must not latch, so a later build still gets
+// its chance), which leaves an await-sized window where two callers both pass
+// the check and both post. Tracking the in-flight run closes it - same shape as
+// the single-flight token refresh in packages/api's fetcher.
+let inFlight: Promise<ReportOutcome> | null = null;
+
 /** Test seam: the module-level latch would otherwise leak between test cases. */
 export function resetAudioProbeLatch(): void {
   alreadySent = false;
+  inFlight = null;
 }
 
 /**
@@ -27,6 +35,21 @@ export async function reportAudioProbeOnce(
   post: ProbePoster,
 ): Promise<ReportOutcome> {
   if (alreadySent) return "skipped-already-sent";
+  // A concurrent caller joins the run already going rather than starting a
+  // second one; it observes the same outcome.
+  if (inFlight) return inFlight;
+  inFlight = runProbeOnce(probeFn, post);
+  try {
+    return await inFlight;
+  } finally {
+    inFlight = null;
+  }
+}
+
+async function runProbeOnce(
+  probeFn: () => Promise<AudioProbe | null>,
+  post: ProbePoster,
+): Promise<ReportOutcome> {
   let probe: AudioProbe | null = null;
   try {
     probe = await probeFn();

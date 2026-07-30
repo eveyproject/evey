@@ -18,6 +18,31 @@ const fetchedIds = new Set<string>();
 // size has to be learned from the image itself (see the render below).
 const sheetSizeCache = new Map<string, { width: number; height: number }>();
 
+// A TV app is left running for weeks, and every distinct title seeked into adds
+// a parsed cue list that is never removed. Each entry is small, but "small
+// times unbounded" is still unbounded - and this is the device with the least
+// memory of the three. Bound it to the last few titles: trickplay is only ever
+// consulted for what is playing now, so a tiny window loses nothing in
+// practice, and a re-seek into an evicted title just re-fetches its manifest.
+const TRICKPLAY_CACHE_MAX = 8;
+
+// rememberCues inserts into the LRU-ish window, dropping the oldest media id
+// once past the cap. Map preserves insertion order, so the first key is the
+// least recently ADDED - good enough here, where the working set is one title.
+function rememberCues(mediaId: string, parsed: TrickplayCue[]): void {
+  cueCache.set(mediaId, parsed);
+  while (cueCache.size > TRICKPLAY_CACHE_MAX) {
+    const oldest = cueCache.keys().next().value;
+    if (oldest === undefined) break;
+    cueCache.delete(oldest);
+    fetchedIds.delete(oldest); // else the evicted title can never re-fetch
+  }
+  // The sheet-size cache is keyed by cue URL, not media id, so it cannot be
+  // swept by media id. Clear it wholesale when it grows past a few titles'
+  // worth of sheets: re-learning a size costs one image load.
+  if (sheetSizeCache.size > TRICKPLAY_CACHE_MAX * 8) sheetSizeCache.clear();
+}
+
 interface TrickplaySeekPreviewProps {
   mediaId: string;
   // The seek target currently being previewed, in seconds - null whenever the
@@ -58,7 +83,7 @@ export function TrickplaySeekPreview({ mediaId, previewTimeSec }: TrickplaySeekP
         const text = await res.text();
         if (cancelled) return;
         const parsed = parseTrickplayVTT(text);
-        cueCache.set(mediaId, parsed);
+        rememberCues(mediaId, parsed);
         setCues(parsed);
       } catch {
         // Transient failure (network blip, sprites still generating

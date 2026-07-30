@@ -181,6 +181,11 @@ export default function PhotosScreen() {
           activeOpacity={0.85}
           onPress={() => setLightboxIndex(index)}
           style={{ width: PHOTO_SIZE, height: PHOTO_SIZE, margin: SPACING / 2 }}
+          accessibilityRole="imagebutton"
+          // Without this a screen reader announces a bare "button" for every
+          // tile in the grid, with nothing to tell them apart - while the
+          // lightbox chrome in this same file is fully labelled.
+          accessibilityLabel={t("media.photos.openPhoto", "Photo {{n}}", { n: index + 1 })}
         >
           {uri ? (
             <Image
@@ -197,7 +202,7 @@ export default function PhotosScreen() {
         </TouchableOpacity>
       );
     },
-    [photoThumbUrl, authHeaders, theme],
+    [photoThumbUrl, authHeaders, theme, t],
   );
 
   const renderAlbum = useCallback(
@@ -208,6 +213,8 @@ export default function PhotosScreen() {
           activeOpacity={0.85}
           onPress={() => setSelectedAlbum(item.name)}
           style={[styles.albumCard, { width: ALBUM_SIZE, backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
+          accessibilityRole="button"
+          accessibilityLabel={item.name}
         >
           {coverUri ? (
             <Image
