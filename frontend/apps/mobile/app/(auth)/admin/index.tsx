@@ -1,5 +1,8 @@
 import { View, Text, ScrollView, Pressable, RefreshControl, ActivityIndicator, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+
+// The icon-name union, so a typo is a compile error rather than a blank square.
+type IoniconName = keyof typeof Ionicons.glyphMap;
 import { Stack, useRouter } from "expo-router";
 import { useState, useCallback, useEffect } from "react";
 import { useTranslation } from "react-i18next";
@@ -22,10 +25,10 @@ import { useTheme } from "../../../src/providers/ThemeProvider";
 import { usePluginSlotEntries } from "../../../src/features/plugins/PluginSlot";
 import { formatBytes } from "../../../src/lib/formatBytes";
 
-function StatCard({ label, value, icon, theme }: { label: string; value: string | number; icon: string; theme: ReturnType<typeof useTheme> }) {
+function StatCard({ label, value, icon, theme }: { label: string; value: string | number; icon: IoniconName; theme: ReturnType<typeof useTheme> }) {
   return (
     <View style={[styles.statCard, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}>
-      <Ionicons name={icon as never} size={24} color={theme.colors.accent} />
+      <Ionicons name={icon} size={24} color={theme.colors.accent} />
       <Text style={[styles.statValue, { color: theme.colors.text }]}>{value}</Text>
       <Text style={[styles.statLabel, { color: theme.colors.textMuted }]}>{label}</Text>
     </View>
@@ -61,7 +64,7 @@ function getUsageColor(pct: number, theme: ReturnType<typeof useTheme>): string 
   return theme.colors.success;
 }
 
-function deviceIconName(userAgent: string): string {
+function deviceIconName(userAgent: string): IoniconName {
   const ua = userAgent.toLowerCase();
   if (ua.includes("eveytv")) return "tv-outline";
   if (ua.includes("eveymobile") || ua.includes("mobile") || ua.includes("android") || ua.includes("iphone")) return "phone-portrait-outline";
@@ -161,7 +164,7 @@ function OnlineNowCard({ theme }: { theme: ReturnType<typeof useTheme> }) {
         ) : (
           users.slice(0, 6).map((u, i) => (
             <View key={`${u.userId}|${u.userAgent ?? i}`} style={[styles.infoRow, { borderBottomColor: theme.colors.border }]}>
-              <Ionicons name={deviceIconName(u.userAgent ?? "") as never} size={16} color={theme.colors.textMuted} />
+              <Ionicons name={deviceIconName(u.userAgent ?? "")} size={16} color={theme.colors.textMuted} />
               <Text style={{ color: theme.colors.text, fontSize: 13, flex: 1 }} numberOfLines={1}>
                 {u.username || u.userId}
                 {u.isAdmin ? ` · ${t("admin.online.adminBadge")}` : ""}
