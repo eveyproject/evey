@@ -393,3 +393,93 @@ func TestVideoSessionLimiter_ClassesAndRungsFor_ProxyTheWiredCostModel(t *testin
 
 	assert.Empty(t, l.RungsFor(LadderClassSoftwareAV1), "no av1 table on the dev box fixture")
 }
+
+// A negative limit is normalised to 0, and 0 means UNLIMITED here - so getting
+// this guard wrong does not merely clamp, it inverts the meaning: a caller
+// asking for "-1" would end up with an unlimited admission gate on a weak NAS.
+// Both the constructor and the runtime setter carry the guard, and both
+// survived mutation testing.
+func TestVideoSessionLimiter_NegativeLimitBecomesUnlimited(t *testing.T) {
+	l := NewVideoSessionLimiter(-5)
+	if l.Limit() != 0 {
+		t.Errorf("a negative limit must normalise to 0 (unlimited), got %d", l.Limit())
+	}
+
+	l = NewVideoSessionLimiter(3)
+	if l.Limit() != 3 {
+		t.Fatalf("Limit() = %d, want 3", l.Limit())
+	}
+	l.SetLimit(-1)
+	if l.Limit() != 0 {
+		t.Errorf("SetLimit(-1) must normalise to 0, got %d", l.Limit())
+	}
+	l.SetLimit(0)
+	if l.Limit() != 0 {
+		t.Errorf("SetLimit(0) must stay 0, got %d", l.Limit())
+	}
+	l.SetLimit(2)
+	if l.Limit() != 2 {
+		t.Errorf("SetLimit(2) = %d, want 2", l.Limit())
+	}
+}
+
+// The used-budget accumulator floors at zero. Without that floor an unbalanced
+// release drives the pool NEGATIVE, which reads as "plenty of budget free" and
+// over-admits sessions on exactly the hardware the limiter exists to protect.
+func TestVideoSessionLimiter_UsedBudgetNeverGoesNegative(t *testing.T) {
+	l := NewVideoSessionLimiter(0).WithCostModel(NewVideoCostModel(devBoxSamples()))
+
+	if !l.TryAcquire("s1", LadderClassSoftware, 1080) {
+		t.Fatal("the first acquire must succeed")
+	}
+	used := l.Used()
+	if used <= 0 {
+		t.Fatalf("an acquired session must consume budget, got %v", used)
+	}
+
+	l.Release("s1")
+	if got := l.Used(); got < 0 {
+		t.Errorf("used budget = %v after release, must never go below zero", got)
+	}
+
+	// Releasing a key that is not held must be a no-op, not a decrement.
+	l.Release("s1")
+	l.Release("never-acquired")
+	if got := l.Used(); got < 0 {
+		t.Errorf("used budget = %v after spurious releases, must never go below zero", got)
+	}
+	if l.Active() != 0 {
+		t.Errorf("Active() = %d after releasing everything, want 0", l.Active())
+	}
+}
+
+// Release is reference-counted: a stream acquired twice needs two releases, and
+// the budget is only returned on the last one. The `n <= 1` boundary decides
+// that, and it survived.
+func TestVideoSessionLimiter_ReleaseIsReferenceCounted(t *testing.T) {
+	l := NewVideoSessionLimiter(0).WithCostModel(NewVideoCostModel(devBoxSamples()))
+
+	if !l.TryAcquire("s1", LadderClassSoftware, 1080) {
+		t.Fatal("first acquire must succeed")
+	}
+	if !l.TryAcquire("s1", LadderClassSoftware, 1080) {
+		t.Fatal("a second acquire of the same key must succeed (same stream, another viewer)")
+	}
+	if l.Active() != 1 {
+		t.Fatalf("Active() = %d, want 1 - the same stream is one slot", l.Active())
+	}
+	afterTwo := l.Used()
+
+	l.Release("s1")
+	if !l.Holds("s1") {
+		t.Error("one release of a doubly-held key must keep the slot")
+	}
+	if l.Used() != afterTwo {
+		t.Errorf("budget was returned too early: %v -> %v", afterTwo, l.Used())
+	}
+
+	l.Release("s1")
+	if l.Holds("s1") {
+		t.Error("the last release must drop the slot")
+	}
+}
