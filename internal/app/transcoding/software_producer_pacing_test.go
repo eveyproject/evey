@@ -146,3 +146,90 @@ func TestSWNotifyClientHint_NoCoveringSessionResumesNobody(t *testing.T) {
 	assert.True(t, swIsPaused(survivors[0]),
 		"a session starting past the requested segment must not be woken to serve it")
 }
+
+// idleSweepProducer returns a producer with one live session, its handle, and a
+// 1-minute idle threshold - the shape sweepPause decides on.
+func idleSweepProducer(t *testing.T) (*SoftwareProducer, *swSession, *fakeHandle) {
+	t.Helper()
+	cache, _ := newTestCache(t)
+	p := NewSoftwareProducer(cache, newFakeProcess(), stubSource{path: "/m.mkv"}, swTestOpts(), discardLogger())
+	t.Cleanup(p.Close)
+
+	fp := minimalFingerprint(t)
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 0))
+	sessions := swSessionsOf(t, p, fp.Hash())
+	require.Len(t, sessions, 1)
+
+	s := sessions[0]
+	s.mu.Lock()
+	h, ok := s.handle.(*fakeHandle)
+	s.mu.Unlock()
+	require.True(t, ok, "the fake process must hand out a fake handle")
+	return p, s, h
+}
+
+// sweepPause suspends on idleness alone, so the threshold is the only thing
+// standing between a viewer's short pause and a SIGSTOPped encoder.
+//
+// The exact boundary is deliberately NOT asserted: cutoff is taken from
+// time.Now() inside the sweep, strictly after the test stamps lastAccess, so a
+// session stamped at exactly the threshold always reads as microseconds older.
+// Pinning that would need an injectable clock, which this producer does not
+// have. The two cases below are the ones an implementation change can actually
+// get wrong.
+func TestSWSweepPause_SuspendsOnlyPastTheIdleThreshold(t *testing.T) {
+	t.Run("a recently pulled session stays running", func(t *testing.T) {
+		p, s, h := idleSweepProducer(t)
+		s.mu.Lock()
+		s.lastAccess = time.Now().Add(-swTestOpts().PauseIdleThreshold / 2)
+		s.mu.Unlock()
+
+		p.sweepPause()
+
+		pauseN, _, _ := h.counts()
+		assert.False(t, swIsPaused(s), "a client still inside its idle budget must keep its encoder running")
+		assert.Zero(t, pauseN, "no SIGSTOP may be sent to a session pulled from recently")
+	})
+
+	t.Run("past the threshold suspends", func(t *testing.T) {
+		p, s, h := idleSweepProducer(t)
+		s.mu.Lock()
+		s.lastAccess = time.Now().Add(-swTestOpts().PauseIdleThreshold - time.Second)
+		s.mu.Unlock()
+
+		p.sweepPause()
+
+		pauseN, _, paused := h.counts()
+		assert.True(t, swIsPaused(s), "an encoder nobody has pulled from past the threshold must be suspended")
+		assert.Equal(t, 1, pauseN)
+		assert.True(t, paused)
+		s.mu.Lock()
+		since := s.pausedSince
+		s.mu.Unlock()
+		assert.False(t, since.IsZero(), "pausedSince drives the kill sweep and must be stamped")
+	})
+}
+
+// A second sweep over an already-suspended session must not send a second
+// SIGSTOP: pausedSince would be pushed forward on every tick and the
+// KillPausedAfter sweep could then never reclaim the encoder's ~1 GB.
+func TestSWSweepPause_DoesNotRestampAnAlreadySuspendedSession(t *testing.T) {
+	p, s, h := idleSweepProducer(t)
+	s.mu.Lock()
+	s.lastAccess = time.Now().Add(-time.Hour)
+	s.mu.Unlock()
+
+	p.sweepPause()
+	s.mu.Lock()
+	firstStamp := s.pausedSince
+	s.mu.Unlock()
+
+	p.sweepPause()
+
+	pauseN, _, _ := h.counts()
+	assert.Equal(t, 1, pauseN, "an already-suspended encoder must not be SIGSTOPped again")
+	s.mu.Lock()
+	secondStamp := s.pausedSince
+	s.mu.Unlock()
+	assert.Equal(t, firstStamp, secondStamp, "pausedSince must not be pushed forward by a later sweep")
+}
