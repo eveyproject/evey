@@ -78,7 +78,10 @@ func TestTranscodingGetTranscodeStatus(t *testing.T) {
 		Speed:   1.5,
 	})
 
-	resp, err := h.GetTranscodeStatus(context.Background(), &eveyv1.GetTranscodeStatusRequest{JobId: "tj-1"})
+	// Claims are required: reading a job's progress is not a public operation,
+	// and this call used to slip through only because a missing access port
+	// short-circuited the whole check before it ever looked at the caller.
+	resp, err := h.GetTranscodeStatus(ctxWithClaims("admin-1", "profile-1", true), &eveyv1.GetTranscodeStatusRequest{JobId: "tj-1"})
 	if err != nil {
 		t.Fatalf("GetTranscodeStatus: %v", err)
 	}
@@ -266,5 +269,31 @@ func TestCheckJobAccess_EmptyJobID_InvalidArgument(t *testing.T) {
 	err := h.checkJobAccess(ctx, "")
 	if status.Code(err) != codes.InvalidArgument {
 		t.Errorf("code = %v, want InvalidArgument", status.Code(err))
+	}
+}
+
+// A missing access port must refuse a normal user, but it must NOT refuse an
+// admin: whether the port is wired says nothing about who is calling, and a
+// wiring bug that answers an admin with a denial is the mirror image of the
+// fail-open this guard replaced.
+func TestTranscodingCheckJobAccess_UnwiredUserAccess(t *testing.T) {
+	h, _, _, _ := newTestTranscodingHandler()
+	h.userAccess = nil
+
+	if err := h.checkJobAccess(ctxWithClaims("admin-1", "profile-1", true), "tj-1"); err != nil {
+		t.Errorf("admin must pass on claims alone, got %v", err)
+	}
+
+	err := h.checkJobAccess(ctxWithClaims("user-1", "profile-1", false), "tj-1")
+	if err == nil {
+		t.Fatal("a non-admin must be refused when the access port is unwired")
+	}
+	if got := status.Code(err); got != codes.FailedPrecondition {
+		t.Errorf("expected FailedPrecondition, got %v (%v)", got, err)
+	}
+
+	// Unauthenticated stays unauthenticated - not "failed precondition".
+	if got := status.Code(h.checkJobAccess(context.Background(), "tj-1")); got != codes.Unauthenticated {
+		t.Errorf("expected Unauthenticated for a caller with no claims, got %v", got)
 	}
 }

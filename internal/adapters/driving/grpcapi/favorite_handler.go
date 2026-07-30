@@ -34,6 +34,12 @@ func (h *favoriteHandler) requireMediaAccess(ctx context.Context, mediaItemID st
 	if h.userAccess == nil {
 		return errUserAccessNotConfigured(ctx, "favoriteHandler.requireMediaAccess")
 	}
+	// Guarded for the same reason as userAccess above: this path only started
+	// dereferencing libQuery once the fail-open guard was removed, and a missing
+	// port must refuse, not panic. ListFavorites below already nil-checks it.
+	if h.libQuery == nil {
+		return errUserAccessNotConfigured(ctx, "favoriteHandler.requireMediaAccess")
+	}
 	item, err := h.libQuery.GetMediaItem(ctx, mediaItemID)
 	if err != nil || item == nil {
 		return status.Error(codes.NotFound, "not found")

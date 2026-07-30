@@ -131,17 +131,23 @@ func (h *transcodingHandler) checkJobAccess(ctx context.Context, jobID string) e
 	if jobID == "" {
 		return status.Error(codes.InvalidArgument, "job_id required")
 	}
-	if h.userAccess == nil {
-		return errUserAccessNotConfigured(ctx, "transcodingHandler.checkJobAccess")
-	}
-	if h.libQuery == nil {
-		return nil
-	}
+	// Identity first, wiring second. Whether the access port is wired says
+	// nothing about who is calling: an unauthenticated caller must still be told
+	// it is unauthenticated, and an admin bypasses the per-library check on the
+	// strength of its claims alone. Testing the port first turned both into
+	// "failed precondition" - a wiring bug that answers an admin with a denial
+	// is the mirror image of the fail-open this whole change closes.
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil {
 		return status.Error(codes.Unauthenticated, "unauthenticated")
 	}
 	if claims.IsAdmin {
+		return nil
+	}
+	if h.userAccess == nil {
+		return errUserAccessNotConfigured(ctx, "transcodingHandler.checkJobAccess")
+	}
+	if h.libQuery == nil {
 		return nil
 	}
 	job, err := h.svc.GetJob(ctx, jobID)
