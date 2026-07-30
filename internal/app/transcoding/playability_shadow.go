@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -393,14 +394,7 @@ func allUnmappedCodecSignals(reasons []string) bool {
 		return false
 	}
 	for _, r := range reasons {
-		matched := false
-		for _, known := range unmappedCodecSignalReasons {
-			if strings.TrimSpace(r) == known {
-				matched = true
-				break
-			}
-		}
-		if !matched {
+		if !slices.Contains(unmappedCodecSignalReasons, strings.TrimSpace(r)) {
 			return false
 		}
 	}
