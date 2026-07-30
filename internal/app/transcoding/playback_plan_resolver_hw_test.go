@@ -1,6 +1,7 @@
 package transcoding
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -221,4 +222,82 @@ func TestHWRouteUsable(t *testing.T) {
 			transcoding.PlaybackDecision{VideoCodec: "av1"},
 			SourceDims{Codec: "h264"}))
 	})
+}
+
+// ============================================================================
+// Route/spawn coherence
+// ============================================================================
+
+// LadderClassFor is what ADMISSION prices; LadderClassOf(fingerprint) is what
+// the SPAWN charges. They must agree for every request shape, or admission
+// reserves one resource pool while the session burns another - the pool ends up
+// oversubscribed with no counter showing it.
+//
+// The handler's own copy of this equivalence is locked by
+// TestLadderClassFor_AgreesWithFingerprint in the http adapter; this pins the
+// resolver's, which is the one production reaches through Resolve.
+func TestLadderClassFor_AgreesWithTheFingerprintTheSameRequestBuilds(t *testing.T) {
+	av1HW := vaapiCapable()
+	av1HW.HWCodecs = []string{"h264", "av1"}
+
+	cases := []struct {
+		name     string
+		resolver *PlanResolver
+		decision transcoding.PlaybackDecision
+		want     LadderClass
+	}{
+		{
+			name:     "no hardware at all",
+			resolver: &PlanResolver{},
+			decision: transcoding.PlaybackDecision{VideoCodec: "h264", VideoDecision: "transcode"},
+			want:     LadderClassSoftware,
+		},
+		{
+			name:     "hardware encode",
+			resolver: hwResolver(vaapiCapable()),
+			decision: transcoding.PlaybackDecision{VideoCodec: "h264", VideoDecision: "transcode"},
+			want:     LadderClassHW,
+		},
+		{
+			name: "AV1 on a host that HW-encodes it",
+			resolver: func() *PlanResolver {
+				pr := hwResolver(av1HW)
+				pr.AV1Enabled = func() bool { return true }
+				return pr
+			}(),
+			decision: transcoding.PlaybackDecision{VideoCodec: "av1", VideoDecision: "transcode"},
+			want:     LadderClassHW,
+		},
+		{
+			name: "AV1 with no hardware falls back to H.264 software",
+			// The AV1 gate rewrites the codec, so this must NOT be priced as an
+			// AV1 software stream (a pool the box would never actually use).
+			resolver: &PlanResolver{AV1Enabled: func() bool { return true }},
+			decision: transcoding.PlaybackDecision{VideoCodec: "av1", VideoDecision: "transcode"},
+			want:     LadderClassSoftware,
+		},
+		{
+			name:     "software HDR tone-mapping",
+			resolver: &PlanResolver{},
+			decision: transcoding.PlaybackDecision{
+				VideoCodec:       "h264",
+				VideoDecision:    "transcode",
+				TranscodeReasons: []string{"hdr_tonemapping_needed"},
+			},
+			want: LadderClassSoftwareHDR,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := ladderRequest(2160)
+			priced := tc.resolver.LadderClassFor(tc.decision, req.Streams)
+			assert.Equal(t, tc.want, priced, "the class admission prices")
+
+			profiles := tc.resolver.ShapeLadder(context.Background(), req, tc.decision)
+			fp := tc.resolver.Fingerprint(context.Background(), req, tc.decision, profiles)
+			assert.Equal(t, LadderClassOf(fp), priced,
+				"admission must price the pool the spawn will charge")
+		})
+	}
 }
