@@ -2,6 +2,7 @@ package postgres_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -253,4 +254,63 @@ func TestWatchHistoryAnalyzer_CalculateRelevanceScore(t *testing.T) {
 	score, err = analyzer.CalculateRelevanceScore(ctx, string(p.ID), []string{})
 	require.NoError(t, err)
 	assert.Equal(t, 0, score)
+}
+
+// The batch path joined the WHOLE of play_sessions per profile while the
+// single-profile one capped at the 200 most recent sessions - so on a long
+// history the two disagreed, and the batch cost grew forever (the retention
+// purge for that table is off by default). They now share one window; this
+// asserts they agree, and that each profile gets its OWN window rather than a
+// global one.
+func TestWatchHistoryAnalyzer_GetFavoriteGenresBatch_MatchesSingleProfile(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	userRepo := postgres.NewUserRepository(db)
+	profileRepo := postgres.NewProfileRepository(db)
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	sessionRepo := postgres.NewPlaySessionRepository(db)
+	analyzer := postgres.NewWatchHistoryAnalyzer(db)
+	ctx := context.Background()
+
+	u := newTestUser("whab")
+	require.NoError(t, userRepo.Create(ctx, u))
+	pa := newTestProfile("whabpa", u.ID)
+	require.NoError(t, profileRepo.Create(ctx, pa))
+	pb := newTestProfile("whabpb", u.ID)
+	require.NoError(t, profileRepo.Create(ctx, pb))
+	lib := newTestLibrary("whablib")
+	require.NoError(t, libRepo.Create(ctx, lib))
+
+	action := newTestMediaItem("whabmi1", lib.ID)
+	action.Catalog.Genres = []string{"Action"}
+	require.NoError(t, itemRepo.Create(ctx, action))
+	drama := newTestMediaItem("whabmi2", lib.ID)
+	drama.Catalog.Genres = []string{"Drame"}
+	require.NoError(t, itemRepo.Create(ctx, drama))
+
+	base := time.Now().UTC().Truncate(time.Millisecond)
+	// Profile A: 3 Action. Profile B: 2 Drame. Together they exceed no window,
+	// but a GLOBAL window instead of a per-profile one would mix them up.
+	for i := 0; i < 3; i++ {
+		s := newTestPlaySession(fmt.Sprintf("whabsa%d", i), string(pa.ID), string(action.ID))
+		s.StartedAt = base.Add(time.Duration(i) * time.Minute)
+		require.NoError(t, sessionRepo.Create(ctx, s))
+	}
+	for i := 0; i < 2; i++ {
+		s := newTestPlaySession(fmt.Sprintf("whabsb%d", i), string(pb.ID), string(drama.ID))
+		s.StartedAt = base.Add(time.Duration(i) * time.Minute)
+		require.NoError(t, sessionRepo.Create(ctx, s))
+	}
+
+	batch, err := analyzer.GetFavoriteGenresBatch(ctx, []string{string(pa.ID), string(pb.ID)}, 2)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"Action"}, batch[string(pa.ID)])
+	assert.Equal(t, []string{"Drame"}, batch[string(pb.ID)], "each profile keeps its own window")
+
+	// Same answer as the single-profile query, which is the whole point.
+	single, err := analyzer.GetFavoriteGenres(ctx, string(pa.ID), 2)
+	require.NoError(t, err)
+	assert.Equal(t, single, batch[string(pa.ID)])
 }

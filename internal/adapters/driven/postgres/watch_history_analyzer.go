@@ -19,6 +19,15 @@ func NewWatchHistoryAnalyzer(db *sql.DB) *WatchHistoryAnalyzer {
 	return &WatchHistoryAnalyzer{db: db}
 }
 
+// favoriteGenresSessionWindow bounds how far back the taste profile looks, in
+// sessions per profile. Shared by both query paths on purpose: they drifted
+// apart once - the single-profile one capped at 200 while the batch one joined
+// the WHOLE of play_sessions per profile - and the retention purge for that
+// table is OFF by default (EVEY_PLAY_SESSION_RETENTION_DAYS=0), so nothing
+// upstream bounded it either. On a household with a couple of years of history
+// that is the difference between a fixed cost and one that grows forever.
+const favoriteGenresSessionWindow = 200
+
 // GetFavoriteGenres returns genres the profile has watched at least minCount times.
 func (a *WatchHistoryAnalyzer) GetFavoriteGenres(ctx context.Context, profileID string, minCount int) ([]string, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.watchhistory.GetFavoriteGenres")
@@ -31,7 +40,7 @@ func (a *WatchHistoryAnalyzer) GetFavoriteGenres(ctx context.Context, profileID 
 			FROM play_sessions
 			WHERE profile_id = $1
 			ORDER BY started_at DESC
-			LIMIT 200
+			LIMIT $3
 		)
 		SELECT genre, COUNT(*) AS cnt
 		FROM recent_sessions rs
@@ -42,7 +51,7 @@ func (a *WatchHistoryAnalyzer) GetFavoriteGenres(ctx context.Context, profileID 
 		GROUP BY genre
 		HAVING COUNT(*) >= $2
 		ORDER BY cnt DESC
-	`, profileID, minCount)
+	`, profileID, minCount, favoriteGenresSessionWindow)
 	if err != nil {
 		return nil, err
 	}
@@ -78,18 +87,27 @@ func (a *WatchHistoryAnalyzer) GetFavoriteGenresBatch(ctx context.Context, profi
 	}
 	args = append(args, minCount)
 
+	// ROW_NUMBER per profile is the batch equivalent of the single-profile
+	// LIMIT: same window, same answer, one query for N profiles.
+	args = append(args, favoriteGenresSessionWindow)
 	query := fmt.Sprintf(`
-		SELECT ps.profile_id, genre, COUNT(*) AS cnt
-		FROM play_sessions ps
-		INNER JOIN media_catalog mc ON mc.media_item_id = ps.media_item_id
+		WITH recent_sessions AS (
+			SELECT profile_id, media_item_id,
+			       ROW_NUMBER() OVER (PARTITION BY profile_id ORDER BY started_at DESC) AS rn
+			FROM play_sessions
+			WHERE profile_id IN (%s)
+		)
+		SELECT rs.profile_id, genre, COUNT(*) AS cnt
+		FROM recent_sessions rs
+		INNER JOIN media_catalog mc ON mc.media_item_id = rs.media_item_id
 		CROSS JOIN jsonb_array_elements_text(
 			CASE WHEN jsonb_typeof(mc.genres) = 'array' THEN mc.genres ELSE '[]'::jsonb END
 		) AS genre
-		WHERE ps.profile_id IN (%s)
-		GROUP BY ps.profile_id, genre
+		WHERE rs.rn <= $%d
+		GROUP BY rs.profile_id, genre
 		HAVING COUNT(*) >= $%d
-		ORDER BY ps.profile_id, cnt DESC
-	`, strings.Join(placeholders, ","), len(profileIDs)+1)
+		ORDER BY rs.profile_id, cnt DESC
+	`, strings.Join(placeholders, ","), len(profileIDs)+2, len(profileIDs)+1)
 
 	rows, err := txFromCtx(ctx, a.db).QueryContext(ctx, query, args...)
 	if err != nil {
