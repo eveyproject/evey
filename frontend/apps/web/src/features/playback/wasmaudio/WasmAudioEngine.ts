@@ -427,7 +427,16 @@ export class WasmAudioEngine {
       verdict = { ok: false, reason: "probe: " + (err instanceof Error ? err.message : String(err)) };
     }
     if (verdict.ok) return true;
-    this.latchNative(verdict.reason ?? "probe refused");
+    // Refused BEFORE any hand-over: nothing is committed yet, so the right move
+    // is not to keep this engine limping on its AAC leg - it is to leave the
+    // wasm topology ENTIRELY. The host's fallback reloads the plain muxed
+    // master: ordinary audio+video, no Web Audio, no video-only trick, no
+    // worker. On a box that refuses the decode, that also removes every layer
+    // this engine adds, which is the safest thing to hand a fragile device.
+    // (Starvation mid-film is the opposite case - see revertToNativeLeg: there
+    // a reload would interrupt a film that is playing, so we latch in place.)
+    this.opts.onDiagnostic?.(verdict.reason ?? "probe refused");
+    this.fatal(verdict.reason ?? "probe refused");
     return false;
   }
 
