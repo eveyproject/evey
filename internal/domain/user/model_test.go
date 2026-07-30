@@ -895,3 +895,56 @@ func TestProfile_EffectiveParental(t *testing.T) {
 		}
 	})
 }
+
+// InviteLink.Validate had no test of its own, and mutation testing showed why
+// that matters: flipping `MaxUses < 0` to `<= 0` survived the whole suite.
+//
+// That flip is not cosmetic. MaxUses == 0 means UNLIMITED - IsUsable skips the
+// exhaustion check entirely when it is zero (model.go: `MaxUses > 0 && ...`) -
+// so the mutant makes every unlimited invite link fail validation, i.e. you can
+// no longer create one, and nothing would have told us.
+func TestInviteLinkValidate_Boundaries(t *testing.T) {
+	valid := func() user.InviteLink {
+		return user.InviteLink{ID: "inv-1", CreatedBy: "usr-1", Token: "tok-1", MaxUses: 5}
+	}
+
+	t.Run("unlimited (MaxUses == 0) is valid", func(t *testing.T) {
+		l := valid()
+		l.MaxUses = 0
+		if err := l.Validate(); err != nil {
+			t.Fatalf("MaxUses 0 means unlimited and must validate, got %v", err)
+		}
+	})
+
+	t.Run("a positive cap is valid", func(t *testing.T) {
+		l := valid()
+		if err := l.Validate(); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("a negative cap is rejected", func(t *testing.T) {
+		l := valid()
+		l.MaxUses = -1
+		if err := l.Validate(); err == nil {
+			t.Fatal("a negative max-uses must be rejected")
+		}
+	})
+
+	for _, tt := range []struct {
+		name  string
+		mutate func(*user.InviteLink)
+	}{
+		{"missing id", func(l *user.InviteLink) { l.ID = "" }},
+		{"missing creator", func(l *user.InviteLink) { l.CreatedBy = "" }},
+		{"missing token", func(l *user.InviteLink) { l.Token = "" }},
+	} {
+		t.Run(tt.name+" is rejected", func(t *testing.T) {
+			l := valid()
+			tt.mutate(&l)
+			if err := l.Validate(); err == nil {
+				t.Fatalf("%s must be rejected", tt.name)
+			}
+		})
+	}
+}
