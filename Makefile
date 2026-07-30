@@ -131,6 +131,7 @@ sec-scan:
 # actionable per package anyway.
 PKG ?= ./internal/pkg/ratelimit/
 MUTATION_SRC := $(CURDIR)/.mutation-src
+MUTATION_REPORT := $(CURDIR)/.mutation-report.txt
 mutation-test:
 	@command -v git >/dev/null || { echo "git required"; exit 1; }
 	@docker build -q -t evey-mutation -f docker/Dockerfile.mutation . >/dev/null
@@ -160,8 +161,28 @@ mutation-test:
 	  --user "$$(id -u):$$(id -g)" \
 	  -e GOPATH=/tmp/go -e GOCACHE=/tmp/gocache -e HOME=/tmp \
 	  -v $(MUTATION_SRC):/src -w /src \
-	  evey-mutation gremlins unleash $(if $(DRY),--dry-run,) $(PKG)
-	@rm -rf $(MUTATION_SRC)
+	  evey-mutation gremlins unleash $(if $(DRY),--dry-run,) $(PKG) \
+	  | tee $(MUTATION_REPORT)
+	@# PLAUSIBILITY GATE. A green baseline is not enough: on
+	@# ./internal/adapters/driving/http gremlins reports "Killed 1647, Lived 0,
+	@# efficacy 100%" in 7 SECONDS with a passing baseline - and a mutant it
+	@# calls KILLED (webhook_handler.go:69, `encErr != nil` -> `== nil`)
+	@# provably survives a real test run. Root cause unidentified in gremlins
+	@# 0.5.0; what matters is that the lie is loud instead of silent.
+	@#
+	@# Zero survivors in a package with real mutants has never once been true in
+	@# this repo (app/transcoding, far better tested, has 335). Treat it as a
+	@# broken run, not as a perfect score.
+	@awk '/^Killed:/ { split($$0, f, /[:,]/); k=f[2]+0; l=f[4]+0; \
+	  if (l == 0 && k > 50) { \
+	    print ""; \
+	    print "IMPLAUSIBLE RESULT: " k " killed, ZERO survivors."; \
+	    print "gremlins buckets a test command that fails to RUN as KILLED, so this"; \
+	    print "is almost certainly a broken run, not a perfect suite. Cross-check by"; \
+	    print "hand-applying one reported-KILLED mutant and running the package tests"; \
+	    print "before believing any of it."; \
+	    exit 1 } }' $(MUTATION_REPORT) || { rm -rf $(MUTATION_SRC) $(MUTATION_REPORT); exit 1; }
+	@rm -rf $(MUTATION_SRC) $(MUTATION_REPORT)
 
 # ── Pré-CI locale ─────────────────────────────────────────────────────────────
 # Mirror exact des étapes CI (.github/workflows/ci.yml) qu'on peut rouler en
