@@ -6,6 +6,7 @@ import { setAudioBoost } from "../lib/audioBoost";
 import { fetchStreamToken } from "./usePlaySession";
 import { buildCastStreamUrl, pickCastProfile } from "../lib/castUrl";
 import { ensureCastNotificationPermission } from "../lib/castNotificationPermission";
+import { describeCastTracks, shouldReportTracks } from "../lib/castTrackBeacon";
 import {
   CastContext, useCastStateHook, useRemoteMediaClientHook,
   useMediaStatusHook, useCastDeviceHook, CastStateEnum,
@@ -64,6 +65,29 @@ export function useCastSession({
   // muted at 0% while the television played out loud (see castPlaybackState.ts).
   const castVolume = castMediaStatus?.volume;
   const castIsMuted = castMediaStatus?.isMuted;
+
+  // Report the receiver's own track list once per shape (see castTrackBeacon).
+  // A track selector during a cast cannot be designed without knowing what the
+  // receiver exposes for an HLS stream, and that is not knowable from here.
+  const lastTracksRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!castConnected) {
+      lastTracksRef.current = null;
+      return;
+    }
+    const line = describeCastTracks(castMediaStatus?.mediaInfo?.mediaTracks, castMediaStatus?.activeTrackIds);
+    if (!shouldReportTracks(lastTracksRef.current, line)) return;
+    lastTracksRef.current = line;
+    eveyFetch({
+      url: `/api/v1/media/${encodeURIComponent(mediaId)}/player-event`,
+      method: "POST",
+      data: {
+        type: "cast_media_tracks",
+        details: line,
+        fatal: false, code: 0, variant: 0, segment: 0, posSec: 0,
+      },
+    }).catch(() => { /* telemetry must never break a cast */ });
+  }, [castConnected, castMediaStatus?.mediaInfo?.mediaTracks, castMediaStatus?.activeTrackIds, mediaId]);
 
   const muteLocalPlayer = useCallback(() => {
     if (!player) return;
