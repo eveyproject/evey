@@ -513,3 +513,44 @@ func TestVideoCostModel_NoHWSamples_BehaviourUnchanged(t *testing.T) {
 	}
 	assert.Equal(t, []LadderClass{LadderClassSoftware}, m.Classes(), "no hw evidence -> no hw class surfaced")
 }
+
+// The resolver clamps to [1, auto], and both ends of that clamp survived
+// mutation testing. They decide how many streams the box will encode at once:
+// too high starves every viewer on a weak NAS, and a floor below 1 would admit
+// nobody at all.
+func TestResolveVideoSessionLimit_ClampBoundaries(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	// Upper end: an operator asking for more than the measured capacity is
+	// capped at it, and asking for exactly the capacity is honoured.
+	above := &mapConfigRepo{values: map[string]string{MaxVideoSessionsConfigKey: "5"}}
+	assert.Equal(t, 3, ResolveVideoSessionLimit(ctx, above, 3), "a value above auto must clamp to auto")
+
+	exact := &mapConfigRepo{values: map[string]string{MaxVideoSessionsConfigKey: "3"}}
+	assert.Equal(t, 3, ResolveVideoSessionLimit(ctx, exact, 3), "a value equal to auto must be honoured")
+
+	below := &mapConfigRepo{values: map[string]string{MaxVideoSessionsConfigKey: "2"}}
+	assert.Equal(t, 2, ResolveVideoSessionLimit(ctx, below, 3), "a value below auto must be honoured")
+
+	// Lower end: auto itself can never be less than one, whatever the bench
+	// reported - a capacity of zero would admit nobody.
+	assert.Equal(t, 1, ResolveVideoSessionLimit(ctx, nil, 0), "auto must floor at 1")
+	assert.Equal(t, 1, ResolveVideoSessionLimit(ctx, nil, -4), "a negative auto must floor at 1")
+
+	// And the floor applies before the clamp, so a request above a floored auto
+	// still lands on 1 rather than on the caller's number.
+	high := &mapConfigRepo{values: map[string]string{MaxVideoSessionsConfigKey: "9"}}
+	assert.Equal(t, 1, ResolveVideoSessionLimit(ctx, high, 0), "a floored auto still caps the request")
+}
+
+// A non-positive or unparseable setting is a typo, not an instruction: fall
+// back to auto rather than admitting zero sessions.
+func TestResolveVideoSessionLimit_NonsenseFallsBackToAuto(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	for _, v := range []string{"0", "-1", "abc", "3.5"} {
+		repo := &mapConfigRepo{values: map[string]string{MaxVideoSessionsConfigKey: v}}
+		assert.Equal(t, 4, ResolveVideoSessionLimit(ctx, repo, 4), "value %q must fall back to auto", v)
+	}
+}
