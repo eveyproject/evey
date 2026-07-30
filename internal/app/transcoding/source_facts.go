@@ -261,3 +261,29 @@ func SourceDimsOf(streams []*library.MediaStream) SourceDims {
 	}
 	return dims
 }
+
+// SourceAudioChannels is the channel count of the audioIdx-th AUDIO stream, or
+// 0 when the stream does not exist or was never probed. Audio-relative index,
+// like SourceAudioCodec.
+//
+// 0 means UNKNOWN and callers must treat it as such: the wasm-audio gate reads
+// this to refuse handing a Dolby track the client has to decode itself when it
+// carries more channels than a constrained device sustains (an E-AC-3 7.1 track
+// silenced a Chromecast and got the receiver killed, prod 2026-07-30), and
+// guessing "probably stereo" here would re-open exactly that door.
+func SourceAudioChannels(streams []*library.MediaStream, audioIdx int) int {
+	n := 0
+	for _, s := range streams {
+		if s == nil || s.StreamType != "audio" {
+			continue
+		}
+		if n == audioIdx {
+			if s.Channels == nil || *s.Channels < 0 {
+				return 0
+			}
+			return *s.Channels
+		}
+		n++
+	}
+	return 0
+}
