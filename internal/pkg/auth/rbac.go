@@ -146,6 +146,14 @@ var APIKeyScopeFor = map[string]string{
 // InternalMethods lists methods that can ONLY be called via JWT (browser/app).
 // API keys are blocked from calling these - they are infrastructure/ops/auth
 // concerns, not domain operations.
+//
+// It is the FIRST of two layers, not the authoritative list: the interceptor
+// also denies by default any ADMIN method that maps to no API-key scope
+// (interceptors/auth.go, step 2), so a new admin RPC is unreachable by an API
+// key even when nobody remembers to add it here. Reading this list as "the
+// complete set of what API keys cannot do" repeatedly produced audit findings
+// like "RestartServer is missing" - it is covered, one layer down.
+// TestAPIKey_AdminMethodsDenyByDefault pins that second layer.
 var InternalMethods = map[string]bool{
 	// Auth / Session management
 	"/evey.v1.UserService/Login":                true,

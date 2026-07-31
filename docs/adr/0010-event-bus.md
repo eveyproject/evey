@@ -135,3 +135,23 @@ above no longer describe the code. What actually runs (`internal/pkg/eventbus/ev
 
 The rest of the ADR (typed struct events, `EventName()` as the stable contract,
 detached ctx, no persistence, no cross-domain non-event imports) still holds.
+
+## Clarification: what "no cross-domain imports" covers
+
+This ADR forbids one domain **calling** another - the coupling the bus exists to
+remove. It does not forbid a domain **naming a type** owned by another when the
+dependency is inherent to what it models.
+
+One such import exists and is deliberate: `domain/transcoding` imports
+`domain/library` for `library.MediaStream` (`ports.go`, used by
+`HLSProcessOpts.Streams`). Transcoding decisions are made *from* stream metadata
+- codec, resolution, HDR, channel layout - so the dependency is real, not
+accidental; the struct carries 20+ fields and is referenced across ~24 files, so
+duplicating it into `shared` would trade one honest import for a type that must
+be kept in sync forever. There is no call, no coordination, and no cycle:
+`library` does not import `transcoding`.
+
+Recorded here because three consecutive architecture audits flagged it as an
+undocumented ADR violation. It is documented now: an inherent type dependency,
+in one direction, with no behavioural coupling. A *call* from transcoding into
+library would still be a violation, and still belongs on the bus.
