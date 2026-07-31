@@ -15,7 +15,7 @@ import { migrateFromSingleServer, useServerListStore } from "@evey/store";
 import { applyServerLanguage, initI18n } from "../src/i18n";
 import { configureAudioSession } from "../src/lib/audio-session";
 import { refreshAccessTokenIfNeeded } from "../src/lib/auth-refresh";
-import { rehydrateBackgroundDownloads } from "../src/lib/downloads";
+import { purgeOrphanedDownloads, rehydrateBackgroundDownloads } from "../src/lib/downloads";
 
 // Wire Zustand persist to expo-secure-store (must run before stores are accessed)
 setZustandStorage({
@@ -57,8 +57,10 @@ export default function RootLayout() {
       //
       // Fire-and-forget: this only re-wires existing tasks (it doesn't start
       // anything new) and we don't want to block the splash screen on the
-      // native module's lookup.
-      void rehydrateBackgroundDownloads();
+      // native module's lookup. The orphan sweep chains AFTER rehydration on
+      // purpose: a rehydrated in-flight task's partial file is on disk but
+      // not in the index, and sweeping first would delete it mid-download.
+      void rehydrateBackgroundDownloads().then(() => purgeOrphanedDownloads());
     }
     bootstrap()
       .catch((err) => console.error("bootstrap failed:", err))

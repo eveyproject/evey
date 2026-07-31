@@ -29,6 +29,7 @@ vi.mock("expo-file-system/legacy", () => ({
   readAsStringAsync: vi.fn(),
   writeAsStringAsync: vi.fn(),
   deleteAsync: vi.fn(),
+  readDirectoryAsync: vi.fn(),
   documentDirectory: "/data/user/0/app/files/",
 }));
 
@@ -122,6 +123,7 @@ import {
   getDownloadPath,
   getTotalDownloadSize,
   rehydrateBackgroundDownloads,
+  purgeOrphanedDownloads,
   getInFlightDownloads,
   getInFlightBytes,
   getDownloadedMedia,
@@ -149,6 +151,7 @@ beforeEach(() => {
   fsMock.writeAsStringAsync.mockResolvedValue(undefined);
   fsMock.makeDirectoryAsync.mockResolvedValue(undefined);
   fsMock.deleteAsync.mockResolvedValue(undefined);
+  fsMock.readDirectoryAsync.mockResolvedValue([]);
 });
 
 describe("getDownloads", () => {
@@ -908,5 +911,54 @@ describe("audio compat pass disk guard", () => {
       .toBe("media.detail.downloadNoSpace");
     expect(downloadErrorMessageKey(new Error("boom"))).toBe("media.detail.downloadFailed");
     expect(downloadErrorMessageKey("not-an-error")).toBe("media.detail.downloadFailed");
+  });
+});
+
+// Betas <= 25 deleted downloads with a bare path the legacy FS API silently
+// rejected: the index row vanished, the file stayed - unreachable forever by
+// deleteDownload. The startup sweep is the only way those gigabytes come back.
+describe("purgeOrphanedDownloads", () => {
+  const docs = "/data/user/0/app/files/Documents";
+
+  it("deletes unreferenced evey files, keeps indexed ones, ignores foreign names", async () => {
+    // sampleIndex references m1 and m2.
+    fsMock.readDirectoryAsync.mockResolvedValue([
+      "evey-m1.mp4",      // indexed - kept
+      "evey-ghost.mkv",   // orphan - deleted
+      "evey-ghost2.mp4",  // orphan - deleted
+      "index.json",       // not ours - ignored
+      "somethingelse.mp4", // not ours - ignored
+    ]);
+
+    const purged = await purgeOrphanedDownloads();
+
+    expect(purged).toBe(2);
+    expect(fsMock.deleteAsync).toHaveBeenCalledWith(`file://${docs}/evey-ghost.mkv`, { idempotent: true });
+    expect(fsMock.deleteAsync).toHaveBeenCalledWith(`file://${docs}/evey-ghost2.mp4`, { idempotent: true });
+    expect(fsMock.deleteAsync).not.toHaveBeenCalledWith(`file://${docs}/evey-m1.mp4`, { idempotent: true });
+    expect(fsMock.deleteAsync).not.toHaveBeenCalledWith(`file://${docs}/index.json`, { idempotent: true });
+  });
+
+  it("spares the partial file of an in-flight download (on disk, not yet in the index)", async () => {
+    const pending = startDownload("inflight1", "Running");
+    const handlers = await waitForTask("inflight1");
+    handlers.begin?.({ expectedBytes: 1000, headers: {} });
+
+    fsMock.readDirectoryAsync.mockResolvedValue(["evey-inflight1.mp4"]);
+    const purged = await purgeOrphanedDownloads();
+
+    expect(purged).toBe(0);
+    expect(fsMock.deleteAsync).not.toHaveBeenCalledWith(
+      `file://${docs}/evey-inflight1.mp4`,
+      { idempotent: true },
+    );
+
+    handlers.done?.({ id: "inflight1" });
+    await pending;
+  });
+
+  it("returns 0 when the directory cannot be read", async () => {
+    fsMock.readDirectoryAsync.mockRejectedValue(new Error("nope"));
+    await expect(purgeOrphanedDownloads()).resolves.toBe(0);
   });
 });

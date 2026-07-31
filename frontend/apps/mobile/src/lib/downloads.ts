@@ -772,6 +772,52 @@ export async function getDownloadPath(
   return filePath;
 }
 
+// Matches the app-private download shape (destPathFor): evey-<mediaId>.<ext>.
+// The sweep recognizes OUR files by this exact contract and never touches
+// anything else living in the same system-managed directory.
+const PRIVATE_DOWNLOAD_RE = /^evey-(.+)\.([a-z0-9]+)$/;
+
+/**
+ * Deletes app-private download files that no index entry references anymore.
+ * Betas <= 25 deleted downloads with a bare path the legacy FS API silently
+ * rejected: the index row vanished, the gigabytes stayed. Those files are now
+ * unreachable by deleteDownload (no index entry to start from), so a startup
+ * sweep is the only way back to a truthful disk. Runs AFTER
+ * rehydrateBackgroundDownloads so an in-flight task's partial file - present
+ * on disk, absent from the index by design - is recognized and spared.
+ * The public Download/Evey files are deliberately NOT swept: they are
+ * user-visible documents the user may keep on purpose, and their deletes have
+ * worked correctly since the file:// fix.
+ * Returns the number of files removed.
+ */
+export async function purgeOrphanedDownloads(): Promise<number> {
+  let names: string[];
+  try {
+    names = await FileSystem.readDirectoryAsync(toFileUri(directories.documents));
+  } catch {
+    return 0; // directory unreadable/absent: nothing to sweep
+  }
+  const index = await readIndex();
+  const referenced = new Set(index.map((i) => i.mediaItemId));
+  let purged = 0;
+  for (const name of names) {
+    const m = PRIVATE_DOWNLOAD_RE.exec(name);
+    if (!m) continue;
+    const mediaItemId = m[1];
+    if (referenced.has(mediaItemId) || activeDownloads.has(mediaItemId) || inFlight.has(mediaItemId)) {
+      continue;
+    }
+    try {
+      await FileSystem.deleteAsync(toFileUri(`${directories.documents}/${name}`), { idempotent: true });
+      purged += 1;
+    } catch (err) {
+      console.warn("caught", err);
+    }
+  }
+  if (purged > 0) console.log(`evey-dl purge removed=${purged}`);
+  return purged;
+}
+
 export async function getTotalDownloadSize(): Promise<number> {
   const index = await readIndex();
   let total = 0;
