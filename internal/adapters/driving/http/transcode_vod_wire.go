@@ -193,6 +193,7 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 		// audio streams and the master starts emitting EXT-X-MEDIA.
 		audioRenditionEnabled: s.Cfg != nil && s.Cfg.Transcoding.AudioRenditionEnabled,
 		castWasmAudioEnabled:  s.Cfg != nil && s.Cfg.Transcoding.CastWasmAudioEnabled,
+		copyFallbackRung:      s.Cfg != nil && s.Cfg.Transcoding.CopyFallbackRungEnabled,
 		serverLang: func() string {
 			if s.Cfg == nil {
 				return "en"

@@ -220,6 +220,14 @@ type hlsVODServe struct {
 	// operator can flip this back on without a deploy.
 	castWasmAudioEnabled bool
 
+	// copyFallbackRung mirrors Cfg.Transcoding.CopyFallbackRungEnabled: the
+	// hybrid on-demand master advertises one low transcoded rung next to the
+	// copy variant, so a player whose throughput collapses can drop to it
+	// instead of freezing (the copy path has no other rung below the source
+	// bitrate). Advisory-only until a player actually fetches that rung's
+	// segments - only then does an encode session spawn.
+	copyFallbackRung bool
+
 	// audio handles the audio rendition routes (audio_T.m3u8 / init /
 	// segment). Routed through the same /hls/{file} entry point so the
 	// relative URLs the master playlist emits resolve correctly. Nil-safe

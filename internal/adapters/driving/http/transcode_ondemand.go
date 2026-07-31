@@ -143,7 +143,58 @@ func (h *hlsVODServe) buildHybridMaster(r *http.Request, mediaID string, item *d
 		Copy:         true,
 	}}
 	in.VideoPlaylistURI = onDemandPrefix + "playlist.m3u8"
+	if fb := h.copyFallbackVariant(r, mediaID, item, streams, videoKbps+128); fb != nil {
+		in.FallbackVariants = []apptranscoding.FallbackVariant{*fb}
+	}
 	return h.manifestGen.Master(in)
+}
+
+// copyFallbackVariant resolves the low transcoded rung the hybrid master
+// advertises next to its copy variant, or nil to keep the master single-variant
+// (feature off, plan unresolvable, or the rung would not buy a real drop). The
+// copy path has no rung below the source bitrate, so a throughput collapse
+// freezes the picture for as long as the collapse lasts (measured on a cast
+// session, 2026-07-31); one low rung gives the player's own ABR an escape.
+//
+// The rung is the LOWEST profile of this same request's natural TRANSCODE plan
+// (the vd=transcode pin, everything else identical), so its URI resolves
+// through the ordinary ffmpeg ladder with its own sealed fingerprint: no new
+// decision inputs, no ladder shaping of this path's own, and the stale-fp
+// machinery covers it like any transcode stream. Nothing runs until a player
+// actually fetches that rung's segments - the admission gates then apply.
+//
+// Best-effort by design: this only ever ADDS a rung to a master that is
+// already serveable, so any resolution failure downgrades to today's
+// single-variant master, never to an error.
+func (h *hlsVODServe) copyFallbackVariant(r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, copyPeakKbps int64) *apptranscoding.FallbackVariant {
+	if !h.copyFallbackRung {
+		return nil
+	}
+	rT := r.Clone(r.Context())
+	q := rT.URL.Query()
+	q.Set("vd", "transcode")
+	rT.URL.RawQuery = q.Encode()
+	rpT, err := h.resolvePlan(rT, mediaID, item, streams)
+	if err != nil || rpT.IsCopy || len(rpT.Profiles) == 0 {
+		return nil
+	}
+	rung := rpT.Profiles[0]
+	// Only when the drop is real: a rung at half the copy's peak or less. On a
+	// source already lean enough that the lowest transcode saves nothing, an
+	// extra variant is pure switching risk for zero relief.
+	if (rung.VideoBitrate+rung.AudioBitrate)*2 > copyPeakKbps {
+		return nil
+	}
+	inT, err := h.buildManifestInputWith(rT, mediaID, item, streams, rpT)
+	if err != nil {
+		return nil
+	}
+	return &apptranscoding.FallbackVariant{
+		Profile:    rung,
+		URI:        "stream_0.m3u8" + apptranscoding.QuerySuffixFor(inT),
+		VideoCodec: inT.ChosenVideoCodec,
+		AudioCodec: inT.ChosenAudioCodec,
+	}
 }
 
 // wasmAudioRequested reports whether the client asked for the browser wasm-audio

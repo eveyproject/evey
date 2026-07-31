@@ -186,6 +186,28 @@ type ManifestInput struct {
 	// longer matches is refused (410) and the player refetches a coherent
 	// master instead. Empty emits no fp param (no check, pre-feature shape).
 	FingerprintHash string
+
+	// FallbackVariants are extra, self-contained variants appended AFTER the
+	// main Profiles. The on-demand copy master uses one to advertise a low
+	// transcoded rung a starving player can drop to: the copy path is otherwise
+	// single-variant, so a throughput collapse has no ABR escape below the
+	// source bitrate and the picture freezes instead of degrading. Each entry
+	// belongs to ANOTHER plan (its own fingerprint, its own decision pins), so
+	// its URI is emitted VERBATIM - the master's own querySuffix must not touch
+	// it. Empty (the default) preserves the master bit-for-bit.
+	FallbackVariants []FallbackVariant
+}
+
+// FallbackVariant is one FallbackVariants entry: the rung's advertised shape
+// and its complete, already-suffixed playlist URI. VideoCodec/AudioCodec are
+// the codecs that variant's segments actually carry (its plan's effective
+// codecs, not this master's) - a transcoded rung is muxed audio+video, so both
+// ride its CODECS attribute and no rendition group is referenced.
+type FallbackVariant struct {
+	Profile    transcoding.HLSProfile
+	URI        string
+	VideoCodec string
+	AudioCodec string
 }
 
 // AudioRendition describes a single source audio track exposed as an
@@ -391,6 +413,21 @@ func (g *ManifestGenerator) Master(in ManifestInput) (string, error) {
 		} else {
 			fmt.Fprintf(&b, "stream_%d.m3u8%s\n", i, suffix)
 		}
+	}
+
+	// Fallback rungs ride last so players that start on the first listed
+	// variant keep starting on the main one. Muxed audio+video: no AUDIO
+	// attribute (audio renditions only exist for copied video - the rendition
+	// offset is the SOURCE's composition delay, wrong under an encoder), and
+	// the URI is another plan's, emitted verbatim with its own baked suffix.
+	for _, v := range in.FallbackVariants {
+		bps := (v.Profile.VideoBitrate + v.Profile.AudioBitrate) * 1000
+		fmt.Fprintf(&b,
+			"#EXT-X-STREAM-INF:BANDWIDTH=%d,AVERAGE-BANDWIDTH=%d,RESOLUTION=%dx%d,CODECS=%q\n",
+			bps, bps*85/100, v.Profile.Width, v.Profile.Height,
+			codecsAttr(v.VideoCodec, v.AudioCodec),
+		)
+		b.WriteString(v.URI + "\n")
 	}
 
 	return b.String(), nil

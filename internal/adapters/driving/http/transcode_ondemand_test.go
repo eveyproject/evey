@@ -580,3 +580,130 @@ func TestBuildPlan_TrackTrimOn_ReusesAuthStreams_NoRefetch(t *testing.T) {
 	assert.Equal(t, 0, *pkg.lastOpts.KeepAudioTrack)
 	assert.Equal(t, int32(0), counter.calls.Load(), "buildPlan must reuse commonAuth's streams, not re-query")
 }
+
+// With the fallback rung enabled, the hybrid master advertises ONE low
+// transcoded rung after the copy variant: the lowest profile of the same
+// request's natural vd=transcode plan, addressed as stream_0 with THAT plan's
+// own baked suffix (vd pin + fp seal). The copy path is otherwise
+// single-variant - a throughput collapse then freezes the picture instead of
+// degrading it, which is the failure this rung exists to absorb.
+func TestBuildHybridMaster_FallbackRung(t *testing.T) {
+	h := newCopyTestHandler(t)
+	h.manifestGen = apptranscoding.NewManifestGenerator()
+	h.audioRenditionEnabled = true
+	h.copyFallbackRung = true
+
+	dur, err := shared.NewDurationMs(60000)
+	require.NoError(t, err)
+	item := &domainlibrary.MediaItem{File: &domainlibrary.MediaFile{
+		Path: "/m.mkv", Size: 1 << 20, Duration: dur, Bitrate: 4_000_000,
+	}}
+	streams := copyEligibleAV()
+	streams[1].Codec = "dts" // audio must be re-encoded → hybrid master
+
+	master, err := h.buildHybridMaster(onDemandReq(), "m1", item, streams)
+	require.NoError(t, err)
+
+	assert.Contains(t, master, "od_playlist.m3u8", "the copy variant is still served by the packager")
+	assert.Contains(t, master, "stream_0.m3u8", "the fallback rung rides the ffmpeg ladder")
+	assert.Less(t, strings.Index(master, "od_playlist.m3u8"), strings.Index(master, "stream_0.m3u8"),
+		"copy stays the first listed variant")
+
+	var fbURI string
+	for line := range strings.SplitSeq(master, "\n") {
+		if strings.HasPrefix(line, "stream_0.m3u8") {
+			fbURI = line
+		}
+	}
+	require.NotEmpty(t, fbURI)
+	assert.Contains(t, fbURI, "vd=transcode", "the rung pins ITS plan's video decision")
+	assert.Contains(t, fbURI, "fp=", "the rung seals ITS plan's fingerprint")
+	assert.NotContains(t, fbURI, "vd=copy")
+}
+
+// The rung must buy a real drop: on a source already lean enough that the
+// lowest transcode saves nothing (peak within 2x), the master stays
+// single-variant - an extra variant there is switching risk for zero relief.
+func TestBuildHybridMaster_FallbackRung_SkippedOnLeanSource(t *testing.T) {
+	h := newCopyTestHandler(t)
+	h.manifestGen = apptranscoding.NewManifestGenerator()
+	h.audioRenditionEnabled = true
+	h.copyFallbackRung = true
+
+	dur, err := shared.NewDurationMs(60000)
+	require.NoError(t, err)
+	item := &domainlibrary.MediaItem{File: &domainlibrary.MediaFile{
+		Path: "/m.mkv", Size: 1 << 20, Duration: dur, Bitrate: 1_500_000,
+	}}
+	streams := copyEligibleAV()
+	streams[1].Codec = "dts"
+
+	master, err := h.buildHybridMaster(onDemandReq(), "m1", item, streams)
+	require.NoError(t, err)
+	assert.Contains(t, master, "od_playlist.m3u8")
+	assert.NotContains(t, master, "stream_0.m3u8",
+		"lowest transcode rung within 2x of the copy peak → no fallback advertised")
+}
+
+// Flag off = today's master, bit-for-bit single-variant (the operator opt-out,
+// and the shape every pre-feature client was validated against).
+func TestBuildHybridMaster_FallbackRung_FlagOff(t *testing.T) {
+	h := newCopyTestHandler(t)
+	h.manifestGen = apptranscoding.NewManifestGenerator()
+	h.audioRenditionEnabled = true
+	h.copyFallbackRung = false
+
+	dur, err := shared.NewDurationMs(60000)
+	require.NoError(t, err)
+	item := &domainlibrary.MediaItem{File: &domainlibrary.MediaFile{
+		Path: "/m.mkv", Size: 1 << 20, Duration: dur, Bitrate: 4_000_000,
+	}}
+	streams := copyEligibleAV()
+	streams[1].Codec = "dts"
+
+	master, err := h.buildHybridMaster(onDemandReq(), "m1", item, streams)
+	require.NoError(t, err)
+	assert.NotContains(t, master, "stream_0.m3u8")
+}
+
+// The invariant that matters: the fallback URI the master emitted must be
+// SERVEABLE - the variant request re-derives its plan from the baked query
+// alone and the recomputed fingerprint must equal the sealed fp, or
+// refuseStaleFP answers 410 and the rung is dead on arrival (the exact
+// coherence failure the seal exists to catch).
+func TestBuildHybridMaster_FallbackRung_URIResolvesCoherently(t *testing.T) {
+	h := newCopyTestHandler(t)
+	h.manifestGen = apptranscoding.NewManifestGenerator()
+	h.audioRenditionEnabled = true
+	h.copyFallbackRung = true
+
+	dur, err := shared.NewDurationMs(60000)
+	require.NoError(t, err)
+	item := &domainlibrary.MediaItem{File: &domainlibrary.MediaFile{
+		Path: "/m.mkv", Size: 1 << 20, Duration: dur, Bitrate: 4_000_000,
+	}}
+	streams := copyEligibleAV()
+	streams[1].Codec = "dts"
+
+	master, err := h.buildHybridMaster(onDemandReq(), "m1", item, streams)
+	require.NoError(t, err)
+	var fbURI string
+	for line := range strings.SplitSeq(master, "\n") {
+		if strings.HasPrefix(line, "stream_0.m3u8") {
+			fbURI = line
+		}
+	}
+	require.NotEmpty(t, fbURI, "premise: the fallback rung is advertised")
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/"+fbURI, nil)
+	req = req.WithContext(context.WithValue(req.Context(), httpClaimsCtxKey{},
+		&domainuser.Claims{UserID: "u1", ProfileID: "p1"}))
+	w := httptest.NewRecorder()
+	h.serveVariant(w, req, "m1", "stream_0.m3u8", item, streams, noopSpan())
+
+	require.Equal(t, http.StatusOK, w.Code, "sealed fp must match the re-derived plan (410 = dead rung): %s", w.Body.String())
+	body := w.Body.String()
+	assert.Contains(t, body, "#EXT-X-PLAYLIST-TYPE:VOD")
+	assert.Contains(t, body, "stream_0_", "segment URIs address rung 0")
+	assert.Contains(t, body, "vd=transcode", "segments inherit the transcode pin")
+}
