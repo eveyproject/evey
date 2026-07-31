@@ -47,6 +47,7 @@ const existingTasks: { id: string; metadata: Record<string, unknown> }[] = [];
 const taskStops: string[] = [];
 
 vi.mock("@kesha-antonov/react-native-background-downloader", () => ({
+  setConfig: vi.fn(),
   createDownloadTask: vi.fn(({ id }: { id: string }) => {
     const handlers: TaskHandlers = {};
     taskInstances.set(id, handlers);

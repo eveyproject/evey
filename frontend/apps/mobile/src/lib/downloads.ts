@@ -14,6 +14,7 @@ import {
   getExistingDownloadTasks,
   completeHandler,
   directories,
+  setConfig,
   type DownloadTask,
 } from "@kesha-antonov/react-native-background-downloader";
 import { eveyFetch, libraryServiceGetMediaItem } from "@evey/api";
@@ -277,12 +278,27 @@ export interface StartDownloadOptions extends DownloadAuthContext {
   downloadPath?: string;
 }
 
+// Native-side logging of the download engine, on once per process. Field
+// diagnosis of a stalled download is impossible without it: the library is
+// silent by default and a device stuck at 0 bytes leaves no trace in logcat.
+let downloaderLogsEnabled = false;
+function enableDownloaderLogs() {
+  if (downloaderLogsEnabled) return;
+  downloaderLogsEnabled = true;
+  try {
+    setConfig({ isLogsEnabled: true });
+  } catch (err) {
+    console.warn("downloader setConfig", err);
+  }
+}
+
 export async function startDownload(
   mediaItemId: string,
   title: string,
   onProgress?: (progress: number, bytes?: ProgressBytes) => void,
   opts?: StartDownloadOptions,
 ): Promise<string> {
+  enableDownloaderLogs();
   assertMediaId(mediaItemId);
   await ensureDir();
   const serverUrl = await getServerUrl();
@@ -317,6 +333,11 @@ export async function startDownload(
     certificationsByCountry: opts?.certificationsByCountry,
   };
 
+  // Release-build breadcrumbs (logcat tag ReactNativeJS): begin / first byte /
+  // settle. Deliberately NOT one line per progress tick.
+  let firstProgressLogged = false;
+  console.log(`evey-dl start ${mediaItemId} -> ${destPath}`);
+
   return new Promise<string>((resolve, reject) => {
     const task = createDownloadTask({
       id: mediaItemId,
@@ -333,6 +354,7 @@ export async function startDownload(
 
     task
       .begin(({ expectedBytes }) => {
+        console.log(`evey-dl begin ${mediaItemId} expected=${expectedBytes}`);
         const state = inFlight.get(mediaItemId);
         if (state) state.totalBytes = expectedBytes ?? 0;
         // The size is only knowable here, and this is the last moment before
@@ -359,6 +381,10 @@ export async function startDownload(
         }
       })
       .progress(({ bytesDownloaded, bytesTotal }) => {
+        if (!firstProgressLogged && bytesDownloaded > 0) {
+          firstProgressLogged = true;
+          console.log(`evey-dl first-bytes ${mediaItemId} ${bytesDownloaded}/${bytesTotal}`);
+        }
         const state = inFlight.get(mediaItemId);
         if (state) {
           state.downloadedBytes = bytesDownloaded;
@@ -368,6 +394,7 @@ export async function startDownload(
         notifyProgress(mediaItemId, pct, { downloaded: bytesDownloaded, total: bytesTotal });
       })
       .done(async () => {
+        console.log(`evey-dl done ${mediaItemId}`);
         const state = inFlight.get(mediaItemId);
         const totalBytes = state?.totalBytes ?? 0;
         try {
@@ -383,6 +410,7 @@ export async function startDownload(
         resolve(destPath);
       })
       .error(async ({ error }) => {
+        console.warn(`evey-dl error ${mediaItemId}: ${error}`);
         inFlight.delete(mediaItemId);
         inFlightTitles.delete(mediaItemId);
         activeDownloads.delete(mediaItemId);
@@ -409,6 +437,7 @@ export async function startDownload(
 // UI can track them again. Without this, an in-progress download finishes
 // silently and the index never gets updated.
 export async function rehydrateBackgroundDownloads(): Promise<void> {
+  enableDownloaderLogs();
   let tasks: Awaited<ReturnType<typeof getExistingDownloadTasks>>;
   try {
     tasks = await getExistingDownloadTasks();

@@ -1,0 +1,30 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+deleted file mode 100644
+index 04ef0e2a128e4d34552761cd48d60f2149db9123..0000000000000000000000000000000000000000
+diff --git a/android/src/main/java/com/eko/RNBackgroundDownloaderModuleImpl.kt b/android/src/main/java/com/eko/RNBackgroundDownloaderModuleImpl.kt
+index 8e25f502e1266384becb2a88f5ab3b432db92ea7..cad4d058e98779d55c10cd60d71830716f56fb46 100644
+--- a/android/src/main/java/com/eko/RNBackgroundDownloaderModuleImpl.kt
++++ b/android/src/main/java/com/eko/RNBackgroundDownloaderModuleImpl.kt
+@@ -759,6 +759,19 @@ class RNBackgroundDownloaderModuleImpl(private val reactContext: ReactApplicatio
+       downloader.startResumableDownload(id, url, destination, headersMap, resumableDownloadListener, metadataValue)
+     }
+ 
++    // Evey patch: ALWAYS use ResumableDownloader, never the system DownloadManager.
++    // Our destinations live in the app's INTERNAL storage (filesDir), which
++    // DownloadManager can never legitimately write to: AOSP throws
++    // SecurityException at enqueue (handled below as a fallback), but some OEM
++    // builds accept the enqueue and then sit at 0 bytes forever with no error
++    // (observed on ColorOS), or download to a mismatched path. The fallback
++    // engine is the only correct one for internal destinations, so take it
++    // deterministically on every API level - upstream already forces this
++    // exact path on Android 16+.
++    logD(NAME, "Evey patch: forcing ResumableDownloader for all downloads")
++    startWithResumableDownloader()
++    return
++
+     // On Android 16+ (API 36), DownloadManager has strict path restrictions and throws
+     // SecurityException for app-specific external storage paths. Use ResumableDownloader instead.
+     if (Build.VERSION.SDK_INT >= 36) {
+diff --git a/example/android/app/debug.keystore b/example/android/app/debug.keystore
+deleted file mode 100644
+index 364e105ed39fbfd62001429a68140672b06ec0de..0000000000000000000000000000000000000000
