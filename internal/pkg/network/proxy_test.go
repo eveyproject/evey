@@ -1,6 +1,7 @@
 package network
 
 import (
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -259,5 +260,53 @@ func TestNewProxyTrust_EmptyHeader(t *testing.T) {
 	}
 	if pt.realIPHeader != "X-Forwarded-For" {
 		t.Errorf("expected default header X-Forwarded-For, got %s", pt.realIPHeader)
+	}
+}
+
+// The middleware is where the ONE authoritative client IP is minted, and the
+// LAN/WAN gate downstream reads nothing else (see Detect). Without this test
+// the whole chain has a silent single point of failure: delete the WithClientIP
+// line and every detector test still passes - they build the context by hand -
+// while in production every request becomes WAN and the server refuses its own
+// household. That is the 2026-07-29 lockout, reintroduced from the other side.
+func TestMiddleware_PutsTheResolvedClientIPInTheContext(t *testing.T) {
+	pt := mustProxyTrust(t, []string{"127.0.0.1/32"}, "X-Forwarded-For", false)
+
+	var fromCtx net.IP
+	handler := pt.Middleware(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		fromCtx = ClientIPFromContext(r.Context())
+	}))
+
+	r := httptest.NewRequest("GET", "/", nil)
+	r.RemoteAddr = "127.0.0.1:8080" // a trusted proxy...
+	r.Header.Set("X-Forwarded-For", "203.0.113.10")
+	handler.ServeHTTP(httptest.NewRecorder(), r)
+
+	if fromCtx == nil {
+		t.Fatal("no client IP in the context: the gate downstream would classify every request WAN")
+	}
+	if fromCtx.String() != "203.0.113.10" {
+		t.Errorf("context carries %s, want the resolved client 203.0.113.10", fromCtx)
+	}
+}
+
+// ...and the value it mints is the RESOLVED one, not what an untrusted caller
+// asked to be called. A peer that is not a trusted proxy owns its own address
+// and nothing else.
+func TestMiddleware_ContextIPIgnoresAnUntrustedPeersHeader(t *testing.T) {
+	pt := mustProxyTrust(t, []string{"127.0.0.1/32"}, "X-Forwarded-For", false)
+
+	var fromCtx net.IP
+	handler := pt.Middleware(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		fromCtx = ClientIPFromContext(r.Context())
+	}))
+
+	r := httptest.NewRequest("GET", "/", nil)
+	r.RemoteAddr = "203.0.113.9:5555" // NOT a trusted proxy
+	r.Header.Set("X-Forwarded-For", "127.0.0.1")
+	handler.ServeHTTP(httptest.NewRecorder(), r)
+
+	if fromCtx == nil || fromCtx.String() != "203.0.113.9" {
+		t.Errorf("context carries %v, want the peer 203.0.113.9 (its header must buy nothing)", fromCtx)
 	}
 }
