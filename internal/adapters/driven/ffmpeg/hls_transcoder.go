@@ -25,6 +25,12 @@ func NewHLSTranscoder() *HLSTranscoder {
 }
 
 func (t *HLSTranscoder) Start(ctx context.Context, opts transcoding.HLSProcessOpts) (transcoding.HLSProcessHandle, error) {
+	// The one chokepoint every producer reaches before a process is forked.
+	// Refusing here names the caller's mistake; letting it through spends a
+	// fork and surfaces as an ffmpeg exit code that reads like a broken file.
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
 	// Probe (cached) the source's audio start delay here - once per session,
 	// before any per-variant fan-out - so BuildFFmpegArgs stays pure.
 	opts.AudioStartDelaySec = audioStartDelayFor(ctx, opts)

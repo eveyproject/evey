@@ -2,6 +2,8 @@ package transcoding
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
 	// library.MediaStream is used in HLSProcessOpts. Duplicating it here would
 	// be worse: the struct has 20+ fields, is referenced in 24 files, and
@@ -292,4 +294,54 @@ type HLSProcessOpts struct {
 	// strict no-op. Copied audio is never delay-cancelled (its packets cannot
 	// be trimmed at the seek edge; see the builder tests).
 	AudioStartDelaySec float64
+}
+
+// Validate rejects an HLSProcessOpts that cannot produce a usable ffmpeg
+// invocation. It exists because this struct has grown past 35 fields fed from
+// three producers: without it, a missing path or a typo'd decision surfaces as
+// a dead ffmpeg process and a cryptic exit code minutes later, blamed on the
+// media rather than on the caller.
+//
+// It checks only what is ALWAYS wrong - required inputs and closed value sets.
+// The subtler combinations stay documented on the fields rather than enforced
+// here: ToneMap vs HWTonemap for instance reads as mutually exclusive, but the
+// two builders each ignore the other's flag, so a request carrying both is
+// served correctly today and rejecting it would break a working call.
+//
+// A deliberate NON-constructor: an ADR-0008-style NewX + Options builder was
+// considered and dropped - there are two construction sites, both filling the
+// struct field by field from a fingerprint, and 35 With* options would be more
+// code to keep in sync than the literal they replace.
+func (o HLSProcessOpts) Validate() error {
+	if o.FilePath == "" {
+		return errors.New("hls opts: source FilePath is required")
+	}
+	if o.OutputDir == "" {
+		return errors.New("hls opts: OutputDir is required")
+	}
+	if len(o.Profiles) == 0 {
+		return errors.New("hls opts: at least one profile is required")
+	}
+	switch o.VideoDecision {
+	case "", "copy", "transcode":
+	default:
+		return fmt.Errorf("hls opts: invalid VideoDecision %q", o.VideoDecision)
+	}
+	switch o.AudioDecision {
+	case "", "copy", "transcode":
+	default:
+		return fmt.Errorf("hls opts: invalid AudioDecision %q", o.AudioDecision)
+	}
+	if o.StartSec < 0 {
+		return fmt.Errorf("hls opts: negative StartSec %v", o.StartSec)
+	}
+	if o.StartNumber < 0 {
+		return fmt.Errorf("hls opts: negative StartNumber %d", o.StartNumber)
+	}
+	// A copy-on-seek session that is not a video copy would hand `-c:v copy` to
+	// a rung the manifest advertises as re-encoded.
+	if o.CopyOnSeek && o.VideoDecision != "copy" {
+		return fmt.Errorf("hls opts: CopyOnSeek requires VideoDecision \"copy\", got %q", o.VideoDecision)
+	}
+	return nil
 }
