@@ -253,8 +253,10 @@ EVEY_REMOTE_ACCESS_MAX_BITRATE_KBPS=0                                    # 0 = n
 
 > ⚠️ The gate protects the **HTTP** listener (`EVEY_SERVER_PORT` + 1). The native
 > gRPC listener on `EVEY_SERVER_PORT` itself is an internal transport and is not
-> gated - publish only the HTTP port. Docker Compose already does; a bare-metal
-> or custom deployment must do it deliberately.
+> gated, so it binds to **loopback only** (`EVEY_GRPC_BIND`, default `127.0.0.1`):
+> its one client is the HTTP gateway inside the same process. Set
+> `EVEY_GRPC_BIND=0.0.0.0` to expose it deliberately - boot then warns that the
+> remote-access gate does not cover it, and firewalling it becomes your job.
 
 **The gate.** When remote access is off, every client whose IP is not in
 `EVEY_REMOTE_ACCESS_LAN_NETWORKS` is refused on every route with

@@ -205,7 +205,19 @@ type LogConfig struct {
 }
 
 type ServerConfig struct {
-	Port               int
+	Port int
+	// GRPCBindAddr is the interface the NATIVE gRPC listener binds to,
+	// "127.0.0.1" by default. It is an INTERNAL port: the only client is this
+	// same process's grpc-gateway, which dials it over loopback, and the
+	// shipped compose file publishes just the HTTP port.
+	//
+	// It defaults to loopback because the remote-access gate - the switch that
+	// decides whether anyone outside the LAN may reach this server - is HTTP
+	// middleware and does NOT cover this listener. Binding it to every
+	// interface therefore offered a way around the gate that no operator was
+	// warned about and no code documented. Set EVEY_GRPC_BIND=0.0.0.0 to
+	// expose it deliberately; boot then WARNS that the gate does not apply.
+	GRPCBindAddr       string
 	BaseURL            string
 	Name               string
 	WebDir             string
@@ -694,6 +706,7 @@ func Load() (*Config, error) {
 	cfg := &Config{
 		Server: ServerConfig{
 			Port:               envInt("EVEY_SERVER_PORT", 9090),
+			GRPCBindAddr:       envStr("EVEY_GRPC_BIND", "127.0.0.1"),
 			BaseURL:            envStr("EVEY_SERVER_BASE_URL", "http://localhost:9091"),
 			Name:               envStr("EVEY_SERVER_NAME", "Evey"),
 			WebDir:             envStr("EVEY_WEB_DIR", "/srv"),

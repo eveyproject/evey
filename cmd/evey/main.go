@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -186,7 +187,19 @@ func run() error {
 		}
 	}()
 
-	grpcAddr := fmt.Sprintf(":%d", cfg.Server.Port)
+	// The native gRPC listener is INTERNAL: the only client is the grpc-gateway
+	// a few lines below, in this same process, over loopback. It binds to
+	// 127.0.0.1 by default because the remote-access gate is HTTP middleware
+	// and does NOT cover this listener - a gRPC port on every interface is a
+	// way around the switch that decides who may reach this server from
+	// outside the LAN. The shipped compose file publishes only the HTTP port,
+	// so this changes nothing there; it protects the operator who runs the
+	// binary himself, whom nothing used to warn.
+	grpcAddr := net.JoinHostPort(cfg.Server.GRPCBindAddr, strconv.Itoa(cfg.Server.Port))
+	if !isLoopbackHost(cfg.Server.GRPCBindAddr) {
+		rootLog.Warn("gRPC listener is bound beyond loopback: the remote-access gate does NOT cover this port, publish it only behind your own firewall",
+			slog.String("bind", grpcAddr))
+	}
 	httpPort := cfg.Server.Port + 1
 
 	gwMux, gwConn := registerGateway(grpcAddr)
@@ -391,4 +404,17 @@ func logRemoteAccessDecision(ctx context.Context, res config.RemoteAccessResolut
 			slog.String("decision", string(res.Decision)),
 			slog.Bool("public", res.PublicURL != ""))
 	}
+}
+
+// isLoopbackHost reports whether a bind address keeps a listener on the local
+// machine. An empty host (the ":port" shorthand) means EVERY interface, which
+// is exactly the case the caller warns about.
+func isLoopbackHost(host string) bool {
+	if host == "" {
+		return false
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		return ip.IsLoopback()
+	}
+	return host == "localhost"
 }

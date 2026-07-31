@@ -253,9 +253,12 @@ walkthrough. Don't duplicate the table here. Notes specific to bare metal:
   Point your reverse proxy and your firewall at the HTTP port only. The gRPC
   port is an internal transport: the remote-access network gate, which decides
   whether clients outside your LAN may connect at all, is wired into the HTTP
-  chain and **does not cover the gRPC listener**. The Docker Compose file
-  publishes only the HTTP port for exactly this reason; on bare metal nothing
-  enforces it for you.
+  chain and **does not cover the gRPC listener**. Because of that, the gRPC
+  listener binds to **loopback only** by default (`EVEY_GRPC_BIND=127.0.0.1`),
+  so a bare-metal run cannot expose it by accident. If you have a reason to
+  publish it - a native gRPC client on another host - set
+  `EVEY_GRPC_BIND=0.0.0.0`; the server warns at boot that the gate does not
+  apply to it, and firewalling it is then on you.
 - Migrations run automatically at startup; no separate migrate step.
 - The plugin resource caps (`EVEY_PLUGINS_MEMORY_MB`, `_PIDS_MAX`,
   `_DISK_MAX_MB`, `_CPU_NICE`) and the sandbox mode are admin-editable at runtime
