@@ -310,3 +310,44 @@ func TestMiddleware_ContextIPIgnoresAnUntrustedPeersHeader(t *testing.T) {
 		t.Errorf("context carries %v, want the peer 203.0.113.9 (its header must buy nothing)", fromCtx)
 	}
 }
+
+// The canonical X-Forwarded-For shape - the LEFTMOST entry is the real client,
+// everything to its right is our own infrastructure - had no direct coverage.
+//
+// Mutation testing (2026-08-01) flagged the loop bound `i >= 0` as a surviving
+// mutant, and chasing it found something better than a missing test: with
+// `i > 0` this case still returns the right answer, because the "all trusted ->
+// leftmost" fallback below the loop returns parts[0] too. The two paths agree
+// for every input, so the index-0 iteration is REDUNDANT and the mutant is
+// equivalent - unkillable by construction, not a coverage gap. Left as is: the
+// loop reads as the intended rule and the fallback as the degenerate case.
+func TestResolveClientIP_LeftmostIsTheClientBehindTwoTrustedHops(t *testing.T) {
+	pt := mustProxyTrust(t, []string{"127.0.0.1/32", "10.0.0.0/8"}, "X-Forwarded-For", false)
+
+	r := httptest.NewRequest("GET", "/", nil)
+	r.RemoteAddr = "127.0.0.1:8080"
+	r.Header.Set("X-Forwarded-For", "203.0.113.10, 10.0.0.5, 10.0.0.6")
+
+	if got := pt.ResolveClientIP(r); got != "203.0.113.10" {
+		t.Errorf("got %s, want the leftmost 203.0.113.10 (the only untrusted hop)", got)
+	}
+}
+
+// A peer address with no port at all (a unix socket or a hand-built request)
+// must still yield its IP rather than an empty string - an empty client IP
+// collapses every such caller into one rate-limit bucket.
+func TestExtractIP_BarePeerAddressWithoutPort(t *testing.T) {
+	pt := mustProxyTrust(t, []string{"127.0.0.1/32"}, "X-Forwarded-For", false)
+
+	r := httptest.NewRequest("GET", "/", nil)
+	r.RemoteAddr = "203.0.113.77" // no ":port"
+	if got := pt.ResolveClientIP(r); got != "203.0.113.77" {
+		t.Errorf("got %q, want 203.0.113.77", got)
+	}
+
+	r2 := httptest.NewRequest("GET", "/", nil)
+	r2.RemoteAddr = "@" // unix socket: not an IP at all
+	if got := pt.ResolveClientIP(r2); got != "@" {
+		t.Errorf("got %q, want the raw address back rather than a silent empty bucket", got)
+	}
+}
