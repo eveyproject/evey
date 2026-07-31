@@ -477,7 +477,7 @@ func (h *playbackHandler) StartStream(ctx context.Context, req *eveyv1.StartStre
 	session.VideoCodec = clampSessionField(req.VideoCodec)
 	session.AudioCodec = clampSessionField(req.AudioCodec)
 	session.Resolution = clampSessionField(req.Resolution)
-	if err := h.cmd.StartStream(ctx, session, claims.UserID); err != nil {
+	if err := h.cmd.StartStream(ctx, session, shared.UserID(claims.UserID)); err != nil {
 		span.RecordError(err)
 		if errors.Is(err, appplayback.ErrProfileNotFound) {
 			tErr := h.translator.TranslatedError(ctx, codes.NotFound, "errors.auth.profile_not_found")
@@ -712,9 +712,9 @@ func (h *playbackHandler) GetWatchHistory(ctx context.Context, req *eveyv1.GetWa
 	}
 	var items []*playback.WatchProgress
 	if cursor != nil {
-		items, err = h.query.GetWatchHistoryCursor(ctx, profileID, cursor, limit)
+		items, err = h.query.GetWatchHistoryCursor(ctx, shared.ProfileID(profileID), cursor, limit)
 	} else {
-		items, err = h.query.GetWatchHistory(ctx, profileID, limit, offset)
+		items, err = h.query.GetWatchHistory(ctx, shared.ProfileID(profileID), limit, offset)
 	}
 	if err != nil {
 		span.RecordError(err)
@@ -833,7 +833,7 @@ func (h *playbackHandler) GetResumeItems(ctx context.Context, req *eveyv1.GetRes
 	} else if limit > maxPageSize {
 		limit = maxPageSize
 	}
-	items, err := h.query.GetResumeItems(ctx, profileID, limit)
+	items, err := h.query.GetResumeItems(ctx, shared.ProfileID(profileID), limit)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
@@ -902,7 +902,7 @@ func (h *playbackHandler) GetNextUp(ctx context.Context, req *eveyv1.GetNextUpRe
 	} else if limit > maxPageSize {
 		limit = maxPageSize
 	}
-	progresses, err := h.query.GetNextUp(ctx, profileID, limit)
+	progresses, err := h.query.GetNextUp(ctx, shared.ProfileID(profileID), limit)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
@@ -1027,7 +1027,7 @@ func (h *playbackHandler) ClearWatchHistory(ctx context.Context, req *eveyv1.Cle
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("playbackHandler.ClearWatchHistory: %w", err)
 	}
-	deleted, err := h.cmd.ClearWatchHistory(ctx, profileID)
+	deleted, err := h.cmd.ClearWatchHistory(ctx, shared.ProfileID(profileID))
 	if err != nil {
 		span.RecordError(err)
 		if errors.Is(err, appplayback.ErrProfileNotFound) {

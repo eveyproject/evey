@@ -63,7 +63,7 @@ func TestPlaySession_StartStream_TOCTOU_MaxStreams(t *testing.T) {
 			// collapse into one replayed session (which legitimately returns
 			// nil for every caller and would never exercise the quota).
 			sess.DeviceName = "toc-dev-" + strconv.Itoa(i)
-			results <- svc.CommandService().StartStream(ctx, sess, string(u.ID))
+			results <- svc.CommandService().StartStream(ctx, sess, u.ID)
 		}(i)
 	}
 	wg.Wait()
@@ -129,7 +129,7 @@ func TestPlaySession_StartStream_ConcurrentDedupSameDevice(t *testing.T) {
 			defer wg.Done()
 			// Same device on purpose: every call is the same logical stream.
 			sess := newTestPlaySession("dedup-s"+strconv.Itoa(i), string(p.ID), string(item.ID))
-			results <- svc.CommandService().StartStream(ctx, sess, string(u.ID))
+			results <- svc.CommandService().StartStream(ctx, sess, u.ID)
 		}(i)
 	}
 	wg.Wait()

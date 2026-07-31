@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/evey-project/evey/internal/domain/playback"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
@@ -35,26 +36,26 @@ func (s *QueryService) GetWatchProgress(ctx context.Context, profileID, mediaIte
 	return s.progress.GetByProfileAndMedia(ctx, profileID, mediaItemID)
 }
 
-func (s *QueryService) GetWatchHistory(ctx context.Context, profileID string, limit, offset int) ([]*playback.WatchProgress, error) {
+func (s *QueryService) GetWatchHistory(ctx context.Context, profileID shared.ProfileID, limit, offset int) ([]*playback.WatchProgress, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.playback.GetWatchHistory")
 	defer span.End()
-	return s.progress.GetByProfile(ctx, profileID, limit, offset)
+	return s.progress.GetByProfile(ctx, string(profileID), limit, offset)
 }
 
-func (s *QueryService) GetWatchHistoryCursor(ctx context.Context, profileID string, cursor *playback.WatchHistoryCursor, limit int) ([]*playback.WatchProgress, error) {
+func (s *QueryService) GetWatchHistoryCursor(ctx context.Context, profileID shared.ProfileID, cursor *playback.WatchHistoryCursor, limit int) ([]*playback.WatchProgress, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.playback.GetWatchHistoryCursor")
 	defer span.End()
-	return s.progress.GetByProfileCursor(ctx, profileID, cursor, limit)
+	return s.progress.GetByProfileCursor(ctx, string(profileID), cursor, limit)
 }
 
-func (s *QueryService) GetResumeItems(ctx context.Context, profileID string, limit int) ([]*playback.WatchProgress, error) {
+func (s *QueryService) GetResumeItems(ctx context.Context, profileID shared.ProfileID, limit int) ([]*playback.WatchProgress, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.playback.GetResumeItems")
 	defer span.End()
-	return s.progress.GetResumeItems(ctx, profileID, limit)
+	return s.progress.GetResumeItems(ctx, string(profileID), limit)
 }
 
-func (s *QueryService) GetNextUp(ctx context.Context, profileID string, limit int) ([]*playback.WatchProgress, error) {
+func (s *QueryService) GetNextUp(ctx context.Context, profileID shared.ProfileID, limit int) ([]*playback.WatchProgress, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.playback.GetNextUp")
 	defer span.End()
-	return s.progress.GetNextUp(ctx, profileID, limit)
+	return s.progress.GetNextUp(ctx, string(profileID), limit)
 }

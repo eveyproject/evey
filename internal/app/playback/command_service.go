@@ -185,7 +185,7 @@ func (s *CommandService) classifyProgress(ctx context.Context, mediaItemID strin
 	}
 }
 
-func (s *CommandService) StartStream(ctx context.Context, session *playback.PlaySession, userID string) error {
+func (s *CommandService) StartStream(ctx context.Context, session *playback.PlaySession, userID shared.UserID) error {
 	ctx, span := tracing.StartSpan(ctx, "app.playback.StartStream")
 	defer span.End()
 	if err := session.Validate(); err != nil {
@@ -194,7 +194,7 @@ func (s *CommandService) StartStream(ctx context.Context, session *playback.Play
 	if err := s.validateProfile(ctx, session.ProfileID); err != nil {
 		return err
 	}
-	u, err := s.users.GetByID(ctx, shared.UserID(userID))
+	u, err := s.users.GetByID(ctx, userID)
 	if err != nil {
 		return fmt.Errorf("get user: %w", err)
 	}
@@ -211,7 +211,7 @@ func (s *CommandService) StartStream(ctx context.Context, session *playback.Play
 		// can't both miss the existing session and both create a row) as well as
 		// the count-then-create for the stream and device caps below. The lock
 		// is tx-scoped and keyed per user, so the cost is negligible.
-		if err := s.sessions.AcquireUserStreamLock(ctx, userID); err != nil {
+		if err := s.sessions.AcquireUserStreamLock(ctx, string(userID)); err != nil {
 			return fmt.Errorf("acquire stream lock: %w", err)
 		}
 		// One GetActiveByProfile feeds both the idempotency check and the device
@@ -233,7 +233,7 @@ func (s *CommandService) StartStream(ctx context.Context, session *playback.Play
 			}
 		}
 		if u.HasStreamsLimit() {
-			count, err := s.sessionQueries.CountActiveByUser(ctx, userID)
+			count, err := s.sessionQueries.CountActiveByUser(ctx, string(userID))
 			if err != nil {
 				return fmt.Errorf("count active: %w", err)
 			}
@@ -704,13 +704,13 @@ func (s *CommandService) MarkAsUnwatched(ctx context.Context, profileID, mediaIt
 
 // ClearWatchHistory deletes every watch-progress row for the profile and
 // returns how many were removed.
-func (s *CommandService) ClearWatchHistory(ctx context.Context, profileID string) (int, error) {
+func (s *CommandService) ClearWatchHistory(ctx context.Context, profileID shared.ProfileID) (int, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.playback.ClearWatchHistory")
 	defer span.End()
-	if err := s.validateProfile(ctx, shared.ProfileID(profileID)); err != nil {
+	if err := s.validateProfile(ctx, profileID); err != nil {
 		return 0, err
 	}
-	n, err := s.progress.DeleteByProfile(ctx, profileID)
+	n, err := s.progress.DeleteByProfile(ctx, string(profileID))
 	if err != nil {
 		return 0, fmt.Errorf("CommandService.ClearWatchHistory: %w", err)
 	}
