@@ -91,6 +91,17 @@ func WithPlaySessionMethod(m PlayMethod) PlaySessionOption {
 	return func(s *PlaySession) { s.PlayMethod = string(m) }
 }
 
+// WithPlaySessionCastDevice names the receiver a cast session plays on.
+func WithPlaySessionCastDevice(name string) PlaySessionOption {
+	return func(s *PlaySession) { s.CastDeviceName = name }
+}
+
+// WithPlaySessionPosition seeds the playhead. Used when a session is created
+// from a beacon that already carries a position rather than from a start at 0.
+func WithPlaySessionPosition(pos shared.Duration) PlaySessionOption {
+	return func(s *PlaySession) { s.Position = &pos }
+}
+
 func WithPlaySessionBandwidth(bps int64) PlaySessionOption {
 	return func(s *PlaySession) { s.BandwidthBps = bps }
 }

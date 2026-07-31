@@ -172,3 +172,38 @@ func TestTouchCastSession_ResurrectsWhenNoActiveSession(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, active, 1)
 }
+
+// An unusable beacon must be a silent no-op: no row, and no error to the
+// caller (the receiver keeps beaconing either way). Nothing pinned that
+// contract before.
+//
+// It now holds twice over, which was the point of routing the resurrect path
+// through NewPlaySession: deleting the early-return guard at the top of
+// TouchCastSession keeps this test GREEN, because the constructor's Validate()
+// refuses the same rows. Verified by removing that guard and re-running. With
+// the previous struct literal, neither layer existed once the guard was gone.
+func TestTouchCastSession_IgnoresAnUnusableBeacon(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name       string
+		profileID  string
+		mediaID    string
+		positionMs int64
+	}{
+		{"no profile", "", "media-1", 214_200},
+		{"no media", "prof-1", "", 214_200},
+		{"negative position", "prof-1", "media-1", -1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			svc, sessions := newTouchSvc(t)
+
+			touched, err := svc.TouchCastSession(context.Background(), tc.profileID, tc.mediaID, tc.positionMs)
+			require.NoError(t, err, "an unusable beacon is ignored, never an error to the caller")
+			assert.False(t, touched, "nothing was resurrected")
+
+			active, err := sessions.GetActiveByProfile(context.Background(), tc.profileID)
+			require.NoError(t, err)
+			assert.Empty(t, active, "no row may reach the store")
+		})
+	}
+}

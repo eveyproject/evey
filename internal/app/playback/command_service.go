@@ -512,14 +512,22 @@ func (s *CommandService) TouchCastSession(ctx context.Context, profileID, mediaI
 	if dErr != nil {
 		return false, nil
 	}
-	sess := &playback.PlaySession{
-		ID:             id.New("ps-"),
-		ProfileID:      shared.ProfileID(profileID),
-		MediaItemID:    shared.MediaItemID(mediaItemID),
-		DeviceName:     "Chromecast",
-		CastDeviceName: "Chromecast",
-		StartedAt:      time.Now(),
-		Position:       &pos,
+	// Built through the canonical constructor (ADR-0008) rather than a struct
+	// literal, so the row is Validate()d like every other PlaySession. The
+	// empty-identity cases are already refused at the top of this function;
+	// what this adds is that the invariant travels with the type instead of
+	// depending on that guard staying there, and that a future option carrying
+	// an invalid PlayMethod cannot slip into the store.
+	sess, cErr := playback.NewPlaySession(
+		id.New("ps-"),
+		shared.ProfileID(profileID),
+		shared.MediaItemID(mediaItemID),
+		playback.WithPlaySessionDevice("Chromecast", ""),
+		playback.WithPlaySessionCastDevice("Chromecast"),
+		playback.WithPlaySessionPosition(pos),
+	)
+	if cErr != nil {
+		return false, nil
 	}
 	if err := s.sessions.Create(ctx, sess); err != nil {
 		return false, fmt.Errorf("TouchCastSession resurrect: %w", err)
