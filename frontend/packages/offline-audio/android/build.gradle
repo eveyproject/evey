@@ -1,0 +1,24 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'com.evey'
+version = '0.1.0'
+
+android {
+  namespace "com.evey.offlineaudio"
+  defaultConfig {
+    versionCode 1
+    versionName '0.1.0'
+    consumerProguardFiles 'consumer-rules.pro'
+  }
+}
+
+dependencies {
+  // The Go pipeline (ac3go decode + mkvgo demux/remux), bound by gomobile.
+  // A library module cannot depend on a local .aar (AGP refuses), so the
+  // gomobile output ships unpacked: its classes.jar here, its libgojni.so
+  // under src/main/jniLibs/arm64-v8a. Rebuild both: go/refresh-android.sh.
+  implementation files('libs/offlineaudio.jar')
+}
