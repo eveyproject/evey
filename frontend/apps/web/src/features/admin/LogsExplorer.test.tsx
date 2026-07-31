@@ -3,7 +3,8 @@ import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-// jsdom lacks IntersectionObserver (used by the infinite-scroll sentinel).
+// jsdom lacks IntersectionObserver (unused by LogsExplorer now, but other
+// tests in this suite still share the jsdom env, so keep the stub cheap).
 (globalThis as Record<string, unknown>).IntersectionObserver = class {
   observe() {}
   unobserve() {}
@@ -21,6 +22,39 @@ vi.mock("@evey/store", () => ({
   useAuthStore: Object.assign((sel?: (s: Record<string, unknown>) => unknown) => (sel ? sel({}) : {}), {
     getState: () => ({ accessToken: "tok" }),
   }),
+}));
+
+// The global test setup (src/test/setup.ts) mocks @tanstack/react-virtual to
+// render EVERY row - convenient for components that only need list content,
+// but it would hide a virtualization regression in LogsExplorer's own tests
+// (a mock that renders everything can never prove windowing). vi.hoisted lets
+// the mock factory below and the test bodies share mutable state: tests move
+// `virtualMockState.windowStart` to simulate scrolling, then force a
+// re-render, and the mocked useVirtualizer recomputes its window from that
+// position - a REAL sliding window, not a fixed 0..4 slice a non-virtualized
+// component would also satisfy.
+const virtualMockState = vi.hoisted(() => ({
+  windowStart: 0,
+  windowSize: 5,
+  measureElement: vi.fn(),
+}));
+
+vi.mock("@tanstack/react-virtual", () => ({
+  useVirtualizer: (opts: { count: number; estimateSize: (i: number) => number }) => {
+    const { windowStart, windowSize, measureElement } = virtualMockState;
+    const maxStart = Math.max(0, opts.count - windowSize);
+    const start = Math.min(windowStart, maxStart);
+    const end = Math.min(opts.count, start + windowSize);
+    const items = Array.from({ length: Math.max(0, end - start) }, (_, i) => {
+      const idx = start + i;
+      return { index: idx, key: idx, start: idx * opts.estimateSize(idx), size: opts.estimateSize(idx) };
+    });
+    return {
+      getVirtualItems: () => items,
+      getTotalSize: () => opts.count * opts.estimateSize(0),
+      measureElement,
+    };
+  },
 }));
 
 import { LogsExplorer } from "./LogsExplorer";
@@ -42,11 +76,25 @@ const sampleEntry = {
 
 function renderExplorer() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
-  return render(
+  const view = render(
     <QueryClientProvider client={qc}>
       <LogsExplorer />
     </QueryClientProvider>,
   );
+  return {
+    ...view,
+    qc,
+    // Forces LogsExplorer to re-render against the SAME component instance
+    // and query client, so it re-runs useVirtualizer (picking up a moved
+    // virtualMockState.windowStart) without losing fetched data or state -
+    // the test-equivalent of "the user scrolled".
+    rerender: () =>
+      view.rerender(
+        <QueryClientProvider client={qc}>
+          <LogsExplorer />
+        </QueryClientProvider>,
+      ),
+  };
 }
 
 // The explorer now lands on the live tail (Direct pre-checked); the history
@@ -58,10 +106,17 @@ async function renderExplorerOnHistory() {
   return view;
 }
 
+function sseResponse(lines: Record<string, unknown>[]): Response {
+  const body = lines.map((l) => `data: ${JSON.stringify(l)}\n\n`).join("");
+  return new Response(body, { status: 200 });
+}
+
 describe("LogsExplorer", () => {
   beforeEach(() => {
     mockFetch.mockReset();
     mockFetch.mockResolvedValue(resp([sampleEntry]));
+    virtualMockState.windowStart = 0;
+    virtualMockState.measureElement.mockClear();
   });
 
   it("starts on the live tail without firing a history search", () => {
@@ -116,5 +171,105 @@ describe("LogsExplorer", () => {
     const row = await screen.findByText("hls: ffmpeg exited with error");
     await userEvent.click(row);
     expect(await screen.findByText("media_path")).toBeInTheDocument();
+  });
+
+  it("mounts only the current virtual window in the DOM, and follows it when it moves", async () => {
+    const many = Array.from({ length: 200 }, (_, i) => ({ ...sampleEntry, msg: `entry-${i}`, raw: `entry-${i}` }));
+    mockFetch.mockResolvedValue(resp(many, { total: 200 }));
+    const view = await renderExplorerOnHistory();
+    await screen.findByText("entry-0");
+
+    // Window at the top: rows 0-4 are mounted, row 195 (far below) is not.
+    expect(screen.getByText("entry-4")).toBeInTheDocument();
+    expect(screen.queryByText("entry-195")).not.toBeInTheDocument();
+
+    // Move the window to the tail of the list, as if the operator had
+    // scrolled all the way down, and force a re-render.
+    virtualMockState.windowStart = 195;
+    view.rerender();
+
+    await screen.findByText("entry-199");
+    expect(screen.getByText("entry-195")).toBeInTheDocument();
+    // Proof this is a SLIDING window, not just a cap: the earlier rows that
+    // were mounted a moment ago are gone now that the window moved past them.
+    expect(screen.queryByText("entry-0")).not.toBeInTheDocument();
+    expect(screen.queryByText("entry-4")).not.toBeInTheDocument();
+  });
+
+  it("wires measureElement to every rendered row, for dynamic (expand/collapse) height", async () => {
+    await renderExplorerOnHistory();
+    await screen.findByText("hls: ffmpeg exited with error");
+    expect(virtualMockState.measureElement).toHaveBeenCalled();
+  });
+
+  it("only fetches the next page once the virtual window reaches the last row, not before", async () => {
+    const page1 = Array.from({ length: 50 }, (_, i) => ({ ...sampleEntry, msg: `row-${i}`, raw: `row-${i}` }));
+    mockFetch.mockResolvedValueOnce(resp(page1, { total: 100 }));
+
+    const view = await renderExplorerOnHistory();
+    await screen.findByText("row-0");
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+
+    // Window sits in the middle of the list (rows 20-24): nowhere near the
+    // last row (49). A tautological trigger would fire regardless of where
+    // the window is - this must NOT fetch.
+    virtualMockState.windowStart = 20;
+    view.rerender();
+    await screen.findByText("row-24");
+    await new Promise((r) => setTimeout(r, 50));
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+
+    // Now move the window so its last visible row IS the last entry (49) -
+    // this is what "scrolled to the bottom" looks like to the virtualizer.
+    virtualMockState.windowStart = 45;
+    view.rerender();
+    await waitFor(() => {
+      const urls = mockFetch.mock.calls.map((c) => (c[0] as { url: string }).url);
+      expect(urls.some((u) => u.includes("offset=50"))).toBe(true);
+    });
+  });
+
+  it("never triggers fetchNextPage while in live mode, even when the query still has a next page", async () => {
+    // A Response body stream can only be read once, and the live tail
+    // re-fetches every time `live` flips back on - mockImplementation (not
+    // mockResolvedValue) gives every call its own fresh stream.
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async () =>
+        sseResponse([{ time: "2026-07-07T19:22:01Z", level: "INFO", msg: "live line", component: "player_client" }]),
+      );
+
+    try {
+      // The infinite query keeps its last computed hasNextPage even once
+      // `enabled` flips back to false (toggling to live doesn't clear react-query's
+      // cache), so a page total larger than what was fetched leaves hasNextPage
+      // TRUE while live. If that alone were enough to fetch, the only thing
+      // standing between it and a call is the `if (live) return;` guard itself -
+      // this is what the test below actually exercises. The page has to fill
+      // the whole 5-row virtual window (not just 1 row), otherwise the
+      // (legitimate) history-mode auto-fetch fires immediately on arrival and
+      // masks the thing under test.
+      const historyPage = Array.from({ length: 10 }, (_, i) => ({ ...sampleEntry, msg: `hist-${i}`, raw: `hist-${i}` }));
+      mockFetch.mockResolvedValueOnce(resp(historyPage, { total: 50 }));
+      const view = renderExplorer(); // starts on the live tail (default)
+      const liveButton = screen.getByRole("button", { name: /live/i });
+
+      await userEvent.click(liveButton); // -> history: fetches the page above
+      await screen.findByText("hist-0");
+      const callsAfterHistory = mockFetch.mock.calls.length;
+
+      await userEvent.click(liveButton); // -> back to live
+      await screen.findByText("live line");
+
+      // Put the virtual window at the end of the (short) live list too, so
+      // the "reached bottom" half of the condition is satisfied either way.
+      virtualMockState.windowStart = 999;
+      view.rerender();
+
+      await new Promise((r) => setTimeout(r, 50));
+      expect(mockFetch.mock.calls.length).toBe(callsAfterHistory);
+    } finally {
+      fetchSpy.mockRestore();
+    }
   });
 });

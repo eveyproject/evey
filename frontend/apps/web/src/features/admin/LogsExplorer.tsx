@@ -1,5 +1,6 @@
 import { memo, useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { useTranslation } from "react-i18next";
 import { Search, Radio, ChevronRight, Copy, SlidersHorizontal, AlertTriangle } from "lucide-react";
 import { eveyFetch, getBaseURL } from "@evey/api";
@@ -22,6 +23,9 @@ import {
 const LEVELS = ["ERROR", "WARN", "INFO", "DEBUG"] as const;
 const PAGE_SIZE = 100;
 const LIVE_CAP = 1000;
+// Collapsed-row estimate for the virtualizer; expanded rows are re-measured
+// via measureElement (variable height once a row is toggled open).
+const ROW_HEIGHT_ESTIMATE = 40;
 
 interface FilterParams {
   levels: string[];
@@ -294,19 +298,25 @@ export function LogsExplorer() {
   const total = live ? liveEntries.length : (data?.pages[0]?.total ?? 0);
   const truncated = !live && (data?.pages[0]?.truncated ?? false);
 
-  const sentinelRef = useRef<HTMLDivElement>(null);
+  // The entry list is virtualized (long searches keep every page mounted in
+  // the DOM otherwise), so infinite scroll can no longer rely on a sentinel
+  // element at the bottom of the (now windowed) DOM - it watches the last
+  // *virtual* item instead, which is the standard tanstack-virtual pattern.
+  const parentRef = useRef<HTMLDivElement>(null);
+  const virtualizer = useVirtualizer({
+    count: entries.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => ROW_HEIGHT_ESTIMATE,
+    overscan: 8,
+  });
+  const virtualItems = virtualizer.getVirtualItems();
+
   useEffect(() => {
-    const el = sentinelRef.current;
-    if (!el || live) return;
-    const obs = new IntersectionObserver(
-      (obsEntries) => {
-        if (obsEntries[0]?.isIntersecting && hasNextPage && !isFetchingNextPage) fetchNextPage();
-      },
-      { rootMargin: "300px" },
-    );
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, [live, hasNextPage, isFetchingNextPage, fetchNextPage]);
+    if (live) return;
+    const last = virtualItems[virtualItems.length - 1];
+    if (!last) return;
+    if (last.index >= entries.length - 1 && hasNextPage && !isFetchingNextPage) fetchNextPage();
+  }, [live, virtualItems, entries.length, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const toggleLevel = useCallback((l: string) => {
     setLevels((prev) => (prev.includes(l) ? prev.filter((x) => x !== l) : [...prev, l]));
@@ -407,19 +417,30 @@ export function LogsExplorer() {
         ) : entries.length === 0 ? (
           <EmptyState icon={<Search size={ICON["3xl"]} strokeWidth={1.5} />} title={t("admin.logs.empty")} />
         ) : (
-          entries.map((e) => <LogRow key={e.uid} entry={e} />)
+          <div ref={parentRef} className="max-h-[70vh] overflow-auto">
+            <div style={{ height: virtualizer.getTotalSize(), width: "100%", position: "relative" }}>
+              {virtualItems.map((vItem) => {
+                const entry = entries[vItem.index];
+                return (
+                  <div
+                    key={vItem.key}
+                    data-index={vItem.index}
+                    ref={virtualizer.measureElement}
+                    style={{ position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${vItem.start}px)` }}
+                  >
+                    <LogRow entry={entry} />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         )}
       </div>
 
-      {!live && (
-        <>
-          <div ref={sentinelRef} className="h-1" />
-          {isFetchingNextPage && (
-            <div className="flex justify-center py-4">
-              <Spinner size="md" />
-            </div>
-          )}
-        </>
+      {!live && isFetchingNextPage && (
+        <div className="flex justify-center py-4">
+          <Spinner size="md" />
+        </div>
       )}
     </div>
   );
