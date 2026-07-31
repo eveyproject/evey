@@ -1,23 +1,35 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+// Two mocks because the module under test now imports from two entry points,
+// and that split is the whole point: in expo-file-system 55 the file helpers
+// only work when imported from "/legacy" (the root re-exports throwing stubs),
+// while Paths only exists at the root. Mocking a single merged module is what
+// hid the real failure - the suite was green against a module shape that does
+// not exist at runtime.
+// Free-space reading consulted by the pre-download guard. Behind a getter on a
+// stable Paths object, because downloads.ts imports the binding by name
+// (`import { Paths }`) rather than reading it off a namespace: reassigning the
+// module's export from a test would not reach that binding, mutating this
+// holder does. Generous by default so existing tests are unaffected.
+const { diskSpace } = vi.hoisted(() => ({
+  diskSpace: { available: 500 * 1024 * 1024 * 1024 },
+}));
+
 vi.mock("expo-file-system", () => ({
+  Paths: {
+    get availableDiskSpace() {
+      return diskSpace.available;
+    },
+  },
+}));
+
+vi.mock("expo-file-system/legacy", () => ({
   getInfoAsync: vi.fn(),
   makeDirectoryAsync: vi.fn(),
   readAsStringAsync: vi.fn(),
   writeAsStringAsync: vi.fn(),
   deleteAsync: vi.fn(),
   documentDirectory: "/data/user/0/app/files/",
-  // Free-space reading consulted by the pre-download guard. Generous by
-  // default so existing tests are unaffected; the guard's own tests override it.
-  Paths: { availableDiskSpace: 500 * 1024 * 1024 * 1024 },
-  default: {
-    getInfoAsync: vi.fn(),
-    makeDirectoryAsync: vi.fn(),
-    readAsStringAsync: vi.fn(),
-    writeAsStringAsync: vi.fn(),
-    deleteAsync: vi.fn(),
-    documentDirectory: "/data/user/0/app/files/",
-  },
 }));
 
 // Mock the native background downloader. createDownloadTask returns a task
@@ -67,7 +79,7 @@ vi.mock("./server-config", () => ({
   getServerUrl: vi.fn().mockResolvedValue("https://evey.test"),
 }));
 
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 const fsMock = FileSystem as unknown as Record<string, ReturnType<typeof vi.fn>>;
 
 import { eveyFetch, libraryServiceGetMediaItem } from "@evey/api";
@@ -368,13 +380,19 @@ describe("getDownloadPath", () => {
 });
 
 describe("getDownloadPath offline-access gate + online revalidation", () => {
+  // Relative, not a fixed date: these cases assert the PROFILE decision, and a
+  // hard-coded downloadedAt silently turns them into TTL tests once
+  // OFFLINE_DOWNLOAD_TTL_MS (30 days) elapses. The literal "2026-07-01" that
+  // used to be here started failing on 2026-07-31 - the suite went red on a
+  // calendar boundary, with nothing in the code having changed.
+  const recentlyDownloadedAt = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const restrictedIndex = [
     {
       mediaItemId: "m1",
       title: "Movie 1",
       filePath: "/data/user/0/app/files/downloads/m1.mp4",
       fileSize: 1000,
-      downloadedAt: "2026-07-01T00:00:00.000Z",
+      downloadedAt: recentlyDownloadedAt,
       downloadedByProfileId: "adult-1",
       downloadedByIsKids: false,
     },
@@ -392,7 +410,10 @@ describe("getDownloadPath offline-access gate + online revalidation", () => {
   });
 
   it("throws OfflineAccessError when the entry is expired", async () => {
-    const farFuture = Date.parse("2026-07-01T00:00:00.000Z") + 40 * 24 * 60 * 60 * 1000;
+    // Anchored on the fixture, not on a literal date: this is the one case
+    // that IS about the TTL, so "40 days after the download" has to follow the
+    // entry wherever it sits in time.
+    const farFuture = Date.parse(recentlyDownloadedAt) + 40 * 24 * 60 * 60 * 1000;
     await expect(
       getDownloadPath("m1", { activeProfile: { id: "adult-1" }, now: farFuture }),
     ).rejects.toMatchObject({ name: "OfflineAccessError", reason: "expired" });
@@ -460,9 +481,7 @@ describe("startDownload media-id validation", () => {
 // only knowable in the begin handler, so that is the last moment to refuse.
 describe("startDownload disk-space guard", () => {
   it("refuses a download that would not fit, and leaves nothing behind", async () => {
-    (FileSystem as unknown as { Paths: { availableDiskSpace: number } }).Paths = {
-      availableDiskSpace: 2 * 1024 * 1024 * 1024,
-    };
+    diskSpace.available = 2 * 1024 * 1024 * 1024;
 
     const pending = startDownload("big", "Huge Film");
     const handlers = await waitForTask("big");
@@ -479,9 +498,7 @@ describe("startDownload disk-space guard", () => {
   });
 
   it("allows a download that fits", async () => {
-    (FileSystem as unknown as { Paths: { availableDiskSpace: number } }).Paths = {
-      availableDiskSpace: 50 * 1024 * 1024 * 1024,
-    };
+    diskSpace.available = 50 * 1024 * 1024 * 1024;
 
     const pending = startDownload("small", "Small Film");
     const handlers = await waitForTask("small");

@@ -6,7 +6,7 @@ vi.mock("expo-document-picker", () => ({
 }));
 
 const readAsStringAsyncMock = vi.fn();
-vi.mock("expo-file-system", () => ({
+vi.mock("expo-file-system/legacy", () => ({
   readAsStringAsync: (...args: unknown[]) => readAsStringAsyncMock(...args),
 }));
 

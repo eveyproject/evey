@@ -39,7 +39,7 @@ vi.mock("react-native-webview", () => ({
 }));
 
 // --- expo-file-system mock (bundle disk cache; always a miss in tests) -----------------
-vi.mock("expo-file-system", () => ({
+vi.mock("expo-file-system/legacy", () => ({
   cacheDirectory: "file:///cache/",
   getInfoAsync: vi.fn().mockResolvedValue({ exists: false }),
   readAsStringAsync: vi.fn().mockResolvedValue(""),
@@ -231,7 +231,7 @@ describe("PluginSlot bundle cache revalidation", () => {
   const cachePath = "file:///cache/evey-plugins/plg-test1_index.js";
 
   async function primeCache(code: string, etag: string) {
-    const FS = await import("expo-file-system");
+    const FS = await import("expo-file-system/legacy");
     vi.mocked(FS.getInfoAsync).mockResolvedValue({ exists: true } as never);
     vi.mocked(FS.readAsStringAsync).mockImplementation(async (p: string) =>
       p === cachePath + ".etag" ? etag : code,

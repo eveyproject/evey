@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View, ActivityIndicator, Text, StyleSheet, InteractionManager } from "react-native";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
-import * as FileSystem from "expo-file-system";
+// From "/legacy": the root's file helpers throw at runtime in
+// expo-file-system 55. See downloads.ts.
+import * as FileSystem from "expo-file-system/legacy";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";

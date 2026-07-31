@@ -2,12 +2,15 @@ import { useEffect, useState } from "react";
 import { View, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { useTheme } from "../providers/ThemeProvider";
-import * as FileSystem from "expo-file-system";
+// From "/legacy", not the package root: in expo-file-system 55 the root's
+// getInfoAsync/readAsStringAsync/makeDirectoryAsync/writeAsStringAsync are
+// stubs that throw on the first call. See downloads.ts for the full story.
+import * as FileSystem from "expo-file-system/legacy";
 import { eveyFetchRaw } from "@evey/api";
 import { useServerUrl } from "../hooks/useServerUrl";
 import { useAuthHeaders } from "../hooks/useAuthenticatedImage";
 
-const cacheDir = (FileSystem as any).cacheDirectory ?? (FileSystem as any).default?.cacheDirectory ?? "";
+const cacheDir = FileSystem.cacheDirectory ?? "";
 const TRICKPLAY_CACHE_DIR = `${cacheDir}trickplay/`;
 
 interface TrickplayCue {

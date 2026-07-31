@@ -16,7 +16,7 @@ vi.mock("../hooks/useAuthenticatedImage", () => ({
   useAuthHeaders: () => ({ Authorization: "Bearer tok" }),
 }));
 
-vi.mock("expo-file-system", () => ({
+vi.mock("expo-file-system/legacy", () => ({
   cacheDirectory: "/tmp/cache/",
   getInfoAsync: vi.fn().mockResolvedValue({ exists: false }),
   readAsStringAsync: vi.fn().mockResolvedValue("[]"),

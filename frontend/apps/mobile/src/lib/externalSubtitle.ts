@@ -4,7 +4,9 @@
 // only subtitleParse.ts's already-tested conversion helpers.
 
 import * as DocumentPicker from "expo-document-picker";
-import * as FileSystem from "expo-file-system";
+// From "/legacy": readAsStringAsync imported from the package root throws at
+// runtime in expo-file-system 55. See downloads.ts.
+import * as FileSystem from "expo-file-system/legacy";
 import { externalSubtitleKind, toVtt } from "./subtitleParse";
 
 export interface ExternalSubtitleFile {

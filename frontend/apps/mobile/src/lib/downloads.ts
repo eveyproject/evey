@@ -1,4 +1,14 @@
-import * as FileSystem from "expo-file-system";
+// expo-file-system 55 kept getInfoAsync/makeDirectoryAsync/readAsStringAsync/
+// writeAsStringAsync/deleteAsync/documentDirectory exported from the package
+// root, but every one of them is a stub that THROWS at runtime ("Method X
+// imported from expo-file-system is deprecated"). They live at
+// expo-file-system/legacy now. Importing them from the root is not a
+// deprecation warning, it is a hard failure on the first call - and it took
+// out the whole offline download feature silently, because downloads.test.ts
+// mocks "expo-file-system" wholesale and never touches the real module.
+// Paths is the NEW api and only exists at the root, hence the two imports.
+import { Paths } from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import {
   createDownloadTask,
   getExistingDownloadTasks,
@@ -14,7 +24,7 @@ import { canPlayOffline, OfflineAccessError, type OfflineProfileInfo } from "./o
 // remain visible after the background-downloader migration. The lib writes
 // the actual media file under directories.documents (system-managed); we
 // keep an app-level JSON index to map mediaItemId → filePath + metadata.
-const docDir = (FileSystem as any).documentDirectory ?? (FileSystem as any).default?.documentDirectory ?? "";
+const docDir = FileSystem.documentDirectory ?? "";
 const DOWNLOAD_DIR = `${docDir}downloads/`;
 
 export interface DownloadedMedia {
@@ -321,7 +331,7 @@ export async function startDownload(
           // Optional chaining on purpose: Paths is not present on every
           // platform build, and a missing free-space reading must skip the
           // check rather than crash the download.
-          const free = FileSystem.Paths?.availableDiskSpace;
+          const free = Paths?.availableDiskSpace;
           if (typeof free === "number" && free > 0 && expectedBytes + DISK_HEADROOM_BYTES > free) {
             task.stop();
             inFlight.delete(mediaItemId);
