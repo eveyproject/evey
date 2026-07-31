@@ -279,6 +279,30 @@ orthogonally.
   CIDRs only.
 - Optional egress HTTP proxy with TLS SNI inspection.
 
+## Network exposure (outside the plugin threat model)
+
+Everything above concerns plugins. The other half of this server's attack surface
+is who can reach it at all, and that is governed by two invariants worth stating
+here because a reader looking for "how do I expose Evey safely" starts in this
+file:
+
+- **One listener is meant to be published, and it is not the gRPC one.** The
+  native gRPC port (`EVEY_SERVER_PORT`, default 9090) is an internal transport
+  whose only client is the HTTP gateway inside the same process; the HTTP API is
+  that port **plus one**. The gRPC listener binds to loopback by default
+  (`EVEY_GRPC_BIND=127.0.0.1`) precisely because the remote-access gate below is
+  HTTP middleware and does not cover it. Widening that bind is possible and logs
+  a warning at boot; firewalling it is then the operator's job.
+- **The remote-access gate decides LAN vs WAN from the ONE client IP validated at
+  the trusted proxy boundary, never from a request header.** A client cannot
+  claim to be `127.0.0.1` via `X-Forwarded-For` to be treated as local, and a
+  request that never crossed that boundary is classified WAN (refused) rather
+  than trusted. Note this is a *deployment* control ("this instance is for my own
+  network"), not an authentication layer - authentication is what protects data.
+
+Details and the full variable list: [configuration.md](configuration.md#remote-access-who-may-connect-from-outside-your-network)
+and [deployment-bare-metal.md](deployment-bare-metal.md).
+
 ## Reporting a vulnerability
 
 Plugin auth, permission, or sandbox issues: open an issue with the `security` label or contact the maintainer directly. Do not exploit against shared/public Evey instances.
