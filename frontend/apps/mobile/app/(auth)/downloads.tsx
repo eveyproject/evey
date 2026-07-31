@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, FlatList, Pressable, Alert, StyleSheet, ActivityIndicator } from "react-native";
 import { router, Stack, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -13,8 +13,10 @@ import {
   getTotalDownloadSize,
   subscribeToProgress,
   getInFlightProgress,
+  getInFlightBytes,
   getInFlightDownloads,
   type DownloadedMedia,
+  type ProgressBytes,
 } from "../../src/lib/downloads";
 import { canPlayOffline, type OfflineDenialReason, type OfflineProfileInfo } from "../../src/lib/offlineAccess";
 
@@ -49,6 +51,26 @@ function formatSize(bytes: number): string {
   return `${(bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0)} ${units[i]}`;
 }
 
+// Status line of a running download: percent when the total is known, plus
+// the moving byte counter and transfer rate as soon as bytes flow. Falls back
+// to a plain "Downloading…" only before the first progress event.
+function inProgressLabel(
+  t: ReturnType<typeof useTranslation>["t"],
+  progress: number | null,
+  bytes: ProgressBytes | null,
+  rate: number,
+): string {
+  const parts: string[] = [];
+  if (progress != null && Number.isFinite(progress)) {
+    parts.push(t("downloads.inProgress", "{{percent}}%", { percent: Math.round(progress * 100) }));
+  }
+  if (bytes && bytes.downloaded > 0) {
+    parts.push(bytes.total > 0 ? `${formatSize(bytes.downloaded)} / ${formatSize(bytes.total)}` : formatSize(bytes.downloaded));
+  }
+  if (rate > 0) parts.push(`${formatSize(rate)}/s`);
+  return parts.length > 0 ? parts.join(" · ") : t("downloads.downloading", "Downloading…");
+}
+
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
@@ -70,9 +92,32 @@ function DownloadRow({ item, onDelete, onCancel, deleting, canceling, activeProf
   // one resumed from rehydrateBackgroundDownloads right after the app was
   // killed, in the brief window before it settles into the persisted index.
   const [progress, setProgress] = useState<number | null>(getInFlightProgress(item.mediaItemId));
+  // Raw byte counters and a smoothed transfer rate: the integer percent of a
+  // multi-GB file sits at "0%" for minutes even while bytes are flowing, and
+  // that reads as "stuck". The moving MB counter and rate are what tell a
+  // slow-but-healthy download apart from a dead one.
+  const [bytes, setBytes] = useState<ProgressBytes | null>(getInFlightBytes(item.mediaItemId));
+  const [rate, setRate] = useState(0);
+  const rateRef = useRef<{ at: number; downloaded: number; rate: number } | null>(null);
 
   useEffect(() => {
-    return subscribeToProgress(item.mediaItemId, setProgress);
+    return subscribeToProgress(item.mediaItemId, (pct, b) => {
+      setProgress(pct);
+      if (!b) return;
+      setBytes(b);
+      const now = Date.now();
+      const prev = rateRef.current;
+      if (prev && now > prev.at && b.downloaded >= prev.downloaded) {
+        const instant = ((b.downloaded - prev.downloaded) / (now - prev.at)) * 1000;
+        // Light exponential smoothing so the figure doesn't jitter with the
+        // ~1s native batching.
+        const smoothed = prev.rate > 0 ? prev.rate * 0.7 + instant * 0.3 : instant;
+        rateRef.current = { at: now, downloaded: b.downloaded, rate: smoothed };
+        setRate(smoothed);
+      } else {
+        rateRef.current = { at: now, downloaded: b.downloaded, rate: prev?.rate ?? 0 };
+      }
+    });
   }, [item.mediaItemId]);
 
   // An in-flight placeholder has no downloadedAt/rating yet to judge - only
@@ -115,9 +160,7 @@ function DownloadRow({ item, onDelete, onCancel, deleting, canceling, activeProf
         </Text>
         {item.inProgress ? (
           <Text style={{ color: theme.colors.accent, fontSize: 12 }}>
-            {progress != null && Number.isFinite(progress)
-              ? t("downloads.inProgress", "{{percent}}%", { percent: Math.round(progress * 100) })
-              : t("downloads.downloading", "Downloading…")}
+            {inProgressLabel(t, progress, bytes, rate)}
           </Text>
         ) : (
           <>

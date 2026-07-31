@@ -82,6 +82,7 @@ vi.mock("../lib/downloads", () => ({
   getTotalDownloadSize: (...a: unknown[]) => getTotalDownloadSizeMock(...a),
   subscribeToProgress: () => () => {},
   getInFlightProgress: (...a: unknown[]) => getInFlightProgressMock(...a),
+  getInFlightBytes: () => null,
   getInFlightDownloads: (...a: unknown[]) => getInFlightDownloadsMock(...a),
 }));
 

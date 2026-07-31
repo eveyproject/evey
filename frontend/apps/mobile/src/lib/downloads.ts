@@ -50,7 +50,14 @@ const INDEX_FILE = `${DOWNLOAD_DIR}index.json`;
 
 // Track in-flight downloads in memory so the UI can subscribe to progress
 // updates without re-binding callbacks on every render. Cleared on done/error.
-type ProgressListener = (pct: number) => void;
+// Byte counts ride along with the fraction: an integer percent of a multi-GB
+// file reads "0%" for minutes even while the transfer is healthy, so the UI
+// needs the raw bytes to show movement (and to derive a transfer rate).
+export interface ProgressBytes {
+  downloaded: number;
+  total: number;
+}
+type ProgressListener = (pct: number, bytes?: ProgressBytes) => void;
 const progressListeners = new Map<string, Set<ProgressListener>>();
 const inFlight = new Map<string, { totalBytes: number; downloadedBytes: number }>();
 // Title alongside inFlight, kept separately so a download-in-progress can be
@@ -163,10 +170,10 @@ function resolveExtension(kind: "video" | "audio", hint?: string): string {
   return extFromHint(hint, kind) ?? (kind === "audio" ? "mp3" : "mp4");
 }
 
-function notifyProgress(id: string, pct: number) {
+function notifyProgress(id: string, pct: number, bytes?: ProgressBytes) {
   const listeners = progressListeners.get(id);
   if (!listeners) return;
-  listeners.forEach((cb) => { try { cb(pct); } catch { /* silent */ } });
+  listeners.forEach((cb) => { try { cb(pct, bytes); } catch { /* silent */ } });
 }
 
 export function subscribeToProgress(mediaItemId: string, cb: ProgressListener): () => void {
@@ -187,6 +194,14 @@ export function getInFlightProgress(mediaItemId: string): number | null {
   if (!state) return null;
   if (state.totalBytes <= 0) return NaN;
   return state.downloadedBytes / state.totalBytes;
+}
+
+// Live byte counters of a running download, for first render before any
+// progress event has reached the subscriber. null when nothing is in flight.
+export function getInFlightBytes(mediaItemId: string): ProgressBytes | null {
+  const state = inFlight.get(mediaItemId);
+  if (!state) return null;
+  return { downloaded: state.downloadedBytes, total: state.totalBytes };
 }
 
 export interface InFlightDownload {
@@ -265,7 +280,7 @@ export interface StartDownloadOptions extends DownloadAuthContext {
 export async function startDownload(
   mediaItemId: string,
   title: string,
-  onProgress?: (progress: number) => void,
+  onProgress?: (progress: number, bytes?: ProgressBytes) => void,
   opts?: StartDownloadOptions,
 ): Promise<string> {
   assertMediaId(mediaItemId);
@@ -350,7 +365,7 @@ export async function startDownload(
           if (bytesTotal > 0) state.totalBytes = bytesTotal;
         }
         const pct = bytesTotal > 0 ? bytesDownloaded / bytesTotal : NaN;
-        notifyProgress(mediaItemId, pct);
+        notifyProgress(mediaItemId, pct, { downloaded: bytesDownloaded, total: bytesTotal });
       })
       .done(async () => {
         const state = inFlight.get(mediaItemId);
@@ -422,7 +437,7 @@ export async function rehydrateBackgroundDownloads(): Promise<void> {
           if (bytesTotal > 0) state.totalBytes = bytesTotal;
         }
         const pct = bytesTotal > 0 ? bytesDownloaded / bytesTotal : NaN;
-        notifyProgress(mediaItemId, pct);
+        notifyProgress(mediaItemId, pct, { downloaded: bytesDownloaded, total: bytesTotal });
       })
       .done(async () => {
         const state = inFlight.get(mediaItemId);

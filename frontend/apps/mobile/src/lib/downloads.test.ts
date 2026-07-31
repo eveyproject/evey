@@ -103,6 +103,7 @@ import {
   getTotalDownloadSize,
   rehydrateBackgroundDownloads,
   getInFlightDownloads,
+  getInFlightBytes,
 } from "./downloads";
 import { buildDownloadAuthContext } from "./downloadContext";
 import { canPlayOffline } from "./offlineAccess";
@@ -181,14 +182,17 @@ describe("startDownload", () => {
     expect(written[2].fileSize).toBe(5000);
   });
 
-  it("calls onProgress callback with fraction", async () => {
+  it("calls onProgress callback with fraction and byte counts", async () => {
     const onProgress = vi.fn();
     const pending = startDownload("m4", "Movie 4", onProgress);
     const handlers = await waitForTask("m4");
     handlers.progress?.({ bytesDownloaded: 50, bytesTotal: 100 });
     handlers.done?.({ id: "m4" });
     await pending;
-    expect(onProgress).toHaveBeenCalledWith(0.5);
+    // Byte counts ride along with the fraction: an integer percent of a
+    // multi-GB file sits at "0%" for minutes, so the UI needs the raw bytes
+    // to show that the transfer is actually moving.
+    expect(onProgress).toHaveBeenCalledWith(0.5, { downloaded: 50, total: 100 });
   });
 
   it("rejects when the native task errors", async () => {
@@ -607,6 +611,20 @@ describe("getInFlightDownloads", () => {
     await pending;
 
     expect(getInFlightDownloads().some((d) => d.mediaItemId === "if1")).toBe(false);
+  });
+});
+
+describe("getInFlightBytes", () => {
+  it("exposes the live byte counters of a running download", async () => {
+    const pending = startDownload("if2", "In Flight Bytes");
+    const handlers = await waitForTask("if2");
+
+    handlers.progress?.({ bytesDownloaded: 250, bytesTotal: 4000 });
+    expect(getInFlightBytes("if2")).toEqual({ downloaded: 250, total: 4000 });
+
+    handlers.done?.({ id: "if2" });
+    await pending;
+    expect(getInFlightBytes("if2")).toBeNull();
   });
 });
 

@@ -42,7 +42,8 @@ import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { artworkUrl } from "../../../src/lib/artwork";
 import { certInfoForLocale } from "../../../src/lib/certifications";
 import { useIsFavorite, useToggleFavorite } from "../../../src/hooks/useFavorite";
-import { startDownload, getDownloadPath } from "../../../src/lib/downloads";
+import { startDownload, getDownloadPath, type ProgressBytes } from "../../../src/lib/downloads";
+import { formatBytes } from "../../../src/lib/formatBytes";
 import { buildDownloadAuthContext } from "../../../src/lib/downloadContext";
 import { toast } from "@evey/store";
 import { AddToPlaylistSheet } from "../../../src/components/AddToPlaylistSheet";
@@ -575,6 +576,10 @@ export default function MediaDetailScreen() {
   // null = idle, 0..1 = downloading with known total, NaN = downloading
   // with unknown total (server omits Content-Length).
   const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
+  // Raw byte counter shown next to the percent: the integer percent of a
+  // multi-GB file reads "0%" for minutes on a slow link, and the moving MB
+  // figure is what tells that apart from a stuck download.
+  const [downloadBytes, setDownloadBytes] = useState<ProgressBytes | null>(null);
   // Per-episode progress: a key is only present while that episode's
   // download is running (0..1 known total, NaN unknown) - absent means idle,
   // matching EpisodeRow's `downloadProgress === undefined` idle check.
@@ -1126,7 +1131,8 @@ export default function MediaDetailScreen() {
                 setDownloadProgress(NaN);
                 toast.info(t("media.detail.downloadStarted"));
                 try {
-                  await startDownload(id, media.title, (p) => setDownloadProgress(p),
+                  await startDownload(id, media.title,
+                    (p, b) => { setDownloadProgress(p); if (b) setDownloadBytes(b); },
                     buildDownloadAuthContext(activeProfile, {
                       officialRating: media.officialRating,
                       certificationsByCountry: media.certificationsByCountry,
@@ -1145,6 +1151,7 @@ export default function MediaDetailScreen() {
                   toast.error(msg);
                 } finally {
                   setDownloadProgress(null);
+                  setDownloadBytes(null);
                 }
               }}
               disabled={downloadProgress !== null}
@@ -1181,9 +1188,9 @@ export default function MediaDetailScreen() {
               />
               <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: "600", marginLeft: 6 }}>
                 {downloadProgress !== null && Number.isFinite(downloadProgress)
-                  ? `${Math.round(downloadProgress * 100)}%`
+                  ? `${Math.round(downloadProgress * 100)}%${downloadBytes && downloadBytes.downloaded > 0 ? ` · ${formatBytes(downloadBytes.downloaded)}` : ""}`
                   : downloadProgress !== null
-                    ? "…"
+                    ? (downloadBytes && downloadBytes.downloaded > 0 ? formatBytes(downloadBytes.downloaded) : "…")
                     : t("common.download") || "Download"}
               </Text>
             </Pressable>
