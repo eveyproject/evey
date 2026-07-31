@@ -6,3 +6,4 @@ empty: अभी कोई डाउनलोड नहीं
 inProgress: "{{percent}}%"
 downloading: "डाउनलोड हो रहा है..."
 totalSize: "इस डिवाइस पर {{size}} उपयोग में"
+deleted: डाउनलोड हटाया गया

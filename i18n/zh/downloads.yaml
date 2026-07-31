@@ -6,3 +6,4 @@ empty: 暂无下载
 inProgress: "{{percent}}%"
 downloading: "下载中..."
 totalSize: "此设备已使用 {{size}}"
+deleted: 已移除下载

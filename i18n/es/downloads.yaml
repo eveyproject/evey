@@ -6,3 +6,4 @@ empty: Aún no hay descargas
 inProgress: "{{percent}}%"
 downloading: Descargando...
 totalSize: "{{size}} usados en este dispositivo"
+deleted: Descarga eliminada

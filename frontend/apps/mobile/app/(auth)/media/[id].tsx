@@ -10,6 +10,7 @@ import {
   Linking,
   Dimensions,
   Share,
+  Alert,
 } from "react-native";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
@@ -42,7 +43,7 @@ import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { artworkUrl } from "../../../src/lib/artwork";
 import { certInfoForLocale } from "../../../src/lib/certifications";
 import { useIsFavorite, useToggleFavorite } from "../../../src/hooks/useFavorite";
-import { startDownload, getDownloadPath, type ProgressBytes } from "../../../src/lib/downloads";
+import { startDownload, getDownloadPath, deleteDownload, type ProgressBytes } from "../../../src/lib/downloads";
 import { formatBytes } from "../../../src/lib/formatBytes";
 import { buildDownloadAuthContext } from "../../../src/lib/downloadContext";
 import { toast } from "@evey/store";
@@ -665,6 +666,27 @@ export default function MediaDetailScreen() {
   // movie). Shared by the per-episode button and the "download all" loop
   // below; `silent` skips the per-item toasts during a bulk run so the user
   // gets one start/finish toast for the whole batch instead of N of them.
+  // Tapping download on an already-downloaded item offers removal instead of
+  // the old dead-end "already downloaded" toast - same dialog wording as the
+  // Downloads screen so both paths read as one feature.
+  const confirmDeleteDownload = useCallback((mediaItemId: string, title: string) => {
+    Alert.alert(
+      t("downloads.deleteTitle", "Delete download"),
+      t("downloads.deleteConfirm", "Remove \"{{title}}\" from this device?", { title }),
+      [
+        { text: t("common.cancel", "Cancel"), style: "cancel" },
+        {
+          text: t("common.delete", "Delete"),
+          style: "destructive",
+          onPress: async () => {
+            await deleteDownload(mediaItemId);
+            toast.success(t("downloads.deleted", "Download removed"));
+          },
+        },
+      ],
+    );
+  }, [t]);
+
   const downloadEpisodeFile = useCallback(
     async (ep: V1MediaItem, opts?: { silent?: boolean }) => {
       if (!ep.id) return;
@@ -675,7 +697,9 @@ export default function MediaDetailScreen() {
       if (episodeDownloadsRef.current[ep.id] !== undefined) return;
       const existing = await getDownloadPath(ep.id);
       if (existing) {
-        if (!opts?.silent) toast.info(t("media.detail.alreadyDownloaded"));
+        // Bulk "download all" must stay quiet about episodes already on disk;
+        // a direct tap on the row's button gets the delete dialog instead.
+        if (!opts?.silent) confirmDeleteDownload(ep.id, ep.title ?? ep.id);
         return;
       }
       setEpisodeDownloads((s) => ({ ...s, [ep.id!]: NaN }));
@@ -715,7 +739,7 @@ export default function MediaDetailScreen() {
         });
       }
     },
-    [t, activeProfile, media],
+    [t, activeProfile, media, confirmDeleteDownload],
   );
 
   // Stable prop for EpisodeRow. Passing an inline arrow here made the memo()
@@ -1127,7 +1151,7 @@ export default function MediaDetailScreen() {
                 if (!id || !media?.title) return;
                 if (downloadProgress !== null) return;
                 const existing = await getDownloadPath(id);
-                if (existing) { toast.info(t("media.detail.alreadyDownloaded")); return; }
+                if (existing) { confirmDeleteDownload(id, media.title); return; }
                 setDownloadProgress(NaN);
                 toast.info(t("media.detail.downloadStarted"));
                 try {

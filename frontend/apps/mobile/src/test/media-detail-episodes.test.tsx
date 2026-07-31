@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
@@ -11,7 +11,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 // still not get its own scroll container.
 
 // --- React Native mock ----------------------------------------------------------------
+const alertMock = vi.fn();
 vi.mock("react-native", () => ({
+  Alert: { alert: (...a: unknown[]) => alertMock(...a) },
   View: ({ children, ...p }: any) => React.createElement("div", p, children),
   Text: ({ children, ...p }: any) => React.createElement("span", p, children),
   ScrollView: ({ children, ...p }: any) => React.createElement("div", p, children),
@@ -108,9 +110,13 @@ vi.mock("../hooks/useFavorite", () => ({
 vi.mock("../hooks/useParentalGate", () => ({
   useParentalGate: () => ({ needsPin: () => false, profileId: null }),
 }));
+const startDownloadMock = vi.fn();
+const getDownloadPathMock = vi.fn().mockResolvedValue(null);
+const deleteDownloadMock = vi.fn().mockResolvedValue(undefined);
 vi.mock("../lib/downloads", () => ({
-  startDownload: vi.fn(),
-  getDownloadPath: vi.fn().mockResolvedValue(null),
+  startDownload: (...a: unknown[]) => startDownloadMock(...a),
+  getDownloadPath: (...a: unknown[]) => getDownloadPathMock(...a),
+  deleteDownload: (...a: unknown[]) => deleteDownloadMock(...a),
 }));
 vi.mock("../components/AddToPlaylistSheet", () => ({ AddToPlaylistSheet: () => null }));
 vi.mock("../components/ParentalPINModal", () => ({ ParentalPINModal: () => null }));
@@ -245,6 +251,27 @@ describe("MediaDetailScreen episode downloads", () => {
       render(<MediaDetailScreen />, { wrapper: makeWrapper() });
       expect(downloadButtons().length).toBe(1);
       expect(screen.getByRole("button", { name: "Download all" })).toBeTruthy();
+    } finally {
+      delete (allEpisodes[0] as { fileSize?: string }).fileSize;
+    }
+  });
+
+  it("offers confirmed deletion instead of a dead-end toast when already downloaded", async () => {
+    (allEpisodes[0] as { fileSize?: string }).fileSize = "123456";
+    getDownloadPathMock.mockResolvedValueOnce("/files/evey-ep-1.mkv");
+    try {
+      render(<MediaDetailScreen />, { wrapper: makeWrapper() });
+      fireEvent.click(downloadButtons()[0] as HTMLElement);
+
+      await waitFor(() => expect(alertMock).toHaveBeenCalled());
+      expect(startDownloadMock).not.toHaveBeenCalled();
+
+      // Confirming the destructive action must actually remove the download.
+      const dialogButtons = alertMock.mock.calls[0][2] as { style?: string; onPress?: () => Promise<void> }[];
+      const destructive = dialogButtons.find((b) => b.style === "destructive");
+      expect(destructive).toBeTruthy();
+      await destructive!.onPress?.();
+      expect(deleteDownloadMock).toHaveBeenCalledWith("ep-1");
     } finally {
       delete (allEpisodes[0] as { fileSize?: string }).fileSize;
     }

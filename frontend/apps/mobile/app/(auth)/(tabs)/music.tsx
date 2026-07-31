@@ -10,6 +10,7 @@ import {
   Modal,
   Dimensions,
   StyleSheet,
+  Alert,
 } from "react-native";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
@@ -24,7 +25,7 @@ import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useDebounce } from "../../../src/hooks/useDebounce";
 import { useMusicQueueStore, type QueueTrack } from "../../../src/stores/musicQueue";
 import { AddToPlaylistSheet } from "../../../src/components/AddToPlaylistSheet";
-import { startDownload, getDownloadPath } from "../../../src/lib/downloads";
+import { startDownload, getDownloadPath, deleteDownload } from "../../../src/lib/downloads";
 import { buildDownloadAuthContext } from "../../../src/lib/downloadContext";
 import { toast, useAuthStore } from "@evey/store";
 import { TrackArt } from "../../../src/components/music/TrackArt";
@@ -276,7 +277,26 @@ export default function MusicScreen() {
     async (track: Track) => {
       if (trackDownloads[track.id] !== undefined) return;
       const existing = await getDownloadPath(track.id);
-      if (existing) { toast.info(t("media.detail.alreadyDownloaded")); return; }
+      if (existing) {
+        // Same dialog wording as the Downloads screen: a tap on an
+        // already-downloaded track offers removal instead of a dead-end toast.
+        Alert.alert(
+          t("downloads.deleteTitle", "Delete download"),
+          t("downloads.deleteConfirm", "Remove \"{{title}}\" from this device?", { title: track.title || track.id }),
+          [
+            { text: t("common.cancel", "Cancel"), style: "cancel" },
+            {
+              text: t("common.delete", "Delete"),
+              style: "destructive",
+              onPress: async () => {
+                await deleteDownload(track.id);
+                toast.success(t("downloads.deleted", "Download removed"));
+              },
+            },
+          ],
+        );
+        return;
+      }
       setTrackDownloads((s) => ({ ...s, [track.id]: NaN }));
       toast.info(t("media.detail.downloadStarted"));
       try {
