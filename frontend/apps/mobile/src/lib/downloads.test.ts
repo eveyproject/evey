@@ -46,6 +46,14 @@ const existingTasks: { id: string; metadata: Record<string, unknown> }[] = [];
 
 const taskStops: string[] = [];
 
+// Public Downloads collection root, null by default so the historical
+// app-private path keeps covering the existing tests; individual tests flip it
+// to assert the VLC-readable destination.
+const publicDirMock = vi.fn(async (): Promise<string | null> => null);
+vi.mock("@evey/media-caps", () => ({
+  getPublicDownloadsDir: (...a: unknown[]) => publicDirMock(...(a as [])),
+}));
+
 vi.mock("@kesha-antonov/react-native-background-downloader", () => ({
   setConfig: vi.fn(),
   createDownloadTask: vi.fn(({ id }: { id: string }) => {
@@ -661,6 +669,32 @@ describe("offline audio renderability", () => {
   it("hasRenderableAudio: true when at least one track is decodable (player can pick it)", () => {
     expect(hasRenderableAudio({ audioCodecs: ["ac3", "aac"] }, ["aac", "mp3"])).toBe(true);
     expect(hasRenderableAudio({ audioCodecs: ["AC3"] }, ["ac3"])).toBe(true);
+  });
+});
+
+describe("public VLC-readable destination", () => {
+  it("writes new downloads under <publicDownloads>/Evey with a human-readable name", async () => {
+    publicDirMock.mockResolvedValueOnce("/storage/emulated/0/Download");
+    const pending = startDownload("0123456789abcdef", "Mon Film: L'Été", undefined, { formatHint: "mkv" });
+    const handlers = await waitForTask("0123456789abcdef");
+    handlers.done?.({ id: "0123456789abcdef" });
+    await pending;
+    expect(createDownloadTaskMock).toHaveBeenCalledWith(expect.objectContaining({
+      // ":" is filesystem-hostile and must be cleaned; the short id suffix
+      // keeps two same-titled items apart; the extension stays real for VLC.
+      destination: "/storage/emulated/0/Download/Evey/Mon Film L'Été-01234567.mkv",
+    }));
+  });
+
+  it("falls back to the app-private directory when no public dir exists", async () => {
+    publicDirMock.mockResolvedValueOnce(null);
+    const pending = startDownload("pv1", "Private Movie");
+    const handlers = await waitForTask("pv1");
+    handlers.done?.({ id: "pv1" });
+    await pending;
+    expect(createDownloadTaskMock).toHaveBeenCalledWith(expect.objectContaining({
+      destination: "/data/user/0/app/files/Documents/evey-pv1.mp4",
+    }));
   });
 });
 

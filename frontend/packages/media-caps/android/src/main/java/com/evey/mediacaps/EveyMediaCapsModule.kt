@@ -41,6 +41,22 @@ class EveyMediaCapsModule : Module() {
         ?: throw IllegalStateException("no react context")
       probe(context)
     }
+
+    // Public Downloads collection root, or null when this platform can't offer
+    // one the app may write to without a permission dance. Android 11+ routes
+    // raw file writes into standard collections through FUSE and keeps the app
+    // owner of its own files (delete included); below that, public-dir writes
+    // need the legacy storage permission, so callers fall back to the private
+    // dir. Used so downloaded media lands where VLC and file managers can see
+    // it - owner decision: the in-app parental gate must not dictate storage.
+    Function("getPublicDownloadsDir") {
+      if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return@Function null
+      @Suppress("DEPRECATION")
+      val dir = android.os.Environment.getExternalStoragePublicDirectory(
+        android.os.Environment.DIRECTORY_DOWNLOADS,
+      )
+      dir?.absolutePath
+    }
   }
 
   private fun probe(context: Context): Map<String, Any?> {

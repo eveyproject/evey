@@ -18,6 +18,7 @@ import {
   type DownloadTask,
 } from "@kesha-antonov/react-native-background-downloader";
 import { eveyFetch, libraryServiceGetMediaItem } from "@evey/api";
+import { getPublicDownloadsDir } from "@evey/media-caps";
 import { getServerUrl } from "./server-config";
 import { canPlayOffline, OfflineAccessError, type OfflineProfileInfo } from "./offlineAccess";
 
@@ -150,8 +151,35 @@ function assertMediaId(id: string): void {
 // destPath under directories.documents (system-managed by the native module).
 // The extension is kept real (not always .mp4) so Android's MediaScanner
 // indexes the file correctly and the system player/file manager can open it.
+// This is the app-PRIVATE shape - the legacy location, and still the fallback
+// when the platform can't offer a public one; new downloads prefer the public
+// Downloads collection (see mediaRoot/safeFilename below).
 function destPathFor(mediaItemId: string, ext: string): string {
   return `${directories.documents}/evey-${mediaItemId}.${ext}`;
+}
+
+// Where new downloads land: the PUBLIC Downloads collection ("Download/Evey"),
+// so the user can open the file with VLC or a file manager - owner decision
+// (2026-07-31): the parental gate only guards in-app playback and must not
+// dictate storage. Null when the platform can't offer a writable public dir
+// (Android < 11, iOS, module absent) - callers then keep the private path.
+async function publicMediaRoot(): Promise<string | null> {
+  const pub = await getPublicDownloadsDir();
+  return pub ? `${pub}/Evey` : null;
+}
+
+// Filenames the user will actually see in VLC/file managers: the media title
+// cleaned of filesystem-hostile characters, plus a short id suffix so two
+// same-titled items never collide. Private-path downloads keep the id-only
+// shape (nobody browses that directory).
+function safeFilename(title: string, mediaItemId: string, ext: string): string {
+  const clean = title
+    .replace(/[\\/:*?"<>|]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 80)
+    .trim();
+  return `${clean || "evey"}-${mediaItemId.slice(0, 8)}.${ext}`;
 }
 
 // expo-file-system's legacy API only accepts real URIs. directories.documents
@@ -367,7 +395,13 @@ export async function startDownload(
     method: "POST",
   });
   const streamUrl = `${serverUrl}${downloadPath}?token=${token}`;
-  const destPath = destPathFor(mediaItemId, ext);
+  // Public, VLC-readable destination when the platform offers one; the
+  // app-private id-based path otherwise (legacy shape, still what existing
+  // index entries point at).
+  const pubRoot = await publicMediaRoot();
+  const destPath = pubRoot
+    ? `${pubRoot}/${safeFilename(title, mediaItemId, ext)}`
+    : destPathFor(mediaItemId, ext);
 
   // Keep the unsubscribe so the progress listener is removed when the download
   // settles - otherwise every download permanently leaks its callback into the
@@ -399,8 +433,10 @@ export async function startDownload(
       // ext + authContext ride along in the native module's own persisted
       // metadata (same round-trip title already relies on) so
       // rehydrateBackgroundDownloads can rebuild the exact same destPath and
-      // offline-access record after an app restart.
-      metadata: { title, ext, authContext, audioCodecs },
+      // offline-access record after an app restart. destPath itself is
+      // included since the public/private root choice is no longer derivable
+      // from the id alone.
+      metadata: { title, ext, authContext, audioCodecs, destPath },
     });
 
     activeDownloads.set(mediaItemId, { task, destPath, unsubscribe: unsubscribeProgress });
@@ -500,11 +536,13 @@ export async function rehydrateBackgroundDownloads(): Promise<void> {
   }
   for (const task of tasks) {
     const mediaItemId = task.id;
-    const meta = (task.metadata as { title?: string; ext?: string; authContext?: DownloadAuthContext; audioCodecs?: string[] }) ?? {};
+    const meta = (task.metadata as { title?: string; ext?: string; authContext?: DownloadAuthContext; audioCodecs?: string[]; destPath?: string }) ?? {};
     const title = meta.title ?? mediaItemId;
-    // ext falls back to "mp4" for downloads started before this field existed -
-    // those were always .mp4, so the fallback reconstructs the exact same path.
-    const destPath = destPathFor(mediaItemId, meta.ext ?? "mp4");
+    // The task's own recorded destination is authoritative (public/private
+    // root is not derivable from the id). The id-based reconstruction only
+    // covers tasks started before destPath rode along in the metadata - those
+    // were always private .mp4-or-recorded-ext paths.
+    const destPath = meta.destPath ?? destPathFor(mediaItemId, meta.ext ?? "mp4");
     // authContext is absent for downloads started before this field existed -
     // persistDownloaded then simply omits it (legacy entry, see offlineAccess.ts).
     const authContext = meta.authContext;
