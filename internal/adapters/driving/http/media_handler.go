@@ -21,8 +21,32 @@ import (
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
 	domainuser "github.com/evey-project/evey/internal/domain/user"
+	"github.com/evey-project/evey/internal/pkg/ratelimit"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
+
+// logDownloadRefusal records a download the server turned away.
+//
+// Every refusal below used to set an OpenTelemetry span status and nothing
+// else, so a user reporting "the download does nothing" left no trace at all in
+// the logs an operator can actually search - the same blind spot that made the
+// 2026-07-29 remote-access lockout take a full day to pin down. Spans are not a
+// substitute: tracing is sampled and is not what an admin greps.
+//
+// WARN, not INFO: a refusal on a route the client only reaches after minting a
+// scoped token is never routine.
+func logDownloadRefusal(r *http.Request, mediaID, reason string, claims *domainuser.Claims) {
+	attrs := []any{
+		slog.String("component", "download"),
+		slog.String("media_id", mediaID),
+		slog.String("reason", reason),
+		slog.String("client_ip", ratelimit.ClientIP(r)),
+	}
+	if claims != nil {
+		attrs = append(attrs, slog.String("user_id", claims.UserID), slog.String("profile_id", claims.ProfileID))
+	}
+	slog.WarnContext(r.Context(), "download refused", attrs...)
+}
 
 // --- mediaHandler: stream + download ---
 
@@ -180,11 +204,13 @@ func downloadHandler(libSvc MediaArchiveSource, baseURL string, libraryAccess Li
 			// A syncplay guest may stream but never download the shared media.
 			if st.Scope == shared.ScopeSyncplayGuest {
 				span.SetStatus(codes.Error, "syncplay guest token cannot download")
+				logDownloadRefusal(r, mediaID, "syncplay_guest_token", claims)
 				http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 				return
 			}
 			if st.MediaItemID != shared.MediaItemID(mediaID) {
 				span.SetStatus(codes.Error, "stream token media mismatch")
+				logDownloadRefusal(r, mediaID, "stream_token_media_mismatch", claims)
 				http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 				return
 			}
@@ -196,15 +222,22 @@ func downloadHandler(libSvc MediaArchiveSource, baseURL string, libraryAccess Li
 				span.RecordError(err)
 			}
 			span.SetStatus(codes.Error, "media item lookup failed")
+			logDownloadRefusal(r, mediaID, "media_item_lookup_failed", claims)
 			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 			return
 		}
 		if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, libraryAccess) {
 			span.SetStatus(codes.Error, "library access denied")
+			// The response is a deliberate 404 (an existence oracle would let a
+			// profile enumerate other libraries' media), which is exactly why the
+			// LOG has to say what really happened - otherwise the operator sees
+			// the same "not found" as a genuinely missing item.
+			logDownloadRefusal(r, mediaID, "library_access_denied", claims)
 			return
 		}
 		if !checkParental(r.Context(), w, claims, item, parental) {
 			span.SetStatus(codes.Error, "parental restricted")
+			logDownloadRefusal(r, mediaID, "parental_restricted", claims)
 			return
 		}
 
@@ -223,6 +256,7 @@ func downloadHandler(libSvc MediaArchiveSource, baseURL string, libraryAccess Li
 			serveSeriesArchive(w, r, libSvc, item, baseURL, mediaRoots(r.Context(), libSvc), parentalAllowFunc(r.Context(), claims, parental))
 		default:
 			span.SetStatus(codes.Error, "no downloadable file")
+			logDownloadRefusal(r, mediaID, "no_downloadable_file", claims)
 			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		}
 	}
@@ -257,6 +291,22 @@ func serveDownload(w http.ResponseWriter, r *http.Request, item *library.MediaIt
 		return
 	}
 	filename := sanitizeFilename(filepath.Base(item.File.Path))
+	// One line per accepted download, at INFO. Without it a download is
+	// invisible server-side even when it succeeds: HTTP routes are not
+	// access-logged here, only failures write, so "the client says nothing
+	// happened" and "the server never heard from the client" look identical.
+	// bytes is the SOURCE size, which is also the answer to "why did my phone
+	// refuse it" - a 19 GB remux is not a client bug.
+	slog.InfoContext(r.Context(), "download served",
+		slog.String("component", "download"),
+		slog.String("media_id", string(item.ID)),
+		slog.String("filename", filename),
+		slog.Int64("bytes", fi.Size()),
+		// Present when the client resumes or chunks; empty on a plain one-shot
+		// GET. It is what tells a stalled transfer apart from a retried one.
+		slog.String("range", r.Header.Get("Range")),
+		slog.String("client_ip", ratelimit.ClientIP(r)),
+	)
 	w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": filename}))
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("Content-Length", strconv.FormatInt(fi.Size(), 10))
