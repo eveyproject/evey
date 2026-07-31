@@ -7,3 +7,4 @@ inProgress: "{{percent}}%"
 downloading: "下载中..."
 totalSize: "此设备已使用 {{size}}"
 deleted: 已移除下载
+optimizingAudio: "正在优化音频... {{percent}}%"

@@ -7,3 +7,4 @@ inProgress: "{{percent}}%"
 downloading: Wird heruntergeladen...
 totalSize: "{{size}} auf diesem Gerät belegt"
 deleted: Download entfernt
+optimizingAudio: "Ton wird optimiert... {{percent}}%"

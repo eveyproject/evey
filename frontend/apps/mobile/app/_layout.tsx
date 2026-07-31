@@ -60,7 +60,13 @@ export default function RootLayout() {
       // native module's lookup. The orphan sweep chains AFTER rehydration on
       // purpose: a rehydrated in-flight task's partial file is on disk but
       // not in the index, and sweeping first would delete it mid-download.
-      void rehydrateBackgroundDownloads().then(() => purgeOrphanedDownloads());
+      // The audio-pass sweep chains LAST: it walks gigabytes when a pass was
+      // interrupted, and it must see the index as the orphan sweep left it.
+      void rehydrateBackgroundDownloads()
+        .then(() => purgeOrphanedDownloads())
+        .then(() => import("../src/lib/audioCompatPass"))
+        .then((m) => m.resumePendingAudioPasses())
+        .catch((err) => console.warn("evey-audiopass sweep", err));
     }
     bootstrap()
       .catch((err) => console.error("bootstrap failed:", err))

@@ -55,6 +55,14 @@ export interface DownloadedMedia {
    * (assumed playable - the historical behavior).
    */
   audioCodecs?: string[];
+  /**
+   * Set when the post-download audio-compat pass failed TERMINALLY for this
+   * file (unsupported codec, unreadable container...). Terminal means
+   * deterministic: retrying would fail identically, so the startup sweep
+   * skips the entry instead of re-walking gigabytes every boot. Transient
+   * failures (crash, cancel) never set it and are retried.
+   */
+  audioPassFailed?: string;
 }
 
 const INDEX_FILE = `${DOWNLOAD_DIR}index.json`;
@@ -245,7 +253,7 @@ function safeFilename(title: string, mediaItemId: string, ext: string): string {
 // its try/catch (the gigabytes stayed orphaned after "delete"). Every FS call
 // on a media file path goes through here. The downloader itself is unaffected:
 // createDownloadTask strips a file:// prefix from its destination.
-function toFileUri(path: string): string {
+export function toFileUri(path: string): string {
   return path.startsWith("file://") ? path : `file://${path}`;
 }
 
@@ -380,6 +388,23 @@ async function persistDownloaded(
     ...(audioCodecs && audioCodecs.length > 0 ? { audioCodecs } : {}),
   });
   await writeIndex(without);
+}
+
+/**
+ * Post-pass index rewrite, in downloads.ts because the index format is this
+ * module's private property. The compat pass hands back what changed: the
+ * file shrank (AC-3 448k became AAC 160k) and one codec became "aac" - or,
+ * on a terminal failure, the code to remember so the sweep stops retrying.
+ */
+export async function updateDownloadedAudio(
+  mediaItemId: string,
+  patch: Partial<Pick<DownloadedMedia, "fileSize" | "audioCodecs" | "audioPassFailed">>,
+): Promise<void> {
+  const index = await readIndex();
+  const item = index.find((i) => i.mediaItemId === mediaItemId);
+  if (!item) return;
+  Object.assign(item, patch);
+  await writeIndex(index);
 }
 
 /**
@@ -557,6 +582,13 @@ export async function startDownload(
         completeHandler(mediaItemId);
         unsubscribeProgress?.();
         resolve(destPath);
+        // Fire-and-forget: the download IS complete (promise resolved above);
+        // the compat pass is a separate best-effort stage that must never turn
+        // a finished download into a rejection. Dynamic import so the download
+        // path never pays for the pass machinery when no file needs it.
+        void import("./audioCompatPass")
+          .then((m) => m.runAudioCompatPass(mediaItemId))
+          .catch((err) => console.warn("evey-audiopass kickoff", err));
       })
       .error(async ({ error }) => {
         console.warn(`evey-dl error ${mediaItemId}: ${error}`);
@@ -639,6 +671,9 @@ export async function rehydrateBackgroundDownloads(): Promise<void> {
         inFlightTitles.delete(mediaItemId);
         activeDownloads.delete(mediaItemId);
         completeHandler(mediaItemId);
+        void import("./audioCompatPass")
+          .then((m) => m.runAudioCompatPass(mediaItemId))
+          .catch((err) => console.warn("evey-audiopass kickoff", err));
       })
       .error(async () => {
         inFlight.delete(mediaItemId);

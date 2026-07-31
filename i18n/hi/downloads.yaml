@@ -7,3 +7,4 @@ inProgress: "{{percent}}%"
 downloading: "डाउनलोड हो रहा है..."
 totalSize: "इस डिवाइस पर {{size}} उपयोग में"
 deleted: डाउनलोड हटाया गया
+optimizingAudio: "ऑडियो अनुकूलित हो रहा है... {{percent}}%"

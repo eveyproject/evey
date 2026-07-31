@@ -1,0 +1,184 @@
+// Orchestration of the post-download audio compatibility pass.
+//
+// A downloaded film whose audio the device can't render (AC-3/E-AC-3 on most
+// phones) is rewritten ONCE, right after the download settles: the native
+// pass (@evey/offline-audio: embedded ac3go+mkvgo plus the hardware AAC
+// encoder) replaces the silent track with stereo AAC, then this module swaps
+// the rewritten file over the original and patches the index so
+// hasRenderableAudio starts answering true. The player needs no new logic:
+// it already prefers the local copy exactly when the index says it is
+// hearable.
+//
+// This module owns the policy; the native side owns the mechanics. Policy:
+// - one pass at a time, downloads keep priority over passes (the pass is
+//   minutes of CPU and a full re-write of the file's bytes);
+// - a TERMINAL failure (deterministic: DTS file, unreadable container) is
+//   remembered in the index so the startup sweep never re-walks gigabytes
+//   toward the same refusal; transient failures retry on next launch;
+// - only .mkv today - the Go side reads Matroska; an .mp4 with AC-3 keeps
+//   the streaming fallback until the mp4 path lands.
+
+import * as FileSystem from "expo-file-system/legacy";
+import {
+  isOfflineAudioAvailable,
+  optimizeAudio,
+  OptimizeError,
+  type OptimizeProgress,
+} from "@evey/offline-audio";
+import { getDeviceAudioCodecs } from "./deviceCodecs";
+import {
+  getDownloadedMedia,
+  needsAudioCompatPass,
+  toFileUri,
+  updateDownloadedAudio,
+  getDownloads,
+} from "./downloads";
+
+export type AudioPassStage = OptimizeProgress["stage"];
+
+export interface AudioPassState {
+  stage: AudioPassStage;
+  /** 0..1000 across the WHOLE pass (stages weighted, see combine below). */
+  permille: number;
+}
+
+export type AudioPassResult = "done" | "skipped" | "failed";
+
+// The decode+encode walk reads the source once; the remux reads it again and
+// writes the output. Byte-wise the remux moves more data, but the first stage
+// carries the CPU work - 80/20 tracks wall-clock on the measured pipeline.
+function combinedPermille(p: OptimizeProgress): number {
+  return p.stage === "transcode"
+    ? Math.round(p.permille * 0.8)
+    : 800 + Math.round(p.permille * 0.2);
+}
+
+// In-memory pass state for the Downloads screen, same shape of contract as
+// downloads.ts's in-flight map: a poll-free subscribe plus a sync getter.
+const passStates = new Map<string, AudioPassState>();
+const passListeners = new Set<() => void>();
+
+export function getAudioPassState(mediaItemId: string): AudioPassState | null {
+  return passStates.get(mediaItemId) ?? null;
+}
+
+export function subscribeToAudioPass(cb: () => void): () => void {
+  passListeners.add(cb);
+  return () => passListeners.delete(cb);
+}
+
+function setPassState(mediaItemId: string, state: AudioPassState | null) {
+  if (state) passStates.set(mediaItemId, state);
+  else passStates.delete(mediaItemId);
+  for (const cb of passListeners) cb();
+}
+
+// Failure codes that are properties of the FILE, not of the moment. Anything
+// else (crash, cancel, "busy") may succeed on retry and is left retryable.
+const TERMINAL_CODES = new Set([
+  "not-matroska",
+  "no-audio",
+  "unsupported-codec",
+  "no-convertible-track",
+  "no-decodable-audio",
+]);
+
+// Serialize passes here in JS: the native module refuses concurrency ("busy")
+// but refusing loses the work - a second finished download must WAIT for the
+// running pass, not skip its own forever.
+let chain: Promise<unknown> = Promise.resolve();
+
+/**
+ * Run the pass for one downloaded item if it needs one. Resolves "skipped"
+ * when there is nothing to do (audio already renderable, not an mkv, module
+ * absent, terminal failure recorded), "done" on success, "failed" otherwise.
+ * Never rejects: the caller is a fire-and-forget download handler.
+ */
+export function runAudioCompatPass(mediaItemId: string): Promise<AudioPassResult> {
+  const next = chain.then(() => runPassNow(mediaItemId)).catch((err) => {
+    console.warn(`evey-audiopass ${mediaItemId} unexpected`, err);
+    return "failed" as const;
+  });
+  chain = next;
+  return next;
+}
+
+async function runPassNow(mediaItemId: string): Promise<AudioPassResult> {
+  const entry = await getDownloadedMedia(mediaItemId);
+  if (!entry) return "skipped";
+  if (entry.audioPassFailed) return "skipped";
+  if (!needsAudioCompatPass(entry, getDeviceAudioCodecs())) return "skipped";
+  if (!entry.filePath.toLowerCase().endsWith(".mkv")) return "skipped";
+  if (!(await isOfflineAudioAvailable())) return "skipped";
+
+  // Same directory as the source on purpose: the final rename must stay on
+  // one volume to be atomic, and the space for it was reserved BEFORE the
+  // download started (requiredDownloadBytes's 2x).
+  const outPath = `${entry.filePath.slice(0, -".mkv".length)}.opt.mkv`;
+  console.log(`evey-audiopass start ${mediaItemId} ${entry.filePath}`);
+  setPassState(mediaItemId, { stage: "transcode", permille: 0 });
+  try {
+    const summary = await optimizeAudio(entry.filePath, outPath, (p) => {
+      setPassState(mediaItemId, { stage: p.stage, permille: combinedPermille(p) });
+    });
+
+    // Swap: the original disappears for the instant between the two calls -
+    // acceptable, the alternative (backup rename) doubles the peak disk use
+    // the space guard promised NOT to exceed.
+    await FileSystem.deleteAsync(toFileUri(entry.filePath), { idempotent: true });
+    await FileSystem.moveAsync({ from: toFileUri(outPath), to: toFileUri(entry.filePath) });
+
+    let fileSize = entry.fileSize;
+    try {
+      const info = await FileSystem.getInfoAsync(toFileUri(entry.filePath));
+      if (info.exists && info.size) fileSize = info.size;
+    } catch {
+      /* size patch is cosmetic - the swap already happened */
+    }
+    // Only the converted track changed codec; the others (a second AC-3
+    // language, say) are still in the file untouched.
+    const codecs = [...(entry.audioCodecs ?? [])];
+    const i = codecs.findIndex((c) => c.trim().toLowerCase() === summary.sourceCodec);
+    if (i >= 0) codecs[i] = "aac";
+    else codecs.push("aac");
+    await updateDownloadedAudio(mediaItemId, { fileSize, audioCodecs: codecs });
+    console.log(
+      `evey-audiopass done ${mediaItemId} ${summary.sourceCodec}(${summary.sourceChannels}ch)->aac ` +
+        `frames=${summary.aacFrames} skipped=${summary.skippedFrames}`,
+    );
+    return "done";
+  } catch (err) {
+    // The native side already deletes its partial output on failure; this is
+    // the belt for a failure in the JS half of the swap.
+    try {
+      await FileSystem.deleteAsync(toFileUri(outPath), { idempotent: true });
+    } catch {
+      /* nothing left to clean */
+    }
+    const code = err instanceof OptimizeError ? err.code : "failed";
+    console.warn(`evey-audiopass failed ${mediaItemId} ${code}: ${err instanceof Error ? err.message : err}`);
+    if (TERMINAL_CODES.has(code)) {
+      await updateDownloadedAudio(mediaItemId, { audioPassFailed: code });
+    }
+    return "failed";
+  } finally {
+    setPassState(mediaItemId, null);
+  }
+}
+
+/**
+ * Startup sweep: finish what a kill or crash interrupted. Serialized through
+ * the same chain as the post-download triggers, and cheap when there is
+ * nothing to do - every skip path above answers without touching the file.
+ */
+export async function resumePendingAudioPasses(): Promise<void> {
+  let entries;
+  try {
+    entries = await getDownloads();
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    await runAudioCompatPass(entry.mediaItemId);
+  }
+}

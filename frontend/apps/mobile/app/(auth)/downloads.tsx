@@ -19,6 +19,7 @@ import {
   type ProgressBytes,
 } from "../../src/lib/downloads";
 import { canPlayOffline, type OfflineDenialReason, type OfflineProfileInfo } from "../../src/lib/offlineAccess";
+import { getAudioPassState, subscribeToAudioPass, type AudioPassState } from "../../src/lib/audioCompatPass";
 
 // A download still running is invisible in getDownloads() - an item only
 // enters that persisted index once it completes - so this screen merges in
@@ -120,6 +121,14 @@ function DownloadRow({ item, onDelete, onCancel, deleting, canceling, activeProf
     });
   }, [item.mediaItemId]);
 
+  // Post-download audio pass, if one is rewriting this file right now. The
+  // subscription is a plain version bump (state lives in audioCompatPass.ts);
+  // reading back on each bump keeps this row in sync without polling.
+  const [audioPass, setAudioPass] = useState<AudioPassState | null>(getAudioPassState(item.mediaItemId));
+  useEffect(() => {
+    return subscribeToAudioPass(() => setAudioPass(getAudioPassState(item.mediaItemId)));
+  }, [item.mediaItemId]);
+
   // An in-flight placeholder has no downloadedAt/rating yet to judge - only
   // gate completed entries. Deletion (below) always stays available so the
   // user can reclaim disk space for something they can no longer play.
@@ -170,6 +179,13 @@ function DownloadRow({ item, onDelete, onCancel, deleting, canceling, activeProf
             {progress != null && Number.isFinite(progress) && (
               <Text style={{ color: theme.colors.accent, fontSize: 11 }}>
                 {t("downloads.inProgress", "{{percent}}%", { percent: Math.round(progress * 100) })}
+              </Text>
+            )}
+            {audioPass && (
+              <Text style={{ color: theme.colors.accent, fontSize: 11 }}>
+                {t("downloads.optimizingAudio", "Optimizing audio… {{percent}}%", {
+                  percent: Math.round(audioPass.permille / 10),
+                })}
               </Text>
             )}
             {blocked && decision.reason && (

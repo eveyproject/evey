@@ -86,6 +86,15 @@ vi.mock("../lib/downloads", () => ({
   getInFlightDownloads: (...a: unknown[]) => getInFlightDownloadsMock(...a),
 }));
 
+// The screen subscribes to the post-download audio pass for a per-row
+// "Optimizing audio…" line. Mocked as idle: loading the real module here
+// would drag expo-file-system (and through it expo-modules-core, which only
+// exists inside a real RN runtime) into a node test environment.
+vi.mock("../lib/audioCompatPass", () => ({
+  getAudioPassState: () => null,
+  subscribeToAudioPass: () => () => {},
+}));
+
 // --- @evey/store / @evey/api (active profile used to gate each row) -------------------
 // An unrestricted adult profile by default - none of the existing rows in
 // these tests carry auth-context fields, so canPlayOffline allows them all
