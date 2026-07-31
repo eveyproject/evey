@@ -12,6 +12,9 @@ overrides:
   react-native-worklets: 0.7.1
 
 patchedDependencies:
+  '@kesha-antonov/react-native-background-downloader@4.5.4':
+    hash: 548365be3366481a85997ee6ab2df80bd6ec68d686328da88f488bf181bc21ba
+    path: patches/@kesha-antonov__react-native-background-downloader@4.5.4.patch
   gifted-charts-core@0.1.59:
     hash: 71230c78c9dd9d64fd3d50e1138d74fb1e05c69e4f7415a4df4deb46f2e1e654
     path: patches/gifted-charts-core@0.1.59.patch
@@ -49,7 +52,7 @@ importers:
         version: 15.1.1(expo-font@55.0.7)(react-native@0.83.6(@babel/core@7.29.0)(@react-native/metro-config@0.84.1(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)
       '@kesha-antonov/react-native-background-downloader':
         specifier: ^4.5.4
-        version: 4.5.4(react-native@0.83.6(@babel/core@7.29.0)(@react-native/metro-config@0.84.1(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.2.0))
+        version: 4.5.4(patch_hash=548365be3366481a85997ee6ab2df80bd6ec68d686328da88f488bf181bc21ba)(react-native@0.83.6(@babel/core@7.29.0)(@react-native/metro-config@0.84.1(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.2.0))
       '@tanstack/react-query':
         specifier: 5.100.9
         version: 5.100.9(react@19.2.0)
@@ -8831,7 +8834,7 @@ snapshots:
     dependencies:
       jsep: 1.4.0
 
-  '@kesha-antonov/react-native-background-downloader@4.5.4(react-native@0.83.6(@babel/core@7.29.0)(@react-native/metro-config@0.84.1(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.2.0))':
+  '@kesha-antonov/react-native-background-downloader@4.5.4(patch_hash=548365be3366481a85997ee6ab2df80bd6ec68d686328da88f488bf181bc21ba)(react-native@0.83.6(@babel/core@7.29.0)(@react-native/metro-config@0.84.1(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.2.0))':
     dependencies:
       react-native: 0.83.6(@babel/core@7.29.0)(@react-native/metro-config@0.84.1(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.2.0)
 
