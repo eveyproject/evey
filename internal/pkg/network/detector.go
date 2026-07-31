@@ -4,7 +4,6 @@ import (
 	"context"
 	"net"
 	"net/http"
-	"strings"
 )
 
 type NetworkType string
@@ -15,6 +14,24 @@ const (
 )
 
 type contextKey struct{}
+
+// clientIPKey carries the ONE authoritative client IP for a request, put there
+// by ProxyTrust.Middleware after it has validated the proxy chain. It is the
+// only channel the LAN/WAN decision reads: see Detect.
+type clientIPKey struct{}
+
+// WithClientIP records the authoritative client IP resolved at the trusted
+// boundary. Called by ProxyTrust.Middleware; nothing else should.
+func WithClientIP(ctx context.Context, ip net.IP) context.Context {
+	return context.WithValue(ctx, clientIPKey{}, ip)
+}
+
+// ClientIPFromContext returns the IP WithClientIP stored, or nil when the
+// request never crossed the trusted boundary.
+func ClientIPFromContext(ctx context.Context) net.IP {
+	ip, _ := ctx.Value(clientIPKey{}).(net.IP)
+	return ip
+}
 
 type Detector struct {
 	lanNets []*net.IPNet
@@ -31,8 +48,23 @@ func NewDetector(cidrs []string) *Detector {
 	return &Detector{lanNets: nets}
 }
 
+// Detect classifies the request's client as LAN or WAN. It reads ONLY the IP
+// that ProxyTrust.Middleware validated at the trusted boundary (see
+// WithClientIP) - never a request header.
+//
+// That distinction is the whole point. This function gates remote access: a
+// LAN verdict opens the server to the caller. When it parsed X-Forwarded-For
+// itself, its safety rested entirely on the middleware ORDER upstream - correct
+// in the shipped chain, but a property no reader of THIS file could check, and
+// one that any new mux or debug endpoint would silently break by letting a
+// client claim `X-Forwarded-For: 127.0.0.1` and be classified LAN.
+//
+// No boundary crossed means no IP, and no IP means WAN: unknown is remote, so a
+// gate that never saw the middleware refuses instead of opening. Same contract
+// as DetectIP's nil case, and the same one the gRPC side already follows
+// (interceptors.ClientIPFromCtx).
 func (d *Detector) Detect(r *http.Request) NetworkType {
-	return d.DetectIP(clientIP(r))
+	return d.DetectIP(ClientIPFromContext(r.Context()))
 }
 
 // DetectIP classifies an already-resolved client IP as LAN or WAN. Used where
@@ -54,25 +86,22 @@ func (d *Detector) DetectIP(ip net.IP) NetworkType {
 	return WAN
 }
 
-// ClientIP resolves the request's real client IP. Safe to trust at handler
-// time: the proxy middleware has already collapsed X-Forwarded-For down to
-// the single authoritative client address (see proxy.go).
+// ClientIP resolves the request's real client IP for LOGGING, presence and
+// discovery hints - never for an authorization decision (use Detect, which is
+// deliberately stricter). It answers with the IP the trusted boundary
+// validated; without one it falls back to the raw peer address, and never to a
+// client-supplied header: a caller must not be able to choose the address that
+// lands in the audit log or the presence panel.
 func ClientIP(r *http.Request) net.IP {
-	return clientIP(r)
+	if ip := ClientIPFromContext(r.Context()); ip != nil {
+		return ip
+	}
+	return peerIP(r)
 }
 
-func clientIP(r *http.Request) net.IP {
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		parts := strings.SplitN(xff, ",", 2)
-		if ip := net.ParseIP(strings.TrimSpace(parts[0])); ip != nil {
-			return ip
-		}
-	}
-	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
-		if ip := net.ParseIP(strings.TrimSpace(realIP)); ip != nil {
-			return ip
-		}
-	}
+// peerIP is the transport-level remote address, the only client identity that
+// survives without the trusted boundary.
+func peerIP(r *http.Request) net.IP {
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		return net.ParseIP(r.RemoteAddr)

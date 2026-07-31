@@ -111,6 +111,15 @@ func (p *ProxyTrust) Middleware(next http.Handler) http.Handler {
 			}
 		}
 
+		// This is the trusted boundary, so this is where the authoritative
+		// client IP is minted. Downstream reads it from the context and never
+		// re-parses a header (see Detect): the LAN/WAN verdict that gates
+		// remote access then depends on THIS validation having run, not on a
+		// middleware ordering nobody downstream can verify.
+		if ip := net.ParseIP(clientIP); ip != nil {
+			r = r.WithContext(WithClientIP(r.Context(), ip))
+		}
+
 		next.ServeHTTP(w, r)
 	})
 }
