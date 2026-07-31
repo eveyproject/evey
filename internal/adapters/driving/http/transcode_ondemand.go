@@ -109,6 +109,11 @@ func (h *hlsVODServe) tryServePlanMaster(w http.ResponseWriter, r *http.Request,
 	w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
 	w.Header().Set("Cache-Control", "no-cache")
 	_, _ = w.Write([]byte(master))
+	// Counterpart of the ffmpeg path's "master served": one line per playback
+	// start on the hybrid rung too, so the serving path is readable straight
+	// from the logs (the copy fallback rung logs its own outcome just before).
+	slog.Info("hls-vod: hybrid on-demand master served",
+		slog.String("media_id", mediaID))
 	return true
 }
 
@@ -176,6 +181,10 @@ func (h *hlsVODServe) copyFallbackVariant(r *http.Request, mediaID string, item 
 	rT.URL.RawQuery = q.Encode()
 	rpT, err := h.resolvePlan(rT, mediaID, item, streams)
 	if err != nil || rpT.IsCopy || len(rpT.Profiles) == 0 {
+		// One line per outcome, always: the rung's absence must be readable in
+		// the logs, not inferred from a master someone has to fetch and diff.
+		slog.WarnContext(r.Context(), "hls-vod: copy fallback rung unresolvable, master stays single-variant",
+			slog.String("media_id", mediaID), slog.Any("err", err))
 		return nil
 	}
 	rung := rpT.Profiles[0]
@@ -183,12 +192,27 @@ func (h *hlsVODServe) copyFallbackVariant(r *http.Request, mediaID string, item 
 	// source already lean enough that the lowest transcode saves nothing, an
 	// extra variant is pure switching risk for zero relief.
 	if (rung.VideoBitrate+rung.AudioBitrate)*2 > copyPeakKbps {
+		slog.InfoContext(r.Context(), "hls-vod: copy fallback rung skipped, source already lean",
+			slog.String("media_id", mediaID),
+			slog.Int64("rung_kbps", rung.VideoBitrate+rung.AudioBitrate),
+			slog.Int64("copy_peak_kbps", copyPeakKbps))
 		return nil
 	}
 	inT, err := h.buildManifestInputWith(rT, mediaID, item, streams, rpT)
 	if err != nil {
+		slog.WarnContext(r.Context(), "hls-vod: copy fallback rung unresolvable, master stays single-variant",
+			slog.String("media_id", mediaID), slog.Any("err", err))
 		return nil
 	}
+	// The fp here is the KEY log field: a later "software: session started
+	// hash=<fp>" (or "hls: ffmpeg start") on this same hash is the proof the
+	// player actually DROPPED to the rung - advertised vs engaged, one grep.
+	slog.InfoContext(r.Context(), "hls-vod: copy master advertises a fallback rung",
+		slog.String("media_id", mediaID),
+		slog.String("rung", rung.Name),
+		slog.Int64("rung_kbps", rung.VideoBitrate+rung.AudioBitrate),
+		slog.Int64("copy_peak_kbps", copyPeakKbps),
+		slog.String("fp", rpT.FPHash))
 	return &apptranscoding.FallbackVariant{
 		Profile:    rung,
 		URI:        "stream_0.m3u8" + apptranscoding.QuerySuffixFor(inT),
