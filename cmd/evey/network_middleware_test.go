@@ -160,22 +160,18 @@ func TestNetworkMiddleware_FlagFlipIsRaceFree(t *testing.T) {
 	var wg sync.WaitGroup
 	// Writers: both sides of the admin API mutate through the config's own lock.
 	for w := range 2 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for i := range 200 {
 				cfg.ApplyServerSettings(func() {
 					cfg.RemoteAccess.Enabled = (i+w)%2 == 0
 					cfg.RemoteAccess.EnabledExplicit = true
 				})
 			}
-		}()
+		})
 	}
 	// Readers: the request-time gate.
 	for range 4 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for range 200 {
 				rec := httptest.NewRecorder()
 				h.ServeHTTP(rec, newWANRequest("/api/v1/auth/login"))
@@ -184,7 +180,7 @@ func TestNetworkMiddleware_FlagFlipIsRaceFree(t *testing.T) {
 					return
 				}
 			}
-		}()
+		})
 	}
 	wg.Wait()
 }
@@ -197,27 +193,23 @@ func TestPlaybackSkipSeconds_SnapshotIsRaceFree(t *testing.T) {
 	cfg.Playback.SkipBackwardSeconds = 10
 
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		for i := range 300 {
 			cfg.ApplyServerSettings(func() {
 				cfg.Playback.SkipForwardSeconds = 10 + i%50
 				cfg.Playback.SkipBackwardSeconds = 5 + i%20
 			})
 		}
-	}()
+	})
 	for range 4 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for range 300 {
 				if fwd, bwd := cfg.EffectivePlaybackSkipSeconds(); fwd <= 0 || bwd <= 0 {
 					t.Errorf("torn read: fwd=%d bwd=%d", fwd, bwd)
 					return
 				}
 			}
-		}()
+		})
 	}
 	wg.Wait()
 }
