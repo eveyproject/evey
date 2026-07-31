@@ -122,6 +122,18 @@ function destPathFor(mediaItemId: string, ext: string): string {
   return `${directories.documents}/evey-${mediaItemId}.${ext}`;
 }
 
+// expo-file-system's legacy API only accepts real URIs. directories.documents
+// (and therefore every stored filePath) is a BARE absolute path - handed as-is
+// to Android it parses with a null scheme and gets probed as an app RESOURCE:
+// getInfoAsync answers exists:false for a file that IS on disk (offline
+// playback then reported the download missing), and deleteAsync fails inside
+// its try/catch (the gigabytes stayed orphaned after "delete"). Every FS call
+// on a media file path goes through here. The downloader itself is unaffected:
+// createDownloadTask strips a file:// prefix from its destination.
+function toFileUri(path: string): string {
+  return path.startsWith("file://") ? path : `file://${path}`;
+}
+
 // Container/mime aliases that don't map 1:1 to a file extension.
 const EXT_ALIASES: Record<string, string> = {
   matroska: "mkv",
@@ -375,7 +387,7 @@ export async function startDownload(
             inFlightTitles.delete(mediaItemId);
             activeDownloads.delete(mediaItemId);
             unsubscribeProgress?.();
-            void FileSystem.deleteAsync(destPath, { idempotent: true }).catch(() => undefined);
+            void FileSystem.deleteAsync(toFileUri(destPath), { idempotent: true }).catch(() => undefined);
             reject(new Error("NOT_ENOUGH_SPACE"));
           }
         }
@@ -419,7 +431,7 @@ export async function startDownload(
         // A failed download leaves a partial file at destPath that never enters
         // the index, so deleteDownload can never reach it - clean it up here.
         // Deletion must never mask the original rejection.
-        try { await FileSystem.deleteAsync(destPath, { idempotent: true }); } catch (err) { console.warn("caught", err); }
+        try { await FileSystem.deleteAsync(toFileUri(destPath), { idempotent: true }); } catch (err) { console.warn("caught", err); }
         reject(new Error(error || "Download failed"));
       });
 
@@ -476,7 +488,7 @@ export async function rehydrateBackgroundDownloads(): Promise<void> {
         let totalBytes = state?.totalBytes ?? 0;
         if (!totalBytes) {
           try {
-            const info = await FileSystem.getInfoAsync(destPath);
+            const info = await FileSystem.getInfoAsync(toFileUri(destPath));
             if (info.exists && info.size) totalBytes = info.size;
           } catch { /* silent */ }
         }
@@ -495,7 +507,7 @@ export async function rehydrateBackgroundDownloads(): Promise<void> {
         completeHandler(mediaItemId);
         // Same leak as startDownload's error handler: the partial file never
         // entered the index, so it's otherwise unreachable by deleteDownload.
-        try { await FileSystem.deleteAsync(destPath, { idempotent: true }); } catch (err) { console.warn("caught", err); }
+        try { await FileSystem.deleteAsync(toFileUri(destPath), { idempotent: true }); } catch (err) { console.warn("caught", err); }
       });
   }
 }
@@ -523,20 +535,20 @@ export async function cancelDownload(mediaItemId: string): Promise<void> {
   handle.unsubscribe?.();
   try { await handle.task.stop(); } catch (err) { console.warn("caught", err); }
   completeHandler(mediaItemId);
-  try { await FileSystem.deleteAsync(handle.destPath, { idempotent: true }); } catch (err) { console.warn("caught", err); }
+  try { await FileSystem.deleteAsync(toFileUri(handle.destPath), { idempotent: true }); } catch (err) { console.warn("caught", err); }
 }
 
 export async function deleteDownload(mediaItemId: string): Promise<void> {
   const index = await readIndex();
   const item = index.find((i) => i.mediaItemId === mediaItemId);
   if (item) {
-    try { await FileSystem.deleteAsync(item.filePath, { idempotent: true }); } catch (err) { console.warn("caught", err); }
+    try { await FileSystem.deleteAsync(toFileUri(item.filePath), { idempotent: true }); } catch (err) { console.warn("caught", err); }
   }
   await writeIndex(index.filter((i) => i.mediaItemId !== mediaItemId));
 }
 
 async function resolveExistingPath(item: DownloadedMedia, mediaItemId: string): Promise<string | null> {
-  const info = await FileSystem.getInfoAsync(item.filePath);
+  const info = await FileSystem.getInfoAsync(toFileUri(item.filePath));
   if (info.exists) return item.filePath;
   // The index stores the exact path used at download time, so this normally
   // never runs - kept as a tolerant fallback for an index entry that predates
@@ -544,7 +556,7 @@ async function resolveExistingPath(item: DownloadedMedia, mediaItemId: string): 
   for (const ext of ALL_KNOWN_EXT) {
     const candidate = destPathFor(mediaItemId, ext);
     if (candidate === item.filePath) continue;
-    const candidateInfo = await FileSystem.getInfoAsync(candidate);
+    const candidateInfo = await FileSystem.getInfoAsync(toFileUri(candidate));
     if (candidateInfo.exists) return candidate;
   }
   return null;
@@ -625,7 +637,7 @@ export async function getTotalDownloadSize(): Promise<number> {
   let total = 0;
   for (const item of index) {
     try {
-      const info = await FileSystem.getInfoAsync(item.filePath);
+      const info = await FileSystem.getInfoAsync(toFileUri(item.filePath));
       if (info.exists && info.size) total += info.size;
     } catch (err) { console.warn("caught", err); }
   }

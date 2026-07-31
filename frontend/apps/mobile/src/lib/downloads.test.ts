@@ -340,8 +340,12 @@ describe("deleteDownload", () => {
   it("removes file and updates index", async () => {
     await deleteDownload("m1");
 
+    // MUST be a file:// URI: expo-file-system/legacy hands a bare absolute
+    // path to Android with a null scheme, which probes it as an app RESOURCE -
+    // deleteAsync then fails (silently, it's wrapped in try/catch) and the
+    // gigabytes stay orphaned on the device forever.
     expect(fsMock.deleteAsync).toHaveBeenCalledWith(
-      "/data/user/0/app/files/downloads/m1.mp4",
+      "file:///data/user/0/app/files/downloads/m1.mp4",
       { idempotent: true },
     );
     const written = JSON.parse(fsMock.writeAsStringAsync.mock.calls[0][1]);
@@ -363,6 +367,16 @@ describe("getDownloadPath", () => {
     fsMock.getInfoAsync.mockResolvedValue({ exists: true });
     const path = await getDownloadPath("m1");
     expect(path).toBe("/data/user/0/app/files/downloads/m1.mp4");
+  });
+
+  it("probes existence with a file:// URI, never a bare path", async () => {
+    // Same null-scheme trap as deleteAsync above, with a worse symptom: a bare
+    // path makes getInfoAsync answer exists:false for a file that IS on disk,
+    // so offline playback reports the download as missing (the airplane-mode
+    // "stream failed" bug) and online playback silently re-streams it.
+    fsMock.getInfoAsync.mockResolvedValue({ exists: true });
+    await getDownloadPath("m1");
+    expect(fsMock.getInfoAsync).toHaveBeenCalledWith("file:///data/user/0/app/files/downloads/m1.mp4");
   });
 
   it("returns null if file missing on disk", async () => {
@@ -634,8 +648,10 @@ describe("getDownloadPath extension fallback", () => {
     fsMock.readAsStringAsync.mockResolvedValue(JSON.stringify([
       { mediaItemId: "old1", title: "Old", filePath: "/data/user/0/app/files/Documents/evey-old1.mp4", fileSize: 100, downloadedAt: "2025-01-01" },
     ]));
+    // The probe arrives as a file:// URI (see the toFileUri contract tests);
+    // the resolved path handed back to callers stays in stored (bare) form.
     fsMock.getInfoAsync.mockImplementation(async (path: string) => ({
-      exists: path === "/data/user/0/app/files/Documents/evey-old1.mkv",
+      exists: path === "file:///data/user/0/app/files/Documents/evey-old1.mkv",
     }));
 
     const path = await getDownloadPath("old1");
