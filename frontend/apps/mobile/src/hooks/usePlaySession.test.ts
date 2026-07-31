@@ -288,3 +288,61 @@ describe("usePlaySession: server load-shed (503)", () => {
     expect(startStreamMock).toHaveBeenCalled();
   });
 });
+
+// GET /media/{id}/transcode spawns one ffmpeg PER REQUEST and streams its
+// stdout. The shed preflight used to probe that URL too, with a body it never
+// consumed: every DIRECT_STREAM playback start left a phantom remux of the
+// whole film running server-side - including when the player then chose a
+// LOCAL downloaded file as its source. Only the HLS master (idempotent,
+// spawn-free) is probeable.
+describe("usePlaySession: shed preflight scope", () => {
+  const realFetch = global.fetch;
+  const fetchMock = vi.fn();
+
+  beforeEach(() => {
+    global.fetch = fetchMock as unknown as typeof fetch;
+    fetchMock.mockReset();
+  });
+
+  afterEach(() => {
+    global.fetch = realFetch;
+  });
+
+  it("never probes the DIRECT_STREAM /transcode URL (one ffmpeg per GET)", async () => {
+    const { renderHook, waitFor } = await import("@testing-library/react");
+    const { usePlaySession } = await import("./usePlaySession");
+
+    getStreamInfoMock.mockResolvedValue({ playMethod: "PLAY_METHOD_DIRECT_STREAM" });
+    eveyFetchMock
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ token: "t1", mediaId: "m1" });
+    startStreamMock.mockResolvedValue({ id: "sess1" });
+
+    const { result } = renderHook(() => usePlaySession("m1"));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(result.current.streamUrl).toContain("/transcode?");
+  });
+
+  it("probes the HLS master with an abortable request (status wanted, never a body)", async () => {
+    const { renderHook, waitFor } = await import("@testing-library/react");
+    const { usePlaySession } = await import("./usePlaySession");
+
+    getStreamInfoMock.mockResolvedValue({ playMethod: "PLAY_METHOD_TRANSCODE" });
+    eveyFetchMock
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ token: "t1", mediaId: "m1" });
+    startStreamMock.mockResolvedValue({ id: "sess1" });
+    fetchMock.mockResolvedValue({ status: 200, headers: { get: () => null }, json: async () => ({}) });
+
+    const { result } = renderHook(() => usePlaySession("m1"));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("master.m3u8"),
+      expect.objectContaining({ signal: expect.anything() }),
+    );
+    expect(result.current.streamUrl).not.toBeNull();
+  });
+});

@@ -52,15 +52,25 @@ type ShedReason = "too_many_streams" | "file_not_ready" | null;
 // expo-video's PlayerError is just `{ message: string }` - ExoPlayer/AVPlayer
 // give no structured HTTP status or response body, so there is no reliable
 // way to read the shed code off a native player error. Instead, probe the
-// manifest/remux URL directly before handing it to the player: the server
-// returns the code both as an `X-Evey-Error` header and a JSON body (see
+// manifest URL directly before handing it to the player: the server returns
+// the code both as an `X-Evey-Error` header and a JSON body (see
 // transcode_handler_vod.go's writeShed). A second identical GET for the same
 // token right after (the native player fetching the same URL) is expected
 // and safe - repeated HLS manifest requests are idempotent, the same as a
 // manifest reload on seek, so this doesn't consume a second capacity slot.
+//
+// ONLY the HLS master is probeable. The DIRECT_STREAM /transcode endpoint
+// spawns one ffmpeg PER GET and streams its stdout: probing it started a
+// phantom remux of the whole film that nothing ever read (the fetch body was
+// never consumed, so the socket - and ffmpeg - lived on), while its refusal
+// is a 429 this 503 contract never matched anyway. The abort is part of the
+// same guarantee: the probe wants a status line, never a body, and closing
+// the connection is what tells the server the probe is done.
 async function detectShed(url: string): Promise<ShedReason> {
+  if (!url.includes("master.m3u8")) return null;
+  const ctrl = new AbortController();
   try {
-    const res = await fetch(url);
+    const res = await fetch(url, { signal: ctrl.signal });
     if (res.status !== 503) return null;
     const headerCode = res.headers.get("X-Evey-Error");
     if (headerCode === "too_many_streams" || headerCode === "file_not_ready") return headerCode;
@@ -78,6 +88,8 @@ async function detectShed(url: string): Promise<ShedReason> {
     // The preflight itself failed (offline, DNS, ...) - let the native player
     // attempt playback and surface its own generic error if it also fails.
     return null;
+  } finally {
+    ctrl.abort();
   }
 }
 
