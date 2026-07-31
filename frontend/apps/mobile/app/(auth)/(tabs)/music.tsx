@@ -16,7 +16,7 @@ import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, router } from "expo-router";
 import { eveyFetch, useUserServiceGetCurrentUser, useUserServiceListProfiles } from "@evey/api";
 import { Skeleton } from "../../../src/components/Skeleton";
 import { useTheme } from "../../../src/providers/ThemeProvider";
@@ -298,7 +298,7 @@ export default function MusicScreen() {
         return;
       }
       setTrackDownloads((s) => ({ ...s, [track.id]: NaN }));
-      toast.info(t("media.detail.downloadStarted"));
+      toast.info(t("media.detail.downloadStarted"), { onPress: () => router.push("/downloads") });
       try {
         await startDownload(
           track.id,
@@ -346,7 +346,7 @@ export default function MusicScreen() {
       if (albumDownloads[album.id] !== undefined) return;
       if (!activeLibraryID) return;
       setAlbumDownloads((s) => ({ ...s, [album.id]: 0 }));
-      toast.info(t("media.detail.downloadStarted"));
+      toast.info(t("media.detail.downloadStarted"), { onPress: () => router.push("/downloads") });
       try {
         const { tracks: albumTracks } = await eveyFetch<{ tracks: Track[] }>({
           url: `/api/v1/music/tracks?library_id=${activeLibraryID}&album_id=${encodeURIComponent(album.id)}&limit=200`,

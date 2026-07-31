@@ -703,7 +703,7 @@ export default function MediaDetailScreen() {
         return;
       }
       setEpisodeDownloads((s) => ({ ...s, [ep.id!]: NaN }));
-      if (!opts?.silent) toast.info(t("media.detail.downloadStarted"));
+      if (!opts?.silent) toast.info(t("media.detail.downloadStarted"), { onPress: () => router.push("/downloads") });
       try {
         await startDownload(
           ep.id,
@@ -760,7 +760,7 @@ export default function MediaDetailScreen() {
     const targets = episodes.filter((ep) => ep.id && hasMediaFile(ep));
     if (targets.length === 0) return;
     setBulkDownload({ done: 0, total: targets.length });
-    toast.info(t("media.detail.downloadStarted"));
+    toast.info(t("media.detail.downloadStarted"), { onPress: () => router.push("/downloads") });
     let done = 0;
     for (const ep of targets) {
       try {
@@ -1153,7 +1153,7 @@ export default function MediaDetailScreen() {
                 const existing = await getDownloadPath(id);
                 if (existing) { confirmDeleteDownload(id, media.title); return; }
                 setDownloadProgress(NaN);
-                toast.info(t("media.detail.downloadStarted"));
+                toast.info(t("media.detail.downloadStarted"), { onPress: () => router.push("/downloads") });
                 try {
                   await startDownload(id, media.title,
                     (p, b) => { setDownloadProgress(p); if (b) setDownloadBytes(b); },

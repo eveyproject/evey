@@ -14,6 +14,13 @@ describe("useToastStore", () => {
     expect(id).toMatch(/^toast-\d+$/);
   });
 
+  it("carries the optional onPress through the helpers", () => {
+    const onPress = () => undefined;
+    toast.info("tap me", { onPress });
+    const [entry] = useToastStore.getState().toasts;
+    expect(entry.onPress).toBe(onPress);
+  });
+
   it("generates unique ids per toast", () => {
     const a = useToastStore.getState().addToast({ type: "info", message: "a" });
     const b = useToastStore.getState().addToast({ type: "info", message: "b" });

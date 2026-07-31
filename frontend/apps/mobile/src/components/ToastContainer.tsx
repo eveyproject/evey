@@ -67,10 +67,22 @@ const ToastItem = memo(function ToastItem({ toast }: { toast: Toast }) {
         },
       ]}
     >
-      <Ionicons name={ICON_MAP[toast.type]} size={ICON_SIZE.lg} color={color} style={styles.icon} />
-      <Text style={[styles.message, { color: theme.colors.text }]} numberOfLines={2}>
-        {toast.message}
-      </Text>
+      <Pressable
+        style={styles.body}
+        disabled={!toast.onPress}
+        onPress={() => {
+          toast.onPress?.();
+          remove(toast.id);
+        }}
+        accessible
+        accessibilityRole={toast.onPress ? "button" : undefined}
+        accessibilityLabel={toast.message}
+      >
+        <Ionicons name={ICON_MAP[toast.type]} size={ICON_SIZE.lg} color={color} style={styles.icon} />
+        <Text style={[styles.message, { color: theme.colors.text }]} numberOfLines={2}>
+          {toast.message}
+        </Text>
+      </Pressable>
       <Pressable onPress={() => remove(toast.id)} hitSlop={8} accessible accessibilityLabel={t("common.aria.dismiss", "Dismiss")} accessibilityRole="button">
         <Ionicons name="close" size={ICON_SIZE.lg} color={theme.colors.textMuted} />
       </Pressable>
@@ -119,5 +131,6 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
   },
   icon: { marginRight: 10 },
+  body: { flex: 1, flexDirection: "row", alignItems: "center" },
   message: { flex: 1, fontSize: FONT_SIZE.sm },
 });

@@ -7,6 +7,8 @@ interface Toast {
   type: ToastType;
   message: string;
   duration?: number;
+  /** Makes the toast body tappable (e.g. "download started" -> Downloads screen). */
+  onPress?: () => void;
 }
 
 interface ToastState {
@@ -32,15 +34,19 @@ export const useToastStore = create<ToastState>()((set) => ({
     set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) })),
 }));
 
+interface ToastOptions {
+  onPress?: () => void;
+}
+
 export const toast = {
-  success: (message: string) =>
-    useToastStore.getState().addToast({ type: "success", message }),
-  error: (message: string) =>
-    useToastStore.getState().addToast({ type: "error", message, duration: 6000 }),
-  info: (message: string) =>
-    useToastStore.getState().addToast({ type: "info", message }),
-  warning: (message: string) =>
-    useToastStore.getState().addToast({ type: "warning", message }),
+  success: (message: string, opts?: ToastOptions) =>
+    useToastStore.getState().addToast({ type: "success", message, ...opts }),
+  error: (message: string, opts?: ToastOptions) =>
+    useToastStore.getState().addToast({ type: "error", message, duration: 6000, ...opts }),
+  info: (message: string, opts?: ToastOptions) =>
+    useToastStore.getState().addToast({ type: "info", message, ...opts }),
+  warning: (message: string, opts?: ToastOptions) =>
+    useToastStore.getState().addToast({ type: "warning", message, ...opts }),
 };
 
 export type { Toast, ToastType };
