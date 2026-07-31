@@ -260,6 +260,7 @@ detail:
   downloadComplete: Download complete
   downloadFailed: Download failed
   downloadNoSpace: "Not enough storage space on the device for this download."
+  downloadNoSpaceAudioPass: "This film's audio must be converted after download to play on this device, which temporarily needs free space equal to twice the file size."
   communityRating: 'Community: {{average}}/5 ({{count}} ratings)'
   downloadAllEpisodes: Download all
   invalidRating: Rating must be between 0 and 10

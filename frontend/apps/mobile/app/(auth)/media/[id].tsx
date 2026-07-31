@@ -43,7 +43,7 @@ import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { artworkUrl } from "../../../src/lib/artwork";
 import { certInfoForLocale } from "../../../src/lib/certifications";
 import { useIsFavorite, useToggleFavorite } from "../../../src/hooks/useFavorite";
-import { startDownload, getDownloadPath, deleteDownload, type ProgressBytes } from "../../../src/lib/downloads";
+import { startDownload, getDownloadPath, deleteDownload, downloadErrorMessageKey, type ProgressBytes } from "../../../src/lib/downloads";
 import { formatBytes } from "../../../src/lib/formatBytes";
 import { buildDownloadAuthContext } from "../../../src/lib/downloadContext";
 import { toast } from "@evey/store";
@@ -736,10 +736,7 @@ export default function MediaDetailScreen() {
         if (!opts?.silent) toast.success(t("media.detail.downloadComplete"));
       } catch (err) {
         if (!opts?.silent) {
-          const msg = err instanceof Error && err.message === "NOT_ENOUGH_SPACE"
-            ? t("media.detail.downloadNoSpace")
-            : t("media.detail.downloadFailed");
-          toast.error(msg);
+          toast.error(t(downloadErrorMessageKey(err)));
         }
         throw err;
       } finally {
@@ -1183,10 +1180,7 @@ export default function MediaDetailScreen() {
                   // as a contradictory success+error to the user (reported on
                   // a 2.8 GB file). NOT_ENOUGH_SPACE is the one client failure
                   // the user can act on.
-                  const msg = err instanceof Error && err.message === "NOT_ENOUGH_SPACE"
-                    ? t("media.detail.downloadNoSpace")
-                    : t("media.detail.downloadFailed");
-                  toast.error(msg);
+                  toast.error(t(downloadErrorMessageKey(err)));
                 } finally {
                   setDownloadProgress(null);
                   setDownloadBytes(null);

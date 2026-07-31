@@ -249,6 +249,7 @@ detail:
   downloadComplete: डाउनलोड पूरा हुआ
   downloadFailed: डाउनलोड विफल
   downloadNoSpace: "इस डाउनलोड के लिए डिवाइस पर पर्याप्त संग्रहण स्थान नहीं है।"
+  downloadNoSpaceAudioPass: "इस डिवाइस पर आवाज़ चलाने के लिए डाउनलोड के बाद इस फ़िल्म का ऑडियो बदलना होगा - इसके लिए अस्थायी रूप से फ़ाइल के आकार से दोगुना खाली स्थान चाहिए।"
   communityRating: 'समुदाय: {{average}}/5 ({{count}} रेटिंग)'
   downloadAllEpisodes: "सभी डाउनलोड करें"
   invalidRating: "रेटिंग 0 और 10 के बीच होनी चाहिए"

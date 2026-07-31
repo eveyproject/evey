@@ -25,7 +25,7 @@ import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useDebounce } from "../../../src/hooks/useDebounce";
 import { useMusicQueueStore, type QueueTrack } from "../../../src/stores/musicQueue";
 import { AddToPlaylistSheet } from "../../../src/components/AddToPlaylistSheet";
-import { startDownload, getDownloadPath, deleteDownload } from "../../../src/lib/downloads";
+import { startDownload, getDownloadPath, deleteDownload, downloadErrorMessageKey } from "../../../src/lib/downloads";
 import { buildDownloadAuthContext } from "../../../src/lib/downloadContext";
 import { toast, useAuthStore } from "@evey/store";
 import { TrackArt } from "../../../src/components/music/TrackArt";
@@ -318,10 +318,7 @@ export default function MusicScreen() {
         );
         toast.success(t("media.detail.downloadComplete"));
       } catch (err) {
-        const msg = err instanceof Error && err.message === "NOT_ENOUGH_SPACE"
-          ? t("media.detail.downloadNoSpace")
-          : t("media.detail.downloadFailed");
-        toast.error(msg);
+        toast.error(t(downloadErrorMessageKey(err)));
       } finally {
         setTrackDownloads((s) => {
           const next = { ...s };
@@ -376,10 +373,7 @@ export default function MusicScreen() {
         }
         toast.success(downloadedAny ? t("media.detail.downloadComplete") : t("media.detail.alreadyDownloaded"));
       } catch (err) {
-        const msg = err instanceof Error && err.message === "NOT_ENOUGH_SPACE"
-          ? t("media.detail.downloadNoSpace")
-          : t("media.detail.downloadFailed");
-        toast.error(msg);
+        toast.error(t(downloadErrorMessageKey(err)));
       } finally {
         setAlbumDownloads((s) => {
           const next = { ...s };

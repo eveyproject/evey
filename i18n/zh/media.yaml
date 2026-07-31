@@ -249,6 +249,7 @@ detail:
   downloadComplete: 下载完成
   downloadFailed: 下载失败
   downloadNoSpace: "设备存储空间不足，无法完成此下载。"
+  downloadNoSpaceAudioPass: "此影片的音轨需在下载后转换才能在本设备上发声，转换期间需要相当于文件大小两倍的可用空间。"
   communityRating: 社区：{{average}}/5（{{count}} 条评分）
   downloadAllEpisodes: "全部下载"
   invalidRating: "评分必须介于 0 到 10 之间"

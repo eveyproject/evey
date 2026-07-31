@@ -20,6 +20,7 @@ import {
 import { eveyFetch, libraryServiceGetMediaItem } from "@evey/api";
 import { getPublicDownloadsDir } from "@evey/media-caps";
 import { getServerUrl } from "./server-config";
+import { getDeviceAudioCodecs } from "./deviceCodecs";
 import { canPlayOffline, OfflineAccessError, type OfflineProfileInfo } from "./offlineAccess";
 
 // Persistent download index: same path as before so existing offline files
@@ -133,6 +134,60 @@ export function hasRenderableAudio(
   if (codecs.length === 0) return true;
   const device = new Set(deviceCodecs.map((c) => c.trim().toLowerCase()));
   return codecs.some((c) => device.has(c));
+}
+
+// Codecs the on-device post-download audio pass can rewrite to AAC (ac3go's
+// domain). DTS/TrueHD are deliberately absent: no on-device pass exists for
+// them, so reserving 2x their size would hold storage hostage for a fix that
+// never runs (their path is the server-side transcode-to-file, when it lands).
+const AUDIO_COMPAT_PASS_CODECS = new Set(["ac3", "eac3"]);
+
+/**
+ * Whether this download will need the post-download audio-compat pass to be
+ * hearable on this device: no recorded track is device-decodable AND at least
+ * one is a codec the pass can rewrite. Pure, like hasRenderableAudio.
+ */
+export function needsAudioCompatPass(
+  entry: Pick<DownloadedMedia, "audioCodecs">,
+  deviceCodecs: string[],
+): boolean {
+  if (hasRenderableAudio(entry, deviceCodecs)) return false;
+  return (entry.audioCodecs ?? []).some((c) => AUDIO_COMPAT_PASS_CODECS.has(c.trim().toLowerCase()));
+}
+
+/**
+ * Free bytes a download must find before it starts. The compat pass remuxes
+ * the file next to itself (source + rewritten copy coexist until the swap), so
+ * a pass-needing download costs TWICE its size transiently - and that must be
+ * refused BEFORE gigabytes land, not when the pass later finds the disk full:
+ * paying 19 GB to discover an unfixable silent film is the exact failure the
+ * pass exists to remove. Pure for the same testability reason as above.
+ */
+export function requiredDownloadBytes(expectedBytes: number, compatPass: boolean): number {
+  return (compatPass ? expectedBytes * 2 : expectedBytes) + DISK_HEADROOM_BYTES;
+}
+
+// The two disk-space rejections are distinct on purpose: "not enough space"
+// with 30 GB free reads as a bug unless the message can explain that THIS
+// film transiently needs double its size (see requiredDownloadBytes).
+export const ERR_NOT_ENOUGH_SPACE = "NOT_ENOUGH_SPACE";
+export const ERR_NOT_ENOUGH_SPACE_AUDIO_PASS = "NOT_ENOUGH_SPACE_AUDIO_PASS";
+
+/**
+ * The i18n key for a failed download's toast. Every download call site used to
+ * re-derive this mapping inline; the decision lives here once so the two space
+ * rejections and the generic failure can't drift apart across screens.
+ */
+export function downloadErrorMessageKey(err: unknown): string {
+  const msg = err instanceof Error ? err.message : "";
+  switch (msg) {
+    case ERR_NOT_ENOUGH_SPACE_AUDIO_PASS:
+      return "media.detail.downloadNoSpaceAudioPass";
+    case ERR_NOT_ENOUGH_SPACE:
+      return "media.detail.downloadNoSpace";
+    default:
+      return "media.detail.downloadFailed";
+  }
 }
 
 // A media id must never carry characters that let it escape the sandbox
@@ -412,6 +467,10 @@ export async function startDownload(
   inFlightTitles.set(mediaItemId, title);
 
   const audioCodecs = opts?.audioCodecs;
+  // Decided at start (audioCodecs came with the item, the device probe is
+  // sync): will this file need the post-download audio pass? Videos only -
+  // the pass is a video-container remux, a music track never takes it.
+  const compatPass = kind === "video" && needsAudioCompatPass({ audioCodecs }, getDeviceAudioCodecs());
   const authContext: DownloadAuthContext = {
     downloadedByProfileId: opts?.downloadedByProfileId,
     downloadedByIsKids: opts?.downloadedByIsKids,
@@ -458,14 +517,15 @@ export async function startDownload(
           // platform build, and a missing free-space reading must skip the
           // check rather than crash the download.
           const free = Paths?.availableDiskSpace;
-          if (typeof free === "number" && free > 0 && expectedBytes + DISK_HEADROOM_BYTES > free) {
+          if (typeof free === "number" && free > 0 && requiredDownloadBytes(expectedBytes, compatPass) > free) {
+            console.log(`evey-dl no-space ${mediaItemId} expected=${expectedBytes} free=${free} compatPass=${compatPass}`);
             task.stop();
             inFlight.delete(mediaItemId);
             inFlightTitles.delete(mediaItemId);
             activeDownloads.delete(mediaItemId);
             unsubscribeProgress?.();
             void FileSystem.deleteAsync(toFileUri(destPath), { idempotent: true }).catch(() => undefined);
-            reject(new Error("NOT_ENOUGH_SPACE"));
+            reject(new Error(compatPass ? ERR_NOT_ENOUGH_SPACE_AUDIO_PASS : ERR_NOT_ENOUGH_SPACE));
           }
         }
       })

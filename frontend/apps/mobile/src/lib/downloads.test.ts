@@ -88,6 +88,17 @@ vi.mock("./server-config", () => ({
   getServerUrl: vi.fn().mockResolvedValue("https://evey.test"),
 }));
 
+// Device audio codecs consulted by the pre-download compat-pass decision.
+// Mocked because the real module reaches for react-native's NativeModules;
+// a mutable holder so tests can shape the device (no ac3 by default - the
+// common Android reality the 2x guard exists for).
+const { deviceCodecs } = vi.hoisted(() => ({
+  deviceCodecs: { value: ["aac", "mp3", "opus", "flac"] },
+}));
+vi.mock("./deviceCodecs", () => ({
+  getDeviceAudioCodecs: () => deviceCodecs.value,
+}));
+
 import * as FileSystem from "expo-file-system/legacy";
 const fsMock = FileSystem as unknown as Record<string, ReturnType<typeof vi.fn>>;
 
@@ -115,6 +126,11 @@ import {
   getInFlightBytes,
   getDownloadedMedia,
   hasRenderableAudio,
+  needsAudioCompatPass,
+  requiredDownloadBytes,
+  downloadErrorMessageKey,
+  ERR_NOT_ENOUGH_SPACE,
+  ERR_NOT_ENOUGH_SPACE_AUDIO_PASS,
 } from "./downloads";
 import { buildDownloadAuthContext } from "./downloadContext";
 import { canPlayOffline } from "./offlineAccess";
@@ -808,5 +824,89 @@ describe("startDownload + buildDownloadAuthContext wiring closes the offline-acc
     const written = lastWrittenIndex();
     const entry = written.find((e) => e.mediaItemId === "m32") as unknown as import("./downloads").DownloadedMedia;
     expect(canPlayOffline(entry, adultProfile, Date.now())).toEqual({ allowed: true });
+  });
+});
+
+// The compat pass rewrites the file next to itself, so a pass-needing download
+// transiently costs TWICE its size. That must be refused BEFORE gigabytes
+// land: paying 19 GB to discover an unfixable silent film is the exact failure
+// the pass exists to remove.
+describe("audio compat pass disk guard", () => {
+  it("needsAudioCompatPass: only for non-renderable audio the pass can rewrite", () => {
+    const noAc3Device = ["aac", "mp3"];
+    expect(needsAudioCompatPass({ audioCodecs: ["ac3"] }, noAc3Device)).toBe(true);
+    expect(needsAudioCompatPass({ audioCodecs: ["EAC3"] }, noAc3Device)).toBe(true);
+    // Renderable somewhere: the local file already plays with sound.
+    expect(needsAudioCompatPass({ audioCodecs: ["ac3", "aac"] }, noAc3Device)).toBe(false);
+    expect(needsAudioCompatPass({ audioCodecs: ["ac3"] }, ["ac3"])).toBe(false);
+    // DTS/TrueHD: silent AND not fixable on device - reserving 2x would hold
+    // storage hostage for a pass that never runs.
+    expect(needsAudioCompatPass({ audioCodecs: ["dts"] }, noAc3Device)).toBe(false);
+    expect(needsAudioCompatPass({ audioCodecs: ["truehd"] }, noAc3Device)).toBe(false);
+    // Legacy entry without codec capture: assumed playable, never gated.
+    expect(needsAudioCompatPass({ audioCodecs: [] }, noAc3Device)).toBe(false);
+    expect(needsAudioCompatPass({}, noAc3Device)).toBe(false);
+  });
+
+  it("requiredDownloadBytes doubles the file only when the pass will run", () => {
+    const headroom = 200 * 1024 * 1024;
+    expect(requiredDownloadBytes(1000, false)).toBe(1000 + headroom);
+    expect(requiredDownloadBytes(1000, true)).toBe(2000 + headroom);
+  });
+
+  it("refuses an ac3-only film that fits once but not twice, with the dedicated error", async () => {
+    // 10 GB file, 15 GB free: the download alone fits, download + rewritten
+    // copy does not.
+    diskSpace.available = 15 * 1024 * 1024 * 1024;
+    const pending = startDownload("ac3film", "Dolby Film", undefined, { audioCodecs: ["ac3"] });
+    const handlers = await waitForTask("ac3film");
+    handlers.begin?.({ expectedBytes: 10 * 1024 * 1024 * 1024, headers: {} });
+
+    await expect(pending).rejects.toThrow(ERR_NOT_ENOUGH_SPACE_AUDIO_PASS);
+    expect(taskStops).toContain("ac3film");
+  });
+
+  it("allows the same film when free space covers twice its size", async () => {
+    diskSpace.available = 25 * 1024 * 1024 * 1024;
+    const pending = startDownload("ac3film2", "Dolby Film 2", undefined, { audioCodecs: ["ac3"] });
+    const handlers = await waitForTask("ac3film2");
+    handlers.begin?.({ expectedBytes: 10 * 1024 * 1024 * 1024, headers: {} });
+    handlers.done?.({ id: "ac3film2" });
+    await expect(pending).resolves.toBeTruthy();
+  });
+
+  it("keeps the 1x guard for renderable audio (device decodes a track)", async () => {
+    deviceCodecs.value = ["aac", "ac3"];
+    try {
+      diskSpace.available = 15 * 1024 * 1024 * 1024;
+      const pending = startDownload("ac3ok", "Dolby On Capable Device", undefined, { audioCodecs: ["ac3"] });
+      const handlers = await waitForTask("ac3ok");
+      handlers.begin?.({ expectedBytes: 10 * 1024 * 1024 * 1024, headers: {} });
+      handlers.done?.({ id: "ac3ok" });
+      await expect(pending).resolves.toBeTruthy();
+    } finally {
+      deviceCodecs.value = ["aac", "mp3", "opus", "flac"];
+    }
+  });
+
+  it("never doubles a music download (the pass is a video-container remux)", async () => {
+    diskSpace.available = 15 * 1024 * 1024 * 1024;
+    const pending = startDownload("track1", "Some Track", undefined, {
+      kind: "audio",
+      audioCodecs: ["ac3"],
+    });
+    const handlers = await waitForTask("track1");
+    handlers.begin?.({ expectedBytes: 10 * 1024 * 1024 * 1024, headers: {} });
+    handlers.done?.({ id: "track1" });
+    await expect(pending).resolves.toBeTruthy();
+  });
+
+  it("downloadErrorMessageKey maps each failure to its one message", () => {
+    expect(downloadErrorMessageKey(new Error(ERR_NOT_ENOUGH_SPACE_AUDIO_PASS)))
+      .toBe("media.detail.downloadNoSpaceAudioPass");
+    expect(downloadErrorMessageKey(new Error(ERR_NOT_ENOUGH_SPACE)))
+      .toBe("media.detail.downloadNoSpace");
+    expect(downloadErrorMessageKey(new Error("boom"))).toBe("media.detail.downloadFailed");
+    expect(downloadErrorMessageKey("not-an-error")).toBe("media.detail.downloadFailed");
   });
 });

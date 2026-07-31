@@ -249,6 +249,7 @@ detail:
   downloadComplete: Download abgeschlossen
   downloadFailed: Download fehlgeschlagen
   downloadNoSpace: "Nicht genug Speicherplatz auf dem Gerät für diesen Download."
+  downloadNoSpaceAudioPass: "Die Tonspur dieses Films muss nach dem Download für dieses Gerät konvertiert werden - dafür wird vorübergehend freier Speicher in doppelter Dateigröße benötigt."
   communityRating: 'Community: {{average}}/5 ({{count}} Bewertungen)'
   downloadAllEpisodes: Alle herunterladen
   invalidRating: Bewertung muss zwischen 0 und 10 liegen

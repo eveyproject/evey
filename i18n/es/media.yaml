@@ -249,6 +249,7 @@ detail:
   downloadComplete: Descarga completada
   downloadFailed: Error en la descarga
   downloadNoSpace: "No hay suficiente espacio de almacenamiento en el dispositivo para esta descarga."
+  downloadNoSpaceAudioPass: "El audio de esta película debe convertirse tras la descarga para sonar en este dispositivo: se necesita temporalmente espacio libre equivalente al doble del tamaño del archivo."
   communityRating: 'Comunidad: {{average}}/5 ({{count}} valoraciones)'
   downloadAllEpisodes: Descargar todo
   invalidRating: La calificación debe estar entre 0 y 10
