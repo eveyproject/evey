@@ -281,7 +281,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 	}()
 
 	netDetector := network.NewDetector(cfg.RemoteAccess.LANNetworks)
-	netMw := networkMiddleware(netDetector, &cfg.RemoteAccess.Enabled, slog.Default())
+	netMw := networkMiddleware(netDetector, cfg.EffectiveRemoteAccessEnabled, slog.Default())
 
 	proxyTrust, err := network.NewProxyTrust(cfg.Server.TrustedProxies, cfg.Server.RealIPHeader, cfg.Server.ForwardedProto)
 	if err != nil {

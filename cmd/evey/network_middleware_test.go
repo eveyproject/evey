@@ -4,11 +4,14 @@ import (
 	"bytes"
 	"encoding/json"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 
+	"github.com/evey-project/evey/internal/config"
 	"github.com/evey-project/evey/internal/pkg/network"
 )
 
@@ -17,17 +20,23 @@ import (
 // raw translation keys - so the operator saw nothing and the user saw gibberish.
 // These tests pin all three fixes.
 
-func newWANRequest(path string) *http.Request {
+// fromBoundary is a request as the gate sees it in production: the proxy-trust
+// middleware ran first and put the ONE validated client IP in the context. The
+// gate reads only that - never a header - so a test that skips this step is
+// testing an unvalidated request, which is WAN by contract.
+func fromBoundary(path, ip string) *http.Request {
 	r := httptest.NewRequest(http.MethodGet, path, nil)
-	// The proxy-trust middleware has already collapsed X-Forwarded-For by the
-	// time netMw runs, so RemoteAddr IS the real client.
-	r.RemoteAddr = "203.0.113.9:41234"
-	return r
+	r.RemoteAddr = ip + ":41234"
+	return r.WithContext(network.WithClientIP(r.Context(), net.ParseIP(ip)))
+}
+
+func newWANRequest(path string) *http.Request {
+	return fromBoundary(path, "203.0.113.9")
 }
 
 func gateHandler(enabled bool, logger *slog.Logger) http.Handler {
 	detector := network.NewDetector([]string{"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"})
-	mw := networkMiddleware(detector, &enabled, logger)
+	mw := networkMiddleware(detector, func() bool { return enabled }, logger)
 	return mw(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("reached"))
@@ -114,8 +123,7 @@ func TestNetworkMiddleware_RefusalLogIsThrottledPerClient(t *testing.T) {
 func TestNetworkMiddleware_LANAndEnabledRemoteBothPassThrough(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
 
-	lan := httptest.NewRequest(http.MethodGet, "/api/v1/auth/login", nil)
-	lan.RemoteAddr = "192.168.1.50:5000"
+	lan := fromBoundary("/api/v1/auth/login", "192.168.1.50")
 	rec := httptest.NewRecorder()
 	gateHandler(false, logger).ServeHTTP(rec, lan)
 	if rec.Code != http.StatusOK {
@@ -130,4 +138,86 @@ func TestNetworkMiddleware_LANAndEnabledRemoteBothPassThrough(t *testing.T) {
 	if got := rec.Header().Get("X-Evey-Network"); got != "wan" {
 		t.Errorf("X-Evey-Network = %q, want \"wan\"", got)
 	}
+}
+
+// The gate reads RemoteAccess.Enabled on every request while an admin PUT can
+// flip it at any moment. Until 2026-08-01 the middleware held a raw *bool into
+// the config struct and read it with no synchronization, while the REST and
+// gRPC handlers wrote it under two DIFFERENT private mutexes - so not even the
+// two writers excluded each other.
+//
+// Run with -race, this fails on the old code and passes on the accessor.
+func TestNetworkMiddleware_FlagFlipIsRaceFree(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.RemoteAccess.LANNetworks = []string{"192.168.0.0/16"}
+	cfg.RemoteAccess.Enabled = false
+
+	detector := network.NewDetector(cfg.RemoteAccess.LANNetworks)
+	h := networkMiddleware(detector, cfg.EffectiveRemoteAccessEnabled,
+		slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)),
+	)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) }))
+
+	var wg sync.WaitGroup
+	// Writers: both sides of the admin API mutate through the config's own lock.
+	for w := range 2 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := range 200 {
+				cfg.ApplyServerSettings(func() {
+					cfg.RemoteAccess.Enabled = (i+w)%2 == 0
+					cfg.RemoteAccess.EnabledExplicit = true
+				})
+			}
+		}()
+	}
+	// Readers: the request-time gate.
+	for range 4 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for range 200 {
+				rec := httptest.NewRecorder()
+				h.ServeHTTP(rec, newWANRequest("/api/v1/auth/login"))
+				if rec.Code != http.StatusOK && rec.Code != http.StatusForbidden {
+					t.Errorf("unexpected status %d", rec.Code)
+					return
+				}
+			}
+		}()
+	}
+	wg.Wait()
+}
+
+// The settings pair is read as ONE snapshot: a reader must never observe the
+// forward value of one update next to the backward value of another.
+func TestPlaybackSkipSeconds_SnapshotIsRaceFree(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.Playback.SkipForwardSeconds = 30
+	cfg.Playback.SkipBackwardSeconds = 10
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := range 300 {
+			cfg.ApplyServerSettings(func() {
+				cfg.Playback.SkipForwardSeconds = 10 + i%50
+				cfg.Playback.SkipBackwardSeconds = 5 + i%20
+			})
+		}
+	}()
+	for range 4 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for range 300 {
+				if fwd, bwd := cfg.EffectivePlaybackSkipSeconds(); fwd <= 0 || bwd <= 0 {
+					t.Errorf("torn read: fwd=%d bwd=%d", fwd, bwd)
+					return
+				}
+			}
+		}()
+	}
+	wg.Wait()
 }

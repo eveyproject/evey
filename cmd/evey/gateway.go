@@ -138,7 +138,11 @@ func networkGateExempt(path string) bool {
 		strings.HasPrefix(path, "/api/v1/i18n/")
 }
 
-func networkMiddleware(detector *network.Detector, remoteEnabled *bool, logger *slog.Logger) func(http.Handler) http.Handler {
+// remoteEnabled is read on every request and flipped by an admin PUT at any
+// moment, so it is a locked ACCESSOR, never a pointer to the config field: a
+// raw *bool here read the flag with no synchronization at all while the REST
+// and gRPC handlers wrote it under two different private mutexes.
+func networkMiddleware(detector *network.Detector, remoteEnabled func() bool, logger *slog.Logger) func(http.Handler) http.Handler {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -174,7 +178,7 @@ func networkMiddleware(detector *network.Detector, remoteEnabled *bool, logger *
 				return
 			}
 			nt := detector.Detect(r)
-			if nt == network.WAN && !*remoteEnabled {
+			if nt == network.WAN && !remoteEnabled() {
 				clientIP := "unknown"
 				if ip := network.ClientIP(r); ip != nil {
 					clientIP = ip.String()

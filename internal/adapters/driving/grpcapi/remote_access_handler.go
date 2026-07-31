@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
-	"sync"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	"github.com/evey-project/evey/internal/config"
@@ -22,9 +21,12 @@ type remoteAccessConfigStore interface {
 	Set(ctx context.Context, key, value string) error
 }
 
+// The handler holds no mutex of its own: these fields are shared with the REST
+// handler and with the request-time remote-access gate, so the only lock that
+// means anything is the config's own (cfg.WithReadLock / ApplyServerSettings).
+// A private mutex here excluded neither of them.
 type remoteAccessHandler struct {
 	eveyv1.UnimplementedRemoteAccessServiceServer
-	mu    sync.RWMutex
 	cfg   *config.Config
 	store remoteAccessConfigStore
 }
@@ -32,10 +34,11 @@ type remoteAccessHandler struct {
 func (h *remoteAccessHandler) GetRemoteAccess(ctx context.Context, _ *eveyv1.GetRemoteAccessRequest) (*eveyv1.RemoteAccessConfig, error) {
 	_, span := tracing.StartSpan(ctx, "grpc.remote_access.GetRemoteAccess")
 	defer span.End()
-	h.mu.RLock()
-	defer h.mu.RUnlock()
-	out := raConfigToProto(&h.cfg.RemoteAccess, h.cfg.Server.BaseURL)
-	out.ServerBaseUrl = h.cfg.Server.BaseURL
+	var out *eveyv1.RemoteAccessConfig
+	h.cfg.WithReadLock(func() {
+		out = raConfigToProto(&h.cfg.RemoteAccess, h.cfg.Server.BaseURL)
+		out.ServerBaseUrl = h.cfg.Server.BaseURL
+	})
 	return out, nil
 }
 
@@ -54,25 +57,27 @@ func (h *remoteAccessHandler) UpdateRemoteAccess(ctx context.Context, req *eveyv
 			return nil, status.Errorf(codes.InvalidArgument, "invalid ExternalURL: %v", err)
 		}
 	}
-	h.mu.Lock()
-	if req.Enabled != nil {
-		h.cfg.RemoteAccess.Enabled = *req.Enabled
-		// Mark it as an operator choice so the boot-time inference
-		// (config.ResolveRemoteAccess) never overrides it - see access_handler.go.
-		h.cfg.RemoteAccess.EnabledExplicit = true
-	}
-	if req.ExternalUrl != nil {
-		h.cfg.RemoteAccess.ExternalURL = *req.ExternalUrl
-	}
-	if len(req.LanNetworks) > 0 {
-		h.cfg.RemoteAccess.LANNetworks = req.LanNetworks
-	}
-	if req.MaxRemoteBitrateKbps != nil {
-		h.cfg.RemoteAccess.MaxRemoteBitrateKbps = int(*req.MaxRemoteBitrateKbps)
-	}
-	snapshot := h.cfg.RemoteAccess
-	baseURL := h.cfg.Server.BaseURL
-	h.mu.Unlock()
+	var snapshot config.RemoteAccessConfig
+	var baseURL string
+	h.cfg.ApplyServerSettings(func() {
+		if req.Enabled != nil {
+			h.cfg.RemoteAccess.Enabled = *req.Enabled
+			// Mark it as an operator choice so the boot-time inference
+			// (config.ResolveRemoteAccess) never overrides it - see access_handler.go.
+			h.cfg.RemoteAccess.EnabledExplicit = true
+		}
+		if req.ExternalUrl != nil {
+			h.cfg.RemoteAccess.ExternalURL = *req.ExternalUrl
+		}
+		if len(req.LanNetworks) > 0 {
+			h.cfg.RemoteAccess.LANNetworks = req.LanNetworks
+		}
+		if req.MaxRemoteBitrateKbps != nil {
+			h.cfg.RemoteAccess.MaxRemoteBitrateKbps = int(*req.MaxRemoteBitrateKbps)
+		}
+		snapshot = h.cfg.RemoteAccess
+		baseURL = h.cfg.Server.BaseURL
+	})
 
 	if h.store != nil {
 		if data, err := json.Marshal(snapshot); err == nil {
@@ -81,7 +86,7 @@ func (h *remoteAccessHandler) UpdateRemoteAccess(ctx context.Context, req *eveyv
 			}
 		}
 	}
-	out := raConfigToProto(&snapshot, h.cfg.Server.BaseURL)
+	out := raConfigToProto(&snapshot, baseURL)
 	out.ServerBaseUrl = baseURL
 	return out, nil
 }

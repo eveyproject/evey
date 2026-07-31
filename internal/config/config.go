@@ -495,6 +495,27 @@ func (c *Config) EffectiveAV1MaxHeight() int {
 	return c.Transcoding.AV1MaxHeight
 }
 
+// EffectiveRemoteAccessEnabled reports whether clients outside the LAN are
+// allowed in. The remote-access gate reads it on EVERY request while an admin
+// PUT can flip it at any moment - the one runtime-mutable setting that had kept
+// a raw *bool handed to the middleware instead of an accessor, so the hot path
+// read it with no lock at all while two handlers wrote it under two DIFFERENT
+// private mutexes (they did not even synchronize with each other).
+func (c *Config) EffectiveRemoteAccessEnabled() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.RemoteAccess.Enabled
+}
+
+// EffectivePlaybackSkipSeconds returns the forward/backward skip steps as one
+// consistent pair - the same twin shape as the remote-access flag: two handlers
+// (REST + gRPC) mutate them under two unrelated mutexes.
+func (c *Config) EffectivePlaybackSkipSeconds() (forward, backward int) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.Playback.SkipForwardSeconds, c.Playback.SkipBackwardSeconds
+}
+
 // EffectiveSkipPreviewEnabled reads the intro-provider skip-preview toggle under
 // the read lock. The segments handler calls it live per request, so it must not
 // race the admin PUT that flips Metadata.SkipPreviewEnabled.
