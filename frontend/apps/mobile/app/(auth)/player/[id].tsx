@@ -21,7 +21,8 @@ import {
   readDeviceVolumeFraction,
   setDeviceVolumeFraction,
 } from "../../../src/lib/deviceVolume";
-import { getDownloadPath } from "../../../src/lib/downloads";
+import { getDownloadPath, getDownloadedMedia, hasRenderableAudio } from "../../../src/lib/downloads";
+import { getDeviceAudioCodecs } from "../../../src/lib/deviceCodecs";
 import { useTranslation } from "react-i18next";
 import { toast, useAuthStore } from "@evey/store";
 import { ICON_SIZE } from "@evey/theme";
@@ -104,6 +105,9 @@ export default function PlayerScreen() {
   // hangs/fails in the background); it does mean the video itself plays from
   // disk and isn't blocked on the network being reachable.
   const [localFilePath, setLocalFilePath] = useState<string | null>(null);
+  // Audio codecs recorded in the download index entry (null for entries that
+  // predate the field) - one of the two inputs to the localAudioOk decision.
+  const [downloadedAudioCodecs, setDownloadedAudioCodecs] = useState<string[] | null>(null);
 
   const { data: media } = useLibraryServiceGetMediaItem(mediaId);
   // Series and seasons have no underlying file, so the streaming endpoints 404.
@@ -339,7 +343,15 @@ export default function PlayerScreen() {
         region: activeProfile?.region,
       },
     })
-      .then((p) => { if (!cancelled) setLocalFilePath(p); })
+      .then(async (p) => {
+        if (cancelled) return;
+        setLocalFilePath(p);
+        if (!p) return;
+        try {
+          const entry = await getDownloadedMedia(mediaId);
+          if (!cancelled) setDownloadedAudioCodecs(entry?.audioCodecs ?? null);
+        } catch { /* keep the playable assumption */ }
+      })
       .catch(() => { if (!cancelled) setLocalFilePath(null); });
     return () => { cancelled = true; };
   }, [mediaId, activeProfileId, activeProfile]);
@@ -442,11 +454,31 @@ export default function PlayerScreen() {
     onSeek: (posMs) => { if (syncPlayRef.current?.player) { syncPlayRef.current.player.currentTime = posMs / 1000; } },
   });
 
+  // Whether the local copy can be HEARD here: the download is the raw remux,
+  // and a device without e.g. an AC-3 decoder plays it silent. Codecs come
+  // from the index entry (captured at download time), or - for entries that
+  // predate that field - from the live session's stream info, which is only
+  // there when a stream exists to prefer anyway. No info at all (legacy entry,
+  // offline) keeps the historical playable assumption.
+  const localAudioOk = useMemo(() => {
+    const fromSession = (streamInfo?.mediaStreams ?? [])
+      .filter((s) => s.type === "MEDIA_STREAM_TYPE_AUDIO" && s.codec)
+      .map((s) => s.codec as string);
+    const codecs = downloadedAudioCodecs ?? (fromSession.length > 0 ? fromSession : undefined);
+    return hasRenderableAudio({ audioCodecs: codecs }, getDeviceAudioCodecs());
+  }, [downloadedAudioCodecs, streamInfo]);
+
+  // Downloaded copy preferred only when it can be HEARD here. When the audio
+  // is not renderable, a reachable server stream wins - the transcode is the
+  // only version with sound - and the local file stays the fallback for
+  // offline (isError) or shed, where silent video beats no playback at all.
+  const useLocalSource = !!localFilePath && (localAudioOk || isError || !!shedReason);
+
   const videoSource = useMemo(() => {
     // Downloaded copy on disk takes priority over the network stream - no
     // reason to re-download bytes the device already has, and it plays even
     // if the play-session request above is stuck/failing offline.
-    if (localFilePath) {
+    if (useLocalSource && localFilePath) {
       return { uri: localFilePath.startsWith("file://") ? localFilePath : `file://${localFilePath}` };
     }
     if (!streamUrl) return null;
@@ -466,7 +498,7 @@ export default function PlayerScreen() {
       // headers on the manifest's relative segment/redirect fetches).
       ...(streamToken ? { headers: { Authorization: `Bearer ${streamToken}` } } : {}),
     };
-  }, [streamUrl, streamToken, localFilePath, audioOffsetAvailable, appliedAudioOffsetMs]);
+  }, [streamUrl, streamToken, localFilePath, useLocalSource, audioOffsetAvailable, appliedAudioOffsetMs]);
 
   const resumePositionSec = useMemo(() => {
     if (!progress?.positionMs || progress.played) return 0;
@@ -1101,7 +1133,10 @@ export default function PlayerScreen() {
     );
   }
 
-  if (!localFilePath && (isLoading || !streamUrl)) {
+  // Gate on useLocalSource, not localFilePath: a local copy whose audio the
+  // device can't render must WAIT for the stream (the version with sound)
+  // instead of starting silent and switching mid-play.
+  if (!useLocalSource && (isLoading || !streamUrl)) {
     return <LoadingScreen />;
   }
 

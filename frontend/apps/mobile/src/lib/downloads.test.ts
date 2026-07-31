@@ -105,6 +105,8 @@ import {
   rehydrateBackgroundDownloads,
   getInFlightDownloads,
   getInFlightBytes,
+  getDownloadedMedia,
+  hasRenderableAudio,
 } from "./downloads";
 import { buildDownloadAuthContext } from "./downloadContext";
 import { canPlayOffline } from "./offlineAccess";
@@ -626,6 +628,39 @@ describe("getInFlightDownloads", () => {
     await pending;
 
     expect(getInFlightDownloads().some((d) => d.mediaItemId === "if1")).toBe(false);
+  });
+});
+
+describe("offline audio renderability", () => {
+  it("persists the source audio codecs captured at download time", async () => {
+    const pending = startDownload("ac1", "AC3 Movie", undefined, { audioCodecs: ["ac3", "aac"] });
+    const handlers = await waitForTask("ac1");
+    handlers.done?.({ id: "ac1" });
+    await pending;
+    const written = JSON.parse(fsMock.writeAsStringAsync.mock.calls.at(-1)![1]);
+    const entry = written.find((i: { mediaItemId: string }) => i.mediaItemId === "ac1");
+    expect(entry.audioCodecs).toEqual(["ac3", "aac"]);
+  });
+
+  it("getDownloadedMedia returns the stored index entry", async () => {
+    const entry = await getDownloadedMedia("m1");
+    expect(entry?.filePath).toBe("/data/user/0/app/files/downloads/m1.mp4");
+    expect(await getDownloadedMedia("nope")).toBeNull();
+  });
+
+  it("hasRenderableAudio: legacy entries without codecs are assumed playable", () => {
+    expect(hasRenderableAudio({}, ["aac", "mp3"])).toBe(true);
+    expect(hasRenderableAudio({ audioCodecs: [] }, ["aac"])).toBe(true);
+  });
+
+  it("hasRenderableAudio: false when NO recorded track is device-decodable", () => {
+    expect(hasRenderableAudio({ audioCodecs: ["ac3"] }, ["aac", "mp3", "opus"])).toBe(false);
+    expect(hasRenderableAudio({ audioCodecs: ["eac3", "dts"] }, ["aac", "mp3"])).toBe(false);
+  });
+
+  it("hasRenderableAudio: true when at least one track is decodable (player can pick it)", () => {
+    expect(hasRenderableAudio({ audioCodecs: ["ac3", "aac"] }, ["aac", "mp3"])).toBe(true);
+    expect(hasRenderableAudio({ audioCodecs: ["AC3"] }, ["ac3"])).toBe(true);
   });
 });
 

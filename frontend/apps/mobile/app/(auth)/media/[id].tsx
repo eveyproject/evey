@@ -88,6 +88,16 @@ function formatFileSize(bytes?: string): string {
   return `${(n / 1024).toFixed(0)} KB`;
 }
 
+// Audio codecs of the item's source file, captured into the download index so
+// the player can tell a hearable local copy from one that would play silent
+// (raw remux with e.g. AC-3 on a device without that decoder).
+function audioCodecsOf(item?: { streams?: { type?: string; codec?: string }[] }): string[] | undefined {
+  const codecs = (item?.streams ?? [])
+    .filter((s) => s.type === "MEDIA_STREAM_TYPE_AUDIO" && s.codec)
+    .map((s) => s.codec as string);
+  return codecs.length > 0 ? codecs : undefined;
+}
+
 function isSeriesType(type?: string) {
   return type === "MEDIA_ITEM_TYPE_SERIES";
 }
@@ -712,6 +722,7 @@ export default function MediaDetailScreen() {
           {
             kind: "video",
             formatHint: ep.containerFormat,
+            audioCodecs: audioCodecsOf(ep),
             // An episode rarely carries its own classification - it inherits
             // the series' rating, which is what this screen's own parental
             // gate above (useParentalGate(media?.officialRating)) already
@@ -1157,10 +1168,13 @@ export default function MediaDetailScreen() {
                 try {
                   await startDownload(id, media.title,
                     (p, b) => { setDownloadProgress(p); if (b) setDownloadBytes(b); },
-                    buildDownloadAuthContext(activeProfile, {
-                      officialRating: media.officialRating,
-                      certificationsByCountry: media.certificationsByCountry,
-                    }),
+                    {
+                      ...buildDownloadAuthContext(activeProfile, {
+                        officialRating: media.officialRating,
+                        certificationsByCountry: media.certificationsByCountry,
+                      }),
+                      audioCodecs: audioCodecsOf(media),
+                    },
                   );
                   toast.success(t("media.detail.downloadComplete"));
                 } catch (err) {

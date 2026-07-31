@@ -45,6 +45,14 @@ export interface DownloadedMedia {
   downloadedByMaxAge?: number;
   officialRating?: string;
   certificationsByCountry?: Record<string, string>;
+  /**
+   * Audio codecs of the source file, captured at download time. The download
+   * is the RAW remux - if none of these is device-decodable the file plays
+   * SILENT, so the player only prefers the local copy over streaming when
+   * hasRenderableAudio says so. Absent on entries that predate this field
+   * (assumed playable - the historical behavior).
+   */
+  audioCodecs?: string[];
 }
 
 const INDEX_FILE = `${DOWNLOAD_DIR}index.json`;
@@ -100,6 +108,30 @@ async function writeIndex(items: DownloadedMedia[]) {
 
 export async function getDownloads(): Promise<DownloadedMedia[]> {
   return readIndex();
+}
+
+// The full index entry for one media item - the player reads audioCodecs off
+// it to decide whether the local copy can actually be heard on this device.
+export async function getDownloadedMedia(mediaItemId: string): Promise<DownloadedMedia | null> {
+  const index = await readIndex();
+  return index.find((i) => i.mediaItemId === mediaItemId) ?? null;
+}
+
+/**
+ * Whether the device can produce SOUND for this downloaded file: true when at
+ * least one recorded audio track is decodable here (the native player then
+ * selects that track), or when the entry predates codec capture (legacy -
+ * assumed playable rather than retroactively degraded). Pure so it is
+ * exhaustively testable; callers pass getDeviceAudioCodecs().
+ */
+export function hasRenderableAudio(
+  entry: Pick<DownloadedMedia, "audioCodecs">,
+  deviceCodecs: string[],
+): boolean {
+  const codecs = (entry.audioCodecs ?? []).map((c) => c.trim().toLowerCase()).filter(Boolean);
+  if (codecs.length === 0) return true;
+  const device = new Set(deviceCodecs.map((c) => c.trim().toLowerCase()));
+  return codecs.some((c) => device.has(c));
 }
 
 // A media id must never carry characters that let it escape the sandbox
@@ -249,6 +281,7 @@ async function persistDownloaded(
   destPath: string,
   totalBytes: number,
   authContext?: DownloadAuthContext,
+  audioCodecs?: string[],
 ) {
   const index = await readIndex();
   // Replace any existing entry with the same id so retry-after-failure keeps
@@ -261,6 +294,7 @@ async function persistDownloaded(
     fileSize: totalBytes,
     downloadedAt: new Date().toISOString(),
     ...authContext,
+    ...(audioCodecs && audioCodecs.length > 0 ? { audioCodecs } : {}),
   });
   await writeIndex(without);
 }
@@ -288,6 +322,12 @@ export interface StartDownloadOptions extends DownloadAuthContext {
    * no query string) - a music track downloads from /api/v1/music/tracks/{id}/download.
    */
   downloadPath?: string;
+  /**
+   * Audio codecs of the source file (from the media item's streams) - stored
+   * in the index so the player can tell a hearable local copy from one that
+   * would play silent on this device (see hasRenderableAudio).
+   */
+  audioCodecs?: string[];
 }
 
 // Native-side logging of the download engine, on once per process. Field
@@ -337,6 +377,7 @@ export async function startDownload(
   inFlight.set(mediaItemId, { totalBytes: 0, downloadedBytes: 0 });
   inFlightTitles.set(mediaItemId, title);
 
+  const audioCodecs = opts?.audioCodecs;
   const authContext: DownloadAuthContext = {
     downloadedByProfileId: opts?.downloadedByProfileId,
     downloadedByIsKids: opts?.downloadedByIsKids,
@@ -359,7 +400,7 @@ export async function startDownload(
       // metadata (same round-trip title already relies on) so
       // rehydrateBackgroundDownloads can rebuild the exact same destPath and
       // offline-access record after an app restart.
-      metadata: { title, ext, authContext },
+      metadata: { title, ext, authContext, audioCodecs },
     });
 
     activeDownloads.set(mediaItemId, { task, destPath, unsubscribe: unsubscribeProgress });
@@ -410,7 +451,7 @@ export async function startDownload(
         const state = inFlight.get(mediaItemId);
         const totalBytes = state?.totalBytes ?? 0;
         try {
-          await persistDownloaded(mediaItemId, title, destPath, totalBytes, authContext);
+          await persistDownloaded(mediaItemId, title, destPath, totalBytes, authContext, audioCodecs);
         } catch (err) {
           if (process.env.NODE_ENV !== "production") console.warn("persist download index", err);
         }
@@ -459,7 +500,7 @@ export async function rehydrateBackgroundDownloads(): Promise<void> {
   }
   for (const task of tasks) {
     const mediaItemId = task.id;
-    const meta = (task.metadata as { title?: string; ext?: string; authContext?: DownloadAuthContext }) ?? {};
+    const meta = (task.metadata as { title?: string; ext?: string; authContext?: DownloadAuthContext; audioCodecs?: string[] }) ?? {};
     const title = meta.title ?? mediaItemId;
     // ext falls back to "mp4" for downloads started before this field existed -
     // those were always .mp4, so the fallback reconstructs the exact same path.
@@ -467,6 +508,7 @@ export async function rehydrateBackgroundDownloads(): Promise<void> {
     // authContext is absent for downloads started before this field existed -
     // persistDownloaded then simply omits it (legacy entry, see offlineAccess.ts).
     const authContext = meta.authContext;
+    const audioCodecs = meta.audioCodecs;
     inFlight.set(mediaItemId, { totalBytes: 0, downloadedBytes: 0 });
     inFlightTitles.set(mediaItemId, title);
     activeDownloads.set(mediaItemId, { task, destPath });
@@ -493,7 +535,7 @@ export async function rehydrateBackgroundDownloads(): Promise<void> {
           } catch { /* silent */ }
         }
         try {
-          await persistDownloaded(mediaItemId, title, destPath, totalBytes, authContext);
+          await persistDownloaded(mediaItemId, title, destPath, totalBytes, authContext, audioCodecs);
         } catch { /* silent */ }
         inFlight.delete(mediaItemId);
         inFlightTitles.delete(mediaItemId);
