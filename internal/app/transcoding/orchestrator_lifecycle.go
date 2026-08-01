@@ -190,7 +190,7 @@ func (o *SegmentOrchestrator) gcLoop() {
 		case <-o.stopGC:
 			return
 		case <-ticker.C:
-			o.sweepIdle()
+			sweep("orchestrator.gc", o.sweepIdle)
 		}
 	}
 }

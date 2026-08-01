@@ -21,10 +21,10 @@ func (p *SoftwareProducer) gcLoop() {
 		case <-p.stopGC:
 			return
 		case <-gcTicker.C:
-			p.sweepIdle()
-			p.sweepKillPaused()
+			sweep("software.gc", p.sweepIdle)
+			sweep("software.killPaused", p.sweepKillPaused)
 		case <-pauseTicker.C:
-			p.sweepPause()
+			sweep("software.pause", p.sweepPause)
 		}
 	}
 }

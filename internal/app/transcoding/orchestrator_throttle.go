@@ -27,7 +27,7 @@ func (o *SegmentOrchestrator) throttleLoop() {
 		case <-o.stopThrottle:
 			return
 		case <-ticker.C:
-			o.evaluateThrottle()
+			sweep("orchestrator.throttle", o.evaluateThrottle)
 		}
 	}
 }
