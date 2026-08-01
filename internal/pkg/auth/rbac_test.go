@@ -65,6 +65,42 @@ func TestMethodTables_NoPhantomEntries(t *testing.T) {
 	}
 }
 
+// TestAPIKeyTables_NoUnclassifiedRealMethods is the exhaustiveness guard for
+// interceptors/auth.go's fail-closed default: every real evey.v1 RPC must
+// resolve to at least one of PublicMethods, InternalMethods, RoleAdmin (in
+// interceptors.DefaultRBACConfig().MethodRoles - covered for API keys by the
+// admin deny-by-default that already required no scope/perm entry), or an
+// entry in MethodPermissions/APIKeyScopeFor. Until 2026-08-01, 100 real RPCs
+// matched none of these - a method absent from every table let an API key
+// through regardless of its scopes, because the scope-check condition itself
+// never triggered. Without this guard, the next RPC added to a .proto file
+// reopens exactly that gap the moment someone forgets the entry; with it, the
+// build fails instead.
+func TestAPIKeyTables_NoUnclassifiedRealMethods(t *testing.T) {
+	real := registeredEveyMethods(t)
+	cfg := interceptors.DefaultRBACConfig()
+
+	for m := range real {
+		if cfg.PublicMethods[m] {
+			continue
+		}
+		if auth.InternalMethods[m] {
+			continue
+		}
+		if role, ok := cfg.MethodRoles[m]; ok && role == interceptors.RoleAdmin {
+			continue
+		}
+		_, hasPerm := auth.MethodPermissions[m]
+		_, hasScope := auth.APIKeyScopeFor[m]
+		if hasPerm || hasScope {
+			continue
+		}
+		t.Errorf("%s: not in PublicMethods, InternalMethods, RoleAdmin MethodRoles, "+
+			"MethodPermissions, nor APIKeyScopeFor - an API key would reach it unconditionally "+
+			"(interceptors/auth.go enforceRBAC step 2 fail-closed default has nothing to fail closed on)", m)
+	}
+}
+
 // TestAdminMediaService_RealMethodsDenyByDefaultForAPIKeys proves the premise
 // that lets InternalMethods skip AdminMediaService entirely: every real
 // AdminMediaService RPC is RoleAdmin in interceptors.DefaultRBACConfig() and

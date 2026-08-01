@@ -154,23 +154,34 @@ func (i *AuthInterceptor) enforceRBAC(ctx context.Context, method string) error 
 		scope, hasScope := authpkg.APIKeyScopeFor[method]
 		perm, hasPerm := authpkg.MethodPermissions[method]
 
-		// 2. Deny-by-default for admin RPCs: an admin method is JWT-only unless it
-		//    explicitly maps to an API-key scope. New admin RPCs are internal by
-		//    construction - forgetting to enumerate one can no longer expose it to
-		//    admin API keys (RestartServer, arbitrary-file MKV attachment R/W,
-		//    session kill, webhook CRUD, ...).
-		if isAdminMethod && !hasScope && !hasPerm {
-			slog.WarnContext(ctx, "api key blocked on unscoped admin method", slog.String("method", method), slog.String("user", claims.UserID))
+		// 2. Fail-closed default: a method with no entry in APIKeyScopeFor or
+		//    MethodPermissions is REFUSED to every API key outright, whatever
+		//    scopes/permissions it carries and whether or not it is admin-only.
+		//    Until 2026-08-01 this only applied to admin methods (isAdminMethod
+		//    && !hasScope && !hasPerm) - a method that defaulted to RoleUser and
+		//    named in no table sailed straight through step 3 below, because
+		//    that step's own guard condition (hasScope || hasPerm) was false and
+		//    so it never ran. 100 real RPCs were in that state, including
+		//    ParentalService/UpdateParentalSettings and VerifyPin: a "read only"
+		//    key could disable parental controls. Classifying a method here is
+		//    now mandatory, not opt-in - TestAPIKeyTables_NoUnclassifiedRealMethods
+		//    (rbac_test.go) fails the build the moment a new RPC ships unclassified.
+		if !hasScope && !hasPerm {
+			slog.WarnContext(ctx, "api key blocked: method has no scope/permission entry (deny-by-default)",
+				slog.String("method", method), slog.String("user", claims.UserID))
 			return i.translatedErr(ctx, codes.PermissionDenied, "errors.auth.internal_method")
 		}
 
-		// 3. Enforce the scope when the method maps to one. Admin methods ALWAYS
-		//    enforce it, so an empty-scope "legacy allow-all" key gets no admin
-		//    reach; non-admin methods keep the legacy empty-scope allow-all for the
-		//    key owner's own domain resources. A key holding either the coarse
-		//    scope (APIKeyScopeFor, colon notation) or the fine-grained permission
-		//    (MethodPermissions, dot notation) is authorized.
-		if (hasScope || hasPerm) && (isAdminMethod || len(claims.Permissions) > 0) {
+		// 3. Enforce the scope. Admin methods ALWAYS enforce it, so an
+		//    empty-scope "legacy allow-all" key gets no admin reach; non-admin
+		//    methods keep the legacy empty-scope allow-all for the key owner's
+		//    own domain resources (a classified method with no permissions on
+		//    the key is not the same failure as an unclassified method - the
+		//    former is a known pre-scope key, the latter is the gap step 2
+		//    closes). A key holding either the coarse scope (APIKeyScopeFor,
+		//    colon notation) or the fine-grained permission (MethodPermissions,
+		//    dot notation) is authorized.
+		if isAdminMethod || len(claims.Permissions) > 0 {
 			ok := (hasScope && claims.HasPermission(scope)) || (hasPerm && claims.HasPermission(perm))
 			if !ok {
 				slog.WarnContext(ctx, "api key scope denied", slog.String("method", method), slog.String("required_scope", scope), slog.String("required_perm", perm))

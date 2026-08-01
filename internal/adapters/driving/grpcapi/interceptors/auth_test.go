@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/user"
 	"github.com/evey-project/evey/internal/domain/user/fakes"
 	"github.com/evey-project/evey/internal/pkg/auth"
@@ -552,6 +553,102 @@ func TestAPIKey_PlaybackReadCannotWriteWatchState(t *testing.T) {
 	for _, method := range writes {
 		_, err := rw(ctxWithAPIKey("evey_readonly"), nil, &grpc.UnaryServerInfo{FullMethod: method}, nopHandler)
 		require.NoError(t, err, "a playback:write key must reach %s", method)
+	}
+}
+
+// apiKeyInterceptorWithPerms builds a fresh interceptor wired to a single
+// non-admin API key carrying the given permissions.
+func apiKeyInterceptorWithPerms(t *testing.T, rawKey string, perms []string) grpc.UnaryServerInterceptor {
+	t.Helper()
+	tokenGen := fakes.NewFakeTokenGenerator()
+	apiKeyRepo := fakes.NewFakeAPIKeyRepository()
+	userRepo := fakes.NewFakeUserRepository()
+	userID := shared.UserID("usr-" + rawKey)
+	apiKeyRepo.Create(context.Background(), &user.APIKeyModel{
+		ID: "ak-" + rawKey, UserID: userID, KeyHash: apiKeyHash(rawKey),
+		Name: rawKey, Permissions: perms,
+	})
+	userRepo.Create(context.Background(), &user.User{
+		ID: userID, Username: "alice", Enabled: true,
+	})
+	return interceptors.NewAuthInterceptor(tokenGen).WithAPIKeys(apiKeyRepo, userRepo).Unary()
+}
+
+// TestAPIKey_UnclassifiedMethodDeniedByDefault is the direct proof for the
+// 2026-08-01 fail-closed default (interceptors/auth.go enforceRBAC step 2): a
+// method with no entry in auth.APIKeyScopeFor or auth.MethodPermissions must
+// be refused to an API key regardless of what permissions it holds -
+// including the pre-scope "legacy allow-all" empty-permissions key. Before
+// this change, an unclassified non-admin method skipped straight through
+// (the scope-check condition itself never triggered without a table entry),
+// which is exactly how a "read only" key could reach
+// ParentalService/VerifyPin. Reverting step 2 to only fail-close admin
+// methods (isAdminMethod && !hasScope && !hasPerm, the pre-fix condition)
+// turns every case below back into require.NoError - proven by hand: with
+// that revert applied, this test fails red; with the fix in place, it is
+// green.
+func TestAPIKey_UnclassifiedMethodDeniedByDefault(t *testing.T) {
+	// A method name that will never appear in APIKeyScopeFor or
+	// MethodPermissions proves the default itself, independent of which real
+	// RPCs happen to be classified today.
+	const neverClassified = "/evey.v1.SomeFutureService/DoSomething"
+
+	for _, perms := range [][]string{nil, {}, {auth.ScopeMediaRead}, {auth.ScopeAdminWrite}} {
+		ic := apiKeyInterceptorWithPerms(t, "evey_unclassified", perms)
+		_, err := ic(ctxWithAPIKey("evey_unclassified"), nil, &grpc.UnaryServerInfo{FullMethod: neverClassified}, nopHandler)
+		require.Error(t, err, "perms=%v must be denied on an unclassified method", perms)
+		assert.Equal(t, codes.PermissionDenied, status.Code(err))
+	}
+}
+
+// TestAPIKey_FormerlyUnclassifiedMethodsNowEnforced spot-checks real RPCs that
+// had zero entries in either method-keyed table before 2026-08-01 (see the
+// doc comment on auth.APIKeyScopeFor): a key holding an unrelated scope must
+// now be denied, and a key holding the assigned scope must still work.
+func TestAPIKey_FormerlyUnclassifiedMethodsNowEnforced(t *testing.T) {
+	cases := []struct {
+		method string
+		wrong  string
+		right  string
+	}{
+		{"/evey.v1.ParentalService/VerifyPin", auth.ScopeMediaRead, auth.ScopeUsersWrite},
+		{"/evey.v1.ParentalService/UpdateParentalSettings", auth.ScopePlaybackRead, auth.ScopeUsersWrite},
+		{"/evey.v1.NotificationService/DeleteAllNotifications", auth.ScopeMediaRead, auth.ScopeUsersWrite},
+		{"/evey.v1.MetadataService/UpdateMetadata", auth.ScopeUsersRead, auth.ScopeMediaWrite},
+		{"/evey.v1.PhotoService/ScanPhotoDirectory", auth.ScopePlaybackWrite, auth.ScopeMediaWrite},
+		{"/evey.v1.MediaRequestService/CreateRequest", auth.ScopeAdminRead, auth.ScopeMediaWrite},
+	}
+	for _, c := range cases {
+		wrongIC := apiKeyInterceptorWithPerms(t, "evey_formerlyopen_wrong", []string{c.wrong})
+		_, err := wrongIC(ctxWithAPIKey("evey_formerlyopen_wrong"), nil, &grpc.UnaryServerInfo{FullMethod: c.method}, nopHandler)
+		require.Error(t, err, "%s: wrong scope %s must be denied", c.method, c.wrong)
+		assert.Equal(t, codes.PermissionDenied, status.Code(err), c.method)
+
+		rightIC := apiKeyInterceptorWithPerms(t, "evey_formerlyopen_right", []string{c.right})
+		_, err = rightIC(ctxWithAPIKey("evey_formerlyopen_right"), nil, &grpc.UnaryServerInfo{FullMethod: c.method}, nopHandler)
+		require.NoError(t, err, "%s: correct scope %s must be allowed", c.method, c.right)
+	}
+}
+
+// TestAPIKey_DomainScopesGrantExpectedAccess is the "we didn't just close the
+// hole, we didn't also break the feature" check for the classification work:
+// one representative read and one write RPC per coarse scope domain must
+// stay reachable to a key holding exactly that scope.
+func TestAPIKey_DomainScopesGrantExpectedAccess(t *testing.T) {
+	grants := map[string]string{
+		"/evey.v1.CollectionService/ListCollections": auth.ScopeMediaRead,
+		"/evey.v1.PlaylistService/CreatePlaylist":    auth.ScopeMediaWrite,
+		"/evey.v1.FeedService/RecentlyAdded":         auth.ScopePlaybackRead,
+		"/evey.v1.SyncPlayService/CreateRoom":        auth.ScopePlaybackWrite,
+		"/evey.v1.UserService/GetCurrentUser":        auth.ScopeUsersRead,
+		"/evey.v1.UserService/UpdateProfile":         auth.ScopeUsersWrite,
+		"/evey.v1.ActivityService/GetAnalytics":      auth.ScopeAdminRead,
+		"/evey.v1.LibraryService/SetLibrarySchedule": auth.ScopeAdminWrite,
+	}
+	for method, scope := range grants {
+		ic := apiKeyInterceptorWithPerms(t, "evey_domain_"+scope, []string{scope})
+		_, err := ic(ctxWithAPIKey("evey_domain_"+scope), nil, &grpc.UnaryServerInfo{FullMethod: method}, nopHandler)
+		require.NoError(t, err, "%s: scope %s must grant access", method, scope)
 	}
 }
 
