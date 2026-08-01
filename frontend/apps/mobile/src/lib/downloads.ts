@@ -18,7 +18,7 @@ import {
   type DownloadTask,
 } from "@kesha-antonov/react-native-background-downloader";
 import { eveyFetch, libraryServiceGetMediaItem } from "@evey/api";
-import { getPublicDownloadsDir } from "@evey/media-caps";
+import { deleteMediaFile, getPublicDownloadsDir } from "@evey/media-caps";
 import { getServerUrl } from "./server-config";
 import { getDeviceAudioCodecs } from "./deviceCodecs";
 import { canPlayOffline, OfflineAccessError, type OfflineProfileInfo } from "./offlineAccess";
@@ -300,6 +300,27 @@ function safeFilename(title: string, mediaItemId: string, ext: string): string {
 // createDownloadTask strips a file:// prefix from its destination.
 export function toFileUri(path: string): string {
   return path.startsWith("file://") ? path : `file://${path}`;
+}
+
+/**
+ * Delete a media file wherever it lives. expo-file-system's legacy API only
+ * operates inside the app's own directories and REJECTS public-Downloads
+ * paths (even for files this app created), so public files go through the
+ * plain-File native helper first and the expo call covers the private shapes.
+ * Never throws - deletion is cleanup, and the callers' own bookkeeping (index
+ * writes, task teardown) must not die on a file that is already gone.
+ */
+async function deleteMediaFileAnywhere(path: string): Promise<void> {
+  try {
+    if (await deleteMediaFile(path)) return;
+  } catch {
+    /* fall through to the expo attempt */
+  }
+  try {
+    await FileSystem.deleteAsync(toFileUri(path), { idempotent: true });
+  } catch (err) {
+    console.warn(`evey-dl delete failed ${path}`, err);
+  }
 }
 
 // Container/mime aliases that don't map 1:1 to a file extension.
@@ -617,7 +638,7 @@ export async function startDownload(
             inFlightTitles.delete(mediaItemId);
             activeDownloads.delete(mediaItemId);
             unsubscribeProgress?.();
-            void FileSystem.deleteAsync(toFileUri(destPath), { idempotent: true }).catch(() => undefined);
+            void deleteMediaFileAnywhere(destPath);
             reject(new Error(compatPass ? ERR_NOT_ENOUGH_SPACE_AUDIO_PASS : ERR_NOT_ENOUGH_SPACE));
           }
         }
@@ -670,7 +691,7 @@ export async function startDownload(
         // A failed download leaves a partial file at destPath that never enters
         // the index, so deleteDownload can never reach it - clean it up here.
         // Deletion must never mask the original rejection.
-        try { await FileSystem.deleteAsync(toFileUri(destPath), { idempotent: true }); } catch (err) { console.warn("caught", err); }
+        await deleteMediaFileAnywhere(destPath);
         reject(new Error(error || "Download failed"));
       });
 
@@ -752,7 +773,7 @@ export async function rehydrateBackgroundDownloads(): Promise<void> {
         completeHandler(mediaItemId);
         // Same leak as startDownload's error handler: the partial file never
         // entered the index, so it's otherwise unreachable by deleteDownload.
-        try { await FileSystem.deleteAsync(toFileUri(destPath), { idempotent: true }); } catch (err) { console.warn("caught", err); }
+        await deleteMediaFileAnywhere(destPath);
       });
   }
 
@@ -801,7 +822,7 @@ async function reconcilePendingDownloads(liveIds: Set<string>): Promise<void> {
       }
       if (info.exists && rec.expectedBytes && rec.expectedBytes > 0) {
         console.log(`evey-dl reconcile ${rec.mediaItemId}: partial without a task (${info.size ?? 0}/${rec.expectedBytes}), dropping`);
-        await FileSystem.deleteAsync(toFileUri(rec.destPath), { idempotent: true }).catch(() => undefined);
+        await deleteMediaFileAnywhere(rec.destPath);
       } else if (info.exists) {
         // Died before begin() recorded the expected size: the file can't be
         // told complete from truncated. Keep the bytes, forget the record - a
@@ -841,14 +862,14 @@ export async function cancelDownload(mediaItemId: string): Promise<void> {
   handle.unsubscribe?.();
   try { await handle.task.stop(); } catch (err) { console.warn("caught", err); }
   completeHandler(mediaItemId);
-  try { await FileSystem.deleteAsync(toFileUri(handle.destPath), { idempotent: true }); } catch (err) { console.warn("caught", err); }
+  await deleteMediaFileAnywhere(handle.destPath);
 }
 
 export async function deleteDownload(mediaItemId: string): Promise<void> {
   const index = await readIndex();
   const item = index.find((i) => i.mediaItemId === mediaItemId);
   if (item) {
-    try { await FileSystem.deleteAsync(toFileUri(item.filePath), { idempotent: true }); } catch (err) { console.warn("caught", err); }
+    await deleteMediaFileAnywhere(item.filePath);
   }
   await writeIndex(index.filter((i) => i.mediaItemId !== mediaItemId));
 }

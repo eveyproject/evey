@@ -51,8 +51,13 @@ const taskStops: string[] = [];
 // app-private path keeps covering the existing tests; individual tests flip it
 // to assert the VLC-readable destination.
 const publicDirMock = vi.fn(async (): Promise<string | null> => null);
+// False by default: the native File helper "fails", so every existing test
+// keeps exercising the expo deleteAsync path it was written against; the
+// public-path tests flip it to true to assert the fallback order.
+const deleteMediaFileMock = vi.fn(async (_path: string): Promise<boolean> => false);
 vi.mock("@evey/media-caps", () => ({
   getPublicDownloadsDir: (...a: unknown[]) => publicDirMock(...(a as [])),
+  deleteMediaFile: (...a: unknown[]) => deleteMediaFileMock(...(a as [string])),
 }));
 
 vi.mock("@kesha-antonov/react-native-background-downloader", () => ({

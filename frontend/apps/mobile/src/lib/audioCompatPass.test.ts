@@ -42,6 +42,15 @@ const deviceCodecsMock = vi.hoisted(() => ({
 }));
 vi.mock("./deviceCodecs", () => deviceCodecsMock);
 
+// Native File helpers used FIRST for the swap (expo's legacy FS rejects
+// public-Downloads paths outright). False by default so the bulk of the suite
+// exercises the expo fallback; the public-path test flips them to true.
+const mediaCaps = vi.hoisted(() => ({
+  deleteMediaFile: vi.fn(async (_p: string): Promise<boolean> => false),
+  moveMediaFile: vi.fn(async (_f: string, _t: string): Promise<boolean> => false),
+}));
+vi.mock("@evey/media-caps", () => mediaCaps);
+
 const dl = vi.hoisted(() => ({
   getDownloadedMedia: vi.fn(),
   getDownloads: vi.fn(async (): Promise<unknown[]> => []),
@@ -75,6 +84,8 @@ function entry(overrides: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mediaCaps.deleteMediaFile.mockResolvedValue(false);
+  mediaCaps.moveMediaFile.mockResolvedValue(false);
   dl.getDownloadedMedia.mockResolvedValue(entry());
   dl.needsAudioCompatPass.mockReturnValue(true);
   dl.getDownloads.mockResolvedValue([]);
@@ -141,6 +152,21 @@ describe("runAudioCompatPass success", () => {
       to: `file://${fixedPath}`,
     });
     expect(dl.updateDownloadedAudio).toHaveBeenCalledWith("m1", expect.objectContaining({ filePath: fixedPath }));
+  });
+
+  it("swaps via the native File helpers when they work (public paths)", async () => {
+    // The field failure this pins: expo's legacy FS rejected the swap of a
+    // finished 1.7 GB rewrite because the file lives in public Downloads.
+    mediaCaps.deleteMediaFile.mockResolvedValue(true);
+    mediaCaps.moveMediaFile.mockResolvedValue(true);
+
+    const result = await runAudioCompatPass("m1");
+    expect(result).toBe("done");
+    expect(mediaCaps.deleteMediaFile).toHaveBeenCalledWith(MKV_PATH);
+    expect(mediaCaps.moveMediaFile).toHaveBeenCalledWith(OPT_PATH, MKV_PATH);
+    // The expo path must not even be attempted once the native one succeeded.
+    expect(fsMock.deleteAsync).not.toHaveBeenCalled();
+    expect(fsMock.moveAsync).not.toHaveBeenCalled();
   });
 
   it("exposes weighted progress while running, cleared after", async () => {

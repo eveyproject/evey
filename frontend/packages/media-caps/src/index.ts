@@ -8,6 +8,8 @@ export type { ProbePoster, ReportOutcome } from "./reportProbe";
 interface EveyMediaCapsNative {
   getAudioProbe(): Promise<AudioProbe>;
   getPublicDownloadsDir?(): string | null;
+  deleteFile?(path: string): boolean;
+  moveFile?(from: string, to: string): boolean;
 }
 
 /**
@@ -45,5 +47,35 @@ export async function getPublicDownloadsDir(): Promise<string | null> {
     return typeof dir === "string" && dir.length > 0 ? dir : null;
   } catch {
     return null;
+  }
+}
+
+/**
+ * Delete a media file via plain java.io.File - the escape hatch for paths
+ * expo-file-system's legacy API refuses to touch (anything under the public
+ * Downloads collection, even files this app owns). False when the file is
+ * still there afterwards or the native module is absent; never throws.
+ */
+export async function deleteMediaFile(path: string): Promise<boolean> {
+  try {
+    const { requireOptionalNativeModule } = await import("expo-modules-core");
+    const native = requireOptionalNativeModule<EveyMediaCapsNative>("EveyMediaCaps");
+    return native?.deleteFile?.(path) === true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Same-volume rename via plain java.io.File, same rationale and same
+ * contract as deleteMediaFile.
+ */
+export async function moveMediaFile(from: string, to: string): Promise<boolean> {
+  try {
+    const { requireOptionalNativeModule } = await import("expo-modules-core");
+    const native = requireOptionalNativeModule<EveyMediaCapsNative>("EveyMediaCaps");
+    return native?.moveFile?.(from, to) === true;
+  } catch {
+    return false;
   }
 }

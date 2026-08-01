@@ -57,6 +57,24 @@ class EveyMediaCapsModule : Module() {
       )
       dir?.absolutePath
     }
+
+    // Raw java.io.File operations, for the files expo-file-system refuses to
+    // touch: its legacy API is scoped to the app's own directories and
+    // REJECTS anything under the public Downloads collection - even files
+    // this app created and owns (observed in the field: the audio pass
+    // finished its 1.7 GB rewrite and then could not swap it into place).
+    // The plain File API goes through FUSE with the app's ownership and works
+    // on both private and public paths.
+    Function("deleteFile") { path: String ->
+      val f = java.io.File(path)
+      f.delete() || !f.exists()
+    }
+
+    // Same-volume rename; returns false rather than throwing so the caller
+    // can fall back or surface its own error.
+    Function("moveFile") { from: String, to: String ->
+      java.io.File(from).renameTo(java.io.File(to))
+    }
   }
 
   private fun probe(context: Context): Map<String, Any?> {

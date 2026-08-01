@@ -19,6 +19,7 @@
 //   the streaming fallback until the mp4 path lands.
 
 import * as FileSystem from "expo-file-system/legacy";
+import { deleteMediaFile, moveMediaFile } from "@evey/media-caps";
 import {
   isOfflineAudioAvailable,
   optimizeAudio,
@@ -146,9 +147,18 @@ async function runPassNow(mediaItemId: string): Promise<AudioPassResult> {
     // acceptable, the alternative (backup rename) doubles the peak disk use
     // the space guard promised NOT to exceed. The rewritten file IS Matroska,
     // so it also takes the honest ".mkv" name a misnamed source lacked.
+    //
+    // Two mechanisms per operation: expo's legacy FS handles the app-private
+    // paths but REJECTS anything under the public Downloads collection (even
+    // our own files - it cost one finished 1.7 GB rewrite in the field), and
+    // the plain-File native helpers cover exactly that gap.
     const finalPath = `${stem}.mkv`;
-    await FileSystem.deleteAsync(toFileUri(entry.filePath), { idempotent: true });
-    await FileSystem.moveAsync({ from: toFileUri(outPath), to: toFileUri(finalPath) });
+    if (!(await deleteMediaFile(entry.filePath))) {
+      await FileSystem.deleteAsync(toFileUri(entry.filePath), { idempotent: true });
+    }
+    if (!(await moveMediaFile(outPath, finalPath))) {
+      await FileSystem.moveAsync({ from: toFileUri(outPath), to: toFileUri(finalPath) });
+    }
 
     let fileSize = entry.fileSize;
     try {
@@ -173,7 +183,9 @@ async function runPassNow(mediaItemId: string): Promise<AudioPassResult> {
     // The native side already deletes its partial output on failure; this is
     // the belt for a failure in the JS half of the swap.
     try {
-      await FileSystem.deleteAsync(toFileUri(outPath), { idempotent: true });
+      if (!(await deleteMediaFile(outPath))) {
+        await FileSystem.deleteAsync(toFileUri(outPath), { idempotent: true });
+      }
     } catch {
       /* nothing left to clean */
     }
