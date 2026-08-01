@@ -681,7 +681,18 @@ function LibraryPage() {
               ))}
             </MediaGrid>
           ) : (
-            <LibraryListView items={displayItems} />
+            <LibraryListView
+              items={displayItems}
+              // Same pagination the grid drives through onEndReached. The list
+              // view had none at all: reaching the bottom loaded nothing, so a
+              // library larger than one page simply stopped at 48 items in
+              // list mode while the grid kept going. The gating lives in the
+              // props (not inside the child) so both views read the same
+              // hasMore/isFetchingNextPage state.
+              hasNextPage={hasMore}
+              isFetchingNextPage={activeQuery.isFetchingNextPage}
+              onLoadMore={() => { void activeQuery.fetchNextPage(); }}
+            />
           )}
 
           {!isLoading && displayItems.length === 0 && (
