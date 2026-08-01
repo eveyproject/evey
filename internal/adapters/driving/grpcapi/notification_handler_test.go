@@ -30,6 +30,35 @@ func newNotificationHandler() (*notificationHandler, *notiffakes.FakeNotificatio
 	return h, repo, settings
 }
 
+// levelFromProto maps a client-controlled enum straight into a domain value
+// used to filter what notifications a profile receives; a swapped case would
+// silently mute or over-notify a user without any handler test catching it
+// (existing handler tests only exercise DISABLED/ALL/RELEVANT/HIGHLY_RELEVANT
+// round-trips, never the unspecified/unknown fallback).
+func TestLevelFromProto(t *testing.T) {
+	cases := []struct {
+		name string
+		in   eveyv1.NotificationLevel
+		want notification.Level
+	}{
+		{"disabled", eveyv1.NotificationLevel_NOTIFICATION_LEVEL_DISABLED, notification.LevelDisabled},
+		{"all", eveyv1.NotificationLevel_NOTIFICATION_LEVEL_ALL, notification.LevelAll},
+		{"relevant", eveyv1.NotificationLevel_NOTIFICATION_LEVEL_RELEVANT, notification.LevelRelevant},
+		{"highly relevant", eveyv1.NotificationLevel_NOTIFICATION_LEVEL_HIGHLY_RELEVANT, notification.LevelHighlyRelevant},
+		// Unspecified (zero value on the wire, e.g. field omitted by an older
+		// client) and an unknown enum value from a newer client must both fall
+		// back to the same default as the rest of the domain (notification.Level
+		// default is LevelAll), not silently disable notifications.
+		{"unspecified falls back to all", eveyv1.NotificationLevel_NOTIFICATION_LEVEL_UNSPECIFIED, notification.LevelAll},
+		{"unknown future enum falls back to all", eveyv1.NotificationLevel(9999), notification.LevelAll},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, levelFromProto(tc.in))
+		})
+	}
+}
+
 func TestNotificationHandler_ListNotifications_Success(t *testing.T) {
 	h, repo, _ := newNotificationHandler()
 
