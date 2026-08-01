@@ -902,3 +902,42 @@ func TestLimiter_EvictionTakesTheColdestEntry(t *testing.T) {
 		t.Errorf("table holds %d keys, above the %d cap", n, maxVisitors)
 	}
 }
+
+// Eviction claims to drop "everything the periodic sweep would have dropped
+// anyway" before touching a live entry. Mutation testing (2026-08-01) showed
+// nothing verified that: the retention comparison could be inverted or moved
+// and every test stayed green, leaving eviction to throw out ACTIVE callers
+// one at a time while a table full of stale ones sat untouched.
+func TestLimiter_EvictionDropsEveryStaleEntryBeforeTouchingALiveOne(t *testing.T) {
+	l := New(60)
+	defer l.Stop()
+
+	stale := time.Now().Add(-visitorRetention - time.Minute)
+	l.mu.Lock()
+	for i := range maxVisitors - 1 {
+		l.visitors["stale-"+strconv.Itoa(i)] = &entry{tokens: 1, lastCheck: stale}
+	}
+	l.visitors["live"] = &entry{tokens: 1, lastCheck: time.Now()}
+	l.mu.Unlock()
+
+	l.Allow("newcomer") // table is at the cap: this triggers eviction
+
+	l.mu.Lock()
+	n := len(l.visitors)
+	_, liveSurvived := l.visitors["live"]
+	_, newcomerAdmitted := l.visitors["newcomer"]
+	l.mu.Unlock()
+
+	if !liveSurvived {
+		t.Error("the only active caller was evicted while the table was full of stale entries")
+	}
+	if !newcomerAdmitted {
+		t.Error("the newcomer got no bucket")
+	}
+	// Every stale entry goes in the one pass - not one per insertion, which
+	// would leave the table pinned at the cap and evict a live caller on each
+	// new key.
+	if n != 2 {
+		t.Errorf("table holds %d entries, want 2 (live + newcomer): the stale ones were not all dropped", n)
+	}
+}
