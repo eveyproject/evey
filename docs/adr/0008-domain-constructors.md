@@ -53,9 +53,33 @@ user.WithProfileMaxRating("PG-13")
 
 Options are discoverable in godoc (`grep "^func With"` lists them all) and IDE autocomplete surfaces them. A missing option is a meaningful default; a missing positional param is a compile error.
 
-### Rule 2 - `Validate()` is called at construction AND at boundary reads
+### Rule 2 - `Validate()` is called at construction (and, on two repos, at read)
 
-`NewX` calls `Validate()` before returning. Repositories loading rows from the DB *also* call `Validate()` defensively - a hand-written SQL `UPDATE` or a schema drift could still yield a struct that doesn't satisfy the invariants. Every persistence round-trip is assumed potentially lossy.
+`NewX` calls `Validate()` before returning. That half holds everywhere.
+
+**The read half does not, and this ADR used to claim it did.** It read:
+"Repositories loading rows from the DB *also* call `Validate()` defensively".
+Measured on 2026-08-01: of 64 `*_repo.go` files under
+`internal/adapters/driven/postgres/`, exactly **two** do
+(`media_stream_repo.go`, `share_link_repo.go`). Everything else hydrates the
+aggregate straight from the row.
+
+The sentence is corrected rather than the code, deliberately and for now:
+adding the check everywhere turns a single pre-existing row that violates an
+invariant - one a hand-written `UPDATE` or an old migration left behind - into
+a **load error**, i.e. a server that refuses data it has been serving happily.
+That is a bigger failure mode than the one the guard prevents, and picking it
+is an operator's call (fail-closed and surface the bad row, versus log-and-
+continue), not something to slip in under a doc-conformance banner.
+
+So the honest statement of the invariant today: **a struct that entered the
+system through `NewX` satisfies its invariants; a struct hydrated from the
+database is trusted to.** Three consecutive architecture audits reported the
+gap against the old wording - it was the documentation that was wrong.
+
+Open decision, tracked in the backlog: implement the read-side check on the
+identity/permission-carrying repos only (`user`, `profile`, `plugin`), with an
+explicit choice of what a failed load does.
 
 ### Rule 3 - required identity fields surface `InvalidArgument` at the gRPC boundary
 
