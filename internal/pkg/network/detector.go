@@ -142,8 +142,14 @@ func NetworkInterfaces() ([]InterfaceInfo, error) {
 				continue
 			}
 			result = append(result, InterfaceInfo{
-				Name:    iface.Name,
-				Address: addr.String(),
+				Name: iface.Name,
+				// The IP, not addr.String(): on a *net.IPNet the latter is the
+				// CIDR ("172.18.0.5/16"), and this list answers "where can I
+				// reach this server" in the admin panel - a mask is noise the
+				// operator has to strip before typing the address. The loopback
+				// filter just above already works on `ip`; only the value stored
+				// disagreed with it.
+				Address: ip.String(),
 			})
 		}
 	}

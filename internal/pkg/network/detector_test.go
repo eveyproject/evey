@@ -125,11 +125,31 @@ func TestWithNetworkType_Roundtrip(t *testing.T) {
 	}
 }
 
+// The admin network panel lists the addresses an operator can reach this
+// server on. The host's real interfaces vary, so the assertions are on the
+// CONTRACT rather than on any particular NIC: whatever comes back must be
+// usable as "connect to Evey here".
+//
+// The previous version ended on `_ = ifaces` - it only proved the call did not
+// error, so the filtering was untested and mutation testing killed nothing in
+// it. Loopback is the assertion that matters: telling an operator to reach the
+// server on 127.0.0.1 is advice that works only from the machine itself.
 func TestNetworkInterfaces(t *testing.T) {
 	ifaces, err := NetworkInterfaces()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	// just verify it returns without error; actual interfaces vary
-	_ = ifaces
+	for _, i := range ifaces {
+		if i.Name == "" {
+			t.Error("interface with no name: nothing for the panel to label the address with")
+		}
+		ip := net.ParseIP(i.Address)
+		if ip == nil {
+			t.Errorf("interface %q carries %q, which is not an address anyone can dial", i.Name, i.Address)
+			continue
+		}
+		if ip.IsLoopback() {
+			t.Errorf("interface %q reported loopback %s: unreachable from any other machine", i.Name, i.Address)
+		}
+	}
 }
