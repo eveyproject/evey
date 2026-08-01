@@ -142,6 +142,21 @@ const sampleIndex = [
   { mediaItemId: "m2", title: "Movie 2", filePath: "/data/user/0/app/files/downloads/m2.mp4", fileSize: 2000, downloadedAt: "2025-01-02" },
 ];
 
+// The module persists TWO files now (index.json + the pending.json crash
+// records), so "the last write" is ambiguous - assertions about persisted
+// entries must filter on the index path instead of call order.
+function lastIndexWritten(): Array<Record<string, unknown>> {
+  const calls = fsMock.writeAsStringAsync.mock.calls.filter((c) => String(c[0]).endsWith("index.json"));
+  expect(calls.length).toBeGreaterThan(0);
+  return JSON.parse(calls.at(-1)![1]);
+}
+
+function lastPendingWritten(): Array<Record<string, unknown>> {
+  const calls = fsMock.writeAsStringAsync.mock.calls.filter((c) => String(c[0]).endsWith("pending.json"));
+  expect(calls.length).toBeGreaterThan(0);
+  return JSON.parse(calls.at(-1)![1]);
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   taskInstances.clear();
@@ -205,8 +220,7 @@ describe("startDownload", () => {
 
     const path = await pending;
     expect(path).toContain("evey-m3.mp4");
-    expect(fsMock.writeAsStringAsync).toHaveBeenCalled();
-    const written = JSON.parse(fsMock.writeAsStringAsync.mock.calls[0][1]);
+    const written = lastIndexWritten();
     expect(written).toHaveLength(3);
     expect(written[2].mediaItemId).toBe("m3");
     expect(written[2].fileSize).toBe(5000);
@@ -306,9 +320,7 @@ describe("rehydrateBackgroundDownloads", () => {
     taskHandlers.done?.({ id: "m9" });
     // Wait a tick so the async persist runs.
     await new Promise((resolve) => setTimeout(resolve, 0));
-    const written = fsMock.writeAsStringAsync.mock.calls.at(-1);
-    expect(written).toBeTruthy();
-    const idx = JSON.parse(written![1]);
+    const idx = lastIndexWritten();
     expect(idx.some((i: { mediaItemId: string }) => i.mediaItemId === "m9")).toBe(true);
   });
 
@@ -357,11 +369,9 @@ describe("rehydrateBackgroundDownloads", () => {
     taskHandlers.done?.({ id: "m11" });
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    const written = fsMock.writeAsStringAsync.mock.calls.at(-1);
-    expect(written).toBeTruthy();
-    const idx = JSON.parse(written![1]);
+    const idx = lastIndexWritten();
     const entry = idx.find((i: { mediaItemId: string }) => i.mediaItemId === "m11");
-    expect(entry.fileSize).toBe(42424);
+    expect(entry!.fileSize).toBe(42424);
   });
 });
 
@@ -377,7 +387,7 @@ describe("deleteDownload", () => {
       "file:///data/user/0/app/files/downloads/m1.mp4",
       { idempotent: true },
     );
-    const written = JSON.parse(fsMock.writeAsStringAsync.mock.calls[0][1]);
+    const written = lastIndexWritten();
     expect(written).toHaveLength(1);
     expect(written[0].mediaItemId).toBe("m2");
   });
@@ -386,7 +396,7 @@ describe("deleteDownload", () => {
     await deleteDownload("nonexistent");
 
     expect(fsMock.deleteAsync).not.toHaveBeenCalled();
-    const written = JSON.parse(fsMock.writeAsStringAsync.mock.calls[0][1]);
+    const written = lastIndexWritten();
     expect(written).toHaveLength(2);
   });
 });
@@ -664,9 +674,9 @@ describe("offline audio renderability", () => {
     const handlers = await waitForTask("ac1");
     handlers.done?.({ id: "ac1" });
     await pending;
-    const written = JSON.parse(fsMock.writeAsStringAsync.mock.calls.at(-1)![1]);
-    const entry = written.find((i: { mediaItemId: string }) => i.mediaItemId === "ac1");
-    expect(entry.audioCodecs).toEqual(["ac3", "aac"]);
+    const written = lastIndexWritten();
+    const entry = written.find((i) => i.mediaItemId === "ac1");
+    expect(entry!.audioCodecs).toEqual(["ac3", "aac"]);
   });
 
   it("getDownloadedMedia returns the stored index entry", async () => {
@@ -763,7 +773,7 @@ describe("startDownload + buildDownloadAuthContext wiring closes the offline-acc
   // above, then feed it back to readAsStringAsync so a subsequent
   // getDownloadPath() call reads that same persisted entry.
   function lastWrittenIndex(): Array<Record<string, unknown>> {
-    return JSON.parse(fsMock.writeAsStringAsync.mock.calls.at(-1)![1]);
+    return lastIndexWritten();
   }
 
   it("persists the downloader's identity on the entry startDownload writes", async () => {
@@ -960,5 +970,106 @@ describe("purgeOrphanedDownloads", () => {
   it("returns 0 when the directory cannot be read", async () => {
     fsMock.readDirectoryAsync.mockRejectedValue(new Error("nope"));
     await expect(purgeOrphanedDownloads()).resolves.toBe(0);
+  });
+});
+
+// The native lib emits its completion event exactly once, then destroys the
+// task state. A JS thread frozen at that instant (aggressive OEM background
+// policy - seen in the field: a fully-written file, a 99% display, an empty
+// index) loses the event with nothing left to rehydrate. These tests pin the
+// recovery contract: the pending.json record plus the bytes on disk.
+describe("lost-completion reconciliation", () => {
+  const DEST = "/storage/emulated/0/Download/Evey/Lost Movie-lost1234.mkv";
+
+  function pendingRecord(overrides: Record<string, unknown> = {}) {
+    return {
+      mediaItemId: "lost1234",
+      title: "Lost Movie",
+      destPath: DEST,
+      expectedBytes: 5000,
+      audioCodecs: ["ac3"],
+      startedAt: "2026-08-01T08:27:00.000Z",
+      ...overrides,
+    };
+  }
+
+  function pathAwareRead(index: unknown[], pending: unknown[]) {
+    fsMock.readAsStringAsync.mockImplementation(async (p: string) =>
+      String(p).endsWith("pending.json") ? JSON.stringify(pending) : JSON.stringify(index),
+    );
+  }
+
+  it("indexes a finished file whose completion event was lost", async () => {
+    pathAwareRead([], [pendingRecord()]);
+    fsMock.getInfoAsync.mockResolvedValue({ exists: true, size: 5000 });
+
+    await rehydrateBackgroundDownloads();
+
+    const idx = lastIndexWritten();
+    const entry = idx.find((i) => i.mediaItemId === "lost1234");
+    expect(entry).toBeTruthy();
+    expect(entry!.filePath).toBe(DEST);
+    expect(entry!.fileSize).toBe(5000);
+    // The codecs ride along so the audio compat pass can still decide.
+    expect(entry!.audioCodecs).toEqual(["ac3"]);
+    // The record is settled - next boot must not re-index.
+    expect(lastPendingWritten()).toEqual([]);
+    expect(fsMock.deleteAsync).not.toHaveBeenCalled();
+  });
+
+  it("drops a partial whose task vanished (unresumable)", async () => {
+    pathAwareRead([], [pendingRecord()]);
+    fsMock.getInfoAsync.mockResolvedValue({ exists: true, size: 100 });
+
+    await rehydrateBackgroundDownloads();
+
+    expect(fsMock.deleteAsync).toHaveBeenCalledWith(`file://${DEST}`, { idempotent: true });
+    const indexWrites = fsMock.writeAsStringAsync.mock.calls.filter((c) => String(c[0]).endsWith("index.json"));
+    expect(indexWrites).toHaveLength(0);
+    expect(lastPendingWritten()).toEqual([]);
+  });
+
+  it("keeps unverifiable bytes when the transfer died before begin()", async () => {
+    pathAwareRead([], [pendingRecord({ expectedBytes: undefined })]);
+    fsMock.getInfoAsync.mockResolvedValue({ exists: true, size: 900 });
+
+    await rehydrateBackgroundDownloads();
+
+    // Can't prove complete, can't prove truncated: never delete on a guess.
+    expect(fsMock.deleteAsync).not.toHaveBeenCalled();
+    expect(lastPendingWritten()).toEqual([]);
+  });
+
+  it("leaves the record of a still-live task alone", async () => {
+    pathAwareRead([], [pendingRecord()]);
+    const live = {
+      id: "lost1234",
+      metadata: { title: "Lost Movie" },
+      progress: vi.fn(() => live),
+      done: vi.fn(() => live),
+      error: vi.fn(() => live),
+    };
+    getExistingDownloadTasksMock.mockResolvedValueOnce([live]);
+
+    await rehydrateBackgroundDownloads();
+
+    // Its own done/error will settle it; reconciliation must not interfere.
+    expect(fsMock.deleteAsync).not.toHaveBeenCalled();
+    const pendingWrites = fsMock.writeAsStringAsync.mock.calls.filter((c) => String(c[0]).endsWith("pending.json"));
+    expect(pendingWrites).toHaveLength(0);
+  });
+
+  it("only clears the record when the entry already made it to the index", async () => {
+    pathAwareRead(
+      [{ mediaItemId: "lost1234", title: "Lost Movie", filePath: DEST, fileSize: 5000, downloadedAt: "2026-08-01" }],
+      [pendingRecord()],
+    );
+
+    await rehydrateBackgroundDownloads();
+
+    expect(fsMock.deleteAsync).not.toHaveBeenCalled();
+    const indexWrites = fsMock.writeAsStringAsync.mock.calls.filter((c) => String(c[0]).endsWith("index.json"));
+    expect(indexWrites).toHaveLength(0);
+    expect(lastPendingWritten()).toEqual([]);
   });
 });

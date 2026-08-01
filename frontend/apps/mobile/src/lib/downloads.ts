@@ -67,6 +67,51 @@ export interface DownloadedMedia {
 
 const INDEX_FILE = `${DOWNLOAD_DIR}index.json`;
 
+// Sidecar record of every download BETWEEN start and settle. The native lib
+// emits its completion event exactly once and then destroys the task state -
+// if the OS had frozen the JS thread at that moment (ColorOS does, seen
+// 08-01: a fully-written 1.85 GB file, a 99% display, an empty index), the
+// event is gone and rehydrate finds nothing to re-attach. These records are
+// what makes that loss recoverable: at startup, a record whose task no longer
+// exists is reconciled against the bytes actually on disk.
+const PENDING_FILE = `${DOWNLOAD_DIR}pending.json`;
+
+interface PendingDownload {
+  mediaItemId: string;
+  title: string;
+  destPath: string;
+  /** Filled in at begin(); 0/absent means the transfer died before begin. */
+  expectedBytes?: number;
+  authContext?: DownloadAuthContext;
+  audioCodecs?: string[];
+  startedAt: string;
+}
+
+async function readPending(): Promise<PendingDownload[]> {
+  try {
+    const raw = await FileSystem.readAsStringAsync(PENDING_FILE);
+    return JSON.parse(raw);
+  } catch {
+    return [];
+  }
+}
+
+async function writePending(items: PendingDownload[]) {
+  await ensureDir();
+  await FileSystem.writeAsStringAsync(PENDING_FILE, JSON.stringify(items));
+}
+
+async function setPending(rec: PendingDownload) {
+  const rest = (await readPending()).filter((p) => p.mediaItemId !== rec.mediaItemId);
+  await writePending([...rest, rec]);
+}
+
+async function clearPending(mediaItemId: string) {
+  const all = await readPending();
+  const rest = all.filter((p) => p.mediaItemId !== mediaItemId);
+  if (rest.length !== all.length) await writePending(rest);
+}
+
 // Track in-flight downloads in memory so the UI can subscribe to progress
 // updates without re-binding callbacks on every render. Cleared on done/error.
 // Byte counts ride along with the fraction: an integer percent of a multi-GB
@@ -398,7 +443,7 @@ async function persistDownloaded(
  */
 export async function updateDownloadedAudio(
   mediaItemId: string,
-  patch: Partial<Pick<DownloadedMedia, "fileSize" | "audioCodecs" | "audioPassFailed">>,
+  patch: Partial<Pick<DownloadedMedia, "fileSize" | "audioCodecs" | "audioPassFailed" | "filePath">>,
 ): Promise<void> {
   const index = await readIndex();
   const item = index.find((i) => i.mediaItemId === mediaItemId);
@@ -509,6 +554,24 @@ export async function startDownload(
   let firstProgressLogged = false;
   console.log(`evey-dl start ${mediaItemId} -> ${destPath}`);
 
+  // Written BEFORE the transfer starts so a completion whose event gets lost
+  // (JS frozen at that instant) is recoverable at next startup - see
+  // reconcilePendingDownloads. Failure to write it must not block the
+  // download: the record is a safety net, not a precondition.
+  const pendingRecord: PendingDownload = {
+    mediaItemId,
+    title,
+    destPath,
+    authContext,
+    audioCodecs,
+    startedAt: new Date().toISOString(),
+  };
+  try {
+    await setPending(pendingRecord);
+  } catch (err) {
+    console.warn("evey-dl pending record", err);
+  }
+
   return new Promise<string>((resolve, reject) => {
     const task = createDownloadTask({
       id: mediaItemId,
@@ -530,6 +593,11 @@ export async function startDownload(
         console.log(`evey-dl begin ${mediaItemId} expected=${expectedBytes}`);
         const state = inFlight.get(mediaItemId);
         if (state) state.totalBytes = expectedBytes ?? 0;
+        // The reconciler can only call a file "complete" against this figure.
+        if (expectedBytes && expectedBytes > 0) {
+          pendingRecord.expectedBytes = expectedBytes;
+          void setPending(pendingRecord).catch(() => undefined);
+        }
         // The size is only knowable here, and this is the last moment before
         // gigabytes start landing on the device. Without this check a 40GB film
         // happily starts on a phone with 2GB free and dies deep into the
@@ -576,6 +644,7 @@ export async function startDownload(
         } catch (err) {
           if (process.env.NODE_ENV !== "production") console.warn("persist download index", err);
         }
+        await clearPending(mediaItemId).catch(() => undefined);
         inFlight.delete(mediaItemId);
         inFlightTitles.delete(mediaItemId);
         activeDownloads.delete(mediaItemId);
@@ -592,6 +661,7 @@ export async function startDownload(
       })
       .error(async ({ error }) => {
         console.warn(`evey-dl error ${mediaItemId}: ${error}`);
+        await clearPending(mediaItemId).catch(() => undefined);
         inFlight.delete(mediaItemId);
         inFlightTitles.delete(mediaItemId);
         activeDownloads.delete(mediaItemId);
@@ -685,6 +755,66 @@ export async function rehydrateBackgroundDownloads(): Promise<void> {
         try { await FileSystem.deleteAsync(toFileUri(destPath), { idempotent: true }); } catch (err) { console.warn("caught", err); }
       });
   }
+
+  // Runs after the live tasks are re-wired so their records are recognized as
+  // live; must run BEFORE purgeOrphanedDownloads (a complete-but-unindexed
+  // file is exactly what the purge would misread as an orphan).
+  const liveIds = new Set(tasks.map((t) => t.id));
+  await reconcilePendingDownloads(liveIds);
+}
+
+/**
+ * Settle every pending record whose native task VANISHED without ever firing
+ * done/error - the lib emits completion exactly once and then destroys the
+ * task state, so a JS thread frozen at that moment (app backgrounded on an
+ * aggressive OEM) loses the event forever. The bytes on disk are the ground
+ * truth this falls back on: a file at least as large as the transfer's
+ * expected size IS the completed download, and is indexed as such; anything
+ * short of that is an unresumable partial and is dropped.
+ */
+async function reconcilePendingDownloads(liveIds: Set<string>): Promise<void> {
+  let pending: PendingDownload[];
+  try {
+    pending = await readPending();
+  } catch {
+    return;
+  }
+  for (const rec of pending) {
+    if (liveIds.has(rec.mediaItemId)) continue;
+    try {
+      const already = await getDownloadedMedia(rec.mediaItemId);
+      if (already) {
+        await clearPending(rec.mediaItemId);
+        continue;
+      }
+      const info = await FileSystem.getInfoAsync(toFileUri(rec.destPath));
+      if (info.exists && rec.expectedBytes && rec.expectedBytes > 0 && (info.size ?? 0) >= rec.expectedBytes) {
+        console.log(`evey-dl reconcile ${rec.mediaItemId}: complete on disk (${info.size}), indexing lost completion`);
+        await persistDownloaded(rec.mediaItemId, rec.title, rec.destPath, info.size ?? rec.expectedBytes, rec.authContext, rec.audioCodecs);
+        await clearPending(rec.mediaItemId);
+        // Same follow-up a live completion gets. The import cannot be
+        // hoisted: audioCompatPass imports back into this module.
+        void import("./audioCompatPass")
+          .then((m) => m.runAudioCompatPass(rec.mediaItemId))
+          .catch((err) => console.warn("evey-audiopass kickoff", err));
+        continue;
+      }
+      if (info.exists && rec.expectedBytes && rec.expectedBytes > 0) {
+        console.log(`evey-dl reconcile ${rec.mediaItemId}: partial without a task (${info.size ?? 0}/${rec.expectedBytes}), dropping`);
+        await FileSystem.deleteAsync(toFileUri(rec.destPath), { idempotent: true }).catch(() => undefined);
+      } else if (info.exists) {
+        // Died before begin() recorded the expected size: the file can't be
+        // told complete from truncated. Keep the bytes, forget the record - a
+        // re-download overwrites the same path anyway.
+        console.log(`evey-dl reconcile ${rec.mediaItemId}: unverifiable file (no expected size), keeping bytes`);
+      } else {
+        console.log(`evey-dl reconcile ${rec.mediaItemId}: nothing on disk, forgetting`);
+      }
+      await clearPending(rec.mediaItemId);
+    } catch (err) {
+      console.warn(`evey-dl reconcile ${rec.mediaItemId}`, err);
+    }
+  }
 }
 
 // Whether mediaItemId has a download currently running that can be stopped -
@@ -704,6 +834,7 @@ export function isDownloadCancelable(mediaItemId: string): boolean {
 export async function cancelDownload(mediaItemId: string): Promise<void> {
   const handle = activeDownloads.get(mediaItemId);
   if (!handle) return;
+  await clearPending(mediaItemId).catch(() => undefined);
   activeDownloads.delete(mediaItemId);
   inFlight.delete(mediaItemId);
   inFlightTitles.delete(mediaItemId);
