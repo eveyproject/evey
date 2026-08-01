@@ -1,7 +1,8 @@
-import { memo } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { Star } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { typeLabel } from "@/utils/typeLabel";
 import type { V1MediaItem } from "@evey/api";
 import { artworkUrl } from "@/features/library/artworkUrl";
@@ -12,6 +13,26 @@ function formatDuration(ms: string): string {
   const h = Math.floor(totalMin / 60);
   const m = totalMin % 60;
   return m > 0 ? `${h}h ${m}m` : `${h}h`;
+}
+
+// Rows have no wrapping text (title is truncated to one line) and every icon/
+// image is a fixed size, so the row height never varies with content - a
+// constant estimate is exact, not an approximation, and measureElement would
+// just be dead weight. 40px poster + 2*8px vertical padding + 1px border.
+const ROW_HEIGHT = 57;
+
+// Same pattern as PhotoGrid (routes/_auth/photos/index.lazy.tsx): the page's
+// actual scroll container is an ancestor (AuthLayout's #main-content), not
+// this component's own root, so the virtualizer needs that ancestor plus a
+// scrollMargin to translate virtual offsets into on-screen positions.
+function findScrollParent(el: HTMLElement | null): HTMLElement | null {
+  let node: HTMLElement | null = el?.parentElement ?? null;
+  while (node) {
+    const style = getComputedStyle(node);
+    if (/(auto|scroll|overlay)/.test(style.overflowY)) return node;
+    node = node.parentElement;
+  }
+  return (document.scrollingElement as HTMLElement) ?? document.documentElement;
 }
 
 const ListRow = memo(function ListRow({ item }: { item: V1MediaItem }) {
@@ -65,8 +86,46 @@ const ListRow = memo(function ListRow({ item }: { item: V1MediaItem }) {
   );
 });
 
-export function LibraryListView({ items }: { items: V1MediaItem[] }) {
+interface LibraryListViewProps {
+  items: V1MediaItem[];
+  // Optional infinite-scroll wiring: the caller owns the paged query, so it
+  // hands down its own hasNextPage/isFetchingNextPage state and a callback to
+  // fetch the next page. Left undefined, the view just renders the items it
+  // was given (unchanged behavior for callers that don't paginate).
+  hasNextPage?: boolean;
+  isFetchingNextPage?: boolean;
+  onLoadMore?: () => void;
+}
+
+export function LibraryListView({ items, hasNextPage = false, isFetchingNextPage = false, onLoadMore }: LibraryListViewProps) {
   const { t } = useTranslation();
+  const parentRef = useRef<HTMLDivElement>(null);
+  const [scrollEl, setScrollEl] = useState<HTMLElement | null>(null);
+
+  useEffect(() => {
+    setScrollEl(findScrollParent(parentRef.current));
+  }, []);
+
+  const virtualizer = useVirtualizer({
+    count: items.length,
+    getScrollElement: () => scrollEl,
+    estimateSize: () => ROW_HEIGHT,
+    overscan: 8,
+    scrollMargin:
+      parentRef.current && scrollEl
+        ? parentRef.current.getBoundingClientRect().top - scrollEl.getBoundingClientRect().top + scrollEl.scrollTop
+        : 0,
+  });
+  const virtualItems = virtualizer.getVirtualItems();
+
+  // Windowing means a sentinel at the end of the DOM no longer lines up with
+  // the actual bottom of the scroll - trigger from the last *virtual* item
+  // reaching the end of the list instead (mirrors LogsExplorer/WatchHistory).
+  useEffect(() => {
+    const last = virtualItems[virtualItems.length - 1];
+    if (!last) return;
+    if (last.index >= items.length - 1 && hasNextPage && !isFetchingNextPage) onLoadMore?.();
+  }, [virtualItems, items.length, hasNextPage, isFetchingNextPage, onLoadMore]);
 
   return (
     <div
@@ -82,9 +141,23 @@ export function LibraryListView({ items }: { items: V1MediaItem[] }) {
         <span className="hidden lg:block w-12 flex-shrink-0">{t("media.library.type")}</span>
         <span className="hidden lg:block w-16 text-right flex-shrink-0">{t("media.library.duration")}</span>
       </div>
-      {items.map((item) => (
-        <ListRow key={item.id} item={item} />
-      ))}
+      <div ref={parentRef} style={{ height: virtualizer.getTotalSize(), width: "100%", position: "relative" }}>
+        {virtualItems.map((vItem) => (
+          <div
+            key={vItem.key}
+            data-index={vItem.index}
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: "100%",
+              transform: `translateY(${vItem.start - virtualizer.options.scrollMargin}px)`,
+            }}
+          >
+            <ListRow item={items[vItem.index]} />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

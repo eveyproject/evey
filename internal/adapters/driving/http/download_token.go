@@ -73,7 +73,7 @@ func requireDownloadTokenBinding(w http.ResponseWriter, r *http.Request, resourc
 		metrics.AuthzDeniedTotal.WithLabelValues("http", "download_token_scope_mismatch").Inc()
 		slog.WarnContext(r.Context(), "download refused: the stream token is not bound to this resource",
 			slog.String("resource_id", resourceID),
-			slog.String("scope", string(st.Scope)),
+			slog.String("scope", st.Scope),
 			slog.String("client_ip", ratelimit.ClientIP(r)))
 		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 		return false

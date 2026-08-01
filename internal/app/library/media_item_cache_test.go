@@ -236,8 +236,8 @@ func TestCachedMediaItemQueryRepo_ListGenresIsCachedPerLibrary(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	for range 5 {
-		if _, err := c.ListGenres(ctx, "lib-1"); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+		if _, e := c.ListGenres(ctx, "lib-1"); e != nil {
+			t.Fatalf("unexpected error: %v", e)
 		}
 	}
 	if got := inner.calls.Load(); got != 1 {
@@ -256,9 +256,9 @@ func TestCachedMediaItemQueryRepo_ListGenresIsCachedPerLibrary(t *testing.T) {
 	// The cached slice must be a copy: a caller that sorts or appends must not
 	// corrupt what everyone else reads.
 	first[0] = "MUTATED"
-	again, err := c.ListGenres(ctx, "lib-1")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	again, againErr := c.ListGenres(ctx, "lib-1")
+	if againErr != nil {
+		t.Fatalf("unexpected error: %v", againErr)
 	}
 	if again[0] == "MUTATED" {
 		t.Error("a caller mutated the cached genre list for every other caller")
