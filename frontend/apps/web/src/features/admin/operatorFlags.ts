@@ -21,6 +21,11 @@ export interface OperatorFlag {
 
 export const OPERATOR_FLAGS: OperatorFlag[] = [
   {
+    key: "transcoding.compat_download",
+    envVar: "EVEY_COMPAT_DOWNLOAD",
+    valueHint: "off (default: on)",
+  },
+  {
     key: "transcoding.keyframe_backfill",
     envVar: "EVEY_KEYFRAME_BACKFILL",
     valueHint: "off (default: on)",

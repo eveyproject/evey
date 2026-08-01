@@ -90,6 +90,10 @@ type HTTPServer struct {
 	// Remuxer repackages EBML (mkv/webm) sources into fast-start MP4 for the
 	// progressive /remux.mp4 path. Optional: nil disables the route.
 	Remuxer Remuxer
+	// CompatTranscoder produces the phone-compatible download variant (audio
+	// re-encoded to stereo AAC, everything else copied) served by the
+	// compat-download routes. Optional: nil disables them.
+	CompatTranscoder CompatTranscoder
 
 	// User
 	OIDCSvc         *appuser.OIDCService
@@ -459,6 +463,16 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	}
 	mux.HandleFunc("POST /api/v1/media/{id}/artwork/{artworkId}/select", auth(selectArtworkHandler(s.ArtworkRepo, s.LibQuerySvc, s.LibraryAccessRepo)))
 	mux.HandleFunc("GET /api/v1/media/{id}/download", streamAuth(ratelimit.MiddlewareFunc(s.GlobalRL, s.StreamMeter.Middleware(downloadHandler(s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo, parentalChk)))))
+	// Compat download: the server-prepared variant whose audio a phone without
+	// AC-3/DTS decoders can render. POST kicks the (minutes-long, cached,
+	// once-per-title) production; GET /status is the poll; the bare GET serves
+	// the finished MKV under the same guards and metering as the raw download.
+	if s.CompatTranscoder != nil {
+		compat := newCompatServe(s.LibQuerySvc, s.LibraryAccessRepo, parentalChk, s.LibQuerySvc, s.CompatTranscoder, s.Cfg.Transcoding.CacheDir, s.BaseURL())
+		mux.HandleFunc("POST /api/v1/media/{id}/compat-download", streamAuth(ratelimit.MiddlewareFunc(s.GlobalRL, compat.handlePrepare)))
+		mux.HandleFunc("GET /api/v1/media/{id}/compat-download/status", streamAuth(compat.handleStatus))
+		mux.HandleFunc("GET /api/v1/media/{id}/compat-download", streamAuth(ratelimit.MiddlewareFunc(s.GlobalRL, s.StreamMeter.Middleware(compat.handleServe))))
+	}
 	// Public share download: no auth - the uuid token is the capability.
 	// Admin-only to CREATE (RBAC), but the resulting link must resolve without
 	// a login. Rate-limited per-IP as defence-in-depth (the uuid entropy is the

@@ -363,6 +363,14 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		StartEviction(apptranscoding.EvictionPolicy{
 			MaxBytes: apptranscoding.DefaultRemuxCacheBytes,
 		}, slog.Default())
+	// Same janitor, third directory: the compat-download variants
+	// (<CacheDir>/compat). These are whole films (audio re-encoded, video
+	// copied), so the budget is an order of magnitude above the remux one -
+	// still LRU-by-production, still fingerprint-keyed orphan reclaim.
+	_ = apptranscoding.NewRemuxCacheJanitor(filepath.Join(cfg.Transcoding.CacheDir, "compat")).
+		StartEviction(apptranscoding.EvictionPolicy{
+			MaxBytes: apptranscoding.DefaultCompatCacheBytes,
+		}, slog.Default())
 	// Inline SourceResolver: the orchestrator hands a DecisionFingerprint
 	// back, we look up the media item via the library query service. Streams
 	// are filled in later (Phase 3 follow-up) - Phase 1+2 only need the path.

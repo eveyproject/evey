@@ -18,6 +18,12 @@ import (
 // admin panel, not .env). Swept independently of the segment cache.
 const DefaultRemuxCacheBytes = 10 * 1024 * 1024 * 1024
 
+// DefaultCompatCacheBytes caps the compat-download cache (<CacheDir>/compat).
+// Entries are whole films (video copied, audio re-encoded), so a handful of
+// titles already reaches tens of GiB; 100 GiB keeps roughly a household's
+// worth of recently-fetched films warm without an operator knob.
+const DefaultCompatCacheBytes = 100 * 1024 * 1024 * 1024
+
 // RemuxCacheJanitor bounds a flat-file cache directory - the fast-start MP4s the
 // /remux.mp4 handler writes under <CacheDir>/remux, one whole file per entry. It
 // reuses the segment cache's EvictionPolicy knobs and LRU-by-(size, mtime)

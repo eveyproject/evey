@@ -79,6 +79,16 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		return err == nil && entry.Value == "true"
 	}
 
+	// Compat download (server-prepared variant with phone-renderable AAC
+	// audio): ON by default with an operator opt-out, the house posture for
+	// transcoding features. nil leaves the routes unregistered entirely.
+	var compatTranscoder httpapi.CompatTranscoder
+	if v := resolveFlag(ctx, deps.repos.serverCfgRepo, "transcoding.compat_download", "EVEY_COMPAT_DOWNLOAD"); v == "off" || v == "false" {
+		slog.Info("compat-download disabled (transcoding.compat_download=off)")
+	} else {
+		compatTranscoder = ffmpeg.NewCompatTranscoder("ffmpeg")
+	}
+
 	srv := &httpapi.HTTPServer{
 		BaseURL:   cfg.EffectiveBaseURL,
 		Version:   version,
@@ -97,8 +107,9 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 
 		LibCmdSvc:   deps.library.cmdSvc,
 		LibQuerySvc: deps.library.querySvc,
-		Scheduler:   deps.library.scheduler,
-		Remuxer:     deps.media.mkvAdapter,
+		Scheduler:        deps.library.scheduler,
+		Remuxer:          deps.media.mkvAdapter,
+		CompatTranscoder: compatTranscoder,
 
 		OIDCSvc:         deps.user.oidcSvc,
 		UserAuthSvc:     deps.user.authSvc,
