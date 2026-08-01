@@ -41,6 +41,13 @@ interface PluginSlotProps {
   context?: Record<string, unknown>;
   /** When set, only render the plugin with this id matching the slot. */
   pluginId?: string;
+  /**
+   * Skip plugins whose id is in this set. The home screen uses it to render
+   * only the newly-installed plugins the feed config does not place yet; the
+   * rest are rendered at their configured position by a PluginSlot with
+   * `pluginId` set. Without it the two calls render the same plugin twice.
+   */
+  excludeRegistered?: Set<string>;
 }
 
 /**
@@ -49,7 +56,7 @@ interface PluginSlotProps {
  * display-only on TV (`focusable={false}`) - plugins render content, they
  * never trap the D-pad.
  */
-export function PluginSlot({ name, context, pluginId }: PluginSlotProps) {
+export function PluginSlot({ name, context, pluginId, excludeRegistered }: PluginSlotProps) {
   const isAuthenticated = useAuthStore((s) => !!s.accessToken);
 
   const { data } = useQuery<ListPluginsResponse>({
@@ -65,6 +72,7 @@ export function PluginSlot({ name, context, pluginId }: PluginSlotProps) {
   for (const plugin of plugins) {
     if (plugin.enabled === false || !plugin.id) continue;
     if (pluginId && plugin.id !== pluginId) continue;
+    if (excludeRegistered?.has(plugin.id)) continue;
     const webRoot = plugin.webRoot ?? "";
     const externalFetch = plugin.externalFetch ?? [];
     for (const mod of plugin.frontend ?? []) {

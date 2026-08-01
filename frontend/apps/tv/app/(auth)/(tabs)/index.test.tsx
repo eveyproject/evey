@@ -132,7 +132,15 @@ const nextUpMock = vi.fn();
 const listMediaItemsMock = vi.fn();
 const unreadCountMock = vi.fn();
 const librariesMock = vi.fn();
+const feedConfigMock = vi.fn();
+const recommendedMock = vi.fn();
 const getLibraryServiceListMediaItemsQueryOptionsMock = vi.fn((params: { libraryId: string }) => ({
+  queryKey: [params.libraryId],
+}));
+const getMusicAlbumsQueryOptionsMock = vi.fn((params: { libraryId: string }) => ({
+  queryKey: [params.libraryId],
+}));
+const getPhotoAlbumsQueryOptionsMock = vi.fn((params: { libraryId: string }) => ({
   queryKey: [params.libraryId],
 }));
 vi.mock("@evey/api", () => ({
@@ -140,11 +148,30 @@ vi.mock("@evey/api", () => ({
   usePlaybackServiceGetNextUp: (...args: unknown[]) => nextUpMock(...args),
   useLibraryServiceListMediaItems: (...args: unknown[]) => listMediaItemsMock(...args),
   useLibraryServiceListLibraries: (...args: unknown[]) => librariesMock(...args),
+  useFeedServiceGetFeedConfig: (...args: unknown[]) => feedConfigMock(...args),
+  useFeedServiceRecommended: (...args: unknown[]) => recommendedMock(...args),
   getLibraryServiceListMediaItemsQueryOptions: (...args: unknown[]) =>
     getLibraryServiceListMediaItemsQueryOptionsMock(
       ...(args as [{ libraryId: string }]),
     ),
+  getMusicServiceGetAlbumsQueryOptions: (...args: unknown[]) =>
+    getMusicAlbumsQueryOptionsMock(...(args as [{ libraryId: string }])),
+  getPhotoServiceListPhotoAlbumsQueryOptions: (...args: unknown[]) =>
+    getPhotoAlbumsQueryOptionsMock(...(args as [{ libraryId: string }])),
   useNotificationServiceGetUnreadCount: (...args: unknown[]) => unreadCountMock(...args),
+}));
+
+// --- store / collections / popular mocks -------------------------------------
+vi.mock("@evey/store", () => ({
+  useAuthStore: (sel: (s: unknown) => unknown) => sel({ profileId: "prof-1", accessToken: "TOKEN" }),
+}));
+const collectionsMock = vi.fn();
+vi.mock("../../../src/api/collections", () => ({
+  useCollections: () => collectionsMock(),
+}));
+const popularMock = vi.fn();
+vi.mock("../../../src/hooks/usePopular", () => ({
+  useMostPopular: (...args: unknown[]) => popularMock(...args),
 }));
 
 import HomeScreen, { selectHomeFocusTarget } from "./index";
@@ -165,8 +192,14 @@ beforeEach(() => {
   nextUpMock.mockReturnValue({ data: { items: [] }, isLoading: false });
   listMediaItemsMock.mockReturnValue({ data: { items: [HERO_ITEM] }, isLoading: false });
   unreadCountMock.mockReturnValue({ data: { count: 0 } });
-  // No libraries by default: existing tests exercise the 3 static rows only.
+  // No libraries by default: these tests exercise the transverse rows only.
   librariesMock.mockReturnValue({ data: { libraries: [] }, isLoading: false });
+  // No stored config: the screen falls back to the shared default order, which
+  // is what a fresh install shows.
+  feedConfigMock.mockReturnValue({ data: { configs: [] } });
+  recommendedMock.mockReturnValue({ data: { items: [] }, isLoading: false });
+  popularMock.mockReturnValue({ data: [], isLoading: false });
+  collectionsMock.mockReturnValue({ data: { collections: [] }, isLoading: false });
 });
 
 describe("selectHomeFocusTarget (initial TV remote focus)", () => {
@@ -269,5 +302,109 @@ describe("HomeScreen per-library rows", () => {
     render(<HomeScreen />);
     const focused = document.querySelector('[data-tv-preferred-focus="true"]');
     expect(focused?.textContent).toContain("Lib1 Movie");
+  });
+});
+
+// The home used to hardcode three rows plus one per library; the owner asked
+// (2026-08-02) for it to match web/mobile, which means the SERVER decides what
+// is on screen and in what order.
+describe("HomeScreen feed-config driven rows", () => {
+  beforeEach(() => {
+    listMediaItemsMock.mockReturnValue({ data: { items: [] }, isLoading: false }); // no hero
+    collectionsMock.mockReturnValue({
+      data: { collections: [{ id: "col-1", name: "Marvel", posterUrl: "http://srv.test/c.jpg" }] },
+      isLoading: false,
+    });
+    recommendedMock.mockReturnValue({
+      data: { items: [{ mediaItemId: "mi-rec", title: "Recommended Film" }] },
+      isLoading: false,
+    });
+    popularMock.mockReturnValue({ data: [{ mediaItemId: "mi-pop", title: "Popular Film" }], isLoading: false });
+  });
+
+  it("renders the shelves web and mobile have, which the TV never had", () => {
+    render(<HomeScreen />);
+    expect(screen.getByText("media.home.collections")).toBeTruthy();
+    expect(screen.getByText("media.home.recommendedForYou")).toBeTruthy();
+    expect(screen.getByText("media.home.mostPopular")).toBeTruthy();
+  });
+
+  it("renders the rows in the order the server configured, not a hardcoded one", () => {
+    feedConfigMock.mockReturnValue({
+      data: {
+        configs: [
+          { feedType: "most_popular", enabled: true, displayOrder: 0 },
+          { feedType: "collections", enabled: true, displayOrder: 1 },
+        ],
+      },
+    });
+    render(<HomeScreen />);
+    const titles = Array.from(document.querySelectorAll("span"))
+      .map((n) => n.textContent)
+      .filter((txt) => txt === "media.home.mostPopular" || txt === "media.home.collections");
+    expect(titles).toEqual(["media.home.mostPopular", "media.home.collections"]);
+  });
+
+  it("hides a row the server disabled", () => {
+    feedConfigMock.mockReturnValue({
+      data: {
+        configs: [
+          { feedType: "collections", enabled: false, displayOrder: 0 },
+          { feedType: "most_popular", enabled: true, displayOrder: 1 },
+        ],
+      },
+    });
+    render(<HomeScreen />);
+    expect(screen.queryByText("media.home.collections")).toBeNull();
+    expect(screen.getByText("media.home.mostPopular")).toBeTruthy();
+  });
+
+  it("sends a collection card to the collection, not to /media/<id>", () => {
+    render(<HomeScreen />);
+    fireEvent.click(screen.getByLabelText("Marvel"));
+    expect(pushMock).toHaveBeenCalledWith("/(auth)/collections/col-1");
+  });
+});
+
+// A music or photo card must not land on the video detail screen - that was
+// the reason those libraries had no row at all until the TV grew screens that
+// suit them.
+describe("HomeScreen music and photo library rows", () => {
+  beforeEach(() => {
+    listMediaItemsMock.mockReturnValue({ data: { items: [] }, isLoading: false });
+    librariesMock.mockReturnValue({
+      data: {
+        libraries: [
+          { id: "lib-mus", name: "Music", type: "LIBRARY_TYPE_MUSIC" },
+          { id: "lib-pho", name: "Photos", type: "LIBRARY_TYPE_PHOTOS" },
+        ],
+      },
+      isLoading: false,
+    });
+    libraryRowResults.set("lib-mus", {
+      data: { albums: [{ id: "alb-1", title: "Kind of Blue", artist: "Miles Davis" }] },
+      isLoading: false,
+    });
+    libraryRowResults.set("lib-pho", {
+      data: { albums: [{ name: "2024/Holiday", photoCount: 12 }] },
+      isLoading: false,
+    });
+  });
+
+  it("queries albums, not media items, for those libraries", () => {
+    render(<HomeScreen />);
+    expect(getMusicAlbumsQueryOptionsMock).toHaveBeenCalledWith({ libraryId: "lib-mus" });
+    expect(getPhotoAlbumsQueryOptionsMock).toHaveBeenCalledWith({ libraryId: "lib-pho" });
+    expect(getLibraryServiceListMediaItemsQueryOptionsMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({ libraryId: "lib-mus" }),
+    );
+  });
+
+  it("sends an album card to the album screen and a photo card to the photos screen", () => {
+    render(<HomeScreen />);
+    fireEvent.click(screen.getByLabelText("Kind of Blue"));
+    expect(pushMock).toHaveBeenCalledWith("/(auth)/music/album/alb-1");
+    fireEvent.click(screen.getByLabelText("2024/Holiday"));
+    expect(pushMock).toHaveBeenCalledWith("/(auth)/photos");
   });
 });

@@ -9,10 +9,15 @@ import {
   usePlaybackServiceGetNextUp,
   useLibraryServiceListMediaItems,
   useLibraryServiceListLibraries,
+  useFeedServiceGetFeedConfig,
+  useFeedServiceRecommended,
   getLibraryServiceListMediaItemsQueryOptions,
+  getMusicServiceGetAlbumsQueryOptions,
+  getPhotoServiceListPhotoAlbumsQueryOptions,
   useNotificationServiceGetUnreadCount,
 } from "@evey/api";
 import type { V1MediaItem } from "@evey/api";
+import { useAuthStore } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
@@ -23,6 +28,9 @@ import { useParentalGate } from "../../../src/hooks/useParentalGate";
 import { ParentalPINModal } from "../../../src/components/ParentalPINModal";
 import { CARD_WIDTH_FEATURED, POSTER_RATIO, GRID_GAP } from "../../../src/lib/tvLayout";
 import { selectHomeLibraryRows, HOME_LIBRARY_ROW_PAGE_SIZE } from "../../../src/lib/homeLibraryRows";
+import { useCollections } from "../../../src/api/collections";
+import { useMostPopular } from "../../../src/hooks/usePopular";
+import { buildHomeSections, FEED_TYPES, resolveMaxItems, type HomeSection } from "../../../src/lib/homeSections";
 
 const CARD_WIDTH = CARD_WIDTH_FEATURED;
 const CARD_HEIGHT = CARD_WIDTH * POSTER_RATIO;
@@ -31,10 +39,6 @@ const CARD_TOTAL_WIDTH = CARD_WIDTH + GRID_GAP; // card + separator
 const HERO_COUNT = 5;
 const HERO_INTERVAL = 8000;
 const HERO_HEIGHT = 480;
-
-// rowItems/focusTarget hold the 3 static rows first, then one entry per
-// library row, in the same order as libraryRows/libraryRowQueries.
-const LIBRARY_ROWS_START = 3;
 
 const tvRowGetItemLayout = (_: unknown, index: number) => ({
   length: CARD_TOTAL_WIDTH,
@@ -307,47 +311,130 @@ function HeroBanner({
   );
 }
 
+// A generic horizontal row of square-art cards (collections, music albums,
+// photo albums). Deliberately separate from MediaRow: those destinations are
+// not /media/<id>, and a card that lands the viewer on a screen built for
+// something else is the exact mistake the library-row type filter exists to
+// prevent.
+function TileRow({
+  title,
+  tiles,
+  focusFirst,
+}: {
+  title: string;
+  tiles: {
+    key: string;
+    label: string;
+    sublabel?: string;
+    uri?: string;
+    onPress: () => void;
+    /** Announced instead of `label` when the visible text is abbreviated - a
+     * photo album shows "Holiday" but is called "2024/Holiday", and at three
+     * metres the reader is the only thing carrying that context. */
+    a11yLabel?: string;
+  }[];
+  focusFirst?: boolean;
+}) {
+  const theme = useTheme();
+  if (tiles.length === 0) return null;
+  return (
+    <View style={styles.rowContainer}>
+      <Text style={[styles.rowTitle, { color: theme.colors.text }]}>{title}</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 24, gap: GRID_GAP }}>
+        {tiles.map((tile, i) => (
+          <FocusableCard
+            key={tile.key}
+            onPress={tile.onPress}
+            hasTVPreferredFocus={i === 0 && !!focusFirst}
+            style={styles.card}
+            accessibilityLabel={tile.a11yLabel ?? tile.label}
+          >
+            <View style={{ width: CARD_WIDTH, height: CARD_WIDTH, borderRadius: theme.radii.sm, overflow: "hidden", backgroundColor: theme.colors.surface }}>
+              {tile.uri ? (
+                <Image source={{ uri: tile.uri }} style={{ width: CARD_WIDTH, height: CARD_WIDTH }} contentFit="cover" transition={200} />
+              ) : null}
+            </View>
+            <Text style={[styles.cardTitle, { color: theme.colors.text }]} numberOfLines={1}>{tile.label}</Text>
+            {tile.sublabel ? (
+              <Text style={[styles.cardYear, { color: theme.colors.textMuted }]} numberOfLines={1}>{tile.sublabel}</Text>
+            ) : null}
+          </FocusableCard>
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
+
 export default function HomeScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
   const serverUrl = useServerUrl();
   const authHeaders = useAuthHeaders();
+  const profileId = useAuthStore((s) => s.profileId) ?? "";
+  const accessToken = useAuthStore((s) => s.accessToken);
 
   const { data: unreadData } = useNotificationServiceGetUnreadCount();
   const unreadCount = unreadData?.count ?? 0;
 
-  const resume = usePlaybackServiceGetResumeItems({ limit: 20 });
-  const nextUp = usePlaybackServiceGetNextUp({ limit: 20 });
+  // The row plan comes from the server, exactly as on web and mobile: same
+  // feed types, same order, same per-section item counts. The TV used to
+  // hardcode three rows plus one per library, so an admin who reordered the
+  // home changed nothing on the television.
+  const { data: feedConfigData } = useFeedServiceGetFeedConfig({ profileId });
+  const libraries = useLibraryServiceListLibraries();
+  const sections = useMemo(
+    () => buildHomeSections(feedConfigData?.configs ?? [], libraries.data?.libraries ?? []),
+    [feedConfigData, libraries.data],
+  );
+  const maxItemsByType = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const s of sections) {
+      if (s.kind === "feed" && s.maxItems && s.maxItems > 0) map[s.feedType] = s.maxItems;
+    }
+    return map;
+  }, [sections]);
+
+  const resume = usePlaybackServiceGetResumeItems({ limit: resolveMaxItems(maxItemsByType.resume_playback, 20) });
+  const nextUp = usePlaybackServiceGetNextUp({ limit: resolveMaxItems(maxItemsByType.next_episode, 20) });
+  const recommended = useFeedServiceRecommended({ limit: resolveMaxItems(maxItemsByType.recommended, 20) });
+  const popular = useMostPopular(resolveMaxItems(maxItemsByType.most_popular, 20));
+  const collections = useCollections();
+  // Feeds the hero only - the "recently added" shelf itself is the per-library
+  // rows' job, which is why no client renders it as its own section.
   const recentlyAdded = useLibraryServiceListMediaItems({
     sortField: "MEDIA_SORT_FIELD_DATE_ADDED",
     sortOrder: "SORT_ORDER_DESC",
     "pagination.pageSize": 20,
   });
 
-  // One "recently added" row per library, after the three transverse rows
-  // above. selectHomeLibraryRows bounds the count (see its own doc comment)
-  // so this never fires more than a handful of extra requests on the NAS-
-  // class hardware Evey targets, however many libraries the server has.
-  const libraries = useLibraryServiceListLibraries();
-  const libraryRows = useMemo(
-    () => selectHomeLibraryRows(libraries.data?.libraries ?? []),
-    [libraries.data],
-  );
+  // Every library row is fetched HERE rather than inside its component, so the
+  // screen knows which rows have items - that is what lets the remote's
+  // initial focus land on the first row that is actually there.
+  const librarySections = useMemo(() => sections.filter((s) => s.kind === "library"), [sections]);
   const libraryRowQueries = useQueries({
-    queries: libraryRows.map((row) =>
-      getLibraryServiceListMediaItemsQueryOptions({
-        libraryId: row.id,
+    queries: librarySections.map((row) => {
+      const limit = resolveMaxItems(row.maxItems, HOME_LIBRARY_ROW_PAGE_SIZE);
+      if (row.libraryType === "LIBRARY_TYPE_MUSIC") {
+        return getMusicServiceGetAlbumsQueryOptions({ libraryId: row.libraryId });
+      }
+      if (row.libraryType === "LIBRARY_TYPE_PHOTOS") {
+        return getPhotoServiceListPhotoAlbumsQueryOptions({ libraryId: row.libraryId });
+      }
+      return getLibraryServiceListMediaItemsQueryOptions({
+        libraryId: row.libraryId,
+        ...(row.libraryType === "LIBRARY_TYPE_SHOWS" ? { type: "MEDIA_ITEM_TYPE_SERIES" as never } : {}),
+        ...(row.libraryType === "LIBRARY_TYPE_MOVIES" ? { type: "MEDIA_ITEM_TYPE_MOVIE" as never } : {}),
         sortField: "MEDIA_SORT_FIELD_DATE_ADDED",
         sortOrder: "SORT_ORDER_DESC",
-        "pagination.pageSize": HOME_LIBRARY_ROW_PAGE_SIZE,
-      }),
-    ),
+        "pagination.pageSize": limit,
+      });
+    }),
   });
 
   // Deliberately NOT waiting on the per-library rows: on the weak-NAS target
-  // those are up to six extra queries, and gating the whole screen on the
-  // slowest one turns the home into a long blank spinner. The three transverse
-  // rows paint as soon as they are ready and library rows fill in behind them.
+  // those are several extra queries, and gating the whole screen on the
+  // slowest one turns the home into a long blank spinner. The transverse rows
+  // paint as soon as they are ready and library rows fill in behind them.
   // Focus is safe either way: the hero wins it whenever anything was recently
   // added, so a row arriving late cannot steal it.
   const isLoading = resume.isLoading || nextUp.isLoading || recentlyAdded.isLoading;
@@ -362,17 +449,199 @@ export default function HomeScreen() {
     return map;
   }, [resume.data?.progress]);
 
+  // The recommended feed and the popular endpoint answer with their own
+  // shapes; both are projected onto V1MediaItem so one card component serves
+  // every row (same projection mobile does).
+  const recommendedItems = useMemo(
+    () =>
+      (recommended.data?.items ?? [])
+        .filter((i) => !!i.mediaItemId)
+        .map((i) => ({
+          id: i.mediaItemId,
+          title: i.title,
+          type: i.type,
+          artwork: i.primaryBlurhash ? [{ type: "ARTWORK_TYPE_PRIMARY", blurhash: i.primaryBlurhash }] : undefined,
+        }) as V1MediaItem),
+    [recommended.data],
+  );
+  const popularItems = useMemo(
+    () => (popular.data ?? []).map((i) => ({ id: i.mediaItemId, title: i.title, type: i.type }) as V1MediaItem),
+    [popular.data],
+  );
+
   const recentlyAddedItems = recentlyAdded.data?.items ?? [];
-  const rowItems = [
-    resume.data?.items ?? [],
-    nextUp.data?.items ?? [],
-    recentlyAddedItems,
-    ...libraryRowQueries.map((q) => q.data?.items ?? []),
-  ];
+  // Stable identity: a fresh Set every render would make PluginSlot
+  // re-evaluate its list on every unrelated re-render of this screen.
+  const placedPluginIds = useMemo(
+    () => new Set(sections.filter((s) => s.kind === "plugin").map((s) => s.pluginId)),
+    [sections],
+  );
+  const tokenParam = accessToken ? `?token=${encodeURIComponent(accessToken)}` : "";
+
+  // Item counts per section, in render order, so selectHomeFocusTarget can
+  // hand the remote to the first row that has something in it.
+  let libraryCursor = 0;
+  const sectionCounts = sections.map((section) => {
+    switch (section.kind) {
+      case "feed":
+        switch (section.feedType) {
+          case "resume_playback":
+          case "continue_watching":
+            return resume.data?.items?.length ?? 0;
+          case "next_episode":
+            return nextUp.data?.items?.length ?? 0;
+          case "collections":
+            return collections.data?.collections?.length ?? 0;
+          case "recommended":
+            return recommendedItems.length;
+          case "most_popular":
+            return popularItems.length;
+          default:
+            return 0;
+        }
+      case "library": {
+        const q = libraryRowQueries[libraryCursor++]?.data as
+          | { items?: unknown[]; albums?: unknown[] }
+          | undefined;
+        return (q?.items ?? q?.albums ?? []).length;
+      }
+      // A plugin slot owns its own focus and its own emptiness; it never
+      // claims the screen's initial focus.
+      default:
+        return 0;
+    }
+  });
   const focusTarget = selectHomeFocusTarget(
     recentlyAddedItems.length > 0,
-    rowItems.map((items) => items.length > 0),
+    sectionCounts.map((n) => n > 0),
   );
+
+  function renderSection(section: HomeSection, index: number, libraryIndex: number) {
+    const focusFirst = focusTarget === index;
+    if (section.kind === "plugin") {
+      return <PluginSlot key={section.key} name="home.section" pluginId={section.pluginId} />;
+    }
+    if (section.kind === "library") {
+      const data = libraryRowQueries[libraryIndex]?.data as
+        | { items?: V1MediaItem[]; albums?: Record<string, unknown>[] }
+        | undefined;
+      if (section.libraryType === "LIBRARY_TYPE_MUSIC") {
+        const albums = (data?.albums ?? []).slice(0, resolveMaxItems(section.maxItems, 20));
+        return (
+          <TileRow
+            key={section.key}
+            title={section.name}
+            focusFirst={focusFirst}
+            tiles={albums.map((a) => ({
+              key: String(a.id ?? a.title ?? ""),
+              label: String(a.title ?? ""),
+              sublabel: a.artist ? String(a.artist) : undefined,
+              uri: a.coverArtUrl ? `${String(a.coverArtUrl)}${tokenParam}` : undefined,
+              onPress: () => router.push(`/(auth)/music/album/${String(a.id ?? "")}`),
+            }))}
+          />
+        );
+      }
+      if (section.libraryType === "LIBRARY_TYPE_PHOTOS") {
+        const albums = (data?.albums ?? []).slice(0, resolveMaxItems(section.maxItems, 20));
+        return (
+          <TileRow
+            key={section.key}
+            title={section.name}
+            focusFirst={focusFirst}
+            tiles={albums.map((a) => ({
+              key: String(a.name ?? ""),
+              label: String(a.name ?? "").split("/").pop() ?? "",
+              a11yLabel: String(a.name ?? ""),
+              sublabel: t("media.photos.photoCount", { count: Number(a.photoCount ?? 0) }),
+              uri: a.coverPhotoId
+                ? `${serverUrl}/api/v1/photos/${String(a.coverPhotoId)}/serve${tokenParam}&w=400&fmt=webp`
+                : undefined,
+              onPress: () => router.push("/(auth)/photos"),
+            }))}
+          />
+        );
+      }
+      return (
+        <MediaRow
+          key={section.key}
+          title={t("media.home.recentlyAddedInLibrary", { name: section.name })}
+          items={data?.items ?? []}
+          serverUrl={serverUrl}
+          authHeaders={authHeaders}
+          focusFirst={focusFirst}
+        />
+      );
+    }
+
+    switch (section.feedType) {
+      case "resume_playback":
+      case "continue_watching":
+        return (
+          <MediaRow
+            key={section.key}
+            title={t("media.home.continueWatching")}
+            items={resume.data?.items ?? []}
+            serverUrl={serverUrl}
+            authHeaders={authHeaders}
+            watchPercents={watchPercents}
+            focusFirst={focusFirst}
+          />
+        );
+      case "next_episode":
+        return (
+          <MediaRow
+            key={section.key}
+            title={t("media.home.upNext")}
+            items={nextUp.data?.items ?? []}
+            serverUrl={serverUrl}
+            authHeaders={authHeaders}
+            focusFirst={focusFirst}
+          />
+        );
+      case "collections": {
+        const all = collections.data?.collections ?? [];
+        const cols = section.maxItems && section.maxItems > 0 ? all.slice(0, section.maxItems) : all;
+        return (
+          <TileRow
+            key={section.key}
+            title={t("media.home.collections")}
+            focusFirst={focusFirst}
+            tiles={cols.map((c) => ({
+              key: c.id,
+              label: c.name,
+              uri: c.posterUrl ? `${c.posterUrl}${tokenParam}` : undefined,
+              onPress: () => router.push(`/(auth)/collections/${c.id}`),
+            }))}
+          />
+        );
+      }
+      case "recommended":
+        return (
+          <MediaRow
+            key={section.key}
+            title={t("media.home.recommendedForYou")}
+            items={recommendedItems}
+            serverUrl={serverUrl}
+            authHeaders={authHeaders}
+            focusFirst={focusFirst}
+          />
+        );
+      case "most_popular":
+        return (
+          <MediaRow
+            key={section.key}
+            title={t("media.home.mostPopular")}
+            items={popularItems}
+            serverUrl={serverUrl}
+            authHeaders={authHeaders}
+            focusFirst={focusFirst}
+          />
+        );
+      default:
+        return null;
+    }
+  }
 
   if (isLoading) {
     return (
@@ -382,6 +651,7 @@ export default function HomeScreen() {
     );
   }
 
+  let renderCursor = 0;
   return (
     <ScrollView style={{ flex: 1, backgroundColor: theme.colors.bg }} contentContainerStyle={{ paddingVertical: 32 }}>
       {unreadCount > 0 && (
@@ -403,39 +673,15 @@ export default function HomeScreen() {
         authHeaders={authHeaders}
         focusPlay={focusTarget === "hero"}
       />
-      <PluginSlot name="home.section" />
-      <MediaRow
-        title={t("media.home.continueWatching")}
-        items={rowItems[0]}
-        serverUrl={serverUrl}
-        authHeaders={authHeaders}
-        watchPercents={watchPercents}
-        focusFirst={focusTarget === 0}
-      />
-      <MediaRow
-        title={t("media.home.upNext")}
-        items={rowItems[1]}
-        serverUrl={serverUrl}
-        authHeaders={authHeaders}
-        focusFirst={focusTarget === 1}
-      />
-      <MediaRow
-        title={t("media.home.recentlyAdded")}
-        items={rowItems[2]}
-        serverUrl={serverUrl}
-        authHeaders={authHeaders}
-        focusFirst={focusTarget === 2}
-      />
-      {libraryRows.map((row, i) => (
-        <MediaRow
-          key={row.id}
-          title={t("media.home.recentlyAddedInLibrary", { name: row.name })}
-          items={rowItems[LIBRARY_ROWS_START + i]}
-          serverUrl={serverUrl}
-          authHeaders={authHeaders}
-          focusFirst={focusTarget === LIBRARY_ROWS_START + i}
-        />
-      ))}
+      {/* Plugin sections the feed config does not place yet render first, the
+          same as mobile: a home.section plugin is a hero widget, and pushing
+          it under every row made the user reorder it by hand. The ones it DOES
+          place are rendered inline below, so they are excluded here or they
+          would appear twice. */}
+      <PluginSlot name="home.section" excludeRegistered={placedPluginIds} />
+      {sections.map((section, i) =>
+        renderSection(section, i, section.kind === "library" ? renderCursor++ : -1),
+      )}
     </ScrollView>
   );
 }

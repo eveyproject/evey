@@ -1,20 +1,25 @@
 import type { V1Library } from "@evey/api";
 
-// The TV home screen adds one "recently added" row per library, after the
-// three transverse rows (continue watching / up next / recently added
-// overall). Each row is its own network request; firing one per library
-// unconditionally would not scale to a large catalog on the NAS-class
-// hardware Evey targets, so the row count is capped here rather than left
-// unbounded.
+// The TV home screen adds one "recently added" row per library that the
+// server's feed config does not already place. Each row is its own network
+// request; firing one per library unconditionally would not scale to a large
+// catalog on the NAS-class hardware Evey targets, so the count of these
+// UNCONFIGURED rows is capped here. Libraries the operator placed in the feed
+// config on purpose are not capped - see buildHomeSections.
 export const MAX_HOME_LIBRARY_ROWS = 6;
 export const HOME_LIBRARY_ROW_PAGE_SIZE = 20;
 
-// A card in a home row navigates to /media/<id>, the VIDEO detail screen
-// (resume, seasons, episodes). Only libraries whose items that screen actually
-// fits get a row: a photo or book card would land the viewer on a page built
-// for something else, and music already has its own tab with album/artist
-// screens. Widen this list only alongside a detail screen that suits the type.
-const ROWABLE_LIBRARY_TYPES = new Set(["LIBRARY_TYPE_MOVIES", "LIBRARY_TYPE_SHOWS"]);
+// A row only exists for a library type the TV has somewhere to SEND the
+// viewer. Movies and shows go to /media/<id>; music albums to the album
+// screen; photo albums to the photos screen. Books have no TV destination, so
+// a books library still gets no row - a card that lands nowhere is worse than
+// an absent row. Widen this list only alongside a screen that suits the type.
+const ROWABLE_LIBRARY_TYPES = new Set([
+  "LIBRARY_TYPE_MOVIES",
+  "LIBRARY_TYPE_SHOWS",
+  "LIBRARY_TYPE_MUSIC",
+  "LIBRARY_TYPE_PHOTOS",
+]);
 
 export interface HomeLibraryRow {
   id: string;
