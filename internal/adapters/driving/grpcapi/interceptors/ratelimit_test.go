@@ -218,3 +218,31 @@ func TestRateLimitUnary_RefusalLogCarriesResolutionReasoning(t *testing.T) {
 		assert.Equal(t, want, line[field], "field %q", field)
 	}
 }
+
+// A caller whose IP cannot be established must still be rate-limited. The
+// interceptor maps an empty IP to the shared "unknown" bucket; mutation
+// (2026-08-01) showed nothing pinned that, so the branch could be turned into a
+// skip and every test stayed green - handing a bypass to anyone able to strip
+// or spoof away their client IP on the login endpoint.
+func TestRateLimitUnary_UnidentifiableCallerIsStillLimited(t *testing.T) {
+	limiters := map[string]*interceptors.MethodLimiter{
+		testMethod: {Limiter: ratelimit.NewWithBurst(2, 0.01), RetryAfterSecs: 60},
+	}
+	interceptor := interceptors.RateLimitUnary(limiters)
+	handler := func(ctx context.Context, req any) (any, error) { return "ok", nil }
+	info := &grpc.UnaryServerInfo{FullMethod: testMethod}
+
+	// No client IP in the context at all.
+	ctx := context.Background()
+
+	for i := range 2 {
+		_, err := interceptor(ctx, nil, info, handler)
+		require.NoError(t, err, "call %d should be within the burst", i)
+	}
+
+	_, err := interceptor(ctx, nil, info, handler)
+	require.Error(t, err, "an unidentifiable caller must hit the limit like any other; "+
+		"skipping the limiter when the IP is unknown is a bypass for anyone who can "+
+		"strip their client IP")
+	assert.Equal(t, codes.ResourceExhausted, status.Code(err))
+}
