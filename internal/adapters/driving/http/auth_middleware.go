@@ -3,9 +3,11 @@ package httpapi
 import (
 	"context"
 	"crypto/subtle"
+	"errors"
 	"log/slog"
 	"net/http"
 
+	appuser "github.com/evey-project/evey/internal/app/user"
 	domainuser "github.com/evey-project/evey/internal/domain/user"
 	"github.com/evey-project/evey/internal/pkg/metrics"
 	"github.com/evey-project/evey/internal/pkg/ratelimit"
@@ -47,13 +49,33 @@ func httpAuthMiddleware(verifier TokenVerifier) func(http.HandlerFunc) http.Hand
 				// stuffing run with stolen bearers lands in, mirroring the
 				// per-attempt login log in user/command_service.go. Never log
 				// the token itself.
-				metrics.AuthFailuresTotal.WithLabelValues("invalid_token").Inc()
+				// A token that cannot be CHECKED is not a token that is wrong.
+				// When the epoch lookup fails (the DB is slow, locked or gone),
+				// every authenticated request in the server starts failing with
+				// this same line - and an operator reading "invalid_token" goes
+				// hunting for a rotated JWT key that is fine. Separate label,
+				// separate wording, cause attached.
+				reason := "invalid_token"
+				if errors.Is(err, appuser.ErrEpochUnavailable) {
+					reason = "epoch_lookup_failed"
+				}
+				metrics.AuthFailuresTotal.WithLabelValues(reason).Inc()
 				// The client address is what makes this bucket usable: without
 				// it a stuffing run is a pile of identical lines with nothing to
 				// group or block on.
-				slog.WarnContext(r.Context(), "auth rejected", slog.String("reason", "invalid_token"),
+				attrs := []any{
+					slog.String("reason", reason),
 					slog.String("method", r.Method), slog.String("path", r.URL.Path),
-					slog.String("client_ip", ratelimit.ClientIP(r)))
+					slog.String("client_ip", ratelimit.ClientIP(r)),
+				}
+				if reason == "epoch_lookup_failed" {
+					// Only on the abnormal branch: a stuffing run must not be
+					// able to write an attacker-chosen error into the log.
+					attrs = append(attrs, slog.Any("cause", err))
+					slog.ErrorContext(r.Context(), "auth rejected: the token epoch could not be read, so every authenticated request is failing - check the database, not the JWT key", attrs...)
+				} else {
+					slog.WarnContext(r.Context(), "auth rejected", attrs...)
+				}
 				http.Error(w, `{"message":"unauthorized"}`, http.StatusUnauthorized)
 				return
 			}

@@ -18,6 +18,7 @@ import (
 
 	"github.com/evey-project/evey/internal/domain/shared"
 	domainuser "github.com/evey-project/evey/internal/domain/user"
+	"github.com/evey-project/evey/internal/pkg/metrics"
 	"github.com/evey-project/evey/internal/pkg/ratelimit"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
@@ -383,7 +384,7 @@ func (h *parentalHandler) authorizeParentalChange(w http.ResponseWriter, r *http
 
 	switch {
 	case (mutatingPIN || disablingProtection) && !noExistingPIN:
-		return h.requireCurrentPIN(w, span, profile, body, profileID)
+		return h.requireCurrentPIN(w, r, span, profile, body, profileID)
 	case settingNewPIN && noExistingPIN && h.userRepo != nil:
 		// First-time PIN set: require the account password. Without this a
 		// stolen JWT could silently lock the owner out by enabling parental
@@ -395,9 +396,10 @@ func (h *parentalHandler) authorizeParentalChange(w http.ResponseWriter, r *http
 
 // requireCurrentPIN gates rotating/clearing an existing PIN (or disabling
 // protection while one is set) behind proof of the current PIN.
-func (h *parentalHandler) requireCurrentPIN(w http.ResponseWriter, span trace.Span, profile *domainuser.Profile, body parentalUpdateBody, profileID string) bool {
+func (h *parentalHandler) requireCurrentPIN(w http.ResponseWriter, r *http.Request, span trace.Span, profile *domainuser.Profile, body parentalUpdateBody, profileID string) bool {
 	if !h.pinRL.Allow(profileID) {
 		span.SetStatus(codes.Error, "rate limited")
+		recordParentalPINThrottle(r, "verify_current_pin", profileID)
 		http.Error(w, `{"message":"errors.auth.too_many_attempts"}`, http.StatusTooManyRequests)
 		return false
 	}
@@ -418,6 +420,7 @@ func (h *parentalHandler) requireCurrentPIN(w http.ResponseWriter, span trace.Sp
 func (h *parentalHandler) requireAccountPassword(w http.ResponseWriter, r *http.Request, span trace.Span, profile *domainuser.Profile, body parentalUpdateBody, profileID string) bool {
 	if !h.pinRL.Allow(profileID) {
 		span.SetStatus(codes.Error, "rate limited")
+		recordParentalPINThrottle(r, "verify_account_password", profileID)
 		http.Error(w, `{"message":"errors.auth.too_many_attempts"}`, http.StatusTooManyRequests)
 		return false
 	}
@@ -570,6 +573,7 @@ func (h *parentalHandler) verifyPIN(w http.ResponseWriter, r *http.Request) {
 	// per-profile bucket.
 	if !h.pinRL.Allow(profileID) {
 		span.SetStatus(codes.Error, "rate limited")
+		recordParentalPINThrottle(r, "switch_profile_pin", profileID)
 		http.Error(w, `{"message":"errors.auth.too_many_attempts"}`, http.StatusTooManyRequests)
 		return
 	}
@@ -626,4 +630,19 @@ func registerParentalRoutes(
 	mux.HandleFunc("GET /api/v1/profiles/{id}/parental", authMw(h.getSettings))
 	mux.HandleFunc("PUT /api/v1/profiles/{id}/parental", authMw(h.updateSettings))
 	mux.HandleFunc("POST /api/v1/profiles/{id}/parental/verify-pin", authMw(h.verifyPIN))
+}
+
+// recordParentalPINThrottle emits the ops signals for a throttled parental-PIN
+// attempt. The gRPC limiter has done this since it was written, with the
+// reason spelled out there: the limiter runs before any logging, so a throttled
+// brute-force attempt is otherwise INVISIBLE. These three HTTP sites - guessing
+// a child profile's PIN, or grinding the account password to set a PIN of one's
+// own - had only an OTel span, which needs a tracing backend somebody is
+// actually watching. On a single-operator NAS, that is nobody.
+func recordParentalPINThrottle(r *http.Request, op, profileID string) {
+	metrics.RateLimitRejected.WithLabelValues("http_parental_pin").Inc()
+	slog.WarnContext(r.Context(), "parental PIN attempt throttled",
+		slog.String("operation", op),
+		slog.String("profile_id", profileID),
+		slog.String("client_ip", ratelimit.ClientIP(r)))
 }

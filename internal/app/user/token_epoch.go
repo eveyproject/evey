@@ -17,6 +17,16 @@ import (
 // the token was minted.
 var ErrTokenRevoked = errors.New("access token revoked")
 
+// ErrEpochUnavailable wraps a failure to READ the epoch, as opposed to a token
+// that is genuinely revoked. The distinction is the whole point: a revoked
+// token is one user's expected 401, while an unavailable epoch means the
+// database is not answering and EVERY authenticated request in the server is
+// about to fail with the same generic message. Callers must be able to tell
+// "this credential is stale" from "this server is broken" - they read the same
+// on the wire otherwise, and the operator goes looking for a JWT key problem
+// that does not exist.
+var ErrEpochUnavailable = errors.New("token epoch unavailable")
+
 const (
 	epochCacheTTL     = 30 * time.Second
 	epochCacheMaxSize = 4096
@@ -73,8 +83,10 @@ func (g *EpochGuardedTokens) ValidateAccessToken(token string) (*user.Claims, er
 	epoch, err := g.currentEpoch(claims.UserID)
 	if err != nil {
 		// Fail closed: a token whose epoch can't be established (user deleted,
-		// DB unreachable beyond the cache) is not accepted.
-		return nil, fmt.Errorf("token epoch lookup: %w", err)
+		// DB unreachable beyond the cache) is not accepted. Tagged so the
+		// middleware can log the real cause instead of reporting yet another
+		// "invalid token".
+		return nil, fmt.Errorf("%w: %w", ErrEpochUnavailable, err)
 	}
 	if claims.TokenEpoch != epoch {
 		return nil, ErrTokenRevoked

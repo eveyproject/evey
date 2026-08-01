@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
+	appuser "github.com/evey-project/evey/internal/app/user"
 	"log/slog"
 	"strings"
 	"time"
@@ -197,6 +199,17 @@ func (i *AuthInterceptor) authenticate(ctx context.Context) (context.Context, er
 	}
 	claims, err := i.tokenGen.ValidateAccessToken(trimmed)
 	if err != nil {
+		// Same distinction as the HTTP middleware: a token that cannot be
+		// CHECKED is not a token that is wrong. An unreadable epoch means the
+		// database is not answering and every authenticated RPC is about to
+		// fail identically - the client still gets the generic Unauthenticated
+		// (it must learn nothing more), but the server says out loud where to
+		// look, because "invalid token" sends the operator to the JWT key.
+		if errors.Is(err, appuser.ErrEpochUnavailable) {
+			metrics.AuthFailuresTotal.WithLabelValues("epoch_lookup_failed").Inc()
+			slog.ErrorContext(ctx, "auth rejected: the token epoch could not be read, so every authenticated request is failing - check the database, not the JWT key",
+				slog.Any("cause", err))
+		}
 		return nil, i.translatedErr(ctx, codes.Unauthenticated, "errors.auth.invalid_token")
 	}
 	return context.WithValue(ctx, claimsKey{}, claims), nil
