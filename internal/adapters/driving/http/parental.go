@@ -50,6 +50,14 @@ func (c *profileParentalChecker) BlockedByParental(ctx context.Context, profileI
 		// load, so a transient lookup error must not grant more than the most
 		// restrictive setting - otherwise a DB blip lets a kids profile stream
 		// adult content. Admins are exempted upstream (checkParental).
+		//
+		// This blocks EVERYTHING, including a G-rated title. The gRPC side
+		// (resolveParentalFilterFromUserQuery) answers the same question with
+		// an age-0 filter, under which G-rated content still passes. Both are
+		// defensible; they are not the same rule, and both comments used to
+		// say "fail closed" as if they were. Left divergent deliberately -
+		// unifying them decides what an unidentified viewer may see, which is
+		// a product call, not a refactor.
 		return true
 	}
 	ps := profile.EffectiveParental()

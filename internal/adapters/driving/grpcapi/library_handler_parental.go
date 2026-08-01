@@ -61,6 +61,18 @@ func resolveParentalFilterFromUserQuery(ctx context.Context, userQuery *appuser.
 		// failed to load. A no-op filter here would let a kids profile browse
 		// the full catalogue on a transient DB error, so return the most
 		// restrictive filter instead (admins were already exempted above).
+		//
+		// "Most restrictive" here means age 0, NOT "block everything": a
+		// G-rated title still passes. The HTTP side (parental.go's
+		// BlockedByParental) answers the same question by blocking
+		// unconditionally. Both are defensible - an unidentified viewer may
+		// see what is safe for any age, or may see nothing - but they are NOT
+		// the same rule, and each comment used to claim "fail closed" as if
+		// they were. Deliberately left divergent for now (assessed low risk on
+		// 2026-07-20); if it is ever unified, it is a product decision about
+		// what an unreadable profile is allowed to see, not a refactor.
+		// TestResolveParentalFilter_FailsClosedWhenTheProfileCannotBeLoaded
+		// pins this side.
 		return parentalFilter{allowedRatings: ratings.AllowedRatingsForAge(0), maxAge: 0}
 	}
 	ps := profile.EffectiveParental()
