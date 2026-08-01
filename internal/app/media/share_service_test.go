@@ -114,6 +114,26 @@ func TestShareService_Create_InvalidDuration(t *testing.T) {
 	require.Error(t, err)
 }
 
+// 0 and 100h were checked, the boundary itself never was - so mutation
+// (2026-08-01) could move either end of the range with the suite still green.
+// This is the cap on how long a PUBLIC link stays reachable, so drift here
+// widens unauthenticated exposure without anything saying so.
+func TestShareService_Create_DurationBoundary(t *testing.T) {
+	repo := &fakeShareLinkRepo{}
+	svc := media.NewShareService(repo)
+	ctx := context.Background()
+
+	link, err := svc.Create(ctx, "media-1", "admin-1", 72*time.Hour, nil)
+	require.NoError(t, err, "exactly 72h is the documented maximum and must be accepted")
+	require.NotNil(t, link)
+
+	_, err = svc.Create(ctx, "media-1", "admin-1", 72*time.Hour+time.Second, nil)
+	require.Error(t, err, "one second past the cap must be refused, or the ceiling is decorative")
+
+	_, err = svc.Create(ctx, "media-1", "admin-1", -time.Hour, nil)
+	require.Error(t, err, "a negative duration would mint an already-expired link")
+}
+
 func TestShareService_Validate_Expired(t *testing.T) {
 	repo := &fakeShareLinkRepo{}
 	svc := media.NewShareService(repo)
