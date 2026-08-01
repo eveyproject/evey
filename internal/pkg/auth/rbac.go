@@ -214,7 +214,6 @@ var APIKeyScopeFor = map[string]string{
 	"/evey.v1.UserService/DeleteProfile":                      ScopeUsersWrite,
 	"/evey.v1.UserService/UpdateProfile":                      ScopeUsersWrite,
 	"/evey.v1.UserService/Logout":                             ScopeUsersWrite,
-	"/evey.v1.UserService/AuthorizeQuickConnect":              ScopeUsersWrite,
 	"/evey.v1.UserService/RevokeInviteLink":                   ScopeUsersWrite,
 	"/evey.v1.ParentalService/UpdateParentalSettings":         ScopeUsersWrite,
 	"/evey.v1.ParentalService/VerifyPin":                      ScopeUsersWrite,
@@ -303,6 +302,13 @@ var InternalMethods = map[string]bool{
 	"/evey.v1.UserService/RegisterWithInvite":   true,
 	"/evey.v1.UserService/InitiateQuickConnect": true,
 	"/evey.v1.UserService/CheckQuickConnect":    true,
+	// AuthorizeQuickConnect belongs HERE, with its two siblings, and not in
+	// APIKeyScopeFor where the 2026-08-01 classification pass first put it under
+	// users:write. It hands the CALLER'S OWN SESSION to whatever device is
+	// waiting on the code: a restricted API key that could call it would turn
+	// itself into a full JWT session on a device the key holder controls. That
+	// is privilege escalation, not a user-data write.
+	"/evey.v1.UserService/AuthorizeQuickConnect": true,
 	"/evey.v1.UserService/ResetPassword":        true,
 
 	// User lifecycle (admin infra)

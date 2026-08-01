@@ -219,6 +219,9 @@ func TestInternalMethods_BlockListForAPIKeys(t *testing.T) {
 		"/evey.v1.UserService/RegisterWithInvite",
 		"/evey.v1.UserService/InitiateQuickConnect",
 		"/evey.v1.UserService/CheckQuickConnect",
+		// The step that GRANTS the session. An API key able to call it would
+		// escalate itself into a full JWT session on a device it controls.
+		"/evey.v1.UserService/AuthorizeQuickConnect",
 		// API key management itself
 		"/evey.v1.UserService/CreateAPIKey",
 		"/evey.v1.UserService/ListAPIKeys",
