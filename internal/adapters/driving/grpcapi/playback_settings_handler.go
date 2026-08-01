@@ -15,11 +15,6 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
-const (
-	cfgKeySkipForward  = "playback.skip_forward_seconds"
-	cfgKeySkipBackward = "playback.skip_backward_seconds"
-)
-
 type playbackSettingsHandler struct {
 	eveyv1.UnimplementedPlaybackSettingsServiceServer
 	// No private mutex: the REST handler writes these same fields, so the
@@ -39,14 +34,14 @@ func (h *playbackSettingsHandler) initFromDB(ctx context.Context) {
 	// runs before anything serves, but "usually" is not a synchronization
 	// argument: these are the same fields the two settings handlers write.
 	var fwd, bwd int
-	if e, err := h.configSvc.Get(ctx, cfgKeySkipForward); err == nil {
+	if e, err := h.configSvc.Get(ctx, appconfig.KeyPlaybackSkipForward); err == nil {
 		if v, err := strconv.Atoi(e.Value); err == nil && v > 0 {
 			fwd = v
 		}
 	} else if !errors.Is(err, sql.ErrNoRows) {
 		slog.WarnContext(ctx, "load playback skip_forward from db", "err", err)
 	}
-	if e, err := h.configSvc.Get(ctx, cfgKeySkipBackward); err == nil {
+	if e, err := h.configSvc.Get(ctx, appconfig.KeyPlaybackSkipBackward); err == nil {
 		if v, err := strconv.Atoi(e.Value); err == nil && v > 0 {
 			bwd = v
 		}
@@ -97,10 +92,10 @@ func (h *playbackSettingsHandler) UpdatePlaybackSettings(ctx context.Context, re
 	// Persisted OUTSIDE the lock: two DB round-trips must not hold a lock that
 	// every settings read waits on.
 	if h.configSvc != nil {
-		if err := h.configSvc.Set(ctx, cfgKeySkipForward, strconv.Itoa(fwd)); err != nil {
+		if err := h.configSvc.Set(ctx, appconfig.KeyPlaybackSkipForward, strconv.Itoa(fwd)); err != nil {
 			slog.ErrorContext(ctx, "persist playback skip_forward", "err", err)
 		}
-		if err := h.configSvc.Set(ctx, cfgKeySkipBackward, strconv.Itoa(bwd)); err != nil {
+		if err := h.configSvc.Set(ctx, appconfig.KeyPlaybackSkipBackward, strconv.Itoa(bwd)); err != nil {
 			slog.ErrorContext(ctx, "persist playback skip_backward", "err", err)
 		}
 	}

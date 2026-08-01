@@ -649,7 +649,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 
 	// JSON CRUD → gRPC: favorites, playlists, metadata overrides, transcode cache/profiles, library access, admin
 	registerPhotoRoutes(mux, s.PhotoSvc, s.TokenGen, s.LibraryAccessRepo, s.LibQuerySvc, s.ServerCtx, s.PhotoTranscoder, s.PhotoCacheDir, s.SnapshotRL) // binary: photo/serve
-	registerSyncPlayRoutes(mux, s.SyncPlayHub, s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo, s.StreamTokenStore, withSyncPlayParental(parentalChk)) // binary: WebSocket
+	registerSyncPlayRoutes(mux, s.SyncPlayHub, s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo, s.StreamTokenStore, withSyncPlayParental(parentalChk))   // binary: WebSocket
 	// PUBLIC: a "watch together" guest exchanges a room code for a streaming-only
 	// guest token. Rate-limited (LoginRL) against 5-digit code brute-force.
 	mux.HandleFunc("POST /api/v1/syncplay/join-code", ratelimit.MiddlewareFunc(s.LoginRL, syncplayJoinByCodeHandler(s.SyncPlayHub, s.StreamTokenStore)))
@@ -663,7 +663,13 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	registerRemoteAccessRoutes(mux, s.Cfg, s.TokenGen, s.CfgStore, s.AdminWriteRL)
 	registerServerSettingsRoutes(mux, s.Cfg, s.CfgStore, s.TokenGen, s.TranscodingSvc, hwModeControllerOf(s.CalibrationSvc), s.LoginRL, s.GlobalRL, s.AdminWriteRL)
 	registerBackgroundTasksRoute(mux, s.TokenGen)
-	registerPlaybackSettingsRoutes(mux, s.Cfg, s.TokenGen, s.AdminWriteRL)
+	func() {
+		var cfgSvc *appconfig.Service
+		if s.ServerCfgRepo != nil {
+			cfgSvc = appconfig.NewService(s.ServerCfgRepo)
+		}
+		registerPlaybackSettingsRoutes(mux, s.Cfg, s.TokenGen, s.AdminWriteRL, cfgSvc)
+	}()
 	registerParentalRoutes(mux, s.ProfileRepo, s.UserRepo, s.Hasher, s.TokenGen)
 	// The web + mobile admin panels both call GET/PATCH
 	// .../admin/users/{id}/bitrate-limit, but neither the proto nor this mux

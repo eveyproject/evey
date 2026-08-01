@@ -5,14 +5,16 @@ import (
 	domainuser "github.com/evey-project/evey/internal/domain/user"
 	"log/slog"
 	"net/http"
+	"strconv"
 
 	otelcodes "go.opentelemetry.io/otel/codes"
 
+	appconfig "github.com/evey-project/evey/internal/app/config"
 	"github.com/evey-project/evey/internal/config"
-	"github.com/evey-project/evey/internal/pkg/urlvalidator"
 	"github.com/evey-project/evey/internal/pkg/network"
 	"github.com/evey-project/evey/internal/pkg/ratelimit"
 	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/evey-project/evey/internal/pkg/urlvalidator"
 )
 
 const remoteAccessConfigKey = "remote_access"
@@ -145,7 +147,15 @@ func registerRemoteAccessRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen
 	}))
 }
 
-func registerPlaybackSettingsRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen domainuser.TokenGenerator, writeRL *ratelimit.Limiter) {
+// cfgSvc persists the settings this route mutates. It is not optional in
+// production: this hand-written route and the gRPC PlaybackSettings handler are
+// bound to the SAME method+path, and Go 1.22+ ServeMux precedence gives the
+// exact-path route (this one) every request - the gateway is only mounted as a
+// catch-all fallback. So the gRPC handler's persistence was unreachable, and an
+// operator changing the skip steps saw them apply, then silently revert on the
+// next restart when initFromDB read the untouched row back. nil = no
+// persistence (hand-built test servers), same as before.
+func registerPlaybackSettingsRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen domainuser.TokenGenerator, writeRL *ratelimit.Limiter, cfgSvc *appconfig.Service) {
 	authMw := httpAuthMiddleware(tokenGen)
 	admin := httpAdminMiddleware(tokenGen)
 
@@ -190,6 +200,17 @@ func registerPlaybackSettingsRoutes(mux *http.ServeMux, cfg *config.Config, toke
 			fwd = cfg.Playback.SkipForwardSeconds
 			bwd = cfg.Playback.SkipBackwardSeconds
 		})
+		// Persisted OUTSIDE the lock, with the SAME keys the gRPC handler and
+		// the boot-time read use (appconfig.Key*) - a private copy of the key
+		// string in either package would silently stop surviving restarts.
+		if cfgSvc != nil {
+			if err := cfgSvc.Set(ctx, appconfig.KeyPlaybackSkipForward, strconv.Itoa(fwd)); err != nil {
+				slog.ErrorContext(ctx, "persist playback skip_forward", slog.Any("err", err))
+			}
+			if err := cfgSvc.Set(ctx, appconfig.KeyPlaybackSkipBackward, strconv.Itoa(bwd)); err != nil {
+				slog.ErrorContext(ctx, "persist playback skip_backward", slog.Any("err", err))
+			}
+		}
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(map[string]any{
 			"skipForwardSeconds":  fwd,

@@ -9,6 +9,17 @@ import (
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
+// Persisted setting keys live here, not in the handlers, because the SAME
+// setting is written by two entry points (the hand-written REST route and the
+// gRPC one) and read back by a third at boot. When the key was a private
+// constant of the gRPC package, the REST route could not name it - and did not
+// persist at all, so every change an operator made through the admin panel was
+// lost on the next restart while the panel showed it applied.
+const (
+	KeyPlaybackSkipForward  = "playback.skip_forward_seconds"
+	KeyPlaybackSkipBackward = "playback.skip_backward_seconds"
+)
+
 type Service struct {
 	repo   shared.ServerConfigRepository
 	events shared.EventBus

@@ -128,11 +128,11 @@ func TestPlaybackSettingsHandler_UpdatePersistsToRepo(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	e, err := repo.Get(ctx, cfgKeySkipForward)
+	e, err := repo.Get(ctx, appconfig.KeyPlaybackSkipForward)
 	require.NoError(t, err)
 	assert.Equal(t, "25", e.Value)
 
-	e, err = repo.Get(ctx, cfgKeySkipBackward)
+	e, err = repo.Get(ctx, appconfig.KeyPlaybackSkipBackward)
 	require.NoError(t, err)
 	assert.Equal(t, "5", e.Value)
 }
@@ -146,8 +146,8 @@ func TestPlaybackSettingsHandler_InitFromDB(t *testing.T) {
 	}
 	repo := fakes.NewFakeServerConfigRepository()
 	ctx := context.Background()
-	_ = repo.Set(ctx, cfgKeySkipForward, "60")
-	_ = repo.Set(ctx, cfgKeySkipBackward, "20")
+	_ = repo.Set(ctx, appconfig.KeyPlaybackSkipForward, "60")
+	_ = repo.Set(ctx, appconfig.KeyPlaybackSkipBackward, "20")
 
 	svc := appconfig.NewService(repo)
 	h := &playbackSettingsHandler{cfg: cfg, configSvc: svc}

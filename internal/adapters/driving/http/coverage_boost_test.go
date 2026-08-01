@@ -906,7 +906,7 @@ func newPlaybackSettingsMux(t *testing.T) (*http.ServeMux, string, string) {
 	gen, adminTok, userTok := genTokens(t)
 	cfg := &config.Config{Playback: config.PlaybackConfig{SkipForwardSeconds: 30, SkipBackwardSeconds: 10}}
 	mux := http.NewServeMux()
-	registerPlaybackSettingsRoutes(mux, cfg, gen, ratelimit.New(100))
+	registerPlaybackSettingsRoutes(mux, cfg, gen, ratelimit.New(100), nil)
 	return mux, adminTok, userTok
 }
 
