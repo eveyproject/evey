@@ -162,8 +162,13 @@ func (c *Client) Search(ctx context.Context, hash, title, language string) ([]su
 		return nil, fmt.Errorf("opensubtitles search: status %d", resp.StatusCode)
 	}
 
+	// Bound the body like every other outbound call in this tree (tmdb 10MB,
+	// tidb 64KB, the download below 10MB). A search response is a list of
+	// subtitle files - a few hundred KB at worst - but it comes from a third
+	// party, and the target here is a weak NAS: an unbounded decode is one
+	// oversized reply away from eating the box's memory.
 	var sr searchResponse
-	if err := json.NewDecoder(resp.Body).Decode(&sr); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 4*1024*1024)).Decode(&sr); err != nil {
 		return nil, fmt.Errorf("opensubtitles search decode: %w", err)
 	}
 
