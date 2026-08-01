@@ -371,4 +371,3 @@ func TestCapOverrideService_OverrideForHeight_NoLegacyBucketBelow1080(t *testing
 	_, ok := s.OverrideForHeight("hevc", 1079)
 	assert.False(t, ok, "a 1079-tall source has no legacy bucket and must not inherit the 1080p cap")
 }
-

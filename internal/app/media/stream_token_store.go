@@ -1,6 +1,7 @@
 package media
 
 import (
+	"github.com/evey-project/evey/internal/pkg/bgloop"
 	"log/slog"
 	"sync"
 	"time"
@@ -246,7 +247,7 @@ func (s *StreamTokenStore) cleanupLoop() {
 		case <-s.done:
 			return
 		case <-ticker.C:
-			s.purgeExpired(s.now())
+			bgloop.Tick("media.streamTokenCleanup", func() { s.purgeExpired(s.now()) })
 		}
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/evey-project/evey/internal/pkg/bgloop"
 	"io/fs"
 	"log/slog"
 	"os"
@@ -136,7 +137,7 @@ func (c *SegmentCache) evictionLoop(ctx context.Context, p EvictionPolicy, logge
 				continue
 			}
 			lastSweep = now
-			c.sweepOnce(p, logger)
+			bgloop.Tick("transcoding.segmentCacheEvict", func() { c.sweepOnce(p, logger) })
 		}
 	}
 }

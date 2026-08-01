@@ -3,6 +3,7 @@ package pluginrunner
 import (
 	"context"
 	"fmt"
+	"github.com/evey-project/evey/internal/pkg/bgloop"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -108,28 +109,33 @@ func (r *Runner) resourceMonitorLoop() {
 	cpu := make(map[int]*cpuSample)
 	sweep := 0
 	for range ticker.C {
-		sweep++
-		r.mu.RLock()
-		entries := make([]*processEntry, 0, len(r.processes))
-		for _, e := range r.processes {
-			entries = append(entries, e)
-		}
-		r.mu.RUnlock()
+		// One plugin with an unreadable /proc entry must not take the whole
+		// server down: this loop runs for the life of the process and nobody
+		// waits on it.
+		bgloop.Tick("pluginrunner.resourceMonitor", func() {
+			sweep++
+			r.mu.RLock()
+			entries := make([]*processEntry, 0, len(r.processes))
+			for _, e := range r.processes {
+				entries = append(entries, e)
+			}
+			r.mu.RUnlock()
 
-		live := make(map[int]bool, len(entries))
-		for _, e := range entries {
-			if e.cmd == nil || e.cmd.Process == nil {
-				continue
+			live := make(map[int]bool, len(entries))
+			for _, e := range entries {
+				if e.cmd == nil || e.cmd.Process == nil {
+					continue
+				}
+				pid := e.cmd.Process.Pid
+				live[pid] = true
+				r.checkResources(e, pid, cpu, sweep%resMonDiskEveryN == 0)
 			}
-			pid := e.cmd.Process.Pid
-			live[pid] = true
-			r.checkResources(e, pid, cpu, sweep%resMonDiskEveryN == 0)
-		}
-		for pid := range cpu { // drop accounting for exited plugins
-			if !live[pid] {
-				delete(cpu, pid)
+			for pid := range cpu { // drop accounting for exited plugins
+				if !live[pid] {
+					delete(cpu, pid)
+				}
 			}
-		}
+		})
 	}
 }
 

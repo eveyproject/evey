@@ -4,6 +4,7 @@ package transcoding
 // out of software_producer.go for readability; pure move, no behaviour change).
 
 import (
+	"github.com/evey-project/evey/internal/pkg/bgloop"
 	"log/slog"
 	"time"
 )
@@ -21,10 +22,10 @@ func (p *SoftwareProducer) gcLoop() {
 		case <-p.stopGC:
 			return
 		case <-gcTicker.C:
-			sweep("software.gc", p.sweepIdle)
-			sweep("software.killPaused", p.sweepKillPaused)
+			bgloop.Tick("software.gc", p.sweepIdle)
+			bgloop.Tick("software.killPaused", p.sweepKillPaused)
 		case <-pauseTicker.C:
-			sweep("software.pause", p.sweepPause)
+			bgloop.Tick("software.pause", p.sweepPause)
 		}
 	}
 }

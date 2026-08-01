@@ -5,6 +5,7 @@ package transcoding
 // for readability; pure move, no behaviour change).
 
 import (
+	"github.com/evey-project/evey/internal/pkg/bgloop"
 	"log/slog"
 	"time"
 
@@ -190,7 +191,7 @@ func (o *SegmentOrchestrator) gcLoop() {
 		case <-o.stopGC:
 			return
 		case <-ticker.C:
-			sweep("orchestrator.gc", o.sweepIdle)
+			bgloop.Tick("orchestrator.gc", o.sweepIdle)
 		}
 	}
 }

@@ -5,6 +5,7 @@ package transcoding
 // for readability; pure move, no behaviour change).
 
 import (
+	"github.com/evey-project/evey/internal/pkg/bgloop"
 	"log/slog"
 	"time"
 
@@ -27,7 +28,7 @@ func (o *SegmentOrchestrator) throttleLoop() {
 		case <-o.stopThrottle:
 			return
 		case <-ticker.C:
-			sweep("orchestrator.throttle", o.evaluateThrottle)
+			bgloop.Tick("orchestrator.throttle", o.evaluateThrottle)
 		}
 	}
 }

@@ -1,6 +1,7 @@
 package ratelimit
 
 import (
+	"github.com/evey-project/evey/internal/pkg/bgloop"
 	"log/slog"
 	"math"
 	"net"
@@ -159,13 +160,15 @@ func (l *Limiter) cleanup() {
 		case <-l.done:
 			return
 		case <-ticker.C:
-			l.mu.Lock()
-			for ip, e := range l.visitors {
-				if time.Since(e.lastCheck) > visitorRetention {
-					delete(l.visitors, ip)
+			bgloop.Tick("ratelimit.visitorSweep", func() {
+				l.mu.Lock()
+				defer l.mu.Unlock()
+				for ip, e := range l.visitors {
+					if time.Since(e.lastCheck) > visitorRetention {
+						delete(l.visitors, ip)
+					}
 				}
-			}
-			l.mu.Unlock()
+			})
 		}
 	}
 }
