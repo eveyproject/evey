@@ -60,6 +60,16 @@ var MethodPermissions = map[string]string{
 	"/evey.v1.PlaybackService/GetWatchProgress": PermMediaRead,
 	"/evey.v1.PlaybackService/GetResumeItems":   PermMediaRead,
 	"/evey.v1.PlaybackService/GetNextUp":        PermMediaRead,
+	// These four were listed under WRONG names until 2026-08-01 (GetHistory,
+	// MarkWatched, MarkUnwatched - RPCs that never existed), so they enforced
+	// nothing at all: a method absent from every table is RoleUser by default,
+	// which means auth.go's step 3 never runs and an API key reaches it whatever
+	// its scopes are. Listed here under their real names, a read-only key can no
+	// longer write watch state.
+	"/evey.v1.PlaybackService/GetWatchHistory":   PermMediaRead,
+	"/evey.v1.PlaybackService/MarkAsWatched":     PermPlaybackStart,
+	"/evey.v1.PlaybackService/MarkAsUnwatched":   PermPlaybackStart,
+	"/evey.v1.PlaybackService/ClearWatchHistory": PermPlaybackStart,
 	// Transcoding
 	"/evey.v1.TranscodingService/StartTranscode": PermTranscodeStart,
 	"/evey.v1.TranscodingService/StopTranscode":  PermTranscodeStop,
@@ -124,10 +134,14 @@ var APIKeyScopeFor = map[string]string{
 	"/evey.v1.PlaybackService/GetWatchProgress": ScopePlaybackRead,
 	"/evey.v1.PlaybackService/GetResumeItems":   ScopePlaybackRead,
 	"/evey.v1.PlaybackService/GetNextUp":        ScopePlaybackRead,
+	"/evey.v1.PlaybackService/GetWatchHistory":  ScopePlaybackRead,
 	// Playback write
-	"/evey.v1.PlaybackService/StartStream":    ScopePlaybackWrite,
-	"/evey.v1.PlaybackService/StopStream":     ScopePlaybackWrite,
-	"/evey.v1.PlaybackService/ReportProgress": ScopePlaybackWrite,
+	"/evey.v1.PlaybackService/StartStream":       ScopePlaybackWrite,
+	"/evey.v1.PlaybackService/StopStream":        ScopePlaybackWrite,
+	"/evey.v1.PlaybackService/ReportProgress":    ScopePlaybackWrite,
+	"/evey.v1.PlaybackService/MarkAsWatched":     ScopePlaybackWrite,
+	"/evey.v1.PlaybackService/MarkAsUnwatched":   ScopePlaybackWrite,
+	"/evey.v1.PlaybackService/ClearWatchHistory": ScopePlaybackWrite,
 	// Admin read
 	"/evey.v1.ActivityService/GetServerStats": ScopeAdminRead,
 	"/evey.v1.ActivityService/GetUserStats":   ScopeAdminRead,

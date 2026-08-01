@@ -509,6 +509,52 @@ func TestAPIKeyScope_Denied(t *testing.T) {
 	assert.Equal(t, codes.PermissionDenied, status.Code(err))
 }
 
+// A read-only playback key must not be able to WRITE watch state. Until
+// 2026-08-01 it could: the write RPCs were listed under names that no longer
+// existed (MarkWatched / MarkUnwatched / GetHistory), and a method absent from
+// every table is RoleUser by default - so the scope check in auth.go step 3
+// never ran and the key sailed through whatever it carried. This pins the
+// three real names, plus the read that must stay reachable.
+func TestAPIKey_PlaybackReadCannotWriteWatchState(t *testing.T) {
+	keyWithScopes := func(perms []string) grpc.UnaryServerInterceptor {
+		tokenGen := fakes.NewFakeTokenGenerator()
+		apiKeyRepo := fakes.NewFakeAPIKeyRepository()
+		userRepo := fakes.NewFakeUserRepository()
+		apiKeyRepo.Create(context.Background(), &user.APIKeyModel{
+			ID: "ak-ro", UserID: "usr-ro", KeyHash: apiKeyHash("evey_readonly"),
+			Name: "read-only", Permissions: perms,
+		})
+		userRepo.Create(context.Background(), &user.User{
+			ID: "usr-ro", Username: "alice", Enabled: true,
+		})
+		return interceptors.NewAuthInterceptor(tokenGen).WithAPIKeys(apiKeyRepo, userRepo).Unary()
+	}
+
+	writes := []string{
+		"/evey.v1.PlaybackService/MarkAsWatched",
+		"/evey.v1.PlaybackService/MarkAsUnwatched",
+		"/evey.v1.PlaybackService/ClearWatchHistory",
+	}
+	ro := keyWithScopes([]string{auth.ScopePlaybackRead})
+	for _, method := range writes {
+		_, err := ro(ctxWithAPIKey("evey_readonly"), nil, &grpc.UnaryServerInfo{FullMethod: method}, nopHandler)
+		require.Error(t, err, "a playback:read key must be denied on %s", method)
+		assert.Equal(t, codes.PermissionDenied, status.Code(err), method)
+	}
+
+	// The same key keeps the read it is scoped for, and a write-scoped key gets
+	// the writes - otherwise this guard would just be breaking the feature.
+	_, err := ro(ctxWithAPIKey("evey_readonly"), nil,
+		&grpc.UnaryServerInfo{FullMethod: "/evey.v1.PlaybackService/GetWatchHistory"}, nopHandler)
+	require.NoError(t, err, "a playback:read key must still read its watch history")
+
+	rw := keyWithScopes([]string{auth.ScopePlaybackWrite})
+	for _, method := range writes {
+		_, err := rw(ctxWithAPIKey("evey_readonly"), nil, &grpc.UnaryServerInfo{FullMethod: method}, nopHandler)
+		require.NoError(t, err, "a playback:write key must reach %s", method)
+	}
+}
+
 // An API key belonging to an admin user must NOT reach admin infra/ops RPCs
 // unless the key explicitly carries the scope that RPC maps to. Admin methods
 // are JWT-only by default (deny-by-default): forgetting to enumerate a new
