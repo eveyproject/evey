@@ -50,7 +50,7 @@ func (h *feedHandler) requireMediaAccess(ctx context.Context, mediaItemID string
 	if err != nil || item == nil {
 		return status.Error(codes.NotFound, "not found")
 	}
-	ok, accessErr := h.userAccess.HasLibraryAccess(ctx, claims.UserID, string(item.LibraryID))
+	ok, accessErr := h.userAccess.HasLibraryAccess(ctx, shared.UserID(claims.UserID), item.LibraryID)
 	if accessErr != nil || !ok {
 		return status.Error(codes.NotFound, "not found")
 	}

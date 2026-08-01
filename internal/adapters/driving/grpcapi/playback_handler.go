@@ -1057,7 +1057,16 @@ func (h *playbackHandler) requireMediaAccess(ctx context.Context, mediaItemID st
 	if err != nil {
 		return h.translator.TranslatedError(ctx, codes.NotFound, "errors.media.not_found")
 	}
-	ok, _ := h.userAccess.HasLibraryAccess(ctx, claims.UserID, string(item.LibraryID))
+	ok, accErr := h.userAccess.HasLibraryAccess(ctx, shared.UserID(claims.UserID), item.LibraryID)
+	if accErr != nil {
+		// Fail closed, but say why. Discarded, a database outage is
+		// indistinguishable from a legitimate denial: everyone is refused and
+		// nothing explains it.
+		slog.ErrorContext(ctx, "playback: library access check failed",
+			slog.String("user_id", claims.UserID),
+			slog.String("media_item_id", string(item.ID)),
+			slog.Any("err", accErr))
+	}
 	if !ok {
 		return h.translator.TranslatedError(ctx, codes.NotFound, "errors.media.not_found")
 	}

@@ -5,6 +5,7 @@ import (
 	crypto_rand "crypto/rand"
 	"encoding/hex"
 	"errors"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"log/slog"
 	"strings"
 
@@ -158,7 +159,7 @@ func libraryAccessDecision(ctx context.Context, userAccess *appuser.AccessServic
 	if userAccess == nil {
 		return false, errUserAccessNotConfigured(ctx, op)
 	}
-	return userAccess.HasLibraryAccess(ctx, claims.UserID, libraryID)
+	return userAccess.HasLibraryAccess(ctx, shared.UserID(claims.UserID), shared.LibraryID(libraryID))
 }
 
 // libraryAccessOrStatus is libraryAccessDecision for the handlers that want a

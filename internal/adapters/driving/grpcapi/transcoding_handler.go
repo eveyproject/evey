@@ -51,7 +51,7 @@ func (h *transcodingHandler) StartTranscode(req *eveyv1.StartTranscodeRequest, s
 			return status.Error(codes.Unauthenticated, "unauthenticated")
 		}
 		if !claims.IsAdmin {
-			ok, accessErr := h.userAccess.HasLibraryAccess(ctx, claims.UserID, string(item.LibraryID))
+			ok, accessErr := h.userAccess.HasLibraryAccess(ctx, shared.UserID(claims.UserID), item.LibraryID)
 			if accessErr != nil || !ok {
 				return status.Error(codes.NotFound, "media item not found")
 			}
@@ -158,7 +158,7 @@ func (h *transcodingHandler) checkJobAccess(ctx context.Context, jobID string) e
 	if err != nil || item == nil {
 		return status.Error(codes.NotFound, "job not found")
 	}
-	ok, accessErr := h.userAccess.HasLibraryAccess(ctx, claims.UserID, string(item.LibraryID))
+	ok, accessErr := h.userAccess.HasLibraryAccess(ctx, shared.UserID(claims.UserID), item.LibraryID)
 	if accessErr != nil || !ok {
 		return status.Error(codes.NotFound, "job not found")
 	}

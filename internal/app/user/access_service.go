@@ -287,10 +287,14 @@ func (s *AccessService) RevokeAPIKey(ctx context.Context, keyID string) error {
 	return nil
 }
 
-func (s *AccessService) HasLibraryAccess(ctx context.Context, userID, libraryID string) (bool, error) {
+// Les identifiants sont TYPÉS. C'était `(userID, libraryID string)` : deux
+// chaînes voisines dans LE contrôle d'accès aux bibliothèques, appelé par 11
+// handlers, donc les intervertir compilait sans un mot. Un contrôle d'accès
+// inversé autorise en silence au lieu de refuser bruyamment.
+func (s *AccessService) HasLibraryAccess(ctx context.Context, userID shared.UserID, libraryID shared.LibraryID) (bool, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.user.HasLibraryAccess")
 	defer span.End()
-	return s.libraryAccess.HasAccess(ctx, shared.UserID(userID), shared.LibraryID(libraryID))
+	return s.libraryAccess.HasAccess(ctx, userID, libraryID)
 }
 
 // GetLibraryAccessByUserID returns the list of library IDs the user may see.
@@ -324,16 +328,16 @@ func (s *AccessService) GetLibraryAccessByUserID(ctx context.Context, userID str
 	return out, nil
 }
 
-func (s *AccessService) GrantLibraryAccess(ctx context.Context, userID, libraryID string) error {
+func (s *AccessService) GrantLibraryAccess(ctx context.Context, userID shared.UserID, libraryID shared.LibraryID) error {
 	ctx, span := tracing.StartSpan(ctx, "app.user.GrantLibraryAccess")
 	defer span.End()
-	return s.libraryAccess.Grant(ctx, shared.UserID(userID), shared.LibraryID(libraryID))
+	return s.libraryAccess.Grant(ctx, userID, libraryID)
 }
 
-func (s *AccessService) RevokeLibraryAccess(ctx context.Context, userID, libraryID string) error {
+func (s *AccessService) RevokeLibraryAccess(ctx context.Context, userID shared.UserID, libraryID shared.LibraryID) error {
 	ctx, span := tracing.StartSpan(ctx, "app.user.RevokeLibraryAccess")
 	defer span.End()
-	return s.libraryAccess.Revoke(ctx, shared.UserID(userID), shared.LibraryID(libraryID))
+	return s.libraryAccess.Revoke(ctx, userID, libraryID)
 }
 
 // ReplaceLibraryAccess atomically swaps userID's whole library grant set for

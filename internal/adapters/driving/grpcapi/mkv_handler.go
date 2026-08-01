@@ -2,6 +2,7 @@ package grpcapi
 
 import (
 	"context"
+	"github.com/evey-project/evey/internal/domain/shared"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
@@ -46,7 +47,7 @@ func (h *mkvHandler) checkPathAccess(ctx context.Context, path string) error {
 	if err != nil || item == nil {
 		return status.Error(codes.NotFound, "not found")
 	}
-	ok, accessErr := h.userAccess.HasLibraryAccess(ctx, claims.UserID, string(item.LibraryID))
+	ok, accessErr := h.userAccess.HasLibraryAccess(ctx, shared.UserID(claims.UserID), item.LibraryID)
 	if accessErr != nil || !ok {
 		return status.Error(codes.NotFound, "not found")
 	}

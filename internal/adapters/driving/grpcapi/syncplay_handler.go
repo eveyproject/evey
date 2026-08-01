@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"log/slog"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
@@ -53,7 +54,16 @@ func (h *syncplayHandler) requireMediaAccess(ctx context.Context, mediaID, media
 		if h.userAccess == nil {
 			return errUserAccessNotConfigured(ctx, "syncplayHandler.requireMediaAccess")
 		}
-		ok, _ := h.userAccess.HasLibraryAccess(ctx, claims.UserID, string(t.LibraryID))
+		ok, accErr := h.userAccess.HasLibraryAccess(ctx, shared.UserID(claims.UserID), t.LibraryID)
+		if accErr != nil {
+			// Fail closed, but say why. A discarded error here means a database
+			// outage looks exactly like "you have no access": every user is
+			// refused and nothing in the logs explains it.
+			slog.ErrorContext(ctx, "syncplay: library access check failed",
+				slog.String("user_id", claims.UserID),
+				slog.String("library_id", string(t.LibraryID)),
+				slog.Any("err", accErr))
+		}
 		if !ok {
 			return status.Error(codes.NotFound, "media not found")
 		}
@@ -69,7 +79,13 @@ func (h *syncplayHandler) requireMediaAccess(ctx context.Context, mediaID, media
 	if err != nil || item == nil {
 		return status.Error(codes.NotFound, "media not found")
 	}
-	ok, _ := h.userAccess.HasLibraryAccess(ctx, claims.UserID, string(item.LibraryID))
+	ok, accErr := h.userAccess.HasLibraryAccess(ctx, shared.UserID(claims.UserID), item.LibraryID)
+	if accErr != nil {
+		slog.ErrorContext(ctx, "syncplay: library access check failed",
+			slog.String("user_id", claims.UserID),
+			slog.String("library_id", string(item.LibraryID)),
+			slog.Any("err", accErr))
+	}
 	if !ok {
 		return status.Error(codes.NotFound, "media not found")
 	}
