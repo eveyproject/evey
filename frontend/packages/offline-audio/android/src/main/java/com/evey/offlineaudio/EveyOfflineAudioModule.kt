@@ -1,8 +1,10 @@
 package com.evey.offlineaudio
 
+import android.content.Context
 import android.media.MediaCodec
 import android.media.MediaCodecInfo
 import android.media.MediaFormat
+import android.os.PowerManager
 import expo.modules.kotlin.Promise
 import expo.modules.kotlin.exception.CodedException
 import expo.modules.kotlin.modules.Module
@@ -37,7 +39,7 @@ class EveyOfflineAudioModule : Module() {
 
     Events("progress")
 
-    AsyncFunction("optimize") { inPath: String, outPath: String, promise: Promise ->
+    AsyncFunction("optimize") { inPath: String, outPath: String, label: String, promise: Promise ->
       if (!running.compareAndSet(false, true)) {
         promise.reject(CodedException("busy", "an optimization pass is already running", null))
         return@AsyncFunction
@@ -45,7 +47,7 @@ class EveyOfflineAudioModule : Module() {
       cancelled = false
       thread(name = "evey-offline-audio") {
         try {
-          val summary = runPass(inPath, outPath)
+          val summary = runPass(inPath, outPath, label)
           promise.resolve(summary)
         } catch (t: Throwable) {
           // The Go error message's prefix is the machine-readable part
@@ -69,14 +71,36 @@ class EveyOfflineAudioModule : Module() {
     }
   }
 
-  private fun runPass(inPath: String, outPath: String): Map<String, Any> {
-    val cacheDir = appContext.reactContext?.cacheDir?.absolutePath
+  private fun runPass(inPath: String, outPath: String, label: String): Map<String, Any> {
+    val context = appContext.reactContext
       ?: throw IllegalStateException("no react context")
+    val cacheDir = context.cacheDir.absolutePath
+
+    // Foreground service + partial wakelock for the pass's lifetime: without
+    // them the OEM freezer suspends the process as soon as the app leaves the
+    // screen and the pass silently stops mid-file. Best-effort - Android 12+
+    // may refuse a foreground start from the background, and the pass must
+    // still run (unprotected) rather than fail.
+    var serviceStarted = false
+    try {
+      OfflineAudioService.start(context, label)
+      serviceStarted = true
+    } catch (t: Throwable) {
+      logW(NAME_TAG, "foreground service unavailable: ${t.message}")
+    }
+    val wakeLock = (context.getSystemService(Context.POWER_SERVICE) as PowerManager)
+      .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "evey:offline-audio")
+    runCatching { wakeLock.acquire(WAKELOCK_TIMEOUT_MS) }
+
     val session = Offlineaudio.open(inPath, cacheDir)
     try {
-      encode(session)
+      encode(session) { permille ->
+        if (serviceStarted) OfflineAudioService.updateProgress(context, label, permille)
+      }
       throwIfCancelled()
-      remuxWithProgress(session, outPath)
+      remuxWithProgress(session, outPath) { permille ->
+        if (serviceStarted) OfflineAudioService.updateProgress(context, label, permille)
+      }
       return mapOf(
         "sampleRate" to session.sampleRate().toInt(),
         "sourceCodec" to session.sourceCodec(),
@@ -86,11 +110,13 @@ class EveyOfflineAudioModule : Module() {
       )
     } finally {
       session.close()
+      runCatching { if (wakeLock.isHeld) wakeLock.release() }
+      if (serviceStarted) runCatching { OfflineAudioService.stop(context) }
     }
   }
 
   /** Pump: Go PCM -> MediaCodec -> AAC frames back into Go's intermediate. */
-  private fun encode(session: Session) {
+  private fun encode(session: Session, onNotifyProgress: (Long) -> Unit) {
     val sampleRate = session.sampleRate().toInt()
     val format = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_AAC, sampleRate, 2).apply {
       setInteger(MediaFormat.KEY_AAC_PROFILE, MediaCodecInfo.CodecProfileLevel.AACObjectLC)
@@ -166,7 +192,9 @@ class EveyOfflineAudioModule : Module() {
         val now = System.currentTimeMillis()
         if (now - lastEvent >= PROGRESS_INTERVAL_MS) {
           lastEvent = now
-          sendEvent("progress", mapOf("stage" to "transcode", "permille" to session.decodeProgressPermille()))
+          val permille = session.decodeProgressPermille()
+          sendEvent("progress", mapOf("stage" to "transcode", "permille" to permille))
+          onNotifyProgress(permille * 8 / 10)
         }
       }
     } finally {
@@ -177,11 +205,13 @@ class EveyOfflineAudioModule : Module() {
   }
 
   /** Remux blocks for minutes; a sidecar thread turns its permille into events. */
-  private fun remuxWithProgress(session: Session, outPath: String) {
+  private fun remuxWithProgress(session: Session, outPath: String, onNotifyProgress: (Long) -> Unit) {
     val done = AtomicBoolean(false)
     val poller = thread(name = "evey-offline-audio-progress") {
       while (!done.get()) {
-        sendEvent("progress", mapOf("stage" to "remux", "permille" to session.remuxPermille()))
+        val permille = session.remuxPermille()
+        sendEvent("progress", mapOf("stage" to "remux", "permille" to permille))
+        onNotifyProgress(800 + permille * 2 / 10)
         Thread.sleep(PROGRESS_INTERVAL_MS)
       }
     }
@@ -198,11 +228,19 @@ class EveyOfflineAudioModule : Module() {
     if (cancelled) throw CodedException("cancelled", "optimization cancelled", null)
   }
 
+  private fun logW(tag: String, msg: String) {
+    android.util.Log.w(tag, msg)
+  }
+
   private companion object {
     const val AAC_BITRATE = 160_000
     const val INPUT_CHUNK = 64 * 1024
     const val BYTES_PER_FRAME = 4 // stereo s16le
     const val DEQUEUE_TIMEOUT_US = 10_000L
     const val PROGRESS_INTERVAL_MS = 500L
+    const val NAME_TAG = "EveyOfflineAudio"
+    // Safety valve, not a design bound: a pass that still runs after an hour
+    // is stuck, and a stuck pass must not hold the CPU awake forever.
+    const val WAKELOCK_TIMEOUT_MS = 60L * 60 * 1000
   }
 }

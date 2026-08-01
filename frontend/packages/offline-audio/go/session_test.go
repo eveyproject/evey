@@ -144,8 +144,8 @@ func directStereoDecode(t *testing.T, frames [][]byte) []byte {
 		}
 		l, r := d.Samples(0), d.Samples(1)
 		for i := range l {
-			out = append(out, s16le(l[i])...)
-			out = append(out, s16le(r[i])...)
+			lv, rv := s16le(l[i]), s16le(r[i])
+			out = append(out, byte(lv), byte(lv>>8), byte(rv), byte(rv>>8))
 		}
 	}
 	return out

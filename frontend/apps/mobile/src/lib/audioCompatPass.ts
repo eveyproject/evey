@@ -133,9 +133,14 @@ async function runPassNow(mediaItemId: string): Promise<AudioPassResult> {
   console.log(`evey-audiopass start ${mediaItemId} ${entry.filePath}`);
   setPassState(mediaItemId, { stage: "transcode", permille: 0 });
   try {
-    const summary = await optimizeAudio(entry.filePath, outPath, (p) => {
-      setPassState(mediaItemId, { stage: p.stage, permille: combinedPermille(p) });
-    });
+    const summary = await optimizeAudio(
+      entry.filePath,
+      outPath,
+      (p) => {
+        setPassState(mediaItemId, { stage: p.stage, permille: combinedPermille(p) });
+      },
+      entry.title,
+    );
 
     // Swap: the original disappears for the instant between the two calls -
     // acceptable, the alternative (backup rename) doubles the peak disk use

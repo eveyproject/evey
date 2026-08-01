@@ -284,6 +284,9 @@ func (s *Session) decodeNext() error {
 }
 
 // appendPCM interleaves the decoder's stereo planes into pending as s16le.
+// One buffer grow per frame, zero per-sample allocations: the first on-device
+// run built a 2-byte slice per sample (~184M allocations for one film) and
+// spent its time in the allocator instead of the decoder.
 func (s *Session) appendPCM() {
 	if s.sampleRate == 0 {
 		h := s.dec.Header()
@@ -291,13 +294,19 @@ func (s *Session) appendPCM() {
 		s.srcChans = h.Channels()
 	}
 	l, r := s.dec.Samples(0), s.dec.Samples(1)
+	base := len(s.pending)
+	s.pending = append(s.pending, make([]byte, len(l)*4)...)
+	out := s.pending[base:]
 	for i := range l {
-		s.pending = append(s.pending, s16le(l[i])...)
-		s.pending = append(s.pending, s16le(r[i])...)
+		lv, rv := s16le(l[i]), s16le(r[i])
+		out[i*4] = byte(lv)
+		out[i*4+1] = byte(lv >> 8)
+		out[i*4+2] = byte(rv)
+		out[i*4+3] = byte(rv >> 8)
 	}
 }
 
-func s16le(v float32) []byte {
+func s16le(v float32) uint16 {
 	f := v * 32767
 	if f > 32767 {
 		f = 32767
@@ -305,8 +314,7 @@ func s16le(v float32) []byte {
 	if f < -32768 {
 		f = -32768
 	}
-	n := int16(f)
-	return []byte{byte(uint16(n)), byte(uint16(n) >> 8)}
+	return uint16(int16(f))
 }
 
 // BeginAAC opens the intermediate audio-only MKA with the encoder's
@@ -507,26 +515,66 @@ func (a *audioByteReader) Read(p []byte) (int, error) {
 	return n, nil
 }
 
-// countingReadSeeker tracks the read offset so decode progress can be
-// derived from file position without touching the BlockReader.
+// countingReadSeeker serves the block walk from a 1 MiB window over the file
+// and tracks the logical offset for progress. The window matters on Android:
+// the source lives on FUSE-backed shared storage where every syscall costs
+// orders of magnitude more than on a server filesystem, and the EBML walk is
+// made of tiny header reads and short skips. Most skips (a video payload
+// between two audio blocks) land inside the current window and cost nothing.
 type countingReadSeeker struct {
-	f    *os.File
-	off  atomic.Int64
-	size int64
+	f       *os.File
+	size    int64
+	off     atomic.Int64 // logical position, read from other threads for progress
+	buf     []byte       // window contents: file[bufStart : bufStart+len(buf)]
+	bufOff  int64
+	scratch []byte
 }
 
+const readWindowSize = 1 << 20
+
 func (c *countingReadSeeker) Read(p []byte) (int, error) {
-	n, err := c.f.Read(p)
-	c.off.Add(int64(n))
-	return n, err
+	pos := c.off.Load()
+	if pos < c.bufOff || pos >= c.bufOff+int64(len(c.buf)) {
+		if c.scratch == nil {
+			c.scratch = make([]byte, readWindowSize)
+		}
+		if _, err := c.f.Seek(pos, io.SeekStart); err != nil {
+			return 0, err
+		}
+		n, err := c.f.Read(c.scratch)
+		if n == 0 {
+			if err == nil {
+				err = io.EOF
+			}
+			return 0, err
+		}
+		c.bufOff = pos
+		c.buf = c.scratch[:n]
+	}
+	n := copy(p, c.buf[pos-c.bufOff:])
+	c.off.Store(pos + int64(n))
+	return n, nil
 }
 
 func (c *countingReadSeeker) Seek(offset int64, whence int) (int64, error) {
-	pos, err := c.f.Seek(offset, whence)
-	if err == nil {
-		c.off.Store(pos)
+	var pos int64
+	switch whence {
+	case io.SeekStart:
+		pos = offset
+	case io.SeekCurrent:
+		pos = c.off.Load() + offset
+	case io.SeekEnd:
+		pos = c.size + offset
+	default:
+		return 0, fmt.Errorf("unsupported whence %d", whence)
 	}
-	return pos, err
+	if pos < 0 {
+		return 0, fmt.Errorf("negative seek %d", pos)
+	}
+	// Purely logical: the window makes the eventual read cheap, and a seek
+	// inside it costs nothing at all.
+	c.off.Store(pos)
+	return pos, nil
 }
 
 func (c *countingReadSeeker) pos() int64 { return c.off.Load() }

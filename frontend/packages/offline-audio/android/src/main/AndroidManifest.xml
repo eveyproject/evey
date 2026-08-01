@@ -1,0 +1,16 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!-- The pass is minutes of CPU over gigabytes of I/O; without a foreground
+       service the OEM freezer suspends the process seconds after the app
+       leaves the screen (observed on ColorOS: 1h of wall clock for 5% of
+       work). dataSync is the honest type: a data transformation job. -->
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+  <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+  <application>
+    <service
+      android:name="com.evey.offlineaudio.OfflineAudioService"
+      android:exported="false"
+      android:foregroundServiceType="dataSync" />
+  </application>
+</manifest>

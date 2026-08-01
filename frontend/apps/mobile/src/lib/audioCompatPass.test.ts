@@ -94,7 +94,7 @@ describe("runAudioCompatPass success", () => {
     const result = await runAudioCompatPass("m1");
     expect(result).toBe("done");
 
-    expect(oa.optimizeAudio).toHaveBeenCalledWith(MKV_PATH, OPT_PATH, expect.any(Function));
+    expect(oa.optimizeAudio).toHaveBeenCalledWith(MKV_PATH, OPT_PATH, expect.any(Function), "Mon Film");
     // Swap order matters: the original goes first, then the rewrite takes its
     // exact path (same name, so VLC/file-manager visibility is unchanged).
     expect(fsMock.deleteAsync).toHaveBeenCalledWith(`file://${MKV_PATH}`, { idempotent: true });
@@ -134,6 +134,7 @@ describe("runAudioCompatPass success", () => {
       mp4Path,
       "/storage/emulated/0/Download/Evey/Film-01234567.opt.mkv",
       expect.any(Function),
+      "Mon Film",
     );
     expect(fsMock.moveAsync).toHaveBeenCalledWith({
       from: "file:///storage/emulated/0/Download/Evey/Film-01234567.opt.mkv",

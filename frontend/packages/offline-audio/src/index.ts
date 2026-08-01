@@ -62,7 +62,7 @@ export class OptimizeError extends Error {
 }
 
 interface NativeModuleShape {
-  optimize(inPath: string, outPath: string): Promise<NativeSummary>;
+  optimize(inPath: string, outPath: string, label: string): Promise<NativeSummary>;
   cancel(): void;
   isRunning(): boolean;
   addListener(event: "progress", listener: (p: OptimizeProgress) => void): { remove(): void };
@@ -113,6 +113,8 @@ export async function optimizeAudio(
   inPath: string,
   outPath: string,
   onProgress?: (p: OptimizeProgress) => void,
+  /** Shown in the pass's foreground-service notification (the media title). */
+  label?: string,
 ): Promise<OptimizeSummary> {
   const native = await nativeModule();
   if (!native) {
@@ -120,7 +122,7 @@ export async function optimizeAudio(
   }
   const sub = onProgress ? native.addListener("progress", onProgress) : null;
   try {
-    return await native.optimize(inPath, outPath);
+    return await native.optimize(inPath, outPath, label ?? "");
   } catch (e) {
     throw toOptimizeError(e);
   } finally {
