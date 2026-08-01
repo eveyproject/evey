@@ -33,7 +33,7 @@ export default function PhotoSlideshowScreen() {
   }>();
 
   const { data, isLoading, isError, refetch } = usePhotoServiceListPhotos(
-    buildPhotoListParams({ libraryId: libraryId ?? "", album, limit: SLIDESHOW_FETCH_LIMIT, offset: 0 }),
+    buildPhotoListParams({ libraryId: libraryId ?? "", album, limit: SLIDESHOW_FETCH_LIMIT }),
     { query: { enabled: !!libraryId } },
   );
   const photos: TvPhoto[] = data?.photos ?? [];

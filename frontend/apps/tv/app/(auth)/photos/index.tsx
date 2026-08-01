@@ -131,7 +131,9 @@ export default function PhotosScreen() {
 
   const [selectedLibraryID, setSelectedLibraryID] = useState<string | undefined>(undefined);
   const [selectedAlbum, setSelectedAlbum] = useState<string | undefined>(undefined);
-  const [offset, setOffset] = useState(0);
+  // undefined = page 1 (offset(0) path, exact total). Every following page
+  // is requested by the previous response's keyset cursor instead.
+  const [cursor, setCursor] = useState<string | undefined>(undefined);
   const [allPhotos, setAllPhotos] = useState<TvPhoto[]>([]);
   const prevDataRef = useRef<unknown>(null);
 
@@ -150,7 +152,7 @@ export default function PhotosScreen() {
     isError,
     refetch,
   } = usePhotoServiceListPhotos(
-    buildPhotoListParams({ libraryId: activeLibraryID ?? "", album: selectedAlbum, limit: PAGE_SIZE, offset }),
+    buildPhotoListParams({ libraryId: activeLibraryID ?? "", album: selectedAlbum, limit: PAGE_SIZE, cursor }),
     { query: { enabled: !!activeLibraryID, gcTime: 30_000 } },
   );
 
@@ -159,7 +161,7 @@ export default function PhotosScreen() {
   // wiped right back out by this reset running second (see the library
   // screen's identical ordering note for the failure mode this avoids).
   useEffect(() => {
-    setOffset(0);
+    setCursor(undefined);
     setAllPhotos([]);
     prevDataRef.current = null;
   }, [activeLibraryID, selectedAlbum]);
@@ -168,14 +170,15 @@ export default function PhotosScreen() {
     if (!data || data === prevDataRef.current) return;
     prevDataRef.current = data;
     const newPhotos = data.photos ?? [];
-    setAllPhotos((prev) => (offset === 0 ? newPhotos : [...prev, ...newPhotos]));
-  }, [data, offset]);
+    setAllPhotos((prev) => (cursor === undefined ? newPhotos : [...prev, ...newPhotos]));
+  }, [data, cursor]);
 
-  const total = data?.total ?? 0;
+  const nextCursor = data?.nextCursor;
+  const lastPageCount = data?.photos?.length ?? 0;
 
   const handleEndReached = useCallback(() => {
-    if (!isFetching && hasMorePhotos(allPhotos.length, total)) setOffset((o) => o + PAGE_SIZE);
-  }, [isFetching, allPhotos.length, total]);
+    if (!isFetching && hasMorePhotos(nextCursor, lastPageCount, PAGE_SIZE)) setCursor(nextCursor);
+  }, [isFetching, nextCursor, lastPageCount]);
 
   const openSlideshow = useCallback(
     (index: number) => {
@@ -239,7 +242,7 @@ export default function PhotosScreen() {
     );
   }
 
-  const isFirstPage = offset === 0;
+  const isFirstPage = cursor === undefined;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>

@@ -56,22 +56,32 @@ export interface BuildPhotoListParamsInput {
   libraryId: string;
   album?: string;
   limit: number;
-  offset: number;
+  // Opaque keyset cursor from a previous response's nextCursor. Omitted (or
+  // empty) means page 1: the server then takes the offset(0) path, which is
+  // the only one that computes an exact `total` - see hasMorePhotos below.
+  cursor?: string;
 }
 
-// Single source of truth for the ListPhotos query params (offset-paginated -
-// the photo API has no opaque cursor like ListMediaItems).
+// Single source of truth for the ListPhotos query params. Page 1 always
+// takes the offset(0) path (exact total); every following page must carry
+// the previous response's cursor instead, or the server would restart from
+// row 0.
 export function buildPhotoListParams(input: BuildPhotoListParamsInput) {
   return {
     libraryId: input.libraryId,
     limit: input.limit,
-    offset: input.offset,
+    ...(input.cursor ? { cursor: input.cursor } : { offset: 0 }),
     ...(input.album ? { album: input.album } : {}),
   };
 }
 
-// Whether another page is worth fetching. total<=0 covers both "no photos"
-// and a response that omitted total (older server) - either way, stop.
-export function hasMorePhotos(loadedCount: number, total: number): boolean {
-  return total > 0 && loadedCount < total;
+// Whether another page is worth fetching. A keyset page reports `total: 0`
+// by design (server-side cost the cursor path exists to avoid - see
+// V1ListPhotosResponse.total's doc), so `total` cannot be the signal here:
+// checking it would call every page after the first "done", truncating the
+// grid. nextCursor is the real signal; the page-size check is a defensive
+// fallback for a last page that still carried a (non-empty) cursor.
+export function hasMorePhotos(nextCursor: string | undefined, lastPageCount: number, limit: number): boolean {
+  if (!nextCursor) return false;
+  return lastPageCount >= limit;
 }

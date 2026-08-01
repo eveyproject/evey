@@ -16,9 +16,17 @@ vi.mock("react-native", () => ({
       { onClick: onPress, "aria-label": accessibilityLabel, "data-tv-preferred-focus": hasTVPreferredFocus ? "true" : undefined, ...p },
       children,
     ),
-  FlatList: ({ data, renderItem, keyExtractor, ListEmptyComponent, ListFooterComponent }: any) => {
+  FlatList: ({ data, renderItem, keyExtractor, ListEmptyComponent, ListFooterComponent, onEndReached }: any) => {
+    // No real scroll geometry in jsdom - the test simulates "reached the
+    // bottom" by clicking this hidden trigger, exactly like a TV remote
+    // driving the FlatList past onEndReachedThreshold would.
+    const trigger = React.createElement(
+      "button",
+      { "data-testid": "end-reached-trigger", onClick: () => onEndReached?.(), style: { display: "none" } },
+      "trigger",
+    );
     if (!data || data.length === 0) {
-      return ListEmptyComponent ? React.createElement(React.Fragment, null, ListEmptyComponent) : null;
+      return ListEmptyComponent ? React.createElement(React.Fragment, null, ListEmptyComponent, trigger) : trigger;
     }
     return React.createElement(
       "div",
@@ -31,6 +39,7 @@ vi.mock("react-native", () => ({
         ),
       ),
       ListFooterComponent ?? null,
+      trigger,
     );
   },
   ActivityIndicator: (p: any) => React.createElement("div", { "data-testid": "spinner", ...p }),
@@ -163,5 +172,50 @@ describe("PhotosScreen (TV) - grid thumbnails", () => {
     expect(pushMock).toHaveBeenCalledWith(
       expect.stringContaining("/(auth)/photos/slideshow?libraryId=lib-1&startIndex=1"),
     );
+  });
+});
+
+describe("PhotosScreen (TV) - keyset pagination", () => {
+  // A full page (== PAGE_SIZE, 60) with a non-empty nextCursor - the exact
+  // shape a keyset page returns (see V1ListPhotosResponse.total's doc: total
+  // is 0 on that path, never usable as the "more pages" signal).
+  const FULL_PAGE = Array.from({ length: 60 }, (_, i) => ({ id: `p${i}`, title: `Photo ${i}`, blurhash: "" }));
+
+  it("sends the previous page's nextCursor on the following request", () => {
+    listPhotosMock.mockReturnValue({
+      data: { photos: FULL_PAGE, total: 2, nextCursor: "cursor-page-2" },
+      isLoading: false,
+      isFetching: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+    render(<PhotosScreen />);
+
+    // Page 1: no cursor param at all (the offset(0) path).
+    const firstCallParams = listPhotosMock.mock.calls[0][0];
+    expect(firstCallParams).not.toHaveProperty("cursor");
+
+    fireEvent.click(screen.getByTestId("end-reached-trigger"));
+
+    const lastCallParams = listPhotosMock.mock.calls.at(-1)?.[0];
+    expect(lastCallParams).toMatchObject({ cursor: "cursor-page-2" });
+  });
+
+  it("stops paginating once nextCursor comes back empty", () => {
+    listPhotosMock.mockReturnValue({
+      data: { photos: PHOTOS, total: PHOTOS.length, nextCursor: "" },
+      isLoading: false,
+      isFetching: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+    render(<PhotosScreen />);
+
+    const callsBefore = listPhotosMock.mock.calls.length;
+    fireEvent.click(screen.getByTestId("end-reached-trigger"));
+
+    // No new request means the cursor state never advanced - the empty
+    // nextCursor correctly ended the list instead of looping or truncating.
+    expect(listPhotosMock.mock.calls.length).toBe(callsBefore);
   });
 });
