@@ -34,13 +34,16 @@ import {
   updateDownloadedAudio,
   getDownloads,
 } from "./downloads";
+import { conditionsMet, getPassConditions, waitForPassConditions, waitingReasonFor, type WaitingReason } from "./passConditions";
 
-export type AudioPassStage = OptimizeProgress["stage"];
+export type AudioPassStage = OptimizeProgress["stage"] | "waiting";
 
 export interface AudioPassState {
   stage: AudioPassStage;
   /** 0..1000 across the WHOLE pass (stages weighted, see combine below). */
   permille: number;
+  /** Set only while stage is "waiting": which gating condition(s) are unmet. */
+  waitingReason?: WaitingReason;
 }
 
 export type AudioPassResult = "done" | "skipped" | "failed";
@@ -120,6 +123,24 @@ async function runPassNow(mediaItemId: string): Promise<AudioPassResult> {
     return skip(mediaItemId, `audio renderable (file=${(entry.audioCodecs ?? []).join(",") || "unknown"} device=${device.join(",")})`);
   }
   if (!(await isOfflineAudioAvailable())) return skip(mediaItemId, "native module absent");
+
+  // Deferred, never cancelled: the pass is minutes of full-speed CPU over a
+  // multi-gigabyte rewrite, gated to charging + unmetered Wi-Fi. A silent
+  // skip here would be exactly the "refusal nobody can see" that has already
+  // cost a diagnosis session - the wait is a visible state, not a no-op.
+  // Checked ONCE, before the heavy work starts: once optimizeAudio is
+  // running below, an unplugged charger does not abort it - a half-rewritten
+  // file is worse than a few extra minutes on battery.
+  const conditions = await getPassConditions();
+  if (!conditionsMet(conditions)) {
+    const reason = waitingReasonFor(conditions)!;
+    console.log(`evey-audiopass wait ${mediaItemId}: ${reason}`);
+    setPassState(mediaItemId, { stage: "waiting", permille: 0, waitingReason: reason });
+    await waitForPassConditions((c) => {
+      setPassState(mediaItemId, { stage: "waiting", permille: 0, waitingReason: waitingReasonFor(c)! });
+    });
+    console.log(`evey-audiopass resume ${mediaItemId}`);
+  }
 
   // NO extension gate here: a movie site that forgot its formatHint used to
   // save Matroska bytes under a ".mp4" name, and gating on the name skipped

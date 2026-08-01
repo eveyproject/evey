@@ -60,6 +60,27 @@ const dl = vi.hoisted(() => ({
 }));
 vi.mock("./downloads", () => dl);
 
+// Real implementation of the pure helpers (conditionsMet/waitingReasonFor)
+// so the gating logic under test is the actual one, not a re-derived mock;
+// only the native-facing probe/wait functions are faked.
+const pc = vi.hoisted(() => {
+  function conditionsMet(c: { charging: boolean; unmeteredWifi: boolean }) {
+    return c.charging && c.unmeteredWifi;
+  }
+  function waitingReasonFor(c: { charging: boolean; unmeteredWifi: boolean }) {
+    if (conditionsMet(c)) return null;
+    if (!c.charging && !c.unmeteredWifi) return "charge-and-wifi";
+    return c.charging ? "wifi" : "charge";
+  }
+  return {
+    conditionsMet,
+    waitingReasonFor,
+    getPassConditions: vi.fn(async () => ({ charging: true, unmeteredWifi: true })),
+    waitForPassConditions: vi.fn(async () => undefined),
+  };
+});
+vi.mock("./passConditions", () => pc);
+
 import {
   runAudioCompatPass,
   resumePendingAudioPasses,
@@ -90,6 +111,8 @@ beforeEach(() => {
   dl.needsAudioCompatPass.mockReturnValue(true);
   dl.getDownloads.mockResolvedValue([]);
   oa.isOfflineAudioAvailable.mockResolvedValue(true);
+  pc.getPassConditions.mockResolvedValue({ charging: true, unmeteredWifi: true });
+  pc.waitForPassConditions.mockResolvedValue(undefined);
   oa.optimizeAudio.mockResolvedValue({
     sampleRate: 48000,
     sourceCodec: "ac3",
@@ -230,6 +253,83 @@ describe("runAudioCompatPass skips", () => {
     expect(result).toBe("skipped");
     expect(oa.optimizeAudio).not.toHaveBeenCalled();
     expect(fsMock.deleteAsync).not.toHaveBeenCalled();
+  });
+});
+
+describe("runAudioCompatPass conditions gating", () => {
+  it("defers with a visible waiting state instead of running when unplugged/cellular", async () => {
+    pc.getPassConditions.mockResolvedValue({ charging: false, unmeteredWifi: false });
+    let releaseWait!: () => void;
+    pc.waitForPassConditions.mockImplementation(
+      (onUpdate?: (c: { charging: boolean; unmeteredWifi: boolean }) => void) =>
+        new Promise<void>((resolve) => {
+          releaseWait = resolve;
+          onUpdate?.({ charging: false, unmeteredWifi: false });
+        }),
+    );
+
+    const promise = runAudioCompatPass("m1");
+    await vi.waitFor(() => expect(getAudioPassState("m1")).not.toBeNull());
+    // A skip would be indistinguishable from "nothing to do" - the whole
+    // point is that the state says WHY it hasn't started.
+    expect(getAudioPassState("m1")).toEqual({ stage: "waiting", permille: 0, waitingReason: "charge-and-wifi" });
+    expect(oa.optimizeAudio).not.toHaveBeenCalled();
+
+    releaseWait();
+    const result = await promise;
+    expect(result).toBe("done");
+    expect(oa.optimizeAudio).toHaveBeenCalled();
+    expect(getAudioPassState("m1")).toBeNull();
+  });
+
+  it("runs immediately when charging on unmetered Wi-Fi", async () => {
+    pc.getPassConditions.mockResolvedValue({ charging: true, unmeteredWifi: true });
+    const result = await runAudioCompatPass("m1");
+    expect(result).toBe("done");
+    expect(pc.waitForPassConditions).not.toHaveBeenCalled();
+    expect(oa.optimizeAudio).toHaveBeenCalled();
+  });
+
+  it("refreshes the waiting reason when only one condition is still missing", async () => {
+    // Real waitForPassConditions only calls onUpdate while conditions remain
+    // unmet (it resolves instead once both flip true) - this mock respects
+    // that invariant: Wi-Fi arrived first, the charger is still missing.
+    pc.getPassConditions.mockResolvedValue({ charging: false, unmeteredWifi: false });
+    let seenDuringWait: unknown;
+    pc.waitForPassConditions.mockImplementation(
+      async (onUpdate?: (c: { charging: boolean; unmeteredWifi: boolean }) => void) => {
+        onUpdate?.({ charging: false, unmeteredWifi: true });
+        seenDuringWait = getAudioPassState("m1");
+      },
+    );
+    const result = await runAudioCompatPass("m1");
+    expect(result).toBe("done");
+    expect(seenDuringWait).toEqual({ stage: "waiting", permille: 0, waitingReason: "charge" });
+  });
+
+  it("never starts two passes concurrently while one is waiting on conditions", async () => {
+    pc.getPassConditions.mockResolvedValueOnce({ charging: false, unmeteredWifi: false }).mockResolvedValue({ charging: true, unmeteredWifi: true });
+    let releaseWait!: () => void;
+    pc.waitForPassConditions.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          releaseWait = resolve;
+        }),
+    );
+    dl.getDownloadedMedia.mockImplementation(async (id: string) => entry({ mediaItemId: id, filePath: `/d/${id}.mkv` }));
+
+    const p1 = runAudioCompatPass("m1");
+    const p2 = runAudioCompatPass("m2");
+    await vi.waitFor(() => expect(getAudioPassState("m1")).not.toBeNull());
+    await new Promise((r) => setTimeout(r, 10));
+    // m2 is queued behind m1 in the same serialization chain - its own
+    // conditions probe must not have run yet.
+    expect(pc.getPassConditions).toHaveBeenCalledTimes(1);
+    expect(oa.optimizeAudio).not.toHaveBeenCalled();
+
+    releaseWait();
+    await Promise.all([p1, p2]);
+    expect(oa.optimizeAudio).toHaveBeenCalledTimes(2);
   });
 });
 

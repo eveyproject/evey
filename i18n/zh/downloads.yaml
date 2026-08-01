@@ -9,3 +9,6 @@ totalSize: "此设备已使用 {{size}}"
 deleted: 已移除下载
 optimizingAudio: "正在优化音频... {{percent}}%"
 preparingCompat: "正在服务器上准备音频..."
+waitingForCharge: "等待充电中..."
+waitingForWifi: "等待 Wi-Fi..."
+waitingForChargeAndWifi: "等待 Wi-Fi 和充电..."

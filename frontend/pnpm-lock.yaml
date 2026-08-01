@@ -65,6 +65,9 @@ importers:
       expo-audio:
         specifier: ^55.0.14
         version: 55.0.14(expo-asset@55.0.17(expo@55.0.23)(react-native@0.83.6(@babel/core@7.29.0)(@react-native/metro-config@0.84.1(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)(typescript@5.9.3))(expo@55.0.23)(react-native@0.83.6(@babel/core@7.29.0)(@react-native/metro-config@0.84.1(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)
+      expo-battery:
+        specifier: 55.0.13
+        version: 55.0.13(expo@55.0.23)(react@19.2.0)
       expo-brightness:
         specifier: 55.0.13
         version: 55.0.13(expo@55.0.23)(react-native@0.83.6(@babel/core@7.29.0)(@react-native/metro-config@0.84.1(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.2.0))
@@ -3896,6 +3899,12 @@ packages:
       expo-asset: '*'
       react: 19.2.0
       react-native: '*'
+
+  expo-battery@55.0.13:
+    resolution: {integrity: sha512-yt2BZCs76aeM9UPbIf8pAGvZJ6AQ7UQ8qjiQcciU3o3q512ZTgsIWObfOqZlTy/abzU2njHW6OikWbtQbeyeZg==}
+    peerDependencies:
+      expo: '*'
+      react: 19.2.0
 
   expo-brightness@55.0.13:
     resolution: {integrity: sha512-vFMrB+ZLn9CBO4cTngh7oaogzYEhUlXvA0/V+iWBYwXrSQNb1lYZIfV2KYsehnwWvox8mDlVEGXtd9rU5Hi11A==}
@@ -9505,7 +9514,9 @@ snapshots:
       metro-runtime: 0.83.7
     transitivePeerDependencies:
       - '@babel/core'
+      - bufferutil
       - supports-color
+      - utf-8-validate
     optional: true
 
   '@react-native/normalize-colors@0.83.1': {}
@@ -11812,6 +11823,11 @@ snapshots:
       expo-asset: 55.0.17(expo@55.0.23)(react-native@0.83.6(@babel/core@7.29.0)(@react-native/metro-config@0.84.1(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)(typescript@5.9.3)
       react: 19.2.0
       react-native: 0.83.6(@babel/core@7.29.0)(@react-native/metro-config@0.84.1(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.2.0)
+
+  expo-battery@55.0.13(expo@55.0.23)(react@19.2.0):
+    dependencies:
+      expo: 55.0.23(@babel/core@7.29.0)(@expo/dom-webview@55.0.3)(@expo/metro-runtime@55.0.6)(expo-router@55.0.14)(react-dom@19.2.0(react@19.2.0))(react-native-webview@13.16.0(react-native@0.83.6(@babel/core@7.29.0)(@react-native/metro-config@0.84.1(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.2.0))(react@19.2.0))(react-native-worklets@0.7.1(@babel/core@7.29.0)(react-native@0.83.6(@babel/core@7.29.0)(@react-native/metro-config@0.84.1(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.2.0))(react@19.2.0))(react-native@0.83.6(@babel/core@7.29.0)(@react-native/metro-config@0.84.1(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)(typescript@5.9.3)
+      react: 19.2.0
 
   expo-brightness@55.0.13(expo@55.0.23)(react-native@0.83.6(@babel/core@7.29.0)(@react-native/metro-config@0.84.1(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.2.0)):
     dependencies:
