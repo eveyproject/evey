@@ -5,6 +5,9 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/evey-project/evey/internal/pkg/metrics"
+	"github.com/evey-project/evey/internal/pkg/ratelimit"
+
 	appmedia "github.com/evey-project/evey/internal/app/media"
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/tracing"
@@ -61,6 +64,17 @@ func requireDownloadTokenBinding(w http.ResponseWriter, r *http.Request, resourc
 		return true
 	}
 	if st.Scope == shared.ScopeSyncplayGuest || st.MediaItemID != shared.MediaItemID(resourceID) {
+		// Counted and logged, like every other authorization refusal in this
+		// package: a token replayed against a resource it was not minted for
+		// is either a client bug or somebody probing with a leaked token, and
+		// a silent 403 leaves the operator nothing to find when the user says
+		// "my download does not work". The bound id is NOT logged - it is the
+		// caller's input, and the useful fact is which resource refused.
+		metrics.AuthzDeniedTotal.WithLabelValues("http", "download_token_scope_mismatch").Inc()
+		slog.WarnContext(r.Context(), "download refused: the stream token is not bound to this resource",
+			slog.String("resource_id", resourceID),
+			slog.String("scope", string(st.Scope)),
+			slog.String("client_ip", ratelimit.ClientIP(r)))
 		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 		return false
 	}

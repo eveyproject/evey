@@ -486,6 +486,14 @@ type Collection struct {
 	UpdatedAt   time.Time
 }
 
+// MaxCollectionItems bounds how many members of a collection are considered at
+// once - by the access check that decides whether a caller may download it, and
+// by the bundling that builds the archive. It lives here because those two live
+// in different packages: as a literal repeated on both sides, raising one and
+// not the other would show a user 1500 items and hand them a ZIP of 1000, with
+// no error anywhere.
+const MaxCollectionItems = 1000
+
 // Validate enforces the Collection invariants: an id and a name are required.
 func (c *Collection) Validate() error {
 	if c.ID == "" {

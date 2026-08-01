@@ -122,7 +122,7 @@ func (h *collectionHandler) GetCollection(ctx context.Context, req *eveyv1.GetCo
 		span.SetStatus(otelcodes.Error, filterErr.Error())
 		return nil, internalError(ctx, "check access", filterErr)
 	}
-	items, _, itemsErr := h.svc.GetItems(ctx, col.ID, 1000, 0)
+	items, _, itemsErr := h.svc.GetItems(ctx, col.ID, library.MaxCollectionItems, 0)
 	if itemsErr != nil {
 		span.RecordError(itemsErr)
 		span.SetStatus(otelcodes.Error, itemsErr.Error())
@@ -382,7 +382,7 @@ func (h *collectionHandler) checkCollectionAccess(ctx context.Context, collectio
 	if _, getErr := h.svc.GetByID(ctx, collectionID); getErr != nil {
 		return status.Errorf(codes.NotFound, "collection not found")
 	}
-	items, _, itemsErr := h.svc.GetItems(ctx, collectionID, 1000, 0)
+	items, _, itemsErr := h.svc.GetItems(ctx, collectionID, library.MaxCollectionItems, 0)
 	if itemsErr != nil {
 		slog.WarnContext(ctx, "collection access check: get items", slog.String("collection_id", collectionID), slog.Any("err", itemsErr))
 		return internalError(ctx, "get collection items", itemsErr)

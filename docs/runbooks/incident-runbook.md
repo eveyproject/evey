@@ -31,9 +31,25 @@ curl -v http://localhost:9091/healthz
 
 **Diagnose**:
 ```sh
+docker logs --since 10m evey-server | grep -iE 'epoch|jwt|auth|signing|private key'
 docker exec evey-server ls -l /data/jwt.key
-docker logs --since 10m evey-server | grep -iE 'jwt|auth|signing|private key'
 ```
+
+**Look for the epoch line first.** Every authenticated request re-checks the
+user's token epoch against the database (ADR-0019), and that check fails
+CLOSED. So a database that is slow, locked or unreachable makes every request
+in the server return the same 401 an expired token returns - which reads
+exactly like a JWT problem and is not one. The server says so explicitly:
+
+```
+auth rejected: the token epoch could not be read, so every authenticated
+request is failing - check the database, not the JWT key
+```
+
+If that line is present, stop reading this section and go to §1 (database).
+`/healthz` can still be green here: it only pings the connection, it does not
+run the epoch query. The Prometheus counter is
+`evey_auth_failures_total{reason="epoch_lookup_failed"}`.
 
 **Common causes + fix**:
 - **JWT key missing or changed**: `EVEY_JWT_PRIVATE_KEY_PATH` (default `/data/jwt.key`) not readable, or was rotated. Every token signed by the old key is now invalid - there is no mitigation beyond restoring the old key from backup or forcing every user to re-login. Confirm the `evey-data` volume is mounted correctly at `/data`.

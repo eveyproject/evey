@@ -16,8 +16,9 @@ import (
 )
 
 // collectionDownloadMaxItems caps how many collection members are bundled into
-// a download. Mirrors the access-check ceiling used by the gRPC handler.
-const collectionDownloadMaxItems = 1000
+// a download. Aliases the domain constant the gRPC access check also reads, so
+// the two ceilings cannot drift apart.
+const collectionDownloadMaxItems = library.MaxCollectionItems
 
 // collectionSource reads a collection and its member media items.
 type collectionSource interface {
