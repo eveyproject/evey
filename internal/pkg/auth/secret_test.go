@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"testing"
@@ -40,5 +41,65 @@ func TestLoadOrGenerateSecret_CorruptRejected(t *testing.T) {
 	}
 	if _, err := LoadOrGenerateSecret(path, 32); err == nil {
 		t.Error("expected an error for a corrupt secret file")
+	}
+}
+
+// The HLS AES secret derives every per-media decryption key. A file left
+// group- or world-readable therefore hands the whole encrypted catalogue to
+// anyone with a shell on the box - which is exactly why the loader tightens it
+// on sight rather than merely warning.
+//
+// Mutation testing (2026-08-01) showed nothing exercised that branch: negating
+// the permission check survived the suite, so the tightening could have been
+// removed - or silently stopped working - without a single test noticing.
+func TestLoadOrGenerateSecret_TightensLoosePermissions(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "hls.key")
+
+	original, err := LoadOrGenerateSecret(path, 32)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Somebody (a restore, a bad umask, a hand copy) makes it world-readable.
+	if err := os.Chmod(path, 0o644); err != nil {
+		t.Fatalf("chmod: %v", err)
+	}
+
+	loaded, err := LoadOrGenerateSecret(path, 32)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !bytes.Equal(loaded, original) {
+		t.Error("the secret changed: tightening permissions must not rotate the key, or every encrypted stream breaks")
+	}
+
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat: %v", err)
+	}
+	if perm := info.Mode().Perm(); perm != 0o600 {
+		t.Errorf("permissions = %#o, want 0600 - the AES secret is still readable by others", perm)
+	}
+}
+
+// An already-tight file must be left exactly as it is.
+func TestLoadOrGenerateSecret_LeavesTightPermissionsAlone(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "hls.key")
+	if _, err := LoadOrGenerateSecret(path, 32); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := os.Chmod(path, 0o400); err != nil { // read-only, still not group/world
+		t.Fatalf("chmod: %v", err)
+	}
+	if _, err := LoadOrGenerateSecret(path, 32); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat: %v", err)
+	}
+	if perm := info.Mode().Perm(); perm != 0o400 {
+		t.Errorf("permissions = %#o, want 0400 untouched - only group/world bits justify a rewrite", perm)
 	}
 }
