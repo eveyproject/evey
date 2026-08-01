@@ -934,11 +934,19 @@ func TestLimiter_EvictionDropsEveryStaleEntryBeforeTouchingALiveOne(t *testing.T
 	if !newcomerAdmitted {
 		t.Error("the newcomer got no bucket")
 	}
-	// Every stale entry goes in the one pass - not one per insertion, which
-	// would leave the table pinned at the cap and evict a live caller on each
-	// new key.
-	if n != 2 {
-		t.Errorf("table holds %d entries, want 2 (live + newcomer): the stale ones were not all dropped", n)
+	// La purge INTÉGRALE a été déplacée dans le balayeur périodique (cleanup,
+	// toutes les 5 min) : la faire ici parcourait toute la table sous le verrou
+	// que prend aussi chaque requête, donc un attaquant changeant d'adresse
+	// payait un paquet et faisait payer 50 000 itérations au serveur. Sur le
+	// chemin chaud, une éviction échantillonne et libère UNE place. Ce qui reste
+	// vrai, et c'est l'essentiel, c'est le choix de la victime : une entrée
+	// périmée passe avant l'appelant actif.
+	if n > maxVisitors {
+		t.Errorf("la table a dépassé son plafond : %d > %d", n, maxVisitors)
+	}
+	if n != maxVisitors {
+		t.Errorf("table à %d entrées : une éviction doit libérer exactement une place "+
+			"et admettre le nouveau, pas purger toute la table sous le verrou", n)
 	}
 }
 

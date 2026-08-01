@@ -159,6 +159,13 @@ func TestReadCPUStat(t *testing.T) {
 // A probe that fails must not be remembered as "the answer". Under the old
 // sync.Once, one failing (or hanging) execution was final: every later caller
 // got the empty result forever, and a hang blocked them all permanently.
+//
+// Nuance depuis le 08-01 : un échec EST mémorisé, mais pour quelques secondes
+// seulement (ffmpegRetryAt / ffmpegFailureRetryAfter), afin qu'un hôte sans
+// ffmpeg ne fasse pas re-forker un process à chaque appel. Ce test porte sur
+// ffmpegProbed, qui reste l'engagement « définitif » et ne doit jamais être
+// posé par un échec. Les deux moitiés du contrat sont dans
+// ffmpeg_probe_cache_test.go.
 func TestFFmpegVersion_FailureIsNotCached(t *testing.T) {
 	ffmpegMu.Lock()
 	ffmpegCached, ffmpegProbed = "", false

@@ -72,6 +72,19 @@ func (l *Limiter) Stop() {
 // of clients - while capping one table at a couple of megabytes.
 const maxVisitors = 50_000
 
+// evictSample borne le travail d'UNE éviction. La passe de rétention complète
+// vit dans le balayeur périodique (cleanup, toutes les 5 min), hors du chemin
+// chaud : ici on échantillonne. L'itération de map de Go démarre à un endroit
+// aléatoire, donc ces quelques entrées sont un tirage honnête, et la plus
+// froide du tirage est presque toujours une vraie inactive. Approximatif par
+// choix : le but est de borner la mémoire, pas d'élire exactement la plus
+// ancienne, et un parcours complet coûterait plus cher que le service rendu.
+const evictSample = 64
+
+// evictScanned compte les entrées examinées par la dernière éviction, pour que
+// le test puisse vérifier que ce coût ne suit PAS la taille de la table.
+var evictScanned int
+
 func (l *Limiter) Allow(ip string) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -118,32 +131,65 @@ func (l *Limiter) RetryAfter(ip string) int {
 	return int(math.Ceil(secs))
 }
 
-// evictLocked makes room in a full table: it drops everything the periodic
-// sweep would have dropped anyway (idle past the retention), and if that frees
-// nothing it drops the single coldest entry. One pass, called only at the cap.
+// evictLocked libère UNE place dans une table pleine, en examinant au plus
+// evictSample entrées. La purge intégrale des entrées périmées appartient au
+// balayeur périodique : la faire ici parcourait toute la table sous l.mu, le
+// verrou que prend aussi chaque requête, si bien qu'un appelant changeant
+// d'adresse payait un paquet et en coûtait 50 000 itérations au serveur.
 //
-// Evicting cannot be turned into a way around the limiter. A key that is
-// evicted gets a fresh burst on its next request - but reaching the cap at all
-// requires tens of thousands of distinct keys, and a caller able to produce
-// those already gets a fresh bucket from every new address, cap or no cap. The
-// per-key model is what a rotating attacker defeats; this bound only decides
-// how much memory that costs us. Callers still holding a bucket are unaffected
-// unless they have been idle longer than everyone else in the table.
+// Le choix de la victime, par ordre de préférence :
+//  1. une entrée périmée croisée dans l'échantillon - gain net, on s'arrête là ;
+//  2. sinon la plus froide dont le seau contient encore un jeton : elle serait
+//     autorisée de toute façon, donc l'évincer ne rend aucune permission ;
+//  3. en dernier recours seulement, la plus froide tous états confondus.
+//
+// L'ordre 2 avant 3 n'est pas cosmétique. Un appelant refusé PUIS silencieux
+// devient l'entrée la plus froide de la table dès qu'on la remplit d'adresses
+// fraîches ; l'évincer lui rend un seau plein à sa requête suivante, ce qui
+// annule exactement la limitation qu'on venait de lui appliquer. La garantie
+// « un appelant actif est protégé par son lastCheck » ne couvre que celui qui
+// réessaie, pas celui-là.
+//
+// Rien de tout cela ne prétend contrer un attaquant qui tourne ses adresses :
+// le modèle par clé lui donne déjà un seau neuf à chaque nouvelle adresse,
+// plafond ou pas. Ce plafond décide seulement de ce que ça nous coûte en
+// mémoire, et cette politique, de qui en fait les frais.
 //
 // Called with l.mu held.
 func (l *Limiter) evictLocked(now time.Time) {
-	coldestKey, coldest := "", now
+	// Deux candidats séparés. `solvent` = la plus froide parmi les entrées dont
+	// le seau contient encore au moins un jeton : celles-là passeraient de toute
+	// façon, les évincer ne rend aucune autorisation. `any` = la plus froide tous
+	// états confondus, filet de secours quand l'échantillon ne contient que des
+	// clients à découvert.
+	solventKey, solvent := "", time.Time{}
+	anyKey, any := "", time.Time{}
+	scanned := 0
 	for ip, e := range l.visitors {
+		scanned++
+		// Une entrée périmée est un gain net : on la prend et on s'arrête là.
 		if now.Sub(e.lastCheck) > visitorRetention {
 			delete(l.visitors, ip)
-			continue
+			evictScanned = scanned
+			return
 		}
-		if coldestKey == "" || e.lastCheck.Before(coldest) {
-			coldestKey, coldest = ip, e.lastCheck
+		if anyKey == "" || e.lastCheck.Before(any) {
+			anyKey, any = ip, e.lastCheck
+		}
+		if e.tokens >= 1 && (solventKey == "" || e.lastCheck.Before(solvent)) {
+			solventKey, solvent = ip, e.lastCheck
+		}
+		if scanned >= evictSample {
+			break
 		}
 	}
-	if len(l.visitors) >= maxVisitors && coldestKey != "" {
-		delete(l.visitors, coldestKey)
+	evictScanned = scanned
+	victim := solventKey
+	if victim == "" {
+		victim = anyKey
+	}
+	if victim != "" {
+		delete(l.visitors, victim)
 	}
 }
 

@@ -172,12 +172,31 @@ var (
 	ffmpegMu     sync.Mutex
 	ffmpegCached string
 	ffmpegProbed bool
+	// ffmpegRetryAt date le prochain essai autorisé après un ÉCHEC. Sans lui,
+	// « on ne retient que les succès » veut dire qu'un hôte sans ffmpeg re-forke
+	// un process à CHAQUE appel, en tenant ffmpegMu jusqu'à ffmpegProbeTimeout :
+	// un tableau de bord admin qui interroge l'état système se met alors à
+	// sérialiser 3 s par rafraîchissement. La fenêtre garde l'intention (un échec
+	// transitoire finit par se corriger) sans le coût (une tempête d'appels ne
+	// paie qu'une sonde).
+	ffmpegRetryAt time.Time
+	// ffmpegProbes compte les exécutions RÉELLES, pour que le test puisse
+	// distinguer « répondu depuis le cache » de « a re-forké ».
+	ffmpegProbes int
+	// ffmpegNow est remplaçable en test pour franchir la fenêtre sans attendre.
+	ffmpegNow = time.Now
 )
 
 // ffmpegProbeTimeout bounds the version probe. `ffmpeg -version` answers in
 // milliseconds; anything slower means the binary is not reachable in a useful
 // way (a stalled network mount, a wrapper script waiting on something).
 const ffmpegProbeTimeout = 3 * time.Second
+
+// ffmpegFailureRetryAfter est la fenêtre pendant laquelle un échec de sonde est
+// mémorisé. Assez courte pour qu'une réparation de l'hôte (montage remonté,
+// paquet installé) se voie sans redémarrage, assez longue pour qu'un panneau
+// d'administration qui rafraîchit ne re-forke pas à chaque tour.
+const ffmpegFailureRetryAfter = 30 * time.Second
 
 // FFmpegVersion runs `ffmpeg -version` and caches the result.
 //
@@ -193,11 +212,19 @@ func FFmpegVersion(ffmpegPath string) string {
 	if ffmpegProbed {
 		return ffmpegCached
 	}
+	if now := ffmpegNow(); now.Before(ffmpegRetryAt) {
+		return ffmpegCached
+	}
 	func() {
 		p := ffmpegPath
 		if p == "" {
 			p = "ffmpeg"
 		}
+		ffmpegProbes++
+		// Fenêtre posée AVANT la sonde : si celle-ci réussit, ffmpegProbed prend
+		// le relais et la fenêtre ne sert plus ; si elle échoue ou expire, elle
+		// est déjà en place.
+		ffmpegRetryAt = ffmpegNow().Add(ffmpegFailureRetryAfter)
 		ctx, cancel := context.WithTimeout(context.Background(), ffmpegProbeTimeout)
 		defer cancel()
 		out, err := exec.CommandContext(ctx, p, "-version").Output() //nolint:gosec
