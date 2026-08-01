@@ -135,58 +135,78 @@ class EveyOfflineAudioModule : Module() {
     var lastEvent = 0L
     val info = MediaCodec.BufferInfo()
 
-    try {
-      while (true) {
-        throwIfCancelled()
+    // The pump must SATURATE the encoder: fill every free input buffer, drain
+    // every ready output buffer, and only block when neither side moved. The
+    // first field run paced itself instead - one input, one output and up to
+    // 20 ms of blocking timeouts per iteration is one ~21 ms audio frame per
+    // ~30 ms of wall clock, barely faster than just playing the film.
+    var outputDone = false
+    val startedAt = System.currentTimeMillis()
 
-        if (!inputDone) {
-          val inIdx = codec.dequeueInputBuffer(DEQUEUE_TIMEOUT_US)
-          if (inIdx >= 0) {
-            if (pcm == null || pcmOff >= pcm.size) {
-              pcm = session.readPCM()
-              pcmOff = 0
-            }
-            val chunk = pcm
-            if (chunk == null || chunk.isEmpty()) {
-              codec.queueInputBuffer(inIdx, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
-              inputDone = true
-            } else {
-              val buf = codec.getInputBuffer(inIdx)!!
-              val n = minOf(buf.remaining(), chunk.size - pcmOff)
-              buf.put(chunk, pcmOff, n)
-              pcmOff += n
-              // MediaCodec wants monotonic timestamps; derived from the sample
-              // count, they are exact. The Go writer re-derives its own from
-              // the frame count, so these never reach the output file.
-              val ptsUs = samplesIn * 1_000_000L / sampleRate
-              samplesIn += n / BYTES_PER_FRAME
-              codec.queueInputBuffer(inIdx, 0, n, ptsUs, 0)
-            }
+    fun feedOne(): Boolean {
+      val inIdx = codec.dequeueInputBuffer(0)
+      if (inIdx < 0) return false
+      if (pcm == null || pcmOff >= pcm!!.size) {
+        pcm = session.readPCM()
+        pcmOff = 0
+      }
+      val chunk = pcm
+      if (chunk == null || chunk.isEmpty()) {
+        codec.queueInputBuffer(inIdx, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
+        inputDone = true
+        return true
+      }
+      val buf = codec.getInputBuffer(inIdx)!!
+      val n = minOf(buf.remaining(), chunk.size - pcmOff)
+      buf.put(chunk, pcmOff, n)
+      pcmOff += n
+      // MediaCodec wants monotonic timestamps; derived from the sample count,
+      // they are exact. The Go writer re-derives its own from the frame
+      // count, so these never reach the output file.
+      val ptsUs = samplesIn * 1_000_000L / sampleRate
+      samplesIn += n / BYTES_PER_FRAME
+      codec.queueInputBuffer(inIdx, 0, n, ptsUs, 0)
+      return true
+    }
+
+    fun drainOne(timeoutUs: Long): Boolean {
+      val outIdx = codec.dequeueOutputBuffer(info, timeoutUs)
+      when {
+        outIdx == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
+          if (!began) {
+            val csd = codec.outputFormat.getByteBuffer("csd-0")
+              ?: throw IllegalStateException("encoder exposed no csd-0")
+            val asc = ByteArray(csd.remaining()).also { csd.get(it) }
+            session.beginAAC(asc)
+            began = true
           }
+          return true
         }
+        outIdx >= 0 -> {
+          val isConfig = info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0
+          if (!isConfig && info.size > 0) {
+            if (!began) throw IllegalStateException("AAC frame before csd-0")
+            val frame = ByteArray(info.size)
+            codec.getOutputBuffer(outIdx)!!.also { it.position(info.offset) }.get(frame)
+            session.writeAAC(frame)
+          }
+          codec.releaseOutputBuffer(outIdx, false)
+          if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) outputDone = true
+          return true
+        }
+        else -> return false
+      }
+    }
 
-        val outIdx = codec.dequeueOutputBuffer(info, DEQUEUE_TIMEOUT_US)
-        when {
-          outIdx == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
-            if (!began) {
-              val csd = codec.outputFormat.getByteBuffer("csd-0")
-                ?: throw IllegalStateException("encoder exposed no csd-0")
-              val asc = ByteArray(csd.remaining()).also { csd.get(it) }
-              session.beginAAC(asc)
-              began = true
-            }
-          }
-          outIdx >= 0 -> {
-            val isConfig = info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0
-            if (!isConfig && info.size > 0) {
-              if (!began) throw IllegalStateException("AAC frame before csd-0")
-              val frame = ByteArray(info.size)
-              codec.getOutputBuffer(outIdx)!!.also { it.position(info.offset) }.get(frame)
-              session.writeAAC(frame)
-            }
-            codec.releaseOutputBuffer(outIdx, false)
-            if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) break
-          }
+    try {
+      while (!outputDone) {
+        throwIfCancelled()
+        var progressed = false
+        while (!inputDone && feedOne()) progressed = true
+        while (!outputDone && drainOne(0)) progressed = true
+        if (!progressed && !outputDone) {
+          // Nothing to feed, nothing ready: yield until the encoder moves.
+          drainOne(DEQUEUE_TIMEOUT_US)
         }
 
         val now = System.currentTimeMillis()
@@ -195,6 +215,10 @@ class EveyOfflineAudioModule : Module() {
           val permille = session.decodeProgressPermille()
           sendEvent("progress", mapOf("stage" to "transcode", "permille" to permille))
           onNotifyProgress(permille * 8 / 10)
+          // Remote-diagnosable throughput: permille over elapsed is the whole
+          // story of "is it slow", and logcat is the only channel a field
+          // device reliably offers.
+          android.util.Log.i(NAME_TAG, "transcode permille=$permille elapsedMs=${now - startedAt}")
         }
       }
     } finally {
