@@ -61,8 +61,8 @@ func TestLoadOrGenerateSecret_TightensLoosePermissions(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	// Somebody (a restore, a bad umask, a hand copy) makes it world-readable.
-	if err := os.Chmod(path, 0o644); err != nil {
-		t.Fatalf("chmod: %v", err)
+	if chmodErr := os.Chmod(path, 0o644); chmodErr != nil {
+		t.Fatalf("chmod: %v", chmodErr)
 	}
 
 	loaded, err := LoadOrGenerateSecret(path, 32)
