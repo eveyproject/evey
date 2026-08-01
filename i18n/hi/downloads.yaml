@@ -9,6 +9,3 @@ totalSize: "इस डिवाइस पर {{size}} उपयोग में"
 deleted: डाउनलोड हटाया गया
 optimizingAudio: "ऑडियो अनुकूलित हो रहा है... {{percent}}%"
 preparingCompat: "सर्वर पर ऑडियो तैयार हो रहा है..."
-waitingForCharge: "चार्जर की प्रतीक्षा है..."
-waitingForWifi: "वाई-फाई की प्रतीक्षा है..."
-waitingForChargeAndWifi: "वाई-फाई और चार्जर की प्रतीक्षा है..."

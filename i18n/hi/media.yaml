@@ -246,6 +246,7 @@ detail:
   noProfileSelected: कोई प्रोफ़ाइल चयनित नहीं
   alreadyDownloaded: पहले से डाउनलोड किया गया
   downloadStarted: डाउनलोड शुरू हुआ
+  downloadOnMobileData: मोबाइल डेटा पर, वाई-फ़ाई की सलाह दी जाती है
   downloadComplete: डाउनलोड पूरा हुआ
   downloadFailed: डाउनलोड विफल
   downloadNoSpace: "इस डाउनलोड के लिए डिवाइस पर पर्याप्त संग्रहण स्थान नहीं है।"

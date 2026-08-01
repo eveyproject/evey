@@ -257,6 +257,7 @@ detail:
   noProfileSelected: No profile selected
   alreadyDownloaded: Already downloaded
   downloadStarted: Download started
+  downloadOnMobileData: on mobile data, Wi-Fi recommended
   downloadComplete: Download complete
   downloadFailed: Download failed
   downloadNoSpace: "Not enough storage space on the device for this download."

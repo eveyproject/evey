@@ -246,6 +246,7 @@ detail:
   noProfileSelected: Kein Profil ausgewählt
   alreadyDownloaded: Bereits heruntergeladen
   downloadStarted: Download gestartet
+  downloadOnMobileData: über Mobilfunk, WLAN empfohlen
   downloadComplete: Download abgeschlossen
   downloadFailed: Download fehlgeschlagen
   downloadNoSpace: "Nicht genug Speicherplatz auf dem Gerät für diesen Download."

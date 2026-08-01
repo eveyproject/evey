@@ -9,6 +9,3 @@ totalSize: "{{size}} auf diesem Gerät belegt"
 deleted: Download entfernt
 optimizingAudio: "Ton wird optimiert... {{percent}}%"
 preparingCompat: "Ton wird auf dem Server vorbereitet..."
-waitingForCharge: "Warten auf den Ladevorgang..."
-waitingForWifi: "Warten auf WLAN..."
-waitingForChargeAndWifi: "Warten auf WLAN und den Ladevorgang..."

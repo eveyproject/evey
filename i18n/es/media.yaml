@@ -246,6 +246,7 @@ detail:
   noProfileSelected: Ningún perfil seleccionado
   alreadyDownloaded: Ya descargado
   downloadStarted: Descarga iniciada
+  downloadOnMobileData: con datos móviles, se recomienda Wi-Fi
   downloadComplete: Descarga completada
   downloadFailed: Error en la descarga
   downloadNoSpace: "No hay suficiente espacio de almacenamiento en el dispositivo para esta descarga."
