@@ -7,24 +7,18 @@ import (
 	"github.com/evey-project/evey/internal/pkg/bgloop"
 )
 
-// bgloop.Tick (08-01) a rattrapé les panics des boucles de fond pour qu'un
-// mauvais tick ne tue plus le serveur. Mais un `recover` ne relâche QUE les
-// `defer` : une section critique qui déverrouille par un appel ordinaire en fin
-// de bloc voit son mutex rester pris pour toujours.
+// A recover only unwinds defers. bgloop.Tick (2026-08-01) caught panics in the
+// background sweeps, but the critical sections unlocked with a plain call at
+// the end of the block - so a panic left p.mu held forever, and p.mu is the
+// same lock every EnsureSegmentRange takes. Software-path playback froze,
+// /healthz still returned 200, and nothing restarted. Before the net, the same
+// panic killed the process and Docker restarted it in seconds.
 //
-// C'est une régression, pas un reste : AVANT le filet, le panic tuait le
-// process et Docker relançait en quelques secondes. APRÈS, le process survit
-// avec `p.mu` tenu - or c'est le MÊME verrou que prend EnsureSegmentRange à
-// chaque demande de segment. Donc toute lecture par le chemin logiciel se fige,
-// `/healthz` répond toujours 200 (il ne touche pas le producteur), et aucun
-// superviseur ne redémarre quoi que ce soit. Le filet transforme un crash
-// visible et auto-réparé en panne silencieuse et définitive.
-//
-// Ces tests épinglent la seule chose qui compte : après un tick qui panique,
-// le verrou doit être REPRENABLE.
+// These pin the only thing that matters: after a panicking tick, the lock must
+// be reacquirable.
 
-// panicSessions renvoie une table de sessions qui fait paniquer n'importe quel
-// balayage : l'entrée nulle déréférence dès le premier `s.mu.Lock()`.
+// panicSessions returns a session table that makes any sweep panic: the nil
+// entry dereferences on the first s.mu.Lock().
 func panicSessions() map[string][]*swSession {
 	return map[string][]*swSession{"boom": {nil}}
 }
@@ -38,8 +32,8 @@ func TestSweepIdle_ReleasesProducerLockOnPanic(t *testing.T) {
 	bgloop.Tick("test.sweepIdle", p.sweepIdle)
 
 	if !p.mu.TryLock() {
-		t.Fatal("p.mu est resté verrouillé après un tick qui a paniqué : toute demande " +
-			"de segment se bloquerait pour toujours, sans crash ni redémarrage")
+		t.Fatal("p.mu stayed locked after a panicking tick: every segment request " +
+			"would block forever, with no crash and no restart")
 	}
 	p.mu.Unlock()
 }
@@ -53,15 +47,15 @@ func TestSweepKillPaused_ReleasesProducerLockOnPanic(t *testing.T) {
 	bgloop.Tick("test.sweepKillPaused", p.sweepKillPaused)
 
 	if !p.mu.TryLock() {
-		t.Fatal("p.mu est resté verrouillé après un tick qui a paniqué")
+		t.Fatal("p.mu stayed locked after a panicking tick")
 	}
 	p.mu.Unlock()
 }
 
-// Pas de test pour sweepPause : il relâche p.mu AVANT la boucle qui peut
-// paniquer, donc un test « le verrou est repris » y passerait sans rien
-// prouver. Sa section critique par session (s.mu autour du SIGSTOP) est
-// néanmoins passée en defer pour la même raison.
+// No test for sweepPause: it releases p.mu before the loop that can panic, so a
+// "lock is reacquirable" assertion there would pass while proving nothing. Its
+// per-session critical section (s.mu around the SIGSTOP) was moved to defer for
+// the same reason.
 
 func TestOrchestratorSweepIdle_ReleasesLockOnPanic(t *testing.T) {
 	o := &SegmentOrchestrator{
@@ -71,8 +65,8 @@ func TestOrchestratorSweepIdle_ReleasesLockOnPanic(t *testing.T) {
 	bgloop.Tick("test.orchestrator.sweepIdle", o.sweepIdle)
 
 	if !o.mu.TryLock() {
-		t.Fatal("o.mu est resté verrouillé après un tick qui a paniqué : les sessions " +
-			"matérielles ne pourraient plus ni démarrer ni s'arrêter")
+		t.Fatal("o.mu stayed locked after a panicking tick: hardware sessions could " +
+			"no longer start or stop")
 	}
 	o.mu.Unlock()
 }

@@ -174,10 +174,10 @@ func (p *SoftwareProducer) sweepPause() {
 		return out
 	}()
 	for _, s := range snapshot {
-		// s.handle.Pause() est un SIGSTOP, donc un appel système, exécuté sous
-		// s.mu : c'est le point de la boucle le plus susceptible de partir en
-		// panic. Avec defer, ce verrou est rendu quoi qu'il arrive - sans lui la
-		// session concernée ne pourrait plus jamais être reprise ni tuée.
+		// s.handle.Pause() is a SIGSTOP - a syscall - executed under s.mu, the
+		// likeliest place in this loop to panic. With defer the lock is released
+		// no matter what; without it that session could never be resumed or
+		// killed again.
 		hash, paused, pauseErr := func() (string, bool, error) {
 			s.mu.Lock()
 			defer s.mu.Unlock()
@@ -258,11 +258,9 @@ func (p *SoftwareProducer) sweepKillPaused() {
 		useFMP4    bool
 	}
 
-	// Closure + defer, pas un Unlock en fin de bloc : bgloop.Tick rattrape
-	// désormais les panics, donc un déverrouillage ordinaire n'est plus atteint
-	// quand le balayage panique et p.mu resterait pris définitivement - or c'est
-	// le verrou que prend chaque demande de segment (voir le commentaire plus
-	// haut sur EnsureSegmentRange).
+	// Closure + defer rather than a trailing Unlock: bgloop.Tick now recovers
+	// panics, so a plain unlock is not reached when the sweep panics and p.mu -
+	// the lock every segment request takes - would stay held for good.
 	candidates := func() []pausedCandidate {
 		p.mu.Lock()
 		defer p.mu.Unlock()

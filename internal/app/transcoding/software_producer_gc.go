@@ -34,10 +34,10 @@ func (p *SoftwareProducer) gcLoop() {
 // frees their disk segments (the idle session won't be resumed; reclaim disk).
 func (p *SoftwareProducer) sweepIdle() {
 	cutoff := time.Now().Add(-p.opts.InactivityTimeout)
-	// Section critique dans une closure à defer : depuis que bgloop.Tick rattrape
-	// les panics, un Unlock ordinaire en fin de bloc n'est plus atteint quand le
-	// balayage panique, et p.mu - le verrou que prend AUSSI EnsureSegmentRange -
-	// resterait pris pour toujours. Le serveur survivrait, figé, sans redémarrage.
+	// Critical section in a deferred closure: now that bgloop.Tick recovers
+	// panics, a plain Unlock at the end of the block is not reached when the
+	// sweep panics, and p.mu - the lock EnsureSegmentRange also takes - would
+	// stay held forever. The server would survive, frozen, with no restart.
 	toKill := func() []*swSession {
 		p.mu.Lock()
 		defer p.mu.Unlock()

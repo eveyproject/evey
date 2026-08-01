@@ -5,16 +5,15 @@ import (
 	"time"
 )
 
-// Le passage de sync.Once à un cache verrouillé (08-01) a corrigé un vrai
-// blocage : une sonde qui pendait bloquait TOUS les appelants pour la vie du
-// process. Mais « on ne mémorise que les succès » a introduit l'excès inverse :
-// sur un hôte sans ffmpeg, chaque appel re-forkait un process en tenant
-// ffmpegMu jusqu'à 3 s. Un panneau d'administration qui rafraîchit son état
-// système paie alors 3 s par tour, sérialisés.
+// Moving from sync.Once to a locked cache (2026-08-01) fixed a real stall: one
+// hanging probe blocked every caller for the life of the process. But
+// "remember successes only" swung too far the other way - on a host with no
+// ffmpeg, every call re-forked a process while holding ffmpegMu for up to 3s,
+// so a polling admin dashboard paid 3s per refresh, serialised.
 //
-// Le contrat épinglé ici : un échec est mémorisé quelques secondes, puis
-// réessayé. Les deux moitiés comptent - sans la mémoire on re-forke en boucle,
-// sans le réessai un hôte réparé resterait marqué cassé jusqu'au redémarrage.
+// Contract: a failure is remembered for a few seconds, then retried. Both
+// halves matter - without the memory we re-fork in a loop, without the retry a
+// repaired host stays marked broken until restart.
 
 func resetFFmpegProbeState(t *testing.T) {
 	t.Helper()
@@ -40,18 +39,18 @@ func probeCount() int {
 func TestFFmpegVersion_FailedProbeIsNotRefiredOnEveryCall(t *testing.T) {
 	resetFFmpegProbeState(t)
 
-	// Un chemin qui ne peut pas exister : la sonde échoue à coup sûr.
+	// A path that cannot exist: the probe fails for sure.
 	const missing = "/nonexistent/evey-test-ffmpeg"
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		if v := FFmpegVersion(missing); v != "" {
-			t.Fatalf("une sonde en échec doit rendre une version vide, obtenu %q", v)
+			t.Fatalf("a failed probe must return an empty version, got %q", v)
 		}
 	}
 
 	if n := probeCount(); n != 1 {
-		t.Fatalf("5 appels ont déclenché %d exécutions de ffmpeg au lieu d'une seule : "+
-			"chaque appel re-forke un process en tenant le verrou global, donc un "+
-			"panneau d'administration qui rafraîchit se sérialise", n)
+		t.Fatalf("5 calls triggered %d ffmpeg executions instead of one: every call "+
+			"forks a process while holding the global lock, so a refreshing admin "+
+			"panel serialises", n)
 	}
 }
 
@@ -67,18 +66,18 @@ func TestFFmpegVersion_RetriesOnceTheWindowHasPassed(t *testing.T) {
 	FFmpegVersion(missing)
 	FFmpegVersion(missing)
 	if n := probeCount(); n != 1 {
-		t.Fatalf("dans la fenêtre, on attend 1 sonde, obtenu %d", n)
+		t.Fatalf("inside the window we expect 1 probe, got %d", n)
 	}
 
-	// L'hôte est « réparé » plus tard : la fenêtre doit rouvrir, sinon un
-	// serveur qui tourne depuis des semaines resterait marqué sans ffmpeg.
+	// The host is "repaired" later: the window must reopen, otherwise a server
+	// up for weeks would stay marked as having no ffmpeg.
 	ffmpegMu.Lock()
 	ffmpegNow = func() time.Time { return base.Add(ffmpegFailureRetryAfter + time.Second) }
 	ffmpegMu.Unlock()
 
 	FFmpegVersion(missing)
 	if n := probeCount(); n != 2 {
-		t.Fatalf("passé la fenêtre, la sonde doit être retentée (attendu 2, obtenu %d) : "+
-			"sinon un échec transitoire condamne l'information jusqu'au redémarrage", n)
+		t.Fatalf("past the window the probe must be retried (want 2, got %d): otherwise "+
+			"a transient failure condemns the answer until restart", n)
 	}
 }

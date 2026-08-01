@@ -198,9 +198,9 @@ func (o *SegmentOrchestrator) gcLoop() {
 
 func (o *SegmentOrchestrator) sweepIdle() {
 	cutoff := time.Now().Add(-o.opts.InactivityTimeout)
-	// defer plutôt qu'un Unlock en fin de bloc : bgloop.Tick rattrape les panics,
-	// donc sans defer un balayage qui panique laisserait o.mu pris pour toujours
-	// et plus aucune session matérielle ne pourrait démarrer ni s'arrêter.
+	// defer rather than a trailing Unlock: bgloop.Tick recovers panics, so
+	// without it a panicking sweep would leave o.mu held forever and no hardware
+	// session could start or stop again.
 	toKill := func() []*orchestratorSession {
 		o.mu.Lock()
 		defer o.mu.Unlock()

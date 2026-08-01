@@ -6,22 +6,14 @@ import (
 	"testing"
 )
 
-// Le log d'échec de connexion est le SEUL endroit où une campagne de
-// credential stuffing devient cherchable ligne par ligne : le compteur du
-// limiteur ne retient qu'un agrégat par identifiant, il ne dit ni quand, ni
-// depuis quelle vague, ni sur quels comptes. La mutation du 08-01 a montré que
-// rien ne l'épinglait - les 11 mutants survivants d'auth.go tombaient tous dans
-// des branches de log, donc on pouvait supprimer ces lignes sans qu'un seul
-// test bronche.
+// The failed-login log is the only place a credential-stuffing run becomes
+// searchable line by line - the limiter keeps an aggregate per username, not a
+// timeline. Mutation testing (2026-08-01) showed nothing pinned it: both log
+// lines could be deleted with the suite still green.
 //
-// Le motif d'échec est porté par `reason` et il n'est pas décoratif :
-//   - `unknown_user` en masse = une liste d'identifiants volée ailleurs qu'on
-//     rejoue ici ; la bonne réponse est le blocage réseau.
-//   - `bad_password` en masse sur peu de comptes = du brute force ciblé ; la
-//     bonne réponse est de prévenir CES utilisateurs.
-//
-// Les confondre, c'est traiter les deux de la même façon, donc mal.
-
+// `reason` is not decoration: `unknown_user` in bulk means a stolen list is
+// being replayed (block the source), `bad_password` on few accounts means
+// targeted brute force (warn those users). Same log, opposite responses.
 func TestLoginFailure_EmitsSearchableWarn(t *testing.T) {
 	cases := []struct {
 		name       string
@@ -31,14 +23,14 @@ func TestLoginFailure_EmitsSearchableWarn(t *testing.T) {
 		wantReason string
 	}{
 		{
-			name:       "identifiant inconnu",
+			name:       "unknown username",
 			seed:       false,
 			username:   "ghost",
 			password:   "hunter2",
 			wantReason: "reason=unknown_user",
 		},
 		{
-			name:       "mot de passe faux sur un compte réel",
+			name:       "wrong password on a real account",
 			seed:       true,
 			username:   "alice",
 			password:   "wrong-one",
@@ -48,7 +40,7 @@ func TestLoginFailure_EmitsSearchableWarn(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			// Pas de t.Parallel : captureSlogBuffer remplace le logger global.
+			// No t.Parallel: captureSlogBuffer swaps the global logger.
 			buf, restore := captureSlogBuffer(t)
 			defer restore()
 
@@ -58,28 +50,26 @@ func TestLoginFailure_EmitsSearchableWarn(t *testing.T) {
 			}
 
 			if _, _, err := d.svc.Login(context.Background(), tc.username, tc.password); err == nil {
-				t.Fatal("cette connexion devait échouer")
+				t.Fatal("this login was supposed to fail")
 			}
 
 			out := buf.String()
 			if !strings.Contains(out, "login failed") {
-				t.Fatalf("aucun log 'login failed' émis - un échec de connexion doit rester\n"+
-					"cherchable dans les logs, sinon une campagne est invisible.\nlogs:\n%s", out)
+				t.Fatalf("no 'login failed' log: a stuffing campaign leaves no trace\nlogs:\n%s", out)
 			}
 			if !strings.Contains(out, "username="+tc.username) {
-				t.Fatalf("le log ne nomme pas l'identifiant visé, on ne peut donc pas\n"+
-					"distinguer un balayage large d'une attaque ciblée.\nlogs:\n%s", out)
+				t.Fatalf("the log does not name the targeted account, so a broad sweep "+
+					"cannot be told from a targeted attack\nlogs:\n%s", out)
 			}
 			if !strings.Contains(out, tc.wantReason) {
-				t.Fatalf("motif attendu %q absent : sans lui, « compte inexistant » et\n"+
-					"« mot de passe faux » se ressemblent, alors qu'ils appellent des\n"+
-					"réponses différentes.\nlogs:\n%s", tc.wantReason, out)
+				t.Fatalf("missing %q: without it, 'no such account' and 'wrong password' "+
+					"look alike while calling for opposite responses\nlogs:\n%s", tc.wantReason, out)
 			}
-			// Une trace d'échec ne doit jamais transformer les logs en dictionnaire
-			// de mots de passe : ce sont souvent de vrais mots de passe d'autres
-			// services, et les logs sont lus par plus de monde que la base.
+			// Failure traces must never become a password dictionary - these are
+			// often real passwords from other services, and logs are read by more
+			// people than the database is.
 			if strings.Contains(out, tc.password) {
-				t.Fatalf("le mot de passe soumis a fuité dans les logs\nlogs:\n%s", out)
+				t.Fatalf("the submitted password leaked into the logs\nlogs:\n%s", out)
 			}
 		})
 	}

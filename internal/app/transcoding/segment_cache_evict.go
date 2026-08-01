@@ -247,9 +247,9 @@ func (c *SegmentCache) listHashUsage() ([]HashUsage, error) {
 	// is strictly >= the mtime-only value, so eviction is never MORE aggressive
 	// than before - an actively-watched copy title (frozen mtime) stays warm.
 	// Done after the directory I/O so the lock is held only for the map merge.
-	// defer : ce balayage tourne sous bgloop.Tick, qui rattrape les panics. Un
-	// RUnlock ordinaire ne serait pas atteint et le verrou de lecture resterait
-	// pris, bloquant tous les écrivains du cache.
+	// defer: this sweep runs under bgloop.Tick, which recovers panics. A plain
+	// RUnlock would not be reached and the read lock would stay held, blocking
+	// every writer of the cache.
 	func() {
 		c.mu.RLock()
 		defer c.mu.RUnlock()

@@ -7,25 +7,19 @@ import (
 	"time"
 )
 
-// Le plafond de visiteurs (08-01) a fermé une fuite mémoire non bornée, mais en
-// a ouvert une autre au même endroit : arrivé au plafond avec des entrées
-// toutes FRAÎCHES - exactement le cas d'adresses qui tournent que le plafond
-// vise - la passe de rétention ne supprime rien, on retire la plus froide, et
-// la table revient au plafond. La requête SUIVANTE relance donc un parcours
-// complet. Coût pour l'attaquant : un paquet. Coût pour le serveur : 50 000
-// itérations en tenant l.mu, le mutex que prend AUSSI chaque appel légitime,
-// connexion comprise. Le correctif de la fuite devenait un amplificateur de
-// contention.
-//
-// Contrat épinglé : le coût d'une éviction ne doit pas dépendre de la taille de
-// la table.
+// The visitor cap (2026-08-01) closed an unbounded leak but opened a contention
+// amplifier in its place: at the cap with all-fresh entries - exactly the
+// rotating-address case the cap targets - the retention pass deletes nothing,
+// one coldest key goes, the table returns to the cap, and the NEXT request
+// scans all 50k again under l.mu, the lock every legitimate call takes. One
+// packet for the attacker, 50k iterations for the server.
 
 func fillToCap(t *testing.T, l *Limiter) {
 	t.Helper()
 	for i := 0; len(l.visitors) < maxVisitors; i++ {
 		l.Allow(fmt.Sprintf("10.%d.%d.%d", i>>16&0xff, i>>8&0xff, i&0xff))
 		if i > maxVisitors*4 {
-			t.Fatalf("impossible de remplir la table (%d entrées)", len(l.visitors))
+			t.Fatalf("could not fill the table (%d entries)", len(l.visitors))
 		}
 	}
 }
@@ -40,7 +34,7 @@ func TestEviction_CostDoesNotScaleWithTableSize(t *testing.T) {
 	evictScanned = 0
 	l.mu.Unlock()
 
-	// Une adresse inédite : la table est au plafond, donc cet appel évince.
+	// An unseen address: the table is at the cap, so this call evicts.
 	l.Allow("203.0.113.7")
 
 	l.mu.Lock()
@@ -48,40 +42,31 @@ func TestEviction_CostDoesNotScaleWithTableSize(t *testing.T) {
 	l.mu.Unlock()
 
 	if scanned == 0 {
-		t.Fatal("aucune éviction déclenchée : le test ne mesure rien")
+		t.Fatal("no eviction happened: this test measures nothing")
 	}
 	if scanned > evictSample {
-		t.Fatalf("une éviction a examiné %d entrées sur une table de %d (plafond permis : %d).\n"+
-			"Le coût suit la taille de la table, donc chaque paquet d'un attaquant qui\n"+
-			"change d'adresse fait payer un parcours complet SOUS le verrou que prend\n"+
-			"aussi chaque connexion légitime.", scanned, size, evictSample)
+		t.Fatalf("one eviction examined %d entries out of %d (allowed: %d). Cost tracks "+
+			"table size, so every packet from a rotating attacker buys a full scan "+
+			"under the lock legitimate connections also take.", scanned, size, evictSample)
 	}
 	if size > maxVisitors {
-		t.Fatalf("la table a dépassé son plafond : %d > %d", size, maxVisitors)
+		t.Fatalf("table grew past its cap: %d > %d", size, maxVisitors)
 	}
 }
 
-// Évincer un client À DÉCOUVERT lui rend son autorisation : sa requête suivante
-// crée une entrée neuve avec un seau plein, ce qui annule exactement la
-// limitation qu'on venait de lui appliquer.
+// Evicting a caller in debt hands its allowance back: the next request creates a
+// fresh entry with a full bucket, undoing the throttling just applied. The
+// "an active caller is never evicted" guarantee only covers the one that
+// RETRIES (each attempt refreshes lastCheck); the one refused once and then
+// quiet becomes the coldest entry as soon as the table fills.
 //
-// La garantie « un client actif n'est jamais évincé » ne tient que pour celui
-// qui RÉESSAIE, puisque chaque tentative rafraîchit son lastCheck. Le client
-// refusé UNE fois puis silencieux devient au contraire l'entrée la plus froide
-// de la table dès qu'un attaquant la remplit d'adresses fraîches : il est alors
-// le premier candidat à l'éviction. C'est précisément celui qu'il ne faut pas
-// sortir.
+// Under a hard cap something must go, so the contract is "last", not "never":
+// while entries that would gain nothing from eviction remain (non-empty bucket,
+// they would be allowed anyway), those go first.
 //
-// Sous un plafond dur, quelque chose doit partir ; le contrat n'est donc pas
-// « jamais », mais « en dernier » : tant qu'il reste des entrées qui ne
-// gagneraient RIEN à être évincées (seau non vide, elles passeraient de toute
-// façon), ce sont elles qui partent.
-//
-// Attention au test qui se croit probant : viser UN client à découvert parmi
-// 50 000 ne prouve rien, puisque l'échantillon de 64 ne le contient presque
-// jamais - il survit par tirage, pas par politique. On mesure donc la politique
-// sur une population : la moitié de la table à découvert, l'autre garnie, et on
-// compte qui part.
+// Beware the test that only looks convincing: targeting ONE indebted caller
+// among 50k proves nothing, since a 64-entry sample almost never contains it -
+// it survives by luck, not by policy. So measure the policy on a population.
 func TestEviction_PrefersCallersThatOweNothing(t *testing.T) {
 	l := NewWithBurst(5, 5)
 	defer l.Stop()
@@ -90,12 +75,12 @@ func TestEviction_PrefersCallersThatOweNothing(t *testing.T) {
 	now := time.Now()
 
 	l.mu.Lock()
-	// Toutes les entrées sont récentes (aucune périmée), donc la seule chose qui
-	// peut départager un candidat de l'autre est l'état de son seau.
+	// Every entry is recent (none stale), so bucket state is the only thing that
+	// can decide between two candidates.
 	for i := range maxVisitors {
-		tokens := 3.0 // garni : l'évincer ne rend aucune autorisation
+		tokens := 3.0 // solvent: evicting it hands back nothing
 		if i%2 == 0 {
-			tokens = 0 // à découvert : l'évincer annule sa limitation
+			tokens = 0 // in debt: evicting it undoes the throttling
 		}
 		l.visitors[fmt.Sprintf("k%d", i)] = &entry{
 			tokens:    tokens,
@@ -104,7 +89,7 @@ func TestEviction_PrefersCallersThatOweNothing(t *testing.T) {
 	}
 	l.mu.Unlock()
 
-	for i := 0; i < evictions; i++ {
+	for i := range evictions {
 		l.Allow(fmt.Sprintf("newcomer-%d", i))
 	}
 
@@ -120,15 +105,13 @@ func TestEviction_PrefersCallersThatOweNothing(t *testing.T) {
 	const starvedAtStart = maxVisitors / 2
 	starvedDropped := starvedAtStart - starvedLeft
 
-	// Sans préférence, les victimes se répartissent moitié-moitié : ~150 des 300
-	// évictions frapperaient un client à découvert. Avec, ce nombre doit être
-	// proche de zéro. Le seuil laisse de la marge au tirage sans laisser passer
-	// l'absence de politique.
+	// With no preference victims split evenly: ~150 of 300 would hit an indebted
+	// caller. With it, near zero. The threshold leaves room for sampling noise
+	// without letting a missing policy through.
 	if starvedDropped > evictions/10 {
-		t.Fatalf("%d des %d évictions ont frappé un client à découvert alors que la "+
-			"table contenait autant d'entrées au seau garni.\nChacune de ces évictions "+
-			"rend un seau plein à quelqu'un qu'on venait de refuser : c'est la "+
-			"limitation elle-même qui est annulée, pas de la mémoire économisée.",
+		t.Fatalf("%d of %d evictions hit a caller in debt while the table held just as "+
+			"many solvent entries. Each of those hands a full bucket back to someone "+
+			"just refused: that is the throttling being undone, not memory saved.",
 			starvedDropped, evictions)
 	}
 }

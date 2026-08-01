@@ -72,17 +72,15 @@ func (l *Limiter) Stop() {
 // of clients - while capping one table at a couple of megabytes.
 const maxVisitors = 50_000
 
-// evictSample borne le travail d'UNE éviction. La passe de rétention complète
-// vit dans le balayeur périodique (cleanup, toutes les 5 min), hors du chemin
-// chaud : ici on échantillonne. L'itération de map de Go démarre à un endroit
-// aléatoire, donc ces quelques entrées sont un tirage honnête, et la plus
-// froide du tirage est presque toujours une vraie inactive. Approximatif par
-// choix : le but est de borner la mémoire, pas d'élire exactement la plus
-// ancienne, et un parcours complet coûterait plus cher que le service rendu.
+// evictSample bounds the work of ONE eviction. The full retention pass lives in
+// the periodic sweeper, off the hot path; here we sample. Go randomises map
+// iteration order, so these few entries are a fair draw. Approximate by choice:
+// the goal is bounding memory, not electing the exact oldest key, and a full
+// scan would cost more than it buys.
 const evictSample = 64
 
-// evictScanned compte les entrées examinées par la dernière éviction, pour que
-// le test puisse vérifier que ce coût ne suit PAS la taille de la table.
+// evictScanned counts entries examined by the last eviction, so a test can
+// check that this cost does NOT track table size.
 var evictScanned int
 
 func (l *Limiter) Allow(ip string) bool {
@@ -131,43 +129,38 @@ func (l *Limiter) RetryAfter(ip string) int {
 	return int(math.Ceil(secs))
 }
 
-// evictLocked libère UNE place dans une table pleine, en examinant au plus
-// evictSample entrées. La purge intégrale des entrées périmées appartient au
-// balayeur périodique : la faire ici parcourait toute la table sous l.mu, le
-// verrou que prend aussi chaque requête, si bien qu'un appelant changeant
-// d'adresse payait un paquet et en coûtait 50 000 itérations au serveur.
+// evictLocked frees ONE slot in a full table, examining at most evictSample
+// entries. Purging every stale entry belongs to the periodic sweeper: doing it
+// here scanned the whole table under l.mu - the lock every request takes - so a
+// caller rotating addresses paid one packet and cost the server 50k iterations.
 //
-// Le choix de la victime, par ordre de préférence :
-//  1. une entrée périmée croisée dans l'échantillon - gain net, on s'arrête là ;
-//  2. sinon la plus froide dont le seau contient encore un jeton : elle serait
-//     autorisée de toute façon, donc l'évincer ne rend aucune permission ;
-//  3. en dernier recours seulement, la plus froide tous états confondus.
+// Victim preference:
+//  1. a stale entry met in the sample - net win, stop there;
+//  2. else the coldest with a token left: it would be allowed anyway, so
+//     evicting it hands back no permission;
+//  3. only as a last resort, the coldest of any state.
 //
-// L'ordre 2 avant 3 n'est pas cosmétique. Un appelant refusé PUIS silencieux
-// devient l'entrée la plus froide de la table dès qu'on la remplit d'adresses
-// fraîches ; l'évincer lui rend un seau plein à sa requête suivante, ce qui
-// annule exactement la limitation qu'on venait de lui appliquer. La garantie
-// « un appelant actif est protégé par son lastCheck » ne couvre que celui qui
-// réessaie, pas celui-là.
+// 2 before 3 is not cosmetic. A caller refused and then quiet becomes the
+// coldest entry as soon as the table fills with fresh addresses; evicting it
+// hands it a full bucket on its next request, undoing the very throttling just
+// applied. The "an active caller is protected by its lastCheck" guarantee only
+// covers the one that retries.
 //
-// Rien de tout cela ne prétend contrer un attaquant qui tourne ses adresses :
-// le modèle par clé lui donne déjà un seau neuf à chaque nouvelle adresse,
-// plafond ou pas. Ce plafond décide seulement de ce que ça nous coûte en
-// mémoire, et cette politique, de qui en fait les frais.
+// None of this claims to stop an attacker rotating addresses: the per-key model
+// already hands them a fresh bucket per address, cap or no cap. The cap decides
+// what that costs us in memory; this policy decides who pays for it.
 //
 // Called with l.mu held.
 func (l *Limiter) evictLocked(now time.Time) {
-	// Deux candidats séparés. `solvent` = la plus froide parmi les entrées dont
-	// le seau contient encore au moins un jeton : celles-là passeraient de toute
-	// façon, les évincer ne rend aucune autorisation. `any` = la plus froide tous
-	// états confondus, filet de secours quand l'échantillon ne contient que des
-	// clients à découvert.
+	// Two candidates. solvent = coldest entry still holding a token (evicting it
+	// hands back nothing). any = coldest of any state, the fallback for a sample
+	// containing only callers in debt.
 	solventKey, solvent := "", time.Time{}
 	anyKey, any := "", time.Time{}
 	scanned := 0
 	for ip, e := range l.visitors {
 		scanned++
-		// Une entrée périmée est un gain net : on la prend et on s'arrête là.
+		// A stale entry is a net win: take it and stop.
 		if now.Sub(e.lastCheck) > visitorRetention {
 			delete(l.visitors, ip)
 			evictScanned = scanned

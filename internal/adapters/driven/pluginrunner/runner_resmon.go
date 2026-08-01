@@ -114,9 +114,8 @@ func (r *Runner) resourceMonitorLoop() {
 		// waits on it.
 		bgloop.Tick("pluginrunner.resourceMonitor", func() {
 			sweep++
-			// defer : sous bgloop.Tick un panic est rattrapé, donc un RUnlock
-			// ordinaire ne serait pas atteint et plus aucun plugin ne pourrait
-			// s'enregistrer ni se retirer.
+			// defer: under bgloop.Tick a panic is recovered, so a plain RUnlock
+			// would not be reached and no plugin could register or deregister.
 			entries := func() []*processEntry {
 				r.mu.RLock()
 				defer r.mu.RUnlock()
