@@ -2,6 +2,7 @@ package library_test
 
 import (
 	"context"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -206,4 +207,60 @@ func TestCachedMediaItemQueryRepo_ShortTTL_CacheHitBeforeExpiry(t *testing.T) {
 	item, err := cache.GetByID(context.Background(), "m1")
 	require.NoError(t, err)
 	assert.Equal(t, "Original", item.Title, "should still return cached value before TTL")
+}
+
+// countingGenreRepo counts how often the expensive query is really issued.
+type countingGenreRepo struct {
+	library.MediaItemQueryRepo
+	calls  atomic.Int32
+	genres []string
+}
+
+func (r *countingGenreRepo) ListGenres(context.Context, shared.LibraryID) ([]string, error) {
+	r.calls.Add(1)
+	return append([]string(nil), r.genres...), nil
+}
+
+// The genre list is O(library) to compute - it unnests every item's genres and
+// DISTINCTs them, which no index can serve - and it is fetched every time a
+// user opens the genre filter. Uncached, the cheapest interaction in the UI
+// was one of the most expensive queries on the server.
+func TestCachedMediaItemQueryRepo_ListGenresIsCachedPerLibrary(t *testing.T) {
+	inner := &countingGenreRepo{genres: []string{"Drama", "Sci-Fi"}}
+	c := applib.NewCachedMediaItemQueryRepo(inner, time.Minute)
+	defer c.Stop()
+	ctx := context.Background()
+
+	first, err := c.ListGenres(ctx, "lib-1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	for range 5 {
+		if _, err := c.ListGenres(ctx, "lib-1"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	}
+	if got := inner.calls.Load(); got != 1 {
+		t.Errorf("the underlying query ran %d times for 6 calls, want 1", got)
+	}
+
+	// A different library is a different answer and must not be served the
+	// first one's cache.
+	if _, err := c.ListGenres(ctx, "lib-2"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got := inner.calls.Load(); got != 2 {
+		t.Errorf("calls = %d, want 2 (one per library)", got)
+	}
+
+	// The cached slice must be a copy: a caller that sorts or appends must not
+	// corrupt what everyone else reads.
+	first[0] = "MUTATED"
+	again, err := c.ListGenres(ctx, "lib-1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if again[0] == "MUTATED" {
+		t.Error("a caller mutated the cached genre list for every other caller")
+	}
 }

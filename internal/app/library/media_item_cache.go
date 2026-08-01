@@ -15,21 +15,28 @@ type cacheEntry struct {
 	expiresAt time.Time
 }
 
+type genreCacheEntry struct {
+	genres    []string
+	expiresAt time.Time
+}
+
 type CachedMediaItemQueryRepo struct {
 	inner library.MediaItemQueryRepo
 	ttl   time.Duration
 
-	mu    sync.RWMutex
-	items map[shared.MediaItemID]cacheEntry
-	done  chan struct{}
+	mu     sync.RWMutex
+	items  map[shared.MediaItemID]cacheEntry
+	genres map[shared.LibraryID]genreCacheEntry
+	done   chan struct{}
 }
 
 func NewCachedMediaItemQueryRepo(inner library.MediaItemQueryRepo, ttl time.Duration) *CachedMediaItemQueryRepo {
 	c := &CachedMediaItemQueryRepo{
 		inner: inner,
 		ttl:   ttl,
-		items: make(map[shared.MediaItemID]cacheEntry),
-		done:  make(chan struct{}),
+		items:  make(map[shared.MediaItemID]cacheEntry),
+		genres: make(map[shared.LibraryID]genreCacheEntry),
+		done:   make(chan struct{}),
 	}
 	go c.evictLoop()
 	return c
@@ -109,8 +116,37 @@ func (c *CachedMediaItemQueryRepo) SeriesAggregate(ctx context.Context, seriesID
 	return c.inner.SeriesAggregate(ctx, seriesID)
 }
 
+// ListGenres is cached because the underlying query is O(library): it unnests
+// the genres JSONB of EVERY item and DISTINCTs the result, and no index can
+// serve that (the GIN index answers containment, not a full unnest). It runs
+// every time someone opens the genre filter on the browse screen, so on a NAS
+// with a few thousand titles the cheapest interaction in the UI was one of the
+// most expensive queries in the server.
+//
+// The answer changes only when a scan adds or edits an item, so one TTL - the
+// same the item cache uses - is the right shape. A stale genre for a few
+// seconds after an import costs nothing; the list converges on the next call.
+// The slice is copied out so a caller sorting or appending cannot corrupt the
+// cached value for everyone else.
 func (c *CachedMediaItemQueryRepo) ListGenres(ctx context.Context, libraryID shared.LibraryID) ([]string, error) {
-	return c.inner.ListGenres(ctx, libraryID)
+	ctx, span := tracing.StartSpan(ctx, "app.library.CachedMediaItemQueryRepo.ListGenres")
+	defer span.End()
+	c.mu.RLock()
+	if e, ok := c.genres[libraryID]; ok && time.Now().Before(e.expiresAt) {
+		c.mu.RUnlock()
+		return append([]string(nil), e.genres...), nil
+	}
+	c.mu.RUnlock()
+
+	genres, err := c.inner.ListGenres(ctx, libraryID)
+	if err != nil {
+		return nil, err
+	}
+
+	c.mu.Lock()
+	c.genres[libraryID] = genreCacheEntry{genres: append([]string(nil), genres...), expiresAt: time.Now().Add(c.ttl)}
+	c.mu.Unlock()
+	return genres, nil
 }
 
 // NextEpisodeOf passes through; caching wouldn't pay off (one call per
@@ -132,6 +168,11 @@ func (c *CachedMediaItemQueryRepo) evictLoop() {
 			for id, e := range c.items {
 				if now.After(e.expiresAt) {
 					delete(c.items, id)
+				}
+			}
+			for libID, e := range c.genres {
+				if now.After(e.expiresAt) {
+					delete(c.genres, libID)
 				}
 			}
 			c.mu.Unlock()
