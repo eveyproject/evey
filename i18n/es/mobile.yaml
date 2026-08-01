@@ -4,6 +4,9 @@ serverConnect:
   serversFound_one: "{{count}} servidor encontrado"
   serversFound_other: "{{count}} servidores encontrados"
   missingScheme: "Empiece la dirección con http:// o https://."
+  insecureTitle: "Esta conexión no está cifrada"
+  insecureBody: "{{url}} está fuera de su red local y usa http://. Su contraseña y todo lo que vea viajarían sin cifrar. Use https:// si su servidor lo permite."
+  connectAnyway: "Conectar de todos modos"
   title: Conectar al servidor
   connect: Conectar
   connectionFailed: Conexion fallida

@@ -9,6 +9,7 @@ import { setServerUrl, getServerUrl, probeServer } from "../src/lib/server-confi
 import { initFetcher } from "../src/lib/fetcher-setup";
 import { applyServerLanguage, initI18n } from "../src/i18n";
 import { parseEveyHealth } from "../src/lib/serverIdentity";
+import { isCleartextToPublicHost, confirmInsecureServer } from "../src/lib/privateHost";
 import { versionLabel } from "../src/lib/versionLabel";
 import { useTheme } from "../src/providers/ThemeProvider";
 import { scanLocalNetwork } from "../src/lib/network-scan";
@@ -124,6 +125,14 @@ export default function ServerConnect() {
         t("mobile.serverConnect.connectionFailed", "Connection failed"),
         t("mobile.serverConnect.missingScheme", "Start the address with http:// or https://."),
       );
+      return;
+    }
+    // HTTP to a public host means the password typed on the next screen, and
+    // every frame afterwards, crosses the internet readable by anyone on the
+    // path. HTTP to the LAN is the normal self-hosted setup and says nothing.
+    // Android cannot make this distinction for us - network_security_config
+    // knows exact hosts, not address ranges - so the app makes it here.
+    if (isCleartextToPublicHost(trimmed) && !(await confirmInsecureServer(t, trimmed))) {
       return;
     }
 

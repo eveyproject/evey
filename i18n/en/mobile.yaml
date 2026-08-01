@@ -4,6 +4,9 @@ serverConnect:
   serversFound_one: "{{count}} server found"
   serversFound_other: "{{count}} servers found"
   missingScheme: "Start the address with http:// or https://."
+  insecureTitle: "This connection is not encrypted"
+  insecureBody: "{{url}} is outside your home network and uses http://. Your password and everything you watch would travel unencrypted. Use https:// if your server supports it."
+  connectAnyway: "Connect anyway"
   title: Connect to Server
   connect: Connect
   connectionFailed: Connection failed

@@ -4,6 +4,9 @@ serverConnect:
   serversFound_other: "找到 {{count}} 个服务器"
   serversFound_one: "找到 {{count}} 个服务器"
   missingScheme: "地址请以 http:// 或 https:// 开头。"
+  insecureTitle: "此连接未加密"
+  insecureBody: "{{url}} 不在您的家庭网络内，且使用 http://。您的密码以及观看的所有内容都将以明文传输。如果服务器支持，请使用 https://。"
+  connectAnyway: "仍然连接"
   title: 连接到服务器
   connect: 连接
   connectionFailed: 连接失败
