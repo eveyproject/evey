@@ -41,8 +41,12 @@ func TestEviction_CostDoesNotScaleWithTableSize(t *testing.T) {
 	scanned, size := evictScanned, len(l.visitors)
 	l.mu.Unlock()
 
-	if scanned == 0 {
-		t.Fatal("no eviction happened: this test measures nothing")
+	// <= 0, not == 0: a counter that runs backwards would never reach the sample
+	// bound, so the loop would scan the whole table while the ceiling assertion
+	// below still passed on a negative number.
+	if scanned <= 0 {
+		t.Fatalf("eviction reported %d entries examined: either none happened, or the "+
+			"counter that bounds the loop is not counting up", scanned)
 	}
 	if scanned > evictSample {
 		t.Fatalf("one eviction examined %d entries out of %d (allowed: %d). Cost tracks "+
@@ -113,5 +117,40 @@ func TestEviction_PrefersCallersThatOweNothing(t *testing.T) {
 			"many solvent entries. Each of those hands a full bucket back to someone "+
 			"just refused: that is the throttling being undone, not memory saved.",
 			starvedDropped, evictions)
+	}
+}
+
+// The last-resort branch: when every sampled entry is in debt, one still has to
+// go, or the table would grow past its cap and the memory bound the whole
+// mechanism exists for would be gone. Mutation (2026-08-01) showed nothing
+// exercised it - the fallback candidate could be disabled entirely and the
+// suite stayed green, because a solvent entry was always available.
+func TestEviction_StillFreesASlotWhenEveryoneIsInDebt(t *testing.T) {
+	l := NewWithBurst(5, 5)
+	defer l.Stop()
+
+	now := time.Now()
+	l.mu.Lock()
+	for i := range maxVisitors {
+		l.visitors[fmt.Sprintf("k%d", i)] = &entry{
+			tokens:    0, // everyone refused, nobody solvent
+			lastCheck: now.Add(-time.Duration(i%60) * time.Second),
+		}
+	}
+	l.mu.Unlock()
+
+	l.Allow("203.0.113.42")
+
+	l.mu.Lock()
+	size := len(l.visitors)
+	_, admitted := l.visitors["203.0.113.42"]
+	l.mu.Unlock()
+
+	if size > maxVisitors {
+		t.Fatalf("table grew to %d past the %d cap: with no solvent candidate the "+
+			"eviction gave up, so the memory bound no longer holds", size, maxVisitors)
+	}
+	if !admitted {
+		t.Fatal("the newcomer got no bucket")
 	}
 }
