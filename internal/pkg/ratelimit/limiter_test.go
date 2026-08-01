@@ -941,3 +941,59 @@ func TestLimiter_EvictionDropsEveryStaleEntryBeforeTouchingALiveOne(t *testing.T
 		t.Errorf("table holds %d entries, want 2 (live + newcomer): the stale ones were not all dropped", n)
 	}
 }
+
+// The token bucket must not let an idle caller BANK requests. Without the cap
+// at burst, someone who waits an hour would come back holding thousands of
+// tokens and could fire them all at once - the exact burst the limiter exists
+// to prevent, handed over for free by patience.
+//
+// Mutation testing (2026-08-01): the cap comparison survived the suite, so it
+// could have been loosened or removed unnoticed.
+func TestLimiter_IdleCallerCannotBankMoreThanTheBurst(t *testing.T) {
+	l := New(60) // burst 60, refill 1/s
+	defer l.Stop()
+
+	l.Allow("ip") // creates the entry
+	// Pretend that caller went quiet for an hour: 3600 tokens' worth of refill.
+	l.mu.Lock()
+	l.visitors["ip"].lastCheck = time.Now().Add(-time.Hour)
+	l.visitors["ip"].tokens = 0
+	l.mu.Unlock()
+
+	allowed := 0
+	for range 200 {
+		if l.Allow("ip") {
+			allowed++
+		}
+	}
+	// 60 from the capped bucket, plus the handful the refill adds during the
+	// loop itself. Anything near 200 means the cap is gone.
+	if allowed > 70 {
+		t.Errorf("an idle caller fired %d requests in a row; the bucket is capped at %d", allowed, 60)
+	}
+	if allowed < 50 {
+		t.Errorf("only %d allowed: the refill after an hour idle should have filled the bucket", allowed)
+	}
+}
+
+// RetryAfter must return a delay a client can act on: zero while tokens
+// remain, and a positive number of seconds once the bucket is empty. Returning
+// 0 on an empty bucket is the "retry blindly and stay blocked" report of
+// 2026-07-29.
+func TestLimiter_RetryAfterIsActionableOnceDrained(t *testing.T) {
+	l := New(60)
+	defer l.Stop()
+
+	if got := l.RetryAfter("fresh"); got != 0 {
+		t.Errorf("unknown caller: RetryAfter = %d, want 0", got)
+	}
+	for range 60 {
+		l.Allow("drained")
+	}
+	if l.Allow("drained") {
+		t.Fatal("premise: the bucket should be empty after burst requests")
+	}
+	if got := l.RetryAfter("drained"); got < 1 {
+		t.Errorf("RetryAfter = %d on an empty bucket, want at least 1 second", got)
+	}
+}
