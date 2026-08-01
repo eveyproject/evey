@@ -209,6 +209,8 @@ detail:
   writer: "Guionista: "
   studio: "Estudio: "
   trailer: Tráiler
+  trailerUnavailable: Ninguna app de este dispositivo puede abrir el tráiler
+  communityRatingA11y: Valorada {{rating}} sobre 10
   close: "Cerrar"
   unsupportedPlatform: "Plataforma no soportada: {{platform}}"
   artworkUpdated: Artwork actualizado

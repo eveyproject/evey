@@ -24,10 +24,12 @@ describe("selectHomeLibraryRows", () => {
     expect(selectHomeLibraryRows(libraries)).toEqual([{ id: "lib-1", name: "Movies" }]);
   });
 
-  // A row card navigates to the VIDEO detail screen, so only the types that
-  // screen fits get a row. Photos have their own screen, music its own tab,
-  // and books no screen at all - sending a viewer there would be a dead end.
-  it("only rows movie and show libraries", () => {
+  // A row only exists for a type the TV has somewhere to SEND the viewer.
+  // Music and photos earned one on 2026-08-02, when the home gained rows that
+  // land on the album and photos screens instead of the video detail page.
+  // Books still have no TV destination, and a card that lands nowhere is worse
+  // than an absent row.
+  it("rows video, music and photo libraries, but not books", () => {
     const libraries = [
       lib("lib-mov", "Films", "LIBRARY_TYPE_MOVIES"),
       lib("lib-pho", "Photos", "LIBRARY_TYPE_PHOTOS"),
@@ -37,6 +39,8 @@ describe("selectHomeLibraryRows", () => {
     ];
     expect(selectHomeLibraryRows(libraries)).toEqual([
       { id: "lib-mov", name: "Films" },
+      { id: "lib-pho", name: "Photos" },
+      { id: "lib-mus", name: "Musique" },
       { id: "lib-sho", name: "Séries" },
     ]);
   });

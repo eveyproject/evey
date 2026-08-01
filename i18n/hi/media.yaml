@@ -209,6 +209,8 @@ detail:
   writer: "लेखक: "
   studio: "स्टूडियो: "
   trailer: ट्रेलर
+  trailerUnavailable: इस डिवाइस पर कोई ऐप ट्रेलर नहीं खोल सकता
+  communityRatingA11y: 10 में से {{rating}} रेटिंग
   close: "बंद करें"
   unsupportedPlatform: "असमर्थित प्लेटफ़ॉर्म: {{platform}}"
   artworkUpdated: कलाकृति अपडेट हो गई

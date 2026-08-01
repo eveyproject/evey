@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
-import { View, Text, ScrollView, Pressable, FlatList, ActivityIndicator, StyleSheet } from "react-native";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { View, Text, ScrollView, Pressable, FlatList, ActivityIndicator, StyleSheet, Linking } from "react-native";
 import { Image } from "expo-image";
 import { useLocalSearchParams, router } from "expo-router";
 import {
@@ -8,8 +8,13 @@ import {
   usePlaybackServiceGetWatchProgress,
   usePlaybackServiceMarkAsWatched,
   usePlaybackServiceMarkAsUnwatched,
+  useFeedServiceSimilarItems,
+  useRatingServiceGetMyThumbRating,
+  ratingServicePutThumbRating,
+  getRatingServiceGetMyThumbRatingQueryKey,
 } from "@evey/api";
-import type { V1MediaPerson } from "@evey/api";
+import type { V1MediaItem, V1MediaPerson, V1Trailer } from "@evey/api";
+import { useMutation } from "@tanstack/react-query";
 import { useAuthStore, toast } from "@evey/store";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
@@ -22,7 +27,9 @@ import { FocusableCard } from "../../../src/components/FocusableCard";
 import { AddToPlaylistSheet } from "../../../src/components/AddToPlaylistSheet";
 import { useParentalGate } from "../../../src/hooks/useParentalGate";
 import { ParentalPINModal } from "../../../src/components/ParentalPINModal";
-import { CARD_WIDTH_FEATURED, POSTER_RATIO } from "../../../src/lib/tvLayout";
+import { CARD_WIDTH_FEATURED, POSTER_RATIO, CARD_WIDTH_GRID } from "../../../src/lib/tvLayout";
+import { PluginSlot } from "../../../src/features/plugins/PluginSlot";
+import { trailerUrl, sortTrailers } from "../../../src/lib/trailerUrl";
 
 const HERO_HEIGHT = 420;
 const POSTER_WIDTH = CARD_WIDTH_FEATURED;
@@ -52,6 +59,137 @@ function isSeriesType(type?: string) {
 
 function isSeasonType(type?: string) {
   return type === "MEDIA_ITEM_TYPE_SEASON";
+}
+
+// Community rating as five stars, the same 0-10 scale web and mobile render.
+function StarRating({ rating, color }: { rating: number; color: string }) {
+  const full = Math.round(rating / 2);
+  return (
+    <Text style={{ color, fontSize: 20 }} accessible={false}>
+      {"★".repeat(full)}{"☆".repeat(Math.max(0, 5 - full))}
+    </Text>
+  );
+}
+
+// Mirrors web's useRating and mobile's inlined pair: like=1, dislike=-1,
+// 0=cleared. The optimistic write is what keeps the button from feeling dead
+// on a remote, where the round trip is the only feedback.
+function useMyThumbRating(mediaId: string | undefined) {
+  return useRatingServiceGetMyThumbRating(mediaId ?? "", {
+    query: { enabled: !!mediaId, select: (d) => d.value ?? 0, staleTime: 60_000 },
+  });
+}
+
+function useSetThumbRating(mediaId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (value: number) => ratingServicePutThumbRating(mediaId ?? "", { value }),
+    onMutate: async (value: number) => {
+      if (!mediaId) return { prev: undefined };
+      const key = getRatingServiceGetMyThumbRatingQueryKey(mediaId);
+      await qc.cancelQueries({ queryKey: key });
+      const prev = qc.getQueryData<{ value?: number }>(key);
+      qc.setQueryData(key, { value });
+      return { prev };
+    },
+    onError: (_err: Error, _v: number, ctx?: { prev?: { value?: number } }) => {
+      if (mediaId && ctx?.prev !== undefined) {
+        qc.setQueryData(getRatingServiceGetMyThumbRatingQueryKey(mediaId), ctx.prev);
+      }
+    },
+    onSettled: () => {
+      if (mediaId) void qc.invalidateQueries({ queryKey: getRatingServiceGetMyThumbRatingQueryKey(mediaId) });
+    },
+  });
+}
+
+// A horizontal shelf of poster cards, used by "similar titles". Kept local:
+// the home screen's row is tuned for its own card size and focus rules.
+function PosterShelf({
+  title,
+  items,
+  serverUrl,
+  authHeaders,
+}: {
+  title: string;
+  items: { id: string; title?: string }[];
+  serverUrl: string;
+  authHeaders?: { Authorization: string };
+}) {
+  const theme = useTheme();
+  if (items.length === 0) return null;
+  const w = CARD_WIDTH_GRID;
+  const h = w * POSTER_RATIO;
+  return (
+    <View style={{ marginTop: 32 }}>
+      <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{title}</Text>
+      <FlatList
+        horizontal
+        data={items}
+        keyExtractor={(it) => it.id}
+        showsHorizontalScrollIndicator={false}
+        ItemSeparatorComponent={() => <View style={{ width: 16 }} />}
+        renderItem={({ item }) => (
+          <FocusableCard
+            onPress={() => router.push(`/media/${item.id}`)}
+            style={{ width: w }}
+            accessibilityLabel={item.title}
+          >
+            <Image
+              source={{ uri: artworkUrl(serverUrl, item.id, "poster", w * 2), headers: authHeaders }}
+              style={{ width: w, height: h, borderRadius: theme.radii.sm, backgroundColor: theme.colors.surface }}
+              contentFit="cover"
+              transition={200}
+            />
+            <Text style={{ color: theme.colors.text, fontSize: 16, marginTop: 8 }} numberOfLines={1}>
+              {item.title}
+            </Text>
+          </FocusableCard>
+        )}
+      />
+    </View>
+  );
+}
+
+// "More like this". Same two-step as web and mobile: the recommendation feed
+// first, and a same-genre listing when the feed has nothing to say - a page
+// that ends on an empty shelf is a dead end for the remote.
+function SimilarShelf({
+  item,
+  serverUrl,
+  authHeaders,
+}: {
+  item: V1MediaItem;
+  serverUrl: string;
+  authHeaders?: { Authorization: string };
+}) {
+  const { t } = useTranslation();
+  const { data: similarData } = useFeedServiceSimilarItems(item.id ?? "");
+  const hasSimilar = (similarData?.items?.length ?? 0) > 0;
+  const firstGenre = item.genres?.[0];
+  const { data: byGenreData } = useLibraryServiceListMediaItems(
+    { genre: firstGenre, type: item.type as never },
+    { query: { enabled: !hasSimilar && !!firstGenre } } as never,
+  );
+
+  const cards = useMemo(() => {
+    const fromFeed = (similarData?.items ?? [])
+      .filter((fi) => !!fi.mediaItemId)
+      .map((fi) => ({ id: fi.mediaItemId as string, title: fi.title }));
+    if (fromFeed.length > 0) return fromFeed;
+    return (byGenreData?.items ?? [])
+      .filter((m) => m.id && m.id !== item.id)
+      .map((m) => ({ id: m.id as string, title: m.title }));
+  }, [similarData, byGenreData, item.id]);
+
+  return (
+    <PosterShelf
+      title={t("media.detail.similarTitles")}
+      items={cards}
+      serverUrl={serverUrl}
+      authHeaders={authHeaders}
+    />
+  );
 }
 
 export default function MediaDetailScreen() {
@@ -103,6 +241,12 @@ export default function MediaDetailScreen() {
 
   const people = media?.people ?? [];
   const actors = people.filter((p: V1MediaPerson) => p.type === "PERSON_TYPE_ACTOR" || p.type === "PERSON_TYPE_GUEST_STAR");
+  // Web groups director/writer/producer into one "crew" shelf; same grouping
+  // here so the same person appears in the same place on both.
+  const crew = people.filter((p: V1MediaPerson) =>
+    p.type === "PERSON_TYPE_DIRECTOR" || p.type === "PERSON_TYPE_WRITER" || p.type === "PERSON_TYPE_PRODUCER");
+  const { data: myRating } = useMyThumbRating(id);
+  const setThumbRating = useSetThumbRating(id);
 
   const { data: childrenData } = useLibraryServiceListMediaItems(
     { parentId: id, "pagination.pageSize": 100 },
@@ -215,6 +359,18 @@ export default function MediaDetailScreen() {
           {media.genres && media.genres.length > 0 && (
             <Text style={[styles.genres, { color: theme.colors.textMuted }]}>{media.genres.join(", ")}</Text>
           )}
+          {media.communityRating != null && media.communityRating > 0 ? (
+            <View
+              style={styles.ratingLine}
+              accessible={true}
+              accessibilityLabel={t("media.detail.communityRatingA11y", "Rated {{rating}} out of 10", {
+                rating: media.communityRating.toFixed(1),
+              })}
+            >
+              <StarRating rating={media.communityRating} color={theme.colors.accent} />
+              <Text style={{ color: theme.colors.textMuted, fontSize: 18 }}>{media.communityRating.toFixed(1)}</Text>
+            </View>
+          ) : null}
         </View>
       </View>
 
@@ -310,6 +466,91 @@ export default function MediaDetailScreen() {
         >
           <Text style={[styles.actionText, { color: theme.colors.text }]}>{t("media.detail.addToPlaylist")}</Text>
         </Pressable>
+
+        {/* Thumb rating: same like/dislike/clear contract as web and mobile
+            (1 / -1 / 0), so a rating given in the living room shows up in the
+            browser. Two separate buttons rather than one toggle - the D-pad
+            has no way to express "the other direction" on a single control. */}
+        {!isSeries && !isSeason && (
+          <>
+            <Pressable
+              onPress={() => setThumbRating.mutate(myRating === 1 ? 0 : 1)}
+              disabled={setThumbRating.isPending}
+              onFocus={() => setFocusedBtn("like")}
+              onBlur={() => setFocusedBtn(null)}
+              accessible={true}
+              accessibilityLabel={t("media.detail.like", "Like")}
+              accessibilityRole="button"
+              accessibilityState={{ selected: myRating === 1 }}
+              style={[
+                styles.actionBtn,
+                {
+                  backgroundColor: theme.colors.surface,
+                  borderColor: focusedBtn === "like" ? theme.colors.accent : "transparent",
+                  opacity: setThumbRating.isPending ? 0.5 : 1,
+                },
+              ]}
+            >
+              <Text style={[styles.actionText, { color: myRating === 1 ? theme.colors.accent : theme.colors.text }]}>
+                {t("media.detail.like", "Like")}
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setThumbRating.mutate(myRating === -1 ? 0 : -1)}
+              disabled={setThumbRating.isPending}
+              onFocus={() => setFocusedBtn("dislike")}
+              onBlur={() => setFocusedBtn(null)}
+              accessible={true}
+              accessibilityLabel={t("media.detail.dislike", "Dislike")}
+              accessibilityRole="button"
+              accessibilityState={{ selected: myRating === -1 }}
+              style={[
+                styles.actionBtn,
+                {
+                  backgroundColor: theme.colors.surface,
+                  borderColor: focusedBtn === "dislike" ? theme.colors.accent : "transparent",
+                  opacity: setThumbRating.isPending ? 0.5 : 1,
+                },
+              ]}
+            >
+              <Text style={[styles.actionText, { color: myRating === -1 ? theme.colors.accent : theme.colors.text }]}>
+                {t("media.detail.dislike", "Dislike")}
+              </Text>
+            </Pressable>
+          </>
+        )}
+
+        {/* Trailers hand off to whatever app the television has for the site.
+            Only rendered when a link can actually be built, and a device with
+            nothing registered gets a message instead of a silent no-op. */}
+        {sortTrailers(media.trailers ?? [])
+          .map((tr) => ({ tr, url: trailerUrl(tr) }))
+          .filter((x): x is { tr: V1Trailer; url: string } => !!x.url)
+          .slice(0, 1)
+          .map(({ url }) => (
+            <Pressable
+              key={url}
+              onPress={() => {
+                void Linking.openURL(url).catch(() =>
+                  toast.error(t("media.detail.trailerUnavailable", "No app on this device can open the trailer")),
+                );
+              }}
+              onFocus={() => setFocusedBtn("trailer")}
+              onBlur={() => setFocusedBtn(null)}
+              accessible={true}
+              accessibilityLabel={t("media.detail.trailer")}
+              accessibilityRole="button"
+              style={[
+                styles.actionBtn,
+                {
+                  backgroundColor: theme.colors.surface,
+                  borderColor: focusedBtn === "trailer" ? theme.colors.accent : "transparent",
+                },
+              ]}
+            >
+              <Text style={[styles.actionText, { color: theme.colors.text }]}>{t("media.detail.trailer")}</Text>
+            </Pressable>
+          ))}
       </View>
 
       {/* Overview */}
@@ -413,6 +654,51 @@ export default function MediaDetailScreen() {
         </View>
       )}
 
+      {/* Crew, after the cast, exactly as web orders them. */}
+      {crew.length > 0 && (
+        <View style={{ marginTop: 32 }}>
+          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{t("media.detail.crew")}</Text>
+          <FlatList
+            horizontal
+            data={crew}
+            keyExtractor={(p) => `${p.id ?? p.name ?? ""}-${p.type ?? ""}`}
+            showsHorizontalScrollIndicator={false}
+            ItemSeparatorComponent={() => <View style={{ width: 12 }} />}
+            renderItem={({ item: person }) => (
+              <FocusableCard
+                onPress={() => person.id && router.push(`/(auth)/person/${person.id}`)}
+                style={styles.castCard}
+                accessibilityLabel={person.name}
+              >
+                {person.thumbUrl ? (
+                  <Image source={{ uri: person.thumbUrl }} style={styles.castAvatar} contentFit="cover" transition={200} />
+                ) : (
+                  <View style={[styles.castAvatar, { backgroundColor: theme.colors.surface, justifyContent: "center", alignItems: "center" }]}>
+                    <Text style={{ color: theme.colors.textMuted, fontSize: 28 }}>?</Text>
+                  </View>
+                )}
+                <Text style={{ color: theme.colors.text, fontSize: 16, marginTop: 6, textAlign: "center" }} numberOfLines={1}>
+                  {person.name}
+                </Text>
+                {person.role ? (
+                  <Text style={{ color: theme.colors.textMuted, fontSize: 14, textAlign: "center" }} numberOfLines={1}>
+                    {person.role}
+                  </Text>
+                ) : null}
+              </FocusableCard>
+            )}
+          />
+        </View>
+      )}
+
+      {/* A season page has no "similar seasons" to offer - same exclusion web
+          makes. */}
+      {media.id && !isSeason ? (
+        <SimilarShelf item={media} serverUrl={serverUrl} authHeaders={authHeaders} />
+      ) : null}
+
+      <PluginSlot name="media.detail.sidebar" context={{ mediaId: media.id }} />
+
       <View style={{ height: 64 }} />
       </View>
 
@@ -471,6 +757,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
+  ratingLine: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 },
   castCard: { width: 120, alignItems: "center" },
   castAvatar: { width: 80, height: 80, borderRadius: 40, justifyContent: "center", alignItems: "center" },
 });

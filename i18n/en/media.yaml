@@ -209,6 +209,8 @@ detail:
   writer: "Writer: "
   studio: "Studio: "
   trailer: Trailer
+  trailerUnavailable: No app on this device can open the trailer
+  communityRatingA11y: Rated {{rating}} out of 10
   close: "Close"
   unsupportedPlatform: "Unsupported platform: {{platform}}"
   artworkUpdated: Artwork updated

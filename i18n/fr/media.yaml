@@ -209,6 +209,8 @@ detail:
   writer: "Scénariste : "
   studio: "Studio : "
   trailer: Bande-annonce
+  trailerUnavailable: Aucune application de cet appareil ne peut ouvrir la bande-annonce
+  communityRatingA11y: Note de {{rating}} sur 10
   close: "Fermer"
   unsupportedPlatform: "Plateforme non supportée : {{platform}}"
   artworkUpdated: Artwork mis à jour

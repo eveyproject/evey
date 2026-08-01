@@ -209,6 +209,8 @@ detail:
   writer: "Drehbuch: "
   studio: "Studio: "
   trailer: Trailer
+  trailerUnavailable: Keine App auf diesem Gerät kann den Trailer öffnen
+  communityRatingA11y: Bewertet mit {{rating}} von 10
   close: "Schließen"
   unsupportedPlatform: "Nicht unterstützte Plattform: {{platform}}"
   artworkUpdated: Artwork aktualisiert
