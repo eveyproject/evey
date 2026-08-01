@@ -106,6 +106,7 @@ describe("runAudioCompatPass success", () => {
     expect(dl.updateDownloadedAudio).toHaveBeenCalledWith("m1", {
       fileSize: 4_000_000,
       audioCodecs: ["aac"],
+      filePath: MKV_PATH,
     });
   });
 
@@ -115,7 +116,30 @@ describe("runAudioCompatPass success", () => {
     expect(dl.updateDownloadedAudio).toHaveBeenCalledWith("m1", {
       fileSize: 4_000_000,
       audioCodecs: ["dts", "aac", "ac3"],
+      filePath: MKV_PATH,
     });
+  });
+
+  it("runs on a misnamed .mp4 and renames the rewrite to .mkv", async () => {
+    // The movie screen used to omit its formatHint, so Matroska bytes were
+    // saved under a ".mp4" name - the pass must trust the sniffer, not the
+    // extension, and the swapped file takes the honest name.
+    const mp4Path = "/storage/emulated/0/Download/Evey/Film-01234567.mp4";
+    const fixedPath = "/storage/emulated/0/Download/Evey/Film-01234567.mkv";
+    dl.getDownloadedMedia.mockResolvedValue(entry({ filePath: mp4Path }));
+
+    const result = await runAudioCompatPass("m1");
+    expect(result).toBe("done");
+    expect(oa.optimizeAudio).toHaveBeenCalledWith(
+      mp4Path,
+      "/storage/emulated/0/Download/Evey/Film-01234567.opt.mkv",
+      expect.any(Function),
+    );
+    expect(fsMock.moveAsync).toHaveBeenCalledWith({
+      from: "file:///storage/emulated/0/Download/Evey/Film-01234567.opt.mkv",
+      to: `file://${fixedPath}`,
+    });
+    expect(dl.updateDownloadedAudio).toHaveBeenCalledWith("m1", expect.objectContaining({ filePath: fixedPath }));
   });
 
   it("exposes weighted progress while running, cleared after", async () => {
@@ -172,7 +196,6 @@ describe("runAudioCompatPass skips", () => {
     ["unknown entry", () => dl.getDownloadedMedia.mockResolvedValue(null)],
     ["renderable audio", () => dl.needsAudioCompatPass.mockReturnValue(false)],
     ["recorded terminal failure", () => dl.getDownloadedMedia.mockResolvedValue(entry({ audioPassFailed: "unsupported-codec" }))],
-    ["non-mkv container", () => dl.getDownloadedMedia.mockResolvedValue(entry({ filePath: "/x/film.mp4" }))],
     ["native module absent", () => oa.isOfflineAudioAvailable.mockResolvedValue(false)],
   ])("skips on %s without calling the native pass", async (_name, arrange) => {
     arrange();

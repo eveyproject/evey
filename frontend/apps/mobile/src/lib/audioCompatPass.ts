@@ -118,13 +118,18 @@ async function runPassNow(mediaItemId: string): Promise<AudioPassResult> {
   if (!needsAudioCompatPass(entry, device)) {
     return skip(mediaItemId, `audio renderable (file=${(entry.audioCodecs ?? []).join(",") || "unknown"} device=${device.join(",")})`);
   }
-  if (!entry.filePath.toLowerCase().endsWith(".mkv")) return skip(mediaItemId, `not mkv: ${entry.filePath}`);
   if (!(await isOfflineAudioAvailable())) return skip(mediaItemId, "native module absent");
 
+  // NO extension gate here: a movie site that forgot its formatHint used to
+  // save Matroska bytes under a ".mp4" name, and gating on the name skipped
+  // the exact files this pass exists for. The Go side sniffs the container -
+  // a real MP4 fails Open() in milliseconds with the terminal "not-matroska".
+  //
   // Same directory as the source on purpose: the final rename must stay on
   // one volume to be atomic, and the space for it was reserved BEFORE the
   // download started (requiredDownloadBytes's 2x).
-  const outPath = `${entry.filePath.slice(0, -".mkv".length)}.opt.mkv`;
+  const stem = entry.filePath.replace(/\.[^./\\]+$/, "");
+  const outPath = `${stem}.opt.mkv`;
   console.log(`evey-audiopass start ${mediaItemId} ${entry.filePath}`);
   setPassState(mediaItemId, { stage: "transcode", permille: 0 });
   try {
@@ -134,13 +139,15 @@ async function runPassNow(mediaItemId: string): Promise<AudioPassResult> {
 
     // Swap: the original disappears for the instant between the two calls -
     // acceptable, the alternative (backup rename) doubles the peak disk use
-    // the space guard promised NOT to exceed.
+    // the space guard promised NOT to exceed. The rewritten file IS Matroska,
+    // so it also takes the honest ".mkv" name a misnamed source lacked.
+    const finalPath = `${stem}.mkv`;
     await FileSystem.deleteAsync(toFileUri(entry.filePath), { idempotent: true });
-    await FileSystem.moveAsync({ from: toFileUri(outPath), to: toFileUri(entry.filePath) });
+    await FileSystem.moveAsync({ from: toFileUri(outPath), to: toFileUri(finalPath) });
 
     let fileSize = entry.fileSize;
     try {
-      const info = await FileSystem.getInfoAsync(toFileUri(entry.filePath));
+      const info = await FileSystem.getInfoAsync(toFileUri(finalPath));
       if (info.exists && info.size) fileSize = info.size;
     } catch {
       /* size patch is cosmetic - the swap already happened */
@@ -151,7 +158,7 @@ async function runPassNow(mediaItemId: string): Promise<AudioPassResult> {
     const i = codecs.findIndex((c) => c.trim().toLowerCase() === summary.sourceCodec);
     if (i >= 0) codecs[i] = "aac";
     else codecs.push("aac");
-    await updateDownloadedAudio(mediaItemId, { fileSize, audioCodecs: codecs });
+    await updateDownloadedAudio(mediaItemId, { fileSize, audioCodecs: codecs, filePath: finalPath });
     console.log(
       `evey-audiopass done ${mediaItemId} ${summary.sourceCodec}(${summary.sourceChannels}ch)->aac ` +
         `frames=${summary.aacFrames} skipped=${summary.skippedFrames}`,

@@ -1170,6 +1170,11 @@ export default function MediaDetailScreen() {
                         officialRating: media.officialRating,
                         certificationsByCountry: media.certificationsByCountry,
                       }),
+                      // Without the hint the extension falls back to ".mp4"
+                      // even for Matroska bytes (the episode site always
+                      // passed it; this one forgot) - which misnames the file
+                      // for VLC and used to make the audio pass skip it.
+                      formatHint: media.containerFormat,
                       audioCodecs: audioCodecsOf(media),
                     },
                   );
