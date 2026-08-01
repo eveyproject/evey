@@ -23,8 +23,11 @@ interface NativeSummary {
 }
 
 export interface OptimizeProgress {
-  /** "transcode" walks the source (decode+encode); "remux" writes the output. */
-  stage: "transcode" | "remux";
+  /**
+   * "transcode" walks the source (decode+encode); "remux" writes the output;
+   * "join" reassembles a sliced reduced-quality download.
+   */
+  stage: "transcode" | "remux" | "join";
   /** 0..1000 within the stage. */
   permille: number;
 }
@@ -40,6 +43,12 @@ export type OptimizeSummary = NativeSummary;
  * - "unsupported-codec": DTS/TrueHD - only the server-side fallback can help
  * - "no-convertible-track" / "no-audio" / "no-decodable-audio": nothing to do
  * - "unavailable": native module absent (iOS, tests, Expo Go)
+ *
+ * The slice join adds two of its own:
+ * - "no-slices" / "slice-missing": the collected set has a hole, so the join
+ *   was refused rather than silently producing half a film
+ * - "join-failed": mkvgo refused the slices (mismatched codec configuration)
+ *   or the write failed
  */
 export type OptimizeErrorCode =
   | "busy"
@@ -49,6 +58,9 @@ export type OptimizeErrorCode =
   | "unsupported-codec"
   | "no-convertible-track"
   | "no-decodable-audio"
+  | "no-slices"
+  | "slice-missing"
+  | "join-failed"
   | "unavailable"
   | "failed";
 
@@ -61,8 +73,15 @@ export class OptimizeError extends Error {
   }
 }
 
+interface NativeJoinSummary {
+  slices: number;
+  path: string;
+}
+
 interface NativeModuleShape {
   optimize(inPath: string, outPath: string, label: string): Promise<NativeSummary>;
+  joinSlices(dir: string, count: number, outPath: string, durationMs: number, label: string): Promise<NativeJoinSummary>;
+  deleteSlices(dir: string, count: number): void;
   cancel(): void;
   isRunning(): boolean;
   addListener(event: "progress", listener: (p: OptimizeProgress) => void): { remove(): void };
@@ -92,6 +111,9 @@ const KNOWN_CODES: readonly OptimizeErrorCode[] = [
   "unsupported-codec",
   "no-convertible-track",
   "no-decodable-audio",
+  "no-slices",
+  "slice-missing",
+  "join-failed",
 ];
 
 function toOptimizeError(e: unknown): OptimizeError {
@@ -134,4 +156,54 @@ export async function optimizeAudio(
 export async function cancelOptimize(): Promise<void> {
   const native = await nativeModule();
   native?.cancel();
+}
+
+/**
+ * The on-disk name of one slice of a reduced-quality download. The server's
+ * segment muxer chose it and the Go side rebuilds it, so the downloader must
+ * save under exactly this - a mismatch is a join that finds nothing.
+ */
+export function sliceFileName(index: number): string {
+  return `slice-${String(index).padStart(5, "0")}.mkv`;
+}
+
+/**
+ * Reassemble a size-reduced (720p) download from the slices in `dir` into
+ * `outPath` (plain filesystem paths, no file:// scheme - they cross into Go).
+ *
+ * `durationMs` is the film's true length, which ONLY the server knows: mkvgo's
+ * join copies the first slice's duration into the output, so without this the
+ * finished download would announce ten minutes and refuse to seek past it.
+ *
+ * The slices are deliberately left in place - call `deleteJoinedSlices` once
+ * the finished file is recorded. They are the only thing standing between a
+ * crash and re-downloading gigabytes.
+ */
+export async function joinDownloadSlices(
+  dir: string,
+  count: number,
+  outPath: string,
+  durationMs: number,
+  onProgress?: (p: OptimizeProgress) => void,
+  /** Shown in the foreground-service notification (the media title). */
+  label?: string,
+): Promise<void> {
+  const native = await nativeModule();
+  if (!native) {
+    throw new OptimizeError("unavailable", "slice join not available in this build");
+  }
+  const sub = onProgress ? native.addListener("progress", onProgress) : null;
+  try {
+    await native.joinSlices(dir, count, outPath, durationMs, label ?? "");
+  } catch (e) {
+    throw toOptimizeError(e);
+  } finally {
+    sub?.remove();
+  }
+}
+
+/** Drop the collected slices once the joined file is recorded. Best effort. */
+export async function deleteJoinedSlices(dir: string, count: number): Promise<void> {
+  const native = await nativeModule();
+  native?.deleteSlices(dir, count);
 }

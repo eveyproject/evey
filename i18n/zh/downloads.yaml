@@ -9,3 +9,17 @@ totalSize: "此设备已使用 {{size}}"
 deleted: 已移除下载
 optimizingAudio: "正在优化音频... {{percent}}%"
 preparingCompat: "正在服务器上准备音频..."
+quality:
+  title: 选择画质
+  bodyLarge: 这部影片有 {{original}}。{{height}}p 版本约需 {{reduced}}。
+  bodyNoRoom: 这部影片有 {{original}}，此设备放不下。{{height}}p 版本约需 {{reduced}}。
+  original: 原版（{{size}}）
+  reduced: "{{height}}p（{{size}}）"
+reduced:
+  preparing: "正在服务器上准备 {{height}}p 版本..."
+  collecting: "第 {{done}} / {{total}} 部分"
+  assembling: "正在拼接影片... {{percent}}%"
+  errorIncomplete: 影片部分内容缺失 - 请重新开始下载
+  errorJoin: 无法将各部分拼接成一个文件
+  errorUnsupportedDevice: 此设备无法拼接降低画质的下载
+  errorGeneric: 降低画质的下载失败

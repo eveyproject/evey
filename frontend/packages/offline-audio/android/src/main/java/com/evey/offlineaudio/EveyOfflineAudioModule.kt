@@ -62,13 +62,85 @@ class EveyOfflineAudioModule : Module() {
       }
     }
 
+    // Reassemble a size-reduced (720p) download from the slices the server
+    // handed over. Same module because it is the same embedded mkvgo, and the
+    // same one-heavy-job-at-a-time rule: an audio pass and a join both hammer
+    // flash I/O, and two at once would thrash it.
+    AsyncFunction("joinSlices") { dir: String, count: Int, outPath: String, durationMs: Long, label: String, promise: Promise ->
+      if (!running.compareAndSet(false, true)) {
+        promise.reject(CodedException("busy", "another offline job is already running", null))
+        return@AsyncFunction
+      }
+      thread(name = "evey-offline-join") {
+        try {
+          promise.resolve(runJoin(dir, count, outPath, durationMs, label))
+        } catch (t: Throwable) {
+          val msg = t.message ?: "unknown"
+          promise.reject(CodedException(msg.substringBefore(":").ifEmpty { "failed" }, msg, t))
+        } finally {
+          running.set(false)
+        }
+      }
+    }
+
+    // Drop the collected slices. Deliberately NOT folded into joinSlices: the
+    // slices are the only thing between a crash and re-downloading gigabytes,
+    // so JS deletes them once it has recorded the finished file.
+    Function("deleteSlices") { dir: String, count: Int ->
+      Offlineaudio.deleteSlices(dir, count)
+    }
+
     Function("cancel") {
       cancelled = true
+      Offlineaudio.cancelJoin()
     }
 
     Function("isRunning") {
       running.get()
     }
+  }
+
+  /**
+   * Assemble a size-reduced download from its slices. Minutes of flash I/O on
+   * a multi-gigabyte file, so it gets the same foreground service + wakelock
+   * treatment as the audio pass: without them the OEM freezer suspends the
+   * process the moment the app leaves the screen and the join stops mid-file.
+   */
+  private fun runJoin(dir: String, count: Int, outPath: String, durationMs: Long, label: String): Map<String, Any> {
+    val context = appContext.reactContext ?: throw IllegalStateException("no react context")
+
+    var serviceStarted = false
+    try {
+      OfflineAudioService.start(context, label)
+      serviceStarted = true
+    } catch (t: Throwable) {
+      logW(NAME_TAG, "foreground service unavailable: ${t.message}")
+    }
+    val wakeLock = (context.getSystemService(Context.POWER_SERVICE) as PowerManager)
+      .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "evey:offline-join")
+    runCatching { wakeLock.acquire(WAKELOCK_TIMEOUT_MS) }
+
+    // A copy this long behind a label that never moves reads as a hang - it
+    // did, in the field, on the server-side preparation. Poll and report.
+    val done = AtomicBoolean(false)
+    val poller = thread(name = "evey-offline-join-progress") {
+      while (!done.get()) {
+        val permille = Offlineaudio.joinPermille()
+        sendEvent("progress", mapOf("stage" to "join", "permille" to permille))
+        if (serviceStarted) OfflineAudioService.updateProgress(context, label, permille)
+        Thread.sleep(PROGRESS_INTERVAL_MS)
+      }
+    }
+    try {
+      Offlineaudio.joinSlices(dir, count.toLong(), outPath, durationMs)
+    } finally {
+      done.set(true)
+      poller.join()
+      runCatching { if (wakeLock.isHeld) wakeLock.release() }
+      if (serviceStarted) runCatching { OfflineAudioService.stop(context) }
+    }
+    sendEvent("progress", mapOf("stage" to "join", "permille" to 1000L))
+    return mapOf("slices" to count, "path" to outPath)
   }
 
   private fun runPass(inPath: String, outPath: String, label: String): Map<String, Any> {

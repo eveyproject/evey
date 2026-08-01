@@ -9,3 +9,17 @@ totalSize: "{{size}} auf diesem Gerät belegt"
 deleted: Download entfernt
 optimizingAudio: "Ton wird optimiert... {{percent}}%"
 preparingCompat: "Ton wird auf dem Server vorbereitet..."
+quality:
+  title: Qualität wählen
+  bodyLarge: Dieser Film ist {{original}} groß. Eine {{height}}p-Kopie braucht etwa {{reduced}}.
+  bodyNoRoom: Dieser Film ist {{original}} groß und passt nicht auf dieses Gerät. Eine {{height}}p-Kopie braucht etwa {{reduced}}.
+  original: Original ({{size}})
+  reduced: "{{height}}p ({{size}})"
+reduced:
+  preparing: "{{height}}p-Kopie wird auf dem Server vorbereitet..."
+  collecting: "Teil {{done}} von {{total}}"
+  assembling: "Film wird zusammengesetzt... {{percent}}%"
+  errorIncomplete: Es fehlen Teile des Films - bitte den Download neu starten
+  errorJoin: Die Teile konnten nicht zu einer Datei zusammengesetzt werden
+  errorUnsupportedDevice: Dieses Gerät kann keinen Download in reduzierter Qualität zusammensetzen
+  errorGeneric: Der Download in reduzierter Qualität ist fehlgeschlagen

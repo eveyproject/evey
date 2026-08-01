@@ -9,3 +9,17 @@ totalSize: "{{size}} utilisés sur cet appareil"
 deleted: Téléchargement supprimé
 optimizingAudio: "Optimisation du son... {{percent}}%"
 preparingCompat: "Préparation du son sur le serveur..."
+quality:
+  title: Choisir une qualité
+  bodyLarge: Ce film pèse {{original}}. Une copie en {{height}}p prendrait environ {{reduced}}.
+  bodyNoRoom: Ce film pèse {{original}} et ne tient pas sur cet appareil. Une copie en {{height}}p prendrait environ {{reduced}}.
+  original: Original ({{size}})
+  reduced: "{{height}}p ({{size}})"
+reduced:
+  preparing: "Préparation d'une copie en {{height}}p sur le serveur..."
+  collecting: "Partie {{done}} sur {{total}}"
+  assembling: "Assemblage du film... {{percent}}%"
+  errorIncomplete: Il manque des parties du film - relancez le téléchargement
+  errorJoin: Les parties n'ont pas pu être assemblées en un seul fichier
+  errorUnsupportedDevice: Cet appareil ne peut pas assembler un téléchargement en qualité réduite
+  errorGeneric: Le téléchargement en qualité réduite a échoué

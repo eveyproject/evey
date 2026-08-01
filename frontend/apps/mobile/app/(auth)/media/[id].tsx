@@ -43,7 +43,10 @@ import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { artworkUrl } from "../../../src/lib/artwork";
 import { certInfoForLocale } from "../../../src/lib/certifications";
 import { useIsFavorite, useToggleFavorite } from "../../../src/hooks/useFavorite";
-import { startDownload, getDownloadPath, deleteDownload, downloadErrorMessageKey, isPreparingCompat, getCompatPreparePermille, type ProgressBytes } from "../../../src/lib/downloads";
+import { startDownload, getDownloadPath, deleteDownload, downloadErrorMessageKey, subscribeToProgress, type ProgressBytes } from "../../../src/lib/downloads";
+import { downloadStageLabel } from "../../../src/lib/downloadStageLabel";
+import { chooseDownloadQuality } from "../../../src/lib/downloadQualityGate";
+import { startReducedDownload } from "../../../src/lib/reducedDownload";
 import { confirmDownloadOnMobileData } from "../../../src/lib/mobileDataGate";
 import { formatBytes } from "../../../src/lib/formatBytes";
 import { buildDownloadAuthContext } from "../../../src/lib/downloadContext";
@@ -1167,9 +1170,35 @@ export default function MediaDetailScreen() {
                 const existing = await getDownloadPath(id);
                 if (existing) { confirmDeleteDownload(id, media.title); return; }
                 if (!(await confirmDownloadOnMobileData(t))) return;
+                // A 4K remux can be tens of gigabytes: when the server offers
+                // a lighter copy (and the operator turned the choice on), ask
+                // before spending the space rather than after failing on it.
+                const choice = await chooseDownloadQuality(t, id);
+                if (choice.quality === "cancel") return;
                 setDownloadProgress(NaN);
                 toast.info(t("media.detail.downloadStarted"), { onPress: () => router.push("/downloads") });
                 try {
+                  if (choice.quality === "reduced" && choice.plan) {
+                    // The sliced path builds its own file, so it reports
+                    // through the same progress stream rather than returning
+                    // one task to await.
+                    const unsubscribe = subscribeToProgress(id, (p, b) => {
+                      setDownloadProgress(p);
+                      if (b) setDownloadBytes(b);
+                    });
+                    try {
+                      await startReducedDownload(id, media.title, choice.plan.durationMs, choice.plan.slices, {
+                        authContext: buildDownloadAuthContext(activeProfile, {
+                          officialRating: media.officialRating,
+                          certificationsByCountry: media.certificationsByCountry,
+                        }),
+                      });
+                    } finally {
+                      unsubscribe();
+                    }
+                    toast.success(t("media.detail.downloadComplete"));
+                    return;
+                  }
                   await startDownload(id, media.title,
                     (p, b) => { setDownloadProgress(p); if (b) setDownloadBytes(b); },
                     {
@@ -1231,17 +1260,12 @@ export default function MediaDetailScreen() {
                 color={theme.colors.text}
               />
               <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: "600", marginLeft: 6 }}>
-                {downloadProgress !== null && Number.isFinite(downloadProgress)
-                  ? `${Math.round(downloadProgress * 100)}%${downloadBytes && downloadBytes.downloaded > 0 ? ` · ${formatBytes(downloadBytes.downloaded)}` : ""}`
-                  : downloadProgress !== null
-                    ? id && isPreparingCompat(id)
-                      // Minutes of server-side production behind a static "…"
-                      // reads as a hang; the moving percent is what says "it
-                      // is working" (the prepare loop pings the progress
-                      // subscription on every server poll, re-rendering this).
-                      ? `${t("downloads.preparingCompat", "Preparing audio on the server…")}${getCompatPreparePermille(id) > 0 ? ` ${Math.round(getCompatPreparePermille(id) / 10)}%` : ""}`
-                      : (downloadBytes && downloadBytes.downloaded > 0 ? formatBytes(downloadBytes.downloaded) : "…")
-                    : t("common.download") || "Download"}
+                {downloadProgress === null || !id
+                  ? t("common.download") || "Download"
+                  // Every "what is it doing right now" answer - server-side
+                  // audio prep, 720p production, part N of M, assembling -
+                  // comes from one place, shared with the Downloads screen.
+                  : downloadStageLabel(t, id, downloadProgress, downloadBytes, 0, { formatSize: formatBytes })}
               </Text>
             </Pressable>
           )}

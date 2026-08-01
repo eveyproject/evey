@@ -424,7 +424,7 @@ export function getInFlightDownloads(): InFlightDownload[] {
 // Authorization context captured at the moment a download starts - see
 // offlineAccess.ts's canPlayOffline, which consumes these fields later to
 // decide whether a DIFFERENT (more restricted) profile may replay this file.
-interface DownloadAuthContext {
+export interface DownloadAuthContext {
   downloadedByProfileId?: string;
   downloadedByIsKids?: boolean;
   downloadedByMaxAge?: number;
@@ -454,6 +454,53 @@ async function persistDownloaded(
     ...(audioCodecs && audioCodecs.length > 0 ? { audioCodecs } : {}),
   });
   await writeIndex(without);
+}
+
+// --- seam for the sliced reduced-quality download (reducedDownload.ts) ------
+// That flow builds its file itself (N slices collected, then joined) instead
+// of handing one URL to the background engine, but it must land in exactly the
+// same index, the same destination convention and the same progress stream as
+// every other download. These are the only doors it needs; the index format
+// and the path rules stay this module's private property.
+
+/** Where a finished download of this title should live: the public Downloads
+ * collection when the platform offers one, the app-private path otherwise. */
+export async function resolveDownloadDest(title: string, mediaItemId: string, ext: string): Promise<string> {
+  const pubRoot = await publicMediaRoot();
+  return pubRoot ? `${pubRoot}/${safeFilename(title, mediaItemId, ext)}` : destPathFor(mediaItemId, ext);
+}
+
+/** Add (or replace) the index entry for a file this module did not transfer. */
+export async function recordDownloadedFile(
+  mediaItemId: string,
+  title: string,
+  destPath: string,
+  totalBytes: number,
+  authContext?: DownloadAuthContext,
+  audioCodecs?: string[],
+): Promise<void> {
+  await persistDownloaded(mediaItemId, title, destPath, totalBytes, authContext, audioCodecs);
+}
+
+/** List the item as in-flight so the Downloads screen shows it before it ever
+ * reaches the index (an entry only lands there once the file is complete). */
+export function registerDownloadInFlight(mediaItemId: string, title: string): void {
+  inFlight.set(mediaItemId, { totalBytes: 0, downloadedBytes: 0 });
+  inFlightTitles.set(mediaItemId, title);
+}
+
+export function clearDownloadInFlight(mediaItemId: string): void {
+  inFlight.delete(mediaItemId);
+  inFlightTitles.delete(mediaItemId);
+}
+
+/** Push a 0..1 completion to the screens subscribed to this item. */
+export function notifyDownloadProgress(mediaItemId: string, pct: number, bytes?: ProgressBytes): void {
+  notifyProgress(mediaItemId, pct, bytes);
+}
+
+export async function deleteDownloadedFileAnywhere(path: string): Promise<void> {
+  await deleteMediaFileAnywhere(path);
 }
 
 /**
@@ -675,11 +722,9 @@ export async function startDownload(
   const streamUrl = `${serverUrl}${downloadPath}?token=${token}`;
   // Public, VLC-readable destination when the platform offers one; the
   // app-private id-based path otherwise (legacy shape, still what existing
-  // index entries point at).
-  const pubRoot = await publicMediaRoot();
-  const destPath = pubRoot
-    ? `${pubRoot}/${safeFilename(title, mediaItemId, ext)}`
-    : destPathFor(mediaItemId, ext);
+  // index entries point at). One answer for every download shape, sliced
+  // included - see resolveDownloadDest.
+  const destPath = await resolveDownloadDest(title, mediaItemId, ext);
 
   const authContext: DownloadAuthContext = {
     downloadedByProfileId: opts?.downloadedByProfileId,
@@ -979,6 +1024,10 @@ export async function cancelDownload(mediaItemId: string): Promise<void> {
     prep.cancelled = true;
     return;
   }
+  // A sliced reduced download owns its own transfer loop (and may be waiting
+  // on the server rather than downloading), so it cancels itself.
+  const reduced = await import("./reducedDownload");
+  if (reduced.cancelReducedDownload(mediaItemId)) return;
   const handle = activeDownloads.get(mediaItemId);
   if (!handle) return;
   await clearPending(mediaItemId).catch(() => undefined);

@@ -15,11 +15,10 @@ import {
   getInFlightProgress,
   getInFlightBytes,
   getInFlightDownloads,
-  isPreparingCompat,
-  getCompatPreparePermille,
   type DownloadedMedia,
   type ProgressBytes,
 } from "../../src/lib/downloads";
+import { downloadStageLabel } from "../../src/lib/downloadStageLabel";
 import { canPlayOffline, type OfflineDenialReason, type OfflineProfileInfo } from "../../src/lib/offlineAccess";
 import { getAudioPassState, subscribeToAudioPass, type AudioPassState } from "../../src/lib/audioCompatPass";
 
@@ -57,23 +56,6 @@ function formatSize(bytes: number): string {
 // Status line of a running download: percent when the total is known, plus
 // the moving byte counter and transfer rate as soon as bytes flow. Falls back
 // to a plain "Downloading…" only before the first progress event.
-function inProgressLabel(
-  t: ReturnType<typeof useTranslation>["t"],
-  progress: number | null,
-  bytes: ProgressBytes | null,
-  rate: number,
-): string {
-  const parts: string[] = [];
-  if (progress != null && Number.isFinite(progress)) {
-    parts.push(t("downloads.inProgress", "{{percent}}%", { percent: Math.round(progress * 100) }));
-  }
-  if (bytes && bytes.downloaded > 0) {
-    parts.push(bytes.total > 0 ? `${formatSize(bytes.downloaded)} / ${formatSize(bytes.total)}` : formatSize(bytes.downloaded));
-  }
-  if (rate > 0) parts.push(`${formatSize(rate)}/s`);
-  return parts.length > 0 ? parts.join(" · ") : t("downloads.downloading", "Downloading…");
-}
-
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
@@ -171,13 +153,7 @@ function DownloadRow({ item, onDelete, onCancel, deleting, canceling, activeProf
         </Text>
         {item.inProgress ? (
           <Text style={{ color: theme.colors.accent, fontSize: 12 }}>
-            {isPreparingCompat(item.mediaItemId)
-              ? `${t("downloads.preparingCompat", "Preparing audio on the server…")}${
-                  getCompatPreparePermille(item.mediaItemId) > 0
-                    ? ` ${Math.round(getCompatPreparePermille(item.mediaItemId) / 10)}%`
-                    : ""
-                }`
-              : inProgressLabel(t, progress, bytes, rate)}
+            {downloadStageLabel(t, item.mediaItemId, progress, bytes, rate, { formatSize })}
           </Text>
         ) : (
           <>

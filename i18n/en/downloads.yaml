@@ -9,3 +9,17 @@ totalSize: "{{size}} used on this device"
 deleted: Download removed
 optimizingAudio: "Optimizing audio... {{percent}}%"
 preparingCompat: "Preparing audio on the server..."
+quality:
+  title: Choose a quality
+  bodyLarge: This film is {{original}}. A {{height}}p copy would take about {{reduced}}.
+  bodyNoRoom: This film is {{original}} and will not fit on this device. A {{height}}p copy would take about {{reduced}}.
+  original: Original ({{size}})
+  reduced: "{{height}}p ({{size}})"
+reduced:
+  preparing: "Preparing a {{height}}p copy on the server..."
+  collecting: "Part {{done}} of {{total}}"
+  assembling: "Assembling the film... {{percent}}%"
+  errorIncomplete: Some parts of the film are missing - please start the download again
+  errorJoin: The parts could not be assembled into one file
+  errorUnsupportedDevice: This device cannot assemble a reduced-quality download
+  errorGeneric: The reduced-quality download failed
