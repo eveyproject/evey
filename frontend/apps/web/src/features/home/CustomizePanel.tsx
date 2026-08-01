@@ -9,7 +9,7 @@ import {
   eveyFetch,
 } from "@evey/api";
 import { useAuthStore, toast } from "@evey/store";
-import { X, GripVertical, RotateCcw } from "lucide-react";
+import { X, GripVertical, RotateCcw, ChevronUp, ChevronDown } from "lucide-react";
 import { FEED_LABEL_KEYS, isKnownFeedType, isPluginFeedType, pluginIdFromFeedType, pluginFeedType } from "./feedTypes";
 import { Switch } from "@/components/ui/Switch";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
@@ -285,8 +285,36 @@ export function CustomizePanel({ open, onClose }: { open: boolean; onClose: () =
                 size={14}
                 onPointerDown={(e) => startPointerDrag(i, e)}
                 style={{ touchAction: "none" }}
+                aria-hidden="true"
                 className="flex-shrink-0 cursor-grab active:cursor-grabbing text-[var(--text-muted)]"
               />
+
+              {/* Keyboard path to the same reorder. The grip is pointer-only by
+                  nature (pointerdown + pointermove), so without these a keyboard
+                  user could not move a section at all - the catalogue even
+                  carried common.feeds.moveUp/moveDown, unused, from when this
+                  was planned. Same shape as the SyncPlay queue's reorder
+                  buttons. */}
+              <button
+                type="button"
+                onClick={() => commitReorder(i, i - 1)}
+                disabled={i === 0}
+                aria-label={t("common.feeds.moveUp")}
+                title={t("common.feeds.moveUp")}
+                className="p-0.5 text-[var(--text-muted)] hover:text-[var(--text)] disabled:opacity-30 cursor-pointer disabled:cursor-default"
+              >
+                <ChevronUp size={14} />
+              </button>
+              <button
+                type="button"
+                onClick={() => commitReorder(i, i + 1)}
+                disabled={i === rows.length - 1}
+                aria-label={t("common.feeds.moveDown")}
+                title={t("common.feeds.moveDown")}
+                className="p-0.5 text-[var(--text-muted)] hover:text-[var(--text)] disabled:opacity-30 cursor-pointer disabled:cursor-default"
+              >
+                <ChevronDown size={14} />
+              </button>
 
               <span
                 className="flex-1 text-sm select-none"

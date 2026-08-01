@@ -28,7 +28,7 @@ vi.mock("lucide-react", () => {
   const Icon = ({ size, ...rest }: { size?: number } & Record<string, unknown>) => (
     <span data-size={size} {...rest} />
   );
-  return { X: Icon, GripVertical: Icon, RotateCcw: Icon };
+  return { X: Icon, GripVertical: Icon, RotateCcw: Icon, ChevronUp: Icon, ChevronDown: Icon };
 });
 
 function createWrapper() {
@@ -192,5 +192,55 @@ describe("CustomizePanel", () => {
     expect(
       screen.getByRole("dialog", { name: /Customize Homepage/i }),
     ).toBeInTheDocument();
+  });
+});
+
+// The drag handle is pointer-only by nature (pointerdown + pointermove), so
+// before these buttons a keyboard-only user could not reorder their homepage
+// sections at all - not awkwardly, not at all. The translation catalogue even
+// carried common.feeds.moveUp/moveDown, unused, from when this was planned.
+describe("CustomizePanel keyboard reordering", () => {
+  beforeEach(() => {
+    mockFeedData = {
+      configs: [
+        { feedType: "resume_playback", enabled: true, displayOrder: 0 },
+        { feedType: "recommended", enabled: true, displayOrder: 1 },
+        { feedType: "most_popular", enabled: true, displayOrder: 2 },
+      ],
+    };
+    mockMutate.mockClear();
+  });
+
+  it("moves a section down with a focusable, labelled control", () => {
+    renderPanel();
+    const down = screen.getAllByLabelText("common.feeds.moveDown");
+    expect(down.length).toBe(3);
+    // A <button> is reachable by Tab; a bare icon with onPointerDown is not.
+    expect(down[0].tagName).toBe("BUTTON");
+
+    fireEvent.click(down[0]);
+
+    const rows = screen.getAllByText(/Resume Playback|Recommended|Most Popular/);
+    expect(rows[0]).toHaveTextContent("Recommended");
+    expect(rows[1]).toHaveTextContent("Resume Playback");
+    // The new order is persisted, not just shown.
+    expect(mockMutate).toHaveBeenCalled();
+  });
+
+  it("moves a section up", () => {
+    renderPanel();
+    fireEvent.click(screen.getAllByLabelText("common.feeds.moveUp")[2]);
+
+    const rows = screen.getAllByText(/Resume Playback|Recommended|Most Popular/);
+    expect(rows[1]).toHaveTextContent("Most Popular");
+    expect(rows[2]).toHaveTextContent("Recommended");
+  });
+
+  // Without this the first row's "up" and the last row's "down" would reorder
+  // into nothing and still fire a persist call.
+  it("disables the moves that would fall off either end", () => {
+    renderPanel();
+    expect(screen.getAllByLabelText("common.feeds.moveUp")[0]).toBeDisabled();
+    expect(screen.getAllByLabelText("common.feeds.moveDown")[2]).toBeDisabled();
   });
 });
