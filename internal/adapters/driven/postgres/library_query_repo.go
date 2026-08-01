@@ -55,6 +55,20 @@ func (r *MediaItemQueryRepoAdapter) GetByFilePath(ctx context.Context, path stri
 	return item, nil
 }
 
+func (r *MediaItemQueryRepoAdapter) GetByLibraryTypeTitle(ctx context.Context, libraryID shared.LibraryID, itemType, title, parentID string) (*library.MediaItem, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.libraryquery.GetByLibraryTypeTitle")
+	defer span.End()
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	item, err := r.items.GetByLibraryTypeTitle(ctx, libraryID, itemType, title, parentID)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return item, nil
+}
+
 func (r *MediaItemQueryRepoAdapter) GetByIDs(ctx context.Context, ids []shared.MediaItemID) ([]*library.MediaItem, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.libraryquery.GetByIDs")
 	defer span.End()

@@ -63,6 +63,21 @@ func (r *FakeMediaItemQueryRepo) GetByFilePath(_ context.Context, path string) (
 	return nil, ErrNotFound
 }
 
+func (r *FakeMediaItemQueryRepo) GetByLibraryTypeTitle(_ context.Context, libraryID shared.LibraryID, itemType, title, parentID string) (*library.MediaItem, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	for _, item := range r.items {
+		if item.LibraryID == libraryID && string(item.Type) == itemType && item.Title == title &&
+			(parentID == "" || item.ParentID == parentID) {
+			return cloneMediaItem(item), nil
+		}
+	}
+	return nil, ErrNotFound
+}
+
 func (r *FakeMediaItemQueryRepo) GetByIDs(_ context.Context, ids []shared.MediaItemID) ([]*library.MediaItem, error) {
 	if r.Err != nil {
 		return nil, r.Err

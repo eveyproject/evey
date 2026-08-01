@@ -23,12 +23,11 @@ type FakeMediaItemCommandRepo struct {
 	// pass resolves from its preloaded snapshot instead of one query per file.
 	GetByFilePathCalls atomic.Int64
 	// Per-method error injection; zero value = no error (backward compatible)
-	ErrCreate                error
-	ErrUpdate                error
-	ErrDelete                error
-	GetByFileFingerprintErr  error
-	GetByLibraryTypeTitleErr error
-	ListByLibraryIDErr       error
+	ErrCreate               error
+	ErrUpdate               error
+	ErrDelete               error
+	GetByFileFingerprintErr error
+	ListByLibraryIDErr      error
 }
 
 func NewFakeMediaItemCommandRepo() *FakeMediaItemCommandRepo {
@@ -104,21 +103,6 @@ func (r *FakeMediaItemCommandRepo) GetByFileFingerprint(_ context.Context, finge
 	}
 	for _, item := range r.items {
 		if item.File != nil && item.File.Fingerprint == fingerprint {
-			return cloneMediaItem(item), nil
-		}
-	}
-	return nil, ErrNotFound
-}
-
-func (r *FakeMediaItemCommandRepo) GetByLibraryTypeTitle(_ context.Context, libraryID shared.LibraryID, itemType, title, parentID string) (*library.MediaItem, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	if r.GetByLibraryTypeTitleErr != nil {
-		return nil, r.GetByLibraryTypeTitleErr
-	}
-	for _, item := range r.items {
-		if item.LibraryID == libraryID && string(item.Type) == itemType && item.Title == title &&
-			(parentID == "" || item.ParentID == parentID) {
 			return cloneMediaItem(item), nil
 		}
 	}

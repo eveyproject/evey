@@ -27,6 +27,11 @@ type MediaItemQueryRepo interface {
 	// Read path used to gate filesystem-path operations (e.g. MKV chapter
 	// lookup) by library access. Returns shared.ErrNotFound when no item matches.
 	GetByFilePath(ctx context.Context, path string) (*MediaItem, error)
+	// GetByLibraryTypeTitle resolves a media item by its (library, type,
+	// title, parent) tuple. A pure lookup with no write-side caller today
+	// (unlike GetByFilePath/GetByFileFingerprint, it does not gate a Create in
+	// the scanner), so it belongs on the query side per ADR-0009.
+	GetByLibraryTypeTitle(ctx context.Context, libraryID shared.LibraryID, itemType, title, parentID string) (*MediaItem, error)
 	List(ctx context.Context, filter ListMediaItemsFilter) ([]*MediaItem, error)
 	Count(ctx context.Context, filter ListMediaItemsFilter) (int, error)
 	GetCastByMediaItem(ctx context.Context, mediaItemID shared.MediaItemID) ([]CastMember, error)
