@@ -114,12 +114,18 @@ func (r *Runner) resourceMonitorLoop() {
 		// waits on it.
 		bgloop.Tick("pluginrunner.resourceMonitor", func() {
 			sweep++
-			r.mu.RLock()
-			entries := make([]*processEntry, 0, len(r.processes))
-			for _, e := range r.processes {
-				entries = append(entries, e)
-			}
-			r.mu.RUnlock()
+			// defer : sous bgloop.Tick un panic est rattrapé, donc un RUnlock
+			// ordinaire ne serait pas atteint et plus aucun plugin ne pourrait
+			// s'enregistrer ni se retirer.
+			entries := func() []*processEntry {
+				r.mu.RLock()
+				defer r.mu.RUnlock()
+				out := make([]*processEntry, 0, len(r.processes))
+				for _, e := range r.processes {
+					out = append(out, e)
+				}
+				return out
+			}()
 
 			live := make(map[int]bool, len(entries))
 			for _, e := range entries {

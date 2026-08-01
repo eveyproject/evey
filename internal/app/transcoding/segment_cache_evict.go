@@ -247,13 +247,18 @@ func (c *SegmentCache) listHashUsage() ([]HashUsage, error) {
 	// is strictly >= the mtime-only value, so eviction is never MORE aggressive
 	// than before - an actively-watched copy title (frozen mtime) stays warm.
 	// Done after the directory I/O so the lock is held only for the map merge.
-	c.mu.RLock()
-	for i := range out {
-		if at, ok := c.accessTimes[out[i].Hash]; ok && at.After(out[i].LastAccess) {
-			out[i].LastAccess = at
+	// defer : ce balayage tourne sous bgloop.Tick, qui rattrape les panics. Un
+	// RUnlock ordinaire ne serait pas atteint et le verrou de lecture resterait
+	// pris, bloquant tous les écrivains du cache.
+	func() {
+		c.mu.RLock()
+		defer c.mu.RUnlock()
+		for i := range out {
+			if at, ok := c.accessTimes[out[i].Hash]; ok && at.After(out[i].LastAccess) {
+				out[i].LastAccess = at
+			}
 		}
-	}
-	c.mu.RUnlock()
+	}()
 	return out, nil
 }
 

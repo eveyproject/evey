@@ -34,19 +34,28 @@ func (p *SoftwareProducer) gcLoop() {
 // frees their disk segments (the idle session won't be resumed; reclaim disk).
 func (p *SoftwareProducer) sweepIdle() {
 	cutoff := time.Now().Add(-p.opts.InactivityTimeout)
-	p.mu.Lock()
-	var toKill []*swSession
-	for _, list := range p.sessions {
-		for _, s := range list {
-			s.mu.Lock()
-			idle := s.lastAccess.Before(cutoff)
-			s.mu.Unlock()
-			if idle {
-				toKill = append(toKill, s)
+	// Section critique dans une closure à defer : depuis que bgloop.Tick rattrape
+	// les panics, un Unlock ordinaire en fin de bloc n'est plus atteint quand le
+	// balayage panique, et p.mu - le verrou que prend AUSSI EnsureSegmentRange -
+	// resterait pris pour toujours. Le serveur survivrait, figé, sans redémarrage.
+	toKill := func() []*swSession {
+		p.mu.Lock()
+		defer p.mu.Unlock()
+		var toKill []*swSession
+		for _, list := range p.sessions {
+			for _, s := range list {
+				idle := func() bool {
+					s.mu.Lock()
+					defer s.mu.Unlock()
+					return s.lastAccess.Before(cutoff)
+				}()
+				if idle {
+					toKill = append(toKill, s)
+				}
 			}
 		}
-	}
-	p.mu.Unlock()
+		return toKill
+	}()
 	for _, s := range toKill {
 		p.killSession(s, "inactivity")
 	}
@@ -58,9 +67,11 @@ func (p *SoftwareProducer) sweepIdle() {
 		affected[s.hash] = struct{}{}
 	}
 	for hash := range affected {
-		p.mu.Lock()
-		empty := len(p.sessions[hash]) == 0
-		p.mu.Unlock()
+		empty := func() bool {
+			p.mu.Lock()
+			defer p.mu.Unlock()
+			return len(p.sessions[hash]) == 0
+		}()
 		if !empty {
 			continue
 		}
@@ -83,10 +94,12 @@ func (p *SoftwareProducer) sweepIdle() {
 		// unbounded leak over weeks of uptime. Re-checked under the lock - a
 		// fresh session may have spawned for this hash since the emptiness
 		// check, and that one still wants its Close-time purge.
-		p.mu.Lock()
-		if len(p.sessions[hash]) == 0 {
-			delete(p.spawnedHashes, hash)
-		}
-		p.mu.Unlock()
+		func() {
+			p.mu.Lock()
+			defer p.mu.Unlock()
+			if len(p.sessions[hash]) == 0 {
+				delete(p.spawnedHashes, hash)
+			}
+		}()
 	}
 }

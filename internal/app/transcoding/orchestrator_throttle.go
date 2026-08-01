@@ -37,12 +37,15 @@ func (o *SegmentOrchestrator) throttleLoop() {
 // live session, ListReady gives the latest produced segment idx; the buffer
 // (produced - client) decides pause vs resume.
 func (o *SegmentOrchestrator) evaluateThrottle() {
-	o.mu.Lock()
-	var snapshot []*orchestratorSession
-	for _, list := range o.sessions {
-		snapshot = append(snapshot, list...)
-	}
-	o.mu.Unlock()
+	snapshot := func() []*orchestratorSession {
+		o.mu.Lock()
+		defer o.mu.Unlock()
+		var out []*orchestratorSession
+		for _, list := range o.sessions {
+			out = append(out, list...)
+		}
+		return out
+	}()
 
 	for _, s := range snapshot {
 		s.mu.Lock()

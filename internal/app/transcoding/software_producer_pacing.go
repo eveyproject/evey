@@ -164,30 +164,41 @@ func (p *SoftwareProducer) pauseOtherVariants(hash string, keep *swSession) {
 // touching the (no-eviction) playlist.
 func (p *SoftwareProducer) sweepPause() {
 	cutoff := time.Now().Add(-p.opts.PauseIdleThreshold)
-	p.mu.Lock()
-	snapshot := make([]*swSession, 0, len(p.sessions))
-	for _, list := range p.sessions {
-		snapshot = append(snapshot, list...)
-	}
-	p.mu.Unlock()
+	snapshot := func() []*swSession {
+		p.mu.Lock()
+		defer p.mu.Unlock()
+		out := make([]*swSession, 0, len(p.sessions))
+		for _, list := range p.sessions {
+			out = append(out, list...)
+		}
+		return out
+	}()
 	for _, s := range snapshot {
-		s.mu.Lock()
-		if s.paused || s.handle == nil || !s.lastAccess.Before(cutoff) {
-			s.mu.Unlock()
-			continue
+		// s.handle.Pause() est un SIGSTOP, donc un appel système, exécuté sous
+		// s.mu : c'est le point de la boucle le plus susceptible de partir en
+		// panic. Avec defer, ce verrou est rendu quoi qu'il arrive - sans lui la
+		// session concernée ne pourrait plus jamais être reprise ni tuée.
+		hash, paused, pauseErr := func() (string, bool, error) {
+			s.mu.Lock()
+			defer s.mu.Unlock()
+			if s.paused || s.handle == nil || !s.lastAccess.Before(cutoff) {
+				return s.hash, false, nil
+			}
+			// SIGSTOP under s.mu so the pause and the s.paused flag are atomic w.r.t.
+			// a concurrent resumeIfPaused (see resumeIfPaused).
+			if err := s.handle.Pause(); err != nil {
+				return s.hash, false, err
+			}
+			s.paused = true
+			s.pausedSince = time.Now()
+			return s.hash, true, nil
+		}()
+		switch {
+		case pauseErr != nil:
+			p.logger.Debug("software: pause ffmpeg failed", slog.String("hash", hash), slog.Any("err", pauseErr))
+		case paused:
+			p.logger.Debug("software: ffmpeg suspended - client idle", slog.String("hash", hash))
 		}
-		hash := s.hash
-		// SIGSTOP under s.mu so the pause and the s.paused flag are atomic w.r.t.
-		// a concurrent resumeIfPaused (see resumeIfPaused).
-		if err := s.handle.Pause(); err != nil {
-			s.mu.Unlock()
-			p.logger.Debug("software: pause ffmpeg failed", slog.String("hash", hash), slog.Any("err", err))
-			continue
-		}
-		s.paused = true
-		s.pausedSince = time.Now()
-		s.mu.Unlock()
-		p.logger.Debug("software: ffmpeg suspended - client idle", slog.String("hash", hash))
 	}
 }
 
@@ -247,21 +258,31 @@ func (p *SoftwareProducer) sweepKillPaused() {
 		useFMP4    bool
 	}
 
-	p.mu.Lock()
-	var candidates []pausedCandidate
-	for _, list := range p.sessions {
-		for _, s := range list {
-			s.mu.Lock()
-			eligible := s.paused && !s.pausedSince.IsZero() && s.pausedSince.Before(cutoff)
-			hash, variantIdx, frontier, useFMP4 := s.hash, s.variantIdx, s.frontier, s.useFMP4
-			s.mu.Unlock()
-			if !eligible {
-				continue
+	// Closure + defer, pas un Unlock en fin de bloc : bgloop.Tick rattrape
+	// désormais les panics, donc un déverrouillage ordinaire n'est plus atteint
+	// quand le balayage panique et p.mu resterait pris définitivement - or c'est
+	// le verrou que prend chaque demande de segment (voir le commentaire plus
+	// haut sur EnsureSegmentRange).
+	candidates := func() []pausedCandidate {
+		p.mu.Lock()
+		defer p.mu.Unlock()
+		var candidates []pausedCandidate
+		for _, list := range p.sessions {
+			for _, s := range list {
+				c, eligible := func() (pausedCandidate, bool) {
+					s.mu.Lock()
+					defer s.mu.Unlock()
+					ok := s.paused && !s.pausedSince.IsZero() && s.pausedSince.Before(cutoff)
+					return pausedCandidate{s, s.hash, s.variantIdx, s.frontier, s.useFMP4}, ok
+				}()
+				if !eligible {
+					continue
+				}
+				candidates = append(candidates, c)
 			}
-			candidates = append(candidates, pausedCandidate{s, hash, variantIdx, frontier, useFMP4})
 		}
-	}
-	p.mu.Unlock()
+		return candidates
+	}()
 
 	var toKill, toBuild []*swSession
 	for _, c := range candidates {

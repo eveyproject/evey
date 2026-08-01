@@ -198,19 +198,27 @@ func (o *SegmentOrchestrator) gcLoop() {
 
 func (o *SegmentOrchestrator) sweepIdle() {
 	cutoff := time.Now().Add(-o.opts.InactivityTimeout)
-	o.mu.Lock()
-	var toKill []*orchestratorSession
-	for _, list := range o.sessions {
-		for _, s := range list {
-			s.mu.Lock()
-			idle := s.lastAccess.Before(cutoff)
-			s.mu.Unlock()
-			if idle {
-				toKill = append(toKill, s)
+	// defer plutôt qu'un Unlock en fin de bloc : bgloop.Tick rattrape les panics,
+	// donc sans defer un balayage qui panique laisserait o.mu pris pour toujours
+	// et plus aucune session matérielle ne pourrait démarrer ni s'arrêter.
+	toKill := func() []*orchestratorSession {
+		o.mu.Lock()
+		defer o.mu.Unlock()
+		var toKill []*orchestratorSession
+		for _, list := range o.sessions {
+			for _, s := range list {
+				idle := func() bool {
+					s.mu.Lock()
+					defer s.mu.Unlock()
+					return s.lastAccess.Before(cutoff)
+				}()
+				if idle {
+					toKill = append(toKill, s)
+				}
 			}
 		}
-	}
-	o.mu.Unlock()
+		return toKill
+	}()
 	for _, s := range toKill {
 		o.killSession(s, "inactivity")
 	}
