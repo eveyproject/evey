@@ -109,11 +109,21 @@ message ListTracksRequest {
   // MusicAlbum.id), ignoring limit/offset/search. The id is derived from the
   // album folder, so homonym albums don't collide.
   string album_id = 5;
+  // Opaque keyset cursor from a previous ListTracksResponse.next_cursor. When
+  // set, offset is ignored and the page is served by index seek instead of the
+  // COUNT(*) OVER() window the offset path carries.
+  string cursor = 6;
 }
 
 message ListTracksResponse {
   repeated Track tracks = 1;
+  // Exact row count. Only populated on the OFFSET path: computing it is the
+  // very cost the cursor path exists to avoid. On the cursor path it stays 0 -
+  // use next_cursor (or a page shorter than the requested limit) to know when
+  // to stop, never total.
   int32 total = 2;
+  // Cursor for the following page. Empty means this was the last page.
+  string next_cursor = 3;
 }
 
 message GetAlbumsRequest {
