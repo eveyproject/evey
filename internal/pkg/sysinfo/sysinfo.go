@@ -2,6 +2,7 @@ package sysinfo
 
 import (
 	"bufio"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"os"
@@ -168,18 +169,38 @@ func sampleCPU() float64 {
 }
 
 var (
-	ffmpegOnce   sync.Once
+	ffmpegMu     sync.Mutex
 	ffmpegCached string
+	ffmpegProbed bool
 )
 
-// FFmpegVersion runs `ffmpeg -version` once and caches the result.
+// ffmpegProbeTimeout bounds the version probe. `ffmpeg -version` answers in
+// milliseconds; anything slower means the binary is not reachable in a useful
+// way (a stalled network mount, a wrapper script waiting on something).
+const ffmpegProbeTimeout = 3 * time.Second
+
+// FFmpegVersion runs `ffmpeg -version` and caches the result.
+//
+// The probe is bounded and a FAILURE is not cached. It used to run under a
+// sync.Once with no timeout: if that single execution ever hung - a stalled
+// mount, a bad shim - the Once never completed, and every later caller from
+// any goroutine blocked on it forever. One slow probe took out an admin
+// endpoint permanently, until restart. A failed probe now simply retries next
+// time; only a successful answer is remembered.
 func FFmpegVersion(ffmpegPath string) string {
-	ffmpegOnce.Do(func() {
+	ffmpegMu.Lock()
+	defer ffmpegMu.Unlock()
+	if ffmpegProbed {
+		return ffmpegCached
+	}
+	func() {
 		p := ffmpegPath
 		if p == "" {
 			p = "ffmpeg"
 		}
-		out, err := exec.Command(p, "-version").Output() //nolint:gosec
+		ctx, cancel := context.WithTimeout(context.Background(), ffmpegProbeTimeout)
+		defer cancel()
+		out, err := exec.CommandContext(ctx, p, "-version").Output() //nolint:gosec
 		if err != nil {
 			return
 		}
@@ -188,10 +209,11 @@ func FFmpegVersion(ffmpegPath string) string {
 		for i, f := range fields {
 			if f == "version" && i+1 < len(fields) {
 				ffmpegCached = fields[i+1]
+				ffmpegProbed = true
 				return
 			}
 		}
-	})
+	}()
 	return ffmpegCached
 }
 

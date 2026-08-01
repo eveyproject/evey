@@ -155,3 +155,22 @@ func TestReadCPUStat(t *testing.T) {
 		t.Error("expected non-zero total")
 	}
 }
+
+// A probe that fails must not be remembered as "the answer". Under the old
+// sync.Once, one failing (or hanging) execution was final: every later caller
+// got the empty result forever, and a hang blocked them all permanently.
+func TestFFmpegVersion_FailureIsNotCached(t *testing.T) {
+	ffmpegMu.Lock()
+	ffmpegCached, ffmpegProbed = "", false
+	ffmpegMu.Unlock()
+
+	if got := FFmpegVersion("/nonexistent/ffmpeg-does-not-exist"); got != "" {
+		t.Fatalf("expected empty version for a missing binary, got %q", got)
+	}
+	ffmpegMu.Lock()
+	probed := ffmpegProbed
+	ffmpegMu.Unlock()
+	if probed {
+		t.Error("a failed probe was cached: the next call would never retry, even once the binary is back")
+	}
+}

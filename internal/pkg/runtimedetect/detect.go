@@ -1,8 +1,10 @@
 package runtimedetect
 
 import (
+	"context"
 	"os/exec"
 	"strings"
+	"time"
 )
 
 type DetectedRuntime struct {
@@ -39,8 +41,16 @@ func DetectRuntimes() []DetectedRuntime {
 	return result
 }
 
+// probeTimeout bounds one `<runtime> --version` call. These answer instantly
+// when the binary is healthy; without a bound, a single interpreter sitting on
+// a stalled mount blocks the admin request that asked which runtimes exist -
+// and every retry leaks another goroutine and file descriptor behind it.
+const probeTimeout = 3 * time.Second
+
 func probeRuntime(command string, args []string) string {
-	cmd := exec.Command(command, args...)
+	ctx, cancel := context.WithTimeout(context.Background(), probeTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, command, args...)
 	out, err := cmd.Output()
 	if err != nil {
 		return ""

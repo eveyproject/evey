@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"compress/gzip"
+	"context"
 	"fmt"
 	"io"
 	"log/slog"
@@ -39,6 +40,10 @@ const backupFilePrefix = "pre-migration-"
 // pg_dump must be on PATH - fail-closed if missing rather than silently
 // migrating without a safety net. The Dockerfile installs
 // postgresql-client.
+// pgDumpTimeout caps the pre-migration dump. Sized well above a real NAS run
+// (minutes), so it only ever trips on a dump that is not progressing at all.
+const pgDumpTimeout = 30 * time.Minute
+
 func dumpDatabase(opts BackupOpts, fromVersion uint) (dest string, err error) {
 	pgDump, err := exec.LookPath("pg_dump")
 	if err != nil {
@@ -51,7 +56,16 @@ func dumpDatabase(opts BackupOpts, fromVersion uint) (dest string, err error) {
 	name := fmt.Sprintf("%s%d-%s.sql.gz", backupFilePrefix, fromVersion, timestamp)
 	dest = filepath.Join(opts.Dir, name)
 
-	cmd := exec.Command(pgDump,
+	// Bounded, and generously: a pre-migration dump of a NAS-sized catalogue
+	// legitimately takes minutes (the compose healthcheck allows 300s of boot
+	// for exactly this), so the ceiling is far above any honest run. What it
+	// buys is the dishonest one: pg_dump blocked on a Postgres lock or an
+	// unreachable host used to hang the boot forever, with no crash, no error
+	// and no log - an operator watching a server that simply never comes up.
+	// Now it fails with a message naming the cause.
+	ctx, cancel := context.WithTimeout(context.Background(), pgDumpTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, pgDump,
 		"--host", opts.Host,
 		"--port", fmt.Sprintf("%d", opts.Port),
 		"--username", opts.User,
@@ -105,6 +119,11 @@ func dumpDatabase(opts BackupOpts, fromVersion uint) (dest string, err error) {
 	}
 	if err = cmd.Wait(); err != nil {
 		_ = os.Remove(dest)
+		// Name the timeout explicitly: "signal: killed" alone would send the
+		// operator hunting for an OOM that never happened.
+		if ctx.Err() != nil {
+			return "", fmt.Errorf("pg_dump did not finish within %s and was stopped - the database may be holding a lock, or the host is unreachable (stderr: %s)", pgDumpTimeout, stderr.String())
+		}
 		return "", fmt.Errorf("pg_dump exit: %w (stderr: %s)", err, stderr.String())
 	}
 	return dest, nil
