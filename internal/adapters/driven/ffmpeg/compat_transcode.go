@@ -147,10 +147,8 @@ func scanCompatProgress(r io.Reader, durationMs int64, onProgress func(permille 
 		if err != nil || us < 0 {
 			continue
 		}
-		p := int(us / 1000 * 1000 / durationMs)
-		if p > 999 {
-			p = 999 // 1000 is the caller's "the file is published", not ours
-		}
+		// 1000 is the caller's "the file is published", not ours.
+		p := min(int(us/1000*1000/durationMs), 999)
 		if p != last {
 			last = p
 			onProgress(p)

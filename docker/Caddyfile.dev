@@ -43,3 +43,19 @@ evey.test {
 		}
 	}
 }
+
+# Liveness endpoint for the container healthcheck, on PLAIN HTTP.
+#
+# The site address carries an explicit http:// scheme, which is what stops Caddy
+# from auto-redirecting it to HTTPS. That matters: this config only serves
+# evey.test, with an internal cert, so a probe aimed at `localhost` used to get
+# a 308 to HTTPS and then die in the TLS handshake - the healthcheck could never
+# pass and had failed 6561 times in a row before this.
+http://localhost {
+	handle /healthz {
+		respond "ok" 200
+	}
+	handle {
+		respond 404
+	}
+}

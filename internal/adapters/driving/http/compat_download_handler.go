@@ -118,7 +118,7 @@ func (h *compatServe) transcodeUnnecessary(ctx context.Context, mediaID, rendera
 		return false
 	}
 	renderable := map[string]bool{}
-	for _, c := range strings.Split(renderableParam, ",") {
+	for c := range strings.SplitSeq(renderableParam, ",") {
 		if c = strings.ToLower(strings.TrimSpace(c)); c != "" {
 			renderable[c] = true
 		}

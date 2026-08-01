@@ -184,7 +184,11 @@ services:
       - ./caddy-data:/data
       - ./caddy-config:/config
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost"]
+      # /healthz, not `/`: the dev site is evey.test only, so a bare probe on
+      # localhost got a 308 to HTTPS and then failed the TLS handshake against
+      # an internal cert issued for another name. It could never go green.
+      # Caddyfile.dev serves this path over plain HTTP for exactly this check.
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost/healthz"]
       interval: 10s
       timeout: 3s
       retries: 3
