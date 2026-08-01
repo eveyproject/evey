@@ -32,6 +32,10 @@ const defaultBackupRetention = 3
 
 const backupFilePrefix = "pre-migration-"
 
+// pgDumpTimeout caps the pre-migration dump. Sized well above a real NAS run
+// (minutes), so it only ever trips on a dump that is not progressing at all.
+const pgDumpTimeout = 30 * time.Minute
+
 // dumpDatabase runs pg_dump and gzips the output to a file under
 // opts.Dir named by the schema_migrations version we're about to leave.
 // Returns the path of the written file. Caller is expected to log this
@@ -40,10 +44,6 @@ const backupFilePrefix = "pre-migration-"
 // pg_dump must be on PATH - fail-closed if missing rather than silently
 // migrating without a safety net. The Dockerfile installs
 // postgresql-client.
-// pgDumpTimeout caps the pre-migration dump. Sized well above a real NAS run
-// (minutes), so it only ever trips on a dump that is not progressing at all.
-const pgDumpTimeout = 30 * time.Minute
-
 func dumpDatabase(opts BackupOpts, fromVersion uint) (dest string, err error) {
 	pgDump, err := exec.LookPath("pg_dump")
 	if err != nil {
@@ -65,7 +65,10 @@ func dumpDatabase(opts BackupOpts, fromVersion uint) (dest string, err error) {
 	// Now it fails with a message naming the cause.
 	ctx, cancel := context.WithTimeout(context.Background(), pgDumpTimeout)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, pgDump,
+	// G204: pgDump is the absolute path exec.LookPath resolved for the fixed
+	// name "pg_dump"; every argument below is a literal or a config value the
+	// operator already controls.
+	cmd := exec.CommandContext(ctx, pgDump, //nolint:gosec
 		"--host", opts.Host,
 		"--port", fmt.Sprintf("%d", opts.Port),
 		"--username", opts.User,

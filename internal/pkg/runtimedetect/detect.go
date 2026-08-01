@@ -50,7 +50,9 @@ const probeTimeout = 3 * time.Second
 func probeRuntime(command string, args []string) string {
 	ctx, cancel := context.WithTimeout(context.Background(), probeTimeout)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, command, args...)
+	// G204: command and args come from the hardcoded knownRuntimes table above
+	// (go/python3/node/php/ruby + "--version"), never from a request.
+	cmd := exec.CommandContext(ctx, command, args...) //nolint:gosec
 	out, err := cmd.Output()
 	if err != nil {
 		return ""
