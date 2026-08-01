@@ -50,6 +50,40 @@ func (h *photoHandler) ListPhotos(ctx context.Context, req *eveyv1.ListPhotosReq
 		return nil, err
 	}
 	limit, offset := clampLimitOffset(req.Limit, req.Offset, 100)
+
+	// Keyset path: the client already holds a cursor from a previous page, so
+	// offset/total are skipped entirely - recomputing total here would pay
+	// back exactly the COUNT(*) OVER() cost the cursor path exists to avoid.
+	if req.Cursor != "" {
+		cursor, cErr := decodePhotoCursor(req.Cursor)
+		if cErr != nil {
+			span.RecordError(cErr)
+			span.SetStatus(otelcodes.Error, "invalid cursor")
+			slog.WarnContext(ctx, "grpc ListPhotos: invalid cursor", slog.Any("err", cErr))
+			return nil, status.Error(codes.InvalidArgument, "invalid cursor")
+		}
+		var photos []photodomain.Photo
+		var err error
+		if req.Album != "" {
+			photos, err = h.svc.QueryService().ListPhotosByAlbumCursor(ctx, shared.LibraryID(req.LibraryId), req.Album, cursor, limit)
+		} else {
+			photos, err = h.svc.QueryService().ListPhotosCursor(ctx, shared.LibraryID(req.LibraryId), cursor, limit)
+		}
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, err.Error())
+			return nil, internalError(ctx, "list photos", err)
+		}
+		resp := &eveyv1.ListPhotosResponse{}
+		for _, p := range photos {
+			resp.Photos = append(resp.Photos, photoToProto(p, ctxIsAdmin(ctx)))
+		}
+		if len(photos) >= limit {
+			resp.NextCursor = encodePhotoCursor(photos[len(photos)-1])
+		}
+		return resp, nil
+	}
+
 	var photos []photodomain.Photo
 	var total int
 	var err error

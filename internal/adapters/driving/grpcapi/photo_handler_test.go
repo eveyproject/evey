@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	applibrary "github.com/evey-project/evey/internal/app/library"
@@ -122,6 +123,57 @@ func TestPhotoHandler_ListPhotos_RepoError(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Equal(t, codes.Internal, status.Code(err))
+}
+
+func seedPhotoWithCreatedAt(repo *photofakes.FakeRepository, id, libraryID string, createdAt time.Time) {
+	repo.Upsert(context.Background(), photo.Photo{
+		ID: id, LibraryID: shared.LibraryID(libraryID), FilePath: "/photos/" + id + ".jpg", CreatedAt: createdAt,
+	})
+}
+
+func TestPhotoHandler_ListPhotos_Cursor_KeysetPage(t *testing.T) {
+	h, repo, _, _ := newTestPhotoHandler()
+	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	seedPhotoWithCreatedAt(repo, "p-1", "lib-1", base)
+	seedPhotoWithCreatedAt(repo, "p-2", "lib-1", base.Add(time.Hour))
+	seedPhotoWithCreatedAt(repo, "p-3", "lib-1", base.Add(2*time.Hour))
+
+	// Cursor pointing just past p-3 (created_at DESC order: p-3, p-2, p-1).
+	cursor := encodePhotoCursor(photo.Photo{ID: "p-3", CreatedAt: base.Add(2 * time.Hour)})
+
+	resp, err := h.ListPhotos(adminCtx(), &eveyv1.ListPhotosRequest{LibraryId: "lib-1", Limit: 1, Cursor: cursor})
+
+	require.NoError(t, err)
+	assert.Equal(t, int32(0), resp.Total, "keyset path must not pay the COUNT(*) cost")
+	require.Len(t, resp.Photos, 1)
+	assert.Equal(t, "p-2", resp.Photos[0].Id)
+	assert.NotEmpty(t, resp.NextCursor, "full page must carry a cursor for the following page")
+}
+
+func TestPhotoHandler_ListPhotos_Cursor_LastPage(t *testing.T) {
+	h, repo, _, _ := newTestPhotoHandler()
+	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	seedPhotoWithCreatedAt(repo, "p-1", "lib-1", base)
+	seedPhotoWithCreatedAt(repo, "p-2", "lib-1", base.Add(time.Hour))
+
+	cursor := encodePhotoCursor(photo.Photo{ID: "p-2", CreatedAt: base.Add(time.Hour)})
+
+	resp, err := h.ListPhotos(adminCtx(), &eveyv1.ListPhotosRequest{LibraryId: "lib-1", Limit: 5, Cursor: cursor})
+
+	require.NoError(t, err)
+	require.Len(t, resp.Photos, 1)
+	assert.Equal(t, "p-1", resp.Photos[0].Id)
+	assert.Empty(t, resp.NextCursor, "an empty next_cursor is the only end-of-list signal on the keyset path")
+}
+
+func TestPhotoHandler_ListPhotos_Cursor_Invalid(t *testing.T) {
+	h, repo, _, _ := newTestPhotoHandler()
+	seedPhoto(repo, "p-1", "lib-1", "Sunset")
+
+	_, err := h.ListPhotos(adminCtx(), &eveyv1.ListPhotosRequest{LibraryId: "lib-1", Cursor: "not-a-valid-cursor"})
+
+	require.Error(t, err)
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
 }
 
 func TestPhotoHandler_GetPhoto_Success(t *testing.T) {

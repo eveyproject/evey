@@ -211,6 +211,56 @@ func TestMusicHandler_ListTracks_RepoError(t *testing.T) {
 	assert.Equal(t, codes.Internal, status.Code(err))
 }
 
+func seedTrackWithAlbumArtist(repo *musicfakes.FakeMusicTrackRepository, id, libraryID, albumArtist string) {
+	repo.Upsert(context.Background(), music.Track{
+		ID: id, LibraryID: shared.LibraryID(libraryID), AlbumArtist: albumArtist,
+		FilePath: "/music/" + id + ".mp3",
+	})
+}
+
+func TestMusicHandler_ListTracks_Cursor_KeysetPage(t *testing.T) {
+	h, repo, _, _ := newTestMusicHandler()
+	seedTrackWithAlbumArtist(repo, "t-1", "lib-1", "AA")
+	seedTrackWithAlbumArtist(repo, "t-2", "lib-1", "AB")
+	seedTrackWithAlbumArtist(repo, "t-3", "lib-1", "AC")
+
+	// Cursor pointing just past t-1 (album_artist ASC order: t-1, t-2, t-3).
+	cursor := encodeTrackCursor(music.Track{ID: "t-1", AlbumArtist: "AA"})
+
+	resp, err := h.ListTracks(adminCtx(), &eveyv1.ListTracksRequest{LibraryId: "lib-1", Limit: 1, Cursor: cursor})
+
+	require.NoError(t, err)
+	assert.Equal(t, int32(0), resp.Total, "keyset path must not pay the COUNT(*) cost")
+	require.Len(t, resp.Tracks, 1)
+	assert.Equal(t, "t-2", resp.Tracks[0].Id)
+	assert.NotEmpty(t, resp.NextCursor, "full page must carry a cursor for the following page")
+}
+
+func TestMusicHandler_ListTracks_Cursor_LastPage(t *testing.T) {
+	h, repo, _, _ := newTestMusicHandler()
+	seedTrackWithAlbumArtist(repo, "t-1", "lib-1", "AA")
+	seedTrackWithAlbumArtist(repo, "t-2", "lib-1", "AB")
+
+	cursor := encodeTrackCursor(music.Track{ID: "t-1", AlbumArtist: "AA"})
+
+	resp, err := h.ListTracks(adminCtx(), &eveyv1.ListTracksRequest{LibraryId: "lib-1", Limit: 5, Cursor: cursor})
+
+	require.NoError(t, err)
+	require.Len(t, resp.Tracks, 1)
+	assert.Equal(t, "t-2", resp.Tracks[0].Id)
+	assert.Empty(t, resp.NextCursor, "an empty next_cursor is the only end-of-list signal on the keyset path")
+}
+
+func TestMusicHandler_ListTracks_Cursor_Invalid(t *testing.T) {
+	h, repo, _, _ := newTestMusicHandler()
+	seedTrack(repo, "t-1", "lib-1", "Song A", "Artist A")
+
+	_, err := h.ListTracks(adminCtx(), &eveyv1.ListTracksRequest{LibraryId: "lib-1", Cursor: "not-a-valid-cursor"})
+
+	require.Error(t, err)
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+}
+
 func TestMusicHandler_SearchMusic_CrossLibrary_FiltersByAccess(t *testing.T) {
 	h, _, libraryAccess, _ := newTestMusicHandler()
 	// Index has tracks in two libraries; the user may only access lib-1.

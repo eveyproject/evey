@@ -98,6 +98,36 @@ func (h *musicHandler) ListTracks(ctx context.Context, req *eveyv1.ListTracksReq
 
 	limit, offset := clampLimitOffset(req.Limit, req.Offset, 50)
 
+	// Keyset path: the client already holds a cursor from a previous page, so
+	// offset/total are skipped entirely - recomputing total here would pay
+	// back exactly the COUNT(*) OVER() cost the cursor path exists to avoid.
+	// ListTracksCursor accepts the same search filter as the offset path, so
+	// this also covers a paginated SQL search; only the full-text index branch
+	// below (untied to a keyset) is bypassed when a cursor is present.
+	if req.Cursor != "" {
+		cursor, cErr := decodeTrackCursor(req.Cursor)
+		if cErr != nil {
+			span.RecordError(cErr)
+			span.SetStatus(otelcodes.Error, "invalid cursor")
+			slog.WarnContext(ctx, "grpc ListTracks: invalid cursor", slog.Any("err", cErr))
+			return nil, status.Error(codes.InvalidArgument, "invalid cursor")
+		}
+		tracks, err := h.svc.QueryService().ListTracksCursor(ctx, shared.LibraryID(req.LibraryId), req.Search, cursor, limit)
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, err.Error())
+			return nil, internalError(ctx, "list tracks", err)
+		}
+		resp := &eveyv1.ListTracksResponse{}
+		for _, t := range tracks {
+			resp.Tracks = append(resp.Tracks, trackToProto(t, isAdmin))
+		}
+		if len(tracks) >= limit {
+			resp.NextCursor = encodeTrackCursor(tracks[len(tracks)-1])
+		}
+		return resp, nil
+	}
+
 	// Free-text search goes through the full-text index (Meilisearch, with SQL
 	// fallback) for typo tolerance and relevance, instead of a raw SQL ILIKE.
 	if req.Search != "" {
