@@ -77,13 +77,14 @@ vi.mock("./downloads", () => ({
   toFileUri: (p: string) => (p.startsWith("file://") ? p : `file://${p}`),
 }));
 
+import { startReducedDownload, fetchReducedPlan } from "./reducedDownload";
+// The live state is a separate module (no native imports) so the screens can
+// read it without pulling the whole flow in; the flow re-exports it.
 import {
-  startReducedDownload,
-  fetchReducedPlan,
   cancelReducedDownload,
   isReducedDownloadRunning,
   getReducedSliceProgress,
-} from "./reducedDownload";
+} from "./reducedDownloadState";
 
 // The mocks above stand in for real modules, and a mock whose shape has
 // drifted from the real export is the failure mode this project has already

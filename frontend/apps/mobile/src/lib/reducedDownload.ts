@@ -15,11 +15,12 @@
 // we have not picked up yet.
 
 import * as FileSystem from "expo-file-system/legacy";
-import { createDownloadTask, completeHandler, directories, type DownloadTask } from "@kesha-antonov/react-native-background-downloader";
+import { createDownloadTask, completeHandler, directories } from "@kesha-antonov/react-native-background-downloader";
 import { eveyFetch } from "@evey/api";
 import { moveMediaFile } from "@evey/media-caps";
 import { joinDownloadSlices, deleteJoinedSlices, sliceFileName, OptimizeError } from "@evey/offline-audio";
 import { getServerUrl } from "./server-config";
+import { claimReducedJob, releaseReducedJob, type ReducedJob } from "./reducedDownloadState";
 import {
   clearDownloadInFlight,
   deleteDownloadedFileAnywhere,
@@ -61,48 +62,6 @@ const POLL_MS = 5000;
 // something is wrong, not merely slow.
 const SLICE_WAIT_TIMEOUT_MS = 25 * 60 * 1000;
 
-interface ReducedJob {
-  cancelled: boolean;
-  /** Wakes the poll loop early so a cancel is felt at once rather than at the
-   * end of the current five-second wait. */
-  wake?: () => void;
-  /** Server-side production progress, 0..1000. */
-  preparePermille: number;
-  /** How many slices are joined into our staging dir. */
-  collected: number;
-  slices: number;
-  task?: DownloadTask;
-}
-
-const jobs = new Map<string, ReducedJob>();
-
-/** True while a reduced download is being prepared/collected/joined. */
-export function isReducedDownloadRunning(mediaItemId: string): boolean {
-  return jobs.has(mediaItemId);
-}
-
-/** Server-side production progress (0..1000) - what stops a long wait from
- * reading as a hang, the exact failure the compat path already hit. */
-export function getReducedPreparePermille(mediaItemId: string): number {
-  return jobs.get(mediaItemId)?.preparePermille ?? 0;
-}
-
-/** Slices collected so far, and how many there are in total. */
-export function getReducedSliceProgress(mediaItemId: string): { collected: number; slices: number } {
-  const job = jobs.get(mediaItemId);
-  return { collected: job?.collected ?? 0, slices: job?.slices ?? 0 };
-}
-
-/** Ask a running reduced download to stop at the next slice boundary. */
-export function cancelReducedDownload(mediaItemId: string): boolean {
-  const job = jobs.get(mediaItemId);
-  if (!job) return false;
-  job.cancelled = true;
-  job.wake?.();
-  void job.task?.stop().catch(() => undefined);
-  return true;
-}
-
 /**
  * Ask the server whether a lighter copy of this item is worth offering.
  * Returns null for every "no" shape - route absent (old server, or the
@@ -120,6 +79,15 @@ export async function fetchReducedPlan(mediaItemId: string): Promise<ReducedPlan
     return null;
   }
 }
+
+// Re-exported so callers have one import for the whole feature; the state
+// itself lives in a module with no native imports (see reducedDownloadState).
+export {
+  isReducedDownloadRunning,
+  getReducedPreparePermille,
+  getReducedSliceProgress,
+  cancelReducedDownload,
+} from "./reducedDownloadState";
 
 const stagingRoot = (mediaItemId: string) => `${directories.documents}/evey-reduced-${mediaItemId}`;
 
@@ -141,9 +109,8 @@ export async function startReducedDownload(
   // Claimed BEFORE the first await, or a double tap starts two collections of
   // the same film into the same staging dir: the second caller would sail past
   // a check made against a map the first has not written to yet.
-  if (jobs.has(mediaItemId)) throw new Error("Download already running");
-  const job: ReducedJob = { cancelled: false, preparePermille: 0, collected: 0, slices };
-  jobs.set(mediaItemId, job);
+  const job = claimReducedJob(mediaItemId, slices);
+  if (!job) throw new Error("Download already running");
   registerDownloadInFlight(mediaItemId, title);
 
   const dir = stagingRoot(mediaItemId);
@@ -206,7 +173,7 @@ export async function startReducedDownload(
     void discardServerJob(mediaItemId);
     throw err;
   } finally {
-    jobs.delete(mediaItemId);
+    releaseReducedJob(mediaItemId);
     clearDownloadInFlight(mediaItemId);
   }
 }
@@ -276,17 +243,17 @@ async function fetchSlice(
 
   await new Promise<void>((resolve, reject) => {
     const task = createDownloadTask({ id: taskId, url, destination: destPath, metadata: { mediaItemId, index } });
-    job.task = task;
+    job.stopTransfer = () => { void task.stop().catch(() => undefined); };
     task
       .progress(onProgress)
       .done(() => {
         completeHandler(taskId);
-        job.task = undefined;
+        job.stopTransfer = undefined;
         resolve();
       })
       .error(({ error }) => {
         completeHandler(taskId);
-        job.task = undefined;
+        job.stopTransfer = undefined;
         void deleteDownloadedFileAnywhere(destPath);
         reject(new Error(error || `slice ${index} failed`));
       });

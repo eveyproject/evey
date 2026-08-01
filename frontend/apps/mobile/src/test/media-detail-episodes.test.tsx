@@ -117,6 +117,19 @@ vi.mock("../lib/downloads", () => ({
   startDownload: (...a: unknown[]) => startDownloadMock(...a),
   getDownloadPath: (...a: unknown[]) => getDownloadPathMock(...a),
   deleteDownload: (...a: unknown[]) => deleteDownloadMock(...a),
+  downloadErrorMessageKey: () => "downloads.error",
+  subscribeToProgress: () => () => undefined,
+  isPreparingCompat: () => false,
+  getCompatPreparePermille: () => 0,
+}));
+// The sliced 720p flow pulls in expo-file-system and the native background
+// downloader at import time; the screen only reaches it when the user picks
+// the lighter quality, which these tests never do.
+vi.mock("../lib/reducedDownload", () => ({ startReducedDownload: vi.fn() }));
+// No server offers a reduced copy here, so the quality dialog never opens and
+// every download goes straight to the original - today's behavior.
+vi.mock("../lib/downloadQualityGate", () => ({
+  chooseDownloadQuality: vi.fn(async () => ({ quality: "original" })),
 }));
 vi.mock("../components/AddToPlaylistSheet", () => ({ AddToPlaylistSheet: () => null }));
 vi.mock("../components/ParentalPINModal", () => ({ ParentalPINModal: () => null }));

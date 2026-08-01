@@ -11,7 +11,6 @@
 // all - the plan lookup is a single cheap request that starts no work.
 
 import { Alert } from "react-native";
-import { Paths } from "expo-file-system";
 import { fetchReducedPlan, type ReducedPlan } from "./reducedDownload";
 
 type T = (key: string, defaultValue: string, options?: Record<string, unknown>) => string;
@@ -22,6 +21,22 @@ export interface QualityChoice {
   quality: DownloadQuality;
   /** Present when the user chose "reduced" - what to hand startReducedDownload. */
   plan?: ReducedPlan;
+}
+
+/**
+ * Free bytes on the device, or undefined when unknowable. Imported lazily on
+ * purpose: expo-file-system reads globalThis.expo at import time, which only
+ * exists in a real RN runtime, and pulling it in at module scope drags it into
+ * every screen that merely renders a download button (it broke two screen test
+ * suites the moment this gate joined the media page's import graph).
+ */
+async function availableDiskSpace(): Promise<number | undefined> {
+  try {
+    const { Paths } = await import("expo-file-system");
+    return Paths?.availableDiskSpace;
+  } catch {
+    return undefined;
+  }
 }
 
 /** Bytes a download of this size really needs, matching downloads.ts's own
@@ -48,7 +63,7 @@ export async function chooseDownloadQuality(t: T, mediaItemId: string): Promise<
   const plan = await fetchReducedPlan(mediaItemId);
   if (!plan) return { quality: "original" };
 
-  const free = Paths?.availableDiskSpace;
+  const free = await availableDiskSpace();
   // A missing free-space reading must not invent a problem: fall back to the
   // server's threshold alone rather than guessing the device is full.
   const fits = typeof free !== "number" || free <= 0 || requiredFor(plan.sourceBytes) <= free;

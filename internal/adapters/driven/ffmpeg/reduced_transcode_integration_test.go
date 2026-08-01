@@ -235,7 +235,7 @@ func lastPacketTime(t *testing.T, ctx context.Context, path, stream string) floa
 		t.Fatalf("ffprobe packets of %s in %s: %v", stream, path, err)
 	}
 	last := 0.0
-	for _, line := range strings.Split(string(out), "\n") {
+	for line := range strings.SplitSeq(string(out), "\n") {
 		line = strings.TrimSuffix(strings.TrimSpace(line), ",")
 		if line == "" {
 			continue

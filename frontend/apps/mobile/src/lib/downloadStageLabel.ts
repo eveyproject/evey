@@ -11,7 +11,10 @@
 // same decision is spelled out twice it stops being the same decision.
 
 import { isPreparingCompat, getCompatPreparePermille, type ProgressBytes } from "./downloads";
-import { isReducedDownloadRunning, getReducedPreparePermille, getReducedSliceProgress } from "./reducedDownload";
+// From the state module, NOT reducedDownload: importing the flow would drag
+// expo-file-system, the native downloader and the embedded Go module into
+// every screen that only wants a label.
+import { isReducedDownloadRunning, getReducedPreparePermille, getReducedSliceProgress } from "./reducedDownloadState";
 
 type T = (key: string, defaultValue: string, options?: Record<string, unknown>) => string;
 

@@ -13,7 +13,7 @@ vi.mock("./downloads", () => ({
   isPreparingCompat: () => state.compat,
   getCompatPreparePermille: () => state.compatPermille,
 }));
-vi.mock("./reducedDownload", () => ({
+vi.mock("./reducedDownloadState", () => ({
   isReducedDownloadRunning: () => state.reduced,
   getReducedPreparePermille: () => state.reducedPermille,
   getReducedSliceProgress: () => ({ collected: state.collected, slices: state.slices }),

@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -52,16 +53,16 @@ func (f *fakeReducedTranscoder) TranscodeReducedSlices(_ context.Context, _, dir
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	var list string
+	var list strings.Builder
 	for i := spec.StartSlice; i < spec.StartSlice+f.slices; i++ {
 		name := reduceddl.SliceName(i)
 		if err := os.WriteFile(filepath.Join(dir, name), fmt.Appendf(nil, "slice-%d-bytes", i), 0o644); err != nil {
 			return err
 		}
 		start := float64(i * spec.SliceSec)
-		list += fmt.Sprintf("%s,%.6f,%.6f\n", name, start, start+float64(spec.SliceSec))
+		fmt.Fprintf(&list, "%s,%.6f,%.6f\n", name, start, start+float64(spec.SliceSec))
 	}
-	return os.WriteFile(filepath.Join(dir, reduceddl.ListName(spec.StartSlice)), []byte(list), 0o644)
+	return os.WriteFile(filepath.Join(dir, reduceddl.ListName(spec.StartSlice)), []byte(list.String()), 0o644)
 }
 
 func (f *fakeReducedTranscoder) spec() reduceddl.Spec {
