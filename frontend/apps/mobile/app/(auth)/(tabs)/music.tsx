@@ -27,7 +27,7 @@ import { useMusicQueueStore, type QueueTrack } from "../../../src/stores/musicQu
 import { AddToPlaylistSheet } from "../../../src/components/AddToPlaylistSheet";
 import { startDownload, getDownloadPath, deleteDownload, downloadErrorMessageKey } from "../../../src/lib/downloads";
 import { buildDownloadAuthContext } from "../../../src/lib/downloadContext";
-import { downloadStartedMessage } from "../../../src/lib/downloadStartedToast";
+import { confirmDownloadOnMobileData } from "../../../src/lib/mobileDataGate";
 import { toast, useAuthStore } from "@evey/store";
 import { TrackArt } from "../../../src/components/music/TrackArt";
 import { MusicPlaylistsTab } from "../../../src/components/music/MusicPlaylistsTab";
@@ -298,8 +298,9 @@ export default function MusicScreen() {
         );
         return;
       }
+      if (!(await confirmDownloadOnMobileData(t))) return;
       setTrackDownloads((s) => ({ ...s, [track.id]: NaN }));
-      toast.info(await downloadStartedMessage(t), { onPress: () => router.push("/downloads") });
+      toast.info(t("media.detail.downloadStarted"), { onPress: () => router.push("/downloads") });
       try {
         await startDownload(
           track.id,
@@ -343,8 +344,9 @@ export default function MusicScreen() {
     async (album: MusicAlbum) => {
       if (albumDownloads[album.id] !== undefined) return;
       if (!activeLibraryID) return;
+      if (!(await confirmDownloadOnMobileData(t))) return;
       setAlbumDownloads((s) => ({ ...s, [album.id]: 0 }));
-      toast.info(await downloadStartedMessage(t), { onPress: () => router.push("/downloads") });
+      toast.info(t("media.detail.downloadStarted"), { onPress: () => router.push("/downloads") });
       try {
         const { tracks: albumTracks } = await eveyFetch<{ tracks: Track[] }>({
           url: `/api/v1/music/tracks?library_id=${activeLibraryID}&album_id=${encodeURIComponent(album.id)}&limit=200`,

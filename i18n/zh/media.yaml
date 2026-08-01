@@ -246,7 +246,10 @@ detail:
   noProfileSelected: 未选择配置文件
   alreadyDownloaded: 已下载
   downloadStarted: 开始下载
-  downloadOnMobileData: 正在使用移动数据，建议使用 Wi-Fi
+  mobileDataTitle: 您正在使用移动数据
+  mobileDataBody: 此下载可能消耗数 GB 流量，建议使用 Wi-Fi。
+  turnOnWifi: 开启 Wi-Fi
+  downloadAnyway: 仍然下载
   downloadComplete: 下载完成
   downloadFailed: 下载失败
   downloadNoSpace: "设备存储空间不足，无法完成此下载。"

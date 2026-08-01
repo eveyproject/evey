@@ -246,7 +246,10 @@ detail:
   noProfileSelected: Kein Profil ausgewählt
   alreadyDownloaded: Bereits heruntergeladen
   downloadStarted: Download gestartet
-  downloadOnMobileData: über Mobilfunk, WLAN empfohlen
+  mobileDataTitle: Du bist im Mobilfunknetz
+  mobileDataBody: Dieser Download kann mehrere Gigabyte verbrauchen. WLAN wird empfohlen.
+  turnOnWifi: WLAN einschalten
+  downloadAnyway: Trotzdem herunterladen
   downloadComplete: Download abgeschlossen
   downloadFailed: Download fehlgeschlagen
   downloadNoSpace: "Nicht genug Speicherplatz auf dem Gerät für diesen Download."

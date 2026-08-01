@@ -44,7 +44,7 @@ import { artworkUrl } from "../../../src/lib/artwork";
 import { certInfoForLocale } from "../../../src/lib/certifications";
 import { useIsFavorite, useToggleFavorite } from "../../../src/hooks/useFavorite";
 import { startDownload, getDownloadPath, deleteDownload, downloadErrorMessageKey, isPreparingCompat, getCompatPreparePermille, type ProgressBytes } from "../../../src/lib/downloads";
-import { downloadStartedMessage } from "../../../src/lib/downloadStartedToast";
+import { confirmDownloadOnMobileData } from "../../../src/lib/mobileDataGate";
 import { formatBytes } from "../../../src/lib/formatBytes";
 import { buildDownloadAuthContext } from "../../../src/lib/downloadContext";
 import { toast } from "@evey/store";
@@ -713,8 +713,9 @@ export default function MediaDetailScreen() {
         if (!opts?.silent) confirmDeleteDownload(ep.id, ep.title ?? ep.id);
         return;
       }
+      if (!(await confirmDownloadOnMobileData(t))) return;
       setEpisodeDownloads((s) => ({ ...s, [ep.id!]: NaN }));
-      if (!opts?.silent) toast.info(await downloadStartedMessage(t), { onPress: () => router.push("/downloads") });
+      if (!opts?.silent) toast.info(t("media.detail.downloadStarted"), { onPress: () => router.push("/downloads") });
       try {
         await startDownload(
           ep.id,
@@ -768,8 +769,12 @@ export default function MediaDetailScreen() {
     if (bulkDownload) return;
     const targets = episodes.filter((ep) => ep.id && hasMediaFile(ep));
     if (targets.length === 0) return;
+    // Asked once for the whole batch, not once per episode: a season is the
+    // heaviest thing this app downloads, and prompting per episode would be
+    // twenty dialogs.
+    if (!(await confirmDownloadOnMobileData(t))) return;
     setBulkDownload({ done: 0, total: targets.length });
-    toast.info(await downloadStartedMessage(t), { onPress: () => router.push("/downloads") });
+    toast.info(t("media.detail.downloadStarted"), { onPress: () => router.push("/downloads") });
     let done = 0;
     for (const ep of targets) {
       try {
@@ -1161,8 +1166,9 @@ export default function MediaDetailScreen() {
                 if (downloadProgress !== null) return;
                 const existing = await getDownloadPath(id);
                 if (existing) { confirmDeleteDownload(id, media.title); return; }
+                if (!(await confirmDownloadOnMobileData(t))) return;
                 setDownloadProgress(NaN);
-                toast.info(await downloadStartedMessage(t), { onPress: () => router.push("/downloads") });
+                toast.info(t("media.detail.downloadStarted"), { onPress: () => router.push("/downloads") });
                 try {
                   await startDownload(id, media.title,
                     (p, b) => { setDownloadProgress(p); if (b) setDownloadBytes(b); },
