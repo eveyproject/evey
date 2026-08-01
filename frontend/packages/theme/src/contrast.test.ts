@@ -43,6 +43,7 @@ describe("theme contrast (WCAG AA)", () => {
     const accentHover = vars["--accent-hover"];
     const onDanger = vars["--on-danger"];
     const dangerBg = vars["--danger-bg"];
+    const colorDanger = vars["--color-danger"];
     const toastError = vars["--toast-error-icon"];
 
     if (!isHex(accent) || !isHex(bg)) continue;
@@ -82,6 +83,16 @@ describe("theme contrast (WCAG AA)", () => {
             expect(ratio(onDanger, dangerBg)).toBeGreaterThanOrEqual(AA);
           });
         }
+        // --color-danger (aliased as --danger) is a DIFFERENT value from
+        // --danger-bg on some themes and is what destructive buttons/icons
+        // painted white-on-red actually use. This is the exact pair that was
+        // missing: --danger-bg passed AA while --color-danger silently did
+        // not (#ef4444 at 3.76:1 on default/amoled), and nothing caught it.
+        if (isHex(colorDanger)) {
+          it("renders text legibly on the --color-danger fill", () => {
+            expect(ratio(onDanger, colorDanger)).toBeGreaterThanOrEqual(AA);
+          });
+        }
         if (isHex(toastError)) {
           it("renders text legibly on the error toast fill", () => {
             expect(ratio(onDanger, toastError)).toBeGreaterThanOrEqual(AA);
@@ -117,13 +128,8 @@ describe("derived on-colour tokens (mobile/TV chips)", () => {
     it(`${name}: text reads on the mobile error fill`, () => {
       expect(ratio(t.colors.onError, t.colors.error)).toBeGreaterThanOrEqual(AA);
     });
-    // NOT asserted here: onDanger against `danger`. onDanger is declared per
-    // theme against --danger-bg (#dc2626, ratio 4.84) and clears AA there, but
-    // `danger` resolves to --color-danger (#ef4444 on default/amoled), where
-    // white lands at 3.65:1. Widening the assertion to that pair fails two
-    // themes today, and fixing it means either darkening --color-danger or
-    // painting destructive labels near-black - a palette decision, not a test
-    // change. Tracked in the backlog rather than silently asserted or silently
-    // ignored.
+    // onDanger against `danger` (--color-danger) is asserted above, per theme,
+    // against the raw CSS var - not repeated here against the derived token,
+    // since tokens.colors.danger is the same value via resolveVar().
   }
 });
