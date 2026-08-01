@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import type { V1MediaItem, LibraryServiceListMediaItemsType } from "@evey/api";
 import { Check, Star, Filter } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -5,6 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { FilterChip } from "@/components/ui/FilterChip";
 import type { LibrarySearch } from "@/routes/_auth/library/$libraryId";
 import { ICON } from "@/constants/iconSizes";
+import { normalizeLangCode } from "@/features/playback/hooks/hlsPlayerUtils";
 
 // Resolution bands derived from stream height
 function getResolutionLabel(height: number): string {
@@ -42,9 +44,17 @@ export function collectFilterOptions(items: V1MediaItem[]) {
         if (stream.height) resolutions.add(getResolutionLabel(stream.height));
         if (stream.codec) codecs.add(normalizeCodec(stream.codec));
       } else if (stream.type === "MEDIA_STREAM_TYPE_AUDIO") {
-        if (stream.language && stream.language !== "und") audioLangs.add(stream.language);
+        // Normalize so 639-2/B and 639-2/T forms of the same language
+        // ("fre"/"fra") collapse into one filter entry instead of two.
+        if (stream.language && stream.language !== "und") {
+          const norm = normalizeLangCode(stream.language);
+          if (norm) audioLangs.add(norm);
+        }
       } else if (stream.type === "MEDIA_STREAM_TYPE_SUBTITLE") {
-        if (stream.language && stream.language !== "und") subLangs.add(stream.language);
+        if (stream.language && stream.language !== "und") {
+          const norm = normalizeLangCode(stream.language);
+          if (norm) subLangs.add(norm);
+        }
       }
     }
   }
@@ -91,12 +101,17 @@ export function applyLocalFilters(
       if (!codecs!.some((c) => itemCodecs.includes(c))) return false;
     }
     if (hasAudio) {
-      const itemAudioLangs = audioStreams.map((s) => s.language ?? "");
-      if (!audioLangs!.some((l) => itemAudioLangs.includes(l))) return false;
+      // Normalize both sides so a "fr" filter (picked from a normalized
+      // option) still matches a stream tagged "fra" - the raw code stays
+      // untouched on the stream itself, only this comparison is normalized.
+      const itemAudioLangs = audioStreams.map((s) => normalizeLangCode(s.language ?? ""));
+      const wantAudioLangs = audioLangs!.map((l) => normalizeLangCode(l));
+      if (!wantAudioLangs.some((l) => itemAudioLangs.includes(l))) return false;
     }
     if (hasSub) {
-      const itemSubLangs = subStreams.map((s) => s.language ?? "");
-      if (!subLangs!.some((l) => itemSubLangs.includes(l))) return false;
+      const itemSubLangs = subStreams.map((s) => normalizeLangCode(s.language ?? ""));
+      const wantSubLangs = subLangs!.map((l) => normalizeLangCode(l));
+      if (!wantSubLangs.some((l) => itemSubLangs.includes(l))) return false;
     }
     if (hasYearFrom && (item.year == null || item.year < yearFrom!)) return false;
     if (hasYearTo && (item.year == null || item.year > yearTo!)) return false;
@@ -125,11 +140,16 @@ function CheckboxGroup({
   options,
   selected,
   onChange,
+  labelFor,
 }: {
   label: string;
   options: string[];
   selected: string[];
   onChange: (values: string[]) => void;
+  // Renders a friendlier display label than the raw option value (e.g. the
+  // localized language name for a normalized ISO 639-1 code) while the value
+  // used for selection/matching stays the plain option string.
+  labelFor?: (opt: string) => string;
 }) {
   if (options.length === 0) return null;
   return (
@@ -164,7 +184,7 @@ function CheckboxGroup({
                 )}
               </span>
               <span className="text-sm group-hover:text-[var(--text)] transition-colors-fast text-[var(--text-muted)]">
-                {opt}
+                {labelFor ? labelFor(opt) : opt}
               </span>
             </label>
           );
@@ -439,8 +459,22 @@ export function LibraryFiltersPanel({
   availableOptions,
   onUpdate,
 }: LibraryFiltersProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const activeCount = countActiveFilters(search);
+
+  // Localized display name for a normalized ISO 639-1 code (e.g. "fr" ->
+  // "French"), so the audio/subtitle language filters read as language
+  // names rather than raw container codes. Falls back to the code itself
+  // when Intl.DisplayNames is unavailable or doesn't know the code.
+  const langLabel = useMemo(() => {
+    let names: Intl.DisplayNames | null = null;
+    try {
+      names = new Intl.DisplayNames([i18n.language], { type: "language" });
+    } catch {
+      /* unsupported locale/environment - fall back to the raw code */
+    }
+    return (code: string) => names?.of(code) ?? code;
+  }, [i18n.language]);
 
   return (
     <div
@@ -519,6 +553,7 @@ export function LibraryFiltersPanel({
         options={availableOptions.audioLangs}
         selected={search.audioLangs ?? []}
         onChange={(v) => onUpdate({ audioLangs: v.length ? v : undefined })}
+        labelFor={langLabel}
       />
 
       <CheckboxGroup
@@ -526,6 +561,7 @@ export function LibraryFiltersPanel({
         options={availableOptions.subLangs}
         selected={search.subLangs ?? []}
         onChange={(v) => onUpdate({ subLangs: v.length ? v : undefined })}
+        labelFor={langLabel}
       />
 
       {availableOptions.resolutions.length === 0 &&

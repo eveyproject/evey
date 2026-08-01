@@ -1,7 +1,8 @@
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
-import { LibraryFiltersPanel } from "./LibraryFilters";
+import type { V1MediaItem } from "@evey/api";
+import { LibraryFiltersPanel, collectFilterOptions, applyLocalFilters } from "./LibraryFilters";
 
 vi.mock("@/components/ui/Button", () => ({
   Button: ({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) => (
@@ -158,5 +159,79 @@ describe("LibraryFiltersPanel", () => {
     fireEvent.click(checkboxes[0]);
 
     expect(onUpdate).toHaveBeenCalledWith({ resolutions: ["1080p"] });
+  });
+
+  it("shows the localized language name, not the raw code, for audio/subtitle filter options", () => {
+    render(
+      <LibraryFiltersPanel
+        search={baseSearch}
+        availableGenres={[]}
+        availableOptions={{ ...emptyOptions, audioLangs: ["fr"], subLangs: ["de"] }}
+        onUpdate={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText("French")).toBeInTheDocument();
+    expect(screen.getByText("German")).toBeInTheDocument();
+    expect(screen.queryByText("fr")).not.toBeInTheDocument();
+    expect(screen.queryByText("de")).not.toBeInTheDocument();
+  });
+});
+
+function mediaItem(overrides: Partial<V1MediaItem> = {}): V1MediaItem {
+  return { id: "mi-1", title: "Item", ...overrides };
+}
+
+describe("collectFilterOptions", () => {
+  it("normalizes 639-2/B and 639-2/T codes for the same language into a single filter entry", () => {
+    const items: V1MediaItem[] = [
+      mediaItem({
+        streams: [
+          { type: "MEDIA_STREAM_TYPE_AUDIO", language: "fre" },
+          { type: "MEDIA_STREAM_TYPE_SUBTITLE", language: "ger" },
+        ],
+      }),
+      mediaItem({
+        id: "mi-2",
+        streams: [
+          { type: "MEDIA_STREAM_TYPE_AUDIO", language: "fra" },
+          { type: "MEDIA_STREAM_TYPE_SUBTITLE", language: "deu" },
+        ],
+      }),
+    ];
+
+    const options = collectFilterOptions(items);
+    expect(options.audioLangs).toEqual(["fr"]);
+    expect(options.subLangs).toEqual(["de"]);
+  });
+});
+
+describe("applyLocalFilters", () => {
+  it("matches a normalized audio language filter against a raw 639-2/B stream tag", () => {
+    const items: V1MediaItem[] = [
+      mediaItem({
+        id: "vff",
+        streams: [{ type: "MEDIA_STREAM_TYPE_AUDIO", language: "fre" }],
+      }),
+      mediaItem({
+        id: "eng",
+        streams: [{ type: "MEDIA_STREAM_TYPE_AUDIO", language: "eng" }],
+      }),
+    ];
+
+    const result = applyLocalFilters(items, { audioLangs: ["fr"] });
+    expect(result.map((i) => i.id)).toEqual(["vff"]);
+  });
+
+  it("matches a raw 639-2/T stream tag against the same filter as its 639-2/B sibling", () => {
+    const items: V1MediaItem[] = [
+      mediaItem({
+        id: "fra-tagged",
+        streams: [{ type: "MEDIA_STREAM_TYPE_AUDIO", language: "fra" }],
+      }),
+    ];
+
+    const result = applyLocalFilters(items, { audioLangs: ["fre"] });
+    expect(result.map((i) => i.id)).toEqual(["fra-tagged"]);
   });
 });

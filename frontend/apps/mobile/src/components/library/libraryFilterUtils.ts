@@ -4,6 +4,7 @@ import type {
   LibraryServiceListMediaItemsSortField,
   LibraryServiceListMediaItemsSortOrder,
 } from "@evey/api";
+import { normalizeLangCode } from "../../lib/langCodes";
 
 // The generated LibraryServiceFilterMediaItemsParams/SortField/SortOrder/Type
 // aliases exist in packages/api/src/generated/library.schemas.ts but aren't
@@ -66,9 +67,18 @@ export function collectFilterOptions(items: V1MediaItem[]): FilterFacets {
         if (stream.height) resolutions.add(getResolutionLabel(stream.height));
         if (stream.codec) codecs.add(normalizeCodec(stream.codec));
       } else if (stream.type === "MEDIA_STREAM_TYPE_AUDIO") {
-        if (stream.language && stream.language !== "und") audioLangs.add(stream.language);
+        // Normalize so 639-2/B and 639-2/T forms of the same language
+        // ("fre"/"fra") collapse into one filter entry instead of two -
+        // mirrors web's collectFilterOptions (LibraryFilters.tsx).
+        if (stream.language && stream.language !== "und") {
+          const norm = normalizeLangCode(stream.language);
+          if (norm) audioLangs.add(norm);
+        }
       } else if (stream.type === "MEDIA_STREAM_TYPE_SUBTITLE") {
-        if (stream.language && stream.language !== "und") subLangs.add(stream.language);
+        if (stream.language && stream.language !== "und") {
+          const norm = normalizeLangCode(stream.language);
+          if (norm) subLangs.add(norm);
+        }
       }
     }
   }
@@ -121,13 +131,18 @@ export function applyLocalFacetFilters(items: V1MediaItem[], filters: LocalFacet
     }
     if (hasAudio) {
       const audioStreams = streams.filter((s) => s.type === "MEDIA_STREAM_TYPE_AUDIO");
-      const itemAudioLangs = audioStreams.map((s) => s.language ?? "");
-      if (!audioLangs!.some((l) => itemAudioLangs.includes(l))) return false;
+      // Normalize both sides so a "fr" filter (picked from a normalized
+      // option) still matches a stream tagged "fra" - the raw code stays
+      // untouched on the stream itself, only this comparison is normalized.
+      const itemAudioLangs = audioStreams.map((s) => normalizeLangCode(s.language ?? ""));
+      const wantAudioLangs = audioLangs!.map((l) => normalizeLangCode(l));
+      if (!wantAudioLangs.some((l) => itemAudioLangs.includes(l))) return false;
     }
     if (hasSub) {
       const subStreams = streams.filter((s) => s.type === "MEDIA_STREAM_TYPE_SUBTITLE");
-      const itemSubLangs = subStreams.map((s) => s.language ?? "");
-      if (!subLangs!.some((l) => itemSubLangs.includes(l))) return false;
+      const itemSubLangs = subStreams.map((s) => normalizeLangCode(s.language ?? ""));
+      const wantSubLangs = subLangs!.map((l) => normalizeLangCode(l));
+      if (!wantSubLangs.some((l) => itemSubLangs.includes(l))) return false;
     }
     if (hasGenres) {
       const itemGenres = item.genres ?? [];

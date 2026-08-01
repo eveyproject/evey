@@ -72,8 +72,8 @@ describe("collectFilterOptions", () => {
     expect(collectFilterOptions(items)).toEqual({
       resolutions: ["4K", "1080p"],
       codecs: ["H.264", "H.265/HEVC"],
-      audioLangs: ["eng", "fre"],
-      subLangs: ["fre"],
+      audioLangs: ["en", "fr"],
+      subLangs: ["fr"],
     });
   });
 
@@ -84,6 +84,28 @@ describe("collectFilterOptions", () => {
       audioLangs: [],
       subLangs: [],
     });
+  });
+
+  it("normalizes 639-2/B and 639-2/T codes for the same language into a single filter entry", () => {
+    const items: V1MediaItem[] = [
+      item({
+        streams: [
+          { type: "MEDIA_STREAM_TYPE_AUDIO", language: "fre" },
+          { type: "MEDIA_STREAM_TYPE_SUBTITLE", language: "ger" },
+        ],
+      }),
+      item({
+        id: "mi-2",
+        streams: [
+          { type: "MEDIA_STREAM_TYPE_AUDIO", language: "fra" },
+          { type: "MEDIA_STREAM_TYPE_SUBTITLE", language: "deu" },
+        ],
+      }),
+    ];
+
+    const options = collectFilterOptions(items);
+    expect(options.audioLangs).toEqual(["fr"]);
+    expect(options.subLangs).toEqual(["de"]);
   });
 });
 
@@ -147,6 +169,16 @@ describe("applyLocalFacetFilters", () => {
   it("combines multiple facets with AND semantics", () => {
     const result = applyLocalFacetFilters(items, { resolutions: ["4K"], audioLangs: ["fre"] });
     expect(result).toEqual([]);
+  });
+
+  it("matches a normalized audio language filter against a raw 639-2/B stream tag", () => {
+    const result = applyLocalFacetFilters(items, { audioLangs: ["fr"] });
+    expect(result.map((i) => i.id)).toEqual(["movie-1080p-h264-fre"]);
+  });
+
+  it("matches a raw 639-2/T filter code against the same language's 639-2/B stream tag", () => {
+    const result = applyLocalFacetFilters(items, { audioLangs: ["fra"] });
+    expect(result.map((i) => i.id)).toEqual(["movie-1080p-h264-fre"]);
   });
 });
 

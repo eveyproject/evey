@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { View, Text, TouchableOpacity, TextInput, ScrollView, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
@@ -9,6 +10,19 @@ import type {
 import { BottomSheet } from "../BottomSheet";
 import { useTheme } from "../../providers/ThemeProvider";
 import type { FilterFacets } from "./libraryFilterUtils";
+
+// Localized display name for a normalized ISO 639-1 audio/subtitle filter
+// code (e.g. "fr" -> "French"), so the chips read as language names rather
+// than raw container codes. Falls back to the code itself when
+// Intl.DisplayNames is unavailable or doesn't know the code - mirrors web's
+// langLabel (LibraryFilters.tsx) and mobile's own regionOptions.ts pattern.
+function langChipLabel(code: string, locale: string): string {
+  try {
+    return new Intl.DisplayNames([locale], { type: "language" }).of(code) ?? code;
+  } catch {
+    return code;
+  }
+}
 
 const SORT_OPTIONS: Array<{ labelKey: string; value: LibraryServiceListMediaItemsSortField }> = [
   { labelKey: "media.library.titleSort", value: "MEDIA_SORT_FIELD_TITLE" },
@@ -135,7 +149,8 @@ export function LibraryFiltersPanel(props: LibraryFiltersPanelProps) {
     activeCount, onReset,
   } = props;
   const theme = useTheme();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const langLabel = useMemo(() => (code: string) => langChipLabel(code, i18n.language), [i18n.language]);
 
   return (
     <BottomSheet visible={visible} onClose={onClose} title={t("media.library.filters")}>
@@ -281,7 +296,7 @@ export function LibraryFiltersPanel(props: LibraryFiltersPanelProps) {
           <SectionLabel>{t("media.library.audioLanguage")}</SectionLabel>
           <View style={styles.wrapRow}>
             {availableFacets.audioLangs.map((l) => (
-              <MultiChip key={l} label={l} active={audioLangs.includes(l)} onPress={() => onAudioLangsChange(toggle(audioLangs, l))} />
+              <MultiChip key={l} label={langLabel(l)} active={audioLangs.includes(l)} onPress={() => onAudioLangsChange(toggle(audioLangs, l))} />
             ))}
           </View>
         </>
@@ -293,7 +308,7 @@ export function LibraryFiltersPanel(props: LibraryFiltersPanelProps) {
           <SectionLabel>{t("media.library.subtitleLanguage")}</SectionLabel>
           <View style={styles.wrapRow}>
             {availableFacets.subLangs.map((l) => (
-              <MultiChip key={l} label={l} active={subLangs.includes(l)} onPress={() => onSubLangsChange(toggle(subLangs, l))} />
+              <MultiChip key={l} label={langLabel(l)} active={subLangs.includes(l)} onPress={() => onSubLangsChange(toggle(subLangs, l))} />
             ))}
           </View>
         </>

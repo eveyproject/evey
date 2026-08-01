@@ -330,7 +330,13 @@ const ISO_639_2_TO_1: Record<string, string> = {
 // strips a BCP-47 region/script subtag ("fr-FR" -> "fr"), then maps a known
 // ISO 639-2 code to 639-1. Codes outside the table above (not offered as a
 // preference) fall back to a 2-letter slice - the best guess available.
-function normalizeLangCode(code: string): string {
+//
+// Exported so the library language filters (LibraryFilters.tsx) can dedupe
+// the 639-2/B and 639-2/T forms of the same language ("fre"/"fra") into one
+// entry instead of showing both raw codes side by side - this is the same
+// table the player already uses to resolve a profile's language preference,
+// kept as the single source of truth rather than a second copy.
+export function normalizeLangCode(code: string): string {
   const primary = code.toLowerCase().trim().split("-")[0];
   if (!primary) return "";
   return ISO_639_2_TO_1[primary] ?? (primary.length > 2 ? primary.slice(0, 2) : primary);
