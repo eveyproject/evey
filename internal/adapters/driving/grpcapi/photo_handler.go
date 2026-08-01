@@ -101,6 +101,14 @@ func (h *photoHandler) ListPhotos(ctx context.Context, req *eveyv1.ListPhotosReq
 	for _, p := range photos {
 		resp.Photos = append(resp.Photos, photoToProto(p, ctxIsAdmin(ctx)))
 	}
+	// Hand out the first cursor from the offset path too, otherwise keyset
+	// paging is unreachable: a client can only send a cursor it was given, and
+	// with page 1 refusing to produce one, nobody would ever leave the offset
+	// path. Page 1 keeps its exact total, every page after it is served by
+	// index seek. Clients that ignore the field are unaffected.
+	if len(photos) >= limit {
+		resp.NextCursor = encodePhotoCursor(photos[len(photos)-1])
+	}
 	return resp, nil
 }
 

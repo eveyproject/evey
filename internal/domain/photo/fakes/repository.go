@@ -70,6 +70,14 @@ func (r *FakeRepository) ListByLibrary(_ context.Context, libraryID shared.Libra
 			result = append(result, p)
 		}
 	}
+	// Sort exactly like the postgres query (taken_at DESC NULLS LAST, created_at
+	// DESC, id DESC). Without this the fake returned map iteration order, so it
+	// was BOTH non-deterministic and unrelated to production order - the kind of
+	// green test that proves nothing, and it made the offset->cursor handover
+	// look broken when the handover was right and the fake was wrong.
+	sort.Slice(result, func(i, j int) bool {
+		return photoCursorLess(result[j], result[i])
+	})
 	total := len(result)
 	if offset >= total {
 		return nil, total, nil

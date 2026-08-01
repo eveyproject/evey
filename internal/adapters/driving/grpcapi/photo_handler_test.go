@@ -150,6 +150,36 @@ func TestPhotoHandler_ListPhotos_Cursor_KeysetPage(t *testing.T) {
 	assert.NotEmpty(t, resp.NextCursor, "full page must carry a cursor for the following page")
 }
 
+// The offset path must hand out the first cursor, otherwise keyset paging can
+// never be entered: a client only ever sends back a cursor it was given. This
+// walks the real bootstrap - page 1 without a cursor, page 2 with the one it
+// returned - and pins that no row is skipped or repeated across the seam.
+func TestPhotoHandler_ListPhotos_OffsetPageBootstrapsTheCursor(t *testing.T) {
+	h, repo, _, _ := newTestPhotoHandler()
+	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	seedPhotoWithCreatedAt(repo, "p-1", "lib-1", base)
+	seedPhotoWithCreatedAt(repo, "p-2", "lib-1", base.Add(time.Hour))
+	seedPhotoWithCreatedAt(repo, "p-3", "lib-1", base.Add(2*time.Hour))
+
+	first, err := h.ListPhotos(adminCtx(), &eveyv1.ListPhotosRequest{LibraryId: "lib-1", Limit: 2})
+	require.NoError(t, err)
+	assert.Equal(t, int32(3), first.Total, "page 1 keeps its exact total")
+	require.Len(t, first.Photos, 2)
+	require.NotEmpty(t, first.NextCursor, "page 1 must hand out a cursor or keyset is unreachable")
+
+	second, err := h.ListPhotos(adminCtx(), &eveyv1.ListPhotosRequest{
+		LibraryId: "lib-1", Limit: 2, Cursor: first.NextCursor,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, int32(0), second.Total, "page 2 is keyset-served, it pays no COUNT")
+
+	var got []string
+	for _, p := range append(first.Photos, second.Photos...) {
+		got = append(got, p.Id)
+	}
+	assert.Equal(t, []string{"p-3", "p-2", "p-1"}, got, "no row skipped or repeated across the seam")
+}
+
 func TestPhotoHandler_ListPhotos_Cursor_LastPage(t *testing.T) {
 	h, repo, _, _ := newTestPhotoHandler()
 	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)

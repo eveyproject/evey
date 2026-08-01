@@ -101,10 +101,14 @@ func (h *musicHandler) ListTracks(ctx context.Context, req *eveyv1.ListTracksReq
 	// Keyset path: the client already holds a cursor from a previous page, so
 	// offset/total are skipped entirely - recomputing total here would pay
 	// back exactly the COUNT(*) OVER() cost the cursor path exists to avoid.
-	// ListTracksCursor accepts the same search filter as the offset path, so
-	// this also covers a paginated SQL search; only the full-text index branch
-	// below (untied to a keyset) is bypassed when a cursor is present.
-	if req.Cursor != "" {
+	// A cursor is IGNORED while a free-text search is running: the search branch
+	// below answers from the full-text index (typo tolerance, relevance), and
+	// the keyset path can only filter with SQL. Honouring the cursor here would
+	// serve page 1 from Meilisearch and page 2 from an ILIKE - the user would
+	// watch their fuzzy match silently turn into a different result set
+	// mid-scroll. Searches stay on one engine until the index has a keyset of
+	// its own.
+	if req.Cursor != "" && req.Search == "" {
 		cursor, cErr := decodeTrackCursor(req.Cursor)
 		if cErr != nil {
 			span.RecordError(cErr)
@@ -153,6 +157,14 @@ func (h *musicHandler) ListTracks(ctx context.Context, req *eveyv1.ListTracksReq
 	resp := &eveyv1.ListTracksResponse{Total: int32(total)}
 	for _, t := range tracks {
 		resp.Tracks = append(resp.Tracks, trackToProto(t, isAdmin))
+	}
+	// Hand out the first cursor from the offset path too, otherwise keyset
+	// paging is unreachable: a client can only send a cursor it was given, and
+	// with page 1 refusing to produce one, nobody would ever leave the offset
+	// path. Page 1 keeps its exact total, every page after it is served by
+	// index seek. Clients that ignore the field are unaffected.
+	if len(tracks) >= limit && req.Search == "" {
+		resp.NextCursor = encodeTrackCursor(tracks[len(tracks)-1])
 	}
 	return resp, nil
 }
