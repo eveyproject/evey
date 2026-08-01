@@ -846,3 +846,59 @@ func TestSetLimit_ConvertsPerMinuteToPerSecond(t *testing.T) {
 		t.Errorf("after SetLimit(12), RetryAfter = %ds, want 5s", got)
 	}
 }
+
+// Every unseen key allocates an entry, and the sweep only runs every 5 minutes:
+// a caller rotating source addresses (one /64 of IPv6 holds 2^64) could grow
+// the table by roughly one entry per request until then, on each of the several
+// limiters the server runs. The table is now bounded.
+func TestLimiter_VisitorTableIsBounded(t *testing.T) {
+	l := New(60)
+	defer l.Stop()
+
+	for i := range maxVisitors + 5_000 {
+		l.Allow("2001:db8::" + strconv.Itoa(i))
+	}
+
+	l.mu.Lock()
+	n := len(l.visitors)
+	l.mu.Unlock()
+	if n > maxVisitors {
+		t.Errorf("table holds %d keys, above the %d cap", n, maxVisitors)
+	}
+}
+
+// The cap must not cost an active caller its bucket while an idle one keeps
+// theirs: eviction takes the coldest entry, so a client that just called is the
+// last to go.
+func TestLimiter_EvictionTakesTheColdestEntry(t *testing.T) {
+	l := New(60)
+	defer l.Stop()
+
+	l.mu.Lock()
+	old := time.Now().Add(-time.Minute)
+	for i := range maxVisitors {
+		l.visitors["cold-"+strconv.Itoa(i)] = &entry{tokens: 1, lastCheck: old}
+	}
+	// One caller that just spoke - younger than every other entry.
+	l.visitors["warm"] = &entry{tokens: 1, lastCheck: time.Now()}
+	delete(l.visitors, "cold-0") // back to exactly the cap
+	l.mu.Unlock()
+
+	l.Allow("newcomer")
+
+	l.mu.Lock()
+	_, warmSurvived := l.visitors["warm"]
+	_, newcomerAdmitted := l.visitors["newcomer"]
+	n := len(l.visitors)
+	l.mu.Unlock()
+
+	if !warmSurvived {
+		t.Error("the most recently active caller was evicted: eviction must take the coldest")
+	}
+	if !newcomerAdmitted {
+		t.Error("the newcomer got no bucket at all")
+	}
+	if n > maxVisitors {
+		t.Errorf("table holds %d keys, above the %d cap", n, maxVisitors)
+	}
+}

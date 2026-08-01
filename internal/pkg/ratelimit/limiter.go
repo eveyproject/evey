@@ -61,6 +61,16 @@ func (l *Limiter) Stop() {
 	close(l.done)
 }
 
+// maxVisitors bounds the per-key table. Every unseen key allocates an entry,
+// and the sweep only runs every 5 minutes with a 10-minute idle rule - so until
+// 2026-08-01 a caller rotating source addresses (a /64 of IPv6 is 2^64 of them,
+// and each limiter keeps its own table) could grow it by roughly one entry per
+// request for ten minutes with nothing to stop it.
+//
+// 50k entries is far beyond any real household - a self-hosted server sees tens
+// of clients - while capping one table at a couple of megabytes.
+const maxVisitors = 50_000
+
 func (l *Limiter) Allow(ip string) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -68,6 +78,9 @@ func (l *Limiter) Allow(ip string) bool {
 	now := time.Now()
 	e, ok := l.visitors[ip]
 	if !ok {
+		if len(l.visitors) >= maxVisitors {
+			l.evictLocked(now)
+		}
 		l.visitors[ip] = &entry{tokens: float64(l.burst) - 1, lastCheck: now}
 		return true
 	}
@@ -104,6 +117,40 @@ func (l *Limiter) RetryAfter(ip string) int {
 	return int(math.Ceil(secs))
 }
 
+// evictLocked makes room in a full table: it drops everything the periodic
+// sweep would have dropped anyway (idle past the retention), and if that frees
+// nothing it drops the single coldest entry. One pass, called only at the cap.
+//
+// Evicting cannot be turned into a way around the limiter. A key that is
+// evicted gets a fresh burst on its next request - but reaching the cap at all
+// requires tens of thousands of distinct keys, and a caller able to produce
+// those already gets a fresh bucket from every new address, cap or no cap. The
+// per-key model is what a rotating attacker defeats; this bound only decides
+// how much memory that costs us. Callers still holding a bucket are unaffected
+// unless they have been idle longer than everyone else in the table.
+//
+// Called with l.mu held.
+func (l *Limiter) evictLocked(now time.Time) {
+	coldestKey, coldest := "", now
+	for ip, e := range l.visitors {
+		if now.Sub(e.lastCheck) > visitorRetention {
+			delete(l.visitors, ip)
+			continue
+		}
+		if coldestKey == "" || e.lastCheck.Before(coldest) {
+			coldestKey, coldest = ip, e.lastCheck
+		}
+	}
+	if len(l.visitors) >= maxVisitors && coldestKey != "" {
+		delete(l.visitors, coldestKey)
+	}
+}
+
+// visitorRetention is how long an idle key keeps its bucket. Shared by the
+// periodic sweep and the at-capacity eviction so both agree on what "stale"
+// means.
+const visitorRetention = 10 * time.Minute
+
 func (l *Limiter) cleanup() {
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
@@ -114,7 +161,7 @@ func (l *Limiter) cleanup() {
 		case <-ticker.C:
 			l.mu.Lock()
 			for ip, e := range l.visitors {
-				if time.Since(e.lastCheck) > 10*time.Minute {
+				if time.Since(e.lastCheck) > visitorRetention {
 					delete(l.visitors, ip)
 				}
 			}
