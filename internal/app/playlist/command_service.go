@@ -141,7 +141,7 @@ func (s *CommandService) AddItem(ctx context.Context, playlistID, mediaItemID, p
 			// error) keeps an inaccessible item indistinguishable from a
 			// non-existent one, so a guessed media id can't be probed for existence.
 			if s.libraryAccess != nil && item != nil {
-				ok, accErr := s.libraryAccess.HasAccessForProfile(ctx, profileID, string(item.LibraryID))
+				ok, accErr := s.libraryAccess.HasAccessForProfile(ctx, shared.ProfileID(profileID), item.LibraryID)
 				if accErr != nil {
 					return fmt.Errorf("check library access: %w", accErr)
 				}

@@ -301,11 +301,11 @@ type fakeLibraryAccess struct {
 	err   error
 }
 
-func (f *fakeLibraryAccess) HasAccessForProfile(_ context.Context, _, libraryID string) (bool, error) {
+func (f *fakeLibraryAccess) HasAccessForProfile(_ context.Context, _ shared.ProfileID, libraryID shared.LibraryID) (bool, error) {
 	if f.err != nil {
 		return false, f.err
 	}
-	return f.allow[libraryID], nil
+	return f.allow[string(libraryID)], nil
 }
 
 func TestAddItem_LibraryAccessDenied(t *testing.T) {

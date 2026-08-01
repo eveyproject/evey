@@ -6,6 +6,7 @@ import (
 
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/playlist"
+	"github.com/evey-project/evey/internal/domain/shared"
 )
 
 const maxItems = 500
@@ -32,8 +33,14 @@ type MusicTrackChecker interface {
 // consults library_access. AddItem uses it so a profile cannot add (and then
 // read the metadata of, via GetItems) a media item from a library it has no
 // access to, even when it guesses a valid media id.
+//
+// Les deux identifiants sont TYPÉS, et pas par cosmétique : c'était
+// `(profileID, libraryID string)`, deux chaînes voisines dans un contrôle
+// d'accès, donc les intervertir compilait sans un mot - vérifié le 08-01, le
+// build passait. Un contrôle d'accès inversé autorise silencieusement, il ne
+// refuse pas bruyamment : personne ne l'aurait vu.
 type PlaylistLibraryAccessChecker interface {
-	HasAccessForProfile(ctx context.Context, profileID, libraryID string) (bool, error)
+	HasAccessForProfile(ctx context.Context, profileID shared.ProfileID, libraryID shared.LibraryID) (bool, error)
 }
 
 // Service wraps CommandService + QueryService for backward compatibility.

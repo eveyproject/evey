@@ -68,12 +68,12 @@ type playlistLibraryAccessAdapter struct {
 	access   domainuser.LibraryAccessRepository
 }
 
-func (a playlistLibraryAccessAdapter) HasAccessForProfile(ctx context.Context, profileID, libraryID string) (bool, error) {
-	p, err := a.profiles.GetByID(ctx, shared.ProfileID(profileID))
+func (a playlistLibraryAccessAdapter) HasAccessForProfile(ctx context.Context, profileID shared.ProfileID, libraryID shared.LibraryID) (bool, error) {
+	p, err := a.profiles.GetByID(ctx, profileID)
 	if err != nil {
 		return false, err
 	}
-	return a.access.HasAccess(ctx, p.UserID, shared.LibraryID(libraryID))
+	return a.access.HasAccess(ctx, p.UserID, libraryID)
 }
 
 // mediaItemDurationGetter adapts the cached MediaItem query repo to the
