@@ -346,3 +346,60 @@ describe("usePlaySession: shed preflight scope", () => {
     expect(result.current.streamUrl).not.toBeNull();
   });
 });
+
+// Two taps on the track picker start two negotiations that both run to
+// completion. Whichever ANSWERS last used to win, so when the first
+// round-trip was the slower one the player silently went back to the track
+// the user had just left - no error, no retry, just the wrong audio.
+// The web player has guarded its equivalent rebuild for a while; this is the
+// same guard on the mobile side.
+describe("usePlaySession: concurrent track switches", () => {
+  const realFetch = global.fetch;
+  const fetchMock = vi.fn();
+
+  beforeEach(() => {
+    global.fetch = fetchMock as unknown as typeof fetch;
+    fetchMock.mockReset();
+    fetchMock.mockResolvedValue({ status: 200, headers: { get: () => null }, json: async () => ({}) });
+    stopStreamMock.mockResolvedValue(undefined);
+  });
+  afterEach(() => {
+    global.fetch = realFetch;
+  });
+
+  it("keeps the LAST requested track when an earlier negotiation answers after it", async () => {
+    const { renderHook, waitFor } = await import("@testing-library/react");
+    const { usePlaySession } = await import("./usePlaySession");
+
+    // Two audio tracks: absolute index 1 is the first (relative 0), absolute
+    // index 2 the second (relative 1) - the URL carries the RELATIVE one.
+    const streams = [
+      { type: "MEDIA_STREAM_TYPE_AUDIO", index: 1 },
+      { type: "MEDIA_STREAM_TYPE_AUDIO", index: 2 },
+    ];
+    // Track A resolves slowly, track B quickly: B is asked for second but
+    // answers first, so A's late answer must be discarded.
+    let resolveSlow: ((v: unknown) => void) | null = null;
+    getStreamInfoMock
+      .mockResolvedValueOnce({ playMethod: "PLAY_METHOD_TRANSCODE", mediaStreams: streams }) // mount
+      .mockImplementationOnce(() => new Promise((res) => { resolveSlow = res; }))            // A (slow)
+      .mockResolvedValueOnce({ playMethod: "PLAY_METHOD_TRANSCODE", mediaStreams: streams }); // B (fast)
+    eveyFetchMock.mockResolvedValue({ token: "t1", mediaId: "m1" });
+    startStreamMock.mockImplementation(async () => ({ id: `sess-${startStreamMock.mock.calls.length}` }));
+
+    const { result } = renderHook(() => usePlaySession("m1"));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    result.current.restartWithTracks(1); // A (relative 0) - will stall
+    result.current.restartWithTracks(2); // B (relative 1) - overtakes it
+    await waitFor(() => expect(result.current.streamUrl).toContain("audioTrack=1"));
+
+    // A finally answers, late. It must not overwrite B.
+    resolveSlow?.({ playMethod: "PLAY_METHOD_TRANSCODE", mediaStreams: streams });
+    await new Promise((r) => setTimeout(r, 30));
+
+    expect(result.current.streamUrl).toContain("audioTrack=1");
+    expect(result.current.streamUrl).not.toContain("audioTrack=0");
+    expect(result.current.isError).toBe(false);
+  });
+});

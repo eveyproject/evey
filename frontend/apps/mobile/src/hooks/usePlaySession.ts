@@ -220,9 +220,19 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
   const tokenRef = useRef<string | null>(null);
   const serverUrlRef = useRef<string>("");
   const streamInfoRef = useRef<V1StreamInfo | null>(null);
+  // Which negotiation is the current one. Two taps on the track picker start
+  // two startStream() calls that both run to completion, and whichever answers
+  // LAST used to win - so if the first server round-trip was the slower one,
+  // the player silently went back to the track the user had just left, with no
+  // error to explain it. stoppedRef does not cover this: neither call was
+  // stopped, they simply raced. The web player already guards its equivalent
+  // rebuild (useTranscodePlayback's `if (hls !== hlsRef.current) return`).
+  const generationRef = useRef(0);
 
   const startStream = useCallback(
     async (audioStreamIndex?: number, subtitleStreamIndex?: number, maxHeight?: number) => {
+      const generation = ++generationRef.current;
+      const superseded = () => generation !== generationRef.current;
       try {
         const serverUrl = serverUrlRef.current || ((await getServerUrl()) ?? "");
         serverUrlRef.current = serverUrl;
@@ -272,10 +282,14 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
         if (info.playMethod !== "PLAY_METHOD_DIRECT_PLAY") {
           const shed = await detectShed(url);
           if (shed) {
-            if (!stoppedRef.current) setShedReason(shed);
+            if (!stoppedRef.current && !superseded()) setShedReason(shed);
             return;
           }
         }
+        // A newer selection has been made while we were negotiating: this
+        // answer is about a track the user has already left. Registering a
+        // play session for it would also leave a stray session behind.
+        if (superseded()) return;
 
         const startPosMs = wp?.positionMs && !wp.played ? wp.positionMs : "0";
         const session = await playbackServiceStartStream({
@@ -289,7 +303,7 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
           subtitleStreamIndex,
         });
 
-        if (!stoppedRef.current) {
+        if (!stoppedRef.current && !superseded()) {
           streamInfoRef.current = info;
           setStreamInfo(info);
           setServerUrl(serverUrl);
@@ -300,6 +314,7 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
           }
         }
       } catch (err) {
+        if (superseded()) return; // a superseded attempt must not fail the live one
         console.warn("[player] startStream failed:", err);
         setIsError(true);
       } finally {
