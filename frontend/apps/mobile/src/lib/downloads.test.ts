@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // Two mocks because the module under test now imports from two entry points,
 // and that split is the whole point: in expo-file-system 55 the file helpers
@@ -131,6 +131,7 @@ import {
   purgeOrphanedDownloads,
   getInFlightDownloads,
   getInFlightBytes,
+  isPreparingCompat,
   getDownloadedMedia,
   hasRenderableAudio,
   needsAudioCompatPass,
@@ -1076,5 +1077,115 @@ describe("lost-completion reconciliation", () => {
     const indexWrites = fsMock.writeAsStringAsync.mock.calls.filter((c) => String(c[0]).endsWith("index.json"));
     expect(indexWrites).toHaveLength(0);
     expect(lastPendingWritten()).toEqual([]);
+  });
+});
+
+// The server-prepared compat variant: a pass-needing download first asks the
+// server for the AAC-audio version (seconds of wait beat minutes of on-device
+// re-encode), and EVERY failure shape falls back to today's raw download so
+// an old or opted-out server changes nothing.
+describe("server compat download", () => {
+  function fetchByUrl(routes: Record<string, () => unknown>) {
+    eveyFetchMock.mockImplementation(async ({ url }: { url: string }) => {
+      for (const [suffix, v] of Object.entries(routes)) {
+        if (url.endsWith(suffix)) return v();
+      }
+      return { token: "stream-tok-123" };
+    });
+  }
+
+  afterEach(() => {
+    vi.useRealTimers();
+    eveyFetchMock.mockResolvedValue({ token: "stream-tok-123", mediaId: "m3" });
+  });
+
+  it("downloads the compat variant when the server has it ready", async () => {
+    fetchByUrl({ "/compat-download": () => ({ status: "ready" }) });
+    const pending = startDownload("cp1", "AC3 Film", undefined, { audioCodecs: ["ac3"] });
+    const handlers = await waitForTask("cp1");
+
+    expect(createDownloadTaskMock).toHaveBeenCalledWith(expect.objectContaining({
+      url: "https://evey.test/api/v1/media/cp1/compat-download?token=stream-tok-123",
+      destination: expect.stringContaining("evey-cp1.mkv"),
+    }));
+
+    handlers.begin?.({ expectedBytes: 5000, headers: {} });
+    handlers.done?.({ id: "cp1" });
+    await pending;
+    // The persisted codecs are the VARIANT's, so the on-device pass never
+    // re-runs on a file that is already renderable.
+    const entry = lastIndexWritten().find((i) => i.mediaItemId === "cp1");
+    expect(entry!.audioCodecs).toEqual(["aac"]);
+  });
+
+  it("polls a preparing production until it is ready", async () => {
+    let polls = 0;
+    fetchByUrl({
+      "/compat-download": () => ({ status: "preparing" }),
+      "/compat-download/status": () => (++polls < 2 ? { status: "preparing" } : { status: "ready" }),
+    });
+    vi.useFakeTimers();
+    const pending = startDownload("cp2", "AC3 Film", undefined, { audioCodecs: ["ac3"] });
+    await vi.advanceTimersByTimeAsync(10);
+    expect(isPreparingCompat("cp2")).toBe(true);
+    await vi.advanceTimersByTimeAsync(4000);
+    await vi.advanceTimersByTimeAsync(4000);
+    vi.useRealTimers();
+
+    const handlers = await waitForTask("cp2");
+    expect(polls).toBe(2);
+    expect(isPreparingCompat("cp2")).toBe(false);
+    expect(createDownloadTaskMock).toHaveBeenCalledWith(expect.objectContaining({
+      url: expect.stringContaining("/compat-download?token="),
+    }));
+    handlers.done?.({ id: "cp2" });
+    await pending;
+  });
+
+  it.each([
+    ["endpoint absent (old server)", () => { throw new Error("404"); }],
+    ["production failed", () => ({ status: "failed", error: "disk full" })],
+  ])("falls back to the raw download on %s", async (_name, compatResponse) => {
+    fetchByUrl({ "/compat-download": compatResponse as () => unknown });
+    const pending = startDownload("cp3", "AC3 Film", undefined, { audioCodecs: ["ac3"] });
+    const handlers = await waitForTask("cp3");
+    expect(createDownloadTaskMock).toHaveBeenCalledWith(expect.objectContaining({
+      url: "https://evey.test/api/v1/media/cp3/download?token=stream-tok-123",
+    }));
+    handlers.done?.({ id: "cp3" });
+    await pending;
+    // Raw file: the SOURCE codecs persist, the local pass stays in play.
+    const entry = lastIndexWritten().find((i) => i.mediaItemId === "cp3");
+    expect(entry!.audioCodecs).toEqual(["ac3"]);
+  });
+
+  it("cancel during preparation rejects without ever starting a task", async () => {
+    fetchByUrl({
+      "/compat-download": () => ({ status: "preparing" }),
+      "/compat-download/status": () => ({ status: "preparing" }),
+    });
+    vi.useFakeTimers();
+    const pending = startDownload("cp4", "AC3 Film", undefined, { audioCodecs: ["ac3"] });
+    // Attach the expectation BEFORE the rejection can fire: the abort lands
+    // during a timer advance, and an unobserved rejection fails the run.
+    const rejected = expect(pending).rejects.toThrow("Download cancelled");
+    await vi.advanceTimersByTimeAsync(10);
+    expect(isDownloadCancelable("cp4")).toBe(true);
+    await cancelDownload("cp4");
+    await vi.advanceTimersByTimeAsync(4000);
+    vi.useRealTimers();
+
+    await rejected;
+    expect(createDownloadTaskMock).not.toHaveBeenCalledWith(expect.objectContaining({ id: "cp4" }));
+    expect(getInFlightDownloads().some((d) => d.mediaItemId === "cp4")).toBe(false);
+  });
+
+  it("a renderable-audio download never touches the compat endpoint", async () => {
+    const pending = startDownload("cp5", "AAC Film", undefined, { audioCodecs: ["aac"] });
+    const handlers = await waitForTask("cp5");
+    const urls = eveyFetchMock.mock.calls.map((c) => (c[0] as { url: string }).url);
+    expect(urls.some((u) => u.includes("compat-download"))).toBe(false);
+    handlers.done?.({ id: "cp5" });
+    await pending;
   });
 });

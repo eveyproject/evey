@@ -504,6 +504,83 @@ export interface StartDownloadOptions extends DownloadAuthContext {
   audioCodecs?: string[];
 }
 
+// --- Server-prepared compat download ---------------------------------------
+// When the source's audio is unrenderable here, the server can prepare (once
+// per title, cached for everyone) a variant whose audio is stereo AAC. The
+// phone then downloads a file that just plays, instead of re-encoding for
+// minutes on battery. See prepareCompatDownload for the failure contract.
+
+const COMPAT_POLL_MS = 4000;
+// Bounded by the slowest realistic production (a 4h film at ~10x realtime on
+// the weak-NAS target); past this the raw-download fallback is the better
+// experience than an open-ended wait.
+const COMPAT_PREPARE_TIMEOUT_MS = 30 * 60 * 1000;
+
+const preparingCompat = new Map<string, { cancelled: boolean }>();
+
+// The Downloads screen shows "preparing on the server..." on the in-flight
+// row while this is true (its poll loop picks the change up).
+export function isPreparingCompat(mediaItemId: string): boolean {
+  return preparingCompat.has(mediaItemId);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+/**
+ * Ask the server for the compat variant and wait until it is ready. Every
+ * refusal shape - endpoint absent (old server), feature off, production
+ * failure, timeout, network - collapses to "unavailable", which the caller
+ * treats as "download the raw file like always" (the on-device pass remains
+ * the net). "cancelled" is the user's own abort, surfaced separately so the
+ * download rejects instead of silently continuing raw.
+ */
+async function prepareCompatDownload(mediaItemId: string): Promise<"ready" | "unavailable" | "cancelled"> {
+  const flag = { cancelled: false };
+  preparingCompat.set(mediaItemId, flag);
+  try {
+    let status: string;
+    try {
+      status = (
+        await eveyFetch<{ status: string }>({
+          url: `/api/v1/media/${mediaItemId}/compat-download`,
+          method: "POST",
+        })
+      ).status;
+    } catch (err) {
+      console.log(`evey-dl compat unavailable ${mediaItemId}: ${err instanceof Error ? err.message : err}`);
+      return "unavailable";
+    }
+    console.log(`evey-dl compat ${mediaItemId} ${status}`);
+    const deadline = Date.now() + COMPAT_PREPARE_TIMEOUT_MS;
+    while (status === "preparing" && Date.now() < deadline && !flag.cancelled) {
+      await sleep(COMPAT_POLL_MS);
+      if (flag.cancelled) break;
+      try {
+        status = (
+          await eveyFetch<{ status: string; error?: string }>({
+            url: `/api/v1/media/${mediaItemId}/compat-download/status`,
+            method: "GET",
+          })
+        ).status;
+      } catch {
+        // One dropped poll must not abandon a production that is still
+        // running server-side; the deadline bounds the overall wait.
+      }
+    }
+    if (flag.cancelled) return "cancelled";
+    if (status === "ready") {
+      console.log(`evey-dl compat ready ${mediaItemId}`);
+      return "ready";
+    }
+    console.log(`evey-dl compat gave up ${mediaItemId} (status=${status})`);
+    return "unavailable";
+  } finally {
+    preparingCompat.delete(mediaItemId);
+  }
+}
+
 // Native-side logging of the download engine, on once per process. Field
 // diagnosis of a stalled download is impossible without it: the library is
 // silent by default and a device stuck at 0 bytes leaves no trace in logcat.
@@ -531,23 +608,15 @@ export async function startDownload(
   if (!serverUrl) throw new Error("Not authenticated");
 
   const kind = opts?.kind ?? "video";
-  const ext = resolveExtension(kind, opts?.formatHint);
+  let ext = resolveExtension(kind, opts?.formatHint);
 
   const tokenUrl = opts?.tokenUrl ?? `/api/v1/media/${mediaItemId}/stream-token`;
-  const downloadPath = opts?.downloadPath ?? `/api/v1/media/${mediaItemId}/download`;
+  let downloadPath = opts?.downloadPath ?? `/api/v1/media/${mediaItemId}/download`;
 
   const { token } = await eveyFetch<{ token: string }>({
     url: tokenUrl,
     method: "POST",
   });
-  const streamUrl = `${serverUrl}${downloadPath}?token=${token}`;
-  // Public, VLC-readable destination when the platform offers one; the
-  // app-private id-based path otherwise (legacy shape, still what existing
-  // index entries point at).
-  const pubRoot = await publicMediaRoot();
-  const destPath = pubRoot
-    ? `${pubRoot}/${safeFilename(title, mediaItemId, ext)}`
-    : destPathFor(mediaItemId, ext);
 
   // Keep the unsubscribe so the progress listener is removed when the download
   // settles - otherwise every download permanently leaks its callback into the
@@ -557,11 +626,42 @@ export async function startDownload(
   inFlight.set(mediaItemId, { totalBytes: 0, downloadedBytes: 0 });
   inFlightTitles.set(mediaItemId, title);
 
-  const audioCodecs = opts?.audioCodecs;
+  let audioCodecs = opts?.audioCodecs;
   // Decided at start (audioCodecs came with the item, the device probe is
   // sync): will this file need the post-download audio pass? Videos only -
   // the pass is a video-container remux, a music track never takes it.
-  const compatPass = kind === "video" && needsAudioCompatPass({ audioCodecs }, getDeviceAudioCodecs());
+  let compatPass = kind === "video" && needsAudioCompatPass({ audioCodecs }, getDeviceAudioCodecs());
+
+  // The pass-needing case first tries the SERVER-prepared variant: the audio
+  // is transcoded once per title on the server (seconds to minutes, cached
+  // for every device) instead of minutes of CPU on this phone. Everything
+  // about the failure side falls back to today's behavior - raw download
+  // plus the on-device pass - so an old or opted-out server changes nothing.
+  if (compatPass && !opts?.downloadPath) {
+    const outcome = await prepareCompatDownload(mediaItemId);
+    if (outcome === "cancelled") {
+      inFlight.delete(mediaItemId);
+      inFlightTitles.delete(mediaItemId);
+      unsubscribeProgress?.();
+      throw new Error("Download cancelled");
+    }
+    if (outcome === "ready") {
+      downloadPath = `/api/v1/media/${mediaItemId}/compat-download`;
+      ext = "mkv"; // the compat variant is always Matroska
+      audioCodecs = ["aac"]; // its truth, not the source's - the pass must not re-run
+      compatPass = false; // and the 2x space reservation is no longer needed
+    }
+  }
+
+  const streamUrl = `${serverUrl}${downloadPath}?token=${token}`;
+  // Public, VLC-readable destination when the platform offers one; the
+  // app-private id-based path otherwise (legacy shape, still what existing
+  // index entries point at).
+  const pubRoot = await publicMediaRoot();
+  const destPath = pubRoot
+    ? `${pubRoot}/${safeFilename(title, mediaItemId, ext)}`
+    : destPathFor(mediaItemId, ext);
+
   const authContext: DownloadAuthContext = {
     downloadedByProfileId: opts?.downloadedByProfileId,
     downloadedByIsKids: opts?.downloadedByIsKids,
@@ -842,7 +942,7 @@ async function reconcilePendingDownloads(liveIds: Set<string>): Promise<void> {
 // the Downloads screen uses this to decide whether to render a cancel action
 // on an in-flight row.
 export function isDownloadCancelable(mediaItemId: string): boolean {
-  return activeDownloads.has(mediaItemId);
+  return activeDownloads.has(mediaItemId) || preparingCompat.has(mediaItemId);
 }
 
 /**
@@ -853,6 +953,13 @@ export function isDownloadCancelable(mediaItemId: string): boolean {
  * have to be cleaned up here rather than relying on the task's own handlers.
  */
 export async function cancelDownload(mediaItemId: string): Promise<void> {
+  // Still in the server-preparation phase: no task exists yet. Raising the
+  // flag makes startDownload's own flow clean up and reject.
+  const prep = preparingCompat.get(mediaItemId);
+  if (prep) {
+    prep.cancelled = true;
+    return;
+  }
   const handle = activeDownloads.get(mediaItemId);
   if (!handle) return;
   await clearPending(mediaItemId).catch(() => undefined);

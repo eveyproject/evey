@@ -8,3 +8,4 @@ downloading: Téléchargement...
 totalSize: "{{size}} utilisés sur cet appareil"
 deleted: Téléchargement supprimé
 optimizingAudio: "Optimisation du son... {{percent}}%"
+preparingCompat: "Préparation du son sur le serveur..."

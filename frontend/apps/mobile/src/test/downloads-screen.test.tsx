@@ -84,6 +84,7 @@ vi.mock("../lib/downloads", () => ({
   getInFlightProgress: (...a: unknown[]) => getInFlightProgressMock(...a),
   getInFlightBytes: () => null,
   getInFlightDownloads: (...a: unknown[]) => getInFlightDownloadsMock(...a),
+  isPreparingCompat: () => false,
 }));
 
 // The screen subscribes to the post-download audio pass for a per-row
