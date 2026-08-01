@@ -3,6 +3,7 @@ package postgres_test
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"testing"
 	"time"
 
@@ -129,4 +130,42 @@ func TestMediaRequestRepo_EmptyProviderIDIsNotDeduplicated(t *testing.T) {
 	require.NoError(t, repo.Create(ctx, newTestRequest("req-1", "", mediarequest.StatusPending, uid, pid)))
 	require.NoError(t, repo.Create(ctx, newTestRequest("req-2", "", mediarequest.StatusPending, uid, pid)),
 		"free-text requests have no identity to deduplicate on")
+}
+
+// Requests created in the same burst - a client retry, a seeded batch - share
+// their created_at to the millisecond. Ordering by that column alone leaves
+// their relative order up to the planner, so a row can show up on two pages or
+// on none at all while the operator moderates the queue. The id tiebreaker is
+// what makes the order total; this walks two pages of a tied set and pins that
+// every request appears exactly once.
+func TestMediaRequestRepo_PaginationIsStableOnTiedTimestamps(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	ctx := context.Background()
+	repo, uid, pid := seedRequestOwner(t, db, "tie")
+
+	tied := time.Now().UTC().Truncate(time.Millisecond)
+	ids := []string{"req-a", "req-b", "req-c", "req-d"}
+	for i, id := range ids {
+		req := newTestRequest(id, fmt.Sprintf("tmdb-%d", i), mediarequest.StatusPending, uid, pid)
+		req.CreatedAt = tied
+		req.UpdatedAt = tied
+		require.NoError(t, repo.Create(ctx, req))
+	}
+
+	var paged []string
+	for offset := 0; offset < len(ids); offset += 2 {
+		page, err := repo.ListByProfile(ctx, string(pid), 2, offset)
+		require.NoError(t, err)
+		for _, r := range page {
+			paged = append(paged, r.ID)
+		}
+	}
+	// Asserting the EXACT order, not just the set: with every created_at equal,
+	// a plain "ORDER BY created_at DESC" lets the planner hand back insertion
+	// order, which on this small a table it happily does - so a set-equality
+	// assertion passes with or without the tiebreaker and proves nothing. Only
+	// "id DESC" makes the order total, and only descending ids show it.
+	assert.Equal(t, []string{"req-d", "req-c", "req-b", "req-a"}, paged,
+		"tied timestamps must fall back to the id tiebreaker, giving one total order")
 }

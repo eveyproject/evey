@@ -135,7 +135,7 @@ func (r *MediaRequestRepository) ListByProfile(ctx context.Context, profileID st
 
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT id, profile_id, user_id, media_type, provider, provider_id, title, year, poster_url, status, admin_note, answered_by, created_at, updated_at, answered_at
-		 FROM media_requests WHERE profile_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
+		 FROM media_requests WHERE profile_id = $1 ORDER BY created_at DESC, id DESC LIMIT $2 OFFSET $3`,
 		profileID, limit, offset,
 	)
 	if err != nil {
@@ -164,7 +164,7 @@ func (r *MediaRequestRepository) ListAll(ctx context.Context, statuses []mediare
 	if len(statuses) == 0 {
 		rows, err = txFromCtx(ctx, r.db).QueryContext(ctx,
 			`SELECT id, profile_id, user_id, media_type, provider, provider_id, title, year, poster_url, status, admin_note, answered_by, created_at, updated_at, answered_at
-			 FROM media_requests ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
+			 FROM media_requests ORDER BY created_at DESC, id DESC LIMIT $1 OFFSET $2`,
 			limit, offset,
 		)
 	} else {
@@ -174,7 +174,7 @@ func (r *MediaRequestRepository) ListAll(ctx context.Context, statuses []mediare
 		}
 		rows, err = txFromCtx(ctx, r.db).QueryContext(ctx,
 			`SELECT id, profile_id, user_id, media_type, provider, provider_id, title, year, poster_url, status, admin_note, answered_by, created_at, updated_at, answered_at
-			 FROM media_requests WHERE status = ANY($1) ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
+			 FROM media_requests WHERE status = ANY($1) ORDER BY created_at DESC, id DESC LIMIT $2 OFFSET $3`,
 			pq.Array(statusStrs), limit, offset,
 		)
 	}
