@@ -229,3 +229,37 @@ func TestAvatarServe_PathTraversalBlocked(t *testing.T) {
 		t.Fatalf("expected 403, got %d", w.Code)
 	}
 }
+
+// The serve handler contains the only guard that stops a stored avatar_path
+// from escaping the data directory. It rests on two filepath.Abs calls whose
+// errors were discarded: Abs returns "" on failure, so a failure of the dataDir
+// call alone would turn the containment test into "is this path absolute?" and
+// let the traversal through. The guard must refuse a path it cannot verify, and
+// refuse a traversal it can.
+func TestAvatarServe_RefusesPathOutsideDataDir(t *testing.T) {
+	repo := userfakes.NewFakeProfileRepository()
+	p := seedProfile(t, repo, "p-trav", "u1")
+
+	escape := filepath.Join("..", "..", "etc", "passwd")
+	p.AvatarPath = &escape
+	if err := repo.Update(context.Background(), p); err != nil {
+		t.Fatal(err)
+	}
+
+	dataDir := t.TempDir()
+	h := avatarServeHandler(repo, dataDir)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/profiles/p-trav/avatar", nil)
+	req.SetPathValue("profileId", "p-trav")
+	rec := httptest.NewRecorder()
+	h(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("a stored avatar path pointing outside the data directory returned %d, "+
+			"want 403: the containment guard is the only thing standing between a bad "+
+			"avatar_path and an arbitrary file read", rec.Code)
+	}
+	if strings.Contains(rec.Body.String(), "root:") {
+		t.Fatal("the response carried the contents of a file outside the data directory")
+	}
+}

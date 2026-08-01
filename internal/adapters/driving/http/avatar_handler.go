@@ -217,8 +217,21 @@ func avatarServeHandler(
 
 		w.Header().Set("Cache-Control", "public, max-age=3600")
 		fullPath := filepath.Join(dataDir, *profile.AvatarPath)
-		absData, _ := filepath.Abs(dataDir)
-		absPath, _ := filepath.Abs(fullPath)
+		// Both errors are handled, and not for tidiness. filepath.Abs returns ""
+		// on failure (it consults the working directory for a relative path). If
+		// only the dataDir call failed, absData would be "" and the containment
+		// test below would collapse into "is this path absolute?", letting a
+		// traversal through - the one case this guard exists for. Unresolvable
+		// means unverifiable, so refuse.
+		absData, dataErr := filepath.Abs(dataDir)
+		absPath, pathErr := filepath.Abs(fullPath)
+		if dataErr != nil || pathErr != nil {
+			slog.ErrorContext(r.Context(), "avatar: cannot resolve paths to verify containment",
+				slog.Any("data_dir_err", dataErr), slog.Any("path_err", pathErr))
+			span.SetStatus(otelcodes.Error, "path containment unverifiable")
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
 		if !strings.HasPrefix(absPath, absData+string(filepath.Separator)) {
 			span.SetStatus(otelcodes.Error, "path traversal blocked")
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
