@@ -96,6 +96,14 @@ func (c *CachedMediaItemQueryRepo) GetByFilePath(ctx context.Context, path strin
 	return c.inner.GetByFilePath(ctx, path)
 }
 
+// GetByLibraryTypeTitle is a pure lookup with no write-side caller, moved onto
+// the query port by the ADR-0009 pass. Not cached, for the same reason as
+// GetByFilePath above: a per-tuple cache buys nothing and adds invalidation
+// surface.
+func (c *CachedMediaItemQueryRepo) GetByLibraryTypeTitle(ctx context.Context, libraryID shared.LibraryID, itemType, title, parentID string) (*library.MediaItem, error) {
+	return c.inner.GetByLibraryTypeTitle(ctx, libraryID, itemType, title, parentID)
+}
+
 func (c *CachedMediaItemQueryRepo) List(ctx context.Context, filter library.ListMediaItemsFilter) ([]*library.MediaItem, error) {
 	return c.inner.List(ctx, filter)
 }
