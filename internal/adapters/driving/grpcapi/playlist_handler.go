@@ -64,7 +64,7 @@ func (h *playlistHandler) ListPlaylists(ctx context.Context, req *eveyv1.ListPla
 	if err != nil {
 		return nil, fmt.Errorf("playlistHandler.ListPlaylists: %w", err)
 	}
-	pls, err := h.svc.List(ctx, claims.ProfileID)
+	pls, err := h.svc.List(ctx, shared.ProfileID(claims.ProfileID))
 	if err != nil {
 		return nil, internalError(ctx, "list playlists", err)
 	}
@@ -82,7 +82,7 @@ func (h *playlistHandler) GetPlaylist(ctx context.Context, req *eveyv1.GetPlayli
 	if err != nil {
 		return nil, fmt.Errorf("playlistHandler.GetPlaylist: %w", err)
 	}
-	pl, err := h.svc.GetByID(ctx, req.Id, claims.ProfileID)
+	pl, err := h.svc.GetByID(ctx, req.Id, shared.ProfileID(claims.ProfileID))
 	if err != nil {
 		slog.WarnContext(ctx, "grpc GetPlaylist: query failed", slog.Any("err", err))
 		return nil, status.Error(codes.NotFound, "playlist not found")
@@ -123,7 +123,7 @@ func (h *playlistHandler) UpdatePlaylist(ctx context.Context, req *eveyv1.Update
 	if err != nil {
 		return nil, fmt.Errorf("playlistHandler.UpdatePlaylist: %w", err)
 	}
-	profileID := claims.ProfileID
+	profileID := shared.ProfileID(claims.ProfileID)
 	pl := &playlist.Playlist{
 		ID:          req.Id,
 		Name:        req.Name,
@@ -157,7 +157,7 @@ func (h *playlistHandler) DeletePlaylist(ctx context.Context, req *eveyv1.Delete
 	if err != nil {
 		return nil, fmt.Errorf("playlistHandler.DeletePlaylist: %w", err)
 	}
-	if err := h.svc.Delete(ctx, req.Id, claims.ProfileID); err != nil {
+	if err := h.svc.Delete(ctx, req.Id, shared.ProfileID(claims.ProfileID)); err != nil {
 		if errors.Is(err, appplaylist.ErrNotOwner) || errors.Is(err, shared.ErrNotFound) {
 			// NotFound, not PermissionDenied: a playlist owned by another profile
 			// must be indistinguishable from a non-existent one (matches GetPlaylist).
@@ -175,7 +175,7 @@ func (h *playlistHandler) GetPlaylistItems(ctx context.Context, req *eveyv1.GetP
 	if err != nil {
 		return nil, fmt.Errorf("playlistHandler.GetPlaylistItems: %w", err)
 	}
-	mediaItems, plItems, err := h.svc.GetItems(ctx, req.Id, claims.ProfileID)
+	mediaItems, plItems, err := h.svc.GetItems(ctx, req.Id, shared.ProfileID(claims.ProfileID))
 	if err != nil {
 		if errors.Is(err, appplaylist.ErrNotOwner) || errors.Is(err, shared.ErrNotFound) {
 			// NotFound, not PermissionDenied: a playlist owned by another profile
@@ -271,7 +271,7 @@ func (h *playlistHandler) AddPlaylistItem(ctx context.Context, req *eveyv1.AddPl
 	if err != nil {
 		return nil, fmt.Errorf("playlistHandler.AddPlaylistItem: %w", err)
 	}
-	if err := h.svc.AddItemWithType(ctx, req.Id, req.MediaItemId, claims.ProfileID, req.MediaType); err != nil {
+	if err := h.svc.AddItemWithType(ctx, req.Id, req.MediaItemId, shared.ProfileID(claims.ProfileID), req.MediaType); err != nil {
 		switch {
 		case errors.Is(err, appplaylist.ErrNotOwner), errors.Is(err, shared.ErrNotFound):
 			// NotFound, not PermissionDenied: a playlist owned by another profile
@@ -295,7 +295,7 @@ func (h *playlistHandler) RemovePlaylistItem(ctx context.Context, req *eveyv1.Re
 	if err != nil {
 		return nil, fmt.Errorf("playlistHandler.RemovePlaylistItem: %w", err)
 	}
-	if err := h.svc.RemoveItem(ctx, req.Id, req.MediaItemId, claims.ProfileID); err != nil {
+	if err := h.svc.RemoveItem(ctx, req.Id, req.MediaItemId, shared.ProfileID(claims.ProfileID)); err != nil {
 		if errors.Is(err, appplaylist.ErrNotOwner) || errors.Is(err, shared.ErrNotFound) {
 			// NotFound, not PermissionDenied: a playlist owned by another profile
 			// must be indistinguishable from a non-existent one (matches GetPlaylist).

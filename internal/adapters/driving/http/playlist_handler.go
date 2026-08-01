@@ -26,8 +26,8 @@ import (
 // playlistArchiveSource reads a playlist and its items. Both calls take the
 // caller's profile id, which the service uses to enforce ownership.
 type playlistArchiveSource interface {
-	GetByID(ctx context.Context, id, profileID string) (*playlist.Playlist, error)
-	GetItems(ctx context.Context, playlistID, profileID string) ([]*library.MediaItem, []*playlist.PlaylistItem, error)
+	GetByID(ctx context.Context, id string, profileID shared.ProfileID) (*playlist.Playlist, error)
+	GetItems(ctx context.Context, playlistID string, profileID shared.ProfileID) ([]*library.MediaItem, []*playlist.PlaylistItem, error)
 }
 
 // playlistGenerator builds a taste-weighted music playlist for a profile.
@@ -45,7 +45,7 @@ type musicTrackResolver interface {
 // service enforces ownership the same way GetByID/GetItems do (ErrNotOwner),
 // so a caller can only reorder a playlist it owns.
 type playlistReorderer interface {
-	ReorderItems(ctx context.Context, playlistID, profileID string, mediaItemIDs []string) error
+	ReorderItems(ctx context.Context, playlistID string, profileID shared.ProfileID, mediaItemIDs []string) error
 }
 
 type playlistHandler struct {
@@ -124,7 +124,7 @@ func (h *playlistHandler) reorderItems(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.reorder.ReorderItems(r.Context(), playlistID, claims.ProfileID, ids); err != nil {
+	if err := h.reorder.ReorderItems(r.Context(), playlistID, shared.ProfileID(claims.ProfileID), ids); err != nil {
 		span.RecordError(err)
 		if errors.Is(err, appplaylist.ErrNotOwner) || errors.Is(err, shared.ErrNotFound) {
 			// NotFound, not PermissionDenied: a playlist owned by another
@@ -208,9 +208,9 @@ func (h *playlistHandler) downloadPlaylist(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	profileID := ""
+	var profileID shared.ProfileID
 	if claims != nil {
-		profileID = claims.ProfileID
+		profileID = shared.ProfileID(claims.ProfileID)
 	}
 
 	pl, err := h.plSvc.GetByID(r.Context(), playlistID, profileID)

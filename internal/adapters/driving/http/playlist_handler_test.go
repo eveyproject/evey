@@ -32,11 +32,11 @@ func (s *stubPlaylistGenerator) Generate(_ context.Context, _ string, _ shared.L
 // generatePlaylist does not use plSvc at all, so nil-safe stubs suffice.
 type stubPlaylistArchiveSource struct{}
 
-func (s *stubPlaylistArchiveSource) GetByID(_ context.Context, _, _ string) (*playlist.Playlist, error) {
+func (s *stubPlaylistArchiveSource) GetByID(_ context.Context, _ string, _ shared.ProfileID) (*playlist.Playlist, error) {
 	return nil, errors.New("not implemented in stub")
 }
 
-func (s *stubPlaylistArchiveSource) GetItems(_ context.Context, _, _ string) ([]*domainlibrary.MediaItem, []*playlist.PlaylistItem, error) {
+func (s *stubPlaylistArchiveSource) GetItems(_ context.Context, _ string, _ shared.ProfileID) ([]*domainlibrary.MediaItem, []*playlist.PlaylistItem, error) {
 	return nil, nil, errors.New("not implemented in stub")
 }
 
@@ -265,11 +265,11 @@ var _ = domainuser.Claims{}
 type stubPlaylistReorderer struct {
 	err              error
 	capturedPlaylist string
-	capturedProfile  string
+	capturedProfile  shared.ProfileID
 	capturedIDs      []string
 }
 
-func (s *stubPlaylistReorderer) ReorderItems(_ context.Context, playlistID, profileID string, mediaItemIDs []string) error {
+func (s *stubPlaylistReorderer) ReorderItems(_ context.Context, playlistID string, profileID shared.ProfileID, mediaItemIDs []string) error {
 	s.capturedPlaylist = playlistID
 	s.capturedProfile = profileID
 	s.capturedIDs = mediaItemIDs

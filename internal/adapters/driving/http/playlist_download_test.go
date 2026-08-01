@@ -10,6 +10,7 @@ import (
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/music"
 	"github.com/evey-project/evey/internal/domain/playlist"
+	"github.com/evey-project/evey/internal/domain/shared"
 	domainuser "github.com/evey-project/evey/internal/domain/user"
 )
 
@@ -21,11 +22,11 @@ type fakePlaylistSource struct {
 	itemsErr   error
 }
 
-func (f *fakePlaylistSource) GetByID(_ context.Context, _, _ string) (*playlist.Playlist, error) {
+func (f *fakePlaylistSource) GetByID(_ context.Context, _ string, _ shared.ProfileID) (*playlist.Playlist, error) {
 	return f.pl, f.plErr
 }
 
-func (f *fakePlaylistSource) GetItems(_ context.Context, _, _ string) ([]*domainlibrary.MediaItem, []*playlist.PlaylistItem, error) {
+func (f *fakePlaylistSource) GetItems(_ context.Context, _ string, _ shared.ProfileID) ([]*domainlibrary.MediaItem, []*playlist.PlaylistItem, error) {
 	return f.mediaItems, f.plItems, f.itemsErr
 }
 

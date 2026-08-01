@@ -7,6 +7,7 @@ import (
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/user"
 	"github.com/evey-project/evey/internal/pkg/id"
 	"github.com/evey-project/evey/internal/pkg/tracing"
@@ -49,9 +50,9 @@ func (h *userHandler) AuthorizeQuickConnect(ctx context.Context, req *eveyv1.Aut
 	var fullCode string
 	var err error
 	if len(code) <= 10 {
-		fullCode, err = h.access.AuthorizeByShortCode(ctx, code, claims.UserID)
+		fullCode, err = h.access.AuthorizeByShortCode(ctx, code, shared.UserID(claims.UserID))
 	} else {
-		fullCode, err = h.access.AuthorizeQuickConnect(ctx, code, claims.UserID)
+		fullCode, err = h.access.AuthorizeQuickConnect(ctx, code, shared.UserID(claims.UserID))
 	}
 	if err != nil {
 		slog.ErrorContext(ctx, "authorize quick connect", slog.Any("err", err))

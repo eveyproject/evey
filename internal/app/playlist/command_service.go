@@ -67,7 +67,7 @@ func (s *CommandService) Create(ctx context.Context, pl *playlist.Playlist) erro
 	return s.playlists.Create(ctx, pl)
 }
 
-func (s *CommandService) Update(ctx context.Context, pl *playlist.Playlist, profileID string) error {
+func (s *CommandService) Update(ctx context.Context, pl *playlist.Playlist, profileID shared.ProfileID) error {
 	ctx, span := tracing.StartSpan(ctx, "app.playlist.Update")
 	defer span.End()
 	if pl.Name == "" {
@@ -87,7 +87,12 @@ func (s *CommandService) Update(ctx context.Context, pl *playlist.Playlist, prof
 	return s.playlists.Update(ctx, pl)
 }
 
-func (s *CommandService) Delete(ctx context.Context, id, profileID string) error {
+// id and profileID were two adjacent bare strings deciding ownership - the
+// same shape fixed in fcdef433d for the library-access check. Typed the same
+// way: profileID is shared.ProfileID so a future accidental argument swap
+// with a resource id fails to compile instead of silently deleting/exposing
+// the wrong profile's data.
+func (s *CommandService) Delete(ctx context.Context, id string, profileID shared.ProfileID) error {
 	ctx, span := tracing.StartSpan(ctx, "app.playlist.Delete")
 	defer span.End()
 	existing, err := s.playlists.GetByID(ctx, id)
@@ -100,7 +105,7 @@ func (s *CommandService) Delete(ctx context.Context, id, profileID string) error
 	return s.playlists.Delete(ctx, id)
 }
 
-func (s *CommandService) AddItem(ctx context.Context, playlistID, mediaItemID, profileID, mediaType string) error {
+func (s *CommandService) AddItem(ctx context.Context, playlistID, mediaItemID string, profileID shared.ProfileID, mediaType string) error {
 	ctx, span := tracing.StartSpan(ctx, "app.playlist.AddItem")
 	defer span.End()
 	pl, err := s.playlists.GetByID(ctx, playlistID)
@@ -141,7 +146,7 @@ func (s *CommandService) AddItem(ctx context.Context, playlistID, mediaItemID, p
 			// error) keeps an inaccessible item indistinguishable from a
 			// non-existent one, so a guessed media id can't be probed for existence.
 			if s.libraryAccess != nil && item != nil {
-				ok, accErr := s.libraryAccess.HasAccessForProfile(ctx, shared.ProfileID(profileID), item.LibraryID)
+				ok, accErr := s.libraryAccess.HasAccessForProfile(ctx, profileID, item.LibraryID)
 				if accErr != nil {
 					return fmt.Errorf("check library access: %w", accErr)
 				}
@@ -166,7 +171,7 @@ func (s *CommandService) AddItem(ctx context.Context, playlistID, mediaItemID, p
 	return err
 }
 
-func (s *CommandService) RemoveItem(ctx context.Context, playlistID, mediaItemID, profileID string) error {
+func (s *CommandService) RemoveItem(ctx context.Context, playlistID, mediaItemID string, profileID shared.ProfileID) error {
 	ctx, span := tracing.StartSpan(ctx, "app.playlist.RemoveItem")
 	defer span.End()
 	pl, err := s.playlists.GetByID(ctx, playlistID)
@@ -182,7 +187,7 @@ func (s *CommandService) RemoveItem(ctx context.Context, playlistID, mediaItemID
 	return s.items.Remove(ctx, playlistID, mediaItemID)
 }
 
-func (s *CommandService) ReorderItems(ctx context.Context, playlistID, profileID string, mediaItemIDs []string) error {
+func (s *CommandService) ReorderItems(ctx context.Context, playlistID string, profileID shared.ProfileID, mediaItemIDs []string) error {
 	ctx, span := tracing.StartSpan(ctx, "app.playlist.ReorderItems")
 	defer span.End()
 	pl, err := s.playlists.GetByID(ctx, playlistID)

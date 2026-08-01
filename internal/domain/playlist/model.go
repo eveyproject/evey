@@ -78,8 +78,8 @@ func NewPlaylist(name, profileID string, ptype PlaylistType) (*Playlist, error) 
 }
 
 // IsOwnedBy reports whether the playlist belongs to the given profile.
-func (p *Playlist) IsOwnedBy(profileID string) bool {
-	return p.ProfileID == shared.ProfileID(profileID)
+func (p *Playlist) IsOwnedBy(profileID shared.ProfileID) bool {
+	return p.ProfileID == profileID
 }
 
 func (p *Playlist) IsSmart() bool {

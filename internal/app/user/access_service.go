@@ -231,27 +231,37 @@ func (s *AccessService) InitiateQuickConnect(ctx context.Context, req *user.Quic
 	return nil
 }
 
-func (s *AccessService) AuthorizeQuickConnect(ctx context.Context, code string, userID string) (fullCode string, err error) {
+// code identifies the pending QuickConnect request; userID identifies the
+// already-authenticated caller approving it. Two adjacent bare strings here
+// would compile if swapped - the same shape fixed in fcdef433d - and a swap
+// would record the WRONG user as having approved the login, an authorization
+// mixup, not just a lookup miss. userID is typed shared.UserID so that no
+// longer compiles.
+func (s *AccessService) AuthorizeQuickConnect(ctx context.Context, code string, userID shared.UserID) (fullCode string, err error) {
 	ctx, span := tracing.StartSpan(ctx, "app.user.AuthorizeQuickConnect")
 	defer span.End()
 	req, err := s.quickConnect.GetByCode(ctx, code)
 	if err != nil {
 		return "", fmt.Errorf("AccessService.AuthorizeQuickConnect: %w", err)
 	}
-	if err := s.quickConnect.UpdateStatus(ctx, req.ID, string(user.Authorized), &userID); err != nil {
+	uid := string(userID)
+	if err := s.quickConnect.UpdateStatus(ctx, req.ID, string(user.Authorized), &uid); err != nil {
 		return "", fmt.Errorf("AccessService.AuthorizeQuickConnect: %w", err)
 	}
 	return req.Code, nil
 }
 
-func (s *AccessService) AuthorizeByShortCode(ctx context.Context, shortCode string, userID string) (fullCode string, err error) {
+// See AuthorizeQuickConnect: same identity mixup risk between the request's
+// short code and the approving user's id.
+func (s *AccessService) AuthorizeByShortCode(ctx context.Context, shortCode string, userID shared.UserID) (fullCode string, err error) {
 	ctx, span := tracing.StartSpan(ctx, "app.user.AuthorizeByShortCode")
 	defer span.End()
 	req, err := s.quickConnect.GetByShortCode(ctx, shortCode)
 	if err != nil {
 		return "", fmt.Errorf("AccessService.AuthorizeByShortCode: %w", err)
 	}
-	if err := s.quickConnect.UpdateStatus(ctx, req.ID, string(user.Authorized), &userID); err != nil {
+	uid := string(userID)
+	if err := s.quickConnect.UpdateStatus(ctx, req.ID, string(user.Authorized), &uid); err != nil {
 		return "", fmt.Errorf("AccessService.AuthorizeByShortCode: %w", err)
 	}
 	return req.Code, nil
