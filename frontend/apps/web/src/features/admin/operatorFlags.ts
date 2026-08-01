@@ -21,6 +21,16 @@ export interface OperatorFlag {
 
 export const OPERATOR_FLAGS: OperatorFlag[] = [
   {
+    key: "downloads.quality_choice",
+    envVar: "EVEY_DOWNLOAD_QUALITY_CHOICE",
+    valueHint: "on (default: off)",
+  },
+  {
+    key: "downloads.reduce_above_bytes",
+    envVar: "EVEY_DOWNLOAD_REDUCE_ABOVE_BYTES",
+    valueHint: "bytes, > 0 (default: 4294967296 = 4 GiB)",
+  },
+  {
     key: "transcoding.compat_download",
     envVar: "EVEY_COMPAT_DOWNLOAD",
     valueHint: "off (default: on)",

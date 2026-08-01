@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"runtime/debug"
+	"strconv"
 	"time"
 
 	"github.com/evey-project/evey/internal/adapters/driven/pluginrunner"
@@ -89,6 +90,28 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		compatTranscoder = ffmpeg.NewCompatTranscoder("ffmpeg")
 	}
 
+	// Reduced (720p) download: OFF by default, the opposite posture from
+	// compat-download and deliberately so. Compat re-encodes audio only and
+	// clears a film in minutes; this re-encodes VIDEO at roughly realtime on a
+	// weak NAS, so an operator who never asked for it must never discover it
+	// by watching their box grind through a two-hour film.
+	var reducedTranscoder httpapi.ReducedTranscoder
+	if v := resolveFlag(ctx, deps.repos.serverCfgRepo, "downloads.quality_choice", "EVEY_DOWNLOAD_QUALITY_CHOICE"); v == "on" || v == "true" {
+		reducedTranscoder = ffmpeg.NewReducedTranscoder("ffmpeg")
+		slog.Info("reduced (720p) download enabled (downloads.quality_choice=on)")
+	}
+	// The size above which the app offers the lighter copy. The phone ORs this
+	// with its own "it does not fit here" check, which no server can know.
+	reducedOfferAbove := int64(4 << 30)
+	if v := resolveFlag(ctx, deps.repos.serverCfgRepo, "downloads.reduce_above_bytes", "EVEY_DOWNLOAD_REDUCE_ABOVE_BYTES"); v != "" {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil && n > 0 {
+			reducedOfferAbove = n
+		} else {
+			slog.Warn("downloads.reduce_above_bytes is not a positive byte count, keeping the default",
+				slog.String("value", v), slog.Int64("default", reducedOfferAbove))
+		}
+	}
+
 	srv := &httpapi.HTTPServer{
 		BaseURL:   cfg.EffectiveBaseURL,
 		Version:   version,
@@ -110,6 +133,9 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		Scheduler:        deps.library.scheduler,
 		Remuxer:          deps.media.mkvAdapter,
 		CompatTranscoder: compatTranscoder,
+
+		ReducedTranscoder:      reducedTranscoder,
+		ReducedOfferAboveBytes: reducedOfferAbove,
 
 		OIDCSvc:         deps.user.oidcSvc,
 		UserAuthSvc:     deps.user.authSvc,

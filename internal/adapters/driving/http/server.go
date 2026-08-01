@@ -94,6 +94,15 @@ type HTTPServer struct {
 	// re-encoded to stereo AAC, everything else copied) served by the
 	// compat-download routes. Optional: nil disables them.
 	CompatTranscoder CompatTranscoder
+	// ReducedTranscoder produces the size-reduced (720p) download variant as
+	// slices the phone joins locally. Optional: nil disables the routes, which
+	// is the DEFAULT - the feature costs an hour of NAS CPU per film, so the
+	// operator opts in. See downloads.quality_choice.
+	ReducedTranscoder ReducedTranscoder
+	// ReducedOfferAboveBytes is the source size above which the app offers the
+	// lighter copy (downloads.reduce_above_bytes). The phone ORs it with its
+	// own "it does not fit on this device" trigger.
+	ReducedOfferAboveBytes int64
 
 	// User
 	OIDCSvc         *appuser.OIDCService
@@ -472,6 +481,19 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 		mux.HandleFunc("POST /api/v1/media/{id}/compat-download", streamAuth(ratelimit.MiddlewareFunc(s.GlobalRL, compat.handlePrepare)))
 		mux.HandleFunc("GET /api/v1/media/{id}/compat-download/status", streamAuth(compat.handleStatus))
 		mux.HandleFunc("GET /api/v1/media/{id}/compat-download", streamAuth(ratelimit.MiddlewareFunc(s.GlobalRL, s.StreamMeter.Middleware(compat.handleServe))))
+	}
+	// Reduced download: the 720p variant for sources too big to fit on a
+	// phone, delivered as Matroska slices the device joins itself. /plan is
+	// the "should we even offer this" probe (no work started); the slices go
+	// out under the same guards and metering as the raw download.
+	if s.ReducedTranscoder != nil {
+		reduced := newReducedServe(s.LibQuerySvc, s.LibQuerySvc, s.LibraryAccessRepo, parentalChk, s.LibQuerySvc, s.ReducedTranscoder, s.Cfg.Transcoding.CacheDir, s.BaseURL(), s.ReducedOfferAboveBytes)
+		reduced.startIdleSweep(s.ServerCtx)
+		mux.HandleFunc("GET /api/v1/media/{id}/reduced-download/plan", streamAuth(reduced.handlePlan))
+		mux.HandleFunc("POST /api/v1/media/{id}/reduced-download", streamAuth(ratelimit.MiddlewareFunc(s.GlobalRL, reduced.handlePrepare)))
+		mux.HandleFunc("GET /api/v1/media/{id}/reduced-download/status", streamAuth(reduced.handleStatus))
+		mux.HandleFunc("GET /api/v1/media/{id}/reduced-download/slice/{n}", streamAuth(ratelimit.MiddlewareFunc(s.GlobalRL, s.StreamMeter.Middleware(reduced.handleSlice))))
+		mux.HandleFunc("DELETE /api/v1/media/{id}/reduced-download", streamAuth(ratelimit.MiddlewareFunc(s.GlobalRL, reduced.handleDiscard)))
 	}
 	// Public share download: no auth - the uuid token is the capability.
 	// Admin-only to CREATE (RBAC), but the resulting link must resolve without
