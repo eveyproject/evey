@@ -124,6 +124,26 @@ func (r *MusicTrackRepository) Delete(ctx context.Context, id string) error {
 	return err
 }
 
+// CountByLibrary counts a library's tracks without reading them. Same reason as
+// photo: the list query carries a COUNT(*) OVER() window, so using it as a
+// counter reads and sorts the whole library.
+func (r *MusicTrackRepository) CountByLibrary(ctx context.Context, libraryID shared.LibraryID) (int, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.music.CountByLibrary")
+	defer span.End()
+	span.SetAttributes(attribute.String("library.id", string(libraryID)))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	var n int
+	err := txFromCtx(ctx, r.db).QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM music_tracks WHERE library_id = $1`, libraryID).Scan(&n)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return 0, err
+	}
+	return n, nil
+}
+
 func (r *MusicTrackRepository) ListByLibrary(ctx context.Context, libraryID shared.LibraryID, limit, offset int, search string) ([]music.Track, int, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.musictrack.ListByLibrary")
 	defer span.End()

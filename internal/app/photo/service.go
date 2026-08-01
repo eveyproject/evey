@@ -31,6 +31,10 @@ func (s *Service) DeletePhoto(ctx context.Context, photoID string) error {
 	return s.cmd.DeletePhoto(ctx, photoID)
 }
 
+func (s *Service) CountPhotos(ctx context.Context, libraryID shared.LibraryID) (int, error) {
+	return s.query.CountPhotos(ctx, libraryID)
+}
+
 func (s *Service) ListPhotos(ctx context.Context, libraryID shared.LibraryID, limit, offset int) ([]photo.Photo, int, error) {
 	return s.query.ListPhotos(ctx, libraryID, limit, offset)
 }

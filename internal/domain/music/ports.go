@@ -12,6 +12,10 @@ import (
 type TrackReader interface {
 	GetByID(ctx context.Context, id string) (*Track, error)
 	ListByLibrary(ctx context.Context, libraryID shared.LibraryID, limit, offset int, search string) ([]Track, int, error)
+	// CountByLibrary returns just the number of tracks in a library. See the
+	// note on photo.Repository.CountByLibrary: the list query pays a
+	// COUNT(*) OVER() over the whole library, so it is the wrong counter.
+	CountByLibrary(ctx context.Context, libraryID shared.LibraryID) (int, error)
 	ListAllByLibrary(ctx context.Context, libraryID shared.LibraryID) ([]Track, error)
 	ListByAlbum(ctx context.Context, album, artist string) ([]Track, error)
 	ListByLibraryAndAlbum(ctx context.Context, libraryID shared.LibraryID, album string) ([]Track, error)

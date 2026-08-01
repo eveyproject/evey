@@ -116,6 +116,27 @@ func (r *PhotoRepository) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
+// CountByLibrary counts a library's photos without reading them. The stats
+// endpoint loops over every library, and the previous form (ListByLibrary with
+// limit=1, rows discarded) paid a full read + sort per library because of the
+// COUNT(*) OVER() window in the list query.
+func (r *PhotoRepository) CountByLibrary(ctx context.Context, libraryID shared.LibraryID) (int, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.photo.CountByLibrary")
+	defer span.End()
+	span.SetAttributes(attribute.String("library.id", string(libraryID)))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	var n int
+	err := txFromCtx(ctx, r.db).QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM photos WHERE library_id = $1`, libraryID).Scan(&n)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return 0, err
+	}
+	return n, nil
+}
+
 func (r *PhotoRepository) ListByLibrary(ctx context.Context, libraryID shared.LibraryID, limit, offset int) ([]photo.Photo, int, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.photo.ListByLibrary")
 	defer span.End()

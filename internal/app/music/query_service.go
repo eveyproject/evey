@@ -73,6 +73,13 @@ func (s *QueryService) GetTrackArt(ctx context.Context, trackID string) (data []
 	return pic.Data, mt, nil
 }
 
+// CountTracks returns the library's track count without reading its rows.
+func (s *QueryService) CountTracks(ctx context.Context, libraryID shared.LibraryID) (int, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.music.CountTracks")
+	defer span.End()
+	return s.tracks.CountByLibrary(ctx, libraryID)
+}
+
 func (s *QueryService) ListTracks(ctx context.Context, libraryID shared.LibraryID, limit, offset int, search string) ([]music.Track, int, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.music.ListTracks")
 	defer span.End()

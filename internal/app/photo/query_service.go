@@ -17,6 +17,13 @@ func NewQueryService(repo photo.Repository) *QueryService {
 	return &QueryService{repo: repo}
 }
 
+// CountPhotos returns the library's photo count without reading its rows.
+func (s *QueryService) CountPhotos(ctx context.Context, libraryID shared.LibraryID) (int, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.photo.CountPhotos")
+	defer span.End()
+	return s.repo.CountByLibrary(ctx, libraryID)
+}
+
 func (s *QueryService) ListPhotos(ctx context.Context, libraryID shared.LibraryID, limit, offset int) ([]photo.Photo, int, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.photo.ListPhotos")
 	defer span.End()

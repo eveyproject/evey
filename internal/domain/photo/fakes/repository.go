@@ -80,6 +80,21 @@ func (r *FakeRepository) ListByLibrary(_ context.Context, libraryID shared.Libra
 	return result, total, nil
 }
 
+func (r *FakeRepository) CountByLibrary(_ context.Context, libraryID shared.LibraryID) (int, error) {
+	if r.Err != nil {
+		return 0, r.Err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	n := 0
+	for _, p := range r.photos {
+		if p.LibraryID == libraryID {
+			n++
+		}
+	}
+	return n, nil
+}
+
 func (r *FakeRepository) ListByAlbum(_ context.Context, libraryID shared.LibraryID, album string, limit, offset int) ([]photo.Photo, int, error) {
 	if r.Err != nil {
 		return nil, 0, r.Err

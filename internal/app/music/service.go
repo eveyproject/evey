@@ -56,6 +56,10 @@ func (s *Service) GetTrackArt(ctx context.Context, trackID string) (data []byte,
 	return s.query.GetTrackArt(ctx, trackID)
 }
 
+func (s *Service) CountTracks(ctx context.Context, libraryID shared.LibraryID) (int, error) {
+	return s.query.CountTracks(ctx, libraryID)
+}
+
 func (s *Service) ListTracks(ctx context.Context, libraryID shared.LibraryID, limit, offset int, search string) ([]music.Track, int, error) {
 	return s.query.ListTracks(ctx, libraryID, limit, offset, search)
 }

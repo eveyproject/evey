@@ -12,6 +12,11 @@ type Repository interface {
 	GetByID(ctx context.Context, id string) (*Photo, error)
 	Delete(ctx context.Context, id string) error
 	ListByLibrary(ctx context.Context, libraryID shared.LibraryID, limit, offset int) ([]Photo, int, error)
+	// CountByLibrary returns just the number of photos in a library. Callers that
+	// only need the count must NOT reach for ListByLibrary with limit=1: that
+	// query carries a COUNT(*) OVER() window, so it reads and sorts every row of
+	// the library to hand back one.
+	CountByLibrary(ctx context.Context, libraryID shared.LibraryID) (int, error)
 	ListAllByLibrary(ctx context.Context, libraryID shared.LibraryID) ([]Photo, error)
 	ListByAlbum(ctx context.Context, libraryID shared.LibraryID, album string, limit, offset int) ([]Photo, int, error)
 	GetAlbums(ctx context.Context, libraryID shared.LibraryID) ([]Album, error)

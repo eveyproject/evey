@@ -39,18 +39,20 @@ func NewLibraryItemCounter(lib *applibrary.QueryService, music *appmusic.Service
 
 func (c *libraryItemCounter) CountByLibrary(ctx context.Context, libraryID shared.LibraryID, libType string) (int, error) {
 	switch domainlibrary.LibraryType(libType) {
+	// Count, not "list one row and read the total off it". The music and photo
+	// list queries carry a COUNT(*) OVER() window, so asking them for a single
+	// row still read and sorted the whole library - and this runs once per
+	// library on a stats page that loops over all of them.
 	case domainlibrary.Music:
 		if c.music == nil {
 			return 0, nil
 		}
-		_, total, err := c.music.ListTracks(ctx, libraryID, 1, 0, "")
-		return total, err
+		return c.music.CountTracks(ctx, libraryID)
 	case domainlibrary.Photo:
 		if c.photo == nil {
 			return 0, nil
 		}
-		_, total, err := c.photo.ListPhotos(ctx, libraryID, 1, 0)
-		return total, err
+		return c.photo.CountPhotos(ctx, libraryID)
 	default:
 		if c.lib == nil {
 			return 0, nil

@@ -218,3 +218,55 @@ func TestPhotoRepo_UpdateFilePath(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "/photos/new_path.jpg", got.FilePath)
 }
+
+// The stats endpoint used to obtain this number by calling ListByLibrary with
+// limit=1 and throwing the rows away - which still paid the list query's
+// COUNT(*) OVER() window over the entire library, once per library. The
+// dedicated counter must agree with the list total exactly, and must count only
+// the library it was asked about.
+func TestPhotoRepo_CountByLibrary_AgreesWithListTotal(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	libRepo := postgres.NewLibraryRepository(db)
+	repo := postgres.NewPhotoRepository(db)
+	ctx := context.Background()
+
+	lib := newTestLibrary("ph-count-a")
+	lib.Type = "photo"
+	require.NoError(t, libRepo.Create(ctx, lib))
+	other := newTestLibrary("ph-count-b")
+	other.Type = "photo"
+	require.NoError(t, libRepo.Create(ctx, other))
+
+	for _, id := range []string{"pc1", "pc2", "pc3"} {
+		p := newTestPhoto(id, lib.ID, "")
+		p.FilePath = "/photos/" + id + ".jpg"
+		require.NoError(t, repo.Upsert(ctx, p))
+	}
+	stray := newTestPhoto("pc-other", other.ID, "")
+	stray.FilePath = "/photos/pc-other.jpg"
+	require.NoError(t, repo.Upsert(ctx, stray))
+
+	_, total, err := repo.ListByLibrary(ctx, lib.ID, 1, 0)
+	require.NoError(t, err)
+
+	n, err := repo.CountByLibrary(ctx, lib.ID)
+	require.NoError(t, err)
+	assert.Equal(t, total, n, "the counter disagrees with the list total it replaced")
+	assert.Equal(t, 3, n)
+
+	// A photo in another library must not be counted, or every library would
+	// report the whole server's total.
+	nOther, err := repo.CountByLibrary(ctx, other.ID)
+	require.NoError(t, err)
+	assert.Equal(t, 1, nOther)
+
+	// An empty library is 0, not an error - the stats page renders it.
+	empty := newTestLibrary("ph-count-empty")
+	empty.Type = "photo"
+	require.NoError(t, libRepo.Create(ctx, empty))
+	nEmpty, err := repo.CountByLibrary(ctx, empty.ID)
+	require.NoError(t, err)
+	assert.Equal(t, 0, nEmpty)
+}

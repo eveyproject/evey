@@ -630,3 +630,45 @@ func TestMusicTrackRepo_UpdateFilePath(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "/music/new_path.flac", got.FilePath)
 }
+
+// Same contract as the photo counter: the stats endpoint replaced a
+// list-one-row-and-read-the-total call with this, so it must agree exactly and
+// stay scoped to its own library.
+func TestMusicTrackRepo_CountByLibrary_AgreesWithListTotal(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	libRepo := postgres.NewLibraryRepository(db)
+	repo := postgres.NewMusicTrackRepository(db)
+	ctx := context.Background()
+
+	lib := newTestLibrary("mt-count-a")
+	lib.Type = "music"
+	require.NoError(t, libRepo.Create(ctx, lib))
+	other := newTestLibrary("mt-count-b")
+	other.Type = "music"
+	require.NoError(t, libRepo.Create(ctx, other))
+
+	for i, id := range []string{"mc1", "mc2", "mc3"} {
+		tr := newTestTrack(id, lib.ID, "Song "+id, "Art", "Alb")
+		tr.FilePath = fmt.Sprintf("/music/%s-%d.flac", id, i)
+		_, uerr := repo.Upsert(ctx, tr)
+		require.NoError(t, uerr)
+	}
+	stray := newTestTrack("mc-other", other.ID, "Elsewhere", "Art", "Alb")
+	stray.FilePath = "/music/mc-other.flac"
+	_, uerr := repo.Upsert(ctx, stray)
+	require.NoError(t, uerr)
+
+	_, total, err := repo.ListByLibrary(ctx, lib.ID, 1, 0, "")
+	require.NoError(t, err)
+
+	n, err := repo.CountByLibrary(ctx, lib.ID)
+	require.NoError(t, err)
+	assert.Equal(t, total, n, "the counter disagrees with the list total it replaced")
+	assert.Equal(t, 3, n)
+
+	nOther, err := repo.CountByLibrary(ctx, other.ID)
+	require.NoError(t, err)
+	assert.Equal(t, 1, nOther)
+}
