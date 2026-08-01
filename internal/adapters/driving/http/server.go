@@ -468,7 +468,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	// once-per-title) production; GET /status is the poll; the bare GET serves
 	// the finished MKV under the same guards and metering as the raw download.
 	if s.CompatTranscoder != nil {
-		compat := newCompatServe(s.LibQuerySvc, s.LibraryAccessRepo, parentalChk, s.LibQuerySvc, s.CompatTranscoder, s.Cfg.Transcoding.CacheDir, s.BaseURL())
+		compat := newCompatServe(s.LibQuerySvc, s.LibQuerySvc, s.LibraryAccessRepo, parentalChk, s.LibQuerySvc, s.CompatTranscoder, s.Cfg.Transcoding.CacheDir, s.BaseURL())
 		mux.HandleFunc("POST /api/v1/media/{id}/compat-download", streamAuth(ratelimit.MiddlewareFunc(s.GlobalRL, compat.handlePrepare)))
 		mux.HandleFunc("GET /api/v1/media/{id}/compat-download/status", streamAuth(compat.handleStatus))
 		mux.HandleFunc("GET /api/v1/media/{id}/compat-download", streamAuth(ratelimit.MiddlewareFunc(s.GlobalRL, s.StreamMeter.Middleware(compat.handleServe))))

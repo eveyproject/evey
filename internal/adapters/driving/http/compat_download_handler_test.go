@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
 )
 
@@ -36,9 +37,22 @@ func (f *fakeCompatTranscoder) TranscodeCompat(_ context.Context, _, dst string)
 	return os.WriteFile(dst, f.payload, 0o644)
 }
 
+// fakeCompatStreams answers the "does the file already carry a renderable
+// track" question with a fixed codec list.
+type fakeCompatStreams struct{ codecs []string }
+
+func (f *fakeCompatStreams) GetMediaStreams(context.Context, string) ([]*domainlibrary.MediaStream, error) {
+	var out []*domainlibrary.MediaStream
+	for _, c := range f.codecs {
+		out = append(out, &domainlibrary.MediaStream{StreamType: domainlibrary.Audio, Codec: c})
+	}
+	return out, nil
+}
+
 func newTestCompatServe(t *testing.T, tr CompatTranscoder, access LibraryAccessChecker) *compatServe {
 	t.Helper()
-	h := newCompatServe(&fakeMediaItemGetter{item: testMediaItem("lib1")}, access, testFakeParentalChecker{}, nil, tr, t.TempDir(), "http://localhost")
+	streams := &fakeCompatStreams{codecs: []string{"ac3"}}
+	h := newCompatServe(&fakeMediaItemGetter{item: testMediaItem("lib1")}, streams, access, testFakeParentalChecker{}, nil, tr, t.TempDir(), "http://localhost")
 	return h
 }
 
@@ -105,6 +119,33 @@ func TestCompatDownload_PrepareProduceServe(t *testing.T) {
 	h.handleServe(rec, req)
 	assert.Equal(t, http.StatusPartialContent, rec.Code)
 	assert.Equal(t, "compat", rec.Body.String())
+}
+
+// The owner's invariant: the transcode runs when and ONLY when the device
+// says it cannot play the file as it is. A client declaring it renders one of
+// the file's own codecs gets "unnecessary" and zero NAS work.
+func TestCompatDownload_UnnecessaryWhenClientRendersTheSource(t *testing.T) {
+	tr := &fakeCompatTranscoder{payload: []byte("x")}
+	h := newTestCompatServe(t, tr, allowAll()) // source audio: ac3
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/media/m1/compat-download?renderable=aac,mp3,ac3", nil)
+	req.SetPathValue("id", "m1")
+	req = withHTTPClaims(req, testClaims(false))
+	w := httptest.NewRecorder()
+	h.handlePrepare(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "unnecessary", decodeCompatStatus(t, w)["status"])
+	assert.EqualValues(t, 0, tr.calls.Load())
+
+	// The same client WITHOUT ac3 in its declaration does need the variant.
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/media/m1/compat-download?renderable=aac,mp3", nil)
+	req.SetPathValue("id", "m1")
+	req = withHTTPClaims(req, testClaims(false))
+	w = httptest.NewRecorder()
+	h.handlePrepare(w, req)
+	assert.Equal(t, http.StatusAccepted, w.Code)
+	waitCompatStatus(t, h, "ready")
+	assert.EqualValues(t, 1, tr.calls.Load())
 }
 
 func TestCompatDownload_FailureIsReportedAndRetryable(t *testing.T) {

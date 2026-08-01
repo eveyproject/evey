@@ -1087,9 +1087,12 @@ describe("lost-completion reconciliation", () => {
 describe("server compat download", () => {
   function fetchByUrl(routes: Record<string, () => unknown>) {
     eveyFetchMock.mockImplementation(async ({ url }: { url: string }) => {
-      for (const [suffix, v] of Object.entries(routes)) {
-        if (url.endsWith(suffix)) return v();
-      }
+      // Longest-match on path fragments: the POST now carries a ?renderable=
+      // declaration, so "/compat-download/status" must win over its prefix.
+      const hit = Object.keys(routes)
+        .filter((s) => url.includes(s))
+        .sort((a, b) => b.length - a.length)[0];
+      if (hit) return routes[hit]();
       return { token: "stream-tok-123" };
     });
   }
@@ -1178,6 +1181,30 @@ describe("server compat download", () => {
     await rejected;
     expect(createDownloadTaskMock).not.toHaveBeenCalledWith(expect.objectContaining({ id: "cp4" }));
     expect(getInFlightDownloads().some((d) => d.mediaItemId === "cp4")).toBe(false);
+  });
+
+  it("declares the device codecs so the server can refuse a pointless job", async () => {
+    fetchByUrl({ "/compat-download": () => ({ status: "ready" }) });
+    const pending = startDownload("cp6", "AC3 Film", undefined, { audioCodecs: ["ac3"] });
+    const handlers = await waitForTask("cp6");
+    const postUrl = eveyFetchMock.mock.calls.map((c) => (c[0] as { url: string }).url).find((u) => u.includes("compat-download"));
+    expect(postUrl).toContain("renderable=aac%2Cmp3%2Copus%2Cflac");
+    handlers.done?.({ id: "cp6" });
+    await pending;
+  });
+
+  it("a DTS-only film takes the server path too (the local pass never could)", async () => {
+    fetchByUrl({ "/compat-download": () => ({ status: "ready" }) });
+    const pending = startDownload("cp7", "DTS Film", undefined, { audioCodecs: ["dts"] });
+    const handlers = await waitForTask("cp7");
+    expect(createDownloadTaskMock).toHaveBeenCalledWith(expect.objectContaining({
+      url: expect.stringContaining("/compat-download?token="),
+      destination: expect.stringContaining("evey-cp7.mkv"),
+    }));
+    handlers.done?.({ id: "cp7" });
+    await pending;
+    const entry = lastIndexWritten().find((i) => i.mediaItemId === "cp7");
+    expect(entry!.audioCodecs).toEqual(["aac"]);
   });
 
   it("a renderable-audio download never touches the compat endpoint", async () => {

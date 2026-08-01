@@ -12,9 +12,12 @@ import (
 	"path/filepath"
 	"sync"
 
+	"strings"
+
 	"go.opentelemetry.io/otel/codes"
 	"golang.org/x/sync/singleflight"
 
+	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/bgtasks"
 	"github.com/evey-project/evey/internal/pkg/ratelimit"
@@ -63,6 +66,7 @@ type compatJob struct {
 // the same guard set as the raw download.
 type compatServe struct {
 	libSvc        MediaItemGetter
+	streams       StreamsByMediaGetter
 	libraryAccess LibraryAccessChecker
 	parental      ParentalChecker
 	libLister     LibraryLister
@@ -75,10 +79,17 @@ type compatServe struct {
 	jobs map[string]*compatJob // keyed by outPath
 }
 
-func newCompatServe(libSvc MediaItemGetter, libraryAccess LibraryAccessChecker, parental ParentalChecker, libLister LibraryLister, transcoder CompatTranscoder, cacheRoot, baseURL string) *compatServe {
+// StreamsByMediaGetter is the one method of MediaStreamsGetter this handler
+// needs (the "is a transcode even necessary" check below).
+type StreamsByMediaGetter interface {
+	GetMediaStreams(ctx context.Context, mediaItemID string) ([]*domainlibrary.MediaStream, error)
+}
+
+func newCompatServe(libSvc MediaItemGetter, streams StreamsByMediaGetter, libraryAccess LibraryAccessChecker, parental ParentalChecker, libLister LibraryLister, transcoder CompatTranscoder, cacheRoot, baseURL string) *compatServe {
 	bgtasks.Register("compat_download")
 	return &compatServe{
 		libSvc:        libSvc,
+		streams:       streams,
 		libraryAccess: libraryAccess,
 		parental:      parental,
 		libLister:     libLister,
@@ -87,6 +98,43 @@ func newCompatServe(libSvc MediaItemGetter, libraryAccess LibraryAccessChecker, 
 		baseURL:       baseURL,
 		jobs:          map[string]*compatJob{},
 	}
+}
+
+// transcodeUnnecessary decides whether a production would be pure waste: the
+// client DECLARES the audio codecs it can render (?renderable=aac,mp3,...),
+// and if the source already carries a track the client can play - or carries
+// no audio at all - the server refuses to burn minutes of NAS CPU on it. The
+// invariant is the owner's: the transcode must run when and ONLY when the
+// device says it cannot play the file as it is. No declaration = the caller
+// takes responsibility (our client always declares).
+func (h *compatServe) transcodeUnnecessary(ctx context.Context, mediaID, renderableParam string) bool {
+	if renderableParam == "" || h.streams == nil {
+		return false
+	}
+	renderable := map[string]bool{}
+	for _, c := range strings.Split(renderableParam, ",") {
+		if c = strings.ToLower(strings.TrimSpace(c)); c != "" {
+			renderable[c] = true
+		}
+	}
+	if len(renderable) == 0 {
+		return false
+	}
+	streams, err := h.streams.GetMediaStreams(ctx, mediaID)
+	if err != nil {
+		return false // unknowable is not "unnecessary" - let the production decide
+	}
+	hasAudio := false
+	for _, s := range streams {
+		if s == nil || s.StreamType != domainlibrary.Audio {
+			continue
+		}
+		hasAudio = true
+		if renderable[strings.ToLower(s.Codec)] {
+			return true
+		}
+	}
+	return !hasAudio
 }
 
 // resolve runs the shared guard set (the same ones the raw download enforces:
@@ -168,6 +216,10 @@ func (h *compatServe) handlePrepare(w http.ResponseWriter, r *http.Request) {
 	mediaID, srcPath, outPath, ok := h.resolve(w, r)
 	if !ok {
 		span.SetStatus(codes.Error, "refused")
+		return
+	}
+	if h.transcodeUnnecessary(r.Context(), mediaID, r.URL.Query().Get("renderable")) {
+		writeCompatStatus(w, http.StatusOK, "unnecessary", "")
 		return
 	}
 	switch st, _ := h.status(outPath); st {

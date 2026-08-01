@@ -536,7 +536,7 @@ function sleep(ms: number): Promise<void> {
  * the net). "cancelled" is the user's own abort, surfaced separately so the
  * download rejects instead of silently continuing raw.
  */
-async function prepareCompatDownload(mediaItemId: string): Promise<"ready" | "unavailable" | "cancelled"> {
+async function prepareCompatDownload(mediaItemId: string, deviceAudio: string[]): Promise<"ready" | "unavailable" | "cancelled"> {
   const flag = { cancelled: false };
   preparingCompat.set(mediaItemId, flag);
   try {
@@ -544,7 +544,10 @@ async function prepareCompatDownload(mediaItemId: string): Promise<"ready" | "un
     try {
       status = (
         await eveyFetch<{ status: string }>({
-          url: `/api/v1/media/${mediaItemId}/compat-download`,
+          // The declaration lets the server refuse a pointless production
+          // ("unnecessary") if this device could in fact render a track -
+          // the owner's invariant enforced on BOTH sides of the wire.
+          url: `/api/v1/media/${mediaItemId}/compat-download?renderable=${encodeURIComponent(deviceAudio.join(","))}`,
           method: "POST",
         })
       ).status;
@@ -627,18 +630,25 @@ export async function startDownload(
   inFlightTitles.set(mediaItemId, title);
 
   let audioCodecs = opts?.audioCodecs;
+  const deviceAudio = getDeviceAudioCodecs();
   // Decided at start (audioCodecs came with the item, the device probe is
   // sync): will this file need the post-download audio pass? Videos only -
   // the pass is a video-container remux, a music track never takes it.
-  let compatPass = kind === "video" && needsAudioCompatPass({ audioCodecs }, getDeviceAudioCodecs());
+  let compatPass = kind === "video" && needsAudioCompatPass({ audioCodecs }, deviceAudio);
+  // The server path triggers on the OWNER'S invariant - the device says it
+  // cannot render ANY recorded track - which is wider than the local pass's
+  // scope: ffmpeg on the server also covers DTS/TrueHD, codecs the embedded
+  // decoder must refuse. (Empty codec list = legacy entry, assumed playable.)
+  const serverCompatWanted =
+    kind === "video" && (audioCodecs?.length ?? 0) > 0 && !hasRenderableAudio({ audioCodecs }, deviceAudio);
 
-  // The pass-needing case first tries the SERVER-prepared variant: the audio
+  // The unrenderable case first tries the SERVER-prepared variant: the audio
   // is transcoded once per title on the server (seconds to minutes, cached
   // for every device) instead of minutes of CPU on this phone. Everything
   // about the failure side falls back to today's behavior - raw download
   // plus the on-device pass - so an old or opted-out server changes nothing.
-  if (compatPass && !opts?.downloadPath) {
-    const outcome = await prepareCompatDownload(mediaItemId);
+  if (serverCompatWanted && !opts?.downloadPath) {
+    const outcome = await prepareCompatDownload(mediaItemId, deviceAudio);
     if (outcome === "cancelled") {
       inFlight.delete(mediaItemId);
       inFlightTitles.delete(mediaItemId);
