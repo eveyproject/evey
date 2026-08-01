@@ -103,13 +103,23 @@ export function runAudioCompatPass(mediaItemId: string): Promise<AudioPassResult
   return next;
 }
 
+// A skip must say WHY in logcat: "no optimization line and no sound" on a
+// device is undiagnosable when every skip path is silent (learned 08-01).
+function skip(mediaItemId: string, reason: string): "skipped" {
+  console.log(`evey-audiopass skip ${mediaItemId}: ${reason}`);
+  return "skipped";
+}
+
 async function runPassNow(mediaItemId: string): Promise<AudioPassResult> {
   const entry = await getDownloadedMedia(mediaItemId);
-  if (!entry) return "skipped";
-  if (entry.audioPassFailed) return "skipped";
-  if (!needsAudioCompatPass(entry, getDeviceAudioCodecs())) return "skipped";
-  if (!entry.filePath.toLowerCase().endsWith(".mkv")) return "skipped";
-  if (!(await isOfflineAudioAvailable())) return "skipped";
+  if (!entry) return skip(mediaItemId, "not in index");
+  if (entry.audioPassFailed) return skip(mediaItemId, `terminal failure recorded: ${entry.audioPassFailed}`);
+  const device = getDeviceAudioCodecs();
+  if (!needsAudioCompatPass(entry, device)) {
+    return skip(mediaItemId, `audio renderable (file=${(entry.audioCodecs ?? []).join(",") || "unknown"} device=${device.join(",")})`);
+  }
+  if (!entry.filePath.toLowerCase().endsWith(".mkv")) return skip(mediaItemId, `not mkv: ${entry.filePath}`);
+  if (!(await isOfflineAudioAvailable())) return skip(mediaItemId, "native module absent");
 
   // Same directory as the source on purpose: the final rename must stay on
   // one volume to be atomic, and the space for it was reserved BEFORE the
