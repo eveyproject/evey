@@ -246,3 +246,34 @@ func TestRateLimitUnary_UnidentifiableCallerIsStillLimited(t *testing.T) {
 		"strip their client IP")
 	assert.Equal(t, codes.ResourceExhausted, status.Code(err))
 }
+
+// The stream interceptor buckets by client IP exactly like the unary one, but
+// only the unary path had an isolation test - so mutation (2026-08-01) showed
+// the stream side's IP resolution could be inverted with the suite still green.
+// Inverted, every caller lands in one shared bucket and the first viewer to
+// exhaust it locks out everyone else: a one-client denial of service on the
+// long-lived RPCs.
+func TestRateLimitStream_PerIPIsolationAndUnknownCaller(t *testing.T) {
+	limiters := map[string]*interceptors.MethodLimiter{
+		testMethod: {Limiter: ratelimit.NewWithBurst(1, 0.01), RetryAfterSecs: 60},
+	}
+	interceptor := interceptors.RateLimitStream(limiters)
+	handler := func(srv any, ss grpc.ServerStream) error { return nil }
+	info := &grpc.StreamServerInfo{FullMethod: testMethod}
+
+	require.NoError(t, interceptor(nil, &fakeServerStream{ctx: ipCtx("3.3.3.3")}, info, handler))
+	require.Error(t, interceptor(nil, &fakeServerStream{ctx: ipCtx("3.3.3.3")}, info, handler),
+		"the same caller must be limited on the stream path too")
+
+	// A different caller keeps its own budget: one exhausted client must not
+	// take the endpoint down for everyone.
+	require.NoError(t, interceptor(nil, &fakeServerStream{ctx: ipCtx("4.4.4.4")}, info, handler),
+		"a second caller was refused because of the first: all callers share one bucket")
+
+	// And a caller with no resolvable IP is still limited, not skipped.
+	noIP := &fakeServerStream{ctx: context.Background()}
+	require.NoError(t, interceptor(nil, noIP, info, handler))
+	err := interceptor(nil, noIP, info, handler)
+	require.Error(t, err, "an unidentifiable stream caller must hit the limit like any other")
+	assert.Equal(t, codes.ResourceExhausted, status.Code(err))
+}
