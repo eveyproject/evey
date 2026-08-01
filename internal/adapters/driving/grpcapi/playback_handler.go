@@ -1088,7 +1088,14 @@ func (h *playbackHandler) getAllowedLibraryIDs(ctx context.Context) ([]string, e
 	}
 	ids, err := h.userAccess.GetLibraryAccessByUserID(ctx, claims.UserID)
 	if err != nil {
-		return nil, err
+		// Deny-shaped, NOT nil. nil reads as "unrestricted" everywhere below, so
+		// returning it here made a grant-store outage WIDEN what the caller sees -
+		// the opposite of the unwired-port branch above, which already denies on
+		// purpose. Callers that discard this error (three of them did) must still
+		// end up denying.
+		slog.ErrorContext(ctx, "playback: library grant lookup failed, denying",
+			slog.String("user_id", claims.UserID), slog.Any("err", err))
+		return []string{}, err
 	}
 	if len(ids) == 0 {
 		return nil, nil // zero grants = unrestricted (opt-out default)

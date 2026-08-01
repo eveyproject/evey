@@ -2,6 +2,7 @@ package grpcapi
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -1452,4 +1453,42 @@ func TestPlaybackHandler_ReportProgress_CastSessionDoesNotConsumeCommand(t *test
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "play", resp.RemoteCommand)
+}
+
+// getAllowedLibraryIDs returns nil on error, and nil reads as "unrestricted"
+// everywhere downstream - the function says so itself two lines above, where an
+// unwired port deliberately returns an EMPTY slice instead so a wiring
+// regression denies. The three call sites discarded the error
+// (`allowedIDs, _ :=`), so a database outage took the nil branch and widened
+// visibility instead of narrowing it. That is a fail-OPEN in a codebase whose
+// stated posture everywhere else is fail-closed.
+func TestPlaybackHandler_LibraryAccessLookupFailure_DeniesRatherThanOpens(t *testing.T) {
+	h, progressRepo, mediaQueryRepo, libraryAccess := newTestPlaybackHandlerFull()
+
+	mediaQueryRepo.Seed(&library.MediaItem{ID: "mi-fail-ok", LibraryID: "lib-allowed", Type: "movie", Title: "Allowed"})
+	mediaQueryRepo.Seed(&library.MediaItem{ID: "mi-fail-no", LibraryID: "lib-forbidden", Type: "movie", Title: "Forbidden"})
+
+	require.NoError(t, libraryAccess.Grant(context.Background(), "user-2", "lib-allowed"))
+
+	progressRepo.Upsert(context.Background(), &playback.WatchProgress{
+		ID: "wp-fail-ok", ProfileID: "profile-2", MediaItemID: "mi-fail-ok",
+		Position: mustPlaybackDurationMs(t, 10000), LastPlayedAt: time.Now(),
+	})
+	progressRepo.Upsert(context.Background(), &playback.WatchProgress{
+		ID: "wp-fail-no", ProfileID: "profile-2", MediaItemID: "mi-fail-no",
+		Position: mustPlaybackDurationMs(t, 10000), LastPlayedAt: time.Now(),
+	})
+
+	// The grant store goes down AFTER the grants exist.
+	libraryAccess.Err = errors.New("library_access unavailable")
+
+	resp, err := h.GetWatchHistory(pbUserCtx("user-2", "profile-2"), &eveyv1.GetWatchHistoryRequest{Limit: 10})
+	require.NoError(t, err)
+	ids := make([]string, len(resp.Items))
+	for i, it := range resp.Items {
+		ids[i] = it.MediaItemId
+	}
+	assert.NotContains(t, ids, "mi-fail-no",
+		"the grant lookup failed, so the caller's allowed set is UNKNOWN - showing a "+
+			"forbidden-library item means a database outage widened what the user can see")
 }
