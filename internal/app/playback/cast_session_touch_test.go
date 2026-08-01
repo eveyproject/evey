@@ -207,3 +207,37 @@ func TestTouchCastSession_IgnoresAnUnusableBeacon(t *testing.T) {
 		})
 	}
 }
+
+// Position zero is the FIRST beat of a cast that has just started (and the
+// position after a rewind to the beginning). The guard reads `positionMs < 0`,
+// and mutation (2026-08-01) showed nothing distinguished it from `<= 0`: turned
+// into the latter, the opening heartbeat of every cast would be dropped and the
+// now-playing panel would stay blind until the viewer had watched a second -
+// exactly the blindness this keepalive exists to prevent.
+func TestTouchCastSession_AcceptsPositionZeroAndRejectsNegative(t *testing.T) {
+	t.Parallel()
+
+	t.Run("zero is a real position", func(t *testing.T) {
+		svc, sessions := newTouchSvc(t)
+		require.NoError(t, sessions.Create(context.Background(), activeSession("s-z", "prof-z", "media-z", "Salon TV")))
+
+		touched, err := svc.TouchCastSession(context.Background(), "prof-z", "media-z", 0)
+		require.NoError(t, err)
+		assert.True(t, touched, "a cast beating at position 0 has just started - dropping it "+
+			"leaves the session looking dead until the first second elapses")
+
+		got, err := sessions.GetByID(context.Background(), "s-z")
+		require.NoError(t, err)
+		require.NotNil(t, got.Position)
+		assert.Equal(t, int64(0), got.Position.Milliseconds())
+	})
+
+	t.Run("a negative position is refused", func(t *testing.T) {
+		svc, sessions := newTouchSvc(t)
+		require.NoError(t, sessions.Create(context.Background(), activeSession("s-n", "prof-n", "media-n", "Salon TV")))
+
+		touched, err := svc.TouchCastSession(context.Background(), "prof-n", "media-n", -1)
+		require.NoError(t, err)
+		assert.False(t, touched, "a negative position is not a place in the media")
+	})
+}
