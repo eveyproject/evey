@@ -40,7 +40,10 @@ const logoutMock = vi.fn();
 const setThemeMock = vi.fn();
 const setLocaleMock = vi.fn();
 vi.mock("@evey/store", () => ({
-  useAuthStore: (sel: any) => sel({ logout: logoutMock, setTokens: vi.fn() }),
+  useAuthStore: Object.assign(
+    (sel: any) => sel({ logout: logoutMock, setTokens: vi.fn(), profileId: "prof-2" }),
+    { getState: () => ({ setTokens: vi.fn() }) },
+  ),
   useThemeStore: (sel: any) => sel({ theme: "default", setTheme: setThemeMock }),
   useLocaleStore: (sel: any) => sel({ locale: "en", setLocale: setLocaleMock }),
 }));
@@ -80,7 +83,14 @@ import SettingsScreen from "./settings";
 beforeEach(() => {
   vi.clearAllMocks();
   currentUserMock.mockReturnValue({ data: { id: "user-1", username: "gravity" } });
-  listProfilesMock.mockReturnValue({ data: { profiles: [{ id: "prof-1", isDefault: true }] } });
+  listProfilesMock.mockReturnValue({
+    data: {
+      profiles: [
+        { id: "prof-1", name: "Alice", isDefault: true },
+        { id: "prof-2", name: "Chloé" },
+      ],
+    },
+  });
   updateProfileMock.mockReturnValue({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false });
   systemInfoMock.mockReturnValue({ data: { version: "1.0.0" } });
   userServiceLogoutMock.mockResolvedValue({});
@@ -123,5 +133,36 @@ describe("SettingsScreen (TV) sign out revokes the server session", () => {
     // Let the rejected promise settle - it must be swallowed, not thrown as
     // an unhandled rejection that would fail this test.
     await new Promise((r) => setTimeout(r, 0));
+  });
+});
+
+// The owner asked (2026-08-02) for the profile menu to match web/mobile. Three
+// entries were missing outright and the screen never said WHOSE profile was in
+// use - on a shared television that is the setting that decides what the home
+// shows and what the parental gate allows.
+describe("SettingsScreen (TV) profile menu parity", () => {
+  it("names the profile actually in use, not merely the account", () => {
+    render(<SettingsScreen />);
+    expect(screen.getByText("Chloé")).toBeTruthy();
+    expect(screen.getByText("gravity")).toBeTruthy();
+  });
+
+  it("offers my statistics, and opens the screen", () => {
+    render(<SettingsScreen />);
+    fireEvent.click(screen.getByLabelText("My statistics"));
+    expect(pushMock).toHaveBeenCalledWith("/(auth)/settings/stats");
+  });
+
+  // The syncplay screen already existed on this TV with no way in.
+  it("offers joining a watch-together room, and opens the screen", () => {
+    render(<SettingsScreen />);
+    fireEvent.click(screen.getByLabelText("Join a room"));
+    expect(pushMock).toHaveBeenCalledWith("/(auth)/syncplay");
+  });
+
+  it("still lets the viewer switch profile and sign out", () => {
+    render(<SettingsScreen />);
+    fireEvent.click(screen.getByLabelText("mobile.settings.switchProfile"));
+    expect(pushMock).toHaveBeenCalledWith("/profile-select");
   });
 });

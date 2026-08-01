@@ -29,6 +29,11 @@ export default function SettingsScreen() {
   const { data: user } = useUserServiceGetCurrentUser();
   const { data: profilesResp } = useUserServiceListProfiles(user?.id ?? "", { query: { enabled: !!user?.id } });
   const defaultProfile = profilesResp?.profiles?.find((p: any) => p.isDefault) ?? profilesResp?.profiles?.[0];
+  // The profile actually in use on this television, which is not necessarily
+  // the default one - somebody switched to it from profile-select.
+  const activeProfileId = useAuthStore((s) => s.profileId);
+  const activeProfile =
+    profilesResp?.profiles?.find((p: { id?: string }) => p.id === activeProfileId) ?? defaultProfile;
   const updateProfile = useUserServiceUpdateProfile();
   const { data: systemInfo } = useAdminSystemServiceGetSystemInfo();
 
@@ -110,11 +115,22 @@ export default function SettingsScreen() {
       {/* Account */}
       <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>{t("auth.settings.tabs.account")}</Text>
       <View style={[styles.section, { backgroundColor: theme.colors.surface }]}>
-        <View style={styles.infoRow}>
-          {/* auth.login.username, not admin.users.user: this is the signed-in
-              account on this TV, not a row in the admin user table. */}
-          <Text style={[styles.label, { color: theme.colors.text }]}>{t("auth.login.username", "Username")}</Text>
-          <Text style={[styles.value, { color: theme.colors.textMuted }]}>{user?.username ?? "..."}</Text>
+        {/* Who is watching, first: on a shared television the active PROFILE
+            is the thing that decides what the home shows and what the parental
+            gate allows, and it was nowhere on this screen. The account name
+            stays underneath - it is what you sign out of. */}
+        <View style={styles.profileHeader}>
+          <View style={[styles.avatar, { backgroundColor: theme.colors.accent }]}>
+            <Text style={{ color: theme.colors.onAccent, fontSize: 30, fontWeight: "700" }}>
+              {(activeProfile?.name ?? user?.username ?? "?").slice(0, 1).toUpperCase()}
+            </Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.profileName, { color: theme.colors.text }]} numberOfLines={1}>
+              {activeProfile?.name ?? t("auth.profile.title", "Profile")}
+            </Text>
+            <Text style={[styles.value, { color: theme.colors.textMuted }]}>{user?.username ?? "..."}</Text>
+          </View>
         </View>
         <Pressable
           style={rowStyle("switch-profile")}
@@ -155,6 +171,17 @@ export default function SettingsScreen() {
           <Text style={[styles.label, { color: theme.colors.text }]}>{t("auth.watchHistory.title")}</Text>
         </Pressable>
         <Pressable
+          style={rowStyle("my-stats")}
+          onPress={() => router.push("/(auth)/settings/stats")}
+          onFocus={() => setFocusedItem("my-stats")}
+          onBlur={() => setFocusedItem(null)}
+          accessible={true}
+          accessibilityLabel={t("common.nav.myStats", "My statistics")}
+          accessibilityRole="button"
+        >
+          <Text style={[styles.label, { color: theme.colors.text }]}>{t("common.nav.myStats", "My statistics")}</Text>
+        </Pressable>
+        <Pressable
           style={rowStyle("notifications")}
           onPress={() => router.push("/(auth)/notifications")}
           onFocus={() => setFocusedItem("notifications")}
@@ -164,6 +191,25 @@ export default function SettingsScreen() {
           accessibilityRole="button"
         >
           <Text style={[styles.label, { color: theme.colors.text }]}>{t("common.notifications.title")}</Text>
+        </Pressable>
+      </View>
+
+      {/* Session - the things that involve another device or another viewer.
+          Syncplay already had a screen on this TV and no way in: the room you
+          join is started from a phone or a browser, so the TV only ever needs
+          the join half, and it was unreachable. */}
+      <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>{t("media.syncplay.title", "Watch together")}</Text>
+      <View style={[styles.section, { backgroundColor: theme.colors.surface }]}>
+        <Pressable
+          style={rowStyle("join-room")}
+          onPress={() => router.push("/(auth)/syncplay")}
+          onFocus={() => setFocusedItem("join-room")}
+          onBlur={() => setFocusedItem(null)}
+          accessible={true}
+          accessibilityLabel={t("common.nav.joinRoom", "Join a room")}
+          accessibilityRole="button"
+        >
+          <Text style={[styles.label, { color: theme.colors.text }]}>{t("common.nav.joinRoom", "Join a room")}</Text>
         </Pressable>
       </View>
 
@@ -245,6 +291,9 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
+  profileHeader: { flexDirection: "row", alignItems: "center", gap: 20, paddingVertical: 16, paddingHorizontal: 20 },
+  avatar: { width: 64, height: 64, borderRadius: 32, justifyContent: "center", alignItems: "center" },
+  profileName: { fontSize: 26, fontWeight: "700" },
   container: { flex: 1 },
   header: { fontSize: 36, fontWeight: "700", marginBottom: 24 },
   sectionTitle: {

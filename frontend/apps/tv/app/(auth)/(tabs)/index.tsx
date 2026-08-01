@@ -27,10 +27,10 @@ import { PluginSlot } from "../../../src/features/plugins/PluginSlot";
 import { useParentalGate } from "../../../src/hooks/useParentalGate";
 import { ParentalPINModal } from "../../../src/components/ParentalPINModal";
 import { CARD_WIDTH_FEATURED, POSTER_RATIO, GRID_GAP } from "../../../src/lib/tvLayout";
-import { selectHomeLibraryRows, HOME_LIBRARY_ROW_PAGE_SIZE } from "../../../src/lib/homeLibraryRows";
+import { HOME_LIBRARY_ROW_PAGE_SIZE } from "../../../src/lib/homeLibraryRows";
 import { useCollections } from "../../../src/api/collections";
 import { useMostPopular } from "../../../src/hooks/usePopular";
-import { buildHomeSections, FEED_TYPES, resolveMaxItems, type HomeSection } from "../../../src/lib/homeSections";
+import { buildHomeSections, resolveMaxItems, type HomeSection } from "../../../src/lib/homeSections";
 
 const CARD_WIDTH = CARD_WIDTH_FEATURED;
 const CARD_HEIGHT = CARD_WIDTH * POSTER_RATIO;
