@@ -172,3 +172,69 @@ func TestSafeHTTPClient_HonorsProxyForFirstParty(t *testing.T) {
 		t.Error("first-party client should still honor an operator-configured proxy")
 	}
 }
+
+// safeControl is the enforcement point: it runs after DNS resolution, on the
+// address the socket is ABOUT to connect to, which is what closes the
+// DNS-rebinding window that validating a URL string cannot. The existing
+// dialer test only exercises literal private addresses; mutation testing
+// (2026-08-01) showed the callback's own branches were the least covered code
+// in the package - notably the unparseable-host branch, whose removal survived
+// the whole suite.
+func TestSafeControl_RejectsWhatItCannotVouchFor(t *testing.T) {
+	blocked := []struct{ name, address string }{
+		{"private v4", "10.1.2.3:443"},
+		{"loopback v4", "127.0.0.1:80"},
+		{"link-local (cloud metadata)", "169.254.169.254:80"},
+		{"loopback v6", "[::1]:443"},
+		// Not an IP at all: safeControl runs POST-resolution, so a host that
+		// does not parse means we cannot say where this socket is going. The
+		// only safe answer is no.
+		{"unparseable host", "not-an-ip:443"},
+		{"empty host", ":443"},
+	}
+	for _, tc := range blocked {
+		t.Run(tc.name, func(t *testing.T) {
+			if err := safeControl("tcp", tc.address, nil); !errors.Is(err, ErrBlockedPrivateIP) {
+				t.Errorf("safeControl(%q) = %v, want ErrBlockedPrivateIP", tc.address, err)
+			}
+		})
+	}
+
+	allowed := []struct{ name, address string }{
+		{"public v4", "93.184.216.34:443"},
+		{"public v6", "[2606:2800:220:1:248:1893:25c8:1946]:443"},
+	}
+	for _, tc := range allowed {
+		t.Run(tc.name, func(t *testing.T) {
+			if err := safeControl("tcp", tc.address, nil); err != nil {
+				t.Errorf("safeControl(%q) = %v, want nil - a public address must connect", tc.address, err)
+			}
+		})
+	}
+
+	// A malformed address (no port at all) is a caller bug, not an SSRF
+	// attempt: it must error, but it must not be reported as a blocked IP.
+	err := safeControl("tcp", "no-port-here", nil)
+	if err == nil {
+		t.Error("a malformed address must error")
+	}
+	if errors.Is(err, ErrBlockedPrivateIP) {
+		t.Error("a malformed address reported as ErrBlockedPrivateIP would send an operator hunting for an SSRF attempt that never happened")
+	}
+}
+
+// The dialer the whole server uses must carry the callback AND a connect
+// timeout: without the timeout a webhook pointed at a black-holed address
+// pins a goroutine for as long as the OS lets it.
+func TestNewSafeDialer_CarriesTheGuardAndABoundedConnect(t *testing.T) {
+	d := NewSafeDialer()
+	if d.Control == nil {
+		t.Fatal("no Control callback: the dialer would connect anywhere DNS points")
+	}
+	if d.Timeout <= 0 {
+		t.Error("no connect timeout")
+	}
+	if err := d.Control("tcp", "169.254.169.254:80", nil); !errors.Is(err, ErrBlockedPrivateIP) {
+		t.Errorf("the wired callback let cloud metadata through: %v", err)
+	}
+}
