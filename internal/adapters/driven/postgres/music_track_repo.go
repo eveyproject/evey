@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"time"
@@ -184,6 +185,57 @@ func (r *MusicTrackRepository) ListByLibrary(ctx context.Context, libraryID shar
 	return tracks, total, err
 }
 
+// ListByLibraryCursor is the keyset form of ListByLibrary: no COUNT(*) OVER()
+// window, so Postgres can use its top-N heapsort for ORDER BY ... LIMIT
+// instead of materializing the whole matching set before handing back one
+// page - the window function forces that materialization even for page 1.
+func (r *MusicTrackRepository) ListByLibraryCursor(ctx context.Context, libraryID shared.LibraryID, search string, cursor *music.TrackCursor, limit int) ([]music.Track, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.musictrack.ListByLibraryCursor")
+	defer span.End()
+	span.SetAttributes(attribute.String("library.id", string(libraryID)))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	if limit <= 0 {
+		limit = 50
+	}
+	escaped := likeEscape(search)
+	query := `
+		SELECT id, library_id, title, artist, album, album_artist,
+		       year, track_number, disk_number, duration, file_path,
+		       file_size, file_hash, mod_time, mime_type, bitrate, sample_rate, channels,
+		       genre, album_folder, cover_art_url, created_at, updated_at
+		FROM music_tracks
+		WHERE library_id=$1
+		  AND ($2 = '' OR (
+		        title ILIKE '%' || $2 || '%' ESCAPE '\' OR
+		        artist ILIKE '%' || $2 || '%' ESCAPE '\' OR
+		        album ILIKE '%' || $2 || '%' ESCAPE '\'
+		      ))`
+	args := []any{libraryID, escaped}
+	i := 3
+	if cursor != nil {
+		query += fmt.Sprintf(" AND (album_artist, album, disk_number, track_number, id) > ($%d, $%d, $%d, $%d, $%d)", i, i+1, i+2, i+3, i+4)
+		args = append(args, cursor.AlbumArtist, cursor.Album, cursor.DiskNumber, cursor.TrackNumber, cursor.ID)
+		i += 5
+	}
+	query += fmt.Sprintf(" ORDER BY album_artist, album, disk_number, track_number, id LIMIT $%d", i)
+	args = append(args, limit)
+
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, query, args...)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	defer rows.Close()
+	tracks, err := scanTracks(rows)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	return tracks, err
+}
+
 func (r *MusicTrackRepository) ListByAlbum(ctx context.Context, album, artist string) ([]music.Track, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.musictrack.ListByAlbum")
 	defer span.End()
@@ -300,6 +352,46 @@ func (r *MusicTrackRepository) ListByArtist(ctx context.Context, artist string, 
 		span.SetStatus(codes.Error, err.Error())
 	}
 	return tracks, total, err
+}
+
+// ListByArtistCursor is the keyset form of ListByArtist. See ListByLibraryCursor.
+func (r *MusicTrackRepository) ListByArtistCursor(ctx context.Context, artist string, cursor *music.ArtistTrackCursor, limit int) ([]music.Track, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.musictrack.ListByArtistCursor")
+	defer span.End()
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	if limit <= 0 {
+		limit = 50
+	}
+	query := `
+		SELECT id, library_id, title, artist, album, album_artist,
+		       year, track_number, disk_number, duration, file_path,
+		       file_size, file_hash, mod_time, mime_type, bitrate, sample_rate, channels,
+		       genre, album_folder, cover_art_url, created_at, updated_at
+		FROM music_tracks WHERE (album_artist=$1 OR artist=$1)`
+	args := []any{artist}
+	i := 2
+	if cursor != nil {
+		query += fmt.Sprintf(" AND (album, disk_number, track_number, id) > ($%d, $%d, $%d, $%d)", i, i+1, i+2, i+3)
+		args = append(args, cursor.Album, cursor.DiskNumber, cursor.TrackNumber, cursor.ID)
+		i += 4
+	}
+	query += fmt.Sprintf(" ORDER BY album, disk_number, track_number, id LIMIT $%d", i)
+	args = append(args, limit)
+
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, query, args...)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	defer rows.Close()
+	tracks, err := scanTracks(rows)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	return tracks, err
 }
 
 // likeEscape escapes LIKE/ILIKE meta-characters so caller-supplied input is

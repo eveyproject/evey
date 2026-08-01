@@ -2,6 +2,7 @@ package fakes
 
 import (
 	"context"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -116,6 +117,81 @@ func (r *FakeRepository) ListByAlbum(_ context.Context, libraryID shared.Library
 		result = result[:limit]
 	}
 	return result, total, nil
+}
+
+// ListByLibraryCursor mimics the real repo's keyset seek: sort by (taken_at,
+// created_at, id) DESC (nil TakenAt sorts last, like NULLS LAST) and return
+// rows strictly after the cursor in that order.
+func (r *FakeRepository) ListByLibraryCursor(_ context.Context, libraryID shared.LibraryID, cursor *photo.PhotoCursor, limit int) ([]photo.Photo, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var result []photo.Photo
+	for _, p := range r.photos {
+		if p.LibraryID == libraryID {
+			result = append(result, p)
+		}
+	}
+	return pagePhotosByCursor(result, cursor, limit), nil
+}
+
+// ListByAlbumCursor is the keyset form of ListByAlbum. See ListByLibraryCursor.
+func (r *FakeRepository) ListByAlbumCursor(_ context.Context, libraryID shared.LibraryID, album string, cursor *photo.PhotoCursor, limit int) ([]photo.Photo, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var result []photo.Photo
+	for _, p := range r.photos {
+		if p.LibraryID == libraryID && p.Album == album {
+			result = append(result, p)
+		}
+	}
+	return pagePhotosByCursor(result, cursor, limit), nil
+}
+
+// pagePhotosByCursor sorts by (taken_at DESC NULLS LAST, created_at DESC, id
+// DESC) - the same tuple the postgres ORDER BY uses - then keeps rows
+// strictly "after" the cursor and truncates to limit.
+func pagePhotosByCursor(photos []photo.Photo, cursor *photo.PhotoCursor, limit int) []photo.Photo {
+	sort.Slice(photos, func(i, j int) bool {
+		return photoCursorLess(photos[j], photos[i])
+	})
+	if cursor != nil {
+		filtered := photos[:0:0]
+		for _, p := range photos {
+			if photoCursorLess(p, photo.Photo{TakenAt: cursor.TakenAt, CreatedAt: cursor.CreatedAt, ID: cursor.ID}) {
+				filtered = append(filtered, p)
+			}
+		}
+		photos = filtered
+	}
+	if limit > 0 && limit < len(photos) {
+		photos = photos[:limit]
+	}
+	return photos
+}
+
+// photoCursorLess reports whether a sorts strictly before b in (taken_at,
+// created_at, id) ascending order (nil TakenAt is smallest, matching
+// COALESCE(taken_at, '-infinity') in the real query).
+func photoCursorLess(a, b photo.Photo) bool {
+	at, bt := a.TakenAt, b.TakenAt
+	switch {
+	case at == nil && bt != nil:
+		return true
+	case at != nil && bt == nil:
+		return false
+	case at != nil && bt != nil && !at.Equal(*bt):
+		return at.Before(*bt)
+	}
+	if !a.CreatedAt.Equal(b.CreatedAt) {
+		return a.CreatedAt.Before(b.CreatedAt)
+	}
+	return a.ID < b.ID
 }
 
 func (r *FakeRepository) GetAlbums(_ context.Context, libraryID shared.LibraryID) ([]photo.Album, error) {

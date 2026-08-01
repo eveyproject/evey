@@ -173,9 +173,10 @@ func (s *CommandService) ReconcileTracks(ctx context.Context, primary music.Musi
 	return s.reindexTracksInto(ctx, primary)
 }
 
-// countAllTracks returns the total track count across all music libraries, using
-// the pagination total from a 1-row ListByLibrary so it stays a COUNT, not a full
-// load.
+// countAllTracks returns the total track count across all music libraries. It
+// calls CountByLibrary, a plain SELECT COUNT(*), rather than ListByLibrary with
+// limit=1: that list query carries a COUNT(*) OVER() window, which forces
+// Postgres to sort the whole library before it can hand back even one row.
 func (s *CommandService) countAllTracks(ctx context.Context) (int, error) {
 	libs, err := s.libRepo.List(ctx, library.ListLibrariesFilter{Limit: library.MaxListLibrariesLimit})
 	if err != nil {
@@ -186,7 +187,7 @@ func (s *CommandService) countAllTracks(ctx context.Context) (int, error) {
 		if lib.Type != library.Music {
 			continue
 		}
-		_, n, terr := s.tracks.ListByLibrary(ctx, lib.ID, 1, 0, "")
+		n, terr := s.tracks.CountByLibrary(ctx, lib.ID)
 		if terr != nil {
 			return 0, fmt.Errorf("music: count tracks in %s: %w", lib.ID, terr)
 		}

@@ -42,6 +42,27 @@ func (s *QueryService) ListPhotosByAlbum(ctx context.Context, libraryID shared.L
 	return s.repo.ListByAlbum(ctx, libraryID, album, limit, offset)
 }
 
+// ListPhotosCursor is the keyset form of ListPhotos: no total, page forward
+// only via the cursor of the last item returned. nil cursor = first page.
+func (s *QueryService) ListPhotosCursor(ctx context.Context, libraryID shared.LibraryID, cursor *photo.PhotoCursor, limit int) ([]photo.Photo, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.photo.ListPhotosCursor")
+	defer span.End()
+	if limit <= 0 || limit > 5000 {
+		limit = 200
+	}
+	return s.repo.ListByLibraryCursor(ctx, libraryID, cursor, limit)
+}
+
+// ListPhotosByAlbumCursor is the keyset form of ListPhotosByAlbum. See ListPhotosCursor.
+func (s *QueryService) ListPhotosByAlbumCursor(ctx context.Context, libraryID shared.LibraryID, album string, cursor *photo.PhotoCursor, limit int) ([]photo.Photo, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.photo.ListPhotosByAlbumCursor")
+	defer span.End()
+	if limit <= 0 || limit > 5000 {
+		limit = 200
+	}
+	return s.repo.ListByAlbumCursor(ctx, libraryID, album, cursor, limit)
+}
+
 func (s *QueryService) GetAlbums(ctx context.Context, libraryID shared.LibraryID) ([]photo.Album, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.photo.GetAlbums")
 	defer span.End()

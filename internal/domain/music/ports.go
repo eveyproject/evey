@@ -16,6 +16,11 @@ type TrackReader interface {
 	// note on photo.Repository.CountByLibrary: the list query pays a
 	// COUNT(*) OVER() over the whole library, so it is the wrong counter.
 	CountByLibrary(ctx context.Context, libraryID shared.LibraryID) (int, error)
+	// ListByLibraryCursor keysets ListByLibrary's page instead of OFFSET-ing
+	// into it, and does not carry a COUNT(*) OVER() window - see
+	// photo.Repository.ListByLibraryCursor for why that matters. Callers that
+	// need a total call CountByLibrary separately. nil cursor = first page.
+	ListByLibraryCursor(ctx context.Context, libraryID shared.LibraryID, search string, cursor *TrackCursor, limit int) ([]Track, error)
 	ListAllByLibrary(ctx context.Context, libraryID shared.LibraryID) ([]Track, error)
 	ListByAlbum(ctx context.Context, album, artist string) ([]Track, error)
 	ListByLibraryAndAlbum(ctx context.Context, libraryID shared.LibraryID, album string) ([]Track, error)
@@ -24,6 +29,8 @@ type TrackReader interface {
 	// used to resolve a short opaque album id (AlbumID) back to its folder.
 	ListAlbumFolders(ctx context.Context, libraryID shared.LibraryID) ([]string, error)
 	ListByArtist(ctx context.Context, artist string, limit, offset int) ([]Track, int, error)
+	// ListByArtistCursor is the keyset form of ListByArtist. See ListByLibraryCursor.
+	ListByArtistCursor(ctx context.Context, artist string, cursor *ArtistTrackCursor, limit int) ([]Track, error)
 	Search(ctx context.Context, libraryID shared.LibraryID, query string, limit int) ([]Track, error)
 	GetAlbums(ctx context.Context, libraryID shared.LibraryID) ([]Album, error)
 	GetArtists(ctx context.Context, libraryID shared.LibraryID) ([]Artist, error)
@@ -58,6 +65,29 @@ type TrackWriter interface {
 type TrackRepository interface {
 	TrackReader
 	TrackWriter
+}
+
+// TrackCursor keysets ListByLibrary by the same tuple its ORDER BY sorts on:
+// album_artist, album, disk_number, track_number, id (all ascending). ID is
+// the mandatory tiebreaker - disk/track numbers repeat across albums, and
+// even within one album for multi-artist compilations, so without it a page
+// boundary can silently skip or repeat a row.
+type TrackCursor struct {
+	AlbumArtist string
+	Album       string
+	DiskNumber  int
+	TrackNumber int
+	ID          string
+}
+
+// ArtistTrackCursor keysets ListByArtist by the tuple its ORDER BY sorts on:
+// album, disk_number, track_number, id (all ascending). Same tiebreaker
+// rationale as TrackCursor.
+type ArtistTrackCursor struct {
+	Album       string
+	DiskNumber  int
+	TrackNumber int
+	ID          string
 }
 
 // MusicSearchIndex is the full-text search index for music tracks (Meilisearch

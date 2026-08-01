@@ -86,6 +86,14 @@ func (s *QueryService) ListTracks(ctx context.Context, libraryID shared.LibraryI
 	return s.tracks.ListByLibrary(ctx, libraryID, limit, offset, search)
 }
 
+// ListTracksCursor is the keyset form of ListTracks: no total, page forward
+// only via the cursor of the last item returned. nil cursor = first page.
+func (s *QueryService) ListTracksCursor(ctx context.Context, libraryID shared.LibraryID, search string, cursor *music.TrackCursor, limit int) ([]music.Track, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.music.ListTracksCursor")
+	defer span.End()
+	return s.tracks.ListByLibraryCursor(ctx, libraryID, search, cursor, limit)
+}
+
 func (s *QueryService) ListTracksByAlbum(ctx context.Context, libraryID shared.LibraryID, album string) ([]music.Track, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.music.ListTracksByAlbum")
 	defer span.End()

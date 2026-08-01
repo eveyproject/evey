@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -191,6 +192,122 @@ func (r *PhotoRepository) ListByAlbum(ctx context.Context, libraryID shared.Libr
 		span.SetStatus(codes.Error, err.Error())
 	}
 	return photos, total, err
+}
+
+// photoCursorOrderBy is the sort key both the offset (COUNT(*) OVER()) and
+// keyset paginated queries share: taken_at DESC NULLS LAST, created_at DESC,
+// id DESC. Kept as the RAW columns (not COALESCE(taken_at, ...)) on purpose:
+// idx_photos_library_taken_at is built on exactly this expression, and an
+// EXPLAIN ANALYZE against the 7199-photo dev library showed COALESCE defeats
+// that index (Seq Scan + Sort, ~4-8ms) where the raw form gets an Index Scan
+// the planner can also use to satisfy the seek predicate below (~0.1-0.2ms).
+const photoCursorOrderBy = `ORDER BY taken_at DESC NULLS LAST, created_at DESC, id DESC`
+
+// photoCursorSeek builds the "give me rows strictly after the cursor" WHERE
+// fragment for the keyset queries, and the args it binds starting at $argN.
+// It returns "" when cursor is nil (first page).
+//
+// It cannot use a single row-comparison `(taken_at, created_at, id) < (...)`
+// like the non-nullable cursors elsewhere in the codebase (e.g.
+// WatchProgressRepo.GetByProfileCursor): taken_at is nullable and NULLS LAST
+// puts every NULL row after every non-null one, but SQL row comparison
+// returns NULL (excludes the row) the moment either side of a component is
+// NULL - so a plain "<" would silently drop the entire NULL-taken_at group
+// the first time the cursor still has a non-null TakenAt. The two branches
+// below encode the NULLS LAST ordering explicitly instead.
+func photoCursorSeek(cursor *photo.PhotoCursor, argN int) (sql string, args []any) {
+	if cursor == nil {
+		return "", nil
+	}
+	if cursor.TakenAt != nil {
+		// Still inside (or entering) the non-null taken_at group: anything with
+		// taken_at IS NULL sorts after the whole group and is always a
+		// candidate for the next page; anything with an earlier taken_at, or a
+		// tied taken_at broken by created_at/id, is too.
+		return fmt.Sprintf(
+			` AND (taken_at IS NULL OR taken_at < $%d OR (taken_at = $%d AND created_at < $%d) OR (taken_at = $%d AND created_at = $%d AND id < $%d))`,
+			argN, argN, argN+1, argN, argN+1, argN+2,
+		), []any{*cursor.TakenAt, cursor.CreatedAt, cursor.ID}
+	}
+	// Already inside the NULL group: only other NULL rows are candidates.
+	return fmt.Sprintf(
+		` AND (taken_at IS NULL AND (created_at < $%d OR (created_at = $%d AND id < $%d)))`,
+		argN, argN, argN+1,
+	), []any{cursor.CreatedAt, cursor.ID}
+}
+
+// ListByLibraryCursor is the keyset form of ListByLibrary: no COUNT(*) OVER()
+// window, so Postgres can use its top-N heapsort for ORDER BY ... LIMIT
+// instead of materializing (and sorting) the whole matching set before
+// handing back one page - the window function forces that materialization
+// even for page 1.
+func (r *PhotoRepository) ListByLibraryCursor(ctx context.Context, libraryID shared.LibraryID, cursor *photo.PhotoCursor, limit int) ([]photo.Photo, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.photo.ListByLibraryCursor")
+	defer span.End()
+	span.SetAttributes(attribute.String("library.id", string(libraryID)))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	if limit <= 0 || limit > 5000 {
+		limit = 200
+	}
+	query := `SELECT id, library_id, title, file_path, file_size, file_hash, mod_time, mime_type, width, height,
+		       taken_at, latitude, longitude, camera_model, album, blurhash, created_at, updated_at
+		FROM photos WHERE library_id = $1`
+	args := []any{libraryID}
+	seek, seekArgs := photoCursorSeek(cursor, 2)
+	query += seek
+	args = append(args, seekArgs...)
+	query += fmt.Sprintf(" %s LIMIT $%d", photoCursorOrderBy, len(args)+1)
+	args = append(args, limit)
+
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, query, args...)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	defer rows.Close()
+	photos, err := scanPhotos(rows)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	return photos, err
+}
+
+// ListByAlbumCursor is the keyset form of ListByAlbum. See ListByLibraryCursor.
+func (r *PhotoRepository) ListByAlbumCursor(ctx context.Context, libraryID shared.LibraryID, album string, cursor *photo.PhotoCursor, limit int) ([]photo.Photo, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.photo.ListByAlbumCursor")
+	defer span.End()
+	span.SetAttributes(attribute.String("library.id", string(libraryID)))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	if limit <= 0 || limit > 5000 {
+		limit = 200
+	}
+	query := `SELECT id, library_id, title, file_path, file_size, file_hash, mod_time, mime_type, width, height,
+		       taken_at, latitude, longitude, camera_model, album, blurhash, created_at, updated_at
+		FROM photos WHERE library_id = $1 AND album = $2`
+	args := []any{libraryID, album}
+	seek, seekArgs := photoCursorSeek(cursor, 3)
+	query += seek
+	args = append(args, seekArgs...)
+	query += fmt.Sprintf(" %s LIMIT $%d", photoCursorOrderBy, len(args)+1)
+	args = append(args, limit)
+
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, query, args...)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	defer rows.Close()
+	photos, err := scanPhotos(rows)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	return photos, err
 }
 
 func (r *PhotoRepository) GetAlbums(ctx context.Context, libraryID shared.LibraryID) ([]photo.Album, error) {

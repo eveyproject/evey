@@ -208,6 +208,123 @@ func TestMusicTrackRepo_ListByArtist(t *testing.T) {
 	assert.Len(t, tracks, 2)
 }
 
+// The keyset ORDER BY is (album_artist, album, disk_number, track_number, id)
+// ascending. mtcur1/mtcur2 deliberately tie on every column but id - id is
+// the only thing that makes the tuple unique. A limit of 2 forces the page
+// boundary to land inside that tie.
+func TestMusicTrackRepo_ListByLibraryCursor_PageBoundary(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	libRepo := postgres.NewLibraryRepository(db)
+	repo := postgres.NewMusicTrackRepository(db)
+	ctx := context.Background()
+
+	lib := newTestLibrary("mt-cursor-lib")
+	lib.Type = "music"
+	require.NoError(t, libRepo.Create(ctx, lib))
+
+	tracks := []music.Track{
+		newTestTrack("mtcur1", lib.ID, "T1", "A", "Alb1"),
+		newTestTrack("mtcur2", lib.ID, "T2", "A", "Alb1"), // ties mtcur1 on (album_artist, album, disk, track)
+		newTestTrack("mtcur3", lib.ID, "T3", "A", "Alb1"),
+		newTestTrack("mtcur4", lib.ID, "T4", "A", "Alb2"),
+		newTestTrack("mtcur5", lib.ID, "T5", "B", "Alb1"),
+	}
+	tracks[2].TrackNumber = 2 // mtcur3 sorts after the mtcur1/mtcur2 tie
+
+	ids := make([]string, 0, len(tracks))
+	for _, tr := range tracks {
+		tr.FilePath = "/music/" + tr.ID + ".flac"
+		_, err := repo.Upsert(ctx, tr)
+		require.NoError(t, err)
+		ids = append(ids, tr.ID)
+	}
+
+	var collected []string
+	var cursor *music.TrackCursor
+	// A page count cap, not a break-on-empty-page loop: a seek predicate bug
+	// that fails to exclude an already-returned row turns this into an
+	// infinite loop against a live DB connection instead of a fast failure.
+	for range len(tracks) + 2 {
+		page, err := repo.ListByLibraryCursor(ctx, lib.ID, "", cursor, 2)
+		require.NoError(t, err)
+		if len(page) == 0 {
+			break
+		}
+		for _, tr := range page {
+			collected = append(collected, tr.ID)
+		}
+		last := page[len(page)-1]
+		cursor = &music.TrackCursor{
+			AlbumArtist: last.AlbumArtist, Album: last.Album,
+			DiskNumber: last.DiskNumber, TrackNumber: last.TrackNumber, ID: last.ID,
+		}
+		if len(page) < 2 {
+			break
+		}
+	}
+
+	assert.ElementsMatch(t, ids, collected, "keyset pagination must return every row exactly once")
+	assert.Len(t, collected, len(ids), "no row should be skipped or repeated at a page boundary")
+
+	want := []string{"mtcur1", "mtcur2", "mtcur3", "mtcur4", "mtcur5"}
+	assert.Equal(t, want, collected)
+
+	offsetTracks, total, err := repo.ListByLibrary(ctx, lib.ID, 100, 0, "")
+	require.NoError(t, err)
+	assert.Equal(t, len(ids), total)
+	var offsetIDs []string
+	for _, tr := range offsetTracks {
+		offsetIDs = append(offsetIDs, tr.ID)
+	}
+	assert.Equal(t, want, offsetIDs, "keyset and offset queries must agree on ordering")
+}
+
+// The keyset ORDER BY is (album, disk_number, track_number, id) ascending.
+// mtart1/mtart2 tie on every column but id.
+func TestMusicTrackRepo_ListByArtistCursor_PageBoundary(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	libRepo := postgres.NewLibraryRepository(db)
+	repo := postgres.NewMusicTrackRepository(db)
+	ctx := context.Background()
+
+	lib := newTestLibrary("mt-cursor-artist-lib")
+	lib.Type = "music"
+	require.NoError(t, libRepo.Create(ctx, lib))
+
+	all := []music.Track{
+		newTestTrack("mtart1", lib.ID, "T1", "SharedArtist", "Alb1"),
+		newTestTrack("mtart2", lib.ID, "T2", "SharedArtist", "Alb1"), // ties mtart1 on (album, disk, track)
+		newTestTrack("mtart-other", lib.ID, "T3", "DifferentArtist", "Alb1"),
+	}
+	for _, tr := range all {
+		tr.FilePath = "/music/" + tr.ID + ".flac"
+		_, err := repo.Upsert(ctx, tr)
+		require.NoError(t, err)
+	}
+
+	var collected []string
+	var cursor *music.ArtistTrackCursor
+	for range len(all) + 2 { // page count cap, see ListByLibraryCursor's test for why
+		page, err := repo.ListByArtistCursor(ctx, "SharedArtist", cursor, 1)
+		require.NoError(t, err)
+		if len(page) == 0 {
+			break
+		}
+		for _, tr := range page {
+			collected = append(collected, tr.ID)
+		}
+		last := page[len(page)-1]
+		cursor = &music.ArtistTrackCursor{Album: last.Album, DiskNumber: last.DiskNumber, TrackNumber: last.TrackNumber, ID: last.ID}
+	}
+
+	assert.ElementsMatch(t, []string{"mtart1", "mtart2"}, collected)
+	assert.NotContains(t, collected, "mtart-other")
+}
+
 func TestMusicTrackRepo_Search(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()

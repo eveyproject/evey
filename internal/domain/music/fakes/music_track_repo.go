@@ -3,6 +3,7 @@ package fakes
 import (
 	"context"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -110,6 +111,80 @@ func (r *FakeMusicTrackRepository) ListByLibrary(_ context.Context, libraryID sh
 	return out, total, nil
 }
 
+// ListByLibraryCursor mimics the real repo's keyset seek: sort by
+// (album_artist, album, disk_number, track_number, id) ascending and return
+// rows strictly after the cursor in that order.
+func (r *FakeMusicTrackRepository) ListByLibraryCursor(_ context.Context, libraryID shared.LibraryID, search string, cursor *music.TrackCursor, limit int) ([]music.Track, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	q := strings.ToLower(search)
+	var out []music.Track
+	for _, t := range r.tracks {
+		if t.LibraryID != libraryID {
+			continue
+		}
+		if q != "" &&
+			!strings.Contains(strings.ToLower(t.Title), q) &&
+			!strings.Contains(strings.ToLower(t.Artist), q) &&
+			!strings.Contains(strings.ToLower(t.Album), q) {
+			continue
+		}
+		out = append(out, t)
+	}
+	sort.Slice(out, func(i, j int) bool { return trackCursorLess(out[i], out[j]) })
+	if cursor != nil {
+		filtered := out[:0:0]
+		for _, t := range out {
+			if trackCursorLess(music.Track{AlbumArtist: cursor.AlbumArtist, Album: cursor.Album, DiskNumber: cursor.DiskNumber, TrackNumber: cursor.TrackNumber, ID: cursor.ID}, t) {
+				filtered = append(filtered, t)
+			}
+		}
+		out = filtered
+	}
+	if limit > 0 && limit < len(out) {
+		out = out[:limit]
+	}
+	return out, nil
+}
+
+// trackCursorLess reports whether a sorts strictly before b in (album_artist,
+// album, disk_number, track_number, id) ascending order - the tuple
+// ListByLibraryCursor's ORDER BY sorts on.
+func trackCursorLess(a, b music.Track) bool {
+	if a.AlbumArtist != b.AlbumArtist {
+		return a.AlbumArtist < b.AlbumArtist
+	}
+	if a.Album != b.Album {
+		return a.Album < b.Album
+	}
+	if a.DiskNumber != b.DiskNumber {
+		return a.DiskNumber < b.DiskNumber
+	}
+	if a.TrackNumber != b.TrackNumber {
+		return a.TrackNumber < b.TrackNumber
+	}
+	return a.ID < b.ID
+}
+
+// artistTrackCursorLess reports whether a sorts strictly before b in (album,
+// disk_number, track_number, id) ascending order - the tuple
+// ListByArtistCursor's ORDER BY sorts on.
+func artistTrackCursorLess(a, b music.Track) bool {
+	if a.Album != b.Album {
+		return a.Album < b.Album
+	}
+	if a.DiskNumber != b.DiskNumber {
+		return a.DiskNumber < b.DiskNumber
+	}
+	if a.TrackNumber != b.TrackNumber {
+		return a.TrackNumber < b.TrackNumber
+	}
+	return a.ID < b.ID
+}
+
 func (r *FakeMusicTrackRepository) ListByAlbum(_ context.Context, album, artist string) ([]music.Track, error) {
 	if r.Err != nil {
 		return nil, r.Err
@@ -209,6 +284,35 @@ func (r *FakeMusicTrackRepository) ListByArtist(_ context.Context, artist string
 		out = out[:limit]
 	}
 	return out, total, nil
+}
+
+// ListByArtistCursor is the keyset form of ListByArtist. See ListByLibraryCursor.
+func (r *FakeMusicTrackRepository) ListByArtistCursor(_ context.Context, artist string, cursor *music.ArtistTrackCursor, limit int) ([]music.Track, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var out []music.Track
+	for _, t := range r.tracks {
+		if t.AlbumArtist == artist || t.Artist == artist {
+			out = append(out, t)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return artistTrackCursorLess(out[i], out[j]) })
+	if cursor != nil {
+		filtered := out[:0:0]
+		for _, t := range out {
+			if artistTrackCursorLess(music.Track{Album: cursor.Album, DiskNumber: cursor.DiskNumber, TrackNumber: cursor.TrackNumber, ID: cursor.ID}, t) {
+				filtered = append(filtered, t)
+			}
+		}
+		out = filtered
+	}
+	if limit > 0 && limit < len(out) {
+		out = out[:limit]
+	}
+	return out, nil
 }
 
 func (r *FakeMusicTrackRepository) Search(_ context.Context, libraryID shared.LibraryID, query string, limit int) ([]music.Track, error) {
