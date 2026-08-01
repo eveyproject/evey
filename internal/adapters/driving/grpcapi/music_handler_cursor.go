@@ -30,7 +30,13 @@ func encodeTrackCursor(last music.Track) string {
 		DiskNumber:  last.DiskNumber,
 		TrackNumber: last.TrackNumber,
 	}
-	b, _ := json.Marshal(v)
+	b, err := json.Marshal(v)
+	if err != nil {
+		// Unreachable with this struct, but an empty cursor is the honest
+		// failure: the client reads it as end-of-list and stops, rather than
+		// paging on with a corrupt keyset and silently skipping rows.
+		return ""
+	}
 	return shared.EncodeCursor(shared.Cursor{
 		SortField: "album_artist",
 		SortValue: string(b),

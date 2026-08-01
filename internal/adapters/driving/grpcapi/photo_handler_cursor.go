@@ -27,7 +27,13 @@ func encodePhotoCursor(last photodomain.Photo) string {
 	if last.TakenAt != nil {
 		v.TakenAt = last.TakenAt.UTC().Format(time.RFC3339Nano)
 	}
-	b, _ := json.Marshal(v)
+	b, err := json.Marshal(v)
+	if err != nil {
+		// Unreachable with a struct of strings, but an empty cursor is the
+		// honest failure here: the client reads it as end-of-list and stops,
+		// rather than paging on with a corrupt keyset and silently skipping rows.
+		return ""
+	}
 	return shared.EncodeCursor(shared.Cursor{
 		SortField: "taken_at",
 		SortValue: string(b),
@@ -44,8 +50,8 @@ func decodePhotoCursor(s string) (*photodomain.PhotoCursor, error) {
 		return nil, err
 	}
 	var v photoCursorSortValue
-	if err := json.Unmarshal([]byte(c.SortValue), &v); err != nil {
-		return nil, fmt.Errorf("unmarshal photo cursor: %w", err)
+	if uErr := json.Unmarshal([]byte(c.SortValue), &v); uErr != nil {
+		return nil, fmt.Errorf("unmarshal photo cursor: %w", uErr)
 	}
 	createdAt, err := time.Parse(time.RFC3339Nano, v.CreatedAt)
 	if err != nil {
