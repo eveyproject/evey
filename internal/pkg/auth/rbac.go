@@ -58,10 +58,7 @@ var MethodPermissions = map[string]string{
 	"/evey.v1.PlaybackService/GetStreamInfo":    PermMediaRead,
 	"/evey.v1.PlaybackService/ReportProgress":   PermPlaybackStart,
 	"/evey.v1.PlaybackService/GetWatchProgress": PermMediaRead,
-	"/evey.v1.PlaybackService/GetHistory":       PermActivityRead,
 	"/evey.v1.PlaybackService/GetResumeItems":   PermMediaRead,
-	"/evey.v1.PlaybackService/MarkWatched":      PermPlaybackStart,
-	"/evey.v1.PlaybackService/MarkUnwatched":    PermPlaybackStart,
 	"/evey.v1.PlaybackService/GetNextUp":        PermMediaRead,
 	// Transcoding
 	"/evey.v1.TranscodingService/StartTranscode": PermTranscodeStart,
@@ -72,11 +69,8 @@ var MethodPermissions = map[string]string{
 	"/evey.v1.MetadataService/SetMetadataOverride":    PermMetadataUpdate,
 	"/evey.v1.MetadataService/RemoveMetadataOverride": PermMetadataUpdate,
 	"/evey.v1.MetadataService/GetArtwork":             PermMetadataRead,
-	"/evey.v1.MetadataService/GetOverrides":           PermMetadataRead,
 	// Activity
-	"/evey.v1.ActivityService/GetAuditLog":    PermAuditRead,
 	"/evey.v1.ActivityService/GetServerStats": PermActivityRead,
-	"/evey.v1.ActivityService/GetHistory":     PermActivityRead,
 	"/evey.v1.ActivityService/GetUserStats":   PermActivityRead,
 	// Plugin
 	"/evey.v1.AdminPluginService/InstallPlugin":   PermPluginInstall,
@@ -128,17 +122,13 @@ var APIKeyScopeFor = map[string]string{
 	// Playback read
 	"/evey.v1.PlaybackService/GetStreamInfo":    ScopePlaybackRead,
 	"/evey.v1.PlaybackService/GetWatchProgress": ScopePlaybackRead,
-	"/evey.v1.PlaybackService/GetHistory":       ScopePlaybackRead,
 	"/evey.v1.PlaybackService/GetResumeItems":   ScopePlaybackRead,
 	"/evey.v1.PlaybackService/GetNextUp":        ScopePlaybackRead,
 	// Playback write
 	"/evey.v1.PlaybackService/StartStream":    ScopePlaybackWrite,
 	"/evey.v1.PlaybackService/StopStream":     ScopePlaybackWrite,
 	"/evey.v1.PlaybackService/ReportProgress": ScopePlaybackWrite,
-	"/evey.v1.PlaybackService/MarkWatched":    ScopePlaybackWrite,
-	"/evey.v1.PlaybackService/MarkUnwatched":  ScopePlaybackWrite,
 	// Admin read
-	"/evey.v1.ActivityService/GetAuditLog":    ScopeAdminRead,
 	"/evey.v1.ActivityService/GetServerStats": ScopeAdminRead,
 	"/evey.v1.ActivityService/GetUserStats":   ScopeAdminRead,
 }
@@ -161,10 +151,7 @@ var InternalMethods = map[string]bool{
 	"/evey.v1.UserService/RegisterWithInvite":   true,
 	"/evey.v1.UserService/InitiateQuickConnect": true,
 	"/evey.v1.UserService/CheckQuickConnect":    true,
-	"/evey.v1.UserService/ChangePassword":       true,
-	"/evey.v1.UserService/ForgotPassword":       true,
 	"/evey.v1.UserService/ResetPassword":        true,
-	"/evey.v1.UserService/VerifyEmail":          true,
 
 	// User lifecycle (admin infra)
 	"/evey.v1.UserService/CreateUser":   true,
@@ -191,10 +178,12 @@ var InternalMethods = map[string]bool{
 	// AdminSessionService
 	"/evey.v1.AdminSessionService/GetAuditLog": true,
 
-	// AdminMediaService
-	"/evey.v1.AdminMediaService/EnrichPeopleBios":    true,
-	"/evey.v1.AdminMediaService/GetUserBitrateLimit": true,
-	"/evey.v1.AdminMediaService/SetUserBitrateLimit": true,
+	// AdminMediaService is not listed here: its real RPCs (RefreshAllMetadata,
+	// MatchOrphansInLibrary, ScanSeekIndex, ...) are RoleAdmin in
+	// interceptors.DefaultRBACConfig().MethodRoles, so an API key is already
+	// blocked by the deny-by-default admin check (auth.go step 2) without
+	// needing a redundant entry here. Proven by
+	// TestAdminMediaService_RealMethodsDenyByDefaultForAPIKeys.
 
 	// AdminPluginService
 	"/evey.v1.AdminPluginService/ListPluginRuntimes":  true,

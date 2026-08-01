@@ -5,10 +5,109 @@ import (
 	"strings"
 	"testing"
 
+	_ "github.com/evey-project/evey/gen/evey/v1" // register proto service descriptors
+	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
 	"github.com/evey-project/evey/internal/pkg/auth"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/reflect/protoregistry"
 )
 
 var methodKeyRe = regexp.MustCompile(`^/evey\.v1\.\w+Service/\w+$`)
+
+// registeredEveyMethods walks the compiled proto descriptors (registered by
+// the blank gen/evey/v1 import above) and returns the full set of real
+// evey.v1 RPC full names. Used to derive guards from ground truth instead of
+// hand-typed lists that silently drift from the .proto files.
+func registeredEveyMethods(t *testing.T) map[string]bool {
+	t.Helper()
+	real := make(map[string]bool)
+	protoregistry.GlobalFiles.RangeFiles(func(fd protoreflect.FileDescriptor) bool {
+		svcs := fd.Services()
+		for i := range svcs.Len() {
+			svc := svcs.Get(i)
+			if !strings.HasPrefix(string(svc.FullName()), "evey.v1.") {
+				continue // ignore google.* / grpc.* well-known/infra services
+			}
+			methods := svc.Methods()
+			for j := range methods.Len() {
+				real["/"+string(svc.FullName())+"/"+string(methods.Get(j).Name())] = true
+			}
+		}
+		return true
+	})
+	require.NotEmpty(t, real, "no evey.v1 service methods discovered - proto descriptors not registered?")
+	return real
+}
+
+// TestMethodTables_NoPhantomEntries: a key that names no real RPC can never
+// match live traffic - it is dead weight that gives false assurance an
+// endpoint is protected (it protects nothing, since the string never appears
+// in a real request). Catches typos, renames, and removed RPCs across all
+// three method-keyed tables in this package.
+func TestMethodTables_NoPhantomEntries(t *testing.T) {
+	real := registeredEveyMethods(t)
+
+	for k := range auth.MethodPermissions {
+		if !real[k] {
+			t.Errorf("MethodPermissions[%q]: no such registered evey.v1 method (dead/typo'd entry)", k)
+		}
+	}
+	for k := range auth.APIKeyScopeFor {
+		if !real[k] {
+			t.Errorf("APIKeyScopeFor[%q]: no such registered evey.v1 method (dead/typo'd entry)", k)
+		}
+	}
+	for k := range auth.InternalMethods {
+		if !real[k] {
+			t.Errorf("InternalMethods[%q]: no such registered evey.v1 method (dead/typo'd entry)", k)
+		}
+	}
+}
+
+// TestAdminMediaService_RealMethodsDenyByDefaultForAPIKeys proves the premise
+// that lets InternalMethods skip AdminMediaService entirely: every real
+// AdminMediaService RPC is RoleAdmin in interceptors.DefaultRBACConfig() and
+// maps to neither an API-key scope nor a fine-grained permission, so
+// interceptors/auth.go's step-2 deny-by-default ("isAdminMethod && !hasScope
+// && !hasPerm", enforceRBAC) already blocks API keys from it - a redundant
+// InternalMethods entry would add nothing. Read-only assertion against the
+// interceptor's own config; does not modify interceptors/auth.go.
+func TestAdminMediaService_RealMethodsDenyByDefaultForAPIKeys(t *testing.T) {
+	cfg := interceptors.DefaultRBACConfig()
+
+	var found int
+	protoregistry.GlobalFiles.RangeFiles(func(fd protoreflect.FileDescriptor) bool {
+		svcs := fd.Services()
+		for i := range svcs.Len() {
+			svc := svcs.Get(i)
+			if string(svc.FullName()) != "evey.v1.AdminMediaService" {
+				continue
+			}
+			methods := svc.Methods()
+			for j := range methods.Len() {
+				full := "/" + string(svc.FullName()) + "/" + string(methods.Get(j).Name())
+				found++
+
+				role, isClassified := cfg.MethodRoles[full]
+				if !isClassified || role != interceptors.RoleAdmin {
+					t.Errorf("%s: not RoleAdmin in interceptors.DefaultRBACConfig().MethodRoles - "+
+						"deny-by-default would NOT cover it for API keys", full)
+				}
+				if _, hasScope := auth.APIKeyScopeFor[full]; hasScope {
+					t.Errorf("%s: has an APIKeyScopeFor entry - deny-by-default no longer applies, "+
+						"this RPC would be reachable by API key", full)
+				}
+				if _, hasPerm := auth.MethodPermissions[full]; hasPerm {
+					t.Errorf("%s: has a MethodPermissions entry - deny-by-default no longer applies, "+
+						"this RPC would be reachable by API key", full)
+				}
+			}
+		}
+		return true
+	})
+	require.Positive(t, found, "no evey.v1.AdminMediaService methods discovered - proto descriptors not registered?")
+}
 
 // TestMethodPermissions_AllKeysValidFormat catches typos in map keys.
 func TestMethodPermissions_AllKeysValidFormat(t *testing.T) {
@@ -60,7 +159,6 @@ func TestMethodPermissions_KnownEndpoints(t *testing.T) {
 		"/evey.v1.TranscodingService/StopTranscode":   auth.PermTranscodeStop,
 		"/evey.v1.AdminPluginService/InstallPlugin":   auth.PermPluginInstall,
 		"/evey.v1.AdminPluginService/UninstallPlugin": auth.PermPluginManage,
-		"/evey.v1.ActivityService/GetAuditLog":        auth.PermAuditRead,
 	}
 	for method, perm := range expected {
 		got, ok := auth.MethodPermissions[method]
@@ -81,10 +179,7 @@ func TestInternalMethods_BlockListForAPIKeys(t *testing.T) {
 		// Auth/session
 		"/evey.v1.UserService/Login",
 		"/evey.v1.UserService/RefreshToken",
-		"/evey.v1.UserService/ChangePassword",
-		"/evey.v1.UserService/ForgotPassword",
 		"/evey.v1.UserService/ResetPassword",
-		"/evey.v1.UserService/VerifyEmail",
 		"/evey.v1.UserService/RegisterWithInvite",
 		"/evey.v1.UserService/InitiateQuickConnect",
 		"/evey.v1.UserService/CheckQuickConnect",
@@ -203,9 +298,16 @@ func TestPermissions_SemanticConsistency(t *testing.T) {
 	}
 }
 
-// TestAllGRPCServicesCovered: each service referenced in MethodPermissions has
-// at minimum one mapped method, AND the curated list of critical services is
-// represented in either MethodPermissions or InternalMethods.
+// TestAllGRPCServicesCovered: the curated list of critical services must be
+// reachable through at least one of the layers documented on InternalMethods:
+// an entry in this package's own tables (MethodPermissions/InternalMethods),
+// OR RoleAdmin in interceptors.DefaultRBACConfig().MethodRoles - the
+// deny-by-default second layer. AdminMediaService is why the second layer
+// counts here: its real RPCs were only ever "covered" by three InternalMethods
+// entries naming nonexistent methods (removed; see
+// TestAdminMediaService_RealMethodsDenyByDefaultForAPIKeys for the proof they
+// were redundant), so requiring layer one alone would make this test blind to
+// the very case it exists to catch.
 func TestAllGRPCServicesCovered(t *testing.T) {
 	criticalServices := []string{
 		"LibraryService",
@@ -224,6 +326,7 @@ func TestAllGRPCServicesCovered(t *testing.T) {
 		"RemoteAccessService",
 		"LibraryAccessService",
 	}
+	cfg := interceptors.DefaultRBACConfig()
 	covered := map[string]bool{}
 	for k := range auth.MethodPermissions {
 		for _, s := range criticalServices {
@@ -239,9 +342,20 @@ func TestAllGRPCServicesCovered(t *testing.T) {
 			}
 		}
 	}
+	for k, role := range cfg.MethodRoles {
+		if role != interceptors.RoleAdmin {
+			continue
+		}
+		for _, s := range criticalServices {
+			if strings.Contains(k, "/evey.v1."+s+"/") {
+				covered[s] = true
+			}
+		}
+	}
 	for _, s := range criticalServices {
 		if !covered[s] {
-			t.Errorf("service %q has zero entries in MethodPermissions or InternalMethods (RBAC blind spot)", s)
+			t.Errorf("service %q has zero entries in MethodPermissions, InternalMethods, or "+
+				"interceptors RoleAdmin (RBAC blind spot)", s)
 		}
 	}
 }
