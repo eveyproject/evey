@@ -22,6 +22,7 @@ import {
 } from "../../src/lib/downloads";
 import { canPlayOffline, type OfflineDenialReason, type OfflineProfileInfo } from "../../src/lib/offlineAccess";
 import { getAudioPassState, subscribeToAudioPass, type AudioPassState } from "../../src/lib/audioCompatPass";
+import type { WaitingReason } from "../../src/lib/passConditions";
 
 // A download still running is invisible in getDownloads() - an item only
 // enters that persisted index once it completes - so this screen merges in
@@ -44,6 +45,24 @@ function denialLabel(t: ReturnType<typeof useTranslation>["t"], reason: OfflineD
       return t("downloads.badge.moreRestricted", "Downloaded by another profile");
     case "unknown-profile":
       return t("downloads.badge.unavailable", "Unavailable offline");
+  }
+}
+
+// The pass waits for a charger and Wi-Fi before it runs. Saying "Optimizing
+// audio... 0%" during that wait would describe work that is not happening -
+// the same class of invisible refusal that made a stalled download look alive
+// for a whole evening. Name the condition that is missing instead.
+function waitingLabel(
+  t: ReturnType<typeof useTranslation>["t"],
+  reason: WaitingReason | undefined,
+): string {
+  switch (reason) {
+    case "charge":
+      return t("downloads.waitingForCharge", "Waiting for the charger...");
+    case "wifi":
+      return t("downloads.waitingForWifi", "Waiting for Wi-Fi...");
+    default:
+      return t("downloads.waitingForChargeAndWifi", "Waiting for Wi-Fi and the charger...");
   }
 }
 
@@ -191,9 +210,11 @@ function DownloadRow({ item, onDelete, onCancel, deleting, canceling, activeProf
             )}
             {audioPass && (
               <Text style={{ color: theme.colors.accent, fontSize: 11 }}>
-                {t("downloads.optimizingAudio", "Optimizing audio… {{percent}}%", {
-                  percent: Math.round(audioPass.permille / 10),
-                })}
+                {audioPass.stage === "waiting"
+                  ? waitingLabel(t, audioPass.waitingReason)
+                  : t("downloads.optimizingAudio", "Optimizing audio… {{percent}}%", {
+                      percent: Math.round(audioPass.permille / 10),
+                    })}
               </Text>
             )}
             {blocked && decision.reason && (
