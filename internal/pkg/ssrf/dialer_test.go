@@ -238,3 +238,34 @@ func TestNewSafeDialer_CarriesTheGuardAndABoundedConnect(t *testing.T) {
 		t.Errorf("the wired callback let cloud metadata through: %v", err)
 	}
 }
+
+// The IPv6 range table is reached only AFTER the stdlib classifiers, so the
+// obvious v6 cases (::1, fc00::) never exercise it - they are caught by
+// IsLoopback/IsPrivate first. Mutation testing (2026-08-01) exposed that:
+// breaking the loop that builds reservedV6Ranges left every test green.
+//
+// These three are covered by the table and by nothing else.
+func TestIsPrivateOrReserved_UsesTheIPv6RangeTable(t *testing.T) {
+	cases := []struct{ name, ip string }{
+		{"documentation 2001:db8::/32", "2001:db8::1"},
+		{"IPv4/IPv6 translation 64:ff9b::/96", "64:ff9b::1.2.3.4"},
+		{"discard-only 100::/64", "100::1"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ip := net.ParseIP(tc.ip)
+			if ip == nil {
+				t.Fatalf("premise: %q must parse", tc.ip)
+			}
+			if !IsPrivateOrReserved(ip) {
+				t.Errorf("%s (%s) was allowed: the IPv6 reserved table is not being consulted", tc.name, tc.ip)
+			}
+		})
+	}
+
+	// Control: a normal public v6 address must still be allowed, or the test
+	// above would pass with a blanket "block all v6".
+	if pub := net.ParseIP("2606:2800:220:1:248:1893:25c8:1946"); IsPrivateOrReserved(pub) {
+		t.Error("a public IPv6 address was blocked: the guard is too broad to be useful")
+	}
+}
