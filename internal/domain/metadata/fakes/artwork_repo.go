@@ -264,3 +264,8 @@ func (r *FakeArtworkRepository) DeleteByMediaItemIDs(_ context.Context, mediaIte
 	}
 	return nil
 }
+
+var (
+	_ metadata.ArtworkCommandRepo = (*FakeArtworkRepository)(nil)
+	_ metadata.ArtworkQueryRepo   = (*FakeArtworkRepository)(nil)
+)

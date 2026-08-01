@@ -39,21 +39,10 @@ type ArtworkStats struct {
 	TotalSizeBytes   int64
 }
 
-type ArtworkRepository interface {
+// ArtworkCommandRepo is the write half of the artwork repository (ADR-0009).
+type ArtworkCommandRepo interface {
 	Create(ctx context.Context, a *ArtworkRecord) error
 	CreateBatch(ctx context.Context, records []*ArtworkRecord) error
-	GetByMediaItem(ctx context.Context, mediaItemID string) ([]*ArtworkRecord, error)
-	GetByMediaItems(ctx context.Context, mediaItemIDs []string) (map[string][]*ArtworkRecord, error)
-	GetByPerson(ctx context.Context, personID string) ([]*ArtworkRecord, error)
-	// ListMissingLocalPath returns records that have a SourceURL but no LocalPath,
-	// ordered by id. Used by the bulk-download admin job.
-	ListMissingLocalPath(ctx context.Context) ([]*ArtworkRecord, error)
-	// ListMissingBlurhash returns records that have a LocalPath on disk but no
-	// blurhash. Used by the backfill admin job to retro-fit hashes onto
-	// artworks that pre-date the blurhash column (migration 000095).
-	ListMissingBlurhash(ctx context.Context) ([]*ArtworkRecord, error)
-	// LocalPathStats returns aggregate coverage statistics.
-	LocalPathStats(ctx context.Context) (ArtworkStats, error)
 	// UpdateLocalPath persists the local file path after a successful download.
 	UpdateLocalPath(ctx context.Context, id string, localPath string) error
 	UpdateWebPPath(ctx context.Context, id string, webpPath string) error
@@ -67,6 +56,33 @@ type ArtworkRepository interface {
 	// statement for a whole level of items (e.g. all seasons of a series)
 	// instead of one round-trip per item.
 	DeleteByMediaItemIDs(ctx context.Context, mediaItemIDs []string) error
+}
+
+// ArtworkQueryRepo is the read half of the artwork repository (ADR-0009).
+type ArtworkQueryRepo interface {
+	GetByMediaItem(ctx context.Context, mediaItemID string) ([]*ArtworkRecord, error)
+	GetByMediaItems(ctx context.Context, mediaItemIDs []string) (map[string][]*ArtworkRecord, error)
+	GetByPerson(ctx context.Context, personID string) ([]*ArtworkRecord, error)
+	// ListMissingLocalPath returns records that have a SourceURL but no LocalPath,
+	// ordered by id. Used by the bulk-download admin job.
+	ListMissingLocalPath(ctx context.Context) ([]*ArtworkRecord, error)
+	// ListMissingBlurhash returns records that have a LocalPath on disk but no
+	// blurhash. Used by the backfill admin job to retro-fit hashes onto
+	// artworks that pre-date the blurhash column (migration 000095).
+	ListMissingBlurhash(ctx context.Context) ([]*ArtworkRecord, error)
+	// LocalPathStats returns aggregate coverage statistics.
+	LocalPathStats(ctx context.Context) (ArtworkStats, error)
+}
+
+// ArtworkRepository is the transitional union of ArtworkCommandRepo and
+// ArtworkQueryRepo (ADR-0009). Consumers that only read or only write should
+// depend on the narrower half directly; this stays for callers that
+// genuinely need both (e.g. CommandService, Enricher) and for the postgres
+// adapter's compile-time assertion. Prefer ArtworkCommandRepo for writes and
+// ArtworkQueryRepo for reads over this union in new code.
+type ArtworkRepository interface {
+	ArtworkCommandRepo
+	ArtworkQueryRepo
 }
 
 type ImageConverter interface {

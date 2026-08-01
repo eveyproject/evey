@@ -30,7 +30,11 @@ type CollectionLinker interface {
 type ArtworkPostSaveHook func(ctx context.Context, rec *domainmetadata.ArtworkRecord)
 
 type Enricher struct {
-	artwork             domainmetadata.ArtworkRepository
+	// artwork is split into its ADR-0009 command/query halves; both fields are
+	// populated from the same concrete repository (see NewEnricher), the split
+	// only narrows what each call site in this file can reach.
+	artworkCmd          domainmetadata.ArtworkCommandRepo
+	artworkQuery        domainmetadata.ArtworkQueryRepo
 	persons             domainlib.PersonRepository
 	mediaPersons        domainlib.MediaPersonRepository
 	mediaItems          domainlib.MediaItemRepository
@@ -111,7 +115,8 @@ func NewEnricher(
 	opts ...EnricherOption,
 ) *Enricher {
 	e := &Enricher{
-		artwork:      artwork,
+		artworkCmd:   artwork,
+		artworkQuery: artwork,
 		persons:      persons,
 		mediaPersons: mediaPersons,
 		mediaItems:   mediaItems,
@@ -282,7 +287,7 @@ func (e *Enricher) replaceArtwork(ctx context.Context, mediaItemID string, artwo
 		// which delete directly, not here.
 		return nil, nil
 	}
-	if existing, err := e.artwork.GetByMediaItem(ctx, mediaItemID); err == nil && artworkSetUnchanged(existing, artwork) {
+	if existing, err := e.artworkQuery.GetByMediaItem(ctx, mediaItemID); err == nil && artworkSetUnchanged(existing, artwork) {
 		return nil, nil
 	}
 	// Build the new records BEFORE deleting the old ones. If the provider gave
@@ -298,10 +303,10 @@ func (e *Enricher) replaceArtwork(ctx context.Context, mediaItemID string, artwo
 	if len(records) == 0 {
 		return nil, nil
 	}
-	if err := e.artwork.DeleteByMediaItemID(ctx, mediaItemID); err != nil {
+	if err := e.artworkCmd.DeleteByMediaItemID(ctx, mediaItemID); err != nil {
 		return nil, fmt.Errorf("delete old artwork: %w", err)
 	}
-	if err := e.artwork.CreateBatch(ctx, records); err != nil {
+	if err := e.artworkCmd.CreateBatch(ctx, records); err != nil {
 		return nil, fmt.Errorf("create artwork batch: %w", err)
 	}
 	return records, nil

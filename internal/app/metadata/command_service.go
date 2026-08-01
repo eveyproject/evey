@@ -30,8 +30,12 @@ func WithMediaPersons(repo library.MediaPersonRepository) CommandServiceOption {
 }
 
 type CommandService struct {
-	overrides    metadata.MetadataOverrideRepository
-	artwork      metadata.ArtworkRepository
+	overrides metadata.MetadataOverrideRepository
+	// artwork is split into its ADR-0009 command/query halves; both fields are
+	// populated from the same concrete repository (see NewCommandService), the
+	// split only narrows what each call site in this package can reach.
+	artworkCmd   metadata.ArtworkCommandRepo
+	artworkQuery metadata.ArtworkQueryRepo
 	downloader   metadata.ArtworkDownloader
 	events       shared.EventBus
 	providers    []metadata.MetadataProvider
@@ -79,12 +83,13 @@ func NewCommandService(
 	opts ...CommandServiceOption,
 ) *CommandService {
 	s := &CommandService{
-		overrides:  overrides,
-		artwork:    artwork,
-		downloader: downloader,
-		events:     events,
-		providers:  providers,
-		jobs:       newDownloadJobRegistry(),
+		overrides:    overrides,
+		artworkCmd:   artwork,
+		artworkQuery: artwork,
+		downloader:   downloader,
+		events:       events,
+		providers:    providers,
+		jobs:         newDownloadJobRegistry(),
 	}
 	for _, opt := range opts {
 		opt(s)

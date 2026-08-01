@@ -275,7 +275,7 @@ func (s *CommandService) resetSingleItem(ctx context.Context, item *library.Medi
 	if err := s.overrides.DeleteByMediaItemID(ctx, string(item.ID)); err != nil {
 		return fmt.Errorf("delete overrides: %w", err)
 	}
-	if err := s.artwork.DeleteByMediaItemID(ctx, string(item.ID)); err != nil {
+	if err := s.artworkCmd.DeleteByMediaItemID(ctx, string(item.ID)); err != nil {
 		return fmt.Errorf("delete artwork: %w", err)
 	}
 	if s.mediaPersons != nil {
@@ -353,7 +353,7 @@ func (s *CommandService) resetChildren(ctx context.Context, parentID string) err
 	if err := s.overrides.DeleteByMediaItemIDs(ctx, ids); err != nil {
 		return fmt.Errorf("delete overrides for children of %s: %w", parentID, err)
 	}
-	if err := s.artwork.DeleteByMediaItemIDs(ctx, ids); err != nil {
+	if err := s.artworkCmd.DeleteByMediaItemIDs(ctx, ids); err != nil {
 		return fmt.Errorf("delete artwork for children of %s: %w", parentID, err)
 	}
 	if s.mediaPersons != nil {

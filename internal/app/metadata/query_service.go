@@ -11,13 +11,13 @@ import (
 
 type QueryService struct {
 	overrides metadata.MetadataOverrideRepository
-	artwork   metadata.ArtworkRepository
+	artwork   metadata.ArtworkQueryRepo
 	providers []metadata.MetadataProvider
 }
 
 func NewQueryService(
 	overrides metadata.MetadataOverrideRepository,
-	artwork metadata.ArtworkRepository,
+	artwork metadata.ArtworkQueryRepo,
 	providers []metadata.MetadataProvider,
 ) *QueryService {
 	return &QueryService{overrides: overrides, artwork: artwork, providers: providers}

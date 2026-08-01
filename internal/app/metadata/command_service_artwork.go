@@ -112,7 +112,7 @@ func (s *CommandService) artworkDestPath(rec *metadata.ArtworkRecord) string {
 func (s *CommandService) ArtworkStats(ctx context.Context) (metadata.ArtworkStats, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.metadata.ArtworkStats")
 	defer span.End()
-	return s.artwork.LocalPathStats(ctx)
+	return s.artworkQuery.LocalPathStats(ctx)
 }
 
 // PurgeCorruptVariants deletes resized artwork variants (<base>_w<width>.webp)
@@ -198,7 +198,7 @@ func (s *CommandService) StartBulkDownload(ctx context.Context, serverCtx contex
 	if s.getDataDir() == "" {
 		return "", 0, errors.New("dataDir not configured")
 	}
-	records, err := s.artwork.ListMissingLocalPath(ctx)
+	records, err := s.artworkQuery.ListMissingLocalPath(ctx)
 	if err != nil {
 		return "", 0, fmt.Errorf("list missing artwork: %w", err)
 	}
@@ -250,7 +250,7 @@ func (s *CommandService) runBulkDownload(ctx context.Context, job *DownloadJob, 
 			// reconciling that as "present" would mark the record done forever
 			// (excluded from ListMissingLocalPath) with broken artwork.
 			if fi, err := os.Stat(destPath); err == nil && fi.Size() > 0 {
-				if err2 := s.artwork.UpdateLocalPath(ctx, rec.ID, destPath); err2 != nil {
+				if err2 := s.artworkCmd.UpdateLocalPath(ctx, rec.ID, destPath); err2 != nil {
 					slog.WarnContext(ctx, "artwork bulk: update already-present local path",
 						slog.String("id", rec.ID), slog.Any("err", err2))
 				}
@@ -267,7 +267,7 @@ func (s *CommandService) runBulkDownload(ctx context.Context, job *DownloadJob, 
 				job.Processed.Add(1)
 				return
 			}
-			if err := s.artwork.UpdateLocalPath(ctx, rec.ID, destPath); err != nil {
+			if err := s.artworkCmd.UpdateLocalPath(ctx, rec.ID, destPath); err != nil {
 				slog.WarnContext(ctx, "artwork bulk: save local path",
 					slog.String("id", rec.ID), slog.Any("err", err))
 			}
@@ -296,7 +296,7 @@ func (s *CommandService) RetryMissingArtworks(ctx context.Context) (succeeded, f
 	if s.getDataDir() == "" {
 		return 0, 0
 	}
-	records, err := s.artwork.ListMissingLocalPath(ctx)
+	records, err := s.artworkQuery.ListMissingLocalPath(ctx)
 	if err != nil {
 		slog.WarnContext(ctx, "retry missing artworks: list", slog.Any("err", err))
 		return 0, 0
@@ -314,7 +314,7 @@ func (s *CommandService) StartRetryMissing(ctx, serverCtx context.Context) (stri
 	if s.getDataDir() == "" {
 		return "", 0, errors.New("dataDir not configured")
 	}
-	records, err := s.artwork.ListMissingLocalPath(ctx)
+	records, err := s.artworkQuery.ListMissingLocalPath(ctx)
 	if err != nil {
 		return "", 0, fmt.Errorf("list missing artwork: %w", err)
 	}
@@ -377,7 +377,7 @@ func (s *CommandService) retryMissingRecords(ctx context.Context, job *DownloadJ
 			// so a 0-byte file from a killed mid-download is re-fetched, not
 			// reconciled as valid (which would strand the record permanently).
 			if fi, err := os.Stat(destPath); err == nil && fi.Size() > 0 {
-				if err2 := s.artwork.UpdateLocalPath(ctx, rec.ID, destPath); err2 != nil {
+				if err2 := s.artworkCmd.UpdateLocalPath(ctx, rec.ID, destPath); err2 != nil {
 					slog.WarnContext(ctx, "retry missing artworks: reconcile present file",
 						slog.String("id", rec.ID), slog.Any("err", err2))
 					failAtomic.Add(1)
@@ -398,7 +398,7 @@ func (s *CommandService) retryMissingRecords(ctx context.Context, job *DownloadJ
 				failAtomic.Add(1)
 				return
 			}
-			if err := s.artwork.UpdateLocalPath(ctx, rec.ID, destPath); err != nil {
+			if err := s.artworkCmd.UpdateLocalPath(ctx, rec.ID, destPath); err != nil {
 				slog.WarnContext(ctx, "retry missing artworks: save local path",
 					slog.String("id", rec.ID), slog.Any("err", err))
 				failAtomic.Add(1)
@@ -432,7 +432,7 @@ func (s *CommandService) retryMissingRecords(ctx context.Context, job *DownloadJ
 func (s *CommandService) BackfillBlurhashes(ctx context.Context) (succeeded, failed int) {
 	ctx, span := tracing.StartSpan(ctx, "app.metadata.BackfillBlurhashes")
 	defer span.End()
-	records, err := s.artwork.ListMissingBlurhash(ctx)
+	records, err := s.artworkQuery.ListMissingBlurhash(ctx)
 	if err != nil {
 		slog.WarnContext(ctx, "backfill blurhash: list", slog.Any("err", err))
 		return 0, 0
@@ -446,7 +446,7 @@ func (s *CommandService) BackfillBlurhashes(ctx context.Context) (succeeded, fai
 func (s *CommandService) StartBackfillBlurhashes(ctx, serverCtx context.Context) (string, int, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.metadata.StartBackfillBlurhashes")
 	defer span.End()
-	records, err := s.artwork.ListMissingBlurhash(ctx)
+	records, err := s.artworkQuery.ListMissingBlurhash(ctx)
 	if err != nil {
 		return "", 0, fmt.Errorf("list missing blurhash: %w", err)
 	}
@@ -515,7 +515,7 @@ func (s *CommandService) backfillBlurhashRecords(ctx context.Context, job *Downl
 				failAtomic.Add(1)
 				return
 			}
-			if err := s.artwork.UpdateBlurhash(ctx, rec.ID, hash); err != nil {
+			if err := s.artworkCmd.UpdateBlurhash(ctx, rec.ID, hash); err != nil {
 				slog.WarnContext(ctx, "backfill blurhash: persist",
 					slog.String("id", rec.ID), slog.Any("err", err))
 				failAtomic.Add(1)
@@ -590,7 +590,7 @@ func (s *CommandService) maybeAutoDownload(ctx context.Context, rec *metadata.Ar
 		slog.WarnContext(ctx, "auto-download artwork", slog.String("id", rec.ID), slog.Any("err", err))
 		return
 	}
-	if err := s.artwork.UpdateLocalPath(ctx, rec.ID, destPath); err != nil {
+	if err := s.artworkCmd.UpdateLocalPath(ctx, rec.ID, destPath); err != nil {
 		slog.WarnContext(ctx, "auto-download artwork: save local path", slog.String("id", rec.ID), slog.Any("err", err))
 	}
 }
@@ -617,7 +617,7 @@ func (s *CommandService) DownloadArtwork(ctx context.Context, record *metadata.A
 		if record.Blurhash == nil {
 			if hash, hashErr := computeBlurhash(destPath); hashErr == nil {
 				record.Blurhash = &hash
-				if err := s.artwork.UpdateBlurhash(ctx, record.ID, hash); err != nil {
+				if err := s.artworkCmd.UpdateBlurhash(ctx, record.ID, hash); err != nil {
 					slog.WarnContext(ctx, "persist blurhash", slog.String("artwork.id", record.ID), slog.Any("err", err))
 				}
 			}
@@ -636,7 +636,7 @@ func (s *CommandService) DownloadArtwork(ctx context.Context, record *metadata.A
 		slog.DebugContext(ctx, "blurhash encode skipped", slog.String("artwork.id", record.ID), slog.Any("err", hashErr))
 	} else {
 		record.Blurhash = &hash
-		if err := s.artwork.UpdateBlurhash(ctx, record.ID, hash); err != nil {
+		if err := s.artworkCmd.UpdateBlurhash(ctx, record.ID, hash); err != nil {
 			slog.WarnContext(ctx, "persist blurhash", slog.String("artwork.id", record.ID), slog.Any("err", err))
 		}
 	}
