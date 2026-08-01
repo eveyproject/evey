@@ -744,3 +744,22 @@ func TestGetItems_SmartCollection_RulesEvaluated(t *testing.T) {
 	assert.Len(t, items, 1)
 	assert.Equal(t, shared.MediaItemID("m1"), items[0].ID)
 }
+
+// The TMDB upsert takes its name from a third party's payload. Before the
+// invariant was enforced on this path, an empty name produced a `name = ''`
+// row - the column is NOT NULL, but the empty string satisfies that - and the
+// library showed a collection nobody could identify, name or search for.
+// Refusing costs one unlinked film and one log line.
+func TestUpsert_RefusesANamelessCollection(t *testing.T) {
+	t.Parallel()
+	svc, _, _ := newSvc()
+
+	col, err := svc.Upsert(context.Background(), 131292, "", "overview", "", "")
+
+	require.Error(t, err, "a collection with no name must not be persisted")
+	assert.Nil(t, col)
+
+	cols, listErr := svc.List(context.Background())
+	require.NoError(t, listErr)
+	assert.Empty(t, cols, "nothing may have reached the store")
+}

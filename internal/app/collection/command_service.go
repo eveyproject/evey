@@ -63,6 +63,16 @@ func (s *CommandService) Upsert(ctx context.Context, tmdbID int, name, overview,
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}
+	// The TMDB path builds its own shape (TmdbID + artwork) rather than going
+	// through NewCollection, but it owes the same invariants. Its input is a
+	// THIRD PARTY's payload - a collection ref whose name comes back empty
+	// otherwise lands as a `name = ''` row (the column is NOT NULL but the
+	// empty string satisfies it), and the library then shows a nameless
+	// collection nobody can identify or search for. Refusing here means the
+	// film simply is not linked, and the caller logs it (Enricher.linkCollection).
+	if err := col.Validate(); err != nil {
+		return nil, err
+	}
 	if err := s.cmd.Upsert(ctx, col); err != nil {
 		return nil, err
 	}
