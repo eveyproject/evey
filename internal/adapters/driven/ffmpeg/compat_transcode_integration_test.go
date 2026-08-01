@@ -45,8 +45,14 @@ func TestCompatTranscodeIntegration(t *testing.T) {
 	}
 
 	dst := filepath.Join(dir, "compat.mkv")
-	if err := NewCompatTranscoder("ffmpeg").TranscodeCompat(ctx, src, dst); err != nil {
+	var lastPermille int
+	if err := NewCompatTranscoder("ffmpeg").TranscodeCompat(ctx, src, dst, 20_000, func(p int) { lastPermille = p }); err != nil {
 		t.Fatalf("TranscodeCompat: %v", err)
+	}
+	// The progress stream must have moved: a static 0 is the "looks hung"
+	// field failure this exists to prevent.
+	if lastPermille < 500 {
+		t.Errorf("final progress permille = %d, want >= 500", lastPermille)
 	}
 
 	// ffprobe the result: video copied (h264), audio aac stereo, duration kept.

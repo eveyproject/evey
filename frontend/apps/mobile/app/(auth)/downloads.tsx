@@ -16,6 +16,7 @@ import {
   getInFlightBytes,
   getInFlightDownloads,
   isPreparingCompat,
+  getCompatPreparePermille,
   type DownloadedMedia,
   type ProgressBytes,
 } from "../../src/lib/downloads";
@@ -171,7 +172,11 @@ function DownloadRow({ item, onDelete, onCancel, deleting, canceling, activeProf
         {item.inProgress ? (
           <Text style={{ color: theme.colors.accent, fontSize: 12 }}>
             {isPreparingCompat(item.mediaItemId)
-              ? t("downloads.preparingCompat", "Preparing audio on the server…")
+              ? `${t("downloads.preparingCompat", "Preparing audio on the server…")}${
+                  getCompatPreparePermille(item.mediaItemId) > 0
+                    ? ` ${Math.round(getCompatPreparePermille(item.mediaItemId) / 10)}%`
+                    : ""
+                }`
               : inProgressLabel(t, progress, bytes, rate)}
           </Text>
         ) : (

@@ -29,8 +29,11 @@ type fakeCompatTranscoder struct {
 	calls   atomic.Int32
 }
 
-func (f *fakeCompatTranscoder) TranscodeCompat(_ context.Context, _, dst string) error {
+func (f *fakeCompatTranscoder) TranscodeCompat(_ context.Context, _, dst string, _ int64, onProgress func(int)) error {
 	f.calls.Add(1)
+	if onProgress != nil {
+		onProgress(420)
+	}
 	if f.err != nil {
 		return f.err
 	}
@@ -65,18 +68,18 @@ func doCompatRequest(h http.HandlerFunc, method, path string, admin bool) *httpt
 	return w
 }
 
-func decodeCompatStatus(t *testing.T, w *httptest.ResponseRecorder) map[string]string {
+func decodeCompatStatus(t *testing.T, w *httptest.ResponseRecorder) map[string]any {
 	t.Helper()
-	var body map[string]string
+	var body map[string]any
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
 	return body
 }
 
 // waitCompatStatus polls the status endpoint until it reports want - the
 // production runs on a detached goroutine, so "ready" is an eventually.
-func waitCompatStatus(t *testing.T, h *compatServe, want string) map[string]string {
+func waitCompatStatus(t *testing.T, h *compatServe, want string) map[string]any {
 	t.Helper()
-	var last map[string]string
+	var last map[string]any
 	require.Eventually(t, func() bool {
 		w := doCompatRequest(h.handleStatus, http.MethodGet, "/api/v1/media/m1/compat-download/status", false)
 		last = decodeCompatStatus(t, w)

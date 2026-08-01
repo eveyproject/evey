@@ -43,7 +43,7 @@ import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { artworkUrl } from "../../../src/lib/artwork";
 import { certInfoForLocale } from "../../../src/lib/certifications";
 import { useIsFavorite, useToggleFavorite } from "../../../src/hooks/useFavorite";
-import { startDownload, getDownloadPath, deleteDownload, downloadErrorMessageKey, type ProgressBytes } from "../../../src/lib/downloads";
+import { startDownload, getDownloadPath, deleteDownload, downloadErrorMessageKey, isPreparingCompat, getCompatPreparePermille, type ProgressBytes } from "../../../src/lib/downloads";
 import { formatBytes } from "../../../src/lib/formatBytes";
 import { buildDownloadAuthContext } from "../../../src/lib/downloadContext";
 import { toast } from "@evey/store";
@@ -1227,7 +1227,13 @@ export default function MediaDetailScreen() {
                 {downloadProgress !== null && Number.isFinite(downloadProgress)
                   ? `${Math.round(downloadProgress * 100)}%${downloadBytes && downloadBytes.downloaded > 0 ? ` · ${formatBytes(downloadBytes.downloaded)}` : ""}`
                   : downloadProgress !== null
-                    ? (downloadBytes && downloadBytes.downloaded > 0 ? formatBytes(downloadBytes.downloaded) : "…")
+                    ? id && isPreparingCompat(id)
+                      // Minutes of server-side production behind a static "…"
+                      // reads as a hang; the moving percent is what says "it
+                      // is working" (the prepare loop pings the progress
+                      // subscription on every server poll, re-rendering this).
+                      ? `${t("downloads.preparingCompat", "Preparing audio on the server…")}${getCompatPreparePermille(id) > 0 ? ` ${Math.round(getCompatPreparePermille(id) / 10)}%` : ""}`
+                      : (downloadBytes && downloadBytes.downloaded > 0 ? formatBytes(downloadBytes.downloaded) : "…")
                     : t("common.download") || "Download"}
               </Text>
             </Pressable>

@@ -43,7 +43,11 @@ func compatCacheName(itemID, fingerprint string) string {
 // (video/subs copied, audio re-encoded to stereo AAC). Satisfied by the
 // ffmpeg driven adapter.
 type CompatTranscoder interface {
-	TranscodeCompat(ctx context.Context, srcPath, dstPath string) error
+	// durationMs is the source's play length, the denominator of the
+	// permille the implementation reports through onProgress (nil = no
+	// reports). A minutes-long production with no visible progress reads as
+	// a hang on the client - it did in the field.
+	TranscodeCompat(ctx context.Context, srcPath, dstPath string, durationMs int64, onProgress func(permille int)) error
 }
 
 // compatJob is the in-memory state of one production. "ready" is not a state
@@ -75,8 +79,9 @@ type compatServe struct {
 	baseURL       string
 	group         singleflight.Group
 
-	mu   sync.Mutex
-	jobs map[string]*compatJob // keyed by outPath
+	mu       sync.Mutex
+	jobs     map[string]*compatJob // keyed by outPath
+	progress map[string]int        // production permille, keyed by outPath
 }
 
 // StreamsByMediaGetter is the one method of MediaStreamsGetter this handler
@@ -97,6 +102,7 @@ func newCompatServe(libSvc MediaItemGetter, streams StreamsByMediaGetter, librar
 		cacheDir:      filepath.Join(cacheRoot, "compat"),
 		baseURL:       baseURL,
 		jobs:          map[string]*compatJob{},
+		progress:      map[string]int{},
 	}
 }
 
@@ -140,36 +146,36 @@ func (h *compatServe) transcodeUnnecessary(ctx context.Context, mediaID, rendera
 // resolve runs the shared guard set (the same ones the raw download enforces:
 // token scope, library access, parental) and returns the item plus its cache
 // path. A nil item means the response has already been written.
-func (h *compatServe) resolve(w http.ResponseWriter, r *http.Request) (mediaID, srcPath, outPath string, ok bool) {
+func (h *compatServe) resolve(w http.ResponseWriter, r *http.Request) (mediaID, srcPath, outPath string, durationMs int64, ok bool) {
 	mediaID = r.PathValue("id")
 	claims := HTTPClaimsFromContext(r.Context())
 
 	if st, tok := StreamTokenFromContext(r.Context()); tok {
 		if st.MediaItemID != shared.MediaItemID(mediaID) {
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-			return "", "", "", false
+			return "", "", "", 0, false
 		}
 	}
 	item, err := h.libSvc.GetMediaItem(r.Context(), mediaID)
 	if err != nil {
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
-		return "", "", "", false
+		return "", "", "", 0, false
 	}
 	if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, h.libraryAccess) {
-		return "", "", "", false
+		return "", "", "", 0, false
 	}
 	if !checkParental(r.Context(), w, claims, item, h.parental) {
-		return "", "", "", false
+		return "", "", "", 0, false
 	}
 	if item.File == nil || item.File.Path == "" {
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
-		return "", "", "", false
+		return "", "", "", 0, false
 	}
 	if h.libLister != nil && !pathWithinRoots(mediaRoots(r.Context(), h.libLister), item.File.Path) {
 		slog.WarnContext(r.Context(), "compat-download: file path outside configured library roots",
 			slog.String("media_id", mediaID), slog.String("path", item.File.Path))
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
-		return "", "", "", false
+		return "", "", "", 0, false
 	}
 
 	fingerprint := item.File.Fingerprint
@@ -178,30 +184,31 @@ func (h *compatServe) resolve(w http.ResponseWriter, r *http.Request) (mediaID, 
 			fingerprint = fmt.Sprintf("%d-%d", fi.Size(), fi.ModTime().UnixNano())
 		}
 	}
-	return mediaID, item.File.Path, filepath.Join(h.cacheDir, compatCacheName(string(item.ID), fingerprint)), true
+	return mediaID, item.File.Path, filepath.Join(h.cacheDir, compatCacheName(string(item.ID), fingerprint)), item.File.Duration.Milliseconds(), true
 }
 
-func (h *compatServe) status(outPath string) (string, string) {
+func (h *compatServe) status(outPath string) (string, string, int) {
 	if fi, err := os.Stat(outPath); err == nil && fi.Size() > 0 {
-		return "ready", ""
+		return "ready", "", 1000
 	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if job, ok := h.jobs[outPath]; ok {
 		if job.failed {
-			return "failed", job.errMsg
+			return "failed", job.errMsg, 0
 		}
-		return "preparing", ""
+		return "preparing", "", h.progress[outPath]
 	}
-	return "absent", ""
+	return "absent", "", 0
 }
 
-func writeCompatStatus(w http.ResponseWriter, code int, status, errMsg string) {
+func writeCompatStatus(w http.ResponseWriter, code int, status, errMsg string, permille int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
-	_ = json.NewEncoder(w).Encode(map[string]string{
-		"status": status,
-		"error":  errMsg,
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"status":   status,
+		"error":    errMsg,
+		"permille": permille,
 	})
 }
 
@@ -213,21 +220,21 @@ func (h *compatServe) handlePrepare(w http.ResponseWriter, r *http.Request) {
 	defer span.End()
 	r = r.WithContext(ctx)
 
-	mediaID, srcPath, outPath, ok := h.resolve(w, r)
+	mediaID, srcPath, outPath, durationMs, ok := h.resolve(w, r)
 	if !ok {
 		span.SetStatus(codes.Error, "refused")
 		return
 	}
 	if h.transcodeUnnecessary(r.Context(), mediaID, r.URL.Query().Get("renderable")) {
-		writeCompatStatus(w, http.StatusOK, "unnecessary", "")
+		writeCompatStatus(w, http.StatusOK, "unnecessary", "", 0)
 		return
 	}
-	switch st, _ := h.status(outPath); st {
+	switch st, _, permille := h.status(outPath); st {
 	case "ready":
-		writeCompatStatus(w, http.StatusOK, "ready", "")
+		writeCompatStatus(w, http.StatusOK, "ready", "", 1000)
 		return
 	case "preparing":
-		writeCompatStatus(w, http.StatusAccepted, "preparing", "")
+		writeCompatStatus(w, http.StatusAccepted, "preparing", "", permille)
 		return
 	}
 
@@ -239,11 +246,11 @@ func (h *compatServe) handlePrepare(w http.ResponseWriter, r *http.Request) {
 
 	// Detached from the request on purpose: the phone that asked may drop off
 	// Wi-Fi mid-production; the next poller still wants the file.
-	go h.produce(context.WithoutCancel(ctx), mediaID, srcPath, outPath)
-	writeCompatStatus(w, http.StatusAccepted, "preparing", "")
+	go h.produce(context.WithoutCancel(ctx), mediaID, srcPath, outPath, durationMs)
+	writeCompatStatus(w, http.StatusAccepted, "preparing", "", 0)
 }
 
-func (h *compatServe) produce(ctx context.Context, mediaID, srcPath, outPath string) {
+func (h *compatServe) produce(ctx context.Context, mediaID, srcPath, outPath string, durationMs int64) {
 	done := bgtasks.Begin("compat_download", mediaID)
 	defer done()
 	_, err, _ := h.group.Do(outPath, func() (any, error) {
@@ -255,7 +262,12 @@ func (h *compatServe) produce(ctx context.Context, mediaID, srcPath, outPath str
 		}
 		tmp := outPath + ".tmp"
 		bestEffortRemove(tmp)
-		if tErr := h.transcoder.TranscodeCompat(ctx, srcPath, tmp); tErr != nil {
+		onProgress := func(permille int) {
+			h.mu.Lock()
+			h.progress[outPath] = permille
+			h.mu.Unlock()
+		}
+		if tErr := h.transcoder.TranscodeCompat(ctx, srcPath, tmp, durationMs, onProgress); tErr != nil {
 			bestEffortRemove(tmp)
 			return nil, tErr
 		}
@@ -264,6 +276,7 @@ func (h *compatServe) produce(ctx context.Context, mediaID, srcPath, outPath str
 
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	delete(h.progress, outPath)
 	if err != nil {
 		slog.ErrorContext(ctx, "compat-download: production failed",
 			slog.String("media_id", mediaID), slog.Any("err", err))
@@ -280,13 +293,13 @@ func (h *compatServe) handleStatus(w http.ResponseWriter, r *http.Request) {
 	defer span.End()
 	r = r.WithContext(ctx)
 
-	_, _, outPath, ok := h.resolve(w, r)
+	_, _, outPath, _, ok := h.resolve(w, r)
 	if !ok {
 		span.SetStatus(codes.Error, "refused")
 		return
 	}
-	st, errMsg := h.status(outPath)
-	writeCompatStatus(w, http.StatusOK, st, errMsg)
+	st, errMsg, permille := h.status(outPath)
+	writeCompatStatus(w, http.StatusOK, st, errMsg, permille)
 }
 
 // handleServe streams the finished variant with the raw download's serving
@@ -298,15 +311,15 @@ func (h *compatServe) handleServe(w http.ResponseWriter, r *http.Request) {
 	defer span.End()
 	r = r.WithContext(ctx)
 
-	mediaID, _, outPath, ok := h.resolve(w, r)
+	mediaID, _, outPath, _, ok := h.resolve(w, r)
 	if !ok {
 		span.SetStatus(codes.Error, "refused")
 		return
 	}
-	st, errMsg := h.status(outPath)
+	st, errMsg, permille := h.status(outPath)
 	if st != "ready" {
 		span.SetStatus(codes.Error, "not ready")
-		writeCompatStatus(w, http.StatusConflict, st, errMsg)
+		writeCompatStatus(w, http.StatusConflict, st, errMsg, permille)
 		return
 	}
 	f, err := os.Open(outPath)

@@ -516,12 +516,18 @@ const COMPAT_POLL_MS = 4000;
 // experience than an open-ended wait.
 const COMPAT_PREPARE_TIMEOUT_MS = 30 * 60 * 1000;
 
-const preparingCompat = new Map<string, { cancelled: boolean }>();
+const preparingCompat = new Map<string, { cancelled: boolean; permille: number }>();
 
 // The Downloads screen shows "preparing on the server..." on the in-flight
 // row while this is true (its poll loop picks the change up).
 export function isPreparingCompat(mediaItemId: string): boolean {
   return preparingCompat.has(mediaItemId);
+}
+
+// Server-side production progress, 0..1000 (0 = not started/unknown). What
+// turns a minutes-long "preparing" label from "it hung" into "it is working".
+export function getCompatPreparePermille(mediaItemId: string): number {
+  return preparingCompat.get(mediaItemId)?.permille ?? 0;
 }
 
 function sleep(ms: number): Promise<void> {
@@ -537,7 +543,7 @@ function sleep(ms: number): Promise<void> {
  * download rejects instead of silently continuing raw.
  */
 async function prepareCompatDownload(mediaItemId: string, deviceAudio: string[]): Promise<"ready" | "unavailable" | "cancelled"> {
-  const flag = { cancelled: false };
+  const flag = { cancelled: false, permille: 0 };
   preparingCompat.set(mediaItemId, flag);
   try {
     let status: string;
@@ -561,12 +567,15 @@ async function prepareCompatDownload(mediaItemId: string, deviceAudio: string[])
       await sleep(COMPAT_POLL_MS);
       if (flag.cancelled) break;
       try {
-        status = (
-          await eveyFetch<{ status: string; error?: string }>({
-            url: `/api/v1/media/${mediaItemId}/compat-download/status`,
-            method: "GET",
-          })
-        ).status;
+        const st = await eveyFetch<{ status: string; error?: string; permille?: number }>({
+          url: `/api/v1/media/${mediaItemId}/compat-download/status`,
+          method: "GET",
+        });
+        status = st.status;
+        if (typeof st.permille === "number" && st.permille > flag.permille) {
+          flag.permille = st.permille;
+          notifyProgress(mediaItemId, NaN); // wake the fiche's subscription for a re-read
+        }
       } catch {
         // One dropped poll must not abandon a production that is still
         // running server-side; the deadline bounds the overall wait.

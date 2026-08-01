@@ -16,12 +16,16 @@ package ffmpeg
 // proved for "copy everything, rewrite one aspect, atomic swap".
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -73,7 +77,12 @@ func BuildCompatArgs(src, dst string) []string {
 // temp naming and the atomic publish; this only guarantees dst is complete
 // when it returns nil. Runs under nice -n 19 like every other background
 // ffmpeg job: a viewer's live transcode must always win the CPU.
-func (t *CompatTranscoder) TranscodeCompat(ctx context.Context, src, dst string) error {
+//
+// durationMs (the source's play length) turns ffmpeg's out_time into the
+// permille onProgress reports - a production takes MINUTES, and a client
+// staring at a static "preparing" label reads it as a hang (it did, in the
+// field, within the first hour). Zero duration or nil callback = no reports.
+func (t *CompatTranscoder) TranscodeCompat(ctx context.Context, src, dst string, durationMs int64, onProgress func(permille int)) error {
 	ctx, span := tracing.StartSpan(ctx, "ffmpeg.TranscodeCompat")
 	defer span.End()
 
@@ -95,12 +104,56 @@ func (t *CompatTranscoder) TranscodeCompat(ctx context.Context, src, dst string)
 
 	ctx, cancel := context.WithTimeout(ctx, compatTimeout)
 	defer cancel()
-	argv := append([]string{"-n", "19", t.ffmpegPath}, BuildCompatArgs(src, dst)...)
+	// "-progress pipe:1" streams key=value lines on stdout (stderr keeps the
+	// error text); "-nostats" silences the human status line.
+	argv := append([]string{"-n", "19", t.ffmpegPath, "-progress", "pipe:1", "-nostats"}, BuildCompatArgs(src, dst)...)
 	cmd := exec.CommandContext(ctx, "nice", argv...)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return fmt.Errorf("compat-transcode: stdout pipe: %w", err)
+	}
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("compat-transcode: start ffmpeg: %w", err)
+	}
+	scanCompatProgress(stdout, durationMs, onProgress)
+	if err := cmd.Wait(); err != nil {
 		return fmt.Errorf("compat-transcode: ffmpeg: %w: %s", err, firstLine(stderr.Bytes()))
 	}
 	return nil
+}
+
+// scanCompatProgress turns ffmpeg's "-progress" stream into permille reports.
+// Runs on the caller's goroutine until the pipe closes (process exit), so
+// TranscodeCompat never returns before the last report.
+func scanCompatProgress(r io.Reader, durationMs int64, onProgress func(permille int)) {
+	if durationMs <= 0 || onProgress == nil {
+		_, _ = io.Copy(io.Discard, r)
+		return
+	}
+	last := -1
+	sc := bufio.NewScanner(r)
+	for sc.Scan() {
+		line := sc.Text()
+		// out_time_us is microseconds of output written so far; ffmpeg also
+		// emits a (misnamed, also-microseconds) out_time_ms - us is the
+		// unambiguous one.
+		val, ok := strings.CutPrefix(line, "out_time_us=")
+		if !ok {
+			continue
+		}
+		us, err := strconv.ParseInt(strings.TrimSpace(val), 10, 64)
+		if err != nil || us < 0 {
+			continue
+		}
+		p := int(us / 1000 * 1000 / durationMs)
+		if p > 999 {
+			p = 999 // 1000 is the caller's "the file is published", not ours
+		}
+		if p != last {
+			last = p
+			onProgress(p)
+		}
+	}
 }
