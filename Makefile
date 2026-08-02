@@ -546,7 +546,11 @@ tv-reset:
 tv-metro-restart:
 	@$(TV_SCRIPTS)/metro-restart.sh
 
-.PHONY: tv-up tv-up-fresh tv-doctor tv-state tv-logs tv-shot tv-key tv-login tv-reset tv-metro-restart
+## tv-audit: règles TV (focus, a11y, résilience, parité tvOS, clés i18n)
+tv-audit:
+	@cd frontend && npx vitest run apps/tv/src/test/tvAudit.test.ts apps/tv/src/test/i18nKeys.test.ts
+
+.PHONY: tv-up tv-up-fresh tv-doctor tv-state tv-logs tv-shot tv-key tv-login tv-reset tv-metro-restart tv-audit
 
 # ── Mobile ────────────────────────────────────────────────────────────────────
 
