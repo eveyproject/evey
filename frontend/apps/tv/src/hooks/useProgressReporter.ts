@@ -1,6 +1,9 @@
 import { useEffect, useRef } from "react";
 import { playbackServiceReportProgress } from "@evey/api";
 import { toast } from "@evey/store";
+import { logger } from "../lib/log";
+
+const log = logger("progress");
 
 const INTERVAL_MS = 3_000;
 
@@ -79,7 +82,7 @@ export function useProgressReporter(
         isPaused: getIsPausedRef.current?.() ?? true,
         isMuted: getIsMutedRef.current?.() ?? false,
         volumeLevel: Math.round((getVolumeRef.current?.() ?? 1) * 100),
-      }).catch((err) => console.warn("progress report failed on unmount:", err));
+      }).catch((err) => log.warn("progress report failed on unmount:", err));
     };
   }, [sessionId]);
 }

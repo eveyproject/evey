@@ -9,6 +9,9 @@ import {
 import type { V1StreamInfo, V1WatchProgress } from "@evey/api";
 import { getServerUrl } from "../lib/server-config";
 import { getDeviceAudioCodecs } from "../lib/deviceCodecs";
+import { logger } from "../lib/log";
+
+const log = logger("play");
 
 const DEVICE_ID = "evey-tv";
 const DEVICE_NAME = "Evey TV";
@@ -232,7 +235,7 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
     const sid = sessionIdRef.current;
     if (sid) {
       playbackServiceStopStream({ sessionId: sid }).catch((err) =>
-        console.warn("stop session failed:", err),
+        log.warn("stop session failed:", err),
       );
     }
   }, []);
@@ -242,7 +245,7 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
       const sid = sessionIdRef.current;
       if (sid) {
         playbackServiceStopStream({ sessionId: sid }).catch((err) =>
-          console.warn("stop before restart failed:", err),
+          log.warn("stop before restart failed:", err),
         );
         sessionIdRef.current = null;
       }
