@@ -115,10 +115,40 @@ describe("audit TV · focus initial déterministe", () => {
     expect(offenders.sort()).toEqual([]);
   });
 
+  // The mirror rule, and the one that actually bites: a screen with NO focus
+  // claim at all leaves Android with no focused view, and Android then stops
+  // delivering key events entirely - the remote goes dead, not just idle. Cost
+  // a night on the player and the media page (2026-08-03).
+  //
+  // Exempt: screens whose SHELL already owns a focus target - the tab screens
+  // (the sidebar in (tabs)/_layout renders focusable nav items) and the layouts
+  // themselves.
+  const SHELL_PROVIDES_FOCUS = new Set<string>([
+    "app/(auth)/(tabs)/favorites.tsx",
+    "app/(auth)/(tabs)/settings.tsx",
+    "app/(auth)/(tabs)/_layout.tsx",
+    "app/(auth)/_layout.tsx",
+    "app/_layout.tsx",
+    "app/index.tsx",
+  ]);
+
+  it.skipIf(!CAN_RUN)("tout écran qui rend un élément focusable réclame le focus initial", () => {
+    const offenders: string[] = [];
+    for (const file of screens()) {
+      const name = rel(file);
+      if (SHELL_PROVIDES_FOCUS.has(name)) continue;
+      const src = readFileSync(file, "utf8");
+      const hasFocusable = /<(Pressable|FocusableCard|TextInput)\b/.test(src);
+      if (!hasFocusable) continue;
+      if (!src.includes("hasTVPreferredFocus")) offenders.push(name);
+    }
+    expect(offenders.sort()).toEqual([]);
+  });
+
   it.skipIf(!CAN_RUN)("la liste des exceptions ne contient que des fichiers existants", () => {
     // A stale allowlist silently weakens the rule; this is what makes it
     // shrink instead of drift.
-    for (const name of ALLOW) {
+    for (const name of [...ALLOW, ...SHELL_PROVIDES_FOCUS]) {
       expect(existsSync(join(APP_ROOT, name)), `${name} n'existe plus, retire-le de ALLOW`).toBe(true);
     }
   });

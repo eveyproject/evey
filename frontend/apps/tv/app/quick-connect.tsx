@@ -125,6 +125,10 @@ export default function QuickConnectScreen() {
 
       <Pressable
         onPress={() => router.back()}
+        // The only focusable on this screen, and there is no sidebar behind it:
+        // without an initial claim Android has no focused view and stops
+        // delivering key events, so the viewer cannot even leave the QR code.
+        hasTVPreferredFocus
         onFocus={() => setBackFocused(true)}
         onBlur={() => setBackFocused(false)}
         accessible={true}
