@@ -22,6 +22,7 @@ controls:
   seek: Rechercher
   seekPosition: "Position de lecture, {{current}} sur {{total}}"
   volume: Volume
+  surface: Surface du lecteur
 settings:
   quality: Qualité
   auto: Auto

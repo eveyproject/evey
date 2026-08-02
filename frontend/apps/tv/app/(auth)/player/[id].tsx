@@ -115,6 +115,12 @@ export default function PlayerScreen() {
   // skipVisible / syncplayBadgeFocused pattern: exactly one thing interprets
   // a key press at a time.
   const [barFocused, setBarFocused] = useState(false);
+  // The full-screen surface below every overlay. Some native view must hold
+  // TV focus at all times or Android stops delivering key events entirely -
+  // the screen deliberately has no other focusable while the bar is closed,
+  // which left the whole player deaf (remote AND pointer) on real hardware.
+  const [surfaceFocused, setSurfaceFocused] = useState(false);
+  const surfaceRef = useRef<View>(null);
   const [showQualityPicker, setShowQualityPicker] = useState(false);
   const [showTrackMenu, setShowTrackMenu] = useState(false);
   const [showAudioPicker, setShowAudioPicker] = useState(false);
@@ -662,6 +668,9 @@ export default function PlayerScreen() {
     // still pauses during an intro.
     if (skipVisible && type === "select") return;
     if (syncplayBadgeFocused && type === "select") return;
+    // OK on the focused surface already fires its native onPress - handling
+    // "select" here too would double-toggle play/pause.
+    if (surfaceFocused && type === "select") return;
     // While the action bar holds focus its own buttons own the D-pad: left and
     // right walk the row, OK activates. Interpreting the same keys here would
     // seek behind the viewer's back while they are picking an audio track.
@@ -694,6 +703,18 @@ export default function PlayerScreen() {
     }
   };
   useTVEventHandler(useCallback((evt: { eventType: string } | undefined) => remoteHandlerRef.current?.(evt), []));
+
+  // Imperative focus reclaim: whenever no overlay/bar should own the D-pad,
+  // force native focus back onto the surface - if no native view is focused
+  // Android stops delivering key events and the player goes deaf.
+  useEffect(() => {
+    if (barFocused || anyOverlayOpen) return;
+    const t = setTimeout(
+      () => (surfaceRef.current as unknown as { requestTVFocus?: () => void })?.requestTVFocus?.(),
+      100,
+    );
+    return () => clearTimeout(t);
+  }, [barFocused, anyOverlayOpen]);
 
   const getPositionMs = useCallback(() => {
     return (player?.currentTime ?? 0) * 1000;
@@ -832,6 +853,25 @@ export default function PlayerScreen() {
         style={[styles.video, { width: screenWidth, height: screenHeight }]}
         nativeControls={false}
         contentFit="contain"
+      />
+
+      {/* Focus holder and pointer surface, kept under every overlay. */}
+      <Pressable
+        ref={surfaceRef}
+        style={StyleSheet.absoluteFill}
+        focusable={true}
+        hasTVPreferredFocus={!barFocused && !anyOverlayOpen}
+        onFocus={() => setSurfaceFocused(true)}
+        onBlur={() => setSurfaceFocused(false)}
+        onPress={() => {
+          if (!showControls) {
+            resetHideTimer();
+            return;
+          }
+          togglePlayPause();
+        }}
+        accessible={true}
+        accessibilityLabel={t("player.controls.surface", "Player surface")}
       />
 
       <QualityPicker

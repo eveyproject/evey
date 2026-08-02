@@ -22,6 +22,7 @@ controls:
   seek: Buscar
   seekPosition: "Posición de reproducción, {{current}} de {{total}}"
   volume: Volumen
+  surface: Superficie del reproductor
 settings:
   quality: Calidad
   auto: Auto

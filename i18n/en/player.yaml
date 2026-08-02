@@ -22,6 +22,7 @@ controls:
   seek: Seek
   seekPosition: "Seek position, {{current}} of {{total}}"
   volume: Volume
+  surface: Player surface
 settings:
   quality: Quality
   auto: Auto

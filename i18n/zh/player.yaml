@@ -22,6 +22,7 @@ controls:
   seek: "进度"
   seekPosition: "播放位置，{{total}} 中的 {{current}}"
   volume: "音量"
+  surface: 播放器表面
 settings:
   quality: "画质"
   auto: "自动"

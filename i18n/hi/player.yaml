@@ -22,6 +22,7 @@ controls:
   seek: "सीक"
   seekPosition: "प्लेबैक स्थिति, {{total}} में से {{current}}"
   volume: "ध्वनि"
+  surface: प्लेयर सतह
 settings:
   quality: "गुणवत्ता"
   auto: "स्वचालित"

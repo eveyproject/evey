@@ -22,6 +22,7 @@ controls:
   seek: Suchen
   seekPosition: "Wiedergabeposition, {{current}} von {{total}}"
   volume: Lautstärke
+  surface: Player-Fläche
 settings:
   quality: Qualität
   auto: Auto
