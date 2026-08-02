@@ -217,15 +217,24 @@ function HeroBanner({
   const [showPinModal, setShowPinModal] = useState(false);
   const [pendingPlayId, setPendingPlayId] = useState<string | null>(null);
 
+  // A series has no file to stream - the player would 404 on it. The episode
+  // to resume lives behind the detail screen's own resolution, so that is
+  // where the hero sends the viewer, and the button says so.
+  const playable = active?.type !== "MEDIA_ITEM_TYPE_SERIES" && active?.type !== "MEDIA_ITEM_TYPE_SEASON";
+
   const handlePlay = useCallback(() => {
     if (!id) return;
+    if (!playable) {
+      router.push(`/media/${id}`);
+      return;
+    }
     if (needsPin()) {
       setPendingPlayId(id);
       setShowPinModal(true);
       return;
     }
     router.push(`/player/${id}`);
-  }, [id, needsPin]);
+  }, [id, needsPin, playable]);
 
   const handlePinVerified = useCallback(() => {
     setShowPinModal(false);
@@ -273,9 +282,11 @@ function HeroBanner({
             onPress={handlePlay}
             hasTVPreferredFocus={focusPlay}
             style={[styles.heroPlayBtn, { backgroundColor: theme.colors.accent }]}
-            accessibilityLabel={t("media.detail.play")}
+            accessibilityLabel={playable ? t("media.detail.play") : t("media.home.moreInfo")}
           >
-            <Text style={[styles.heroBtnLabel, { color: theme.colors.onAccent }]}>{t("media.detail.play")}</Text>
+            <Text style={[styles.heroBtnLabel, { color: theme.colors.onAccent }]}>
+              {playable ? t("media.detail.play") : t("media.home.moreInfo")}
+            </Text>
           </FocusableCard>
           <FocusableCard
             onPress={() => id && router.push(`/media/${id}`)}

@@ -64,6 +64,18 @@ export default function PlayerScreen() {
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
 
   const { data: media } = useLibraryServiceGetMediaItem(mediaId);
+
+  // A series or a season has no file of its own: asking the server to stream
+  // one can only 404, and the player would then blame the stream. It happened
+  // in the field - the home hero hands the player whatever it is spotlighting,
+  // and "Maison du dragon" is a series. Callers are supposed to resolve an
+  // episode first; this is the backstop for the ones that do not, and for the
+  // race where the media page has not loaded its episode list yet.
+  const notPlayable =
+    media?.type === "MEDIA_ITEM_TYPE_SERIES" || media?.type === "MEDIA_ITEM_TYPE_SEASON";
+  useEffect(() => {
+    if (notPlayable) router.replace(`/media/${mediaId}`);
+  }, [notPlayable, mediaId]);
   const { streamUrl, sessionId, streamInfo, isLoading, isError, isAuthError, shedReason, stopSession, restartWithTracks, progress } =
     usePlaySession(mediaId);
   const profileId = useAuthStore((s) => s.profileId) ?? "";

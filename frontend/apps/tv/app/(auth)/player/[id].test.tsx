@@ -731,3 +731,29 @@ describe("action bar discoverability (TV)", () => {
     expect(screen.queryByText("1.25x")).toBeNull();
   });
 });
+
+// "Maison du dragon" is a series: it has no media_files row, so the stream
+// endpoint 404s and the player blamed the stream. The home hero handed the
+// player whatever it was spotlighting, series included.
+describe("unplayable container items (TV)", () => {
+  it("sends a series to its detail page instead of trying to stream it", () => {
+    getMediaItemMock.mockReturnValue({
+      data: { id: "sr-1", type: "MEDIA_ITEM_TYPE_SERIES", title: "Maison du dragon" },
+    });
+    render(<PlayerScreen />);
+    expect(replaceMock).toHaveBeenCalledWith("/media/ep-1");
+  });
+
+  it("does the same for a season", () => {
+    getMediaItemMock.mockReturnValue({
+      data: { id: "sn-1", type: "MEDIA_ITEM_TYPE_SEASON", title: "Saison 1" },
+    });
+    render(<PlayerScreen />);
+    expect(replaceMock).toHaveBeenCalledWith("/media/ep-1");
+  });
+
+  it("leaves an episode alone", () => {
+    render(<PlayerScreen />);
+    expect(replaceMock).not.toHaveBeenCalledWith(expect.stringContaining("/media/"));
+  });
+});
