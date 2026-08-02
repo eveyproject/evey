@@ -7,6 +7,7 @@ import { useTheme } from "../providers/ThemeProvider";
 import { FocusableCard } from "./FocusableCard";
 import type { ThemeTokens } from "@evey/theme";
 import { FONT_SIZE } from "@evey/theme";
+import { logger } from "../lib/log";
 
 interface Props {
   children?: React.ReactNode;
@@ -27,6 +28,12 @@ class ErrorBoundaryInner extends Component<Props, State> {
 
   static getDerivedStateFromError(error: Error): State {
     return { hasError: true, error };
+  }
+
+  // A contained error is still an error: without this line the app degrades
+  // gracefully and nobody ever learns why.
+  componentDidCatch(error: Error, info: { componentStack?: string | null }) {
+    logger("ui").error(`écran en erreur: ${error.message}`, info.componentStack ?? "");
   }
 
   handleRetry = () => {

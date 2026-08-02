@@ -98,9 +98,17 @@ test-results/
 frontend/apps/mobile/.expo/
 
 # Dev scripts (local only) - except anything referenced from Makefile.
-scripts/
+# "scripts/*" et pas "scripts/" : git refuse de ré-inclure quoi que ce soit
+# sous un répertoire exclu, donc la forme avec / rendait les "!" ci-dessous
+# inopérants pour tout nouveau fichier.
+scripts/*
 !scripts/build-test-plugins.sh
 !scripts/gen_cosign_fixtures.go
+!scripts/tv/
+!scripts/tv/*.sh
+!scripts/tv/README.md
+# ...mais jamais le compte de dev.
+scripts/tv/.env
 
 # Cosign test fixtures - private key must never be committed
 tests/plugins/cosign/test.key

@@ -494,6 +494,60 @@ infra:
 frontend-typecheck:
 	$(DC) run --rm web pnpm --filter web typecheck
 
+# ── TV ────────────────────────────────────────────────────────────────────────
+#
+# Une seule commande à retenir : `make tv-up`. Elle est idempotente et remonte
+# tout ce qu'il faut (émulateur, adb, tunnels, Metro, bundle, app, connexion),
+# quel que soit l'état de départ. Les autres cibles servent à observer.
+#
+# Le compte de dev vit dans scripts/tv/.env (ignoré par git), jamais ici :
+#   EVEY_TV_USER=...
+#   EVEY_TV_PASS=...
+
+TV_SCRIPTS=scripts/tv
+
+## tv-up: lance l'app TV sur l'émulateur (idempotent, < 30 s à chaud)
+tv-up:
+	@$(TV_SCRIPTS)/up.sh
+
+## tv-up-fresh: idem mais sans la connexion automatique
+tv-up-fresh:
+	@$(TV_SCRIPTS)/up.sh --no-login
+
+## tv-doctor: vérifie chaque prérequis et donne le remède exact
+tv-doctor:
+	@$(TV_SCRIPTS)/doctor.sh
+
+## tv-state: état courant (device, Metro, écran, sha du bundle chargé)
+tv-state:
+	@$(TV_SCRIPTS)/state.sh
+
+## tv-logs: journal de l'app seule. ARGS="--follow" ou ARGS="--since 5m motif"
+tv-logs:
+	@$(TV_SCRIPTS)/logs.sh $(ARGS)
+
+## tv-shot: capture d'écran. NAME=<nom> facultatif
+tv-shot:
+	@$(TV_SCRIPTS)/shot.sh $(NAME)
+
+## tv-key: touche télécommande. K=ok|up|down|left|right|back|play [N=3]
+tv-key:
+	@$(TV_SCRIPTS)/key.sh $(K) $(N)
+
+## tv-login: connecte l'app avec le compte de dev
+tv-login:
+	@$(TV_SCRIPTS)/login.sh
+
+## tv-reset: purge les données de l'app puis relance (cache de bundle corrompu)
+tv-reset:
+	@$(TV_SCRIPTS)/reset.sh
+
+## tv-metro-restart: relance Metro avec le marqueur de build
+tv-metro-restart:
+	@$(TV_SCRIPTS)/metro-restart.sh
+
+.PHONY: tv-up tv-up-fresh tv-doctor tv-state tv-logs tv-shot tv-key tv-login tv-reset tv-metro-restart
+
 # ── Mobile ────────────────────────────────────────────────────────────────────
 
 ADB=$(HOME)/Applications/Android/Sdk/platform-tools/adb

@@ -6,6 +6,7 @@ import { usePresenceHeartbeat } from "../../src/hooks/usePresenceHeartbeat";
 import { TVMusicPlayer } from "../../src/components/TVMusicPlayer";
 import { HomeShortcutButton } from "../../src/components/HomeShortcutButton";
 import { isDeepScreenPath, HOME_PATH } from "../../src/lib/homeShortcut";
+import { ErrorBoundary } from "../../src/components/ErrorBoundary";
 
 function isTokenExpired(token: string): boolean {
   try {
@@ -39,7 +40,13 @@ export default function AuthLayout() {
 
   return (
     <View style={{ flex: 1 }}>
-      <Stack screenOptions={{ headerShown: false }} />
+      {/* A boundary HERE, not only at the root: one at the root turns any
+          render error into a blank application, taking the music player and
+          the way home with it. Contained at this level, a broken screen shows
+          its own recovery card while the shell around it keeps working. */}
+      <ErrorBoundary>
+        <Stack screenOptions={{ headerShown: false }} />
+      </ErrorBoundary>
       {isDeepScreenPath(pathname) && (
         <HomeShortcutButton onPress={() => router.replace(HOME_PATH as never)} />
       )}

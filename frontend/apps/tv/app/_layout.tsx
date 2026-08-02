@@ -13,6 +13,10 @@ import { getServerUrl } from "../src/lib/server-config";
 import { applyServerLanguage, initI18n } from "../src/i18n";
 import { migrateFromSingleServer, useServerListStore } from "@evey/store";
 import { configureAudioSession } from "../src/lib/audio-session";
+import { installCrashGuard } from "../src/lib/crashGuard";
+import { bootMarker, logger } from "../src/lib/log";
+
+
 
 // Wire Zustand persist to expo-secure-store (must run before stores are accessed)
 setZustandStorage({
@@ -21,16 +25,26 @@ setZustandStorage({
   removeItem: (name) => SecureStore.deleteItemAsync(name),
 });
 
+const bootLog = logger("boot");
+
 export default function RootLayout() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
+    // Installed here and NOT at module scope. Writing to the console during
+    // bundle evaluation - before the bridgeless runtime has wired it up -
+    // segfaults the JS thread about 100 ms after boot, every launch, with no
+    // JavaScript-level trace. Cost an hour to bisect; the guard that was meant
+    // to stop crashes was causing one.
+    installCrashGuard();
+    bootMarker();
+
     async function bootstrap() {
       // Migrate single-server users to the multi-server store (idempotent)
       try {
         await migrateFromSingleServer({ readLegacyServerUrl: getServerUrl });
       } catch (err) {
-        console.error("server migration failed:", err);
+        bootLog.error("migration serveur échouée", err);
       }
       await initFetcher();
       await configureAudioSession();
@@ -42,7 +56,9 @@ export default function RootLayout() {
       }
     }
     bootstrap()
-      .catch((err) => console.error("bootstrap failed:", err))
+      // Never block the app on a failed bootstrap: i18n or the audio session
+      // failing must leave a usable screen, not a permanent null render.
+      .catch((err) => bootLog.error("bootstrap échoué", err))
       .finally(() => setReady(true));
   }, []);
 
