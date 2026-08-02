@@ -24,7 +24,11 @@ import { parse } from "yaml";
 // Walk up to the repo root rather than counting "../" from import.meta.url:
 // under vite that URL carries a /@fs prefix, and a hardcoded depth breaks the
 // day this file moves.
-function repoRoot(): string {
+// Returns null rather than throwing: the CI container mounts only `frontend`
+// at /app, so the catalogue is genuinely out of reach there. A guard that
+// cannot see both sides must SKIP visibly - a thrown error turns the whole
+// suite red, and a silent pass would be worse still.
+function repoRoot(): string | null {
   let dir = resolve(process.cwd());
   for (let i = 0; i < 8; i++) {
     if (existsSync(join(dir, "i18n", "en"))) return dir;
@@ -32,12 +36,14 @@ function repoRoot(): string {
     if (parent === dir) break;
     dir = parent;
   }
-  throw new Error("repo root not found: no i18n/en above " + process.cwd());
+  return null;
 }
 
 const REPO_ROOT = repoRoot();
-const CATALOGUE_DIR = join(REPO_ROOT, "i18n", "en");
-const APP_ROOT = join(REPO_ROOT, "frontend", "apps", "tv");
+// This runs on the host through `make tv-audit` and `make pre-push`.
+const CAN_RUN = REPO_ROOT !== null;
+const CATALOGUE_DIR = join(REPO_ROOT ?? "", "i18n", "en");
+const APP_ROOT = join(REPO_ROOT ?? "", "frontend", "apps", "tv");
 
 // i18next picks x_one/x_other/... when the caller passes a count, so a key
 // that only exists in plural form still resolves.
@@ -73,7 +79,7 @@ function sourceFiles(dir: string, acc: string[] = []): string[] {
 }
 
 describe("every translation key the TV app asks for exists in the catalogue", () => {
-  it("has no key that would silently render its English fallback", () => {
+  it.skipIf(!CAN_RUN)("has no key that would silently render its English fallback", () => {
     const catalogue = loadCatalogue();
     const resolves = (key: string) =>
       catalogue.has(key) || PLURAL_SUFFIXES.some((s) => catalogue.has(key + s));
@@ -93,7 +99,7 @@ describe("every translation key the TV app asks for exists in the catalogue", ()
 
   // Guards the guard: a regex that stops matching, or a catalogue that fails to
   // load, would make the assertion above pass on an empty set forever.
-  it("actually reads both sides", () => {
+  it.skipIf(!CAN_RUN)("actually reads both sides", () => {
     const catalogue = loadCatalogue();
     expect(catalogue.size).toBeGreaterThan(500);
     expect(catalogue.has("player.failedToLoadStream")).toBe(true);

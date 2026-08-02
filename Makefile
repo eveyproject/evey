@@ -282,8 +282,14 @@ ci-local-frontend:
 # a red pipeline never surprises you 10 minutes after the push. Everything here
 # is cache-backed (Go per package+flags, turbo per task), so an unchanged push
 # costs seconds; only what you actually touched is recomputed.
-pre-push: ci-fast-vet ci-fast-vuln ci-fast-build ci-fast-unit ci-fast-frontend ci-fast-sec ci-local-lint ci-arch ci-proto-breaking repo-itest-gate transcode-itest-gate
-	@echo "✅ pre-push OK - quality gate green (vet + govulncheck + build + unit -race + frontend + gosec + lint + arch guards + proto compat + repo suite + transcode contract)."
+#
+# tv-audit runs on the HOST, deliberately: its guards compare the TV sources
+# against the i18n catalogue at the repo root, and the evey-web container only
+# mounts `frontend` at /app. Inside the container those guards skip themselves
+# (visibly, as skipped tests) rather than pass on half the evidence - so this
+# host-side run is the one that actually enforces them.
+pre-push: ci-fast-vet ci-fast-vuln ci-fast-build ci-fast-unit ci-fast-frontend ci-fast-sec ci-local-lint ci-arch ci-proto-breaking repo-itest-gate transcode-itest-gate tv-audit
+	@echo "✅ pre-push OK - quality gate green (vet + govulncheck + build + unit -race + frontend + gosec + lint + arch guards + proto compat + repo suite + transcode contract + audit TV)."
 
 # ci-proto-breaking: `buf breaking` against the published tip.
 #
