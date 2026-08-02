@@ -597,6 +597,7 @@ export default function MediaDetailScreen() {
               key={ep.id}
               onPress={() => router.push(`/(auth)/media/${ep.id}`)}
               style={[styles.episodeRow, { borderBottomColor: theme.colors.border }]}
+              accessibilityLabel={ep.indexNumber != null ? `${ep.indexNumber}. ${ep.title}` : ep.title}
             >
               <View style={{ flex: 1 }}>
                 <Text style={{ color: theme.colors.text, fontSize: 20, fontWeight: "600" }} numberOfLines={1}>
@@ -626,6 +627,7 @@ export default function MediaDetailScreen() {
               <FocusableCard
                 onPress={() => person.id && router.push(`/(auth)/person/${person.id}`)}
                 style={styles.castCard}
+                accessibilityLabel={person.name}
               >
                 {person.thumbUrl ? (
                   <Image

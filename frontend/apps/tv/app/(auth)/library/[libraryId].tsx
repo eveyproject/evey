@@ -368,6 +368,7 @@ export default function LibraryDetailScreen() {
           onPress={() => router.push(`/media/${item.id}`)}
           hasTVPreferredFocus={index === 0}
           style={styles.gridItem}
+          accessibilityLabel={item.title}
         >
           <View style={[styles.poster, { borderRadius: theme.radii.sm, backgroundColor: theme.colors.surface, overflow: "hidden" }]}>
             {posterUri ? (
@@ -460,7 +461,7 @@ export default function LibraryDetailScreen() {
           {/* A plain Pressable has no hasTVPreferredFocus, so nothing on this
               error state claims initial remote focus - stranding the D-pad.
               FocusableCard matches every other retry action in this app. */}
-          <FocusableCard onPress={() => activeRefetch()} hasTVPreferredFocus>
+          <FocusableCard onPress={() => activeRefetch()} hasTVPreferredFocus accessibilityLabel={t("common.retry")}>
             <Text style={{ color: theme.colors.accent, fontSize: 20 }}>{t("common.retry")}</Text>
           </FocusableCard>
         </View>

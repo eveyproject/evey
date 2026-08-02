@@ -235,6 +235,7 @@ export default function PhotosScreen() {
           onPress={() => router.push("/(auth)/(tabs)/library")}
           hasTVPreferredFocus
           style={[styles.emptyAction, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
+          accessibilityLabel={t("media.library.libraries")}
         >
           <Text style={{ color: theme.colors.accent, fontSize: 18, fontWeight: "600" }}>{t("media.library.libraries")}</Text>
         </FocusableCard>
@@ -251,7 +252,7 @@ export default function PhotosScreen() {
       {isError ? (
         <View style={styles.center}>
           <Text style={{ color: theme.colors.textMuted, fontSize: 22, marginBottom: 12 }}>{t("common.loadError")}</Text>
-          <FocusableCard onPress={() => refetch()} hasTVPreferredFocus>
+          <FocusableCard onPress={() => refetch()} hasTVPreferredFocus accessibilityLabel={t("common.retry")}>
             <Text style={{ color: theme.colors.accent, fontSize: 20 }}>{t("common.retry")}</Text>
           </FocusableCard>
         </View>
@@ -312,6 +313,7 @@ export default function PhotosScreen() {
                     onPress={() => router.push("/(auth)/(tabs)/library")}
                     hasTVPreferredFocus
                     style={[styles.emptyAction, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
+                    accessibilityLabel={t("media.library.libraries")}
                   >
                     <Text style={{ color: theme.colors.accent, fontSize: 18, fontWeight: "600" }}>{t("media.library.libraries")}</Text>
                   </FocusableCard>

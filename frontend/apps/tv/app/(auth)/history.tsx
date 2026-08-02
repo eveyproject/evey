@@ -93,6 +93,7 @@ export default function HistoryScreen() {
             onPress={() => router.push("/(auth)/(tabs)/library")}
             hasTVPreferredFocus
             style={[styles.emptyAction, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
+            accessibilityLabel={t("media.library.libraries")}
           >
             <Text style={{ color: theme.colors.accent, fontSize: 18, fontWeight: "600" }}>{t("media.library.libraries")}</Text>
           </FocusableCard>
@@ -139,6 +140,7 @@ function HistoryItem({
       onPress={onPress}
       hasTVPreferredFocus={isFirst}
       style={[styles.row, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
+      accessibilityLabel={label}
     >
       <View style={{ flex: 1, gap: 4 }}>
         <Text style={{ color: theme.colors.text, fontSize: 20, fontWeight: "500" }} numberOfLines={1}>

@@ -53,7 +53,7 @@ export default function GenresScreen() {
     return (
       <View style={[styles.center, { backgroundColor: theme.colors.bg }]}>
         <Text style={{ color: theme.colors.textMuted, fontSize: 22, marginBottom: 16 }}>{t("common.loadError")}</Text>
-        <FocusableCard onPress={() => refetch()} hasTVPreferredFocus>
+        <FocusableCard onPress={() => refetch()} hasTVPreferredFocus accessibilityLabel={t("common.retry")}>
           <Text style={{ color: theme.colors.accent, fontSize: 20 }}>{t("common.retry")}</Text>
         </FocusableCard>
       </View>
@@ -82,6 +82,7 @@ export default function GenresScreen() {
             onPress={() => router.push(genreHref(genre))}
             hasTVPreferredFocus={index === 0}
             style={[styles.tile, { backgroundColor: theme.colors.accent, borderRadius: theme.radii.md }]}
+            accessibilityLabel={t(genreTranslationKey(genre), genre)}
           >
             <Text style={[styles.tileText, { color: theme.colors.onAccent }]} numberOfLines={2}>
               {t(genreTranslationKey(genre), genre)}
@@ -99,6 +100,7 @@ export default function GenresScreen() {
               onPress={() => router.push("/(auth)/(tabs)/library")}
               hasTVPreferredFocus
               style={[styles.emptyAction, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
+              accessibilityLabel={t("media.library.libraries")}
             >
               <Text style={{ color: theme.colors.accent, fontSize: 18, fontWeight: "600" }}>{t("media.library.libraries")}</Text>
             </FocusableCard>

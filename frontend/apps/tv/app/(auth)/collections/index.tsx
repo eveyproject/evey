@@ -50,6 +50,7 @@ export default function CollectionsScreen() {
               onPress={() => router.push("/(auth)/(tabs)/library")}
               hasTVPreferredFocus
               style={[styles.emptyAction, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
+              accessibilityLabel={t("media.library.libraries")}
             >
               <Text style={{ color: theme.colors.accent, fontSize: 18, fontWeight: "600" }}>{t("media.library.libraries")}</Text>
             </FocusableCard>
@@ -78,6 +79,7 @@ function CollectionCard({
       onPress={onPress}
       hasTVPreferredFocus={isFirst}
       style={[styles.card, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
+      accessibilityLabel={col.name}
     >
       <View style={[styles.placeholder, { backgroundColor: theme.colors.surfaceRaised, borderRadius: theme.radii.sm }]}>
         <Text style={{ color: theme.colors.textMuted, fontSize: 36, fontWeight: "700" }}>{initial}</Text>

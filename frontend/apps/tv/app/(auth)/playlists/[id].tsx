@@ -85,6 +85,7 @@ function PlaylistItemRow({
       onPress={onPress}
       hasTVPreferredFocus={isFirst}
       style={[styles.row, { borderBottomColor: theme.colors.border }]}
+      accessibilityLabel={item.title ?? item.media_item_id}
     >
       <Text style={[styles.order, { color: theme.colors.accent }]}>
         {item.sort_order != null ? item.sort_order + 1 : "-"}

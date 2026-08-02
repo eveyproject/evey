@@ -124,6 +124,7 @@ export default function PersonDetailScreen() {
         <FocusableCard
           onPress={() => setBioExpanded((p) => !p)}
           style={{ marginTop: 24 }}
+          accessibilityLabel={bioExpanded ? t("common.showLess") : t("common.readMore")}
         >
           <Text
             style={{ color: theme.colors.text, fontSize: 18, lineHeight: 28 }}
@@ -150,6 +151,7 @@ export default function PersonDetailScreen() {
                 onPress={() => router.push(`/(auth)/media/${item.id}`)}
                 hasTVPreferredFocus={index === 0}
                 style={{ width: POSTER_WIDTH, marginBottom: POSTER_GAP }}
+                accessibilityLabel={item.title}
               >
                 {serverUrl && item.id ? (
                   <Image

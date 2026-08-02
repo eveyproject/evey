@@ -128,7 +128,7 @@ export default function PhotoSlideshowScreen() {
       <View style={[styles.container, styles.center]}>
         <Text style={styles.message}>{isError ? t("common.loadError") : t("media.photos.noPhotos")}</Text>
         {isError && (
-          <FocusableCard onPress={() => refetch()} style={styles.actionButton}>
+          <FocusableCard onPress={() => refetch()} style={styles.actionButton} accessibilityLabel={t("common.retry")}>
             <Text style={styles.actionText}>{t("common.retry")}</Text>
           </FocusableCard>
         )}

@@ -67,6 +67,7 @@ export default function GenreDetailScreen() {
           onPress={() => router.push(`/media/${item.id}`)}
           hasTVPreferredFocus={index === 0}
           style={styles.gridItem}
+          accessibilityLabel={item.title}
         >
           <View style={[styles.poster, { borderRadius: theme.radii.sm, backgroundColor: theme.colors.surface, overflow: "hidden" }]}>
             {posterUri ? (
@@ -105,7 +106,7 @@ export default function GenreDetailScreen() {
     return (
       <View style={[styles.center, { backgroundColor: theme.colors.bg }]}>
         <Text style={{ color: theme.colors.textMuted, fontSize: 22, marginBottom: 12 }}>{t("common.loadError")}</Text>
-        <FocusableCard onPress={() => refetch()} hasTVPreferredFocus>
+        <FocusableCard onPress={() => refetch()} hasTVPreferredFocus accessibilityLabel={t("common.retry")}>
           <Text style={{ color: theme.colors.accent, fontSize: 20 }}>{t("common.retry")}</Text>
         </FocusableCard>
       </View>
@@ -141,6 +142,7 @@ export default function GenreDetailScreen() {
                 onPress={() => router.push("/(auth)/genres")}
                 hasTVPreferredFocus
                 style={[styles.emptyAction, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
+                accessibilityLabel={t("common.nav.genres")}
               >
                 <Text style={{ color: theme.colors.accent, fontSize: 18, fontWeight: "600" }}>{t("common.nav.genres")}</Text>
               </FocusableCard>

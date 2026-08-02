@@ -128,6 +128,7 @@ export default function NotificationsScreen() {
           <FocusableCard
             onPress={() => markAllRead.mutate({ data: {} })}
             style={[styles.markAllBtn, { backgroundColor: theme.colors.surface }]}
+            accessibilityLabel={t("common.notifications.markAllRead")}
           >
             <Text style={{ color: theme.colors.accent, fontSize: 18, fontWeight: "600" }}>{t("common.notifications.markAllRead")}</Text>
           </FocusableCard>
@@ -182,6 +183,7 @@ function NotificationItem({
           opacity: isUnread ? 1 : 0.6,
         },
       ]}
+      accessibilityLabel={translateTitle(t, item.title)}
     >
       <View
         style={[

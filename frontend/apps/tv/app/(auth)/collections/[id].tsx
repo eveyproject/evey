@@ -32,6 +32,7 @@ export default function CollectionDetailScreen() {
         onPress={() => router.push(`/media/${item.id}`)}
         hasTVPreferredFocus={index === 0}
         style={[styles.card, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
+        accessibilityLabel={item.title}
       >
         <View style={[styles.poster, { backgroundColor: theme.colors.surfaceRaised, borderRadius: theme.radii.sm }]}>
           <Text style={{ color: theme.colors.textMuted, fontSize: 14 }}>{t("common.noPoster")}</Text>

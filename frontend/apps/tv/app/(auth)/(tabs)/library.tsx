@@ -34,6 +34,7 @@ export default function LibraryScreen() {
       onPress={() => router.push(`/library/${item.id}`)}
       hasTVPreferredFocus={index === 0}
       style={[styles.card, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
+      accessibilityLabel={item.name}
     >
       <Text style={[styles.name, { color: theme.colors.text }]}>{item.name}</Text>
       <Text style={[styles.type, { color: theme.colors.textMuted }]}>
@@ -60,6 +61,7 @@ export default function LibraryScreen() {
           onPress={() => refetch()}
           hasTVPreferredFocus
           style={[styles.linkCard, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
+          accessibilityLabel={t("common.retry")}
         >
           <Text style={[styles.linkText, { color: theme.colors.accent }]}>{t("common.retry")}</Text>
         </FocusableCard>
@@ -83,12 +85,14 @@ export default function LibraryScreen() {
           onPress={() => router.push("/(auth)/collections")}
           hasTVPreferredFocus={noLibraries}
           style={[styles.linkCard, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
+          accessibilityLabel={t("common.collections")}
         >
           <Text style={[styles.linkText, { color: theme.colors.accent }]}>{t("common.collections")}</Text>
         </FocusableCard>
         <FocusableCard
           onPress={() => router.push("/(auth)/playlists")}
           style={[styles.linkCard, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
+          accessibilityLabel={t("common.playlists")}
         >
           <Text style={[styles.linkText, { color: theme.colors.accent }]}>{t("common.playlists")}</Text>
         </FocusableCard>
@@ -99,6 +103,7 @@ export default function LibraryScreen() {
         <FocusableCard
           onPress={() => router.push("/(auth)/genres")}
           style={[styles.linkCard, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
+          accessibilityLabel={t("common.nav.genres")}
         >
           <Text style={[styles.linkText, { color: theme.colors.accent }]}>{t("common.nav.genres")}</Text>
         </FocusableCard>

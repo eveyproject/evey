@@ -166,6 +166,7 @@ export default function SearchScreen() {
       }], 0)}
       style={[styles.row, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
       hasTVPreferredFocus={index === 0}
+      accessibilityLabel={item.title}
     >
       <View style={[styles.musicThumb, { borderRadius: theme.radii.sm, backgroundColor: theme.colors.surfaceRaised ?? theme.colors.surface }]}>
         <Ionicons name="musical-notes" size={24} color={theme.colors.textMuted} />
@@ -187,6 +188,7 @@ export default function SearchScreen() {
       onPress={() => router.push(`/media/${item.id}`)}
       style={[styles.row, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
       hasTVPreferredFocus={index === 0}
+      accessibilityLabel={item.title}
     >
       <View style={[styles.thumb, { borderRadius: theme.radii.sm, backgroundColor: theme.colors.surfaceRaised ?? theme.colors.surface }]}>
         <Text style={{ color: theme.colors.textMuted, fontSize: 18 }}>?</Text>
@@ -239,7 +241,7 @@ export default function SearchScreen() {
       {resultsView === "error" ? (
         <View style={styles.center}>
           <Text style={{ color: theme.colors.textMuted, fontSize: 22, marginBottom: 12 }}>{t("common.loadError")}</Text>
-          <FocusableCard onPress={() => refetch()} hasTVPreferredFocus>
+          <FocusableCard onPress={() => refetch()} hasTVPreferredFocus accessibilityLabel={t("common.retry")}>
             <Text style={{ color: theme.colors.accent, fontSize: 20 }}>{t("common.retry")}</Text>
           </FocusableCard>
         </View>

@@ -34,6 +34,7 @@ export default function FavoritesScreen() {
         onPress={() => router.push(`/media/${item.mediaItemId}`)}
         hasTVPreferredFocus={index === 0}
         style={styles.gridItem}
+        accessibilityLabel={item.title ?? t("common.untitled", "Untitled")}
       >
         <View style={[styles.poster, { borderRadius: theme.radii.sm, backgroundColor: theme.colors.surface }]}>
           <Text style={{ color: theme.colors.textMuted, fontSize: 18 }}>?</Text>
