@@ -9,6 +9,15 @@ totalSize: "इस डिवाइस पर {{size}} उपयोग में"
 deleted: डाउनलोड हटाया गया
 optimizingAudio: "ऑडियो अनुकूलित हो रहा है... {{percent}}%"
 preparingCompat: "सर्वर पर ऑडियो तैयार हो रहा है..."
+cancel: डाउनलोड रद्द करें
+cancelTitle: डाउनलोड रद्द करें
+cancelConfirm: '"{{title}}" का डाउनलोड रोकें?'
+cancelAction: रोकें
+badge:
+  expired: समय समाप्त - ऑफ़लाइन देखने के लिए फिर से डाउनलोड करें
+  ageGated: इस प्रोफ़ाइल के लिए उपलब्ध नहीं
+  moreRestricted: किसी अन्य प्रोफ़ाइल द्वारा डाउनलोड किया गया
+  unavailable: ऑफ़लाइन उपलब्ध नहीं
 quality:
   title: गुणवत्ता चुनें
   bodyLarge: यह फ़िल्म {{original}} की है। {{height}}p प्रति लगभग {{reduced}} लेगी।

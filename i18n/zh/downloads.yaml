@@ -9,6 +9,15 @@ totalSize: "此设备已使用 {{size}}"
 deleted: 已移除下载
 optimizingAudio: "正在优化音频... {{percent}}%"
 preparingCompat: "正在服务器上准备音频..."
+cancel: 取消下载
+cancelTitle: 取消下载
+cancelConfirm: 停止下载“{{title}}”？
+cancelAction: 停止
+badge:
+  expired: 已过期 - 重新下载后即可继续离线观看
+  ageGated: 此配置文件不可用
+  moreRestricted: 由其他配置文件下载
+  unavailable: 离线不可用
 quality:
   title: 选择画质
   bodyLarge: 这部影片有 {{original}}。{{height}}p 版本约需 {{reduced}}。

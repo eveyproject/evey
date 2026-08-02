@@ -9,6 +9,15 @@ totalSize: "{{size}} used on this device"
 deleted: Download removed
 optimizingAudio: "Optimizing audio... {{percent}}%"
 preparingCompat: "Preparing audio on the server..."
+cancel: Cancel download
+cancelTitle: Cancel download
+cancelConfirm: Stop downloading "{{title}}"?
+cancelAction: Stop
+badge:
+  expired: Expired - re-download to watch offline again
+  ageGated: Not available for this profile
+  moreRestricted: Downloaded by another profile
+  unavailable: Unavailable offline
 quality:
   title: Choose a quality
   bodyLarge: This film is {{original}}. A {{height}}p copy would take about {{reduced}}.

@@ -9,6 +9,15 @@ totalSize: "{{size}} utilisés sur cet appareil"
 deleted: Téléchargement supprimé
 optimizingAudio: "Optimisation du son... {{percent}}%"
 preparingCompat: "Préparation du son sur le serveur..."
+cancel: Annuler le téléchargement
+cancelTitle: Annuler le téléchargement
+cancelConfirm: Arrêter le téléchargement de "{{title}}" ?
+cancelAction: Arrêter
+badge:
+  expired: Expiré - téléchargez-le à nouveau pour le revoir hors ligne
+  ageGated: Indisponible pour ce profil
+  moreRestricted: Téléchargé par un autre profil
+  unavailable: Indisponible hors ligne
 quality:
   title: Choisir une qualité
   bodyLarge: Ce film pèse {{original}}. Une copie en {{height}}p prendrait environ {{reduced}}.

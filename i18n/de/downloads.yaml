@@ -9,6 +9,15 @@ totalSize: "{{size}} auf diesem Gerät belegt"
 deleted: Download entfernt
 optimizingAudio: "Ton wird optimiert... {{percent}}%"
 preparingCompat: "Ton wird auf dem Server vorbereitet..."
+cancel: Download abbrechen
+cancelTitle: Download abbrechen
+cancelConfirm: Download von "{{title}}" stoppen?
+cancelAction: Stoppen
+badge:
+  expired: Abgelaufen - erneut herunterladen, um offline weiterzusehen
+  ageGated: Für dieses Profil nicht verfügbar
+  moreRestricted: Von einem anderen Profil heruntergeladen
+  unavailable: Offline nicht verfügbar
 quality:
   title: Qualität wählen
   bodyLarge: Dieser Film ist {{original}} groß. Eine {{height}}p-Kopie braucht etwa {{reduced}}.

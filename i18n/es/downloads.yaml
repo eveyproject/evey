@@ -9,6 +9,15 @@ totalSize: "{{size}} usados en este dispositivo"
 deleted: Descarga eliminada
 optimizingAudio: "Optimizando el audio... {{percent}}%"
 preparingCompat: "Preparando el audio en el servidor..."
+cancel: Cancelar la descarga
+cancelTitle: Cancelar la descarga
+cancelConfirm: ¿Detener la descarga de "{{title}}"?
+cancelAction: Detener
+badge:
+  expired: Caducado - vuelve a descargarlo para verlo sin conexión
+  ageGated: No disponible para este perfil
+  moreRestricted: Descargado por otro perfil
+  unavailable: No disponible sin conexión
 quality:
   title: Elige una calidad
   bodyLarge: Esta película ocupa {{original}}. Una copia a {{height}}p ocuparía unos {{reduced}}.
