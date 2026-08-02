@@ -157,12 +157,11 @@ describe("audit TV · libellés d'accessibilité", () => {
 // undefined. On a television that is indistinguishable from a frozen app.
 describe("audit TV · échec de requête visible", () => {
   const ALLOW = new Set<string>([
-    // Écrans à onglets : la barre reste focusable, l'utilisateur n'est pas
-    // piégé, et un état vide y est plausible. À traiter, mais moins grave.
-    "app/(auth)/(tabs)/index.tsx",
-    "app/(auth)/(tabs)/requests.tsx",
+    // Réglages : le SEUL écran qui reste utile serveur muet - thème, langue et
+    // adresse du serveur sont locaux et continuent de fonctionner. Le couvrir
+    // d'un état d'erreur retirerait des commandes qui marchent, ce qui est pire
+    // que le défaut qu'on corrige ailleurs.
     "app/(auth)/(tabs)/settings.tsx",
-    "app/(auth)/(tabs)/music.tsx",
     // Écrans d'entrée : gèrent leurs erreurs par toast/dialogue, pas par état.
     "app/login.tsx",
     "app/profile-select.tsx",

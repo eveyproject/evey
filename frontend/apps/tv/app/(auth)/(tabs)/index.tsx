@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect, useCallback } from "react";
-import { View, Text, ScrollView, FlatList, ActivityIndicator, StyleSheet } from "react-native";
+import { View, Text, ScrollView, FlatList, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -22,6 +22,7 @@ import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { artworkUrl } from "../../../src/lib/artwork";
+import { ScreenState } from "../../../src/components/ScreenState";
 import { FocusableCard } from "../../../src/components/FocusableCard";
 import { PluginSlot } from "../../../src/features/plugins/PluginSlot";
 import { useParentalGate } from "../../../src/hooks/useParentalGate";
@@ -453,6 +454,9 @@ export default function HomeScreen() {
   // Focus is safe either way: the hero wins it whenever anything was recently
   // added, so a row arriving late cannot steal it.
   const isLoading = resume.isLoading || nextUp.isLoading || recentlyAdded.isLoading;
+  // Only when ALL THREE failed. One transverse row erroring still leaves a
+  // usable home, and blanking it would be a worse answer than a short page.
+  const isError = resume.isError && nextUp.isError && recentlyAdded.isError;
 
   const watchPercents = useMemo(() => {
     const map: Record<string, number> = {};
@@ -658,11 +662,20 @@ export default function HomeScreen() {
     }
   }
 
-  if (isLoading) {
+  // A home that fetched nothing used to render its empty rows, which reads as
+  // "your library is empty" rather than "the server did not answer". The side
+  // nav is drawn by the layout, so this keeps every tab reachable.
+  if (isLoading || isError) {
     return (
-      <View style={[styles.loading, { backgroundColor: theme.colors.bg }]}>
-        <ActivityIndicator color={theme.colors.accent} size="large" />
-      </View>
+      <ScreenState
+        loading={isLoading}
+        error={isError}
+        onRetry={() => {
+          void resume.refetch();
+          void nextUp.refetch();
+          void recentlyAdded.refetch();
+        }}
+      />
     );
   }
 
@@ -702,11 +715,6 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  loading: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
   notifBanner: {
     marginHorizontal: 24,
     marginBottom: 16,

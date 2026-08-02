@@ -16,6 +16,7 @@ import {
 } from "@evey/api";
 import { toast } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
+import { ScreenState } from "../../../src/components/ScreenState";
 import { FocusableCard } from "../../../src/components/FocusableCard";
 
 type MediaType = "movie" | "tv" | "music";
@@ -148,7 +149,12 @@ export default function RequestsScreen() {
   const [query, setQuery] = useState("");
   const [submittedQuery, setSubmittedQuery] = useState("");
 
-  const { data: policy, isLoading: policyLoading } = useMediaRequestServiceGetRequestPolicy();
+  const {
+    data: policy,
+    isLoading: policyLoading,
+    isError: policyError,
+    refetch: refetchPolicy,
+  } = useMediaRequestServiceGetRequestPolicy();
   const canRequest = policy?.canRequest === true;
 
   const { data: myRequestsResp, isLoading: mineLoading } = useMediaRequestServiceListMyRequests(
@@ -305,12 +311,12 @@ export default function RequestsScreen() {
     </FocusableCard>
   ), [theme, t]);
 
-  if (policyLoading) {
-    return (
-      <View style={[styles.center, { backgroundColor: theme.colors.bg }]}>
-        <ActivityIndicator color={theme.colors.accent} size="large" />
-      </View>
-    );
+  // A failed policy fetch used to land on the "requests are disabled" screen
+  // below, because an absent policy and a forbidding one are indistinguishable
+  // once the error is dropped. Telling the viewer a feature is off when the
+  // server merely did not answer is the worse of the two mistakes.
+  if (policyLoading || policyError) {
+    return <ScreenState loading={policyLoading} error={policyError} onRetry={() => void refetchPolicy()} />;
   }
 
   if (!canRequest) {

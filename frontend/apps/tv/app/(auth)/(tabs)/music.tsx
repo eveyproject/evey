@@ -13,6 +13,7 @@ import type { V1Library, V1MusicAlbum, V1MusicArtist, V1Track } from "@evey/api"
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
+import { ScreenState } from "../../../src/components/ScreenState";
 import { FocusableCard } from "../../../src/components/FocusableCard";
 import { useMusicQueueStore, type QueueTrack } from "../../../src/stores/musicQueue";
 import { musicAlbumHref, musicArtistHref } from "../../../src/lib/musicRoutes";
@@ -271,7 +272,7 @@ export default function MusicScreen() {
   const setQueue = useMusicQueueStore((s) => s.setQueue);
   const currentTrackId = currentIndex >= 0 && currentIndex < queue.length ? queue[currentIndex].id : undefined;
 
-  const { data: libraries, isLoading: libLoading } = useMusicLibraries();
+  const { data: libraries, isLoading: libLoading, isError: libError, refetch: refetchLibs } = useMusicLibraries();
   const activeLibraryID = selectedLibraryID ?? libraries?.[0]?.id;
   const libraryId = activeLibraryID ?? "";
 
@@ -302,12 +303,11 @@ export default function MusicScreen() {
     setQueue((tracks ?? []).map(trackToQueueTrack), index);
   }
 
-  if (libLoading) {
-    return (
-      <View style={[styles.center, { backgroundColor: theme.colors.bg }]}>
-        <ActivityIndicator color={theme.colors.accent} size="large" />
-      </View>
-    );
+  // Before this guard a failed library fetch fell straight through to the
+  // "no music library" state below - telling the viewer their collection is
+  // empty when the server simply did not answer.
+  if (libLoading || libError) {
+    return <ScreenState loading={libLoading} error={libError} onRetry={() => void refetchLibs()} />;
   }
 
   if (!libraries || libraries.length === 0) {
