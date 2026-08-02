@@ -6,6 +6,7 @@ import { setBaseURL } from "@evey/api";
 import { useAuthStore, useServerListStore } from "@evey/store";
 import { setServerUrl } from "../../src/lib/server-config";
 import { initFetcher } from "../../src/lib/fetcher-setup";
+import { interpolateFallback } from "../../src/i18n/interpolateFallback";
 import { useTheme } from "../../src/providers/ThemeProvider";
 
 export default function ManageServersScreen() {
@@ -52,7 +53,10 @@ export default function ManageServersScreen() {
     const name = server.label ?? server.url;
     Alert.alert(
       t("mobile.servers.deleteConfirmTitle", "Delete server?"),
-      t("mobile.servers.deleteConfirmMessage", "{{name}} will be removed from your saved servers. Sign-in tokens for this server will also be cleared.", { name }),
+      interpolateFallback(
+        t("mobile.servers.deleteConfirmMessage", "{{name}} will be removed from your saved servers. Sign-in tokens for this server will also be cleared.", { name }),
+        { name },
+      ),
       [
         { text: t("common.cancel"), style: "cancel" },
         {
