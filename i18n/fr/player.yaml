@@ -171,3 +171,6 @@ playOn:
   sent: "Envoyé à {{name}}"
   failed: Échec - l'appareil s'est peut-être déconnecté
   empty: Aucun appareil connecté. Ouvre l'app Evey sur ta TV ou ton tél pour qu'il apparaisse ici.
+sessionExpired:
+  title: Ta session a expiré
+  body: Reconnecte-toi pour continuer à regarder.

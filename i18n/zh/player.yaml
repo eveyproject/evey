@@ -171,3 +171,6 @@ playOn:
   sent: "已发送到 {{name}}"
   failed: 发送失败 - 设备可能已断开连接
   empty: 没有已连接的设备。在你的电视或手机上打开 Evey 应用以使其在此处可用。
+sessionExpired:
+  title: 你的会话已过期
+  body: 重新登录以继续观看。

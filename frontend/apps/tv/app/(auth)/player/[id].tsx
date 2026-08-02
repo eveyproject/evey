@@ -63,7 +63,7 @@ export default function PlayerScreen() {
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
 
   const { data: media } = useLibraryServiceGetMediaItem(mediaId);
-  const { streamUrl, sessionId, streamInfo, isLoading, isError, shedReason, stopSession, restartWithTracks, progress } =
+  const { streamUrl, sessionId, streamInfo, isLoading, isError, isAuthError, shedReason, stopSession, restartWithTracks, progress } =
     usePlaySession(mediaId);
   const profileId = useAuthStore((s) => s.profileId) ?? "";
 
@@ -686,6 +686,28 @@ export default function PlayerScreen() {
           style={{ marginTop: 28 }}
         >
           <Text style={{ color: theme.colors.accent, fontSize: 22, fontWeight: "600" }}>{t("player.retry")}</Text>
+        </Pressable>
+        <Pressable onPress={handleBack} style={{ marginTop: 20 }}>
+          <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 18 }}>{t("player.goBack", "Go back")}</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  // An expired session is not a broken stream. Retrying it can only fail
+  // again, so the screen offers the one action that helps: sign in.
+  if (isAuthError) {
+    return (
+      <View style={[styles.container, { backgroundColor: "#000" }]}>
+        <Ionicons name="log-in-outline" size={48} color="rgba(255,255,255,0.7)" />
+        <Text style={{ color: "#fff", fontSize: 24, fontWeight: "600", marginTop: 20, textAlign: "center", paddingHorizontal: 60 }}>
+          {t("player.sessionExpired.title", "Your session has expired")}
+        </Text>
+        <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 18, marginTop: 12, textAlign: "center", paddingHorizontal: 80 }}>
+          {t("player.sessionExpired.body", "Sign in again to keep watching.")}
+        </Text>
+        <Pressable onPress={() => router.replace("/login")} style={{ marginTop: 28 }} hasTVPreferredFocus>
+          <Text style={{ color: theme.colors.accent, fontSize: 22, fontWeight: "600" }}>{t("auth.login.signIn")}</Text>
         </Pressable>
         <Pressable onPress={handleBack} style={{ marginTop: 20 }}>
           <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 18 }}>{t("player.goBack", "Go back")}</Text>

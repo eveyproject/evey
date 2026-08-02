@@ -129,6 +129,7 @@ vi.mock("@evey/api", () => ({
 const stopSessionMock = vi.fn();
 const sessionState = {
   streamUrl: "http://srv.test/stream.m3u8",
+  isAuthError: false,
   mediaStreams: [] as { type: string; index: number; language?: string; isDefault?: boolean }[],
 };
 const restartWithTracksMock = vi.fn(() => {
@@ -141,6 +142,7 @@ vi.mock("../../../src/hooks/usePlaySession", () => ({
     streamInfo: { mediaStreams: sessionState.mediaStreams },
     isLoading: false,
     isError: false,
+    isAuthError: sessionState.isAuthError,
     stopSession: stopSessionMock,
     restartWithTracks: restartWithTracksMock,
     progress: null,
@@ -389,6 +391,35 @@ describe("player entry gate", () => {
 // arrives through statusChange - NOT through usePlaySession's isError, which
 // only covers the session-start network call. Swallowing it left a black
 // screen with live controls and no way to know playback was dead.
+// An expired session used to land on "Failed to load stream" - the owner spent
+// a morning hunting a codec bug that did not exist, on a television whose only
+// problem was that it had been signed out. Retrying an expired token can only
+// fail again, so the screen must offer signing in instead.
+describe("expired session (TV)", () => {
+  it("says the session expired rather than blaming the stream", () => {
+    sessionState.isAuthError = true;
+    try {
+      render(<PlayerScreen />);
+      expect(screen.getByText("Your session has expired")).toBeTruthy();
+      expect(screen.queryByText("Failed to load stream")).toBeNull();
+    } finally {
+      sessionState.isAuthError = false;
+    }
+  });
+
+  it("offers signing in, not a retry that cannot succeed", () => {
+    sessionState.isAuthError = true;
+    try {
+      render(<PlayerScreen />);
+      expect(screen.queryByText("player.retry")).toBeNull();
+      fireEvent.click(screen.getByText("auth.login.signIn"));
+      expect(replaceMock).toHaveBeenCalledWith("/login");
+    } finally {
+      sessionState.isAuthError = false;
+    }
+  });
+});
+
 describe("native player errors (TV)", () => {
   it("shows the error screen when the native player reports a fatal error", () => {
     render(<PlayerScreen />);

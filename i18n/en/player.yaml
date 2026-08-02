@@ -171,3 +171,6 @@ playOn:
   sent: "Sent to {{name}}"
   failed: Failed to send - the device may have disconnected
   empty: No connected devices. Open the Evey app on your TV / phone to make it available here.
+sessionExpired:
+  title: Your session has expired
+  body: Sign in again to keep watching.

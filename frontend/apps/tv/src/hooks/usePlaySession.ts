@@ -68,6 +68,12 @@ export interface PlaySessionResult {
   streamInfo: V1StreamInfo | null;
   isLoading: boolean;
   isError: boolean;
+  // Set instead of isError when the session is no longer valid. Kept apart
+  // because the answer is completely different: nothing is wrong with the
+  // stream, the viewer simply has to sign in again. Collapsing it into
+  // isError is what put "Failed to load stream" on screen for an expired
+  // token, and sent the owner hunting a codec bug that did not exist.
+  isAuthError: boolean;
   // Set instead of isError when the server refused to start THIS request for
   // one of the two shed reasons above - distinct from a genuine failure.
   shedReason: ShedReason;
@@ -120,6 +126,7 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
   const [progress, setProgress] = useState<V1WatchProgress | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isError, setIsError] = useState(false);
+  const [isAuthError, setIsAuthError] = useState(false);
   const [shedReason, setShedReason] = useState<ShedReason>(null);
   const sessionIdRef = useRef<string | null>(null);
   const startedRef = useRef(false);
@@ -197,8 +204,14 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
             setSessionId(session.id);
           }
         }
-      } catch {
-        setIsError(true);
+      } catch (err) {
+        // The shared fetcher tags an unrecoverable auth failure with
+        // httpStatus 401 (it has already tried the refresh by then).
+        if ((err as { httpStatus?: number })?.httpStatus === 401) {
+          setIsAuthError(true);
+        } else {
+          setIsError(true);
+        }
       } finally {
         setIsLoading(false);
       }
@@ -251,5 +264,5 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
     return () => stopSession();
   }, [stopSession]);
 
-  return { streamUrl, sessionId, streamInfo, isLoading, isError, shedReason, stopSession, restartWithTracks, progress };
+  return { streamUrl, sessionId, streamInfo, isLoading, isError, isAuthError, shedReason, stopSession, restartWithTracks, progress };
 }

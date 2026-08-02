@@ -171,3 +171,6 @@ playOn:
   sent: "An {{name}} gesendet"
   failed: Senden fehlgeschlagen - das Gerät ist möglicherweise getrennt
   empty: Keine verbundenen Geräte. Öffnen Sie die Evey-App auf Ihrem TV oder Smartphone, um es hier verfügbar zu machen.
+sessionExpired:
+  title: Deine Sitzung ist abgelaufen
+  body: Melde dich erneut an, um weiterzuschauen.

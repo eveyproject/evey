@@ -171,3 +171,6 @@ playOn:
   sent: "Enviado a {{name}}"
   failed: Error al enviar - el dispositivo puede haberse desconectado
   empty: Sin dispositivos conectados. Abre la app Evey en tu TV o teléfono para que aparezca aquí.
+sessionExpired:
+  title: Tu sesión ha caducado
+  body: Inicia sesión de nuevo para seguir viendo.
