@@ -8,12 +8,26 @@ import { ThemeSelector } from "./ThemeSelector";
 const mockSetTheme = vi.fn();
 let mockCurrentTheme = "default";
 
-vi.mock("@evey/store", () => ({
-  useThemeStore: () => ({
+// Selector-aware: the component reads the store both as a whole object and
+// through a selector (`s => s.applyFromPreferences`), so a mock that ignores
+// the selector hands back undefined and the effect throws.
+vi.mock("@evey/store", () => {
+  // Built on every call, never captured: vi.mock factories are hoisted above
+  // the `let mockCurrentTheme` below, so reading it at factory time throws.
+  const noop = vi.fn();
+  const themeState = () => ({
     theme: mockCurrentTheme,
     setTheme: mockSetTheme,
-  }),
-}));
+    applyFromPreferences: noop,
+  });
+  return {
+    useThemeStore: (selector?: (s: ReturnType<typeof themeState>) => unknown) =>
+      selector ? selector(themeState()) : themeState(),
+    useAuthStore: (selector?: (s: { profileId: string | null }) => unknown) =>
+      selector ? selector({ profileId: "p-1" }) : { profileId: "p-1" },
+    themePreferences: (current: Record<string, string> | undefined, theme: string) => ({ ...current, theme }),
+  };
+});
 
 vi.mock("@evey/theme", () => ({
   themes: {
@@ -24,8 +38,15 @@ vi.mock("@evey/theme", () => ({
   },
 }));
 
+// The selector now reads the active profile so the theme follows the viewer
+// across clients; these stubs keep the unit test about the pills themselves.
 vi.mock("@evey/api", () => ({
   eveyFetch: vi.fn().mockResolvedValue({ themes: [] }),
+  useUserServiceGetCurrentUser: () => ({ data: { id: "u-1" } }),
+  useUserServiceListProfiles: () => ({
+    data: { profiles: [{ id: "p-1", isDefault: true, preferences: {} }] },
+  }),
+  useUserServiceUpdateProfile: () => ({ mutate: vi.fn() }),
 }));
 
 function createWrapper() {

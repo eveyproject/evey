@@ -4,6 +4,8 @@ import React from "react";
 
 // --- React Native mock -----------------------------------------------------
 vi.mock("react-native", () => ({
+  // The customize panel the home hosts renders inside a Modal.
+  Modal: ({ children, visible }: any) => (visible ? children : null),
   View: ({ children, ...p }: any) => React.createElement("div", p, children),
   Text: ({ children, ...p }: any) => React.createElement("span", p, children),
   ScrollView: ({ children, ...p }: any) => React.createElement("div", p, children),
@@ -39,6 +41,12 @@ vi.mock("react-native", () => ({
 }));
 
 // --- expo-image mock ---------------------------------------------------------
+// The home now renders an icon on the "Customize" row; the real package pulls
+// a native icon set that does not resolve under vitest.
+vi.mock("@expo/vector-icons", () => ({
+  Ionicons: () => null,
+}));
+
 vi.mock("expo-image", () => ({
   Image: (props: any) => React.createElement("img", { alt: "", src: props.source?.uri }),
 }));
@@ -124,6 +132,10 @@ const useQueriesMock = vi.fn((opts: { queries: Array<{ queryKey: readonly unknow
 );
 vi.mock("@tanstack/react-query", () => ({
   useQueries: (...args: unknown[]) => useQueriesMock(...(args as [{ queries: Array<{ queryKey: readonly unknown[] }> }])),
+  // The home lists installed home.section plugins so the customize panel can
+  // name them; these tests are about the shelves, not the plugin catalogue.
+  useQuery: () => ({ data: { plugins: [] } }),
+  useQueryClient: () => ({ invalidateQueries: vi.fn() }),
 }));
 
 // --- @evey/api mock --------------------------------------------------------------
@@ -144,6 +156,8 @@ const getPhotoAlbumsQueryOptionsMock = vi.fn((params: { libraryId: string }) => 
   queryKey: [params.libraryId],
 }));
 vi.mock("@evey/api", () => ({
+  useFeedServiceUpdateProfileFeedConfig: () => ({ mutateAsync: vi.fn() }),
+  eveyFetch: vi.fn().mockResolvedValue({ plugins: [] }),
   usePlaybackServiceGetResumeItems: (...args: unknown[]) => resumeMock(...args),
   usePlaybackServiceGetNextUp: (...args: unknown[]) => nextUpMock(...args),
   useLibraryServiceListMediaItems: (...args: unknown[]) => listMediaItemsMock(...args),

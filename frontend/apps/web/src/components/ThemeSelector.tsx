@@ -1,8 +1,14 @@
-import { useThemeStore } from "@evey/store";
+import { useCallback, useEffect } from "react";
+import { useThemeStore, useAuthStore, themePreferences } from "@evey/store";
 import { themes, type ThemeName } from "@evey/theme";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { eveyFetch } from "@evey/api";
+import {
+  eveyFetch,
+  useUserServiceGetCurrentUser,
+  useUserServiceListProfiles,
+  useUserServiceUpdateProfile,
+} from "@evey/api";
 import { pluginThemeName } from "./theme-utils";
 
 const builtInLabels: Record<ThemeName, string> = {
@@ -35,7 +41,41 @@ function usePluginThemes() {
 export function ThemeSelector() {
   const { t } = useTranslation();
   const { theme, setTheme } = useThemeStore();
+  const applyFromPreferences = useThemeStore((s) => s.applyFromPreferences);
   const { data: pluginThemes } = usePluginThemes();
+
+  // The theme is a property of the profile, not of this browser: change it
+  // here and the phone and the television follow, and the other way round.
+  const { data: user } = useUserServiceGetCurrentUser();
+  const activeProfileId = useAuthStore((s) => s.profileId);
+  const { data: profilesResp } = useUserServiceListProfiles(user?.id ?? "", { query: { enabled: !!user?.id } });
+  const activeProfile =
+    profilesResp?.profiles?.find((p) => p.id === activeProfileId) ??
+    profilesResp?.profiles?.find((p) => p.isDefault) ??
+    profilesResp?.profiles?.[0];
+  const updateProfile = useUserServiceUpdateProfile();
+
+  useEffect(() => {
+    applyFromPreferences(activeProfile?.preferences);
+  }, [activeProfile?.preferences, applyFromPreferences]);
+
+  // MERGED: UpdateProfile replaces the whole preferences map server side, so
+  // sending only the theme would wipe the audio and subtitle languages.
+  const pickTheme = useCallback(
+    (name: string, pluginId?: string) => {
+      // Built-in themes keep the one-argument call the store has always taken;
+      // passing an explicit undefined would be equivalent but changes what
+      // every caller and test sees.
+      if (pluginId) setTheme(name, pluginId);
+      else setTheme(name);
+      if (!activeProfile?.id) return;
+      updateProfile.mutate({
+        id: activeProfile.id,
+        data: { preferences: themePreferences(activeProfile.preferences, name, pluginId) },
+      });
+    },
+    [setTheme, updateProfile, activeProfile],
+  );
 
   return (
     <div className="flex flex-col gap-2" data-testid="theme-switcher">
@@ -45,7 +85,7 @@ export function ThemeSelector() {
           <button
             key={name}
             data-testid={`theme-option-${name}`}
-            onClick={() => setTheme(name)}
+            onClick={() => pickTheme(name)}
             className={`px-3 py-1.5 rounded-[var(--radius-md)] text-sm transition-colors-fast ${
               theme === name
                 ? "bg-[var(--accent)] text-[var(--filter-active-text)]"
@@ -61,7 +101,7 @@ export function ThemeSelector() {
             <button
               key={pt.id}
               data-testid={`theme-option-${themeKey}`}
-              onClick={() => setTheme(themeKey, pt.id)}
+              onClick={() => pickTheme(themeKey, pt.id)}
               className={`px-3 py-1.5 rounded-[var(--radius-md)] text-sm transition-colors-fast ${
                 theme === themeKey
                   ? "bg-[var(--accent)] text-[var(--filter-active-text)]"

@@ -1,9 +1,9 @@
-import { memo } from "react";
+import { memo, useCallback, useEffect } from "react";
 import { ScrollView, View, Pressable, Text, StyleSheet } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { eveyFetch } from "@evey/api";
-import { useThemeStore } from "@evey/store";
+import { eveyFetch, useUserServiceGetCurrentUser, useUserServiceListProfiles, useUserServiceUpdateProfile } from "@evey/api";
+import { useThemeStore, useAuthStore, themePreferences } from "@evey/store";
 import { themes, FONT_SIZE } from "@evey/theme";
 import { useTheme } from "../providers/ThemeProvider";
 
@@ -42,6 +42,36 @@ function ThemeSelectorImpl() {
   const tk = useTheme();
   const themeName = useThemeStore((s) => s.theme);
   const setTheme = useThemeStore((s) => s.setTheme);
+  const applyFromPreferences = useThemeStore((s) => s.applyFromPreferences);
+
+  // The theme belongs to the profile, not to this handset: pick it here and
+  // the web and the television follow, and vice versa.
+  const { data: user } = useUserServiceGetCurrentUser();
+  const { data: profilesResp } = useUserServiceListProfiles(user?.id ?? "", { query: { enabled: !!user?.id } });
+  const activeProfileId = useAuthStore((s) => s.profileId);
+  const activeProfile =
+    profilesResp?.profiles?.find((p: { id?: string }) => p.id === activeProfileId) ??
+    profilesResp?.profiles?.find((p: { isDefault?: boolean }) => p.isDefault) ??
+    profilesResp?.profiles?.[0];
+  const updateProfile = useUserServiceUpdateProfile();
+
+  useEffect(() => {
+    applyFromPreferences(activeProfile?.preferences);
+  }, [activeProfile?.preferences, applyFromPreferences]);
+
+  // MERGED, because UpdateProfile replaces the whole preferences map server
+  // side - sending just the theme would wipe the audio/subtitle languages.
+  const pickTheme = useCallback(
+    (key: string, pluginId?: string) => {
+      setTheme(key, pluginId);
+      if (!activeProfile?.id) return;
+      updateProfile.mutate({
+        id: activeProfile.id,
+        data: { preferences: themePreferences(activeProfile.preferences, key, pluginId) },
+      });
+    },
+    [setTheme, updateProfile, activeProfile],
+  );
 
   const { data: pluginThemes } = useQuery<PluginThemeInfo[]>({
     queryKey: ["plugin-themes"],
@@ -84,7 +114,7 @@ function ThemeSelectorImpl() {
         return (
           <Pressable
             key={p.key}
-            onPress={() => setTheme(p.key, p.pluginId)}
+            onPress={() => pickTheme(p.key, p.pluginId)}
             accessible={true}
             accessibilityRole="radio"
             accessibilityState={{ selected: active }}

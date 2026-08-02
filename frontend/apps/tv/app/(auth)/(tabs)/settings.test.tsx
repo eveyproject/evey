@@ -44,7 +44,10 @@ vi.mock("@evey/store", () => ({
     (sel: any) => sel({ logout: logoutMock, setTokens: vi.fn(), profileId: "prof-2" }),
     { getState: () => ({ setTokens: vi.fn() }) },
   ),
-  useThemeStore: (sel: any) => sel({ theme: "default", setTheme: setThemeMock }),
+  // applyFromPreferences included: the screen adopts the theme stored on the
+  // profile, so the store mock has to carry it or the mount effect throws.
+  useThemeStore: (sel: any) => sel({ theme: "default", setTheme: setThemeMock, applyFromPreferences: () => {} }),
+  themePreferences: (current: Record<string, string> | undefined, theme: string) => ({ ...current, theme }),
   useLocaleStore: (sel: any) => sel({ locale: "en", setLocale: setLocaleMock }),
 }));
 

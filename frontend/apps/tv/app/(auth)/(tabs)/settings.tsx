@@ -1,9 +1,9 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { View, Text, ScrollView, Pressable, StyleSheet } from "react-native";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useUserServiceGetCurrentUser, useUserServiceListProfiles, useUserServiceUpdateProfile, useAdminSystemServiceGetSystemInfo, userServiceLogout, eveyFetch } from "@evey/api";
-import { useAuthStore, useThemeStore, useLocaleStore } from "@evey/store";
+import { useAuthStore, useThemeStore, useLocaleStore, themePreferences } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useServerUrlNullable } from "../../../src/hooks/useServerUrl";
 import { clearServerUrl } from "../../../src/lib/server-config";
@@ -23,6 +23,7 @@ export default function SettingsScreen() {
   const logout = useAuthStore((s) => s.logout);
   const currentTheme = useThemeStore((s) => s.theme);
   const setTheme = useThemeStore((s) => s.setTheme);
+  const applyThemeFromPreferences = useThemeStore((s) => s.applyFromPreferences);
   const setLocale = useLocaleStore((s) => s.setLocale);
   const serverUrl = useServerUrlNullable();
 
@@ -39,6 +40,26 @@ export default function SettingsScreen() {
 
   const [focusedItem, setFocusedItem] = useState<string | null>(null);
   const currentLang = i18n.language;
+
+  // The theme belongs to the profile, not to this television: pick it on the
+  // phone and the TV should follow. Persisted through the preferences map,
+  // MERGED because the server replaces it wholesale (see themePreferences).
+  const handleThemeChange = useCallback(
+    (value: string) => {
+      setTheme(value);
+      if (!activeProfile?.id) return;
+      updateProfile.mutate({
+        id: activeProfile.id,
+        data: { preferences: themePreferences(activeProfile.preferences, value) },
+      });
+    },
+    [setTheme, updateProfile, activeProfile],
+  );
+
+  // And the other direction: adopt whatever the profile carries.
+  useEffect(() => {
+    applyThemeFromPreferences(activeProfile?.preferences);
+  }, [activeProfile?.preferences, applyThemeFromPreferences]);
 
   async function handleLanguageChange(code: string) {
     setLocale(code);
@@ -265,7 +286,7 @@ export default function SettingsScreen() {
           <Pressable
             key={opt.value}
             style={rowStyle(`theme-${opt.value}`)}
-            onPress={() => setTheme(opt.value)}
+            onPress={() => handleThemeChange(opt.value)}
             onFocus={() => setFocusedItem(`theme-${opt.value}`)}
             onBlur={() => setFocusedItem(null)}
             accessible={true}
