@@ -34,6 +34,11 @@ import { trailerUrl, sortTrailers } from "../../../src/lib/trailerUrl";
 
 const HERO_HEIGHT = 420;
 const POSTER_WIDTH = CARD_WIDTH_FEATURED;
+// 16:9 still next to the episode text. Wide enough to read at three metres,
+// narrow enough that the title and synopsis keep the room. Served as
+// "backdrop" - that is the artwork type an episode still lives under, same as
+// the web episode rows.
+const EPISODE_THUMB_WIDTH = 240;
 const POSTER_HEIGHT = POSTER_WIDTH * POSTER_RATIO;
 
 function formatRuntime(ms?: string): string {
@@ -197,7 +202,11 @@ export default function MediaDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const theme = useTheme();
   const { t } = useTranslation();
-  const [selectedSeason, setSelectedSeason] = useState<string | null>(null);
+  // The FIRST season, not a user selection: since the series page became a
+  // grid of season posters there is nothing to select here. It is still needed
+  // to answer "what does Play start?" on a series - the first episode of the
+  // first season.
+  const [firstSeasonId, setFirstSeasonId] = useState<string | null>(null);
   const [focusedBtn, setFocusedBtn] = useState<string | null>(null);
 
   const { data: media, isLoading, refetch } = useLibraryServiceGetMediaItem(id ?? "");
@@ -257,14 +266,14 @@ export default function MediaDetailScreen() {
   const children = childrenData?.items ?? [];
 
   useEffect(() => {
-    if (isSeries && children.length > 0 && !selectedSeason) {
-      setSelectedSeason(children[0]?.id ?? null);
+    if (isSeries && children.length > 0 && !firstSeasonId) {
+      setFirstSeasonId(children[0]?.id ?? null);
     }
-  }, [isSeries, children, selectedSeason]);
+  }, [isSeries, children, firstSeasonId]);
 
   const { data: episodesData } = useLibraryServiceListMediaItems(
-    { parentId: selectedSeason ?? "", "pagination.pageSize": 100 },
-    { query: { enabled: !!(selectedSeason && isSeries) } },
+    { parentId: firstSeasonId ?? "", "pagination.pageSize": 100 },
+    { query: { enabled: !!(firstSeasonId && isSeries) } },
   );
 
   const episodes = isSeason ? children : (episodesData?.items ?? []);
@@ -558,56 +567,97 @@ export default function MediaDetailScreen() {
         <Text style={[styles.overview, { color: theme.colors.text }]}>{media.overview}</Text>
       ) : null}
 
-      {/* Season picker */}
+      {/* Seasons, as poster cards - the web layout, chosen over the phone's
+          chip row. A series page now shows the seasons and nothing else; you
+          open one to get its episodes, exactly as on the web. */}
       {isSeries && seasons.length > 0 && (
-        <View style={styles.seasonRow}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {seasons.map((season) => {
-              const active = season.id === selectedSeason;
-              return (
-                <Pressable
-                  key={season.id}
-                  onPress={() => setSelectedSeason(season.id ?? null)}
-                  onFocus={() => setFocusedBtn(`season-${season.id}`)}
-                  onBlur={() => setFocusedBtn(null)}
-                  style={[
-                    styles.seasonPill,
-                    {
-                      backgroundColor: active ? theme.colors.accent : theme.colors.surface,
-                      borderColor: focusedBtn === `season-${season.id}` ? "#fff" : "transparent",
-                    },
-                  ]}
-                >
-                  <Text style={{ color: active ? theme.colors.onAccent : theme.colors.text, fontSize: 18, fontWeight: "600" }}>
-                    {season.title}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
+        <View style={{ marginTop: 32 }}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={[styles.sectionTitle, { color: theme.colors.text, marginBottom: 0 }]}>
+              {t("media.detail.seasons")}
+            </Text>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 16 }}>
+              {t("media.detail.seasonCount", { count: seasons.length })}
+            </Text>
+          </View>
+          <FlatList
+            horizontal
+            data={seasons}
+            keyExtractor={(sn) => sn.id ?? ""}
+            showsHorizontalScrollIndicator={false}
+            ItemSeparatorComponent={() => <View style={{ width: 16 }} />}
+            renderItem={({ item: season }) => (
+              <FocusableCard
+                onPress={() => router.push(`/(auth)/media/${season.id}`)}
+                style={{ width: CARD_WIDTH_GRID }}
+                accessibilityLabel={season.title}
+              >
+                <Image
+                  source={{ uri: artworkUrl(serverUrl, season.id ?? "", "poster", CARD_WIDTH_GRID * 2), headers: authHeaders }}
+                  style={{
+                    width: CARD_WIDTH_GRID,
+                    height: CARD_WIDTH_GRID * POSTER_RATIO,
+                    borderRadius: theme.radii.sm,
+                    backgroundColor: theme.colors.surface,
+                  }}
+                  contentFit="cover"
+                  transition={200}
+                />
+                <Text style={{ color: theme.colors.text, fontSize: 18, marginTop: 8 }} numberOfLines={1}>
+                  {season.title}
+                </Text>
+              </FocusableCard>
+            )}
+          />
         </View>
       )}
 
-      {/* Episodes */}
-      {(isSeries || isSeason) && episodes.length > 0 && (
-        <View style={{ marginTop: 24 }}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{t("media.detail.episodes")}</Text>
-          {episodes.map((ep, _index) => (
+      {/* Episodes - only on a season page now, since a series page sends you
+          to a season first. Each row carries its still: a list of numbered
+          titles gives no idea what the episode is, and every other client
+          shows one. */}
+      {isSeason && episodes.length > 0 && (
+        <View style={{ marginTop: 32 }}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={[styles.sectionTitle, { color: theme.colors.text, marginBottom: 0 }]}>
+              {t("media.detail.episodes")}
+            </Text>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 16 }}>
+              {t("media.detail.episodeCount", { count: episodes.length })}
+            </Text>
+          </View>
+          {episodes.map((ep) => (
             <FocusableCard
               key={ep.id}
               onPress={() => router.push(`/(auth)/media/${ep.id}`)}
               style={[styles.episodeRow, { borderBottomColor: theme.colors.border }]}
               accessibilityLabel={ep.indexNumber != null ? `${ep.indexNumber}. ${ep.title}` : ep.title}
             >
-              <View style={{ flex: 1 }}>
+              <Image
+                source={{ uri: artworkUrl(serverUrl, ep.id ?? "", "backdrop", EPISODE_THUMB_WIDTH * 2), headers: authHeaders }}
+                style={{
+                  width: EPISODE_THUMB_WIDTH,
+                  height: EPISODE_THUMB_WIDTH * (9 / 16),
+                  borderRadius: theme.radii.sm,
+                  backgroundColor: theme.colors.surface,
+                }}
+                contentFit="cover"
+                transition={200}
+              />
+              <View style={{ flex: 1, marginLeft: 20 }}>
                 <Text style={{ color: theme.colors.text, fontSize: 20, fontWeight: "600" }} numberOfLines={1}>
                   {ep.indexNumber != null ? `${ep.indexNumber}. ` : ""}{ep.title}
                 </Text>
-                {ep.durationMs && (
+                {ep.durationMs ? (
                   <Text style={{ color: theme.colors.textMuted, fontSize: 16, marginTop: 2 }}>
                     {formatRuntime(ep.durationMs)}
                   </Text>
-                )}
+                ) : null}
+                {ep.overview ? (
+                  <Text style={{ color: theme.colors.textMuted, fontSize: 16, marginTop: 6 }} numberOfLines={2}>
+                    {ep.overview}
+                  </Text>
+                ) : null}
               </View>
             </FocusableCard>
           ))}
@@ -754,6 +804,7 @@ const styles = StyleSheet.create({
     borderWidth: 3,
   },
   sectionTitle: { fontSize: 28, fontWeight: "600", marginBottom: 12 },
+  sectionHeaderRow: { flexDirection: "row", alignItems: "baseline", gap: 16, marginBottom: 12 },
   episodeRow: {
     paddingVertical: 16,
     paddingHorizontal: 16,

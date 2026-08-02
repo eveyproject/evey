@@ -194,7 +194,10 @@ const EpisodeRow = memo(function EpisodeRow({
   onDownload?: (item: V1MediaItem) => void;
 }) {
   const { t } = useTranslation();
-  const episodeUri = item.id ? artworkUrl(serverUrl, item.id, "poster", 240) : undefined;
+  // "backdrop", not "poster": an episode's still lives under the backdrop type
+  // (same as the web episode rows). Asking for a poster gave an empty 16:9 box
+  // on most episodes, since episodes rarely carry one.
+  const episodeUri = item.id ? artworkUrl(serverUrl, item.id, "backdrop", 240) : undefined;
   const { data: progress } = usePlaybackServiceGetWatchProgress(item.id ?? "", undefined, {
     query: { enabled: !!item.id, retry: false },
   });
