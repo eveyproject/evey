@@ -46,6 +46,12 @@ export default function SettingsScreen() {
   const { data: user } = useUserServiceGetCurrentUser();
   const { data: profilesResp } = useUserServiceListProfiles(user?.id ?? "", { query: { enabled: !!user?.id } });
   const defaultProfile = profilesResp?.profiles?.find((p: any) => p.isDefault) ?? profilesResp?.profiles?.[0];
+  // The profile actually in use, which is not necessarily the default one -
+  // somebody switched to it from profile-select. Writing language or avatar
+  // onto `defaultProfile` changed a profile the user was not even looking at.
+  const activeProfileId = useAuthStore((s) => s.profileId);
+  const activeProfile =
+    profilesResp?.profiles?.find((p: { id?: string }) => p.id === activeProfileId) ?? defaultProfile;
   const { data: systemInfo } = useAdminSystemServiceGetSystemInfo();
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const accessToken = useAuthStore((s) => s.accessToken);
@@ -117,7 +123,7 @@ export default function SettingsScreen() {
   }, [user, editUsername, editEmail, newPassword, confirmPassword, updateUser, t]);
 
   const handleAvatarPick = useCallback(async () => {
-    if (!defaultProfile?.id) return;
+    if (!activeProfile?.id) return;
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
@@ -133,14 +139,14 @@ export default function SettingsScreen() {
       name: `avatar.${asset.mimeType?.split("/")[1] ?? "jpg"}`,
     } as any);
     try {
-      await eveyFetchRaw({ url: `/api/v1/profiles/${defaultProfile.id}/avatar`, method: "POST", body: formData as any });
+      await eveyFetchRaw({ url: `/api/v1/profiles/${activeProfile.id}/avatar`, method: "POST", body: formData as any });
       setAvatarPreview(asset.uri);
       if (user?.id) void qc.invalidateQueries({ queryKey: [`/api/v1/users/${user.id}/profiles`] });
       toast.success(t("auth.profile.avatarUpdated"));
     } catch {
       toast.error(t("auth.profile.avatarFailed"));
     }
-  }, [defaultProfile]);
+  }, [activeProfile]);
 
   function handleAuthorizeQc() {
     const trimmed = qcCode.trim().toUpperCase();
@@ -177,9 +183,9 @@ export default function SettingsScreen() {
     setLocale(code);
     void i18n.changeLanguage(code);
     // 2. Update profile on server
-    if (defaultProfile?.id) {
+    if (activeProfile?.id) {
       try {
-        await updateProfile.mutateAsync({ id: defaultProfile.id, data: { locale: code } });
+        await updateProfile.mutateAsync({ id: activeProfile.id, data: { locale: code } });
         // 3. Refresh JWT to get new locale claim
         const resp = await eveyFetch<{ accessToken?: string }>({ url: "/api/v1/auth/refresh", method: "POST", data: {} });
         if (resp.accessToken) useAuthStore.getState().setTokens(resp.accessToken);

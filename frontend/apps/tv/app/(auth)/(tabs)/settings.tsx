@@ -43,9 +43,13 @@ export default function SettingsScreen() {
   async function handleLanguageChange(code: string) {
     setLocale(code);
     void i18n.changeLanguage(code);
-    if (defaultProfile?.id) {
+    // The ACTIVE profile, not the default one. This screen already worked out
+    // which profile is in use (see above) and then wrote the language onto
+    // somebody else's - switch to a second profile, change the language, and
+    // the default profile silently changed instead.
+    if (activeProfile?.id) {
       try {
-        await updateProfile.mutateAsync({ id: defaultProfile.id, data: { locale: code } });
+        await updateProfile.mutateAsync({ id: activeProfile.id, data: { locale: code } });
         const resp = await eveyFetch<{ accessToken?: string }>({ url: "/api/v1/auth/refresh", method: "POST", data: {} });
         if (resp.accessToken) useAuthStore.getState().setTokens(resp.accessToken);
       } catch {
