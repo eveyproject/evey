@@ -16,14 +16,14 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { labelKey: "common.nav.home", icon: "home", path: "/(auth)/(tabs)" },
   { labelKey: "common.nav.search", icon: "search", path: "/(auth)/(tabs)/search" },
+  // Between search and libraries, not down with settings: on a television the
+  // bell is checked far more often than it is on the web, where it lives in a
+  // top bar that is always on screen.
+  { labelKey: "common.notifications.title", icon: "notifications", path: "/(auth)/notifications" },
   { labelKey: "common.nav.libraries", icon: "library", path: "/(auth)/(tabs)/library" },
   { labelKey: "common.nav.music", icon: "musical-notes", path: "/(auth)/(tabs)/music" },
   { labelKey: "common.nav.favorites", icon: "heart", path: "/(auth)/(tabs)/favorites" },
   { labelKey: "common.nav.requests", icon: "mail-unread", path: "/(auth)/(tabs)/requests" },
-  // A bell, like the web top bar. Notifications had no entry at all: you could
-  // only reach them through the unread banner on the home, so once you had read
-  // everything the screen became unreachable.
-  { labelKey: "common.notifications.title", icon: "notifications", path: "/(auth)/notifications" },
   { labelKey: "common.nav.settings", icon: "settings", path: "/(auth)/(tabs)/settings" },
 ];
 
@@ -142,10 +142,7 @@ export default function TabsLayout() {
 }
 
 const styles = StyleSheet.create({
-  // Fixed box with overflow hidden: react-native-svg does not reliably shrink
-  // to the width/height props here, and an oversized mark drew straight over
-  // the first nav item.
-  brand: { height: 96, justifyContent: "center", alignItems: "center", marginBottom: 16, overflow: "hidden" },
+  brand: { height: 56, justifyContent: "center", alignItems: "center", marginBottom: 20 },
   badge: {
     position: "absolute",
     top: -6,
@@ -165,17 +162,20 @@ const styles = StyleSheet.create({
   },
   sidebar: {
     borderRightWidth: 1,
-    paddingTop: 40,
+    paddingTop: 24,
   },
+  // No vertical centring any more. With eight entries the list is taller than
+  // the space left under the brand, and a centred box that overflows spills
+  // BOTH ways - the first item climbed on top of the logo. Top-aligned, it
+  // simply runs down the bar.
   navItems: {
     flex: 1,
-    justifyContent: "center",
-    gap: 8,
+    gap: 4,
   },
   navButton: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 16,
+    paddingVertical: 12,
     paddingHorizontal: 20,
     borderLeftWidth: 3,
     borderLeftColor: "transparent",
