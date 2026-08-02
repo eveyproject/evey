@@ -11,6 +11,7 @@ import { ToastContainer } from "../src/components/ToastContainer";
 import { initFetcher } from "../src/lib/fetcher-setup";
 import { getServerUrl } from "../src/lib/server-config";
 import { applyServerLanguage, initI18n } from "../src/i18n";
+import { refreshAccessTokenIfNeeded } from "../src/lib/auth-refresh";
 import { migrateFromSingleServer, useServerListStore } from "@evey/store";
 import { configureAudioSession } from "../src/lib/audio-session";
 import { installCrashGuard } from "../src/lib/crashGuard";
@@ -53,6 +54,10 @@ export default function RootLayout() {
       if (serverUrl) {
         await initI18n(serverUrl);
         await applyServerLanguage(serverUrl);
+        // Renew a stale access token before the first screen decides where to
+        // send the viewer: without this a cold start lands on /login, and a TV
+        // has no keyboard to type a password with.
+        await refreshAccessTokenIfNeeded();
       }
     }
     bootstrap()
