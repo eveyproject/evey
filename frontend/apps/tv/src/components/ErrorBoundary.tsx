@@ -18,15 +18,22 @@ interface Props {
 interface State {
   hasError: boolean;
   error: Error | null;
+  /** Retries so far, so a deterministic failure stops offering a useless button. */
+  attempts: number;
 }
+
+// Past this, retrying is not a recovery path any more - the failure is
+// deterministic and the button just replays it. The viewer is then offered the
+// one action that does change something: leaving the screen.
+const MAX_RETRIES = 2;
 
 class ErrorBoundaryInner extends Component<Props, State> {
   constructor(props: Props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, attempts: 0 };
   }
 
-  static getDerivedStateFromError(error: Error): State {
+  static getDerivedStateFromError(error: Error): Partial<State> {
     return { hasError: true, error };
   }
 
@@ -36,18 +43,23 @@ class ErrorBoundaryInner extends Component<Props, State> {
     logger("ui").error(`écran en erreur: ${error.message}`, info.componentStack ?? "");
   }
 
+  // Clearing hasError is enough to remount: React already unmounted the whole
+  // subtree when it rendered the fallback, so the children come back fresh.
+  // What `attempts` buys is the count below - a deterministic failure would
+  // otherwise offer a button that replays it for ever.
   handleRetry = () => {
-    this.setState({ hasError: false, error: null });
+    this.setState((s) => ({ hasError: false, error: null, attempts: s.attempts + 1 }));
   };
 
   handleGoHome = () => {
-    this.setState({ hasError: false, error: null });
+    this.setState({ hasError: false, error: null, attempts: 0 });
     router.replace("/(auth)/(tabs)");
   };
 
   render() {
     if (this.state.hasError) {
       const { theme, t } = this.props;
+      const canRetry = this.state.attempts < MAX_RETRIES;
       return (
         <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
           <Text style={[styles.icon, { color: theme.colors.error }]}>!</Text>
@@ -56,19 +68,22 @@ class ErrorBoundaryInner extends Component<Props, State> {
             {this.state.error?.message ?? t("common.error")}
           </Text>
           <View style={styles.actions}>
-            {/* Only one hasTVPreferredFocus on this screen (see agents.md rule) -
-                the retry action is the more common recovery path, so it gets
-                initial focus. Go Home stays reachable via the d-pad. */}
-            <FocusableCard
-              onPress={this.handleRetry}
-              hasTVPreferredFocus={true}
-              accessibilityLabel={t("common.tryAgain")}
-              style={[styles.actionBtn, { backgroundColor: theme.colors.accent }]}
-            >
-              <Text style={[styles.retryText, { color: theme.colors.onAccent }]}>{t("common.tryAgain")}</Text>
-            </FocusableCard>
+            {/* Exactly one hasTVPreferredFocus (see agents.md rule): retry while
+                it is still plausible, then Home - which is always offered, so
+                the remote is never left without a target. */}
+            {canRetry ? (
+              <FocusableCard
+                onPress={this.handleRetry}
+                hasTVPreferredFocus={true}
+                accessibilityLabel={t("common.tryAgain")}
+                style={[styles.actionBtn, { backgroundColor: theme.colors.accent }]}
+              >
+                <Text style={[styles.retryText, { color: theme.colors.onAccent }]}>{t("common.tryAgain")}</Text>
+              </FocusableCard>
+            ) : null}
             <FocusableCard
               onPress={this.handleGoHome}
+              hasTVPreferredFocus={!canRetry}
               accessibilityLabel={t("common.nav.home")}
               style={[styles.actionBtn, { backgroundColor: theme.colors.surface }]}
             >

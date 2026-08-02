@@ -1,35 +1,35 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import React from "react";
 
-// --- React Native mock -----------------------------------------------------
+// The user's requirement for the television was blunt: "aucune erreur ne doit
+// faire planter l'app". That is a behaviour, so it needs tests - the boundary
+// existing is not evidence that it recovers.
+
 vi.mock("react-native", () => ({
   View: ({ children, ...p }: any) => React.createElement("div", p, children),
   Text: ({ children, ...p }: any) => React.createElement("span", p, children),
-  Pressable: ({ children, onPress, hasTVPreferredFocus, ...p }: any) =>
+  Pressable: ({ children, onPress, accessibilityLabel, hasTVPreferredFocus, ...p }: any) =>
     React.createElement(
       "button",
-      { onClick: onPress, "data-has-tv-preferred-focus": hasTVPreferredFocus ? "true" : undefined, ...p },
+      {
+        onClick: onPress,
+        "aria-label": accessibilityLabel,
+        "data-tv-preferred-focus": hasTVPreferredFocus ? "true" : undefined,
+        ...p,
+      },
       children,
     ),
-  StyleSheet: { create: (s: any) => s },
+  StyleSheet: { create: (s: any) => s, absoluteFillObject: {} },
 }));
 
-// --- expo-router mock -------------------------------------------------------
-const replaceMock = vi.fn();
-vi.mock("expo-router", () => ({
-  router: { replace: (...args: unknown[]) => replaceMock(...args) },
-}));
-
-// --- i18next -----------------------------------------------------------------
 vi.mock("react-i18next", () => ({
-  useTranslation: () => ({
-    t: (key: string, fallback?: unknown) => (typeof fallback === "string" ? fallback : key),
-    i18n: { language: "en" },
-  }),
+  useTranslation: () => ({ t: (key: string) => key }),
 }));
 
-// --- ThemeProvider -----------------------------------------------------------
+const replaceMock = vi.fn();
+vi.mock("expo-router", () => ({ router: { replace: (...a: unknown[]) => replaceMock(...a) } }));
+
 vi.mock("../providers/ThemeProvider", () => ({
   useTheme: () => ({
     colors: {
@@ -37,75 +37,107 @@ vi.mock("../providers/ThemeProvider", () => ({
       text: "#fff",
       textMuted: "#888",
       accent: "#f00",
-      onAccent: "#fff",
+      onAccent: "#000",
       surface: "#111",
       error: "#f00",
     },
-    radii: { sm: 4, md: 8, lg: 12 },
   }),
 }));
 
-// -----------------------------------------------------------------------------
+const logError = vi.fn();
+vi.mock("../lib/log", () => ({
+  logger: () => ({ error: (...a: unknown[]) => logError(...a), info: vi.fn(), warn: vi.fn() }),
+}));
+
 import { ErrorBoundary } from "./ErrorBoundary";
 
-function Boom(): React.ReactElement {
-  throw new Error("kaboom");
+/** Throws until told otherwise, so a retry can be made to succeed or to fail again. */
+function Bomb({ live }: { live: { throws: boolean } }) {
+  if (live.throws) throw new Error("boom");
+  return <span>contenu</span>;
 }
 
-describe("ErrorBoundary (TV)", () => {
+describe("ErrorBoundary", () => {
   beforeEach(() => {
-    replaceMock.mockClear();
-    // React logs the crash to console.error; silence it so it doesn't fail
-    // the test suite while we still get to assert on our own fallback UI.
+    // React logs caught errors to the console; silence the noise, not the test.
     vi.spyOn(console, "error").mockImplementation(() => {});
   });
-
   afterEach(() => {
     vi.restoreAllMocks();
-    cleanup();
+    replaceMock.mockClear();
+    logError.mockClear();
   });
 
-  it("catches a crashing child and shows the translated fallback with both actions focusable", () => {
+  it("montre un ecran de secours au lieu de laisser l'erreur remonter", () => {
     render(
       <ErrorBoundary>
-        <Boom />
+        <Bomb live={{ throws: true }} />
       </ErrorBoundary>,
     );
-
     expect(screen.getByText("common.somethingWentWrong")).toBeTruthy();
-    const retryBtn = screen.getByText("common.tryAgain").closest("button");
-    const homeBtn = screen.getByText("common.nav.home").closest("button");
-    expect(retryBtn).toBeTruthy();
-    expect(homeBtn).toBeTruthy();
-
-    // Only one hasTVPreferredFocus on the fallback screen (agents.md rule):
-    // the retry action gets initial d-pad focus, Go Home does not.
-    expect(retryBtn?.getAttribute("data-has-tv-preferred-focus")).toBe("true");
-    expect(homeBtn?.hasAttribute("data-has-tv-preferred-focus")).toBe(false);
+    expect(screen.getByText("boom")).toBeTruthy();
   });
 
-  it("clears the error and re-renders the tree when Retry is pressed", () => {
+  it("journalise l'erreur : degrader sans rien dire empeche tout diagnostic", () => {
     render(
       <ErrorBoundary>
-        <Boom />
+        <Bomb live={{ throws: true }} />
       </ErrorBoundary>,
     );
-
-    fireEvent.click(screen.getByText("common.tryAgain"));
-
-    // The child throws deterministically, so the boundary re-crashes right away.
-    expect(screen.getByText("common.somethingWentWrong")).toBeTruthy();
+    expect(logError).toHaveBeenCalled();
+    expect(String(logError.mock.calls[0][0])).toContain("boom");
   });
 
-  it("navigates back to the home tab when Go Home is pressed", () => {
+  // Retry has to actually give the subtree another go once the cause is gone -
+  // React unmounts the children when the fallback renders, so clearing the flag
+  // is what brings them back.
+  it("reessayer redonne sa chance au sous-arbre", () => {
+    const live = { throws: true };
     render(
       <ErrorBoundary>
-        <Boom />
+        <Bomb live={live} />
       </ErrorBoundary>,
     );
+    live.throws = false;
+    fireEvent.click(screen.getByLabelText("common.tryAgain"));
+    expect(screen.getByText("contenu")).toBeTruthy();
+    expect(screen.queryByText("common.somethingWentWrong")).toBeNull();
+  });
 
-    fireEvent.click(screen.getByText("common.nav.home"));
+  it("cesse de proposer un reessai qui rejoue la meme panne, et bascule sur l'accueil", () => {
+    const live = { throws: true };
+    render(
+      <ErrorBoundary>
+        <Bomb live={live} />
+      </ErrorBoundary>,
+    );
+    fireEvent.click(screen.getByLabelText("common.tryAgain"));
+    fireEvent.click(screen.getByLabelText("common.tryAgain"));
 
+    expect(screen.queryByLabelText("common.tryAgain")).toBeNull();
+    const home = screen.getByLabelText("common.nav.home");
+    expect(home.getAttribute("data-tv-preferred-focus")).toBe("true");
+    fireEvent.click(home);
     expect(replaceMock).toHaveBeenCalledWith("/(auth)/(tabs)");
+  });
+
+  // House rule: no state may leave the remote without a single, deterministic
+  // place to land.
+  it("expose toujours exactement une cible de focus initial", () => {
+    render(
+      <ErrorBoundary>
+        <Bomb live={{ throws: true }} />
+      </ErrorBoundary>,
+    );
+    expect(document.querySelectorAll('[data-tv-preferred-focus="true"]')).toHaveLength(1);
+  });
+
+  it("laisse passer les enfants quand rien n'echoue", () => {
+    render(
+      <ErrorBoundary>
+        <span>ok</span>
+      </ErrorBoundary>,
+    );
+    expect(screen.getByText("ok")).toBeTruthy();
   });
 });
