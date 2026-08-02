@@ -145,10 +145,29 @@ describe("audit TV · focus initial déterministe", () => {
     expect(offenders.sort()).toEqual([]);
   });
 
+  // The same trap, one layer up: an overlay component (Modal) that never
+  // claims focus leaves Android with nothing focused the moment it opens,
+  // dead remote included. Two of these were fixed the same night
+  // (AddToPlaylistSheet, FeedCustomizePanel) - this keeps a third from
+  // shipping unnoticed.
+  const OVERLAY_ALLOW = new Set<string>([]);
+
+  it.skipIf(!CAN_RUN)("tout composant qui rend un Modal réclame le focus initial", () => {
+    const offenders: string[] = [];
+    for (const file of components()) {
+      const name = rel(file);
+      if (OVERLAY_ALLOW.has(name)) continue;
+      const src = readFileSync(file, "utf8");
+      if (!/<Modal\b/.test(src)) continue;
+      if (!src.includes("hasTVPreferredFocus")) offenders.push(name);
+    }
+    expect(offenders.sort()).toEqual([]);
+  });
+
   it.skipIf(!CAN_RUN)("la liste des exceptions ne contient que des fichiers existants", () => {
     // A stale allowlist silently weakens the rule; this is what makes it
     // shrink instead of drift.
-    for (const name of [...ALLOW, ...SHELL_PROVIDES_FOCUS]) {
+    for (const name of [...ALLOW, ...SHELL_PROVIDES_FOCUS, ...OVERLAY_ALLOW]) {
       expect(existsSync(join(APP_ROOT, name)), `${name} n'existe plus, retire-le de ALLOW`).toBe(true);
     }
   });
