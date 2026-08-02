@@ -735,6 +735,101 @@ describe("action bar discoverability (TV)", () => {
 // "Maison du dragon" is a series: it has no media_files row, so the stream
 // endpoint 404s and the player blamed the stream. The home hero handed the
 // player whatever it was spotlighting, series included.
+// Android TV stops delivering key events (remote AND pointer) once no native
+// view holds focus. The screen keeps a full-screen Pressable under every
+// overlay for exactly that reason - these tests lock its contract down.
+describe("focus-holding player surface (TV)", () => {
+  it("renders a focusable full-screen surface under the overlays", () => {
+    render(<PlayerScreen />);
+    expect(screen.getByLabelText("Player surface")).toBeTruthy();
+  });
+
+  it("toggles play/pause on press while the controls are visible", () => {
+    render(<PlayerScreen />);
+    playMock.mockClear();
+    playerMock.playing = false;
+    fireEvent.click(screen.getByLabelText("Player surface"));
+    expect(playMock).toHaveBeenCalled();
+
+    pauseMock.mockClear();
+    playerMock.playing = true;
+    fireEvent.click(screen.getByLabelText("Player surface"));
+    expect(pauseMock).toHaveBeenCalled();
+  });
+
+  it("wakes the controls instead of toggling playback when they are already hidden", () => {
+    vi.useFakeTimers();
+    try {
+      render(<PlayerScreen />);
+      act(() => { vi.advanceTimersByTime(4000); }); // CONTROLS_TIMEOUT elapses
+      expect(screen.queryByLabelText("More")).toBeNull();
+
+      playMock.mockClear();
+      pauseMock.mockClear();
+      fireEvent.click(screen.getByLabelText("Player surface"));
+
+      expect(playMock).not.toHaveBeenCalled();
+      expect(pauseMock).not.toHaveBeenCalled();
+      expect(screen.getByLabelText("More")).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // On real hardware, pressing OK while the surface holds native focus fires
+  // BOTH the surface's own onPress and the global remote handler's "select" -
+  // the global handler must stand down while the surface has focus, or
+  // play/pause fires twice for one press.
+  it("does not double-toggle play/pause when the global handler sees select while the surface is focused", () => {
+    render(<PlayerScreen />);
+    fireEvent.focus(screen.getByLabelText("Player surface"));
+    playMock.mockClear();
+    pauseMock.mockClear();
+    playerMock.playing = false;
+
+    fireEvent.click(screen.getByLabelText("Player surface")); // the surface's own onPress
+    act(() => { capturedTVHandler?.({ eventType: "select" }); }); // the global handler, same keypress
+
+    expect(playMock).toHaveBeenCalledTimes(1);
+    expect(pauseMock).not.toHaveBeenCalled();
+  });
+});
+
+// The action bar used to keep hiding on the fixed 4s timer even while the
+// viewer was still walking it with the remote - it vanished mid-navigation.
+describe("sticky action bar (TV)", () => {
+  it("keeps the action bar visible well past the hide timeout while it holds focus", () => {
+    vi.useFakeTimers();
+    try {
+      render(<PlayerScreen />);
+      act(() => { capturedTVHandler?.({ eventType: "down" }); }); // opens the bar
+      expect(screen.getByLabelText("player.controls.play")).toBeTruthy();
+
+      act(() => { vi.advanceTimersByTime(4000 * 3); });
+
+      expect(screen.getByLabelText("player.controls.play")).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("re-arms the hide timer once the bar loses focus, and hides after it elapses", () => {
+    vi.useFakeTimers();
+    try {
+      render(<PlayerScreen />);
+      act(() => { capturedTVHandler?.({ eventType: "down" }); }); // opens the bar
+      expect(screen.getByLabelText("player.controls.play")).toBeTruthy();
+
+      act(() => { capturedTVHandler?.({ eventType: "up" }); }); // leaves the bar
+      act(() => { vi.advanceTimersByTime(4000); });
+
+      expect(screen.queryByLabelText("player.controls.play")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
 describe("unplayable container items (TV)", () => {
   it("sends a series to its detail page instead of trying to stream it", () => {
     getMediaItemMock.mockReturnValue({
