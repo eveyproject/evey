@@ -11,6 +11,7 @@ import {
   SUBTITLE_TEXT_COLORS,
   type SubtitleStyle,
 } from "../../lib/subtitleStyle";
+import { formatAudioTrackLabel } from "../../lib/audioTrackLabel";
 
 export interface AudioStream {
   index: number;
@@ -408,7 +409,7 @@ export function PlayerSettingsPanel({
               </>
             )}
             {audioStreams.map((s) => {
-              const label = s.title ?? s.language ?? t("media.track", { number: s.index });
+              const label = formatAudioTrackLabel(s, t("media.track", { number: s.index }));
               return (
                 <OptionRow
                   key={s.index}
