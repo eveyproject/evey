@@ -12,7 +12,9 @@ declare -A KEYS=(
   [up]=19 [down]=20 [left]=21 [right]=22 [ok]=23 [select]=23
   [back]=4 [home]=3 [menu]=82 [play]=85 [pause]=85 [playpause]=85
 )
-NAME="${1:-}"; COUNT="${2:-1}"
+# Case-insensitive: `tv-key DOWN` is what fingers actually type, and rejecting
+# it only produced a puzzling "touche inconnue" for a key that plainly exists.
+NAME="$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')"; COUNT="${2:-1}"
 [[ -n "${KEYS[$NAME]:-}" ]] || die "touche inconnue « $NAME »" "au choix : ${!KEYS[*]}"
 device_ready || die "aucun device attaché" "make tv-up"
 

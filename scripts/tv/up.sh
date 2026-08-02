@@ -40,14 +40,42 @@ else
 fi
 
 # 2. Emulator, also in parallel.
+EMU_LOG="${TMPDIR:-/tmp}/evey-tv-emulator.log"
+
+# Did the windowed emulator refuse to even load?
+#
+# Two separate ways it happens on this machine, both fatal within a second and
+# both silent unless you read the log:
+#   - a missing system library (libpulse, libxkbfile) - qemu never starts;
+#   - Qt finding no usable platform plugin (wants libxcb-cursor0, libICE, libSM).
+# The window is a convenience; the app is the point. So rather than dying, fall
+# back to -no-window - which needs none of those - and say what to install.
+emulator_window_failed() {
+  grep -qE "error while loading shared libraries|no Qt platform plugin could be initialized" \
+    "$EMU_LOG" 2>/dev/null
+}
+
+start_emulator() { # start_emulator [--no-window]
+  # -no-audio only: dropping -no-snapshot is what makes this fast. swiftshader
+  # keeps it working on a machine with no usable GPU passthrough.
+  ( "$EMULATOR" -avd "$TV_AVD" -gpu swiftshader_indirect -no-audio "$@" \
+      >"$EMU_LOG" 2>&1 & )
+}
+
 if emulator_running; then
   ok "émulateur « $TV_AVD » déjà lancé"
 else
   step "démarrage de l'émulateur « $TV_AVD » (depuis snapshot)"
-  # -no-audio only: dropping -no-snapshot is what makes this fast. swiftshader
-  # keeps it working on a machine with no usable GPU passthrough.
-  ( "$EMULATOR" -avd "$TV_AVD" -gpu swiftshader_indirect -no-audio \
-      >"${TMPDIR:-/tmp}/evey-tv-emulator.log" 2>&1 & )
+  start_emulator
+  # It dies fast when it dies; two seconds is enough to know.
+  sleep 2
+  if emulator_window_failed; then
+    warn "l'émulateur ne peut pas ouvrir sa fenêtre - démarrage sans affichage"
+    say  "  il manque des bibliothèques système. Pour retrouver la fenêtre :"
+    say  "  sudo apt install -y libpulse0 libxkbfile1 libice6 libsm6 libxcb-cursor0"
+    say  "  en attendant, tout reste pilotable : make tv-shot · make tv-key <touche>"
+    start_emulator -no-window
+  fi
 fi
 
 # 3. Attach and wait for the guest to be usable.
