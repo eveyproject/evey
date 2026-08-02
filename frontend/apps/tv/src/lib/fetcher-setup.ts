@@ -2,6 +2,7 @@ import { setBaseURL, setTokenProvider, setTokensUpdater, setRefreshHandler, setL
 import { useAuthStore, useLocaleStore } from "@evey/store";
 import { getServerUrl } from "./server-config";
 import { eveyClientUserAgent } from "./clientIdentity";
+import { forceRefresh } from "./auth-refresh";
 
 export async function initFetcher() {
   const serverUrl = await getServerUrl();
@@ -14,20 +15,8 @@ export async function initFetcher() {
   setTokensUpdater((access) => useAuthStore.getState().setTokens(access));
   setLocaleProvider(() => useLocaleStore.getState().locale);
 
-  setRefreshHandler(async () => {
-    const token = useAuthStore.getState().accessToken;
-    if (!token) return null;
-    const res = await fetch(`${serverUrl}/api/v1/auth/refresh`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Persistent-Session": "true",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({}),
-    });
-    if (!res.ok) return null;
-    const data = (await res.json()) as { accessToken: string };
-    return { accessToken: data.accessToken };
-  });
+  // Route through forceRefresh: it uses the stored refresh token (the access
+  // token is already rejected at this point) and coalesces concurrent callers
+  // so the server's single-use rotation never sees the same token twice.
+  setRefreshHandler(forceRefresh);
 }

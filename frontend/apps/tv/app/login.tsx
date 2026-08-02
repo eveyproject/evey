@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useUserServiceLogin } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { useTheme } from "../src/providers/ThemeProvider";
+import { setRefreshToken } from "../src/lib/refresh-token";
 
 export default function Login() {
   const theme = useTheme();
@@ -19,8 +20,11 @@ export default function Login() {
 
   const { mutate: login, isPending } = useUserServiceLogin({
     mutation: {
-      onSuccess: (data) => {
+      onSuccess: async (data) => {
         if (data.accessToken) {
+          // Without the refresh token the session dies with the access token
+          // and the TV asks for a password again on the next cold start.
+          if (data.refreshToken) await setRefreshToken(data.refreshToken);
           setTokens(data.accessToken);
           router.replace("/profile-select");
         }

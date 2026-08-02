@@ -7,6 +7,7 @@ import { useUserServiceInitiateQuickConnect, userServiceCheckQuickConnect } from
 import { useAuthStore } from "@evey/store";
 import { useTheme } from "../src/providers/ThemeProvider";
 import { useServerUrlNullable } from "../src/hooks/useServerUrl";
+import { setRefreshToken } from "../src/lib/refresh-token";
 
 const REFRESH_INTERVAL_S = 120;
 
@@ -71,6 +72,7 @@ export default function QuickConnectScreen() {
         const resp = await userServiceCheckQuickConnect(code);
         if (cancelled) return;
         if (resp.authorized && resp.auth?.accessToken) {
+          if (resp.auth.refreshToken) await setRefreshToken(resp.auth.refreshToken);
           setTokens(resp.auth.accessToken);
           router.replace("/(auth)/(tabs)");
         }
