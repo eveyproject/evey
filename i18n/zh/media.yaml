@@ -14,6 +14,7 @@ home:
   collections: 合集
   customize: "自定义"
   customizeFeed: 自定义首页
+  customizeHintTv: 在某一行上按 OK 可显示或隐藏该行
   emptyLibrary: 您的媒体库为空
   emptyLibraryDesc: "前往管理 → 媒体库添加媒体文件夹。"
   goToLibraries: 前往媒体库

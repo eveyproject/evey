@@ -3,7 +3,8 @@ import { View, Text, ScrollView, FlatList, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { useQueries } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
+import { Ionicons } from "@expo/vector-icons";
 import {
   usePlaybackServiceGetResumeItems,
   usePlaybackServiceGetNextUp,
@@ -15,6 +16,7 @@ import {
   getMusicServiceGetAlbumsQueryOptions,
   getPhotoServiceListPhotoAlbumsQueryOptions,
   useNotificationServiceGetUnreadCount,
+  eveyFetch,
 } from "@evey/api";
 import type { V1MediaItem } from "@evey/api";
 import { useAuthStore } from "@evey/store";
@@ -23,6 +25,7 @@ import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { artworkUrl } from "../../../src/lib/artwork";
 import { ScreenState } from "../../../src/components/ScreenState";
+import { FeedCustomizePanel } from "../../../src/components/FeedCustomizePanel";
 import { FocusableCard } from "../../../src/components/FocusableCard";
 import { PluginSlot } from "../../../src/features/plugins/PluginSlot";
 import { useParentalGate } from "../../../src/hooks/useParentalGate";
@@ -403,6 +406,35 @@ export default function HomeScreen() {
     () => buildHomeSections(feedConfigData?.configs ?? [], libraries.data?.libraries ?? []),
     [feedConfigData, libraries.data],
   );
+  const [customizeOpen, setCustomizeOpen] = useState(false);
+
+  // Display names for the customize panel. Without them a library row reads as
+  // a raw UUID and a plugin row as `plg-…`, which is unusable at three metres.
+  const libraryNames = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const lib of libraries.data?.libraries ?? []) {
+      if (lib.id && lib.name) map[lib.id] = lib.name;
+    }
+    return map;
+  }, [libraries.data]);
+
+  // Only plugins shipping a `home.section` module can appear in the feed; the
+  // rest must not be offered as rows. Same query and same filter as mobile.
+  const { data: pluginsData } = useQuery<{ plugins?: { id?: string; name?: string; frontend?: { slot?: string }[] }[] }>({
+    queryKey: ["/api/v1/plugins"],
+    queryFn: () => eveyFetch({ url: "/api/v1/plugins", method: "GET" }),
+    staleTime: 60_000,
+  });
+  const pluginNames = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const p of pluginsData?.plugins ?? []) {
+      if (!p.id || !p.name) continue;
+      if (!(p.frontend ?? []).some((m) => m.slot === "home.section")) continue;
+      map[p.id] = p.name;
+    }
+    return map;
+  }, [pluginsData]);
+
   const maxItemsByType = useMemo(() => {
     const map: Record<string, number> = {};
     for (const s of sections) {
@@ -715,11 +747,49 @@ export default function HomeScreen() {
       {sections.map((section, i) =>
         renderSection(section, i, section.kind === "library" ? renderCursor++ : -1),
       )}
+
+      {/* Last item on the home, deliberately.
+          Mobile puts this in the header, but the top of a television home is
+          the hero, and anything placed there competes with it for the initial
+          focus - a screen that opens on "Customize" instead of on a film is a
+          worse home. At the bottom it is found by scrolling, which is what a
+          viewer does anyway. */}
+      <FocusableCard
+        onPress={() => setCustomizeOpen(true)}
+        accessibilityLabel={t("common.feeds.customize")}
+        style={styles.customizeRow}
+        focusedStyle={{ backgroundColor: theme.colors.accent + "33" }}
+      >
+        <Ionicons name="options-outline" size={22} color={theme.colors.textMuted} />
+        <Text style={{ color: theme.colors.textMuted, fontSize: 18 }}>
+          {t("media.home.customize", "Customize")}
+        </Text>
+      </FocusableCard>
+
+      <FeedCustomizePanel
+        visible={customizeOpen}
+        onClose={() => setCustomizeOpen(false)}
+        configs={feedConfigData?.configs ?? []}
+        profileId={profileId}
+        libraryNames={libraryNames}
+        pluginNames={pluginNames}
+      />
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
+  customizeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    alignSelf: "flex-start",
+    marginHorizontal: 24,
+    marginTop: 24,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+  },
   notifBanner: {
     marginHorizontal: 24,
     marginBottom: 16,

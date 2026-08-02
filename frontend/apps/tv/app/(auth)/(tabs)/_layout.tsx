@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { useNotificationServiceGetUnreadCount } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
+import { EveyWordmark, EveyMark } from "../../../src/components/EveyLogo";
 
 interface NavItem {
   labelKey: string;
@@ -70,6 +71,12 @@ export default function TabsLayout() {
           },
         ]}
       >
+        {/* Brand, same shape as the web sidebar: the wordmark when the bar is
+            expanded, the compact mark when it is not. Not focusable - on a
+            remote every stop costs a press, and a logo does nothing. */}
+        <View style={styles.brand}>
+          {expanded ? <EveyWordmark height={22} color={theme.colors.text} /> : <EveyMark height={26} />}
+        </View>
         <View style={styles.navItems}>
           {NAV_ITEMS.map((item, index) => {
             const active = isActive(item.path);
@@ -96,12 +103,15 @@ export default function TabsLayout() {
                     size={28}
                     color={active || focused ? theme.colors.accent : theme.colors.textMuted}
                   />
-                  {/* Unread marker on the bell. A dot rather than a number:
-                      at three metres a count is unreadable, and the only
-                      question that matters from the sofa is "is there
-                      anything new". */}
+                  {/* Unread count on the bell. Capped at 99+: past that the
+                      number stops being information and starts being a wide
+                      badge that overlaps the label. */}
                   {item.icon === "notifications" && unreadCount > 0 ? (
-                    <View style={[styles.badge, { backgroundColor: theme.colors.accent, borderColor: theme.colors.bg }]} />
+                    <View style={[styles.badge, { backgroundColor: theme.colors.accent, borderColor: theme.colors.bg }]}>
+                      <Text style={[styles.badgeText, { color: theme.colors.onAccent }]} numberOfLines={1}>
+                        {unreadCount > 99 ? "99+" : unreadCount}
+                      </Text>
+                    </View>
                   ) : null}
                 </View>
                 {expanded && (
@@ -128,7 +138,20 @@ export default function TabsLayout() {
 }
 
 const styles = StyleSheet.create({
-  badge: { position: "absolute", top: -2, right: -2, width: 12, height: 12, borderRadius: 6, borderWidth: 2 },
+  brand: { height: 56, justifyContent: "center", alignItems: "center", marginBottom: 8 },
+  badge: {
+    position: "absolute",
+    top: -6,
+    right: -10,
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 4,
+  },
+  badgeText: { fontSize: 12, fontWeight: "700" },
   root: {
     flex: 1,
     flexDirection: "row",

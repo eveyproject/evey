@@ -14,6 +14,7 @@ home:
   collections: Colecciones
   customize: Personalizar
   customizeFeed: Personalizar portada
+  customizeHintTv: Pulsa OK en una fila para mostrarla u ocultarla
   emptyLibrary: Tu biblioteca está vacía
   emptyLibraryDesc: "Ve a Administración → Bibliotecas para añadir una carpeta multimedia."
   goToLibraries: Ir a Bibliotecas

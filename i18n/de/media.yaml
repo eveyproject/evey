@@ -14,6 +14,7 @@ home:
   collections: Sammlungen
   customize: Anpassen
   customizeFeed: Feed anpassen
+  customizeHintTv: Mit OK auf einer Zeile blendest du sie ein oder aus
   emptyLibrary: Ihre Bibliothek ist leer
   emptyLibraryDesc: "Gehen Sie zu Verwaltung → Bibliotheken, um einen Medienordner hinzuzufügen."
   goToLibraries: Zu den Bibliotheken

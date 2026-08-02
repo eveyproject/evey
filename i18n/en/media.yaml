@@ -14,6 +14,7 @@ home:
   collections: Collections
   customize: Customize
   customizeFeed: Customize Feed
+  customizeHintTv: Press OK on a row to show or hide it
   emptyLibrary: Your library is empty
   emptyLibraryDesc: "Go to Admin → Libraries to add a media folder."
   goToLibraries: Go to Libraries

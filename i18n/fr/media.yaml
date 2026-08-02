@@ -14,6 +14,7 @@ home:
   collections: Collections
   customize: Personnaliser
   customizeFeed: Personnaliser le flux
+  customizeHintTv: Appuyez sur OK sur une ligne pour l'afficher ou la masquer
   emptyLibrary: Votre bibliothèque est vide
   emptyLibraryDesc: "Allez dans Administration → Bibliothèques pour ajouter un dossier multimédia."
   goToLibraries: Aller aux bibliothèques
