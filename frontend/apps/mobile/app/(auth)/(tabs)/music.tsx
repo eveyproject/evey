@@ -27,6 +27,7 @@ import { useMusicQueueStore, type QueueTrack } from "../../../src/stores/musicQu
 import { AddToPlaylistSheet } from "../../../src/components/AddToPlaylistSheet";
 import { startDownload, getDownloadPath, deleteDownload, downloadErrorMessageKey } from "../../../src/lib/downloads";
 import { isCurrentQueueTrack } from "../../../src/lib/currentTrack";
+import { LoadFailed } from "../../../src/components/LoadFailed";
 import { buildDownloadAuthContext } from "../../../src/lib/downloadContext";
 import { confirmDownloadOnMobileData } from "../../../src/lib/mobileDataGate";
 import { toast, useAuthStore } from "@evey/store";
@@ -193,15 +194,15 @@ export default function MusicScreen() {
   const playTrack = useMusicQueueStore((s) => s.playTrack);
   const removeFromQueue = useMusicQueueStore((s) => s.removeFromQueue);
 
-  const { data: libraries, isLoading: libLoading } = useMusicLibraries();
+  const { data: libraries, isLoading: libLoading, isError: libError, refetch: refetchLibs } = useMusicLibraries();
   const activeLibraryID = selectedLibraryID ?? libraries?.[0]?.id;
-  const { data: tracks, isLoading: tracksLoading } = useMusicTracks(
+  const { data: tracks, isLoading: tracksLoading, isError: tracksError, refetch: refetchTracks } = useMusicTracks(
     activeLibraryID,
     albumFilter ? undefined : debouncedTrackSearch,
     albumFilter ?? undefined,
   );
-  const { data: albums, isLoading: albumsLoading } = useMusicAlbums(activeLibraryID);
-  const { data: artists, isLoading: artistsLoading } = useMusicArtists(activeLibraryID);
+  const { data: albums, isLoading: albumsLoading, isError: albumsError, refetch: refetchAlbums } = useMusicAlbums(activeLibraryID);
+  const { data: artists, isLoading: artistsLoading, isError: artistsError, refetch: refetchArtists } = useMusicArtists(activeLibraryID);
 
   // Genre/year/artist chip options are derived from the loaded (album-scoped)
   // track set, before the genre/year/artist-picker filters below are applied.
@@ -583,6 +584,18 @@ export default function MusicScreen() {
   }
 
   const isLoading = tab === "tracks" ? tracksLoading : tab === "albums" ? albumsLoading : tab === "artists" ? artistsLoading : false;
+  // Per tab, because each one has its own request: an album listing that failed
+  // says nothing about the tracks tab next door. Without this the failed tab
+  // simply rendered its empty state - "no albums" for a server that is down.
+  const isError =
+    libError ||
+    (tab === "tracks" ? tracksError : tab === "albums" ? albumsError : tab === "artists" ? artistsError : false);
+  const retryTab = useCallback(() => {
+    if (libError) void refetchLibs();
+    if (tab === "tracks") void refetchTracks();
+    else if (tab === "albums") void refetchAlbums();
+    else if (tab === "artists") void refetchArtists();
+  }, [libError, tab, refetchLibs, refetchTracks, refetchAlbums, refetchArtists]);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
@@ -776,7 +789,9 @@ export default function MusicScreen() {
       )}
 
       {/* Content */}
-      {isLoading ? (
+      {isError ? (
+        <LoadFailed inline onRetry={retryTab} />
+      ) : isLoading ? (
         <View style={{ paddingHorizontal: theme.spacing.md, marginTop: theme.spacing.lg }}>
           {tab === "tracks"
             ? Array.from({ length: 8 }).map((_, i) => (

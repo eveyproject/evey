@@ -17,6 +17,7 @@ import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { eveyFetch } from "@evey/api";
 import { Skeleton } from "../../../src/components/Skeleton";
+import { LoadFailed } from "../../../src/components/LoadFailed";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
@@ -133,10 +134,10 @@ export default function PhotosScreen() {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [rotation, setRotation] = useState(0);
 
-  const { data: libraries, isLoading: libLoading } = usePhotoLibraries();
+  const { data: libraries, isLoading: libLoading, isError: libError, refetch: refetchLibs } = usePhotoLibraries();
   const activeLibraryID = selectedLibraryID ?? libraries?.[0]?.id;
   const { data: albums, isLoading: albumsLoading } = useAlbums(activeLibraryID);
-  const { data: photosData, isLoading: photosLoading } = usePhotos(activeLibraryID, selectedAlbum);
+  const { data: photosData, isLoading: photosLoading, isError: photosError, refetch: refetchPhotos } = usePhotos(activeLibraryID, selectedAlbum);
   const photos = photosData?.photos ?? [];
   const photosTotal = photosData?.total ?? 0;
   const lightboxPhoto = lightboxIndex !== null ? photos[lightboxIndex] : undefined;
@@ -249,6 +250,13 @@ export default function PhotosScreen() {
     );
   }
 
+  // Before this the failed library call fell through to "no photo libraries",
+  // which reads as "you have not set one up" rather than "the server did not
+  // answer" - and sends the user configuring something that is already fine.
+  if (libError) {
+    return <LoadFailed onRetry={() => void refetchLibs()} />;
+  }
+
   if (!libraries || libraries.length === 0) {
     return (
       <View style={[styles.center, { backgroundColor: theme.colors.bg }]}>
@@ -345,6 +353,8 @@ export default function PhotosScreen() {
               <Skeleton key={i} width={PHOTO_SIZE} height={PHOTO_SIZE} borderRadius={0} style={{ margin: SPACING / 2 }} />
             ))}
           </View>
+        ) : photosError ? (
+          <LoadFailed inline onRetry={() => void refetchPhotos()} />
         ) : photos.length === 0 ? (
           <Text style={{ color: theme.colors.textMuted, fontSize: 13, paddingHorizontal: theme.spacing.md, marginBottom: theme.spacing.lg }}>{t("media.photos.noPhotos")}</Text>
         ) : null}
