@@ -29,6 +29,7 @@ import { AddToPlaylistSheet } from "../../../src/components/AddToPlaylistSheet";
 import { useParentalGate } from "../../../src/hooks/useParentalGate";
 import { ParentalPINModal } from "../../../src/components/ParentalPINModal";
 import { CARD_WIDTH_FEATURED, POSTER_RATIO, CARD_WIDTH_GRID } from "../../../src/lib/tvLayout";
+import { resolvePlayTarget } from "../../../src/lib/playTarget";
 import { PluginSlot } from "../../../src/features/plugins/PluginSlot";
 import { ScreenState } from "../../../src/components/ScreenState";
 import { trailerUrl, sortTrailers } from "../../../src/lib/trailerUrl";
@@ -298,12 +299,11 @@ export default function MediaDetailScreen() {
   const episodes = isSeason ? children : (episodesData?.items ?? []);
   const seasons = isSeries ? children : [];
 
-  const getPlayTarget = useCallback((): string | null => {
-    if (!id) return null;
-    if (isSeries && episodes.length > 0) return episodes[0]!.id!;
-    if (isSeason && episodes.length > 0) return episodes[0]!.id!;
-    return id;
-  }, [id, isSeries, isSeason, episodes]);
+  const playTarget = useMemo(
+    () => resolvePlayTarget({ id, isSeries, isSeason, episodeIds: episodes.map((e) => e.id) }),
+    [id, isSeries, isSeason, episodes],
+  );
+  const getPlayTarget = useCallback((): string | null => playTarget, [playTarget]);
 
   // `restart` travels all the way to the player, PIN prompt included: the
   // choice must survive the detour, or entering a PIN would silently resume
@@ -421,6 +421,7 @@ export default function MediaDetailScreen() {
           <Pressable
             ref={playBtnRef}
             onPress={() => handlePlay(false)}
+            disabled={!playTarget}
             onFocus={() => setFocusedBtn("play")}
             onBlur={() => setFocusedBtn(null)}
             hasTVPreferredFocus={armPlayFocus}
