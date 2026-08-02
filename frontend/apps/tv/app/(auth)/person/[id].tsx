@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { View, Text, ScrollView, ActivityIndicator, StyleSheet } from "react-native";
+import { useCallback, useState } from "react";
+import { View, Text, ScrollView, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { useLocalSearchParams, router } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
@@ -10,6 +10,7 @@ import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { artworkUrl } from "../../../src/lib/artwork";
 import { FocusableCard } from "../../../src/components/FocusableCard";
+import { ScreenState } from "../../../src/components/ScreenState";
 import { TV_SCREEN_WIDTH, POSTER_RATIO, GRID_GAP } from "../../../src/lib/tvLayout";
 
 const POSTER_COLS = 5;
@@ -45,12 +46,21 @@ export default function PersonDetailScreen() {
   const [bioExpanded, setBioExpanded] = useState(false);
 
   const personId = id ?? "";
-  const { data: person, isLoading: personLoading } = useGetPerson(personId);
-  const { data: mediaData, isLoading: mediaLoading } =
-    useLibraryServiceListMediaItems(
-      { personId, "pagination.pageSize": 200 },
-      { query: { enabled: !!personId } },
-    );
+  const {
+    data: person,
+    isLoading: personLoading,
+    isError: personError,
+    refetch: refetchPerson,
+  } = useGetPerson(personId);
+  const {
+    data: mediaData,
+    isLoading: mediaLoading,
+    isError: mediaError,
+    refetch: refetchMedia,
+  } = useLibraryServiceListMediaItems(
+    { personId, "pagination.pageSize": 200 },
+    { query: { enabled: !!personId } },
+  );
   const serverUrl = useServerUrl();
   const authHeaders = useAuthHeaders();
 
@@ -58,6 +68,18 @@ export default function PersonDetailScreen() {
   const name = person?.name ?? t("common.unknown");
   const initial = name[0]?.toUpperCase() ?? "?";
   const isLoading = personLoading || mediaLoading;
+  const isError = personError || mediaError;
+  const refetch = useCallback(() => {
+    if (personError) void refetchPerson();
+    if (mediaError) void refetchMedia();
+  }, [personError, mediaError, refetchPerson, refetchMedia]);
+
+  // A failed person or filmography fetch used to leave the header on
+  // "Unknown" with an empty grid below - unreadable as failure at three
+  // metres, and no focusable target to retry from.
+  if (isLoading || isError) {
+    return <ScreenState loading={isLoading} error={isError} onRetry={refetch} />;
+  }
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: theme.colors.bg }} contentContainerStyle={{ padding: PAD_H }}>
@@ -115,14 +137,8 @@ export default function PersonDetailScreen() {
         </FocusableCard>
       ) : null}
 
-      {/* Filmography */}
-      {isLoading ? (
-        <View style={{ paddingVertical: 40, alignItems: "center" }}>
-          <ActivityIndicator size="large" color={theme.colors.accent} />
-        </View>
-      ) : null}
-
-      {!isLoading && items.length > 0 ? (
+      {/* Filmography - the top-level guard above already covers loading/error. */}
+      {items.length > 0 ? (
         <>
           <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
             {t("media.person.filmography")} ({items.length})
@@ -178,7 +194,7 @@ export default function PersonDetailScreen() {
         </>
       ) : null}
 
-      {!isLoading && items.length === 0 && !personLoading ? (
+      {items.length === 0 ? (
         <Text style={{ color: theme.colors.textMuted, textAlign: "center", paddingVertical: 40, fontSize: 20 }}>
           {t("media.person.noFilmography")}
         </Text>

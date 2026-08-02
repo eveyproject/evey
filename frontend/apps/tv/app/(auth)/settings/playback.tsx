@@ -10,6 +10,7 @@ import {
   type V1Profile,
 } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
+import { ScreenState } from "../../../src/components/ScreenState";
 
 // ISO 639-1 (2-letter) to match the audio_languages/subtitle_languages
 // convention shared with web (LanguageSettings.tsx) and mobile (settings/
@@ -117,10 +118,27 @@ export default function PlaybackSettingsScreen() {
   const { t } = useTranslation();
   const qc = useQueryClient();
 
-  const { data: user } = useUserServiceGetCurrentUser();
-  const { data: profilesResp } = useUserServiceListProfiles(user?.id ?? "", {
+  const {
+    data: user,
+    isLoading: userLoading,
+    isError: userError,
+    refetch: refetchUser,
+  } = useUserServiceGetCurrentUser();
+  const {
+    data: profilesResp,
+    isLoading: profilesLoading,
+    isError: profilesError,
+    refetch: refetchProfiles,
+  } = useUserServiceListProfiles(user?.id ?? "", {
     query: { enabled: !!user?.id },
   });
+
+  const isLoading = userLoading || profilesLoading;
+  const isError = userError || profilesError;
+  const refetch = useCallback(() => {
+    void refetchUser();
+    if (user?.id) void refetchProfiles();
+  }, [refetchUser, refetchProfiles, user?.id]);
 
   const profiles = profilesResp?.profiles;
   const defaultProfile: V1Profile | undefined = profiles?.find((p) => p.isDefault) ?? profiles?.[0];
@@ -259,6 +277,13 @@ export default function PlaybackSettingsScreen() {
         )}
       </Pressable>
     );
+  }
+
+  // A failed GetCurrentUser/ListProfiles used to leave every option row
+  // permanently unselected with no explanation - indistinguishable from a
+  // profile that simply has no saved preferences yet.
+  if (isLoading || isError) {
+    return <ScreenState loading={isLoading} error={isError} onRetry={refetch} />;
   }
 
   return (

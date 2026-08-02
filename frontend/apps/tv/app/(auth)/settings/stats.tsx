@@ -1,11 +1,12 @@
 import { useMemo } from "react";
-import { View, Text, ScrollView, ActivityIndicator, StyleSheet } from "react-native";
+import { View, Text, ScrollView, StyleSheet } from "react-native";
 import { Stack, router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useActivityServiceGetUserStats } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { FocusableCard } from "../../../src/components/FocusableCard";
+import { ScreenState } from "../../../src/components/ScreenState";
 
 // "My statistics", the TV counterpart of web's /profile/stats and mobile's
 // settings/stats. Same endpoint, same numbers, same i18n keys.
@@ -39,7 +40,7 @@ export default function StatsScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
   const profileId = useAuthStore((s) => s.profileId);
-  const { data, isLoading } = useActivityServiceGetUserStats(profileId ?? "", undefined, {
+  const { data, isLoading, isError, refetch } = useActivityServiceGetUserStats(profileId ?? "", undefined, {
     query: { enabled: !!profileId },
   });
 
@@ -55,13 +56,11 @@ export default function StatsScreen() {
     <Stack.Screen options={{ title: t("common.userStats.title", "My statistics") }} />
   );
 
-  if (isLoading) {
-    return (
-      <View style={[styles.center, { backgroundColor: theme.colors.bg }]}>
-        {header}
-        <ActivityIndicator color={theme.colors.accent} size="large" />
-      </View>
-    );
+  // A failed request used to fall through to the "nothing watched yet" empty
+  // state below, which reads as "you have no history" instead of "the server
+  // did not answer" - and offers no way to try again.
+  if (isLoading || isError) {
+    return <ScreenState loading={isLoading} error={isError} onRetry={() => void refetch()} />;
   }
 
   // Even an empty state keeps a focusable target: a screen the D-pad cannot

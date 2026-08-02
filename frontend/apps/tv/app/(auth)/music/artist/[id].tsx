@@ -1,4 +1,4 @@
-import { View, Text, FlatList, ActivityIndicator, StyleSheet } from "react-native";
+import { View, Text, FlatList, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { router, useLocalSearchParams, Stack } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -8,6 +8,7 @@ import { useTheme } from "../../../../src/providers/ThemeProvider";
 import { useServerUrl } from "../../../../src/hooks/useServerUrl";
 import { useAuthHeaders } from "../../../../src/hooks/useAuthenticatedImage";
 import { FocusableCard } from "../../../../src/components/FocusableCard";
+import { ScreenState } from "../../../../src/components/ScreenState";
 import { musicAlbumHref } from "../../../../src/lib/musicRoutes";
 import { CARD_WIDTH_FEATURED, GRID_GAP } from "../../../../src/lib/tvLayout";
 
@@ -47,7 +48,7 @@ export default function ArtistDetailScreen() {
   // resolved server-side and artist.id IS the display artist name (see
   // GetArtists), so filtering the library's album list by that name matches
   // what the server itself groups under this artist.
-  const { data: albums, isLoading } = useMusicServiceGetAlbums(
+  const { data: albums, isLoading, isError, refetch } = useMusicServiceGetAlbums(
     { libraryId: libId },
     {
       query: {
@@ -69,10 +70,10 @@ export default function ArtistDetailScreen() {
           headerTintColor: theme.colors.text,
         }}
       />
-      {isLoading ? (
-        <View style={styles.center}>
-          <ActivityIndicator color={theme.colors.accent} size="large" />
-        </View>
+      {isLoading || isError ? (
+        // Checked before the list, or a failed fetch renders as "no albums"
+        // via ListEmptyComponent - a lie the viewer has no way to see through.
+        <ScreenState loading={isLoading} error={isError} onRetry={() => void refetch()} />
       ) : (
         <FlatList
           data={items}

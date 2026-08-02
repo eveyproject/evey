@@ -1,4 +1,4 @@
-import { View, Text, FlatList, ActivityIndicator, StyleSheet } from "react-native";
+import { View, Text, FlatList, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { useLocalSearchParams, Stack } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -8,6 +8,7 @@ import { useTheme } from "../../../../src/providers/ThemeProvider";
 import { useServerUrl } from "../../../../src/hooks/useServerUrl";
 import { useAuthHeaders } from "../../../../src/hooks/useAuthenticatedImage";
 import { FocusableCard } from "../../../../src/components/FocusableCard";
+import { ScreenState } from "../../../../src/components/ScreenState";
 import { useMusicQueueStore, type QueueTrack } from "../../../../src/stores/musicQueue";
 
 function coverUri(serverUrl: string, coverArtUrl?: string): string | undefined {
@@ -50,7 +51,7 @@ export default function AlbumDetailScreen() {
   const setQueue = useMusicQueueStore((s) => s.setQueue);
   const currentTrackId = currentIndex >= 0 && currentIndex < queue.length ? queue[currentIndex].id : undefined;
 
-  const { data: tracks, isLoading } = useMusicServiceListTracks(
+  const { data: tracks, isLoading, isError, refetch } = useMusicServiceListTracks(
     { libraryId: libId, albumId },
     { query: { enabled: !!libId && !!albumId, select: (d) => d.tracks ?? [] } },
   );
@@ -74,10 +75,10 @@ export default function AlbumDetailScreen() {
           headerTintColor: theme.colors.text,
         }}
       />
-      {isLoading ? (
-        <View style={styles.center}>
-          <ActivityIndicator color={theme.colors.accent} size="large" />
-        </View>
+      {isLoading || isError ? (
+        // Checked before the list, or a failed fetch renders as "no tracks"
+        // via ListEmptyComponent - a lie the viewer has no way to see through.
+        <ScreenState loading={isLoading} error={isError} onRetry={() => void refetch()} />
       ) : (
         <FlatList
           data={items}

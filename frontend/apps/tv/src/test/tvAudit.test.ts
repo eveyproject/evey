@@ -135,12 +135,6 @@ describe("audit TV · échec de requête visible", () => {
     "app/(auth)/(tabs)/requests.tsx",
     "app/(auth)/(tabs)/settings.tsx",
     "app/(auth)/(tabs)/music.tsx",
-    // Écrans profonds restants : même correctif que media/[id], pas encore fait.
-    "app/(auth)/settings/playback.tsx",
-    "app/(auth)/settings/stats.tsx",
-    "app/(auth)/music/album/[id].tsx",
-    "app/(auth)/music/artist/[id].tsx",
-    "app/(auth)/person/[id].tsx",
     // Écrans d'entrée : gèrent leurs erreurs par toast/dialogue, pas par état.
     "app/login.tsx",
     "app/profile-select.tsx",
