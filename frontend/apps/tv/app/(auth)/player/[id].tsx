@@ -366,11 +366,27 @@ export default function PlayerScreen() {
     }
   }, [currentTime, duration, serverProgress?.played, profileId, mediaId, markAsWatchedMut]);
 
+  // The action bar is a menu the viewer walks with the remote: hiding it from
+  // under them mid-navigation (left/right do not reset this timer) made the
+  // player feel unusable. While it holds focus the controls simply stay.
+  const barFocusedRef = useRef(false);
+  barFocusedRef.current = barFocused;
   const resetHideTimer = useCallback(() => {
     if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
     setShowControls(true);
+    if (barFocusedRef.current) return;
     hideTimerRef.current = setTimeout(() => setShowControls(false), CONTROLS_TIMEOUT);
   }, []);
+
+  // Entering the bar cancels a pending hide; leaving it re-arms one.
+  useEffect(() => {
+    if (barFocused) {
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+      setShowControls(true);
+    } else {
+      resetHideTimer();
+    }
+  }, [barFocused, resetHideTimer]);
 
   useEffect(() => {
     resetHideTimer();
