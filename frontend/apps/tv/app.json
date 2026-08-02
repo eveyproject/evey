@@ -23,6 +23,7 @@
       }
     },
     "plugins": [
+      "./plugins/withCleartextTraffic",
       "expo-router",
       "expo-video",
       ["@react-native-tvos/config-tv", { "isTV": true }]
