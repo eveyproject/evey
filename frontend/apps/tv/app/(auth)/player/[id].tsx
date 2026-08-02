@@ -121,6 +121,7 @@ export default function PlayerScreen() {
   // which left the whole player deaf (remote AND pointer) on real hardware.
   const [surfaceFocused, setSurfaceFocused] = useState(false);
   const surfaceRef = useRef<View>(null);
+
   const [showQualityPicker, setShowQualityPicker] = useState(false);
   const [showTrackMenu, setShowTrackMenu] = useState(false);
   const [showAudioPicker, setShowAudioPicker] = useState(false);
@@ -396,16 +397,20 @@ export default function PlayerScreen() {
   }, [resetHideTimer]);
 
   const togglePlayPause = useCallback(() => {
-    if (!player) return;
-    if (player.playing) {
-      player.pause();
-      if (syncplay.state.connected) syncplay.sendPause(player.currentTime * 1000);
-    } else {
-      player.play();
-      if (syncplay.state.connected) syncplay.sendPlay(player.currentTime * 1000);
-    }
+    // Through withPlayer like every other native touch: a press can land after
+    // the player was released (leaving the screen, switching track) and the
+    // raw access throws "cannot be cast to VideoPlayer".
+    withPlayer((p) => {
+      if (p.playing) {
+        p.pause();
+        if (syncplay.state.connected) syncplay.sendPause(p.currentTime * 1000);
+      } else {
+        p.play();
+        if (syncplay.state.connected) syncplay.sendPlay(p.currentTime * 1000);
+      }
+    });
     resetHideTimer();
-  }, [player, resetHideTimer, syncplay]);
+  }, [withPlayer, resetHideTimer, syncplay]);
 
   const { data: playbackSettings } = usePlaybackSettings();
   const skipFwd = playbackSettings?.skipForwardSeconds ?? 30;
@@ -445,7 +450,7 @@ export default function PlayerScreen() {
     setPlaybackSpeed((prev) => {
       const idx = SPEEDS.indexOf(prev as (typeof SPEEDS)[number]);
       const next = SPEEDS[(idx + 1) % SPEEDS.length];
-      if (player) player.playbackRate = next;
+      withPlayer((p) => { p.playbackRate = next; });
       return next;
     });
     resetHideTimer();
@@ -482,7 +487,7 @@ export default function PlayerScreen() {
 
   const handleSkipIntro = useCallback(
     (toSec: number) => {
-      if (player) player.currentTime = toSec;
+      withPlayer((p) => { p.currentTime = toSec; });
     },
     [player],
   );
@@ -490,7 +495,7 @@ export default function PlayerScreen() {
   const handleToggleMute = useCallback(() => {
     setMuted((prev) => {
       const next = !prev;
-      if (player) player.muted = next;
+      withPlayer((p) => { p.muted = next; });
       return next;
     });
     resetHideTimer();
@@ -501,8 +506,10 @@ export default function PlayerScreen() {
       setVolumePct(pct);
       setMuted(false);
       if (player) {
-        player.volume = pct / 100;
-        player.muted = false;
+        withPlayer((p) => {
+          p.volume = pct / 100;
+          p.muted = false;
+        });
       }
       resetHideTimer();
     },
@@ -956,7 +963,7 @@ export default function PlayerScreen() {
         onClose={() => setShowChaptersPicker(false)}
         chapters={chapters}
         currentTimeMs={currentTime * 1000}
-        onSeek={(sec) => { if (player) player.currentTime = sec; }}
+        onSeek={(sec) => withPlayer((p) => { p.currentTime = sec; })}
       />
 
       <VolumePicker

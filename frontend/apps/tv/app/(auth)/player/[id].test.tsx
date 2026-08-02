@@ -86,6 +86,9 @@ vi.mock("expo-router", () => ({
     canGoBack: () => canGoBackMock(),
   },
   useLocalSearchParams: () => localSearchParamsMock(),
+  // The screen subscribes to navigation events to know it is being popped
+  // (the hardware BACK key never reaches its own handler).
+  useNavigation: () => ({ addListener: () => () => {} }),
 }));
 
 // --- ThemeProvider mock ---------------------------------------------------------
