@@ -37,6 +37,30 @@ function sourceFiles(dir: string, acc: string[] = []): string[] {
 }
 
 const rel = (f: string) => relative(APP_ROOT, f);
+
+// End of a JSX opening tag, counted properly.
+//
+// `indexOf(">")` looked obvious and was wrong: `onPress={() => x()}` contains a
+// `>`, so the tag was cut short and every prop after the first arrow function
+// became invisible. That made this very audit report ScreenState - a component
+// whose two cards ARE labelled - as an offender. A rule that miscounts is worse
+// than no rule, because the ratchet then locks in a fictional number.
+function openingTagEnd(block: string): number {
+  let depth = 0;
+  let quote = "";
+  for (let i = 0; i < block.length; i++) {
+    const c = block[i];
+    if (quote) {
+      if (c === quote) quote = "";
+      continue;
+    }
+    if (c === '"' || c === "'" || c === "`") quote = c;
+    else if (c === "{") depth++;
+    else if (c === "}") depth--;
+    else if (c === ">" && depth === 0) return i + 1;
+  }
+  return block.length;
+}
 const screens = () => sourceFiles(join(APP_ROOT, "app"));
 const components = () => sourceFiles(join(APP_ROOT, "src"));
 
@@ -107,7 +131,7 @@ describe("audit TV · libellés d'accessibilité", () => {
       // Split on the opening tag so each element is examined on its own.
       const blocks = src.split("<FocusableCard").slice(1);
       blocks.forEach((block, i) => {
-        const head = block.slice(0, block.indexOf(">") + 1);
+        const head = block.slice(0, openingTagEnd(block));
         // A card whose only child is text is self-describing for the reader;
         // the rule targets the ones wrapping icons or images.
         if (/accessibilityLabel/.test(head)) return;
@@ -115,10 +139,14 @@ describe("audit TV · libellés d'accessibilité", () => {
         offenders.push(`${rel(file)} #${i + 1}`);
       });
     }
-    // A ratchet, not a target: 68 is what the app carries today. Fixing cards
+    // A ratchet, not a target: 42 is what the app carries today. Fixing cards
     // lowers it; this number may only ever go DOWN. Raising it to make a build
     // pass is the one move that defeats the check.
-    expect(offenders.length).toBeLessThanOrEqual(68);
+    //
+    // It read 68 until the opening-tag scan above was fixed - 26 of those were
+    // cards whose label sat behind an arrow function. Worth remembering before
+    // trusting any number this file prints: check the parser first.
+    expect(offenders.length).toBeLessThanOrEqual(42);
   });
 });
 
