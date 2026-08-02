@@ -15,6 +15,7 @@ export default defineConfig({
       "@evey/store": resolve(__dirname, "../../packages/store/src/index.ts"),
       "@evey/theme": resolve(__dirname, "../../packages/theme/src/index.ts"),
       "react-native": resolve(__dirname, "./src/test/__mocks__/react-native.ts"),
+      "expo-secure-store": resolve(__dirname, "./src/test/__mocks__/expo-secure-store.ts"),
     },
   },
   define: {
