@@ -6,6 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useUserServiceGetCurrentUser, useUserServiceListProfiles, userServiceRefreshToken } from "@evey/api";
 import type { V1Profile } from "@evey/api";
 import { useAuthStore, toast } from "@evey/store";
+import { ScreenState } from "../src/components/ScreenState";
 import { useTheme } from "../src/providers/ThemeProvider";
 import { FocusableCard } from "../src/components/FocusableCard";
 import { ParentalPINModal } from "../src/components/ParentalPINModal";
@@ -33,7 +34,12 @@ export default function ProfileSelect() {
   const { data: user } = useUserServiceGetCurrentUser();
   const userId = user?.id;
 
-  const { data: profilesData, isLoading } = useUserServiceListProfiles(userId ?? "", {
+  const {
+    data: profilesData,
+    isLoading,
+    isError,
+    refetch,
+  } = useUserServiceListProfiles(userId ?? "", {
     query: { enabled: !!userId },
   });
 
@@ -89,7 +95,17 @@ export default function ProfileSelect() {
     else toast.error(t("auth.profile.switchFailed", "Could not switch profile"));
   }
 
-  if (isLoading || profiles.length <= 1) {
+  // A failed list left `profiles` empty, which fell into the spinner below and
+  // stayed there for ever - the exact "frozen app" this screen is least able to
+  // afford, since it stands between the viewer and everything else. The
+  // no-profile case lands here too: it should not happen, but spinning at a
+  // dead end is not the way to say so.
+  if (isError || (!isLoading && profiles.length === 0)) {
+    return <ScreenState error onRetry={() => void refetch()} />;
+  }
+
+  // One profile is a transient: the effect above has already redirected.
+  if (isLoading || profiles.length === 1) {
     return (
       <View style={[styles.center, { backgroundColor: theme.colors.bg }]}>
         <ActivityIndicator color={theme.colors.accent} size="large" />

@@ -162,9 +162,8 @@ describe("audit TV · échec de requête visible", () => {
     // d'un état d'erreur retirerait des commandes qui marchent, ce qui est pire
     // que le défaut qu'on corrige ailleurs.
     "app/(auth)/(tabs)/settings.tsx",
-    // Écrans d'entrée : gèrent leurs erreurs par toast/dialogue, pas par état.
-    "app/login.tsx",
-    "app/profile-select.tsx",
+    // Le user a du travail non commité sur cet écran au 08-02 : on n'y touche
+    // pas tant qu'il l'a en cours.
     "app/quick-connect.tsx",
   ]);
 
@@ -179,7 +178,12 @@ describe("audit TV · échec de requête visible", () => {
       // `<ScreenState`, not `ScreenState`: matching the import let a screen
       // keep the import while deleting the usage, and the check stayed green
       // through a deliberately reintroduced regression.
-      if (!/isError|<ScreenState/.test(src)) offenders.push(name);
+      //
+      // Alert/toast count as surfacing too. The pattern above also matches
+      // MUTATION hooks (useUserServiceLogin), and a form that reports its
+      // failure in a dialog is doing the right thing - demanding a screen-level
+      // error state there would be the rule bullying the code.
+      if (!/isError|<ScreenState|Alert\.alert|toast\.error/.test(src)) offenders.push(name);
     }
     expect(offenders.sort()).toEqual([]);
   });
