@@ -970,7 +970,19 @@ export default function PlayerScreen() {
               barFocused) so left/right walk the row instead of seeking. */}
           <View style={styles.actionBar} pointerEvents="box-none">
             {!barFocused ? (
-              <Text style={styles.actionHint}>{"\u25BC"} {t("player.controls.more", "More")}</Text>
+              // focusable={false} on purpose: this must stay OUT of the D-pad
+              // focus engine (down is what opens the bar, and a focus stop
+              // here would swallow it), while still answering a click. That
+              // click is the only way in for a pointer - an emulator driven
+              // with a mouse, or a TV remote with a touchpad.
+              <Pressable
+                focusable={false}
+                onPress={() => setBarFocused(true)}
+                accessibilityLabel={t("player.controls.more", "More")}
+                accessibilityRole="button"
+              >
+                <Text style={styles.actionHint}>{"\u25BC"} {t("player.controls.more", "More")}</Text>
+              </Pressable>
             ) : (
               <>
                 <FocusableCard

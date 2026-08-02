@@ -675,6 +675,15 @@ describe("action bar discoverability (TV)", () => {
     expect(screen.getByText("More", { exact: false })).toBeTruthy();
   });
 
+  // A pointer has no "down key". The emulator is driven with a mouse and some
+  // remotes ship a touchpad, so the hint answers a click too.
+  it("opens the bar on a click of the hint, without any key press", () => {
+    withTwoAudioTracks();
+    render(<PlayerScreen />);
+    fireEvent.click(screen.getByLabelText("More"));
+    expect(screen.getByLabelText("player.settings.audio")).toBeTruthy();
+  });
+
   it("opens the bar on the down key and offers audio and more", () => {
     withTwoAudioTracks();
     render(<PlayerScreen />);
