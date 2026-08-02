@@ -7,6 +7,7 @@ import { useAuthStore, useServerListStore } from "@evey/store";
 import { setServerUrl, getServerUrl } from "../src/lib/server-config";
 import { initFetcher } from "../src/lib/fetcher-setup";
 import { applyServerLanguage, initI18n } from "../src/i18n";
+import { scanLocalNetwork, type DiscoveredServer } from "../src/lib/network-scan";
 import { useTheme } from "../src/providers/ThemeProvider";
 
 export default function ServerConnect() {
@@ -17,6 +18,9 @@ export default function ServerConnect() {
   const [inputFocused, setInputFocused] = useState(false);
   const [connectFocused, setConnectFocused] = useState(false);
   const [manageFocused, setManageFocused] = useState(false);
+  const [scanFocused, setScanFocused] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const [discovered, setDiscovered] = useState<DiscoveredServer[]>([]);
 
   // Rename modal state
   const [renameId, setRenameId] = useState<string | null>(null);
@@ -43,6 +47,19 @@ export default function ServerConnect() {
     }
   }, [hasServers]);
 
+  const handleScan = useCallback(async () => {
+    setScanning(true);
+    setDiscovered([]);
+    const found = new Set<string>();
+    await scanLocalNetwork((server) => {
+      if (!found.has(server.url)) {
+        found.add(server.url);
+        setDiscovered((prev) => [...prev, server]);
+      }
+    });
+    setScanning(false);
+  }, []);
+
   // Switch to a saved server (non-destructive: tokens rehydrate from store).
   const handleSelectServer = useCallback(async (serverId: string) => {
     const server = servers[serverId];
@@ -51,6 +68,11 @@ export default function ServerConnect() {
     setBaseURL(server.url);
     await setServerUrl(server.url);
     await initFetcher();
+    // Same three calls as handleConnect: picking a saved server used to skip
+    // i18n entirely, so a cold start through this path rendered raw keys
+    // (auth.login.signIn) - seen on the first release build, 2026-08-02.
+    await initI18n(server.url);
+    await applyServerLanguage(server.url);
     const token = useAuthStore.getState().accessToken;
     if (token) {
       router.replace("/(auth)/(tabs)");
@@ -194,6 +216,51 @@ export default function ServerConnect() {
         )}
       </Pressable>
 
+      {/* Local network discovery - same probe as mobile, D-pad friendly */}
+      <Pressable
+        onPress={handleScan}
+        disabled={scanning}
+        onFocus={() => setScanFocused(true)}
+        onBlur={() => setScanFocused(false)}
+        accessible={true}
+        accessibilityLabel={
+          scanning
+            ? t("admin.scanning", "Scanning...")
+            : t("mobile.serverConnect.scanLocalNetwork", "Scan local network")
+        }
+        accessibilityRole="button"
+        style={[
+          s.scanBtn,
+          {
+            borderColor: scanFocused ? theme.colors.accent : theme.colors.border,
+          },
+        ]}
+      >
+        {scanning && <ActivityIndicator color={theme.colors.accent} size="small" />}
+        <Text style={[s.scanBtnText, { color: scanning ? theme.colors.textMuted : theme.colors.accent }]}>
+          {scanning
+            ? t("admin.scanning", "Scanning...")
+            : t("mobile.serverConnect.scanLocalNetwork", "Scan local network")}
+        </Text>
+      </Pressable>
+
+      {discovered.length > 0 && (
+        <View style={s.discoveredSection}>
+          <Text style={s.sectionLabel}>
+            {t("mobile.serverConnect.serversFound", "{{count}} server(s) found", { count: discovered.length })}
+          </Text>
+          {discovered.map((sv) => (
+            <DiscoveredRow
+              key={sv.url}
+              server={sv}
+              onSelect={() => setUrl(sv.url)}
+              theme={theme}
+              t={t}
+            />
+          ))}
+        </View>
+      )}
+
       {/* Manage saved servers button (only when list is non-empty) */}
       {hasServers && (
         <Pressable
@@ -264,6 +331,49 @@ export default function ServerConnect() {
         </View>
       </Modal>
     </ScrollView>
+  );
+}
+
+// A discovered server fills the URL field instead of connecting outright, so
+// the user can read and correct the address before committing - same
+// behaviour as mobile.
+function DiscoveredRow({
+  server,
+  onSelect,
+  theme,
+  t,
+}: {
+  server: DiscoveredServer;
+  onSelect: () => void;
+  theme: ReturnType<typeof useTheme>;
+  t: ReturnType<typeof useTranslation>["t"];
+}) {
+  const [focused, setFocused] = useState(false);
+  const s = styles(theme);
+
+  return (
+    <Pressable
+      onPress={onSelect}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      accessible={true}
+      accessibilityLabel={t("mobile.serverConnect.useDiscovered", "Use discovered server {{url}}", { url: server.url })}
+      accessibilityRole="button"
+      style={[
+        s.discoveredRow,
+        {
+          backgroundColor: focused ? theme.colors.accent + "22" : theme.colors.surface,
+          borderColor: focused ? theme.colors.accent : "transparent",
+        },
+      ]}
+    >
+      <Text style={[s.discoveredUrl, { color: theme.colors.text }]} numberOfLines={1}>
+        {server.url}
+      </Text>
+      {!!server.version && (
+        <Text style={[s.discoveredVersion, { color: theme.colors.textMuted }]}>{server.version}</Text>
+      )}
+    </Pressable>
   );
 }
 
@@ -469,6 +579,42 @@ const styles = (theme: ReturnType<typeof useTheme>) => StyleSheet.create({
     color: theme.colors.onAccent,
     fontWeight: "700",
     fontSize: 24,
+  },
+  scanBtn: {
+    width: 700,
+    marginTop: 24,
+    padding: 20,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 12,
+    borderWidth: 3,
+    borderRadius: theme.radii.md,
+  },
+  scanBtnText: {
+    fontSize: 20,
+    fontWeight: "600",
+  },
+  discoveredSection: {
+    width: 700,
+    marginTop: 24,
+  },
+  discoveredRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 20,
+    marginBottom: 8,
+    borderWidth: 3,
+    borderRadius: theme.radii.md,
+  },
+  discoveredUrl: {
+    flex: 1,
+    fontSize: 20,
+    fontWeight: "600",
+  },
+  discoveredVersion: {
+    fontSize: 16,
+    marginLeft: 12,
   },
   manageBtn: {
     width: 700,

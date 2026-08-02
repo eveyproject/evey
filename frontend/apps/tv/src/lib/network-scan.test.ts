@@ -1,0 +1,45 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { scanLocalNetwork } from "./network-scan";
+
+describe("scanLocalNetwork", () => {
+  let inFlight = 0;
+  let maxInFlight = 0;
+
+  beforeEach(() => {
+    inFlight = 0;
+    maxInFlight = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string) => {
+        inFlight++;
+        maxInFlight = Math.max(maxInFlight, inFlight);
+        // Yield once so overlapping probes are observable as in-flight.
+        await Promise.resolve();
+        inFlight--;
+        if (input.startsWith("http://192.168.1.42:9091/")) {
+          return {
+            ok: true,
+            json: async () => ({ status: "ok", version: "0.0.1-beta.33" }),
+          } as Response;
+        }
+        return { ok: false, json: async () => ({}) } as Response;
+      }),
+    );
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("reports servers whose /healthz answers ok, with their version", async () => {
+    const found: { url: string; version?: string }[] = [];
+    await scanLocalNetwork((s) => found.push(s));
+    expect(found).toEqual([{ url: "http://192.168.1.42:9091", version: "0.0.1-beta.33" }]);
+  });
+
+  it("never has more than one batch of probes in flight", async () => {
+    await scanLocalNetwork(() => {});
+    expect(maxInFlight).toBeGreaterThan(0);
+    expect(maxInFlight).toBeLessThanOrEqual(50);
+  });
+});

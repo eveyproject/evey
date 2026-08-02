@@ -1,0 +1,58 @@
+const COMMON_PORTS = [9091, 8096, 8920];
+const TIMEOUT_MS = 2000;
+// The mobile scanner fires every probe up front and only awaits in slices,
+// so ~3000 sockets open at once. Phones absorb that; TV boxes are the
+// weakest hardware we target, so a batch here only starts once the previous
+// one has settled.
+const BATCH = 50;
+
+export interface DiscoveredServer {
+  url: string;
+  version?: string;
+}
+
+async function probeHost(ip: string, port: number): Promise<DiscoveredServer | null> {
+  const url = `http://${ip}:${port}`;
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    const res = await fetch(`${url}/healthz`, { signal: controller.signal });
+    clearTimeout(timeout);
+    if (res.ok) {
+      let version: string | undefined;
+      try {
+        const data = await res.json();
+        version = data?.version;
+      } catch {
+        // Any 200 on /healthz counts; a body that isn't JSON just loses the
+        // version hint.
+      }
+      return { url, version };
+    }
+  } catch {
+    // Dead hosts are the common case on a subnet sweep, not an error.
+  }
+  return null;
+}
+
+export async function scanLocalNetwork(onFound: (server: DiscoveredServer) => void): Promise<void> {
+  const subnets = ["192.168.1", "192.168.0", "10.0.0", "172.16.0"];
+  const probes: Array<() => Promise<void>> = [];
+
+  for (const subnet of subnets) {
+    for (let host = 1; host <= 254; host++) {
+      const ip = `${subnet}.${host}`;
+      for (const port of COMMON_PORTS) {
+        probes.push(() =>
+          probeHost(ip, port).then((result) => {
+            if (result) onFound(result);
+          }),
+        );
+      }
+    }
+  }
+
+  for (let i = 0; i < probes.length; i += BATCH) {
+    await Promise.allSettled(probes.slice(i, i + BATCH).map((run) => run()));
+  }
+}
