@@ -139,14 +139,14 @@ describe("audit TV · libellés d'accessibilité", () => {
         offenders.push(`${rel(file)} #${i + 1}`);
       });
     }
-    // A ratchet, not a target: 42 is what the app carries today. Fixing cards
-    // lowers it; this number may only ever go DOWN. Raising it to make a build
-    // pass is the one move that defeats the check.
+    // Zero. This started as a ratchet at 68, dropped to 42 once the
+    // opening-tag scan above stopped being fooled by arrow functions, and is
+    // now simply enforced: every card in the app announces itself.
     //
-    // It read 68 until the opening-tag scan above was fixed - 26 of those were
-    // cards whose label sat behind an arrow function. Worth remembering before
-    // trusting any number this file prints: check the parser first.
-    expect(offenders.length).toBeLessThanOrEqual(42);
+    // Keep it at zero. An exception belongs in the card (`accessible={false}`
+    // for something genuinely decorative), stated at the site, not as a number
+    // here that quietly grants everyone one free pass.
+    expect(offenders.sort()).toEqual([]);
   });
 });
 

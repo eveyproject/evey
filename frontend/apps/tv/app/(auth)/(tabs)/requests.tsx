@@ -258,6 +258,7 @@ export default function RequestsScreen() {
           <FocusableCard
             onPress={() => router.push(`/media/${item.mediaItemId}`)}
             hasTVPreferredFocus={index === 0}
+            accessibilityLabel={`${t("requests.watchNow")} ${item.title ?? ""}`}
             style={[styles.actionBtn, { backgroundColor: theme.colors.surfaceRaised }]}
           >
             <Text style={{ color: theme.colors.text, fontSize: 18, fontWeight: "600" }}>
@@ -268,6 +269,7 @@ export default function RequestsScreen() {
           <FocusableCard
             onPress={() => handleRequest(item)}
             hasTVPreferredFocus={index === 0}
+            accessibilityLabel={`${already ? t("requests.requested") : t("requests.request")} ${item.title ?? ""}`}
             disabled={already || createRequest.isPending}
             style={[
               styles.actionBtn,
@@ -286,6 +288,7 @@ export default function RequestsScreen() {
   const renderMineItem = useCallback(({ item, index }: { item: V1MediaRequestProto; index: number }) => (
     <FocusableCard
       hasTVPreferredFocus={index === 0}
+      accessibilityLabel={item.title ?? t("requests.title")}
       style={[styles.resultRow, { backgroundColor: "transparent" }]}
     >
       <View style={[styles.thumb, { borderRadius: theme.radii.sm, backgroundColor: theme.colors.surfaceRaised, overflow: "hidden" }]}>
@@ -330,6 +333,7 @@ export default function RequestsScreen() {
         <FocusableCard
           onPress={() => router.push("/(auth)/(tabs)/library")}
           hasTVPreferredFocus
+          accessibilityLabel={t("media.library.libraries")}
           style={[styles.emptyAction, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
         >
           <Text style={{ color: theme.colors.accent, fontSize: 20, fontWeight: "600" }}>{t("media.library.libraries")}</Text>

@@ -126,6 +126,7 @@ export default function ProfileSelect() {
               key={profile.id}
               onPress={() => profile.id && void handleSelect(profile.id)}
               hasTVPreferredFocus={index === 0}
+              accessibilityLabel={profile.name}
               style={styles.card}
               focusedStyle={{ borderColor: theme.colors.accent }}
             >

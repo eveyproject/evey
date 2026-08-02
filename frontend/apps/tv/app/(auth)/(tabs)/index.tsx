@@ -91,6 +91,7 @@ function MediaCard({
     <FocusableCard
       onPress={() => router.push(`/media/${item.id}`)}
       hasTVPreferredFocus={isFirst}
+      accessibilityLabel={item.title}
       style={styles.card}
     >
       <View style={[styles.poster, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.sm }]}>
@@ -685,6 +686,10 @@ export default function HomeScreen() {
       {unreadCount > 0 && (
         <FocusableCard
           onPress={() => router.push("/(auth)/notifications")}
+          accessibilityLabel={t("notifications.unreadBanner", {
+            count: unreadCount,
+            defaultValue: `${unreadCount} unread notification${unreadCount !== 1 ? "s" : ""}`,
+          })}
           style={styles.notifBanner}
         >
           <Text style={{ color: theme.colors.accent, fontSize: 20, fontWeight: "600" }}>
