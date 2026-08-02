@@ -19,14 +19,26 @@ if device_ready; then
   # lib.sh runs with -e, so a grep that matches nothing would abort this
   # informational script: every lookup below is explicitly tolerant.
   loaded=$(adb_ logcat -d 2>/dev/null | grep -oE 'EVEY\|info\|boot\| boot sha=[^ ]+' | tail -1 | sed -E 's/.*sha=//' || true)
+  # What the marker can prove, and what it cannot.
+  #
+  # The sha is inlined when Metro transforms a module, so it is frozen at
+  # Metro's launch: an old label does NOT mean old code, because Metro
+  # recompiles what changes. Comparing it to HEAD used to print a scary
+  # "bundle périmé" on a perfectly fresh app right after any commit. What the
+  # marker genuinely answers is whether the APP reloaded since Metro started.
+  served=$(metro_started_sha)
   if [[ -z "$loaded" ]]; then
     warn "aucun marqueur de build (app pas encore démarrée, ou journal purgé)"
   elif [[ "$loaded" == "unknown" ]]; then
     warn "bundle chargé : sha inconnu - Metro n'a pas été démarré par tv-up (relance : make tv-metro-restart)"
-  elif [[ "$loaded" == "$(tv_build_sha)" ]]; then
-    ok "bundle chargé : $loaded (à jour)"
+  elif [[ "$served" == "unknown" ]]; then
+    warn "bundle chargé : $loaded - Metro n'a pas été démarré par tv-up, impossible de dire s'il est à jour"
+  elif [[ "$loaded" == "$served" ]]; then
+    ok "bundle chargé : $loaded (celui que sert Metro)"
+    [[ "$served" != "$(tv_build_sha)" ]] && \
+      say "  ${C_DIM}l'étiquette date du démarrage de Metro ; le code servi suit vos fichiers${C_OFF}"
   else
-    warn "bundle chargé : $loaded ≠ sha local $(tv_build_sha) - make tv-up"
+    warn "l'app n'a pas rechargé : elle tient $loaded, Metro sert $served - make tv-up"
   fi
   last_err=$( (adb_ logcat -d 2>/dev/null | grep -E 'EVEY\|error\||FATAL|SIGSEGV' | tail -1) || true)
   if [[ -n "$last_err" ]]; then printf 'dernière erreur : %s\n' "${last_err:0:160}"; fi

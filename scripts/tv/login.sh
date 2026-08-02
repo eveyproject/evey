@@ -23,15 +23,37 @@ set -euo pipefail
 # false "already signed in".
 screen_text() {
   local i
-  for i in 1 2 3 4 5 6; do
+  for i in $(seq 1 10); do
     if adb_ shell uiautomator dump /sdcard/evey-ui.xml >/dev/null 2>&1; then
       local txt
       txt=$(adb_ shell cat /sdcard/evey-ui.xml 2>/dev/null | grep -oE 'text="[^"]*"' || true)
       [[ -n "$txt" ]] && { printf '%s' "$txt"; return 0; }
     fi
-    sleep 2
+    sleep 0.5
   done
   return 1
+}
+
+# Wait for a form to go away, instead of sleeping for the worst case.
+#
+# This step used to be a flat `sleep 10` (and `sleep 8` for the server form) -
+# by far the most expensive thing in the whole bring-up, and wrong in both
+# directions: ten seconds wasted when the login took two, and still too short
+# on a cold server. Polling the screen answers the actual question.
+#
+# Returns the last text read either way: the caller distinguishes "form gone"
+# from "form still up" itself, so a timeout stays a legitimate outcome rather
+# than an error.
+await_form_gone() { # await_form_gone <regex du bouton> <secondes>
+  local deadline=$((SECONDS + $2)) txt=""
+  while (( SECONDS < deadline )); do
+    txt=$(screen_text || true)
+    # A failure dialog is an answer too - and a faster one than the timeout.
+    grep -qiE 'connection failed|échec de (la )?connexion|network request failed' <<<"$txt" && break
+    grep -qiE "$1" <<<"$txt" || break
+    sleep 0.5
+  done
+  printf '%s' "$txt"
 }
 
 # BACK closes the soft keyboard without losing what was typed - but ONLY if a
@@ -120,8 +142,7 @@ if grep -qi 'your server\|votre serveur' <<<"$TEXT"; then
     || die "champ URL introuvable" "make tv-shot puis regarde l'écran"
   dismiss_keyboard
   submit
-  sleep 8
-  TEXT=$(screen_text || true)
+  TEXT=$(await_form_gone 'text="(Connect|Se connecter|Connecter)"' 20)
 fi
 
 if grep -qi "nom d'utilisateur\|username" <<<"$TEXT"; then
@@ -139,8 +160,7 @@ if grep -qi "nom d'utilisateur\|username" <<<"$TEXT"; then
   # last field, so OK is both the simplest and the most faithful to what a
   # viewer actually does.
   submit
-  sleep 10
-  TEXT=$(screen_text || true)
+  TEXT=$(await_form_gone 'text="(Se connecter|Sign in|Connect)"' 20)
 fi
 
 # Deliberately best-effort from here on.

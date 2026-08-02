@@ -105,6 +105,12 @@ tv_reverse() {
   adb_ reverse "tcp:$TV_API_PORT" "tcp:$TV_API_PORT" >/dev/null
 }
 
+# Metro is started with `setsid` in up.sh and metro-restart.sh, not a plain
+# `&`: a background job stays in the process group of whoever ran the command,
+# so closing the terminal - or any tool that kills the group on timeout - took
+# the bundler down with it, and the next command then reported a perfectly
+# healthy setup as broken.
+
 # --- metro -------------------------------------------------------------------
 metro_up() { curl -s -o /dev/null --max-time 2 "http://localhost:$TV_METRO_PORT/status"; }
 
@@ -129,3 +135,16 @@ current_activity() {
 # would have saved the longest wrong turn of the session that motivated these
 # scripts.
 tv_build_sha() { git -C "$TV_ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown; }
+
+# The sha Metro was STARTED with, recorded because that is what the app's boot
+# marker can possibly say.
+#
+# EXPO_PUBLIC_* values are inlined when a module is transformed, so the marker
+# is fixed at Metro's launch and does NOT follow later commits. Comparing it to
+# HEAD therefore cries "stale bundle" on a perfectly fresh app the moment you
+# commit anything - Metro recompiles changed files on the fly, so the CODE is
+# current even when the label is old. The question worth asking is narrower and
+# this file is what makes it answerable: did the app reload since Metro
+# started?
+TV_METRO_SHA_FILE="${TMPDIR:-/tmp}/evey-tv-metro.sha"
+metro_started_sha() { cat "$TV_METRO_SHA_FILE" 2>/dev/null || echo unknown; }
