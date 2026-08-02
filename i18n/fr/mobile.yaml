@@ -22,7 +22,7 @@ settings:
   themeOptionA11y: "Thème {{name}}"
   server: Serveur
   changeServer: Changer de serveur
-  signOut: Deconnexion
+  signOut: Déconnexion
   signOutConfirm: Etes-vous sur ?
   about: A propos
   appVersion: Version de l'app
