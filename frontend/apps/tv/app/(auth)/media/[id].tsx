@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, ScrollView, Pressable, FlatList, StyleSheet, Linking } from "react-native";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
@@ -211,6 +211,24 @@ export default function MediaDetailScreen() {
   const [focusedBtn, setFocusedBtn] = useState<string | null>(null);
 
   const { data: media, isLoading, refetch } = useLibraryServiceGetMediaItem(id ?? "");
+  // Re-arm the play button's preferred focus AFTER the media loads: applied
+  // statically at mount it intermittently lands while the view is not
+  // attachable yet, native focus is lost and every select goes nowhere.
+  const [armPlayFocus, setArmPlayFocus] = useState(false);
+  const playBtnRef = useRef<View>(null);
+  useEffect(() => {
+    if (!media) return;
+    // Imperative on purpose: the declarative hasTVPreferredFocus races the
+    // mount and intermittently leaves NO focused native view, at which point
+    // Android stops delivering key events - the page goes dead to the remote.
+    const timers = [50, 400].map((ms) =>
+      setTimeout(() => {
+        setArmPlayFocus(true);
+        (playBtnRef.current as unknown as { requestTVFocus?: () => void })?.requestTVFocus?.();
+      }, ms),
+    );
+    return () => timers.forEach(clearTimeout);
+  }, [media]);
   const { data: watchProgress } = usePlaybackServiceGetWatchProgress(id ?? "");
   const profileId = useAuthStore((s) => s.profileId);
   const qc = useQueryClient();
@@ -401,10 +419,11 @@ export default function MediaDetailScreen() {
             button is whole again. */}
         <View style={styles.playGroup}>
           <Pressable
+            ref={playBtnRef}
             onPress={() => handlePlay(false)}
             onFocus={() => setFocusedBtn("play")}
             onBlur={() => setFocusedBtn(null)}
-            hasTVPreferredFocus={true}
+            hasTVPreferredFocus={armPlayFocus}
             accessible={true}
             accessibilityLabel={
               hasProgress
