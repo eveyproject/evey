@@ -23,6 +23,7 @@ import { pickPreferredStreamIndex } from "../../../src/lib/langMatch";
 import { useSleepTimer } from "../../../src/hooks/useSleepTimer";
 import { seekDeltaForKey, clampSeekTarget, shouldReleaseSeekPreview } from "../../../src/hooks/playerSeek";
 import { playerExit } from "../../../src/hooks/playerExit";
+import { FocusableCard } from "../../../src/components/FocusableCard";
 import { QualityPicker } from "../../../src/components/QualityPicker";
 import { AudioTrackPicker, type AudioStream } from "../../../src/components/AudioTrackPicker";
 import { SubtitlePicker, type SubtitleStream } from "../../../src/components/SubtitlePicker";
@@ -95,6 +96,10 @@ export default function PlayerScreen() {
   }, [activeProfile]);
 
   const [showControls, setShowControls] = useState(true);
+  // True while the action bar owns the D-pad. Mirrors the existing
+  // skipVisible / syncplayBadgeFocused pattern: exactly one thing interprets
+  // a key press at a time.
+  const [barFocused, setBarFocused] = useState(false);
   const [showQualityPicker, setShowQualityPicker] = useState(false);
   const [showTrackMenu, setShowTrackMenu] = useState(false);
   const [showAudioPicker, setShowAudioPicker] = useState(false);
@@ -603,24 +608,35 @@ export default function PlayerScreen() {
     // still pauses during an intro.
     if (skipVisible && type === "select") return;
     if (syncplayBadgeFocused && type === "select") return;
+    // While the action bar holds focus its own buttons own the D-pad: left and
+    // right walk the row, OK activates. Interpreting the same keys here would
+    // seek behind the viewer's back while they are picking an audio track.
+    if (barFocused) {
+      if (type === "up" || type === "menu" || type === "back") {
+        setBarFocused(false);
+        resetHideTimer();
+      }
+      return;
+    }
+
     if (type === "select" || type === "playPause") {
       togglePlayPause();
-    } else if (type === "longSelect") {
-      if (showControls) setShowTrackMenu(true);
     } else if (type === "left" || type === "right" || type === "longLeft" || type === "longRight") {
       seekByKey(type);
-    } else if (type === "up") {
-      cycleSpeed();
-    } else if (type === "longUp") {
-      if (showControls) handlePreviousEpisode();
     } else if (type === "down") {
-      if (showControls) setShowQualityPicker(true);
+      // The one way into the options, and the bar says so on screen. Every
+      // other binding this screen used to carry (long-OK for the menu, up for
+      // speed, long-up/long-down for episodes) was invisible: the owner could
+      // not work out how to drive the player at all. They live in the bar now.
+      if (showControls) setBarFocused(true);
       else resetHideTimer();
-    } else if (type === "longDown") {
-      if (showControls) handleManualNextEpisode();
     } else if (type === "menu" || type === "back") {
       if (showControls) handleBack();
       else resetHideTimer();
+    } else {
+      // Any other key just wakes the controls rather than doing something the
+      // viewer cannot predict.
+      resetHideTimer();
     }
   };
   useTVEventHandler(useCallback((evt: { eventType: string } | undefined) => remoteHandlerRef.current?.(evt), []));
@@ -774,16 +790,21 @@ export default function PlayerScreen() {
       <TrackOptionsMenu
         visible={showTrackMenu}
         onClose={() => setShowTrackMenu(false)}
-        hasAudioOptions={audioStreams.length > 1}
-        hasSubtitleOptions={subtitleStreams.length > 0}
-        onOpenAudio={() => {
+        onOpenQuality={() => {
           setShowTrackMenu(false);
-          setShowAudioPicker(true);
+          setShowQualityPicker(true);
         }}
-        onOpenSubtitles={() => {
+        qualityLabel={selectedQuality > 0 ? `${selectedQuality}p` : t("player.settings.auto")}
+        onCycleSpeed={cycleSpeed}
+        speedLabel={`${playbackSpeed}x`}
+        onPreviousEpisode={nextEp.previousEpisode ? () => {
           setShowTrackMenu(false);
-          setShowSubtitlePicker(true);
-        }}
+          handlePreviousEpisode();
+        } : undefined}
+        onNextEpisode={nextEp.nextEpisode ? () => {
+          setShowTrackMenu(false);
+          handleManualNextEpisode();
+        } : undefined}
         hasChapters={chapters.length > 0}
         onOpenChapters={() => {
           setShowTrackMenu(false);
@@ -917,18 +938,11 @@ export default function PlayerScreen() {
             </View>
           </View>
 
-          {/* Center play/pause indicator. The previous/next episode chips are
-              decorative (like the seek-amount bubbles) - the actual controls
-              are the longUp/longDown remote keys (handlePreviousEpisode/
-              handleManualNextEpisode above), not a focusable button, so they
-              never compete with the global D-pad handler for the native
-              focus engine. */}
+          {/* Centre: state and seek amounts only. Deliberately not buttons -
+              OK already toggles play/pause and left/right already seek, so a
+              focusable target here would only add a stop on the way down to
+              the action bar. */}
           <View style={styles.centerControls}>
-            {nextEp.previousEpisode && (
-              <View style={styles.episodeHint}>
-                <Text style={styles.episodeHintText}>{"\u23EE"}</Text>
-              </View>
-            )}
             <View style={styles.seekHint}>
               <Text style={styles.seekHintText}>-{skipBwd}s</Text>
             </View>
@@ -938,11 +952,6 @@ export default function PlayerScreen() {
             <View style={styles.seekHint}>
               <Text style={styles.seekHintText}>+{skipFwd}s</Text>
             </View>
-            {nextEp.nextEpisode && (
-              <View style={styles.episodeHint}>
-                <Text style={styles.episodeHintText}>{"\u23ED"}</Text>
-              </View>
-            )}
           </View>
 
           {/* Trickplay thumbnail: the D-pad seek gesture has no live video
@@ -953,6 +962,54 @@ export default function PlayerScreen() {
               fetch - the seek behaves exactly as it does today. */}
           <View style={styles.trickplayWrap} pointerEvents="none">
             <TrickplaySeekPreview mediaId={mediaId} previewTimeSec={seekPreviewSec} />
+          </View>
+
+          {/* Action bar: the only way to reach the options, and it says so.
+              Focus enters it with the down key and leaves with up or back;
+              while it holds focus the global remote handler stands down (see
+              barFocused) so left/right walk the row instead of seeking. */}
+          <View style={styles.actionBar} pointerEvents="box-none">
+            {!barFocused ? (
+              <Text style={styles.actionHint}>{"\u25BC"} {t("player.controls.more", "More")}</Text>
+            ) : (
+              <>
+                <FocusableCard
+                  hasTVPreferredFocus
+                  onPress={togglePlayPause}
+                  accessibilityLabel={isPlaying ? t("player.controls.pause") : t("player.controls.play")}
+                  style={styles.actionBtn}
+                >
+                  <Text style={styles.actionLabel}>
+                    {isPlaying ? t("player.controls.pause") : t("player.controls.play")}
+                  </Text>
+                </FocusableCard>
+                {audioStreams.length > 1 && (
+                  <FocusableCard
+                    onPress={() => setShowAudioPicker(true)}
+                    accessibilityLabel={t("player.settings.audio")}
+                    style={styles.actionBtn}
+                  >
+                    <Text style={styles.actionLabel}>{t("player.settings.audio")}</Text>
+                  </FocusableCard>
+                )}
+                {subtitleStreams.length > 0 && (
+                  <FocusableCard
+                    onPress={() => setShowSubtitlePicker(true)}
+                    accessibilityLabel={t("player.settings.subtitles")}
+                    style={styles.actionBtn}
+                  >
+                    <Text style={styles.actionLabel}>{t("player.settings.subtitles")}</Text>
+                  </FocusableCard>
+                )}
+                <FocusableCard
+                  onPress={() => setShowTrackMenu(true)}
+                  accessibilityLabel={t("player.controls.more", "More")}
+                  style={styles.actionBtn}
+                >
+                  <Text style={styles.actionLabel}>{t("player.controls.more", "More")}</Text>
+                </FocusableCard>
+              </>
+            )}
           </View>
 
           {/* Bottom bar */}
@@ -987,6 +1044,30 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0,0,0,0.4)",
     justifyContent: "space-between",
+  },
+  actionBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 16,
+    paddingHorizontal: 40,
+    marginBottom: 12,
+    minHeight: 56,
+  },
+  actionHint: {
+    color: "rgba(255,255,255,0.75)",
+    fontSize: 18,
+  },
+  actionBtn: {
+    paddingVertical: 12,
+    paddingHorizontal: 28,
+    borderRadius: 8,
+    backgroundColor: "rgba(255,255,255,0.12)",
+  },
+  actionLabel: {
+    color: "#fff",
+    fontSize: 20,
+    fontWeight: "600",
   },
   topBar: {
     paddingTop: 24,

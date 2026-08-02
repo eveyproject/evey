@@ -207,7 +207,16 @@ vi.mock("../../../src/components/SubtitlePicker", () => ({
     return null;
   },
 }));
-vi.mock("../../../src/components/TrackOptionsMenu", () => ({ TrackOptionsMenu: () => null }));
+// Captured rather than rendered: the episode/quality/speed entries moved into
+// this menu when the undiscoverable long-press bindings were removed, and the
+// tests below drive them through the props the player hands over.
+const trackMenuProps: { current: Record<string, unknown> } = { current: {} };
+vi.mock("../../../src/components/TrackOptionsMenu", () => ({
+  TrackOptionsMenu: (p: Record<string, unknown>) => {
+    trackMenuProps.current = p;
+    return null;
+  },
+}));
 vi.mock("../../../src/components/ChaptersPicker", () => ({ ChaptersPicker: () => null }));
 vi.mock("../../../src/components/SleepTimerPicker", () => ({ SleepTimerPicker: () => null }));
 vi.mock("../../../src/components/VolumePicker", () => ({ VolumePicker: () => null }));
@@ -516,18 +525,25 @@ describe("player exit contract (TV)", () => {
   });
 });
 
-// Manual previous/next episode controls (item 2) - distinct from the
-// auto-advance countdown, reachable via the long-press D-pad keys.
+// Manual previous/next episode - distinct from the auto-advance countdown.
+// These used to hang off long-up/long-down, bindings nothing on screen
+// announced; they are entries in the More menu now. The parental gating they
+// carry is the part that matters and is unchanged.
 describe("manual previous/next episode (TV)", () => {
-  it("navigates to the next episode on longDown when no PIN is required", () => {
+  const openMenu = () => {
     render(<PlayerScreen />);
-    act(() => { capturedTVHandler?.({ eventType: "longDown" }); });
+    act(() => { capturedTVHandler?.({ eventType: "down" }); });
+  };
+
+  it("navigates to the next episode when no PIN is required", () => {
+    openMenu();
+    act(() => { (trackMenuProps.current.onNextEpisode as () => void)(); });
     expect(replaceMock).toHaveBeenCalledWith("/(auth)/player/ep-2");
   });
 
-  it("navigates to the previous episode on longUp when no PIN is required", () => {
-    render(<PlayerScreen />);
-    act(() => { capturedTVHandler?.({ eventType: "longUp" }); });
+  it("navigates to the previous episode when no PIN is required", () => {
+    openMenu();
+    act(() => { (trackMenuProps.current.onPreviousEpisode as () => void)(); });
     expect(replaceMock).toHaveBeenCalledWith("/(auth)/player/ep-0");
   });
 
@@ -535,13 +551,13 @@ describe("manual previous/next episode (TV)", () => {
     // Next episode ("R") is not gated, but the previous one ("G") is - proves
     // the two directions use independent parental gates.
     needsPinMock.mockImplementation((rating) => rating === "G");
-    render(<PlayerScreen />);
+    openMenu();
 
-    act(() => { capturedTVHandler?.({ eventType: "longDown" }); });
+    act(() => { (trackMenuProps.current.onNextEpisode as () => void)(); });
     expect(replaceMock).toHaveBeenCalledWith("/(auth)/player/ep-2");
 
     replaceMock.mockClear();
-    act(() => { capturedTVHandler?.({ eventType: "longUp" }); });
+    act(() => { (trackMenuProps.current.onPreviousEpisode as () => void)(); });
     expect(replaceMock).not.toHaveBeenCalled();
     expect(screen.getByTestId("pin-modal")).toBeTruthy();
   });
@@ -637,5 +653,72 @@ describe("profile language preference (TV)", () => {
     sessionState.mediaStreams = [...sessionState.mediaStreams];
     rerender(<PlayerScreen />);
     expect(lastAudioPickerProps?.currentIndex).toBe(0);
+  });
+});
+
+// The owner could not work out how to drive this player at all: every action
+// hid behind a binding nothing on screen announced (long-OK opened the track
+// menu, down opened quality, up cycled speed, long-up/long-down changed
+// episode), and the only visible things - the play glyph, the seek bubbles,
+// the episode chevrons - were decorative Views.
+describe("action bar discoverability (TV)", () => {
+  const withTwoAudioTracks = () => {
+    sessionState.mediaStreams = [
+      { type: "MEDIA_STREAM_TYPE_AUDIO", index: 0, language: "fra", isDefault: true },
+      { type: "MEDIA_STREAM_TYPE_AUDIO", index: 1, language: "eng" },
+    ];
+  };
+
+  it("tells the viewer how to reach the options before they press anything", () => {
+    render(<PlayerScreen />);
+    // The hint is the whole fix for "I have no idea how to control this".
+    expect(screen.getByText("More", { exact: false })).toBeTruthy();
+  });
+
+  it("opens the bar on the down key and offers audio and more", () => {
+    withTwoAudioTracks();
+    render(<PlayerScreen />);
+    act(() => { capturedTVHandler?.({ eventType: "down" }); });
+    expect(screen.getByLabelText("player.settings.audio")).toBeTruthy();
+    expect(screen.getByLabelText("More")).toBeTruthy();
+  });
+
+  // The whole point of the redesign: changing the audio track is one press
+  // away and labelled, instead of a long press nothing announced.
+  it("opens the audio picker straight from the bar", () => {
+    withTwoAudioTracks();
+    render(<PlayerScreen />);
+    act(() => { capturedTVHandler?.({ eventType: "down" }); });
+    // The picker mock renders nothing, so the proof it opened is that the
+    // remote handler stands down for it (anyOverlayOpen) - a plain right no
+    // longer seeks.
+    fireEvent.click(screen.getByLabelText("player.settings.audio"));
+    playerMock.seekBy.mockClear();
+    act(() => { capturedTVHandler?.({ eventType: "right" }); });
+    expect(playerMock.seekBy).not.toHaveBeenCalled();
+  });
+
+  // While the bar has focus its buttons own left/right; seeking there would
+  // move the film behind the viewer's back as they walk the row.
+  it("stops seeking while the bar holds focus, and resumes after leaving it", () => {
+    render(<PlayerScreen />);
+
+    act(() => { capturedTVHandler?.({ eventType: "down" }); });
+    playerMock.seekBy.mockClear();
+    act(() => { capturedTVHandler?.({ eventType: "right" }); });
+    expect(playerMock.seekBy).not.toHaveBeenCalled();
+
+    // Up leaves the bar, and the film is seekable again.
+    act(() => { capturedTVHandler?.({ eventType: "up" }); });
+    act(() => { capturedTVHandler?.({ eventType: "right" }); });
+    expect(playerMock.seekBy).toHaveBeenCalledWith(30);
+  });
+
+  // Speed used to fire on a bare up press - the easiest key to hit by accident
+  // on a remote, and the hardest effect to understand once it happened.
+  it("no longer changes speed on a bare up press", () => {
+    render(<PlayerScreen />);
+    act(() => { capturedTVHandler?.({ eventType: "up" }); });
+    expect(screen.queryByText("1.25x")).toBeNull();
   });
 });

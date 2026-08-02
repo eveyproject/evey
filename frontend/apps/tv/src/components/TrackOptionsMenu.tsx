@@ -7,26 +7,39 @@ import { FONT_SIZE } from "@evey/theme";
 interface TrackOptionsMenuProps {
   visible: boolean;
   onClose: () => void;
-  hasAudioOptions: boolean;
-  hasSubtitleOptions: boolean;
-  onOpenAudio: () => void;
-  onOpenSubtitles: () => void;
-  // All optional/additive: every existing call site (just Audio + Subtitles)
-  // keeps working unchanged.
+  // Audio and subtitles are optional because the player now gives them their
+  // own buttons in the control bar: a caller that surfaces them there passes
+  // no callback here, and the row simply does not appear.
+  hasAudioOptions?: boolean;
+  hasSubtitleOptions?: boolean;
+  onOpenAudio?: () => void;
+  onOpenSubtitles?: () => void;
   hasChapters?: boolean;
   onOpenChapters?: () => void;
   onOpenSleepTimer?: () => void;
   onOpenVolume?: () => void;
   hasStreamInfo?: boolean;
   onOpenStreamInfo?: () => void;
+  onOpenQuality?: () => void;
+  qualityLabel?: string;
+  // Speed cycles in place rather than opening a submenu - it has four values
+  // and a submenu for four values is a level of nesting nobody wants on a
+  // remote. The label shows what the next press will select.
+  onCycleSpeed?: () => void;
+  speedLabel?: string;
+  onPreviousEpisode?: () => void;
+  onNextEpisode?: () => void;
 }
 
 /**
- * Entry point opened via a long-press of the D-pad select button. The main
- * player screen already claims every plain D-pad direction (seek/speed/
- * quality) plus their long-press variants (accelerated seek, prev/next
- * episode), so every other option lives one level down behind this menu
- * instead of competing for a free key combination.
+ * The player's "More" menu: everything that does not earn a permanent button
+ * in the control bar.
+ *
+ * It used to be reachable only by long-pressing OK, alongside a set of other
+ * undiscoverable bindings (up cycled speed, down opened quality, long-up and
+ * long-down changed episode). Nothing on screen announced any of it, and the
+ * owner could not work out how to drive the player at all. Those bindings are
+ * gone; their actions live here, behind a labelled button.
  *
  * Rows are built as a single filtered list so exactly one gets
  * hasTVPreferredFocus, regardless of which rows a given call site opts into -
@@ -40,6 +53,12 @@ export function TrackOptionsMenu({
   hasSubtitleOptions,
   onOpenAudio,
   onOpenSubtitles,
+  onOpenQuality,
+  qualityLabel,
+  onCycleSpeed,
+  speedLabel,
+  onPreviousEpisode,
+  onNextEpisode,
   hasChapters,
   onOpenChapters,
   onOpenSleepTimer,
@@ -50,9 +69,23 @@ export function TrackOptionsMenu({
   const { t } = useTranslation();
   const theme = useTheme();
 
-  const items: { key: string; label: string; onPress: () => void }[] = [];
-  if (hasAudioOptions) items.push({ key: "audio", label: t("player.settings.audio"), onPress: onOpenAudio });
-  if (hasSubtitleOptions) items.push({ key: "subtitles", label: t("player.settings.subtitles"), onPress: onOpenSubtitles });
+  const items: { key: string; label: string; value?: string; onPress: () => void }[] = [];
+  if (hasAudioOptions && onOpenAudio) items.push({ key: "audio", label: t("player.settings.audio"), onPress: onOpenAudio });
+  if (hasSubtitleOptions && onOpenSubtitles) {
+    items.push({ key: "subtitles", label: t("player.settings.subtitles"), onPress: onOpenSubtitles });
+  }
+  if (onOpenQuality) {
+    items.push({ key: "quality", label: t("player.settings.quality"), value: qualityLabel, onPress: onOpenQuality });
+  }
+  if (onCycleSpeed) {
+    items.push({ key: "speed", label: t("player.settings.speed"), value: speedLabel, onPress: onCycleSpeed });
+  }
+  if (onPreviousEpisode) {
+    items.push({ key: "prevEpisode", label: t("player.controls.previousEpisode"), onPress: onPreviousEpisode });
+  }
+  if (onNextEpisode) {
+    items.push({ key: "nextEpisode", label: t("player.controls.nextEpisode"), onPress: onNextEpisode });
+  }
   if (hasChapters && onOpenChapters) {
     items.push({ key: "chapters", label: t("player.controls.chapters", "Chapters"), onPress: onOpenChapters });
   }
@@ -69,7 +102,7 @@ export function TrackOptionsMenu({
       <Pressable style={styles.backdrop} onPress={onClose}>
         <Pressable style={[styles.sheet, { backgroundColor: theme.colors.surface }]} onPress={(e) => e.stopPropagation()}>
           <Text style={[styles.title, { color: theme.colors.text }]}>
-            {t("player.settings.trackOptions", "Audio & Subtitles")}
+            {t("player.controls.more", "More")}
           </Text>
           <View style={styles.list}>
             {items.map((item, i) => (
@@ -80,7 +113,12 @@ export function TrackOptionsMenu({
                 accessibilityLabel={item.label}
                 style={[styles.row, { borderBottomColor: theme.colors.border }]}
               >
-                <Text style={[styles.label, { color: theme.colors.text }]}>{item.label}</Text>
+                <View style={styles.rowInner}>
+                  <Text style={[styles.label, { color: theme.colors.text }]}>{item.label}</Text>
+                  {item.value ? (
+                    <Text style={[styles.value, { color: theme.colors.textMuted }]}>{item.value}</Text>
+                  ) : null}
+                </View>
               </FocusableCard>
             ))}
           </View>
@@ -117,7 +155,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: 8,
   },
+  rowInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 24,
+  },
   label: {
+    fontSize: FONT_SIZE.base,
+  },
+  value: {
     fontSize: FONT_SIZE.base,
   },
 });
