@@ -282,10 +282,14 @@ function HeroBanner({
             onPress={handlePlay}
             hasTVPreferredFocus={focusPlay}
             style={[styles.heroPlayBtn, { backgroundColor: theme.colors.accent }]}
-            accessibilityLabel={playable ? t("media.detail.play") : t("media.home.moreInfo")}
+            // A series is not played, it is browsed: the primary action names
+            // the episode list. Reusing "More info" here put two identical
+            // buttons side by side, since that is what the secondary already
+            // says.
+            accessibilityLabel={playable ? t("media.detail.play") : t("media.detail.episodes")}
           >
             <Text style={[styles.heroBtnLabel, { color: theme.colors.onAccent }]}>
-              {playable ? t("media.detail.play") : t("media.home.moreInfo")}
+              {playable ? t("media.detail.play") : t("media.detail.episodes")}
             </Text>
           </FocusableCard>
           <FocusableCard
