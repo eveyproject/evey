@@ -698,7 +698,7 @@ export default function PlayerScreen() {
     return (
       <View style={[styles.container, { backgroundColor: "#000" }]}>
         <Text style={{ color: "#fff", fontSize: 24 }}>
-          {t("player.streamError.title", "Failed to load stream")}
+          {t("player.failedToLoadStream", "Failed to load stream")}
         </Text>
         <Pressable
           onPress={() => {

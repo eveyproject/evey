@@ -94,6 +94,7 @@ register:
   inviteChecking: "Vérification de ton invitation…"
   backToLogin: "Retour à la connexion"
 profile:
+  title: Profil
   logoutIncomplete: "La déconnexion peut être incomplète sur cet appareil. Redémarrez l'application pour terminer."
   edit: "Modifier"
   username: "Nom d'utilisateur"

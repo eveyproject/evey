@@ -94,6 +94,7 @@ register:
   inviteChecking: "Checking your invitation…"
   backToLogin: "Back to sign in"
 profile:
+  title: Profile
   logoutIncomplete: "Sign-out may be incomplete on this device. Restart the app to finish clearing your session."
   edit: Edit
   username: Username

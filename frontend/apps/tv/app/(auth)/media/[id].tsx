@@ -479,7 +479,7 @@ export default function MediaDetailScreen() {
               onFocus={() => setFocusedBtn("like")}
               onBlur={() => setFocusedBtn(null)}
               accessible={true}
-              accessibilityLabel={t("media.detail.like", "Like")}
+              accessibilityLabel={t("media.rating.like", "Like")}
               accessibilityRole="button"
               accessibilityState={{ selected: myRating === 1 }}
               style={[
@@ -492,7 +492,7 @@ export default function MediaDetailScreen() {
               ]}
             >
               <Text style={[styles.actionText, { color: myRating === 1 ? theme.colors.accent : theme.colors.text }]}>
-                {t("media.detail.like", "Like")}
+                {t("media.rating.like", "Like")}
               </Text>
             </Pressable>
             <Pressable
@@ -501,7 +501,7 @@ export default function MediaDetailScreen() {
               onFocus={() => setFocusedBtn("dislike")}
               onBlur={() => setFocusedBtn(null)}
               accessible={true}
-              accessibilityLabel={t("media.detail.dislike", "Dislike")}
+              accessibilityLabel={t("media.rating.dislike", "Dislike")}
               accessibilityRole="button"
               accessibilityState={{ selected: myRating === -1 }}
               style={[
@@ -514,7 +514,7 @@ export default function MediaDetailScreen() {
               ]}
             >
               <Text style={[styles.actionText, { color: myRating === -1 ? theme.colors.accent : theme.colors.text }]}>
-                {t("media.detail.dislike", "Dislike")}
+                {t("media.rating.dislike", "Dislike")}
               </Text>
             </Pressable>
           </>
