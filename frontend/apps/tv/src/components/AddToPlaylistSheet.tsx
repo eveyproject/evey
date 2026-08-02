@@ -88,6 +88,11 @@ export function AddToPlaylistSheet({ visible, mediaItemId, onClose }: Props) {
 
           <FocusableCard
             onPress={onClose}
+            // While loading, or with no manual playlist to show, this is the
+            // only focusable in the sheet: without the claim Android has no
+            // focused view and stops delivering keys - the viewer cannot even
+            // close it.
+            hasTVPreferredFocus={isLoading || manualPlaylists.length === 0}
             accessibilityLabel={t("media.detail.close", "Close")}
             style={[styles.closeBtn, { backgroundColor: theme.colors.surfaceRaised }]}
           >

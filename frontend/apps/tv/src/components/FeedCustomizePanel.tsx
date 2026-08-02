@@ -172,6 +172,10 @@ export function FeedCustomizePanel({
 
           <FocusableCard
             onPress={onClose}
+            // Same reason as the playlist sheet: with no row to focus this is
+            // the only focusable left, and an unfocused TV screen stops
+            // receiving key events altogether.
+            hasTVPreferredFocus={rows.length === 0}
             accessibilityLabel={t("common.close", "Close")}
             style={[styles.close, { backgroundColor: theme.colors.surfaceRaised, borderRadius: theme.radii.md }]}
           >
