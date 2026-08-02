@@ -495,27 +495,66 @@ export default function AdminDashboard() {
     setRefreshing(false);
   }, [refetchDash, refetchSys, refetchMovies, refetchSeries]);
 
-  const navItems = [
-    { label: t("admin.users.title"), icon: "people-outline", path: "/admin/users" },
-    { label: t("admin.nav.libraries"), icon: "library-outline", path: "/admin/libraries" },
-    { label: t("admin.nav.mediaRequests"), icon: "mail-open-outline", path: "/admin/media-requests" },
-    { label: t("admin.sessions.title"), icon: "play-circle-outline", path: "/admin/sessions" },
-    { label: t("admin.activity.title", "Activity"), icon: "analytics-outline", path: "/admin/activity" },
-    { label: t("admin.nav.plugins", "Plugins"), icon: "extension-puzzle-outline", path: "/admin/plugins" },
-    { label: t("admin.nav.apiKeys", "API Keys"), icon: "key-outline", path: "/admin/api-keys" },
-    { label: t("admin.serverConfig.title", "Server Config"), icon: "server-outline", path: "/admin/server-config" },
-    { label: t("admin.nav.transcodingConfig", "Transcoding"), icon: "hardware-chip-outline", path: "/admin/transcoding" },
-    { label: t("admin.systemHealth.title"), icon: "pulse-outline", path: "/admin/system-health" },
-    { label: t("admin.transcodeCache.title", "Transcode Cache"), icon: "film-outline", path: "/admin/transcode-cache" },
-    { label: t("admin.nav.seekIndex"), icon: "construct-outline", path: "/admin/seek-index" },
-    { label: t("admin.artworks.title", "Artworks"), icon: "image-outline", path: "/admin/artworks" },
-    { label: t("common.feeds.title"), icon: "grid-outline", path: "/admin/feeds" },
-    { label: t("admin.remoteAccess.title"), icon: "globe-outline", path: "/admin/remote-access" },
-    { label: t("admin.analytics.title"), icon: "bar-chart-outline", path: "/admin/analytics" },
-    { label: t("admin.nav.logs", "Logs & Debug"), icon: "document-text-outline", path: "/admin/logs" },
-    { label: t("admin.nav.qoe"), icon: "speedometer-outline", path: "/admin/qoe" },
-    { label: t("admin.backup.title", "Database Backup"), icon: "cloud-download-outline", path: "/admin/backup" },
-    { label: t("admin.nav.webhooks", "Webhooks"), icon: "link-outline", path: "/admin/webhooks" },
+  // Grouped exactly as the web sidebar groups them (features/admin/AdminNav.tsx),
+  // using the six heading keys that already existed in admin.yaml and that only
+  // the web ever used. Mobile listed all twenty entries in one block under the
+  // heading "Monitoring" - not merely flat, but mislabelled: Users, Backup and
+  // Plugins were all filed under monitoring.
+  //
+  // Feeds is the one entry web's sidebar does not carry (it folds feed config
+  // into server-config, which is an open product question). Filed under Media
+  // here because that is what its rows list.
+  const navSections = [
+    {
+      title: t("admin.nav.dashboardSystem"),
+      items: [
+        { label: t("admin.sessions.title"), icon: "play-circle-outline", path: "/admin/sessions" },
+        { label: t("admin.remoteAccess.title"), icon: "globe-outline", path: "/admin/remote-access" },
+        { label: t("admin.serverConfig.title", "Server Config"), icon: "server-outline", path: "/admin/server-config" },
+        { label: t("admin.nav.transcodingConfig", "Transcoding"), icon: "hardware-chip-outline", path: "/admin/transcoding" },
+        { label: t("admin.systemHealth.title"), icon: "pulse-outline", path: "/admin/system-health" },
+      ],
+    },
+    {
+      title: t("admin.nav.media"),
+      items: [
+        { label: t("admin.nav.libraries"), icon: "library-outline", path: "/admin/libraries" },
+        { label: t("admin.transcodeCache.title", "Transcode Cache"), icon: "film-outline", path: "/admin/transcode-cache" },
+        { label: t("admin.artworks.title", "Artworks"), icon: "image-outline", path: "/admin/artworks" },
+        { label: t("admin.nav.seekIndex"), icon: "construct-outline", path: "/admin/seek-index" },
+        { label: t("common.feeds.title"), icon: "grid-outline", path: "/admin/feeds" },
+      ],
+    },
+    {
+      title: t("admin.nav.usersAccess"),
+      items: [
+        { label: t("admin.users.title"), icon: "people-outline", path: "/admin/users" },
+        { label: t("admin.nav.mediaRequests"), icon: "mail-open-outline", path: "/admin/media-requests" },
+      ],
+    },
+    {
+      title: t("admin.nav.integrations"),
+      items: [
+        { label: t("admin.nav.plugins", "Plugins"), icon: "extension-puzzle-outline", path: "/admin/plugins" },
+        { label: t("admin.nav.webhooks", "Webhooks"), icon: "link-outline", path: "/admin/webhooks" },
+        { label: t("admin.nav.apiKeys", "API Keys"), icon: "key-outline", path: "/admin/api-keys" },
+      ],
+    },
+    {
+      title: t("admin.nav.monitoring"),
+      items: [
+        { label: t("admin.analytics.title"), icon: "bar-chart-outline", path: "/admin/analytics" },
+        { label: t("admin.activity.title", "Activity"), icon: "analytics-outline", path: "/admin/activity" },
+        { label: t("admin.nav.logs", "Logs & Debug"), icon: "document-text-outline", path: "/admin/logs" },
+        { label: t("admin.nav.qoe"), icon: "speedometer-outline", path: "/admin/qoe" },
+      ],
+    },
+    {
+      title: t("admin.nav.maintenance"),
+      items: [
+        { label: t("admin.backup.title", "Database Backup"), icon: "cloud-download-outline", path: "/admin/backup" },
+      ],
+    },
   ];
 
   return (
@@ -597,18 +636,29 @@ export default function AdminDashboard() {
       <RecentActivityCard theme={theme} />
 
       {/* Navigation */}
-      <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>{t("admin.nav.monitoring")}</Text>
+      {navSections.map((section) => (
+        <View key={section.title}>
+          <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>{section.title}</Text>
+          <View style={[styles.infoCard, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md, marginHorizontal: 16 }]}>
+            {section.items.map((item) => (
+              <Pressable key={item.path} onPress={() => router.push(item.path as never)} style={[styles.navRow, { borderBottomColor: theme.colors.border }]}>
+                <Ionicons name={item.icon as never} size={20} color={theme.colors.accent} />
+                <Text style={{ color: theme.colors.text, fontSize: 15, flex: 1 }}>{item.label}</Text>
+                <Ionicons name="chevron-forward" size={16} color={theme.colors.textMuted} />
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      ))}
+      {/* Plugin-contributed admin entries (slot admin.nav) - each granted
+          plugin gets a menu row linking to its own dedicated screen
+          (/admin/extensions/<id>), mobile parity with web. Its own block under
+          Integrations, and only when there is something in it: a heading over
+          an empty card reads as a section that failed to load. */}
+      {pluginEntries.length > 0 ? (
+        <>
+      <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>{t("admin.nav.integrations")}</Text>
       <View style={[styles.infoCard, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md, marginHorizontal: 16 }]}>
-        {navItems.map((item) => (
-          <Pressable key={item.path} onPress={() => router.push(item.path as never)} style={[styles.navRow, { borderBottomColor: theme.colors.border }]}>
-            <Ionicons name={item.icon as never} size={20} color={theme.colors.accent} />
-            <Text style={{ color: theme.colors.text, fontSize: 15, flex: 1 }}>{item.label}</Text>
-            <Ionicons name="chevron-forward" size={16} color={theme.colors.textMuted} />
-          </Pressable>
-        ))}
-        {/* Plugin-contributed admin entries (slot admin.nav) - each granted
-            plugin gets a menu row linking to its own dedicated screen
-            (/admin/extensions/<id>), mobile parity with web. */}
         {pluginEntries.map((entry) => (
           <Pressable
             key={entry.pluginId}
@@ -621,6 +671,8 @@ export default function AdminDashboard() {
           </Pressable>
         ))}
       </View>
+        </>
+      ) : null}
     </ScrollView>
   );
 }
