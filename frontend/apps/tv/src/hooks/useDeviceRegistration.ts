@@ -3,6 +3,9 @@ import { Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
 import { useRouter } from "expo-router";
 import { useAuthStore, useServerListStore } from "@evey/store";
+import { logger } from "../lib/log";
+
+const log = logger("device");
 
 // Stable per-install ID. Generated once + persisted so the server treats
 // reconnects as the SAME device (replacing the stale entry) rather than
@@ -78,7 +81,7 @@ export function useDeviceRegistration() {
       try {
         ws = new WebSocket(wsUrl, ["Bearer." + tok]);
       } catch (err) {
-        console.warn("[device] WebSocket construct failed:", err);
+        log.warn("WebSocket construct failed:", err);
         scheduleReconnect();
         return;
       }
@@ -114,12 +117,12 @@ export function useDeviceRegistration() {
           // intentionally not handled at this layer yet - the player
           // screen will subscribe directly once those commands are wired.
         } catch (err) {
-          console.warn("[device] bad command frame:", err);
+          log.warn("bad command frame:", err);
         }
       };
 
       ws.onerror = (err) => {
-        console.warn("[device] ws error", err);
+        log.warn("ws error", err);
       };
 
       ws.onclose = () => {

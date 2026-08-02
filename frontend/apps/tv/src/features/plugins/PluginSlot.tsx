@@ -9,6 +9,9 @@ import { useTheme } from "../../providers/ThemeProvider";
 import { useServerUrl } from "../../hooks/useServerUrl";
 import { PLUGIN_BRIDGE_SCRIPT } from "./pluginBridge";
 import { FONT_SIZE } from "@evey/theme";
+import { logger } from "../../lib/log";
+
+const log = logger("plugin");
 
 interface FrontModule {
   slot: string;
@@ -215,7 +218,7 @@ function PluginWebView({ pluginId, entryPath, externalFetch, context }: PluginWe
     if (method === "assets.read" || method === "media.poster") {
       const blob = await res.blob();
       if (method === "media.poster" && blob.size > 1_500_000 && process.env.NODE_ENV !== "production") {
-        console.warn("PluginSlot media.poster: large image, no downscale on RN", blob.size);
+        log.warn("media.poster: large image, no downscale on RN", blob.size);
       }
       return await new Promise<string>((resolve, reject) => {
         const fr = new FileReader();
@@ -249,7 +252,7 @@ function PluginWebView({ pluginId, entryPath, externalFetch, context }: PluginWe
         });
         if (!cancelled) setPluginConfig(r.values ?? {});
       } catch (err) {
-        if (process.env.NODE_ENV !== "production") console.warn("PluginSlot config fetch failed", err);
+        if (process.env.NODE_ENV !== "production") log.warn("config fetch failed", err);
       }
     })();
     return () => { cancelled = true; };
