@@ -8,6 +8,7 @@ import { setServerUrl, getServerUrl } from "../src/lib/server-config";
 import { initFetcher } from "../src/lib/fetcher-setup";
 import { applyServerLanguage, initI18n } from "../src/i18n";
 import { scanLocalNetwork, type DiscoveredServer } from "../src/lib/network-scan";
+import { interpolateFallback } from "../src/i18n/interpolateFallback";
 import { useTheme } from "../src/providers/ThemeProvider";
 
 export default function ServerConnect() {
@@ -118,7 +119,7 @@ export default function ServerConnect() {
     const name = server.label ?? server.url;
     Alert.alert(
       t("mobile.servers.deleteConfirmTitle", "Delete server?"),
-      t("mobile.servers.deleteConfirmMessage", "{{name}} will be removed.", { name }),
+      interpolateFallback(t("mobile.servers.deleteConfirmMessage", "{{name}} will be removed.", { name }), { name }),
       [
         { text: t("common.cancel"), style: "cancel" },
         { text: t("mobile.servers.delete", "Delete"), style: "destructive", onPress: () => removeServer(id) },
@@ -247,7 +248,10 @@ export default function ServerConnect() {
       {discovered.length > 0 && (
         <View style={s.discoveredSection}>
           <Text style={s.sectionLabel}>
-            {t("mobile.serverConnect.serversFound", "{{count}} server(s) found", { count: discovered.length })}
+            {interpolateFallback(
+              t("mobile.serverConnect.serversFound", "{{count}} server(s) found", { count: discovered.length }),
+              { count: discovered.length },
+            )}
           </Text>
           {discovered.map((sv) => (
             <DiscoveredRow
@@ -357,7 +361,10 @@ function DiscoveredRow({
       onFocus={() => setFocused(true)}
       onBlur={() => setFocused(false)}
       accessible={true}
-      accessibilityLabel={t("mobile.serverConnect.useDiscovered", "Use discovered server {{url}}", { url: server.url })}
+      accessibilityLabel={interpolateFallback(
+        t("mobile.serverConnect.useDiscovered", "Use discovered server {{url}}", { url: server.url }),
+        { url: server.url },
+      )}
       accessibilityRole="button"
       style={[
         s.discoveredRow,
