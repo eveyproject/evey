@@ -124,6 +124,7 @@ notifications:
   clearTitle: Effacer les notifications
   clearFailed: "Échec de la suppression"
 offline:
+  description: Vérifie ta connexion internet et réessaie.
   title: "Hors ligne"
 watchHistory:
   title: "Historique de lecture"

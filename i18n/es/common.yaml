@@ -124,6 +124,7 @@ notifications:
   clearTitle: Borrar notificaciones
   clearFailed: Error al borrar las notificaciones
 offline:
+  description: Comprueba tu conexión a internet e inténtalo de nuevo.
   title: "Sin conexión"
 watchHistory:
   title: "Historial de reproducción"

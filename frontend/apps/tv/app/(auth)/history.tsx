@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { View, Text, FlatList, ActivityIndicator, StyleSheet } from "react-native";
+import { View, Text, FlatList, StyleSheet } from "react-native";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
@@ -12,6 +12,7 @@ import {
 import type { V1WatchProgress } from "@evey/api";
 import { toast } from "@evey/store";
 import { useTheme } from "../../src/providers/ThemeProvider";
+import { ScreenState } from "../../src/components/ScreenState";
 import { FocusableCard } from "../../src/components/FocusableCard";
 
 function formatDuration(ms: string | undefined): string {
@@ -46,7 +47,7 @@ export default function HistoryScreen() {
   const { t } = useTranslation();
   const qc = useQueryClient();
 
-  const { data, isLoading } = usePlaybackServiceGetWatchHistory({ limit: 50 });
+  const { data, isLoading, isError, refetch } = usePlaybackServiceGetWatchHistory({ limit: 50 });
   const items = data?.items ?? [];
 
   const unwatch = usePlaybackServiceMarkAsUnwatched({
@@ -72,12 +73,10 @@ export default function HistoryScreen() {
     [theme, unwatch, router],
   );
 
-  if (isLoading) {
-    return (
-      <View style={[styles.center, { backgroundColor: theme.colors.bg }]}>
-        <ActivityIndicator color={theme.colors.accent} size="large" />
-      </View>
-    );
+  // "Empty" and "the server did not answer" are different sentences, and this
+  // screen used to say the first for both.
+  if (isLoading || isError) {
+    return <ScreenState loading={isLoading} error={isError} onRetry={() => void refetch()} />;
   }
 
   return (

@@ -121,6 +121,7 @@ notifications:
   clearTitle: Benachrichtigungen löschen
   clearFailed: Benachrichtigungen konnten nicht gelöscht werden
 offline:
+  description: Prüfe deine Internetverbindung und versuche es erneut.
   title: Offline
 noNotifications: Keine Benachrichtigungen
 aria:

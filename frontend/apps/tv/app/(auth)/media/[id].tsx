@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { View, Text, ScrollView, Pressable, FlatList, ActivityIndicator, StyleSheet, Linking } from "react-native";
+import { View, Text, ScrollView, Pressable, FlatList, StyleSheet, Linking } from "react-native";
 import { Image } from "expo-image";
 import { useLocalSearchParams, router } from "expo-router";
 import {
@@ -29,6 +29,7 @@ import { useParentalGate } from "../../../src/hooks/useParentalGate";
 import { ParentalPINModal } from "../../../src/components/ParentalPINModal";
 import { CARD_WIDTH_FEATURED, POSTER_RATIO, CARD_WIDTH_GRID } from "../../../src/lib/tvLayout";
 import { PluginSlot } from "../../../src/features/plugins/PluginSlot";
+import { ScreenState } from "../../../src/components/ScreenState";
 import { trailerUrl, sortTrailers } from "../../../src/lib/trailerUrl";
 
 const HERO_HEIGHT = 420;
@@ -199,7 +200,7 @@ export default function MediaDetailScreen() {
   const [selectedSeason, setSelectedSeason] = useState<string | null>(null);
   const [focusedBtn, setFocusedBtn] = useState<string | null>(null);
 
-  const { data: media, isLoading } = useLibraryServiceGetMediaItem(id ?? "");
+  const { data: media, isLoading, refetch } = useLibraryServiceGetMediaItem(id ?? "");
   const { data: watchProgress } = usePlaybackServiceGetWatchProgress(id ?? "");
   const profileId = useAuthStore((s) => s.profileId);
   const qc = useQueryClient();
@@ -295,12 +296,11 @@ export default function MediaDetailScreen() {
     }
   }, [pendingPlayTarget]);
 
+  // A failed request used to land here with isLoading false and media
+  // undefined, so the spinner never stopped - on a television that is
+  // indistinguishable from a frozen app.
   if (isLoading || !media) {
-    return (
-      <View style={[styles.center, { backgroundColor: theme.colors.bg }]}>
-        <ActivityIndicator color={theme.colors.accent} size="large" />
-      </View>
-    );
+    return <ScreenState loading={isLoading} error={!isLoading} onRetry={() => void refetch()} />;
   }
 
   const meta = [media.year, formatRuntime(media.durationMs), media.officialRating]

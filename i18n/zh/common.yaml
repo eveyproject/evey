@@ -124,6 +124,7 @@ notifications:
   clearTitle: 清除通知
   clearFailed: 清除通知失败
 offline:
+  description: 请检查网络连接后重试。
   title: "离线"
 watchHistory:
   title: "观看历史"
