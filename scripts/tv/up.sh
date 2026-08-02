@@ -198,6 +198,12 @@ else
   fi
 fi
 
+# A snapshot-booted emulator comes back with media volume at 3/15, which reads
+# as "no sound" on a media app. Raise it once, here, rather than have everyone
+# rediscover it.
+# `media volume` does not exist on this image, so press VOLUME_UP to the cap.
+for _ in $(seq 1 15); do adb_ shell input keyevent 24 >/dev/null 2>&1 || true; done
+
 if [[ "$NO_LOGIN" == false ]]; then
   "$(dirname "${BASH_SOURCE[0]}")/login.sh" || warn "connexion automatique impossible (voir make tv-login)"
   okt "connexion"

@@ -246,30 +246,58 @@ export default function PlayerScreen() {
     if (resumeAfterRestartRef.current) p.play();
   });
 
+  // expo-video hands JavaScript a proxy onto a NATIVE object. When the source
+  // changes - a quality switch, an audio-track switch, leaving the screen -
+  // that native object is released, and any later touch throws
+  // "Cannot use shared object that was already released" (or, more cryptically,
+  // "cannot be cast to VideoPlayer (received Integer)"). React's own listeners
+  // are unsubscribed on cleanup, but callbacks that fire from OUTSIDE the
+  // component lifecycle - a SyncPlay websocket message arriving mid-teardown -
+  // have no such protection, and one of them took the whole player screen down
+  // to a red box.
+  //
+  // `withPlayer` is the guard: it runs the access, and swallows exactly the
+  // released-object failure. Anything else still surfaces.
+  const withPlayer = useCallback(<T,>(fn: (p: NonNullable<typeof player>) => T): T | undefined => {
+    if (!player) return undefined;
+    try {
+      return fn(player);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (/already released|cannot be cast to/i.test(msg)) return undefined;
+      throw err;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [player]);
+
+
   useEffect(() => {
     if (!player) return;
     const timeSub = player.addListener("timeUpdate", (ev) => {
       setCurrentTime(ev.currentTime);
-      setDuration(player.duration);
+      // A tick can land between the release and the unsubscribe.
+      withPlayer((p) => setDuration(p.duration));
       setSeekPreviewSec((prev) => (prev !== null && shouldReleaseSeekPreview(ev.currentTime, prev) ? null : prev));
     });
     const statusSub = player.addListener("statusChange", (ev) => {
-      setIsPlaying(player.playing);
-      setDuration(player.duration);
+      withPlayer((p) => {
+        setIsPlaying(p.playing);
+        setDuration(p.duration);
+      });
       if (ev.status === "error") {
         console.warn("[player] native playback error:", ev.error?.message);
         setNativeError(ev.error?.message ?? "playback error");
       }
     });
     const playSub = player.addListener("playingChange", () => {
-      setIsPlaying(player.playing);
+      withPlayer((p) => setIsPlaying(p.playing));
     });
     return () => {
       timeSub.remove();
       statusSub.remove();
       playSub.remove();
     };
-  }, [player]);
+  }, [player, withPlayer]);
 
   useEffect(() => {
     return () => stopSession();
@@ -279,17 +307,27 @@ export default function PlayerScreen() {
   // a `?roomId=` param - see app/(auth)/syncplay/index.tsx and
   // src/hooks/useSyncplay.ts for the join flow and the host-authority rule.
   const [syncplayBadgeFocused, setSyncplayBadgeFocused] = useState(false);
+  // Every one of these fires from a websocket, i.e. possibly while the player
+  // is being torn down - hence withPlayer rather than a plain `player?.`.
   const syncplay = useSyncplay({
-    getLocalPositionMs: () => (player?.currentTime ?? 0) * 1000,
+    getLocalPositionMs: () => withPlayer((p) => p.currentTime * 1000) ?? 0,
     onPlay: (posMs, shouldSeek) => {
-      if (shouldSeek && player) player.currentTime = posMs / 1000;
-      player?.play();
+      withPlayer((p) => {
+        if (shouldSeek) p.currentTime = posMs / 1000;
+        p.play();
+      });
     },
     onPause: (posMs, shouldSeek) => {
-      if (shouldSeek && player) player.currentTime = posMs / 1000;
-      player?.pause();
+      withPlayer((p) => {
+        if (shouldSeek) p.currentTime = posMs / 1000;
+        p.pause();
+      });
     },
-    onSeek: (posMs) => { if (player) player.currentTime = posMs / 1000; },
+    onSeek: (posMs) => {
+      withPlayer((p) => {
+        p.currentTime = posMs / 1000;
+      });
+    },
   });
   useEffect(() => {
     if (roomId && !syncplay.state.roomId) syncplay.connect(roomId);
