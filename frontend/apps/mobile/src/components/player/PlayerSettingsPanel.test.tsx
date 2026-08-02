@@ -58,6 +58,7 @@ vi.mock("../../providers/ThemeProvider", () => ({
 // just echo the raw key back and every accessibilityLabel assertion below
 // would be testing nothing.
 const TRANSLATIONS: Record<string, string> = {
+  "player.quality.auto": "Auto",
   "player.settings.subtitles": "Subtitles",
   "player.settings.off": "Off",
   "player.settings.uploadSubtitle": "Upload subtitle…",
@@ -87,7 +88,7 @@ vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string, fallback?: string) => TRANSLATIONS[key] ?? fallback ?? key }),
 }));
 
-import { PlayerSettingsPanel } from "./PlayerSettingsPanel";
+import { PlayerSettingsPanel, QUALITY_HEIGHTS } from "./PlayerSettingsPanel";
 
 const baseProps = {
   audioStreams: [],
@@ -104,6 +105,32 @@ const baseProps = {
   onBrightnessChange: vi.fn(),
   onClose: vi.fn(),
 };
+
+describe("PlayerSettingsPanel - qualite", () => {
+  // The defect: the menu offered "Auto" AND "Original", both sending 0. Two
+  // names, one behaviour - the viewer picks between them expecting a
+  // difference that does not exist. Asserted on the VALUES, because a
+  // label-based check misses the duplicate the moment it comes back under a
+  // name the test does not know.
+  it("ne propose jamais deux hauteurs identiques", () => {
+    expect(new Set(QUALITY_HEIGHTS).size).toBe(QUALITY_HEIGHTS.length);
+  });
+
+  it("offre bien la ligne qui laisse le lecteur choisir", () => {
+    expect(QUALITY_HEIGHTS).toContain(0);
+    const { queryByLabelText } = render(<PlayerSettingsPanel {...baseProps} />);
+    expect(queryByLabelText("Auto")).toBeTruthy();
+    // "Original" described a behaviour the value never had.
+    expect(queryByLabelText("Original")).toBeNull();
+  });
+
+  it("chaque ligne rapporte sa hauteur a l'appelant", () => {
+    const onQualityChange = vi.fn();
+    const { getByLabelText } = render(<PlayerSettingsPanel {...baseProps} onQualityChange={onQualityChange} />);
+    fireEvent.click(getByLabelText("720p"));
+    expect(onQualityChange).toHaveBeenCalledWith(720);
+  });
+});
 
 describe("PlayerSettingsPanel - external subtitle upload", () => {
   it("hides the Subtitles entry entirely when there are no server tracks and no upload handler", () => {

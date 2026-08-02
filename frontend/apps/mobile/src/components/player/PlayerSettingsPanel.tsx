@@ -133,15 +133,23 @@ function OffsetStepper({ label, valueMs, onChange, disabled, hint }: {
   );
 }
 
+// The heights the quality menu offers, 0 meaning "do not force one" - which is
+// what lets the native HLS player pick a rung by itself.
+//
+// Exported so the "no two rows do the same thing" guard can read the list
+// rather than the rendered labels. The menu used to show BOTH "Auto" and
+// "Original", each sending 0: two names, one behaviour, and "Original"
+// described something the value never did. A label-based test would not have
+// caught the duplicate coming back under a third name; a duplicate VALUE
+// cannot hide.
+export const QUALITY_HEIGHTS = [0, 1080, 720, 480, 360] as const;
+
 function useQualityOptions() {
   const { t } = useTranslation();
-  return [
-    { label: t("player.quality.original"), value: 0 },
-    { label: "1080p", value: 1080 },
-    { label: "720p", value: 720 },
-    { label: "480p", value: 480 },
-    { label: "360p", value: 360 },
-  ];
+  return QUALITY_HEIGHTS.map((height) => ({
+    value: height,
+    label: height === 0 ? t("player.quality.auto") : `${height}p`,
+  }));
 }
 
 // Minimalist horizontal bar for brightness (same touch mechanics as
@@ -224,13 +232,10 @@ export function PlayerSettingsPanel({
   const { height: screenH } = useWindowDimensions();
   const QUALITY_OPTIONS = useQualityOptions();
   const [menu, setMenu] = useState<"main" | "audio" | "subtitles" | "speed" | "subtitle-style">("main");
-  // No prop currently exposes the manifest's dynamic rungs to this panel
-  // (unlike the web SettingsPanel's `availableQualities`), so Auto reuses
-  // the existing quality=0 "no forced height" path: the caller already
-  // treats 0 as "let the native HLS player pick" (`selectedQuality ||
-  // undefined` in the player screen). autoQuality only tracks which row to
-  // highlight; it resets on reopen since the panel unmounts on close.
-  const [autoQuality, setAutoQuality] = useState(currentQuality === 0);
+  // 🔻 Still missing next to web: the real rungs from the manifest
+  // (`availableQualities` there) and an "Auto (720p)" label saying which one is
+  // actually playing. The heights below are fixed, so a source with no 1080p
+  // rung still offers 1080p. That needs the manifest plumbed down here.
 
   const select = (fn: () => void) => {
     fn();
@@ -339,17 +344,12 @@ export function PlayerSettingsPanel({
             <Text style={[styles.sectionHeader, { color: theme.colors.textMuted }]}>
               {t("player.settings.quality")}
             </Text>
-            <OptionRow
-              label={t("player.quality.auto", "Auto")}
-              active={autoQuality}
-              onPress={() => select(() => { setAutoQuality(true); onQualityChange(0); })}
-            />
             {QUALITY_OPTIONS.map((q) => (
               <OptionRow
                 key={q.value}
                 label={q.label}
-                active={!autoQuality && q.value === currentQuality}
-                onPress={() => select(() => { setAutoQuality(false); onQualityChange(q.value); })}
+                active={q.value === currentQuality}
+                onPress={() => select(() => onQualityChange(q.value))}
               />
             ))}
             {audioStreams.length > 0 && (
