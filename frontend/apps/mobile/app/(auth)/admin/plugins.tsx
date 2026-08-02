@@ -25,6 +25,7 @@ import {
   normaliseOptions,
   validateConfigField,
   parseEscalationEntries,
+  parseBlockedIssues,
 } from "../../../src/components/admin/plugins/pluginConfigUtils";
 
 type Theme = ReturnType<typeof useTheme>;
@@ -786,6 +787,7 @@ export default function AdminPluginsScreen() {
   const [installOpen, setInstallOpen] = useState(false);
   const [installSource, setInstallSource] = useState("");
   const [escalationEntries, setEscalationEntries] = useState<string[]>([]);
+  const [blockedIssues, setBlockedIssues] = useState<string[]>([]);
 
   const installPlugin = useAdminPluginServiceInstallPlugin({
     mutation: {
@@ -795,6 +797,7 @@ export default function AdminPluginsScreen() {
         setInstallOpen(false);
         setInstallSource("");
         setEscalationEntries([]);
+        setBlockedIssues([]);
       },
       onError: (err: Error) => {
         const msg = err.message || "";
@@ -804,6 +807,11 @@ export default function AdminPluginsScreen() {
         // reviews before confirming (mirrors the web install-from-URL flow).
         if (msg.includes("new entries requested:")) {
           setEscalationEntries(parseEscalationEntries(msg));
+        } else if (msg.includes("plugin blocked:")) {
+          // The server refused on its static analysis - same verdict web gets.
+          // Listing the findings is the difference between "install failed" and
+          // an admin who can see what was found.
+          setBlockedIssues(parseBlockedIssues(msg));
         } else {
           toast.error(msg || t("admin.plugins.installFailed", "Install failed"));
         }
@@ -834,6 +842,7 @@ export default function AdminPluginsScreen() {
     setInstallOpen(false);
     setInstallSource("");
     setEscalationEntries([]);
+    setBlockedIssues([]);
   }, []);
 
   const renderPlugin = useCallback(({ item }: { item: Plugin }) => (
@@ -904,6 +913,19 @@ export default function AdminPluginsScreen() {
           paddingBottom: theme.spacing.xl,
           gap: theme.spacing.sm,
         }}>
+          {blockedIssues.length > 0 ? (
+            <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
+              <Ionicons name="shield-outline" size={20} color={theme.colors.error} />
+              <View style={{ flex: 1, gap: 4 }}>
+                <Text style={{ color: theme.colors.error, fontWeight: "700", fontSize: 14 }}>
+                  {t("admin.plugins.blockedByAnalysis")}
+                </Text>
+                {blockedIssues.map((issue, i) => (
+                  <Text key={i} style={{ color: theme.colors.textMuted, fontSize: 12, fontFamily: "monospace" }}>{issue}</Text>
+                ))}
+              </View>
+            </View>
+          ) : null}
           {escalationEntries.length > 0 ? (
             <>
               <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
