@@ -90,7 +90,9 @@ const IMAGE_SUBTITLE_CODECS = new Set([
 const WATCHED_THRESHOLD = 0.9;
 
 export default function PlayerScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  // `restart=1` means the viewer chose "from the beginning" on the media page.
+// Resuming is the right default; this is the only way to say otherwise.
+const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>();
   const { t } = useTranslation();
   const { width: screenW, height: screenH } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -501,10 +503,11 @@ export default function PlayerScreen() {
   }, [streamUrl, streamToken, localFilePath, useLocalSource, audioOffsetAvailable, appliedAudioOffsetMs]);
 
   const resumePositionSec = useMemo(() => {
+    if (restart === "1") return 0;
     if (!progress?.positionMs || progress.played) return 0;
     const ms = Number(progress.positionMs);
     return ms > 0 ? ms / 1000 : 0;
-  }, [progress]);
+  }, [progress, restart]);
 
   const player = useVideoPlayer(videoSource, (p) => {
     p.timeUpdateEventInterval = 0.5;

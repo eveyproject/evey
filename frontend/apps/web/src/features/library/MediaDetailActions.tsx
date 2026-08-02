@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { invalidateWatchedState } from "@/lib/invalidateWatchedState";
-import { Play, EyeOff, Eye, Plus, SlidersHorizontal } from "lucide-react";
+import { Play, RotateCcw, EyeOff, Eye, Plus, SlidersHorizontal } from "lucide-react";
 import { ICON } from "@/constants/iconSizes";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "@tanstack/react-router";
@@ -39,6 +39,18 @@ interface MediaDetailActionsProps {
   streamToken: string | null;
 }
 
+// Mirrors the TV and mobile media pages so the same position reads the same
+// way on every client.
+function formatProgress(ms?: string): string {
+  if (!ms) return "";
+  const totalSec = Math.floor(Number(ms) / 1000);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const sec = totalSec % 60;
+  if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
+  return `${m}:${String(sec).padStart(2, "0")}`;
+}
+
 export function MediaDetailActions({
   item,
   isSeries,
@@ -54,7 +66,7 @@ export function MediaDetailActions({
   const [watchedOverride, setWatchedOverride] = useState<boolean | null>(null);
   const [playlistModalOpen, setPlaylistModalOpen] = useState(false);
   const [pinDialogOpen, setPinDialogOpen] = useState(false);
-  const [pendingPlayId, setPendingPlayId] = useState<string | null>(null);
+  const [pendingPlayId, setPendingPlayId] = useState<{ id: string; restart: boolean } | null>(null);
   const profileId = useAuthStore((s) => s.profileId);
   const isAdmin = useAuthStore((s) => s.isAdmin);
   const navigate = useNavigate();
@@ -62,12 +74,25 @@ export function MediaDetailActions({
   // stream token replaces the account JWT that used to ride in the URL.
   const { fetchStreamToken } = useStreamToken();
 
-  const handlePlay = (episodeId: string) => {
+  // `restart` travels all the way to the player, PIN prompt included: the
+  // choice must survive the detour, or entering a PIN would silently resume
+  // the thing the viewer asked to watch from the start.
+  const openPlayer = (episodeId: string, restart: boolean) => {
+    // `search` only when restarting: resuming is the default, and adding an
+    // empty search object would put a pointless `?` on every play.
+    void navigate(
+      restart
+        ? { to: "/player/$mediaId", params: { mediaId: episodeId }, search: { restart: true } }
+        : { to: "/player/$mediaId", params: { mediaId: episodeId } },
+    );
+  };
+
+  const handlePlay = (episodeId: string, restart = false) => {
     if (needsPin()) {
-      setPendingPlayId(episodeId);
+      setPendingPlayId({ id: episodeId, restart });
       setPinDialogOpen(true);
     } else {
-      void navigate({ to: "/player/$mediaId", params: { mediaId: episodeId } });
+      openPlayer(episodeId, restart);
     }
   };
   const qc = useQueryClient();
@@ -77,6 +102,8 @@ export function MediaDetailActions({
     query: { enabled: !!item.id, retry: false },
   });
   const watched = watchedOverride ?? (progress?.played === true);
+  const resumeMs = progress?.positionMs;
+  const hasProgress = !!resumeMs && Number(resumeMs) > 0 && progress?.played !== true;
 
   const invalidateWatched = () => {
     invalidateWatchedState(qc, item.id);
@@ -164,15 +191,35 @@ export function MediaDetailActions({
           <PlaySeasonButton seasonId={item.id} onPlay={handlePlay} />
         )}
         {item.id && !isSeries && !isSeason && (
-          <Button
-            variant="primary"
-            size="lg"
-            data-testid="play-button"
-            onClick={() => handlePlay(item.id!)}
-          >
-            <Play size={ICON.md} fill="currentColor" />
-            {t("media.detail.play")}
-          </Button>
+          /* One control, two halves: the wide one resumes, the narrow one
+             starts over. The divider is what makes them read as a single
+             button instead of two rival Play buttons - with nothing to resume
+             the second half is absent and the button is whole again. */
+          <div className="flex">
+            <Button
+              variant="primary"
+              size="lg"
+              data-testid="play-button"
+              className={hasProgress ? "rounded-r-none" : undefined}
+              onClick={() => handlePlay(item.id!)}
+            >
+              <Play size={ICON.md} fill="currentColor" />
+              {hasProgress ? `${t("media.detail.resume")} ${formatProgress(resumeMs)}` : t("media.detail.play")}
+            </Button>
+            {hasProgress && (
+              <Button
+                variant="primary"
+                size="lg"
+                data-testid="play-from-start-button"
+                aria-label={t("media.playFromStart")}
+                title={t("media.playFromStart")}
+                className="rounded-l-none border-l border-l-black/20 px-3"
+                onClick={() => handlePlay(item.id!, true)}
+              >
+                <RotateCcw size={ICON.md} />
+              </Button>
+            )}
+          </div>
         )}
         {item.id && (
           watched ? (
@@ -248,7 +295,7 @@ export function MediaDetailActions({
             if (profileId) markUnlocked(profileId);
             setPinDialogOpen(false);
             if (pendingPlayId) {
-              void navigate({ to: "/player/$mediaId", params: { mediaId: pendingPlayId } });
+              openPlayer(pendingPlayId.id, pendingPlayId.restart);
             }
             setPendingPlayId(null);
           }}

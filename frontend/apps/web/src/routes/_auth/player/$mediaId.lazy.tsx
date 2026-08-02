@@ -117,7 +117,7 @@ function PlayerPage() {
 
 function PlayerPageInner({ mediaId }: { mediaId: string }) {
   const { t } = useTranslation();
-  const { room: roomParam } = Route.useSearch();
+  const { room: roomParam, restart } = Route.useSearch();
   const router = useRouter();
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [shareRoomId, setShareRoomId] = useState<string | null>(null);
@@ -275,7 +275,7 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
   );
 
   const { data: chapters } = useChapters(mediaId);
-  const startPositionMs = progress?.positionMs ? Number(progress.positionMs) : 0;
+  const startPositionMs = restart ? 0 : progress?.positionMs ? Number(progress.positionMs) : 0;
 
   const isEpisode = mediaItem?.type === "MEDIA_ITEM_TYPE_EPISODE";
   const seasonId = isEpisode ? (mediaItem?.parentId ?? "") : "";

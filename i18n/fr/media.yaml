@@ -555,6 +555,7 @@ rating:
 playlists:
   notFound: Playlist introuvable
 resume: Reprendre
+playFromStart: Lire depuis le début
 genres:
   action: Action
   adventure: Aventure

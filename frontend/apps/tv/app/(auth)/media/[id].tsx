@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { View, Text, ScrollView, Pressable, FlatList, StyleSheet, Linking } from "react-native";
 import { Image } from "expo-image";
+import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, router } from "expo-router";
 import {
   useLibraryServiceGetMediaItem,
@@ -225,7 +226,7 @@ export default function MediaDetailScreen() {
 
   const { needsPin, profileId: gateProfileId } = useParentalGate(media?.officialRating);
   const [showPinModal, setShowPinModal] = useState(false);
-  const [pendingPlayTarget, setPendingPlayTarget] = useState<string | null>(null);
+  const [pendingPlayTarget, setPendingPlayTarget] = useState<{ id: string; restart: boolean } | null>(null);
 
   const invalidateWatched = useCallback(() => {
     if (id) void qc.invalidateQueries({ queryKey: [`/api/v1/playback/${id}/progress`] });
@@ -286,24 +287,31 @@ export default function MediaDetailScreen() {
     return id;
   }, [id, isSeries, isSeason, episodes]);
 
-  const handlePlay = useCallback(() => {
+  // `restart` travels all the way to the player, PIN prompt included: the
+  // choice must survive the detour, or entering a PIN would silently resume
+  // the thing the viewer asked to watch from the start.
+  const openPlayer = useCallback((target: string, restart: boolean) => {
+    router.push(restart ? `/(auth)/player/${target}?restart=1` : `/(auth)/player/${target}`);
+  }, []);
+
+  const handlePlay = useCallback((restart = false) => {
     const target = getPlayTarget();
     if (!target) return;
     if (needsPin()) {
-      setPendingPlayTarget(target);
+      setPendingPlayTarget({ id: target, restart });
       setShowPinModal(true);
       return;
     }
-    router.push(`/(auth)/player/${target}`);
-  }, [getPlayTarget, needsPin]);
+    openPlayer(target, restart);
+  }, [getPlayTarget, needsPin, openPlayer]);
 
   const handlePinVerified = useCallback(() => {
     setShowPinModal(false);
     if (pendingPlayTarget) {
-      router.push(`/(auth)/player/${pendingPlayTarget}`);
+      openPlayer(pendingPlayTarget.id, pendingPlayTarget.restart);
       setPendingPlayTarget(null);
     }
-  }, [pendingPlayTarget]);
+  }, [pendingPlayTarget, openPlayer]);
 
   // A failed request used to land here with isLoading false and media
   // undefined, so the spinner never stopped - on a television that is
@@ -386,26 +394,59 @@ export default function MediaDetailScreen() {
       <View style={{ paddingHorizontal: 48 }}>
       {/* Action buttons */}
       <View style={styles.actions}>
-        <Pressable
-          onPress={handlePlay}
-          onFocus={() => setFocusedBtn("play")}
-          onBlur={() => setFocusedBtn(null)}
-          hasTVPreferredFocus={true}
-          accessible={true}
-          accessibilityLabel={hasProgress ? t("media.resume", "Resume") : t("player.controls.play")}
-          accessibilityRole="button"
-          style={[
-            styles.playButton,
-            {
-              backgroundColor: theme.colors.accent,
-              borderColor: focusedBtn === "play" ? "#fff" : "transparent",
-            },
-          ]}
-        >
-          <Text style={[styles.playText, { color: theme.colors.onAccent }]}>
-            {hasProgress ? `${t("media.resume", "Resume")} ${formatProgress(resumeMs)}` : t("player.controls.play")}
-          </Text>
-        </Pressable>
+        {/* One control, two halves. The wide half resumes, the narrow one starts
+            over; the divider is what says they belong together rather than
+            reading as two rival Play buttons. With no progress to resume there
+            is nothing to choose, so the second half is simply absent and the
+            button is whole again. */}
+        <View style={styles.playGroup}>
+          <Pressable
+            onPress={() => handlePlay(false)}
+            onFocus={() => setFocusedBtn("play")}
+            onBlur={() => setFocusedBtn(null)}
+            hasTVPreferredFocus={true}
+            accessible={true}
+            accessibilityLabel={
+              hasProgress
+                ? `${t("media.resume", "Resume")} ${formatProgress(resumeMs)}`
+                : t("player.controls.play")
+            }
+            accessibilityRole="button"
+            style={[
+              styles.playButton,
+              hasProgress && styles.playButtonLeft,
+              {
+                backgroundColor: theme.colors.accent,
+                borderColor: focusedBtn === "play" ? "#fff" : "transparent",
+              },
+            ]}
+          >
+            <Text style={[styles.playText, { color: theme.colors.onAccent }]}>
+              {hasProgress ? `${t("media.resume", "Resume")} ${formatProgress(resumeMs)}` : t("player.controls.play")}
+            </Text>
+          </Pressable>
+
+          {hasProgress ? (
+            <Pressable
+              onPress={() => handlePlay(true)}
+              onFocus={() => setFocusedBtn("restart")}
+              onBlur={() => setFocusedBtn(null)}
+              accessible={true}
+              accessibilityLabel={t("media.playFromStart", "Play from the beginning")}
+              accessibilityRole="button"
+              style={[
+                styles.playRestart,
+                {
+                  backgroundColor: theme.colors.accent,
+                  borderColor: focusedBtn === "restart" ? "#fff" : "transparent",
+                  borderLeftColor: theme.colors.onAccent + "55",
+                },
+              ]}
+            >
+              <Ionicons name="refresh" size={26} color={theme.colors.onAccent} />
+            </Pressable>
+          ) : null}
+        </View>
 
         <Pressable
           onPress={() => toggleFavorite.mutate()}
@@ -780,11 +821,23 @@ const styles = StyleSheet.create({
   meta: { fontSize: 20, marginTop: 8 },
   genres: { fontSize: 18, marginTop: 4 },
   actions: { flexDirection: "row", gap: 16, marginTop: 24 },
+  playGroup: { flexDirection: "row", alignItems: "stretch" },
   playButton: {
     paddingVertical: 16,
     paddingHorizontal: 48,
     borderRadius: 8,
     borderWidth: 3,
+  },
+  // Square off the inner corners so the two halves read as one control.
+  playButtonLeft: { borderTopRightRadius: 0, borderBottomRightRadius: 0, borderRightWidth: 0 },
+  playRestart: {
+    justifyContent: "center",
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    borderTopLeftRadius: 0,
+    borderBottomLeftRadius: 0,
+    borderWidth: 3,
+    borderLeftWidth: 2,
   },
   playText: { fontWeight: "700", fontSize: 22 },
   actionBtn: {

@@ -56,7 +56,10 @@ function formatTime(seconds: number): string {
 }
 
 export default function PlayerScreen() {
-  const { id, roomId } = useLocalSearchParams<{ id: string; roomId?: string }>();
+  // `restart=1` means the viewer chose "from the beginning" on the media page.
+  // Without it the player always resumes, which is the right default - this is
+  // the only way to say otherwise.
+  const { id, roomId, restart } = useLocalSearchParams<{ id: string; roomId?: string; restart?: string }>();
   const theme = useTheme();
   const { t } = useTranslation();
   const mediaId = id ?? "";
@@ -233,10 +236,11 @@ export default function PlayerScreen() {
   }, [streamUrl]);
 
   const resumePositionSec = useMemo(() => {
+    if (restart === "1") return 0;
     if (!progress?.positionMs || progress.played) return 0;
     const ms = Number(progress.positionMs);
     return ms > 0 ? ms / 1000 : 0;
-  }, [progress]);
+  }, [progress, restart]);
 
   const player = useVideoPlayer(videoSource, (p) => {
     p.timeUpdateEventInterval = 0.5;

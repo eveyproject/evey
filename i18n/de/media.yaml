@@ -555,6 +555,7 @@ rating:
 playlists:
   notFound: Playlist nicht gefunden
 resume: Fortsetzen
+playFromStart: Von vorn abspielen
 genres:
   action: Action
   adventure: Abenteuer

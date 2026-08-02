@@ -17,11 +17,12 @@ vi.mock("@tanstack/react-router", () => ({
 vi.mock("@evey/api", () => ({
   usePlaybackServiceMarkAsWatched: () => ({ mutate: vi.fn(), isPending: false }),
   usePlaybackServiceMarkAsUnwatched: () => ({ mutate: vi.fn(), isPending: false }),
-  usePlaybackServiceGetWatchProgress: () => ({ data: undefined }),
+  usePlaybackServiceGetWatchProgress: () => ({ data: mockWatchProgress }),
   useLibraryServiceListMediaItems: () => ({ data: undefined }),
   useLibraryServiceGetMediaItem: () => ({ data: undefined }),
 }));
 
+let mockWatchProgress: { positionMs?: string; played?: boolean } | undefined;
 let mockIsAdmin = false;
 vi.mock("@evey/store", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
@@ -125,6 +126,7 @@ const defaultProps = {
 describe("MediaDetailActions", () => {
   beforeEach(() => {
     mockIsAdmin = false;
+    mockWatchProgress = undefined;
   });
 
   it("renders tagline", () => {
@@ -242,6 +244,47 @@ describe("MediaDetailActions", () => {
     render(<MediaDetailActions {...defaultProps} />, { wrapper: Wrapper });
     fireEvent.click(screen.getByTestId("play-button"));
     expect(mockNavigate).toHaveBeenCalledWith({ to: "/player/$mediaId", params: { mediaId: "m1" } });
+  });
+
+  // Resume vs start over, offered as one segmented control rather than two
+  // rival Play buttons.
+  describe("reprise", () => {
+    it("n'offre rien a recommencer quand il n'y a pas de progression", () => {
+      render(<MediaDetailActions {...defaultProps} />, { wrapper: Wrapper });
+      expect(screen.queryByTestId("play-from-start-button")).not.toBeInTheDocument();
+    });
+
+    it("annonce la position sur le bouton principal", () => {
+      mockWatchProgress = { positionMs: "754000" };
+      render(<MediaDetailActions {...defaultProps} />, { wrapper: Wrapper });
+      expect(screen.getByTestId("play-button")).toHaveTextContent("12:34");
+    });
+
+    it("reprend par defaut, sans demander au lecteur de repartir de zero", () => {
+      mockWatchProgress = { positionMs: "754000" };
+      render(<MediaDetailActions {...defaultProps} />, { wrapper: Wrapper });
+      fireEvent.click(screen.getByTestId("play-button"));
+      expect(mockNavigate).toHaveBeenCalledWith({ to: "/player/$mediaId", params: { mediaId: "m1" } });
+    });
+
+    it("la moitie recommencer dit au lecteur de repartir de zero", () => {
+      mockWatchProgress = { positionMs: "754000" };
+      render(<MediaDetailActions {...defaultProps} />, { wrapper: Wrapper });
+      fireEvent.click(screen.getByTestId("play-from-start-button"));
+      expect(mockNavigate).toHaveBeenCalledWith({
+        to: "/player/$mediaId",
+        params: { mediaId: "m1" },
+        search: { restart: true },
+      });
+    });
+
+    // A finished item has nothing to resume: offering "Resume 1:58:00" on the
+    // credits would be worse than useless.
+    it("ne propose pas de reprise sur un media deja vu", () => {
+      mockWatchProgress = { positionMs: "754000", played: true };
+      render(<MediaDetailActions {...defaultProps} />, { wrapper: Wrapper });
+      expect(screen.queryByTestId("play-from-start-button")).not.toBeInTheDocument();
+    });
   });
 
   describe("segment editor entry point", () => {

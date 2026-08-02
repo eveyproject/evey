@@ -590,7 +590,7 @@ export default function MediaDetailScreen() {
 
   const { needsPin, profileId: gateProfileId } = useParentalGate(media?.officialRating);
   const [showPinModal, setShowPinModal] = useState(false);
-  const [pendingPlayTarget, setPendingPlayTarget] = useState<string | null>(null);
+  const [pendingPlayTarget, setPendingPlayTarget] = useState<{ id: string; restart: boolean } | null>(null);
   // null = idle, 0..1 = downloading with known total, NaN = downloading
   // with unknown total (server omits Content-Length).
   const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
@@ -815,24 +815,31 @@ export default function MediaDetailScreen() {
     return id;
   }, [id, isSeries, isSeason, episodes]);
 
-  const handlePlay = useCallback(() => {
+  // `restart` travels all the way to the player, PIN prompt included: the
+  // choice must survive the detour, or entering a PIN would silently resume
+  // the thing the viewer asked to watch from the start.
+  const openPlayer = useCallback((target: string, restart: boolean) => {
+    router.push(restart ? `/(auth)/player/${target}?restart=1` : `/(auth)/player/${target}`);
+  }, []);
+
+  const handlePlay = useCallback((restart = false) => {
     const target = getPlayTarget();
     if (!target) return;
     if (needsPin()) {
-      setPendingPlayTarget(target);
+      setPendingPlayTarget({ id: target, restart });
       setShowPinModal(true);
       return;
     }
-    router.push(`/(auth)/player/${target}`);
-  }, [getPlayTarget, needsPin]);
+    openPlayer(target, restart);
+  }, [getPlayTarget, needsPin, openPlayer]);
 
   const handlePinVerified = useCallback(() => {
     setShowPinModal(false);
     if (pendingPlayTarget) {
-      router.push(`/(auth)/player/${pendingPlayTarget}`);
+      openPlayer(pendingPlayTarget.id, pendingPlayTarget.restart);
       setPendingPlayTarget(null);
     }
-  }, [pendingPlayTarget]);
+  }, [pendingPlayTarget, openPlayer]);
 
   // The React Query client retries twice then gives up (except 401/403/404):
   // once exhausted, isLoading turns false but media stays undefined. Without an
@@ -1008,30 +1015,63 @@ export default function MediaDetailScreen() {
           </View>
         ) : null}
 
-        {/* Play / Resume button */}
-        <Pressable
-          onPress={handlePlay}
-          style={{
-            backgroundColor: theme.colors.accent,
-            borderRadius: theme.radii.md,
-            paddingVertical: theme.spacing.sm + 4,
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 8,
-            marginTop: theme.spacing.md,
-          }}
-          accessible={true}
-          accessibilityLabel={hasProgress ? t("media.detail.resume") : t("media.detail.play")}
-          accessibilityRole="button"
-        >
-          <Ionicons name="play" size={18} color={theme.colors.onAccent} />
-          <Text style={{ color: theme.colors.onAccent, fontWeight: "700", fontSize: 16 }}>
-            {hasProgress
-              ? `${t("media.detail.resume")} ${formatProgress(resumeMs)}`
-              : t("media.detail.play")}
-          </Text>
-        </Pressable>
+        {/* One control, two halves: the wide one resumes, the narrow one starts
+            over. The divider is what makes them read as a single button rather
+            than two rival Play buttons. With nothing to resume the second half
+            is absent and the button is whole again. */}
+        <View style={{ flexDirection: "row", marginTop: theme.spacing.md }}>
+          <Pressable
+            onPress={() => handlePlay(false)}
+            style={{
+              flex: 1,
+              backgroundColor: theme.colors.accent,
+              borderTopLeftRadius: theme.radii.md,
+              borderBottomLeftRadius: theme.radii.md,
+              borderTopRightRadius: hasProgress ? 0 : theme.radii.md,
+              borderBottomRightRadius: hasProgress ? 0 : theme.radii.md,
+              paddingVertical: theme.spacing.sm + 4,
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+            }}
+            accessible={true}
+            accessibilityLabel={
+              hasProgress
+                ? `${t("media.detail.resume")} ${formatProgress(resumeMs)}`
+                : t("media.detail.play")
+            }
+            accessibilityRole="button"
+          >
+            <Ionicons name="play" size={18} color={theme.colors.onAccent} />
+            <Text style={{ color: theme.colors.onAccent, fontWeight: "700", fontSize: 16 }}>
+              {hasProgress
+                ? `${t("media.detail.resume")} ${formatProgress(resumeMs)}`
+                : t("media.detail.play")}
+            </Text>
+          </Pressable>
+
+          {hasProgress ? (
+            <Pressable
+              onPress={() => handlePlay(true)}
+              style={{
+                backgroundColor: theme.colors.accent,
+                borderTopRightRadius: theme.radii.md,
+                borderBottomRightRadius: theme.radii.md,
+                paddingVertical: theme.spacing.sm + 4,
+                paddingHorizontal: theme.spacing.md,
+                justifyContent: "center",
+                borderLeftWidth: StyleSheet.hairlineWidth,
+                borderLeftColor: theme.colors.onAccent + "55",
+              }}
+              accessible={true}
+              accessibilityLabel={t("media.playFromStart", "Play from the beginning")}
+              accessibilityRole="button"
+            >
+              <Ionicons name="refresh" size={20} color={theme.colors.onAccent} />
+            </Pressable>
+          ) : null}
+        </View>
 
         {/* Action row: favorite, watched, playlist */}
         <View style={{ flexDirection: "row", gap: theme.spacing.sm, marginTop: theme.spacing.md, flexWrap: "wrap" }}>

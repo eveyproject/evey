@@ -555,6 +555,7 @@ rating:
 playlists:
   notFound: 未找到播放列表
 resume: 继续
+playFromStart: 从头播放
 genres:
   action: 动作
   adventure: 冒险
