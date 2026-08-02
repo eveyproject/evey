@@ -3,6 +3,7 @@ import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Slot, useRouter, usePathname } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
+import { useNotificationServiceGetUnreadCount } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 
 interface NavItem {
@@ -18,6 +19,10 @@ const NAV_ITEMS: NavItem[] = [
   { labelKey: "common.nav.music", icon: "musical-notes", path: "/(auth)/(tabs)/music" },
   { labelKey: "common.nav.favorites", icon: "heart", path: "/(auth)/(tabs)/favorites" },
   { labelKey: "common.nav.requests", icon: "mail-unread", path: "/(auth)/(tabs)/requests" },
+  // A bell, like the web top bar. Notifications had no entry at all: you could
+  // only reach them through the unread banner on the home, so once you had read
+  // everything the screen became unreachable.
+  { labelKey: "common.notifications.title", icon: "notifications", path: "/(auth)/notifications" },
   { labelKey: "common.nav.settings", icon: "settings", path: "/(auth)/(tabs)/settings" },
 ];
 
@@ -27,6 +32,11 @@ export default function TabsLayout() {
   const router = useRouter();
   const pathname = usePathname();
   const [expanded, setExpanded] = useState(false);
+  // A failed count must never blank the navigation - the bar is how you leave
+  // any screen. No badge is the honest degradation: the bell still works, it
+  // just stops claiming there is something new.
+  const { data: unread, isError: unreadFailed } = useNotificationServiceGetUnreadCount();
+  const unreadCount = unreadFailed ? 0 : (unread?.count ?? 0);
   const [focusedIndex, setFocusedIndex] = useState(-1);
 
   const isActive = useCallback(
@@ -80,11 +90,20 @@ export default function TabsLayout() {
                   active && { borderLeftColor: theme.colors.accent, borderLeftWidth: 3 },
                 ]}
               >
-                <Ionicons
-                  name={item.icon}
-                  size={28}
-                  color={active || focused ? theme.colors.accent : theme.colors.textMuted}
-                />
+                <View>
+                  <Ionicons
+                    name={item.icon}
+                    size={28}
+                    color={active || focused ? theme.colors.accent : theme.colors.textMuted}
+                  />
+                  {/* Unread marker on the bell. A dot rather than a number:
+                      at three metres a count is unreadable, and the only
+                      question that matters from the sofa is "is there
+                      anything new". */}
+                  {item.icon === "notifications" && unreadCount > 0 ? (
+                    <View style={[styles.badge, { backgroundColor: theme.colors.accent, borderColor: theme.colors.bg }]} />
+                  ) : null}
+                </View>
                 {expanded && (
                   <Text
                     style={[
@@ -109,6 +128,7 @@ export default function TabsLayout() {
 }
 
 const styles = StyleSheet.create({
+  badge: { position: "absolute", top: -2, right: -2, width: 12, height: 12, borderRadius: 6, borderWidth: 2 },
   root: {
     flex: 1,
     flexDirection: "row",

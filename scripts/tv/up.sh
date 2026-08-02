@@ -55,10 +55,17 @@ emulator_window_failed() {
     "$EMU_LOG" 2>/dev/null
 }
 
+# Audio is ON by default: this is a media player, and testing it mute hides
+# exactly the class of bug worth catching. Set TV_NO_AUDIO=1 on a machine with
+# no working sound server.
+: "${TV_NO_AUDIO:=0}"
+
 start_emulator() { # start_emulator [--no-window]
-  # -no-audio only: dropping -no-snapshot is what makes this fast. swiftshader
-  # keeps it working on a machine with no usable GPU passthrough.
-  ( "$EMULATOR" -avd "$TV_AVD" -gpu swiftshader_indirect -no-audio "$@" \
+  # Dropping -no-snapshot is what makes this fast. swiftshader keeps it working
+  # on a machine with no usable GPU passthrough.
+  local audio=()
+  [[ "$TV_NO_AUDIO" != "0" ]] && audio=(-no-audio)
+  ( "$EMULATOR" -avd "$TV_AVD" -gpu swiftshader_indirect "${audio[@]}" "$@" \
       >"$EMU_LOG" 2>&1 & )
 }
 
