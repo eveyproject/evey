@@ -1,22 +1,21 @@
-import { View, Text, FlatList, ActivityIndicator, StyleSheet } from "react-native";
+import { View, Text, FlatList, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { usePlaylistList, type Playlist } from "../../../src/api/playlists";
 import { FocusableCard } from "../../../src/components/FocusableCard";
+import { ScreenState } from "../../../src/components/ScreenState";
 
 export default function PlaylistsScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
   const router = useRouter();
-  const { data: playlists, isLoading } = usePlaylistList();
+  const { data: playlists, isLoading, isError, refetch } = usePlaylistList();
 
-  if (isLoading) {
-    return (
-      <View style={[styles.center, { backgroundColor: theme.colors.bg }]}>
-        <ActivityIndicator color={theme.colors.accent} size="large" />
-      </View>
-    );
+  // "Empty" and "the server did not answer" are different sentences, and this
+  // screen used to say the first for both.
+  if (isLoading || isError) {
+    return <ScreenState loading={isLoading} error={isError} onRetry={() => void refetch()} />;
   }
 
   return (
