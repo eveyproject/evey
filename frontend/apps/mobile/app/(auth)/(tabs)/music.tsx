@@ -26,6 +26,7 @@ import { useDebounce } from "../../../src/hooks/useDebounce";
 import { useMusicQueueStore, type QueueTrack } from "../../../src/stores/musicQueue";
 import { AddToPlaylistSheet } from "../../../src/components/AddToPlaylistSheet";
 import { startDownload, getDownloadPath, deleteDownload, downloadErrorMessageKey } from "../../../src/lib/downloads";
+import { isCurrentQueueTrack } from "../../../src/lib/currentTrack";
 import { buildDownloadAuthContext } from "../../../src/lib/downloadContext";
 import { confirmDownloadOnMobileData } from "../../../src/lib/mobileDataGate";
 import { toast, useAuthStore } from "@evey/store";
@@ -395,7 +396,10 @@ export default function MusicScreen() {
 
   const renderTrack = useCallback(
     ({ item, index }: { item: Track; index: number }) => {
-      const isCurrentTrack = currentIndex === index && queue.length > 0;
+      // By id, never by position: this list is filtered and the queue is not.
+      // The queue panel further down still compares indices, and rightly so -
+      // there the index IS the queue position.
+      const isCurrentTrack = isCurrentQueueTrack(queue, currentIndex, item.id);
       return (
       <TouchableOpacity
         activeOpacity={0.7}
