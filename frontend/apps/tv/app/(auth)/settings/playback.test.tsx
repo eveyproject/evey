@@ -22,6 +22,12 @@ vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string, fallback?: string) => fallback ?? key }),
 }));
 
+// --- expo-router mock -------------------------------------------------------
+// Needed since this screen now renders ScreenState on isLoading/isError, and
+// ScreenState's "Back" button imports router.back from expo-router - the real
+// package's build output isn't transformable by this test's JSX pipeline.
+vi.mock("expo-router", () => ({ router: { back: vi.fn() } }));
+
 // --- @tanstack/react-query mock --------------------------------------------------
 const invalidateQueriesMock = vi.fn();
 vi.mock("@tanstack/react-query", () => ({
