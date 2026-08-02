@@ -1386,6 +1386,12 @@ export default function MediaDetailScreen() {
           </View>
         ) : null}
 
+        {/* File info sits here, not at the bottom of the page: web puts it
+            immediately after the hero (which carries the synopsis and the
+            crew), before the seasons. Buried under cast and similar titles it
+            was effectively unreachable on a phone. */}
+        <FileInfoSection item={media} />
+
         {/* Season picker for series */}
         {isSeries && seasons.length > 0 ? (
           <View style={{ marginTop: theme.spacing.lg }}>
@@ -1513,9 +1519,6 @@ export default function MediaDetailScreen() {
 
         {/* Similar content */}
         {id && !isSeason ? <SimilarSection item={media} /> : null}
-
-        {/* File info */}
-        <FileInfoSection item={media} />
 
         {/* Bottom spacing */}
         <View style={{ height: theme.spacing.xl * 2 }} />
