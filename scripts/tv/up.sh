@@ -125,19 +125,41 @@ launch() {
   return 4
 }
 
+# Recovery, in the order that actually fixes things.
+#
+# The failure: the app boots, logs a line or two, then dies with a SIGSEGV
+# inside libhermesvm about 130 ms in. No JavaScript error, nothing a guard can
+# catch - from the outside it looks exactly like a bug in the app, and it sent
+# this session hunting one twice.
+#
+# The cause is METRO's transform cache, not the app's. That matters, because
+# the first remedy tried here used to be `pm clear`, which wipes the app's data
+# and leaves the bundler exactly as broken - so it burned a login (pm clear
+# drops the stored server URL) and then failed again anyway. Measured 2026-08-02:
+# purge alone failed twice, a Metro restart fixed it immediately.
+#
+# So: purge first (cheap, and genuinely fixes a corrupted app state), then
+# restart Metro (slower, ~20 s of rebuild, but the real fix), and only then
+# give up.
 step "lancement de $TV_PKG"
 if launch; then
   okt "app lancée"
 else
-  warn "l'app n'a pas démarré proprement - cache de bundle périmé, purge et nouvelle tentative"
+  warn "l'app n'a pas démarré - purge des données de l'app"
   adb_ shell pm clear "$TV_PKG" >/dev/null
-  # pm clear drops the stored server URL too, so the login step below has to
-  # re-enter it; login.sh handles that screen.
   if launch; then
     okt "app lancée après purge"
   else
-    die "l'app ne tient pas au démarrage même après purge" \
-        "make tv-logs --all pour la trace native"
+    warn "toujours pas - le cache de transformation de Metro est en cause, reconstruction"
+    "$(dirname "${BASH_SOURCE[0]}")/metro-restart.sh" >/dev/null 2>&1 || true
+    until metro_up; do sleep 1; done
+    curl -s -o /dev/null --max-time 600 "$(tv_bundle_url)"
+    if launch; then
+      okt "app lancée après reconstruction du bundle"
+    else
+      die "l'app ne tient pas au démarrage, même après purge et Metro reconstruit" \
+          "make tv-logs --all pour la trace native"
+    fi
   fi
 fi
 
