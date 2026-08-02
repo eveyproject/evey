@@ -142,7 +142,6 @@ vi.mock("@tanstack/react-query", () => ({
 const resumeMock = vi.fn();
 const nextUpMock = vi.fn();
 const listMediaItemsMock = vi.fn();
-const unreadCountMock = vi.fn();
 const librariesMock = vi.fn();
 const feedConfigMock = vi.fn();
 const recommendedMock = vi.fn();
@@ -172,7 +171,6 @@ vi.mock("@evey/api", () => ({
     getMusicAlbumsQueryOptionsMock(...(args as [{ libraryId: string }])),
   getPhotoServiceListPhotoAlbumsQueryOptions: (...args: unknown[]) =>
     getPhotoAlbumsQueryOptionsMock(...(args as [{ libraryId: string }])),
-  useNotificationServiceGetUnreadCount: (...args: unknown[]) => unreadCountMock(...args),
 }));
 
 // --- store / collections / popular mocks -------------------------------------
@@ -205,7 +203,6 @@ beforeEach(() => {
   resumeMock.mockReturnValue({ data: { items: [], progress: [] }, isLoading: false });
   nextUpMock.mockReturnValue({ data: { items: [] }, isLoading: false });
   listMediaItemsMock.mockReturnValue({ data: { items: [HERO_ITEM] }, isLoading: false });
-  unreadCountMock.mockReturnValue({ data: { count: 0 } });
   // No libraries by default: these tests exercise the transverse rows only.
   librariesMock.mockReturnValue({ data: { libraries: [] }, isLoading: false });
   // No stored config: the screen falls back to the shared default order, which

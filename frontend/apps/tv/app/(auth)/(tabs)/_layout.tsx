@@ -75,7 +75,11 @@ export default function TabsLayout() {
             expanded, the compact mark when it is not. Not focusable - on a
             remote every stop costs a press, and a logo does nothing. */}
         <View style={styles.brand}>
-          {expanded ? <EveyWordmark height={22} color={theme.colors.text} /> : <EveyMark height={26} />}
+          {expanded ? (
+            <EveyWordmark height={20} color={theme.colors.text} cutColor={theme.colors.surface} />
+          ) : (
+            <EveyMark height={24} cutColor={theme.colors.surface} />
+          )}
         </View>
         <View style={styles.navItems}>
           {NAV_ITEMS.map((item, index) => {
@@ -138,7 +142,10 @@ export default function TabsLayout() {
 }
 
 const styles = StyleSheet.create({
-  brand: { height: 56, justifyContent: "center", alignItems: "center", marginBottom: 8 },
+  // Fixed box with overflow hidden: react-native-svg does not reliably shrink
+  // to the width/height props here, and an oversized mark drew straight over
+  // the first nav item.
+  brand: { height: 96, justifyContent: "center", alignItems: "center", marginBottom: 16, overflow: "hidden" },
   badge: {
     position: "absolute",
     top: -6,

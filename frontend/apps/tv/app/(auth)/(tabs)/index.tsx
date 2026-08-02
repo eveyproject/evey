@@ -15,7 +15,6 @@ import {
   getLibraryServiceListMediaItemsQueryOptions,
   getMusicServiceGetAlbumsQueryOptions,
   getPhotoServiceListPhotoAlbumsQueryOptions,
-  useNotificationServiceGetUnreadCount,
   eveyFetch,
 } from "@evey/api";
 import type { V1MediaItem } from "@evey/api";
@@ -393,8 +392,6 @@ export default function HomeScreen() {
   const profileId = useAuthStore((s) => s.profileId) ?? "";
   const accessToken = useAuthStore((s) => s.accessToken);
 
-  const { data: unreadData } = useNotificationServiceGetUnreadCount();
-  const unreadCount = unreadData?.count ?? 0;
 
   // The row plan comes from the server, exactly as on web and mobile: same
   // feed types, same order, same per-section item counts. The TV used to
@@ -715,23 +712,10 @@ export default function HomeScreen() {
   let renderCursor = 0;
   return (
     <ScrollView style={{ flex: 1, backgroundColor: theme.colors.bg }} contentContainerStyle={{ paddingVertical: 32 }}>
-      {unreadCount > 0 && (
-        <FocusableCard
-          onPress={() => router.push("/(auth)/notifications")}
-          accessibilityLabel={t("notifications.unreadBanner", {
-            count: unreadCount,
-            defaultValue: `${unreadCount} unread notification${unreadCount !== 1 ? "s" : ""}`,
-          })}
-          style={styles.notifBanner}
-        >
-          <Text style={{ color: theme.colors.accent, fontSize: 20, fontWeight: "600" }}>
-            {t("notifications.unreadBanner", {
-              count: unreadCount,
-              defaultValue: `${unreadCount} unread notification${unreadCount !== 1 ? "s" : ""}`,
-            })}
-          </Text>
-        </FocusableCard>
-      )}
+      {/* No unread banner here any more: the count lives on the sidebar bell,
+          which is visible from every screen. On the home it pushed the hero
+          down and took the first focus, so the television opened on a notice
+          instead of on something to watch. */}
       <HeroBanner
         items={recentlyAddedItems}
         serverUrl={serverUrl}
@@ -789,12 +773,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 20,
     borderRadius: 8,
-  },
-  notifBanner: {
-    marginHorizontal: 24,
-    marginBottom: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
   },
   rowContainer: {
     marginBottom: 32,
