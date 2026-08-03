@@ -10,7 +10,7 @@
 //      silently, which is what made cast incidents undiagnosable.
 import { WasmAudioEngine } from "@/features/playback/wasmaudio/WasmAudioEngine";
 import { extractAacAudioURI, extractAudioURI } from "@/features/playback/wasmaudio/wasmAudioShared";
-import { absoluteWithToken, buildPlayerEventUrl, createStartGate, createStarvationWatch, floorMasterUrl, probeReceiverCaps, rewriteCastMasterUrl, stripWasmAudio } from "./receiverLogic";
+import { absoluteWithToken, appendMaxKbps, bitrateTestUrl, buildPlayerEventUrl, createStartGate, createStarvationWatch, floorMasterUrl, probeReceiverCaps, rewriteCastMasterUrl, shouldMeasure, stripWasmAudio } from "./receiverLogic";
 import { createAliveHeartbeat, postPlayerEvent, postPlayerEventQuery, readHeapMB } from "./receiverBeacon";
 
 // The CAF SDK is loaded by a gstatic <script> in the page; its types are
@@ -332,10 +332,65 @@ async function startWasmEngine(): Promise<void> {
   }
 }
 
+// measureThroughputKbps times the receiver's own stack against the server's
+// bitrate-test bytes: read the stream for up to ~2.5s, compute kbps from what
+// actually arrived. Null (no verdict) on any failure or too little signal -
+// the load then proceeds exactly as before the measure existed.
+async function measureThroughputKbps(masterUrl: string): Promise<number | null> {
+  const testUrl = bitrateTestUrl(masterUrl);
+  if (!testUrl) return null;
+  try {
+    const ctrl = new AbortController();
+    const hardStop = setTimeout(() => ctrl.abort(), 3500);
+    const started = Date.now();
+    const resp = await fetch(testUrl, { mode: "cors", signal: ctrl.signal });
+    if (!resp.ok || !resp.body) {
+      clearTimeout(hardStop);
+      return null;
+    }
+    const reader = resp.body.getReader();
+    let bytes = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (value) bytes += value.byteLength;
+      const elapsedMs = Date.now() - started;
+      if (done || elapsedMs >= 2500) {
+        if (!done) ctrl.abort();
+        clearTimeout(hardStop);
+        // Under 200ms or 100KB the sample says nothing usable.
+        if (elapsedMs < 200 || bytes < 100_000) return null;
+        return Math.round((bytes * 8) / elapsedMs); // bits per ms = kbps
+      }
+    }
+  } catch {
+    return null;
+  }
+}
+
 playerManager.setMessageInterceptor(
   cast.framework.messages.MessageType.LOAD,
   (request: any) => {
     try {
+      // Entry measure, BEFORE the load proceeds (CAF holds the LOAD on a
+      // returned promise): the server then fits the master to the verdict
+      // (?maxKbps=, copy-first). A rescue reload or a foreign URL skips it.
+      const rawUrl: string = request?.media?.contentUrl || request?.media?.contentId || "";
+      if (request?.media && shouldMeasure(rawUrl)) {
+        return measureThroughputKbps(rawUrl)
+          .then((kbps) => {
+            const fitted = kbps ? appendMaxKbps(rawUrl, kbps) : null;
+            if (fitted) {
+              request.media.contentUrl = fitted;
+              request.media.contentId = fitted;
+            }
+            // interceptLoad first: it sets currentUrl, which carries the
+            // beacon's token - reported after, the measure lands in the logs.
+            const out = interceptLoad(request);
+            if (kbps) reportEvent("cast_receiver_bitrate_measure", `kbps=${kbps}`);
+            return out;
+          })
+          .catch(() => interceptLoad(request));
+      }
       return interceptLoad(request);
     } catch (err) {
       // An exception here would silently fail the LOAD (905 with no network).

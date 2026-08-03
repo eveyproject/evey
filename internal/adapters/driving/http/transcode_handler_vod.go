@@ -340,6 +340,10 @@ func (h *hlsVODServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		// AES-128 key for the on-demand encrypted rung (EXT-X-KEY URI="key").
 		// Access already enforced by commonAuth above.
 		h.serveHLSKey(w, r, mediaID, span)
+	case file == "bitrate-test":
+		// Opaque bytes the cast receiver times to measure its own stack
+		// before asking for a fitted master (?maxKbps=).
+		h.serveBitrateTest(w, r)
 	case strings.HasPrefix(file, concatPrefix):
 		// Gapless multi-episode session (mp4.PlanConcat): every prefixed
 		// sub-resource (cc_playlist.m3u8, cc_p0/seg00001.m4s, cc_audio1.m3u8...)

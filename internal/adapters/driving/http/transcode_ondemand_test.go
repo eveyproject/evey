@@ -704,6 +704,104 @@ func TestFloorMaster_ServesOnlyTheLowestRung(t *testing.T) {
 	assert.Contains(t, master, "fp=", "the rung seals its fingerprint")
 }
 
+// ?maxKbps=<measured> is the receiver's own bitrate measurement (its network
+// stack included - old cast runtimes cap well under the wire speed, proven on
+// the Bouygtel4K 2026-08-03). Copy-first stays the rule: the cap only bites
+// when the measure cannot carry the copy, and then the server picks the
+// HIGHEST rung that fits - mono-variant, so the receiver's own ABR (the
+// atrophied muscle) is never needed.
+func TestCappedMaster_CopyFirstWhenTheMeasureCarriesIt(t *testing.T) {
+	h := newCopyTestHandler(t)
+	h.manifestGen = apptranscoding.NewManifestGenerator()
+	h.audioRenditionEnabled = true
+	h.copyFallbackRung = true
+
+	dur, err := shared.NewDurationMs(60000)
+	require.NoError(t, err)
+	item := &domainlibrary.MediaItem{File: &domainlibrary.MediaFile{
+		Path: "/m.mkv", Size: 1 << 20, Duration: dur, Bitrate: 4_000_000,
+	}}
+	streams := copyEligibleAV()
+	streams[1].Codec = "dts"
+
+	req := onDemandReq()
+	q := req.URL.Query()
+	q.Set("maxKbps", "12000")
+	req.URL.RawQuery = q.Encode()
+
+	_, ok := h.buildCappedMaster(req, "m1", item, streams, 12000)
+	assert.False(t, ok, "a measure that carries the copy with margin must fall through to the ordinary master")
+}
+
+func TestCappedMaster_PicksTheHighestFittingRung(t *testing.T) {
+	h := newCopyTestHandler(t)
+	h.manifestGen = apptranscoding.NewManifestGenerator()
+	h.audioRenditionEnabled = true
+	h.copyFallbackRung = true
+
+	dur, err := shared.NewDurationMs(60000)
+	require.NoError(t, err)
+	item := &domainlibrary.MediaItem{File: &domainlibrary.MediaFile{
+		Path: "/m.mkv", Size: 1 << 20, Duration: dur, Bitrate: 7_400_000,
+	}}
+	streams := copyEligibleAV()
+	streams[1].Codec = "dts"
+
+	const maxKbps = 6000
+	req := onDemandReq()
+	q := req.URL.Query()
+	q.Set("maxKbps", "6000")
+	req.URL.RawQuery = q.Encode()
+
+	// Expected rung: the same rule the implementation must apply, computed
+	// from the same natural transcode plan - no hardcoded ladder.
+	rT := req.Clone(req.Context())
+	qq := rT.URL.Query()
+	qq.Set("vd", "transcode")
+	rT.URL.RawQuery = qq.Encode()
+	rpT, err := h.resolvePlan(rT, "m1", item, streams)
+	require.NoError(t, err)
+	require.NotEmpty(t, rpT.Profiles)
+	want := 0
+	for i, p := range rpT.Profiles {
+		if (p.VideoBitrate+p.AudioBitrate)*12 <= maxKbps*10 {
+			want = i
+		}
+	}
+
+	master, ok := h.buildCappedMaster(req, "m1", item, streams, maxKbps)
+	require.True(t, ok, "a 7.4 Mbps copy cannot ride a 6 Mbps measure - the cap must serve a rung")
+	assert.Equal(t, 1, strings.Count(master, "#EXT-X-STREAM-INF"), "capped master is mono-variant")
+	assert.Contains(t, master, fmt.Sprintf("stream_%d.m3u8", want),
+		"the variant URI must carry the LADDER index of the chosen rung, or the fp seal serves the wrong profile")
+	assert.NotContains(t, master, "od_playlist.m3u8")
+}
+
+func TestServeBitrateTest_StreamsTheRequestedSize(t *testing.T) {
+	h := newCopyTestHandler(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/bitrate-test?size=100000", nil)
+	w := httptest.NewRecorder()
+	h.serveBitrateTest(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, 100000, w.Body.Len())
+	assert.Equal(t, "no-store", w.Result().Header.Get("Cache-Control"))
+
+	// The size is capped: a client cannot turn the measure into a bandwidth drain.
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/bitrate-test?size=999999999", nil)
+	w = httptest.NewRecorder()
+	h.serveBitrateTest(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, bitrateTestMaxBytes, w.Body.Len())
+
+	// No size: a sane default the receiver can time in ~1s on a slow link.
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/bitrate-test", nil)
+	w = httptest.NewRecorder()
+	h.serveBitrateTest(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, bitrateTestDefaultBytes, w.Body.Len())
+}
+
 // A lean source has no rung meaningfully below the copy: floor falls back to
 // the ordinary master shapes rather than serving a pointless sidegrade.
 func TestFloorMaster_RefusedOnLeanSource(t *testing.T) {

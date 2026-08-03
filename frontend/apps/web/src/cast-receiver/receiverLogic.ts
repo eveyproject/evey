@@ -224,6 +224,49 @@ export function floorMasterUrl(rawUrl: string): string | null {
   }
 }
 
+// bitrateTestUrl derives the /hls/bitrate-test endpoint from the master URL:
+// same origin, same media, same stream token - the receiver times its OWN
+// network stack (old cast runtimes cap far under the wire speed, and the
+// measure captures that too). Null for tokenless or foreign URLs: no measure,
+// today's behaviour.
+export function bitrateTestUrl(masterUrl: string): string | null {
+  try {
+    const u = new URL(masterUrl);
+    const m = /^(.*\/api\/v1\/media\/[^/]+\/hls)\/master\.m3u8$/.exec(u.pathname);
+    const token = u.searchParams.get("token");
+    if (!m || !token) return null;
+    return `${u.origin}${m[1]}/bitrate-test?token=${encodeURIComponent(token)}`;
+  } catch {
+    return null;
+  }
+}
+
+// appendMaxKbps hands the measured verdict to the server, which picks the
+// variant SERVER-SIDE (copy-first, then the highest fitting rung): the
+// receiver's own ABR is never relied upon.
+export function appendMaxKbps(masterUrl: string, kbps: number): string | null {
+  if (!Number.isFinite(kbps) || kbps <= 0) return null;
+  try {
+    const u = new URL(masterUrl);
+    u.searchParams.set("maxKbps", String(Math.round(kbps)));
+    return u.toString();
+  } catch {
+    return null;
+  }
+}
+
+// shouldMeasure: our masters only, once per playback - a reload that already
+// carries a verdict (maxKbps) or a rescue (abr=floor) is never re-measured.
+export function shouldMeasure(rawUrl: string): boolean {
+  try {
+    const u = new URL(rawUrl);
+    if (!u.pathname.endsWith("/hls/master.m3u8")) return false;
+    return !u.searchParams.has("maxKbps") && u.searchParams.get("abr") !== "floor";
+  } catch {
+    return false;
+  }
+}
+
 // createStarvationWatch names a starving playback from the only two signals
 // the receiver has: the playhead and the player state. Born 2026-08-03: a
 // Bouygtel4K sat frozen for NINE minutes on a collapsed link, heartbeats

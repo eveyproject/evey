@@ -88,18 +88,22 @@ func (h *hlsVODServe) tryServePlanMaster(w http.ResponseWriter, r *http.Request,
 		return false
 	}
 
-	// Survival mode (?abr=floor): the cast receiver's starvation rescue asks
-	// for the ONE lowest transcoded rung instead of the copy it cannot sustain.
-	// The advertised fallback rung exists precisely for collapses, but the CAF
-	// player never dove onto it by itself (Bouygtel4K, 2026-08-03: variant
-	// pinned through nine minutes of freeze) - this makes the descent
-	// deterministic. Unresolvable floor falls through to the ordinary shapes.
+	// Receiver-fitted masters, in order of information quality: a measured
+	// throughput (?maxKbps=, copy-first - only bites when the measure cannot
+	// carry the copy) then the survival floor (?abr=floor, the starvation
+	// rescue). Both exist because the CAF player never dives onto an
+	// advertised rung by itself (Bouygtel4K, 2026-08-03: variant pinned
+	// through nine minutes of freeze) - the descent is ours, deterministic.
+	// Unresolvable falls through to the ordinary shapes.
+	if kbps := maxKbpsRequested(r); kbps > 0 {
+		if master, ok := h.buildCappedMaster(r, mediaID, item, streams, kbps); ok {
+			writeHLSMaster(w, r, master)
+			return true
+		}
+	}
 	if floorRequested(r) {
 		if master, ok := h.buildFloorMaster(r, mediaID, item, streams); ok {
-			setCORSHeaders(w, r, "")
-			w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
-			w.Header().Set("Cache-Control", "no-cache")
-			_, _ = w.Write([]byte(master))
+			writeHLSMaster(w, r, master)
 			return true
 		}
 	}
@@ -143,18 +147,9 @@ func (h *hlsVODServe) buildHybridMaster(r *http.Request, mediaID string, item *d
 		return "", err
 	}
 	dims := sourceDimsOf(streams)
-	// Estimate the copy rung's peak bitrate for BANDWIDTH: the probed file
-	// bitrate (kbps) if known, else derived from size/duration. Advisory only
+	// Estimate the copy rung's peak bitrate for BANDWIDTH. Advisory only
 	// (single variant, no ABR switching), so a rough value is fine.
-	videoKbps := item.File.Bitrate / 1000
-	if videoKbps <= 0 {
-		if sec := item.File.Duration.Seconds(); sec > 0 && item.File.Size > 0 {
-			videoKbps = int64(float64(item.File.Size) * 8 / sec / 1000)
-		}
-	}
-	if videoKbps <= 0 {
-		videoKbps = 5000
-	}
+	videoKbps := copyPeakKbpsOf(item)
 	in.Profiles = []domaintranscoding.HLSProfile{{
 		Name:         "od-copy",
 		Width:        dims.Width,
@@ -237,65 +232,148 @@ func (h *hlsVODServe) copyFallbackVariant(r *http.Request, mediaID string, item 
 	}
 }
 
+func writeHLSMaster(w http.ResponseWriter, r *http.Request, master string) {
+	setCORSHeaders(w, r, "")
+	w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
+	w.Header().Set("Cache-Control", "no-cache")
+	_, _ = w.Write([]byte(master))
+}
+
 // floorRequested reports the survival mode our cast receiver's starvation
 // rescue asks for (?abr=floor).
 func floorRequested(r *http.Request) bool {
 	return r != nil && r.URL.Query().Get("abr") == "floor"
 }
 
-// buildFloorMaster renders the ?abr=floor master: this same request's natural
-// vd=transcode plan restricted to its LOWEST rung, as a mono-variant master.
-// Same resolution, same lean-source guard, same fp seal and stream_0 URI as
-// the advertised fallback rung - the "session started hash=<fp>" attribution
-// grep keeps working. False when the rung is unresolvable or buys no real
-// drop; the caller then serves the ordinary master shapes.
+// maxKbpsRequested is the receiver's own throughput measurement (its network
+// stack included), 0 when absent or garbage.
+func maxKbpsRequested(r *http.Request) int64 {
+	n, err := strconv.ParseInt(r.URL.Query().Get("maxKbps"), 10, 64)
+	if err != nil || n <= 0 {
+		return 0
+	}
+	return n
+}
+
+// copyPeakKbpsOf estimates the copy rung's peak bitrate: the probed file
+// bitrate if known, else derived from size/duration, else a 5000 kbps guess.
+func copyPeakKbpsOf(item *domainlibrary.MediaItem) int64 {
+	kbps := item.File.Bitrate / 1000
+	if kbps <= 0 {
+		if sec := item.File.Duration.Seconds(); sec > 0 && item.File.Size > 0 {
+			kbps = int64(float64(item.File.Size) * 8 / sec / 1000)
+		}
+	}
+	if kbps <= 0 {
+		kbps = 5000
+	}
+	return kbps
+}
+
+// buildFloorMaster is buildCappedMaster's survival shape: the lowest rung,
+// asked for by the receiver's starvation rescue (?abr=floor).
 func (h *hlsVODServe) buildFloorMaster(r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream) (string, bool) {
+	return h.buildCappedMaster(r, mediaID, item, streams, 0)
+}
+
+// buildCappedMaster renders a MONO-VARIANT master fitted to the receiver's
+// measured throughput (?maxKbps=), or to the lowest rung when maxKbps is 0
+// (?abr=floor). Copy stays first-class: with a measure that carries the copy
+// peak with margin (1.2x - the starvation watchdog is the net behind an
+// optimistic call), this returns false and the ordinary master shapes serve.
+// Mono-variant on purpose: the receiver's own ABR is never relied upon - the
+// muscle proven atrophied on old cast runtimes (Bouygtel4K, 2026-08-03).
+//
+// The rung rides this same request's natural vd=transcode plan with its own
+// fp seal, and the variant URI carries the rung's LADDER index (stream_<i>) -
+// the variant request re-derives the ladder, so any other name would serve
+// the wrong profile. "session started hash=<fp>" attribution keeps working.
+func (h *hlsVODServe) buildCappedMaster(r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, maxKbps int64) (string, bool) {
+	copyPeak := copyPeakKbpsOf(item)
+	if maxKbps > 0 && copyPeak*12 <= maxKbps*10 {
+		return "", false // copy-first: the measure carries the copy
+	}
 	rT := r.Clone(r.Context())
 	q := rT.URL.Query()
 	q.Set("vd", "transcode")
 	rT.URL.RawQuery = q.Encode()
 	rpT, err := h.resolvePlan(rT, mediaID, item, streams)
 	if err != nil || rpT.IsCopy || len(rpT.Profiles) == 0 {
-		slog.WarnContext(r.Context(), "hls-vod: floor master unresolvable, serving the ordinary master",
+		slog.WarnContext(r.Context(), "hls-vod: capped master unresolvable, serving the ordinary master",
 			slog.String("media_id", mediaID), slog.Any("err", err))
 		return "", false
 	}
-	copyPeakKbps := item.File.Bitrate / 1000
-	if copyPeakKbps <= 0 {
-		if sec := item.File.Duration.Seconds(); sec > 0 && item.File.Size > 0 {
-			copyPeakKbps = int64(float64(item.File.Size) * 8 / sec / 1000)
+	idx := 0
+	if maxKbps > 0 {
+		for i, p := range rpT.Profiles {
+			if (p.VideoBitrate+p.AudioBitrate)*12 <= maxKbps*10 {
+				idx = i
+			}
 		}
 	}
-	if copyPeakKbps <= 0 {
-		copyPeakKbps = 5000
-	}
-	rung := rpT.Profiles[0]
-	if (rung.VideoBitrate+rung.AudioBitrate)*2 > copyPeakKbps+128 {
-		slog.InfoContext(r.Context(), "hls-vod: floor refused, source already lean",
-			slog.String("media_id", mediaID),
-			slog.Int64("rung_kbps", rung.VideoBitrate+rung.AudioBitrate),
-			slog.Int64("copy_peak_kbps", copyPeakKbps+128))
-		return "", false
+	rung := rpT.Profiles[idx]
+	if maxKbps == 0 {
+		if (rung.VideoBitrate+rung.AudioBitrate)*2 > copyPeak+128 {
+			slog.InfoContext(r.Context(), "hls-vod: floor refused, source already lean",
+				slog.String("media_id", mediaID),
+				slog.Int64("rung_kbps", rung.VideoBitrate+rung.AudioBitrate),
+				slog.Int64("copy_peak_kbps", copyPeak+128))
+			return "", false
+		}
+	} else if rung.VideoBitrate+rung.AudioBitrate >= copyPeak {
+		return "", false // no real drop over the copy: pointless sidegrade
 	}
 	inT, err := h.buildManifestInputWith(rT, mediaID, item, streams, rpT)
 	if err != nil {
-		slog.WarnContext(r.Context(), "hls-vod: floor master unresolvable, serving the ordinary master",
+		slog.WarnContext(r.Context(), "hls-vod: capped master unresolvable, serving the ordinary master",
 			slog.String("media_id", mediaID), slog.Any("err", err))
 		return "", false
 	}
-	inT.Profiles = inT.Profiles[:1]
+	inT.Profiles = inT.Profiles[idx : idx+1]
+	inT.VideoPlaylistURI = fmt.Sprintf("stream_%d.m3u8", idx) + apptranscoding.QuerySuffixFor(inT)
 	master, err := h.manifestGen.Master(inT)
 	if err != nil {
-		slog.WarnContext(r.Context(), "hls-vod: floor master build failed, serving the ordinary master",
+		slog.WarnContext(r.Context(), "hls-vod: capped master build failed, serving the ordinary master",
 			slog.String("media_id", mediaID), slog.Any("err", err))
 		return "", false
 	}
-	slog.InfoContext(r.Context(), "hls-vod: floor master served",
+	slog.InfoContext(r.Context(), "hls-vod: capped master served",
 		slog.String("media_id", mediaID),
 		slog.String("rung", rung.Name),
 		slog.Int64("rung_kbps", rung.VideoBitrate+rung.AudioBitrate),
+		slog.Int64("max_kbps", maxKbps),
 		slog.String("fp", rpT.FPHash))
 	return master, true
+}
+
+const (
+	bitrateTestDefaultBytes = 3_000_000
+	bitrateTestMaxBytes     = 8_000_000
+)
+
+// serveBitrateTest streams opaque bytes so the cast receiver can time the
+// throughput of ITS OWN network stack before choosing what to ask for
+// (?maxKbps=) - the receiver-side BitrateTest every adaptive service runs.
+// Access is already enforced by the dispatcher's commonAuth.
+func (h *hlsVODServe) serveBitrateTest(w http.ResponseWriter, r *http.Request) {
+	size := int64(bitrateTestDefaultBytes)
+	if s := r.URL.Query().Get("size"); s != "" {
+		if n, err := strconv.ParseInt(s, 10, 64); err == nil && n > 0 {
+			size = min(n, int64(bitrateTestMaxBytes))
+		}
+	}
+	setCORSHeaders(w, r, "")
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Content-Length", strconv.FormatInt(size, 10))
+	buf := make([]byte, 64*1024)
+	for size > 0 {
+		n := min(int64(len(buf)), size)
+		if _, err := w.Write(buf[:n]); err != nil {
+			return
+		}
+		size -= n
+	}
 }
 
 // wasmAudioRequested reports whether the client asked for the browser wasm-audio

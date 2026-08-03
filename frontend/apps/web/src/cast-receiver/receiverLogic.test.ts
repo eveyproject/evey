@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { absoluteWithToken, buildPlayerEventUrl, createStarvationWatch, createStartGate, floorMasterUrl, probeReceiverCaps, rewriteCastMasterUrl, stripWasmAudio, type CanDisplayType } from "./receiverLogic";
+import { absoluteWithToken, appendMaxKbps, bitrateTestUrl, buildPlayerEventUrl, createStarvationWatch, createStartGate, floorMasterUrl, probeReceiverCaps, rewriteCastMasterUrl, shouldMeasure, stripWasmAudio, type CanDisplayType } from "./receiverLogic";
 
 // Fake canDisplayType: allows what `yes` lists (substring match on the
 // codec string), refuses the rest. 4K resolution is only granted if
@@ -292,6 +292,42 @@ describe("floorMasterUrl", () => {
 
   it("refuses a foreign URL", () => {
     expect(floorMasterUrl("not a url")).toBeNull();
+  });
+});
+
+// The entry measure: before playing, the receiver times its OWN stack against
+// /hls/bitrate-test and asks for a master fitted to the verdict (?maxKbps=).
+// Copy-first lives server-side; these helpers only derive URLs.
+describe("bitrateTestUrl", () => {
+  it("derives the same-media test endpoint with the stream token", () => {
+    const url = bitrateTestUrl("https://evey.test/api/v1/media/m1/hls/master.m3u8?token=t&videoCodecs=h264");
+    expect(url).toBe("https://evey.test/api/v1/media/m1/hls/bitrate-test?token=t");
+  });
+
+  it("refuses tokenless or foreign URLs", () => {
+    expect(bitrateTestUrl("https://evey.test/api/v1/media/m1/hls/master.m3u8")).toBeNull();
+    expect(bitrateTestUrl("https://elsewhere.test/some/video.m3u8?token=t")).toBeNull();
+    expect(bitrateTestUrl("not a url")).toBeNull();
+  });
+});
+
+describe("appendMaxKbps / shouldMeasure", () => {
+  it("appends the measured verdict", () => {
+    const u = appendMaxKbps("https://evey.test/api/v1/media/m1/hls/master.m3u8?token=t", 4213);
+    expect(u).toContain("maxKbps=4213");
+    expect(u).toContain("token=t");
+  });
+
+  it("refuses a garbage measure", () => {
+    expect(appendMaxKbps("https://evey.test/api/v1/media/m1/hls/master.m3u8?token=t", 0)).toBeNull();
+    expect(appendMaxKbps("https://evey.test/api/v1/media/m1/hls/master.m3u8?token=t", NaN)).toBeNull();
+  });
+
+  it("measures our masters exactly once, never a rescue reload", () => {
+    expect(shouldMeasure("https://evey.test/api/v1/media/m1/hls/master.m3u8?token=t")).toBe(true);
+    expect(shouldMeasure("https://evey.test/api/v1/media/m1/hls/master.m3u8?token=t&maxKbps=4000")).toBe(false);
+    expect(shouldMeasure("https://evey.test/api/v1/media/m1/hls/master.m3u8?token=t&abr=floor")).toBe(false);
+    expect(shouldMeasure("https://elsewhere.test/video.m3u8")).toBe(false);
   });
 });
 
