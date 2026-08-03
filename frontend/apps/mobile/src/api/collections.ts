@@ -83,6 +83,23 @@ export function useCollection(id: string, limit = 50, offset = 0) {
   });
 }
 
+/**
+ * The sagas a title belongs to, already access- and parental-filtered by the
+ * server. An empty list is the common case - a title belonging to nothing.
+ */
+export function useMediaItemCollections(mediaItemId: string) {
+  return useQuery<ListCollectionsResponse>({
+    queryKey: ["media-item-collections", mediaItemId],
+    queryFn: () =>
+      eveyFetch<ListCollectionsResponse>({
+        url: `/api/v1/media/${mediaItemId}/collections`,
+        method: "GET",
+      }),
+    enabled: !!mediaItemId,
+    staleTime: 5 * 60_000,
+  });
+}
+
 export function useCreateCollection() {
   const qc = useQueryClient();
   return useMutation({
