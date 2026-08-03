@@ -7,7 +7,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { BackButton } from "@/components/ui/BackButton";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
-import { toast } from "@evey/store";
+import { toast, useAuthStore } from "@evey/store";
 
 export const Route = createLazyFileRoute("/_auth/collections/smart/$filterId")({
   component: SmartFilterPage,
@@ -27,6 +27,7 @@ function SmartFilterPage() {
   const navigate = Route.useNavigate();
   const { data, isLoading } = useCollection(filterId);
   const deleteMut = useDeleteCollection();
+  const isAdmin = useAuthStore((s) => s.isAdmin);
 
   const col = data?.collection;
   const items = data?.items ?? [];
@@ -84,11 +85,13 @@ function SmartFilterPage() {
             </p>
           )}
         </div>
-        <div className="flex gap-2 flex-shrink-0">
-          <Button variant="danger" onClick={handleDelete} type="button" loading={deleteMut.isPending}>
-            {t("common.delete")}
-          </Button>
-        </div>
+        {isAdmin && (
+          <div className="flex gap-2 flex-shrink-0">
+            <Button variant="danger" onClick={handleDelete} type="button" loading={deleteMut.isPending} data-testid="smart-delete-btn">
+              {t("common.delete")}
+            </Button>
+          </div>
+        )}
       </div>
 
       {isLoading ? (

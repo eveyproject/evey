@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Folder, Trash2, Pencil, Plus } from "lucide-react";
 import { createLazyFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { useAuthStore } from "@evey/store";
 import { useCollections, useDeleteCollection } from "@/features/collection/api";
 import type { Collection } from "@/features/collection/api";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -40,6 +41,7 @@ function CollectionCardSkeleton() {
 
 function CollectionPosterCard({ col }: { col: Collection }) {
   const { t } = useTranslation();
+  const isAdmin = useAuthStore((s) => s.isAdmin);
   const deleteMut = useDeleteCollection();
   const initial = col.name[0]?.toUpperCase() ?? "?";
   const subtitle = collectionSubtitle(col.kind, col.itemCount, t);
@@ -87,19 +89,22 @@ function CollectionPosterCard({ col }: { col: Collection }) {
         </div>
       </Link>
 
-      <button
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          if (confirm(t("media.collections.deleteConfirm"))) {
-            deleteMut.mutate(col.id);
-          }
-        }}
-        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity-fast p-1.5 rounded-full bg-black/60 text-[var(--overlay-text)]"
-        aria-label={t("common.delete")}
-      >
-        <Trash2 size={16}  aria-hidden="true" />
-      </button>
+      {isAdmin && (
+        <button
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (confirm(t("media.collections.deleteConfirm"))) {
+              deleteMut.mutate(col.id);
+            }
+          }}
+          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity-fast p-1.5 rounded-full bg-black/60 text-[var(--overlay-text)]"
+          aria-label={t("common.delete")}
+          data-testid={`collection-delete-${col.id}`}
+        >
+          <Trash2 size={16}  aria-hidden="true" />
+        </button>
+      )}
     </div>
   );
 }
@@ -116,6 +121,7 @@ function collectionToSmartCollection(col: Collection): SmartCollection {
 
 function SmartFilterCard({ col, onEdit, onDelete }: { col: Collection; onEdit: () => void; onDelete: () => void }) {
   const { t } = useTranslation();
+  const isAdmin = useAuthStore((s) => s.isAdmin);
   const rulesLabel = (col.rules ?? [])
     .map((r) => {
       if (r.field === "genre") return `genre = ${r.value}`;
@@ -142,22 +148,26 @@ function SmartFilterCard({ col, onEdit, onDelete }: { col: Collection; onEdit: (
             </p>
           )}
         </div>
-        <div className="flex gap-1 flex-shrink-0">
-          <button
-            onClick={onEdit}
-            aria-label={t("common.edit")}
-            className="p-1.5 rounded hover:bg-[var(--surface-raised)] transition-colors-fast text-[var(--text-muted)]"
-          >
-            <Pencil size={16} strokeWidth={1.5}  aria-hidden="true" />
-          </button>
-          <button
-            onClick={onDelete}
-            aria-label={t("common.delete")}
-            className="p-1.5 rounded hover:bg-[var(--surface-raised)] transition-colors-fast text-[var(--text-muted)]"
-          >
-            <Trash2 size={16} strokeWidth={1.5}  aria-hidden="true" />
-          </button>
-        </div>
+        {isAdmin && (
+          <div className="flex gap-1 flex-shrink-0">
+            <button
+              onClick={onEdit}
+              aria-label={t("common.edit")}
+              data-testid={`smart-edit-${col.id}`}
+              className="p-1.5 rounded hover:bg-[var(--surface-raised)] transition-colors-fast text-[var(--text-muted)]"
+            >
+              <Pencil size={16} strokeWidth={1.5}  aria-hidden="true" />
+            </button>
+            <button
+              onClick={onDelete}
+              aria-label={t("common.delete")}
+              data-testid={`smart-delete-${col.id}`}
+              className="p-1.5 rounded hover:bg-[var(--surface-raised)] transition-colors-fast text-[var(--text-muted)]"
+            >
+              <Trash2 size={16} strokeWidth={1.5}  aria-hidden="true" />
+            </button>
+          </div>
+        )}
       </div>
       <Link
         to="/collections/smart/$filterId"
@@ -172,6 +182,10 @@ function SmartFilterCard({ col, onEdit, onDelete }: { col: Collection; onEdit: (
 
 function CollectionsPage() {
   const { t } = useTranslation();
+  // Every write on a collection is RoleAdmin server-side (rbac.go): offering
+  // these to a viewer only bought them a 403 once they had committed to the
+  // gesture.
+  const isAdmin = useAuthStore((s) => s.isAdmin);
   const { data, isLoading, isError } = useCollections();
   const deleteMut = useDeleteCollection();
   const allCollections = data?.collections ?? [];
@@ -191,10 +205,12 @@ function CollectionsPage() {
         <h1 className="text-2xl font-bold text-[var(--text)]">
           {t("media.collections.title")}
         </h1>
-        <Button variant="secondary" onClick={openCreate}>
-          <Plus size={16} />
-          {t("media.collections.newSmartCollection")}
-        </Button>
+        {isAdmin && (
+          <Button variant="secondary" onClick={openCreate} data-testid="new-smart-collection">
+            <Plus size={16} />
+            {t("media.collections.newSmartCollection")}
+          </Button>
+        )}
       </div>
 
       {/* Smart collections section */}

@@ -53,8 +53,8 @@ vi.mock("@/features/library/MediaCard", () => ({
 }));
 vi.mock("@/components/ui/EmptyState", () => ({ EmptyState: () => null }));
 vi.mock("@/components/ui/Button", () => ({
-  Button: ({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) =>
-    React.createElement("button", { onClick }, children),
+  Button: ({ children, onClick, loading: _loading, variant: _variant, ...rest }: { children: React.ReactNode; onClick?: () => void; loading?: boolean; variant?: string }) =>
+    React.createElement("button", { onClick, ...rest }, children),
 }));
 vi.mock("@/components/ui/BackButton", () => ({ BackButton: () => null }));
 vi.mock("react-i18next", () => ({
@@ -93,6 +93,24 @@ describe("removing a title from a collection", () => {
     render(React.createElement((Route as unknown as { component: React.ComponentType }).component));
 
     expect(screen.queryByTestId("collection-remove-mi-1")).toBeNull();
+  });
+});
+
+describe("deleting the collection itself", () => {
+  it("offers the delete button to an admin", async () => {
+    const { Route } = await import("./$collectionId.lazy");
+    render(React.createElement((Route as unknown as { component: React.ComponentType }).component));
+
+    expect(screen.getByTestId("collection-delete-btn")).toBeInTheDocument();
+  });
+
+  it("hides it from a non-admin, who can still read the collection", async () => {
+    isAdmin.value = false;
+    const { Route } = await import("./$collectionId.lazy");
+    render(React.createElement((Route as unknown as { component: React.ComponentType }).component));
+
+    expect(screen.queryByTestId("collection-delete-btn")).toBeNull();
+    expect(screen.getByText("Matrix - Saga")).toBeInTheDocument();
   });
 });
 

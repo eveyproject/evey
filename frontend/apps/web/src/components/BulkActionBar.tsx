@@ -1,5 +1,6 @@
 import { X } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { useAuthStore } from "@evey/store";
 import { Button } from "@/components/ui/Button";
 
 export interface BulkActionBarProps {
@@ -24,6 +25,10 @@ export function BulkActionBar({
   markUnwatchedPending,
 }: BulkActionBarProps) {
   const { t } = useTranslation();
+  // AddCollectionItem is RoleAdmin server-side. The decision lives here rather
+  // than at each call site so the library and the favorites bar can never
+  // disagree about it.
+  const isAdmin = useAuthStore((s) => s.isAdmin);
   return (
     <div
       className={`fixed bottom-0 left-0 right-0 z-overlay flex items-center gap-2 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] flex-wrap shadow-2xl bg-[var(--surface)] border-t border-[var(--accent)] transition-transform duration-250 ease-out ${count > 0 ? "translate-y-0" : "translate-y-full"}`}
@@ -45,9 +50,11 @@ export function BulkActionBar({
       <Button variant="secondary" onClick={onAddToPlaylist} disabled={count === 0}>
         {t("media.library.addToPlaylist", "Add to playlist")}
       </Button>
-      <Button variant="secondary" onClick={onAddToCollection} disabled={count === 0}>
-        {t("media.library.addToCollection", "Add to collection")}
-      </Button>
+      {isAdmin && (
+        <Button variant="secondary" onClick={onAddToCollection} disabled={count === 0} data-testid="bulk-add-to-collection">
+          {t("media.library.addToCollection", "Add to collection")}
+        </Button>
+      )}
 
       <button
         type="button"

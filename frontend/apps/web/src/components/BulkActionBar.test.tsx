@@ -1,7 +1,12 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { BulkActionBar } from "./BulkActionBar";
+
+let mockIsAdmin = true;
+vi.mock("@evey/store", () => ({
+  useAuthStore: (sel: (s: { isAdmin: boolean }) => unknown) => sel({ isAdmin: mockIsAdmin }),
+}));
 
 const defaultProps = {
   count: 3,
@@ -13,6 +18,20 @@ const defaultProps = {
 };
 
 describe("BulkActionBar", () => {
+  beforeEach(() => { mockIsAdmin = true; });
+
+  // AddCollectionItem is RoleAdmin: a viewer offered it selected titles, opened
+  // the picker and watched every choice fail. The rest of the bar is theirs.
+  it("drops only the collection action for a viewer", () => {
+    mockIsAdmin = false;
+    render(<BulkActionBar {...defaultProps} />);
+    expect(screen.queryByTestId("bulk-add-to-collection")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /add to playlist/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /mark watched/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /mark unwatched/i })).toBeInTheDocument();
+    expect(screen.getByText("3")).toBeInTheDocument();
+  });
+
   it("shows selected count", () => {
     render(<BulkActionBar {...defaultProps} />);
     expect(screen.getByText("3")).toBeInTheDocument();

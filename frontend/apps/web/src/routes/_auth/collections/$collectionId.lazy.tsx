@@ -60,13 +60,16 @@ function CollectionDetailPage() {
               <div
                 className="absolute inset-0 gradient-collection-fade"
               />
-              <Button
-                variant="danger"
-                className="absolute top-4 right-4"
-                onClick={handleDelete}
-              >
-                {t("common.delete")}
-              </Button>
+              {isAdmin && (
+                <Button
+                  variant="danger"
+                  className="absolute top-4 right-4"
+                  onClick={handleDelete}
+                  data-testid="collection-delete-btn"
+                >
+                  {t("common.delete")}
+                </Button>
+              )}
               <div className="absolute bottom-4 left-4 right-4">
                 <h1 className="text-3xl font-bold text-white">{col.name}</h1>
                 {col.overview && (
@@ -88,9 +91,11 @@ function CollectionDetailPage() {
                   </p>
                 )}
               </div>
-              <Button variant="danger" onClick={handleDelete}>
-                {t("common.delete")}
-              </Button>
+              {isAdmin && (
+                <Button variant="danger" onClick={handleDelete} data-testid="collection-delete-btn">
+                  {t("common.delete")}
+                </Button>
+              )}
             </div>
           )}
 

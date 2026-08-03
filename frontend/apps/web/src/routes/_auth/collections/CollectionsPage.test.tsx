@@ -27,8 +27,13 @@ vi.mock("@/components/ui/EmptyState", () => ({
 }));
 
 vi.mock("@/components/ui/Button", () => ({
-  Button: ({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) =>
-    React.createElement("button", { onClick }, children),
+  Button: ({ children, onClick, ...rest }: { children: React.ReactNode; onClick?: () => void }) =>
+    React.createElement("button", { onClick, ...rest }, children),
+}));
+
+let mockIsAdmin = true;
+vi.mock("@evey/store", () => ({
+  useAuthStore: (sel: (s: { isAdmin: boolean }) => unknown) => sel({ isAdmin: mockIsAdmin }),
 }));
 
 vi.mock("@/features/collection/SmartCollectionDialog", () => ({
@@ -53,7 +58,37 @@ async function renderPage() {
 }
 
 describe("CollectionsPage", () => {
-  beforeEach(() => { vi.clearAllMocks(); mockListCollections.mockReturnValue({ data: undefined, isLoading: true }); });
+  beforeEach(() => { vi.clearAllMocks(); mockIsAdmin = true; mockListCollections.mockReturnValue({ data: undefined, isLoading: true }); });
+
+  // Every write here is RoleAdmin server-side, so a viewer offered the button
+  // only got a 403 once committed to the gesture. The collections themselves
+  // stay readable.
+  it("gives a viewer no write control, while still listing the collections", async () => {
+    mockIsAdmin = false;
+    mockListCollections.mockReturnValue({
+      data: { collections: [...mockCollections, { id: "s1", name: "Recent", rules: [{ field: "year", operator: "gte", value: "2020" }], createdAt: "", updatedAt: "" }] },
+      isLoading: false,
+    });
+    await renderPage();
+    await waitFor(() => expect(screen.getByText("Star Wars")).toBeInTheDocument());
+    expect(screen.queryByTestId("new-smart-collection")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("collection-delete-c1")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("smart-edit-s1")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("smart-delete-s1")).not.toBeInTheDocument();
+  });
+
+  it("gives an admin all four write controls", async () => {
+    mockIsAdmin = true;
+    mockListCollections.mockReturnValue({
+      data: { collections: [...mockCollections, { id: "s1", name: "Recent", rules: [{ field: "year", operator: "gte", value: "2020" }], createdAt: "", updatedAt: "" }] },
+      isLoading: false,
+    });
+    await renderPage();
+    await waitFor(() => expect(screen.getByTestId("new-smart-collection")).toBeInTheDocument());
+    expect(screen.getByTestId("collection-delete-c1")).toBeInTheDocument();
+    expect(screen.getByTestId("smart-edit-s1")).toBeInTheDocument();
+    expect(screen.getByTestId("smart-delete-s1")).toBeInTheDocument();
+  });
 
   it("shows skeleton cards while loading", async () => {
     const { container } = await renderPage();
