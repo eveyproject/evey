@@ -1216,3 +1216,89 @@ describe("server compat download", () => {
     await pending;
   });
 });
+
+// A list-fed caller (episode rows) has no codecs to hand over: ListMediaItems
+// returns streams empty, and "no codecs" used to read as "renderable" - so an
+// eac3-only episode downloaded raw, skipped every net and played silent
+// (2026-08-03, Special ops lioness S03E01). The codecs now come from the item
+// detail whenever a video caller has none.
+describe("source codec fallback", () => {
+  function fetchByUrl(routes: Record<string, () => unknown>) {
+    eveyFetchMock.mockImplementation(async ({ url }: { url: string }) => {
+      const hit = Object.keys(routes)
+        .filter((s) => url.includes(s))
+        .sort((a, b) => b.length - a.length)[0];
+      if (hit) return routes[hit]();
+      return { token: "stream-tok-123" };
+    });
+  }
+
+  afterEach(() => {
+    eveyFetchMock.mockResolvedValue({ token: "stream-tok-123", mediaId: "m3" });
+    getMediaItemMock.mockResolvedValue({ id: "m1" });
+  });
+
+  it("fetches the detail's codecs when the caller has none, and takes the compat path", async () => {
+    getMediaItemMock.mockResolvedValue({
+      id: "ep1",
+      streams: [
+        { type: "MEDIA_STREAM_TYPE_VIDEO", codec: "h264" },
+        { type: "MEDIA_STREAM_TYPE_AUDIO", codec: "eac3" },
+      ],
+    });
+    fetchByUrl({ "/compat-download": () => ({ status: "ready" }) });
+    const pending = startDownload("ep1", "Episode 1", undefined, { formatHint: "matroska" });
+    const handlers = await waitForTask("ep1");
+    expect(getMediaItemMock).toHaveBeenCalledWith("ep1");
+    expect(createDownloadTaskMock).toHaveBeenCalledWith(expect.objectContaining({
+      url: expect.stringContaining("/compat-download?token="),
+    }));
+    handlers.begin?.({ expectedBytes: 5000, headers: {} });
+    handlers.done?.({ id: "ep1" });
+    await pending;
+    const entry = lastIndexWritten().find((i) => i.mediaItemId === "ep1");
+    expect(entry!.audioCodecs).toEqual(["aac"]);
+  });
+
+  it("keeps the raw path when the detail fetch fails", async () => {
+    getMediaItemMock.mockRejectedValue(new Error("offline"));
+    const pending = startDownload("ep2", "Episode 2", undefined, { formatHint: "matroska" });
+    const handlers = await waitForTask("ep2");
+    expect(createDownloadTaskMock).toHaveBeenCalledWith(expect.objectContaining({
+      url: "https://evey.test/api/v1/media/ep2/download?token=stream-tok-123",
+    }));
+    handlers.done?.({ id: "ep2" });
+    await pending;
+  });
+
+  it("records the detail's codecs even when they are renderable (raw path)", async () => {
+    getMediaItemMock.mockResolvedValue({
+      id: "ep3",
+      streams: [{ type: "MEDIA_STREAM_TYPE_AUDIO", codec: "aac" }],
+    });
+    const pending = startDownload("ep3", "Episode 3", undefined, { formatHint: "matroska" });
+    const handlers = await waitForTask("ep3");
+    const urls = eveyFetchMock.mock.calls.map((c) => (c[0] as { url: string }).url);
+    expect(urls.some((u) => u.includes("compat-download"))).toBe(false);
+    handlers.done?.({ id: "ep3" });
+    await pending;
+    const entry = lastIndexWritten().find((i) => i.mediaItemId === "ep3");
+    expect(entry!.audioCodecs).toEqual(["aac"]);
+  });
+
+  it("explicit caller codecs never trigger the detail fetch", async () => {
+    const pending = startDownload("cp8", "AAC Film", undefined, { audioCodecs: ["aac"] });
+    const handlers = await waitForTask("cp8");
+    expect(getMediaItemMock).not.toHaveBeenCalled();
+    handlers.done?.({ id: "cp8" });
+    await pending;
+  });
+
+  it("a music download never fetches the detail", async () => {
+    const pending = startDownload("tr1", "Track", undefined, { kind: "audio" });
+    const handlers = await waitForTask("tr1");
+    expect(getMediaItemMock).not.toHaveBeenCalled();
+    handlers.done?.({ id: "tr1" });
+    await pending;
+  });
+});

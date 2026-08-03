@@ -520,6 +520,37 @@ export async function updateDownloadedAudio(
   await writeIndex(index);
 }
 
+// Audio codecs of the source file, from the one endpoint that hydrates
+// streams. List-fed callers (episode rows) have none to give - ListMediaItems
+// returns streams empty, and treating that gap as "renderable" is how an
+// eac3-only episode reached the disk raw and played silent.
+async function fetchSourceAudioCodecs(mediaItemId: string): Promise<string[] | undefined> {
+  try {
+    const item = (await libraryServiceGetMediaItem(mediaItemId)) as {
+      streams?: { type?: string; codec?: string }[];
+    };
+    const codecs = (item?.streams ?? [])
+      .filter((s) => s.type === "MEDIA_STREAM_TYPE_AUDIO" && s.codec)
+      .map((s) => s.codec as string);
+    return codecs.length > 0 ? codecs : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Same lookup for an entry already on disk (the boot sweep's self-heal), with
+ * the answer persisted so the player and later sweeps stop asking. Undefined
+ * when the server is unreachable or has no stream info - retryable, never
+ * recorded.
+ */
+export async function refreshDownloadedAudioCodecs(mediaItemId: string): Promise<string[] | undefined> {
+  const codecs = await fetchSourceAudioCodecs(mediaItemId);
+  if (!codecs) return undefined;
+  await updateDownloadedAudio(mediaItemId, { audioCodecs: codecs });
+  return codecs;
+}
+
 /**
  * Free space kept in reserve beyond the file itself. A device driven to zero
  * bytes free fails in ways that have nothing to do with this app.
@@ -686,6 +717,9 @@ export async function startDownload(
   inFlightTitles.set(mediaItemId, title);
 
   let audioCodecs = opts?.audioCodecs;
+  if (kind === "video" && !audioCodecs?.length) {
+    audioCodecs = await fetchSourceAudioCodecs(mediaItemId);
+  }
   const deviceAudio = getDeviceAudioCodecs();
   // Decided at start (audioCodecs came with the item, the device probe is
   // sync): will this file need the post-download audio pass? Videos only -

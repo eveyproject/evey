@@ -57,6 +57,7 @@ const dl = vi.hoisted(() => ({
   needsAudioCompatPass: vi.fn(() => true),
   toFileUri: (p: string) => (p.startsWith("file://") ? p : `file://${p}`),
   updateDownloadedAudio: vi.fn(async (): Promise<void> => undefined),
+  refreshDownloadedAudioCodecs: vi.fn(async (): Promise<string[] | undefined> => undefined),
 }));
 vi.mock("./downloads", () => dl);
 
@@ -90,6 +91,7 @@ beforeEach(() => {
   dl.getDownloadedMedia.mockResolvedValue(entry());
   dl.needsAudioCompatPass.mockReturnValue(true);
   dl.getDownloads.mockResolvedValue([]);
+  dl.refreshDownloadedAudioCodecs.mockResolvedValue(undefined);
   oa.isOfflineAudioAvailable.mockResolvedValue(true);
   oa.optimizeAudio.mockResolvedValue({
     sampleRate: 48000,
@@ -234,6 +236,46 @@ describe("runAudioCompatPass skips", () => {
   });
 });
 
+
+// An entry without recorded codecs (list-fed episode, legacy download) used to
+// read as "renderable" and skip forever - the exact silent-file case the pass
+// exists to remove. The truth now comes from the server once, then the normal
+// policy applies; unreachable stays retryable at the next sweep.
+describe("unknown codecs", () => {
+  it("asks the server for the codecs, then runs the pass on their answer", async () => {
+    dl.getDownloadedMedia.mockResolvedValue(entry({ audioCodecs: undefined }));
+    dl.refreshDownloadedAudioCodecs.mockResolvedValue(["eac3"]);
+    oa.optimizeAudio.mockResolvedValue({
+      sampleRate: 48000,
+      sourceCodec: "eac3",
+      sourceChannels: 6,
+      aacFrames: 100,
+      skippedFrames: 0,
+    });
+    const result = await runAudioCompatPass("m1");
+    expect(result).toBe("done");
+    expect(dl.refreshDownloadedAudioCodecs).toHaveBeenCalledWith("m1");
+    expect(dl.needsAudioCompatPass).toHaveBeenCalledWith(
+      expect.objectContaining({ audioCodecs: ["eac3"] }),
+      expect.anything(),
+    );
+    expect(dl.updateDownloadedAudio).toHaveBeenCalledWith("m1", expect.objectContaining({ audioCodecs: ["aac"] }));
+  });
+
+  it("stays retryable when the server has no answer", async () => {
+    dl.getDownloadedMedia.mockResolvedValue(entry({ audioCodecs: undefined }));
+    dl.refreshDownloadedAudioCodecs.mockResolvedValue(undefined);
+    const result = await runAudioCompatPass("m1");
+    expect(result).toBe("skipped");
+    expect(oa.optimizeAudio).not.toHaveBeenCalled();
+    expect(dl.updateDownloadedAudio).not.toHaveBeenCalled();
+  });
+
+  it("known codecs never hit the network", async () => {
+    await runAudioCompatPass("m1");
+    expect(dl.refreshDownloadedAudioCodecs).not.toHaveBeenCalled();
+  });
+});
 
 describe("serialization", () => {
   it("runs passes one at a time, in call order", async () => {

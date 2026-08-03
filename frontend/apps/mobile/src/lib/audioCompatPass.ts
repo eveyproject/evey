@@ -30,6 +30,7 @@ import { getDeviceAudioCodecs } from "./deviceCodecs";
 import {
   getDownloadedMedia,
   needsAudioCompatPass,
+  refreshDownloadedAudioCodecs,
   toFileUri,
   updateDownloadedAudio,
   getDownloads,
@@ -112,9 +113,17 @@ function skip(mediaItemId: string, reason: string): "skipped" {
 }
 
 async function runPassNow(mediaItemId: string): Promise<AudioPassResult> {
-  const entry = await getDownloadedMedia(mediaItemId);
+  let entry = await getDownloadedMedia(mediaItemId);
   if (!entry) return skip(mediaItemId, "not in index");
   if (entry.audioPassFailed) return skip(mediaItemId, `terminal failure recorded: ${entry.audioPassFailed}`);
+  if ((entry.audioCodecs ?? []).length === 0) {
+    // No recorded codecs is a metadata gap, not a verdict - reading it as
+    // "renderable" is how a silent episode stayed silent. One server lookup
+    // settles it; unreachable leaves the entry for the next sweep.
+    const codecs = await refreshDownloadedAudioCodecs(mediaItemId);
+    if (!codecs) return skip(mediaItemId, "codecs unknown and the server has no answer");
+    entry = { ...entry, audioCodecs: codecs };
+  }
   const device = getDeviceAudioCodecs();
   if (!needsAudioCompatPass(entry, device)) {
     return skip(mediaItemId, `audio renderable (file=${(entry.audioCodecs ?? []).join(",") || "unknown"} device=${device.join(",")})`);
