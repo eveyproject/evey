@@ -47,6 +47,9 @@ favorites:
   bulkFailed: "切换收藏失败"
   yearOldest: 年份（最早）
 collections:
+  removeItem: "从该合集中移除"
+  removeItemConfirm: "要将 {{title}} 从该合集中移除吗？影片本身不会被删除。"
+  itemRemoved: "已从合集中移除"
   download: "下载合集"
   title: 合集
   newSmartCollection: 新建智能合集

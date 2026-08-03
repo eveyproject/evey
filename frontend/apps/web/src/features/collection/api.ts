@@ -7,6 +7,7 @@ import {
   collectionServiceUpdateCollection,
   collectionServiceDeleteCollection,
   collectionServiceAddCollectionItem,
+  collectionServiceRemoveCollectionItem,
   getCollectionServiceListCollectionsQueryKey,
   getCollectionServiceGetCollectionQueryKey,
   getCollectionServiceGetCollectionItemsQueryKey,
@@ -169,3 +170,19 @@ export function addCollectionItem(collectionId: string, mediaItemId: string) {
   return collectionServiceAddCollectionItem(collectionId, { mediaItemId, sortOrder: 0 });
 }
 
+
+/**
+ * Removes one title from a collection. Adding shipped without this for a long
+ * time, so a wrong member was permanent and curation was write-only.
+ */
+export function useRemoveCollectionItem(collectionId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (mediaItemId: string) => collectionServiceRemoveCollectionItem(collectionId, mediaItemId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: getCollectionServiceGetCollectionItemsQueryKey(collectionId) });
+      qc.invalidateQueries({ queryKey: getCollectionServiceGetCollectionQueryKey(collectionId) });
+      qc.invalidateQueries({ queryKey: getCollectionServiceListCollectionsQueryKey() });
+    },
+  });
+}

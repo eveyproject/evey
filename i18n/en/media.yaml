@@ -47,6 +47,9 @@ favorites:
   bulkFailed: "Failed to toggle favorites"
   yearOldest: Year (oldest)
 collections:
+  removeItem: "Remove from this collection"
+  removeItemConfirm: "Remove {{title}} from this collection? The title itself is not deleted."
+  itemRemoved: "Removed from the collection"
   title: Collections
   download: Download collection
   newSmartCollection: New smart collection

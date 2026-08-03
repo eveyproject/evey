@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { Folder, Download } from "lucide-react";
+import { Folder, Download, X } from "lucide-react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useAuthStore, toast } from "@evey/store";
 import { startTokenDownload } from "@/utils/downloadToken";
-import { useCollection, useDeleteCollection } from "@/features/collection/api";
+import { useCollection, useDeleteCollection, useRemoveCollectionItem } from "@/features/collection/api";
 import { MediaGrid } from "@/features/library/MediaGrid";
 import { MediaCardWithModals as MediaCard } from "@/features/library/MediaCardWithModals";
 import { Button } from "@/components/ui/Button";
@@ -25,6 +25,8 @@ function CollectionDetailPage() {
   const deleteMut = useDeleteCollection();
   const navigate = Route.useNavigate();
   const accessToken = useAuthStore((s) => s.accessToken);
+  const isAdmin = useAuthStore((s) => s.isAdmin);
+  const removeItem = useRemoveCollectionItem(collectionId);
 
   const col = data?.collection;
   const items = data?.items ?? [];
@@ -133,7 +135,28 @@ function CollectionDetailPage() {
         <>
           <MediaGrid>
             {items.map((item) => (
-              <MediaCard key={item.id} item={item} lite />
+              <div key={item.id} className="relative group">
+                <MediaCard item={item} lite />
+                {isAdmin && (
+                  <button
+                    type="button"
+                    aria-label={t("media.collections.removeItem")}
+                    title={t("media.collections.removeItem")}
+                    data-testid={`collection-remove-${item.id}`}
+                    disabled={removeItem.isPending}
+                    onClick={() => {
+                      if (!confirm(t("media.collections.removeItemConfirm", { title: item.title }))) return;
+                      removeItem.mutate(item.id, {
+                        onSuccess: () => toast.success(t("media.collections.itemRemoved")),
+                        onError: () => toast.error(t("common.error")),
+                      });
+                    }}
+                    className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity rounded-[var(--radius-md)] bg-[var(--surface)] text-[var(--text-muted)] hover:text-[var(--danger)] p-1 cursor-pointer"
+                  >
+                    <X size={16} />
+                  </button>
+                )}
+              </div>
             ))}
           </MediaGrid>
           {totalPages > 1 && (

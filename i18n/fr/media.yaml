@@ -47,6 +47,9 @@ favorites:
   bulkFailed: "Échec de mise à jour des favoris"
   yearOldest: Année (anciennes)
 collections:
+  removeItem: "Retirer de cette collection"
+  removeItemConfirm: "Retirer {{title}} de cette collection ? Le titre lui-même n'est pas supprimé."
+  itemRemoved: "Retiré de la collection"
   title: Collections
   download: Télécharger la collection
   newSmartCollection: Nouvelle collection intelligente

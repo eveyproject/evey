@@ -47,6 +47,9 @@ favorites:
   bulkFailed: "Favoriten konnten nicht umgeschaltet werden"
   yearOldest: Jahr (älteste)
 collections:
+  removeItem: "Aus dieser Sammlung entfernen"
+  removeItemConfirm: "{{title}} aus dieser Sammlung entfernen? Der Titel selbst wird nicht gelöscht."
+  itemRemoved: "Aus der Sammlung entfernt"
   title: Sammlungen
   download: Sammlung herunterladen
   newSmartCollection: Neue Smart-Sammlung

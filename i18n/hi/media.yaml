@@ -47,6 +47,9 @@ favorites:
   bulkFailed: "पसंदीदा टॉगल करने में विफल"
   yearOldest: वर्ष (पुराने)
 collections:
+  removeItem: "इस संग्रह से हटाएँ"
+  removeItemConfirm: "क्या {{title}} को इस संग्रह से हटाना है? शीर्षक स्वयं नहीं मिटेगा।"
+  itemRemoved: "संग्रह से हटाया गया"
   download: "संग्रह डाउनलोड करें"
   title: संग्रह
   newSmartCollection: नया स्मार्ट संग्रह

@@ -47,6 +47,9 @@ favorites:
   bulkFailed: "Error al alternar favoritos"
   yearOldest: Año (más antiguos)
 collections:
+  removeItem: "Quitar de esta colección"
+  removeItemConfirm: "¿Quitar {{title}} de esta colección? El título en sí no se elimina."
+  itemRemoved: "Quitado de la colección"
   title: Colecciones
   download: Descargar colección
   newSmartCollection: Nueva colección inteligente
