@@ -265,16 +265,17 @@ export default function CollectionDetailScreen() {
           title: col?.name ?? t("media.collections.title"),
           headerStyle: { backgroundColor: theme.colors.surface },
           headerTintColor: theme.colors.text,
-          headerRight: () => (
-            <View style={{ flexDirection: "row", gap: 12, marginRight: 8 }}>
-              <TouchableOpacity onPress={() => setEditVisible(true)}>
-                <Ionicons name="pencil-outline" size={22} color={theme.colors.text} />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={confirmDelete}>
-                <Ionicons name="trash-outline" size={22} color={theme.colors.danger} />
-              </TouchableOpacity>
-            </View>
-          ),
+          headerRight: () =>
+            isAdmin ? (
+              <View style={{ flexDirection: "row", gap: 12, marginRight: 8 }}>
+                <TouchableOpacity onPress={() => setEditVisible(true)} testID="collection-edit-button">
+                  <Ionicons name="pencil-outline" size={22} color={theme.colors.text} />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={confirmDelete} testID="collection-delete-button">
+                  <Ionicons name="trash-outline" size={22} color={theme.colors.danger} />
+                </TouchableOpacity>
+              </View>
+            ) : null,
         }}
       />
       {isError ? (

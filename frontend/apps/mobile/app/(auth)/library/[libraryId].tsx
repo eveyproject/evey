@@ -191,6 +191,7 @@ export default function LibraryDetailScreen() {
   const [bulkMode, setBulkMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const profileId = useAuthStore((s) => s.profileId) ?? "";
+  const isAdmin = useAuthStore((s) => s.isAdmin);
 
   const markWatched = usePlaybackServiceMarkAsWatched({ mutation: { onSuccess: () => toast.success(t("media.library.markedWatched", "Marked watched")) } });
   const markUnwatched = usePlaybackServiceMarkAsUnwatched({ mutation: { onSuccess: () => toast.success(t("media.library.markedUnwatched", "Marked unwatched")) } });
@@ -1091,10 +1092,12 @@ export default function LibraryDetailScreen() {
               <Ionicons name="add-circle-outline" size={20} color={theme.colors.accent} />
               <Text style={{ color: theme.colors.text, fontSize: 11 }}>{t("media.detail.addToPlaylist", "Playlist")}</Text>
             </Pressable>
-            <Pressable onPress={() => setShowBulkCollection(true)} style={styles.bulkBtn} accessible accessibilityLabel={t("media.library.addToCollection", "Add to collection")} accessibilityRole="button">
-              <Ionicons name="albums-outline" size={20} color={theme.colors.accent} />
-              <Text style={{ color: theme.colors.text, fontSize: 11 }}>{t("media.library.addToCollection", "Add to collection")}</Text>
-            </Pressable>
+            {isAdmin && (
+              <Pressable onPress={() => setShowBulkCollection(true)} style={styles.bulkBtn} accessible accessibilityLabel={t("media.library.addToCollection", "Add to collection")} accessibilityRole="button">
+                <Ionicons name="albums-outline" size={20} color={theme.colors.accent} />
+                <Text style={{ color: theme.colors.text, fontSize: 11 }}>{t("media.library.addToCollection", "Add to collection")}</Text>
+              </Pressable>
+            )}
             <Pressable onPress={exitBulk} style={styles.bulkBtn} accessible accessibilityLabel={t("common.cancel")} accessibilityRole="button">
               <Ionicons name="close" size={20} color={theme.colors.error} />
               <Text style={{ color: theme.colors.text, fontSize: 11 }}>{t("common.cancel")}</Text>

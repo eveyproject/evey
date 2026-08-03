@@ -96,8 +96,11 @@ vi.mock("@evey/api", () => ({
   usePlaybackServiceMarkAsUnwatched: () => ({ mutateAsync: markUnwatchedMock, isPending: false }),
 }));
 
+// Shape copied from packages/store/src/auth.ts: `isAdmin` is a plain boolean
+// field on the store state, read through the selector like the screen does.
+const { isAdminRef } = vi.hoisted(() => ({ isAdminRef: { current: true } }));
 vi.mock("@evey/store", () => ({
-  useAuthStore: (selector: (s: any) => unknown) => selector({ profileId: "profile-1" }),
+  useAuthStore: (selector: (s: any) => unknown) => selector({ profileId: "profile-1", isAdmin: isAdminRef.current }),
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
 }));
 
@@ -138,6 +141,7 @@ function selectFirstItem() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  isAdminRef.current = true;
 });
 
 describe("FavoritesScreen bulk actions", () => {
@@ -171,5 +175,19 @@ describe("FavoritesScreen bulk actions", () => {
     expect(collectionSheetProps).toHaveBeenLastCalledWith(
       expect.objectContaining({ visible: true, mediaItemIds: ["mi-1"] }),
     );
+  });
+});
+
+// AddCollectionItem RPC requires RoleAdmin server-side (interceptors/rbac.go).
+describe("FavoritesScreen bulk 'add to collection' admin gating", () => {
+  it("hides only the 'add to collection' button for a non-admin, keeping the rest of the bar", () => {
+    isAdminRef.current = false;
+    render(<FavoritesScreen />);
+    selectFirstItem();
+
+    expect(screen.queryByLabelText("Add to collection")).toBeNull();
+    expect(screen.getByLabelText("Mark watched")).toBeTruthy();
+    expect(screen.getByLabelText("Mark unwatched")).toBeTruthy();
+    expect(screen.getByLabelText("Playlist")).toBeTruthy();
   });
 });

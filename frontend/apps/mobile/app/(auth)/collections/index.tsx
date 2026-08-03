@@ -17,6 +17,7 @@ import { Image } from "expo-image";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Stack, useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
+import { useAuthStore } from "@evey/store";
 import { Skeleton } from "../../../src/components/Skeleton";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import {
@@ -62,7 +63,7 @@ function CollectionCard({
   col: Collection;
   theme: ReturnType<typeof useTheme>;
   onPress: () => void;
-  onLongPress: () => void;
+  onLongPress?: () => void;
 }) {
   const { t } = useTranslation();
   const initial = col.name?.[0]?.toUpperCase() ?? "?";
@@ -223,6 +224,7 @@ export default function CollectionsScreen() {
   const router = useRouter();
   const { data, isLoading, refetch } = useCollections();
   const deleteMut = useDeleteCollection();
+  const isAdmin = useAuthStore((s) => s.isAdmin);
   const [createVisible, setCreateVisible] = useState(false);
 
   const collections = data?.collections ?? [];
@@ -250,11 +252,12 @@ export default function CollectionsScreen() {
           title: t("media.collections.title"),
           headerStyle: { backgroundColor: theme.colors.surface },
           headerTintColor: theme.colors.text,
-          headerRight: () => (
-            <TouchableOpacity onPress={() => setCreateVisible(true)} style={{ marginRight: 8 }}>
-              <Ionicons name="add-circle-outline" size={26} color={theme.colors.accent} />
-            </TouchableOpacity>
-          ),
+          headerRight: () =>
+            isAdmin ? (
+              <TouchableOpacity onPress={() => setCreateVisible(true)} style={{ marginRight: 8 }}>
+                <Ionicons name="add-circle-outline" size={26} color={theme.colors.accent} />
+              </TouchableOpacity>
+            ) : null,
         }}
       />
       {isLoading ? (
@@ -285,7 +288,7 @@ export default function CollectionsScreen() {
                   router.push(`/collections/${item.id}`);
                 }
               }}
-              onLongPress={() => confirmDelete(item)}
+              onLongPress={isAdmin ? () => confirmDelete(item) : undefined}
             />
           )}
           ListEmptyComponent={
