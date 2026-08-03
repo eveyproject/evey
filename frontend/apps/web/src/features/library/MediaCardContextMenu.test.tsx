@@ -19,6 +19,7 @@ let unwatchedOnError: (() => void) | undefined;
 
 let mockIsFav = false;
 let mockProfileId: string | null = "prof-1";
+let mockIsAdmin = true;
 
 // ── Module mocks ──────────────────────────────────────────────────────────────
 
@@ -53,8 +54,8 @@ vi.mock("@evey/api", () => ({
 
 vi.mock("@evey/store", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
-  useAuthStore: (fn: (s: { profileId: string | null }) => unknown) =>
-    fn({ profileId: mockProfileId }),
+  useAuthStore: (fn: (s: { profileId: string | null; isAdmin: boolean }) => unknown) =>
+    fn({ profileId: mockProfileId, isAdmin: mockIsAdmin }),
 }));
 
 vi.mock("@/hooks/useFavorite", () => ({
@@ -102,6 +103,7 @@ describe("CardContextMenu", () => {
     vi.clearAllMocks();
     mockIsFav = false;
     mockProfileId = "prof-1";
+    mockIsAdmin = true;
     watchedOnSuccess = undefined;
     watchedOnError = undefined;
     unwatchedOnSuccess = undefined;
@@ -128,6 +130,16 @@ describe("CardContextMenu", () => {
   it("renders the add-to-collection item", () => {
     renderMenu({});
     expect(screen.getByTestId("media-context-menu-add-to-collection")).toBeInTheDocument();
+  });
+
+  it("hides the two admin-only items from a viewer, keeping the rest", () => {
+    mockIsAdmin = false;
+    renderMenu({});
+    expect(screen.queryByTestId("media-context-menu-edit-metadata")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("media-context-menu-add-to-collection")).not.toBeInTheDocument();
+    expect(screen.getByTestId("media-context-menu-add-to-playlist")).toBeInTheDocument();
+    expect(screen.getByTestId("media-context-menu-mark-watched")).toBeInTheDocument();
+    expect(screen.getByTestId("media-context-menu-add-to-favorites")).toBeInTheDocument();
   });
 
   it("renders the mark-watched item", () => {

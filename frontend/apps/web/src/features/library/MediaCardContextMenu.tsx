@@ -27,6 +27,7 @@ export const CardContextMenu = memo(function CardContextMenu({
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const profileId = useAuthStore((s) => s.profileId);
+  const isAdmin = useAuthStore((s) => s.isAdmin);
   const { data: isFav } = useIsFavorite(mediaId);
   const toggleFav = useToggleFavorite(mediaId);
   // Mirror MediaCard.invalidateItem: marking watched from the card's dedicated
@@ -71,15 +72,23 @@ export const CardContextMenu = memo(function CardContextMenu({
     return () => document.removeEventListener("mousedown", handler);
   }, [onClose]);
 
+  // Both the editor (mounted behind isAdmin in MediaDetailActions) and
+  // AddCollectionItem (RoleAdmin) are out of reach for a viewer: offering them
+  // led either to a page with no editor or to a picker whose every choice
+  // failed. Same gate as the surfaces they lead to.
   const items = [
-    {
-      key: "edit-metadata",
-      label: t("media.contextMenu.editMetadata"),
-      onClick: () => {
-        navigate({ to: "/media/$mediaId", params: { mediaId }, search: { edit: true } as never });
-        onClose();
-      },
-    },
+    ...(isAdmin
+      ? [
+          {
+            key: "edit-metadata",
+            label: t("media.contextMenu.editMetadata"),
+            onClick: () => {
+              navigate({ to: "/media/$mediaId", params: { mediaId }, search: { edit: true } as never });
+              onClose();
+            },
+          },
+        ]
+      : []),
     {
       key: "add-to-playlist",
       label: t("media.contextMenu.addToPlaylist"),
@@ -88,14 +97,18 @@ export const CardContextMenu = memo(function CardContextMenu({
         onAddToPlaylist();
       },
     },
-    {
-      key: "add-to-collection",
-      label: t("media.contextMenu.addToCollection"),
-      onClick: () => {
-        onClose();
-        onAddToCollection();
-      },
-    },
+    ...(isAdmin
+      ? [
+          {
+            key: "add-to-collection",
+            label: t("media.contextMenu.addToCollection"),
+            onClick: () => {
+              onClose();
+              onAddToCollection();
+            },
+          },
+        ]
+      : []),
     {
       key: isFav ? "remove-from-favorites" : "add-to-favorites",
       label: isFav ? t("media.contextMenu.removeFromFavorites") : t("media.contextMenu.addToFavorites"),
