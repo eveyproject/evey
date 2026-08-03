@@ -60,6 +60,7 @@ export default function FavoritesScreen() {
   const [bulkMode, setBulkMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const profileId = useAuthStore((s) => s.profileId) ?? "";
+  const isAdmin = useAuthStore((s) => s.isAdmin);
   const [showBulkPlaylist, setShowBulkPlaylist] = useState(false);
   const [showBulkCollection, setShowBulkCollection] = useState(false);
 
@@ -342,9 +343,11 @@ export default function FavoritesScreen() {
             <Pressable onPress={() => setShowBulkPlaylist(true)} style={styles.bulkBtn} accessible={true} accessibilityLabel={t("media.detail.addToPlaylist", "Playlist")} accessibilityRole="button">
               <Ionicons name="add-circle-outline" size={20} color={theme.colors.accent} />
             </Pressable>
-            <Pressable onPress={() => setShowBulkCollection(true)} style={styles.bulkBtn} accessible={true} accessibilityLabel={t("media.library.addToCollection", "Add to collection")} accessibilityRole="button">
-              <Ionicons name="albums-outline" size={20} color={theme.colors.accent} />
-            </Pressable>
+            {isAdmin && (
+              <Pressable onPress={() => setShowBulkCollection(true)} style={styles.bulkBtn} accessible={true} accessibilityLabel={t("media.library.addToCollection", "Add to collection")} accessibilityRole="button">
+                <Ionicons name="albums-outline" size={20} color={theme.colors.accent} />
+              </Pressable>
+            )}
             <Pressable onPress={exitBulk} style={styles.bulkBtn} accessible={true} accessibilityLabel={t("common.cancel")} accessibilityRole="button">
               <Ionicons name="close" size={20} color={theme.colors.error} />
             </Pressable>

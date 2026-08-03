@@ -83,7 +83,12 @@ const { pushMock, backMock, COLLECTION_ID } = vi.hoisted(() => ({
 vi.mock("expo-router", () => ({
   useLocalSearchParams: () => ({ id: COLLECTION_ID }),
   useRouter: () => ({ push: pushMock, back: backMock }),
-  Stack: { Screen: () => null },
+  Stack: {
+    // headerRight is invoked so the edit/delete header controls are reachable
+    // from the test, matching how the native header renders them.
+    Screen: ({ options }: any) =>
+      React.createElement("div", { "data-testid": "stack-screen" }, options?.headerRight?.()),
+  },
 }));
 
 // --- ThemeProvider -------------------------------------------------------------------
@@ -200,5 +205,25 @@ describe("CollectionDetailScreen item removal", () => {
     // masking the missing guard) so the "absent" assertions above are meaningful.
     expect(screen.getByText("Dr. No")).toBeTruthy();
     expect(screen.getByText("GoldenEye")).toBeTruthy();
+  });
+});
+
+// UpdateCollection/DeleteCollection RPCs require RoleAdmin server-side
+// (interceptors/rbac.go); the header edit/delete controls must follow the
+// same admin-only convention as item removal above, not just error on tap.
+describe("CollectionDetailScreen header edit/delete controls", () => {
+  it("shows the edit and delete controls for an admin", () => {
+    renderScreen();
+
+    expect(screen.getByTestId("collection-edit-button")).toBeTruthy();
+    expect(screen.getByTestId("collection-delete-button")).toBeTruthy();
+  });
+
+  it("hides the edit and delete controls entirely for a non-admin", () => {
+    isAdminRef.current = false;
+    renderScreen();
+
+    expect(screen.queryByTestId("collection-edit-button")).toBeNull();
+    expect(screen.queryByTestId("collection-delete-button")).toBeNull();
   });
 });
