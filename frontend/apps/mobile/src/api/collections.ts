@@ -122,3 +122,18 @@ export function useDeleteCollection() {
     onError: () => toast.error(i18n.t("media.collections.deleteFailed")),
   });
 }
+
+/** Admin-only (RBAC RoleAdmin server-side); does not delete the title itself. */
+export function useRemoveCollectionItem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, mediaItemId }: { id: string; mediaItemId: string }) =>
+      eveyFetch<void>({ url: `/api/v1/collections/${id}/items/${mediaItemId}`, method: "DELETE" }),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ["collections"] });
+      qc.invalidateQueries({ queryKey: ["collection", vars.id] });
+      toast.success(i18n.t("media.collections.itemRemoved"));
+    },
+    onError: () => toast.error(i18n.t("common.error")),
+  });
+}

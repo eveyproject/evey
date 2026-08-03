@@ -18,6 +18,7 @@ import { Image } from "expo-image";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
+import { useAuthStore } from "@evey/store";
 import { Skeleton } from "../../../src/components/Skeleton";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
@@ -26,6 +27,7 @@ import {
   useCollection,
   useUpdateCollection,
   useDeleteCollection,
+  useRemoveCollectionItem,
   type CollectionItem,
 } from "../../../src/api/collections";
 import { artworkUrl } from "../../../src/lib/artwork";
@@ -145,6 +147,8 @@ export default function CollectionDetailScreen() {
 
   const { data, isLoading, isError, refetch } = useCollection(id ?? "");
   const deleteMut = useDeleteCollection();
+  const removeItemMut = useRemoveCollectionItem();
+  const isAdmin = useAuthStore((s) => s.isAdmin);
   const col = data?.collection;
   const items = data?.items ?? [];
 
@@ -172,46 +176,85 @@ export default function CollectionDetailScreen() {
     );
   }
 
+  const confirmRemoveItem = useCallback(
+    (item: CollectionItem) => {
+      Alert.alert(
+        t("media.collections.removeItem"),
+        t("media.collections.removeItemConfirm", { title: item.title }),
+        [
+          { text: t("common.cancel"), style: "cancel" },
+          {
+            text: t("media.collections.removeItem"),
+            style: "destructive",
+            onPress: async () => {
+              try {
+                await removeItemMut.mutateAsync({ id: id ?? "", mediaItemId: item.id });
+                refetch();
+              } catch {
+                // toast already surfaced by the mutation hook
+              }
+            },
+          },
+        ],
+      );
+    },
+    [t, removeItemMut, id, refetch],
+  );
+
   const renderItem = useCallback(
     ({ item }: { item: CollectionItem }) => {
       const poster = serverUrl && item.id ? artworkUrl(serverUrl, item.id, "poster", 240) : undefined;
       return (
-        <TouchableOpacity
-          style={[styles.gridItem, { width: ITEM_WIDTH, marginLeft: SPACING, marginBottom: SPACING }]}
-          activeOpacity={0.7}
-          onPress={() => router.push(`/media/${item.id}`)}
-        >
-          {poster ? (
-            <Image
-              source={{ uri: poster, headers: authHeaders }}
-              style={{ width: ITEM_WIDTH, height: POSTER_HEIGHT, borderRadius: theme.radii.sm }}
-              contentFit="cover"
-              transition={200}
-            />
-          ) : (
-            <View
-              style={{
-                width: ITEM_WIDTH,
-                height: POSTER_HEIGHT,
-                borderRadius: theme.radii.sm,
-                backgroundColor: theme.colors.surfaceRaised,
-                justifyContent: "center",
-                alignItems: "center",
-              }}
-            >
-              <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>{t("common.noPoster")}</Text>
-            </View>
-          )}
-          <Text
-            style={[styles.title, { color: theme.colors.text }]}
-            numberOfLines={2}
+        <View style={{ width: ITEM_WIDTH, marginLeft: SPACING, marginBottom: SPACING }}>
+          <TouchableOpacity
+            style={styles.gridItem}
+            activeOpacity={0.7}
+            onPress={() => router.push(`/media/${item.id}`)}
           >
-            {item.title}
-          </Text>
-        </TouchableOpacity>
+            {poster ? (
+              <Image
+                source={{ uri: poster, headers: authHeaders }}
+                style={{ width: ITEM_WIDTH, height: POSTER_HEIGHT, borderRadius: theme.radii.sm }}
+                contentFit="cover"
+                transition={200}
+              />
+            ) : (
+              <View
+                style={{
+                  width: ITEM_WIDTH,
+                  height: POSTER_HEIGHT,
+                  borderRadius: theme.radii.sm,
+                  backgroundColor: theme.colors.surfaceRaised,
+                  justifyContent: "center",
+                  alignItems: "center",
+                }}
+              >
+                <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>{t("common.noPoster")}</Text>
+              </View>
+            )}
+            <Text
+              style={[styles.title, { color: theme.colors.text }]}
+              numberOfLines={2}
+            >
+              {item.title}
+            </Text>
+          </TouchableOpacity>
+          {isAdmin && (
+            <Pressable
+              onPress={() => confirmRemoveItem(item)}
+              hitSlop={8}
+              style={[styles.removeBtn, { backgroundColor: theme.colors.surface }]}
+              accessibilityRole="button"
+              accessibilityLabel={t("media.collections.removeItem")}
+              testID={`collection-remove-${item.id}`}
+            >
+              <Ionicons name="close-circle" size={20} color={theme.colors.danger} />
+            </Pressable>
+          )}
+        </View>
       );
     },
-    [theme, router, serverUrl, authHeaders, t],
+    [theme, router, serverUrl, authHeaders, t, isAdmin, confirmRemoveItem],
   );
 
   return (
@@ -290,6 +333,7 @@ const styles = StyleSheet.create({
   skeletonGrid: { flexDirection: "row", flexWrap: "wrap", paddingTop: SPACING },
   gridItem: { alignItems: "center" },
   title: { fontSize: 12, fontWeight: "500", marginTop: 4, textAlign: "center" },
+  removeBtn: { position: "absolute", top: 4, right: 4, borderRadius: 12 },
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",
