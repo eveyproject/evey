@@ -19,6 +19,18 @@ service AdminMediaService {
   // pool drains them in the background under its existing concurrency
   // and rate-limit caps. Idempotent - re-run to pick up the still-
   // orphaned remainder once any rate limits clear.
+  // Repairs saga membership for movies that belong to no collection: their
+  // sequels are already in the library, but membership is only written while
+  // a title is enriched, so anything enriched before that path existed never
+  // joined its saga. Returns immediately; progress shows up as the
+  // "collection_relink" background task.
+  rpc RelinkCollections(RelinkCollectionsRequest) returns (RelinkCollectionsResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/collections/relink"
+      body: "*"
+    };
+  }
+
   rpc MatchOrphansInLibrary(MatchOrphansInLibraryRequest) returns (MatchOrphansInLibraryResponse) {
     option (google.api.http) = {
       post: "/api/v1/admin/media/match-orphans"
@@ -457,3 +469,12 @@ message DeleteMediaItemRequest {
 }
 
 message DeleteMediaItemResponse {}
+
+message RelinkCollectionsRequest {
+  // Upper bound on titles examined in this sweep. 0 means the server default.
+  int32 limit = 1;
+}
+
+message RelinkCollectionsResponse {
+  bool accepted = 1;
+}

@@ -278,8 +278,21 @@ func (r *CollectionRepository) GetItems(ctx context.Context, collectionID string
 	if limit <= 0 || limit > DefaultListLimit {
 		limit = DefaultListLimit
 	}
+	// Release order is the reading order of a saga and stays the default. A
+	// collection whose sort_by is "manual" is ordered by the hand-set
+	// position instead - the only way to express a chronology that differs
+	// from the release order (prequels), and until now sort_order was written
+	// by LinkItem and read by nobody. The CASE keeps one query for both: on
+	// any other sort_by every row scores 0 and the date decides, exactly as
+	// before.
 	query := fmt.Sprintf(
-		"SELECT %s %s INNER JOIN collection_items ci ON ci.media_item_id = mi.id WHERE ci.collection_id = $1 ORDER BY mc.premiere_date ASC NULLS LAST, mi.id LIMIT %d",
+		`SELECT %s %s
+		 INNER JOIN collection_items ci ON ci.media_item_id = mi.id
+		 INNER JOIN collections c ON c.id = ci.collection_id
+		 WHERE ci.collection_id = $1
+		 ORDER BY CASE WHEN c.sort_by = 'manual' THEN ci.sort_order ELSE 0 END ASC,
+		          mc.premiere_date ASC NULLS LAST, mi.id
+		 LIMIT %d`,
 		mediaItemColumns, mediaItemFromJoins, limit)
 	if offset > 0 {
 		query += fmt.Sprintf(" OFFSET %d", offset)
@@ -305,6 +318,49 @@ func (r *CollectionRepository) GetItems(ctx context.Context, collectionID string
 //
 // No per-collection LIMIT is applied: TMDB franchise collections hold O(10-50)
 // items in practice.
+func (r *CollectionRepository) ListMoviesWithoutCollection(ctx context.Context, limit int) ([]library.UnlinkedMovie, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.collection.ListMoviesWithoutCollection")
+	defer span.End()
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	if limit <= 0 || limit > DefaultListLimit {
+		limit = DefaultListLimit
+	}
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
+		`SELECT mi.id, mc.provider_ids->>'tmdb'
+		 FROM media_items mi
+		 JOIN media_catalog mc ON mc.media_item_id = mi.id
+		 LEFT JOIN collection_items ci ON ci.media_item_id = mi.id
+		 WHERE mi.type = 'movie'
+		   AND ci.media_item_id IS NULL
+		   AND COALESCE(mc.provider_ids->>'tmdb', '') <> ''
+		 ORDER BY mi.id
+		 LIMIT $1`, limit)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []library.UnlinkedMovie
+	for rows.Next() {
+		var m library.UnlinkedMovie
+		if err := rows.Scan(&m.MediaItemID, &m.ProviderID); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return nil, err
+		}
+		out = append(out, m)
+	}
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return out, nil
+}
+
 func (r *CollectionRepository) GetItemsByCollectionIDs(ctx context.Context, collectionIDs []string) (map[string][]*library.MediaItem, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.collection.GetItemsByCollectionIDs")
 	defer span.End()
@@ -591,3 +647,50 @@ func (q *CollectionSmartQuerier) scanItems(rows *sql.Rows) ([]*library.MediaItem
 
 var _ library.CollectionCommandRepo = (*CollectionRepository)(nil)
 var _ library.CollectionQueryRepo = (*CollectionRepository)(nil)
+
+// UnlinkItem removes one member from a collection. Absent membership is not an
+// error: the caller asked for a state, and that state already holds.
+func (r *CollectionRepository) UnlinkItem(ctx context.Context, collectionID, mediaItemID string) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.collection.UnlinkItem")
+	defer span.End()
+	span.SetAttributes(attribute.String("collection.id", collectionID), attribute.String("media_item.id", mediaItemID))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
+		`DELETE FROM collection_items WHERE collection_id = $1 AND media_item_id = $2`,
+		collectionID, mediaItemID)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
+}
+
+// SetItemOrder stamps the hand-set position of the supplied members: position
+// in the slice IS the new sort_order. Members left out keep theirs, so a
+// caller may reorder a page without shipping the whole collection.
+func (r *CollectionRepository) SetItemOrder(ctx context.Context, collectionID string, mediaItemIDs []string) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.collection.SetItemOrder")
+	defer span.End()
+	span.SetAttributes(attribute.String("collection.id", collectionID), attribute.Int("items", len(mediaItemIDs)))
+	if len(mediaItemIDs) == 0 {
+		return nil
+	}
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	// One statement: a per-row UPDATE loop would leave a half-reordered
+	// collection behind if the connection dropped mid-way.
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
+		`UPDATE collection_items ci
+		 SET sort_order = pos.ord
+		 FROM (SELECT unnest($2::text[]) AS media_item_id, generate_subscripts($2::text[], 1) AS ord) pos
+		 WHERE ci.collection_id = $1 AND ci.media_item_id = pos.media_item_id`,
+		collectionID, pq.Array(mediaItemIDs))
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
+}

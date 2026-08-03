@@ -309,7 +309,7 @@ var InternalMethods = map[string]bool{
 	// itself into a full JWT session on a device the key holder controls. That
 	// is privilege escalation, not a user-data write.
 	"/evey.v1.UserService/AuthorizeQuickConnect": true,
-	"/evey.v1.UserService/ResetPassword":        true,
+	"/evey.v1.UserService/ResetPassword":         true,
 
 	// User lifecycle (admin infra)
 	"/evey.v1.UserService/CreateUser":   true,

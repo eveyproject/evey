@@ -52,6 +52,19 @@ service CollectionService {
       body: "*"
     };
   }
+
+  rpc RemoveCollectionItem(RemoveCollectionItemRequest) returns (RemoveCollectionItemResponse) {
+    option (google.api.http) = {
+      delete: "/api/v1/collections/{id}/items/{media_item_id}"
+    };
+  }
+
+  rpc ReorderCollectionItems(ReorderCollectionItemsRequest) returns (ReorderCollectionItemsResponse) {
+    option (google.api.http) = {
+      put: "/api/v1/collections/{id}/items/order"
+      body: "*"
+    };
+  }
 }
 
 message CollectionProto {
@@ -64,8 +77,21 @@ message CollectionProto {
   google.protobuf.Timestamp created_at = 7;
   google.protobuf.Timestamp updated_at = 8;
   repeated CollectionRule rules = 9;
+  // How the members are ordered. "release" (default) reads a saga in release
+  // order; "manual" honours the hand-set position, which is the only way to
+  // express a chronological order that differs from it (prequels).
+  // Also "title", "added_at", "year", "rating".
   string sort_by = 10;
   string sort_order = 11;
+  // Number of members THIS caller can see - already access- and parental-
+  // filtered. A client cannot compute it (it never receives the members of
+  // every collection) and every surface needs it: to say "4 films", and to
+  // tell a real saga from a one-title stub.
+  int32 item_count = 12;
+  // "saga" (sourced from a TMDB collection), "smart" (rule-driven) or
+  // "manual" (hand-built). Lets a client badge them and filter, instead of
+  // inferring it from the presence of tmdb_id.
+  string kind = 13;
 }
 
 message CollectionRule {
@@ -74,7 +100,14 @@ message CollectionRule {
   string value = 3;
 }
 
-message ListCollectionsRequest {}
+message ListCollectionsRequest {
+  // Collections holding fewer than this many VISIBLE members are omitted.
+  // 0 means the server default (2): a saga you own one film of is a film, not
+  // a collection, and 97% of the auto-created TMDB sagas were exactly that -
+  // a wall of one-title entries nobody could use (measured 2026-08-04).
+  // Pass 1 to list everything, which is what curation screens want.
+  int32 min_items = 1;
+}
 
 message ListCollectionsResponse {
   repeated CollectionProto collections = 1;
@@ -136,6 +169,22 @@ message AddCollectionItemRequest {
 }
 
 message AddCollectionItemResponse {}
+
+message RemoveCollectionItemRequest {
+  string id = 1;
+  string media_item_id = 2;
+}
+
+message RemoveCollectionItemResponse {}
+
+message ReorderCollectionItemsRequest {
+  string id = 1;
+  // The members in their new order. Position in this list IS the new
+  // position; any member left out keeps its current one.
+  repeated string media_item_ids = 2;
+}
+
+message ReorderCollectionItemsResponse {}
 
 message CollectionItemProto {
   string id = 1;

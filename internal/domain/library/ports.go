@@ -232,6 +232,12 @@ type CollectionCommandRepo interface {
 	Update(ctx context.Context, col *Collection) error
 	Delete(ctx context.Context, id string) error
 	LinkItem(ctx context.Context, collectionID, mediaItemID string, sortOrder int) error
+	// UnlinkItem removes one member. Absent membership is not an error: the
+	// caller asked for a state, and that state already holds.
+	UnlinkItem(ctx context.Context, collectionID, mediaItemID string) error
+	// SetItemOrder stamps the hand-set position of the supplied members;
+	// position in the slice IS the new order. Members left out keep theirs.
+	SetItemOrder(ctx context.Context, collectionID string, mediaItemIDs []string) error
 }
 
 type CollectionQueryRepo interface {
@@ -243,6 +249,20 @@ type CollectionQueryRepo interface {
 	// single query. Returns a map keyed by collection ID. Empty input returns
 	// an empty map without hitting the database.
 	GetItemsByCollectionIDs(ctx context.Context, collectionIDs []string) (map[string][]*MediaItem, error)
+	// ListMoviesWithoutCollection is the saga-repair work list: movies that
+	// carry a provider id and belong to no collection. Membership is only
+	// written while a title is being enriched, so every movie enriched before
+	// that path existed stayed out of its saga - on the production server the
+	// sequels were sitting right there while the saga listed one title
+	// (measured 2026-08-04). Bounded by limit.
+	ListMoviesWithoutCollection(ctx context.Context, limit int) ([]UnlinkedMovie, error)
+}
+
+// UnlinkedMovie is one entry of the saga-repair work list: the movie, and the
+// provider id its collection can be resolved from.
+type UnlinkedMovie struct {
+	MediaItemID shared.MediaItemID
+	ProviderID  string
 }
 
 type ScannedFile struct {

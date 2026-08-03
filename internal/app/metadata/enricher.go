@@ -23,6 +23,7 @@ import (
 type CollectionLinker interface {
 	Upsert(ctx context.Context, tmdbID int, name, overview, posterURL, backdropURL string) (*domainlib.Collection, error)
 	LinkMediaItem(ctx context.Context, collectionID, mediaItemID string, sortOrder int) error
+	ListMoviesWithoutCollection(ctx context.Context, limit int) ([]domainlib.UnlinkedMovie, error)
 }
 
 // ArtworkPostSaveHook is called for each artwork record immediately after it is

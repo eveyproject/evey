@@ -80,3 +80,15 @@ func (s *Service) CountItems(ctx context.Context, collectionID string) (int, err
 func (s *Service) GetItemsForCollections(ctx context.Context, collectionIDs []string) (map[string][]*library.MediaItem, error) {
 	return s.Query.GetItemsForCollections(ctx, collectionIDs)
 }
+
+func (s *Service) ListMoviesWithoutCollection(ctx context.Context, limit int) ([]library.UnlinkedMovie, error) {
+	return s.Query.ListMoviesWithoutCollection(ctx, limit)
+}
+
+func (s *Service) UnlinkMediaItem(ctx context.Context, collectionID, mediaItemID string) error {
+	return s.Command.UnlinkMediaItem(ctx, collectionID, mediaItemID)
+}
+
+func (s *Service) ReorderItems(ctx context.Context, collectionID string, mediaItemIDs []string) error {
+	return s.Command.ReorderItems(ctx, collectionID, mediaItemIDs)
+}

@@ -144,3 +144,16 @@ func (s *CommandService) Delete(ctx context.Context, id string) error {
 	defer span.End()
 	return s.cmd.Delete(ctx, id)
 }
+
+// UnlinkMediaItem removes one member from a collection.
+func (s *CommandService) UnlinkMediaItem(ctx context.Context, collectionID, mediaItemID string) error {
+	return s.cmd.UnlinkItem(ctx, collectionID, mediaItemID)
+}
+
+// ReorderItems stamps the hand-set order of a collection's members. Ordering
+// only takes effect for a collection whose SortBy is "manual"; the caller is
+// responsible for that choice, so a reorder never silently rewrites how an
+// auto-ordered saga reads.
+func (s *CommandService) ReorderItems(ctx context.Context, collectionID string, mediaItemIDs []string) error {
+	return s.cmd.SetItemOrder(ctx, collectionID, mediaItemIDs)
+}

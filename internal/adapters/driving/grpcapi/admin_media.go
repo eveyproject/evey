@@ -87,6 +87,52 @@ func (d *adminMediaHandler) RefreshAllMetadata(ctx context.Context, req *eveyv1.
 	return &eveyv1.RefreshAllMetadataResponse{}, nil
 }
 
+// defaultRelinkLimit bounds one sweep. Each title costs one provider call, so
+// the bound is what keeps a repair on a large catalogue from monopolising the
+// provider's rate budget; re-run to continue where it stopped (the work list
+// is "movies still in no collection", so progress is naturally durable).
+const defaultRelinkLimit = 500
+
+func (d *adminMediaHandler) RelinkCollections(ctx context.Context, req *eveyv1.RelinkCollectionsRequest) (*eveyv1.RelinkCollectionsResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.admin.RelinkCollections")
+	defer span.End()
+	if d.metadataCmd == nil {
+		span.SetStatus(otelcodes.Error, "service not configured")
+		return nil, d.translator.TranslatedError(ctx, codes.Unimplemented, "errors.admin.service_not_configured")
+	}
+	if !d.acquireHeavyOp() {
+		span.SetStatus(otelcodes.Error, "heavy op running")
+		return nil, d.translator.TranslatedError(ctx, codes.ResourceExhausted, "errors.admin.heavy_op_running")
+	}
+	limit := int(req.GetLimit())
+	if limit <= 0 {
+		limit = defaultRelinkLimit
+	}
+	// Detached for the same reason as RefreshAllMetadata: one provider call per
+	// candidate title, rate-limited, minutes on a large catalogue - a blocking
+	// request would 504 at the proxy and cancel the repair mid-sweep.
+	srvCtx := d.serverCtx
+	if srvCtx == nil {
+		srvCtx = context.Background()
+	}
+	go func() {
+		defer d.releaseHeavyOp()
+		defer func() {
+			if r := recover(); r != nil {
+				slog.ErrorContext(ctx, "recovered panic in collection relink", slog.Any("error", r))
+			}
+		}()
+		rep, err := d.metadataCmd.RelinkCollections(srvCtx, limit)
+		if err != nil {
+			slog.ErrorContext(ctx, "collection relink", slog.Any("err", err))
+			return
+		}
+		slog.Info("collection relink complete",
+			slog.Int("scanned", rep.Scanned), slog.Int("linked", rep.Linked), slog.Int("failed", rep.Failed))
+	}()
+	return &eveyv1.RelinkCollectionsResponse{Accepted: true}, nil
+}
+
 func (d *adminMediaHandler) MatchOrphansInLibrary(ctx context.Context, req *eveyv1.MatchOrphansInLibraryRequest) (*eveyv1.MatchOrphansInLibraryResponse, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.admin.MatchOrphansInLibrary")
 	defer span.End()

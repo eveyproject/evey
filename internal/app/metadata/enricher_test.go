@@ -1527,3 +1527,7 @@ func TestEnrichItem_ArtworkHookNotFiredOnFailure(t *testing.T) {
 	require.Error(t, err)
 	assert.Zero(t, hookCalls, "no auto-download for artwork rows the failed enrichment rolls back")
 }
+
+func (f *fakeCollectionLinker) ListMoviesWithoutCollection(_ context.Context, _ int) ([]domainlib.UnlinkedMovie, error) {
+	return nil, nil
+}

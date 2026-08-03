@@ -51,3 +51,12 @@ func (r *FakeCollectionRepository) CountItems(ctx context.Context, collectionID 
 func (r *FakeCollectionRepository) GetItemsByCollectionIDs(ctx context.Context, collectionIDs []string) (map[string][]*library.MediaItem, error) {
 	return r.query.GetItemsByCollectionIDs(ctx, collectionIDs)
 }
+func (r *FakeCollectionRepository) ListMoviesWithoutCollection(ctx context.Context, limit int) ([]library.UnlinkedMovie, error) {
+	return r.query.ListMoviesWithoutCollection(ctx, limit)
+}
+func (r *FakeCollectionRepository) UnlinkItem(ctx context.Context, collectionID, mediaItemID string) error {
+	return r.cmd.UnlinkItem(ctx, collectionID, mediaItemID)
+}
+func (r *FakeCollectionRepository) SetItemOrder(ctx context.Context, collectionID string, mediaItemIDs []string) error {
+	return r.cmd.SetItemOrder(ctx, collectionID, mediaItemIDs)
+}

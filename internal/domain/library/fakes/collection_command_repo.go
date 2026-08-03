@@ -100,3 +100,37 @@ func (r *FakeCollectionCommandRepo) LinkItem(_ context.Context, collectionID, me
 	r.items[collectionID] = append(r.items[collectionID], collectionItem{mediaItemID: mediaItemID, sortOrder: sortOrder})
 	return nil
 }
+
+func (r *FakeCollectionCommandRepo) UnlinkItem(_ context.Context, collectionID, mediaItemID string) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	kept := make([]collectionItem, 0, len(r.items[collectionID]))
+	for _, it := range r.items[collectionID] {
+		if it.mediaItemID != mediaItemID {
+			kept = append(kept, it)
+		}
+	}
+	r.items[collectionID] = kept
+	return nil
+}
+
+func (r *FakeCollectionCommandRepo) SetItemOrder(_ context.Context, collectionID string, mediaItemIDs []string) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	pos := make(map[string]int, len(mediaItemIDs))
+	for i, id := range mediaItemIDs {
+		pos[id] = i + 1
+	}
+	for i, it := range r.items[collectionID] {
+		if p, ok := pos[it.mediaItemID]; ok {
+			r.items[collectionID][i].sortOrder = p
+		}
+	}
+	return nil
+}

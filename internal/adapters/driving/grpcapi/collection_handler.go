@@ -42,7 +42,13 @@ func (h *collectionHandler) collectionVisibleUnderParental(ctx context.Context, 
 	return false
 }
 
-func (h *collectionHandler) ListCollections(ctx context.Context, _ *eveyv1.ListCollectionsRequest) (*eveyv1.ListCollectionsResponse, error) {
+// defaultMinCollectionItems is what a collection must hold to be worth
+// listing. A saga you own one title of is a title: on the production server
+// 230 of 236 auto-created TMDB sagas were one-title stubs, burying the six
+// real ones (measured 2026-08-04). Callers that curate pass min_items=1.
+const defaultMinCollectionItems = 2
+
+func (h *collectionHandler) ListCollections(ctx context.Context, req *eveyv1.ListCollectionsRequest) (*eveyv1.ListCollectionsResponse, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.collection.ListCollections")
 	defer span.End()
 	cols, err := h.svc.List(ctx)
@@ -70,6 +76,11 @@ func (h *collectionHandler) ListCollections(ctx context.Context, _ *eveyv1.ListC
 		return nil, internalError(ctx, "batch collection items", batchErr)
 	}
 
+	minItems := int(req.GetMinItems())
+	if minItems <= 0 {
+		minItems = defaultMinCollectionItems
+	}
+
 	resp := &eveyv1.ListCollectionsResponse{}
 	for _, c := range cols {
 		items, skip := filterItemsByAccess(allItems[c.ID], allowed)
@@ -79,7 +90,18 @@ func (h *collectionHandler) ListCollections(ctx context.Context, _ *eveyv1.ListC
 		if !h.collectionVisibleUnderParental(ctx, items) {
 			continue
 		}
-		resp.Collections = append(resp.Collections, collectionToProto(c))
+		// The threshold only applies to AUTO-created sagas. A hand-built or
+		// rule-driven collection is listed even while empty: its owner made it
+		// deliberately, and hiding it would leave nothing to add titles to.
+		if collectionKind(c) == "saga" && len(items) < minItems {
+			continue
+		}
+		pb := collectionToProto(c)
+		// The count is what THIS caller can see: counting the filtered-out
+		// members would advertise titles they cannot reach and turn the
+		// number into an existence oracle for a denied library.
+		pb.ItemCount = int32(len(items))
+		resp.Collections = append(resp.Collections, pb)
 	}
 	return resp, nil
 }
@@ -258,6 +280,65 @@ func (h *collectionHandler) AddCollectionItem(ctx context.Context, req *eveyv1.A
 	return &eveyv1.AddCollectionItemResponse{}, nil
 }
 
+// RemoveCollectionItem is AddCollectionItem's missing counterpart: until it
+// existed a collection could only ever grow, so a wrong member was permanent
+// and hand-curation was write-only.
+func (h *collectionHandler) RemoveCollectionItem(ctx context.Context, req *eveyv1.RemoveCollectionItemRequest) (*eveyv1.RemoveCollectionItemResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.collection.RemoveCollectionItem")
+	defer span.End()
+	if req.GetId() == "" {
+		span.SetStatus(otelcodes.Error, "id is required")
+		return nil, status.Errorf(codes.InvalidArgument, "id is required")
+	}
+	if req.GetMediaItemId() == "" {
+		span.SetStatus(otelcodes.Error, "media_item_id is required")
+		return nil, status.Errorf(codes.InvalidArgument, "media_item_id is required")
+	}
+	// Defense-in-depth IDOR check, like DeleteCollection: RBAC already limits
+	// this to admins, but a collection the caller cannot see must stay
+	// indistinguishable from one that does not exist.
+	if err := h.checkCollectionAccess(ctx, req.GetId()); err != nil {
+		span.SetStatus(otelcodes.Error, "collection access denied")
+		return nil, err
+	}
+	if err := h.svc.UnlinkMediaItem(ctx, req.GetId(), req.GetMediaItemId()); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, internalError(ctx, "remove collection item", err)
+	}
+	return &eveyv1.RemoveCollectionItemResponse{}, nil
+}
+
+// ReorderCollectionItems stamps the hand-set order. It only changes what a
+// viewer sees for a collection whose sort_by is "manual" - the caller owns
+// that choice, so reordering never silently rewrites how a saga reads.
+func (h *collectionHandler) ReorderCollectionItems(ctx context.Context, req *eveyv1.ReorderCollectionItemsRequest) (*eveyv1.ReorderCollectionItemsResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.collection.ReorderCollectionItems")
+	defer span.End()
+	if req.GetId() == "" {
+		span.SetStatus(otelcodes.Error, "id is required")
+		return nil, status.Errorf(codes.InvalidArgument, "id is required")
+	}
+	if len(req.GetMediaItemIds()) == 0 {
+		span.SetStatus(otelcodes.Error, "media_item_ids is required")
+		return nil, status.Errorf(codes.InvalidArgument, "media_item_ids is required")
+	}
+	if len(req.GetMediaItemIds()) > library.MaxCollectionItems {
+		span.SetStatus(otelcodes.Error, "too many items")
+		return nil, status.Errorf(codes.InvalidArgument, "at most %d items", library.MaxCollectionItems)
+	}
+	if err := h.checkCollectionAccess(ctx, req.GetId()); err != nil {
+		span.SetStatus(otelcodes.Error, "collection access denied")
+		return nil, err
+	}
+	if err := h.svc.ReorderItems(ctx, req.GetId(), req.GetMediaItemIds()); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, internalError(ctx, "reorder collection items", err)
+	}
+	return &eveyv1.ReorderCollectionItemsResponse{}, nil
+}
+
 func protoRulesToDomain(in []*eveyv1.CollectionRule) []library.CollectionRule {
 	if len(in) == 0 {
 		return nil
@@ -395,6 +476,19 @@ func (h *collectionHandler) checkCollectionAccess(ctx context.Context, collectio
 	return status.Errorf(codes.NotFound, "collection not found")
 }
 
+// collectionKind names how a collection came to exist: sourced from a TMDB
+// collection, driven by rules, or hand-built.
+func collectionKind(c *library.Collection) string {
+	switch {
+	case c.TmdbID != nil:
+		return "saga"
+	case len(c.Rules) > 0:
+		return "smart"
+	default:
+		return "manual"
+	}
+}
+
 func collectionToProto(c *library.Collection) *eveyv1.CollectionProto {
 	pb := &eveyv1.CollectionProto{
 		Id:          c.ID,
@@ -405,6 +499,7 @@ func collectionToProto(c *library.Collection) *eveyv1.CollectionProto {
 		CreatedAt:   toTimestamppb(c.CreatedAt),
 		UpdatedAt:   toTimestamppb(c.UpdatedAt),
 		SortBy:      c.SortBy,
+		Kind:        collectionKind(c),
 	}
 	if c.TmdbID != nil {
 		v := int32(*c.TmdbID)

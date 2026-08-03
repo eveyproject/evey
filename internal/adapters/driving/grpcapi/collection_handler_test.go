@@ -2,6 +2,7 @@ package grpcapi
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -54,11 +55,19 @@ func TestCollectionListCollections_Empty(t *testing.T) {
 }
 
 func TestCollectionListCollections_WithData(t *testing.T) {
-	h, cmdRepo := newTestCollectionHandler()
+	h, cmdRepo, mediaRepo, _ := newTestCollectionHandlerWithAccess()
 	seedCollection(cmdRepo, "col-1", "Marvel Cinematic Universe")
 	seedCollection(cmdRepo, "col-2", "DC Extended Universe")
+	// Real sagas hold titles: an empty auto saga is a stub the listing hides.
+	for i, col := range []string{"col-1", "col-2"} {
+		for j := range 2 {
+			id := shared.MediaItemID(fmt.Sprintf("wd%d%d", i, j))
+			mediaRepo.Create(context.Background(), &library.MediaItem{ID: id, LibraryID: "lib-1", Title: string(id), Type: "movie"})
+			cmdRepo.LinkItem(context.Background(), col, string(id), 0)
+		}
+	}
 
-	resp, err := h.ListCollections(context.Background(), &eveyv1.ListCollectionsRequest{})
+	resp, err := h.ListCollections(adminCtx(), &eveyv1.ListCollectionsRequest{MinItems: 1})
 	if err != nil {
 		t.Fatalf("ListCollections: %v", err)
 	}
@@ -169,12 +178,154 @@ func TestCollectionListCollections_IDOR_FiltersByLibraryAccess(t *testing.T) {
 	cmdRepo.LinkItem(context.Background(), "col-lib2", "m2", 0)
 	libAccessRepo.Grant(context.Background(), "user-1", "lib-2")
 
-	resp, err := h.ListCollections(nonAdminCtx("user-1"), &eveyv1.ListCollectionsRequest{})
+	resp, err := h.ListCollections(nonAdminCtx("user-1"), &eveyv1.ListCollectionsRequest{MinItems: 1})
 	if err != nil {
 		t.Fatalf("ListCollections: %v", err)
 	}
 	if len(resp.Collections) != 1 || resp.Collections[0].Id != "col-lib2" {
 		t.Errorf("expected only col-lib2, got %+v", resp.Collections)
+	}
+}
+
+// A saga you hold ONE title of is a title, not a collection. 230 of the 236
+// auto-created TMDB sagas on the production server were exactly that
+// (measured 2026-08-04), which is what made the collections page unusable:
+// a wall of one-title stubs hiding the six real sagas. The listing hides them
+// by default; min_items=1 is the curation escape hatch.
+func TestCollectionListCollections_HidesOneTitleStubs(t *testing.T) {
+	h, cmdRepo, mediaRepo, _ := newTestCollectionHandlerWithAccess()
+	seedCollection(cmdRepo, "col-stub", "Alien - Saga")
+	seedCollection(cmdRepo, "col-real", "Matrix - Saga")
+	mediaRepo.Create(context.Background(), &library.MediaItem{ID: "m1", LibraryID: "lib-1", Title: "Alien", Type: "movie"})
+	mediaRepo.Create(context.Background(), &library.MediaItem{ID: "m2", LibraryID: "lib-1", Title: "Matrix", Type: "movie"})
+	mediaRepo.Create(context.Background(), &library.MediaItem{ID: "m3", LibraryID: "lib-1", Title: "Matrix Reloaded", Type: "movie"})
+	cmdRepo.LinkItem(context.Background(), "col-stub", "m1", 0)
+	cmdRepo.LinkItem(context.Background(), "col-real", "m2", 0)
+	cmdRepo.LinkItem(context.Background(), "col-real", "m3", 0)
+
+	resp, err := h.ListCollections(adminCtx(), &eveyv1.ListCollectionsRequest{})
+	if err != nil {
+		t.Fatalf("ListCollections: %v", err)
+	}
+	if len(resp.Collections) != 1 || resp.Collections[0].Id != "col-real" {
+		t.Fatalf("expected only the 2-title saga, got %+v", resp.Collections)
+	}
+
+	all, err := h.ListCollections(adminCtx(), &eveyv1.ListCollectionsRequest{MinItems: 1})
+	if err != nil {
+		t.Fatalf("ListCollections(min_items=1): %v", err)
+	}
+	if len(all.Collections) != 2 {
+		t.Errorf("min_items=1 must list every collection, got %d", len(all.Collections))
+	}
+}
+
+// The stub threshold applies to AUTO-created sagas only. A collection someone
+// built by hand stays listed while still empty - hiding it would leave them
+// nothing to add titles to.
+func TestCollectionListCollections_KeepsEmptyHandBuiltCollections(t *testing.T) {
+	h, cmdRepo, mediaRepo, _ := newTestCollectionHandlerWithAccess()
+	seedCollection(cmdRepo, "col-stub-saga", "Alien - Saga") // auto, 1 title
+	cmdRepo.Upsert(context.Background(), &library.Collection{ID: "col-empty", Name: "Soirée pizza"})
+	cmdRepo.Upsert(context.Background(), &library.Collection{
+		ID: "col-smart-empty", Name: "Années 80",
+		Rules: []library.CollectionRule{{Field: "year", Operator: "lt", Value: "1990"}},
+	})
+	mediaRepo.Create(context.Background(), &library.MediaItem{ID: "m1", LibraryID: "lib-1", Title: "Alien", Type: "movie"})
+	cmdRepo.LinkItem(context.Background(), "col-stub-saga", "m1", 0)
+
+	resp, err := h.ListCollections(adminCtx(), &eveyv1.ListCollectionsRequest{})
+	if err != nil {
+		t.Fatalf("ListCollections: %v", err)
+	}
+	ids := map[string]bool{}
+	for _, c := range resp.Collections {
+		ids[c.Id] = true
+	}
+	if !ids["col-empty"] || !ids["col-smart-empty"] {
+		t.Errorf("hand-built and smart collections must stay listed while empty, got %v", ids)
+	}
+	if ids["col-stub-saga"] {
+		t.Error("the one-title auto saga must still be hidden")
+	}
+}
+
+// Every surface needs the member count ("4 films") and no client can compute
+// it - it never receives the members of every collection.
+func TestCollectionListCollections_ReportsItemCount(t *testing.T) {
+	h, cmdRepo, mediaRepo, _ := newTestCollectionHandlerWithAccess()
+	seedCollection(cmdRepo, "col-real", "Matrix - Saga")
+	for _, id := range []string{"m1", "m2", "m3"} {
+		mediaRepo.Create(context.Background(), &library.MediaItem{ID: shared.MediaItemID(id), LibraryID: "lib-1", Title: id, Type: "movie"})
+		cmdRepo.LinkItem(context.Background(), "col-real", id, 0)
+	}
+	resp, err := h.ListCollections(adminCtx(), &eveyv1.ListCollectionsRequest{})
+	if err != nil {
+		t.Fatalf("ListCollections: %v", err)
+	}
+	if len(resp.Collections) != 1 {
+		t.Fatalf("expected 1 collection, got %d", len(resp.Collections))
+	}
+	if got := resp.Collections[0].ItemCount; got != 3 {
+		t.Errorf("item_count = %d, want 3", got)
+	}
+}
+
+// The count must be what THIS caller can see, or it advertises titles they
+// cannot reach - and turns the count into an existence oracle for a library
+// they were denied.
+func TestCollectionListCollections_ItemCountIsAccessFiltered(t *testing.T) {
+	h, cmdRepo, mediaRepo, libAccessRepo := newTestCollectionHandlerWithAccess()
+	seedCollection(cmdRepo, "col-mixed", "Mixed")
+	mediaRepo.Create(context.Background(), &library.MediaItem{ID: "m1", LibraryID: "lib-1", Title: "Hidden", Type: "movie"})
+	mediaRepo.Create(context.Background(), &library.MediaItem{ID: "m2", LibraryID: "lib-2", Title: "Seen A", Type: "movie"})
+	mediaRepo.Create(context.Background(), &library.MediaItem{ID: "m3", LibraryID: "lib-2", Title: "Seen B", Type: "movie"})
+	for _, id := range []string{"m1", "m2", "m3"} {
+		cmdRepo.LinkItem(context.Background(), "col-mixed", id, 0)
+	}
+	libAccessRepo.Grant(context.Background(), "user-1", "lib-2")
+
+	resp, err := h.ListCollections(nonAdminCtx("user-1"), &eveyv1.ListCollectionsRequest{})
+	if err != nil {
+		t.Fatalf("ListCollections: %v", err)
+	}
+	if len(resp.Collections) != 1 {
+		t.Fatalf("expected the collection to stay visible, got %d", len(resp.Collections))
+	}
+	if got := resp.Collections[0].ItemCount; got != 2 {
+		t.Errorf("item_count = %d, want 2 (the lib-1 title must not be counted)", got)
+	}
+}
+
+// kind lets a client badge a TMDB saga apart from a hand-built list without
+// inferring it from the presence of tmdb_id.
+func TestCollectionListCollections_ReportsKind(t *testing.T) {
+	h, cmdRepo, mediaRepo, _ := newTestCollectionHandlerWithAccess()
+	seedCollection(cmdRepo, "col-saga", "Matrix - Saga") // seedCollection stamps a TmdbID
+	cmdRepo.Upsert(context.Background(), &library.Collection{ID: "col-manual", Name: "Soirée pizza"})
+	cmdRepo.Upsert(context.Background(), &library.Collection{
+		ID: "col-smart", Name: "Années 80",
+		Rules: []library.CollectionRule{{Field: "year", Operator: "lt", Value: "1990"}},
+	})
+	for i, col := range []string{"col-saga", "col-manual", "col-smart"} {
+		for j := range 2 {
+			id := shared.MediaItemID(fmt.Sprintf("m%d%d", i, j))
+			mediaRepo.Create(context.Background(), &library.MediaItem{ID: id, LibraryID: "lib-1", Title: string(id), Type: "movie"})
+			cmdRepo.LinkItem(context.Background(), col, string(id), 0)
+		}
+	}
+	resp, err := h.ListCollections(adminCtx(), &eveyv1.ListCollectionsRequest{})
+	if err != nil {
+		t.Fatalf("ListCollections: %v", err)
+	}
+	kinds := map[string]string{}
+	for _, c := range resp.Collections {
+		kinds[c.Id] = c.Kind
+	}
+	for id, want := range map[string]string{"col-saga": "saga", "col-manual": "manual", "col-smart": "smart"} {
+		if kinds[id] != want {
+			t.Errorf("kind[%s] = %q, want %q", id, kinds[id], want)
+		}
 	}
 }
 
@@ -262,7 +413,7 @@ func TestCollectionCreateCollection_OK(t *testing.T) {
 	if resp.Collection.Name != "New Collection" {
 		t.Errorf("expected name 'New Collection', got %q", resp.Collection.Name)
 	}
-	list, err := h.ListCollections(context.Background(), &eveyv1.ListCollectionsRequest{})
+	list, err := h.ListCollections(context.Background(), &eveyv1.ListCollectionsRequest{MinItems: 1})
 	if err != nil {
 		t.Fatalf("ListCollections: %v", err)
 	}
@@ -523,7 +674,7 @@ func TestCollectionListCollections_BatchCalledOnce(t *testing.T) {
 		_ = cmdRepo.LinkItem(context.Background(), id, string(mID), i)
 	}
 
-	resp, err := h.ListCollections(context.Background(), &eveyv1.ListCollectionsRequest{})
+	resp, err := h.ListCollections(context.Background(), &eveyv1.ListCollectionsRequest{MinItems: 1})
 	if err != nil {
 		t.Fatalf("ListCollections: %v", err)
 	}
@@ -568,7 +719,7 @@ func TestCollectionListCollections_LibraryAccess_BatchCalledOnce(t *testing.T) {
 	_ = cmdRepo.LinkItem(context.Background(), "col-denied", "m-no", 0)
 	libAccessRepo.Grant(context.Background(), "user-1", "lib-2")
 
-	resp, err := h.ListCollections(nonAdminCtx("user-1"), &eveyv1.ListCollectionsRequest{})
+	resp, err := h.ListCollections(nonAdminCtx("user-1"), &eveyv1.ListCollectionsRequest{MinItems: 1})
 	if err != nil {
 		t.Fatalf("ListCollections: %v", err)
 	}
@@ -646,7 +797,7 @@ func TestCollectionListCollections_ParentalFilter_Batch(t *testing.T) {
 		ProfileID: string(kidProfile.ID),
 	})
 
-	resp, err := h.ListCollections(kidCtx, &eveyv1.ListCollectionsRequest{})
+	resp, err := h.ListCollections(kidCtx, &eveyv1.ListCollectionsRequest{MinItems: 1})
 	if err != nil {
 		t.Fatalf("ListCollections: %v", err)
 	}
@@ -656,5 +807,102 @@ func TestCollectionListCollections_ParentalFilter_Batch(t *testing.T) {
 	// Batch issued exactly once even under parental filter path.
 	if got := queryRepo.GetItemsByCollectionIDsCallCount; got != 1 {
 		t.Errorf("GetItemsByCollectionIDs call count = %d, want 1", got)
+	}
+}
+
+// AddCollectionItem shipped without a counterpart: a collection could only
+// ever grow, so a wrong member was permanent and curation was write-only.
+func TestCollectionRemoveCollectionItem_OK(t *testing.T) {
+	h, cmdRepo, mediaRepo, _ := newTestCollectionHandlerWithAccess()
+	cmdRepo.Upsert(context.Background(), &library.Collection{ID: "col-1", Name: "Ma liste"})
+	for _, id := range []string{"m1", "m2"} {
+		mediaRepo.Create(context.Background(), &library.MediaItem{ID: shared.MediaItemID(id), LibraryID: "lib-1", Title: id, Type: "movie"})
+		cmdRepo.LinkItem(context.Background(), "col-1", id, 0)
+	}
+
+	if _, err := h.RemoveCollectionItem(adminCtx(), &eveyv1.RemoveCollectionItemRequest{Id: "col-1", MediaItemId: "m1"}); err != nil {
+		t.Fatalf("RemoveCollectionItem: %v", err)
+	}
+	items, _, err := h.svc.GetItems(context.Background(), "col-1", 100, 0)
+	if err != nil {
+		t.Fatalf("GetItems: %v", err)
+	}
+	if len(items) != 1 || string(items[0].ID) != "m2" {
+		t.Errorf("after removal, items = %+v, want only m2", items)
+	}
+}
+
+// Removing what is not there is the state the caller asked for, not an error.
+func TestCollectionRemoveCollectionItem_AbsentIsNotAnError(t *testing.T) {
+	h, cmdRepo, mediaRepo, _ := newTestCollectionHandlerWithAccess()
+	cmdRepo.Upsert(context.Background(), &library.Collection{ID: "col-1", Name: "Ma liste"})
+	mediaRepo.Create(context.Background(), &library.MediaItem{ID: "m1", LibraryID: "lib-1", Title: "A", Type: "movie"})
+	cmdRepo.LinkItem(context.Background(), "col-1", "m1", 0)
+
+	if _, err := h.RemoveCollectionItem(adminCtx(), &eveyv1.RemoveCollectionItemRequest{Id: "col-1", MediaItemId: "never-there"}); err != nil {
+		t.Fatalf("removing an absent member must succeed: %v", err)
+	}
+}
+
+func TestCollectionRemoveCollectionItem_Validation(t *testing.T) {
+	h, _, _, _ := newTestCollectionHandlerWithAccess()
+	if _, err := h.RemoveCollectionItem(adminCtx(), &eveyv1.RemoveCollectionItemRequest{MediaItemId: "m1"}); status.Code(err) != codes.InvalidArgument {
+		t.Errorf("missing id: want InvalidArgument, got %v", err)
+	}
+	if _, err := h.RemoveCollectionItem(adminCtx(), &eveyv1.RemoveCollectionItemRequest{Id: "col-1"}); status.Code(err) != codes.InvalidArgument {
+		t.Errorf("missing media_item_id: want InvalidArgument, got %v", err)
+	}
+}
+
+// IDOR: a collection the caller cannot see must stay indistinguishable from
+// one that does not exist, and its members must stay untouched.
+func TestCollectionRemoveCollectionItem_IDOR_DeniesForeignCollection(t *testing.T) {
+	h, cmdRepo, mediaRepo, libAccessRepo := newTestCollectionHandlerWithAccess()
+	cmdRepo.Upsert(context.Background(), &library.Collection{ID: "col-lib1", Name: "Private"})
+	mediaRepo.Create(context.Background(), &library.MediaItem{ID: "m1", LibraryID: "lib-1", Title: "A", Type: "movie"})
+	cmdRepo.LinkItem(context.Background(), "col-lib1", "m1", 0)
+	libAccessRepo.Grant(context.Background(), "user-1", "lib-2")
+
+	_, err := h.RemoveCollectionItem(nonAdminCtx("user-1"), &eveyv1.RemoveCollectionItemRequest{Id: "col-lib1", MediaItemId: "m1"})
+	if status.Code(err) != codes.NotFound {
+		t.Fatalf("want NotFound, got %v", err)
+	}
+	items, _, _ := h.svc.GetItems(context.Background(), "col-lib1", 100, 0)
+	if len(items) != 1 {
+		t.Errorf("a denied removal must not touch the collection, got %d items", len(items))
+	}
+}
+
+// Reordering writes the hand-set position; it is what a "manual" collection
+// reads by, and the only way to express a chronology that differs from the
+// release order (prequels).
+func TestCollectionReorderCollectionItems_OK(t *testing.T) {
+	h, cmdRepo, mediaRepo, _ := newTestCollectionHandlerWithAccess()
+	cmdRepo.Upsert(context.Background(), &library.Collection{ID: "col-1", Name: "Star Wars chrono", SortBy: "manual"})
+	for _, id := range []string{"m1", "m2", "m3"} {
+		mediaRepo.Create(context.Background(), &library.MediaItem{ID: shared.MediaItemID(id), LibraryID: "lib-1", Title: id, Type: "movie"})
+		cmdRepo.LinkItem(context.Background(), "col-1", id, 0)
+	}
+	if _, err := h.ReorderCollectionItems(adminCtx(), &eveyv1.ReorderCollectionItemsRequest{
+		Id: "col-1", MediaItemIds: []string{"m3", "m1", "m2"},
+	}); err != nil {
+		t.Fatalf("ReorderCollectionItems: %v", err)
+	}
+}
+
+func TestCollectionReorderCollectionItems_Validation(t *testing.T) {
+	h, _, _, _ := newTestCollectionHandlerWithAccess()
+	if _, err := h.ReorderCollectionItems(adminCtx(), &eveyv1.ReorderCollectionItemsRequest{MediaItemIds: []string{"m1"}}); status.Code(err) != codes.InvalidArgument {
+		t.Errorf("missing id: want InvalidArgument, got %v", err)
+	}
+	if _, err := h.ReorderCollectionItems(adminCtx(), &eveyv1.ReorderCollectionItemsRequest{Id: "col-1"}); status.Code(err) != codes.InvalidArgument {
+		t.Errorf("empty order: want InvalidArgument, got %v", err)
+	}
+	tooMany := make([]string, library.MaxCollectionItems+1)
+	for i := range tooMany {
+		tooMany[i] = "m"
+	}
+	if _, err := h.ReorderCollectionItems(adminCtx(), &eveyv1.ReorderCollectionItemsRequest{Id: "col-1", MediaItemIds: tooMany}); status.Code(err) != codes.InvalidArgument {
+		t.Errorf("oversized order: want InvalidArgument, got %v", err)
 	}
 }

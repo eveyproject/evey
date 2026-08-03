@@ -75,6 +75,7 @@ func DefaultRBACConfig() RBACConfig {
 			// (any authenticated user) need to mint tokens. Scopes are filtered
 			// via FilterPluginScopes in the service layer (admin/system stripped).
 			"/evey.v1.AdminMediaService/RefreshAllMetadata":                 RoleAdmin,
+			"/evey.v1.AdminMediaService/RelinkCollections":                  RoleAdmin,
 			"/evey.v1.AdminMediaService/MatchOrphansInLibrary":              RoleAdmin,
 			"/evey.v1.AdminMediaService/GenerateAllTrickplays":              RoleAdmin,
 			"/evey.v1.AdminMediaService/DeleteMediaItem":                    RoleAdmin,
@@ -185,6 +186,8 @@ func DefaultRBACConfig() RBACConfig {
 			"/evey.v1.CollectionService/CreateCollection":              RoleAdmin,
 			"/evey.v1.CollectionService/UpdateCollection":              RoleAdmin,
 			"/evey.v1.CollectionService/AddCollectionItem":             RoleAdmin,
+			"/evey.v1.CollectionService/RemoveCollectionItem":          RoleAdmin,
+			"/evey.v1.CollectionService/ReorderCollectionItems":        RoleAdmin,
 			"/evey.v1.PhotoService/DeletePhoto":                        RoleAdmin,
 			"/evey.v1.AdminIntroService/InvalidateIntroCache":          RoleAdmin,
 			"/evey.v1.AdminIntroService/BackfillIntroDetection":        RoleAdmin,

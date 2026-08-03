@@ -110,3 +110,20 @@ func (s *CommandService) getDataDir() string {
 	}
 	return ""
 }
+
+// collectionRelinker is the optional saga-repair capability, asserted rather
+// than added to ItemEnricher so the narrow port every fake implements stays
+// narrow.
+type collectionRelinker interface {
+	RelinkCollections(ctx context.Context, limit int) (RelinkReport, error)
+}
+
+// RelinkCollections repairs saga membership for movies that belong to no
+// collection. Returns an all-zero report when no enricher is wired.
+func (s *CommandService) RelinkCollections(ctx context.Context, limit int) (RelinkReport, error) {
+	r, ok := s.enricher.(collectionRelinker)
+	if !ok {
+		return RelinkReport{}, nil
+	}
+	return r.RelinkCollections(ctx, limit)
+}

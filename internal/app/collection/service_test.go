@@ -746,7 +746,7 @@ func TestGetItems_SmartCollection_RulesEvaluated(t *testing.T) {
 }
 
 // The TMDB upsert takes its name from a third party's payload. Before the
-// invariant was enforced on this path, an empty name produced a `name = ''`
+// invariant was enforced on this path, an empty name produced a `name = ”`
 // row - the column is NOT NULL, but the empty string satisfies that - and the
 // library showed a collection nobody could identify, name or search for.
 // Refusing costs one unlinked film and one log line.

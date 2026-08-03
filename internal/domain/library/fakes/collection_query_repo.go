@@ -105,3 +105,33 @@ func (r *FakeCollectionQueryRepo) GetItemsByCollectionIDs(_ context.Context, col
 	}
 	return result, nil
 }
+
+// ListMoviesWithoutCollection mirrors the postgres query: movies carrying a
+// tmdb provider id that appear in no collection.
+func (r *FakeCollectionQueryRepo) ListMoviesWithoutCollection(_ context.Context, limit int) ([]library.UnlinkedMovie, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	linked := map[string]bool{}
+	for _, its := range r.items {
+		for _, it := range its {
+			linked[it.mediaItemID] = true
+		}
+	}
+	var out []library.UnlinkedMovie
+	for id, item := range r.mediaItems.items {
+		if len(out) >= limit && limit > 0 {
+			break
+		}
+		if item.Type != library.MovieItem || linked[id] {
+			continue
+		}
+		if item.Catalog == nil || item.Catalog.ProviderIDs["tmdb"] == "" {
+			continue
+		}
+		out = append(out, library.UnlinkedMovie{MediaItemID: item.ID, ProviderID: item.Catalog.ProviderIDs["tmdb"]})
+	}
+	return out, nil
+}

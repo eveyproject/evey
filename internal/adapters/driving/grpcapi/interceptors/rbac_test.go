@@ -90,6 +90,7 @@ func TestDefaultRBACConfig_AdminMethods(t *testing.T) {
 		"/evey.v1.AdminPluginService/UpdatePluginResourceLimits",
 		// AdminMediaService
 		"/evey.v1.AdminMediaService/RefreshAllMetadata",
+		"/evey.v1.AdminMediaService/RelinkCollections",
 		"/evey.v1.AdminMediaService/MatchOrphansInLibrary",
 		"/evey.v1.AdminMediaService/GenerateAllTrickplays",
 		"/evey.v1.AdminMediaService/DeleteMediaItem",
@@ -194,6 +195,8 @@ func TestDefaultRBACConfig_AdminMethods(t *testing.T) {
 		"/evey.v1.CollectionService/CreateCollection",
 		"/evey.v1.CollectionService/UpdateCollection",
 		"/evey.v1.CollectionService/AddCollectionItem",
+		"/evey.v1.CollectionService/RemoveCollectionItem",
+		"/evey.v1.CollectionService/ReorderCollectionItems",
 		// PhotoService
 		"/evey.v1.PhotoService/DeletePhoto",
 		// MusicService (destructive / admin-only)
