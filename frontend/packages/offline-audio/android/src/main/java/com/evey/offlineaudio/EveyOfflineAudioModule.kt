@@ -87,7 +87,7 @@ class EveyOfflineAudioModule : Module() {
     // slices are the only thing between a crash and re-downloading gigabytes,
     // so JS deletes them once it has recorded the finished file.
     Function("deleteSlices") { dir: String, count: Int ->
-      Offlineaudio.deleteSlices(dir, count)
+      Offlineaudio.deleteSlices(dir, count.toLong())
     }
 
     Function("cancel") {
