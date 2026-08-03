@@ -60,8 +60,7 @@ export default function TabsLayout() {
     headerLeft: () => <BurgerButton />,
     headerTitle: () => <HeaderSearch />,
     headerRight: () => <HeaderRight theme={theme} />,
-    // Extra room on the left so the search field does not crowd the mark.
-    headerTitleContainerStyle: { flex: 1, paddingLeft: 18, paddingRight: 8 },
+    headerTitleContainerStyle: { flex: 1, paddingHorizontal: 8 },
   };
 
   return (
