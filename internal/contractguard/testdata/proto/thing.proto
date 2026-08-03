@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package fixture.v1;
+
+// Fixture corpus for the guard's own red/green proof. ThingResponse carries
+// one field the fixture server writes and one it never writes; the client
+// reads both. GetThingRequest must be ignored (request fields flow the other
+// way), and the enum value must not parse as a field.
+message ThingResponse {
+  int64 live_field = 1;
+  int64 dead_field = 2;
+  ThingKind kind_tag = 3;
+  message Nested {
+    string nested_note = 1;
+  }
+  enum ThingKind {
+    THING_KIND_UNSPECIFIED = 0;
+    THING_KIND_REAL = 1;
+  }
+}
+
+message GetThingRequest {
+  string request_only = 1;
+}

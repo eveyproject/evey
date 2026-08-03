@@ -323,8 +323,8 @@ ci-proto-breaking:
 # full suite is CI-only; these guards live in .../postgres/txguard so pre-push
 # catches a TxUnit bypass locally instead of on CI.
 ci-arch:
-	@echo "→ arch guards (txguard: no DB, sub-second)"
-	@docker exec -w /app -e GOTOOLCHAIN=auto evey-server sh -c 'go test ./internal/adapters/driven/postgres/txguard/...'
+	@echo "→ arch guards (txguard + contractguard: no DB, sub-second)"
+	@docker exec -w /app -e GOTOOLCHAIN=auto evey-server sh -c 'go test ./internal/adapters/driven/postgres/txguard/... ./internal/contractguard/...'
 
 # transcode-itest-gate: run the copy-pipeline contract test (make transcode-itest)
 # whenever the outgoing changes touch the transcoding stack - the bug class it
