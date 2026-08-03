@@ -86,10 +86,10 @@ func (s *QueryService) GetItemsForCollections(ctx context.Context, collectionIDs
 
 // ListMoviesWithoutCollection is the saga-repair work list, delegated to the
 // repository. See metadata.Enricher.RelinkCollections for why it exists.
-func (s *QueryService) ListMoviesWithoutCollection(ctx context.Context, limit int) ([]library.UnlinkedMovie, error) {
+func (s *QueryService) ListMoviesWithoutCollection(ctx context.Context, afterID string, limit int) ([]library.UnlinkedMovie, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.collection.ListMoviesWithoutCollection")
 	defer span.End()
-	return s.query.ListMoviesWithoutCollection(ctx, limit)
+	return s.query.ListMoviesWithoutCollection(ctx, afterID, limit)
 }
 
 // GetForMediaItem returns the collections holding this title.

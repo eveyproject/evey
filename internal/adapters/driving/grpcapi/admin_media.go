@@ -87,12 +87,6 @@ func (d *adminMediaHandler) RefreshAllMetadata(ctx context.Context, req *eveyv1.
 	return &eveyv1.RefreshAllMetadataResponse{}, nil
 }
 
-// defaultRelinkLimit bounds one sweep. Each title costs one provider call, so
-// the bound is what keeps a repair on a large catalogue from monopolising the
-// provider's rate budget; re-run to continue where it stopped (the work list
-// is "movies still in no collection", so progress is naturally durable).
-const defaultRelinkLimit = 500
-
 func (d *adminMediaHandler) RelinkCollections(ctx context.Context, req *eveyv1.RelinkCollectionsRequest) (*eveyv1.RelinkCollectionsResponse, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.admin.RelinkCollections")
 	defer span.End()
@@ -104,10 +98,10 @@ func (d *adminMediaHandler) RelinkCollections(ctx context.Context, req *eveyv1.R
 		span.SetStatus(otelcodes.Error, "heavy op running")
 		return nil, d.translator.TranslatedError(ctx, codes.ResourceExhausted, "errors.admin.heavy_op_running")
 	}
+	// No limit means the whole catalogue: the sweep pages through it, and
+	// stopping early would leave the titles behind the cut unrepaired with no
+	// way for a second press to reach them.
 	limit := int(req.GetLimit())
-	if limit <= 0 {
-		limit = defaultRelinkLimit
-	}
 	// Detached for the same reason as RefreshAllMetadata: one provider call per
 	// candidate title, rate-limited, minutes on a large catalogue - a blocking
 	// request would 504 at the proxy and cancel the repair mid-sweep.

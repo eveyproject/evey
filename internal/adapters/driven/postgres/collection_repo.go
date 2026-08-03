@@ -318,7 +318,7 @@ func (r *CollectionRepository) GetItems(ctx context.Context, collectionID string
 //
 // No per-collection LIMIT is applied: TMDB franchise collections hold O(10-50)
 // items in practice.
-func (r *CollectionRepository) ListMoviesWithoutCollection(ctx context.Context, limit int) ([]library.UnlinkedMovie, error) {
+func (r *CollectionRepository) ListMoviesWithoutCollection(ctx context.Context, afterID string, limit int) ([]library.UnlinkedMovie, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.collection.ListMoviesWithoutCollection")
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
@@ -334,8 +334,9 @@ func (r *CollectionRepository) ListMoviesWithoutCollection(ctx context.Context, 
 		 WHERE mi.type = 'movie'
 		   AND ci.media_item_id IS NULL
 		   AND COALESCE(mc.provider_ids->>'tmdb', '') <> ''
+		   AND mi.id > $1
 		 ORDER BY mi.id
-		 LIMIT $1`, limit)
+		 LIMIT $2`, afterID, limit)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

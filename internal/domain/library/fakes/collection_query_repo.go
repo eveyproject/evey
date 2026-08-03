@@ -2,6 +2,7 @@ package fakes
 
 import (
 	"context"
+	"sort"
 	"sync"
 
 	"github.com/evey-project/evey/internal/domain/library"
@@ -107,8 +108,10 @@ func (r *FakeCollectionQueryRepo) GetItemsByCollectionIDs(_ context.Context, col
 }
 
 // ListMoviesWithoutCollection mirrors the postgres query: movies carrying a
-// tmdb provider id that appear in no collection.
-func (r *FakeCollectionQueryRepo) ListMoviesWithoutCollection(_ context.Context, limit int) ([]library.UnlinkedMovie, error) {
+// tmdb provider id that appear in no collection, in id order and strictly
+// after the cursor. The order is part of the contract - it is what lets a
+// sweep advance instead of re-reading the same head of the catalogue.
+func (r *FakeCollectionQueryRepo) ListMoviesWithoutCollection(_ context.Context, afterID string, limit int) ([]library.UnlinkedMovie, error) {
 	if r.Err != nil {
 		return nil, r.Err
 	}
@@ -122,16 +125,20 @@ func (r *FakeCollectionQueryRepo) ListMoviesWithoutCollection(_ context.Context,
 	}
 	var out []library.UnlinkedMovie
 	for id, item := range r.mediaItems.items {
-		if len(out) >= limit && limit > 0 {
-			break
-		}
 		if item.Type != library.MovieItem || linked[id] {
 			continue
 		}
 		if item.Catalog == nil || item.Catalog.ProviderIDs["tmdb"] == "" {
 			continue
 		}
+		if string(item.ID) <= afterID {
+			continue
+		}
 		out = append(out, library.UnlinkedMovie{MediaItemID: item.ID, ProviderID: item.Catalog.ProviderIDs["tmdb"]})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].MediaItemID < out[j].MediaItemID })
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
 	}
 	return out, nil
 }

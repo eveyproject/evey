@@ -1528,6 +1528,6 @@ func TestEnrichItem_ArtworkHookNotFiredOnFailure(t *testing.T) {
 	assert.Zero(t, hookCalls, "no auto-download for artwork rows the failed enrichment rolls back")
 }
 
-func (f *fakeCollectionLinker) ListMoviesWithoutCollection(_ context.Context, _ int) ([]domainlib.UnlinkedMovie, error) {
+func (f *fakeCollectionLinker) ListMoviesWithoutCollection(_ context.Context, _ string, _ int) ([]domainlib.UnlinkedMovie, error) {
 	return nil, nil
 }

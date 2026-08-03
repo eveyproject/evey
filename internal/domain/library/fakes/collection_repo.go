@@ -51,8 +51,8 @@ func (r *FakeCollectionRepository) CountItems(ctx context.Context, collectionID 
 func (r *FakeCollectionRepository) GetItemsByCollectionIDs(ctx context.Context, collectionIDs []string) (map[string][]*library.MediaItem, error) {
 	return r.query.GetItemsByCollectionIDs(ctx, collectionIDs)
 }
-func (r *FakeCollectionRepository) ListMoviesWithoutCollection(ctx context.Context, limit int) ([]library.UnlinkedMovie, error) {
-	return r.query.ListMoviesWithoutCollection(ctx, limit)
+func (r *FakeCollectionRepository) ListMoviesWithoutCollection(ctx context.Context, afterID string, limit int) ([]library.UnlinkedMovie, error) {
+	return r.query.ListMoviesWithoutCollection(ctx, afterID, limit)
 }
 func (r *FakeCollectionRepository) UnlinkItem(ctx context.Context, collectionID, mediaItemID string) error {
 	return r.cmd.UnlinkItem(ctx, collectionID, mediaItemID)

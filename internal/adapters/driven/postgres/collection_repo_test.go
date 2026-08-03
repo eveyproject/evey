@@ -297,7 +297,7 @@ func TestCollectionRepo_ListMoviesWithoutCollection(t *testing.T) {
 	require.NoError(t, colRepo.Create(ctx, col))
 	require.NoError(t, colRepo.LinkItem(ctx, col.ID, string(linked.ID), 0))
 
-	got, err := colRepo.ListMoviesWithoutCollection(ctx, 100)
+	got, err := colRepo.ListMoviesWithoutCollection(ctx, "", 100)
 	require.NoError(t, err)
 
 	ids := map[string]string{}
@@ -309,6 +309,15 @@ func TestCollectionRepo_ListMoviesWithoutCollection(t *testing.T) {
 	assert.NotContains(t, ids, "unlinked-a", "an already-linked movie is done")
 	assert.NotContains(t, ids, "unlinked-c", "no provider id, nothing to resolve it from")
 	assert.NotContains(t, ids, "unlinked-d", "TMDB collections are a movie notion")
+
+	// The cursor is what lets a sweep move on. Without it the repair would
+	// re-read the same head of the catalogue for ever, since a standalone film
+	// is never removed from this list.
+	after, err := colRepo.ListMoviesWithoutCollection(ctx, "unlinked-b", 100)
+	require.NoError(t, err)
+	for _, m := range after {
+		assert.Greater(t, string(m.MediaItemID), "unlinked-b", "a cursor must exclude what it points at")
+	}
 }
 
 // Membership must be removable: AddCollectionItem shipped without a

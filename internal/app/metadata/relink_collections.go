@@ -11,6 +11,11 @@ import (
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
+// relinkPageSize is how many candidates one query brings back. It only bounds
+// memory and query size, not the sweep: the loop keeps paging until the
+// catalogue is exhausted.
+const relinkPageSize = 500
+
 // RelinkReport is the outcome of one saga-repair sweep.
 type RelinkReport struct {
 	// Scanned is how many unlinked movies the sweep looked at.
@@ -37,6 +42,12 @@ type RelinkReport struct {
 // second run has nothing to redo, and both the upsert and the link collapse on
 // conflict. A standalone film is re-examined on every run - the cost of not
 // persisting a negative that the provider may later fill in.
+//
+// One call walks the whole catalogue, page by page. It has to: a standalone
+// film stays in the work list for ever, so a sweep that stopped after one page
+// would keep re-reading the same titles and never reach what sits behind them,
+// however many times an admin pressed the button. limit caps how many titles a
+// sweep looks at; 0 means all of them.
 func (e *Enricher) RelinkCollections(ctx context.Context, limit int) (RelinkReport, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.metadata.RelinkCollections")
 	defer span.End()
@@ -45,39 +56,57 @@ func (e *Enricher) RelinkCollections(ctx context.Context, limit int) (RelinkRepo
 	if e.collections == nil || e.chain == nil {
 		return rep, nil
 	}
-	todo, err := e.collections.ListMoviesWithoutCollection(ctx, limit)
-	if err != nil {
-		span.RecordError(err)
-		return rep, fmt.Errorf("RelinkCollections: list candidates: %w", err)
-	}
-	if len(todo) == 0 {
-		return rep, nil
-	}
 	provider := e.chain.Primary()
 	if provider == nil {
 		return rep, nil
 	}
-	bgtasks.Register("collection_relink")
-	slog.InfoContext(ctx, "collection relink: sweep started", slog.Int("candidates", len(todo)))
 
-	for _, m := range todo {
-		select {
-		case <-ctx.Done():
-			return rep, ctx.Err()
-		default:
+	var cursor string
+	registered := false
+	for {
+		if limit > 0 && rep.Scanned >= limit {
+			break
 		}
-		rep.Scanned++
-		linked, err := e.relinkOne(ctx, provider, m)
-		switch {
-		case err != nil:
-			rep.Failed++
-			slog.WarnContext(ctx, "collection relink: title skipped",
-				slog.String("media_item_id", string(m.MediaItemID)),
-				slog.String("provider_id", m.ProviderID),
-				slog.Any("err", err))
-		case linked:
-			rep.Linked++
+		page := relinkPageSize
+		if limit > 0 && limit-rep.Scanned < page {
+			page = limit - rep.Scanned
 		}
+		todo, err := e.collections.ListMoviesWithoutCollection(ctx, cursor, page)
+		if err != nil {
+			span.RecordError(err)
+			return rep, fmt.Errorf("RelinkCollections: list candidates: %w", err)
+		}
+		if len(todo) == 0 {
+			break
+		}
+		if !registered {
+			bgtasks.Register("collection_relink")
+			registered = true
+			slog.InfoContext(ctx, "collection relink: sweep started")
+		}
+		for _, m := range todo {
+			select {
+			case <-ctx.Done():
+				return rep, ctx.Err()
+			default:
+			}
+			cursor = string(m.MediaItemID)
+			rep.Scanned++
+			linked, err := e.relinkOne(ctx, provider, m)
+			switch {
+			case err != nil:
+				rep.Failed++
+				slog.WarnContext(ctx, "collection relink: title skipped",
+					slog.String("media_item_id", string(m.MediaItemID)),
+					slog.String("provider_id", m.ProviderID),
+					slog.Any("err", err))
+			case linked:
+				rep.Linked++
+			}
+		}
+	}
+	if !registered {
+		return rep, nil
 	}
 	slog.InfoContext(ctx, "collection relink: sweep finished",
 		slog.Int("scanned", rep.Scanned), slog.Int("linked", rep.Linked), slog.Int("failed", rep.Failed))

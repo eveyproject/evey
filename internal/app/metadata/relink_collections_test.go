@@ -18,6 +18,8 @@ type recordingLinker struct {
 	upsertErr   error
 	linkFailFor string
 	links       []string // "<collectionID>|<mediaItemID>"
+	pageSize    int      // rows served per call, 0 = every remaining row
+	pages       []string // the cursor each call was made with
 }
 
 func (f *recordingLinker) Upsert(_ context.Context, tmdbID int, name, _, _, _ string) (*domainlib.Collection, error) {
@@ -33,14 +35,29 @@ func (f *recordingLinker) LinkMediaItem(_ context.Context, collectionID, mediaIt
 	f.links = append(f.links, collectionID+"|"+mediaItemID)
 	return nil
 }
-func (f *recordingLinker) ListMoviesWithoutCollection(_ context.Context, limit int) ([]domainlib.UnlinkedMovie, error) {
+// Mirrors the postgres query: rows strictly after the cursor, in id order,
+// capped by limit. Serving pages is the whole point - a standalone film is
+// never removed from the work list, so a sweep that cannot advance past its
+// first page repairs nothing beyond it, however many times it is re-run.
+func (f *recordingLinker) ListMoviesWithoutCollection(_ context.Context, afterID string, limit int) ([]domainlib.UnlinkedMovie, error) {
 	if f.listErr != nil {
 		return nil, f.listErr
 	}
-	if limit > 0 && len(f.unlinked) > limit {
-		return f.unlinked[:limit], nil
+	f.pages = append(f.pages, afterID)
+	var out []domainlib.UnlinkedMovie
+	for _, m := range f.unlinked {
+		if string(m.MediaItemID) <= afterID {
+			continue
+		}
+		out = append(out, m)
+		if limit > 0 && len(out) >= limit {
+			break
+		}
+		if f.pageSize > 0 && len(out) >= f.pageSize {
+			break
+		}
 	}
-	return f.unlinked, nil
+	return out, nil
 }
 
 // The repair that answers the field complaint: the sequels ARE on the server,
@@ -130,6 +147,75 @@ func TestRelinkCollections_NothingToDo(t *testing.T) {
 	}
 	if rep.Scanned != 0 || rep.Linked != 0 {
 		t.Errorf("report = %+v, want an all-zero report", rep)
+	}
+}
+
+// The sweep must walk the whole work list, not just its first page. A film
+// that belongs to no saga stays in the list for ever, so a page-sized sweep
+// keeps re-scanning the same standalone titles and never reaches the ones
+// behind them - re-running it does not help, which is what the "re-run to
+// continue" story got wrong.
+func TestRelinkCollections_WalksPastTheFirstPage(t *testing.T) {
+	linker := &recordingLinker{
+		pageSize: 2,
+		unlinked: []domainlib.UnlinkedMovie{
+			{MediaItemID: "mi-1", ProviderID: "1"},
+			{MediaItemID: "mi-2", ProviderID: "2"},
+			{MediaItemID: "mi-3", ProviderID: "3"},
+			{MediaItemID: "mi-4", ProviderID: "4"},
+			{MediaItemID: "mi-5", ProviderID: "5"},
+		},
+		col: &domainlib.Collection{ID: "col-z"},
+	}
+	provider := &fakeProvider{detailResult: &domain.MetadataResult{
+		Collection: &domain.CollectionRef{TmdbID: 9, Name: "Z"},
+	}}
+	e, _, _, _, _, _ := newTestEnricher(provider, nil, linker)
+
+	rep, err := e.RelinkCollections(context.Background(), 0)
+	if err != nil {
+		t.Fatalf("RelinkCollections: %v", err)
+	}
+	if rep.Scanned != 5 || rep.Linked != 5 {
+		t.Errorf("report = %+v, want scanned 5 / linked 5", rep)
+	}
+	// Each call must start after the last title of the previous page, and the
+	// last one must come back empty for the sweep to know it is done.
+	want := []string{"", "mi-2", "mi-4", "mi-5"}
+	if len(linker.pages) != len(want) {
+		t.Fatalf("cursors = %v, want %v", linker.pages, want)
+	}
+	for i, c := range want {
+		if linker.pages[i] != c {
+			t.Errorf("cursor %d = %q, want %q", i, linker.pages[i], c)
+		}
+	}
+}
+
+// A caller-set limit still caps the sweep, and must not be exceeded by a
+// page that would overshoot it.
+func TestRelinkCollections_LimitCapsTheSweep(t *testing.T) {
+	linker := &recordingLinker{
+		pageSize: 2,
+		unlinked: []domainlib.UnlinkedMovie{
+			{MediaItemID: "mi-1", ProviderID: "1"},
+			{MediaItemID: "mi-2", ProviderID: "2"},
+			{MediaItemID: "mi-3", ProviderID: "3"},
+			{MediaItemID: "mi-4", ProviderID: "4"},
+		},
+		col: &domainlib.Collection{ID: "col-z"},
+	}
+	provider := &fakeProvider{detailResult: &domain.MetadataResult{
+		Collection: &domain.CollectionRef{TmdbID: 9, Name: "Z"},
+	}}
+	e, _, _, _, _, _ := newTestEnricher(provider, nil, linker)
+
+	rep, err := e.RelinkCollections(context.Background(), 3)
+	if err != nil {
+		t.Fatalf("RelinkCollections: %v", err)
+	}
+	if rep.Scanned != 3 {
+		t.Errorf("scanned = %d, want 3", rep.Scanned)
 	}
 }
 

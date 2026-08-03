@@ -254,8 +254,11 @@ type CollectionQueryRepo interface {
 	// written while a title is being enriched, so every movie enriched before
 	// that path existed stayed out of its saga - on the production server the
 	// sequels were sitting right there while the saga listed one title
-	// (measured 2026-08-04). Bounded by limit.
-	ListMoviesWithoutCollection(ctx context.Context, limit int) ([]UnlinkedMovie, error)
+	// (measured 2026-08-04). Returns at most limit rows, in id order, strictly
+	// after afterID - a cursor, because a standalone film is never removed from
+	// this list, so a caller without one would re-read the same head of the
+	// catalogue for ever and never reach what sits behind it.
+	ListMoviesWithoutCollection(ctx context.Context, afterID string, limit int) ([]UnlinkedMovie, error)
 	// GetByMediaItemID returns the collections holding this title, so a media
 	// page can say which saga it belongs to and link to the rest of it.
 	GetByMediaItemID(ctx context.Context, mediaItemID string) ([]*Collection, error)

@@ -81,8 +81,8 @@ func (s *Service) GetItemsForCollections(ctx context.Context, collectionIDs []st
 	return s.Query.GetItemsForCollections(ctx, collectionIDs)
 }
 
-func (s *Service) ListMoviesWithoutCollection(ctx context.Context, limit int) ([]library.UnlinkedMovie, error) {
-	return s.Query.ListMoviesWithoutCollection(ctx, limit)
+func (s *Service) ListMoviesWithoutCollection(ctx context.Context, afterID string, limit int) ([]library.UnlinkedMovie, error) {
+	return s.Query.ListMoviesWithoutCollection(ctx, afterID, limit)
 }
 
 func (s *Service) UnlinkMediaItem(ctx context.Context, collectionID, mediaItemID string) error {
