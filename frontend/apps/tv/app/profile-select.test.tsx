@@ -180,3 +180,18 @@ describe("ProfileSelect (TV) - profile switch is server-authorised", () => {
     expect(pinModalPropsRef.current.fallbackProfileId).toBe("prof-kids");
   });
 });
+// A profile whose name is an empty string slips past `??` (only null and
+// undefined trigger it) and ""[0] is undefined - calling toUpperCase on that
+// took the whole picker down, on the one screen a viewer cannot skip.
+describe("ProfileSelect survives a nameless profile", () => {
+  it("renders the picker instead of crashing, and falls back to a placeholder initial", () => {
+    listProfilesMock.mockReturnValue({
+      data: { profiles: [{ id: "prof-1", name: "" }, { id: "prof-2", name: "Alice" }] },
+      isLoading: false,
+    });
+    render(<ProfileSelect />);
+    expect(screen.getByText("?")).toBeTruthy();
+    expect(screen.getByText("R")).toBeTruthy();
+  });
+});
+

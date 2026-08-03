@@ -120,7 +120,10 @@ export default function ProfileSelect() {
       </Text>
       <View style={styles.grid}>
         {profiles.map((profile, index) => {
-          const initial = (profile.name ?? "?")[0].toUpperCase();
+          // `??` lets an empty name through, and ""[0] is undefined: the
+          // optional call is what keeps a nameless profile from taking the
+          // whole picker down. Same guard as mobile.
+          const initial = (profile.name ?? "?")[0]?.toUpperCase() ?? "?";
           return (
             <FocusableCard
               key={profile.id}
