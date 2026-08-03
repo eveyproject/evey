@@ -6,6 +6,7 @@ import { useAuthStore } from "@evey/store";
 import { useMediaRequestServiceGetRequestPolicy } from "@evey/api";
 import { useTheme } from "../providers/ThemeProvider";
 import { useDrawer } from "../providers/DrawerProvider";
+import { EveyWordmark } from "./EveyLogo";
 import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
 
 const DRAWER_WIDTH = 260;
@@ -67,7 +68,7 @@ export function SideDrawer() {
       >
         {/* Logo */}
         <Pressable onPress={() => navigate("/(auth)/(tabs)/")} style={styles.logoRow} accessible={true} accessibilityLabel="Evey home" accessibilityRole="button">
-          <Text style={[styles.logo, { color: theme.colors.accent }]}>Evey</Text>
+          <EveyWordmark height={24} color={theme.colors.text} />
         </Pressable>
 
         {/* Nav items - scrollable so they survive landscape's compressed
@@ -145,11 +146,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 52,
     paddingBottom: 20,
-  },
-  logo: {
-    fontSize: FONT_SIZE.xl,
-    fontWeight: "800",
-    letterSpacing: -0.5,
   },
   nav: {
     flex: 1,

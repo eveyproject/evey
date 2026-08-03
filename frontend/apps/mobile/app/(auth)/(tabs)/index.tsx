@@ -2,7 +2,6 @@ import { ScrollView, View, RefreshControl, Text, Pressable, Modal, Switch, Style
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { Skeleton } from "../../../src/components/Skeleton";
-import { EveyWordmark } from "../../../src/components/EveyLogo";
 import { useCallback, useMemo, useState, useEffect } from "react";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -603,11 +602,6 @@ export default function HomeScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.accent} />}
       >
         <View style={{ paddingTop: theme.spacing.md }}>
-          {/* Brand at the top of the home, as on web. The customize control
-              keeps its place on the right of the same line. */}
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: theme.spacing.md, marginBottom: theme.spacing.xs }}>
-            <EveyWordmark height={20} color={theme.colors.text} />
-          </View>
           <Pressable
             onPress={() => setShowCustomize(true)}
             style={{ alignSelf: "flex-end", marginRight: theme.spacing.md, marginBottom: theme.spacing.sm, flexDirection: "row", alignItems: "center", gap: 4 }}

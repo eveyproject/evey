@@ -11,13 +11,17 @@ import { useNotificationServiceGetUnreadCount } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useDrawer } from "../../../src/providers/DrawerProvider";
 import { HeaderSearch } from "../../../src/components/HeaderSearch";
+import { EveyMark } from "../../../src/components/EveyLogo";
 import { UserMenu } from "../../../src/components/layout/UserMenu";
 
-function BurgerButton({ theme }: { theme: ReturnType<typeof useTheme> }) {
+// The brand lives with the menu, never on a page: closed it is the compact mark
+// that opens the drawer, open it is the wordmark at the drawer's head - the
+// same two states the web sidebar shows collapsed and expanded.
+function BurgerButton() {
   const { toggle } = useDrawer();
   return (
     <Pressable onPress={toggle} style={{ marginLeft: 6, padding: 4 }} accessibilityRole="button" accessibilityLabel="Open menu">
-      <Ionicons name="menu" size={24} color={theme.colors.text} />
+      <EveyMark height={26} />
     </Pressable>
   );
 }
@@ -53,7 +57,7 @@ export default function TabsLayout() {
   const sharedOptions = {
     headerStyle: { backgroundColor: theme.colors.surface },
     headerShadowVisible: false,
-    headerLeft: () => <BurgerButton theme={theme} />,
+    headerLeft: () => <BurgerButton />,
     headerTitle: () => <HeaderSearch />,
     headerRight: () => <HeaderRight theme={theme} />,
     headerTitleContainerStyle: { flex: 1, paddingHorizontal: 8 },
