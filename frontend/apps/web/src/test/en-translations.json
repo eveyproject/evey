@@ -1269,6 +1269,7 @@
   "media.collections.noRulesYet": "No rules yet. Add at least one rule to filter items.",
   "media.collections.notFound": "Collection not found",
   "media.collections.notFoundDesc": "This smart collection no longer exists.",
+  "media.collections.saga": "Saga",
   "media.collections.saveChanges": "Save changes",
   "media.collections.smart": "Smart",
   "media.collections.smartCollections": "Smart Collections",

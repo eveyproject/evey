@@ -58,6 +58,7 @@ collections:
   deleteSmartConfirm: Delete this smart collection?
   browseResults: "Browse results →"
   smart: Smart
+  saga: Saga
   noItems: No items
   noItemsDesc: This collection has no media items yet.
   notFound: Collection not found

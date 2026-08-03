@@ -58,6 +58,7 @@ collections:
   deleteSmartConfirm: ¿Eliminar esta colección inteligente?
   browseResults: "Ver resultados →"
   smart: Inteligente
+  saga: Saga
   noItems: Sin elementos
   noItemsDesc: Esta colección aún no tiene elementos multimedia.
   notFound: Colección no encontrada

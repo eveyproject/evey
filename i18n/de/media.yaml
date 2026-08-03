@@ -58,6 +58,7 @@ collections:
   deleteSmartConfirm: Diese Smart-Sammlung löschen?
   browseResults: "Ergebnisse durchsuchen →"
   smart: Smart
+  saga: Saga
   noItems: Keine Elemente
   noItemsDesc: Diese Sammlung enthält noch keine Medienelemente.
   notFound: Sammlung nicht gefunden

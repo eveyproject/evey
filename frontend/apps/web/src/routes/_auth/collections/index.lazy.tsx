@@ -6,12 +6,29 @@ import { useCollections, useDeleteCollection } from "@/features/collection/api";
 import type { Collection } from "@/features/collection/api";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
 import { SmartCollectionDialog } from "@/features/collection/SmartCollectionDialog";
 import type { SmartCollection } from "@/features/collection/SmartCollectionDialog";
 
 export const Route = createLazyFileRoute("/_auth/collections/")({
   component: CollectionsPage,
 });
+
+export interface CollectionSubtitleParts {
+  badge?: string;
+  count?: string;
+}
+
+export function collectionSubtitle(
+  kind: string | undefined,
+  itemCount: number | undefined,
+  t: (key: string, options?: Record<string, unknown>) => string,
+): CollectionSubtitleParts {
+  const parts: CollectionSubtitleParts = {};
+  if (kind === "saga") parts.badge = t("media.collections.saga");
+  if (itemCount !== undefined && itemCount > 0) parts.count = t("media.person.titleCount", { count: itemCount });
+  return parts;
+}
 
 function CollectionCardSkeleton() {
   return (
@@ -25,6 +42,7 @@ function CollectionPosterCard({ col }: { col: Collection }) {
   const { t } = useTranslation();
   const deleteMut = useDeleteCollection();
   const initial = col.name[0]?.toUpperCase() ?? "?";
+  const subtitle = collectionSubtitle(col.kind, col.itemCount, t);
 
   return (
     <div className="group relative">
@@ -51,11 +69,21 @@ function CollectionPosterCard({ col }: { col: Collection }) {
           <div
             className="absolute inset-0 gradient-collection-fade"
           />
-          <p
-            className="absolute bottom-2 left-2 right-2 text-sm font-semibold text-[var(--overlay-text)] truncate"
-          >
-            {col.name}
-          </p>
+          {subtitle.badge && (
+            <Badge variant="default" className="absolute top-2 left-2">
+              {subtitle.badge}
+            </Badge>
+          )}
+          <div className="absolute bottom-2 left-2 right-2">
+            <p className="text-sm font-semibold text-[var(--overlay-text)] truncate">
+              {col.name}
+            </p>
+            {subtitle.count && (
+              <p className="text-xs text-[var(--overlay-text)] opacity-80 truncate">
+                {subtitle.count}
+              </p>
+            )}
+          </div>
         </div>
       </Link>
 

@@ -58,6 +58,7 @@ collections:
   deleteSmartConfirm: 确定删除此智能合集？
   browseResults: "浏览结果 →"
   smart: 智能
+  saga: 系列
   noItems: 没有项目
   noItemsDesc: 此合集暂无媒体项目。
   notFound: 合集未找到

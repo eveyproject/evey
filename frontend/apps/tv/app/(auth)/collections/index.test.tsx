@@ -80,7 +80,7 @@ vi.mock("../../../src/api/collections", () => ({
   useCollections: () => collectionsMock(),
 }));
 
-import CollectionsScreen from "./index";
+import CollectionsScreen, { collectionSubtitle } from "./index";
 
 const COLLECTIONS = [
   { id: "col-1", name: "Marvel" },
@@ -132,5 +132,30 @@ describe("CollectionsScreen (TV) empty state", () => {
 
     expect(screen.getByText("common.noCollections")).toBeTruthy();
     expect(screen.queryByText("Something went wrong")).toBeNull();
+  });
+});
+
+describe("collectionSubtitle (TV)", () => {
+  const t = (key: string, options?: Record<string, unknown>) =>
+    options?.count !== undefined ? `${options.count} titles` : key;
+
+  it("returns no parts for a manual collection with no known count", () => {
+    expect(collectionSubtitle(undefined, undefined, t)).toEqual({});
+  });
+
+  it("returns a badge for a saga collection", () => {
+    expect(collectionSubtitle("saga", undefined, t)).toEqual({ badge: "media.collections.saga" });
+  });
+
+  it("returns a count when itemCount is positive, regardless of kind", () => {
+    expect(collectionSubtitle("manual", 7, t)).toEqual({ count: "7 titles" });
+  });
+
+  it("omits the count when itemCount is zero", () => {
+    expect(collectionSubtitle(undefined, 0, t)).toEqual({});
+  });
+
+  it("combines badge and count for a saga with visible titles", () => {
+    expect(collectionSubtitle("saga", 3, t)).toEqual({ badge: "media.collections.saga", count: "3 titles" });
   });
 });

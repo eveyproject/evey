@@ -8,6 +8,26 @@ import { ScreenState } from "../../../src/components/ScreenState";
 
 const NUM_COLUMNS = 5;
 
+// The shared `Collection` type predates itemCount/kind; the REST response
+// already carries them (eveyFetch passes the JSON through untouched), this
+// just widens what the component is allowed to read off it.
+
+export interface CollectionSubtitleParts {
+  badge?: string;
+  count?: string;
+}
+
+export function collectionSubtitle(
+  kind: string | undefined,
+  itemCount: number | undefined,
+  t: (key: string, options?: Record<string, unknown>) => string,
+): CollectionSubtitleParts {
+  const parts: CollectionSubtitleParts = {};
+  if (kind === "saga") parts.badge = t("media.collections.saga");
+  if (itemCount !== undefined && itemCount > 0) parts.count = t("media.person.titleCount", { count: itemCount });
+  return parts;
+}
+
 export default function CollectionsScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -71,7 +91,9 @@ function CollectionCard({
   isFirst?: boolean;
   onPress: () => void;
 }) {
+  const { t } = useTranslation();
   const initial = col.name[0]?.toUpperCase() ?? "?";
+  const subtitle = collectionSubtitle(col.kind, col.itemCount, t);
 
   return (
     <FocusableCard
@@ -82,10 +104,20 @@ function CollectionCard({
     >
       <View style={[styles.placeholder, { backgroundColor: theme.colors.surfaceRaised, borderRadius: theme.radii.sm }]}>
         <Text style={{ color: theme.colors.textMuted, fontSize: 36, fontWeight: "700" }}>{initial}</Text>
+        {subtitle.badge && (
+          <View style={[styles.badge, { backgroundColor: theme.colors.surface }]}>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 12, fontWeight: "700" }}>{subtitle.badge}</Text>
+          </View>
+        )}
       </View>
       <Text style={[styles.name, { color: theme.colors.text }]} numberOfLines={2}>
         {col.name}
       </Text>
+      {subtitle.count && (
+        <Text style={{ color: theme.colors.textMuted, fontSize: 14 }} numberOfLines={1}>
+          {subtitle.count}
+        </Text>
+      )}
     </FocusableCard>
   );
 }
@@ -95,7 +127,8 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
   header: { fontSize: 36, fontWeight: "700", paddingHorizontal: 24, paddingTop: 32, paddingBottom: 16 },
   card: { flex: 1, margin: 8, padding: 12, alignItems: "center" },
-  placeholder: { width: 160, height: 240, justifyContent: "center", alignItems: "center" },
+  placeholder: { width: 160, height: 240, justifyContent: "center", alignItems: "center", position: "relative" },
+  badge: { position: "absolute", top: 8, left: 8, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
   name: { fontSize: 18, fontWeight: "600", marginTop: 8, textAlign: "center" },
   emptyAction: { paddingHorizontal: 24, paddingVertical: 14 },
 });

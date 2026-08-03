@@ -58,6 +58,7 @@ collections:
   deleteSmartConfirm: यह स्मार्ट संग्रह मिटाएं?
   browseResults: "परिणाम देखें →"
   smart: स्मार्ट
+  saga: सागा
   noItems: कोई आइटम नहीं
   noItemsDesc: इस संग्रह में अभी कोई मीडिया आइटम नहीं है।
   notFound: संग्रह नहीं मिला

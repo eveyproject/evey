@@ -33,6 +33,26 @@ const ITEM_WIDTH =
   (screenWidth - SPACING * (NUM_COLUMNS + 1)) / NUM_COLUMNS;
 const POSTER_HEIGHT = ITEM_WIDTH * 1.5;
 
+// The shared `Collection` type predates itemCount/kind; the REST response
+// already carries them (eveyFetch passes the JSON through untouched), this
+// just widens what the component is allowed to read off it.
+
+export interface CollectionSubtitleParts {
+  badge?: string;
+  count?: string;
+}
+
+export function collectionSubtitle(
+  kind: string | undefined,
+  itemCount: number | undefined,
+  t: (key: string, options?: Record<string, unknown>) => string,
+): CollectionSubtitleParts {
+  const parts: CollectionSubtitleParts = {};
+  if (kind === "saga") parts.badge = t("media.collections.saga");
+  if (itemCount !== undefined && itemCount > 0) parts.count = t("media.person.titleCount", { count: itemCount });
+  return parts;
+}
+
 function CollectionCard({
   col,
   theme,
@@ -44,7 +64,9 @@ function CollectionCard({
   onPress: () => void;
   onLongPress: () => void;
 }) {
+  const { t } = useTranslation();
   const initial = col.name?.[0]?.toUpperCase() ?? "?";
+  const subtitle = collectionSubtitle(col.kind, col.itemCount, t);
 
   return (
     <TouchableOpacity
@@ -91,12 +113,22 @@ function CollectionCard({
         >
           {col.name}
         </Text>
+        {subtitle.badge && (
+          <View style={{ backgroundColor: theme.colors.surfaceRaised, borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1 }}>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 9, fontWeight: "700" }}>{subtitle.badge.toUpperCase()}</Text>
+          </View>
+        )}
         {col.rules && col.rules.length > 0 && (
           <View style={{ backgroundColor: theme.colors.accent, borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1 }}>
             <Text style={{ color: theme.colors.onAccent, fontSize: 9, fontWeight: "700" }}>SMART</Text>
           </View>
         )}
       </View>
+      {subtitle.count && (
+        <Text style={{ color: theme.colors.textMuted, fontSize: 11 }} numberOfLines={1}>
+          {subtitle.count}
+        </Text>
+      )}
     </TouchableOpacity>
   );
 }
