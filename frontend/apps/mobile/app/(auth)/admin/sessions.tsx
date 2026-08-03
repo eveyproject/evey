@@ -1,5 +1,5 @@
 import { View, Text, FlatList, Pressable, Alert, TextInput, StyleSheet } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { Stack } from "expo-router";
 import { useCallback, useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";

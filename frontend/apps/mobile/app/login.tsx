@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { View, Text, TextInput, Pressable, ActivityIndicator, Alert, Linking } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";

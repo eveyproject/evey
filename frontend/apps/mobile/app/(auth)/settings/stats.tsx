@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useActivityServiceGetUserStats } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { PieChart, BarChart } from "react-native-gifted-charts";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { chartColorAt } from "../../../src/lib/chartPalette";
 

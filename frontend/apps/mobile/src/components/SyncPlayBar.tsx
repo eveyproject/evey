@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { View, Text, Pressable, Share, StyleSheet } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../providers/ThemeProvider";
 import type { SyncPlayMember } from "../hooks/useSyncPlay";

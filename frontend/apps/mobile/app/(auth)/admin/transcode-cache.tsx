@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { View, Text, FlatList, Pressable, Alert, ActivityIndicator, StyleSheet, TextInput, Switch } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { Stack } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { eveyFetch, useAdminSystemServiceGetSystemInfo } from "@evey/api";

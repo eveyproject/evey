@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { View, Text, Pressable, ActivityIndicator, StyleSheet } from "react-native";
-import { Ionicons, MaterialIcons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import Svg, { Path, Text as SvgText } from "react-native-svg";
 import { useTranslation } from "react-i18next";
 import { formatTime } from "../../lib/formatTime";

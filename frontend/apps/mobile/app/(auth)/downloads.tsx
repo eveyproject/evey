@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, FlatList, Pressable, Alert, StyleSheet, ActivityIndicator } from "react-native";
 import { router, Stack, useFocusEffect } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@evey/store";
 import { useUserServiceGetCurrentUser, useUserServiceListProfiles } from "@evey/api";

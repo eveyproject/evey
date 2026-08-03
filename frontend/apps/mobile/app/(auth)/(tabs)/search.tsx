@@ -9,7 +9,7 @@ import {
   ScrollView,
   StyleSheet,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { Image } from "expo-image";
 import { Skeleton } from "../../../src/components/Skeleton";
 import { useRouter, useLocalSearchParams } from "expo-router";

@@ -9,7 +9,7 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, Pressable, StyleSheet, AppState, Platform, type GestureResponderEvent } from "react-native";
 import { Image } from "expo-image";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
 import { useTranslation } from "react-i18next";
 import { router } from "expo-router";

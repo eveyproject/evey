@@ -2,7 +2,7 @@ import { useState, useRef, useCallback } from "react";
 import { View, Text, TextInput, Pressable, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { router } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useTranslation } from "react-i18next";
 import { useLibraryServiceSearchMedia, useMusicServiceSearchMusic } from "@evey/api";
 import type { V1MediaItem, V1Track } from "@evey/api";

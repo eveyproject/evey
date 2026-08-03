@@ -13,7 +13,7 @@ import {
   Alert,
 } from "react-native";
 import { Image } from "expo-image";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { Skeleton } from "../../../src/components/Skeleton";
 import { ProgressBar } from "../../../src/components/ProgressBar";
 import { MediaCard } from "../../../src/components/MediaCard";

@@ -1,6 +1,6 @@
 import { Text, Pressable, StyleSheet, Animated, Modal, ScrollView } from "react-native";
 import { router, usePathname } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@evey/store";
 import { useMediaRequestServiceGetRequestPolicy } from "@evey/api";

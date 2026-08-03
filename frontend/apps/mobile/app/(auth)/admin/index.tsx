@@ -1,5 +1,5 @@
 import { View, Text, ScrollView, Pressable, RefreshControl, ActivityIndicator, StyleSheet } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 
 // The icon-name union, so a typo is a compile error rather than a blank square.
 type IoniconName = keyof typeof Ionicons.glyphMap;
