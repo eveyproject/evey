@@ -366,6 +366,9 @@ func (h *libraryHandler) ListMediaItems(ctx context.Context, req *eveyv1.ListMed
 			NextCursor: nextMediaItemsCursor(items, filter),
 		},
 	}
+	if ps := int(req.Pagination.GetPageSize()); ps > 0 {
+		resp.Pagination.TotalPages = int32((total + ps - 1) / ps)
+	}
 	ids := make([]string, 0, len(items))
 	for _, item := range items {
 		ids = append(ids, string(item.ID))

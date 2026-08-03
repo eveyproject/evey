@@ -343,6 +343,9 @@ func TestLibraryHandler_ListMediaItems_WithPagination(t *testing.T) {
 	assert.Equal(t, int32(5), resp.Pagination.TotalItems)
 	assert.Equal(t, int32(1), resp.Pagination.Page)
 	assert.Equal(t, int32(3), resp.Pagination.PageSize)
+	// 5 items in pages of 3 = 2 pages. The field sat at zero for so long the
+	// mobile library screen documented "the server NEVER fills totalPages".
+	assert.Equal(t, int32(2), resp.Pagination.TotalPages)
 }
 
 func TestLibraryHandler_SearchMedia(t *testing.T) {
