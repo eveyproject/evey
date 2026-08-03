@@ -7,8 +7,20 @@ vi.mock("react-native", () => ({
   View: ({ children, ...p }: any) => React.createElement("div", p, children),
   Text: ({ children, ...p }: any) => React.createElement("span", p, children),
   ScrollView: ({ children, ...p }: any) => React.createElement("div", p, children),
-  Pressable: ({ children, onPress, accessibilityLabel, ...p }: any) =>
-    React.createElement("button", { onClick: onPress, "aria-label": accessibilityLabel, ...p }, children),
+  // hasTVPreferredFocus is surfaced as a data-* attribute: React silently
+  // drops unknown boolean props on DOM elements, so the focus test needs
+  // something it can actually query for.
+  Pressable: ({ children, onPress, accessibilityLabel, hasTVPreferredFocus, ...p }: any) =>
+    React.createElement(
+      "button",
+      {
+        onClick: onPress,
+        "aria-label": accessibilityLabel,
+        "data-tv-preferred-focus": hasTVPreferredFocus ? "true" : undefined,
+        ...p,
+      },
+      children,
+    ),
   StyleSheet: { create: (s: any) => s },
 }));
 
@@ -20,10 +32,11 @@ vi.mock("expo-router", () => ({
 }));
 
 // --- react-i18next mock --------------------------------------------------------
+const changeLanguageMock = vi.fn();
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
     t: (key: string, fallback?: string) => fallback ?? key,
-    i18n: { language: "en", changeLanguage: vi.fn() },
+    i18n: { language: "en", changeLanguage: (...args: unknown[]) => changeLanguageMock(...args) },
   }),
 }));
 
@@ -63,22 +76,28 @@ vi.mock("../../../src/lib/server-config", () => ({
 
 // --- i18n mock -------------------------------------------------------------------
 vi.mock("../../../src/i18n", () => ({
-  supportedLanguages: [{ code: "en", label: "English" }],
+  supportedLanguages: [
+    { code: "en", label: "English" },
+    { code: "fr", label: "Français" },
+  ],
 }));
 
 // --- @evey/api mock --------------------------------------------------------------
 const currentUserMock = vi.fn();
 const listProfilesMock = vi.fn();
 const updateProfileMock = vi.fn();
+const updateProfileMutateMock = vi.fn();
+const updateProfileMutateAsyncMock = vi.fn();
 const systemInfoMock = vi.fn();
 const userServiceLogoutMock = vi.fn();
+const eveyFetchMock = vi.fn();
 vi.mock("@evey/api", () => ({
   useUserServiceGetCurrentUser: (...args: unknown[]) => currentUserMock(...args),
   useUserServiceListProfiles: (...args: unknown[]) => listProfilesMock(...args),
   useUserServiceUpdateProfile: (...args: unknown[]) => updateProfileMock(...args),
   useAdminSystemServiceGetSystemInfo: (...args: unknown[]) => systemInfoMock(...args),
   userServiceLogout: (...args: unknown[]) => userServiceLogoutMock(...args),
-  eveyFetch: vi.fn(),
+  eveyFetch: (...args: unknown[]) => eveyFetchMock(...args),
 }));
 
 import SettingsScreen from "./settings";
@@ -94,9 +113,14 @@ beforeEach(() => {
       ],
     },
   });
-  updateProfileMock.mockReturnValue({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false });
+  updateProfileMock.mockReturnValue({
+    mutate: updateProfileMutateMock,
+    mutateAsync: updateProfileMutateAsyncMock,
+    isPending: false,
+  });
   systemInfoMock.mockReturnValue({ data: { version: "1.0.0" } });
   userServiceLogoutMock.mockResolvedValue({});
+  eveyFetchMock.mockResolvedValue({});
 });
 
 describe("SettingsScreen (TV) playback entry", () => {
@@ -167,5 +191,41 @@ describe("SettingsScreen (TV) profile menu parity", () => {
     render(<SettingsScreen />);
     fireEvent.click(screen.getByLabelText("mobile.settings.switchProfile"));
     expect(pushMock).toHaveBeenCalledWith("/profile-select");
+  });
+});
+
+// Regression for the fix landed the night of 2026-08-02/03: entering Settings
+// used to hand initial D-pad focus to Sign out, one reflex OK press away from
+// a session a keyboard-less television has no comfortable way to restore.
+describe("SettingsScreen (TV) initial focus", () => {
+  it("claims initial TV focus on 'change server', not on sign out", () => {
+    render(<SettingsScreen />);
+    const focused = document.querySelector('[data-tv-preferred-focus="true"]');
+    expect(focused).toBe(screen.getByLabelText("mobile.settings.changeServer"));
+  });
+
+  it("never leaves sign out as the preferred focus target", () => {
+    render(<SettingsScreen />);
+    expect(screen.getByLabelText("mobile.settings.signOut").getAttribute("data-tv-preferred-focus")).not.toBe("true");
+  });
+});
+
+describe("SettingsScreen (TV) server info", () => {
+  it("shows the URL of the server this television is paired with", () => {
+    render(<SettingsScreen />);
+    expect(screen.getByText("http://srv.test")).toBeTruthy();
+  });
+});
+
+describe("SettingsScreen (TV) language change", () => {
+  it("applies the choice in-app and persists it on the ACTIVE profile, not the default one", () => {
+    render(<SettingsScreen />);
+    fireEvent.click(screen.getByLabelText("Français"));
+    expect(changeLanguageMock).toHaveBeenCalledWith("fr");
+    // The auth store mock's profileId is "prof-2" (Chloé), not the default
+    // "prof-1" (Romain) - see handleLanguageChange's comment in settings.tsx:
+    // writing the locale onto the default profile instead of the active one
+    // was the bug this screen fixed.
+    expect(updateProfileMutateAsyncMock).toHaveBeenCalledWith({ id: "prof-2", data: { locale: "fr" } });
   });
 });
