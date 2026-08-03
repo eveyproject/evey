@@ -204,7 +204,7 @@ func (h *collectionHandler) CreateCollection(ctx context.Context, req *eveyv1.Cr
 	if req.GetSmart() {
 		created, err = h.svc.CreateSmart(ctx, req.GetName(), rules, req.GetSortBy())
 	} else {
-		created, err = h.svc.Create(ctx, req.GetName(), rules, req.GetSortBy())
+		created, err = h.svc.Create(ctx, req.GetName(), req.GetOverview(), rules, req.GetSortBy())
 	}
 	if err != nil {
 		span.RecordError(err)
@@ -243,7 +243,7 @@ func (h *collectionHandler) UpdateCollection(ctx context.Context, req *eveyv1.Up
 		}
 		return &eveyv1.UpdateCollectionResponse{Collection: collectionToProto(col)}, nil
 	}
-	if err := h.svc.Update(ctx, req.GetId(), req.GetName(), rules, req.GetSortBy()); err != nil {
+	if err := h.svc.Update(ctx, req.GetId(), req.GetName(), req.Overview, rules, req.GetSortBy()); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError(ctx, "update collection", err)

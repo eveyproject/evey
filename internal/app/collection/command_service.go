@@ -22,20 +22,21 @@ func NewCommandService(cmd library.CollectionCommandRepo, query library.Collecti
 	return &CommandService{cmd: cmd, query: query, mediaItems: mediaItems}
 }
 
-func (s *CommandService) Create(ctx context.Context, name string, rules []library.CollectionRule, sortBy string) (*library.Collection, error) {
+func (s *CommandService) Create(ctx context.Context, name, overview string, rules []library.CollectionRule, sortBy string) (*library.Collection, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.collection.Create")
 	defer span.End()
 	col, err := library.NewCollection(uuid.New().String(), name, rules, sortBy)
 	if err != nil {
 		return nil, err
 	}
+	col.Overview = overview
 	if err := s.cmd.Create(ctx, col); err != nil {
 		return nil, err
 	}
 	return col, nil
 }
 
-func (s *CommandService) Update(ctx context.Context, id, name string, rules []library.CollectionRule, sortBy string) error {
+func (s *CommandService) Update(ctx context.Context, id, name string, overview *string, rules []library.CollectionRule, sortBy string) error {
 	ctx, span := tracing.StartSpan(ctx, "app.collection.Update")
 	defer span.End()
 	col, err := s.query.GetByID(ctx, id)
@@ -43,6 +44,11 @@ func (s *CommandService) Update(ctx context.Context, id, name string, rules []li
 		return fmt.Errorf("collection not found: %w", err)
 	}
 	col.Name = name
+	// Absent means keep: a client editing only the name must not wipe the
+	// synopsis a TMDB saga came with.
+	if overview != nil {
+		col.Overview = *overview
+	}
 	col.Rules = rules
 	col.SortBy = sortBy
 	col.UpdatedAt = time.Now()

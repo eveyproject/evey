@@ -33,12 +33,12 @@ func NewService(cmd library.CollectionCommandRepo, query library.CollectionQuery
 	}
 }
 
-func (s *Service) Create(ctx context.Context, name string, rules []library.CollectionRule, sortBy string) (*library.Collection, error) {
-	return s.Command.Create(ctx, name, rules, sortBy)
+func (s *Service) Create(ctx context.Context, name, overview string, rules []library.CollectionRule, sortBy string) (*library.Collection, error) {
+	return s.Command.Create(ctx, name, overview, rules, sortBy)
 }
 
-func (s *Service) Update(ctx context.Context, id, name string, rules []library.CollectionRule, sortBy string) error {
-	return s.Command.Update(ctx, id, name, rules, sortBy)
+func (s *Service) Update(ctx context.Context, id, name string, overview *string, rules []library.CollectionRule, sortBy string) error {
+	return s.Command.Update(ctx, id, name, overview, rules, sortBy)
 }
 
 func (s *Service) Upsert(ctx context.Context, tmdbID int, name, overview, posterURL, backdropURL string) (*library.Collection, error) {

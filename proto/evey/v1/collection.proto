@@ -135,6 +135,10 @@ message CreateCollectionRequest {
   repeated CollectionRule rules = 2;
   string sort_by = 3;
   bool smart = 4;
+  // Free text shown under the title, like the synopsis a TMDB saga carries.
+  // The column and the domain always had it; only the request did not, so a
+  // description typed at creation went nowhere (found 2026-08-04).
+  string overview = 5;
 }
 
 message CreateCollectionResponse {
@@ -147,6 +151,9 @@ message UpdateCollectionRequest {
   repeated CollectionRule rules = 3;
   string sort_by = 4;
   bool smart = 5;
+  // Optional so that a client editing only the name leaves the synopsis of a
+  // TMDB saga alone: absent means "keep", empty string means "clear".
+  optional string overview = 6;
 }
 
 message UpdateCollectionResponse {

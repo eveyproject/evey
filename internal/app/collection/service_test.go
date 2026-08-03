@@ -554,7 +554,7 @@ func TestCreate(t *testing.T) {
 	ctx := context.Background()
 
 	rules := []library.CollectionRule{{Field: "genre", Operator: "eq", Value: "Action"}}
-	col, err := svc.Create(ctx, "Manual Collection", rules, "title")
+	col, err := svc.Create(ctx, "Manual Collection", "", rules, "title")
 	require.NoError(t, err)
 	assert.NotEmpty(t, col.ID)
 	assert.Equal(t, "Manual Collection", col.Name)
@@ -571,7 +571,7 @@ func TestCreate_RepoError(t *testing.T) {
 	cmdRepo.Err = fmt.Errorf("db down")
 	svc := appcol.NewService(cmdRepo, colRepo.QueryRepo(), smartQ, mediaRepo)
 
-	_, err := svc.Create(context.Background(), "Fail", nil, "title")
+	_, err := svc.Create(context.Background(), "Fail", "", nil, "title")
 	require.Error(t, err)
 }
 
@@ -581,11 +581,11 @@ func TestUpdate(t *testing.T) {
 	ctx := context.Background()
 
 	rules := []library.CollectionRule{{Field: "genre", Operator: "eq", Value: "Action"}}
-	col, err := svc.Create(ctx, "Original", rules, "title")
+	col, err := svc.Create(ctx, "Original", "", rules, "title")
 	require.NoError(t, err)
 
 	newRules := []library.CollectionRule{{Field: "genre", Operator: "eq", Value: "Drama"}}
-	err = svc.Update(ctx, col.ID, "Updated", newRules, "year")
+	err = svc.Update(ctx, col.ID, "Updated", nil, newRules, "year")
 	require.NoError(t, err)
 
 	got, err := svc.GetByID(ctx, col.ID)
@@ -594,10 +594,47 @@ func TestUpdate(t *testing.T) {
 	assert.Equal(t, "year", got.SortBy)
 }
 
+// The description typed at creation used to go nowhere: the column and the
+// domain carried it, the request did not.
+func TestCreate_KeepsTheDescription(t *testing.T) {
+	t.Parallel()
+	svc, _, _ := newSvc()
+	ctx := context.Background()
+
+	col, err := svc.Create(ctx, "Nolan", "Everything Christopher Nolan directed", nil, "year")
+	require.NoError(t, err)
+
+	got, err := svc.GetByID(ctx, col.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "Everything Christopher Nolan directed", got.Overview)
+}
+
+// Absent means keep, so renaming a saga does not cost it the synopsis TMDB
+// gave it; an empty string is a deliberate clear.
+func TestUpdate_LeavesTheDescriptionAloneUnlessAsked(t *testing.T) {
+	t.Parallel()
+	svc, _, _ := newSvc()
+	ctx := context.Background()
+
+	col, err := svc.Create(ctx, "Nolan", "The synopsis", nil, "year")
+	require.NoError(t, err)
+
+	require.NoError(t, svc.Update(ctx, col.ID, "Nolan films", nil, nil, "year"))
+	got, err := svc.GetByID(ctx, col.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "The synopsis", got.Overview, "a rename must not wipe the description")
+
+	cleared := ""
+	require.NoError(t, svc.Update(ctx, col.ID, "Nolan films", &cleared, nil, "year"))
+	got, err = svc.GetByID(ctx, col.ID)
+	require.NoError(t, err)
+	assert.Empty(t, got.Overview, "an empty string clears it on purpose")
+}
+
 func TestUpdate_NotFound(t *testing.T) {
 	t.Parallel()
 	svc, _, _ := newSvc()
-	err := svc.Update(context.Background(), "nonexistent", "Name", nil, "title")
+	err := svc.Update(context.Background(), "nonexistent", "Name", nil, nil, "title")
 	require.Error(t, err)
 }
 
