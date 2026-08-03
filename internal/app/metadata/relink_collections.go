@@ -63,10 +63,7 @@ func (e *Enricher) RelinkCollections(ctx context.Context, limit int) (RelinkRepo
 
 	var cursor string
 	registered := false
-	for {
-		if limit > 0 && rep.Scanned >= limit {
-			break
-		}
+	for limit <= 0 || rep.Scanned < limit {
 		page := relinkPageSize
 		if limit > 0 && limit-rep.Scanned < page {
 			page = limit - rep.Scanned
