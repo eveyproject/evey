@@ -125,7 +125,6 @@ describe("audit TV · focus initial déterministe", () => {
   // themselves.
   const SHELL_PROVIDES_FOCUS = new Set<string>([
     "app/(auth)/(tabs)/favorites.tsx",
-    "app/(auth)/(tabs)/settings.tsx",
     "app/(auth)/(tabs)/_layout.tsx",
     "app/(auth)/_layout.tsx",
     "app/_layout.tsx",

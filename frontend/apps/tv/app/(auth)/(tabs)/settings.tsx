@@ -127,6 +127,10 @@ export default function SettingsScreen() {
         <Pressable
           style={rowStyle("change-server")}
           onPress={handleChangeServer}
+          // Claim the first focus explicitly. Left to Android, entering
+          // Settings landed on "Log out", one reflex press away from a session
+          // a television has no comfortable way to restore (device, 08-03).
+          hasTVPreferredFocus
           onFocus={() => setFocusedItem("change-server")}
           onBlur={() => setFocusedItem(null)}
           accessible={true}
