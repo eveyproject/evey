@@ -361,9 +361,9 @@ func TestCollectionRepo_ManualOrderIsHonoured(t *testing.T) {
 	// Release order: old (1977) then recent (2005). Chronological order of the
 	// story is the opposite - exactly the prequel case.
 	old := newTestMediaItem("order-old", lib.ID)
-	old.Catalog.PremiereDate = timePtr(time.Date(1977, 5, 25, 0, 0, 0, 0, time.UTC))
+	old.Catalog.PremiereDate = new(time.Date(1977, 5, 25, 0, 0, 0, 0, time.UTC))
 	recent := newTestMediaItem("order-recent", lib.ID)
-	recent.Catalog.PremiereDate = timePtr(time.Date(2005, 5, 19, 0, 0, 0, 0, time.UTC))
+	recent.Catalog.PremiereDate = new(time.Date(2005, 5, 19, 0, 0, 0, 0, time.UTC))
 	require.NoError(t, itemRepo.Create(ctx, old))
 	require.NoError(t, itemRepo.Create(ctx, recent))
 
@@ -396,9 +396,9 @@ func TestCollectionRepo_ReleaseOrderStaysTheDefault(t *testing.T) {
 	lib := newTestLibrary("relorderlib")
 	require.NoError(t, libRepo.Create(ctx, lib))
 	old := newTestMediaItem("rel-old", lib.ID)
-	old.Catalog.PremiereDate = timePtr(time.Date(1979, 5, 25, 0, 0, 0, 0, time.UTC))
+	old.Catalog.PremiereDate = new(time.Date(1979, 5, 25, 0, 0, 0, 0, time.UTC))
 	recent := newTestMediaItem("rel-recent", lib.ID)
-	recent.Catalog.PremiereDate = timePtr(time.Date(2024, 8, 16, 0, 0, 0, 0, time.UTC))
+	recent.Catalog.PremiereDate = new(time.Date(2024, 8, 16, 0, 0, 0, 0, time.UTC))
 	require.NoError(t, itemRepo.Create(ctx, old))
 	require.NoError(t, itemRepo.Create(ctx, recent))
 
@@ -415,5 +415,3 @@ func TestCollectionRepo_ReleaseOrderStaysTheDefault(t *testing.T) {
 	assert.Equal(t, old.ID, items[0].ID, "release order stays the default reading order")
 	assert.Equal(t, recent.ID, items[1].ID)
 }
-
-func timePtr(t time.Time) *time.Time { return &t }
