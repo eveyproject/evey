@@ -23,6 +23,7 @@ import { pickPreferredStreamIndex } from "../../../src/lib/langMatch";
 import { useSleepTimer } from "../../../src/hooks/useSleepTimer";
 import { seekDeltaForKey, clampSeekTarget, shouldReleaseSeekPreview } from "../../../src/hooks/playerSeek";
 import { playerExit } from "../../../src/hooks/playerExit";
+import { playerTitle } from "../../../src/lib/playerTitle";
 import { FocusableCard } from "../../../src/components/FocusableCard";
 import { QualityPicker } from "../../../src/components/QualityPicker";
 import { AudioTrackPicker, type AudioStream } from "../../../src/components/AudioTrackPicker";
@@ -67,6 +68,18 @@ export default function PlayerScreen() {
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
 
   const { data: media } = useLibraryServiceGetMediaItem(mediaId);
+
+  // Two hops up so the top bar can name the SHOW, not just the episode: an
+  // episode hangs off its season, and no payload carries the series title (see
+  // the backlog note of 2026-08-03). Only fetched while an episode is playing,
+  // and only once per playback - a bounded cost the rows could not afford.
+  const isEpisodePlaying = media?.type === "MEDIA_ITEM_TYPE_EPISODE";
+  const { data: season } = useLibraryServiceGetMediaItem(media?.parentId ?? "", {
+    query: { enabled: isEpisodePlaying && !!media?.parentId },
+  });
+  const { data: series } = useLibraryServiceGetMediaItem(season?.parentId ?? "", {
+    query: { enabled: isEpisodePlaying && !!season?.parentId },
+  });
 
   // A series or a season has no file of its own: asking the server to stream
   // one can only 404, and the player would then blame the stream. It happened
@@ -1050,7 +1063,7 @@ export default function PlayerScreen() {
           {/* Top bar */}
           <View style={styles.topBar}>
             <Text style={styles.mediaTitle} numberOfLines={1}>
-              {media?.title ?? ""}
+              {playerTitle(media, series?.title ?? season?.title)}
             </Text>
             <View style={styles.badgeRow}>
               <SyncplaySessionBadge
