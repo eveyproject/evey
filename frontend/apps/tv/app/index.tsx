@@ -4,6 +4,7 @@ import { Redirect } from "expo-router";
 import { useAuthStore } from "@evey/store";
 import { useServerUrlNullable } from "../src/hooks/useServerUrl";
 import { pingServer } from "../src/lib/server-config";
+import { seedOfflineStrings } from "../src/i18n";
 import { useTheme } from "../src/providers/ThemeProvider";
 
 export default function EntryRedirect() {
@@ -15,7 +16,13 @@ export default function EntryRedirect() {
 
   useEffect(() => {
     if (!serverUrl) return;
-    pingServer(serverUrl).then(setServerOk);
+    pingServer(serverUrl).then((ok) => {
+      // Translations live on the server. Knowing here that it is unreachable is
+      // what lets the next screen speak the viewer's language instead of
+      // waiting for i18next's own fetch to time out.
+      if (!ok) seedOfflineStrings();
+      setServerOk(ok);
+    });
   }, [serverUrl]);
 
   if (serverUrl === undefined) {

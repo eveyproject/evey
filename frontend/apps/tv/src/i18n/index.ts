@@ -38,10 +38,7 @@ export async function initI18n(serverUrl: string) {
   // very first screen in English whatever the viewer's language (device,
   // 2026-08-03). Seeding unconditionally is worse than the disease - it marks
   // the namespace loaded and the real bundle never lands.
-  i18n.on("failedLoading", (lng: string) => {
-    const strings = OFFLINE_STRINGS[lng] ?? OFFLINE_STRINGS.en;
-    if (strings) i18n.addResourceBundle(lng, "translation", strings, true, false);
-  });
+  i18n.on("failedLoading", (lng: string) => seedOfflineStrings(lng));
 
   await i18n
     .use(HttpBackend)
@@ -84,4 +81,16 @@ export async function applyServerLanguage(serverUrl: string): Promise<void> {
   } catch {
     // setup/status is best-effort; offline boot just keeps the device default.
   }
+}
+
+// Also callable directly: the entry screen learns the server is unreachable
+// from its own ping, BEFORE i18next times out and fires failedLoading, and the
+// first screen would otherwise be painted in English in the meantime.
+export function seedOfflineStrings(lng?: string): void {
+  const target = lng ?? i18n.language ?? "en";
+  const base = target.split("-")[0]!;
+  const strings = OFFLINE_STRINGS[base] ?? OFFLINE_STRINGS.en;
+  if (!strings) return;
+  // overwrite: false - whatever the server already sent stays authoritative.
+  i18n.addResourceBundle(base, "translation", strings, true, false);
 }
