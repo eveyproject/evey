@@ -23,6 +23,7 @@ import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useDebounce } from "../../../src/hooks/useDebounce";
 import { useFavoritesList, type FavoriteItem } from "../../../src/hooks/useFavorite";
+import { BulkAddToPlaylistSheet, BulkAddToCollectionSheet } from "../../../src/components/library/BulkAddSheets";
 
 const NUM_COLUMNS = 3;
 const SPACING = 8;
@@ -59,6 +60,8 @@ export default function FavoritesScreen() {
   const [bulkMode, setBulkMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const profileId = useAuthStore((s) => s.profileId) ?? "";
+  const [showBulkPlaylist, setShowBulkPlaylist] = useState(false);
+  const [showBulkCollection, setShowBulkCollection] = useState(false);
 
   const markWatched = usePlaybackServiceMarkAsWatched({ mutation: { onSuccess: () => toast.success(t("media.library.markedWatched", "Marked watched")) } });
   const markUnwatched = usePlaybackServiceMarkAsUnwatched({ mutation: { onSuccess: () => toast.success(t("media.library.markedUnwatched", "Marked unwatched")) } });
@@ -336,11 +339,31 @@ export default function FavoritesScreen() {
             <Pressable onPress={bulkMarkUnwatched} style={styles.bulkBtn} accessible={true} accessibilityLabel={t("media.library.markUnwatched", "Mark unwatched")} accessibilityRole="button">
               <Ionicons name="eye-off-outline" size={20} color={theme.colors.textMuted} />
             </Pressable>
+            <Pressable onPress={() => setShowBulkPlaylist(true)} style={styles.bulkBtn} accessible={true} accessibilityLabel={t("media.detail.addToPlaylist", "Playlist")} accessibilityRole="button">
+              <Ionicons name="add-circle-outline" size={20} color={theme.colors.accent} />
+            </Pressable>
+            <Pressable onPress={() => setShowBulkCollection(true)} style={styles.bulkBtn} accessible={true} accessibilityLabel={t("media.library.addToCollection", "Add to collection")} accessibilityRole="button">
+              <Ionicons name="albums-outline" size={20} color={theme.colors.accent} />
+            </Pressable>
             <Pressable onPress={exitBulk} style={styles.bulkBtn} accessible={true} accessibilityLabel={t("common.cancel")} accessibilityRole="button">
               <Ionicons name="close" size={20} color={theme.colors.error} />
             </Pressable>
           </View>
         </View>
+      )}
+      {showBulkPlaylist && selected.size > 0 && (
+        <BulkAddToPlaylistSheet
+          visible={showBulkPlaylist}
+          mediaItemIds={Array.from(selected)}
+          onClose={() => { setShowBulkPlaylist(false); exitBulk(); }}
+        />
+      )}
+      {showBulkCollection && selected.size > 0 && (
+        <BulkAddToCollectionSheet
+          visible={showBulkCollection}
+          mediaItemIds={Array.from(selected)}
+          onClose={() => { setShowBulkCollection(false); exitBulk(); }}
+        />
       )}
     </View>
   );
