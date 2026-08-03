@@ -267,3 +267,153 @@ func TestCollectionSmartQuerier_QueryByRulesPaginatesAndCounts(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, page, 2, "LIMIT 2 OFFSET 2 returns a 2-item page out of 5")
 }
+
+// The saga-repair work list: movies carrying a provider id that belong to no
+// collection. This is what the field complaint reduced to - the sequels were
+// in the library, the saga listed one title.
+func TestCollectionRepo_ListMoviesWithoutCollection(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	colRepo := postgres.NewCollectionRepository(db)
+	ctx := context.Background()
+
+	lib := newTestLibrary("unlinklib")
+	require.NoError(t, libRepo.Create(ctx, lib))
+
+	linked := newTestMediaItem("unlinked-a", lib.ID)
+	orphan := newTestMediaItem("unlinked-b", lib.ID)
+	noProvider := newTestMediaItem("unlinked-c", lib.ID)
+	noProvider.Catalog.ProviderIDs = map[string]string{}
+	episode := newTestMediaItem("unlinked-d", lib.ID)
+	episode.Type = library.Episode
+	for _, it := range []*library.MediaItem{linked, orphan, noProvider, episode} {
+		require.NoError(t, itemRepo.Create(ctx, it))
+	}
+	col := newTestCollection("unlinkcol")
+	col.TmdbID = nil
+	require.NoError(t, colRepo.Create(ctx, col))
+	require.NoError(t, colRepo.LinkItem(ctx, col.ID, string(linked.ID), 0))
+
+	got, err := colRepo.ListMoviesWithoutCollection(ctx, 100)
+	require.NoError(t, err)
+
+	ids := map[string]string{}
+	for _, m := range got {
+		ids[string(m.MediaItemID)] = m.ProviderID
+	}
+	assert.Contains(t, ids, "unlinked-b", "an unlinked movie with a tmdb id is work to do")
+	assert.Equal(t, "123", ids["unlinked-b"], "the provider id must come back with it")
+	assert.NotContains(t, ids, "unlinked-a", "an already-linked movie is done")
+	assert.NotContains(t, ids, "unlinked-c", "no provider id, nothing to resolve it from")
+	assert.NotContains(t, ids, "unlinked-d", "TMDB collections are a movie notion")
+}
+
+// Membership must be removable: AddCollectionItem shipped without a
+// counterpart, so a wrong member was permanent.
+func TestCollectionRepo_UnlinkItem(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	colRepo := postgres.NewCollectionRepository(db)
+	ctx := context.Background()
+
+	lib := newTestLibrary("unlink2lib")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	a := newTestMediaItem("unlink2-a", lib.ID)
+	b := newTestMediaItem("unlink2-b", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, a))
+	require.NoError(t, itemRepo.Create(ctx, b))
+	col := newTestCollection("unlink2col")
+	col.TmdbID = nil
+	require.NoError(t, colRepo.Create(ctx, col))
+	require.NoError(t, colRepo.LinkItem(ctx, col.ID, string(a.ID), 0))
+	require.NoError(t, colRepo.LinkItem(ctx, col.ID, string(b.ID), 1))
+
+	require.NoError(t, colRepo.UnlinkItem(ctx, col.ID, string(a.ID)))
+	items, err := colRepo.GetItems(ctx, col.ID, 100, 0)
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	assert.Equal(t, b.ID, items[0].ID)
+
+	// Removing what is not there is the state the caller asked for.
+	require.NoError(t, colRepo.UnlinkItem(ctx, col.ID, "never-linked"))
+}
+
+// A "manual" collection reads in its hand-set order - the only way to express
+// a chronology that differs from the release order (prequels). Until now
+// sort_order was written by LinkItem and read by nobody.
+func TestCollectionRepo_ManualOrderIsHonoured(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	colRepo := postgres.NewCollectionRepository(db)
+	ctx := context.Background()
+
+	lib := newTestLibrary("orderlib")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	// Release order: old (1977) then recent (2005). Chronological order of the
+	// story is the opposite - exactly the prequel case.
+	old := newTestMediaItem("order-old", lib.ID)
+	old.Catalog.PremiereDate = timePtr(time.Date(1977, 5, 25, 0, 0, 0, 0, time.UTC))
+	recent := newTestMediaItem("order-recent", lib.ID)
+	recent.Catalog.PremiereDate = timePtr(time.Date(2005, 5, 19, 0, 0, 0, 0, time.UTC))
+	require.NoError(t, itemRepo.Create(ctx, old))
+	require.NoError(t, itemRepo.Create(ctx, recent))
+
+	col := newTestCollection("ordercol")
+	col.TmdbID = nil
+	col.SortBy = "manual"
+	require.NoError(t, colRepo.Create(ctx, col))
+	require.NoError(t, colRepo.LinkItem(ctx, col.ID, string(old.ID), 0))
+	require.NoError(t, colRepo.LinkItem(ctx, col.ID, string(recent.ID), 0))
+
+	require.NoError(t, colRepo.SetItemOrder(ctx, col.ID, []string{string(recent.ID), string(old.ID)}))
+	items, err := colRepo.GetItems(ctx, col.ID, 100, 0)
+	require.NoError(t, err)
+	require.Len(t, items, 2)
+	assert.Equal(t, recent.ID, items[0].ID, "the hand-set order must win over the release date")
+	assert.Equal(t, old.ID, items[1].ID)
+}
+
+// A collection that is not "manual" keeps reading in release order, whatever
+// sort_order happens to hold - the default must not change under anyone.
+func TestCollectionRepo_ReleaseOrderStaysTheDefault(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	colRepo := postgres.NewCollectionRepository(db)
+	ctx := context.Background()
+
+	lib := newTestLibrary("relorderlib")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	old := newTestMediaItem("rel-old", lib.ID)
+	old.Catalog.PremiereDate = timePtr(time.Date(1979, 5, 25, 0, 0, 0, 0, time.UTC))
+	recent := newTestMediaItem("rel-recent", lib.ID)
+	recent.Catalog.PremiereDate = timePtr(time.Date(2024, 8, 16, 0, 0, 0, 0, time.UTC))
+	require.NoError(t, itemRepo.Create(ctx, old))
+	require.NoError(t, itemRepo.Create(ctx, recent))
+
+	col := newTestCollection("relordercol")
+	col.TmdbID = nil // sort_by defaults to added_at, i.e. NOT manual
+	require.NoError(t, colRepo.Create(ctx, col))
+	// Deliberately hostile hand positions: they must be ignored here.
+	require.NoError(t, colRepo.LinkItem(ctx, col.ID, string(recent.ID), 1))
+	require.NoError(t, colRepo.LinkItem(ctx, col.ID, string(old.ID), 2))
+
+	items, err := colRepo.GetItems(ctx, col.ID, 100, 0)
+	require.NoError(t, err)
+	require.Len(t, items, 2)
+	assert.Equal(t, old.ID, items[0].ID, "release order stays the default reading order")
+	assert.Equal(t, recent.ID, items[1].ID)
+}
+
+func timePtr(t time.Time) *time.Time { return &t }
