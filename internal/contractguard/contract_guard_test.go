@@ -24,6 +24,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -79,7 +80,7 @@ func parseProtoFields(t *testing.T, dir string) []protoField {
 			name string
 		}
 		var stack []frame
-		for _, raw := range strings.Split(string(b), "\n") {
+		for raw := range strings.SplitSeq(string(b), "\n") {
 			line := strings.TrimSpace(raw)
 			if strings.HasPrefix(line, "//") {
 				continue
@@ -104,13 +105,13 @@ func parseProtoFields(t *testing.T, dir string) []protoField {
 			// Innermost enclosing message, ignoring oneof frames; skip enum bodies.
 			inEnum := false
 			msg := ""
-			for i := len(stack) - 1; i >= 0; i-- {
-				if stack[i].kind == "enum" {
+			for _, fr := range slices.Backward(stack) {
+				if fr.kind == "enum" {
 					inEnum = true
 					break
 				}
-				if stack[i].kind == "message" {
-					msg = stack[i].name
+				if fr.kind == "message" {
+					msg = fr.name
 					break
 				}
 			}
@@ -195,8 +196,27 @@ func isClientSource(path string) bool {
 }
 
 // deadFields is the verdict: fields whose JSON name a client reads while no
-// server code ever assigns their Go name. Returned sorted for stable output.
+// server code ever assigns their Go name. The corpora are tokenized ONCE into
+// sets (composite-literal keys, assignment targets, string literals, property
+// accesses) so the per-field check is a lookup - a thousand fields times a
+// regex over megabytes was 14 s of gate, this is under a second.
 func deadFields(fields []protoField, serverCorpus, clientCorpus string) []string {
+	tokenize := func(corpus string, re *regexp.Regexp) map[string]bool {
+		set := map[string]bool{}
+		for _, m := range re.FindAllStringSubmatch(corpus, -1) {
+			set[m[1]] = true
+		}
+		return set
+	}
+	// A field counts as written when server code assigns its Go name (literal
+	// key or assignment), or when its JSON name appears as a string literal -
+	// that is how the manual-JSON HTTP handlers produce it (struct tags like
+	// `json:"hasPin"`, map keys like out["pinToken"]).
+	literalKeys := tokenize(serverCorpus, regexp.MustCompile(`\b(\w+)\s*:`))
+	assignments := tokenize(serverCorpus, regexp.MustCompile(`\.(\w+)\s*=`))
+	stringLits := tokenize(serverCorpus, regexp.MustCompile(`"(\w+)"`))
+	clientProps := tokenize(clientCorpus, regexp.MustCompile(`\.(\w+)\b`))
+
 	seen := map[string]bool{}
 	var out []string
 	for _, f := range fields {
@@ -205,18 +225,11 @@ func deadFields(fields []protoField, serverCorpus, clientCorpus string) []string
 		}
 		seen[f.Snake] = true
 		g := goName(f.Snake)
-		// A field counts as written when server code assigns its Go name, or
-		// when its JSON name appears as a string literal - that is how the
-		// manual-JSON HTTP handlers produce it (struct tags like
-		// `json:"hasPin"`, map keys like out["pinToken"]).
-		writes := regexp.MustCompile(`\b`+g+`\s*:`).MatchString(serverCorpus) ||
-			regexp.MustCompile(`\.`+g+`\s*=`).MatchString(serverCorpus) ||
-			strings.Contains(serverCorpus, `"`+jsonName(f.Snake)+`"`)
-		if writes {
+		j := jsonName(f.Snake)
+		if literalKeys[g] || assignments[g] || stringLits[j] {
 			continue
 		}
-		reads := regexp.MustCompile(`\.` + jsonName(f.Snake) + `\b`).MatchString(clientCorpus)
-		if reads {
+		if clientProps[j] {
 			out = append(out, f.Snake)
 		}
 	}
