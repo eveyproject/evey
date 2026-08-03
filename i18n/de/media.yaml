@@ -47,6 +47,8 @@ favorites:
   bulkFailed: "Favoriten konnten nicht umgeschaltet werden"
   yearOldest: Jahr (älteste)
 collections:
+  moveUp: "In der Sammlung nach vorn"
+  moveDown: "In der Sammlung nach hinten"
   removeItem: "Aus dieser Sammlung entfernen"
   removeItemConfirm: "{{title}} aus dieser Sammlung entfernen? Der Titel selbst wird nicht gelöscht."
   itemRemoved: "Aus der Sammlung entfernt"

@@ -8,6 +8,7 @@ import {
   collectionServiceDeleteCollection,
   collectionServiceAddCollectionItem,
   collectionServiceRemoveCollectionItem,
+  collectionServiceReorderCollectionItems,
   getCollectionServiceListCollectionsQueryKey,
   getCollectionServiceGetCollectionQueryKey,
   getCollectionServiceGetCollectionItemsQueryKey,
@@ -183,6 +184,27 @@ export function useRemoveCollectionItem(collectionId: string) {
       qc.invalidateQueries({ queryKey: getCollectionServiceGetCollectionItemsQueryKey(collectionId) });
       qc.invalidateQueries({ queryKey: getCollectionServiceGetCollectionQueryKey(collectionId) });
       qc.invalidateQueries({ queryKey: getCollectionServiceListCollectionsQueryKey() });
+    },
+  });
+}
+
+/**
+ * Writes the hand-set order of a collection's members.
+ *
+ * The order only takes effect once the collection reads by it, so this also
+ * switches sortBy to "manual" - a viewer who drags a title into place means
+ * that place, not "store it and keep showing release order".
+ */
+export function useReorderCollectionItems(collectionId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ mediaItemIds, name }: { mediaItemIds: string[]; name: string }) => {
+      await collectionServiceReorderCollectionItems(collectionId, { mediaItemIds });
+      await collectionServiceUpdateCollection(collectionId, { name, sortBy: "manual" });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: getCollectionServiceGetCollectionItemsQueryKey(collectionId) });
+      qc.invalidateQueries({ queryKey: getCollectionServiceGetCollectionQueryKey(collectionId) });
     },
   });
 }

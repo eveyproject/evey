@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { Folder, Download, X } from "lucide-react";
+import { Folder, Download, X, ChevronUp, ChevronDown } from "lucide-react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useAuthStore, toast } from "@evey/store";
 import { startTokenDownload } from "@/utils/downloadToken";
-import { useCollection, useDeleteCollection, useRemoveCollectionItem } from "@/features/collection/api";
+import { useCollection, useDeleteCollection, useRemoveCollectionItem, useReorderCollectionItems } from "@/features/collection/api";
+import { moveItem } from "@/features/collection/reorder";
 import { MediaGrid } from "@/features/library/MediaGrid";
 import { MediaCardWithModals as MediaCard } from "@/features/library/MediaCardWithModals";
 import { Button } from "@/components/ui/Button";
@@ -27,6 +28,7 @@ function CollectionDetailPage() {
   const accessToken = useAuthStore((s) => s.accessToken);
   const isAdmin = useAuthStore((s) => s.isAdmin);
   const removeItem = useRemoveCollectionItem(collectionId);
+  const reorder = useReorderCollectionItems(collectionId);
 
   const col = data?.collection;
   const items = data?.items ?? [];
@@ -137,6 +139,42 @@ function CollectionDetailPage() {
             {items.map((item) => (
               <div key={item.id} className="relative group">
                 <MediaCard item={item} lite />
+                {isAdmin && items.length > 1 && (
+                  <div className="absolute top-1 left-1 flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                    <button
+                      type="button"
+                      aria-label={t("media.collections.moveUp")}
+                      title={t("media.collections.moveUp")}
+                      data-testid={`collection-up-${item.id}`}
+                      disabled={reorder.isPending || items[0]?.id === item.id}
+                      onClick={() =>
+                        reorder.mutate({
+                          mediaItemIds: moveItem(items.map((i) => i.id), item.id, "up"),
+                          name: col?.name ?? "",
+                        })
+                      }
+                      className="rounded-[var(--radius-md)] bg-[var(--surface)] text-[var(--text-muted)] hover:text-[var(--text)] disabled:opacity-40 p-1 cursor-pointer"
+                    >
+                      <ChevronUp size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={t("media.collections.moveDown")}
+                      title={t("media.collections.moveDown")}
+                      data-testid={`collection-down-${item.id}`}
+                      disabled={reorder.isPending || items[items.length - 1]?.id === item.id}
+                      onClick={() =>
+                        reorder.mutate({
+                          mediaItemIds: moveItem(items.map((i) => i.id), item.id, "down"),
+                          name: col?.name ?? "",
+                        })
+                      }
+                      className="rounded-[var(--radius-md)] bg-[var(--surface)] text-[var(--text-muted)] hover:text-[var(--text)] disabled:opacity-40 p-1 cursor-pointer"
+                    >
+                      <ChevronDown size={14} />
+                    </button>
+                  </div>
+                )}
                 {isAdmin && (
                   <button
                     type="button"

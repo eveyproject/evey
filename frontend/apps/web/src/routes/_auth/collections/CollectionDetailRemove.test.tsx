@@ -17,6 +17,7 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 
 const removeMutate = vi.fn();
+const reorderMutate = vi.fn();
 const isAdmin = { value: true };
 
 vi.mock("@evey/store", () => ({
@@ -41,6 +42,7 @@ vi.mock("@/features/collection/api", () => ({
   }),
   useDeleteCollection: () => ({ mutate: vi.fn(), isPending: false }),
   useRemoveCollectionItem: () => ({ mutate: removeMutate, isPending: false }),
+  useReorderCollectionItems: () => ({ mutate: reorderMutate, isPending: false }),
 }));
 
 vi.mock("@/features/library/MediaGrid", () => ({
@@ -61,6 +63,7 @@ vi.mock("react-i18next", () => ({
 
 beforeEach(() => {
   removeMutate.mockClear();
+  reorderMutate.mockClear();
   isAdmin.value = true;
   vi.stubGlobal("confirm", vi.fn(() => true));
 });
@@ -90,5 +93,35 @@ describe("removing a title from a collection", () => {
     render(React.createElement((Route as unknown as { component: React.ComponentType }).component));
 
     expect(screen.queryByTestId("collection-remove-mi-1")).toBeNull();
+  });
+});
+
+describe("reordering a collection", () => {
+  it("sends the full new order with the moved title one place earlier", async () => {
+    const { Route } = await import("./$collectionId.lazy");
+    render(React.createElement((Route as unknown as { component: React.ComponentType }).component));
+
+    fireEvent.click(screen.getByTestId("collection-up-mi-2"));
+    expect(reorderMutate).toHaveBeenCalledTimes(1);
+    expect(reorderMutate.mock.calls[0][0]).toEqual({
+      mediaItemIds: ["mi-2", "mi-1"],
+      name: "Matrix - Saga",
+    });
+  });
+
+  it("cannot move the first title up nor the last one down", async () => {
+    const { Route } = await import("./$collectionId.lazy");
+    render(React.createElement((Route as unknown as { component: React.ComponentType }).component));
+
+    expect(screen.getByTestId("collection-up-mi-1")).toBeDisabled();
+    expect(screen.getByTestId("collection-down-mi-2")).toBeDisabled();
+  });
+
+  it("offers no reordering to a non-admin", async () => {
+    isAdmin.value = false;
+    const { Route } = await import("./$collectionId.lazy");
+    render(React.createElement((Route as unknown as { component: React.ComponentType }).component));
+
+    expect(screen.queryByTestId("collection-up-mi-2")).toBeNull();
   });
 });

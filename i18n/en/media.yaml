@@ -47,6 +47,8 @@ favorites:
   bulkFailed: "Failed to toggle favorites"
   yearOldest: Year (oldest)
 collections:
+  moveUp: "Move earlier in the collection"
+  moveDown: "Move later in the collection"
   removeItem: "Remove from this collection"
   removeItemConfirm: "Remove {{title}} from this collection? The title itself is not deleted."
   itemRemoved: "Removed from the collection"
