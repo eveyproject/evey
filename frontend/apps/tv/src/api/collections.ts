@@ -10,6 +10,10 @@ export interface Collection {
   backdropUrl?: string;
   rules?: { field: string; operator: string; value: string }[];
   sortBy?: string;
+  /** Members THIS viewer can see - already access- and parental-filtered. */
+  itemCount?: number;
+  /** "saga" (TMDB-sourced), "smart" (rule-driven) or "manual". */
+  kind?: string;
   createdAt: string;
   updatedAt: string;
 }
