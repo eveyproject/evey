@@ -10,11 +10,9 @@ import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useDebounce } from "../../../src/hooks/useDebounce";
 import { FocusableCard } from "../../../src/components/FocusableCard";
 import { useMusicQueueStore } from "../../../src/stores/musicQueue";
+import { mediaTypeLabelKey } from "../../../src/lib/mediaTypeLabel";
 
-function formatType(type?: string): string {
-  if (!type) return "";
-  return type.replace("MEDIA_ITEM_TYPE_", "").toLowerCase();
-}
+
 
 function tvSearchKeyExtractor(item: V1MediaItem) {
   return item.id ?? "";
@@ -183,6 +181,15 @@ export default function SearchScreen() {
     </FocusableCard>
   ), [theme, setQueue]);
 
+  // Translated, never the raw enum: "2024 · Film", not "2024 · movie".
+  const typeLabel = useCallback(
+    (type?: string) => {
+      const key = mediaTypeLabelKey(type);
+      return key ? t(key) : "";
+    },
+    [t],
+  );
+
   const renderItem = useCallback(({ item, index }: { item: V1MediaItem; index: number }) => (
     <FocusableCard
       onPress={() => router.push(`/media/${item.id}`)}
@@ -198,11 +205,11 @@ export default function SearchScreen() {
           {item.title}
         </Text>
         <Text style={[styles.meta, { color: theme.colors.textMuted }]}>
-          {[item.year, formatType(item.type)].filter(Boolean).join(" \u00B7 ")}
+          {[item.year, typeLabel(item.type)].filter(Boolean).join(" \u00B7 ")}
         </Text>
       </View>
     </FocusableCard>
-  ), [theme, router]);
+  ), [theme, router, typeLabel]);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>

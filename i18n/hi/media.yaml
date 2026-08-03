@@ -84,6 +84,17 @@ collections:
   deleted: संग्रह मिटाया गया
   editCollection: संग्रह संपादित करें
   newCollection: नया संग्रह
+itemType:
+  movie: "फ़िल्म"
+  series: "सीरीज़"
+  season: "सीज़न"
+  episode: "एपिसोड"
+  album: "एल्बम"
+  track: "ट्रैक"
+  photo: "फ़ोटो"
+  book: "किताब"
+  artist: "कलाकार"
+
 library:
   title: लाइब्रेरी
   libraries: लाइब्रेरी

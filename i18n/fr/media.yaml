@@ -84,6 +84,17 @@ collections:
   deleted: Collection supprimée
   editCollection: Modifier la collection
   newCollection: Nouvelle collection
+itemType:
+  movie: "Film"
+  series: "Série"
+  season: "Saison"
+  episode: "Épisode"
+  album: "Album"
+  track: "Piste"
+  photo: "Photo"
+  book: "Livre"
+  artist: "Artiste"
+
 library:
   title: Bibliothèque
   libraries: Bibliothèques

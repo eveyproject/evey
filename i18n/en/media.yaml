@@ -84,6 +84,17 @@ collections:
   deleted: Collection deleted
   editCollection: Edit collection
   newCollection: New collection
+itemType:
+  movie: "Movie"
+  series: "Series"
+  season: "Season"
+  episode: "Episode"
+  album: "Album"
+  track: "Track"
+  photo: "Photo"
+  book: "Book"
+  artist: "Artist"
+
 library:
   title: Library
   libraries: Libraries

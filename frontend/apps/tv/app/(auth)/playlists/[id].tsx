@@ -1,6 +1,7 @@
 import { View, Text, FlatList, ActivityIndicator, StyleSheet } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
+import { mediaTypeLabelKey } from "../../../src/lib/mediaTypeLabel";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { usePlaylistDetail, type PlaylistItem } from "../../../src/api/playlists";
 import { FocusableCard } from "../../../src/components/FocusableCard";
@@ -78,7 +79,10 @@ function PlaylistItemRow({
   isFirst?: boolean;
   onPress: () => void;
 }) {
-  const typeLabel = item.type?.replace("MEDIA_ITEM_TYPE_", "").toLowerCase();
+  const { t } = useTranslation();
+  // Translated, never the raw enum: a viewer read "movie" in every language.
+  const typeKey = mediaTypeLabelKey(item.type);
+  const typeLabel = typeKey ? t(typeKey) : "";
 
   return (
     <FocusableCard

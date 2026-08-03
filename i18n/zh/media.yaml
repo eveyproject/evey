@@ -84,6 +84,17 @@ collections:
   deleted: 合集已删除
   editCollection: 编辑合集
   newCollection: 新建合集
+itemType:
+  movie: "电影"
+  series: "剧集"
+  season: "季"
+  episode: "单集"
+  album: "专辑"
+  track: "曲目"
+  photo: "照片"
+  book: "图书"
+  artist: "艺人"
+
 library:
   title: 媒体库
   libraries: 媒体库
