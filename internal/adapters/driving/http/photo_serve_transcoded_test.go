@@ -316,7 +316,7 @@ func TestServeTranscoded_CacheHitsAreNotRateLimited(t *testing.T) {
 	}
 
 	require.Equal(t, http.StatusOK, get(), "the first request transcodes and spends the only token")
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		require.Equal(t, http.StatusOK, get(), "a cached thumbnail must not be charged to the fork budget")
 	}
 	require.Len(t, transcoder.widths, 1, "only the first request may fork")
