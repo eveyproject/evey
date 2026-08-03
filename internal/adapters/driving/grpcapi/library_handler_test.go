@@ -274,6 +274,53 @@ func TestLibraryHandler_GetMediaItem_HydratesStreams(t *testing.T) {
 	assert.Equal(t, "aac", resp.Streams[1].Codec)
 }
 
+// Grids and filter facets on every client read codecs/resolution off LIST
+// rows - and an empty streams array is indistinguishable from "no streams",
+// which is how the TV/mobile quality badges and the mobile/web facet filters
+// shipped dead (2026-08-03).
+func TestLibraryHandler_ListMediaItems_HydratesStreams(t *testing.T) {
+	h, _, mediaQuery, _, _, _, streamRepo := newTestLibraryHandler()
+	ctx := adminCtx()
+
+	mediaQuery.Seed(&library.MediaItem{ID: "mi-s1", LibraryID: "lib-1", Title: "Ep 1", Type: "episode"})
+	mediaQuery.Seed(&library.MediaItem{ID: "mi-s2", LibraryID: "lib-1", Title: "Ep 2", Type: "episode"})
+	require.NoError(t, streamRepo.ReplaceBatch(ctx, "mi-s1", []*library.MediaStream{
+		{ID: "st-l1", MediaItemID: "mi-s1", StreamIndex: 0, StreamType: library.StreamTypeVideo, Codec: "h264"},
+		{ID: "st-l2", MediaItemID: "mi-s1", StreamIndex: 1, StreamType: library.StreamTypeAudio, Codec: "eac3"},
+	}))
+
+	resp, err := h.ListMediaItems(ctx, &eveyv1.ListMediaItemsRequest{})
+
+	require.NoError(t, err)
+	byID := map[string]*eveyv1.MediaItem{}
+	for _, it := range resp.Items {
+		byID[it.Id] = it
+	}
+	require.NotNil(t, byID["mi-s1"])
+	require.Len(t, byID["mi-s1"].Streams, 2)
+	assert.Equal(t, "h264", byID["mi-s1"].Streams[0].Codec)
+	assert.Equal(t, "eac3", byID["mi-s1"].Streams[1].Codec)
+	require.NotNil(t, byID["mi-s2"])
+	assert.Empty(t, byID["mi-s2"].Streams)
+}
+
+func TestLibraryHandler_FilterMediaItems_HydratesStreams(t *testing.T) {
+	h, _, mediaQuery, _, _, _, streamRepo := newTestLibraryHandler()
+	ctx := adminCtx()
+
+	mediaQuery.Seed(&library.MediaItem{ID: "mi-f1", LibraryID: "lib-1", Title: "Movie", Type: "movie"})
+	require.NoError(t, streamRepo.ReplaceBatch(ctx, "mi-f1", []*library.MediaStream{
+		{ID: "st-f1", MediaItemID: "mi-f1", StreamIndex: 0, StreamType: library.StreamTypeVideo, Codec: "hevc"},
+	}))
+
+	resp, err := h.FilterMediaItems(ctx, &eveyv1.FilterMediaItemsRequest{})
+
+	require.NoError(t, err)
+	require.Len(t, resp.Items, 1)
+	require.Len(t, resp.Items[0].Streams, 1)
+	assert.Equal(t, "hevc", resp.Items[0].Streams[0].Codec)
+}
+
 func TestLibraryHandler_ListMediaItems_WithPagination(t *testing.T) {
 	h, _, mediaQuery, _, _, _, _ := newTestLibraryHandler()
 	ctx := adminCtx()

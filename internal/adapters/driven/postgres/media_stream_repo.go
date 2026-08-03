@@ -206,6 +206,59 @@ func (r *MediaStreamRepository) GetByMediaItemID(ctx context.Context, mediaItemI
 	return result, nil
 }
 
+func (r *MediaStreamRepository) GetByMediaItemIDs(ctx context.Context, mediaItemIDs []shared.MediaItemID) (map[shared.MediaItemID][]*library.MediaStream, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.media_stream.GetByMediaItemIDs")
+	defer span.End()
+	span.SetAttributes(attribute.Int("media_item.count", len(mediaItemIDs)))
+	if len(mediaItemIDs) == 0 {
+		return map[shared.MediaItemID][]*library.MediaStream{}, nil
+	}
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	ids := make([]string, 0, len(mediaItemIDs))
+	for _, id := range mediaItemIDs {
+		ids = append(ids, string(id))
+	}
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
+		`SELECT id, media_item_id, stream_index, stream_type, codec, codec_long_name, profile, language, title,
+		 is_default, is_forced, width, height, framerate, bit_depth, color_space, color_transfer, hdr_type,
+		 dovi_profile, dovi_bl_compat, field_order, idet_interlaced, sample_aspect_ratio, channels,
+		 channel_layout, sample_rate, bitrate, is_external, external_path, level,
+		 commentary, hearing_impaired, visual_impaired, text_descriptions, original, frame_rate_mode
+		 FROM media_streams WHERE media_item_id = ANY($1) ORDER BY media_item_id, stream_index`, pq.Array(ids))
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[shared.MediaItemID][]*library.MediaStream, len(mediaItemIDs))
+	for rows.Next() {
+		s := &library.MediaStream{}
+		if err := rows.Scan(
+			&s.ID, &s.MediaItemID, &s.StreamIndex, &s.StreamType, &s.Codec, &s.CodecLongName,
+			&s.Profile, &s.Language, &s.Title, &s.IsDefault, &s.IsForced, &s.Width, &s.Height,
+			&s.Framerate, &s.BitDepth, &s.ColorSpace, &s.ColorTransfer, &s.HDRType,
+			&s.DoViProfile, &s.DoViBLCompat, &s.FieldOrder, &s.IdetInterlaced,
+			&s.SampleAspectRatio, &s.Channels, &s.ChannelLayout,
+			&s.SampleRate, &s.Bitrate, &s.IsExternal, &s.ExternalPath, &s.Level,
+			&s.Commentary, &s.HearingImpaired, &s.VisualImpaired, &s.TextDescriptions, &s.Original, &s.FrameRateMode,
+		); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return nil, err
+		}
+		result[s.MediaItemID] = append(result[s.MediaItemID], s)
+	}
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return result, nil
+}
+
 func (r *MediaStreamRepository) DeleteByMediaItemID(ctx context.Context, mediaItemID shared.MediaItemID) error {
 	ctx, span := tracing.StartSpan(ctx, "postgres.media_stream.DeleteByMediaItemID")
 	defer span.End()

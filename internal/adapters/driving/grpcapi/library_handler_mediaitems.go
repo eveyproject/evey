@@ -282,10 +282,27 @@ func (h *libraryHandler) fetchMediaItemsCast(ctx context.Context, req *eveyv1.Li
 	return castMap
 }
 
+// fetchMediaItemsStreams batch-loads the streams for one page of items:
+// grids and filter facets on every client read codecs/resolution off LIST
+// rows, and an empty streams array is indistinguishable from "no streams" -
+// which is how the quality badges and facet filters shipped dead. Best-effort
+// like fetchMediaItemsArtwork.
+func (h *libraryHandler) fetchMediaItemsStreams(ctx context.Context, ids []string) map[string][]*library.MediaStream {
+	if len(ids) == 0 {
+		return nil
+	}
+	streamsMap, err := h.query.GetStreamsForItems(ctx, ids)
+	if err != nil {
+		slog.WarnContext(ctx, "batch get streams for listing", slog.Any("err", err))
+		return nil
+	}
+	return streamsMap
+}
+
 // mediaItemsToProto maps items to wire format, dropping items still blocked
 // by a per-tag parental restriction (the strict in-memory second pass) and
-// attaching artwork/cast from the batch-loaded maps.
-func mediaItemsToProto(ctx context.Context, items []*library.MediaItem, pf parentalFilter, artworkMap map[string][]*domainmetadata.ArtworkRecord, castMap map[string][]library.CastMember) []*eveyv1.MediaItem {
+// attaching artwork/cast/streams from the batch-loaded maps.
+func mediaItemsToProto(ctx context.Context, items []*library.MediaItem, pf parentalFilter, artworkMap map[string][]*domainmetadata.ArtworkRecord, castMap map[string][]library.CastMember, streamsMap map[string][]*library.MediaStream) []*eveyv1.MediaItem {
 	out := make([]*eveyv1.MediaItem, 0, len(items))
 	for _, item := range items {
 		if len(pf.blockedTags) > 0 && ratings.HasBlockedTag(itemTags(item), pf.blockedTags) {
@@ -297,6 +314,9 @@ func mediaItemsToProto(ctx context.Context, items []*library.MediaItem, pf paren
 		}
 		for _, cm := range castMap[string(item.ID)] {
 			pb.People = append(pb.People, castMemberToProto(cm))
+		}
+		for _, s := range streamsMap[string(item.ID)] {
+			pb.Streams = append(pb.Streams, mediaStreamToProto(s))
 		}
 		out = append(out, pb)
 	}
@@ -354,7 +374,8 @@ func (h *libraryHandler) ListMediaItems(ctx context.Context, req *eveyv1.ListMed
 	h.overlayMediaItemsOverrides(ctx, ids, items)
 	artworkMap := h.fetchMediaItemsArtwork(ctx, ids)
 	castMap := h.fetchMediaItemsCast(ctx, req, ids)
-	resp.Items = mediaItemsToProto(ctx, items, pf, artworkMap, castMap)
+	streamsMap := h.fetchMediaItemsStreams(ctx, ids)
+	resp.Items = mediaItemsToProto(ctx, items, pf, artworkMap, castMap, streamsMap)
 	return resp, nil
 }
 
@@ -479,8 +500,17 @@ func (h *libraryHandler) FilterMediaItems(ctx context.Context, req *eveyv1.Filte
 	}
 	items = filterOutParentalBlocked(pf, items)
 	resp := &eveyv1.FilterMediaItemsResponse{Total: int32(total)}
+	ids := make([]string, 0, len(items))
 	for _, item := range items {
-		resp.Items = append(resp.Items, mediaItemToProto(item, ctxIsAdmin(ctx)))
+		ids = append(ids, string(item.ID))
+	}
+	streamsMap := h.fetchMediaItemsStreams(ctx, ids)
+	for _, item := range items {
+		pb := mediaItemToProto(item, ctxIsAdmin(ctx))
+		for _, s := range streamsMap[string(item.ID)] {
+			pb.Streams = append(pb.Streams, mediaStreamToProto(s))
+		}
+		resp.Items = append(resp.Items, pb)
 	}
 	return resp, nil
 }

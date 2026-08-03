@@ -83,6 +83,12 @@ type SeriesAggregate struct {
 // other concrete repos satisfy both with a single implementation.
 type MediaStreamQueryRepo interface {
 	GetByMediaItemID(ctx context.Context, mediaItemID shared.MediaItemID) ([]*MediaStream, error)
+	// GetByMediaItemIDs batches GetByMediaItemID for one page of items into a
+	// single query, keyed by media item id; an id with no streams is absent
+	// from the map. Keyframes are NOT loaded - list consumers read codec/
+	// resolution/language, and one film's keyframe index outweighs the rest
+	// of its stream row a thousandfold.
+	GetByMediaItemIDs(ctx context.Context, mediaItemIDs []shared.MediaItemID) (map[shared.MediaItemID][]*MediaStream, error)
 }
 
 type MediaStreamRepository interface {

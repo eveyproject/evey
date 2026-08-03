@@ -210,6 +210,26 @@ func (s *QueryService) GetMediaStreams(ctx context.Context, mediaItemID string) 
 	return s.streams.GetByMediaItemID(ctx, shared.MediaItemID(mediaItemID))
 }
 
+// GetStreamsForItems batch-fetches streams for one page of items, keyed by
+// item id (batch to avoid N+1, like GetCastForItems).
+func (s *QueryService) GetStreamsForItems(ctx context.Context, mediaItemIDs []string) (map[string][]*library.MediaStream, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.library.GetStreamsForItems")
+	defer span.End()
+	typedIDs := make([]shared.MediaItemID, 0, len(mediaItemIDs))
+	for _, id := range mediaItemIDs {
+		typedIDs = append(typedIDs, shared.MediaItemID(id))
+	}
+	typed, err := s.streams.GetByMediaItemIDs(ctx, typedIDs)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string][]*library.MediaStream, len(typed))
+	for k, v := range typed {
+		out[string(k)] = v
+	}
+	return out, nil
+}
+
 func (s *QueryService) GetChapters(ctx context.Context, mediaItemID string) ([]*library.Chapter, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.library.GetChapters")
 	defer span.End()

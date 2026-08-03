@@ -58,6 +58,24 @@ func (r *FakeMediaStreamRepository) GetByMediaItemID(_ context.Context, mediaIte
 	return r.items[string(mediaItemID)], nil
 }
 
+func (r *FakeMediaStreamRepository) GetByMediaItemIDs(_ context.Context, mediaItemIDs []shared.MediaItemID) (map[shared.MediaItemID][]*library.MediaStream, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
+	result := make(map[shared.MediaItemID][]*library.MediaStream, len(mediaItemIDs))
+	for _, id := range mediaItemIDs {
+		if streams, ok := r.items[string(id)]; ok {
+			result[id] = streams
+		}
+	}
+	return result, nil
+}
+
 func (r *FakeMediaStreamRepository) DeleteByMediaItemID(_ context.Context, mediaItemID shared.MediaItemID) error {
 	if r.Err != nil {
 		return r.Err

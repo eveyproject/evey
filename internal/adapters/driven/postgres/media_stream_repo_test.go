@@ -7,6 +7,7 @@ import (
 	"github.com/evey-project/evey/internal/adapters/driven/postgres"
 	"github.com/evey-project/evey/internal/adapters/driven/postgres/testhelpers"
 	"github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -67,6 +68,52 @@ func TestMediaStreamRepo_CreateBatch_Empty(t *testing.T) {
 
 	streamRepo := postgres.NewMediaStreamRepository(db)
 	require.NoError(t, streamRepo.CreateBatch(context.Background(), nil))
+}
+
+func TestMediaStreamRepo_GetByMediaItemIDs(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	streamRepo := postgres.NewMediaStreamRepository(db)
+	ctx := context.Background()
+
+	lib := newTestLibrary("mslib2")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	item1 := newTestMediaItem("msmi2", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, item1))
+	item2 := newTestMediaItem("msmi3", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, item2))
+	item3 := newTestMediaItem("msmi4", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, item3))
+
+	require.NoError(t, streamRepo.CreateBatch(ctx, []*library.MediaStream{
+		{ID: "b1", MediaItemID: item1.ID, StreamIndex: 1, StreamType: "audio", Codec: "eac3", Language: "fr", Channels: new(6)},
+		{ID: "b0", MediaItemID: item1.ID, StreamIndex: 0, StreamType: "video", Codec: "h264", Width: new(1920), Height: new(1080)},
+		{ID: "b2", MediaItemID: item2.ID, StreamIndex: 0, StreamType: "video", Codec: "hevc", Width: new(3840), Height: new(2160)},
+	}))
+
+	got, err := streamRepo.GetByMediaItemIDs(ctx, []shared.MediaItemID{item1.ID, item2.ID, item3.ID})
+	require.NoError(t, err)
+	require.Len(t, got, 2)
+
+	require.Len(t, got[item1.ID], 2)
+	assert.Equal(t, "b0", got[item1.ID][0].ID, "streams must come back in stream_index order")
+	assert.Equal(t, "h264", got[item1.ID][0].Codec)
+	assert.Equal(t, 1080, *got[item1.ID][0].Height)
+	assert.Equal(t, "eac3", got[item1.ID][1].Codec)
+	assert.Equal(t, 6, *got[item1.ID][1].Channels)
+
+	require.Len(t, got[item2.ID], 1)
+	assert.Equal(t, "hevc", got[item2.ID][0].Codec)
+
+	_, has := got[item3.ID]
+	assert.False(t, has, "an item with no streams is absent from the map")
+
+	empty, err := streamRepo.GetByMediaItemIDs(ctx, nil)
+	require.NoError(t, err)
+	assert.Empty(t, empty)
 }
 
 func TestMediaStreamRepo_ListVideoLevelMissing_Scope(t *testing.T) {
