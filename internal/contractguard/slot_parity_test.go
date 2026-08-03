@@ -21,10 +21,9 @@ import (
 // slotAllowlist holds slots knowingly absent somewhere, each with its reason
 // and a decision owner. An entry here keeps the gate green WITHOUT making the
 // absence invisible - it is the difference between a decision and a hole.
-var slotAllowlist = map[string]string{
-	"home.hero":       "registered but mounted NOWHERE (web included) - product decision pending: implement on both or drop from the registry",
-	"library.sidebar": "registered but mounted NOWHERE (web included) - product decision pending: implement on both or drop from the registry",
-}
+// (home.hero and library.sidebar sat here as "mounted nowhere" for a few
+// hours on 2026-08-03; the owner ruled: implement, everywhere.)
+var slotAllowlist = map[string]string{}
 
 func registeredSlots(t *testing.T) []string {
 	t.Helper()

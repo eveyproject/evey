@@ -612,6 +612,11 @@ export default function HomeScreen() {
             <Ionicons name="options-outline" size={16} color={theme.colors.textMuted} />
             <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>{t("media.home.customize") || "Customize"}</Text>
           </Pressable>
+          {/* Plugins mounting the page hero - same strip-above-every-feed
+              placement as the web home. */}
+          <View style={{ marginHorizontal: theme.spacing.md }}>
+            <PluginSlot name="home.hero" />
+          </View>
           {/* Installed home.section plugins the user has NOT yet added to their
               feed render at the TOP, matching both the web home and the
               customize modal (which auto-prepends new plugins with a negative

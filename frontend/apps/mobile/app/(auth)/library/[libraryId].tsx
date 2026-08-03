@@ -53,6 +53,7 @@ import { usePlaylistList, useAddToPlaylist } from "../../../src/api/playlists";
 import { artworkUrl } from "../../../src/lib/artwork";
 import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
 import { LibraryFiltersPanel } from "../../../src/components/library/LibraryFiltersPanel";
+import { PluginSlot } from "../../../src/features/plugins/PluginSlot";
 import {
   collectFilterOptions,
   applyLocalFacetFilters,
@@ -921,6 +922,10 @@ export default function LibraryDetailScreen() {
               setMinRating(undefined);
             }}
           />
+
+          {/* Plugins mounting on the library page - same strip-above-the-grid
+              placement as web. */}
+          <PluginSlot name="library.sidebar" context={{ libraryId }} />
 
           {/* Grid / List */}
           {(activeIsLoading && isFirstPage) ? (

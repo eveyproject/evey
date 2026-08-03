@@ -297,6 +297,9 @@ function HomePage() {
           </button>
         </div>
 
+        {/* Plugins mounting the page hero - the strip above every feed. */}
+        <PluginSlot name="home.hero" />
+
         {!isLoading && isContentError ? (
           <EmptyState
             icon={<TriangleAlert size={48} strokeWidth={1.5} />}

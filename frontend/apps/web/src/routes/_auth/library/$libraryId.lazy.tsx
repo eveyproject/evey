@@ -48,6 +48,7 @@ import { AddToCollectionModal } from "@/features/collection/AddToCollectionModal
 import { SortOrderButton, ViewToggleButton } from "./LibraryToolbar";
 import { LibraryListView } from "./LibraryListView";
 import { BulkPlaylistModal } from "./BulkPlaylistModal";
+import { PluginSlot } from "@/features/plugins/PluginSlot";
 
 export const Route = createLazyFileRoute("/_auth/library/$libraryId")({
   component: LibraryPage,
@@ -637,6 +638,11 @@ function LibraryPage() {
           </div>
         </>
       )}
+
+      {/* Plugins mounting on the library page (the slot name says sidebar;
+          the mount is the always-visible strip above the grid, same
+          pragmatism as media.detail.sidebar's end-of-page block). */}
+      <PluginSlot name="library.sidebar" context={{ libraryId }} />
 
       <div className={`flex gap-4 ${filtersOpen ? "items-start" : ""}`}>
         {/* Desktop inline column - only md and above */}

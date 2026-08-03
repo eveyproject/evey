@@ -170,6 +170,19 @@ vi.mock("@evey/api", async (importOriginal) => ({
 
 // -------------------------------------------------------------------------------------
 import LibraryDetailScreen from "../../app/(auth)/library/[libraryId]";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+
+// The screen mounts a PluginSlot (slot-parity work, 2026-08-03) whose
+// installed-plugins lookup is a raw useQuery: the tree needs the client the
+// real app provides.
+function renderScreen() {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={qc}>
+      <LibraryDetailScreen />
+    </QueryClientProvider>,
+  );
+}
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -208,7 +221,7 @@ describe("LibraryDetailScreen shuffle", () => {
       pagination: { totalItems: 5 },
     });
 
-    render(<LibraryDetailScreen />);
+    renderScreen();
     fireEvent.click(screen.getByTestId("library-shuffle-play"));
 
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/(auth)/player/mi-2"));
@@ -229,7 +242,7 @@ describe("LibraryDetailScreen shuffle", () => {
       isFetching: false,
       refetch: vi.fn(),
     }));
-    render(<LibraryDetailScreen />);
+    renderScreen();
 
     fireEvent.change(screen.getByPlaceholderText("media.library.filterByName"), {
       target: { value: "Beta" },
@@ -244,7 +257,7 @@ describe("LibraryDetailScreen shuffle", () => {
   it("toasts a failure when the whole-library probe rejects", async () => {
     rawListMediaItemsMock.mockRejectedValue(new Error("network down"));
 
-    render(<LibraryDetailScreen />);
+    renderScreen();
     fireEvent.click(screen.getByTestId("library-shuffle-play"));
 
     await waitFor(() => expect(toastErrorMock).toHaveBeenCalledWith("common.shuffleFailed"));
@@ -264,7 +277,7 @@ describe("LibraryDetailScreen dedicated libraries", () => {
   ])("sends a %s library to its own screen instead of the media grid", async (type, route) => {
     getLibraryMock.mockReturnValue({ data: { id: LIBRARY_ID, name: "My Library", type } });
 
-    render(<LibraryDetailScreen />);
+    renderScreen();
 
     // replace, not push: the empty grid must not remain as a back target.
     await waitFor(() => expect(replaceMock).toHaveBeenCalledWith(route));
@@ -276,7 +289,7 @@ describe("LibraryDetailScreen dedicated libraries", () => {
     async (type) => {
       getLibraryMock.mockReturnValue({ data: { id: LIBRARY_ID, name: "My Library", type } });
 
-      render(<LibraryDetailScreen />);
+      renderScreen();
 
       // MediaCard is stubbed out in this file, so assert on the navigation
       // decision rather than on rendered rows: the screen must keep the user
