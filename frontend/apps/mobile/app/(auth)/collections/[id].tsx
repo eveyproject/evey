@@ -78,7 +78,14 @@ function EditCollectionModal({
   async function handleSave() {
     if (!name.trim()) return;
     try {
-      await updateMut.mutateAsync({ id: collectionId, name: name.trim(), description: description.trim() || undefined });
+      // Send overview only when it was touched: leaving it out keeps the
+      // synopsis a TMDB saga came with, which a rename must not cost it.
+      const next = description.trim();
+      await updateMut.mutateAsync({
+        id: collectionId,
+        name: name.trim(),
+        ...(next === initialDescription.trim() ? {} : { overview: next }),
+      });
       onClose();
     } catch {
       Alert.alert(t("common.error", "Error"), t("common.tryAgain", "Please try again."));
@@ -103,6 +110,7 @@ function EditCollectionModal({
             value={name}
             onChangeText={setName}
             autoFocus
+            testID="collection-edit-name"
           />
 
           <TextInput
@@ -111,6 +119,7 @@ function EditCollectionModal({
             placeholder={t("common.description", "Description")}
             value={description}
             onChangeText={setDescription}
+            testID="collection-edit-description"
             multiline
             numberOfLines={3}
           />
@@ -121,6 +130,7 @@ function EditCollectionModal({
             </TouchableOpacity>
             <TouchableOpacity
               onPress={handleSave}
+              testID="collection-edit-save"
               disabled={!name.trim() || updateMut.isPending}
               style={[styles.modalBtn, { backgroundColor: theme.colors.accent, opacity: !name.trim() || updateMut.isPending ? 0.5 : 1 }]}
             >

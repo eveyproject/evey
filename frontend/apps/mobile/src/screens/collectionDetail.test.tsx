@@ -47,7 +47,8 @@ vi.mock("react-native", () => ({
   StyleSheet: { create: (s: any) => s, hairlineWidth: 1 },
   Alert: { alert: (...a: unknown[]) => alertMock(...a) },
   Modal: ({ visible, children }: any) => (visible ? React.createElement("div", null, children) : null),
-  TextInput: (p: any) => React.createElement("input", p),
+  TextInput: ({ onChangeText, testID, ...p }: any) =>
+    React.createElement("input", { ...p, "data-testid": testID, onChange: (e: any) => onChangeText?.(e.target.value) }),
   KeyboardAvoidingView: ({ children, ...p }: any) => React.createElement("div", p, children),
   Platform: { OS: "android", select: (o: any) => o.android },
 }));
@@ -211,6 +212,32 @@ describe("CollectionDetailScreen item removal", () => {
 // UpdateCollection/DeleteCollection RPCs require RoleAdmin server-side
 // (interceptors/rbac.go); the header edit/delete controls must follow the
 // same admin-only convention as item removal above, not just error on tap.
+// A rename must not cost a saga the synopsis TMDB gave it: the field is
+// optional on the wire, and absent means keep.
+describe("CollectionDetailScreen rename", () => {
+  it("sends no overview when the description was left alone", async () => {
+    renderScreen();
+    fireEvent.click(screen.getByTestId("collection-edit-button"));
+    fireEvent.change(screen.getByTestId("collection-edit-name"), { target: { value: "Bond - Saga" } });
+    fireEvent.click(screen.getByTestId("collection-edit-save"));
+
+    await waitFor(() => expect(updateMutateAsyncMock).toHaveBeenCalled());
+    const sent = updateMutateAsyncMock.mock.calls[0][0];
+    expect(sent.name).toBe("Bond - Saga");
+    expect(sent).not.toHaveProperty("overview");
+  });
+
+  it("sends the overview once the description is edited", async () => {
+    renderScreen();
+    fireEvent.click(screen.getByTestId("collection-edit-button"));
+    fireEvent.change(screen.getByTestId("collection-edit-description"), { target: { value: "Every 007 film" } });
+    fireEvent.click(screen.getByTestId("collection-edit-save"));
+
+    await waitFor(() => expect(updateMutateAsyncMock).toHaveBeenCalled());
+    expect(updateMutateAsyncMock.mock.calls[0][0].overview).toBe("Every 007 film");
+  });
+});
+
 describe("CollectionDetailScreen header edit/delete controls", () => {
   it("shows the edit and delete controls for an admin", () => {
     renderScreen();

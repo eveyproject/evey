@@ -158,7 +158,7 @@ function CreateCollectionModal({
   async function handleCreate() {
     if (!name.trim()) return;
     try {
-      const res = await createMut.mutateAsync({ name: name.trim(), description: description.trim() || undefined });
+      const res = await createMut.mutateAsync({ name: name.trim(), overview: description.trim() || undefined });
       handleClose();
       if (res?.id) router.push(`/collections/${res.id}`);
     } catch {
