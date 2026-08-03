@@ -931,3 +931,61 @@ func TestCollectionGetCollection_ReportsAccessFilteredItemCount(t *testing.T) {
 		t.Errorf("kind = %q, want saga", resp.Collection.Kind)
 	}
 }
+
+// A film page can only say "part of the Alien saga" if it can ask which
+// collections hold this title - the one place a viewer wonders about it.
+func TestCollectionListForMediaItem_ReturnsTheHoldingCollections(t *testing.T) {
+	h, cmdRepo, mediaRepo, _ := newTestCollectionHandlerWithAccess()
+	seedCollection(cmdRepo, "col-saga", "Alien - Saga")
+	cmdRepo.Upsert(context.Background(), &library.Collection{ID: "col-other", Name: "Autre"})
+	mediaRepo.Create(context.Background(), &library.MediaItem{ID: "mi-alien", LibraryID: "lib-1", Title: "Alien", Type: "movie"})
+	mediaRepo.Create(context.Background(), &library.MediaItem{ID: "mi-solo", LibraryID: "lib-1", Title: "Solo", Type: "movie"})
+	cmdRepo.LinkItem(context.Background(), "col-saga", "mi-alien", 0)
+
+	resp, err := h.ListCollectionsForMediaItem(adminCtx(), &eveyv1.ListCollectionsForMediaItemRequest{MediaItemId: "mi-alien"})
+	if err != nil {
+		t.Fatalf("ListCollectionsForMediaItem: %v", err)
+	}
+	if len(resp.Collections) != 1 || resp.Collections[0].Id != "col-saga" {
+		t.Fatalf("expected only col-saga, got %+v", resp.Collections)
+	}
+	if resp.Collections[0].Kind != "saga" {
+		t.Errorf("kind = %q, want saga", resp.Collections[0].Kind)
+	}
+
+	// A title in no collection answers empty, not an error: the film page
+	// simply shows nothing.
+	solo, err := h.ListCollectionsForMediaItem(adminCtx(), &eveyv1.ListCollectionsForMediaItemRequest{MediaItemId: "mi-solo"})
+	if err != nil {
+		t.Fatalf("ListCollectionsForMediaItem(solo): %v", err)
+	}
+	if len(solo.Collections) != 0 {
+		t.Errorf("expected no collection, got %+v", solo.Collections)
+	}
+}
+
+// IDOR: the answer must only name collections this caller may see, or the
+// film page becomes an oracle for a library they were denied.
+func TestCollectionListForMediaItem_IDOR_HidesForeignCollections(t *testing.T) {
+	h, cmdRepo, mediaRepo, libAccessRepo := newTestCollectionHandlerWithAccess()
+	seedCollection(cmdRepo, "col-private", "Privée")
+	mediaRepo.Create(context.Background(), &library.MediaItem{ID: "mi-x", LibraryID: "lib-1", Title: "X", Type: "movie"})
+	cmdRepo.LinkItem(context.Background(), "col-private", "mi-x", 0)
+	libAccessRepo.Grant(context.Background(), "user-1", "lib-2")
+
+	resp, err := h.ListCollectionsForMediaItem(nonAdminCtx("user-1"), &eveyv1.ListCollectionsForMediaItemRequest{MediaItemId: "mi-x"})
+	if err != nil {
+		t.Fatalf("ListCollectionsForMediaItem: %v", err)
+	}
+	if len(resp.Collections) != 0 {
+		t.Errorf("a denied library must yield no collection, got %+v", resp.Collections)
+	}
+}
+
+func TestCollectionListForMediaItem_Validation(t *testing.T) {
+	h, _, _, _ := newTestCollectionHandlerWithAccess()
+	_, err := h.ListCollectionsForMediaItem(adminCtx(), &eveyv1.ListCollectionsForMediaItemRequest{})
+	if status.Code(err) != codes.InvalidArgument {
+		t.Errorf("missing media_item_id: want InvalidArgument, got %v", err)
+	}
+}

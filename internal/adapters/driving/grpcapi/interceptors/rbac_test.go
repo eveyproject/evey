@@ -309,9 +309,10 @@ var allowedUserCallable = map[string]string{
 	// PresenceService
 	"/evey.v1.PresenceService/Heartbeat": "any authed user announces their own presence; records only the caller's own claims, no read of others",
 	// CollectionService
-	"/evey.v1.CollectionService/ListCollections":    "read",
-	"/evey.v1.CollectionService/GetCollection":      "read",
-	"/evey.v1.CollectionService/GetCollectionItems": "lib-access-filtered read",
+	"/evey.v1.CollectionService/ListCollections":             "read",
+	"/evey.v1.CollectionService/GetCollection":               "read",
+	"/evey.v1.CollectionService/GetCollectionItems":          "lib-access-filtered read",
+	"/evey.v1.CollectionService/ListCollectionsForMediaItem": "lib-access-filtered read",
 	// FavoriteService
 	"/evey.v1.FavoriteService/ListFavorites":  "own; parental-filtered",
 	"/evey.v1.FavoriteService/AddFavorite":    "own; media-access checked",

@@ -91,3 +91,10 @@ func (s *QueryService) ListMoviesWithoutCollection(ctx context.Context, limit in
 	defer span.End()
 	return s.query.ListMoviesWithoutCollection(ctx, limit)
 }
+
+// GetForMediaItem returns the collections holding this title.
+func (s *QueryService) GetForMediaItem(ctx context.Context, mediaItemID string) ([]*library.Collection, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.collection.GetForMediaItem")
+	defer span.End()
+	return s.query.GetByMediaItemID(ctx, mediaItemID)
+}

@@ -256,6 +256,9 @@ type CollectionQueryRepo interface {
 	// sequels were sitting right there while the saga listed one title
 	// (measured 2026-08-04). Bounded by limit.
 	ListMoviesWithoutCollection(ctx context.Context, limit int) ([]UnlinkedMovie, error)
+	// GetByMediaItemID returns the collections holding this title, so a media
+	// page can say which saga it belongs to and link to the rest of it.
+	GetByMediaItemID(ctx context.Context, mediaItemID string) ([]*Collection, error)
 }
 
 // UnlinkedMovie is one entry of the saga-repair work list: the movie, and the

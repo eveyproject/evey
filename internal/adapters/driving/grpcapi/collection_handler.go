@@ -276,6 +276,47 @@ func (h *collectionHandler) AddCollectionItem(ctx context.Context, req *eveyv1.A
 	return &eveyv1.AddCollectionItemResponse{}, nil
 }
 
+// ListCollectionsForMediaItem answers which collections hold a title, so a
+// media page can say "part of the Alien saga" and link to the rest of it.
+// Access-filtered like every other read here: naming a collection the caller
+// cannot open would turn this into an oracle for a denied library.
+func (h *collectionHandler) ListCollectionsForMediaItem(ctx context.Context, req *eveyv1.ListCollectionsForMediaItemRequest) (*eveyv1.ListCollectionsForMediaItemResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.collection.ListCollectionsForMediaItem")
+	defer span.End()
+	if req.GetMediaItemId() == "" {
+		span.SetStatus(otelcodes.Error, "media_item_id is required")
+		return nil, status.Errorf(codes.InvalidArgument, "media_item_id is required")
+	}
+	cols, err := h.svc.GetForMediaItem(ctx, req.GetMediaItemId())
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, internalError(ctx, "collections for media item", err)
+	}
+	allowed, filterErr := h.allowedLibraryIDs(ctx)
+	if filterErr != nil {
+		span.RecordError(filterErr)
+		span.SetStatus(otelcodes.Error, filterErr.Error())
+		return nil, internalError(ctx, "check access", filterErr)
+	}
+	resp := &eveyv1.ListCollectionsForMediaItemResponse{}
+	for _, c := range cols {
+		items, _, itemsErr := h.svc.GetItems(ctx, c.ID, library.MaxCollectionItems, 0)
+		if itemsErr != nil {
+			slog.WarnContext(ctx, "collections for media item: items lookup", slog.String("collection_id", c.ID), slog.Any("err", itemsErr))
+			continue
+		}
+		visible, skip := filterItemsByAccess(items, allowed)
+		if skip || !h.collectionVisibleUnderParental(ctx, visible) {
+			continue
+		}
+		pb := collectionToProto(c)
+		pb.ItemCount = int32(len(visible))
+		resp.Collections = append(resp.Collections, pb)
+	}
+	return resp, nil
+}
+
 // RemoveCollectionItem is AddCollectionItem's missing counterpart: until it
 // existed a collection could only ever grow, so a wrong member was permanent
 // and hand-curation was write-only.

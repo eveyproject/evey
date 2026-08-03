@@ -60,3 +60,6 @@ func (r *FakeCollectionRepository) UnlinkItem(ctx context.Context, collectionID,
 func (r *FakeCollectionRepository) SetItemOrder(ctx context.Context, collectionID string, mediaItemIDs []string) error {
 	return r.cmd.SetItemOrder(ctx, collectionID, mediaItemIDs)
 }
+func (r *FakeCollectionRepository) GetByMediaItemID(ctx context.Context, mediaItemID string) ([]*library.Collection, error) {
+	return r.query.GetByMediaItemID(ctx, mediaItemID)
+}

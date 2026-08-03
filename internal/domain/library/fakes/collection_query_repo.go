@@ -135,3 +135,23 @@ func (r *FakeCollectionQueryRepo) ListMoviesWithoutCollection(_ context.Context,
 	}
 	return out, nil
 }
+
+func (r *FakeCollectionQueryRepo) GetByMediaItemID(_ context.Context, mediaItemID string) ([]*library.Collection, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var out []*library.Collection
+	for colID, its := range r.items {
+		for _, it := range its {
+			if it.mediaItemID == mediaItemID {
+				if col, ok := r.collections[colID]; ok {
+					out = append(out, col)
+				}
+				break
+			}
+		}
+	}
+	return out, nil
+}

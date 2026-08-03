@@ -694,3 +694,46 @@ func (r *CollectionRepository) SetItemOrder(ctx context.Context, collectionID st
 	}
 	return nil
 }
+
+// GetByMediaItemID returns the collections holding this title.
+func (r *CollectionRepository) GetByMediaItemID(ctx context.Context, mediaItemID string) ([]*library.Collection, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.collection.GetByMediaItemID")
+	defer span.End()
+	span.SetAttributes(attribute.String("media_item.id", mediaItemID))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
+		`SELECT c.id, c.name, c.overview, c.tmdb_id, c.poster_url, c.backdrop_url, c.rules, c.sort_by, c.created_at, c.updated_at
+		 FROM collections c
+		 INNER JOIN collection_items ci ON ci.collection_id = c.id
+		 WHERE ci.media_item_id = $1
+		 ORDER BY c.name`, mediaItemID)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []*library.Collection
+	for rows.Next() {
+		col := &library.Collection{}
+		var rulesJSON []byte
+		if err := rows.Scan(&col.ID, &col.Name, &col.Overview, &col.TmdbID, &col.PosterURL, &col.BackdropURL,
+			&rulesJSON, &col.SortBy, &col.CreatedAt, &col.UpdatedAt); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return nil, err
+		}
+		if err := json.Unmarshal(rulesJSON, &col.Rules); err != nil {
+			slog.Warn("json unmarshal", slog.String("field", "rules"), slog.Any("err", err))
+		}
+		out = append(out, col)
+	}
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return out, nil
+}

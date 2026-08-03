@@ -92,3 +92,7 @@ func (s *Service) UnlinkMediaItem(ctx context.Context, collectionID, mediaItemID
 func (s *Service) ReorderItems(ctx context.Context, collectionID string, mediaItemIDs []string) error {
 	return s.Command.ReorderItems(ctx, collectionID, mediaItemIDs)
 }
+
+func (s *Service) GetForMediaItem(ctx context.Context, mediaItemID string) ([]*library.Collection, error) {
+	return s.Query.GetForMediaItem(ctx, mediaItemID)
+}

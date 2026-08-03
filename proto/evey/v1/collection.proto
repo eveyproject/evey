@@ -53,6 +53,15 @@ service CollectionService {
     };
   }
 
+  // The collections a title belongs to. Without it a film page cannot say
+  // "part of the Alien saga" nor link to the rest of it - the one place a
+  // viewer actually wonders about it.
+  rpc ListCollectionsForMediaItem(ListCollectionsForMediaItemRequest) returns (ListCollectionsForMediaItemResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/media/{media_item_id}/collections"
+    };
+  }
+
   rpc RemoveCollectionItem(RemoveCollectionItemRequest) returns (RemoveCollectionItemResponse) {
     option (google.api.http) = {
       delete: "/api/v1/collections/{id}/items/{media_item_id}"
@@ -194,4 +203,12 @@ message CollectionItemProto {
   string overview = 5;
   double community_rating = 6;
   repeated string genres = 7;
+}
+
+message ListCollectionsForMediaItemRequest {
+  string media_item_id = 1;
+}
+
+message ListCollectionsForMediaItemResponse {
+  repeated CollectionProto collections = 1;
 }
