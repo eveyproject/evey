@@ -175,6 +175,66 @@ describe("PhotosScreen (TV) - grid thumbnails", () => {
   });
 });
 
+describe("PhotosScreen (TV) - loading state", () => {
+  it("shows a spinner instead of an empty grid while libraries are loading", () => {
+    listLibrariesMock.mockReturnValue({ data: undefined, isLoading: true });
+    render(<PhotosScreen />);
+
+    expect(screen.getByTestId("spinner")).toBeTruthy();
+    expect(screen.queryByText("media.photos.noPhotoLibraries")).toBeNull();
+    expect(screen.queryByLabelText("Beach")).toBeNull();
+  });
+});
+
+describe("PhotosScreen (TV) - request failure", () => {
+  it("shows a distinct error with a focusable retry, not the empty-library or empty-album state", () => {
+    const refetchMock = vi.fn();
+    listPhotosMock.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isFetching: false,
+      isError: true,
+      refetch: refetchMock,
+    });
+    render(<PhotosScreen />);
+
+    expect(screen.getByText("common.loadError")).toBeTruthy();
+    expect(screen.queryByText("media.photos.noPhotos")).toBeNull();
+    expect(screen.queryByText("media.photos.noPhotoLibraries")).toBeNull();
+
+    const retryBtn = screen.getByText("common.retry").closest("button");
+    expect(retryBtn?.getAttribute("data-tv-preferred-focus")).toBe("true");
+
+    fireEvent.click(retryBtn!);
+    expect(refetchMock).toHaveBeenCalled();
+  });
+});
+
+describe("PhotosScreen (TV) - tile accessibility", () => {
+  it("gives every titled tile a non-empty accessible label", () => {
+    render(<PhotosScreen />);
+
+    expect(screen.getByLabelText("Beach")).toBeTruthy();
+    expect(screen.getByLabelText("Mountains")).toBeTruthy();
+  });
+
+  it("current behaviour, see report: a photo with neither title nor album renders a blank accessible label", () => {
+    listPhotosMock.mockReturnValue({
+      data: { photos: [...PHOTOS, { id: "p3", title: "", album: "", blurhash: "" }], total: 3 },
+      isLoading: false,
+      isFetching: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+    const { container } = render(<PhotosScreen />);
+
+    // renderPhoto falls back to accessibilityLabel="" when both title and
+    // album are missing, so that tile is silent to a screen reader.
+    const blankLabelButtons = container.querySelectorAll('button[aria-label=""]');
+    expect(blankLabelButtons.length).toBe(1);
+  });
+});
+
 describe("PhotosScreen (TV) - keyset pagination", () => {
   // A full page (== PAGE_SIZE, 60) with a non-empty nextCursor - the exact
   // shape a keyset page returns (see V1ListPhotosResponse.total's doc: total
