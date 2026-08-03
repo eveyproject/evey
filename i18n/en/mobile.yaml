@@ -1,4 +1,5 @@
 serverConnect:
+  serverUnreachable: "Your server did not answer. It may be asleep or off the network."
   hint: "Enter the URL of your self-hosted Evey instance"
   scanLocalNetwork: "Scan local network"
   serversFound_one: "{{count}} server found"

@@ -3,6 +3,7 @@ import { initReactI18next } from "react-i18next";
 import HttpBackend from "i18next-http-backend";
 import { getLocales } from "expo-localization";
 import { useAuthStore, useLocaleStore } from "@evey/store";
+import { OFFLINE_STRINGS } from "./offlineStrings";
 
 export const supportedLanguages = [
   { code: "en", label: "English" },
@@ -31,6 +32,16 @@ function detectLanguage(): string {
 
 export async function initI18n(serverUrl: string) {
   if (i18n.isInitialized) return i18n;
+
+  // Seed the bundled pre-connect strings ONLY when the fetch actually failed:
+  // the translations live on the server, so a sleeping server used to leave the
+  // very first screen in English whatever the viewer's language (device,
+  // 2026-08-03). Seeding unconditionally is worse than the disease - it marks
+  // the namespace loaded and the real bundle never lands.
+  i18n.on("failedLoading", (lng: string) => {
+    const strings = OFFLINE_STRINGS[lng] ?? OFFLINE_STRINGS.en;
+    if (strings) i18n.addResourceBundle(lng, "translation", strings, true, false);
+  });
 
   await i18n
     .use(HttpBackend)

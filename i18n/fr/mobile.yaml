@@ -1,4 +1,5 @@
 serverConnect:
+  serverUnreachable: "Votre serveur n'a pas répondu. Il est peut-être en veille ou hors du réseau."
   hint: "Saisissez l'URL de votre instance Evey auto-hébergée"
   scanLocalNetwork: "Scanner le réseau local"
   serversFound_one: "{{count}} serveur trouvé"

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { View, Text, TextInput, Pressable, ActivityIndicator, Alert, StyleSheet, ScrollView, Modal } from "react-native";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { setBaseURL } from "@evey/api";
 import { useAuthStore, useServerListStore } from "@evey/store";
@@ -14,6 +14,7 @@ import { useTheme } from "../src/providers/ThemeProvider";
 export default function ServerConnect() {
   const theme = useTheme();
   const { t } = useTranslation();
+  const { unreachable } = useLocalSearchParams<{ unreachable?: string }>();
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [inputFocused, setInputFocused] = useState(false);
@@ -144,6 +145,12 @@ export default function ServerConnect() {
     <ScrollView style={s.scroll} contentContainerStyle={s.container}>
       <Text style={s.brand}>Evey</Text>
       <Text style={s.heading}>{t("mobile.serverConnect.title", "Connect to your server")}</Text>
+
+      {unreachable === "1" ? (
+        <Text style={[s.unreachable, { color: theme.colors.textMuted, borderColor: theme.colors.border }]}>
+          {t("mobile.serverConnect.serverUnreachable", "Your server did not answer. It may be asleep or off the network.")}
+        </Text>
+      ) : null}
 
       {/* Saved servers list */}
       {hasServers && (
@@ -493,6 +500,16 @@ const styles = (theme: ReturnType<typeof useTheme>) => StyleSheet.create({
     color: theme.colors.accent,
     marginBottom: 12,
     letterSpacing: -1,
+  },
+  unreachable: {
+    fontSize: 22,
+    lineHeight: 30,
+    textAlign: "center",
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    marginBottom: 24,
   },
   heading: {
     fontSize: 26,

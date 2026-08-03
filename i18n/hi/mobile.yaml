@@ -1,4 +1,5 @@
 serverConnect:
+  serverUnreachable: "आपके सर्वर ने जवाब नहीं दिया। शायद वह निष्क्रिय है या नेटवर्क पर नहीं है।"
   hint: "अपने सेल्फ-होस्टेड Evey इंस्टेंस का URL दर्ज करें"
   scanLocalNetwork: "स्थानीय नेटवर्क स्कैन करें"
   serversFound_one: "{{count}} सर्वर मिला"

@@ -36,7 +36,10 @@ export default function EntryRedirect() {
     );
   }
 
-  if (!serverOk) return <Redirect href="/server-connect" />;
+  // Say WHY: an unreachable server used to drop the viewer on a screen that
+  // looks exactly like a first-time setup, with no hint that the server they
+  // already saved is simply asleep.
+  if (!serverOk) return <Redirect href="/server-connect?unreachable=1" />;
   if (!accessToken) return <Redirect href="/login" />;
   if (!profileId) return <Redirect href="/profile-select" />;
   return <Redirect href="/(auth)/(tabs)" />;

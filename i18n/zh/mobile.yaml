@@ -1,4 +1,5 @@
 serverConnect:
+  serverUnreachable: "服务器没有响应，可能已休眠或不在网络上。"
   hint: "输入您自托管 Evey 实例的 URL"
   scanLocalNetwork: "扫描本地网络"
   serversFound_other: "找到 {{count}} 个服务器"
