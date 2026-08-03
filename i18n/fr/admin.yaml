@@ -1155,6 +1155,7 @@ qoe:
     recoInsufficient: "Collecte de mesures en cours - revenez après quelques sessions de lecture."
 
 segments:
+  empty: "Aucun segment détecté. Ajoutez-en un ci-dessous ou lancez la détection automatique."
   title: "Segments du média"
   markStart: "Marquer début ici"
   markEnd: "Marquer fin ici"

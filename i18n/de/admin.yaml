@@ -1156,6 +1156,7 @@ qoe:
     recoInsufficient: "Messwerte werden gesammelt - schauen Sie wieder vorbei, sobald einige Sitzungen abgespielt wurden."
 
 segments:
+  empty: "Keine Segmente erkannt. Füge unten eines hinzu oder starte die automatische Erkennung."
   title: Mediensegmente
   markStart: Startpunkt hier setzen
   markEnd: Endpunkt hier setzen

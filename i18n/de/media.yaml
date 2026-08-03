@@ -391,6 +391,7 @@ updated: Aktualisiert
 downloadComplete: Download abgeschlossen
 downloadFailed: Download fehlgeschlagen
 syncplay:
+  joinDescription: "Code von einer Freundin oder einem Freund? Gib ihn unten ein, um dem Raum beizutreten. Für einen neuen Raum öffne einen Film oder Song und tippe auf Gemeinsam ansehen."
   connected: Verbunden
   connecting: "Verbinden..."
   leave: Verlassen

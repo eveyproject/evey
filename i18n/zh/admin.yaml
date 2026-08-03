@@ -1156,6 +1156,7 @@ qoe:
     recoInsufficient: "正在收集测量数据 - 待若干会话播放后再回来查看。"
 
 segments:
+  empty: "未检测到片段。可在下方添加，或运行自动检测。"
   title: "媒体片段"
   markStart: "在此标记起始点"
   markEnd: "在此标记结束点"

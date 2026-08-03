@@ -1156,6 +1156,7 @@ qoe:
     recoInsufficient: Collecting measurements - check back once a few sessions have played.
 
 segments:
+  empty: "No segments detected. Add one below or trigger auto-detect."
   title: Media segments
   markStart: Mark start here
   markEnd: Mark end here

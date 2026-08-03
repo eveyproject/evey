@@ -391,6 +391,7 @@ updated: Actualizado
 downloadComplete: Descarga completada
 downloadFailed: Error en la descarga
 syncplay:
+  joinDescription: "¿Tienes el código de un amigo? Introdúcelo abajo para unirte a su sala. Para crear una sala, abre una película o canción y pulsa el botón Ver juntos."
   connected: Conectado
   connecting: "Conectando..."
   leave: Salir

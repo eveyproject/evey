@@ -391,6 +391,7 @@ updated: Updated
 downloadComplete: Download complete
 downloadFailed: Download failed
 syncplay:
+  joinDescription: "Got a code from a friend? Enter it below to join their room. To start a new room, open a movie or song and tap the SyncPlay button."
   connected: Connected
   connecting: "Connecting..."
   leave: Leave

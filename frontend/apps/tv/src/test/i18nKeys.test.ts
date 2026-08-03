@@ -17,9 +17,10 @@ import { parse } from "yaml";
 // resolves plurals through suffixes, so the only honest check parses both
 // sides. That is what this does.
 //
-// Scope note: this guards the TV app because that is where the bug surfaced.
-// The same hole exists for web and mobile; widening the roots below is the
-// whole change needed, once someone is ready to fix whatever it turns up.
+// Scope note: this started life guarding the TV app, where the bug surfaced.
+// It now covers web and mobile too - widening it turned up two mobile keys
+// that had been rendering their English fallback on a French screen since the
+// day they were written (2026-08-04).
 
 // Walk up to the repo root rather than counting "../" from import.meta.url:
 // under vite that URL carries a /@fs prefix, and a hardcoded depth breaks the
@@ -43,6 +44,7 @@ const REPO_ROOT = repoRoot();
 // This runs on the host through `make tv-audit` and `make pre-push`.
 const CAN_RUN = REPO_ROOT !== null;
 const CATALOGUE_DIR = join(REPO_ROOT ?? "", "i18n", "en");
+const APPS = ["tv", "web", "mobile"] as const;
 const APP_ROOT = join(REPO_ROOT ?? "", "frontend", "apps", "tv");
 
 // i18next picks x_one/x_other/... when the caller passes a count, so a key
@@ -78,8 +80,8 @@ function sourceFiles(dir: string, acc: string[] = []): string[] {
   return acc;
 }
 
-describe("every translation key the TV app asks for exists in the catalogue", () => {
-  it.skipIf(!CAN_RUN)("has no key that would silently render its English fallback", () => {
+describe("every translation key the three apps ask for exists in the catalogue", () => {
+  it.skipIf(!CAN_RUN).each(APPS)("%s renders no key that would silently fall back to English", (app) => {
     const catalogue = loadCatalogue();
     const resolves = (key: string) =>
       catalogue.has(key) || PLURAL_SUFFIXES.some((s) => catalogue.has(key + s));
@@ -87,11 +89,12 @@ describe("every translation key the TV app asks for exists in the catalogue", ()
     // Only literal keys: a computed one (`t(someVar)`) cannot be checked here,
     // and pretending otherwise would make this guard look stronger than it is.
     const call = /\bt\(\s*"([a-zA-Z0-9_.]+)"/g;
+    const root = join(REPO_ROOT ?? "", "frontend", "apps", app);
     const missing: string[] = [];
-    for (const file of sourceFiles(APP_ROOT)) {
+    for (const file of sourceFiles(root)) {
       const src = readFileSync(file, "utf8");
       for (const m of src.matchAll(call)) {
-        if (!resolves(m[1])) missing.push(`${m[1]}  (${file.slice(APP_ROOT.length + 1)})`);
+        if (!resolves(m[1])) missing.push(`${m[1]}  (${file.slice(root.length + 1)})`);
       }
     }
     expect([...new Set(missing)].sort()).toEqual([]);

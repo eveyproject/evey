@@ -391,6 +391,7 @@ updated: Mis à jour
 downloadComplete: Téléchargement terminé
 downloadFailed: Échec du téléchargement
 syncplay:
+  joinDescription: "Un ami vous a donné un code ? Saisissez-le ci-dessous pour rejoindre son salon. Pour créer un salon, ouvrez un film ou un morceau et appuyez sur le bouton Regarder ensemble."
   connected: Connecté
   connecting: "Connexion..."
   leave: Quitter

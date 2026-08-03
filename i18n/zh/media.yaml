@@ -391,6 +391,7 @@ updated: 已更新
 downloadComplete: "下载完成"
 downloadFailed: "下载失败"
 syncplay:
+  joinDescription: "拿到朋友的房间码了吗？在下方输入即可加入。若要新建房间，请打开影片或歌曲后点按「一起看」。"
   connected: 已连接
   connecting: "连接中..."
   leave: 离开
