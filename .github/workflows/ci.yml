@@ -81,7 +81,16 @@ jobs:
             echo "new branch, no previous tip to compare against - skipping"
             exit 0
           else
-            against=".git#ref=${{ github.event.before }}"
+            before="${{ github.event.before }}"
+            # A force-push (history rewrite) leaves `before` pointing at a
+            # commit this clone no longer contains, and buf then fails on a
+            # missing tree rather than on a proto break. Nothing survives under
+            # that history, so there is no contract left to diff against.
+            if ! git cat-file -e "${before}^{commit}" 2>/dev/null; then
+              echo "previous tip ${before} is gone (history rewritten) - skipping"
+              exit 0
+            fi
+            against=".git#ref=${before}"
           fi
           echo "buf breaking against: ${against}"
           buf breaking --against "${against}"
