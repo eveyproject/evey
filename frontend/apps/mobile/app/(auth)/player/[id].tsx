@@ -78,6 +78,7 @@ import {
 } from "../../../src/lib/subtitleStyle";
 import { pickExternalSubtitle } from "../../../src/lib/externalSubtitle";
 import { parseVttCues, type SubtitleCue } from "../../../src/lib/subtitleCues";
+import { PluginSlot } from "../../../src/features/plugins/PluginSlot";
 
 // Sheets still carried by a BottomSheet; audio / subtitles / quality / speed
 // now live in the settings panel (web parity).
@@ -1442,6 +1443,13 @@ const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>()
           } finally { setSyncJoining(false); }
         }}
       />
+
+      {/* Plugin overlays, same slot as web's player page. Anchored to the
+          bottom edge; box-none so an empty slot can never eat a tap meant
+          for the controls. */}
+      <View pointerEvents="box-none" style={{ position: "absolute", left: 0, right: 0, bottom: 0 }}>
+        <PluginSlot name="player.overlay" context={{ mediaId }} />
+      </View>
 
     </View>
   );

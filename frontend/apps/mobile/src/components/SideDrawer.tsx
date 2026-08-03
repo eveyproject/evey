@@ -7,6 +7,7 @@ import { useMediaRequestServiceGetRequestPolicy } from "@evey/api";
 import { useTheme } from "../providers/ThemeProvider";
 import { useDrawer } from "../providers/DrawerProvider";
 import { EveyWordmark } from "./EveyLogo";
+import { PluginSlot } from "../features/plugins/PluginSlot";
 import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
 
 const DRAWER_WIDTH = 260;
@@ -124,6 +125,10 @@ export function SideDrawer() {
               </Text>
             </Pressable>
           )}
+
+          {/* Plugins mounting in the navigation tray bottom - same slot as
+              web's Sidebar. */}
+          <PluginSlot name="sidebar.bottom" />
         </ScrollView>
       </Animated.View>
     </Modal>

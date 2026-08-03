@@ -59,6 +59,7 @@ import { backdropWidthForViewport } from "../../../src/components/media/backdrop
 import { hasMediaFile } from "../../../src/components/media/mediaFile";
 import { buildPublicShareUrl } from "../../../src/components/media/shareLink";
 import { MetadataEditSheet } from "../../../src/components/media/MetadataEditSheet";
+import { PluginSlot } from "../../../src/features/plugins/PluginSlot";
 
 const POSTER_WIDTH = 100;
 const POSTER_HEIGHT = POSTER_WIDTH * 1.5;
@@ -1562,6 +1563,10 @@ export default function MediaDetailScreen() {
 
         {/* Similar content */}
         {id && !isSeason ? <SimilarSection item={media} /> : null}
+
+        {/* Plugin modules declared for the media page - same placement as
+            web's MediaDetail (after similar titles). */}
+        {id ? <PluginSlot name="media.detail.sidebar" context={{ mediaId: id }} /> : null}
 
         {/* Bottom spacing */}
         <View style={{ height: theme.spacing.xl * 2 }} />

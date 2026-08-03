@@ -15,6 +15,7 @@ import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useServerUrlNullable } from "../../../src/hooks/useServerUrl";
 import { supportedLanguages } from "../../../src/i18n";
 import { ThemeSelector } from "../../../src/components/ThemeSelector";
+import { PluginSlot } from "../../../src/features/plugins/PluginSlot";
 
 function ChevronRight({ color }: { color: string }) {
   return <Text style={{ color, fontSize: 18 }}>{"›"}</Text>;
@@ -346,6 +347,11 @@ export default function SettingsScreen() {
           <ChevronRight color={theme.colors.textMuted} />
         </Pressable>
       </View>
+
+      {/* Plugins that declare a settings.user.appearance module render their
+          own per-profile settings UI here (e.g. weather residence) - same
+          placement as web's appearance tab. */}
+      <PluginSlot name="settings.user.appearance" />
 
       {/* Playback */}
       <Text style={s.sectionTitle}>{t("auth.settings.tabs.playback")}</Text>
