@@ -47,6 +47,7 @@ favorites:
   bulkFailed: "पसंदीदा टॉगल करने में विफल"
   yearOldest: वर्ष (पुराने)
 collections:
+  partOf: "इसका हिस्सा"
   moveUp: "संग्रह में पहले ले जाएँ"
   moveDown: "संग्रह में बाद में ले जाएँ"
   removeItem: "इस संग्रह से हटाएँ"

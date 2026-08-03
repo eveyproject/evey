@@ -47,6 +47,7 @@ favorites:
   bulkFailed: "Échec de mise à jour des favoris"
   yearOldest: Année (anciennes)
 collections:
+  partOf: "Fait partie de"
   moveUp: "Déplacer plus tôt dans la collection"
   moveDown: "Déplacer plus tard dans la collection"
   removeItem: "Retirer de cette collection"

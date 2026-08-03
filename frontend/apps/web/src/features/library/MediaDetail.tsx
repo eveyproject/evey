@@ -14,6 +14,7 @@ import { MediaDetailActions } from "./MediaDetailActions";
 import { CastCarousel } from "./MediaDetailCast";
 import { SeriesSection, SeasonEpisodesSection } from "./MediaDetailSeries";
 import { SimilarSection } from "./MediaDetailSimilar";
+import { SagaSection } from "./MediaDetailSagas";
 import { MediaDetailFileInfo } from "./MediaDetailFileInfo";
 import { artworkUrl } from "./artworkUrl";
 
@@ -109,6 +110,7 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
       <div data-testid="cast-section"><CastCarousel people={actors} title={t("media.detail.cast")} /></div>
       {crew.length > 0 && <CastCarousel people={crew} title={t("media.detail.crew")} />}
 
+      {item.id && !isSeason && <SagaSection mediaItemId={item.id} />}
       {item.id && !isSeason && <SimilarSection item={item} />}
 
       <PluginSlot name="media.detail.sidebar" context={{ mediaId: item.id }} />

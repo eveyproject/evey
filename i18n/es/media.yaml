@@ -47,6 +47,7 @@ favorites:
   bulkFailed: "Error al alternar favoritos"
   yearOldest: Año (más antiguos)
 collections:
+  partOf: "Forma parte de"
   moveUp: "Mover antes en la colección"
   moveDown: "Mover después en la colección"
   removeItem: "Quitar de esta colección"

@@ -81,6 +81,10 @@ vi.mock("../playlist/AddToPlaylistModal", () => ({
   AddToPlaylistModal: () => null,
 }));
 
+vi.mock("./MediaDetailSagas", () => ({
+  SagaSection: () => null,
+}));
+
 vi.mock("./StreamList", () => ({
   StreamList: () => null,
 }));

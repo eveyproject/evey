@@ -47,6 +47,7 @@ favorites:
   bulkFailed: "Favoriten konnten nicht umgeschaltet werden"
   yearOldest: Jahr (älteste)
 collections:
+  partOf: "Teil von"
   moveUp: "In der Sammlung nach vorn"
   moveDown: "In der Sammlung nach hinten"
   removeItem: "Aus dieser Sammlung entfernen"

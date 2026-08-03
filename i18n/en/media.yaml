@@ -47,6 +47,7 @@ favorites:
   bulkFailed: "Failed to toggle favorites"
   yearOldest: Year (oldest)
 collections:
+  partOf: "Part of"
   moveUp: "Move earlier in the collection"
   moveDown: "Move later in the collection"
   removeItem: "Remove from this collection"
