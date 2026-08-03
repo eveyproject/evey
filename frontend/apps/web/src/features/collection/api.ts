@@ -30,6 +30,10 @@ export interface Collection {
   sortBy?: string;
   createdAt: string;
   updatedAt: string;
+  /** Members THIS viewer can see - already access- and parental-filtered. */
+  itemCount?: number;
+  /** "saga" (TMDB-sourced), "smart" (rule-driven) or "manual". */
+  kind?: string;
 }
 
 export interface CollectionItem {
@@ -52,13 +56,15 @@ function mapCollection(c: V1CollectionProto): Collection {
     backdropUrl: c.backdropUrl,
     rules: c.rules?.map((r) => ({ field: r.field ?? "", operator: r.operator ?? "", value: r.value ?? "" })),
     sortBy: c.sortBy,
+    itemCount: c.itemCount,
+    kind: c.kind,
     createdAt: c.createdAt ?? "",
     updatedAt: c.updatedAt ?? "",
   };
 }
 
 export function useCollections() {
-  return useCollectionServiceListCollections({
+  return useCollectionServiceListCollections(undefined, {
     query: {
       select: (d) => ({ collections: (d.collections ?? []).map(mapCollection) }),
       staleTime: 5 * 60_000,

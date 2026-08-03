@@ -400,6 +400,9 @@ libraries:
   matchOrphansTooltip: "Zielt nur auf Elemente ab, die beim Scan nie mit TMDB übereinstimmten (Anbieter-IDs leer). Schnell, läuft im Hintergrund."
   matchOrphansStarted: "{{count}} Waise(n) für Abgleich eingereiht - sie erscheinen mit Poster/Übersicht, sobald TMDB antwortet"
   matchOrphansEmpty: "Keine Waisen in dieser Bibliothek zum Abgleichen - alle Elemente haben bereits Anbieter-IDs"
+  relinkCollections: "Reihen reparieren"
+  relinkCollectionsTooltip: "Ordnet Filme ohne Sammlung wieder ihrer Reihe zu: Die Fortsetzungen sind bereits in der Bibliothek, die Zugehörigkeit wurde aber nur beim Anreichern geschrieben. Läuft im Hintergrund."
+  relinkCollectionsStarted: "Reihen-Reparatur gestartet - Titel treten ihrer Reihe bei, sobald TMDB antwortet"
   deleteTitle: Bibliothek löschen
   deleteConfirm: "Bibliothek \"{{name}}\" löschen? Dies kann nicht rückgängig gemacht werden."
   noLibraries: Keine Bibliotheken. Fügen Sie eine hinzu, um zu beginnen.

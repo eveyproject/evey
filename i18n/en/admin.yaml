@@ -400,6 +400,9 @@ libraries:
   matchOrphansTooltip: Targets only items that never matched TMDB at scan time (provider IDs empty). Fast, runs in the background.
   matchOrphansStarted: "Queued {{count}} orphan(s) for matching - they'll appear with poster/overview as TMDB responds"
   matchOrphansEmpty: No orphans to match in this library - all items already have provider IDs
+  relinkCollections: "Repair sagas"
+  relinkCollectionsTooltip: "Joins movies that belong to no collection back to their saga: the sequels are already in the library, but membership was only ever written while enriching. Runs in the background."
+  relinkCollectionsStarted: "Saga repair started - titles will join their saga as TMDB answers"
   deleteTitle: Delete Library
   deleteConfirm: "Delete library \"{{name}}\"? This cannot be undone."
   noLibraries: No libraries. Add one to get started.

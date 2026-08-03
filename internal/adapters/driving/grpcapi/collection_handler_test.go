@@ -906,3 +906,28 @@ func TestCollectionReorderCollectionItems_Validation(t *testing.T) {
 		t.Errorf("oversized order: want InvalidArgument, got %v", err)
 	}
 }
+
+// A detail screen that announced more titles than it can show would
+// contradict itself, so the single-collection read carries the same
+// access-filtered count as the listing.
+func TestCollectionGetCollection_ReportsAccessFilteredItemCount(t *testing.T) {
+	h, cmdRepo, mediaRepo, libAccessRepo := newTestCollectionHandlerWithAccess()
+	seedCollection(cmdRepo, "col-mixed", "Mixed")
+	mediaRepo.Create(context.Background(), &library.MediaItem{ID: "gm1", LibraryID: "lib-1", Title: "Hidden", Type: "movie"})
+	mediaRepo.Create(context.Background(), &library.MediaItem{ID: "gm2", LibraryID: "lib-2", Title: "Seen", Type: "movie"})
+	for _, id := range []string{"gm1", "gm2"} {
+		cmdRepo.LinkItem(context.Background(), "col-mixed", id, 0)
+	}
+	libAccessRepo.Grant(context.Background(), "user-1", "lib-2")
+
+	resp, err := h.GetCollection(nonAdminCtx("user-1"), &eveyv1.GetCollectionRequest{Id: "col-mixed"})
+	if err != nil {
+		t.Fatalf("GetCollection: %v", err)
+	}
+	if got := resp.Collection.ItemCount; got != 1 {
+		t.Errorf("item_count = %d, want 1 (the lib-1 title must not be counted)", got)
+	}
+	if resp.Collection.Kind != "saga" {
+		t.Errorf("kind = %q, want saga", resp.Collection.Kind)
+	}
+}

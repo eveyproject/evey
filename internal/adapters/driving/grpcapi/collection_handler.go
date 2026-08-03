@@ -150,24 +150,20 @@ func (h *collectionHandler) GetCollection(ctx context.Context, req *eveyv1.GetCo
 		span.SetStatus(otelcodes.Error, itemsErr.Error())
 		return nil, internalError(ctx, "get collection items", itemsErr)
 	}
-	if allowed != nil {
-		visible := false
-		for _, it := range items {
-			if slices.Contains(allowed, string(it.LibraryID)) {
-				visible = true
-				break
-			}
-		}
-		if !visible {
-			span.SetStatus(otelcodes.Error, "collection access denied")
-			return nil, status.Errorf(codes.NotFound, "collection not found")
-		}
+	visibleItems, skip := filterItemsByAccess(items, allowed)
+	if skip {
+		span.SetStatus(otelcodes.Error, "collection access denied")
+		return nil, status.Errorf(codes.NotFound, "collection not found")
 	}
-	if !h.collectionVisibleUnderParental(ctx, items) {
+	if !h.collectionVisibleUnderParental(ctx, visibleItems) {
 		span.SetStatus(otelcodes.Error, "collection blocked by parental filter")
 		return nil, status.Errorf(codes.NotFound, "collection not found")
 	}
-	return &eveyv1.GetCollectionResponse{Collection: collectionToProto(col)}, nil
+	pb := collectionToProto(col)
+	// Same access-filtered count as the listing: a detail screen that
+	// announced more titles than it can show would contradict itself.
+	pb.ItemCount = int32(len(visibleItems))
+	return &eveyv1.GetCollectionResponse{Collection: pb}, nil
 }
 
 func (h *collectionHandler) DeleteCollection(ctx context.Context, req *eveyv1.DeleteCollectionRequest) (*eveyv1.DeleteCollectionResponse, error) {

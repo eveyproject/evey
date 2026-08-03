@@ -396,6 +396,14 @@ function LibrariesPage() {
   const { data: stats = [] } = useLibraryStats();
   const libraries = data?.libraries ?? [];
 
+  // Server-wide, not per library: saga membership is keyed on the TMDB
+  // collection, which spans every library a title may live in.
+  const relinkCollections = useMutation({
+    mutationFn: () => eveyFetch({ url: "/api/v1/admin/collections/relink", method: "POST", data: {} }),
+    onSuccess: () => toast.success(t("admin.libraries.relinkCollectionsStarted")),
+    onError: (err: Error) => toast.error(err.message),
+  });
+
   function handleCreateSuccess() {
     queryClient.invalidateQueries({ queryKey: ["/api/v1/libraries"] });
     setShowModal(false);
@@ -406,7 +414,20 @@ function LibrariesPage() {
     <div className="flex flex-col gap-6" data-testid="libraries-page">
       <PageHeader
         title={t("admin.libraries.title")}
-        actions={<Button onClick={() => setShowModal(true)} data-testid="add-library-btn">{t("admin.libraries.addLibrary")}</Button>}
+        actions={
+          <div className="flex gap-2">
+            <Button
+              variant="secondary"
+              loading={relinkCollections.isPending}
+              onClick={() => relinkCollections.mutate()}
+              title={t("admin.libraries.relinkCollectionsTooltip")}
+              data-testid="relink-collections-btn"
+            >
+              {t("admin.libraries.relinkCollections")}
+            </Button>
+            <Button onClick={() => setShowModal(true)} data-testid="add-library-btn">{t("admin.libraries.addLibrary")}</Button>
+          </div>
+        }
       />
 
       {isLoading ? (
