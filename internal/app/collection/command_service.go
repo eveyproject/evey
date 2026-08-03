@@ -46,7 +46,11 @@ func (s *CommandService) Update(ctx context.Context, id, name string, rules []li
 	col.Rules = rules
 	col.SortBy = sortBy
 	col.UpdatedAt = time.Now()
-	return s.cmd.Upsert(ctx, col)
+	// Update, not Upsert: the upsert arbitrates on tmdb_id, which is NULL for
+	// every hand-built collection, so the insert fell through to a primary-key
+	// violation - renaming one returned 500, and the sort_by=manual write that
+	// follows a reorder failed the same way (reproduced on dev 2026-08-04).
+	return s.cmd.Update(ctx, col)
 }
 
 func (s *CommandService) Upsert(ctx context.Context, tmdbID int, name, overview, posterURL, backdropURL string) (*library.Collection, error) {

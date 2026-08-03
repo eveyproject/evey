@@ -2,10 +2,15 @@ package fakes
 
 import (
 	"context"
+	"errors"
 	"sync"
 
 	"github.com/evey-project/evey/internal/domain/library"
 )
+
+// ErrDuplicateKey mirrors what postgres raises when an upsert lands on an
+// existing primary key with no arbiter to resolve it.
+var ErrDuplicateKey = errors.New("duplicate key value violates unique constraint")
 
 type FakeCollectionCommandRepo struct {
 	mu          sync.RWMutex
@@ -54,6 +59,14 @@ func (r *FakeCollectionCommandRepo) Upsert(_ context.Context, col *library.Colle
 				return nil
 			}
 		}
+	}
+	// The real upsert arbitrates on tmdb_id only. A collection without one that
+	// already exists is an INSERT onto its own primary key, which postgres
+	// rejects - so renaming a hand-built collection through this path returned
+	// 500 while this fake happily overwrote the map (reproduced on dev
+	// 2026-08-04). Model the constraint, or the fake keeps hiding it.
+	if _, exists := r.collections[col.ID]; exists {
+		return ErrDuplicateKey
 	}
 	r.collections[col.ID] = col
 	return nil
