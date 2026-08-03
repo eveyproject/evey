@@ -177,6 +177,87 @@ func TestCompatDownload_FailureIsReportedAndRetryable(t *testing.T) {
 	assert.EqualValues(t, 2, tr.calls.Load())
 }
 
+// gatedCompatTranscoder blocks every production until the gate opens and
+// records how many ran at once - the concurrency the cap under test bounds.
+type gatedCompatTranscoder struct {
+	payload []byte
+	gate    chan struct{}
+	running atomic.Int32
+	maxSeen atomic.Int32
+}
+
+func (g *gatedCompatTranscoder) TranscodeCompat(_ context.Context, _, dst string, _ int64, _ func(int)) error {
+	n := g.running.Add(1)
+	for {
+		seen := g.maxSeen.Load()
+		if n <= seen || g.maxSeen.CompareAndSwap(seen, n) {
+			break
+		}
+	}
+	<-g.gate
+	g.running.Add(-1)
+	return os.WriteFile(dst, g.payload, 0o644)
+}
+
+// perIDMediaItemGetter hands every requested id its own item and source path,
+// so each production targets a distinct cache file.
+type perIDMediaItemGetter struct{}
+
+func (perIDMediaItemGetter) GetMediaItem(_ context.Context, id string) (*domainlibrary.MediaItem, error) {
+	return &domainlibrary.MediaItem{
+		ID:        shared.MediaItemID(id),
+		LibraryID: "lib1",
+		File:      &domainlibrary.MediaFile{Path: "/tmp/" + id + ".mkv"},
+	}, nil
+}
+
+// Distinct items must not each get their own ffmpeg: the singleflight only
+// collapses repeats of the SAME item, so a season requested by several
+// devices used to mean one production per episode, all at once, on the
+// weak-NAS target. Beyond the cap they wait their turn, visibly "preparing".
+func TestCompatDownload_ProductionsAreCapped(t *testing.T) {
+	tr := &gatedCompatTranscoder{payload: []byte("x"), gate: make(chan struct{})}
+	streams := &fakeCompatStreams{codecs: []string{"ac3"}}
+	h := newCompatServe(perIDMediaItemGetter{}, streams, allowAll(), testFakeParentalChecker{}, nil, tr, t.TempDir(), "http://localhost")
+
+	post := func(id string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/media/"+id+"/compat-download", nil)
+		req.SetPathValue("id", id)
+		req = withHTTPClaims(req, testClaims(false))
+		w := httptest.NewRecorder()
+		h.handlePrepare(w, req)
+		return w
+	}
+	statusOf := func(id string) string {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/media/"+id+"/compat-download/status", nil)
+		req.SetPathValue("id", id)
+		req = withHTTPClaims(req, testClaims(false))
+		w := httptest.NewRecorder()
+		h.handleStatus(w, req)
+		s, _ := decodeCompatStatus(t, w)["status"].(string)
+		return s
+	}
+
+	for _, id := range []string{"e1", "e2", "e3"} {
+		assert.Equal(t, http.StatusAccepted, post(id).Code)
+	}
+	require.Eventually(t, func() bool { return tr.running.Load() == compatMaxConcurrentProductions },
+		2*time.Second, 5*time.Millisecond)
+	// Give an uncapped third production the time to prove itself running.
+	time.Sleep(50 * time.Millisecond)
+	assert.EqualValues(t, compatMaxConcurrentProductions, tr.maxSeen.Load(), "more concurrent productions than the cap")
+	for _, id := range []string{"e1", "e2", "e3"} {
+		assert.Equal(t, "preparing", statusOf(id))
+	}
+
+	close(tr.gate)
+	for _, id := range []string{"e1", "e2", "e3"} {
+		require.Eventually(t, func() bool { return statusOf(id) == "ready" },
+			2*time.Second, 10*time.Millisecond, "production %s never finished", id)
+	}
+	assert.EqualValues(t, compatMaxConcurrentProductions, tr.maxSeen.Load())
+}
+
 func TestCompatDownload_GuardsMirrorTheRawDownload(t *testing.T) {
 	tr := &fakeCompatTranscoder{payload: []byte("x")}
 

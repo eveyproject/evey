@@ -30,6 +30,13 @@ import (
 // reclaimed by the cache janitor, exactly like the remux cache.
 const compatCacheFormat = "compat-v1"
 
+// Concurrent production slots. Our client walks a season one episode at a
+// time, but the singleflight only collapses repeats of the SAME item - N
+// devices (or any API-key client) asking for N distinct items would otherwise
+// mean N simultaneous ffmpeg runs on the weak-NAS target. Waiters queue
+// inside produce and stay visibly "preparing".
+const compatMaxConcurrentProductions = 2
+
 // compatCacheName mirrors remuxCacheName: identity keyed on the item, the
 // format version and the SOURCE FINGERPRINT (a replaced file yields a new
 // name, so a stale variant is never served), hex-encoded so filepath.Join
@@ -78,6 +85,7 @@ type compatServe struct {
 	cacheDir      string // <transcoding cache>/compat
 	baseURL       string
 	group         singleflight.Group
+	sem           chan struct{} // production slots, see compatMaxConcurrentProductions
 
 	mu       sync.Mutex
 	jobs     map[string]*compatJob // keyed by outPath
@@ -101,6 +109,7 @@ func newCompatServe(libSvc MediaItemGetter, streams StreamsByMediaGetter, librar
 		transcoder:    transcoder,
 		cacheDir:      filepath.Join(cacheRoot, "compat"),
 		baseURL:       baseURL,
+		sem:           make(chan struct{}, compatMaxConcurrentProductions),
 		jobs:          map[string]*compatJob{},
 		progress:      map[string]int{},
 	}
@@ -257,6 +266,8 @@ func (h *compatServe) produce(ctx context.Context, mediaID, srcPath, outPath str
 		if fi, statErr := os.Stat(outPath); statErr == nil && fi.Size() > 0 {
 			return nil, nil
 		}
+		h.sem <- struct{}{}
+		defer func() { <-h.sem }()
 		if mkErr := os.MkdirAll(filepath.Dir(outPath), 0o755); mkErr != nil {
 			return nil, mkErr
 		}
