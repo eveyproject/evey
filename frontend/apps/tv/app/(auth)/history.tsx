@@ -18,7 +18,11 @@ import { FocusableCard } from "../../src/components/FocusableCard";
 
 function formatDuration(ms: string | undefined): string {
   if (!ms) return "";
-  const totalMin = Math.floor(Number(ms) / 60000);
+  // The server sends int64 as a string; anything unparseable used to reach the
+  // screen as "NaNmin".
+  const value = Number(ms);
+  if (!Number.isFinite(value) || value <= 0) return "";
+  const totalMin = Math.floor(value / 60000);
   if (totalMin < 60) return `${totalMin}min`;
   const h = Math.floor(totalMin / 60);
   const m = totalMin % 60;
