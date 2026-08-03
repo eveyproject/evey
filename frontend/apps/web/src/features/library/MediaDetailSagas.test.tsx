@@ -12,7 +12,7 @@ vi.mock("@evey/api", () => ({
 vi.mock("@tanstack/react-router", () => ({
   // Forwards the rest of the props: the real Link does, and the test asserts
   // on data-testid.
-  Link: ({ children, params, to, ...rest }: { children: React.ReactNode; params?: { collectionId?: string }; to?: string }) =>
+  Link: ({ children, params, to: _to, ...rest }: { children: React.ReactNode; params?: { collectionId?: string }; to?: string }) =>
     React.createElement("a", { href: `/collections/${params?.collectionId ?? ""}`, ...rest }, children),
 }));
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string) => k }) }));
