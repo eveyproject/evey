@@ -62,12 +62,12 @@ func writeSyntheticSlice(t *testing.T, path string, blocks int) {
 	}
 }
 
-func TestJoinSlicesStampsTheRealDuration(t *testing.T) {
+func TestJoinSlicesDeclaresTheRealDuration(t *testing.T) {
 	dir := t.TempDir()
 	// Three slices of 10 blocks (400 ms each): 1200 ms of film. Each slice
-	// declares 400 ms of its own, which is exactly the trap - mkvgo v0.25.1
-	// copies the FIRST slice's duration into the joined header, so without the
-	// repair the film would announce 400 ms and refuse to seek past it.
+	// declares 400 ms of its own, which was exactly the v0.25.1 trap - Join
+	// copied the FIRST slice's duration into the joined header (a 400 ms
+	// film that refuses to seek). Since v0.26.0 the computed total wins.
 	const slices, blocksPer, totalMs = 3, 10, 1200
 	for i := range slices {
 		writeSyntheticSlice(t, filepath.Join(dir, SliceName(i)), blocksPer)
@@ -83,7 +83,7 @@ func TestJoinSlicesStampsTheRealDuration(t *testing.T) {
 		t.Fatalf("reopen the joined file: %v", err)
 	}
 	if math.Abs(float64(c.DurationMs)-totalMs) > 1 {
-		t.Errorf("joined file declares %d ms, want %d ms - the duration repair did not take", c.DurationMs, totalMs)
+		t.Errorf("joined file declares %d ms, want %d ms - mkvgo's Join lost the total", c.DurationMs, totalMs)
 	}
 
 	// And the content really is all three slices, re-offset onto one timeline.

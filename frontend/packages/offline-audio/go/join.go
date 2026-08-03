@@ -8,20 +8,16 @@ package offlineaudio
 // there is no second copy of the film anywhere. Putting the film back together
 // is therefore the device's job, and this is it.
 //
-// It is mkvgo's ops.Join plus one repair. Join itself is correct where it
-// matters - it refuses slices whose CodecPrivate differs (which would silently
-// produce an unplayable file) and it appends each track against its OWN end,
-// so the audio does not walk away from the picture across a dozen joins. What
-// it gets wrong in v0.25.1 is the DECLARED length: writer.WriteSegmentInfo
-// prefers the first source's Info.Duration over the total Join computed, so
-// the joined film announces the length of slice 0 - ten minutes for a
-// two-hour film. Players believe the header, so the download would look ten
-// minutes long and refuse to seek past it.
-//
-// EditInPlace fixes that for the cost of a metadata rewrite (mkvgo reserves
-// Void padding for exactly this): no second pass over the clusters.
+// It is mkvgo's ops.Join: it refuses slices whose CodecPrivate differs (which
+// would silently produce an unplayable file), keeps the tracks aligned across
+// the seams, and - since v0.26.0 - declares the length it computed instead of
+// the first slice's (the v0.25.1 defect this package used to repair with an
+// EditInPlace stamp after the join).
 //
 // Every exported signature sticks to gomobile's type subset, like session.go.
+// durationMs stays in JoinSlices' signature for that reason: dropping it would
+// churn the JNI/Kotlin/TS chain for nothing (the Int/long drift already broke
+// one APK build).
 
 import (
 	"context"
@@ -70,8 +66,8 @@ var joinProgress atomic.Int64
 func JoinPermille() int64 { return joinProgress.Load() }
 
 // JoinSlices assembles dir/slice-00000.mkv .. slice-<count-1>.mkv into
-// outPath and stamps durationMs (the film's true length, which only the server
-// knows) into the header.
+// outPath. durationMs is unused since mkvgo v0.26.0 writes the computed total
+// itself; it stays for JNI signature stability (see the file header).
 //
 // It does NOT delete the slices: the caller does that once the join has
 // succeeded. Keeping them until then is what makes an interrupted assembly
@@ -116,28 +112,11 @@ func JoinSlices(dir string, count int, outPath string, durationMs int64) (err er
 	if joinCancelled.Load() {
 		return fmt.Errorf("%s: cancelled", errCancelled)
 	}
-	if durationMs > 0 {
-		if err = stampDuration(ctx, tmp, durationMs); err != nil {
-			return fmt.Errorf("%s: %w", errJoinFailed, err)
-		}
-	}
 	if err = os.Rename(tmp, outPath); err != nil {
 		return fmt.Errorf("%s: %w", errJoinFailed, err)
 	}
 	joinProgress.Store(1000)
 	return nil
-}
-
-// stampDuration rewrites the joined file's declared length in place. See the
-// file header for why the value Join wrote cannot be trusted.
-func stampDuration(ctx context.Context, path string, durationMs int64) error {
-	return ops.EditInPlace(ctx, path, func(c *mkv.Container) {
-		scale := c.Info.TimecodeScale
-		if scale <= 0 {
-			scale = 1_000_000 // Matroska's default: one tick per millisecond
-		}
-		c.Info.Duration = float64(durationMs) * 1e6 / float64(scale)
-	})
 }
 
 // DeleteSlices removes the collected slices once the join has succeeded. Split

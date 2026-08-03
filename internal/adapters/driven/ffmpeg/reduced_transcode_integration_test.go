@@ -27,7 +27,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravity-zero/mkvgo/mkv"
 	mkvops "github.com/gravity-zero/mkvgo/mkv/ops"
 
 	"github.com/evey-project/evey/internal/pkg/reduceddl"
@@ -139,33 +138,13 @@ func TestReducedSlicesIntegration(t *testing.T) {
 			skew, len(slices)-1, vEnd, aEnd)
 	}
 
-	// The DECLARED duration is a different story, and the phone must not skip
-	// this step. mkvgo v0.25.1's Join computes the total correctly and then
-	// loses it: writer.WriteSegmentInfo prefers the first source's own
-	// Info.Duration over the total the caller passed, so the joined file
-	// announces the length of slice 0 (here 12 s for a 25 s film). A player
-	// believes the header, so the download would show up as twelve seconds
-	// long and refuse to seek past it.
-	//
-	// The repair is cheap - EditInPlace rewrites the metadata region only,
-	// into the Void mkvgo reserves for exactly this - and the caller always
-	// knows the true length. Asserting the defect first means this test starts
-	// failing (loudly, here) the day mkvgo fixes it upstream, instead of
-	// leaving a mystery workaround in the app forever.
-	if declared := probeDuration(t, ctx, joined); math.Abs(declared-srcDurationSec) <= 1.0 {
-		t.Logf("mkvgo now declares the joined duration correctly (%.3f s) - the EditInPlace repair below has become redundant", declared)
-	}
-	if err := mkvops.EditInPlace(ctx, joined, func(c *mkv.Container) {
-		scale := c.Info.TimecodeScale
-		if scale <= 0 {
-			scale = 1_000_000
-		}
-		c.Info.Duration = float64(srcDurationSec) * 1e9 / float64(scale)
-	}); err != nil {
-		t.Fatalf("EditInPlace repairing the joined duration: %v", err)
-	}
+	// The DECLARED duration: a v0.25.1 Join announced the length of slice 0
+	// (12 s for this 25 s film - players believe the header and refuse to
+	// seek past it), which the app repaired with an EditInPlace stamp. Since
+	// mkvgo v0.26.0 the duration each op computes wins over the one copied
+	// from the source, so the joined header must simply be right.
 	if declared := probeDuration(t, ctx, joined); math.Abs(declared-srcDurationSec) > 1.0 {
-		t.Errorf("declared duration after repair = %.3f s, want ~%d s", declared, srcDurationSec)
+		t.Errorf("joined file declares %.3f s, want ~%d s - mkvgo's Join lost the total again", declared, srcDurationSec)
 	}
 
 	report := probeReduced(t, ctx, joined)
