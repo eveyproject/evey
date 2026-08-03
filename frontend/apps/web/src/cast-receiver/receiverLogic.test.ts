@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { absoluteWithToken, buildPlayerEventUrl, createStartGate, probeReceiverCaps, rewriteCastMasterUrl, stripWasmAudio, type CanDisplayType } from "./receiverLogic";
+import { absoluteWithToken, buildPlayerEventUrl, createStarvationWatch, createStartGate, floorMasterUrl, probeReceiverCaps, rewriteCastMasterUrl, stripWasmAudio, type CanDisplayType } from "./receiverLogic";
 
 // Fake canDisplayType: allows what `yes` lists (substring match on the
 // codec string), refuses the rest. 4K resolution is only granted if
@@ -226,5 +226,86 @@ describe("createStartGate", () => {
     gate.arm();
     gate.audioReady();
     expect(calls).toEqual(["play"]);
+  });
+});
+
+// The starvation watch names the failure the 2026-08-03 session measured:
+// heartbeats alive, position pinned, CAF never diving to the announced rung
+// by itself. Sampled every ~5s by the caller; firing means "reload on the
+// floor rung NOW".
+describe("createStarvationWatch", () => {
+  it("fires after a sustained freeze while PLAYING", () => {
+    const w = createStarvationWatch();
+    expect(w.sample(10, "PLAYING")).toBe(false); // baseline
+    expect(w.sample(10, "PLAYING")).toBe(false);
+    expect(w.sample(10, "PLAYING")).toBe(false);
+    expect(w.sample(10, "PLAYING")).toBe(false);
+    expect(w.sample(10, "PLAYING")).toBe(true); // 4 stalled samples = ~20s
+  });
+
+  it("fires through a long initial BUFFERING (the 'début difficile')", () => {
+    const w = createStarvationWatch();
+    expect(w.sample(0, "BUFFERING")).toBe(false);
+    expect(w.sample(0, "BUFFERING")).toBe(false);
+    expect(w.sample(0, "BUFFERING")).toBe(false);
+    expect(w.sample(0, "BUFFERING")).toBe(true);
+  });
+
+  it("accumulates repeated micro-freezes but decays on healthy playback", () => {
+    const w = createStarvationWatch();
+    w.sample(10, "PLAYING"); // baseline
+    w.sample(10.2, "PLAYING"); // micro-freeze: +1
+    w.sample(15.2, "PLAYING"); // healthy: -1
+    w.sample(20.2, "PLAYING"); // healthy
+    w.sample(20.3, "PLAYING"); // +1
+    w.sample(20.4, "PLAYING"); // +2
+    w.sample(20.5, "PLAYING"); // +3
+    expect(w.sample(20.6, "PLAYING")).toBe(true); // +4
+  });
+
+  it("a pause is a human, not a starvation", () => {
+    const w = createStarvationWatch();
+    w.sample(10, "PLAYING");
+    for (let i = 0; i < 10; i++) expect(w.sample(10, "PAUSED")).toBe(false);
+    // Resume: the frozen position right after a pause is not a stall sample.
+    expect(w.sample(10, "PLAYING")).toBe(false);
+  });
+
+  it("fires exactly once", () => {
+    const w = createStarvationWatch();
+    for (let i = 0; i < 5; i++) w.sample(10, "PLAYING");
+    expect(w.sample(10, "PLAYING")).toBe(false);
+  });
+});
+
+describe("floorMasterUrl", () => {
+  it("appends abr=floor and strips wasmAudio", () => {
+    const url = floorMasterUrl("https://evey.test/api/v1/media/m1/hls/master.m3u8?token=t&wasmAudio=1");
+    expect(url).toContain("abr=floor");
+    expect(url).not.toContain("wasmAudio");
+    expect(url).toContain("token=t");
+  });
+
+  it("latches: an already-floored URL has nothing lower to offer", () => {
+    expect(floorMasterUrl("https://evey.test/api/v1/media/m1/hls/master.m3u8?abr=floor")).toBeNull();
+  });
+
+  it("refuses a foreign URL", () => {
+    expect(floorMasterUrl("not a url")).toBeNull();
+  });
+});
+
+describe("rewriteCastMasterUrl under abr=floor", () => {
+  it("never re-engages wasm audio on a floored master", () => {
+    const caps = { videoCodecs: ["h264"], maxHeight: 1080, hdr: false, nativeDolby: false };
+    const out = rewriteCastMasterUrl(
+      "https://evey.test/api/v1/media/m1/hls/master.m3u8?abr=floor&token=t",
+      caps,
+      true,
+    );
+    expect(out).not.toBeNull();
+    expect(out!.wasmAudio).toBe(false);
+    expect(out!.url).not.toContain("wasmAudio");
+    expect(out!.url).toContain("abr=floor");
   });
 });

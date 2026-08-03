@@ -671,6 +671,64 @@ func TestBuildHybridMaster_FallbackRung_FlagOff(t *testing.T) {
 // alone and the recomputed fingerprint must equal the sealed fp, or
 // refuseStaleFP answers 410 and the rung is dead on arrival (the exact
 // coherence failure the seal exists to catch).
+// ?abr=floor is the survival mode the cast receiver's starvation rescue asks
+// for: the announced rung exists but CAF never dives onto it by itself
+// (measured on the Bouygtel4K, 2026-08-03, variant pinned through 9 minutes
+// of freeze), so the receiver reloads with this param and the server hands it
+// a MONO-VARIANT master holding only the lowest transcoded rung.
+func TestFloorMaster_ServesOnlyTheLowestRung(t *testing.T) {
+	h := newCopyTestHandler(t)
+	h.manifestGen = apptranscoding.NewManifestGenerator()
+	h.audioRenditionEnabled = true
+	h.copyFallbackRung = true
+
+	dur, err := shared.NewDurationMs(60000)
+	require.NoError(t, err)
+	item := &domainlibrary.MediaItem{File: &domainlibrary.MediaFile{
+		Path: "/m.mkv", Size: 1 << 20, Duration: dur, Bitrate: 4_000_000,
+	}}
+	streams := copyEligibleAV()
+	streams[1].Codec = "dts"
+
+	req := onDemandReq()
+	q := req.URL.Query()
+	q.Set("abr", "floor")
+	req.URL.RawQuery = q.Encode()
+
+	master, ok := h.buildFloorMaster(req, "m1", item, streams)
+	require.True(t, ok, "floor must resolve on a fat copy-eligible source")
+	assert.Equal(t, 1, strings.Count(master, "#EXT-X-STREAM-INF"), "floor is mono-variant by definition")
+	assert.NotContains(t, master, "od_playlist.m3u8", "the copy variant must NOT be offered in survival mode")
+	assert.Contains(t, master, "stream_0.m3u8")
+	assert.Contains(t, master, "vd=transcode", "the rung pins its plan")
+	assert.Contains(t, master, "fp=", "the rung seals its fingerprint")
+}
+
+// A lean source has no rung meaningfully below the copy: floor falls back to
+// the ordinary master shapes rather than serving a pointless sidegrade.
+func TestFloorMaster_RefusedOnLeanSource(t *testing.T) {
+	h := newCopyTestHandler(t)
+	h.manifestGen = apptranscoding.NewManifestGenerator()
+	h.audioRenditionEnabled = true
+	h.copyFallbackRung = true
+
+	dur, err := shared.NewDurationMs(60000)
+	require.NoError(t, err)
+	item := &domainlibrary.MediaItem{File: &domainlibrary.MediaFile{
+		Path: "/m.mkv", Size: 1 << 20, Duration: dur, Bitrate: 1_500_000,
+	}}
+	streams := copyEligibleAV()
+	streams[1].Codec = "dts"
+
+	req := onDemandReq()
+	q := req.URL.Query()
+	q.Set("abr", "floor")
+	req.URL.RawQuery = q.Encode()
+
+	_, ok := h.buildFloorMaster(req, "m1", item, streams)
+	assert.False(t, ok)
+}
+
 func TestBuildHybridMaster_FallbackRung_URIResolvesCoherently(t *testing.T) {
 	h := newCopyTestHandler(t)
 	h.manifestGen = apptranscoding.NewManifestGenerator()

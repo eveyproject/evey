@@ -88,6 +88,22 @@ func (h *hlsVODServe) tryServePlanMaster(w http.ResponseWriter, r *http.Request,
 		return false
 	}
 
+	// Survival mode (?abr=floor): the cast receiver's starvation rescue asks
+	// for the ONE lowest transcoded rung instead of the copy it cannot sustain.
+	// The advertised fallback rung exists precisely for collapses, but the CAF
+	// player never dove onto it by itself (Bouygtel4K, 2026-08-03: variant
+	// pinned through nine minutes of freeze) - this makes the descent
+	// deterministic. Unresolvable floor falls through to the ordinary shapes.
+	if floorRequested(r) {
+		if master, ok := h.buildFloorMaster(r, mediaID, item, streams); ok {
+			setCORSHeaders(w, r, "")
+			w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
+			w.Header().Set("Cache-Control", "no-cache")
+			_, _ = w.Write([]byte(master))
+			return true
+		}
+	}
+
 	if h.audioAllCopyEligible(r.Context(), decision, streams) {
 		// Full packager presentation (video + audio + subtitles).
 		h.servePlanResourceData(w, r, mediaID, plan, "master.m3u8", span)
@@ -219,6 +235,67 @@ func (h *hlsVODServe) copyFallbackVariant(r *http.Request, mediaID string, item 
 		VideoCodec: inT.ChosenVideoCodec,
 		AudioCodec: inT.ChosenAudioCodec,
 	}
+}
+
+// floorRequested reports the survival mode our cast receiver's starvation
+// rescue asks for (?abr=floor).
+func floorRequested(r *http.Request) bool {
+	return r != nil && r.URL.Query().Get("abr") == "floor"
+}
+
+// buildFloorMaster renders the ?abr=floor master: this same request's natural
+// vd=transcode plan restricted to its LOWEST rung, as a mono-variant master.
+// Same resolution, same lean-source guard, same fp seal and stream_0 URI as
+// the advertised fallback rung - the "session started hash=<fp>" attribution
+// grep keeps working. False when the rung is unresolvable or buys no real
+// drop; the caller then serves the ordinary master shapes.
+func (h *hlsVODServe) buildFloorMaster(r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream) (string, bool) {
+	rT := r.Clone(r.Context())
+	q := rT.URL.Query()
+	q.Set("vd", "transcode")
+	rT.URL.RawQuery = q.Encode()
+	rpT, err := h.resolvePlan(rT, mediaID, item, streams)
+	if err != nil || rpT.IsCopy || len(rpT.Profiles) == 0 {
+		slog.WarnContext(r.Context(), "hls-vod: floor master unresolvable, serving the ordinary master",
+			slog.String("media_id", mediaID), slog.Any("err", err))
+		return "", false
+	}
+	copyPeakKbps := item.File.Bitrate / 1000
+	if copyPeakKbps <= 0 {
+		if sec := item.File.Duration.Seconds(); sec > 0 && item.File.Size > 0 {
+			copyPeakKbps = int64(float64(item.File.Size) * 8 / sec / 1000)
+		}
+	}
+	if copyPeakKbps <= 0 {
+		copyPeakKbps = 5000
+	}
+	rung := rpT.Profiles[0]
+	if (rung.VideoBitrate+rung.AudioBitrate)*2 > copyPeakKbps+128 {
+		slog.InfoContext(r.Context(), "hls-vod: floor refused, source already lean",
+			slog.String("media_id", mediaID),
+			slog.Int64("rung_kbps", rung.VideoBitrate+rung.AudioBitrate),
+			slog.Int64("copy_peak_kbps", copyPeakKbps+128))
+		return "", false
+	}
+	inT, err := h.buildManifestInputWith(rT, mediaID, item, streams, rpT)
+	if err != nil {
+		slog.WarnContext(r.Context(), "hls-vod: floor master unresolvable, serving the ordinary master",
+			slog.String("media_id", mediaID), slog.Any("err", err))
+		return "", false
+	}
+	inT.Profiles = inT.Profiles[:1]
+	master, err := h.manifestGen.Master(inT)
+	if err != nil {
+		slog.WarnContext(r.Context(), "hls-vod: floor master build failed, serving the ordinary master",
+			slog.String("media_id", mediaID), slog.Any("err", err))
+		return "", false
+	}
+	slog.InfoContext(r.Context(), "hls-vod: floor master served",
+		slog.String("media_id", mediaID),
+		slog.String("rung", rung.Name),
+		slog.Int64("rung_kbps", rung.VideoBitrate+rung.AudioBitrate),
+		slog.String("fp", rpT.FPHash))
+	return master, true
 }
 
 // wasmAudioRequested reports whether the client asked for the browser wasm-audio

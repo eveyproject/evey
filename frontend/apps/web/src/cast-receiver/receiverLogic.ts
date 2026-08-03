@@ -97,7 +97,10 @@ export function rewriteCastMasterUrl(
   else u.searchParams.delete("hdr");
 
   const mixedContent = pageProtocol === "https:" && u.protocol === "http:";
-  const wasmAudio = !caps.nativeDolby && wasmCapable && !mixedContent;
+  // A floored master (abr=floor, the starvation rescue) is survival mode: one
+  // muxed low rung, never the wasm engine on top of an already-starving link.
+  const floored = u.searchParams.get("abr") === "floor";
+  const wasmAudio = !floored && !caps.nativeDolby && wasmCapable && !mixedContent;
   const audio = caps.nativeDolby ? [...BASE_AUDIO, "eac3", "ac3"] : BASE_AUDIO;
   u.searchParams.set("audioCodecs", audio.join(","));
   if (wasmAudio) u.searchParams.set("wasmAudio", "1");
@@ -200,4 +203,74 @@ export function stripWasmAudio(rawUrl: string): string {
   } catch {
     return rawUrl;
   }
+}
+
+// floorMasterUrl derives the survival reload of a starving playback: the same
+// master with ?abr=floor, which the server answers with a mono-variant master
+// holding only its lowest transcoded rung (an old server ignores the param -
+// the reload alone still lets CAF re-pick a variant with its collapsed
+// bandwidth estimate). Null when there is nothing lower to offer: already
+// floored (the latch - a link that cannot carry the floor rung has no next
+// step here), or not a URL we understand.
+export function floorMasterUrl(rawUrl: string): string | null {
+  try {
+    const u = new URL(rawUrl);
+    if (u.searchParams.get("abr") === "floor") return null;
+    u.searchParams.set("abr", "floor");
+    u.searchParams.delete("wasmAudio");
+    return u.toString();
+  } catch {
+    return null;
+  }
+}
+
+// createStarvationWatch names a starving playback from the only two signals
+// the receiver has: the playhead and the player state. Born 2026-08-03: a
+// Bouygtel4K sat frozen for NINE minutes on a collapsed link, heartbeats
+// alive, while the master advertised a rescue rung CAF never dove onto by
+// itself - the descent has to be ours, and it starts with naming the famine.
+//
+// Sampled at a fixed cadence by the caller (~5s). A stalled sample is
+// BUFFERING, or PLAYING with the playhead barely moving; healthy playback
+// decays the score, so scattered micro-freezes accumulate but a recovered
+// stream never fires. PAUSED/IDLE is a human, not a famine - it resets the
+// baseline and scores nothing. Fires exactly once: the reload it triggers is
+// a latch, not a loop.
+export interface StarvationWatch {
+  // sample returns true exactly once, when the accumulated starvation crosses
+  // the threshold: reload on the floor rung NOW.
+  sample(posSec: number, playerState: string): boolean;
+}
+
+export function createStarvationWatch(fireScore = 4): StarvationWatch {
+  let lastPos: number | null = null;
+  let score = 0;
+  let fired = false;
+  return {
+    sample(posSec: number, playerState: string): boolean {
+      if (fired) return false;
+      if (playerState === "PAUSED" || playerState === "IDLE") {
+        lastPos = null;
+        return false;
+      }
+      if (playerState === "BUFFERING") {
+        lastPos = posSec;
+        score++;
+      } else if (playerState === "PLAYING") {
+        const prev = lastPos;
+        lastPos = posSec;
+        if (prev === null) return false; // fresh baseline (start, or post-pause)
+        const advance = posSec - prev;
+        if (advance < 1) score++;
+        else if (advance > 2.5) score = Math.max(0, score - 1);
+      } else {
+        return false;
+      }
+      if (score >= fireScore) {
+        fired = true;
+        return true;
+      }
+      return false;
+    },
+  };
 }

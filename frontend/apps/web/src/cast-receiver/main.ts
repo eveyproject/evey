@@ -10,7 +10,7 @@
 //      silently, which is what made cast incidents undiagnosable.
 import { WasmAudioEngine } from "@/features/playback/wasmaudio/WasmAudioEngine";
 import { extractAacAudioURI, extractAudioURI } from "@/features/playback/wasmaudio/wasmAudioShared";
-import { absoluteWithToken, buildPlayerEventUrl, createStartGate, probeReceiverCaps, rewriteCastMasterUrl, stripWasmAudio } from "./receiverLogic";
+import { absoluteWithToken, buildPlayerEventUrl, createStartGate, createStarvationWatch, floorMasterUrl, probeReceiverCaps, rewriteCastMasterUrl, stripWasmAudio } from "./receiverLogic";
 import { createAliveHeartbeat, postPlayerEvent, postPlayerEventQuery, readHeapMB } from "./receiverBeacon";
 
 // The CAF SDK is loaded by a gstatic <script> in the page; its types are
@@ -152,6 +152,57 @@ const aliveHeartbeat = createAliveHeartbeat(() => {
     if (cmd) applyAdminCommand(cmd);
   });
 });
+
+// Starvation rescue: the master advertises a low rung, but CAF never dives
+// onto it by itself (Bouygtel4K 2026-08-03: variant pinned through nine
+// minutes of freeze). This watch samples the playhead every 5s and, on
+// sustained famine, reloads the SAME position on the ?abr=floor master - the
+// server answers with only the lowest transcoded rung. Latched: the floored
+// URL yields no further floor.
+let starvationTimer: ReturnType<typeof setInterval> | null = null;
+
+function stopStarvationWatch(): void {
+  if (starvationTimer) {
+    clearInterval(starvationTimer);
+    starvationTimer = null;
+  }
+}
+
+function startStarvationWatch(): void {
+  stopStarvationWatch();
+  const watch = createStarvationWatch();
+  starvationTimer = setInterval(() => {
+    let pos = 0;
+    let state = "";
+    try {
+      pos = playerManager.getCurrentTimeSec() || 0;
+      state = String(playerManager.getPlayerState() ?? "");
+    } catch {
+      return; // player torn down: the stop hooks will clear us
+    }
+    if (watch.sample(pos, state)) engageFloor(pos);
+  }, 5_000);
+}
+
+function engageFloor(posSec: number): void {
+  const url = floorMasterUrl(currentUrl);
+  if (!url) return; // already floored, or a URL we don't own: nothing lower
+  reportEvent("cast_receiver_floor_rescue", `starvation at pos=${posSec.toFixed(1)}s - reloading on the floor rung`);
+  showDebug("Débit insuffisant - passage en qualité réduite");
+  setTimeout(() => showDebug(""), 8_000);
+  startGate.cancel();
+  destroyEngine();
+  const request = new cast.framework.messages.LoadRequestData();
+  request.media = new cast.framework.messages.MediaInformation();
+  request.media.contentId = url;
+  request.media.contentUrl = url;
+  request.media.contentType = "application/x-mpegurl";
+  request.media.hlsSegmentFormat = cast.framework.messages.HlsSegmentFormat.FMP4;
+  request.media.hlsVideoSegmentFormat = cast.framework.messages.HlsVideoSegmentFormat.FMP4;
+  request.currentTime = posSec;
+  request.autoplay = true;
+  playerManager.load(request).catch((e: unknown) => showDebug(`qualité réduite impossible: ${String(e)}`));
+}
 
 // tokenFromUrl reads the purpose=cast token the sender baked into the URL - the
 // receiver has no other identity, this token is ALL of its authorization.
@@ -303,6 +354,9 @@ function interceptLoad(request: any): any {
     startGate.cancel(); // a new LOAD carries its own autoplay
     destroyEngine();
     cancelEndShutdown();
+    // The load transition reads as BUFFERING: never let the old watch count it.
+    // PLAYER_LOAD_COMPLETE re-arms a fresh one.
+    stopStarvationWatch();
     showDebug("");
     const media = request.media;
     if (!media) return request;
@@ -380,12 +434,14 @@ playerManager.addEventListener(cast.framework.events.EventType.ERROR, (event: an
 playerManager.addEventListener(cast.framework.events.EventType.MEDIA_FINISHED, (event: any) => {
   const reason = event?.endedReason ?? "?";
   aliveHeartbeat.stop(); // plus rien ne joue : le battement mentirait
+  stopStarvationWatch();
   reportEvent("cast_receiver_finished", `reason=${reason}`, reason !== "END_OF_STREAM");
 });
 
 playerManager.addEventListener(cast.framework.events.EventType.PLAYER_LOAD_COMPLETE, () => {
   reportEvent("cast_receiver_loaded", `mode=${wasmRequested ? "wasm" : "native"}`);
   aliveHeartbeat.start();
+  startStarvationWatch();
 });
 
 // A sender vanishing (phone frozen/killed by its OEM) must NOT stop playback
@@ -401,6 +457,7 @@ context.addEventListener(cast.framework.system.EventType.SENDER_DISCONNECTED, (e
 
 context.addEventListener(cast.framework.system.EventType.SHUTDOWN, () => {
   aliveHeartbeat.stop();
+  stopStarvationWatch();
   reportEvent("cast_receiver_shutdown", "receiver shutdown");
   destroyEngine();
 });
@@ -412,6 +469,7 @@ context.addEventListener(cast.framework.system.EventType.SHUTDOWN, () => {
 if (typeof window !== "undefined") {
   window.addEventListener("pagehide", () => {
     aliveHeartbeat.stop();
+    stopStarvationWatch();
     reportEvent("cast_receiver_shutdown", "pagehide");
   });
 }
