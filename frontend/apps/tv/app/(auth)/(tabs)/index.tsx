@@ -22,6 +22,7 @@ import { useAuthStore } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
+import { heroTitle } from "../../../src/lib/heroTitle";
 import { artworkUrl } from "../../../src/lib/artwork";
 import { ScreenState } from "../../../src/components/ScreenState";
 import { FeedCustomizePanel } from "../../../src/components/FeedCustomizePanel";
@@ -271,7 +272,7 @@ function HeroBanner({
       </View>
       <View style={styles.heroContent}>
         <Text style={[styles.heroTitle, { color: theme.colors.text }]} numberOfLines={2}>
-          {active?.title}
+          {active ? heroTitle(active, items) : null}
         </Text>
         {metaLine ? (
           <Text style={[styles.heroMeta, { color: theme.colors.textMuted }]}>{metaLine}</Text>
