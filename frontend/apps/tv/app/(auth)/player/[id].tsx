@@ -479,7 +479,7 @@ export default function PlayerScreen() {
       return next;
     });
     resetHideTimer();
-  }, [player, resetHideTimer]);
+  }, [withPlayer, resetHideTimer]);
 
   const handleQualitySelect = useCallback(
     (quality: number) => {
@@ -514,7 +514,7 @@ export default function PlayerScreen() {
     (toSec: number) => {
       withPlayer((p) => { p.currentTime = toSec; });
     },
-    [player],
+    [withPlayer],
   );
 
   const handleToggleMute = useCallback(() => {
@@ -524,21 +524,19 @@ export default function PlayerScreen() {
       return next;
     });
     resetHideTimer();
-  }, [player, resetHideTimer]);
+  }, [withPlayer, resetHideTimer]);
 
   const handleVolumeSelect = useCallback(
     (pct: number) => {
       setVolumePct(pct);
       setMuted(false);
-      if (player) {
-        withPlayer((p) => {
-          p.volume = pct / 100;
-          p.muted = false;
-        });
-      }
+      withPlayer((p) => {
+        p.volume = pct / 100;
+        p.muted = false;
+      });
       resetHideTimer();
     },
-    [player, resetHideTimer],
+    [withPlayer, resetHideTimer],
   );
 
   // Same exit contract as the web/mobile player's back button (playerExit):
