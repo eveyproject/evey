@@ -218,7 +218,7 @@ describe("PhotosScreen (TV) - tile accessibility", () => {
     expect(screen.getByLabelText("Mountains")).toBeTruthy();
   });
 
-  it("current behaviour, see report: a photo with neither title nor album renders a blank accessible label", () => {
+  it("announces its position when a photo carries neither title nor album", () => {
     listPhotosMock.mockReturnValue({
       data: { photos: [...PHOTOS, { id: "p3", title: "", album: "", blurhash: "" }], total: 3 },
       isLoading: false,
@@ -228,10 +228,10 @@ describe("PhotosScreen (TV) - tile accessibility", () => {
     });
     const { container } = render(<PhotosScreen />);
 
-    // renderPhoto falls back to accessibilityLabel="" when both title and
-    // album are missing, so that tile is silent to a screen reader.
-    const blankLabelButtons = container.querySelectorAll('button[aria-label=""]');
-    expect(blankLabelButtons.length).toBe(1);
+    // On a television the focused element is the only thing announced, so a
+    // silent tile is unreachable information.
+    expect(container.querySelectorAll('button[aria-label=""]').length).toBe(0);
+    expect(screen.getByLabelText("media.photos.openPhoto")).toBeTruthy();
   });
 });
 

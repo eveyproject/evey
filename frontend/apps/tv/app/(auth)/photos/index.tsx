@@ -196,7 +196,10 @@ export default function PhotosScreen() {
           onPress={() => openSlideshow(index)}
           hasTVPreferredFocus={index === 0}
           style={styles.tile}
-          accessibilityLabel={item.title || item.album || ""}
+          // A photo with neither title nor album used to announce nothing at
+          // all; on a television the focused element is the only thing a
+          // screen reader reads, so its position is the honest fallback.
+          accessibilityLabel={item.title || item.album || t("media.photos.openPhoto", "Photo {{n}}", { n: index + 1 })}
         >
           <View style={[styles.tileArt, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.sm, overflow: "hidden" }]}>
             {uri ? (
@@ -214,7 +217,7 @@ export default function PhotosScreen() {
         </FocusableCard>
       );
     },
-    [theme, serverUrl, authHeaders, openSlideshow],
+    [theme, serverUrl, authHeaders, openSlideshow, t],
   );
 
   if (libLoading) {
