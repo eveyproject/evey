@@ -41,12 +41,21 @@ async function doRefresh(): Promise<boolean> {
       headers: { "Content-Type": "application/json", "X-Persistent-Session": "true" },
       body: JSON.stringify({ refreshToken: stored }),
     });
-    if (!res.ok) {
+    // Only a REFUSAL ends the session. A television is left on for days and
+    // will meet its server restarting, a proxy hiccuping, a 502 from a NAS
+    // waking up: logging the viewer out on those means they come back to a
+    // login screen and no keyboard to answer it with.
+    if (res.status === 401 || res.status === 403) {
       await clearRefreshToken();
       auth.logout();
       return false;
     }
-    const data = (await res.json()) as { accessToken: string; refreshToken?: string };
+    if (!res.ok) return false;
+
+    const data = (await res.json()) as { accessToken?: string; refreshToken?: string };
+    // A 200 carrying no token is not a success: overwriting the live token with
+    // undefined would log the viewer out just as surely, only more quietly.
+    if (!data.accessToken) return false;
     if (data.refreshToken) await setRefreshToken(data.refreshToken);
     auth.setTokens(data.accessToken);
     return true;

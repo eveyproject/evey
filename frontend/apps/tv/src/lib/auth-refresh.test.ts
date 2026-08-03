@@ -84,7 +84,7 @@ describe("refreshAccessTokenIfNeeded", () => {
   it("logs out and clears the stored token when the server refuses the refresh", async () => {
     authState.accessToken = past();
     await setRefreshToken("rt-dead");
-    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, json: async () => ({}) })));
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, status: 401, json: async () => ({}) })));
 
     expect(await refreshAccessTokenIfNeeded()).toBe(false);
     expect(authState.logout).toHaveBeenCalled();
@@ -125,7 +125,7 @@ describe("refreshAccessTokenIfNeeded - long-running TV session edge cases", () =
   // response is treated as a refusal and logs the viewer out, a 500 included.
   // A television left on for hours would lose its session on a transient
   // server error rather than keeping it, unlike a real auth refusal (401).
-  it("logs out on a 500 server error too - the code does not distinguish it from a refusal", async () => {
+  it("keeps the session on a 500: a server hiccup is not a refusal", async () => {
     authState.accessToken = past();
     await setRefreshToken("rt-500");
     vi.stubGlobal(
@@ -134,21 +134,23 @@ describe("refreshAccessTokenIfNeeded - long-running TV session edge cases", () =
     );
 
     expect(await refreshAccessTokenIfNeeded()).toBe(false);
-    expect(authState.logout).toHaveBeenCalled();
-    expect(await getRefreshToken()).toBeNull();
+    // The viewer stays logged in: a television has no keyboard to log back in
+    // with, and the server will most likely answer again in a moment.
+    expect(authState.logout).not.toHaveBeenCalled();
+    expect(await getRefreshToken()).toBe("rt-500");
   });
 
-  // The implementation does not validate that the 200 payload actually
-  // carries an accessToken: it calls setTokens(undefined) and reports
-  // success, instead of keeping the previous session and reporting failure.
-  it("does not throw on a 200 payload missing accessToken, but overwrites the token with undefined", async () => {
+  // Overwriting a live token with undefined logs the viewer out just as surely
+  // as a refusal, only without saying so.
+  it("keeps the session when a 200 carries no token", async () => {
     authState.accessToken = past();
     await setRefreshToken("rt-invalid-payload");
     vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => ({}) })));
 
-    await expect(refreshAccessTokenIfNeeded()).resolves.toBe(true);
-    expect(authState.setTokens).toHaveBeenCalledWith(undefined);
+    await expect(refreshAccessTokenIfNeeded()).resolves.toBe(false);
+    expect(authState.setTokens).not.toHaveBeenCalled();
     expect(authState.logout).not.toHaveBeenCalled();
+    expect(await getRefreshToken()).toBe("rt-invalid-payload");
   });
 
   it("performs a new network call for a later renewal after an earlier one already completed", async () => {
