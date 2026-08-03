@@ -246,15 +246,13 @@ export default function PlayerScreen() {
   const { data: chaptersData } = useChapters(mediaId);
   const chapters = chaptersData ?? [];
 
-  // Leaving the screen calls stopSession(), which clears streamUrl. A null
-  // source changes useVideoPlayer's dependency, and useReleasingSharedObject
-  // then CREATES a fresh native player and releases the old one - in the middle
-  // of the pop. That teardown dance is what throws
-  // ERR_USING_RELEASED_SHARED_OBJECT from inside the screen.
-  //
-  // A bare VideoView screen whose source never goes null does not crash on exit
-  // (measured on device 2026-08-03), so holding the last source is the fix:
-  // identity stays stable, and unmount performs the single real release.
+  // Leaving the screen calls stopSession(), which clears streamUrl. Letting the
+  // source go back to null changes useVideoPlayer's dependency, and
+  // useReleasingSharedObject then builds a whole new native player - with no
+  // source - only to release it again a frame later. Holding the last source
+  // keeps the identity stable so unmount performs the single real release.
+  // (This is hygiene, not the exit-crash fix: that one was an unguarded read in
+  // getPositionMs, see the comment there.)
   const lastSourceRef = useRef<{ uri: string; contentType?: "hls" } | null>(null);
   const videoSource = useMemo(() => {
     if (!streamUrl) return lastSourceRef.current;
