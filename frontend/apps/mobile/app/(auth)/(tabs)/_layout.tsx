@@ -20,7 +20,7 @@ import { UserMenu } from "../../../src/components/layout/UserMenu";
 function BurgerButton() {
   const { toggle } = useDrawer();
   return (
-    <Pressable onPress={toggle} style={{ marginLeft: 6, padding: 4 }} accessibilityRole="button" accessibilityLabel="Open menu">
+    <Pressable onPress={toggle} style={{ marginLeft: 0, padding: 4 }} accessibilityRole="button" accessibilityLabel="Open menu">
       <EveyMark height={26} />
     </Pressable>
   );
@@ -60,7 +60,8 @@ export default function TabsLayout() {
     headerLeft: () => <BurgerButton />,
     headerTitle: () => <HeaderSearch />,
     headerRight: () => <HeaderRight theme={theme} />,
-    headerTitleContainerStyle: { flex: 1, paddingHorizontal: 8 },
+    // Extra room on the left so the search field does not crowd the mark.
+    headerTitleContainerStyle: { flex: 1, paddingLeft: 18, paddingRight: 8 },
   };
 
   return (
