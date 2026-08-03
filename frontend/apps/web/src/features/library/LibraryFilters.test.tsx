@@ -234,4 +234,17 @@ describe("applyLocalFilters", () => {
     const result = applyLocalFilters(items, { audioLangs: ["fre"] });
     expect(result.map((i) => i.id)).toEqual(["fra-tagged"]);
   });
+
+  it("keeps items without stream info when stream facets are active (search stubs)", () => {
+    // SearchMedia returns id/title stubs with no streams: no data must read
+    // as "unknown, keep", not as a mismatch that empties the whole grid.
+    const stub = mediaItem({ id: "search-stub" });
+    const result = applyLocalFilters([stub], {
+      resolutions: ["4K"],
+      codecs: ["H.264"],
+      audioLangs: ["fr"],
+      subLangs: ["fr"],
+    });
+    expect(result.map((i) => i.id)).toEqual(["search-stub"]);
+  });
 });

@@ -171,6 +171,25 @@ describe("applyLocalFacetFilters", () => {
     expect(result).toEqual([]);
   });
 
+  it("keeps items without stream info when stream facets are active (search stubs)", () => {
+    // SearchMedia returns id/title stubs with no streams: no data must read
+    // as "unknown, keep", not as a mismatch that empties the whole grid.
+    const stub = item({ id: "search-stub" });
+    const result = applyLocalFacetFilters([stub], {
+      resolutions: ["4K"],
+      codecs: ["H.264"],
+      audioLangs: ["fr"],
+      subLangs: ["fr"],
+    });
+    expect(result.map((i) => i.id)).toEqual(["search-stub"]);
+  });
+
+  it("still narrows by the non-stream top-ups on a streamless stub", () => {
+    const stub = item({ id: "search-stub", genres: ["Action"], communityRating: 4 });
+    expect(applyLocalFacetFilters([stub], { genres: ["Drama"] })).toEqual([]);
+    expect(applyLocalFacetFilters([stub], { minRating: 6 })).toEqual([]);
+  });
+
   it("matches a normalized audio language filter against a raw 639-2/B stream tag", () => {
     const result = applyLocalFacetFilters(items, { audioLangs: ["fr"] });
     expect(result.map((i) => i.id)).toEqual(["movie-1080p-h264-fre"]);

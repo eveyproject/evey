@@ -87,20 +87,24 @@ export function applyLocalFilters(
     const videoStreams = streams.filter((s) => s.type === "MEDIA_STREAM_TYPE_VIDEO");
     const audioStreams = streams.filter((s) => s.type === "MEDIA_STREAM_TYPE_AUDIO");
     const subStreams = streams.filter((s) => s.type === "MEDIA_STREAM_TYPE_SUBTITLE");
+    // SearchMedia returns id/title stubs carrying no streams at all: no data
+    // must read as "unknown, keep", not as a mismatch that would empty the
+    // grid the moment a stream facet is combined with a text search.
+    const hasStreamInfo = streams.length > 0;
 
     if (hasGenre) {
       const itemGenres = item.genres ?? [];
       if (!genres!.some((g) => itemGenres.includes(g))) return false;
     }
-    if (hasRes) {
+    if (hasRes && hasStreamInfo) {
       const itemRes = videoStreams.map((s) => (s.height ? getResolutionLabel(s.height) : "SD"));
       if (!resolutions!.some((r) => itemRes.includes(r as Resolution))) return false;
     }
-    if (hasCodec) {
+    if (hasCodec && hasStreamInfo) {
       const itemCodecs = videoStreams.map((s) => (s.codec ? normalizeCodec(s.codec) : ""));
       if (!codecs!.some((c) => itemCodecs.includes(c))) return false;
     }
-    if (hasAudio) {
+    if (hasAudio && hasStreamInfo) {
       // Normalize both sides so a "fr" filter (picked from a normalized
       // option) still matches a stream tagged "fra" - the raw code stays
       // untouched on the stream itself, only this comparison is normalized.
@@ -108,7 +112,7 @@ export function applyLocalFilters(
       const wantAudioLangs = audioLangs!.map((l) => normalizeLangCode(l));
       if (!wantAudioLangs.some((l) => itemAudioLangs.includes(l))) return false;
     }
-    if (hasSub) {
+    if (hasSub && hasStreamInfo) {
       const itemSubLangs = subStreams.map((s) => normalizeLangCode(s.language ?? ""));
       const wantSubLangs = subLangs!.map((l) => normalizeLangCode(l));
       if (!wantSubLangs.some((l) => itemSubLangs.includes(l))) return false;
