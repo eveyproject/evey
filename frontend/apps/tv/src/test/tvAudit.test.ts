@@ -185,7 +185,7 @@ describe("audit TV \u00b7 routes musique", () => {
       const name = rel(file);
       if (name.endsWith("musicRoutes.ts")) continue;
       const src = readFileSync(file, "utf8");
-      if (/["\`]\/?\(auth\)\/music\/(album|artist)\//.test(src)) offenders.push(name);
+      if (/["`]\/?\(auth\)\/music\/(album|artist)\//.test(src)) offenders.push(name);
     }
     expect(offenders.sort()).toEqual([]);
   });
