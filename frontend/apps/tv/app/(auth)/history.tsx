@@ -12,6 +12,7 @@ import {
 import type { V1WatchProgress } from "@evey/api";
 import { toast } from "@evey/store";
 import { useTheme } from "../../src/providers/ThemeProvider";
+import { progressPercent } from "../../src/lib/progressPercent";
 import { ScreenState } from "../../src/components/ScreenState";
 import { FocusableCard } from "../../src/components/FocusableCard";
 
@@ -131,7 +132,7 @@ function HistoryItem({
   isPending: boolean;
 }) {
   const { t } = useTranslation();
-  const pct = item.percentComplete ?? 0;
+  const pct = progressPercent(item.percentComplete);
   const label = watchHistoryLabel(item) ?? t("auth.watchHistory.unknownMedia", "Unknown media");
 
   return (

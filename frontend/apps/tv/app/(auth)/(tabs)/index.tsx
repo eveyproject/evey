@@ -24,6 +24,7 @@ import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { heroTitle } from "../../../src/lib/heroTitle";
 import { musicAlbumHref } from "../../../src/lib/musicRoutes";
+import { progressPercent } from "../../../src/lib/progressPercent";
 import { artworkUrl } from "../../../src/lib/artwork";
 import { ScreenState } from "../../../src/components/ScreenState";
 import { FeedCustomizePanel } from "../../../src/components/FeedCustomizePanel";
@@ -494,7 +495,7 @@ export default function HomeScreen() {
     const map: Record<string, number> = {};
     resume.data?.progress?.forEach((p) => {
       if (p.mediaItemId && p.percentComplete != null) {
-        map[p.mediaItemId] = p.percentComplete;
+        map[p.mediaItemId] = progressPercent(p.percentComplete);
       }
     });
     return map;

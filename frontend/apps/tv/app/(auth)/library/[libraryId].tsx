@@ -29,6 +29,7 @@ import type {
 import { toast } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { FocusableCard } from "../../../src/components/FocusableCard";
+import { progressPercent } from "../../../src/lib/progressPercent";
 import { artworkUrl } from "../../../src/lib/artwork";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
@@ -157,7 +158,7 @@ export function buildWatchProgressMaps(items: V1WatchProgress[]): {
   const percentMap = new Map<string, number>();
   for (const w of items) {
     if (w.mediaItemId && w.played) watchedMap.set(w.mediaItemId, true);
-    if (w.mediaItemId && w.percentComplete != null) percentMap.set(w.mediaItemId, w.percentComplete);
+    if (w.mediaItemId && w.percentComplete != null) percentMap.set(w.mediaItemId, progressPercent(w.percentComplete));
   }
   return { watchedMap, percentMap };
 }
