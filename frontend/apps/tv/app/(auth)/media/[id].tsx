@@ -32,6 +32,7 @@ import { CARD_WIDTH_FEATURED, POSTER_RATIO, CARD_WIDTH_GRID } from "../../../src
 import { resolvePlayTarget } from "../../../src/lib/playTarget";
 import { PluginSlot } from "../../../src/features/plugins/PluginSlot";
 import { ScreenState } from "../../../src/components/ScreenState";
+import { SagaSection } from "../../../src/components/SagaSection";
 import { trailerUrl, sortTrailers } from "../../../src/lib/trailerUrl";
 
 const HERO_HEIGHT = 420;
@@ -803,6 +804,9 @@ export default function MediaDetailScreen() {
           />
         </View>
       )}
+
+      {/* Sagas this title belongs to - just before Similar, as on the web. */}
+      {media.id ? <SagaSection mediaItemId={media.id} /> : null}
 
       {/* A season page has no "similar seasons" to offer - same exclusion web
           makes. */}

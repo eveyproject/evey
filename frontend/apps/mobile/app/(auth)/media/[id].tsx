@@ -59,6 +59,7 @@ import { backdropWidthForViewport } from "../../../src/components/media/backdrop
 import { hasMediaFile } from "../../../src/components/media/mediaFile";
 import { buildPublicShareUrl } from "../../../src/components/media/shareLink";
 import { MetadataEditSheet } from "../../../src/components/media/MetadataEditSheet";
+import { SagaSection } from "../../../src/components/media/SagaSection";
 import { PluginSlot } from "../../../src/features/plugins/PluginSlot";
 
 const POSTER_WIDTH = 100;
@@ -1560,6 +1561,9 @@ export default function MediaDetailScreen() {
             />
           </View>
         ) : null}
+
+        {/* Sagas this title belongs to - just before Similar, as on the web. */}
+        {id ? <SagaSection mediaItemId={id} /> : null}
 
         {/* Similar content */}
         {id && !isSeason ? <SimilarSection item={media} /> : null}
