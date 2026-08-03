@@ -1,0 +1,15 @@
+name: librarian
+kind: plugin
+version: 1.0.0
+description: Library housekeeping - finds probable duplicates (same title twice, wasted disk) and holes in numbered sagas (you keep Rocky II and III but Rocky is missing). Home hero shows the global tally, each library page shows its own findings; a clean library shows nothing. Inspired by the Jellyfin community's most-loved housekeeping plugins (Merge Versions, Media Cleaner), detection side only - it never touches a file.
+author: evey-examples
+language: nodejs
+entrypoint: node main.js
+permissions:
+  - public
+web_root: dist
+frontend:
+  - slot: home.hero
+    src: dist/hero.js
+  - slot: library.sidebar
+    src: dist/library.js

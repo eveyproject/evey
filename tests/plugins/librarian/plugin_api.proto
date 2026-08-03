@@ -1,0 +1,368 @@
+syntax = "proto3";
+
+package plugin.v1;
+
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/evey-project/evey/gen/plugin/v1;pluginv1";
+
+// Host -> Plugin communication
+service PluginService {
+  rpc Initialize(InitRequest) returns (InitResponse);
+  rpc Shutdown(ShutdownRequest) returns (ShutdownResponse);
+  rpc OnEvent(EventNotification) returns (EventResponse);
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
+  rpc GetCapabilities(GetCapabilitiesRequest) returns (GetCapabilitiesResponse);
+}
+
+// Plugin -> Host communication
+service HostService {
+  // Media
+  rpc GetMediaItem(GetMediaItemRequest) returns (MediaItem);
+  rpc ListMediaItems(ListMediaItemsRequest) returns (ListMediaItemsResponse);
+  rpc SearchMedia(SearchMediaRequest) returns (SearchMediaResponse);
+  rpc GetMediaStreams(GetMediaStreamsRequest) returns (GetMediaStreamsResponse);
+  rpc GetChapters(GetChaptersRequest) returns (GetChaptersResponse);
+  rpc GetSubtitles(GetSubtitlesRequest) returns (GetSubtitlesResponse);
+
+  // Metadata
+  rpc UpdateMetadata(UpdateMetadataRequest) returns (UpdateMetadataResponse);
+
+  // User
+  rpc GetUserPreferences(GetUserPreferencesRequest) returns (GetUserPreferencesResponse);
+
+  // Notifications
+  rpc SendNotification(SendNotificationRequest) returns (SendNotificationResponse);
+
+  // Events
+  rpc EmitEvent(EmitEventRequest) returns (EmitEventResponse);
+
+  // Logging
+  rpc Log(LogRequest) returns (LogResponse);
+
+  // Config (admin-configured settings, read-mostly by the plugin)
+  rpc GetConfig(GetConfigRequest) returns (GetConfigResponse);
+  rpc SetConfig(SetConfigRequest) returns (SetConfigResponse);
+
+  // Data store - the plugin's own persistent key/value namespace (plugin-global
+  // scope). Rows live in plugin_data and are wiped when the plugin is
+  // uninstalled. No special permission required: a plugin owns its own data.
+  rpc GetData(GetDataRequest) returns (GetDataResponse);
+  rpc SetData(SetDataRequest) returns (SetDataResponse);
+  rpc DeleteData(DeleteDataRequest) returns (DeleteDataResponse);
+  rpc ListDataKeys(ListDataKeysRequest) returns (ListDataKeysResponse);
+
+  // Network - brokered outbound HTTP(S) fetch. Plugins have no direct network
+  // access (the sandbox unshares the net namespace); all egress is mediated
+  // here so the host can enforce the plugin's external_fetch allow-list AND an
+  // SSRF-safe dialer (rejects private/reserved IPs after DNS resolution).
+  // Requires the "network" permission.
+  rpc Fetch(FetchRequest) returns (FetchResponse);
+}
+
+// --- Enums ---
+
+enum LogLevel {
+  LOG_LEVEL_UNSPECIFIED = 0;
+  LOG_LEVEL_DEBUG = 1;
+  LOG_LEVEL_INFO = 2;
+  LOG_LEVEL_WARN = 3;
+  LOG_LEVEL_ERROR = 4;
+}
+
+// --- Host -> Plugin messages ---
+
+message InitRequest {
+  string plugin_id = 1;
+  map<string, string> config = 2;
+  string host_version = 3;
+}
+
+message InitResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+message ShutdownRequest {
+  string reason = 1;
+}
+
+message ShutdownResponse {}
+
+message EventNotification {
+  string event_type = 1;
+  google.protobuf.Struct payload = 2;
+  google.protobuf.Timestamp timestamp = 3;
+  string source = 4;
+}
+
+message EventResponse {
+  bool handled = 1;
+  google.protobuf.Struct result = 2;
+}
+
+message HealthCheckRequest {}
+
+message HealthCheckResponse {
+  bool healthy = 1;
+  string status = 2;
+  map<string, string> details = 3;
+}
+
+message PluginCapability {
+  string name = 1;
+  string description = 2;
+  repeated string event_types = 3;
+}
+
+message GetCapabilitiesRequest {}
+
+message GetCapabilitiesResponse {
+  repeated PluginCapability capabilities = 1;
+  string api_version = 2;
+}
+
+// --- Media messages ---
+
+message MediaItem {
+  string id = 1;
+  string library_id = 2;
+  string parent_id = 3;
+  string type = 4;
+  string title = 5;
+  string overview = 6;
+  int32 year = 7;
+  map<string, string> provider_ids = 8;
+  repeated string genres = 9;
+  string file_path = 10;
+  google.protobuf.Struct extra_fields = 11;
+}
+
+message GetMediaItemRequest {
+  string id = 1;
+}
+
+message ListMediaItemsRequest {
+  string library_id = 1;
+  string type = 2;
+  string parent_id = 3;
+  int32 limit = 4;
+  int32 offset = 5;
+}
+
+message ListMediaItemsResponse {
+  repeated MediaItem items = 1;
+  int32 total = 2;
+}
+
+message SearchMediaRequest {
+  string query = 1;
+  string library_id = 2;
+  string type = 3;
+  int32 limit = 4;
+}
+
+message SearchMediaResponse {
+  repeated MediaItem items = 1;
+  int32 total = 2;
+}
+
+message MediaStream {
+  int32 index = 1;
+  string stream_type = 2;  // video, audio, subtitle
+  string codec = 3;
+  string language = 4;
+  string title = 5;
+  bool default = 6;
+  int32 width = 7;
+  int32 height = 8;
+  int32 bit_depth = 9;
+  int32 channels = 10;
+  int64 bitrate = 11;
+  string hdr_type = 12;
+}
+
+message GetMediaStreamsRequest {
+  string media_item_id = 1;
+}
+
+message GetMediaStreamsResponse {
+  repeated MediaStream streams = 1;
+}
+
+message Chapter {
+  string title = 1;
+  double start_seconds = 2;
+  double end_seconds = 3;
+}
+
+message GetChaptersRequest {
+  string media_item_id = 1;
+}
+
+message GetChaptersResponse {
+  repeated Chapter chapters = 1;
+}
+
+message Subtitle {
+  int32 index = 1;
+  string codec = 2;
+  string language = 3;
+  string title = 4;
+  bool default = 5;
+  bool forced = 6;
+  bool external = 7;
+  string path = 8;
+}
+
+message GetSubtitlesRequest {
+  string media_item_id = 1;
+}
+
+message GetSubtitlesResponse {
+  repeated Subtitle subtitles = 1;
+}
+
+// --- Metadata messages ---
+
+message UpdateMetadataRequest {
+  string media_item_id = 1;
+  map<string, string> fields = 2;
+  map<string, string> provider_ids = 3;
+}
+
+message UpdateMetadataResponse {
+  bool success = 1;
+}
+
+// --- User messages ---
+
+message GetUserPreferencesRequest {
+  string user_id = 1;
+  string profile_id = 2;
+}
+
+message GetUserPreferencesResponse {
+  map<string, string> preferences = 1;
+}
+
+// --- Notification messages ---
+
+message SendNotificationRequest {
+  string user_id = 1;
+  string title = 2;
+  string body = 3;
+  string url = 4;
+  string image_url = 5;
+}
+
+message SendNotificationResponse {
+  bool success = 1;
+}
+
+// --- Event messages ---
+
+message EmitEventRequest {
+  string event_type = 1;
+  google.protobuf.Struct payload = 2;
+}
+
+message EmitEventResponse {}
+
+// --- Log messages ---
+
+message LogRequest {
+  LogLevel level = 1;
+  string message = 2;
+  map<string, string> fields = 3;
+}
+
+message LogResponse {}
+
+// --- Config messages ---
+
+message GetConfigRequest {
+  string key = 1;
+}
+
+message GetConfigResponse {
+  string value = 1;
+  bool found = 2;
+}
+
+message SetConfigRequest {
+  string key = 1;
+  string value = 2;
+}
+
+message SetConfigResponse {}
+
+// --- Data store messages ---
+
+message GetDataRequest {
+  string key = 1;
+}
+
+message GetDataResponse {
+  string value = 1;
+  bool found = 2;
+}
+
+message SetDataRequest {
+  string key = 1;
+  string value = 2;
+}
+
+message SetDataResponse {}
+
+message DeleteDataRequest {
+  string key = 1;
+}
+
+message DeleteDataResponse {}
+
+message ListDataKeysRequest {}
+
+message ListDataKeysResponse {
+  repeated string keys = 1;
+}
+
+// --- Network (brokered fetch) messages ---
+
+message FetchRequest {
+  string url = 1;                   // must be http/https and on the plugin's external_fetch allow-list
+  string method = 2;                // GET (default) or HEAD; other methods are rejected
+  map<string, string> headers = 3;  // request headers; the host attaches none of its own credentials
+}
+
+message FetchResponse {
+  int32 status_code = 1;
+  map<string, string> headers = 2;
+  bytes body = 3;                   // capped by the host; truncated flag reports if the cap was hit
+  bool truncated = 4;
+}
+
+// --- Static analysis (returned by host on install) ---
+
+enum AnalysisSeverity {
+  ANALYSIS_SEVERITY_UNSPECIFIED = 0;
+  ANALYSIS_SEVERITY_INFO = 1;
+  ANALYSIS_SEVERITY_WARNING = 2;
+  ANALYSIS_SEVERITY_CRITICAL = 3;
+}
+
+message AnalysisFinding {
+  AnalysisSeverity severity = 1;
+  string category = 2;   // e.g. "shell_exec", "network", "obfuscation", "filesystem"
+  string file = 3;
+  int32 line = 4;
+  string pattern = 5;    // matched pattern
+  string description = 6;
+}
+
+message PluginAnalysisReport {
+  repeated AnalysisFinding findings = 1;
+  int32 total_files_scanned = 2;
+  bool safe = 3;  // false if any CRITICAL finding
+}

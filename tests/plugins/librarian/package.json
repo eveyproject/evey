@@ -1,0 +1,13 @@
+{
+  "name": "evey-plugin-librarian",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "test": "node --test tests/scan.test.mjs"
+  },
+  "dependencies": {
+    "@grpc/grpc-js": "^1.14.4",
+    "@grpc/proto-loader": "^0.8.1"
+  },
+  "comment": "The two front modules (dist/hero.js, dist/library.js) are hand-written dependency-free IIFEs - no build step at all. Only the nodejs lifecycle stub (main.js) needs runtime deps, so only @grpc ships in node_modules."
+}
