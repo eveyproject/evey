@@ -233,13 +233,25 @@ export default function PlayerScreen() {
   const { data: chaptersData } = useChapters(mediaId);
   const chapters = chaptersData ?? [];
 
+  // Leaving the screen calls stopSession(), which clears streamUrl. A null
+  // source changes useVideoPlayer's dependency, and useReleasingSharedObject
+  // then CREATES a fresh native player and releases the old one - in the middle
+  // of the pop. That teardown dance is what throws
+  // ERR_USING_RELEASED_SHARED_OBJECT from inside the screen.
+  //
+  // A bare VideoView screen whose source never goes null does not crash on exit
+  // (measured on device 2026-08-03), so holding the last source is the fix:
+  // identity stays stable, and unmount performs the single real release.
+  const lastSourceRef = useRef<{ uri: string; contentType?: "hls" } | null>(null);
   const videoSource = useMemo(() => {
-    if (!streamUrl) return null;
+    if (!streamUrl) return lastSourceRef.current;
     const isHls = streamUrl.includes("m3u8");
-    return {
+    const next = {
       uri: streamUrl,
       ...(isHls ? { contentType: "hls" as const } : {}),
     };
+    lastSourceRef.current = next;
+    return next;
   }, [streamUrl]);
 
   const resumePositionSec = useMemo(() => {
@@ -739,9 +751,14 @@ export default function PlayerScreen() {
     return () => clearTimeout(t);
   }, [barFocused, anyOverlayOpen]);
 
+  // Called from useProgressReporter's CLEANUP, which runs while the screen is
+  // being popped and the native player may already be released. Reading it raw
+  // threw ERR_USING_RELEASED_SHARED_OBJECT from an effect cleanup, and React
+  // reported that against this component - the exit turned into an error
+  // screen (device, 2026-08-03). Its neighbour below already learned this.
   const getPositionMs = useCallback(() => {
-    return (player?.currentTime ?? 0) * 1000;
-  }, [player]);
+    return (withPlayer((p) => p.currentTime) ?? 0) * 1000;
+  }, [withPlayer]);
 
   const getIsPaused = useCallback(() => {
     try {

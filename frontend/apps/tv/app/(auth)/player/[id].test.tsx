@@ -153,8 +153,11 @@ vi.mock("../../../src/hooks/usePlaySession", () => ({
 }));
 
 // --- misc hook mocks ---------------------------------------------------------------
+const progressGetters: { getPositionMs?: () => number } = {};
 vi.mock("../../../src/hooks/useProgressReporter", () => ({
-  useProgressReporter: () => {},
+  useProgressReporter: (_sessionId: unknown, getPositionMs: () => number) => {
+    progressGetters.getPositionMs = getPositionMs;
+  },
 }));
 vi.mock("../../../src/hooks/usePlaybackSettings", () => ({
   usePlaybackSettings: () => ({ data: { skipForwardSeconds: 30, skipBackwardSeconds: 30 } }),
@@ -855,3 +858,30 @@ describe("unplayable container items (TV)", () => {
     expect(replaceMock).not.toHaveBeenCalledWith(expect.stringContaining("/media/"));
   });
 });
+// The progress reporter calls these getters from its CLEANUP, which runs while
+// the screen is being popped and the native player may already be released.
+// Reading it raw threw from an effect cleanup, and React blamed the screen: the
+// viewer pressed Back and got an error card instead of the media page.
+describe("released player during teardown (TV)", () => {
+  it("reports a position of zero instead of throwing once the player is released", () => {
+    render(<PlayerScreen />);
+    expect(progressGetters.getPositionMs).toBeTypeOf("function");
+    playerMock.currentTime = 42;
+    expect(progressGetters.getPositionMs!()).toBe(42000);
+
+    // What a released expo-video proxy does on any access.
+    Object.defineProperty(playerMock, "currentTime", {
+      configurable: true,
+      get() {
+        const err = new Error(
+          "The 1st argument cannot be cast to type expo.modules.video.player.VideoPlayer (received class java.lang.Integer)",
+        );
+        (err as { code?: string }).code = "ERR_USING_RELEASED_SHARED_OBJECT";
+        throw err;
+      },
+    });
+    expect(() => progressGetters.getPositionMs!()).not.toThrow();
+    expect(progressGetters.getPositionMs!()).toBe(0);
+  });
+});
+
