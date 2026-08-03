@@ -22,6 +22,7 @@ import { ShareLinkButton } from "./ShareLinkButton";
 import { FavoriteButton } from "./FavoriteButton";
 import { RatingButtons } from "./RatingButtons";
 import { AddToPlaylistModal } from "../playlist/AddToPlaylistModal";
+import { AddToCollectionModal } from "../collection/AddToCollectionModal";
 import { PlaySeriesButton, PlaySeasonButton } from "./MediaDetailSeries";
 import { TrailerSection } from "./MediaDetailTrailer";
 import { MetadataEditPanel } from "./MediaDetailEdit";
@@ -65,6 +66,7 @@ export function MediaDetailActions({
   const { t } = useTranslation();
   const [watchedOverride, setWatchedOverride] = useState<boolean | null>(null);
   const [playlistModalOpen, setPlaylistModalOpen] = useState(false);
+  const [collectionModalOpen, setCollectionModalOpen] = useState(false);
   const [pinDialogOpen, setPinDialogOpen] = useState(false);
   const [pendingPlayId, setPendingPlayId] = useState<{ id: string; restart: boolean } | null>(null);
   const profileId = useAuthStore((s) => s.profileId);
@@ -279,12 +281,33 @@ export function MediaDetailActions({
             {t("media.detail.addToPlaylist")}
           </Button>
         )}
+        {/* Grouping a title into a saga is thought of here, on the title's own
+            page, not from a grid card - but only the card menu offered it.
+            Admin-gated like the RPC (AddCollectionItem is RoleAdmin). */}
+        {item.id && isAdmin && (
+          <Button
+            variant="secondary"
+            size="lg"
+            data-testid="add-to-collection-button"
+            onClick={() => setCollectionModalOpen(true)}
+          >
+            <Plus size={ICON.md} />
+            {t("media.contextMenu.addToCollection")}
+          </Button>
+        )}
       </div>
       {item.id && (
         <AddToPlaylistModal
           open={playlistModalOpen}
           onClose={() => setPlaylistModalOpen(false)}
           mediaItemId={item.id}
+        />
+      )}
+      {item.id && isAdmin && (
+        <AddToCollectionModal
+          open={collectionModalOpen}
+          onClose={() => setCollectionModalOpen(false)}
+          mediaItemIds={[item.id]}
         />
       )}
       {profileId && (

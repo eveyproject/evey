@@ -63,6 +63,11 @@ vi.mock("../playlist/AddToPlaylistModal", () => ({
   AddToPlaylistModal: () => null,
 }));
 
+vi.mock("../collection/AddToCollectionModal", () => ({
+  AddToCollectionModal: ({ open }: { open: boolean }) =>
+    open ? <div data-testid="add-to-collection-modal" /> : null,
+}));
+
 vi.mock("./MediaDetailTrailer", () => ({
   TrailerSection: () => null,
 }));
@@ -204,6 +209,23 @@ describe("MediaDetailActions", () => {
   it("shows rating buttons", () => {
     render(<MediaDetailActions {...defaultProps} />, { wrapper: Wrapper });
     expect(screen.getByTestId("rating-buttons")).toBeInTheDocument();
+  });
+
+  it("opens the collection picker from the detail page for an admin", () => {
+    mockIsAdmin = true;
+    render(<MediaDetailActions {...defaultProps} />, { wrapper: Wrapper });
+    expect(screen.queryByTestId("add-to-collection-modal")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("add-to-collection-button"));
+    expect(screen.getByTestId("add-to-collection-modal")).toBeInTheDocument();
+  });
+
+  // AddCollectionItem is RoleAdmin: a viewer offered the button would pick a
+  // collection and watch every choice fail.
+  it("gives a viewer no way to add to a collection", () => {
+    mockIsAdmin = false;
+    render(<MediaDetailActions {...defaultProps} />, { wrapper: Wrapper });
+    expect(screen.queryByTestId("add-to-collection-button")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("add-to-collection-modal")).not.toBeInTheDocument();
   });
 
   it("shows edit modal when editing=true and user is admin", () => {
