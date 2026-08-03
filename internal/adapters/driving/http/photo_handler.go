@@ -71,6 +71,9 @@ type photoHandler struct {
 	transcoder PhotoTranscoder
 	cacheDir   string
 	libLister  LibraryLister // may be nil; used for path confinement (fail-open)
+	// Charged only when a request actually forks ffmpeg (cache miss); nil in
+	// tests means pass-through.
+	transcodeRL *ratelimit.Limiter
 }
 
 func (h *photoHandler) servePhoto(w http.ResponseWriter, r *http.Request) {
@@ -192,6 +195,21 @@ func (h *photoHandler) serveTranscoded(w http.ResponseWriter, r *http.Request, p
 		return true
 	}
 
+	// Only a cache MISS forks ffmpeg, and only that deserves the snapshot
+	// ceiling. Gating the whole route charged cache hits too, so one television
+	// opening a photo grid (about twenty thumbnails at once) emptied the burst
+	// and the rest of the grid came back empty - measured on device 2026-08-03.
+	if h.transcodeRL != nil {
+		ip := ratelimit.ClientIP(r)
+		if !h.transcodeRL.Allow(ip) {
+			slog.WarnContext(r.Context(), "photo transcode rate limited",
+				slog.String("client_ip", ip), slog.String("id", p.ID))
+			w.Header().Set("Retry-After", strconv.Itoa(h.transcodeRL.RetryAfter(ip)))
+			http.Error(w, `{"message":"too many requests"}`, http.StatusTooManyRequests)
+			return true
+		}
+	}
+
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 	if err := h.transcoder.Transcode(ctx, p.FilePath, dstPath, width, fmtStr); err != nil {
@@ -212,15 +230,12 @@ func (h *photoHandler) serveTranscoded(w http.ResponseWriter, r *http.Request, p
 func registerPhotoRoutes(mux *http.ServeMux, photoSvc *appphoto.Service, tokenGen domainuser.TokenGenerator, libChecker LibraryAccessChecker, libLister LibraryLister, _ context.Context, transcoder PhotoTranscoder, cacheDir string, rl *ratelimit.Limiter) {
 	authMw := httpAuthMiddleware(tokenGen)
 	h := &photoHandler{
-		photoSvc:   photoSvc,
-		libChecker: libChecker,
-		transcoder: transcoder,
-		cacheDir:   cacheDir,
-		libLister:  libLister,
+		photoSvc:    photoSvc,
+		libChecker:  libChecker,
+		transcoder:  transcoder,
+		cacheDir:    cacheDir,
+		libLister:   libLister,
+		transcodeRL: rl,
 	}
-	serve := http.HandlerFunc(h.servePhoto)
-	if rl != nil {
-		serve = ratelimit.MiddlewareFunc(rl, serve)
-	}
-	mux.HandleFunc("GET /api/v1/photos/{id}/serve", authMw(serve))
+	mux.HandleFunc("GET /api/v1/photos/{id}/serve", authMw(h.servePhoto))
 }

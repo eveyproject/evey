@@ -20,6 +20,7 @@ import (
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 	domainuser "github.com/evey-project/evey/internal/domain/user"
 	"github.com/evey-project/evey/internal/pkg/auth"
+	"github.com/evey-project/evey/internal/pkg/ratelimit"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -91,10 +92,10 @@ func TestSnapPhotoWidth(t *testing.T) {
 		{"notanumber", false, 0},
 		{"0", false, 0},
 		{"-5", false, 0},
-		{"400", true, 400},                 // exact match
-		{"320", true, 400},                 // snaps up
-		{"150", true, 200},                 // snaps down
-		{"8192", true, 1600},               // previously-max value now bounded
+		{"400", true, 400},                   // exact match
+		{"320", true, 400},                   // snaps up
+		{"150", true, 200},                   // snaps down
+		{"8192", true, 1600},                 // previously-max value now bounded
 		{"1000000000000000000000", false, 0}, // Atoi overflow → invalid
 	}
 	for _, c := range cases {
@@ -278,4 +279,77 @@ func TestServeTranscoded_NoTranscoder_NoBranch(t *testing.T) {
 
 	// Falls through directly to raw file serving → file not found → 404.
 	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+// --- tests: the rate limit is charged to forks, not to cache hits ---
+
+// A television opening a photo grid asks for about twenty thumbnails at once.
+// Gating the whole route charged every one of them to the ffmpeg ceiling, so
+// the burst emptied and the rest of the grid came back empty (measured on
+// device, 2026-08-03). Only a cache MISS forks, and only that is charged.
+func TestServeTranscoded_CacheHitsAreNotRateLimited(t *testing.T) {
+	repo := photofakes.NewFakeRepository()
+	src := filepath.Join(t.TempDir(), "shot.jpg")
+	require.NoError(t, os.WriteFile(src, []byte("jpeg"), 0o644))
+	seedPhoto(t, repo, "photo-1", "lib-1", src, "image/jpeg")
+
+	cacheDir := t.TempDir()
+	transcoder := &fakePhotoTranscoderWriter{}
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	tokenGen := auth.NewJWTGenerator(key, time.Minute)
+	token, err := tokenGen.GenerateAccessToken(domainuser.Claims{UserID: "user-1", ProfileID: "prof-1"})
+	require.NoError(t, err)
+	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil, photofakes.NewFakePhotoScanner())
+	mux := http.NewServeMux()
+	// Budget of exactly one fork.
+	rl := ratelimit.NewWithBurst(1, 60.0)
+	defer rl.Stop()
+	registerPhotoRoutes(mux, svc, tokenGen, allowAll(), nil, context.Background(), transcoder, cacheDir, rl)
+
+	get := func() int {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/photos/photo-1/serve?w=400&fmt=webp", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		return rec.Code
+	}
+
+	require.Equal(t, http.StatusOK, get(), "the first request transcodes and spends the only token")
+	for i := 0; i < 5; i++ {
+		require.Equal(t, http.StatusOK, get(), "a cached thumbnail must not be charged to the fork budget")
+	}
+	require.Len(t, transcoder.widths, 1, "only the first request may fork")
+}
+
+func TestServeTranscoded_UncachedRequestsStillHitTheCeiling(t *testing.T) {
+	repo := photofakes.NewFakeRepository()
+	dir := t.TempDir()
+	for _, id := range []string{"photo-1", "photo-2"} {
+		src := filepath.Join(dir, id+".jpg")
+		require.NoError(t, os.WriteFile(src, []byte("jpeg"), 0o644))
+		seedPhoto(t, repo, id, "lib-1", src, "image/jpeg")
+	}
+
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	tokenGen := auth.NewJWTGenerator(key, time.Minute)
+	token, err := tokenGen.GenerateAccessToken(domainuser.Claims{UserID: "user-1", ProfileID: "prof-1"})
+	require.NoError(t, err)
+	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil, photofakes.NewFakePhotoScanner())
+	mux := http.NewServeMux()
+	rl := ratelimit.NewWithBurst(1, 60.0)
+	defer rl.Stop()
+	registerPhotoRoutes(mux, svc, tokenGen, allowAll(), nil, context.Background(), &fakePhotoTranscoderWriter{}, t.TempDir(), rl)
+
+	get := func(id string) int {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/photos/"+id+"/serve?w=400&fmt=webp", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		return rec.Code
+	}
+
+	require.Equal(t, http.StatusOK, get("photo-1"))
+	require.Equal(t, http.StatusTooManyRequests, get("photo-2"), "a second fork must still be refused")
 }
