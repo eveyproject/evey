@@ -23,6 +23,7 @@ import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { heroTitle } from "../../../src/lib/heroTitle";
+import { musicAlbumHref } from "../../../src/lib/musicRoutes";
 import { artworkUrl } from "../../../src/lib/artwork";
 import { ScreenState } from "../../../src/components/ScreenState";
 import { FeedCustomizePanel } from "../../../src/components/FeedCustomizePanel";
@@ -587,7 +588,10 @@ export default function HomeScreen() {
               label: String(a.title ?? ""),
               sublabel: a.artist ? String(a.artist) : undefined,
               uri: a.coverArtUrl ? `${String(a.coverArtUrl)}${tokenParam}` : undefined,
-              onPress: () => router.push(`/(auth)/music/album/${String(a.id ?? "")}`),
+              // Through the shared helper: the album screen needs the library
+              // id too, and a bare id left it with a disabled query - a title
+              // that was the raw id and "no track found" (device, 2026-08-03).
+              onPress: () => router.push(musicAlbumHref(String(a.id ?? ""), section.libraryId) as never),
             }))}
           />
         );

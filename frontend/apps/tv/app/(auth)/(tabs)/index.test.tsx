@@ -414,7 +414,9 @@ describe("HomeScreen music and photo library rows", () => {
   it("sends an album card to the album screen and a photo card to the photos screen", () => {
     render(<HomeScreen />);
     fireEvent.click(screen.getByLabelText("Kind of Blue"));
-    expect(pushMock).toHaveBeenCalledWith("/(auth)/music/album/alb-1");
+    // With the library id: the album screen needs both, and a bare id left its
+    // query disabled - raw id as the title, "no track found".
+    expect(pushMock).toHaveBeenCalledWith("/(auth)/music/album/alb-1?libraryId=lib-mus");
     fireEvent.click(screen.getByLabelText("2024/Holiday"));
     expect(pushMock).toHaveBeenCalledWith("/(auth)/photos");
   });

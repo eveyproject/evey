@@ -173,6 +173,25 @@ describe("audit TV · focus initial déterministe", () => {
   });
 });
 
+// --- 1b. Music routes are built by the helper, never by hand -----------------
+//
+// The album screen needs BOTH the album id and its library id: a hand-built
+// "/music/album/<id>" left its query disabled, so the screen showed the raw id
+// as the title and "no track found" (device, 2026-08-03). musicAlbumHref and
+// musicArtistHref are the only correct way to spell those links.
+describe("audit TV \u00b7 routes musique", () => {
+  it.skipIf(!CAN_RUN)("aucun \u00e9cran ne fabrique une route musique \u00e0 la main", () => {
+    const offenders: string[] = [];
+    for (const file of [...screens(), ...components()]) {
+      const name = rel(file);
+      if (name.endsWith("musicRoutes.ts")) continue;
+      const src = readFileSync(file, "utf8");
+      if (/["\`]\/?\(auth\)\/music\/(album|artist)\//.test(src)) offenders.push(name);
+    }
+    expect(offenders.sort()).toEqual([]);
+  });
+});
+
 // --- 2. Remote: every interactive element announces itself -------------------
 //
 // A screen reader on a television reads the focused element and nothing else -
