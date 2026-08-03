@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/Button";
 import { Spinner } from "@/components/ui/Spinner";
 import { toast } from "@evey/store";
 import { collectionServiceAddCollectionItem, getCollectionServiceGetCollectionItemsQueryKey } from "@evey/api";
-import { useCollections } from "./api";
+import { useAllCollections } from "./api";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -17,7 +17,7 @@ interface Props {
 export function AddToCollectionModal({ open, onClose, mediaItemIds }: Props) {
   const { t } = useTranslation();
   const qc = useQueryClient();
-  const { data, isLoading } = useCollections();
+  const { data, isLoading } = useAllCollections();
   const collections = data?.collections ?? [];
   const [pending, setPending] = useState(false);
 

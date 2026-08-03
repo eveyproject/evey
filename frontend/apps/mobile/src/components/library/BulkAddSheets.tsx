@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { collectionServiceAddCollectionItem } from "@evey/api";
 import { toast } from "@evey/store";
 import { useTheme } from "../../providers/ThemeProvider";
-import { useCollections } from "../../api/collections";
+import { useAllCollections } from "../../api/collections";
 import { usePlaylistList, useAddToPlaylist } from "../../api/playlists";
 import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
 
@@ -121,7 +121,7 @@ export function BulkAddToCollectionSheet({
 }) {
   const theme = useTheme();
   const { t } = useTranslation();
-  const { data, isLoading } = useCollections();
+  const { data, isLoading } = useAllCollections();
   const collections = data?.collections ?? [];
   const [pendingId, setPendingId] = useState<string | null>(null);
 

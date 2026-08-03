@@ -74,6 +74,21 @@ export function useCollections() {
   });
 }
 
+/**
+ * Every collection, including the auto-created sagas the browse listing hides
+ * for holding a single title. A curation surface must show them: hiding the
+ * "Alien - Saga" you own one film of is right when browsing and wrong when
+ * the user is trying to add the second one to it.
+ */
+export function useAllCollections() {
+  return useCollectionServiceListCollections({ minItems: 1 }, {
+    query: {
+      select: (d) => ({ collections: (d.collections ?? []).map(mapCollection) }),
+      staleTime: 5 * 60_000,
+    },
+  });
+}
+
 export function useCollection(id: string, limit = 50, offset = 0) {
   const head = useCollectionServiceGetCollection(id, {
     query: {

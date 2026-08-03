@@ -52,6 +52,24 @@ export function useCollections() {
   });
 }
 
+/**
+ * Every collection, including the auto-created sagas the browse listing hides
+ * for holding a single title. A curation surface must show them: hiding the
+ * saga you own one film of is right when browsing and wrong when the user is
+ * trying to add the second one to it.
+ */
+export function useAllCollections() {
+  return useQuery<ListCollectionsResponse>({
+    queryKey: ["collections", "all"],
+    queryFn: () =>
+      eveyFetch<ListCollectionsResponse>({
+        url: "/api/v1/collections?minItems=1",
+        method: "GET",
+      }),
+    staleTime: 5 * 60_000,
+  });
+}
+
 export function useCollection(id: string, limit = 50, offset = 0) {
   return useQuery<GetCollectionResponse>({
     queryKey: ["collection", id, limit, offset],
