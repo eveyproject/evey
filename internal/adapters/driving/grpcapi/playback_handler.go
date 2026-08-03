@@ -671,7 +671,30 @@ func (h *playbackHandler) GetWatchProgress(ctx context.Context, req *eveyv1.GetW
 		slog.ErrorContext(ctx, "get watch progress", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
-	return watchProgressToProto(wp), nil
+	pb := watchProgressToProto(wp)
+	if mi, miErr := h.librarySvc.GetMediaItem(ctx, req.MediaItemId); miErr == nil {
+		applyMediaDuration(pb, mi)
+	}
+	return pb, nil
+}
+
+// applyMediaDuration fills the two fields only the media item knows: the
+// declared length, and the share of it the position represents. A progress
+// row stores where the viewer stopped - how long the film is was never its to
+// know, and leaving these at zero is how every client's history rendered
+// "0:00 / 0:00" lines and empty progress bars.
+func applyMediaDuration(pb *eveyv1.WatchProgress, mi *library.MediaItem) {
+	if mi == nil || mi.File == nil {
+		return
+	}
+	d := mi.File.Duration.Milliseconds()
+	if d <= 0 {
+		return
+	}
+	pb.DurationMs = d
+	// Clamped: a position past the declared length (short-header files exist
+	// in the wild) must not hand clients a bar wider than its container.
+	pb.PercentComplete = min(float64(pb.PositionMs)/float64(d)*100, 100)
 }
 
 func (h *playbackHandler) GetWatchHistory(ctx context.Context, req *eveyv1.GetWatchHistoryRequest) (*eveyv1.GetWatchHistoryResponse, error) {
@@ -772,6 +795,7 @@ func (h *playbackHandler) enrichWatchHistory(ctx context.Context, items []*playb
 			}
 		}
 		pb := watchProgressToProto(wp)
+		applyMediaDuration(pb, mi)
 		if mi != nil {
 			pb.Title = mi.Title
 			pb.MediaType = string(mi.Type)
@@ -849,34 +873,31 @@ func (h *playbackHandler) GetResumeItems(ctx context.Context, req *eveyv1.GetRes
 	pf := resolveParentalFilterFromUserQuery(ctx, h.userQuery)
 	parentalActive := pf.maxAge >= 0 || len(pf.blockedTags) > 0
 	resp := &eveyv1.GetResumeItemsResponse{}
-	if allowedIDs != nil || parentalActive {
-		ids := make([]string, len(items))
-		for i, wp := range items {
-			ids[i] = string(wp.MediaItemID)
-		}
-		mis, mErr := h.librarySvc.GetMediaItemsByIDs(ctx, ids)
-		if mErr != nil {
-			slog.WarnContext(ctx, "resume items: batch fetch media items", slog.Any("err", mErr))
-		}
-		allowed := make(map[string]bool, len(mis))
-		for _, mi := range mis {
+	// The media items are fetched unconditionally now: the gates need them
+	// when active, and the declared duration comes from them always.
+	ids := make([]string, len(items))
+	for i, wp := range items {
+		ids[i] = string(wp.MediaItemID)
+	}
+	miByID := h.mediaItemMap(ctx, ids)
+	for _, wp := range items {
+		mi := miByID[string(wp.MediaItemID)]
+		if allowedIDs != nil || parentalActive {
+			// Gated profile: an unresolvable item stays hidden (access can't
+			// be verified), exactly as before.
+			if mi == nil {
+				continue
+			}
 			if allowedIDs != nil && !slices.Contains(allowedIDs, string(mi.LibraryID)) {
 				continue
 			}
 			if mediaItemBlockedByParental(pf, mi) {
 				continue
 			}
-			allowed[string(mi.ID)] = true
 		}
-		for _, wp := range items {
-			if allowed[string(wp.MediaItemID)] {
-				resp.Progress = append(resp.Progress, watchProgressToProto(wp))
-			}
-		}
-	} else {
-		for _, wp := range items {
-			resp.Progress = append(resp.Progress, watchProgressToProto(wp))
-		}
+		pb := watchProgressToProto(wp)
+		applyMediaDuration(pb, mi)
+		resp.Progress = append(resp.Progress, pb)
 	}
 	return resp, nil
 }

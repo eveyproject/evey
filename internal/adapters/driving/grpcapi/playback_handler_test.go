@@ -868,6 +868,100 @@ func TestPlaybackHandler_GetWatchHistory_EnrichesEpisodeLabel(t *testing.T) {
 	assert.Empty(t, mov.SeriesTitle)
 }
 
+// A progress row stores where the viewer stopped; how long the film is only
+// the media item knows - and no handler ever filled duration_ms or
+// percent_complete, so every client's history line and progress bar sat on
+// zero (found on mobile 2026-08-03, true of web and TV too).
+func TestPlaybackHandler_GetWatchHistory_FillsDurationAndPercent(t *testing.T) {
+	h, _, progressRepo, mediaRepo, _, _ := newTestPlaybackHandler()
+	ctx := pbAdminCtx()
+
+	dur, err := shared.NewDurationMs(120_000)
+	require.NoError(t, err)
+	mediaRepo.Seed(&library.MediaItem{
+		ID: "mi-dur", Type: library.MovieItem, Title: "Heat",
+		File: &library.MediaFile{Path: "/f.mkv", Duration: dur},
+	})
+	mediaRepo.Seed(&library.MediaItem{ID: "mi-nofile", Type: library.MovieItem, Title: "Lost Media"})
+	mediaRepo.Seed(&library.MediaItem{
+		ID: "mi-over", Type: library.MovieItem, Title: "Short Header",
+		File: &library.MediaFile{Path: "/g.mkv", Duration: dur},
+	})
+	progressRepo.Upsert(context.Background(), &playback.WatchProgress{
+		ID: "wp-dur", ProfileID: "profile-1", MediaItemID: "mi-dur",
+		Position: mustPlaybackDurationMs(t, 30_000), LastPlayedAt: time.Now(),
+	})
+	progressRepo.Upsert(context.Background(), &playback.WatchProgress{
+		ID: "wp-nofile", ProfileID: "profile-1", MediaItemID: "mi-nofile",
+		Position: mustPlaybackDurationMs(t, 10_000), LastPlayedAt: time.Now().Add(-time.Minute),
+	})
+	progressRepo.Upsert(context.Background(), &playback.WatchProgress{
+		ID: "wp-over", ProfileID: "profile-1", MediaItemID: "mi-over",
+		Position: mustPlaybackDurationMs(t, 130_000), LastPlayedAt: time.Now().Add(-2 * time.Minute),
+	})
+
+	resp, err := h.GetWatchHistory(ctx, &eveyv1.GetWatchHistoryRequest{Limit: 10})
+	require.NoError(t, err)
+	require.Len(t, resp.Items, 3)
+	byID := map[string]*eveyv1.WatchProgress{}
+	for _, it := range resp.Items {
+		byID[it.MediaItemId] = it
+	}
+	require.NotNil(t, byID["mi-dur"])
+	assert.Equal(t, int64(120_000), byID["mi-dur"].DurationMs)
+	assert.InDelta(t, 25.0, byID["mi-dur"].PercentComplete, 0.01)
+	// No file, no declared length: the fields stay honestly at zero.
+	require.NotNil(t, byID["mi-nofile"])
+	assert.Zero(t, byID["mi-nofile"].DurationMs)
+	assert.Zero(t, byID["mi-nofile"].PercentComplete)
+	// A position past a short-header's declared length clamps at 100, not 108.
+	require.NotNil(t, byID["mi-over"])
+	assert.InDelta(t, 100.0, byID["mi-over"].PercentComplete, 0.01)
+}
+
+func TestPlaybackHandler_GetResumeItems_FillsDurationAndPercent(t *testing.T) {
+	h, _, progressRepo, mediaRepo, _, _ := newTestPlaybackHandler()
+	ctx := pbAdminCtx()
+
+	dur, err := shared.NewDurationMs(200_000)
+	require.NoError(t, err)
+	mediaRepo.Seed(&library.MediaItem{
+		ID: "mi-r1", Type: library.MovieItem, Title: "Film",
+		File: &library.MediaFile{Path: "/f.mkv", Duration: dur},
+	})
+	progressRepo.Upsert(context.Background(), &playback.WatchProgress{
+		ID: "wp-r1", ProfileID: "profile-1", MediaItemID: "mi-r1",
+		Position: mustPlaybackDurationMs(t, 50_000), LastPlayedAt: time.Now(),
+	})
+
+	resp, err := h.GetResumeItems(ctx, &eveyv1.GetResumeItemsRequest{Limit: 10})
+	require.NoError(t, err)
+	require.Len(t, resp.Progress, 1)
+	assert.Equal(t, int64(200_000), resp.Progress[0].DurationMs)
+	assert.InDelta(t, 25.0, resp.Progress[0].PercentComplete, 0.01)
+}
+
+func TestPlaybackHandler_GetWatchProgress_FillsDurationAndPercent(t *testing.T) {
+	h, _, progressRepo, mediaRepo, _, _ := newTestPlaybackHandler()
+	ctx := pbAdminCtx()
+
+	dur, err := shared.NewDurationMs(100_000)
+	require.NoError(t, err)
+	mediaRepo.Seed(&library.MediaItem{
+		ID: "mi-p1", Type: library.MovieItem, Title: "Film",
+		File: &library.MediaFile{Path: "/f.mkv", Duration: dur},
+	})
+	progressRepo.Upsert(context.Background(), &playback.WatchProgress{
+		ID: "wp-p1", ProfileID: "profile-1", MediaItemID: "mi-p1",
+		Position: mustPlaybackDurationMs(t, 75_000), LastPlayedAt: time.Now(),
+	})
+
+	wp, err := h.GetWatchProgress(ctx, &eveyv1.GetWatchProgressRequest{MediaItemId: "mi-p1"})
+	require.NoError(t, err)
+	assert.Equal(t, int64(100_000), wp.DurationMs)
+	assert.InDelta(t, 75.0, wp.PercentComplete, 0.01)
+}
+
 func TestPlaybackHandler_GetWatchHistory_Unauthenticated(t *testing.T) {
 	h, _, _, _, _, _ := newTestPlaybackHandler()
 	_, err := h.GetWatchHistory(context.Background(), &eveyv1.GetWatchHistoryRequest{})
