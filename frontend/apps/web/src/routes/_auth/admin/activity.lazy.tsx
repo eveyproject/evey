@@ -174,7 +174,7 @@ function PlayHistoryTab() {
 
 function AuditTab() {
   const PAGE_SIZE = 25;
-  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
+  const { data, isLoading, isError, error, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
     queryKey: ["audit-log-infinite"],
     initialPageParam: 0,
     queryFn: ({ pageParam, signal }) => adminSessionServiceGetAuditLog({ limit: PAGE_SIZE, offset: pageParam }, signal),
@@ -193,6 +193,12 @@ function AuditTab() {
         <Spinner size="lg" />
       </div>
     );
+  }
+
+  // AuditLogTable is presentational and shows "no entries" for an empty list,
+  // so the failure has to be told apart here, before it is handed down.
+  if (isError && entries.length === 0) {
+    return <FetchErrorState error={error} onRetry={() => void refetch()} />;
   }
 
   return (
