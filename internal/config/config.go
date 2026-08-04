@@ -606,6 +606,39 @@ func (c *Config) WarnValidate() error {
 		hardFail("EVEY_DB_PASSWORD is the default 'evey' - set a strong database password")
 	}
 
+	// Finite ranges. Out of 98 EVEY_* variables only the plugin enums were
+	// checked, so a value that cannot possibly work started the server anyway
+	// and failed later somewhere unrelated. These three each have a concrete
+	// failure story rather than a theoretical bound.
+	for _, p := range []struct {
+		key string
+		val int
+	}{
+		{"EVEY_SERVER_PORT", c.Server.Port},
+		{"EVEY_DB_PORT", c.DB.Port},
+		{"EVEY_SMTP_PORT", c.SMTP.Port},
+	} {
+		// 0 is left alone: it means "unset/disabled" for SMTP and "pick a free
+		// port" for a listener, both legitimate.
+		if p.val < 0 || p.val > 65535 {
+			slog.Warn("config: port outside the valid range - the listener or dial will fail",
+				slog.String("key", p.key), slog.Int("value", p.val), slog.String("expected", "0-65535"))
+		}
+	}
+
+	// database/sql silently caps idle at open, so the operator gets a pool
+	// smaller than the one they configured, with nothing said.
+	if c.DB.MaxIdleConns > c.DB.MaxOpenConns && c.DB.MaxOpenConns > 0 {
+		slog.Warn("EVEY_DB_MAX_IDLE_CONNS is greater than EVEY_DB_MAX_OPEN_CONNS - database/sql caps idle at open",
+			slog.Int("idle", c.DB.MaxIdleConns), slog.Int("open", c.DB.MaxOpenConns))
+	}
+
+	// A ratio, not a percentage: "50" meaning "50%" samples every trace.
+	if c.Tracing.SampleRatio < 0 || c.Tracing.SampleRatio > 1 {
+		slog.Warn("EVEY_TRACING_SAMPLE_RATIO is outside 0.0-1.0 - it is a ratio, not a percentage",
+			slog.Float64("value", c.Tracing.SampleRatio))
+	}
+
 	if c.DB.SSLMode == "prefer" && !isLoopbackHost(c.DB.Host) {
 		slog.Warn("EVEY_DB_SSLMODE=prefer against a non-loopback host - use 'require' or 'verify-full' in production",
 			slog.String("host", c.DB.Host))
@@ -866,11 +899,24 @@ func envStr(key, fallback string) string {
 	return fallback
 }
 
+// warnBadEnv reports a variable the operator set and we could not parse.
+//
+// Silence here was indistinguishable from success: `EVEY_HLS_SEGMENT_SECONDS=4s`
+// in an int field, or `EVEY_X=tru`, ran the server on the DEFAULT with no trace
+// anywhere, while the operator read their own compose file and believed the
+// setting applied. The received value is logged as-is: every caller of this
+// parses a number, a boolean or a duration, so none of them can carry a secret.
+func warnBadEnv(key, value, expected string) {
+	slog.Warn("config: environment variable ignored, value could not be parsed - falling back to the default",
+		slog.String("key", key), slog.String("value", value), slog.String("expected", expected))
+}
+
 func envInt(key string, fallback int) int {
 	if v := os.Getenv(key); v != "" {
 		if i, err := strconv.Atoi(v); err == nil {
 			return i
 		}
+		warnBadEnv(key, v, "an integer")
 	}
 	return fallback
 }
@@ -887,6 +933,7 @@ func envBool(key string, fallback bool) bool {
 		if b, err := strconv.ParseBool(v); err == nil {
 			return b
 		}
+		warnBadEnv(key, v, "a boolean (1, t, true, 0, f, false)")
 	}
 	return fallback
 }
@@ -900,6 +947,13 @@ func envStrSlice(key string, fallback []string) []string {
 				result = append(result, s)
 			}
 		}
+		// No conversion can fail here, but a value made only of separators or
+		// blanks (",,", " ") yields an EMPTY list rather than the default, and
+		// an empty list is a real setting - the operator meant something and
+		// got the opposite of what they typed.
+		if len(result) == 0 {
+			warnBadEnv(key, v, "a comma-separated list with at least one entry (the list is now EMPTY, not the default)")
+		}
 		return result
 	}
 	return fallback
@@ -910,6 +964,8 @@ func envDuration(key string, fallback time.Duration) time.Duration {
 		if d, err := time.ParseDuration(v); err == nil {
 			return d
 		}
+		// The classic miss is a bare number: "30" is not a duration, "30s" is.
+		warnBadEnv(key, v, "a duration with a unit (300ms, 30s, 5m, 2h)")
 	}
 	return fallback
 }
@@ -919,6 +975,7 @@ func envFloat(key string, fallback float64) float64 {
 		if f, err := strconv.ParseFloat(v, 64); err == nil {
 			return f
 		}
+		warnBadEnv(key, v, "a decimal number")
 	}
 	return fallback
 }

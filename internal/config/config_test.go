@@ -1,6 +1,8 @@
 package config
 
 import (
+	"bytes"
+	"log/slog"
 	"os"
 	"strings"
 	"testing"
@@ -9,6 +11,18 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// captureLogs redirects the default logger for the duration of one test and
+// returns the accumulated output. The parsers below warn through slog, and a
+// warning nobody can observe is the very thing these tests exist to prevent.
+func captureLogs(t *testing.T) *bytes.Buffer {
+	t.Helper()
+	var buf bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	t.Cleanup(func() { slog.SetDefault(prev) })
+	return &buf
+}
 
 func TestLoad_Defaults(t *testing.T) {
 	// Can't run in parallel - we mutate the process env. The dev container
@@ -593,4 +607,103 @@ func TestAudioRenditionEnabledByDefault(t *testing.T) {
 	off, err := Load()
 	require.NoError(t, err)
 	assert.False(t, off.Transcoding.AudioRenditionEnabled, "operators must be able to opt out")
+}
+
+// An unparseable value used to fall back in complete silence: the operator
+// read their own compose file and believed the setting had applied.
+func TestLoad_UnparseableValuesAreLogged(t *testing.T) {
+	cases := []struct {
+		name, key, value, wantValue string
+	}{
+		{"int", "EVEY_SERVER_PORT", "notanumber", "notanumber"},
+		{"bool", "EVEY_OIDC_ENABLED", "tru", "tru"},
+		{"duration", "EVEY_JWT_ACCESS_TTL", "30", "30"},
+		{"float", "EVEY_TRACING_SAMPLE_RATIO", "half", "half"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			logs := captureLogs(t)
+			t.Setenv(c.key, c.value)
+
+			_, err := Load()
+			require.NoError(t, err)
+
+			out := logs.String()
+			assert.Contains(t, out, c.key, "the warning must name the variable")
+			assert.Contains(t, out, c.wantValue, "the warning must quote the value received")
+		})
+	}
+}
+
+// A list made only of separators yields an EMPTY list, not the default - the
+// opposite of what the operator typed, and previously silent.
+func TestEnvStrSlice_SeparatorsOnlyWarns(t *testing.T) {
+	logs := captureLogs(t)
+	t.Setenv("EVEY_TEST_LIST", ", ,")
+
+	got := envStrSlice("EVEY_TEST_LIST", []string{"a"})
+
+	assert.Empty(t, got)
+	assert.Contains(t, logs.String(), "EVEY_TEST_LIST")
+}
+
+func TestWarnValidate_PortOutOfRangeWarns(t *testing.T) {
+	logs := captureLogs(t)
+	cfg := strongConfig()
+	cfg.Server.Port = 70000
+
+	require.NoError(t, cfg.WarnValidate())
+	assert.Contains(t, logs.String(), "EVEY_SERVER_PORT")
+}
+
+// database/sql caps idle at open without a word, handing back a smaller pool
+// than the one configured.
+func TestWarnValidate_IdleAboveOpenWarns(t *testing.T) {
+	logs := captureLogs(t)
+	cfg := strongConfig()
+	cfg.DB.MaxOpenConns = 5
+	cfg.DB.MaxIdleConns = 25
+
+	require.NoError(t, cfg.WarnValidate())
+	assert.Contains(t, logs.String(), "EVEY_DB_MAX_IDLE_CONNS")
+}
+
+// "50" meaning 50% samples every single trace.
+func TestWarnValidate_SampleRatioOutOfRangeWarns(t *testing.T) {
+	logs := captureLogs(t)
+	cfg := strongConfig()
+	cfg.Tracing.SampleRatio = 50
+
+	require.NoError(t, cfg.WarnValidate())
+	assert.Contains(t, logs.String(), "EVEY_TRACING_SAMPLE_RATIO")
+}
+
+// The sane baseline must stay quiet, or every operator learns to ignore these.
+func TestWarnValidate_SaneConfigWarnsAboutNone(t *testing.T) {
+	logs := captureLogs(t)
+	cfg := strongConfig()
+	cfg.Server.Port = 9090
+	cfg.DB.Port = 5432
+	cfg.SMTP.Port = 587
+	cfg.DB.MaxOpenConns = 25
+	cfg.DB.MaxIdleConns = 10
+	cfg.Tracing.SampleRatio = 0.1
+
+	require.NoError(t, cfg.WarnValidate())
+
+	out := logs.String()
+	for _, key := range []string{"EVEY_SERVER_PORT", "EVEY_DB_PORT", "EVEY_SMTP_PORT", "EVEY_DB_MAX_IDLE_CONNS", "EVEY_TRACING_SAMPLE_RATIO"} {
+		assert.NotContains(t, out, key)
+	}
+}
+
+// strongConfig is the baseline the range checks are measured against: it
+// passes WarnValidate outright, so any warning a test sees comes from the one
+// field it deliberately broke.
+func strongConfig() *Config {
+	return &Config{
+		DB:          DBConfig{Password: "a-long-random-password-xyz", SSLMode: "require", Host: "localhost"},
+		Meilisearch: MeilisearchConfig{APIKey: "x9abc123def45678"},
+		Plugins:     PluginsConfig{SandboxMode: "basic", CosignPolicy: "off"},
+	}
 }
