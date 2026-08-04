@@ -20,6 +20,7 @@ import {
 } from "../../src/lib/downloads";
 import { downloadStageLabel } from "../../src/lib/downloadStageLabel";
 import { canPlayOffline, type OfflineDenialReason, type OfflineProfileInfo } from "../../src/lib/offlineAccess";
+import { useOnlineStatus } from "../../src/hooks/useOnlineStatus";
 import { getAudioPassState, subscribeToAudioPass, type AudioPassState } from "../../src/lib/audioCompatPass";
 
 // A download still running is invisible in getDownloads() - an item only
@@ -72,6 +73,7 @@ interface DownloadRowProps {
 function DownloadRow({ item, onDelete, onCancel, deleting, canceling, activeProfile }: DownloadRowProps) {
   const theme = useTheme();
   const { t } = useTranslation();
+  const online = useOnlineStatus();
   // Live progress for a download that's still running: either a placeholder
   // row for an in-flight download (see the merge in DownloadsScreen below) or
   // one resumed from rehydrateBackgroundDownloads right after the app was
@@ -121,7 +123,16 @@ function DownloadRow({ item, onDelete, onCancel, deleting, canceling, activeProf
 
   return (
     <Pressable
-      onPress={() => { if (!item.inProgress && !blocked) router.push(`/media/${item.mediaItemId}`); }}
+      // Offline the media page is a dead end: every part of it comes from the
+      // server, so tapping a file the device already holds led to a screen
+      // that could not load. The player is the one destination that works
+      // without a network - it prefers the local file and skips its own
+      // loading/error screens whenever bytes are on disk - so offline a tap
+      // goes straight to playback.
+      onPress={() => {
+        if (item.inProgress || blocked) return;
+        router.push(online ? `/media/${item.mediaItemId}` : `/player/${item.mediaItemId}`);
+      }}
       style={{
         flexDirection: "row",
         alignItems: "center",

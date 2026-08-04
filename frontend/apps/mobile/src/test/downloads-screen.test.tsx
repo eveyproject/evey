@@ -109,8 +109,27 @@ vi.mock("@evey/api", () => ({
   useUserServiceListProfiles: (...a: unknown[]) => useUserServiceListProfilesMock(...a),
 }));
 
+// --- network reachability -------------------------------------------------------------
+// Drives the routing decision below. Online by default, like the device the
+// rest of these tests assume.
+const useOnlineStatusMock = vi.fn(() => true);
+vi.mock("../hooks/useOnlineStatus", () => ({
+  useOnlineStatus: () => useOnlineStatusMock(),
+}));
+
 // -------------------------------------------------------------------------------------
 import DownloadsScreen from "../../app/(auth)/downloads";
+
+// The SAMPLE dates are fixed in the past, so they sit outside the 30-day
+// offline TTL and canPlayOffline refuses them - fine for the rendering tests,
+// useless for the routing ones, which need a row a tap is allowed to open.
+const FRESH = {
+  mediaItemId: "fresh",
+  title: "Fresh Movie",
+  filePath: "/downloads/fresh.mp4",
+  fileSize: 1_000_000,
+  downloadedAt: new Date(Date.now() - 60_000).toISOString(),
+};
 
 const SAMPLE = [
   { mediaItemId: "m1", title: "Movie 1", filePath: "/downloads/m1.mp4", fileSize: 1_500_000, downloadedAt: "2026-01-01T00:00:00.000Z" },
@@ -124,6 +143,7 @@ beforeEach(() => {
   deleteDownloadMock.mockResolvedValue(undefined);
   getInFlightDownloadsMock.mockReturnValue([]);
   useUserServiceListProfilesMock.mockReturnValue({ data: { profiles: [{ id: "profile-1", isKids: false }] } });
+  useOnlineStatusMock.mockReturnValue(true);
 });
 
 describe("DownloadsScreen", () => {
@@ -133,6 +153,49 @@ describe("DownloadsScreen", () => {
       expect(screen.getByText("Movie 1")).toBeTruthy();
       expect(screen.getByText("Movie 2")).toBeTruthy();
     });
+  });
+
+  // The reported parcours: download a title, go offline, tap it. Routing to
+  // the media page asked the server for a screen it could no longer serve, so
+  // the one file already on the device was unreachable from the app.
+  it("opens the player directly when offline", async () => {
+    useOnlineStatusMock.mockReturnValue(false);
+    getDownloadsMock.mockResolvedValue([FRESH]);
+    render(<DownloadsScreen />);
+    await waitFor(() => expect(screen.getByText("Fresh Movie")).toBeTruthy());
+
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("Fresh Movie"));
+    });
+
+    expect(pushMock).toHaveBeenCalledWith("/player/fresh");
+  });
+
+  it("keeps opening the media page when online", async () => {
+    getDownloadsMock.mockResolvedValue([FRESH]);
+    render(<DownloadsScreen />);
+    await waitFor(() => expect(screen.getByText("Fresh Movie")).toBeTruthy());
+
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("Fresh Movie"));
+    });
+
+    expect(pushMock).toHaveBeenCalledWith("/media/fresh");
+  });
+
+  it("still refuses to open a download this profile may not play, offline included", async () => {
+    useOnlineStatusMock.mockReturnValue(false);
+    getDownloadsMock.mockResolvedValue([
+      { mediaItemId: "old", title: "Old Movie", filePath: "/downloads/old.mp4", fileSize: 1000, downloadedAt: "2020-01-01T00:00:00.000Z" },
+    ]);
+    render(<DownloadsScreen />);
+    await waitFor(() => expect(screen.getByText("Old Movie")).toBeTruthy());
+
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("Old Movie"));
+    });
+
+    expect(pushMock).not.toHaveBeenCalled();
   });
 
   it("shows an empty state when there are no downloads", async () => {
