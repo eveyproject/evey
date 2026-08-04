@@ -23,6 +23,7 @@ import {
 import { toast } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { usePluginSlotEntries } from "../../../src/features/plugins/PluginSlot";
+import { LoadFailed } from "../../../src/components/LoadFailed";
 import { formatBytes } from "../../../src/lib/formatBytes";
 
 function StatCard({ label, value, icon, theme }: { label: string; value: string | number; icon: IoniconName; theme: ReturnType<typeof useTheme> }) {
@@ -90,7 +91,7 @@ function SectionHeader({ title, theme, onViewAll }: { title: string; theme: Retu
 function NowPlayingCard({ theme }: { theme: ReturnType<typeof useTheme> }) {
   const { t } = useTranslation();
   const router = useRouter();
-  const { data, isLoading } = useAdminSessionServiceListActiveSessions({
+  const { data, isLoading, isError, refetch } = useAdminSessionServiceListActiveSessions({
     query: { refetchInterval: 5_000, refetchIntervalInBackground: false },
   });
   const sessions = data?.sessions ?? [];
@@ -101,6 +102,8 @@ function NowPlayingCard({ theme }: { theme: ReturnType<typeof useTheme> }) {
       <View style={[styles.infoCard, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md, marginTop: 8 }]}>
         {isLoading ? (
           <ActivityIndicator color={theme.colors.accent} style={{ paddingVertical: 20 }} />
+        ) : isError ? (
+          <LoadFailed inline onRetry={() => void refetch()} />
         ) : sessions.length === 0 ? (
           <Text style={{ color: theme.colors.textMuted, fontSize: 13, textAlign: "center", paddingVertical: 20 }}>
             {t("admin.dashboardStats.noActivePlayback")}
@@ -135,7 +138,7 @@ function NowPlayingCard({ theme }: { theme: ReturnType<typeof useTheme> }) {
 // (user, device) pair since the presence tracker keys on user agent.
 function OnlineNowCard({ theme }: { theme: ReturnType<typeof useTheme> }) {
   const { t } = useTranslation();
-  const { data } = usePresenceServiceListOnline({
+  const { data, isError, refetch } = usePresenceServiceListOnline({
     query: { refetchInterval: 5_000, refetchIntervalInBackground: false },
   });
   const users = data?.users ?? [];
@@ -157,7 +160,9 @@ function OnlineNowCard({ theme }: { theme: ReturnType<typeof useTheme> }) {
         </Text>
       </View>
       <View style={[styles.infoCard, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md, marginTop: 8 }]}>
-        {users.length === 0 ? (
+        {isError ? (
+          <LoadFailed inline onRetry={() => void refetch()} />
+        ) : users.length === 0 ? (
           <Text style={{ color: theme.colors.textMuted, fontSize: 13, textAlign: "center", paddingVertical: 20 }}>
             {t("admin.online.empty")}
           </Text>

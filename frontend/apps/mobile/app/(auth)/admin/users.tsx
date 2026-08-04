@@ -23,6 +23,7 @@ import { onColor } from "@evey/theme";
 import { toast, useAuthStore } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
+import { LoadFailed } from "../../../src/components/LoadFailed";
 import { BitrateModal } from "./users/BitrateModal";
 
 interface LibraryInfo {
@@ -173,7 +174,7 @@ function InviteLinksSection({ theme }: { theme: ReturnType<typeof useTheme> }) {
   const [showCreate, setShowCreate] = useState(false);
   const [maxUses, setMaxUses] = useState("");
 
-  const { data, isLoading } = useUserServiceListInviteLinks();
+  const { data, isLoading, isError, refetch } = useUserServiceListInviteLinks();
   const invites = data?.inviteLinks ?? [];
 
   const createInvite = useUserServiceCreateInviteLink({
@@ -245,6 +246,8 @@ function InviteLinksSection({ theme }: { theme: ReturnType<typeof useTheme> }) {
 
       {isLoading ? (
         <ActivityIndicator color={theme.colors.accent} style={{ paddingVertical: 16 }} />
+      ) : isError ? (
+        <LoadFailed inline onRetry={() => void refetch()} />
       ) : invites.length === 0 ? (
         <View style={{ alignItems: "center", paddingVertical: 24 }}>
           <Text style={{ color: theme.colors.textMuted, fontSize: 14 }}>
@@ -367,7 +370,7 @@ export default function AdminUsersScreen() {
     },
   });
 
-  const { data, isLoading, refetch } = useUserServiceListUsers();
+  const { data, isLoading, isError, refetch } = useUserServiceListUsers();
   const users = data?.users ?? [];
 
   const { data: libData } = useLibraryServiceListLibraries();
@@ -598,9 +601,13 @@ export default function AdminUsersScreen() {
           refreshing={false}
           onRefresh={refetch}
           ListEmptyComponent={
-            <View style={{ alignItems: "center", paddingTop: 60 }}>
-              <Text style={{ color: theme.colors.textMuted }}>{t("admin.users.noUsers")}</Text>
-            </View>
+            isError ? (
+              <LoadFailed onRetry={() => void refetch()} />
+            ) : (
+              <View style={{ alignItems: "center", paddingTop: 60 }}>
+                <Text style={{ color: theme.colors.textMuted }}>{t("admin.users.noUsers")}</Text>
+              </View>
+            )
           }
           ListFooterComponent={<InviteLinksSection theme={theme} />}
         />

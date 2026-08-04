@@ -19,6 +19,7 @@ import {
 import type { V1Library, V1LibraryType } from "@evey/api";
 import { toast } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
+import { LoadFailed } from "../../../src/components/LoadFailed";
 
 const TYPE_ICONS: Record<string, string> = {
   LIBRARY_TYPE_MOVIES: "film-outline",
@@ -465,7 +466,7 @@ export default function AdminLibrariesScreen() {
   const { t } = useTranslation();
   const qc = useQueryClient();
 
-  const { data, isLoading, refetch } = useLibraryServiceListLibraries();
+  const { data, isLoading, isError, refetch } = useLibraryServiceListLibraries();
   const libraries = data?.libraries ?? [];
   const { data: stats = [] } = useLibraryStats();
 
@@ -639,6 +640,8 @@ export default function AdminLibrariesScreen() {
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
           <ActivityIndicator color={theme.colors.accent} size="large" />
         </View>
+      ) : isError ? (
+        <LoadFailed onRetry={() => void refetch()} />
       ) : (
         <FlatList
           data={libraries}

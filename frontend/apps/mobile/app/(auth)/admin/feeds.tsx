@@ -12,6 +12,7 @@ import {
 } from "@evey/api";
 import { toast } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
+import { LoadFailed } from "../../../src/components/LoadFailed";
 
 interface FeedRow {
   feedType: string;
@@ -41,7 +42,7 @@ export default function AdminFeedsScreen() {
   const { t } = useTranslation();
   const qc = useQueryClient();
 
-  const { data, isLoading, refetch } = useFeedServiceGetAdminFeedConfigs();
+  const { data, isLoading, isError, refetch } = useFeedServiceGetAdminFeedConfigs();
   const { data: librariesData } = useLibraryServiceListLibraries();
   const libraryNames = new Map<string, string>(
     (librariesData?.libraries ?? []).map((l: { id?: string; name?: string }) => [l.id!, l.name ?? l.id!]),
@@ -143,6 +144,8 @@ export default function AdminFeedsScreen() {
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center", paddingTop: 60 }}>
           <ActivityIndicator color={theme.colors.accent} size="large" />
         </View>
+      ) : isError ? (
+        <LoadFailed onRetry={() => void refetch()} />
       ) : rows.length === 0 ? (
         <View style={{ alignItems: "center", paddingTop: 60 }}>
           <Ionicons name="grid-outline" size={48} color={theme.colors.textMuted} />

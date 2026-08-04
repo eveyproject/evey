@@ -82,16 +82,20 @@ vi.mock("@tanstack/react-query", () => ({
 // ("toggleEnabled"). Track every mutate() call across both instances so a test
 // can inspect exactly what payload the Switch handler sent.
 const mutateCalls: any[] = [];
+// Mutable so the load-failure-vs-empty tests below can drive isLoading/isError/data
+// independently, while the toggle test keeps the one-webhook default it was written against.
+let webhooksQueryState = {
+  data: {
+    webhooks: [
+      { id: "wh1", name: "My Hook", url: "https://example.com/hook", events: ["*"], secret: "s3cr3t-value", enabled: true },
+    ],
+  },
+  isLoading: false,
+  isError: false,
+  refetch: vi.fn(),
+};
 vi.mock("@evey/api", () => ({
-  useWebhookServiceListWebhooks: () => ({
-    data: {
-      webhooks: [
-        { id: "wh1", name: "My Hook", url: "https://example.com/hook", events: ["*"], secret: "s3cr3t-value", enabled: true },
-      ],
-    },
-    isLoading: false,
-    refetch: vi.fn(),
-  }),
+  useWebhookServiceListWebhooks: () => webhooksQueryState,
   useWebhookServiceCreateWebhook: (_opts: any) => ({ mutate: vi.fn(), isPending: false }),
   useWebhookServiceDeleteWebhook: (_opts: any) => ({ mutate: vi.fn(), isPending: false }),
   useWebhookServiceUpdateWebhook: (_opts: any) => ({
@@ -108,6 +112,16 @@ import AdminWebhooksScreen from "./webhooks";
 beforeEach(() => {
   vi.clearAllMocks();
   mutateCalls.length = 0;
+  webhooksQueryState = {
+    data: {
+      webhooks: [
+        { id: "wh1", name: "My Hook", url: "https://example.com/hook", events: ["*"], secret: "s3cr3t-value", enabled: true },
+      ],
+    },
+    isLoading: false,
+    isError: false,
+    refetch: vi.fn(),
+  };
 });
 
 describe("AdminWebhooksScreen - toggle enabled", () => {
@@ -120,5 +134,34 @@ describe("AdminWebhooksScreen - toggle enabled", () => {
     expect(mutateCalls).toHaveLength(1);
     const [payload] = mutateCalls[0];
     expect(payload.data.secret).toBe("s3cr3t-value");
+  });
+});
+
+describe("AdminWebhooksScreen - load failure vs empty", () => {
+  it("shows the loading spinner, neither the empty message nor a retry", () => {
+    webhooksQueryState = { data: undefined as any, isLoading: true, isError: false, refetch: vi.fn() };
+    render(<AdminWebhooksScreen />);
+
+    expect(screen.getByTestId("loading")).toBeTruthy();
+    expect(screen.queryByText("No webhooks")).toBeNull();
+    expect(screen.queryByText("common.retry")).toBeNull();
+  });
+
+  it("shows LoadFailed with a retry, not the empty-webhooks message, when the fetch errors", () => {
+    webhooksQueryState = { data: undefined as any, isLoading: false, isError: true, refetch: vi.fn() };
+    render(<AdminWebhooksScreen />);
+
+    expect(screen.getByText("common.loadError")).toBeTruthy();
+    expect(screen.getByText("common.retry")).toBeTruthy();
+    expect(screen.queryByText("No webhooks")).toBeNull();
+  });
+
+  it("shows the empty-webhooks message, not LoadFailed, when the fetch succeeds with zero webhooks", () => {
+    webhooksQueryState = { data: { webhooks: [] }, isLoading: false, isError: false, refetch: vi.fn() };
+    render(<AdminWebhooksScreen />);
+
+    expect(screen.getByText("No webhooks")).toBeTruthy();
+    expect(screen.queryByText("common.loadError")).toBeNull();
+    expect(screen.queryByText("common.retry")).toBeNull();
   });
 });

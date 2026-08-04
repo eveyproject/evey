@@ -20,6 +20,7 @@ import {
 } from "@evey/api";
 import { toast } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
+import { LoadFailed } from "../../../src/components/LoadFailed";
 import {
   type ConfigFieldSchema,
   normaliseOptions,
@@ -762,7 +763,7 @@ export default function AdminPluginsScreen() {
   const { t } = useTranslation();
   const qc = useQueryClient();
 
-  const { data, isLoading, refetch } = useAdminPluginServiceListPlugins();
+  const { data, isLoading, isError, refetch } = useAdminPluginServiceListPlugins();
   const plugins: Plugin[] = (data?.plugins ?? []) as Plugin[];
 
   const enablePlugin = useAdminPluginServiceEnablePlugin({
@@ -882,6 +883,8 @@ export default function AdminPluginsScreen() {
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
           <ActivityIndicator color={theme.colors.accent} size="large" />
         </View>
+      ) : isError ? (
+        <LoadFailed onRetry={() => void refetch()} />
       ) : (
         <FlatList
           data={plugins}

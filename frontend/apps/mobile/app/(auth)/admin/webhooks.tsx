@@ -15,6 +15,7 @@ import {
 import type { V1WebhookConfig } from "@evey/api";
 import { toast } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
+import { LoadFailed } from "../../../src/components/LoadFailed";
 
 const QUERY_KEY = getWebhookServiceListWebhooksQueryKey();
 
@@ -117,7 +118,7 @@ export default function AdminWebhooksScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
   const qc = useQueryClient();
-  const { data, isLoading, refetch } = useWebhookServiceListWebhooks();
+  const { data, isLoading, isError, refetch } = useWebhookServiceListWebhooks();
   const webhooks: V1WebhookConfig[] = data?.webhooks ?? [];
 
   const [showForm, setShowForm] = useState(false);
@@ -258,6 +259,8 @@ export default function AdminWebhooksScreen() {
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
           <ActivityIndicator color={theme.colors.accent} size="large" />
         </View>
+      ) : isError ? (
+        <LoadFailed onRetry={() => void refetch()} />
       ) : (
         <FlatList
           data={webhooks}

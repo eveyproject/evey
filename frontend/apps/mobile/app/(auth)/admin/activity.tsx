@@ -32,6 +32,7 @@ interface AuditEntry {
   createdAt?: string;
 }
 import { useTheme } from "../../../src/providers/ThemeProvider";
+import { LoadFailed } from "../../../src/components/LoadFailed";
 import { formatBytes } from "../../../src/lib/formatBytes";
 
 type Tab = "play" | "audit" | "stats";
@@ -63,7 +64,7 @@ function PlayHistoryTab() {
   const PAGE_SIZE = 25;
   const [page, setPage] = useState(1);
 
-  const { data, isLoading, refetch } = useActivityServiceGetPlayHistory({
+  const { data, isLoading, isError, refetch } = useActivityServiceGetPlayHistory({
     "pagination.page": page,
     "pagination.pageSize": PAGE_SIZE,
   });
@@ -113,7 +114,9 @@ function PlayHistoryTab() {
       onEndReachedThreshold={0.5}
       ListFooterComponent={hasMore ? <ActivityIndicator color={theme.colors.accent} style={{ paddingVertical: 16 }} /> : null}
       ListEmptyComponent={
-        isLoading ? null : (
+        isLoading ? null : isError ? (
+          <LoadFailed onRetry={() => void refetch()} />
+        ) : (
           <View style={{ alignItems: "center", paddingTop: 60 }}>
             <Ionicons name="film-outline" size={48} color={theme.colors.textMuted} />
             <Text style={{ color: theme.colors.textMuted, marginTop: 12 }}>{t("admin.activity.noPlayHistory", "No play history")}</Text>
@@ -130,7 +133,7 @@ function AuditLogTab() {
   const PAGE_SIZE = 25;
   const [page, setPage] = useState(0);
 
-  const { data, isLoading, refetch } = useAdminSessionServiceGetAuditLog({
+  const { data, isLoading, isError, refetch } = useAdminSessionServiceGetAuditLog({
     limit: PAGE_SIZE,
     offset: page * PAGE_SIZE,
   });
@@ -173,7 +176,9 @@ function AuditLogTab() {
       onEndReachedThreshold={0.5}
       ListFooterComponent={hasMore ? <ActivityIndicator color={theme.colors.accent} style={{ paddingVertical: 16 }} /> : null}
       ListEmptyComponent={
-        isLoading ? null : (
+        isLoading ? null : isError ? (
+          <LoadFailed onRetry={() => void refetch()} />
+        ) : (
           <View style={{ alignItems: "center", paddingTop: 60 }}>
             <Ionicons name="document-text-outline" size={48} color={theme.colors.textMuted} />
             <Text style={{ color: theme.colors.textMuted, marginTop: 12 }}>{t("admin.activity.noAuditEntries", "No audit log entries")}</Text>
