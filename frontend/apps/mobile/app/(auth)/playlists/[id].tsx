@@ -133,9 +133,9 @@ export default function PlaylistDetailScreen() {
     if (toIdx < 0 || toIdx >= items.length) return;
     [items[fromIdx], items[toIdx]] = [items[toIdx], items[fromIdx]];
     const reordered = items.map((it, i) => ({ mediaItemId: it.media_item_id, sortOrder: i }));
-    try {
-      await reorderMutation.mutateAsync({ playlistId: id, items: reordered });
-    } catch {}
+    // Failure is reported by useReorderPlaylistItems' own onError toast; no
+    // local handling needed, but the rejection must not be swallowed here.
+    await reorderMutation.mutateAsync({ playlistId: id, items: reordered });
   }, [playlist, id, reorderMutation]);
 
   const handleRemove = useCallback((mediaItemId: string) => {
@@ -252,9 +252,10 @@ export default function PlaylistDetailScreen() {
           rules={(playlist.rules ?? []).map((r) => ({ field: r.field as SmartRule["field"], operator: (r.operator || "eq") as SmartRule["operator"], value: r.value }))}
           onSave={async (newRules) => {
             if (!id) return;
-            try {
-              await updatePlaylist.mutateAsync({ id, rules: newRules });
-            } catch {}
+            // The sheet closes right after this call regardless (SmartRulesEditor's
+            // handleSave does not await onSave) - failure still reaches the person
+            // via useUpdatePlaylist's own onError toast, not swallowed here.
+            await updatePlaylist.mutateAsync({ id, rules: newRules });
           }}
         />
       )}

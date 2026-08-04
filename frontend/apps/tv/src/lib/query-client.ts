@@ -1,6 +1,8 @@
 import { QueryClient } from "@tanstack/react-query";
+import { mutationErrorNet } from "./mutationErrorNet";
 
 export const queryClient = new QueryClient({
+  mutationCache: mutationErrorNet(),
   defaultOptions: {
     queries: {
       staleTime: 5 * 60 * 1000,
