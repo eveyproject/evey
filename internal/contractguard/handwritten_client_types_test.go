@@ -164,6 +164,107 @@ func handwrittenClientFiles(t *testing.T) []string {
 	return out
 }
 
+// queryParamAllowlist holds parameters carried outside the proto request.
+var queryParamAllowlist = map[string]string{
+	"token": "stream and artwork URLs carry a mint-on-use token read by the HTTP layer, not the rpc",
+}
+
+// rpcRequestRe pairs an rpc with its REQUEST message, the mirror of
+// parseGetRoutes.
+var rpcRequestRe = regexp.MustCompile(`rpc\s+\w+\s*\(\s*([\w.]+)\s*\)\s*returns`)
+
+func parseGetRequestMessages(t *testing.T, dir string) map[string]string {
+	t.Helper()
+	out := map[string]string{}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("read proto dir: %v", err)
+	}
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".proto") {
+			continue
+		}
+		b, rerr := os.ReadFile(filepath.Join(dir, e.Name()))
+		if rerr != nil {
+			t.Fatalf("read %s: %v", e.Name(), rerr)
+		}
+		var current string
+		for line := range strings.SplitSeq(string(b), "\n") {
+			if m := rpcRequestRe.FindStringSubmatch(line); m != nil {
+				current = m[1]
+				continue
+			}
+			if m := httpGetRe.FindStringSubmatch(line); m != nil && current != "" {
+				out[normalisePath(m[1])] = current
+			}
+		}
+	}
+	return out
+}
+
+// A query parameter the request message does not declare is dropped in silence:
+// the client believes it asked for something and the server never hears it.
+// Mobile and TV sent limit and offset to GetCollection for months against a
+// request that had neither, which is how a truncated collection looked
+// deliberate (found 2026-08-04).
+func TestClientQueryParamsExistOnTheRequestTheyTarget(t *testing.T) {
+	protoDir := filepath.Join(repoRoot, "proto/evey/v1")
+	requests := parseGetRequestMessages(t, protoDir)
+	fields := protoResponseFields(t, protoDir)
+
+	var findings []string
+	checked := 0
+	for _, f := range handwrittenClientFiles(t) {
+		b, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatalf("read %s: %v", f, err)
+		}
+		src := string(b)
+		for _, call := range fetchCallRe.FindAllStringSubmatch(src, -1) {
+			body := call[2]
+			if m := methodRe.FindStringSubmatch(body); m == nil || m[1] != "GET" {
+				continue
+			}
+			um := urlRe.FindStringSubmatch(body)
+			if um == nil {
+				continue
+			}
+			raw := um[1]
+			q := strings.Index(raw, "?")
+			if q < 0 {
+				continue
+			}
+			msg, known := requests[normalisePath(raw)]
+			if !known {
+				continue
+			}
+			want := fields[msg]
+			if len(want) == 0 {
+				continue
+			}
+			checked++
+			rel := strings.TrimPrefix(f, filepath.Join(repoRoot, "frontend/apps")+"/")
+			for _, pair := range strings.Split(raw[q+1:], "&") {
+				name := pair
+				if i := strings.Index(pair, "="); i >= 0 {
+					name = pair[:i]
+				}
+				if name == "" || want[name] || queryParamAllowlist[name] != "" {
+					continue
+				}
+				findings = append(findings, rel+": ?"+name+" is not a field of "+msg)
+			}
+		}
+	}
+	sort.Strings(findings)
+	if len(findings) > 0 {
+		t.Errorf("clients send query parameters their endpoint never reads:\n  %s\n"+
+			"Either declare the field on the request, or stop sending it.",
+			strings.Join(findings, "\n  "))
+	}
+	t.Logf("checked %d hand-written GET calls carrying query parameters", checked)
+}
+
 // The detector must be seen firing on the exact shape that shipped: a wrapper
 // field the flat endpoint never sends.
 func TestHandWrittenClientTypeGuardFiresOnAWrapperThatDoesNotExist(t *testing.T) {
