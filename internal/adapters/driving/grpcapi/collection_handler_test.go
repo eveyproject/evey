@@ -92,6 +92,76 @@ func TestCollectionGetCollection_Found(t *testing.T) {
 	}
 }
 
+// GetCollection used to answer with the collection alone. Mobile and TV each
+// read their members straight off this response - their own types said so -
+// and every collection rendered empty on both (found 2026-08-04). The two ways
+// into a collection must also describe the same titles the same way.
+func TestCollectionGetCollection_CarriesItsMembers(t *testing.T) {
+	h, cmdRepo, mediaRepo, _ := newTestCollectionHandlerWithAccess()
+	seedCollection(cmdRepo, "col-1", "Bond")
+	ctx := context.Background()
+	for _, m := range []*library.MediaItem{
+		{ID: "m1", LibraryID: "lib-1", Title: "Dr. No", Type: "movie"},
+		{ID: "m2", LibraryID: "lib-1", Title: "Bond spinoff", Type: "series"},
+	} {
+		mediaRepo.Create(ctx, m)
+		if _, err := h.AddCollectionItem(ctx, &eveyv1.AddCollectionItemRequest{Id: "col-1", MediaItemId: string(m.ID)}); err != nil {
+			t.Fatalf("AddCollectionItem %s: %v", m.ID, err)
+		}
+	}
+
+	resp, err := h.GetCollection(ctx, &eveyv1.GetCollectionRequest{Id: "col-1"})
+	if err != nil {
+		t.Fatalf("GetCollection: %v", err)
+	}
+	if len(resp.Items) != 2 || resp.Total != 2 {
+		t.Fatalf("got %d items / total %d, want 2 and 2", len(resp.Items), resp.Total)
+	}
+	// A series groups with films: that is the whole point of a hand-built
+	// collection, since TMDB collections are a film notion.
+	types := map[string]string{}
+	for _, i := range resp.Items {
+		types[i.Title] = i.Type
+	}
+	if types["Bond spinoff"] != "series" {
+		t.Errorf("series member came back as %q", types["Bond spinoff"])
+	}
+
+	listed, err := h.GetCollectionItems(ctx, &eveyv1.GetCollectionItemsRequest{Id: "col-1", Limit: 50})
+	if err != nil {
+		t.Fatalf("GetCollectionItems: %v", err)
+	}
+	if len(listed.Items) != len(resp.Items) || listed.Total != resp.Total {
+		t.Errorf("the two reads disagree: detail %d/%d vs listing %d/%d",
+			len(resp.Items), resp.Total, len(listed.Items), listed.Total)
+	}
+}
+
+func TestCollectionGetCollection_PagesItsMembers(t *testing.T) {
+	h, cmdRepo, mediaRepo, _ := newTestCollectionHandlerWithAccess()
+	seedCollection(cmdRepo, "col-1", "Long")
+	ctx := context.Background()
+	for _, id := range []string{"m1", "m2", "m3"} {
+		mediaRepo.Create(ctx, &library.MediaItem{ID: shared.MediaItemID(id), LibraryID: "lib-1", Title: id, Type: "movie"})
+		if _, err := h.AddCollectionItem(ctx, &eveyv1.AddCollectionItemRequest{Id: "col-1", MediaItemId: id}); err != nil {
+			t.Fatalf("AddCollectionItem %s: %v", id, err)
+		}
+	}
+
+	resp, err := h.GetCollection(ctx, &eveyv1.GetCollectionRequest{Id: "col-1", Limit: 2, Offset: 1})
+	if err != nil {
+		t.Fatalf("GetCollection: %v", err)
+	}
+	if len(resp.Items) != 2 {
+		t.Errorf("got %d items for limit 2, want 2", len(resp.Items))
+	}
+	// Total counts what the caller may see, not what the page holds - that is
+	// how a client knows there is more to fetch.
+	if resp.Total != 3 {
+		t.Errorf("total = %d, want 3", resp.Total)
+	}
+}
+
 func TestCollectionGetCollection_NotFound(t *testing.T) {
 	h, _ := newTestCollectionHandler()
 	_, err := h.GetCollection(context.Background(), &eveyv1.GetCollectionRequest{Id: "nonexistent"})

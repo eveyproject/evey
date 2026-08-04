@@ -161,11 +161,45 @@ func (h *collectionHandler) GetCollection(ctx context.Context, req *eveyv1.GetCo
 		span.SetStatus(otelcodes.Error, "collection blocked by parental filter")
 		return nil, status.Errorf(codes.NotFound, "collection not found")
 	}
+	// Per-item parental filtering, exactly as GetCollectionItems does it:
+	// handing the members back here without it would reopen the enumeration
+	// that guard closes.
+	pf := resolveParentalFilterFromUserQuery(ctx, h.userQuery)
+	if pf.maxAge >= 0 || len(pf.blockedTags) > 0 {
+		kept := visibleItems[:0:0]
+		for _, it := range visibleItems {
+			if !mediaItemBlockedByParental(pf, it) {
+				kept = append(kept, it)
+			}
+		}
+		visibleItems = kept
+	}
 	pb := collectionToProto(col)
 	// Same access-filtered count as the listing: a detail screen that
 	// announced more titles than it can show would contradict itself.
 	pb.ItemCount = int32(len(visibleItems))
-	return &eveyv1.GetCollectionResponse{Collection: pb}, nil
+	limit := int(req.GetLimit())
+	if limit <= 0 {
+		limit = defaultCollectionPageSize
+	}
+	offset := int(req.GetOffset())
+	if offset < 0 {
+		offset = 0
+	}
+	page := visibleItems
+	if offset >= len(page) {
+		page = nil
+	} else {
+		page = page[offset:]
+	}
+	if len(page) > limit {
+		page = page[:limit]
+	}
+	return &eveyv1.GetCollectionResponse{
+		Collection: pb,
+		Items:      itemsToProto(page),
+		Total:      int32(len(visibleItems)),
+	}, nil
 }
 
 func (h *collectionHandler) DeleteCollection(ctx context.Context, req *eveyv1.DeleteCollectionRequest) (*eveyv1.DeleteCollectionResponse, error) {
@@ -440,28 +474,47 @@ func (h *collectionHandler) GetCollectionItems(ctx context.Context, req *eveyv1.
 			continue
 		}
 		ids = append(ids, string(it.ID))
-		ci := &eveyv1.CollectionItemProto{
-			Id:       string(it.ID),
-			Title:    it.Title,
-			Type:     string(it.Type),
-			Overview: it.Overview,
-		}
-		if it.Catalog != nil {
-			ci.Genres = it.Catalog.Genres
-			if it.Catalog.Year != nil {
-				ci.Year = int32(*it.Catalog.Year)
-			}
-		}
-		if it.Classification != nil && it.Classification.CommunityRating != nil {
-			ci.CommunityRating = *it.Classification.CommunityRating
-		}
-		enriched = append(enriched, ci)
+		enriched = append(enriched, collectionItemToProto(it))
 	}
 	return &eveyv1.GetCollectionItemsResponse{
 		MediaItemIds: ids,
 		Total:        int32(total),
 		Items:        enriched,
 	}, nil
+}
+
+// defaultCollectionPageSize matches what GetCollectionItems serves, so the two
+// ways into a collection agree on how much they hand back.
+const defaultCollectionPageSize = 50
+
+// collectionItemToProto is shared by both ways of reading a collection's
+// members: the detail response and the paged item listing must describe the
+// same title identically.
+func collectionItemToProto(it *library.MediaItem) *eveyv1.CollectionItemProto {
+	ci := &eveyv1.CollectionItemProto{
+		Id:       string(it.ID),
+		Title:    it.Title,
+		Type:     string(it.Type),
+		Overview: it.Overview,
+	}
+	if it.Catalog != nil {
+		ci.Genres = it.Catalog.Genres
+		if it.Catalog.Year != nil {
+			ci.Year = int32(*it.Catalog.Year)
+		}
+	}
+	if it.Classification != nil && it.Classification.CommunityRating != nil {
+		ci.CommunityRating = *it.Classification.CommunityRating
+	}
+	return ci
+}
+
+func itemsToProto(items []*library.MediaItem) []*eveyv1.CollectionItemProto {
+	out := make([]*eveyv1.CollectionItemProto, 0, len(items))
+	for _, it := range items {
+		out = append(out, collectionItemToProto(it))
+	}
+	return out
 }
 
 func (h *collectionHandler) allowedLibraryIDs(ctx context.Context) ([]string, error) {

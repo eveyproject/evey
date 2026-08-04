@@ -124,10 +124,20 @@ message ListCollectionsResponse {
 
 message GetCollectionRequest {
   string id = 1;
+  // Page of members to return alongside the collection. 0 means the server
+  // default (50). The mobile and TV clients were already sending these as
+  // query parameters, against a response that carried no members at all.
+  int32 limit = 2;
+  int32 offset = 3;
 }
 
 message GetCollectionResponse {
   CollectionProto collection = 1;
+  // The members themselves, access- and parental-filtered like item_count.
+  // Without them a client had to make a second call to show anything, and the
+  // two that did not made an empty page instead (found 2026-08-04).
+  repeated CollectionItemProto items = 2;
+  int32 total = 3;
 }
 
 message CreateCollectionRequest {
