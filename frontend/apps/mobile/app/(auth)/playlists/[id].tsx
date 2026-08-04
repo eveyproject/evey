@@ -133,9 +133,9 @@ export default function PlaylistDetailScreen() {
     if (toIdx < 0 || toIdx >= items.length) return;
     [items[fromIdx], items[toIdx]] = [items[toIdx], items[fromIdx]];
     const reordered = items.map((it, i) => ({ mediaItemId: it.media_item_id, sortOrder: i }));
-    // Failure is reported by useReorderPlaylistItems' own onError toast; no
-    // local handling needed, but the rejection must not be swallowed here.
-    await reorderMutation.mutateAsync({ playlistId: id, items: reordered });
+    // mutate, not mutateAsync: the hook's own onError already reports the
+    // failure, and an awaited rejection nobody catches is an unhandled promise.
+    reorderMutation.mutate({ playlistId: id, items: reordered });
   }, [playlist, id, reorderMutation]);
 
   const handleRemove = useCallback((mediaItemId: string) => {
@@ -250,12 +250,12 @@ export default function PlaylistDetailScreen() {
           visible={showRulesEditor}
           onClose={() => setShowRulesEditor(false)}
           rules={(playlist.rules ?? []).map((r) => ({ field: r.field as SmartRule["field"], operator: (r.operator || "eq") as SmartRule["operator"], value: r.value }))}
-          onSave={async (newRules) => {
+          onSave={(newRules) => {
             if (!id) return;
-            // The sheet closes right after this call regardless (SmartRulesEditor's
-            // handleSave does not await onSave) - failure still reaches the person
-            // via useUpdatePlaylist's own onError toast, not swallowed here.
-            await updatePlaylist.mutateAsync({ id, rules: newRules });
+            // The sheet closes right after this call regardless (SmartRulesEditor
+            // does not await onSave), so the failure has to speak for itself:
+            // useUpdatePlaylist's own onError toast does that.
+            updatePlaylist.mutate({ id, rules: newRules });
           }}
         />
       )}
