@@ -18,8 +18,10 @@ function sel<T>(raw: { data?: T; [k: string]: unknown }, opts: { query?: { selec
 }
 
 vi.mock("@evey/api", () => ({
-  useCollectionServiceListCollections: (opts: { query?: { select?: (d: unknown) => unknown } }) => sel(mockList(), opts),
-  useCollectionServiceGetCollection: (_id: string, opts: { query?: { select?: (d: unknown) => unknown; enabled?: boolean } }) => sel(mockGet(), opts),
+  // Signatures mirror the generated hooks: both requests carry parameters, so
+  // options come third for a path-parameter hook and second for a plain list.
+  useCollectionServiceListCollections: (_p: unknown, opts: { query?: { select?: (d: unknown) => unknown } }) => sel(mockList(), opts),
+  useCollectionServiceGetCollection: (_id: string, _p: unknown, opts: { query?: { select?: (d: unknown) => unknown; enabled?: boolean } }) => sel(mockGet(), opts),
   useCollectionServiceGetCollectionItems: (_id: string, _p: unknown, opts: { query?: { select?: (d: unknown) => unknown; enabled?: boolean } }) => sel(mockGetItems(), opts),
   collectionServiceCreateCollection: (body: unknown) => createFn(body),
   collectionServiceUpdateCollection: (id: string, body: unknown) => updateFn(id, body),
