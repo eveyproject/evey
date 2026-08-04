@@ -92,9 +92,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   useMusicQueueStore.setState({ queue: [], currentIndex: -1, isPlaying: false });
   listLibrariesMock.mockReturnValue({ data: LIBRARIES, isLoading: false });
-  getArtistsMock.mockReturnValue({ data: ARTISTS, isLoading: false });
-  getAlbumsMock.mockReturnValue({ data: ALBUMS, isLoading: false });
-  listTracksMock.mockReturnValue({ data: TRACKS, isLoading: false });
+  getArtistsMock.mockReturnValue({ data: ARTISTS, isLoading: false, isError: false, refetch: vi.fn() });
+  getAlbumsMock.mockReturnValue({ data: ALBUMS, isLoading: false, isError: false, refetch: vi.fn() });
+  listTracksMock.mockReturnValue({ data: TRACKS, isLoading: false, isError: false, refetch: vi.fn() });
 });
 
 describe("selectMusicFocusSection (initial TV remote focus)", () => {
@@ -156,5 +156,24 @@ describe("MusicScreen (TV)", () => {
     expect(state.currentIndex).toBe(1);
     expect(state.isPlaying).toBe(true);
     expect(state.queue.map((t) => t.id)).toEqual(["tr-1", "tr-2"]);
+  });
+
+  // A row's own query can fail independently of the others (libraries loaded
+  // fine, artists didn't) - it used to fall through to the same "no artists"
+  // wording as a library that genuinely has none, and the other two rows
+  // must keep rendering regardless.
+  it("tells a failed artists row apart from an empty one, without taking down the albums/tracks rows", () => {
+    const refetchArtists = vi.fn();
+    getArtistsMock.mockReturnValue({ data: undefined, isLoading: false, isError: true, refetch: refetchArtists });
+    render(<MusicScreen />);
+
+    expect(screen.getByText("common.loadError")).toBeTruthy();
+    expect(screen.queryByText("media.music.noArtists")).toBeNull();
+    fireEvent.click(screen.getByLabelText("common.retry"));
+    expect(refetchArtists).toHaveBeenCalled();
+
+    // Unaffected rows still render.
+    expect(screen.getByLabelText("Discovery")).toBeTruthy();
+    expect(screen.getByLabelText("One More Time")).toBeTruthy();
   });
 });

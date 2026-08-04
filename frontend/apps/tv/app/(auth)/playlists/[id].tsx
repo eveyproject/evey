@@ -1,10 +1,11 @@
-import { View, Text, FlatList, ActivityIndicator, StyleSheet } from "react-native";
+import { View, Text, FlatList, StyleSheet } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { mediaTypeLabelKey } from "../../../src/lib/mediaTypeLabel";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { usePlaylistDetail, type PlaylistItem } from "../../../src/api/playlists";
 import { FocusableCard } from "../../../src/components/FocusableCard";
+import { ScreenState } from "../../../src/components/ScreenState";
 
 export default function PlaylistDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -12,17 +13,16 @@ export default function PlaylistDetailScreen() {
   const { t } = useTranslation();
   const router = useRouter();
 
-  const { data: playlist, isLoading, isError } = usePlaylistDetail(id ?? "");
+  const { data: playlist, isLoading, isError, refetch } = usePlaylistDetail(id ?? "");
 
-  if (isLoading) {
-    return (
-      <View style={[styles.center, { backgroundColor: theme.colors.bg }]}>
-        <ActivityIndicator color={theme.colors.accent} size="large" />
-      </View>
-    );
+  // isError (the request failed) and !playlist (it answered with nothing) used
+  // to share one branch, so a network failure read as "playlist not found" -
+  // the exact wrong-permanence a retry is meant to fix.
+  if (isLoading || isError) {
+    return <ScreenState loading={isLoading} error={isError} onRetry={() => void refetch()} />;
   }
 
-  if (isError || !playlist) {
+  if (!playlist) {
     return (
       <View style={[styles.center, { backgroundColor: theme.colors.bg }]}>
         <Text style={{ color: theme.colors.textMuted, fontSize: 22 }}>{t("media.playlists.notFound")}</Text>
