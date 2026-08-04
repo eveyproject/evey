@@ -24,6 +24,7 @@ import { Select } from "@/components/ui/Select";
 import { Switch } from "@/components/ui/Switch";
 import { Spinner } from "@/components/ui/Spinner";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { FetchErrorState } from "@/components/ui/FetchErrorState";
 import { RequestPoster } from "@/features/requests/RequestPoster";
 
 export const Route = createLazyFileRoute("/_auth/admin/media-requests")({
@@ -123,7 +124,7 @@ function QueueTab() {
   const { t } = useTranslation();
   const [filter, setFilter] = useState<StatusFilter>("pending");
 
-  const { data, isLoading } = useAdminMediaRequestServiceListRequests(
+  const { data, isLoading, isError, error, refetch } = useAdminMediaRequestServiceListRequests(
     filter === "all" ? {} : { statuses: [filter] },
   );
   const items = data?.items ?? [];
@@ -154,6 +155,8 @@ function QueueTab() {
         <div className="flex justify-center py-10">
           <Spinner />
         </div>
+      ) : isError ? (
+        <FetchErrorState error={error} onRetry={() => void refetch()} />
       ) : items.length === 0 ? (
         <EmptyState icon={<Inbox size={48} strokeWidth={1.5} />} title={t("admin.mediaRequests.empty")} />
       ) : (

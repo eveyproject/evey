@@ -5,6 +5,7 @@ import { useAuthStore } from "@evey/store";
 import { BarChart, PieChart } from "react-gifted-charts";
 import { Spinner } from "@/components/ui/Spinner";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { FetchErrorState } from "@/components/ui/FetchErrorState";
 import { BarChart3 } from "lucide-react";
 
 import { CHART_COLORS as GENRE_COLORS } from "@/constants/chartColors";
@@ -81,7 +82,7 @@ function buildMonthlyData(byMonth: { year?: number; month?: number; totalTimeMs?
 export function UserStats() {
   const { t, i18n } = useTranslation();
   const profileId = useAuthStore((s) => s.profileId);
-  const { data, isLoading } = useActivityServiceGetUserStats(profileId ?? "", undefined, {
+  const { data, isLoading, isError, error, refetch } = useActivityServiceGetUserStats(profileId ?? "", undefined, {
     query: { enabled: !!profileId },
   });
 
@@ -91,6 +92,11 @@ export function UserStats() {
         <Spinner size="lg" />
       </div>
     );
+  }
+
+  // !data merged "nothing watched yet" with "the request failed".
+  if (isError) {
+    return <FetchErrorState error={error} onRetry={() => void refetch()} />;
   }
 
   if (!data || (data.totalPlays ?? 0) === 0) {

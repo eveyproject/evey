@@ -19,6 +19,7 @@ import { Card } from "@/components/ui/Card";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { Input } from "@/components/ui/Input";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { FetchErrorState } from "@/components/ui/FetchErrorState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Modal } from "@/components/ui/Modal";
 
@@ -132,7 +133,7 @@ function TranscodingSettings() {
 
 function TranscodeCachePage() {
   const { t } = useTranslation();
-  const { data, isLoading } = useTranscodeCacheServiceGetTranscodeCache();
+  const { data, isLoading, isError, error, refetch } = useTranscodeCacheServiceGetTranscodeCache();
   const queryClient = useQueryClient();
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [clearing, setClearing] = useState(false);
@@ -202,7 +203,12 @@ function TranscodeCachePage() {
             </Card>
           </div>
 
-          {files.length === 0 ? (
+          {isError ? (
+            // "Cache empty" would have an admin believe it was purged.
+            <div className="rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]">
+              <FetchErrorState error={error} onRetry={() => void refetch()} />
+            </div>
+          ) : files.length === 0 ? (
             <div
               className="rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]"
             >

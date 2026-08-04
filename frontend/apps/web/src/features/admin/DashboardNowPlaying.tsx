@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/Badge";
 import { AdminTrickplayThumbnail } from "./AdminTrickplayThumbnail";
 import { Spinner } from "@/components/ui/Spinner";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { FetchErrorState } from "@/components/ui/FetchErrorState";
 
 function formatMs(ms: number): string {
   if (!ms) return "0:00";
@@ -263,7 +264,7 @@ function NowPlayingCard({ session }: { session: V1ActiveSession }) {
 
 export function NowPlaying() {
   const { t } = useTranslation();
-  const { data, isLoading } = useAdminSessionServiceListActiveSessions({
+  const { data, isLoading, isError, error, refetch } = useAdminSessionServiceListActiveSessions({
     query: { refetchInterval: 3_000, refetchIntervalInBackground: false },
   });
   const sessions = data?.sessions ?? [];
@@ -293,6 +294,10 @@ export function NowPlaying() {
         <div className="flex justify-center py-6">
           <Spinner size="md" />
         </div>
+      ) : isError ? (
+        // "Nothing playing" and "I could not ask" look the same to an admin
+        // watching for load.
+        <FetchErrorState error={error} onRetry={() => void refetch()} />
       ) : sessions.length === 0 ? (
         <EmptyState
           icon={<Film size={40} strokeWidth={1.5} />}
