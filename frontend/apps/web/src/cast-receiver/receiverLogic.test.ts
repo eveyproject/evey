@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { absoluteWithToken, appendMaxKbps, bitrateTestUrl, buildPlayerEventUrl, createStarvationWatch, createStartGate, floorMasterUrl, probeReceiverCaps, rewriteCastMasterUrl, shouldMeasure, stripWasmAudio, type CanDisplayType } from "./receiverLogic";
+import { absoluteWithToken, appendMaxKbps, bitrateTestUrl, buildPlayerEventUrl, createStarvationWatch, createStartGate, floorMasterUrl, probeMaxAudioChannels, probeReceiverCaps, rewriteCastMasterUrl, shouldMeasure, stereoFallbackUrl, stripWasmAudio, type CanDisplayType } from "./receiverLogic";
 
 // Fake canDisplayType: allows what `yes` lists (substring match on the
 // codec string), refuses the rest. 4K resolution is only granted if
@@ -30,6 +30,57 @@ describe("probeReceiverCaps - the receiver probes ITSELF (no more per-model tabl
   it("native Dolby is only reported if the device probes true", () => {
     expect(probeReceiverCaps(fakeCDT(["avc1", "ec-3", "ac-3"]), false).nativeDolby).toBe(true);
     expect(probeReceiverCaps(fakeCDT(["avc1"]), false).nativeDolby).toBe(false);
+  });
+});
+
+describe("probeMaxAudioChannels - the device answers, nothing is assumed", () => {
+  const yes = async () => ({ supported: true });
+  const no = async () => ({ supported: false });
+
+  it("keeps 5.1 when the decoder says it handles 5.1", async () => {
+    expect(await probeMaxAudioChannels({ decodingInfo: yes })).toBe(6);
+  });
+
+  // The Chromecast HD of 2026-08-04: an explicit no, and the title never
+  // started because nobody asked.
+  it("drops to stereo on an explicit no", async () => {
+    expect(await probeMaxAudioChannels({ decodingInfo: no })).toBe(2);
+  });
+
+  // The whole point of asking: a working device must not be demoted to fix
+  // another one. A 2-channel sink never overrides a decoder that says yes.
+  it("does not let a stereo sink demote a decoder that answered yes", async () => {
+    expect(await probeMaxAudioChannels({ decodingInfo: yes, maxChannelCount: 2 })).toBe(6);
+  });
+
+  it("falls back to the sink when decodingInfo is missing or throws", async () => {
+    expect(await probeMaxAudioChannels({ maxChannelCount: 8 })).toBe(6);
+    expect(await probeMaxAudioChannels({ maxChannelCount: 2 })).toBe(2);
+    expect(await probeMaxAudioChannels({})).toBe(2);
+    const boom = async () => { throw new Error("no"); };
+    expect(await probeMaxAudioChannels({ decodingInfo: boom, maxChannelCount: 8 })).toBe(6);
+  });
+
+  it("asks about the codec the server actually sends, at 6 channels", async () => {
+    let seen: any = null;
+    await probeMaxAudioChannels({ decodingInfo: async (c) => { seen = c; return { supported: true }; } });
+    expect(seen.type).toBe("media-source");
+    expect(seen.audio.contentType).toContain("mp4a.40.2");
+    expect(seen.audio.channels).toBe("6");
+  });
+});
+
+describe("stereoFallbackUrl - the net for a probe that lied", () => {
+  it("pins the ceiling to stereo once, then latches", () => {
+    const url = "https://evey.example/api/v1/media/m1/hls/master.m3u8?token=t&maxAudioChannels=6";
+    const out = stereoFallbackUrl(url)!;
+    expect(new URL(out).searchParams.get("maxAudioChannels")).toBe("2");
+    expect(new URL(out).searchParams.get("token")).toBe("t");
+    expect(stereoFallbackUrl(out)).toBeNull();
+  });
+
+  it("returns null on a URL it cannot parse", () => {
+    expect(stereoFallbackUrl("not a url")).toBeNull();
   });
 });
 
@@ -78,15 +129,10 @@ describe("rewriteCastMasterUrl - negotiation happens on the REAL caps", () => {
   // its 5.1 web default and emitted `-ac 6`; the Chromecast HD refused the
   // stream and the title never started. Jellyfin played the same file on the
   // same TV that evening with `-ac 2`.
-  it("always declares a channel ceiling, stereo when the device is not a surround chain", () => {
-    const u = new URL(rewriteCastMasterUrl(MASTER, floorSdr, false)!.url);
-    expect(u.searchParams.get("maxAudioChannels")).toBe("2");
-  });
-
-  it("raises the ceiling to 5.1 only for a device that probes Dolby", () => {
-    const dolby = probeReceiverCaps(fakeCDT(["avc1", "ec-3", "ac-3"]), false);
-    const u = new URL(rewriteCastMasterUrl(MASTER, dolby, true)!.url);
-    expect(u.searchParams.get("maxAudioChannels")).toBe("6");
+  it("always declares the channel ceiling the device answered", () => {
+    expect(new URL(rewriteCastMasterUrl(MASTER, floorSdr, false)!.url).searchParams.get("maxAudioChannels")).toBe("2");
+    const surround = probeReceiverCaps(fakeCDT(["avc1"]), false, 6);
+    expect(new URL(rewriteCastMasterUrl(MASTER, surround, false)!.url).searchParams.get("maxAudioChannels")).toBe("6");
   });
 
   // The rescue paths reload the master; dropping the ceiling there would let

@@ -23,6 +23,50 @@ export interface ReceiverCaps {
   maxHeight: number;
   hdr: boolean;
   nativeDolby: boolean;
+  maxAudioChannels: number;
+}
+
+// AAC-LC, the codec the server transcodes to. Stereo and 5.1 differ only by
+// the channel count, which is why the probe below varies nothing else.
+const AAC_LC = 'audio/mp4; codecs="mp4a.40.2"';
+
+// The two device answers that actually exist for audio channels. canDisplayType
+// has no channel argument - that is a limit of THAT call, not of the platform,
+// and reading it as one is what shipped a blind 5.1 assumption.
+export interface AudioProbe {
+  // AudioContext.destination.maxChannelCount: how many channels the output
+  // chain (HDMI/eARC sink) accepts. Undefined when there is no AudioContext.
+  maxChannelCount?: number;
+  // navigator.mediaCapabilities.decodingInfo: the ONE standard API that takes
+  // a channel count and answers whether this device decodes it.
+  decodingInfo?: (config: unknown) => Promise<{ supported?: boolean } | undefined>;
+}
+
+// probeMaxAudioChannels asks the device what it can do, instead of assuming.
+//
+// Only a POSITIVE answer raises the ceiling: a decoder that says it handles
+// 5.1 keeps 5.1 (it downmixes to whatever the sink is - that is the browser's
+// job, not ours), everything else is served stereo. Never the reverse: a
+// stereo output must not demote a decoder that works, or fixing one TV costs
+// the surround of another.
+export async function probeMaxAudioChannels(probe: AudioProbe): Promise<number> {
+  if (probe.decodingInfo) {
+    try {
+      const info = await probe.decodingInfo({
+        type: "media-source",
+        audio: { contentType: AAC_LC, channels: "6", bitrate: 384_000, samplerate: 48_000 },
+      });
+      if (info?.supported === true) return 6;
+      // An explicit "no" is the Chromecast HD of 2026-08-04: its SourceBuffer
+      // refuses 5.1 AAC and the title never starts. Believe it.
+      return 2;
+    } catch {
+      // Malformed config or an API that throws: fall through to the sink.
+    }
+  }
+  // No decodingInfo (old cast runtime): a sink wired for 6+ channels is still
+  // a positive surround signal. Anything else stays stereo.
+  return (probe.maxChannelCount ?? 0) >= 6 ? 6 : 2;
 }
 
 // Probe codec strings - same shapes as jellyfin-chromecast's
@@ -34,7 +78,13 @@ const PROBE_VP9 = ["video/webm", "vp09.02.51.10"] as const;
 // the only canDisplayType syntax that expresses an HDR transfer without Dolby Vision.
 const PROBE_HDR = ["video/webm", "vp09.02.51.10.01.09.16.09.01"] as const;
 
-export function probeReceiverCaps(canDisplayType: CanDisplayType, systemHdr: boolean): ReceiverCaps {
+// maxAudioChannels comes from probeMaxAudioChannels, which is async and so
+// cannot run here; it defaults to stereo, the value that plays everywhere.
+export function probeReceiverCaps(
+  canDisplayType: CanDisplayType,
+  systemHdr: boolean,
+  maxAudioChannels = 2,
+): ReceiverCaps {
   const videoCodecs: string[] = [];
   // h264 is the universal receiver floor: present even if the High profile
   // probe fails (a receiver without h264 does not exist).
@@ -56,7 +106,7 @@ export function probeReceiverCaps(canDisplayType: CanDisplayType, systemHdr: boo
   const nativeDolby =
     canDisplayType("audio/mp4", "ec-3") && canDisplayType("audio/mp4", "ac-3");
 
-  return { videoCodecs, maxHeight, hdr, nativeDolby };
+  return { videoCodecs, maxHeight, hdr, nativeDolby, maxAudioChannels };
 }
 
 export interface RewrittenLoad {
@@ -109,12 +159,7 @@ export function rewriteCastMasterUrl(
   // title then never starts at all. That is the Chromecast HD of 2026-08-04:
   // name on screen, spinner for ever, `cast_receiver_finished reason=ERROR`
   // 200ms in, while Jellyfin played the same file on the same TV with `-ac 2`.
-  //
-  // Tied to nativeDolby on purpose: canDisplayType has no channel argument, so
-  // that flag is the only surround answer available (E-AC-3 + AC-3 = a surround
-  // chain by construction), and v1 pins it to false, so cast is stereo. When
-  // Dolby passthrough is re-enabled this follows it without a second decision.
-  u.searchParams.set("maxAudioChannels", caps.nativeDolby ? "6" : "2");
+  u.searchParams.set("maxAudioChannels", String(caps.maxAudioChannels));
   if (wasmAudio) u.searchParams.set("wasmAudio", "1");
   else u.searchParams.delete("wasmAudio");
 
@@ -230,6 +275,23 @@ export function floorMasterUrl(rawUrl: string): string | null {
     if (u.searchParams.get("abr") === "floor") return null;
     u.searchParams.set("abr", "floor");
     u.searchParams.delete("wasmAudio");
+    return u.toString();
+  } catch {
+    return null;
+  }
+}
+
+// stereoFallbackUrl is the net for a probe that LIED - and one already did:
+// the Mi TV probed itself Dolby-capable through EDID and the CAF player still
+// failed the load (2026-07-25). A device that answered "yes, 5.1" and then
+// refuses the stream gets one reload with the ceiling pinned to stereo.
+// Null when it is already stereo: the latch, so a title failing for any other
+// reason cannot loop here.
+export function stereoFallbackUrl(rawUrl: string): string | null {
+  try {
+    const u = new URL(rawUrl);
+    if (u.searchParams.get("maxAudioChannels") === "2") return null;
+    u.searchParams.set("maxAudioChannels", "2");
     return u.toString();
   } catch {
     return null;

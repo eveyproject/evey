@@ -10,7 +10,7 @@
 //      silently, which is what made cast incidents undiagnosable.
 import { WasmAudioEngine } from "@/features/playback/wasmaudio/WasmAudioEngine";
 import { extractAacAudioURI, extractAudioURI } from "@/features/playback/wasmaudio/wasmAudioShared";
-import { absoluteWithToken, appendMaxKbps, bitrateTestUrl, buildPlayerEventUrl, createStartGate, createStarvationWatch, floorMasterUrl, probeReceiverCaps, rewriteCastMasterUrl, shouldMeasure, stripWasmAudio } from "./receiverLogic";
+import { absoluteWithToken, appendMaxKbps, bitrateTestUrl, buildPlayerEventUrl, createStartGate, createStarvationWatch, floorMasterUrl, probeMaxAudioChannels, probeReceiverCaps, rewriteCastMasterUrl, shouldMeasure, stereoFallbackUrl, stripWasmAudio } from "./receiverLogic";
 import { createAliveHeartbeat, postPlayerEvent, postPlayerEventQuery, readHeapMB } from "./receiverBeacon";
 
 // The CAF SDK is loaded by a gstatic <script> in the page; its types are
@@ -40,6 +40,37 @@ let engine: WasmAudioEngine | null = null;
 let wasmDisabled = false;
 let currentUrl = "";
 let wasmRequested = false;
+// Latch for the stereo retry (see fallbackToStereoAudio): one reload, never a loop.
+let stereoForced = false;
+// Answered by the device itself, once, at startup - probeMaxAudioChannels is
+// async and the LOAD interceptor is not, so it cannot be asked inline. Stereo
+// until it answers: the value that plays on every receiver, and the first LOAD
+// arrives long after page load anyway.
+let probedAudioChannels = 2;
+void probeMaxAudioChannels({
+  maxChannelCount: (() => {
+    try {
+      const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      // Read the sink and close it again: this is a capability question, not
+      // a reason to hold an audio context open for the whole session.
+      if (!Ctor) return undefined;
+      const ctx = new Ctor();
+      const n = ctx.destination.maxChannelCount;
+      void ctx.close();
+      return n;
+    } catch {
+      return undefined;
+    }
+  })(),
+  decodingInfo: navigator.mediaCapabilities
+    ? (config) => navigator.mediaCapabilities.decodingInfo(config as MediaDecodingConfiguration)
+    : undefined,
+})
+  .then((n) => {
+    probedAudioChannels = n;
+    reportEvent("cast_receiver_audio_channels", `probed=${n}`);
+  })
+  .catch(() => { /* stereo stands */ });
 // Armed after a real END_OF_STREAM (idle timeout is disabled, see the
 // receiver options at the bottom); any new LOAD/PLAY disarms it.
 let endShutdownTimer: ReturnType<typeof setTimeout> | null = null;
@@ -248,6 +279,31 @@ function fallbackToMuxedAudio(reason: string): void {
   playerManager.load(request).catch((e: unknown) => showDebug(`repli AAC impossible: ${String(e)}`));
 }
 
+// Fallback for a device that ANSWERED 5.1 and then refused the stream: reload
+// the same position with the ceiling pinned to stereo. The Mi TV already lied
+// once through EDID (2026-07-25), so the probe gets a net rather than blind
+// trust. stereoForced is a latch - one retry, and every later LOAD stays
+// stereo for this session.
+function fallbackToStereoAudio(reason: string): void {
+  if (stereoForced) return;
+  const url = stereoFallbackUrl(currentUrl);
+  if (!url) return;
+  stereoForced = true;
+  currentUrl = url;
+  showDebug(`audio 5.1 refuse (${reason}) - repli stereo`);
+  reportEvent("cast_receiver_stereo_fallback", reason);
+  const request = new cast.framework.messages.LoadRequestData();
+  request.media = new cast.framework.messages.MediaInformation();
+  request.media.contentId = url;
+  request.media.contentUrl = url;
+  request.media.contentType = "application/x-mpegurl";
+  request.media.hlsSegmentFormat = cast.framework.messages.HlsSegmentFormat.FMP4;
+  request.media.hlsVideoSegmentFormat = cast.framework.messages.HlsVideoSegmentFormat.FMP4;
+  request.currentTime = playerManager.getCurrentTimeSec() || 0;
+  request.autoplay = true;
+  playerManager.load(request).catch((e: unknown) => showDebug(`repli stereo impossible: ${String(e)}`));
+}
+
 // CAF's <video> element only exists once the first LOAD is being processed:
 // at early start (as soon as we intercept), we poll for it.
 async function findMediaElementWithRetry(timeoutMs: number): Promise<HTMLVideoElement | null> {
@@ -422,6 +478,7 @@ function interceptLoad(request: any): any {
     const probed = probeReceiverCaps(
       (mime, codec, w, h) => context.canDisplayType(mime, codec, w, h),
       systemHdr,
+      stereoForced ? 2 : probedAudioChannels,
     );
     // v1: ZERO Dolby passthrough, even if the probe says yes - Jellyfin's
     // position (hasEAC3Support hardcoded false, "problems getting it to work
@@ -481,6 +538,9 @@ playerManager.addEventListener(cast.framework.events.EventType.ERROR, (event: an
   const host = (() => { try { return new URL(currentUrl).host; } catch { return "?"; } })();
   showDebug(`Erreur lecture code=${code} mode=${mode} src=${host} ${extra}`);
   reportEvent("cast_receiver_error", `code=${code} mode=${mode} ${extra}`, true);
+  // On the AAC path the wasm fallback has nothing to offer; a refused 5.1
+  // layout does. The wasm path keeps its own fallback (fallbackToMuxedAudio).
+  if (!wasmRequested) fallbackToStereoAudio(`code=${code}`);
 });
 
 // Every way a playback can END, with its reason: END_OF_STREAM is the only
