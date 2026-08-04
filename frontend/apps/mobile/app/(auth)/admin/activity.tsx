@@ -1,7 +1,7 @@
 import { View, Text, FlatList, Pressable, ActivityIndicator, StyleSheet, Share } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Stack } from "expo-router";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -68,7 +68,22 @@ function PlayHistoryTab() {
     "pagination.page": page,
     "pagination.pageSize": PAGE_SIZE,
   });
-  const entries = data?.entries ?? [];
+  // Pages are accumulated locally, like history.tsx. Reading straight off
+  // `data` meant a failed page N emptied the whole list: the query returns
+  // undefined on error, so everything already scrolled through vanished and
+  // the screen fell back to its empty state.
+  //
+  // appliedPage makes the append idempotent. The effect depends on `data`, and
+  // any render that hands back a fresh object for the SAME page would append it
+  // again - a duplicated page at best, an endless render loop at worst.
+  const [entries, setEntries] = useState<PlayEntry[]>([]);
+  const appliedPage = useRef(0);
+  useEffect(() => {
+    const fresh = data?.entries;
+    if (!fresh || appliedPage.current === page) return;
+    appliedPage.current = page;
+    setEntries((prev) => (page === 1 ? fresh : [...prev, ...fresh]));
+  }, [data, page]);
   const total = data?.pagination?.totalItems ?? 0;
   const hasMore = page * PAGE_SIZE < total;
 
@@ -109,7 +124,7 @@ function PlayHistoryTab() {
       renderItem={renderItem}
       contentContainerStyle={{ padding: 16, gap: 8 }}
       refreshing={isLoading}
-      onRefresh={refetch}
+      onRefresh={() => { appliedPage.current = -1; void refetch(); }}
       onEndReached={loadMore}
       onEndReachedThreshold={0.5}
       ListFooterComponent={hasMore ? <ActivityIndicator color={theme.colors.accent} style={{ paddingVertical: 16 }} /> : null}
@@ -137,7 +152,16 @@ function AuditLogTab() {
     limit: PAGE_SIZE,
     offset: page * PAGE_SIZE,
   });
-  const entries = data?.entries ?? [];
+  // Same accumulation as the play-history tab above: this one pages by offset
+  // and starts at 0, so the sentinel has to sit below it.
+  const [entries, setEntries] = useState<AuditEntry[]>([]);
+  const appliedPage = useRef(-1);
+  useEffect(() => {
+    const fresh = data?.entries;
+    if (!fresh || appliedPage.current === page) return;
+    appliedPage.current = page;
+    setEntries((prev) => (page === 0 ? fresh : [...prev, ...fresh]));
+  }, [data, page]);
   const total = data?.total ?? 0;
   const hasMore = (page + 1) * PAGE_SIZE < total;
 
@@ -171,7 +195,7 @@ function AuditLogTab() {
       renderItem={renderItem}
       contentContainerStyle={{ padding: 16, gap: 8 }}
       refreshing={isLoading}
-      onRefresh={refetch}
+      onRefresh={() => { appliedPage.current = -1; void refetch(); }}
       onEndReached={loadMore}
       onEndReachedThreshold={0.5}
       ListFooterComponent={hasMore ? <ActivityIndicator color={theme.colors.accent} style={{ paddingVertical: 16 }} /> : null}
