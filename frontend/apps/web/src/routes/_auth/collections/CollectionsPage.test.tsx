@@ -40,6 +40,10 @@ vi.mock("@/features/collection/SmartCollectionDialog", () => ({
   SmartCollectionDialog: () => null,
 }));
 
+vi.mock("@/features/collection/CollectionDialog", () => ({
+  CollectionDialog: () => null,
+}));
+
 function createWrapper() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return ({ children }: { children: React.ReactNode }) =>
@@ -72,12 +76,14 @@ describe("CollectionsPage", () => {
     await renderPage();
     await waitFor(() => expect(screen.getByText("Star Wars")).toBeInTheDocument());
     expect(screen.queryByTestId("new-smart-collection")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("new-collection")).not.toBeInTheDocument();
     expect(screen.queryByTestId("collection-delete-c1")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("collection-edit-c1")).not.toBeInTheDocument();
     expect(screen.queryByTestId("smart-edit-s1")).not.toBeInTheDocument();
     expect(screen.queryByTestId("smart-delete-s1")).not.toBeInTheDocument();
   });
 
-  it("gives an admin all four write controls", async () => {
+  it("gives an admin all six write controls", async () => {
     mockIsAdmin = true;
     mockListCollections.mockReturnValue({
       data: { collections: [...mockCollections, { id: "s1", name: "Recent", rules: [{ field: "year", operator: "gte", value: "2020" }], createdAt: "", updatedAt: "" }] },
@@ -85,7 +91,9 @@ describe("CollectionsPage", () => {
     });
     await renderPage();
     await waitFor(() => expect(screen.getByTestId("new-smart-collection")).toBeInTheDocument());
+    expect(screen.getByTestId("new-collection")).toBeInTheDocument();
     expect(screen.getByTestId("collection-delete-c1")).toBeInTheDocument();
+    expect(screen.getByTestId("collection-edit-c1")).toBeInTheDocument();
     expect(screen.getByTestId("smart-edit-s1")).toBeInTheDocument();
     expect(screen.getByTestId("smart-delete-s1")).toBeInTheDocument();
   });

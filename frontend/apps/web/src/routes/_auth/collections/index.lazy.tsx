@@ -10,6 +10,8 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { SmartCollectionDialog } from "@/features/collection/SmartCollectionDialog";
 import type { SmartCollection } from "@/features/collection/SmartCollectionDialog";
+import { CollectionDialog } from "@/features/collection/CollectionDialog";
+import type { EditableCollection } from "@/features/collection/CollectionDialog";
 
 export const Route = createLazyFileRoute("/_auth/collections/")({
   component: CollectionsPage,
@@ -39,7 +41,7 @@ function CollectionCardSkeleton() {
   );
 }
 
-function CollectionPosterCard({ col }: { col: Collection }) {
+function CollectionPosterCard({ col, onEdit }: { col: Collection; onEdit: (col: Collection) => void }) {
   const { t } = useTranslation();
   const isAdmin = useAuthStore((s) => s.isAdmin);
   const deleteMut = useDeleteCollection();
@@ -90,20 +92,34 @@ function CollectionPosterCard({ col }: { col: Collection }) {
       </Link>
 
       {isAdmin && (
-        <button
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            if (confirm(t("media.collections.deleteConfirm"))) {
-              deleteMut.mutate(col.id);
-            }
-          }}
-          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity-fast p-1.5 rounded-full bg-black/60 text-[var(--overlay-text)]"
-          aria-label={t("common.delete")}
-          data-testid={`collection-delete-${col.id}`}
-        >
-          <Trash2 size={16}  aria-hidden="true" />
-        </button>
+        <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity-fast">
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onEdit(col);
+            }}
+            className="p-1.5 rounded-full bg-black/60 text-[var(--overlay-text)]"
+            aria-label={t("common.edit")}
+            data-testid={`collection-edit-${col.id}`}
+          >
+            <Pencil size={16} aria-hidden="true" />
+          </button>
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (confirm(t("media.collections.deleteConfirm"))) {
+                deleteMut.mutate(col.id);
+              }
+            }}
+            className="p-1.5 rounded-full bg-black/60 text-[var(--overlay-text)]"
+            aria-label={t("common.delete")}
+            data-testid={`collection-delete-${col.id}`}
+          >
+            <Trash2 size={16} aria-hidden="true" />
+          </button>
+        </div>
       )}
     </div>
   );
@@ -196,8 +212,17 @@ function CollectionsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<SmartCollection | undefined>(undefined);
 
+  const [collectionDialogOpen, setCollectionDialogOpen] = useState(false);
+  const [collectionEditing, setCollectionEditing] = useState<EditableCollection | undefined>(undefined);
+
   function openCreate() { setEditing(undefined); setDialogOpen(true); }
   function openEdit(col: Collection) { setEditing(collectionToSmartCollection(col)); setDialogOpen(true); }
+
+  function openCreateCollection() { setCollectionEditing(undefined); setCollectionDialogOpen(true); }
+  function openEditCollection(col: Collection) {
+    setCollectionEditing({ id: col.id, name: col.name, overview: col.overview });
+    setCollectionDialogOpen(true);
+  }
 
   return (
     <div>
@@ -206,10 +231,16 @@ function CollectionsPage() {
           {t("media.collections.title")}
         </h1>
         {isAdmin && (
-          <Button variant="secondary" onClick={openCreate} data-testid="new-smart-collection">
-            <Plus size={16} />
-            {t("media.collections.newSmartCollection")}
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={openCreateCollection} data-testid="new-collection">
+              <Plus size={16} />
+              {t("media.collections.newCollection")}
+            </Button>
+            <Button variant="secondary" onClick={openCreate} data-testid="new-smart-collection">
+              <Plus size={16} />
+              {t("media.collections.newSmartCollection")}
+            </Button>
+          </div>
         )}
       </div>
 
@@ -266,7 +297,7 @@ function CollectionsPage() {
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-4">
             {tmdbCollections.map((col) => (
-              <CollectionPosterCard key={col.id} col={col} />
+              <CollectionPosterCard key={col.id} col={col} onEdit={openEditCollection} />
             ))}
           </div>
         )}
@@ -277,6 +308,13 @@ function CollectionsPage() {
         onClose={() => setDialogOpen(false)}
         onSaved={() => {}}
         editing={editing}
+      />
+
+      <CollectionDialog
+        open={collectionDialogOpen}
+        onClose={() => setCollectionDialogOpen(false)}
+        onSaved={() => {}}
+        editing={collectionEditing}
       />
     </div>
   );
