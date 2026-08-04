@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useTheme } from "../providers/ThemeProvider";
 import { FocusableCard } from "./FocusableCard";
 import { FONT_SIZE } from "@evey/theme";
+import { formatChannelLayout } from "@evey/api";
 
 export interface AudioStream {
   index: number;
@@ -21,20 +22,9 @@ interface AudioTrackPickerProps {
   onSelect: (index: number) => void;
 }
 
-// Layout names, not raw counts: this picker said "6ch" where the web player
-// says "5.1" for the very same track, and a viewer comparing the two has no
-// way to know they mean the same thing. `${n}ch` stays the fallback for the
-// unusual counts nobody has a name for.
-const CHANNEL_LAYOUTS: Record<number, string> = { 1: "Mono", 2: "Stereo", 6: "5.1", 8: "7.1" };
-
-function formatChannels(channels: number | undefined): string {
-  if (!channels || channels <= 0) return "";
-  return CHANNEL_LAYOUTS[channels] ?? `${channels}ch`;
-}
-
 function formatLabel(s: AudioStream): string {
   const lang = s.language ?? "Unknown";
-  const detail = s.title ?? formatChannels(s.channels);
+  const detail = s.title ?? formatChannelLayout(s.channels);
   return detail ? `${lang} - ${detail}` : lang;
 }
 

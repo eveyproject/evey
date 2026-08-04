@@ -1,4 +1,4 @@
-import type { V1MediaStream } from "@evey/api";
+import { formatChannelLayout, type V1MediaStream } from "@evey/api";
 
 // Factual labels read straight off the probed streams - no prediction, no
 // judgement about what playback will cost. The playback-difficulty badge that
@@ -41,20 +41,8 @@ export function resolutionLabel(stream?: V1MediaStream): string | null {
   return `${h}p`;
 }
 
+// Null rather than "" because callers here skip the chip entirely; the shared
+// formatter returns the empty string for the same case.
 export function channelLabel(channels?: number): string | null {
-  switch (channels) {
-    case undefined:
-    case 0:
-      return null;
-    case 1:
-      return "Mono";
-    case 2:
-      return "2.0";
-    case 6:
-      return "5.1";
-    case 8:
-      return "7.1";
-    default:
-      return `${channels}ch`;
-  }
+  return formatChannelLayout(channels) || null;
 }

@@ -11,7 +11,7 @@ import {
   SUBTITLE_TEXT_COLORS,
   type SubtitleStyle,
 } from "../../lib/subtitleStyle";
-import { formatAudioTrackLabel } from "../../lib/audioTrackLabel";
+import { formatAudioTrackLabel } from "@evey/api";
 
 export interface AudioStream {
   index: number;

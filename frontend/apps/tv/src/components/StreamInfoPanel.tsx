@@ -2,7 +2,7 @@ import { Text, Modal, Pressable, View, ScrollView, StyleSheet } from "react-nati
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../providers/ThemeProvider";
 import { FocusableCard } from "./FocusableCard";
-import type { V1StreamInfo, V1MediaStream } from "@evey/api";
+import { formatChannelLayout, type V1StreamInfo, type V1MediaStream } from "@evey/api";
 import { FONT_SIZE } from "@evey/theme";
 
 interface StreamInfoPanelProps {
@@ -27,15 +27,6 @@ function formatPlayMethod(method?: string): string {
     case "PLAY_METHOD_TRANSCODE": return "Transcode";
     default: return method ?? "-";
   }
-}
-
-function formatChannels(ch?: number): string {
-  if (!ch) return "";
-  if (ch === 1) return "Mono";
-  if (ch === 2) return "Stereo";
-  if (ch === 6) return "5.1";
-  if (ch === 8) return "7.1";
-  return `${ch}ch`;
 }
 
 function InfoRow({ label, value }: { label: string; value: string }) {
@@ -130,7 +121,7 @@ export function StreamInfoPanel({ visible, onClose, streamInfo }: StreamInfoPane
                   <SectionHeader title={t("player.streamInfo.audio", "Audio")} decision={streamInfo.audioDecision} />
                   <InfoRow label={t("player.streamInfo.codec", "Codec")} value={(audioStream.codec ?? "-").toUpperCase()} />
                   {audioStream.channels && (
-                    <InfoRow label={t("player.streamInfo.channels", "Channels")} value={formatChannels(audioStream.channels)} />
+                    <InfoRow label={t("player.streamInfo.channels", "Channels")} value={formatChannelLayout(audioStream.channels)} />
                   )}
                   {audioStream.language && (
                     <InfoRow label={t("player.streamInfo.language", "Language")} value={audioStream.language} />

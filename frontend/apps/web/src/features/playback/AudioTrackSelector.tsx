@@ -8,30 +8,8 @@ export type AudioStream = {
   channels?: number;  // channel count, rendered as a 5.1/7.1 style layout
 };
 
-// Speaker-layout notation for a channel count. Deliberately not translated:
-// "5.1" reads the same in every locale we ship, and it is the notation the
-// rest of the product (media info, settings) already uses. Unknown counts
-// degrade to "<n>ch" rather than guessing a layout.
-const CHANNEL_LAYOUTS: Record<number, string> = {
-  1: "1.0",
-  2: "2.0",
-  6: "5.1",
-  8: "7.1",
-};
-
-export function formatChannelLayout(channels: number | undefined): string {
-  if (!channels || channels <= 0) return "";
-  return CHANNEL_LAYOUTS[channels] ?? `${channels}ch`;
-}
-
-/**
- * Label for one entry of the audio track menu. Mirrors the TV picker's shape
- * (name, then a dash, then the detail) so the three clients read alike.
- * `fallback` is what the caller wants shown when the stream carries neither a
- * title nor a language - it is already localised by the caller.
- */
-export function formatAudioTrackLabel(s: AudioStream, fallback: string): string {
-  const name = s.title ?? s.language ?? fallback;
-  const layout = formatChannelLayout(s.channels);
-  return layout ? `${name} - ${layout}` : name;
-}
+// Both formatters now live in @evey/api: they existed in six copies across the
+// three apps and had drifted even inside this one (this file said "2.0" where
+// StreamInfoPanel said "Stereo", same track, same screen). Re-exported here so
+// this module's existing importers keep their entry point.
+export { formatAudioTrackLabel, formatChannelLayout } from "@evey/api";

@@ -1,6 +1,6 @@
 import { Info } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import type { V1StreamInfo, V1MediaStream } from "@evey/api";
+import { formatChannelLayout, type V1StreamInfo, type V1MediaStream } from "@evey/api";
 
 function formatBitrate(bitrate?: string): string {
   if (!bitrate) return "-";
@@ -43,15 +43,6 @@ function deriveVideoBitrate(total?: string, audio?: string): { value: string; es
     return { value: formatBitrate(String(t - a)), estimated: true };
   }
   return { value: formatBitrate(String(t)), estimated: true };
-}
-
-function formatChannels(ch?: number): string {
-  if (!ch) return "";
-  if (ch === 1) return "Mono";
-  if (ch === 2) return "Stereo";
-  if (ch === 6) return "5.1";
-  if (ch === 8) return "7.1";
-  return `${ch}ch`;
 }
 
 function InfoRow({ label, value }: { label: string; value: string }) {
@@ -190,7 +181,7 @@ export function StreamInfoPanel({ streamInfo, open, onToggle, wasmAudioActive }:
               <Section title={t("player.streamInfo.audio")} decision={wasmAudioActive ? "wasm" : streamInfo.audioDecision} />
               <InfoRow label={t("player.streamInfo.codec")} value={(audioStream.codec ?? "-").toUpperCase()} />
               {audioStream.channels && (
-                <InfoRow label={t("player.streamInfo.channels")} value={formatChannels(audioStream.channels)} />
+                <InfoRow label={t("player.streamInfo.channels")} value={formatChannelLayout(audioStream.channels)} />
               )}
               {audioStream.language && (
                 <InfoRow label={t("player.streamInfo.language")} value={audioStream.language} />
