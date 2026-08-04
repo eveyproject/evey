@@ -103,6 +103,18 @@ export function rewriteCastMasterUrl(
   const wasmAudio = !floored && !caps.nativeDolby && wasmCapable && !mixedContent;
   const audio = caps.nativeDolby ? [...BASE_AUDIO, "eac3", "ac3"] : BASE_AUDIO;
   u.searchParams.set("audioCodecs", audio.join(","));
+  // Channel ceiling for the server's AAC transcode, declared ALWAYS: left out,
+  // the server applies its 5.1 web default, emits `-ac 6`, and a receiver that
+  // cannot open multichannel AAC refuses the stream in its SourceBuffer - the
+  // title then never starts at all. That is the Chromecast HD of 2026-08-04:
+  // name on screen, spinner for ever, `cast_receiver_finished reason=ERROR`
+  // 200ms in, while Jellyfin played the same file on the same TV with `-ac 2`.
+  //
+  // Tied to nativeDolby on purpose: canDisplayType has no channel argument, so
+  // that flag is the only surround answer available (E-AC-3 + AC-3 = a surround
+  // chain by construction), and v1 pins it to false, so cast is stereo. When
+  // Dolby passthrough is re-enabled this follows it without a second decision.
+  u.searchParams.set("maxAudioChannels", caps.nativeDolby ? "6" : "2");
   if (wasmAudio) u.searchParams.set("wasmAudio", "1");
   else u.searchParams.delete("wasmAudio");
 

@@ -74,6 +74,30 @@ describe("rewriteCastMasterUrl - negotiation happens on the REAL caps", () => {
     expect(u.searchParams.has("hdr")).toBe(false);
   });
 
+  // Prod 2026-08-04: nothing declared a channel ceiling, the server applied
+  // its 5.1 web default and emitted `-ac 6`; the Chromecast HD refused the
+  // stream and the title never started. Jellyfin played the same file on the
+  // same TV that evening with `-ac 2`.
+  it("always declares a channel ceiling, stereo when the device is not a surround chain", () => {
+    const u = new URL(rewriteCastMasterUrl(MASTER, floorSdr, false)!.url);
+    expect(u.searchParams.get("maxAudioChannels")).toBe("2");
+  });
+
+  it("raises the ceiling to 5.1 only for a device that probes Dolby", () => {
+    const dolby = probeReceiverCaps(fakeCDT(["avc1", "ec-3", "ac-3"]), false);
+    const u = new URL(rewriteCastMasterUrl(MASTER, dolby, true)!.url);
+    expect(u.searchParams.get("maxAudioChannels")).toBe("6");
+  });
+
+  // The rescue paths reload the master; dropping the ceiling there would let
+  // the server fall back to 5.1 and re-break playback at the worst moment.
+  it("keeps the ceiling across the starvation floor and the measured-bitrate reloads", () => {
+    const first = rewriteCastMasterUrl(MASTER, floorSdr, false)!.url;
+    expect(new URL(floorMasterUrl(first)!).searchParams.get("maxAudioChannels")).toBe("2");
+    expect(new URL(appendMaxKbps(first, 4200)!).searchParams.get("maxAudioChannels")).toBe("2");
+    expect(new URL(stripWasmAudio(first)).searchParams.get("maxAudioChannels")).toBe("2");
+  });
+
   it("leaves URLs that are not our master untouched (direct play, third-party)", () => {
     expect(rewriteCastMasterUrl("https://evey.example/api/v1/media/m1/stream?token=t", modern, true)).toBeNull();
     expect(rewriteCastMasterUrl("https://example.com/other.m3u8", modern, true)).toBeNull();
