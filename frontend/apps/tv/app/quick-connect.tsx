@@ -107,6 +107,18 @@ export default function QuickConnectScreen() {
           <View style={{ backgroundColor: "#fff", padding: 16, borderRadius: 8, marginBottom: 24 }}>
             <QRCode value={qrValue} size={200} />
           </View>
+        ) : initiate.isError ? (
+          // The code request runs on mount: when it fails there is no gesture to
+          // repeat, and a remote cannot reload the screen - so the spinner spun
+          // for ever with nothing to press.
+          <Pressable
+            onPress={doInitiate}
+            testID="quick-connect-retry"
+            accessibilityLabel={t("common.retry")}
+            style={{ marginBottom: 24, paddingVertical: 12, paddingHorizontal: 28, backgroundColor: theme.colors.surfaceRaised, borderRadius: theme.radii.md }}
+          >
+            <Text style={{ color: theme.colors.text, fontSize: 22, fontWeight: "600" }}>{t("common.retry")}</Text>
+          </Pressable>
         ) : (
           <ActivityIndicator color={theme.colors.accent} size="large" style={{ marginBottom: 24 }} />
         )}
