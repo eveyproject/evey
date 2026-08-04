@@ -179,10 +179,13 @@ export default function PlaybackSettingsScreen() {
     },
   });
 
+  // Applies the value to the screen only once the server confirms it, so a
+  // failed save (toasted by the global mutationErrorNet) never leaves the
+  // check mark on a value the profile doesn't actually have.
   const savePref = useCallback(
     (patch: PrefMap) => {
-      if (!defaultProfile?.id) return;
-      updateProfile.mutate({
+      if (!defaultProfile?.id) return Promise.reject(new Error("no default profile"));
+      return updateProfile.mutateAsync({
         id: defaultProfile.id,
         data: { preferences: { ...defaultProfile.preferences, ...patch } },
       });
@@ -190,45 +193,85 @@ export default function PlaybackSettingsScreen() {
     [defaultProfile, updateProfile],
   );
 
-  function handleBitrate(v: string) {
-    setBitrate(v);
-    savePref({ max_bitrate_kbps: v });
+  async function handleBitrate(v: string) {
+    try {
+      await savePref({ max_bitrate_kbps: v });
+      setBitrate(v);
+    } catch {
+      // mutationErrorNet already toasted the failure
+    }
   }
-  function handleSubtitleLang(v: string) {
-    setSubtitleLang(v);
-    savePref({ subtitle_languages: v });
+  async function handleSubtitleLang(v: string) {
+    try {
+      await savePref({ subtitle_languages: v });
+      setSubtitleLang(v);
+    } catch {
+      // mutationErrorNet already toasted the failure
+    }
   }
-  function handleAudioLang(v: string) {
-    setAudioLang(v);
-    savePref({ audio_languages: v });
+  async function handleAudioLang(v: string) {
+    try {
+      await savePref({ audio_languages: v });
+      setAudioLang(v);
+    } catch {
+      // mutationErrorNet already toasted the failure
+    }
   }
-  function handleVideoCodec(v: string) {
-    setVideoCodec(v);
-    savePref({ preferred_video_codec: v });
+  async function handleVideoCodec(v: string) {
+    try {
+      await savePref({ preferred_video_codec: v });
+      setVideoCodec(v);
+    } catch {
+      // mutationErrorNet already toasted the failure
+    }
   }
-  function handleAudioCodec(v: string) {
-    setAudioCodec(v);
-    savePref({ preferred_audio_codec: v });
+  async function handleAudioCodec(v: string) {
+    try {
+      await savePref({ preferred_audio_codec: v });
+      setAudioCodec(v);
+    } catch {
+      // mutationErrorNet already toasted the failure
+    }
   }
-  function handleAudioChannels(v: string) {
-    setAudioChannels(v);
-    savePref({ max_audio_channels: v });
+  async function handleAudioChannels(v: string) {
+    try {
+      await savePref({ max_audio_channels: v });
+      setAudioChannels(v);
+    } catch {
+      // mutationErrorNet already toasted the failure
+    }
   }
-  function handleSubtitleBurn(v: string) {
-    setSubtitleBurn(v);
-    savePref({ subtitle_burn_in: v });
+  async function handleSubtitleBurn(v: string) {
+    try {
+      await savePref({ subtitle_burn_in: v });
+      setSubtitleBurn(v);
+    } catch {
+      // mutationErrorNet already toasted the failure
+    }
   }
-  function handleAllowDirectPlay(v: boolean) {
-    setAllowDirectPlay(v);
-    savePref({ allow_direct_play: v ? "true" : "false" });
+  async function handleAllowDirectPlay(v: boolean) {
+    try {
+      await savePref({ allow_direct_play: v ? "true" : "false" });
+      setAllowDirectPlay(v);
+    } catch {
+      // mutationErrorNet already toasted the failure
+    }
   }
-  function handleAllowDirectStream(v: boolean) {
-    setAllowDirectStream(v);
-    savePref({ allow_direct_stream: v ? "true" : "false" });
+  async function handleAllowDirectStream(v: boolean) {
+    try {
+      await savePref({ allow_direct_stream: v ? "true" : "false" });
+      setAllowDirectStream(v);
+    } catch {
+      // mutationErrorNet already toasted the failure
+    }
   }
-  function handleAllowTranscoding(v: boolean) {
-    setAllowTranscoding(v);
-    savePref({ allow_transcoding: v ? "true" : "false" });
+  async function handleAllowTranscoding(v: boolean) {
+    try {
+      await savePref({ allow_transcoding: v ? "true" : "false" });
+      setAllowTranscoding(v);
+    } catch {
+      // mutationErrorNet already toasted the failure
+    }
   }
 
   const labelOf = (o: { labelKey: string; fallback: string }) =>
