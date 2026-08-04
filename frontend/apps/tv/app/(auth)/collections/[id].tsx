@@ -22,7 +22,7 @@ export default function CollectionDetailScreen() {
   const { t } = useTranslation();
   const router = useRouter();
 
-  const { data, isLoading, isError, refetch } = useCollection(id ?? "");
+  const { data, isLoading, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } = useCollection(id ?? "");
   const col = data?.collection;
   const items = data?.items ?? [];
 
@@ -81,6 +81,10 @@ export default function CollectionDetailScreen() {
         maxToRenderPerBatch={15}
         windowSize={5}
         removeClippedSubviews={true}
+        onEndReachedThreshold={0.5}
+        onEndReached={() => {
+          if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
+        }}
         ListEmptyComponent={
           <View style={styles.center}>
             <Text style={{ color: theme.colors.textMuted, fontSize: 22 }}>{t("common.noItems")}</Text>
