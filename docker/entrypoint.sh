@@ -96,9 +96,23 @@ if [ "$(id -u)" = "0" ]; then
         echo "evey: running the server as root (PUID/PGID 0) is not supported" >&2
         exit 1
     fi
-    if [ "$PUID" = "1001" ]; then
-        echo "evey: PUID 1001 collides with the evey-plugin user (plugin UID separation would be void) - pick another UID" >&2
+    # PUID 1001 is the evey-plugin user, so running the server under it would
+    # make UID separation a no-op - the plugin would share the server's
+    # identity and read its 0600 secrets. That is only a reason to refuse when
+    # the plugin subsystem actually runs: with it off there is no separation to
+    # void, and refusing locked out every operator whose NAS happened to hand
+    # them uid 1001, with no workaround but to change their account.
+    # Matches strconv.ParseBool's false set, like the Go side reading this var.
+    case "${EVEY_PLUGINS_ENABLED:-true}" in
+        0|f|F|false|FALSE|False) evey_plugins_on=0 ;;
+        *) evey_plugins_on=1 ;;
+    esac
+    if [ "$PUID" = "1001" ] && [ "$evey_plugins_on" = "1" ]; then
+        echo "evey: PUID 1001 collides with the evey-plugin user (plugin UID separation would be void) - pick another UID, or set EVEY_PLUGINS_ENABLED=false" >&2
         exit 1
+    fi
+    if [ "$PUID" = "1001" ]; then
+        echo "evey: PUID 1001 is the evey-plugin user; allowed because EVEY_PLUGINS_ENABLED is false - do not re-enable plugins under this UID" >&2
     fi
     [ "$(id -g evey)" = "$PGID" ] || groupmod -o -g "$PGID" evey
     [ "$(id -u evey)" = "$PUID" ] || usermod -o -u "$PUID" evey
