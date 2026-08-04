@@ -8,6 +8,7 @@ import { setTokenProvider, setTokensUpdater, setLocaleProvider, userServiceRefre
 import { useLocaleStore } from "@evey/store";
 import { registerServiceWorker } from "@/lib/webpush";
 import { setupOnlineManager } from "@/lib/online-manager";
+import { mutationErrorNet } from "@/lib/mutationErrorNet";
 import { ThemeLoader } from "@/features/themes/ThemeLoader";
 import "./i18n";
 import "./styles/main.css";
@@ -185,6 +186,7 @@ if (import.meta.env.DEV) {
 }
 
 const queryClient = queryClientRef = new QueryClient({
+  mutationCache: mutationErrorNet(),
   defaultOptions: {
     queries: {
       staleTime: 5 * 60 * 1000,
