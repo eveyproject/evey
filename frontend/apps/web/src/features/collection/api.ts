@@ -90,7 +90,10 @@ export function useAllCollections() {
 }
 
 export function useCollection(id: string, limit = 50, offset = 0) {
-  const head = useCollectionServiceGetCollection(id, {
+  // The request carries limit/offset now, so the generated hook takes the
+  // params slot before the options one - passing options first silently landed
+  // them in params.
+  const head = useCollectionServiceGetCollection(id, undefined, {
     query: {
       enabled: !!id,
       staleTime: 5 * 60_000,
