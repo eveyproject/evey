@@ -230,8 +230,8 @@ func TestClientQueryParamsExistOnTheRequestTheyTarget(t *testing.T) {
 				continue
 			}
 			raw := um[1]
-			q := strings.Index(raw, "?")
-			if q < 0 {
+			_, query, hasQuery := strings.Cut(raw, "?")
+			if !hasQuery {
 				continue
 			}
 			msg, known := requests[normalisePath(raw)]
@@ -244,11 +244,8 @@ func TestClientQueryParamsExistOnTheRequestTheyTarget(t *testing.T) {
 			}
 			checked++
 			rel := strings.TrimPrefix(f, filepath.Join(repoRoot, "frontend/apps")+"/")
-			for _, pair := range strings.Split(raw[q+1:], "&") {
-				name := pair
-				if i := strings.Index(pair, "="); i >= 0 {
-					name = pair[:i]
-				}
+			for pair := range strings.SplitSeq(query, "&") {
+				name, _, _ := strings.Cut(pair, "=")
 				if name == "" || want[name] || queryParamAllowlist[name] != "" {
 					continue
 				}
