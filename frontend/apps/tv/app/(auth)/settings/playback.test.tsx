@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, fireEvent, screen } from "@testing-library/react";
+import { render, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import React from "react";
 
 // --- React Native mock -----------------------------------------------------
@@ -70,7 +70,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   currentUserMock.mockReturnValue({ data: { id: "user-1" } });
   listProfilesMock.mockReturnValue({ data: { profiles: [DEFAULT_PROFILE] } });
-  updateProfileMock.mockReturnValue({ mutate: mutateMock, isPending: false });
+  mutateMock.mockResolvedValue(undefined);
+  updateProfileMock.mockReturnValue({ mutate: mutateMock, mutateAsync: mutateMock, isPending: false });
 });
 
 describe("PlaybackSettingsScreen (TV)", () => {
@@ -143,6 +144,66 @@ describe("PlaybackSettingsScreen (TV)", () => {
     expect(mutateMock).toHaveBeenCalledWith({
       id: "prof-1",
       data: { preferences: { subtitle_languages: "es" } },
+    });
+  });
+
+  // A list-choice setting: covers the "confirm before applying" contract for
+  // a text/radio style preference. OptionRow is redeclared on every render of
+  // this screen, so its DOM nodes get replaced on state change - queries are
+  // re-run fresh after the click instead of reusing a captured handle.
+  describe("preferred video codec, on mutation outcome", () => {
+    it("shows the new value once the save succeeds", async () => {
+      mutateMock.mockResolvedValueOnce(undefined);
+      render(<PlaybackSettingsScreen />);
+      expect(within(screen.getAllByLabelText("Auto")[0]).queryByText("✓")).not.toBeNull();
+
+      fireEvent.click(screen.getByLabelText("HEVC (H.265)"));
+
+      await waitFor(() =>
+        expect(within(screen.getByLabelText("HEVC (H.265)")).queryByText("✓")).not.toBeNull(),
+      );
+      expect(within(screen.getAllByLabelText("Auto")[0]).queryByText("✓")).toBeNull();
+    });
+
+    it("keeps the original value when the save fails", async () => {
+      mutateMock.mockRejectedValueOnce(new Error("network down"));
+      render(<PlaybackSettingsScreen />);
+
+      fireEvent.click(screen.getByLabelText("HEVC (H.265)"));
+
+      await waitFor(() => expect(mutateMock).toHaveBeenCalled());
+      // let the rejected mutateAsync settle before asserting nothing moved
+      await new Promise((r) => setTimeout(r, 0));
+      expect(within(screen.getAllByLabelText("Auto")[0]).queryByText("✓")).not.toBeNull();
+      expect(within(screen.getByLabelText("HEVC (H.265)")).queryByText("✓")).toBeNull();
+    });
+  });
+
+  // A boolean toggle: covers the same contract for the on/off style rows.
+  describe("allow direct play, on mutation outcome", () => {
+    it("shows the new value once the save succeeds", async () => {
+      mutateMock.mockResolvedValueOnce(undefined);
+      render(<PlaybackSettingsScreen />);
+      expect(within(screen.getAllByLabelText("Enabled")[0]).queryByText("✓")).not.toBeNull();
+
+      fireEvent.click(screen.getAllByLabelText("Disabled")[0]);
+
+      await waitFor(() =>
+        expect(within(screen.getAllByLabelText("Disabled")[0]).queryByText("✓")).not.toBeNull(),
+      );
+      expect(within(screen.getAllByLabelText("Enabled")[0]).queryByText("✓")).toBeNull();
+    });
+
+    it("keeps the original value when the save fails", async () => {
+      mutateMock.mockRejectedValueOnce(new Error("network down"));
+      render(<PlaybackSettingsScreen />);
+
+      fireEvent.click(screen.getAllByLabelText("Disabled")[0]);
+
+      await waitFor(() => expect(mutateMock).toHaveBeenCalled());
+      await new Promise((r) => setTimeout(r, 0));
+      expect(within(screen.getAllByLabelText("Enabled")[0]).queryByText("✓")).not.toBeNull();
+      expect(within(screen.getAllByLabelText("Disabled")[0]).queryByText("✓")).toBeNull();
     });
   });
 });
