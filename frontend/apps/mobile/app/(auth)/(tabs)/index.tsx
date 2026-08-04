@@ -33,6 +33,7 @@ function resolveMaxItems(maxItems: number | undefined, fallback: number): number
 }
 import { useAuthStore, toast } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
+import { LoadFailed } from "../../../src/components/LoadFailed";
 import { MediaRow } from "../../../src/components/MediaRow";
 import { useWatchedMap } from "../../../src/hooks/useWatchedMap";
 import { useCollections } from "../../../src/api/collections";
@@ -533,23 +534,32 @@ export default function HomeScreen() {
     router.push(`/media/${item.id}`);
   }, []);
 
+  // A failed shelf renders LoadFailed IN PLACE of just that row rather than
+  // hiding the whole home screen (renderSection is called per-section) - one
+  // dead endpoint (e.g. recommendations) must not take resume/collections/etc
+  // down with it. Each row keeps its own retry, wired to that row's refetch.
   function renderSection(cfg: FeedConfig) {
     const feedType = cfg.feedType ?? "";
     const maxItems = cfg.maxItems && cfg.maxItems > 0 ? cfg.maxItems : undefined;
     switch (feedType) {
       case "resume_playback":
       case "continue_watching":
+        if (resume.isError) return <LoadFailed key={feedType} inline onRetry={() => void resume.refetch()} />;
         return <MediaRow key={feedType} title={t("common.feeds.labels.resume_playback")} items={resume.data?.items ?? []} onItemPress={handleItemPress} watchPercents={watchPercents} />;
       case "next_episode":
+        if (nextUp.isError) return <LoadFailed key={feedType} inline onRetry={() => void nextUp.refetch()} />;
         return <MediaRow key={feedType} title={t("media.home.upNext")} items={nextUp.data?.items ?? []} onItemPress={handleItemPress} />;
       case "collections": {
+        if (collections.isError) return <LoadFailed key={feedType} inline onRetry={() => void collections.refetch()} />;
         const allCollections = collections.data?.collections ?? [];
         const cols = maxItems ? allCollections.slice(0, maxItems) : allCollections;
         return <CollectionRow key={feedType} title={t("media.home.collections")} collections={cols} />;
       }
       case "recommended":
+        if (recommended.isError) return <LoadFailed key={feedType} inline onRetry={() => void recommended.refetch()} />;
         return <MediaRow key={feedType} title={t("media.home.recommendedForYou")} items={recommendedItems} onItemPress={handleItemPress} />;
       case "most_popular":
+        if (popular.isError) return <LoadFailed key={feedType} inline onRetry={() => void popular.refetch()} />;
         return <MediaRow key={feedType} title={t("media.home.mostPopular")} items={popularItems} onItemPress={handleItemPress} />;
       default:
         if (feedType.startsWith("library:")) {

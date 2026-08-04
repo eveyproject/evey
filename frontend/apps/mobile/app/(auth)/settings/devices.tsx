@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { eveyFetch } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
+import { LoadFailed } from "../../../src/components/LoadFailed";
 
 type Device = {
   token: string;
@@ -39,7 +40,7 @@ export default function DevicesScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
 
-  const { data, isLoading, refetch, isFetching } = useQuery({
+  const { data, isLoading, isError, refetch, isFetching } = useQuery({
     queryKey: DEVICES_QUERY_KEY,
     queryFn: () =>
       eveyFetch<{ devices: Device[] }>({
@@ -85,6 +86,8 @@ export default function DevicesScreen() {
         <View style={{ padding: theme.spacing.xl, alignItems: "center" }}>
           <ActivityIndicator color={theme.colors.accent} />
         </View>
+      ) : isError ? (
+        <LoadFailed onRetry={() => void refetch()} />
       ) : devices.length === 0 ? (
         <View style={[s.section, { padding: theme.spacing.lg, alignItems: "center" }]}>
           <Text style={{ color: theme.colors.textMuted, fontSize: 14 }}>

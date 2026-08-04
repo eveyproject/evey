@@ -15,6 +15,7 @@ import {
 import type { V1Notification } from "@evey/api";
 import { toast } from "@evey/store";
 import { useTheme } from "../../src/providers/ThemeProvider";
+import { LoadFailed } from "../../src/components/LoadFailed";
 
 const TITLE_KEYS: Record<string, string> = {
   new_movie: "common.notifications.newMovie",
@@ -152,7 +153,7 @@ export default function NotificationsScreen() {
   // plugin security dashboard). Mirror web fix `ebe634946`.
   const HIDDEN_TYPES = new Set(["plugin_error"]);
 
-  const { data, isLoading, refetch } = useNotificationServiceListNotifications({ limit: 50 });
+  const { data, isLoading, isError, refetch } = useNotificationServiceListNotifications({ limit: 50 });
   const notifications = (data?.notifications ?? []).filter(
     (n) => !n.type || !HIDDEN_TYPES.has(n.type),
   );
@@ -245,7 +246,9 @@ export default function NotificationsScreen() {
         ),
       }} />
 
-      {!isLoading && notifications.length === 0 ? (
+      {!isLoading && isError && notifications.length === 0 ? (
+        <LoadFailed onRetry={() => void refetch()} />
+      ) : !isLoading && notifications.length === 0 ? (
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: theme.spacing.xl }}>
           <Ionicons name="notifications-off-outline" size={48} color={theme.colors.textMuted} />
           <Text style={{ color: theme.colors.textMuted, fontSize: 16, marginTop: theme.spacing.md, textAlign: "center" }}>

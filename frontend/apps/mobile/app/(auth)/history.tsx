@@ -19,6 +19,7 @@ import { useTheme } from "../../src/providers/ThemeProvider";
 import { useServerUrl } from "../../src/hooks/useServerUrl";
 import { useAuthenticatedImage } from "../../src/hooks/useAuthenticatedImage";
 import { ProgressBar } from "../../src/components/ProgressBar";
+import { LoadFailed } from "../../src/components/LoadFailed";
 import { groupHistoryByDate } from "../../src/lib/historyGrouping";
 
 function formatDuration(ms: string | undefined): string {
@@ -141,7 +142,7 @@ export default function HistoryScreen() {
   const [allItems, setAllItems] = useState<V1WatchProgress[]>([]);
   const [hasMore, setHasMore] = useState(true);
 
-  const { data, isLoading, isFetching, refetch } = usePlaybackServiceGetWatchHistory({ "pagination.page": page, "pagination.pageSize": PAGE_SIZE });
+  const { data, isLoading, isFetching, isError, refetch } = usePlaybackServiceGetWatchHistory({ "pagination.page": page, "pagination.pageSize": PAGE_SIZE });
 
   useEffect(() => {
     if (!data?.items) return;
@@ -236,7 +237,9 @@ export default function HistoryScreen() {
         ) : undefined,
       }} />
 
-      {!isLoading && items.length === 0 ? (
+      {!isLoading && isError && items.length === 0 ? (
+        <LoadFailed onRetry={() => void refetch()} />
+      ) : !isLoading && items.length === 0 ? (
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: theme.spacing.xl }}>
           <Ionicons name="time-outline" size={48} color={theme.colors.textMuted} />
           <Text style={{ color: theme.colors.textMuted, fontSize: 16, marginTop: theme.spacing.md, textAlign: "center" }}>

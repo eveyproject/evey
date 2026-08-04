@@ -14,6 +14,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../providers/ThemeProvider";
 import { usePlaylistList, useAddToPlaylist, useCreatePlaylist } from "../api/playlists";
+import { LoadFailed } from "./LoadFailed";
 import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
 
 interface Props {
@@ -26,7 +27,7 @@ interface Props {
 export function AddToPlaylistSheet({ visible, mediaItemId, mediaType, onClose }: Props) {
   const theme = useTheme();
   const { t } = useTranslation();
-  const { data: playlists, isLoading } = usePlaylistList();
+  const { data: playlists, isLoading, isError, refetch } = usePlaylistList();
   const addTo = useAddToPlaylist();
   const createPl = useCreatePlaylist();
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
@@ -81,6 +82,8 @@ export function AddToPlaylistSheet({ visible, mediaItemId, mediaType, onClose }:
 
           {isLoading ? (
             <ActivityIndicator color={theme.colors.accent} style={{ marginTop: 24 }} />
+          ) : isError ? (
+            <LoadFailed inline onRetry={() => void refetch()} />
           ) : manualPlaylists.length === 0 && !creating ? (
             <Text style={[styles.empty, { color: theme.colors.textMuted }]}>
               {t("common.noManualPlaylists")}

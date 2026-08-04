@@ -7,6 +7,7 @@ import { toast } from "@evey/store";
 import { useTheme } from "../../providers/ThemeProvider";
 import { useAllCollections } from "../../api/collections";
 import { usePlaylistList, useAddToPlaylist } from "../../api/playlists";
+import { LoadFailed } from "../LoadFailed";
 import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
 
 // Extracted out of library/[libraryId].tsx so the favorites screen's bulk
@@ -29,7 +30,7 @@ export function BulkAddToPlaylistSheet({
 }) {
   const theme = useTheme();
   const { t } = useTranslation();
-  const { data: playlists, isLoading } = usePlaylistList();
+  const { data: playlists, isLoading, isError, refetch } = usePlaylistList();
   const addTo = useAddToPlaylist();
   const manualPlaylists = (playlists ?? []).filter((p) => p.type === "manual");
   const [pendingId, setPendingId] = useState<string | null>(null);
@@ -63,6 +64,8 @@ export function BulkAddToPlaylistSheet({
 
           {isLoading ? (
             <ActivityIndicator color={theme.colors.accent} style={{ marginTop: 24 }} />
+          ) : isError ? (
+            <LoadFailed inline onRetry={() => void refetch()} />
           ) : manualPlaylists.length === 0 ? (
             <Text style={[collectionSheetStyles.empty, { color: theme.colors.textMuted }]}>
               {t("media.library.noPlaylists")}
@@ -121,7 +124,7 @@ export function BulkAddToCollectionSheet({
 }) {
   const theme = useTheme();
   const { t } = useTranslation();
-  const { data, isLoading } = useAllCollections();
+  const { data, isLoading, isError, refetch } = useAllCollections();
   const collections = data?.collections ?? [];
   const [pendingId, setPendingId] = useState<string | null>(null);
 
@@ -156,6 +159,8 @@ export function BulkAddToCollectionSheet({
 
           {isLoading ? (
             <ActivityIndicator color={theme.colors.accent} style={{ marginTop: 24 }} />
+          ) : isError ? (
+            <LoadFailed inline onRetry={() => void refetch()} />
           ) : collections.length === 0 ? (
             <Text style={[collectionSheetStyles.empty, { color: theme.colors.textMuted }]}>
               {t("media.collections.noCollectionsAvailable")}

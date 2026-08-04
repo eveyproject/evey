@@ -17,6 +17,7 @@ import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { artworkUrl } from "../../../src/lib/artwork";
+import { LoadFailed } from "../../../src/components/LoadFailed";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const POSTER_COLS = 3;
@@ -51,7 +52,7 @@ export default function PersonDetailScreen() {
 
   const personId = id ?? "";
   const { data: person, isLoading: personLoading } = useGetPerson(personId);
-  const { data: mediaData, isLoading: mediaLoading } =
+  const { data: mediaData, isLoading: mediaLoading, isError: mediaError, refetch: refetchMedia } =
     useLibraryServiceListMediaItems(
       { personId, "pagination.pageSize": 200 },
       { query: { enabled: !!personId } },
@@ -210,7 +211,9 @@ export default function PersonDetailScreen() {
         </View>
       ) : null}
 
-      {!isLoading && items.length === 0 && !personLoading ? (
+      {!isLoading && mediaError ? (
+        <LoadFailed inline onRetry={() => void refetchMedia()} />
+      ) : !isLoading && items.length === 0 && !personLoading ? (
         <Text
           style={{
             color: theme.colors.textMuted,

@@ -7,6 +7,7 @@ import { useUserServiceGetCurrentUser, useUserServiceListProfiles } from "@evey/
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { ProfileManagerList } from "../../../src/features/profile/ProfileManagerList";
 import { CreateProfileDialog } from "../../../src/features/profile/CreateProfileDialog";
+import { LoadFailed } from "../../../src/components/LoadFailed";
 
 export default function ProfileManageScreen() {
   const theme = useTheme();
@@ -14,7 +15,7 @@ export default function ProfileManageScreen() {
   const [creating, setCreating] = useState(false);
   const { data: user } = useUserServiceGetCurrentUser();
   const userId = user?.id ?? "";
-  const { data: profilesResp, isLoading } = useUserServiceListProfiles(userId, {
+  const { data: profilesResp, isLoading, isError, refetch } = useUserServiceListProfiles(userId, {
     query: { enabled: !!userId },
   });
   const profiles = profilesResp?.profiles ?? [];
@@ -54,11 +55,15 @@ export default function ProfileManageScreen() {
         </View>
       )}
 
-      {!isLoading && userId && profiles.length > 0 && (
+      {!isLoading && isError && (
+        <LoadFailed inline onRetry={() => void refetch()} />
+      )}
+
+      {!isLoading && !isError && userId && profiles.length > 0 && (
         <ProfileManagerList userId={userId} profiles={profiles} />
       )}
 
-      {!isLoading && profiles.length === 0 && (
+      {!isLoading && !isError && profiles.length === 0 && (
         <Text style={[s.empty, { color: theme.colors.textMuted }]}>
           {t("auth.profile.manage.noProfiles", "No profiles yet.")}
         </Text>
