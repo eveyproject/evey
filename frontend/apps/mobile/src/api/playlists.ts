@@ -24,20 +24,25 @@ export interface PlaylistItem {
   year?: number;
 }
 
+// GET /api/v1/playlists/{id} answers with the playlist itself, flat - there is
+// no wrapper, no items and no media alongside it. Claiming otherwise made
+// raw.playlist undefined and opening a playlist threw.
 interface PlaylistDetailResponse {
-  playlist: {
-    id: string;
-    name: string;
-    description: string;
-    type: string;
-    rules?: { field: string; operator: string; value: string }[];
-    sortBy: string;
-    sortOrder: string;
-    createdAt: string;
-    updatedAt: string;
-  };
-  items?: { mediaItemId: string; sortOrder: number; addedAt: string }[];
-  media?: { id: string; title: string; type: string; year?: number }[];
+  id: string;
+  name: string;
+  description: string;
+  type: string;
+  rules?: { field: string; operator: string; value: string }[];
+  sortBy: string;
+  sortOrder: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// The members come from their own endpoint, already carrying the title, type
+// and year - the web reads them the same way.
+interface PlaylistItemsResponse {
+  items?: { mediaItemId?: string; sortOrder?: number; addedAt?: string; title?: string; type?: string; year?: number }[];
 }
 
 export function usePlaylistList() {
@@ -58,35 +63,18 @@ export function usePlaylistDetail(id: string) {
   return useQuery({
     queryKey: ["playlists", id],
     queryFn: async (): Promise<Playlist & { items?: PlaylistItem[] }> => {
-      const raw = await eveyFetch<PlaylistDetailResponse>({
-        url: `/api/v1/playlists/${id}`,
-        method: "GET",
-      });
-      const pl = raw.playlist;
-      const mediaMap = new Map(
-        (raw.media ?? []).map((m) => [m.id, m]),
-      );
-      const rawItems = raw.items ?? [];
-      const items: PlaylistItem[] =
-        rawItems.length > 0
-          ? rawItems.map((it) => {
-              const m = mediaMap.get(it.mediaItemId);
-              return {
-                media_item_id: it.mediaItemId,
-                sort_order: it.sortOrder,
-                added_at: it.addedAt,
-                title: m?.title,
-                type: m?.type,
-                year: m?.year,
-              };
-            })
-          : (raw.media ?? []).map((m, i) => ({
-              media_item_id: m.id,
-              sort_order: i,
-              title: m.title,
-              type: m.type,
-              year: m.year,
-            }));
+      const [pl, itemsRes] = await Promise.all([
+        eveyFetch<PlaylistDetailResponse>({ url: `/api/v1/playlists/${id}`, method: "GET" }),
+        eveyFetch<PlaylistItemsResponse>({ url: `/api/v1/playlists/${id}/items`, method: "GET" }),
+      ]);
+      const items: PlaylistItem[] = (itemsRes.items ?? []).map((it) => ({
+        media_item_id: it.mediaItemId ?? "",
+        sort_order: it.sortOrder,
+        added_at: it.addedAt,
+        title: it.title,
+        type: it.type,
+        year: it.year,
+      }));
       return {
         id: pl.id,
         name: pl.name,

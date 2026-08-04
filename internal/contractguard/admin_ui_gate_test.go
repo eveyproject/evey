@@ -40,6 +40,8 @@ var gatedByCaller = map[string]string{
 	"features/library/MediaCardWithModals.tsx": "mounts the picker only; the menu entry that opens it is gated in MediaCardContextMenu",
 	"features/collection/SmartCollectionDialog.tsx": "dialog with no entry point of its own - opened from the collections " +
 		"page, whose create and edit controls are gated there",
+	"features/collection/CollectionDialog.tsx": "same: the create button and the per-card pencil that open it are both " +
+		"gated on the collections page",
 	"features/playlist/api.ts":     "playlist RPCs are RoleUser; present only because the file sits next to collection api.ts",
 	"features/admin/":              "the whole admin area is behind an admin-only route",
 	"routes/_auth/admin/":          "the whole admin area is behind an admin-only route",
