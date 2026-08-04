@@ -2,6 +2,7 @@ package grpcapi
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"slices"
 
@@ -11,6 +12,7 @@ import (
 	applibrary "github.com/evey-project/evey/internal/app/library"
 	appuser "github.com/evey-project/evey/internal/app/user"
 	"github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 	otelcodes "go.opentelemetry.io/otel/codes"
 	"google.golang.org/grpc/codes"
@@ -271,6 +273,11 @@ func (h *collectionHandler) AddCollectionItem(ctx context.Context, req *eveyv1.A
 	if err := h.svc.LinkMediaItem(ctx, req.GetId(), req.GetMediaItemId(), int(req.GetSortOrder())); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
+		// Naming something that does not exist is the caller's mistake, not the
+		// server's: answering 500 blamed the wrong side and buried the reason.
+		if errors.Is(err, shared.ErrNotFound) {
+			return nil, status.Errorf(codes.NotFound, "%v", err)
+		}
 		return nil, internalError(ctx, "add collection item", err)
 	}
 	return &eveyv1.AddCollectionItemResponse{}, nil

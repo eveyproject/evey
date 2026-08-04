@@ -502,6 +502,23 @@ func TestCollectionAddCollectionItem_OK(t *testing.T) {
 	}
 }
 
+// Naming a title that does not exist answered 500, blaming the server for the
+// caller's mistake and burying the reason (probed on dev 2026-08-04).
+func TestCollectionAddCollectionItem_UnknownMediaItem_404(t *testing.T) {
+	h, cmdRepo, _, _ := newTestCollectionHandlerWithAccess()
+	seedCollection(cmdRepo, "col-1", "C")
+	_, err := h.AddCollectionItem(context.Background(), &eveyv1.AddCollectionItemRequest{
+		Id:          "col-1",
+		MediaItemId: "no-such-title",
+	})
+	if err == nil {
+		t.Fatal("expected an error for an unknown media item")
+	}
+	if got := status.Code(err); got != codes.NotFound {
+		t.Errorf("expected NotFound, got %v (%v)", got, err)
+	}
+}
+
 func TestCollectionAddCollectionItem_MissingID_400(t *testing.T) {
 	h, _ := newTestCollectionHandler()
 	_, err := h.AddCollectionItem(context.Background(), &eveyv1.AddCollectionItemRequest{
