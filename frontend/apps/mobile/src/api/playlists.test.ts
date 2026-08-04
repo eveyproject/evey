@@ -41,24 +41,32 @@ describe("usePlaylistList", () => {
   });
 });
 
+// These used to mock a wrapper the endpoint never sent ({playlist, items,
+// media}) and asserted a merge that could not happen: the real GET answers with
+// the playlist flat, and the members come from their own endpoint. The old
+// shape made the tests green while opening a playlist threw on device.
 describe("usePlaylistDetail", () => {
-  it("fetches playlist by id and merges media into items", async () => {
-    eveyFetchMock.mockResolvedValue({
-      playlist: {
+  function mockTwoCalls(playlist: Record<string, unknown>, items: unknown[]) {
+    eveyFetchMock.mockImplementation(({ url }: { url: string }) =>
+      Promise.resolve(url.endsWith("/items") ? { items } : playlist),
+    );
+  }
+
+  it("reads the flat playlist and its members from their own endpoint", async () => {
+    mockTwoCalls(
+      {
         id: "p1", name: "Mix", description: "desc", type: "manual",
         sortBy: "name", sortOrder: "asc", createdAt: "2025-01-01", updatedAt: "2025-01-01",
       },
-      items: [{ mediaItemId: "m1", sortOrder: 0, addedAt: "2025-01-01" }],
-      media: [{ id: "m1", title: "Movie A", type: "movie", year: 2020 }],
-    });
+      [{ mediaItemId: "m1", sortOrder: 0, addedAt: "2025-01-01", title: "Movie A", type: "movie", year: 2020 }],
+    );
 
     const { result } = renderHook(() => usePlaylistDetail("p1"), { wrapper: createWrapper() });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    expect(eveyFetchMock).toHaveBeenCalledWith({
-      url: "/api/v1/playlists/p1",
-      method: "GET",
-    });
+    expect(eveyFetchMock).toHaveBeenCalledWith({ url: "/api/v1/playlists/p1", method: "GET" });
+    expect(eveyFetchMock).toHaveBeenCalledWith({ url: "/api/v1/playlists/p1/items", method: "GET" });
+    expect(result.current.data?.name).toBe("Mix");
     expect(result.current.data?.items?.[0]).toMatchObject({
       media_item_id: "m1",
       title: "Movie A",
@@ -67,25 +75,20 @@ describe("usePlaylistDetail", () => {
     });
   });
 
-  it("falls back to media array when items is empty", async () => {
-    eveyFetchMock.mockResolvedValue({
-      playlist: {
+  it("gives an empty member list when the playlist holds none", async () => {
+    mockTwoCalls(
+      {
         id: "p2", name: "Auto", description: "", type: "smart",
         sortBy: "date", sortOrder: "desc", createdAt: "2025-01-01", updatedAt: "2025-01-01",
       },
-      items: [],
-      media: [
-        { id: "m1", title: "A", type: "movie" },
-        { id: "m2", title: "B", type: "series", year: 2021 },
-      ],
-    });
+      [],
+    );
 
     const { result } = renderHook(() => usePlaylistDetail("p2"), { wrapper: createWrapper() });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    expect(result.current.data?.items).toHaveLength(2);
-    expect(result.current.data?.items?.[0].media_item_id).toBe("m1");
-    expect(result.current.data?.items?.[1].sort_order).toBe(1);
+    expect(result.current.data?.id).toBe("p2");
+    expect(result.current.data?.items).toEqual([]);
   });
 
   it("is disabled when id is empty", () => {
