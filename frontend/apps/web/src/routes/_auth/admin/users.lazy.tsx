@@ -12,6 +12,7 @@ import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { FetchErrorState } from "@/components/ui/FetchErrorState";
 import { USERS_QUERY_KEY, INVITES_QUERY_KEY } from "@/features/admin/users-constants";
 import { CreateUserForm } from "@/features/admin/CreateUserForm";
 import { CreateInviteForm } from "@/features/admin/CreateInviteForm";
@@ -28,7 +29,7 @@ function UsersPage() {
   const [showInviteModal, setShowInviteModal] = useState(false);
   const queryClient = useQueryClient();
   const { data, isLoading } = useUserServiceListUsers();
-  const { data: inviteData, isLoading: inviteLoading } = useUserServiceListInviteLinks();
+  const { data: inviteData, isLoading: inviteLoading, isError: inviteError, error: inviteErr, refetch: refetchInvites } = useUserServiceListInviteLinks();
   const users = data?.users ?? [];
   const invites = inviteData?.inviteLinks ?? [];
 
@@ -125,7 +126,15 @@ function UsersPage() {
                 </tr>
               </thead>
               <tbody>
-                {invites.length === 0 ? (
+                {inviteError ? (
+                  // Loading is already handled by the spinner above; this is
+                  // the third state, which read as "no invite links".
+                  <tr>
+                    <td colSpan={4}>
+                      <FetchErrorState error={inviteErr} onRetry={() => void refetchInvites()} />
+                    </td>
+                  </tr>
+                ) : invites.length === 0 ? (
                   <tr>
                     <td colSpan={4}>
                       <EmptyState icon={<Bell size={48} strokeWidth={1.5} />} title={t("admin.users.noInvites")} />

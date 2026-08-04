@@ -23,6 +23,7 @@ import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { FetchErrorState } from "@/components/ui/FetchErrorState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Modal } from "@/components/ui/Modal";
 
@@ -410,7 +411,7 @@ function RestoreUploadModal({
 
 function BackupPage() {
   const { t } = useTranslation();
-  const { data: backups, isLoading } = useBackups();
+  const { data: backups, isLoading, isError, error, refetch } = useBackups();
   const createBackup = useCreateBackup();
   const [showRestoreUpload, setShowRestoreUpload] = useState(false);
 
@@ -439,6 +440,10 @@ function BackupPage() {
         <div className="flex justify-center py-16">
           <Spinner size="lg" />
         </div>
+      ) : isError ? (
+        // "No backups" tells an admin there is nothing to restore, which is the
+        // last thing to get wrong on this screen.
+        <FetchErrorState error={error} onRetry={() => void refetch()} />
       ) : !backups || backups.length === 0 ? (
         <EmptyState
           icon={<Folder size={48} strokeWidth={1.5} />}
