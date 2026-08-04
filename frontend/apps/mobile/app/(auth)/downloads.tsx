@@ -238,7 +238,7 @@ export default function DownloadsScreen() {
     return { id: profileId, isKids: profile?.isKids, maxAge: profile?.maxAge, region: profile?.region };
   }, [profileId, profilesResp]);
 
-  const refresh = useCallback(async () => {
+  const listDownloads = useCallback(async () => {
     const [downloads, total] = await Promise.all([getDownloads(), getTotalDownloadSize()]);
     const completedIds = new Set(downloads.map((d) => d.mediaItemId));
     // A download not yet in the completed index (still running) is otherwise
@@ -257,8 +257,18 @@ export default function DownloadsScreen() {
     setItems([...inFlightOnly, ...downloads]);
     setTotalSize(total);
     setHasInFlight(inFlightOnly.length > 0);
-    setLoading(false);
   }, []);
+
+  const refresh = useCallback(async () => {
+    try {
+      await listDownloads();
+    } finally {
+      // Reading the local index can throw (corrupt store, missing directory).
+      // Leaving loading true there left the screen spinning for ever, with no
+      // pull-to-refresh reachable behind the spinner.
+      setLoading(false);
+    }
+  }, [listDownloads]);
 
   // Re-list on every focus - a download started elsewhere (media detail
   // screen) or completed in the background should show up without a
