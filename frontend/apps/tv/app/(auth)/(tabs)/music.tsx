@@ -234,22 +234,39 @@ function LibraryChip({
 function Section({
   title,
   loading,
+  error,
+  onRetry,
   empty,
   emptyLabel,
   children,
 }: {
   title: string;
   loading: boolean;
+  /** A row's own query failed - distinct from `empty`, which means the
+   * request succeeded and simply found nothing. Conflating the two told the
+   * viewer "no artists" when the artists request itself never answered. */
+  error?: boolean;
+  onRetry?: () => void;
   empty: boolean;
   emptyLabel: string;
   children: React.ReactNode;
 }) {
   const theme = useTheme();
+  const { t } = useTranslation();
   return (
     <View style={styles.rowContainer}>
       <Text style={[styles.rowTitle, { color: theme.colors.text }]}>{title}</Text>
       {loading ? (
         <ActivityIndicator color={theme.colors.accent} style={{ marginLeft: 24 }} />
+      ) : error ? (
+        <View style={styles.rowError}>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 16 }}>{t("common.loadError")}</Text>
+          {onRetry ? (
+            <FocusableCard onPress={onRetry} accessibilityLabel={t("common.retry")} style={styles.rowRetry}>
+              <Text style={{ color: theme.colors.accent, fontSize: 16, fontWeight: "600" }}>{t("common.retry")}</Text>
+            </FocusableCard>
+          ) : null}
+        </View>
       ) : empty ? (
         <Text style={{ color: theme.colors.textMuted, fontSize: 16, marginLeft: 24 }}>{emptyLabel}</Text>
       ) : (
@@ -276,15 +293,30 @@ export default function MusicScreen() {
   const activeLibraryID = selectedLibraryID ?? libraries?.[0]?.id;
   const libraryId = activeLibraryID ?? "";
 
-  const { data: artists, isLoading: artistsLoading } = useMusicServiceGetArtists(
+  const {
+    data: artists,
+    isLoading: artistsLoading,
+    isError: artistsError,
+    refetch: refetchArtists,
+  } = useMusicServiceGetArtists(
     { libraryId: activeLibraryID },
     { query: { enabled: !!activeLibraryID, select: (d) => d.artists ?? [] } },
   );
-  const { data: albums, isLoading: albumsLoading } = useMusicServiceGetAlbums(
+  const {
+    data: albums,
+    isLoading: albumsLoading,
+    isError: albumsError,
+    refetch: refetchAlbums,
+  } = useMusicServiceGetAlbums(
     { libraryId: activeLibraryID },
     { query: { enabled: !!activeLibraryID, select: (d) => d.albums ?? [] } },
   );
-  const { data: tracks, isLoading: tracksLoading } = useMusicServiceListTracks(
+  const {
+    data: tracks,
+    isLoading: tracksLoading,
+    isError: tracksError,
+    refetch: refetchTracks,
+  } = useMusicServiceListTracks(
     { libraryId: activeLibraryID, limit: TRACKS_QUERY_LIMIT },
     { query: { enabled: !!activeLibraryID, select: (d) => d.tracks ?? [] } },
   );
@@ -338,6 +370,8 @@ export default function MusicScreen() {
       <Section
         title={t("media.music.artists")}
         loading={artistsLoading}
+        error={artistsError}
+        onRetry={() => void refetchArtists()}
         empty={(artists ?? []).length === 0}
         emptyLabel={t("media.music.noArtists")}
       >
@@ -364,6 +398,8 @@ export default function MusicScreen() {
       <Section
         title={t("media.music.albums")}
         loading={albumsLoading}
+        error={albumsError}
+        onRetry={() => void refetchAlbums()}
         empty={(albums ?? []).length === 0}
         emptyLabel={t("media.music.noAlbums")}
       >
@@ -390,6 +426,8 @@ export default function MusicScreen() {
       <Section
         title={t("media.music.tracks")}
         loading={tracksLoading}
+        error={tracksError}
+        onRetry={() => void refetchTracks()}
         empty={(tracks ?? []).length === 0}
         emptyLabel={t("media.music.noTracks")}
       >
@@ -422,6 +460,8 @@ const styles = StyleSheet.create({
   header: { fontSize: 36, fontWeight: "700", paddingHorizontal: 24, marginBottom: 16 },
   rowContainer: { marginBottom: 32 },
   rowTitle: { fontSize: 24, fontWeight: "700", paddingHorizontal: 24, marginBottom: 16 },
+  rowError: { flexDirection: "row", alignItems: "center", gap: 16, marginLeft: 24 },
+  rowRetry: { paddingHorizontal: 16, paddingVertical: 6 },
   card: { width: CARD_WIDTH },
   albumArt: { width: ART_SIZE, height: ART_SIZE, justifyContent: "center", alignItems: "center", overflow: "hidden" },
   artistArt: { width: ART_SIZE, height: ART_SIZE, justifyContent: "center", alignItems: "center", overflow: "hidden" },

@@ -1,10 +1,11 @@
 import { useCallback } from "react";
-import { View, Text, FlatList, Pressable, ActivityIndicator, StyleSheet } from "react-native";
+import { View, Text, FlatList, StyleSheet } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useCollection, type CollectionItem } from "../../../src/api/collections";
 import { FocusableCard } from "../../../src/components/FocusableCard";
+import { ScreenState } from "../../../src/components/ScreenState";
 
 const NUM_COLUMNS = 5;
 
@@ -48,23 +49,8 @@ export default function CollectionDetailScreen() {
     [theme, router, t],
   );
 
-  if (isError) {
-    return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: theme.colors.bg }}>
-        <Text style={{ color: theme.colors.textMuted, fontSize: 22, marginBottom: 12 }}>{t("common.loadError")}</Text>
-        <Pressable onPress={() => refetch()}>
-          <Text style={{ color: theme.colors.accent, fontSize: 20 }}>{t("common.retry")}</Text>
-        </Pressable>
-      </View>
-    );
-  }
-
-  if (isLoading) {
-    return (
-      <View style={[styles.center, { backgroundColor: theme.colors.bg }]}>
-        <ActivityIndicator color={theme.colors.accent} size="large" />
-      </View>
-    );
+  if (isLoading || isError) {
+    return <ScreenState loading={isLoading} error={isError} onRetry={() => void refetch()} />;
   }
 
   return (
