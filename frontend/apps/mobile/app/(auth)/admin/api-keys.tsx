@@ -12,6 +12,7 @@ import {
 } from "@evey/api";
 import { toast } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
+import { LoadFailed } from "../../../src/components/LoadFailed";
 
 const SCOPE_OPTIONS = [
   "media:read",
@@ -28,7 +29,7 @@ export default function AdminAPIKeysScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
   const qc = useQueryClient();
-  const { data, isLoading, refetch } = useUserServiceListAPIKeys();
+  const { data, isLoading, isError, refetch } = useUserServiceListAPIKeys();
   const keys = data?.apiKeys ?? [];
 
   const [showCreate, setShowCreate] = useState(false);
@@ -118,6 +119,8 @@ export default function AdminAPIKeysScreen() {
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
           <ActivityIndicator color={theme.colors.accent} size="large" />
         </View>
+      ) : isError ? (
+        <LoadFailed onRetry={() => void refetch()} />
       ) : (
         <FlatList
           data={keys}

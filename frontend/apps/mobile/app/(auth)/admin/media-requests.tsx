@@ -18,6 +18,7 @@ import {
 import type { V1MediaRequestProto, V1UserAccessOverride } from "@evey/api";
 import { toast } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
+import { LoadFailed } from "../../../src/components/LoadFailed";
 import { capitalizeStatus, requestStatusI18nKey, STATUS_FILTERS, type StatusFilter } from "../../../src/components/admin/mediaRequestsHelpers";
 
 type Tab = "queue" | "access";
@@ -142,7 +143,7 @@ function QueueTab({ theme }: { theme: ReturnType<typeof useTheme> }) {
   const { t } = useTranslation();
   const [filter, setFilter] = useState<StatusFilter>("pending");
 
-  const { data, isLoading, refetch } = useAdminMediaRequestServiceListRequests(
+  const { data, isLoading, isError, refetch } = useAdminMediaRequestServiceListRequests(
     filter === "all" ? {} : { statuses: [filter] },
   );
   const items = data?.items ?? [];
@@ -178,7 +179,9 @@ function QueueTab({ theme }: { theme: ReturnType<typeof useTheme> }) {
         </View>
       }
       ListEmptyComponent={
-        isLoading ? null : (
+        isLoading ? null : isError ? (
+          <LoadFailed onRetry={() => void refetch()} />
+        ) : (
           <View style={{ alignItems: "center", paddingTop: 40 }}>
             <Ionicons name="mail-open-outline" size={48} color={theme.colors.textMuted} />
             <Text style={{ color: theme.colors.textMuted, marginTop: 12 }}>{t("admin.mediaRequests.empty")}</Text>
@@ -284,7 +287,7 @@ function AddOverrideModal({
 function AccessTab({ theme }: { theme: ReturnType<typeof useTheme> }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const { data: settings, isLoading } = useAdminMediaRequestServiceGetAccessSettings();
+  const { data: settings, isLoading, isError, refetch } = useAdminMediaRequestServiceGetAccessSettings();
   const { data: usersData } = useUserServiceListUsers();
   const [showAdd, setShowAdd] = useState(false);
 
@@ -324,6 +327,10 @@ function AccessTab({ theme }: { theme: ReturnType<typeof useTheme> }) {
         <ActivityIndicator color={theme.colors.accent} />
       </View>
     );
+  }
+
+  if (isError) {
+    return <LoadFailed onRetry={() => void refetch()} />;
   }
 
   return (

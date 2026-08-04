@@ -7,6 +7,7 @@ import { eveyFetch } from "@evey/api";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast, useAuthStore } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
+import { LoadFailed } from "../../../src/components/LoadFailed";
 import { formatBytes } from "../../../src/lib/formatBytes";
 import { downloadBackupFile, restoreExistingBackup } from "../../../src/components/admin/backup/backupFileOps";
 import { isBackupRestorable } from "../../../src/components/admin/backup/backupTransfer";
@@ -219,7 +220,7 @@ export default function AdminBackupScreen() {
   const qc = useQueryClient();
   const accessToken = useAuthStore((s) => s.accessToken);
 
-  const { data: backups, isLoading, refetch } = useBackups();
+  const { data: backups, isLoading, isError, refetch } = useBackups();
 
   const createBackup = useMutation({
     mutationFn: () => eveyFetch<Backup>({ url: "/api/v1/admin/backups", method: "POST" }),
@@ -352,7 +353,9 @@ export default function AdminBackupScreen() {
           </View>
         }
         ListEmptyComponent={
-          isLoading ? null : (
+          isLoading ? null : isError ? (
+            <LoadFailed onRetry={() => void refetch()} />
+          ) : (
             <View style={{ alignItems: "center", paddingTop: 60 }}>
               <Ionicons name="cloud-download-outline" size={48} color={theme.colors.textMuted} />
               <Text style={{ color: theme.colors.textMuted, marginTop: 12 }}>

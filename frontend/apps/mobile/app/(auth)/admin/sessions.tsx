@@ -8,6 +8,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { TrickplayPreview } from "../../../src/components/TrickplayPreview";
+import { LoadFailed } from "../../../src/components/LoadFailed";
 
 interface ActiveSession {
   sessionId: string;
@@ -322,7 +323,7 @@ export default function AdminSessionsScreen() {
   const { t } = useTranslation();
   const qc = useQueryClient();
 
-  const { data: sessions, isLoading, refetch, dataUpdatedAt } = useSessions();
+  const { data: sessions, isLoading, isError, refetch, dataUpdatedAt } = useSessions();
 
   const killSession = useMutation({
     mutationFn: (sessionId: string) => eveyFetch({ url: `/api/v1/admin/sessions/${sessionId}`, method: "DELETE" }),
@@ -398,12 +399,16 @@ export default function AdminSessionsScreen() {
           ) : null
         }
         ListEmptyComponent={
-          <View style={{ alignItems: "center", paddingTop: 60 }}>
-            <Ionicons name="play-circle-outline" size={48} color={theme.colors.textMuted} />
-            <Text style={{ color: theme.colors.textMuted, marginTop: 12 }}>
-              {t("admin.sessions.noSessions", "No active sessions")}
-            </Text>
-          </View>
+          isError ? (
+            <LoadFailed onRetry={() => void refetch()} />
+          ) : (
+            <View style={{ alignItems: "center", paddingTop: 60 }}>
+              <Ionicons name="play-circle-outline" size={48} color={theme.colors.textMuted} />
+              <Text style={{ color: theme.colors.textMuted, marginTop: 12 }}>
+                {t("admin.sessions.noSessions", "No active sessions")}
+              </Text>
+            </View>
+          )
         }
       />
     </View>
