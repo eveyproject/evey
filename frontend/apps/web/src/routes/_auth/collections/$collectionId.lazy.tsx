@@ -10,6 +10,7 @@ import { MediaGrid } from "@/features/library/MediaGrid";
 import { MediaCardWithModals as MediaCard } from "@/features/library/MediaCardWithModals";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { FetchErrorState } from "@/components/ui/FetchErrorState";
 import { Pagination } from "@/components/ui/Pagination";
 import { BackButton } from "@/components/ui/BackButton";
 
@@ -22,7 +23,7 @@ function CollectionDetailPage() {
   const { collectionId } = Route.useParams();
   const [page, setPage] = useState(1);
   const pageSize = 50;
-  const { data, isLoading } = useCollection(collectionId, pageSize, (page - 1) * pageSize);
+  const { data, isLoading, isError, error, refetch } = useCollection(collectionId, pageSize, (page - 1) * pageSize);
   const deleteMut = useDeleteCollection();
   const navigate = Route.useNavigate();
   const accessToken = useAuthStore((s) => s.accessToken);
@@ -128,6 +129,11 @@ function CollectionDetailPage() {
 
       {isLoading ? (
         <MediaGrid isLoading>{null}</MediaGrid>
+      ) : isError ? (
+        // A collection that failed to load is not a collection someone emptied.
+        <div className="rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]">
+          <FetchErrorState error={error} onRetry={refetch} />
+        </div>
       ) : items.length === 0 ? (
         <div
           className="rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]"

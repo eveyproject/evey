@@ -29,6 +29,7 @@ import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Select";
 import { Input } from "@/components/ui/Input";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { FetchErrorState } from "@/components/ui/FetchErrorState";
 import { MediaGridSkeleton } from "@/components/ui/Skeleton";
 import { MediaGrid } from "@/features/library/MediaGrid";
 import { MediaCardWithModals as MediaCard } from "@/features/library/MediaCardWithModals";
@@ -324,6 +325,12 @@ function LibraryPage() {
 
   const activeQuery = hasServerFilters ? filterQuery : regularQuery;
   const isLoading = searchActive ? searchQuery.isLoading : activeQuery.isLoading;
+  // Whichever query is actually driving the grid: a failure here used to render
+  // "this library is empty", sending an admin hunting for a scan problem that
+  // did not exist.
+  const activeIsError = searchActive ? searchQuery.isError : activeQuery.isError;
+  const activeError = searchActive ? searchQuery.error : activeQuery.error;
+  const activeRefetch = () => { void (searchActive ? searchQuery.refetch() : activeQuery.refetch()); };
 
   const items: V1MediaItem[] = useMemo(() => {
     if (searchActive) return searchQuery.data?.items ?? [];
@@ -701,7 +708,13 @@ function LibraryPage() {
             />
           )}
 
-          {!isLoading && displayItems.length === 0 && (
+          {!isLoading && activeIsError && (
+            <div className="rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]">
+              <FetchErrorState error={activeError} onRetry={activeRefetch} />
+            </div>
+          )}
+
+          {!isLoading && !activeIsError && displayItems.length === 0 && (
             <div
               className="rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]"
             >

@@ -123,6 +123,8 @@ export function useCollection(id: string, limit = 50, offset = 0) {
     isLoading: head.isLoading || items.isLoading,
     isError: head.isError || items.isError,
     error: head.error ?? items.error,
+    // Both halves, so a retry after a failure fetches whichever one failed.
+    refetch: () => { void head.refetch(); void items.refetch(); },
   };
 }
 

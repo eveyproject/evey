@@ -23,15 +23,22 @@ vi.mock("@evey/store", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 
-// Shape copied from the real useCollection: { data: { collection, items, total } }.
+// Shape copied from the real useCollection: { data, isLoading, isError, error,
+// refetch } - the screen reads every one of them.
+const failing = { value: false };
 vi.mock("@/features/collection/api", () => ({
   useCollection: () => ({
-    data: {
-      collection: { id: "smart-1", name: "Recent sci-fi", rules: [{ field: "year", operator: "gte", value: "2020" }] },
-      items: [{ id: "mi-1", title: "Dune", type: "movie" }],
-      total: 1,
-    },
+    data: failing.value
+      ? undefined
+      : {
+          collection: { id: "smart-1", name: "Recent sci-fi", rules: [{ field: "year", operator: "gte", value: "2020" }] },
+          items: [{ id: "mi-1", title: "Dune", type: "movie" }],
+          total: 1,
+        },
     isLoading: false,
+    isError: failing.value,
+    error: failing.value ? new Error("boom") : undefined,
+    refetch: vi.fn(),
   }),
   useDeleteCollection: () => ({ mutate: vi.fn(), isPending: false }),
 }));
@@ -42,7 +49,12 @@ vi.mock("@/features/library/MediaGrid", () => ({
 vi.mock("@/features/library/MediaCard", () => ({
   MediaCard: ({ item }: { item: { title: string } }) => React.createElement("div", null, item.title),
 }));
-vi.mock("@/components/ui/EmptyState", () => ({ EmptyState: () => null }));
+vi.mock("@/components/ui/EmptyState", () => ({
+  EmptyState: ({ title }: { title: string }) => React.createElement("div", { "data-testid": "empty-state" }, title),
+}));
+vi.mock("@/components/ui/FetchErrorState", () => ({
+  FetchErrorState: () => React.createElement("div", { "data-testid": "fetch-error-state" }),
+}));
 vi.mock("@/components/ui/Spinner", () => ({ Spinner: () => null }));
 vi.mock("@/components/ui/BackButton", () => ({ BackButton: () => null }));
 vi.mock("@/components/ui/Badge", () => ({
@@ -63,6 +75,7 @@ async function renderPage() {
 
 beforeEach(() => {
   isAdmin.value = true;
+  failing.value = false;
 });
 
 describe("smart collection page", () => {
@@ -77,5 +90,16 @@ describe("smart collection page", () => {
     expect(screen.queryByTestId("smart-delete-btn")).toBeNull();
     expect(screen.getByText("Recent sci-fi")).toBeInTheDocument();
     expect(screen.getByText("Dune")).toBeInTheDocument();
+  });
+});
+
+// A server that did not answer is not a collection someone deleted. This
+// screen claimed "collection not found" on any failure.
+describe("smart collection page, when the load fails", () => {
+  it("says the load failed instead of claiming the collection is gone", async () => {
+    failing.value = true;
+    await renderPage();
+    expect(screen.getByTestId("fetch-error-state")).toBeInTheDocument();
+    expect(screen.queryByTestId("empty-state")).toBeNull();
   });
 });

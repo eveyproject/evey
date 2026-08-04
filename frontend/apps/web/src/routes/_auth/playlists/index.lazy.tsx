@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { FetchErrorState } from "@/components/ui/FetchErrorState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { usePlaylistList, useDeletePlaylist, type Playlist } from "@/features/playlist/api";
 import { CreatePlaylistModal } from "@/features/playlist/CreatePlaylistModal";
@@ -77,7 +78,7 @@ function PlaylistCard({ playlist, onDelete }: { playlist: Playlist; onDelete: ()
 
 function PlaylistsIndex() {
   const { t } = useTranslation();
-  const { data: playlists, isLoading } = usePlaylistList();
+  const { data: playlists, isLoading, isError, error, refetch } = usePlaylistList();
   const deletePlaylist = useDeletePlaylist();
   const [createOpen, setCreateOpen] = useState(false);
 
@@ -99,6 +100,12 @@ function PlaylistsIndex() {
       {isLoading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
           {Array.from({ length: 3 }).map((_, i) => <PlaylistCardSkeleton key={i} />)}
+        </div>
+      ) : isError ? (
+        // Failing to load them is not the same as having none, and the empty
+        // state invited the person to create a playlist they already own.
+        <div className="rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]">
+          <FetchErrorState error={error} onRetry={() => void refetch()} />
         </div>
       ) : !playlists?.length ? (
         <div className="rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]">

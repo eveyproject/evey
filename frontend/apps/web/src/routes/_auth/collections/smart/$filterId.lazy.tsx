@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useCollection, useDeleteCollection } from "@/features/collection/api";
 import { Spinner } from "@/components/ui/Spinner";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { FetchErrorState } from "@/components/ui/FetchErrorState";
 import { BackButton } from "@/components/ui/BackButton";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -25,7 +26,7 @@ function SmartFilterPage() {
   const { t } = useTranslation();
   const { filterId } = Route.useParams();
   const navigate = Route.useNavigate();
-  const { data, isLoading } = useCollection(filterId);
+  const { data, isLoading, isError, error, refetch } = useCollection(filterId);
   const deleteMut = useDeleteCollection();
   const isAdmin = useAuthStore((s) => s.isAdmin);
 
@@ -43,6 +44,18 @@ function SmartFilterPage() {
       },
       onError: () => toast.error(t("media.collections.deleteFailed")),
     });
+  }
+
+  // A server that did not answer is not a collection that was deleted: this
+  // screen said "collection not found" on any failure, so a network blip read
+  // as "someone removed it".
+  if (isError) {
+    return (
+      <div>
+        <BackButton fallback="/collections" />
+        <FetchErrorState error={error} onRetry={() => refetch()} />
+      </div>
+    );
   }
 
   if (!isLoading && !col) {
