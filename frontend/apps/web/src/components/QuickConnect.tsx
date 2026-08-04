@@ -113,6 +113,19 @@ export function QuickConnect() {
       >
         {code ? (
           <QRCode value={qrValue} size={116} />
+        ) : initiate.isError ? (
+          // The code request runs on mount: when it fails there is no gesture
+          // to repeat, so a bare spinner spun for ever with no way out.
+          <div className="w-full h-full flex items-center justify-center">
+            <button
+              type="button"
+              onClick={() => initiate.mutate()}
+              data-testid="quick-connect-retry"
+              className="text-xs font-medium underline text-black"
+            >
+              {t("common.retry")}
+            </button>
+          </div>
         ) : (
           <div className="w-full h-full flex items-center justify-center">
             <Spinner size="sm" />

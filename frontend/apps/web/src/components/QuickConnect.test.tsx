@@ -4,12 +4,15 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const mockInitiateMutate = vi.fn();
 let onSuccessCallback: ((data: { code?: string }) => void) | null = null;
+// Mirrors the real hook's result shape: the component reads isError to decide
+// between the spinner and a way out.
+let mockIsError = false;
 
 vi.mock("@evey/api", () => ({
   eveyFetch: vi.fn(),
   useUserServiceInitiateQuickConnect: (opts: { mutation: { onSuccess: (d: { code?: string }) => void } }) => {
     onSuccessCallback = opts.mutation.onSuccess;
-    return { mutate: mockInitiateMutate };
+    return { mutate: mockInitiateMutate, isError: mockIsError };
   },
 }));
 
@@ -43,6 +46,7 @@ describe("QuickConnect", () => {
     vi.useFakeTimers();
     vi.clearAllMocks();
     onSuccessCallback = null;
+    mockIsError = false;
     mockInitiateMutate.mockImplementation(() => {
       // simulate async success - component calls mutate in useEffect
     });
@@ -50,6 +54,20 @@ describe("QuickConnect", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  // The request runs on mount, so a failure leaves no gesture to repeat: the
+  // spinner spun for ever with nothing to click.
+  it("offers a way out when the code request failed", async () => {
+    mockIsError = true;
+    const { QuickConnect } = await import("./QuickConnect");
+    render(<QuickConnect />);
+
+    expect(screen.queryByTestId("spinner")).not.toBeInTheDocument();
+    const retry = screen.getByTestId("quick-connect-retry");
+    mockInitiateMutate.mockClear();
+    act(() => { retry.click(); });
+    expect(mockInitiateMutate).toHaveBeenCalledTimes(1);
   });
 
   it("shows spinner while code is being fetched", async () => {
