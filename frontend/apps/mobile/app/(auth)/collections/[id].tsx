@@ -157,7 +157,7 @@ export default function CollectionDetailScreen() {
   const serverUrl = useServerUrl();
   const authHeaders = useAuthHeaders();
 
-  const { data, isLoading, isError, refetch } = useCollection(id ?? "");
+  const { data, isLoading, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } = useCollection(id ?? "");
   const deleteMut = useDeleteCollection();
   const removeItemMut = useRemoveCollectionItem();
   const reorderMut = useReorderCollectionItems(id ?? "");
@@ -355,6 +355,10 @@ export default function CollectionDetailScreen() {
           maxToRenderPerBatch={12}
           windowSize={5}
           removeClippedSubviews={true}
+          onEndReachedThreshold={0.5}
+          onEndReached={() => {
+            if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
+          }}
           ListEmptyComponent={
             <View style={styles.center}>
               <Text style={{ color: theme.colors.textMuted }}>{t("common.noItems")}</Text>

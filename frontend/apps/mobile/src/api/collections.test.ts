@@ -46,16 +46,32 @@ describe("useCollection", () => {
     });
   });
 
-  it("passes custom limit and offset", async () => {
-    eveyFetchMock.mockResolvedValue({ collection: {}, items: [], total: 0 });
+  // A collection larger than one page used to show its first 50 titles with
+  // nothing saying the rest existed.
+  it("asks for the next page and hands back every title loaded so far", async () => {
+    eveyFetchMock.mockImplementation(({ url }: { url: string }) =>
+      Promise.resolve(
+        url.includes("offset=0")
+          ? { collection: { id: "c2", name: "Long" }, items: [{ id: "m1" }, { id: "m2" }], total: 3 }
+          : { collection: { id: "c2", name: "Long" }, items: [{ id: "m3" }], total: 3 },
+      ),
+    );
 
-    const { result } = renderHook(() => useCollection("c2", 10, 20), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useCollection("c2", 2), { wrapper: createWrapper() });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data?.items).toHaveLength(2);
+    expect(result.current.hasNextPage).toBe(true);
+
+    await act(async () => {
+      await result.current.fetchNextPage();
+    });
 
     expect(eveyFetchMock).toHaveBeenCalledWith({
-      url: "/api/v1/collections/c2?limit=10&offset=20",
+      url: "/api/v1/collections/c2?limit=2&offset=2",
       method: "GET",
     });
+    await waitFor(() => expect(result.current.data?.items).toHaveLength(3));
+    expect(result.current.hasNextPage).toBe(false);
   });
 
   it("is disabled when id is empty", () => {

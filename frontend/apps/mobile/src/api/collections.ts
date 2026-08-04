@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { eveyFetch } from "@evey/api";
 import { toast } from "@evey/store";
 import i18n from "../i18n";
@@ -70,17 +70,40 @@ export function useAllCollections() {
   });
 }
 
-export function useCollection(id: string, limit = 50, offset = 0) {
-  return useQuery<GetCollectionResponse>({
-    queryKey: ["collection", id, limit, offset],
-    queryFn: () =>
+const COLLECTION_PAGE_SIZE = 50;
+
+/**
+ * A collection and its members, page by page. It has to page: the endpoint
+ * answers 50 members at a time, and asking for one page showed 50 titles of a
+ * larger collection with nothing saying the rest existed.
+ */
+export function useCollection(id: string, pageSize = COLLECTION_PAGE_SIZE) {
+  const query = useInfiniteQuery<GetCollectionResponse>({
+    queryKey: ["collection", id, pageSize],
+    initialPageParam: 0,
+    queryFn: ({ pageParam }) =>
       eveyFetch<GetCollectionResponse>({
-        url: `/api/v1/collections/${id}?limit=${limit}&offset=${offset}`,
+        url: `/api/v1/collections/${id}?limit=${pageSize}&offset=${pageParam as number}`,
         method: "GET",
       }),
+    getNextPageParam: (_last, pages) => {
+      const loaded = pages.reduce((n, p) => n + (p.items?.length ?? 0), 0);
+      return loaded < (pages[0]?.total ?? 0) ? loaded : undefined;
+    },
     enabled: !!id,
     staleTime: 5 * 60_000,
   });
+  const pages = query.data?.pages ?? [];
+  return {
+    ...query,
+    data: pages.length
+      ? {
+          collection: pages[0].collection,
+          items: pages.flatMap((p) => p.items ?? []),
+          total: pages[0].total ?? 0,
+        }
+      : undefined,
+  };
 }
 
 /**
