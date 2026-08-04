@@ -5,6 +5,7 @@ import { libraryServiceGetMediaItem } from "@evey/api";
 import type { V1MediaItem } from "@evey/api";
 import { toast } from "@evey/store";
 import { useTranslation } from "react-i18next";
+import { FetchErrorState } from "@/components/ui/FetchErrorState";
 import { ChevronLeft, Lock, Plus, RefreshCw, Save, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
@@ -64,7 +65,7 @@ function AdminMediaSegmentsPage() {
     enabled: !!mediaId,
   });
 
-  const { data: serverSegments, isLoading: segLoading } = useAdminMediaSegments(mediaId);
+  const { data: serverSegments, isLoading: segLoading, isError: segError, error: segErr, refetch: refetchSegments } = useAdminMediaSegments(mediaId);
 
   const setSegment = useSetSegment(mediaId);
   const deleteSegment = useDeleteSegment(mediaId);
@@ -307,7 +308,11 @@ function AdminMediaSegmentsPage() {
               {t("admin.segments.timeline")}
             </h2>
 
-            {localSegments.length === 0 && !isLoading ? (
+            {segError && localSegments.length === 0 ? (
+              // "No segments" would send an admin re-running detection on a
+              // title whose segments simply could not be read.
+              <FetchErrorState error={segErr} onRetry={() => void refetchSegments()} />
+            ) : localSegments.length === 0 && !isLoading ? (
               <div className="py-6 text-center text-sm text-[var(--text-muted)]">
                 {t("admin.segments.emptyState")}
               </div>

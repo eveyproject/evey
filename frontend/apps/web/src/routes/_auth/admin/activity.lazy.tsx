@@ -9,6 +9,7 @@ import { useActivityServiceGetServerStats } from "@evey/api";
 import { Spinner } from "@/components/ui/Spinner";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { FetchErrorState } from "@/components/ui/FetchErrorState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { AuditLogTable } from "@/features/admin/AuditLogTable";
 
@@ -62,7 +63,7 @@ function formatDate(d?: string): string {
 function PlayHistoryTab() {
   const { t } = useTranslation();
   const PAGE_SIZE = 25;
-  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
+  const { data, isLoading, isError, error, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
     queryKey: ["play-history-infinite"],
     initialPageParam: "" as string,
     queryFn: ({ pageParam, signal }) =>
@@ -103,7 +104,15 @@ function PlayHistoryTab() {
             </tr>
           </thead>
           <tbody>
-            {entries.length === 0 ? (
+            {isError && entries.length === 0 ? (
+              // A failed page after some rows are already shown must not wipe
+              // them: only an empty-and-failed table is an error state.
+              <tr>
+                <td colSpan={5}>
+                  <FetchErrorState error={error} onRetry={() => void refetch()} />
+                </td>
+              </tr>
+            ) : entries.length === 0 ? (
               <tr>
                 <td colSpan={5}>
                   <EmptyState icon={<Film size={48} strokeWidth={1.5} />} title={t("admin.activity.noPlayHistory")} />
