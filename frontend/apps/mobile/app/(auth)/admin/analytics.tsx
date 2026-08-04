@@ -3,6 +3,7 @@ import { View, Text, ScrollView, RefreshControl, StyleSheet } from "react-native
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Stack } from "expo-router";
 import { useTranslation } from "react-i18next";
+import { LoadFailed } from "../../../src/components/LoadFailed";
 import { useActivityServiceGetAnalytics } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 
@@ -175,12 +176,10 @@ export default function AdminAnalyticsScreen() {
           </View>
         </>
       ) : (
-        <View style={{ alignItems: "center", paddingTop: 60 }}>
-          <Ionicons name="alert-circle-outline" size={32} color={theme.colors.textMuted} />
-          <Text style={{ color: theme.colors.textMuted, marginTop: 8, fontSize: 13 }}>
-            {t("admin.analytics.failedLoad")}
-          </Text>
-        </View>
+        // This screen carried its own copy of the failure block, without a way
+        // to retry - the one case LoadFailed's own comment says to migrate when
+        // next touched.
+        <LoadFailed onRetry={() => void refetch()} message={t("admin.analytics.failedLoad")} />
       )}
     </ScrollView>
   );
