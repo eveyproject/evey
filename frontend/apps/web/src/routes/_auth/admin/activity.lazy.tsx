@@ -3,6 +3,7 @@ import { Film, Download } from "lucide-react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { toast } from "@evey/store";
 import { eveyFetch, activityServiceGetPlayHistory, activityServiceGetServerStats, adminSessionServiceGetAuditLog } from "@evey/api";
 import { useActivityServiceGetServerStats } from "@evey/api";
 import { Spinner } from "@/components/ui/Spinner";
@@ -354,7 +355,12 @@ function ActivityPage() {
         const data = await activityServiceGetServerStats();
         downloadJSON(data, `server-stats-${timestamp}.json`);
       }
-    } catch (err) { console.warn("activity export failed", err); }
+    } catch (err) {
+      // The spinner stopping with no file and no message is indistinguishable
+      // from the browser blocking the download.
+      console.warn("activity export failed", err);
+      toast.error(t("common.error"));
+    }
     setExporting(false);
   }, [tab]);
 

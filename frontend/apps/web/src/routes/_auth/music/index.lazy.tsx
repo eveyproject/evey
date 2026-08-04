@@ -293,7 +293,10 @@ function AddToPlaylistButton({ trackID }: { trackID: string }) {
         toast.success(t("media.music.addedToPlaylist"));
       }
     } catch (err) {
+      // The success toast for the creation has already been shown by the time
+      // the add can fail, so silence here read as "the track is in it".
       console.warn("create + add failed", err);
+      toast.error(t("media.playlist.addError"));
     }
     setOpen(false);
   }
@@ -599,6 +602,7 @@ function PlaylistsTab({
       });
     } catch (err) {
       console.warn("remove playlist item failed", err);
+      toast.error(t("media.playlist.failedRemove"));
     }
   }
 
@@ -609,6 +613,7 @@ function PlaylistsTab({
       setSelected(null);
     } catch (err) {
       console.warn("delete playlist failed", err);
+      toast.error(t("media.playlist.deleteError"));
     }
   }
 

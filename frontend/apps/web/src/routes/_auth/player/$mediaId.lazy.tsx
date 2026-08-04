@@ -17,7 +17,7 @@ import { PluginSlot } from "@/features/plugins/PluginSlot";
 import { useParentalGate, markUnlocked } from "@/hooks/useParentalGate";
 import { ParentalPINDialog } from "@/components/ParentalPINDialog";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
-import { useAuthStore, usePlayerStore, setPlayerCleanup, useMusicPlayerStore } from "@evey/store";
+import { useAuthStore, usePlayerStore, setPlayerCleanup, useMusicPlayerStore, toast } from "@evey/store";
 
 const IMAGE_SUBTITLE_CODECS = new Set([
   "pgssub", "hdmv_pgs_subtitle", "dvd_subtitle", "dvbsub", "xsub",
@@ -340,7 +340,10 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
       setShareRoomId(roomId);
       setShowShareDialog(true);
     } catch (err) {
-      if (import.meta.env.DEV) console.error("SyncPlay createRoom failed:", err);
+      // In a production build this catch was empty: the dialog simply never
+      // opened and nothing explained why.
+      console.warn("SyncPlay createRoom failed", err);
+      toast.error(t("common.error"));
     }
   }
 
