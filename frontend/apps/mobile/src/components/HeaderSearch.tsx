@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from "react";
-import { View, Text, TextInput, Pressable, StyleSheet } from "react-native";
+import { View, Text, TextInput, Pressable, ActivityIndicator, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -12,6 +12,7 @@ import { useAuthHeaders } from "../hooks/useAuthenticatedImage";
 import { useServerUrl } from "../hooks/useServerUrl";
 import { useMusicQueueStore } from "../stores/musicQueue";
 import { searchTrackMusicSource } from "./music/musicSource";
+import { LoadFailed } from "./LoadFailed";
 import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
 
 export function HeaderSearch() {
@@ -26,11 +27,11 @@ export function HeaderSearch() {
   const [kind, setKind] = useState<"media" | "music">("media");
   const setQueue = useMusicQueueStore((s) => s.setQueue);
 
-  const { data } = useLibraryServiceSearchMedia(
+  const { data, isLoading, isError, refetch } = useLibraryServiceSearchMedia(
     { query: debouncedQuery, limit: 6 },
     { query: { enabled: debouncedQuery.trim().length > 1 && kind === "media" } }
   );
-  const { data: musicData } = useMusicServiceSearchMusic(
+  const { data: musicData, isLoading: isMusicLoading, isError: isMusicError, refetch: refetchMusic } = useMusicServiceSearchMusic(
     { query: debouncedQuery, limit: 6 },
     { query: { enabled: debouncedQuery.trim().length > 1 && kind === "music" } }
   );
@@ -112,7 +113,13 @@ export function HeaderSearch() {
           </View>
 
           {kind === "music" ? (
-            musicResults.length === 0 ? (
+            isMusicLoading ? (
+              <View style={styles.emptyRow}>
+                <ActivityIndicator color={theme.colors.accent} size="small" />
+              </View>
+            ) : isMusicError ? (
+              <LoadFailed inline onRetry={() => void refetchMusic()} />
+            ) : musicResults.length === 0 ? (
               <View style={styles.emptyRow}>
                 <Text style={{ color: theme.colors.textMuted, fontSize: FONT_SIZE.xs }}>{t("media.search.noResults", "No results")}</Text>
               </View>
@@ -148,6 +155,12 @@ export function HeaderSearch() {
                 </Pressable>
               </>
             )
+          ) : isLoading ? (
+            <View style={styles.emptyRow}>
+              <ActivityIndicator color={theme.colors.accent} size="small" />
+            </View>
+          ) : isError ? (
+            <LoadFailed inline onRetry={() => void refetch()} />
           ) : results.length === 0 ? (
             <View style={styles.emptyRow}>
               <Text style={{ color: theme.colors.textMuted, fontSize: FONT_SIZE.xs }}>{t("media.search.noResults", "No results")}</Text>

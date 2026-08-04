@@ -7,6 +7,7 @@ import { PieChart, BarChart } from "react-native-gifted-charts";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { chartColorAt } from "../../../src/lib/chartPalette";
+import { LoadFailed } from "../../../src/components/LoadFailed";
 
 const GENRE_FR: Record<string, string> = {
   Action: "Action",
@@ -71,7 +72,7 @@ export default function StatsScreen() {
   const profileId = useAuthStore((s) => s.profileId);
   const screenWidth = Dimensions.get("window").width;
 
-  const { data, isLoading } = useActivityServiceGetUserStats(profileId ?? "", undefined, {
+  const { data, isLoading, isError, refetch } = useActivityServiceGetUserStats(profileId ?? "", undefined, {
     query: { enabled: !!profileId },
   });
 
@@ -81,6 +82,14 @@ export default function StatsScreen() {
     return (
       <View style={[s.container, { justifyContent: "center", alignItems: "center" }]}>
         <ActivityIndicator size="large" color={theme.colors.accent} />
+      </View>
+    );
+  }
+
+  if (isError) {
+    return (
+      <View style={[s.container, { justifyContent: "center", alignItems: "center" }]}>
+        <LoadFailed onRetry={() => void refetch()} />
       </View>
     );
   }

@@ -25,6 +25,7 @@ import {
 import { toast } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { Skeleton } from "../../../src/components/Skeleton";
+import { LoadFailed } from "../../../src/components/LoadFailed";
 
 type MediaType = "movie" | "tv" | "music";
 // The search scopes offered to the user: movies and series are ONE scope
@@ -83,10 +84,10 @@ export default function RequestsScreen() {
   const [query, setQuery] = useState("");
   const [submittedQuery, setSubmittedQuery] = useState("");
 
-  const { data: policy, isLoading: policyLoading } = useMediaRequestServiceGetRequestPolicy();
+  const { data: policy, isLoading: policyLoading, isError: policyError, refetch: refetchPolicy } = useMediaRequestServiceGetRequestPolicy();
   const canRequest = policy?.canRequest === true;
 
-  const { data: myRequestsResp, isLoading: mineLoading } = useMediaRequestServiceListMyRequests(
+  const { data: myRequestsResp, isLoading: mineLoading, isError: mineError, refetch: refetchMine } = useMediaRequestServiceListMyRequests(
     undefined,
     { query: { enabled: canRequest } },
   );
@@ -110,6 +111,15 @@ export default function RequestsScreen() {
   );
 
   const searching = scope === "video" ? movieQ.isFetching || tvQ.isFetching : musicQ.isFetching;
+  const searchFailed = scope === "video" ? movieQ.isError || tvQ.isError : musicQ.isError;
+  const retrySearch = () => {
+    if (scope === "video") {
+      void movieQ.refetch();
+      void tvQ.refetch();
+    } else {
+      void musicQ.refetch();
+    }
+  };
 
   const results: TaggedCandidate[] = useMemo(() => {
     if (scope === "music") {
@@ -147,6 +157,17 @@ export default function RequestsScreen() {
   if (policyLoading) {
     return (
       <View style={[styles.container, styles.center, { backgroundColor: theme.colors.bg }]}>
+      </View>
+    );
+  }
+
+  // A failed policy fetch must not read as "requests are disabled" - that is
+  // an admin decision, not a network hiccup, and the two need different next
+  // steps from the user (retry vs. give up).
+  if (policyError) {
+    return (
+      <View style={[styles.container, styles.center, { backgroundColor: theme.colors.bg }]}>
+        <LoadFailed onRetry={() => void refetchPolicy()} />
       </View>
     );
   }
@@ -233,6 +254,8 @@ export default function RequestsScreen() {
             </View>
           ) : submittedQuery === "" ? (
             <Text style={[styles.hint, { color: theme.colors.textMuted }]}>{t("requests.searchPrompt")}</Text>
+          ) : searchFailed ? (
+            <LoadFailed inline onRetry={retrySearch} />
           ) : results.length === 0 ? (
             <Text style={[styles.hint, { color: theme.colors.textMuted }]}>{t("requests.noResults")}</Text>
           ) : (
@@ -315,6 +338,8 @@ export default function RequestsScreen() {
             />
           )}
         </View>
+      ) : mineError && myRequests.length === 0 ? (
+        <LoadFailed onRetry={() => void refetchMine()} />
       ) : (
         <FlatList
           data={myRequests}

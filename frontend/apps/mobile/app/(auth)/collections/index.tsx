@@ -19,6 +19,7 @@ import { Stack, useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@evey/store";
 import { Skeleton } from "../../../src/components/Skeleton";
+import { LoadFailed } from "../../../src/components/LoadFailed";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import {
   useCollections,
@@ -222,7 +223,7 @@ export default function CollectionsScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
   const router = useRouter();
-  const { data, isLoading, refetch } = useCollections();
+  const { data, isLoading, isError, refetch } = useCollections();
   const deleteMut = useDeleteCollection();
   const isAdmin = useAuthStore((s) => s.isAdmin);
   const [createVisible, setCreateVisible] = useState(false);
@@ -269,6 +270,8 @@ export default function CollectionsScreen() {
             </View>
           ))}
         </View>
+      ) : isError ? (
+        <LoadFailed onRetry={() => void refetch()} />
       ) : (
         <FlatList
           data={collections}

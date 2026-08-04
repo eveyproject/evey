@@ -14,6 +14,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useTranslation } from "react-i18next";
 import { Stack, useRouter } from "expo-router";
 import { Skeleton } from "../../../src/components/Skeleton";
+import { LoadFailed } from "../../../src/components/LoadFailed";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import {
   usePlaylistList,
@@ -83,7 +84,7 @@ export default function PlaylistsScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
   const router = useRouter();
-  const { data: playlists, isLoading, refetch } = usePlaylistList();
+  const { data: playlists, isLoading, isError, refetch } = usePlaylistList();
   const createMutation = useCreatePlaylist();
   const deleteMutation = useDeletePlaylist();
 
@@ -164,6 +165,8 @@ export default function PlaylistsScreen() {
             </View>
           ))}
         </View>
+      ) : isError ? (
+        <LoadFailed onRetry={() => void refetch()} />
       ) : (
         <FlatList
           data={playlists ?? []}
