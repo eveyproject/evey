@@ -182,10 +182,7 @@ func (h *collectionHandler) GetCollection(ctx context.Context, req *eveyv1.GetCo
 	if limit <= 0 {
 		limit = defaultCollectionPageSize
 	}
-	offset := int(req.GetOffset())
-	if offset < 0 {
-		offset = 0
-	}
+	offset := max(int(req.GetOffset()), 0)
 	page := visibleItems
 	if offset >= len(page) {
 		page = nil

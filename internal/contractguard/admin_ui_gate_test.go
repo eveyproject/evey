@@ -42,9 +42,9 @@ var gatedByCaller = map[string]string{
 		"page, whose create and edit controls are gated there",
 	"features/collection/CollectionDialog.tsx": "same: the create button and the per-card pencil that open it are both " +
 		"gated on the collections page",
-	"features/playlist/api.ts":     "playlist RPCs are RoleUser; present only because the file sits next to collection api.ts",
-	"features/admin/":              "the whole admin area is behind an admin-only route",
-	"routes/_auth/admin/":          "the whole admin area is behind an admin-only route",
+	"features/playlist/api.ts": "playlist RPCs are RoleUser; present only because the file sits next to collection api.ts",
+	"features/admin/":          "the whole admin area is behind an admin-only route",
+	"routes/_auth/admin/":      "the whole admin area is behind an admin-only route",
 	"features/plugins/PluginSlot.tsx": "renders plugin-declared UI; the admin RPCs it can reach are gated by the " +
 		"plugin's own manifest permissions, checked server-side per call",
 }

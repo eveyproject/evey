@@ -33,18 +33,13 @@ import (
 // clientTypeAllowlist holds triaged findings, each with its reason.
 var clientTypeAllowlist = map[string]string{}
 
-type rpcRoute struct {
-	Path     string // normalised: path parameters collapsed to {}
-	Response string
-}
-
 var (
-	rpcRe      = regexp.MustCompile(`rpc\s+\w+\s*\(\s*[\w.]+\s*\)\s*returns\s*\(\s*([\w.]+)\s*\)`)
-	httpGetRe  = regexp.MustCompile(`get:\s*"([^"]+)"`)
+	rpcRe       = regexp.MustCompile(`rpc\s+\w+\s*\(\s*[\w.]+\s*\)\s*returns\s*\(\s*([\w.]+)\s*\)`)
+	httpGetRe   = regexp.MustCompile(`get:\s*"([^"]+)"`)
 	fetchCallRe = regexp.MustCompile(`(?s)eveyFetch<(\w+)>\(\{(.{0,400}?)\}\)`)
-	urlRe      = regexp.MustCompile("url:\\s*[`\"']([^`\"']+)[`\"']")
-	methodRe   = regexp.MustCompile(`method:\s*"(\w+)"`)
-	tsFieldRe  = regexp.MustCompile(`(?m)^\s*(\w+)\??\s*:`)
+	urlRe       = regexp.MustCompile("url:\\s*[`\"']([^`\"']+)[`\"']")
+	methodRe    = regexp.MustCompile(`method:\s*"(\w+)"`)
+	tsFieldRe   = regexp.MustCompile(`(?m)^\s*(\w+)\??\s*:`)
 	pathParamRe = regexp.MustCompile(`\{[^}]*\}|\$\{[^}]*\}`)
 )
 
@@ -74,7 +69,7 @@ func parseGetRoutes(t *testing.T, dir string) map[string]string {
 			t.Fatalf("read %s: %v", e.Name(), rerr)
 		}
 		var current string
-		for _, line := range strings.Split(string(b), "\n") {
+		for line := range strings.SplitSeq(string(b), "\n") {
 			if m := rpcRe.FindStringSubmatch(line); m != nil {
 				current = m[1]
 				continue
@@ -104,7 +99,7 @@ func protoResponseFields(t *testing.T, dir string) map[string]map[string]bool {
 			t.Fatalf("read %s: %v", e.Name(), rerr)
 		}
 		var current string
-		for _, line := range strings.Split(string(b), "\n") {
+		for line := range strings.SplitSeq(string(b), "\n") {
 			if m := msgRe.FindStringSubmatch(line); m != nil {
 				current = m[1]
 				out[current] = map[string]bool{}
