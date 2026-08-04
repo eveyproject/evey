@@ -125,6 +125,7 @@ export function useCollection(id: string, limit = 50, offset = 0) {
 
 interface CreateCollectionInput {
   name: string;
+  overview?: string;
   rules?: CollectionRule[];
   sortBy?: string;
   smart?: boolean;
@@ -133,6 +134,9 @@ interface CreateCollectionInput {
 interface UpdateCollectionInput {
   id: string;
   name: string;
+  /** Absent keeps the existing synopsis server-side; only send it when the
+   * user actually touched the description field. */
+  overview?: string;
   rules?: CollectionRule[];
   sortBy?: string;
   smart?: boolean;
@@ -144,6 +148,7 @@ export function useCreateCollection() {
     mutationFn: (input: CreateCollectionInput) =>
       collectionServiceCreateCollection({
         name: input.name,
+        overview: input.overview,
         rules: input.rules?.map((r) => ({ field: r.field, operator: r.operator, value: r.value })),
         sortBy: input.sortBy,
         smart: input.smart ?? (input.rules != null && input.rules.length > 0),
@@ -155,9 +160,10 @@ export function useCreateCollection() {
 export function useUpdateCollection() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, name, rules, sortBy, smart }: UpdateCollectionInput) =>
+    mutationFn: ({ id, name, overview, rules, sortBy, smart }: UpdateCollectionInput) =>
       collectionServiceUpdateCollection(id, {
         name,
+        overview,
         rules: rules?.map((r) => ({ field: r.field, operator: r.operator, value: r.value })),
         sortBy,
         smart: smart ?? (rules != null && rules.length > 0),
