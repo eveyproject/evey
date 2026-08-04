@@ -28,9 +28,11 @@ import {
   useUpdateCollection,
   useDeleteCollection,
   useRemoveCollectionItem,
+  useReorderCollectionItems,
   type CollectionItem,
 } from "../../../src/api/collections";
 import { artworkUrl } from "../../../src/lib/artwork";
+import { moveItem } from "../../../src/utils/collectionReorder";
 
 const NUM_COLUMNS = 3;
 const SPACING = 8;
@@ -158,6 +160,7 @@ export default function CollectionDetailScreen() {
   const { data, isLoading, isError, refetch } = useCollection(id ?? "");
   const deleteMut = useDeleteCollection();
   const removeItemMut = useRemoveCollectionItem();
+  const reorderMut = useReorderCollectionItems(id ?? "");
   const isAdmin = useAuthStore((s) => s.isAdmin);
   const col = data?.collection;
   const items = data?.items ?? [];
@@ -249,6 +252,42 @@ export default function CollectionDetailScreen() {
               {item.title}
             </Text>
           </TouchableOpacity>
+          {isAdmin && items.length > 1 && (
+            <View style={[styles.reorderBtns, { backgroundColor: theme.colors.surface }]}>
+              <Pressable
+                onPress={() =>
+                  reorderMut.mutate({
+                    mediaItemIds: moveItem(items.map((i) => i.id), item.id, "up"),
+                    name: col?.name ?? "",
+                  })
+                }
+                hitSlop={8}
+                disabled={reorderMut.isPending || items[0]?.id === item.id}
+                style={{ opacity: reorderMut.isPending || items[0]?.id === item.id ? 0.4 : 1 }}
+                accessibilityRole="button"
+                accessibilityLabel={t("media.collections.moveUp")}
+                testID={`collection-up-${item.id}`}
+              >
+                <Ionicons name="chevron-up-circle" size={20} color={theme.colors.text} />
+              </Pressable>
+              <Pressable
+                onPress={() =>
+                  reorderMut.mutate({
+                    mediaItemIds: moveItem(items.map((i) => i.id), item.id, "down"),
+                    name: col?.name ?? "",
+                  })
+                }
+                hitSlop={8}
+                disabled={reorderMut.isPending || items[items.length - 1]?.id === item.id}
+                style={{ opacity: reorderMut.isPending || items[items.length - 1]?.id === item.id ? 0.4 : 1 }}
+                accessibilityRole="button"
+                accessibilityLabel={t("media.collections.moveDown")}
+                testID={`collection-down-${item.id}`}
+              >
+                <Ionicons name="chevron-down-circle" size={20} color={theme.colors.text} />
+              </Pressable>
+            </View>
+          )}
           {isAdmin && (
             <Pressable
               onPress={() => confirmRemoveItem(item)}
@@ -264,7 +303,7 @@ export default function CollectionDetailScreen() {
         </View>
       );
     },
-    [theme, router, serverUrl, authHeaders, t, isAdmin, confirmRemoveItem],
+    [theme, router, serverUrl, authHeaders, t, isAdmin, confirmRemoveItem, items, reorderMut, col?.name],
   );
 
   return (
@@ -345,6 +384,7 @@ const styles = StyleSheet.create({
   gridItem: { alignItems: "center" },
   title: { fontSize: 12, fontWeight: "500", marginTop: 4, textAlign: "center" },
   removeBtn: { position: "absolute", top: 4, right: 4, borderRadius: 12 },
+  reorderBtns: { position: "absolute", top: 4, left: 4, borderRadius: 12, flexDirection: "column", gap: 2 },
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",

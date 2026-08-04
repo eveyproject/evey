@@ -128,11 +128,12 @@ vi.mock("@evey/store", () => ({
 }));
 
 // --- src/api/collections ----------------------------------------------------------------
-const { refetchMock, removeItemMutateAsyncMock, updateMutateAsyncMock, deleteMutateAsyncMock } = vi.hoisted(() => ({
+const { refetchMock, removeItemMutateAsyncMock, updateMutateAsyncMock, deleteMutateAsyncMock, reorderMutateMock } = vi.hoisted(() => ({
   refetchMock: vi.fn(),
   removeItemMutateAsyncMock: vi.fn(),
   updateMutateAsyncMock: vi.fn(),
   deleteMutateAsyncMock: vi.fn(),
+  reorderMutateMock: vi.fn(),
 }));
 
 const COLLECTION_DATA = {
@@ -140,8 +141,9 @@ const COLLECTION_DATA = {
   items: [
     { id: "mi-1", title: "Dr. No", type: "MEDIA_ITEM_TYPE_MOVIE" },
     { id: "mi-2", title: "GoldenEye", type: "MEDIA_ITEM_TYPE_MOVIE" },
+    { id: "mi-3", title: "Skyfall", type: "MEDIA_ITEM_TYPE_MOVIE" },
   ],
-  total: 2,
+  total: 3,
 };
 
 vi.mock("../api/collections", () => ({
@@ -149,6 +151,7 @@ vi.mock("../api/collections", () => ({
   useUpdateCollection: () => ({ mutateAsync: updateMutateAsyncMock, isPending: false }),
   useDeleteCollection: () => ({ mutateAsync: deleteMutateAsyncMock, isPending: false }),
   useRemoveCollectionItem: () => ({ mutateAsync: removeItemMutateAsyncMock, isPending: false }),
+  useReorderCollectionItems: () => ({ mutate: reorderMutateMock, isPending: false }),
 }));
 
 // -------------------------------------------------------------------------------------
@@ -206,6 +209,52 @@ describe("CollectionDetailScreen item removal", () => {
     // masking the missing guard) so the "absent" assertions above are meaningful.
     expect(screen.getByText("Dr. No")).toBeTruthy();
     expect(screen.getByText("GoldenEye")).toBeTruthy();
+  });
+});
+
+// Reordering (ReorderCollectionItems RPC, server this beta) is the only way
+// to express a reading order that differs from release order (prequels).
+// Admin-only, mirrors apps/web's up/down controls: the full new order is
+// sent, then a second call flips sortBy to "manual" so the server actually
+// reads by it.
+describe("CollectionDetailScreen reorder", () => {
+  it("sends the full new order (moving the 2nd item up) and switches sortBy to manual", () => {
+    renderScreen();
+
+    fireEvent.click(screen.getByTestId("collection-up-mi-2"));
+
+    expect(reorderMutateMock).toHaveBeenCalledWith({
+      mediaItemIds: ["mi-2", "mi-1", "mi-3"],
+      name: "Bond Saga",
+    });
+  });
+
+  it("sends the full new order (moving the 2nd item down)", () => {
+    renderScreen();
+
+    fireEvent.click(screen.getByTestId("collection-down-mi-2"));
+
+    expect(reorderMutateMock).toHaveBeenCalledWith({
+      mediaItemIds: ["mi-1", "mi-3", "mi-2"],
+      name: "Bond Saga",
+    });
+  });
+
+  it("disables moving the first item up and the last item down", () => {
+    renderScreen();
+
+    fireEvent.click(screen.getByTestId("collection-up-mi-1"));
+    fireEvent.click(screen.getByTestId("collection-down-mi-3"));
+
+    expect(reorderMutateMock).not.toHaveBeenCalled();
+  });
+
+  it("hides the reorder controls entirely for a non-admin", () => {
+    isAdminRef.current = false;
+    renderScreen();
+
+    expect(screen.queryByTestId("collection-up-mi-2")).toBeNull();
+    expect(screen.queryByTestId("collection-down-mi-2")).toBeNull();
   });
 });
 

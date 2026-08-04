@@ -159,3 +159,26 @@ export function useRemoveCollectionItem() {
     onError: () => toast.error(i18n.t("common.error")),
   });
 }
+
+/**
+ * Writes the hand-set order of a collection's members. Admin-only, mirrors
+ * apps/web's useReorderCollectionItems (features/collection/api.ts).
+ *
+ * The order only takes effect once the collection reads by it, so this also
+ * switches sortBy to "manual" in a second call - a viewer who moves a title
+ * means that place, not "store it and keep showing release order".
+ */
+export function useReorderCollectionItems(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ mediaItemIds, name }: { mediaItemIds: string[]; name: string }) => {
+      await eveyFetch<void>({ url: `/api/v1/collections/${id}/items/order`, method: "PUT", data: { mediaItemIds } });
+      await eveyFetch<void>({ url: `/api/v1/collections/${id}`, method: "PUT", data: { name, sortBy: "manual" } });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["collections"] });
+      qc.invalidateQueries({ queryKey: ["collection", id] });
+    },
+    onError: () => toast.error(i18n.t("common.error")),
+  });
+}

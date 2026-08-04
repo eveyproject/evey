@@ -52,6 +52,7 @@ import { formatBytes } from "../../../src/lib/formatBytes";
 import { buildDownloadAuthContext } from "../../../src/lib/downloadContext";
 import { toast } from "@evey/store";
 import { AddToPlaylistSheet } from "../../../src/components/AddToPlaylistSheet";
+import { BulkAddToCollectionSheet } from "../../../src/components/library/BulkAddSheets";
 import { useParentalGate } from "../../../src/hooks/useParentalGate";
 import { ParentalPINModal } from "../../../src/components/ParentalPINModal";
 import { MediaHeroBackdrop } from "../../../src/components/media/MediaHeroBackdrop";
@@ -586,6 +587,7 @@ export default function MediaDetailScreen() {
   const setThumbRating = useSetThumbRating(id);
 
   const [playlistSheetOpen, setPlaylistSheetOpen] = useState(false);
+  const [collectionSheetOpen, setCollectionSheetOpen] = useState(false);
   const [metadataSheetOpen, setMetadataSheetOpen] = useState(false);
   const [watchedOverride, setWatchedOverride] = useState<boolean | null>(null);
   const watched = watchedOverride ?? (watchProgress?.played === true);
@@ -1207,6 +1209,31 @@ export default function MediaDetailScreen() {
               {t("media.detail.addToPlaylist")}
             </Text>
           </Pressable>
+          {/* Grouping a title into a saga is thought of here, on the title's own
+              page, not from a grid card - but only the library's bulk action bar
+              offered it. Admin-gated like the RPC (AddCollectionItem is RoleAdmin). */}
+          {isAdmin && id && (
+            <Pressable
+              onPress={() => setCollectionSheetOpen(true)}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                backgroundColor: theme.colors.surface,
+                borderRadius: theme.radii.md,
+                paddingVertical: theme.spacing.sm,
+                paddingHorizontal: theme.spacing.md,
+              }}
+              accessible={true}
+              accessibilityLabel={t("media.contextMenu.addToCollection")}
+              accessibilityRole="button"
+              testID="add-to-collection-button"
+            >
+              <Ionicons name="albums-outline" size={20} color={theme.colors.text} />
+              <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: "600", marginLeft: 6 }}>
+                {t("media.contextMenu.addToCollection")}
+              </Text>
+            </Pressable>
+          )}
           {!isSeries && !isSeason && hasMediaFile(media) && (
             <Pressable
               onPress={async () => {
@@ -1582,6 +1609,18 @@ export default function MediaDetailScreen() {
           visible={playlistSheetOpen}
           mediaItemId={id}
           onClose={() => setPlaylistSheetOpen(false)}
+        />
+      ) : null}
+
+      {/* Defense in depth: re-check isAdmin at the mount point, not just at the
+          toggle button, so a stale collectionSheetOpen=true can never render the
+          sheet for a non-admin (e.g. after an admin demotes their own account
+          mid-session). */}
+      {isAdmin && id ? (
+        <BulkAddToCollectionSheet
+          visible={collectionSheetOpen}
+          mediaItemIds={[id]}
+          onClose={() => setCollectionSheetOpen(false)}
         />
       ) : null}
 
