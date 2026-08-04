@@ -1,5 +1,6 @@
 import { QueryClient } from "@tanstack/react-query";
 import { setupOnlineManager } from "./online-manager";
+import { mutationErrorNet } from "./mutationErrorNet";
 
 // Wired here rather than in a component so it is installed exactly once, before
 // the first query is ever created. Without it React Query never learns the
@@ -9,6 +10,7 @@ import { setupOnlineManager } from "./online-manager";
 setupOnlineManager();
 
 export const queryClient = new QueryClient({
+  mutationCache: mutationErrorNet(),
   defaultOptions: {
     queries: {
       staleTime: 5 * 60 * 1000,
