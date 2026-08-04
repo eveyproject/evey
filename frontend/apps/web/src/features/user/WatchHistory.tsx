@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { FetchErrorState } from "@/components/ui/FetchErrorState";
 import { MS_PER_DAY } from "@/lib/time";
 
 // Home feeds (and popular-media) filter watched items server-side, so a change
@@ -186,7 +187,7 @@ export function WatchHistory({ limit, showClearButton = false }: Props) {
       onError: (err: Error) => toast.error(err?.message || t("auth.watchHistory.clearFailed")),
     },
   });
-  const { data, isLoading } = usePlaybackServiceGetWatchHistory(limit ? { limit } : undefined);
+  const { data, isLoading, isError, error, refetch } = usePlaybackServiceGetWatchHistory(limit ? { limit } : undefined);
   const items = data?.items ?? [];
 
   function getDateGroup(iso: string | undefined): string {
@@ -235,6 +236,11 @@ export function WatchHistory({ limit, showClearButton = false }: Props) {
 
   if (isLoading) {
     return <p className="text-sm text-[var(--text-muted)]">{t("common.loading")}</p>;
+  }
+
+  // History that failed to load is not history that was cleared.
+  if (isError) {
+    return <FetchErrorState error={error} onRetry={() => void refetch()} />;
   }
 
   if (items.length === 0) {

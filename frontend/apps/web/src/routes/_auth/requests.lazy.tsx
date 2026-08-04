@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Spinner } from "@/components/ui/Spinner";
 import { ICON } from "@/constants/iconSizes";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { FetchErrorState } from "@/components/ui/FetchErrorState";
 import { RequestPoster } from "@/features/requests/RequestPoster";
 
 export const Route = createLazyFileRoute("/_auth/requests")({
@@ -311,7 +312,7 @@ function RequestsPage() {
   const { t } = useTranslation();
   const [tab, setTab] = useState<Tab>("search");
 
-  const { data: policy, isLoading: policyLoading } = useMediaRequestServiceGetRequestPolicy();
+  const { data: policy, isLoading: policyLoading, isError: policyError, error: policyErr, refetch: refetchPolicy } = useMediaRequestServiceGetRequestPolicy();
   const { data: myRequestsResp, isLoading: mineLoading } = useMediaRequestServiceListMyRequests(
     undefined,
     { query: { enabled: policy?.canRequest === true } },
@@ -324,6 +325,12 @@ function RequestsPage() {
         <Spinner size="lg" />
       </div>
     );
+  }
+
+  // Failing to read the policy is not the administrator having turned requests
+  // off: saying so presented a network failure as a decision.
+  if (policyError) {
+    return <FetchErrorState error={policyErr} onRetry={() => void refetchPolicy()} />;
   }
 
   if (!policy?.canRequest) {
