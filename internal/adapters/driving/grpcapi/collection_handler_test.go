@@ -3,6 +3,7 @@ package grpcapi
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -974,6 +975,33 @@ func TestCollectionReorderCollectionItems_OK(t *testing.T) {
 		Id: "col-1", MediaItemIds: []string{"m3", "m1", "m2"},
 	}); err != nil {
 		t.Fatalf("ReorderCollectionItems: %v", err)
+	}
+}
+
+// An id that is not a member no-ops in the reorder UPDATE, so the caller used
+// to get a 200 for a reorder that only half happened. The strangers are named
+// back instead (decision 2026-08-05).
+func TestCollectionReorderCollectionItems_RejectsNonMembers(t *testing.T) {
+	h, cmdRepo, mediaRepo, _ := newTestCollectionHandlerWithAccess()
+	cmdRepo.Upsert(context.Background(), &library.Collection{ID: "col-1", Name: "Chrono", SortBy: "manual"})
+	for _, id := range []string{"m1", "m2"} {
+		mediaRepo.Create(context.Background(), &library.MediaItem{ID: shared.MediaItemID(id), LibraryID: "lib-1", Title: id, Type: "movie"})
+		cmdRepo.LinkItem(context.Background(), "col-1", id, 0)
+	}
+	// m9 exists in the library but was never linked to this collection.
+	mediaRepo.Create(context.Background(), &library.MediaItem{ID: "m9", LibraryID: "lib-1", Title: "m9", Type: "movie"})
+
+	_, err := h.ReorderCollectionItems(adminCtx(), &eveyv1.ReorderCollectionItemsRequest{
+		Id: "col-1", MediaItemIds: []string{"m2", "m9", "m1"},
+	})
+	if status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("non-member id: want InvalidArgument, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "m9") {
+		t.Errorf("the error must name the offending id, got %q", err.Error())
+	}
+	if strings.Contains(err.Error(), "m1") || strings.Contains(err.Error(), "m2") {
+		t.Errorf("the error must name ONLY the strangers, got %q", err.Error())
 	}
 }
 

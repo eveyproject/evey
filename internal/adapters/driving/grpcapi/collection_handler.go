@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"slices"
+	"strings"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
@@ -406,12 +407,50 @@ func (h *collectionHandler) ReorderCollectionItems(ctx context.Context, req *eve
 		span.SetStatus(otelcodes.Error, "collection access denied")
 		return nil, err
 	}
+	// The reorder UPDATE matches on membership, so an id that is not in the
+	// collection silently changes nothing: the caller got a 200 for a reorder
+	// that half happened. Name the strangers instead of letting a client bug
+	// look like success.
+	if foreign, err := h.foreignCollectionItems(ctx, req.GetId(), req.GetMediaItemIds()); err != nil {
+		span.RecordError(err)
+		return nil, internalError(ctx, "load collection items for reorder", err)
+	} else if len(foreign) > 0 {
+		span.SetStatus(otelcodes.Error, "media_item_ids contains non-members")
+		return nil, status.Errorf(codes.InvalidArgument, "media_item_ids contains items that are not in this collection: %s", strings.Join(foreign, ", "))
+	}
 	if err := h.svc.ReorderItems(ctx, req.GetId(), req.GetMediaItemIds()); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError(ctx, "reorder collection items", err)
 	}
 	return &eveyv1.ReorderCollectionItemsResponse{}, nil
+}
+
+// foreignCollectionItems returns the requested ids that the collection does
+// not actually hold, in request order and deduplicated. Empty means every id
+// is a member.
+func (h *collectionHandler) foreignCollectionItems(ctx context.Context, collectionID string, ids []string) ([]string, error) {
+	items, _, err := h.svc.GetItems(ctx, collectionID, library.MaxCollectionItems, 0)
+	if err != nil {
+		return nil, err
+	}
+	members := make(map[string]struct{}, len(items))
+	for _, it := range items {
+		members[string(it.ID)] = struct{}{}
+	}
+	var foreign []string
+	seen := make(map[string]struct{}, len(ids))
+	for _, id := range ids {
+		if _, ok := members[id]; ok {
+			continue
+		}
+		if _, dup := seen[id]; dup {
+			continue
+		}
+		seen[id] = struct{}{}
+		foreign = append(foreign, id)
+	}
+	return foreign, nil
 }
 
 func protoRulesToDomain(in []*eveyv1.CollectionRule) []library.CollectionRule {
