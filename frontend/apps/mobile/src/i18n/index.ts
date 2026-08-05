@@ -49,17 +49,23 @@ export async function initI18n(serverUrl: string) {
   // attempt final, so a boot with no server (or an offline first launch)
   // condemned the whole session to raw keys. Reloading is cheap and idempotent.
   if (i18n.isInitialized) {
-    if (!i18nLoaded()) {
+    // Re-point on the PATH, never on i18nLoaded(): the embedded English floor
+    // IS a loaded bundle, so that guard answered "loaded" after a first launch
+    // with no server and skipped this whole branch. The backend then kept the
+    // unusable relative loadPath of that first init, every later fetch failed
+    // against it - including the changeLanguage() of applyServerLanguage - and
+    // the session stayed on the 74-key floor: English everywhere, and raw key
+    // names for anything the floor does not carry. Reproduced on device
+    // 2026-08-05 (French only came back after a restart, when the URL was
+    // known before the first init).
+    const wanted = serverUrl ? `${serverUrl}/api/v1/i18n/{{lng}}` : "";
+    const backend = i18n.services.backendConnector.backend;
+    if (wanted && backend?.options && backend.options.loadPath !== wanted) {
+      backend.options.loadPath = wanted;
       try {
-        // Re-point the backend at the server we now know about: the failed
-        // first init may have been built with none (first launch).
-        const backend = i18n.services.backendConnector.backend;
-        if (backend?.options && serverUrl) {
-          backend.options.loadPath = `${serverUrl}/api/v1/i18n/{{lng}}`;
-        }
         await i18n.reloadResources();
       } catch {
-        /* still unreachable: the embedded fallback below keeps the UI readable */
+        /* still unreachable: the embedded fallback keeps the UI readable */
       }
     }
     return i18n;
