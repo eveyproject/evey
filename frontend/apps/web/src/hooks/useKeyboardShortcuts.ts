@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useState } from "react";
+import { useEffect, useCallback, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 
 function isInputFocused(): boolean {
@@ -11,6 +11,11 @@ function isInputFocused(): boolean {
 export function useKeyboardShortcuts(enabled = true) {
   const navigate = useNavigate();
   const [showHelp, setShowHelp] = useState(false);
+  // The "/" shortcut focuses the search box one tick after the route change,
+  // once it exists. That timer outlived the hook: unmounting within its 50ms
+  // left it to fire against a torn-down document (an unhandled ReferenceError
+  // that failed the whole frontend gate, intermittently).
+  const focusTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -18,7 +23,9 @@ export function useKeyboardShortcuts(enabled = true) {
       if (e.key === "/" && !isInputFocused()) {
         e.preventDefault();
         void navigate({ to: "/search" });
-        setTimeout(() => {
+        if (focusTimer.current) clearTimeout(focusTimer.current);
+        focusTimer.current = setTimeout(() => {
+          focusTimer.current = null;
           const input = document.querySelector<HTMLInputElement>('input[type="search"]');
           input?.focus();
         }, 50);
@@ -58,6 +65,13 @@ export function useKeyboardShortcuts(enabled = true) {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleKeyDown, enabled]);
+
+  useEffect(
+    () => () => {
+      if (focusTimer.current) clearTimeout(focusTimer.current);
+    },
+    [],
+  );
 
   return { showHelp, setShowHelp };
 }
