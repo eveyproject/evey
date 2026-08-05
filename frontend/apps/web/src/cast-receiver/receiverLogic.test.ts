@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { absoluteWithToken, appendMaxKbps, bitrateTestUrl, buildPlayerEventUrl, createStarvationWatch, createStartGate, floorMasterUrl, probeMaxAudioChannels, probeReceiverCaps, rewriteCastMasterUrl, shouldMeasure, stereoFallbackUrl, stripWasmAudio, type CanDisplayType } from "./receiverLogic";
+import { absoluteWithToken, appendMaxKbps, bitrateTestUrl, buildPlayerEventUrl, createStarvationWatch, createStartGate, createStartWatch, floorMasterUrl, probeMaxAudioChannels, probeReceiverCaps, rewriteCastMasterUrl, shouldMeasure, stereoFallbackUrl, stripWasmAudio, type CanDisplayType } from "./receiverLogic";
 
 // Fake canDisplayType: allows what `yes` lists (substring match on the
 // codec string), refuses the rest. 4K resolution is only granted if
@@ -296,6 +296,56 @@ describe("createStartGate", () => {
     gate.arm();
     gate.audioReady();
     expect(calls).toEqual(["play"]);
+  });
+});
+
+// The start watch names the failure the 2026-08-04/05 Chromecast HD sessions
+// proved: the hybrid master is fetched, then NOTHING - no media request, no
+// ERROR event, spinner forever. Every event-driven net stays blind there;
+// elapsed time is the only signal a silently dead LOAD leaves.
+describe("createStartWatch - a load that never completes is declared dead", () => {
+  const mk = () => {
+    const calls: string[] = [];
+    let armed: (() => void) | null = null;
+    const watch = createStartWatch(
+      () => calls.push("rescue"),
+      12000,
+      (fn) => { armed = fn; return 1 as unknown as ReturnType<typeof setTimeout>; },
+      () => { armed = null; },
+    );
+    return { watch, calls, fireTimeout: () => armed?.() };
+  };
+
+  it("rescues a load that never reached PLAYER_LOAD_COMPLETE", () => {
+    const { watch, calls, fireTimeout } = mk();
+    watch.arm();
+    fireTimeout();
+    expect(calls).toEqual(["rescue"]);
+  });
+
+  it("a completed load is never rescued", () => {
+    const { watch, calls, fireTimeout } = mk();
+    watch.arm();
+    watch.loaded();
+    fireTimeout();
+    expect(calls).toEqual([]);
+  });
+
+  it("cancel disarms without rescuing (teardown, new LOAD)", () => {
+    const { watch, calls, fireTimeout } = mk();
+    watch.arm();
+    watch.cancel();
+    fireTimeout();
+    expect(calls).toEqual([]);
+  });
+
+  it("re-arm watches the next load - including the rescue's own reload", () => {
+    const { watch, calls, fireTimeout } = mk();
+    watch.arm();
+    fireTimeout();
+    watch.arm();
+    fireTimeout();
+    expect(calls).toEqual(["rescue", "rescue"]);
   });
 });
 

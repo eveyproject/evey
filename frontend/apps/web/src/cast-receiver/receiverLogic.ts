@@ -233,6 +233,46 @@ export function createStartGate(
   };
 }
 
+// createStartWatch declares a silently dead LOAD after a deadline. The
+// Chromecast HD (2026-08-04/05) fetched the hybrid master and then did
+// NOTHING: no playlist or segment request, no ERROR event - so the stereo net
+// (hooked on ERROR) and the starvation watch (armed at PLAYER_LOAD_COMPLETE)
+// both stayed blind while the TV spun forever. Elapsed time is the only
+// signal such a death leaves; firing means "reload on the floor master NOW"
+// (mono-variant, muxed - the shape the same TV provably plays).
+export interface StartWatch {
+  // arm is called at LOAD interception: the countdown to a declared death.
+  arm(): void;
+  // loaded is called at PLAYER_LOAD_COMPLETE: the load is alive, disarm.
+  loaded(): void;
+  // cancel disarms without rescuing (teardown, or a new LOAD taking over).
+  cancel(): void;
+}
+
+export function createStartWatch(
+  rescue: () => void,
+  timeoutMs: number,
+  setTimer: (fn: () => void, ms: number) => ReturnType<typeof setTimeout> = setTimeout,
+  clearTimer: (t: ReturnType<typeof setTimeout>) => void = clearTimeout,
+): StartWatch {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const disarm = () => {
+    if (timer !== null) clearTimer(timer);
+    timer = null;
+  };
+  return {
+    arm() {
+      disarm();
+      timer = setTimer(() => {
+        timer = null;
+        rescue();
+      }, timeoutMs);
+    },
+    loaded: disarm,
+    cancel: disarm,
+  };
+}
+
 // buildPlayerEventUrl derives the telemetry endpoint from the casted stream
 // URL: same origin, same media id, same stream token (the receiver's only
 // identity - the server pins that token to its own media). Null for

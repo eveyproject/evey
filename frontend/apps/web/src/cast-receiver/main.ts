@@ -10,7 +10,7 @@
 //      silently, which is what made cast incidents undiagnosable.
 import { WasmAudioEngine } from "@/features/playback/wasmaudio/WasmAudioEngine";
 import { extractAacAudioURI, extractAudioURI } from "@/features/playback/wasmaudio/wasmAudioShared";
-import { absoluteWithToken, appendMaxKbps, bitrateTestUrl, buildPlayerEventUrl, createStartGate, createStarvationWatch, floorMasterUrl, probeMaxAudioChannels, probeReceiverCaps, rewriteCastMasterUrl, shouldMeasure, stereoFallbackUrl, stripWasmAudio } from "./receiverLogic";
+import { absoluteWithToken, appendMaxKbps, bitrateTestUrl, buildPlayerEventUrl, createStartGate, createStartWatch, createStarvationWatch, floorMasterUrl, probeMaxAudioChannels, probeReceiverCaps, rewriteCastMasterUrl, shouldMeasure, stereoFallbackUrl, stripWasmAudio } from "./receiverLogic";
 import { createAliveHeartbeat, postPlayerEvent, postPlayerEventQuery, readHeapMB } from "./receiverBeacon";
 
 // The CAF SDK is loaded by a gstatic <script> in the page; its types are
@@ -47,6 +47,12 @@ let stereoForced = false;
 // until it answers: the value that plays on every receiver, and the first LOAD
 // arrives long after page load anyway.
 let probedAudioChannels = 2;
+// The probe resolves at page load, when currentUrl is still empty - a beacon
+// sent then has no token and is dropped silently (2026-08-05: prod showed
+// zero cast_receiver_audio_channels ever, and the absence read as "old bundle
+// cached" during an incident). Reported at the first LOAD instead, with the
+// value that load actually used.
+let audioChannelsReported = false;
 void probeMaxAudioChannels({
   maxChannelCount: (() => {
     try {
@@ -68,7 +74,6 @@ void probeMaxAudioChannels({
 })
   .then((n) => {
     probedAudioChannels = n;
-    reportEvent("cast_receiver_audio_channels", `probed=${n}`);
   })
   .catch(() => { /* stereo stands */ });
 // Armed after a real END_OF_STREAM (idle timeout is disabled, see the
@@ -93,6 +98,18 @@ const startGate = createStartGate(() => {
     playerManager.play();
   } catch { /* torn down */ }
 }, 4000);
+
+// Start watch: a LOAD that never reaches PLAYER_LOAD_COMPLETE is declared
+// dead and reloaded ONCE on the floor master (mono-variant, muxed - the shape
+// the Chromecast HD provably plays; its stall on the hybrid master raised no
+// ERROR at all, so this deadline is the only net that can catch it). 12s: a
+// healthy cast load completes in ~3-5s on these boxes, bitrate measure
+// included; the observed deaths sat past 100s. The rescue's own reload
+// re-arms through interceptLoad - if the floor stalls too, floorMasterUrl's
+// latch (null on an already-floored URL) ends the chain.
+const startWatch = createStartWatch(() => {
+  engageFloor(0, "load never completed");
+}, 12_000);
 
 // Warmup: download (HTTP cache) and COMPILE (V8 code cache, keyed by URL,
 // exploited by the worker's instantiateStreaming) the decoder during the
@@ -215,10 +232,10 @@ function startStarvationWatch(): void {
   }, 5_000);
 }
 
-function engageFloor(posSec: number): void {
+function engageFloor(posSec: number, reason = "starvation"): void {
   const url = floorMasterUrl(currentUrl);
   if (!url) return; // already floored, or a URL we don't own: nothing lower
-  reportEvent("cast_receiver_floor_rescue", `starvation at pos=${posSec.toFixed(1)}s - reloading on the floor rung`);
+  reportEvent("cast_receiver_floor_rescue", `${reason} at pos=${posSec.toFixed(1)}s - reloading on the floor rung`);
   showDebug("Débit insuffisant - passage en qualité réduite");
   setTimeout(() => showDebug(""), 8_000);
   startGate.cancel();
@@ -503,6 +520,11 @@ function interceptLoad(request: any): any {
       media.hlsSegmentFormat = cast.framework.messages.HlsSegmentFormat.FMP4;
       media.hlsVideoSegmentFormat = cast.framework.messages.HlsVideoSegmentFormat.FMP4;
       currentUrl = rewritten.url;
+      startWatch.arm();
+      if (!audioChannelsReported) {
+        audioChannelsReported = true;
+        reportEvent("cast_receiver_audio_channels", `probed=${stereoForced ? 2 : probedAudioChannels}`);
+      }
       wasmRequested = rewritten.wasmAudio;
       if (wasmRequested) {
         // Hold the visible start until the engine's first decoded segment
@@ -550,10 +572,12 @@ playerManager.addEventListener(cast.framework.events.EventType.MEDIA_FINISHED, (
   const reason = event?.endedReason ?? "?";
   aliveHeartbeat.stop(); // plus rien ne joue : le battement mentirait
   stopStarvationWatch();
+  startWatch.cancel();
   reportEvent("cast_receiver_finished", `reason=${reason}`, reason !== "END_OF_STREAM");
 });
 
 playerManager.addEventListener(cast.framework.events.EventType.PLAYER_LOAD_COMPLETE, () => {
+  startWatch.loaded();
   reportEvent("cast_receiver_loaded", `mode=${wasmRequested ? "wasm" : "native"}`);
   aliveHeartbeat.start();
   startStarvationWatch();
@@ -573,6 +597,7 @@ context.addEventListener(cast.framework.system.EventType.SENDER_DISCONNECTED, (e
 context.addEventListener(cast.framework.system.EventType.SHUTDOWN, () => {
   aliveHeartbeat.stop();
   stopStarvationWatch();
+  startWatch.cancel();
   reportEvent("cast_receiver_shutdown", "receiver shutdown");
   destroyEngine();
 });
@@ -585,6 +610,7 @@ if (typeof window !== "undefined") {
   window.addEventListener("pagehide", () => {
     aliveHeartbeat.stop();
     stopStarvationWatch();
+    startWatch.cancel();
     reportEvent("cast_receiver_shutdown", "pagehide");
   });
 }
