@@ -219,6 +219,63 @@ func TestReconcileSeasonIntroDurations_VariableColdOpens_StartPriorInert(t *test
 	assert.Equal(t, int64(35_000), got.EndMs, "end = start + season median duration")
 }
 
+// A mid-season theme change (cour split): five ~30s intros then five ~60s
+// ones. A single season-wide median lands on the SHORT mode and the
+// lower-median MAD collapses to zero, so every second-cour episode reads as
+// an over-long outlier and gets truncated to the first cour's duration -
+// active damage, not just a lost correction. The changepoint split must keep
+// both eras intact.
+func TestReconcileSeasonIntroDurations_CourSplit_LeavesBothErasAlone(t *testing.T) {
+	t.Parallel()
+	repo, eps := seedSeasonAt(
+		[]int64{10_000, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000},
+		[]int64{30_000, 30_000, 30_000, 30_000, 30_000, 60_000, 60_000, 60_000, 60_000, 60_000},
+		[]float64{0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9},
+	)
+	svc := NewIntroDetectionService(
+		repo, &fakeTrickplayRepo{}, &fakeMediaItemRepo{siblings: eps},
+		&fakeConfigRepo{}, &fakeDetector{}, "/tmp/trickplay",
+	)
+
+	svc.reconcileSeasonIntroDurations(context.Background(), "season-id")
+	assert.Empty(t, repo.upserted, "two clean eras: nothing to correct on either side")
+}
+
+// The split does not blind the prior: an absorbed-recap outlier INSIDE the
+// first cour is still caught, judged against its own era's median - and the
+// second era stays untouched.
+func TestReconcileSeasonIntroDurations_CourSplit_StillCatchesOutlierWithinEra(t *testing.T) {
+	t.Parallel()
+	repo, eps := seedSeasonAt(
+		[]int64{10_000, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000},
+		[]int64{30_000, 30_000, 104_000, 30_000, 30_000, 60_000, 60_000, 60_000, 60_000, 60_000},
+		[]float64{0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9},
+	)
+	svc := NewIntroDetectionService(
+		repo, &fakeTrickplayRepo{}, &fakeMediaItemRepo{siblings: eps},
+		&fakeConfigRepo{}, &fakeDetector{}, "/tmp/trickplay",
+	)
+
+	svc.reconcileSeasonIntroDurations(context.Background(), "season-id")
+
+	require.Len(t, repo.upserted, 1, "only the in-era outlier is rewritten")
+	got := repo.upserted[0]
+	assert.Equal(t, shared.MediaItemID("ep-2"), got.MediaItemID)
+	assert.Equal(t, int64(40_000), got.EndMs, "end = start + the FIRST era's median, not the season-wide one")
+}
+
+// introChangepoint on its own: no split below 2x min samples, none on a
+// unimodal season, the true boundary on a skewed cour split.
+func TestIntroChangepoint(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, 0, introChangepoint([]int64{30_000, 30_000, 60_000, 60_000, 60_000, 60_000}),
+		"n<8 can never give both sides a prior")
+	assert.Equal(t, 0, introChangepoint([]int64{30_000, 29_000, 31_000, 30_000, 30_500, 29_500, 30_000, 31_000}),
+		"unimodal: no significant gap anywhere")
+	assert.Equal(t, 4, introChangepoint([]int64{30_000, 30_000, 30_000, 30_000, 60_000, 60_000, 60_000, 60_000, 60_000, 60_000}),
+		"skewed 4/6 split found at the true boundary")
+}
+
 // seedSeason builds a 5-episode season whose intro durations and confidences
 // are given per episode, all sourced audio_cluster at start 10s.
 func seedSeason(durMs []int64, conf []float64) (*fakeSegmentRepo, []*domainlibrary.MediaItem) {

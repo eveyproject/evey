@@ -29,6 +29,15 @@ import (
 // advances to end-median. On a season of variable cold opens the start MAD
 // blows the band open and the start prior disables itself - the shrink then
 // stays start-anchored, never a speculative start move.
+//
+// A season is not always ONE distribution: a mid-season theme change (cour
+// split, shortened late-season opening) makes it bimodal. A single median
+// then lands on the majority mode and - the lower-median MAD collapsing to
+// zero on clean modes - every episode of the LONGER mode reads as an
+// over-long outlier and gets truncated to the other mode's duration. The
+// reconciliation therefore first looks for one changepoint in episode order
+// (both sides significantly separated, each big enough to carry its own
+// prior) and runs the whole pass per era.
 
 // priorMinSamples is the fewest season intros required before the duration
 // distribution is trusted at all - below this, a single bad detection would
@@ -118,6 +127,49 @@ func int64Median(xs []int64) int64 {
 	return s[(len(s)-1)/2]
 }
 
+// introRow is one season intro with its episode order, the axis the
+// changepoint search runs along.
+type introRow struct {
+	seg *domainlibrary.MediaSegment
+	idx int
+}
+
+// introChangepoint looks for the single split, in episode order, where the
+// season's intro durations fall into two significantly separated modes (cour
+// split, shortened late-season opening). Both sides must be big enough to
+// carry their own prior, and the gap between the side medians must clear the
+// band of the wider side - the same significance vocabulary as the outlier
+// rule, so a noisy season never splits. Among significant candidates the one
+// fitting both sides tightest wins. 0 means no split.
+func introChangepoint(durationsMs []int64) int {
+	n := len(durationsMs)
+	if n < 2*priorMinSamples {
+		return 0
+	}
+	best, bestScore := 0, int64(-1)
+	for k := priorMinSamples; k <= n-priorMinSamples; k++ {
+		stL, _ := seasonIntroDurationStats(durationsMs[:k])
+		stR, _ := seasonIntroDurationStats(durationsMs[k:])
+		gap := absInt64(stL.medianMs - stR.medianMs)
+		if gap <= max(priorBand(stL), priorBand(stR)) {
+			continue
+		}
+		score := totalAbsDev(durationsMs[:k], stL.medianMs) + totalAbsDev(durationsMs[k:], stR.medianMs)
+		if bestScore < 0 || score < bestScore {
+			best, bestScore = k, score
+		}
+	}
+	return best
+}
+
+func totalAbsDev(xs []int64, center int64) int64 {
+	var sum int64
+	for _, x := range xs {
+		sum += absInt64(x - center)
+	}
+	return sum
+}
+
 // reconcileSeasonIntroDurations applies the duration prior over every
 // non-manual intro of the season: over-long outliers are shrunk to
 // [start, start+median]. Runs after the per-episode detection loop so it sees
@@ -125,11 +177,9 @@ func int64Median(xs []int64) int64 {
 // are never touched (the repo guard enforces it too).
 func (s *IntroDetectionService) reconcileSeasonIntroDurations(ctx context.Context, parentID string) {
 	episodeType := string(domainlibrary.Episode)
-	type introRow struct {
-		seg *domainlibrary.MediaSegment
-	}
 	var intros []introRow
 	const pageSize = 200
+	pos := 0
 	for offset := 0; ; offset += pageSize {
 		page, err := s.mediaItems.List(ctx, domainlibrary.ListMediaItemsFilter{
 			ParentID: &parentID, Type: &episodeType, Limit: pageSize, Offset: offset,
@@ -146,13 +196,20 @@ func (s *IntroDetectionService) reconcileSeasonIntroDurations(ctx context.Contex
 			slog.WarnContext(ctx, "intro_prior: batch get segments", slog.String("parent_id", parentID), slog.Any("err", err))
 			return
 		}
-		for _, segs := range byID {
-			for _, sg := range segs {
+		// Page order, not map order: the changepoint search needs episode
+		// order, carried by IndexNumber with the walk position as fallback.
+		for _, ep := range page {
+			pos++
+			idx := pos
+			if ep.IndexNumber != nil {
+				idx = *ep.IndexNumber
+			}
+			for _, sg := range byID[ep.ID] {
 				if sg.Type != "intro" || sg.Source == "manual" || sg.Source == "manual_propagated" {
 					continue
 				}
 				if sg.EndMs > sg.StartMs {
-					intros = append(intros, introRow{seg: sg})
+					intros = append(intros, introRow{seg: sg, idx: idx})
 				}
 			}
 		}
@@ -160,7 +217,28 @@ func (s *IntroDetectionService) reconcileSeasonIntroDurations(ctx context.Contex
 			break
 		}
 	}
+	slices.SortStableFunc(intros, func(a, b introRow) int { return a.idx - b.idx })
 
+	durationsAll := make([]int64, len(intros))
+	for i, r := range intros {
+		durationsAll[i] = r.seg.EndMs - r.seg.StartMs
+	}
+	if k := introChangepoint(durationsAll); k > 0 {
+		slog.InfoContext(ctx, "intro_prior: season intro durations split into two eras",
+			slog.String("parent_id", parentID),
+			slog.Int("changepoint", k),
+			slog.Int64("first_median_ms", int64Median(durationsAll[:k])),
+			slog.Int64("second_median_ms", int64Median(durationsAll[k:])))
+		s.reconcileIntroGroup(ctx, intros[:k])
+		s.reconcileIntroGroup(ctx, intros[k:])
+		return
+	}
+	s.reconcileIntroGroup(ctx, intros)
+}
+
+// reconcileIntroGroup runs the duration prior over one homogeneous group of
+// season intros (the whole season, or one era of a split season).
+func (s *IntroDetectionService) reconcileIntroGroup(ctx context.Context, intros []introRow) {
 	durations := make([]int64, len(intros))
 	starts := make([]int64, len(intros))
 	for i, r := range intros {
