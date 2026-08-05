@@ -2,6 +2,7 @@ package fakes
 
 import (
 	"context"
+	"sort"
 	"sync"
 	"time"
 
@@ -206,6 +207,17 @@ func (r *FakeNotificationRepository) FindRecentByProfilesTypeAndSeries(_ context
 			continue
 		}
 		out[n.ProfileID] = append(out[n.ProfileID], n)
+	}
+	// Mirror the SQL contract (ORDER BY created_at DESC, id DESC) so a caller
+	// that reads out[p][0] as "the most recent" is validated against the same
+	// ordering the real repo guarantees, not the fake's insertion order.
+	for _, list := range out {
+		sort.SliceStable(list, func(i, j int) bool {
+			if !list[i].CreatedAt.Equal(list[j].CreatedAt) {
+				return list[i].CreatedAt.After(list[j].CreatedAt)
+			}
+			return list[i].ID > list[j].ID
+		})
 	}
 	return out, nil
 }

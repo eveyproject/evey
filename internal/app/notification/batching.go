@@ -206,6 +206,21 @@ func (s *CommandService) flushBatch(key string) {
 		return
 	}
 
+	// Tracks that reached the batch without an album event (added to an
+	// existing album, or the album event landed in an earlier window): name the
+	// album, never "New Episode". Mirrors the album branch above so the client
+	// renders "Album (N tracks)" and the profile's music level governs it.
+	if episodeCount > 0 && batch.episodes[0].Type == "track" {
+		first := batch.episodes[0]
+		albumTitle := first.SeriesTitle
+		if albumTitle == "" {
+			albumTitle = first.Title
+		}
+		title, push := batchedAlbumTitle(albumTitle, episodeCount)
+		s.emitNotifications("album", title, "", string(first.MediaItemID), "", first.Genres, &push, labelParts{subject: albumTitle, episodeCount: episodeCount})
+		return
+	}
+
 	// Just episodes
 	if episodeCount == 1 {
 		ep := batch.episodes[0]

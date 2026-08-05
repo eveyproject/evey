@@ -221,7 +221,7 @@ func batchedEpisodesTitle(seriesTitle string, count int) (label string, push pus
 
 func batchedAlbumTitle(albumTitle string, trackCount int) (label string, push pushSpec) {
 	if trackCount > 0 {
-		label = fmt.Sprintf("%s (%d tracks)", albumTitle, trackCount)
+		label = fmt.Sprintf("%s (%s)", albumTitle, plural(trackCount, "track"))
 		push = pushSpec{
 			key: "notifications.push.album_with_tracks.title",
 			params: map[string]string{

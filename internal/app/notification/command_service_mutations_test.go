@@ -257,6 +257,45 @@ func TestNotificationService_TrackBatchedByAlbum(t *testing.T) {
 	notifs, err := repo.ListByProfile(ctx, "p1", false, 0, 0)
 	require.NoError(t, err)
 	require.Len(t, notifs, 1, "tracks with SeriesTitle should batch into one notification")
+	// Tracks without an album event must still be an ALBUM notification, not an
+	// episode one: before the routing fix these fell through the episode branch
+	// (wrong type, wrong "New Episode" label, music governed by the episode
+	// level). Assert the type and the album label, not just the count.
+	assert.Equal(t, notifdom.TypeNewAlbum, notifs[0].Type)
+	assert.Equal(t, "Album A", notifs[0].Subject)
+	assert.Equal(t, 2, notifs[0].EpisodeCount)
+	assert.Contains(t, notifs[0].Title, "2 tracks")
+}
+
+// A single track added to an existing album (no album event in the batch) must
+// still surface an album notification - it used to be dropped silently because
+// the episode branch emitted type "track", which typeAndTitle maps to "".
+func TestNotificationService_SingleTrackWithoutAlbumEvent_NotDropped(t *testing.T) {
+	t.Parallel()
+	repo := notiffakes.NewFakeNotificationRepository()
+	settings := notiffakes.NewFakeSettingsRepository()
+	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
+	profileRepo := userfakes.NewFakeProfileRepository()
+	bus := sharedfakes.NewFakeEventBus()
+
+	ctx := context.Background()
+	_ = profileRepo.Create(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "Alice"})
+
+	svc := appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
+	svc.Register()
+
+	bus.Publish(ctx, libevent.MediaItemAdded{
+		MediaItemID: "t1", LibraryID: "lib1", Title: "Track 1", SeriesTitle: "Album A", Type: "track", OccurredAt: time.Now(),
+	})
+	svc.FlushBatches()
+
+	notifs, err := repo.ListByProfile(ctx, "p1", false, 0, 0)
+	require.NoError(t, err)
+	require.Len(t, notifs, 1, "a lone track must not be dropped")
+	assert.Equal(t, notifdom.TypeNewAlbum, notifs[0].Type)
+	assert.Equal(t, "Album A", notifs[0].Subject)
+	assert.Contains(t, notifs[0].Title, "1 track")
+	assert.NotContains(t, notifs[0].Title, "1 tracks")
 }
 
 // TestTrackWithoutSeriesTitle_UsesTitleAsKey covers service.go batchKey fallback

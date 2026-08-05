@@ -110,7 +110,8 @@ func (r *NotificationRepository) FindRecentByProfilesTypeAndSeries(ctx context.C
 	      WHERE profile_id = ANY($1)
 	        AND related_media_id = $2
 	        AND created_at >= $3
-	        AND type IN (` + strings.Join(placeholders, ",") + `)`
+	        AND type IN (` + strings.Join(placeholders, ",") + `)
+	      ORDER BY created_at DESC, id DESC`
 
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, q, args...)
 	if err != nil {
