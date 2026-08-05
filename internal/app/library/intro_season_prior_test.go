@@ -45,10 +45,11 @@ func TestDurationExceedsPrior(t *testing.T) {
 	assert.True(t, durationExceedsPrior(62_000, noisy))
 }
 
-// A season where most episodes carry a ~30s intro and one detection absorbed
-// the recap (104s) must shrink the outlier to [start, start+median], capping
-// its confidence below direct detections.
-func TestReconcileSeasonIntroDurations_ShrinksAbsorbedRecap(t *testing.T) {
+// A season where most episodes carry a ~30s intro and one detection runs 104s
+// while STARTING where the season starts: the excess sits behind (music-bleed
+// class), so the outlier shrinks to [start, start+median], capping its
+// confidence below direct detections.
+func TestReconcileSeasonIntroDurations_TrailingExcess_KeepsTheStart(t *testing.T) {
 	t.Parallel()
 	segmentRepo := &fakeSegmentRepo{}
 	var eps []*domainlibrary.MediaItem
@@ -145,6 +146,77 @@ func TestReconcileSeasonIntroDurations_LeavesCorroboratedShortIntroAlone(t *test
 
 	svc.reconcileSeasonIntroDurations(context.Background(), "season-id")
 	assert.Empty(t, segmentRepo.upserted)
+}
+
+// seedSeasonAt builds a season whose intro starts, durations and confidences
+// are given per episode, all sourced audio_cluster.
+func seedSeasonAt(startMs, durMs []int64, conf []float64) (*fakeSegmentRepo, []*domainlibrary.MediaItem) {
+	repo := &fakeSegmentRepo{}
+	var eps []*domainlibrary.MediaItem
+	for i := range durMs {
+		id := fmt.Sprintf("ep-%d", i)
+		idx := i + 1
+		eps = append(eps, &domainlibrary.MediaItem{
+			ID: shared.MediaItemID(id), Type: domainlibrary.Episode, IndexNumber: &idx,
+			File: &domainlibrary.MediaFile{Path: "/tmp/x.mkv"},
+		})
+		repo.seeded = append(repo.seeded, &domainlibrary.MediaSegment{
+			MediaItemID: shared.MediaItemID(id), Type: "intro",
+			StartMs: startMs[i], EndMs: startMs[i] + durMs[i], Source: "audio_cluster", Confidence: conf[i],
+		})
+	}
+	return repo, eps
+}
+
+// The recap-in-front class: the season's intros start around 70s, the outlier
+// window opens at 10s - it swallowed the "previously on" ahead of the true
+// title sequence. Anchoring the START there would keep the recap and truncate
+// the actual intro; the season start prior says the excess is in FRONT, so
+// the END is held and the start advances to end-median.
+func TestReconcileSeasonIntroDurations_RecapInFront_KeepsTheEnd(t *testing.T) {
+	t.Parallel()
+	repo, eps := seedSeasonAt(
+		[]int64{70_000, 70_000, 69_500, 70_500, 10_000},
+		[]int64{30_000, 30_000, 30_000, 30_000, 90_000},
+		[]float64{0.9, 0.9, 0.9, 0.9, 0.9},
+	)
+	svc := NewIntroDetectionService(
+		repo, &fakeTrickplayRepo{}, &fakeMediaItemRepo{siblings: eps},
+		&fakeConfigRepo{}, &fakeDetector{}, "/tmp/trickplay",
+	)
+
+	svc.reconcileSeasonIntroDurations(context.Background(), "season-id")
+
+	require.Len(t, repo.upserted, 1, "only the outlier is rewritten")
+	got := repo.upserted[0]
+	assert.Equal(t, shared.MediaItemID("ep-4"), got.MediaItemID)
+	assert.Equal(t, int64(100_000), got.EndMs, "the end is trusted - the excess sits in front")
+	assert.Equal(t, int64(70_000), got.StartMs, "start = end - season median duration")
+	assert.LessOrEqual(t, got.Confidence, 0.75)
+}
+
+// A season of variable cold opens: the starts are all over the place, their
+// MAD blows the band wide open, and the start prior disables itself - the
+// over-long outlier falls back to the start-anchored shrink (current
+// behaviour), never a speculative start move.
+func TestReconcileSeasonIntroDurations_VariableColdOpens_StartPriorInert(t *testing.T) {
+	t.Parallel()
+	repo, eps := seedSeasonAt(
+		[]int64{10_000, 40_000, 90_000, 130_000, 5_000},
+		[]int64{30_000, 30_000, 30_000, 30_000, 90_000},
+		[]float64{0.9, 0.9, 0.9, 0.9, 0.9},
+	)
+	svc := NewIntroDetectionService(
+		repo, &fakeTrickplayRepo{}, &fakeMediaItemRepo{siblings: eps},
+		&fakeConfigRepo{}, &fakeDetector{}, "/tmp/trickplay",
+	)
+
+	svc.reconcileSeasonIntroDurations(context.Background(), "season-id")
+
+	require.Len(t, repo.upserted, 1)
+	got := repo.upserted[0]
+	assert.Equal(t, int64(5_000), got.StartMs, "no usable start prior → the start stays anchored")
+	assert.Equal(t, int64(35_000), got.EndMs, "end = start + season median duration")
 }
 
 // seedSeason builds a 5-episode season whose intro durations and confidences

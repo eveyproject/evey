@@ -19,6 +19,16 @@ import (
 // duration. It never extends a short intro: a shorter-than-usual detection is
 // as likely a cold-open variant as an error, and extending would create
 // overshoot where none existed.
+//
+// The two over-long classes carry their excess at OPPOSITE ends: an absorbed
+// recap sits in FRONT of the true title sequence, music bleed sits BEHIND it.
+// Shrinking always toward start+median would, on the recap class, keep the
+// recap and truncate the actual intro - worse than no correction. The season
+// START prior disambiguates: a start far EARLIER than the season's median
+// start says the excess is in front, so the END is held and the start
+// advances to end-median. On a season of variable cold opens the start MAD
+// blows the band open and the start prior disables itself - the shrink then
+// stays start-anchored, never a speculative start move.
 
 // priorMinSamples is the fewest season intros required before the duration
 // distribution is trusted at all - below this, a single bad detection would
@@ -51,7 +61,8 @@ const priorSnapMinDeltaMs = 3_000
 // true boundary).
 const priorSnapSupportConf = 0.9
 
-// introDurationStats is the season's robust intro-duration distribution.
+// introDurationStats is a robust median/MAD distribution over one intro axis:
+// durations, and since the recap-in-front fix, start offsets too.
 type introDurationStats struct {
 	medianMs int64
 	madMs    int64
@@ -59,7 +70,7 @@ type introDurationStats struct {
 }
 
 // seasonIntroDurationStats computes median and MAD (median absolute deviation)
-// of the given durations. ok is false below priorMinSamples.
+// of the given values. ok is false below priorMinSamples.
 func seasonIntroDurationStats(durationsMs []int64) (introDurationStats, bool) {
 	if len(durationsMs) < priorMinSamples {
 		return introDurationStats{}, false
@@ -76,13 +87,27 @@ func seasonIntroDurationStats(durationsMs []int64) (introDurationStats, bool) {
 	return introDurationStats{medianMs: median, madMs: int64Median(devs), n: len(durationsMs)}, true
 }
 
+// priorBand is the rejection band shared by both axes: the MAD-derived robust
+// sigma scaled to priorSigmaFactor, floored at priorMinExcessMs.
+func priorBand(st introDurationStats) int64 {
+	robustSigma := float64(st.madMs) * 1.4826
+	return max(int64(priorSigmaFactor*robustSigma), priorMinExcessMs)
+}
+
 // durationExceedsPrior reports whether durMs is an over-long outlier against
 // the season distribution (absorbed recap / music-bleed class). Only the long
 // side is policed - see the file comment.
 func durationExceedsPrior(durMs int64, st introDurationStats) bool {
-	robustSigma := float64(st.madMs) * 1.4826
-	band := max(int64(priorSigmaFactor*robustSigma), priorMinExcessMs)
-	return durMs-st.medianMs > band
+	return durMs-st.medianMs > priorBand(st)
+}
+
+// startPrecedesPrior reports whether startMs opens markedly earlier than the
+// season's median start: the excess of an over-long window then sits in FRONT
+// (absorbed recap), and the end is the boundary to trust. Same statistic,
+// same band, applied to the other axis - a season of variable cold opens
+// carries a wide start MAD and never triggers this.
+func startPrecedesPrior(startMs int64, st introDurationStats) bool {
+	return st.medianMs-startMs > priorBand(st)
 }
 
 // int64Median returns the median of xs (lower of the two middles for even n,
@@ -137,13 +162,18 @@ func (s *IntroDetectionService) reconcileSeasonIntroDurations(ctx context.Contex
 	}
 
 	durations := make([]int64, len(intros))
+	starts := make([]int64, len(intros))
 	for i, r := range intros {
 		durations[i] = r.seg.EndMs - r.seg.StartMs
+		starts[i] = r.seg.StartMs
 	}
 	st, ok := seasonIntroDurationStats(durations)
 	if !ok {
 		return
 	}
+	// The start prior only DISAMBIGUATES which end of an over-long window
+	// holds the excess - it never flags outliers on its own.
+	startSt, startOK := seasonIntroDurationStats(starts)
 
 	// The gentle snap target: a median computed ONLY from corroborated
 	// boundaries. Absent enough of those, only the outlier rule applies.
@@ -158,9 +188,18 @@ func (s *IntroDetectionService) reconcileSeasonIntroDurations(ctx context.Contex
 	for _, r := range intros {
 		dur := r.seg.EndMs - r.seg.StartMs
 		corrected := *r.seg
+		anchor := "start"
 		switch {
 		case durationExceedsPrior(dur, st):
-			corrected.EndMs = corrected.StartMs + st.medianMs
+			if startOK && startPrecedesPrior(r.seg.StartMs, startSt) {
+				// Excess in front (absorbed recap): hold the end, advance the
+				// start. Start-anchoring here would keep the recap and
+				// truncate the true title sequence.
+				corrected.StartMs = corrected.EndMs - st.medianMs
+				anchor = "end"
+			} else {
+				corrected.EndMs = corrected.StartMs + st.medianMs
+			}
 			// The correction is an inference, not a measurement - cap its
 			// confidence below every direct detection so a later re-detection
 			// can replace it.
@@ -184,6 +223,7 @@ func (s *IntroDetectionService) reconcileSeasonIntroDurations(ctx context.Contex
 		slog.InfoContext(ctx, "intro_prior: intro duration reconciled to season median",
 			slog.String("media_id", string(corrected.MediaItemID)),
 			slog.String("source", corrected.Source),
+			slog.String("anchor", anchor),
 			slog.Int64("duration_ms", dur),
 			slog.Int64("corrected_ms", corrected.EndMs-corrected.StartMs),
 			slog.Int64("mad_ms", st.madMs),
