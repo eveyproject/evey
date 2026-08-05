@@ -901,7 +901,15 @@ func (h *playbackHandler) GetResumeItems(ctx context.Context, req *eveyv1.GetRes
 		applyMediaDuration(pb, mi)
 		stampProgressDisplay(pb, mi, seasonByID, seriesByID)
 		resp.Progress = append(resp.Progress, pb)
+		// The declared response shape has always carried the items alongside
+		// the progress rows, but nothing filled them: the TV home row reads
+		// resp.items and rendered an empty shelf. Deleted media keeps its
+		// progress row without an item - clients match the two by media id.
+		if mi != nil {
+			resp.Items = append(resp.Items, mediaItemToProto(mi, ctxIsAdmin(ctx)))
+		}
 	}
+	fillAncestorTitles(ctx, h.librarySvc.GetMediaItemsByIDs, resp.Items)
 	return resp, nil
 }
 

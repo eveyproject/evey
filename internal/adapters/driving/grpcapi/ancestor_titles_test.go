@@ -94,6 +94,10 @@ func TestPlaybackHandler_GetResumeItems_StampsEpisodeDisplay(t *testing.T) {
 	assert.Equal(t, "Lioness", resp.Progress[0].SeriesTitle)
 	assert.Equal(t, int32(1), resp.Progress[0].ParentIndexNumber)
 	assert.Equal(t, int32(5), resp.Progress[0].IndexNumber)
+	// The declared-but-never-filled items list: the TV home row reads it.
+	require.Len(t, resp.Items, 1)
+	assert.Equal(t, "The Spider and the Fly", resp.Items[0].Title)
+	assert.Equal(t, "Lioness", resp.Items[0].SeriesTitle)
 }
 
 func TestLibraryHandler_GetMediaItem_StampsAncestorTitles(t *testing.T) {
