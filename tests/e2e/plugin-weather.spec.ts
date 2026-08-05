@@ -59,6 +59,17 @@ async function uninstallExistingWeather(request: APIRequestContext, token: strin
 }
 
 test.describe("Weather plugin", () => {
+  // One browser only. The three projects run in parallel against ONE server and
+  // this test owns a server-side singleton for its whole length: it uninstalls
+  // the weather plugin, installs it, then waits for that install to reach
+  // RUNNING. Run on three browsers, they interleave - the second upload gets
+  // 500 "already installed", and once that is retried the next project's
+  // uninstall drops the plugin the first is still waiting on, so it never
+  // reaches RUNNING. Nothing about installing a plugin is browser-specific;
+  // only the R3F render below is, and one engine is enough to catch a broken
+  // bundle.
+  test.skip(({ browserName }) => browserName !== "chromium", "owns a server-side singleton - see comment above");
+
   test("uploads, installs, and renders the R3F scene with no console errors", async ({ page, request }) => {
     expect(fs.existsSync(ZIP_PATH), `weather.zip not found at ${ZIP_PATH} - run scripts/build-test-plugins.sh first`).toBeTruthy();
     // Auth: read the JWT global-setup persisted in localStorage. We can't
@@ -72,13 +83,30 @@ test.describe("Weather plugin", () => {
     await uninstallExistingWeather(apiCtx, token);
 
     // 1) Upload via multipart form to the admin upload endpoint.
+    //
+    // Retried, because the three browser projects run in PARALLEL against one
+    // server and the plugin registry is shared: project A can install between
+    // project B's uninstall and its upload, and B then gets
+    // 500 "plugin already installed at version 1.0.1, new version must be
+    // higher". The zip carries a fixed version, so the only way through is to
+    // uninstall again and retry - which is exactly what a second operator
+    // hitting the same instance would have to do.
     const zipBytes = fs.readFileSync(ZIP_PATH);
-    const upload = await apiCtx.post(`${BASE_URL}/api/v1/admin/plugins/upload`, {
+    let upload = await apiCtx.post(`${BASE_URL}/api/v1/admin/plugins/upload`, {
       headers: authHeaders(token),
       multipart: {
         plugin: { name: "weather.zip", mimeType: "application/zip", buffer: zipBytes },
       },
     });
+    for (let attempt = 0; attempt < 5 && !upload.ok(); attempt++) {
+      await uninstallExistingWeather(apiCtx, token);
+      upload = await apiCtx.post(`${BASE_URL}/api/v1/admin/plugins/upload`, {
+        headers: authHeaders(token),
+        multipart: {
+          plugin: { name: "weather.zip", mimeType: "application/zip", buffer: zipBytes },
+        },
+      });
+    }
     expect(upload.ok(), `upload failed: ${upload.status()} ${await upload.text()}`).toBeTruthy();
     const uploaded = await upload.json();
     expect(uploaded.id).toMatch(/^plg-/);
