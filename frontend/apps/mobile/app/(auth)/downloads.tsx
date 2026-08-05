@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, FlatList, Pressable, Alert, StyleSheet, ActivityIndicator } from "react-native";
+import { Image } from "expo-image";
 import { router, Stack, useFocusEffect } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useTranslation } from "react-i18next";
@@ -19,6 +20,7 @@ import {
   type ProgressBytes,
 } from "../../src/lib/downloads";
 import { downloadStageLabel } from "../../src/lib/downloadStageLabel";
+import { downloadLabel } from "../../src/lib/downloadLabel";
 import { canPlayOffline, type OfflineDenialReason, type OfflineProfileInfo } from "../../src/lib/offlineAccess";
 import { useOnlineStatus } from "../../src/hooks/useOnlineStatus";
 import { getAudioPassState, subscribeToAudioPass, type AudioPassState } from "../../src/lib/audioCompatPass";
@@ -113,6 +115,7 @@ function DownloadRow({ item, onDelete, onCancel, deleting, canceling, activeProf
   // user can reclaim disk space for something they can no longer play.
   const decision = item.inProgress ? { allowed: true as const } : canPlayOffline(item, activeProfile, Date.now());
   const blocked = !decision.allowed;
+  const label = downloadLabel(item);
 
   return (
     <Pressable
@@ -137,24 +140,36 @@ function DownloadRow({ item, onDelete, onCancel, deleting, canceling, activeProf
         opacity: blocked ? 0.5 : 1,
       }}
       accessible
-      accessibilityLabel={item.title}
+      accessibilityLabel={[label.primary, label.secondary].filter(Boolean).join(" - ")}
       accessibilityRole="button"
     >
       <View style={{
         width: 40,
-        height: 40,
+        height: 60,
         borderRadius: theme.radii.sm,
         backgroundColor: theme.colors.surfaceRaised,
         alignItems: "center",
         justifyContent: "center",
+        overflow: "hidden",
       }}>
-        <Ionicons name={item.inProgress ? "cloud-download-outline" : "download"} size={18} color={theme.colors.accent} />
+        {item.posterPath ? (
+          // The poster was copied to disk at download time - this renders with
+          // no network, which is the whole point of this screen.
+          <Image source={{ uri: item.posterPath }} style={{ width: 40, height: 60 }} contentFit="cover" transition={150} />
+        ) : (
+          <Ionicons name={item.inProgress ? "cloud-download-outline" : "download"} size={18} color={theme.colors.accent} />
+        )}
       </View>
 
       <View style={{ flex: 1, gap: 2 }}>
         <Text style={{ color: theme.colors.text, fontSize: 14, fontWeight: "500" }} numberOfLines={1}>
-          {item.title}
+          {label.primary}
         </Text>
+        {label.secondary && (
+          <Text style={{ color: theme.colors.textMuted, fontSize: 12 }} numberOfLines={1}>
+            {label.secondary}
+          </Text>
+        )}
         {item.inProgress ? (
           <Text style={{ color: theme.colors.accent, fontSize: 12 }}>
             {downloadStageLabel(t, item.mediaItemId, progress, bytes, rate, { formatSize: formatBytes })}

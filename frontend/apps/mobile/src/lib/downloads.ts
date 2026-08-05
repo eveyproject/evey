@@ -22,6 +22,7 @@ import { deleteMediaFile, getPublicDownloadsDir } from "@evey/media-caps";
 import { getServerUrl } from "./server-config";
 import { getDeviceAudioCodecs } from "./deviceCodecs";
 import { canPlayOffline, OfflineAccessError, type OfflineProfileInfo } from "./offlineAccess";
+import { artworkUrl } from "./artwork";
 
 // Persistent download index: same path as before so existing offline files
 // remain visible after the background-downloader migration. The lib writes
@@ -30,7 +31,26 @@ import { canPlayOffline, OfflineAccessError, type OfflineProfileInfo } from "./o
 const docDir = FileSystem.documentDirectory ?? "";
 const DOWNLOAD_DIR = `${docDir}downloads/`;
 
-export interface DownloadedMedia {
+// Poster width cached for the Downloads list: the row thumbnail is ~48dp, so
+// the server-side resize keeps these at a few KB each instead of full-size.
+const POSTER_CACHE_WIDTH = 200;
+
+/**
+ * What the Downloads screen needs to NAME and PICTURE an item without the
+ * server: an episode's own title ("The Spider and the Fly") names nothing on
+ * its own, and the poster is served over HTTP - unreachable exactly when this
+ * screen matters. Both are captured at download time; every field is optional
+ * because entries that predate this simply render as they did before.
+ */
+export interface DownloadDisplay {
+  seriesTitle?: string;
+  seasonNumber?: number;
+  episodeNumber?: number;
+  /** Local file of the poster copied at download time (no network to render). */
+  posterPath?: string;
+}
+
+export interface DownloadedMedia extends DownloadDisplay {
   mediaItemId: string;
   title: string;
   filePath: string;
@@ -84,6 +104,7 @@ interface PendingDownload {
   expectedBytes?: number;
   authContext?: DownloadAuthContext;
   audioCodecs?: string[];
+  display?: DownloadDisplay;
   startedAt: string;
 }
 
@@ -439,6 +460,7 @@ async function persistDownloaded(
   totalBytes: number,
   authContext?: DownloadAuthContext,
   audioCodecs?: string[],
+  display?: DownloadDisplay,
 ) {
   const index = await readIndex();
   // Replace any existing entry with the same id so retry-after-failure keeps
@@ -452,8 +474,32 @@ async function persistDownloaded(
     downloadedAt: new Date().toISOString(),
     ...authContext,
     ...(audioCodecs && audioCodecs.length > 0 ? { audioCodecs } : {}),
+    ...display,
   });
   await writeIndex(without);
+}
+
+/**
+ * Copy the item's poster next to the download so the Downloads screen has a
+ * picture with no network. Best-effort by design: a missing or failed poster
+ * must never fail (or delay) the media download itself - the screen falls back
+ * to its icon. The artwork route is public, so no token is involved.
+ */
+export async function cacheDownloadPoster(mediaItemId: string): Promise<string | undefined> {
+  try {
+    const serverUrl = await getServerUrl();
+    if (!serverUrl) return undefined;
+    await ensureDir();
+    const dest = `${DOWNLOAD_DIR}poster-${encodeURIComponent(mediaItemId)}.jpg`;
+    const res = await FileSystem.downloadAsync(artworkUrl(serverUrl, mediaItemId, "poster", POSTER_CACHE_WIDTH), dest);
+    if (res.status !== 200) {
+      await FileSystem.deleteAsync(dest, { idempotent: true }).catch(() => undefined);
+      return undefined;
+    }
+    return dest;
+  } catch {
+    return undefined;
+  }
 }
 
 // --- seam for the sliced reduced-quality download (reducedDownload.ts) ------
@@ -580,6 +626,12 @@ export interface StartDownloadOptions extends DownloadAuthContext {
    * would play silent on this device (see hasRenderableAudio).
    */
   audioCodecs?: string[];
+  /**
+   * Series/season/episode context so the Downloads screen can name an episode
+   * offline. The poster is fetched here (not passed in): the caller has the
+   * item, not the bytes.
+   */
+  display?: Omit<DownloadDisplay, "posterPath">;
 }
 
 // --- Server-prepared compat download ---------------------------------------
@@ -767,6 +819,12 @@ export async function startDownload(
     officialRating: opts?.officialRating,
     certificationsByCountry: opts?.certificationsByCountry,
   };
+  // Fetched before the transfer so the row has its picture as soon as it
+  // lands; a failure here is silent and only costs the icon fallback.
+  const display: DownloadDisplay = {
+    ...opts?.display,
+    posterPath: opts?.kind === "audio" ? undefined : await cacheDownloadPoster(mediaItemId),
+  };
 
   // Release-build breadcrumbs (logcat tag ReactNativeJS): begin / first byte /
   // settle. Deliberately NOT one line per progress tick.
@@ -783,6 +841,7 @@ export async function startDownload(
     destPath,
     authContext,
     audioCodecs,
+    display,
     startedAt: new Date().toISOString(),
   };
   try {
@@ -802,7 +861,7 @@ export async function startDownload(
       // offline-access record after an app restart. destPath itself is
       // included since the public/private root choice is no longer derivable
       // from the id alone.
-      metadata: { title, ext, authContext, audioCodecs, destPath },
+      metadata: { title, ext, authContext, audioCodecs, display, destPath },
     });
 
     activeDownloads.set(mediaItemId, { task, destPath, unsubscribe: unsubscribeProgress });
@@ -859,7 +918,7 @@ export async function startDownload(
         const state = inFlight.get(mediaItemId);
         const totalBytes = state?.totalBytes ?? 0;
         try {
-          await persistDownloaded(mediaItemId, title, destPath, totalBytes, authContext, audioCodecs);
+          await persistDownloaded(mediaItemId, title, destPath, totalBytes, authContext, audioCodecs, display);
         } catch (err) {
           if (process.env.NODE_ENV !== "production") console.warn("persist download index", err);
         }
@@ -917,7 +976,7 @@ export async function rehydrateBackgroundDownloads(): Promise<void> {
   }
   for (const task of tasks) {
     const mediaItemId = task.id;
-    const meta = (task.metadata as { title?: string; ext?: string; authContext?: DownloadAuthContext; audioCodecs?: string[]; destPath?: string }) ?? {};
+    const meta = (task.metadata as { title?: string; ext?: string; authContext?: DownloadAuthContext; audioCodecs?: string[]; display?: DownloadDisplay; destPath?: string }) ?? {};
     const title = meta.title ?? mediaItemId;
     // The task's own recorded destination is authoritative (public/private
     // root is not derivable from the id). The id-based reconstruction only
@@ -928,6 +987,9 @@ export async function rehydrateBackgroundDownloads(): Promise<void> {
     // persistDownloaded then simply omits it (legacy entry, see offlineAccess.ts).
     const authContext = meta.authContext;
     const audioCodecs = meta.audioCodecs;
+    // Rides along in the native module's metadata so a download recovered
+    // after an app kill keeps its poster and its series/episode labels.
+    const display = meta.display;
     inFlight.set(mediaItemId, { totalBytes: 0, downloadedBytes: 0 });
     inFlightTitles.set(mediaItemId, title);
     activeDownloads.set(mediaItemId, { task, destPath });
@@ -954,7 +1016,7 @@ export async function rehydrateBackgroundDownloads(): Promise<void> {
           } catch { /* silent */ }
         }
         try {
-          await persistDownloaded(mediaItemId, title, destPath, totalBytes, authContext, audioCodecs);
+          await persistDownloaded(mediaItemId, title, destPath, totalBytes, authContext, audioCodecs, display);
         } catch { /* silent */ }
         inFlight.delete(mediaItemId);
         inFlightTitles.delete(mediaItemId);
@@ -1079,6 +1141,11 @@ export async function deleteDownload(mediaItemId: string): Promise<void> {
   const item = index.find((i) => i.mediaItemId === mediaItemId);
   if (item) {
     await deleteMediaFileAnywhere(item.filePath);
+    // The cached poster is ours (app-private), so it goes with the media -
+    // otherwise every deleted download leaves a thumbnail behind forever.
+    if (item.posterPath) {
+      await FileSystem.deleteAsync(item.posterPath, { idempotent: true }).catch(() => undefined);
+    }
   }
   await writeIndex(index.filter((i) => i.mediaItemId !== mediaItemId));
 }

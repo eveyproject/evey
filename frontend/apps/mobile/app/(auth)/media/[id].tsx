@@ -707,6 +707,14 @@ export default function MediaDetailScreen() {
             kind: "video",
             formatHint: ep.containerFormat,
             audioCodecs: audioCodecsOf(ep),
+            // Captured here because offline there is no way to resolve an
+            // episode's ancestors: this screen IS the series, and the picked
+            // season carries the number.
+            display: {
+              seriesTitle: media?.title,
+              seasonNumber: children.find((c) => c.id === selectedSeason)?.indexNumber,
+              episodeNumber: ep.indexNumber,
+            },
             // An episode rarely carries its own classification - it inherits
             // the series' rating, which is what this screen's own parental
             // gate above (useParentalGate(media?.officialRating)) already
@@ -1256,6 +1264,14 @@ export default function MediaDetailScreen() {
                       // for VLC and used to make the audio pass skip it.
                       formatHint: media.containerFormat,
                       audioCodecs: audioCodecsOf(media),
+                      // The server stamps seriesTitle on episode payloads, so
+                      // a lone episode downloaded from its own page still
+                      // names its show on the offline list.
+                      display: {
+                        seriesTitle: media.seriesTitle,
+                        seasonNumber: parentItem?.indexNumber,
+                        episodeNumber: media.indexNumber,
+                      },
                     },
                   );
                   toast.success(t("media.detail.downloadComplete"));

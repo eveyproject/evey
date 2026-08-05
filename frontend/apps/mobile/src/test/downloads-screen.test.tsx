@@ -2,6 +2,13 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent, act } from "@testing-library/react";
 import React from "react";
 
+// --- expo-image -------------------------------------------------------------------------
+// The real module reaches for the native EventEmitter at import time; the row
+// renders a cached poster through it.
+vi.mock("expo-image", () => ({
+  Image: (props: Record<string, unknown>) => React.createElement("img", { ...props, alt: "" }),
+}));
+
 // --- React Native mock -----------------------------------------------------------------
 vi.mock("react-native", () => ({
   View: ({ children, ...p }: any) => React.createElement("div", p, children),
