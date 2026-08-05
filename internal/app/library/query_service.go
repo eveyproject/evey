@@ -27,6 +27,12 @@ func WithSegments(segments library.MediaSegmentQueryRepo) QueryServiceOption {
 	return func(s *QueryService) { s.segments = segments }
 }
 
+// WithServerConfig enables config-driven serving behaviour (currently the
+// segment confidence gate, see GetSegments). nil keeps the defaults.
+func WithServerConfig(cfg shared.ServerConfigRepository) QueryServiceOption {
+	return func(s *QueryService) { s.serverConfig = cfg }
+}
+
 func WithTranslations(
 	mediaTranslations library.MediaItemTranslationQueryRepo,
 	personTranslations library.PersonTranslationQueryRepo,
@@ -48,6 +54,7 @@ type QueryService struct {
 	chapters           library.ChapterQueryRepo
 	trickplay          library.TrickplayQueryRepo
 	segments           library.MediaSegmentQueryRepo
+	serverConfig       shared.ServerConfigRepository
 }
 
 func NewQueryService(
@@ -245,7 +252,24 @@ func (s *QueryService) GetSegments(ctx context.Context, mediaItemID string) ([]*
 	if s.segments == nil {
 		return []*library.MediaSegment{}, nil
 	}
-	return s.segments.GetByMediaItemID(ctx, shared.MediaItemID(mediaItemID))
+	segs, err := s.segments.GetByMediaItemID(ctx, shared.MediaItemID(mediaItemID))
+	if err != nil {
+		return nil, err
+	}
+	// Abstention gate: a low-confidence segment is stored (it stays available
+	// for eval/training) but not served - a wrong skip button costs more than
+	// a missing one. Threshold is admin-tunable; 0 disables the gate.
+	minConf := loadIntroConfig(ctx, s.serverConfig).MinServeConfidence
+	if minConf <= 0 {
+		return segs, nil
+	}
+	out := segs[:0]
+	for _, sg := range segs {
+		if sg.Confidence >= minConf {
+			out = append(out, sg)
+		}
+	}
+	return out, nil
 }
 
 func (s *QueryService) GetTrickplayManifest(ctx context.Context, mediaItemID string) (*library.TrickplayManifest, error) {

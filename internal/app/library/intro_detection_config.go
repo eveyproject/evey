@@ -45,6 +45,16 @@ type introConfig struct {
 	// offset. Replaces per-episode audio discovery when it carries the episode.
 	SeasonClusterEnabled bool `json:"season_cluster_enabled"` // default true
 
+	// MinServeConfidence is the serving-side abstention gate: segments below
+	// this confidence are withheld from players (QueryService.GetSegments), so
+	// a coin-flip detection never surfaces as a skip button. A wrong skip
+	// (jumping over content) costs far more than a missing button. 0 disables
+	// the gate. The default cuts exactly the last-resort silence fallback
+	// (source "audio", confidence 0.5) while keeping every measured tier
+	// (blackdetect 0.6 and up). Detection still STORES low-confidence segments -
+	// they stay available for eval/training - only serving is gated.
+	MinServeConfidence float64 `json:"min_serve_confidence"` // default 0.55
+
 	// AudioDiscoveryEnabled gates the per-episode Chromaprint discovery fallback
 	// (discoverIntroByAudio). Demoted to OFF by default: an eval against
 	// community ground truth (tidb/introdb) showed it frequently locks onto the
@@ -93,6 +103,7 @@ func defaultIntroConfig() introConfig {
 		RecapMaxMs:            60 * 1000,
 		FrameCutoffPercent:    0.25,
 		MaxIntroStartMs:       240_000,
+		MinServeConfidence:    0.55,
 		SeasonClusterEnabled:  true,
 		AudioDiscoveryEnabled: false,
 	}

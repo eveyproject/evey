@@ -133,6 +133,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		applibrary.WithChapters(r.Chapter),
 		applibrary.WithTrickplay(r.Trickplay),
 		applibrary.WithSegments(r.MediaSegment),
+		applibrary.WithServerConfig(r.ServerCfg),
 	)
 
 	schedulerLog := eveylogger.NewWith(rootLog, "scheduler")
