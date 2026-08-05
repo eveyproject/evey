@@ -3,7 +3,7 @@ package library
 import (
 	"context"
 	"log/slog"
-	"sort"
+	"slices"
 
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
@@ -81,10 +81,7 @@ func seasonIntroDurationStats(durationsMs []int64) (introDurationStats, bool) {
 // side is policed - see the file comment.
 func durationExceedsPrior(durMs int64, st introDurationStats) bool {
 	robustSigma := float64(st.madMs) * 1.4826
-	band := int64(priorSigmaFactor * robustSigma)
-	if band < priorMinExcessMs {
-		band = priorMinExcessMs
-	}
+	band := max(int64(priorSigmaFactor*robustSigma), priorMinExcessMs)
 	return durMs-st.medianMs > band
 }
 
@@ -92,7 +89,7 @@ func durationExceedsPrior(durMs int64, st introDurationStats) bool {
 // which biases the prior slightly conservative). xs is not mutated.
 func int64Median(xs []int64) int64 {
 	s := append([]int64(nil), xs...)
-	sort.Slice(s, func(i, j int) bool { return s[i] < s[j] })
+	slices.Sort(s)
 	return s[(len(s)-1)/2]
 }
 
