@@ -99,11 +99,17 @@ type Notification struct {
 	Message        string
 	MediaItemID    shared.MediaItemID
 	RelatedMediaID shared.MediaItemID // series ID for new_episode/new_season grouping
-	EpisodeCount   int                // accumulated episode count for grouped new_episode notifs
-	Level          Level
-	CreatedAt      time.Time
-	ExpiresAt      *time.Time
-	ReadAt         *time.Time
+	// Subject is the bare name the notification is about ("Lioness"), without
+	// any count or wording. Title stays the pre-rendered English label for
+	// clients that predate this; a client that sees a Subject builds the whole
+	// sentence itself and never reads Title. Empty on rows written before.
+	Subject      string
+	SeasonCount  int // seasons that came with the batch, 0 when none
+	EpisodeCount int // accumulated episode count for grouped new_episode notifs
+	Level        Level
+	CreatedAt    time.Time
+	ExpiresAt    *time.Time
+	ReadAt       *time.Time
 }
 
 func (n *Notification) Validate() error {
@@ -184,6 +190,17 @@ func WithNotificationMediaItem(id shared.MediaItemID) NotificationOption {
 
 func WithRelatedMediaID(id shared.MediaItemID) NotificationOption {
 	return func(n *Notification) { n.RelatedMediaID = id }
+}
+
+// WithLabelParts records what a client needs to word the notification itself:
+// the bare subject and the counts. Distinct from WithEpisodeCount, which
+// carries the RUNNING total of a regrouped episode notification.
+func WithLabelParts(subject string, seasonCount, episodeCount int) NotificationOption {
+	return func(n *Notification) {
+		n.Subject = subject
+		n.SeasonCount = seasonCount
+		n.EpisodeCount = episodeCount
+	}
 }
 
 func WithEpisodeCount(count int) NotificationOption {

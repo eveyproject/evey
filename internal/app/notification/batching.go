@@ -84,7 +84,7 @@ func (s *CommandService) handleMediaItemAdded(_ context.Context, ev shared.Event
 	}
 	s.mu.Unlock()
 
-	s.emitNotifications(e.Type, e.Title, e.SeriesTitle, string(e.MediaItemID), "", e.Genres, nil)
+	s.emitNotifications(e.Type, e.Title, e.SeriesTitle, string(e.MediaItemID), "", e.Genres, nil, labelParts{subject: subjectOf(e.Title, e.SeriesTitle)})
 }
 
 func isBatchable(e libevent.MediaItemAdded) bool {
@@ -174,12 +174,12 @@ func (s *CommandService) flushBatch(key string) {
 	if batch.seriesEvent != nil {
 		if batch.seriesEvent.Type == "album" {
 			title, push := batchedAlbumTitle(batch.seriesEvent.Title, episodeCount)
-			s.emitNotifications("album", title, "", string(batch.seriesEvent.MediaItemID), "", batch.seriesEvent.Genres, &push)
+			s.emitNotifications("album", title, "", string(batch.seriesEvent.MediaItemID), "", batch.seriesEvent.Genres, &push, labelParts{subject: batch.seriesEvent.Title, episodeCount: episodeCount})
 			return
 		}
 		seriesKey := seriesKeyFor(string(batch.seriesEvent.LibraryID), batch.seriesEvent.Title)
 		title, push := batchedSeriesTitle(batch.seriesEvent.Title, seasonCount, episodeCount)
-		s.emitNotifications("series", title, "", string(batch.seriesEvent.MediaItemID), seriesKey, batch.seriesEvent.Genres, &push)
+		s.emitNotifications("series", title, "", string(batch.seriesEvent.MediaItemID), seriesKey, batch.seriesEvent.Genres, &push, labelParts{subject: batch.seriesEvent.Title, seasonCount: seasonCount, episodeCount: episodeCount})
 		return
 	}
 
@@ -192,7 +192,7 @@ func (s *CommandService) flushBatch(key string) {
 		}
 		seriesKey := seriesKeyFor(string(season.LibraryID), season.SeriesTitle)
 		title, push := batchedSeasonTitle(seriesTitle, season.Title, episodeCount)
-		s.emitNotifications("season", title, "", string(season.MediaItemID), seriesKey, season.Genres, &push)
+		s.emitNotifications("season", title, "", string(season.MediaItemID), seriesKey, season.Genres, &push, labelParts{subject: seriesTitle, seasonCount: seasonCount, episodeCount: episodeCount})
 		return
 	}
 
@@ -202,7 +202,7 @@ func (s *CommandService) flushBatch(key string) {
 		season := batch.seasons[0]
 		seriesKey := seriesKeyFor(string(season.LibraryID), season.SeriesTitle)
 		title, push := batchedSeasonsTitle(season.SeriesTitle, season.Title, seasonCount)
-		s.emitNotifications("season", title, "", string(season.MediaItemID), seriesKey, season.Genres, &push)
+		s.emitNotifications("season", title, "", string(season.MediaItemID), seriesKey, season.Genres, &push, labelParts{subject: season.SeriesTitle, seasonCount: seasonCount})
 		return
 	}
 
@@ -210,7 +210,7 @@ func (s *CommandService) flushBatch(key string) {
 	if episodeCount == 1 {
 		ep := batch.episodes[0]
 		seriesKey := seriesKeyFor(string(ep.LibraryID), ep.SeriesTitle)
-		s.emitNotifications(ep.Type, ep.Title, ep.SeriesTitle, string(ep.MediaItemID), seriesKey, ep.Genres, nil, 1)
+		s.emitNotifications(ep.Type, ep.Title, ep.SeriesTitle, string(ep.MediaItemID), seriesKey, ep.Genres, nil, labelParts{subject: subjectOf(ep.Title, ep.SeriesTitle), episodeCount: 1})
 		return
 	}
 
@@ -218,11 +218,32 @@ func (s *CommandService) flushBatch(key string) {
 		first := batch.episodes[0]
 		seriesKey := seriesKeyFor(string(first.LibraryID), first.SeriesTitle)
 		title, push := batchedEpisodesTitle(first.SeriesTitle, episodeCount)
-		s.emitNotifications("episode", title, "", string(first.MediaItemID), seriesKey, first.Genres, &push, episodeCount)
+		s.emitNotifications("episode", title, "", string(first.MediaItemID), seriesKey, first.Genres, &push, labelParts{subject: first.SeriesTitle, episodeCount: episodeCount})
 	}
 }
 
-func (s *CommandService) emitNotifications(mediaType, title, seriesTitle, mediaItemID, seriesKey string, genres []string, pushOverride *pushSpec, episodeCounts ...int) {
+// subjectOf picks the name the COUNTS apply to: the series for an episode, the
+// item itself otherwise. Using the episode title here regrouped "The Wire" into
+// "S01E07 (2 episodes)" - the subject must survive the regrouping, and only the
+// series does.
+func subjectOf(title, seriesTitle string) string {
+	if seriesTitle != "" {
+		return seriesTitle
+	}
+	return title
+}
+
+// labelParts carries what a CLIENT needs to build the sentence in its own
+// language: the bare subject ("Lioness") and the counts. The pre-rendered
+// English Title stays alongside for rows and clients that predate this - see
+// the 000151 migration for why nothing is backfilled.
+type labelParts struct {
+	subject      string
+	seasonCount  int
+	episodeCount int
+}
+
+func (s *CommandService) emitNotifications(mediaType, title, seriesTitle, mediaItemID, seriesKey string, genres []string, pushOverride *pushSpec, parts labelParts) {
 	parent := s.shutdownCtx
 	if parent == nil {
 		slog.Warn("notification: emitNotifications called before Start(); using background context")
@@ -267,10 +288,7 @@ func (s *CommandService) emitNotifications(mediaType, title, seriesTitle, mediaI
 		favoritesByProfile = nil
 	}
 
-	initialEpCount := 0
-	if len(episodeCounts) > 0 {
-		initialEpCount = episodeCounts[0]
-	}
+	initialEpCount := parts.episodeCount
 
 	expires := time.Now().AddDate(0, 0, defaultRetentionDays)
 	since := time.Now().Add(-episodeGroupWindow)
@@ -318,6 +336,10 @@ func (s *CommandService) emitNotifications(mediaType, title, seriesTitle, mediaI
 		if seriesKey != "" {
 			opts = append(opts, notification.WithRelatedMediaID(shared.MediaItemID(seriesKey)))
 		}
+		// Subject + counts first, then the episode-grouping override below:
+		// a regrouped episode notification keeps a RUNNING total that must win
+		// over the count this single batch carried.
+		opts = append(opts, notification.WithLabelParts(parts.subject, parts.seasonCount, parts.episodeCount))
 		if notifType == notification.TypeNewEpisode && initialEpCount > 0 {
 			opts = append(opts, notification.WithEpisodeCount(initialEpCount))
 		}
@@ -372,10 +394,16 @@ func (s *CommandService) shouldSkipEpisodeNotif(ctx context.Context, profileID s
 	prevCount := max(existing.EpisodeCount, 1)
 	newCount := prevCount + addCount
 
-	// Re-derive the series name from the stored title so we can rebuild it.
-	seriesName := extractSeriesName(existing.Title)
+	// Prefer the stored Subject: it is the series name as data. Parsing it back
+	// out of the rendered English title is what this whole change replaces, and
+	// it stays only for rows written before Subject existed.
+	seriesName := existing.Subject
+	if seriesName == "" {
+		seriesName = extractSeriesName(existing.Title)
+	}
 	newTitle, newPush := batchedEpisodesTitle(seriesName, newCount)
 	existing.Title = "new_episode:" + newTitle
+	existing.Subject = seriesName
 	existing.EpisodeCount = newCount
 	if updateErr := s.repo.Update(ctx, existing); updateErr != nil {
 		slog.WarnContext(ctx, "notification: update grouped episode failed", slog.Any("err", updateErr))

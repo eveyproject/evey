@@ -91,6 +91,14 @@ message Notification {
   google.protobuf.Timestamp created_at = 8;
   google.protobuf.Timestamp expires_at = 9;
   google.protobuf.Timestamp read_at = 10;
+  // subject + the counts are the notification AS DATA: the bare name it is
+  // about ("Lioness") and how much came with it. title stays the label the
+  // server rendered in English; a client that reads subject words the whole
+  // sentence in its own language and ignores title. subject is empty on rows
+  // written before this existed - fall back to title there.
+  string subject = 11;
+  int32 season_count = 12;
+  int32 episode_count = 13;
 }
 
 message NotificationSettings {

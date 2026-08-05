@@ -219,6 +219,12 @@ func (r *FakeNotificationRepository) Update(_ context.Context, updated *notifica
 	for _, n := range r.items {
 		if n.ID == updated.ID && n.ProfileID == updated.ProfileID {
 			n.Title = updated.Title
+			// Subject and SeasonCount travel with Title and EpisodeCount: the
+			// postgres Update writes all four, and a fake that dropped two of
+			// them would let a test pass on a regrouped notification whose
+			// counts never moved.
+			n.Subject = updated.Subject
+			n.SeasonCount = updated.SeasonCount
 			n.EpisodeCount = updated.EpisodeCount
 			return nil
 		}

@@ -277,16 +277,21 @@ func containsStr(ss []string, s string) bool {
 
 func notificationToProto(n *notification.Notification) *eveyv1.Notification {
 	return &eveyv1.Notification{
-		Id:          n.ID,
-		ProfileId:   string(n.ProfileID),
-		Type:        string(n.Type),
-		Title:       n.Title,
-		Message:     n.Message,
-		MediaItemId: string(n.MediaItemID),
-		Level:       string(n.Level),
-		CreatedAt:   toTimestamppb(n.CreatedAt),
-		ExpiresAt:   toTimestamppbPtr(n.ExpiresAt),
-		ReadAt:      toTimestamppbPtr(n.ReadAt),
+		Id:        n.ID,
+		ProfileId: string(n.ProfileID),
+		Type:      string(n.Type),
+		Title:     n.Title,
+		Subject:   n.Subject,
+		// #nosec G115 -- counts of seasons/episodes in one batch, never near int32.
+		SeasonCount: int32(n.SeasonCount),
+		// #nosec G115 -- same bound as SeasonCount.
+		EpisodeCount: int32(n.EpisodeCount),
+		Message:      n.Message,
+		MediaItemId:  string(n.MediaItemID),
+		Level:        string(n.Level),
+		CreatedAt:    toTimestamppb(n.CreatedAt),
+		ExpiresAt:    toTimestamppbPtr(n.ExpiresAt),
+		ReadAt:       toTimestamppbPtr(n.ReadAt),
 	}
 }
 

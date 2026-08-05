@@ -32,10 +32,10 @@ func (r *NotificationRepository) Create(ctx context.Context, n *notification.Not
 	defer cancel()
 	relatedMediaID := sql.NullString{String: string(n.RelatedMediaID), Valid: n.RelatedMediaID != ""}
 	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
-		`INSERT INTO notifications (id, profile_id, type, title, message, media_item_id, related_media_id, episode_count, level, created_at, expires_at)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
-		n.ID, n.ProfileID, string(n.Type), n.Title, n.Message, n.MediaItemID,
-		relatedMediaID, n.EpisodeCount,
+		`INSERT INTO notifications (id, profile_id, type, title, subject, message, media_item_id, related_media_id, season_count, episode_count, level, created_at, expires_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+		n.ID, n.ProfileID, string(n.Type), n.Title, n.Subject, n.Message, n.MediaItemID,
+		relatedMediaID, n.SeasonCount, n.EpisodeCount,
 		string(n.Level), n.CreatedAt, n.ExpiresAt,
 	)
 	if err != nil {
@@ -52,7 +52,7 @@ func (r *NotificationRepository) ListByProfile(ctx context.Context, profileID sh
 	span.SetAttributes(attribute.String("profile.id", string(profileID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	q := `SELECT id, profile_id, type, title, message, media_item_id, related_media_id, episode_count, level, created_at, expires_at, read_at
+	q := `SELECT id, profile_id, type, title, subject, message, media_item_id, related_media_id, season_count, episode_count, level, created_at, expires_at, read_at
 	      FROM notifications WHERE profile_id = $1`
 	if unreadOnly {
 		q += ` AND read_at IS NULL`
@@ -105,7 +105,7 @@ func (r *NotificationRepository) FindRecentByProfilesTypeAndSeries(ctx context.C
 		placeholders[i] = fmt.Sprintf("$%d", i+4)
 		args = append(args, string(t))
 	}
-	q := `SELECT id, profile_id, type, title, message, media_item_id, related_media_id, episode_count, level, created_at, expires_at, read_at
+	q := `SELECT id, profile_id, type, title, subject, message, media_item_id, related_media_id, season_count, episode_count, level, created_at, expires_at, read_at
 	      FROM notifications
 	      WHERE profile_id = ANY($1)
 	        AND related_media_id = $2
@@ -139,8 +139,8 @@ func (r *NotificationRepository) Update(ctx context.Context, n *notification.Not
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
-		`UPDATE notifications SET title = $1, episode_count = $2 WHERE id = $3 AND profile_id = $4`,
-		n.Title, n.EpisodeCount, n.ID, n.ProfileID,
+		`UPDATE notifications SET title = $1, subject = $2, season_count = $3, episode_count = $4 WHERE id = $5 AND profile_id = $6`,
+		n.Title, n.Subject, n.SeasonCount, n.EpisodeCount, n.ID, n.ProfileID,
 	)
 	if err != nil {
 		span.RecordError(err)
@@ -156,8 +156,8 @@ func scanNotifications(rows *sql.Rows) ([]*notification.Notification, error) {
 		n := &notification.Notification{}
 		var typ, lvl string
 		var relatedMediaID sql.NullString
-		if err := rows.Scan(&n.ID, &n.ProfileID, &typ, &n.Title, &n.Message, &n.MediaItemID,
-			&relatedMediaID, &n.EpisodeCount, &lvl,
+		if err := rows.Scan(&n.ID, &n.ProfileID, &typ, &n.Title, &n.Subject, &n.Message, &n.MediaItemID,
+			&relatedMediaID, &n.SeasonCount, &n.EpisodeCount, &lvl,
 			&n.CreatedAt, &n.ExpiresAt, &n.ReadAt); err != nil {
 			return nil, err
 		}
