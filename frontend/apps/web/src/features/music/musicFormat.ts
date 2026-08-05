@@ -1,9 +1,3 @@
-export function formatDuration(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${m}:${String(s).padStart(2, "0")}`;
-}
-
 // shuffleTracks returns a new array in random order (Fisher-Yates). Used by the
 // ephemeral "shuffle play" - builds a randomized queue without persisting it.
 export function shuffleTracks<T>(arr: T[]): T[] {

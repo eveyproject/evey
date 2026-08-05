@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 import type { V1GetSeekIndexJobResponse } from "@evey/api";
 import { Spinner } from "@/components/ui/Spinner";
 import { Card } from "@/components/ui/Card";
-import { KIND_KEYS, baseName } from "./helpers";
+import { SEEK_INDEX_KIND_KEYS, baseName } from "@evey/api";
 
 export function JobProgressCard({ job }: { job: V1GetSeekIndexJobResponse }) {
   const { t } = useTranslation();
@@ -10,7 +10,7 @@ export function JobProgressCard({ job }: { job: V1GetSeekIndexJobResponse }) {
   const total = job.total ?? 0;
   const failed = job.failed ?? 0;
   const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
-  const kind = t(KIND_KEYS[job.kind ?? ""] ?? KIND_KEYS.scan);
+  const kind = t(SEEK_INDEX_KIND_KEYS[job.kind ?? ""] ?? SEEK_INDEX_KIND_KEYS.scan);
   const phase =
     job.phase === "processing"
       ? t("admin.seekIndex.phaseProcessing")

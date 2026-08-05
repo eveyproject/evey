@@ -1,4 +1,5 @@
 import { Text, Modal, Pressable, ScrollView, StyleSheet } from "react-native";
+import { formatTime } from "@evey/api";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../providers/ThemeProvider";
 import { FocusableCard } from "./FocusableCard";
@@ -11,15 +12,6 @@ interface ChaptersPickerProps {
   chapters: Chapter[];
   currentTimeMs: number;
   onSeek: (timeSec: number) => void;
-}
-
-function formatTime(seconds: number): string {
-  const s = Math.max(0, Math.floor(seconds));
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const sec = s % 60;
-  if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
-  return `${m}:${String(sec).padStart(2, "0")}`;
 }
 
 export function ChaptersPicker({ visible, onClose, chapters, currentTimeMs, onSeek }: ChaptersPickerProps) {

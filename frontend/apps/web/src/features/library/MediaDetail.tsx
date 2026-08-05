@@ -8,7 +8,8 @@ import {
 import { useAuthStore } from "@evey/store";
 import { PluginSlot } from "@/features/plugins/PluginSlot";
 import { useStreamToken } from "@/hooks/useStreamToken";
-import { formatDuration, formatSeriesRuntime, hasMediaFile } from "./mediaDetailUtils";
+import { formatDurationMs } from "@evey/api";
+import { formatSeriesRuntime, hasMediaFile } from "./mediaDetailUtils";
 import { MediaDetailHero } from "./MediaDetailHero";
 import { MediaDetailActions } from "./MediaDetailActions";
 import { CastCarousel } from "./MediaDetailCast";
@@ -65,7 +66,7 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
   );
   const duration = isSeries
     ? formatSeriesRuntime(seriesAggregate?.totalDurationMs, seriesAggregate?.episodeCount)
-    : formatDuration(item.durationMs);
+    : formatDurationMs(item.durationMs);
   const actors = item.people?.filter((p) => p.type === "PERSON_TYPE_ACTOR") ?? [];
   const directors = item.people?.filter((p) => p.type === "PERSON_TYPE_DIRECTOR") ?? [];
   const writers = item.people?.filter((p) => p.type === "PERSON_TYPE_WRITER") ?? [];

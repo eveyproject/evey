@@ -15,7 +15,7 @@ import {
   useAdminMediaServicePurgeSeekIndexBackups,
   useAdminMediaServiceRemuxAudioMedia,
 } from "@evey/api";
-import { SCAN_QUERY_BASE, KIND_KEYS, errText, audioDelayed, volumeBackupsRisky } from "./helpers";
+import { SEEK_INDEX_SCAN_QUERY_BASE, SEEK_INDEX_KIND_KEYS, errText, audioDelayed, volumeBackupsRisky } from "@evey/api";
 
 // useSeekIndexPage owns every piece of state, query and mutation the seek-index
 // admin page renders from - the page component itself only composes panels
@@ -89,10 +89,10 @@ export function useSeekIndexPage() {
   const prevRunning = useRef(false);
   useEffect(() => {
     if (prevRunning.current && !running) {
-      void queryClient.invalidateQueries({ queryKey: [SCAN_QUERY_BASE] });
+      void queryClient.invalidateQueries({ queryKey: [SEEK_INDEX_SCAN_QUERY_BASE] });
       const last = job?.last;
       if (last) {
-        const kind = t(KIND_KEYS[last.kind ?? ""] ?? KIND_KEYS.scan);
+        const kind = t(SEEK_INDEX_KIND_KEYS[last.kind ?? ""] ?? SEEK_INDEX_KIND_KEYS.scan);
         if (last.error) {
           toast.error(t("admin.seekIndex.lastJobError", { error: last.error }));
         } else if ((last.failed ?? 0) > 0) {
@@ -170,7 +170,7 @@ export function useSeekIndexPage() {
     mutation: {
       onSuccess: () => {
         toast.success(t("admin.seekIndex.backupDeleted"));
-        void queryClient.invalidateQueries({ queryKey: [SCAN_QUERY_BASE] });
+        void queryClient.invalidateQueries({ queryKey: [SEEK_INDEX_SCAN_QUERY_BASE] });
       },
       onError: (err: { message?: string } | null) =>
         toast.error(errText(err, t("admin.seekIndex.startFailed"))),

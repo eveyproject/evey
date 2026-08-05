@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { Checkbox } from "@/components/ui/Checkbox";
-import { BACKUP_WINDOW, formatSize, volumeBackupsRisky, volumeTempRisky } from "./helpers";
+import { SEEK_INDEX_BACKUP_WINDOW, formatBytes, volumeBackupsRisky, volumeTempRisky } from "@evey/api";
 import type { SeekIndexPageState } from "./hooks";
 
 type RepairConfirmModalProps = Pick<
@@ -66,8 +66,8 @@ export function RepairConfirmModal({
             <li key={v.root} className="text-xs text-[var(--text-muted)]">
               {t("admin.seekIndex.volumeLine", {
                 root: v.root,
-                free: formatSize(Number(v.freeBytes ?? 0)),
-                missing: formatSize(Number(v.missingBytes ?? 0)),
+                free: formatBytes(Number(v.freeBytes ?? 0)),
+                missing: formatBytes(Number(v.missingBytes ?? 0)),
                 count: v.missingFiles ?? 0,
               })}
               {volumeBackupsRisky(v) && (
@@ -80,7 +80,7 @@ export function RepairConfirmModal({
                 <span className="text-[var(--color-danger)]">
                   {" "}
                   - {t("admin.seekIndex.volumeTempRisky", {
-                    largest: formatSize(Number(v.largestMissingBytes ?? 0)),
+                    largest: formatBytes(Number(v.largestMissingBytes ?? 0)),
                   })}
                 </span>
               )}
@@ -113,7 +113,7 @@ export function RepairConfirmModal({
             <p className="mt-1 text-xs text-muted-foreground">
               {keepBackups
                 ? t("admin.seekIndex.keepBackupsHint")
-                : t("admin.seekIndex.keepBackupsOffHint", { n: BACKUP_WINDOW })}
+                : t("admin.seekIndex.keepBackupsOffHint", { n: SEEK_INDEX_BACKUP_WINDOW })}
             </p>
           </div>
         </div>
@@ -137,7 +137,7 @@ export function RepairConfirmModal({
                   mode: "auto",
                   includeAudio: alsoAudio,
                   deepVerify: !keepBackups,
-                  ...(keepBackups ? {} : { backupWindow: BACKUP_WINDOW }),
+                  ...(keepBackups ? {} : { backupWindow: SEEK_INDEX_BACKUP_WINDOW }),
                 },
               });
             setConfirmBatch(null);

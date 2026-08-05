@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
+import { formatBytes } from "@evey/api";
 import {
   View,
   Text,
@@ -94,12 +95,6 @@ function usePhotoDetail(photoId: string | undefined) {
     enabled: !!photoId,
     staleTime: 60_000,
   });
-}
-
-function formatFileSize(bytes: number): string {
-  if (bytes >= 1_073_741_824) return `${(bytes / 1_073_741_824).toFixed(1)} GB`;
-  if (bytes >= 1_048_576) return `${(bytes / 1_048_576).toFixed(1)} MB`;
-  return `${(bytes / 1024).toFixed(0)} KB`;
 }
 
 // 5000 matches the web client's cap (index.lazy.tsx); the grid below is a
@@ -442,7 +437,7 @@ export default function PhotosScreen() {
                     <Text style={styles.lightboxInfo}>{photoDetail.width} x {photoDetail.height}</Text>
                   )}
                   {photoDetail.fileSize > 0 && (
-                    <Text style={styles.lightboxInfo}>{formatFileSize(photoDetail.fileSize)}</Text>
+                    <Text style={styles.lightboxInfo}>{formatBytes(photoDetail.fileSize)}</Text>
                   )}
                   {photoDetail.takenAt && (
                     <Text style={styles.lightboxInfo}>{new Date(photoDetail.takenAt).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" })}</Text>

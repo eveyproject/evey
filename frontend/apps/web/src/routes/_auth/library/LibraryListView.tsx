@@ -5,15 +5,8 @@ import { useTranslation } from "react-i18next";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { typeLabel } from "@/utils/typeLabel";
 import type { V1MediaItem } from "@evey/api";
+import { formatDurationMs } from "@evey/api";
 import { artworkUrl } from "@/features/library/artworkUrl";
-
-function formatDuration(ms: string): string {
-  const totalMin = Math.round(parseInt(ms, 10) / 60000);
-  if (totalMin < 60) return `${totalMin}m`;
-  const h = Math.floor(totalMin / 60);
-  const m = totalMin % 60;
-  return m > 0 ? `${h}h ${m}m` : `${h}h`;
-}
 
 // Rows have no wrapping text (title is truncated to one line) and every icon/
 // image is a fixed size, so the row height never varies with content - a
@@ -80,7 +73,7 @@ const ListRow = memo(function ListRow({ item }: { item: V1MediaItem }) {
         </span>
       )}
       <span className="hidden lg:block w-16 text-xs text-right flex-shrink-0 text-[var(--text-muted)]">
-        {durationMs ? formatDuration(durationMs) : "\u2014"}
+        {formatDurationMs(durationMs) || "\u2014"}
       </span>
     </Link>
   );

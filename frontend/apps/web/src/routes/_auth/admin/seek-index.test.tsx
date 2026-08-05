@@ -16,7 +16,8 @@ const remuxAudioLibMutate = vi.fn();
 const invalidateQueries = vi.fn();
 const mockToast = { success: vi.fn(), error: vi.fn(), info: vi.fn() };
 
-vi.mock("@evey/api", () => ({
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
   useLibraryServiceListLibraries: () => ({ data: { libraries: [{ id: "lib-1", name: "Films" }] } }),
   useAdminMediaServiceScanSeekIndex: (...args: unknown[]) => mockScan(...args),
   useAdminMediaServiceGetSeekIndexJob: (...args: unknown[]) => mockJob(...args),

@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
+import { formatTime } from "@evey/api";
 import {
   View,
   Text,
@@ -65,12 +66,6 @@ type Tab = "tracks" | "albums" | "artists" | "playlists";
 const NUM_ALBUM_COLS = 2;
 const screenWidth = Dimensions.get("window").width;
 const ALBUM_ART_SIZE = (screenWidth - 16 * 3) / NUM_ALBUM_COLS;
-
-function formatDuration(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${m}:${String(s).padStart(2, "0")}`;
-}
 
 function useMusicLibraries() {
   return useQuery({
@@ -420,7 +415,7 @@ export default function MusicScreen() {
           </Text>
         </View>
         {item.duration > 0 && (
-          <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>{formatDuration(item.duration)}</Text>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>{formatTime(item.duration)}</Text>
         )}
         <Pressable
           onPress={(e) => {

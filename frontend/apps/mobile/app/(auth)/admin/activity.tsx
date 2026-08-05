@@ -33,18 +33,9 @@ interface AuditEntry {
 }
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { LoadFailed } from "../../../src/components/LoadFailed";
-import { formatBytes } from "../../../src/lib/formatBytes";
+import { formatBytes, formatDurationMs } from "@evey/api";
 
 type Tab = "play" | "audit" | "stats";
-
-function formatMs(ms?: string): string {
-  const n = parseInt(ms ?? "0");
-  if (!n) return "0m";
-  const h = Math.floor(n / 3600000);
-  const m = Math.floor((n % 3600000) / 60000);
-  if (h > 0) return `${h}h ${m}m`;
-  return `${m}m`;
-}
 
 function timeAgo(d?: string): string {
   if (!d) return "-";
@@ -106,7 +97,7 @@ function PlayHistoryTab() {
               <View style={[styles.progressFill, { width: `${pct}%`, backgroundColor: theme.colors.accent }]} />
             </View>
             <Text style={{ color: theme.colors.textMuted, fontSize: 11, width: 32, textAlign: "right" }}>{pct}%</Text>
-            <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>{formatMs(item.durationMs)}</Text>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>{formatDurationMs(item.durationMs) || "0min"}</Text>
           </View>
         </View>
       </View>
@@ -279,7 +270,7 @@ function StatsTab() {
 
   const cards: Array<{ label: string; value: string | number; icon: string }> = [
     { label: t("admin.activity.stats.totalPlays", "Total Plays"), value: data?.totalPlays ?? 0, icon: "play-outline" },
-    { label: t("admin.activity.stats.totalPlayTime", "Play Time"), value: formatMs(data?.totalPlayTimeMs), icon: "time-outline" },
+    { label: t("admin.activity.stats.totalPlayTime", "Play Time"), value: formatDurationMs(data?.totalPlayTimeMs) || "0min", icon: "time-outline" },
     { label: t("admin.activity.stats.totalUsers", "Users"), value: data?.totalUsers ?? 0, icon: "people-outline" },
     { label: t("admin.activity.stats.totalMedia", "Media Items"), value: data?.totalMediaItems ?? 0, icon: "film-outline" },
     { label: t("admin.activity.stats.bandwidth", "Bandwidth"), value: formatBytes(data?.totalBandwidthBytes), icon: "cloud-download-outline" },
@@ -331,7 +322,7 @@ function StatsTab() {
                 <View key={u.userId} style={[styles.listRow, { borderBottomColor: theme.colors.border }]}>
                   <Text style={{ color: theme.colors.text, fontSize: 13, flex: 1 }}>{u.username}</Text>
                   <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>
-                    {u.playCount} · {formatMs(u.totalWatchTimeMs)}
+                    {u.playCount} · {formatDurationMs(u.totalWatchTimeMs) || "0min"}
                   </Text>
                 </View>
               ))}

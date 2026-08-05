@@ -9,7 +9,7 @@ import {
   useAdminSystemServiceGetSystemInfo,
 } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
-import { formatBytes } from "../../../src/lib/formatBytes";
+import { formatBytes } from "@evey/api";
 
 const HISTORY_SIZE = 30;
 

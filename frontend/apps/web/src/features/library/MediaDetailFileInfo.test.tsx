@@ -66,7 +66,7 @@ describe("MediaDetailFileInfo", () => {
     expect(screen.getByText("1.0 GB")).toBeInTheDocument();
     expect(screen.getByText("MKV")).toBeInTheDocument();
     expect(screen.getByText("5000 kbps")).toBeInTheDocument();
-    expect(screen.getByText("2h 0m")).toBeInTheDocument();
+    expect(screen.getByText("2h")).toBeInTheDocument();
   });
 
   it("renders stream list when expanded", async () => {

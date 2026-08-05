@@ -104,7 +104,8 @@ vi.mock("@evey/store", () => ({
   useAuthStore: (selector: (s: { profileId: string | null }) => unknown) => selector({ profileId: "profile-1" }),
 }));
 const useUserServiceListProfilesMock = vi.fn(() => ({ data: { profiles: [{ id: "profile-1", isKids: false }] } }));
-vi.mock("@evey/api", () => ({
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
   useUserServiceGetCurrentUser: () => ({ data: { id: "user-1" } }),
   useUserServiceListProfiles: (...a: unknown[]) => useUserServiceListProfilesMock(...a),
 }));

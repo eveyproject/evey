@@ -5,7 +5,7 @@ import { Link } from "@tanstack/react-router";
 import type { V1MediaItem } from "@evey/api";
 import { useLibraryServiceGetMediaItem, useLibraryServiceListMediaItems } from "@evey/api";
 import { Button } from "@/components/ui/Button";
-import { formatDuration } from "./mediaDetailUtils";
+import { formatDurationMs } from "@evey/api";
 import { artworkUrl } from "./artworkUrl";
 import { useAuthStore } from "@evey/store";
 import { DownloadButton } from "@/features/playback/DownloadButton";
@@ -65,7 +65,7 @@ function EpisodeRow({ ep }: { ep: V1MediaItem }) {
           </span>
           <span className="text-base font-medium truncate">{ep.title}</span>
           {ep.durationMs && (
-            <span className="text-sm flex-shrink-0 ml-auto text-[var(--text-muted)]">{formatDuration(ep.durationMs)}</span>
+            <span className="text-sm flex-shrink-0 ml-auto text-[var(--text-muted)]">{formatDurationMs(ep.durationMs)}</span>
           )}
         </div>
         {ep.overview && (

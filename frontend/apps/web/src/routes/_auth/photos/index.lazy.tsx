@@ -14,7 +14,7 @@ import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { Images, ChevronLeft, ChevronRight, X, RotateCcw, RotateCw, TriangleAlert } from "lucide-react";
 import { Blurhash } from "react-blurhash";
 import { ICON } from "@/constants/iconSizes";
-import { formatFileSize } from "@/features/library/mediaDetailUtils";
+import { formatBytes } from "@evey/api";
 import { classifyError } from "@/utils/errorClassification";
 
 export const Route = createLazyFileRoute("/_auth/photos/")({
@@ -264,7 +264,7 @@ function Lightbox({ photos, index, onClose, onPrev, onNext }: LightboxProps) {
           {photo.Width > 0 && photo.Height > 0 && (
             <span>{photo.Width} x {photo.Height}</span>
           )}
-          {photo.FileSize > 0 && <span>{formatFileSize(String(photo.FileSize))}</span>}
+          {photo.FileSize > 0 && <span>{formatBytes(photo.FileSize)}</span>}
           {photo.TakenAt && <span>{formatTakenAt(photo.TakenAt)}</span>}
           {cameraModel && <span>{cameraModel}</span>}
         </div>

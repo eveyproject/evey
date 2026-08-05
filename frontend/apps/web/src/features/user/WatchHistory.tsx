@@ -1,4 +1,5 @@
 import { useState, useRef, useMemo } from "react";
+import { formatDurationMs } from "@evey/api";
 import { Clock, Film } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
@@ -48,15 +49,6 @@ type WatchProgress = {
 interface Props {
   limit?: number;
   showClearButton?: boolean;
-}
-
-function formatDuration(ms: string | undefined): string {
-  if (!ms) return "";
-  const totalMin = Math.floor(Number(ms) / 60000);
-  if (totalMin < 60) return `${totalMin}min`;
-  const h = Math.floor(totalMin / 60);
-  const m = totalMin % 60;
-  return m > 0 ? `${h}h ${m}min` : `${h}h`;
 }
 
 function formatDate(iso: string | undefined): string {
@@ -133,7 +125,7 @@ function HistoryItem({ item }: { item: WatchProgress }) {
         <div className="flex items-center gap-2 mt-0.5">
           <p className="text-xs text-[var(--text-muted)]">{formatDate(item.lastPlayedAt)}</p>
           {item.durationMs && (
-            <p className="text-xs text-[var(--text-muted)]">{formatDuration(item.positionMs)} / {formatDuration(item.durationMs)}</p>
+            <p className="text-xs text-[var(--text-muted)]">{formatDurationMs(item.positionMs)} / {formatDurationMs(item.durationMs)}</p>
           )}
         </div>
         <div className="flex items-center gap-2 mt-1.5">

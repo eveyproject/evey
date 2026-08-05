@@ -4,7 +4,7 @@ import { X, TriangleAlert } from "lucide-react";
 import { ICON } from "@/constants/iconSizes";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { classifyError } from "@/utils/errorClassification";
-import { formatDuration } from "./musicFormat";
+import { formatTime } from "@evey/api";
 import type { Track } from "./musicQueries";
 import { TrackArt } from "./TrackArt";
 import { DownloadTrackButton } from "./DownloadTrackButton";
@@ -224,7 +224,7 @@ export function TracksTab({
                 <td className="px-3 py-2 text-[var(--text-secondary)]">{track.Artist || "-"}</td>
                 <td className="px-3 py-2 text-[var(--text-secondary)]">{track.Album || "-"}</td>
                 <td className="px-3 py-2 text-[var(--text-muted)] text-right">
-                  {track.Duration > 0 ? formatDuration(track.Duration) : "-"}
+                  {track.Duration > 0 ? formatTime(track.Duration) : "-"}
                 </td>
                 <td className="px-3 py-2 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                   <DownloadTrackButton trackID={track.ID} />

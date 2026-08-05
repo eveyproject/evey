@@ -3,7 +3,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../../providers/ThemeProvider";
 import { CastButtonNative } from "../../hooks/useChromecast";
-import { formatTime } from "../../lib/formatTime";
+import { formatTime } from "@evey/api";
 import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
 
 interface CastControllerScreenProps {

@@ -6,7 +6,8 @@ import { eveyFetchRaw } from "@evey/api";
 
 const { mockNavigate } = vi.hoisted(() => ({ mockNavigate: vi.fn() }));
 vi.mock("@tanstack/react-router", () => ({ useNavigate: () => mockNavigate }));
-vi.mock("@evey/api", () => ({ eveyFetchRaw: vi.fn(() => Promise.resolve(new Response(null, { status: 204 }))) }));
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()), eveyFetchRaw: vi.fn(() => Promise.resolve(new Response(null, { status: 204 }))) }));
 
 // We're testing that the <audio src> attribute does not rebuild when
 // the Zustand accessToken rotates - the bug that aborted music playback

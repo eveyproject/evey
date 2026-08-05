@@ -4,6 +4,7 @@ import { createLazyFileRoute, Link } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "@evey/store";
+import { formatBytes } from "@evey/api";
 import {
   useTranscodeCacheServiceGetTranscodeCache,
   transcodeCacheServiceClearTranscodeCache,
@@ -28,14 +29,6 @@ export const Route = createLazyFileRoute("/_auth/admin/transcode-cache")({
 });
 
 const CACHE_QUERY_KEY = getTranscodeCacheServiceGetTranscodeCacheQueryKey();
-
-function formatSize(bytes: number): string {
-  if (bytes === 0) return "0 B";
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(1024));
-  const val = bytes / Math.pow(1024, i);
-  return `${val.toFixed(i > 0 ? 1 : 0)} ${units[i]}`;
-}
 
 function formatDate(d: string | undefined): string {
   return d ? new Date(d).toLocaleString() : "";
@@ -190,7 +183,7 @@ function TranscodeCachePage() {
                 {t("admin.transcodeCache.totalSize")}
               </dt>
               <dd className="text-xl font-bold text-[var(--text)]">
-                {formatSize(Number(data?.totalSize ?? 0))}
+                {formatBytes(Number(data?.totalSize ?? 0))}
               </dd>
             </Card>
             <Card>
@@ -240,7 +233,7 @@ function TranscodeCachePage() {
                         {file.name}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-[var(--text-muted)]" data-label={t("admin.transcodeCache.tableHeaders.size")}>
-                        {formatSize(Number(file.size ?? 0))}
+                        {formatBytes(Number(file.size ?? 0))}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap hidden sm:table-cell text-[var(--text-muted)]" data-label={t("admin.transcodeCache.tableHeaders.modified")}>
                         {formatDate(file.lastModified)}
@@ -270,7 +263,7 @@ function TranscodeCachePage() {
         title={t("admin.transcodeCache.clearConfirmTitle")}
       >
         <p className="text-sm mb-4 text-[var(--text-muted)]">
-          {t("admin.transcodeCache.clearConfirm", { count: data?.fileCount ?? 0, size: formatSize(Number(data?.totalSize ?? 0)) })}
+          {t("admin.transcodeCache.clearConfirm", { count: data?.fileCount ?? 0, size: formatBytes(Number(data?.totalSize ?? 0)) })}
         </p>
         <div className="flex justify-end gap-3">
           <Button variant="secondary" onClick={() => setShowClearConfirm(false)}>

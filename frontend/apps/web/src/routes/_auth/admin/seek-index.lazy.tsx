@@ -5,7 +5,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { errText } from "@/features/admin/seekIndex/helpers";
+import { errText } from "@evey/api";
 import { useSeekIndexPage } from "@/features/admin/seekIndex/hooks";
 import { JobProgressCard } from "@/features/admin/seekIndex/JobProgressCard";
 import { LastJobCard } from "@/features/admin/seekIndex/LastJobCard";

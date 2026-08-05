@@ -59,7 +59,8 @@ vi.mock("../../../../src/hooks/useAuthenticatedImage", () => ({
 }));
 
 const listTracksMock = vi.fn();
-vi.mock("@evey/api", () => ({
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
   useMusicServiceListTracks: (...args: unknown[]) => listTracksMock(...args),
 }));
 

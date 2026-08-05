@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { formatTimeMs } from "@evey/api";
 import { invalidateWatchedState } from "@/lib/invalidateWatchedState";
 import { Play, RotateCcw, EyeOff, Eye, Plus, SlidersHorizontal } from "lucide-react";
 import { ICON } from "@/constants/iconSizes";
@@ -38,18 +39,6 @@ interface MediaDetailActionsProps {
   setEditing: (v: boolean) => void;
   onMetadataUpdated?: () => void;
   streamToken: string | null;
-}
-
-// Mirrors the TV and mobile media pages so the same position reads the same
-// way on every client.
-function formatProgress(ms?: string): string {
-  if (!ms) return "";
-  const totalSec = Math.floor(Number(ms) / 1000);
-  const h = Math.floor(totalSec / 3600);
-  const m = Math.floor((totalSec % 3600) / 60);
-  const sec = totalSec % 60;
-  if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
-  return `${m}:${String(sec).padStart(2, "0")}`;
 }
 
 export function MediaDetailActions({
@@ -206,7 +195,7 @@ export function MediaDetailActions({
               onClick={() => handlePlay(item.id!)}
             >
               <Play size={ICON.md} fill="currentColor" />
-              {hasProgress ? `${t("media.detail.resume")} ${formatProgress(resumeMs)}` : t("media.detail.play")}
+              {hasProgress ? `${t("media.detail.resume")} ${formatTimeMs(Number(resumeMs))}` : t("media.detail.play")}
             </Button>
             {hasProgress && (
               <Button

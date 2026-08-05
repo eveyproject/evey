@@ -11,6 +11,7 @@
 // all - the plan lookup is a single cheap request that starts no work.
 
 import { Alert } from "react-native";
+import { formatBytes } from "@evey/api";
 import { fetchReducedPlan, type ReducedPlan } from "./reducedDownload";
 
 type T = (key: string, defaultValue: string, options?: Record<string, unknown>) => string;
@@ -44,13 +45,6 @@ async function availableDiskSpace(): Promise<number | undefined> {
  * beyond this app. */
 function requiredFor(bytes: number): number {
   return bytes + 512 * 1024 * 1024;
-}
-
-export function formatBytes(bytes: number): string {
-  if (!(bytes > 0)) return "";
-  const gb = bytes / 1024 ** 3;
-  if (gb >= 1) return `${gb.toFixed(1)} GB`;
-  return `${Math.round(bytes / 1024 ** 2)} MB`;
 }
 
 /**

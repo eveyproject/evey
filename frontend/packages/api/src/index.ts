@@ -2,6 +2,8 @@ export * from "./fetcher";
 export * from "./watchHistoryLabel";
 export * from "./audioChannelLayout";
 export * from "./notificationLabel";
+export * from "./format";
+export * from "./seekIndexHelpers";
 export * from "./pagination";
 export * from "./libraryRules";
 export * from "./generated/user-service/user-service";

@@ -5,12 +5,12 @@ import type { V1MediaItem } from "@evey/api";
 import { Badge } from "@/components/ui/Badge";
 import { StreamList } from "./StreamList";
 import { MediaTechSummary } from "./MediaTechSummary";
-import { formatDuration, formatFileSize } from "./mediaDetailUtils";
+import { formatBytes, formatDurationMs } from "@evey/api";
 
 export function MediaDetailFileInfo({ item }: { item: V1MediaItem }) {
   const { t } = useTranslation();
   const [fileInfoOpen, setFileInfoOpen] = useState(false);
-  const duration = formatDuration(item.durationMs);
+  const duration = formatDurationMs(item.durationMs);
   // Overall bitrate: use the stored value, but fall back to size×8/duration when
   // it's 0/absent - MKV containers (and the prober) often don't carry an overall
   // bitrate, which otherwise renders a useless "0 kbps".
@@ -63,7 +63,7 @@ export function MediaDetailFileInfo({ item }: { item: V1MediaItem }) {
             <div className="text-xs font-mono truncate text-[var(--text-muted)]">{item.filePath}</div>
           )}
           <div className="flex gap-4 flex-wrap">
-            {item.fileSize && <Badge variant="default">{formatFileSize(item.fileSize)}</Badge>}
+            {item.fileSize && <Badge variant="default">{formatBytes(item.fileSize)}</Badge>}
             {item.containerFormat && <Badge variant="default">{item.containerFormat.toUpperCase()}</Badge>}
             {bitrateKbps > 0 && <Badge variant="default">{bitrateKbps} kbps</Badge>}
             {duration && <Badge variant="default">{duration}</Badge>}

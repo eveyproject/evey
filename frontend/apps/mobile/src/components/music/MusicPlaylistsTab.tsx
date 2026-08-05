@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { formatTime } from "@evey/api";
 import { View, Text, FlatList, TouchableOpacity, Pressable, Alert, StyleSheet } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useTranslation } from "react-i18next";
@@ -10,12 +11,6 @@ import { useMusicQueueStore, type QueueTrack } from "../../stores/musicQueue";
 import { TrackArt } from "./TrackArt";
 import type { Track } from "./musicTypes";
 import { shuffleArray } from "../../lib/shuffleArray";
-
-function formatDuration(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${m}:${String(s).padStart(2, "0")}`;
-}
 
 function toQueueTrack(tr: Track): QueueTrack {
   return { id: tr.id, title: tr.title, artist: tr.artist, album: tr.album, duration: tr.duration };
@@ -158,7 +153,7 @@ export function MusicPlaylistsTab({ libraryTracks, initialSelectedId = null }: P
                   </Text>
                 </View>
                 {item.duration > 0 && (
-                  <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>{formatDuration(item.duration)}</Text>
+                  <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>{formatTime(item.duration)}</Text>
                 )}
                 <Pressable
                   onPress={(e) => {

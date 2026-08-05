@@ -13,7 +13,8 @@ function sel<T>(raw: { data?: T; [k: string]: unknown }, opts: { query?: { selec
   return { ...raw, data: raw?.data !== undefined && s ? s(raw.data) : raw?.data };
 }
 
-vi.mock("@evey/api", () => ({
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
   eveyFetch: vi.fn(),
   useLibraryServiceListLibraries: (opts: { query?: { select?: (d: unknown) => unknown } }) => sel(photoLibsHook(), opts),
   usePhotoServiceListPhotoAlbums: (_p: unknown, opts: { query?: { select?: (d: unknown) => unknown } }) => sel(photoAlbumsHook(), opts),
@@ -79,7 +80,7 @@ describe("Photos lightbox EXIF strip", () => {
   it("shows dimensions and file size from the list data without waiting on the detail fetch", async () => {
     await openLightboxOnSunset();
     expect(await screen.findByText("4032 x 3024")).toBeInTheDocument();
-    expect(screen.getByText("2 MB")).toBeInTheDocument();
+    expect(screen.getByText("2.3 MB")).toBeInTheDocument();
   });
 
   it("shows the camera model once the detail fetch resolves", async () => {

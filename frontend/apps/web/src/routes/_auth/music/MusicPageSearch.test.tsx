@@ -14,7 +14,8 @@ function applySelect<T>(raw: { data?: T; [k: string]: unknown }, opts: { query?:
   return { ...raw, data: raw?.data !== undefined && select ? select(raw.data) : raw?.data };
 }
 
-vi.mock("@evey/api", () => ({
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
   eveyFetch: vi.fn(),
   useLibraryServiceListLibraries: (opts: { query?: { select?: (d: unknown) => unknown } }) => applySelect(mockLibrariesHook(), opts),
   useMusicServiceListTracks: (p: unknown, opts: { query?: { select?: (d: unknown) => unknown } }) => { mockTracksParams(p); return applySelect(mockTracksHook(), opts); },

@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
+import { formatDurationMs } from "@evey/api";
 import { View, Text, SectionList, Pressable, Alert, RefreshControl, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { router, Stack } from "expo-router";
@@ -21,15 +22,6 @@ import { useAuthenticatedImage } from "../../src/hooks/useAuthenticatedImage";
 import { ProgressBar } from "../../src/components/ProgressBar";
 import { LoadFailed } from "../../src/components/LoadFailed";
 import { groupHistoryByDate } from "../../src/lib/historyGrouping";
-
-function formatDuration(ms: string | undefined): string {
-  if (!ms) return "";
-  const totalMin = Math.floor(Number(ms) / 60000);
-  if (totalMin < 60) return `${totalMin}min`;
-  const h = Math.floor(totalMin / 60);
-  const m = totalMin % 60;
-  return m > 0 ? `${h}h ${m}min` : `${h}h`;
-}
 
 function formatDate(iso: string | undefined): string {
   if (!iso) return "";
@@ -101,7 +93,7 @@ function HistoryItem({ item, onRemove, isPending }: {
         </Text>
         {item.durationMs && (
           <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>
-            {formatDuration(item.positionMs)} / {formatDuration(item.durationMs)}
+            {formatDurationMs(item.positionMs)} / {formatDurationMs(item.durationMs)}
           </Text>
         )}
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 }}>

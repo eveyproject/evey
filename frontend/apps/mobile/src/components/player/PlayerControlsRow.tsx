@@ -4,7 +4,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import Svg, { Path, Text as SvgText } from "react-native-svg";
 import { useTranslation } from "react-i18next";
-import { formatTime } from "../../lib/formatTime";
+import { formatTime } from "@evey/api";
 import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
 import { PlayerVolumeControl } from "./PlayerVolumeControl";
 

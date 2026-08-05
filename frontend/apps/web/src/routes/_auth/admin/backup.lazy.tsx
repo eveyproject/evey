@@ -16,6 +16,7 @@ import {
   backupScheduleServiceRunBackupNow,
 } from "@evey/api";
 import type { V1BackupManifest, V1BackupSchedule } from "@evey/api";
+import { formatBytes } from "@evey/api";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -186,13 +187,6 @@ function ScheduleSection() {
   );
 }
 
-function formatSize(bytes: number): string {
-  if (!bytes) return "0 B";
-  const units = ["B", "KB", "MB", "GB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(1024));
-  return `${(bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0)} ${units[i]}`;
-}
-
 function useBackups() {
   return useBackupServiceListBackups({
     query: { select: (d) => d.backups ?? [] },
@@ -275,7 +269,7 @@ function BackupRow({ backup }: { backup: Backup }) {
         {backup.version}
       </td>
       <td data-label={t("admin.backup.tableHeaders.size")} className="px-4 py-3 text-sm whitespace-nowrap text-[var(--text-muted)]">
-        {formatSize(Number(backup.size ?? 0))}
+        {formatBytes(Number(backup.size ?? 0))}
       </td>
       <td data-label={t("admin.backup.tableHeaders.status")} className="px-4 py-3">
         <Badge variant="success">{t("admin.backup.ready")}</Badge>

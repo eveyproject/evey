@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import type { Chapter } from "@/hooks/useChapters";
 import { TrickplayPreview } from "./TrickplayPreview";
 import { ChapterMarkers } from "./ChapterMarkers";
-import { formatTime } from "./playerUtils";
+import { formatTime } from "@evey/api";
 
 export interface PlayerProgressBarProps {
   absoluteTime: number;

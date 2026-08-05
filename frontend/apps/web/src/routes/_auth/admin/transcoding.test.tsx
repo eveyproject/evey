@@ -8,7 +8,8 @@ const mockSetConfigEntry = vi.fn();
 const mockListConfigEntries = vi.fn();
 const mockEveyFetch = vi.fn(() => Promise.resolve({}));
 
-vi.mock("@evey/api", () => ({
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
   eveyFetch: (...args: unknown[]) => mockEveyFetch(...args),
   useAdminSystemServiceGetSystemInfo: (...args: unknown[]) => mockGetSystemInfo(...args),
   useServerConfigServiceListServerConfigEntries: (...args: unknown[]) => mockListConfigEntries(...args),

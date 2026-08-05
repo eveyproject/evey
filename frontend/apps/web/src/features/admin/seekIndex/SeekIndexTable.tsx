@@ -3,7 +3,7 @@ import type { V1SeekIndexItem } from "@evey/api";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { audioDelayed, formatSize } from "./helpers";
+import { audioDelayed, formatBytes } from "@evey/api";
 import type { SeekIndexPageState } from "./hooks";
 
 type SeekIndexTableProps = Pick<
@@ -66,7 +66,7 @@ export function SeekIndexTable({
                 <Badge>{(it.container ?? "").toUpperCase()}</Badge>
               </td>
               <td className="px-4 py-3 whitespace-nowrap text-[var(--text-muted)]" data-label={t("admin.seekIndex.tableHeaders.size")}>
-                {formatSize(Number(it.sizeBytes ?? 0))}
+                {formatBytes(Number(it.sizeBytes ?? 0))}
               </td>
               <td className="px-4 py-3 whitespace-nowrap" data-label={t("admin.seekIndex.tableHeaders.status")}>
                 {it.hasIndex ? (
@@ -99,7 +99,7 @@ export function SeekIndexTable({
                     <Badge variant="error">
                       {Number(it.missingTailBytes ?? 0) > 0
                         ? t("admin.seekIndex.truncatedSizeBadge", {
-                            size: formatSize(Number(it.missingTailBytes ?? 0)),
+                            size: formatBytes(Number(it.missingTailBytes ?? 0)),
                           })
                         : t("admin.seekIndex.truncatedBadge")}
                     </Badge>
@@ -108,7 +108,7 @@ export function SeekIndexTable({
                   Number(it.damagedBytes ?? 0) > 0 && (
                     <Badge variant="warning" className="ml-1.5">
                       {t("admin.seekIndex.damagedBadge", {
-                        size: formatSize(Number(it.damagedBytes ?? 0)),
+                        size: formatBytes(Number(it.damagedBytes ?? 0)),
                       })}
                     </Badge>
                   )

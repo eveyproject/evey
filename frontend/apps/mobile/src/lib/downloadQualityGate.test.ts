@@ -21,7 +21,7 @@ vi.mock("react-native", () => ({
 const planMock = vi.fn();
 vi.mock("./reducedDownload", () => ({ fetchReducedPlan: (...a: unknown[]) => planMock(...a) }));
 
-import { chooseDownloadQuality, formatBytes } from "./downloadQualityGate";
+import { chooseDownloadQuality } from "./downloadQualityGate";
 
 // Passes the default through, and interpolates, so assertions read as the
 // English a user would see.
@@ -113,13 +113,5 @@ describe("chooseDownloadQuality", () => {
     disk.available = 0;
     expect(await chooseDownloadQuality(t, "m1")).toEqual({ quality: "original" });
     expect(alerts).toHaveLength(0);
-  });
-});
-
-describe("formatBytes", () => {
-  it("reads like a size a person would say", () => {
-    expect(formatBytes(40 * 1024 ** 3)).toBe("40.0 GB");
-    expect(formatBytes(700 * 1024 ** 2)).toBe("700 MB");
-    expect(formatBytes(0)).toBe("");
   });
 });

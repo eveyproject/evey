@@ -14,7 +14,8 @@ vi.mock("@tanstack/react-router", () => ({
 const mockListMediaItems = vi.fn();
 const mockGetMediaItem = vi.fn();
 
-vi.mock("@evey/api", () => ({
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
   useLibraryServiceListMediaItems: (...args: unknown[]) => mockListMediaItems(...args),
   useLibraryServiceGetMediaItem: (...args: unknown[]) => mockGetMediaItem(...args),
 }));
@@ -131,7 +132,7 @@ describe("SeasonEpisodesSection", () => {
       <SeasonEpisodesSection item={{ id: "se1", type: "MEDIA_ITEM_TYPE_SEASON" } as any} />,
       { wrapper: Wrapper },
     );
-    expect(screen.getByText("1h 32m")).toBeInTheDocument();
+    expect(screen.getByText("1h 32min")).toBeInTheDocument();
   });
 
   // The episode row deliberately no longer navigates to a per-episode detail

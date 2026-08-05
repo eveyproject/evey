@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { formatDurationMs, formatTimeMs } from "@evey/api";
 import { View, Text, ScrollView, Pressable, FlatList, StyleSheet, Linking } from "react-native";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
@@ -43,24 +44,6 @@ const POSTER_WIDTH = CARD_WIDTH_FEATURED;
 // the web episode rows.
 const EPISODE_THUMB_WIDTH = 240;
 const POSTER_HEIGHT = POSTER_WIDTH * POSTER_RATIO;
-
-function formatRuntime(ms?: string): string {
-  if (!ms) return "";
-  const totalMin = Math.floor(Number(ms) / 60000);
-  const h = Math.floor(totalMin / 60);
-  const m = totalMin % 60;
-  return h > 0 ? `${h}h ${m}m` : `${m}m`;
-}
-
-function formatProgress(ms?: string): string {
-  if (!ms) return "";
-  const totalSec = Math.floor(Number(ms) / 1000);
-  const h = Math.floor(totalSec / 3600);
-  const m = Math.floor((totalSec % 3600) / 60);
-  const s = totalSec % 60;
-  if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-  return `${m}:${String(s).padStart(2, "0")}`;
-}
 
 function isSeriesType(type?: string) {
   return type === "MEDIA_ITEM_TYPE_SERIES";
@@ -339,7 +322,7 @@ export default function MediaDetailScreen() {
     return <ScreenState loading={isLoading} error={!isLoading} onRetry={() => void refetch()} />;
   }
 
-  const meta = [media.year, formatRuntime(media.durationMs), media.officialRating]
+  const meta = [media.year, formatDurationMs(media.durationMs), media.officialRating]
     .filter(Boolean)
     .join("  \u2022  ");
 
@@ -429,7 +412,7 @@ export default function MediaDetailScreen() {
             accessible={true}
             accessibilityLabel={
               hasProgress
-                ? `${t("media.resume", "Resume")} ${formatProgress(resumeMs)}`
+                ? `${t("media.resume", "Resume")} ${formatTimeMs(Number(resumeMs))}`
                 : t("player.controls.play")
             }
             accessibilityRole="button"
@@ -443,7 +426,7 @@ export default function MediaDetailScreen() {
             ]}
           >
             <Text style={[styles.playText, { color: theme.colors.onAccent }]}>
-              {hasProgress ? `${t("media.resume", "Resume")} ${formatProgress(resumeMs)}` : t("player.controls.play")}
+              {hasProgress ? `${t("media.resume", "Resume")} ${formatTimeMs(Number(resumeMs))}` : t("player.controls.play")}
             </Text>
           </Pressable>
 
@@ -712,7 +695,7 @@ export default function MediaDetailScreen() {
                 </Text>
                 {ep.durationMs ? (
                   <Text style={{ color: theme.colors.textMuted, fontSize: 16, marginTop: 2 }}>
-                    {formatRuntime(ep.durationMs)}
+                    {formatDurationMs(ep.durationMs)}
                   </Text>
                 ) : null}
                 {ep.overview ? (

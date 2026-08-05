@@ -1,6 +1,6 @@
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { useActivityServiceGetAnalytics } from "@evey/api";
+import { useActivityServiceGetAnalytics, formatDurationSec } from "@evey/api";
 import { Spinner } from "@/components/ui/Spinner";
 import { PageHeader } from "@/components/ui/PageHeader";
 
@@ -54,13 +54,6 @@ function useAnalytics() {
       }),
     },
   });
-}
-
-function formatDuration(seconds: number): string {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  if (h > 0) return `${h}h ${m}m`;
-  return `${m}m`;
 }
 
 function formatDate(d: string): string {
@@ -132,7 +125,7 @@ function TopMediaTable({ items }: { items: TopMediaItem[] }) {
                     />
                   </div>
                   <span className="text-xs w-16 text-right text-[var(--text-muted)] tabular-nums">
-                    {formatDuration(item.total_duration_seconds)}
+                    {formatDurationSec(item.total_duration_seconds) || "0min"}
                   </span>
                 </div>
               </td>

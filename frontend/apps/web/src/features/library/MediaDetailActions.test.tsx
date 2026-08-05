@@ -14,7 +14,8 @@ vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => mockNavigate,
 }));
 
-vi.mock("@evey/api", () => ({
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
   usePlaybackServiceMarkAsWatched: () => ({ mutate: vi.fn(), isPending: false }),
   usePlaybackServiceMarkAsUnwatched: () => ({ mutate: vi.fn(), isPending: false }),
   usePlaybackServiceGetWatchProgress: () => ({ data: mockWatchProgress }),

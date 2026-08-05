@@ -16,7 +16,8 @@ function toProto(d: typeof mockAnalytics | Record<string, unknown>) {
   };
 }
 
-vi.mock("@evey/api", () => ({
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
   eveyFetch: vi.fn(),
   useActivityServiceGetAnalytics: (opts: { query?: { select?: (d: unknown) => unknown } }) => {
     const raw = mockGetAnalytics();

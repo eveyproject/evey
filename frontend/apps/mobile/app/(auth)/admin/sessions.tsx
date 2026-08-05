@@ -3,7 +3,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { Stack } from "expo-router";
 import { useCallback, useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { eveyFetch } from "@evey/api";
+import { eveyFetch, formatTimeMs } from "@evey/api";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
@@ -51,19 +51,9 @@ function useSessions() {
   });
 }
 
-function formatMs(ms: number): string {
-  if (!ms) return "0:00";
-  const totalSec = Math.floor(ms / 1000);
-  const h = Math.floor(totalSec / 3600);
-  const m = Math.floor((totalSec % 3600) / 60);
-  const s = totalSec % 60;
-  if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-  return `${m}:${String(s).padStart(2, "0")}`;
-}
-
 function formatElapsed(startedAt: string): string {
   const diff = Date.now() - new Date(startedAt).getTime();
-  return formatMs(diff);
+  return formatTimeMs(diff);
 }
 
 function formatBandwidth(bps: number): string {
@@ -151,7 +141,7 @@ function SessionCard({ session, theme, t, onKill, onCommand }: {
   const durationMs = parseInt(session.durationMs ?? "0");
   const positionMs = parseInt(session.positionMs ?? "0");
   const bandwidthBps = parseInt(session.bandwidthBps ?? "0");
-  const remaining = durationMs > 0 ? formatMs(Math.max(0, durationMs - positionMs)) : null;
+  const remaining = durationMs > 0 ? formatTimeMs(Math.max(0, durationMs - positionMs)) : null;
 
   const hasSeriesInfo = session.seriesTitle && session.seasonNumber && session.episodeNumber;
   const seriesLabel = hasSeriesInfo
@@ -172,7 +162,7 @@ function SessionCard({ session, theme, t, onKill, onCommand }: {
         <View style={[styles.progressFill, { width: `${progress}%`, backgroundColor: theme.colors.accent }]} />
       </View>
       <View style={styles.progressLabels}>
-        <Text style={{ color: theme.colors.textMuted, fontSize: 10 }}>{formatMs(positionMs)}</Text>
+        <Text style={{ color: theme.colors.textMuted, fontSize: 10 }}>{formatTimeMs(positionMs)}</Text>
         <Text style={{ color: theme.colors.textMuted, fontSize: 10 }}>
           {remaining
             ? `-${remaining}`

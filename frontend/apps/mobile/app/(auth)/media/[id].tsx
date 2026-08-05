@@ -48,7 +48,7 @@ import { downloadStageLabel } from "../../../src/lib/downloadStageLabel";
 import { chooseDownloadQuality } from "../../../src/lib/downloadQualityGate";
 import { startReducedDownload } from "../../../src/lib/reducedDownload";
 import { confirmDownloadOnMobileData } from "../../../src/lib/mobileDataGate";
-import { formatBytes } from "../../../src/lib/formatBytes";
+import { formatBytes, formatDurationMs, formatTimeMs } from "@evey/api";
 import { buildDownloadAuthContext } from "../../../src/lib/downloadContext";
 import { toast } from "@evey/store";
 import { AddToPlaylistSheet } from "../../../src/components/AddToPlaylistSheet";
@@ -66,34 +66,6 @@ import { PluginSlot } from "../../../src/features/plugins/PluginSlot";
 const POSTER_WIDTH = 100;
 const POSTER_HEIGHT = POSTER_WIDTH * 1.5;
 const EPISODE_PAGE_SIZE = 20;
-
-function formatRuntime(ms?: string): string {
-  if (!ms) return "";
-  const totalMin = Math.floor(Number(ms) / 60000);
-  if (totalMin <= 0) return "";
-  const h = Math.floor(totalMin / 60);
-  const m = totalMin % 60;
-  return h > 0 ? `${h}h ${m}m` : `${m}m`;
-}
-
-function formatProgress(ms?: string): string {
-  if (!ms) return "";
-  const totalSec = Math.floor(Number(ms) / 1000);
-  const h = Math.floor(totalSec / 3600);
-  const m = Math.floor((totalSec % 3600) / 60);
-  const s = totalSec % 60;
-  if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-  return `${m}:${String(s).padStart(2, "0")}`;
-}
-
-function formatFileSize(bytes?: string): string {
-  if (!bytes) return "";
-  const n = parseInt(bytes, 10);
-  if (isNaN(n)) return "";
-  if (n >= 1_073_741_824) return `${(n / 1_073_741_824).toFixed(1)} GB`;
-  if (n >= 1_048_576) return `${(n / 1_048_576).toFixed(0)} MB`;
-  return `${(n / 1024).toFixed(0)} KB`;
-}
 
 // Audio codecs of the item's source file, captured into the download index so
 // the player can tell a hearable local copy from one that would play silent
@@ -240,7 +212,7 @@ const EpisodeRow = memo(function EpisodeRow({
           {item.indexNumber != null ? `${item.indexNumber}. ` : ""}{item.title}
         </Text>
         {(() => {
-          const runtime = formatRuntime(item.durationMs);
+          const runtime = formatDurationMs(item.durationMs);
           return runtime ? (
             <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginTop: 2 }}>
               {runtime}
@@ -424,10 +396,10 @@ function FileInfoSection({ item }: { item: V1MediaItem }) {
             </Text>
           ) : null}
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-            {item.fileSize ? <InfoBadge label={formatFileSize(item.fileSize)} /> : null}
+            {item.fileSize ? <InfoBadge label={formatBytes(item.fileSize)} /> : null}
             {item.containerFormat ? <InfoBadge label={item.containerFormat.toUpperCase()} /> : null}
             {item.bitrate ? <InfoBadge label={`${Math.round(parseInt(item.bitrate) / 1000)} kbps`} /> : null}
-            {(() => { const r = formatRuntime(item.durationMs); return r ? <InfoBadge label={r} /> : null; })()}
+            {(() => { const r = formatDurationMs(item.durationMs); return r ? <InfoBadge label={r} /> : null; })()}
           </View>
           {item.streams && item.streams.length > 0 ? (
             <View style={{ gap: 4, marginTop: 4 }}>
@@ -948,7 +920,7 @@ export default function MediaDetailScreen() {
                 <Text style={{ color: theme.colors.textMuted, fontSize: 13 }}>{media.year}</Text>
               ) : null}
               {(() => {
-                const runtime = formatRuntime(media.durationMs);
+                const runtime = formatDurationMs(media.durationMs);
                 return runtime
                   ? <Text style={{ color: theme.colors.textMuted, fontSize: 13 }}>{runtime}</Text>
                   : null;
@@ -1042,7 +1014,7 @@ export default function MediaDetailScreen() {
             accessible={true}
             accessibilityLabel={
               hasProgress
-                ? `${t("media.detail.resume")} ${formatProgress(resumeMs)}`
+                ? `${t("media.detail.resume")} ${formatTimeMs(Number(resumeMs))}`
                 : t("media.detail.play")
             }
             accessibilityRole="button"
@@ -1050,7 +1022,7 @@ export default function MediaDetailScreen() {
             <Ionicons name="play" size={18} color={theme.colors.onAccent} />
             <Text style={{ color: theme.colors.onAccent, fontWeight: "700", fontSize: 16 }}>
               {hasProgress
-                ? `${t("media.detail.resume")} ${formatProgress(resumeMs)}`
+                ? `${t("media.detail.resume")} ${formatTimeMs(Number(resumeMs))}`
                 : t("media.detail.play")}
             </Text>
           </Pressable>

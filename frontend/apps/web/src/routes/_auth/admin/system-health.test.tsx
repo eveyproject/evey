@@ -6,7 +6,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 const mockGetDashboard = vi.fn();
 const mockGetSystemInfo = vi.fn();
 
-vi.mock("@evey/api", () => ({
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
   useAdminSystemServiceGetDashboard: (...args: unknown[]) => mockGetDashboard(...args),
   useAdminSystemServiceGetSystemInfo: (...args: unknown[]) => mockGetSystemInfo(...args),
 }));

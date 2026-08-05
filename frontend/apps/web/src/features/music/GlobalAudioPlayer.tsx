@@ -1,17 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "@tanstack/react-router";
-import { eveyFetchRaw } from "@evey/api";
+import { eveyFetchRaw, formatTime } from "@evey/api";
 import { toast, useAuthStore, useMusicPlayerStore, type MusicTrack, type MusicSource } from "@evey/store";
 import { Music, Play, Pause, SkipBack, SkipForward, X, Volume2, VolumeX, Shuffle, ListMusic } from "lucide-react";
 import { ICON } from "@/constants/iconSizes";
-
-function formatDuration(seconds: number): string {
-  if (!Number.isFinite(seconds) || seconds <= 0) return "0:00";
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${m}:${String(s).padStart(2, "0")}`;
-}
 
 function MiniTrackArt({ trackID, coverArtURL }: { trackID: string; coverArtURL?: string }) {
   const [error, setError] = useState(false);
@@ -425,9 +418,9 @@ export function GlobalAudioPlayer() {
           </button>
         </div>
         <div className="flex items-center gap-2 w-full max-w-[200px] sm:max-w-[400px]">
-          <span className="text-[0.7rem] text-[var(--text-muted)] min-w-8 text-right">{formatDuration(currentTime)}</span>
+          <span className="text-[0.7rem] text-[var(--text-muted)] min-w-8 text-right">{formatTime(currentTime)}</span>
           <input type="range" min={0} max={duration || 0} step={1} value={currentTime} onChange={seek} aria-label={t("media.music.seekPosition")} className="flex-1 accent-[var(--accent)]" />
-          <span className="text-[0.7rem] text-[var(--text-muted)] min-w-8">{duration > 0 ? formatDuration(duration) : "-"}</span>
+          <span className="text-[0.7rem] text-[var(--text-muted)] min-w-8">{duration > 0 ? formatTime(duration) : "-"}</span>
         </div>
       </div>
       <div className="hidden sm:flex items-center gap-2 min-w-[100px]">

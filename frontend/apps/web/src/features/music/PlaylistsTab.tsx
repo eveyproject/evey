@@ -15,7 +15,8 @@ import { ArrowLeft, Download, Shuffle, Trash2, Sparkles } from "lucide-react";
 import { ICON } from "@/constants/iconSizes";
 import { startTokenDownload } from "@/utils/downloadToken";
 import { useGeneratePlaylist } from "@/features/playlist/api";
-import { formatDuration, shuffleTracks } from "./musicFormat";
+import { formatTime } from "@evey/api";
+import { shuffleTracks } from "./musicFormat";
 import type { Track } from "./musicQueries";
 import { TrackArt } from "./TrackArt";
 
@@ -163,7 +164,7 @@ export function PlaylistsTab({
                     <p className="text-sm text-[var(--text)] truncate">{tr.Title}</p>
                     <p className="text-xs text-[var(--text-muted)] truncate">{tr.Artist}</p>
                   </div>
-                  <span className="text-xs text-[var(--text-muted)]">{formatDuration(tr.Duration)}</span>
+                  <span className="text-xs text-[var(--text-muted)]">{formatTime(tr.Duration)}</span>
                 </button>
                 <button
                   type="button"

@@ -3,7 +3,7 @@ import { View, Text, FlatList, Pressable, Alert, ActivityIndicator, StyleSheet, 
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Stack } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { eveyFetch, useAdminSystemServiceGetSystemInfo } from "@evey/api";
+import { eveyFetch, useAdminSystemServiceGetSystemInfo, formatBytes } from "@evey/api";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
@@ -27,13 +27,6 @@ interface ConfigEntry {
 
 const CACHE_KEY = ["admin", "transcode-cache"];
 const CONFIG_KEY = ["admin", "server-config", "transcoding"];
-
-function formatSize(bytes: number): string {
-  if (bytes === 0) return "0 B";
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(1024));
-  return `${(bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0)} ${units[i]}`;
-}
 
 function formatDate(d: string): string {
   return new Date(d).toLocaleString();
@@ -165,8 +158,8 @@ export default function AdminTranscodeCacheScreen() {
       t("admin.transcodeCache.clearConfirmTitle", "Clear Cache"),
       t("admin.transcodeCache.clearConfirm", {
         count: data?.fileCount ?? 0,
-        size: formatSize(data?.totalSize ?? 0),
-        defaultValue: `Delete all ${data?.fileCount ?? 0} cached files (${formatSize(data?.totalSize ?? 0)})?`,
+        size: formatBytes(data?.totalSize ?? 0),
+        defaultValue: `Delete all ${data?.fileCount ?? 0} cached files (${formatBytes(data?.totalSize ?? 0)})?`,
       }),
       [
         { text: t("common.cancel", "Cancel"), style: "cancel" },
@@ -196,7 +189,7 @@ export default function AdminTranscodeCacheScreen() {
       <View style={{ flex: 1 }}>
         <Text style={{ color: theme.colors.text, fontSize: 13, fontFamily: "monospace" }} numberOfLines={1}>{item.name}</Text>
         <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginTop: 2 }}>
-          {formatSize(item.size)} · {formatDate(item.lastModified)}
+          {formatBytes(item.size)} · {formatDate(item.lastModified)}
         </Text>
       </View>
       <Pressable
@@ -242,7 +235,7 @@ export default function AdminTranscodeCacheScreen() {
               <View style={{ flexDirection: "row", gap: 12 }}>
                 <View style={[styles.statCard, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}>
                   <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>{t("admin.transcodeCache.totalSize", "Total Size")}</Text>
-                  <Text style={{ color: theme.colors.text, fontSize: 22, fontWeight: "700" }}>{formatSize(data?.totalSize ?? 0)}</Text>
+                  <Text style={{ color: theme.colors.text, fontSize: 22, fontWeight: "700" }}>{formatBytes(data?.totalSize ?? 0)}</Text>
                 </View>
                 <View style={[styles.statCard, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}>
                   <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>{t("admin.transcodeCache.files", "Files")}</Text>

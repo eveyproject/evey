@@ -136,7 +136,8 @@ const movieItem = {
   people: [],
 };
 
-vi.mock("@evey/api", () => ({
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
   useLibraryServiceGetMediaItem: () => ({ data: movieItem, isLoading: false }),
   useLibraryServiceListMediaItems: () => ({ data: { items: [] } }),
   usePlaybackServiceGetWatchProgress: () => ({ data: undefined }),

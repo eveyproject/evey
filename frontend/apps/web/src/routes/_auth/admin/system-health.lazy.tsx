@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { useAdminSystemServiceGetDashboard, useAdminSystemServiceGetSystemInfo } from "@evey/api";
+import { useAdminSystemServiceGetDashboard, useAdminSystemServiceGetSystemInfo, formatBytes } from "@evey/api";
 import { Spinner } from "@/components/ui/Spinner";
 import { PageHeader } from "@/components/ui/PageHeader";
 import type { V1DashboardInfo, V1SystemInfo } from "@evey/api";
@@ -21,14 +21,6 @@ function formatUptime(seconds: string | undefined): string {
   if (h > 0) return `${h}h ${m}m`;
   if (m > 0) return `${m}m ${s % 60}s`;
   return `${s}s`;
-}
-
-function formatBytes(bytes: string | undefined): string {
-  const n = parseInt(bytes ?? "0");
-  if (n > 1e12) return `${(n / 1e12).toFixed(2)} TB`;
-  if (n > 1e9) return `${(n / 1e9).toFixed(1)} GB`;
-  if (n > 1e6) return `${(n / 1e6).toFixed(1)} MB`;
-  return `${n} B`;
 }
 
 function formatBps(bps: number): string {

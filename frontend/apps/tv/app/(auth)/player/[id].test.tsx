@@ -114,7 +114,8 @@ const getWatchProgressMock = vi.fn();
 // vi.mocked(...).mockReturnValue.
 const getCurrentUserMock = vi.fn((..._args: unknown[]): { data: unknown } => ({ data: undefined }));
 const listProfilesMock = vi.fn((..._args: unknown[]): { data: unknown } => ({ data: undefined }));
-vi.mock("@evey/api", () => ({
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
   useLibraryServiceGetMediaItem: (...args: unknown[]) => getMediaItemMock(...args),
   usePlaybackServiceMarkAsWatched: (...args: unknown[]) => markAsWatchedMock(...args),
   usePlaybackServiceGetWatchProgress: (...args: unknown[]) => getWatchProgressMock(...args),

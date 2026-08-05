@@ -9,6 +9,7 @@ import {
   getAdminSessionServiceListActiveSessionsQueryKey,
 } from "@evey/api";
 import type { V1ActiveSession } from "@evey/api";
+import { formatTimeMs } from "@evey/api";
 import { toast } from "@evey/store";
 import { Spinner } from "@/components/ui/Spinner";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -21,19 +22,9 @@ export const Route = createLazyFileRoute("/_auth/admin/sessions")({
   component: SessionsPage,
 });
 
-function formatMs(ms: number): string {
-  if (!ms) return "0:00";
-  const totalSec = Math.floor(ms / 1000);
-  const h = Math.floor(totalSec / 3600);
-  const m = Math.floor((totalSec % 3600) / 60);
-  const s = totalSec % 60;
-  if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-  return `${m}:${String(s).padStart(2, "0")}`;
-}
-
 function formatElapsed(startedAt: string): string {
   const diff = Date.now() - new Date(startedAt).getTime();
-  return formatMs(diff);
+  return formatTimeMs(diff);
 }
 
 function formatBandwidth(bps: number): string {
@@ -132,7 +123,7 @@ function SessionCard({ session }: { session: V1ActiveSession }) {
   const positionMs = parseInt(session.positionMs ?? "0");
   const bandwidthBps = parseInt(session.bandwidthBps ?? "0");
   const remaining = durationMs > 0
-    ? formatMs(Math.max(0, durationMs - positionMs))
+    ? formatTimeMs(Math.max(0, durationMs - positionMs))
     : null;
 
   return (
@@ -153,7 +144,7 @@ function SessionCard({ session }: { session: V1ActiveSession }) {
           />
         </div>
         <div className="flex justify-between text-xs mt-1 text-[var(--text-muted)]">
-          <span>{formatMs(positionMs)}</span>
+          <span>{formatTimeMs(positionMs)}</span>
           <span>
             {remaining ? `-${remaining}` : `${formatElapsed(session.startedAt ?? "")} ${t("admin.sessions.elapsed")}`}
           </span>

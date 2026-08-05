@@ -3,7 +3,7 @@ import type { Chapter } from "@/hooks/useChapters";
 import { usePlayerTime } from "./PlayerContext";
 import { PlayerProgressBar } from "./PlayerProgressBar";
 import { ChaptersPanel } from "./PlayerChaptersPanel";
-import { formatTime } from "./playerUtils";
+import { formatTime } from "@evey/api";
 
 // These leaf components subscribe to PlayerTimeContext (the ~4×/sec position
 // tick) so that the seek bar, time label and chapter highlight re-render

@@ -2,7 +2,7 @@ import { View, Text, FlatList, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { useLocalSearchParams, Stack } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { useMusicServiceListTracks } from "@evey/api";
+import { useMusicServiceListTracks, formatTime } from "@evey/api";
 import type { V1Track } from "@evey/api";
 import { useTheme } from "../../../../src/providers/ThemeProvider";
 import { useServerUrl } from "../../../../src/hooks/useServerUrl";
@@ -24,13 +24,6 @@ function trackToQueueTrack(t: V1Track): QueueTrack {
     album: t.album ?? "",
     duration: t.duration ?? 0,
   };
-}
-
-function formatDuration(seconds: number): string {
-  if (!Number.isFinite(seconds) || seconds < 0) return "";
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${m}:${String(s).padStart(2, "0")}`;
 }
 
 function trackKeyExtractor(item: V1Track) {
@@ -134,7 +127,7 @@ export default function AlbumDetailScreen() {
                 </View>
                 {item.duration ? (
                   <Text style={{ color: theme.colors.textMuted, fontSize: 14 }}>
-                    {formatDuration(item.duration)}
+                    {formatTime(item.duration)}
                   </Text>
                 ) : null}
               </FocusableCard>

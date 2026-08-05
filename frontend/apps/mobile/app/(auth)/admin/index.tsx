@@ -24,7 +24,7 @@ import { toast } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { usePluginSlotEntries } from "../../../src/features/plugins/PluginSlot";
 import { LoadFailed } from "../../../src/components/LoadFailed";
-import { formatBytes } from "../../../src/lib/formatBytes";
+import { formatBytes } from "@evey/api";
 
 function StatCard({ label, value, icon, theme }: { label: string; value: string | number; icon: IoniconName; theme: ReturnType<typeof useTheme> }) {
   return (

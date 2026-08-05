@@ -20,19 +20,18 @@ import {
 import type { V1GetSeekIndexJobResponse } from "@evey/api";
 import { toast } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
-import { audioDelayed, baseName, errText, repairableCount, volumeBackupsRisky, BACKUP_WINDOW } from "../../../src/components/admin/seekIndexHelpers";
+import {
+  audioDelayed,
+  baseName,
+  errText,
+  repairableCount,
+  volumeBackupsRisky,
+  SEEK_INDEX_BACKUP_WINDOW,
+  SEEK_INDEX_SCAN_QUERY_BASE,
+  SEEK_INDEX_KIND_KEYS,
+} from "@evey/api";
 import { SeekIndexItemRow } from "../../../src/components/admin/seekIndex/SeekIndexItemRow";
 import { RepairConfirmModal, type BatchKind } from "../../../src/components/admin/seekIndex/RepairConfirmModal";
-
-const SCAN_QUERY_BASE = "/api/v1/admin/media/seek-index";
-
-const KIND_KEYS: Record<string, string> = {
-  scan: "admin.seekIndex.jobScan",
-  reindex: "admin.seekIndex.jobReindex",
-  rollback: "admin.seekIndex.jobRollback",
-  purge: "admin.seekIndex.jobPurge",
-  remux_audio: "admin.seekIndex.jobRemuxAudio",
-};
 
 function StatChip({ label, value, theme }: { label: string; value: number; theme: ReturnType<typeof useTheme> }) {
   return (
@@ -48,7 +47,7 @@ function JobProgressCard({ job, theme }: { job: V1GetSeekIndexJobResponse; theme
   const done = job.done ?? 0;
   const total = job.total ?? 0;
   const failed = job.failed ?? 0;
-  const kind = t(KIND_KEYS[job.kind ?? ""] ?? KIND_KEYS.scan);
+  const kind = t(SEEK_INDEX_KIND_KEYS[job.kind ?? ""] ?? SEEK_INDEX_KIND_KEYS.scan);
   const phase = job.phase === "processing" ? t("admin.seekIndex.phaseProcessing") : t("admin.seekIndex.phaseScanning");
 
   return (
@@ -78,7 +77,7 @@ function JobProgressCard({ job, theme }: { job: V1GetSeekIndexJobResponse; theme
 
 function LastJobCard({ last, theme }: { last: NonNullable<V1GetSeekIndexJobResponse["last"]>; theme: ReturnType<typeof useTheme> }) {
   const { t } = useTranslation();
-  const kind = t(KIND_KEYS[last.kind ?? ""] ?? KIND_KEYS.scan);
+  const kind = t(SEEK_INDEX_KIND_KEYS[last.kind ?? ""] ?? SEEK_INDEX_KIND_KEYS.scan);
   const failed = last.failed ?? 0;
   const skipped = last.skipped ?? 0;
   const isSuccess = failed === 0 && !last.error;
@@ -163,10 +162,10 @@ export default function AdminSeekIndexScreen() {
   const prevRunning = useRef(false);
   useEffect(() => {
     if (prevRunning.current && !running) {
-      void queryClient.invalidateQueries({ queryKey: [SCAN_QUERY_BASE] });
+      void queryClient.invalidateQueries({ queryKey: [SEEK_INDEX_SCAN_QUERY_BASE] });
       const last = job?.last;
       if (last) {
-        const kind = t(KIND_KEYS[last.kind ?? ""] ?? KIND_KEYS.scan);
+        const kind = t(SEEK_INDEX_KIND_KEYS[last.kind ?? ""] ?? SEEK_INDEX_KIND_KEYS.scan);
         if (last.error) {
           toast.error(t("admin.seekIndex.lastJobError", { error: last.error }));
         } else if ((last.failed ?? 0) > 0) {
@@ -213,7 +212,7 @@ export default function AdminSeekIndexScreen() {
     mutation: {
       onSuccess: () => {
         toast.success(t("admin.seekIndex.backupDeleted"));
-        void queryClient.invalidateQueries({ queryKey: [SCAN_QUERY_BASE] });
+        void queryClient.invalidateQueries({ queryKey: [SEEK_INDEX_SCAN_QUERY_BASE] });
       },
       onError: onStartError,
     },
@@ -255,7 +254,7 @@ export default function AdminSeekIndexScreen() {
           mode: "auto",
           includeAudio: alsoAudio,
           deepVerify: !keepBackups,
-          ...(keepBackups ? {} : { backupWindow: BACKUP_WINDOW }),
+          ...(keepBackups ? {} : { backupWindow: SEEK_INDEX_BACKUP_WINDOW }),
         },
       });
     }

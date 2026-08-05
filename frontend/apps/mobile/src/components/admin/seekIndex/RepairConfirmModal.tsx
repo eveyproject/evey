@@ -3,7 +3,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useTranslation } from "react-i18next";
 import type { V1SeekIndexVolume } from "@evey/api";
 import { useTheme } from "../../../providers/ThemeProvider";
-import { formatSize, volumeBackupsRisky, volumeTempRisky, BACKUP_WINDOW } from "../seekIndexHelpers";
+import { formatBytes, volumeBackupsRisky, volumeTempRisky, SEEK_INDEX_BACKUP_WINDOW } from "@evey/api";
 
 type Theme = ReturnType<typeof useTheme>;
 export type BatchKind = "repair" | "rollback" | "purge";
@@ -98,8 +98,8 @@ export function RepairConfirmModal({
                   <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>
                     {t("admin.seekIndex.volumeLine", {
                       root: v.root,
-                      free: formatSize(Number(v.freeBytes ?? 0)),
-                      missing: formatSize(Number(v.missingBytes ?? 0)),
+                      free: formatBytes(Number(v.freeBytes ?? 0)),
+                      missing: formatBytes(Number(v.missingBytes ?? 0)),
                       count: v.missingFiles ?? 0,
                     })}
                   </Text>
@@ -108,7 +108,7 @@ export function RepairConfirmModal({
                   )}
                   {volumeTempRisky(v) && (
                     <Text style={{ color: theme.colors.error, fontSize: 11 }}>
-                      {t("admin.seekIndex.volumeTempRisky", { largest: formatSize(Number(v.largestMissingBytes ?? 0)) })}
+                      {t("admin.seekIndex.volumeTempRisky", { largest: formatBytes(Number(v.largestMissingBytes ?? 0)) })}
                     </Text>
                   )}
                 </View>
@@ -129,7 +129,7 @@ export function RepairConfirmModal({
               )}
               <CheckRow
                 label={t("admin.seekIndex.keepBackups")}
-                hint={keepBackups ? t("admin.seekIndex.keepBackupsHint") : t("admin.seekIndex.keepBackupsOffHint", { n: BACKUP_WINDOW })}
+                hint={keepBackups ? t("admin.seekIndex.keepBackupsHint") : t("admin.seekIndex.keepBackupsOffHint", { n: SEEK_INDEX_BACKUP_WINDOW })}
                 checked={keepBackups}
                 onToggle={() => setKeepBackups(!keepBackups)}
                 theme={theme}

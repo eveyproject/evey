@@ -2,11 +2,11 @@ import { useTranslation } from "react-i18next";
 import type { V1GetSeekIndexJobResponse, V1SeekIndexJobFailure } from "@evey/api";
 import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
-import { KIND_KEYS, baseName } from "./helpers";
+import { SEEK_INDEX_KIND_KEYS, baseName } from "@evey/api";
 
 export function LastJobCard({ last }: { last: NonNullable<V1GetSeekIndexJobResponse["last"]> }) {
   const { t } = useTranslation();
-  const kind = t(KIND_KEYS[last.kind ?? ""] ?? KIND_KEYS.scan);
+  const kind = t(SEEK_INDEX_KIND_KEYS[last.kind ?? ""] ?? SEEK_INDEX_KIND_KEYS.scan);
   const failed = last.failed ?? 0;
   const failures = last.failures ?? [];
   // "Processed" counts files the job LOOKED at, skips included. A run that

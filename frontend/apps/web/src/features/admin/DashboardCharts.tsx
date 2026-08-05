@@ -4,7 +4,7 @@ import {
   useActivityServiceGetAnalytics,
 } from "@evey/api";
 import { BarChart, PieChart } from "react-gifted-charts";
-import { formatBytes } from "./DashboardStatCard";
+import { formatBytes } from "@evey/api";
 
 import { useCssVar } from "@/hooks/useCssVar";
 import { CHART_COLORS } from "@/constants/chartColors";

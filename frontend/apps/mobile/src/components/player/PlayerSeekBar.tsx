@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useTheme } from "../../providers/ThemeProvider";
 import { TrickplayPreview } from "../TrickplayPreview";
 import type { Chapter } from "../../hooks/useChapters";
-import { formatTime } from "../../lib/formatTime";
+import { formatTime } from "@evey/api";
 
 interface PlayerSeekBarProps {
   mediaId: string;

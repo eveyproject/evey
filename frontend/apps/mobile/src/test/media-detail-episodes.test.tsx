@@ -160,7 +160,8 @@ const allEpisodes = Array.from({ length: EPISODE_COUNT }, (_, i) => ({
   title: `Episode ${i + 1}`,
 }));
 
-vi.mock("@evey/api", () => ({
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
   useLibraryServiceGetMediaItem: (itemId: string) => {
     if (itemId === SEASON_ID) return { data: seasonItem, isLoading: false };
     return { data: undefined, isLoading: false };

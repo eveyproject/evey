@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
-import { BOTTLENECK_REASONS, SCENARIO_NOUN_KEYS, STOP_REASON_KEYS, formatBytes, formatMbps, mixParts } from "./loadTestHelpers";
+import { formatBytes } from "@evey/api";
+import { BOTTLENECK_REASONS, SCENARIO_NOUN_KEYS, STOP_REASON_KEYS, formatMbps, mixParts } from "./loadTestHelpers";
 import type { LoadTestReport } from "./loadTestTypes";
 
 // LoadTestReportPanel renders the "answer" of a finished load test run: the

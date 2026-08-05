@@ -1,6 +1,6 @@
 import type { V1MediaItem } from "@evey/api";
 import { Badge } from "@/components/ui/Badge";
-import { formatFileSize } from "./mediaDetailUtils";
+import { formatBytes } from "@evey/api";
 import { channelLabel, hdrLabel, resolutionLabel, videoStream } from "./streamLabels";
 
 // MediaTechSummary is the always-visible one-liner, and it is aimed at someone
@@ -26,7 +26,7 @@ export function MediaTechSummary({ item }: { item: V1MediaItem }) {
       {resolution && <Badge variant="default">{resolution}</Badge>}
       {hdr && <Badge variant="default">{hdr}</Badge>}
       {audioChannels && <Badge variant="default">{audioChannels}</Badge>}
-      {Number(item.fileSize ?? 0) > 0 && <Badge variant="default">{formatFileSize(item.fileSize)}</Badge>}
+      {Number(item.fileSize ?? 0) > 0 && <Badge variant="default">{formatBytes(item.fileSize)}</Badge>}
     </div>
   );
 }

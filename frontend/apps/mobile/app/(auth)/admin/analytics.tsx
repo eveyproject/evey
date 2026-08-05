@@ -4,7 +4,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { Stack } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { LoadFailed } from "../../../src/components/LoadFailed";
-import { useActivityServiceGetAnalytics } from "@evey/api";
+import { useActivityServiceGetAnalytics, formatDurationSec } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 
 interface TopMedia {
@@ -19,15 +19,6 @@ interface RecentActivity {
   username?: string;
   mediaTitle?: string;
   playedAt?: string;
-}
-
-function formatDuration(seconds?: string): string {
-  if (!seconds) return "0m";
-  const s = parseInt(seconds, 10);
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  if (h > 0) return `${h}h ${m}m`;
-  return `${m}m`;
 }
 
 function formatDate(d?: string): string {
@@ -74,7 +65,7 @@ function TopMediaList({ items, theme }: { items: TopMedia[]; theme: ReturnType<t
                   <View style={[styles.barFill, { backgroundColor: theme.colors.accent, width: `${Math.round((duration / maxDuration) * 100)}%` }]} />
                 </View>
                 <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>
-                  {formatDuration(item.totalDurationSeconds)}
+                  {formatDurationSec(item.totalDurationSeconds) || "0min"}
                 </Text>
               </View>
             </View>

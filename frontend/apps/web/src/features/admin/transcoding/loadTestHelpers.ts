@@ -37,12 +37,6 @@ export const BOTTLENECK_REASONS: LoadTestStopReason[] = [
   "admission_full",
 ];
 
-export function formatBytes(bytes: number): string {
-  if (bytes >= 1 << 30) return `${(bytes / (1 << 30)).toFixed(1)} Go`;
-  if (bytes >= 1 << 20) return `${Math.round(bytes / (1 << 20))} Mo`;
-  return `${Math.round(bytes / (1 << 10))} Ko`;
-}
-
 // Throughput is quoted in bits per second, the way a network link is.
 export function formatMbps(bytesPerSec: number): string {
   return `${((bytesPerSec * 8) / 1e6).toFixed(1)} Mb/s`;

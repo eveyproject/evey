@@ -10,7 +10,8 @@ const mockGetPlayHistory = vi.fn();
 const mockGetServerStats = vi.fn();
 const mockGetAuditLog = vi.fn();
 
-vi.mock("@evey/api", () => ({
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
   activityServiceGetPlayHistory: (...args: unknown[]) => mockGetPlayHistory(...args),
   adminSessionServiceGetAuditLog: (...args: unknown[]) => mockGetAuditLog(...args),
   activityServiceGetServerStats: vi.fn(),
@@ -109,9 +110,9 @@ describe("ActivityPage", () => {
     expect(screen.getByText("100")).toBeInTheDocument();
     // Cards added with the real-stats feature.
     expect(screen.getByText(/Total Watch Time/i)).toBeInTheDocument();
-    expect(screen.getByText("2h 0m")).toBeInTheDocument();
+    expect(screen.getByText("2h")).toBeInTheDocument();
     expect(screen.getByText(/Library Size/i)).toBeInTheDocument();
-    expect(screen.getByText("2.1 GB")).toBeInTheDocument();
+    expect(screen.getByText("2.0 GB")).toBeInTheDocument();
   });
 
   it("Server Stats tab shows popular media with viewer counts and active users", async () => {

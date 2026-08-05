@@ -1,7 +1,7 @@
 import { Check, BookOpen } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { Chapter } from "@/hooks/useChapters";
-import { formatTime } from "./playerUtils";
+import { formatTime } from "@evey/api";
 
 export interface ChaptersPanelProps {
   chapters: Chapter[];

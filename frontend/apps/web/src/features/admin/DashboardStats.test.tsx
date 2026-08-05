@@ -17,7 +17,8 @@ vi.mock("@tanstack/react-query", async (importActual) => {
   };
 });
 
-vi.mock("@evey/api", () => ({
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
   useLibraryServiceListMediaItems: (params: { type?: string }) => {
     if (params?.type === "MEDIA_ITEM_TYPE_MOVIE") {
       return { data: { pagination: { totalItems: 42 } } };

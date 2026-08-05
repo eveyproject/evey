@@ -6,14 +6,6 @@ export function getUsageColor(pct: number): string {
   return "var(--color-success)";
 }
 
-export function formatBytes(bytes: string | undefined) {
-  const n = parseInt(bytes ?? "0");
-  if (n > 1e12) return `${(n / 1e12).toFixed(2)} TB`;
-  if (n > 1e9) return `${(n / 1e9).toFixed(1)} GB`;
-  if (n > 1e6) return `${(n / 1e6).toFixed(1)} MB`;
-  return `${n} B`;
-}
-
 export const MovieIcon = () => <Film size={20} strokeWidth={1.5} />;
 export const SeriesIcon = () => <Monitor size={20} strokeWidth={1.5} />;
 export const UsersIcon = () => <Users size={20} strokeWidth={1.5} />;

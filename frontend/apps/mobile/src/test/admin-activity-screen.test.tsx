@@ -51,8 +51,6 @@ vi.mock("../components/LoadFailed", () => ({
   LoadFailed: () => React.createElement("div", { "data-testid": "load-failed" }),
 }));
 
-vi.mock("../lib/formatBytes", () => ({ formatBytes: (n: number) => String(n) }));
-
 vi.mock("@evey/store", () => ({ toast: { error: vi.fn(), info: vi.fn() } }));
 
 vi.mock("@tanstack/react-query", () => ({
@@ -60,14 +58,21 @@ vi.mock("@tanstack/react-query", () => ({
 }));
 
 const playHistoryMock = vi.fn();
-vi.mock("@evey/api", () => ({
-  useActivityServiceGetPlayHistory: (...a: unknown[]) => playHistoryMock(...a),
-  useActivityServiceGetServerStats: () => ({ data: undefined, isLoading: false, refetch: vi.fn() }),
-  useAdminSessionServiceGetAuditLog: () => ({ data: undefined, isLoading: false, isError: false, refetch: vi.fn() }),
-  activityServiceGetPlayHistory: vi.fn(),
-  activityServiceGetServerStats: vi.fn(),
-  eveyFetch: vi.fn(),
-}));
+vi.mock("@evey/api", async () => {
+  // The screen renders through the real formatters - stubbing them here would
+  // hide exactly the drift the shared module exists to prevent.
+  const { formatBytes, formatDurationMs } = await vi.importActual<typeof import("@evey/api")>("@evey/api");
+  return {
+    formatBytes,
+    formatDurationMs,
+    useActivityServiceGetPlayHistory: (...a: unknown[]) => playHistoryMock(...a),
+    useActivityServiceGetServerStats: () => ({ data: undefined, isLoading: false, refetch: vi.fn() }),
+    useAdminSessionServiceGetAuditLog: () => ({ data: undefined, isLoading: false, isError: false, refetch: vi.fn() }),
+    activityServiceGetPlayHistory: vi.fn(),
+    activityServiceGetServerStats: vi.fn(),
+    eveyFetch: vi.fn(),
+  };
+});
 
 import ActivityScreen from "../../app/(auth)/admin/activity";
 

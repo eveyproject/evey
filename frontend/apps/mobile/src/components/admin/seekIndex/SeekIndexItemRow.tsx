@@ -2,7 +2,7 @@ import { View, Text, Pressable, ActivityIndicator, Alert, StyleSheet } from "rea
 import { useTranslation } from "react-i18next";
 import type { V1SeekIndexItem } from "@evey/api";
 import { useTheme } from "../../../providers/ThemeProvider";
-import { audioDelayed, formatSize } from "../seekIndexHelpers";
+import { audioDelayed, formatBytes } from "@evey/api";
 
 type Theme = ReturnType<typeof useTheme>;
 
@@ -75,7 +75,7 @@ export function SeekIndexItemRow({
           <Text style={{ color: theme.colors.textMuted, fontSize: 10 }}>{(item.container ?? "").toUpperCase()}</Text>
         </View>
         <View style={[styles.badge, { backgroundColor: theme.colors.bg }]}>
-          <Text style={{ color: theme.colors.textMuted, fontSize: 10 }}>{formatSize(Number(item.sizeBytes ?? 0))}</Text>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 10 }}>{formatBytes(Number(item.sizeBytes ?? 0))}</Text>
         </View>
 
         {item.hasIndex ? (
@@ -105,7 +105,7 @@ export function SeekIndexItemRow({
           <HintBadge
             label={
               missingTailBytes > 0
-                ? t("admin.seekIndex.truncatedSizeBadge", { size: formatSize(missingTailBytes) })
+                ? t("admin.seekIndex.truncatedSizeBadge", { size: formatBytes(missingTailBytes) })
                 : t("admin.seekIndex.truncatedBadge")
             }
             hint={t("admin.seekIndex.truncatedHint")}
@@ -114,7 +114,7 @@ export function SeekIndexItemRow({
         ) : (
           damagedBytes > 0 && (
             <HintBadge
-              label={t("admin.seekIndex.damagedBadge", { size: formatSize(damagedBytes) })}
+              label={t("admin.seekIndex.damagedBadge", { size: formatBytes(damagedBytes) })}
               color={theme.colors.warning}
             />
           )

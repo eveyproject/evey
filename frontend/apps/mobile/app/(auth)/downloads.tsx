@@ -4,7 +4,7 @@ import { router, Stack, useFocusEffect } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@evey/store";
-import { useUserServiceGetCurrentUser, useUserServiceListProfiles } from "@evey/api";
+import { useUserServiceGetCurrentUser, useUserServiceListProfiles, formatBytes } from "@evey/api";
 import { useTheme } from "../../src/providers/ThemeProvider";
 import {
   getDownloads,
@@ -45,13 +45,6 @@ function denialLabel(t: ReturnType<typeof useTranslation>["t"], reason: OfflineD
     case "unknown-profile":
       return t("downloads.badge.unavailable", "Unavailable offline");
   }
-}
-
-function formatSize(bytes: number): string {
-  if (!bytes || bytes <= 0) return "0 B";
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(1024));
-  return `${(bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0)} ${units[i]}`;
 }
 
 // Status line of a running download: percent when the total is known, plus
@@ -164,12 +157,12 @@ function DownloadRow({ item, onDelete, onCancel, deleting, canceling, activeProf
         </Text>
         {item.inProgress ? (
           <Text style={{ color: theme.colors.accent, fontSize: 12 }}>
-            {downloadStageLabel(t, item.mediaItemId, progress, bytes, rate, { formatSize })}
+            {downloadStageLabel(t, item.mediaItemId, progress, bytes, rate, { formatSize: formatBytes })}
           </Text>
         ) : (
           <>
             <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>
-              {formatSize(item.fileSize)} · {formatDate(item.downloadedAt)}
+              {formatBytes(item.fileSize)} · {formatDate(item.downloadedAt)}
             </Text>
             {progress != null && Number.isFinite(progress) && (
               <Text style={{ color: theme.colors.accent, fontSize: 11 }}>
@@ -377,7 +370,7 @@ export default function DownloadsScreen() {
           paddingHorizontal: theme.spacing.md,
           paddingBottom: theme.spacing.sm,
         }}>
-          {t("downloads.totalSize", "{{size}} used on this device", { size: formatSize(totalSize) })}
+          {t("downloads.totalSize", "{{size}} used on this device", { size: formatBytes(totalSize) })}
         </Text>
       )}
 

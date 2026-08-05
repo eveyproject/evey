@@ -12,22 +12,13 @@ import {
   getAdminSessionServiceListActiveSessionsQueryKey,
 } from "@evey/api";
 import type { V1ActiveSession } from "@evey/api";
+import { formatTimeMs } from "@evey/api";
 import { toast, useAuthStore } from "@evey/store";
 import { Badge } from "@/components/ui/Badge";
 import { AdminTrickplayThumbnail } from "./AdminTrickplayThumbnail";
 import { Spinner } from "@/components/ui/Spinner";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { FetchErrorState } from "@/components/ui/FetchErrorState";
-
-function formatMs(ms: number): string {
-  if (!ms) return "0:00";
-  const totalSec = Math.floor(ms / 1000);
-  const h = Math.floor(totalSec / 3600);
-  const m = Math.floor((totalSec % 3600) / 60);
-  const s = totalSec % 60;
-  if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-  return `${m}:${String(s).padStart(2, "0")}`;
-}
 
 function usePlayMethodLabel() {
   const { t } = useTranslation();
@@ -107,7 +98,7 @@ function NowPlayingCard({ session }: { session: V1ActiveSession }) {
   const progress = Math.min(100, Math.max(0, session.progress ?? 0));
   const positionMs = parseInt(session.positionMs ?? "0");
   const durationMs = parseInt(session.durationMs ?? "0");
-  const remaining = durationMs > 0 ? formatMs(Math.max(0, durationMs - positionMs)) : null;
+  const remaining = durationMs > 0 ? formatTimeMs(Math.max(0, durationMs - positionMs)) : null;
   const epLabel = formatEpisodeLabel(session);
   const bandwidthBps = parseInt(session.bandwidthBps ?? "0");
 
@@ -131,7 +122,7 @@ function NowPlayingCard({ session }: { session: V1ActiveSession }) {
           />
         </div>
         <div className="flex justify-between text-xs mt-1 text-[var(--text-muted)]">
-          <span>{formatMs(positionMs)}</span>
+          <span>{formatTimeMs(positionMs)}</span>
           <span>{remaining ? `-${remaining}` : "-"}</span>
         </div>
       </div>

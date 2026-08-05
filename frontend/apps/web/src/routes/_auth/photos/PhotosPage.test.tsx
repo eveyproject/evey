@@ -12,7 +12,8 @@ function sel<T>(raw: { data?: T; [k: string]: unknown }, opts: { query?: { selec
   return { ...raw, data: raw?.data !== undefined && s ? s(raw.data) : raw?.data };
 }
 
-vi.mock("@evey/api", () => ({
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
   eveyFetch: vi.fn(),
   useLibraryServiceListLibraries: (opts: { query?: { select?: (d: unknown) => unknown } }) => sel(photoLibsHook(), opts),
   usePhotoServiceListPhotoAlbums: (_p: unknown, opts: { query?: { select?: (d: unknown) => unknown } }) => sel(photoAlbumsHook(), opts),

@@ -1,4 +1,5 @@
 import { Lock } from "lucide-react";
+import { formatTimeMs } from "@evey/api";
 import { useTranslation } from "react-i18next";
 import type { MediaSegment } from "@/hooks/useAdminSegments";
 import { ICON } from "@/constants/iconSizes";
@@ -22,13 +23,6 @@ const SEGMENT_BORDER_COLORS: Record<string, string> = {
   end_credits: "border-orange-500",
   studio_logo: "border-yellow-500",
 };
-
-function formatMs(ms: number): string {
-  const totalSec = Math.floor(ms / 1000);
-  const m = Math.floor(totalSec / 60);
-  const s = totalSec % 60;
-  return `${m}:${s.toString().padStart(2, "0")}`;
-}
 
 function isManualSource(source: string): boolean {
   return source === "manual" || source === "manual_propagated";
@@ -96,7 +90,7 @@ function SegmentEditor({ segment, durationMs, onStartChange, onEndChange }: Segm
           {segment.type.replace(/_/g, " ")}
         </span>
         <span className="text-xs text-[var(--text-muted)]">
-          {formatMs(segment.startMs)} / {formatMs(segment.endMs)}
+          {formatTimeMs(segment.startMs)} / {formatTimeMs(segment.endMs)}
         </span>
         <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--surface)] text-[var(--text-muted)]">
           {Math.round((segment.confidence ?? 0) * 100)}% - {segment.source}

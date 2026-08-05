@@ -4,7 +4,7 @@ import { createLazyFileRoute } from "@tanstack/react-router";
 import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "@evey/store";
-import { eveyFetch, activityServiceGetPlayHistory, activityServiceGetServerStats, adminSessionServiceGetAuditLog } from "@evey/api";
+import { eveyFetch, activityServiceGetPlayHistory, activityServiceGetServerStats, adminSessionServiceGetAuditLog, formatBytes, formatDurationMs } from "@evey/api";
 import { useActivityServiceGetServerStats } from "@evey/api";
 import { Spinner } from "@/components/ui/Spinner";
 import { Card } from "@/components/ui/Card";
@@ -37,23 +37,6 @@ export const Route = createLazyFileRoute("/_auth/admin/activity")({
 });
 
 type Tab = "play" | "audit" | "stats";
-
-function formatBytes(bytes?: string): string {
-  const n = parseInt(bytes ?? "0");
-  if (n > 1e9) return `${(n / 1e9).toFixed(1)} GB`;
-  if (n > 1e6) return `${(n / 1e6).toFixed(1)} MB`;
-  if (n > 1e3) return `${(n / 1e3).toFixed(1)} KB`;
-  return `${n} B`;
-}
-
-function formatMs(ms?: string): string {
-  const n = parseInt(ms ?? "0");
-  if (!n) return "0m";
-  const h = Math.floor(n / 3600000);
-  const m = Math.floor((n % 3600000) / 60000);
-  if (h > 0) return `${h}h ${m}m`;
-  return `${m}m`;
-}
 
 function formatDate(d?: string): string {
   if (!d) return "-";
@@ -132,7 +115,7 @@ function PlayHistoryTab() {
                       {e.deviceName ?? e.clientName ?? "-"}
                     </td>
                     <td data-label={t("admin.activity.playHeaders.duration")} className="px-4 py-3 text-[var(--text-muted)]">
-                      {formatMs(e.durationMs)}
+                      {formatDurationMs(e.durationMs) || "0min"}
                     </td>
                     <td data-label={t("admin.activity.playHeaders.progress")} className="px-4 py-3 min-w-[100px]">
                       <div className="flex items-center gap-2">
@@ -275,7 +258,7 @@ function StatsTab() {
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
         {[
           [t("admin.activity.stats.totalPlays"), stats?.totalPlays ?? 0],
-          [t("admin.activity.stats.totalPlayTime"), formatMs(stats?.totalPlayTimeMs)],
+          [t("admin.activity.stats.totalPlayTime"), formatDurationMs(stats?.totalPlayTimeMs) || "0min"],
           [t("admin.activity.stats.totalUsers"), stats?.totalUsers ?? 0],
           [t("admin.activity.stats.totalMedia"), stats?.totalMediaItems ?? 0],
           [t("admin.activity.stats.bandwidth"), formatBytes(stats?.totalBandwidthBytes)],
@@ -330,7 +313,7 @@ function StatsTab() {
                 <span className="text-[var(--text)]">{u.username}</span>
                 <div className="flex gap-4 text-xs text-[var(--text-muted)]">
                   <span>{t("admin.activity.plays", { count: u.playCount })}</span>
-                  <span>{formatMs(u.totalWatchTimeMs)}</span>
+                  <span>{formatDurationMs(u.totalWatchTimeMs) || "0min"}</span>
                 </div>
               </div>
             ))}

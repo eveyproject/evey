@@ -10,24 +10,12 @@ import {
   watchHistoryLabel,
 } from "@evey/api";
 import type { V1WatchProgress } from "@evey/api";
+import { formatDurationMs } from "@evey/api";
 import { toast } from "@evey/store";
 import { useTheme } from "../../src/providers/ThemeProvider";
 import { progressPercent } from "../../src/lib/progressPercent";
 import { ScreenState } from "../../src/components/ScreenState";
 import { FocusableCard } from "../../src/components/FocusableCard";
-
-function formatDuration(ms: string | undefined): string {
-  if (!ms) return "";
-  // The server sends int64 as a string; anything unparseable used to reach the
-  // screen as "NaNmin".
-  const value = Number(ms);
-  if (!Number.isFinite(value) || value <= 0) return "";
-  const totalMin = Math.floor(value / 60000);
-  if (totalMin < 60) return `${totalMin}min`;
-  const h = Math.floor(totalMin / 60);
-  const m = totalMin % 60;
-  return m > 0 ? `${h}h ${m}min` : `${h}h`;
-}
 
 function formatDate(iso: string | undefined): string {
   if (!iso) return "";
@@ -157,7 +145,7 @@ function HistoryItem({
         </Text>
         {item.durationMs && (
           <Text style={{ color: theme.colors.textMuted, fontSize: 16 }}>
-            {formatDuration(item.positionMs)} / {formatDuration(item.durationMs)}
+            {formatDurationMs(item.positionMs)} / {formatDurationMs(item.durationMs)}
           </Text>
         )}
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 }}>
