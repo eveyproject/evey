@@ -48,21 +48,30 @@ func fillAncestorTitles(ctx context.Context, fetch func(context.Context, []strin
 		}
 	}
 	series := fetchItemMap(ctx, fetch, seriesIDs)
+	stampAncestorTitles(items, parents, series)
+}
 
+// stampAncestorTitles writes the series/season display titles onto already-
+// converted items from resolved ancestor maps (season id -> season for
+// episodes / series id -> series for seasons, and series id -> series). Callers
+// that have already walked the hierarchy for another reason pass their maps
+// here instead of re-fetching. The single place the episode/season labelling
+// rule lives.
+func stampAncestorTitles(items []*eveyv1.MediaItem, seasonOrSeriesParents, series map[string]*library.MediaItem) {
 	for _, it := range items {
 		if it == nil {
 			continue
 		}
 		switch it.Type {
 		case eveyv1.MediaItemType_MEDIA_ITEM_TYPE_EPISODE:
-			if season := parents[it.ParentId]; season != nil {
+			if season := seasonOrSeriesParents[it.ParentId]; season != nil {
 				it.SeasonTitle = season.Title
 				if sr := series[season.ParentID]; sr != nil {
 					it.SeriesTitle = sr.Title
 				}
 			}
 		case eveyv1.MediaItemType_MEDIA_ITEM_TYPE_SEASON:
-			if sr := parents[it.ParentId]; sr != nil {
+			if sr := seasonOrSeriesParents[it.ParentId]; sr != nil {
 				it.SeriesTitle = sr.Title
 			}
 		}

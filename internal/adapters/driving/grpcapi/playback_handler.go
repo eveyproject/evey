@@ -909,7 +909,9 @@ func (h *playbackHandler) GetResumeItems(ctx context.Context, req *eveyv1.GetRes
 			resp.Items = append(resp.Items, mediaItemToProto(mi, ctxIsAdmin(ctx)))
 		}
 	}
-	fillAncestorTitles(ctx, h.librarySvc.GetMediaItemsByIDs, resp.Items)
+	// Reuse the season/series maps already resolved for stampProgressDisplay
+	// instead of re-fetching them through fillAncestorTitles.
+	stampAncestorTitles(resp.Items, seasonByID, seriesByID)
 	return resp, nil
 }
 
@@ -951,9 +953,9 @@ func (h *playbackHandler) GetNextUp(ctx context.Context, req *eveyv1.GetNextUpRe
 		return nil, internalError(ctx, "get media items for next up", err)
 	}
 	allowedIDs, _ := h.getAllowedLibraryIDs(ctx)
-	// Parental gate: GetNextUp returns full media-item protos (title/overview/
-	// artwork), so a kids profile must not see adult items it previously played
-	// before the profile was switched to kids. Mirrors the feed handlers.
+	// Parental gate: GetNextUp returns media-item protos (title/overview), so a
+	// kids profile must not see adult items it previously played before the
+	// profile was switched to kids. Mirrors the feed handlers.
 	pf := resolveParentalFilterFromUserQuery(ctx, h.userQuery)
 	byID := make(map[string]*library.MediaItem, len(mediaItems))
 	for _, mi := range mediaItems {
