@@ -1,13 +1,13 @@
 // What the home hero should call an item.
 //
 // "Recently added" spotlights seasons and episodes alongside films, and their
-// own title is just "Season 3" or "The Spider and the Fly" - which names
+// own title is just "Season 3" or "Some Episode" - which names
 // nothing across a room (seen on device, 2026-08-03). The ancestors are usually
 // in the very same response, so naming the show costs no extra request; when
 // they are not, the bare title stays, never a broken prefix.
 //
 // An episode hangs off its SEASON, not off the series, so the chain is walked
-// to the top: "Lioness - The Spider and the Fly" beats "Season 3 - The Spider
+// to the top: "Some Series - Some Episode" beats "Season 3 - The Spider
 // and the Fly", which still leaves the viewer guessing which show it is.
 type TitledItem = { id?: string; title?: string; type?: string; parentId?: string };
 

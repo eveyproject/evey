@@ -137,7 +137,7 @@ func batchedSeriesTitle(seriesTitle string, seasonCount, episodeCount int) (labe
 	// The STORED label is built here in English and persisted as-is, so the
 	// clients translate the "new_series:" prefix and copy the parenthesis
 	// through untouched - that is why a French TV shows "Nouvelle série :
-	// Lioness (1 seasons, 1 episodes)". Carrying the counts as data instead is
+	// Some Series (1 seasons, 1 episodes)". Carrying the counts as data instead is
 	// a payload-format change across the three clients and is the user's call;
 	// what is fixed here is the count that was ungrammatical even in English.
 	seasons := plural(seasonCount, "season")

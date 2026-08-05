@@ -22,38 +22,38 @@ const t = (key: string, opts?: Record<string, unknown>): string => {
 
 describe("notificationLabel", () => {
   // Seen on the TV on 2026-08-02, in a French UI:
-  // "Nouvelle série : Lioness (1 seasons, 1 episodes)".
+  // "Nouvelle série : Some Series (1 seasons, 1 episodes)".
   it("words the whole sentence in the viewer's language", () => {
     expect(
       notificationLabel(t, {
-        title: "new_series:Lioness (1 season, 1 episode)",
-        subject: "Lioness",
+        title: "new_series:Some Series (1 season, 1 episode)",
+        subject: "Some Series",
         seasonCount: 1,
         episodeCount: 1,
       }),
-    ).toBe("Nouvelle série : Lioness (1 saison, 1 épisode)");
+    ).toBe("Nouvelle série : Some Series (1 saison, 1 épisode)");
   });
 
   it("pluralises each count on its own", () => {
     expect(
-      notificationLabel(t, { title: "new_series:X", subject: "Lioness", seasonCount: 2, episodeCount: 1 }),
-    ).toBe("Nouvelle série : Lioness (2 saisons, 1 épisode)");
+      notificationLabel(t, { title: "new_series:X", subject: "Some Series", seasonCount: 2, episodeCount: 1 }),
+    ).toBe("Nouvelle série : Some Series (2 saisons, 1 épisode)");
   });
 
   it("omits a count that is absent or zero", () => {
-    expect(notificationLabel(t, { title: "new_series:X", subject: "Lioness", episodeCount: 3 })).toBe(
-      "Nouvelle série : Lioness (3 épisodes)",
+    expect(notificationLabel(t, { title: "new_series:X", subject: "Some Series", episodeCount: 3 })).toBe(
+      "Nouvelle série : Some Series (3 épisodes)",
     );
-    expect(notificationLabel(t, { title: "new_series:X", subject: "Lioness", seasonCount: 0, episodeCount: 0 })).toBe(
-      "Nouvelle série : Lioness",
+    expect(notificationLabel(t, { title: "new_series:X", subject: "Some Series", seasonCount: 0, episodeCount: 0 })).toBe(
+      "Nouvelle série : Some Series",
     );
   });
 
   // Rows written before the change are deliberately not backfilled, so the old
   // parsing has to keep working exactly as it did.
   it("falls back to the stored title when there is no subject", () => {
-    expect(notificationLabel(t, { title: "new_series:Lioness (1 season, 1 episode)" })).toBe(
-      "Nouvelle série : Lioness (1 season, 1 episode)",
+    expect(notificationLabel(t, { title: "new_series:Some Series (1 season, 1 episode)" })).toBe(
+      "Nouvelle série : Some Series (1 season, 1 episode)",
     );
     expect(notificationLabel(t, { title: "new_episode:S01E07" })).toBe("Nouvel épisode : S01E07");
   });
@@ -65,6 +65,6 @@ describe("notificationLabel", () => {
   });
 
   it("ignores a blank subject rather than rendering an empty name", () => {
-    expect(notificationLabel(t, { title: "new_series:Lioness", subject: "   " })).toBe("Nouvelle série : Lioness");
+    expect(notificationLabel(t, { title: "new_series:Some Series", subject: "   " })).toBe("Nouvelle série : Some Series");
   });
 });

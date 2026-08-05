@@ -99,7 +99,7 @@ type Notification struct {
 	Message        string
 	MediaItemID    shared.MediaItemID
 	RelatedMediaID shared.MediaItemID // series ID for new_episode/new_season grouping
-	// Subject is the bare name the notification is about ("Lioness"), without
+	// Subject is the bare name the notification is about ("Some Series"), without
 	// any count or wording. Title stays the pre-rendered English label for
 	// clients that predate this; a client that sees a Subject builds the whole
 	// sentence itself and never reads Title. Empty on rows written before.

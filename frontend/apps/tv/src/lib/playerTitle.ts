@@ -1,6 +1,6 @@
 // What the player's top bar should call what is playing.
 //
-// An episode's own title names nothing across a room: "The Spider and the Fly"
+// An episode's own title names nothing across a room: "Some Episode"
 // could be any show (seen on device, 2026-08-03). The show's name is what the
 // viewer recognises, so it leads; the episode follows.
 //

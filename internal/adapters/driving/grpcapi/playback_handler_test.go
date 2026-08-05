@@ -837,10 +837,10 @@ func TestPlaybackHandler_GetWatchHistory_EnrichesEpisodeLabel(t *testing.T) {
 
 	// episode -> season -> series hierarchy; season/episode numbers via IndexNumber.
 	seasonNum, epNum := 2, 5
-	mediaRepo.Seed(&library.MediaItem{ID: "series-1", Type: library.Series, Title: "Breaking Bad"})
+	mediaRepo.Seed(&library.MediaItem{ID: "series-1", Type: library.Series, Title: "Some Series"})
 	mediaRepo.Seed(&library.MediaItem{ID: "season-1", Type: library.Season, ParentID: "series-1", IndexNumber: &seasonNum})
-	mediaRepo.Seed(&library.MediaItem{ID: "ep-1", Type: library.Episode, ParentID: "season-1", Title: "Cancer Man", IndexNumber: &epNum})
-	mediaRepo.Seed(&library.MediaItem{ID: "movie-1", Type: library.MovieItem, Title: "Heat"})
+	mediaRepo.Seed(&library.MediaItem{ID: "ep-1", Type: library.Episode, ParentID: "season-1", Title: "Some Episode", IndexNumber: &epNum})
+	mediaRepo.Seed(&library.MediaItem{ID: "movie-1", Type: library.MovieItem, Title: "Some Movie"})
 
 	progressRepo.Upsert(context.Background(), &playback.WatchProgress{ID: "wp-ep", ProfileID: "profile-1", MediaItemID: "ep-1", LastPlayedAt: time.Now()})
 	progressRepo.Upsert(context.Background(), &playback.WatchProgress{ID: "wp-mov", ProfileID: "profile-1", MediaItemID: "movie-1", LastPlayedAt: time.Now().Add(-time.Minute)})
@@ -855,15 +855,15 @@ func TestPlaybackHandler_GetWatchHistory_EnrichesEpisodeLabel(t *testing.T) {
 	}
 	ep := byID["ep-1"]
 	require.NotNil(t, ep)
-	assert.Equal(t, "Cancer Man", ep.Title)
+	assert.Equal(t, "Some Episode", ep.Title)
 	assert.Equal(t, "episode", ep.MediaType)
 	assert.Equal(t, int32(5), ep.IndexNumber)
 	assert.Equal(t, int32(2), ep.ParentIndexNumber)
-	assert.Equal(t, "Breaking Bad", ep.SeriesTitle)
+	assert.Equal(t, "Some Series", ep.SeriesTitle)
 
 	mov := byID["movie-1"]
 	require.NotNil(t, mov)
-	assert.Equal(t, "Heat", mov.Title)
+	assert.Equal(t, "Some Movie", mov.Title)
 	assert.Equal(t, "movie", mov.MediaType)
 	assert.Empty(t, mov.SeriesTitle)
 }
@@ -879,7 +879,7 @@ func TestPlaybackHandler_GetWatchHistory_FillsDurationAndPercent(t *testing.T) {
 	dur, err := shared.NewDurationMs(120_000)
 	require.NoError(t, err)
 	mediaRepo.Seed(&library.MediaItem{
-		ID: "mi-dur", Type: library.MovieItem, Title: "Heat",
+		ID: "mi-dur", Type: library.MovieItem, Title: "Some Movie",
 		File: &library.MediaFile{Path: "/f.mkv", Duration: dur},
 	})
 	mediaRepo.Seed(&library.MediaItem{ID: "mi-nofile", Type: library.MovieItem, Title: "Lost Media"})

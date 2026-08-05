@@ -234,7 +234,7 @@ func subjectOf(title, seriesTitle string) string {
 }
 
 // labelParts carries what a CLIENT needs to build the sentence in its own
-// language: the bare subject ("Lioness") and the counts. The pre-rendered
+// language: the bare subject ("Some Series") and the counts. The pre-rendered
 // English Title stays alongside for rows and clients that predate this - see
 // the 000151 migration for why nothing is backfilled.
 type labelParts struct {

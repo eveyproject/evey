@@ -113,16 +113,16 @@ func TestApplyRegionalTitle_SkipsPollutedRegionalTitle(t *testing.T) {
 func TestApplyRegionalTitle_SkipsPollutedButKeepsGenuineLater(t *testing.T) {
 	d := tmdbDetailResponse{
 		ID:               123,
-		Title:            "Heat",
-		OriginalTitle:    "Heat",
+		Title:            "Some Movie",
+		OriginalTitle:    "Some Movie",
 		OriginalLanguage: "en",
 		AlternativeTitles: &tmdbAltTitles{Titles: []tmdbAltTitle{
-			{Region: "FR", Title: "Heat (1)"},
-			{Region: "FR", Title: "Coup de chaleur"},
+			{Region: "FR", Title: "Some Movie (1)"},
+			{Region: "FR", Title: "Un Autre Titre"},
 		}},
 	}
 	r := mapDetailResult(d, "movie", "fr")
-	if r.Title != "Coup de chaleur" {
+	if r.Title != "Un Autre Titre" {
 		t.Fatalf("want genuine FR title after skipping polluted one, got %q", r.Title)
 	}
 }

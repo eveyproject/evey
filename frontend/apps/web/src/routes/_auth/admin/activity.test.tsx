@@ -40,7 +40,7 @@ async function getActivityPage() {
 
 const mockPlayEntry = {
   id: "pe-1",
-  mediaTitle: "Breaking Bad S01E01",
+  mediaTitle: "Some Series S01E01",
   deviceName: "Chrome",
   positionMs: "1800000",
   durationMs: "3600000",
@@ -80,7 +80,7 @@ describe("ActivityPage", () => {
     mockGetPlayHistory.mockResolvedValue({ entries: [mockPlayEntry], pagination: { totalItems: 1 } });
     const ActivityPage = await getActivityPage();
     render(React.createElement(ActivityPage), { wrapper: createWrapper() });
-    expect(await screen.findByText("Breaking Bad S01E01")).toBeInTheDocument();
+    expect(await screen.findByText("Some Series S01E01")).toBeInTheDocument();
     expect(screen.getByText("Chrome")).toBeInTheDocument();
   });
 
@@ -121,7 +121,7 @@ describe("ActivityPage", () => {
         totalPlays: 10,
         totalUsers: 2,
         totalMediaItems: 50,
-        popularMedia: [{ mediaItemId: "mi-1", title: "Dune", playCount: 7, uniqueViewers: 3 }],
+        popularMedia: [{ mediaItemId: "mi-1", title: "Some Movie", playCount: 7, uniqueViewers: 3 }],
         activeUsers: [{ userId: "usr-1", username: "alice", playCount: 5, totalWatchTimeMs: "3600000" }],
       },
       isLoading: false,
@@ -129,7 +129,7 @@ describe("ActivityPage", () => {
     const ActivityPage = await getActivityPage();
     render(React.createElement(ActivityPage), { wrapper: createWrapper() });
     fireEvent.click(screen.getByRole("button", { name: /Server Stats/i }));
-    expect(screen.getByText("Dune")).toBeInTheDocument();
+    expect(screen.getByText("Some Movie")).toBeInTheDocument();
     expect(screen.getByText(/3 viewer/i)).toBeInTheDocument();
     expect(screen.getByText("alice")).toBeInTheDocument();
   });

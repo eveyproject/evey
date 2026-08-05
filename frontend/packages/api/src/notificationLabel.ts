@@ -1,9 +1,9 @@
 // The notification label, worded by the CLIENT.
 //
 // The server used to render it whole, in English, and store it:
-// "new_series:Lioness (1 season, 1 episode)". Clients translated the prefix and
+// "new_series:Some Series (1 season, 1 episode)". Clients translated the prefix and
 // copied the parenthesis through untouched, so a French TV displayed
-// "Nouvelle série : Lioness (1 season, 1 episode)" - English in the middle of a
+// "Nouvelle série : Some Series (1 season, 1 episode)" - English in the middle of a
 // French sentence, on an app that ships in six languages.
 //
 // The server now also sends the notification AS DATA: `subject` (the bare name)
