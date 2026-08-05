@@ -34,7 +34,7 @@ func TestDetectSeason_PaginatesAllEpisodes(t *testing.T) {
 		// Pre-cover each episode so detectSeason skips DetectIntro (no pipeline)
 		// yet still queries it: batchQueriedIDs then proves pagination reached all.
 		segmentRepo.seeded = append(segmentRepo.seeded, &domainlibrary.MediaSegment{
-			MediaItemID: shared.MediaItemID(id), Type: "intro", StartMs: 0, EndMs: 60_000, Source: "tidb",
+			MediaItemID: shared.MediaItemID(id), Type: "intro", StartMs: 0, EndMs: 60_000, Source: "mkv_chapter",
 		})
 	}
 	svc := newSeasonService(t, segmentRepo, &countingDetector{}, siblings)
@@ -48,10 +48,11 @@ func TestDetectSeason_PaginatesAllEpisodes(t *testing.T) {
 }
 
 // detectSeason runs DetectIntro on each episode that doesn't already have a
-// "good" intro. With the fix, segments authored by mkv_chapter / tidb /
-// introdb count as good - re-running pHash + Chromaprint on those would
-// burn CPU just to rediscover the same answer (or worse, replace it with
-// a noisier heuristic answer).
+// "good" intro. Good = file-derived (mkv_chapter, audio_cluster, phash):
+// re-running pHash + Chromaprint on those would burn CPU just to rediscover
+// the same answer. Community-DB segments (tidb/introdb) are NOT good: their
+// timestamps ignore the local file's edition (repack/cut), so a file-derived
+// re-detection must be allowed to replace them.
 //
 // We can't observe DetectIntro directly without spinning up the full
 // pipeline, so we count detector calls (ExtractTileHashes is the very
@@ -85,7 +86,12 @@ func newSeasonService(t *testing.T, segmentRepo *fakeSegmentRepo, detector *coun
 	return svc
 }
 
-func TestDetectSeason_SkipsTIDBCoveredEpisode(t *testing.T) {
+// A community-DB intro (tidb/introdb) must NOT park the episode: its timestamps
+// come from someone else's copy of the media, so a file-derived detection has to
+// get its chance to replace it. Pipeline entry is observed via the attempt
+// counter (recorded after every clean run) - the detector itself stays silent
+// here because the fake config disables trickplay.
+func TestDetectSeason_RedetectsTIDBCoveredEpisode(t *testing.T) {
 	t.Parallel()
 	const epID = "ep-tidb-covered"
 	segmentRepo := &fakeSegmentRepo{seeded: []*domainlibrary.MediaSegment{
@@ -93,14 +99,22 @@ func TestDetectSeason_SkipsTIDBCoveredEpisode(t *testing.T) {
 	}}
 	detector := &countingDetector{}
 	idx := 1
-	svc := newSeasonService(t, segmentRepo, detector, []*domainlibrary.MediaItem{
-		{ID: shared.MediaItemID(epID), Type: domainlibrary.Episode, IndexNumber: &idx,
-			File: &domainlibrary.MediaFile{Path: "/tmp/x.mkv"}},
-	})
+	ep := &domainlibrary.MediaItem{
+		ID: shared.MediaItemID(epID), Type: domainlibrary.Episode, IndexNumber: &idx,
+		File: &domainlibrary.MediaFile{Path: "/tmp/x.mkv"},
+	}
+	svc := NewIntroDetectionService(
+		segmentRepo,
+		&fakeTrickplayRepo{},
+		&fakeMediaItemRepo{item: ep, siblings: []*domainlibrary.MediaItem{ep}},
+		&fakeConfigRepo{},
+		detector,
+		"/tmp/trickplay",
+	)
 
 	svc.detectSeason(context.Background(), "season-id")
-	require.Equal(t, int32(0), detector.calls.Load(),
-		"detector must not be called for an episode already covered by TIDB")
+	require.Equal(t, 1, segmentRepo.attempts[epID].count,
+		"a tidb-covered episode must re-enter the pipeline (attempt recorded)")
 }
 
 // An episode with NO segments but whose attempt counter is at the cap for the
@@ -169,9 +183,10 @@ func TestSkipDecision_AudioFallbackIsNotGood(t *testing.T) {
 		isGoodLong bool // 60s segment, well above the 5s threshold
 	}{
 		{"mkv_chapter", true},
-		{"tidb", true},
-		{"introdb", true},
+		{"audio_cluster", true},
 		{"phash", true},
+		{"tidb", false},        // re-detection allowed: community DB, not aligned to the local file
+		{"introdb", false},     // re-detection allowed: community DB, not aligned to the local file
 		{"audio", false},       // re-detection allowed: heuristic
 		{"blackdetect", false}, // re-detection allowed: heuristic
 		{"manual", true},       // sticky via the manualLocked branch (different code path)
@@ -181,7 +196,7 @@ func TestSkipDecision_AudioFallbackIsNotGood(t *testing.T) {
 			// Keep this list in sync with the switch in detectSeason.
 			good := false
 			switch c.source {
-			case "mkv_chapter", "tidb", "introdb":
+			case "mkv_chapter", "audio_cluster":
 				good = true
 			case "phash":
 				good = true

@@ -104,7 +104,11 @@ const currentAudioAlgoVersion int16 = 1
 // suppresses local detection of the other types) + heuristic-floor guard
 // (sub-5s heuristic intros are dropped instead of surfacing as broken skip
 // buttons). Every previously-uncovered/weak episode becomes eligible once more.
-const introDetectionAlgoVersion = 3
+// v4: community DBs (tidb/introdb) demoted below every file-derived pass in
+// runPipeline AND no longer count as a "good" cover in detectSeason - their
+// timestamps ignore the local edition. Episodes parked with a provider-only
+// intro become eligible for file-derived re-detection.
+const introDetectionAlgoVersion = 4
 
 // maxIntroDetectionAttempts bounds the backfill's re-decodes of an episode that
 // keeps yielding no usable intro at the same algo version (one retry for the
@@ -231,13 +235,13 @@ func (s *IntroDetectionService) WithChromaprinter(c Chromaprinter) {
 }
 
 // WithIntroMetadataProvider plugs an external source of intro/recap segments
-// (e.g. AniDB, simkl, a community plugin) ahead of the heuristic pipeline.
-// When the provider returns segments for a given item, those win over MKV
-// chapters and over the pHash/audio fallback chain - that's the contract
-// described in domainlibrary.IntroMetadataProvider.
+// (e.g. TheIntroDB/TIDB via the introproviders chain, wired when
+// intro_providers.enabled). Provider segments rank BELOW every file-derived
+// pass (MKV chapters, season cluster, pHash): community timestamps describe
+// someone else's copy of the media, not the local edition. They fill only the
+// segment types the local pipeline left empty.
 //
-// nil disables the pass; the rest of the pipeline runs unchanged. There is
-// no wired adapter today.
+// nil disables the pass; the rest of the pipeline runs unchanged.
 func (s *IntroDetectionService) WithIntroMetadataProvider(p domainlibrary.IntroMetadataProvider) *IntroDetectionService {
 	s.metadataProvider = p
 	return s
@@ -526,18 +530,18 @@ func (s *IntroDetectionService) detectSeason(ctx context.Context, parentID strin
 					manualLocked = true
 					break
 				}
-				// Treat any segment from an authoritative source as "good": once
-				// covered, a re-detection would burn CPU re-running pHash +
-				// Chromaprint just to land on the same answer (or worse, a
-				// noisier heuristic answer). Sources are ordered by authority
-				// in runPipeline; skipping any of them is safe.
+				// Treat a segment from a FILE-DERIVED authoritative source as
+				// "good": once covered, a re-detection would burn CPU re-running
+				// pHash + Chromaprint just to land on the same answer.
 				//
-				// Excluded on purpose: the audio fallback ("audio") and the
-				// blackdetect end-credits source ("blackdetect") are last-
-				// resort heuristics - keep them eligible for re-detection so
-				// a future TIDB/IntroDB hit can replace them.
+				// Excluded on purpose: community DBs ("tidb"/"introdb") describe
+				// someone else's copy of the media, and the eval measured them
+				// tens of seconds off where the cluster was within a second -
+				// keep those episodes eligible so a file-derived detection can
+				// replace them (runPipeline ranks it above the provider). Also
+				// excluded: the last-resort heuristics ("audio", "blackdetect").
 				switch sg.Source {
-				case "mkv_chapter", "tidb", "introdb", "audio_cluster":
+				case "mkv_chapter", "audio_cluster":
 					if sg.EndMs-sg.StartMs >= 5_000 {
 						hasGoodIntro = true
 					}

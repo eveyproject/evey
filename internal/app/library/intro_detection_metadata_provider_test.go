@@ -27,12 +27,12 @@ func (p *fakeIntroMetadataProvider) GetSegments(_ context.Context, _ *domainlibr
 	return p.segs, p.err
 }
 
-// When the provider returns segments, runPipeline must short-circuit and
-// skip MKV chapter pass - provider data is the most authoritative source.
-// We pin this by giving the chapterRepo a chapter that *would* be picked up
-// by chapterPass (Title="Intro") and asserting we get the provider's value
-// back instead.
-func TestRunPipeline_MetadataProviderWinsOverChapterPass(t *testing.T) {
+// MKV chapters outrank the provider: they were encoded into THIS file by the
+// uploader, while provider timestamps describe someone else's copy of the
+// media (the eval measured community DBs tens of seconds off on repacks). We
+// pin this by giving the chapterRepo an "Intro" chapter AND a provider intro,
+// and asserting the chapter's window wins.
+func TestRunPipeline_ChapterPassWinsOverMetadataProvider(t *testing.T) {
 	t.Parallel()
 	chapters := []*domainlibrary.Chapter{
 		{Title: "Intro", StartTimeMs: 30_000, EndTimeMs: 60_000},
@@ -54,9 +54,9 @@ func TestRunPipeline_MetadataProviderWinsOverChapterPass(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, got, 1)
 	assert.Equal(t, 1, provider.calls)
-	assert.Equal(t, "tmdb", got[0].Source)
-	assert.Equal(t, int64(7_000), got[0].StartMs)
-	assert.Equal(t, int64(45_000), got[0].EndMs, "must NOT be 60_000 - chapterPass must not run after a provider hit")
+	assert.Equal(t, "mkv_chapter", got[0].Source)
+	assert.Equal(t, int64(30_000), got[0].StartMs)
+	assert.Equal(t, int64(60_000), got[0].EndMs, "must NOT be 45_000 - the file's own chapter outranks the provider")
 }
 
 // When the provider returns nil, the pipeline must fall through to

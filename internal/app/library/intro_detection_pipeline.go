@@ -92,19 +92,9 @@ func (s *IntroDetectionService) runPipeline(ctx context.Context, item *domainlib
 	}
 	needIntro := func() bool { _, ok := found["intro"]; return !ok }
 
-	// External metadata provider first: most authoritative for any type it
-	// returns. Non-fatal on error - fall through to chapters/heuristics.
-	if s.metadataProvider != nil {
-		if mdSegs, mdErr := s.metadataProvider.GetSegments(ctx, item); mdErr != nil {
-			slog.WarnContext(ctx, "intro_detection: metadata provider failed, falling back",
-				slog.String("media_id", mediaItemID), slog.Any("err", mdErr))
-		} else {
-			add(mdSegs, "metadata_provider_match")
-		}
-	}
-
-	// MKV chapters next: authoritative when the uploader labelled them
-	// ("Intro" / "Opening" / "Generique" / "Previously" …).
+	// MKV chapters first: authoritative when the uploader labelled them
+	// ("Intro" / "Opening" / "Generique" / "Previously" …) - they were encoded
+	// into THIS file.
 	add(s.chapterPass(ctx, item), "mkv_chapter_match")
 
 	// ---- intro-only passes: each runs only while the intro is still missing ----
@@ -168,6 +158,21 @@ func (s *IntroDetectionService) runPipeline(ctx context.Context, item *domainlib
 					slog.String("decision", "fallback_no_candidate_confirmed"),
 				)
 			}
+		}
+	}
+
+	// External metadata provider AFTER the file-derived passes: community DBs
+	// (tidb/introdb) know nothing about the local file's edition (repack, cut,
+	// re-encode), so their timestamps lose to anything derived from the file
+	// itself - the eval measured them tens of seconds off where the cluster was
+	// within a second. They remain additive for the types still missing.
+	// Non-fatal on error - fall through to the remaining heuristics.
+	if s.metadataProvider != nil {
+		if mdSegs, mdErr := s.metadataProvider.GetSegments(ctx, item); mdErr != nil {
+			slog.WarnContext(ctx, "intro_detection: metadata provider failed, falling back",
+				slog.String("media_id", mediaItemID), slog.Any("err", mdErr))
+		} else {
+			add(mdSegs, "metadata_provider_match")
 		}
 	}
 
