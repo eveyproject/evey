@@ -14,13 +14,11 @@ import (
 	"github.com/evey-project/evey/internal/domain/playback"
 )
 
-func intp(v int) *int { return &v }
-
-// seedShow seeds a series > season > episode chain and returns their IDs.
+// seedShow seeds a series > season > episode chain.
 func seedShow(seed func(*library.MediaItem)) {
 	seed(&library.MediaItem{ID: "mi-series", Title: "Lioness", Type: library.Series})
-	seed(&library.MediaItem{ID: "mi-season", Title: "Season 1", Type: library.Season, ParentID: "mi-series", IndexNumber: intp(1)})
-	seed(&library.MediaItem{ID: "mi-episode", Title: "The Spider and the Fly", Type: library.Episode, ParentID: "mi-season", IndexNumber: intp(5)})
+	seed(&library.MediaItem{ID: "mi-season", Title: "Season 1", Type: library.Season, ParentID: "mi-series", IndexNumber: new(1)})
+	seed(&library.MediaItem{ID: "mi-episode", Title: "The Spider and the Fly", Type: library.Episode, ParentID: "mi-season", IndexNumber: new(5)})
 }
 
 func TestFillAncestorTitles(t *testing.T) {
