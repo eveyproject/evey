@@ -3,7 +3,7 @@ import { Clock, Music, X } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { libraryServiceSearchMedia, musicServiceSearchMusic } from "@evey/api";
+import { libraryServiceSearchMedia, musicServiceSearchMusic, displayTitle } from "@evey/api";
 import { typeLabel } from "@/utils/typeLabel";
 import { PosterPlaceholder } from "@/features/library/PosterPlaceholder";
 
@@ -275,7 +275,7 @@ export const SearchDropdown = memo(function SearchDropdown({
                         src={`/api/v1/media/${item.id}/artwork/poster`}
                         srcSet={`/api/v1/media/${item.id}/artwork/poster?w=50 50w, /api/v1/media/${item.id}/artwork/poster?w=100 100w`}
                         sizes="36px"
-                        alt={item.title || "Media poster"}
+                        alt={displayTitle(item) || "Media poster"}
                         className="absolute inset-0 w-full h-full object-cover"
                         onError={(e) => {
                           e.currentTarget.style.display = "none";
@@ -287,7 +287,7 @@ export const SearchDropdown = memo(function SearchDropdown({
                     <p
                       className="text-sm font-medium truncate text-[var(--text)]"
                     >
-                      {item.title}
+                      {displayTitle(item)}
                     </p>
                     <div
                       className="flex items-center gap-2 text-xs text-[var(--text-muted)]"

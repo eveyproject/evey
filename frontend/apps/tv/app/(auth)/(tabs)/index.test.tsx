@@ -154,7 +154,8 @@ const getMusicAlbumsQueryOptionsMock = vi.fn((params: { libraryId: string }) => 
 const getPhotoAlbumsQueryOptionsMock = vi.fn((params: { libraryId: string }) => ({
   queryKey: [params.libraryId],
 }));
-vi.mock("@evey/api", () => ({
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
   useFeedServiceUpdateProfileFeedConfig: () => ({ mutateAsync: vi.fn() }),
   eveyFetch: vi.fn().mockResolvedValue({ plugins: [] }),
   usePlaybackServiceGetResumeItems: (...args: unknown[]) => resumeMock(...args),

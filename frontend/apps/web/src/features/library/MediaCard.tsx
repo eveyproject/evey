@@ -3,7 +3,7 @@ import { Star, Check, Play } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { usePlaybackServiceMarkAsWatched, usePlaybackServiceMarkAsUnwatched, libraryServiceGetMediaItem } from "@evey/api";
+import { usePlaybackServiceMarkAsWatched, usePlaybackServiceMarkAsUnwatched, libraryServiceGetMediaItem, displayTitle } from "@evey/api";
 import type { V1Artwork } from "@evey/api";
 import { Blurhash } from "react-blurhash";
 import { toast, useAuthStore } from "@evey/store";
@@ -260,7 +260,7 @@ export const MediaCard = memo(function MediaCard({
               src={poster}
               srcSet={posterSrcSet}
               sizes="(max-width: 640px) 185px, (max-width: 1024px) 342px, 500px"
-              alt={item.title ?? ""}
+              alt={displayTitle(item)}
               loading="lazy"
               decoding="async"
               className="w-full h-full object-cover transition-opacity-fast duration-300 relative"
@@ -406,7 +406,7 @@ export const MediaCard = memo(function MediaCard({
             <Play size={ICON.lg} className="text-[var(--overlay-text)] ml-0.5" fill="currentColor" aria-hidden="true" />
           </div>
           <p className="absolute bottom-2 left-2 right-2 text-xs font-medium text-[var(--overlay-text)] truncate text-center">
-            {item.title}
+            {displayTitle(item)}
           </p>
         </div>
 
@@ -431,7 +431,7 @@ export const MediaCard = memo(function MediaCard({
         <p
           className="text-sm font-medium truncate text-[var(--text)]"
         >
-          {item.title}
+          {displayTitle(item)}
         </p>
         {showType && typeLabel(item.type) && (
           <span

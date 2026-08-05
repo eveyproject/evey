@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { displayTitle } from "@evey/api";
 import { View, Text, TextInput, FlatList, Pressable, ActivityIndicator, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -195,14 +196,14 @@ export default function SearchScreen() {
       onPress={() => router.push(`/media/${item.id}`)}
       style={[styles.row, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
       hasTVPreferredFocus={index === 0}
-      accessibilityLabel={item.title}
+      accessibilityLabel={displayTitle(item)}
     >
       <View style={[styles.thumb, { borderRadius: theme.radii.sm, backgroundColor: theme.colors.surfaceRaised ?? theme.colors.surface }]}>
         <Text style={{ color: theme.colors.textMuted, fontSize: 18 }}>?</Text>
       </View>
       <View style={styles.info}>
         <Text style={[styles.title, { color: theme.colors.text }]} numberOfLines={1}>
-          {item.title}
+          {displayTitle(item)}
         </Text>
         <Text style={[styles.meta, { color: theme.colors.textMuted }]}>
           {[item.year, typeLabel(item.type)].filter(Boolean).join(" \u00B7 ")}

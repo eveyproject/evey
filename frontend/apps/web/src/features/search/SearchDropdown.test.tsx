@@ -28,7 +28,8 @@ let musicMockReturn: { data: { tracks: Array<Record<string, unknown>> } | undefi
   isLoading: false,
 };
 
-vi.mock("@evey/api", () => ({
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
   libraryServiceSearchMedia: vi.fn(),
   musicServiceSearchMusic: vi.fn(),
 }));

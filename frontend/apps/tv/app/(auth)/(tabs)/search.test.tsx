@@ -74,7 +74,8 @@ vi.mock("../../../src/hooks/useDebounce", () => ({
 // --- @evey/api mock ------------------------------------------------------------
 const searchMediaMock = vi.fn();
 const searchMusicMock = vi.fn();
-vi.mock("@evey/api", () => ({
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
   useLibraryServiceSearchMedia: (...args: unknown[]) => searchMediaMock(...args),
   useMusicServiceSearchMusic: (...args: unknown[]) => searchMusicMock(...args),
 }));

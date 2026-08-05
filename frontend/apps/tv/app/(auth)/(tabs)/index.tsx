@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect, useCallback } from "react";
+import { displayTitle } from "@evey/api";
 import { View, Text, ScrollView, FlatList, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { router } from "expo-router";
@@ -96,7 +97,7 @@ function MediaCard({
     <FocusableCard
       onPress={() => router.push(`/media/${item.id}`)}
       hasTVPreferredFocus={isFirst}
-      accessibilityLabel={item.title}
+      accessibilityLabel={displayTitle(item)}
       style={styles.card}
     >
       <View style={[styles.poster, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.sm }]}>
@@ -124,7 +125,7 @@ function MediaCard({
         </View>
       )}
       <Text style={[styles.cardTitle, { color: theme.colors.text }]} numberOfLines={1}>
-        {item.title}
+        {displayTitle(item)}
       </Text>
       {item.year && (
         <Text style={[styles.cardYear, { color: theme.colors.textMuted }]}>{item.year}</Text>

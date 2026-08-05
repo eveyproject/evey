@@ -3,6 +3,7 @@ import { View, Text, Pressable, Dimensions } from "react-native";
 import { Image } from "expo-image";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import type { V1MediaItem, V1Artwork } from "@evey/api";
+import { displayTitle } from "@evey/api";
 import { useTheme } from "../providers/ThemeProvider";
 import { useServerUrl } from "../hooks/useServerUrl";
 import { useAuthenticatedImage } from "../hooks/useAuthenticatedImage";
@@ -50,7 +51,7 @@ export const MediaCard = React.memo(function MediaCard({ item, onPress, width, w
   }, [item.artwork, posterBlurhashProp]);
 
   return (
-    <Pressable onPress={onPress} style={{ width: cardWidth, marginRight: theme.spacing.sm }} accessible={true} accessibilityLabel={item.title} accessibilityRole="button">
+    <Pressable onPress={onPress} style={{ width: cardWidth, marginRight: theme.spacing.sm }} accessible={true} accessibilityLabel={displayTitle(item)} accessibilityRole="button">
       <View style={{
         width: cardWidth,
         height: cardHeight,
@@ -93,7 +94,7 @@ export const MediaCard = React.memo(function MediaCard({ item, onPress, width, w
         numberOfLines={1}
         style={{ color: theme.colors.text, fontSize: FONT_SIZE.xs, marginTop: 4 }}
       >
-        {item.title}
+        {displayTitle(item)}
       </Text>
       {item.year != null && (
         <Text style={{ color: theme.colors.textMuted, fontSize: FONT_SIZE.xs }}>{item.year}</Text>

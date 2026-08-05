@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
+import { displayTitle } from "@evey/api";
 import {
   View,
   Text,
@@ -241,7 +242,7 @@ export default function SearchScreen() {
           activeOpacity={0.7}
           onPress={() => router.push(`/media/${item.id}`)}
           accessible={true}
-          accessibilityLabel={item.title}
+          accessibilityLabel={displayTitle(item)}
           accessibilityRole="button"
         >
           {poster ? (
@@ -275,7 +276,7 @@ export default function SearchScreen() {
               style={[styles.title, { color: theme.colors.text }]}
               numberOfLines={1}
             >
-              {item.title}
+              {displayTitle(item)}
             </Text>
             <Text style={[styles.meta, { color: theme.colors.textMuted }]}>
               {[item.year, formatType(item.type)].filter(Boolean).join(" · ")}
