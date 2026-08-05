@@ -359,6 +359,13 @@ export default function RequestsScreen() {
                 </Text>
                 <Text style={{ color: statusColor(theme, item.status), fontSize: 12, marginTop: 2, fontWeight: "600" }}>
                   {t(`requests.status${capitalize(item.status)}`)}
+                  {/* answeredAt has been served since media requests shipped and
+                      no client ever showed it: a denied request gave no clue how
+                      old the decision was. Locale-formatted, no new i18n key -
+                      the status word right before it carries the wording. */}
+                  {item.answeredAt
+                    ? ` · ${new Date(item.answeredAt).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}`
+                    : ""}
                 </Text>
                 {item.adminNote ? (
                   <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginTop: 2 }}>

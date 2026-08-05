@@ -292,6 +292,16 @@ function MineTab({ requests, isLoading }: { requests: V1MediaRequestProto[]; isL
               <Badge variant={statusVariant[r.status ?? "pending"] ?? "default"}>
                 {t(`requests.status${capitalize(r.status)}`)}
               </Badge>
+              {/* When the request was answered. The server has served answeredAt
+                  since media requests shipped and no client ever showed it, so a
+                  denied request gave no clue how old the decision was. Rendered
+                  as a locale-formatted date rather than behind a new i18n key -
+                  the status badge next to it already carries the wording. */}
+              {r.answeredAt && (
+                <span className="text-xs text-[var(--text-muted)]">
+                  {new Date(r.answeredAt).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}
+                </span>
+              )}
             </div>
             {r.adminNote && (
               <p className="text-xs text-[var(--text-muted)] mt-1">{t("requests.adminNote", { note: r.adminNote })}</p>
