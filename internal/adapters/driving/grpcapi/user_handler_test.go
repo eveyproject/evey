@@ -644,6 +644,37 @@ func TestUpdateProfile_Success(t *testing.T) {
 	}
 }
 
+// Sending `preferences` REPLACES the whole map - it does not merge key by key,
+// even though the verb is PATCH and every other field of this request is a
+// partial update. A caller that writes {"theme": "amoled"} alone therefore
+// erases the viewer's audio and subtitle languages. That is why every client
+// merges before writing (themePreferences in @evey/store), and this test is
+// what tells the next reader - and stops someone "fixing" the semantics by
+// accident: omitting a key is how a client REMOVES one (the theme-plugin id).
+// Reproduced against the running server on 2026-08-05.
+func TestUpdateProfile_PreferencesReplaceTheWholeMap(t *testing.T) {
+	env := setupUserHandler()
+	env.profileRepo.Create(context.Background(), &user.Profile{
+		ID: "prf-1", UserID: "usr-1", Name: "Default",
+		Preferences: map[string]string{"audio_languages": "fr", "subtitle_languages": "fr"},
+	})
+
+	resp, err := env.handler.UpdateProfile(userCtx("usr-1", "prf-1"), &eveyv1.UpdateProfileRequest{
+		Id:          "prf-1",
+		Preferences: map[string]string{"theme": "amoled"},
+	})
+	if err != nil {
+		t.Fatalf("UpdateProfile: %v", err)
+	}
+	if _, still := resp.Preferences["audio_languages"]; still {
+		t.Error("audio_languages survived a partial write: the semantics changed to merge - " +
+			"if that is deliberate, give clients another way to REMOVE a preference key")
+	}
+	if resp.Preferences["theme"] != "amoled" {
+		t.Errorf("theme = %q, want amoled", resp.Preferences["theme"])
+	}
+}
+
 func TestUpdateProfile_ParentalChangeFromKidsProfileDenied(t *testing.T) {
 	env := setupUserHandler()
 	env.profileRepo.Create(context.Background(), &user.Profile{
