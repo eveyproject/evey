@@ -436,35 +436,55 @@ func (s *IntroDetectionService) chapterPass(ctx context.Context, item *domainlib
 	// (or equal to start). Standard convention: a chapter ends where the
 	// next one begins. Fill missing ends in-place so the segment builders
 	// below can rely on EndTimeMs > StartTimeMs.
+	durationMs := int64(0)
+	if item.File != nil {
+		durationMs = item.File.Duration.Milliseconds()
+	}
 	for i := range chapters {
 		if chapters[i].EndTimeMs > chapters[i].StartTimeMs {
 			continue
 		}
 		if i+1 < len(chapters) && chapters[i+1].StartTimeMs > chapters[i].StartTimeMs {
 			chapters[i].EndTimeMs = chapters[i+1].StartTimeMs
+		} else if durationMs > chapters[i].StartTimeMs {
+			// Last chapter with no recorded end: it runs to the end of the file.
+			// Without this, a final "Générique" chapter stored end_ms=0 - an
+			// inverted segment persisted as-is.
+			chapters[i].EndTimeMs = durationMs
 		}
 	}
 
-	classify := func(title string) string {
+	classify := func(title string, startMs int64) string {
 		t := strings.ToLower(strings.TrimSpace(title))
+		// "Générique" in French names BOTH the title sequence and the end
+		// credits. An explicit "de fin" wins; otherwise the position decides:
+		// a "générique" (or bare "credits") past the midpoint of the file is
+		// the credits roll, not an intro - a movie stored its end-credits
+		// chapter at 2h35 as an "intro" before this guard.
+		inBackHalf := durationMs > 0 && startMs > durationMs/2
 		switch {
 		case t == "intro end" || t == "end of intro" || t == "intro ends":
 			return "intro_end_marker"
+		case strings.Contains(t, "generique de fin") || strings.Contains(t, "générique de fin"):
+			return "end_credits"
+		case strings.Contains(t, "end credits") ||
+			strings.Contains(t, "closing credits") ||
+			strings.Contains(t, "ending"):
+			return "end_credits"
 		case strings.Contains(t, "intro") ||
 			strings.Contains(t, "opening") ||
 			strings.Contains(t, "theme") ||
 			strings.Contains(t, "title sequence") ||
 			strings.Contains(t, "generique") || strings.Contains(t, "générique"):
+			if inBackHalf {
+				return "end_credits"
+			}
 			return "intro"
 		case strings.Contains(t, "previously") ||
 			strings.Contains(t, "recap") ||
 			strings.HasPrefix(t, "previously on") ||
 			strings.Contains(t, "résumé") || strings.Contains(t, "resume des"):
 			return "recap"
-		case strings.Contains(t, "end credits") ||
-			strings.Contains(t, "closing credits") ||
-			strings.Contains(t, "ending"):
-			return "end_credits"
 		}
 		return ""
 	}
@@ -475,7 +495,13 @@ func (s *IntroDetectionService) chapterPass(ctx context.Context, item *domainlib
 		introEndIdx = -1
 	)
 	for i, ch := range chapters {
-		kind := classify(ch.Title)
+		kind := classify(ch.Title, ch.StartTimeMs)
+		// A chapter whose end could not be resolved (last chapter, unknown file
+		// duration) would emit an inverted segment - skip it, except the
+		// intro_end_marker which only uses its start.
+		if kind != "" && kind != "intro_end_marker" && ch.EndTimeMs <= ch.StartTimeMs {
+			continue
+		}
 		switch kind {
 		case "intro":
 			out = append(out, domainlibrary.MediaSegment{

@@ -150,3 +150,69 @@ func TestChapterPass_NoChapterRepo_ReturnsNothing(t *testing.T) {
 	segs := svc.chapterPass(context.Background(), item)
 	assert.Empty(t, segs)
 }
+
+// helper mirroring newServiceWithChapters with a known file duration, needed
+// by the position-based "générique" classification.
+func newServiceWithChaptersAndDuration(t *testing.T, chapters []*domainlibrary.Chapter, durationMs int64) (*IntroDetectionService, *domainlibrary.MediaItem) {
+	t.Helper()
+	svc, item := newServiceWithChapters(t, chapters)
+	d, err := shared.NewDurationMs(durationMs)
+	require.NoError(t, err)
+	item.File.Duration = d
+	return svc, item
+}
+
+// "Générique" in French names the end credits as often as the title sequence.
+// One sitting past the file midpoint is the credits roll - a movie stored its
+// final "Générique" chapter (2h35 in) as an intro with end_ms=0 before this.
+func TestChapterPass_FrenchGeneriqueInBackHalfIsCredits(t *testing.T) {
+	t.Parallel()
+	const durMs = 2 * 60 * 60 * 1000
+	chapters := []*domainlibrary.Chapter{
+		{Title: "Chapitre 1", StartTimeMs: 0, EndTimeMs: 5_400_000},
+		{Title: "Générique", StartTimeMs: 6_600_000, EndTimeMs: 0}, // last, no end recorded
+	}
+	svc, item := newServiceWithChaptersAndDuration(t, chapters, durMs)
+	segs := svc.chapterPass(context.Background(), item)
+	require.Len(t, segs, 1)
+	assert.Equal(t, "end_credits", segs[0].Type)
+	assert.Equal(t, int64(6_600_000), segs[0].StartMs)
+	assert.Equal(t, int64(durMs), segs[0].EndMs, "the last chapter runs to the end of the file")
+}
+
+// A "Générique" near the START keeps its intro meaning.
+func TestChapterPass_FrenchGeneriqueInFrontHalfIsIntro(t *testing.T) {
+	t.Parallel()
+	chapters := []*domainlibrary.Chapter{
+		{Title: "Générique", StartTimeMs: 80_000, EndTimeMs: 107_000},
+		{Title: "Chapitre 1", StartTimeMs: 107_000, EndTimeMs: 1_200_000},
+	}
+	svc, item := newServiceWithChaptersAndDuration(t, chapters, 40*60*1000)
+	segs := svc.chapterPass(context.Background(), item)
+	require.Len(t, segs, 1)
+	assert.Equal(t, "intro", segs[0].Type)
+}
+
+// An explicit "Générique de fin" is the credits wherever it sits.
+func TestChapterPass_GeneriqueDeFinIsCredits(t *testing.T) {
+	t.Parallel()
+	chapters := []*domainlibrary.Chapter{
+		{Title: "Générique de fin", StartTimeMs: 600_000, EndTimeMs: 720_000},
+	}
+	svc, item := newServiceWithChaptersAndDuration(t, chapters, 40*60*1000)
+	segs := svc.chapterPass(context.Background(), item)
+	require.Len(t, segs, 1)
+	assert.Equal(t, "end_credits", segs[0].Type)
+}
+
+// A matching last chapter whose end cannot be resolved (unknown file duration)
+// must be dropped, not emitted inverted (end_ms=0 < start_ms).
+func TestChapterPass_UnresolvedEndIsDropped(t *testing.T) {
+	t.Parallel()
+	chapters := []*domainlibrary.Chapter{
+		{Title: "Intro", StartTimeMs: 80_000, EndTimeMs: 0},
+	}
+	svc, item := newServiceWithChapters(t, chapters) // no duration on the item
+	segs := svc.chapterPass(context.Background(), item)
+	assert.Empty(t, segs)
+}
