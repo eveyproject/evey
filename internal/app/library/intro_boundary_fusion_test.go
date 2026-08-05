@@ -26,13 +26,26 @@ func TestFuseBoundary(t *testing.T) {
 		t.Errorf("confidence = %.2f, want high (>0.7)", fb.confidence)
 	}
 
-	// A lone signal: ok, but low confidence (no corroboration).
+	// A lone signal: ok, but capped confidence - it carries 100% of its own
+	// weight, which proves nothing about corroboration.
 	fb, ok = fuseBoundary([]boundaryVote{{ms: 200_000, weight: 0.4, source: "audio"}}, 4_000)
 	if !ok || fb.ms != 200_000 || fb.agree != 1 {
 		t.Fatalf("lone vote: got ms=%d agree=%d", fb.ms, fb.agree)
 	}
-	if fb.confidence != 1.0 { // only weight present, so it carries 100% of total
-		t.Errorf("lone confidence = %.2f, want 1.0 (but agree=1 signals low corroboration)", fb.confidence)
+	if fb.confidence != 0.5 {
+		t.Errorf("lone confidence = %.2f, want the 0.5 no-corroboration cap", fb.confidence)
+	}
+
+	// Two votes disagreeing beyond tolerance: the heavier wins alone → same cap.
+	fb, ok = fuseBoundary([]boundaryVote{
+		{ms: 200_000, weight: 0.4, source: "audio"},
+		{ms: 230_000, weight: 1.0, source: "subtitle"},
+	}, 4_000)
+	if !ok || fb.ms != 230_000 {
+		t.Fatalf("disagreeing votes: got ms=%d, want the heavier witness", fb.ms)
+	}
+	if fb.confidence != 0.5 {
+		t.Errorf("uncorroborated winner confidence = %.2f, want 0.5", fb.confidence)
 	}
 
 	// No votes → not ok.

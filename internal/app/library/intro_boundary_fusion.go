@@ -31,7 +31,10 @@ type fusedBoundary struct {
 // picks the cluster carrying the most weight, and returns its weight-weighted
 // mean as the consensus edge. confidence is the fraction of total weight that
 // agreed - high when several independent signals point to the same place, low
-// when a lone signal stands unsupported. ok is false when there are no votes.
+// when a lone signal stands unsupported. A winning cluster of ONE vote is
+// capped at 0.5 regardless of its weight share: corroboration is what the
+// number measures, and a lone witness has none (a lone vote is 100% of its own
+// weight, which said nothing). ok is false when there are no votes.
 func fuseBoundary(votes []boundaryVote, tolMs int64) (fusedBoundary, bool) {
 	valid := make([]boundaryVote, 0, len(votes))
 	var totalWeight float64
@@ -72,6 +75,9 @@ func fuseBoundary(votes []boundaryVote, tolMs int64) (fusedBoundary, bool) {
 			}
 		}
 		i = j
+	}
+	if best.agree == 1 && best.confidence > 0.5 {
+		best.confidence = 0.5
 	}
 	return best, true
 }

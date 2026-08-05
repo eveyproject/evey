@@ -115,8 +115,10 @@ func TestReconcileSeasonIntroDurations_LeavesManualAlone(t *testing.T) {
 	assert.Empty(t, segmentRepo.upserted, "a manual segment is excluded from the prior entirely")
 }
 
-// A short intro is left alone: the prior only shrinks, it never extends.
-func TestReconcileSeasonIntroDurations_NeverExtendsShortIntro(t *testing.T) {
+// A CORROBORATED short intro (confidence at/above the support line) is left
+// alone: the outlier rule never extends, and the gentle snap only touches
+// lone-witness segments.
+func TestReconcileSeasonIntroDurations_LeavesCorroboratedShortIntroAlone(t *testing.T) {
 	t.Parallel()
 	segmentRepo := &fakeSegmentRepo{}
 	var eps []*domainlibrary.MediaItem
@@ -129,7 +131,7 @@ func TestReconcileSeasonIntroDurations_NeverExtendsShortIntro(t *testing.T) {
 		})
 		dur := int64(30_000)
 		if i == 4 {
-			dur = 8_000 // undershoot - a real failure mode, but extension risks worse
+			dur = 8_000 // undershoot, but corroborated - respected as-is
 		}
 		segmentRepo.seeded = append(segmentRepo.seeded, &domainlibrary.MediaSegment{
 			MediaItemID: shared.MediaItemID(id), Type: "intro",
@@ -143,4 +145,100 @@ func TestReconcileSeasonIntroDurations_NeverExtendsShortIntro(t *testing.T) {
 
 	svc.reconcileSeasonIntroDurations(context.Background(), "season-id")
 	assert.Empty(t, segmentRepo.upserted)
+}
+
+// seedSeason builds a 5-episode season whose intro durations and confidences
+// are given per episode, all sourced audio_cluster at start 10s.
+func seedSeason(durMs []int64, conf []float64) (*fakeSegmentRepo, []*domainlibrary.MediaItem) {
+	repo := &fakeSegmentRepo{}
+	var eps []*domainlibrary.MediaItem
+	for i := range durMs {
+		id := fmt.Sprintf("ep-%d", i)
+		idx := i + 1
+		eps = append(eps, &domainlibrary.MediaItem{
+			ID: shared.MediaItemID(id), Type: domainlibrary.Episode, IndexNumber: &idx,
+			File: &domainlibrary.MediaFile{Path: "/tmp/x.mkv"},
+		})
+		repo.seeded = append(repo.seeded, &domainlibrary.MediaSegment{
+			MediaItemID: shared.MediaItemID(id), Type: "intro",
+			StartMs: 10_000, EndMs: 10_000 + durMs[i], Source: "audio_cluster", Confidence: conf[i],
+		})
+	}
+	return repo, eps
+}
+
+// The music-bleed transfer: four episodes carry corroborated (subtitle-agreed)
+// ends at ~30s, the fifth has a lone-audio end overshooting by 6s. Its
+// duration snaps to the corroborated median - the subtitle signal of the
+// siblings reaches the episode that has none.
+func TestReconcileSeasonIntroDurations_SnapsLoneWitnessToCorroboratedMedian(t *testing.T) {
+	t.Parallel()
+	repo, eps := seedSeason(
+		[]int64{30_000, 30_000, 29_500, 30_500, 36_000},
+		[]float64{1.0, 1.0, 0.95, 0.9, 0.8},
+	)
+	svc := NewIntroDetectionService(
+		repo, &fakeTrickplayRepo{}, &fakeMediaItemRepo{siblings: eps},
+		&fakeConfigRepo{}, &fakeDetector{}, "/tmp/trickplay",
+	)
+
+	svc.reconcileSeasonIntroDurations(context.Background(), "season-id")
+
+	require.Len(t, repo.upserted, 1)
+	got := repo.upserted[0]
+	assert.Equal(t, shared.MediaItemID("ep-4"), got.MediaItemID)
+	assert.Equal(t, int64(10_000+30_000), got.EndMs, "lone-witness end adopts the corroborated median duration")
+}
+
+// The snap works in BOTH directions: a lone-witness end cut 6s short is
+// extended to the corroborated median (the too-early-cutoff class).
+func TestReconcileSeasonIntroDurations_SnapExtendsShortLoneWitness(t *testing.T) {
+	t.Parallel()
+	repo, eps := seedSeason(
+		[]int64{30_000, 30_000, 29_500, 30_500, 24_000},
+		[]float64{1.0, 1.0, 0.95, 0.9, 0.8},
+	)
+	svc := NewIntroDetectionService(
+		repo, &fakeTrickplayRepo{}, &fakeMediaItemRepo{siblings: eps},
+		&fakeConfigRepo{}, &fakeDetector{}, "/tmp/trickplay",
+	)
+
+	svc.reconcileSeasonIntroDurations(context.Background(), "season-id")
+
+	require.Len(t, repo.upserted, 1)
+	assert.Equal(t, int64(10_000+30_000), repo.upserted[0].EndMs)
+}
+
+// Inside the ±3s jitter floor nothing moves - correcting there would be noise
+// chasing noise.
+func TestReconcileSeasonIntroDurations_SnapRespectsJitterFloor(t *testing.T) {
+	t.Parallel()
+	repo, eps := seedSeason(
+		[]int64{30_000, 30_000, 29_500, 30_500, 32_000},
+		[]float64{1.0, 1.0, 0.95, 0.9, 0.8},
+	)
+	svc := NewIntroDetectionService(
+		repo, &fakeTrickplayRepo{}, &fakeMediaItemRepo{siblings: eps},
+		&fakeConfigRepo{}, &fakeDetector{}, "/tmp/trickplay",
+	)
+
+	svc.reconcileSeasonIntroDurations(context.Background(), "season-id")
+	assert.Empty(t, repo.upserted)
+}
+
+// Without enough corroborated ends the snap has no trustworthy target and
+// stays out entirely (only the outlier rule may act).
+func TestReconcileSeasonIntroDurations_NoSnapWithoutCorroboratedSupport(t *testing.T) {
+	t.Parallel()
+	repo, eps := seedSeason(
+		[]int64{30_000, 30_000, 29_500, 30_500, 36_000},
+		[]float64{0.8, 0.8, 0.8, 0.8, 0.8},
+	)
+	svc := NewIntroDetectionService(
+		repo, &fakeTrickplayRepo{}, &fakeMediaItemRepo{siblings: eps},
+		&fakeConfigRepo{}, &fakeDetector{}, "/tmp/trickplay",
+	)
+
+	svc.reconcileSeasonIntroDurations(context.Background(), "season-id")
+	assert.Empty(t, repo.upserted)
 }

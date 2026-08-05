@@ -35,6 +35,22 @@ const priorMinExcessMs = 12_000
 // extended title sequence) inside the band.
 const priorSigmaFactor = 4.0
 
+// priorSnapMinDeltaMs is the smallest duration deviation the gentle
+// median-snap corrects. Below it we are inside the detector's intrinsic
+// ±2-4s jitter and a correction would be noise chasing noise.
+const priorSnapMinDeltaMs = 3_000
+
+// priorSnapSupportConf splits corroborated boundaries from lone-witness ones.
+// A fused end where independent signals agreed (subtitle + audio + silence)
+// stores ≥0.9; a lone-audio end stores 0.8 (0.6 + 0.4*0.5 with the lone-vote
+// cap). Only segments BELOW this line get snapped, and only a median
+// supported by segments AT OR ABOVE it is trusted as the snap target - that
+// is how the subtitle-exact ends of sibling episodes reach the episodes that
+// have no subtitles (the music-bleed class the audio signals can't fix:
+// four independent per-second features were probed and all were flat at the
+// true boundary).
+const priorSnapSupportConf = 0.9
+
 // introDurationStats is the season's robust intro-duration distribution.
 type introDurationStats struct {
 	medianMs int64
@@ -131,28 +147,56 @@ func (s *IntroDetectionService) reconcileSeasonIntroDurations(ctx context.Contex
 	if !ok {
 		return
 	}
+
+	// The gentle snap target: a median computed ONLY from corroborated
+	// boundaries. Absent enough of those, only the outlier rule applies.
+	var supported []int64
+	for _, r := range intros {
+		if r.seg.Confidence >= priorSnapSupportConf {
+			supported = append(supported, r.seg.EndMs-r.seg.StartMs)
+		}
+	}
+	snapSt, snapOK := seasonIntroDurationStats(supported)
+
 	for _, r := range intros {
 		dur := r.seg.EndMs - r.seg.StartMs
-		if !durationExceedsPrior(dur, st) {
-			continue
-		}
 		corrected := *r.seg
-		corrected.EndMs = corrected.StartMs + st.medianMs
-		// The correction is an inference, not a measurement - cap its confidence
-		// below every direct detection so a later re-detection can replace it.
-		if corrected.Confidence > 0.75 {
-			corrected.Confidence = 0.75
+		switch {
+		case durationExceedsPrior(dur, st):
+			corrected.EndMs = corrected.StartMs + st.medianMs
+			// The correction is an inference, not a measurement - cap its
+			// confidence below every direct detection so a later re-detection
+			// can replace it.
+			if corrected.Confidence > 0.75 {
+				corrected.Confidence = 0.75
+			}
+		case snapOK && r.seg.Confidence < priorSnapSupportConf &&
+			absInt64(dur-snapSt.medianMs) > priorSnapMinDeltaMs &&
+			!durationExceedsPrior(dur, st):
+			// Lone-witness end a few seconds off a corroborated season median:
+			// adopt the median duration (both directions - music-bleed
+			// overshoot AND too-early cutoffs).
+			corrected.EndMs = corrected.StartMs + snapSt.medianMs
+		default:
+			continue
 		}
 		if _, err := s.segmentRepo.UpsertUnlessManual(ctx, &corrected); err != nil {
-			slog.WarnContext(ctx, "intro_prior: shrink outlier", slog.String("media_id", string(corrected.MediaItemID)), slog.Any("err", err))
+			slog.WarnContext(ctx, "intro_prior: adjust duration", slog.String("media_id", string(corrected.MediaItemID)), slog.Any("err", err))
 			continue
 		}
-		slog.InfoContext(ctx, "intro_prior: over-long intro shrunk to season median",
+		slog.InfoContext(ctx, "intro_prior: intro duration reconciled to season median",
 			slog.String("media_id", string(corrected.MediaItemID)),
 			slog.String("source", corrected.Source),
 			slog.Int64("duration_ms", dur),
-			slog.Int64("median_ms", st.medianMs),
+			slog.Int64("corrected_ms", corrected.EndMs-corrected.StartMs),
 			slog.Int64("mad_ms", st.madMs),
 			slog.Int("season_samples", st.n))
 	}
+}
+
+func absInt64(x int64) int64 {
+	if x < 0 {
+		return -x
+	}
+	return x
 }
