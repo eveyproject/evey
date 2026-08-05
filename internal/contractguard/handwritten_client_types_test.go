@@ -10,12 +10,12 @@
 // 2026-08-04). The web was fine because orval generates its types from the same
 // proto the server compiles.
 //
-// The rule: for a GET whose URL matches an rpc's http annotation, every field
+// The rule: for a call whose VERB+URL matches an rpc's http annotation, every field
 // the client's response interface declares must exist on that rpc's response
 // message.
 //
 // Honest limits:
-//   - GET only, and only calls whose URL is a literal in the same file;
+//   - only calls whose URL is a literal in the same file;
 //   - only the top-level interface handed to eveyFetch, not nested ones;
 //   - a field the client declares and never reads is still flagged, which is
 //     the right call: it is a promise nobody kept.
@@ -35,13 +35,23 @@ var clientTypeAllowlist = map[string]string{}
 
 var (
 	rpcRe       = regexp.MustCompile(`rpc\s+\w+\s*\(\s*[\w.]+\s*\)\s*returns\s*\(\s*([\w.]+)\s*\)`)
-	httpGetRe   = regexp.MustCompile(`get:\s*"([^"]+)"`)
+	// Every verb, not just get: the guard used to stop at GET while the mobile
+	// and TV apps hand eveyFetch a declared response type on 18 non-GET calls
+	// too (3 POST, 6 PUT, 9 DELETE), all of them trusted just as blindly.
+	httpRouteRe = regexp.MustCompile(`(get|post|put|patch|delete):\s*"([^"]+)"`)
 	fetchCallRe = regexp.MustCompile(`(?s)eveyFetch<(\w+)>\(\{(.{0,400}?)\}\)`)
 	urlRe       = regexp.MustCompile("url:\\s*[`\"']([^`\"']+)[`\"']")
 	methodRe    = regexp.MustCompile(`method:\s*"(\w+)"`)
 	tsFieldRe   = regexp.MustCompile(`(?m)^\s*(\w+)\??\s*:`)
 	pathParamRe = regexp.MustCompile(`\{[^}]*\}|\$\{[^}]*\}`)
 )
+
+// routeKey pairs a verb with a normalised path. Keying on the path alone would
+// match a client DELETE against the GET annotation of the same URL - two
+// different rpcs, two different messages.
+func routeKey(verb, path string) string {
+	return strings.ToUpper(verb) + " " + normalisePath(path)
+}
 
 func normalisePath(p string) string {
 	if i := strings.Index(p, "?"); i >= 0 {
@@ -50,10 +60,10 @@ func normalisePath(p string) string {
 	return pathParamRe.ReplaceAllString(p, "{}")
 }
 
-// parseGetRoutes pairs each GET annotation with the response message of the rpc
+// parseHTTPRoutes pairs each http annotation with the response message of the rpc
 // it belongs to. The annotation always follows its rpc line, so a scan that
 // remembers the last rpc seen is enough.
-func parseGetRoutes(t *testing.T, dir string) map[string]string {
+func parseHTTPRoutes(t *testing.T, dir string) map[string]string {
 	t.Helper()
 	out := map[string]string{}
 	entries, err := os.ReadDir(dir)
@@ -74,8 +84,8 @@ func parseGetRoutes(t *testing.T, dir string) map[string]string {
 				current = m[1]
 				continue
 			}
-			if m := httpGetRe.FindStringSubmatch(line); m != nil && current != "" {
-				out[normalisePath(m[1])] = current
+			if m := httpRouteRe.FindStringSubmatch(line); m != nil && current != "" {
+				out[routeKey(m[1], m[2])] = current
 			}
 		}
 	}
@@ -170,10 +180,10 @@ var queryParamAllowlist = map[string]string{
 }
 
 // rpcRequestRe pairs an rpc with its REQUEST message, the mirror of
-// parseGetRoutes.
+// parseHTTPRoutes.
 var rpcRequestRe = regexp.MustCompile(`rpc\s+\w+\s*\(\s*([\w.]+)\s*\)\s*returns`)
 
-func parseGetRequestMessages(t *testing.T, dir string) map[string]string {
+func parseHTTPRequestMessages(t *testing.T, dir string) map[string]string {
 	t.Helper()
 	out := map[string]string{}
 	entries, err := os.ReadDir(dir)
@@ -194,8 +204,8 @@ func parseGetRequestMessages(t *testing.T, dir string) map[string]string {
 				current = m[1]
 				continue
 			}
-			if m := httpGetRe.FindStringSubmatch(line); m != nil && current != "" {
-				out[normalisePath(m[1])] = current
+			if m := httpRouteRe.FindStringSubmatch(line); m != nil && current != "" {
+				out[routeKey(m[1], m[2])] = current
 			}
 		}
 	}
@@ -209,7 +219,7 @@ func parseGetRequestMessages(t *testing.T, dir string) map[string]string {
 // deliberate (found 2026-08-04).
 func TestClientQueryParamsExistOnTheRequestTheyTarget(t *testing.T) {
 	protoDir := filepath.Join(repoRoot, "proto/evey/v1")
-	requests := parseGetRequestMessages(t, protoDir)
+	requests := parseHTTPRequestMessages(t, protoDir)
 	fields := protoResponseFields(t, protoDir)
 
 	var findings []string
@@ -222,9 +232,11 @@ func TestClientQueryParamsExistOnTheRequestTheyTarget(t *testing.T) {
 		src := string(b)
 		for _, call := range fetchCallRe.FindAllStringSubmatch(src, -1) {
 			body := call[2]
-			if m := methodRe.FindStringSubmatch(body); m == nil || m[1] != "GET" {
+			mm := methodRe.FindStringSubmatch(body)
+			if mm == nil {
 				continue
 			}
+			verb := mm[1]
 			um := urlRe.FindStringSubmatch(body)
 			if um == nil {
 				continue
@@ -234,7 +246,7 @@ func TestClientQueryParamsExistOnTheRequestTheyTarget(t *testing.T) {
 			if !hasQuery {
 				continue
 			}
-			msg, known := requests[normalisePath(raw)]
+			msg, known := requests[routeKey(verb, raw)]
 			if !known {
 				continue
 			}
@@ -289,7 +301,7 @@ func TestHandWrittenClientTypeGuardFiresOnAWrapperThatDoesNotExist(t *testing.T)
 
 func TestHandWrittenClientTypesMatchTheEndpointTheyCall(t *testing.T) {
 	protoDir := filepath.Join(repoRoot, "proto/evey/v1")
-	routes := parseGetRoutes(t, protoDir)
+	routes := parseHTTPRoutes(t, protoDir)
 	if len(routes) < 50 {
 		t.Fatalf("parsed %d GET routes, want at least 50 - the parser has drifted", len(routes))
 	}
@@ -305,14 +317,16 @@ func TestHandWrittenClientTypesMatchTheEndpointTheyCall(t *testing.T) {
 		src := string(b)
 		for _, call := range fetchCallRe.FindAllStringSubmatch(src, -1) {
 			typeName, body := call[1], call[2]
-			if m := methodRe.FindStringSubmatch(body); m == nil || m[1] != "GET" {
+			mm := methodRe.FindStringSubmatch(body)
+			if mm == nil {
 				continue
 			}
+			verb := mm[1]
 			um := urlRe.FindStringSubmatch(body)
 			if um == nil {
 				continue
 			}
-			msg, known := routes[normalisePath(um[1])]
+			msg, known := routes[routeKey(verb, um[1])]
 			if !known {
 				continue
 			}
@@ -343,5 +357,5 @@ func TestHandWrittenClientTypesMatchTheEndpointTheyCall(t *testing.T) {
 			"Either the server must send them, or the client must stop claiming them.",
 			strings.Join(findings, "\n  "))
 	}
-	t.Logf("checked %d hand-written GET response types", checked)
+	t.Logf("checked %d hand-written response types", checked)
 }
