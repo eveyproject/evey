@@ -83,6 +83,7 @@ func (h *libraryHandler) GetMediaItem(ctx context.Context, req *eveyv1.GetMediaI
 		}
 	}
 	pb := mediaItemToProto(item, ctxIsAdmin(ctx))
+	fillAncestorTitles(ctx, h.query.GetMediaItemsByIDs, []*eveyv1.MediaItem{pb})
 	// Artwork/cast/streams are best-effort enrichments: a failure on one must
 	// not fail the whole detail response. But the errors were being swallowed
 	// silently, which hides real problems (e.g. streams empty in the DB or a
@@ -379,6 +380,7 @@ func (h *libraryHandler) ListMediaItems(ctx context.Context, req *eveyv1.ListMed
 	castMap := h.fetchMediaItemsCast(ctx, req, ids)
 	streamsMap := h.fetchMediaItemsStreams(ctx, ids)
 	resp.Items = mediaItemsToProto(ctx, items, pf, artworkMap, castMap, streamsMap)
+	fillAncestorTitles(ctx, h.query.GetMediaItemsByIDs, resp.Items)
 	return resp, nil
 }
 
@@ -515,6 +517,7 @@ func (h *libraryHandler) FilterMediaItems(ctx context.Context, req *eveyv1.Filte
 		}
 		resp.Items = append(resp.Items, pb)
 	}
+	fillAncestorTitles(ctx, h.query.GetMediaItemsByIDs, resp.Items)
 	return resp, nil
 }
 

@@ -135,6 +135,24 @@ func (h *libraryHandler) SearchMedia(ctx context.Context, req *eveyv1.SearchMedi
 		}
 		resp.Items = append(resp.Items, mi)
 	}
+	// Search hits are minimal index rows without parent linkage: resolve the
+	// episode hits once so their cards can carry the series title.
+	episodesByID := make(map[string]*eveyv1.MediaItem)
+	for _, mi := range resp.Items {
+		if mi.Type == eveyv1.MediaItemType_MEDIA_ITEM_TYPE_EPISODE {
+			episodesByID[mi.Id] = mi
+		}
+	}
+	if len(episodesByID) > 0 {
+		ids := make([]string, 0, len(episodesByID))
+		for id := range episodesByID {
+			ids = append(ids, id)
+		}
+		for id, full := range fetchItemMap(ctx, h.query.GetMediaItemsByIDs, ids) {
+			episodesByID[id].ParentId = full.ParentID
+		}
+		fillAncestorTitles(ctx, h.query.GetMediaItemsByIDs, resp.Items)
+	}
 	// TotalHits is the backend's unfiltered tally, so on its own it announces
 	// matches in libraries the caller cannot see (or that parental blocks):
 	// the item list came back empty while the count said "3 results". That is

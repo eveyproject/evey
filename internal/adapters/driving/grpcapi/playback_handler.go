@@ -767,22 +767,7 @@ func (h *playbackHandler) enrichWatchHistory(ctx context.Context, items []*playb
 		ids = append(ids, string(wp.MediaItemID))
 	}
 	byID := h.mediaItemMap(ctx, ids)
-
-	// Episodes need their season (number) and series (title), one level up each.
-	seasonIDs := make([]string, 0)
-	for _, mi := range byID {
-		if mi.Type == library.Episode && mi.ParentID != "" {
-			seasonIDs = append(seasonIDs, mi.ParentID)
-		}
-	}
-	seasonByID := h.mediaItemMap(ctx, seasonIDs)
-	seriesIDs := make([]string, 0)
-	for _, s := range seasonByID {
-		if s.ParentID != "" {
-			seriesIDs = append(seriesIDs, s.ParentID)
-		}
-	}
-	seriesByID := h.mediaItemMap(ctx, seriesIDs)
+	seasonByID, seriesByID := h.episodeAncestors(ctx, byID)
 
 	out := make([]*eveyv1.WatchProgress, 0, len(items))
 	for _, wp := range items {
@@ -796,23 +781,7 @@ func (h *playbackHandler) enrichWatchHistory(ctx context.Context, items []*playb
 		}
 		pb := watchProgressToProto(wp)
 		applyMediaDuration(pb, mi)
-		if mi != nil {
-			pb.Title = mi.Title
-			pb.MediaType = string(mi.Type)
-			if mi.IndexNumber != nil {
-				pb.IndexNumber = int32(*mi.IndexNumber)
-			}
-			if mi.Type == library.Episode {
-				if season := seasonByID[mi.ParentID]; season != nil {
-					if season.IndexNumber != nil {
-						pb.ParentIndexNumber = int32(*season.IndexNumber)
-					}
-					if series := seriesByID[season.ParentID]; series != nil {
-						pb.SeriesTitle = series.Title
-					}
-				}
-			}
-		}
+		stampProgressDisplay(pb, mi, seasonByID, seriesByID)
 		out = append(out, pb)
 	}
 	return out
@@ -821,19 +790,51 @@ func (h *playbackHandler) enrichWatchHistory(ctx context.Context, items []*playb
 // mediaItemMap batch-resolves media items by ID into a lookup map. Best-effort:
 // a fetch error logs and yields an empty map rather than failing the caller.
 func (h *playbackHandler) mediaItemMap(ctx context.Context, ids []string) map[string]*library.MediaItem {
-	m := map[string]*library.MediaItem{}
-	if len(ids) == 0 {
-		return m
+	return fetchItemMap(ctx, h.librarySvc.GetMediaItemsByIDs, ids)
+}
+
+// episodeAncestors resolves the season and series levels above the given
+// items, one batch fetch each.
+func (h *playbackHandler) episodeAncestors(ctx context.Context, byID map[string]*library.MediaItem) (seasonByID, seriesByID map[string]*library.MediaItem) {
+	seasonIDs := make([]string, 0)
+	for _, mi := range byID {
+		if mi.Type == library.Episode && mi.ParentID != "" {
+			seasonIDs = append(seasonIDs, mi.ParentID)
+		}
 	}
-	mis, err := h.librarySvc.GetMediaItemsByIDs(ctx, ids)
-	if err != nil {
-		slog.WarnContext(ctx, "watch history: batch fetch media items", slog.Any("err", err))
-		return m
+	seasonByID = h.mediaItemMap(ctx, seasonIDs)
+	seriesIDs := make([]string, 0)
+	for _, s := range seasonByID {
+		if s.ParentID != "" {
+			seriesIDs = append(seriesIDs, s.ParentID)
+		}
 	}
-	for _, mi := range mis {
-		m[string(mi.ID)] = mi
+	seriesByID = h.mediaItemMap(ctx, seriesIDs)
+	return seasonByID, seriesByID
+}
+
+// stampProgressDisplay copies the display metadata clients render instead of
+// the bare media_item_id: title, type, episode number, plus season number and
+// series title for episodes.
+func stampProgressDisplay(pb *eveyv1.WatchProgress, mi *library.MediaItem, seasonByID, seriesByID map[string]*library.MediaItem) {
+	if mi == nil {
+		return
 	}
-	return m
+	pb.Title = mi.Title
+	pb.MediaType = string(mi.Type)
+	if mi.IndexNumber != nil {
+		pb.IndexNumber = int32(*mi.IndexNumber)
+	}
+	if mi.Type == library.Episode {
+		if season := seasonByID[mi.ParentID]; season != nil {
+			if season.IndexNumber != nil {
+				pb.ParentIndexNumber = int32(*season.IndexNumber)
+			}
+			if series := seriesByID[season.ParentID]; series != nil {
+				pb.SeriesTitle = series.Title
+			}
+		}
+	}
 }
 
 func (h *playbackHandler) GetResumeItems(ctx context.Context, req *eveyv1.GetResumeItemsRequest) (*eveyv1.GetResumeItemsResponse, error) {
@@ -880,6 +881,7 @@ func (h *playbackHandler) GetResumeItems(ctx context.Context, req *eveyv1.GetRes
 		ids[i] = string(wp.MediaItemID)
 	}
 	miByID := h.mediaItemMap(ctx, ids)
+	seasonByID, seriesByID := h.episodeAncestors(ctx, miByID)
 	for _, wp := range items {
 		mi := miByID[string(wp.MediaItemID)]
 		if allowedIDs != nil || parentalActive {
@@ -897,6 +899,7 @@ func (h *playbackHandler) GetResumeItems(ctx context.Context, req *eveyv1.GetRes
 		}
 		pb := watchProgressToProto(wp)
 		applyMediaDuration(pb, mi)
+		stampProgressDisplay(pb, mi, seasonByID, seriesByID)
 		resp.Progress = append(resp.Progress, pb)
 	}
 	return resp, nil
@@ -960,6 +963,7 @@ func (h *playbackHandler) GetNextUp(ctx context.Context, req *eveyv1.GetNextUpRe
 			resp.Items = append(resp.Items, mediaItemToProto(item, ctxIsAdmin(ctx)))
 		}
 	}
+	fillAncestorTitles(ctx, h.librarySvc.GetMediaItemsByIDs, resp.Items)
 	return resp, nil
 }
 

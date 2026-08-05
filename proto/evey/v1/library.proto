@@ -183,6 +183,11 @@ message MediaItem {
   // Per-country content ratings (e.g. {"US":"PG-13","FR":"-12"}).
   // official_rating mirrors the "US" entry when available.
   map<string, string> certifications_by_country = 31;
+  // Ancestor display titles, stamped by the read endpoints on episodes (both)
+  // and seasons (series_title only): rows and search results can label an
+  // episode with its series without one round-trip per card.
+  string series_title = 32;
+  string season_title = 33;
 }
 
 message Rating {
