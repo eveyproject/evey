@@ -29,6 +29,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"time"
@@ -413,6 +414,16 @@ func verifySegmentTimeline(name, segPrefix string, tfdtMs int64, expectedStartMs
 // namePrefix selects the rung's filenames: "stream" for the video variants,
 // "audio" for the EXT-X-MEDIA renditions (which seek exactly the same way).
 func runRebasePump(done <-chan struct{}, stop <-chan struct{}, privDir, pubDir string, deltaMs int64, namePrefix string, variantIdx int, expectedStartMs func(int) (int64, bool), driftKind string) {
+	// ADR-0007: both call sites spawn this as a bare goroutine, and a parent
+	// recover never covers a child goroutine - a panic here (file I/O races,
+	// box parsing on a truncated segment) would kill the whole server.
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("panic recovered in fmp4 rebase pump",
+				slog.String("dir", privDir),
+				slog.Any("recover", r), slog.String("stack", string(debug.Stack())))
+		}
+	}()
 	initName := fmt.Sprintf("%s_%d_init.mp4", namePrefix, variantIdx)
 	segPrefix := fmt.Sprintf("%s_%d_", namePrefix, variantIdx)
 	published := make(map[string]bool, 64)

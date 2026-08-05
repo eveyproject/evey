@@ -216,3 +216,24 @@ func TestChapterPass_UnresolvedEndIsDropped(t *testing.T) {
 	segs := svc.chapterPass(context.Background(), item)
 	assert.Empty(t, segs)
 }
+
+// Bare "ending" is weak evidence: an "Ending Theme" chapter opening an episode
+// must NOT become end_credits (and Contains would also match pending/ascending
+// in the front half). In the back half it keeps its credits meaning.
+func TestChapterPass_BareEndingIsPositionGated(t *testing.T) {
+	t.Parallel()
+	front := []*domainlibrary.Chapter{
+		{Title: "Ending Theme", StartTimeMs: 60_000, EndTimeMs: 150_000},
+	}
+	svc, item := newServiceWithChaptersAndDuration(t, front, 24*60*1000)
+	assert.Empty(t, svc.chapterPass(context.Background(), item),
+		"a front-half 'Ending Theme' chapter is not the credits")
+
+	back := []*domainlibrary.Chapter{
+		{Title: "Ending", StartTimeMs: 20*60*1000 + 60_000, EndTimeMs: 23 * 60 * 1000},
+	}
+	svc2, item2 := newServiceWithChaptersAndDuration(t, back, 24*60*1000)
+	segs := svc2.chapterPass(context.Background(), item2)
+	require.Len(t, segs, 1)
+	assert.Equal(t, "end_credits", segs[0].Type)
+}

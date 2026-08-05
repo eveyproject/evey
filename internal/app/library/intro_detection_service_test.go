@@ -225,6 +225,24 @@ func TestClassifyConfirmed_PicksLongestAsIntro(t *testing.T) {
 	assert.Equal(t, 0.95, segs[1].Confidence)
 }
 
+// With TWO short windows before the intro (a confirmed recurring bumper early,
+// the real "previously on" right before the title sequence), the recap is the
+// window CLOSEST to the intro - not the first chronological match.
+func TestClassifyConfirmed_RecapIsClosestWindowToIntro(t *testing.T) {
+	t.Parallel()
+	wins := []confirmedWindow{
+		{startMs: 0, endMs: 15_000, confidence: 0.9},        // network bumper
+		{startMs: 100_000, endMs: 140_000, confidence: 0.9}, // the actual recap
+		{startMs: 150_000, endMs: 260_000, confidence: 0.95},
+	}
+	segs := classifyConfirmed(wins, defaultIntroConfig())
+	require.Len(t, segs, 2)
+	assert.Equal(t, "recap", segs[0].Type)
+	assert.Equal(t, int64(100_000), segs[0].StartMs, "the recap is the qualifying window closest to the intro")
+	assert.Equal(t, int64(140_000), segs[0].EndMs)
+	assert.Equal(t, "intro", segs[1].Type)
+}
+
 func TestClassifyConfirmed_NoRecapWhenEarlierIsLong(t *testing.T) {
 	t.Parallel()
 	wins := []confirmedWindow{

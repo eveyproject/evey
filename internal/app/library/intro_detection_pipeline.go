@@ -468,9 +468,16 @@ func (s *IntroDetectionService) chapterPass(ctx context.Context, item *domainlib
 		case strings.Contains(t, "generique de fin") || strings.Contains(t, "générique de fin"):
 			return "end_credits"
 		case strings.Contains(t, "end credits") ||
-			strings.Contains(t, "closing credits") ||
-			strings.Contains(t, "ending"):
+			strings.Contains(t, "closing credits"):
 			return "end_credits"
+		case strings.Contains(t, "ending"):
+			// Bare "ending" is weak evidence ("Ending Theme" can open an
+			// anime episode, and Contains also matches pending/ascending):
+			// only trust it in the back half of the file.
+			if inBackHalf {
+				return "end_credits"
+			}
+			return ""
 		case strings.Contains(t, "intro") ||
 			strings.Contains(t, "opening") ||
 			strings.Contains(t, "theme") ||
@@ -566,23 +573,32 @@ func classifyConfirmed(windows []confirmedWindow, cfg introConfig) []domainlibra
 		Source:     "phash",
 		Confidence: intro.confidence,
 	}}
-	// Look for an earlier short window (< RecapMaxMs) ending before intro start:
-	// that's the recap (a brief "previously on…" before the title sequence).
-	for _, w := range windows {
+	// Look for the LAST short window (< RecapMaxMs) ending before the intro
+	// start: that's the recap (a brief "previously on…" right before the title
+	// sequence). Taking the first chronological match instead would mislabel an
+	// earlier recurring element (a confirmed network bumper) as the recap and
+	// never consider the true one sitting closest to the intro.
+	var recap *confirmedWindow
+	for i := range windows {
+		w := windows[i]
 		if w.endMs > intro.startMs {
 			continue
 		}
 		if (w.endMs - w.startMs) >= cfg.RecapMaxMs {
 			continue
 		}
+		if recap == nil || w.endMs > recap.endMs {
+			recap = &windows[i]
+		}
+	}
+	if recap != nil {
 		out = append([]domainlibrary.MediaSegment{{
 			Type:       "recap",
-			StartMs:    w.startMs,
-			EndMs:      w.endMs,
+			StartMs:    recap.startMs,
+			EndMs:      recap.endMs,
 			Source:     "phash",
 			Confidence: 0.7,
 		}}, out...)
-		break
 	}
 	return out
 }
