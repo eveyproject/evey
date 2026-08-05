@@ -83,11 +83,15 @@ type introConfig struct {
 // -10.25] → coherent=8/11=0.72 passes 0.6 but is clearly noise). 0.7
 // requires the median drift to actually represent the bulk of siblings.
 //
-// MaxIntroStartMs = 240_000 (4 min): true intros sit near the start of the
-// episode. Anything detected past 4 minutes is much more likely a
-// recurring in-episode visual element (chapter card, flashback, recap
-// segment) than an intro. Prevents false positives like Gen V "Leçons de
-// Cuisine" detected at 9:20-10:00.
+// MaxIntroStartMs = 660_000 (11 min): the gold set refuted the previous 4-min
+// cap - six user-verified intros start later (series title sequences at
+// 4:30-8:43 after long cold opens; films go past 13 min but follow other
+// paths). The cap still exists to reject recurring in-episode elements
+// (chapter cards, flashbacks - the class behind a false positive detected at
+// 9:20-10:00 on a show with no intro), and now also bounds the season-cluster
+// hints, which previously had no cap at all. If the raise re-surfaces that FP
+// class, tighten via server_config rather than reverting: the late intros are
+// proven real.
 func defaultIntroConfig() introConfig {
 	return introConfig{
 		MaxHamming:            8,
@@ -102,7 +106,7 @@ func defaultIntroConfig() introConfig {
 		MinRatio:              0.7,
 		RecapMaxMs:            60 * 1000,
 		FrameCutoffPercent:    0.25,
-		MaxIntroStartMs:       240_000,
+		MaxIntroStartMs:       660_000,
 		MinServeConfidence:    0.55,
 		SeasonClusterEnabled:  true,
 		AudioDiscoveryEnabled: false,

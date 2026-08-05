@@ -123,10 +123,15 @@ func discoverRecurringIntro(target []uint32, siblings [][]uint32, p discoverPara
 }
 
 const (
-	// discoverWindowSec bounds the audio window fingerprinted per episode. Intros
+	// discoverWindowSec bounds the audio window fingerprinted per episode. 720s
+	// (12 min): the gold set holds real intros starting past 8 minutes (a title
+	// sequence at 8:43-10:29 after a long cold open), which the previous 480s
+	// window could not even see - the season cluster was structurally blind to
+	// them. The cache keys on WindowSec, so bumping this recomputes cleanly.
+	// Original note: intros
 	// on cold-open shows can sit at 5+ min, so the window must be generous; 8 min
 	// covers every observed case while keeping fpcalc cost bounded.
-	discoverWindowSec = 480.0
+	discoverWindowSec = 720.0
 	// discoverMaxSiblings caps how many other episodes we fingerprint to confirm
 	// recurrence - enough for MinMatches, bounded so the season pass isn't O(n²)
 	// in fpcalc.

@@ -108,7 +108,10 @@ const currentAudioAlgoVersion int16 = 1
 // runPipeline AND no longer count as a "good" cover in detectSeason - their
 // timestamps ignore the local edition. Episodes parked with a provider-only
 // intro become eligible for file-derived re-detection.
-const introDetectionAlgoVersion = 4
+// v5: late title sequences become visible - fingerprint window 480s→720s,
+// MaxIntroStartMs 240s→660s (gold-refuted cap), cluster hints capped too.
+// Episodes parked at v4 with no detectable intro (long cold opens) re-enter.
+const introDetectionAlgoVersion = 5
 
 // maxIntroDetectionAttempts bounds the backfill's re-decodes of an episode that
 // keeps yielding no usable intro at the same algo version (one retry for the

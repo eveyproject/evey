@@ -232,10 +232,20 @@ func (s *IntroDetectionService) clusterSeasonIntro(ctx context.Context, parentID
 	}
 	sigFrames := len(cluster.sig)
 	out := make(map[string]domainlibrary.MediaSegment, len(cluster.carriers))
+	dropped := 0
 	for _, c := range cluster.carriers {
+		startMs := framesToMs(c.offsetFrames)
+		// Same cap as the pHash pass: a recurring segment sitting deeper than
+		// MaxIntroStartMs is an in-episode element (chapter card, flashback),
+		// not a title sequence. The cluster had no cap before the window grew
+		// past 8 minutes.
+		if cfg.MaxIntroStartMs > 0 && startMs > cfg.MaxIntroStartMs {
+			dropped++
+			continue
+		}
 		out[c.id] = domainlibrary.MediaSegment{
 			Type:       "intro",
-			StartMs:    framesToMs(c.offsetFrames),
+			StartMs:    startMs,
 			EndMs:      framesToMs(c.offsetFrames + sigFrames),
 			Source:     "audio_cluster",
 			Confidence: 0.9,
@@ -245,6 +255,7 @@ func (s *IntroDetectionService) clusterSeasonIntro(ctx context.Context, parentID
 		slog.String("parent_id", parentID),
 		slog.Int("episodes", len(eps)),
 		slog.Int("carriers", len(cluster.carriers)),
+		slog.Int("dropped_past_start_cap", dropped),
 		slog.Int("sig_frames", sigFrames))
 	return out
 }
