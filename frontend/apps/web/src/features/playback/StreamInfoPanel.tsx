@@ -170,9 +170,10 @@ export function StreamInfoPanel({ streamInfo, open, onToggle, wasmAudioActive }:
               {videoStream.profile && (
                 <InfoRow label={t("player.streamInfo.profile")} value={videoStream.profile} />
               )}
-              {videoStream.pixelFormat && (
-                <InfoRow label={t("player.streamInfo.pixelFormat")} value={videoStream.pixelFormat} />
-              )}
+              {/* No pixel-format row: the proto carries the field but nothing
+                  ever fills it - ffprobe reads pix_fmt and the value is dropped
+                  before the domain, so this row has never rendered once. See
+                  the backlog entry if the probe→schema→domain chain gets wired. */}
             </>
           )}
 

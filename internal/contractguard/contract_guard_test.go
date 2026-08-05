@@ -41,8 +41,6 @@ var allowlist = map[string]string{
 	"settings":  "client reads are i18n keys and local nav objects, not the metadata provider settings map",
 	"track_id":  "client read is the music player's local scrobble state, not the mkv diagnose proto field",
 	"platform":  "PushService.ListDevices returns an empty list BY DESIGN (FCM era removed, see push_handler.go:102) - the field cannot be live",
-	"pixel_format": "REAL GAP, tracked: StreamInfoPanel (web+mobile) renders it when present, but the whole " +
-		"probe→schema→domain→proto chain never captured it - backlogged 2026-08-03, too deep for an inline fix",
 }
 
 type protoField struct {
