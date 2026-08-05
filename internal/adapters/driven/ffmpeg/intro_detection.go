@@ -299,10 +299,37 @@ func (d *IntroDetector) DetectEndCredits(ctx context.Context, filePath string, d
 	return creditsStartMs, creditsEndMs, true, nil
 }
 
-// parseEndCredits finds the first black region with duration >= 1.0s in the
-// FFmpeg output produced for the window starting at startSec. Offsets in the
-// output are relative to -ss startSec and are converted back to file-absolute ms.
+// Credits-selection tuning for parseEndCredits.
+const (
+	// minCreditsBlackSec: black regions shorter than this are ignored (frame
+	// drops, flash cuts).
+	minCreditsBlackSec = 1.0
+	// creditsClusterGapSec: black regions closer than this belong to the same
+	// cluster. Credits produce a trailing cluster (fade-in, card gaps, post-
+	// credit black); an isolated mid-scene fade does not.
+	creditsClusterGapSec = 120.0
+	// creditsSingleRegionMaxLeadSec: a cluster of ONE region is only trusted
+	// when it sits this close to the end of the file. An isolated black fade
+	// minutes before the end is a scene transition, not the credits - taking
+	// it produced "skip credits" prompts >10 minutes early.
+	creditsSingleRegionMaxLeadSec = 300.0
+	// creditsClusterMinBlackSec: alternatively, a single region carrying this
+	// much black IS trusted farther out (a long fade-to-black credits opening).
+	creditsClusterMinBlackSec = 5.0
+)
+
+// parseEndCredits locates the start of the credits roll in the blackdetect
+// output produced for the window starting at startSec (offsets are relative to
+// -ss startSec; returned ms are file-absolute).
+//
+// The credits are the TRAILING cluster of black regions - never simply the
+// first black in the window. A lone black fade far from the end (a scene
+// transition inside the scan window) previously became "credits from here to
+// the end", surfacing a skip prompt many minutes early; it is now rejected
+// unless it is either close to the end or carries a long stretch of black.
 func parseEndCredits(output string, startSec, durationSec float64) (startMs, endMs int64, found bool) {
+	type blackRegion struct{ startSec, durSec float64 }
+	var regions []blackRegion
 	for _, line := range strings.Split(output, "\n") {
 		startMatches := reBlackStart.FindStringSubmatch(line)
 		durMatches := reBlackDuration.FindStringSubmatch(line)
@@ -311,14 +338,39 @@ func parseEndCredits(output string, startSec, durationSec float64) (startMs, end
 		}
 		offset, err1 := strconv.ParseFloat(startMatches[1], 64)
 		dur, err2 := strconv.ParseFloat(durMatches[1], 64)
-		if err1 != nil || err2 != nil {
+		if err1 != nil || err2 != nil || dur < minCreditsBlackSec {
 			continue
 		}
-		if dur >= 1.0 {
-			return int64((startSec + offset) * 1000), int64(durationSec * 1000), true
-		}
+		regions = append(regions, blackRegion{startSec: startSec + offset, durSec: dur})
 	}
-	return 0, 0, false
+	if len(regions) == 0 {
+		return 0, 0, false
+	}
+
+	// Trailing cluster: walk backwards from the last region while gaps stay
+	// within creditsClusterGapSec.
+	first := len(regions) - 1
+	for first > 0 {
+		prev := regions[first-1]
+		if regions[first].startSec-(prev.startSec+prev.durSec) > creditsClusterGapSec {
+			break
+		}
+		first--
+	}
+	cluster := regions[first:]
+
+	var clusterBlackSec float64
+	for _, r := range cluster {
+		clusterBlackSec += r.durSec
+	}
+	lead := durationSec - cluster[0].startSec
+	trusted := len(cluster) >= 2 ||
+		clusterBlackSec >= creditsClusterMinBlackSec ||
+		lead <= creditsSingleRegionMaxLeadSec
+	if !trusted {
+		return 0, 0, false
+	}
+	return int64(cluster[0].startSec * 1000), int64(durationSec * 1000), true
 }
 
 // DetectStudioLogo searches the first ~90 seconds of trickplay frame hashes for

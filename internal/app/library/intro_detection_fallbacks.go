@@ -8,6 +8,8 @@ import (
 	"runtime/debug"
 	"time"
 
+	"github.com/google/uuid"
+
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
 )
@@ -155,6 +157,65 @@ func (s *IntroDetectionService) detectStudioLogo(ctx context.Context, item *doma
 		Confidence: 0.7,
 		Source:     "logo_match",
 	}
+}
+
+// suspiciousCreditsLeadMs flags a stored blackdetect credits row whose start
+// sits farther than this from the end of the file. Real episode credits run
+// ~30s-2min; a 4+ minute lead is almost always the old first-black parser
+// having latched onto a mid-scene fade (the ">10 minutes early" prod reports).
+const suspiciousCreditsLeadMs = 4 * 60 * 1000
+
+// refreshSuspectCredits re-runs the credits detector for an episode whose
+// stored blackdetect credits start implausibly far from the end. Called for
+// episodes the season sweep otherwise skips (their intro is covered), so a
+// credits-parser fix still reaches them. Self-quiescing: the refreshed row is
+// either plausible (no longer suspect) or deleted when the fixed detector
+// finds nothing - a missing credits marker beats a mid-scene skip prompt.
+func (s *IntroDetectionService) refreshSuspectCredits(ctx context.Context, item *domainlibrary.MediaItem, existing []*domainlibrary.MediaSegment) {
+	var credits *domainlibrary.MediaSegment
+	for _, sg := range existing {
+		if sg.Type == "end_credits" {
+			credits = sg
+			break
+		}
+	}
+	if credits == nil || credits.Source != "blackdetect" {
+		return
+	}
+	if item.File == nil || item.File.Path == "" || item.File.Duration.IsZero() {
+		return
+	}
+	if item.File.Duration.Milliseconds()-credits.StartMs <= suspiciousCreditsLeadMs {
+		return
+	}
+	seg, err := s.detectEndCredits(ctx, item)
+	if err != nil {
+		slog.WarnContext(ctx, "intro_detection: suspect credits refresh failed",
+			slog.String("media_id", string(item.ID)), slog.Any("err", err))
+		return
+	}
+	if seg == nil {
+		if delErr := s.segmentRepo.DeleteByMediaItemIDAndType(ctx, item.ID, "end_credits"); delErr != nil {
+			slog.WarnContext(ctx, "intro_detection: suspect credits delete failed",
+				slog.String("media_id", string(item.ID)), slog.Any("err", delErr))
+			return
+		}
+		slog.InfoContext(ctx, "intro_detection: suspect credits removed (nothing found on refresh)",
+			slog.String("media_id", string(item.ID)),
+			slog.Int64("old_start_ms", credits.StartMs))
+		return
+	}
+	seg.ID = uuid.New().String()
+	seg.MediaItemID = item.ID
+	if _, err := s.segmentRepo.UpsertUnlessManual(ctx, seg); err != nil {
+		slog.WarnContext(ctx, "intro_detection: suspect credits upsert failed",
+			slog.String("media_id", string(item.ID)), slog.Any("err", err))
+		return
+	}
+	slog.InfoContext(ctx, "intro_detection: suspect credits refreshed",
+		slog.String("media_id", string(item.ID)),
+		slog.Int64("old_start_ms", credits.StartMs),
+		slog.Int64("new_start_ms", seg.StartMs))
 }
 
 // detectEndCredits runs the credits detector on the file and returns a

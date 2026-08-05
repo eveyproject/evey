@@ -440,7 +440,7 @@ func (s *IntroDetectionService) BackfillLibrary(ctx context.Context, libraryID s
 		}
 	}
 
-	if len(parentIDs) == 0 {
+	if len(parentIDs) == 0 && libraryID == "" {
 		return 0, nil
 	}
 	slog.InfoContext(ctx, "intro detection admin backfill: starting",
@@ -452,10 +452,104 @@ func (s *IntroDetectionService) BackfillLibrary(ctx context.Context, libraryID s
 		}
 		s.detectSeason(ctx, pid)
 	}
+	movies := 0
+	if libraryID != "" {
+		movies = s.backfillMovies(ctx, libraryID)
+	}
 	slog.InfoContext(ctx, "intro detection admin backfill: done",
 		slog.String("library_id", libraryID),
-		slog.Int("seasons", len(parentIDs)))
-	return len(parentIDs), nil
+		slog.Int("seasons", len(parentIDs)),
+		slog.Int("movies", movies))
+	return len(parentIDs) + movies, nil
+}
+
+// backfillMovies runs detection over every movie of the library. Movies have
+// no season path (detectSeason walks episodes), yet they carry credits, logo
+// and provider/chapter intro segments - without this they had NO supported
+// re-detection route after an algo fix. Mirrors detectSeason's skip rules:
+// manual locks are sticky, file-derived intro sources count as covered,
+// attempts are version-bounded, and skipped movies still get their suspect
+// credits refreshed. Returns the number of movies that entered detection.
+func (s *IntroDetectionService) backfillMovies(ctx context.Context, libraryID string) int {
+	movieType := string(domainlibrary.MovieItem)
+	libID := shared.LibraryID(libraryID)
+	ran := 0
+	const pageSize = 200
+	for offset := 0; ; offset += pageSize {
+		page, err := s.mediaItems.List(ctx, domainlibrary.ListMediaItemsFilter{
+			LibraryID: &libID, Type: &movieType, Limit: pageSize, Offset: offset,
+		})
+		if err != nil || len(page) == 0 {
+			break
+		}
+		ids := make([]shared.MediaItemID, len(page))
+		for i, m := range page {
+			ids[i] = m.ID
+		}
+		existingByID, batchErr := s.segmentRepo.GetByMediaItemIDs(ctx, ids)
+		if batchErr != nil {
+			slog.WarnContext(ctx, "intro backfill movies: batch get segments", slog.Any("err", batchErr))
+			existingByID = nil
+		}
+		var candidates []*domainlibrary.MediaItem
+		for _, m := range page {
+			if ctx.Err() != nil {
+				return ran
+			}
+			skip := false
+			for _, sg := range existingByID[m.ID] {
+				if sg.Type != "intro" {
+					continue
+				}
+				switch sg.Source {
+				case "manual", "manual_propagated", "mkv_chapter":
+					skip = true
+				}
+			}
+			if skip {
+				s.refreshSuspectCredits(ctx, m, existingByID[m.ID])
+				continue
+			}
+			candidates = append(candidates, m)
+		}
+		if len(candidates) > 0 {
+			candidateIDs := make([]string, len(candidates))
+			for i, m := range candidates {
+				candidateIDs[i] = string(m.ID)
+			}
+			exhaustedByID, exErr := s.segmentRepo.IntroDetectionExhaustedBatch(ctx, candidateIDs, introDetectionAlgoVersion, maxIntroDetectionAttempts)
+			if exErr != nil {
+				slog.WarnContext(ctx, "intro backfill movies: batch exhausted check", slog.Any("err", exErr))
+				exhaustedByID = nil
+			}
+			for _, m := range candidates {
+				if ctx.Err() != nil {
+					return ran
+				}
+				if exhaustedByID[string(m.ID)] {
+					s.refreshSuspectCredits(ctx, m, existingByID[m.ID])
+					continue
+				}
+				mCtx, cancel := context.WithTimeout(ctx, 30*time.Minute)
+				detErr := s.detectIntroWithHint(mCtx, string(m.ID), nil)
+				cancel()
+				if detErr != nil {
+					slog.WarnContext(ctx, "intro backfill movies: detection failed",
+						slog.String("media_id", string(m.ID)), slog.Any("err", detErr))
+					continue
+				}
+				ran++
+				if recErr := s.segmentRepo.RecordIntroDetectionAttempt(ctx, string(m.ID), introDetectionAlgoVersion); recErr != nil {
+					slog.WarnContext(ctx, "intro backfill movies: record attempt",
+						slog.String("media_id", string(m.ID)), slog.Any("err", recErr))
+				}
+			}
+		}
+		if len(page) < pageSize {
+			break
+		}
+	}
+	return ran
 }
 
 // detectSeason runs detection on every episode of the given season that
@@ -552,6 +646,10 @@ func (s *IntroDetectionService) detectSeason(ctx context.Context, parentID strin
 				}
 			}
 			if manualLocked || hasGoodIntro {
+				// The episode skips the intro pipeline, but its stored credits
+				// may come from the old first-black parser - refresh the
+				// suspect ones so a parser fix reaches covered episodes too.
+				s.refreshSuspectCredits(ctx, ep, existing)
 				continue
 			}
 			candidates = append(candidates, ep)

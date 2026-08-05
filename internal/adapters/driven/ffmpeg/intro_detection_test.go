@@ -161,8 +161,9 @@ func TestParseEndCredits_Found(t *testing.T) {
 	assert.Equal(t, int64(durSec*1000), endMs)
 }
 
-// TestParseEndCredits_FirstQualifyingWins returns the first region that meets the threshold.
-func TestParseEndCredits_FirstQualifyingWins(t *testing.T) {
+// Two nearby regions form one trailing cluster; the credits start at the
+// cluster's FIRST region (the fade into the credits).
+func TestParseEndCredits_ClusterStartsAtFirstMember(t *testing.T) {
 	t.Parallel()
 	const startSec = 50.0
 	const durSec = 300.0
@@ -170,9 +171,49 @@ func TestParseEndCredits_FirstQualifyingWins(t *testing.T) {
 [blackdetect @ 0x2] black_start:8.0 black_end:15.0 black_duration:7.0`
 	startMs, endMs, found := parseEndCredits(input, startSec, durSec)
 	require.True(t, found)
-	// First qualifying region (offset 2.0) wins.
 	assert.Equal(t, int64((startSec+2.0)*1000), startMs)
 	assert.Equal(t, int64(durSec*1000), endMs)
+}
+
+// The prod failure mode: one isolated scene fade minutes before the end (and
+// nothing else black) must NOT become "credits from here to the end" - it used
+// to surface a skip prompt >10 minutes early.
+func TestParseEndCredits_RejectsIsolatedEarlyFade(t *testing.T) {
+	t.Parallel()
+	const startSec = 2000.0 // window opens 10 min before the end
+	const durSec = 2600.0
+	// One 1.5s fade 540s (9 min) before the end.
+	input := "[blackdetect @ 0x1] black_start:60.0 black_end:61.5 black_duration:1.5"
+	_, _, found := parseEndCredits(input, startSec, durSec)
+	assert.False(t, found, "an isolated far-from-end fade is a scene cut, not the credits")
+}
+
+// The same isolated early fade loses to a trailing cluster near the end: the
+// credits anchor on the trailing cluster, not the first black of the window.
+func TestParseEndCredits_TrailingClusterBeatsEarlyFade(t *testing.T) {
+	t.Parallel()
+	const startSec = 2000.0
+	const durSec = 2600.0
+	input := `[blackdetect @ 0x1] black_start:60.0 black_end:61.5 black_duration:1.5
+[blackdetect @ 0x2] black_start:520.0 black_end:522.0 black_duration:2.0
+[blackdetect @ 0x3] black_start:560.0 black_end:562.0 black_duration:2.0`
+	startMs, endMs, found := parseEndCredits(input, startSec, durSec)
+	require.True(t, found)
+	assert.Equal(t, int64((startSec+520.0)*1000), startMs,
+		"credits start at the trailing cluster's first region, not at the early scene fade")
+	assert.Equal(t, int64(durSec*1000), endMs)
+}
+
+// A lone LONG black far from the end is trusted (credits rolling on black
+// carry a long fade), even beyond the single-region lead guard.
+func TestParseEndCredits_LongBlackTrustedFarOut(t *testing.T) {
+	t.Parallel()
+	const startSec = 2000.0
+	const durSec = 2600.0
+	input := "[blackdetect @ 0x1] black_start:100.0 black_end:106.0 black_duration:6.0"
+	startMs, _, found := parseEndCredits(input, startSec, durSec)
+	require.True(t, found)
+	assert.Equal(t, int64((startSec+100.0)*1000), startMs)
 }
 
 // TestParseEndCredits_ExactBoundary treats black_duration==1.0 as qualifying.

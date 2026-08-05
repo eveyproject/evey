@@ -475,8 +475,18 @@ func (r *fakeMediaItemRepo) Create(_ context.Context, _ *domainlibrary.MediaItem
 func (r *fakeMediaItemRepo) List(_ context.Context, f domainlibrary.ListMediaItemsFilter) ([]*domainlibrary.MediaItem, error) {
 	// Honour Offset/Limit so paginating callers (detectSeason) terminate and
 	// page correctly - a fake that ignored them would loop forever once the
-	// caller pages past a full page.
+	// caller pages past a full page. Honour Type so callers that enumerate
+	// seasons vs movies vs episodes (BackfillLibrary) see distinct sets.
 	items := r.siblings
+	if f.Type != nil {
+		var typed []*domainlibrary.MediaItem
+		for _, it := range items {
+			if string(it.Type) == *f.Type {
+				typed = append(typed, it)
+			}
+		}
+		items = typed
+	}
 	if f.Offset >= len(items) {
 		return nil, nil
 	}
