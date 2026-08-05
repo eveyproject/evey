@@ -325,7 +325,11 @@ type MediaStream struct {
 	Height           *int
 	Framerate        *float64
 	BitDepth         *int
-	ColorSpace       *string
+	// PixelFormat is ffprobe's pix_fmt (yuv420p, yuv420p10le…), nil when the
+	// stream predates the probe that captures it. Display only - the copy and
+	// HDR decisions read BitDepth/ColorTransfer, never this.
+	PixelFormat *string
+	ColorSpace  *string
 	// ColorTransfer is the ffprobe color_transfer (smpte2084 = PQ, arib-std-b67
 	// = HLG, bt709 = SDR…), nil when the probe didn't report it. The only field
 	// that tells PQ from HLG, and - with DoViProfile - the HDR ground truth the

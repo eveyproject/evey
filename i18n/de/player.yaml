@@ -136,6 +136,7 @@ streamInfo:
   bitrate: Bitrate
   framerate: Bildrate
   profile: Profil
+  pixelFormat: Pixelformat
   decision: Entscheidung
   audio: Audio
   channels: Kanäle

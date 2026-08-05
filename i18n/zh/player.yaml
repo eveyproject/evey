@@ -136,6 +136,7 @@ streamInfo:
   bitrate: 比特率
   framerate: 帧率
   profile: 配置文件
+  pixelFormat: 像素格式
   decision: 决策
   audio: 音频
   channels: 声道

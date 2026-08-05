@@ -112,8 +112,9 @@ export function StreamInfoPanel({ visible, onClose, streamInfo }: StreamInfoPane
           {videoStream.profile && (
             <InfoRow label={t("player.streamInfo.profile", "Profile")} value={videoStream.profile} />
           )}
-          {/* No pixel-format row: see the web panel - the proto field is never
-              filled, so the row has never rendered. */}
+          {videoStream.pixelFormat && (
+            <InfoRow label={t("player.streamInfo.pixelFormat", "Pixel Format")} value={videoStream.pixelFormat} />
+          )}
         </>
       )}
 

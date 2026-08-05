@@ -43,27 +43,27 @@ func (r *MediaStreamRepository) CreateBatch(ctx context.Context, streams []*libr
 
 	var b strings.Builder
 	b.WriteString(`INSERT INTO media_streams (id, media_item_id, stream_index, stream_type, codec, codec_long_name,
-		profile, language, title, is_default, is_forced, width, height, framerate, bit_depth, color_space,
+		profile, language, title, is_default, is_forced, width, height, framerate, bit_depth, pixel_format, color_space,
 		color_transfer, hdr_type, dovi_profile, dovi_bl_compat, field_order, idet_interlaced,
 		sample_aspect_ratio, channels, channel_layout, sample_rate,
 		bitrate, is_external, external_path, level,
 		commentary, hearing_impaired, visual_impaired, text_descriptions, original, frame_rate_mode) VALUES `)
 
-	args := make([]any, 0, len(streams)*36)
+	args := make([]any, 0, len(streams)*37)
 	for i, s := range streams {
 		if i > 0 {
 			b.WriteString(",")
 		}
-		base := i * 36
-		fmt.Fprintf(&b, "($%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d)",
+		base := i * 37
+		fmt.Fprintf(&b, "($%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d)",
 			base+1, base+2, base+3, base+4, base+5, base+6, base+7, base+8, base+9, base+10,
 			base+11, base+12, base+13, base+14, base+15, base+16, base+17, base+18, base+19,
 			base+20, base+21, base+22, base+23, base+24, base+25, base+26, base+27, base+28, base+29, base+30,
-			base+31, base+32, base+33, base+34, base+35, base+36)
+			base+31, base+32, base+33, base+34, base+35, base+36, base+37)
 		args = append(args,
 			s.ID, s.MediaItemID, s.StreamIndex, s.StreamType, s.Codec, s.CodecLongName,
 			s.Profile, s.Language, s.Title, s.IsDefault, s.IsForced, s.Width, s.Height,
-			s.Framerate, s.BitDepth, s.ColorSpace, s.ColorTransfer, s.HDRType,
+			s.Framerate, s.BitDepth, s.PixelFormat, s.ColorSpace, s.ColorTransfer, s.HDRType,
 			s.DoViProfile, s.DoViBLCompat, s.FieldOrder, s.IdetInterlaced,
 			s.SampleAspectRatio, s.Channels, s.ChannelLayout,
 			s.SampleRate, s.Bitrate, s.IsExternal, s.ExternalPath, s.Level,
@@ -119,27 +119,27 @@ func (r *MediaStreamRepository) ReplaceBatch(ctx context.Context, mediaItemID sh
 
 	var b strings.Builder
 	b.WriteString(`INSERT INTO media_streams (id, media_item_id, stream_index, stream_type, codec, codec_long_name,
-		profile, language, title, is_default, is_forced, width, height, framerate, bit_depth, color_space,
+		profile, language, title, is_default, is_forced, width, height, framerate, bit_depth, pixel_format, color_space,
 		color_transfer, hdr_type, dovi_profile, dovi_bl_compat, field_order, idet_interlaced,
 		sample_aspect_ratio, channels, channel_layout, sample_rate,
 		bitrate, is_external, external_path, level,
 		commentary, hearing_impaired, visual_impaired, text_descriptions, original, frame_rate_mode) VALUES `)
 
-	args := make([]any, 0, len(streams)*36)
+	args := make([]any, 0, len(streams)*37)
 	for i, s := range streams {
 		if i > 0 {
 			b.WriteString(",")
 		}
-		base := i * 36
-		fmt.Fprintf(&b, "($%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d)",
+		base := i * 37
+		fmt.Fprintf(&b, "($%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d)",
 			base+1, base+2, base+3, base+4, base+5, base+6, base+7, base+8, base+9, base+10,
 			base+11, base+12, base+13, base+14, base+15, base+16, base+17, base+18, base+19,
 			base+20, base+21, base+22, base+23, base+24, base+25, base+26, base+27, base+28, base+29, base+30,
-			base+31, base+32, base+33, base+34, base+35, base+36)
+			base+31, base+32, base+33, base+34, base+35, base+36, base+37)
 		args = append(args,
 			s.ID, s.MediaItemID, s.StreamIndex, s.StreamType, s.Codec, s.CodecLongName,
 			s.Profile, s.Language, s.Title, s.IsDefault, s.IsForced, s.Width, s.Height,
-			s.Framerate, s.BitDepth, s.ColorSpace, s.ColorTransfer, s.HDRType,
+			s.Framerate, s.BitDepth, s.PixelFormat, s.ColorSpace, s.ColorTransfer, s.HDRType,
 			s.DoViProfile, s.DoViBLCompat, s.FieldOrder, s.IdetInterlaced,
 			s.SampleAspectRatio, s.Channels, s.ChannelLayout,
 			s.SampleRate, s.Bitrate, s.IsExternal, s.ExternalPath, s.Level,
@@ -168,7 +168,7 @@ func (r *MediaStreamRepository) GetByMediaItemID(ctx context.Context, mediaItemI
 	defer cancel()
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT id, media_item_id, stream_index, stream_type, codec, codec_long_name, profile, language, title,
-		 is_default, is_forced, width, height, framerate, bit_depth, color_space, color_transfer, hdr_type,
+		 is_default, is_forced, width, height, framerate, bit_depth, pixel_format, color_space, color_transfer, hdr_type,
 		 dovi_profile, dovi_bl_compat, field_order, idet_interlaced, sample_aspect_ratio, channels,
 		 channel_layout, sample_rate, bitrate, is_external, external_path, level, keyframes_ms,
 		 commentary, hearing_impaired, visual_impaired, text_descriptions, original, frame_rate_mode
@@ -186,7 +186,7 @@ func (r *MediaStreamRepository) GetByMediaItemID(ctx context.Context, mediaItemI
 		if err := rows.Scan(
 			&s.ID, &s.MediaItemID, &s.StreamIndex, &s.StreamType, &s.Codec, &s.CodecLongName,
 			&s.Profile, &s.Language, &s.Title, &s.IsDefault, &s.IsForced, &s.Width, &s.Height,
-			&s.Framerate, &s.BitDepth, &s.ColorSpace, &s.ColorTransfer, &s.HDRType,
+			&s.Framerate, &s.BitDepth, &s.PixelFormat, &s.ColorSpace, &s.ColorTransfer, &s.HDRType,
 			&s.DoViProfile, &s.DoViBLCompat, &s.FieldOrder, &s.IdetInterlaced,
 			&s.SampleAspectRatio, &s.Channels, &s.ChannelLayout,
 			&s.SampleRate, &s.Bitrate, &s.IsExternal, &s.ExternalPath, &s.Level, pq.Array(&s.Keyframes),
@@ -221,7 +221,7 @@ func (r *MediaStreamRepository) GetByMediaItemIDs(ctx context.Context, mediaItem
 	}
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT id, media_item_id, stream_index, stream_type, codec, codec_long_name, profile, language, title,
-		 is_default, is_forced, width, height, framerate, bit_depth, color_space, color_transfer, hdr_type,
+		 is_default, is_forced, width, height, framerate, bit_depth, pixel_format, color_space, color_transfer, hdr_type,
 		 dovi_profile, dovi_bl_compat, field_order, idet_interlaced, sample_aspect_ratio, channels,
 		 channel_layout, sample_rate, bitrate, is_external, external_path, level,
 		 commentary, hearing_impaired, visual_impaired, text_descriptions, original, frame_rate_mode
@@ -239,7 +239,7 @@ func (r *MediaStreamRepository) GetByMediaItemIDs(ctx context.Context, mediaItem
 		if err := rows.Scan(
 			&s.ID, &s.MediaItemID, &s.StreamIndex, &s.StreamType, &s.Codec, &s.CodecLongName,
 			&s.Profile, &s.Language, &s.Title, &s.IsDefault, &s.IsForced, &s.Width, &s.Height,
-			&s.Framerate, &s.BitDepth, &s.ColorSpace, &s.ColorTransfer, &s.HDRType,
+			&s.Framerate, &s.BitDepth, &s.PixelFormat, &s.ColorSpace, &s.ColorTransfer, &s.HDRType,
 			&s.DoViProfile, &s.DoViBLCompat, &s.FieldOrder, &s.IdetInterlaced,
 			&s.SampleAspectRatio, &s.Channels, &s.ChannelLayout,
 			&s.SampleRate, &s.Bitrate, &s.IsExternal, &s.ExternalPath, &s.Level,

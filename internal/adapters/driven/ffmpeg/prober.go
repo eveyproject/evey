@@ -191,6 +191,10 @@ func (p *Prober) ProbeStreams(ctx context.Context, filePath string) (*library.Pr
 		if fps := parseFrameRate(s.RFrameRate); fps > 0 {
 			ms.Framerate = &fps
 		}
+		if s.PixFmt != "" {
+			pf := s.PixFmt
+			ms.PixelFormat = &pf
+		}
 		if s.ColorSpace != "" {
 			cs := s.ColorSpace
 			ms.ColorSpace = &cs

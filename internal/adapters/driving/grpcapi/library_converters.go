@@ -215,6 +215,9 @@ func mediaStreamToProto(s *library.MediaStream) *eveyv1.MediaStream {
 	if s.Framerate != nil {
 		pb.FrameRate = *s.Framerate
 	}
+	if s.PixelFormat != nil {
+		pb.PixelFormat = *s.PixelFormat
+	}
 	if s.ColorSpace != nil {
 		pb.ColorSpace = *s.ColorSpace
 	}
