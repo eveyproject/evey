@@ -666,6 +666,38 @@ func TestBuildHybridMaster_FallbackRung_FlagOff(t *testing.T) {
 	assert.NotContains(t, master, "stream_0.m3u8")
 }
 
+// A cast receiver never gets the rung: CAF never dives onto an in-master rung
+// by itself (Bouygtel4K 2026-08-03, variant pinned through 9 minutes of
+// freeze - the receiver's abr=floor reload is the rescue path instead), and
+// the mux/demux-asymmetric master it creates stalls the Chromecast HD's MPL
+// before a single media fetch (2026-08-05: master fetched twice, then zero
+// playlist/segment requests, no ERROR event, spinner forever - while the same
+// TV played a muxed transcode ladder for 25 minutes the same afternoon).
+func TestBuildHybridMaster_FallbackRung_SkippedForCast(t *testing.T) {
+	h := newCopyTestHandler(t)
+	h.manifestGen = apptranscoding.NewManifestGenerator()
+	h.audioRenditionEnabled = true
+	h.copyFallbackRung = true
+
+	dur, err := shared.NewDurationMs(60000)
+	require.NoError(t, err)
+	item := &domainlibrary.MediaItem{File: &domainlibrary.MediaFile{
+		Path: "/m.mkv", Size: 1 << 20, Duration: dur, Bitrate: 4_000_000,
+	}}
+	streams := copyEligibleAV()
+	streams[1].Codec = "dts"
+
+	req := onDemandReq()
+	req = req.WithContext(context.WithValue(req.Context(), streamTokenCtxKey,
+		&shared.StreamToken{UserID: "u1", ProfileID: "p1", MediaItemID: "m1", Scope: shared.ScopeStream, Cast: true}))
+
+	master, err := h.buildHybridMaster(req, "m1", item, streams)
+	require.NoError(t, err)
+	assert.Contains(t, master, "od_playlist.m3u8", "the copy variant still serves")
+	assert.NotContains(t, master, "stream_0.m3u8",
+		"a cast master stays single-variant: the rung CAF never takes must not poison its MPL")
+}
+
 // The invariant that matters: the fallback URI the master emitted must be
 // SERVEABLE - the variant request re-derives its plan from the baked query
 // alone and the recomputed fingerprint must equal the sealed fp, or

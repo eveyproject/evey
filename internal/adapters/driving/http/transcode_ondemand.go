@@ -186,6 +186,18 @@ func (h *hlsVODServe) copyFallbackVariant(r *http.Request, mediaID string, item 
 	if !h.copyFallbackRung {
 		return nil
 	}
+	// Never for a cast receiver. CAF's ABR does not dive onto an in-master rung
+	// (Bouygtel4K 2026-08-03: variant pinned through 9 minutes of freeze - the
+	// receiver's abr=floor reload is its rescue path), and the mux/demux
+	// asymmetry the rung creates (demuxed copy variant next to a muxed rung)
+	// stalls the Chromecast HD's MPL before a single media fetch (2026-08-05:
+	// master fetched, then zero playlist/segment requests and no ERROR event,
+	// while the same TV played a muxed transcode ladder the same afternoon).
+	if st, ok := StreamTokenFromContext(r.Context()); ok && st != nil && st.Cast {
+		slog.InfoContext(r.Context(), "hls-vod: copy fallback rung skipped for cast receiver, master stays single-variant",
+			slog.String("media_id", mediaID))
+		return nil
+	}
 	rT := r.Clone(r.Context())
 	q := rT.URL.Query()
 	q.Set("vd", "transcode")
