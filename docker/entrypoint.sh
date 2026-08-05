@@ -33,6 +33,17 @@ set -eu
 # by RBAC tokens + the resource monitor - none of that reads the server's
 # numeric uid. PUID=1001 is refused so the two identities can never collide.
 if [ "$(id -u)" = "0" ]; then
+    # Whether the plugin subsystem will actually run. Computed HERE, before the
+    # media-owner detection below, because uid 1001 is only reserved when
+    # plugins run: the auto-detection and the explicit PUID path must apply the
+    # SAME policy, or the same NAS is adopted when the operator writes
+    # PUID=1001 and refused when they let us detect it.
+    # Matches strconv.ParseBool's false set, like the Go side reading this var.
+    case "${EVEY_PLUGINS_ENABLED:-true}" in
+        0|f|F|false|FALSE|False) evey_plugins_on=0 ;;
+        *) evey_plugins_on=1 ;;
+    esac
+
     # Zero-config default: when the operator sets NEITHER PUID nor PGID, adopt
     # the owner of the /media* mounts so the write features work out of the
     # box - running as the media owner is exactly what an operator would
@@ -49,9 +60,10 @@ if [ "$(id -u)" = "0" ]; then
             [ -d "$m" ] || continue
             det_seen="$det_seen $m=$(stat -c '%u:%g' "$m")"
             u="$(stat -c %u "$m")"
-            # root cannot be adopted (we never run as root) and 1001 is the
-            # reserved evey-plugin uid.
-            if [ "$u" = "0" ] || [ "$u" = "1001" ]; then continue; fi
+            # root cannot be adopted (we never run as root); 1001 is the
+            # evey-plugin uid and is only reserved while plugins actually run.
+            if [ "$u" = "0" ]; then continue; fi
+            if [ "$u" = "1001" ] && [ "$evey_plugins_on" = "1" ]; then continue; fi
             count=0
             for n in /media*; do
                 [ -d "$n" ] || continue
@@ -84,7 +96,11 @@ if [ "$(id -u)" = "0" ]; then
                 echo "evey: media mounts owned by ${PUID}:${PGID} (detected on $det_src) - running the server as that user so write features (seek-index repair) work out of the box; set PUID/PGID to override"
             fi
         elif [ -n "$det_seen" ]; then
-            echo "evey: no adoptable media owner (root and uid 1001 are reserved:$det_seen) - keeping uid 1000; chown your media to a regular user or set PUID/PGID, write features (seek-index repair) will fail until then" >&2
+            if [ "$evey_plugins_on" = "1" ]; then
+                echo "evey: no adoptable media owner (root, and uid 1001 while plugins are on:$det_seen) - keeping uid 1000; chown your media to a regular user, set PUID/PGID, or set EVEY_PLUGINS_ENABLED=false if 1001 is your own uid; write features (seek-index repair) will fail until then" >&2
+            else
+                echo "evey: no adoptable media owner (root is reserved:$det_seen) - keeping uid 1000; chown your media to a regular user or set PUID/PGID, write features (seek-index repair) will fail until then" >&2
+            fi
         fi
     fi
     PUID="${PUID:-1000}"
@@ -96,17 +112,6 @@ if [ "$(id -u)" = "0" ]; then
         echo "evey: running the server as root (PUID/PGID 0) is not supported" >&2
         exit 1
     fi
-    # PUID 1001 is the evey-plugin user, so running the server under it would
-    # make UID separation a no-op - the plugin would share the server's
-    # identity and read its 0600 secrets. That is only a reason to refuse when
-    # the plugin subsystem actually runs: with it off there is no separation to
-    # void, and refusing locked out every operator whose NAS happened to hand
-    # them uid 1001, with no workaround but to change their account.
-    # Matches strconv.ParseBool's false set, like the Go side reading this var.
-    case "${EVEY_PLUGINS_ENABLED:-true}" in
-        0|f|F|false|FALSE|False) evey_plugins_on=0 ;;
-        *) evey_plugins_on=1 ;;
-    esac
     if [ "$PUID" = "1001" ] && [ "$evey_plugins_on" = "1" ]; then
         echo "evey: PUID 1001 collides with the evey-plugin user (plugin UID separation would be void) - pick another UID, or set EVEY_PLUGINS_ENABLED=false" >&2
         exit 1
