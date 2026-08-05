@@ -2,11 +2,14 @@ import { useQuery } from "@tanstack/react-query";
 import { eveyFetch } from "@evey/api";
 
 export interface MediaSegment {
-  type: string;       // "intro" | "outro" | "recap" | "preview"
+  type: string;       // "intro" | "recap" | "end_credits" | "studio_logo" | "preview"
   startMs: number;
   endMs: number;
   confidence: number;
-  source: string;     // "trickplay" | "audio" | "subtitle" | "chapter"
+  // Server-emitted values: "mkv_chapter" | "tidb" | "introdb" | "phash" |
+  // "audio_cluster" | "chromaprint_discovery" | "audio" | "blackdetect" |
+  // "logo_match" | "manual" | "manual_propagated"
+  source: string;
 }
 
 export function useMediaSegments(mediaId: string | undefined, types?: string[]) {

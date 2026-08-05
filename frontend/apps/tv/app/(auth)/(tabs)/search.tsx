@@ -50,7 +50,9 @@ export function selectSearchResultsView(params: {
   mediaItemsCount: number;
 }): SearchResultsView {
   const { searchKind, isError, activeLoading, hasQuery, musicItemsCount, mediaItemsCount } = params;
-  if (searchKind === "media" && isError && hasQuery) return "error";
+  // isError is the ACTIVE side's error - a failed music search must show the
+  // error state too, not pose as "no results".
+  if (isError && hasQuery) return "error";
   if (activeLoading && hasQuery) return "loading";
   if (!hasQuery) return "prompt";
   if (searchKind === "music") return musicItemsCount === 0 ? "musicEmpty" : "musicResults";
@@ -137,7 +139,7 @@ export default function SearchScreen() {
     { query: debouncedQuery, limit: 30 },
     { query: { enabled: debouncedQuery.length > 0 && searchKind === "media" } },
   );
-  const { data: musicData, isLoading: musicLoading } = useMusicServiceSearchMusic(
+  const { data: musicData, isLoading: musicLoading, isError: musicError, refetch: musicRefetch } = useMusicServiceSearchMusic(
     { query: debouncedQuery, limit: 30 },
     { query: { enabled: debouncedQuery.length > 0 && searchKind === "music" } },
   );
@@ -145,9 +147,10 @@ export default function SearchScreen() {
   const items = data?.items ?? [];
   const musicItems = musicData?.tracks ?? [];
   const activeLoading = searchKind === "media" ? isLoading : musicLoading;
+  const activeRefetch = searchKind === "media" ? refetch : musicRefetch;
   const resultsView = selectSearchResultsView({
     searchKind,
-    isError,
+    isError: searchKind === "media" ? isError : musicError,
     activeLoading,
     hasQuery: debouncedQuery.length > 0,
     musicItemsCount: musicItems.length,
@@ -249,7 +252,7 @@ export default function SearchScreen() {
       {resultsView === "error" ? (
         <View style={styles.center}>
           <Text style={{ color: theme.colors.textMuted, fontSize: 22, marginBottom: 12 }}>{t("common.loadError")}</Text>
-          <FocusableCard onPress={() => refetch()} hasTVPreferredFocus accessibilityLabel={t("common.retry")}>
+          <FocusableCard onPress={() => activeRefetch()} hasTVPreferredFocus accessibilityLabel={t("common.retry")}>
             <Text style={{ color: theme.colors.accent, fontSize: 20 }}>{t("common.retry")}</Text>
           </FocusableCard>
         </View>

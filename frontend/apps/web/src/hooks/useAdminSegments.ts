@@ -22,8 +22,12 @@ interface PropagateResponse {
   count: number;
 }
 
-function segmentsQueryKey(mediaId: string) {
-  return ["/api/v1/media/segments", mediaId, ALL_ADMIN_TYPES];
+// Invalidation must hit EVERY types-variant of the segments query, not just
+// the admin one: the player caches its own variant (different `types` string)
+// with staleTime Infinity, so an exact-key invalidation left the skip button
+// serving the pre-edit world until a full reload.
+function segmentsPrefixKey(mediaId: string) {
+  return ["/api/v1/media/segments", mediaId];
 }
 
 export function useSetSegment(mediaId: string) {
@@ -37,7 +41,7 @@ export function useSetSegment(mediaId: string) {
       });
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: segmentsQueryKey(mediaId) });
+      qc.invalidateQueries({ queryKey: segmentsPrefixKey(mediaId) });
     },
   });
 }
@@ -52,7 +56,7 @@ export function useDeleteSegment(mediaId: string) {
       });
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: segmentsQueryKey(mediaId) });
+      qc.invalidateQueries({ queryKey: segmentsPrefixKey(mediaId) });
     },
   });
 }

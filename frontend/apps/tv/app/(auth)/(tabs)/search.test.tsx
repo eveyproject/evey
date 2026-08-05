@@ -111,6 +111,10 @@ describe("selectSearchResultsView (initial TV remote focus)", () => {
     expect(selectSearchResultsView({ ...base, isError: true })).toBe("error");
   });
 
+  it("shows the error view for a failed MUSIC search too - a failure must not pose as 'no results'", () => {
+    expect(selectSearchResultsView({ ...base, searchKind: "music", isError: true })).toBe("error");
+  });
+
   it("shows the prompt view when there is no query yet, regardless of scope", () => {
     expect(selectSearchResultsView({ ...base, hasQuery: false })).toBe("prompt");
     expect(selectSearchResultsView({ ...base, searchKind: "music", hasQuery: false })).toBe("prompt");
