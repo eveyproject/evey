@@ -351,13 +351,10 @@ func (s *CommandService) emitNotifications(mediaType, title, seriesTitle, mediaI
 		if seriesKey != "" {
 			opts = append(opts, notification.WithRelatedMediaID(shared.MediaItemID(seriesKey)))
 		}
-		// Subject + counts first, then the episode-grouping override below:
-		// a regrouped episode notification keeps a RUNNING total that must win
-		// over the count this single batch carried.
+		// The running-total logic that must survive regrouping lives in
+		// shouldSkipEpisodeNotif above (it updates the existing row's count);
+		// here the counts this batch carried are the ones to persist.
 		opts = append(opts, notification.WithLabelParts(parts.subject, parts.seasonCount, parts.episodeCount))
-		if notifType == notification.TypeNewEpisode && initialEpCount > 0 {
-			opts = append(opts, notification.WithEpisodeCount(initialEpCount))
-		}
 		n, err := notification.NewNotification(uuid.New().String(), p.ID, notifType, notifTitle, opts...)
 		if err != nil {
 			slog.WarnContext(ctx, "notification build failed", slog.String("profileID", string(p.ID)), slog.Any("err", err))
