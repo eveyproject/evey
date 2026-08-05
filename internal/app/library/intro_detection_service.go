@@ -616,6 +616,11 @@ func (s *IntroDetectionService) detectSeason(ctx context.Context, parentID strin
 			break
 		}
 	}
+
+	// Season-wide duration prior: shrink over-long outliers (absorbed recap /
+	// music-bleed) back to the season's median intro duration. Runs last so it
+	// sees the season's final mix of sources.
+	s.reconcileSeasonIntroDurations(ctx, parentID)
 }
 
 // DetectIntro is the main entry point. Runs the two-pass pipeline and upserts

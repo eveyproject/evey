@@ -671,10 +671,10 @@ func TestDetectSeason_BatchesExistingSegmentsLookup(t *testing.T) {
 
 	svc.detectSeason(context.Background(), parentID)
 
-	require.Equal(t, 1, segRepo.batchCalls,
-		"detectSeason must fetch the page's existing segments in exactly one batched call, not one per episode")
-	require.Len(t, segRepo.batchQueriedIDs, episodeCount,
-		"the single batched call must cover every episode in the page")
+	require.Equal(t, 2, segRepo.batchCalls,
+		"detectSeason issues one batched call for the detection page plus one for the duration-prior pass - never one per episode")
+	require.Len(t, segRepo.batchQueriedIDs, 2*episodeCount,
+		"each batched call must cover every episode in the page")
 	require.Empty(t, segRepo.queriedIDs,
 		"detectSeason must not fall back to per-episode GetByMediaItemID calls")
 }

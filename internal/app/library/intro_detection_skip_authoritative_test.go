@@ -41,10 +41,10 @@ func TestDetectSeason_PaginatesAllEpisodes(t *testing.T) {
 
 	svc.detectSeason(context.Background(), "season-id")
 
-	require.Len(t, segmentRepo.batchQueriedIDs, total,
-		"detectSeason must page through every episode, not stop at the first page")
-	require.Equal(t, 2, segmentRepo.batchCalls,
-		"250 episodes at pageSize 200 must batch into 2 calls (200 + 50), not one GetByMediaItemID per episode")
+	require.Len(t, segmentRepo.batchQueriedIDs, 2*total,
+		"detectSeason must page through every episode twice (detection pass + duration-prior pass), not stop at the first page")
+	require.Equal(t, 4, segmentRepo.batchCalls,
+		"250 episodes at pageSize 200 batch into 2 calls per pass (200 + 50) for the detection and prior passes, not one GetByMediaItemID per episode")
 }
 
 // detectSeason runs DetectIntro on each episode that doesn't already have a
