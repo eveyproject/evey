@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { planRelayHandover, type Segment } from "./WasmAudioEngine";
+import { planRelayHandover, type Segment } from "./relayHandover";
 import { extractAacAudioURI } from "./wasmAudioShared";
 
 const seg = (start: number, dur: number, extra: Partial<Segment> = {}): Segment => ({

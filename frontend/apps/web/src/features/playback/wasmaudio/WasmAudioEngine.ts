@@ -20,6 +20,8 @@
 import { AVLatencyEstimator } from "./avLatencyEstimator";
 import { shouldHandover, isStarved, type HandoverVerdict } from "./relayGuard";
 import { AAC_SAMPLES_PER_FRAME, adtsFromFrames, extractAacFrames, parseAacConfig, type AacConfig } from "./fmp4Adts";
+import { outputMix } from "./channelMix";
+import { planRelayHandover, type Segment } from "./relayHandover";
 
 const WASM_URL = "/wasm/ac3go.wasm";
 const WASM_EXEC_URL = "/wasm/wasm_exec.js";
@@ -38,18 +40,6 @@ const RESYNC_THRESHOLD_SEC = 0.3;
 // Delaying the audio by roughly the output latency lines them up. Tunable.
 const DEFAULT_LEAD_COMP_SEC = 0.1;
 const SCHEDULE_TICK_MS = 100;
-
-export interface Segment {
-  url: string; // resolved, absolute
-  start: number; // media start time (s)
-  dur: number; // EXTINF (s)
-  // native marks a segment decoded by the browser (AAC rendition via
-  // decodeAudioData) instead of the wasm worker - the relay's first leg.
-  native?: boolean;
-  // trimSec skips the head of the segment: the relay's first AC-3 segment may
-  // start before the hand-over boundary, and only the part after it may play.
-  trimSec?: number;
-}
 
 // Two decode outputs: the wasm worker hands raw interleaved PCM (remapped to
 // the browser's channel order at schedule time); the native leg hands the
@@ -93,60 +83,6 @@ export interface WasmAudioEngineOptions {
   // Allow-Credentials, so a credentialed request would be REJECTED by the
   // browser - the receiver passes "omit", the token in the URL is enough.
   credentials?: RequestCredentials;
-}
-
-// outputMix maps each Web Audio OUTPUT channel to the decoder source channels to
-// sum into it (each a [sourceIndex, gain] tap). It puts the decoder's layout
-// into Web Audio's "speakers" order, and folds 7.1 down to 5.1: Web Audio only
-// applies its speaker down-mix (the one that keeps the centre on a stereo output)
-// up to 5.1 - an 8-channel buffer falls back to "discrete", which on a stereo
-// device drops every channel past L/R, i.e. the dialogue. Folding to 5.1 keeps
-// the browser's correct down-mix AND preserves the 7.1 back-channel content
-// (mixed into the surrounds) instead of dropping it. Exported for unit testing.
-//   5.1 decoder L,C,R,Ls,Rs,LFE          -> WA L,R,C,LFE,SL,SR
-//   7.1 decoder L,R,C,LFE,BL,BR,SL,SR     -> WA 5.1, SL=SL+BL, SR=SR+BR
-export function outputMix(channels: number): Array<Array<[number, number]>> {
-  if (channels === 6) {
-    return [[[0, 1]], [[2, 1]], [[1, 1]], [[5, 1]], [[3, 1]], [[4, 1]]];
-  }
-  if (channels === 8) {
-    return [[[0, 1]], [[1, 1]], [[2, 1]], [[3, 1]], [[6, 1], [4, 1]], [[7, 1], [5, 1]]];
-  }
-  return Array.from({ length: channels }, (_, i) => [[i, 1]] as Array<[number, number]>);
-}
-
-// planRelayHandover computes the AAC->AC-3 hand-over as pure data: which
-// native segments to keep (a prefix - live/scheduled audio is never
-// un-scheduled) and the AC-3 tail, its first segment trimmed to the boundary.
-// The boundary is the end of the LAST scheduled native segment, or ct plus a
-// small runway when nothing is scheduled yet. Null = no hand-over possible
-// (the film ends before the boundary); the native leg finishes it. Exported
-// for unit testing.
-export function planRelayHandover(
-  nativeSegs: Segment[],
-  ac3Segs: Segment[],
-  scheduledIdx: Iterable<number>,
-  currentTime: number,
-): { segments: Segment[]; keepPrefix: number } | null {
-  let boundary = currentTime + 2;
-  for (const idx of scheduledIdx) {
-    const s = nativeSegs[idx];
-    if (s) boundary = Math.max(boundary, s.start + s.dur);
-  }
-  let keep = 0;
-  while (keep < nativeSegs.length && nativeSegs[keep].start < boundary - 1e-3) keep++;
-  if (keep > 0) {
-    // Kept native segments play out in full: the boundary must sit at the last
-    // one's END, or its tail would overlap the trimmed AC-3 head.
-    const last = nativeSegs[keep - 1];
-    boundary = Math.max(boundary, last.start + last.dur);
-  }
-  const k = ac3Segs.findIndex((s) => s.start + s.dur > boundary + 1e-3);
-  if (k < 0) return null;
-  const tail = ac3Segs.slice(k).map((s, i) =>
-    i === 0 && s.start < boundary ? { ...s, trimSec: boundary - s.start } : s,
-  );
-  return { segments: [...nativeSegs.slice(0, keep), ...tail], keepPrefix: keep };
 }
 
 export class WasmAudioEngine {

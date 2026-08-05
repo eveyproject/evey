@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { extractAudioURI, injectToken } from "./useWasmAudioPlayback";
-import { outputMix } from "./WasmAudioEngine";
+import { outputMix } from "./channelMix";
 import { isWasmDecodableAudioCodec } from "@/utils/codec";
 
 describe("extractAudioURI", () => {
