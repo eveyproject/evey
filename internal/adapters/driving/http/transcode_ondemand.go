@@ -342,7 +342,10 @@ func (h *hlsVODServe) buildCappedMaster(r *http.Request, mediaID string, item *d
 		return "", false
 	}
 	inT.Profiles = inT.Profiles[idx : idx+1]
-	inT.VideoPlaylistURI = fmt.Sprintf("stream_%d.m3u8", idx) + apptranscoding.QuerySuffixFor(inT)
+	// Bare name only: the manifest generator appends the baked query suffix
+	// itself. Pre-suffixing here doubled it (prod 2026-08-05: a second "?"
+	// mid-query, inherited by every segment URI of the rescue path).
+	inT.VideoPlaylistURI = fmt.Sprintf("stream_%d.m3u8", idx)
 	master, err := h.manifestGen.Master(inT)
 	if err != nil {
 		slog.WarnContext(r.Context(), "hls-vod: capped master build failed, serving the ordinary master",

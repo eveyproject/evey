@@ -736,6 +736,44 @@ func TestFloorMaster_ServesOnlyTheLowestRung(t *testing.T) {
 	assert.Contains(t, master, "fp=", "the rung seals its fingerprint")
 }
 
+// The variant URI must carry its baked query exactly ONCE. buildCappedMaster
+// pre-suffixed VideoPlaylistURI and the manifest generator suffixed it again:
+// prod (2026-08-05) emitted "...videoCodecs=h264?ad=transcode&..." - a second
+// "?" mid-query - and every segment URI of the child playlist inherited the
+// garbage "videoCodecs=h264%3Fad%3Dtranscode". It happened to still serve
+// because the fp seal replays the sealed plan and the polluted param is
+// ignored today; the first param that DOES enter the fp derivation turns this
+// into a silent 410 on the whole rescue path.
+func TestCappedMaster_VariantURICarriesItsQueryOnce(t *testing.T) {
+	h := newCopyTestHandler(t)
+	h.manifestGen = apptranscoding.NewManifestGenerator()
+	h.audioRenditionEnabled = true
+	h.copyFallbackRung = true
+
+	dur, err := shared.NewDurationMs(60000)
+	require.NoError(t, err)
+	item := &domainlibrary.MediaItem{File: &domainlibrary.MediaFile{
+		Path: "/m.mkv", Size: 1 << 20, Duration: dur, Bitrate: 4_000_000,
+	}}
+	streams := copyEligibleAV()
+	streams[1].Codec = "dts"
+
+	req := onDemandReq()
+	q := req.URL.Query()
+	q.Set("abr", "floor")
+	req.URL.RawQuery = q.Encode()
+
+	master, ok := h.buildFloorMaster(req, "m1", item, streams)
+	require.True(t, ok)
+	for line := range strings.SplitSeq(master, "\n") {
+		if !strings.HasPrefix(line, "stream_0.m3u8") {
+			continue
+		}
+		assert.Equal(t, 1, strings.Count(line, "?"), "one URI, one query: %s", line)
+		assert.Equal(t, 1, strings.Count(line, "vd=transcode"), "the baked suffix must not double: %s", line)
+	}
+}
+
 // ?maxKbps=<measured> is the receiver's own bitrate measurement (its network
 // stack included - old cast runtimes cap well under the wire speed, proven on
 // the Bouygtel4K 2026-08-03). Copy-first stays the rule: the cap only bites
