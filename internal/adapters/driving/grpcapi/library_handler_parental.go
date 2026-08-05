@@ -19,13 +19,17 @@ type parentalFilter struct {
 	region         string   // profile's resolved region for per-country cert lookup
 	blockedTags    []string
 	locale         string // profile locale, used to resolve region when not set
+	// blockAll is the unreadable-profile answer: the parental restriction
+	// lives on a profile we failed to load, so nothing passes. See the
+	// resolver for why this is not "age 0".
+	blockAll bool
 }
 
 // enforced reports whether this filter actually restricts anything (an age cap
 // or at least one blocked tag). A zero-value / no-op filter (maxAge == -1, no
 // tags) returns false.
 func (pf parentalFilter) enforced() bool {
-	return pf.maxAge >= 0 || len(pf.blockedTags) > 0
+	return pf.blockAll || pf.maxAge >= 0 || len(pf.blockedTags) > 0
 }
 
 func (h *libraryHandler) resolveParentalFilter(ctx context.Context) parentalFilter {
@@ -62,18 +66,16 @@ func resolveParentalFilterFromUserQuery(ctx context.Context, userQuery *appuser.
 		// the full catalogue on a transient DB error, so return the most
 		// restrictive filter instead (admins were already exempted above).
 		//
-		// "Most restrictive" here means age 0, NOT "block everything": a
-		// G-rated title still passes. The HTTP side (parental.go's
-		// BlockedByParental) answers the same question by blocking
-		// unconditionally. Both are defensible - an unidentified viewer may
-		// see what is safe for any age, or may see nothing - but they are NOT
-		// the same rule, and each comment used to claim "fail closed" as if
-		// they were. Deliberately left divergent for now (assessed low risk on
-		// 2026-07-20); if it is ever unified, it is a product decision about
-		// what an unreadable profile is allowed to see, not a refactor.
+		// Nothing passes, which is what the HTTP side (parental.go's
+		// BlockedByParental) has always answered. Until 2026-08-05 this side
+		// returned an age-0 filter instead, so a G-rated title still showed
+		// through: the same unreadable profile saw different catalogues
+		// depending on which door it came in by. Unifying was a product
+		// decision (what may an unidentified viewer see - the safe subset, or
+		// nothing) and the answer is nothing.
 		// TestResolveParentalFilter_FailsClosedWhenTheProfileCannotBeLoaded
 		// pins this side.
-		return parentalFilter{allowedRatings: ratings.AllowedRatingsForAge(0), maxAge: 0}
+		return parentalFilter{allowedRatings: ratings.AllowedRatingsForAge(0), maxAge: 0, blockAll: true}
 	}
 	ps := profile.EffectiveParental()
 	if ps == nil {
@@ -113,6 +115,9 @@ func mediaItemBlockedByParental(pf parentalFilter, item *library.MediaItem) bool
 	}
 	if !pf.enforced() {
 		return false
+	}
+	if pf.blockAll {
+		return true
 	}
 	if pf.maxAge >= 0 {
 		var certByCountry map[string]string

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	appuser "github.com/evey-project/evey/internal/app/user"
+	"github.com/evey-project/evey/internal/domain/library"
 	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
 )
 
@@ -35,6 +36,18 @@ func TestResolveParentalFilter_FailsClosedWhenTheProfileCannotBeLoaded(t *testin
 	}
 	if len(got.allowedRatings) == 0 {
 		t.Error("allowedRatings is empty: an empty allow-list is read as 'no filter' downstream, not as 'allow nothing'")
+	}
+	// Unified with the HTTP side on 2026-08-05: an unreadable profile sees
+	// NOTHING, not the age-0 subset. Without blockAll a G-rated title still
+	// reached a viewer whose parental settings could not be read.
+	if !got.blockAll {
+		t.Error("blockAll = false: an unreadable profile must be blocked outright, like the HTTP side")
+	}
+	if !mediaItemBlockedByParental(got, &library.MediaItem{
+		Title:          "A G-rated title",
+		Classification: &library.MediaClassification{OfficialRating: "G"},
+	}) {
+		t.Error("a G-rated item passed the filter of a profile whose parental settings could not be read")
 	}
 
 	// The admin exemption above this branch must still win - an admin whose
