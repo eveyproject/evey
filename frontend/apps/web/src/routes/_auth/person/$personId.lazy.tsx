@@ -88,8 +88,12 @@ function PersonPage() {
               {t("media.person.titleCount", { count: items.length })}
             </p>
           )}
-          {(person?.birthday || person?.placeOfBirth) && (
+          {(person?.birthday || person?.placeOfBirth || person?.knownFor) && (
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-[var(--text-muted)] mt-2">
+              {/* knownFor is TMDB's known_for_department (Acting, Directing…),
+                  fetched and stored since the people enrichment landed but never
+                  rendered by any client. */}
+              {person.knownFor && <span>{person.knownFor}</span>}
               {person.birthday && (
                 <span>
                   {new Date(person.birthday).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}

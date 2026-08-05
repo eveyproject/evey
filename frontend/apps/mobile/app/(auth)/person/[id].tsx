@@ -31,6 +31,7 @@ interface PersonInfo {
   birthday?: string;
   deathday?: string;
   placeOfBirth?: string;
+  knownFor?: string;
 }
 
 function useGetPerson(id: string) {
@@ -125,6 +126,15 @@ export default function PersonDetailScreen() {
           {name}
         </Text>
 
+        {/* knownFor is TMDB's known_for_department (Acting, Directing…),
+            fetched and stored since the people enrichment landed but never
+            rendered by any client. */}
+        {person?.knownFor ? (
+          <Text style={{ color: theme.colors.textMuted, fontSize: 13, marginTop: theme.spacing.xs, textAlign: "center" }}>
+            {person.knownFor}
+          </Text>
+        ) : null}
+
         {/* Birth / death info */}
         {person?.birthday ? (
           <Text style={{ color: theme.colors.textMuted, fontSize: 13, marginTop: theme.spacing.xs, textAlign: "center" }}>
@@ -134,7 +144,7 @@ export default function PersonDetailScreen() {
               day: "numeric",
             })}
             {person.deathday
-              ? ` \u2014 ${new Date(person.deathday).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}`
+              ? ` - ${new Date(person.deathday).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}`
               : ` (${Math.floor((Date.now() - new Date(person.birthday).getTime()) / 31557600000)} years old)`}
           </Text>
         ) : null}
