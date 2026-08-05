@@ -118,6 +118,15 @@ func extractSeriesName(storedTitle string) string {
 	return payload
 }
 
+// plural renders "1 season" and "2 seasons". Only ever used for the English
+// stored label; the push notification goes through i18n and never comes here.
+func plural(n int, noun string) string {
+	if n == 1 {
+		return fmt.Sprintf("%d %s", n, noun)
+	}
+	return fmt.Sprintf("%d %ss", n, noun)
+}
+
 // batchedSeriesTitle returns the display label (without type prefix) and push spec.
 func batchedSeriesTitle(seriesTitle string, seasonCount, episodeCount int) (label string, push pushSpec) {
 	params := map[string]string{
@@ -125,15 +134,23 @@ func batchedSeriesTitle(seriesTitle string, seasonCount, episodeCount int) (labe
 		"seasons":  fmt.Sprintf("%d", seasonCount),
 		"episodes": fmt.Sprintf("%d", episodeCount),
 	}
+	// The STORED label is built here in English and persisted as-is, so the
+	// clients translate the "new_series:" prefix and copy the parenthesis
+	// through untouched - that is why a French TV shows "Nouvelle série :
+	// Lioness (1 seasons, 1 episodes)". Carrying the counts as data instead is
+	// a payload-format change across the three clients and is the user's call;
+	// what is fixed here is the count that was ungrammatical even in English.
+	seasons := plural(seasonCount, "season")
+	episodes := plural(episodeCount, "episode")
 	switch {
 	case seasonCount > 0 && episodeCount > 0:
-		label = fmt.Sprintf("%s (%d seasons, %d episodes)", seriesTitle, seasonCount, episodeCount)
+		label = fmt.Sprintf("%s (%s, %s)", seriesTitle, seasons, episodes)
 		push = pushSpec{key: "notifications.push.series_with_seasons_and_episodes.title", params: params, fallback: "New Series: " + label}
 	case seasonCount > 0:
-		label = fmt.Sprintf("%s (%d seasons)", seriesTitle, seasonCount)
+		label = fmt.Sprintf("%s (%s)", seriesTitle, seasons)
 		push = pushSpec{key: "notifications.push.series_with_seasons.title", params: params, fallback: "New Series: " + label}
 	case episodeCount > 0:
-		label = fmt.Sprintf("%s (%d episodes)", seriesTitle, episodeCount)
+		label = fmt.Sprintf("%s (%s)", seriesTitle, episodes)
 		push = pushSpec{key: "notifications.push.series_with_episodes.title", params: params, fallback: "New Series: " + label}
 	default:
 		label = seriesTitle
