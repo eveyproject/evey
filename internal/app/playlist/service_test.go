@@ -435,6 +435,28 @@ func TestReorderItems(t *testing.T) {
 	}
 }
 
+// Same contract as collections (decided 2026-08-05): a reorder naming ids the
+// playlist does not hold is refused with ErrForeignItems, never silently
+// half-applied - the repo UPDATE matches on membership, so a stranger id would
+// otherwise change nothing behind a success response.
+func TestReorderItems_ForeignIDRejected(t *testing.T) {
+	svc, _, _, _ := newTestService()
+	pl := &playlist.Playlist{Name: "Ordered", ProfileID: "user-1", Type: playlist.Manual}
+	svc.Create(context.Background(), pl)
+	svc.AddItem(context.Background(), pl.ID, "a", "user-1")
+	svc.AddItem(context.Background(), pl.ID, "b", "user-1")
+
+	err := svc.ReorderItems(context.Background(), pl.ID, "user-1", []string{"b", "a", "stranger"})
+	if !errors.Is(err, ErrForeignItems) {
+		t.Fatalf("expected ErrForeignItems, got %v", err)
+	}
+
+	_, items, _ := svc.GetItems(context.Background(), pl.ID, "user-1")
+	if len(items) != 2 || items[0].MediaItemID != "a" {
+		t.Fatalf("order must be untouched after a refused reorder, got %v", items)
+	}
+}
+
 func TestReorderItems_WrongOwner(t *testing.T) {
 	svc, _, _, _ := newTestService()
 	pl := &playlist.Playlist{Name: "Mine", ProfileID: "user-1", Type: playlist.Manual}

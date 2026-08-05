@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/evey-project/evey/internal/domain/playlist"
@@ -196,6 +197,32 @@ func (s *CommandService) ReorderItems(ctx context.Context, playlistID string, pr
 	}
 	if !pl.IsOwnedBy(profileID) {
 		return ErrNotOwner
+	}
+	// The repo UPDATE matches on membership, so an id the playlist does not
+	// hold silently changes nothing - name the strangers instead of letting a
+	// client bug look like success.
+	existing, err := s.items.GetByPlaylistID(ctx, playlistID)
+	if err != nil {
+		return fmt.Errorf("CommandService.ReorderItems: load items: %w", err)
+	}
+	members := make(map[string]struct{}, len(existing))
+	for _, it := range existing {
+		members[string(it.MediaItemID)] = struct{}{}
+	}
+	var foreign []string
+	seen := make(map[string]struct{}, len(mediaItemIDs))
+	for _, id := range mediaItemIDs {
+		if _, ok := members[id]; ok {
+			continue
+		}
+		if _, dup := seen[id]; dup {
+			continue
+		}
+		seen[id] = struct{}{}
+		foreign = append(foreign, id)
+	}
+	if len(foreign) > 0 {
+		return fmt.Errorf("%w: %s", ErrForeignItems, strings.Join(foreign, ", "))
 	}
 	return s.items.Reorder(ctx, playlistID, mediaItemIDs)
 }

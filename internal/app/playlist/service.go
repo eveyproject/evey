@@ -16,6 +16,11 @@ var (
 	ErrSmartItems        = errors.New("cannot manually add items to smart playlist")
 	ErrMaxItems          = errors.New("playlist item limit reached")
 	ErrMediaItemNotFound = errors.New("media item not found")
+	// ErrForeignItems rejects a reorder naming ids the playlist does not hold:
+	// the repo UPDATE matches on membership, so a stranger id would silently
+	// change nothing and the caller would get a 200 for a half-applied
+	// reorder (same contract as collections, decided 2026-08-05).
+	ErrForeignItems = errors.New("media_item_ids contains items that are not in this playlist")
 )
 
 type MediaItemExistsChecker interface {

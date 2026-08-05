@@ -126,6 +126,13 @@ func (h *playlistHandler) reorderItems(w http.ResponseWriter, r *http.Request) {
 
 	if err := h.reorder.ReorderItems(r.Context(), playlistID, shared.ProfileID(claims.ProfileID), ids); err != nil {
 		span.RecordError(err)
+		if errors.Is(err, appplaylist.ErrForeignItems) {
+			// Same contract as collections: ids the playlist does not hold
+			// are refused, not silently ignored.
+			span.SetStatus(otelcodes.Error, "items contains non-members")
+			http.Error(w, `{"message":"items contains entries that are not in this playlist"}`, http.StatusBadRequest)
+			return
+		}
 		if errors.Is(err, appplaylist.ErrNotOwner) || errors.Is(err, shared.ErrNotFound) {
 			// NotFound, not PermissionDenied: a playlist owned by another
 			// profile must be indistinguishable from a non-existent one
