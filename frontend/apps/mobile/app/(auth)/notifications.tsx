@@ -3,6 +3,7 @@ import { View, Text, FlatList, Pressable, Alert, RefreshControl, StyleSheet } fr
 import { router, Stack } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useTranslation } from "react-i18next";
+import { notificationLabel, type NotificationLabelInput } from "@evey/api";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useNotificationServiceListNotifications,
@@ -17,28 +18,13 @@ import { toast } from "@evey/store";
 import { useTheme } from "../../src/providers/ThemeProvider";
 import { LoadFailed } from "../../src/components/LoadFailed";
 
-const TITLE_KEYS: Record<string, string> = {
-  new_movie: "common.notifications.newMovie",
-  new_episode: "common.notifications.newEpisode",
-  new_season: "common.notifications.newSeason",
-  new_series: "common.notifications.newSeries",
-  new_album: "common.notifications.newAlbum",
-  backup_failed: "common.notifications.backupFailed",
-};
-
-function translateTitle(
+// Wording lives in @evey/api: the three apps had three copies of this, each
+// with its own TITLE_KEYS map, and none of them could render the counts in the
+// viewer's language.
+const translateTitle = (
   t: (k: string, opts?: Record<string, unknown>) => string,
-  raw: string | undefined,
-): string {
-  if (!raw) return "";
-  const colonIdx = raw.indexOf(":");
-  if (colonIdx === -1) return raw;
-  const key = raw.slice(0, colonIdx);
-  const i18nKey = TITLE_KEYS[key];
-  if (!i18nKey) return raw;
-  const name = raw.slice(colonIdx + 1);
-  return t(i18nKey, { name });
-}
+  n: NotificationLabelInput,
+): string => notificationLabel(t, n);
 
 function relativeTime(
   t: (k: string, opts?: Record<string, unknown>) => string,
@@ -87,7 +73,7 @@ function NotificationItem({ item, onPress }: { item: V1Notification; onPress: ()
         opacity: isUnread ? 1 : 0.6,
       }}
       accessible
-      accessibilityLabel={translateTitle(t, item.title)}
+      accessibilityLabel={translateTitle(t, item)}
       accessibilityRole="button"
     >
       <View style={{
@@ -114,7 +100,7 @@ function NotificationItem({ item, onPress }: { item: V1Notification; onPress: ()
           }}
           numberOfLines={1}
         >
-          {translateTitle(t, item.title)}
+          {translateTitle(t, item)}
         </Text>
         {item.message && (
           <Text style={{ color: theme.colors.textMuted, fontSize: 12 }} numberOfLines={1}>

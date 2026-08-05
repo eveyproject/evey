@@ -116,6 +116,10 @@ notifications:
   newSeason: "New Season: {{name}}"
   newSeries: "New Series: {{name}}"
   newAlbum: "New Album: {{name}}"
+  seasonCount_one: "{{count}} season"
+  seasonCount_other: "{{count}} seasons"
+  episodeCount_one: "{{count}} episode"
+  episodeCount_other: "{{count}} episodes"
   backupFailed: "Scheduled Backup Failed"
   clearConfirm: Delete all notifications?
   clearTitle: Clear notifications

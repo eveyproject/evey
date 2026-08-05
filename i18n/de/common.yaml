@@ -116,6 +116,10 @@ notifications:
   newSeason: "Neue Staffel: {{name}}"
   newSeries: "Neue Serie: {{name}}"
   newAlbum: "Neues Album: {{name}}"
+  seasonCount_one: "{{count}} Staffel"
+  seasonCount_other: "{{count}} Staffeln"
+  episodeCount_one: "{{count}} Folge"
+  episodeCount_other: "{{count}} Folgen"
   backupFailed: "Geplante Sicherung fehlgeschlagen"
   clearConfirm: Alle Benachrichtigungen löschen?
   clearTitle: Benachrichtigungen löschen

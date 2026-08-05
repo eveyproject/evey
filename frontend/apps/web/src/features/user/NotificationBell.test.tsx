@@ -13,7 +13,10 @@ vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => vi.fn(),
 }));
 
-vi.mock("@evey/api", () => ({
+vi.mock("@evey/api", async (importOriginal) => ({
+  // notificationLabel is a pure formatter - keep the REAL one so these tests
+  // still assert the wording that reaches the screen.
+  notificationLabel: (await importOriginal<typeof import("@evey/api")>()).notificationLabel,
   useNotificationServiceGetUnreadCount: () => ({ data: { count: 3 } }),
   useNotificationServiceListNotifications: () => ({
     data: {

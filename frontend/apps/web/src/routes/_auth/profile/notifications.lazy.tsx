@@ -71,7 +71,7 @@ function NotificationRow({ notif }: { notif: Notification }) {
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-0.5">
-          <p className="text-sm font-medium text-[var(--text)] truncate">{translateNotificationTitle(t, notif.title)}</p>
+          <p className="text-sm font-medium text-[var(--text)] truncate">{translateNotificationTitle(t, notif)}</p>
           {!isRead && (
             <span className="w-2 h-2 rounded-full bg-[var(--accent)] shrink-0" />
           )}

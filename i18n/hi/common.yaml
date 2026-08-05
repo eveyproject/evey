@@ -119,6 +119,10 @@ notifications:
   newSeason: "नया सीज़न: {{name}}"
   newSeries: "नई सीरीज़: {{name}}"
   newAlbum: "नया एल्बम: {{name}}"
+  seasonCount_one: "{{count}} सीज़न"
+  seasonCount_other: "{{count}} सीज़न"
+  episodeCount_one: "{{count}} एपिसोड"
+  episodeCount_other: "{{count}} एपिसोड"
   backupFailed: "निर्धारित बैकअप विफल"
   clearConfirm: सभी सूचनाएं हटाएं?
   clearTitle: सूचनाएं साफ़ करें

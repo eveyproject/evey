@@ -1,26 +1,15 @@
 import { useTranslation } from "react-i18next";
+import { notificationLabel, type NotificationLabelInput } from "@evey/api";
 
-const TITLE_KEYS: Record<string, string> = {
-  new_movie: "common.notifications.newMovie",
-  new_episode: "common.notifications.newEpisode",
-  new_season: "common.notifications.newSeason",
-  new_series: "common.notifications.newSeries",
-  new_album: "common.notifications.newAlbum",
-  backup_failed: "common.notifications.backupFailed",
-};
-
+// Kept as this module's entry point; the wording lives in @evey/api so the
+// three apps share one implementation. Pass the whole notification: the
+// subject and counts are what let the sentence be built in the viewer's
+// language instead of copying the server's English through.
 export function translateNotificationTitle(
   t: (k: string, opts?: Record<string, unknown>) => string,
-  raw: string | undefined,
+  n: NotificationLabelInput | string | undefined,
 ): string {
-  if (!raw) return "";
-  const colonIdx = raw.indexOf(":");
-  if (colonIdx === -1) return raw;
-  const key = raw.slice(0, colonIdx);
-  const i18nKey = TITLE_KEYS[key];
-  if (!i18nKey) return raw;
-  const name = raw.slice(colonIdx + 1);
-  return t(i18nKey, { name });
+  return notificationLabel(t, typeof n === "string" ? { title: n } : (n ?? {}));
 }
 
 export function useRelativeTime() {

@@ -142,7 +142,7 @@ export function NotificationBell() {
                       url ? "hover:bg-[var(--surface-raised)] cursor-pointer" : "cursor-default"
                     } ${n.readAt ? "opacity-50" : ""}`}
                   >
-                    <p className="text-sm font-medium text-[var(--text)] truncate">{translateNotificationTitle(t, n.title)}</p>
+                    <p className="text-sm font-medium text-[var(--text)] truncate">{translateNotificationTitle(t, n)}</p>
                     <p className="text-xs text-[var(--text-muted)] line-clamp-1 mt-0.5">{n.message}</p>
                     <p className="text-xs text-[var(--text-muted)] mt-1">{relativeTime(n.createdAt)}</p>
                   </button>

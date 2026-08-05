@@ -119,6 +119,10 @@ notifications:
   newSeason: "Nueva temporada: {{name}}"
   newSeries: "Nueva serie: {{name}}"
   newAlbum: "Nuevo álbum: {{name}}"
+  seasonCount_one: "{{count}} temporada"
+  seasonCount_other: "{{count}} temporadas"
+  episodeCount_one: "{{count}} episodio"
+  episodeCount_other: "{{count}} episodios"
   backupFailed: "Fallo en la copia de seguridad programada"
   clearConfirm: ¿Eliminar todas las notificaciones?
   clearTitle: Borrar notificaciones

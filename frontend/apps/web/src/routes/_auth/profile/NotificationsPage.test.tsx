@@ -11,7 +11,10 @@ const mockMarkRead = vi.fn();
 const mockMarkAllRead = vi.fn();
 const mockDeleteAll = vi.fn();
 
-vi.mock("@evey/api", () => ({
+vi.mock("@evey/api", async (importOriginal) => ({
+  // notificationLabel is a pure formatter - keep the REAL one so these tests
+  // still assert the wording that reaches the screen.
+  notificationLabel: (await importOriginal<typeof import("@evey/api")>()).notificationLabel,
   useNotificationServiceListNotifications: vi.fn(() => ({ data: undefined, isLoading: true })),
   useNotificationServiceMarkRead: vi.fn(() => ({ mutate: mockMarkRead, isPending: false })),
   useNotificationServiceMarkAllRead: vi.fn(() => ({ mutate: mockMarkAllRead, isPending: false })),
