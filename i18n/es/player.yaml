@@ -136,7 +136,6 @@ streamInfo:
   bitrate: Bitrate
   framerate: Tasa de fotogramas
   profile: Perfil
-  pixelFormat: Formato de píxel
   decision: Decisión
   audio: Audio
   channels: Canales
