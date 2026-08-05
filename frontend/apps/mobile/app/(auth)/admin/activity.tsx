@@ -55,7 +55,7 @@ function PlayHistoryTab() {
   const PAGE_SIZE = 25;
   const [page, setPage] = useState(1);
 
-  const { data, isLoading, isError, refetch } = useActivityServiceGetPlayHistory({
+  const { data, isLoading, isFetching, isError, refetch } = useActivityServiceGetPlayHistory({
     "pagination.page": page,
     "pagination.pageSize": PAGE_SIZE,
   });
@@ -114,8 +114,14 @@ function PlayHistoryTab() {
       keyExtractor={(item, index) => item.id ?? String(index)}
       renderItem={renderItem}
       contentContainerStyle={{ padding: 16, gap: 8 }}
-      refreshing={isLoading}
-      onRefresh={() => { appliedPage.current = -1; void refetch(); }}
+      refreshing={isFetching}
+      onRefresh={() => {
+        // Reset to the first page, else a refresh while scrolled past page 1
+        // re-fetches the current page and appends it again (duplicate rows).
+        appliedPage.current = -1;
+        if (page === 1) void refetch();
+        else setPage(1);
+      }}
       onEndReached={loadMore}
       onEndReachedThreshold={0.5}
       ListFooterComponent={hasMore ? <ActivityIndicator color={theme.colors.accent} style={{ paddingVertical: 16 }} /> : null}
@@ -139,7 +145,7 @@ function AuditLogTab() {
   const PAGE_SIZE = 25;
   const [page, setPage] = useState(0);
 
-  const { data, isLoading, isError, refetch } = useAdminSessionServiceGetAuditLog({
+  const { data, isLoading, isFetching, isError, refetch } = useAdminSessionServiceGetAuditLog({
     limit: PAGE_SIZE,
     offset: page * PAGE_SIZE,
   });
@@ -185,8 +191,14 @@ function AuditLogTab() {
       keyExtractor={(item, index) => item.id ?? String(index)}
       renderItem={renderItem}
       contentContainerStyle={{ padding: 16, gap: 8 }}
-      refreshing={isLoading}
-      onRefresh={() => { appliedPage.current = -1; void refetch(); }}
+      refreshing={isFetching}
+      onRefresh={() => {
+        // Reset to the first page, else a refresh while scrolled past page 0
+        // re-fetches the current page and appends it again (duplicate rows).
+        appliedPage.current = -1;
+        if (page === 0) void refetch();
+        else setPage(0);
+      }}
       onEndReached={loadMore}
       onEndReachedThreshold={0.5}
       ListFooterComponent={hasMore ? <ActivityIndicator color={theme.colors.accent} style={{ paddingVertical: 16 }} /> : null}
