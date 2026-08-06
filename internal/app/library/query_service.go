@@ -260,17 +260,29 @@ func (s *QueryService) GetSegments(ctx context.Context, mediaItemID string) ([]*
 	// for eval/training) but not served - a wrong skip button costs more than
 	// a missing one. Threshold is admin-tunable; 0 disables the gate.
 	minConf := loadIntroConfig(ctx, s.serverConfig).MinServeConfidence
-	if minConf <= 0 {
-		return segs, nil
-	}
 	out := segs[:0]
 	for _, sg := range segs {
-		if sg.Confidence >= minConf {
-			out = append(out, sg)
+		// Product rule (user decision 2026-08-06): under 5 seconds there is no
+		// skip-intro button, whatever the source or confidence. Chapters are
+		// exempt from the detection-side floor, so a 3s chapter labelled
+		// "intro" reaches storage - this is the one point every player is
+		// behind. Not tunable, unlike the confidence gate.
+		if sg.Type == "intro" && sg.EndMs-sg.StartMs < minServeIntroMs {
+			continue
 		}
+		if minConf > 0 && sg.Confidence < minConf {
+			continue
+		}
+		out = append(out, sg)
 	}
 	return out, nil
 }
+
+// minServeIntroMs is the serving-side floor on intro length: below it no
+// player shows a skip button. Distinct from minHeuristicIntroMs, which polices
+// what in-house detectors may EMIT - this one polices what anyone may SEE,
+// authoritative sources included.
+const minServeIntroMs = 5_000
 
 func (s *QueryService) GetTrickplayManifest(ctx context.Context, mediaItemID string) (*library.TrickplayManifest, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.library.GetTrickplayManifest")

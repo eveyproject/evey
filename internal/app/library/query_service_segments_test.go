@@ -76,3 +76,28 @@ func TestGetSegments_RaisedThresholdWithholdsMore(t *testing.T) {
 	require.Len(t, got, 1)
 	assert.Equal(t, "audio_cluster", got[0].Source)
 }
+
+// User decision 2026-08-06: below 5 seconds there is NO skip-intro button,
+// whatever the source and however confident - a 3s mkv chapter labelled
+// "intro" (9-1-1 S02E02, stored because chapters are exempt from the
+// detection-side floor) must not reach a player. Enforced at the single
+// serving decision point; the confidence gate being disabled does not
+// disable it. Credits are out of scope: the rule is about the skip button.
+func TestGetSegments_WithholdsSubFiveSecondIntros(t *testing.T) {
+	t.Parallel()
+	cfgRepo := sharedfakes.NewFakeServerConfigRepository()
+	require.NoError(t, cfgRepo.Set(context.Background(), IntroDetectionConfigKey, `{"min_serve_confidence": 0}`))
+	segs := []*domainlibrary.MediaSegment{
+		{Type: "intro", StartMs: 389_000, EndMs: 392_000, Source: "mkv_chapter", Confidence: 1.0},
+		{Type: "intro", StartMs: 10_000, EndMs: 40_000, Source: "audio_cluster", Confidence: 0.9},
+		{Type: "end_credits", StartMs: 2_576_000, EndMs: 2_580_000, Source: "mkv_chapter", Confidence: 1.0},
+	}
+	got, err := segQuerySvc(segs, WithServerConfig(cfgRepo)).GetSegments(context.Background(), "ep-1")
+	require.NoError(t, err)
+	require.Len(t, got, 2, "the 3s chapter intro is withheld even with the confidence gate disabled")
+	for _, sg := range got {
+		if sg.Type == "intro" {
+			assert.GreaterOrEqual(t, sg.EndMs-sg.StartMs, int64(5_000))
+		}
+	}
+}
