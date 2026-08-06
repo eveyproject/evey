@@ -20,14 +20,18 @@ import (
 )
 
 type CommandService struct {
-	repo    photo.Repository
-	bus     shared.EventBus
-	libRepo library.LibraryQueryRepo
-	scanner photo.PhotoScanner
+	repo photo.CommandRepo
+	// scanReads is the read subset the scan reconciliation needs; both halves
+	// come from the same concrete repository, the split only narrows what each
+	// call site can reach (ADR-0009).
+	scanReads photo.QueryRepo
+	bus       shared.EventBus
+	libRepo   library.LibraryQueryRepo
+	scanner   photo.PhotoScanner
 }
 
 func NewCommandService(repo photo.Repository, bus shared.EventBus, libRepo library.LibraryQueryRepo, scanner photo.PhotoScanner) *CommandService {
-	return &CommandService{repo: repo, bus: bus, libRepo: libRepo, scanner: scanner}
+	return &CommandService{repo: repo, scanReads: repo, bus: bus, libRepo: libRepo, scanner: scanner}
 }
 
 type photoJob struct {
@@ -64,7 +68,7 @@ func (s *CommandService) ScanDirectory(ctx context.Context, libraryID, dir strin
 // hash lookup drives the "moved file, same content" fast path so a
 // rename doesn't trigger a full re-upsert.
 func (s *CommandService) loadPhotoIndex(ctx context.Context, libraryID string) (*scanindex.Index, error) {
-	existing, err := s.repo.ListAllByLibrary(ctx, shared.LibraryID(libraryID))
+	existing, err := s.scanReads.ListAllByLibrary(ctx, shared.LibraryID(libraryID))
 	if err != nil {
 		return nil, fmt.Errorf("list existing photos: %w", err)
 	}
@@ -204,7 +208,7 @@ func (s *CommandService) processOnePhoto(ctx context.Context, libraryID string, 
 func (s *CommandService) DeletePhoto(ctx context.Context, photoID string) error {
 	ctx, span := tracing.StartSpan(ctx, "app.photo.DeletePhoto")
 	defer span.End()
-	p, err := s.repo.GetByID(ctx, photoID)
+	p, err := s.scanReads.GetByID(ctx, photoID)
 	if err != nil && !errors.Is(err, shared.ErrNotFound) {
 		return fmt.Errorf("CommandService.DeletePhoto: %w", err)
 	}

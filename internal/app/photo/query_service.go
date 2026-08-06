@@ -10,10 +10,12 @@ import (
 )
 
 type QueryService struct {
-	repo photo.Repository
+	repo photo.QueryRepo
 }
 
-func NewQueryService(repo photo.Repository) *QueryService {
+// NewQueryService takes only the READ half of the store (ADR-0009): a query
+// service that could write would be a category error the compiler now rejects.
+func NewQueryService(repo photo.QueryRepo) *QueryService {
 	return &QueryService{repo: repo}
 }
 

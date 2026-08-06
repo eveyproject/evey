@@ -7,10 +7,19 @@ import (
 	"github.com/evey-project/evey/internal/domain/shared"
 )
 
-type Repository interface {
+// CommandRepo is the write side of the photo store (ADR-0009). Reads the
+// command flows need (scan reconciliation) live in QueryRepo - the concrete
+// repository satisfies both, the split only narrows what each call site can
+// reach.
+type CommandRepo interface {
 	Upsert(ctx context.Context, p Photo) error
-	GetByID(ctx context.Context, id string) (*Photo, error)
 	Delete(ctx context.Context, id string) error
+	UpdateFilePath(ctx context.Context, id, newPath string, modTime time.Time) error
+}
+
+// QueryRepo is the read side of the photo store.
+type QueryRepo interface {
+	GetByID(ctx context.Context, id string) (*Photo, error)
 	ListByLibrary(ctx context.Context, libraryID shared.LibraryID, limit, offset int) ([]Photo, int, error)
 	// CountByLibrary returns just the number of photos in a library. Callers that
 	// only need the count must NOT reach for ListByLibrary with limit=1: that
@@ -29,7 +38,13 @@ type Repository interface {
 	ListByAlbumCursor(ctx context.Context, libraryID shared.LibraryID, album string, cursor *PhotoCursor, limit int) ([]Photo, error)
 	GetAlbums(ctx context.Context, libraryID shared.LibraryID) ([]Album, error)
 	Search(ctx context.Context, libraryID shared.LibraryID, query string, limit int) ([]Photo, error)
-	UpdateFilePath(ctx context.Context, id, newPath string, modTime time.Time) error
+}
+
+// Repository is the composite the concrete adapters implement; services hold
+// the narrowed halves, never this.
+type Repository interface {
+	CommandRepo
+	QueryRepo
 }
 
 // PhotoCursor keysets photo listings by the same tuple the list queries sort
