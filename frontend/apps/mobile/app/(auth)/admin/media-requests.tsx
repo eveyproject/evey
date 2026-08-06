@@ -1,5 +1,6 @@
 import { useMemo, useState, useCallback } from "react";
 import { View, Text, FlatList, Pressable, TextInput, Modal, Switch, ActivityIndicator, StyleSheet } from "react-native";
+import { Image } from "expo-image";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Stack } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -42,6 +43,38 @@ function statusColor(theme: ReturnType<typeof useTheme>, status?: string): strin
   }
 }
 
+// posterUrl comes straight from a metadata provider (TMDB / MusicBrainz),
+// not our server - no serverUrl prefix or auth token needed, and it can 404
+// (e.g. a MusicBrainz release-group with no cover art), so fall back to a
+// type icon on error. Mirrors web's RequestPoster.
+function RequestPosterThumb({ posterUrl, mediaType, theme }: { posterUrl?: string; mediaType?: string; theme: ReturnType<typeof useTheme> }) {
+  const [failed, setFailed] = useState(false);
+  const iconName = mediaType === "music" ? "musical-notes" : mediaType === "tv" ? "tv-outline" : "film-outline";
+
+  if (!posterUrl || failed) {
+    return (
+      <View
+        style={[
+          styles.posterThumb,
+          { backgroundColor: theme.colors.surfaceRaised, borderRadius: theme.radii.sm, alignItems: "center", justifyContent: "center" },
+        ]}
+        testID="request-poster-fallback"
+      >
+        <Ionicons name={iconName} size={20} color={theme.colors.textMuted} />
+      </View>
+    );
+  }
+
+  return (
+    <Image
+      source={{ uri: posterUrl }}
+      style={[styles.posterThumb, { borderRadius: theme.radii.sm }]}
+      contentFit="cover"
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
 function RequestRow({ request, theme }: { request: V1MediaRequestProto; theme: ReturnType<typeof useTheme> }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -67,74 +100,77 @@ function RequestRow({ request, theme }: { request: V1MediaRequestProto; theme: R
   const isPending = request.status === "pending";
 
   return (
-    <View style={[styles.card, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-        <Text style={{ color: theme.colors.text, fontSize: 15, fontWeight: "600" }}>{request.title}</Text>
-        {request.year != null && request.year > 0 && (
-          <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>({request.year})</Text>
-        )}
-        <View style={[styles.badge, { backgroundColor: statusColor(theme, request.status) + "22" }]}>
-          <Text style={{ color: statusColor(theme, request.status), fontSize: 11, fontWeight: "600" }}>
-            {statusLabel(t, request.status)}
-          </Text>
-        </View>
-      </View>
-      {request.requesterName ? (
-        <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginTop: 4 }}>
-          {t("admin.mediaRequests.requestedBy", { name: request.requesterName })}
-        </Text>
-      ) : null}
-
-      {isPending ? (
-        <View style={{ marginTop: 10, gap: 8 }}>
-          <TextInput
-            value={note}
-            onChangeText={setNote}
-            placeholder={t("admin.mediaRequests.notePlaceholder")}
-            placeholderTextColor={theme.colors.textMuted}
-            multiline
-            style={[styles.noteInput, { backgroundColor: theme.colors.bg, color: theme.colors.text, borderRadius: theme.radii.sm }]}
-          />
-          <View style={{ flexDirection: "row", gap: 8 }}>
-            <Pressable
-              disabled={answer.isPending}
-              onPress={() => handleAnswer("approved")}
-              style={[styles.actionBtn, { backgroundColor: theme.colors.accent, opacity: answer.isPending ? 0.6 : 1 }]}
-              accessible={true}
-              accessibilityLabel={t("admin.mediaRequests.approveNamed", "Approve {{title}}", { title: request.title })}
-              accessibilityRole="button"
-            >
-              <Text style={{ color: theme.colors.onAccent, fontSize: 13, fontWeight: "600" }}>{t("admin.mediaRequests.approve")}</Text>
-            </Pressable>
-            <Pressable
-              disabled={answer.isPending}
-              onPress={() => handleAnswer("rejected")}
-              style={[styles.actionBtn, { backgroundColor: theme.colors.error, opacity: answer.isPending ? 0.6 : 1 }]}
-              accessible={true}
-              accessibilityLabel={t("admin.mediaRequests.rejectNamed", "Reject {{title}}", { title: request.title })}
-              accessibilityRole="button"
-            >
-              <Text style={{ color: theme.colors.onError, fontSize: 13, fontWeight: "600" }}>{t("admin.mediaRequests.reject")}</Text>
-            </Pressable>
-            <Pressable
-              disabled={answer.isPending}
-              onPress={() => handleAnswer("later")}
-              style={[styles.actionBtn, { backgroundColor: theme.colors.bg, opacity: answer.isPending ? 0.6 : 1 }]}
-              accessible={true}
-              accessibilityLabel={t("admin.mediaRequests.laterNamed", "Postpone {{title}}", { title: request.title })}
-              accessibilityRole="button"
-            >
-              <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: "600" }}>{t("admin.mediaRequests.later")}</Text>
-            </Pressable>
+    <View style={[styles.card, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md, flexDirection: "row", gap: 12 }]}>
+      <RequestPosterThumb posterUrl={request.posterUrl} mediaType={request.mediaType} theme={theme} />
+      <View style={{ flex: 1 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <Text style={{ color: theme.colors.text, fontSize: 15, fontWeight: "600" }}>{request.title}</Text>
+          {request.year != null && request.year > 0 && (
+            <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>({request.year})</Text>
+          )}
+          <View style={[styles.badge, { backgroundColor: statusColor(theme, request.status) + "22" }]}>
+            <Text style={{ color: statusColor(theme, request.status), fontSize: 11, fontWeight: "600" }}>
+              {statusLabel(t, request.status)}
+            </Text>
           </View>
         </View>
-      ) : (
-        request.adminNote ? (
-          <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginTop: 6 }}>
-            {t("admin.mediaRequests.answeredNote", { note: request.adminNote })}
+        {request.requesterName ? (
+          <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginTop: 4 }}>
+            {t("admin.mediaRequests.requestedBy", { name: request.requesterName })}
           </Text>
-        ) : null
-      )}
+        ) : null}
+
+        {isPending ? (
+          <View style={{ marginTop: 10, gap: 8 }}>
+            <TextInput
+              value={note}
+              onChangeText={setNote}
+              placeholder={t("admin.mediaRequests.notePlaceholder")}
+              placeholderTextColor={theme.colors.textMuted}
+              multiline
+              style={[styles.noteInput, { backgroundColor: theme.colors.bg, color: theme.colors.text, borderRadius: theme.radii.sm }]}
+            />
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <Pressable
+                disabled={answer.isPending}
+                onPress={() => handleAnswer("approved")}
+                style={[styles.actionBtn, { backgroundColor: theme.colors.accent, opacity: answer.isPending ? 0.6 : 1 }]}
+                accessible={true}
+                accessibilityLabel={t("admin.mediaRequests.approveNamed", "Approve {{title}}", { title: request.title })}
+                accessibilityRole="button"
+              >
+                <Text style={{ color: theme.colors.onAccent, fontSize: 13, fontWeight: "600" }}>{t("admin.mediaRequests.approve")}</Text>
+              </Pressable>
+              <Pressable
+                disabled={answer.isPending}
+                onPress={() => handleAnswer("rejected")}
+                style={[styles.actionBtn, { backgroundColor: theme.colors.error, opacity: answer.isPending ? 0.6 : 1 }]}
+                accessible={true}
+                accessibilityLabel={t("admin.mediaRequests.rejectNamed", "Reject {{title}}", { title: request.title })}
+                accessibilityRole="button"
+              >
+                <Text style={{ color: theme.colors.onError, fontSize: 13, fontWeight: "600" }}>{t("admin.mediaRequests.reject")}</Text>
+              </Pressable>
+              <Pressable
+                disabled={answer.isPending}
+                onPress={() => handleAnswer("later")}
+                style={[styles.actionBtn, { backgroundColor: theme.colors.bg, opacity: answer.isPending ? 0.6 : 1 }]}
+                accessible={true}
+                accessibilityLabel={t("admin.mediaRequests.laterNamed", "Postpone {{title}}", { title: request.title })}
+                accessibilityRole="button"
+              >
+                <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: "600" }}>{t("admin.mediaRequests.later")}</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : (
+          request.adminNote ? (
+            <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginTop: 6 }}>
+              {t("admin.mediaRequests.answeredNote", { note: request.adminNote })}
+            </Text>
+          ) : null
+        )}
+      </View>
     </View>
   );
 }
@@ -479,6 +515,7 @@ const styles = StyleSheet.create({
   tabBar: { flexDirection: "row", padding: 8, gap: 4, borderBottomWidth: StyleSheet.hairlineWidth },
   tabBtn: { flex: 1, paddingVertical: 8, alignItems: "center" },
   card: { padding: 14 },
+  posterThumb: { width: 48, height: 72, flexShrink: 0 },
   badge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 },
   filterChip: { paddingHorizontal: 12, paddingVertical: 8 },
   noteInput: { paddingHorizontal: 12, paddingVertical: 8, fontSize: 13, minHeight: 40, textAlignVertical: "top" },
