@@ -1,0 +1,129 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen } from "@testing-library/react";
+import React from "react";
+
+// The mini-player showed a bare progress bar with no numeric elapsed/duration
+// readout, unlike web's GlobalAudioPlayer (which flanks its seek bar with
+// formatTime(currentTime) / formatTime(duration)). This proves the mobile
+// mini-player now shows the same MM:SS / MM:SS readout, reusing the shared
+// @evey/api formatter rather than a local copy.
+
+// --- React Native mock -----------------------------------------------------------------
+vi.mock("react-native", () => ({
+  View: ({ children, ...p }: any) => React.createElement("div", p, children),
+  Text: ({ children, ...p }: any) => React.createElement("span", p, children),
+  Pressable: ({ children, onPress, accessibilityLabel, ...p }: any) =>
+    React.createElement("button", { onClick: onPress, "aria-label": accessibilityLabel, ...p }, children),
+  StyleSheet: { create: (s: any) => s, hairlineWidth: 1 },
+  AppState: { currentState: "active", addEventListener: () => ({ remove: vi.fn() }) },
+  Platform: { OS: "android", select: (obj: any) => obj.android },
+}));
+
+// --- expo-image / expo-router / expo-audio -----------------------------------------------
+vi.mock("expo-image", () => ({
+  Image: ({ source, ...p }: any) => React.createElement("img", { src: source?.uri, alt: "", ...p }),
+}));
+vi.mock("expo-router", () => ({
+  router: { push: vi.fn() },
+}));
+
+let audioStatus: { currentTime?: number; duration?: number; playing?: boolean; didJustFinish?: boolean; isLoaded?: boolean } = {
+  currentTime: 65,
+  duration: 245,
+  playing: true,
+  didJustFinish: false,
+  isLoaded: true,
+};
+const audioPlayer = { replace: vi.fn(), play: vi.fn(), pause: vi.fn(), seekTo: vi.fn() };
+vi.mock("expo-audio", () => ({
+  useAudioPlayer: () => audioPlayer,
+  useAudioPlayerStatus: () => audioStatus,
+}));
+
+// --- i18next ------------------------------------------------------------------------------
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({ t: (_key: string, fallback?: string) => fallback ?? _key }),
+}));
+
+// --- ThemeProvider --------------------------------------------------------------------
+vi.mock("../providers/ThemeProvider", () => ({
+  useTheme: () => ({
+    colors: {
+      bg: "#000", surfaceRaised: "#111", border: "#333", text: "#fff",
+      textMuted: "#888", accent: "#f00",
+    },
+  }),
+}));
+
+// --- misc hooks/libs not under test -----------------------------------------------------
+vi.mock("../hooks/useServerUrl", () => ({ useServerUrl: () => "http://test-server" }));
+vi.mock("../lib/musicScrobble", () => ({ shouldRecordScrobble: () => false }));
+
+// --- @evey/store -------------------------------------------------------------------------
+vi.mock("@evey/store", () => ({
+  useAuthStore: (selector: (s: any) => unknown) => selector({ accessToken: "tok-1" }),
+  toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
+}));
+
+// --- music queue store -------------------------------------------------------------------
+const track = { id: "trk-1", title: "Some Track", artist: "Some Artist", album: "Some Album", duration: 245 };
+let queueState = {
+  queue: [track],
+  currentIndex: 0,
+  isPlaying: true,
+  shuffle: false,
+  source: null as unknown,
+  togglePlay: vi.fn(),
+  toggleShuffle: vi.fn(),
+  next: vi.fn(),
+  previous: vi.fn(),
+  clear: vi.fn(),
+};
+vi.mock("../stores/musicQueue", () => ({
+  useMusicQueueStore: (selector: (s: typeof queueState) => unknown) => selector(queueState),
+}));
+
+// --- @evey/api ----------------------------------------------------------------------------
+// formatTime is real (pure, no network) - only eveyFetch is stubbed.
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
+  eveyFetch: vi.fn().mockResolvedValue({}),
+}));
+
+import { MusicMiniPlayer } from "./MusicMiniPlayer";
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  audioStatus = { currentTime: 65, duration: 245, playing: true, didJustFinish: false, isLoaded: true };
+  queueState = {
+    queue: [track],
+    currentIndex: 0,
+    isPlaying: true,
+    shuffle: false,
+    source: null,
+    togglePlay: vi.fn(),
+    toggleShuffle: vi.fn(),
+    next: vi.fn(),
+    previous: vi.fn(),
+    clear: vi.fn(),
+  };
+});
+
+describe("MusicMiniPlayer - elapsed/duration readout", () => {
+  it("shows the current position and track duration as MM:SS", () => {
+    render(<MusicMiniPlayer />);
+
+    expect(screen.getByText("1:05")).toBeTruthy();
+    expect(screen.getByText("4:05")).toBeTruthy();
+  });
+
+  it("shows a dash for duration before the player has one", () => {
+    audioStatus = { currentTime: 0, duration: 0, playing: false, didJustFinish: false, isLoaded: false };
+    queueState = { ...queueState, queue: [{ ...track, duration: 0 }] };
+
+    render(<MusicMiniPlayer />);
+
+    expect(screen.getByText("0:00")).toBeTruthy();
+    expect(screen.getByText("-")).toBeTruthy();
+  });
+});

@@ -13,7 +13,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
 import { useTranslation } from "react-i18next";
 import { router } from "expo-router";
-import { eveyFetch } from "@evey/api";
+import { eveyFetch, formatTime } from "@evey/api";
 import { useAuthStore, toast } from "@evey/store";
 import { useMusicQueueStore } from "../stores/musicQueue";
 import { useTheme } from "../providers/ThemeProvider";
@@ -279,33 +279,37 @@ function MusicMiniPlayerImpl() {
       style={[styles.root, { backgroundColor: theme.colors.surfaceRaised, borderTopColor: theme.colors.border }]}
       accessibilityLabel="Music player"
     >
-      <View
-        style={styles.seekBarContainer}
-        accessible
-        accessibilityRole="adjustable"
-        accessibilityLabel={t("media.music.seekPosition")}
-        accessibilityValue={{ min: 0, max: 100, now: Math.round(progress * 100) }}
-        onLayout={(e) => { seekBarWidthRef.current = e.nativeEvent.layout.width; }}
-        onStartShouldSetResponder={() => true}
-        onMoveShouldSetResponder={() => true}
-        onResponderGrant={(e: GestureResponderEvent) => {
-          const pct = pctFromX(e.nativeEvent.locationX);
-          seekPctRef.current = pct;
-          setScrubPct(pct);
-        }}
-        onResponderMove={(e: GestureResponderEvent) => {
-          const pct = pctFromX(e.nativeEvent.locationX);
-          seekPctRef.current = pct;
-          setScrubPct(pct);
-        }}
-        onResponderRelease={() => {
-          commitSeek(seekPctRef.current);
-          setScrubPct(null);
-        }}
-      >
-        <View style={[styles.progressTrack, { backgroundColor: theme.colors.border }]}>
-          <View style={[styles.progressFill, { width: `${Math.max(0, Math.min(100, displayedProgress * 100))}%`, backgroundColor: theme.colors.accent }]} />
+      <View style={styles.seekRow}>
+        <Text style={[styles.timeLabel, { color: theme.colors.textMuted }]}>{formatTime(position)}</Text>
+        <View
+          style={styles.seekBarContainer}
+          accessible
+          accessibilityRole="adjustable"
+          accessibilityLabel={t("media.music.seekPosition")}
+          accessibilityValue={{ min: 0, max: 100, now: Math.round(progress * 100) }}
+          onLayout={(e) => { seekBarWidthRef.current = e.nativeEvent.layout.width; }}
+          onStartShouldSetResponder={() => true}
+          onMoveShouldSetResponder={() => true}
+          onResponderGrant={(e: GestureResponderEvent) => {
+            const pct = pctFromX(e.nativeEvent.locationX);
+            seekPctRef.current = pct;
+            setScrubPct(pct);
+          }}
+          onResponderMove={(e: GestureResponderEvent) => {
+            const pct = pctFromX(e.nativeEvent.locationX);
+            seekPctRef.current = pct;
+            setScrubPct(pct);
+          }}
+          onResponderRelease={() => {
+            commitSeek(seekPctRef.current);
+            setScrubPct(null);
+          }}
+        >
+          <View style={[styles.progressTrack, { backgroundColor: theme.colors.border }]}>
+            <View style={[styles.progressFill, { width: `${Math.max(0, Math.min(100, displayedProgress * 100))}%`, backgroundColor: theme.colors.accent }]} />
+          </View>
         </View>
+        <Text style={[styles.timeLabel, { color: theme.colors.textMuted }]}>{duration > 0 ? formatTime(duration) : "-"}</Text>
       </View>
       <View style={styles.row}>
         <View style={styles.cover}>
@@ -373,10 +377,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
+  seekRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 2,
+  },
   seekBarContainer: {
+    flex: 1,
     height: 16,
     justifyContent: "center",
-    marginBottom: 2,
+  },
+  timeLabel: {
+    fontSize: FONT_SIZE.xs,
+    minWidth: 34,
+    textAlign: "center",
   },
   progressTrack: {
     height: 2,
