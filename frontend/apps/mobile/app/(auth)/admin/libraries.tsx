@@ -20,6 +20,7 @@ import type { V1Library, V1LibraryType } from "@evey/api";
 import { toast } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { LoadFailed } from "../../../src/components/LoadFailed";
+import { DirectoryPickerModal, type ServerDir } from "../../../src/components/admin/DirectoryPickerModal";
 
 const TYPE_ICONS: Record<string, string> = {
   LIBRARY_TYPE_MOVIES: "film-outline",
@@ -473,6 +474,18 @@ export default function AdminLibrariesScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [editingLibrary, setEditingLibrary] = useState<V1Library | null>(null);
   const [form, setForm] = useState<LibraryFormData>(EMPTY_FORM);
+  // Index of the path row whose directory picker is open, null = closed.
+  const [pickerFor, setPickerFor] = useState<number | null>(null);
+
+  // Server-side directory suggestions, same source as the web's LibraryForm
+  // select. Best-effort: an error just leaves the free-text inputs alone.
+  const { data: serverDirs = [] } = useQuery<ServerDir[]>({
+    queryKey: ["/api/v1/admin/fs/browse"],
+    queryFn: () => eveyFetch<ServerDir[]>({ url: "/api/v1/admin/fs/browse", method: "GET" }),
+    enabled: modalVisible,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
 
   const scanLibrary = useLibraryServiceScanLibrary({
     mutation: {
@@ -762,6 +775,19 @@ export default function AdminLibrariesScreen() {
                     autoCapitalize="none"
                     autoCorrect={false}
                   />
+                  {serverDirs.length > 0 && (
+                    <Pressable
+                      onPress={() => setPickerFor(i)}
+                      hitSlop={8}
+                      style={{ padding: 4 }}
+                      testID={`browse-path-${i}`}
+                      accessible={true}
+                      accessibilityLabel={t("admin.libraries.selectDirectory", "Select a directory")}
+                      accessibilityRole="button"
+                    >
+                      <Ionicons name="folder-open-outline" size={22} color={theme.colors.accent} />
+                    </Pressable>
+                  )}
                   {form.paths.length > 1 && (
                     <Pressable
                       onPress={() => removePath(i)}
@@ -817,6 +843,14 @@ export default function AdminLibrariesScreen() {
             )}
           </ScrollView>
         </View>
+        <DirectoryPickerModal
+          visible={pickerFor !== null}
+          dirs={serverDirs}
+          onSelect={(path) => {
+            if (pickerFor !== null) updatePath(pickerFor, path);
+          }}
+          onClose={() => setPickerFor(null)}
+        />
       </Modal>
     </View>
   );
