@@ -150,4 +150,10 @@ describe("PluginSlot", () => {
       expect(iframe.getAttribute("data-src")).toBe("index.js");
     });
   });
+
+  it("shows a muted error line when the plugin list fails, instead of rendering nothing", async () => {
+    mockEveyFetch.mockRejectedValue(new Error("boom"));
+    render(<PluginSlot name="home.section" />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByTestId("plugin-slot-error")).toBeInTheDocument());
+  });
 });

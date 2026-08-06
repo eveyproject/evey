@@ -62,7 +62,7 @@ interface PluginSlotProps {
 export function PluginSlot({ name, context, pluginId, excludeRegistered }: PluginSlotProps) {
   const isAuthenticated = useAuthStore((s) => !!s.accessToken);
 
-  const { data } = useQuery<ListPluginsResponse>({
+  const { data, isError } = useQuery<ListPluginsResponse>({
     queryKey: ["/api/v1/plugins"],
     queryFn: () => eveyFetch<ListPluginsResponse>({ url: "/api/v1/plugins", method: "GET" }),
     staleTime: 60_000,
@@ -90,6 +90,10 @@ export function PluginSlot({ name, context, pluginId, excludeRegistered }: Plugi
     }
   }
 
+  // A failed plugin LIST must not pose as "no plugins here" - same
+  // failure-shown-as-empty contract as web/mobile, same i18n key as the
+  // per-module load error.
+  if (isError) return <PluginSlotError />;
   if (matches.length === 0) return null;
 
   return (
@@ -104,6 +108,18 @@ export function PluginSlot({ name, context, pluginId, excludeRegistered }: Plugi
         />
       ))}
     </>
+  );
+}
+
+function PluginSlotError() {
+  const { t } = useTranslation();
+  const theme = useTheme();
+  return (
+    <View style={styles.error}>
+      <Text style={{ color: theme.colors.textMuted, fontSize: FONT_SIZE.xs }}>
+        {t("admin.plugin.frontLoadError", "Failed to load plugin")}
+      </Text>
+    </View>
   );
 }
 

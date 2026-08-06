@@ -1,5 +1,6 @@
 import { Component, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { eveyFetch } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { PluginIframe } from "./PluginIframe";
@@ -73,7 +74,7 @@ export function PluginSlot({ name, context, pluginId, excludeRegistered }: Plugi
   // Use the same queryKey as the admin Plugins page so install/enable/
   // uninstall mutations there invalidate this list too - otherwise the
   // home page keeps rendering iframes for plugin ids that no longer exist.
-  const { data } = useQuery<ListPluginsResponse>({
+  const { data, isError } = useQuery<ListPluginsResponse>({
     queryKey: ["/api/v1/plugins"],
     queryFn: () =>
       eveyFetch<ListPluginsResponse>({ url: "/api/v1/plugins", method: "GET" }),
@@ -115,6 +116,10 @@ export function PluginSlot({ name, context, pluginId, excludeRegistered }: Plugi
     }
   }
 
+  // A failed plugin LIST must not pose as "no plugins here": render a muted
+  // line instead of silently dropping every slot (failure-shown-as-empty
+  // campaign). Same key as the per-module load error - zero new i18n debt.
+  if (isError) return <PluginSlotError />;
   if (matches.length === 0) return null;
 
   return (
@@ -130,5 +135,14 @@ export function PluginSlot({ name, context, pluginId, excludeRegistered }: Plugi
         </PluginErrorBoundary>
       ))}
     </>
+  );
+}
+
+function PluginSlotError() {
+  const { t } = useTranslation();
+  return (
+    <p className="text-xs text-[var(--text-muted)] px-3 py-2" data-testid="plugin-slot-error">
+      {t("admin.plugin.frontLoadError")}
+    </p>
   );
 }
