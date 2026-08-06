@@ -36,20 +36,21 @@ function showDebug(text: string): void {
 // climbing beacon after beacon means flip this OFF again.
 const CAST_WASM_ENABLED = true;
 
-// Back-buffer trim kill-switch. ON 2026-08-06: the Bouygtel4K, network fixed
-// (30 Mbps measured), died at ~2min of a ~10 Mbps copy with mem/wasm flat -
-// the remaining suspect is played media piling up in the SourceBuffers of a
-// 2GB box (the slow link used to bound it for free). The buf= heartbeat field
-// is the watch: if a death still lands with buf behind small, this was not
-// the killer - flip it OFF and keep the instrumentation.
+// Shaka for HLS (what jellyfin-chromecast ships): eviction, buffer goal and
+// gap jumping are native there; MPL raises no ERROR, wedges on skipped
+// segments and has no buffer control. false = back to MPL.
+const CAST_USE_SHAKA_FOR_HLS = true;
+// Buffer bounds sized for a 2GB box decoding a ~10 Mbps copy.
+const SHAKA_BUFFER_BEHIND_SEC = 30;
+const SHAKA_BUFFERING_GOAL_SEC = 20;
+
+// Manual back-buffer trim, MPL fallback only: Shaka evicts by itself.
 const CAST_BUFFER_TRIM_ENABLED = true;
 const TRIM_KEEP_BEHIND_SEC = 20;
 const TRIM_MIN_SPAN_SEC = 10;
 const TRIM_INTERVAL_MS = 15_000;
 
-// The CAF player owns its MediaSource; capturing addSourceBuffer at page load
-// is the only handle we get on what it buffers. A SourceBuffer from a torn
-// down load throws on any access - that is the cleanup signal.
+// The player owns its MediaSource: capturing addSourceBuffer is the only handle.
 const trackedSourceBuffers = new Set<SourceBuffer>();
 if (typeof MediaSource !== "undefined") {
   const origAddSourceBuffer = MediaSource.prototype.addSourceBuffer;
@@ -60,16 +61,12 @@ if (typeof MediaSource !== "undefined") {
   };
 }
 
-// toRanges materialises a TimeRanges into the plain pairs the pure logic
-// consumes.
 function toRanges(tr: TimeRanges): Array<[number, number]> {
   const out: Array<[number, number]> = [];
   for (let i = 0; i < tr.length; i++) out.push([tr.start(i), tr.end(i)]);
   return out;
 }
 
-// Cumulative trims for this load, reported on the heartbeat: proof on device
-// that the mechanism ran, without a beacon per removal.
 let trimCount = 0;
 let trimTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -82,7 +79,7 @@ function stopBufferTrim(): void {
 
 function startBufferTrim(): void {
   stopBufferTrim();
-  if (!CAST_BUFFER_TRIM_ENABLED) return;
+  if (!CAST_BUFFER_TRIM_ENABLED || CAST_USE_SHAKA_FOR_HLS) return;
   trimCount = 0;
   trimTimer = setInterval(() => {
     const video = findMediaElement();
@@ -90,8 +87,7 @@ function startBufferTrim(): void {
     const t = video.currentTime;
     for (const sb of trackedSourceBuffers) {
       try {
-        // remove() while the player's own operation is in flight would throw
-        // in ITS code paths; skipping a busy buffer just waits for the next tick.
+        // never race the player's own operation
         if (sb.updating) continue;
         const plan = planBackBufferTrim(toRanges(sb.buffered), t, TRIM_KEEP_BEHIND_SEC, TRIM_MIN_SPAN_SEC);
         if (plan) {
@@ -258,10 +254,7 @@ const aliveHeartbeat = createAliveHeartbeat(() => {
   try {
     posSec = playerManager.getCurrentTimeSec() || 0;
   } catch { /* player torn down already */ }
-  // buf=behind/ahead/ranges: seconds of media the MSE pipeline retains behind
-  // and ahead of the playhead, and the buffered range count (>1 = a hole, the
-  // MIBOX3 wedge signature). mem/wasm are blind to all three. trim: cumulative
-  // back-buffer removals this load.
+  // buf=behind/ahead/ranges (ranges>1 = a hole); mem/wasm are blind to MSE.
   let buf = "-";
   const video = findMediaElement();
   if (video) {
@@ -313,8 +306,7 @@ function startStarvationWatch(): void {
   }, 5_000);
 }
 
-// One reload in place per floored playback: enough to heal the observed
-// wedge (a single skipped segment), bounded so a dead link cannot loop.
+// One in-place reload per floored playback: heals a wedge, cannot loop.
 const MAX_FLOOR_RELOADS = 1;
 let floorReloads = 0;
 
@@ -322,8 +314,6 @@ function engageFloor(posSec: number, reason = "starvation"): void {
   const plan = planFloorRescue(currentUrl, floorReloads, MAX_FLOOR_RELOADS);
   if (!plan) return; // not a URL we own
   if (plan.kind === "exhausted") {
-    // Every rescue this playback had has been spent; say so instead of the
-    // old silent drop (the MIBOX3 wedge sat invisible for 2min30).
     reportEvent("cast_receiver_floor_rescue", `${reason} at pos=${posSec.toFixed(1)}s - floor exhausted, no rescue left`, true);
     return;
   }
@@ -638,8 +628,7 @@ function interceptLoad(request: any): any {
       currentUrl = rawUrl;
       wasmRequested = false;
     }
-    // A fresh cast (not our floored rescue riding back through the
-    // interceptor) starts with its full floor-reload budget.
+    // A fresh (non-floored) cast restores the floor-reload budget.
     try {
       if (new URL(currentUrl).searchParams.get("abr") !== "floor") floorReloads = 0;
     } catch { /* foreign URL: the rescue never runs on it anyway */ }
@@ -684,7 +673,7 @@ playerManager.addEventListener(cast.framework.events.EventType.MEDIA_FINISHED, (
 
 playerManager.addEventListener(cast.framework.events.EventType.PLAYER_LOAD_COMPLETE, () => {
   startWatch.loaded();
-  reportEvent("cast_receiver_loaded", `mode=${wasmRequested ? "wasm" : "native"}`);
+  reportEvent("cast_receiver_loaded", `mode=${wasmRequested ? "wasm" : "native"} engine=${CAST_USE_SHAKA_FOR_HLS ? "shaka" : "mpl"}`);
   aliveHeartbeat.start();
   startStarvationWatch();
   startBufferTrim();
@@ -738,6 +727,16 @@ if (typeof window !== "undefined") {
 const receiverOptions = new cast.framework.CastReceiverOptions();
 receiverOptions.maxInactivity = 1800;
 receiverOptions.disableIdleTimeout = true;
+receiverOptions.useShakaForHls = CAST_USE_SHAKA_FOR_HLS;
+if (CAST_USE_SHAKA_FOR_HLS) {
+  receiverOptions.playbackConfig = new cast.framework.PlaybackConfig();
+  receiverOptions.playbackConfig.shakaConfig = {
+    streaming: {
+      bufferBehind: SHAKA_BUFFER_BEHIND_SEC,
+      bufferingGoal: SHAKA_BUFFERING_GOAL_SEC,
+    },
+  };
+}
 
 // With the idle timeout disabled, a finished film would leave the receiver
 // up forever: close it ourselves after a grace window (long enough for a

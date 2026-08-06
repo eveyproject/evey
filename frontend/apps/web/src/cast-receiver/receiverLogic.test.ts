@@ -474,8 +474,6 @@ describe("bufferedStats - what the MSE pipeline actually retains", () => {
     expect(s.rangeCount).toBe(1);
   });
 
-  // The MIBOX3 wedge of 2026-08-06: a skipped segment left two ranges with a
-  // hole between them - rangeCount is the signal that names it from a beacon.
   it("sums across a hole and reports the range count", () => {
     const s = bufferedStats([[672, 678], [681, 711]], 678);
     expect(s.behindSec).toBeCloseTo(6);
@@ -525,9 +523,6 @@ describe("planFloorRescue - the floor is retried in place before giving up", () 
     expect(u.searchParams.has("wasmAudio")).toBe(false);
   });
 
-  // The MIBOX3 of 2026-08-06: the floor reload itself wedged on a buffer hole
-  // (segment never requested), the watch re-fired, and the old latch dropped
-  // the rescue silently. One bounded reload in place re-requests the hole.
   it("a starving floor gets one reload in place", () => {
     expect(planFloorRescue(floored, 0, 1)).toEqual({ kind: "floor-reload", url: floored });
   });
