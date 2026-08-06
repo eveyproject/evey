@@ -44,7 +44,7 @@ func NewTrickplayGenerator(binary, probeBinary string) *TrickplayGenerator {
 }
 
 func (g *TrickplayGenerator) probeDuration(ctx context.Context, filePath string) (float64, error) {
-	out, err := exec.CommandContext(ctx, "nice", "-n", "19", g.probeBinary,
+	out, err := lowPriorityCommand(ctx, g.probeBinary,
 		"-v", "quiet",
 		"-print_format", "json",
 		"-show_format",
@@ -141,7 +141,7 @@ func (g *TrickplayGenerator) Generate(ctx context.Context, filePath, outputDir s
 		"select='isnan(prev_selected_t)+gte(t-prev_selected_t\\,%d)',scale=%d:-1,showinfo,tile=%dx%d",
 		interval, width, tileWidth, tileHeight,
 	), g.probeColour(ctx, filePath))
-	cmd := exec.CommandContext(ctx, "nice", "-n", "19", g.binary,
+	cmd := lowPriorityCommand(ctx, g.binary,
 		"-nostdin",
 		"-threads", strconv.Itoa(threads),
 		"-skip_frame", "nokey",
@@ -302,7 +302,7 @@ func trickplayFilter(base string, col trickplayColour) string {
 // on any failure it returns the zero value (SDR), i.e. today's behaviour - a
 // thumbnail pass must never fail because a probe did.
 func (g *TrickplayGenerator) probeColour(ctx context.Context, filePath string) trickplayColour {
-	out, err := exec.CommandContext(ctx, "nice", "-n", "19", g.probeBinary,
+	out, err := lowPriorityCommand(ctx, g.probeBinary,
 		"-v", "quiet",
 		"-select_streams", "v:0",
 		"-print_format", "json",

@@ -13,6 +13,7 @@ import (
 
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/bgtasks"
 	"github.com/evey-project/evey/internal/pkg/cpuutil"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 	"github.com/google/uuid"
@@ -339,13 +340,18 @@ func (s *TrickplayService) GenerateAllMissingTrickplays(ctx context.Context, inc
 				slog.ErrorContext(bgCtx, "recovered panic in trickplay batch", slog.Any("error", r))
 			}
 		}()
-		for _, id := range ids {
+		for i, id := range ids {
 			if bgCtx.Err() != nil {
 				return
 			}
+			// The idle-gate makes the LOAD invisible but stretches the DURATION
+			// (a busy library spends its time waiting): the registry is how the
+			// operator sees that the sweep runs and how much remains.
+			done := bgtasks.Begin("trickplay_generation", fmt.Sprintf("%s (%d/%d)", id, i+1, len(ids)))
 			itemCtx, cancel := context.WithTimeout(bgCtx, 30*time.Minute)
 			err := s.GenerateTrickplay(itemCtx, id)
 			cancel()
+			done()
 			if err != nil {
 				slog.WarnContext(bgCtx, "trickplay generation failed", slog.String("media_id", id), slog.Any("err", err))
 			} else {
