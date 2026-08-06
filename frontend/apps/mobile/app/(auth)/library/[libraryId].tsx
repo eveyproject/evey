@@ -30,6 +30,7 @@ import {
   usePlaybackServiceMarkAsUnwatched,
   usePlaybackServiceGetWatchHistory,
   libraryServiceListMediaItems,
+  formatDurationMs,
 } from "@evey/api";
 import type {
   V1MediaItem,
@@ -736,7 +737,18 @@ export default function LibraryDetailScreen() {
               {item.title}
             </Text>
             <Text style={{ fontSize: 12, marginTop: 2, color: theme.colors.textMuted }}>
-              {[item.year, formatType(item.type)].filter(Boolean).join(" · ")}
+              {/* Same facts as the web list view: year, type, community
+                  rating and runtime (LibraryListView.tsx). */}
+              {[
+                item.year,
+                formatType(item.type),
+                item.communityRating != null && item.communityRating > 0
+                  ? `★ ${item.communityRating.toFixed(1)}`
+                  : null,
+                formatDurationMs(item.durationMs) || null,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
             </Text>
           </View>
         </TouchableOpacity>
