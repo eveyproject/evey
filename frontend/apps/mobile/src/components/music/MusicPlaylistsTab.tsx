@@ -6,7 +6,8 @@ import { useTranslation } from "react-i18next";
 import { useTheme } from "../../providers/ThemeProvider";
 import { useAuthHeaders } from "../../hooks/useAuthenticatedImage";
 import { useServerUrl } from "../../hooks/useServerUrl";
-import { usePlaylistList, usePlaylistDetail, useDeletePlaylist, useRemoveFromPlaylist } from "../../api/playlists";
+import { toast } from "@evey/store";
+import { usePlaylistList, usePlaylistDetail, useDeletePlaylist, useGeneratePlaylist, useRemoveFromPlaylist } from "../../api/playlists";
 import { useMusicQueueStore, type QueueTrack } from "../../stores/musicQueue";
 import { TrackArt } from "./TrackArt";
 import type { Track } from "./musicTypes";
@@ -28,9 +29,12 @@ interface Props {
   // repeat navigations to a *different* target playlist, so it must react to
   // prop changes rather than only seed the initial render.
   initialSelectedId?: string | null;
+  // Enables the server-side "generate playlist" button (web parity); the
+  // endpoint needs a music library to sample from.
+  libraryId?: string;
 }
 
-export function MusicPlaylistsTab({ libraryTracks, initialSelectedId = null }: Props) {
+export function MusicPlaylistsTab({ libraryTracks, initialSelectedId = null, libraryId }: Props) {
   const theme = useTheme();
   const { t } = useTranslation();
   const authHeaders = useAuthHeaders();
@@ -47,6 +51,21 @@ export function MusicPlaylistsTab({ libraryTracks, initialSelectedId = null }: P
   const { data: detail, isLoading: detailLoading } = usePlaylistDetail(selectedId ?? "");
   const removeItem = useRemoveFromPlaylist();
   const deletePlaylist = useDeletePlaylist();
+  const generate = useGeneratePlaylist();
+
+  const handleGenerate = useCallback(() => {
+    if (!libraryId || generate.isPending) return;
+    generate.mutate(
+      { libraryId, name: t("media.playlist.generatedName", "My mix") },
+      {
+        onSuccess: (res) => {
+          toast.success(t("media.playlist.generated", "Playlist generated"));
+          if (res?.id) setSelectedId(res.id);
+        },
+        onError: () => toast.error(t("media.playlist.generateFailed", "Could not generate playlist")),
+      },
+    );
+  }, [libraryId, generate, t]);
 
   // Smart playlists are rule-based (no rules editor ported to mobile yet) -
   // only manual playlists can be browsed/played here, mirrors the web app's
@@ -183,6 +202,24 @@ export function MusicPlaylistsTab({ libraryTracks, initialSelectedId = null }: P
       data={manualPlaylists}
       keyExtractor={(item) => item.id}
       contentContainerStyle={{ padding: 16, gap: 8 }}
+      ListHeaderComponent={
+        libraryId ? (
+          <TouchableOpacity
+            onPress={handleGenerate}
+            disabled={generate.isPending}
+            testID="generate-playlist-btn"
+            style={[
+              styles.generateBtn,
+              { backgroundColor: theme.colors.accent, borderRadius: theme.radii.sm, opacity: generate.isPending ? 0.5 : 1 },
+            ]}
+          >
+            <Ionicons name="sparkles" size={16} color={theme.colors.onAccent} />
+            <Text style={{ color: theme.colors.onAccent, fontSize: 13, fontWeight: "600" }}>
+              {generate.isPending ? t("media.playlist.generating", "Generating...") : t("media.playlist.generate", "Generate playlist")}
+            </Text>
+          </TouchableOpacity>
+        ) : null
+      }
       ListEmptyComponent={
         <Text style={[styles.centerText, { color: theme.colors.textMuted }]}>{t("media.music.noPlaylists")}</Text>
       }
@@ -217,6 +254,15 @@ const styles = StyleSheet.create({
   detailHeader: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10 },
   detailTitle: { flex: 1, fontSize: 17, fontWeight: "700" },
   shuffleBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 7 },
+  generateBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    marginBottom: 8,
+  },
   trackRow: {
     flexDirection: "row",
     alignItems: "center",

@@ -9,16 +9,17 @@ vi.mock("react-native", () => ({
     React.createElement("button", { onClick: onPress, "data-testid": testID, ...p }, children),
   Pressable: ({ children, onPress, accessibilityLabel, ...p }: any) =>
     React.createElement("button", { onClick: onPress, "aria-label": accessibilityLabel, ...p }, children),
-  FlatList: ({ data, renderItem, keyExtractor, ListEmptyComponent }: any) =>
-    data.length === 0 && ListEmptyComponent
-      ? ListEmptyComponent
-      : React.createElement(
-          "div",
-          { "data-testid": "list" },
-          data.map((item: unknown, index: number) =>
+  FlatList: ({ data, renderItem, keyExtractor, ListEmptyComponent, ListHeaderComponent }: any) =>
+    React.createElement(
+      "div",
+      { "data-testid": "list" },
+      ListHeaderComponent ?? null,
+      data.length === 0 && ListEmptyComponent
+        ? ListEmptyComponent
+        : data.map((item: unknown, index: number) =>
             React.createElement(React.Fragment, { key: keyExtractor(item, index) }, renderItem({ item, index })),
           ),
-        ),
+    ),
   Alert: { alert: vi.fn() },
   StyleSheet: { create: (s: any) => s, hairlineWidth: 1 },
 }));
@@ -53,11 +54,13 @@ const usePlaylistListMock = vi.fn();
 const usePlaylistDetailMock = vi.fn();
 const removeMutateMock = vi.fn();
 const deleteMutateMock = vi.fn();
+const generateMutateMock = vi.fn();
 vi.mock("../../api/playlists", () => ({
   usePlaylistList: (...a: unknown[]) => usePlaylistListMock(...a),
   usePlaylistDetail: (...a: unknown[]) => usePlaylistDetailMock(...a),
   useRemoveFromPlaylist: () => ({ mutate: removeMutateMock }),
   useDeletePlaylist: () => ({ mutate: deleteMutateMock }),
+  useGeneratePlaylist: () => ({ mutate: generateMutateMock, isPending: false }),
 }));
 
 const setQueueMock = vi.fn();
@@ -196,5 +199,21 @@ describe("MusicPlaylistsTab", () => {
     render(<MusicPlaylistsTab libraryTracks={LIBRARY_TRACKS} />);
     fireEvent.click(screen.getByTestId("icon-trash-outline").parentElement!);
     await waitFor(() => expect(deleteMutateMock).toHaveBeenCalledWith("p1"));
+  });
+
+  // Web parity: the server-side taste-weighted generator (POST
+  // /playlists/generate) is reachable from the playlists tab.
+  it("generates a playlist for the active library from the header button", () => {
+    render(<MusicPlaylistsTab libraryTracks={LIBRARY_TRACKS} libraryId="lib-1" />);
+    fireEvent.click(screen.getByTestId("generate-playlist-btn"));
+    expect(generateMutateMock).toHaveBeenCalledWith(
+      { libraryId: "lib-1", name: "media.playlist.generatedName" },
+      expect.anything(),
+    );
+  });
+
+  it("hides the generate button when no library is known", () => {
+    render(<MusicPlaylistsTab libraryTracks={LIBRARY_TRACKS} />);
+    expect(screen.queryByTestId("generate-playlist-btn")).toBeNull();
   });
 });

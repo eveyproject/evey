@@ -853,7 +853,7 @@ export default function MusicScreen() {
           }
         />
       ) : (
-        <MusicPlaylistsTab libraryTracks={tracks ?? []} initialSelectedId={playlistTargetId} />
+        <MusicPlaylistsTab libraryTracks={tracks ?? []} initialSelectedId={playlistTargetId} libraryId={activeLibraryID} />
       )}
 
       {/* Queue modal */}

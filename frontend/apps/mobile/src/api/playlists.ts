@@ -135,6 +135,24 @@ export function useCreatePlaylist() {
   });
 }
 
+// POST /api/v1/playlists/generate builds a taste-weighted music playlist
+// server-side and answers with its id - the same custom endpoint the web's
+// useGeneratePlaylist calls (it is not part of the gRPC gateway).
+export function useGeneratePlaylist() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { libraryId: string; name?: string; size?: number }) =>
+      eveyFetch<{ id: string; name: string }>({
+        url: "/api/v1/playlists/generate",
+        method: "POST",
+        data,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["playlists"] });
+    },
+  });
+}
+
 export function useDeletePlaylist() {
   const qc = useQueryClient();
   return useMutation({
