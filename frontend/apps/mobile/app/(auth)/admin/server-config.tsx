@@ -16,6 +16,7 @@ import { MemoryProfileCard } from "../../../src/components/admin/server-config/M
 import { MkvgoCard } from "../../../src/components/admin/server-config/MkvgoCard";
 import { SmtpSettingsCard } from "../../../src/components/admin/server-config/SmtpSettingsCard";
 import { BackgroundJobsCard } from "../../../src/components/admin/server-config/BackgroundJobsCard";
+import { ParserTokensCard } from "../../../src/components/admin/server-config/ParserTokensCard";
 import type { ConfigEntry } from "../../../src/components/admin/server-config/types";
 
 interface SettingValue<T> {
@@ -504,6 +505,17 @@ export default function AdminServerConfigScreen() {
               saveEntry={saveConfigEntry.mutate}
               deleteEntry={deleteConfigEntry.mutate}
               saving={saveConfigEntry.isPending || deleteConfigEntry.isPending}
+            />
+          </>
+
+          {/* Parser tokens section */}
+          <>
+            <View style={{ height: 1, backgroundColor: theme.colors.border, marginVertical: 24 }} />
+            <Text style={s.sectionTitle}>{t("admin.serverConfig.parserTokensTitle", "Filename Parser Tokens")}</Text>
+            <ParserTokensCard
+              entries={configEntries}
+              saveEntry={saveConfigEntry.mutate}
+              saving={saveConfigEntry.isPending}
             />
           </>
 
