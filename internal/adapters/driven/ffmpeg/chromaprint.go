@@ -91,7 +91,9 @@ func (c *Chromaprinter) Compute(ctx context.Context, filePath string, startSec, 
 		"-f", "wav",
 		"-",
 	)
-	ffmpegCmd := exec.CommandContext(ctx, "ffmpeg", ffmpegArgs...)
+	// The decode side of the fpcalc pipe reads up to 12 minutes of media - an
+	// I/O profile, demoted on both axes like every other background scan.
+	ffmpegCmd := lowPriorityCommand(ctx, "ffmpeg", ffmpegArgs...)
 	pipe, err := ffmpegCmd.StdoutPipe()
 	if err != nil {
 		return nil, fmt.Errorf("ffmpeg stdout pipe: %w", err)

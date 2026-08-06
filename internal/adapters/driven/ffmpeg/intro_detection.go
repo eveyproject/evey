@@ -132,7 +132,7 @@ func (d *IntroDetector) runDetect(ctx context.Context, filePath string, startSec
 		"-f", "null",
 		"-",
 	}
-	cmd := exec.CommandContext(ctx, d.binary, args...)
+	cmd := lowPriorityCommand(ctx, d.binary, args...)
 	var stderrBuf bytes.Buffer
 	cmd.Stderr = &stderrBuf
 	//nolint:errcheck // ffmpeg exits non-zero for -f null; we parse stderr regardless of the run error
@@ -273,8 +273,6 @@ func (d *IntroDetector) DetectEndCredits(ctx context.Context, filePath string, d
 	startSec := math.Max(0, durationSec-math.Min(600, durationSec*0.2))
 
 	args := []string{
-		"nice", "-n", "19",
-		d.binary,
 		"-nostdin",
 		"-threads", strconv.Itoa(introFFmpegThreads()),
 		"-ss", strconv.FormatFloat(startSec, 'f', 3, 64),
@@ -285,7 +283,7 @@ func (d *IntroDetector) DetectEndCredits(ctx context.Context, filePath string, d
 		"-f", "null",
 		"-",
 	}
-	cmd := exec.CommandContext(ctx, args[0], args[1:]...)
+	cmd := lowPriorityCommand(ctx, d.binary, args...)
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = &out
@@ -411,7 +409,7 @@ func (d *IntroDetector) AudioRMSProfile(ctx context.Context, filePath string, st
 		"-f", "s16le",
 		"pipe:1",
 	}
-	cmd := exec.CommandContext(ctx, d.binary, args...)
+	cmd := lowPriorityCommand(ctx, d.binary, args...)
 	var stdout bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = nil
@@ -466,7 +464,7 @@ func (d *IntroDetector) SceneCutTimestamps(ctx context.Context, filePath string,
 		"-f", "null",
 		"-",
 	}
-	cmd := exec.CommandContext(ctx, d.binary, args...)
+	cmd := lowPriorityCommand(ctx, d.binary, args...)
 	var stderrBuf bytes.Buffer
 	cmd.Stderr = &stderrBuf
 	//nolint:errcheck // ffmpeg exits non-zero for -f null; we parse stderr regardless
@@ -509,7 +507,7 @@ func (d *IntroDetector) SubtitleCueStarts(ctx context.Context, filePath string) 
 		"-of", "csv=p=0",
 		filePath,
 	}
-	cmd := exec.CommandContext(ctx, d.probeBinary, args...)
+	cmd := lowPriorityCommand(ctx, d.probeBinary, args...)
 	var stdout bytes.Buffer
 	cmd.Stdout = &stdout
 	if err := cmd.Run(); err != nil {
@@ -568,7 +566,7 @@ func (d *IntroDetector) AudioBandedFingerprint(ctx context.Context, filePath str
 		"-f", "s16le",
 		"pipe:1",
 	}
-	cmd := exec.CommandContext(ctx, d.binary, args...)
+	cmd := lowPriorityCommand(ctx, d.binary, args...)
 	var stdout bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = nil
