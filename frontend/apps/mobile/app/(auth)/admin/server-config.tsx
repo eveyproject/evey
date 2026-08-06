@@ -15,6 +15,7 @@ import { LocaleSettingsCard } from "../../../src/components/admin/server-config/
 import { MemoryProfileCard } from "../../../src/components/admin/server-config/MemoryProfileCard";
 import { MkvgoCard } from "../../../src/components/admin/server-config/MkvgoCard";
 import { SmtpSettingsCard } from "../../../src/components/admin/server-config/SmtpSettingsCard";
+import { BackgroundJobsCard } from "../../../src/components/admin/server-config/BackgroundJobsCard";
 import type { ConfigEntry } from "../../../src/components/admin/server-config/types";
 
 interface SettingValue<T> {
@@ -491,6 +492,18 @@ export default function AdminServerConfigScreen() {
               entries={configEntries}
               saveEntry={saveConfigEntry.mutate}
               saving={saveConfigEntry.isPending}
+            />
+          </>
+
+          {/* Background jobs section */}
+          <>
+            <View style={{ height: 1, backgroundColor: theme.colors.border, marginVertical: 24 }} />
+            <Text style={s.sectionTitle}>{t("admin.serverConfig.backgroundJobs.title", "Background Jobs")}</Text>
+            <BackgroundJobsCard
+              entries={configEntries}
+              saveEntry={saveConfigEntry.mutate}
+              deleteEntry={deleteConfigEntry.mutate}
+              saving={saveConfigEntry.isPending || deleteConfigEntry.isPending}
             />
           </>
 
