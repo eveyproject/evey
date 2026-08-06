@@ -25,9 +25,13 @@ type missingIDsRepo struct {
 	*libfakes.FakeTrickplayRepository
 	missing []string
 	listErr error
+	// lastMinAlgoVersion records what the sweep asked for, pinning the
+	// boot-vs-admin contract (0 = missing-only, current version = outdated too).
+	lastMinAlgoVersion int
 }
 
-func (r *missingIDsRepo) ListMissingMediaItemIDs(_ context.Context, _ int) ([]string, error) {
+func (r *missingIDsRepo) ListMissingMediaItemIDs(_ context.Context, minAlgoVersion int) ([]string, error) {
+	r.lastMinAlgoVersion = minAlgoVersion
 	if r.listErr != nil {
 		return nil, r.listErr
 	}
@@ -127,7 +131,7 @@ func TestTrickplay_GenerateAllMissingTrickplays_NotConfiguredReturnsError(t *tes
 	t.Parallel()
 	svc := applib.NewTrickplayService(nil, nil, "/cache", nil, nil, nil)
 
-	n, err := svc.GenerateAllMissingTrickplays(context.Background())
+	n, err := svc.GenerateAllMissingTrickplays(context.Background(), false)
 	require.Error(t, err)
 	assert.Equal(t, 0, n)
 	assert.Contains(t, err.Error(), "not configured")
@@ -141,7 +145,7 @@ func TestTrickplay_GenerateAllMissingTrickplays_EmptyListNoop(t *testing.T) {
 	bus := sharedfakes.NewFakeEventBus()
 	svc := applib.NewTrickplayService(repo, gen, "/cache", media, bus, nil)
 
-	n, err := svc.GenerateAllMissingTrickplays(context.Background())
+	n, err := svc.GenerateAllMissingTrickplays(context.Background(), false)
 	require.NoError(t, err)
 	assert.Equal(t, 0, n)
 	// Give async goroutine a moment to confirm no work happens
@@ -158,7 +162,7 @@ func TestTrickplay_GenerateAllMissingTrickplays_ListErrorPropagated(t *testing.T
 	bus := sharedfakes.NewFakeEventBus()
 	svc := applib.NewTrickplayService(repo, gen, "/cache", media, bus, nil)
 
-	n, err := svc.GenerateAllMissingTrickplays(context.Background())
+	n, err := svc.GenerateAllMissingTrickplays(context.Background(), false)
 	require.Error(t, err)
 	assert.Equal(t, 0, n)
 	assert.Contains(t, err.Error(), "list missing trickplays")
@@ -182,7 +186,7 @@ func TestTrickplay_GenerateAllMissingTrickplays_GeneratesForMissingItems(t *test
 	svc := applib.NewTrickplayService(repo, gen, "/cache", media, bus, nil)
 	svc.WithShutdownCtx(ctx)
 
-	n, err := svc.GenerateAllMissingTrickplays(context.Background())
+	n, err := svc.GenerateAllMissingTrickplays(context.Background(), false)
 	require.NoError(t, err)
 	assert.Equal(t, 2, n)
 
@@ -219,7 +223,7 @@ func TestTrickplay_GenerateAllMissingTrickplays_ContinuesAfterItemError(t *testi
 	svc := applib.NewTrickplayService(repo, gen, "/cache", media, bus, nil)
 	svc.WithShutdownCtx(ctx)
 
-	n, err := svc.GenerateAllMissingTrickplays(context.Background())
+	n, err := svc.GenerateAllMissingTrickplays(context.Background(), false)
 	require.NoError(t, err, "GenerateAllMissingTrickplays returns synchronously without surfacing per-item errors")
 	assert.Equal(t, 2, n)
 
@@ -497,4 +501,24 @@ func TestTrickplay_StartBackgroundGeneration_NilGenShortCircuits(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	require.NotPanics(t, func() { svc.StartBackgroundGeneration(ctx) })
+}
+
+// The boot sweep must stay missing-only (minAlgoVersion 0): after a params
+// bump, a mere restart would otherwise silently queue a library-wide
+// regeneration. The admin trigger opts into outdated manifests explicitly.
+func TestTrickplay_GenerateAllMissing_BootIsMissingOnly_AdminSweepsOutdated(t *testing.T) {
+	t.Parallel()
+	repo := newMissingIDsRepo(nil)
+	gen := &countingGen{}
+	media := libfakes.NewFakeMediaItemCommandRepo()
+	bus := sharedfakes.NewFakeEventBus()
+	svc := applib.NewTrickplayService(repo, gen, "/cache", media, bus, nil)
+
+	_, err := svc.GenerateAllMissingTrickplays(context.Background(), false)
+	require.NoError(t, err)
+	assert.Equal(t, 0, repo.lastMinAlgoVersion, "boot path: missing-only (version clause disabled)")
+
+	_, err = svc.GenerateAllMissingTrickplays(context.Background(), true)
+	require.NoError(t, err)
+	assert.Positive(t, repo.lastMinAlgoVersion, "admin path: outdated manifests below the current version are re-listed")
 }

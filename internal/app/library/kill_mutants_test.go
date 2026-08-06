@@ -342,7 +342,7 @@ func TestTrickplayService_KillMutant_DisabledReturnsZero(t *testing.T) {
 	media := libfakes.NewFakeMediaItemCommandRepo()
 	bus := sharedfakes.NewFakeEventBus()
 	svc := applib.NewTrickplayService(repo, gen, "/tmp/tp", media, bus, cfg)
-	n, err := svc.GenerateAllMissingTrickplays(context.Background())
+	n, err := svc.GenerateAllMissingTrickplays(context.Background(), false)
 	require.NoError(t, err)
 	assert.Equal(t, 0, n, "disabled trickplay must return 0 without queuing")
 }

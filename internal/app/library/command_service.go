@@ -324,7 +324,9 @@ func (s *CommandService) GenerateAllMissingTrickplays(ctx context.Context) (int,
 	if s.trickplay == nil {
 		return 0, errors.New("trickplay not configured")
 	}
-	return s.trickplay.GenerateAllMissingTrickplays(ctx)
+	// Admin-triggered: a maintenance action may sweep up outdated manifests
+	// (parameter-version below current), not just missing ones.
+	return s.trickplay.GenerateAllMissingTrickplays(ctx, true)
 }
 
 func (s *CommandService) StartTrickplayWorker(ctx context.Context) {
