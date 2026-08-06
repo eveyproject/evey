@@ -16,6 +16,9 @@ import { toast } from "@evey/store";
 import { FONT_SIZE } from "@evey/theme";
 import { useTheme } from "../../providers/ThemeProvider";
 import { BottomSheet } from "../BottomSheet";
+import { ArtworkPicker } from "./ArtworkPicker";
+import { RematchConfirmModal } from "./RematchConfirmModal";
+import { IdentifyMetadataSheet } from "./IdentifyMetadataSheet";
 import {
   METADATA_FIELD_MAP,
   buildInitialMetadataForm,
@@ -54,6 +57,9 @@ export function MetadataEditSheet({ visible, onClose, item, onSaved }: MetadataE
   const [form, setForm] = useState<MetadataFormValues>(initialForm);
   const [saving, setSaving] = useState(false);
   const [refreshStatus, setRefreshStatus] = useState<"idle" | "running" | "done" | "error">("idle");
+  const [rematchOpen, setRematchOpen] = useState(false);
+  const [rematching, setRematching] = useState(false);
+  const [identifyOpen, setIdentifyOpen] = useState(false);
 
   // Re-seed the form every time the sheet opens, same as EditProfileDialog - a
   // stale draft from a previous open (or from another media item) must never leak in.
@@ -160,6 +166,32 @@ export function MetadataEditSheet({ visible, onClose, item, onSaved }: MetadataE
     }
   }
 
+  // Re-match: ask the backend to drop overrides + provider IDs and re-search
+  // metadata from ScanTitle. Mirrors web's handleRematch (eveyFetch: orval
+  // not regenerated for the new RPC).
+  async function handleRematch() {
+    if (!item.id) return;
+    setRematching(true);
+    try {
+      const resp = await eveyFetch<{ mediaItemId?: string; matched?: boolean; newTitle?: string }>({
+        url: `/api/v1/metadata/${item.id}/research`,
+        method: "POST",
+        data: {},
+      });
+      void qc.invalidateQueries({ queryKey: getLibraryServiceGetMediaItemQueryKey(item.id) });
+      void qc.invalidateQueries({ queryKey: getMetadataServiceListMetadataOverridesQueryKey(item.id) });
+      const newTitle = resp?.newTitle ?? "";
+      toast.success(t("media.detail.rematchSuccess", { title: newTitle || t("media.detail.rematchSuccessFallback") }));
+      setRematchOpen(false);
+      onSaved?.();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(`${t("media.detail.rematchFailed")}: ${msg}`);
+    } finally {
+      setRematching(false);
+    }
+  }
+
   // Front-only clear, mirrors web: nothing persists until Save, so this lets the
   // user start from a blank slate and chain a fresh IMDB/TMDB ID or manual fields.
   function handleResetForm() {
@@ -222,6 +254,7 @@ export function MetadataEditSheet({ visible, onClose, item, onSaved }: MetadataE
   }
 
   return (
+    <>
     <BottomSheet visible={visible} onClose={onClose} title={t("media.detail.editMetadata")}>
       <View style={{ gap: theme.spacing.md, paddingBottom: theme.spacing.lg }}>
         {METADATA_FIELD_MAP.map(({ formKey, overrideKey }) => renderField(formKey, overrideKey))}
@@ -265,6 +298,8 @@ export function MetadataEditSheet({ visible, onClose, item, onSaved }: MetadataE
         {idChangedWarning && (
           <Text style={[s.warning, { color: theme.colors.warning }]}>{t("media.detail.idChangedWarning")}</Text>
         )}
+
+        {item.id && <ArtworkPicker mediaItemId={item.id} />}
 
         <View style={s.buttons}>
           <Pressable
@@ -311,8 +346,45 @@ export function MetadataEditSheet({ visible, onClose, item, onSaved }: MetadataE
             <Text style={[s.btnText, { color: theme.colors.text }]}>{t("common.cancel")}</Text>
           </Pressable>
         </View>
+        <View style={s.buttons}>
+          <Pressable
+            onPress={() => setRematchOpen(true)}
+            style={[s.btn, { backgroundColor: theme.colors.bg, borderRadius: theme.radii.md, borderWidth: 1, borderColor: theme.colors.danger }]}
+            accessibilityRole="button"
+            accessibilityLabel={t("media.detail.rematchMetadata")}
+          >
+            <Text style={[s.btnText, { color: theme.colors.danger }]}>{t("media.detail.rematchMetadata")}</Text>
+          </Pressable>
+          {item.id && (
+            <Pressable
+              onPress={() => setIdentifyOpen(true)}
+              style={[s.btn, { backgroundColor: theme.colors.surfaceRaised, borderRadius: theme.radii.md }]}
+              accessibilityRole="button"
+              accessibilityLabel={t("media.detail.identify.openButton", "Identify on TMDB")}
+            >
+              <Text style={[s.btnText, { color: theme.colors.text }]}>{t("media.detail.identify.openButton", "Identify on TMDB")}</Text>
+            </Pressable>
+          )}
+        </View>
       </View>
     </BottomSheet>
+    <RematchConfirmModal
+      visible={rematchOpen}
+      onClose={() => !rematching && setRematchOpen(false)}
+      onConfirm={handleRematch}
+      pending={rematching}
+    />
+    {item.id && (
+      <IdentifyMetadataSheet
+        visible={identifyOpen}
+        onClose={() => setIdentifyOpen(false)}
+        mediaItemId={item.id}
+        initialQuery={(item.title ?? "").replace(/\s*\d{3,4}p?\s*$/i, "").trim()}
+        mediaType={mediaType}
+        onApplied={() => onSaved?.()}
+      />
+    )}
+    </>
   );
 }
 
