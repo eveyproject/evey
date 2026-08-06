@@ -29,6 +29,28 @@ function formatPlayMethod(method?: string): string {
   }
 }
 
+// 23.976023976023978 is a true value and a useless one to read. Show what a
+// human says: 23.976, 24, 25, 30. Mirrors web's StreamInfoPanel.
+function formatFrameRate(fps?: number): string | null {
+  if (!fps || !Number.isFinite(fps) || fps <= 0) return null;
+  const rounded = Math.round(fps * 1000) / 1000;
+  return `${Number.isInteger(rounded) ? rounded : rounded.toFixed(3)} fps`;
+}
+
+// Per-stream bitrate is often absent from the probe (the container only
+// carries a total). Deriving video ≈ total - audio beats showing a bare "-":
+// it is the number the viewer actually wants, and it is honest about being
+// an estimate. Mirrors web's StreamInfoPanel.
+function deriveVideoBitrate(total?: string, audio?: string): string | null {
+  const t = Number(total);
+  if (!Number.isFinite(t) || t <= 0) return null;
+  const a = Number(audio);
+  if (Number.isFinite(a) && a > 0 && a < t) {
+    return formatBitrate(String(t - a));
+  }
+  return formatBitrate(String(t));
+}
+
 function InfoRow({ label, value }: { label: string; value: string }) {
   const theme = useTheme();
   return (
@@ -103,11 +125,17 @@ export function StreamInfoPanel({ visible, onClose, streamInfo }: StreamInfoPane
           {videoStream.width && videoStream.height && (
             <InfoRow label={t("player.streamInfo.resolution", "Resolution")} value={`${videoStream.width}×${videoStream.height}`} />
           )}
-          {videoStream.bitrate && (
-            <InfoRow label={t("player.streamInfo.bitrate", "Bitrate")} value={formatBitrate(videoStream.bitrate)} />
-          )}
-          {videoStream.frameRate && (
-            <InfoRow label={t("player.streamInfo.framerate", "Frame Rate")} value={`${videoStream.frameRate} fps`} />
+          {(() => {
+            if (videoStream.bitrate) {
+              return <InfoRow label={t("player.streamInfo.bitrate", "Bitrate")} value={formatBitrate(videoStream.bitrate)} />;
+            }
+            const derived = deriveVideoBitrate(streamInfo.bitrate, audioStream?.bitrate);
+            return derived ? (
+              <InfoRow label={t("player.streamInfo.bitrate", "Bitrate")} value={`≈ ${derived}`} />
+            ) : null;
+          })()}
+          {formatFrameRate(videoStream.frameRate) && (
+            <InfoRow label={t("player.streamInfo.framerate", "Frame Rate")} value={formatFrameRate(videoStream.frameRate)!} />
           )}
           {videoStream.profile && (
             <InfoRow label={t("player.streamInfo.profile", "Profile")} value={videoStream.profile} />
@@ -128,8 +156,15 @@ export function StreamInfoPanel({ visible, onClose, streamInfo }: StreamInfoPane
           {audioStream.language && (
             <InfoRow label={t("player.streamInfo.language", "Language")} value={audioStream.language} />
           )}
-          {audioStream.bitrate && (
-            <InfoRow label={t("player.streamInfo.bitrate", "Bitrate")} value={formatBitrate(audioStream.bitrate)} />
+          {/* The SERVED rate, not the source's: a Matroska track rarely declares
+              one, so this row used to sit at "-" on every re-encoded track even
+              though we picked the figure ourselves. Falls back to the source when
+              the track is copied. Mirrors web's StreamInfoPanel. */}
+          {(streamInfo.audioBitrate ?? audioStream.bitrate) && (
+            <InfoRow
+              label={t("player.streamInfo.bitrate", "Bitrate")}
+              value={formatBitrate(streamInfo.audioBitrate ?? audioStream.bitrate)}
+            />
           )}
           {audioStream.sampleRate && (
             <InfoRow label={t("player.streamInfo.sampleRate", "Sample Rate")} value={`${audioStream.sampleRate} Hz`} />
