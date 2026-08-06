@@ -17,6 +17,7 @@ export default defineConfig({
       "expo-network": resolve(__dirname, "./src/test/__mocks__/expo-network.ts"),
       "react-native-webview": resolve(__dirname, "./src/test/__mocks__/react-native-webview.ts"),
       "expo-file-system/legacy": resolve(__dirname, "./src/test/__mocks__/expo-file-system-legacy.ts"),
+      "expo-secure-store": resolve(__dirname, "./src/test/__mocks__/expo-secure-store.ts"),
       // Each icon family is imported by its own path so only the fonts in use
       // ship; vite cannot parse the real modules, so they all resolve here.
       "@expo/vector-icons/Ionicons": resolve(__dirname, "./src/test/__mocks__/vector-icon.ts"),

@@ -95,6 +95,7 @@ const MOCK_THEME = {
   spacing: { xl: 24, lg: 16, md: 12, sm: 8 },
 };
 vi.mock("../providers/ThemeProvider", () => ({ useTheme: () => MOCK_THEME }));
+vi.mock("../components/media/PlayOnSheet", () => ({ PlayOnSheet: () => null }));
 
 // --- misc hooks / libs the screen depends on, stubbed to keep this a focused
 // --- render test of the episode list rather than an integration test -------------------
