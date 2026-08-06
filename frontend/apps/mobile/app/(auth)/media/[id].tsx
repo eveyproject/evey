@@ -60,6 +60,7 @@ import { backdropWidthForViewport } from "../../../src/components/media/backdrop
 import { hasMediaFile } from "../../../src/components/media/mediaFile";
 import { buildPublicShareUrl } from "../../../src/components/media/shareLink";
 import { MetadataEditSheet } from "../../../src/components/media/MetadataEditSheet";
+import { PlayOnSheet } from "../../../src/components/media/PlayOnSheet";
 import { SagaSection } from "../../../src/components/media/SagaSection";
 import { PluginSlot } from "../../../src/features/plugins/PluginSlot";
 
@@ -559,6 +560,7 @@ export default function MediaDetailScreen() {
   const setThumbRating = useSetThumbRating(id);
 
   const [playlistSheetOpen, setPlaylistSheetOpen] = useState(false);
+  const [playOnSheetOpen, setPlayOnSheetOpen] = useState(false);
   const [collectionSheetOpen, setCollectionSheetOpen] = useState(false);
   const [metadataSheetOpen, setMetadataSheetOpen] = useState(false);
   const [watchedOverride, setWatchedOverride] = useState<boolean | null>(null);
@@ -1189,6 +1191,29 @@ export default function MediaDetailScreen() {
               {t("media.detail.addToPlaylist")}
             </Text>
           </Pressable>
+
+          {/* Sends this title's loadAndPlay command to one of the user's other
+              connected Evey clients - the mobile counterpart to the web
+              player's Cast/RemotePlaybackMenu "Play on" section. */}
+          <Pressable
+            onPress={() => setPlayOnSheetOpen(true)}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              backgroundColor: theme.colors.surface,
+              borderRadius: theme.radii.md,
+              paddingVertical: theme.spacing.sm,
+              paddingHorizontal: theme.spacing.md,
+            }}
+            accessible={true}
+            accessibilityLabel={t("player.playOn.button")}
+            accessibilityRole="button"
+          >
+            <Ionicons name="tv-outline" size={20} color={theme.colors.text} />
+            <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: "600", marginLeft: 6 }}>
+              {t("player.playOn.title")}
+            </Text>
+          </Pressable>
           {/* Grouping a title into a saga is thought of here, on the title's own
               page, not from a grid card - but only the library's bulk action bar
               offered it. Admin-gated like the RPC (AddCollectionItem is RoleAdmin). */}
@@ -1597,6 +1622,14 @@ export default function MediaDetailScreen() {
           visible={playlistSheetOpen}
           mediaItemId={id}
           onClose={() => setPlaylistSheetOpen(false)}
+        />
+      ) : null}
+
+      {id ? (
+        <PlayOnSheet
+          visible={playOnSheetOpen}
+          mediaId={id}
+          onClose={() => setPlayOnSheetOpen(false)}
         />
       ) : null}
 
