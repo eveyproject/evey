@@ -381,6 +381,79 @@ export function shouldMeasure(rawUrl: string): boolean {
   }
 }
 
+// bufferedStats reduces a media element's buffered ranges to the three
+// numbers a beacon can carry: media retained BEHIND the playhead, media ready
+// AHEAD of it, and the range count. Born 2026-08-06, twice in one day: the
+// Bouygtel4K died at ~2min with mem/wasm flat (the MSE pipeline is invisible
+// to both), and the MIBOX3 wedged on a buffer HOLE (rangeCount > 1 is that
+// hole, named from a heartbeat instead of an access-log autopsy).
+export interface BufferedStats {
+  behindSec: number;
+  aheadSec: number;
+  rangeCount: number;
+}
+
+export function bufferedStats(
+  ranges: ReadonlyArray<readonly [number, number]>,
+  currentTime: number,
+): BufferedStats {
+  let behind = 0;
+  let ahead = 0;
+  for (const [start, end] of ranges) {
+    behind += Math.max(0, Math.min(end, currentTime) - start);
+    ahead += Math.max(0, end - Math.max(start, currentTime));
+  }
+  return { behindSec: behind, aheadSec: ahead, rangeCount: ranges.length };
+}
+
+// planBackBufferTrim bounds what the MSE pipeline retains behind the playhead.
+// A slow link used to do this for free: at 3-5 Mbps the Bouygtel4K never held
+// much media, and it played for weeks. The repeater fixed the network
+// (30 Mbps measured 2026-08-06) and the same box then died at ~2min of a
+// ~10 Mbps copy - the leading suspect is the played media accumulating in the
+// SourceBuffers of a 2GB box. keepBehindSec survives small seek-backs;
+// minTrimSpanSec is hysteresis so the trim runs as rare, large removals
+// instead of a chatty every-tick nibble.
+export function planBackBufferTrim(
+  ranges: ReadonlyArray<readonly [number, number]>,
+  currentTime: number,
+  keepBehindSec: number,
+  minTrimSpanSec: number,
+): { start: number; end: number } | null {
+  if (ranges.length === 0) return null;
+  const first = ranges[0][0];
+  const end = currentTime - keepBehindSec;
+  if (end - first < minTrimSpanSec) return null;
+  return { start: first, end };
+}
+
+// planFloorRescue decides what a starvation firing does, including on a
+// master that is ALREADY the floor. The old latch (floored = no next step)
+// read "nothing lower to offer" - true for bandwidth, wrong for a wedge: on
+// 2026-08-06 a MIBOX3 reloaded onto the floor, the player silently skipped
+// one segment, stalled on the hole for ever, and the re-fired watch was
+// dropped without a beacon. A reload IN PLACE re-requests the missing
+// segment; the budget keeps a genuinely dead link from reloading in a loop.
+export type FloorRescuePlan =
+  | { kind: "floor" | "floor-reload"; url: string }
+  | { kind: "exhausted" };
+
+export function planFloorRescue(
+  rawUrl: string,
+  floorReloadsUsed: number,
+  maxFloorReloads: number,
+): FloorRescuePlan | null {
+  const floored = floorMasterUrl(rawUrl);
+  if (floored) return { kind: "floor", url: floored };
+  try {
+    if (new URL(rawUrl).searchParams.get("abr") !== "floor") return null;
+  } catch {
+    return null;
+  }
+  if (floorReloadsUsed >= maxFloorReloads) return { kind: "exhausted" };
+  return { kind: "floor-reload", url: rawUrl };
+}
+
 // createStarvationWatch names a starving playback from the only two signals
 // the receiver has: the playhead and the player state. Born 2026-08-03: a
 // Bouygtel4K sat frozen for NINE minutes on a collapsed link, heartbeats

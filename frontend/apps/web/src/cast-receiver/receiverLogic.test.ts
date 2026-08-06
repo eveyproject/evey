@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { absoluteWithToken, appendMaxKbps, bitrateTestUrl, buildPlayerEventUrl, createStarvationWatch, createStartGate, createStartWatch, floorMasterUrl, probeMaxAudioChannels, probeReceiverCaps, rewriteCastMasterUrl, shouldMeasure, stereoFallbackUrl, stripWasmAudio, type CanDisplayType } from "./receiverLogic";
+import { absoluteWithToken, appendMaxKbps, bufferedStats, planBackBufferTrim, planFloorRescue, bitrateTestUrl, buildPlayerEventUrl, createStarvationWatch, createStartGate, createStartWatch, floorMasterUrl, probeMaxAudioChannels, probeReceiverCaps, rewriteCastMasterUrl, shouldMeasure, stereoFallbackUrl, stripWasmAudio, type CanDisplayType } from "./receiverLogic";
 
 // Fake canDisplayType: allows what `yes` lists (substring match on the
 // codec string), refuses the rest. 4K resolution is only granted if
@@ -463,5 +463,80 @@ describe("rewriteCastMasterUrl under abr=floor", () => {
     expect(out!.wasmAudio).toBe(false);
     expect(out!.url).not.toContain("wasmAudio");
     expect(out!.url).toContain("abr=floor");
+  });
+});
+
+describe("bufferedStats - what the MSE pipeline actually retains", () => {
+  it("splits buffered media around the playhead and counts ranges", () => {
+    const s = bufferedStats([[0, 150]], 140);
+    expect(s.behindSec).toBeCloseTo(140);
+    expect(s.aheadSec).toBeCloseTo(10);
+    expect(s.rangeCount).toBe(1);
+  });
+
+  // The MIBOX3 wedge of 2026-08-06: a skipped segment left two ranges with a
+  // hole between them - rangeCount is the signal that names it from a beacon.
+  it("sums across a hole and reports the range count", () => {
+    const s = bufferedStats([[672, 678], [681, 711]], 678);
+    expect(s.behindSec).toBeCloseTo(6);
+    expect(s.aheadSec).toBeCloseTo(30);
+    expect(s.rangeCount).toBe(2);
+  });
+
+  it("reports zeros when nothing is buffered", () => {
+    const s = bufferedStats([], 42);
+    expect(s.behindSec).toBe(0);
+    expect(s.aheadSec).toBe(0);
+    expect(s.rangeCount).toBe(0);
+  });
+});
+
+describe("planBackBufferTrim - bound what a 2GB box must retain", () => {
+  it("trims everything further behind than the keep window", () => {
+    expect(planBackBufferTrim([[0, 150]], 140, 20, 10)).toEqual({ start: 0, end: 120 });
+  });
+
+  it("stays quiet under the hysteresis span", () => {
+    expect(planBackBufferTrim([[115, 150]], 140, 20, 10)).toBeNull();
+  });
+
+  it("stays quiet early in playback", () => {
+    expect(planBackBufferTrim([[0, 30]], 25, 20, 10)).toBeNull();
+  });
+
+  it("trims across holes in one call", () => {
+    expect(planBackBufferTrim([[0, 50], [60, 150]], 140, 20, 10)).toEqual({ start: 0, end: 120 });
+  });
+
+  it("has nothing to trim on an empty buffer", () => {
+    expect(planBackBufferTrim([], 140, 20, 10)).toBeNull();
+  });
+});
+
+describe("planFloorRescue - the floor is retried in place before giving up", () => {
+  const master = "https://evey.test/api/v1/media/m1/hls/master.m3u8?token=t&wasmAudio=1";
+  const floored = "https://evey.test/api/v1/media/m1/hls/master.m3u8?token=t&abr=floor";
+
+  it("first rescue floors the master (wasm stripped)", () => {
+    const plan = planFloorRescue(master, 0, 1);
+    expect(plan).toMatchObject({ kind: "floor" });
+    const u = new URL((plan as { url: string }).url);
+    expect(u.searchParams.get("abr")).toBe("floor");
+    expect(u.searchParams.has("wasmAudio")).toBe(false);
+  });
+
+  // The MIBOX3 of 2026-08-06: the floor reload itself wedged on a buffer hole
+  // (segment never requested), the watch re-fired, and the old latch dropped
+  // the rescue silently. One bounded reload in place re-requests the hole.
+  it("a starving floor gets one reload in place", () => {
+    expect(planFloorRescue(floored, 0, 1)).toEqual({ kind: "floor-reload", url: floored });
+  });
+
+  it("the in-place reload budget is bounded, then the rescue declares exhaustion", () => {
+    expect(planFloorRescue(floored, 1, 1)).toEqual({ kind: "exhausted" });
+  });
+
+  it("a URL we do not understand yields no plan", () => {
+    expect(planFloorRescue("not a url", 0, 1)).toBeNull();
   });
 });
