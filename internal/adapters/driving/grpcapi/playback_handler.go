@@ -39,6 +39,9 @@ type playbackHandler struct {
 	userQuery   *appuser.QueryService
 	userAccess  *appuser.AccessService
 	translator  *eveyi18n.Translator
+	// metadataSvc batch-resolves poster blurhashes for resume/next-up cards
+	// (fillPrimaryBlurhashes). Optional: nil skips the stamping.
+	metadataSvc artworkBatchGetter
 	// hlsManager kills a media's HLS sessions on explicit StopStream. Wired to
 	// the fan-out remover (software + hardware) so a stopped software stream is
 	// torn down promptly instead of lingering until its idle GC.
@@ -912,6 +915,7 @@ func (h *playbackHandler) GetResumeItems(ctx context.Context, req *eveyv1.GetRes
 	// Reuse the season/series maps already resolved for stampProgressDisplay
 	// instead of re-fetching them through fillAncestorTitles.
 	stampAncestorTitles(resp.Items, seasonByID, seriesByID)
+	fillPrimaryBlurhashes(ctx, h.metadataSvc, resp.Items)
 	return resp, nil
 }
 
@@ -974,6 +978,7 @@ func (h *playbackHandler) GetNextUp(ctx context.Context, req *eveyv1.GetNextUpRe
 		}
 	}
 	fillAncestorTitles(ctx, h.librarySvc.GetMediaItemsByIDs, resp.Items)
+	fillPrimaryBlurhashes(ctx, h.metadataSvc, resp.Items)
 	return resp, nil
 }
 
