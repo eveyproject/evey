@@ -14,6 +14,12 @@ var ErrDuplicateName = errors.New("playlist name already used by this profile")
 // concurrent adds at cap-1 both passed it).
 var ErrMaxItemsReached = errors.New("playlist item cap reached")
 
+// ErrReorderMembershipDrift reports that a transactional reorder matched
+// fewer rows than requested ids: an item left the playlist between the
+// caller's membership pre-check and the UPDATE (TOCTOU), or a requested id
+// never was a member. The write is rolled back rather than half-applied.
+var ErrReorderMembershipDrift = errors.New("playlist reorder: membership changed during reorder")
+
 type PlaylistRepository interface {
 	Create(ctx context.Context, pl *Playlist) error
 	GetByID(ctx context.Context, id string) (*Playlist, error)

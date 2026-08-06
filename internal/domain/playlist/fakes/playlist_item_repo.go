@@ -122,11 +122,22 @@ func (r *FakePlaylistItemRepository) Reorder(_ context.Context, playlistID strin
 		byID[string(it.MediaItemID)] = it
 	}
 	reordered := make([]*playlist.PlaylistItem, 0, len(mediaItemIDs))
+	matched := make(map[string]struct{}, len(mediaItemIDs))
 	for i, mid := range mediaItemIDs {
 		if it, ok := byID[mid]; ok {
 			it.SortOrder = i
 			reordered = append(reordered, it)
+			matched[mid] = struct{}{}
 		}
+	}
+	// Mirror the postgres adapter: fewer matched rows than distinct requested
+	// ids = membership drift, refuse instead of half-applying.
+	distinct := make(map[string]struct{}, len(mediaItemIDs))
+	for _, mid := range mediaItemIDs {
+		distinct[mid] = struct{}{}
+	}
+	if len(matched) != len(distinct) {
+		return playlist.ErrReorderMembershipDrift
 	}
 	r.items[playlistID] = reordered
 	return nil

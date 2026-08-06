@@ -126,9 +126,10 @@ func (h *playlistHandler) reorderItems(w http.ResponseWriter, r *http.Request) {
 
 	if err := h.reorder.ReorderItems(r.Context(), playlistID, shared.ProfileID(claims.ProfileID), ids); err != nil {
 		span.RecordError(err)
-		if errors.Is(err, appplaylist.ErrForeignItems) {
+		if errors.Is(err, appplaylist.ErrForeignItems) || errors.Is(err, playlist.ErrReorderMembershipDrift) {
 			// Same contract as collections: ids the playlist does not hold
-			// are refused, not silently ignored.
+			// are refused, not silently ignored - including an item that
+			// left the playlist while the reorder was in flight.
 			span.SetStatus(otelcodes.Error, "items contains non-members")
 			http.Error(w, `{"message":"items contains entries that are not in this playlist"}`, http.StatusBadRequest)
 			return

@@ -395,10 +395,24 @@ func (r *PlaylistItemRepository) Reorder(ctx context.Context, playlistID string,
 	query := `UPDATE playlist_items SET sort_order = v.new_order::int
 		FROM (VALUES ` + strings.Join(vals, ", ") + `) AS v(mid, new_order)
 		WHERE playlist_items.playlist_id = $1 AND playlist_items.media_item_id = v.mid`
-	if _, err := tx.ExecContext(ctx, query, args...); err != nil {
+	res, err := tx.ExecContext(ctx, query, args...)
+	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		return fmt.Errorf("PlaylistItemRepo.Reorder exec: %w", err)
+	}
+	// The membership pre-check in the service runs OUTSIDE this transaction:
+	// an item removed in between would silently half-apply the reorder.
+	// Fewer matched rows than distinct requested ids = drift, roll back.
+	if n, aerr := res.RowsAffected(); aerr == nil {
+		distinct := make(map[string]struct{}, len(mediaItemIDs))
+		for _, mid := range mediaItemIDs {
+			distinct[mid] = struct{}{}
+		}
+		if int(n) != len(distinct) {
+			span.SetStatus(codes.Error, playlist.ErrReorderMembershipDrift.Error())
+			return playlist.ErrReorderMembershipDrift
+		}
 	}
 	if err := tx.Commit(); err != nil {
 		span.RecordError(err)
