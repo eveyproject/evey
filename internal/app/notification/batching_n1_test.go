@@ -196,3 +196,46 @@ func TestBatchEviction_FlushesInsteadOfDiscarding(t *testing.T) {
 	}, 5*time.Second, 20*time.Millisecond,
 		"the evicted oldest batch (Series-0) must emit its notification, not vanish")
 }
+
+// The SÉRIE flush path must ship the grouping fields as DATA on the stored
+// notification (Subject + SeasonCount + EpisodeCount), so a client words the
+// sentence itself - the track path is covered elsewhere, this pins the series
+// sibling.
+func TestSeriesFlush_StoresSubjectAndCounts(t *testing.T) {
+	t.Parallel()
+	repo := &countingNotifRepo{FakeNotificationRepository: notiffakes.NewFakeNotificationRepository()}
+	settings := notiffakes.NewFakeSettingsRepository()
+	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
+	profileRepo := userfakes.NewFakeProfileRepository()
+	bus := sharedfakes.NewFakeEventBus()
+
+	ctx := context.Background()
+	require.NoError(t, profileRepo.Create(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "p1"}))
+
+	svc := appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus,
+		appnotification.WithBatchDelay(time.Hour))
+	svc.Register()
+
+	publish := func(id, title, typ string) {
+		bus.Publish(ctx, libevent.MediaItemAdded{
+			MediaItemID: shared.MediaItemID(id), LibraryID: "lib1",
+			Title: title, SeriesTitle: "Some Series", Type: typ, OccurredAt: time.Now(),
+		})
+	}
+	publish("ser1", "Some Series", "series")
+	publish("sea1", "Season 1", "season")
+	publish("sea2", "Season 2", "season")
+	publish("ep1", "S01E01", "episode")
+	publish("ep2", "S01E02", "episode")
+	publish("ep3", "S02E01", "episode")
+	svc.FlushBatches()
+
+	notifs, err := repo.ListByProfile(ctx, "p1", false, 0, 0)
+	require.NoError(t, err)
+	require.Len(t, notifs, 1, "one grouped notification for the whole series batch")
+	got := notifs[0]
+	assert.Equal(t, "Some Series", got.Subject)
+	assert.Equal(t, 2, got.SeasonCount)
+	assert.Equal(t, 3, got.EpisodeCount)
+	assert.Equal(t, notifdom.NewSeriesKey("lib1", "Some Series"), got.SeriesKey)
+}

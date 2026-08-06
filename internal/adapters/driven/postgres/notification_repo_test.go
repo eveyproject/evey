@@ -37,8 +37,8 @@ func TestNotificationRepo_CRUD(t *testing.T) {
 		ID:          "notif-1",
 		ProfileID:   "profile-a",
 		Type:        notification.TypeNewMovie,
-		Title:       "New Movie: Dune",
-		Message:     "Dune added to your library",
+		Title:       "New Movie: Some Movie",
+		Message:     "Some Movie added to your library",
 		MediaItemID: "media-1",
 		Level:       notification.LevelAll,
 		CreatedAt:   time.Now().UTC().Truncate(time.Millisecond),
@@ -52,6 +52,32 @@ func TestNotificationRepo_CRUD(t *testing.T) {
 	assert.Len(t, list, 1)
 	assert.Equal(t, n.ID, list[0].ID)
 	assert.Equal(t, notification.TypeNewMovie, list[0].Type)
+
+	// The série grouping fields must survive the round-trip: a client that
+	// words its own sentence reads Subject + the counts, never Title.
+	grouped := &notification.Notification{
+		ID: "notif-2", ProfileID: "profile-a", Type: notification.TypeNewEpisode,
+		Title: "New Episodes: Some Series", MediaItemID: "media-1",
+		SeriesKey: notification.NewSeriesKey("lib1", "Some Series"),
+		Subject:   "Some Series", SeasonCount: 2, EpisodeCount: 16,
+		Level: notification.LevelAll, CreatedAt: time.Now().UTC().Truncate(time.Millisecond),
+	}
+	require.NoError(t, repo.Create(ctx, grouped))
+	list, err = repo.ListByProfile(ctx, "profile-a", false, 10, 0)
+	require.NoError(t, err)
+	require.Len(t, list, 2)
+	var got *notification.Notification
+	for _, item := range list {
+		if item.ID == "notif-2" {
+			got = item
+		}
+	}
+	require.NotNil(t, got)
+	assert.Equal(t, "Some Series", got.Subject)
+	assert.Equal(t, 2, got.SeasonCount)
+	assert.Equal(t, 16, got.EpisodeCount)
+	assert.Equal(t, notification.NewSeriesKey("lib1", "Some Series"), got.SeriesKey)
+	require.NoError(t, repo.MarkRead(ctx, "notif-2", "profile-a"))
 
 	count, err := repo.UnreadCount(ctx, "profile-a")
 	require.NoError(t, err)

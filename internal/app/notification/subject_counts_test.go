@@ -5,12 +5,12 @@ import "testing"
 // The counts must travel as DATA, not baked into an English string: that is what
 // let a French TV render "Nouvelle série : Some Series (1 seasons, 1 episodes)".
 // subjectOf is the piece that decides WHAT the counts are about, and getting it
-// wrong regrouped "The Wire" into "S01E07 (2 episodes)".
+// wrong regrouped "Some Series" into "S01E07 (2 episodes)".
 func TestSubjectOf(t *testing.T) {
 	cases := []struct {
 		name, title, seriesTitle, want string
 	}{
-		{"episode keeps the series", "S01E07", "The Wire", "The Wire"},
+		{"episode keeps the series", "S01E07", "Some Series", "Some Series"},
 		{"movie is its own subject", "Some Movie", "", "Some Movie"},
 		{"empty series falls back", "Season 2", "", "Season 2"},
 	}
