@@ -177,6 +177,20 @@ library:
   markedWatched: देखा गया चिह्नित किया
   bulkPartialFailure: "{{count}} आइटम विफल"
 person:
+  department:
+    acting: अभिनय
+    directing: निर्देशन
+    writing: लेखन
+    production: निर्माण
+    sound: ध्वनि
+    camera: कैमरा
+    editing: संपादन
+    art: कला
+    crew: क्रू
+    costumeMakeup: वेशभूषा और मेकअप
+    visualEffects: दृश्य प्रभाव
+    lighting: प्रकाश
+    creator: निर्माता
   filmography: "फ़िल्मोग्राफ़ी"
   unknown: अज्ञात
   titleCount: "{{count}} शीर्षक"

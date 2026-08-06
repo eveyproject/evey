@@ -1,6 +1,6 @@
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { useLibraryServiceListMediaItems, useLibraryServiceGetPerson } from "@evey/api";
+import { useLibraryServiceListMediaItems, useLibraryServiceGetPerson, personDepartmentKey } from "@evey/api";
 import { BackButton } from "@/components/ui/BackButton";
 import { Badge } from "@/components/ui/Badge";
 import { Spinner } from "@/components/ui/Spinner";
@@ -90,10 +90,16 @@ function PersonPage() {
           )}
           {(person?.birthday || person?.placeOfBirth || person?.knownFor) && (
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-[var(--text-muted)] mt-2">
-              {/* knownFor is TMDB's known_for_department (Acting, Directing…),
-                  fetched and stored since the people enrichment landed but never
-                  rendered by any client. */}
-              {person.knownFor && <span>{person.knownFor}</span>}
+              {/* knownFor is TMDB's known_for_department, stored in English.
+                  Localize the closed set; an unknown value renders raw. */}
+              {person.knownFor && (
+                <span>
+                  {(() => {
+                    const key = personDepartmentKey(person.knownFor);
+                    return key ? t(key, person.knownFor) : person.knownFor;
+                  })()}
+                </span>
+              )}
               {person.birthday && (
                 <span>
                   {new Date(person.birthday).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}

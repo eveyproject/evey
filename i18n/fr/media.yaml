@@ -177,6 +177,20 @@ library:
   markedWatched: Marqué vu
   bulkPartialFailure: "{{count}} élément(s) en échec"
 person:
+  department:
+    acting: Interprétation
+    directing: Réalisation
+    writing: Scénario
+    production: Production
+    sound: Son
+    camera: Caméra
+    editing: Montage
+    art: Décors
+    crew: Équipe technique
+    costumeMakeup: Costumes et maquillage
+    visualEffects: Effets visuels
+    lighting: Lumière
+    creator: Création
   filmography: Filmographie
   unknown: Inconnu
   titleCount: "{{count}} titre"

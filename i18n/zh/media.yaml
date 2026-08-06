@@ -177,6 +177,20 @@ library:
   markedWatched: 已标为已观看
   bulkPartialFailure: "{{count}} 项失败"
 person:
+  department:
+    acting: 表演
+    directing: 导演
+    writing: 编剧
+    production: 制作
+    sound: 声音
+    camera: 摄影
+    editing: 剪辑
+    art: 美术
+    crew: 剧组
+    costumeMakeup: 服装与化妆
+    visualEffects: 视觉效果
+    lighting: 灯光
+    creator: 创作
   filmography: "作品列表"
   unknown: 未知
   titleCount: "{{count}} 部作品"

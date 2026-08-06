@@ -11,7 +11,7 @@ import { Image } from "expo-image";
 import { useLocalSearchParams, router, Stack } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { eveyFetch, useLibraryServiceListMediaItems } from "@evey/api";
+import { eveyFetch, personDepartmentKey, useLibraryServiceListMediaItems } from "@evey/api";
 import type { V1MediaItem } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
@@ -126,12 +126,14 @@ export default function PersonDetailScreen() {
           {name}
         </Text>
 
-        {/* knownFor is TMDB's known_for_department (Acting, Directing…),
-            fetched and stored since the people enrichment landed but never
-            rendered by any client. */}
+        {/* knownFor is TMDB's known_for_department, stored in English.
+            Localize the closed set; an unknown value renders raw. */}
         {person?.knownFor ? (
           <Text style={{ color: theme.colors.textMuted, fontSize: 13, marginTop: theme.spacing.xs, textAlign: "center" }}>
-            {person.knownFor}
+            {(() => {
+              const key = personDepartmentKey(person.knownFor);
+              return key ? t(key, person.knownFor) : person.knownFor;
+            })()}
           </Text>
         ) : null}
 

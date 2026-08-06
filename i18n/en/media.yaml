@@ -177,6 +177,20 @@ library:
   markedWatched: Marked watched
   bulkPartialFailure: "{{count}} item(s) failed"
 person:
+  department:
+    acting: Acting
+    directing: Directing
+    writing: Writing
+    production: Production
+    sound: Sound
+    camera: Camera
+    editing: Editing
+    art: Art
+    crew: Crew
+    costumeMakeup: Costume & Make-Up
+    visualEffects: Visual Effects
+    lighting: Lighting
+    creator: Creator
   filmography: Filmography
   unknown: Unknown
   titleCount: "{{count}} title"
