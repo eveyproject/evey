@@ -432,12 +432,12 @@ func TestAutoRefreshAllItems_ResumesFromPersistedCursor(t *testing.T) {
 
 	// A cursor left by an interrupted sweep at offset 500 (page size): the
 	// resumed walk starts THERE - the (only) item at offset 0 is skipped.
-	require.NoError(t, cfg.Set(ctx, "metadata.refresh_all.cursor", `{"library_id":"","offset":500}`))
+	require.NoError(t, cfg.Set(ctx, "metadata.refresh_all.cursor.", `{"library_id":"","offset":500}`))
 	require.NoError(t, cmdSvc.AutoRefreshAllItems(ctx, ""))
 	assert.Empty(t, enricher.enrichedItems, "the resumed sweep must not re-enrich pages before the cursor")
 
 	// Completion clears the cursor: the next trigger walks from zero again.
-	entry, err := cfg.Get(ctx, "metadata.refresh_all.cursor")
+	entry, err := cfg.Get(ctx, "metadata.refresh_all.cursor.")
 	if err == nil && entry != nil {
 		assert.Empty(t, entry.Value, "the cursor must be cleared after a completed sweep")
 	}
@@ -461,7 +461,7 @@ func TestAutoRefreshAllItems_IgnoresCursorOfOtherScope(t *testing.T) {
 	appmetadata.WithEnricher(enricher, repo)(cmdSvc)
 	ctx := context.Background()
 	require.NoError(t, repo.Create(ctx, &library.MediaItem{ID: "item-1", Title: "A"}))
-	require.NoError(t, cfg.Set(ctx, "metadata.refresh_all.cursor", `{"library_id":"lib-other","offset":500}`))
+	require.NoError(t, cfg.Set(ctx, "metadata.refresh_all.cursor.lib-other", `{"library_id":"lib-other","offset":500}`))
 
 	require.NoError(t, cmdSvc.AutoRefreshAllItems(ctx, ""))
 	assert.Len(t, enricher.enrichedItems, 1, "a cursor for another scope must be ignored")

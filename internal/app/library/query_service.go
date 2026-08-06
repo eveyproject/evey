@@ -260,7 +260,10 @@ func (s *QueryService) GetSegments(ctx context.Context, mediaItemID string) ([]*
 	// for eval/training) but not served - a wrong skip button costs more than
 	// a missing one. Threshold is admin-tunable; 0 disables the gate.
 	minConf := loadIntroConfig(ctx, s.serverConfig).MinServeConfidence
-	out := segs[:0]
+	// Fresh slice, never segs[:0]: compacting in place would corrupt a shared
+	// backing array the day a cache decorator hands the same slice to every
+	// caller.
+	out := make([]*library.MediaSegment, 0, len(segs))
 	for _, sg := range segs {
 		// Product rule (user decision 2026-08-06): under 5 seconds there is no
 		// skip-intro button, whatever the source or confidence. Chapters are

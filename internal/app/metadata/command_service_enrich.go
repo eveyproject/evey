@@ -345,13 +345,19 @@ func (s *CommandService) AutoRefreshAllItems(ctx context.Context, libraryID stri
 			break
 		}
 	}
-	s.clearRefreshCursor(ctx)
+	s.clearRefreshCursor(ctx, libraryID)
 	return nil
 }
 
-// metadataRefreshCursorKey persists the refresh-all sweep position in
+// metadataRefreshCursorKeyPrefix persists the refresh-all sweep position in
 // server_config (no schema change needed): {"library_id":"...","offset":N}.
-const metadataRefreshCursorKey = "metadata.refresh_all.cursor"
+// Keyed PER LIBRARY: two concurrent sweeps used to share one global key and
+// clobber (then clear) each other's cursor.
+const metadataRefreshCursorKeyPrefix = "metadata.refresh_all.cursor."
+
+func refreshCursorKey(libraryID string) string {
+	return metadataRefreshCursorKeyPrefix + libraryID
+}
 
 type refreshCursor struct {
 	LibraryID string `json:"library_id"`
@@ -362,7 +368,7 @@ func (s *CommandService) loadRefreshCursor(ctx context.Context, libraryID string
 	if s.serverConfig == nil {
 		return 0, false
 	}
-	entry, err := s.serverConfig.Get(ctx, metadataRefreshCursorKey)
+	entry, err := s.serverConfig.Get(ctx, refreshCursorKey(libraryID))
 	if err != nil || entry == nil || entry.Value == "" {
 		return 0, false
 	}
@@ -381,16 +387,16 @@ func (s *CommandService) storeRefreshCursor(ctx context.Context, libraryID strin
 	if err != nil {
 		return
 	}
-	if err := s.serverConfig.Set(ctx, metadataRefreshCursorKey, string(raw)); err != nil {
+	if err := s.serverConfig.Set(ctx, refreshCursorKey(libraryID), string(raw)); err != nil {
 		slog.WarnContext(ctx, "metadata refresh-all: cursor persist failed", slog.Any("err", err))
 	}
 }
 
-func (s *CommandService) clearRefreshCursor(ctx context.Context) {
+func (s *CommandService) clearRefreshCursor(ctx context.Context, libraryID string) {
 	if s.serverConfig == nil {
 		return
 	}
-	if err := s.serverConfig.Delete(ctx, metadataRefreshCursorKey); err != nil {
+	if err := s.serverConfig.Delete(ctx, refreshCursorKey(libraryID)); err != nil {
 		slog.WarnContext(ctx, "metadata refresh-all: cursor clear failed", slog.Any("err", err))
 	}
 }
