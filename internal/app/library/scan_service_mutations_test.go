@@ -931,7 +931,7 @@ func TestScanService_NewItem_TVShowHasSeriesTitle(t *testing.T) {
 	require.NoError(t, err)
 	var saw bool
 	for _, e := range h.bus.PublishedEvents() {
-		if ev, ok := e.(library.MediaItemAdded); ok && ev.Type == string(library.Episode) {
+		if ev, ok := e.(library.MediaItemAdded); ok && ev.Type == library.Episode {
 			assert.Equal(t, "MyShow", ev.SeriesTitle, "episode MediaItemAdded must carry series title")
 			saw = true
 		}

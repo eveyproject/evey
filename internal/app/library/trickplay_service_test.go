@@ -350,7 +350,7 @@ func TestTrickplay_StartTrickplayWorker_NilRepoShortCircuits(t *testing.T) {
 	// No subscription should have been registered (no handler list to verify, but
 	// publishing must not crash).
 	require.NoError(t, bus.Publish(context.Background(), library.MediaItemAdded{
-		MediaItemID: shared.MediaItemID("m1"), Type: string(library.MovieItem),
+		MediaItemID: shared.MediaItemID("m1"), Type: library.MovieItem,
 	}))
 }
 
@@ -364,7 +364,7 @@ func TestTrickplay_StartTrickplayWorker_NilGenShortCircuits(t *testing.T) {
 		svc.StartTrickplayWorker(context.Background())
 	})
 	require.NoError(t, bus.Publish(context.Background(), library.MediaItemAdded{
-		MediaItemID: shared.MediaItemID("m1"), Type: string(library.MovieItem),
+		MediaItemID: shared.MediaItemID("m1"), Type: library.MovieItem,
 	}))
 }
 
@@ -385,7 +385,7 @@ func TestTrickplay_StartTrickplayWorker_ConsumesAddedMovieEvent(t *testing.T) {
 	// Publish a movie-added event; worker enqueues and runs in a goroutine.
 	require.NoError(t, bus.Publish(context.Background(), library.MediaItemAdded{
 		MediaItemID: shared.MediaItemID("m1"),
-		Type:        string(library.MovieItem),
+		Type:        library.MovieItem,
 	}))
 
 	require.Eventually(t, func() bool {
@@ -405,7 +405,7 @@ func TestTrickplay_StartTrickplayWorker_IgnoresNonPlayableTypes(t *testing.T) {
 	svc.StartTrickplayWorker(ctx)
 
 	// Series / season / track should be skipped.
-	for _, ty := range []string{string(library.Series), string(library.Season), string(library.Track), "photo"} {
+	for _, ty := range []library.MediaItemType{library.Series, library.Season, library.Track, library.PhotoItem} {
 		require.NoError(t, bus.Publish(context.Background(), library.MediaItemAdded{
 			MediaItemID: shared.MediaItemID("m1"), Type: ty,
 		}))
@@ -435,7 +435,7 @@ func TestTrickplay_StartTrickplayWorker_SkipsWhenManifestExists(t *testing.T) {
 
 	require.NoError(t, bus.Publish(context.Background(), library.MediaItemAdded{
 		MediaItemID: shared.MediaItemID("m1"),
-		Type:        string(library.MovieItem),
+		Type:        library.MovieItem,
 	}))
 	// Wait a bit; generator must NOT be called.
 	time.Sleep(150 * time.Millisecond)
@@ -460,7 +460,7 @@ func TestTrickplay_StartTrickplayWorker_DisabledByConfigSkips(t *testing.T) {
 
 	require.NoError(t, bus.Publish(context.Background(), library.MediaItemAdded{
 		MediaItemID: shared.MediaItemID("m1"),
-		Type:        string(library.MovieItem),
+		Type:        library.MovieItem,
 	}))
 	time.Sleep(100 * time.Millisecond)
 	assert.Equal(t, int32(0), atomic.LoadInt32(&gen.callCount))

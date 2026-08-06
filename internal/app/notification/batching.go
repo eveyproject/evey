@@ -58,7 +58,7 @@ func (s *CommandService) handleMediaItemAdded(_ context.Context, ev shared.Event
 	}
 
 	// Skip image types entirely
-	if e.Type == "photo" || e.Type == "image" {
+	if e.Type == libevent.PhotoItem {
 		return
 	}
 
@@ -78,7 +78,7 @@ func (s *CommandService) handleMediaItemAdded(_ context.Context, ev shared.Event
 	}
 
 	// Albums get batched by album title (tracks amalgamated)
-	if e.Type == "album" || (e.Type == "track" && e.SeriesTitle != "") {
+	if e.Type == libevent.Album || (e.Type == libevent.Track && e.SeriesTitle != "") {
 		s.bufferSeriesEvent(e)
 		s.mu.Unlock()
 		return
@@ -90,9 +90,9 @@ func (s *CommandService) handleMediaItemAdded(_ context.Context, ev shared.Event
 
 func isBatchable(e libevent.MediaItemAdded) bool {
 	switch e.Type {
-	case "series", "season":
+	case libevent.Series, libevent.Season:
 		return true
-	case "episode":
+	case libevent.Episode:
 		return e.SeriesTitle != ""
 	}
 	return false
@@ -100,7 +100,7 @@ func isBatchable(e libevent.MediaItemAdded) bool {
 
 func (s *CommandService) batchKey(e libevent.MediaItemAdded) string {
 	// Albums use their own title as key, series use SeriesTitle
-	if e.Type == "album" || e.Type == "track" {
+	if e.Type == libevent.Album || e.Type == libevent.Track {
 		key := e.SeriesTitle
 		if key == "" {
 			key = e.Title
@@ -153,11 +153,11 @@ func (s *CommandService) bufferSeriesEvent(e libevent.MediaItemAdded) {
 	}
 
 	switch e.Type {
-	case "series", "album":
+	case libevent.Series, libevent.Album:
 		batch.seriesEvent = &e
-	case "season":
+	case libevent.Season:
 		batch.seasons = append(batch.seasons, e)
-	case "episode", "track":
+	case libevent.Episode, libevent.Track:
 		batch.episodes = append(batch.episodes, e)
 	}
 
@@ -185,14 +185,14 @@ func (s *CommandService) flushBatch(key string) {
 
 	// Full series (series event present)
 	if batch.seriesEvent != nil {
-		if batch.seriesEvent.Type == "album" {
+		if batch.seriesEvent.Type == libevent.Album {
 			title, push := batchedAlbumTitle(batch.seriesEvent.Title, episodeCount)
-			s.emitNotifications("album", title, "", string(batch.seriesEvent.MediaItemID), "", batch.seriesEvent.Genres, &push, labelParts{subject: batch.seriesEvent.Title, episodeCount: episodeCount})
+			s.emitNotifications(libevent.Album, title, "", string(batch.seriesEvent.MediaItemID), "", batch.seriesEvent.Genres, &push, labelParts{subject: batch.seriesEvent.Title, episodeCount: episodeCount})
 			return
 		}
 		seriesKey := notification.NewSeriesKey(string(batch.seriesEvent.LibraryID), batch.seriesEvent.Title)
 		title, push := batchedSeriesTitle(batch.seriesEvent.Title, seasonCount, episodeCount)
-		s.emitNotifications("series", title, "", string(batch.seriesEvent.MediaItemID), seriesKey, batch.seriesEvent.Genres, &push, labelParts{subject: batch.seriesEvent.Title, seasonCount: seasonCount, episodeCount: episodeCount})
+		s.emitNotifications(libevent.Series, title, "", string(batch.seriesEvent.MediaItemID), seriesKey, batch.seriesEvent.Genres, &push, labelParts{subject: batch.seriesEvent.Title, seasonCount: seasonCount, episodeCount: episodeCount})
 		return
 	}
 
@@ -205,7 +205,7 @@ func (s *CommandService) flushBatch(key string) {
 		}
 		seriesKey := notification.NewSeriesKey(string(season.LibraryID), season.SeriesTitle)
 		title, push := batchedSeasonTitle(seriesTitle, season.Title, episodeCount)
-		s.emitNotifications("season", title, "", string(season.MediaItemID), seriesKey, season.Genres, &push, labelParts{subject: seriesTitle, seasonCount: seasonCount, episodeCount: episodeCount})
+		s.emitNotifications(libevent.Season, title, "", string(season.MediaItemID), seriesKey, season.Genres, &push, labelParts{subject: seriesTitle, seasonCount: seasonCount, episodeCount: episodeCount})
 		return
 	}
 
@@ -215,7 +215,7 @@ func (s *CommandService) flushBatch(key string) {
 		season := batch.seasons[0]
 		seriesKey := notification.NewSeriesKey(string(season.LibraryID), season.SeriesTitle)
 		title, push := batchedSeasonsTitle(season.SeriesTitle, season.Title, seasonCount)
-		s.emitNotifications("season", title, "", string(season.MediaItemID), seriesKey, season.Genres, &push, labelParts{subject: season.SeriesTitle, seasonCount: seasonCount})
+		s.emitNotifications(libevent.Season, title, "", string(season.MediaItemID), seriesKey, season.Genres, &push, labelParts{subject: season.SeriesTitle, seasonCount: seasonCount})
 		return
 	}
 
@@ -223,14 +223,14 @@ func (s *CommandService) flushBatch(key string) {
 	// existing album, or the album event landed in an earlier window): name the
 	// album, never "New Episode". Mirrors the album branch above so the client
 	// renders "Album (N tracks)" and the profile's music level governs it.
-	if episodeCount > 0 && batch.episodes[0].Type == "track" {
+	if episodeCount > 0 && batch.episodes[0].Type == libevent.Track {
 		first := batch.episodes[0]
 		albumTitle := first.SeriesTitle
 		if albumTitle == "" {
 			albumTitle = first.Title
 		}
 		title, push := batchedAlbumTitle(albumTitle, episodeCount)
-		s.emitNotifications("album", title, "", string(first.MediaItemID), "", first.Genres, &push, labelParts{subject: albumTitle, episodeCount: episodeCount})
+		s.emitNotifications(libevent.Album, title, "", string(first.MediaItemID), "", first.Genres, &push, labelParts{subject: albumTitle, episodeCount: episodeCount})
 		return
 	}
 
@@ -246,7 +246,7 @@ func (s *CommandService) flushBatch(key string) {
 		first := batch.episodes[0]
 		seriesKey := notification.NewSeriesKey(string(first.LibraryID), first.SeriesTitle)
 		title, push := batchedEpisodesTitle(first.SeriesTitle, episodeCount)
-		s.emitNotifications("episode", title, "", string(first.MediaItemID), seriesKey, first.Genres, &push, labelParts{subject: first.SeriesTitle, episodeCount: episodeCount})
+		s.emitNotifications(libevent.Episode, title, "", string(first.MediaItemID), seriesKey, first.Genres, &push, labelParts{subject: first.SeriesTitle, episodeCount: episodeCount})
 	}
 }
 
@@ -271,7 +271,7 @@ type labelParts struct {
 	episodeCount int
 }
 
-func (s *CommandService) emitNotifications(mediaType, title, seriesTitle, mediaItemID string, seriesKey notification.SeriesKey, genres []string, pushOverride *pushSpec, parts labelParts) {
+func (s *CommandService) emitNotifications(mediaType libevent.MediaItemType, title, seriesTitle, mediaItemID string, seriesKey notification.SeriesKey, genres []string, pushOverride *pushSpec, parts labelParts) {
 	parent := s.shutdownCtx
 	if parent == nil {
 		slog.Warn("notification: emitNotifications called before Start(); using background context")

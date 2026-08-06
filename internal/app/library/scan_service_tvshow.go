@@ -131,7 +131,7 @@ func (s *ScanService) scanTVShowFiles(ctx context.Context, libraryID string, fil
 					MediaItemID: seriesItem.ID,
 					LibraryID:   shared.LibraryID(libraryID),
 					Title:       seriesItem.Title,
-					Type:        string(seriesItem.Type),
+					Type:        seriesItem.Type,
 					Genres:      catalogGenres(seriesItem),
 					OccurredAt:  time.Now(),
 				})
@@ -180,7 +180,7 @@ func (s *ScanService) scanTVShowFiles(ctx context.Context, libraryID string, fil
 					SeriesTitle: showTitle, // groups seasons with their series' batch
 					// (one "new series" notification instead of one per season) AND
 					// names the series in a standalone "new season" notification.
-					Type:       string(seasonItem.Type),
+					Type:       seasonItem.Type,
 					Genres:     catalogGenres(seasonItem),
 					OccurredAt: time.Now(),
 				})

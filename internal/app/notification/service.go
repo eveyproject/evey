@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	libevent "github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/notification"
 	"github.com/evey-project/evey/internal/domain/user"
 	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
@@ -48,37 +49,37 @@ func (p pushSpec) resolveTitle(t *eveyi18n.Translator, locale string) string {
 	return msg
 }
 
-func typeAndTitle(mediaType, title, seriesTitle string) (notification.Type, string, pushSpec) {
+func typeAndTitle(mediaType libevent.MediaItemType, title, seriesTitle string) (notification.Type, string, pushSpec) {
 	label := title
-	if seriesTitle != "" && (mediaType == "episode" || mediaType == "season") {
+	if seriesTitle != "" && (mediaType == libevent.Episode || mediaType == libevent.Season) {
 		label = seriesTitle + " - " + title
 	}
 	switch mediaType {
-	case "movie":
+	case libevent.MovieItem:
 		return notification.TypeNewMovie, "new_movie:" + label, pushSpec{
 			key:      "notifications.push.new_movie.title",
 			params:   map[string]string{"label": label},
 			fallback: "New Movie: " + label,
 		}
-	case "episode":
+	case libevent.Episode:
 		return notification.TypeNewEpisode, "new_episode:" + label, pushSpec{
 			key:      "notifications.push.new_episode.title",
 			params:   map[string]string{"label": label},
 			fallback: "New Episode: " + label,
 		}
-	case "season":
+	case libevent.Season:
 		return notification.TypeNewSeason, "new_season:" + label, pushSpec{
 			key:      "notifications.push.new_season.title",
 			params:   map[string]string{"label": label},
 			fallback: "New Season: " + label,
 		}
-	case "series":
+	case libevent.Series:
 		return notification.TypeNewSeries, "new_series:" + label, pushSpec{
 			key:      "notifications.push.new_series.title",
 			params:   map[string]string{"label": label},
 			fallback: "New Series: " + label,
 		}
-	case "album":
+	case libevent.Album:
 		return notification.TypeNewAlbum, "new_album:" + label, pushSpec{
 			key:      "notifications.push.new_album.title",
 			params:   map[string]string{"label": label},

@@ -45,7 +45,7 @@ type MediaItemAdded struct {
 	LibraryID   shared.LibraryID
 	Title       string
 	SeriesTitle string // non-empty for episodes/seasons
-	Type        string
+	Type        MediaItemType
 	Genres      []string
 	OccurredAt  time.Time
 }
@@ -68,7 +68,7 @@ func (e MediaItemRemoved) EventName() string { return "media.item.removed" }
 type TrickplayGenerated struct {
 	MediaItemID shared.MediaItemID
 	ParentID    shared.MediaItemID // empty for movies
-	Type        string             // "movie" / "episode"
+	Type        MediaItemType
 	OccurredAt  time.Time
 }
 

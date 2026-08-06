@@ -718,7 +718,7 @@ func (s *ScanService) createMediaFile(ctx context.Context, libraryID, parentID s
 		LibraryID:   shared.LibraryID(libraryID),
 		Title:       item.Title,
 		SeriesTitle: showTitle,
-		Type:        string(item.Type),
+		Type:        item.Type,
 		Genres:      catalogGenres(item),
 		OccurredAt:  time.Now(),
 	})
@@ -809,7 +809,7 @@ func (s *ScanService) updateMediaFile(ctx context.Context, existing *library.Med
 			LibraryID:   existing.LibraryID,
 			Title:       existing.Title,
 			SeriesTitle: showTitle,
-			Type:        string(existing.Type),
+			Type:        existing.Type,
 			Genres:      catalogGenres(existing),
 			OccurredAt:  time.Now(),
 		})

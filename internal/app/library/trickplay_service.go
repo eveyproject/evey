@@ -214,7 +214,7 @@ func (s *TrickplayService) GenerateTrickplay(ctx context.Context, mediaItemID st
 		s.events.Publish(ctx, library.TrickplayGenerated{
 			MediaItemID: shared.MediaItemID(mediaItemID),
 			ParentID:    shared.MediaItemID(item.ParentID),
-			Type:        string(item.Type),
+			Type:        item.Type,
 			OccurredAt:  time.Now(),
 		})
 	}
@@ -381,7 +381,7 @@ func (s *TrickplayService) StartTrickplayWorker(ctx context.Context) {
 		if !ok {
 			return
 		}
-		if e.Type != string(library.MovieItem) && e.Type != string(library.Episode) {
+		if e.Type != library.MovieItem && e.Type != library.Episode {
 			return
 		}
 		select {

@@ -547,7 +547,7 @@ func TestUpsertMediaFile_NewItem_PublishesMediaItemAdded(t *testing.T) {
 	require.NotNil(t, evt)
 	assert.Equal(t, "Some Movie", evt.Title)
 	assert.Equal(t, shared.LibraryID("lib-1"), evt.LibraryID)
-	assert.Equal(t, "movie", evt.Type)
+	assert.Equal(t, library.MovieItem, evt.Type)
 	assert.Empty(t, evt.SeriesTitle, "non-tvshow should have empty SeriesTitle")
 }
 

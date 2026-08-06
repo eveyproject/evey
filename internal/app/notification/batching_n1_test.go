@@ -216,7 +216,7 @@ func TestSeriesFlush_StoresSubjectAndCounts(t *testing.T) {
 		appnotification.WithBatchDelay(time.Hour))
 	svc.Register()
 
-	publish := func(id, title, typ string) {
+	publish := func(id, title string, typ libevent.MediaItemType) {
 		bus.Publish(ctx, libevent.MediaItemAdded{
 			MediaItemID: shared.MediaItemID(id), LibraryID: "lib1",
 			Title: title, SeriesTitle: "Some Series", Type: typ, OccurredAt: time.Now(),

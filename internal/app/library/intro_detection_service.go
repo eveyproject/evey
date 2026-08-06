@@ -324,7 +324,7 @@ func (s *IntroDetectionService) StartWorker(ctx context.Context) {
 
 	s.events.Subscribe("media.item.added", func(_ context.Context, ev shared.Event) {
 		e, ok := ev.(domainlibrary.MediaItemAdded)
-		if !ok || e.Type != string(domainlibrary.Episode) {
+		if !ok || e.Type != domainlibrary.Episode {
 			return
 		}
 		// When trickplay is enabled, defer to the trickplay.generated trigger:
@@ -352,9 +352,9 @@ func (s *IntroDetectionService) StartWorker(ctx context.Context) {
 			return
 		}
 		switch e.Type {
-		case string(domainlibrary.Episode):
+		case domainlibrary.Episode:
 			scheduleSeason(string(e.ParentID))
-		case string(domainlibrary.MovieItem):
+		case domainlibrary.MovieItem:
 			id := string(e.MediaItemID)
 			runDeferred("movie:"+id, 0, func() {
 				if err := s.DetectIntro(ctx, id); err != nil {
