@@ -640,6 +640,7 @@ audit:
   entries: "{{count}} entrées"
 
 serverConfig:
+  entriesTitle: "Entrées de configuration"
   appliedOnRestart: "appliqué au redémarrage"
   title: "Configuration du serveur"
   subtitle: "Entrées de configuration clé-valeur stockées dans la base de données."

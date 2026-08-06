@@ -641,6 +641,7 @@ audit:
   entries: "{{count}} 条记录"
 
 serverConfig:
+  entriesTitle: "配置条目"
   appliedOnRestart: "重启后生效"
   backgroundJobs:
     title: "后台任务"

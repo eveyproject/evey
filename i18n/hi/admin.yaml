@@ -641,6 +641,7 @@ audit:
   entries: "{{count}} प्रविष्टियां"
 
 serverConfig:
+  entriesTitle: "कॉन्फ़िगरेशन प्रविष्टियाँ"
   appliedOnRestart: "रीस्टार्ट पर लागू"
   backgroundJobs:
     title: "पृष्ठभूमि कार्य"

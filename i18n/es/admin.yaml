@@ -641,6 +641,7 @@ audit:
   entries: "{{count}} registros"
 
 serverConfig:
+  entriesTitle: "Entradas de configuración"
   appliedOnRestart: "se aplica al reiniciar"
   backgroundJobs:
     title: "Tareas en segundo plano"
