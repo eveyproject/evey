@@ -11,7 +11,6 @@ import (
 	"github.com/evey-project/evey/internal/adapters/driven/postgres"
 	"github.com/evey-project/evey/internal/adapters/driven/postgres/testhelpers"
 	"github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/domain/shared"
 )
 
 func TestSQLSearchFallback_IndexMediaItem_Noop(t *testing.T) {
@@ -62,9 +61,9 @@ func TestSQLSearchFallback_Search_Integration(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Millisecond)
 	year := 1999
 	items := []*library.MediaItem{
-		{ID: "s1", LibraryID: shared.LibraryID(lib.ID), Type: "movie", Title: "Punch Club", OriginalTitle: "Punch Club", Catalog: &library.MediaCatalog{Year: &year, Genres: []string{"Drama"}, ProviderIDs: map[string]string{}, Studios: []string{}, Tags: []string{}}, AddedAt: now, UpdatedAt: now, Classification: &library.MediaClassification{OfficialRating: "R"}},
-		{ID: "s2", LibraryID: shared.LibraryID(lib.ID), Type: "movie", Title: "The Cascade", OriginalTitle: "The Cascade", Catalog: &library.MediaCatalog{Year: &year, Genres: []string{"Sci-Fi"}, ProviderIDs: map[string]string{}, Studios: []string{}, Tags: []string{}}, AddedAt: now, UpdatedAt: now},
-		{ID: "s3", LibraryID: shared.LibraryID(lib.ID), Type: "movie", Title: "Meridian Voyage", OriginalTitle: "Meridian Voyage", Catalog: &library.MediaCatalog{Genres: []string{"Sci-Fi"}, ProviderIDs: map[string]string{}, Studios: []string{}, Tags: []string{}}, AddedAt: now, UpdatedAt: now},
+		{ID: "s1", LibraryID: lib.ID, Type: "movie", Title: "Punch Club", OriginalTitle: "Punch Club", Catalog: &library.MediaCatalog{Year: &year, Genres: []string{"Drama"}, ProviderIDs: map[string]string{}, Studios: []string{}, Tags: []string{}}, AddedAt: now, UpdatedAt: now, Classification: &library.MediaClassification{OfficialRating: "R"}},
+		{ID: "s2", LibraryID: lib.ID, Type: "movie", Title: "The Cascade", OriginalTitle: "The Cascade", Catalog: &library.MediaCatalog{Year: &year, Genres: []string{"Sci-Fi"}, ProviderIDs: map[string]string{}, Studios: []string{}, Tags: []string{}}, AddedAt: now, UpdatedAt: now},
+		{ID: "s3", LibraryID: lib.ID, Type: "movie", Title: "Meridian Voyage", OriginalTitle: "Meridian Voyage", Catalog: &library.MediaCatalog{Genres: []string{"Sci-Fi"}, ProviderIDs: map[string]string{}, Studios: []string{}, Tags: []string{}}, AddedAt: now, UpdatedAt: now},
 	}
 	for _, item := range items {
 		require.NoError(t, itemRepo.Create(ctx, item))

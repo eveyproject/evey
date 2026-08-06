@@ -30,15 +30,13 @@ func (f *fakeArtworkBatch) BatchGetArtwork(_ context.Context, _ []string) (map[s
 	return f.records, nil
 }
 
-func strPtr(s string) *string { return &s }
-
 func TestFillPrimaryBlurhashes_FirstPosterWins_NonPosterSkipped(t *testing.T) {
 	svc := &fakeArtworkBatch{records: map[string][]*metadata.ArtworkRecord{
 		"mi-1": {
-			{Type: "backdrop", Blurhash: strPtr("HASH-backdrop")},
+			{Type: "backdrop", Blurhash: new("HASH-backdrop")},
 			{Type: "poster", Blurhash: nil},
-			{Type: "poster", Blurhash: strPtr("HASH-poster-1")},
-			{Type: "poster", Blurhash: strPtr("HASH-poster-2")},
+			{Type: "poster", Blurhash: new("HASH-poster-1")},
+			{Type: "poster", Blurhash: new("HASH-poster-2")},
 		},
 	}}
 	items := []*eveyv1.MediaItem{{Id: "mi-1"}, {Id: "mi-2"}, nil}
@@ -64,7 +62,7 @@ func TestFillPrimaryBlurhashes_BestEffortOnFailureAndNilService(t *testing.T) {
 
 func TestFillPrimaryBlurhashes_LeavesExistingArtworkAlone(t *testing.T) {
 	svc := &fakeArtworkBatch{records: map[string][]*metadata.ArtworkRecord{
-		"mi-1": {{Type: "poster", Blurhash: strPtr("HASH-new")}},
+		"mi-1": {{Type: "poster", Blurhash: new("HASH-new")}},
 	}}
 	items := []*eveyv1.MediaItem{{Id: "mi-1", Artwork: []*eveyv1.Artwork{{Id: "art-existing"}}}}
 
@@ -85,7 +83,7 @@ func TestPlaybackHandler_ResumeItems_CarryPrimaryBlurhash(t *testing.T) {
 		Position: mustPlaybackDurationMs(t, 10000), LastPlayedAt: time.Now(),
 	}))
 	svc := &fakeArtworkBatch{records: map[string][]*metadata.ArtworkRecord{
-		"mi-bh": {{Type: "poster", MediaItemID: shared.MediaItemID("mi-bh"), Blurhash: strPtr("HASH-resume")}},
+		"mi-bh": {{Type: "poster", MediaItemID: shared.MediaItemID("mi-bh"), Blurhash: new("HASH-resume")}},
 	}}
 	h.metadataSvc = svc
 

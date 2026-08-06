@@ -172,7 +172,7 @@ func TestBatchEviction_FlushesInsteadOfDiscarding(t *testing.T) {
 	svc.Register()
 
 	// Fill the map to capacity, then one more: the OLDEST batch gets evicted.
-	for i := 0; i <= 1000; i++ {
+	for i := range 1001 {
 		bus.Publish(ctx, libevent.MediaItemAdded{
 			MediaItemID: shared.MediaItemID(fmt.Sprintf("ep%d", i)), LibraryID: "lib1",
 			Title: fmt.Sprintf("S01E0%d", i%9+1), SeriesTitle: fmt.Sprintf("Series-%d", i),
