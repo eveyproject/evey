@@ -52,8 +52,13 @@ export function ParserTokensCard({ entries, saveEntry, saving }: { entries: Conf
       extra_qualities: parse(qualities),
       extra_edition_suffixes: parse(editions),
     };
-    saveEntry({ key: PARSER_CONFIG_KEY, value: JSON.stringify(payload) });
-    setDirty(false);
+    // Only clear the dirty flag once the write LANDS - clearing up front
+    // leaves an unsaved draft behind a disabled Save button on failure
+    // (same rule as BackgroundJobsCard).
+    saveEntry(
+      { key: PARSER_CONFIG_KEY, value: JSON.stringify(payload) },
+      { onSuccess: () => setDirty(false) },
+    );
   }
 
   const inputStyle = [

@@ -136,6 +136,28 @@ describe("applyServerLanguage precedence", () => {
     expect(changeLanguage).toHaveBeenCalledWith("de");
   });
 
+  it("re-checks the stores after the fetch: a login landing mid-flight wins over the server default", async () => {
+    const { applyServerLanguage } = await import("./index");
+    deviceLanguage = "xx"; // unsupported, so the server-default path is reached
+    localeState.locale = "";
+    localeState.source = null;
+    // The fetch resolves AFTER a profile has logged in and set its locale.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation(() => {
+        authState.accessToken = "jwt";
+        localeState.locale = "fr-FR";
+        localeState.source = "profile";
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ serverLanguage: "de" }) });
+      })
+    );
+
+    await applyServerLanguage("http://host:9091");
+
+    expect(localeState.setLocale).not.toHaveBeenCalledWith("de", "server");
+    expect(changeLanguage).not.toHaveBeenCalledWith("de");
+  });
+
   it("a stored server echo ranks below the device language on re-detection", async () => {
     const { applyServerLanguage } = await import("./index");
     mockSetupStatus("de");

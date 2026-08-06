@@ -3,7 +3,7 @@ import { createRootRouteWithContext, Outlet, redirect, useRouterState } from "@t
 import { type QueryClient } from "@tanstack/react-query";
 import { adminSystemServiceGetSetupStatus, activityServiceRecordPageView } from "@evey/api";
 import { useAuthStore, useLocaleStore } from "@evey/store";
-import i18n from "@/i18n";
+import i18n, { supportedLanguages } from "@/i18n";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { RouteErrorComponent } from "@/components/ui/RouteErrorComponent";
@@ -31,10 +31,19 @@ export const Route = createRootRouteWithContext<RouterContext>()({
       // any explicit /settings choice take over via the existing listeners.
       if (info.serverLanguage && !useAuthStore.getState().accessToken) {
         const { locale: current, source } = useLocaleStore.getState();
-        // A profile claim or an explicit user pick outranks the server
-        // default (precedence decided 2026-08-05); only an unmarked locale
-        // is replaced.
-        if (source !== "user" && source !== "profile" && current !== info.serverLanguage) {
+        // Precedence decided 2026-08-05: profile > user pick > device >
+        // server default. A profile claim or an explicit pick outranks the
+        // server default, and so does a SUPPORTED browser language - the
+        // unmarked store value is seeded from navigator.language, which is
+        // the web's "device" tier (mirrors the mobile/TV check).
+        const browserLang = (typeof navigator !== "undefined" ? navigator.language : "")?.split("-")[0];
+        const browserSupported = supportedLanguages.some((l) => l.code === browserLang);
+        if (
+          source !== "user" &&
+          source !== "profile" &&
+          !browserSupported &&
+          current !== info.serverLanguage
+        ) {
           useLocaleStore.getState().setLocale(info.serverLanguage, "server");
           void i18n.changeLanguage(info.serverLanguage);
         }

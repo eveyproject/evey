@@ -44,7 +44,10 @@ export function LocaleSettingsCard({ entries }: { entries: ConfigEntry[] | undef
     setEntry.mutate(
       { key: SERVER_LANG_KEY, value },
       { onSuccess: () => {
-          if (value) setLocale(value);
+          // The admin's own UI mirrors the new server default; mark it
+          // "server" so it never masquerades as a personal pick in the
+          // language-precedence chain.
+          if (value) setLocale(value, "server");
           toast.success(t("admin.serverConfig.languageUpdated"));
         } },
     );

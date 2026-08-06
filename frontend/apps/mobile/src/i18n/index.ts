@@ -152,7 +152,13 @@ export async function applyServerLanguage(serverUrl: string): Promise<void> {
     const info = (await res.json()) as { serverLanguage?: string };
     const lang = info.serverLanguage?.split("-")[0];
     if (!isSupported(lang)) return;
-    if (useLocaleStore.getState().locale === lang) return;
+    // Re-check AFTER the fetch: a biometric auto-login (setTokens) or a
+    // profile switch can land while setup/status is in flight, and the
+    // server default must not overwrite the fresher profile/user pick.
+    if (useAuthStore.getState().accessToken) return;
+    const latest = useLocaleStore.getState();
+    if (latest.source === "profile" || latest.source === "user") return;
+    if (latest.locale === lang) return;
     useLocaleStore.getState().setLocale(lang!, "server");
     await i18n.changeLanguage(lang!);
   } catch {

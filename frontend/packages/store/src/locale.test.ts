@@ -47,4 +47,21 @@ describe("useLocaleStore", () => {
   it("starts with no source", () => {
     expect(useLocaleStore.getState().source).toBeNull();
   });
+
+  // Pre-`source` persisted blobs (version 0): the stored locale always won
+  // detection back then, so the migration re-qualifies it as a user pick -
+  // otherwise the first boot after the update demotes it below the device
+  // language.
+  it("migrates a version-0 blob to an explicit user pick", async () => {
+    localStorage.setItem("evey-locale", JSON.stringify({ state: { locale: "en" }, version: 0 }));
+    await useLocaleStore.persist.rehydrate();
+    expect(useLocaleStore.getState().locale).toBe("en");
+    expect(useLocaleStore.getState().source).toBe("user");
+  });
+
+  it("leaves a current-version blob untouched", async () => {
+    localStorage.setItem("evey-locale", JSON.stringify({ state: { locale: "de", source: "server" }, version: 1 }));
+    await useLocaleStore.persist.rehydrate();
+    expect(useLocaleStore.getState().source).toBe("server");
+  });
 });

@@ -23,6 +23,21 @@ export const useLocaleStore = create<LocaleState>()(
       // the UI, and must not be silently overridden by a server default.
       setLocale: (locale, source) => set({ locale, source: source ?? "user" }),
     }),
-    { name: "evey-locale", storage: createJSONStorage(() => getZustandStorage()) }
+    {
+      name: "evey-locale",
+      version: 1,
+      // Pre-`source` blobs (version 0): back then the stored locale ALWAYS
+      // won detection, so re-qualify it as an explicit user pick instead of
+      // silently demoting it below the device language on first boot after
+      // the update.
+      migrate: (persisted) => {
+        const p = persisted as Partial<LocaleState> | undefined;
+        if (p && p.locale && p.source === undefined) {
+          return { ...p, source: "user" as LocaleSource };
+        }
+        return persisted as LocaleState;
+      },
+      storage: createJSONStorage(() => getZustandStorage()),
+    }
   )
 );

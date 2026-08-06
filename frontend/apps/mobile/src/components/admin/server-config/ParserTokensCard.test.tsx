@@ -51,10 +51,13 @@ describe("ParserTokensCard", () => {
     fireEvent.change(screen.getByTestId("parser-tokens-qualities"), { target: { value: " hdrip , , web-dl " } });
     fireEvent.click(screen.getByTestId("parser-tokens-save-btn"));
 
-    expect(saveEntry).toHaveBeenCalledWith({
-      key: "parser.config",
-      value: JSON.stringify({ extra_qualities: ["hdrip", "web-dl"], extra_edition_suffixes: [] }),
-    });
+    expect(saveEntry).toHaveBeenCalledWith(
+      {
+        key: "parser.config",
+        value: JSON.stringify({ extra_qualities: ["hdrip", "web-dl"], extra_edition_suffixes: [] }),
+      },
+      expect.anything(),
+    );
   });
 
   it("does nothing until a field was edited", () => {

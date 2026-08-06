@@ -27,6 +27,10 @@ export function ChipSelect({ options, value, onChange, disabled }: ChipSelectPro
             key={opt.value || "__empty__"}
             onPress={() => onChange(opt.value)}
             disabled={disabled}
+            accessible={true}
+            accessibilityLabel={opt.label}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: active, disabled }}
             style={[
               styles.chip,
               {

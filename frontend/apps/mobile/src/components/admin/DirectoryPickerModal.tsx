@@ -25,7 +25,7 @@ export function DirectoryPickerModal({ visible, dirs, onSelect, onClose }: Props
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.5)" }}>
+      <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: theme.colors.overlay }}>
         <View
           style={{
             backgroundColor: theme.colors.bg,
