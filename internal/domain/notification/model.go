@@ -210,18 +210,13 @@ func WithSeriesKey(k SeriesKey) NotificationOption {
 }
 
 // WithLabelParts records what a client needs to word the notification itself:
-// the bare subject and the counts. Distinct from WithEpisodeCount, which
-// carries the RUNNING total of a regrouped episode notification.
+// the bare subject and the counts.
 func WithLabelParts(subject string, seasonCount, episodeCount int) NotificationOption {
 	return func(n *Notification) {
 		n.Subject = subject
 		n.SeasonCount = seasonCount
 		n.EpisodeCount = episodeCount
 	}
-}
-
-func WithEpisodeCount(count int) NotificationOption {
-	return func(n *Notification) { n.EpisodeCount = count }
 }
 
 func WithNotificationLevel(l Level) NotificationOption {
