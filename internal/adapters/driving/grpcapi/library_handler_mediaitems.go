@@ -169,8 +169,9 @@ func mediaItemsFilterFromRequest(req *eveyv1.ListMediaItemsRequest) library.List
 
 // applyMediaItemsLibraryAccess enforces the IDOR gate when a single library is
 // requested (checkLibraryAccess), or otherwise narrows filter.LibraryIDs to
-// the caller's allowed libraries. Returns false when the single-library
-// request must be denied; the caller must short-circuit in that case.
+// the caller's allowed libraries. Returns false when the request must be
+// denied (single-library access refused, or the allowed set is unknowable);
+// the caller must short-circuit in that case.
 func (h *libraryHandler) applyMediaItemsLibraryAccess(ctx context.Context, req *eveyv1.ListMediaItemsRequest, filter *library.ListMediaItemsFilter) bool {
 	if req.LibraryId != "" {
 		if ok, accessErr := h.checkLibraryAccess(ctx, shared.LibraryID(req.LibraryId)); !ok {
@@ -181,7 +182,11 @@ func (h *libraryHandler) applyMediaItemsLibraryAccess(ctx context.Context, req *
 		}
 		return true
 	}
-	if ids, err := h.getAllowedLibraryIDs(ctx); err == nil && ids != nil {
+	ids, restricted, ok := h.allowedLibraryFilter(ctx)
+	if !ok {
+		return false
+	}
+	if restricted {
 		filter.LibraryIDs = toLibraryIDs(ids)
 	}
 	return true
@@ -468,7 +473,11 @@ func (h *libraryHandler) FilterMediaItems(ctx context.Context, req *eveyv1.Filte
 		libID := shared.LibraryID(req.LibraryId)
 		filter.LibraryID = &libID
 	} else {
-		if ids, idErr := h.getAllowedLibraryIDs(ctx); idErr == nil && ids != nil {
+		ids, restricted, ok := h.allowedLibraryFilter(ctx)
+		if !ok {
+			return &eveyv1.FilterMediaItemsResponse{}, nil
+		}
+		if restricted {
 			filter.LibraryIDs = toLibraryIDs(ids)
 		}
 	}

@@ -70,7 +70,9 @@ func (h *libraryHandler) ListPublicMediaItems(ctx context.Context, req *eveyv1.L
 		if ok, _ := h.checkLibraryAccess(ctx, libID); !ok { //nolint:errcheck // fail-closed: any error denies
 			return &eveyv1.ListPublicMediaItemsResponse{}, nil
 		}
-	} else if ids, err := h.getAllowedLibraryIDs(ctx); err == nil && ids != nil {
+	} else if ids, restricted, ok := h.allowedLibraryFilter(ctx); !ok {
+		return &eveyv1.ListPublicMediaItemsResponse{}, nil
+	} else if restricted {
 		filter.LibraryIDs = toLibraryIDs(ids)
 	}
 	if req.Type != eveyv1.MediaItemType_MEDIA_ITEM_TYPE_UNSPECIFIED {

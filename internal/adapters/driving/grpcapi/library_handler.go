@@ -248,7 +248,13 @@ func (h *libraryHandler) getAllowedLibraryIDs(ctx context.Context) ([]string, er
 	}
 	ids, err := h.userAccess.GetLibraryAccessByUserID(ctx, claims.UserID)
 	if err != nil {
-		return nil, fmt.Errorf("libraryHandler.getAllowedLibraryIDs: %w", err)
+		// Deny-shaped, NOT nil (mirrors playbackHandler.getAllowedLibraryIDs):
+		// nil reads as "unrestricted" everywhere downstream, so returning it on
+		// a grant-store outage would WIDEN what the caller sees. Callers that
+		// discard this error must still end up denying.
+		slog.ErrorContext(ctx, "library: grant lookup failed, denying",
+			slog.String("user_id", claims.UserID), slog.Any("err", err))
+		return []string{}, fmt.Errorf("libraryHandler.getAllowedLibraryIDs: %w", err)
 	}
 	// A non-admin with zero grants is UNRESTRICTED (sees every library): the admin
 	// panel treats "no library checked" as the default-all opt-out, matching
@@ -258,6 +264,23 @@ func (h *libraryHandler) getAllowedLibraryIDs(ctx context.Context) ([]string, er
 		return nil, nil
 	}
 	return ids, nil
+}
+
+// allowedLibraryFilter resolves the caller's allowed set for query-side
+// narrowing. An EMPTY filter.LibraryIDs slice reads as "no filter" in the
+// query layer (media_item_queries.go guards on len > 0), so a deny-shaped
+// empty set (grant lookup failure, unwired port) cannot be expressed through
+// the filter: those callers get ok=false and must short-circuit with an
+// empty result instead of skipping the narrowing.
+func (h *libraryHandler) allowedLibraryFilter(ctx context.Context) (ids []string, restricted, ok bool) {
+	allowed, err := h.getAllowedLibraryIDs(ctx)
+	if err != nil || (allowed != nil && len(allowed) == 0) {
+		return nil, false, false
+	}
+	if allowed == nil {
+		return nil, false, true
+	}
+	return allowed, true, true
 }
 
 func toLibraryIDs(ids []string) []shared.LibraryID {

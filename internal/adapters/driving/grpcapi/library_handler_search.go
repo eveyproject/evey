@@ -74,9 +74,10 @@ func (h *libraryHandler) SearchMedia(ctx context.Context, req *eveyv1.SearchMedi
 	}
 	allowedIDs, allowErr := h.getAllowedLibraryIDs(ctx)
 	if allowErr != nil {
-		// Preserve the prior blank-ignore: a library-access lookup fault falls
-		// back to no restriction rather than failing the whole search.
-		allowedIDs = nil
+		// The allowed set is unknown: keep the deny-shaped empty set returned
+		// by getAllowedLibraryIDs so the loop below drops every hit, instead
+		// of widening the search on a grant-store outage.
+		span.RecordError(allowErr)
 	}
 	pf := h.resolveParentalFilter(ctx)
 	resp := &eveyv1.SearchMediaResponse{
