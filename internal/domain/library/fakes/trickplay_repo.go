@@ -80,7 +80,7 @@ func (r *FakeTrickplayRepository) Delete(_ context.Context, mediaItemID shared.M
 	return nil
 }
 
-func (r *FakeTrickplayRepository) ListMissingMediaItemIDs(_ context.Context) ([]string, error) {
+func (r *FakeTrickplayRepository) ListMissingMediaItemIDs(_ context.Context, _ int) ([]string, error) {
 	if r.Err != nil {
 		return nil, r.Err
 	}

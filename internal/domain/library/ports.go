@@ -421,7 +421,11 @@ type TrickplayQueryRepo interface {
 	// propagation sibling sweeps, which otherwise issued one query per
 	// sibling just to read its trickplay manifest.
 	GetByMediaItemIDs(ctx context.Context, mediaItemIDs []shared.MediaItemID) (map[shared.MediaItemID]*TrickplayManifest, error)
-	ListMissingMediaItemIDs(ctx context.Context) ([]string, error)
+	// ListMissingMediaItemIDs returns the items with no manifest at all PLUS
+	// the items whose stored manifest predates minAlgoVersion (its generation
+	// parameters changed) - without the version clause, a params change never
+	// reached pre-existing manifests.
+	ListMissingMediaItemIDs(ctx context.Context, minAlgoVersion int) ([]string, error)
 }
 
 type TrickplayRepository interface {

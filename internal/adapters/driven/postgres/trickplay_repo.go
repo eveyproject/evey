@@ -30,8 +30,8 @@ func (r *TrickplayRepository) Create(ctx context.Context, m *library.TrickplayMa
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
-		`INSERT INTO trickplay_manifests (id, media_item_id, interval_sec, width, height, tile_width, tile_height, image_count, image_path, created_at)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+		`INSERT INTO trickplay_manifests (id, media_item_id, interval_sec, width, height, tile_width, tile_height, image_count, image_path, algo_version, created_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
 		 ON CONFLICT (media_item_id) DO UPDATE SET
 		   interval_sec = EXCLUDED.interval_sec,
 		   width = EXCLUDED.width,
@@ -40,8 +40,9 @@ func (r *TrickplayRepository) Create(ctx context.Context, m *library.TrickplayMa
 		   tile_height = EXCLUDED.tile_height,
 		   image_count = EXCLUDED.image_count,
 		   image_path = EXCLUDED.image_path,
+		   algo_version = EXCLUDED.algo_version,
 		   created_at = EXCLUDED.created_at`,
-		m.ID, m.MediaItemID, m.Interval, m.Width, m.Height, m.TileWidth, m.TileHeight, m.ImageCount, m.ImagePath, m.CreatedAt,
+		m.ID, m.MediaItemID, m.Interval, m.Width, m.Height, m.TileWidth, m.TileHeight, m.ImageCount, m.ImagePath, m.AlgoVersion, m.CreatedAt,
 	)
 	if err != nil {
 		span.RecordError(err)
@@ -94,9 +95,9 @@ func (r *TrickplayRepository) GetByMediaItemID(ctx context.Context, mediaItemID 
 	defer cancel()
 	m := &library.TrickplayManifest{}
 	err := txFromCtx(ctx, r.db).QueryRowContext(ctx,
-		`SELECT id, media_item_id, interval_sec, width, height, tile_width, tile_height, image_count, image_path, created_at
+		`SELECT id, media_item_id, interval_sec, width, height, tile_width, tile_height, image_count, image_path, algo_version, created_at
 		 FROM trickplay_manifests WHERE media_item_id = $1`, mediaItemID,
-	).Scan(&m.ID, &m.MediaItemID, &m.Interval, &m.Width, &m.Height, &m.TileWidth, &m.TileHeight, &m.ImageCount, &m.ImagePath, &m.CreatedAt)
+	).Scan(&m.ID, &m.MediaItemID, &m.Interval, &m.Width, &m.Height, &m.TileWidth, &m.TileHeight, &m.ImageCount, &m.ImagePath, &m.AlgoVersion, &m.CreatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, shared.ErrNotFound
 	}
@@ -127,7 +128,7 @@ func (r *TrickplayRepository) GetByMediaItemIDs(ctx context.Context, mediaItemID
 	}
 
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
-		`SELECT id, media_item_id, interval_sec, width, height, tile_width, tile_height, image_count, image_path, created_at
+		`SELECT id, media_item_id, interval_sec, width, height, tile_width, tile_height, image_count, image_path, algo_version, created_at
 		 FROM trickplay_manifests WHERE media_item_id = ANY($1)`, pq.Array(ids))
 	if err != nil {
 		span.RecordError(err)
@@ -139,7 +140,7 @@ func (r *TrickplayRepository) GetByMediaItemIDs(ctx context.Context, mediaItemID
 	result := make(map[shared.MediaItemID]*library.TrickplayManifest, len(mediaItemIDs))
 	for rows.Next() {
 		m := &library.TrickplayManifest{}
-		if err := rows.Scan(&m.ID, &m.MediaItemID, &m.Interval, &m.Width, &m.Height, &m.TileWidth, &m.TileHeight, &m.ImageCount, &m.ImagePath, &m.CreatedAt); err != nil {
+		if err := rows.Scan(&m.ID, &m.MediaItemID, &m.Interval, &m.Width, &m.Height, &m.TileWidth, &m.TileHeight, &m.ImageCount, &m.ImagePath, &m.AlgoVersion, &m.CreatedAt); err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
 			return nil, err
@@ -169,7 +170,7 @@ func (r *TrickplayRepository) Delete(ctx context.Context, mediaItemID shared.Med
 	return nil
 }
 
-func (r *TrickplayRepository) ListMissingMediaItemIDs(ctx context.Context) ([]string, error) {
+func (r *TrickplayRepository) ListMissingMediaItemIDs(ctx context.Context, minAlgoVersion int) ([]string, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.trickplay.ListMissingMediaItemIDs")
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
@@ -179,14 +180,16 @@ func (r *TrickplayRepository) ListMissingMediaItemIDs(ctx context.Context) ([]st
 		 INNER JOIN media_files mf ON mf.media_item_id = mi.id
 		 WHERE mf.file_path != ''
 		   AND mi.type IN ('movie', 'episode')
-		   AND NOT EXISTS (SELECT 1 FROM trickplay_manifests tm WHERE tm.media_item_id = mi.id)
+		   AND NOT EXISTS (
+		     SELECT 1 FROM trickplay_manifests tm
+		     WHERE tm.media_item_id = mi.id AND tm.algo_version >= $1)
 		   AND NOT EXISTS (
 		     SELECT 1 FROM trickplay_failures tf
 		     WHERE tf.media_item_id = mi.id
 		       AND tf.file_size = mf.file_size
 		       AND tf.mod_time = mf.mod_time)
 		 ORDER BY mi.added_at DESC
-		 LIMIT 10000`)
+		 LIMIT 10000`, minAlgoVersion)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

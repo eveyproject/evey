@@ -553,5 +553,9 @@ type TrickplayManifest struct {
 	TileHeight  int
 	ImageCount  int
 	ImagePath   string // directory containing sprite images
+	// AlgoVersion stamps the generation parameters the manifest was built
+	// with; 0 = legacy rows from before versioning. The missing-sweep
+	// re-lists anything below the generator's current version.
+	AlgoVersion int
 	CreatedAt   time.Time
 }

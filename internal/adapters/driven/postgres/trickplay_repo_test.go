@@ -203,18 +203,18 @@ func TestTrickplayRepo_ListMissing_SkipsRecordedFailures(t *testing.T) {
 	seedTrickplayMovie(t, itemRepo, lib.ID, "tpf-m1", 100, mod)
 	seedTrickplayMovie(t, itemRepo, lib.ID, "tpf-m2", 200, mod)
 
-	ids, err := tpRepo.ListMissingMediaItemIDs(ctx)
+	ids, err := tpRepo.ListMissingMediaItemIDs(ctx, 1)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []string{"tpf-m1", "tpf-m2"}, ids)
 
 	require.NoError(t, tpRepo.RecordFailure(ctx, "tpf-m1", 100, mod, "ffprobe: exit status 1"))
-	ids, err = tpRepo.ListMissingMediaItemIDs(ctx)
+	ids, err = tpRepo.ListMissingMediaItemIDs(ctx, 1)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"tpf-m2"}, ids, "a failure matching the current file suppresses the item")
 
 	// A STALE failure (recorded against other bytes) must not suppress.
 	require.NoError(t, tpRepo.RecordFailure(ctx, "tpf-m2", 999, mod, "old failure"))
-	ids, err = tpRepo.ListMissingMediaItemIDs(ctx)
+	ids, err = tpRepo.ListMissingMediaItemIDs(ctx, 1)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"tpf-m2"}, ids, "a failure recorded against a different size no longer matches")
 }
@@ -244,7 +244,7 @@ func TestTrickplayRepo_CreateClearsRecordedFailure(t *testing.T) {
 	}))
 	require.NoError(t, tpRepo.Delete(ctx, "tpf-m3"))
 
-	ids, err := tpRepo.ListMissingMediaItemIDs(ctx)
+	ids, err := tpRepo.ListMissingMediaItemIDs(ctx, 1)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"tpf-m3"}, ids, "Create cleared the failure; without a manifest the item is a candidate again")
 }
@@ -281,4 +281,49 @@ func TestTrickplayRepo_Delete(t *testing.T) {
 
 	_, err := tpRepo.GetByMediaItemID(ctx, item.ID)
 	assert.Equal(t, shared.ErrNotFound, err)
+}
+
+// A manifest stamped below the current algo version is re-listed by the
+// missing-sweep (its generation parameters changed); regenerating at the
+// current version removes it. Legacy rows carry version 0 via the migration
+// default, so a params change finally reaches pre-existing manifests.
+func TestTrickplayRepo_ListMissing_ReturnsOutdatedManifests(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	tpRepo := postgres.NewTrickplayRepository(db)
+	ctx := context.Background()
+
+	mod := time.Date(2026, 7, 26, 10, 0, 0, 0, time.UTC)
+	lib := newTestLibrary("tplib7")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	seedTrickplayMovie(t, itemRepo, lib.ID, "tpv-m1", 100, mod)
+
+	// Legacy manifest: algo_version 0 (the migration default).
+	require.NoError(t, tpRepo.Create(ctx, &library.TrickplayManifest{
+		ID: "tpv-man-0", MediaItemID: "tpv-m1", Interval: 10, Width: 320,
+		TileWidth: 10, TileHeight: 10, ImageCount: 1, ImagePath: "/cache/tpv-m1",
+		AlgoVersion: 0, CreatedAt: time.Now().UTC().Truncate(time.Millisecond),
+	}))
+
+	ids, err := tpRepo.ListMissingMediaItemIDs(ctx, 1)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"tpv-m1"}, ids, "an algo_version-0 manifest is outdated at current version 1")
+
+	// Regenerated at the current version: no longer listed.
+	require.NoError(t, tpRepo.Create(ctx, &library.TrickplayManifest{
+		ID: "tpv-man-1", MediaItemID: "tpv-m1", Interval: 7, Width: 320,
+		TileWidth: 5, TileHeight: 5, ImageCount: 1, ImagePath: "/cache/tpv-m1",
+		AlgoVersion: 1, CreatedAt: time.Now().UTC().Truncate(time.Millisecond),
+	}))
+	ids, err = tpRepo.ListMissingMediaItemIDs(ctx, 1)
+	require.NoError(t, err)
+	assert.Empty(t, ids)
+
+	// Round-trip: the stored version comes back on the read paths.
+	m, err := tpRepo.GetByMediaItemID(ctx, "tpv-m1")
+	require.NoError(t, err)
+	assert.Equal(t, 1, m.AlgoVersion)
 }

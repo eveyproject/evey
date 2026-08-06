@@ -552,7 +552,7 @@ func (r *fakeTrickplayRepo) GetByMediaItemID(_ context.Context, _ shared.MediaIt
 func (r *fakeTrickplayRepo) GetByMediaItemIDs(_ context.Context, _ []shared.MediaItemID) (map[shared.MediaItemID]*domainlibrary.TrickplayManifest, error) {
 	return map[shared.MediaItemID]*domainlibrary.TrickplayManifest{}, nil
 }
-func (r *fakeTrickplayRepo) ListMissingMediaItemIDs(_ context.Context) ([]string, error) {
+func (r *fakeTrickplayRepo) ListMissingMediaItemIDs(_ context.Context, _ int) ([]string, error) {
 	return nil, nil
 }
 func (r *fakeTrickplayRepo) Create(_ context.Context, _ *domainlibrary.TrickplayManifest) error {
@@ -576,7 +576,7 @@ func (r *fakeTrickplayRepoWithManifest) GetByMediaItemIDs(_ context.Context, ids
 	}
 	return out, nil
 }
-func (r *fakeTrickplayRepoWithManifest) ListMissingMediaItemIDs(_ context.Context) ([]string, error) {
+func (r *fakeTrickplayRepoWithManifest) ListMissingMediaItemIDs(_ context.Context, _ int) ([]string, error) {
 	return nil, nil
 }
 func (r *fakeTrickplayRepoWithManifest) Create(_ context.Context, _ *domainlibrary.TrickplayManifest) error {

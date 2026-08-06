@@ -27,7 +27,7 @@ type missingIDsRepo struct {
 	listErr error
 }
 
-func (r *missingIDsRepo) ListMissingMediaItemIDs(_ context.Context) ([]string, error) {
+func (r *missingIDsRepo) ListMissingMediaItemIDs(_ context.Context, _ int) ([]string, error) {
 	if r.listErr != nil {
 		return nil, r.listErr
 	}
