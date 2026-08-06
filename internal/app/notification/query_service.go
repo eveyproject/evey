@@ -9,7 +9,7 @@ import (
 )
 
 type QueryService struct {
-	repo     notification.Repository
+	repo     notification.QueryRepo
 	settings notification.SettingsRepository
 	subs     notification.PushSubscriptionRepository
 }
@@ -20,7 +20,9 @@ func WithPushSubs(subs notification.PushSubscriptionRepository) QueryOption {
 	return func(s *QueryService) { s.subs = subs }
 }
 
-func NewQueryService(repo notification.Repository, settings notification.SettingsRepository, opts ...QueryOption) *QueryService {
+// NewQueryService takes only the READ half of the store (ADR-0009): a query
+// service that could write would be a category error the compiler now rejects.
+func NewQueryService(repo notification.QueryRepo, settings notification.SettingsRepository, opts ...QueryOption) *QueryService {
 	s := &QueryService{repo: repo, settings: settings}
 	for _, opt := range opts {
 		opt(s)

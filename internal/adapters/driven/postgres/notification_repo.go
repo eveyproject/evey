@@ -30,7 +30,7 @@ func (r *NotificationRepository) Create(ctx context.Context, n *notification.Not
 	span.SetAttributes(attribute.String("notification.id", n.ID), attribute.String("profile.id", string(n.ProfileID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	relatedMediaID := sql.NullString{String: string(n.RelatedMediaID), Valid: n.RelatedMediaID != ""}
+	relatedMediaID := sql.NullString{String: string(n.SeriesKey), Valid: n.SeriesKey != ""}
 	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`INSERT INTO notifications (id, profile_id, type, title, subject, message, media_item_id, related_media_id, season_count, episode_count, level, created_at, expires_at)
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
@@ -82,7 +82,7 @@ func (r *NotificationRepository) ListByProfile(ctx context.Context, profileID sh
 // notification fan-out: one query for every profile in the fan-out instead of
 // one query per profile, which was the O(profiles) round-trip on library scans
 // with many series x many profiles.
-func (r *NotificationRepository) FindRecentByProfilesTypeAndSeries(ctx context.Context, profileIDs []shared.ProfileID, types []notification.Type, relatedMediaID string, since time.Time) (map[shared.ProfileID][]*notification.Notification, error) {
+func (r *NotificationRepository) FindRecentByProfilesTypeAndSeries(ctx context.Context, profileIDs []shared.ProfileID, types []notification.Type, seriesKey notification.SeriesKey, since time.Time) (map[shared.ProfileID][]*notification.Notification, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.notification.FindRecentByProfilesTypeAndSeries")
 	defer span.End()
 	span.SetAttributes(attribute.Int("profile.count", len(profileIDs)))
@@ -100,7 +100,7 @@ func (r *NotificationRepository) FindRecentByProfilesTypeAndSeries(ctx context.C
 
 	placeholders := make([]string, len(types))
 	args := make([]interface{}, 0, len(types)+3)
-	args = append(args, pq.Array(strProfileIDs), relatedMediaID, since)
+	args = append(args, pq.Array(strProfileIDs), string(seriesKey), since)
 	for i, t := range types {
 		placeholders[i] = fmt.Sprintf("$%d", i+4)
 		args = append(args, string(t))
@@ -165,7 +165,7 @@ func scanNotifications(rows *sql.Rows) ([]*notification.Notification, error) {
 		n.Type = notification.Type(typ)
 		n.Level = notification.Level(lvl)
 		if relatedMediaID.Valid {
-			n.RelatedMediaID = shared.MediaItemID(relatedMediaID.String)
+			n.SeriesKey = notification.SeriesKey(relatedMediaID.String)
 		}
 		result = append(result, n)
 	}

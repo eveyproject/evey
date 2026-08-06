@@ -1656,7 +1656,7 @@ func TestEpisodeNotificationCreatedAfter24hWindow(t *testing.T) {
 		ProfileID:      "p1",
 		Type:           notifdom.TypeNewEpisode,
 		Title:          "new_episode:Homeland - S02E05",
-		RelatedMediaID: shared.MediaItemID(seriesKey),
+		SeriesKey: notifdom.SeriesKey(seriesKey),
 		EpisodeCount:   1,
 		Level:          notifdom.LevelAll,
 		CreatedAt:      oldCreatedAt,

@@ -37,7 +37,7 @@ type countingNotifRepo struct {
 	failNext   bool
 }
 
-func (c *countingNotifRepo) FindRecentByProfilesTypeAndSeries(ctx context.Context, profileIDs []shared.ProfileID, types []notifdom.Type, relatedMediaID string, since time.Time) (map[shared.ProfileID][]*notifdom.Notification, error) {
+func (c *countingNotifRepo) FindRecentByProfilesTypeAndSeries(ctx context.Context, profileIDs []shared.ProfileID, types []notifdom.Type, seriesKey notifdom.SeriesKey, since time.Time) (map[shared.ProfileID][]*notifdom.Notification, error) {
 	c.mu.Lock()
 	c.batchCalls++
 	fail := c.failNext
@@ -45,7 +45,7 @@ func (c *countingNotifRepo) FindRecentByProfilesTypeAndSeries(ctx context.Contex
 	if fail {
 		return nil, errors.New("preload boom")
 	}
-	return c.FakeNotificationRepository.FindRecentByProfilesTypeAndSeries(ctx, profileIDs, types, relatedMediaID, since)
+	return c.FakeNotificationRepository.FindRecentByProfilesTypeAndSeries(ctx, profileIDs, types, seriesKey, since)
 }
 
 func (c *countingNotifRepo) calls() int {
@@ -124,7 +124,7 @@ func TestEpisodeNotifDedup_PreloadFailureFailsOpen(t *testing.T) {
 	expires := time.Now().AddDate(0, 0, 30)
 	require.NoError(t, repo.Create(ctx, &notifdom.Notification{
 		ID: "series-notif", ProfileID: "p1", Type: notifdom.TypeNewSeries,
-		Title: "New Series: Foo", RelatedMediaID: "lib1:Foo",
+		Title: "New Series: Foo", SeriesKey: "lib1:Foo",
 		Level: notifdom.LevelAll, CreatedAt: time.Now(), ExpiresAt: &expires,
 	}))
 
@@ -150,4 +150,49 @@ func TestEpisodeNotifDedup_PreloadFailureFailsOpen(t *testing.T) {
 		}
 		assert.Equal(t, 1, episodeCount, "preload failure must fail open: profile %s must still get its episode notification created", p)
 	}
+}
+
+// TestBatchEviction_FlushesInsteadOfDiscarding pins the capacity contract: when
+// the batch map hits maxBatchEntries, the evicted (oldest) batch must FIRE its
+// pending notification early - before the fix, eviction deleted the entry and
+// the user never heard about that series at all.
+func TestBatchEviction_FlushesInsteadOfDiscarding(t *testing.T) {
+	t.Parallel()
+	repo := &countingNotifRepo{FakeNotificationRepository: notiffakes.NewFakeNotificationRepository()}
+	settings := notiffakes.NewFakeSettingsRepository()
+	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
+	profileRepo := userfakes.NewFakeProfileRepository()
+	bus := sharedfakes.NewFakeEventBus()
+
+	ctx := context.Background()
+	require.NoError(t, profileRepo.Create(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "p1"}))
+
+	svc := appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus,
+		appnotification.WithBatchDelay(time.Hour)) // timers must never fire on their own here
+	svc.Register()
+
+	// Fill the map to capacity, then one more: the OLDEST batch gets evicted.
+	for i := 0; i <= 1000; i++ {
+		bus.Publish(ctx, libevent.MediaItemAdded{
+			MediaItemID: shared.MediaItemID(fmt.Sprintf("ep%d", i)), LibraryID: "lib1",
+			Title: fmt.Sprintf("S01E0%d", i%9+1), SeriesTitle: fmt.Sprintf("Series-%d", i),
+			Type: "episode", OccurredAt: time.Now(),
+		})
+	}
+
+	// The evicted batch flushes on a detached goroutine - wait for its
+	// notification instead of a sleep.
+	require.Eventually(t, func() bool {
+		notifs, err := repo.ListByProfile(ctx, "p1", false, 0, 0)
+		if err != nil {
+			return false
+		}
+		for _, n := range notifs {
+			if n.Subject == "Series-0" {
+				return true
+			}
+		}
+		return false
+	}, 5*time.Second, 20*time.Millisecond,
+		"the evicted oldest batch (Series-0) must emit its notification, not vanish")
 }

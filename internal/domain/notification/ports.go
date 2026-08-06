@@ -19,25 +19,39 @@ type PushSender interface {
 	Send(ctx context.Context, sub PushSubscription, title, body string, data map[string]string) error
 }
 
-type Repository interface {
+// CommandRepo is the write side of the notification store (ADR-0009): the
+// mutations the CommandService performs. Reads needed by command flows live in
+// QueryRepo - the concrete repository satisfies both, the split only narrows
+// what each call site can reach.
+type CommandRepo interface {
 	Create(ctx context.Context, n *Notification) error
-	ListByProfile(ctx context.Context, profileID shared.ProfileID, unreadOnly bool, limit, offset int) ([]*Notification, error)
-	// FindRecentByProfilesTypeAndSeries is the batched form of the per-profile dedup
-	// lookup: it returns, for every profile in profileIDs, the notifications matching
-	// one of types and relatedMediaID (series ID) created after since, in a single
-	// query. Used during episode notification fan-out to avoid one round-trip per
-	// profile per series.
-	FindRecentByProfilesTypeAndSeries(ctx context.Context, profileIDs []shared.ProfileID, types []Type, relatedMediaID string, since time.Time) (map[shared.ProfileID][]*Notification, error)
 	// Update persists title and episode_count changes on an existing notification.
 	Update(ctx context.Context, n *Notification) error
 	MarkRead(ctx context.Context, id string, profileID shared.ProfileID) error
 	MarkAllRead(ctx context.Context, profileID shared.ProfileID) error
+	DeleteAll(ctx context.Context, profileID shared.ProfileID) error
+	CleanupExpired(ctx context.Context) error
+}
+
+// QueryRepo is the read side of the notification store.
+type QueryRepo interface {
+	ListByProfile(ctx context.Context, profileID shared.ProfileID, unreadOnly bool, limit, offset int) ([]*Notification, error)
+	// FindRecentByProfilesTypeAndSeries is the batched form of the per-profile dedup
+	// lookup: it returns, for every profile in profileIDs, the notifications matching
+	// one of types and seriesKey created after since, in a single query. Used during
+	// episode notification fan-out to avoid one round-trip per profile per series.
+	FindRecentByProfilesTypeAndSeries(ctx context.Context, profileIDs []shared.ProfileID, types []Type, seriesKey SeriesKey, since time.Time) (map[shared.ProfileID][]*Notification, error)
 	UnreadCount(ctx context.Context, profileID shared.ProfileID) (int, error)
 	// UnreadCountExcludingTypes is UnreadCount minus the given types - used for
 	// the personal bell badge, which hides admin-only operational notifications.
 	UnreadCountExcludingTypes(ctx context.Context, profileID shared.ProfileID, excludeTypes []Type) (int, error)
-	DeleteAll(ctx context.Context, profileID shared.ProfileID) error
-	CleanupExpired(ctx context.Context) error
+}
+
+// Repository is the composite the concrete adapters implement; services hold
+// the narrowed halves, never this.
+type Repository interface {
+	CommandRepo
+	QueryRepo
 }
 
 type SettingsRepository interface {

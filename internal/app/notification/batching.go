@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"runtime/debug"
 	"time"
 
 	libevent "github.com/evey-project/evey/internal/domain/library"
@@ -129,11 +130,23 @@ func (s *CommandService) bufferSeriesEvent(e libevent.MediaItemAdded) {
 					oldestTime = created
 				}
 			}
+			// Flush the evicted batch instead of discarding it: eviction is a
+			// capacity decision, the user still deserves the notification the
+			// batch was accumulating. flushBatch takes s.mu (held here), so it
+			// runs detached and pops the entry itself once we release.
 			if ob := s.batches[oldestKey]; ob != nil && ob.timer != nil {
 				ob.timer.Stop()
 			}
-			delete(s.batches, oldestKey)
-			slog.Warn("notification batch map full, evicted oldest entry", slog.String("key", oldestKey))
+			go func(k string) {
+				defer func() {
+					if r := recover(); r != nil {
+						slog.Error("panic recovered in evicted notification batch flush",
+							slog.Any("recover", r), slog.String("stack", string(debug.Stack())))
+					}
+				}()
+				s.flushBatch(k)
+			}(oldestKey)
+			slog.Warn("notification batch map full, flushing oldest entry early", slog.String("key", oldestKey))
 		}
 		batch = &batchEntry{createdAt: time.Now()}
 		s.batches[key] = batch
@@ -177,7 +190,7 @@ func (s *CommandService) flushBatch(key string) {
 			s.emitNotifications("album", title, "", string(batch.seriesEvent.MediaItemID), "", batch.seriesEvent.Genres, &push, labelParts{subject: batch.seriesEvent.Title, episodeCount: episodeCount})
 			return
 		}
-		seriesKey := seriesKeyFor(string(batch.seriesEvent.LibraryID), batch.seriesEvent.Title)
+		seriesKey := notification.NewSeriesKey(string(batch.seriesEvent.LibraryID), batch.seriesEvent.Title)
 		title, push := batchedSeriesTitle(batch.seriesEvent.Title, seasonCount, episodeCount)
 		s.emitNotifications("series", title, "", string(batch.seriesEvent.MediaItemID), seriesKey, batch.seriesEvent.Genres, &push, labelParts{subject: batch.seriesEvent.Title, seasonCount: seasonCount, episodeCount: episodeCount})
 		return
@@ -190,7 +203,7 @@ func (s *CommandService) flushBatch(key string) {
 		if seriesTitle == "" {
 			seriesTitle = season.Title
 		}
-		seriesKey := seriesKeyFor(string(season.LibraryID), season.SeriesTitle)
+		seriesKey := notification.NewSeriesKey(string(season.LibraryID), season.SeriesTitle)
 		title, push := batchedSeasonTitle(seriesTitle, season.Title, episodeCount)
 		s.emitNotifications("season", title, "", string(season.MediaItemID), seriesKey, season.Genres, &push, labelParts{subject: seriesTitle, seasonCount: seasonCount, episodeCount: episodeCount})
 		return
@@ -200,7 +213,7 @@ func (s *CommandService) flushBatch(key string) {
 	// instead of one bare "Season N" per season.
 	if seasonCount > 0 {
 		season := batch.seasons[0]
-		seriesKey := seriesKeyFor(string(season.LibraryID), season.SeriesTitle)
+		seriesKey := notification.NewSeriesKey(string(season.LibraryID), season.SeriesTitle)
 		title, push := batchedSeasonsTitle(season.SeriesTitle, season.Title, seasonCount)
 		s.emitNotifications("season", title, "", string(season.MediaItemID), seriesKey, season.Genres, &push, labelParts{subject: season.SeriesTitle, seasonCount: seasonCount})
 		return
@@ -224,14 +237,14 @@ func (s *CommandService) flushBatch(key string) {
 	// Just episodes
 	if episodeCount == 1 {
 		ep := batch.episodes[0]
-		seriesKey := seriesKeyFor(string(ep.LibraryID), ep.SeriesTitle)
+		seriesKey := notification.NewSeriesKey(string(ep.LibraryID), ep.SeriesTitle)
 		s.emitNotifications(ep.Type, ep.Title, ep.SeriesTitle, string(ep.MediaItemID), seriesKey, ep.Genres, nil, labelParts{subject: subjectOf(ep.Title, ep.SeriesTitle), episodeCount: 1})
 		return
 	}
 
 	if episodeCount > 1 {
 		first := batch.episodes[0]
-		seriesKey := seriesKeyFor(string(first.LibraryID), first.SeriesTitle)
+		seriesKey := notification.NewSeriesKey(string(first.LibraryID), first.SeriesTitle)
 		title, push := batchedEpisodesTitle(first.SeriesTitle, episodeCount)
 		s.emitNotifications("episode", title, "", string(first.MediaItemID), seriesKey, first.Genres, &push, labelParts{subject: first.SeriesTitle, episodeCount: episodeCount})
 	}
@@ -258,7 +271,7 @@ type labelParts struct {
 	episodeCount int
 }
 
-func (s *CommandService) emitNotifications(mediaType, title, seriesTitle, mediaItemID, seriesKey string, genres []string, pushOverride *pushSpec, parts labelParts) {
+func (s *CommandService) emitNotifications(mediaType, title, seriesTitle, mediaItemID string, seriesKey notification.SeriesKey, genres []string, pushOverride *pushSpec, parts labelParts) {
 	parent := s.shutdownCtx
 	if parent == nil {
 		slog.Warn("notification: emitNotifications called before Start(); using background context")
@@ -318,7 +331,7 @@ func (s *CommandService) emitNotifications(mediaType, title, seriesTitle, mediaI
 	if notifType == notification.TypeNewEpisode && seriesKey != "" {
 		dedupTypes := []notification.Type{notification.TypeNewSeries, notification.TypeNewSeason, notification.TypeNewEpisode}
 		var preloadErr error
-		recentByProfile, preloadErr = s.repo.FindRecentByProfilesTypeAndSeries(ctx, profileIDs, dedupTypes, seriesKey, since)
+		recentByProfile, preloadErr = s.dedupReads.FindRecentByProfilesTypeAndSeries(ctx, profileIDs, dedupTypes, seriesKey, since)
 		if preloadErr != nil {
 			slog.WarnContext(ctx, "notification: preload recent series/season/episode notifications failed", slog.Any("err", preloadErr))
 			preloadFailed = true
@@ -349,7 +362,7 @@ func (s *CommandService) emitNotifications(mediaType, title, seriesTitle, mediaI
 			notification.WithNotificationExpiresAt(&expires),
 		}
 		if seriesKey != "" {
-			opts = append(opts, notification.WithRelatedMediaID(shared.MediaItemID(seriesKey)))
+			opts = append(opts, notification.WithSeriesKey(seriesKey))
 		}
 		// The running-total logic that must survive regrouping lives in
 		// shouldSkipEpisodeNotif above (it updates the existing row's count);

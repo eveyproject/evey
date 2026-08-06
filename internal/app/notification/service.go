@@ -92,14 +92,6 @@ func levelForType(cfg *notification.Settings, t notification.Type) notification.
 	return cfg.LevelForType(t)
 }
 
-// seriesKeyFor builds an opaque deduplication key for a series within a library.
-// This key is stored in related_media_id and is not a real MediaItemID.
-func seriesKeyFor(libraryID, seriesTitle string) string {
-	if seriesTitle == "" {
-		return ""
-	}
-	return libraryID + ":" + seriesTitle
-}
 
 // extractSeriesName recovers the series title from a stored notification title.
 // Stored titles follow patterns:

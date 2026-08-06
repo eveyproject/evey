@@ -22,7 +22,11 @@ import (
 //   - push.go           persistence + web-push dispatch + subscription API
 
 type CommandService struct {
-	repo        notification.Repository
+	repo notification.CommandRepo
+	// dedupReads is the one read the command flows need (episode fan-out
+	// dedup); both halves come from the same concrete repository, the split
+	// only narrows what each call site can reach (ADR-0009).
+	dedupReads  notification.QueryRepo
 	settings    notification.SettingsRepository
 	analyzer    notification.WatchHistoryAnalyzer
 	profiles    ProfileLister
@@ -77,6 +81,7 @@ func NewCommandService(
 ) *CommandService {
 	s := &CommandService{
 		repo:       repo,
+		dedupReads: repo,
 		settings:   settings,
 		analyzer:   analyzer,
 		profiles:   profiles,

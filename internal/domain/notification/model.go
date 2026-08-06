@@ -91,14 +91,31 @@ func (l Level) IsValid() bool {
 	return false
 }
 
+// SeriesKey is the opaque per-library deduplication key grouping the
+// new_episode/new_season notifications of one series: "<libraryID>:<title>".
+// It is NOT a MediaItemID - it used to be typed as one (and still persists in
+// the legacy related_media_id column), which let the two mix silently.
+type SeriesKey string
+
+// NewSeriesKey builds the key; an empty title yields the empty key (no
+// grouping), mirroring the historical behaviour.
+func NewSeriesKey(libraryID, seriesTitle string) SeriesKey {
+	if seriesTitle == "" {
+		return ""
+	}
+	return SeriesKey(libraryID + ":" + seriesTitle)
+}
+
 type Notification struct {
-	ID             string
-	ProfileID      shared.ProfileID
-	Type           Type
-	Title          string
-	Message        string
-	MediaItemID    shared.MediaItemID
-	RelatedMediaID shared.MediaItemID // series ID for new_episode/new_season grouping
+	ID          string
+	ProfileID   shared.ProfileID
+	Type        Type
+	Title       string
+	Message     string
+	MediaItemID shared.MediaItemID
+	// SeriesKey groups new_episode/new_season notifications of one series.
+	// Persisted in the legacy related_media_id column.
+	SeriesKey SeriesKey
 	// Subject is the bare name the notification is about ("Some Series"), without
 	// any count or wording. Title stays the pre-rendered English label for
 	// clients that predate this; a client that sees a Subject builds the whole
@@ -188,8 +205,8 @@ func WithNotificationMediaItem(id shared.MediaItemID) NotificationOption {
 	return func(n *Notification) { n.MediaItemID = id }
 }
 
-func WithRelatedMediaID(id shared.MediaItemID) NotificationOption {
-	return func(n *Notification) { n.RelatedMediaID = id }
+func WithSeriesKey(k SeriesKey) NotificationOption {
+	return func(n *Notification) { n.SeriesKey = k }
 }
 
 // WithLabelParts records what a client needs to word the notification itself:
