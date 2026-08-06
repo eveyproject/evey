@@ -532,7 +532,7 @@ func TestUpsertMediaFile_NewItem_PublishesMediaItemAdded(t *testing.T) {
 	h.libCmd.Seed(lib)
 
 	h.scanner.Results["/movies"] = []library.ScannedFile{
-		{Path: "/movies/batman.mkv", Size: 100, Title: "Batman", Type: library.MovieItem},
+		{Path: "/movies/some-movie.mkv", Size: 100, Title: "Some Movie", Type: library.MovieItem},
 	}
 
 	_, _, err := h.svc.ScanLibrary(context.Background(), "lib-1")
@@ -545,7 +545,7 @@ func TestUpsertMediaFile_NewItem_PublishesMediaItemAdded(t *testing.T) {
 		}
 	}
 	require.NotNil(t, evt)
-	assert.Equal(t, "Batman", evt.Title)
+	assert.Equal(t, "Some Movie", evt.Title)
 	assert.Equal(t, shared.LibraryID("lib-1"), evt.LibraryID)
 	assert.Equal(t, "movie", evt.Type)
 	assert.Empty(t, evt.SeriesTitle, "non-tvshow should have empty SeriesTitle")
@@ -1202,7 +1202,7 @@ func TestScanTVShow_SeriesEventHasSeriesTitle(t *testing.T) {
 	h.libCmd.Seed(lib)
 
 	h.scanner.Results["/tv"] = []library.ScannedFile{
-		{Path: "/tv/show/s01e01.mkv", Size: 500, Title: "Breaking Bad", Season: &s1, Episode: &e1, Type: library.Episode},
+		{Path: "/tv/show/s01e01.mkv", Size: 500, Title: "Some Series", Season: &s1, Episode: &e1, Type: library.Episode},
 	}
 
 	_, _, err := h.svc.ScanLibrary(context.Background(), "lib-tv")
@@ -1217,7 +1217,7 @@ func TestScanTVShow_SeriesEventHasSeriesTitle(t *testing.T) {
 		}
 	}
 	require.NotNil(t, episodeEvt)
-	assert.Equal(t, "Breaking Bad", episodeEvt.SeriesTitle)
+	assert.Equal(t, "Some Series", episodeEvt.SeriesTitle)
 }
 
 func TestScanTVShow_GetOrCreateItem_FindsByFingerprint(t *testing.T) {
@@ -1444,16 +1444,16 @@ func TestScanLibrary_NewFile_IndexedInSearch(t *testing.T) {
 	h.libCmd.Seed(lib)
 
 	h.scanner.Results["/movies"] = []library.ScannedFile{
-		{Path: "/movies/batman.mkv", Size: 1000, Title: "Batman", Type: library.MovieItem},
+		{Path: "/movies/some-movie.mkv", Size: 1000, Title: "Some Movie", Type: library.MovieItem},
 	}
 
 	_, _, err := h.svc.ScanLibrary(context.Background(), "lib-1")
 	require.NoError(t, err)
 
-	hits, total, err := h.search.Search(context.Background(), "batman", nil, nil, 10)
+	hits, total, err := h.search.Search(context.Background(), "movie", nil, nil, 10)
 	require.NoError(t, err)
 	assert.Equal(t, int64(1), total)
-	assert.Equal(t, "Batman", hits[0].Title)
+	assert.Equal(t, "Some Movie", hits[0].Title)
 }
 
 func TestScanLibrary_UpdatesLastScannedAt(t *testing.T) {
@@ -1532,16 +1532,16 @@ func TestScanLibrary_NewFile_IndexesInSearch(t *testing.T) {
 	svc.CreateLibrary(context.Background(), lib)
 	libQueryRepo.Seed(lib)
 	scanner.Results["/movies"] = []library.ScannedFile{
-		{Path: "/movies/batman.mkv", Size: 1000, Title: "Batman", Type: library.MovieItem},
+		{Path: "/movies/some-movie.mkv", Size: 1000, Title: "Some Movie", Type: library.MovieItem},
 	}
 
 	_, _, err := svc.ScanLibrary(context.Background(), "lib-idx")
 	require.NoError(t, err)
 
-	hits, total, err := search.Search(context.Background(), "batman", nil, nil, 10)
+	hits, total, err := search.Search(context.Background(), "movie", nil, nil, 10)
 	require.NoError(t, err)
 	assert.Equal(t, int64(1), total)
-	assert.Equal(t, "Batman", hits[0].Title)
+	assert.Equal(t, "Some Movie", hits[0].Title)
 }
 
 func TestScanLibrary_OrphanEpisodeNotPersisted(t *testing.T) {

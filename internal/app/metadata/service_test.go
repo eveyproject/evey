@@ -35,8 +35,8 @@ func TestSearchMetadata(t *testing.T) {
 	artworkRepo := metafakes.NewFakeArtworkRepository()
 
 	provider := metafakes.NewFakeMetadataProvider("tmdb")
-	provider.SearchResults["matrix"] = []metadata.MetadataResult{
-		{Title: "The Matrix", Overview: "A computer hacker..."},
+	provider.SearchResults["some movie"] = []metadata.MetadataResult{
+		{Title: "Some Movie", Overview: "A computer hacker..."},
 	}
 
 	svc := appmetadata.NewQueryService(
@@ -44,10 +44,10 @@ func TestSearchMetadata(t *testing.T) {
 		[]metadata.MetadataProvider{provider},
 	)
 
-	results, err := svc.SearchMetadata(context.Background(), "matrix", "movie")
+	results, err := svc.SearchMetadata(context.Background(), "some movie", "movie")
 	require.NoError(t, err)
 	assert.Len(t, results, 1)
-	assert.Equal(t, "The Matrix", results[0].Title)
+	assert.Equal(t, "Some Movie", results[0].Title)
 }
 
 func TestSetOverride(t *testing.T) {
@@ -194,13 +194,13 @@ func TestRefreshMetadata_ProviderReturnsResult(t *testing.T) {
 	downloader := metafakes.NewFakeArtworkDownloader()
 	bus := sharedfakes.NewFakeEventBus()
 	provider := metafakes.NewFakeMetadataProvider("tmdb")
-	provider.ByProviderID["tmdb-42"] = &metadata.MetadataResult{Title: "Interstellar"}
+	provider.ByProviderID["tmdb-42"] = &metadata.MetadataResult{Title: "Some Movie"}
 	cmdSvc := appmetadata.NewCommandService(overrideRepo, artworkRepo, downloader, bus, []metadata.MetadataProvider{provider})
 
 	result, err := cmdSvc.RefreshMetadata(context.Background(), "item-1", "tmdb-42", "tmdb", "movie")
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	assert.Equal(t, "Interstellar", result.Title)
+	assert.Equal(t, "Some Movie", result.Title)
 	events := bus.PublishedEvents()
 	require.Len(t, events, 1)
 	assert.Equal(t, "metadata.refreshed", events[0].EventName())
@@ -390,7 +390,7 @@ func TestRefreshItemMetadata_NoProviderResult(t *testing.T) {
 func TestRefreshItemMetadata_Success(t *testing.T) {
 	bus := sharedfakes.NewFakeEventBus()
 	provider := metafakes.NewFakeMetadataProvider("tmdb")
-	provider.ByProviderID["tmdb-42"] = &metadata.MetadataResult{Title: "Interstellar"}
+	provider.ByProviderID["tmdb-42"] = &metadata.MetadataResult{Title: "Some Movie"}
 	cmdSvc := appmetadata.NewCommandService(
 		metafakes.NewFakeMetadataOverrideRepository(),
 		metafakes.NewFakeArtworkRepository(),
@@ -407,7 +407,7 @@ func TestRefreshItemMetadata_Success(t *testing.T) {
 	err := cmdSvc.RefreshItemMetadata(ctx, "item-1", "tmdb-42", "movie")
 	require.NoError(t, err)
 	require.Len(t, enricher.enrichedPairs, 1)
-	assert.Equal(t, "Interstellar", enricher.enrichedPairs[0].result.Title)
+	assert.Equal(t, "Some Movie", enricher.enrichedPairs[0].result.Title)
 	assert.Equal(t, shared.MediaItemID("item-1"), enricher.enrichedPairs[0].item.ID)
 	require.Len(t, bus.PublishedEvents(), 1)
 	assert.Equal(t, "metadata.refreshed", bus.PublishedEvents()[0].EventName())

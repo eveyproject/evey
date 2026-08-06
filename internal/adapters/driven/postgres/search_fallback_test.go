@@ -62,9 +62,9 @@ func TestSQLSearchFallback_Search_Integration(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Millisecond)
 	year := 1999
 	items := []*library.MediaItem{
-		{ID: "s1", LibraryID: shared.LibraryID(lib.ID), Type: "movie", Title: "Fight Club", OriginalTitle: "Fight Club", Catalog: &library.MediaCatalog{Year: &year, Genres: []string{"Drama"}, ProviderIDs: map[string]string{}, Studios: []string{}, Tags: []string{}}, AddedAt: now, UpdatedAt: now, Classification: &library.MediaClassification{OfficialRating: "R"}},
-		{ID: "s2", LibraryID: shared.LibraryID(lib.ID), Type: "movie", Title: "The Matrix", OriginalTitle: "The Matrix", Catalog: &library.MediaCatalog{Year: &year, Genres: []string{"Sci-Fi"}, ProviderIDs: map[string]string{}, Studios: []string{}, Tags: []string{}}, AddedAt: now, UpdatedAt: now},
-		{ID: "s3", LibraryID: shared.LibraryID(lib.ID), Type: "movie", Title: "Interstellar", OriginalTitle: "Interstellar", Catalog: &library.MediaCatalog{Genres: []string{"Sci-Fi"}, ProviderIDs: map[string]string{}, Studios: []string{}, Tags: []string{}}, AddedAt: now, UpdatedAt: now},
+		{ID: "s1", LibraryID: shared.LibraryID(lib.ID), Type: "movie", Title: "Punch Club", OriginalTitle: "Punch Club", Catalog: &library.MediaCatalog{Year: &year, Genres: []string{"Drama"}, ProviderIDs: map[string]string{}, Studios: []string{}, Tags: []string{}}, AddedAt: now, UpdatedAt: now, Classification: &library.MediaClassification{OfficialRating: "R"}},
+		{ID: "s2", LibraryID: shared.LibraryID(lib.ID), Type: "movie", Title: "The Cascade", OriginalTitle: "The Cascade", Catalog: &library.MediaCatalog{Year: &year, Genres: []string{"Sci-Fi"}, ProviderIDs: map[string]string{}, Studios: []string{}, Tags: []string{}}, AddedAt: now, UpdatedAt: now},
+		{ID: "s3", LibraryID: shared.LibraryID(lib.ID), Type: "movie", Title: "Meridian Voyage", OriginalTitle: "Meridian Voyage", Catalog: &library.MediaCatalog{Genres: []string{"Sci-Fi"}, ProviderIDs: map[string]string{}, Studios: []string{}, Tags: []string{}}, AddedAt: now, UpdatedAt: now},
 	}
 	for _, item := range items {
 		require.NoError(t, itemRepo.Create(ctx, item))
@@ -73,12 +73,12 @@ func TestSQLSearchFallback_Search_Integration(t *testing.T) {
 	fb := postgres.NewSQLSearchFallback(db)
 
 	t.Run("match title", func(t *testing.T) {
-		hits, total, err := fb.Search(ctx, "fight", nil, nil, 20)
+		hits, total, err := fb.Search(ctx, "punch", nil, nil, 20)
 		require.NoError(t, err)
 		assert.Equal(t, int64(1), total)
 		require.Len(t, hits, 1)
 		assert.Equal(t, "s1", hits[0].ID)
-		assert.Equal(t, "Fight Club", hits[0].Title)
+		assert.Equal(t, "Punch Club", hits[0].Title)
 		assert.Equal(t, &year, hits[0].Year)
 		assert.Equal(t, "movie", hits[0].Type)
 		assert.Equal(t, []string{"Drama"}, hits[0].Genres)
@@ -86,14 +86,14 @@ func TestSQLSearchFallback_Search_Integration(t *testing.T) {
 	})
 
 	t.Run("case insensitive", func(t *testing.T) {
-		hits, _, err := fb.Search(ctx, "MATRIX", nil, nil, 20)
+		hits, _, err := fb.Search(ctx, "CASCADE", nil, nil, 20)
 		require.NoError(t, err)
 		require.Len(t, hits, 1)
 		assert.Equal(t, "s2", hits[0].ID)
 	})
 
 	t.Run("filter by type", func(t *testing.T) {
-		hits, total, err := fb.Search(ctx, "inter", map[string]string{"type": "movie"}, nil, 20)
+		hits, total, err := fb.Search(ctx, "meri", map[string]string{"type": "movie"}, nil, 20)
 		require.NoError(t, err)
 		assert.Equal(t, int64(1), total)
 		require.Len(t, hits, 1)
@@ -101,7 +101,7 @@ func TestSQLSearchFallback_Search_Integration(t *testing.T) {
 	})
 
 	t.Run("filter by library_id", func(t *testing.T) {
-		hits, _, err := fb.Search(ctx, "fight", map[string]string{"library_id": "nonexistent"}, nil, 20)
+		hits, _, err := fb.Search(ctx, "punch", map[string]string{"library_id": "nonexistent"}, nil, 20)
 		require.NoError(t, err)
 		assert.Empty(t, hits)
 	})

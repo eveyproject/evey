@@ -97,38 +97,39 @@ func TestPickBestMatch_ExactTitleBeatsTMDBOrder(t *testing.T) {
 	// When exactly one candidate's title equals the query (case-folded +
 	// diacritic-stripped), it wins even if TMDB's popularity ranking put
 	// another word-sharing candidate first. Fixes the real-world bug where
-	// "Le flic de shanghai" matched "The Rookie : Le Flic de Los Angeles"
-	// just because TMDB ranked The Rookie higher - the exact-title result
-	// was sitting right there in the list.
+	// a localized title matched an unrelated, differently-named show just
+	// because it shared the same "Le Flic de <ville>" localisation pattern
+	// and TMDB ranked it higher - the exact-title result was sitting right
+	// there in the list.
 	results := []domain.MetadataResult{
-		{Title: "The Rookie : Le Flic de Los Angeles", OriginalTitle: "The Rookie"},
-		{Title: "Le flic de Shanghai", OriginalTitle: "Martial Law"},
+		{Title: "The Detective : Le Flic de Paris", OriginalTitle: "The Detective"},
+		{Title: "Le flic de Marseille", OriginalTitle: "City Patrol"},
 	}
-	best := pickBestMatch(results, "Le flic de shanghai", nil)
-	assert.Equal(t, "Le flic de Shanghai", best.Title)
+	best := pickBestMatch(results, "Le flic de marseille", nil)
+	assert.Equal(t, "Le flic de Marseille", best.Title)
 }
 
 func TestPickBestMatch_ExactTitleBeatsSubstringPopularity(t *testing.T) {
-	// "Billions" is outranked by "The Foods that Make Billions" by popularity
-	// on a generic query, and both share the word "billions". Exact-title
-	// shortcut rescues the right one.
+	// "Some Series" is outranked by "The Foods that Make Some Series" by
+	// popularity on a generic query, and both share the word "series".
+	// Exact-title shortcut rescues the right one.
 	results := []domain.MetadataResult{
-		{Title: "The Foods that Make Billions", OriginalTitle: "The Foods that Make Billions"},
-		{Title: "Billions", OriginalTitle: "Billions"},
+		{Title: "The Foods that Make Some Series", OriginalTitle: "The Foods that Make Some Series"},
+		{Title: "Some Series", OriginalTitle: "Some Series"},
 	}
-	best := pickBestMatch(results, "Billions", nil)
-	assert.Equal(t, "Billions", best.Title)
+	best := pickBestMatch(results, "Some Series", nil)
+	assert.Equal(t, "Some Series", best.Title)
 }
 
 func TestPickBestMatch_ExactTitleDiacriticInsensitive(t *testing.T) {
-	// Query without diacritics ("pokemon"), TMDB title with ("Pokémon") →
+	// Query without diacritics ("metro show"), TMDB title with diacritics →
 	// exact match via the fold table.
 	results := []domain.MetadataResult{
 		{Title: "Some Other Show"},
-		{Title: "Pokémon"},
+		{Title: "Métro Show"},
 	}
-	best := pickBestMatch(results, "pokemon", nil)
-	assert.Equal(t, "Pokémon", best.Title)
+	best := pickBestMatch(results, "metro show", nil)
+	assert.Equal(t, "Métro Show", best.Title)
 }
 
 func TestPickBestMatch_SkipsIncoherentCandidates(t *testing.T) {
@@ -136,19 +137,19 @@ func TestPickBestMatch_SkipsIncoherentCandidates(t *testing.T) {
 	// the next coherent one.
 	results := []domain.MetadataResult{
 		{Title: "Completely Unrelated"},
-		{Title: "Breaking Bad"},
+		{Title: "Some Series"},
 	}
-	best := pickBestMatch(results, "Breaking Bad", nil)
-	assert.Equal(t, "Breaking Bad", best.Title)
+	best := pickBestMatch(results, "Some Series", nil)
+	assert.Equal(t, "Some Series", best.Title)
 }
 
 func TestPickBestMatch_ExactTitle(t *testing.T) {
 	results := []domain.MetadataResult{
-		{Title: "Breaking Bad"},
-		{Title: "Bad Breaking"},
+		{Title: "Some Series"},
+		{Title: "Series Some"},
 	}
-	best := pickBestMatch(results, "Breaking Bad", nil)
-	assert.Equal(t, "Breaking Bad", best.Title)
+	best := pickBestMatch(results, "Some Series", nil)
+	assert.Equal(t, "Some Series", best.Title)
 }
 
 func TestPickBestMatch_YearBonus(t *testing.T) {
@@ -168,24 +169,24 @@ func TestPickBestMatch_ExactYearWinsOverOrder(t *testing.T) {
 	y1990 := 1990
 	y2017 := 2017
 	results := []domain.MetadataResult{
-		{Title: "Robin Hood", Year: &y1990},
-		{Title: "Robin Hood", Year: &y2017},
+		{Title: "Some Legend", Year: &y1990},
+		{Title: "Some Legend", Year: &y2017},
 	}
-	best := pickBestMatch(results, "Robin Hood", &y2017)
+	best := pickBestMatch(results, "Some Legend", &y2017)
 	assert.Equal(t, &y2017, best.Year)
 
 	// No year hint → trust TMDB order.
-	best = pickBestMatch(results, "Robin Hood", nil)
+	best = pickBestMatch(results, "Some Legend", nil)
 	assert.Equal(t, &y1990, best.Year)
 }
 
 func TestPickBestMatch_OriginalTitleUsed(t *testing.T) {
 	results := []domain.MetadataResult{
-		{Title: "La Loi de la Force", OriginalTitle: "Martial Law"},
+		{Title: "La Loi de la Force", OriginalTitle: "The Force of Law"},
 		{Title: "La Force de la Loi", OriginalTitle: "Other Show"},
 	}
-	best := pickBestMatch(results, "Martial Law", nil)
-	assert.Equal(t, "Martial Law", best.OriginalTitle)
+	best := pickBestMatch(results, "The Force of Law", nil)
+	assert.Equal(t, "The Force of Law", best.OriginalTitle)
 }
 
 func TestPickBestMatch_SingleResult(t *testing.T) {
@@ -832,7 +833,7 @@ func TestAutoEnrichAll_MatchedItemWithOverride_StillSkipped(t *testing.T) {
 	EnricherWithOverrides(overrideRepo)(e)
 
 	item := &domainlib.MediaItem{
-		ID: "matched-bulk", Title: "Matrix", Type: "movie",
+		ID: "matched-bulk", Title: "Some Movie", Type: "movie",
 		Catalog: &domainlib.MediaCatalog{ProviderIDs: map[string]string{"tmdb": "603"}},
 	}
 	require.NoError(t, miRepo.Create(context.Background(), item))
@@ -864,7 +865,7 @@ func TestAutoEnrichItem_MatchedItemWithOverride_StillSkips(t *testing.T) {
 
 	// Matched item: has provider IDs.
 	item := &domainlib.MediaItem{
-		ID: "item-matched", Title: "Matrix", Type: "movie",
+		ID: "item-matched", Title: "Some Movie", Type: "movie",
 		Catalog: &domainlib.MediaCatalog{ProviderIDs: map[string]string{"tmdb": "603"}},
 	}
 	require.NoError(t, miRepo.Create(context.Background(), item))
@@ -1315,28 +1316,28 @@ func TestAutoEnrichAll_BatchesOverridePreload(t *testing.T) {
 
 // --- Alternative-titles matching (Fix A) ---
 
-// TestPickBestMatch_AltTitleWins is the "Train to Busan"-shaped case:
-// TMDB search (fr) returns three results; the correct film has a
-// localised French title as its primary Title but carries the English
-// title "Train to Busan" in its AlternativeTitles field. pickBestMatch
-// must pick it over a word-sharing wrong candidate that appears first.
+// TestPickBestMatch_AltTitleWins is the localised-alt-title case: TMDB
+// search (fr) returns three results; the correct film has a localised
+// French title as its primary Title but carries the English title in its
+// AlternativeTitles field. pickBestMatch must pick it over a word-sharing
+// wrong candidate that appears first.
 func TestPickBestMatch_AltTitleWins(t *testing.T) {
 	results := []domain.MetadataResult{
 		// Wrong film (first in TMDB popularity order) - shares word "train"
-		{Title: "The Last Train to New York", OriginalTitle: "The Last Train to New York",
-			ProviderIDs: map[string]string{"tmdb": "550446"}},
+		{Title: "The Last Train to Newhaven", OriginalTitle: "The Last Train to Newhaven",
+			ProviderIDs: map[string]string{"tmdb": "900002"}},
 		// Correct film - French title is primary; English alt-title populated
-		{Title: "Dernier train pour Busan", OriginalTitle: "부산행",
-			AlternativeTitles: []string{"Train to Busan"},
-			ProviderIDs:       map[string]string{"tmdb": "396535"}},
+		{Title: "Dernier train pour Rivemont", OriginalTitle: "리버몬트행",
+			AlternativeTitles: []string{"Train to Rivemont"},
+			ProviderIDs:       map[string]string{"tmdb": "900001"}},
 		// Unrelated sequel
-		{Title: "Peninsula", OriginalTitle: "반도",
-			ProviderIDs: map[string]string{"tmdb": "581392"}},
+		{Title: "Rivemont Island", OriginalTitle: "리버몬트섬",
+			ProviderIDs: map[string]string{"tmdb": "900003"}},
 	}
-	best := pickBestMatch(results, "Train to Busan", nil)
-	assert.Equal(t, "Dernier train pour Busan", best.Title,
+	best := pickBestMatch(results, "Train to Rivemont", nil)
+	assert.Equal(t, "Dernier train pour Rivemont", best.Title,
 		"alt-title exact match must win over word-share candidate")
-	assert.Equal(t, "396535", best.ProviderIDs["tmdb"])
+	assert.Equal(t, "900001", best.ProviderIDs["tmdb"])
 }
 
 // TestFetchBestCandidate_AltTitleLazyFetch verifies that when no candidate
@@ -1348,77 +1349,77 @@ func TestFetchBestCandidate_AltTitleLazyFetch(t *testing.T) {
 	primary := &fakeProvider{
 		name: "tmdb",
 		altTitles: map[string][]string{
-			"550446": {"The Last Train to New York"},
-			"396535": {"Train to Busan", "부산행"},
+			"900002": {"The Last Train to Newhaven"},
+			"900001": {"Train to Rivemont", "리버몬트행"},
 		},
 		detailResult: &domain.MetadataResult{
-			Title:         "Dernier train pour Busan",
-			OriginalTitle: "부산행",
-			Overview:      "A zombie film set on a train to Busan.",
-			ProviderIDs:   map[string]string{"tmdb": "396535"},
+			Title:         "Dernier train pour Rivemont",
+			OriginalTitle: "리버몬트행",
+			Overview:      "A zombie film set on a train to Rivemont.",
+			ProviderIDs:   map[string]string{"tmdb": "900001"},
 		},
 	}
 	e, _, _, _, _, _ := newTestEnricher(primary, nil, nil)
 
 	results := []domain.MetadataResult{
-		{Title: "The Last Train to New York", OriginalTitle: "The Last Train to New York",
-			ProviderIDs: map[string]string{"tmdb": "550446"}},
-		{Title: "Dernier train pour Busan", OriginalTitle: "부산행",
-			ProviderIDs: map[string]string{"tmdb": "396535"}},
-		{Title: "Peninsula", OriginalTitle: "반도",
-			ProviderIDs: map[string]string{"tmdb": "581392"}},
+		{Title: "The Last Train to Newhaven", OriginalTitle: "The Last Train to Newhaven",
+			ProviderIDs: map[string]string{"tmdb": "900002"}},
+		{Title: "Dernier train pour Rivemont", OriginalTitle: "리버몬트행",
+			ProviderIDs: map[string]string{"tmdb": "900001"}},
+		{Title: "Rivemont Island", OriginalTitle: "리버몬트섬",
+			ProviderIDs: map[string]string{"tmdb": "900003"}},
 	}
 
-	result := e.fetchBestCandidate(context.Background(), primary, results, "Train to Busan", nil, "movie")
+	result := e.fetchBestCandidate(context.Background(), primary, results, "Train to Rivemont", nil, "movie")
 	require.NotNil(t, result)
-	assert.Equal(t, "396535", result.ProviderIDs["tmdb"],
+	assert.Equal(t, "900001", result.ProviderIDs["tmdb"],
 		"lazy alt-title fetch must identify and return the correct candidate")
-	assert.Equal(t, "A zombie film set on a train to Busan.", result.Overview,
+	assert.Equal(t, "A zombie film set on a train to Rivemont.", result.Overview,
 		"full details must be fetched for the alt-title match")
 }
 
 // --- Cascade query retry (Fix B) ---
 
-// TestSearchAndFetchBest_CascadeRetryFindsResult is the "Wanted Choisi Ton
-// Destin"-shaped case: the full query returns 0 results, but successive
+// TestSearchAndFetchBest_CascadeRetryFindsResult is the "subtitle trimmed
+// away" case: the full query returns 0 results, but successive
 // word-trimming eventually hits a non-empty result set. The enricher must
 // return the best candidate from the trimmed query.
 func TestSearchAndFetchBest_CascadeRetryFindsResult(t *testing.T) {
 	// The fake provider returns nothing for the full query and for
-	// intermediate trims, but returns a result for "Wanted".
+	// intermediate trims, but returns a result for "a remux".
 	primary := &fakeProvider{
 		name: "tmdb",
-		// Search is keyed on exact query string; anything not "Wanted" → nil
+		// Search is keyed on exact query string; anything not "a remux" → nil
 		detailResult: &domain.MetadataResult{
-			Title:       "Wanted: Choisis ton destin",
+			Title:       "a remux: Choisis ton destin",
 			Overview:    "Action thriller.",
-			ProviderIDs: map[string]string{"tmdb": "8909"},
+			ProviderIDs: map[string]string{"tmdb": "800001"},
 		},
 	}
 	// Manually wire search results only for the trimmed query.
 	primary.searchResults = []domain.MetadataResult{
-		{Title: "Wanted: Choisis ton destin", ProviderIDs: map[string]string{"tmdb": "8909"}},
+		{Title: "a remux: Choisis ton destin", ProviderIDs: map[string]string{"tmdb": "800001"}},
 	}
 
 	// We need a provider whose Search returns nothing for the long query
 	// but something for the short one. Override with a custom fakeProvider.
 	shortQueryProvider := &cascadeTestProvider{
-		wantQuery: "Wanted",
+		wantQuery: "a remux",
 		result: []domain.MetadataResult{
-			{Title: "Wanted: Choisis ton destin", ProviderIDs: map[string]string{"tmdb": "8909"}},
+			{Title: "a remux: Choisis ton destin", ProviderIDs: map[string]string{"tmdb": "800001"}},
 		},
 		detailResult: &domain.MetadataResult{
-			Title:       "Wanted: Choisis ton destin",
+			Title:       "a remux: Choisis ton destin",
 			Overview:    "Action thriller.",
-			ProviderIDs: map[string]string{"tmdb": "8909"},
+			ProviderIDs: map[string]string{"tmdb": "800001"},
 		},
 	}
 	e, _, _, _, _, _ := newTestEnricher(&fakeProvider{name: "tmdb"}, nil, nil)
 
 	result := e.searchAndFetchBest(context.Background(), shortQueryProvider,
-		"Wanted Choisi Ton Destin", nil, "movie", 0, slog.Default())
+		"a remux Choisis Ton Destin", nil, "movie", 0, slog.Default())
 	require.NotNil(t, result, "cascade retry must return a result")
-	assert.Equal(t, "Wanted: Choisis ton destin", result.Title)
+	assert.Equal(t, "a remux: Choisis ton destin", result.Title)
 }
 
 // cascadeTestProvider returns results only when the query equals wantQuery.

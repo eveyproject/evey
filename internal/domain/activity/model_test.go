@@ -43,7 +43,7 @@ func TestPlayHistoryEntry_CompletionFlag(t *testing.T) {
 			ID:          "h1",
 			ProfileID:   "p1",
 			MediaItemID: "m1",
-			MediaTitle:  "Inception",
+			MediaTitle:  "Some Movie",
 			MediaType:   "movie",
 			Duration:    dur,
 			Position:    pos,
@@ -181,8 +181,8 @@ func TestUserStats_GenreBreakdown(t *testing.T) {
 			"thriller": {TotalTimeMs: 600000, PlayCount: 1},
 		},
 		MostPlayedItems: []activity.MediaPlayCount{
-			{MediaItemID: "m1", Title: "Inception", PlayCount: 3},
-			{MediaItemID: "m2", Title: "Interstellar", PlayCount: 2},
+			{MediaItemID: "m1", Title: "Some Movie", PlayCount: 3},
+			{MediaItemID: "m2", Title: "Another Movie", PlayCount: 2},
 		},
 		PlayByMonth: map[string]activity.MonthlyStats{
 			"2026-01": {PlayCount: 2, TotalTimeMs: 7200000},

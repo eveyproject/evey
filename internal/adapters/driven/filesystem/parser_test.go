@@ -11,15 +11,15 @@ import (
 // --- SplitFilename ---
 
 func TestSplitFilename_DotSeparated(t *testing.T) {
-	assert.Equal(t, []string{"breaking", "bad", "s01e01", "vostfr", "1080p", "mkv"},
-		SplitFilename("breaking.bad.s01e01.vostfr.1080p.mkv"))
+	assert.Equal(t, []string{"quiet", "storm", "s01e01", "vostfr", "1080p", "mkv"},
+		SplitFilename("quiet.storm.s01e01.vostfr.1080p.mkv"))
 }
 
 func TestSplitFilename_HyphenSeparated(t *testing.T) {
 	// hyphens are separators - same as normalize_video
-	parts := SplitFilename("The-Office-S01E05-720p.mkv")
+	parts := SplitFilename("The-Outpost-S01E05-720p.mkv")
 	assert.Contains(t, parts, "The")
-	assert.Contains(t, parts, "Office")
+	assert.Contains(t, parts, "Outpost")
 	assert.Contains(t, parts, "S01E05")
 }
 
@@ -33,10 +33,10 @@ func TestSplitFilename_MixedSeparators(t *testing.T) {
 // --- Type detection ---
 
 func TestParse_SeriesWithSE(t *testing.T) {
-	info := ParseFilename("The.Office.S01E05.720p.BluRay.x264-GROUP.mkv")
+	info := ParseFilename("The.Outpost.S01E05.720p.BluRay.x264-GROUP.mkv")
 
 	assert.Equal(t, "series", info.Type)
-	assert.Equal(t, "The Office", info.Title)
+	assert.Equal(t, "The Outpost", info.Title)
 	assert.Equal(t, "S01E05", info.SE)
 	require.NotNil(t, info.Season)
 	assert.Equal(t, 1, *info.Season)
@@ -48,7 +48,7 @@ func TestParse_SeriesWithSE(t *testing.T) {
 }
 
 func TestParse_SeriesWithSeasonX(t *testing.T) {
-	info := ParseFilename("Breaking.Bad.03x10.1080p.mkv")
+	info := ParseFilename("Quiet.Storm.03x10.1080p.mkv")
 
 	assert.Equal(t, "series", info.Type)
 	assert.Equal(t, "S03E10", info.SE)
@@ -60,10 +60,10 @@ func TestParse_SeriesWithSeasonX(t *testing.T) {
 }
 
 func TestParse_MovieWithYear(t *testing.T) {
-	info := ParseFilename("Inception.2010.1080p.BluRay.x264.DTS-FGT.mkv")
+	info := ParseFilename("Lantern.2010.1080p.BluRay.x264.DTS-FGT.mkv")
 
 	assert.Equal(t, "movie", info.Type)
-	assert.Equal(t, "Inception", info.Title)
+	assert.Equal(t, "Lantern", info.Title)
 	assert.Empty(t, info.SE)
 	require.NotNil(t, info.Year)
 	assert.Equal(t, 2010, *info.Year)
@@ -74,19 +74,19 @@ func TestParse_MovieWithYear(t *testing.T) {
 }
 
 func TestParse_MovieWithYearInParens(t *testing.T) {
-	info := ParseFilename("The Matrix (1999) 1080p.mkv")
+	info := ParseFilename("The Mirror (1999) 1080p.mkv")
 
 	assert.Equal(t, "movie", info.Type)
-	assert.Equal(t, "The Matrix", info.Title)
+	assert.Equal(t, "The Mirror", info.Title)
 	require.NotNil(t, info.Year)
 	assert.Equal(t, 1999, *info.Year)
 }
 
 func TestParse_4K_HEVC(t *testing.T) {
-	info := ParseFilename("Dune.Part.Two.2024.2160p.x265.mkv")
+	info := ParseFilename("Nova.Part.Two.2024.2160p.x265.mkv")
 
 	assert.Equal(t, "movie", info.Type)
-	assert.Equal(t, "Dune Part Two", info.Title)
+	assert.Equal(t, "Nova Part Two", info.Title)
 	require.NotNil(t, info.Year)
 	assert.Equal(t, 2024, *info.Year)
 	assert.Equal(t, "2160p", info.Quality)
@@ -131,31 +131,31 @@ func TestParse_SE_Normalized(t *testing.T) {
 // --- Language: ISO code + original tag ---
 
 func TestParse_Language_VF(t *testing.T) {
-	info := ParseFilename("Inception.2010.VF.1080p.BluRay.mkv")
+	info := ParseFilename("Lantern.2010.VF.1080p.BluRay.mkv")
 	assert.Equal(t, "fr", info.Language)
 	assert.Equal(t, "vf", info.LanguageTag)
 }
 
 func TestParse_Language_VOSTFR(t *testing.T) {
-	info := ParseFilename("Interstellar.2014.VOSTFR.720p.WEB.mkv")
+	info := ParseFilename("Meridian.2014.VOSTFR.720p.WEB.mkv")
 	assert.Equal(t, "fr", info.Language)
 	assert.Equal(t, "vostfr", info.LanguageTag)
 }
 
 func TestParse_Language_TrueFrench(t *testing.T) {
-	info := ParseFilename("The.Matrix.1999.TrueFrench.1080p.BluRay.mkv")
+	info := ParseFilename("The.Mirror.1999.TrueFrench.1080p.BluRay.mkv")
 	assert.Equal(t, "fr", info.Language)
 	assert.Equal(t, "truefrench", info.LanguageTag)
 }
 
 func TestParse_Language_Multi(t *testing.T) {
-	info := ParseFilename("Dune.2021.MULTI.2160p.UHD.BluRay.mkv")
+	info := ParseFilename("Nova.2021.MULTI.2160p.UHD.BluRay.mkv")
 	assert.Equal(t, "multi", info.Language)
 	assert.Equal(t, "multi", info.LanguageTag)
 }
 
 func TestParse_Language_VO(t *testing.T) {
-	info := ParseFilename("Everything.Everywhere.2022.VO.1080p.mkv")
+	info := ParseFilename("Quiet.Horizon.2022.VO.1080p.mkv")
 	assert.Equal(t, "en", info.Language)
 	assert.Equal(t, "vo", info.LanguageTag)
 }
@@ -167,19 +167,19 @@ func TestParse_Language_ENG(t *testing.T) {
 }
 
 func TestParse_Language_VOSTDE(t *testing.T) {
-	info := ParseFilename("Dark.S01E01.VOSTDE.1080p.mkv")
+	info := ParseFilename("Nightfall.S01E01.VOSTDE.1080p.mkv")
 	assert.Equal(t, "de", info.Language)
 	assert.Equal(t, "vostde", info.LanguageTag)
 }
 
 func TestParse_Language_VOSTES(t *testing.T) {
-	info := ParseFilename("Money.Heist.S02E04.VOSTES.720p.mkv")
+	info := ParseFilename("Gold.Robbery.S02E04.VOSTES.720p.mkv")
 	assert.Equal(t, "es", info.Language)
 	assert.Equal(t, "vostes", info.LanguageTag)
 }
 
 func TestParse_Language_None(t *testing.T) {
-	info := ParseFilename("avatar.2009.1080p.bluray.x264.mkv")
+	info := ParseFilename("harbor.2009.1080p.bluray.x264.mkv")
 	assert.Empty(t, info.Language)
 	assert.Empty(t, info.LanguageTag)
 }
@@ -217,11 +217,11 @@ func TestParse_TitleIsYear_Serie1883(t *testing.T) {
 // Real-world regression: a year token at the very start of the filename
 // must NOT be treated as a metadata boundary when more title words follow.
 // Otherwise the parser drops the rest of the title and TMDB matches the
-// wrong movie ("2001 L'odyssée De L'espace" → "Master Q 2001").
+// wrong movie.
 func TestParse_LeadingYearKeepsTitle(t *testing.T) {
-	info := ParseFilename("2001 L'odyssée De L'espace - 1080p.mkv")
+	info := ParseFilename("2001 Le Grand Voyage Vers L'infini - 1080p.mkv")
 	assert.Equal(t, "movie", info.Type)
-	assert.Equal(t, "2001 L'odyssée De L'espace", info.Title)
+	assert.Equal(t, "2001 Le Grand Voyage Vers L'infini", info.Title)
 	require.NotNil(t, info.Year)
 	assert.Equal(t, 2001, *info.Year)
 }
@@ -324,12 +324,12 @@ func TestParse_EditionSuffixStripped(t *testing.T) {
 		filename  string
 		wantTitle string
 	}{
-		{"Danse avec les loups - version longue.mkv", "Danse avec les loups"},
-		{"L'effet papillon - director's cut.mkv", "L'effet papillon"},
-		{"L'effet papillon directors cut.mkv", "L'effet papillon"},
+		{"Danse avec les ombres - version longue.mkv", "Danse avec les ombres"},
+		{"L'effet miroir - director's cut.mkv", "L'effet miroir"},
+		{"L'effet miroir directors cut.mkv", "L'effet miroir"},
 		{"Movie - Extended Cut - 1080p.mkv", "Movie"},
-		{"Apocalypse Now Redux.mkv", "Apocalypse Now"},
-		{"Blade Runner Final Cut.mkv", "Blade Runner"},
+		{"Some War Story Redux.mkv", "Some War Story"},
+		{"Neon City Final Cut.mkv", "Neon City"},
 		{"Movie - Theatrical Cut.mkv", "Movie"},
 		{"Movie Special Edition.mkv", "Movie"},
 		{"Movie Remastered.mkv", "Movie"},
@@ -337,14 +337,14 @@ func TestParse_EditionSuffixStripped(t *testing.T) {
 		// only if it's not a standalone token - here it is, so it's
 		// stripped. Documents intentional risk.
 		{"Some Movie Uncut.mkv", "Some Movie"},
-		// Production gaps surfaced on pré-prod Saw + Léon orphans: "dc"
-		// (director's cut abbreviation), "extreme" (alt edition tag), and
-		// "extended" standalone (without an explicit "cut"/"edition"
-		// follow-up token).
-		{"Saw iv dc.mkv", "Saw iv"},
-		{"Saw iii dc extreme.mkv", "Saw iii"},
-		{"Léon remastered extended.mkv", "Léon"},
-		{"Léon extended.mkv", "Léon"},
+		// Production gaps surfaced on pré-prod franchise + accented-title
+		// orphans: "dc" (director's cut abbreviation), "extreme" (alt
+		// edition tag), and "extended" standalone (without an explicit
+		// "cut"/"edition" follow-up token).
+		{"Trap iv dc.mkv", "Trap iv"},
+		{"Trap iii dc extreme.mkv", "Trap iii"},
+		{"Zoé remastered extended.mkv", "Zoé"},
+		{"Zoé extended.mkv", "Zoé"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.filename, func(t *testing.T) {
@@ -354,20 +354,20 @@ func TestParse_EditionSuffixStripped(t *testing.T) {
 }
 
 func TestParse_TitleNotPollutedByOrphanResolution(t *testing.T) {
-	// Regression: "Mr Wolf - 1080p.mkv" used to land as title "Mr Wolf",
-	// but "Mr Wolf - 1080.mkv" (no `p`) was leaking "1080" into the title
-	// and TMDB then matched the animated title "The Trial of Mr. Wolf" instead.
+	// Regression: "Mr Gray - 1080p.mkv" used to land as title "Mr Gray",
+	// but "Mr Gray - 1080.mkv" (no `p`) was leaking "1080" into the title
+	// and TMDB then matched an unrelated animated short instead.
 	tests := []struct {
 		filename  string
 		wantTitle string
 	}{
-		{"Mr Wolf - 1080p.mkv", "Mr Wolf"},
-		{"Mr Wolf - 1080.mkv", "Mr Wolf"},
-		{"Mr Wolf 1080.mkv", "Mr Wolf"},
-		{"American Ultra - 1080.mkv", "American Ultra"},
-		{"American Ultra 1080.mkv", "American Ultra"},
-		{"Die hard 2 - 2016P.mkv", "Die hard 2"},
-		{"Die hard 2 2016P.mkv", "Die hard 2"},
+		{"Mr Gray - 1080p.mkv", "Mr Gray"},
+		{"Mr Gray - 1080.mkv", "Mr Gray"},
+		{"Mr Gray 1080.mkv", "Mr Gray"},
+		{"American Voyage - 1080.mkv", "American Voyage"},
+		{"American Voyage 1080.mkv", "American Voyage"},
+		{"Steel Storm 2 - 2016P.mkv", "Steel Storm 2"},
+		{"Steel Storm 2 2016P.mkv", "Steel Storm 2"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.filename, func(t *testing.T) {
@@ -394,14 +394,14 @@ func TestParse_ReleaseGroup(t *testing.T) {
 }
 
 func TestParse_CleanTitle(t *testing.T) {
-	info := ParseFilename("The.Dark.Knight.2008.1080p.BluRay.x264.DTS-FGT.mkv")
-	assert.Equal(t, "The Dark Knight", info.Title)
-	assert.Equal(t, "the dark knight", info.CleanTitle)
+	info := ParseFilename("The.Night.Guardian.2008.1080p.BluRay.x264.DTS-FGT.mkv")
+	assert.Equal(t, "The Night Guardian", info.Title)
+	assert.Equal(t, "the night guardian", info.CleanTitle)
 }
 
 func TestUcFirst_RuneAware(t *testing.T) {
 	// ASCII unchanged.
-	assert.Equal(t, "The dark knight", ucFirst("the dark knight"))
+	assert.Equal(t, "The night guardian", ucFirst("the night guardian"))
 	assert.Empty(t, ucFirst(""))
 	// Multi-byte first rune must be capitalised, not byte-sliced into a mojibake
 	// replacement char + orphan continuation byte.
@@ -463,9 +463,9 @@ func TestParse_NoMatches(t *testing.T) {
 }
 
 func TestParse_FullPath(t *testing.T) {
-	info := ParseFilename("/media/tv/The.Office.S02E03.720p.mkv")
+	info := ParseFilename("/media/tv/The.Outpost.S02E03.720p.mkv")
 	assert.Equal(t, "series", info.Type)
-	assert.Equal(t, "The Office", info.Title)
+	assert.Equal(t, "The Outpost", info.Title)
 	assert.Equal(t, "S02E03", info.SE)
 	require.NotNil(t, info.Season)
 	assert.Equal(t, 2, *info.Season)
@@ -482,9 +482,9 @@ func TestParse_UnderscoreSeparators(t *testing.T) {
 }
 
 func TestParse_ComplexSerie(t *testing.T) {
-	info := ParseFilename("Game.of.Thrones.S08E06.1080p.x265.mkv")
+	info := ParseFilename("Crown.of.Embers.S08E06.1080p.x265.mkv")
 	assert.Equal(t, "series", info.Type)
-	assert.Equal(t, "Game of Thrones", info.Title)
+	assert.Equal(t, "Crown of Embers", info.Title)
 	assert.Equal(t, "S08E06", info.SE)
 	require.NotNil(t, info.Season)
 	assert.Equal(t, 8, *info.Season)
@@ -504,13 +504,13 @@ func TestParse_NormalizeVideoMovies(t *testing.T) {
 		langTag  string
 		quality  string
 	}{
-		{"avatar.2009.1080p.bluray.x264.mkv", "Avatar", "", "", "1080p"},
-		{"inception.2010.vf.1080p.bluray.mkv", "Inception", "fr", "vf", "1080p"},
-		{"interstellar.2014.vostfr.720p.web.mkv", "Interstellar", "fr", "vostfr", "720p"},
-		{"the.matrix.1999.truefrench.1080p.bluray.mkv", "The matrix", "fr", "truefrench", "1080p"},
-		{"dune.2021.multi.2160p.uhd.bluray.mkv", "Dune", "multi", "multi", "2160p"},
-		{"parasite.2019.vostfr.1080p.web.mkv", "Parasite", "fr", "vostfr", "1080p"},
-		{"oppenheimer.2023.vf.4k.bluray.mkv", "Oppenheimer", "fr", "vf", "4k"},
+		{"harbor.2009.1080p.bluray.x264.mkv", "Harbor", "", "", "1080p"},
+		{"lantern.2010.vf.1080p.bluray.mkv", "Lantern", "fr", "vf", "1080p"},
+		{"meridian.2014.vostfr.720p.web.mkv", "Meridian", "fr", "vostfr", "720p"},
+		{"the.mirror.1999.truefrench.1080p.bluray.mkv", "The mirror", "fr", "truefrench", "1080p"},
+		{"nova.2021.multi.2160p.uhd.bluray.mkv", "Nova", "multi", "multi", "2160p"},
+		{"wanderer.2019.vostfr.1080p.web.mkv", "Wanderer", "fr", "vostfr", "1080p"},
+		{"solstice.2023.vf.4k.bluray.mkv", "Solstice", "fr", "vf", "4k"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.filename, func(t *testing.T) {
@@ -524,22 +524,22 @@ func TestParse_NormalizeVideoMovies(t *testing.T) {
 }
 
 // --- Regression: weak 2-letter ISO codes must not truncate title ---
-// (before the fix, "It welcome..." got truncated to "It" because "it" was
-// matched as Italian at idx 0; "Le flic de shanghai" became "Le flic"
+// (before the fix, "It rains forever..." got truncated to "It" because "it"
+// was matched as Italian at idx 0; "Le flic de Valparaiso" became "Le flic"
 // because "de" was matched as German at idx 2.)
 
 func TestParse_TitleStartingWithLanguageLikeWord_It(t *testing.T) {
-	info := ParseFilename("It welcome to derry S01E03 - MULTI - 1080P.mkv")
+	info := ParseFilename("It rains forever S01E03 - MULTI - 1080P.mkv")
 	assert.Equal(t, "series", info.Type)
-	assert.Equal(t, "It welcome to derry", info.Title)
+	assert.Equal(t, "It rains forever", info.Title)
 	assert.Equal(t, "S01E03", info.SE)
 	assert.Equal(t, "multi", info.Language)
 }
 
 func TestParse_TitleWithFrenchPrepositionDe(t *testing.T) {
-	info := ParseFilename("Le flic de shanghai S01E01.avi")
+	info := ParseFilename("Le flic de Valparaiso S01E01.avi")
 	assert.Equal(t, "series", info.Type)
-	assert.Equal(t, "Le flic de shanghai", info.Title)
+	assert.Equal(t, "Le flic de Valparaiso", info.Title)
 	assert.Equal(t, "S01E01", info.SE)
 }
 
@@ -554,9 +554,9 @@ func TestParse_WeakLanguageAfterStrongMarker_Still_Works(t *testing.T) {
 
 func TestParse_WeakLanguageBeforeStrongMarker_IgnoredAsTitle(t *testing.T) {
 	// "IT" without any strong marker before it stays in the title
-	info := ParseFilename("IT Crowd S01E01.mkv")
+	info := ParseFilename("IT Squad S01E01.mkv")
 	assert.Equal(t, "series", info.Type)
-	assert.Equal(t, "IT Crowd", info.Title)
+	assert.Equal(t, "IT Squad", info.Title)
 	assert.Equal(t, "S01E01", info.SE)
 	assert.Empty(t, info.Language) // "IT" was part of the title, not a lang tag
 }
@@ -571,13 +571,13 @@ func TestParse_NormalizeVideoSeries(t *testing.T) {
 		season   int
 		episode  int
 	}{
-		{"breaking.bad.s01e01.vostfr.1080p.mkv", "Breaking bad", "fr", "vostfr", "S01E01", 1, 1},
-		{"game.of.thrones.s05e09.vf.720p.mkv", "Game of thrones", "fr", "vf", "S05E09", 5, 9},
-		{"the.wire.s02e03.multi.1080p.mkv", "The wire", "multi", "multi", "S02E03", 2, 3},
-		{"stranger.things.s04e01.vostfr.2160p.mkv", "Stranger things", "fr", "vostfr", "S04E01", 4, 1},
-		{"the.mandalorian.1x05.vf.1080p.mkv", "The mandalorian", "fr", "vf", "S01E05", 1, 5},
-		{"dark.s01e01.vostde.1080p.mkv", "Dark", "de", "vostde", "S01E01", 1, 1},
-		{"money.heist.s02e04.vostes.720p.mkv", "Money heist", "es", "vostes", "S02E04", 2, 4},
+		{"quiet.storm.s01e01.vostfr.1080p.mkv", "Quiet storm", "fr", "vostfr", "S01E01", 1, 1},
+		{"crown.of.embers.s05e09.vf.720p.mkv", "Crown of embers", "fr", "vf", "S05E09", 5, 9},
+		{"the.signal.s02e03.multi.1080p.mkv", "The signal", "multi", "multi", "S02E03", 2, 3},
+		{"hidden.things.s04e01.vostfr.2160p.mkv", "Hidden things", "fr", "vostfr", "S04E01", 4, 1},
+		{"the.wanderer.1x05.vf.1080p.mkv", "The wanderer", "fr", "vf", "S01E05", 1, 5},
+		{"shadow.s01e01.vostde.1080p.mkv", "Shadow", "de", "vostde", "S01E01", 1, 1},
+		{"silver.heist.s02e04.vostes.720p.mkv", "Silver heist", "es", "vostes", "S02E04", 2, 4},
 	}
 	for _, tt := range tests {
 		t.Run(tt.filename, func(t *testing.T) {

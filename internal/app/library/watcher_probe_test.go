@@ -25,7 +25,7 @@ func TestIsProbePath(t *testing.T) {
 		want bool
 	}{
 		{"/media/tv/" + library.ProbeFilePrefix + "1730000000", true},
-		{"/media/movies/Inception (2010).mkv", false},
+		{"/media/movies/Some Movie (2010).mkv", false},
 		{"/media/movies/.hidden.mkv", false},
 		// A user file that merely CONTAINS the prefix mid-name is not ours.
 		{"/media/movies/my" + library.ProbeFilePrefix + "notes.txt", false},

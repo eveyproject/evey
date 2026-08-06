@@ -50,7 +50,7 @@ func runPlaylistDownload(t *testing.T, h *playlistHandler, claims *domainuser.Cl
 // tracks (resolved from music_tracks) and media items (movies/episodes) mixed.
 func TestDownloadPlaylist_Manual_MediaAndMusic(t *testing.T) {
 	dir := t.TempDir()
-	movie := &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", Type: domainlibrary.MovieItem, Title: "Inception", File: &domainlibrary.MediaFile{Path: archiveTempFile(t, dir, "inception.mkv", "movie")}}
+	movie := &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", Type: domainlibrary.MovieItem, Title: "Some Movie", File: &domainlibrary.MediaFile{Path: archiveTempFile(t, dir, "some-movie.mkv", "movie")}}
 	track := &music.Track{ID: "t1", LibraryID: "lib2", Title: "Song", FilePath: archiveTempFile(t, dir, "song.flac", "audio")}
 
 	h := &playlistHandler{
@@ -74,7 +74,7 @@ func TestDownloadPlaylist_Manual_MediaAndMusic(t *testing.T) {
 		t.Errorf("Content-Type = %q, want application/zip", ct)
 	}
 	got := zipEntryNames(t, w.Body.Bytes())
-	want := []string{"Inception.mkv", "Song.flac"}
+	want := []string{"Some Movie.mkv", "Song.flac"}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("zip entries = %v, want %v", got, want)
 	}

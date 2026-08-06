@@ -526,11 +526,11 @@ func TestQueryService_GetMediaStreams_AssertStreamContent(t *testing.T) {
 func TestQueryService_SearchMedia_Finds(t *testing.T) {
 	t.Parallel()
 	f := newQuerySvcFull()
-	f.search.IndexMediaItem(context.Background(), &library.MediaItem{ID: "m1", Title: "Batman Begins"}, nil)
-	f.search.IndexMediaItem(context.Background(), &library.MediaItem{ID: "m2", Title: "Batman Returns"}, nil)
-	f.search.IndexMediaItem(context.Background(), &library.MediaItem{ID: "m3", Title: "Superman"}, nil)
+	f.search.IndexMediaItem(context.Background(), &library.MediaItem{ID: "m1", Title: "Falcon Begins"}, nil)
+	f.search.IndexMediaItem(context.Background(), &library.MediaItem{ID: "m2", Title: "Falcon Returns"}, nil)
+	f.search.IndexMediaItem(context.Background(), &library.MediaItem{ID: "m3", Title: "Skyward"}, nil)
 
-	hits, total, err := f.svc.SearchMedia(context.Background(), "batman", nil, nil, 10)
+	hits, total, err := f.svc.SearchMedia(context.Background(), "falcon", nil, nil, 10)
 	require.NoError(t, err)
 	assert.Equal(t, int64(2), total)
 	assert.Len(t, hits, 2)
@@ -539,10 +539,10 @@ func TestQueryService_SearchMedia_Finds(t *testing.T) {
 func TestQueryService_SearchMedia_LimitApplied(t *testing.T) {
 	t.Parallel()
 	f := newQuerySvcFull()
-	f.search.IndexMediaItem(context.Background(), &library.MediaItem{ID: "m1", Title: "Batman Begins"}, nil)
-	f.search.IndexMediaItem(context.Background(), &library.MediaItem{ID: "m2", Title: "Batman Returns"}, nil)
+	f.search.IndexMediaItem(context.Background(), &library.MediaItem{ID: "m1", Title: "Falcon Begins"}, nil)
+	f.search.IndexMediaItem(context.Background(), &library.MediaItem{ID: "m2", Title: "Falcon Returns"}, nil)
 
-	hits, _, err := f.svc.SearchMedia(context.Background(), "batman", nil, nil, 1)
+	hits, _, err := f.svc.SearchMedia(context.Background(), "falcon", nil, nil, 1)
 	require.NoError(t, err)
 	assert.Len(t, hits, 1)
 }
@@ -561,17 +561,17 @@ func TestQueryService_SearchMedia_HitContent(t *testing.T) {
 	f := newQuerySvcFull()
 	year := 2005
 	f.search.IndexMediaItem(context.Background(), &library.MediaItem{
-		ID: "m1", Title: "Batman Begins", Type: "movie",
+		ID: "m1", Title: "Falcon Begins", Type: "movie",
 		Catalog:        &library.MediaCatalog{Year: &year, Genres: []string{"action"}},
 		Classification: &library.MediaClassification{OfficialRating: "PG-13"},
 	}, nil)
 
-	hits, total, err := f.svc.SearchMedia(context.Background(), "batman", nil, nil, 10)
+	hits, total, err := f.svc.SearchMedia(context.Background(), "falcon", nil, nil, 10)
 	require.NoError(t, err)
 	assert.Equal(t, int64(1), total)
 	require.Len(t, hits, 1)
 	assert.Equal(t, "m1", hits[0].ID)
-	assert.Equal(t, "Batman Begins", hits[0].Title)
+	assert.Equal(t, "Falcon Begins", hits[0].Title)
 	assert.Equal(t, "movie", hits[0].Type)
 	assert.Equal(t, 2005, *hits[0].Year)
 	assert.Equal(t, []string{"action"}, hits[0].Genres)
@@ -631,7 +631,7 @@ func TestQueryService_GetMediaItem_Found(t *testing.T) {
 	year := 2020
 	rating := 8.5
 	f.media.Seed(&library.MediaItem{
-		ID: "m1", Title: "Inception", Type: "movie",
+		ID: "m1", Title: "Some Movie", Type: "movie",
 		LibraryID:      "lib-1",
 		Catalog:        &library.MediaCatalog{Year: &year, Genres: []string{"sci-fi", "thriller"}},
 		Classification: &library.MediaClassification{CommunityRating: &rating},
@@ -640,7 +640,7 @@ func TestQueryService_GetMediaItem_Found(t *testing.T) {
 	item, err := f.svc.GetMediaItem(context.Background(), "m1")
 	require.NoError(t, err)
 	assert.Equal(t, shared.MediaItemID("m1"), item.ID)
-	assert.Equal(t, "Inception", item.Title)
+	assert.Equal(t, "Some Movie", item.Title)
 	assert.Equal(t, library.MediaItemType("movie"), item.Type)
 	assert.Equal(t, shared.LibraryID("lib-1"), item.LibraryID)
 	require.NotNil(t, item.Catalog)

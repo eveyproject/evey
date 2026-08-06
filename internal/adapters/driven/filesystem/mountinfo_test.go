@@ -23,7 +23,7 @@ func TestFsTypeFor_LongestPrefixWins(t *testing.T) {
 		want string
 	}{
 		// A file deep inside a share resolves to that share, not to /.
-		{"/media/nas/Films/Inception.mkv", "cifs"},
+		{"/media/nas/Films/Some Movie.mkv", "cifs"},
 		{"/media/tv/Show/S01E01.mkv", "nfs4"},
 		{"/media/local/movie.mkv", "ext4"},
 		// The mount point itself.

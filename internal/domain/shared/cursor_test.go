@@ -8,7 +8,7 @@ import (
 
 func TestCursor_RoundTrip(t *testing.T) {
 	t.Parallel()
-	c := shared.Cursor{SortField: "title", SortValue: "Inception", LastID: "m-42"}
+	c := shared.Cursor{SortField: "title", SortValue: "Some Movie", LastID: "m-42"}
 	enc := shared.EncodeCursor(c)
 	if enc == "" {
 		t.Fatal("non-empty cursor must encode to non-empty string")

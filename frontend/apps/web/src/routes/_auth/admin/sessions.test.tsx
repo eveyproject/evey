@@ -52,7 +52,7 @@ async function getSessionsPage() {
 const mockSession = {
   sessionId: "sess-1",
   profileName: "Alice",
-  mediaTitle: "Breaking Bad S01E01",
+  mediaTitle: "Some Series S01E01",
   mediaType: "episode",
   mediaItemId: "media-1",
   progress: 42,
@@ -108,7 +108,7 @@ describe("SessionsPage", () => {
     const SessionsPage = await getSessionsPage();
     render(React.createElement(SessionsPage), { wrapper: createWrapper() });
     expect(screen.getByText("Alice")).toBeInTheDocument();
-    expect(screen.getByText("Breaking Bad S01E01")).toBeInTheDocument();
+    expect(screen.getByText("Some Series S01E01")).toBeInTheDocument();
   });
 
   it("shows Direct Play badge for direct_play method", async () => {

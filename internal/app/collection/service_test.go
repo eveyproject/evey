@@ -24,10 +24,10 @@ func newSvc() (*appcol.Service, *libfakes.FakeCollectionRepository, *libfakes.Fa
 func TestUpsert(t *testing.T) {
 	t.Parallel()
 	svc, _, _ := newSvc()
-	col, err := svc.Upsert(context.Background(), 131292, "The Dark Knight Collection", "Christopher Nolan's Batman saga", "", "")
+	col, err := svc.Upsert(context.Background(), 131292, "The Twilight Guardian Collection", "A celebrated director's caped-hero saga", "", "")
 	require.NoError(t, err)
 	assert.NotEmpty(t, col.ID)
-	assert.Equal(t, "The Dark Knight Collection", col.Name)
+	assert.Equal(t, "The Twilight Guardian Collection", col.Name)
 	assert.Equal(t, 131292, *col.TmdbID)
 }
 
@@ -36,16 +36,16 @@ func TestUpsert_UpdatesExisting(t *testing.T) {
 	svc, _, _ := newSvc()
 	ctx := context.Background()
 
-	_, err := svc.Upsert(ctx, 131292, "Batman Collection", "old", "old_poster", "")
+	_, err := svc.Upsert(ctx, 131292, "Guardian Collection", "old", "old_poster", "")
 	require.NoError(t, err)
 
-	_, err = svc.Upsert(ctx, 131292, "The Dark Knight Collection", "updated", "new_poster", "")
+	_, err = svc.Upsert(ctx, 131292, "The Twilight Guardian Collection", "updated", "new_poster", "")
 	require.NoError(t, err)
 
 	cols, err := svc.List(ctx)
 	require.NoError(t, err)
 	assert.Len(t, cols, 1, "upsert should not create a duplicate")
-	assert.Equal(t, "The Dark Knight Collection", cols[0].Name)
+	assert.Equal(t, "The Twilight Guardian Collection", cols[0].Name)
 }
 
 func TestListCollections(t *testing.T) {
@@ -141,13 +141,13 @@ func TestGetByID(t *testing.T) {
 	svc, _, _ := newSvc()
 	ctx := context.Background()
 
-	col, err := svc.Upsert(ctx, 5, "Marvel Saga", "overview", "", "")
+	col, err := svc.Upsert(ctx, 5, "Heroes Saga", "overview", "", "")
 	require.NoError(t, err)
 
 	got, err := svc.GetByID(ctx, col.ID)
 	require.NoError(t, err)
 	assert.Equal(t, col.ID, got.ID)
-	assert.Equal(t, "Marvel Saga", got.Name)
+	assert.Equal(t, "Heroes Saga", got.Name)
 }
 
 func TestGetByID_NotFound(t *testing.T) {
@@ -601,12 +601,12 @@ func TestCreate_KeepsTheDescription(t *testing.T) {
 	svc, _, _ := newSvc()
 	ctx := context.Background()
 
-	col, err := svc.Create(ctx, "Nolan", "Everything Christopher Nolan directed", nil, "year")
+	col, err := svc.Create(ctx, "Auteur", "Everything the auteur directed", nil, "year")
 	require.NoError(t, err)
 
 	got, err := svc.GetByID(ctx, col.ID)
 	require.NoError(t, err)
-	assert.Equal(t, "Everything Christopher Nolan directed", got.Overview)
+	assert.Equal(t, "Everything the auteur directed", got.Overview)
 }
 
 // Absent means keep, so renaming a saga does not cost it the synopsis TMDB
@@ -616,16 +616,16 @@ func TestUpdate_LeavesTheDescriptionAloneUnlessAsked(t *testing.T) {
 	svc, _, _ := newSvc()
 	ctx := context.Background()
 
-	col, err := svc.Create(ctx, "Nolan", "The synopsis", nil, "year")
+	col, err := svc.Create(ctx, "Auteur", "The synopsis", nil, "year")
 	require.NoError(t, err)
 
-	require.NoError(t, svc.Update(ctx, col.ID, "Nolan films", nil, nil, "year"))
+	require.NoError(t, svc.Update(ctx, col.ID, "Auteur films", nil, nil, "year"))
 	got, err := svc.GetByID(ctx, col.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "The synopsis", got.Overview, "a rename must not wipe the description")
 
 	cleared := ""
-	require.NoError(t, svc.Update(ctx, col.ID, "Nolan films", &cleared, nil, "year"))
+	require.NoError(t, svc.Update(ctx, col.ID, "Auteur films", &cleared, nil, "year"))
 	got, err = svc.GetByID(ctx, col.ID)
 	require.NoError(t, err)
 	assert.Empty(t, got.Overview, "an empty string clears it on purpose")

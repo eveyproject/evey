@@ -26,28 +26,28 @@ func TestIMDBAPIProvider_Name(t *testing.T) {
 func TestIMDBAPIProvider_Search(t *testing.T) {
 	srv, p := newIMDBAPITestServer(func(w http.ResponseWriter, r *http.Request) {
 		assert.Contains(t, r.URL.Path, "/search/titles")
-		assert.Equal(t, "Inception", r.URL.Query().Get("query"))
+		assert.Equal(t, "Some Movie", r.URL.Query().Get("query"))
 		assert.Equal(t, "10", r.URL.Query().Get("limit"))
 		json.NewEncoder(w).Encode(imdbSearchResponse{
 			Results: []imdbTitle{
 				{
-					ID:            "tt1375666",
+					ID:            "tt0000001",
 					Type:          "movie",
-					PrimaryTitle:  "Inception",
-					OriginalTitle: "Inception",
-					Plot:          "A thief who steals corporate secrets.",
+					PrimaryTitle:  "Some Movie",
+					OriginalTitle: "Some Movie",
+					Plot:          "A group pulls off a daring heist.",
 					StartYear:     2010,
 					Genres:        []string{"Action", "Sci-Fi", "Thriller"},
 					Rating:        &imdbRating{AggregateRating: 8.8, VoteCount: 2400000},
-					PrimaryImage:  &imdbImage{URL: "http://img.com/inception.jpg", Width: 400, Height: 600},
-					Directors:     []imdbName{{ID: "nm0634240", DisplayName: "Christopher Nolan"}},
-					Stars:         []imdbName{{ID: "nm0000138", DisplayName: "Leonardo DiCaprio"}},
-					Writers:       []imdbName{{ID: "nm0634240", DisplayName: "Christopher Nolan"}},
+					PrimaryImage:  &imdbImage{URL: "http://img.com/some-movie.jpg", Width: 400, Height: 600},
+					Directors:     []imdbName{{ID: "nm0000001", DisplayName: "Director One"}},
+					Stars:         []imdbName{{ID: "nm0000002", DisplayName: "Actor One"}},
+					Writers:       []imdbName{{ID: "nm0000001", DisplayName: "Director One"}},
 				},
 				{
-					ID:           "tt2980516",
+					ID:           "tt0000002",
 					Type:         "movie",
-					PrimaryTitle: "Inception: The Cobol Job",
+					PrimaryTitle: "Some Movie: The Origins Job",
 					StartYear:    2010,
 					Genres:       []string{"Animation"},
 				},
@@ -56,15 +56,15 @@ func TestIMDBAPIProvider_Search(t *testing.T) {
 	})
 	defer srv.Close()
 
-	results, err := p.Search(context.Background(), "Inception", nil, "movie")
+	results, err := p.Search(context.Background(), "Some Movie", nil, "movie")
 	require.NoError(t, err)
 	require.Len(t, results, 2)
 
 	r := results[0]
-	assert.Equal(t, "Inception", r.Title)
-	assert.Equal(t, "Inception", r.OriginalTitle)
-	assert.Equal(t, "A thief who steals corporate secrets.", r.Overview)
-	assert.Equal(t, "tt1375666", r.ProviderIDs["imdb"])
+	assert.Equal(t, "Some Movie", r.Title)
+	assert.Equal(t, "Some Movie", r.OriginalTitle)
+	assert.Equal(t, "A group pulls off a daring heist.", r.Overview)
+	assert.Equal(t, "tt0000001", r.ProviderIDs["imdb"])
 	require.NotNil(t, r.Year)
 	assert.Equal(t, 2010, *r.Year)
 	assert.Equal(t, []string{"Action", "Sci-Fi", "Thriller"}, r.Genres)
@@ -73,7 +73,7 @@ func TestIMDBAPIProvider_Search(t *testing.T) {
 
 	require.Len(t, r.Artwork, 1)
 	assert.Equal(t, "poster", r.Artwork[0].Type)
-	assert.Equal(t, "http://img.com/inception.jpg", r.Artwork[0].URL)
+	assert.Equal(t, "http://img.com/some-movie.jpg", r.Artwork[0].URL)
 	assert.Equal(t, 400, r.Artwork[0].Width)
 	assert.Equal(t, 600, r.Artwork[0].Height)
 
@@ -81,49 +81,49 @@ func TestIMDBAPIProvider_Search(t *testing.T) {
 	actors := filterPeople(r.People, "Actor")
 	writers := filterPeople(r.People, "Writer")
 	require.Len(t, directors, 1)
-	assert.Equal(t, "Christopher Nolan", directors[0].Name)
+	assert.Equal(t, "Director One", directors[0].Name)
 	require.Len(t, actors, 1)
-	assert.Equal(t, "Leonardo DiCaprio", actors[0].Name)
+	assert.Equal(t, "Actor One", actors[0].Name)
 	require.Len(t, writers, 1)
-	assert.Equal(t, "Christopher Nolan", writers[0].Name)
+	assert.Equal(t, "Director One", writers[0].Name)
 
-	assert.Equal(t, "Inception: The Cobol Job", results[1].Title)
+	assert.Equal(t, "Some Movie: The Origins Job", results[1].Title)
 }
 
 func TestIMDBAPIProvider_Search_FiltersMoviesForTVType(t *testing.T) {
 	srv, p := newIMDBAPITestServer(func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(imdbSearchResponse{
 			Results: []imdbTitle{
-				{ID: "tt1396484", Type: "movie", PrimaryTitle: "It", StartYear: 2017},
-				{ID: "tt0099864", Type: "tvMiniSeries", PrimaryTitle: "It", StartYear: 1990},
-				{ID: "tt7349950", Type: "tvSeries", PrimaryTitle: "It", StartYear: 2024},
+				{ID: "tt0000020", Type: "movie", PrimaryTitle: "Push", StartYear: 2017},
+				{ID: "tt0000021", Type: "tvMiniSeries", PrimaryTitle: "Push", StartYear: 1990},
+				{ID: "tt0000022", Type: "tvSeries", PrimaryTitle: "Push", StartYear: 2024},
 			},
 		})
 	})
 	defer srv.Close()
 
-	results, err := p.Search(context.Background(), "It", nil, "tv")
+	results, err := p.Search(context.Background(), "Push", nil, "tv")
 	require.NoError(t, err)
 	require.Len(t, results, 2)
-	assert.Equal(t, "tt0099864", results[0].ProviderIDs["imdb"])
-	assert.Equal(t, "tt7349950", results[1].ProviderIDs["imdb"])
+	assert.Equal(t, "tt0000021", results[0].ProviderIDs["imdb"])
+	assert.Equal(t, "tt0000022", results[1].ProviderIDs["imdb"])
 }
 
 func TestIMDBAPIProvider_Search_FiltersTVForMovieType(t *testing.T) {
 	srv, p := newIMDBAPITestServer(func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(imdbSearchResponse{
 			Results: []imdbTitle{
-				{ID: "tt1396484", Type: "movie", PrimaryTitle: "It", StartYear: 2017},
-				{ID: "tt0099864", Type: "tvMiniSeries", PrimaryTitle: "It", StartYear: 1990},
+				{ID: "tt0000020", Type: "movie", PrimaryTitle: "Push", StartYear: 2017},
+				{ID: "tt0000021", Type: "tvMiniSeries", PrimaryTitle: "Push", StartYear: 1990},
 			},
 		})
 	})
 	defer srv.Close()
 
-	results, err := p.Search(context.Background(), "It", nil, "movie")
+	results, err := p.Search(context.Background(), "Push", nil, "movie")
 	require.NoError(t, err)
 	require.Len(t, results, 1)
-	assert.Equal(t, "tt1396484", results[0].ProviderIDs["imdb"])
+	assert.Equal(t, "tt0000020", results[0].ProviderIDs["imdb"])
 }
 
 func TestIMDBAPIProvider_Search_Empty(t *testing.T) {
@@ -139,35 +139,35 @@ func TestIMDBAPIProvider_Search_Empty(t *testing.T) {
 
 func TestIMDBAPIProvider_GetByProviderID(t *testing.T) {
 	srv, p := newIMDBAPITestServer(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/titles/tt0111161", r.URL.Path)
+		assert.Equal(t, "/titles/tt0000003", r.URL.Path)
 		json.NewEncoder(w).Encode(imdbTitle{
-			ID:            "tt0111161",
+			ID:            "tt0000003",
 			Type:          "movie",
-			PrimaryTitle:  "The Shawshank Redemption",
-			OriginalTitle: "The Shawshank Redemption",
-			Plot:          "Two imprisoned men bond over a number of years.",
+			PrimaryTitle:  "Some Prison Story",
+			OriginalTitle: "Some Prison Story",
+			Plot:          "Two inmates become friends over the years.",
 			StartYear:     1994,
 			Genres:        []string{"Drama"},
 			Rating:        &imdbRating{AggregateRating: 9.3, VoteCount: 2700000},
-			PrimaryImage:  &imdbImage{URL: "http://img.com/shawshank.jpg", Width: 500, Height: 740},
-			Directors:     []imdbName{{ID: "nm0001104", DisplayName: "Frank Darabont"}},
+			PrimaryImage:  &imdbImage{URL: "http://img.com/some-prison-story.jpg", Width: 500, Height: 740},
+			Directors:     []imdbName{{ID: "nm0000003", DisplayName: "Director Two"}},
 			Stars: []imdbName{
-				{ID: "nm0000209", DisplayName: "Tim Robbins"},
-				{ID: "nm0000151", DisplayName: "Morgan Freeman"},
+				{ID: "nm0000004", DisplayName: "Actor Two"},
+				{ID: "nm0000005", DisplayName: "Actor Three"},
 			},
-			Writers: []imdbName{{ID: "nm0000175", DisplayName: "Stephen King"}},
+			Writers: []imdbName{{ID: "nm0000006", DisplayName: "Writer One"}},
 		})
 	})
 	defer srv.Close()
 
-	result, err := p.GetByProviderID(context.Background(), "tt0111161", "movie")
+	result, err := p.GetByProviderID(context.Background(), "tt0000003", "movie")
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
-	assert.Equal(t, "The Shawshank Redemption", result.Title)
-	assert.Equal(t, "The Shawshank Redemption", result.OriginalTitle)
-	assert.Equal(t, "Two imprisoned men bond over a number of years.", result.Overview)
-	assert.Equal(t, "tt0111161", result.ProviderIDs["imdb"])
+	assert.Equal(t, "Some Prison Story", result.Title)
+	assert.Equal(t, "Some Prison Story", result.OriginalTitle)
+	assert.Equal(t, "Two inmates become friends over the years.", result.Overview)
+	assert.Equal(t, "tt0000003", result.ProviderIDs["imdb"])
 	require.NotNil(t, result.Year)
 	assert.Equal(t, 1994, *result.Year)
 	require.NotNil(t, result.PremiereDate)
@@ -178,18 +178,18 @@ func TestIMDBAPIProvider_GetByProviderID(t *testing.T) {
 
 	require.Len(t, result.Artwork, 1)
 	assert.Equal(t, "poster", result.Artwork[0].Type)
-	assert.Equal(t, "http://img.com/shawshank.jpg", result.Artwork[0].URL)
+	assert.Equal(t, "http://img.com/some-prison-story.jpg", result.Artwork[0].URL)
 
 	directors := filterPeople(result.People, "Director")
 	actors := filterPeople(result.People, "Actor")
 	writers := filterPeople(result.People, "Writer")
 	require.Len(t, directors, 1)
-	assert.Equal(t, "Frank Darabont", directors[0].Name)
+	assert.Equal(t, "Director Two", directors[0].Name)
 	require.Len(t, actors, 2)
-	assert.Equal(t, "Tim Robbins", actors[0].Name)
-	assert.Equal(t, "Morgan Freeman", actors[1].Name)
+	assert.Equal(t, "Actor Two", actors[0].Name)
+	assert.Equal(t, "Actor Three", actors[1].Name)
 	require.Len(t, writers, 1)
-	assert.Equal(t, "Stephen King", writers[0].Name)
+	assert.Equal(t, "Writer One", writers[0].Name)
 }
 
 func TestIMDBAPIProvider_GetByProviderID_NotFound(t *testing.T) {
@@ -235,7 +235,7 @@ func TestIMDBAPIProvider_Search_ServerError(t *testing.T) {
 	})
 	defer srv.Close()
 
-	results, err := p.Search(context.Background(), "Inception", nil, "movie")
+	results, err := p.Search(context.Background(), "Some Movie", nil, "movie")
 	require.Error(t, err)
 	assert.Nil(t, results)
 	assert.Contains(t, err.Error(), "500")

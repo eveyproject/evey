@@ -9,7 +9,7 @@ const mockSetOverride = { mutateAsync: vi.fn().mockResolvedValue({}), isError: f
 const mockRemoveOverride = { mutateAsync: vi.fn().mockResolvedValue({}) };
 const mockRefresh = { mutateAsync: vi.fn().mockResolvedValue({}) };
 const mockListOverrides = vi.fn().mockReturnValue({ data: { overrides: [] } });
-const mockEveyFetch = vi.fn().mockResolvedValue({ mediaItemId: "m1", matched: true, newTitle: "Billions" });
+const mockEveyFetch = vi.fn().mockResolvedValue({ mediaItemId: "m1", matched: true, newTitle: "Some Series" });
 
 vi.mock("@evey/api", () => ({
   useMetadataServiceSetMetadataOverride: () => mockSetOverride,
@@ -32,14 +32,14 @@ function Wrapper({ children }: { children: React.ReactNode }) {
 
 const baseItem: V1MediaItem = {
   id: "m1",
-  title: "Inception",
-  originalTitle: "Inception (Original)",
+  title: "Some Movie",
+  originalTitle: "Some Movie (Original)",
   year: 2010,
   overview: "Dreams within dreams.",
   genres: ["Action", "Sci-Fi"],
   communityRating: 8.8,
   type: "MEDIA_ITEM_TYPE_MOVIE",
-  providerIds: { imdb: "tt1375666", tmdb: "27205" },
+  providerIds: { imdb: "tt0000001", tmdb: "900001" },
 };
 
 const defaultProps = {
@@ -66,7 +66,7 @@ describe("MetadataEditPanel", () => {
 
   it("pre-fills title input", () => {
     render(<MetadataEditPanel {...defaultProps} />, { wrapper: Wrapper });
-    const input = screen.getByDisplayValue("Inception");
+    const input = screen.getByDisplayValue("Some Movie");
     expect(input).toBeInTheDocument();
   });
 
@@ -92,20 +92,20 @@ describe("MetadataEditPanel", () => {
 
   it("pre-fills IMDB and TMDB ids", () => {
     render(<MetadataEditPanel {...defaultProps} />, { wrapper: Wrapper });
-    expect(screen.getByDisplayValue("tt1375666")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("27205")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("tt0000001")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("900001")).toBeInTheDocument();
   });
 
   it("renders IMDB link when imdbId present", () => {
     render(<MetadataEditPanel {...defaultProps} />, { wrapper: Wrapper });
     const link = screen.getByRole("link", { name: /imdb/i });
-    expect(link).toHaveAttribute("href", "https://www.imdb.com/title/tt1375666/");
+    expect(link).toHaveAttribute("href", "https://www.imdb.com/title/tt0000001/");
   });
 
   it("renders TMDB link when tmdbId present", () => {
     render(<MetadataEditPanel {...defaultProps} />, { wrapper: Wrapper });
     const link = screen.getByRole("link", { name: /tmdb/i });
-    expect(link).toHaveAttribute("href", "https://www.themoviedb.org/movie/27205");
+    expect(link).toHaveAttribute("href", "https://www.themoviedb.org/movie/900001");
   });
 
   it("renders save, refresh, and cancel buttons", () => {
@@ -133,7 +133,7 @@ describe("MetadataEditPanel", () => {
   it("handles empty providerIds gracefully", () => {
     const item = { ...baseItem, providerIds: undefined };
     render(<MetadataEditPanel {...defaultProps} item={item} />, { wrapper: Wrapper });
-    expect(screen.getByDisplayValue("Inception")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Some Movie")).toBeInTheDocument();
   });
 
   it("handles missing optional fields", () => {
@@ -150,12 +150,12 @@ describe("MetadataEditPanel", () => {
     const item = { ...baseItem, type: "MEDIA_ITEM_TYPE_SERIES" as const };
     render(<MetadataEditPanel {...defaultProps} item={item} />, { wrapper: Wrapper });
     const tmdbLink = screen.getByRole("link", { name: /tmdb/i });
-    expect(tmdbLink).toHaveAttribute("href", "https://www.themoviedb.org/tv/27205");
+    expect(tmdbLink).toHaveAttribute("href", "https://www.themoviedb.org/tv/900001");
   });
 
   it("shows id-changed warning when tmdbId modified", () => {
     render(<MetadataEditPanel {...defaultProps} />, { wrapper: Wrapper });
-    const tmdbInput = screen.getByDisplayValue("27205");
+    const tmdbInput = screen.getByDisplayValue("900001");
     fireEvent.change(tmdbInput, { target: { value: "99999" } });
     const tmdbLink = screen.getByRole("link", { name: /tmdb/i });
     expect(tmdbLink).toHaveAttribute("href", "https://www.themoviedb.org/movie/99999");

@@ -21,7 +21,7 @@ vi.mock("@evey/api", async (importOriginal) => ({
   useNotificationServiceListNotifications: () => ({
     data: {
       notifications: [
-        { id: "1", title: "New movie added", message: "Inception was added", createdAt: new Date().toISOString() },
+        { id: "1", title: "New movie added", message: "Some Movie was added", createdAt: new Date().toISOString() },
       ],
     },
   }),

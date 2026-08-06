@@ -93,7 +93,7 @@ function renderNowPlaying() {
 const SESSION_MOVIE = {
   sessionId: "sess-1",
   mediaItemId: "mi-movie-1",
-  mediaTitle: "Dune",
+  mediaTitle: "Nova",
   seriesTitle: undefined,
   seasonNumber: undefined,
   episodeNumber: undefined,
@@ -113,7 +113,7 @@ const SESSION_EPISODE = {
   sessionId: "sess-2",
   mediaItemId: "mi-ep-1",
   mediaTitle: "Pilot",
-  seriesTitle: "Breaking Bad",
+  seriesTitle: "Some Series",
   seasonNumber: 1,
   episodeNumber: 1,
   profileName: "Bob",
@@ -150,7 +150,7 @@ describe("NowPlaying", () => {
   it("does not render any session card in empty state", () => {
     mockSessions = [];
     renderNowPlaying();
-    expect(screen.queryByText("Dune")).toBeNull();
+    expect(screen.queryByText("Nova")).toBeNull();
   });
 
   it("renders a spinner while loading", () => {
@@ -158,7 +158,7 @@ describe("NowPlaying", () => {
     mockSessions = [];
     renderNowPlaying();
     // Spinner is aria-role="status" by our Spinner component or just a div - check no card content
-    expect(screen.queryByText("Dune")).toBeNull();
+    expect(screen.queryByText("Nova")).toBeNull();
     expect(screen.queryByText("admin.dashboardStats.noActivePlayback")).toBeNull();
   });
 
@@ -167,7 +167,7 @@ describe("NowPlaying", () => {
   it("renders the media title for a movie session", () => {
     mockSessions = [SESSION_MOVIE];
     renderNowPlaying();
-    expect(screen.getByText("Dune")).toBeInTheDocument();
+    expect(screen.getByText("Nova")).toBeInTheDocument();
   });
 
   it("renders profile name and device name for a session", () => {
@@ -186,14 +186,14 @@ describe("NowPlaying", () => {
   it("renders both session cards when two sessions are active", () => {
     mockSessions = [SESSION_MOVIE, SESSION_EPISODE];
     renderNowPlaying();
-    expect(screen.getByText("Dune")).toBeInTheDocument();
+    expect(screen.getByText("Nova")).toBeInTheDocument();
     expect(screen.getByText("Pilot")).toBeInTheDocument();
   });
 
   it("renders series title for an episode session", () => {
     mockSessions = [SESSION_EPISODE];
     renderNowPlaying();
-    expect(screen.getByText("Breaking Bad")).toBeInTheDocument();
+    expect(screen.getByText("Some Series")).toBeInTheDocument();
   });
 
   it("renders S01E01 episode label for a series session with season+episode numbers", () => {

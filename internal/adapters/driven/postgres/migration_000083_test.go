@@ -55,14 +55,14 @@ func TestMigration000083_DedupeSeriesSeasons(t *testing.T) {
 	idxS1a := 1
 	require.NoError(t, itemRepo.Create(ctx, &library.MediaItem{
 		ID: "mi-series-old", LibraryID: "lib-083",
-		Type: library.Series, Title: "Breaking Bad", ScanTitle: "Breaking Bad",
-		SortTitle: "breaking bad",
+		Type: library.Series, Title: "Some Series", ScanTitle: "Some Series",
+		SortTitle: "some series",
 		AddedAt:   at2020, UpdatedAt: at2020,
 	}))
 	require.NoError(t, itemRepo.Create(ctx, &library.MediaItem{
 		ID: "mi-series-new", LibraryID: "lib-083",
-		Type: library.Series, Title: "Breaking Bad", ScanTitle: "Breaking Bad",
-		SortTitle: "breaking bad",
+		Type: library.Series, Title: "Some Series", ScanTitle: "Some Series",
+		SortTitle: "some series",
 		AddedAt:   at2021, UpdatedAt: at2021,
 	}))
 
@@ -98,8 +98,8 @@ func TestMigration000083_DedupeSeriesSeasons(t *testing.T) {
 	require.NoError(t, itemRepo.Create(ctx, &library.MediaItem{
 		ID: "mi-episode-new", LibraryID: "lib-083",
 		ParentID: "mi-season-new",
-		Type:     library.Episode, Title: "Cat's in the Bag", ScanTitle: "Cat's in the Bag",
-		SortTitle: "cats in the bag",
+		Type:     library.Episode, Title: "The First Cook", ScanTitle: "The First Cook",
+		SortTitle: "the first cook",
 		AddedAt:   episodeNewAt, UpdatedAt: episodeNewAt,
 	}))
 
@@ -110,8 +110,8 @@ func TestMigration000083_DedupeSeriesSeasons(t *testing.T) {
 	idxKeep := 1
 	require.NoError(t, itemRepo.Create(ctx, &library.MediaItem{
 		ID: "mi-series-keep", LibraryID: "lib-083b",
-		Type: library.Series, Title: "Breaking Bad", ScanTitle: "Breaking Bad",
-		SortTitle: "breaking bad",
+		Type: library.Series, Title: "Some Series", ScanTitle: "Some Series",
+		SortTitle: "some series",
 		AddedAt:   at2019, UpdatedAt: at2019,
 	}))
 

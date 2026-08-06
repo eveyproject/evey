@@ -104,18 +104,18 @@ function Wrapper({ children }: { children: React.ReactNode }) {
 
 const baseItem = {
   id: "m1",
-  title: "Inception",
+  title: "Some Movie",
   overview: "A thief who steals secrets through dreams.",
-  tagline: "Your mind is the scene of the crime.",
+  tagline: "Nothing is as it seems.",
   type: "MEDIA_ITEM_TYPE_MOVIE" as const,
   genres: ["Action"],
-  studios: ["Warner Bros."],
-  filePath: "/movies/inception.mkv",
+  studios: ["Some Studio"],
+  filePath: "/movies/some-movie.mkv",
   people: [],
 };
 
-const directors = [{ id: "d1", name: "Christopher Nolan", type: "PERSON_TYPE_DIRECTOR" as const }];
-const writers = [{ id: "w1", name: "Jonathan Nolan", type: "PERSON_TYPE_WRITER" as const }];
+const directors = [{ id: "d1", name: "Director One", type: "PERSON_TYPE_DIRECTOR" as const }];
+const writers = [{ id: "w1", name: "Writer One", type: "PERSON_TYPE_WRITER" as const }];
 
 const defaultProps = {
   item: baseItem,
@@ -137,7 +137,7 @@ describe("MediaDetailActions", () => {
 
   it("renders tagline", () => {
     render(<MediaDetailActions {...defaultProps} />, { wrapper: Wrapper });
-    expect(screen.getByText("Your mind is the scene of the crime.")).toBeInTheDocument();
+    expect(screen.getByText("Nothing is as it seems.")).toBeInTheDocument();
   });
 
   it("renders overview", () => {
@@ -147,12 +147,12 @@ describe("MediaDetailActions", () => {
 
   it("renders directors", () => {
     render(<MediaDetailActions {...defaultProps} />, { wrapper: Wrapper });
-    expect(screen.getByText("Christopher Nolan")).toBeInTheDocument();
+    expect(screen.getByText("Director One")).toBeInTheDocument();
   });
 
   it("renders studios", () => {
     render(<MediaDetailActions {...defaultProps} />, { wrapper: Wrapper });
-    expect(screen.getByText(/Warner Bros\./)).toBeInTheDocument();
+    expect(screen.getByText(/Some Studio/)).toBeInTheDocument();
   });
 
   it("shows play button for movie", () => {
@@ -254,13 +254,13 @@ describe("MediaDetailActions", () => {
   it("hides tagline when missing", () => {
     const item = { ...baseItem, tagline: undefined };
     render(<MediaDetailActions {...defaultProps} item={item} />, { wrapper: Wrapper });
-    expect(screen.queryByText("Your mind is the scene of the crime.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Nothing is as it seems.")).not.toBeInTheDocument();
   });
 
   it("hides directors when empty", () => {
     render(<MediaDetailActions {...defaultProps} directors={[]} />, { wrapper: Wrapper });
-    expect(screen.queryByText("Christopher Nolan")).not.toBeInTheDocument();
-    expect(screen.getByText("Jonathan Nolan")).toBeInTheDocument();
+    expect(screen.queryByText("Director One")).not.toBeInTheDocument();
+    expect(screen.getByText("Writer One")).toBeInTheDocument();
   });
 
   it("navigates to player on play click", () => {

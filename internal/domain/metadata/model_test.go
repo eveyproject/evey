@@ -126,16 +126,16 @@ func TestMetadataResult_Fields(t *testing.T) {
 	year := 2023
 	rating := 8.5
 	result := &metadata.MetadataResult{
-		Title:           "Inception",
-		OriginalTitle:   "Inception",
+		Title:           "Some Movie",
+		OriginalTitle:   "Some Movie",
 		Overview:        "A thief who steals corporate secrets",
-		Tagline:         "Your mind is the scene of the crime",
+		Tagline:         "Nothing is as it seems",
 		Year:            &year,
 		CommunityRating: &rating,
 		OfficialRating:  "PG-13",
 		Genres:          []string{"Action", "Sci-Fi", "Thriller"},
-		Studios:         []string{"Warner Bros."},
-		ProviderIDs:     map[string]string{"tmdb": "27205", "imdb": "tt1375666"},
+		Studios:         []string{"Some Studio"},
+		ProviderIDs:     map[string]string{"tmdb": "900001", "imdb": "tt0000001"},
 		Ratings:         map[string]float64{"imdb": 8.8, "tmdb": 8.4},
 		Popularity:      83.5,
 	}
@@ -146,8 +146,8 @@ func TestMetadataResult_Fields(t *testing.T) {
 	if *result.CommunityRating != 8.5 {
 		t.Errorf("CommunityRating = %v, want 8.5", *result.CommunityRating)
 	}
-	if result.ProviderIDs["tmdb"] != "27205" {
-		t.Errorf("ProviderID[tmdb] = %q, want %q", result.ProviderIDs["tmdb"], "27205")
+	if result.ProviderIDs["tmdb"] != "900001" {
+		t.Errorf("ProviderID[tmdb] = %q, want %q", result.ProviderIDs["tmdb"], "900001")
 	}
 	if result.Ratings["imdb"] != 8.8 {
 		t.Errorf("Ratings[imdb] = %v, want 8.8", result.Ratings["imdb"])
@@ -168,10 +168,10 @@ func TestMetadataResult_CollectionRef(t *testing.T) {
 	t.Run("with collection", func(t *testing.T) {
 		t.Parallel()
 		r := &metadata.MetadataResult{
-			Title: "The Dark Knight",
+			Title: "The Twilight Guardian",
 			Collection: &metadata.CollectionRef{
-				TmdbID:      263,
-				Name:        "The Dark Knight Collection",
+				TmdbID:      900001,
+				Name:        "The Twilight Guardian Collection",
 				PosterURL:   "https://example.com/poster.jpg",
 				BackdropURL: "https://example.com/backdrop.jpg",
 			},
@@ -179,8 +179,8 @@ func TestMetadataResult_CollectionRef(t *testing.T) {
 		if r.Collection == nil {
 			t.Fatal("Collection should not be nil")
 		}
-		if r.Collection.TmdbID != 263 {
-			t.Errorf("Collection.TmdbID = %d, want 263", r.Collection.TmdbID)
+		if r.Collection.TmdbID != 900001 {
+			t.Errorf("Collection.TmdbID = %d, want 900001", r.Collection.TmdbID)
 		}
 		if r.Collection.Name == "" {
 			t.Error("Collection.Name must not be empty")

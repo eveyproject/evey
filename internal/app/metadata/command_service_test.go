@@ -168,11 +168,11 @@ func TestGetMediaItem_Success(t *testing.T) {
 	appmetadata.WithEnricher(&fakeTranslationsEnricher{}, mediaRepo)(cmdSvc)
 
 	ctx := context.Background()
-	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "item-1", Title: "Matrix"}))
+	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "item-1", Title: "Some Movie"}))
 
 	got, err := cmdSvc.GetMediaItem(ctx, "item-1")
 	require.NoError(t, err)
-	assert.Equal(t, "Matrix", got.Title)
+	assert.Equal(t, "Some Movie", got.Title)
 }
 
 func TestGetMediaItem_NotFound(t *testing.T) {
@@ -224,7 +224,7 @@ func TestResetItemMetadata_MovieClearsFields(t *testing.T) {
 		ID:             "m1",
 		Type:           library.MovieItem,
 		Title:          "Old Title",
-		File:           &library.MediaFile{Path: "/media/Inception (2010).mkv"},
+		File:           &library.MediaFile{Path: "/media/Some Movie (2010).mkv"},
 		Overview:       "some overview",
 		Tagline:        "tag",
 		OriginalTitle:  "orig",
@@ -242,7 +242,7 @@ func TestResetItemMetadata_MovieClearsFields(t *testing.T) {
 
 	reset, err := mediaRepo.GetByID(ctx, shared.MediaItemID("m1"))
 	require.NoError(t, err)
-	assert.Equal(t, "Inception (2010)", reset.Title)
+	assert.Equal(t, "Some Movie (2010)", reset.Title)
 	assert.Empty(t, reset.Overview)
 	assert.Empty(t, reset.Tagline)
 	assert.Empty(t, reset.OriginalTitle)
@@ -284,7 +284,7 @@ func TestResetItemMetadata_Series_TitleFromChildren(t *testing.T) {
 	// Episode with FilePath → extract directory name = top-level dir above season dir
 	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{
 		ID: "ep-1", Type: library.Episode, ParentID: "se-1",
-		File: &library.MediaFile{Path: "/media/Wednesday Addams/S01/E01.mkv"},
+		File: &library.MediaFile{Path: "/media/Some Family Show/S01/E01.mkv"},
 	}))
 
 	err := cmdSvc.ResetItemMetadata(ctx, "s-1")
@@ -292,7 +292,7 @@ func TestResetItemMetadata_Series_TitleFromChildren(t *testing.T) {
 
 	reset, err := mediaRepo.GetByID(ctx, shared.MediaItemID("s-1"))
 	require.NoError(t, err)
-	assert.Equal(t, "Wednesday Addams", reset.Title)
+	assert.Equal(t, "Some Family Show", reset.Title)
 }
 
 func TestResetItemMetadata_SeriesCascadesToChildren(t *testing.T) {
@@ -310,18 +310,18 @@ func TestResetItemMetadata_SeriesCascadesToChildren(t *testing.T) {
 	ctx := context.Background()
 	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{
 		ID: "s1", Type: library.Series, Title: "Old Series",
-		File:     &library.MediaFile{Path: "/media/Breaking Bad"},
+		File:     &library.MediaFile{Path: "/media/Some Series"},
 		Overview: "o",
 		Catalog:  &library.MediaCatalog{ProviderIDs: map[string]string{"tmdb": "1"}},
 	}))
 	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{
 		ID: "se1", Type: library.Season, ParentID: "s1", Title: "Season 1",
-		File:     &library.MediaFile{Path: "/media/Breaking Bad/S01"},
+		File:     &library.MediaFile{Path: "/media/Some Series/S01"},
 		Overview: "s-overview",
 	}))
 	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{
 		ID: "e1", Type: library.Episode, ParentID: "se1", Title: "Ep",
-		File:     &library.MediaFile{Path: "/media/Breaking Bad/S01/ep.mkv"},
+		File:     &library.MediaFile{Path: "/media/Some Series/S01/ep.mkv"},
 		Overview: "e-overview",
 	}))
 
@@ -662,7 +662,7 @@ func TestResearchMetadata_ResetsAndReEnrichesFromScanTitle(t *testing.T) {
 		nil,
 	)
 	mediaRepo := libfakes.NewFakeMediaItemRepository()
-	enricher := &fakeForceEnricher{mediaRepo: mediaRepo, newTitle: "Billions", overview: "Wall Street drama", tmdbID: "1419"}
+	enricher := &fakeForceEnricher{mediaRepo: mediaRepo, newTitle: "Some Series", overview: "Wall Street drama", tmdbID: "1419"}
 	appmetadata.WithEnricher(enricher, mediaRepo)(cmdSvc)
 
 	ctx := context.Background()
@@ -670,9 +670,9 @@ func TestResearchMetadata_ResetsAndReEnrichesFromScanTitle(t *testing.T) {
 	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{
 		ID:            "m1",
 		Type:          library.Series,
-		Title:         "The Foods that Make Billions",
-		ScanTitle:     "Billions",
-		OriginalTitle: "Billions (orig)",
+		Title:         "The Foods that Make Some Series",
+		ScanTitle:     "Some Series",
+		OriginalTitle: "Some Series (orig)",
 		Overview:      "wrong overview",
 		Tagline:       "wrong tagline",
 		Catalog: &library.MediaCatalog{
@@ -688,7 +688,7 @@ func TestResearchMetadata_ResetsAndReEnrichesFromScanTitle(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	assert.True(t, res.Matched, "title moved + overview present → matched true")
-	assert.Equal(t, "Billions", res.NewTitle)
+	assert.Equal(t, "Some Series", res.NewTitle)
 
 	// overrides removed
 	ovs, _ := overrideRepo.GetByMediaItem(ctx, "m1")
@@ -700,7 +700,7 @@ func TestResearchMetadata_ResetsAndReEnrichesFromScanTitle(t *testing.T) {
 	// final state in repo
 	final, err := mediaRepo.GetByID(ctx, shared.MediaItemID("m1"))
 	require.NoError(t, err)
-	assert.Equal(t, "Billions", final.Title)
+	assert.Equal(t, "Some Series", final.Title)
 	assert.Equal(t, "Wall Street drama", final.Overview)
 	require.NotNil(t, final.Catalog)
 	assert.Equal(t, "1419", final.Catalog.ProviderIDs["tmdb"])
@@ -728,7 +728,7 @@ func TestResearchMetadata_NoEnricherStillResetsState(t *testing.T) {
 		ID:            "m1",
 		Type:          library.MovieItem,
 		Title:         "Wrong Title",
-		ScanTitle:     "Inception",
+		ScanTitle:     "Some Movie",
 		OriginalTitle: "x",
 		Overview:      "y",
 		Tagline:       "z",
@@ -741,11 +741,11 @@ func TestResearchMetadata_NoEnricherStillResetsState(t *testing.T) {
 	// fakeTranslationsEnricher implements SingleItemEnricher (AutoEnrichItem)
 	// but doesn't write anything → overview remains empty → matched=false.
 	assert.False(t, res.Matched)
-	assert.Equal(t, "Inception", res.NewTitle)
+	assert.Equal(t, "Some Movie", res.NewTitle)
 
 	final, err := mediaRepo.GetByID(ctx, shared.MediaItemID("m1"))
 	require.NoError(t, err)
-	assert.Equal(t, "Inception", final.Title)
+	assert.Equal(t, "Some Movie", final.Title)
 	assert.Empty(t, final.Overview)
 	assert.Empty(t, final.Tagline)
 	assert.Empty(t, final.OriginalTitle)
@@ -818,7 +818,7 @@ func TestSetOverride_TitleOnMatched_DoesNotPropagate(t *testing.T) {
 	ctx := context.Background()
 	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{
 		ID: "m1", LibraryID: "lib-1", Type: library.MovieItem,
-		Title:   "Matrix",
+		Title:   "Some Movie",
 		Catalog: &library.MediaCatalog{ProviderIDs: map[string]string{"tmdb": "603"}},
 	}))
 
@@ -831,7 +831,7 @@ func TestSetOverride_TitleOnMatched_DoesNotPropagate(t *testing.T) {
 	// presentation for the display layer in GetMediaItem).
 	updated, err := mediaRepo.GetByID(ctx, "m1")
 	require.NoError(t, err)
-	assert.Equal(t, "Matrix", updated.Title, "matched item title must NOT be overwritten")
+	assert.Equal(t, "Some Movie", updated.Title, "matched item title must NOT be overwritten")
 
 	time.Sleep(150 * time.Millisecond) // give any errant goroutine a chance to fire
 	assert.Equal(t, int32(0), enricher.singleN.Load(), "auto-enrich must NOT fire for matched items")
@@ -1188,7 +1188,7 @@ func TestResetItemMetadata_ReportsFailureInsteadOfClaimingSuccess(t *testing.T) 
 	ctx := context.Background()
 	item := &library.MediaItem{
 		ID: "m1", Type: library.MovieItem, Title: "Old Title",
-		File:     &library.MediaFile{Path: "/media/Inception (2010).mkv"},
+		File:     &library.MediaFile{Path: "/media/Some Movie (2010).mkv"},
 		Overview: "some overview",
 	}
 	require.NoError(t, mediaRepo.Create(ctx, item))
@@ -1218,7 +1218,7 @@ func TestResetItemMetadata_DropsOverridesBeforeClearingFields(t *testing.T) {
 	ctx := context.Background()
 	item := &library.MediaItem{
 		ID: "m1", Type: library.MovieItem, Title: "Old Title",
-		File:     &library.MediaFile{Path: "/media/Inception (2010).mkv"},
+		File:     &library.MediaFile{Path: "/media/Some Movie (2010).mkv"},
 		Overview: "some overview",
 	}
 	require.NoError(t, mediaRepo.Create(ctx, item))

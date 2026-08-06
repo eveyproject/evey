@@ -15,32 +15,32 @@ func TestNormalizeSortTitle(t *testing.T) {
 		want  string
 	}{
 		// Articles: English
-		{"the matrix → matrix", "The Matrix", "matrix"},
-		{"a clockwork orange → clockwork orange", "A Clockwork Orange", "clockwork orange"},
-		{"an inconvenient truth → inconvenient truth", "An Inconvenient Truth", "inconvenient truth"},
+		{"the cascade → cascade", "The Cascade", "cascade"},
+		{"a velvet kingdom → velvet kingdom", "A Velvet Kingdom", "velvet kingdom"},
+		{"an ordinary life → ordinary life", "An Ordinary Life", "ordinary life"},
 		// Articles: French
-		{"les amours imaginaires → amours imaginaires", "Les Amours Imaginaires", "amours imaginaires"},
+		{"les reves silencieux → reves silencieux", "Les Rêves Silencieux", "reves silencieux"},
 		// Only the LEADING article is stripped - internal d'/l' stay
-		{"le fabuleux destin → fabuleux destin (internal d' kept)", "Le Fabuleux Destin d'Amélie Poulain", "fabuleux destin d'amelie poulain"},
-		{"la haine → haine", "La Haine", "haine"},
-		{"l'odyssée → odyssee (apostrophe stripped + diacritics)", "L'Odyssée", "odyssee"},
-		{"l’odyssée curly apostrophe → odyssee", "L’Odyssée", "odyssee"},
+		{"le fabuleux destin → fabuleux destin (internal d' kept)", "Le Fabuleux Destin d'Émile Rivière", "fabuleux destin d'emile riviere"},
+		{"la colere → colere", "La Colère", "colere"},
+		{"l'etoile → etoile (apostrophe stripped + diacritics)", "L'Étoile", "etoile"},
+		{"l’etoile curly apostrophe → etoile", "L’Étoile", "etoile"},
 		// Articles: German
-		{"der untergang → untergang", "Der Untergang", "untergang"},
+		{"der regenbogen → regenbogen", "Der Regenbogen", "regenbogen"},
 		// Articles: Spanish/Italian (sanity)
-		{"el laberinto del fauno → laberinto del fauno", "El Laberinto del Fauno", "laberinto del fauno"},
+		{"el jardin del silencio → jardin del silencio", "El Jardín del Silencio", "jardin del silencio"},
 		// Don't strip non-articles that look like words
 		{"anatomy keeps its 'an' prefix", "Anatomy", "anatomy"},
-		{"andromeda strain keeps its 'an'", "The Andromeda Strain", "andromeda strain"},
+		{"andromeda signal keeps its 'an'", "The Andromeda Signal", "andromeda signal"},
 		// Diacritics
-		{"les âmes vagabondes → les ames vagabondes (after article strip)", "Les Âmes Vagabondes", "ames vagabondes"},
+		{"les âmes silencieuses → les ames silencieuses (after article strip)", "Les Âmes Silencieuses", "ames silencieuses"},
 		{"naïveté → naivete", "Naïveté", "naivete"},
 		// Leading numbers padded
-		{"2001 → 002001 padding", "2001: A Space Odyssey", "002001: a space odyssey"},
+		{"2001 → 002001 padding", "2001: A Distant Voyage", "002001: a distant voyage"},
 		{"300 → 000300 (sorts before 2001)", "300", "000300"},
 		{"1917 → 001917", "1917", "001917"},
 		// Numeric sort sanity
-		{"2 Fast 2 Furious < 20th Century Fox", "2 Fast 2 Furious", "000002 fast 2 furious"},
+		{"leading-digit title sorts numerically before a letter-led title", "2 Quick 2 Reckless", "000002 quick 2 reckless"},
 		// Edge: empty
 		{"empty input → empty", "", ""},
 		{"whitespace only → empty", "   ", ""},
@@ -49,7 +49,7 @@ func TestNormalizeSortTitle(t *testing.T) {
 		// Edge: French elided d' (movie titles like "L'arnaque d'Untel")
 		{"d'untel preserved past first article", "d'Untel", "untel"},
 		// Whitespace collapse
-		{"double  spaces collapsed", "The   Lord  of   the Rings", "lord of the rings"},
+		{"double  spaces collapsed", "The   Realm  of   the Ancients", "realm of the ancients"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -61,34 +61,34 @@ func TestNormalizeSortTitle(t *testing.T) {
 
 // Concrete regression: pagination on prod broke because sort_title was
 // empty for items inserted before this function existed. Once backfilled
-// via NormalizeSortTitle, "Angels and Demons" must sort under A so the
+// via NormalizeSortTitle, "Ashes and Embers" must sort under A so the
 // keyset cursor advances through the alphabet rather than UUID order.
 func TestNormalizeSortTitle_KeysetOrdering(t *testing.T) {
 	t.Parallel()
 	// Lexicographic order of the normalized strings must match user
 	// expectation. Pick a small alphabet across diacritics + articles.
 	titles := []string{
-		"The Matrix",           // → matrix
-		"Les Âmes Vagabondes",  // → ames vagabondes
-		"Angels and Demons",    // → angels and demons
-		"L'Odyssée",            // → odyssee
-		"2001 A Space Odyssey", // → 002001 a space odyssey
-		"300",                  // → 000300
+		"The Cascade",           // → cascade
+		"Les Âmes Silencieuses", // → ames silencieuses
+		"Ashes and Embers",      // → ashes and embers
+		"L'Étoile",              // → etoile
+		"2001 A Distant Voyage", // → 002001 a distant voyage
+		"300",                   // → 000300
 	}
 	normalized := make([]string, len(titles))
 	for i, t := range titles {
 		normalized[i] = NormalizeSortTitle(t)
 	}
 	// Expected order:
-	// "000300" < "002001 a space odyssey" < "ames vagabondes" <
-	//   "angels and demons" < "matrix" < "odyssee"
+	// "000300" < "002001 a distant voyage" < "ames silencieuses" <
+	//   "ashes and embers" < "cascade" < "etoile"
 	expected := []string{
 		"000300",
-		"002001 a space odyssey",
-		"ames vagabondes",
-		"angels and demons",
-		"matrix",
-		"odyssee",
+		"002001 a distant voyage",
+		"ames silencieuses",
+		"ashes and embers",
+		"cascade",
+		"etoile",
 	}
 	sorted := append([]string(nil), normalized...)
 	for i := range sorted {
@@ -111,11 +111,11 @@ func TestNormalizeSortTitle_ConcurrentSafe(t *testing.T) {
 
 	type pair struct{ in, want string }
 	cases := []pair{
-		{"Les Âmes Vagabondes", "ames vagabondes"},
-		{"L'Odyssée", "odyssee"},
-		{"The Matrix", "matrix"},
-		{"2001: A Space Odyssey", "002001: a space odyssey"},
-		{"Der Untergang", "untergang"},
+		{"Les Âmes Silencieuses", "ames silencieuses"},
+		{"L'Étoile", "etoile"},
+		{"The Cascade", "cascade"},
+		{"2001: A Distant Voyage", "002001: a distant voyage"},
+		{"Der Regenbogen", "regenbogen"},
 		{"Naïveté", "naivete"},
 	}
 

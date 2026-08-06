@@ -40,10 +40,10 @@ describe("MediaPage", () => {
   });
 
   it("renders the media item once the fetch resolves", async () => {
-    getMediaItem.mockResolvedValue({ id: "m1", title: "Inception" });
+    getMediaItem.mockResolvedValue({ id: "m1", title: "Some Movie" });
     const MediaPage = await getMediaPage();
     render(React.createElement(MediaPage), { wrapper: createWrapper() });
-    await waitFor(() => expect(screen.getByTestId("media-detail")).toHaveTextContent("Inception"));
+    await waitFor(() => expect(screen.getByTestId("media-detail")).toHaveTextContent("Some Movie"));
   });
 
   it("shows a 'not found' dead end with a way out (go home) on a 404 - no retry, since retrying can't help", async () => {
@@ -67,7 +67,7 @@ describe("MediaPage", () => {
     await waitFor(() => expect(screen.getByText("Something went wrong")).toBeInTheDocument());
     expect(screen.queryByText("Media item not found.")).not.toBeInTheDocument();
 
-    getMediaItem.mockResolvedValueOnce({ id: "m1", title: "Inception" });
+    getMediaItem.mockResolvedValueOnce({ id: "m1", title: "Some Movie" });
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     await waitFor(() => expect(screen.getByTestId("media-detail")).toBeInTheDocument());
   });

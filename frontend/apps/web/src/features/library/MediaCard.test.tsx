@@ -69,7 +69,7 @@ function Wrapper({ children }: { children: React.ReactNode }) {
 
 const baseItem = {
   id: "42",
-  title: "Inception",
+  title: "Some Movie",
   year: 2010,
   type: "MEDIA_ITEM_TYPE_MOVIE" as const,
 };
@@ -93,20 +93,20 @@ describe("MediaCard", () => {
 
   it("renders title", () => {
     render(<MediaCard item={baseItem} />, { wrapper: Wrapper });
-    const titles = screen.getAllByText("Inception");
+    const titles = screen.getAllByText("Some Movie");
     expect(titles.length).toBeGreaterThanOrEqual(1);
   });
 
   it("renders poster image with correct src", () => {
     render(<MediaCard item={baseItem} />, { wrapper: Wrapper });
-    const img = screen.getByAltText("Inception");
+    const img = screen.getByAltText("Some Movie");
     expect(img).toBeInTheDocument();
     expect(img).toHaveAttribute("src", "/api/v1/media/42/artwork/poster");
   });
 
   it("renders custom posterSrc", () => {
     render(<MediaCard item={baseItem} posterSrc="/custom.jpg" />, { wrapper: Wrapper });
-    const img = screen.getByAltText("Inception");
+    const img = screen.getByAltText("Some Movie");
     expect(img).toHaveAttribute("src", "/custom.jpg");
   });
 
@@ -141,9 +141,9 @@ describe("MediaCard", () => {
   });
 
   it("renders titled placeholder when no poster", () => {
-    render(<MediaCard item={{ id: undefined, title: "Arrival" }} />, { wrapper: Wrapper });
+    render(<MediaCard item={{ id: undefined, title: "Some Other Movie" }} />, { wrapper: Wrapper });
     // The posterless placeholder is the role="img" labelled by the title.
-    expect(screen.getByRole("img", { name: "Arrival" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Some Other Movie" })).toBeInTheDocument();
   });
 
   // Badge tests

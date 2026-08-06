@@ -41,11 +41,11 @@ const mockAnalytics = {
   total_plays_this_week: 310,
   active_users_today: 7,
   top_media: [
-    { media_item_id: "m1", title: "Inception", play_count: 15, total_duration_seconds: 7200 },
-    { media_item_id: "m2", title: "Interstellar", play_count: 10, total_duration_seconds: 10800 },
+    { media_item_id: "m1", title: "Some Movie", play_count: 15, total_duration_seconds: 7200 },
+    { media_item_id: "m2", title: "Another Movie", play_count: 10, total_duration_seconds: 10800 },
   ],
   recent_activity: [
-    { user_id: "u1", username: "alice", media_title: "Inception", played_at: "2025-01-01T10:00:00Z" },
+    { user_id: "u1", username: "alice", media_title: "Some Movie", played_at: "2025-01-01T10:00:00Z" },
   ],
 };
 
@@ -96,9 +96,9 @@ describe("AnalyticsPage", () => {
     render(React.createElement(AnalyticsPage), { wrapper: createWrapper() });
 
     await waitFor(() => {
-      // "Inception" appears in both top media and recent activity tables
-      expect(screen.getAllByText("Inception").length).toBeGreaterThan(0);
-      expect(screen.getByText("Interstellar")).toBeInTheDocument();
+      // "Some Movie" appears in both top media and recent activity tables
+      expect(screen.getAllByText("Some Movie").length).toBeGreaterThan(0);
+      expect(screen.getByText("Another Movie")).toBeInTheDocument();
     });
   });
 

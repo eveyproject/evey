@@ -79,7 +79,7 @@ func newTestRequest(id, providerID string, status mediarequest.Status, userID sh
 		MediaType:  mediarequest.MediaTypeMovie,
 		Provider:   "tmdb",
 		ProviderID: providerID,
-		Title:      "Inception",
+		Title:      "Some Movie",
 		Status:     status,
 		CreatedAt:  now,
 		UpdatedAt:  now,
@@ -98,9 +98,9 @@ func TestMediaRequestRepo_DuplicateOpenRequestIsRejected(t *testing.T) {
 	ctx := context.Background()
 	repo, uid, pid := seedRequestOwner(t, db, "dupe")
 
-	require.NoError(t, repo.Create(ctx, newTestRequest("req-1", "27205", mediarequest.StatusPending, uid, pid)))
+	require.NoError(t, repo.Create(ctx, newTestRequest("req-1", "900001", mediarequest.StatusPending, uid, pid)))
 
-	err := repo.Create(ctx, newTestRequest("req-2", "27205", mediarequest.StatusPending, uid, pid))
+	err := repo.Create(ctx, newTestRequest("req-2", "900001", mediarequest.StatusPending, uid, pid))
 	require.ErrorIs(t, err, mediarequest.ErrDuplicate)
 }
 
@@ -113,8 +113,8 @@ func TestMediaRequestRepo_RejectedDoesNotBlockReRequest(t *testing.T) {
 	ctx := context.Background()
 	repo, uid, pid := seedRequestOwner(t, db, "rej")
 
-	require.NoError(t, repo.Create(ctx, newTestRequest("req-1", "27205", mediarequest.StatusRejected, uid, pid)))
-	require.NoError(t, repo.Create(ctx, newTestRequest("req-2", "27205", mediarequest.StatusPending, uid, pid)),
+	require.NoError(t, repo.Create(ctx, newTestRequest("req-1", "900001", mediarequest.StatusRejected, uid, pid)))
+	require.NoError(t, repo.Create(ctx, newTestRequest("req-2", "900001", mediarequest.StatusPending, uid, pid)),
 		"a previously rejected title must be requestable again")
 }
 

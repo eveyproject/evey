@@ -13,18 +13,18 @@ func TestPublicMediaItemToProto_ProjectsSafeFields(t *testing.T) {
 	item := &library.MediaItem{
 		ID:       "m1",
 		Type:     library.MovieItem,
-		Title:    "The Matrix",
-		Overview: "neo",
+		Title:    "Some Movie",
+		Overview: "a computer hacker",
 		Catalog:  &library.MediaCatalog{Year: &year},
 		// File carries the path that must NEVER reach the public projection.
-		File: &library.MediaFile{Path: "/secret/movies/matrix.mkv"},
+		File: &library.MediaFile{Path: "/secret/movies/some-movie.mkv"},
 	}
 	pb := publicMediaItemToProto(item, "https://host/poster.jpg")
 
 	assert.Equal(t, "m1", pb.Id)
-	assert.Equal(t, "The Matrix", pb.Title)
+	assert.Equal(t, "Some Movie", pb.Title)
 	assert.Equal(t, int32(1999), pb.Year)
-	assert.Equal(t, "neo", pb.Overview)
+	assert.Equal(t, "a computer hacker", pb.Overview)
 	assert.Equal(t, "https://host/poster.jpg", pb.PosterUrl)
 	// PublicMediaItem has no file_path field at all - the leak is impossible by
 	// construction. This test pins the safe-field mapping.

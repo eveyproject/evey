@@ -35,12 +35,12 @@ vi.mock("@/components/ui/Breadcrumbs", () => ({
 
 const baseItem = {
   id: "m1",
-  title: "Inception",
+  title: "Some Movie",
   year: 2010,
   genres: ["Action", "Sci-Fi"],
   officialRating: "PG-13",
   communityRating: 8.8,
-  providerIds: { imdb: "tt1375666", tmdb: "27205" },
+  providerIds: { imdb: "tt0000001", tmdb: "900001" },
   type: "MEDIA_ITEM_TYPE_MOVIE" as const,
 };
 
@@ -49,7 +49,7 @@ const defaultProps = {
   backdropUrl: "/backdrop.jpg",
   posterUrl: "/poster.jpg",
   duration: "2h 28m",
-  breadcrumbItems: [{ label: "Movies", to: "/library/1" }, { label: "Inception" }],
+  breadcrumbItems: [{ label: "Movies", to: "/library/1" }, { label: "Some Movie" }],
   onEditToggle: vi.fn(),
 };
 
@@ -60,7 +60,7 @@ describe("MediaDetailHero", () => {
 
   it("renders title", () => {
     render(<MediaDetailHero {...defaultProps} />);
-    expect(screen.getByTestId("media-title")).toHaveTextContent("Inception");
+    expect(screen.getByTestId("media-title")).toHaveTextContent("Some Movie");
   });
 
   it("renders backdrop image", () => {
@@ -104,20 +104,20 @@ describe("MediaDetailHero", () => {
   it("renders IMDb link", () => {
     render(<MediaDetailHero {...defaultProps} />);
     const link = screen.getByText("IMDb");
-    expect(link).toHaveAttribute("href", "https://www.imdb.com/title/tt1375666/");
+    expect(link).toHaveAttribute("href", "https://www.imdb.com/title/tt0000001/");
   });
 
   it("renders TMDB link for movie", () => {
     render(<MediaDetailHero {...defaultProps} />);
     const link = screen.getByText("TMDB");
-    expect(link).toHaveAttribute("href", "https://www.themoviedb.org/movie/27205");
+    expect(link).toHaveAttribute("href", "https://www.themoviedb.org/movie/900001");
   });
 
   it("renders TMDB link for series", () => {
     const seriesItem = { ...baseItem, type: "MEDIA_ITEM_TYPE_SERIES" as const };
     render(<MediaDetailHero {...defaultProps} item={seriesItem} />);
     const link = screen.getByText("TMDB");
-    expect(link).toHaveAttribute("href", "https://www.themoviedb.org/tv/27205");
+    expect(link).toHaveAttribute("href", "https://www.themoviedb.org/tv/900001");
   });
 
   it("hides genres when empty", () => {
@@ -161,9 +161,9 @@ describe("MediaDetailHero", () => {
   });
 
   it("renders parent item link", () => {
-    const parentItem = { id: "p1", title: "Breaking Bad" };
+    const parentItem = { id: "p1", title: "Some Series" };
     render(<MediaDetailHero {...defaultProps} parentItem={parentItem as any} />);
-    expect(screen.getByText("Breaking Bad")).toBeInTheDocument();
+    expect(screen.getByText("Some Series")).toBeInTheDocument();
   });
 
   it("hides duration when empty", () => {

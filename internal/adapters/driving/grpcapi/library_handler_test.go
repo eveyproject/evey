@@ -227,7 +227,7 @@ func TestLibraryHandler_GetMediaItem_Success(t *testing.T) {
 	mediaQuery.Seed(&library.MediaItem{
 		ID:        "mi-1",
 		LibraryID: "lib-1",
-		Title:     "Inception",
+		Title:     "Some Movie",
 		Type:      "movie",
 	})
 
@@ -235,7 +235,7 @@ func TestLibraryHandler_GetMediaItem_Success(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, "mi-1", resp.Id)
-	assert.Equal(t, "Inception", resp.Title)
+	assert.Equal(t, "Some Movie", resp.Title)
 	assert.Equal(t, eveyv1.MediaItemType_MEDIA_ITEM_TYPE_MOVIE, resp.Type)
 }
 
@@ -256,7 +256,7 @@ func TestLibraryHandler_GetMediaItem_HydratesStreams(t *testing.T) {
 	mediaQuery.Seed(&library.MediaItem{
 		ID:        "mi-2",
 		LibraryID: "lib-1",
-		Title:     "Inception",
+		Title:     "Some Movie",
 		Type:      "movie",
 	})
 	require.NoError(t, streamRepo.ReplaceBatch(ctx, "mi-2", []*library.MediaStream{
@@ -354,29 +354,29 @@ func TestLibraryHandler_SearchMedia(t *testing.T) {
 
 	searchIdx.IndexMediaItem(ctx, &library.MediaItem{
 		ID:    "mi-1",
-		Title: "The Matrix",
+		Title: "The Cascade",
 		Type:  "movie",
 	}, nil)
 	searchIdx.IndexMediaItem(ctx, &library.MediaItem{
 		ID:    "mi-2",
-		Title: "Matrix Reloaded",
+		Title: "Cascade Reloaded",
 		Type:  "movie",
 	}, nil)
 	searchIdx.IndexMediaItem(ctx, &library.MediaItem{
 		ID:    "mi-3",
-		Title: "Inception",
+		Title: "Some Movie",
 		Type:  "movie",
 	}, nil)
 
 	resp, err := h.SearchMedia(ctx, &eveyv1.SearchMediaRequest{
-		Query: "Matrix",
+		Query: "Cascade",
 		Limit: 10,
 	})
 
 	require.NoError(t, err)
 	assert.Len(t, resp.Items, 2)
 	for _, item := range resp.Items {
-		assert.Contains(t, item.Title, "Matrix")
+		assert.Contains(t, item.Title, "Cascade")
 	}
 }
 
@@ -641,16 +641,16 @@ func TestLibraryHandler_SearchMedia_IDOR_FiltersAccess(t *testing.T) {
 	ctx := context.Background()
 
 	searchIdx.IndexMediaItem(ctx, &library.MediaItem{
-		ID: "mi-1", LibraryID: "lib-1", Title: "Allowed Matrix", Type: "movie",
+		ID: "mi-1", LibraryID: "lib-1", Title: "Allowed Cascade", Type: "movie",
 	}, nil)
 	searchIdx.IndexMediaItem(ctx, &library.MediaItem{
-		ID: "mi-2", LibraryID: "lib-secret", Title: "Secret Matrix", Type: "movie",
+		ID: "mi-2", LibraryID: "lib-secret", Title: "Secret Cascade", Type: "movie",
 	}, nil)
 
 	libraryAccess.Grant(ctx, "user-2", "lib-1")
 	userCtx := userCtx("user-2", "profile-2")
 
-	resp, err := h.SearchMedia(userCtx, &eveyv1.SearchMediaRequest{Query: "Matrix", Limit: 10})
+	resp, err := h.SearchMedia(userCtx, &eveyv1.SearchMediaRequest{Query: "Cascade", Limit: 10})
 	require.NoError(t, err)
 	assert.Len(t, resp.Items, 1)
 	assert.Equal(t, "mi-1", resp.Items[0].Id)

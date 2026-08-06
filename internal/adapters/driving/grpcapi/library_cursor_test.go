@@ -21,7 +21,7 @@ func TestMediaItemSortValue_TitleFallbackBreaksKeysetPagination(t *testing.T) {
 	t.Run("empty SortTitle returns empty (matches SQL column)", func(t *testing.T) {
 		item := &library.MediaItem{
 			ID:        shared.MediaItemID("abc"),
-			Title:     "Angels and Demons",
+			Title:     "Some Movie Title",
 			SortTitle: "",
 		}
 		got := mediaItemSortValue(item, "title")
@@ -31,11 +31,11 @@ func TestMediaItemSortValue_TitleFallbackBreaksKeysetPagination(t *testing.T) {
 	t.Run("non-empty SortTitle is returned as-is", func(t *testing.T) {
 		item := &library.MediaItem{
 			ID:        shared.MediaItemID("abc"),
-			Title:     "The Matrix",
-			SortTitle: "matrix, the",
+			Title:     "The Great Adventure",
+			SortTitle: "great adventure, the",
 		}
 		got := mediaItemSortValue(item, "title")
-		assert.Equal(t, "matrix, the", got)
+		assert.Equal(t, "great adventure, the", got)
 	})
 
 	t.Run("sort_title sortKey aliases to the same column", func(t *testing.T) {

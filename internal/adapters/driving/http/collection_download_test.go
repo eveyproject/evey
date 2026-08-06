@@ -46,7 +46,7 @@ func runCollectionDownload(t *testing.T, h *collectionHandler, claims *domainuse
 
 func TestDownloadCollection_MixedMovieAndSeries(t *testing.T) {
 	dir := t.TempDir()
-	movie := &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", Type: domainlibrary.MovieItem, Title: "Inception", File: &domainlibrary.MediaFile{Path: archiveTempFile(t, dir, "inception.mkv", "movie")}}
+	movie := &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", Type: domainlibrary.MovieItem, Title: "Some Movie", File: &domainlibrary.MediaFile{Path: archiveTempFile(t, dir, "some-movie.mkv", "movie")}}
 	series := &domainlibrary.MediaItem{ID: "sr1", LibraryID: "lib1", Type: domainlibrary.Series, Title: "My Show"}
 	season := &domainlibrary.MediaItem{ID: "s1", LibraryID: "lib1", Type: domainlibrary.Season, Title: "Season 1", IndexNumber: new(1)}
 	ep := &domainlibrary.MediaItem{ID: "ep1", LibraryID: "lib1", Type: domainlibrary.Episode, Title: "Pilot", IndexNumber: new(1), File: &domainlibrary.MediaFile{Path: archiveTempFile(t, dir, "ep1.mkv", "ep")}}
@@ -65,7 +65,7 @@ func TestDownloadCollection_MixedMovieAndSeries(t *testing.T) {
 		t.Errorf("Content-Type = %q, want application/zip", ct)
 	}
 	got := zipEntryNames(t, w.Body.Bytes())
-	want := []string{"Inception.mkv", "My Show/Season 01/E01 - Pilot.mkv"}
+	want := []string{"Some Movie.mkv", "My Show/Season 01/E01 - Pilot.mkv"}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("zip entries = %v, want %v", got, want)
 	}

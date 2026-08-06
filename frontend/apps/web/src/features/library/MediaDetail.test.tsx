@@ -106,21 +106,21 @@ function Wrapper({ children }: { children: React.ReactNode }) {
 
 const baseItem = {
   id: "media-1",
-  title: "Inception",
+  title: "Some Movie",
   overview: "A thief who steals secrets through dreams.",
   type: "MEDIA_ITEM_TYPE_MOVIE" as const,
   year: 2010,
   genres: ["Action", "Sci-Fi"],
   people: [
-    { id: "p1", name: "Leonardo DiCaprio", type: "PERSON_TYPE_ACTOR" as const, role: "Cobb" },
-    { id: "p2", name: "Christopher Nolan", type: "PERSON_TYPE_DIRECTOR" as const },
+    { id: "p1", name: "Actor One", type: "PERSON_TYPE_ACTOR" as const, role: "Lead" },
+    { id: "p2", name: "Director One", type: "PERSON_TYPE_DIRECTOR" as const },
   ],
 };
 
 describe("MediaDetail", () => {
   it("renders title and overview", () => {
     render(<MediaDetail item={baseItem} />, { wrapper: Wrapper });
-    expect(screen.getByTestId("media-title")).toHaveTextContent("Inception");
+    expect(screen.getByTestId("media-title")).toHaveTextContent("Some Movie");
     expect(screen.getByTestId("media-overview")).toHaveTextContent(
       "A thief who steals secrets through dreams.",
     );
@@ -141,7 +141,7 @@ describe("MediaDetail", () => {
   it("shows cast section when cast data present", () => {
     render(<MediaDetail item={baseItem} />, { wrapper: Wrapper });
     const castSection = screen.getByTestId("cast-section");
-    expect(castSection).toHaveTextContent("Leonardo DiCaprio");
+    expect(castSection).toHaveTextContent("Actor One");
   });
 
   it("does not show play button for series", () => {
@@ -155,7 +155,7 @@ describe("MediaDetail", () => {
 
   it("shows director name", () => {
     render(<MediaDetail item={baseItem} />, { wrapper: Wrapper });
-    const matches = screen.getAllByText("Christopher Nolan");
+    const matches = screen.getAllByText("Director One");
     expect(matches.length).toBeGreaterThanOrEqual(1);
   });
 

@@ -12,8 +12,8 @@ vi.mock("@tanstack/react-router", () => ({
 
 const mockSearchResults = {
   items: [
-    { id: "1", title: "Inception", year: 2010, type: "MEDIA_ITEM_TYPE_MOVIE", genres: ["Sci-Fi"] },
-    { id: "2", title: "Breaking Bad", year: 2008, type: "MEDIA_ITEM_TYPE_SERIES", genres: ["Drama"] },
+    { id: "1", title: "Some Movie", year: 2010, type: "MEDIA_ITEM_TYPE_MOVIE", genres: ["Sci-Fi"] },
+    { id: "2", title: "Some Series", year: 2008, type: "MEDIA_ITEM_TYPE_SERIES", genres: ["Drama"] },
   ],
   totalHits: 2,
 };
@@ -54,7 +54,7 @@ function createTestQueryClient() {
 function renderDropdown(props: Partial<Parameters<typeof SearchDropdown>[0]> = {}) {
   const inputRef = props.inputRef ?? createRef<HTMLInputElement>();
   const defaultProps = {
-    query: "inception",
+    query: "some movie",
     visible: true,
     onClose: vi.fn(),
     onNavigateToSearch: vi.fn(),
@@ -84,10 +84,10 @@ describe("SearchDropdown", () => {
 
   it("renders results with title, year, type badge", () => {
     renderDropdown();
-    expect(screen.getByText("Inception")).toBeInTheDocument();
+    expect(screen.getByText("Some Movie")).toBeInTheDocument();
     expect(screen.getByText("2010")).toBeInTheDocument();
     expect(screen.getByText("Film")).toBeInTheDocument();
-    expect(screen.getByText("Breaking Bad")).toBeInTheDocument();
+    expect(screen.getByText("Some Series")).toBeInTheDocument();
     expect(screen.getByText("2008")).toBeInTheDocument();
     expect(screen.getByText("Serie")).toBeInTheDocument();
   });
@@ -101,7 +101,7 @@ describe("SearchDropdown", () => {
   it("navigates on click", async () => {
     const user = userEvent.setup();
     const { onClose } = renderDropdown();
-    await user.click(screen.getByText("Inception"));
+    await user.click(screen.getByText("Some Movie"));
     expect(onClose).toHaveBeenCalled();
     expect(mockNavigate).toHaveBeenCalledWith(
       expect.objectContaining({ to: "/media/$mediaId", params: { mediaId: "1" } }),
@@ -110,25 +110,25 @@ describe("SearchDropdown", () => {
 
   it("defaults to the media scope and hides music results", () => {
     musicMockReturn = {
-      data: { tracks: [{ id: "t1", title: "The Emptiness Machine", artist: "Linkin Park", album: "From Zero", albumId: "x", libraryId: "lib-1" }] },
+      data: { tracks: [{ id: "t1", title: "Silent Frequency", artist: "Echo Valley", album: "Starting Point", albumId: "x", libraryId: "lib-1" }] },
       isLoading: false,
     };
     renderDropdown(); // default kind = media
-    expect(screen.getByText("Inception")).toBeInTheDocument();
+    expect(screen.getByText("Some Movie")).toBeInTheDocument();
     expect(screen.queryByTestId("search-dropdown-music")).not.toBeInTheDocument();
   });
 
   it("in the music scope, renders tracks and navigates to the album on click", async () => {
     musicMockReturn = {
-      data: { tracks: [{ id: "t1", title: "The Emptiness Machine", artist: "Linkin Park", album: "From Zero", albumId: "914750d5b8f8bb25", libraryId: "lib-1" }] },
+      data: { tracks: [{ id: "t1", title: "Silent Frequency", artist: "Echo Valley", album: "Starting Point", albumId: "914750d5b8f8bb25", libraryId: "lib-1" }] },
       isLoading: false,
     };
     const user = userEvent.setup();
     const { onClose } = renderDropdown({ kind: "music" });
 
     expect(screen.getByTestId("search-dropdown-music")).toBeInTheDocument();
-    expect(screen.queryByText("Inception")).not.toBeInTheDocument(); // media hidden
-    await user.click(screen.getByText("The Emptiness Machine"));
+    expect(screen.queryByText("Some Movie")).not.toBeInTheDocument(); // media hidden
+    await user.click(screen.getByText("Silent Frequency"));
     expect(onClose).toHaveBeenCalled();
     expect(mockNavigate).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -198,6 +198,6 @@ describe("SearchDropdown", () => {
     const { onClose, onNavigateToSearch } = renderDropdown();
     await user.click(screen.getByText("View all 20 results"));
     expect(onClose).toHaveBeenCalled();
-    expect(onNavigateToSearch).toHaveBeenCalledWith("inception");
+    expect(onNavigateToSearch).toHaveBeenCalledWith("some movie");
   });
 });

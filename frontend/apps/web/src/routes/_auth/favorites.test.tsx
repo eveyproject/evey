@@ -87,8 +87,8 @@ function createWrapper() {
 }
 
 const mockFavorites = [
-  { mediaItemId: "m1", title: "The Matrix", type: "MEDIA_ITEM_TYPE_MOVIE", year: 1999, communityRating: 8.7 },
-  { mediaItemId: "m2", title: "Breaking Bad", type: "MEDIA_ITEM_TYPE_SERIES", year: 2008, communityRating: 9.5 },
+  { mediaItemId: "m1", title: "Nova Voyage", type: "MEDIA_ITEM_TYPE_MOVIE", year: 1999, communityRating: 8.7 },
+  { mediaItemId: "m2", title: "Ridge Falls", type: "MEDIA_ITEM_TYPE_SERIES", year: 2008, communityRating: 9.5 },
 ];
 
 describe("FavoritesPage", () => {
@@ -168,7 +168,7 @@ describe("FavoritesPage", () => {
     const FavoritesPage = (mod.Route as unknown as { component: React.ComponentType }).component;
     render(React.createElement(FavoritesPage), { wrapper: createWrapper() });
     const searchInput = screen.getByRole("searchbox", { name: /search/i });
-    fireEvent.change(searchInput, { target: { value: "matrix" } });
+    fireEvent.change(searchInput, { target: { value: "nova" } });
     await waitFor(() => expect(screen.getByText("1 item")).toBeInTheDocument());
   });
 

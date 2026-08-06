@@ -127,7 +127,7 @@ func TestNewMediaItem_SeasonWithParent(t *testing.T) {
 func TestNewMediaItem_WithYear(t *testing.T) {
 	t.Parallel()
 
-	m, err := library.NewMediaItem("lib-1", library.MovieItem, "Inception",
+	m, err := library.NewMediaItem("lib-1", library.MovieItem, "Some Movie",
 		library.WithMediaItemYear(2010),
 	)
 	if err != nil {
@@ -144,11 +144,11 @@ func TestNewMediaItem_WithYear(t *testing.T) {
 func TestNewMediaItem_WithOverview(t *testing.T) {
 	t.Parallel()
 
-	overview := "A thief who steals corporate secrets..."
-	m, err := library.NewMediaItem("lib-1", library.MovieItem, "Inception",
+	overview := "A group pulls off a daring heist..."
+	m, err := library.NewMediaItem("lib-1", library.MovieItem, "Some Movie",
 		library.WithMediaItemOverview(overview),
-		library.WithMediaItemTagline("Your mind is the scene of the crime."),
-		library.WithMediaItemSortTitle("Inception"),
+		library.WithMediaItemTagline("Nothing is as it seems."),
+		library.WithMediaItemSortTitle("Some Movie"),
 	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -156,10 +156,10 @@ func TestNewMediaItem_WithOverview(t *testing.T) {
 	if m.Overview != overview {
 		t.Errorf("Overview = %q, want %q", m.Overview, overview)
 	}
-	if m.Tagline != "Your mind is the scene of the crime." {
+	if m.Tagline != "Nothing is as it seems." {
 		t.Errorf("Tagline not applied: %q", m.Tagline)
 	}
-	if m.SortTitle != "Inception" {
+	if m.SortTitle != "Some Movie" {
 		t.Errorf("SortTitle not applied: %q", m.SortTitle)
 	}
 }
@@ -167,12 +167,12 @@ func TestNewMediaItem_WithOverview(t *testing.T) {
 func TestNewMediaItem_WithFileAndID(t *testing.T) {
 	t.Parallel()
 
-	file := &library.MediaFile{Path: "/data/movies/inception.mkv", Size: 12345}
-	m, err := library.NewMediaItem("lib-1", library.MovieItem, "Inception",
+	file := &library.MediaFile{Path: "/data/movies/some-movie.mkv", Size: 12345}
+	m, err := library.NewMediaItem("lib-1", library.MovieItem, "Some Movie",
 		library.WithMediaItemID("mi-1"),
 		library.WithMediaItemFile(file),
 		library.WithMediaItemIndexNumber(1),
-		library.WithMediaItemScanTitle("Inception (2010)"),
+		library.WithMediaItemScanTitle("Some Movie (2010)"),
 	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -186,7 +186,7 @@ func TestNewMediaItem_WithFileAndID(t *testing.T) {
 	if m.IndexNumber == nil || *m.IndexNumber != 1 {
 		t.Errorf("IndexNumber = %v, want 1", m.IndexNumber)
 	}
-	if m.ScanTitle != "Inception (2010)" {
+	if m.ScanTitle != "Some Movie (2010)" {
 		t.Errorf("ScanTitle = %q, want override", m.ScanTitle)
 	}
 }
