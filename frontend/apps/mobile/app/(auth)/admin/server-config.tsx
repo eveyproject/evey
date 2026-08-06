@@ -11,6 +11,11 @@ import {
 } from "@evey/api";
 import { toast } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
+import { LocaleSettingsCard } from "../../../src/components/admin/server-config/LocaleSettingsCard";
+import { MemoryProfileCard } from "../../../src/components/admin/server-config/MemoryProfileCard";
+import { MkvgoCard } from "../../../src/components/admin/server-config/MkvgoCard";
+import { SmtpSettingsCard } from "../../../src/components/admin/server-config/SmtpSettingsCard";
+import type { ConfigEntry } from "../../../src/components/admin/server-config/types";
 
 interface SettingValue<T> {
   value: T;
@@ -33,11 +38,6 @@ interface ServerSettings {
   qoeRetentionDays: SettingValue<number>;
   playSessionRetentionDays: SettingValue<number>;
   transcodeCacheMaxGB: SettingValue<number>;
-}
-
-interface ConfigEntry {
-  key: string;
-  value: string;
 }
 
 const SETTINGS_KEY = ["admin", "server-settings"];
@@ -430,6 +430,68 @@ export default function AdminServerConfigScreen() {
             <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginTop: 8 }}>
               {t("admin.serverConfig.trickplayAdaptiveCpuDesc", "Réduit automatiquement la cadence de génération quand le CPU est chargé.")}
             </Text>
+          </>
+
+          {/* Language & Region section */}
+          <>
+            <View style={{ height: 1, backgroundColor: theme.colors.border, marginVertical: 24 }} />
+            <Text style={s.sectionTitle}>{t("admin.serverConfig.languageRegion", "Language & Region")}</Text>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginBottom: 12 }}>
+              {t(
+                "admin.serverConfig.languageRegionDesc",
+                "Server language and region settings. Affects default UI language, default classification region and metadata language.",
+              )}
+            </Text>
+            <LocaleSettingsCard
+              getEntryValue={getEntryValue}
+              saveEntry={saveConfigEntry.mutate}
+              saving={saveConfigEntry.isPending}
+            />
+          </>
+
+          {/* Memory profile section */}
+          <>
+            <View style={{ height: 1, backgroundColor: theme.colors.border, marginVertical: 24 }} />
+            <Text style={s.sectionTitle}>{t("admin.serverConfig.memoryProfileTitle", "Memory Profile")}</Text>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginBottom: 12 }}>
+              {t(
+                "admin.serverConfig.memoryProfileSubtitle",
+                "Controls how aggressively idle plugin processes are suspended to save RAM.",
+              )}
+            </Text>
+            <MemoryProfileCard
+              getEntryValue={getEntryValue}
+              saveEntry={saveConfigEntry.mutate}
+              saving={saveConfigEntry.isPending}
+            />
+          </>
+
+          {/* mkvgo section */}
+          <>
+            <View style={{ height: 1, backgroundColor: theme.colors.border, marginVertical: 24 }} />
+            <Text style={s.sectionTitle}>{t("admin.serverConfig.mkvgoTitle", "mkvgo")}</Text>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginBottom: 12 }}>
+              {t("admin.serverConfig.mkvgoSubtitle", "Media inspection and repair via the mkvgo library.")}
+            </Text>
+            <MkvgoCard
+              getEntryValue={getEntryValue}
+              saveEntry={saveConfigEntry.mutate}
+              saving={saveConfigEntry.isPending}
+            />
+          </>
+
+          {/* SMTP section */}
+          <>
+            <View style={{ height: 1, backgroundColor: theme.colors.border, marginVertical: 24 }} />
+            <Text style={s.sectionTitle}>{t("admin.serverConfig.emailSmtp", "Email / SMTP")}</Text>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginBottom: 12 }}>
+              {t("admin.serverConfig.emailSmtpDesc", "Configure outgoing email for notifications and invitations.")}
+            </Text>
+            <SmtpSettingsCard
+              entries={configEntries}
+              saveEntry={saveConfigEntry.mutate}
+              saving={saveConfigEntry.isPending}
+            />
           </>
 
           {settings ? (
