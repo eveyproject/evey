@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"runtime/debug"
 	"time"
 
 	"github.com/google/uuid"
@@ -48,82 +47,22 @@ func (s *IntroDetectionService) waitForManifest(ctx context.Context, mediaID sha
 	}
 }
 
-// concurrentFallback runs audio and subtitle-gap detection concurrently.
-// First valid result wins; both are cancelled when one succeeds.
+// concurrentFallback runs the audio silence fallback. It kept a concurrent
+// subtitle-gap sibling for a while, but that path was never implemented (the
+// stub always answered not-found) - the goroutine pair, channel and recover
+// ceremony ran on every fallback for nothing and were removed 2026-08-06. The
+// name and signature stay: the call site does not care how many detectors run
+// behind it, and the season-median snap now carries the subtitle signal
+// through sibling episodes instead.
 func (s *IntroDetectionService) concurrentFallback(ctx context.Context, item *domainlibrary.MediaItem) (startMs, endMs int64, source string, confidence float64, err error) {
-	type result struct {
-		startMs, endMs int64
-		source         string
-		confidence     float64
-		err            error
+	if ctx.Err() != nil {
+		return 0, 0, "", 0, ctx.Err()
 	}
-
-	cancelCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	ch := make(chan result, 2)
-
-	// Each child carries its own recover: a parent-level recover does NOT
-	// cover goroutines it spawned, and a panicking child that never sends
-	// would stall the receive loop below until the caller's ctx expires. The
-	// recovered child reports an error result instead, so the other detector
-	// still gets its chance.
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				slog.ErrorContext(cancelCtx, "intro: audio fallback panic recovered",
-					slog.Any("err", r), slog.String("stack", string(debug.Stack())))
-				ch <- result{err: fmt.Errorf("audio fallback panic: %v", r)}
-			}
-		}()
-		s, e, found, ferr := s.detector.AudioFallback(cancelCtx, item.File.Path, 600)
-		if ferr != nil || !found {
-			ch <- result{err: ferr}
-			return
-		}
-		ch <- result{startMs: s, endMs: e, source: "audio", confidence: 0.5}
-	}()
-
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				slog.ErrorContext(cancelCtx, "intro: subtitle-gap fallback panic recovered",
-					slog.Any("err", r), slog.String("stack", string(debug.Stack())))
-				ch <- result{err: fmt.Errorf("subtitle-gap fallback panic: %v", r)}
-			}
-		}()
-		s, e, found := subtitleGapFallback(item)
-		if !found {
-			ch <- result{}
-			return
-		}
-		ch <- result{startMs: s, endMs: e, source: "subtitle", confidence: 0.4}
-	}()
-
-	received := 0
-	for received < 2 {
-		select {
-		case <-ctx.Done():
-			return 0, 0, "", 0, ctx.Err()
-		case r := <-ch:
-			received++
-			if r.endMs > r.startMs {
-				cancel()
-				return r.startMs, r.endMs, r.source, r.confidence, nil
-			}
-		}
+	start, end, found, ferr := s.detector.AudioFallback(ctx, item.File.Path, 600)
+	if ferr != nil || !found {
+		return 0, 0, "", 0, ferr
 	}
-	return 0, 0, "", 0, nil
-}
-
-// subtitleGapFallback looks for a gap >30s in external subtitle data.
-// Returns (0,0,false) when no subtitle info is available.
-func subtitleGapFallback(item *domainlibrary.MediaItem) (startMs, endMs int64, found bool) {
-	// Subtitle gap detection requires parsed SRT/ASS cues. Without a subtitle
-	// repo dependency in this service, we return not-found. The audio fallback
-	// path covers this case in practice.
-	_ = item
-	return 0, 0, false
+	return start, end, "audio", 0.5, nil
 }
 
 // detectStudioLogo attempts to match the first ~90 seconds of trickplay frames
