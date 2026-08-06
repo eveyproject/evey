@@ -279,6 +279,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		appmetadata.WithEnricher(enricher, r.MediaItem),
 		appmetadata.WithMediaPersons(r.MediaPerson),
 		appmetadata.WithShutdownCtx(ctx),
+		appmetadata.WithServerConfig(r.ServerCfg),
 	)
 	// Fire the artwork auto-download the moment the enricher persists a new record
 	// (no-op unless the admin toggle artwork.auto_download is on, checked inside

@@ -410,3 +410,59 @@ func TestSetOverride_NoPublishError_NoWarn(t *testing.T) {
 	}))
 	assert.False(t, strings.Contains(read(), "publish event"), "no warn when publish succeeds")
 }
+
+// The refresh-all sweep persists its offset after every page and clears it on
+// completion: a re-trigger after a mid-walk restart resumes past the pages
+// already enriched instead of re-walking the whole catalogue.
+func TestAutoRefreshAllItems_ResumesFromPersistedCursor(t *testing.T) {
+	bus := sharedfakes.NewFakeEventBus()
+	cfg := sharedfakes.NewFakeServerConfigRepository()
+	cmdSvc := appmetadata.NewCommandService(
+		metafakes.NewFakeMetadataOverrideRepository(),
+		metafakes.NewFakeArtworkRepository(),
+		metafakes.NewFakeArtworkDownloader(),
+		bus, nil,
+		appmetadata.WithServerConfig(cfg),
+	)
+	repo := newCountingRepo()
+	enricher := &fakeBulkEnricher{}
+	appmetadata.WithEnricher(enricher, repo)(cmdSvc)
+	ctx := context.Background()
+	require.NoError(t, repo.Create(ctx, &library.MediaItem{ID: "item-1", Title: "A"}))
+
+	// A cursor left by an interrupted sweep at offset 500 (page size): the
+	// resumed walk starts THERE - the (only) item at offset 0 is skipped.
+	require.NoError(t, cfg.Set(ctx, "metadata.refresh_all.cursor", `{"library_id":"","offset":500}`))
+	require.NoError(t, cmdSvc.AutoRefreshAllItems(ctx, ""))
+	assert.Empty(t, enricher.enrichedItems, "the resumed sweep must not re-enrich pages before the cursor")
+
+	// Completion clears the cursor: the next trigger walks from zero again.
+	entry, err := cfg.Get(ctx, "metadata.refresh_all.cursor")
+	if err == nil && entry != nil {
+		assert.Empty(t, entry.Value, "the cursor must be cleared after a completed sweep")
+	}
+	require.NoError(t, cmdSvc.AutoRefreshAllItems(ctx, ""))
+	assert.Len(t, enricher.enrichedItems, 1, "after the cleared cursor the full walk enriches from zero")
+}
+
+// A cursor scoped to another library does not hijack the walk.
+func TestAutoRefreshAllItems_IgnoresCursorOfOtherScope(t *testing.T) {
+	bus := sharedfakes.NewFakeEventBus()
+	cfg := sharedfakes.NewFakeServerConfigRepository()
+	cmdSvc := appmetadata.NewCommandService(
+		metafakes.NewFakeMetadataOverrideRepository(),
+		metafakes.NewFakeArtworkRepository(),
+		metafakes.NewFakeArtworkDownloader(),
+		bus, nil,
+		appmetadata.WithServerConfig(cfg),
+	)
+	repo := newCountingRepo()
+	enricher := &fakeBulkEnricher{}
+	appmetadata.WithEnricher(enricher, repo)(cmdSvc)
+	ctx := context.Background()
+	require.NoError(t, repo.Create(ctx, &library.MediaItem{ID: "item-1", Title: "A"}))
+	require.NoError(t, cfg.Set(ctx, "metadata.refresh_all.cursor", `{"library_id":"lib-other","offset":500}`))
+
+	require.NoError(t, cmdSvc.AutoRefreshAllItems(ctx, ""))
+	assert.Len(t, enricher.enrichedItems, 1, "a cursor for another scope must be ignored")
+}

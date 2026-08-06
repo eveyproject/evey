@@ -42,6 +42,7 @@ type CommandService struct {
 	mediaItems   library.MediaItemRepository
 	mediaPersons library.MediaPersonRepository
 	enricher     ItemEnricher
+	serverConfig shared.ServerConfigRepository
 	workerWg     sync.WaitGroup
 	// shutdownCtx is the service-lifetime context. Set once at construction
 	// (race-free), used by detached background jobs (orphan drain) so they are
@@ -63,6 +64,14 @@ type CommandService struct {
 // jobs (the orphan drain) are cancelled at shutdown and awaited by
 // WaitWorkers, instead of running on context.Background() invisibly past a
 // redeploy against a DB pool the server thinks is drained.
+// WithServerConfig enables the resumable cursor of AutoRefreshAllItems: the
+// sweep persists its page offset so a server restart mid-walk (the sweep runs
+// as a detached goroutine and dies with the process) resumes where it stopped
+// on the next trigger instead of re-enriching the whole catalogue.
+func WithServerConfig(cfg shared.ServerConfigRepository) CommandServiceOption {
+	return func(s *CommandService) { s.serverConfig = cfg }
+}
+
 func WithShutdownCtx(ctx context.Context) CommandServiceOption {
 	return func(s *CommandService) { s.shutdownCtx = ctx }
 }

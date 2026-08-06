@@ -5,6 +5,7 @@ package metadata
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -308,7 +309,18 @@ func (s *CommandService) AutoRefreshAllItems(ctx context.Context, libraryID stri
 		return err
 	}
 	const pageSize = 500
-	for offset := 0; ; offset += pageSize {
+	// Resumable cursor: the sweep runs detached and dies with the process, so
+	// the completed offset persists after every page. A re-trigger for the
+	// SAME library scope picks up there instead of re-enriching the whole
+	// catalogue from zero. Offset resume is approximate under catalogue
+	// mutation (items may shift pages) - acceptable for an idempotent enrich.
+	startOffset := 0
+	if cur, ok := s.loadRefreshCursor(ctx, libraryID); ok {
+		startOffset = cur
+		slog.Info("metadata refresh-all: resuming from persisted cursor",
+			slog.String("library_id", libraryID), slog.Int("offset", startOffset))
+	}
+	for offset := startOffset; ; offset += pageSize {
 		filter := library.ListMediaItemsFilter{Limit: pageSize, Offset: offset}
 		if libraryID != "" {
 			libID := shared.LibraryID(libraryID)
@@ -328,11 +340,59 @@ func (s *CommandService) AutoRefreshAllItems(ctx context.Context, libraryID stri
 		} else {
 			be.AutoEnrichAll(ctx, items, slog.Default())
 		}
+		s.storeRefreshCursor(ctx, libraryID, offset+pageSize)
 		if len(items) < pageSize {
 			break
 		}
 	}
+	s.clearRefreshCursor(ctx)
 	return nil
+}
+
+// metadataRefreshCursorKey persists the refresh-all sweep position in
+// server_config (no schema change needed): {"library_id":"...","offset":N}.
+const metadataRefreshCursorKey = "metadata.refresh_all.cursor"
+
+type refreshCursor struct {
+	LibraryID string `json:"library_id"`
+	Offset    int    `json:"offset"`
+}
+
+func (s *CommandService) loadRefreshCursor(ctx context.Context, libraryID string) (int, bool) {
+	if s.serverConfig == nil {
+		return 0, false
+	}
+	entry, err := s.serverConfig.Get(ctx, metadataRefreshCursorKey)
+	if err != nil || entry == nil || entry.Value == "" {
+		return 0, false
+	}
+	var cur refreshCursor
+	if json.Unmarshal([]byte(entry.Value), &cur) != nil || cur.LibraryID != libraryID || cur.Offset <= 0 {
+		return 0, false
+	}
+	return cur.Offset, true
+}
+
+func (s *CommandService) storeRefreshCursor(ctx context.Context, libraryID string, offset int) {
+	if s.serverConfig == nil {
+		return
+	}
+	raw, err := json.Marshal(refreshCursor{LibraryID: libraryID, Offset: offset})
+	if err != nil {
+		return
+	}
+	if err := s.serverConfig.Set(ctx, metadataRefreshCursorKey, string(raw)); err != nil {
+		slog.WarnContext(ctx, "metadata refresh-all: cursor persist failed", slog.Any("err", err))
+	}
+}
+
+func (s *CommandService) clearRefreshCursor(ctx context.Context) {
+	if s.serverConfig == nil {
+		return
+	}
+	if err := s.serverConfig.Delete(ctx, metadataRefreshCursorKey); err != nil {
+		slog.WarnContext(ctx, "metadata refresh-all: cursor clear failed", slog.Any("err", err))
+	}
 }
 
 func (s *CommandService) StartEnrichmentWorker(ctx context.Context) {
