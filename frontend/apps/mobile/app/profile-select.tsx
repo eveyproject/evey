@@ -56,7 +56,7 @@ export default function ProfileSelect() {
     const lang = defaultProfile.locale.split("-")[0];
     if (supportedLanguages.some((l) => l.code === lang) && !i18n.language.startsWith(lang)) {
       void i18n.changeLanguage(lang);
-      useLocaleStore.getState().setLocale(lang);
+      useLocaleStore.getState().setLocale(lang, "profile");
     }
     localeSynced.current = true;
   }, [defaultProfile?.locale]);

@@ -26,14 +26,40 @@ function isSupported(code?: string): boolean {
 }
 
 function detectLanguage(): string {
-  const stored = useLocaleStore.getState().locale;
-  if (stored) {
-    const lang = stored.split("-")[0];
-    if (isSupported(lang)) return lang;
-  }
+  const { locale: stored, source } = useLocaleStore.getState();
+  const storedLang = stored ? stored.split("-")[0] : undefined;
+  const storedOk = isSupported(storedLang);
+  // Precedence (user decision 2026-08-05): profile > user pick > device >
+  // server default. A stored profile claim or explicit pick wins outright;
+  // a mere server-default echo ranks BELOW the device language.
+  if (storedOk && (source === "profile" || source === "user")) return storedLang!;
   const deviceLang = getLocales()[0]?.languageCode ?? "en";
   if (isSupported(deviceLang)) return deviceLang;
+  if (storedOk) return storedLang!;
   return "en";
+}
+
+// The persisted stores rehydrate ASYNCHRONOUSLY (SecureStore), so reading
+// them at boot races the storage. Deciding before they land is how the
+// server default used to beat a known profile. The timeout keeps a broken
+// storage from hanging the boot forever.
+async function storeHydrated(store: {
+  persist?: { hasHydrated: () => boolean; onFinishHydration: (cb: () => void) => () => void };
+}): Promise<void> {
+  const p = store.persist;
+  if (!p || p.hasHydrated()) return;
+  await new Promise<void>((resolve) => {
+    let unsub: (() => void) | undefined;
+    const timer = setTimeout(() => {
+      unsub?.();
+      resolve();
+    }, 3000);
+    unsub = p.onFinishHydration(() => {
+      clearTimeout(timer);
+      unsub?.();
+      resolve();
+    });
+  });
 }
 
 // i18nLoaded reports that translations are actually IN MEMORY - not merely
@@ -95,21 +121,39 @@ export async function initI18n(serverUrl: string) {
   return i18n;
 }
 
-// Apply the server's default language on unauthenticated sessions so the
-// login/setup screens render in the admin-picked language. Mirrors the
-// web __root.tsx logic: once a user is authenticated, the JWT locale claim
-// and any explicit /settings choice take over via the existing listeners.
+// Resolve the boot language once the persisted stores have landed, then - and
+// only as a LAST resort - apply the server's default so a fresh install
+// renders login/setup in the admin-picked language. Precedence (user decision
+// 2026-08-05): profile > explicit user pick > device > server default. The
+// old version checked accessToken BEFORE SecureStore rehydration finished, so
+// the server default won the boot race against a known profile.
 export async function applyServerLanguage(serverUrl: string): Promise<void> {
+  await Promise.all([storeHydrated(useAuthStore), storeHydrated(useLocaleStore)]);
+  // Re-run detection now that the persisted locale/source are readable: the
+  // initial init() may have decided from pre-hydration defaults.
+  const resolved = detectLanguage();
+  if (resolved !== i18n.language) {
+    try {
+      await i18n.changeLanguage(resolved);
+    } catch {
+      /* offline: the embedded floor keeps the UI readable */
+    }
+  }
+  // A profile is known (JWT locale claim reigns), or the stored locale came
+  // from a profile/user pick: the server default is outranked, stop here.
   if (useAuthStore.getState().accessToken) return;
+  const { source } = useLocaleStore.getState();
+  if (source === "profile" || source === "user") return;
+  // Device language outranks the server default too.
+  if (isSupported(getLocales()[0]?.languageCode ?? undefined)) return;
   try {
     const res = await fetch(`${serverUrl}/api/v1/setup/status`);
     if (!res.ok) return;
     const info = (await res.json()) as { serverLanguage?: string };
     const lang = info.serverLanguage?.split("-")[0];
     if (!isSupported(lang)) return;
-    const current = useLocaleStore.getState().locale;
-    if (current === lang) return;
-    useLocaleStore.getState().setLocale(lang!);
+    if (useLocaleStore.getState().locale === lang) return;
+    useLocaleStore.getState().setLocale(lang!, "server");
     await i18n.changeLanguage(lang!);
   } catch {
     // setup/status is best-effort; offline boot just keeps the device default.

@@ -30,9 +30,12 @@ export const Route = createRootRouteWithContext<RouterContext>()({
       // default. Once the user logs in, their profile locale (JWT claim) and
       // any explicit /settings choice take over via the existing listeners.
       if (info.serverLanguage && !useAuthStore.getState().accessToken) {
-        const current = useLocaleStore.getState().locale;
-        if (current !== info.serverLanguage) {
-          useLocaleStore.getState().setLocale(info.serverLanguage);
+        const { locale: current, source } = useLocaleStore.getState();
+        // A profile claim or an explicit user pick outranks the server
+        // default (precedence decided 2026-08-05); only an unmarked locale
+        // is replaced.
+        if (source !== "user" && source !== "profile" && current !== info.serverLanguage) {
+          useLocaleStore.getState().setLocale(info.serverLanguage, "server");
           void i18n.changeLanguage(info.serverLanguage);
         }
       }

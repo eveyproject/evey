@@ -137,7 +137,7 @@ export const useAuthStore = create<AuthState>()(
         });
 
         if (typeof claims?.locale === "string" && claims.locale) {
-          useLocaleStore.getState().setLocale(claims.locale);
+          useLocaleStore.getState().setLocale(claims.locale, "profile");
         }
       },
 
