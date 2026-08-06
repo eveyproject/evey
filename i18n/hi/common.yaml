@@ -191,6 +191,7 @@ feeds:
   customize: अनुकूलित करें
   customizeTitle: "होम पेज अनुकूलित करें"
   resetDefaults: "डिफ़ॉल्ट रीसेट करें"
+  resetConfirm: "फ़ीड अनुकूलन को डिफ़ॉल्ट पर रीसेट करें?"
   moveUp: "अनुभाग ऊपर ले जाएं"
   moveDown: "अनुभाग नीचे ले जाएं"
   labels:

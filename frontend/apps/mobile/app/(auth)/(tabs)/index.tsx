@@ -1,4 +1,4 @@
-import { ScrollView, View, RefreshControl, Text, Pressable, Modal, Switch, StyleSheet, Dimensions } from "react-native";
+import { ScrollView, View, RefreshControl, Text, Pressable, Modal, Switch, StyleSheet, Dimensions, Alert } from "react-native";
 import { Image } from "expo-image";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Skeleton } from "../../../src/components/Skeleton";
@@ -12,6 +12,7 @@ import {
   useFeedServiceRecommended,
   useFeedServiceGetFeedConfig,
   useFeedServiceUpdateProfileFeedConfig,
+  useFeedServiceResetProfileFeedConfig,
   useLibraryServiceListLibraries,
   useLibraryServiceListMediaItems,
   eveyFetch,
@@ -240,6 +241,7 @@ function FeedCustomizeModal({
   const { t } = useTranslation();
   const qc = useQueryClient();
   const updateFeed = useFeedServiceUpdateProfileFeedConfig();
+  const resetFeed = useFeedServiceResetProfileFeedConfig();
 
   const [local, setLocal] = useState<FeedConfig[]>([]);
 
@@ -322,6 +324,29 @@ function FeedCustomizeModal({
     });
   };
 
+  const resetAll = useCallback(() => {
+    Alert.alert(
+      t("common.feeds.resetDefaults", "Reset to Defaults"),
+      t("common.feeds.resetConfirm", "Reset your feed customization to defaults?"),
+      [
+        { text: t("common.cancel"), style: "cancel" },
+        {
+          text: t("common.feeds.resetDefaults", "Reset to Defaults"),
+          style: "destructive",
+          onPress: async () => {
+            for (const c of local) {
+              if (!c.feedType) continue;
+              try {
+                await resetFeed.mutateAsync({ feedType: c.feedType });
+              } catch { /* best-effort, mirrors persist() above */ }
+            }
+            await qc.invalidateQueries({ queryKey: ["/api/v1/feeds/config"] });
+          },
+        },
+      ],
+    );
+  }, [local, resetFeed, qc, t]);
+
   const feedLabel = (feedType: string) => {
     if (feedType.startsWith("library:")) {
       const libId = feedType.replace("library:", "");
@@ -383,8 +408,18 @@ function FeedCustomizeModal({
             ))}
           </ScrollView>
           <Pressable
+            onPress={resetAll}
+            style={[feedStyles.resetBtn, { marginTop: 16 }]}
+            accessible
+            accessibilityRole="button"
+            accessibilityLabel={t("common.feeds.resetDefaults", "Reset to Defaults")}
+          >
+            <Ionicons name="refresh-outline" size={14} color={theme.colors.textMuted} />
+            <Text style={{ color: theme.colors.textMuted, fontSize: 13 }}>{t("common.feeds.resetDefaults", "Reset to Defaults")}</Text>
+          </Pressable>
+          <Pressable
             onPress={onClose}
-            style={[feedStyles.cancelBtn, { backgroundColor: theme.colors.surfaceRaised, borderRadius: theme.radii.md, marginTop: 16 }]}
+            style={[feedStyles.cancelBtn, { backgroundColor: theme.colors.surfaceRaised, borderRadius: theme.radii.md, marginTop: 8 }]}
             accessible
             accessibilityRole="button"
             accessibilityLabel={t("common.close") || "Close"}
@@ -405,6 +440,7 @@ const feedStyles = StyleSheet.create({
   feedLabel: { flex: 1, fontSize: 14, fontWeight: "500" },
   saveBtn: { paddingVertical: 12, alignItems: "center" },
   cancelBtn: { paddingVertical: 12, alignItems: "center" },
+  resetBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 8 },
 });
 
 export default function HomeScreen() {

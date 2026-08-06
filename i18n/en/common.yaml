@@ -208,6 +208,7 @@ feeds:
   customize: Customize
   customizeTitle: Customize Homepage
   resetDefaults: Reset to Defaults
+  resetConfirm: Reset your feed customization to defaults?
   moveUp: Move section up
   moveDown: Move section down
   labels:

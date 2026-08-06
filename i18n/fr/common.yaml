@@ -191,6 +191,7 @@ feeds:
   customize: Personnaliser
   customizeTitle: "Personnaliser l'accueil"
   resetDefaults: "Réinitialiser"
+  resetConfirm: "Réinitialiser la personnalisation du flux aux valeurs par défaut ?"
   moveUp: Déplacer la section vers le haut
   moveDown: Déplacer la section vers le bas
   labels:

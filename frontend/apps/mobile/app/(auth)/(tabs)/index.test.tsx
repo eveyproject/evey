@@ -19,6 +19,7 @@ vi.mock("react-native", () => ({
   Switch: () => null,
   StyleSheet: { create: (s: any) => s },
   Dimensions: { get: () => ({ width: 390, height: 844 }) },
+  Alert: { alert: vi.fn() },
 }));
 
 // --- expo-image / expo-router -------------------------------------------------------
@@ -96,24 +97,38 @@ vi.mock("@tanstack/react-query", () => ({
 
 // --- @evey/api ----------------------------------------------------------------------------
 const emptySettled = { data: { items: [] }, isLoading: false, isError: false, refetch: vi.fn() };
+const resetMutateAsync = vi.fn().mockResolvedValue({});
 vi.mock("@evey/api", () => ({
   usePlaybackServiceGetResumeItems: () => emptySettled,
   usePlaybackServiceGetNextUp: () => emptySettled,
   useFeedServiceRecommended: () => emptySettled,
   useFeedServiceGetFeedConfig: () => ({ data: { configs: [] } }),
   useFeedServiceUpdateProfileFeedConfig: () => ({ mutateAsync: vi.fn() }),
+  useFeedServiceResetProfileFeedConfig: () => ({ mutateAsync: resetMutateAsync }),
   useLibraryServiceListLibraries: () => ({ data: { libraries: [] } }),
   useLibraryServiceListMediaItems: () => ({ data: { items: [] }, isLoading: false }),
   eveyFetch: vi.fn().mockResolvedValue({}),
 }));
 
+import { Alert } from "react-native";
 import HomeScreen from "./index";
+
+/** Fires the Alert button whose text matches, the way a tap would. */
+function tapAlertButton(text: string) {
+  const buttons = (Alert.alert as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[2] as
+    | { text: string; onPress?: () => void }[]
+    | undefined;
+  const btn = buttons?.find((b) => b.text === text);
+  if (!btn) throw new Error(`no Alert button labelled ${text}, got: ${buttons?.map((b) => b.text).join(", ")}`);
+  btn.onPress?.();
+}
 
 beforeEach(() => {
   vi.clearAllMocks();
   popularLoading = false;
   popularError = false;
   popularItems = [];
+  resetMutateAsync.mockClear();
 });
 
 describe("HomeScreen - most_popular shelf, loading vs failure vs empty", () => {
@@ -139,5 +154,29 @@ describe("HomeScreen - most_popular shelf, loading vs failure vs empty", () => {
     render(<HomeScreen />);
     expect(screen.queryByText("common.loadError")).toBeNull();
     expect(screen.queryByText("media.home.mostPopular")).toBeNull();
+  });
+});
+
+describe("HomeScreen - customize panel reset to defaults", () => {
+  it("does not reset until the confirmation is accepted", async () => {
+    render(<HomeScreen />);
+    fireEvent.click(screen.getByLabelText("common.feeds.customize"));
+    fireEvent.click(screen.getByLabelText("common.feeds.resetDefaults"));
+
+    expect(Alert.alert).toHaveBeenCalledOnce();
+    expect(resetMutateAsync).not.toHaveBeenCalled();
+  });
+
+  it("resets every feed row and refetches the config once confirmed", async () => {
+    render(<HomeScreen />);
+    fireEvent.click(screen.getByLabelText("common.feeds.customize"));
+    fireEvent.click(screen.getByLabelText("common.feeds.resetDefaults"));
+
+    tapAlertButton("common.feeds.resetDefaults");
+    // The confirm handler is async (awaits each mutateAsync); flush microtasks.
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(resetMutateAsync).toHaveBeenCalled();
   });
 });

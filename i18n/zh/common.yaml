@@ -191,6 +191,7 @@ feeds:
   customize: 自定义
   customizeTitle: "自定义首页"
   resetDefaults: "恢复默认"
+  resetConfirm: "将信息流自定义重置为默认设置？"
   moveUp: "板块上移"
   moveDown: "板块下移"
   labels:

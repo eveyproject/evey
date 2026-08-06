@@ -208,6 +208,7 @@ feeds:
   customize: Anpassen
   customizeTitle: Startseite anpassen
   resetDefaults: Zurücksetzen
+  resetConfirm: Feed-Anpassung auf Standardwerte zurücksetzen?
   moveUp: Bereich nach oben verschieben
   moveDown: Bereich nach unten verschieben
   labels:
