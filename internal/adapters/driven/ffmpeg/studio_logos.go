@@ -65,7 +65,10 @@ func detectStudioLogoIn(hashes []uint64, intervalSec int, catalog studioLogoCata
 	}
 	target := hashes[:maxFrames]
 
-	// For each frame, check whether it matches any pattern.
+	// For each frame, credit EVERY pattern within tolerance - breaking on the
+	// first hit made a pattern's count depend on catalog ORDER: a frame close
+	// to two logos only fed the earlier one, and the later pattern could miss
+	// its minMatches threshold despite genuinely matching enough frames.
 	matchedFrames := make([]bool, len(target))
 	perPatternHits := make(map[string]int, len(catalog.Patterns))
 	for i, h := range target {
@@ -73,7 +76,6 @@ func detectStudioLogoIn(hashes []uint64, intervalSec int, catalog studioLogoCata
 			if matchesPattern(h, p, maxHamming) {
 				matchedFrames[i] = true
 				perPatternHits[p.Name]++
-				break
 			}
 		}
 	}

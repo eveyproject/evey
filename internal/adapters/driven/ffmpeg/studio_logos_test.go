@@ -155,3 +155,20 @@ func TestDetectStudioLogoIn_EmptyPatternHashes(t *testing.T) {
 	_, _, found := detectStudioLogoIn(hashes, 15, catalog, 5)
 	assert.False(t, found, "pattern with empty hashes must never match")
 }
+
+// A frame near TWO patterns must credit both: with the old first-match break,
+// the second pattern's count depended on catalog order and could miss its
+// minMatches threshold despite genuinely matching enough frames.
+func TestDetectStudioLogoIn_FrameCreditsEveryMatchingPattern(t *testing.T) {
+	t.Parallel()
+
+	// Both patterns contain the same reference hash; the second requires 2 hits.
+	catalog := studioLogoCatalog{Patterns: []studioLogoPattern{
+		{Name: "First", Hashes: []uint64{0xAAAA}, MinMatches: 3},
+		{Name: "Second", Hashes: []uint64{0xAAAA}, MinMatches: 2},
+	}}
+	hashes := []uint64{0xAAAA, 0xAAAA, 0x1111}
+
+	_, _, found := detectStudioLogoIn(hashes, 15, catalog, 0)
+	assert.True(t, found, "the second pattern reaches its threshold when frames credit every match, not just the catalog's first")
+}
