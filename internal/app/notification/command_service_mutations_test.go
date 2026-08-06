@@ -25,11 +25,31 @@ import (
 
 var slogMu sync.Mutex
 
+// syncBuffer guards a bytes.Buffer: detached service goroutines (evicted
+// batch flushes) keep logging while a test reads, and a bare buffer races
+// under -race.
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *syncBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *syncBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
+}
+
 // captureSlogBuffer redirects slog output to a buffer; returns buffer + restore fn.
-func captureSlogBuffer(t *testing.T) (*bytes.Buffer, func()) {
+func captureSlogBuffer(t *testing.T) (*syncBuffer, func()) {
 	t.Helper()
 	slogMu.Lock()
-	var buf bytes.Buffer
+	var buf syncBuffer
 	prev := slog.Default()
 	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug})))
 	return &buf, func() {

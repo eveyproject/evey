@@ -132,20 +132,24 @@ func (s *CommandService) bufferSeriesEvent(e libevent.MediaItemAdded) {
 			}
 			// Flush the evicted batch instead of discarding it: eviction is a
 			// capacity decision, the user still deserves the notification the
-			// batch was accumulating. flushBatch takes s.mu (held here), so it
-			// runs detached and pops the entry itself once we release.
-			if ob := s.batches[oldestKey]; ob != nil && ob.timer != nil {
-				ob.timer.Stop()
+			// batch was accumulating. Pop the entry NOW, under the held lock -
+			// a deferred pop made the cap advisory: until the detached flush
+			// re-acquired s.mu, every new key re-elected the SAME oldest entry
+			// and the map grew past maxBatchEntries under a burst.
+			evicted := s.batches[oldestKey]
+			delete(s.batches, oldestKey)
+			if evicted != nil && evicted.timer != nil {
+				evicted.timer.Stop()
 			}
-			go func(k string) {
+			go func(b *batchEntry) {
 				defer func() {
 					if r := recover(); r != nil {
 						slog.Error("panic recovered in evicted notification batch flush",
 							slog.Any("recover", r), slog.String("stack", string(debug.Stack())))
 					}
 				}()
-				s.flushBatch(k)
-			}(oldestKey)
+				s.flushEntry(b)
+			}(evicted)
 			slog.Warn("notification batch map full, flushing oldest entry early", slog.String("key", oldestKey))
 		}
 		batch = &batchEntry{createdAt: time.Now()}
@@ -179,6 +183,16 @@ func (s *CommandService) flushBatch(key string) {
 	}
 	delete(s.batches, key)
 	s.mu.Unlock()
+
+	s.flushEntry(batch)
+}
+
+// flushEntry emits the notifications for an already-popped batch entry.
+// Callers that still hold the entry in s.batches go through flushBatch.
+func (s *CommandService) flushEntry(batch *batchEntry) {
+	if batch == nil {
+		return
+	}
 
 	seasonCount := len(batch.seasons)
 	episodeCount := len(batch.episodes)
