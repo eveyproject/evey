@@ -42,7 +42,7 @@ func TestCreateRequest_FailsClosedWhenDisabled(t *testing.T) {
 	svc := newService(repo, access, bus)
 
 	_, err := svc.CreateRequest(context.Background(), "prf-1", "usr-1", appmediarequest.CreateInput{
-		MediaType: mediarequest.MediaTypeMovie, Title: "Dune",
+		MediaType: mediarequest.MediaTypeMovie, Title: "Some Movie",
 	})
 	if !errors.Is(err, mediarequest.ErrDisabled) {
 		t.Fatalf("err = %v, want ErrDisabled", err)
@@ -63,7 +63,7 @@ func TestCreateRequest_OverrideBeatsGlobalDefault(t *testing.T) {
 	svc := newService(repo, access, bus)
 
 	req, err := svc.CreateRequest(context.Background(), "prf-1", "usr-1", appmediarequest.CreateInput{
-		MediaType: mediarequest.MediaTypeTV, Title: "Severance",
+		MediaType: mediarequest.MediaTypeTV, Title: "Some Series",
 	})
 	if err != nil {
 		t.Fatalf("CreateRequest: %v", err)
@@ -79,6 +79,36 @@ func TestCreateRequest_OverrideBeatsGlobalDefault(t *testing.T) {
 	}
 }
 
+// The poster URL is CLIENT-supplied and later rendered on the admin's
+// device: only the artwork CDNs our own metadata providers emit survive;
+// anything else is dropped (the request itself still goes through - the
+// poster is cosmetic).
+func TestCreateRequest_PosterURLHostAllowlist(t *testing.T) {
+	cases := []struct {
+		in, want string
+	}{
+		{"https://image.tmdb.org/t/p/w500/x.jpg", "https://image.tmdb.org/t/p/w500/x.jpg"},
+		{"https://coverartarchive.org/release-group/abc/front-250", "https://coverartarchive.org/release-group/abc/front-250"},
+		{"https://evil.example.com/tracker.png", ""},
+		{"http://image.tmdb.org/t/p/w500/x.jpg", ""}, // https only
+		{"javascript:alert(1)", ""},
+		{"", ""},
+	}
+	for _, c := range cases {
+		repo := mrfakes.NewFakeRepository()
+		svc := newService(repo, mrfakes.NewFakeAccess(true), &fakeBus{})
+		req, err := svc.CreateRequest(context.Background(), "prf-1", "usr-1", appmediarequest.CreateInput{
+			MediaType: mediarequest.MediaTypeMovie, Title: "Some Movie", PosterURL: c.in,
+		})
+		if err != nil {
+			t.Fatalf("CreateRequest(%q): %v", c.in, err)
+		}
+		if req.PosterURL != c.want {
+			t.Errorf("PosterURL(%q) = %q, want %q", c.in, req.PosterURL, c.want)
+		}
+	}
+}
+
 func TestCreateRequest_RejectsDuplicate(t *testing.T) {
 	repo := mrfakes.NewFakeRepository()
 	repo.HasOpen = true
@@ -87,7 +117,7 @@ func TestCreateRequest_RejectsDuplicate(t *testing.T) {
 	svc := newService(repo, access, bus)
 
 	_, err := svc.CreateRequest(context.Background(), "prf-1", "usr-1", appmediarequest.CreateInput{
-		MediaType: mediarequest.MediaTypeMovie, Title: "Dune", Provider: "tmdb", ProviderID: "438631",
+		MediaType: mediarequest.MediaTypeMovie, Title: "Some Movie", Provider: "tmdb", ProviderID: "438631",
 	})
 	if !errors.Is(err, mediarequest.ErrDuplicate) {
 		t.Fatalf("err = %v, want ErrDuplicate", err)
@@ -116,7 +146,7 @@ func TestSearchTitles_DeniedUserNeverReachesProvider(t *testing.T) {
 	access := withOverride(mrfakes.NewFakeAccess(true), "usr-blocked", false)
 	svc := appmediarequest.NewService(mrfakes.NewFakeRepository(), access, []metadata.MetadataProvider{prov}, &fakeBus{})
 
-	_, err := svc.SearchTitles(context.Background(), "usr-blocked", mediarequest.MediaTypeMovie, "Dune", nil)
+	_, err := svc.SearchTitles(context.Background(), "usr-blocked", mediarequest.MediaTypeMovie, "Some Movie", nil)
 	if !errors.Is(err, mediarequest.ErrDisabled) {
 		t.Fatalf("err = %v, want ErrDisabled", err)
 	}
@@ -130,7 +160,7 @@ func TestSearchTitles_AllowedUserReachesProvider(t *testing.T) {
 	access := mrfakes.NewFakeAccess(true)
 	svc := appmediarequest.NewService(mrfakes.NewFakeRepository(), access, []metadata.MetadataProvider{prov}, &fakeBus{})
 
-	if _, err := svc.SearchTitles(context.Background(), "usr-1", mediarequest.MediaTypeMovie, "Dune", nil); err != nil {
+	if _, err := svc.SearchTitles(context.Background(), "usr-1", mediarequest.MediaTypeMovie, "Some Movie", nil); err != nil {
 		t.Fatalf("SearchTitles: %v", err)
 	}
 	if prov.searched != 1 {
@@ -157,7 +187,7 @@ func TestAnswer_PersistsAndPublishes(t *testing.T) {
 	svc := newService(repo, access, bus)
 
 	created, err := svc.CreateRequest(context.Background(), "prf-1", "usr-1", appmediarequest.CreateInput{
-		MediaType: mediarequest.MediaTypeMovie, Title: "Dune",
+		MediaType: mediarequest.MediaTypeMovie, Title: "Some Movie",
 	})
 	if err != nil {
 		t.Fatalf("CreateRequest: %v", err)
@@ -217,7 +247,7 @@ func (p *resultProvider) GetByProviderID(_ context.Context, _ string, _ string) 
 // MusicBrainz id, so the only join would be on album title, and a wrong "you
 // already have this" is worse than showing no badge at all.
 func TestSearchTitles_LibraryLookupGuards(t *testing.T) {
-	results := []metadata.MetadataResult{{Title: "Dune", ProviderIDs: map[string]string{"results": "123"}}}
+	results := []metadata.MetadataResult{{Title: "Some Movie", ProviderIDs: map[string]string{"results": "123"}}}
 
 	t.Run("music never reaches the library lookup", func(t *testing.T) {
 		lookup := &countingLookup{}
@@ -237,7 +267,7 @@ func TestSearchTitles_LibraryLookupGuards(t *testing.T) {
 		svc := appmediarequest.NewService(mrfakes.NewFakeRepository(), mrfakes.NewFakeAccess(true),
 			[]metadata.MetadataProvider{&resultProvider{results: results}}, &fakeBus{}).WithLibraryLookup(lookup)
 
-		if _, err := svc.SearchTitles(context.Background(), "usr-1", mediarequest.MediaTypeMovie, "Dune", nil); err != nil {
+		if _, err := svc.SearchTitles(context.Background(), "usr-1", mediarequest.MediaTypeMovie, "Some Movie", nil); err != nil {
 			t.Fatalf("SearchTitles: %v", err)
 		}
 		if lookup.calls != 1 {
@@ -250,7 +280,7 @@ func TestSearchTitles_LibraryLookupGuards(t *testing.T) {
 		svc := appmediarequest.NewService(mrfakes.NewFakeRepository(), mrfakes.NewFakeAccess(true),
 			[]metadata.MetadataProvider{&resultProvider{results: nil}}, &fakeBus{}).WithLibraryLookup(lookup)
 
-		if _, err := svc.SearchTitles(context.Background(), "usr-1", mediarequest.MediaTypeMovie, "Dune", nil); err != nil {
+		if _, err := svc.SearchTitles(context.Background(), "usr-1", mediarequest.MediaTypeMovie, "Some Movie", nil); err != nil {
 			t.Fatalf("SearchTitles: %v", err)
 		}
 		if lookup.calls != 0 {
@@ -262,7 +292,7 @@ func TestSearchTitles_LibraryLookupGuards(t *testing.T) {
 		// No WithLibraryLookup: the search must still succeed, unflagged.
 		svc := appmediarequest.NewService(mrfakes.NewFakeRepository(), mrfakes.NewFakeAccess(true),
 			[]metadata.MetadataProvider{&resultProvider{results: results}}, &fakeBus{})
-		out, err := svc.SearchTitles(context.Background(), "usr-1", mediarequest.MediaTypeMovie, "Dune", nil)
+		out, err := svc.SearchTitles(context.Background(), "usr-1", mediarequest.MediaTypeMovie, "Some Movie", nil)
 		if err != nil {
 			t.Fatalf("SearchTitles without a library lookup must still work: %v", err)
 		}
@@ -289,7 +319,7 @@ func TestCreateAndAnswer_SurviveAFailingEventBus(t *testing.T) {
 	svc := appmediarequest.NewService(repo, mrfakes.NewFakeAccess(true), nil, failingBus{})
 
 	req, err := svc.CreateRequest(context.Background(), "prof-1", "usr-1", appmediarequest.CreateInput{
-		MediaType: mediarequest.MediaTypeMovie, Title: "Dune",
+		MediaType: mediarequest.MediaTypeMovie, Title: "Some Movie",
 	})
 	if err != nil {
 		t.Fatalf("a failing event bus must not fail the request: %v", err)

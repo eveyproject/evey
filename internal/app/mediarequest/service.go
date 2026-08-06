@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"net/url"
 	"strings"
 
 	"github.com/evey-project/evey/internal/domain/mediarequest"
@@ -238,8 +239,8 @@ func (s *Service) CreateRequest(ctx context.Context, profileID shared.ProfileID,
 	if in.Year != nil {
 		opts = append(opts, mediarequest.WithYear(*in.Year))
 	}
-	if in.PosterURL != "" {
-		opts = append(opts, mediarequest.WithPosterURL(in.PosterURL))
+	if p := sanitizePosterURL(in.PosterURL); p != "" {
+		opts = append(opts, mediarequest.WithPosterURL(p))
 	}
 	if in.Provider != "" || in.ProviderID != "" {
 		opts = append(opts, mediarequest.WithProvider(in.Provider, in.ProviderID))
@@ -371,4 +372,31 @@ func (s *Service) SetUserAccess(ctx context.Context, userID string, mode AccessM
 		return s.access.SetOverride(ctx, userID, false)
 	}
 	return errors.New("invalid access mode")
+}
+
+// trustedPosterHosts are the artwork CDNs our metadata providers actually
+// emit (tmdb_mappers.go, musicbrainz_provider.go, and OMDB's IMDb poster
+// passthrough). The poster URL arrives from the CLIENT at creation and is
+// later rendered on the ADMIN's device: anything outside this set is dropped
+// - the poster is cosmetic, and an attacker-chosen host must never see the
+// admin's IP.
+var trustedPosterHosts = map[string]struct{}{
+	"image.tmdb.org":      {},
+	"coverartarchive.org": {},
+	"m.media-amazon.com":  {},
+	"ia.media-imdb.com":   {},
+}
+
+func sanitizePosterURL(raw string) string {
+	if raw == "" {
+		return ""
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme != "https" {
+		return ""
+	}
+	if _, ok := trustedPosterHosts[strings.ToLower(u.Hostname())]; !ok {
+		return ""
+	}
+	return raw
 }
