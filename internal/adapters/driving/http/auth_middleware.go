@@ -39,7 +39,8 @@ func httpAuthMiddleware(verifier TokenVerifier) func(http.HandlerFunc) http.Hand
 				// at debug only so default logs stay quiet.
 				metrics.AuthFailuresTotal.WithLabelValues("missing_bearer").Inc()
 				slog.Debug("auth rejected", slog.String("reason", "missing_bearer"),
-					slog.String("method", r.Method), slog.String("path", r.URL.Path))
+					slog.String("method", r.Method), slog.String("path", r.URL.Path),
+					slog.String("client_ip", ratelimit.ClientIP(r)))
 				http.Error(w, `{"message":"unauthorized"}`, http.StatusUnauthorized)
 				return
 			}
