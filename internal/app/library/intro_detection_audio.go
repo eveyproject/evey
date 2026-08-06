@@ -433,6 +433,48 @@ func pearsonImpl(a, b []float64) float64 {
 // mismatch) the fingerprint is recomputed via Chromaprint and the result is
 // stored back. Upsert failures are non-fatal (slog.Warn); the freshly computed
 // fingerprint is still returned so the pipeline produces a result.
+// prefetchAudioFingerprints batch-reads the audio fingerprint cache for many
+// episodes at once and returns only the entries still VALID for the current
+// file/algo/window (same invalidation contract as extractEpisodeAudioCached).
+// Misses and stale entries are simply absent - the caller falls back to the
+// per-episode compute path for those.
+func (s *IntroDetectionService) prefetchAudioFingerprints(ctx context.Context, items []*domainlibrary.MediaItem, windowSec float64) map[string][]uint32 {
+	out := make(map[string][]uint32, len(items))
+	if s.audioFPCache == nil || len(items) == 0 {
+		return out
+	}
+	ids := make([]string, 0, len(items))
+	byID := make(map[string]*domainlibrary.MediaItem, len(items))
+	for _, it := range items {
+		if it.File == nil || it.File.Fingerprint == "" {
+			continue
+		}
+		ids = append(ids, string(it.ID))
+		byID[string(it.ID)] = it
+	}
+	if len(ids) == 0 {
+		return out
+	}
+	entries, err := s.audioFPCache.GetBatch(ctx, ids)
+	if err != nil {
+		slog.WarnContext(ctx, "intro_detection: audio cache batch read failed", slog.Any("err", err))
+		return out
+	}
+	for id, entry := range entries {
+		it := byID[id]
+		if it == nil || entry == nil {
+			continue
+		}
+		if entry.FileFingerprint == it.File.Fingerprint &&
+			entry.AlgoVersion == currentAudioAlgoVersion &&
+			entry.WindowSec == int(windowSec) &&
+			len(entry.Fingerprint) > 0 {
+			out[id] = entry.Fingerprint
+		}
+	}
+	return out
+}
+
 func (s *IntroDetectionService) extractEpisodeAudioCached(ctx context.Context, item *domainlibrary.MediaItem, windowSec float64) ([]uint32, error) {
 	if s.audioFPCache == nil || item.File == nil || item.File.Fingerprint == "" {
 		return s.chromaprinter.Compute(ctx, item.File.Path, 0, windowSec)

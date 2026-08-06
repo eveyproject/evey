@@ -201,8 +201,8 @@ func (s *IntroDetectionService) clusterSeasonIntro(ctx context.Context, parentID
 		return nil
 	}
 	episodeType := string(domainlibrary.Episode)
-	var eps []episodeFP
-	for offset := 0; len(eps) < seasonClusterEpisodeCap; offset += 200 {
+	var candidates []*domainlibrary.MediaItem
+	for offset := 0; len(candidates) < seasonClusterEpisodeCap; offset += 200 {
 		page, err := s.mediaItems.List(ctx, domainlibrary.ListMediaItemsFilter{
 			ParentID: &parentID, Type: &episodeType, Limit: 200, Offset: offset,
 		})
@@ -213,18 +213,31 @@ func (s *IntroDetectionService) clusterSeasonIntro(ctx context.Context, parentID
 			if ep.File == nil || ep.File.Path == "" {
 				continue
 			}
-			fp, ferr := s.extractEpisodeAudioCached(ctx, ep, discoverWindowSec)
-			if ferr != nil || len(fp) == 0 {
-				continue
-			}
-			eps = append(eps, episodeFP{id: string(ep.ID), fp: fp})
-			if len(eps) >= seasonClusterEpisodeCap {
+			candidates = append(candidates, ep)
+			if len(candidates) >= seasonClusterEpisodeCap {
 				break
 			}
 		}
 		if len(page) < 200 {
 			break
 		}
+	}
+
+	// One batched cache read for the whole season instead of one Get per
+	// episode; only the misses (or stale entries) go through the per-episode
+	// compute+upsert path.
+	prefetched := s.prefetchAudioFingerprints(ctx, candidates, discoverWindowSec)
+	var eps []episodeFP
+	for _, ep := range candidates {
+		fp, ok := prefetched[string(ep.ID)]
+		if !ok {
+			var ferr error
+			fp, ferr = s.extractEpisodeAudioCached(ctx, ep, discoverWindowSec)
+			if ferr != nil || len(fp) == 0 {
+				continue
+			}
+		}
+		eps = append(eps, episodeFP{id: string(ep.ID), fp: fp})
 	}
 	cluster, ok := buildSeasonCluster(eps, defaultClusterParams(len(eps)))
 	if !ok {

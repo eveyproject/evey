@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/lib/pq"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 
@@ -56,6 +57,47 @@ func (r *IntroAudioFingerprintCacheRepository) Get(ctx context.Context, mediaIte
 	}
 	entry.Fingerprint = fp
 	return entry, nil
+}
+
+// GetBatch fetches every cached entry for the given ids in ONE query; absent
+// ids are simply missing from the map. Drives the season-cluster pass (one
+// round trip per season instead of one per episode).
+func (r *IntroAudioFingerprintCacheRepository) GetBatch(ctx context.Context, mediaItemIDs []string) (map[string]*library.IntroAudioFingerprintCacheEntry, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.intro_audio_fingerprint_cache.GetBatch")
+	defer span.End()
+	span.SetAttributes(attribute.Int("ids.count", len(mediaItemIDs)))
+	if len(mediaItemIDs) == 0 {
+		return map[string]*library.IntroAudioFingerprintCacheEntry{}, nil
+	}
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
+		`SELECT media_item_id, file_fingerprint, window_sec, fingerprint, algo_version, extracted_at
+		 FROM intro_audio_fingerprint_cache WHERE media_item_id = ANY($1)`, pq.Array(mediaItemIDs))
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := make(map[string]*library.IntroAudioFingerprintCacheEntry, len(mediaItemIDs))
+	for rows.Next() {
+		entry := &library.IntroAudioFingerprintCacheEntry{}
+		var fpRaw []byte
+		if err := rows.Scan(&entry.MediaItemID, &entry.FileFingerprint, &entry.WindowSec, &fpRaw, &entry.AlgoVersion, &entry.ExtractedAt); err != nil {
+			span.RecordError(err)
+			return nil, err
+		}
+		fp, decErr := decodeUint32Slice(fpRaw)
+		if decErr != nil {
+			return nil, fmt.Errorf("decode fingerprint for %s: %w", entry.MediaItemID, decErr)
+		}
+		entry.Fingerprint = fp
+		out[entry.MediaItemID] = entry
+	}
+	return out, rows.Err()
 }
 
 func (r *IntroAudioFingerprintCacheRepository) Upsert(ctx context.Context, entry *library.IntroAudioFingerprintCacheEntry) error {

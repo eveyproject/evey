@@ -566,6 +566,10 @@ type IntroAudioFingerprintCacheEntry struct {
 // repository stays dumb.
 type IntroAudioFingerprintCacheRepository interface {
 	Get(ctx context.Context, mediaItemID string) (*IntroAudioFingerprintCacheEntry, error)
+	// GetBatch fetches many entries in one query, keyed by media item id; ids
+	// with no entry are simply absent. Drives the season-cluster pass, which
+	// otherwise issued one Get per episode (40 round trips per season).
+	GetBatch(ctx context.Context, mediaItemIDs []string) (map[string]*IntroAudioFingerprintCacheEntry, error)
 	Upsert(ctx context.Context, entry *IntroAudioFingerprintCacheEntry) error
 	Delete(ctx context.Context, mediaItemID string) error
 	DeleteByAlgoVersionBelow(ctx context.Context, version int16) (int64, error)
