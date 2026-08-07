@@ -15,6 +15,7 @@ import { useTranslation } from "react-i18next";
 import { useLibraryServiceGetMediaItem } from "@evey/api";
 import { toast } from "@evey/store";
 import { useTheme } from "../../../../src/providers/ThemeProvider";
+import { HeaderBack } from "../../../../src/components/layout/HeaderBack";
 import {
   useAdminMediaSegments,
   useSetSegment,
@@ -173,6 +174,7 @@ export default function AdminMediaSegmentsScreen() {
           title: mediaItem?.title ?? t("admin.segments.title", "Segment Admin"),
           headerStyle: { backgroundColor: theme.colors.surface },
           headerTintColor: theme.colors.text,
+          headerLeft: () => <HeaderBack />,
         }}
       />
 

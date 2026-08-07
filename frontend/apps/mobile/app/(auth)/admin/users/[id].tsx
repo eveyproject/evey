@@ -3,6 +3,7 @@ import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useUserServiceListUsers } from "@evey/api";
 import { useTheme } from "../../../../src/providers/ThemeProvider";
+import { HeaderBack } from "../../../../src/components/layout/HeaderBack";
 import { EditUserScreen } from "../../../../src/features/admin/EditUserScreen";
 
 export default function AdminEditUserRoute() {
@@ -22,6 +23,7 @@ export default function AdminEditUserRoute() {
           title: user?.username ?? t("admin.users.editUser", "Edit User"),
           headerStyle: { backgroundColor: theme.colors.surface },
           headerTintColor: theme.colors.text,
+          headerLeft: () => <HeaderBack />,
         }}
       />
       {isLoading ? (

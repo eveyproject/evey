@@ -2,6 +2,7 @@ import { ScrollView, Text, StyleSheet } from "react-native";
 import { Stack, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../../../../src/providers/ThemeProvider";
+import { HeaderBack } from "../../../../src/components/layout/HeaderBack";
 import { PluginSlot, usePluginSlotEntries } from "../../../../src/features/plugins/PluginSlot";
 
 // Dedicated full-screen route for a plugin's admin.nav module - mobile parity
@@ -25,6 +26,7 @@ export default function PluginExtensionScreen() {
           title: entry?.name ?? t("admin.nav.plugins", "Plugin"),
           headerStyle: { backgroundColor: theme.colors.surface },
           headerTintColor: theme.colors.text,
+          headerLeft: () => <HeaderBack />,
         }}
       />
       {id ? (

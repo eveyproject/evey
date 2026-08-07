@@ -9,22 +9,9 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useTranslation } from "react-i18next";
 import { useNotificationServiceGetUnreadCount } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
-import { useDrawer } from "../../../src/providers/DrawerProvider";
 import { HeaderSearch } from "../../../src/components/HeaderSearch";
-import { EveyMark } from "../../../src/components/EveyLogo";
+import { BurgerButton } from "../../../src/components/layout/BurgerButton";
 import { UserMenu } from "../../../src/components/layout/UserMenu";
-
-// The brand lives with the menu, never on a page: closed it is the compact mark
-// that opens the drawer, open it is the wordmark at the drawer's head - the
-// same two states the web sidebar shows collapsed and expanded.
-function BurgerButton() {
-  const { toggle } = useDrawer();
-  return (
-    <Pressable onPress={toggle} style={{ marginLeft: 0, padding: 4 }} accessibilityRole="button" accessibilityLabel="Open menu">
-      <EveyMark height={26} />
-    </Pressable>
-  );
-}
 
 function HeaderRight({ theme }: { theme: ReturnType<typeof useTheme> }) {
   const { t } = useTranslation();
