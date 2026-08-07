@@ -12,6 +12,9 @@ import { WasmAudioEngine } from "@/features/playback/wasmaudio/WasmAudioEngine";
 import { extractAacAudioURI, extractAudioURI } from "@/features/playback/wasmaudio/wasmAudioShared";
 import { absoluteWithToken, appendMaxKbps, bitrateTestUrl, buildPlayerEventUrl, bufferedStats, createStartGate, createStartWatch, createStarvationWatch, planBackBufferTrim, planFloorRescue, probeMaxAudioChannels, probeReceiverCaps, rewriteCastMasterUrl, shouldMeasure, stereoFallbackUrl, stripWasmAudio } from "./receiverLogic";
 import { createAliveHeartbeat, postPlayerEvent, postPlayerEventQuery, readHeapMB } from "./receiverBeacon";
+import { buildCastNextUrl, buildNextMasterUrl, parseCastNextResponse, shouldFetchNext, upNextLabel, type CastNextInfo } from "./castNext";
+import { buildSegmentsUrl, introSkippedLabel, parseSegments, planIntroSkip, type SkippableSegment } from "./introSkip";
+import { endCardModel, pauseHudModel } from "./hud";
 
 // The CAF SDK is loaded by a gstatic <script> in the page; its types are
 // not packaged - deliberately untyped access, scoped to this file.
@@ -341,6 +344,233 @@ function engageFloor(posSec: number, reason = "starvation"): void {
   playerManager.load(request).catch((e: unknown) => showDebug(`qualité réduite impossible: ${String(e)}`));
 }
 
+// --- Next-episode auto-advance (logic in castNext.ts) ---------------------
+// Near the end of an episode the receiver asks the server what comes next
+// (cast-next, authenticated by its own stream token - the server prewarns the
+// first segments on that call), and at END_OF_STREAM it announces the episode
+// with a short countdown then self-loads it. The phone can stay asleep.
+const AUTO_ADVANCE_COUNTDOWN_SEC = 5;
+let nextInfo: CastNextInfo | null = null;
+let nextFetchAttempted = false;
+let nextWatchTimer: ReturnType<typeof setInterval> | null = null;
+let upNextTimer: ReturnType<typeof setInterval> | null = null;
+
+const upnextEl = document.getElementById("upnext");
+function showUpNext(heading: string, title: string, count: string): void {
+  if (!upnextEl) return;
+  const set = (cls: string, text: string) => {
+    const el = upnextEl.querySelector(`.${cls}`);
+    if (el) el.textContent = text;
+  };
+  set("heading", heading);
+  set("title", title);
+  set("count", count);
+  upnextEl.style.display = "block";
+}
+function hideUpNext(): void {
+  if (upNextTimer) {
+    clearInterval(upNextTimer);
+    upNextTimer = null;
+  }
+  if (upnextEl) upnextEl.style.display = "none";
+}
+
+function resetNextEpisode(): void {
+  nextInfo = null;
+  nextFetchAttempted = false;
+  stopNextWatch();
+  hideUpNext();
+}
+
+function stopNextWatch(): void {
+  if (nextWatchTimer) {
+    clearInterval(nextWatchTimer);
+    nextWatchTimer = null;
+  }
+}
+
+function startNextWatch(): void {
+  stopNextWatch();
+  nextWatchTimer = setInterval(() => {
+    let pos = 0;
+    let dur = 0;
+    try {
+      pos = playerManager.getCurrentTimeSec() || 0;
+      dur = playerManager.getDurationSec() || 0;
+    } catch {
+      return; // player torn down: the stop hooks will clear us
+    }
+    if (shouldFetchNext(pos, dur, nextFetchAttempted)) void fetchNextEpisode();
+  }, 10_000);
+}
+
+async function fetchNextEpisode(): Promise<void> {
+  nextFetchAttempted = true;
+  const url = buildCastNextUrl(currentUrl);
+  if (!url) return;
+  try {
+    const resp = await fetch(url, { method: "POST", mode: "cors", credentials: "omit" });
+    if (!resp.ok || resp.status === 204) return;
+    nextInfo = parseCastNextResponse(await resp.json());
+    if (nextInfo) reportEvent("cast_receiver_next_available", `next=${nextInfo.nextMediaItemId}`);
+  } catch {
+    nextInfo = null; // chaining is a nicety, never a failure path
+  }
+}
+
+async function autoAdvance(): Promise<void> {
+  // A viewer who seeked straight into the credits can outrun the 10s watch.
+  if (!nextInfo && !nextFetchAttempted) await fetchNextEpisode();
+  const info = nextInfo;
+  if (!info) {
+    // Finale/movie/denied: nothing to chain - dress the shutdown grace
+    // instead of leaving a black screen until context.stop().
+    showEndCard();
+    return;
+  }
+  const target = buildNextMasterUrl(currentUrl, info);
+  if (!target) {
+    showEndCard();
+    return;
+  }
+  cancelEndShutdown();
+  const label = upNextLabel(info, typeof navigator !== "undefined" ? navigator.language ?? "en" : "en");
+  let remaining = AUTO_ADVANCE_COUNTDOWN_SEC;
+  if (upNextTimer) {
+    clearInterval(upNextTimer);
+    upNextTimer = null;
+  }
+  showUpNext(label.heading, label.title, String(remaining));
+  upNextTimer = setInterval(() => {
+    remaining--;
+    if (remaining > 0) {
+      showUpNext(label.heading, label.title, String(remaining));
+      return;
+    }
+    hideUpNext();
+    reportEvent("cast_receiver_next_episode", `next=${info.nextMediaItemId}`);
+    const request = new cast.framework.messages.LoadRequestData();
+    request.media = new cast.framework.messages.MediaInformation();
+    request.media.contentId = target;
+    request.media.contentUrl = target;
+    request.media.contentType = "application/x-mpegurl";
+    request.media.hlsSegmentFormat = cast.framework.messages.HlsSegmentFormat.FMP4;
+    request.media.hlsVideoSegmentFormat = cast.framework.messages.HlsVideoSegmentFormat.FMP4;
+    request.media.metadata = new cast.framework.messages.GenericMediaMetadata();
+    request.media.metadata.title = info.title || label.title;
+    request.autoplay = true;
+    playerManager.load(request).catch((e: unknown) => showDebug(`épisode suivant impossible: ${String(e)}`));
+  }, 1_000);
+}
+
+// --- Intro auto-skip (logic in introSkip.ts) ------------------------------
+// The web player's "skip intro" button has no TV equivalent (no input), so
+// the receiver jumps detected intros itself, with a 3s notice. One skip per
+// segment per load: seeking back into the intro means watching it.
+let introSegments: SkippableSegment[] = [];
+const introSkipped = new Set<number>();
+let introWatchTimer: ReturnType<typeof setInterval> | null = null;
+
+function resetIntroSkip(): void {
+  introSegments = [];
+  introSkipped.clear();
+  if (introWatchTimer) {
+    clearInterval(introWatchTimer);
+    introWatchTimer = null;
+  }
+}
+
+async function fetchIntroSegments(): Promise<void> {
+  const url = buildSegmentsUrl(currentUrl);
+  if (!url) return;
+  try {
+    const resp = await fetch(url, { mode: "cors", credentials: "omit" });
+    if (!resp.ok) return;
+    introSegments = parseSegments(await resp.json());
+    if (introSegments.length > 0) startIntroWatch();
+  } catch {
+    /* skipping is a nicety, never a failure path */
+  }
+}
+
+function startIntroWatch(): void {
+  if (introWatchTimer) return;
+  // 1s cadence: an intro skipped 5s late defeats its purpose.
+  introWatchTimer = setInterval(() => {
+    let pos = 0;
+    try {
+      pos = playerManager.getCurrentTimeSec() || 0;
+    } catch {
+      return; // player torn down: the stop hooks will clear us
+    }
+    const seg = planIntroSkip(introSegments, pos, introSkipped);
+    if (!seg) return;
+    introSkipped.add(seg.startSec);
+    try {
+      playerManager.seek(seg.endSec);
+    } catch {
+      return; // seek refused: leave the segment unskipped-marked anyway, no loop
+    }
+    reportEvent("cast_receiver_intro_skipped", `from=${pos.toFixed(1)} to=${seg.endSec.toFixed(1)}`);
+    showDebug(introSkippedLabel(typeof navigator !== "undefined" ? navigator.language ?? "en" : "en"));
+    setTimeout(() => showDebug(""), 3_000);
+  }, 1_000);
+}
+
+// --- Pause HUD + end card (models in hud.ts) ------------------------------
+const hudEl = document.getElementById("hud");
+const endcardEl = document.getElementById("endcard");
+
+function deviceLang(): string {
+  return typeof navigator !== "undefined" ? navigator.language ?? "en" : "en";
+}
+
+function currentTitle(): string {
+  try {
+    return String(playerManager.getMediaInformation()?.metadata?.title ?? "");
+  } catch {
+    return "";
+  }
+}
+
+function setCardText(root: HTMLElement | null, values: Record<string, string>): void {
+  if (!root) return;
+  for (const [cls, text] of Object.entries(values)) {
+    const el = root.querySelector(`.${cls}`);
+    if (el) el.textContent = text;
+  }
+}
+
+function showPauseHud(): void {
+  if (!hudEl) return;
+  let pos = 0;
+  let dur = 0;
+  try {
+    pos = playerManager.getCurrentTimeSec() || 0;
+    dur = playerManager.getDurationSec() || 0;
+  } catch {
+    return;
+  }
+  const hud = pauseHudModel(currentTitle(), pos, dur, deviceLang());
+  setCardText(hudEl, { title: hud.title, clock: hud.clock, remaining: hud.remaining });
+  hudEl.style.display = "block";
+}
+
+function hidePauseHud(): void {
+  if (hudEl) hudEl.style.display = "none";
+}
+
+function showEndCard(): void {
+  if (!endcardEl) return;
+  const card = endCardModel(currentTitle(), deviceLang());
+  setCardText(endcardEl, { heading: card.heading, title: card.title });
+  endcardEl.style.display = "block";
+}
+
+function hideEndCard(): void {
+  if (endcardEl) endcardEl.style.display = "none";
+}
+
 // tokenFromUrl reads the purpose=cast token the sender baked into the URL - the
 // receiver has no other identity, this token is ALL of its authorization.
 function tokenFromUrl(rawUrl: string): string {
@@ -575,6 +805,10 @@ function interceptLoad(request: any): any {
     // PLAYER_LOAD_COMPLETE re-arms a fresh one.
     stopStarvationWatch();
     stopBufferTrim();
+    resetNextEpisode(); // the new media gets its own next-episode lookup
+    resetIntroSkip();
+    hidePauseHud();
+    hideEndCard();
     showDebug("");
     const media = request.media;
     if (!media) return request;
@@ -667,8 +901,14 @@ playerManager.addEventListener(cast.framework.events.EventType.MEDIA_FINISHED, (
   aliveHeartbeat.stop(); // plus rien ne joue : le battement mentirait
   stopStarvationWatch();
   stopBufferTrim();
+  stopNextWatch();
+  resetIntroSkip();
   startWatch.cancel();
   reportEvent("cast_receiver_finished", `reason=${reason}`, reason !== "END_OF_STREAM");
+  // Natural end of an episode: announce and chain the next one. Any other
+  // reason (STOPPED, ERROR, INTERRUPTED) must not resurrect a playback the
+  // viewer or the platform just ended.
+  if (reason === "END_OF_STREAM") void autoAdvance();
 });
 
 playerManager.addEventListener(cast.framework.events.EventType.PLAYER_LOAD_COMPLETE, () => {
@@ -677,6 +917,8 @@ playerManager.addEventListener(cast.framework.events.EventType.PLAYER_LOAD_COMPL
   aliveHeartbeat.start();
   startStarvationWatch();
   startBufferTrim();
+  startNextWatch();
+  void fetchIntroSegments();
 });
 
 // A sender vanishing (phone frozen/killed by its OEM) must NOT stop playback
@@ -694,6 +936,8 @@ context.addEventListener(cast.framework.system.EventType.SHUTDOWN, () => {
   aliveHeartbeat.stop();
   stopStarvationWatch();
   stopBufferTrim();
+  resetNextEpisode();
+  resetIntroSkip();
   startWatch.cancel();
   reportEvent("cast_receiver_shutdown", "receiver shutdown");
   destroyEngine();
@@ -708,6 +952,8 @@ if (typeof window !== "undefined") {
     aliveHeartbeat.stop();
     stopStarvationWatch();
     stopBufferTrim();
+    resetNextEpisode();
+    resetIntroSkip();
     startWatch.cancel();
     reportEvent("cast_receiver_shutdown", "pagehide");
   });
@@ -758,5 +1004,24 @@ playerManager.setMessageInterceptor(
     return request;
   },
 );
+
+// Pause HUD: what is paused, where it stands, what remains. The stock
+// player's control bar fades and leaves a dark frame; this stays up for the
+// whole pause. Refreshed on seek (the paused frame can move under a
+// scrub from the phone), gone the instant playback resumes or ends.
+playerManager.addEventListener(cast.framework.events.EventType.PAUSE, () => {
+  showPauseHud();
+});
+playerManager.addEventListener(cast.framework.events.EventType.PLAY, () => {
+  hidePauseHud();
+});
+playerManager.addEventListener(cast.framework.events.EventType.SEEKED, () => {
+  try {
+    if (String(playerManager.getPlayerState() ?? "") === "PAUSED") showPauseHud();
+  } catch { /* torn down */ }
+});
+playerManager.addEventListener(cast.framework.events.EventType.MEDIA_FINISHED, () => {
+  hidePauseHud();
+});
 
 context.start(receiverOptions);
