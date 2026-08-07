@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"runtime/debug"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -397,13 +398,66 @@ func (s *IntroDetectionService) backfillMissingSeasons(ctx context.Context) {
 		return
 	}
 	slog.InfoContext(ctx, "intro detection backfill: starting", slog.Int("seasons", len(parentIDs)))
-	for _, pid := range parentIDs {
-		if ctx.Err() != nil {
-			return
-		}
-		s.detectSeason(ctx, pid)
-	}
+	s.forEachBackfillTarget(ctx, parentIDs, s.detectSeason)
 	slog.InfoContext(ctx, "intro detection backfill: done")
+}
+
+// backfillWorkers is how many seasons (or movies) a backfill sweep walks at
+// once: the pipeline concurrency budget (wire sizes concurrencyLimiter from
+// the trickplay CPU budget), not a second knob. The sweeps used to walk
+// sequentially, so that budget was only ever consumed by event triggers.
+func (s *IntroDetectionService) backfillWorkers() int {
+	if s.concurrencyLimiter == nil {
+		return defaultMaxParallelDetections
+	}
+	return cap(s.concurrencyLimiter)
+}
+
+// forEachBackfillTarget fans ids out to backfillWorkers goroutines running fn.
+// Every run is recover-guarded: pool goroutines escape the caller's recover,
+// and one poisoned target must neither kill the process nor abort the sweep.
+func (s *IntroDetectionService) forEachBackfillTarget(ctx context.Context, ids []string, fn func(context.Context, string)) {
+	guarded := func(id string) {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.ErrorContext(ctx, "intro detection backfill: recovered panic",
+					slog.String("id", id), slog.Any("error", r))
+			}
+		}()
+		fn(ctx, id)
+	}
+	workers := s.backfillWorkers()
+	if workers > len(ids) {
+		workers = len(ids)
+	}
+	if workers <= 1 {
+		for _, id := range ids {
+			if ctx.Err() != nil {
+				return
+			}
+			guarded(id)
+		}
+		return
+	}
+	work := make(chan string)
+	var wg sync.WaitGroup
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for id := range work {
+				guarded(id)
+			}
+		}()
+	}
+	for _, id := range ids {
+		if ctx.Err() != nil {
+			break
+		}
+		work <- id
+	}
+	close(work)
+	wg.Wait()
 }
 
 // BackfillLibrary runs the same detection loop as backfillMissingSeasons but
@@ -449,12 +503,7 @@ func (s *IntroDetectionService) BackfillLibrary(ctx context.Context, libraryID s
 	slog.InfoContext(ctx, "intro detection admin backfill: starting",
 		slog.String("library_id", libraryID),
 		slog.Int("seasons", len(parentIDs)))
-	for _, pid := range parentIDs {
-		if ctx.Err() != nil {
-			break
-		}
-		s.detectSeason(ctx, pid)
-	}
+	s.forEachBackfillTarget(ctx, parentIDs, s.detectSeason)
 	movies := 0
 	if libraryID != "" {
 		movies = s.backfillMovies(ctx, libraryID)
@@ -525,6 +574,7 @@ func (s *IntroDetectionService) backfillMovies(ctx context.Context, libraryID st
 				slog.WarnContext(ctx, "intro backfill movies: batch exhausted check", slog.Any("err", exErr))
 				exhaustedByID = nil
 			}
+			var runnable []string
 			for _, m := range candidates {
 				if ctx.Err() != nil {
 					return ran
@@ -533,20 +583,25 @@ func (s *IntroDetectionService) backfillMovies(ctx context.Context, libraryID st
 					s.refreshSuspectCredits(ctx, m, existingByID[m.ID])
 					continue
 				}
+				runnable = append(runnable, string(m.ID))
+			}
+			var ranPage atomic.Int64
+			s.forEachBackfillTarget(ctx, runnable, func(ctx context.Context, id string) {
 				mCtx, cancel := context.WithTimeout(ctx, 30*time.Minute)
-				detErr := s.detectIntroWithHint(mCtx, string(m.ID), nil)
+				detErr := s.detectIntroWithHint(mCtx, id, nil)
 				cancel()
 				if detErr != nil {
 					slog.WarnContext(ctx, "intro backfill movies: detection failed",
-						slog.String("media_id", string(m.ID)), slog.Any("err", detErr))
-					continue
+						slog.String("media_id", id), slog.Any("err", detErr))
+					return
 				}
-				ran++
-				if recErr := s.segmentRepo.RecordIntroDetectionAttempt(ctx, string(m.ID), introDetectionAlgoVersion); recErr != nil {
+				ranPage.Add(1)
+				if recErr := s.segmentRepo.RecordIntroDetectionAttempt(ctx, id, introDetectionAlgoVersion); recErr != nil {
 					slog.WarnContext(ctx, "intro backfill movies: record attempt",
-						slog.String("media_id", string(m.ID)), slog.Any("err", recErr))
+						slog.String("media_id", id), slog.Any("err", recErr))
 				}
-			}
+			})
+			ran += int(ranPage.Load())
 		}
 		if len(page) < pageSize {
 			break

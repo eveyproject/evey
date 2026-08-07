@@ -183,3 +183,117 @@ func TestDetectIntro_ConcurrencyCancelDuringWait(t *testing.T) {
 	close(repo.release)
 	<-firstDone
 }
+
+// seasonBlockingRepo serves the library's season listing normally but blocks
+// every episode listing (ParentID filter) until release closes, recording how
+// many seasons are inside detectSeason at once.
+type seasonBlockingRepo struct {
+	fakeMediaItemRepo
+	release     chan struct{}
+	panicParent string
+	inflight    atomic.Int32
+	maxInflight atomic.Int32
+}
+
+func (r *seasonBlockingRepo) List(ctx context.Context, f domainlibrary.ListMediaItemsFilter) ([]*domainlibrary.MediaItem, error) {
+	if f.ParentID == nil {
+		return r.fakeMediaItemRepo.List(ctx, f)
+	}
+	if r.panicParent != "" && *f.ParentID == r.panicParent {
+		panic("poisoned season")
+	}
+	cur := r.inflight.Add(1)
+	for {
+		old := r.maxInflight.Load()
+		if cur <= old || r.maxInflight.CompareAndSwap(old, cur) {
+			break
+		}
+	}
+	defer r.inflight.Add(-1)
+	select {
+	case <-r.release:
+	case <-ctx.Done():
+	}
+	return nil, nil
+}
+
+func newBackfillSvc(repo *seasonBlockingRepo, maxParallel int) *IntroDetectionService {
+	return NewIntroDetectionService(
+		&fakeSegmentRepo{},
+		&fakeTrickplayRepo{},
+		repo,
+		&fakeConfigRepo{},
+		&fakeDetector{},
+		"/tmp/trickplay",
+	).WithMaxParallelDetections(maxParallel)
+}
+
+func backfillSeasons(n int) []*domainlibrary.MediaItem {
+	seasons := make([]*domainlibrary.MediaItem, n)
+	for i := range seasons {
+		seasons[i] = &domainlibrary.MediaItem{
+			ID:   shared.MediaItemID(string(rune('a'+i)) + "-season"),
+			Type: domainlibrary.Season,
+		}
+	}
+	return seasons
+}
+
+func TestBackfillLibrary_ParallelSeasons(t *testing.T) {
+	t.Parallel()
+	const workers = 2
+	repo := &seasonBlockingRepo{release: make(chan struct{})}
+	repo.siblings = backfillSeasons(4)
+	svc := newBackfillSvc(repo, workers)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		n, err := svc.BackfillLibrary(context.Background(), "lib-1")
+		assert.NoError(t, err)
+		assert.Equal(t, 4, n)
+	}()
+
+	assert.Eventually(t, func() bool {
+		return repo.maxInflight.Load() >= workers
+	}, 2*time.Second, 5*time.Millisecond, "backfill never ran %d seasons in parallel", workers)
+	close(repo.release)
+	<-done
+
+	assert.Equal(t, int32(workers), repo.maxInflight.Load(),
+		"backfill must fan out to exactly the pipeline budget (%d)", workers)
+}
+
+func TestBackfillLibrary_SequentialWhenBudgetIsOne(t *testing.T) {
+	t.Parallel()
+	repo := &seasonBlockingRepo{release: make(chan struct{})}
+	repo.siblings = backfillSeasons(3)
+	svc := newBackfillSvc(repo, 1)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		_, _ = svc.BackfillLibrary(context.Background(), "lib-1")
+	}()
+
+	assert.Eventually(t, func() bool {
+		return repo.maxInflight.Load() >= 1
+	}, 2*time.Second, 5*time.Millisecond, "backfill never started")
+	assert.Never(t, func() bool {
+		return repo.maxInflight.Load() > 1
+	}, 300*time.Millisecond, 10*time.Millisecond, "budget 1 must keep the sweep sequential")
+	close(repo.release)
+	<-done
+}
+
+func TestBackfillLibrary_PanicInOneSeasonDoesNotKillTheSweep(t *testing.T) {
+	t.Parallel()
+	repo := &seasonBlockingRepo{release: make(chan struct{}), panicParent: "a-season"}
+	close(repo.release)
+	repo.siblings = backfillSeasons(3)
+	svc := newBackfillSvc(repo, 2)
+
+	n, err := svc.BackfillLibrary(context.Background(), "lib-1")
+	assert.NoError(t, err)
+	assert.Equal(t, 3, n, "the poisoned season must not abort the other seasons")
+}
