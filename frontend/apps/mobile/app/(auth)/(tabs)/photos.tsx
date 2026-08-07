@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { formatBytes } from "@evey/api";
 import {
   View,
@@ -15,8 +15,8 @@ import {
 import { Image } from "expo-image";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useTranslation } from "react-i18next";
-import { useQuery } from "@tanstack/react-query";
-import { eveyFetch } from "@evey/api";
+import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
+import { eveyFetch, hasMoreFromCursor } from "@evey/api";
 import { Skeleton } from "../../../src/components/Skeleton";
 import { LoadFailed } from "../../../src/components/LoadFailed";
 import { useTheme } from "../../../src/providers/ThemeProvider";
@@ -97,25 +97,52 @@ function usePhotoDetail(photoId: string | undefined) {
   });
 }
 
-// 5000 matches the web client's cap (index.lazy.tsx); the grid below is a
-// real virtualized FlatList (not nested inside a ScrollView) so raising this
-// no longer risks rendering thousands of offscreen tiles at once. `total`
-// from the response is surfaced separately so users can tell when the
-// library exceeds this cap.
-const PHOTOS_LIMIT = 5000;
+// The grid is keyset-paginated, one page at a time. It used to ask for 5000 in
+// a single call - the comment here even claimed that matched the web client and
+// that `total` let users tell when the library exceeded the cap. Neither was
+// true: the server replaces any limit above maxPageSize (500) with the photo
+// handler's own default of 100 (clampLimitOffset, grpcapi/helpers.go), so a
+// 7199-photo library rendered exactly 100 tiles under a footer announcing 7199.
+// Page 1 takes the offset path (the only one that computes an exact total);
+// every page after it carries the previous response's cursor.
+const PHOTOS_PAGE_SIZE = 100;
+
+interface PhotoPage {
+  photos?: Photo[];
+  total?: number;
+  nextCursor?: string;
+}
 
 function usePhotos(libraryID: string | undefined, album?: string) {
-  return useQuery({
+  const query = useInfiniteQuery({
     queryKey: ["photos", "list", libraryID, album],
-    queryFn: () =>
-      eveyFetch<{ photos: Photo[]; total: number }>({
-        url: `/api/v1/photos?library_id=${libraryID}&limit=${PHOTOS_LIMIT}${album ? `&album=${encodeURIComponent(album)}` : ""}`,
+    enabled: !!libraryID,
+    initialPageParam: "" as string,
+    // The URL is spelled out rather than assembled through URLSearchParams so
+    // contractguard can still read which query parameters this call sends and
+    // check them against ListPhotosRequest - a builder hides them from it.
+    queryFn: ({ pageParam }) =>
+      eveyFetch<PhotoPage>({
+        url:
+          `/api/v1/photos?libraryId=${libraryID}&limit=${PHOTOS_PAGE_SIZE}` +
+          (pageParam ? `&cursor=${encodeURIComponent(pageParam)}` : "&offset=0") +
+          (album ? `&album=${encodeURIComponent(album)}` : ""),
         method: "GET",
       }),
-    enabled: !!libraryID,
-    select: (d) => ({ photos: d.photos ?? [], total: d.total ?? 0 }),
+    getNextPageParam: (last) => (hasMoreFromCursor(last) ? last.nextCursor : undefined),
     staleTime: 30_000,
   });
+
+  const photos = useMemo(
+    () => (query.data?.pages ?? []).flatMap((p) => p.photos ?? []),
+    [query.data],
+  );
+
+  // Only the first page carries an exact total - a keyset page reports 0 by
+  // design, that COUNT(*) OVER() being the cost the cursor path exists to avoid.
+  const total = query.data?.pages[0]?.total ?? 0;
+
+  return { ...query, photos, total };
 }
 
 export default function PhotosScreen() {
@@ -132,9 +159,16 @@ export default function PhotosScreen() {
   const { data: libraries, isLoading: libLoading, isError: libError, refetch: refetchLibs } = usePhotoLibraries();
   const activeLibraryID = selectedLibraryID ?? libraries?.[0]?.id;
   const { data: albums, isLoading: albumsLoading } = useAlbums(activeLibraryID);
-  const { data: photosData, isLoading: photosLoading, isError: photosError, refetch: refetchPhotos } = usePhotos(activeLibraryID, selectedAlbum);
-  const photos = photosData?.photos ?? [];
-  const photosTotal = photosData?.total ?? 0;
+  const {
+    photos,
+    total: photosTotal,
+    isLoading: photosLoading,
+    isError: photosError,
+    refetch: refetchPhotos,
+    fetchNextPage: fetchMorePhotos,
+    hasNextPage: hasMorePhotos,
+    isFetchingNextPage: loadingMorePhotos,
+  } = usePhotos(activeLibraryID, selectedAlbum);
   const lightboxPhoto = lightboxIndex !== null ? photos[lightboxIndex] : undefined;
   const { data: photoDetail } = usePhotoDetail(lightboxPhoto?.id);
 
@@ -374,6 +408,10 @@ export default function PhotosScreen() {
         ListHeaderComponent={listHeader}
         ListFooterComponent={listFooter}
         contentContainerStyle={{ paddingHorizontal: SPACING / 2 }}
+        onEndReachedThreshold={0.5}
+        onEndReached={() => {
+          if (hasMorePhotos && !loadingMorePhotos) void fetchMorePhotos();
+        }}
       />
 
       {/* Lightbox */}

@@ -55,8 +55,13 @@ vi.mock("expo-router", () => ({
 }));
 
 // --- react-i18next mock --------------------------------------------------------
+// t still returns the key (so text assertions read as before), but records its
+// arguments: the photo counter's interpolated total is only observable there.
+const { translateMock } = vi.hoisted(() => ({
+  translateMock: vi.fn((key: string, _opts?: unknown) => key),
+}));
 vi.mock("react-i18next", () => ({
-  useTranslation: () => ({ t: (key: string) => key }),
+  useTranslation: () => ({ t: (key: string, opts?: unknown) => translateMock(key, opts) }),
 }));
 
 // --- ThemeProvider mock ---------------------------------------------------------
@@ -86,7 +91,11 @@ vi.mock("../../../src/hooks/useAuthenticatedImage", () => ({
 
 // --- @evey/api mock --------------------------------------------------------------
 const { listPhotosMock } = vi.hoisted(() => ({ listPhotosMock: vi.fn() }));
-vi.mock("@evey/api", () => ({
+// Spreading importOriginal is required, not cosmetic: the screen also imports
+// the shared hasMoreFromCursor from this package, and a mock that lists only
+// hooks hands it back undefined.
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
   usePhotoServiceListPhotos: (...args: unknown[]) => listPhotosMock(...args),
 }));
 
@@ -165,5 +174,55 @@ describe("PhotoSlideshowScreen (TV) - edges", () => {
       capturedTVHandler?.({ eventType: "right" });
     });
     expect(screen.getByText("Two")).toBeTruthy();
+  });
+});
+
+describe("PhotoSlideshowScreen (TV) - paged listing", () => {
+  // The screen used to ask for 1000 photos in one call. The server replaces any
+  // limit above maxPageSize (500) with the photo handler's default of 100, so
+  // the slideshow silently held 100 photos of any album - and a start index the
+  // grid had paged past was clamped onto whichever photo happened to be loaded,
+  // i.e. the WRONG picture.
+  it("asks for a page size the server will honour", () => {
+    render(<PhotoSlideshowScreen />);
+
+    const params = listPhotosMock.mock.calls[0][0] as { limit?: number };
+    expect(params.limit).toBeGreaterThan(0);
+    expect(params.limit).toBeLessThanOrEqual(500);
+  });
+
+  it("asks for the next page with the cursor the previous page returned", () => {
+    listPhotosMock.mockReturnValue({
+      data: { photos: PHOTOS, total: 300, nextCursor: "cur-1" },
+      isLoading: false,
+      isError: false,
+      isFetching: false,
+      refetch: vi.fn(),
+    });
+
+    render(<PhotoSlideshowScreen />);
+
+    const withCursor = listPhotosMock.mock.calls.some(
+      (c) => (c[0] as { cursor?: string })?.cursor === "cur-1",
+    );
+    expect(withCursor).toBe(true);
+  });
+
+  it("counts against the album's real size, not how much of it has been fetched", () => {
+    listPhotosMock.mockReturnValue({
+      data: { photos: PHOTOS, total: 228, nextCursor: "cur-1" },
+      isLoading: false,
+      isError: false,
+      isFetching: false,
+      refetch: vi.fn(),
+    });
+
+    render(<PhotoSlideshowScreen />);
+
+    // The i18n stub returns the key, so assert on what was handed to it.
+    expect(translateMock).toHaveBeenCalledWith(
+      "media.photos.positionOf",
+      expect.objectContaining({ total: 228 }),
+    );
   });
 });

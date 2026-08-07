@@ -4,6 +4,7 @@ import {
   nextSlideshowIndex,
   clampSlideshowIndex,
   nextAutoplayIndex,
+  nextAutoplayIndexPaged,
 } from "./photoSlideshow";
 
 describe("prevSlideshowIndex / nextSlideshowIndex (manual D-pad nav)", () => {
@@ -55,5 +56,29 @@ describe("nextAutoplayIndex", () => {
 
   it("stays at 0 for an empty album", () => {
     expect(nextAutoplayIndex(0, 0)).toBe(0);
+  });
+});
+
+describe("nextAutoplayIndexPaged", () => {
+  // The slideshow pages its listing, so "how many photos are loaded" and "how
+  // big the album is" are different numbers while pages are arriving. Wrapping
+  // on the loaded count sent the viewer back to photo 1 at the end of every
+  // page instead of continuing through the album.
+  it("holds on the last loaded photo while more pages are coming", () => {
+    expect(nextAutoplayIndexPaged(99, 100, true)).toBe(99);
+  });
+
+  it("wraps only once the album is fully loaded", () => {
+    expect(nextAutoplayIndexPaged(99, 100, false)).toBe(0);
+  });
+
+  it("advances normally in the middle of the loaded set, page or no page", () => {
+    expect(nextAutoplayIndexPaged(4, 100, true)).toBe(5);
+    expect(nextAutoplayIndexPaged(4, 100, false)).toBe(5);
+  });
+
+  it("stays at 0 on an empty album", () => {
+    expect(nextAutoplayIndexPaged(0, 0, true)).toBe(0);
+    expect(nextAutoplayIndexPaged(3, 0, false)).toBe(0);
   });
 });

@@ -3,7 +3,7 @@ import { View, Text, ActivityIndicator, StyleSheet, useTVEventHandler } from "re
 import { Image } from "expo-image";
 import { router, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { usePhotoServiceListPhotos } from "@evey/api";
+import { usePhotoServiceListPhotos, hasMoreFromCursor } from "@evey/api";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { FocusableCard } from "../../../src/components/FocusableCard";
@@ -13,14 +13,24 @@ import {
   prevSlideshowIndex,
   nextSlideshowIndex,
   clampSlideshowIndex,
-  nextAutoplayIndex,
+  nextAutoplayIndexPaged,
 } from "../../../src/lib/photoSlideshow";
 
-// Bounded fetch: enough metadata (id/title/blurhash - no image bytes) for a
-// large album's worth of slideshow navigation, without pulling an unbounded
-// library's listing into memory on a weak box. Actual photo bytes are
-// fetched one at a time below (plus, at most, the next photo for preload).
-const SLIDESHOW_FETCH_LIMIT = 1000;
+// The listing is PAGED, one keyset page at a time. It used to ask for 1000 in a
+// single call, which the server never served: any limit above maxPageSize (500)
+// is replaced by the photo handler's own default of 100 (clampLimitOffset,
+// grpcapi/helpers.go). So the slideshow silently held 100 photos of any album -
+// measured on a real 228-photo album - and opening it on a photo the grid had
+// already paged past showed a DIFFERENT picture, because the out-of-range start
+// index was clamped into the 100 that happened to be loaded.
+// Only metadata is paged here (id/title/blurhash, no image bytes); photo bytes
+// are still fetched one at a time below, plus one preload.
+const SLIDESHOW_PAGE_SIZE = 100;
+
+// How close to the end of the loaded set the viewer may get before the next
+// page is requested. Autoplay advances one photo every 6s, so a few photos of
+// head start is a comfortable margin even on a slow box.
+const SLIDESHOW_PREFETCH_MARGIN = 10;
 
 export default function PhotoSlideshowScreen() {
   const { t } = useTranslation();
@@ -32,22 +42,52 @@ export default function PhotoSlideshowScreen() {
     startIndex?: string;
   }>();
 
-  const { data, isLoading, isError, refetch } = usePhotoServiceListPhotos(
-    buildPhotoListParams({ libraryId: libraryId ?? "", album, limit: SLIDESHOW_FETCH_LIMIT }),
+  const [cursor, setCursor] = useState<string | undefined>(undefined);
+  const [photos, setPhotos] = useState<TvPhoto[]>([]);
+  const [albumTotal, setAlbumTotal] = useState(0);
+  const { data, isLoading, isError, isFetching, refetch } = usePhotoServiceListPhotos(
+    buildPhotoListParams({ libraryId: libraryId ?? "", album, limit: SLIDESHOW_PAGE_SIZE, cursor }),
     { query: { enabled: !!libraryId } },
   );
-  const photos: TvPhoto[] = data?.photos ?? [];
-  const total = photos.length;
 
-  const [index, setIndex] = useState(() => clampSlideshowIndex(Number(startIndex ?? 0) || 0, total));
+  // Append each page as it lands. Guarded on the response identity so a
+  // re-render that hands back the same object does not duplicate a page.
+  const lastPageRef = useRef<unknown>(undefined);
+  useEffect(() => {
+    if (!data || data === lastPageRef.current) return;
+    lastPageRef.current = data;
+    const page = (data.photos ?? []) as TvPhoto[];
+    setPhotos((prev) => (cursor === undefined ? page : [...prev, ...page]));
+    // Only the first page carries an exact album total - a keyset page reports
+    // 0 by design. The counter shows the album's size, not how much of it has
+    // been fetched, so it does not creep upward as pages land.
+    if (cursor === undefined) setAlbumTotal(data.total ?? 0);
+  }, [data, cursor]);
+
+  const total = photos.length;
+  const hasMore = hasMoreFromCursor({ nextCursor: data?.nextCursor });
+
+  const [index, setIndex] = useState(() => Math.max(Number(startIndex ?? 0) || 0, 0));
   const [paused, setPaused] = useState(false);
 
-  // total is unknown until the fetch resolves - re-clamp once it does rather
-  // than trusting the route param blindly (an album that shrank since the
-  // grid loaded would otherwise index past the end).
+  // Pull the next page while the viewer is getting close to the end of what is
+  // loaded - or while the requested start index is not loaded yet, which is the
+  // case whenever the grid was paged past the first page before opening one.
   useEffect(() => {
+    if (isFetching || !hasMore) return;
+    if (index >= total - SLIDESHOW_PREFETCH_MARGIN) setCursor(data?.nextCursor);
+  }, [isFetching, hasMore, index, total, data?.nextCursor]);
+
+  // Clamp only once the whole album is in hand. Clamping earlier is what made
+  // an out-of-range start index land on the wrong photo instead of waiting for
+  // the page that holds the right one - and clamping against an EMPTY list is
+  // worse still: it resolves every start index to 0, so the very first pass
+  // (before the page has been appended to state) would silently discard the
+  // photo the viewer picked in the grid.
+  useEffect(() => {
+    if (hasMore || total === 0) return;
     setIndex((i) => clampSlideshowIndex(i, total));
-  }, [total]);
+  }, [total, hasMore]);
 
   const exit = useCallback(() => {
     if (router.canGoBack()) router.back();
@@ -61,10 +101,10 @@ export default function PhotoSlideshowScreen() {
   useEffect(() => {
     if (paused || total <= 1) return;
     const id = setInterval(() => {
-      setIndex((i) => nextAutoplayIndex(i, total));
+      setIndex((i) => nextAutoplayIndexPaged(i, total, hasMore));
     }, SLIDESHOW_AUTOPLAY_INTERVAL_MS);
     return () => clearInterval(id);
-  }, [paused, total]);
+  }, [paused, total, hasMore]);
 
   const current = photos[index];
   const upcoming = total > 0 ? photos[(index + 1) % total] : undefined;
@@ -115,7 +155,10 @@ export default function PhotoSlideshowScreen() {
   };
   useTVEventHandler(useCallback((evt: { eventType: string } | undefined) => remoteHandlerRef.current?.(evt), []));
 
-  if (isLoading) {
+  // Also covers "the photo we were asked to open lives in a page that has not
+  // landed yet": showing the spinner beats showing a black frame, and beats the
+  // old behaviour of clamping onto whichever photo happened to be loaded.
+  if (isLoading || (total > 0 && !current && hasMore)) {
     return (
       <View style={[styles.container, styles.center]}>
         <ActivityIndicator color="#fff" size="large" />
@@ -123,7 +166,9 @@ export default function PhotoSlideshowScreen() {
     );
   }
 
-  if (isError || total === 0) {
+  // Only an EMPTY slideshow is an error screen. A later page failing must not
+  // tear down a slideshow the viewer is already watching.
+  if (total === 0) {
     return (
       <View style={[styles.container, styles.center]}>
         <Text style={styles.message}>{isError ? t("common.loadError") : t("media.photos.noPhotos")}</Text>
@@ -159,7 +204,7 @@ export default function PhotoSlideshowScreen() {
             {current?.title || current?.album}
           </Text>
         )}
-        <Text style={styles.counter}>{t("media.photos.positionOf", { current: index + 1, total })}</Text>
+        <Text style={styles.counter}>{t("media.photos.positionOf", { current: index + 1, total: albumTotal || total })}</Text>
         {paused && <Text style={styles.paused}>{t("media.photos.slideshowPaused")}</Text>}
       </View>
     </View>

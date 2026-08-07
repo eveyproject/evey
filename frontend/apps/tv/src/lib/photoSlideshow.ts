@@ -42,3 +42,15 @@ export function nextAutoplayIndex(index: number, total: number): number {
   if (total <= 0) return 0;
   return (index + 1) % total;
 }
+
+// Same as nextAutoplayIndex, but `loadedCount` is what the screen HOLDS, not
+// what the album contains: the slideshow pages its listing, so the two differ
+// while pages are still arriving. Wrapping on the loaded count would send the
+// viewer back to photo 1 at the end of every page instead of continuing
+// through the album - so while more is coming, hold on the last loaded photo
+// and let the next page land. Only a fully loaded album wraps.
+export function nextAutoplayIndexPaged(index: number, loadedCount: number, hasMore: boolean): number {
+  if (loadedCount <= 0) return 0;
+  if (hasMore && index >= loadedCount - 1) return index;
+  return nextAutoplayIndex(index, loadedCount);
+}

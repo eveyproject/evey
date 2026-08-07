@@ -50,6 +50,16 @@ var clientRoots = []string{
 // generated clients take plain object keys.
 var pageSizeLiteral = regexp.MustCompile(`(?:\blimit:\s*|"pagination\.pageSize":\s*|\bpageSize:\s*|[?&]limit=)([0-9_]+)`)
 
+// Inline literals are only half of it. The TV slideshow held its 1000 in a
+// named constant and passed it through a helper, so the first version of this
+// guard walked straight past a screen that was showing 100 photos of a
+// 228-photo album. A name ending in _LIMIT or _PAGE_SIZE is a per-request page
+// size and is pinned the same way.
+//
+// Deliberately NOT matched: names like EXPORT_MAX_ROWS, which bound a total
+// across MANY pages rather than one request - 50000 is correct there.
+var pageSizeConst = regexp.MustCompile(`\b[A-Za-z_][A-Za-z0-9_]*(?:_LIMIT|_PAGE_SIZE)\s*=\s*([0-9_]+)`)
+
 func serverMaxPageSize(t *testing.T) int {
 	t.Helper()
 	b, err := os.ReadFile(filepath.Join(repoRoot, "internal/adapters/driving/grpcapi/helpers.go"))
@@ -103,13 +113,15 @@ func TestClientsNeverAskForMoreRowsThanTheServerServes(t *testing.T) {
 				return readErr
 			}
 			for i, line := range strings.Split(string(b), "\n") {
-				for _, m := range pageSizeLiteral.FindAllStringSubmatch(line, -1) {
-					n, convErr := strconv.Atoi(strings.ReplaceAll(m[1], "_", ""))
-					if convErr != nil || n <= maxPageSize {
-						continue
+				for _, re := range []*regexp.Regexp{pageSizeLiteral, pageSizeConst} {
+					for _, m := range re.FindAllStringSubmatch(line, -1) {
+						n, convErr := strconv.Atoi(strings.ReplaceAll(m[1], "_", ""))
+						if convErr != nil || n <= maxPageSize {
+							continue
+						}
+						rel, _ := filepath.Rel(repoRoot, path)
+						offences = append(offences, offence{file: rel, line: i + 1, want: n})
 					}
-					rel, _ := filepath.Rel(repoRoot, path)
-					offences = append(offences, offence{file: rel, line: i + 1, want: n})
 				}
 			}
 			return nil

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
@@ -8,6 +8,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 // counter + rotation, grid thumbnails must request the optimized (webp,
 // w=400) variant, and the photo list must be a single virtualized FlatList
 // (no scrollEnabled={false} FlatList nested in an outer ScrollView).
+
+// The grid's onEndReached, captured from the FlatList mock so a test can
+// simulate the scroll that drives pagination.
+const { flatListState } = vi.hoisted(() => ({ flatListState: { onEndReached: null as (() => void) | null } }));
 
 // --- React Native mock ----------------------------------------------------------------
 vi.mock("react-native", () => ({
@@ -28,8 +32,15 @@ vi.mock("react-native", () => ({
   // content (moved out of the old wrapping ScrollView) is still reachable,
   // while asserting elsewhere that this is the ONLY scrollable list (no
   // nested non-scrolling FlatList wrapped by an outer ScrollView).
-  FlatList: ({ data, renderItem, keyExtractor, ListHeaderComponent, ListFooterComponent, scrollEnabled }: any) =>
-    React.createElement(
+  // onEndReached is captured, not dropped: the real FlatList calls it when the
+  // user scrolls to the bottom, and that is what drives the grid's paging. A
+  // mock that ignores it cannot see a pagination defect at all.
+  FlatList: ({ data, renderItem, keyExtractor, ListHeaderComponent, ListFooterComponent, scrollEnabled, onEndReached }: any) => {
+    // Only the photo grid passes one. The albums row is rendered as this
+    // list's header, so an unconditional assignment would overwrite the grid's
+    // callback with the header list's undefined.
+    if (onEndReached) flatListState.onEndReached = onEndReached;
+    return React.createElement(
       "div",
       { "data-testid": "flatlist", "data-scroll-enabled": String(scrollEnabled !== false) },
       ListHeaderComponent,
@@ -41,7 +52,8 @@ vi.mock("react-native", () => ({
         ),
       ),
       ListFooterComponent,
-    ),
+    );
+  },
 }));
 
 // --- expo-image -------------------------------------------------------------------------
@@ -113,7 +125,11 @@ const eveyFetchMock = vi.fn(({ url }: { url: string }) => {
   return Promise.reject(new Error(`unexpected url ${url}`));
 });
 
-vi.mock("@evey/api", () => ({
+// Spreading importOriginal is required, not cosmetic: the screen also imports
+// the shared hasMoreFromCursor from this package, and a mock that lists only
+// eveyFetch hands it back undefined.
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
   eveyFetch: (...args: [{ url: string }]) => eveyFetchMock(...args),
 }));
 
@@ -141,6 +157,7 @@ function findThumb(id: string): HTMLImageElement | undefined {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  flatListState.onEndReached = null;
   eveyFetchMock.mockImplementation(({ url }: { url: string }) => {
     if (url.startsWith("/api/v1/libraries")) return Promise.resolve({ libraries });
     if (url.startsWith("/api/v1/photos/albums")) return Promise.resolve({ albums });
@@ -157,11 +174,55 @@ beforeEach(() => {
 });
 
 describe("PhotosScreen", () => {
-  it("requests photos with the raised limit (parity with the web client's 5000 cap)", async () => {
+  // This test used to assert `limit=5000`, i.e. it pinned the bug as the spec.
+  // The server has never served that: any limit above maxPageSize (500) is
+  // replaced by the photo handler's own default of 100 (clampLimitOffset,
+  // grpcapi/helpers.go), so the grid held 100 tiles of a 7199-photo library
+  // while its footer announced 7199. Asserting the VALUE is the point - a limit
+  // the server refuses looks exactly like one it honours, at the UI level.
+  it("requests a page size the server will honour, not an unbounded one", async () => {
     render(<PhotosScreen />, { wrapper: makeWrapper() });
     await waitFor(() => {
       const call = eveyFetchMock.mock.calls.find(([{ url }]) => url.startsWith("/api/v1/photos?"));
-      expect(call?.[0].url).toContain("limit=5000");
+      expect(call).toBeTruthy();
+      const limit = Number(new URLSearchParams(call![0].url.split("?")[1]).get("limit"));
+      expect(limit).toBeGreaterThan(0);
+      expect(limit).toBeLessThanOrEqual(500);
+    });
+  });
+
+  it("fetches the next page with the cursor the previous page returned", async () => {
+    eveyFetchMock.mockImplementation(({ url }: { url: string }) => {
+      if (url.startsWith("/api/v1/libraries")) return Promise.resolve({ libraries });
+      if (url.startsWith("/api/v1/photos/albums")) return Promise.resolve({ albums });
+      if (url.startsWith("/api/v1/photos?")) {
+        const params = new URLSearchParams(url.split("?")[1]);
+        // Page 1 comes back with a cursor; page 2 has none, which is how the
+        // server says "that was the last one".
+        if (!params.get("cursor")) {
+          return Promise.resolve({ photos: allPhotos, total: 7199, nextCursor: "cur-1" });
+        }
+        return Promise.resolve({ photos: [], total: 0 });
+      }
+      return Promise.reject(new Error(`unexpected url ${url}`));
+    });
+
+    render(<PhotosScreen />, { wrapper: makeWrapper() });
+
+    // Wait for page 1, then simulate the scroll that asks for the next one.
+    await waitFor(() => expect(flatListState.onEndReached).toBeTruthy());
+    await waitFor(() =>
+      expect(eveyFetchMock.mock.calls.some(([{ url }]) => url.startsWith("/api/v1/photos?"))).toBe(true),
+    );
+    await act(async () => {
+      flatListState.onEndReached?.();
+    });
+
+    await waitFor(() => {
+      const withCursor = eveyFetchMock.mock.calls.some(
+        ([{ url }]) => url.startsWith("/api/v1/photos?") && url.includes("cursor=cur-1"),
+      );
+      expect(withCursor).toBe(true);
     });
   });
 
