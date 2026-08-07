@@ -35,4 +35,18 @@ describe("hasMoreFromCursor", () => {
     expect(hasMoreFromCursor(undefined)).toBe(false);
     expect(hasMoreFromCursor({})).toBe(false);
   });
+
+  // RED PROOF: the signal this replaced (`total > 0 && loadedCount < total`)
+  // truncates every keyset page, on any cursor-paginated list (ListPhotos
+  // included). A keyset page always reports `total: 0` by server design, so
+  // the old check "total > 0" fails immediately even though nextCursor says
+  // there is more.
+  it("documents the bug the old total-based signal had on a keyset ListPhotos page", () => {
+    const oldHasMore = (loadedCount: number, total: number): boolean => total > 0 && loadedCount < total;
+    const total = 0; // what a keyset (cursor) page actually returns
+    const nextCursor = "opaque-cursor-2"; // ...while clearly saying there is more
+    const loadedCount = 60;
+    expect(oldHasMore(loadedCount, total)).toBe(false); // BUG: reports "done", grid gets truncated
+    expect(hasMoreFromCursor({ nextCursor })).toBe(true); // the correct signal disagrees
+  });
 });

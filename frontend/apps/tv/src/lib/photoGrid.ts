@@ -58,7 +58,9 @@ export interface BuildPhotoListParamsInput {
   limit: number;
   // Opaque keyset cursor from a previous response's nextCursor. Omitted (or
   // empty) means page 1: the server then takes the offset(0) path, which is
-  // the only one that computes an exact `total` - see hasMorePhotos below.
+  // the only one that computes an exact `total` - see @evey/api's
+  // hasMoreFromCursor for why `total` cannot be used to decide whether to
+  // fetch the next page.
   cursor?: string;
 }
 
@@ -73,15 +75,4 @@ export function buildPhotoListParams(input: BuildPhotoListParamsInput) {
     ...(input.cursor ? { cursor: input.cursor } : { offset: 0 }),
     ...(input.album ? { album: input.album } : {}),
   };
-}
-
-// Whether another page is worth fetching. A keyset page reports `total: 0`
-// by design (server-side cost the cursor path exists to avoid - see
-// V1ListPhotosResponse.total's doc), so `total` cannot be the signal here:
-// checking it would call every page after the first "done", truncating the
-// grid. nextCursor is the real signal; the page-size check is a defensive
-// fallback for a last page that still carried a (non-empty) cursor.
-export function hasMorePhotos(nextCursor: string | undefined, lastPageCount: number, limit: number): boolean {
-  if (!nextCursor) return false;
-  return lastPageCount >= limit;
 }

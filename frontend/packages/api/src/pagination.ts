@@ -14,6 +14,12 @@
 // `totalPages ?? 1` default keeps the 0, `1 < 0` is false, and the list stops
 // after one page. Observed in production on 2026-07-28 with
 // `{totalItems: 8076, totalPages: 0, nextCursor: "..."}`.
+//
+// The same trap exists for ListPhotos: its keyset path (a non-empty
+// request cursor) reports `total: 0` by design - recomputing an exact total
+// there would pay back exactly the COUNT(*) cost the cursor path exists to
+// avoid (photo_handler.go). `total` is therefore never a valid "more pages"
+// signal for any cursor-paginated list; nextCursor's presence is.
 export function hasMoreFromCursor(
   pagination: { nextCursor?: string } | undefined,
 ): boolean {

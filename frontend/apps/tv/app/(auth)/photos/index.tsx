@@ -8,6 +8,7 @@ import {
   useLibraryServiceListLibraries,
   usePhotoServiceListPhotoAlbums,
   usePhotoServiceListPhotos,
+  hasMoreFromCursor,
 } from "@evey/api";
 import type { V1Library } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
@@ -17,7 +18,6 @@ import { FocusableCard } from "../../../src/components/FocusableCard";
 import {
   photoServeUrl,
   buildPhotoListParams,
-  hasMorePhotos,
   PHOTO_GRID_THUMB_WIDTH,
   type TvPhoto,
   type TvPhotoAlbum,
@@ -174,11 +174,10 @@ export default function PhotosScreen() {
   }, [data, cursor]);
 
   const nextCursor = data?.nextCursor;
-  const lastPageCount = data?.photos?.length ?? 0;
 
   const handleEndReached = useCallback(() => {
-    if (!isFetching && hasMorePhotos(nextCursor, lastPageCount, PAGE_SIZE)) setCursor(nextCursor);
-  }, [isFetching, nextCursor, lastPageCount]);
+    if (!isFetching && hasMoreFromCursor({ nextCursor })) setCursor(nextCursor);
+  }, [isFetching, nextCursor]);
 
   const openSlideshow = useCallback(
     (index: number) => {
