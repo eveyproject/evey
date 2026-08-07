@@ -13,7 +13,7 @@ import (
 
 type fakeSearchIndex struct {
 	searchFunc     func(ctx context.Context, query string, filters map[string]string, sort []string, limit int64) ([]library.SearchHit, int64, error)
-	indexFunc      func(ctx context.Context, item *library.MediaItem, castNames []string) error
+	indexFunc      func(ctx context.Context, item *library.MediaItem) error
 	indexBatchFunc func(ctx context.Context, items []*library.MediaItem) error
 	removeFunc     func(ctx context.Context, id string) error
 	clearFunc      func(ctx context.Context) error
@@ -23,9 +23,9 @@ func (f *fakeSearchIndex) Search(ctx context.Context, query string, filters map[
 	return f.searchFunc(ctx, query, filters, sort, limit)
 }
 
-func (f *fakeSearchIndex) IndexMediaItem(ctx context.Context, item *library.MediaItem, castNames []string) error {
+func (f *fakeSearchIndex) IndexMediaItem(ctx context.Context, item *library.MediaItem) error {
 	if f.indexFunc != nil {
-		return f.indexFunc(ctx, item, castNames)
+		return f.indexFunc(ctx, item)
 	}
 	return nil
 }
@@ -130,32 +130,32 @@ func TestSearch_NilPrimary_UsesFallback(t *testing.T) {
 
 func TestIndexMediaItem_NilPrimary_Noop(t *testing.T) {
 	rs := search.NewResilient(nil, nil)
-	err := rs.IndexMediaItem(context.Background(), &library.MediaItem{ID: "1"}, nil)
+	err := rs.IndexMediaItem(context.Background(), &library.MediaItem{ID: "1"})
 	require.NoError(t, err)
 }
 
 func TestIndexMediaItem_PrimarySuccess(t *testing.T) {
 	var indexed bool
 	primary := &fakeSearchIndex{
-		indexFunc: func(_ context.Context, _ *library.MediaItem, _ []string) error {
+		indexFunc: func(_ context.Context, _ *library.MediaItem) error {
 			indexed = true
 			return nil
 		},
 	}
 	rs := search.NewResilient(primary, nil)
-	err := rs.IndexMediaItem(context.Background(), &library.MediaItem{ID: "1"}, []string{"Actor"})
+	err := rs.IndexMediaItem(context.Background(), &library.MediaItem{ID: "1", CastNames: []string{"Some Actor"}})
 	require.NoError(t, err)
 	assert.True(t, indexed)
 }
 
 func TestIndexMediaItem_PrimaryFails_NoError(t *testing.T) {
 	primary := &fakeSearchIndex{
-		indexFunc: func(_ context.Context, _ *library.MediaItem, _ []string) error {
+		indexFunc: func(_ context.Context, _ *library.MediaItem) error {
 			return errors.New("meili down")
 		},
 	}
 	rs := search.NewResilient(primary, nil)
-	err := rs.IndexMediaItem(context.Background(), &library.MediaItem{ID: "1"}, nil)
+	err := rs.IndexMediaItem(context.Background(), &library.MediaItem{ID: "1"})
 	require.NoError(t, err)
 }
 

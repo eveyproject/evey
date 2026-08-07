@@ -353,7 +353,10 @@ type SearchResult struct {
 }
 
 type SearchIndex interface {
-	IndexMediaItem(ctx context.Context, item *MediaItem, castNames []string) error
+	// IndexMediaItem upserts one item's search document. Cast names travel on
+	// item.CastNames (a carry-along, like Translations) so every indexing path
+	// feeds the same document shape.
+	IndexMediaItem(ctx context.Context, item *MediaItem) error
 	IndexMediaItemsBatch(ctx context.Context, items []*MediaItem) error
 	RemoveMediaItem(ctx context.Context, id string) error
 	// Clear removes every document from the index. The index/upsert path can only

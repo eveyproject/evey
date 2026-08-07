@@ -19,7 +19,7 @@ func NewSQLSearchFallback(db *sql.DB) *SQLSearchFallback {
 	return &SQLSearchFallback{db: db}
 }
 
-func (s *SQLSearchFallback) IndexMediaItem(_ context.Context, _ *library.MediaItem, _ []string) error {
+func (s *SQLSearchFallback) IndexMediaItem(_ context.Context, _ *library.MediaItem) error {
 	return nil
 }
 

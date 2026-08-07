@@ -356,17 +356,17 @@ func TestLibraryHandler_SearchMedia(t *testing.T) {
 		ID:    "mi-1",
 		Title: "The Cascade",
 		Type:  "movie",
-	}, nil)
+	})
 	searchIdx.IndexMediaItem(ctx, &library.MediaItem{
 		ID:    "mi-2",
 		Title: "Cascade Reloaded",
 		Type:  "movie",
-	}, nil)
+	})
 	searchIdx.IndexMediaItem(ctx, &library.MediaItem{
 		ID:    "mi-3",
 		Title: "Some Movie",
 		Type:  "movie",
-	}, nil)
+	})
 
 	resp, err := h.SearchMedia(ctx, &eveyv1.SearchMediaRequest{
 		Query: "Cascade",
@@ -642,10 +642,10 @@ func TestLibraryHandler_SearchMedia_IDOR_FiltersAccess(t *testing.T) {
 
 	searchIdx.IndexMediaItem(ctx, &library.MediaItem{
 		ID: "mi-1", LibraryID: "lib-1", Title: "Allowed Cascade", Type: "movie",
-	}, nil)
+	})
 	searchIdx.IndexMediaItem(ctx, &library.MediaItem{
 		ID: "mi-2", LibraryID: "lib-secret", Title: "Secret Cascade", Type: "movie",
-	}, nil)
+	})
 
 	libraryAccess.Grant(ctx, "user-2", "lib-1")
 	userCtx := userCtx("user-2", "profile-2")
@@ -669,9 +669,9 @@ func TestLibraryHandler_SearchMedia_ParentalFailClosed(t *testing.T) {
 	ctx := context.Background()
 
 	// Hits returned by the index - note they carry no rating, like the real one.
-	searchIdx.IndexMediaItem(ctx, &library.MediaItem{ID: "mi-r", LibraryID: "lib-1", Title: "Searchword R", Type: "movie"}, nil)
-	searchIdx.IndexMediaItem(ctx, &library.MediaItem{ID: "mi-pg", LibraryID: "lib-1", Title: "Searchword PG", Type: "movie"}, nil)
-	searchIdx.IndexMediaItem(ctx, &library.MediaItem{ID: "mi-unrated", LibraryID: "lib-1", Title: "Searchword Unrated", Type: "movie"}, nil)
+	searchIdx.IndexMediaItem(ctx, &library.MediaItem{ID: "mi-r", LibraryID: "lib-1", Title: "Searchword R", Type: "movie"})
+	searchIdx.IndexMediaItem(ctx, &library.MediaItem{ID: "mi-pg", LibraryID: "lib-1", Title: "Searchword PG", Type: "movie"})
+	searchIdx.IndexMediaItem(ctx, &library.MediaItem{ID: "mi-unrated", LibraryID: "lib-1", Title: "Searchword Unrated", Type: "movie"})
 
 	// Full items (with classification) the handler resolves from the DB.
 	mediaQuery.Seed(&library.MediaItem{ID: "mi-r", LibraryID: "lib-1", Title: "Searchword R", Type: "movie",
@@ -697,7 +697,7 @@ func TestLibraryHandler_SearchMedia_ParentalFetchError_FailsClosed(t *testing.T)
 	h, _, mediaQuery, searchIdx, libraryAccess, profiles, _ := newTestLibraryHandler()
 	ctx := context.Background()
 
-	searchIdx.IndexMediaItem(ctx, &library.MediaItem{ID: "mi-pg", LibraryID: "lib-1", Title: "Searchword PG", Type: "movie"}, nil)
+	searchIdx.IndexMediaItem(ctx, &library.MediaItem{ID: "mi-pg", LibraryID: "lib-1", Title: "Searchword PG", Type: "movie"})
 	mediaQuery.Seed(&library.MediaItem{ID: "mi-pg", LibraryID: "lib-1", Title: "Searchword PG", Type: "movie",
 		Classification: &library.MediaClassification{OfficialRating: "PG"}})
 
@@ -717,8 +717,8 @@ func TestLibraryHandler_SearchMedia_NonKids_Unfiltered(t *testing.T) {
 	h, _, _, searchIdx, libraryAccess, _, _ := newTestLibraryHandler()
 	ctx := context.Background()
 
-	searchIdx.IndexMediaItem(ctx, &library.MediaItem{ID: "mi-r", LibraryID: "lib-1", Title: "Searchword R", Type: "movie"}, nil)
-	searchIdx.IndexMediaItem(ctx, &library.MediaItem{ID: "mi-pg", LibraryID: "lib-1", Title: "Searchword PG", Type: "movie"}, nil)
+	searchIdx.IndexMediaItem(ctx, &library.MediaItem{ID: "mi-r", LibraryID: "lib-1", Title: "Searchword R", Type: "movie"})
+	searchIdx.IndexMediaItem(ctx, &library.MediaItem{ID: "mi-pg", LibraryID: "lib-1", Title: "Searchword PG", Type: "movie"})
 	libraryAccess.Grant(ctx, "user-2", "lib-1")
 
 	resp, err := h.SearchMedia(userCtx("user-2", "profile-2"), &eveyv1.SearchMediaRequest{Query: "Searchword", Limit: 10})

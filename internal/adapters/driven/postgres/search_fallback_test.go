@@ -15,7 +15,7 @@ import (
 
 func TestSQLSearchFallback_IndexMediaItem_Noop(t *testing.T) {
 	fb := postgres.NewSQLSearchFallback(nil)
-	err := fb.IndexMediaItem(context.Background(), &library.MediaItem{}, nil)
+	err := fb.IndexMediaItem(context.Background(), &library.MediaItem{})
 	assert.NoError(t, err)
 }
 

@@ -26,7 +26,7 @@ func TestLibraryHandler_SearchMedia_GrantLookupFailure_Denies(t *testing.T) {
 
 	searchIdx.IndexMediaItem(ctx, &library.MediaItem{
 		ID: "mi-fc-1", LibraryID: "lib-granted", Title: "Cascade One", Type: "movie",
-	}, nil)
+	})
 	require.NoError(t, libraryAccess.Grant(context.Background(), "user-2", "lib-granted"))
 
 	// The grant store goes down AFTER the grant exists.

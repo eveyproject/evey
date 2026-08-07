@@ -170,8 +170,13 @@ type MediaItem struct {
 	// search-indexing paths populate it before indexing so a user searching in
 	// their own language finds a title only stored in a translation.
 	Translations []MediaItemTranslation
-	AddedAt      time.Time
-	UpdatedAt    time.Time
+	// CastNames is a carry-along of the people names attached to the item,
+	// NOT loaded by the default row scan (it lives in media_people/people).
+	// The search-indexing paths populate it before indexing so an actor-name
+	// search keeps matching after a reindex/reconcile/drain rebuild.
+	CastNames []string
+	AddedAt   time.Time
+	UpdatedAt time.Time
 }
 
 // MediaCatalog carries discovery metadata sourced from providers: the

@@ -709,7 +709,7 @@ func (s *ScanService) createMediaFile(ctx context.Context, libraryID, parentID s
 		s.metadata.extractAndStoreChapters(ctx, string(item.ID), f.Path)
 	}
 	if s.search != nil {
-		if err := s.search.IndexMediaItem(ctx, item, nil); err != nil {
+		if err := s.search.IndexMediaItem(ctx, item); err != nil {
 			slog.WarnContext(ctx, "index media item failed", slog.String("mediaItemID", string(item.ID)), slog.Any("err", err))
 		}
 	}
@@ -799,7 +799,7 @@ func (s *ScanService) updateMediaFile(ctx context.Context, existing *library.Med
 		s.metadata.extractAndStoreChapters(ctx, string(existing.ID), f.Path)
 	}
 	if s.search != nil {
-		if err := s.search.IndexMediaItem(ctx, existing, nil); err != nil {
+		if err := s.search.IndexMediaItem(ctx, existing); err != nil {
 			slog.WarnContext(ctx, "index media item failed", slog.String("mediaItemID", string(existing.ID)), slog.Any("err", err))
 		}
 	}

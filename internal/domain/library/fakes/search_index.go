@@ -25,7 +25,7 @@ func NewFakeSearchIndex() *FakeSearchIndex {
 	return &FakeSearchIndex{items: make(map[string]*library.MediaItem)}
 }
 
-func (s *FakeSearchIndex) IndexMediaItem(_ context.Context, item *library.MediaItem, _ []string) error {
+func (s *FakeSearchIndex) IndexMediaItem(_ context.Context, item *library.MediaItem) error {
 	if s.Err != nil {
 		return s.Err
 	}

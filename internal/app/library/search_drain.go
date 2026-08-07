@@ -30,6 +30,7 @@ func DrainSearchWriteQueue(
 	items library.MediaItemQueryRepo,
 	search library.SearchIndex,
 	translations reindexTranslationReader,
+	cast reindexCastReader,
 ) (int, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.library.DrainSearchWriteQueue")
 	defer span.End()
@@ -70,6 +71,7 @@ func DrainSearchWriteQueue(
 			}
 			if len(dbItems) > 0 {
 				attachTranslations(ctx, translations, dbItems)
+				attachCast(ctx, cast, dbItems)
 				if ierr := search.IndexMediaItemsBatch(ctx, dbItems); ierr != nil {
 					// Engine still down / transient - stop before deleting ANY op from
 					// this page (including delete-ops below), unlike the previous

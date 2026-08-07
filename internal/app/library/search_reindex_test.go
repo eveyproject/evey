@@ -29,7 +29,7 @@ func TestReindexSearchIndex_AllLibraries(t *testing.T) {
 	seedItem(repo, "m3", "libB")
 	search := libfakes.NewFakeSearchIndex()
 
-	n, err := applibrary.ReindexSearchIndex(context.Background(), repo, search, nil, "", nil)
+	n, err := applibrary.ReindexSearchIndex(context.Background(), repo, search, nil, nil, "", nil)
 	require.NoError(t, err)
 	assert.Equal(t, 3, n)
 	assert.Equal(t, 3, search.Indexed(), "every item across libraries indexed")
@@ -65,7 +65,7 @@ func TestReindexSearchIndex_AttachesTranslations(t *testing.T) {
 		"m1": {{MediaItemID: "m1", Locale: "fr-FR", Title: "Le Voyage"}},
 	}}
 
-	n, err := applibrary.ReindexSearchIndex(context.Background(), repo, search, tr, "", nil)
+	n, err := applibrary.ReindexSearchIndex(context.Background(), repo, search, tr, nil, "", nil)
 	require.NoError(t, err)
 	assert.Equal(t, 2, n)
 
@@ -88,10 +88,72 @@ func TestReindexSearchIndex_TranslationError_StillIndexes(t *testing.T) {
 	search := libfakes.NewFakeSearchIndex()
 	tr := &fakeTranslationReader{err: errors.New("translations table down")}
 
-	n, err := applibrary.ReindexSearchIndex(context.Background(), repo, search, tr, "", nil)
+	n, err := applibrary.ReindexSearchIndex(context.Background(), repo, search, tr, nil, "", nil)
 	require.NoError(t, err)
 	assert.Equal(t, 1, n)
 	assert.Equal(t, 1, search.Indexed(), "reindex must still index the item despite the translation read error")
+}
+
+// fakeCastReader returns canned per-item cast names and can be made to fail,
+// to exercise the reindex's cast-attach path.
+type fakeCastReader struct {
+	byID map[string][]string
+	err  error
+}
+
+func (f *fakeCastReader) CastNamesByMediaItems(_ context.Context, ids []string) (map[string][]string, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	out := make(map[string][]string, len(ids))
+	for _, id := range ids {
+		if names, ok := f.byID[id]; ok {
+			out[id] = names
+		}
+	}
+	return out, nil
+}
+
+// A batch rebuild used to push documents with an empty cast (ToDocument got a
+// nil cast on the batch path), silently breaking actor search after every
+// reindex/reconcile/drain until the next TMDB re-enrich. The reindex must
+// attach the DB cast names to each page.
+func TestReindexSearchIndex_AttachesCast(t *testing.T) {
+	t.Parallel()
+	repo := libfakes.NewFakeMediaItemQueryRepo()
+	seedItem(repo, "m1", "libA")
+	seedItem(repo, "m2", "libA")
+	search := libfakes.NewFakeSearchIndex()
+	cast := &fakeCastReader{byID: map[string][]string{
+		"m1": {"Some Actor", "Other Actor"},
+	}}
+
+	n, err := applibrary.ReindexSearchIndex(context.Background(), repo, search, nil, cast, "", nil)
+	require.NoError(t, err)
+	assert.Equal(t, 2, n)
+
+	m1, ok := search.Get("m1")
+	require.True(t, ok)
+	assert.Equal(t, []string{"Some Actor", "Other Actor"}, m1.CastNames, "m1 must carry its cast into the index")
+
+	m2, ok := search.Get("m2")
+	require.True(t, ok)
+	assert.Empty(t, m2.CastNames, "m2 has no cast → none attached")
+}
+
+// Same posture as translations: a cast read error must NOT abort the reindex,
+// the page is indexed without cast.
+func TestReindexSearchIndex_CastError_StillIndexes(t *testing.T) {
+	t.Parallel()
+	repo := libfakes.NewFakeMediaItemQueryRepo()
+	seedItem(repo, "m1", "libA")
+	search := libfakes.NewFakeSearchIndex()
+	cast := &fakeCastReader{err: errors.New("people table down")}
+
+	n, err := applibrary.ReindexSearchIndex(context.Background(), repo, search, nil, cast, "", nil)
+	require.NoError(t, err)
+	assert.Equal(t, 1, n)
+	assert.Equal(t, 1, search.Indexed(), "reindex must still index the item despite the cast read error")
 }
 
 // fakeDocCounter stands in for the search engine's DocumentCount, so the
@@ -111,7 +173,7 @@ func TestReconcileSearchIndex_SkipsWhenEngineUnreachable(t *testing.T) {
 	search := libfakes.NewFakeSearchIndex()
 
 	n, err := applibrary.ReconcileSearchIndex(context.Background(), repo, search,
-		fakeDocCounter{err: errors.New("connection refused")}, nil)
+		fakeDocCounter{err: errors.New("connection refused")}, nil, nil)
 	require.NoError(t, err, "an unreachable engine is a skip, not an error")
 	assert.Equal(t, 0, n)
 	assert.Equal(t, 0, search.Indexed(), "must not scan/index against a down engine")
@@ -125,7 +187,7 @@ func TestReconcileSearchIndex_InSync_NoRebuild(t *testing.T) {
 	search := libfakes.NewFakeSearchIndex()
 
 	n, err := applibrary.ReconcileSearchIndex(context.Background(), repo, search,
-		fakeDocCounter{count: 2}, nil)
+		fakeDocCounter{count: 2}, nil, nil)
 	require.NoError(t, err)
 	assert.Equal(t, 0, n)
 	assert.Equal(t, 0, search.Indexed(), "doc count matches db count → no rebuild")
@@ -142,7 +204,7 @@ func TestReconcileSearchIndex_DriftRebuilds(t *testing.T) {
 	// Engine holds 1 doc, DB holds 3 - drift (writes dropped during an outage)
 	// → full rebuild.
 	n, err := applibrary.ReconcileSearchIndex(context.Background(), repo, search,
-		fakeDocCounter{count: 1}, nil)
+		fakeDocCounter{count: 1}, nil, nil)
 	require.NoError(t, err)
 	assert.Equal(t, 3, n)
 	assert.Equal(t, 3, search.Indexed(), "every DB item is re-indexed on drift")
@@ -162,11 +224,11 @@ func TestReconcileSearchIndex_StaleDocs_WipesThenRebuilds(t *testing.T) {
 	// WIPE then rebuild from the DB, evicting the stale docs.
 	for _, id := range []string{"m1", "m2", "stale1", "stale2", "stale3"} {
 		require.NoError(t, search.IndexMediaItem(context.Background(),
-			&library.MediaItem{ID: shared.MediaItemID(id), Title: id}, nil))
+			&library.MediaItem{ID: shared.MediaItemID(id), Title: id}))
 	}
 
 	n, err := applibrary.ReconcileSearchIndex(context.Background(), repo, search,
-		fakeDocCounter{count: 5}, nil)
+		fakeDocCounter{count: 5}, nil, nil)
 	require.NoError(t, err)
 	assert.Equal(t, int64(1), search.ClearCalls.Load(), "oversized index must be wiped first")
 	assert.Equal(t, 2, n, "rebuild re-indexes the DB items")
@@ -181,7 +243,7 @@ func TestReindexSearchIndex_SingleLibrary(t *testing.T) {
 	seedItem(repo, "m3", "libB")
 	search := libfakes.NewFakeSearchIndex()
 
-	n, err := applibrary.ReindexSearchIndex(context.Background(), repo, search, nil, "libA", nil)
+	n, err := applibrary.ReindexSearchIndex(context.Background(), repo, search, nil, nil, "libA", nil)
 	require.NoError(t, err)
 	assert.Equal(t, 2, n, "only libA items counted")
 	assert.Equal(t, 2, search.Indexed(), "only libA items indexed")
@@ -196,7 +258,7 @@ func TestReindexSearchIndex_ProgressCallback(t *testing.T) {
 
 	var lastDone, lastTotal int
 	calls := 0
-	n, err := applibrary.ReindexSearchIndex(context.Background(), repo, search, nil, "", func(done, total int) {
+	n, err := applibrary.ReindexSearchIndex(context.Background(), repo, search, nil, nil, "", func(done, total int) {
 		calls++
 		lastDone, lastTotal = done, total
 	})
@@ -212,7 +274,7 @@ func TestReindexSearchIndex_Empty(t *testing.T) {
 	repo := libfakes.NewFakeMediaItemQueryRepo()
 	search := libfakes.NewFakeSearchIndex()
 
-	n, err := applibrary.ReindexSearchIndex(context.Background(), repo, search, nil, "", nil)
+	n, err := applibrary.ReindexSearchIndex(context.Background(), repo, search, nil, nil, "", nil)
 	require.NoError(t, err)
 	assert.Equal(t, 0, n)
 	assert.Equal(t, 0, search.Indexed())
@@ -224,7 +286,7 @@ func TestReindexSearchIndex_ListErrorPropagates(t *testing.T) {
 	repo.Err = errors.New("db down")
 	search := libfakes.NewFakeSearchIndex()
 
-	_, err := applibrary.ReindexSearchIndex(context.Background(), repo, search, nil, "", nil)
+	_, err := applibrary.ReindexSearchIndex(context.Background(), repo, search, nil, nil, "", nil)
 	require.Error(t, err)
 }
 
@@ -235,6 +297,6 @@ func TestReindexSearchIndex_IndexErrorPropagates(t *testing.T) {
 	search := libfakes.NewFakeSearchIndex()
 	search.Err = errors.New("meili down")
 
-	_, err := applibrary.ReindexSearchIndex(context.Background(), repo, search, nil, "", nil)
+	_, err := applibrary.ReindexSearchIndex(context.Background(), repo, search, nil, nil, "", nil)
 	require.Error(t, err)
 }

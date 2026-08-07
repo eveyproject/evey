@@ -572,7 +572,8 @@ func (e *Enricher) indexSearch(ctx context.Context, item *domainlib.MediaItem, p
 	for _, p := range people {
 		names = append(names, p.Name)
 	}
-	if err := e.search.IndexMediaItem(ctx, item, names); err != nil {
+	item.CastNames = names
+	if err := e.search.IndexMediaItem(ctx, item); err != nil {
 		slog.WarnContext(ctx, "index media item", slog.Any("err", err))
 	}
 }

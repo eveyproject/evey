@@ -56,9 +56,9 @@ func TestDrainSearchWriteQueue(t *testing.T) {
 		items := libfakes.NewFakeMediaItemQueryRepo()
 		items.Add(&library.MediaItem{ID: "m1", Title: "Avatar"})
 		search := libfakes.NewFakeSearchIndex()
-		_ = search.IndexMediaItem(ctx, &library.MediaItem{ID: "m2"}, nil) // present, to be removed
+		_ = search.IndexMediaItem(ctx, &library.MediaItem{ID: "m2"}) // present, to be removed
 
-		n, err := DrainSearchWriteQueue(ctx, q, items, search, nil)
+		n, err := DrainSearchWriteQueue(ctx, q, items, search, nil, nil)
 		if err != nil {
 			t.Fatalf("drain: %v", err)
 		}
@@ -81,7 +81,7 @@ func TestDrainSearchWriteQueue(t *testing.T) {
 		search := libfakes.NewFakeSearchIndex()
 		search.Err = errors.New("meili down")
 
-		n, err := DrainSearchWriteQueue(ctx, q, items, search, nil)
+		n, err := DrainSearchWriteQueue(ctx, q, items, search, nil, nil)
 		if err == nil {
 			t.Fatal("expected an error while the engine is down")
 		}
@@ -98,9 +98,9 @@ func TestDrainSearchWriteQueue(t *testing.T) {
 		q.ops["gone"] = library.SearchOpUpsert
 		items := libfakes.NewFakeMediaItemQueryRepo() // "gone" absent → ErrNotFound
 		search := libfakes.NewFakeSearchIndex()
-		_ = search.IndexMediaItem(ctx, &library.MediaItem{ID: "gone"}, nil) // stale doc lingering
+		_ = search.IndexMediaItem(ctx, &library.MediaItem{ID: "gone"}) // stale doc lingering
 
-		n, err := DrainSearchWriteQueue(ctx, q, items, search, nil)
+		n, err := DrainSearchWriteQueue(ctx, q, items, search, nil, nil)
 		if err != nil {
 			t.Fatalf("drain: %v", err)
 		}
@@ -126,7 +126,7 @@ func TestDrainSearchWriteQueue(t *testing.T) {
 		}
 		search := libfakes.NewFakeSearchIndex()
 
-		got, err := DrainSearchWriteQueue(ctx, q, items, search, nil)
+		got, err := DrainSearchWriteQueue(ctx, q, items, search, nil, nil)
 		if err != nil {
 			t.Fatalf("drain: %v", err)
 		}
@@ -145,4 +145,38 @@ func TestDrainSearchWriteQueue(t *testing.T) {
 			t.Errorf("indexed=%d, want %d", search.Indexed(), n)
 		}
 	})
+
+	t.Run("attaches cast names to replayed upserts", func(t *testing.T) {
+		q := newFakeSearchQueue()
+		q.ops["m1"] = library.SearchOpUpsert
+		items := libfakes.NewFakeMediaItemQueryRepo()
+		items.Add(&library.MediaItem{ID: "m1", Title: "Some Movie"})
+		search := libfakes.NewFakeSearchIndex()
+		cast := &staticCastReader{byID: map[string][]string{"m1": {"Some Actor"}}}
+
+		if _, err := DrainSearchWriteQueue(ctx, q, items, search, nil, cast); err != nil {
+			t.Fatalf("drain: %v", err)
+		}
+		got, ok := search.Get("m1")
+		if !ok {
+			t.Fatal("m1 not indexed")
+		}
+		if len(got.CastNames) != 1 || got.CastNames[0] != "Some Actor" {
+			t.Errorf("replayed doc lost its cast: %v", got.CastNames)
+		}
+	})
+}
+
+// staticCastReader satisfies reindexCastReader with a canned map, to prove the
+// drain feeds cast names into the replayed documents.
+type staticCastReader struct{ byID map[string][]string }
+
+func (f *staticCastReader) CastNamesByMediaItems(_ context.Context, ids []string) (map[string][]string, error) {
+	out := make(map[string][]string, len(ids))
+	for _, id := range ids {
+		if names, ok := f.byID[id]; ok {
+			out[id] = names
+		}
+	}
+	return out, nil
 }

@@ -116,7 +116,7 @@ func TestLibraryHandler_SearchMedia_StampsSeriesTitle(t *testing.T) {
 	seedShow(mediaQuery.Seed)
 	searchIdx.IndexMediaItem(ctx, &library.MediaItem{
 		ID: "mi-episode", Title: "Some Episode", Type: library.Episode,
-	}, nil)
+	})
 
 	resp, err := h.SearchMedia(ctx, &eveyv1.SearchMediaRequest{Query: "Some Episode", Limit: 10})
 	require.NoError(t, err)

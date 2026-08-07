@@ -107,11 +107,35 @@ func buildEventWiring(ctx context.Context, cfg *config.Config, infra *infraDeps,
 				}()
 				rctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 				defer cancel()
-				if _, err := applibrary.ReconcileSearchIndex(rctx, infra.repos.MediaItemQuery, sa, sa, infra.repos.MediaItemTranslation); err != nil {
+				if _, err := applibrary.ReconcileSearchIndex(rctx, infra.repos.MediaItemQuery, sa, sa, infra.repos.MediaItemTranslation, infra.repos.MediaPerson); err != nil {
 					slog.WarnContext(rctx, "search reconcile failed", slog.Any("err", err))
 				}
 			}
-			go reconcileSearch()
+			// Boot: full upsert reindex FIRST, then reconcile. The count-based
+			// reconcile is blind to drift that nets to zero (adds and deletes
+			// balancing out during outages left ~half the prod series out of the
+			// index on 2026-08-07 while both counts matched). The upsert rebuild
+			// restores every missing/stale-valued doc without the empty-search
+			// window a wipe would cause; if extra stale docs remain, the index is
+			// then LARGER than the DB, which the reconcile right after finally
+			// sees and heals with its wipe+rebuild. Tickers stay count-based -
+			// the full sweep is a boot-only cost.
+			go func() {
+				defer func() {
+					if r := recover(); r != nil {
+						slog.ErrorContext(ctx, "panic recovered in boot search reindex", "error", r, "stack", string(debug.Stack()))
+					}
+				}()
+				rctx, cancel := context.WithTimeout(ctx, 30*time.Minute)
+				defer cancel()
+				n, err := applibrary.ReindexSearchIndex(rctx, infra.repos.MediaItemQuery, sa, infra.repos.MediaItemTranslation, infra.repos.MediaPerson, "", nil)
+				if err != nil {
+					slog.WarnContext(rctx, "boot search reindex failed (engine down? reconcile ticker will retry the count path)", slog.Any("err", err))
+				} else {
+					slog.InfoContext(rctx, "boot search reindex complete", slog.Int("indexed", n))
+				}
+				reconcileSearch()
+			}()
 			go func() {
 				ticker := time.NewTicker(15 * time.Minute)
 				defer ticker.Stop()
@@ -141,7 +165,7 @@ func buildEventWiring(ctx context.Context, cfg *config.Config, infra *infraDeps,
 				}()
 				dctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 				defer cancel()
-				if _, err := applibrary.DrainSearchWriteQueue(dctx, infra.repos.PendingSearchWrite, infra.repos.MediaItemQuery, sa, infra.repos.MediaItemTranslation); err != nil {
+				if _, err := applibrary.DrainSearchWriteQueue(dctx, infra.repos.PendingSearchWrite, infra.repos.MediaItemQuery, sa, infra.repos.MediaItemTranslation, infra.repos.MediaPerson); err != nil {
 					slog.WarnContext(dctx, "search write-queue drain failed (engine still down?)", slog.Any("err", err))
 				}
 			}

@@ -40,14 +40,14 @@ func (r *ResilientSearch) enqueue(ctx context.Context, id, op string) {
 	}
 }
 
-func (r *ResilientSearch) IndexMediaItem(ctx context.Context, item *library.MediaItem, castNames []string) error {
+func (r *ResilientSearch) IndexMediaItem(ctx context.Context, item *library.MediaItem) error {
 	ctx, span := tracing.StartSpan(ctx, "search.resilient.IndexMediaItem")
 	defer span.End()
 
 	if r.primary == nil {
 		return nil
 	}
-	if err := r.primary.IndexMediaItem(ctx, item, castNames); err != nil {
+	if err := r.primary.IndexMediaItem(ctx, item); err != nil {
 		slog.WarnContext(ctx, "search index: primary failed, queuing for replay", slog.Any("err", err))
 		r.enqueue(ctx, string(item.ID), library.SearchOpUpsert)
 	}

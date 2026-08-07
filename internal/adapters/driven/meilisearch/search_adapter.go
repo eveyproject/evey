@@ -99,14 +99,14 @@ type mediaDocument struct {
 	Translations map[string]string `json:"translations"`
 }
 
-func ToDocument(item *library.MediaItem, castNames []string) mediaDocument {
+func ToDocument(item *library.MediaItem) mediaDocument {
 	doc := mediaDocument{
 		ID:               string(item.ID),
 		Title:            item.Title,
 		OriginalTitle:    item.OriginalTitle,
 		TranslatedTitles: translatedTitles(item),
 		Translations:     translationsByLocale(item),
-		Cast:             castNames,
+		Cast:             item.CastNames,
 		Type:             string(item.Type),
 		LibraryID:        string(item.LibraryID),
 		AddedAt:          item.AddedAt.Unix(),
@@ -286,10 +286,10 @@ func (a *SearchAdapter) DocumentCount(ctx context.Context) (int64, error) {
 	return stats.NumberOfDocuments, nil
 }
 
-func (a *SearchAdapter) IndexMediaItem(ctx context.Context, item *library.MediaItem, castNames []string) error {
+func (a *SearchAdapter) IndexMediaItem(ctx context.Context, item *library.MediaItem) error {
 	ctx, span := tracing.StartSpan(ctx, "meilisearch.IndexMediaItem")
 	defer span.End()
-	doc := ToDocument(item, castNames)
+	doc := ToDocument(item)
 	_, err := a.index.AddDocumentsWithContext(ctx, []mediaDocument{doc}, nil)
 	if err != nil {
 		return fmt.Errorf("index media item: %w", err)
@@ -305,7 +305,7 @@ func (a *SearchAdapter) IndexMediaItemsBatch(ctx context.Context, items []*libra
 	}
 	docs := make([]mediaDocument, len(items))
 	for i, item := range items {
-		docs[i] = ToDocument(item, nil)
+		docs[i] = ToDocument(item)
 	}
 	_, err := a.index.AddDocumentsWithContext(ctx, docs, nil)
 	if err != nil {

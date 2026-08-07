@@ -148,10 +148,11 @@ func TestToDocument(t *testing.T) {
 			Tags:    []string{"tag1"},
 			Year:    &year,
 		},
-		AddedAt: now,
+		AddedAt:   now,
+		CastNames: []string{"Some Actor", "Other Actor"},
 	}
 
-	doc := ToDocument(item, []string{"Brad Pitt", "Edward Norton"})
+	doc := ToDocument(item)
 
 	assert.Equal(t, "item-1", doc.ID)
 	assert.Equal(t, "lib-1", doc.LibraryID)
@@ -159,7 +160,7 @@ func TestToDocument(t *testing.T) {
 	assert.Equal(t, "Test Movie", doc.Title)
 	assert.Equal(t, "Test Original", doc.OriginalTitle)
 	assert.Equal(t, []string{"Action", "Comedy"}, doc.Genres)
-	assert.Equal(t, []string{"Brad Pitt", "Edward Norton"}, doc.Cast)
+	assert.Equal(t, []string{"Some Actor", "Other Actor"}, doc.Cast)
 	assert.Equal(t, &year, doc.Year)
 	assert.Equal(t, now.Unix(), doc.AddedAt)
 }
@@ -179,7 +180,7 @@ func TestToDocument_TranslatedTitles(t *testing.T) {
 		AddedAt: time.Now(),
 	}
 
-	doc := ToDocument(item, nil)
+	doc := ToDocument(item)
 
 	assert.ElementsMatch(t, []string{"Le Voyage", "Die Reise"}, doc.TranslatedTitles,
 		"translated titles must be deduped and exclude empties + the primary/original title")
@@ -187,7 +188,7 @@ func TestToDocument_TranslatedTitles(t *testing.T) {
 
 func TestToDocument_NoTranslations(t *testing.T) {
 	item := &library.MediaItem{ID: "item-4", Title: "Solo", AddedAt: time.Now()}
-	doc := ToDocument(item, nil)
+	doc := ToDocument(item)
 	assert.Nil(t, doc.TranslatedTitles)
 	assert.Nil(t, doc.Translations)
 }
@@ -207,7 +208,7 @@ func TestToDocument_TranslationsByLocale(t *testing.T) {
 		},
 		AddedAt: time.Now(),
 	}
-	doc := ToDocument(item, nil)
+	doc := ToDocument(item)
 	assert.Equal(t, "Le Voyage", doc.Translations["fr"], "keyed by normalized locale; first non-empty wins")
 	assert.Equal(t, "The Journey", doc.Translations["en"])
 	_, hasES := doc.Translations["es"]
@@ -267,7 +268,7 @@ func TestToDocument_NilYear(t *testing.T) {
 		Title:   "No Year",
 		AddedAt: time.Now(),
 	}
-	doc := ToDocument(item, nil)
+	doc := ToDocument(item)
 	assert.Nil(t, doc.Year)
 }
 
@@ -296,12 +297,13 @@ func TestIndexMediaItem(t *testing.T) {
 	adapter := &SearchAdapter{index: fake}
 
 	item := &library.MediaItem{
-		ID:      "item-1",
-		Title:   "Test",
-		AddedAt: time.Now(),
+		ID:        "item-1",
+		Title:     "Test",
+		AddedAt:   time.Now(),
+		CastNames: []string{"Some Actor"},
 	}
 
-	err := adapter.IndexMediaItem(context.Background(), item, []string{"Actor One"})
+	err := adapter.IndexMediaItem(context.Background(), item)
 	require.NoError(t, err)
 	require.Len(t, fake.addedDocs, 1)
 
@@ -309,6 +311,7 @@ func TestIndexMediaItem(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, "item-1", docs[0].ID)
 	assert.Equal(t, "Test", docs[0].Title)
+	assert.Equal(t, []string{"Some Actor"}, docs[0].Cast)
 }
 
 func TestRemoveMediaItem(t *testing.T) {

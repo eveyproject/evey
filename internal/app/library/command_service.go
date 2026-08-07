@@ -49,16 +49,19 @@ type CommandService struct {
 	// docs so a full rebuild is multi-language-searchable immediately (not only
 	// after the next per-item re-enrich). nil = skip translation enrichment.
 	mediaTranslations reindexTranslationReader
+	// mediaCast lets the reindex attach people names so the searchable cast
+	// attribute survives a full rebuild. nil = skip cast enrichment.
+	mediaCast reindexCastReader
 }
 
 // WithSearchReindex enables CommandService.ReindexSearch by wiring the read repo
-// the reindex sweeps and the translation reader it attaches translated titles
-// from (translations may be nil). The SearchIndex itself is already a
-// constructor argument.
-func WithSearchReindex(mediaQuery library.MediaItemQueryRepo, translations reindexTranslationReader) CommandServiceOption {
+// the reindex sweeps and the translation/cast readers it enriches the docs from
+// (either may be nil). The SearchIndex itself is already a constructor argument.
+func WithSearchReindex(mediaQuery library.MediaItemQueryRepo, translations reindexTranslationReader, cast reindexCastReader) CommandServiceOption {
 	return func(s *CommandService) {
 		s.mediaQuery = mediaQuery
 		s.mediaTranslations = translations
+		s.mediaCast = cast
 	}
 }
 
@@ -110,7 +113,7 @@ func (s *CommandService) ReindexSearch(ctx context.Context, libraryID string, on
 	if s.mediaQuery == nil || s.search == nil {
 		return 0, errors.New("library.CommandService.ReindexSearch: search reindex not configured (WithSearchReindex)")
 	}
-	return ReindexSearchIndex(ctx, s.mediaQuery, s.search, s.mediaTranslations, libraryID, onProgress)
+	return ReindexSearchIndex(ctx, s.mediaQuery, s.search, s.mediaTranslations, s.mediaCast, libraryID, onProgress)
 }
 
 func (s *CommandService) WithSubtitleScanner(sc library.ExternalSubtitleScanner) {

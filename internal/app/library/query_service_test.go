@@ -526,9 +526,9 @@ func TestQueryService_GetMediaStreams_AssertStreamContent(t *testing.T) {
 func TestQueryService_SearchMedia_Finds(t *testing.T) {
 	t.Parallel()
 	f := newQuerySvcFull()
-	f.search.IndexMediaItem(context.Background(), &library.MediaItem{ID: "m1", Title: "Falcon Begins"}, nil)
-	f.search.IndexMediaItem(context.Background(), &library.MediaItem{ID: "m2", Title: "Falcon Returns"}, nil)
-	f.search.IndexMediaItem(context.Background(), &library.MediaItem{ID: "m3", Title: "Skyward"}, nil)
+	f.search.IndexMediaItem(context.Background(), &library.MediaItem{ID: "m1", Title: "Falcon Begins"})
+	f.search.IndexMediaItem(context.Background(), &library.MediaItem{ID: "m2", Title: "Falcon Returns"})
+	f.search.IndexMediaItem(context.Background(), &library.MediaItem{ID: "m3", Title: "Skyward"})
 
 	hits, total, err := f.svc.SearchMedia(context.Background(), "falcon", nil, nil, 10)
 	require.NoError(t, err)
@@ -539,8 +539,8 @@ func TestQueryService_SearchMedia_Finds(t *testing.T) {
 func TestQueryService_SearchMedia_LimitApplied(t *testing.T) {
 	t.Parallel()
 	f := newQuerySvcFull()
-	f.search.IndexMediaItem(context.Background(), &library.MediaItem{ID: "m1", Title: "Falcon Begins"}, nil)
-	f.search.IndexMediaItem(context.Background(), &library.MediaItem{ID: "m2", Title: "Falcon Returns"}, nil)
+	f.search.IndexMediaItem(context.Background(), &library.MediaItem{ID: "m1", Title: "Falcon Begins"})
+	f.search.IndexMediaItem(context.Background(), &library.MediaItem{ID: "m2", Title: "Falcon Returns"})
 
 	hits, _, err := f.svc.SearchMedia(context.Background(), "falcon", nil, nil, 1)
 	require.NoError(t, err)
@@ -564,7 +564,7 @@ func TestQueryService_SearchMedia_HitContent(t *testing.T) {
 		ID: "m1", Title: "Falcon Begins", Type: "movie",
 		Catalog:        &library.MediaCatalog{Year: &year, Genres: []string{"action"}},
 		Classification: &library.MediaClassification{OfficialRating: "PG-13"},
-	}, nil)
+	})
 
 	hits, total, err := f.svc.SearchMedia(context.Background(), "falcon", nil, nil, 10)
 	require.NoError(t, err)

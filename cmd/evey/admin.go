@@ -381,9 +381,10 @@ func adminReindexSearch(args []string) error {
 	}
 	items := postgres.NewMediaItemQueryRepoAdapter(db)
 	translations := postgres.NewMediaItemTranslationRepository(db)
+	cast := postgres.NewMediaPersonRepository(db)
 
 	fmt.Printf("Reindexing media items into Meilisearch at %s ...\n", cfg.Meilisearch.URL)
-	n, err := applibrary.ReindexSearchIndex(context.Background(), items, search, translations, *libraryID, func(done, total int) {
+	n, err := applibrary.ReindexSearchIndex(context.Background(), items, search, translations, cast, *libraryID, func(done, total int) {
 		fmt.Printf("\r  %d/%d", done, total)
 	})
 	fmt.Println()

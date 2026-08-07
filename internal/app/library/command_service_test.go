@@ -1365,7 +1365,7 @@ func TestRemoveOrphans_AlsoRemovesFromSearchIndex(t *testing.T) {
 		ID: "keep-1", LibraryID: "lib-1",
 		File: &library.MediaFile{Path: "/movies/keep.mkv", Size: 100, Fingerprint: "fp-keep"},
 	})
-	h.search.IndexMediaItem(context.Background(), &library.MediaItem{ID: "orphan-1", Title: "Gone Film"}, nil)
+	h.search.IndexMediaItem(context.Background(), &library.MediaItem{ID: "orphan-1", Title: "Gone Film"})
 
 	// Kept file keeps the scan non-empty (avoids the degraded-mount guard).
 	h.scanner.Results["/movies"] = []library.ScannedFile{
@@ -1594,7 +1594,7 @@ func TestScanLibrary_OrphanRemovedFromSearchIndex(t *testing.T) {
 		LibraryID: "lib-orphan",
 		File:      &library.MediaFile{Path: "/movies/keep.mkv", Size: 100, Fingerprint: "fp-keep"},
 	})
-	search.IndexMediaItem(context.Background(), &library.MediaItem{ID: "orphan-1", Title: "Deleted Film"}, nil)
+	search.IndexMediaItem(context.Background(), &library.MediaItem{ID: "orphan-1", Title: "Deleted Film"})
 
 	// Kept file keeps the scan non-empty (avoids the degraded-mount guard).
 	scanner.Results["/movies"] = []library.ScannedFile{
@@ -1773,7 +1773,7 @@ func TestDeleteMediaItem_RemovesFromSearchIndex(t *testing.T) {
 		File: &library.MediaFile{Path: "/movies/film.mkv"},
 	}
 	require.NoError(t, mediaRepo.Create(ctx, item))
-	require.NoError(t, search.IndexMediaItem(ctx, item, nil))
+	require.NoError(t, search.IndexMediaItem(ctx, item))
 	if _, ok := search.Get("item-to-delete"); !ok {
 		t.Fatal("precondition: the item should be indexed before deletion")
 	}

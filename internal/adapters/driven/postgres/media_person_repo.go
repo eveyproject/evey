@@ -147,4 +147,58 @@ func (r *MediaPersonRepository) GetByMediaItemID(ctx context.Context, mediaItemI
 	return result, nil
 }
 
+// CastNamesByMediaItems batch-fetches the people names linked to many media
+// items in one query, keyed by media item ID. Feeds the searchable "cast"
+// attribute on the batch indexing paths (reindex/reconcile/drain), which
+// otherwise rebuild documents without cast. Names are deduplicated per item (a
+// person credited in several roles yields several media_people rows) and kept
+// in sort_order.
+func (r *MediaPersonRepository) CastNamesByMediaItems(ctx context.Context, mediaItemIDs []string) (map[string][]string, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.media_person.CastNamesByMediaItems")
+	defer span.End()
+	span.SetAttributes(attribute.Int("media_item.count", len(mediaItemIDs)))
+	if len(mediaItemIDs) == 0 {
+		return map[string][]string{}, nil
+	}
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
+		`SELECT mp.media_item_id, pe.name
+		 FROM media_people mp
+		 JOIN people pe ON pe.id = mp.person_id
+		 WHERE mp.media_item_id = ANY($1)
+		 ORDER BY mp.media_item_id, mp.sort_order`, pq.Array(mediaItemIDs))
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[string][]string, len(mediaItemIDs))
+	seen := make(map[string]map[string]bool)
+	for rows.Next() {
+		var itemID, name string
+		if err := rows.Scan(&itemID, &name); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return nil, err
+		}
+		if seen[itemID] == nil {
+			seen[itemID] = make(map[string]bool)
+		}
+		if seen[itemID][name] {
+			continue
+		}
+		seen[itemID][name] = true
+		result[itemID] = append(result[itemID], name)
+	}
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return result, nil
+}
+
 var _ library.MediaPersonRepository = (*MediaPersonRepository)(nil)

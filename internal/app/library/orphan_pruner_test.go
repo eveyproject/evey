@@ -195,7 +195,7 @@ func TestOrphanPruner_SearchIndexCleared_ForOrphans(t *testing.T) {
 		ID: "kept", LibraryID: "lib-1",
 		File: &library.MediaFile{Path: "/movies/kept.mkv"},
 	})
-	search.IndexMediaItem(context.Background(), &library.MediaItem{ID: "orph", Title: "Orphan Film"}, nil)
+	search.IndexMediaItem(context.Background(), &library.MediaItem{ID: "orph", Title: "Orphan Film"})
 
 	seen := map[string]struct{}{"/movies/kept.mkv": {}} // orph is the orphan
 
@@ -290,7 +290,7 @@ func TestOrphanPruner_DeleteByIDsError_FailClosed(t *testing.T) {
 		ID: "kept", LibraryID: "lib-1",
 		File: &library.MediaFile{Path: "/movies/kept.mkv"},
 	})
-	search.IndexMediaItem(context.Background(), &library.MediaItem{ID: "orph", Title: "Orphan"}, nil)
+	search.IndexMediaItem(context.Background(), &library.MediaItem{ID: "orph", Title: "Orphan"})
 	items.ErrDelete = errors.New("db kaboom")
 
 	removed, err := pruner.Prune(context.Background(), "lib-1", map[string]struct{}{"/movies/kept.mkv": {}}, nil)

@@ -23,6 +23,36 @@ type reindexTranslationReader interface {
 	GetByMediaItems(ctx context.Context, mediaItemIDs []string) (map[string][]*library.MediaItemTranslation, error)
 }
 
+// reindexCastReader batch-fetches the people names linked to a page of media
+// items, so the reindex can keep the searchable "cast" attribute populated.
+// Optional - a nil reader skips the enrichment; actor search then works again
+// only after the next per-item enrich.
+type reindexCastReader interface {
+	CastNamesByMediaItems(ctx context.Context, mediaItemIDs []string) (map[string][]string, error)
+}
+
+// attachCast populates each item's CastNames from one batched read, so
+// ToDocument keeps the searchable cast attribute across rebuilds. Same error
+// posture as attachTranslations: log and index without cast rather than
+// failing the recovery path.
+func attachCast(ctx context.Context, cr reindexCastReader, batch []*library.MediaItem) {
+	if cr == nil || len(batch) == 0 {
+		return
+	}
+	ids := make([]string, 0, len(batch))
+	for _, it := range batch {
+		ids = append(ids, string(it.ID))
+	}
+	byID, err := cr.CastNamesByMediaItems(ctx, ids)
+	if err != nil {
+		slog.WarnContext(ctx, "reindex: fetch cast names (indexing without them)", slog.Any("err", err))
+		return
+	}
+	for _, it := range batch {
+		it.CastNames = byID[string(it.ID)]
+	}
+}
+
 // attachTranslations populates each item's Translations from one batched read,
 // so ToDocument can emit their translated_titles. A read error is logged and
 // the page is indexed WITHOUT translations rather than failing the whole
@@ -68,6 +98,7 @@ func ReindexSearchIndex(
 	items library.MediaItemQueryRepo,
 	search library.SearchIndex,
 	translations reindexTranslationReader,
+	cast reindexCastReader,
 	libraryID string,
 	onProgress func(done, total int),
 ) (int, error) {
@@ -97,6 +128,7 @@ func ReindexSearchIndex(
 			break
 		}
 		attachTranslations(ctx, translations, batch)
+		attachCast(ctx, cast, batch)
 		if err := search.IndexMediaItemsBatch(ctx, batch); err != nil {
 			return indexed, fmt.Errorf("index batch at offset %d: %w", offset, err)
 		}
@@ -130,9 +162,10 @@ const reconcilePageSize = 500
 //
 // LIMITATION (count-based, by design): it cannot see drift that nets to zero -
 // e.g. an equal number of items added AND deleted during one outage leaves both
-// counts matched while a stale deleted doc lingers in the index. That low-odds
-// case is caught by the next genuine count change or a manual reindex; detecting
-// it eagerly would need an ID checksum, not worth the cost for the frequency.
+// counts matched while a stale deleted doc lingers in the index. Prod hit this
+// twice at scale (2026-07-04 and 2026-08-07, ~half the catalog unfindable), so
+// the boot path now runs a full upsert ReindexSearchIndex before this reconcile;
+// between boots the blind spot remains and is accepted for the tick cadence.
 //
 // Returns (0, nil) and skips when the engine is UNREACHABLE (DocumentCount
 // errors): a periodic caller must not scan the DB against a down engine, it just
@@ -146,6 +179,7 @@ func ReconcileSearchIndex(
 	search library.SearchIndex,
 	docCounter searchDocCounter,
 	translations reindexTranslationReader,
+	cast reindexCastReader,
 ) (int, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.library.ReconcileSearchIndex")
 	defer span.End()
@@ -194,6 +228,7 @@ func ReconcileSearchIndex(
 			break
 		}
 		attachTranslations(ctx, translations, batch)
+		attachCast(ctx, cast, batch)
 		if err := search.IndexMediaItemsBatch(ctx, batch); err != nil {
 			return indexed, fmt.Errorf("reconcile: index batch after %q: %w", afterID, err)
 		}

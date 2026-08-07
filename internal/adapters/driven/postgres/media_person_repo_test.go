@@ -116,3 +116,51 @@ func TestMediaPersonRepo_DeleteByMediaItemIDs_Empty(t *testing.T) {
 	mpRepo := postgres.NewMediaPersonRepository(db)
 	assert.NoError(t, mpRepo.DeleteByMediaItemIDs(context.Background(), nil))
 }
+
+func TestMediaPersonRepo_CastNamesByMediaItems(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	personRepo := postgres.NewPersonRepository(db)
+	mpRepo := postgres.NewMediaPersonRepository(db)
+	ctx := context.Background()
+
+	lib := newTestLibrary("mp-lib4")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	item1 := newTestMediaItem("mp-mi4a", lib.ID)
+	item2 := newTestMediaItem("mp-mi4b", lib.ID)
+	item3 := newTestMediaItem("mp-mi4c", lib.ID) // no cast at all
+	require.NoError(t, itemRepo.Create(ctx, item1))
+	require.NoError(t, itemRepo.Create(ctx, item2))
+	require.NoError(t, itemRepo.Create(ctx, item3))
+	pa := &library.Person{ID: "mp-p4a", Name: "Cast Zeta", ProviderIDs: map[string]string{}}
+	pb := &library.Person{ID: "mp-p4b", Name: "Cast Alpha", ProviderIDs: map[string]string{}}
+	require.NoError(t, personRepo.Create(ctx, pa))
+	require.NoError(t, personRepo.Create(ctx, pb))
+
+	// item1: two people; pb also credited twice (actor + director) to prove the
+	// per-item dedup. item2: one person. item3: none.
+	require.NoError(t, mpRepo.Create(ctx, &library.MediaPerson{MediaItemID: item1.ID, PersonID: pa.ID, RoleType: "actor", SortOrder: 0}))
+	require.NoError(t, mpRepo.Create(ctx, &library.MediaPerson{MediaItemID: item1.ID, PersonID: pb.ID, RoleType: "actor", SortOrder: 1}))
+	require.NoError(t, mpRepo.Create(ctx, &library.MediaPerson{MediaItemID: item1.ID, PersonID: pb.ID, RoleType: "director", SortOrder: 2}))
+	require.NoError(t, mpRepo.Create(ctx, &library.MediaPerson{MediaItemID: item2.ID, PersonID: pb.ID, RoleType: "actor", SortOrder: 0}))
+
+	byID, err := mpRepo.CastNamesByMediaItems(ctx, []string{string(item1.ID), string(item2.ID), string(item3.ID)})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"Cast Zeta", "Cast Alpha"}, byID[string(item1.ID)], "sort_order kept, double credit deduped")
+	assert.Equal(t, []string{"Cast Alpha"}, byID[string(item2.ID)])
+	_, has3 := byID[string(item3.ID)]
+	assert.False(t, has3, "an item with no cast has no entry")
+}
+
+func TestMediaPersonRepo_CastNamesByMediaItems_Empty(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	mpRepo := postgres.NewMediaPersonRepository(db)
+	byID, err := mpRepo.CastNamesByMediaItems(context.Background(), nil)
+	require.NoError(t, err)
+	assert.Empty(t, byID)
+}
