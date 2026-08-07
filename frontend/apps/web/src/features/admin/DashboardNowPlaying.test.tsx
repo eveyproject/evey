@@ -221,6 +221,20 @@ describe("NowPlaying", () => {
     expect(screen.getByText("1080p")).toBeInTheDocument();
   });
 
+  it("renders the play-method badge for a session that declared one", () => {
+    mockSessions = [SESSION_MOVIE];
+    renderNowPlaying();
+    expect(screen.getByTestId("play-method-badge")).toBeInTheDocument();
+  });
+
+  it("renders no play-method badge for a session without a play method", () => {
+    // Cast-resurrected and music sessions carry no play_method - rendering
+    // the badge anyway produced an empty green pill.
+    mockSessions = [{ ...SESSION_MOVIE, playMethod: "" }];
+    renderNowPlaying();
+    expect(screen.queryByTestId("play-method-badge")).toBeNull();
+  });
+
   // ── Progress / time formatting ────────────────────────────────────────────────
 
   it("renders formatted position time (1:00:00 for 1h)", () => {

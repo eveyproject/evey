@@ -93,6 +93,9 @@ function NowPlayingCard({ session }: { session: V1ActiveSession }) {
     },
   });
   const playMethodLabel = usePlayMethodLabel();
+  // Cast-resurrected and music sessions carry no play_method; an empty label
+  // must drop the badge entirely, not render a blank green pill.
+  const methodLabel = playMethodLabel(session.playMethod ?? "");
   const [showMsg, setShowMsg] = useState(false);
   const [msgText, setMsgText] = useState("");
   const progress = Math.min(100, Math.max(0, session.progress ?? 0));
@@ -232,11 +235,11 @@ function NowPlayingCard({ session }: { session: V1ActiveSession }) {
                 badge follows the REAL path in near real time. */}
             {session.audioDecision === "wasm" && session.videoDecision !== "transcode" ? (
               <Badge variant="info">{t("player.streamInfo.decisionWasm")}</Badge>
-            ) : (
-              <Badge variant={session.playMethod === "transcode" ? "warning" : "success"}>
-                {playMethodLabel(session.playMethod ?? "")}
+            ) : methodLabel ? (
+              <Badge data-testid="play-method-badge" variant={session.playMethod === "transcode" ? "warning" : "success"}>
+                {methodLabel}
               </Badge>
-            )}
+            ) : null}
             {session.resolution && (
               <span className="text-xs text-[var(--text-muted)]">{session.resolution}</span>
             )}

@@ -116,6 +116,9 @@ function SessionCard({ session }: { session: V1ActiveSession }) {
     },
   });
   const playMethodLabel = usePlayMethodLabel();
+  // Cast-resurrected and music sessions carry no play_method; an empty label
+  // must drop the badge entirely, not render a blank green pill.
+  const methodLabel = playMethodLabel(session.playMethod ?? "");
   const [confirming, setConfirming] = useState(false);
 
   const progress = Math.min(100, Math.max(0, session.progress ?? 0));
@@ -156,11 +159,13 @@ function SessionCard({ session }: { session: V1ActiveSession }) {
           <p className="text-sm font-semibold truncate text-[var(--text)]">
             {session.mediaTitle}
           </p>
-          <div className="flex items-center gap-2 flex-wrap mt-1">
-            <Badge variant={session.playMethod === "transcode" ? "warning" : "success"}>
-              {playMethodLabel(session.playMethod ?? "")}
-            </Badge>
-          </div>
+          {methodLabel && (
+            <div className="flex items-center gap-2 flex-wrap mt-1">
+              <Badge data-testid="play-method-badge" variant={session.playMethod === "transcode" ? "warning" : "success"}>
+                {methodLabel}
+              </Badge>
+            </div>
+          )}
           <TrackBadges session={session} />
         </div>
 

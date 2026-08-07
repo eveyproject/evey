@@ -116,6 +116,16 @@ describe("SessionsPage", () => {
     const SessionsPage = await getSessionsPage();
     render(React.createElement(SessionsPage), { wrapper: createWrapper() });
     expect(screen.getByText("Direct Play")).toBeInTheDocument();
+    expect(screen.getByTestId("play-method-badge")).toBeInTheDocument();
+  });
+
+  it("renders no play-method badge when the session has no play method", async () => {
+    // Cast-resurrected and music sessions carry no play_method - rendering
+    // the badge anyway produced an empty green pill.
+    mockUseQuery.mockReturnValue({ data: [{ ...mockSession, playMethod: "" }], isLoading: false, isError: false });
+    const SessionsPage = await getSessionsPage();
+    render(React.createElement(SessionsPage), { wrapper: createWrapper() });
+    expect(screen.queryByTestId("play-method-badge")).toBeNull();
   });
 
   it("renders per-track decision badges with codecs and engine (copy rung)", async () => {
