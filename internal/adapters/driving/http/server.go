@@ -606,6 +606,12 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 			// the frontend's once-per-mount throttle (a JS console can bypass
 			// it trivially).
 			mux.HandleFunc("POST /api/v1/media/{id}/prewarm-next", auth(ratelimit.MiddlewareFunc(s.AdminHeavyRL, vodHandler.servePrewarmNext)))
+			// Cast receiver's next-episode door: streamAuth because the TV's
+			// only identity is its cast stream token (no JWT once the phone
+			// sleeps); the handler refuses everything but a cast token pinned
+			// to {id}. Same AdminHeavyRL as prewarm-next - it too can spawn a
+			// warm-up rafale.
+			mux.HandleFunc("POST /api/v1/media/{id}/cast-next", streamAuth(ratelimit.MiddlewareFunc(s.AdminHeavyRL, vodHandler.serveCastNext)))
 		}
 	}
 	mux.HandleFunc("GET /api/v1/admin/library-stats", admin(libraryStatsHandler(s.LibQuerySvc, NewLibraryItemCounter(s.LibQuerySvc, s.MusicSvc, s.PhotoSvc))))

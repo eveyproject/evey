@@ -17,6 +17,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
+	appmedia "github.com/evey-project/evey/internal/app/media"
 	appqoe "github.com/evey-project/evey/internal/app/qoe"
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
@@ -30,6 +31,9 @@ type hlsVODServe struct {
 	libSvc               MediaStreamsGetter
 	libraryAccess        LibraryAccessChecker
 	parental             ParentalChecker
+	// streamTokens mints the next episode's cast token in serveCastNext.
+	// nil = cast-next answers 503 (fail closed).
+	streamTokens *appmedia.StreamTokenStore
 	profilePrefs         ProfilePrefsGetter
 	audioNormalizeGetter func(ctx context.Context) bool
 	userMaxStreams       UserMaxStreamsGetter
