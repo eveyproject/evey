@@ -1053,11 +1053,11 @@ func TestCollectionListForMediaItem_ReturnsTheHoldingCollections(t *testing.T) {
 	h, cmdRepo, mediaRepo, _ := newTestCollectionHandlerWithAccess()
 	seedCollection(cmdRepo, "col-saga", "Some Saga")
 	cmdRepo.Upsert(context.Background(), &library.Collection{ID: "col-other", Name: "Autre"})
-	mediaRepo.Create(context.Background(), &library.MediaItem{ID: "mi-alien", LibraryID: "lib-1", Title: "Some Movie", Type: "movie"})
-	mediaRepo.Create(context.Background(), &library.MediaItem{ID: "mi-solo", LibraryID: "lib-1", Title: "Solo", Type: "movie"})
-	cmdRepo.LinkItem(context.Background(), "col-saga", "mi-alien", 0)
+	mediaRepo.Create(context.Background(), &library.MediaItem{ID: "mi-linked", LibraryID: "lib-1", Title: "Some Movie A", Type: "movie"})
+	mediaRepo.Create(context.Background(), &library.MediaItem{ID: "mi-unlinked", LibraryID: "lib-1", Title: "Some Movie B", Type: "movie"})
+	cmdRepo.LinkItem(context.Background(), "col-saga", "mi-linked", 0)
 
-	resp, err := h.ListCollectionsForMediaItem(adminCtx(), &eveyv1.ListCollectionsForMediaItemRequest{MediaItemId: "mi-alien"})
+	resp, err := h.ListCollectionsForMediaItem(adminCtx(), &eveyv1.ListCollectionsForMediaItemRequest{MediaItemId: "mi-linked"})
 	if err != nil {
 		t.Fatalf("ListCollectionsForMediaItem: %v", err)
 	}
@@ -1070,12 +1070,12 @@ func TestCollectionListForMediaItem_ReturnsTheHoldingCollections(t *testing.T) {
 
 	// A title in no collection answers empty, not an error: the film page
 	// simply shows nothing.
-	solo, err := h.ListCollectionsForMediaItem(adminCtx(), &eveyv1.ListCollectionsForMediaItemRequest{MediaItemId: "mi-solo"})
+	unlinked, err := h.ListCollectionsForMediaItem(adminCtx(), &eveyv1.ListCollectionsForMediaItemRequest{MediaItemId: "mi-unlinked"})
 	if err != nil {
-		t.Fatalf("ListCollectionsForMediaItem(solo): %v", err)
+		t.Fatalf("ListCollectionsForMediaItem(unlinked): %v", err)
 	}
-	if len(solo.Collections) != 0 {
-		t.Errorf("expected no collection, got %+v", solo.Collections)
+	if len(unlinked.Collections) != 0 {
+		t.Errorf("expected no collection, got %+v", unlinked.Collections)
 	}
 }
 

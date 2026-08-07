@@ -209,7 +209,7 @@ func TestRefreshMetadata_ProviderReturnsResult(t *testing.T) {
 func TestSearchMetadata_NoProviders(t *testing.T) {
 	querySvc := appmetadata.NewQueryService(metafakes.NewFakeMetadataOverrideRepository(), metafakes.NewFakeArtworkRepository(), nil)
 
-	results, err := querySvc.SearchMetadata(context.Background(), "matrix", "movie")
+	results, err := querySvc.SearchMetadata(context.Background(), "some movie", "movie")
 	require.NoError(t, err)
 	assert.Empty(t, results)
 }

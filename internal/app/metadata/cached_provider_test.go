@@ -18,7 +18,7 @@ func TestCachedProvider_SearchMemoizesSuccess(t *testing.T) {
 	c := NewCachedProvider(inner, time.Minute)
 	y := 2020
 	for i := 0; i < 3; i++ {
-		got, err := c.Search(context.Background(), "dune", &y, "movie")
+		got, err := c.Search(context.Background(), "some movie", &y, "movie")
 		if err != nil || len(got) != 1 {
 			t.Fatalf("iter %d: err=%v got=%v", i, err, got)
 		}
@@ -35,10 +35,10 @@ func TestCachedProvider_SearchKeyDiscriminatesArgs(t *testing.T) {
 	}
 	c := NewCachedProvider(inner, time.Minute)
 	y1, y2 := 2020, 2021
-	_, _ = c.Search(context.Background(), "dune", &y1, "movie")
-	_, _ = c.Search(context.Background(), "dune", &y2, "movie")
-	_, _ = c.Search(context.Background(), "dune", nil, "movie")
-	_, _ = c.Search(context.Background(), "dune", &y1, "tv")
+	_, _ = c.Search(context.Background(), "some movie", &y1, "movie")
+	_, _ = c.Search(context.Background(), "some movie", &y2, "movie")
+	_, _ = c.Search(context.Background(), "some movie", nil, "movie")
+	_, _ = c.Search(context.Background(), "some movie", &y1, "tv")
 	if inner.searchCalls != 4 {
 		t.Fatalf("inner.searchCalls = %d, want 4 (distinct keys)", inner.searchCalls)
 	}
@@ -176,14 +176,14 @@ func TestCachedProvider_SearchKeyDiscriminatesLanguage(t *testing.T) {
 	}
 	c := NewCachedProvider(inner, time.Minute)
 
-	_, _ = c.Search(context.Background(), "dune", nil, "movie") // miss → fetch (en)
-	_, _ = c.Search(context.Background(), "dune", nil, "movie") // hit (en)
+	_, _ = c.Search(context.Background(), "some movie", nil, "movie") // miss → fetch (en)
+	_, _ = c.Search(context.Background(), "some movie", nil, "movie") // hit (en)
 	if inner.searchCalls != 1 {
 		t.Fatalf("after same-language repeat: searchCalls=%d, want 1", inner.searchCalls)
 	}
 
 	inner.lang = "fr"
-	_, _ = c.Search(context.Background(), "dune", nil, "movie") // miss → fetch (fr)
+	_, _ = c.Search(context.Background(), "some movie", nil, "movie") // miss → fetch (fr)
 	if inner.searchCalls != 2 {
 		t.Fatalf("after language switch: searchCalls=%d, want 2 (not served from en cache)", inner.searchCalls)
 	}
