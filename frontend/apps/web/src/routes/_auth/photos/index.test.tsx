@@ -5,7 +5,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 const libsHook = vi.fn(() => ({ data: { libraries: [] }, isLoading: false }));
 const albumsHook = vi.fn(() => ({ data: { albums: [] }, isLoading: false }));
-const photosListHook = vi.fn(() => ({ data: { photos: [], total: 0 }, isLoading: false }));
+// The page pages photos through useInfiniteQuery, so a test drives the
+// FETCHER and lets react-query assemble the pages.
+const photosListFetch = vi.fn(async (_params?: unknown, _signal?: unknown) => ({ photos: [] as Record<string, unknown>[], total: 0, nextCursor: undefined as string | undefined }));
 
 function sel<T>(raw: { data?: T; [k: string]: unknown }, opts: { query?: { select?: (d: T) => unknown } }) {
   const s = opts?.query?.select;
@@ -16,11 +18,15 @@ vi.mock("@tanstack/react-router", () => ({
   createLazyFileRoute: () => (def: { component: React.ComponentType }) => def,
 }));
 
-vi.mock("@evey/api", () => ({
+// Spreading importOriginal is required, not cosmetic: the page also imports
+// the shared hasMoreFromCursor from this package, and a mock that lists only
+// hooks would hand it back undefined.
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
   eveyFetch: vi.fn(),
   useLibraryServiceListLibraries: (opts: { query?: { select?: (d: unknown) => unknown } }) => sel(libsHook(), opts),
   usePhotoServiceListPhotoAlbums: (_p: unknown, opts: { query?: { select?: (d: unknown) => unknown } }) => sel(albumsHook(), opts),
-  usePhotoServiceListPhotos: (_p: unknown, opts: { query?: { select?: (d: unknown) => unknown } }) => sel(photosListHook(), opts),
+  photoServiceListPhotos: (params?: unknown, signal?: unknown) => photosListFetch(params, signal),
   usePhotoServiceGetPhoto: (_id: string, opts: { query?: { select?: (d: unknown) => unknown } }) => sel({ data: { cameraModel: "" } }, opts),
   photoServiceDeletePhoto: vi.fn(),
 }));
@@ -57,7 +63,7 @@ describe("PhotosPage", () => {
     vi.clearAllMocks();
     libsHook.mockReturnValue({ data: { libraries: [] }, isLoading: false });
     albumsHook.mockReturnValue({ data: { albums: [] }, isLoading: false });
-    photosListHook.mockReturnValue({ data: { photos: [], total: 0 }, isLoading: false });
+    photosListFetch.mockResolvedValue({ photos: [], total: 0, nextCursor: undefined });
   });
 
   it("shows loading skeleton when libraries loading", async () => {

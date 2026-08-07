@@ -5,7 +5,15 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 const photoLibsHook = vi.fn(() => ({ data: { libraries: [] }, isLoading: false }));
 const photoAlbumsHook = vi.fn(() => ({ data: { albums: [] } }));
-const photoListHook = vi.fn(() => ({ data: { photos: [], total: 0 } }));
+// The page pages photos through useInfiniteQuery, so what a test controls is
+// the FETCHER, not a hook result: react-query itself drives the pages.
+const photoListFetch = vi.fn(async (_params?: unknown, _signal?: unknown) => ({ photos: [], total: 0 } as PhotoPage));
+
+interface PhotoPage {
+  photos: Record<string, unknown>[];
+  total?: number;
+  nextCursor?: string;
+}
 
 function sel<T>(raw: { data?: T; [k: string]: unknown }, opts: { query?: { select?: (d: T) => unknown } }) {
   const s = opts?.query?.select;
@@ -17,7 +25,7 @@ vi.mock("@evey/api", async (importOriginal) => ({
   eveyFetch: vi.fn(),
   useLibraryServiceListLibraries: (opts: { query?: { select?: (d: unknown) => unknown } }) => sel(photoLibsHook(), opts),
   usePhotoServiceListPhotoAlbums: (_p: unknown, opts: { query?: { select?: (d: unknown) => unknown } }) => sel(photoAlbumsHook(), opts),
-  usePhotoServiceListPhotos: (_p: unknown, opts: { query?: { select?: (d: unknown) => unknown } }) => sel(photoListHook(), opts),
+  photoServiceListPhotos: (params?: unknown, signal?: unknown) => photoListFetch(params, signal),
   usePhotoServiceGetPhoto: (_id: string, opts: { query?: { select?: (d: unknown) => unknown } }) => sel({ data: { cameraModel: "" } }, opts),
   photoServiceDeletePhoto: vi.fn(),
 }));
@@ -64,7 +72,7 @@ describe("PhotosPage", () => {
     
     photoLibsHook.mockReturnValue({ data: { libraries: mockLibraries }, isLoading: false });
     photoAlbumsHook.mockReturnValue({ data: { albums: mockAlbums.map((a) => ({ name: a.Name, libraryId: a.LibraryID, photoCount: a.PhotoCount, coverPhotoId: a.CoverPhotoID })) } });
-    photoListHook.mockReturnValue({ data: { photos: mockPhotos.map((p) => ({ id: p.ID, libraryId: p.LibraryID, title: p.Title, filePath: p.FilePath, fileSize: String(p.FileSize), mimeType: p.MimeType, width: p.Width, height: p.Height, album: p.Album, createdAt: p.CreatedAt })), total: 2 } });
+    photoListFetch.mockResolvedValue({ photos: mockPhotos.map((p) => ({ id: p.ID, libraryId: p.LibraryID, title: p.Title, filePath: p.FilePath, fileSize: String(p.FileSize), mimeType: p.MimeType, width: p.Width, height: p.Height, album: p.Album, createdAt: p.CreatedAt })), total: 2 });
 
     const mod = await import("./index.lazy");
     const PhotosPage = (mod.Route as unknown as { component: React.ComponentType }).component;
@@ -82,7 +90,7 @@ describe("PhotosPage", () => {
     
     photoLibsHook.mockReturnValue({ data: { libraries: mockLibraries }, isLoading: false });
     photoAlbumsHook.mockReturnValue({ data: { albums: mockAlbums.map((a) => ({ name: a.Name, libraryId: a.LibraryID, photoCount: a.PhotoCount, coverPhotoId: a.CoverPhotoID })) } });
-    photoListHook.mockReturnValue({ data: { photos: mockPhotos.map((p) => ({ id: p.ID, libraryId: p.LibraryID, title: p.Title, filePath: p.FilePath, fileSize: String(p.FileSize), mimeType: p.MimeType, width: p.Width, height: p.Height, album: p.Album, createdAt: p.CreatedAt })), total: 2 } });
+    photoListFetch.mockResolvedValue({ photos: mockPhotos.map((p) => ({ id: p.ID, libraryId: p.LibraryID, title: p.Title, filePath: p.FilePath, fileSize: String(p.FileSize), mimeType: p.MimeType, width: p.Width, height: p.Height, album: p.Album, createdAt: p.CreatedAt })), total: 2 });
 
     const mod = await import("./index.lazy");
     const PhotosPage = (mod.Route as unknown as { component: React.ComponentType }).component;
@@ -103,7 +111,7 @@ describe("PhotosPage", () => {
     
     photoLibsHook.mockReturnValue({ data: { libraries: mockLibraries }, isLoading: false });
     photoAlbumsHook.mockReturnValue({ data: { albums: mockAlbums.map((a) => ({ name: a.Name, libraryId: a.LibraryID, photoCount: a.PhotoCount, coverPhotoId: a.CoverPhotoID })) } });
-    photoListHook.mockReturnValue({ data: { photos: mockPhotos.map((p) => ({ id: p.ID, libraryId: p.LibraryID, title: p.Title, filePath: p.FilePath, fileSize: String(p.FileSize), mimeType: p.MimeType, width: p.Width, height: p.Height, album: p.Album, createdAt: p.CreatedAt })), total: 2 } });
+    photoListFetch.mockResolvedValue({ photos: mockPhotos.map((p) => ({ id: p.ID, libraryId: p.LibraryID, title: p.Title, filePath: p.FilePath, fileSize: String(p.FileSize), mimeType: p.MimeType, width: p.Width, height: p.Height, album: p.Album, createdAt: p.CreatedAt })), total: 2 });
 
     const mod = await import("./index.lazy");
     const PhotosPage = (mod.Route as unknown as { component: React.ComponentType }).component;
@@ -127,7 +135,7 @@ describe("PhotosPage", () => {
     
     photoLibsHook.mockReturnValue({ data: { libraries: mockLibraries }, isLoading: false });
     photoAlbumsHook.mockReturnValue({ data: { albums: mockAlbums.map((a) => ({ name: a.Name, libraryId: a.LibraryID, photoCount: a.PhotoCount, coverPhotoId: a.CoverPhotoID })) } });
-    photoListHook.mockReturnValue({ data: { photos: mockPhotos.map((p) => ({ id: p.ID, libraryId: p.LibraryID, title: p.Title, filePath: p.FilePath, fileSize: String(p.FileSize), mimeType: p.MimeType, width: p.Width, height: p.Height, album: p.Album, createdAt: p.CreatedAt })), total: 2 } });
+    photoListFetch.mockResolvedValue({ photos: mockPhotos.map((p) => ({ id: p.ID, libraryId: p.LibraryID, title: p.Title, filePath: p.FilePath, fileSize: String(p.FileSize), mimeType: p.MimeType, width: p.Width, height: p.Height, album: p.Album, createdAt: p.CreatedAt })), total: 2 });
 
     const mod = await import("./index.lazy");
     const PhotosPage = (mod.Route as unknown as { component: React.ComponentType }).component;
@@ -147,11 +155,84 @@ describe("PhotosPage", () => {
     });
   });
 
+  // Regression guard. The page used to ask for limit=5000 in one call, but the
+  // server replaces any limit above maxPageSize (500) with its own default of
+  // 100 (clampLimitOffset, grpcapi/helpers.go) - so a big library rendered 100
+  // tiles and stopped, under a header showing the real total. Asserting the
+  // VALUE is the point: a limit the server refuses is indistinguishable from a
+  // working one at the UI level, which is exactly why this shipped.
+  it("requests a page size the server will honour, not an unbounded one", async () => {
+    photoLibsHook.mockReturnValue({ data: { libraries: mockLibraries }, isLoading: false });
+    photoAlbumsHook.mockReturnValue({ data: { albums: [] } });
+    photoListFetch.mockResolvedValue({ photos: [], total: 0 });
+
+    const mod = await import("./index.lazy");
+    const PhotosPage = (mod.Route as unknown as { component: React.ComponentType }).component;
+    render(React.createElement(PhotosPage), { wrapper: createWrapper() });
+
+    await waitFor(() => expect(photoListFetch).toHaveBeenCalled());
+
+    const params = photoListFetch.mock.calls[0][0] as { limit?: number };
+    expect(params.limit).toBeGreaterThan(0);
+    expect(params.limit).toBeLessThanOrEqual(500);
+  });
+
+  it("fetches the next page with the cursor the previous page returned", async () => {
+    photoLibsHook.mockReturnValue({ data: { libraries: mockLibraries }, isLoading: false });
+    photoAlbumsHook.mockReturnValue({ data: { albums: [] } });
+    photoListFetch.mockReset();
+    // Page 1 comes back full and hands out a cursor; page 2 has none, which is
+    // how the server says "that was the last one".
+    photoListFetch
+      .mockResolvedValueOnce({ photos: [{ id: "p1", title: "Some Photo A" }], total: 2, nextCursor: "cur-1" })
+      .mockResolvedValueOnce({ photos: [{ id: "p2", title: "Some Photo B" }], total: 0 });
+
+    const mod = await import("./index.lazy");
+    const PhotosPage = (mod.Route as unknown as { component: React.ComponentType }).component;
+    render(React.createElement(PhotosPage), { wrapper: createWrapper() });
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "All Photos" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "All Photos" }));
+
+    await waitFor(() => expect(photoListFetch).toHaveBeenCalledTimes(2));
+    const secondCall = photoListFetch.mock.calls[1][0] as { cursor?: string; offset?: number };
+    expect(secondCall.cursor).toBe("cur-1");
+    // Page 2 must not also carry an offset: the server ignores it under a
+    // cursor, and sending both hides which path is actually being taken.
+    expect(secondCall.offset).toBeUndefined();
+
+    // Both pages are on screen - the second page appends, it does not replace.
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Some Photo A" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Some Photo B" })).toBeInTheDocument();
+    });
+  });
+
+  // The exact total only exists on page 1: a keyset page reports 0 by design.
+  it("keeps the page-1 total in the counter after a second page loads", async () => {
+    photoLibsHook.mockReturnValue({ data: { libraries: mockLibraries }, isLoading: false });
+    photoAlbumsHook.mockReturnValue({ data: { albums: [] } });
+    photoListFetch.mockReset();
+    photoListFetch
+      .mockResolvedValueOnce({ photos: [{ id: "p1", title: "Some Photo A" }], total: 7199, nextCursor: "cur-1" })
+      .mockResolvedValueOnce({ photos: [{ id: "p2", title: "Some Photo B" }], total: 0 });
+
+    const mod = await import("./index.lazy");
+    const PhotosPage = (mod.Route as unknown as { component: React.ComponentType }).component;
+    render(React.createElement(PhotosPage), { wrapper: createWrapper() });
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "All Photos" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "All Photos" }));
+
+    await waitFor(() => expect(photoListFetch).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.getByText(/7199/)).toBeInTheDocument());
+  });
+
   it("shows empty photo grid message when photos array is empty", async () => {
     
     photoLibsHook.mockReturnValue({ data: { libraries: mockLibraries }, isLoading: false });
     photoAlbumsHook.mockReturnValue({ data: { albums: [] } });
-    photoListHook.mockReturnValue({ data: { photos: [], total: 0 } });
+    photoListFetch.mockResolvedValue({ photos: [], total: 0 });
 
     const mod = await import("./index.lazy");
     const PhotosPage = (mod.Route as unknown as { component: React.ComponentType }).component;

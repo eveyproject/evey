@@ -5,7 +5,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 const photoLibsHook = vi.fn(() => ({ data: { libraries: [] }, isLoading: false }));
 const photoAlbumsHook = vi.fn(() => ({ data: { albums: [] } }));
-const photoListHook = vi.fn(() => ({ data: { photos: [], total: 0 } }));
+// The page pages photos through useInfiniteQuery, so a test drives the
+// FETCHER and lets react-query assemble the pages.
+const photoListFetch = vi.fn(async (_params?: unknown, _signal?: unknown) => ({ photos: [] as Record<string, unknown>[], total: 0, nextCursor: undefined as string | undefined }));
 const photoDetailHook = vi.fn(() => ({ data: { cameraModel: "" } }));
 
 function sel<T>(raw: { data?: T; [k: string]: unknown }, opts: { query?: { select?: (d: T) => unknown } }) {
@@ -18,7 +20,7 @@ vi.mock("@evey/api", async (importOriginal) => ({
   eveyFetch: vi.fn(),
   useLibraryServiceListLibraries: (opts: { query?: { select?: (d: unknown) => unknown } }) => sel(photoLibsHook(), opts),
   usePhotoServiceListPhotoAlbums: (_p: unknown, opts: { query?: { select?: (d: unknown) => unknown } }) => sel(photoAlbumsHook(), opts),
-  usePhotoServiceListPhotos: (_p: unknown, opts: { query?: { select?: (d: unknown) => unknown } }) => sel(photoListHook(), opts),
+  photoServiceListPhotos: (params?: unknown, signal?: unknown) => photoListFetch(params, signal),
   usePhotoServiceGetPhoto: (_id: string, opts: { query?: { select?: (d: unknown) => unknown } }) => sel(photoDetailHook(), opts),
   photoServiceDeletePhoto: vi.fn(),
 }));
@@ -64,15 +66,14 @@ describe("Photos lightbox EXIF strip", () => {
     photoAlbumsHook.mockReturnValue({
       data: { albums: mockAlbums.map((a) => ({ name: a.Name, libraryId: a.LibraryID, photoCount: a.PhotoCount, coverPhotoId: a.CoverPhotoID })) },
     });
-    photoListHook.mockReturnValue({
-      data: {
-        photos: mockPhotos.map((p) => ({
-          id: p.ID, libraryId: p.LibraryID, title: p.Title, filePath: p.FilePath,
-          fileSize: String(p.FileSize), mimeType: p.MimeType, width: p.Width, height: p.Height,
-          album: p.Album, takenAt: p.TakenAt, createdAt: p.CreatedAt,
-        })),
-        total: 1,
-      },
+    photoListFetch.mockResolvedValue({
+      photos: mockPhotos.map((p) => ({
+        id: p.ID, libraryId: p.LibraryID, title: p.Title, filePath: p.FilePath,
+        fileSize: String(p.FileSize), mimeType: p.MimeType, width: p.Width, height: p.Height,
+        album: p.Album, takenAt: p.TakenAt, createdAt: p.CreatedAt,
+      })),
+      total: 1,
+      nextCursor: undefined,
     });
     photoDetailHook.mockReturnValue({ data: { cameraModel: "" } });
   });

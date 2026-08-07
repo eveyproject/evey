@@ -1,11 +1,13 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import {
   useLibraryServiceListLibraries,
-  usePhotoServiceListPhotos,
+  photoServiceListPhotos,
   usePhotoServiceListPhotoAlbums,
   usePhotoServiceGetPhoto,
+  hasMoreFromCursor,
 } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { useTranslation } from "react-i18next";
@@ -103,33 +105,61 @@ function useAlbums(libraryID: string | undefined) {
   );
 }
 
-function usePhotos(libraryID: string | undefined, album?: string, limit = 5000, offset = 0) {
-  return usePhotoServiceListPhotos(
-    { libraryId: libraryID, limit, offset, album },
-    {
-      query: {
-        enabled: !!libraryID,
-        select: (d) => ({
-          photos: (d.photos ?? []).map<Photo>((p) => ({
-            ID: p.id ?? "",
-            LibraryID: p.libraryId ?? "",
-            Title: p.title ?? "",
-            FilePath: p.filePath ?? "",
-            FileSize: Number(p.fileSize ?? 0),
-            MimeType: p.mimeType ?? "",
-            Width: p.width ?? 0,
-            Height: p.height ?? 0,
-            TakenAt: p.takenAt,
-            Album: p.album ?? "",
-            CreatedAt: p.createdAt ?? "",
-            Blurhash: p.blurhash ?? "",
-          })),
-          total: d.total ?? 0,
-        }),
-        staleTime: 30_000,
-      },
-    },
+// Photos are keyset-paginated, one page at a time. The page used to ask for
+// limit=5000 in a single call, which never worked as intended: the server
+// replaces any limit above maxPageSize (500) with its own default of 100
+// (clampLimitOffset, grpcapi/helpers.go), so a library of 7000 photos rendered
+// exactly 100 tiles under a header proudly announcing the real total. Page 1
+// takes the offset path (the only one that computes an exact total); every
+// page after it carries the previous response's cursor.
+const PHOTO_PAGE_SIZE = 100;
+
+function usePhotos(libraryID: string | undefined, album?: string) {
+  const query = useInfiniteQuery({
+    queryKey: ["photos-infinite", libraryID ?? "", album ?? ""],
+    enabled: !!libraryID,
+    initialPageParam: "" as string,
+    queryFn: ({ pageParam, signal }) =>
+      photoServiceListPhotos(
+        {
+          libraryId: libraryID,
+          limit: PHOTO_PAGE_SIZE,
+          ...(pageParam ? { cursor: pageParam } : { offset: 0 }),
+          ...(album ? { album } : {}),
+        },
+        signal,
+      ),
+    getNextPageParam: (last) => (hasMoreFromCursor(last) ? last.nextCursor : undefined),
+    staleTime: 30_000,
+  });
+
+  const photos = useMemo(
+    () =>
+      (query.data?.pages ?? []).flatMap((page) =>
+        (page.photos ?? []).map<Photo>((p) => ({
+          ID: p.id ?? "",
+          LibraryID: p.libraryId ?? "",
+          Title: p.title ?? "",
+          FilePath: p.filePath ?? "",
+          FileSize: Number(p.fileSize ?? 0),
+          MimeType: p.mimeType ?? "",
+          Width: p.width ?? 0,
+          Height: p.height ?? 0,
+          TakenAt: p.takenAt,
+          Album: p.album ?? "",
+          CreatedAt: p.createdAt ?? "",
+          Blurhash: p.blurhash ?? "",
+        })),
+      ),
+    [query.data],
   );
+
+  // Only the first page carries an exact total - a keyset page reports 0 by
+  // design, that COUNT(*) OVER() being the cost the cursor path exists to
+  // avoid. Reading it from any other page would zero the counter mid-scroll.
+  const total = query.data?.pages[0]?.total ?? 0;
+
+  return { ...query, photos, total };
 }
 
 // GetPhoto returns cameraModel, which ListPhotos doesn't project - the rest
@@ -318,6 +348,11 @@ interface PhotoGridProps {
   isError?: boolean;
   error?: unknown;
   onRetry?: () => void;
+  // Must stay referentially stable and do its own gating: the effect below
+  // fires on every scroll that reaches the last row, so a caller that guards
+  // outside (by swapping the prop for undefined mid-fetch) would leave the
+  // grid stuck on the page it was showing when the fetch started.
+  onEndReached?: () => void;
 }
 
 const PHOTO_COL_BREAKPOINTS = [
@@ -346,7 +381,7 @@ function findScrollParent(el: HTMLElement | null): HTMLElement {
   return (document.scrollingElement as HTMLElement) ?? document.documentElement;
 }
 
-function PhotoGrid({ photos, onPhotoClick, isError, error, onRetry }: PhotoGridProps) {
+function PhotoGrid({ photos, onPhotoClick, isError, error, onRetry, onEndReached }: PhotoGridProps) {
   const { t } = useTranslation();
   const accessToken = useAuthStore((s) => s.accessToken);
   const thumbParam = `?${accessToken ? `token=${encodeURIComponent(accessToken)}&` : ""}w=400&fmt=webp`;
@@ -387,6 +422,17 @@ function PhotoGrid({ photos, onPhotoClick, isError, error, onRetry }: PhotoGridP
     scrollMargin: parentRef.current && scrollEl ? parentRef.current.getBoundingClientRect().top - scrollEl.getBoundingClientRect().top + scrollEl.scrollTop : 0,
   });
 
+  const virtualRows = virtualizer.getVirtualItems();
+  const lastRenderedRow = virtualRows.length > 0 ? virtualRows[virtualRows.length - 1].index : -1;
+
+  // Ask for the next page as soon as the last built row is rendered. The
+  // virtualizer's overscan means that happens a few rows before the user sees
+  // the bottom, so the grid keeps filling ahead of the scroll.
+  useEffect(() => {
+    if (rows.length === 0 || lastRenderedRow < rows.length - 1) return;
+    onEndReached?.();
+  }, [lastRenderedRow, rows.length, onEndReached]);
+
   // A failed photo fetch must not collapse into "no photos" - that reads as an
   // empty album/library when the server actually errored.
   if (isError) return <FetchErrorState error={error} onRetry={onRetry ?? (() => {})} />;
@@ -395,7 +441,7 @@ function PhotoGrid({ photos, onPhotoClick, isError, error, onRetry }: PhotoGridP
   return (
     <div ref={parentRef}>
       <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
-        {virtualizer.getVirtualItems().map((vRow) => (
+        {virtualRows.map((vRow) => (
           <div
             key={vRow.index}
             style={{
@@ -483,6 +529,11 @@ function AlbumGrid({ albums, onAlbumClick, isError, error, onRetry }: AlbumGridP
 
 type View = "albums" | "photos";
 
+// How close to the end of the loaded set the lightbox may walk before the next
+// page is requested. A few photos of head start is enough for the fetch to
+// land before the user gets there, at one keypress per photo.
+const LIGHTBOX_PREFETCH_MARGIN = 5;
+
 function PhotosPage() {
   const { t } = useTranslation();
   const { data: libraries, isLoading: libLoading, isError: libError, error: libErrorObj, refetch: refetchLibraries } = usePhotoLibraries();
@@ -495,9 +546,23 @@ function PhotosPage() {
   const activeLibraryID = selectedLibraryID ?? firstLib?.id;
 
   const { data: albumsData, isLoading: albumsLoading, isError: albumsError, error: albumsErrorObj, refetch: refetchAlbums } = useAlbums(activeLibraryID);
-  const { data: photosData, isLoading: photosLoading, isError: photosError, error: photosErrorObj, refetch: refetchPhotos } = usePhotos(activeLibraryID, selectedAlbum);
+  const {
+    photos: displayedPhotos,
+    total: photoTotal,
+    isLoading: photosLoading,
+    isError: photosError,
+    error: photosErrorObj,
+    refetch: refetchPhotos,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = usePhotos(activeLibraryID, selectedAlbum);
 
-  const displayedPhotos = photosData?.photos ?? [];
+  // Stable identity, gated inside: both the grid's end-of-scroll and the
+  // lightbox walking past the last loaded photo go through here.
+  const loadMorePhotos = useCallback(() => {
+    if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const openLightbox = useCallback((index: number) => setLightboxIndex(index), []);
   const closeLightbox = useCallback(() => setLightboxIndex(null), []);
@@ -511,6 +576,15 @@ function PhotosPage() {
   useEffect(() => {
     setLightboxIndex(null);
   }, [selectedAlbum, activeLibraryID]);
+
+  // Stepping through the lightbox must not stop at the last loaded page. Its
+  // Next button is bounded by displayedPhotos.length, so without this the
+  // slideshow would dead-end at the end of the current page even though the
+  // library has more - the exact wall the grid used to hit at 100 photos.
+  useEffect(() => {
+    if (lightboxIndex === null) return;
+    if (lightboxIndex >= displayedPhotos.length - LIGHTBOX_PREFETCH_MARGIN) loadMorePhotos();
+  }, [lightboxIndex, displayedPhotos.length, loadMorePhotos]);
 
   if (libLoading) {
     return (
@@ -635,11 +709,12 @@ function PhotosPage() {
               error={photosErrorObj}
               onRetry={() => void refetchPhotos()}
               onPhotoClick={openLightbox}
+              onEndReached={loadMorePhotos}
             />
           )}
-          {(photosData?.total ?? 0) > 0 && (
+          {photoTotal > 0 && (
             <p className="text-xs text-[var(--text-muted)] text-right">
-              {t("media.photos.photoCount", { count: photosData?.total ?? 0 })}
+              {t("media.photos.photoCount", { count: photoTotal })}
             </p>
           )}
         </>
