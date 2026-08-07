@@ -31,7 +31,7 @@ const (
 	cfgKeyWatcherEnabled   = "library.watcher_enabled"
 	cfgKeyScanInterval     = "library.periodic_scan_interval"
 	cfgKeySkipPreview      = "intro_providers.skip_preview_enabled"
-	cfgKeyCastIntroSkip    = "intro_providers.cast_intro_auto_skip_enabled"
+	cfgKeyIntroAutoSkip    = "intro_providers.auto_skip_enabled"
 	cfgKeyTranscodeSWAV1   = "transcoding.software_av1_max_height"
 	cfgKeyTranscodeAV1En   = "transcoding.av1_enabled"
 	cfgKeyTranscodeAV1Max  = "transcoding.av1_max_height"
@@ -239,13 +239,11 @@ func registerServerSettingsRoutes(
 		{jsonKey: "skipPreviewEnabled", cfgKey: cfgKeySkipPreview, defaultVal: false,
 			getter: func() any { return cfg.Metadata.SkipPreviewEnabled },
 			reset:  func() { cfg.Metadata.SkipPreviewEnabled = false }},
-		// Cast intro auto-skip is read live by the segments handler too. Off
-		// until the intro detector's accuracy is acted: the receiver
-		// auto-jumps whatever it receives, a false positive cannot be undone
-		// from the couch.
-		{jsonKey: "castIntroAutoSkipEnabled", cfgKey: cfgKeyCastIntroSkip, defaultVal: false,
-			getter: func() any { return cfg.Metadata.CastIntroAutoSkipEnabled },
-			reset:  func() { cfg.Metadata.CastIntroAutoSkipEnabled = false }},
+		// Intro auto-skip (all players) is read live by the segments handler
+		// too. Off by default.
+		{jsonKey: "introAutoSkipEnabled", cfgKey: cfgKeyIntroAutoSkip, defaultVal: false,
+			getter: func() any { return cfg.Metadata.IntroAutoSkipEnabled },
+			reset:  func() { cfg.Metadata.IntroAutoSkipEnabled = false }},
 		// AV1 software ceiling: 0 = Auto (calibrated; AV1 stays hardware-only when
 		// the bench found software AV1 non-viable). A non-zero value force-enables
 		// AV1 software at that height. Read live from the calibration service.
@@ -381,7 +379,7 @@ func registerServerSettingsRoutes(
 			LibraryWatcherEnabled   *bool   `json:"libraryWatcherEnabled"`
 			PeriodicScanInterval    *string `json:"periodicScanInterval"`
 			SkipPreviewEnabled      *bool   `json:"skipPreviewEnabled"`
-			CastIntroAutoSkip       *bool   `json:"castIntroAutoSkipEnabled"`
+			IntroAutoSkip           *bool   `json:"introAutoSkipEnabled"`
 			SoftwareAV1MaxHeight    *int    `json:"softwareAV1MaxHeight"`
 			AV1Enabled              *bool   `json:"av1Enabled"`
 			AV1MaxHeight            *int    `json:"av1MaxHeight"`
@@ -575,13 +573,13 @@ func registerServerSettingsRoutes(
 					cfg.Metadata.SkipPreviewEnabled = *body.SkipPreviewEnabled
 					return strconv.FormatBool(*body.SkipPreviewEnabled)
 				}},
-			{cfgKey: cfgKeyCastIntroSkip,
+			{cfgKey: cfgKeyIntroAutoSkip,
 				apply: func() string {
-					if body.CastIntroAutoSkip == nil {
+					if body.IntroAutoSkip == nil {
 						return ""
 					}
-					cfg.Metadata.CastIntroAutoSkipEnabled = *body.CastIntroAutoSkip
-					return strconv.FormatBool(*body.CastIntroAutoSkip)
+					cfg.Metadata.IntroAutoSkipEnabled = *body.IntroAutoSkip
+					return strconv.FormatBool(*body.IntroAutoSkip)
 				}},
 			{cfgKey: cfgKeyTranscodeSWAV1,
 				apply: func() string {

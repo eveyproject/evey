@@ -16,13 +16,14 @@ import (
 // segments should be served. Read live per request so the admin toggle takes
 // effect without a restart; nil is treated as disabled.
 //
-// castIntroAutoSkip gates intro segments for CAST callers only: the receiver
-// auto-jumps every intro it receives (a TV has no input to offer a button),
-// so until the detector's accuracy is acted the admin keeps this off and the
-// TV sees no intro segments at all. Web/mobile players (JWT or plain stream
-// tokens) keep their skip button regardless. Nil = off (fail closed), read
-// live per request like previewEnabled.
-func segmentsHandler(svc SegmentsGetter, baseURL string, libraryAccess LibraryAccessChecker, mediaGetter MediaItemGetter, previewEnabled func() bool, parental ParentalChecker, castIntroAutoSkip func() bool) http.HandlerFunc {
+// introAutoSkip is the all-players auto-skip toggle. For CAST callers it
+// gates the intro segments themselves: the receiver auto-jumps every intro
+// it receives (a TV has no input to offer a button), so off = the TV sees no
+// intro segments at all. Web/mobile players (JWT or plain stream tokens)
+// keep their skip button regardless and read the flag in the response's
+// introAutoSkip field to auto-skip client-side. Nil = off (fail closed),
+// read live per request like previewEnabled.
+func segmentsHandler(svc SegmentsGetter, baseURL string, libraryAccess LibraryAccessChecker, mediaGetter MediaItemGetter, previewEnabled func() bool, parental ParentalChecker, introAutoSkip func() bool) http.HandlerFunc {
 	type segmentJSON struct {
 		Type       string  `json:"type"`
 		StartMs    int64   `json:"startMs"`
@@ -83,7 +84,8 @@ func segmentsHandler(svc SegmentsGetter, baseURL string, libraryAccess LibraryAc
 		// "preview" is admin-gated: even when the client asks for it, it is
 		// withheld unless the server toggle is on. Default off.
 		showPreview := previewEnabled != nil && previewEnabled()
-		withholdIntro := castCaller && (castIntroAutoSkip == nil || !castIntroAutoSkip())
+		autoSkip := introAutoSkip != nil && introAutoSkip()
+		withholdIntro := castCaller && !autoSkip
 
 		out := make([]segmentJSON, 0, len(segments))
 		for _, seg := range segments {
@@ -108,7 +110,9 @@ func segmentsHandler(svc SegmentsGetter, baseURL string, libraryAccess LibraryAc
 		}
 		w.Header().Set("Content-Type", "application/json")
 		setCORSHeaders(w, r, baseURL)
-		if err := json.NewEncoder(w).Encode(map[string]any{"segments": out}); err != nil {
+		// introAutoSkip lets web/mobile players auto-skip client-side; the
+		// cast receiver ignores it (its intros are gated above instead).
+		if err := json.NewEncoder(w).Encode(map[string]any{"segments": out, "introAutoSkip": autoSkip}); err != nil {
 			slog.WarnContext(r.Context(), "json encode failed", slog.Any("err", err))
 		}
 	}

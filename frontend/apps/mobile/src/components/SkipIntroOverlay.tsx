@@ -1,7 +1,9 @@
+import { useEffect, useRef } from "react";
 import { Pressable, Text, StyleSheet } from "react-native";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { mKVServiceListChapters } from "@evey/api";
+import { toast } from "@evey/store";
 import { useTheme } from "../providers/ThemeProvider";
 import { useMediaSegments } from "../hooks/useMediaSegments";
 import { FONT_SIZE } from "@evey/theme";
@@ -58,7 +60,9 @@ export function SkipIntroOverlay({ mediaId, filePath, currentTime, onSkip }: Ski
   const { t } = useTranslation();
   const theme = useTheme();
 
-  const { data: segments } = useMediaSegments(mediaId, [...SKIPPABLE]);
+  const { data: segmentsData } = useMediaSegments(mediaId, [...SKIPPABLE]);
+  const segments = segmentsData?.segments;
+  const autoSkip = segmentsData?.introAutoSkip === true;
 
   const { data: chaptersData } = useQuery({
     queryKey: ["/api/v1/mkv/chapters", filePath],
@@ -92,6 +96,29 @@ export function SkipIntroOverlay({ mediaId, filePath, currentTime, onSkip }: Ski
     }
     resolved = active(chapterCandidates, currentTime);
   }
+
+  // Auto-skip (admin toggle): jump the intro instead of waiting for the tap.
+  // Intro type only - a recap or the credits stay a manual choice. One jump
+  // per segment per media: a viewer who seeks back into the intro is
+  // choosing to watch it, and gets the button, not another jump.
+  const autoSkippedRef = useRef<Set<number>>(new Set());
+  const lastMediaRef = useRef<string | undefined>(mediaId);
+  if (lastMediaRef.current !== mediaId) {
+    lastMediaRef.current = mediaId;
+    autoSkippedRef.current = new Set();
+  }
+  const autoTarget =
+    autoSkip && resolved?.type === "intro" && !autoSkippedRef.current.has(resolved.startSec)
+      ? resolved
+      : null;
+  const onSkipRef = useRef(onSkip);
+  onSkipRef.current = onSkip;
+  useEffect(() => {
+    if (!autoTarget) return;
+    autoSkippedRef.current.add(autoTarget.startSec);
+    onSkipRef.current(autoTarget.endSec);
+    toast.info(t("player.introSkipped"));
+  }, [autoTarget, t]);
 
   if (!resolved) return null;
 

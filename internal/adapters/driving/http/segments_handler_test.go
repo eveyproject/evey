@@ -260,6 +260,36 @@ func TestSegmentsHandler_NonCastCaller_IntroAlwaysServed(t *testing.T) {
 	}
 }
 
+// Web/mobile players auto-skip client-side off this response field - the
+// toggle must travel with the data they already fetch.
+func TestSegmentsHandler_ResponseCarriesIntroAutoSkipFlag(t *testing.T) {
+	for _, enabled := range []bool{true, false} {
+		h := segmentsHandler(
+			&fakeSegmentsGetter{},
+			"http://localhost",
+			allowAll(),
+			&fakeMediaItemGetter{item: testMediaItem("lib1")},
+			func() bool { return false },
+			nil,
+			func() bool { return enabled },
+		)
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/segments", nil)
+		req.SetPathValue("id", "m1")
+		req = withHTTPClaims(req, testClaims(false))
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		var body struct {
+			IntroAutoSkip bool `json:"introAutoSkip"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+			t.Fatal(err)
+		}
+		if body.IntroAutoSkip != enabled {
+			t.Errorf("introAutoSkip must mirror the toggle (%v), got %v", enabled, body.IntroAutoSkip)
+		}
+	}
+}
+
 func TestSegmentsHandler_TypeFilter(t *testing.T) {
 	segs := []*domainlibrary.MediaSegment{
 		{ID: "s1", MediaItemID: "m1", Type: "intro", StartMs: 0, EndMs: 60000, Source: "phash"},

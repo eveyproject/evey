@@ -8,7 +8,10 @@ export type { MediaSegment };
 const ALL_ADMIN_TYPES = "intro,recap,end_credits,studio_logo";
 
 export function useAdminMediaSegments(mediaId: string | undefined) {
-  return useMediaSegments(mediaId, ALL_ADMIN_TYPES.split(","));
+  // Unwrap to the plain segments array: the admin timeline predates the
+  // introAutoSkip envelope and only ever cared about the data.
+  const q = useMediaSegments(mediaId, ALL_ADMIN_TYPES.split(","));
+  return { ...q, data: q.data?.segments };
 }
 
 interface SetSegmentInput {

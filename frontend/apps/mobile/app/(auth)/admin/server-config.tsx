@@ -36,7 +36,7 @@ interface ServerSettings {
   libraryWatcherEnabled: SettingValue<boolean>;
   periodicScanInterval: SettingValue<string>;
   skipPreviewEnabled: SettingValue<boolean>;
-  castIntroAutoSkipEnabled: SettingValue<boolean>;
+  introAutoSkipEnabled: SettingValue<boolean>;
   auditRetentionDays: SettingValue<number>;
   metricsRetentionDays: SettingValue<number>;
   qoeRetentionDays: SettingValue<number>;
@@ -106,7 +106,7 @@ export default function AdminServerConfigScreen() {
   const [libraryWatcher, setLibraryWatcher] = useState(true);
   const [scanInterval, setScanInterval] = useState("");
   const [skipPreview, setSkipPreview] = useState(false);
-  const [castIntroAutoSkip, setCastIntroAutoSkip] = useState(false);
+  const [introAutoSkip, setIntroAutoSkip] = useState(false);
   const [auditDays, setAuditDays] = useState("");
   const [metricsDays, setMetricsDays] = useState("");
   const [qoeDays, setQoeDays] = useState("");
@@ -124,7 +124,7 @@ export default function AdminServerConfigScreen() {
       setLibraryWatcher(settings.libraryWatcherEnabled?.value ?? true);
       setScanInterval(settings.periodicScanInterval?.source === "override" ? String(settings.periodicScanInterval.value) : "");
       setSkipPreview(settings.skipPreviewEnabled?.value ?? false);
-      setCastIntroAutoSkip(settings.castIntroAutoSkipEnabled?.value ?? false);
+      setIntroAutoSkip(settings.introAutoSkipEnabled?.value ?? false);
       setAuditDays(settings.auditRetentionDays?.source === "override" ? String(settings.auditRetentionDays.value) : "");
       setMetricsDays(settings.metricsRetentionDays?.source === "override" ? String(settings.metricsRetentionDays.value) : "");
       setQoeDays(settings.qoeRetentionDays?.source === "override" ? String(settings.qoeRetentionDays.value) : "");
@@ -170,7 +170,7 @@ export default function AdminServerConfigScreen() {
       body.libraryWatcherEnabled = libraryWatcher;
       if (scanInterval) body.periodicScanInterval = scanInterval;
       body.skipPreviewEnabled = skipPreview;
-      body.castIntroAutoSkipEnabled = castIntroAutoSkip;
+      body.introAutoSkipEnabled = introAutoSkip;
       if (auditDays) body.auditRetentionDays = parseInt(auditDays, 10);
       if (metricsDays) body.metricsRetentionDays = parseInt(metricsDays, 10);
       if (qoeDays) body.qoeRetentionDays = parseInt(qoeDays, 10);
@@ -184,7 +184,7 @@ export default function AdminServerConfigScreen() {
     }
   }, [
     maxTranscodes, hwAccel, loginRate, globalRate, logLevel, libraryWatcher,
-    scanInterval, skipPreview, castIntroAutoSkip, auditDays, metricsDays, qoeDays, sessionDays,
+    scanInterval, skipPreview, introAutoSkip, auditDays, metricsDays, qoeDays, sessionDays,
     cacheGB, saveMutation,
   ]);
 
@@ -651,21 +651,18 @@ export default function AdminServerConfigScreen() {
               </View>
               {settings.skipPreviewEnabled && <DefaultHint setting={settings.skipPreviewEnabled} field="skipPreviewEnabled" />}
 
-              <Text style={s.label}>{t("admin.serverSettings.castIntroAutoSkip", "Saut automatique des intros en Chromecast")}</Text>
-              <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginBottom: 6 }}>
-                {t("admin.serverSettings.castIntroAutoSkipInfo", "La TV saute automatiquement les intros détectées. Désactivé tant que la fiabilité de la détection n'est pas actée.")}
-              </Text>
+              <Text style={s.label}>{t("admin.serverSettings.introAutoSkip", "Saut automatique des intros")}</Text>
               <View style={staticStyles.switchRow}>
                 <Text style={{ color: theme.colors.text, fontSize: 15 }}>
-                  {castIntroAutoSkip ? t("common.enabled", "Activé") : t("common.disabled", "Désactivé")}
+                  {introAutoSkip ? t("common.enabled", "Activé") : t("common.disabled", "Désactivé")}
                 </Text>
                 <Switch
-                  value={castIntroAutoSkip}
-                  onValueChange={(v) => { setCastIntroAutoSkip(v); setSettingsDirty(true); }}
+                  value={introAutoSkip}
+                  onValueChange={(v) => { setIntroAutoSkip(v); setSettingsDirty(true); }}
                   trackColor={{ false: theme.colors.border, true: theme.colors.accent }}
                 />
               </View>
-              {settings.castIntroAutoSkipEnabled && <DefaultHint setting={settings.castIntroAutoSkipEnabled} field="castIntroAutoSkipEnabled" />}
+              {settings.introAutoSkipEnabled && <DefaultHint setting={settings.introAutoSkipEnabled} field="introAutoSkipEnabled" />}
 
               <Text style={s.label}>
                 {t("admin.serverSettings.auditRetentionDays", "Rétention des logs d'audit (jours, 0 = illimité)")} {t("admin.serverSettings.retentionSweepHint", "(s'applique à la prochaine purge quotidienne)")}

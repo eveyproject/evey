@@ -1084,8 +1084,7 @@ serverSettings:
   restartHint: (applies on restart)
   skipPreview: Skip preview segments
   skipPreviewInfo: "Hides the short next-episode preview some shows splice in at the end. When enabled, the server omits these segments from playback even if the client would otherwise show them."
-  castIntroAutoSkip: "Auto-skip intros on Chromecast"
-  castIntroAutoSkipInfo: "The TV automatically jumps detected intros during a cast. Keep disabled until the detector's accuracy is proven - a wrong jump cannot be undone from the couch."
+  introAutoSkip: "Auto-skip intros"
   auditRetentionDays: "Audit log retention (days, 0 = keep forever)"
   metricsRetentionDays: "Server metrics retention (days)"
   qoeRetentionDays: "Playback quality (QoE) retention (days)"

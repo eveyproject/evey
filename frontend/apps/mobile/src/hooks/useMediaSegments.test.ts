@@ -67,21 +67,21 @@ describe("useMediaSegments", () => {
     expect(eveyFetchMock).not.toHaveBeenCalled();
   });
 
-  it("returns the segments array from the response", async () => {
+  it("returns the segments and the introAutoSkip flag from the response", async () => {
     const segments = [
       { type: "intro", startMs: 0, endMs: 30000, confidence: 0.9, source: "audio" },
     ];
-    eveyFetchMock.mockResolvedValueOnce({ segments });
+    eveyFetchMock.mockResolvedValueOnce({ segments, introAutoSkip: true });
 
     const { result } = renderHook(() => useMediaSegments("mi-3"), {
       wrapper: makeWrapper(),
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.data).toEqual(segments);
+    expect(result.current.data).toEqual({ segments, introAutoSkip: true });
   });
 
-  it("returns [] when the fetch throws (error swallowed by hook)", async () => {
+  it("returns empty segments and autoSkip=false when the fetch throws (error swallowed by hook)", async () => {
     eveyFetchMock.mockRejectedValueOnce(new Error("network error"));
 
     const { result } = renderHook(() => useMediaSegments("mi-4"), {
@@ -89,10 +89,10 @@ describe("useMediaSegments", () => {
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.data).toEqual([]);
+    expect(result.current.data).toEqual({ segments: [], introAutoSkip: false });
   });
 
-  it("returns [] when the response has no segments field", async () => {
+  it("defaults both fields when the response is empty (older server)", async () => {
     eveyFetchMock.mockResolvedValueOnce({});
 
     const { result } = renderHook(() => useMediaSegments("mi-5"), {
@@ -100,6 +100,6 @@ describe("useMediaSegments", () => {
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.data).toEqual([]);
+    expect(result.current.data).toEqual({ segments: [], introAutoSkip: false });
   });
 });

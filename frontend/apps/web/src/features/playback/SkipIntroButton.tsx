@@ -1,6 +1,8 @@
+import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { mKVServiceListChapters } from "@evey/api";
+import { toast } from "@evey/store";
 import { useMediaSegments } from "@/hooks/useMediaSegments";
 
 // Segment types the button can skip, with their i18n label. The label is
@@ -65,7 +67,9 @@ function active(
 export function SkipIntroButton({ mediaId, filePath, currentTime, onSkip }: SkipIntroButtonProps) {
   const { t } = useTranslation();
 
-  const { data: segments } = useMediaSegments(mediaId, [...SKIPPABLE]);
+  const { data: segmentsData } = useMediaSegments(mediaId, [...SKIPPABLE]);
+  const segments = segmentsData?.segments;
+  const autoSkip = segmentsData?.introAutoSkip === true;
 
   const { data: chaptersData } = useQuery({
     queryKey: ["/api/v1/mkv/chapters", filePath],
@@ -99,6 +103,29 @@ export function SkipIntroButton({ mediaId, filePath, currentTime, onSkip }: Skip
     }
     resolved = active(chapterCandidates, currentTime);
   }
+
+  // Auto-skip (admin toggle): jump the intro instead of waiting for the
+  // click. Intro type only - a recap or the credits stay a manual choice.
+  // One jump per segment per media: a viewer who seeks back into the intro
+  // is choosing to watch it, and gets the button, not another jump.
+  const autoSkippedRef = useRef<Set<number>>(new Set());
+  const lastMediaRef = useRef<string | undefined>(mediaId);
+  if (lastMediaRef.current !== mediaId) {
+    lastMediaRef.current = mediaId;
+    autoSkippedRef.current = new Set();
+  }
+  const autoTarget =
+    autoSkip && resolved?.type === "intro" && !autoSkippedRef.current.has(resolved.startSec)
+      ? resolved
+      : null;
+  const onSkipRef = useRef(onSkip);
+  onSkipRef.current = onSkip;
+  useEffect(() => {
+    if (!autoTarget) return;
+    autoSkippedRef.current.add(autoTarget.startSec);
+    onSkipRef.current(autoTarget.endSec);
+    toast.info(t("player.introSkipped"));
+  }, [autoTarget, t]);
 
   if (!resolved) return null;
 

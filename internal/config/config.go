@@ -157,13 +157,14 @@ type MetadataConfig struct {
 	// EVEY_INTRO_SKIP_PREVIEW_ENABLED
 	SkipPreviewEnabled bool
 
-	// CastIntroAutoSkipEnabled controls whether intro segments are served to
-	// CAST receivers, which auto-jump every intro they receive (a TV offers
-	// no input for a button). Off by default until the detector's accuracy
-	// is acted - the admin opts in from the panel. Read live per request by
-	// the segments handler, so a change takes effect without a restart.
-	// EVEY_CAST_INTRO_AUTO_SKIP_ENABLED
-	CastIntroAutoSkipEnabled bool
+	// IntroAutoSkipEnabled controls automatic intro skipping on EVERY player.
+	// Cast receivers auto-jump whatever intro segments they receive, so the
+	// segments handler withholds them when this is off; web/mobile players
+	// read the flag in the segments response and auto-skip when it is on
+	// (their manual skip button stays regardless). Off by default - the
+	// admin opts in from the panel. Read live per request, no restart.
+	// EVEY_INTRO_AUTO_SKIP_ENABLED
+	IntroAutoSkipEnabled bool
 }
 
 type VAPIDConfig struct {
@@ -545,12 +546,12 @@ func (c *Config) EffectiveSkipPreviewEnabled() bool {
 	return c.Metadata.SkipPreviewEnabled
 }
 
-// EffectiveCastIntroAutoSkipEnabled reads the cast intro auto-skip toggle
-// under the read lock; live per request like the skip-preview one.
-func (c *Config) EffectiveCastIntroAutoSkipEnabled() bool {
+// EffectiveIntroAutoSkipEnabled reads the intro auto-skip toggle under the
+// read lock; live per request like the skip-preview one.
+func (c *Config) EffectiveIntroAutoSkipEnabled() bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return c.Metadata.CastIntroAutoSkipEnabled
+	return c.Metadata.IntroAutoSkipEnabled
 }
 
 // The retention accessors below are read live by the background purge sweeps
@@ -843,7 +844,7 @@ func Load() (*Config, error) {
 			IntroProvidersEnabled: envBool("EVEY_INTRO_PROVIDERS_ENABLED", false),
 			TIDBAPIKey:            envStr("EVEY_INTRO_TIDB_API_KEY", ""),
 			SkipPreviewEnabled:    envBool("EVEY_INTRO_SKIP_PREVIEW_ENABLED", false),
-			CastIntroAutoSkipEnabled: envBool("EVEY_CAST_INTRO_AUTO_SKIP_ENABLED", false),
+			IntroAutoSkipEnabled:  envBool("EVEY_INTRO_AUTO_SKIP_ENABLED", false),
 		},
 		Backup: BackupConfig{
 			Dir:           envStr("EVEY_BACKUP_DIR", "/data/backups"),

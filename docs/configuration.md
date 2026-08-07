@@ -228,14 +228,14 @@ See [reverse-proxy.md](reverse-proxy.md).
 EVEY_INTRO_TIDB_API_KEY=                # optional Bearer token for TheIntroDB (500 lookups/day vs 100 anonymous)
 EVEY_INTRO_FFMPEG_THREADS=1             # threads per ffmpeg process used by intro detection (1-16)
 EVEY_INTRO_SKIP_PREVIEW_ENABLED=false   # serve "preview" (next-episode reel) segments to the player so a "Skip Preview" button appears
-EVEY_CAST_INTRO_AUTO_SKIP_ENABLED=false # serve intro segments to Chromecast receivers, which auto-skip them (off until the detector's accuracy is proven)
+EVEY_INTRO_AUTO_SKIP_ENABLED=false      # every player auto-skips detected intros (web/mobile read the flag in the segments response; cast receivers get intro segments gated by it)
 ```
 
 `api.tidb_key`, `intro_providers.enabled`, `intro_providers.tidb_submit_enabled`,
-`intro_providers.skip_preview_enabled` and `intro_providers.cast_intro_auto_skip_enabled`
+`intro_providers.skip_preview_enabled` and `intro_providers.auto_skip_enabled`
 can also be configured via
 `/admin/server-config` (DB-first, env fallback). Restart the server after toggling
-`intro_providers.enabled`; the skip-preview and cast auto-skip toggles apply live (no restart).
+`intro_providers.enabled`; the skip-preview and intro auto-skip toggles apply live (no restart).
 
 See [adr/0011-intro-detection-providers.md](adr/0011-intro-detection-providers.md).
 

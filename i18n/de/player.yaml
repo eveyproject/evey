@@ -86,6 +86,7 @@ skipIntro: Intro überspringen
 skipRecap: Rückblick überspringen
 skipCredits: Abspann überspringen
 skipPreview: Vorschau überspringen
+introSkipped: "Intro übersprungen"
 download: Herunterladen
 watchTogether: Zusammen schauen
 buffering: "Puffern…"

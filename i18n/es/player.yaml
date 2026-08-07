@@ -86,6 +86,7 @@ skipIntro: "Saltar intro"
 skipRecap: "Saltar resumen"
 skipCredits: "Saltar créditos"
 skipPreview: Saltar avance
+introSkipped: "Intro saltada"
 download: "Descargar"
 watchTogether: "Ver juntos"
 buffering: "Cargando…"

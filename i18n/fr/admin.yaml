@@ -1083,8 +1083,7 @@ serverSettings:
   restartHint: (appliqué au redémarrage)
   skipPreview: "Passer les segments d'aperçu"
   skipPreviewInfo: "Masque l'aperçu du prochain épisode (la courte bande-annonce insérée à la fin de certains shows). Le serveur ignore ces segments même si le client les demanderait."
-  castIntroAutoSkip: "Saut automatique des intros (Chromecast)"
-  castIntroAutoSkipInfo: "La TV saute automatiquement les intros détectées pendant un cast. À laisser désactivé tant que la fiabilité de la détection n'est pas actée - un faux saut ne peut pas être annulé depuis le canapé."
+  introAutoSkip: "Saut automatique des intros"
   auditRetentionDays: "Rétention du journal d'audit (jours, 0 = conserver toujours)"
   metricsRetentionDays: "Rétention des métriques serveur (jours)"
   qoeRetentionDays: "Rétention qualité de lecture (QoE) (jours)"

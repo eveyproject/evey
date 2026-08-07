@@ -74,7 +74,7 @@ describe("useMediaSegments", () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
-  it("returns [] on eveyFetch throw (swallowed error)", async () => {
+  it("returns empty segments and autoSkip=false on eveyFetch throw (swallowed error)", async () => {
     const fetch = await getEveyFetch();
     fetch.mockRejectedValueOnce(new Error("network error"));
 
@@ -84,16 +84,16 @@ describe("useMediaSegments", () => {
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.data).toEqual([]);
+    expect(result.current.data).toEqual({ segments: [], introAutoSkip: false });
   });
 
-  it("returns data.segments on success", async () => {
+  it("returns segments and the introAutoSkip flag on success", async () => {
     const segments = [
       { type: "intro", startMs: 0, endMs: 90000, confidence: 0.95, source: "audio" },
       { type: "outro", startMs: 5400000, endMs: 5490000, confidence: 0.9, source: "chapter" },
     ];
     const fetch = await getEveyFetch();
-    fetch.mockResolvedValueOnce({ segments });
+    fetch.mockResolvedValueOnce({ segments, introAutoSkip: true });
 
     const { useMediaSegments } = await import("./useMediaSegments");
     const { result } = renderHook(() => useMediaSegments("media-4"), {
@@ -101,6 +101,19 @@ describe("useMediaSegments", () => {
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.data).toEqual(segments);
+    expect(result.current.data).toEqual({ segments, introAutoSkip: true });
+  });
+
+  it("defaults introAutoSkip to false when the server omits it (older server)", async () => {
+    const fetch = await getEveyFetch();
+    fetch.mockResolvedValueOnce({ segments: [] });
+
+    const { useMediaSegments } = await import("./useMediaSegments");
+    const { result } = renderHook(() => useMediaSegments("media-5"), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data?.introAutoSkip).toBe(false);
   });
 });

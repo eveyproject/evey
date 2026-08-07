@@ -9,19 +9,26 @@ export interface MediaSegment {
   source: string;     // "trickplay" | "audio" | "subtitle" | "chapter"
 }
 
+export interface MediaSegmentsResult {
+  segments: MediaSegment[];
+  // Server-wide admin toggle: when true, players auto-skip intro segments
+  // instead of only offering the button.
+  introAutoSkip: boolean;
+}
+
 export function useMediaSegments(mediaId: string | undefined, types?: string[]) {
   const typesParam = types?.join(",") ?? "intro,outro,recap,end_credits,studio_logo";
-  return useQuery<MediaSegment[]>({
+  return useQuery<MediaSegmentsResult>({
     queryKey: ["/api/v1/media/segments", mediaId, typesParam],
     queryFn: async () => {
       try {
-        const data = await eveyFetch<{ segments: MediaSegment[] }>({
+        const data = await eveyFetch<{ segments: MediaSegment[]; introAutoSkip?: boolean }>({
           url: `/api/v1/media/${mediaId}/segments?types=${typesParam}`,
           method: "GET",
         });
-        return data.segments ?? [];
+        return { segments: data.segments ?? [], introAutoSkip: data.introAutoSkip === true };
       } catch {
-        return [];
+        return { segments: [], introAutoSkip: false };
       }
     },
     enabled: !!mediaId,
