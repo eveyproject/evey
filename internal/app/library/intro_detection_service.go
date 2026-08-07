@@ -426,10 +426,7 @@ func (s *IntroDetectionService) forEachBackfillTarget(ctx context.Context, ids [
 		}()
 		fn(ctx, id)
 	}
-	workers := s.backfillWorkers()
-	if workers > len(ids) {
-		workers = len(ids)
-	}
+	workers := min(s.backfillWorkers(), len(ids))
 	if workers <= 1 {
 		for _, id := range ids {
 			if ctx.Err() != nil {
@@ -441,14 +438,12 @@ func (s *IntroDetectionService) forEachBackfillTarget(ctx context.Context, ids [
 	}
 	work := make(chan string)
 	var wg sync.WaitGroup
-	for i := 0; i < workers; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range workers {
+		wg.Go(func() {
 			for id := range work {
 				guarded(id)
 			}
-		}()
+		})
 	}
 	for _, id := range ids {
 		if ctx.Err() != nil {

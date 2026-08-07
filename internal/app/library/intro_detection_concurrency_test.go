@@ -294,6 +294,6 @@ func TestBackfillLibrary_PanicInOneSeasonDoesNotKillTheSweep(t *testing.T) {
 	svc := newBackfillSvc(repo, 2)
 
 	n, err := svc.BackfillLibrary(context.Background(), "lib-1")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, 3, n, "the poisoned season must not abort the other seasons")
 }
