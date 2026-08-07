@@ -63,9 +63,19 @@ export default function SearchScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const serverUrl = useServerUrl();
-  const params = useLocalSearchParams<{ q?: string; kind?: string }>();
+  const params = useLocalSearchParams<{ q?: string; kind?: string; focus?: string }>();
   const [query, setQuery] = useState(typeof params.q === "string" ? params.q : "");
-  const debouncedQuery = useDebounce(query, 300);
+  // Trim before debouncing, like web (search.lazy.tsx): " from" and "from"
+  // are the same query and must share a cache entry.
+  const debouncedQuery = useDebounce(query.trim(), 300);
+  const inputRef = useRef<TextInput>(null);
+
+  // The header search field is a trigger that navigates here with a fresh
+  // `focus` param (native toolbars clip any in-header dropdown, so typing
+  // happens on this screen). Focus the input each time it fires.
+  useEffect(() => {
+    if (params.focus) inputRef.current?.focus();
+  }, [params.focus]);
   // Search scope: video catalog (default) or music.
   const [searchKind, setSearchKind] = useState<"media" | "music">(params.kind === "music" ? "music" : "media");
   const setQueue = useMusicQueueStore((s) => s.setQueue);
@@ -291,6 +301,7 @@ export default function SearchScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
       <TextInput
+        ref={inputRef}
         style={[
           styles.input,
           {
