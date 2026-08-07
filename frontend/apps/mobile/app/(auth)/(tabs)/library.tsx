@@ -14,6 +14,7 @@ import {
   hasMediaItemCount,
 } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
+import { LoadFailed } from "../../../src/components/LoadFailed";
 import type { V1Library, V1LibraryType } from "@evey/api";
 
 const LIBRARY_TYPE_ICONS: Record<string, string> = {
@@ -137,14 +138,11 @@ export default function LibraryScreen() {
     );
   }
 
+  // This screen used to state the failure and stop there - no retry anywhere on
+  // it, so a single failed request left the whole library list unreachable
+  // until the app was killed and relaunched.
   if (isError) {
-    return (
-      <View style={[styles.center, { backgroundColor: theme.colors.bg }]}>
-        <Text style={{ color: theme.colors.textMuted }}>
-          {t("common.loadError")}
-        </Text>
-      </View>
-    );
+    return <LoadFailed onRetry={() => void refetch()} />;
   }
 
   return (

@@ -10,9 +10,9 @@ import { useTheme } from "../providers/ThemeProvider";
 // confidently wrong, and it sends people looking for a scanning problem that
 // does not exist.
 //
-// Two screens already carried their own inline copy of this block, one of them
-// without a retry. New callers use this one; the older two can migrate when
-// they are next touched.
+// Every screen goes through here. Favorites and Library used to carry their
+// own inline copy, and Library's had no retry at all - a single failed request
+// left the whole list unreachable short of restarting the app.
 
 interface LoadFailedProps {
   /** Retry. Omit only when there is genuinely nothing to re-run. */

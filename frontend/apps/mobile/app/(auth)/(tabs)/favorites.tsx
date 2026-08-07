@@ -13,6 +13,7 @@ import {
 import { Image } from "expo-image";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Skeleton } from "../../../src/components/Skeleton";
+import { LoadFailed } from "../../../src/components/LoadFailed";
 import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { usePlaybackServiceMarkAsWatched, usePlaybackServiceMarkAsUnwatched } from "@evey/api";
@@ -207,14 +208,7 @@ export default function FavoritesScreen() {
   );
 
   if (isError) {
-    return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: theme.colors.bg }}>
-        <Text style={{ color: theme.colors.textMuted, marginBottom: 12 }}>{t("common.loadError")}</Text>
-        <Pressable onPress={() => refetch()} accessible={true} accessibilityLabel={t("common.retry")} accessibilityRole="button">
-          <Text style={{ color: theme.colors.accent }}>{t("common.retry")}</Text>
-        </Pressable>
-      </View>
-    );
+    return <LoadFailed onRetry={() => void refetch()} />;
   }
 
   if (isLoading) {
