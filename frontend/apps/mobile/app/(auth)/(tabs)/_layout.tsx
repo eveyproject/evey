@@ -10,7 +10,7 @@ import { useTranslation } from "react-i18next";
 import { useNotificationServiceGetUnreadCount } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { HeaderSearch } from "../../../src/components/HeaderSearch";
-import { NavRail } from "../../../src/components/layout/NavRail";
+import { RailFrame } from "../../../src/components/layout/RailFrame";
 import { UserMenu } from "../../../src/components/layout/UserMenu";
 
 function HeaderRight({ theme }: { theme: ReturnType<typeof useTheme> }) {
@@ -53,21 +53,18 @@ export default function TabsLayout() {
   };
 
   return (
-    <View style={{ flex: 1, flexDirection: "row", backgroundColor: theme.colors.surface }}>
-      <NavRail mode="main" />
-      <View style={{ flex: 1 }}>
-        <Stack>
-          <Stack.Screen name="index" options={sharedOptions} />
-          <Stack.Screen name="search" options={sharedOptions} />
-          <Stack.Screen name="library" options={sharedOptions} />
-          <Stack.Screen name="photos" options={sharedOptions} />
-          <Stack.Screen name="music" options={sharedOptions} />
-          <Stack.Screen name="favorites" options={sharedOptions} />
-          <Stack.Screen name="requests" options={sharedOptions} />
-          <Stack.Screen name="settings" options={sharedOptions} />
-        </Stack>
-      </View>
-    </View>
+    <RailFrame mode="main">
+      <Stack>
+        <Stack.Screen name="index" options={sharedOptions} />
+        <Stack.Screen name="search" options={sharedOptions} />
+        <Stack.Screen name="library" options={sharedOptions} />
+        <Stack.Screen name="photos" options={sharedOptions} />
+        <Stack.Screen name="music" options={sharedOptions} />
+        <Stack.Screen name="favorites" options={sharedOptions} />
+        <Stack.Screen name="requests" options={sharedOptions} />
+        <Stack.Screen name="settings" options={sharedOptions} />
+      </Stack>
+    </RailFrame>
   );
 }
 
