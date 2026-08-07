@@ -167,6 +167,70 @@ function LibraryAccessModal({ user, visible, onClose, theme }: { user: V1User; v
   );
 }
 
+interface UserAction {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  destructive?: boolean;
+  onPress: () => void;
+}
+
+// One labelled row per action, replacing the six 18px icon buttons that used
+// to share each list row: full-width touch targets and explicit wording so
+// destructive taps can't happen by fat-fingering the neighbour icon.
+function UserActionsSheet({ user, actions, onClose, theme }: { user: V1User; actions: UserAction[]; onClose: () => void; theme: ReturnType<typeof useTheme> }) {
+  const { t } = useTranslation();
+  return (
+    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable
+        style={styles.backdrop}
+        onPress={onClose}
+        accessibilityElementsHidden={true}
+        importantForAccessibility="no-hide-descendants"
+      />
+      <View style={[styles.sheet, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.lg }]}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 4 }}>
+          <View style={[styles.avatar, { backgroundColor: theme.colors.accent }]}>
+            <Text style={{ color: theme.colors.onAccent, fontWeight: "700" }}>{user.username?.[0]?.toUpperCase() ?? "?"}</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <Text style={{ color: theme.colors.text, fontSize: 16, fontWeight: "700" }} numberOfLines={1}>{user.username}</Text>
+              {user.isAdmin && (
+                <View style={{ backgroundColor: theme.colors.accent, borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1 }}>
+                  <Text style={{ color: theme.colors.onAccent, fontSize: 9, fontWeight: "700" }}>{t("admin.users.admin", "Admin").toUpperCase()}</Text>
+                </View>
+              )}
+              {user.enabled === false && (
+                <View style={{ backgroundColor: theme.colors.textMuted, borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1 }}>
+                  <Text style={{ color: onColor(theme.colors.textMuted), fontSize: 9, fontWeight: "700" }}>{t("common.disabled", "Disabled").toUpperCase()}</Text>
+                </View>
+              )}
+            </View>
+            {!!user.email && (
+              <Text style={{ color: theme.colors.textMuted, fontSize: 12 }} numberOfLines={1}>{user.email}</Text>
+            )}
+          </View>
+        </View>
+        {actions.map((a) => (
+          <Pressable
+            key={a.label}
+            onPress={a.onPress}
+            style={[styles.actionRow, { borderRadius: theme.radii.md }]}
+            accessible={true}
+            accessibilityLabel={a.label}
+            accessibilityRole="button"
+          >
+            <Ionicons name={a.icon} size={20} color={a.destructive ? theme.colors.error : theme.colors.text} />
+            <Text style={{ color: a.destructive ? theme.colors.error : theme.colors.text, fontSize: 15, fontWeight: "500" }}>
+              {a.label}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+    </Modal>
+  );
+}
+
 function InviteLinksSection({ theme }: { theme: ReturnType<typeof useTheme> }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
@@ -352,6 +416,8 @@ export default function AdminUsersScreen() {
   const [newSelectedLibs, setNewSelectedLibs] = useState<Set<string>>(new Set());
   const [libAccessUser, setLibAccessUser] = useState<V1User | null>(null);
   const [bitrateUser, setBitrateUser] = useState<V1User | null>(null);
+  const [actionUser, setActionUser] = useState<V1User | null>(null);
+  const [query, setQuery] = useState("");
 
   const doImpersonate = useAuthStore((s) => s.impersonate);
   const impersonateUser = useUserServiceImpersonateUser({
@@ -372,6 +438,12 @@ export default function AdminUsersScreen() {
 
   const { data, isLoading, isError, refetch } = useUserServiceListUsers();
   const users = data?.users ?? [];
+  const trimmedQuery = query.trim().toLowerCase();
+  const filteredUsers = trimmedQuery
+    ? users.filter((u) =>
+        (u.username ?? "").toLowerCase().includes(trimmedQuery) ||
+        (u.email ?? "").toLowerCase().includes(trimmedQuery))
+    : users;
 
   const { data: libData } = useLibraryServiceListLibraries();
   const libraries = libData?.libraries ?? [];
@@ -476,97 +548,72 @@ export default function AdminUsersScreen() {
     impersonateUser.mutate({ userId: user.id, data: {} });
   }, [impersonateUser]);
 
-  const renderUser = useCallback(({ item }: { item: V1User }) => (
-    <View style={[styles.userCard, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}>
-      <View style={[styles.avatar, { backgroundColor: theme.colors.accent }]}>
-        <Text style={{ color: theme.colors.onAccent, fontWeight: "700" }}>{item.username?.[0]?.toUpperCase() ?? "?"}</Text>
-      </View>
-      <View style={{ flex: 1 }}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-          <Text style={{ color: theme.colors.text, fontSize: 15, fontWeight: "600" }}>{item.username}</Text>
-          {item.isAdmin ? (
-            <View style={{ backgroundColor: theme.colors.accent, borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1 }}>
-              <Text style={{ color: theme.colors.onAccent, fontSize: 9, fontWeight: "700" }}>ADMIN</Text>
-            </View>
-          ) : (
-            <View style={{ backgroundColor: theme.colors.surfaceRaised, borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1 }}>
-              <Text style={{ color: theme.colors.textMuted, fontSize: 9, fontWeight: "700" }}>USER</Text>
-            </View>
-          )}
-          {item.enabled === false && (
-            <View style={{ backgroundColor: theme.colors.textMuted, borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1 }}>
-              <Text style={{ color: onColor(theme.colors.textMuted), fontSize: 9, fontWeight: "700" }}>DISABLED</Text>
-            </View>
-          )}
+  // Close the action sheet, then open the follow-up modal on the next tick:
+  // mounting a second RN Modal in the same commit as one dismisses races the
+  // iOS presentation controller and can swallow the new modal.
+  const afterSheet = useCallback((fn: () => void) => {
+    setActionUser(null);
+    setTimeout(fn, 250);
+  }, []);
+
+  const sheetActions = useCallback((user: V1User): UserAction[] => {
+    const actions: UserAction[] = [
+      { icon: "pencil-outline", label: t("common.edit", "Edit"), onPress: () => { setActionUser(null); if (user.id) router.push(`/admin/users/${user.id}` as never); } },
+    ];
+    if (!user.isAdmin) {
+      actions.push({ icon: "library-outline", label: t("admin.users.libraryAccess", "Library Access"), onPress: () => afterSheet(() => setLibAccessUser(user)) });
+    }
+    actions.push({ icon: "speedometer-outline", label: t("admin.users.bitrate", "Bitrate"), onPress: () => afterSheet(() => setBitrateUser(user)) });
+    if (user.enabled !== false) {
+      actions.push({ icon: "log-in-outline", label: t("admin.users.impersonate", "Connect as"), onPress: () => { setActionUser(null); handleImpersonate(user); } });
+    }
+    actions.push({
+      icon: user.enabled === false ? "person-add-outline" : "person-remove-outline",
+      label: user.enabled === false ? t("common.enable", "Enable") : t("common.disable", "Disable"),
+      onPress: () => { setActionUser(null); handleToggleDisable(user); },
+    });
+    actions.push({ icon: "trash-outline", label: t("common.delete", "Delete"), destructive: true, onPress: () => { setActionUser(null); handleDelete(user); } });
+    return actions;
+  }, [afterSheet, handleDelete, handleToggleDisable, handleImpersonate, router, t]);
+
+  const renderUser = useCallback(({ item }: { item: V1User }) => {
+    const disabled = item.enabled === false;
+    return (
+      <Pressable
+        onPress={() => setActionUser(item)}
+        style={[styles.userCard, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
+        accessible={true}
+        accessibilityRole="button"
+        accessibilityLabel={t("admin.users.actionsFor", "Actions for {{name}}", { name: item.username })}
+      >
+        <View style={[styles.avatar, { backgroundColor: disabled ? theme.colors.surfaceRaised : theme.colors.accent }]}>
+          <Text style={{ color: disabled ? theme.colors.textMuted : theme.colors.onAccent, fontWeight: "700" }}>{item.username?.[0]?.toUpperCase() ?? "?"}</Text>
         </View>
-        <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>{item.email || "-"}</Text>
-        <Text style={{ color: theme.colors.textMuted, fontSize: 10, marginTop: 2 }}>
-          {t("admin.users.registered", "Registered")}: {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : "-"}
-          {"  ·  "}
-          {t("admin.users.lastLogin", "Last login")}: {item.lastLogin ? new Date(item.lastLogin).toLocaleDateString() : "-"}
-        </Text>
-      </View>
-      <Pressable
-        onPress={() => item.id && router.push(`/admin/users/${item.id}` as never)}
-        hitSlop={8}
-        style={{ padding: 4 }}
-        accessibilityRole="button"
-        accessibilityLabel={t("common.edit", "Edit")}
-      >
-        <Ionicons name="pencil-outline" size={18} color={theme.colors.accent} />
+        <View style={{ flex: 1, opacity: disabled ? 0.6 : 1 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <Text style={{ color: theme.colors.text, fontSize: 15, fontWeight: "600" }} numberOfLines={1}>{item.username}</Text>
+            {item.isAdmin && (
+              <View style={{ backgroundColor: theme.colors.accent, borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1 }}>
+                <Text style={{ color: theme.colors.onAccent, fontSize: 9, fontWeight: "700" }}>{t("admin.users.admin", "Admin").toUpperCase()}</Text>
+              </View>
+            )}
+            {disabled && (
+              <View style={{ backgroundColor: theme.colors.textMuted, borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1 }}>
+                <Text style={{ color: onColor(theme.colors.textMuted), fontSize: 9, fontWeight: "700" }}>{t("common.disabled", "Disabled").toUpperCase()}</Text>
+              </View>
+            )}
+          </View>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 12 }} numberOfLines={1}>{item.email || "-"}</Text>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 10, marginTop: 2 }}>
+            {t("admin.users.registered", "Registered")}: {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : "-"}
+            {"  ·  "}
+            {t("admin.users.lastLogin", "Last login")}: {item.lastLogin ? new Date(item.lastLogin).toLocaleDateString() : "-"}
+          </Text>
+        </View>
+        <Ionicons name="ellipsis-vertical" size={18} color={theme.colors.textMuted} />
       </Pressable>
-      {!item.isAdmin && (
-        <Pressable
-          onPress={() => setLibAccessUser(item)}
-          hitSlop={8}
-          style={{ padding: 4 }}
-          accessibilityRole="button"
-          accessibilityLabel={t("admin.users.libraryAccess")}
-        >
-          <Ionicons name="library-outline" size={18} color={theme.colors.textMuted} />
-        </Pressable>
-      )}
-      <Pressable
-        onPress={() => setBitrateUser(item)}
-        hitSlop={8}
-        style={{ padding: 4 }}
-        accessibilityRole="button"
-        accessibilityLabel={t("admin.users.bitrate", "Bitrate limit")}
-      >
-        <Ionicons name="speedometer-outline" size={18} color={theme.colors.textMuted} />
-      </Pressable>
-      {item.enabled !== false && (
-        <Pressable
-          onPress={() => handleImpersonate(item)}
-          disabled={impersonateUser.isPending}
-          hitSlop={8}
-          style={{ padding: 4 }}
-          accessibilityRole="button"
-          accessibilityLabel={t("admin.users.impersonate", "Impersonate")}
-        >
-          <Ionicons name="log-in-outline" size={18} color={theme.colors.textMuted} />
-        </Pressable>
-      )}
-      <Pressable
-        onPress={() => handleToggleDisable(item)}
-        hitSlop={8}
-        style={{ padding: 4 }}
-        accessibilityRole="button"
-        accessibilityLabel={item.enabled === false ? t("common.enable") : t("common.disable")}
-      >
-        <Ionicons name={item.enabled === false ? "eye-off-outline" : "eye-outline"} size={18} color={theme.colors.textMuted} />
-      </Pressable>
-      <Pressable
-        onPress={() => handleDelete(item)}
-        hitSlop={8}
-        style={{ padding: 4 }}
-        accessibilityRole="button"
-        accessibilityLabel={t("common.delete")}
-      >
-        <Ionicons name="trash-outline" size={18} color={theme.colors.error} />
-      </Pressable>
-    </View>
-  ), [theme, handleDelete, handleToggleDisable, handleImpersonate, impersonateUser.isPending, setLibAccessUser, setBitrateUser, router, t]);
+    );
+  }, [theme, t]);
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
@@ -594,12 +641,41 @@ export default function AdminUsersScreen() {
         </View>
       ) : (
         <FlatList
-          data={users}
+          data={filteredUsers}
           keyExtractor={(u) => u.id ?? ""}
           renderItem={renderUser}
           contentContainerStyle={{ padding: 16, gap: 8 }}
           refreshing={false}
           onRefresh={refetch}
+          ListHeaderComponent={
+            users.length >= 8 ? (
+              <View style={[styles.searchBox, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}>
+                <Ionicons name="search" size={16} color={theme.colors.textMuted} />
+                <TextInput
+                  placeholder={t("admin.users.searchUsers", "Search users")}
+                  placeholderTextColor={theme.colors.textMuted}
+                  value={query}
+                  onChangeText={setQuery}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  style={{ flex: 1, color: theme.colors.text, fontSize: 15, paddingVertical: 10 }}
+                  accessible={true}
+                  accessibilityLabel={t("admin.users.searchUsers", "Search users")}
+                />
+                {query.length > 0 && (
+                  <Pressable
+                    onPress={() => setQuery("")}
+                    hitSlop={8}
+                    accessible={true}
+                    accessibilityLabel={t("common.clear", "Clear")}
+                    accessibilityRole="button"
+                  >
+                    <Ionicons name="close-circle" size={18} color={theme.colors.textMuted} />
+                  </Pressable>
+                )}
+              </View>
+            ) : null
+          }
           ListEmptyComponent={
             isError ? (
               <LoadFailed onRetry={() => void refetch()} />
@@ -724,6 +800,15 @@ export default function AdminUsersScreen() {
         </View>
       </Modal>
 
+      {actionUser && (
+        <UserActionsSheet
+          user={actionUser}
+          actions={sheetActions(actionUser)}
+          onClose={() => setActionUser(null)}
+          theme={theme}
+        />
+      )}
+
       {libAccessUser && !libAccessUser.isAdmin && (
         <LibraryAccessModal
           user={libAccessUser}
@@ -752,4 +837,6 @@ const styles = StyleSheet.create({
   input: { paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, marginBottom: 12 },
   createBtn: { paddingVertical: 14, alignItems: "center" },
   libRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 6 },
+  actionRow: { flexDirection: "row", alignItems: "center", gap: 14, paddingHorizontal: 12, paddingVertical: 14, marginTop: 4 },
+  searchBox: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, marginBottom: 8 },
 });

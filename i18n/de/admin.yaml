@@ -326,6 +326,8 @@ users:
   inviteLibraries: Zugängliche Bibliotheken
   inviteLibrariesHelp: "Leer lassen, um Zugriff auf alle Bibliotheken zu gewähren."
   noUsers: Keine Benutzer gefunden
+  searchUsers: "Benutzer suchen"
+  actionsFor: "Aktionen für {{name}}"
   userNotFound: Benutzer nicht gefunden
   noInvites: Keine Einladungslinks
   editUser: Benutzer bearbeiten

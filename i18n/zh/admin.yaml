@@ -326,6 +326,8 @@ users:
   inviteLibraries: "可访问的媒体库"
   inviteLibrariesHelp: "留空则授予所有媒体库的访问权限。"
   noUsers: "未找到用户"
+  searchUsers: "搜索用户"
+  actionsFor: "{{name}} 的操作"
   userNotFound: "未找到用户"
   noInvites: "没有邀请链接"
   editUser: "编辑用户"

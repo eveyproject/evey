@@ -326,6 +326,8 @@ users:
   inviteLibraries: "Bibliotecas accesibles"
   inviteLibrariesHelp: "Dejar vacío para conceder acceso a todas las bibliotecas."
   noUsers: "No se encontraron usuarios"
+  searchUsers: "Buscar usuarios"
+  actionsFor: "Acciones para {{name}}"
   userNotFound: Usuario no encontrado
   noInvites: "Sin enlaces de invitación"
   editUser: "Editar usuario"

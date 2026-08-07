@@ -21,10 +21,11 @@ vi.mock("react-native", () => ({
       "aria-checked": !!value,
       onClick: () => onValueChange?.(!value),
     }),
-  FlatList: ({ data, renderItem, keyExtractor, ListEmptyComponent, ListFooterComponent }: any) =>
+  FlatList: ({ data, renderItem, keyExtractor, ListEmptyComponent, ListHeaderComponent, ListFooterComponent }: any) =>
     React.createElement(
       "div",
       { "data-testid": "users-list" },
+      ListHeaderComponent ?? null,
       data.length === 0 ? ListEmptyComponent ?? null : data.map((item: any) =>
         React.createElement(React.Fragment, { key: keyExtractor(item) }, renderItem({ item })),
       ),
@@ -108,8 +109,13 @@ const eveyFetchMock = vi.fn(async (opts: { url: string; method: string }) => {
   return undefined;
 });
 
+let mockUsers: any[] = [];
+const deleteMutate = vi.fn();
+const disableMutate = vi.fn();
+const impersonateMutate = vi.fn();
+
 vi.mock("@evey/api", () => ({
-  useUserServiceListUsers: () => ({ data: { users: [] }, isLoading: false, refetch: vi.fn() }),
+  useUserServiceListUsers: () => ({ data: { users: mockUsers }, isLoading: false, refetch: vi.fn() }),
   useUserServiceCreateUser: (opts: any) => ({
     mutateAsync: async (arg: any) => {
       const data = { id: "new-user-1" };
@@ -118,9 +124,9 @@ vi.mock("@evey/api", () => ({
     },
     isPending: false,
   }),
-  useUserServiceDeleteUser: () => ({ mutate: vi.fn(), isPending: false }),
-  useUserServiceDisableUser: () => ({ mutate: vi.fn(), isPending: false }),
-  useUserServiceImpersonateUser: () => ({ mutate: vi.fn(), isPending: false }),
+  useUserServiceDeleteUser: () => ({ mutate: deleteMutate, isPending: false }),
+  useUserServiceDisableUser: () => ({ mutate: disableMutate, isPending: false }),
+  useUserServiceImpersonateUser: () => ({ mutate: impersonateMutate, isPending: false }),
   getUserServiceListUsersQueryKey: () => ["users"],
   useLibraryServiceListLibraries: () => ({ data: { libraries: [{ id: "lib1", name: "Movies" }] } }),
   useUserServiceListInviteLinks: () => ({ data: { inviteLinks: [] }, isLoading: false }),
@@ -136,6 +142,7 @@ import AdminUsersScreen from "./users";
 beforeEach(() => {
   vi.clearAllMocks();
   libraryAccessShouldFail = false;
+  mockUsers = [];
 });
 
 async function openCreateFormAndSubmit() {
@@ -173,5 +180,74 @@ describe("AdminUsersScreen - create user honesty", () => {
     // The user WAS created but access was not applied - a plain
     // "user created" success toast here would be misleading.
     expect(toastSuccess).not.toHaveBeenCalled();
+  });
+});
+
+const alice = { id: "u1", username: "alice", email: "alice@example.com", isAdmin: false, enabled: true };
+const bob = { id: "u2", username: "bob", email: "bob@example.com", isAdmin: true, enabled: true };
+const carol = { id: "u3", username: "carol", email: "carol@example.com", isAdmin: false, enabled: false };
+
+function openSheetFor(username: string) {
+  fireEvent.click(screen.getByText(username).closest("button")!);
+}
+
+describe("AdminUsersScreen - user row action sheet", () => {
+  it("renders each user as a single row button without inline action icons", () => {
+    mockUsers = [alice];
+    render(<AdminUsersScreen />);
+
+    expect(screen.getByText("alice")).toBeTruthy();
+    // The old layout packed six icon buttons in the row; they must be gone
+    // until the sheet is opened.
+    expect(screen.queryByTestId("icon-trash-outline")).toBeNull();
+    expect(screen.queryByTestId("icon-pencil-outline")).toBeNull();
+  });
+
+  it("opens a labelled action sheet on row tap and routes delete through it", () => {
+    mockUsers = [alice];
+    render(<AdminUsersScreen />);
+
+    openSheetFor("alice");
+    expect(screen.getByText("Edit")).toBeTruthy();
+    expect(screen.getByText("Library Access")).toBeTruthy();
+    expect(screen.getByText("Connect as")).toBeTruthy();
+
+    // The Alert mock auto-confirms, so tapping Delete must reach the mutation.
+    fireEvent.click(screen.getByText("Delete"));
+    expect(deleteMutate).toHaveBeenCalledWith({ id: "u1" });
+  });
+
+  it("adapts the sheet to the user's state: admins have no library access, disabled users re-enable", () => {
+    mockUsers = [bob, carol];
+    render(<AdminUsersScreen />);
+
+    openSheetFor("bob");
+    expect(screen.queryByText("Library Access")).toBeNull();
+
+    // Close bob's sheet, open carol's (disabled account).
+    fireEvent.click(screen.getAllByText("Edit")[0].closest("button")!);
+    openSheetFor("carol");
+    expect(screen.queryByText("Connect as")).toBeNull();
+    expect(screen.getByText("Enable")).toBeTruthy();
+    fireEvent.click(screen.getByText("Enable"));
+    expect(disableMutate).toHaveBeenCalledWith({ id: "u3", params: { disabled: false } });
+  });
+
+  it("filters the list from the search box once 8+ users exist", () => {
+    mockUsers = Array.from({ length: 8 }, (_, i) => ({
+      id: `u${i}`, username: `user${i}`, email: `user${i}@example.com`, isAdmin: false, enabled: true,
+    }));
+    render(<AdminUsersScreen />);
+
+    expect(screen.getByText("user7")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Search users"), { target: { value: "user7" } });
+    expect(screen.getByText("user7")).toBeTruthy();
+    expect(screen.queryByText("user1")).toBeNull();
+  });
+
+  it("hides the search box on small installs", () => {
+    mockUsers = [alice, bob];
+    render(<AdminUsersScreen />);
+    expect(screen.queryByLabelText("Search users")).toBeNull();
   });
 });

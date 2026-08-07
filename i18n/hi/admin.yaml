@@ -326,6 +326,8 @@ users:
   inviteLibraries: "सुलभ लाइब्रेरी"
   inviteLibrariesHelp: "सभी लाइब्रेरी तक पहुँच देने के लिए खाली छोड़ें।"
   noUsers: "कोई उपयोगकर्ता नहीं मिला"
+  searchUsers: "उपयोगकर्ता खोजें"
+  actionsFor: "{{name}} के लिए कार्रवाइयाँ"
   userNotFound: "उपयोगकर्ता नहीं मिला"
   noInvites: "कोई आमंत्रण लिंक नहीं"
   editUser: "उपयोगकर्ता संपादित करें"

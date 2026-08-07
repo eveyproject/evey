@@ -326,6 +326,8 @@ users:
   inviteLibraries: Accessible libraries
   inviteLibrariesHelp: "Leave empty to grant access to all libraries."
   noUsers: No users found
+  searchUsers: Search users
+  actionsFor: "Actions for {{name}}"
   userNotFound: User not found
   noInvites: No invite links
   editUser: Edit User
