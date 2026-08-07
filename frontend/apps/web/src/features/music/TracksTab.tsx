@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { X, TriangleAlert } from "lucide-react";
 import { ICON } from "@/constants/iconSizes";
@@ -33,6 +33,9 @@ export function TracksTab({
   onGenreChange,
   onYearChange,
   onArtistSelectChange,
+  hasMore = false,
+  isLoadingMore = false,
+  onLoadMore,
 }: {
   allTracks: Track[];
   loading: boolean;
@@ -54,6 +57,11 @@ export function TracksTab({
   onGenreChange: (v: string) => void;
   onYearChange: (v: number) => void;
   onArtistSelectChange: (v: string) => void;
+  // The server has tracks beyond what allTracks currently holds. Next then
+  // stays live on the last loaded page instead of dead-ending the list.
+  hasMore?: boolean;
+  isLoadingMore?: boolean;
+  onLoadMore?: () => void;
 }) {
   const { t } = useTranslation();
   const [page, setPage] = useState(0);
@@ -100,6 +108,34 @@ export function TracksTab({
   );
 
   useEffect(() => { setPage(0); }, [genreFilter, yearFilter, artistSelectFilter, albumFilter, artistFilter]);
+
+  const onLastLoadedPage = totalPages === 0 || page >= totalPages - 1;
+  // Next must not go dead on the last loaded page while the server still has
+  // rows: it asks for the next server page instead, and the client page turns
+  // once those tracks land (the effect below).
+  const canGoNext = !onLastLoadedPage || (hasMore && !isLoadingMore);
+
+  // A newly loaded server page must not silently leave the user where they
+  // were - they pressed Next. Advance as soon as the rows exist.
+  const pendingAdvance = useRef(false);
+  useEffect(() => {
+    if (!pendingAdvance.current) return;
+    if (totalPages > page + 1) {
+      pendingAdvance.current = false;
+      setPage((p) => p + 1);
+    }
+  }, [totalPages, page]);
+
+  function goNext() {
+    if (!onLastLoadedPage) {
+      setPage((p) => Math.min(totalPages - 1, p + 1));
+      return;
+    }
+    if (hasMore && !isLoadingMore) {
+      pendingAdvance.current = true;
+      onLoadMore?.();
+    }
+  }
 
   const selectClass = "text-sm px-2 py-1.5 rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface-raised)] text-[var(--text)] cursor-pointer";
 
@@ -235,7 +271,7 @@ export function TracksTab({
           })}
         </tbody>
       </table>}
-      {!loading && tracks.length > 0 && totalPages > 1 && (
+      {!loading && tracks.length > 0 && (totalPages > 1 || hasMore) && (
         <div className="flex items-center justify-between mt-4 text-[var(--text-muted)] text-sm">
           <button
             onClick={() => setPage((p) => Math.max(0, p - 1))}
@@ -245,11 +281,14 @@ export function TracksTab({
             {t("common.previous")}
           </button>
           <span>
-            {page + 1} / {totalPages} · {t("media.music.trackCount", { count: tracks.length })}
+            {/* The trailing "+" is the honest reading while pages are still
+                loading: both the page count and the track count describe what
+                has been fetched, not what the library holds. */}
+            {page + 1} / {totalPages}{hasMore ? "+" : ""} · {t("media.music.trackCount", { count: tracks.length })}{hasMore ? "+" : ""}
           </span>
           <button
-            onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-            disabled={page === totalPages - 1}
+            onClick={goNext}
+            disabled={!canGoNext}
             className="px-4 py-1.5 rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface-raised)] text-[var(--text)] disabled:text-[var(--text-muted)] disabled:cursor-default disabled:opacity-50 cursor-pointer"
           >
             {t("common.next")}

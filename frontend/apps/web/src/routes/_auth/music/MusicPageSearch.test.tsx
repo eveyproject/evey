@@ -4,7 +4,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 const mockLibrariesHook = vi.fn(() => ({ data: { libraries: [] }, isLoading: false }));
-const mockTracksHook = vi.fn(() => ({ data: { tracks: [], total: 0 } }));
+// Tracks are keyset-paginated through useInfiniteQuery, so a test drives the
+// FETCHER and lets react-query assemble the pages.
+const mockTracksFetch = vi.fn(async (_p?: unknown, _signal?: unknown) => ({ tracks: [] as Record<string, unknown>[], total: 0, nextCursor: undefined as string | undefined }));
 const mockAlbumsHook = vi.fn(() => ({ data: { albums: [] } }));
 const mockArtistsHook = vi.fn(() => ({ data: { artists: [] } }));
 const mockTracksParams = vi.fn();
@@ -18,7 +20,7 @@ vi.mock("@evey/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@evey/api")>()),
   eveyFetch: vi.fn(),
   useLibraryServiceListLibraries: (opts: { query?: { select?: (d: unknown) => unknown } }) => applySelect(mockLibrariesHook(), opts),
-  useMusicServiceListTracks: (p: unknown, opts: { query?: { select?: (d: unknown) => unknown } }) => { mockTracksParams(p); return applySelect(mockTracksHook(), opts); },
+  musicServiceListTracks: (p?: unknown, signal?: unknown) => { mockTracksParams(p); return mockTracksFetch(p, signal); },
   useMusicServiceGetAlbums: (_p: unknown, opts: { query?: { select?: (d: unknown) => unknown } }) => applySelect(mockAlbumsHook(), opts),
   useMusicServiceGetArtists: (_p: unknown, opts: { query?: { select?: (d: unknown) => unknown } }) => applySelect(mockArtistsHook(), opts),
   musicServiceDeleteTrack: vi.fn(),
@@ -72,7 +74,7 @@ const protoTracks = [{ id: "t1", title: "Blue Sky", artist: "Band A", album: "Su
 
 function setup(tracks = protoTracks, total = 1) {
   mockLibrariesHook.mockReturnValue({ data: { libraries: mockLibraries }, isLoading: false });
-  mockTracksHook.mockReturnValue({ data: { tracks, total } });
+  mockTracksFetch.mockResolvedValue({ tracks, total, nextCursor: undefined });
   mockAlbumsHook.mockReturnValue({ data: { albums: [] } });
   mockArtistsHook.mockReturnValue({ data: { artists: [] } });
 }

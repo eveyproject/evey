@@ -4,7 +4,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 const mockLibrariesHook = vi.fn(() => ({ data: { libraries: [] }, isLoading: false }));
-const mockTracksHook = vi.fn(() => ({ data: { tracks: [], total: 0 } }));
+// Tracks are keyset-paginated through useInfiniteQuery, so a test drives the
+// FETCHER and lets react-query assemble the pages.
+const mockTracksFetch = vi.fn(async (_p?: unknown, _signal?: unknown) => ({ tracks: [] as Record<string, unknown>[], total: 0, nextCursor: undefined as string | undefined }));
 const mockAlbumsHook = vi.fn(() => ({ data: { albums: [] } }));
 const mockArtistsHook = vi.fn(() => ({ data: { artists: [] } }));
 
@@ -17,7 +19,7 @@ vi.mock("@evey/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@evey/api")>()),
   eveyFetch: vi.fn(),
   useLibraryServiceListLibraries: (opts: { query?: { select?: (d: unknown) => unknown } }) => applySelect(mockLibrariesHook(), opts),
-  useMusicServiceListTracks: (_p: unknown, opts: { query?: { select?: (d: unknown) => unknown } }) => applySelect(mockTracksHook(), opts),
+  musicServiceListTracks: (p?: unknown, signal?: unknown) => mockTracksFetch(p, signal),
   useMusicServiceGetAlbums: (_p: unknown, opts: { query?: { select?: (d: unknown) => unknown } }) => applySelect(mockAlbumsHook(), opts),
   useMusicServiceGetArtists: (_p: unknown, opts: { query?: { select?: (d: unknown) => unknown } }) => applySelect(mockArtistsHook(), opts),
   musicServiceDeleteTrack: vi.fn(),
@@ -102,7 +104,7 @@ function setupMocks(tracks: typeof mockTracks, total: number) {
     year: t.Year, trackNumber: t.TrackNumber, diskNumber: t.DiskNumber, duration: t.Duration,
     filePath: t.FilePath, mimeType: t.MimeType, genre: t.Genre, coverArtUrl: t.CoverArtURL,
   }));
-  mockTracksHook.mockReturnValue({ data: { tracks: protoTracks, total } });
+  mockTracksFetch.mockResolvedValue({ tracks: protoTracks, total, nextCursor: undefined });
   mockAlbumsHook.mockReturnValue({ data: { albums: [] } });
   mockArtistsHook.mockReturnValue({ data: { artists: [] } });
 }
@@ -232,6 +234,51 @@ describe("MusicPage", () => {
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Previous" })).not.toBeDisabled();
     });
+  });
+
+  // Regression guard. The tab used to ask for a flat limit=200 with no cursor,
+  // so track 201 of a library was unreachable: the pager reported "1 / 4 - 200
+  // tracks" and Next went dead at the end of that slice. Next must now ask the
+  // server for the following page.
+  it("asks the server for the next page when Next runs past the loaded tracks", async () => {
+    mockLibrariesHook.mockReturnValue({ data: { libraries: mockLibraries }, isLoading: false });
+    mockAlbumsHook.mockReturnValue({ data: { albums: [] } });
+    mockArtistsHook.mockReturnValue({ data: { artists: [] } });
+    mockTracksFetch.mockReset();
+    // A full first page hands out a cursor; the second one doesn't, which is
+    // how the server says "that was the last".
+    mockTracksFetch
+      .mockResolvedValueOnce({
+        tracks: [{ id: "t1", title: "Some Track A", artist: "Band A", album: "Some Album", albumArtist: "Band A", year: 2020, trackNumber: 1, diskNumber: 1, duration: 180, filePath: "/t/1", mimeType: "audio/flac", genre: "Rock", coverArtUrl: "" }],
+        total: 2,
+        nextCursor: "cur-1",
+      })
+      .mockResolvedValueOnce({
+        tracks: [{ id: "t2", title: "Some Track B", artist: "Band B", album: "Some Album", albumArtist: "Band B", year: 2021, trackNumber: 2, diskNumber: 1, duration: 200, filePath: "/t/2", mimeType: "audio/flac", genre: "Rock", coverArtUrl: "" }],
+        total: 0,
+        nextCursor: undefined,
+      });
+
+    const mod = await import("./index.lazy");
+    const MusicPage = (mod.Route as unknown as { component: React.ComponentType }).component;
+    render(React.createElement(MusicPage), { wrapper: createWrapper() });
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Tracks" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Tracks" }));
+
+    // One loaded track is far short of a client page, so the pager only exists
+    // at all because the server said there is more.
+    await waitFor(() => expect(screen.getByRole("button", { name: "Next" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+
+    await waitFor(() => expect(mockTracksFetch).toHaveBeenCalledTimes(2));
+    const secondCall = mockTracksFetch.mock.calls[1][0] as { cursor?: string; offset?: number };
+    expect(secondCall.cursor).toBe("cur-1");
+    expect(secondCall.offset).toBeUndefined();
+
+    // The second page's tracks are appended, not swapped in.
+    await waitFor(() => expect(screen.getByText("Some Track B")).toBeInTheDocument());
+    expect(screen.getByText("Some Track A")).toBeInTheDocument();
   });
 
   it("tab navigation switches to Albums tab", async () => {

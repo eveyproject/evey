@@ -40,7 +40,16 @@ function MusicPage() {
   const firstLib = libraries?.[0];
   const activeLibraryID = selectedLibraryID ?? firstLib?.id;
 
-  const { data: tracks, isLoading: tracksLoading, isError: tracksError, error: tracksErrorObj, refetch: refetchTracks } = useMusicTracks(activeLibraryID, search, albumFilter ?? undefined);
+  const {
+    data: tracks,
+    isLoading: tracksLoading,
+    isError: tracksError,
+    error: tracksErrorObj,
+    refetch: refetchTracks,
+    hasNextPage: tracksHasMore,
+    isFetchingNextPage: tracksLoadingMore,
+    fetchNextPage: fetchMoreTracks,
+  } = useMusicTracks(activeLibraryID, search, albumFilter ?? undefined);
   const { data: albums, isLoading: albumsLoading, isError: albumsError, error: albumsErrorObj, refetch: refetchAlbums } = useMusicAlbums(activeLibraryID);
   const { data: artists, isLoading: artistsLoading, isError: artistsError, error: artistsErrorObj, refetch: refetchArtists } = useMusicArtists(activeLibraryID);
 
@@ -179,6 +188,9 @@ function MusicPage() {
           onGenreChange={setGenreFilter}
           onYearChange={setYearFilter}
           onArtistSelectChange={setArtistSelectFilter}
+          hasMore={tracksHasMore}
+          isLoadingMore={tracksLoadingMore}
+          onLoadMore={() => { void fetchMoreTracks(); }}
         />
       )}
       {tab === "albums" && (

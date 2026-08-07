@@ -1,8 +1,11 @@
+import { useMemo } from "react";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import {
   useLibraryServiceListLibraries,
-  useMusicServiceListTracks,
+  musicServiceListTracks,
   useMusicServiceGetAlbums,
   useMusicServiceGetArtists,
+  hasMoreFromCursor,
 } from "@evey/api";
 
 export type Track = {
@@ -54,15 +57,43 @@ export function useMusicLibraries() {
   });
 }
 
+// Tracks are keyset-paginated. The tab used to ask for a flat limit=200, which
+// simply lost everything past the 200th track of a library: the pager then
+// reported "1 / 4 - 200 tracks" on a collection of a thousand, and no click
+// could reach the rest.
+//
+// Only the plain list path pages. With an albumId the server returns that
+// album's full track set and ignores limit/search entirely, and a free-text
+// search is answered by the full-text index, which has no keyset of its own -
+// both come back as a single page with no cursor, so hasNextPage is false and
+// the tab behaves exactly as before.
+const TRACK_PAGE_SIZE = 200;
+
 export function useMusicTracks(libraryID: string | undefined, search: string, albumId?: string) {
-  return useMusicServiceListTracks(
-    // When albumId is set the server returns that album's full track set and
-    // ignores search/limit; the in-tab search box then filters it client-side.
-    { libraryId: libraryID, limit: 200, search: albumId ? undefined : (search || undefined), albumId: albumId || undefined },
-    {
-      query: {
-        enabled: !!libraryID,
-        select: (d) => (d.tracks ?? []).map<Track>((t) => ({
+  const effectiveSearch = albumId ? undefined : (search || undefined);
+  const query = useInfiniteQuery({
+    queryKey: ["music-tracks-infinite", libraryID ?? "", effectiveSearch ?? "", albumId ?? ""],
+    enabled: !!libraryID,
+    initialPageParam: "" as string,
+    queryFn: ({ pageParam, signal }) =>
+      musicServiceListTracks(
+        {
+          libraryId: libraryID,
+          limit: TRACK_PAGE_SIZE,
+          ...(effectiveSearch ? { search: effectiveSearch } : {}),
+          ...(albumId ? { albumId } : {}),
+          ...(pageParam ? { cursor: pageParam } : { offset: 0 }),
+        },
+        signal,
+      ),
+    getNextPageParam: (last) => (hasMoreFromCursor(last) ? last.nextCursor : undefined),
+    staleTime: 60_000,
+  });
+
+  const data = useMemo(
+    () =>
+      (query.data?.pages ?? []).flatMap((page) =>
+        (page.tracks ?? []).map<Track>((t) => ({
           ID: t.id ?? "",
           Title: t.title ?? "",
           Artist: t.artist ?? "",
@@ -77,10 +108,11 @@ export function useMusicTracks(libraryID: string | undefined, search: string, al
           Genre: t.genre ?? "",
           CoverArtURL: t.coverArtUrl ?? "",
         })),
-        staleTime: 60_000,
-      },
-    },
+      ),
+    [query.data],
   );
+
+  return { ...query, data };
 }
 
 export function useMusicAlbums(libraryID: string | undefined) {
