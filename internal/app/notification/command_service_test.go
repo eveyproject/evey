@@ -207,7 +207,7 @@ func TestCommandService_MediaItemAdded_PublishesNotificationCreatedEvent(t *test
 	svc.Register()
 
 	require.NoError(t, bus.Publish(ctx, libevent.MediaItemAdded{
-		MediaItemID: "m1", LibraryID: "lib1", Title: "Inception", Type: "movie", OccurredAt: time.Now(),
+		MediaItemID: "m1", LibraryID: "lib1", Title: "Some Movie", Type: "movie", OccurredAt: time.Now(),
 	}))
 
 	var found bool
@@ -263,7 +263,7 @@ func TestCommandService_MediaItemAdded_AnalyticsErrorStillNotifiesLevelAll(t *te
 	svc.Register()
 
 	require.NoError(t, bus.Publish(ctx, libevent.MediaItemAdded{
-		MediaItemID: "m1", LibraryID: "lib1", Title: "Inception", Type: "movie",
+		MediaItemID: "m1", LibraryID: "lib1", Title: "Some Movie", Type: "movie",
 		Genres: []string{"Action"}, OccurredAt: time.Now(),
 	}))
 
@@ -298,7 +298,7 @@ func TestCommandService_FlushBatches_FlushesPending(t *testing.T) {
 
 	// series event is batched (waits 10s) - FlushBatches forces immediate emit
 	require.NoError(t, bus.Publish(ctx, libevent.MediaItemAdded{
-		MediaItemID: "s1", LibraryID: "lib1", Title: "Lost", Type: "series", OccurredAt: time.Now(),
+		MediaItemID: "s1", LibraryID: "lib1", Title: "Some Series", Type: "series", OccurredAt: time.Now(),
 	}))
 
 	items, err := repo.ListByProfile(ctx, "p1", false, 0, 0)

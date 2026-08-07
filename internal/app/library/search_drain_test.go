@@ -54,7 +54,7 @@ func TestDrainSearchWriteQueue(t *testing.T) {
 		q.ops["m1"] = library.SearchOpUpsert
 		q.ops["m2"] = library.SearchOpDelete
 		items := libfakes.NewFakeMediaItemQueryRepo()
-		items.Add(&library.MediaItem{ID: "m1", Title: "Avatar"})
+		items.Add(&library.MediaItem{ID: "m1", Title: "Some Movie"})
 		search := libfakes.NewFakeSearchIndex()
 		_ = search.IndexMediaItem(ctx, &library.MediaItem{ID: "m2"}) // present, to be removed
 

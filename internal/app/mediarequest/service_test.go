@@ -254,7 +254,7 @@ func TestSearchTitles_LibraryLookupGuards(t *testing.T) {
 		svc := appmediarequest.NewService(mrfakes.NewFakeRepository(), mrfakes.NewFakeAccess(true),
 			[]metadata.MetadataProvider{&resultProvider{results: results}}, &fakeBus{}).WithLibraryLookup(lookup)
 
-		if _, err := svc.SearchTitles(context.Background(), "usr-1", mediarequest.MediaTypeMusic, "Dune", nil); err != nil {
+		if _, err := svc.SearchTitles(context.Background(), "usr-1", mediarequest.MediaTypeMusic, "Some Album", nil); err != nil {
 			t.Fatalf("SearchTitles: %v", err)
 		}
 		if lookup.calls != 0 {

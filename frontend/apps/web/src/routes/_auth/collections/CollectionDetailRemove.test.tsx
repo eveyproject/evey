@@ -30,10 +30,10 @@ vi.mock("@/features/collection/api", () => ({
   // Shape copied from the real useCollection: { data: { collection, items, total } }.
   useCollection: () => ({
     data: {
-      collection: { id: "col-1", name: "Matrix - Saga" },
+      collection: { id: "col-1", name: "Some Saga" },
       items: [
-        { id: "mi-1", title: "Matrix", type: "movie" },
-        { id: "mi-2", title: "Matrix Reloaded", type: "movie" },
+        { id: "mi-1", title: "Some Movie A", type: "movie" },
+        { id: "mi-2", title: "Some Movie B", type: "movie" },
       ],
       total: 2,
     },
@@ -110,7 +110,7 @@ describe("deleting the collection itself", () => {
     render(React.createElement((Route as unknown as { component: React.ComponentType }).component));
 
     expect(screen.queryByTestId("collection-delete-btn")).toBeNull();
-    expect(screen.getByText("Matrix - Saga")).toBeInTheDocument();
+    expect(screen.getByText("Some Saga")).toBeInTheDocument();
   });
 });
 
@@ -123,7 +123,7 @@ describe("reordering a collection", () => {
     expect(reorderMutate).toHaveBeenCalledTimes(1);
     expect(reorderMutate.mock.calls[0][0]).toEqual({
       mediaItemIds: ["mi-2", "mi-1"],
-      name: "Matrix - Saga",
+      name: "Some Saga",
     });
   });
 

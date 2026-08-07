@@ -32,7 +32,7 @@ vi.mock("@/features/collection/api", () => ({
       ? undefined
       : {
           collection: { id: "smart-1", name: "Recent sci-fi", rules: [{ field: "year", operator: "gte", value: "2020" }] },
-          items: [{ id: "mi-1", title: "Dune", type: "movie" }],
+          items: [{ id: "mi-1", title: "Some Movie", type: "movie" }],
           total: 1,
         },
     isLoading: false,
@@ -89,7 +89,7 @@ describe("smart collection page", () => {
     await renderPage();
     expect(screen.queryByTestId("smart-delete-btn")).toBeNull();
     expect(screen.getByText("Recent sci-fi")).toBeInTheDocument();
-    expect(screen.getByText("Dune")).toBeInTheDocument();
+    expect(screen.getByText("Some Movie")).toBeInTheDocument();
   });
 });
 

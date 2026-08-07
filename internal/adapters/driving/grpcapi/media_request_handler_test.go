@@ -170,7 +170,7 @@ func TestToMediaRequestProto_FullMapping(t *testing.T) {
 		MediaType:  mediarequest.MediaTypeMovie,
 		Provider:   "tmdb",
 		ProviderID: "438631",
-		Title:      "Dune",
+		Title:      "Some Movie",
 		Year:       &year,
 		PosterURL:  "https://example.com/poster.jpg",
 		Status:     mediarequest.StatusApproved,
@@ -189,7 +189,7 @@ func TestToMediaRequestProto_FullMapping(t *testing.T) {
 	assert.Equal(t, string(mediarequest.MediaTypeMovie), p.MediaType)
 	assert.Equal(t, "tmdb", p.Provider)
 	assert.Equal(t, "438631", p.ProviderId)
-	assert.Equal(t, "Dune", p.Title)
+	assert.Equal(t, "Some Movie", p.Title)
 	assert.Equal(t, int32(2021), p.Year)
 	assert.Equal(t, "https://example.com/poster.jpg", p.PosterUrl)
 	assert.Equal(t, string(mediarequest.StatusApproved), p.Status)
@@ -214,7 +214,7 @@ func TestToMediaRequestProto_PendingUnanswered(t *testing.T) {
 		ProfileID: "profile-2",
 		UserID:    "user-2",
 		MediaType: mediarequest.MediaTypeTV,
-		Title:     "Severance",
+		Title:     "Some Series",
 		Status:    mediarequest.StatusPending,
 		CreatedAt: created,
 		UpdatedAt: created,
@@ -286,12 +286,12 @@ func TestAdminMediaRequestHandler_ListRequests_HappyPath(t *testing.T) {
 	now := time.Now()
 	repo.seed(&mediarequest.Request{
 		ID: "req-a", ProfileID: "profile-1", UserID: "user-1",
-		MediaType: mediarequest.MediaTypeMovie, Title: "Dune", Status: mediarequest.StatusPending,
+		MediaType: mediarequest.MediaTypeMovie, Title: "Some Movie", Status: mediarequest.StatusPending,
 		CreatedAt: now, UpdatedAt: now,
 	})
 	repo.seed(&mediarequest.Request{
 		ID: "req-b", ProfileID: "profile-2", UserID: "user-2",
-		MediaType: mediarequest.MediaTypeTV, Title: "Severance", Status: mediarequest.StatusApproved,
+		MediaType: mediarequest.MediaTypeTV, Title: "Some Series", Status: mediarequest.StatusApproved,
 		CreatedAt: now, UpdatedAt: now,
 	})
 
@@ -305,7 +305,7 @@ func TestAdminMediaRequestHandler_ListRequests_HappyPath(t *testing.T) {
 		byID[it.Id] = it
 	}
 	require.Contains(t, byID, "req-a")
-	assert.Equal(t, "Dune", byID["req-a"].Title)
+	assert.Equal(t, "Some Movie", byID["req-a"].Title)
 	assert.Equal(t, string(mediarequest.StatusPending), byID["req-a"].Status)
 	require.Contains(t, byID, "req-b")
 	assert.Equal(t, string(mediarequest.StatusApproved), byID["req-b"].Status)
@@ -316,7 +316,7 @@ func TestAdminMediaRequestHandler_AnswerRequest_HappyPath(t *testing.T) {
 
 	requesterCtx := ctxWithClaims("user-1", "profile-1", false)
 	created, err := requester.CreateRequest(requesterCtx, &eveyv1.CreateRequestRequest{
-		MediaType: string(mediarequest.MediaTypeMovie), Title: "Dune",
+		MediaType: string(mediarequest.MediaTypeMovie), Title: "Some Movie",
 	})
 	require.NoError(t, err)
 	assert.Equal(t, string(mediarequest.StatusPending), created.Status)
@@ -339,7 +339,7 @@ func TestAdminMediaRequestHandler_AnswerRequest_RejectsNonAnswerStatus(t *testin
 	now := time.Now()
 	repo.seed(&mediarequest.Request{
 		ID: "req-x", ProfileID: "profile-1", UserID: "user-1",
-		MediaType: mediarequest.MediaTypeMovie, Title: "Dune", Status: mediarequest.StatusPending,
+		MediaType: mediarequest.MediaTypeMovie, Title: "Some Movie", Status: mediarequest.StatusPending,
 		CreatedAt: now, UpdatedAt: now,
 	})
 

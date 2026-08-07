@@ -4,7 +4,7 @@ import { RequestPoster } from "./RequestPoster";
 
 describe("RequestPoster", () => {
   it("renders the poster when there is a url", () => {
-    render(<RequestPoster posterUrl="https://example.test/p.jpg" title="Dune" mediaType="movie" />);
+    render(<RequestPoster posterUrl="https://example.test/p.jpg" title="Some Movie" mediaType="movie" />);
     expect(screen.getByRole("img")).toHaveAttribute("src", "https://example.test/p.jpg");
   });
 
@@ -21,7 +21,7 @@ describe("RequestPoster", () => {
     render(
       <RequestPoster
         posterUrl="https://coverartarchive.org/release-group/nope/front-250"
-        title="a 4K remux"
+        title="Some Album"
         mediaType="music"
       />,
     );

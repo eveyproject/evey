@@ -57,8 +57,8 @@ func TestCollectionListCollections_Empty(t *testing.T) {
 
 func TestCollectionListCollections_WithData(t *testing.T) {
 	h, cmdRepo, mediaRepo, _ := newTestCollectionHandlerWithAccess()
-	seedCollection(cmdRepo, "col-1", "Marvel Cinematic Universe")
-	seedCollection(cmdRepo, "col-2", "DC Extended Universe")
+	seedCollection(cmdRepo, "col-1", "Some Franchise A")
+	seedCollection(cmdRepo, "col-2", "Some Franchise B")
 	// Real sagas hold titles: an empty auto saga is a stub the listing hides.
 	for i, col := range []string{"col-1", "col-2"} {
 		for j := range 2 {
@@ -79,7 +79,7 @@ func TestCollectionListCollections_WithData(t *testing.T) {
 
 func TestCollectionGetCollection_Found(t *testing.T) {
 	h, cmdRepo := newTestCollectionHandler()
-	seedCollection(cmdRepo, "col-1", "Avengers")
+	seedCollection(cmdRepo, "col-1", "Some Collection")
 
 	resp, err := h.GetCollection(context.Background(), &eveyv1.GetCollectionRequest{Id: "col-1"})
 	if err != nil {
@@ -88,8 +88,8 @@ func TestCollectionGetCollection_Found(t *testing.T) {
 	if resp.Collection.Id != "col-1" {
 		t.Errorf("expected id 'col-1', got %q", resp.Collection.Id)
 	}
-	if resp.Collection.Name != "Avengers" {
-		t.Errorf("expected name 'Avengers', got %q", resp.Collection.Name)
+	if resp.Collection.Name != "Some Collection" {
+		t.Errorf("expected name 'Some Collection', got %q", resp.Collection.Name)
 	}
 }
 
@@ -99,11 +99,11 @@ func TestCollectionGetCollection_Found(t *testing.T) {
 // into a collection must also describe the same titles the same way.
 func TestCollectionGetCollection_CarriesItsMembers(t *testing.T) {
 	h, cmdRepo, mediaRepo, _ := newTestCollectionHandlerWithAccess()
-	seedCollection(cmdRepo, "col-1", "Bond")
+	seedCollection(cmdRepo, "col-1", "Some Collection")
 	ctx := context.Background()
 	for _, m := range []*library.MediaItem{
-		{ID: "m1", LibraryID: "lib-1", Title: "Dr. No", Type: "movie"},
-		{ID: "m2", LibraryID: "lib-1", Title: "Bond spinoff", Type: "series"},
+		{ID: "m1", LibraryID: "lib-1", Title: "Some Movie", Type: "movie"},
+		{ID: "m2", LibraryID: "lib-1", Title: "Some Series", Type: "series"},
 	} {
 		mediaRepo.Create(ctx, m)
 		if _, err := h.AddCollectionItem(ctx, &eveyv1.AddCollectionItemRequest{Id: "col-1", MediaItemId: string(m.ID)}); err != nil {
@@ -124,8 +124,8 @@ func TestCollectionGetCollection_CarriesItsMembers(t *testing.T) {
 	for _, i := range resp.Items {
 		types[i.Title] = i.Type
 	}
-	if types["Bond spinoff"] != "series" {
-		t.Errorf("series member came back as %q", types["Bond spinoff"])
+	if types["Some Series"] != "series" {
+		t.Errorf("series member came back as %q", types["Some Series"])
 	}
 
 	listed, err := h.GetCollectionItems(ctx, &eveyv1.GetCollectionItemsRequest{Id: "col-1", Limit: 50})
@@ -199,7 +199,7 @@ func TestCollectionGetCollection_UserAccessUnwired_DeniesNonAdmin(t *testing.T) 
 
 func TestCollectionDeleteCollection_Success(t *testing.T) {
 	h, cmdRepo := newTestCollectionHandler()
-	seedCollection(cmdRepo, "col-1", "Avengers")
+	seedCollection(cmdRepo, "col-1", "Some Collection")
 
 	_, err := h.DeleteCollection(context.Background(), &eveyv1.DeleteCollectionRequest{Id: "col-1"})
 	if err != nil {
@@ -265,11 +265,11 @@ func TestCollectionListCollections_IDOR_FiltersByLibraryAccess(t *testing.T) {
 // by default; min_items=1 is the curation escape hatch.
 func TestCollectionListCollections_HidesOneTitleStubs(t *testing.T) {
 	h, cmdRepo, mediaRepo, _ := newTestCollectionHandlerWithAccess()
-	seedCollection(cmdRepo, "col-stub", "Alien - Saga")
-	seedCollection(cmdRepo, "col-real", "Matrix - Saga")
-	mediaRepo.Create(context.Background(), &library.MediaItem{ID: "m1", LibraryID: "lib-1", Title: "Alien", Type: "movie"})
-	mediaRepo.Create(context.Background(), &library.MediaItem{ID: "m2", LibraryID: "lib-1", Title: "Matrix", Type: "movie"})
-	mediaRepo.Create(context.Background(), &library.MediaItem{ID: "m3", LibraryID: "lib-1", Title: "Matrix Reloaded", Type: "movie"})
+	seedCollection(cmdRepo, "col-stub", "Some Saga A")
+	seedCollection(cmdRepo, "col-real", "Some Saga B")
+	mediaRepo.Create(context.Background(), &library.MediaItem{ID: "m1", LibraryID: "lib-1", Title: "Some Movie", Type: "movie"})
+	mediaRepo.Create(context.Background(), &library.MediaItem{ID: "m2", LibraryID: "lib-1", Title: "Some Movie A", Type: "movie"})
+	mediaRepo.Create(context.Background(), &library.MediaItem{ID: "m3", LibraryID: "lib-1", Title: "Some Movie B", Type: "movie"})
 	cmdRepo.LinkItem(context.Background(), "col-stub", "m1", 0)
 	cmdRepo.LinkItem(context.Background(), "col-real", "m2", 0)
 	cmdRepo.LinkItem(context.Background(), "col-real", "m3", 0)
@@ -296,13 +296,13 @@ func TestCollectionListCollections_HidesOneTitleStubs(t *testing.T) {
 // nothing to add titles to.
 func TestCollectionListCollections_KeepsEmptyHandBuiltCollections(t *testing.T) {
 	h, cmdRepo, mediaRepo, _ := newTestCollectionHandlerWithAccess()
-	seedCollection(cmdRepo, "col-stub-saga", "Alien - Saga") // auto, 1 title
+	seedCollection(cmdRepo, "col-stub-saga", "Some Saga A") // auto, 1 title
 	cmdRepo.Upsert(context.Background(), &library.Collection{ID: "col-empty", Name: "Soirée pizza"})
 	cmdRepo.Upsert(context.Background(), &library.Collection{
 		ID: "col-smart-empty", Name: "Années 80",
 		Rules: []library.CollectionRule{{Field: "year", Operator: "lt", Value: "1990"}},
 	})
-	mediaRepo.Create(context.Background(), &library.MediaItem{ID: "m1", LibraryID: "lib-1", Title: "Alien", Type: "movie"})
+	mediaRepo.Create(context.Background(), &library.MediaItem{ID: "m1", LibraryID: "lib-1", Title: "Some Movie", Type: "movie"})
 	cmdRepo.LinkItem(context.Background(), "col-stub-saga", "m1", 0)
 
 	resp, err := h.ListCollections(adminCtx(), &eveyv1.ListCollectionsRequest{})
@@ -325,7 +325,7 @@ func TestCollectionListCollections_KeepsEmptyHandBuiltCollections(t *testing.T) 
 // it - it never receives the members of every collection.
 func TestCollectionListCollections_ReportsItemCount(t *testing.T) {
 	h, cmdRepo, mediaRepo, _ := newTestCollectionHandlerWithAccess()
-	seedCollection(cmdRepo, "col-real", "Matrix - Saga")
+	seedCollection(cmdRepo, "col-real", "Some Saga B")
 	for _, id := range []string{"m1", "m2", "m3"} {
 		mediaRepo.Create(context.Background(), &library.MediaItem{ID: shared.MediaItemID(id), LibraryID: "lib-1", Title: id, Type: "movie"})
 		cmdRepo.LinkItem(context.Background(), "col-real", id, 0)
@@ -372,7 +372,7 @@ func TestCollectionListCollections_ItemCountIsAccessFiltered(t *testing.T) {
 // inferring it from the presence of tmdb_id.
 func TestCollectionListCollections_ReportsKind(t *testing.T) {
 	h, cmdRepo, mediaRepo, _ := newTestCollectionHandlerWithAccess()
-	seedCollection(cmdRepo, "col-saga", "Matrix - Saga") // seedCollection stamps a TmdbID
+	seedCollection(cmdRepo, "col-saga", "Some Saga") // seedCollection stamps a TmdbID
 	cmdRepo.Upsert(context.Background(), &library.Collection{ID: "col-manual", Name: "Soirée pizza"})
 	cmdRepo.Upsert(context.Background(), &library.Collection{
 		ID: "col-smart", Name: "Années 80",
@@ -717,7 +717,7 @@ func TestCollectionDeleteCollection_EmptyID_400(t *testing.T) {
 
 func TestCollectionGetCollectionItems_Empty(t *testing.T) {
 	h, cmdRepo := newTestCollectionHandler()
-	seedCollection(cmdRepo, "col-1", "Avengers")
+	seedCollection(cmdRepo, "col-1", "Some Collection")
 
 	resp, err := h.GetCollectionItems(context.Background(), &eveyv1.GetCollectionItemsRequest{
 		Id:    "col-1",
@@ -966,7 +966,7 @@ func TestCollectionRemoveCollectionItem_IDOR_DeniesForeignCollection(t *testing.
 // release order (prequels).
 func TestCollectionReorderCollectionItems_OK(t *testing.T) {
 	h, cmdRepo, mediaRepo, _ := newTestCollectionHandlerWithAccess()
-	cmdRepo.Upsert(context.Background(), &library.Collection{ID: "col-1", Name: "Star Wars chrono", SortBy: "manual"})
+	cmdRepo.Upsert(context.Background(), &library.Collection{ID: "col-1", Name: "Some Chrono", SortBy: "manual"})
 	for _, id := range []string{"m1", "m2", "m3"} {
 		mediaRepo.Create(context.Background(), &library.MediaItem{ID: shared.MediaItemID(id), LibraryID: "lib-1", Title: id, Type: "movie"})
 		cmdRepo.LinkItem(context.Background(), "col-1", id, 0)
@@ -1047,13 +1047,13 @@ func TestCollectionGetCollection_ReportsAccessFilteredItemCount(t *testing.T) {
 	}
 }
 
-// A film page can only say "part of the Alien saga" if it can ask which
+// A film page can only say "part of the saga" if it can ask which
 // collections hold this title - the one place a viewer wonders about it.
 func TestCollectionListForMediaItem_ReturnsTheHoldingCollections(t *testing.T) {
 	h, cmdRepo, mediaRepo, _ := newTestCollectionHandlerWithAccess()
-	seedCollection(cmdRepo, "col-saga", "Alien - Saga")
+	seedCollection(cmdRepo, "col-saga", "Some Saga")
 	cmdRepo.Upsert(context.Background(), &library.Collection{ID: "col-other", Name: "Autre"})
-	mediaRepo.Create(context.Background(), &library.MediaItem{ID: "mi-alien", LibraryID: "lib-1", Title: "Alien", Type: "movie"})
+	mediaRepo.Create(context.Background(), &library.MediaItem{ID: "mi-alien", LibraryID: "lib-1", Title: "Some Movie", Type: "movie"})
 	mediaRepo.Create(context.Background(), &library.MediaItem{ID: "mi-solo", LibraryID: "lib-1", Title: "Solo", Type: "movie"})
 	cmdRepo.LinkItem(context.Background(), "col-saga", "mi-alien", 0)
 

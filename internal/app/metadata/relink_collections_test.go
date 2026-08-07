@@ -66,13 +66,13 @@ func (f *recordingLinker) ListMoviesWithoutCollection(_ context.Context, afterID
 func TestRelinkCollections_LinksMoviesWhoseSagaIsKnown(t *testing.T) {
 	linker := &recordingLinker{
 		unlinked: []domainlib.UnlinkedMovie{
-			{MediaItemID: "mi-reloaded", ProviderID: "604"},
-			{MediaItemID: "mi-revolutions", ProviderID: "605"},
+			{MediaItemID: "mi-sequel-a", ProviderID: "604"},
+			{MediaItemID: "mi-sequel-b", ProviderID: "605"},
 		},
-		col: &domainlib.Collection{ID: "col-matrix", Name: "Matrix - Saga"},
+		col: &domainlib.Collection{ID: "col-saga", Name: "Some Saga"},
 	}
 	provider := &fakeProvider{detailResult: &domain.MetadataResult{
-		Collection: &domain.CollectionRef{TmdbID: 2344, Name: "Matrix Collection"},
+		Collection: &domain.CollectionRef{TmdbID: 2344, Name: "Some Saga Collection"},
 	}}
 	e, _, _, _, _, _ := newTestEnricher(provider, nil, linker)
 
@@ -83,7 +83,7 @@ func TestRelinkCollections_LinksMoviesWhoseSagaIsKnown(t *testing.T) {
 	if rep.Scanned != 2 || rep.Linked != 2 {
 		t.Errorf("report = %+v, want scanned 2 / linked 2", rep)
 	}
-	want := []string{"col-matrix|mi-reloaded", "col-matrix|mi-revolutions"}
+	want := []string{"col-saga|mi-sequel-a", "col-saga|mi-sequel-b"}
 	if len(linker.links) != 2 || linker.links[0] != want[0] || linker.links[1] != want[1] {
 		t.Errorf("links = %v, want %v", linker.links, want)
 	}

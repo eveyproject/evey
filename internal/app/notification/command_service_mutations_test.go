@@ -104,7 +104,7 @@ func TestNotificationService_PublishNotificationCreatedError_LogsWarning(t *test
 	svc.Register()
 
 	inner.Publish(ctx, libevent.MediaItemAdded{
-		MediaItemID: "m1", LibraryID: "lib1", Title: "Inception", Type: "movie", OccurredAt: time.Now(),
+		MediaItemID: "m1", LibraryID: "lib1", Title: "Some Movie", Type: "movie", OccurredAt: time.Now(),
 	})
 
 	notifs, err := repo.ListByProfile(ctx, "p1", false, 0, 0)
@@ -136,7 +136,7 @@ func TestNotificationService_PushSendError_LogsWarning(t *testing.T) {
 	svc.Register()
 
 	bus.Publish(ctx, libevent.MediaItemAdded{
-		MediaItemID: "m1", LibraryID: "lib1", Title: "Inception", Type: "movie", OccurredAt: time.Now(),
+		MediaItemID: "m1", LibraryID: "lib1", Title: "Some Movie", Type: "movie", OccurredAt: time.Now(),
 	})
 
 	assert.Contains(t, buf.String(), "webpush: send failed")
@@ -163,7 +163,7 @@ func TestNotificationService_PushGone410_PrunesSubscription(t *testing.T) {
 	svc.Register()
 
 	bus.Publish(ctx, libevent.MediaItemAdded{
-		MediaItemID: "m1", LibraryID: "lib1", Title: "Inception", Type: "movie", OccurredAt: time.Now(),
+		MediaItemID: "m1", LibraryID: "lib1", Title: "Some Movie", Type: "movie", OccurredAt: time.Now(),
 	})
 
 	got, err := subRepo.GetByProfile(ctx, "p1")
@@ -193,7 +193,7 @@ func TestNotificationService_PushGetSubsError_LogsWarning(t *testing.T) {
 	svc.Register()
 
 	bus.Publish(ctx, libevent.MediaItemAdded{
-		MediaItemID: "m1", LibraryID: "lib1", Title: "Inception", Type: "movie", OccurredAt: time.Now(),
+		MediaItemID: "m1", LibraryID: "lib1", Title: "Some Movie", Type: "movie", OccurredAt: time.Now(),
 	})
 
 	assert.Contains(t, buf.String(), "webpush: get subscriptions failed")
@@ -548,7 +548,7 @@ func TestNotificationService_FlushBatches_StopsTimer(t *testing.T) {
 	svc.Register()
 
 	bus.Publish(ctx, libevent.MediaItemAdded{
-		MediaItemID: "s1", LibraryID: "lib1", Title: "Breaking Bad", Type: "series", OccurredAt: time.Now(),
+		MediaItemID: "s1", LibraryID: "lib1", Title: "Some Series", Type: "series", OccurredAt: time.Now(),
 	})
 
 	// Call FlushBatches and confirm exactly one notification produced promptly.
@@ -671,10 +671,10 @@ func TestNotif_KillMutant_BatchedEpisodesUsePluralPushTitle(t *testing.T) {
 
 	// Two episodes of the same series batch into one notification with plural push title.
 	bus.Publish(ctx, libevent.MediaItemAdded{
-		MediaItemID: "e1", LibraryID: "lib1", Title: "Ep 1", SeriesTitle: "Breaking Bad", Type: "episode", OccurredAt: time.Now(),
+		MediaItemID: "e1", LibraryID: "lib1", Title: "Ep 1", SeriesTitle: "Some Series", Type: "episode", OccurredAt: time.Now(),
 	})
 	bus.Publish(ctx, libevent.MediaItemAdded{
-		MediaItemID: "e2", LibraryID: "lib1", Title: "Ep 2", SeriesTitle: "Breaking Bad", Type: "episode", OccurredAt: time.Now(),
+		MediaItemID: "e2", LibraryID: "lib1", Title: "Ep 2", SeriesTitle: "Some Series", Type: "episode", OccurredAt: time.Now(),
 	})
 	svc.FlushBatches()
 

@@ -46,7 +46,7 @@ func TestNotificationService_MediaItemAdded_CreatesNotificationsForAllProfiles(t
 	bus.Publish(ctx, libevent.MediaItemAdded{
 		MediaItemID: "m1",
 		LibraryID:   "lib1",
-		Title:       "Inception",
+		Title:       "Some Movie",
 		Type:        "movie",
 		OccurredAt:  time.Now(),
 	})
@@ -78,7 +78,7 @@ func TestNotificationService_Deduplication(t *testing.T) {
 	ev := libevent.MediaItemAdded{
 		MediaItemID: "m1",
 		LibraryID:   "lib1",
-		Title:       "Inception",
+		Title:       "Some Movie",
 		Type:        "movie",
 		OccurredAt:  time.Now(),
 	}
@@ -114,7 +114,7 @@ func TestNotificationService_LevelDisabled_SkipsProfile(t *testing.T) {
 	bus.Publish(ctx, libevent.MediaItemAdded{
 		MediaItemID: "m1",
 		LibraryID:   "lib1",
-		Title:       "Inception",
+		Title:       "Some Movie",
 		Type:        "movie",
 		OccurredAt:  time.Now(),
 	})
@@ -167,7 +167,7 @@ func TestNotificationService_GetAllProfilesError_NoNotifications(t *testing.T) {
 	bus.Publish(ctx, libevent.MediaItemAdded{
 		MediaItemID: "m1",
 		LibraryID:   "lib1",
-		Title:       "Inception",
+		Title:       "Some Movie",
 		Type:        "movie",
 		OccurredAt:  time.Now(),
 	})
@@ -195,7 +195,7 @@ func TestNotificationService_EpisodeNotification(t *testing.T) {
 		MediaItemID: "ep1",
 		LibraryID:   "lib1",
 		Title:       "Pilot",
-		SeriesTitle: "Breaking Bad",
+		SeriesTitle: "Some Series",
 		Type:        "episode",
 		OccurredAt:  time.Now(),
 	})
@@ -207,7 +207,7 @@ func TestNotificationService_EpisodeNotification(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, notifs, 1)
 	assert.Equal(t, notifdom.TypeNewEpisode, notifs[0].Type)
-	assert.Contains(t, notifs[0].Title, "Breaking Bad")
+	assert.Contains(t, notifs[0].Title, "Some Series")
 }
 
 func TestNotificationService_AlbumNotification(t *testing.T) {
@@ -227,7 +227,7 @@ func TestNotificationService_AlbumNotification(t *testing.T) {
 	bus.Publish(ctx, libevent.MediaItemAdded{
 		MediaItemID: "alb1",
 		LibraryID:   "lib1",
-		Title:       "Dark Side of the Moon",
+		Title:       "Some Album",
 		Type:        "album",
 		OccurredAt:  time.Now(),
 	})
@@ -377,7 +377,7 @@ func TestNotificationService_WithPush_SendsToSubscriptions(t *testing.T) {
 	bus.Publish(ctx, libevent.MediaItemAdded{
 		MediaItemID: "m1",
 		LibraryID:   "lib1",
-		Title:       "Inception",
+		Title:       "Some Movie",
 		Type:        "movie",
 		OccurredAt:  time.Now(),
 	})
@@ -407,7 +407,7 @@ func TestNotificationService_WithPush_NoSubsNoPush(t *testing.T) {
 	bus.Publish(ctx, libevent.MediaItemAdded{
 		MediaItemID: "m1",
 		LibraryID:   "lib1",
-		Title:       "Inception",
+		Title:       "Some Movie",
 		Type:        "movie",
 		OccurredAt:  time.Now(),
 	})
@@ -446,7 +446,7 @@ func TestNotificationService_WithPush_DisabledLevel_NoPush(t *testing.T) {
 	bus.Publish(ctx, libevent.MediaItemAdded{
 		MediaItemID: "m1",
 		LibraryID:   "lib1",
-		Title:       "Inception",
+		Title:       "Some Movie",
 		Type:        "movie",
 		OccurredAt:  time.Now(),
 	})
@@ -476,7 +476,7 @@ func TestNotificationService_WithPush_PushSendError_DoesNotBlockNotification(t *
 	bus.Publish(ctx, libevent.MediaItemAdded{
 		MediaItemID: "m1",
 		LibraryID:   "lib1",
-		Title:       "Inception",
+		Title:       "Some Movie",
 		Type:        "movie",
 		OccurredAt:  time.Now(),
 	})
@@ -607,7 +607,7 @@ func TestNotificationService_SeasonNotification(t *testing.T) {
 		MediaItemID: "s1",
 		LibraryID:   "lib1",
 		Title:       "Season 2",
-		SeriesTitle: "Breaking Bad",
+		SeriesTitle: "Some Series",
 		Type:        "season",
 		OccurredAt:  time.Now(),
 	})
@@ -618,7 +618,7 @@ func TestNotificationService_SeasonNotification(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, notifs, 1)
 	assert.Equal(t, notifdom.TypeNewSeason, notifs[0].Type)
-	assert.Contains(t, notifs[0].Title, "Breaking Bad")
+	assert.Contains(t, notifs[0].Title, "Some Series")
 }
 
 func TestNotificationService_SeasonNotification_NoSeriesTitle(t *testing.T) {
@@ -668,7 +668,7 @@ func TestNotificationService_SeriesNotification(t *testing.T) {
 	bus.Publish(ctx, libevent.MediaItemAdded{
 		MediaItemID: "sr1",
 		LibraryID:   "lib1",
-		Title:       "The Wire",
+		Title:       "Some Series",
 		Type:        "series",
 		OccurredAt:  time.Now(),
 	})
@@ -679,7 +679,7 @@ func TestNotificationService_SeriesNotification(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, notifs, 1)
 	assert.Equal(t, notifdom.TypeNewSeries, notifs[0].Type)
-	assert.Equal(t, "new_series:The Wire", notifs[0].Title)
+	assert.Equal(t, "new_series:Some Series", notifs[0].Title)
 }
 
 func TestNotificationService_EpisodeNotification_NoSeriesTitle(t *testing.T) {
@@ -734,7 +734,7 @@ func TestNotificationService_RelevantLevel_MatchingGenres_CreatesNotification(t 
 	bus.Publish(ctx, libevent.MediaItemAdded{
 		MediaItemID: "m1",
 		LibraryID:   "lib1",
-		Title:       "The Matrix",
+		Title:       "Some Movie",
 		Type:        "movie",
 		Genres:      []string{"Action", "Drama"},
 		OccurredAt:  time.Now(),
@@ -769,7 +769,7 @@ func TestNotificationService_RelevantLevel_NoMatchingGenres_SkipsNotification(t 
 	bus.Publish(ctx, libevent.MediaItemAdded{
 		MediaItemID: "m1",
 		LibraryID:   "lib1",
-		Title:       "The Matrix",
+		Title:       "Some Movie",
 		Type:        "movie",
 		Genres:      []string{"Action", "Sci-Fi"},
 		OccurredAt:  time.Now(),
@@ -838,7 +838,7 @@ func TestNotificationService_HighlyRelevantLevel_MatchingGenres(t *testing.T) {
 	bus.Publish(ctx, libevent.MediaItemAdded{
 		MediaItemID: "m1",
 		LibraryID:   "lib1",
-		Title:       "Zodiac",
+		Title:       "Some Movie",
 		Type:        "movie",
 		Genres:      []string{"Thriller", "Mystery"},
 		OccurredAt:  time.Now(),
@@ -1145,20 +1145,20 @@ func TestNotificationService_Batch_SeriesWithSeasonsAndEpisodes(t *testing.T) {
 	// Simulate scan: series + 2 seasons + 5 episodes
 	bus.Publish(ctx, libevent.MediaItemAdded{
 		MediaItemID: "sr1", LibraryID: "lib1",
-		Title: "Breaking Bad", SeriesTitle: "Breaking Bad",
+		Title: "Some Series", SeriesTitle: "Some Series",
 		Type: "series", OccurredAt: time.Now(),
 	})
 	for i := range 2 {
 		bus.Publish(ctx, libevent.MediaItemAdded{
 			MediaItemID: shared.MediaItemID(fmt.Sprintf("sn%d", i)), LibraryID: "lib1",
-			Title: fmt.Sprintf("Season %d", i+1), SeriesTitle: "Breaking Bad",
+			Title: fmt.Sprintf("Season %d", i+1), SeriesTitle: "Some Series",
 			Type: "season", OccurredAt: time.Now(),
 		})
 	}
 	for i := range 5 {
 		bus.Publish(ctx, libevent.MediaItemAdded{
 			MediaItemID: shared.MediaItemID(fmt.Sprintf("ep%d", i)), LibraryID: "lib1",
-			Title: fmt.Sprintf("S01E%02d", i+1), SeriesTitle: "Breaking Bad",
+			Title: fmt.Sprintf("S01E%02d", i+1), SeriesTitle: "Some Series",
 			Type: "episode", OccurredAt: time.Now(),
 		})
 	}
@@ -1169,7 +1169,7 @@ func TestNotificationService_Batch_SeriesWithSeasonsAndEpisodes(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, notifs, 1, "should produce exactly 1 notification for series + seasons + episodes")
 	assert.Equal(t, notifdom.TypeNewSeries, notifs[0].Type)
-	assert.Contains(t, notifs[0].Title, "Breaking Bad")
+	assert.Contains(t, notifs[0].Title, "Some Series")
 	assert.Contains(t, notifs[0].Title, "2 seasons")
 	assert.Contains(t, notifs[0].Title, "5 episodes")
 }
@@ -1192,7 +1192,7 @@ func TestNotificationService_Batch_EpisodesOnly_MultipleAmalgamated(t *testing.T
 	for i := range 3 {
 		bus.Publish(ctx, libevent.MediaItemAdded{
 			MediaItemID: shared.MediaItemID(fmt.Sprintf("ep%d", i)), LibraryID: "lib1",
-			Title: fmt.Sprintf("S02E%02d", i+1), SeriesTitle: "The Wire",
+			Title: fmt.Sprintf("S02E%02d", i+1), SeriesTitle: "Some Series",
 			Type: "episode", OccurredAt: time.Now(),
 		})
 	}
@@ -1203,7 +1203,7 @@ func TestNotificationService_Batch_EpisodesOnly_MultipleAmalgamated(t *testing.T
 	require.NoError(t, err)
 	require.Len(t, notifs, 1, "multiple episodes should amalgamate into 1 notification")
 	assert.Equal(t, notifdom.TypeNewEpisode, notifs[0].Type)
-	assert.Contains(t, notifs[0].Title, "The Wire")
+	assert.Contains(t, notifs[0].Title, "Some Series")
 	assert.Contains(t, notifs[0].Title, "3 episodes")
 }
 
@@ -1226,7 +1226,7 @@ func TestNotificationService_Batch_SeasonsOnly_GroupedAndNamed(t *testing.T) {
 	for i := range 3 {
 		bus.Publish(ctx, libevent.MediaItemAdded{
 			MediaItemID: shared.MediaItemID(fmt.Sprintf("sn%d", i)), LibraryID: "lib1",
-			Title: fmt.Sprintf("Season %d", i+1), SeriesTitle: "The Sopranos",
+			Title: fmt.Sprintf("Season %d", i+1), SeriesTitle: "Some Series",
 			Type: "season", OccurredAt: time.Now(),
 		})
 	}
@@ -1237,7 +1237,7 @@ func TestNotificationService_Batch_SeasonsOnly_GroupedAndNamed(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, notifs, 1, "multiple seasons should group into 1 notification")
 	assert.Equal(t, notifdom.TypeNewSeason, notifs[0].Type)
-	assert.Contains(t, notifs[0].Title, "The Sopranos")
+	assert.Contains(t, notifs[0].Title, "Some Series")
 	assert.Contains(t, notifs[0].Title, "3 seasons")
 }
 
@@ -1257,7 +1257,7 @@ func TestNotificationService_Batch_SingleSeason_NamesSeries(t *testing.T) {
 
 	bus.Publish(ctx, libevent.MediaItemAdded{
 		MediaItemID: "sn1", LibraryID: "lib1",
-		Title: "Season 4", SeriesTitle: "The Sopranos",
+		Title: "Season 4", SeriesTitle: "Some Series",
 		Type: "season", OccurredAt: time.Now(),
 	})
 
@@ -1267,7 +1267,7 @@ func TestNotificationService_Batch_SingleSeason_NamesSeries(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, notifs, 1)
 	assert.Equal(t, notifdom.TypeNewSeason, notifs[0].Type)
-	assert.Equal(t, "new_season:The Sopranos - Season 4", notifs[0].Title)
+	assert.Equal(t, "new_season:Some Series - Season 4", notifs[0].Title)
 }
 
 func TestNotificationService_Batch_SingleEpisode_NormalNotification(t *testing.T) {
@@ -1286,7 +1286,7 @@ func TestNotificationService_Batch_SingleEpisode_NormalNotification(t *testing.T
 
 	bus.Publish(ctx, libevent.MediaItemAdded{
 		MediaItemID: "ep1", LibraryID: "lib1",
-		Title: "Pilot", SeriesTitle: "Breaking Bad",
+		Title: "Pilot", SeriesTitle: "Some Series",
 		Type: "episode", OccurredAt: time.Now(),
 	})
 
@@ -1296,7 +1296,7 @@ func TestNotificationService_Batch_SingleEpisode_NormalNotification(t *testing.T
 	require.NoError(t, err)
 	require.Len(t, notifs, 1)
 	assert.Equal(t, notifdom.TypeNewEpisode, notifs[0].Type)
-	assert.Contains(t, notifs[0].Title, "Breaking Bad")
+	assert.Contains(t, notifs[0].Title, "Some Series")
 	assert.Contains(t, notifs[0].Title, "Pilot")
 }
 
@@ -1316,7 +1316,7 @@ func TestNotificationService_Batch_MovieNotBatched(t *testing.T) {
 
 	bus.Publish(ctx, libevent.MediaItemAdded{
 		MediaItemID: "m1", LibraryID: "lib1",
-		Title: "Inception", Type: "movie", OccurredAt: time.Now(),
+		Title: "Some Movie", Type: "movie", OccurredAt: time.Now(),
 	})
 
 	// Movie should be immediate - no flush needed
@@ -1343,17 +1343,17 @@ func TestNotificationService_Batch_DifferentSeries_SeparateNotifications(t *test
 	// 2 episodes from series A, 1 from series B
 	bus.Publish(ctx, libevent.MediaItemAdded{
 		MediaItemID: "ep1", LibraryID: "lib1",
-		Title: "S01E01", SeriesTitle: "The Wire",
+		Title: "S01E01", SeriesTitle: "Some Series A",
 		Type: "episode", OccurredAt: time.Now(),
 	})
 	bus.Publish(ctx, libevent.MediaItemAdded{
 		MediaItemID: "ep2", LibraryID: "lib1",
-		Title: "S01E02", SeriesTitle: "The Wire",
+		Title: "S01E02", SeriesTitle: "Some Series A",
 		Type: "episode", OccurredAt: time.Now(),
 	})
 	bus.Publish(ctx, libevent.MediaItemAdded{
 		MediaItemID: "ep3", LibraryID: "lib1",
-		Title: "S01E01", SeriesTitle: "Breaking Bad",
+		Title: "S01E01", SeriesTitle: "Some Series B",
 		Type: "episode", OccurredAt: time.Now(),
 	})
 
@@ -1381,13 +1381,13 @@ func TestNotificationService_Batch_SeasonWithEpisodes(t *testing.T) {
 	// New season added to existing series (no series event)
 	bus.Publish(ctx, libevent.MediaItemAdded{
 		MediaItemID: "sn1", LibraryID: "lib1",
-		Title: "Season 4", SeriesTitle: "Breaking Bad",
+		Title: "Season 4", SeriesTitle: "Some Series",
 		Type: "season", OccurredAt: time.Now(),
 	})
 	for i := range 3 {
 		bus.Publish(ctx, libevent.MediaItemAdded{
 			MediaItemID: shared.MediaItemID(fmt.Sprintf("ep%d", i)), LibraryID: "lib1",
-			Title: fmt.Sprintf("S04E%02d", i+1), SeriesTitle: "Breaking Bad",
+			Title: fmt.Sprintf("S04E%02d", i+1), SeriesTitle: "Some Series",
 			Type: "episode", OccurredAt: time.Now(),
 		})
 	}
@@ -1398,7 +1398,7 @@ func TestNotificationService_Batch_SeasonWithEpisodes(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, notifs, 1, "season + episodes should produce 1 notification")
 	assert.Equal(t, notifdom.TypeNewSeason, notifs[0].Type)
-	assert.Contains(t, notifs[0].Title, "Breaking Bad")
+	assert.Contains(t, notifs[0].Title, "Some Series")
 	assert.Contains(t, notifs[0].Title, "Season 4")
 	assert.Contains(t, notifs[0].Title, "3 episodes")
 }
@@ -1450,12 +1450,12 @@ func TestNotificationService_Batch_TimerFlushes(t *testing.T) {
 
 	bus.Publish(ctx, libevent.MediaItemAdded{
 		MediaItemID: "ep1", LibraryID: "lib1",
-		Title: "S01E01", SeriesTitle: "Lost",
+		Title: "S01E01", SeriesTitle: "Some Series",
 		Type: "episode", OccurredAt: time.Now(),
 	})
 	bus.Publish(ctx, libevent.MediaItemAdded{
 		MediaItemID: "ep2", LibraryID: "lib1",
-		Title: "S01E02", SeriesTitle: "Lost",
+		Title: "S01E02", SeriesTitle: "Some Series",
 		Type: "episode", OccurredAt: time.Now(),
 	})
 
@@ -1465,7 +1465,7 @@ func TestNotificationService_Batch_TimerFlushes(t *testing.T) {
 	notifs, err := repo.ListByProfile(ctx, "p1", false, 0, 0)
 	require.NoError(t, err)
 	require.Len(t, notifs, 1, "timer should auto-flush batch")
-	assert.Contains(t, notifs[0].Title, "Lost")
+	assert.Contains(t, notifs[0].Title, "Some Series")
 	assert.Contains(t, notifs[0].Title, "2 episodes")
 }
 
@@ -1489,17 +1489,17 @@ func TestNoEpisodeNotificationWhenSeriesNotificationCreatedRecently(t *testing.T
 	// First batch: series + season + episodes - produces exactly one new_series notif.
 	bus.Publish(ctx, libevent.MediaItemAdded{
 		MediaItemID: "sr1", LibraryID: "lib1",
-		Title: "Stranger Things", SeriesTitle: "Stranger Things",
+		Title: "Some Series", SeriesTitle: "Some Series",
 		Type: "series", OccurredAt: time.Now(),
 	})
 	bus.Publish(ctx, libevent.MediaItemAdded{
 		MediaItemID: "ep1", LibraryID: "lib1",
-		Title: "Chapter One", SeriesTitle: "Stranger Things",
+		Title: "Chapter One", SeriesTitle: "Some Series",
 		Type: "episode", OccurredAt: time.Now(),
 	})
 	bus.Publish(ctx, libevent.MediaItemAdded{
 		MediaItemID: "ep2", LibraryID: "lib1",
-		Title: "Chapter Two", SeriesTitle: "Stranger Things",
+		Title: "Chapter Two", SeriesTitle: "Some Series",
 		Type: "episode", OccurredAt: time.Now(),
 	})
 
@@ -1514,7 +1514,7 @@ func TestNoEpisodeNotificationWhenSeriesNotificationCreatedRecently(t *testing.T
 	// different episode IDs). Should be suppressed because new_series was recent.
 	bus.Publish(ctx, libevent.MediaItemAdded{
 		MediaItemID: "ep3", LibraryID: "lib1",
-		Title: "Chapter Three", SeriesTitle: "Stranger Things",
+		Title: "Chapter Three", SeriesTitle: "Some Series",
 		Type: "episode", OccurredAt: time.Now(),
 	})
 	svc.FlushBatches()
@@ -1544,12 +1544,12 @@ func TestNoEpisodeNotificationWhenSeasonNotificationCreatedRecently(t *testing.T
 	// First batch: season + episodes → new_season notif.
 	bus.Publish(ctx, libevent.MediaItemAdded{
 		MediaItemID: "sn1", LibraryID: "lib1",
-		Title: "Season 3", SeriesTitle: "Breaking Bad",
+		Title: "Season 3", SeriesTitle: "Some Series",
 		Type: "season", OccurredAt: time.Now(),
 	})
 	bus.Publish(ctx, libevent.MediaItemAdded{
 		MediaItemID: "ep1", LibraryID: "lib1",
-		Title: "S03E01", SeriesTitle: "Breaking Bad",
+		Title: "S03E01", SeriesTitle: "Some Series",
 		Type: "episode", OccurredAt: time.Now(),
 	})
 	svc.FlushBatches()
@@ -1562,7 +1562,7 @@ func TestNoEpisodeNotificationWhenSeasonNotificationCreatedRecently(t *testing.T
 	// Subsequent episode from same series should be suppressed.
 	bus.Publish(ctx, libevent.MediaItemAdded{
 		MediaItemID: "ep2", LibraryID: "lib1",
-		Title: "S03E02", SeriesTitle: "Breaking Bad",
+		Title: "S03E02", SeriesTitle: "Some Series",
 		Type: "episode", OccurredAt: time.Now(),
 	})
 	svc.FlushBatches()
@@ -1592,7 +1592,7 @@ func TestEpisodeNotificationsAreGroupedWithin24h(t *testing.T) {
 	// First episode for a known series.
 	bus.Publish(ctx, libevent.MediaItemAdded{
 		MediaItemID: "ep7", LibraryID: "lib1",
-		Title: "S01E07", SeriesTitle: "The Wire",
+		Title: "S01E07", SeriesTitle: "Some Series",
 		Type: "episode", OccurredAt: time.Now(),
 	})
 	svc.FlushBatches()
@@ -1605,7 +1605,7 @@ func TestEpisodeNotificationsAreGroupedWithin24h(t *testing.T) {
 	// Second episode within 24h - should update the existing notification.
 	bus.Publish(ctx, libevent.MediaItemAdded{
 		MediaItemID: "ep8", LibraryID: "lib1",
-		Title: "S01E08", SeriesTitle: "The Wire",
+		Title: "S01E08", SeriesTitle: "Some Series",
 		Type: "episode", OccurredAt: time.Now(),
 	})
 	svc.FlushBatches()
@@ -1613,13 +1613,13 @@ func TestEpisodeNotificationsAreGroupedWithin24h(t *testing.T) {
 	notifs, err = repo.ListByProfile(ctx, "p1", false, 0, 0)
 	require.NoError(t, err)
 	require.Len(t, notifs, 1, "second episode within 24h should update existing notification, not create a new one")
-	assert.Contains(t, notifs[0].Title, "The Wire", "updated title should contain series name")
+	assert.Contains(t, notifs[0].Title, "Some Series", "updated title should contain series name")
 	assert.Contains(t, notifs[0].Title, "2 episodes", "updated title should show accumulated count")
 
 	// Third episode within 24h - count should now be 3.
 	bus.Publish(ctx, libevent.MediaItemAdded{
 		MediaItemID: "ep9", LibraryID: "lib1",
-		Title: "S01E09", SeriesTitle: "The Wire",
+		Title: "S01E09", SeriesTitle: "Some Series",
 		Type: "episode", OccurredAt: time.Now(),
 	})
 	svc.FlushBatches()
@@ -1648,14 +1648,14 @@ func TestEpisodeNotificationCreatedAfter24hWindow(t *testing.T) {
 	svc.Register()
 
 	// Directly inject an old new_episode notification that is 25h old (beyond window).
-	seriesKey := "lib1:Homeland"
+	seriesKey := "lib1:Some Series"
 	oldCreatedAt := time.Now().Add(-25 * time.Hour)
 	expires := time.Now().AddDate(0, 0, 30)
 	_ = repo.Create(ctx, &notifdom.Notification{
 		ID:             "old-ep",
 		ProfileID:      "p1",
 		Type:           notifdom.TypeNewEpisode,
-		Title:          "new_episode:Homeland - S02E05",
+		Title:          "new_episode:Some Series - S02E05",
 		SeriesKey: notifdom.SeriesKey(seriesKey),
 		EpisodeCount:   1,
 		Level:          notifdom.LevelAll,
@@ -1666,7 +1666,7 @@ func TestEpisodeNotificationCreatedAfter24hWindow(t *testing.T) {
 	// Now a new episode arrives - the old notif is outside the 24h window.
 	bus.Publish(ctx, libevent.MediaItemAdded{
 		MediaItemID: "ep6", LibraryID: "lib1",
-		Title: "S02E06", SeriesTitle: "Homeland",
+		Title: "S02E06", SeriesTitle: "Some Series",
 		Type: "episode", OccurredAt: time.Now(),
 	})
 	svc.FlushBatches()

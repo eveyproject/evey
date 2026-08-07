@@ -9,7 +9,7 @@ import (
 
 func TestNewRequest(t *testing.T) {
 	t.Run("valid movie request stamps defaults", func(t *testing.T) {
-		r, err := mediarequest.NewRequest("req-1", "prf-1", "usr-1", mediarequest.MediaTypeMovie, "Dune",
+		r, err := mediarequest.NewRequest("req-1", "prf-1", "usr-1", mediarequest.MediaTypeMovie, "Some Movie",
 			mediarequest.WithYear(2021), mediarequest.WithProvider("tmdb", "438631"))
 		if err != nil {
 			t.Fatalf("NewRequest: %v", err)
@@ -49,7 +49,7 @@ func TestNewRequest(t *testing.T) {
 
 func TestAnswer(t *testing.T) {
 	t.Run("valid decision transitions and stamps", func(t *testing.T) {
-		r, _ := mediarequest.NewRequest("req-1", "prf-1", "usr-1", mediarequest.MediaTypeMovie, "Dune")
+		r, _ := mediarequest.NewRequest("req-1", "prf-1", "usr-1", mediarequest.MediaTypeMovie, "Some Movie")
 		if err := r.Answer(mediarequest.StatusApproved, "on it", "prf-admin"); err != nil {
 			t.Fatalf("Answer: %v", err)
 		}
@@ -62,7 +62,7 @@ func TestAnswer(t *testing.T) {
 	})
 
 	t.Run("pending is not a valid answer state", func(t *testing.T) {
-		r, _ := mediarequest.NewRequest("req-1", "prf-1", "usr-1", mediarequest.MediaTypeMovie, "Dune")
+		r, _ := mediarequest.NewRequest("req-1", "prf-1", "usr-1", mediarequest.MediaTypeMovie, "Some Movie")
 		if err := r.Answer(mediarequest.StatusPending, "", "prf-admin"); err == nil {
 			t.Error("expected error answering with pending")
 		}

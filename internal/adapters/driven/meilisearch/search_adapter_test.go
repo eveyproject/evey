@@ -187,7 +187,7 @@ func TestToDocument_TranslatedTitles(t *testing.T) {
 }
 
 func TestToDocument_NoTranslations(t *testing.T) {
-	item := &library.MediaItem{ID: "item-4", Title: "Solo", AddedAt: time.Now()}
+	item := &library.MediaItem{ID: "item-4", Title: "Some Movie", AddedAt: time.Now()}
 	doc := ToDocument(item)
 	assert.Nil(t, doc.TranslatedTitles)
 	assert.Nil(t, doc.Translations)
@@ -238,8 +238,8 @@ func TestReRankByProfileLocale(t *testing.T) {
 
 	t.Run("floats locale-title matches up, stable within groups", func(t *testing.T) {
 		hits := []library.SearchHit{hit("a"), hit("b"), hit("c"), hit("d")}
-		localeTitles := []string{"", "La Guerre des Mondes", "", "Guerre et Paix"}
-		got := reRankByProfileLocale(hits, localeTitles, "guerre")
+		localeTitles := []string{"", "Some Movie Part Two", "", "Another Great Movie"}
+		got := reRankByProfileLocale(hits, localeTitles, "movie")
 		assert.Equal(t, []string{"b", "d", "a", "c"}, ids(got))
 	})
 
@@ -251,13 +251,13 @@ func TestReRankByProfileLocale(t *testing.T) {
 
 	t.Run("empty query is a no-op", func(t *testing.T) {
 		hits := []library.SearchHit{hit("a"), hit("b")}
-		got := reRankByProfileLocale(hits, []string{"Le Film", ""}, "   ")
+		got := reRankByProfileLocale(hits, []string{"Some Movie", ""}, "   ")
 		assert.Equal(t, []string{"a", "b"}, ids(got))
 	})
 
 	t.Run("matching is case- and whitespace-insensitive", func(t *testing.T) {
 		hits := []library.SearchHit{hit("a"), hit("b")}
-		got := reRankByProfileLocale(hits, []string{"", "Le  GRAND Bleu"}, "grand bleu")
+		got := reRankByProfileLocale(hits, []string{"", "Some  GREAT Movie"}, "great movie")
 		assert.Equal(t, "b", got[0].ID)
 	})
 }
@@ -328,11 +328,11 @@ func TestSearch(t *testing.T) {
 	yearRaw, _ := json.Marshal(year)
 	hit := ms.Hit{
 		"id":         json.RawMessage(`"abc-123"`),
-		"title":      json.RawMessage(`"Fight Club"`),
+		"title":      json.RawMessage(`"Some Movie"`),
 		"year":       json.RawMessage(yearRaw),
 		"type":       json.RawMessage(`"movie"`),
 		"genres":     json.RawMessage(`["Action","Drama"]`),
-		"_formatted": json.RawMessage(`{"title":"<mark>Fight</mark> Club"}`),
+		"_formatted": json.RawMessage(`{"title":"<mark>Some</mark> Movie"}`),
 	}
 	fake := &fakeIndex{
 		searchResp: &ms.SearchResponse{
@@ -342,17 +342,17 @@ func TestSearch(t *testing.T) {
 	}
 	adapter := &SearchAdapter{index: fake}
 
-	hits, total, err := adapter.Search(context.Background(), "fight", map[string]string{"type": "movie"}, nil, 20)
+	hits, total, err := adapter.Search(context.Background(), "some", map[string]string{"type": "movie"}, nil, 20)
 	require.NoError(t, err)
 	require.Len(t, hits, 1)
 	assert.Equal(t, int64(1), total)
 	assert.Equal(t, "abc-123", hits[0].ID)
-	assert.Equal(t, "Fight Club", hits[0].Title)
+	assert.Equal(t, "Some Movie", hits[0].Title)
 	assert.Equal(t, &year, hits[0].Year)
 	assert.Equal(t, "movie", hits[0].Type)
 	assert.Equal(t, []string{"Action", "Drama"}, hits[0].Genres)
-	assert.Equal(t, "<mark>Fight</mark> Club", hits[0].HighlightedTitle)
-	assert.Equal(t, "fight", fake.searchQuery)
+	assert.Equal(t, "<mark>Some</mark> Movie", hits[0].HighlightedTitle)
+	assert.Equal(t, "some", fake.searchQuery)
 	assert.Contains(t, fake.searchReq.Filter, "type = 'movie'")
 }
 
