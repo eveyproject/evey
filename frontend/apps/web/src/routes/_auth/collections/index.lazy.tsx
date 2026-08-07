@@ -6,6 +6,7 @@ import { useAuthStore } from "@evey/store";
 import { useCollections, useDeleteCollection } from "@/features/collection/api";
 import type { Collection } from "@/features/collection/api";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { FetchErrorState } from "@/components/ui/FetchErrorState";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { SmartCollectionDialog } from "@/features/collection/SmartCollectionDialog";
@@ -202,7 +203,7 @@ function CollectionsPage() {
   // these to a viewer only bought them a 403 once they had committed to the
   // gesture.
   const isAdmin = useAuthStore((s) => s.isAdmin);
-  const { data, isLoading, isError } = useCollections();
+  const { data, isLoading, isError, error, refetch } = useCollections();
   const deleteMut = useDeleteCollection();
   const allCollections = data?.collections ?? [];
 
@@ -278,11 +279,7 @@ function CollectionsPage() {
           </div>
         ) : isError ? (
           <div className="rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]">
-            <EmptyState
-              icon={<Folder size={48} strokeWidth={1.5} />}
-              title={t("common.error")}
-              description={t("common.errorBoundary.description")}
-            />
+            <FetchErrorState error={error} onRetry={() => void refetch()} />
           </div>
         ) : tmdbCollections.length === 0 ? (
           <div

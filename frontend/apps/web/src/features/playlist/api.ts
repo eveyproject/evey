@@ -98,6 +98,11 @@ export function usePlaylistDetail(id: string) {
     isLoading: head.isLoading || items.isLoading,
     isError: head.isError || items.isError,
     error: head.error ?? items.error,
+    // Both halves have to come back for the page to render, so a retry has to
+    // re-run both - retrying only the one that failed leaves the other stale.
+    refetch: async () => {
+      await Promise.all([head.refetch(), items.refetch()]);
+    },
   };
 }
 

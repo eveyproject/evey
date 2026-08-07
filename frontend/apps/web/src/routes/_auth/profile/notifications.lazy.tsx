@@ -1,4 +1,4 @@
-import { Bell, Plus, Play, Info, TriangleAlert } from "lucide-react";
+import { Bell, Plus, Play, Info } from "lucide-react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import {
@@ -14,6 +14,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "@evey/store";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { FetchErrorState } from "@/components/ui/FetchErrorState";
 import { Modal } from "@/components/ui/Modal";
 import { translateNotificationTitle, useRelativeTime } from "@/features/user/notificationUtils";
 
@@ -102,7 +103,7 @@ function NotificationsPage() {
     void qc.invalidateQueries({ queryKey: getNotificationServiceGetUnreadCountQueryKey() });
   };
 
-  const { data, isLoading, isError } = useNotificationServiceListNotifications();
+  const { data, isLoading, isError, error, refetch } = useNotificationServiceListNotifications();
   const markAllRead = useNotificationServiceMarkAllRead({ mutation: { onSuccess: invalidate } });
   const deleteAll = useNotificationServiceDeleteAllNotifications({
     mutation: {
@@ -142,7 +143,7 @@ function NotificationsPage() {
       {isLoading && <p className="text-sm text-[var(--text-muted)]">{t("common.loading")}</p>}
 
       {!isLoading && isError && (
-        <EmptyState icon={<TriangleAlert size={48} strokeWidth={1.5} />} title={t("common.errorBoundary.title")} description={t("common.errorBoundary.description")} />
+        <FetchErrorState error={error} onRetry={() => void refetch()} />
       )}
 
       {!isLoading && !isError && notifications.length === 0 && (

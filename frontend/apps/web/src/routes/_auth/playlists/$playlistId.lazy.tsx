@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Spinner } from "@/components/ui/Spinner";
 import { BackButton } from "@/components/ui/BackButton";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { FetchErrorState } from "@/components/ui/FetchErrorState";
 import { toast, useAuthStore } from "@evey/store";
 import { startTokenDownload } from "@/utils/downloadToken";
 import { usePlaylistDetail, useRemoveFromPlaylist, type PlaylistItem } from "@/features/playlist/api";
@@ -64,7 +65,7 @@ function PlaylistItemRow({ item, playlistId, playlistType }: { item: PlaylistIte
 function PlaylistDetail() {
   const { t } = useTranslation();
   const { playlistId } = Route.useParams();
-  const { data: playlist, isLoading, isError } = usePlaylistDetail(playlistId);
+  const { data: playlist, isLoading, isError, error, refetch } = usePlaylistDetail(playlistId);
   const accessToken = useAuthStore((s) => s.accessToken);
 
   if (isLoading) {
@@ -73,7 +74,14 @@ function PlaylistDetail() {
     );
   }
 
-  if (isError || !playlist) {
+  // A failed fetch is NOT "this playlist does not exist". Both used to render
+  // the same sentence, so a server that did not answer told the user their
+  // playlist was gone - and offered nothing to do about it.
+  if (isError) {
+    return <FetchErrorState error={error} onRetry={() => void refetch()} />;
+  }
+
+  if (!playlist) {
     return (
       <div className="text-center py-16 text-[var(--text-muted)]">
         {t("media.playlist.notFound")}
