@@ -614,6 +614,7 @@ activity:
   noPlayHistory: No play history
   noAuditEntries: No audit log entries
   totalEntries: "{{count}} total entries"
+  exportTruncated: "Export stopped at the maximum of {{max}} rows; {{total}} exist. Narrow the range and export again."
   stats:
     totalPlays: Total Plays
     totalUsers: Total Users

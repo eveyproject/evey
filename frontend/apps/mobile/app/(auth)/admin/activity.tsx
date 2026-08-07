@@ -10,6 +10,10 @@ import {
   useAdminSessionServiceGetAuditLog,
   activityServiceGetPlayHistory,
   activityServiceGetServerStats,
+  adminSessionServiceGetAuditLog,
+  collectAllPages,
+  EXPORT_PAGE_SIZE,
+  EXPORT_MAX_ROWS,
   eveyFetch,
 } from "@evey/api";
 import { toast } from "@evey/store";
@@ -359,10 +363,29 @@ export default function AdminActivityScreen() {
       let data: unknown;
       let filename: string;
       if (tab === "play") {
-        data = await activityServiceGetPlayHistory({ "pagination.pageSize": 10000 });
+        // Both exports used to ask for one page of 10000 rows. Neither
+        // endpoint has ever served that - the server reduces it to 500 - so
+        // the file was the first 500 rows wearing the name of the whole log.
+        const collected = await collectAllPages(async (pageIndex) => {
+          const page = await activityServiceGetPlayHistory({
+            "pagination.page": pageIndex + 1,
+            "pagination.pageSize": EXPORT_PAGE_SIZE,
+          });
+          return { rows: page.entries ?? [], total: page.pagination?.totalItems };
+        });
+        if (collected.truncated) toast.error(t("admin.activity.exportTruncated", { max: EXPORT_MAX_ROWS, total: collected.total }));
+        data = { entries: collected.rows, total: collected.total };
         filename = `play-history-${timestamp}.json`;
       } else if (tab === "audit") {
-        data = await eveyFetch<unknown>({ url: "/api/v1/admin/audit-log?limit=10000", method: "GET" });
+        const collected = await collectAllPages(async (pageIndex) => {
+          const page = await adminSessionServiceGetAuditLog({
+            limit: EXPORT_PAGE_SIZE,
+            offset: pageIndex * EXPORT_PAGE_SIZE,
+          });
+          return { rows: page.entries ?? [], total: page.total };
+        });
+        if (collected.truncated) toast.error(t("admin.activity.exportTruncated", { max: EXPORT_MAX_ROWS, total: collected.total }));
+        data = { entries: collected.rows, total: collected.total };
         filename = `audit-log-${timestamp}.json`;
       } else {
         data = await activityServiceGetServerStats();

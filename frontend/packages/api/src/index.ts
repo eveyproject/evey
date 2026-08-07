@@ -7,6 +7,7 @@ export * from "./seekIndexHelpers";
 export * from "./displayTitle";
 export * from "./personDepartment";
 export * from "./pagination";
+export * from "./exportPaging";
 export * from "./libraryRules";
 export * from "./generated/user-service/user-service";
 export * from "./generated/admin-media-service/admin-media-service";

@@ -614,6 +614,7 @@ activity:
   noPlayHistory: Kein Wiedergabeverlauf
   noAuditEntries: Keine Audit-Protokolleinträge
   totalEntries: "{{count}} Einträge insgesamt"
+  exportTruncated: "Der Export wurde beim Maximum von {{max}} Zeilen gestoppt; es gibt {{total}}. Grenzen Sie den Zeitraum ein und exportieren Sie erneut."
   stats:
     totalPlays: Gesamtwiedergaben
     totalUsers: Benutzer gesamt

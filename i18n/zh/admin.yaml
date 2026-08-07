@@ -614,6 +614,7 @@ activity:
   noPlayHistory: "没有播放历史"
   noAuditEntries: "暂无审计日志记录"
   totalEntries: "共 {{count}} 条记录"
+  exportTruncated: "导出在最多 {{max}} 行处停止；实际有 {{total}} 条。请缩小范围后重新导出。"
   stats:
     totalPlays: "总播放次数"
     totalUsers: "总用户数"

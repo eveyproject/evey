@@ -614,6 +614,7 @@ activity:
   noPlayHistory: "कोई प्ले इतिहास नहीं"
   noAuditEntries: "कोई ऑडिट लॉग प्रविष्टियां नहीं"
   totalEntries: "कुल {{count}} प्रविष्टियां"
+  exportTruncated: "निर्यात {{max}} पंक्तियों की अधिकतम सीमा पर रुक गया; {{total}} मौजूद हैं। दायरा घटाकर फिर से निर्यात करें।"
   stats:
     totalPlays: "कुल प्ले"
     totalUsers: "कुल उपयोगकर्ता"

@@ -614,6 +614,7 @@ activity:
   noPlayHistory: "Sin historial de reproducción"
   noAuditEntries: "Sin entradas de auditoría"
   totalEntries: "{{count}} registros totales"
+  exportTruncated: "La exportación se detuvo en el máximo de {{max}} filas; existen {{total}}. Reduzca el intervalo y vuelva a exportar."
   stats:
     totalPlays: "Total de reproducciones"
     totalUsers: "Total de usuarios"

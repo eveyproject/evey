@@ -4,7 +4,7 @@ import { createLazyFileRoute } from "@tanstack/react-router";
 import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "@evey/store";
-import { eveyFetch, activityServiceGetPlayHistory, activityServiceGetServerStats, adminSessionServiceGetAuditLog, formatBytes, formatDurationMs } from "@evey/api";
+import { eveyFetch, activityServiceGetPlayHistory, activityServiceGetServerStats, adminSessionServiceGetAuditLog, formatBytes, formatDurationMs, collectAllPages, EXPORT_PAGE_SIZE, EXPORT_MAX_ROWS } from "@evey/api";
 import { useActivityServiceGetServerStats } from "@evey/api";
 import { Spinner } from "@/components/ui/Spinner";
 import { Card } from "@/components/ui/Card";
@@ -344,11 +344,28 @@ function ActivityPage() {
     try {
       const timestamp = new Date().toISOString().slice(0, 10);
       if (tab === "play") {
-        const data = await activityServiceGetPlayHistory({ "pagination.pageSize": 10000 });
-        downloadJSON(data, `play-history-${timestamp}.json`);
+        // Both exports used to ask for one page of 10000 rows. Neither
+        // endpoint has ever served that - the server reduces it to 500 - so
+        // the file was the first 500 rows wearing the name of the whole log.
+        const { rows, total, truncated } = await collectAllPages(async (pageIndex) => {
+          const page = await activityServiceGetPlayHistory({
+            "pagination.page": pageIndex + 1,
+            "pagination.pageSize": EXPORT_PAGE_SIZE,
+          });
+          return { rows: page.entries ?? [], total: page.pagination?.totalItems };
+        });
+        if (truncated) toast.error(t("admin.activity.exportTruncated", { max: EXPORT_MAX_ROWS, total }));
+        downloadJSON({ entries: rows, total }, `play-history-${timestamp}.json`);
       } else if (tab === "audit") {
-        const data = await eveyFetch<unknown>({ url: "/api/v1/admin/audit-log?limit=10000", method: "GET" });
-        downloadJSON(data, `audit-log-${timestamp}.json`);
+        const { rows, total, truncated } = await collectAllPages(async (pageIndex) => {
+          const page = await adminSessionServiceGetAuditLog({
+            limit: EXPORT_PAGE_SIZE,
+            offset: pageIndex * EXPORT_PAGE_SIZE,
+          });
+          return { rows: page.entries ?? [], total: page.total };
+        });
+        if (truncated) toast.error(t("admin.activity.exportTruncated", { max: EXPORT_MAX_ROWS, total }));
+        downloadJSON({ entries: rows, total }, `audit-log-${timestamp}.json`);
       } else {
         const data = await activityServiceGetServerStats();
         downloadJSON(data, `server-stats-${timestamp}.json`);
@@ -360,7 +377,7 @@ function ActivityPage() {
       toast.error(t("common.error"));
     }
     setExporting(false);
-  }, [tab]);
+  }, [tab, t]);
 
   const tabs: Array<{ id: Tab; label: string }> = [
     { id: "play", label: t("admin.activity.tabs.playHistory") },

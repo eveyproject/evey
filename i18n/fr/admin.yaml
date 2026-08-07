@@ -613,6 +613,7 @@ activity:
   noPlayHistory: "Aucun historique de lecture"
   noAuditEntries: "Aucune entrée du journal d'audit"
   totalEntries: "{{count}} entrées au total"
+  exportTruncated: "L'export s'est arrêté au maximum de {{max}} lignes ; il en existe {{total}}. Restreignez la période et relancez l'export."
   stats:
     totalPlays: "Total de lectures"
     totalUsers: "Total d'utilisateurs"
