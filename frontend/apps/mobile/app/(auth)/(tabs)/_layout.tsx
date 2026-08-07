@@ -1,8 +1,8 @@
 // The "(tabs)" segment name is a historical leftover from an earlier bottom-tab
 // navigation design. The route group was kept to avoid breaking deep links and
-// expo-router's generated routes, but the actual navigation UI is the
-// SideDrawer (see src/components/SideDrawer.tsx) opened via BurgerButton
-// below; this layout itself renders a plain Stack, not a Tabs navigator.
+// expo-router's generated routes, but the actual navigation UI is the NavRail
+// (permanent icon column, web sidebar collapsed state) plus the SideDrawer it
+// expands to; this layout itself renders a plain Stack, not a Tabs navigator.
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Stack, router } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -10,7 +10,7 @@ import { useTranslation } from "react-i18next";
 import { useNotificationServiceGetUnreadCount } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { HeaderSearch } from "../../../src/components/HeaderSearch";
-import { BurgerButton } from "../../../src/components/layout/BurgerButton";
+import { NavRail } from "../../../src/components/layout/NavRail";
 import { UserMenu } from "../../../src/components/layout/UserMenu";
 
 function HeaderRight({ theme }: { theme: ReturnType<typeof useTheme> }) {
@@ -44,23 +44,30 @@ export default function TabsLayout() {
   const sharedOptions = {
     headerStyle: { backgroundColor: theme.colors.surface },
     headerShadowVisible: false,
-    headerLeft: () => <BurgerButton />,
+    // The rail carries the brand and the navigation - the header keeps only
+    // search and the user cluster, like the web topbar next to the sidebar.
+    headerLeft: () => null,
     headerTitle: () => <HeaderSearch />,
     headerRight: () => <HeaderRight theme={theme} />,
     headerTitleContainerStyle: { flex: 1, paddingHorizontal: 8 },
   };
 
   return (
-    <Stack>
-      <Stack.Screen name="index" options={sharedOptions} />
-      <Stack.Screen name="search" options={sharedOptions} />
-      <Stack.Screen name="library" options={sharedOptions} />
-      <Stack.Screen name="photos" options={sharedOptions} />
-      <Stack.Screen name="music" options={sharedOptions} />
-      <Stack.Screen name="favorites" options={sharedOptions} />
-      <Stack.Screen name="requests" options={sharedOptions} />
-      <Stack.Screen name="settings" options={sharedOptions} />
-    </Stack>
+    <View style={{ flex: 1, flexDirection: "row", backgroundColor: theme.colors.surface }}>
+      <NavRail mode="main" />
+      <View style={{ flex: 1 }}>
+        <Stack>
+          <Stack.Screen name="index" options={sharedOptions} />
+          <Stack.Screen name="search" options={sharedOptions} />
+          <Stack.Screen name="library" options={sharedOptions} />
+          <Stack.Screen name="photos" options={sharedOptions} />
+          <Stack.Screen name="music" options={sharedOptions} />
+          <Stack.Screen name="favorites" options={sharedOptions} />
+          <Stack.Screen name="requests" options={sharedOptions} />
+          <Stack.Screen name="settings" options={sharedOptions} />
+        </Stack>
+      </View>
+    </View>
   );
 }
 

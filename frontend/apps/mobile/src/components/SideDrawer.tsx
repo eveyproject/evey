@@ -12,14 +12,14 @@ import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
 
 const DRAWER_WIDTH = 260;
 
-type NavItem = {
+export type NavItem = {
   href: string;
   labelKey: string;
   icon: keyof typeof Ionicons.glyphMap;
   activeIcon: keyof typeof Ionicons.glyphMap;
 };
 
-const NAV_ITEMS: NavItem[] = [
+export const NAV_ITEMS: NavItem[] = [
   { href: "/(auth)/(tabs)/", labelKey: "common.nav.home", icon: "home-outline", activeIcon: "home" },
   { href: "/(auth)/(tabs)/library", labelKey: "common.nav.libraries", icon: "library-outline", activeIcon: "library" },
   { href: "/(auth)/(tabs)/photos", labelKey: "common.nav.photos", icon: "images-outline", activeIcon: "images" },
@@ -33,7 +33,7 @@ const NAV_ITEMS: NavItem[] = [
 // Mirror of web's AdminNav sections (features/admin/AdminNav.tsx), mapped to
 // the existing mobile admin routes. Shown in place of the main nav while the
 // user is inside /admin - one tap to any admin area, "back to app" to leave.
-const ADMIN_SECTIONS: { titleKey: string; items: NavItem[] }[] = [
+export const ADMIN_SECTIONS: { titleKey: string; items: NavItem[] }[] = [
   {
     titleKey: "admin.nav.dashboardSystem",
     items: [
@@ -86,9 +86,14 @@ const ADMIN_SECTIONS: { titleKey: string; items: NavItem[] }[] = [
   },
 ];
 
-function isAdminLinkActive(pathname: string, href: string): boolean {
+export function isAdminLinkActive(pathname: string, href: string): boolean {
   if (href === "/admin") return pathname === "/admin" || pathname === "/admin/";
   return pathname === href || pathname.startsWith(href + "/");
+}
+
+export function isMainLinkActive(pathname: string, href: string): boolean {
+  if (href === "/(auth)/(tabs)/") return pathname === "/" || pathname.endsWith("/index") || pathname === "/(auth)/(tabs)/";
+  return pathname.includes(href.replace("/(auth)/(tabs)", ""));
 }
 
 export function SideDrawer() {
@@ -111,10 +116,7 @@ export function SideDrawer() {
     setTimeout(() => router.push(href as never), 50);
   }
 
-  const isActive = (href: string) => {
-    if (href === "/(auth)/(tabs)/") return pathname === "/" || pathname.endsWith("/index") || pathname === "/(auth)/(tabs)/";
-    return pathname.includes(href.replace("/(auth)/(tabs)", ""));
-  };
+  const isActive = (href: string) => isMainLinkActive(pathname, href);
 
   function drawerItem(item: NavItem, active: boolean) {
     return (
