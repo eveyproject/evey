@@ -34,6 +34,7 @@ func TestSegmentsHandler_NoAuth_401(t *testing.T) {
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
 		func() bool { return false },
 		nil,
+		nil,
 	))
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/segments", nil)
 	req.SetPathValue("id", "m1")
@@ -51,6 +52,7 @@ func TestSegmentsHandler_NotFound_404(t *testing.T) {
 		allowAll(),
 		&fakeMediaItemGetter{err: errTest},
 		func() bool { return false },
+		nil,
 		nil,
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/segments", nil)
@@ -71,6 +73,7 @@ func TestSegmentsHandler_IDOR_403(t *testing.T) {
 		&fakeMediaItemGetter{item: testMediaItem("lib-restricted")},
 		func() bool { return false },
 		nil,
+		nil,
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/segments", nil)
 	req.SetPathValue("id", "m1")
@@ -89,6 +92,7 @@ func TestSegmentsHandler_StreamTokenMismatch_403(t *testing.T) {
 		allowAll(),
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
 		func() bool { return false },
+		nil,
 		nil,
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/segments", nil)
@@ -116,6 +120,7 @@ func TestSegmentsHandler_OK(t *testing.T) {
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
 		func() bool { return false },
 		nil,
+		nil,
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/segments", nil)
 	req.SetPathValue("id", "m1")
@@ -141,6 +146,120 @@ func TestSegmentsHandler_OK(t *testing.T) {
 	}
 }
 
+// The cast receiver auto-jumps every intro segment it receives (no input on a
+// TV to offer a button). Until the detector's accuracy is acted, the server
+// withholds intro segments from CAST callers unless the admin toggle is on -
+// the web/mobile players (JWT or plain stream tokens) keep their button.
+func TestSegmentsHandler_CastCaller_IntroWithheldByDefault(t *testing.T) {
+	segs := []*domainlibrary.MediaSegment{
+		{ID: "s1", MediaItemID: "m1", Type: "intro", StartMs: 0, EndMs: 60000, Confidence: 0.95, Source: "phash"},
+		{ID: "s2", MediaItemID: "m1", Type: "outro", StartMs: 1800000, EndMs: 1860000, Confidence: 0.88, Source: "phash"},
+	}
+	for name, gate := range map[string]func() bool{"nil-getter": nil, "off": func() bool { return false }} {
+		h := segmentsHandler(
+			&fakeSegmentsGetter{segments: segs},
+			"http://localhost",
+			allowAll(),
+			&fakeMediaItemGetter{item: testMediaItem("lib1")},
+			func() bool { return false },
+			nil,
+			gate,
+		)
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/segments", nil)
+		req.SetPathValue("id", "m1")
+		st := &shared.StreamToken{MediaItemID: "m1", UserID: "u1", Cast: true}
+		req = req.WithContext(context.WithValue(req.Context(), streamTokenCtxKey, st))
+		req = withHTTPClaims(req, testClaims(false))
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("%s: expected 200, got %d: %s", name, w.Code, w.Body.String())
+		}
+		var body struct {
+			Segments []struct {
+				Type string `json:"type"`
+			} `json:"segments"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+			t.Fatal(err)
+		}
+		if len(body.Segments) != 1 || body.Segments[0].Type != "outro" {
+			t.Errorf("%s: cast caller with the toggle off must not receive intro segments, got %+v", name, body.Segments)
+		}
+	}
+}
+
+func TestSegmentsHandler_CastCaller_IntroServedWhenEnabled(t *testing.T) {
+	segs := []*domainlibrary.MediaSegment{
+		{ID: "s1", MediaItemID: "m1", Type: "intro", StartMs: 0, EndMs: 60000, Confidence: 0.95, Source: "phash"},
+	}
+	h := segmentsHandler(
+		&fakeSegmentsGetter{segments: segs},
+		"http://localhost",
+		allowAll(),
+		&fakeMediaItemGetter{item: testMediaItem("lib1")},
+		func() bool { return false },
+		nil,
+		func() bool { return true },
+	)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/segments", nil)
+	req.SetPathValue("id", "m1")
+	st := &shared.StreamToken{MediaItemID: "m1", UserID: "u1", Cast: true}
+	req = req.WithContext(context.WithValue(req.Context(), streamTokenCtxKey, st))
+	req = withHTTPClaims(req, testClaims(false))
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var body struct {
+		Segments []struct {
+			Type string `json:"type"`
+		} `json:"segments"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Segments) != 1 || body.Segments[0].Type != "intro" {
+		t.Errorf("cast caller with the toggle on must receive intro segments, got %+v", body.Segments)
+	}
+}
+
+func TestSegmentsHandler_NonCastCaller_IntroAlwaysServed(t *testing.T) {
+	segs := []*domainlibrary.MediaSegment{
+		{ID: "s1", MediaItemID: "m1", Type: "intro", StartMs: 0, EndMs: 60000, Confidence: 0.95, Source: "phash"},
+	}
+	h := segmentsHandler(
+		&fakeSegmentsGetter{segments: segs},
+		"http://localhost",
+		allowAll(),
+		&fakeMediaItemGetter{item: testMediaItem("lib1")},
+		func() bool { return false },
+		nil,
+		func() bool { return false },
+	)
+	// A plain (non-cast) stream token - e.g. a watch-together guest - keeps
+	// its skip-intro button data.
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/segments", nil)
+	req.SetPathValue("id", "m1")
+	st := &shared.StreamToken{MediaItemID: "m1", UserID: "u1"}
+	req = req.WithContext(context.WithValue(req.Context(), streamTokenCtxKey, st))
+	req = withHTTPClaims(req, testClaims(false))
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	var body struct {
+		Segments []struct {
+			Type string `json:"type"`
+		} `json:"segments"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Segments) != 1 {
+		t.Errorf("non-cast caller must keep intro segments regardless of the cast toggle, got %+v", body.Segments)
+	}
+}
+
 func TestSegmentsHandler_TypeFilter(t *testing.T) {
 	segs := []*domainlibrary.MediaSegment{
 		{ID: "s1", MediaItemID: "m1", Type: "intro", StartMs: 0, EndMs: 60000, Source: "phash"},
@@ -153,6 +272,7 @@ func TestSegmentsHandler_TypeFilter(t *testing.T) {
 		allowAll(),
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
 		func() bool { return false },
+		nil,
 		nil,
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/segments?types=intro,outro", nil)
@@ -186,6 +306,7 @@ func TestSegmentsHandler_PreviewGating(t *testing.T) {
 			allowAll(),
 			&fakeMediaItemGetter{item: testMediaItem("lib1")},
 			func() bool { return previewEnabled },
+			nil,
 			nil,
 		)
 		// client explicitly asks for preview
@@ -229,6 +350,7 @@ func TestSegmentsHandler_ParentalBlocked_NotFound(t *testing.T) {
 		&fakeMediaItemGetter{item: item},
 		func() bool { return false },
 		alwaysBlockChecker{},
+		nil,
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/segments", nil)
 	req.SetPathValue("id", "m1")
@@ -255,6 +377,7 @@ func TestSegmentsHandler_ParentalAdmin_OK(t *testing.T) {
 		&fakeMediaItemGetter{item: item},
 		func() bool { return false },
 		alwaysBlockChecker{},
+		nil,
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/segments", nil)
 	req.SetPathValue("id", "m1")
@@ -273,6 +396,7 @@ func TestSegmentsHandler_GetError_500(t *testing.T) {
 		allowAll(),
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
 		func() bool { return false },
+		nil,
 		nil,
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/segments", nil)

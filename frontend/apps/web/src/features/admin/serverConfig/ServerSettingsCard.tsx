@@ -20,6 +20,7 @@ interface ServerSettings {
   libraryWatcherEnabled: SettingValue<boolean>;
   periodicScanInterval: SettingValue<string>;
   skipPreviewEnabled: SettingValue<boolean>;
+  castIntroAutoSkipEnabled: SettingValue<boolean>;
   auditRetentionDays: SettingValue<number>;
   metricsRetentionDays: SettingValue<number>;
   qoeRetentionDays: SettingValue<number>;
@@ -43,6 +44,7 @@ export function ServerSettingsCard() {
   const [libraryWatcher, setLibraryWatcher] = useState(true);
   const [scanInterval, setScanInterval] = useState("");
   const [skipPreview, setSkipPreview] = useState(false);
+  const [castIntroAutoSkip, setCastIntroAutoSkip] = useState(false);
   const [auditDays, setAuditDays] = useState("");
   const [metricsDays, setMetricsDays] = useState("");
   const [qoeDays, setQoeDays] = useState("");
@@ -59,6 +61,7 @@ export function ServerSettingsCard() {
       setLibraryWatcher(data.libraryWatcherEnabled.value);
       setScanInterval(data.periodicScanInterval.source === "override" ? String(data.periodicScanInterval.value) : "");
       setSkipPreview(data.skipPreviewEnabled.value);
+      setCastIntroAutoSkip(data.castIntroAutoSkipEnabled?.value ?? false);
       setAuditDays(data.auditRetentionDays?.source === "override" ? String(data.auditRetentionDays.value) : "");
       setMetricsDays(data.metricsRetentionDays?.source === "override" ? String(data.metricsRetentionDays.value) : "");
       setQoeDays(data.qoeRetentionDays?.source === "override" ? String(data.qoeRetentionDays.value) : "");
@@ -90,6 +93,7 @@ export function ServerSettingsCard() {
     body.libraryWatcherEnabled = libraryWatcher;
     if (scanInterval) body.periodicScanInterval = scanInterval;
     body.skipPreviewEnabled = skipPreview;
+    body.castIntroAutoSkipEnabled = castIntroAutoSkip;
     if (auditDays) body.auditRetentionDays = parseInt(auditDays, 10);
     if (metricsDays) body.metricsRetentionDays = parseInt(metricsDays, 10);
     if (qoeDays) body.qoeRetentionDays = parseInt(qoeDays, 10);
@@ -163,6 +167,21 @@ export function ServerSettingsCard() {
               />
             </div>
             <ResetBtn setting={data.skipPreviewEnabled} field="skipPreviewEnabled" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-3">
+              <label className="text-sm font-medium text-[var(--text)]">{t("admin.serverSettings.castIntroAutoSkip")}</label>
+              <InfoTooltip label={t("admin.serverSettings.castIntroAutoSkip")}>
+                {t("admin.serverSettings.castIntroAutoSkipInfo")}
+              </InfoTooltip>
+              <Switch
+                checked={castIntroAutoSkip}
+                onChange={() => { setCastIntroAutoSkip(!castIntroAutoSkip); setDirty(true); }}
+                label={t("admin.serverSettings.castIntroAutoSkip")}
+                data-testid="cast-intro-auto-skip-toggle"
+              />
+            </div>
+            {data.castIntroAutoSkipEnabled && <ResetBtn setting={data.castIntroAutoSkipEnabled} field="castIntroAutoSkipEnabled" />}
           </div>
           {/* Retention windows are re-read by their sweeps at every pass (no
               restart); the cache budget is a boot snapshot, hence its hint. */}

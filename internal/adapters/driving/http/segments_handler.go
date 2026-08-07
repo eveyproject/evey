@@ -15,7 +15,14 @@ import (
 // previewEnabled reports whether "preview" (next-episode preview reel)
 // segments should be served. Read live per request so the admin toggle takes
 // effect without a restart; nil is treated as disabled.
-func segmentsHandler(svc SegmentsGetter, baseURL string, libraryAccess LibraryAccessChecker, mediaGetter MediaItemGetter, previewEnabled func() bool, parental ParentalChecker) http.HandlerFunc {
+//
+// castIntroAutoSkip gates intro segments for CAST callers only: the receiver
+// auto-jumps every intro it receives (a TV has no input to offer a button),
+// so until the detector's accuracy is acted the admin keeps this off and the
+// TV sees no intro segments at all. Web/mobile players (JWT or plain stream
+// tokens) keep their skip button regardless. Nil = off (fail closed), read
+// live per request like previewEnabled.
+func segmentsHandler(svc SegmentsGetter, baseURL string, libraryAccess LibraryAccessChecker, mediaGetter MediaItemGetter, previewEnabled func() bool, parental ParentalChecker, castIntroAutoSkip func() bool) http.HandlerFunc {
 	type segmentJSON struct {
 		Type       string  `json:"type"`
 		StartMs    int64   `json:"startMs"`
@@ -30,12 +37,14 @@ func segmentsHandler(svc SegmentsGetter, baseURL string, libraryAccess LibraryAc
 		mediaID := r.PathValue("id")
 		claims := HTTPClaimsFromContext(r.Context())
 
+		castCaller := false
 		if st, ok := StreamTokenFromContext(r.Context()); ok {
 			if st.MediaItemID != shared.MediaItemID(mediaID) {
 				span.SetStatus(codes.Error, "stream token media mismatch")
 				http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 				return
 			}
+			castCaller = st.Cast
 		}
 		item, err := mediaGetter.GetMediaItem(r.Context(), mediaID)
 		if err != nil {
@@ -74,10 +83,14 @@ func segmentsHandler(svc SegmentsGetter, baseURL string, libraryAccess LibraryAc
 		// "preview" is admin-gated: even when the client asks for it, it is
 		// withheld unless the server toggle is on. Default off.
 		showPreview := previewEnabled != nil && previewEnabled()
+		withholdIntro := castCaller && (castIntroAutoSkip == nil || !castIntroAutoSkip())
 
 		out := make([]segmentJSON, 0, len(segments))
 		for _, seg := range segments {
 			if seg.Type == "preview" && !showPreview {
+				continue
+			}
+			if seg.Type == "intro" && withholdIntro {
 				continue
 			}
 			if typeFilter != nil {

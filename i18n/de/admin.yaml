@@ -905,6 +905,8 @@ serverSettings:
   restartHint: (wird beim Neustart angewendet)
   skipPreview: Vorschau-Segmente überspringen
   skipPreviewInfo: "Blendet die kurze Vorschau der nächsten Folge aus, die manche Serien am Ende einblenden. Bei Aktivierung lässt der Server diese Segmente bei der Wiedergabe weg, selbst wenn der Client sie sonst anzeigen würde."
+  castIntroAutoSkip: "Intros auf Chromecast automatisch überspringen"
+  castIntroAutoSkipInfo: "Der Fernseher überspringt erkannte Intros während eines Casts automatisch. Deaktiviert lassen, bis die Zuverlässigkeit der Erkennung bestätigt ist - ein falscher Sprung lässt sich vom Sofa aus nicht rückgängig machen."
   auditRetentionDays: "Aufbewahrung des Audit-Logs (Tage, 0 = unbegrenzt)"
   metricsRetentionDays: "Aufbewahrung der Servermetriken (Tage)"
   qoeRetentionDays: "Aufbewahrung der Wiedergabequalität (QoE) (Tage)"

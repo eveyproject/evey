@@ -905,6 +905,8 @@ serverSettings:
   restartHint: (se aplica al reiniciar)
   skipPreview: Saltar segmentos de avance
   skipPreviewInfo: "Oculta el breve avance del proximo episodio que algunas series insertan al final. Si esta activo, el servidor omite estos segmentos durante la reproduccion aunque el cliente los muestre."
+  castIntroAutoSkip: "Saltar intros automaticamente en Chromecast"
+  castIntroAutoSkipInfo: "El televisor salta automaticamente las intros detectadas durante un cast. Mantener desactivado hasta comprobar la fiabilidad de la deteccion - un salto erroneo no se puede deshacer desde el sofa."
   auditRetentionDays: "Retencion del registro de auditoria (dias, 0 = conservar siempre)"
   metricsRetentionDays: "Retencion de metricas del servidor (dias)"
   qoeRetentionDays: "Retencion de calidad de reproduccion (QoE) (dias)"

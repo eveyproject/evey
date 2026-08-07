@@ -905,6 +905,8 @@ serverSettings:
   restartHint: （重启后生效）
   skipPreview: 跳过预告片段
   skipPreviewInfo: "隐藏某些剧集在末尾插入的下一集短预告。启用后，即使客户端会显示这些片段，服务器也会在播放时跳过它们。"
+  castIntroAutoSkip: "在 Chromecast 上自动跳过片头"
+  castIntroAutoSkipInfo: "投屏时电视会自动跳过检测到的片头。在检测可靠性得到确认之前请保持关闭。"
   auditRetentionDays: "审计日志保留期（天，0 = 永久保留）"
   metricsRetentionDays: "服务器指标保留期（天）"
   qoeRetentionDays: "播放质量（QoE）保留期（天）"

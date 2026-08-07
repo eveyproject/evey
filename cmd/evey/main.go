@@ -137,6 +137,7 @@ func run() error {
 	loadOverride(ctx, cfgStore, "ratelimit.global_max", parseInt, &cfg.Server.GlobalRateLimitMax)
 	loadOverride(ctx, cfgStore, "log.level", parseStr, &cfg.Log.Level)
 	loadOverride(ctx, cfgStore, "intro_providers.skip_preview_enabled", parseBool, &cfg.Metadata.SkipPreviewEnabled)
+	loadOverride(ctx, cfgStore, "intro_providers.cast_intro_auto_skip_enabled", parseBool, &cfg.Metadata.CastIntroAutoSkipEnabled)
 	// Retention windows + transcode cache budget: panel-managed since 2026-07-23
 	// (operator settings never live in env-only per the project rule). The
 	// retention ones are ALSO re-read live by their sweeps; loading them here
