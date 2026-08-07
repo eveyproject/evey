@@ -1,9 +1,11 @@
 package grpcapi
 
 import (
+	"context"
 	"testing"
 
 	"github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/domain/library/fakes"
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -73,4 +75,73 @@ func TestNextMediaItemsCursor_ShortPageReturnsEmpty(t *testing.T) {
 	}
 	filter := library.ListMediaItemsFilter{Limit: 10, SortField: "title"}
 	assert.Empty(t, nextMediaItemsCursor(items, filter))
+}
+
+// The fake and the real repository have to agree on WHERE a missing value sits
+// in the ordering, or handler tests validate a sequence production never emits.
+// Postgres puts NULLs LAST on ASC and FIRST on DESC; a plain string comparison
+// (an empty string sorts smallest) does the exact opposite in both directions.
+//
+// This is the defect shape that already cost a session once: a fake that did
+// not sort the way the SQL did made a correct offset-to-cursor handover look
+// broken. Here the mirror is asserted directly - the same walk runs against
+// internal/adapters/driven/postgres in
+// TestMediaItemRepo_ListCursor_SortByNullableYear.
+func TestFakeMediaItemCursor_MissingYearKeepsItsPlaceInTheOrdering(t *testing.T) {
+	t.Parallel()
+
+	year1999, year2001 := 1999, 2001
+	newItem := func(id string, y *int) *library.MediaItem {
+		return &library.MediaItem{
+			ID:        shared.MediaItemID(id),
+			LibraryID: shared.LibraryID("lib-1"),
+			Type:      library.MovieItem,
+			Title:     "Some Movie " + id,
+			SortTitle: "some movie " + id,
+			Catalog:   &library.MediaCatalog{Year: y},
+		}
+	}
+	want := []string{"a", "b", "c", "d"}
+
+	for _, order := range []string{"ASC", "DESC"} {
+		t.Run(order, func(t *testing.T) {
+			repo := fakes.NewFakeMediaItemQueryRepo()
+			repo.Add(newItem("a", &year1999))
+			repo.Add(newItem("b", &year2001))
+			repo.Add(newItem("c", nil)) // never matched by a provider
+			repo.Add(newItem("d", nil))
+
+			libID := shared.LibraryID("lib-1")
+			var collected []string
+			cursor := shared.Cursor{}
+			// Iteration cap, not loop-until-empty: a seek that fails to advance
+			// must fail fast instead of spinning.
+			for range len(want) + 3 {
+				page, err := repo.List(context.Background(), library.ListMediaItemsFilter{
+					LibraryID: &libID,
+					SortField: "year",
+					SortOrder: order,
+					Limit:     1,
+					Cursor:    cursor,
+				})
+				require.NoError(t, err)
+				if len(page) == 0 {
+					break
+				}
+				for _, it := range page {
+					collected = append(collected, string(it.ID))
+				}
+				last := page[len(page)-1]
+				cursor = shared.Cursor{
+					SortField: "year",
+					SortValue: mediaItemSortValue(last, "year"),
+					LastID:    string(last.ID),
+				}
+			}
+
+			assert.ElementsMatch(t, want, collected,
+				"an item with no year must still be reached - it must not vanish after the first page")
+			assert.Len(t, collected, len(want), "no row may be skipped or repeated across a page boundary")
+		})
+	}
 }

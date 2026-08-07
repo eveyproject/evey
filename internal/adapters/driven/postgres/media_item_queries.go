@@ -165,6 +165,67 @@ func whereAnd(where, predicate string) string {
 	return where + " AND " + predicate
 }
 
+// mediaItemCursorSeek builds the keyset predicate that resumes after the
+// cursor's row, and returns it with the args it bound.
+//
+// The plain `(sort, mi.id) > ($v, $id)` tuple comparison is only correct while
+// the sort column cannot be NULL. Every sortable column except the mi.* ones
+// reaches us through a LEFT JOIN (media_catalog, media_classifications), so it
+// IS null whenever the provider has not matched the item - a fresh scan, a home
+// video, anything TMDB cannot identify. Two things broke there, both found
+// 2026-08-08 and both reproduced against a real Postgres:
+//
+//   - a row comparison involving NULL evaluates to NULL, not true, so those
+//     items were silently DROPPED from every page after the first. Ascending
+//     (NULLs last), the whole tail of the library simply vanished mid-scroll;
+//   - descending puts NULLs FIRST, so one of them ends page 1 and the handler,
+//     having no value to encode, put an EMPTY STRING in the cursor. Binding ""
+//     against an integer column is `invalid input syntax for type integer`,
+//     i.e. a 500 on ordinary data.
+//
+// So NULL is treated as a position in the ordering, exactly where Postgres puts
+// it: last on ASC, first on DESC. An empty SortValue means "the previous row
+// had no value" and is never bound, which is also what keeps the cast from
+// happening. It stays unambiguous because every nullable sort key encodes
+// non-empty for a present value (zero-padded number, RFC3339 date).
+func mediaItemCursorSeek(sortField, sortOrder string, cursor shared.Cursor, args []any) (string, []any) {
+	// mi.* columns come from the base table and are never NULL here; everything
+	// else arrives through a LEFT JOIN and can be.
+	nullable := !strings.HasPrefix(sortField, "mi.")
+	atNullRow := nullable && cursor.SortValue == ""
+
+	if sortOrder == "DESC" { // Postgres orders NULLs FIRST on DESC
+		if atNullRow {
+			// Still inside the leading NULL block: the rest of it, then
+			// everything that has a value.
+			idIdx := len(args) + 1
+			args = append(args, cursor.LastID)
+			return fmt.Sprintf("((%s IS NULL AND mi.id < $%d) OR %s IS NOT NULL)", sortField, idIdx, sortField), args
+		}
+		// Past the NULL block already - a plain tuple comparison excludes NULLs
+		// on its own, which is what we want.
+		vIdx := len(args) + 1
+		args = append(args, cursor.SortValue, cursor.LastID)
+		return fmt.Sprintf("((%s, mi.id) < ($%d, $%d))", sortField, vIdx, vIdx+1), args
+	}
+
+	// ASC: Postgres orders NULLs LAST.
+	if atNullRow {
+		idIdx := len(args) + 1
+		args = append(args, cursor.LastID)
+		return fmt.Sprintf("(%s IS NULL AND mi.id > $%d)", sortField, idIdx), args
+	}
+	vIdx := len(args) + 1
+	args = append(args, cursor.SortValue, cursor.LastID)
+	if !nullable {
+		return fmt.Sprintf("((%s, mi.id) > ($%d, $%d))", sortField, vIdx, vIdx+1), args
+	}
+	// The NULL block is still ahead, so it has to be part of what remains.
+	// Parenthesised as one term: AND binds tighter than OR, and getting that
+	// wrong is how an earlier keyset query served the same page forever.
+	return fmt.Sprintf("((%s, mi.id) > ($%d, $%d) OR %s IS NULL)", sortField, vIdx, vIdx+1, sortField), args
+}
+
 func (r *MediaItemRepository) Count(ctx context.Context, f library.ListMediaItemsFilter) (int, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.mediaitem.Count")
 	defer span.End()
@@ -198,13 +259,9 @@ func (r *MediaItemRepository) List(ctx context.Context, f library.ListMediaItems
 		if f.Cursor.SortField != sortKey {
 			return nil, shared.ErrCursorMismatch
 		}
-		cmp := ">"
-		if sortOrder == "DESC" {
-			cmp = "<"
-		}
-		nextIdx := len(args) + 1
-		where = whereAnd(where, fmt.Sprintf("(%s, mi.id) %s ($%d, $%d)", sortField, cmp, nextIdx, nextIdx+1))
-		args = append(args, f.Cursor.SortValue, f.Cursor.LastID)
+		var seek string
+		seek, args = mediaItemCursorSeek(sortField, sortOrder, f.Cursor, args)
+		where = whereAnd(where, seek)
 	}
 
 	query := fmt.Sprintf("SELECT %s %s%s", mediaItemColumns, mediaItemFromJoins, where)

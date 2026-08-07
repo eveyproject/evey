@@ -424,9 +424,40 @@ func itemSortValue(m *library.MediaItem, sortKey string) string {
 	}
 }
 
+// sortKeyIsNullable reports whether an EMPTY itemSortValue means "this item has
+// no value" rather than "its value is the empty string". Only these three reach
+// SQL through a LEFT JOIN (media_catalog, media_classifications); title and
+// added_at live on media_items and are always present.
+func sortKeyIsNullable(sortKey string) bool {
+	switch sortKey {
+	case "year", "premiere_date", "community_rating":
+		return true
+	default:
+		return false
+	}
+}
+
+// sortsAsNull reports whether this item has no value for the sort key, i.e.
+// whether Postgres would treat it as NULL when ordering.
+func sortsAsNull(v, sortKey string) bool {
+	return v == "" && sortKeyIsNullable(sortKey)
+}
+
+// Ordering mirrors Postgres, including where it puts NULLs: LAST on ASC, FIRST
+// on DESC. Plain string comparison would do the opposite (an empty string sorts
+// smallest), so a fake built on it would hand handler tests an order production
+// never produces - the fake that "did not sort" once made a correct
+// offset-to-cursor handover look broken for an entire session.
 func sortMediaItems(items []*library.MediaItem, sortKey string, desc bool) {
 	sort.SliceStable(items, func(i, j int) bool {
 		vi, vj := itemSortValue(items[i], sortKey), itemSortValue(items[j], sortKey)
+		ni, nj := sortsAsNull(vi, sortKey), sortsAsNull(vj, sortKey)
+		if ni != nj {
+			if desc {
+				return ni // NULLs first
+			}
+			return nj // NULLs last
+		}
 		if vi == vj {
 			if desc {
 				return string(items[i].ID) > string(items[j].ID)
@@ -440,19 +471,40 @@ func sortMediaItems(items []*library.MediaItem, sortKey string, desc bool) {
 	})
 }
 
+// applyCursor drops everything up to and including the cursor's row. items must
+// already be sorted, so the first row that "passed" starts the remainder.
+//
+// The NULL block is a position in the ordering, not a value: an empty
+// SortValue means the previous page ended inside it.
 func applyCursor(items []*library.MediaItem, sortKey string, c shared.Cursor, desc bool) []*library.MediaItem {
+	cursorAtNull := sortsAsNull(c.SortValue, sortKey)
 	for i, it := range items {
 		v := itemSortValue(it, sortKey)
+		vNull := sortsAsNull(v, sortKey)
 		var passed bool
-		if v == c.SortValue {
+		switch {
+		case cursorAtNull && vNull:
+			// Same block: only the id orders them.
 			if desc {
 				passed = string(it.ID) < c.LastID
 			} else {
 				passed = string(it.ID) > c.LastID
 			}
-		} else if desc {
+		case cursorAtNull:
+			// Rows WITH a value: after the NULL block on DESC, before it on ASC.
+			passed = desc
+		case vNull:
+			// The NULL block: after the valued rows on ASC, before them on DESC.
+			passed = !desc
+		case v == c.SortValue:
+			if desc {
+				passed = string(it.ID) < c.LastID
+			} else {
+				passed = string(it.ID) > c.LastID
+			}
+		case desc:
 			passed = v < c.SortValue
-		} else {
+		default:
 			passed = v > c.SortValue
 		}
 		if passed {
