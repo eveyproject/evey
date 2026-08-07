@@ -13,6 +13,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../../../src/providers/ThemeProvider";
+import { LoadFailed } from "../../../src/components/LoadFailed";
 import { usePlaylistDetail, useDeletePlaylist, useRemoveFromPlaylist, useReorderPlaylistItems, useUpdatePlaylist, type PlaylistItem } from "../../../src/api/playlists";
 import { SmartRulesEditor, type SmartRule } from "../../../src/components/SmartRulesEditor";
 
@@ -98,7 +99,7 @@ export default function PlaylistDetailScreen() {
   const removeMutation = useRemoveFromPlaylist();
   const reorderMutation = useReorderPlaylistItems();
 
-  const { data: playlist, isLoading, isError } = usePlaylistDetail(id ?? "");
+  const { data: playlist, isLoading, isError, refetch } = usePlaylistDetail(id ?? "");
   const updatePlaylist = useUpdatePlaylist();
   const isManual = playlist?.type === "manual";
   const isSmart = playlist?.type?.includes("smart") ?? false;
@@ -168,17 +169,34 @@ export default function PlaylistDetailScreen() {
     );
   }
 
-  if (isError || !playlist) {
+  // A failed fetch is NOT "this playlist does not exist". Both used to render
+  // the same sentence, so a server that did not answer told the user their
+  // playlist was gone - and offered nothing to do about it. Same defect, same
+  // day, on the web twin.
+  const playlistHeader = (
+    <Stack.Screen
+      options={{
+        headerShown: true,
+        title: t("common.playlists"),
+        headerStyle: { backgroundColor: theme.colors.surface },
+        headerTintColor: theme.colors.text,
+      }}
+    />
+  );
+
+  if (isError) {
     return (
       <View style={[styles.center, { backgroundColor: theme.colors.bg }]}>
-        <Stack.Screen
-          options={{
-            headerShown: true,
-            title: t("common.playlists"),
-            headerStyle: { backgroundColor: theme.colors.surface },
-            headerTintColor: theme.colors.text,
-          }}
-        />
+        {playlistHeader}
+        <LoadFailed onRetry={() => void refetch()} />
+      </View>
+    );
+  }
+
+  if (!playlist) {
+    return (
+      <View style={[styles.center, { backgroundColor: theme.colors.bg }]}>
+        {playlistHeader}
         <Text style={{ color: theme.colors.textMuted }}>{t("media.playlist.notFound")}</Text>
       </View>
     );
