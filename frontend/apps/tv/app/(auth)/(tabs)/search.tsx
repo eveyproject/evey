@@ -132,16 +132,18 @@ export default function SearchScreen() {
   const [query, setQuery] = useState("");
   const [inputFocused, setInputFocused] = useState(false);
   const [searchKind, setSearchKind] = useState<"media" | "music">("media");
-  const debouncedQuery = useDebounce(query, 300);
+  // Trim then gate at > 1 char, like web and mobile: a single character fired
+  // a request per keystroke here for results nobody can use.
+  const debouncedQuery = useDebounce(query.trim(), 300);
   const setQueue = useMusicQueueStore((s) => s.setQueue);
 
   const { data, isLoading, isError, refetch } = useLibraryServiceSearchMedia(
     { query: debouncedQuery, limit: 30 },
-    { query: { enabled: debouncedQuery.length > 0 && searchKind === "media" } },
+    { query: { enabled: debouncedQuery.length > 1 && searchKind === "media" } },
   );
   const { data: musicData, isLoading: musicLoading, isError: musicError, refetch: musicRefetch } = useMusicServiceSearchMusic(
     { query: debouncedQuery, limit: 30 },
-    { query: { enabled: debouncedQuery.length > 0 && searchKind === "music" } },
+    { query: { enabled: debouncedQuery.length > 1 && searchKind === "music" } },
   );
 
   const items = data?.items ?? [];
@@ -152,7 +154,7 @@ export default function SearchScreen() {
     searchKind,
     isError: searchKind === "media" ? isError : musicError,
     activeLoading,
-    hasQuery: debouncedQuery.length > 0,
+    hasQuery: debouncedQuery.length > 1,
     musicItemsCount: musicItems.length,
     mediaItemsCount: items.length,
   });
