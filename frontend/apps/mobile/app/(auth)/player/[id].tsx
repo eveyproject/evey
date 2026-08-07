@@ -587,7 +587,7 @@ const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>()
     };
   }, [player]);
 
-  const { castConnected, castClient, castCurrentTime, castDuration, castIsPlaying, castVolume, castIsMuted, handleCast } = useCastSession({
+  const { castConnected, castClient, castCurrentTime, castDuration, castIsPlaying, castVolume, castIsMuted, castDeviceName, handleCast } = useCastSession({
     player,
     volume,
     streamUrl,
@@ -924,7 +924,7 @@ const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>()
     mediaId,
     isEpisode,
     getDurationMs: () => effectiveDuration * 1000,
-  });
+  }, () => castDeviceName);
 
   const handleAudioSelect = useCallback(
     (index: number) => {

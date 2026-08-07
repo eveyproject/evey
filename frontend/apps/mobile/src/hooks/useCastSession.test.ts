@@ -5,6 +5,7 @@ const showCastDialog = vi.fn();
 let castState = 0; // NOT_CONNECTED
 let castClientInstance: { loadMedia: ReturnType<typeof vi.fn> } | null = null;
 let castDeviceModelName: string | null = null;
+let castDeviceFriendlyName: string | null = null;
 let sessionDeviceModelName: string | null = null;
 
 vi.mock("./useChromecast", () => ({
@@ -13,7 +14,10 @@ vi.mock("./useChromecast", () => ({
   useCastStateHook: () => castState,
   useRemoteMediaClientHook: () => castClientInstance,
   useMediaStatusHook: () => null,
-  useCastDeviceHook: () => (castDeviceModelName ? { modelName: castDeviceModelName } : null),
+  useCastDeviceHook: () =>
+    castDeviceModelName || castDeviceFriendlyName
+      ? { modelName: castDeviceModelName, friendlyName: castDeviceFriendlyName }
+      : null,
   getConnectedDeviceModelName: async () => sessionDeviceModelName,
 }));
 
@@ -80,6 +84,7 @@ beforeEach(() => {
   castState = 0;
   castClientInstance = null;
   castDeviceModelName = null;
+  castDeviceFriendlyName = null;
   sessionDeviceModelName = null;
   showCastDialog.mockReset();
   setAudioBoost.mockReset();
@@ -88,6 +93,27 @@ beforeEach(() => {
 });
 
 describe("useCastSession", () => {
+  // The progress reporter forwards this name to the server; a named cast is
+  // what makes the server leave admin commands for the TV's beacon instead of
+  // handing them to the phone.
+  it("exposes the receiver's friendly name while connected", () => {
+    castState = 4;
+    castDeviceFriendlyName = "Salon TV";
+    const { result } = mount(fakePlayer());
+    expect(result.current.castDeviceName).toBe("Salon TV");
+  });
+
+  it("falls back to a generic name when the device has not been delivered yet", () => {
+    castState = 4;
+    const { result } = mount(fakePlayer());
+    expect(result.current.castDeviceName).toBe("Chromecast");
+  });
+
+  it("exposes an empty cast device name when not connected", () => {
+    const { result } = mount(fakePlayer());
+    expect(result.current.castDeviceName).toBe("");
+  });
+
   // Tapping cast used to pause the local player and set volume to 0 BEFORE
   // opening the picker. Dismissing the picker changes no cast state, so no
   // effect re-ran and nothing undid it: the film sat paused and silent, and the

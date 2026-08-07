@@ -60,6 +60,11 @@ export function useProgressReporter(
   getIsMuted?: () => boolean,
   callbacks?: ProgressReporterCallbacks,
   prewarm?: PrewarmNextOptions,
+  // Friendly name of the cast device while casting, "" for local playback.
+  // Naming the device is what makes the server withhold remote commands from
+  // this reporter so the TV's own beacon consumes them (admin pause/message
+  // used to land on the parked phone instead of the television).
+  getCastDeviceName?: () => string,
 ) {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pendingRef = useRef(false);
@@ -76,6 +81,8 @@ export function useProgressReporter(
   cbRef.current = callbacks;
   const prewarmRef = useRef(prewarm);
   prewarmRef.current = prewarm;
+  const getCastDeviceNameRef = useRef(getCastDeviceName);
+  getCastDeviceNameRef.current = getCastDeviceName;
   const prewarmedMediaIdRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -95,6 +102,7 @@ export function useProgressReporter(
           isPaused: getIsPausedRef.current?.() ?? false,
           isMuted: getIsMutedRef.current?.() ?? false,
           volumeLevel: Math.round((getVolumeRef.current?.() ?? 1) * 100),
+          castDeviceName: getCastDeviceNameRef.current?.() ?? "",
         });
         errorCountRef.current = 0;
 
@@ -146,6 +154,7 @@ export function useProgressReporter(
         isPaused: getIsPausedRef.current?.() ?? true,
         isMuted: getIsMutedRef.current?.() ?? false,
         volumeLevel: Math.round((getVolumeRef.current?.() ?? 1) * 100),
+        castDeviceName: getCastDeviceNameRef.current?.() ?? "",
       }).catch((err) => console.warn("caught", err));
     };
   }, [sessionId]);

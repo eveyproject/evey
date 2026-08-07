@@ -66,6 +66,11 @@ export function useCastSession({
   // muted at 0% while the television played out loud (see castPlaybackState.ts).
   const castVolume = castMediaStatus?.volume;
   const castIsMuted = castMediaStatus?.isMuted;
+  // Forwarded to the progress reporter: a report naming a cast device is what
+  // makes the server leave admin remote commands for the TV's beacon instead
+  // of this phone (see useProgressReporter). Generic fallback while the
+  // useCastDevice hook has not delivered yet - the name is display-only.
+  const castDeviceName = castConnected ? (castDevice?.friendlyName ?? "Chromecast") : "";
 
   // Report the receiver's own track list once per shape (see castTrackBeacon).
   // A track selector during a cast cannot be designed without knowing what the
@@ -229,5 +234,5 @@ export function useCastSession({
     }
   }, [castConnected, unmuteLocalPlayer, player]);
 
-  return { castConnected, castClient, castCurrentTime, castDuration, castIsPlaying, castVolume, castIsMuted, handleCast };
+  return { castConnected, castClient, castCurrentTime, castDuration, castIsPlaying, castVolume, castIsMuted, castDeviceName, handleCast };
 }

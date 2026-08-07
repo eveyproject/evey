@@ -44,6 +44,7 @@ describe("useProgressReporter", () => {
       isPaused: false,
       isMuted: false,
       volumeLevel: 100,
+      castDeviceName: "",
     });
 
     pos = 15000;
@@ -141,6 +142,32 @@ describe("useProgressReporter", () => {
 
     await act(async () => { vi.advanceTimersByTime(3_000); });
     expect(toastInfoMock).toHaveBeenCalledWith("Hello world");
+  });
+
+  // While casting, the report must name the cast device: the server withholds
+  // remote commands from a casting reporter so the TV's own beacon consumes
+  // them - without this field the phone ate the admin's message as a local
+  // toast and the TV never saw it.
+  it("includes the cast device name in periodic reports while casting", async () => {
+    renderHook(() =>
+      useProgressReporter("s1", () => 0, undefined, undefined, undefined, undefined, undefined, () => "Salon TV"),
+    );
+
+    await act(async () => { vi.advanceTimersByTime(3_000); });
+    expect(reportProgressMock).toHaveBeenCalledWith(expect.objectContaining({
+      castDeviceName: "Salon TV",
+    }));
+  });
+
+  it("includes the cast device name in the final unmount report", async () => {
+    const { unmount } = renderHook(() =>
+      useProgressReporter("s1", () => 0, undefined, undefined, undefined, undefined, undefined, () => "Salon TV"),
+    );
+
+    unmount();
+    expect(reportProgressMock).toHaveBeenCalledWith(expect.objectContaining({
+      castDeviceName: "Salon TV",
+    }));
   });
 
   it("backs off on errors (skip 2 ticks after failure)", async () => {
