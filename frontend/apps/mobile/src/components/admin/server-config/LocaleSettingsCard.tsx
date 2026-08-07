@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { View, Text, Pressable, Modal, TextInput, FlatList, StyleSheet } from "react-native";
 import { useTranslation } from "react-i18next";
+import { defaultRegionForLocale } from "@evey/api";
 import { useTheme } from "../../../providers/ThemeProvider";
 import { regionOptions } from "../../../lib/regionOptions";
 import { supportedLanguages } from "../../../i18n";
@@ -42,9 +43,13 @@ export function LocaleSettingsCard({ getEntryValue, saveEntry, saving }: LocaleS
   }, [regions, regionQuery]);
 
   const envDefaultLabel = t("admin.serverConfig.envDefault", "- env default -");
+  // Mirrors the web card: the "auto" region option spells out the region it
+  // actually resolves to (server.language -> defaultRegionForLocale), so the
+  // admin isn't left guessing what "auto" means.
+  const regionEnvDefaultLabel = `${envDefaultLabel} (${defaultRegionForLocale(serverLang)})`;
   const regionLabel = serverRegion
     ? (regions.find((r) => r.code === serverRegion)?.label ?? serverRegion)
-    : envDefaultLabel;
+    : regionEnvDefaultLabel;
 
   function pickRegion(code: string) {
     saveEntry({ key: SERVER_REGION_KEY, value: code });
@@ -93,7 +98,7 @@ export function LocaleSettingsCard({ getEntryValue, saveEntry, saving }: LocaleS
             autoCapitalize="none"
           />
           <FlatList
-            data={[{ code: "", label: envDefaultLabel }, ...filteredRegions]}
+            data={[{ code: "", label: regionEnvDefaultLabel }, ...filteredRegions]}
             keyExtractor={(it: { code: string }) => it.code || "auto"}
             renderItem={({ item }: { item: { code: string; label: string } }) => (
               <Pressable onPress={() => pickRegion(item.code)} style={s.regionRow}>

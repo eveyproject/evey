@@ -1,13 +1,18 @@
 import { useState, useEffect, useMemo } from "react";
 import { Play } from "lucide-react";
 import { createFileRoute, isRedirect, redirect, useNavigate } from "@tanstack/react-router";
-import { eveyFetch, useAdminSystemServiceSetupWizard, useLibraryServiceCreateLibrary, adminSystemServiceGetSetupStatus } from "@evey/api";
+import {
+  eveyFetch,
+  useAdminSystemServiceSetupWizard,
+  useLibraryServiceCreateLibrary,
+  adminSystemServiceGetSetupStatus,
+  defaultRegionForLocale,
+} from "@evey/api";
 import type { V1LibraryType } from "@evey/api";
 import { useAuthStore, useLocaleStore } from "@evey/store";
 import { useTranslation } from "react-i18next";
 import { supportedLanguages } from "@/i18n";
 import { ISO_REGIONS } from "@/features/user/regionList";
-import { defaultRegionForLocale } from "@/features/user/regionDefaults";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";

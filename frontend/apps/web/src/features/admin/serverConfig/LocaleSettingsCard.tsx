@@ -3,8 +3,8 @@ import { useTranslation } from "react-i18next";
 import { toast, useLocaleStore } from "@evey/store";
 import { Spinner } from "@/components/ui/Spinner";
 import { Select } from "@/components/ui/Select";
+import { defaultRegionForLocale } from "@evey/api";
 import { ISO_REGIONS } from "@/features/user/regionList";
-import { defaultRegionForLocale } from "@/features/user/regionDefaults";
 import { supportedLanguages } from "@/i18n";
 import { useSetConfigEntry, type ConfigEntry } from "./hooks";
 
