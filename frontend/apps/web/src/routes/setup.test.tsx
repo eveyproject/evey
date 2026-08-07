@@ -8,7 +8,11 @@ const mockCreateLibraryMutate = vi.fn();
 const mockNavigate = vi.fn();
 const mockSetTokens = vi.fn();
 
-vi.mock("@evey/api", () => ({
+// Spreading importOriginal is required, not cosmetic: the page also imports
+// the shared defaultRegionForLocale from this package, and a mock that lists
+// only hooks hands it back undefined.
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
   eveyFetch: vi.fn().mockResolvedValue({ setupComplete: false }),
   useAdminSystemServiceSetupWizard: vi.fn(() => ({ mutate: mockSetupMutate, isPending: false })),
   useLibraryServiceCreateLibrary: vi.fn(() => ({ mutate: mockCreateLibraryMutate, isPending: false })),

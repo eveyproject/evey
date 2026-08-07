@@ -99,7 +99,12 @@ const { listLibrariesMock, listAlbumsMock, listPhotosMock } = vi.hoisted(() => (
   listAlbumsMock: vi.fn(),
   listPhotosMock: vi.fn(),
 }));
-vi.mock("@evey/api", () => ({
+// Spreading importOriginal is required, not cosmetic: the screen also imports
+// the shared hasMoreFromCursor from this package, and a mock that lists only
+// hooks hands it back undefined - the call then throws inside the
+// end-of-scroll callback and the grid silently stops at page 1.
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
   useLibraryServiceListLibraries: (...args: unknown[]) => listLibrariesMock(...args),
   usePhotoServiceListPhotoAlbums: (...args: unknown[]) => listAlbumsMock(...args),
   usePhotoServiceListPhotos: (...args: unknown[]) => listPhotosMock(...args),
