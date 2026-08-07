@@ -109,9 +109,19 @@ func TestReapStaleProcesses_SparesUnrelatedAndOwnedProcesses(t *testing.T) {
 	r.processes["plg-owned"] = &processEntry{cmd: owned, pluginID: "plg-owned"}
 	r.mu.Unlock()
 
-	r.ReapStaleProcesses()
-	time.Sleep(300 * time.Millisecond)
+	// Selection, not liveness, is what this test is about. The previous version
+	// slept a fixed 300ms and then checked both processes were alive - but the
+	// escalation it was meant to rule out fires after killTimeout (3s), so the
+	// check landed long before anything could have happened and proved nothing
+	// about it. Under load it still went red now and then, on timing rather
+	// than on behaviour. A victim count of zero is the actual invariant: a
+	// process that was never selected can never be signalled, at any delay.
+	if n := r.ReapStaleProcesses(); n != 0 {
+		t.Errorf("reap selected %d victim(s); neither the unrelated nor the owned process may be one", n)
+	}
 
+	// Kept as the second half of the same claim: nothing was signalled
+	// synchronously either.
 	if syscall.Kill(unrelated.Process.Pid, 0) != nil {
 		t.Errorf("unrelated process %d was killed by the reap", unrelated.Process.Pid)
 	}
