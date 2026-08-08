@@ -58,8 +58,18 @@ func (r *FakeAuditLogRepository) List(_ context.Context, filter activity.AuditLo
 	} else if filter.Offset >= len(result) {
 		return nil, nil
 	}
-	if filter.Limit > 0 && filter.Limit < len(result) {
-		result = result[:filter.Limit]
+	// Postgres clamps a zero Limit to 500 rather than returning everything
+	// (see the matching repository under adapters/driven/postgres). A fake that
+	// hands back the whole set makes an unpaginated read look correct in tests
+	// and silently truncate in production - the shape of bug this repository
+	// has already shipped once.
+	const defaultListLimit = 500 // mirrors the postgres repository's clamp
+	limit := filter.Limit
+	if limit <= 0 {
+		limit = defaultListLimit
+	}
+	if limit < len(result) {
+		result = result[:limit]
 	}
 	return result, nil
 }
