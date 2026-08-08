@@ -62,6 +62,12 @@ const { MOVIE_ID } = vi.hoisted(() => ({ MOVIE_ID: "movie-1" }));
 vi.mock("expo-router", () => ({
   useLocalSearchParams: () => ({ id: MOVIE_ID }),
   router: { push: vi.fn(), back: vi.fn(), replace: vi.fn() },
+  // The screen resets its double-tap navigation latch on focus; no real
+  // navigator here, so run the callback once on mount (same shape as
+  // media-detail-episodes.test.tsx).
+  useFocusEffect: (cb: () => void | (() => void)) => {
+    React.useEffect(() => cb(), []);
+  },
 }));
 
 // --- react-native-safe-area-context ---------------------------------------------------

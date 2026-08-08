@@ -1,4 +1,4 @@
-import { memo, useRef } from "react";
+import { memo, useEffect, useRef } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -27,6 +27,10 @@ function MiniPlayerImpl() {
   // useFocusEffect reset (as used on the media detail screen) would latch
   // forever after the first tap. Time-based reset instead.
   const navigatingRef = useRef(false);
+  const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
+  }, []);
 
   if (!isActive || mode !== "mini" || !mediaId) return null;
 
@@ -36,7 +40,7 @@ function MiniPlayerImpl() {
     if (navigatingRef.current) return;
     navigatingRef.current = true;
     router.push(`/(auth)/player/${mediaId}`);
-    setTimeout(() => { navigatingRef.current = false; }, 800);
+    resetTimerRef.current = setTimeout(() => { navigatingRef.current = false; }, 800);
   }
 
   return (
