@@ -45,16 +45,24 @@ func (h *transcodingHandler) StartTranscode(req *eveyv1.StartTranscodeRequest, s
 		return status.Error(codes.NotFound, "media item not found")
 	}
 	// IDOR: restrict to libraries the caller has access to.
-	if h.userAccess != nil {
-		claims := interceptors.ClaimsFromContext(ctx)
-		if claims == nil {
-			return status.Error(codes.Unauthenticated, "unauthenticated")
+	//
+	// Identity first, wiring second - the order its own twin checkJobAccess
+	// already documents. Testing the port first put the unauthenticated check
+	// INSIDE the wiring check, so a nil userAccess skipped the whole block and
+	// let an anonymous caller through. The port is always wired at boot today,
+	// so this was never open in practice; it was open by construction, which is
+	// how the next wiring change would have shipped it.
+	claims := interceptors.ClaimsFromContext(ctx)
+	if claims == nil {
+		return status.Error(codes.Unauthenticated, "unauthenticated")
+	}
+	if !claims.IsAdmin {
+		if h.userAccess == nil {
+			return errUserAccessNotConfigured(ctx, "transcodingHandler.StartTranscode")
 		}
-		if !claims.IsAdmin {
-			ok, accessErr := h.userAccess.HasLibraryAccess(ctx, shared.UserID(claims.UserID), item.LibraryID)
-			if accessErr != nil || !ok {
-				return status.Error(codes.NotFound, "media item not found")
-			}
+		ok, accessErr := h.userAccess.HasLibraryAccess(ctx, shared.UserID(claims.UserID), item.LibraryID)
+		if accessErr != nil || !ok {
+			return status.Error(codes.NotFound, "media item not found")
 		}
 	}
 

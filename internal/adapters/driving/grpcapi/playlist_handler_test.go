@@ -557,10 +557,11 @@ func TestPlaylistGetItems_HidesParentallyBlockedTitles(t *testing.T) {
 		t.Fatalf("create playlist: %v", err)
 	}
 	for _, id := range []string{"mi-safe", "mi-blocked"} {
-		if _, err := h.AddPlaylistItem(ctx, &eveyv1.AddPlaylistItemRequest{
+		_, addErr := h.AddPlaylistItem(ctx, &eveyv1.AddPlaylistItemRequest{
 			Id: created.Id, MediaItemId: id,
-		}); err != nil {
-			t.Fatalf("add %s: %v", id, err)
+		})
+		if addErr != nil {
+			t.Fatalf("add %s: %v", id, addErr)
 		}
 	}
 

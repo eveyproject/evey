@@ -302,6 +302,17 @@ func (h *collectionHandler) AddCollectionItem(ctx context.Context, req *eveyv1.A
 		span.SetStatus(otelcodes.Error, "media_item_id is required")
 		return nil, status.Errorf(codes.InvalidArgument, "media_item_id is required")
 	}
+	// Defense-in-depth IDOR check, the same one its four siblings carry
+	// (DeleteCollection, UpdateCollection, RemoveCollectionItem,
+	// ReorderCollectionItems): RBAC already restricts this RPC to admins, but
+	// this was the one write that skipped it. Not exploitable today - it is
+	// exactly the kind of asymmetry that becomes one the day the RBAC entry
+	// moves.
+	if err := h.checkCollectionAccess(ctx, req.GetId()); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, err
+	}
 	if err := h.svc.LinkMediaItem(ctx, req.GetId(), req.GetMediaItemId(), int(req.GetSortOrder())); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
