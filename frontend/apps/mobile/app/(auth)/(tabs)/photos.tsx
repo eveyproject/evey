@@ -24,6 +24,10 @@ import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { prevLightboxIndex, nextLightboxIndex, rotateClockwise, rotateCounterClockwise } from "../../../src/lib/lightboxNav";
 
+// How close to the end of the loaded photos the viewer may get before the next
+// page is requested. Same margin as the web lightbox.
+const LIGHTBOX_PREFETCH_MARGIN = 5;
+
 interface LibraryItem {
   id: string;
   name: string;
@@ -171,6 +175,19 @@ export default function PhotosScreen() {
   } = usePhotos(activeLibraryID, selectedAlbum);
   const lightboxPhoto = lightboxIndex !== null ? photos[lightboxIndex] : undefined;
   const { data: photoDetail } = usePhotoDetail(lightboxPhoto?.id);
+
+  // Stepping through the lightbox must not stop at the last loaded page.
+  // nextLightboxIndex clamps at photos.length - 1, and photos only holds the
+  // pages the GRID has pulled in, so opening the viewer without having scrolled
+  // to the bottom made the Next arrow vanish partway through the album and the
+  // "n / total" counter report the loaded count as the total. The web lightbox
+  // already prefetches this way (LIGHTBOX_PREFETCH_MARGIN in
+  // routes/_auth/photos/index.lazy.tsx); the mobile one never did.
+  useEffect(() => {
+    if (lightboxIndex === null) return;
+    if (!hasMorePhotos || loadingMorePhotos) return;
+    if (lightboxIndex >= photos.length - LIGHTBOX_PREFETCH_MARGIN) void fetchMorePhotos();
+  }, [lightboxIndex, photos.length, hasMorePhotos, loadingMorePhotos, fetchMorePhotos]);
 
   // A stale index would otherwise index into a freshly filtered list when
   // switching library/album - showing the wrong photo, or auto-opening the

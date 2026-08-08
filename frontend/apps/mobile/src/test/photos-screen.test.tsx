@@ -226,6 +226,43 @@ describe("PhotosScreen", () => {
     });
   });
 
+  // The lightbox steps through `photos`, which only holds the pages the GRID has
+  // pulled in. Opening the viewer without having scrolled to the bottom used to
+  // dead-end: the Next arrow disappeared partway through the album and the
+  // counter reported the loaded count as the total. The grid's onEndReached is
+  // deliberately NOT fired here - the point is that stepping through the viewer
+  // pages on its own.
+  it("pages from inside the lightbox, without the grid being scrolled", async () => {
+    eveyFetchMock.mockImplementation(({ url }: { url: string }) => {
+      if (url.startsWith("/api/v1/libraries")) return Promise.resolve({ libraries });
+      if (url.startsWith("/api/v1/photos/albums")) return Promise.resolve({ albums });
+      if (url.startsWith("/api/v1/photos?")) {
+        const params = new URLSearchParams(url.split("?")[1]);
+        if (!params.get("cursor")) {
+          return Promise.resolve({ photos: allPhotos, total: 7199, nextCursor: "cur-1" });
+        }
+        return Promise.resolve({ photos: [], total: 0 });
+      }
+      return Promise.reject(new Error(`unexpected url ${url}`));
+    });
+
+    render(<PhotosScreen />, { wrapper: makeWrapper() });
+
+    await waitFor(() => expect(findThumb("p1")).toBeTruthy());
+    fireEvent.click(findThumb("p1")!.closest("button")!);
+    await waitFor(() => expect(screen.getByTestId("modal")).toBeTruthy());
+
+    await waitFor(() => {
+      const pagedFromViewer = eveyFetchMock.mock.calls.some(
+        ([{ url }]) => url.startsWith("/api/v1/photos?") && url.includes("cursor=cur-1"),
+      );
+      expect(
+        pagedFromViewer,
+        "opening the lightbox near the end of the loaded photos must request the next page",
+      ).toBe(true);
+    });
+  });
+
   it("uses the optimized webp thumbnail (not full resolution) in the grid", async () => {
     render(<PhotosScreen />, { wrapper: makeWrapper() });
     await waitFor(() => expect(findThumb("p1")).toBeTruthy());
