@@ -16,6 +16,10 @@ vi.mock("@evey/api", () => ({
   useFeedServiceUpdateProfileFeedConfig: () => ({ mutate: mockMutate }),
   useFeedServiceResetProfileFeedConfig: () => ({ mutate: mockResetMutate }),
   useLibraryServiceListLibraries: () => ({ data: mockLibrariesData }),
+  // The panel imports eveyFetch too. Stubbed rather than inherited from the
+  // real module so an untested save path fails loudly here instead of trying
+  // to reach the network.
+  eveyFetch: vi.fn(),
 }));
 
 vi.mock("@evey/store", () => ({

@@ -4,9 +4,15 @@ import { renderHook, waitFor, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 const eveyFetchMock = vi.fn();
-vi.mock("@evey/api", () => ({ eveyFetch: (...args: unknown[]) => eveyFetchMock(...args) }));
+// Spreads the real module: this hook file also imports collectAllPages and
+// EXPORT_PAGE_SIZE from @evey/api, and listing only eveyFetch would leave them
+// undefined the moment a test touches the list hook.
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
+  eveyFetch: (...args: unknown[]) => eveyFetchMock(...args),
+}));
 
-import { useIsFavorite, useToggleFavorite } from "./useFavorite";
+import { useIsFavorite, useToggleFavorite, useFavoritesList } from "./useFavorite";
 
 function makeWrapper(qc?: QueryClient) {
   const client = qc ?? new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -93,5 +99,27 @@ describe("useToggleFavorite", () => {
     await waitFor(() => expect(result.current.isError).toBe(true));
 
     expect(qc.getQueryData(["favorite", "media-5"])).toEqual({ isFavorite: true });
+  });
+});
+
+describe("useFavoritesList", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  // The screen sorts and filters on the device, so it needs every row. The hook
+  // used to ask for a single page of 200 and the response carries no total, so
+  // a longer list was cut with nothing to show for it.
+  it("walks every page", async () => {
+    const page = (n: number, from: number) =>
+      Array.from({ length: n }, (_, i) => ({ mediaItemId: `m-${from + i}`, createdAt: "2026-01-01" }));
+    eveyFetchMock
+      .mockResolvedValueOnce({ items: page(500, 0) })
+      .mockResolvedValueOnce({ items: page(7, 500) });
+
+    const { result } = renderHook(() => useFavoritesList(), { wrapper: makeWrapper() });
+
+    await waitFor(() => expect(result.current.data).toHaveLength(507));
+    expect(eveyFetchMock).toHaveBeenCalledTimes(2);
+    expect(eveyFetchMock.mock.calls[0][0].url).toContain("limit=500&offset=0");
+    expect(eveyFetchMock.mock.calls[1][0].url).toContain("limit=500&offset=500");
   });
 });

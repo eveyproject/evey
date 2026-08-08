@@ -73,7 +73,10 @@ vi.mock("../../../src/components/admin/backup/backupFileOps", () => ({
 }));
 
 // --- @evey/api -----------------------------------------------------------------------------
-vi.mock("@evey/api", () => ({
+// Spreads the real module: the screen renders backup sizes with formatBytes
+// from @evey/api, which a mock listing only eveyFetch leaves undefined.
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
   eveyFetch: vi.fn(),
 }));
 
