@@ -439,3 +439,51 @@ func TestBuildFFmpegArgs_VideoTranscode(t *testing.T) {
 		t.Error("expected aac for audio transcode")
 	}
 }
+
+// startTime is the only numeric query parameter on this path without an upper
+// bound: audioTrack and subtitleTrack are clamped to the streams that exist,
+// videoScale is bounded to 4320. strconv.ParseFloat accepts the literals "Inf",
+// "inf" and "+Inf" WITHOUT an error, and +Inf passes a bare `f > 0`, so the
+// value reached transcode_ffmpeg.go and was formatted into the ffmpeg command
+// as `-ss +Inf`, which ffmpeg rejects - turning a nonsense query parameter into
+// a failed transcode instead of a seek to the start.
+//
+// "1e400" is the near miss that already worked: ParseFloat returns +Inf there
+// too, but WITH an out-of-range error, so the existing err check caught it.
+func TestTranscodeParseParams_RejectsInfiniteStartTime(t *testing.T) {
+	for _, raw := range []string{"Inf", "inf", "+Inf", "INF", "infinity"} {
+		t.Run(raw, func(t *testing.T) {
+			h := &transcodeServe{}
+			req := httptest.NewRequest(http.MethodGet, "/test?startTime="+raw, nil)
+			if got := h.parseParams(req).startTimeSec; got != 0 {
+				t.Errorf("startTime=%q accepted as %v, want the 0 fallback", raw, got)
+			}
+		})
+	}
+}
+
+func TestTranscodeParseParams_KeepsOrdinaryStartTimes(t *testing.T) {
+	for _, tc := range []struct {
+		raw  string
+		want float64
+	}{
+		{"30.5", 30.5},
+		{"0.001", 0.001},
+		{"7200", 7200},
+		// Rejected for other reasons, listed so a future bound change has to
+		// state what it does to them.
+		{"0", 0},
+		{"-5", 0},
+		{"NaN", 0},
+		{"1e400", 0},
+		{"abc", 0},
+	} {
+		t.Run(tc.raw, func(t *testing.T) {
+			h := &transcodeServe{}
+			req := httptest.NewRequest(http.MethodGet, "/test?startTime="+tc.raw, nil)
+			if got := h.parseParams(req).startTimeSec; got != tc.want {
+				t.Errorf("startTime=%q -> %v, want %v", tc.raw, got, tc.want)
+			}
+		})
+	}
+}

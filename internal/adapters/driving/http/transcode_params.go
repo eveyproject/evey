@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"log/slog"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -50,7 +51,13 @@ func (h *transcodeServe) parseParams(r *http.Request) transcodeParams {
 	}
 	p.remuxOnly = r.URL.Query().Get("remux") == "1"
 	if st := r.URL.Query().Get("startTime"); st != "" {
-		if f, err := strconv.ParseFloat(st, 64); err == nil && f > 0 {
+		// ParseFloat accepts "Inf" and "inf" with no error at all, and +Inf
+		// satisfies a bare `f > 0`, so the value used to reach the ffmpeg
+		// argument builder and come out as `-ss +Inf`. ffmpeg rejects that, so
+		// a nonsense query parameter produced a failed transcode instead of a
+		// seek to the start. ("1e400" was already handled: ParseFloat returns
+		// +Inf there too, but with an out-of-range error.)
+		if f, err := strconv.ParseFloat(st, 64); err == nil && f > 0 && !math.IsInf(f, 1) {
 			p.startTimeSec = f
 		}
 	}
