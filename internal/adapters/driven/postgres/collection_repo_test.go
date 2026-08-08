@@ -391,6 +391,51 @@ func TestCollectionRepo_ManualOrderIsHonoured(t *testing.T) {
 	assert.Equal(t, old.ID, items[1].ID)
 }
 
+// An id that leaves the collection between the handler's pre-check (which
+// runs OUTSIDE any transaction) and the UPDATE must fail the WHOLE reorder,
+// not half-apply it: the UPDATE matches on membership, so a vanished id
+// silently shrinks the write while the caller gets a success. Mirrors the
+// playlists' transactional drift guard (playlist_repo.go Reorder).
+func TestCollectionRepo_SetItemOrder_RefusesMembershipDrift(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	colRepo := postgres.NewCollectionRepository(db)
+	ctx := context.Background()
+
+	lib := newTestLibrary("driftlib")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	a := newTestMediaItem("drift-a", lib.ID)
+	b := newTestMediaItem("drift-b", lib.ID)
+	// gone exists as a media item but never joins the collection: it plays the
+	// member that was removed while the reorder was in flight.
+	gone := newTestMediaItem("drift-gone", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, a))
+	require.NoError(t, itemRepo.Create(ctx, b))
+	require.NoError(t, itemRepo.Create(ctx, gone))
+
+	col := newTestCollection("driftcol")
+	col.TmdbID = nil
+	col.SortBy = "manual"
+	require.NoError(t, colRepo.Create(ctx, col))
+	require.NoError(t, colRepo.LinkItem(ctx, col.ID, string(a.ID), 0))
+	require.NoError(t, colRepo.LinkItem(ctx, col.ID, string(b.ID), 0))
+	require.NoError(t, colRepo.SetItemOrder(ctx, col.ID, []string{string(a.ID), string(b.ID)}))
+
+	err := colRepo.SetItemOrder(ctx, col.ID, []string{string(b.ID), string(gone.ID), string(a.ID)})
+	require.ErrorIs(t, err, library.ErrCollectionReorderDrift)
+
+	// The surviving members kept their pre-drift order: the write rolled back
+	// instead of applying to whoever was left.
+	items, err := colRepo.GetItems(ctx, col.ID, 100, 0)
+	require.NoError(t, err)
+	require.Len(t, items, 2)
+	assert.Equal(t, a.ID, items[0].ID, "a half-applied reorder must not survive the rollback")
+	assert.Equal(t, b.ID, items[1].ID)
+}
+
 // A collection that is not "manual" keeps reading in release order, whatever
 // sort_order happens to hold - the default must not change under anyone.
 func TestCollectionRepo_ReleaseOrderStaysTheDefault(t *testing.T) {

@@ -1005,6 +1005,29 @@ func TestCollectionReorderCollectionItems_RejectsNonMembers(t *testing.T) {
 	}
 }
 
+// The pre-check can pass and the write still drift: an item removed while the
+// reorder is in flight makes the repo roll the whole UPDATE back and report
+// it. The caller must get InvalidArgument (it named a non-member), not a 500.
+func TestCollectionReorderCollectionItems_DriftIsInvalidArgument(t *testing.T) {
+	h, cmdRepo, mediaRepo, _ := newTestCollectionHandlerWithAccess()
+	cmdRepo.Upsert(context.Background(), &library.Collection{ID: "col-1", Name: "Chrono", SortBy: "manual"})
+	for _, id := range []string{"m1", "m2"} {
+		mediaRepo.Create(context.Background(), &library.MediaItem{ID: shared.MediaItemID(id), LibraryID: "lib-1", Title: id, Type: "movie"})
+		cmdRepo.LinkItem(context.Background(), "col-1", id, 0)
+	}
+	// Simulate the in-flight removal: membership looked fine at pre-check
+	// time (the query fake is independent), then the transactional write
+	// reported drift.
+	cmdRepo.Err = library.ErrCollectionReorderDrift
+
+	_, err := h.ReorderCollectionItems(adminCtx(), &eveyv1.ReorderCollectionItemsRequest{
+		Id: "col-1", MediaItemIds: []string{"m2", "m1"},
+	})
+	if status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("reorder drift: want InvalidArgument, got %v", err)
+	}
+}
+
 func TestCollectionReorderCollectionItems_Validation(t *testing.T) {
 	h, _, _, _ := newTestCollectionHandlerWithAccess()
 	if _, err := h.ReorderCollectionItems(adminCtx(), &eveyv1.ReorderCollectionItemsRequest{MediaItemIds: []string{"m1"}}); status.Code(err) != codes.InvalidArgument {

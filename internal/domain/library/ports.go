@@ -2,6 +2,7 @@ package library
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"strings"
 	"time"
@@ -237,8 +238,17 @@ type CollectionCommandRepo interface {
 	UnlinkItem(ctx context.Context, collectionID, mediaItemID string) error
 	// SetItemOrder stamps the hand-set position of the supplied members;
 	// position in the slice IS the new order. Members left out keep theirs.
+	// Returns ErrCollectionReorderDrift when a supplied id is not a member at
+	// write time, and the whole reorder is rolled back.
 	SetItemOrder(ctx context.Context, collectionID string, mediaItemIDs []string) error
 }
+
+// ErrCollectionReorderDrift reports that a reorder matched fewer rows than the
+// distinct ids supplied: an item left the collection between the handler's
+// membership pre-check (which runs outside any transaction) and the UPDATE.
+// The write is rolled back rather than half-applied. Mirrors
+// playlist.ErrReorderMembershipDrift.
+var ErrCollectionReorderDrift = errors.New("collection reorder: membership changed during reorder")
 
 type CollectionQueryRepo interface {
 	GetByID(ctx context.Context, id string) (*Collection, error)

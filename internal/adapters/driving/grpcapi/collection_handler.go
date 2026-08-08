@@ -432,6 +432,12 @@ func (h *collectionHandler) ReorderCollectionItems(ctx context.Context, req *eve
 	if err := h.svc.ReorderItems(ctx, req.GetId(), req.GetMediaItemIds()); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
+		// Same contract as the pre-check above: an id the collection does not
+		// hold is refused - including one that LEFT while the reorder was in
+		// flight (the repo rolled the write back).
+		if errors.Is(err, library.ErrCollectionReorderDrift) {
+			return nil, status.Errorf(codes.InvalidArgument, "media_item_ids contains items that left this collection during the reorder")
+		}
 		return nil, internalError(ctx, "reorder collection items", err)
 	}
 	return &eveyv1.ReorderCollectionItemsResponse{}, nil

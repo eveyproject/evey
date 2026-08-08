@@ -680,9 +680,19 @@ func (r *CollectionRepository) SetItemOrder(ctx context.Context, collectionID st
 	}
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
+	// Own transaction (not txFromCtx): the drift check below must be able to
+	// roll the UPDATE back, which an ambient caller-owned tx would not allow.
+	// Same choice as PlaylistItemRepo.Reorder, its exact mirror.
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return fmt.Errorf("CollectionRepo.SetItemOrder begin tx: %w", err)
+	}
+	defer tx.Rollback()
 	// One statement: a per-row UPDATE loop would leave a half-reordered
 	// collection behind if the connection dropped mid-way.
-	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
+	res, err := tx.ExecContext(ctx,
 		`UPDATE collection_items ci
 		 SET sort_order = pos.ord
 		 FROM (SELECT unnest($2::text[]) AS media_item_id, generate_subscripts($2::text[], 1) AS ord) pos
@@ -692,6 +702,24 @@ func (r *CollectionRepository) SetItemOrder(ctx context.Context, collectionID st
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		return err
+	}
+	// The handler's membership pre-check runs OUTSIDE this transaction: an
+	// item removed in between would silently half-apply the reorder. Fewer
+	// matched rows than distinct requested ids = drift, roll back.
+	if n, aerr := res.RowsAffected(); aerr == nil {
+		distinct := make(map[string]struct{}, len(mediaItemIDs))
+		for _, mid := range mediaItemIDs {
+			distinct[mid] = struct{}{}
+		}
+		if int(n) != len(distinct) {
+			span.SetStatus(codes.Error, library.ErrCollectionReorderDrift.Error())
+			return library.ErrCollectionReorderDrift
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return fmt.Errorf("CollectionRepo.SetItemOrder commit: %w", err)
 	}
 	return nil
 }

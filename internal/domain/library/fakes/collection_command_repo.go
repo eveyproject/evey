@@ -140,6 +140,17 @@ func (r *FakeCollectionCommandRepo) SetItemOrder(_ context.Context, collectionID
 	for i, id := range mediaItemIDs {
 		pos[id] = i + 1
 	}
+	// Postgres semantics, faithfully: an id that is not a member fails the
+	// WHOLE reorder (rolled back), it is not silently skipped.
+	matched := 0
+	for _, it := range r.items[collectionID] {
+		if _, ok := pos[it.mediaItemID]; ok {
+			matched++
+		}
+	}
+	if matched != len(pos) {
+		return library.ErrCollectionReorderDrift
+	}
 	for i, it := range r.items[collectionID] {
 		if p, ok := pos[it.mediaItemID]; ok {
 			r.items[collectionID][i].sortOrder = p
