@@ -17,3 +17,17 @@ export function resolvePlayTarget(args: {
   }
   return id;
 }
+
+// The order resolvePlayTarget depends on. ListMediaItems has no sort key for
+// the episode index - SortColumnMap covers title, added_at, year,
+// premiere_date and community_rating - so it answers in sort_title order, and
+// every client restores the numbering itself. The TV screen did not, which made
+// resolvePlayTarget hand back whichever episode sorted first by TITLE and
+// listed episodes alphabetically instead of 1, 2, 3.
+//
+// Kept next to resolvePlayTarget rather than inline in the screen because the
+// two are one contract: "first in this array" only means "episode 1" while the
+// array is ordered this way.
+export function sortByIndexNumber<T extends { indexNumber?: number }>(items: T[]): T[] {
+  return [...items].sort((a, b) => (a.indexNumber ?? 0) - (b.indexNumber ?? 0));
+}

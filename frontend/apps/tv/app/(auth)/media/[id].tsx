@@ -30,7 +30,7 @@ import { AddToPlaylistSheet } from "../../../src/components/AddToPlaylistSheet";
 import { useParentalGate } from "../../../src/hooks/useParentalGate";
 import { ParentalPINModal } from "../../../src/components/ParentalPINModal";
 import { CARD_WIDTH_FEATURED, POSTER_RATIO, CARD_WIDTH_GRID } from "../../../src/lib/tvLayout";
-import { resolvePlayTarget } from "../../../src/lib/playTarget";
+import { resolvePlayTarget, sortByIndexNumber } from "../../../src/lib/playTarget";
 import { PluginSlot } from "../../../src/features/plugins/PluginSlot";
 import { ScreenState } from "../../../src/components/ScreenState";
 import { SagaSection } from "../../../src/components/SagaSection";
@@ -263,7 +263,9 @@ export default function MediaDetailScreen() {
   const setThumbRating = useSetThumbRating(id);
 
   const { data: childrenData } = useLibraryServiceListMediaItems(
-    { parentId: id, "pagination.pageSize": 100 },
+    // Serves both the season list of a series and the episode list of a
+    // season, so it takes the episode ceiling rather than the season one.
+    { parentId: id, "pagination.pageSize": 500 },
     { query: { enabled: !!(id && (isSeries || isSeason)) } },
   );
 
@@ -276,15 +278,22 @@ export default function MediaDetailScreen() {
   }, [isSeries, children, firstSeasonId]);
 
   const { data: episodesData } = useLibraryServiceListMediaItems(
-      // 500, not 100: episodes have no server-side sort key, so this list is
-      // re-sorted by index on the device and a truncated page would put the
-      // wrong episode first (the server answers in sort_title order).
     { parentId: firstSeasonId ?? "", "pagination.pageSize": 500 },
     { query: { enabled: !!(firstSeasonId && isSeries) } },
   );
 
-  const episodes = isSeason ? children : (episodesData?.items ?? []);
-  const seasons = isSeries ? children : [];
+  // There is no server-side sort key for the episode index (SortColumnMap knows
+  // title, added_at, year, premiere_date, community_rating), so ListMediaItems
+  // answers in sort_title order and the ordering has to be restored here. This
+  // screen used to render whatever order arrived: episodes listed
+  // alphabetically instead of 1, 2, 3, and - because resolvePlayTarget takes
+  // the first id in the array - the Play button started on whichever episode
+  // sorted first by TITLE. Web and mobile already sorted; only the TV did not.
+  const episodes = useMemo(
+    () => sortByIndexNumber(isSeason ? children : (episodesData?.items ?? [])),
+    [isSeason, children, episodesData?.items],
+  );
+  const seasons = useMemo(() => (isSeries ? sortByIndexNumber(children) : []), [isSeries, children]);
 
   const playTarget = useMemo(
     () => resolvePlayTarget({ id, isSeries, isSeason, episodeIds: episodes.map((e) => e.id) }),
