@@ -165,9 +165,13 @@ function SeasonCard({ seasonId }: { seasonId: string }) {
           <Play size={ICON["2xl"]} fill="currentColor" className="text-white" />
         </Link>
       )}
+      {/* The way into a season with a pointer. The poster above is covered by
+          the play overlay as soon as the card is hovered (deliberately - see
+          its comment), so this label is what actually opens the season. */}
       <Link
         to="/media/$mediaId"
         params={{ mediaId: seasonId }}
+        data-testid="season-link"
         className="block mt-2 text-base font-medium truncate text-[var(--text)] hover:text-[var(--accent)] transition-colors-fast"
       >
         {seasonLabel}

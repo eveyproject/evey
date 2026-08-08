@@ -36,7 +36,12 @@ test.describe("Media > Series & Episodes", () => {
   test("season links are clickable", async ({ page }) => {
     const id = await gotoRandomSeries(page);
     test.skip(!id, "No series");
-    const seasonLink = page.locator('[data-testid="seasons-section"] a, [data-testid="seasons-section"] [data-testid="media-card"]').first();
+    // The season LABEL, not the poster: hovering the poster reveals a play
+    // overlay that deliberately takes pointer events (it exists because an
+    // invisible overlay used to swallow taps on phones), so the poster link is
+    // not clickable with a pointer and this test timed out forever on it. The
+    // label is how a mouse user opens a season.
+    const seasonLink = page.locator('[data-testid="seasons-section"] [data-testid="season-link"]').first();
     test.skip(!(await seasonLink.isVisible({ timeout: 3_000 }).catch(() => false)), "No season links");
     await seasonLink.click();
     await page.waitForTimeout(2_000);
