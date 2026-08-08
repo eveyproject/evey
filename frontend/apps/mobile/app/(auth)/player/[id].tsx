@@ -421,6 +421,20 @@ const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>()
     setSubtitleOffsetMs(0);
     // An externally-picked subtitle file means nothing on the next title.
     setExternalSubtitle(null);
+    // Nor does a track PICKED BY HAND on the previous one. The two refs exist
+    // to stop the profile's language preference from clobbering a manual pick
+    // when it arrives asynchronously - that is their whole job. On web that
+    // scope is one episode, because HLSPlayer is mounted with key={mediaId}
+    // and remounts each time. This screen is REUSED (see above), so the same
+    // guard silently widened to "every episode of the session": once a viewer
+    // chose a subtitle on episode N, episode N+1 never derived its own track,
+    // and the stale absolute index usually matched nothing in the new
+    // episode's streams - so the subtitles they had turned on were simply OFF,
+    // with no toast, no indicator and nothing to click.
+    userPickedAudioRef.current = false;
+    userPickedSubtitleRef.current = false;
+    setSelectedAudioIndex(0);
+    setSelectedSubtitleIndex(null);
   }, [mediaId]);
   // Whether the NEXT player instance should start playing. Changing tracks or
   // quality recreates the native player, whose setup used to call play()
