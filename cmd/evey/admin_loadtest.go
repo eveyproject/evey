@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -283,8 +284,52 @@ func printReport(r *eveyv1.LoadTestReport) {
 		}
 		fmt.Fprintln(os.Stderr)
 	}
+	printSourceMix(r)
 	if r.GetStopReason() == "admission_full" {
 		fmt.Fprintln(os.Stderr, "\n  → admission_full is the ceiling verdict, not a failure.")
+	}
+}
+
+// printSourceMix names what the run decoded. The viewer count alone is not a
+// verdict: the candidate pool is drawn by duration, so the same host reports a
+// very different ceiling depending on the codec draw (measured 2.12x realtime
+// on 4K HEVC against 8.43x on 1080p H.264, same output rung). A run whose mix
+// is unknown says so rather than letting the number pass for more than it is.
+func printSourceMix(r *eveyv1.LoadTestReport) {
+	mix := r.GetSourceMix()
+	if len(mix) == 0 {
+		return
+	}
+	total := 0
+	named := 0
+	for _, m := range mix {
+		total += int(m.GetCount())
+		if m.GetCodec() != "" {
+			named += int(m.GetCount())
+		}
+	}
+	fmt.Fprintf(os.Stderr, "  served            ")
+	first := true
+	for _, m := range mix {
+		if m.GetCodec() == "" {
+			continue
+		}
+		if !first {
+			fmt.Fprint(os.Stderr, " · ")
+		}
+		pct := 0
+		if total > 0 {
+			pct = int(m.GetCount()) * 100 / total
+		}
+		fmt.Fprintf(os.Stderr, "%s %dp x%d (%d%%)", strings.ToUpper(m.GetCodec()), m.GetHeight(), m.GetCount(), pct)
+		first = false
+	}
+	if named == 0 {
+		fmt.Fprint(os.Stderr, "unknown - the candidates' codecs could not be resolved")
+	}
+	fmt.Fprintln(os.Stderr)
+	if named < total {
+		fmt.Fprintf(os.Stderr, "  → %d of %d titles had no probed codec: read the ceiling with that in mind.\n", total-named, total)
 	}
 }
 

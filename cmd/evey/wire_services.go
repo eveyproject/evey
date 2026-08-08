@@ -355,6 +355,20 @@ func buildLoadTestRunner(cfg *config.Config, libQuerySvc *applibrary.QueryServic
 				return nil, err
 			}
 			out := make([]apploadtest.MediaCandidate, 0, limit)
+			// The source codec+height decide what a viewer actually costs, so a
+			// run that cannot name what it drew cannot be read. Batched in one
+			// query; a failure only costs the breakdown, never the run.
+			ids := make([]string, 0, len(items))
+			for _, it := range items {
+				if it != nil && it.File != nil {
+					ids = append(ids, string(it.ID))
+				}
+			}
+			streamsByItem, err := libQuerySvc.GetStreamsForItems(ctx, ids)
+			if err != nil {
+				slog.WarnContext(ctx, "loadtest: could not resolve candidate source codecs, the run will not be able to name what it served",
+					slog.Any("err", err))
+			}
 			for _, it := range items {
 				if it == nil || it.File == nil {
 					continue
@@ -366,9 +380,12 @@ func buildLoadTestRunner(cfg *config.Config, libQuerySvc *applibrary.QueryServic
 				if it.File.Duration.Milliseconds() < loadTestMinTitleDuration.Milliseconds() {
 					continue
 				}
+				codec, height := loadTestSourceClass(streamsByItem[string(it.ID)])
 				out = append(out, apploadtest.MediaCandidate{
 					ID:          string(it.ID),
 					DurationSec: int(it.File.Duration.Seconds()),
+					VideoCodec:  codec,
+					VideoHeight: height,
 					// The path lets the run measure how fast this box READS its
 					// media - the ceiling that actually decides a direct-play
 					// server's capacity, and the one the kernel cannot report when
@@ -471,4 +488,20 @@ func buildPluginSubsystem(ctx context.Context, infra *infraDeps, rootLog *slog.L
 	infra.pluginLogger.StartCleanup(ctx, &pluginIDLister{repo: r.Plugin})
 
 	return pluginInstallerSvc, pluginRuntimeSvc, pluginQuerySvc, pluginTokenSvc, pluginSecurityDashboardSvc, pluginIdleMgr, pluginHostSrv, memProfile
+}
+
+// loadTestSourceClass picks the first video stream's codec and height - what
+// the load test has to decode, and therefore what its verdict is about.
+func loadTestSourceClass(streams []*library.MediaStream) (string, int) {
+	for _, st := range streams {
+		if st == nil || st.StreamType != library.StreamTypeVideo {
+			continue
+		}
+		h := 0
+		if st.Height != nil {
+			h = *st.Height
+		}
+		return st.Codec, h
+	}
+	return "", 0
 }

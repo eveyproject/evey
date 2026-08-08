@@ -105,6 +105,13 @@ message SystemInfo {
   VideoSessionCapacity video_sessions = 12;
 }
 
+// LoadTestSourceMix is one source class and how many viewers were placed on it.
+message LoadTestSourceMix {
+  string codec = 1;
+  int32 height = 2;
+  int32 count = 3;
+}
+
 // VideoSessionCapacity is the admin-facing view of the AUTO video-session cap
 // (derived from the boot benchmark), the effective limit actually enforced
 // (auto, possibly reduced by transcoding.max_video_sessions), and the live
@@ -458,6 +465,11 @@ message LoadTestReport {
   // against the storage, not the RAM. A warm and a cold run of the same box
   // are two different answers - never compare them as one.
   bool cold_cache = 38;
+  // source_mix is what the run actually SERVED, per source class, counted as
+  // each title was handed to a viewer. The candidate pool is drawn by duration
+  // alone, so two runs on the same host land on different viewer counts purely
+  // by codec draw - a verdict that cannot name what it decoded cannot be read.
+  repeated LoadTestSourceMix source_mix = 39;
 }
 
 // LoadTestTierCost is what ONE audience size cost the server: one row of the

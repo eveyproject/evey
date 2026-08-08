@@ -35,6 +35,13 @@ var ErrUnknownMode = errors.New("loadtest: unknown mode")
 type MediaCandidate struct {
 	ID          string
 	DurationSec int
+	// VideoCodec / VideoHeight name the DECODE workload this title imposes. A
+	// run's verdict is meaningless without them: the same output rung costs
+	// ~4x more from a 4K HEVC source than from a 1080p H.264 one (measured
+	// 2.12x vs 8.43x realtime), so "N viewers" is a different claim depending
+	// on what was drawn. Empty/0 when the streams were never probed.
+	VideoCodec  string
+	VideoHeight int
 	// Path is where the file actually lives, so the run can measure how fast
 	// this box reads its media (see diskbench.go). Empty is tolerated: the disk
 	// probe is simply skipped.
@@ -331,6 +338,13 @@ const (
 )
 
 // Report is the outcome of a completed (or cancelled) run.
+// SourceMixEntry is one source class and how many viewers were placed on it.
+type SourceMixEntry struct {
+	Codec  string
+	Height int
+	Count  int
+}
+
 type Report struct {
 	Scenario         string
 	Mode             string
@@ -357,6 +371,12 @@ type Report struct {
 	// operating system may already be holding in memory, which is what
 	// DiskReadStarved below is about.
 	ReplayedTitleViewers int
+
+	// SourceMix is what the run actually served, per source class, counted at
+	// the moment each title was handed to a viewer. Without it a verdict cannot
+	// be read: the candidate pool is drawn by duration alone, so two runs on the
+	// same host legitimately land on different numbers purely by codec draw.
+	SourceMix []SourceMixEntry
 
 	// Endpoint is the origin the viewers actually hit: the reverse proxy when it
 	// was reachable (real delivery path, TLS and all), the server's own loopback

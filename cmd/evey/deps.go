@@ -24,9 +24,9 @@ import (
 	appnotification "github.com/evey-project/evey/internal/app/notification"
 	appphoto "github.com/evey-project/evey/internal/app/photo"
 	appplayback "github.com/evey-project/evey/internal/app/playback"
-	apppresence "github.com/evey-project/evey/internal/app/presence"
 	appplaylist "github.com/evey-project/evey/internal/app/playlist"
 	appplugin "github.com/evey-project/evey/internal/app/plugin"
+	apppresence "github.com/evey-project/evey/internal/app/presence"
 	appqoe "github.com/evey-project/evey/internal/app/qoe"
 	apprating "github.com/evey-project/evey/internal/app/rating"
 	appsubtitle "github.com/evey-project/evey/internal/app/subtitle"
@@ -203,9 +203,9 @@ type appDeps struct {
 	// presenceTracker is the ONE live "who is online" registry, shared by the
 	// gRPC heartbeat (web/mobile/TV apps) and the HTTP cast-beacon route (a
 	// beaconing Chromecast counts as an online device of the casting user).
-	presenceTracker *apppresence.Tracker
-	hlsAESSecret           []byte
-	seekIndexFileState     appmaintenance.FileStateRefresher
+	presenceTracker    *apppresence.Tracker
+	hlsAESSecret       []byte
+	seekIndexFileState appmaintenance.FileStateRefresher
 	// keyframeOnDemand fills a missing keyframe index inline at playback
 	// negotiation (bounded fast-path probe shared with the backfill worker).
 	keyframeOnDemand *apptranscoding.KeyframeOnDemand

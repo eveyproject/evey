@@ -1,6 +1,9 @@
 package loadtest
 
-import "time"
+import (
+	"sort"
+	"time"
+)
 
 // startPositions are the fractions of a title's usable length at which
 // successive viewers of that SAME title are placed. The order is a
@@ -50,6 +53,9 @@ type candidatePool struct {
 	// and retrying it - above all when the climb rebuilds its audience - burns
 	// candidates and inflates the skip count for nothing.
 	dead map[string]bool
+	// served counts what was actually handed out, per source class - the run's
+	// own record of what its verdict was measured on.
+	served map[SourceMixEntry]int
 }
 
 // newCandidatePool lays out every assignment the run may hand out, breadth
@@ -87,6 +93,7 @@ func (p *candidatePool) take() (assignment, bool) {
 		if p.dead[asg.media.ID] {
 			continue
 		}
+		p.recordServed(asg.media)
 		return asg, true
 	}
 	return assignment{}, false
@@ -186,5 +193,33 @@ func interleaveByDisk(groups [][]MediaCandidate) []MediaCandidate {
 			}
 		}
 	}
+	return out
+}
+
+// recordServed tallies one handout against its source class.
+func (p *candidatePool) recordServed(m MediaCandidate) {
+	if p.served == nil {
+		p.served = map[SourceMixEntry]int{}
+	}
+	p.served[SourceMixEntry{Codec: m.VideoCodec, Height: m.VideoHeight}]++
+}
+
+// sourceMix reports what the run served, heaviest class first so the reader
+// sees what dominated the verdict before the long tail.
+func (p *candidatePool) sourceMix() []SourceMixEntry {
+	out := make([]SourceMixEntry, 0, len(p.served))
+	for k, n := range p.served {
+		k.Count = n
+		out = append(out, k)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Count != out[j].Count {
+			return out[i].Count > out[j].Count
+		}
+		if out[i].Codec != out[j].Codec {
+			return out[i].Codec < out[j].Codec
+		}
+		return out[i].Height < out[j].Height
+	})
 	return out
 }

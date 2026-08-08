@@ -173,6 +173,11 @@ func loadTestStatusToProto(s apploadtest.Status) *eveyv1.LoadTestStatus {
 				out.LastReport.ViewerMix[k] = int32(v)
 			}
 		}
+		for _, m := range r.SourceMix {
+			out.LastReport.SourceMix = append(out.LastReport.SourceMix, &eveyv1.LoadTestSourceMix{
+				Codec: m.Codec, Height: int32(m.Height), Count: int32(m.Count),
+			})
+		}
 		if len(r.SegmentMsP95ByType) > 0 {
 			out.LastReport.SegmentMsP95ByType = make(map[string]int32, len(r.SegmentMsP95ByType))
 			for k, v := range r.SegmentMsP95ByType {

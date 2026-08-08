@@ -15,8 +15,8 @@ func TestIsLoopbackHost(t *testing.T) {
 		{"127.0.0.1", true},
 		{"::1", true},
 		{"localhost", true},
-		{"0.0.0.0", false},  // every interface - the case that bypasses the gate
-		{"", false},         // the ":port" shorthand is also every interface
+		{"0.0.0.0", false}, // every interface - the case that bypasses the gate
+		{"", false},        // the ":port" shorthand is also every interface
 		{"192.168.1.10", false},
 		{"::", false},
 	}

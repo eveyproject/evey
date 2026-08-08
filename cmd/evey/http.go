@@ -128,8 +128,8 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		CastProgress:     deps.media.castProgress,
 		ShareSvc:         deps.media.shareSvc,
 
-		LibCmdSvc:   deps.library.cmdSvc,
-		LibQuerySvc: deps.library.querySvc,
+		LibCmdSvc:        deps.library.cmdSvc,
+		LibQuerySvc:      deps.library.querySvc,
 		Scheduler:        deps.library.scheduler,
 		Remuxer:          deps.media.mkvAdapter,
 		CompatTranscoder: compatTranscoder,

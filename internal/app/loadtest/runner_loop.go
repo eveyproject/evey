@@ -490,6 +490,7 @@ runLoop:
 		PerViewerCost:                 perViewer,
 		HasPerViewerCost:              hasPerViewer,
 		ViewerMix:                     mix,
+		SourceMix:                     pool.sourceMix(),
 		SegmentMsP95ByType:            p95ByType,
 		StartedAt:                     startedAt,
 		EndedAt:                       time.Now(),
