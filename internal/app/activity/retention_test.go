@@ -160,5 +160,93 @@ func TestRunRetention_PanicIsContained(t *testing.T) {
 	svc.runRetention(context.Background(), 1, 0, 0)
 }
 
+// The two tests above assert that a purge RAN, which turned out to be a much
+// weaker claim than it reads as: a mutation run on this package (2026-08-08)
+// showed the audit and metric guards surviving every mutant, while the webhook
+// and qoe ones died. The difference was not the code, it was that nothing here
+// looked at the rows. Seeding entries of a known age and checking which ones
+// are still standing afterwards is what separates `> 0` from `>= 0`, and
+// `now-days` from `now+days` - both of which delete history that was meant to
+// be kept, silently, on a goroutine nobody watches.
+
+func seedAudit(t *testing.T, r *activityfakes.FakeAuditLogRepository, ages ...time.Duration) {
+	t.Helper()
+	for i, age := range ages {
+		if err := r.Create(context.Background(), &activity.AuditLogEntry{
+			ID:        string(rune('a' + i)),
+			Action:    "some.action",
+			CreatedAt: time.Now().Add(-age),
+		}); err != nil {
+			t.Fatalf("seed audit entry: %v", err)
+		}
+	}
+}
+
+func seedMetrics(t *testing.T, r *activityfakes.FakeServerMetricRepository, ages ...time.Duration) {
+	t.Helper()
+	for i, age := range ages {
+		if err := r.Create(context.Background(), &activity.ServerMetric{
+			ID:         string(rune('a' + i)),
+			RecordedAt: time.Now().Add(-age),
+		}); err != nil {
+			t.Fatalf("seed metric: %v", err)
+		}
+	}
+}
+
+func countAudit(t *testing.T, r *activityfakes.FakeAuditLogRepository) int {
+	t.Helper()
+	n, err := r.Count(context.Background(), activity.AuditLogFilter{})
+	if err != nil {
+		t.Fatalf("count audit entries: %v", err)
+	}
+	return n
+}
+
+func countMetrics(t *testing.T, r *activityfakes.FakeServerMetricRepository) int {
+	t.Helper()
+	got, err := r.GetByTimeRange(context.Background(), time.Now().AddDate(-50, 0, 0), time.Now().AddDate(50, 0, 0))
+	if err != nil {
+		t.Fatalf("read metrics back: %v", err)
+	}
+	return len(got)
+}
+
+func TestRunRetention_DropsRowsOlderThanTheWindowAndKeepsTheRest(t *testing.T) {
+	svc, audit, metrics := newRetentionService(t)
+	day := 24 * time.Hour
+	seedAudit(t, audit, 10*day, 3*day)
+	seedMetrics(t, metrics, 10*day, 3*day)
+
+	svc.runRetention(context.Background(), 7, 7, 0)
+
+	// Exactly the ten-day-old row goes. Keeping both means the purge never ran;
+	// keeping neither means the cutoff landed in the future.
+	if got := countAudit(t, audit); got != 1 {
+		t.Errorf("audit entries left = %d, want 1 (the 3-day-old one, with a 7-day window)", got)
+	}
+	if got := countMetrics(t, metrics); got != 1 {
+		t.Errorf("metrics left = %d, want 1 (the 3-day-old one, with a 7-day window)", got)
+	}
+}
+
+func TestRunRetention_DisabledKeepsEvenTheOldestRows(t *testing.T) {
+	svc, audit, metrics := newRetentionService(t)
+	seedAudit(t, audit, 3650*24*time.Hour)
+	seedMetrics(t, metrics, 3650*24*time.Hour)
+
+	svc.runRetention(context.Background(), 0, 0, 0)
+
+	// Ten years old and retention switched off: this row must still be there.
+	// A guard flipped to `>= 0` purges with a cutoff of now, which deletes the
+	// entire table precisely when the operator asked to keep it forever.
+	if got := countAudit(t, audit); got != 1 {
+		t.Errorf("audit entries left = %d, want 1 - retention is disabled, nothing may be deleted", got)
+	}
+	if got := countMetrics(t, metrics); got != 1 {
+		t.Errorf("metrics left = %d, want 1 - retention is disabled, nothing may be deleted", got)
+	}
+}
+
 var _ activity.QoEEventPurger = (*purgeSpy)(nil)
 var _ activity.WebhookDeliveryPurger = (*purgeSpy)(nil)
