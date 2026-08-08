@@ -280,3 +280,39 @@ func TestNotificationSettingsRepo(t *testing.T) {
 	assert.Equal(t, notification.LevelAll, profSettings.MovieLevel)
 	assert.Equal(t, notification.LevelHighlyRelevant, profSettings.SeriesLevel)
 }
+
+// MarkRead used to answer nil whatever happened: its WHERE clause carried both
+// the ownership guard and a `read_at IS NULL` filter, so zero rows meant either
+// "already read" or "not yours / no such id", and the result was dropped. A
+// client could mark another profile's notification and be told it worked.
+func TestNotificationRepo_MarkReadDistinguishesNotFoundFromAlreadyRead(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	seedNotifProfile(t, db, "profile-a", "notif-mark-u1")
+	seedNotifProfile(t, db, "profile-b", "notif-mark-u2")
+
+	repo := postgres.NewNotificationRepository(db)
+	ctx := context.Background()
+
+	n := &notification.Notification{
+		ID:        "notif-mark-1",
+		ProfileID: "profile-a",
+		Type:      notification.TypeNewMovie,
+		Title:     "New Movie: Some Movie",
+		CreatedAt: time.Now(),
+	}
+	require.NoError(t, repo.Create(ctx, n))
+
+	// First mark: the real one.
+	require.NoError(t, repo.MarkRead(ctx, n.ID, "profile-a"))
+
+	// Marking it again must stay a no-op, not an error: clients retry.
+	require.NoError(t, repo.MarkRead(ctx, n.ID, "profile-a"), "re-marking a read notification must remain idempotent")
+
+	// An id that does not exist is the caller's mistake and must say so.
+	require.ErrorIs(t, repo.MarkRead(ctx, "notif-does-not-exist", "profile-a"), shared.ErrNotFound)
+
+	// Someone else's notification answers exactly the same way, so the id
+	// stays unguessable - and it must NOT have been marked read.
+	require.ErrorIs(t, repo.MarkRead(ctx, n.ID, "profile-b"), shared.ErrNotFound)
+}

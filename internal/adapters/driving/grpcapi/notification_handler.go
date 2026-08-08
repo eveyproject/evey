@@ -1,6 +1,7 @@
 package grpcapi
 
 import (
+	"errors"
 	"context"
 	"fmt"
 	"slices"
@@ -93,6 +94,13 @@ func (h *notificationHandler) MarkRead(ctx context.Context, req *eveyv1.MarkRead
 		return nil, fmt.Errorf("notificationHandler.MarkRead: %w", err)
 	}
 	if err := h.cmd.MarkRead(ctx, req.Id, shared.ProfileID(claims.ProfileID)); err != nil {
+		// The repository now distinguishes "no such notification, or not this
+		// profile's" from a real failure. Naming something that does not exist
+		// is the caller's mistake, not the server's - and the same answer for
+		// another profile's id keeps that id unguessable.
+		if errors.Is(err, shared.ErrNotFound) {
+			return nil, status.Errorf(codes.NotFound, "notification not found")
+		}
 		return nil, internalError(ctx, "mark read", err)
 	}
 	return &eveyv1.MarkReadResponse{}, nil

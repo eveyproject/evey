@@ -179,11 +179,25 @@ func (r *NotificationRepository) MarkRead(ctx context.Context, id string, profil
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	now := time.Now()
-	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `UPDATE notifications SET read_at = $1 WHERE id = $2 AND profile_id = $3 AND read_at IS NULL`, now, id, string(profileID))
+	// COALESCE rather than a `read_at IS NULL` filter, so that "already read"
+	// still matches its row. With the filter in the WHERE clause, zero rows
+	// meant either "already read" (a fine no-op) or "no such notification / not
+	// yours" (the caller's mistake) - indistinguishable, so the result was
+	// dropped and every caller got a success. Marking someone else's
+	// notification, or a typo'd id, answered 200 and changed nothing.
+	//
+	// Keeping the original timestamp makes re-marking idempotent, which is what
+	// lets zero rows now mean exactly one thing.
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx, `UPDATE notifications SET read_at = COALESCE(read_at, $1) WHERE id = $2 AND profile_id = $3`, now, id, string(profileID))
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		span.RecordError(shared.ErrNotFound)
+		span.SetStatus(codes.Error, shared.ErrNotFound.Error())
+		return shared.ErrNotFound
 	}
 	return nil
 }
