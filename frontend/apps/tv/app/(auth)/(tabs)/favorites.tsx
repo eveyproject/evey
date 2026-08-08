@@ -27,7 +27,7 @@ export default function FavoritesScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
   const router = useRouter();
-  const { data: favorites, isLoading, isError, refetch } = useFavoritesList(200);
+  const { data: favorites, isLoading, isError, refetch } = useFavoritesList();
 
   const renderItem = useCallback(
     ({ item, index }: { item: FavoriteItem; index: number }) => (

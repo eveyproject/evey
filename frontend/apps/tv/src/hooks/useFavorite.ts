@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { eveyFetch } from "@evey/api";
+import { eveyFetch, collectAllPages, EXPORT_PAGE_SIZE } from "@evey/api";
 
 const favBaseUrl = "/api/v1/favorites";
 
@@ -42,11 +42,23 @@ export interface FavoriteItem {
   communityRating?: number;
 }
 
-export function useFavoritesList(limit = 50, offset = 0) {
+// The screen sorts and filters this list on the device, so a partial list is a
+// wrong answer rather than a shorter one. It used to ask for a single page of
+// 200 and had no way to know it had been cut: ListFavoritesResponse carries
+// only `items` - no total, no cursor. Walk the pages with the shared collector,
+// which stops on a short page and is bounded by its own ceiling.
+export function useFavoritesList() {
   return useQuery({
-    queryKey: ["favorites", limit, offset],
-    queryFn: () => eveyFetch<{ items: FavoriteItem[] }>({ url: `${favBaseUrl}?limit=${limit}&offset=${offset}`, method: "GET" }),
-    select: (d) => d.items ?? [],
+    queryKey: ["favorites"],
+    queryFn: async () => {
+      const collected = await collectAllPages<FavoriteItem>((pageIndex) =>
+        eveyFetch<{ items: FavoriteItem[] }>({
+          url: `${favBaseUrl}?limit=${EXPORT_PAGE_SIZE}&offset=${pageIndex * EXPORT_PAGE_SIZE}`,
+          method: "GET",
+        }).then((r) => ({ rows: r.items ?? [] })),
+      );
+      return collected.rows;
+    },
     staleTime: 30_000,
   });
 }

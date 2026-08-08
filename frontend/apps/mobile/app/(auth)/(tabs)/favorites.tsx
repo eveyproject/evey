@@ -52,7 +52,7 @@ export default function FavoritesScreen() {
   const router = useRouter();
   const authHeaders = useAuthHeaders();
   const serverUrl = useServerUrl();
-  const { data: favorites, isLoading, isError, isRefetching, refetch } = useFavoritesList(200);
+  const { data: favorites, isLoading, isError, isRefetching, refetch } = useFavoritesList();
 
   const [searchText, setSearchText] = useState("");
   const debouncedSearch = useDebounce(searchText, 300);

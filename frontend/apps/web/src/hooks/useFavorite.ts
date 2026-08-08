@@ -1,11 +1,14 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   useFavoriteServiceIsFavorite,
-  useFavoriteServiceListFavorites,
   favoriteServiceAddFavorite,
+  favoriteServiceListFavorites,
   favoriteServiceRemoveFavorite,
   getFavoriteServiceListFavoritesQueryKey,
   getFavoriteServiceIsFavoriteQueryKey,
+  collectAllPages,
+  EXPORT_PAGE_SIZE,
+  type V1FavoriteProto,
 } from "@evey/api";
 
 export function useIsFavorite(mediaId: string | undefined) {
@@ -53,19 +56,36 @@ export interface FavoriteItem {
   communityRating?: number;
 }
 
+// The favourites page sorts, filters and searches over this list in the
+// browser, so a partial list is not a shorter page - it is a wrong answer:
+// searching for a favourite the server holds returns "no results". The hook
+// used to send no pagination at all, which lands on the handler's default of
+// 50 (clampLimitOffset, grpcapi/favorite_handler.go), and ListFavoritesResponse
+// carries only `items` - no total, no cursor - so neither the screen nor the
+// user could tell the list had been cut. Walk the pages instead, with the
+// shared collector that stops on a short page and is bounded by its ceiling.
 export function useFavoritesList() {
-  return useFavoriteServiceListFavorites(undefined, {
-    query: {
-      select: (d) =>
-        (d.items ?? []).map<FavoriteItem>((f) => ({
-          mediaItemId: f.mediaItemId ?? "",
-          createdAt: f.createdAt ?? "",
-          title: f.title,
-          type: f.type,
-          year: f.year,
-          communityRating: f.communityRating,
-        })),
-      staleTime: 30_000,
+  return useQuery({
+    // Deliberately the generated key: several screens already invalidate it
+    // after toggling a favourite, and they must keep hitting this query.
+    queryKey: getFavoriteServiceListFavoritesQueryKey(),
+    staleTime: 30_000,
+    queryFn: async ({ signal }) => {
+      const collected = await collectAllPages<V1FavoriteProto>(
+        (pageIndex) =>
+          favoriteServiceListFavorites(
+            { limit: EXPORT_PAGE_SIZE, offset: pageIndex * EXPORT_PAGE_SIZE },
+            signal,
+          ).then((r) => ({ rows: r.items ?? [] })),
+      );
+      return collected.rows.map<FavoriteItem>((f) => ({
+        mediaItemId: f.mediaItemId ?? "",
+        createdAt: f.createdAt ?? "",
+        title: f.title,
+        type: f.type,
+        year: f.year,
+        communityRating: f.communityRating,
+      }));
     },
   });
 }
