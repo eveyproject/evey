@@ -2,6 +2,7 @@ package library
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -284,6 +285,64 @@ func TestBackfillLibrary_SequentialWhenBudgetIsOne(t *testing.T) {
 	}, 300*time.Millisecond, 10*time.Millisecond, "budget 1 must keep the sweep sequential")
 	close(repo.release)
 	<-done
+}
+
+// clampingSeasonRepo mimics the postgres repo's DefaultListLimit: any List
+// asking for more than 500 rows (or 0) is silently clamped to 500. The plain
+// fake honours whatever Limit it is given, which is precisely how the
+// one-shot season listing stayed green in tests while prod truncated a
+// 500+-season library (admin backfill logged seasons=500 twice, 2026-08-08).
+type clampingSeasonRepo struct {
+	fakeMediaItemRepo
+	mu             sync.Mutex
+	visitedParents map[string]struct{}
+}
+
+func (r *clampingSeasonRepo) List(ctx context.Context, f domainlibrary.ListMediaItemsFilter) ([]*domainlibrary.MediaItem, error) {
+	if f.ParentID != nil {
+		r.mu.Lock()
+		if r.visitedParents == nil {
+			r.visitedParents = map[string]struct{}{}
+		}
+		r.visitedParents[*f.ParentID] = struct{}{}
+		r.mu.Unlock()
+		return nil, nil // no episodes: detectSeason no-ops, only the visit counts
+	}
+	const repoCap = 500
+	if f.Limit <= 0 || f.Limit > repoCap {
+		f.Limit = repoCap
+	}
+	return r.fakeMediaItemRepo.List(ctx, f)
+}
+
+// The admin backfill must reach EVERY season of the library, not just the
+// first repo page: a truncated sweep reports success while silently never
+// detecting anything past the cap.
+func TestBackfillLibrary_SweepsPastTheRepoListCap(t *testing.T) {
+	t.Parallel()
+	repo := &clampingSeasonRepo{}
+	nSeasons := 502
+	seasons := make([]*domainlibrary.MediaItem, nSeasons)
+	for i := range seasons {
+		seasons[i] = &domainlibrary.MediaItem{
+			ID:   shared.MediaItemID(fmt.Sprintf("season-%03d", i)),
+			Type: domainlibrary.Season,
+		}
+	}
+	repo.siblings = seasons
+	svc := NewIntroDetectionService(
+		&fakeSegmentRepo{},
+		&fakeTrickplayRepo{},
+		repo,
+		&fakeConfigRepo{},
+		&fakeDetector{},
+		"/tmp/trickplay",
+	).WithMaxParallelDetections(2)
+
+	n, err := svc.BackfillLibrary(context.Background(), "lib-1")
+	require.NoError(t, err)
+	assert.Equal(t, nSeasons, n, "every season must be scheduled, not just the repo's first page")
+	assert.Len(t, repo.visitedParents, nSeasons, "every season must actually enter detection")
 }
 
 func TestBackfillLibrary_PanicInOneSeasonDoesNotKillTheSweep(t *testing.T) {

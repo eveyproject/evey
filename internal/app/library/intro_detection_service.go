@@ -119,11 +119,6 @@ const introDetectionAlgoVersion = 5
 // detector's sampling variance, then park until introDetectionAlgoVersion bumps).
 const maxIntroDetectionAttempts = 2
 
-// backfillAllSeasonsLimit is the list-page size the admin backfill uses to
-// fetch every season of a library in one query - an "unbounded" sentinel far
-// above any real library.
-const backfillAllSeasonsLimit = 10000
-
 // introDeferPoll is how often a detection trigger re-checks for idle while
 // playback is active - it defers (re-arms) rather than decoding on top of a
 // live transcode on a weak NAS.
@@ -477,18 +472,28 @@ func (s *IntroDetectionService) BackfillLibrary(ctx context.Context, libraryID s
 	} else {
 		seasonType := string(domainlibrary.Season)
 		libID := shared.LibraryID(libraryID)
-		seasons, err := s.mediaItems.List(ctx, domainlibrary.ListMediaItemsFilter{
-			LibraryID: &libID,
-			Type:      &seasonType,
-			// Effectively "all seasons": no real library approaches this
-			// many, and the admin backfill must not silently truncate.
-			Limit: backfillAllSeasonsLimit,
-		})
-		if err != nil {
-			return 0, fmt.Errorf("intro detection admin backfill: list library seasons: %w", err)
-		}
-		for _, s := range seasons {
-			parentIDs = append(parentIDs, string(s.ID))
+		// Paged like backfillMovies: the repo clamps ANY single List to its
+		// own cap (postgres DefaultListLimit=500), so one big request
+		// silently truncated 500+-season libraries - prod logged exactly
+		// seasons=500 on two consecutive sweeps (2026-08-08) and everything
+		// past the cap was never detected.
+		const seasonPageSize = 200
+		for offset := 0; ; offset += seasonPageSize {
+			seasons, err := s.mediaItems.List(ctx, domainlibrary.ListMediaItemsFilter{
+				LibraryID: &libID,
+				Type:      &seasonType,
+				Limit:     seasonPageSize,
+				Offset:    offset,
+			})
+			if err != nil {
+				return 0, fmt.Errorf("intro detection admin backfill: list library seasons: %w", err)
+			}
+			for _, se := range seasons {
+				parentIDs = append(parentIDs, string(se.ID))
+			}
+			if len(seasons) < seasonPageSize {
+				break
+			}
 		}
 	}
 
