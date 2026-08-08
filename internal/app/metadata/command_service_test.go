@@ -165,7 +165,15 @@ func TestRefreshAllTranslations_PagesPastTheFirstFiveHundred(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	// Count AND identity: with the fake's ordering left to a map's iteration,
+	// paging could return 640 calls while repeating some items and skipping
+	// others. Asserting the set is what makes the count mean something.
 	assert.Len(t, enricher.calls, catalogue, "every item must be refreshed, not just the first page")
+	seenIDs := make(map[string]struct{}, len(enricher.calls))
+	for _, c := range enricher.calls {
+		seenIDs[c.tmdbID] = struct{}{}
+	}
+	assert.Len(t, seenIDs, catalogue, "each item must be refreshed exactly once - no repeats, no gaps")
 	assert.Equal(t, catalogue, lastTotal, "the reported total must be the real catalogue size")
 	assert.Equal(t, catalogue, lastDone, "progress must reach the end")
 }

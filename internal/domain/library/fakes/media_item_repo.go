@@ -2,6 +2,7 @@ package fakes
 
 import (
 	"context"
+	"sort"
 	"sync"
 	"sync/atomic"
 
@@ -80,6 +81,15 @@ func (r *FakeMediaItemRepository) List(_ context.Context, filter library.ListMed
 		}
 		result = append(result, item)
 	}
+	// Items live in a map, so iteration order is randomised by the runtime.
+	// Left as-is, paginating over this fake is not merely "a different order
+	// from Postgres" - it is a DIFFERENT order on every call, so page 2 can
+	// repeat or skip rows page 1 already returned, and any test that walks
+	// pages is quietly meaningless. Sorting by id gives the stable ordering
+	// that paging needs. (Postgres orders by sort_title unless asked
+	// otherwise; the point here is determinism, not matching that exactly.)
+	sort.Slice(result, func(i, j int) bool { return result[i].ID < result[j].ID })
+
 	if filter.Offset > 0 && filter.Offset < len(result) {
 		result = result[filter.Offset:]
 	} else if filter.Offset >= len(result) {
