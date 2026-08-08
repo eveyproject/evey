@@ -339,9 +339,13 @@ func (e *Enricher) countDiskEpisodesForSeason(ctx context.Context, seriesID stri
 		return 0
 	}
 	seasonType := "season"
+	// Explicit limit: no series has this many seasons, and a stated bound reads
+	// as a decision where an omitted one reads as an oversight.
+	const maxSeasons = 500
 	seasons, err := e.mediaItems.List(ctx, domainlib.ListMediaItemsFilter{
 		ParentID: &seriesID,
 		Type:     &seasonType,
+		Limit:    maxSeasons,
 	})
 	if err != nil {
 		return 0
@@ -350,14 +354,19 @@ func (e *Enricher) countDiskEpisodesForSeason(ctx context.Context, seriesID stri
 		if s.IndexNumber != nil && *s.IndexNumber == seasonNum {
 			episodeType := "episode"
 			seasonID := string(s.ID)
-			episodes, epErr := e.mediaItems.List(ctx, domainlib.ListMediaItemsFilter{
+			// Count, not List + len: this wants a number, and a List with no
+			// Limit is clamped to 500 rows by the repository, so a very long
+			// season (a daily soap, or a flat scan of a long-running show)
+			// reported 500 and skewed the episode-count check that validates a
+			// provider match. Counting also avoids loading the rows at all.
+			n, epErr := e.mediaItems.Count(ctx, domainlib.ListMediaItemsFilter{
 				ParentID: &seasonID,
 				Type:     &episodeType,
 			})
 			if epErr != nil {
 				return 0
 			}
-			return len(episodes)
+			return n
 		}
 	}
 	return 0
