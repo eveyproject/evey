@@ -169,3 +169,32 @@ func TestDedupeRenderers_NoUDNFallsBackToLocation(t *testing.T) {
 		t.Fatalf("want 2 (a and b, the repeat of a dropped), got %d", got)
 	}
 }
+
+// The header comes off a UDP socket, so its bytes are whatever a device on the
+// LAN chose to send. The parser used to match an upper-cased copy of the line
+// and then slice the ORIGINAL at a fixed byte offset, which only lines up while
+// uppercasing preserves byte length. It does not: a Turkish dotless i is two
+// bytes and uppercases to a one-byte I, so "LOCATıON:" matched the prefix and
+// the value came back as ": http://..." - a URL with a leading colon that
+// fetches nothing, and the renderer silently drops out of discovery.
+func TestParseLocationHeader_UppercasingDoesNotShiftTheValue(t *testing.T) {
+	cases := []struct {
+		name string
+		resp string
+		want string
+	}{
+		{"lowercase key", "location: http://192.168.1.10:8080/desc.xml\r\n", "http://192.168.1.10:8080/desc.xml"},
+		{"mixed case key", "Location: http://192.168.1.10:8080/desc.xml\r\n", "http://192.168.1.10:8080/desc.xml"},
+		{"space before the colon", "Location : http://192.168.1.10:8080/desc.xml\r\n", "http://192.168.1.10:8080/desc.xml"},
+		{"turkish dotless i", "LOCATıON: http://192.168.1.10:8080/desc.xml\r\n", ""},
+		{"colon only", "LOCATION:\r\n", ""},
+		{"no colon at all", "LOCATION http://192.168.1.10:8080/desc.xml\r\n", ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := parseLocationHeader(tc.resp); got != tc.want {
+				t.Errorf("parseLocationHeader(%q) = %q, want %q", tc.resp, got, tc.want)
+			}
+		})
+	}
+}

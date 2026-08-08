@@ -159,10 +159,18 @@ func (s *Service) discover(ctx context.Context) ([]Renderer, error) {
 	return renderers, nil
 }
 
+// Splits on the line's own colon rather than matching an upper-cased copy and
+// then slicing the original at a fixed offset: ToUpper does not preserve byte
+// length for every input, so the two can disagree about where the value starts.
+// "LOCATıON: http://host/desc.xml" (Turkish dotless i, two bytes, uppercasing
+// to a one-byte I) matched the prefix and then returned ": http://host/desc.xml"
+// - a URL with a leading colon, which fetches nothing. This also accepts
+// "Location :" and any other spacing, which the fixed offset did not.
 func parseLocationHeader(resp string) string {
 	for _, line := range strings.Split(resp, "\r\n") {
-		if strings.HasPrefix(strings.ToUpper(line), "LOCATION:") {
-			return strings.TrimSpace(line[len("LOCATION:"):])
+		key, value, ok := strings.Cut(line, ":")
+		if ok && strings.EqualFold(strings.TrimSpace(key), "LOCATION") {
+			return strings.TrimSpace(value)
 		}
 	}
 	return ""
