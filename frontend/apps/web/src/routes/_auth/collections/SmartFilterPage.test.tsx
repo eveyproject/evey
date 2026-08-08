@@ -26,8 +26,15 @@ vi.mock("@evey/store", () => ({
 // Shape copied from the real useCollection: { data, isLoading, isError, error,
 // refetch } - the screen reads every one of them.
 const failing = { value: false };
+// Records how the screen asks for its page. A smart collection is rule-based,
+// so it routinely matches more titles than one page holds - and this page used
+// to take the default limit and never paginate, while displaying the server's
+// real total in its header.
+const collectionArgs: unknown[][] = [];
 vi.mock("@/features/collection/api", () => ({
-  useCollection: () => ({
+  useCollection: (...args: unknown[]) => {
+    collectionArgs.push(args);
+    return {
     data: failing.value
       ? undefined
       : {
@@ -39,7 +46,8 @@ vi.mock("@/features/collection/api", () => ({
     isError: failing.value,
     error: failing.value ? new Error("boom") : undefined,
     refetch: vi.fn(),
-  }),
+    };
+  },
   useDeleteCollection: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
@@ -101,5 +109,16 @@ describe("smart collection page, when the load fails", () => {
     await renderPage();
     expect(screen.getByTestId("fetch-error-state")).toBeInTheDocument();
     expect(screen.queryByTestId("empty-state")).toBeNull();
+  });
+  it("asks for an explicit page rather than taking whatever the default is", async () => {
+    collectionArgs.length = 0;
+    const mod = await import("./smart/$filterId.lazy");
+    const Page = (mod.Route as unknown as { component: React.ComponentType }).component;
+    render(React.createElement(Page));
+
+    expect(collectionArgs.length).toBeGreaterThan(0);
+    const [, limit, offset] = collectionArgs[0] as [string, number, number];
+    expect(limit, "a page size must be requested, not inherited from the hook default").toBeGreaterThan(0);
+    expect(offset, "the first page starts at 0").toBe(0);
   });
 });
