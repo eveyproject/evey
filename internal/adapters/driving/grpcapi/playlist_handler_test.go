@@ -13,6 +13,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/playlist"
 	playlistfakes "github.com/evey-project/evey/internal/domain/playlist/fakes"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	"github.com/evey-project/evey/internal/domain/user"
 	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -487,4 +488,99 @@ func TestPlaylistRulesFromProto_EmptyIsNonNil(t *testing.T) {
 	out := playlistRulesFromProto(nil)
 	assert.NotNil(t, out)
 	assert.Empty(t, out)
+}
+
+// A playlist is a read-back surface: the titles it holds are returned as
+// metadata (title, year, type). Library access was gated here - the code even
+// says so - but the parental filter was not, while every sibling listing
+// (collections, feeds, favourites, resume/next-up) applies it.
+//
+// So a restricted profile could not PLAY a blocked title, and could not open
+// its media page, but could still read its name back out of a playlist: one
+// built before the restriction, or by another profile on the same account.
+// Found 2026-08-08 by sweeping each guard for the path that lacks its twin -
+// the motif that has now produced eight defects in this repository.
+func TestPlaylistGetItems_HidesParentallyBlockedTitles(t *testing.T) {
+	plRepo := playlistfakes.NewFakePlaylistRepository()
+	itemRepo := playlistfakes.NewFakePlaylistItemRepository()
+	smartQ := playlistfakes.NewFakeSmartPlaylistQuerier()
+	mediaReader := libfakes.NewFakeMediaItemQueryRepo()
+	svc := appplaylist.NewService(plRepo, itemRepo, smartQ, mediaReader)
+	libQuery := applibrary.NewQueryService(
+		libfakes.NewFakeLibraryQueryRepo(), mediaReader,
+		libfakes.NewFakeMediaStreamRepository(), libfakes.NewFakeSearchIndex())
+
+	maxAge := 7
+	kidProfile := &user.Profile{
+		ID:     "profile-kid",
+		UserID: "user-kid",
+		Name:   "Kid",
+		Parental: &user.ParentalSettings{
+			Enabled:     true,
+			MaxAge:      &maxAge,
+			BlockedTags: []string{"violence"},
+		},
+	}
+	profileRepo := userfakes.NewFakeProfileRepository()
+	if err := profileRepo.Create(context.Background(), kidProfile); err != nil {
+		t.Fatalf("seed kid profile: %v", err)
+	}
+	userQuery := appuser.NewQueryService(
+		userfakes.NewFakeUserRepository(), profileRepo,
+		userfakes.NewFakeAPIKeyRepository(), userfakes.NewFakeInviteLinkRepository(),
+		userfakes.NewFakeQuickConnectRepository(),
+	)
+	h := &playlistHandler{
+		svc: svc, libQuery: libQuery, userQuery: userQuery,
+		userAccess: newPermissiveTestUserAccess(),
+	}
+
+	// Both titles carry "US: G" so they pass the age check; only the blocked
+	// tag separates them. An item with no resolvable rating is fail-closed for
+	// a kid profile, so the visible one needs a rating.
+	mediaReader.Seed(&library.MediaItem{
+		ID: "mi-safe", LibraryID: "lib-1", Title: "Some Movie", Type: "movie",
+		Catalog:        &library.MediaCatalog{Tags: []string{}},
+		Classification: &library.MediaClassification{CertificationsByCountry: map[string]string{"US": "G"}},
+	})
+	mediaReader.Seed(&library.MediaItem{
+		ID: "mi-blocked", LibraryID: "lib-1", Title: "Some Blocked Movie", Type: "movie",
+		Catalog:        &library.MediaCatalog{Tags: []string{"violence"}},
+		Classification: &library.MediaClassification{CertificationsByCountry: map[string]string{"US": "G"}},
+	})
+
+	ctx := ctxWithClaims("user-kid", "profile-kid", false)
+	created, err := h.CreatePlaylist(ctx, &eveyv1.CreatePlaylistRequest{
+		Name: "Mine", Type: eveyv1.PlaylistType_PLAYLIST_TYPE_MANUAL,
+	})
+	if err != nil {
+		t.Fatalf("create playlist: %v", err)
+	}
+	for _, id := range []string{"mi-safe", "mi-blocked"} {
+		if _, err := h.AddPlaylistItem(ctx, &eveyv1.AddPlaylistItemRequest{
+			Id: created.Id, MediaItemId: id,
+		}); err != nil {
+			t.Fatalf("add %s: %v", id, err)
+		}
+	}
+
+	resp, err := h.GetPlaylistItems(ctx, &eveyv1.GetPlaylistItemsRequest{Id: created.Id})
+	if err != nil {
+		t.Fatalf("get playlist items: %v", err)
+	}
+	for _, it := range resp.Items {
+		if it.MediaItemId == "mi-blocked" || it.Title == "Some Blocked Movie" {
+			t.Errorf("a parentally blocked title was read back from the playlist: id=%q title=%q", it.MediaItemId, it.Title)
+		}
+	}
+	// The permitted title must still be there - over-filtering would be its own bug.
+	var sawSafe bool
+	for _, it := range resp.Items {
+		if it.MediaItemId == "mi-safe" {
+			sawSafe = true
+		}
+	}
+	if !sawSafe {
+		t.Error("the permitted title must still be listed")
+	}
 }

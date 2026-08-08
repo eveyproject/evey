@@ -26,6 +26,11 @@ type playlistHandler struct {
 	svc        *appplaylist.Service
 	libQuery   *applibrary.QueryService
 	userAccess *appuser.AccessService
+	// userQuery resolves the caller's parental filter, the same way
+	// collectionHandler and feedHandler do. Without it this handler could only
+	// gate on library access, and a gated profile still read back the titles it
+	// is not allowed to see.
+	userQuery  *appuser.QueryService
 	translator *eveyi18n.Translator
 }
 
@@ -211,10 +216,23 @@ func (h *playlistHandler) GetPlaylistItems(ctx context.Context, req *eveyv1.GetP
 	if err != nil {
 		return nil, internalError(ctx, "resolve library access", err)
 	}
+	// Library access alone is not the whole gate. A parentally restricted
+	// profile could still read back the title, year and type of a title it is
+	// blocked from - the playlist may predate the restriction, or have been
+	// built by another profile on the same account. Every sibling listing
+	// (collections, feeds, favourites, resume/next-up) filters on this; this
+	// one did not, which is the twin-guard gap that keeps recurring here.
+	pf := resolveParentalFilterFromUserQuery(ctx, h.userQuery)
 	accessible := func(m *library.MediaItem) bool {
 		// Unknown media (metadata not resolved) carries no leakable fields, so
 		// keep the bare id rather than dropping a row the owner expects to see.
-		if allowedIDs == nil || m == nil {
+		if m == nil {
+			return true
+		}
+		if mediaItemBlockedByParental(pf, m) {
+			return false
+		}
+		if allowedIDs == nil {
 			return true
 		}
 		return slices.Contains(allowedIDs, string(m.LibraryID))
