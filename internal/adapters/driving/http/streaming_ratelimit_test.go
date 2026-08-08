@@ -1,7 +1,9 @@
 package httpapi
 
 import (
+	"bytes"
 	"context"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -71,6 +73,34 @@ func TestStreamingRateLimit_PerProfileIsolationAnd503(t *testing.T) {
 	w := httptest.NewRecorder()
 	h(w, reqFor("B"))
 	assert.Equal(t, http.StatusOK, w.Code, "a different profile keeps its full budget")
+}
+
+// A refused streaming request must be VISIBLE server-side: the 07-31 cast
+// stall investigation lost hours because this 503 left no trace in the logs
+// (the refusal existed only client-side). The log line reuses the canonical
+// ratelimit refusal shape and adds the bucket, so an operator can tell WHICH
+// profile is being throttled behind a shared household IP.
+func TestStreamingRateLimit_RefusalIsLogged(t *testing.T) {
+	var buf bytes.Buffer
+	ratelimit.SetLogger(slog.New(slog.NewJSONHandler(&buf, nil)))
+	defer ratelimit.SetLogger(nil)
+
+	lim := ratelimit.NewWithBurst(1, 0) // 1 token, no refill → 2nd request refused
+	defer lim.Stop()
+	h := streamingRateLimit(lim, nil, func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	for range 2 {
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/seg.m4s", nil)
+		h(w, withClaims(r, &domainuser.Claims{UserID: "u1", ProfileID: "prof-throttled"}))
+	}
+
+	logged := buf.String()
+	require.Contains(t, logged, "rate limit: request refused", "refusal must produce the canonical refusal log line")
+	assert.Contains(t, logged, `"bucket":"p:prof-throttled"`, "the log must name the throttled bucket")
+	assert.Contains(t, logged, "/api/v1/media/m1/hls/seg.m4s", "the log must carry the refused path")
 }
 
 // A nil limiter is a transparent pass-through (no-RL deployment / tests).

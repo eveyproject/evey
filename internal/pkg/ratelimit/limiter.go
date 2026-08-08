@@ -363,15 +363,16 @@ func refusalLogger() *slog.Logger {
 	return slog.Default()
 }
 
-// refuse answers 429 AND logs it. Before this, a rate-limited client was
-// completely invisible server-side: a beta tester locked out of the mobile app
-// produced an empty log, which read as "the request never arrived" and cost an
-// afternoon of misdirected diagnosis (2026-07-29). Retry-After tells the client
-// when to come back instead of leaving it to guess.
-func refuse(w http.ResponseWriter, r *http.Request, retryAfter int) {
+// logRefusal emits the canonical refusal line. Every refusal in the process
+// funnels through here so an operator greps ONE message whatever the limiter:
+// before this, a rate-limited client was completely invisible server-side: a
+// beta tester locked out of the mobile app produced an empty log, which read
+// as "the request never arrived" and cost an afternoon of misdirected
+// diagnosis (2026-07-29).
+func logRefusal(r *http.Request, extra ...slog.Attr) {
 	res := resolveClientIPReasoned(r)
 	WarnMisroutedProxy(res)
-	refusalLogger().WarnContext(r.Context(), "rate limit: request refused",
+	attrs := append(extra,
 		slog.String("client_ip", res.IP),
 		slog.String("path", r.URL.Path),
 		slog.String("method", r.Method),
@@ -379,6 +380,13 @@ func refuse(w http.ResponseWriter, r *http.Request, retryAfter int) {
 		slog.String("peer_ip", res.PeerIP),
 		slog.Bool("peer_trusted", res.PeerTrusted),
 		slog.String("xff", res.XFF))
+	refusalLogger().LogAttrs(r.Context(), slog.LevelWarn, "rate limit: request refused", attrs...)
+}
+
+// refuse answers 429 AND logs it. Retry-After tells the client when to come
+// back instead of leaving it to guess.
+func refuse(w http.ResponseWriter, r *http.Request, retryAfter int) {
+	logRefusal(r)
 	if retryAfter < 1 {
 		retryAfter = 1
 	}
@@ -388,6 +396,23 @@ func refuse(w http.ResponseWriter, r *http.Request, retryAfter int) {
 	// retryAfterSeconds in the BODY too: a client that cannot read headers
 	// (or a proxy that strips them) still tells the user when to come back.
 	_, _ = w.Write([]byte(`{"message":"too many requests","retryAfterSeconds":` + strconv.Itoa(retryAfter) + `}`))
+}
+
+// RefuseStreaming answers a refused STREAMING request with 503 + Retry-After
+// (hls.js retries a 503 transparently where a 429 surfaces as a fatal network
+// error, see the streaming middleware) and logs the same canonical refusal
+// line, plus the rate bucket: behind one household IP, only the bucket says
+// WHICH profile was being throttled. The 07-31 cast stall investigation lost
+// hours because this refusal existed only client-side.
+func RefuseStreaming(w http.ResponseWriter, r *http.Request, retryAfter int, bucket string) {
+	logRefusal(r, slog.String("bucket", bucket))
+	if retryAfter < 1 {
+		retryAfter = 1
+	}
+	w.Header().Set("Retry-After", strconv.Itoa(retryAfter))
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusServiceUnavailable)
+	_, _ = w.Write([]byte(`{"message":"streaming rate limit exceeded, retry","retryAfterSeconds":` + strconv.Itoa(retryAfter) + `}`))
 }
 
 func Middleware(limiter *Limiter, exemptPrefixes ...string) func(http.Handler) http.Handler {

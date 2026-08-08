@@ -49,9 +49,8 @@ func streamingRateLimit(limiter *ratelimit.Limiter, loadTestActive func() bool, 
 			next(w, r)
 			return
 		}
-		if !limiter.Allow(streamingRateLimitKey(r)) {
-			w.Header().Set("Retry-After", "2")
-			http.Error(w, `{"message":"streaming rate limit exceeded, retry"}`, http.StatusServiceUnavailable)
+		if key := streamingRateLimitKey(r); !limiter.Allow(key) {
+			ratelimit.RefuseStreaming(w, r, 2, key)
 			return
 		}
 		next(w, r)
