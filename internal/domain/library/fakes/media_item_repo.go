@@ -85,8 +85,23 @@ func (r *FakeMediaItemRepository) List(_ context.Context, filter library.ListMed
 	} else if filter.Offset >= len(result) {
 		return nil, nil
 	}
-	if filter.Limit > 0 && filter.Limit < len(result) {
-		result = result[:filter.Limit]
+	// Postgres does NOT return everything when the caller leaves Limit at zero:
+	// it clamps to DefaultListLimit. A fake that hands back the whole set makes
+	// an unpaginated sweep look correct in every unit test and truncated in
+	// production - which is exactly what happened to RefreshAllTranslations,
+	// green here and stopping at 500 items on a real server.
+	//
+	// The number is duplicated rather than imported: this is the domain layer
+	// and postgres is an adapter. If it ever changes there, this comment and
+	// the guard in postgres/media_item_repo.go are the two places to keep in
+	// step.
+	const defaultListLimit = 500 // mirrors postgres.DefaultListLimit
+	limit := filter.Limit
+	if limit <= 0 {
+		limit = defaultListLimit
+	}
+	if limit < len(result) {
+		result = result[:limit]
 	}
 	return result, nil
 }

@@ -59,30 +59,53 @@ func (s *CommandService) RefreshAllTranslations(ctx context.Context, onProgress 
 		span.SetStatus(otelcodes.Error, err.Error())
 		return err
 	}
-	items, err := s.mediaItems.List(ctx, library.ListMediaItemsFilter{})
+	// A single List with an empty filter reads at most DefaultListLimit (500)
+	// rows - the repository clamps a zero Limit to it - and this sweep then
+	// reported "refresh all translations complete". On any catalogue past 500
+	// items, everything after the first page never had its translations
+	// refreshed, with no error and no warning. The sibling sweep in this same
+	// package (AutoRefreshAllItems) already pages; this one had been left
+	// behind.
+	total, err := s.mediaItems.Count(ctx, library.ListMediaItemsFilter{})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return fmt.Errorf("list all items: %w", err)
+		return fmt.Errorf("count all items: %w", err)
 	}
-	total := len(items)
 	span.SetAttributes(attribute.Int("items.count", total))
-	for i, itemPtr := range items {
-		item := itemPtr
-		if item.Catalog == nil {
-			continue
+
+	const pageSize = 500
+	seen := 0
+	for offset := 0; ; offset += pageSize {
+		items, listErr := s.mediaItems.List(ctx, library.ListMediaItemsFilter{Limit: pageSize, Offset: offset})
+		if listErr != nil {
+			span.RecordError(listErr)
+			span.SetStatus(otelcodes.Error, listErr.Error())
+			return fmt.Errorf("list all items: %w", listErr)
 		}
-		tmdbID, ok := item.Catalog.ProviderIDs["tmdb"]
-		if !ok || tmdbID == "" {
-			continue
+		if len(items) == 0 {
+			break
 		}
-		mediaType := "movie"
-		if item.Type == "series" || item.Type == "season" || item.Type == "episode" {
-			mediaType = "tv"
+		for _, item := range items {
+			seen++
+			if item.Catalog == nil {
+				continue
+			}
+			tmdbID, ok := item.Catalog.ProviderIDs["tmdb"]
+			if !ok || tmdbID == "" {
+				continue
+			}
+			mediaType := "movie"
+			if item.Type == "series" || item.Type == "season" || item.Type == "episode" {
+				mediaType = "tv"
+			}
+			s.enricher.EnrichTranslationsForItem(ctx, item, tmdbID, mediaType)
+			if onProgress != nil {
+				onProgress(seen, total)
+			}
 		}
-		s.enricher.EnrichTranslationsForItem(ctx, item, tmdbID, mediaType)
-		if onProgress != nil {
-			onProgress(i+1, total)
+		if len(items) < pageSize {
+			break
 		}
 	}
 	return nil

@@ -2,6 +2,7 @@ package metadata_test
 
 import (
 	"context"
+	"fmt"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -132,6 +133,41 @@ func TestRefreshAllTranslations_SkipsItemsWithoutTMDB(t *testing.T) {
 	assert.Equal(t, "movie", enricher.calls[0].mediaType)
 	// progress only fires for items that pass the skip (m1 only)
 	assert.Equal(t, 1, progressCalls)
+}
+
+// The sweep used to read the catalogue with a single unpaginated List. A zero
+// Limit is not "everything" - postgres clamps it to DefaultListLimit (500) -
+// so on any catalogue past 500 items the rest never had its translations
+// refreshed, and the endpoint still logged "refresh all translations complete".
+//
+// This stayed invisible because the fake repository used to return the whole
+// set for a zero Limit, unlike the database. The fake now clamps the same way,
+// which is what lets this test fail against the old code.
+func TestRefreshAllTranslations_PagesPastTheFirstFiveHundred(t *testing.T) {
+	cmdSvc := newCmdSvcNoEnricher()
+	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	enricher := &fakeTranslationsEnricher{}
+	appmetadata.WithEnricher(enricher, mediaRepo)(cmdSvc)
+
+	ctx := context.Background()
+	const catalogue = 640 // past the 500-row page, well within a real library
+	for i := range catalogue {
+		require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{
+			ID:      shared.MediaItemID(fmt.Sprintf("m%04d", i)),
+			Type:    library.MovieItem,
+			Catalog: &library.MediaCatalog{ProviderIDs: map[string]string{"tmdb": fmt.Sprintf("%d", 1000+i)}},
+		}))
+	}
+
+	var lastDone, lastTotal int
+	err := cmdSvc.RefreshAllTranslations(ctx, func(done, total int) {
+		lastDone, lastTotal = done, total
+	})
+	require.NoError(t, err)
+
+	assert.Len(t, enricher.calls, catalogue, "every item must be refreshed, not just the first page")
+	assert.Equal(t, catalogue, lastTotal, "the reported total must be the real catalogue size")
+	assert.Equal(t, catalogue, lastDone, "progress must reach the end")
 }
 
 func TestRefreshAllTranslations_TVMediaType(t *testing.T) {
