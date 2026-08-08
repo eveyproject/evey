@@ -39,7 +39,6 @@ vi.mock("lucide-react", () => {
     Image: Icon,
     Gauge: Icon,
     ScanSearch: Icon,
-    FlaskConical: Icon,
     Inbox: Icon,
   };
 });
