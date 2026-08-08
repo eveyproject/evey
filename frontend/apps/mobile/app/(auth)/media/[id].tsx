@@ -641,7 +641,10 @@ export default function MediaDetailScreen() {
   }, [isSeries, children, selectedSeason]);
 
   const { data: episodesData } = useLibraryServiceListMediaItems(
-    { parentId: selectedSeason ?? "", "pagination.pageSize": 100 },
+      // 500, not 100: episodes have no server-side sort key, so this list is
+      // re-sorted by index on the device and a truncated page would put the
+      // wrong episode first (the server answers in sort_title order).
+    { parentId: selectedSeason ?? "", "pagination.pageSize": 500 },
     { query: { enabled: !!(selectedSeason && isSeries) } },
   );
 

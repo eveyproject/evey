@@ -92,12 +92,27 @@ function EpisodeRow({ ep }: { ep: V1MediaItem }) {
 // The accordion made every season look the same - a line of text - and hid the
 // episodes one click deep. A season has its own artwork, so use it: the grid is
 // scannable at a glance and the tile navigates to the season page, which is
+// Episodes have no server-side sort key: SortColumnMap knows title, added_at,
+// year, premiere_date and community_rating, but not the episode index. So the
+// server answers in sort_title order and every client re-sorts by index itself
+// - which only works if the client holds the WHOLE season. These queries used
+// to send no pagination at all, landing on the handler's default of 50
+// (clampPagination, grpcapi/library_handler_mediaitems.go:203).
+//
+// Past 50 episodes that was not merely a short list: the 50 rows came back
+// alphabetically, so sorting them by index client-side and taking [0] picked
+// whichever episode happened to sort first by TITLE. "Play season" then started
+// mid-season. The players already ask for 500 for the same query; this brings
+// the detail page in line. Seasons-of-a-series queries keep the default - no
+// series has 50 seasons.
+const SEASON_EPISODES_PAGE_SIZE = 500;
+
 // where the episode list now lives.
 function SeasonCard({ seasonId }: { seasonId: string }) {
   const { t } = useTranslation();
   const accessToken = useAuthStore((s) => s.accessToken);
   const { data: season } = useLibraryServiceGetMediaItem(seasonId);
-  const { data: episodesData } = useLibraryServiceListMediaItems({ parentId: seasonId });
+  const { data: episodesData } = useLibraryServiceListMediaItems({ parentId: seasonId, "pagination.pageSize": SEASON_EPISODES_PAGE_SIZE });
   const episodes = sortByIndex(episodesData?.items ?? []);
   const firstEpisode = episodes[0];
 
@@ -165,7 +180,7 @@ export function PlaySeriesButton({ seriesId, onPlay }: { seriesId: string; onPla
   const firstSeason = seasons[0];
 
   const { data: episodesData } = useLibraryServiceListMediaItems(
-    { parentId: firstSeason?.id ?? "" },
+    { parentId: firstSeason?.id ?? "", "pagination.pageSize": SEASON_EPISODES_PAGE_SIZE },
     { query: { enabled: !!firstSeason?.id } } as never,
   );
   const episodes = sortByIndex(episodesData?.items ?? []);
@@ -183,7 +198,7 @@ export function PlaySeriesButton({ seriesId, onPlay }: { seriesId: string; onPla
 
 export function PlaySeasonButton({ seasonId, onPlay }: { seasonId: string; onPlay: (episodeId: string) => void }) {
   const { t } = useTranslation();
-  const { data: episodesData } = useLibraryServiceListMediaItems({ parentId: seasonId });
+  const { data: episodesData } = useLibraryServiceListMediaItems({ parentId: seasonId, "pagination.pageSize": SEASON_EPISODES_PAGE_SIZE });
   const episodes = sortByIndex(episodesData?.items ?? []);
   const firstEpisode = episodes[0];
 
@@ -218,7 +233,7 @@ export function SeriesSection({ item }: { item: V1MediaItem }) {
 
 export function SeasonEpisodesSection({ item }: { item: V1MediaItem }) {
   const { t } = useTranslation();
-  const { data: episodesData } = useLibraryServiceListMediaItems({ parentId: item.id ?? "" });
+  const { data: episodesData } = useLibraryServiceListMediaItems({ parentId: item.id ?? "", "pagination.pageSize": SEASON_EPISODES_PAGE_SIZE });
   const episodes = sortByIndex(episodesData?.items ?? []);
   if (!episodes.length) return null;
 

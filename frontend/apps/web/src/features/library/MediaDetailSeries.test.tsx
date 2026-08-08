@@ -201,3 +201,34 @@ describe("SeasonEpisodesSection", () => {
     expect(links.map((l) => l.getAttribute("href"))).toEqual(["/player/ep1", "/player/ep2", "/player/ep3"]);
   });
 });
+
+// Episodes have no server-side sort key (SortColumnMap covers title, added_at,
+// year, premiere_date, community_rating - not the episode index), so the server
+// answers in sort_title order and this component re-sorts by index itself. That
+// only works while it holds the whole season.
+//
+// Sending no pagination landed on the handler's default of 50. Past 50
+// episodes the page therefore held the alphabetically-first 50, and
+// PlaySeasonButton - which sorts by index and takes [0] - started playback on
+// whichever episode sorted first by TITLE rather than on episode 1.
+describe("season episode queries ask for the whole season", () => {
+  beforeEach(() => {
+    mockListMediaItems.mockReturnValue({ data: { items: [] } });
+    mockGetMediaItem.mockReturnValue({ data: { indexNumber: 1, title: "Season 1" } });
+  });
+
+  it("requests episodes with an explicit page size, not the server default", () => {
+    render(
+      <SeasonEpisodesSection item={{ id: "se1", type: "MEDIA_ITEM_TYPE_SEASON" } as any} />,
+      { wrapper: Wrapper },
+    );
+
+    expect(mockListMediaItems).toHaveBeenCalled();
+    const params = mockListMediaItems.mock.calls.at(-1)?.[0] as Record<string, unknown>;
+    expect(params).toMatchObject({ parentId: "se1" });
+    expect(
+      params["pagination.pageSize"],
+      "without an explicit page size the handler serves 50 rows in sort_title order",
+    ).toBe(500);
+  });
+});
