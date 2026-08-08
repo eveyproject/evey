@@ -2,6 +2,7 @@ package transcoding
 
 import (
 	"errors"
+	"slices"
 	"sync"
 
 	"github.com/evey-project/evey/internal/domain/transcoding"
@@ -364,6 +365,47 @@ func (l *VideoSessionLimiter) Holds(key string) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	return l.refs[key] > 0
+}
+
+// AutoCountCapFor is how many streams pool's CHEAPEST rung fits in its budget
+// (cheapest by COST, not by height - hw costs are not monotonic in height).
+// 0 when the pool has no calibration evidence.
+func (l *VideoSessionLimiter) AutoCountCapFor(pool ResourcePool) int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.autoCountCapFor(pool)
+}
+
+// autoCountCapFor is AutoCountCapFor with l.mu already held.
+func (l *VideoSessionLimiter) autoCountCapFor(pool ResourcePool) int {
+	if l.costModel == nil {
+		return 0
+	}
+	class := LadderClassSoftware
+	if pool == PoolGPU {
+		class = LadderClassHW
+		if !slices.Contains(l.costModel.Classes(), LadderClassHW) {
+			return 0
+		}
+	}
+	_, cost, ok := l.costModel.CheapestRung(class)
+	if !ok || cost <= 0 {
+		return 0
+	}
+	return int(l.budgetFor(pool) / cost)
+}
+
+// AutoCountCap is the count cap this host's own calibration derives: the sum
+// across pools of AutoCountCapFor. 0 means "no evidence to derive one from".
+//
+// It lives HERE, on the limiter that owns both the cost model and the budgets,
+// because it used to be computed inline at the wiring site while the admin API
+// derived a DIFFERENT number from the tallest bench rung. The panel then showed
+// an "effective limit" that was not the one being enforced.
+func (l *VideoSessionLimiter) AutoCountCap() int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.autoCountCapFor(PoolCPU) + l.autoCountCapFor(PoolGPU)
 }
 
 // Limit reports the current cap (0 = unlimited).

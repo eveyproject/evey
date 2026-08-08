@@ -17,7 +17,6 @@ import (
 	appconfig "github.com/evey-project/evey/internal/app/config"
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
 	appuser "github.com/evey-project/evey/internal/app/user"
-	"github.com/evey-project/evey/internal/domain/shared"
 	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
 	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
 	"github.com/evey-project/evey/internal/pkg/sysinfo"
@@ -59,6 +58,11 @@ type videoSessionActiveReporter interface {
 	BudgetFor(pool apptranscoding.ResourcePool) float64
 	RungsFor(class apptranscoding.LadderClass) []apptranscoding.RungFit
 	Classes() []apptranscoding.LadderClass
+	// AutoCountCap is the count cap the calibration derives, and Limit the one
+	// actually enforced (the former with the admin's reduction applied). Both
+	// come FROM the limiter so the panel can never disagree with admission.
+	AutoCountCap() int
+	Limit() int
 }
 
 type adminSystemHandler struct {
@@ -220,21 +224,22 @@ func (d *adminSystemHandler) GetSystemInfo(ctx context.Context, _ *eveyv1.GetSys
 		if d.cpuBudgetFn != nil {
 			cpuBudget = d.cpuBudgetFn()
 		}
-		auto, evidence := apptranscoding.AutoVideoSessionCapacity(capability.BenchSamples, cpuBudget)
-		// A true-nil interface (not a nil-pointer-wrapped one) when the store is
-		// absent, so ResolveVideoSessionLimit's own nil check is honest - see the
-		// same pattern for pluginCfgRepo in server.go.
-		var cfgRepo shared.ServerConfigRepository
-		if d.serverCfgSvc != nil {
-			cfgRepo = d.serverCfgSvc
-		}
-		effective := apptranscoding.ResolveVideoSessionLimit(ctx, cfgRepo, auto)
-		var active int
+		// evidence is the "why" narrative only - the tallest passing software rung.
+		// It is NOT the capacity: admission is governed by the per-pool cost
+		// budgets, and deriving a second number here is what used to make the
+		// panel report an effective limit nobody enforced.
+		_, evidence := apptranscoding.AutoVideoSessionCapacity(capability.BenchSamples, cpuBudget)
+		var active, auto, effective int
 		var budgetUsed, budgetTotal float64
 		var rungFits []*eveyv1.VideoRungFit
 		var pools []*eveyv1.VideoPool
 		if d.videoLimiter != nil {
 			active = d.videoLimiter.Active()
+			auto = d.videoLimiter.AutoCountCap()
+			// The limit ACTUALLY enforced, read from the limiter itself rather
+			// than re-derived: the admin override was already applied when it was
+			// armed (ResolveVideoSessionLimit, at the wiring site).
+			effective = d.videoLimiter.Limit()
 			budgetUsed = d.videoLimiter.Used()
 			budgetTotal = d.videoLimiter.Budget()
 			for _, r := range d.videoLimiter.Rungs() {
@@ -258,6 +263,10 @@ func (d *adminSystemHandler) GetSystemInfo(ctx context.Context, _ *eveyv1.GetSys
 			BudgetTotal: budgetTotal,
 			RungFits:    rungFits,
 			Pools:       pools,
+			// The decode half of the calibration - what makes the rung costs
+			// above readable instead of a number without its condition.
+			BenchSource:      sourceClassToProto(capability.BenchSource),
+			DecodeThroughput: decodeThroughputToProto(capability.DecodeSamples),
 		}
 	}
 
@@ -267,11 +276,23 @@ func (d *adminSystemHandler) GetSystemInfo(ctx context.Context, _ *eveyv1.GetSys
 // videoRungFitToProto converts one calibrated rung's cost/max-streams to its
 // proto projection.
 func videoRungFitToProto(r apptranscoding.RungFit) *eveyv1.VideoRungFit {
-	return &eveyv1.VideoRungFit{
+	out := &eveyv1.VideoRungFit{
 		Height:     int32(r.Height),
 		Cost:       r.Cost,
 		MaxStreams: int32(r.MaxStreams),
 	}
+	for _, f := range r.BySource {
+		out.BySource = append(out.BySource, &eveyv1.VideoSourceFit{
+			Source:     sourceClassToProto(f.Source),
+			Cost:       f.Cost,
+			MaxStreams: int32(f.MaxStreams),
+		})
+	}
+	return out
+}
+
+func sourceClassToProto(c domaintranscoding.SourceClass) *eveyv1.SourceClass {
+	return &eveyv1.SourceClass{Codec: c.Codec, Height: int32(c.Height)}
 }
 
 // videoSessionPools builds the per-resource-pool breakdown (see
@@ -504,4 +525,15 @@ func (d *adminSystemHandler) RestartServer(ctx context.Context, _ *eveyv1.Restar
 		Restarting: true,
 		Message:    "Server is restarting; it will be back shortly.",
 	}, nil
+}
+
+// decodeThroughputToProto projects the measured decode-only rates.
+func decodeThroughputToProto(samples []domaintranscoding.DecodeRungSample) []*eveyv1.DecodeThroughput {
+	out := make([]*eveyv1.DecodeThroughput, 0, len(samples))
+	for _, s := range samples {
+		out = append(out, &eveyv1.DecodeThroughput{
+			Codec: s.Codec, Height: int32(s.Height), Fps: s.FPS,
+		})
+	}
+	return out
 }

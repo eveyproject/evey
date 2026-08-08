@@ -8,6 +8,7 @@ import {
   serverConfigServiceSetServerConfigEntry,
   type V1VideoPool,
   type V1VideoRungFit,
+  type V1VideoSourceFit,
 } from "@evey/api";
 import { toast } from "@evey/store";
 import { Input } from "@/components/ui/Input";
@@ -24,6 +25,23 @@ function poolRungFits(pool: V1VideoPool): V1VideoRungFit[] {
   const classes = pool.classes ?? [];
   const primary = classes.find((c) => c.ladderClass === "software") ?? classes[0];
   return primary?.rungFits ?? [];
+}
+
+// sourceFits answers "how many can I serve" for the rung load actually lands
+// on - the CHEAPEST one, the same rung the count cap is derived from. Reading
+// the breakdown off the top rung instead would quote a ceiling nobody hits.
+function sourceFits(rungs: V1VideoRungFit[]): V1VideoSourceFit[] {
+  let cheapest: V1VideoRungFit | undefined;
+  for (const r of rungs) {
+    if (!r.bySource?.length) continue;
+    if (!cheapest || (r.cost ?? 0) < (cheapest.cost ?? 0)) cheapest = r;
+  }
+  return cheapest?.bySource ?? [];
+}
+
+// codecLabel uppercases the wire codec for display ("h264" -> "H264").
+function codecLabel(codec?: string): string {
+  return (codec ?? "").toUpperCase();
 }
 
 // VideoSessionsCard governs the LIVE playback path: how many streams may be
@@ -67,11 +85,33 @@ export function VideoSessionsCard() {
   const vs = sysData?.videoSessions;
   const ev = vs?.evidence;
   const pools = vs?.pools ?? [];
+  const benchSource = vs?.benchSource;
+  const decodeRates = vs?.decodeThroughput ?? [];
 
   return (
     <div className="flex flex-col gap-3" data-testid="video-sessions-card">
       {vs && (
         <p className="text-xs text-[var(--text-muted)]">{t("admin.transcoding.videoSessionsAutoAdjusts")}</p>
+      )}
+
+      {(benchSource?.codec || decodeRates.length > 0) && (
+        <p className="text-xs text-[var(--text-muted)]" data-testid="video-decode-evidence">
+          {benchSource?.codec
+            ? t("admin.transcoding.videoBenchSource", {
+                codec: codecLabel(benchSource.codec),
+                height: benchSource.height,
+              })
+            : null}
+          {decodeRates.length > 0 && benchSource?.codec ? " · " : null}
+          {decodeRates
+            .map((d) =>
+              t("admin.transcoding.videoDecodeRate", {
+                codec: codecLabel(d.codec),
+                fps: Math.round(d.fps ?? 0),
+              }),
+            )
+            .join(" · ")}
+        </p>
       )}
 
       {pools.length > 0 ? (
@@ -124,6 +164,28 @@ export function VideoSessionsCard() {
                       </li>
                     ))}
                   </ul>
+                )}
+                {sourceFits(rungs).length > 0 && (
+                  <div
+                    className="flex flex-col gap-1 border-t border-[var(--border)] pt-2"
+                    data-testid={`video-pool-${pool.pool}-sources`}
+                  >
+                    <span className="text-xs font-medium text-[var(--text)]">
+                      {t("admin.transcoding.videoSourceTitle")}
+                    </span>
+                    <ul className="flex flex-col gap-0.5 text-xs text-[var(--text-muted)]">
+                      {sourceFits(rungs).map((f) => (
+                        <li key={`${f.source?.codec}-${f.source?.height}`} className="flex justify-between gap-2">
+                          <span>
+                            {codecLabel(f.source?.codec)} {f.source?.height}p
+                          </span>
+                          <span className="tabular-nums">
+                            {t("admin.transcoding.videoSourceStreams", { count: f.maxStreams ?? 1 })}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 )}
               </div>
             );

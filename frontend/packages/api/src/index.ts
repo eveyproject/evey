@@ -61,6 +61,9 @@ export type {
   V1VideoPool,
   V1VideoClassRungs,
   V1VideoRungFit,
+  V1VideoSourceFit,
+  V1SourceClass,
+  V1DecodeThroughput,
 } from "./generated/admin_system.schemas";
 export type { V1Plugin, V1PluginResourceLimits } from "./generated/admin_plugin.schemas";
 export { V1PluginState } from "./generated/admin_plugin.schemas";

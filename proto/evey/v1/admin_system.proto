@@ -132,6 +132,27 @@ message VideoSessionCapacity {
   // shows "0.7/2" instead of "0.5/1 cpu, 0.2/1 gpu") - pools is the
   // authoritative breakdown; the fields above stay for older clients.
   repeated VideoPool pools = 8;
+  // bench_source is the codec+height the encode rungs were DECODED from, and
+  // decode_throughput the measured decode-only fps per codec. They are what
+  // makes the rung costs interpretable: the same rung costs ~4x more fed by a
+  // 4K HEVC source than by a 1080p H.264 one. Unset on a host calibrated
+  // before decode probing existed.
+  SourceClass bench_source = 9;
+  repeated DecodeThroughput decode_throughput = 10;
+}
+
+// SourceClass is a decode workload: the source codec and the height it is
+// decoded at. See apptranscoding / transcoding.SourceClass.
+message SourceClass {
+  string codec = 1;
+  int32 height = 2;
+}
+
+// DecodeThroughput is one measured DECODE-only rate, per source codec.
+message DecodeThroughput {
+  string codec = 1;
+  int32 height = 2;
+  double fps = 3;
 }
 
 // VideoPool is one resource pool's (cpu or gpu) admission budget and the
@@ -161,6 +182,20 @@ message VideoClassRungs {
 // fits. See apptranscoding.VideoCostModel.Rungs.
 message VideoRungFit {
   int32 height = 1;
+  double cost = 2;
+  int32 max_streams = 3;
+  // by_source prices this same rung for each source class the host measured.
+  // cost/max_streams above are the source-agnostic figures the bench produced;
+  // they answer "how many streams at this output height" only for the source
+  // the bench decoded, which is why the breakdown exists. Empty when the host
+  // has no decode evidence.
+  repeated VideoSourceFit by_source = 4;
+}
+
+// VideoSourceFit is one rung's cost for one SOURCE class - the answer to "how
+// many of these can I serve" once the thing being decoded is named.
+message VideoSourceFit {
+  SourceClass source = 1;
   double cost = 2;
   int32 max_streams = 3;
 }

@@ -107,6 +107,10 @@ type fakeVideoActiveReporter struct {
 	poolBudget map[apptranscoding.ResourcePool]float64
 	poolRungs  map[apptranscoding.LadderClass][]apptranscoding.RungFit
 	classes    []apptranscoding.LadderClass
+	// autoCap/limit are the derived and the ENFORCED count caps, both read from
+	// the limiter now so the panel cannot report a limit nobody applies.
+	autoCap int
+	limit   int
 }
 
 func (f fakeCalibrationSnapshot) IsBenchmarking() bool { return false }
@@ -115,6 +119,8 @@ func (f fakeVideoActiveReporter) Active() int                     { return f.act
 func (f fakeVideoActiveReporter) Used() float64                   { return f.used }
 func (f fakeVideoActiveReporter) Budget() float64                 { return f.budget }
 func (f fakeVideoActiveReporter) Rungs() []apptranscoding.RungFit { return f.rungs }
+func (f fakeVideoActiveReporter) AutoCountCap() int               { return f.autoCap }
+func (f fakeVideoActiveReporter) Limit() int                      { return f.limit }
 
 func (f fakeVideoActiveReporter) UsedFor(pool apptranscoding.ResourcePool) float64 {
 	return f.poolUsed[pool]
@@ -150,7 +156,7 @@ func TestAdminGetSystemInfo_VideoSessions_AutoOnly(t *testing.T) {
 			{Ladder: "software", Height: 1080, FPS: 60, RequiredFPS: 30, Passing: true},
 		},
 	}}
-	d.videoLimiter = fakeVideoActiveReporter{active: 1}
+	d.videoLimiter = fakeVideoActiveReporter{active: 1, autoCap: 2, limit: 2}
 
 	resp, err := d.GetSystemInfo(context.Background(), &eveyv1.GetSystemInfoRequest{})
 	if err != nil {
@@ -160,10 +166,10 @@ func TestAdminGetSystemInfo_VideoSessions_AutoOnly(t *testing.T) {
 		t.Fatal("expected VideoSessions to be populated")
 	}
 	if resp.VideoSessions.AutoCapacity != 2 {
-		t.Errorf("AutoCapacity = %d, want 2 (ratio 60/30)", resp.VideoSessions.AutoCapacity)
+		t.Errorf("AutoCapacity = %d, want the limiter's derived cap", resp.VideoSessions.AutoCapacity)
 	}
 	if resp.VideoSessions.EffectiveLimit != 2 {
-		t.Errorf("EffectiveLimit = %d, want 2 (no admin override configured)", resp.VideoSessions.EffectiveLimit)
+		t.Errorf("EffectiveLimit = %d, want the limit the limiter enforces", resp.VideoSessions.EffectiveLimit)
 	}
 	if resp.VideoSessions.Active != 1 {
 		t.Errorf("Active = %d, want 1", resp.VideoSessions.Active)
@@ -321,18 +327,17 @@ func TestAdminGetSystemInfo_VideoSessions_Pools_WithHWTable_BothPools(t *testing
 	}
 }
 
+// The admin's reduction is applied when the limit is ARMED, so the panel simply
+// reads back what the limiter enforces - it must not re-derive it, which is how
+// it used to report a limit nobody applied.
 func TestAdminGetSystemInfo_VideoSessions_AdminOverrideReduces(t *testing.T) {
 	d := newTestSystemHandler()
 	d.calibrationSvc = fakeCalibrationSnapshot{capability: domaintranscoding.EncodeCapability{
 		BenchSamples: []domaintranscoding.BenchRungSample{
-			{Ladder: "software", Height: 1080, FPS: 90, RequiredFPS: 30, Passing: true}, // auto=3
+			{Ladder: "software", Height: 1080, FPS: 90, RequiredFPS: 30, Passing: true},
 		},
 	}}
-	cfg := sharedfakes.NewFakeServerConfigRepository()
-	if err := cfg.Set(context.Background(), apptranscoding.MaxVideoSessionsConfigKey, "1"); err != nil {
-		t.Fatalf("seed config: %v", err)
-	}
-	d.serverCfgSvc = appconfig.NewService(cfg)
+	d.videoLimiter = fakeVideoActiveReporter{autoCap: 3, limit: 1}
 
 	resp, err := d.GetSystemInfo(context.Background(), &eveyv1.GetSystemInfoRequest{})
 	if err != nil {
@@ -342,7 +347,35 @@ func TestAdminGetSystemInfo_VideoSessions_AdminOverrideReduces(t *testing.T) {
 		t.Errorf("AutoCapacity = %d, want 3", resp.VideoSessions.AutoCapacity)
 	}
 	if resp.VideoSessions.EffectiveLimit != 1 {
-		t.Errorf("EffectiveLimit = %d, want 1 (admin-reduced)", resp.VideoSessions.EffectiveLimit)
+		t.Errorf("EffectiveLimit = %d, want 1 (admin-reduced, read from the limiter)", resp.VideoSessions.EffectiveLimit)
+	}
+}
+
+// The regression this replaces: the panel used to derive its own capacity from
+// the tallest bench rung while admission enforced the per-pool budgets, so the
+// two disagreed on the same card. Whatever the bench says, the reported limit
+// is the enforced one.
+func TestAdminGetSystemInfo_VideoSessions_ReportsTheEnforcedLimitNotABenchDerivation(t *testing.T) {
+	d := newTestSystemHandler()
+	d.calibrationSvc = fakeCalibrationSnapshot{capability: domaintranscoding.EncodeCapability{
+		BenchSamples: []domaintranscoding.BenchRungSample{
+			// Tallest-rung ratio would say 2; the limiter admits 8.
+			{Ladder: "software", Height: 1080, FPS: 60, RequiredFPS: 30, Passing: true},
+		},
+	}}
+	d.videoLimiter = fakeVideoActiveReporter{autoCap: 8, limit: 8}
+
+	resp, err := d.GetSystemInfo(context.Background(), &eveyv1.GetSystemInfoRequest{})
+	if err != nil {
+		t.Fatalf("GetSystemInfo: %v", err)
+	}
+	if resp.VideoSessions.AutoCapacity != 8 || resp.VideoSessions.EffectiveLimit != 8 {
+		t.Errorf("auto=%d effective=%d, want 8/8 - the bench ratio must not override the limiter",
+			resp.VideoSessions.AutoCapacity, resp.VideoSessions.EffectiveLimit)
+	}
+	// The bench rung still answers "why", it just no longer answers "how many".
+	if resp.VideoSessions.Evidence.Height != 1080 {
+		t.Errorf("Evidence.Height = %d, want the bench rung kept as the narrative", resp.VideoSessions.Evidence.Height)
 	}
 }
 
@@ -354,8 +387,8 @@ func TestAdminGetSystemInfo_VideoSessions_NoPassingSample_FailSafe(t *testing.T)
 	if err != nil {
 		t.Fatalf("GetSystemInfo: %v", err)
 	}
-	if resp.VideoSessions.AutoCapacity != 1 {
-		t.Errorf("AutoCapacity = %d, want 1 (fail-safe)", resp.VideoSessions.AutoCapacity)
+	if resp.VideoSessions.AutoCapacity != 0 {
+		t.Errorf("AutoCapacity = %d, want 0 - no limiter wired means nothing to report", resp.VideoSessions.AutoCapacity)
 	}
 	if resp.VideoSessions.Evidence.Derived {
 		t.Error("expected Evidence.Derived=false with no bench samples")

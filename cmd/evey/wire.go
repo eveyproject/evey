@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"slices"
 	"strconv"
 	"time"
 
@@ -643,21 +642,11 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		// Admission is governed by PER-POOL cost budgets: every software flavor
 		// (plain/HDR/AV1) spends the CPU pool, hw encodes spend the GPU pool, so
 		// a NVENC box serves its GPU streams without starving software ones and
-		// vice versa. The count cap below stays a belt across BOTH pools: the
-		// sum of what each pool's cheapest-by-COST rung physically allows (hw
-		// costs are not monotonic in height - CheapestRung, not rungs[0]). The
-		// admin may only lower it.
-		maxStreams := 0 // 0 = no count cap, the budgets rule
-		gpuStreams := 0
-		if _, c, ok := costs.CheapestRung(apptranscoding.LadderClassSoftware); ok && c > 0 {
-			maxStreams += int(videoLimiter.BudgetFor(apptranscoding.PoolCPU) / c)
-		}
-		if slices.Contains(costs.Classes(), apptranscoding.LadderClassHW) {
-			if _, c, ok := costs.CheapestRung(apptranscoding.LadderClassHW); ok && c > 0 {
-				gpuStreams = int(videoLimiter.BudgetFor(apptranscoding.PoolGPU) / c)
-				maxStreams += gpuStreams
-			}
-		}
+		// vice versa. The count cap stays a belt across BOTH pools, derived by
+		// the limiter itself (AutoCountCap) so the admin panel reports the very
+		// number enforced here. The admin may only lower it.
+		maxStreams := videoLimiter.AutoCountCap()
+		gpuStreams := videoLimiter.AutoCountCapFor(apptranscoding.PoolGPU)
 		effective := apptranscoding.ResolveVideoSessionLimit(ctx, r.ServerCfg, maxStreams)
 		videoLimiter.SetLimit(effective)
 

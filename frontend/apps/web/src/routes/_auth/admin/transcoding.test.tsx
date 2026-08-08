@@ -130,6 +130,82 @@ describe("TranscodingConfigPage capacity", () => {
     expect(screen.queryByTestId("video-sessions-measured")).toBeNull();
   });
 
+  // A bare "N streams at 1080p" answers how many without saying of what, and
+  // the same rung costs ~4x more from a heavy source. The breakdown is what
+  // makes the number readable.
+  it("breaks the capacity down by source class, on the rung load actually lands on", async () => {
+    mockGetSystemInfo.mockReturnValue({
+      data: {
+        videoSessions: {
+          ...measured.videoSessions,
+          pools: [
+            {
+              pool: "cpu",
+              budgetUsed: 0.14,
+              budgetTotal: 1,
+              classes: [
+                {
+                  ladderClass: "software",
+                  rungFits: [
+                    {
+                      height: 480,
+                      cost: 0.117,
+                      maxStreams: 8,
+                      bySource: [
+                        { source: { codec: "h264", height: 1080 }, cost: 0.117, maxStreams: 8 },
+                        { source: { codec: "hevc", height: 2160 }, cost: 0.567, maxStreams: 1 },
+                      ],
+                    },
+                    // The dearer rung must NOT be the one quoted.
+                    { height: 1080, cost: 0.9, maxStreams: 1, bySource: [] },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      },
+    });
+    const Page = await getPage();
+    render(React.createElement(Page), { wrapper: createWrapper() });
+
+    const sources = screen.getByTestId("video-pool-cpu-sources");
+    expect(sources.textContent).toMatch(/H264 1080p/);
+    expect(sources.textContent).toMatch(/~8 streams/);
+    expect(sources.textContent).toMatch(/HEVC 2160p/);
+    expect(sources.textContent).toMatch(/~1 stream/);
+  });
+
+  it("names the source the host was calibrated against and its measured decode rates", async () => {
+    mockGetSystemInfo.mockReturnValue({
+      data: {
+        videoSessions: {
+          ...measured.videoSessions,
+          benchSource: { codec: "hevc", height: 2160 },
+          decodeThroughput: [
+            { codec: "hevc", height: 2160, fps: 60 },
+            { codec: "h264", height: 2160, fps: 240 },
+          ],
+        },
+      },
+    });
+    const Page = await getPage();
+    render(React.createElement(Page), { wrapper: createWrapper() });
+
+    const line = screen.getByTestId("video-decode-evidence");
+    expect(line.textContent).toMatch(/Calibrated against HEVC 2160p/);
+    expect(line.textContent).toMatch(/HEVC decode: 60 fps/);
+    expect(line.textContent).toMatch(/H264 decode: 240 fps/);
+  });
+
+  // A host with no decode evidence must show no breakdown rather than an empty
+  // or invented one.
+  it("shows no source breakdown when the host has not measured decode", async () => {
+    const Page = await getPage();
+    render(React.createElement(Page), { wrapper: createWrapper() });
+    expect(screen.queryByTestId("video-decode-evidence")).toBeNull();
+  });
+
   it("shows a pool per resource (cpu + gpu) with their own budgets and rung fits when the server reports pools", async () => {
     mockGetSystemInfo.mockReturnValue({
       data: {

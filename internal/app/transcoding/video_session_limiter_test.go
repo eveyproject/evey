@@ -581,3 +581,34 @@ func TestVideoSessionLimiter_TryAcquire_UnknownSource_UnchangedBehaviour(t *test
 	assert.False(t, l.TryAcquire("second", LadderClassSoftware, 480),
 		"without a named source the old output-rung price applies")
 }
+
+// The count cap must come from the limiter's OWN cost model and budgets. It
+// used to be computed inline at the wiring site while the admin API derived a
+// different number from the tallest bench rung, so the panel reported a limit
+// nobody enforced.
+func TestVideoSessionLimiter_AutoCountCap_SumsThePoolsCheapestRungs(t *testing.T) {
+	t.Parallel()
+	l := NewVideoSessionLimiter(0).WithCostModel(NewVideoCostModel(devBoxSamples()))
+
+	// software cheapest = 0.366 -> 2 ; hw cheapest = 0.245 -> 4
+	assert.Equal(t, 2, l.AutoCountCapFor(PoolCPU))
+	assert.Equal(t, 4, l.AutoCountCapFor(PoolGPU))
+	assert.Equal(t, 6, l.AutoCountCap())
+}
+
+// No hw evidence must not conjure a GPU allowance.
+func TestVideoSessionLimiter_AutoCountCap_NoHWTable_NoGPUAllowance(t *testing.T) {
+	t.Parallel()
+	l := NewVideoSessionLimiter(0).WithCostModel(NewVideoCostModel([]transcoding.BenchRungSample{
+		{Ladder: "software", Height: 1080, FPS: 60, RequiredFPS: 30, Passing: true},
+	}))
+
+	assert.Equal(t, 0, l.AutoCountCapFor(PoolGPU))
+	assert.Equal(t, 2, l.AutoCountCap())
+}
+
+// No cost model, nothing to derive - the caller decides what to do with 0.
+func TestVideoSessionLimiter_AutoCountCap_NoCostModel_Zero(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, 0, NewVideoSessionLimiter(0).AutoCountCap())
+}

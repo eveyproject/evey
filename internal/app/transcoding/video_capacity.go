@@ -205,6 +205,44 @@ type RungFit struct {
 	Height     int
 	Cost       float64
 	MaxStreams int
+	// BySource prices the SAME rung for each source class the host measured.
+	// Cost/MaxStreams above hold only for the source the bench decoded, so a
+	// panel showing them alone answers "how many streams" without saying of
+	// what. Empty when the host has no decode evidence.
+	BySource []SourceFit
+}
+
+// SourceFit is one rung's cost once the thing being decoded is named.
+type SourceFit struct {
+	Source     transcoding.SourceClass
+	Cost       float64
+	MaxStreams int
+}
+
+// representativeSourceHeights are the source heights the per-source breakdown
+// is reported at: the two a real library is actually made of. The decode term
+// scales by area within a codec, so these interpolate from the measurement
+// rather than adding assumptions.
+var representativeSourceHeights = []int{1080, 2160}
+
+// MeasuredSources lists the source classes this model can price, at the
+// representative heights. Empty without decode evidence.
+func (m *VideoCostModel) MeasuredSources() []transcoding.SourceClass {
+	if m == nil || len(m.decode) == 0 {
+		return nil
+	}
+	codecs := make([]string, 0, len(m.decode))
+	for codec := range m.decode {
+		codecs = append(codecs, codec)
+	}
+	slices.Sort(codecs)
+	out := make([]transcoding.SourceClass, 0, len(codecs)*len(representativeSourceHeights))
+	for _, codec := range codecs {
+		for _, h := range representativeSourceHeights {
+			out = append(out, transcoding.SourceClass{Codec: codec, Height: h})
+		}
+	}
+	return out
 }
 
 // costRung is a single usable bench rung, sorted ascending by Height inside
@@ -477,9 +515,17 @@ func (m *VideoCostModel) RungsFor(class LadderClass) []RungFit {
 	if !ok {
 		return []RungFit{}
 	}
+	sources := m.MeasuredSources()
 	out := make([]RungFit, 0, len(rungs))
 	for _, r := range rungs {
-		out = append(out, RungFit{Height: r.Height, Cost: r.Cost, MaxStreams: maxStreamsForCost(r.Cost)})
+		fit := RungFit{Height: r.Height, Cost: r.Cost, MaxStreams: maxStreamsForCost(r.Cost)}
+		for _, src := range sources {
+			c := m.CostForSource(class, r.Height, src)
+			fit.BySource = append(fit.BySource, SourceFit{
+				Source: src, Cost: c, MaxStreams: maxStreamsForCost(c),
+			})
+		}
+		out = append(out, fit)
 	}
 	return out
 }

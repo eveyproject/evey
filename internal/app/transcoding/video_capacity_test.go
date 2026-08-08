@@ -2,6 +2,7 @@ package transcoding
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/evey-project/evey/internal/domain/shared"
@@ -689,4 +690,37 @@ func TestVideoCostModel_CostForSource_CodecAliasesResolve(t *testing.T) {
 	canonical := m.CostForSource(LadderClassSoftware, 480, transcoding.SourceClass{Codec: "hevc", Height: 2160})
 	alias := m.CostForSource(LadderClassSoftware, 480, transcoding.SourceClass{Codec: "h265", Height: 2160})
 	assert.InDelta(t, canonical, alias, 1e-9)
+}
+
+// The panel's whole problem in one test: a rung's bare cost answers "how many
+// streams" without saying of what, so RungsFor must carry the per-source
+// breakdown that makes it readable.
+func TestVideoCostModel_RungsFor_CarriesThePerSourceBreakdown(t *testing.T) {
+	t.Parallel()
+	m := prodModel(t)
+
+	rungs := m.RungsFor(LadderClassSoftware)
+	require.Len(t, rungs, 1)
+	fits := rungs[0].BySource
+	require.Len(t, fits, 4, "two measured codecs x two representative heights")
+
+	byKey := map[string]SourceFit{}
+	for _, f := range fits {
+		byKey[fmt.Sprintf("%s@%d", f.Source.Codec, f.Source.Height)] = f
+	}
+	assert.Equal(t, 8, byKey["h264@1080"].MaxStreams, "the cheap source the host really sustains eight of")
+	assert.Equal(t, 1, byKey["hevc@2160"].MaxStreams, "the expensive one it sustains once")
+	assert.Less(t, byKey["h264@2160"].Cost, byKey["hevc@2160"].Cost, "same height, cheaper codec must cost less")
+	assert.Less(t, byKey["h264@1080"].Cost, byKey["h264@2160"].Cost, "same codec, smaller frame must cost less")
+}
+
+// Without decode evidence there is nothing honest to break down, and the rung
+// keeps exactly the shape it had before.
+func TestVideoCostModel_RungsFor_NoDecodeEvidence_NoBreakdown(t *testing.T) {
+	t.Parallel()
+	m := NewVideoCostModel(devBoxSamples())
+	require.NotNil(t, m)
+	for _, r := range m.RungsFor(LadderClassSoftware) {
+		assert.Empty(t, r.BySource, "rung %d", r.Height)
+	}
 }
