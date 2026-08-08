@@ -52,6 +52,10 @@ export const ADMIN_SECTIONS: { titleKey: string; items: NavItem[] }[] = [
       { href: "/admin/transcode-cache", labelKey: "admin.nav.transcodeCache", icon: "server-outline", activeIcon: "server" },
       { href: "/admin/artworks", labelKey: "admin.nav.artworks", icon: "image-outline", activeIcon: "image" },
       { href: "/admin/seek-index", labelKey: "admin.nav.seekIndex", icon: "search-outline", activeIcon: "search" },
+      // Mobile-only screen: the web sidebar folds feed config into
+      // server-config. Carried here since the dashboard's bottom nav (its
+      // only previous entry point) is gone.
+      { href: "/admin/feeds", labelKey: "common.feeds.title", icon: "albums-outline", activeIcon: "albums" },
     ],
   },
   {
