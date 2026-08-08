@@ -189,7 +189,11 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}) {
       });
       queue = info.queue ?? [];
       trackIndex = info.trackIndex ?? 0;
-    } catch {}
+    } catch (err) {
+      // Degraded, not fatal: the room opens with an empty queue. Say so -
+      // "the playlist room lost its tracks" is undiagnosable from silence.
+      console.warn("[SyncPlay] room info fetch failed, starting with an empty queue:", err);
+    }
     setState({ roomId: data.id, roomCode: data.code, members: [], connected: false, isHost: true, queue, trackIndex });
     connect(data.id);
     return data.id;
@@ -210,7 +214,9 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}) {
       });
       queue = info.queue ?? [];
       trackIndex = info.trackIndex ?? 0;
-    } catch {}
+    } catch (err) {
+      console.warn("[SyncPlay] room info fetch failed, joining with an empty queue:", err);
+    }
     setState({ roomId: data.roomId, roomCode: null, members: [], connected: false, isHost: false, queue, trackIndex });
     connect(data.roomId);
     return { roomId: data.roomId, mediaId: data.mediaId };
@@ -228,7 +234,11 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}) {
     if (roomId) {
       try {
         await eveyFetch<void>({ url: `/api/v1/syncplay/rooms/${roomId}/leave`, method: "DELETE" });
-      } catch {}
+      } catch (err) {
+        // Best-effort: the server expires the membership anyway. Logged so a
+        // "ghost member" report can be traced to this failing call.
+        console.warn("[SyncPlay] leave room failed (membership will expire server-side):", err);
+      }
     }
   }, [state.roomId]);
 
