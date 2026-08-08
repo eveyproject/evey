@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Folder } from "lucide-react";
 import { createLazyFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
@@ -6,6 +7,7 @@ import { Spinner } from "@/components/ui/Spinner";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { FetchErrorState } from "@/components/ui/FetchErrorState";
 import { BackButton } from "@/components/ui/BackButton";
+import { Pagination } from "@/components/ui/Pagination";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { toast, useAuthStore } from "@evey/store";
@@ -26,7 +28,14 @@ function SmartFilterPage() {
   const { t } = useTranslation();
   const { filterId } = Route.useParams();
   const navigate = Route.useNavigate();
-  const { data, isLoading, isError, error, refetch } = useCollection(filterId);
+  // A smart collection is rule-based, so it routinely matches more titles than
+  // one page holds. The header already showed the server's real total while the
+  // body only ever fetched the default page - the same "announce 7199, render
+  // 100" shape the photo grid shipped with. Paged like its sibling
+  // collections/$collectionId, which already had this.
+  const [page, setPage] = useState(1);
+  const pageSize = 50;
+  const { data, isLoading, isError, error, refetch } = useCollection(filterId, pageSize, (page - 1) * pageSize);
   const deleteMut = useDeleteCollection();
   const isAdmin = useAuthStore((s) => s.isAdmin);
 
@@ -34,6 +43,7 @@ function SmartFilterPage() {
   const items = data?.items ?? [];
   const rules = col?.rules ?? [];
   const total = data?.total ?? items.length;
+  const totalPages = Math.ceil(total / pageSize);
 
   function handleDelete() {
     if (!confirm(t("media.collections.deleteSmartConfirm"))) return;
@@ -147,8 +157,13 @@ function SmartFilterPage() {
             ))}
           </div>
           <div className="px-4 py-2 text-xs text-[var(--text-muted)] border-t border-[var(--border)]">
-            {t("common.item", { count: items.length })}
+            {t("common.item", { count: total })}
           </div>
+        </div>
+      )}
+      {totalPages > 1 && (
+        <div className="mt-6">
+          <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
         </div>
       )}
     </div>
