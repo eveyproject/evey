@@ -298,7 +298,12 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
 
   const { data: episodesData } = useQuery({
     queryKey: ["/api/v1/media", { parentId: selectedSeasonId }],
-    queryFn: ({ signal }) => libraryServiceListMediaItems({ parentId: selectedSeasonId }, signal),
+    // Episodes have no server-side sort key, so this comes back in sort_title
+    // order and is re-sorted by index just below. Without an explicit size the
+    // handler serves 50, which past a 50-episode season fills the player's
+    // episode picker with whichever titles sort first alphabetically. The
+    // mobile player already asks for 500 here.
+    queryFn: ({ signal }) => libraryServiceListMediaItems({ parentId: selectedSeasonId, "pagination.pageSize": 500 }, signal),
     enabled: !!selectedSeasonId,
   });
 
