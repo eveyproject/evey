@@ -108,8 +108,14 @@ vi.mock("../hooks/useFavorite", () => ({
   useIsFavorite: () => ({ data: false }),
   useToggleFavorite: () => ({ mutate: vi.fn(), isPending: false }),
 }));
+// Mutable so the parental-gate tests below can flip the gate on; everything
+// else runs with the gate open, as before.
+let pinRequired = false;
 vi.mock("../hooks/useParentalGate", () => ({
-  useParentalGate: () => ({ needsPin: () => false, profileId: null }),
+  useParentalGate: () => ({
+    needsPin: () => pinRequired,
+    profileId: pinRequired ? "profile-1" : null,
+  }),
 }));
 const startDownloadMock = vi.fn();
 const getDownloadPathMock = vi.fn().mockResolvedValue(null);
@@ -133,7 +139,10 @@ vi.mock("../lib/downloadQualityGate", () => ({
   chooseDownloadQuality: vi.fn(async () => ({ quality: "original" })),
 }));
 vi.mock("../components/AddToPlaylistSheet", () => ({ AddToPlaylistSheet: () => null }));
-vi.mock("../components/ParentalPINModal", () => ({ ParentalPINModal: () => null }));
+vi.mock("../components/ParentalPINModal", () => ({
+  ParentalPINModal: ({ visible }: { visible: boolean }) =>
+    visible ? React.createElement("div", { "data-testid": "pin-modal" }) : null,
+}));
 
 // --- @evey/store -----------------------------------------------------------------------
 vi.mock("@evey/store", () => ({
@@ -184,6 +193,7 @@ vi.mock("@evey/api", async (importOriginal) => ({
 }));
 
 // -------------------------------------------------------------------------------------
+import { router } from "expo-router";
 import MediaDetailScreen from "../../app/(auth)/media/[id]";
 
 function makeWrapper() {
@@ -194,6 +204,7 @@ function makeWrapper() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  pinRequired = false;
 });
 
 // EpisodeRow renders its title as two sibling text expressions ("1. " + title)
@@ -240,6 +251,30 @@ describe("MediaDetailScreen episode list", () => {
     expect(episodeButton(`Episode ${EPISODE_COUNT}`)).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Show more" })).toBeNull();
   }, 20_000);
+});
+
+describe("MediaDetailScreen episode parental gate", () => {
+  // An episode tap is a PLAY action: it must pass the same PIN gate as the
+  // Play button. Before the fix the row navigated straight to the player -
+  // which itself has zero PIN check - so the gate only protected the one
+  // button that happened to call handlePlay.
+  it("routes an episode tap through the PIN prompt instead of straight to the player", () => {
+    pinRequired = true;
+    render(<MediaDetailScreen />, { wrapper: makeWrapper() });
+
+    fireEvent.click(episodeButton("Episode 1")!);
+
+    expect(router.push).not.toHaveBeenCalled();
+    expect(screen.getByTestId("pin-modal")).toBeTruthy();
+  });
+
+  it("opens the player directly when no PIN is required", () => {
+    render(<MediaDetailScreen />, { wrapper: makeWrapper() });
+
+    fireEvent.click(episodeButton("Episode 1")!);
+
+    expect(router.push).toHaveBeenCalledWith("/(auth)/player/ep-1");
+  });
 });
 
 describe("MediaDetailScreen episode downloads", () => {

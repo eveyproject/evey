@@ -74,6 +74,28 @@ function useParentalSettings(profileId: string | null) {
   });
 }
 
+// pinRequiredFor is the ONE PIN decision every play path shares (Play button,
+// episode row, shuffle). Pure so callers whose rating varies per pick
+// (shuffle draws a random item) can evaluate it outside the hook.
+export function pinRequiredFor(args: {
+  profileId: string | null;
+  parental: ParentalSettings | undefined;
+  region: string;
+  rating: string | undefined;
+  certificationsByCountry?: Record<string, string>;
+}): boolean {
+  const { profileId, parental, certificationsByCountry } = args;
+  if (!profileId || !parental) return false;
+  if (!parental.enabled) return false;
+  if (!parental.hasPin) return false;
+  if (isProfileUnlocked(profileId)) return false;
+  const maxAge = parental.maxAge ?? -1;
+  if (maxAge < 0) return false;
+  const region = args.region.toUpperCase();
+  const rating = (region && certificationsByCountry?.[region]) || args.rating || "";
+  return isAgeExceeded(region || "US", rating, maxAge);
+}
+
 export function useParentalGate(
   officialRating: string | undefined,
   certificationsByCountry?: Record<string, string>,
@@ -83,18 +105,15 @@ export function useParentalGate(
   const { data: user } = useUserServiceGetCurrentUser();
   const { data: profilesResp } = useUserServiceListProfiles(user?.id ?? "", { query: { enabled: !!user?.id } } as never);
   const profile = profilesResp?.profiles?.find((p) => p.id === profileId);
+  const region = profile?.region ?? "";
 
-  function needsPin(): boolean {
-    if (!profileId || !parental) return false;
-    if (!parental.enabled) return false;
-    if (!parental.hasPin) return false;
-    if (isProfileUnlocked(profileId)) return false;
-    const maxAge = parental.maxAge ?? -1;
-    if (maxAge < 0) return false;
-    const region = (profile?.region ?? "").toUpperCase();
-    const rating = (region && certificationsByCountry?.[region]) || officialRating || "";
-    return isAgeExceeded(region || "US", rating, maxAge);
+  function needsPinFor(rating: string | undefined, certs?: Record<string, string>): boolean {
+    return pinRequiredFor({ profileId, parental, region, rating, certificationsByCountry: certs });
   }
 
-  return { needsPin, profileId };
+  function needsPin(): boolean {
+    return needsPinFor(officialRating, certificationsByCountry);
+  }
+
+  return { needsPin, needsPinFor, profileId };
 }

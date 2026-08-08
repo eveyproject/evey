@@ -160,7 +160,7 @@ const CastCard = memo(function CastCard({ person }: { person: V1MediaPerson }) {
 });
 
 const EpisodeRow = memo(function EpisodeRow({
-  item, serverUrl, theme, authHeaders, downloadProgress, onDownload,
+  item, serverUrl, theme, authHeaders, downloadProgress, onDownload, onPlay,
 }: {
   item: V1MediaItem;
   serverUrl: string;
@@ -168,6 +168,7 @@ const EpisodeRow = memo(function EpisodeRow({
   authHeaders?: { Authorization: string };
   downloadProgress?: number;
   onDownload?: (item: V1MediaItem) => void;
+  onPlay: (item: V1MediaItem) => void;
 }) {
   const { t } = useTranslation();
   // "backdrop", not "poster": an episode's still lives under the backdrop type
@@ -184,7 +185,7 @@ const EpisodeRow = memo(function EpisodeRow({
 
   return (
     <Pressable
-      onPress={() => item.id && router.push(`/(auth)/player/${item.id}`)}
+      onPress={() => item.id && onPlay(item)}
       style={{
         flexDirection: "row",
         padding: theme.spacing.sm,
@@ -756,6 +757,7 @@ export default function MediaDetailScreen() {
     [downloadEpisodeFile],
   );
 
+
   // "Download all" for the currently shown episode list (the active season,
   // for both a season screen and a series screen). Sequenced one at a time -
   // not a Promise.all - so a 24-episode season doesn't fire 24 concurrent
@@ -821,6 +823,23 @@ export default function MediaDetailScreen() {
     }
     openPlayer(target, restart);
   }, [getPlayTarget, needsPin, openPlayer]);
+
+  // An episode tap is a PLAY action, so it takes the same PIN gate as the Play
+  // button - the row used to router.push straight into the player, which has
+  // no check of its own, leaving the gate on one button only. needsPin rides a
+  // ref to keep this callback identity-stable (it is a prop of every memoised
+  // EpisodeRow, see handleEpisodeDownload's comment).
+  const needsPinRef = useRef(needsPin);
+  needsPinRef.current = needsPin;
+  const handleEpisodePlay = useCallback((ep: V1MediaItem) => {
+    if (!ep.id) return;
+    if (needsPinRef.current()) {
+      setPendingPlayTarget({ id: ep.id, restart: false });
+      setShowPinModal(true);
+      return;
+    }
+    openPlayer(ep.id, false);
+  }, [openPlayer]);
 
   const handlePinVerified = useCallback(() => {
     setShowPinModal(false);
@@ -1555,6 +1574,7 @@ export default function MediaDetailScreen() {
                 authHeaders={authHeaders}
                 downloadProgress={ep.id ? episodeDownloads[ep.id] : undefined}
                 onDownload={handleEpisodeDownload}
+                onPlay={handleEpisodePlay}
               />
             ))}
             {episodes.length > visibleEpisodeCount ? (

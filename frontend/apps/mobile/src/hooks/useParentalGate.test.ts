@@ -9,7 +9,7 @@ vi.mock("@evey/api", () => ({
 }));
 vi.mock("@evey/store", () => ({ useAuthStore: vi.fn() }));
 
-import { isAgeExceeded, isProfileUnlocked, markUnlocked } from "./useParentalGate";
+import { isAgeExceeded, isProfileUnlocked, markUnlocked, pinRequiredFor } from "./useParentalGate";
 
 describe("isAgeExceeded", () => {
   // Never stricter than the server: it fails closed itself (worst-case age
@@ -43,6 +43,40 @@ describe("isAgeExceeded", () => {
   });
   it("falls back to US mapping when country unknown", () => {
     expect(isAgeExceeded("SN", "R", 10)).toBe(true);
+  });
+});
+
+// pinRequiredFor is the ONE decision every play path shares (Play button,
+// episode row, shuffle). Callers whose rating varies per pick (shuffle) call
+// it directly instead of the hook's officialRating closure.
+describe("pinRequiredFor", () => {
+  const gated = {
+    profileId: "profile-locked",
+    parental: { enabled: true, hasPin: true, maxAge: 12 },
+    region: "US",
+  };
+  it("requires a PIN for a rating above the cap", () => {
+    expect(pinRequiredFor({ ...gated, rating: "R" })).toBe(true);
+  });
+  it("does not gate a rating within the cap", () => {
+    expect(pinRequiredFor({ ...gated, rating: "PG" })).toBe(false);
+  });
+  it("never gates without an active profile", () => {
+    expect(pinRequiredFor({ ...gated, profileId: null, rating: "R" })).toBe(false);
+  });
+  it("never gates when parental controls are disabled or PIN-less", () => {
+    expect(pinRequiredFor({ ...gated, parental: { enabled: false, hasPin: true, maxAge: 12 }, rating: "R" })).toBe(false);
+    expect(pinRequiredFor({ ...gated, parental: { enabled: true, hasPin: false, maxAge: 12 }, rating: "R" })).toBe(false);
+    expect(pinRequiredFor({ ...gated, parental: undefined, rating: "R" })).toBe(false);
+  });
+  it("skips the prompt once the profile is unlocked for the session", () => {
+    markUnlocked("profile-unlocked-1");
+    expect(pinRequiredFor({ ...gated, profileId: "profile-unlocked-1", rating: "R" })).toBe(false);
+  });
+  it("prefers the profile region's own certification over officialRating", () => {
+    expect(
+      pinRequiredFor({ ...gated, region: "FR", rating: "PG", certificationsByCountry: { FR: "-16" } }),
+    ).toBe(true);
   });
 });
 

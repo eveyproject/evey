@@ -50,6 +50,8 @@ import { MediaCard } from "../../../src/components/MediaCard";
 import { artworkUrl } from "../../../src/lib/artwork";
 import { LibraryFiltersPanel } from "../../../src/components/library/LibraryFiltersPanel";
 import { BulkAddToPlaylistSheet, BulkAddToCollectionSheet } from "../../../src/components/library/BulkAddSheets";
+import { useParentalGate } from "../../../src/hooks/useParentalGate";
+import { ParentalPINModal } from "../../../src/components/ParentalPINModal";
 import { PluginSlot } from "../../../src/features/plugins/PluginSlot";
 import {
   collectFilterOptions,
@@ -514,6 +516,19 @@ export default function LibraryDetailScreen() {
   const isFirstPage = searchActive ? true : serverFiltersActive ? filterOffset === 0 : cursor === "";
 
   const [shuffling, setShuffling] = useState(false);
+  // Shuffle jumps straight into the player, so it must pass the same PIN gate
+  // as every other play path (the detail page's Play button gates; a shuffle
+  // landing on a gated title must not slip past it). The rating varies per
+  // draw, hence needsPinFor rather than the hook's fixed-rating needsPin.
+  const { needsPinFor, profileId: gateProfileId } = useParentalGate(undefined);
+  const [pinPlayTarget, setPinPlayTarget] = useState<string | null>(null);
+  const playPick = useCallback((pick: { id?: string; officialRating?: string } | undefined) => {
+    if (!pick?.id) { toast.error(t("common.shuffleFailed")); return; }
+    if (needsPinFor(pick.officialRating)) { setPinPlayTarget(pick.id); return; }
+    router.push(`/(auth)/player/${pick.id}`);
+    // needsPinFor is recreated by the hook each render; this callback is only
+    // used by tap handlers, never as a memoised child's prop, so that is fine.
+  }, [needsPinFor, router, t]);
   // Search results and client-only facets (resolution/codec/language) can't
   // be honored by the random-page probe below (search has no page offset;
   // those facets have no server param at all), so whenever any of them - or
@@ -530,8 +545,7 @@ export default function LibraryDetailScreen() {
     if (hasLocalFilters) {
       if (displayItems.length === 0) { toast.info(t("common.shuffleEmpty")); return; }
       const pick = displayItems[Math.floor(Math.random() * displayItems.length)];
-      if (pick?.id) router.push(`/(auth)/player/${pick.id}`);
-      else toast.error(t("common.shuffleFailed"));
+      playPick(pick);
       return;
     }
     setShuffling(true);
@@ -545,14 +559,13 @@ export default function LibraryDetailScreen() {
         ? probe
         : await libraryServiceListMediaItems({ ...base, "pagination.page": randomPage, "pagination.pageSize": 1 });
       const pick = res.items?.[0];
-      if (pick?.id) router.push(`/(auth)/player/${pick.id}`);
-      else toast.error(t("common.shuffleFailed"));
+      playPick(pick);
     } catch {
       toast.error(t("common.shuffleFailed"));
     } finally {
       setShuffling(false);
     }
-  }, [shuffling, libraryId, hasLocalFilters, displayItems, typeFilter, genre, router, t]);
+  }, [shuffling, libraryId, hasLocalFilters, displayItems, typeFilter, genre, playPick, t]);
 
   const handleRefresh = useCallback(() => {
     if (searchActive) { void refetchSearch(); return; }
@@ -1131,6 +1144,18 @@ export default function LibraryDetailScreen() {
           onClose={() => { setShowBulkCollection(false); exitBulk(); }}
         />
       )}
+      {gateProfileId && pinPlayTarget ? (
+        <ParentalPINModal
+          visible={!!pinPlayTarget}
+          onClose={() => setPinPlayTarget(null)}
+          onVerified={() => {
+            const target = pinPlayTarget;
+            setPinPlayTarget(null);
+            if (target) router.push(`/(auth)/player/${target}`);
+          }}
+          profileId={gateProfileId}
+        />
+      ) : null}
     </View>
   );
 }
