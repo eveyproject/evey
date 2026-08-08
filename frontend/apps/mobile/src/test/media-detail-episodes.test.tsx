@@ -64,6 +64,11 @@ vi.mock("react-i18next", () => ({
 vi.mock("expo-router", () => ({
   useLocalSearchParams: () => ({ id: SEASON_ID }),
   router: { push: vi.fn(), back: vi.fn(), replace: vi.fn() },
+  // No real navigator in this test - just run the focus callback on mount,
+  // matching downloads-screen.test.tsx's mock of the same hook.
+  useFocusEffect: (cb: () => void | (() => void)) => {
+    React.useEffect(() => cb(), []);
+  },
 }));
 
 // --- react-native-safe-area-context ---------------------------------------------------
@@ -274,6 +279,18 @@ describe("MediaDetailScreen episode parental gate", () => {
     fireEvent.click(episodeButton("Episode 1")!);
 
     expect(router.push).toHaveBeenCalledWith("/(auth)/player/ep-1");
+  });
+
+  // A fast double-tap fires the row's onPress twice before the first push
+  // unmounts the screen; without a latch that mounts two player screens.
+  it("navigates only once on a double-tap of the same episode row", () => {
+    render(<MediaDetailScreen />, { wrapper: makeWrapper() });
+
+    const row = episodeButton("Episode 1")!;
+    fireEvent.click(row);
+    fireEvent.click(row);
+
+    expect(router.push).toHaveBeenCalledTimes(1);
   });
 });
 

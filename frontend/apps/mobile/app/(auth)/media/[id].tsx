@@ -17,7 +17,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { Skeleton } from "../../../src/components/Skeleton";
 import { ProgressBar } from "../../../src/components/ProgressBar";
 import { MediaCard } from "../../../src/components/MediaCard";
-import { useLocalSearchParams, router } from "expo-router";
+import { useLocalSearchParams, router, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import {
@@ -806,10 +806,23 @@ export default function MediaDetailScreen() {
     return id;
   }, [id, isSeries, isSeason, episodes]);
 
+  // A double-tap on a play control fires this callback twice before the
+  // first push unmounts the screen, mounting two player screens stacked on
+  // top of each other. Latch until the screen regains focus (leaving the
+  // player and coming back).
+  const navigatingRef = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      navigatingRef.current = false;
+    }, []),
+  );
+
   // `restart` travels all the way to the player, PIN prompt included: the
   // choice must survive the detour, or entering a PIN would silently resume
   // the thing the viewer asked to watch from the start.
   const openPlayer = useCallback((target: string, restart: boolean) => {
+    if (navigatingRef.current) return;
+    navigatingRef.current = true;
     router.push(restart ? `/(auth)/player/${target}?restart=1` : `/(auth)/player/${target}`);
   }, []);
 

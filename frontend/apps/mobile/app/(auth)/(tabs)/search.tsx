@@ -674,7 +674,7 @@ export default function SearchScreen() {
                   onPress={() => removeHistoryEntry(h)}
                   accessibilityRole="button"
                   accessibilityLabel={t("common.removeItem", { item: h })}
-                  hitSlop={8}
+                  hitSlop={14}
                 >
                   <Ionicons name="close" size={16} color={theme.colors.textMuted} />
                 </Pressable>

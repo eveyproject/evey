@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useRef } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -22,14 +22,27 @@ function MiniPlayerImpl() {
   const mode = usePlayerStore((s) => s.mode);
   const stop = usePlayerStore((s) => s.stop);
 
+  // The mini-player sits outside the (auth) Stack (a persistent overlay), so
+  // it never re-focuses when returning from the player screen - a
+  // useFocusEffect reset (as used on the media detail screen) would latch
+  // forever after the first tap. Time-based reset instead.
+  const navigatingRef = useRef(false);
+
   if (!isActive || mode !== "mini" || !mediaId) return null;
 
   const artworkUri = serverUrl ? `${serverUrl}/api/v1/media/${mediaId}/artwork/poster?w=120` : undefined;
 
+  function handlePress() {
+    if (navigatingRef.current) return;
+    navigatingRef.current = true;
+    router.push(`/(auth)/player/${mediaId}`);
+    setTimeout(() => { navigatingRef.current = false; }, 800);
+  }
+
   return (
     <Pressable
       style={[styles.container, { backgroundColor: theme.colors.surfaceRaised, borderTopColor: theme.colors.border }]}
-      onPress={() => router.push(`/(auth)/player/${mediaId}`)}
+      onPress={handlePress}
       accessible={true}
       accessibilityLabel={mediaTitle ?? t("player.nowPlaying", "Now Playing")}
       accessibilityRole="button"

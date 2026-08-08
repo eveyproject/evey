@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { View, Text, TextInput, Pressable, ActivityIndicator, Alert, Linking } from "react-native";
+import { View, Text, TextInput, Pressable, ActivityIndicator, Alert, Linking, ScrollView } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -174,7 +174,11 @@ export default function Login() {
   }), [theme]);
 
   return (
-    <View style={{ flex: 1, justifyContent: "center", padding: theme.spacing.xl, backgroundColor: theme.colors.bg }}>
+    <ScrollView
+      keyboardShouldPersistTaps="handled"
+      style={{ flex: 1, backgroundColor: theme.colors.bg }}
+      contentContainerStyle={{ flexGrow: 1, justifyContent: "center", padding: theme.spacing.xl }}
+    >
       <Text style={{ fontSize: 24, fontWeight: "bold", color: theme.colors.text, marginBottom: 4 }}>
         {t("auth.login.signIn")}
       </Text>
@@ -340,6 +344,6 @@ export default function Login() {
           </>
         )}
       </View>
-    </View>
+    </ScrollView>
   );
 }

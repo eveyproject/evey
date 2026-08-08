@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { View, Text, TextInput, Pressable, ActivityIndicator } from "react-native";
+import { View, Text, TextInput, Pressable, ActivityIndicator, ScrollView } from "react-native";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useUserServiceRequestPasswordReset } from "@evey/api";
@@ -47,7 +47,11 @@ export default function ForgotPassword() {
   }
 
   return (
-    <View style={{ flex: 1, justifyContent: "center", padding: theme.spacing.xl, backgroundColor: theme.colors.bg }}>
+    <ScrollView
+      keyboardShouldPersistTaps="handled"
+      style={{ flex: 1, backgroundColor: theme.colors.bg }}
+      contentContainerStyle={{ flexGrow: 1, justifyContent: "center", padding: theme.spacing.xl }}
+    >
       <Text style={{ fontSize: 24, fontWeight: "bold", color: theme.colors.text, marginBottom: theme.spacing.lg }}>
         {t("auth.forgotPassword.title")}
       </Text>
@@ -90,6 +94,6 @@ export default function ForgotPassword() {
           <Text style={{ color: theme.colors.onAccent, fontWeight: "600", fontSize: 16 }}>{t("auth.forgotPassword.submit")}</Text>
         )}
       </Pressable>
-    </View>
+    </ScrollView>
   );
 }
