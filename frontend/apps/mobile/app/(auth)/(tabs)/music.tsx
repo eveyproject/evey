@@ -16,9 +16,9 @@ import {
 import { Image } from "expo-image";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useTranslation } from "react-i18next";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
 import { useLocalSearchParams, router } from "expo-router";
-import { eveyFetch, useUserServiceGetCurrentUser, useUserServiceListProfiles } from "@evey/api";
+import { eveyFetch, hasMoreFromCursor, useUserServiceGetCurrentUser, useUserServiceListProfiles } from "@evey/api";
 import { Skeleton } from "../../../src/components/Skeleton";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
@@ -38,6 +38,7 @@ import type { Track } from "../../../src/components/music/musicTypes";
 import { shuffleArray } from "../../../src/lib/shuffleArray";
 import { trackListMusicSource, restoreMusicFilterFromParams } from "../../../src/components/music/musicSource";
 import { averageAlbumProgress } from "../../../src/components/music/albumDownloadProgress";
+import { buildTrackQueryUrl } from "../../../src/components/music/musicTrackQuery";
 
 interface LibraryItem {
   id: string;
@@ -78,24 +79,35 @@ function useMusicLibraries() {
 
 function useMusicTracks(libraryID: string | undefined, search?: string, albumID?: string) {
   const q = (search ?? "").trim();
-  return useQuery({
+  // The plain listing is keyset-paginated. It used to ask for a flat limit=200,
+  // which simply lost everything past the 200th track of a library - no error,
+  // no indication, the list just ended. Web carried the same defect and was
+  // fixed the same day.
+  //
+  // Only the plain listing pages. With an album_id the server returns that
+  // album's full track set and ignores limit/search; a free-text search is
+  // answered by the full-text index, which has no keyset of its own. Both come
+  // back as one page with no cursor, so hasNextPage stays false and those two
+  // modes behave exactly as before.
+  const query = useInfiniteQuery({
     queryKey: ["music", "tracks", libraryID, q, albumID],
-    // A non-empty search hits the full-text index (Meilisearch, with SQL
-    // fallback) server-side for typo tolerance; otherwise the plain listing.
-    // When albumID is set the server returns that album's full track set and
-    // ignores search/limit - callers filter client-side on top of it.
-    queryFn: () => eveyFetch<{ tracks: Track[] }>({
-      url: albumID
-        ? `/api/v1/music/tracks?library_id=${libraryID}&album_id=${encodeURIComponent(albumID)}&limit=200`
-        : q
-          ? `/api/v1/music/tracks?library_id=${libraryID}&search=${encodeURIComponent(q)}`
-          : `/api/v1/music/tracks?library_id=${libraryID}&limit=200`,
-      method: "GET",
-    }),
     enabled: !!libraryID,
-    select: (d) => d.tracks ?? [],
+    initialPageParam: "" as string,
+    queryFn: ({ pageParam }) =>
+      eveyFetch<{ tracks?: Track[]; total?: number; nextCursor?: string }>({
+        url: buildTrackQueryUrl({ libraryID: libraryID ?? "", search: q, albumID, cursor: pageParam }),
+        method: "GET",
+      }),
+    getNextPageParam: (last) => (hasMoreFromCursor(last) ? last.nextCursor : undefined),
     staleTime: 60_000,
   });
+
+  const data = useMemo(
+    () => (query.data?.pages ?? []).flatMap((p) => p.tracks ?? []),
+    [query.data],
+  );
+
+  return { ...query, data };
 }
 
 function useMusicAlbums(libraryID: string | undefined) {
@@ -191,7 +203,15 @@ export default function MusicScreen() {
 
   const { data: libraries, isLoading: libLoading, isError: libError, refetch: refetchLibs } = useMusicLibraries();
   const activeLibraryID = selectedLibraryID ?? libraries?.[0]?.id;
-  const { data: tracks, isLoading: tracksLoading, isError: tracksError, refetch: refetchTracks } = useMusicTracks(
+  const {
+    data: tracks,
+    isLoading: tracksLoading,
+    isError: tracksError,
+    refetch: refetchTracks,
+    fetchNextPage: fetchMoreTracks,
+    hasNextPage: hasMoreTracks,
+    isFetchingNextPage: loadingMoreTracks,
+  } = useMusicTracks(
     activeLibraryID,
     albumFilter ? undefined : debouncedTrackSearch,
     albumFilter ?? undefined,
@@ -816,6 +836,10 @@ export default function MusicScreen() {
           maxToRenderPerBatch={20}
           windowSize={5}
           removeClippedSubviews={true}
+          onEndReachedThreshold={0.5}
+          onEndReached={() => {
+            if (hasMoreTracks && !loadingMoreTracks) void fetchMoreTracks();
+          }}
           ListEmptyComponent={
             <View style={[styles.center, { paddingTop: 60 }]}>
               <Text style={{ color: theme.colors.textMuted, fontSize: 15 }}>{t("media.music.noTracks")}</Text>
