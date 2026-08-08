@@ -5,6 +5,8 @@ import {
   useMusicServiceListTracks,
   musicServiceListTracks,
   playlistServiceGetPlaylistItems,
+  collectAllPages,
+  EXPORT_PAGE_SIZE,
 } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -56,6 +58,28 @@ const MAX_QUEUE = 500;
  * albums, individual tracks and playlists, then create the room. The backend
  * room model already supports a multi-item queue; this is the UI for it.
  */
+
+// ListTracks defaults to 50 rows when the caller sends no pagination
+// (clampLimitOffset, grpcapi/music_handler.go). Both call sites below build a
+// playback queue meant to hold the whole album, and the response carries no
+// signal that it was cut - a 60-track box set silently became a 50-track room.
+async function albumTracks(libraryId: string, albumId: string): Promise<QueueItem[]> {
+  const collected = await collectAllPages<{ id?: string; title?: string; artist?: string }>(
+    (pageIndex) =>
+      musicServiceListTracks({
+        libraryId,
+        albumId,
+        limit: EXPORT_PAGE_SIZE,
+        offset: pageIndex * EXPORT_PAGE_SIZE,
+      }).then((r) => ({ rows: r.tracks ?? [] })),
+  );
+  return collected.rows.map((tr): QueueItem => ({
+    id: tr.id ?? "",
+    title: tr.title ?? "",
+    artist: tr.artist ?? "",
+  }));
+}
+
 export function RoomBuilder({ libraryId, creating, onCreate }: RoomBuilderProps) {
   const { t } = useTranslation();
   const accessToken = useAuthStore((s) => s.accessToken);
@@ -141,11 +165,7 @@ export function RoomBuilder({ libraryId, creating, onCreate }: RoomBuilderProps)
       try {
         // Scope server-side by the album's opaque id (returns exactly that
         // album's tracks) instead of a fuzzy title search + client filter.
-        const res = await musicServiceListTracks({ libraryId, albumId: album.id });
-        const its = (res.tracks ?? []).map(
-          (tr): QueueItem => ({ id: tr.id ?? "", title: tr.title ?? "", artist: tr.artist ?? "" }),
-        );
-        setExpanded({ title: album.title, tracks: its });
+        setExpanded({ title: album.title, tracks: await albumTracks(libraryId, album.id) });
       } catch {
         setExpanded({ title: album.title, tracks: [] });
       } finally {
@@ -160,11 +180,7 @@ export function RoomBuilder({ libraryId, creating, onCreate }: RoomBuilderProps)
       if (!libraryId || !album.id) return;
       setBusy(true);
       try {
-        const res = await musicServiceListTracks({ libraryId, albumId: album.id });
-        const its = (res.tracks ?? []).map(
-          (tr): QueueItem => ({ id: tr.id ?? "", title: tr.title ?? "", artist: tr.artist ?? "" }),
-        );
-        addItems(its);
+        addItems(await albumTracks(libraryId, album.id));
       } catch {
         /* ignore - leave the queue unchanged */
       } finally {

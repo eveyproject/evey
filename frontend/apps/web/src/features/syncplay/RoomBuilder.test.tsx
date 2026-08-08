@@ -19,7 +19,11 @@ const mockListTracksImperative = vi.fn();
 const mockGetPlaylistItems = vi.fn();
 const mockPlaylistList = vi.fn();
 
-vi.mock("@evey/api", () => ({
+// Spreads the real module: RoomBuilder also imports collectAllPages and
+// EXPORT_PAGE_SIZE from @evey/api, and a mock listing only the endpoints leaves
+// them undefined - the component then throws on the first album click.
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
   useMusicServiceGetAlbums: (...a: unknown[]) => mockGetAlbums(...a),
   useMusicServiceListTracks: (...a: unknown[]) => mockListTracks(...a),
   musicServiceListTracks: (...a: unknown[]) => mockListTracksImperative(...a),
@@ -78,7 +82,12 @@ describe("RoomBuilder", () => {
 
     // The album's tracks are resolved by its opaque id, not a fuzzy title
     // search + client-side filter.
-    expect(mockListTracksImperative).toHaveBeenCalledWith({ libraryId: "lib-1", albumId: "al1" });
+    expect(mockListTracksImperative).toHaveBeenCalledWith({
+      libraryId: "lib-1",
+      albumId: "al1",
+      limit: 500,
+      offset: 0,
+    });
 
     fireEvent.click(screen.getByRole("button", { name: /create room/i }));
     expect(createdIds(onCreate)).toEqual(["t1", "t2"]);
@@ -118,5 +127,27 @@ describe("RoomBuilder", () => {
     expect(btn).toBeDisabled();
     fireEvent.click(btn);
     expect(onCreate).not.toHaveBeenCalled();
+  });
+
+  // ListTracks answers with 50 rows when the caller sends no pagination, so a
+  // box set used to land in the room as its first 50 tracks with nothing to
+  // say the rest had been dropped. The queue has its own deliberate ceiling
+  // (MAX_QUEUE = 500), so the visible outcome here is 50 -> 500, and the point
+  // of the assertion is that the second page is actually requested.
+  it("pulls every page of a long album into the queue", async () => {
+    const page = (n: number, from: number) =>
+      Array.from({ length: n }, (_, i) => ({ id: `t${from + i}`, title: `Track ${from + i}`, artist: "A" }));
+    mockListTracksImperative.mockReset();
+    mockListTracksImperative
+      .mockResolvedValueOnce({ tracks: page(500, 0) })
+      .mockResolvedValueOnce({ tracks: page(12, 500) });
+
+    const onCreate = vi.fn();
+    render(<RoomBuilder libraryId="lib-1" creating={false} onCreate={onCreate} />);
+    fireEvent.click(screen.getByLabelText("Add album"));
+
+    await waitFor(() => expect(screen.getByText("Queue (500)")).toBeInTheDocument());
+    expect(mockListTracksImperative).toHaveBeenCalledTimes(2);
+    expect(mockListTracksImperative.mock.calls[1][0]).toMatchObject({ limit: 500, offset: 500 });
   });
 });
