@@ -149,6 +149,16 @@ type ManifestInput struct {
 	// master advertised as hvc1/PQ copy - codec mismatch, broken playback.
 	HDRCapable bool
 
+	// MaxAudioChannels is the client's declared channel CEILING (?maxAudioChannels).
+	// A decision input on the audio-rendition path exactly like the codec lists,
+	// and it must ride every baked URL: the rendition's init/segments derive
+	// their channel count from the request, so a master negotiated at 2 whose
+	// audio URIs carry nothing re-derives from the SOURCE and serves 5.1 anyway.
+	// That is what made the cast receiver's stereo fallback a placebo - it
+	// renegotiated the master, got the same 5.1 rendition back, and failed
+	// identically (2026-08-08, Chromecast HD). 0 = no ceiling declared.
+	MaxAudioChannels int
+
 	// AudioOffsetMs is the user's audio resync (positive = audio later). A
 	// decision input like the codec lists: it forces the audio decision to
 	// transcode and forks the segment cache, so it must ride every baked URL.
@@ -797,6 +807,11 @@ func querySuffix(in ManifestInput) string {
 		// Decision input like the codec lists: dropping it flips the segment
 		// decision from copy to tonemap-transcode mid-presentation (see field doc).
 		q.Set("hdr", "1")
+	}
+	if in.MaxAudioChannels > 0 {
+		// Audio-rendition decision input: without it the rendition falls back to
+		// the source layout and a stereo-only sink gets 5.1 (see field doc).
+		q.Set("maxAudioChannels", fmt.Sprintf("%d", in.MaxAudioChannels))
 	}
 	if in.AudioOffsetMs != 0 {
 		q.Set("audioOffsetMs", fmt.Sprintf("%d", in.AudioOffsetMs))

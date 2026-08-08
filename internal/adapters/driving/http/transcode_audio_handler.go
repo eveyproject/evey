@@ -119,6 +119,9 @@ func (h *audioServe) servePlaylistFile(w http.ResponseWriter, r *http.Request, m
 		AudioRenditions:     audioRenditions,
 		// Same re-bake rule as buildManifestInput: hdr is a decision input.
 		HDRCapable: r.URL.Query().Get("hdr") == "1",
+		// Re-baked like the codec lists: this playlist's own init/segment URIs
+		// must ask for the same layout it was built for.
+		MaxAudioChannels: maxAudioChannelsQuery(r),
 		// wasm-audio passthrough: bake wasmAudio=1 into the segment/init URIs so
 		// their fingerprint matches this playlist's copy init (see field doc).
 		WasmAudio: h.wasmAudio(r),
@@ -267,6 +270,12 @@ func (h *audioServe) serveSegmentFile(w http.ResponseWriter, r *http.Request, me
 // muxed path this rung replaces preserves the layout, and the hybrid rung is
 // meant to serve the source's audio, not a quietly degraded one. Both fields are
 // hashed, so a channel change forks the cache instead of aliasing.
+//
+// A CLIENT-declared ceiling (?maxAudioChannels) wins over the source layout,
+// exactly as it does on the muxed path. Reading only the source is what made a
+// cast receiver's stereo fallback a placebo: it renegotiated the master down to
+// 2, the rendition kept serving the source's 5.1, and the reload failed the
+// same way as the load it was rescuing (2026-08-08, Chromecast HD).
 func (h *audioServe) buildAudioFingerprint(r *http.Request, mediaID string, item *domainlibrary.MediaItem, trackIdx int, videoCompositionDelay float64) apptranscoding.AudioFingerprint {
 	// wasm-audio passthrough: a Chrome/Firefox-class client that runs the
 	// ac3go wasm decoder asks (?wasmAudio=1) for the source
@@ -303,7 +312,7 @@ func (h *audioServe) buildAudioFingerprint(r *http.Request, mediaID string, item
 		AudioCodec:        "aac",
 		AudioBitrate:      domaintranscoding.AudioRenditionBaseKbps, // scaled to the channel count at arg-build
 		AudioNormalize:    h.audioNormalizeGetter != nil && h.audioNormalizeGetter(r.Context()),
-		MaxAudioChannels:  h.sourceAudioChannels(r.Context(), mediaID, trackIdx),
+		MaxAudioChannels:  renditionChannels(h.sourceAudioChannels(r.Context(), mediaID, trackIdx), maxAudioChannelsQuery(r)),
 		SourceDurationSec: durationSec,
 		// Non-zero only when the video is packaged by the ffmpeg copy fallback
 		// instead of mkvgo - see transcode_audio_sync.go.
@@ -334,6 +343,20 @@ func (h *audioServe) sourceAudioCodecForTrack(ctx context.Context, mediaID strin
 		audioIdx++
 	}
 	return ""
+}
+
+// renditionChannels folds the client's declared ceiling into the source layout.
+// A ceiling of 0 (nothing declared - every web player) keeps today's behaviour:
+// the source layout, untouched. A source of 0 (unknown layout) is never guessed
+// upward, so it stays ffmpeg's stereo default.
+func renditionChannels(sourceChannels, clientMax int) int {
+	if clientMax <= 0 {
+		return sourceChannels
+	}
+	if sourceChannels <= 0 {
+		return sourceChannels
+	}
+	return min(sourceChannels, clientMax)
 }
 
 // maxRenditionChannels is the highest channel count a browser will decode as AAC

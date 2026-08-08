@@ -188,3 +188,37 @@ func TestBuildAudioFingerprint_CapsChannelsAtSurround(t *testing.T) {
 		t.Errorf("MaxAudioChannels = %d for a 5.1 source, want 6 (must not be downmixed)", got)
 	}
 }
+
+// A client that declares a channel CEILING must get it. Deriving the rendition
+// from the source alone ignored ?maxAudioChannels entirely, which is what made
+// the cast receiver's stereo fallback a placebo: after an error it renegotiated
+// the master down to 2, the rendition kept serving the source's 5.1, and the
+// rescue reload failed exactly like the load it was rescuing (2026-08-08,
+// Chromecast HD - three casts, not one second of playback).
+func TestBuildAudioFingerprint_ClientCeilingCapsTheSourceLayout(t *testing.T) {
+	six := 6
+	item, _ := testMediaItemWithAudioStreams()
+	streams := []*domainlibrary.MediaStream{
+		{StreamType: "video", Codec: "h264"},
+		{StreamType: "audio", Codec: "ac3", Language: "fr", Channels: &six}, // 5.1 source
+	}
+	h := buildAudioServe(t, true, &testFakeStreamsGetter{item: item, streams: streams}, nil, nil, nil)
+
+	stereo := httptest.NewRequest(http.MethodGet, "/hls/audio_0.m3u8?maxAudioChannels=2", nil)
+	if got := h.buildAudioFingerprint(stereo, "m1", item, 0, 0).MaxAudioChannels; got != 2 {
+		t.Errorf("MaxAudioChannels = %d for a client asking for stereo, want 2: "+
+			"a stereo-only sink cannot decode the 5.1 this serves instead", got)
+	}
+
+	// No ceiling declared (every web player): the source layout, untouched.
+	none := httptest.NewRequest(http.MethodGet, "/hls/audio_0.m3u8", nil)
+	if got := h.buildAudioFingerprint(none, "m1", item, 0, 0).MaxAudioChannels; got != 6 {
+		t.Errorf("MaxAudioChannels = %d without a declared ceiling, want 6 (source layout)", got)
+	}
+
+	// A ceiling ABOVE the source never invents channels.
+	high := httptest.NewRequest(http.MethodGet, "/hls/audio_0.m3u8?maxAudioChannels=8", nil)
+	if got := h.buildAudioFingerprint(high, "m1", item, 0, 0).MaxAudioChannels; got != 6 {
+		t.Errorf("MaxAudioChannels = %d for a ceiling above the source, want 6", got)
+	}
+}

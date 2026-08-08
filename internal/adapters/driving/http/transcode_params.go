@@ -163,15 +163,31 @@ func parseClientCapabilities(r *http.Request, hdrSupported bool) domaintranscodi
 	// AAC and downmix to the output device themselves, so the profile default
 	// applies. Clamped to a sane layout range; the decision additionally caps
 	// AAC targets at 5.1 (aacMaxTargetChannels).
-	if v := r.URL.Query().Get("maxAudioChannels"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n >= 1 && n <= 8 {
-			client.MaxAudioChannels = n
-		}
+	if n := maxAudioChannelsQuery(r); n > 0 {
+		client.MaxAudioChannels = n
 	}
 	if hdrSupported {
 		client.SupportsHDR = true
 	}
 	return client
+}
+
+// maxAudioChannelsQuery is the ONE reading of the client's channel ceiling.
+// The master's decision, the URIs the manifest bakes and the audio rendition's
+// own fingerprint all derive from it: two readings that disagree serve a
+// rendition the master never negotiated - exactly the 5.1 a cast receiver kept
+// getting after asking for stereo (2026-08-08). Returns 0 when nothing
+// usable was declared.
+func maxAudioChannelsQuery(r *http.Request) int {
+	if r == nil {
+		return 0
+	}
+	if v := r.URL.Query().Get("maxAudioChannels"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 1 && n <= 8 {
+			return n
+		}
+	}
+	return 0
 }
 
 func containsCodec(list []string, codec string) bool {

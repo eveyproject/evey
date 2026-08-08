@@ -825,3 +825,15 @@ func TestMaster_NoFallbackVariants_Unchanged(t *testing.T) {
 	assert.Equal(t, withoutField, withNilField)
 	assert.NotContains(t, withoutField, "stream_1.m3u8")
 }
+
+// The channel ceiling is a decision input on the audio rendition exactly like
+// hdr=1 is on the video rung: the EXT-X-MEDIA / init / segment URIs must carry
+// it. Without it the rendition re-derives the SOURCE layout and hands a
+// stereo-only sink the 5.1 the master just negotiated away.
+func TestQuerySuffix_MaxAudioChannels(t *testing.T) {
+	in := ManifestInput{StreamToken: "tok", MaxAudioChannels: 2}
+	assert.Contains(t, QuerySuffixFor(in), "maxAudioChannels=2")
+
+	in.MaxAudioChannels = 0
+	assert.NotContains(t, QuerySuffixFor(in), "maxAudioChannels")
+}

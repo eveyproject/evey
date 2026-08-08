@@ -162,6 +162,10 @@ func (h *hlsVODServe) buildManifestInputWith(r *http.Request, mediaID string, it
 		// segment-time makeDecision silently downgrades an HDR copy rung to a
 		// tonemapped h264 transcode that contradicts the master's CODECS.
 		HDRCapable: r != nil && r.URL.Query().Get("hdr") == "1",
+		// The channel ceiling is a decision input on the audio rendition the
+		// same way hdr=1 is on the video rung: the EXT-X-MEDIA URIs must carry
+		// it or the rendition re-derives the SOURCE layout (see field doc).
+		MaxAudioChannels: maxAudioChannelsQuery(r),
 		// wasm-audio path: propagate wasmAudio=1 into every variant/segment URI.
 		// The segment's fingerprint is sealed VIDEO-ONLY (videoAudioTrack=-1 when
 		// wasmAudio), so a segment request that lost the flag would re-derive a
