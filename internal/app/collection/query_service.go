@@ -34,8 +34,16 @@ func (s *QueryService) GetItems(ctx context.Context, collectionID string, limit,
 	if limit <= 0 {
 		limit = 50
 	}
-	if limit > 500 {
-		limit = 500
+	// library.MaxCollectionItems, not a literal 500. Its own comment explains
+	// why it exists: the access check and the ZIP bundler both bound a
+	// collection the same way, and "raising one and not the other would show a
+	// user 1500 items and hand them a ZIP of 1000, with no error anywhere".
+	// A third literal one layer below both of them defeated exactly that: every
+	// caller asking for MaxCollectionItems (the detail handler and the download
+	// handler alike) was silently served 500, so a collection past 500 members
+	// reported a capped count and ended early with nothing to say so.
+	if limit > library.MaxCollectionItems {
+		limit = library.MaxCollectionItems
 	}
 
 	col, err := s.query.GetByID(ctx, collectionID)

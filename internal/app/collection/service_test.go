@@ -136,6 +136,35 @@ func TestGetItems_LimitCap(t *testing.T) {
 	assert.Empty(t, items)
 }
 
+// The cap above is exercised on an EMPTY collection, so it holds whatever the
+// clamp happens to be. This one fills past the old literal.
+//
+// GetItems used to clamp to a hardcoded 500 while both of its callers - the
+// detail handler and the ZIP download - ask for library.MaxCollectionItems
+// (1000). That is precisely the drift MaxCollectionItems was introduced to
+// prevent; its own comment warns that bounding the two sides differently would
+// "show a user 1500 items and hand them a ZIP of 1000, with no error
+// anywhere". A third literal one layer below both of them brought it back.
+func TestGetItems_HonoursMaxCollectionItems(t *testing.T) {
+	t.Parallel()
+	svc, colRepo, mediaRepo := newSvc()
+	ctx := context.Background()
+
+	const members = 640 // past the old 500 literal, under MaxCollectionItems
+	col, err := svc.Upsert(ctx, 77, "Big Saga", "", "", "")
+	require.NoError(t, err)
+	for i := range members {
+		id := fmt.Sprintf("m%04d", i)
+		require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: shared.MediaItemID(id), Title: id}))
+		require.NoError(t, colRepo.LinkItem(ctx, col.ID, id, i))
+	}
+
+	items, total, err := svc.GetItems(ctx, col.ID, library.MaxCollectionItems, 0)
+	require.NoError(t, err)
+	assert.Equal(t, members, total, "the reported total must be the real membership")
+	assert.Len(t, items, members, "asking for MaxCollectionItems must not be silently reduced to 500")
+}
+
 func TestGetByID(t *testing.T) {
 	t.Parallel()
 	svc, _, _ := newSvc()
