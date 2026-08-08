@@ -67,7 +67,8 @@ vi.mock("../../../src/providers/ThemeProvider", () => ({
 // pure helper) real, so this screen cannot pass against a stub that
 // disagrees with shipped dedicated-route rules. Only the hooks/fetchers are
 // faked. -------------------------------------------------------------------
-const { listLibrariesMock, listGenresMock } = vi.hoisted(() => ({
+const { listLibrariesMock, listGenresMock, genreRefetchMock } = vi.hoisted(() => ({
+  genreRefetchMock: vi.fn(),
   listLibrariesMock: vi.fn(),
   listGenresMock: vi.fn(),
 }));
@@ -80,11 +81,18 @@ vi.mock("@evey/api", async (importOriginal) => ({
 // --- @tanstack/react-query: only useQueries needs faking here, so a plain
 // synchronous resolver stands in for the per-library ListGenres fan-out
 // without pulling a QueryClientProvider into every test. -------------------
+// A queryFn that throws stands for a failed request: the fake used to return
+// only { data, isLoading }, so a failure was indistinguishable from an empty
+// result and the screen's error path could not be exercised at all - which is
+// precisely how a failing library came to vanish from the picker unnoticed.
 vi.mock("@tanstack/react-query", () => ({
   useQueries: ({ queries }: { queries: Array<{ queryFn: () => any }> }) =>
     queries.map((q) => {
-      const data = q.queryFn();
-      return { data, isLoading: false };
+      try {
+        return { data: q.queryFn(), isLoading: false, isError: false, refetch: genreRefetchMock };
+      } catch {
+        return { data: undefined, isLoading: false, isError: true, refetch: genreRefetchMock };
+      }
     }),
 }));
 
@@ -112,6 +120,35 @@ describe("GenresScreen (TV) loading/error", () => {
 });
 
 describe("GenresScreen (TV) empty state", () => {
+  // A ListGenres failure for ONE library used to be swallowed: mergeGenres sees
+  // an undefined list and treats it exactly like "this library has no genres",
+  // so the picker silently came up short with no error and no way to retry.
+  it("reports a failure instead of quietly dropping that library's genres", () => {
+    listLibrariesMock.mockReturnValue({ data: { libraries: LIBRARIES }, isLoading: false, isError: false, refetch: vi.fn() });
+    listGenresMock.mockImplementation((libId: string) => {
+      if (libId === "lib-2") throw new Error("network down");
+      return { genres: ["Comedy"] };
+    });
+
+    render(<GenresScreen />);
+
+    expect(screen.getByText("common.loadError")).toBeTruthy();
+    // And the genres that DID load must not be presented as the whole set.
+    expect(screen.queryByText("Comedy")).toBeNull();
+  });
+
+  it("retries the per-library genre calls, not just the library list", () => {
+    genreRefetchMock.mockClear();
+    const librariesRefetch = vi.fn();
+    listLibrariesMock.mockReturnValue({ data: { libraries: LIBRARIES }, isLoading: false, isError: false, refetch: librariesRefetch });
+    listGenresMock.mockImplementation(() => { throw new Error("network down"); });
+
+    render(<GenresScreen />);
+    fireEvent.click(screen.getByText("common.retry"));
+
+    expect(genreRefetchMock).toHaveBeenCalled();
+  });
+
   it("stays focusable when no library has any genre yet", () => {
     listLibrariesMock.mockReturnValue({ data: { libraries: [LIBRARIES[0]] }, isLoading: false, isError: false, refetch: vi.fn() });
     listGenresMock.mockReturnValue({ genres: [] });

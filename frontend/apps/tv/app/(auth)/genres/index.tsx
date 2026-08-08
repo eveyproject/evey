@@ -49,11 +49,29 @@ export default function GenresScreen() {
   const genresLoading = librariesLoading || genreQueries.some((q) => q.isLoading);
   const genres = mergeGenres(genreQueries.map((q) => q.data?.genres));
 
-  if (librariesError) {
+  // A ListGenres call that failed hands mergeGenres an undefined list, which it
+  // cannot tell apart from a library that genuinely has no genres. Without this
+  // the picker just came up short: every genre of the failing library vanished,
+  // with nothing on screen to say a request had failed and no way to retry.
+  //
+  // One failure blanks the whole picker rather than showing a partial list.
+  // That is the deliberate choice - a picker that silently omits a third of the
+  // library is the bug being fixed here, and a partial list with a warning
+  // would need UI this screen does not have.
+  const genresError = genreQueries.some((q) => q.isError);
+
+  if (librariesError || genresError) {
     return (
       <View style={[styles.center, { backgroundColor: theme.colors.bg }]}>
         <Text style={{ color: theme.colors.textMuted, fontSize: 22, marginBottom: 16 }}>{t("common.loadError")}</Text>
-        <FocusableCard onPress={() => refetch()} hasTVPreferredFocus accessibilityLabel={t("common.retry")}>
+        <FocusableCard
+          onPress={() => {
+            void refetch();
+            genreQueries.forEach((q) => void q.refetch());
+          }}
+          hasTVPreferredFocus
+          accessibilityLabel={t("common.retry")}
+        >
           <Text style={{ color: theme.colors.accent, fontSize: 20 }}>{t("common.retry")}</Text>
         </FocusableCard>
       </View>
