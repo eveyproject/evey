@@ -55,7 +55,11 @@ export default function PersonDetailScreen() {
   const { data: person, isLoading: personLoading } = useGetPerson(personId);
   const { data: mediaData, isLoading: mediaLoading, isError: mediaError, refetch: refetchMedia } =
     useLibraryServiceListMediaItems(
-      { personId, "pagination.pageSize": 200 },
+      // 500 (the server ceiling) rather than 200: the heading below shows
+      // items.length as the filmography count, so a capped page turns into a
+      // wrong TOTAL rather than a short list. No credited person approaches
+      // 500 titles, whereas 200 is reachable.
+      { personId, "pagination.pageSize": 500 },
       { query: { enabled: !!personId } },
     );
 
