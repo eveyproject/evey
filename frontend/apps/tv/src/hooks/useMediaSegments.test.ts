@@ -78,10 +78,10 @@ describe("useMediaSegments", () => {
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.data).toEqual(segments);
+    expect(result.current.data).toEqual({ segments, introAutoSkip: false });
   });
 
-  it("returns [] when the fetch throws (error swallowed by hook)", async () => {
+  it("returns an empty result when the fetch throws (error swallowed by hook)", async () => {
     eveyFetchMock.mockRejectedValueOnce(new Error("network error"));
 
     const { result } = renderHook(() => useMediaSegments("mi-4"), {
@@ -89,10 +89,10 @@ describe("useMediaSegments", () => {
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.data).toEqual([]);
+    expect(result.current.data).toEqual({ segments: [], introAutoSkip: false });
   });
 
-  it("returns [] when the response has no segments field", async () => {
+  it("returns an empty result when the response has no segments field", async () => {
     eveyFetchMock.mockResolvedValueOnce({});
 
     const { result } = renderHook(() => useMediaSegments("mi-5"), {
@@ -100,6 +100,26 @@ describe("useMediaSegments", () => {
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.data).toEqual([]);
+    expect(result.current.data).toEqual({ segments: [], introAutoSkip: false });
+  });
+  // The admin auto-skip toggle rides in the same response. The TV app was the
+  // one player that never read it, so the setting silently did nothing here.
+  it("reads the admin auto-skip flag out of the response", async () => {
+    eveyFetchMock.mockResolvedValueOnce({ segments: [], introAutoSkip: true });
+
+    const { result } = renderHook(() => useMediaSegments("mi-6"), { wrapper: makeWrapper() });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data?.introAutoSkip).toBe(true);
+  });
+
+  // Fail closed: an absent flag must never read as "auto-skip enabled".
+  it("treats an absent or non-true flag as off", async () => {
+    eveyFetchMock.mockResolvedValueOnce({ segments: [], introAutoSkip: "yes" });
+
+    const { result } = renderHook(() => useMediaSegments("mi-7"), { wrapper: makeWrapper() });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data?.introAutoSkip).toBe(false);
   });
 });
