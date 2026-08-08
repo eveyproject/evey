@@ -10,14 +10,47 @@ import (
 // "web vs mobile vs TV" in the admin view, not to fingerprint individual
 // browsers. Takes the raw UA string (not *http.Request) so this application-
 // layer helper stays free of the net/http transport dependency.
+// The product tokens below must stay in step with what the clients actually
+// send, which is `EveyTV (Android TV 12; MiTV-AESP0)` and
+// `EveyMobile/<version> (Android 14; SM-G991B)` or `EveyMobile/<version>
+// (iOS 17.4)` - built in frontend/apps/{tv,mobile}/src/lib/clientIdentity.ts.
+// They used to be spelled "evey-tv" and "evey-mobile" here, with a hyphen no
+// client has ever sent, so both branches were dead: the TV app fell through to
+// the generic "android" match and was counted as a phone, and the iOS app
+// matched nothing at all and landed in "web-other". The unit test agreed with
+// the code because it asserted on invented UA strings ("Evey-TV/1.0"), never on
+// the ones the apps produce.
+//
+// Rows already written keep the class they were stored with; this only fixes
+// what gets recorded from here on.
 func DeviceClass(userAgent string) string {
 	ua := strings.ToLower(userAgent)
 	switch {
 	case ua == "":
 		return "unknown"
-	case strings.Contains(ua, "evey-tv") || strings.Contains(ua, "androidtv") || strings.Contains(ua, "apple tv"):
+	// Checked before the generic platform sniffing: the TV app's UA also says
+	// "Android TV", so an android-first order would file every TV as a phone.
+	// "crkey" is what a Chromecast puts in its UA, and it also says "Chrome":
+	// without this it landed in web-chromium, i.e. every cast session was
+	// counted as a desktop browser. tizen/webos are the two smart-TV browsers
+	// that reach the same endpoint. The web panel's own detector already knew
+	// about all three (frontend/apps/web/src/features/admin/onlineDevice.ts);
+	// this side had never been brought in line.
+	case strings.Contains(ua, "eveytv"), strings.Contains(ua, "androidtv"),
+		strings.Contains(ua, "android tv"), strings.Contains(ua, "apple tv"),
+		strings.Contains(ua, "crkey"), strings.Contains(ua, "tizen"),
+		// LG ships both spellings depending on firmware: "webOS" and "Web0S"
+		// with a digit zero. Matching only the first misses part of the fleet.
+		strings.Contains(ua, "webos"), strings.Contains(ua, "web0s"):
 		return "tv"
-	case strings.Contains(ua, "evey-mobile") || strings.Contains(ua, "iphone") || strings.Contains(ua, "ipad"):
+	// One product token covers both mobile platforms, so the class comes from
+	// the platform in parentheses rather than from the token itself.
+	case strings.Contains(ua, "eveymobile"):
+		if strings.Contains(ua, "android") {
+			return "android"
+		}
+		return "ios"
+	case strings.Contains(ua, "iphone"), strings.Contains(ua, "ipad"):
 		return "ios"
 	case strings.Contains(ua, "android"):
 		return "android"
