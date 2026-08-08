@@ -27,12 +27,6 @@ vi.mock("@/components/ui/BackButton", () => ({
   BackButton: () => <button>Back</button>,
 }));
 
-vi.mock("@/components/ui/Breadcrumbs", () => ({
-  Breadcrumbs: ({ items }: { items: Array<{ label: string }> }) => (
-    <nav data-testid="breadcrumbs">{items.map((i) => i.label).join(" > ")}</nav>
-  ),
-}));
-
 const baseItem = {
   id: "m1",
   title: "Some Movie",

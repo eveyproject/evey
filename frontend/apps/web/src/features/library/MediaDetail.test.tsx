@@ -66,10 +66,6 @@ vi.mock("@/components/ui/BackButton", () => ({
   BackButton: () => <button>Back</button>,
 }));
 
-vi.mock("@/components/ui/Breadcrumbs", () => ({
-  Breadcrumbs: () => null,
-}));
-
 vi.mock("../playback/DownloadButton", () => ({
   DownloadButton: () => <button>Download</button>,
 }));
