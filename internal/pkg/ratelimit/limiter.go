@@ -372,7 +372,14 @@ func refusalLogger() *slog.Logger {
 func logRefusal(r *http.Request, extra ...slog.Attr) {
 	res := resolveClientIPReasoned(r)
 	WarnMisroutedProxy(res)
-	attrs := append(extra,
+	// Copy rather than append onto `extra`: appending to a caller-owned slice
+	// writes into ITS backing array whenever it has spare capacity, so a caller
+	// reusing its buffer would find these fields stamped over its own. Today
+	// every caller passes literal variadic args (exact capacity, no aliasing),
+	// which is precisely why the day one of them stops would be silent.
+	attrs := make([]slog.Attr, 0, len(extra)+7)
+	attrs = append(attrs, extra...)
+	attrs = append(attrs,
 		slog.String("client_ip", res.IP),
 		slog.String("path", r.URL.Path),
 		slog.String("method", r.Method),
