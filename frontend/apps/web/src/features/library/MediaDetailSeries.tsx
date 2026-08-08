@@ -107,6 +107,12 @@ function EpisodeRow({ ep }: { ep: V1MediaItem }) {
 // series has 50 seasons.
 const SEASON_EPISODES_PAGE_SIZE = 500;
 
+// Seasons, not episodes. Well beyond any real series, and stated rather than
+// left to the handler default: an omitted page size reads the same whether it
+// was decided or forgotten, which is how three screens on this path ended up
+// truncated without anyone noticing.
+const SEASONS_PAGE_SIZE = 100;
+
 // where the episode list now lives.
 function SeasonCard({ seasonId }: { seasonId: string }) {
   const { t } = useTranslation();
@@ -175,7 +181,7 @@ function SeasonCard({ seasonId }: { seasonId: string }) {
 
 export function PlaySeriesButton({ seriesId, onPlay }: { seriesId: string; onPlay: (episodeId: string) => void }) {
   const { t } = useTranslation();
-  const { data: seasonsData } = useLibraryServiceListMediaItems({ parentId: seriesId });
+  const { data: seasonsData } = useLibraryServiceListMediaItems({ parentId: seriesId, "pagination.pageSize": SEASONS_PAGE_SIZE });
   const seasons = sortByIndex(seasonsData?.items ?? []);
   const firstSeason = seasons[0];
 
@@ -214,7 +220,7 @@ export function PlaySeasonButton({ seasonId, onPlay }: { seasonId: string; onPla
 
 export function SeriesSection({ item }: { item: V1MediaItem }) {
   const { t } = useTranslation();
-  const { data: seasonsData } = useLibraryServiceListMediaItems({ parentId: item.id ?? "" });
+  const { data: seasonsData } = useLibraryServiceListMediaItems({ parentId: item.id ?? "", "pagination.pageSize": SEASONS_PAGE_SIZE });
   const seasons = sortByIndex(seasonsData?.items ?? []);
   if (!seasons.length) return null;
 

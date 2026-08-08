@@ -19,6 +19,9 @@ import { ParentalPINDialog } from "@/components/ParentalPINDialog";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { useAuthStore, usePlayerStore, setPlayerCleanup, useMusicPlayerStore, toast } from "@evey/store";
 
+// Seasons of a series: far beyond any real count, stated rather than implied.
+const SEASONS_PAGE_SIZE = 100;
+
 const IMAGE_SUBTITLE_CODECS = new Set([
   "pgssub", "hdmv_pgs_subtitle", "dvd_subtitle", "dvbsub", "xsub",
 ]);
@@ -289,7 +292,10 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
 
   const { data: seasonsData } = useQuery({
     queryKey: ["/api/v1/media", { parentId: seriesId }],
-    queryFn: ({ signal }) => libraryServiceListMediaItems({ parentId: seriesId }, signal),
+    // Seasons, not episodes: 100 is far beyond any real series, and stating it
+    // beats leaving the handler default to be read as either a decision or an
+    // oversight.
+    queryFn: ({ signal }) => libraryServiceListMediaItems({ parentId: seriesId, "pagination.pageSize": SEASONS_PAGE_SIZE }, signal),
     enabled: !!seriesId,
   });
 
