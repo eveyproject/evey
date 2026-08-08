@@ -629,8 +629,15 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// FPS/RequiredFPS is how many realtime sessions this box can serve. The
 	// admin may only REDUCE it (transcoding.max_video_sessions).
 	applyVideoSessionLimit := func(ctx context.Context) {
-		samples := calibrationSvc.Current().BenchSamples
-		costs := apptranscoding.NewVideoCostModel(samples)
+		current := calibrationSvc.Current()
+		samples := current.BenchSamples
+		// The decode half of the calibration, when the host has re-benched since
+		// it started being measured: it lets a session be priced by the source it
+		// actually decodes rather than by its output rung alone. Absent (older
+		// persisted capability, synthetic-sample fallback) the model prices
+		// exactly as it always did.
+		costs := apptranscoding.NewVideoCostModel(samples).
+			WithDecodeEvidence(current.BenchSource, current.DecodeSamples)
 		videoLimiter.WithCostModel(costs)
 
 		// Admission is governed by PER-POOL cost budgets: every software flavor
@@ -693,6 +700,24 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	hlsVODOrch.SetHWDemoteSink(func(ctx context.Context, class domaintranscoding.FailureClass, codec string) {
 		calibrationSvc.DemoteCapability(ctx, class, codec)
 	})
+	// ...and the way back. Without this the demotion above is permanent: it is
+	// persisted, so a GPU that failed once stays off until something else happens
+	// to re-bench. Production lost ~27h of hardware acceleration for every user
+	// that way, from a single 4K HEVC play. ReprobeDemotedHW is a no-op until the
+	// demotion is older than HWDemotionTTL and only restores on a real encode
+	// probe, so the tick is cheap and a genuinely dead GPU stays off.
+	go func() {
+		ticker := time.NewTicker(5 * time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				calibrationSvc.ReprobeDemotedHW(ctx)
+			}
+		}
+	}()
 
 	capsOverrideSvc, keyframeOnDemand, kfProber, bgStoppers := startTranscodingWorkers(ctx, db, infra, libCmdSvc, libQuerySvc, complexityRepo, complexityClassifier, hlsVODRemover)
 
@@ -881,7 +906,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	return &appDeps{
 		bus:             bus,
 		presenceTracker: apppresence.NewTracker(),
-		bgStoppers: bgStoppers,
+		bgStoppers:      bgStoppers,
 		// The media-item repo doubles as the seek-index fingerprint refresher, so a
 		// reindexed file isn't re-probed (and its keyframe index dropped) by the
 		// next scan. r.MediaItem satisfies appmaintenance.FileStateRefresher.

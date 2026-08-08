@@ -59,7 +59,9 @@ type PlanResolver struct {
 
 	// Admission closures - all optional, TRUE-nil when the shaper/limiter is
 	// not wired (see the adapter's admissionRouteOf and friends).
-	AdmissionRoute        func(key string, natural LadderClass, heights []int, fallback func() []int) RouteGrant
+	// AdmissionRoute carries the source class so the shed probe prices the decode
+	// like the spawn does.
+	AdmissionRoute        func(key string, natural LadderClass, heights []int, fallback func() []int, srcClass transcoding.SourceClass) RouteGrant
 	AdmissionPinnedClass  func(key string) (LadderClass, bool)
 	AdmissionBind         func(key, fingerprintHash string)
 	AdmissionFrozenLadder func(key string) ([]transcoding.HLSProfile, bool)
@@ -466,7 +468,11 @@ func (pr *PlanResolver) ShapeLadder(ctx context.Context, req PlaybackRequest, de
 		if natural == LadderClassHW && pr.Selector != nil {
 			fallback = func() []int { return profileHeights(softwareShape()) }
 		}
-		g := pr.AdmissionRoute(pr.PinKey(req.MediaID, streams, decision), natural, profileHeights(laddered), fallback)
+		srcClass := transcoding.SourceClass{
+			Codec:  SourceVideoCodec(streams),
+			Height: SourceVideoHeight(streams),
+		}
+		g := pr.AdmissionRoute(pr.PinKey(req.MediaID, streams, decision), natural, profileHeights(laddered), fallback, srcClass)
 		if g.OK {
 			if g.Class != natural && g.Class == LadderClassSoftware {
 				if swLadder := softwareShape(); len(swLadder) > 0 {
@@ -619,6 +625,8 @@ func (pr *PlanResolver) Fingerprint(ctx context.Context, req PlaybackRequest, de
 		// The SOURCE codec (excluded from Hash - derivable from MediaID): the
 		// copy builder tags the fMP4 sample entry from it (-tag:v hvc1).
 		SourceVideoCodec: SourceVideoCodec(streams),
+		// The decode workload admission prices (excluded from Hash, as the codec).
+		SourceVideoHeight: SourceVideoHeight(streams),
 		// Legacy-codec corrections (B3): idet content verdict + anamorphic SAR,
 		// both hashed conditionally so progressive/square titles keep their
 		// cache. No-ops on modern progressive sources.

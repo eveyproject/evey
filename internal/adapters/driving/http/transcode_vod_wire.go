@@ -129,7 +129,7 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 		admissionFreezeLadder: freezeLadderOf(s.VideoAdmissionShaper),
 		// Per-stream hash bookkeeping: pure in-memory, no dependency, so it is
 		// always on. reclaimHash is attached below, once both producers exist.
-		streamHashes: apptranscoding.NewStreamHashRegistry(0, 0),
+		streamHashes:          apptranscoding.NewStreamHashRegistry(0, 0),
 		mediaLookup:           mediaLookup,
 		classLookup:           classLookup,
 		prefsLookup:           prefsLookup,

@@ -28,12 +28,12 @@ import (
 )
 
 type hlsVODServe struct {
-	libSvc               MediaStreamsGetter
-	libraryAccess        LibraryAccessChecker
-	parental             ParentalChecker
+	libSvc        MediaStreamsGetter
+	libraryAccess LibraryAccessChecker
+	parental      ParentalChecker
 	// streamTokens mints the next episode's cast token in serveCastNext.
 	// nil = cast-next answers 503 (fail closed).
-	streamTokens *appmedia.StreamTokenStore
+	streamTokens         *appmedia.StreamTokenStore
 	profilePrefs         ProfilePrefsGetter
 	audioNormalizeGetter func(ctx context.Context) bool
 	userMaxStreams       UserMaxStreamsGetter
@@ -81,7 +81,7 @@ type hlsVODServe struct {
 	// and ladder ceiling (see profilesForDecision's third cap): a hw stream on
 	// a full GPU pool spills to the software route when the CPU pool has room.
 	// Optional: nil keeps the natural shape and viewers over budget are shed.
-	admissionRoute func(key string, natural apptranscoding.LadderClass, heights []int, fallback func() []int) apptranscoding.RouteGrant
+	admissionRoute func(key string, natural apptranscoding.LadderClass, heights []int, fallback func() []int, srcClass domaintranscoding.SourceClass) apptranscoding.RouteGrant
 	// admissionPinnedClass reads the class a live pin was granted under, so
 	// the fingerprint's hw fields and the spawn's producer follow the pinned
 	// route rather than the natural one. Optional.

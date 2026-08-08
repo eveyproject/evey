@@ -483,3 +483,101 @@ func TestVideoSessionLimiter_ReleaseIsReferenceCounted(t *testing.T) {
 		t.Error("the last release must drop the slot")
 	}
 }
+
+// ============================================================================
+// Source-aware admission (TryAcquireFor / CanAdmitFor)
+// ============================================================================
+
+// prodLimiter is the production box of 2026-08-08: one 480p rung, 2.12x
+// realtime on the 4K HEVC the bench decodes, 8.43x on a 1080p H.264 source.
+func prodLimiter() *VideoSessionLimiter {
+	m := NewVideoCostModel([]transcoding.BenchRungSample{
+		{Ladder: "software", Height: 480, FPS: 50.8, RequiredFPS: 28.8, Passing: true},
+	}).WithDecodeEvidence(
+		transcoding.SourceClass{Codec: "hevc", Height: 2160},
+		[]transcoding.DecodeRungSample{
+			{Codec: "hevc", Height: 2160, FPS: 60},
+			{Codec: "h264", Height: 2160, FPS: 240},
+		},
+	)
+	return NewVideoSessionLimiter(0).WithCostModel(m)
+}
+
+// The measured reality this exists for: the host sustains eight concurrent
+// 1080p H.264 sessions at the 480p rung; admission used to stop at one.
+func TestVideoSessionLimiter_TryAcquireFor_CheapSource_AdmitsEight(t *testing.T) {
+	t.Parallel()
+	l := prodLimiter()
+	cheap := transcoding.SourceClass{Codec: "h264", Height: 1080}
+	for i := range 8 {
+		assert.True(t, l.TryAcquireFor(fmt.Sprintf("viewer-%d", i), LadderClassSoftware, 480, cheap),
+			"viewer %d must be admitted: the host measurably sustains eight", i)
+	}
+	assert.False(t, l.TryAcquireFor("viewer-9", LadderClassSoftware, 480, cheap),
+		"the ninth must still be refused - the budget is a budget")
+}
+
+// The expensive source keeps the old, correct answer. Widening admission for
+// cheap sources must not widen it where a third 4K HEVC measured 0.80x.
+func TestVideoSessionLimiter_TryAcquireFor_ExpensiveSource_StillOne(t *testing.T) {
+	t.Parallel()
+	l := prodLimiter()
+	heavy := transcoding.SourceClass{Codec: "hevc", Height: 2160}
+	assert.True(t, l.TryAcquireFor("first", LadderClassSoftware, 480, heavy))
+	assert.False(t, l.TryAcquireFor("second", LadderClassSoftware, 480, heavy),
+		"a second 4K HEVC decode does not fit and never did")
+}
+
+// Each stream is billed for what it costs, not for what its neighbour costs.
+func TestVideoSessionLimiter_TryAcquireFor_MixedSources_BilledIndependently(t *testing.T) {
+	t.Parallel()
+	l := prodLimiter()
+	heavy := transcoding.SourceClass{Codec: "hevc", Height: 2160}
+	cheap := transcoding.SourceClass{Codec: "h264", Height: 1080}
+	require.True(t, l.TryAcquireFor("heavy", LadderClassSoftware, 480, heavy))
+	// The 4K HEVC viewer took ~0.57 of the pool; the ~0.14 cheap ones still fit.
+	assert.True(t, l.TryAcquireFor("cheap-1", LadderClassSoftware, 480, cheap))
+	assert.True(t, l.TryAcquireFor("cheap-2", LadderClassSoftware, 480, cheap))
+	assert.True(t, l.TryAcquireFor("cheap-3", LadderClassSoftware, 480, cheap))
+	assert.False(t, l.TryAcquireFor("cheap-4", LadderClassSoftware, 480, cheap),
+		"the pool is full once the heavy stream's share plus three cheap ones is spent")
+}
+
+// Release must credit back exactly what was reserved, or the pool leaks.
+func TestVideoSessionLimiter_TryAcquireFor_ReleaseCreditsTheSourcePrice(t *testing.T) {
+	t.Parallel()
+	l := prodLimiter()
+	heavy := transcoding.SourceClass{Codec: "hevc", Height: 2160}
+	cheap := transcoding.SourceClass{Codec: "h264", Height: 1080}
+	require.True(t, l.TryAcquireFor("heavy", LadderClassSoftware, 480, heavy))
+	require.False(t, l.TryAcquireFor("heavy-2", LadderClassSoftware, 480, heavy))
+	l.Release("heavy")
+	for i := range 8 {
+		assert.True(t, l.TryAcquireFor(fmt.Sprintf("cheap-%d", i), LadderClassSoftware, 480, cheap),
+			"the whole budget must come back on release")
+	}
+}
+
+// The shed probe must agree with the spawn, or a viewer is turned away for a
+// price nothing charges.
+func TestVideoSessionLimiter_CanAdmitFor_AgreesWithTryAcquireFor(t *testing.T) {
+	t.Parallel()
+	l := prodLimiter()
+	cheap := transcoding.SourceClass{Codec: "h264", Height: 1080}
+	for i := range 8 {
+		key := fmt.Sprintf("viewer-%d", i)
+		assert.True(t, l.CanAdmitFor(key, LadderClassSoftware, 480, cheap), "probe %d", i)
+		require.True(t, l.TryAcquireFor(key, LadderClassSoftware, 480, cheap))
+	}
+	assert.False(t, l.CanAdmitFor("viewer-9", LadderClassSoftware, 480, cheap),
+		"the probe must refuse exactly where the spawn does")
+}
+
+// TryAcquire (no source named) must behave exactly as it always did.
+func TestVideoSessionLimiter_TryAcquire_UnknownSource_UnchangedBehaviour(t *testing.T) {
+	t.Parallel()
+	l := prodLimiter()
+	assert.True(t, l.TryAcquire("first", LadderClassSoftware, 480))
+	assert.False(t, l.TryAcquire("second", LadderClassSoftware, 480),
+		"without a named source the old output-rung price applies")
+}

@@ -143,6 +143,21 @@ type EncodeCapability struct {
 	// (re-bench to populate). omitempty so old rows round-trip unchanged.
 	BenchSamples []BenchRungSample `json:"bench_samples,omitempty"`
 
+	// HWDemotedAt is when a runtime failure last DISABLED the HW backend, stamped
+	// by the calibration service. Lets the demotion expire and be re-probed
+	// instead of outliving its cause (one hw_init failure cost prod ~27h of GPU).
+	HWDemotedAt time.Time `json:"hw_demoted_at,omitzero"`
+
+	// DecodeSamples is DECODE-only throughput per source codec. Decode is the half
+	// of the pipeline the encode rungs cannot see: same output rung, a 4K HEVC and
+	// a 1080p H.264 source measured 2.12x vs 8.43x realtime. Empty on hosts
+	// calibrated before it existed - pricing then falls back to the rung alone.
+	DecodeSamples []DecodeRungSample `json:"decode_samples,omitempty"`
+
+	// BenchSource is the codec+height BenchSamples were DECODED from, probed from
+	// the file rather than assumed from its name.
+	BenchSource SourceClass `json:"bench_source,omitzero"`
+
 	// SourceRate is the source frame-rate (fps) the BenchSamples were measured
 	// against - PROOF, not policy. Derive needs it to RE-derive the pass/fail of
 	// each rung under a possibly-different policy margin (required = SourceRate ×
@@ -172,6 +187,36 @@ type BenchRungSample struct {
 	RequiredFPS     float64 `json:"required_fps"` // sourceRate × realtime margin it had to beat
 	Passing         bool    `json:"passing"`      // FPS >= RequiredFPS
 	ParallelEncodes int     `json:"parallel_encodes"`
+}
+
+// SourceClass is a decode workload: codec + pixel height. The zero value means
+// "unknown source", which callers price the old way rather than as free.
+type SourceClass struct {
+	Codec  string `json:"codec"`
+	Height int    `json:"height"`
+}
+
+// Known reports whether c carries enough information to price a decode.
+func (c SourceClass) Known() bool {
+	return c.Codec != "" && c.Height > 0
+}
+
+// Pixels is the frame area decode throughput scales against. Height alone:
+// carrying width would split one title into several source classes for no
+// measurable difference in decode cost.
+func (c SourceClass) Pixels() int {
+	if c.Height <= 0 {
+		return 0
+	}
+	return c.Height * c.Height
+}
+
+// DecodeRungSample is measured DECODE-only throughput for one codec at one
+// height, taken by decoding a real sample to null.
+type DecodeRungSample struct {
+	Codec  string  `json:"codec"`
+	Height int     `json:"height"`
+	FPS    float64 `json:"fps"`
 }
 
 // SafeFallback returns the capability used when no calibration has run

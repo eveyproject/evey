@@ -3,6 +3,8 @@ package transcoding
 import (
 	"errors"
 	"sync"
+
+	"github.com/evey-project/evey/internal/domain/transcoding"
 )
 
 // ErrVideoCapacityExhausted is returned by a StreamProducer when a session
@@ -250,6 +252,13 @@ const budgetEpsilon = 1e-9
 // The caller must then refuse the spawn with ErrVideoCapacityExhausted.
 // Every successful TryAcquire must be matched by exactly one Release(key).
 func (l *VideoSessionLimiter) TryAcquire(key string, class LadderClass, topHeight int) bool {
+	return l.TryAcquireFor(key, class, topHeight, transcoding.SourceClass{})
+}
+
+// TryAcquireFor is TryAcquire with the session's DECODE workload named, so the
+// cost model prices what this stream costs rather than an average one at that
+// rung. A zero src prices as TryAcquire always did.
+func (l *VideoSessionLimiter) TryAcquireFor(key string, class LadderClass, topHeight int, src transcoding.SourceClass) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if l.refs == nil {
@@ -273,7 +282,7 @@ func (l *VideoSessionLimiter) TryAcquire(key string, class LadderClass, topHeigh
 	pool := class.Pool()
 	cost := 0.0
 	if l.costModel != nil {
-		cost = l.costModel.CostFor(class, topHeight)
+		cost = l.costModel.CostForSource(class, topHeight, src)
 		if l.usedFor(pool)+cost > l.budgetFor(pool)+budgetEpsilon {
 			return false
 		}
@@ -295,6 +304,12 @@ func (l *VideoSessionLimiter) TryAcquire(key string, class LadderClass, topHeigh
 //
 // A key that already holds a slot always can: its sibling encoders join it.
 func (l *VideoSessionLimiter) CanAdmit(key string, class LadderClass, topHeight int) bool {
+	return l.CanAdmitFor(key, class, topHeight, transcoding.SourceClass{})
+}
+
+// CanAdmitFor is CanAdmit with the decode workload named. The shed probe must
+// price like the spawn, or a viewer is turned away for a cost nothing charges.
+func (l *VideoSessionLimiter) CanAdmitFor(key string, class LadderClass, topHeight int, src transcoding.SourceClass) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if _, joining := l.refs[key]; joining {
@@ -307,7 +322,7 @@ func (l *VideoSessionLimiter) CanAdmit(key string, class LadderClass, topHeight 
 		return true
 	}
 	pool := class.Pool()
-	return l.usedFor(pool)+l.costModel.CostFor(class, topHeight) <= l.budgetFor(pool)+budgetEpsilon
+	return l.usedFor(pool)+l.costModel.CostForSource(class, topHeight, src) <= l.budgetFor(pool)+budgetEpsilon
 }
 
 // Release gives back the reference key took in TryAcquire; the stream's slot

@@ -68,6 +68,29 @@ func softwareProfileLevelArgs(encoder string, variantIdx int) []string {
 	}
 }
 
+// x264SpeedTuning is motion-search tuning on top of the veryfast preset, which
+// still pays for subpixel refinement a watch-once transcode never gets back.
+// Measured +24% (6.18x -> 7.65x) on an encode-bound 1080p H.264 source at equal
+// resolution and CRF; +3% on decode-bound 4K HEVC, where the decoder is the wall.
+//
+// Tradeoff: subme=0 costs some quality per bit. We encode at CRF 20 where the
+// reference for these options (Jellyfin) uses 23, so rate control has more bits
+// to spend. One constant, so the tradeoff has one place to be revisited.
+const x264SpeedTuning = "subme=0:me_range=16:rc_lookahead=10:me=hex:open_gop=0"
+
+// softwareX264TuningArgs returns -x264opts for a libx264 encode. libx264 only:
+// libx265/libsvtav1 take different parameter strings and fail to open on this.
+// variantIdx < 0 emits the single-output form, else the per-rung one.
+func softwareX264TuningArgs(encoder string, variantIdx int) []string {
+	if encoder != "libx264" {
+		return nil
+	}
+	if variantIdx < 0 {
+		return []string{"-x264opts", x264SpeedTuning}
+	}
+	return []string{fmt.Sprintf("-x264opts:%d", variantIdx), x264SpeedTuning}
+}
+
 // normalizeVideoCodec folds the codec through the single canonical alias
 // table (transcoding.CanonicalVideoCodec), then restricts the result to the
 // codecs this package can build a hardware encoder name for ("h264"/"hevc"/

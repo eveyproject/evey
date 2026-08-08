@@ -2,8 +2,8 @@ package ffmpeg
 
 import (
 	"context"
-	"time"
 	"testing"
+	"time"
 
 	"github.com/evey-project/evey/internal/domain/transcoding"
 	"github.com/stretchr/testify/assert"

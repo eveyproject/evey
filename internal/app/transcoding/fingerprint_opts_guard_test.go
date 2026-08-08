@@ -63,6 +63,8 @@ var (
 		"SourcePath": "reaches ffmpeg as opts.FilePath, resolved by the caller",
 		"AudioCopy":  "selects the audio branch via fp.AudioDecision(), not a raw field",
 		"Profiles":   "converted by profilesToDomain into opts.Profiles",
+		// Priced, never encoded: ffmpeg learns the height by opening the file.
+		"SourceVideoHeight": "admission input only - VideoCostModel.CostForSource, never an ffmpeg arg",
 	}
 )
 

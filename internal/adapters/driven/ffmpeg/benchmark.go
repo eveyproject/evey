@@ -216,7 +216,7 @@ func (r *BenchmarkRunner) Run(ctx context.Context, pref transcoding.HWPreference
 		slog.String("pin_backend", pref.Backend),
 		slog.Bool("hw_disabled", pref.DisableHW))
 
-	sample, fallback := r.resolveSample()
+	sample, fallback := r.resolveSample(ctx)
 
 	// Walk the declarative software ladder table (plain SDR, HDR->SDR tonemap,
 	// AV1). Each spec names its encoder, margin and floor; the HDR spec pulls the
@@ -273,6 +273,12 @@ func (r *BenchmarkRunner) Run(ctx context.Context, pref transcoding.HWPreference
 		hwTonemap = probeHWTonemap(ctx, r.ffmpegPath, hwBackend, hwDevice)
 	}
 
+	// What the encode rungs above were DECODED from, and how fast this host
+	// decodes each codec. Together they let admission price a session by the
+	// source the viewer asked for instead of by the output rung alone - the
+	// dimension that separates a 1080p H.264 stream from a 4K HEVC one.
+	benchSource, decodeSamples := r.decodeEvidence(ctx, sample, fallback)
+
 	cap := transcoding.EncodeCapability{
 		SoftwareMaxHeight:    swCeilings[transcoding.LadderSoftware],
 		SoftwareHDRMaxHeight: swCeilings[transcoding.LadderSoftwareHDR],
@@ -300,6 +306,9 @@ func (r *BenchmarkRunner) Run(ctx context.Context, pref transcoding.HWPreference
 		// (Ladder=="hw") when a GPU backend was probed, so the panel shows the HW
 		// fps too, not just software.
 		BenchSamples: append(swSamples, hwSamples...),
+		// The decode half of the same proof (see EncodeCapability.DecodeSamples).
+		BenchSource:   benchSource,
+		DecodeSamples: decodeSamples,
 	}
 	r.logger.Info("benchmark: complete",
 		slog.Int("software_max_height", cap.SoftwareMaxHeight),
@@ -312,6 +321,9 @@ func (r *BenchmarkRunner) Run(ctx context.Context, pref transcoding.HWPreference
 		slog.String("gpu_class", cap.GPUClass),
 		slog.Any("detected_backends", cap.DetectedBackends),
 		slog.Any("hw_features", cap.HWFeatures),
+		slog.String("bench_source_codec", cap.BenchSource.Codec),
+		slog.Int("bench_source_height", cap.BenchSource.Height),
+		slog.Int("decode_samples", len(cap.DecodeSamples)),
 		slog.Int64("elapsed_ms", cap.BenchmarkDurationMs))
 	return cap, nil
 }
@@ -438,8 +450,8 @@ func (r *BenchmarkRunner) probeOption(ctx context.Context, args []string) bool {
 // passed true to switch to lavfi). With on-demand generation we
 // never need the lavfi branch anymore unless generation itself
 // fails.
-func (r *BenchmarkRunner) resolveSample() (string, bool) {
-	return r.resolveBenchSample("SDR", r.sdrSrc, r.samplePath, r.generateSample)
+func (r *BenchmarkRunner) resolveSample(ctx context.Context) (string, bool) {
+	return r.resolveBenchSample(ctx, "SDR", r.sdrSrc, r.samplePath, r.generateSample)
 }
 
 // resolveBenchSample produces the path to a bench input, in priority order:
@@ -453,7 +465,7 @@ func (r *BenchmarkRunner) resolveSample() (string, bool) {
 // reference clip wins when configured; the synthetic is the always-available
 // airgapped fallback. Returns (path, fallback): fallback=true only when every
 // step fails, signalling the caller to drop to the in-memory lavfi testsrc.
-func (r *BenchmarkRunner) resolveBenchSample(label string, src benchSampleSource, defaultPath string, generate func(dst string) error) (string, bool) {
+func (r *BenchmarkRunner) resolveBenchSample(ctx context.Context, label string, src benchSampleSource, defaultPath string, generate func(dst string) error) (string, bool) {
 	if src.overridePath != "" {
 		if _, err := os.Stat(src.overridePath); err == nil {
 			r.logger.Info("benchmark: using operator-provided "+label+" sample",
@@ -464,7 +476,15 @@ func (r *BenchmarkRunner) resolveBenchSample(label string, src benchSampleSource
 			slog.String("path", src.overridePath))
 	}
 	if _, err := os.Stat(defaultPath); err == nil {
-		return defaultPath, false
+		if r.cachedSampleIsSound(ctx, label, src, defaultPath) {
+			return defaultPath, false
+		}
+		// Ours, and wrong: drop it and fall through to regenerate below.
+		if err := os.Remove(defaultPath); err != nil {
+			r.logger.Warn("benchmark: could not remove the unusable "+label+" sample, calibrating against it anyway",
+				slog.String("path", defaultPath), slog.Any("err", err))
+			return defaultPath, false
+		}
 	}
 	if src.url != "" && src.sha256 != "" {
 		if err := r.downloadSample(src.url, src.sha256, defaultPath); err != nil {
@@ -584,8 +604,8 @@ func (r *BenchmarkRunner) hdrSamplePath() string {
 // cascade as the SDR one (operator file > cached > pinned download > synthetic).
 // A real HDR clip is strongly preferred: the synthetic understates the 10-bit
 // decode + tonemap cost, which is exactly what pins the HDR cap too low.
-func (r *BenchmarkRunner) resolveHDRSample() (string, bool) {
-	return r.resolveBenchSample("HDR", r.hdrSrc, r.hdrSamplePath(), r.generateHDRSample)
+func (r *BenchmarkRunner) resolveHDRSample(ctx context.Context) (string, bool) {
+	return r.resolveBenchSample(ctx, "HDR", r.hdrSrc, r.hdrSamplePath(), r.generateHDRSample)
 }
 
 // generateHDRSample produces a ~5 s 3840x2160 HEVC Main10 HDR10 clip (bt2020 /
@@ -657,7 +677,7 @@ func (r *BenchmarkRunner) benchSoftwareLadders(ctx context.Context, sdrSample st
 			// tonemap): probe it on the real 10-bit sample so the cap is honest on a
 			// weak NAS. Resolve the HDR sample lazily and once.
 			if !hdrResolved {
-				hdrSample, hdrFallback = r.resolveHDRSample()
+				hdrSample, hdrFallback = r.resolveHDRSample(ctx)
 				hdrResolved = true
 			}
 			sample, fallback = hdrSample, hdrFallback

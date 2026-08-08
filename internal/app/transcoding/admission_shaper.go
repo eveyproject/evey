@@ -131,8 +131,8 @@ func NewVideoAdmissionShaper(limiter *VideoSessionLimiter) *VideoAdmissionShaper
 // not have its already-addressed cache hash moved out from under it. Only a
 // cold, unheld pin re-evaluates, and does so against the newly-requested
 // class.
-func (s *VideoAdmissionShaper) CeilingFor(key string, class LadderClass, heights []int) (int, bool) {
-	g := s.GrantRoute(key, class, heights, nil)
+func (s *VideoAdmissionShaper) CeilingFor(key string, class LadderClass, heights []int, src transcoding.SourceClass) (int, bool) {
+	g := s.GrantRoute(key, class, heights, nil, src)
 	if !g.OK {
 		return 0, false
 	}
@@ -175,7 +175,7 @@ type RouteGrant struct {
 // routes shape different ladders. The grant is pinned like a plain ceiling -
 // the route shapes the ladder shapes the fingerprint hash, so it must not
 // move for the stream's life (same freshness + bound-session rules).
-func (s *VideoAdmissionShaper) GrantRoute(key string, natural LadderClass, heights []int, fallbackHeights func() []int) RouteGrant {
+func (s *VideoAdmissionShaper) GrantRoute(key string, natural LadderClass, heights []int, fallbackHeights func() []int, src transcoding.SourceClass) RouteGrant {
 	if s == nil || s.limiter == nil || len(heights) == 0 {
 		return RouteGrant{}
 	}
@@ -208,7 +208,7 @@ func (s *VideoAdmissionShaper) GrantRoute(key string, natural LadderClass, heigh
 		delete(s.pins, key)
 	}
 
-	if granted, ok := s.tallestAdmittable(key, natural, heights); ok {
+	if granted, ok := s.tallestAdmittable(key, natural, heights, src); ok {
 		s.evictIfFull(now)
 		plan := StreamPlan{Class: natural, Ceiling: granted}
 		s.pins[key] = &streamPin{plan: plan, lastSeen: now}
@@ -225,7 +225,7 @@ func (s *VideoAdmissionShaper) GrantRoute(key string, natural LadderClass, heigh
 	// shaping), never guessed from the hw ladder.
 	if natural == LadderClassHW && fallbackHeights != nil {
 		if fh := fallbackHeights(); len(fh) > 0 {
-			if granted, ok := s.tallestAdmittable(key, LadderClassSoftware, fh); ok {
+			if granted, ok := s.tallestAdmittable(key, LadderClassSoftware, fh, src); ok {
 				s.evictIfFull(now)
 				plan := StreamPlan{Class: LadderClassSoftware, Ceiling: granted}
 				s.pins[key] = &streamPin{plan: plan, lastSeen: now}
@@ -366,7 +366,7 @@ func (s *VideoAdmissionShaper) Bind(key, fingerprintHash string) {
 // authoritative reservation stays TryAcquire at spawn - a lost race is shed
 // at the segment, and the retry re-evaluates because a shed stream's pin
 // goes cold holding nothing.
-func (s *VideoAdmissionShaper) tallestAdmittable(key string, class LadderClass, heights []int) (int, bool) {
+func (s *VideoAdmissionShaper) tallestAdmittable(key string, class LadderClass, heights []int, src transcoding.SourceClass) (int, bool) {
 	sorted := make([]int, 0, len(heights))
 	seen := make(map[int]bool, len(heights))
 	for _, h := range heights {
@@ -377,7 +377,7 @@ func (s *VideoAdmissionShaper) tallestAdmittable(key string, class LadderClass, 
 	}
 	slices.SortFunc(sorted, func(a, b int) int { return b - a }) // tallest first
 	for _, h := range sorted {
-		if s.limiter.CanAdmit(key, class, h) {
+		if s.limiter.CanAdmitFor(key, class, h, src) {
 			return h, true
 		}
 	}

@@ -112,6 +112,11 @@ type DecisionFingerprint struct {
 	// never alias two different byte streams.
 	SourceVideoCodec string
 
+	// SourceVideoHeight is the SOURCE video height. With SourceVideoCodec it names
+	// the DECODE workload admission prices. EXCLUDED from Hash() for the same
+	// reason as SourceVideoCodec: determined by (MediaID, SourcePath).
+	SourceVideoHeight int
+
 	// SubtitleBurnInCodec is the codec of the burn-in subtitle track
 	// (SubtitleBurnInTrack), set by the handler from the probed streams. The
 	// ffmpeg builder re-derives burn-in eligibility from it (IsImageSubtitle),

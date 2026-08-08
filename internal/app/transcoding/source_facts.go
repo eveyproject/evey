@@ -213,6 +213,20 @@ func SourceVideoCodec(streams []*library.MediaStream) string {
 	return ""
 }
 
+// SourceVideoHeight returns the first video stream's height (0 when unprobed),
+// the other half of what the pipeline must DECODE. Admission prices the pair.
+func SourceVideoHeight(streams []*library.MediaStream) int {
+	for _, s := range streams {
+		if s != nil && s.StreamType == library.StreamTypeVideo {
+			if s.Height != nil && *s.Height > 0 {
+				return *s.Height
+			}
+			return 0
+		}
+	}
+	return 0
+}
+
 // SourceVideoTenBit reports whether the source's video stream is ≥10-bit
 // (HEVC Main10 / yuv420p10le). Used to gate the HW path off when the calibrated
 // backend's VPP can't fold 10-bit down to 8-bit (see EncodeCapability.HW10BitTranscode).

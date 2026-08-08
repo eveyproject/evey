@@ -191,6 +191,12 @@ func LadderClassOf(fp DecisionFingerprint) LadderClass {
 	return LadderClassSoftware
 }
 
+// SourceClassOf names the DECODE workload a fingerprint's session will run.
+// Zero when either half is unknown, which prices the output-rung way.
+func SourceClassOf(fp DecisionFingerprint) transcoding.SourceClass {
+	return transcoding.SourceClass{Codec: fp.SourceVideoCodec, Height: fp.SourceVideoHeight}
+}
+
 // RungFit is one resolution rung's admission cost, exposed for the admin
 // capacity panel: the fraction of the host's realtime encode budget (within
 // its ladder class's resource pool) a stream topping out at Height consumes,
@@ -202,10 +208,13 @@ type RungFit struct {
 }
 
 // costRung is a single usable bench rung, sorted ascending by Height inside
-// VideoCostModel.tables[class].
+// VideoCostModel.tables[class]. FPS/RequiredFPS are kept because decode-aware
+// pricing takes the rung apart again to isolate its encode half.
 type costRung struct {
-	Height int
-	Cost   float64
+	Height      int
+	Cost        float64
+	FPS         float64
+	RequiredFPS float64
 }
 
 // VideoCostModel translates the resolution a session tops out at into the
@@ -230,6 +239,12 @@ type VideoCostModel struct {
 	// FPS > 0, sorted ascending by Height. A class absent from tables has no
 	// usable evidence at all (never an empty slice - see NewVideoCostModel).
 	tables map[LadderClass][]costRung
+
+	// benchSource + decode are OPTIONAL decode evidence (see WithDecodeEvidence).
+	// Zero on a model built from encode rungs alone, where CostForSource prices
+	// exactly as CostFor always did.
+	benchSource transcoding.SourceClass
+	decode      map[string]transcoding.DecodeRungSample
 }
 
 // NewVideoCostModel builds a VideoCostModel from the boot benchmark's rungs,
@@ -250,7 +265,12 @@ func NewVideoCostModel(samples []transcoding.BenchRungSample) *VideoCostModel {
 			continue
 		}
 		class := LadderClass(s.Ladder)
-		tables[class] = append(tables[class], costRung{Height: s.Height, Cost: s.RequiredFPS / s.FPS})
+		tables[class] = append(tables[class], costRung{
+			Height:      s.Height,
+			Cost:        s.RequiredFPS / s.FPS,
+			FPS:         s.FPS,
+			RequiredFPS: s.RequiredFPS,
+		})
 	}
 	if len(tables) == 0 {
 		return nil
@@ -292,6 +312,109 @@ func (m *VideoCostModel) CostFor(class LadderClass, h int) float64 {
 		}
 	}
 	return rungs[len(rungs)-1].Cost
+}
+
+// WithDecodeEvidence attaches the bench's DECODE-only measurements so costs can
+// be priced against the source the viewer asked for. Unusable rows are dropped:
+// decode evidence only ADDS discrimination, so a host without it is unchanged.
+func (m *VideoCostModel) WithDecodeEvidence(benchSource transcoding.SourceClass, decode []transcoding.DecodeRungSample) *VideoCostModel {
+	if m == nil {
+		return nil
+	}
+	m.benchSource = benchSource
+	m.decode = nil
+	for _, d := range decode {
+		if d.FPS <= 0 || d.Height <= 0 || d.Codec == "" {
+			continue
+		}
+		if m.decode == nil {
+			m.decode = make(map[string]transcoding.DecodeRungSample, len(decode))
+		}
+		m.decode[canonicalDecodeCodec(d.Codec)] = d
+	}
+	return m
+}
+
+// canonicalDecodeCodec folds a codec alias onto the name the decode table is
+// keyed by, so the runtime's spelling finds the bench's measurement.
+func canonicalDecodeCodec(codec string) string {
+	if c := transcoding.CanonicalVideoCodec(codec); c != "" {
+		return c
+	}
+	return strings.ToLower(strings.TrimSpace(codec))
+}
+
+// decodeFPSFor returns measured decode throughput for src, scaled by frame AREA
+// from the height it was measured at. That scaling is the ONE modelled step
+// here, and it only interpolates WITHIN a codec - never across codecs, where the
+// real 2-4x gaps live and a model would be guessing.
+func (m *VideoCostModel) decodeFPSFor(src transcoding.SourceClass) (float64, bool) {
+	if m == nil || len(m.decode) == 0 || !src.Known() {
+		return 0, false
+	}
+	sample, ok := m.decode[canonicalDecodeCodec(src.Codec)]
+	if !ok || sample.FPS <= 0 || sample.Height <= 0 {
+		return 0, false
+	}
+	measured := transcoding.SourceClass{Codec: sample.Codec, Height: sample.Height}
+	if measured.Pixels() <= 0 || src.Pixels() <= 0 {
+		return 0, false
+	}
+	return sample.FPS * float64(measured.Pixels()) / float64(src.Pixels()), true
+}
+
+// CostForSource prices a session for the SOURCE the viewer asked for, not the
+// one the bench decoded:
+//
+//	cost = RequiredFPS × ( (1/rungFPS - 1/decodeFPS(benchSource)) + 1/decodeFPS(src) )
+//
+// Priced on the rung alone, a 1080p H.264 and a 4K HEVC source feeding the same
+// 480p rung cost the same, though they measured 8.43x and 2.12x realtime. Note
+// src == benchSource cancels both terms, reproducing CostFor exactly.
+//
+// Falls back to CostFor whenever evidence is missing, or when the isolated
+// encode term would be non-positive (a rung measured slower than the decode
+// probe itself - real on a loaded box, not something to extrapolate from).
+func (m *VideoCostModel) CostForSource(class LadderClass, h int, src transcoding.SourceClass) float64 {
+	base := m.CostFor(class, h)
+	rung, ok := m.rungFor(class, h)
+	if !ok || rung.RequiredFPS <= 0 || rung.FPS <= 0 {
+		return base
+	}
+	benchDecodeFPS, ok := m.decodeFPSFor(m.benchSource)
+	if !ok {
+		return base
+	}
+	srcDecodeFPS, ok := m.decodeFPSFor(src)
+	if !ok {
+		return base
+	}
+	encodeTime := 1/rung.FPS - 1/benchDecodeFPS
+	if encodeTime <= 0 {
+		return base
+	}
+	return rung.RequiredFPS * (encodeTime + 1/srcDecodeFPS)
+}
+
+// rungFor returns the rung CostFor would have priced h against, so both paths
+// take apart the same measurement.
+func (m *VideoCostModel) rungFor(class LadderClass, h int) (costRung, bool) {
+	if m == nil {
+		return costRung{}, false
+	}
+	rungs, exists := m.tables[class]
+	if !exists || len(rungs) == 0 {
+		if class != LadderClassSoftware {
+			return m.rungFor(LadderClassSoftware, h)
+		}
+		return costRung{}, false
+	}
+	for _, r := range rungs {
+		if r.Height >= h {
+			return r, true
+		}
+	}
+	return rungs[len(rungs)-1], true
 }
 
 // CostForHeight is CostFor(LadderClassSoftware, h) - kept for callers that

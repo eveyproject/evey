@@ -159,7 +159,7 @@ func videoAdmissionOf(l *apptranscoding.VideoSessionLimiter) func(string, apptra
 
 // admissionCeilingOf / admissionBindOf adapt the shaper the same way: TRUE-nil
 // funcs when it is not wired, so the handler's nil-checks stay meaningful.
-func admissionRouteOf(s *apptranscoding.VideoAdmissionShaper) func(string, apptranscoding.LadderClass, []int, func() []int) apptranscoding.RouteGrant {
+func admissionRouteOf(s *apptranscoding.VideoAdmissionShaper) func(string, apptranscoding.LadderClass, []int, func() []int, domaintranscoding.SourceClass) apptranscoding.RouteGrant {
 	if s == nil {
 		return nil
 	}

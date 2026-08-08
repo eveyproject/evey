@@ -440,9 +440,23 @@ func appendInputModifiers(args []string, readRate float64) []string {
 // transcodeColdStartBurstSec is how many opening seconds a PACED transcode
 // reads at full speed before the -readrate pace kicks in (ffmpeg
 // -readrate_initial_burst, ≥6.1 - present in the bundled jellyfin-ffmpeg7 and
-// already relied on by the copy rung). ~5 segments: enough to fill the player's
-// startup buffer and to cover a seek's cold start.
-const transcodeColdStartBurstSec = "15"
+// already relied on by the copy rung).
+//
+// 60 s (20 segments), raised from the original 15 s on measurement rather than
+// taste. Head-to-head against an UNPACED server on the same host (2026-08-08,
+// staggered arrivals, 150 s window): both served the same number of clients -
+// 8/8 on a 1080p H.264 source, 2/2 then 1/3 on 4K HEVC - so pacing costs no
+// viewers at all. What differed was the RESERVE: the unpaced clients banked
+// 472 s of lead where the paced ones held 230 s, and a session that never gets
+// more than ~1.5x ahead has nothing to spend when a spike arrives, so it
+// starves immediately where a banked one rides it out.
+//
+// The burst is what buys that reserve back without giving up the steady-state
+// smoothing, and it stays bounded on both ends: a fixed span of content per
+// session (a handful of wall-clock seconds on any host that transcodes faster
+// than realtime), and the VideoSessionLimiter still caps how many encodes may
+// exist at once from the host's own calibration.
+const transcodeColdStartBurstSec = "60"
 
 // appendTranscodeInputModifiers emits the input pacing for a TRANSCODE session:
 // -readrate N plus the cold-start burst, for EVERY codec.
@@ -849,6 +863,7 @@ func buildSingleTranscodeArgs(opts transcoding.HLSProcessOpts) []string {
 	args = append(args, "-c:v", enc)
 	args = append(args, cpuBudgetThreadsArgs("")...)          // bound to the CPU budget (cgroup quota or NumCPU); operator override wins if set
 	args = append(args, softwareProfileLevelArgs(enc, -1)...) // h264-only; x265/av1 pick their own
+	args = append(args, softwareX264TuningArgs(enc, -1)...)   // motion-search tuning: +24% on encode-bound sources
 	args = append(args,
 		// Capped CRF (see softwareCRF): quality-targeted with the rung bitrate as a
 		// hard ceiling, instead of a plain -b:v average.
@@ -955,6 +970,7 @@ func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
 		)
 		args = append(args, cpuBudgetThreadsArgs(fmt.Sprintf(":v:%d", i))...) // bound to the CPU budget per rung; operator override wins if set
 		args = append(args, softwareProfileLevelArgs(vcodec, i)...)           // h264-only; x265/av1 pick their own
+		args = append(args, softwareX264TuningArgs(vcodec, i)...)
 		args = append(args,
 			// Capped CRF per rung (see softwareCRF): quality-targeted, rung bitrate
 			// as the hard ceiling, instead of a plain -b:v average.

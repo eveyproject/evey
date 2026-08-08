@@ -114,6 +114,19 @@ type BenchReport struct {
 	CPUSignature        string
 	BenchmarkedAt       time.Time
 	BenchmarkDurationMs int64
+
+	// DecodeSamples / BenchSource are the DECODE half of the proof - what the
+	// host measured for each source codec, and which source the encode rungs
+	// were decoded from. They must round-trip through here or every boot would
+	// silently drop them (Derive rebuilds the capability from this report), and
+	// admission would fall back to output-rung pricing until the next re-bench.
+	DecodeSamples []DecodeRungSample
+	BenchSource   SourceClass
+
+	// HWDemotedAt is not proof but runtime state, carried for the same reason:
+	// dropping it on boot would lose the demotion's clock, making a persisted
+	// demotion permanent again - exactly the failure it exists to bound.
+	HWDemotedAt time.Time
 }
 
 // Report projects an EncodeCapability onto its PROOF - the evidence + host/HW
@@ -135,6 +148,9 @@ func (c EncodeCapability) Report() BenchReport {
 		CPUSignature:        c.CPUSignature,
 		BenchmarkedAt:       c.BenchmarkedAt,
 		BenchmarkDurationMs: c.BenchmarkDurationMs,
+		DecodeSamples:       c.DecodeSamples,
+		BenchSource:         c.BenchSource,
+		HWDemotedAt:         c.HWDemotedAt,
 	}
 }
 
@@ -185,6 +201,9 @@ func Derive(rep BenchReport, policy DerivePolicy) EncodeCapability {
 		BenchmarkDurationMs:  rep.BenchmarkDurationMs,
 		BenchSamples:         rep.Samples,
 		SourceRate:           rep.SourceRate,
+		DecodeSamples:        rep.DecodeSamples,
+		BenchSource:          rep.BenchSource,
+		HWDemotedAt:          rep.HWDemotedAt,
 		PolicyVersion:        PolicyVersion,
 	}
 }

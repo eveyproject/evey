@@ -538,3 +538,127 @@ func hostCPUSig(t *testing.T) string {
 	}
 	return sig
 }
+
+// ============================================================================
+// HW demotion is on a clock (ReprobeDemotedHW)
+// ============================================================================
+
+// demotedService: HW switched off by a failure demotedFor ago, backend still
+// advertised by the host.
+func demotedService(t *testing.T, runner *fakeBenchmarkRunner, demotedFor time.Duration) *CalibrationService {
+	t.Helper()
+	svc := NewCalibrationService(&fakeCapabilityRepo{}, runner, nil)
+	demoted := domaintranscoding.EncodeCapability{
+		SoftwareMaxHeight: 1080,
+		HWBackend:         "", // switched off by the failure
+		HWMaxHeight:       0,
+		DetectedBackends:  []string{"vaapi"},
+		HWDemotedAt:       time.Now().UTC().Add(-demotedFor),
+	}
+	svc.current.Store(&demoted)
+	return svc
+}
+
+// The production incident: a demotion past its TTL must not keep the host on
+// CPU once the GPU answers again.
+func TestCalibration_ReprobeDemotedHW_ExpiredAndUsable_Restores(t *testing.T) {
+	runner := &fakeBenchmarkRunner{
+		result: domaintranscoding.EncodeCapability{
+			SoftwareMaxHeight: 1080,
+			HWMaxHeight:       2160,
+			HWBackend:         "vaapi",
+			CPUSignature:      "fake-sig",
+		},
+	}
+	svc := demotedService(t, runner, HWDemotionTTL+time.Minute)
+
+	assert.True(t, svc.ReprobeDemotedHW(context.Background()))
+	assert.Equal(t, "vaapi", svc.Current().HWBackend, "hardware must come back")
+	assert.EqualValues(t, 1, runner.calls.Load(), "restoring goes through a real re-bench, not the pre-demotion values")
+}
+
+// Inside the TTL nothing is probed - what keeps a broken GPU off the tick.
+func TestCalibration_ReprobeDemotedHW_WithinTTL_DoesNothing(t *testing.T) {
+	runner := &fakeBenchmarkRunner{}
+	svc := demotedService(t, runner, time.Minute)
+
+	assert.False(t, svc.ReprobeDemotedHW(context.Background()))
+	assert.Empty(t, svc.Current().HWBackend)
+	assert.EqualValues(t, 0, runner.calls.Load(), "no bench inside the TTL")
+}
+
+// A dead backend stays demoted: the timer never forgives, only a probe does.
+func TestCalibration_ReprobeDemotedHW_StillDead_StaysSoftware(t *testing.T) {
+	runner := &fakeBenchmarkRunner{hwUnusable: true}
+	svc := demotedService(t, runner, HWDemotionTTL+time.Minute)
+
+	assert.False(t, svc.ReprobeDemotedHW(context.Background()))
+	assert.Empty(t, svc.Current().HWBackend)
+	assert.EqualValues(t, 0, runner.calls.Load(), "a failed probe must not trigger a re-bench")
+}
+
+// ...and the clock restarts: one probe per TTL, not one per tick.
+func TestCalibration_ReprobeDemotedHW_StillDead_ResetsTheClock(t *testing.T) {
+	runner := &fakeBenchmarkRunner{hwUnusable: true}
+	svc := demotedService(t, runner, HWDemotionTTL+time.Minute)
+	before := svc.Current().HWDemotedAt
+
+	require.False(t, svc.ReprobeDemotedHW(context.Background()))
+
+	after := svc.Current().HWDemotedAt
+	assert.True(t, after.After(before), "the demotion clock must restart after a failed probe")
+	assert.False(t, svc.ReprobeDemotedHW(context.Background()), "and the next call is inside the fresh TTL")
+}
+
+// An operator who turned hardware off must never have it probed back on.
+func TestCalibration_ReprobeDemotedHW_HWModeOff_NeverProbes(t *testing.T) {
+	runner := &fakeBenchmarkRunner{}
+	svc := demotedService(t, runner, HWDemotionTTL+time.Minute)
+	svc.mode = domaintranscoding.HWModeOff
+
+	assert.False(t, svc.ReprobeDemotedHW(context.Background()))
+	assert.EqualValues(t, 0, runner.calls.Load())
+}
+
+// A host that was never demoted has nothing to reprobe.
+func TestCalibration_ReprobeDemotedHW_NeverDemoted_DoesNothing(t *testing.T) {
+	runner := &fakeBenchmarkRunner{}
+	svc := NewCalibrationService(&fakeCapabilityRepo{}, runner, nil)
+	healthy := domaintranscoding.EncodeCapability{SoftwareMaxHeight: 1080, HWBackend: "vaapi", HWMaxHeight: 2160}
+	svc.current.Store(&healthy)
+
+	assert.False(t, svc.ReprobeDemotedHW(context.Background()))
+	assert.EqualValues(t, 0, runner.calls.Load())
+}
+
+// The stamp puts a demotion on the clock, so it must be written exactly when a
+// failure switches the backend off.
+func TestCalibration_DemoteCapability_StampsWhenHWGoesOff(t *testing.T) {
+	repo := &fakeCapabilityRepo{}
+	svc := NewCalibrationService(repo, &fakeBenchmarkRunner{}, nil)
+	live := domaintranscoding.EncodeCapability{
+		SoftwareMaxHeight: 1080, HWBackend: "vaapi", HWMaxHeight: 2160,
+		HWCodecs: []string{"h264"}, HWDevice: "/dev/dri/renderD128",
+	}
+	svc.current.Store(&live)
+
+	require.True(t, svc.DemoteCapability(context.Background(), domaintranscoding.FailureHWInit, "h264"))
+
+	assert.Empty(t, svc.Current().HWBackend)
+	assert.False(t, svc.Current().HWDemotedAt.IsZero(), "a demotion that kills HW must be stamped, or it can never expire")
+}
+
+// A feature trim leaves hardware working, so it is not on the clock.
+func TestCalibration_DemoteCapability_FeatureTrim_NotStamped(t *testing.T) {
+	svc := NewCalibrationService(&fakeCapabilityRepo{}, &fakeBenchmarkRunner{}, nil)
+	live := domaintranscoding.EncodeCapability{
+		SoftwareMaxHeight: 1080, HWBackend: "vaapi", HWMaxHeight: 2160,
+		HWFeatures: []string{"temporal_aq"},
+	}
+	svc.current.Store(&live)
+
+	require.True(t, svc.DemoteCapability(context.Background(), domaintranscoding.FailureHWUnsupportedOption, "h264"))
+
+	assert.Equal(t, "vaapi", svc.Current().HWBackend, "the backend keeps working")
+	assert.True(t, svc.Current().HWDemotedAt.IsZero(), "nothing was switched off, so nothing is on the clock")
+}

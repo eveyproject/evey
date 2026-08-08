@@ -501,6 +501,13 @@ func (s *CalibrationService) DemoteCapability(ctx context.Context, class domaint
 	}
 
 	s.recordFallback(class, codec)
+	// Stamp a demotion that actually switched the backend OFF, so it can expire
+	// and be re-probed (ReprobeDemotedHW) instead of outliving its cause. A
+	// demotion that only trimmed features or one codec leaves HW working and is
+	// not on the clock.
+	if cur.HWBackend != "" && d.Capability.HWBackend == "" {
+		d.Capability.HWDemotedAt = time.Now().UTC()
+	}
 	if d.Persist {
 		if err := s.repo.Set(ctx, d.Capability); err != nil {
 			s.logger.Warn("calibration: demote persist failed (in-memory still updated)",
@@ -516,6 +523,70 @@ func (s *CalibrationService) DemoteCapability(ctx context.Context, class domaint
 		slog.String("new_backend", d.Capability.HWBackend),
 		slog.Int("new_hw_max_height", d.Capability.HWMaxHeight))
 	return true
+}
+
+// HWDemotionTTL is how long a runtime HW demotion is trusted before the
+// backend is re-probed. Short on purpose: the failures that trigger a demotion
+// are overwhelmingly transient or source-specific (a busy GPU, a driver
+// hiccup, a source this iGPU cannot decode), while the cost of believing one
+// for too long is the whole host running on CPU. Measured cost of the
+// unbounded version in production: ~27 hours of software-only playback for
+// every user, from one 4K HEVC play.
+const HWDemotionTTL = 30 * time.Minute
+
+// ReprobeDemotedHW re-validates a hardware backend that a runtime failure
+// switched off, once the demotion is older than HWDemotionTTL. Returns true
+// when HW was restored.
+//
+// A demotion is a REACTION to one failure, not a measurement of the host, so it
+// is never simply forgiven on a timer: the backend has to pass the same real
+// encode probe boot uses (HWBackendUsable) before anything is restored, and the
+// restore itself goes through a full re-bench so the ceilings come back from
+// evidence rather than from the pre-demotion values. A backend that is really
+// dead fails the probe and stays demoted, with the clock reset so the next
+// attempt is another TTL away rather than every tick.
+func (s *CalibrationService) ReprobeDemotedHW(ctx context.Context) bool {
+	cur := *s.current.Load()
+	if cur.HWDemotedAt.IsZero() || cur.HWBackend != "" {
+		return false // never demoted, or already running on hardware again
+	}
+	if time.Since(cur.HWDemotedAt) < HWDemotionTTL {
+		return false
+	}
+	// An operator who turned HW off must not have it probed back on.
+	pref := s.preference()
+	if pref.DisableHW {
+		return false
+	}
+	candidates := cur.DetectedBackends
+	if pref.Backend != "" {
+		candidates = []string{pref.Backend}
+	}
+	for _, backend := range candidates {
+		if !s.runner.HWBackendUsable(ctx, backend) {
+			continue
+		}
+		s.logger.Info("calibration: demoted HW backend passed re-probe, re-benching",
+			slog.String("backend", backend),
+			slog.Time("demoted_at", cur.HWDemotedAt))
+		if err := s.Recalibrate(ctx); err != nil {
+			s.logger.Warn("calibration: re-bench after HW re-probe failed, staying software",
+				slog.Any("err", err))
+			return false
+		}
+		return true
+	}
+	// Still dead: reset the clock, one probe per TTL rather than one per tick.
+	s.currentMu.Lock()
+	latest := *s.current.Load()
+	if !latest.HWDemotedAt.IsZero() && latest.HWBackend == "" {
+		latest.HWDemotedAt = time.Now().UTC()
+		s.current.Store(&latest)
+	}
+	s.currentMu.Unlock()
+	s.logger.Info("calibration: demoted HW backend still not usable, staying software",
+		slog.Any("candidates", candidates))
+	return false
 }
 
 func (s *CalibrationService) recordFallback(class domaintranscoding.FailureClass, codec string) {

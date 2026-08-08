@@ -554,3 +554,139 @@ func TestResolveVideoSessionLimit_NonsenseFallsBackToAuto(t *testing.T) {
 		assert.Equal(t, 4, ResolveVideoSessionLimit(ctx, repo, 4), "value %q must fall back to auto", v)
 	}
 }
+
+// ============================================================================
+// VideoCostModel - decode-aware pricing (CostForSource)
+// ============================================================================
+
+// prodModel is the production box measured on 2026-08-08: one 480p
+// rung, fed by the 4K HEVC the bench decodes or by a 1080p H.264 source.
+func prodModel(t *testing.T) *VideoCostModel {
+	t.Helper()
+	m := NewVideoCostModel([]transcoding.BenchRungSample{
+		{Ladder: "software", Height: 480, FPS: 50.8, RequiredFPS: 28.8, Passing: true},
+	})
+	require.NotNil(t, m)
+	return m.WithDecodeEvidence(
+		transcoding.SourceClass{Codec: "hevc", Height: 2160},
+		[]transcoding.DecodeRungSample{
+			{Codec: "hevc", Height: 2160, FPS: 60},
+			{Codec: "h264", Height: 2160, FPS: 240},
+		},
+	)
+}
+
+// Without decode evidence nothing changes - the un-rebenched host.
+func TestVideoCostModel_CostForSource_NoDecodeEvidence_PricesLikeCostFor(t *testing.T) {
+	t.Parallel()
+	m := NewVideoCostModel(devBoxSamples())
+	require.NotNil(t, m)
+	src := transcoding.SourceClass{Codec: "h264", Height: 1080}
+	for _, h := range []int{720, 1080, 1440} {
+		assert.InDelta(t, m.CostFor(LadderClassSoftware, h), m.CostForSource(LadderClassSoftware, h, src), 1e-9,
+			"rung %d must price identically without decode evidence", h)
+	}
+}
+
+// The invariant: priced against the source the bench decoded, the terms cancel.
+func TestVideoCostModel_CostForSource_BenchSource_IdenticalToCostFor(t *testing.T) {
+	t.Parallel()
+	m := prodModel(t)
+	benchSrc := transcoding.SourceClass{Codec: "hevc", Height: 2160}
+	assert.InDelta(t, m.CostFor(LadderClassSoftware, 480), m.CostForSource(LadderClassSoftware, 480, benchSrc), 1e-9)
+}
+
+// The whole point: the same 480p rung fed by 1080p H.264 instead of 4K HEVC
+// costs ~5x less - one admitted viewer versus eight, both measured on prod.
+func TestVideoCostModel_CostForSource_CheapSource_AdmitsEightNotOne(t *testing.T) {
+	t.Parallel()
+	m := prodModel(t)
+	benchSrc := transcoding.SourceClass{Codec: "hevc", Height: 2160}
+	cheap := transcoding.SourceClass{Codec: "h264", Height: 1080}
+
+	costBench := m.CostForSource(LadderClassSoftware, 480, benchSrc)
+	costCheap := m.CostForSource(LadderClassSoftware, 480, cheap)
+
+	assert.Less(t, costCheap, costBench/4, "a 1080p H.264 source must price far below the 4K HEVC bench source")
+	assert.Equal(t, 1, maxStreamsForCost(costBench), "4K HEVC stays at one admitted stream")
+	assert.Equal(t, 8, maxStreamsForCost(costCheap), "1080p H.264 must admit the eight the host measurably sustains")
+}
+
+// An unmeasured codec is not guessed at.
+func TestVideoCostModel_CostForSource_UnmeasuredCodec_FallsBack(t *testing.T) {
+	t.Parallel()
+	m := prodModel(t)
+	for _, src := range []transcoding.SourceClass{
+		{Codec: "av1", Height: 1080}, // never measured
+		{Codec: "", Height: 1080},    // unknown codec
+		{Codec: "h264", Height: 0},   // unknown height
+	} {
+		assert.InDelta(t, m.CostFor(LadderClassSoftware, 480), m.CostForSource(LadderClassSoftware, 480, src), 1e-9,
+			"source %+v must fall back to the encode-only price", src)
+	}
+}
+
+// Within one codec the decode term scales with frame area. The one modelled
+// step, and it never crosses codecs.
+func TestVideoCostModel_CostForSource_ScalesDecodeByFrameArea(t *testing.T) {
+	t.Parallel()
+	m := prodModel(t)
+	full := m.CostForSource(LadderClassSoftware, 480, transcoding.SourceClass{Codec: "hevc", Height: 2160})
+	half := m.CostForSource(LadderClassSoftware, 480, transcoding.SourceClass{Codec: "hevc", Height: 1080})
+	assert.Less(t, half, full, "half the height must cost less")
+
+	// Only the decode term moves, and it drops by 4x: the encode term is shared.
+	encodeTerm := 28.8 * (1/50.8 - 1/60.0)
+	assert.InDelta(t, encodeTerm+28.8/60.0, full, 1e-9)
+	assert.InDelta(t, encodeTerm+28.8/240.0, half, 1e-9)
+}
+
+// A rung no faster than the decode probe leaves no encode term to isolate -
+// real on a box busy during calibration - so the model refuses to extrapolate.
+func TestVideoCostModel_CostForSource_NonPositiveEncodeTerm_FallsBack(t *testing.T) {
+	t.Parallel()
+	m := NewVideoCostModel([]transcoding.BenchRungSample{
+		{Ladder: "software", Height: 480, FPS: 60, RequiredFPS: 28.8, Passing: true},
+	})
+	require.NotNil(t, m)
+	// Decode alone is measured as fast as the whole pipeline ⇒ encode term <= 0.
+	m = m.WithDecodeEvidence(
+		transcoding.SourceClass{Codec: "hevc", Height: 2160},
+		[]transcoding.DecodeRungSample{
+			{Codec: "hevc", Height: 2160, FPS: 60},
+			{Codec: "h264", Height: 2160, FPS: 240},
+		},
+	)
+	src := transcoding.SourceClass{Codec: "h264", Height: 1080}
+	assert.InDelta(t, m.CostFor(LadderClassSoftware, 480), m.CostForSource(LadderClassSoftware, 480, src), 1e-9)
+}
+
+// Bogus decode rows are dropped: zero fps divides by zero, zero height breaks
+// the area scaling.
+func TestVideoCostModel_WithDecodeEvidence_DropsUnusableSamples(t *testing.T) {
+	t.Parallel()
+	m := NewVideoCostModel([]transcoding.BenchRungSample{
+		{Ladder: "software", Height: 480, FPS: 50.8, RequiredFPS: 28.8, Passing: true},
+	})
+	require.NotNil(t, m)
+	m = m.WithDecodeEvidence(
+		transcoding.SourceClass{Codec: "hevc", Height: 2160},
+		[]transcoding.DecodeRungSample{
+			{Codec: "hevc", Height: 2160, FPS: 0}, // no throughput
+			{Codec: "h264", Height: 0, FPS: 240},  // no height
+			{Codec: "", Height: 2160, FPS: 240},   // no codec
+		},
+	)
+	// Nothing usable survived, so the bench source itself has no decode term.
+	src := transcoding.SourceClass{Codec: "h264", Height: 1080}
+	assert.InDelta(t, m.CostFor(LadderClassSoftware, 480), m.CostForSource(LadderClassSoftware, 480, src), 1e-9)
+}
+
+// A source spelled "h265" must find the bench's "hevc" measurement.
+func TestVideoCostModel_CostForSource_CodecAliasesResolve(t *testing.T) {
+	t.Parallel()
+	m := prodModel(t)
+	canonical := m.CostForSource(LadderClassSoftware, 480, transcoding.SourceClass{Codec: "hevc", Height: 2160})
+	alias := m.CostForSource(LadderClassSoftware, 480, transcoding.SourceClass{Codec: "h265", Height: 2160})
+	assert.InDelta(t, canonical, alias, 1e-9)
+}

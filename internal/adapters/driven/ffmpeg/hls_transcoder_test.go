@@ -575,8 +575,9 @@ func TestBuildFFmpegArgs_Transcode_ColdStartBurst(t *testing.T) {
 	for _, codec := range []string{"av1", "h264", "hevc"} {
 		j := strings.Join(ffmpeg.BuildFFmpegArgs(withVideoCodec(base, codec)), " ")
 		assert.Contains(t, j, "-readrate 1.5", codec)
-		assert.Contains(t, j, "-readrate_initial_burst 15",
-			"%s transcode needs the cold-start burst: the input pace, not the encoder, is what makes segment 0 late", codec)
+		assert.Contains(t, j, "-readrate_initial_burst 60",
+			"%s transcode needs the cold-start burst: the input pace, not the encoder, is what makes segment 0 late, "+
+				"and the banked lead is what lets a session ride out a spike instead of starving", codec)
 		// Input option: ffmpeg ignores it after -i.
 		assert.Less(t, strings.Index(j, "-readrate_initial_burst"), strings.Index(j, "-i "),
 			"%s: -readrate_initial_burst must precede -i", codec)

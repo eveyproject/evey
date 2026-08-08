@@ -1,6 +1,7 @@
 package ffmpeg
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -63,14 +64,14 @@ func TestResolveBenchSample_Cascade(t *testing.T) {
 
 	// 1. operator override present → used verbatim.
 	override := mustWrite(filepath.Join(dir, "override.hevc"))
-	got, fb := r.resolveBenchSample("T", benchSampleSource{overridePath: override}, filepath.Join(dir, "d1.hevc"), noGen)
+	got, fb := r.resolveBenchSample(context.Background(), "T", benchSampleSource{overridePath: override}, filepath.Join(dir, "d1.hevc"), noGen)
 	if got != override || fb {
 		t.Fatalf("override step: got %q fallback=%v", got, fb)
 	}
 
 	// 2. override missing, default cached on disk → returns the cache.
 	cached := mustWrite(filepath.Join(dir, "d2.hevc"))
-	got, fb = r.resolveBenchSample("T", benchSampleSource{overridePath: filepath.Join(dir, "nope")}, cached, noGen)
+	got, fb = r.resolveBenchSample(context.Background(), "T", benchSampleSource{overridePath: filepath.Join(dir, "nope")}, cached, noGen)
 	if got != cached || fb {
 		t.Fatalf("cached step: got %q fallback=%v", got, fb)
 	}
@@ -81,20 +82,20 @@ func TestResolveBenchSample_Cascade(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write(payload) }))
 	defer srv.Close()
 	dlDst := filepath.Join(dir, "d3.hevc")
-	got, fb = r.resolveBenchSample("T", benchSampleSource{url: srv.URL, sha256: hex.EncodeToString(sum[:])}, dlDst, noGen)
+	got, fb = r.resolveBenchSample(context.Background(), "T", benchSampleSource{url: srv.URL, sha256: hex.EncodeToString(sum[:])}, dlDst, noGen)
 	if got != dlDst || fb {
 		t.Fatalf("download step: got %q fallback=%v", got, fb)
 	}
 
 	// 4. no override/cache/url → synthetic generate.
 	genDst := filepath.Join(dir, "d4.hevc")
-	got, fb = r.resolveBenchSample("T", benchSampleSource{}, genDst, func(dst string) error { return os.WriteFile(dst, []byte("g"), 0o644) })
+	got, fb = r.resolveBenchSample(context.Background(), "T", benchSampleSource{}, genDst, func(dst string) error { return os.WriteFile(dst, []byte("g"), 0o644) })
 	if got != genDst || fb {
 		t.Fatalf("generate step: got %q fallback=%v", got, fb)
 	}
 
 	// 5. generate fails → lavfi fallback (path empty, fallback true).
-	got, fb = r.resolveBenchSample("T", benchSampleSource{}, filepath.Join(dir, "d5.hevc"), func(string) error { return errors.New("boom") })
+	got, fb = r.resolveBenchSample(context.Background(), "T", benchSampleSource{}, filepath.Join(dir, "d5.hevc"), func(string) error { return errors.New("boom") })
 	if got != "" || !fb {
 		t.Fatalf("fallback step: got %q fallback=%v", got, fb)
 	}
