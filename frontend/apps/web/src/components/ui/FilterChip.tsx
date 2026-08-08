@@ -19,6 +19,11 @@ export function FilterChip({ active, onClick, children, size = "sm", icon, class
     <button
       type="button"
       onClick={onClick}
+      // Selection is otherwise carried by background and border alone, so a
+      // screen reader announced every chip identically ("button, Movies")
+      // whether or not it was the active filter - and so did a low-vision
+      // reader who cannot separate the two backgrounds.
+      aria-pressed={active}
       data-testid={testId}
       className={`rounded-full font-medium transition-colors-fast cursor-pointer ${sizeClasses} ${icon ? "flex items-center gap-1.5" : ""} ${className}`}
       style={{

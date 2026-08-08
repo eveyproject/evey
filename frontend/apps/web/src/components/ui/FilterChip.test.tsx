@@ -60,3 +60,20 @@ describe("FilterChip", () => {
     expect(screen.getByRole("button").className).toContain("extra");
   });
 });
+
+// Selection is otherwise carried by background and border alone: a screen
+// reader announced every chip identically whether or not it was the active
+// filter, and so did anyone who cannot separate the two backgrounds. The chip
+// is shared by the Library filters and the Search scope, so both screens were
+// affected.
+describe("FilterChip - the selected state is announced, not only painted", () => {
+  it("marks the active chip as pressed", () => {
+    render(<FilterChip active onClick={() => {}}>Movies</FilterChip>);
+    expect(screen.getByRole("button", { name: "Movies" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("marks an inactive chip as not pressed - absent would read as 'not a toggle'", () => {
+    render(<FilterChip active={false} onClick={() => {}}>Series</FilterChip>);
+    expect(screen.getByRole("button", { name: "Series" })).toHaveAttribute("aria-pressed", "false");
+  });
+});

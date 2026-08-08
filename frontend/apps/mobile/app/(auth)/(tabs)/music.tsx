@@ -876,7 +876,15 @@ export default function MusicScreen() {
                   </Text>
                   <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>{item.artist}</Text>
                 </View>
-                <Pressable onPress={() => removeFromQueue(index)} hitSlop={8}>
+                <Pressable
+                  onPress={() => removeFromQueue(index)}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  // Icon-only, and nested inside a row whose own label is the
+                  // track title - without this, TalkBack announced just
+                  // "button" and gave no way to tell it from any other action.
+                  accessibilityLabel={t("media.music.removeFromQueue", "Remove from queue")}
+                >
                   <Ionicons name="close" size={16} color={theme.colors.textMuted} />
                 </Pressable>
               </Pressable>
