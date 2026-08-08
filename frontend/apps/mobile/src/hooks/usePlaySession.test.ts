@@ -47,15 +47,30 @@ describe("buildStreamUrl", () => {
     expect(url).toBe("http://srv/api/v1/media/m1/stream?token=tok");
   });
 
-  it("returns remux URL for PLAY_METHOD_DIRECT_STREAM with codec params", async () => {
+  // /transcode?remux=1 is a piped ffmpeg stdout: chunked, no Content-Length,
+  // `Accept-Ranges: none`. A native player marks that source UNSEEKABLE, which
+  // takes down every seek at once - resume-at-position (the episode restarts at
+  // 0:00), dragging the timeline, and the double-tap skip. The HLS copy rung
+  // serves the same copied bytes over a complete VOD manifest.
+  it("routes PLAY_METHOD_DIRECT_STREAM through the seekable HLS master, never the unseekable remux pipe", async () => {
     const { buildStreamUrl } = await import("./usePlaySession");
     const url = buildStreamUrl("http://srv", "m1", { playMethod: "PLAY_METHOD_DIRECT_STREAM" }, "tok");
-    expect(url).toMatch(/^http:\/\/srv\/api\/v1\/media\/m1\/transcode\?/);
+    expect(url).toMatch(/^http:\/\/srv\/api\/v1\/media\/m1\/hls\/master\.m3u8\?/);
+    expect(url).not.toContain("remux=1");
     expect(url).toContain("token=tok");
-    expect(url).toContain("remux=1");
     expect(url).toContain("videoCodecs=");
     expect(url).toContain("audioCodecs=");
     expect(url).toContain("containers=");
+  });
+
+  // A direct_stream that carries a hand-picked audio/subtitle track must reach
+  // the manifest with those params, exactly like a transcode - the remux branch
+  // used to build its own URL shape and this went untested.
+  it("carries the picked audio and subtitle tracks on a DIRECT_STREAM manifest", async () => {
+    const { buildStreamUrl } = await import("./usePlaySession");
+    const url = buildStreamUrl("http://srv", "m1", { playMethod: "PLAY_METHOD_DIRECT_STREAM" }, "tok", 1, 0);
+    expect(url).toContain("audioTrack=1");
+    expect(url).toContain("subtitleTrack=0");
   });
 
   it("returns HLS URL for PLAY_METHOD_TRANSCODE with codec params", async () => {
@@ -308,7 +323,7 @@ describe("usePlaySession: shed preflight scope", () => {
     global.fetch = realFetch;
   });
 
-  it("never probes the DIRECT_STREAM /transcode URL (one ffmpeg per GET)", async () => {
+  it("never sends a DIRECT_STREAM playback to the one-ffmpeg-per-GET /transcode endpoint", async () => {
     const { renderHook, waitFor } = await import("@testing-library/react");
     const { usePlaySession } = await import("./usePlaySession");
 
@@ -317,12 +332,18 @@ describe("usePlaySession: shed preflight scope", () => {
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce({ token: "t1", mediaId: "m1" });
     startStreamMock.mockResolvedValue({ id: "sess1" });
+    fetchMock.mockResolvedValue({ status: 200, headers: { get: () => null } });
 
     const { result } = renderHook(() => usePlaySession("m1"));
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-    expect(fetchMock).not.toHaveBeenCalled();
-    expect(result.current.streamUrl).toContain("/transcode?");
+    expect(result.current.streamUrl).toContain("/hls/master.m3u8?");
+    expect(result.current.streamUrl).not.toContain("/transcode?");
+    // Now that direct_stream rides the master, it earns the shed preflight too -
+    // and the probe still only ever touches the spawn-free manifest.
+    for (const [url] of fetchMock.mock.calls) {
+      expect(String(url)).toContain("/hls/master.m3u8");
+    }
   });
 
   it("probes the HLS master with an abortable request (status wanted, never a body)", async () => {

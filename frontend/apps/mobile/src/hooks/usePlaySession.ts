@@ -59,13 +59,14 @@ type ShedReason = "too_many_streams" | "file_not_ready" | null;
 // and safe - repeated HLS manifest requests are idempotent, the same as a
 // manifest reload on seek, so this doesn't consume a second capacity slot.
 //
-// ONLY the HLS master is probeable. The DIRECT_STREAM /transcode endpoint
-// spawns one ffmpeg PER GET and streams its stdout: probing it started a
-// phantom remux of the whole film that nothing ever read (the fetch body was
-// never consumed, so the socket - and ffmpeg - lived on), while its refusal
-// is a 429 this 503 contract never matched anyway. The abort is part of the
-// same guarantee: the probe wants a status line, never a body, and closing
-// the connection is what tells the server the probe is done.
+// ONLY the HLS master is probeable, and the guard stays even though the player
+// no longer builds a /transcode URL (see buildStreamUrl): that endpoint spawns
+// one ffmpeg PER GET and streams its stdout, so probing it started a phantom
+// remux of the whole film that nothing ever read (the fetch body was never
+// consumed, so the socket - and ffmpeg - lived on), while its refusal is a 429
+// this 503 contract never matched anyway. The abort is part of the same
+// guarantee: the probe wants a status line, never a body, and closing the
+// connection is what tells the server the probe is done.
 async function detectShed(url: string): Promise<ShedReason> {
   if (!url.includes("master.m3u8")) return null;
   const ctrl = new AbortController();
@@ -167,13 +168,18 @@ export function buildStreamUrl(
   if (streamInfo.playMethod === "PLAY_METHOD_DIRECT_PLAY") {
     return `${serverUrl}/api/v1/media/${encodeURIComponent(mediaId)}/stream?token=${token}`;
   }
-  if (streamInfo.playMethod === "PLAY_METHOD_DIRECT_STREAM") {
-    const p = new URLSearchParams({ token, remux: "1" });
-    appendCodecParams(p);
-    if (audioTrack != null && audioTrack >= 0) p.set("audioTrack", String(audioTrack));
-    if (subtitleTrack != null && subtitleTrack >= 0) p.set("subtitleTrack", String(subtitleTrack));
-    return `${serverUrl}/api/v1/media/${encodeURIComponent(mediaId)}/transcode?${p.toString()}`;
-  }
+  // DIRECT_STREAM (container-only mismatch, both streams copy-eligible) falls
+  // through to the HLS master on purpose - it is NOT a separate URL shape.
+  // /transcode?remux=1 pipes one ffmpeg's stdout per GET: chunked, no
+  // Content-Length, `Accept-Ranges: none` (transcode_handler.go). ExoPlayer/
+  // AVPlayer therefore mark that source UNSEEKABLE, and everything that is a
+  // seek underneath dies with it - resume-at-position (starts at 0:00 instead),
+  // dragging the timeline, and the double-tap skip. The HLS copy rung serves the
+  // same copied bytes as fMP4 segments over a complete VOD manifest, so the
+  // whole timeline is addressable. This is what the server itself answers for
+  // direct_stream (playback_handler.go returns TranscodeUrl = the HLS master)
+  // and what the web player does (HLSPlayer's transcodeMode covers every
+  // non-direct-play method).
   const params = new URLSearchParams({ token });
   appendCodecParams(params);
   if (audioTrack != null && audioTrack >= 0) params.set("audioTrack", String(audioTrack));

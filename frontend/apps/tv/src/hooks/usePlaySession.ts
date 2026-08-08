@@ -108,11 +108,11 @@ export function buildStreamUrl(
   if (streamInfo.playMethod === "PLAY_METHOD_DIRECT_PLAY") {
     return `${serverUrl}/api/v1/media/${mediaId}/stream?token=${token}`;
   }
-  if (streamInfo.playMethod === "PLAY_METHOD_DIRECT_STREAM") {
-    const p = new URLSearchParams({ token, remux: "1" });
-    appendCodecParams(p);
-    return `${serverUrl}/api/v1/media/${mediaId}/transcode?${p.toString()}`;
-  }
+  // DIRECT_STREAM (container-only mismatch, both streams copy-eligible) falls
+  // through to the HLS master on purpose - see the mobile twin
+  // (apps/mobile/src/hooks/usePlaySession.ts) for the full reasoning:
+  // /transcode?remux=1 is a piped ffmpeg stdout with `Accept-Ranges: none`, so
+  // the native player marks it unseekable and resume / timeline / skip all die.
   const params = new URLSearchParams({ token });
   appendCodecParams(params);
   // Server publishes a complete VOD manifest from t=0 (no live-edge snap), so
