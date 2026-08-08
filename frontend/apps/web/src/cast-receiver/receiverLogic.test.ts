@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { absoluteWithToken, appendMaxKbps, bufferedStats, planBackBufferTrim, planFloorRescue, bitrateTestUrl, buildPlayerEventUrl, createStarvationWatch, createStartGate, createStartWatch, floorMasterUrl, probeMaxAudioChannels, probeReceiverCaps, rewriteCastMasterUrl, shouldMeasure, stereoFallbackUrl, stripWasmAudio, type CanDisplayType } from "./receiverLogic";
+import { absoluteWithToken, appendMaxKbps, bufferedStats, planBackBufferTrim, planFloorRescue, bitrateTestUrl, buildPlayerEventUrl, createStarvationWatch, createStartGate, createStartWatch, describePlayerError, floorMasterUrl, probeMaxAudioChannels, probeReceiverCaps, rewriteCastMasterUrl, shouldMeasure, stereoFallbackUrl, stripWasmAudio, type CanDisplayType } from "./receiverLogic";
 
 // Fake canDisplayType: allows what `yes` lists (substring match on the
 // codec string), refuses the rest. 4K resolution is only granted if
@@ -533,5 +533,42 @@ describe("planFloorRescue - the floor is retried in place before giving up", () 
 
   it("a URL we do not understand yields no plan", () => {
     expect(planFloorRescue("not a url", 0, 1)).toBeNull();
+  });
+});
+
+describe("describePlayerError - an error object must never print as [object Object]", () => {
+  it("renders a CAF ErrorData instead of the useless String() cast", () => {
+    const out = describePlayerError({ type: "ERROR", detailedErrorCode: 905, reason: "LOAD_FAILED" });
+    expect(out).toBe("type=ERROR code=905 reason=LOAD_FAILED");
+    expect(out).not.toContain("[object Object]");
+  });
+
+  it("keeps the shaka triple that names which parser read past its buffer", () => {
+    const out = describePlayerError({
+      shakaErrorCode: 3000,
+      shakaErrorCategory: 3,
+      shakaErrorSeverity: 2,
+      shakaErrorData: ["seg.m4s"],
+    });
+    expect(out).toBe('shaka=3000 cat=3 sev=2 data=["seg.m4s"]');
+  });
+
+  it("strips the googleapis prefix every shaka frame repeats", () => {
+    const stack = [
+      "Error: Shaka Error 3000",
+      "    at new T (https://ajax.googleapis.com/ajax/libs/shaka-player/4.3.4/shaka-player.compiled.js:1:2345)",
+      "    at ab (https://ajax.googleapis.com/ajax/libs/shaka-player/4.3.4/shaka-player.compiled.js:9:87)",
+    ].join("\n");
+    const out = describePlayerError({ shakaErrorCode: 3000, shakaErrorStack: stack });
+    expect(out).toBe("shaka=3000 at T@1:2345,ab@9:87");
+    expect(out).not.toContain("googleapis");
+    // The server clamps details at 200 chars: the frames must survive that cut.
+    expect(out.length).toBeLessThan(200);
+  });
+
+  it("falls back to the raw object rather than losing it, and never throws", () => {
+    expect(describePlayerError({ weird: 1 })).toBe('{"weird":1}');
+    expect(describePlayerError(undefined)).toBe("?");
+    expect(describePlayerError("plain string")).toBe("plain string");
   });
 });

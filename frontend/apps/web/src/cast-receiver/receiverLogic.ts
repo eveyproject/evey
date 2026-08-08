@@ -490,3 +490,64 @@ export function createStarvationWatch(fireScore = 4): StarvationWatch {
     },
   };
 }
+
+// describePlayerError renders whatever CAF or Shaka hands us into ONE short
+// line. Both reject and raise with OBJECTS, so the String(err) this replaced
+// printed "[object Object]" - on the TV and in the beacon alike. That is what
+// a Chromecast HD said for three straight failed casts on 2026-08-08
+// ("repli stereo impossible: [object Object]"), the only trace of a load that
+// never started once.
+//
+// The server clamps details at 200 chars, so the budget is spent on the
+// fields that name the failure and NOT on the stack header or the
+// googleapis URL each frame repeats - see shakaStackFrames.
+export function describePlayerError(err: unknown): string {
+  if (err === null || err === undefined) return "?";
+  if (typeof err !== "object") return String(err);
+  const e = err as Record<string, unknown>;
+  const parts: string[] = [];
+  const push = (key: string, value: unknown): void => {
+    if (value === undefined || value === null || value === "") return;
+    parts.push(`${key}=${typeof value === "object" ? JSON.stringify(value) : String(value)}`);
+  };
+  push("type", e.type);
+  push("code", e.detailedErrorCode ?? e.code);
+  push("reason", e.reason);
+  // Shaka's own triple: the code alone is ambiguous (3000 spans every parser),
+  // the category says which subsystem read past its buffer and data carries
+  // the offending URI when there is one.
+  push("shaka", e.shakaErrorCode);
+  push("cat", e.shakaErrorCategory);
+  push("sev", e.shakaErrorSeverity);
+  push("data", e.shakaErrorData);
+  if (typeof e.message === "string") push("msg", e.message);
+  const frames = shakaStackFrames(e.shakaErrorStack ?? e.stack);
+  if (frames) parts.push(`at ${frames}`);
+  if (parts.length === 0) {
+    try {
+      return JSON.stringify(err);
+    } catch {
+      return "[unserialisable]";
+    }
+  }
+  return parts.join(" ");
+}
+
+// shakaStackFrames keeps `name@line:col` for the first few frames. A raw
+// Shaka stack is ~90% "https://ajax.googleapis.com/ajax/libs/shaka-player/
+// x.y.z/shaka-player.compiled.js" repeated per frame; in a 200-char beacon
+// that prefix alone buries the frame that actually threw.
+function shakaStackFrames(stack: unknown, max = 5): string {
+  if (typeof stack !== "string") return "";
+  const out: string[] = [];
+  for (const raw of stack.split("\n")) {
+    const line = raw.trim();
+    if (!line.startsWith("at ")) continue;
+    const at = /(\d+:\d+)\)?$/.exec(line);
+    if (!at) continue;
+    const named = /^at\s+(?:new\s+)?([^\s(]+)\s*\(/.exec(line);
+    out.push(named ? `${named[1]}@${at[1]}` : at[1]);
+    if (out.length >= max) break;
+  }
+  return out.join(",");
+}

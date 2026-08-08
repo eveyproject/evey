@@ -10,7 +10,7 @@
 //      silently, which is what made cast incidents undiagnosable.
 import { WasmAudioEngine } from "@/features/playback/wasmaudio/WasmAudioEngine";
 import { extractAacAudioURI, extractAudioURI } from "@/features/playback/wasmaudio/wasmAudioShared";
-import { absoluteWithToken, appendMaxKbps, bitrateTestUrl, buildPlayerEventUrl, bufferedStats, createStartGate, createStartWatch, createStarvationWatch, planBackBufferTrim, planFloorRescue, probeMaxAudioChannels, probeReceiverCaps, rewriteCastMasterUrl, shouldMeasure, stereoFallbackUrl, stripWasmAudio } from "./receiverLogic";
+import { absoluteWithToken, appendMaxKbps, bitrateTestUrl, buildPlayerEventUrl, bufferedStats, createStartGate, createStartWatch, createStarvationWatch, describePlayerError, planBackBufferTrim, planFloorRescue, probeMaxAudioChannels, probeReceiverCaps, rewriteCastMasterUrl, shouldMeasure, stereoFallbackUrl, stripWasmAudio } from "./receiverLogic";
 import { createAliveHeartbeat, postPlayerEvent, postPlayerEventQuery, readHeapMB } from "./receiverBeacon";
 import { buildCastNextUrl, buildNextMasterUrl, parseCastNextResponse, shouldFetchNext, upNextLabel, type CastNextInfo } from "./castNext";
 import { buildSegmentsUrl, introSkippedLabel, parseSegments, planIntroSkip, type SkippableSegment } from "./introSkip";
@@ -29,6 +29,17 @@ function showDebug(text: string): void {
   if (!dbg) return;
   dbg.textContent = text;
   dbg.style.display = text ? "block" : "none";
+}
+
+// appendDebug adds a line instead of replacing the panel. A fallback that
+// overwrote the message left only its own outcome on screen: on 2026-08-08 the
+// TV showed "repli stereo impossible" and the ERROR code that caused the
+// fallback in the first place was gone - the one thing a photo of the TV had
+// to carry.
+function appendDebug(text: string): void {
+  if (!dbg || !text) return;
+  const current = dbg.textContent ?? "";
+  showDebug(current ? `${current}\n${text}` : text);
 }
 
 // TV-side wasm audio kill-switch. OFF 2026-07-28 while the deployed decoder
@@ -459,7 +470,7 @@ async function autoAdvance(): Promise<void> {
     request.media.metadata = new cast.framework.messages.GenericMediaMetadata();
     request.media.metadata.title = info.title || label.title;
     request.autoplay = true;
-    playerManager.load(request).catch((e: unknown) => showDebug(`épisode suivant impossible: ${String(e)}`));
+    playerManager.load(request).catch((e: unknown) => reportFallbackFailure("episode suivant", e));
   }, 1_000);
 }
 
@@ -600,7 +611,7 @@ function fallbackToMuxedAudio(reason: string): void {
   wasmDisabled = true;
   startGate.cancel(); // the AAC reload below carries its own autoplay
   destroyEngine();
-  showDebug(`wasm audio indisponible (${reason}) - repli AAC`);
+  appendDebug(`wasm audio indisponible (${reason}) - repli AAC`);
   reportEvent("cast_receiver_wasm_fallback", reason);
   const url = stripWasmAudio(currentUrl);
   const request = new cast.framework.messages.LoadRequestData();
@@ -612,7 +623,17 @@ function fallbackToMuxedAudio(reason: string): void {
   request.media.hlsVideoSegmentFormat = cast.framework.messages.HlsVideoSegmentFormat.FMP4;
   request.currentTime = playerManager.getCurrentTimeSec() || 0;
   request.autoplay = true;
-  playerManager.load(request).catch((e: unknown) => showDebug(`repli AAC impossible: ${String(e)}`));
+  playerManager.load(request).catch((e: unknown) => reportFallbackFailure("aac", e));
+}
+
+// reportFallbackFailure is the end of a rescue path: the reload we bet on was
+// itself refused. Screen AND beacon, because a fallback that dies silently
+// reads exactly like one that was never tried - the 2026-08-08 cast left no
+// server-side trace of its failed stereo reload at all.
+function reportFallbackFailure(kind: string, err: unknown): void {
+  const detail = describePlayerError(err);
+  appendDebug(`repli ${kind} impossible: ${detail}`);
+  reportEvent("cast_receiver_fallback_failed", `kind=${kind} ${detail}`, true);
 }
 
 // Fallback for a device that ANSWERED 5.1 and then refused the stream: reload
@@ -626,7 +647,7 @@ function fallbackToStereoAudio(reason: string): void {
   if (!url) return;
   stereoForced = true;
   currentUrl = url;
-  showDebug(`audio 5.1 refuse (${reason}) - repli stereo`);
+  appendDebug(`audio 5.1 refuse (${reason}) - repli stereo`);
   reportEvent("cast_receiver_stereo_fallback", reason);
   const request = new cast.framework.messages.LoadRequestData();
   request.media = new cast.framework.messages.MediaInformation();
@@ -637,7 +658,7 @@ function fallbackToStereoAudio(reason: string): void {
   request.media.hlsVideoSegmentFormat = cast.framework.messages.HlsVideoSegmentFormat.FMP4;
   request.currentTime = playerManager.getCurrentTimeSec() || 0;
   request.autoplay = true;
-  playerManager.load(request).catch((e: unknown) => showDebug(`repli stereo impossible: ${String(e)}`));
+  playerManager.load(request).catch((e: unknown) => reportFallbackFailure("stereo", e));
 }
 
 // CAF's <video> element only exists once the first LOAD is being processed:
@@ -882,7 +903,7 @@ playerManager.addEventListener(cast.framework.events.EventType.ERROR, (event: an
   const code = event?.detailedErrorCode ?? "?";
   let extra = "";
   try {
-    extra = JSON.stringify(event?.error ?? event?.reason ?? {}).slice(0, 140);
+    extra = describePlayerError(event?.error ?? event?.reason);
   } catch { /* the screen stays the channel: never throw here */ }
   const mode = wasmRequested ? "wasm" : "aac";
   const host = (() => { try { return new URL(currentUrl).host; } catch { return "?"; } })();
