@@ -395,6 +395,8 @@ function ActivityPage() {
           <button
             key={id}
             onClick={() => setTab(id)}
+            // Stable hook for the e2e spec - see photos-view-all.
+            data-testid={`activity-tab-${id}`}
             className="px-4 py-1.5 text-sm rounded-[var(--radius-sm)] font-medium transition-colors-fast"
             style={{
               backgroundColor: tab === id ? "var(--accent)" : "transparent",

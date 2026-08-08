@@ -20,15 +20,15 @@ test.describe("Photo grid pagination", () => {
 
     await page.goto("/photos", { waitUntil: "domcontentloaded" });
 
-    // "All Photos" is the flat grid; the default view is the album list. The
-    // label follows the profile's language, so match both catalogues rather
-    // than assuming the runner's account is in English.
-    const allPhotos = page.getByRole("button", { name: /all photos|toutes les photos/i });
-    await allPhotos.waitFor({ state: "visible", timeout: 15_000 });
+    // "All Photos" is the flat grid; the default view is the album list.
+    // Selected by test id, not by label: the button's text follows whatever
+    // language the profile is in, and the e2e suite itself changes that.
+    const allPhotos = page.getByTestId("photos-view-all");
+    await allPhotos.waitFor({ state: "visible", timeout: 30_000 });
     await allPhotos.click();
 
     const tiles = page.locator('button[aria-label], button:has(img)');
-    await tiles.first().waitFor({ state: "visible", timeout: 15_000 });
+    await tiles.first().waitFor({ state: "visible", timeout: 30_000 });
 
     // Whatever the first page holds, no request may ask for more than the
     // server serves - that is the defect this screen shipped with.

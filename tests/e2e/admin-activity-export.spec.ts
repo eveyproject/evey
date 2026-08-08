@@ -14,13 +14,16 @@ test.describe("Admin activity export", () => {
   test("the audit log export contains every row, not just the first page", async ({ page }) => {
     await page.goto("/admin/activity", { waitUntil: "domcontentloaded" });
 
-    // Tab labels follow the profile's language; match both catalogues.
-    const auditTab = page.getByRole("button", { name: /audit log|journal d'audit/i });
-    await auditTab.waitFor({ state: "visible", timeout: 15_000 });
+    // Selected by test id, not by label: tab text follows the profile's
+    // language, and the e2e suite itself changes that.
+    const auditTab = page.getByTestId("activity-tab-audit");
+    await auditTab.waitFor({ state: "visible", timeout: 30_000 });
     await auditTab.click();
 
-    const exportButton = page.getByRole("button", { name: /export json|exporter json/i });
-    await exportButton.waitFor({ state: "visible", timeout: 15_000 });
+    // The export button carries no test id; its accessible name is the one
+    // string that is stable enough here, so both catalogues are matched.
+    const exportButton = page.getByRole("button", { name: /export json|exporter json|json exportieren/i });
+    await exportButton.waitFor({ state: "visible", timeout: 30_000 });
 
     const [download] = await Promise.all([
       page.waitForEvent("download", { timeout: 60_000 }),

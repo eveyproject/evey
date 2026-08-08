@@ -652,6 +652,9 @@ function PhotosPage() {
             </button>
             <button
               onClick={() => setView("photos")}
+              // Stable hook for the e2e spec: matching the label would tie the
+              // test to whichever language the profile happens to be in.
+              data-testid="photos-view-all"
               className={`px-3 py-1.5 text-sm transition-colors-fast ${view === "photos" ? "bg-[var(--accent)] text-[var(--filter-active-text)]" : "bg-[var(--surface-raised)] text-[var(--text-secondary)] hover:bg-[var(--surface)]"}`}
             >
               {t("media.photos.allPhotos")}
