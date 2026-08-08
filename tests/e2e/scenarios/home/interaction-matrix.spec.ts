@@ -63,6 +63,14 @@ for (const path of PAGES) {
     await page.waitForTimeout(1_500);
     const sel = page.locator("select:visible").first();
     if (await sel.isVisible({ timeout: 1_000 }).catch(() => false)) {
+      // Whatever this select turns out to be, picking an option can SAVE it.
+      // On /profile/settings the first select is the interface language, and
+      // index 1 is German: this test used to leave the developer's own profile
+      // in German for the rest of the campaign, which then made a large share
+      // of the suite fail on English and French text matchers and read as a
+      // regression. The test only ever wanted "interacting with a select does
+      // not crash the page", so it restores what it found.
+      const before = await sel.inputValue();
       const { jsErrors } = await collectErrors(page, async () => {
         const options = await sel.locator("option").count();
         if (options > 1) {
@@ -70,6 +78,11 @@ for (const path of PAGES) {
           await page.waitForTimeout(500);
         }
       });
+      const after = await sel.inputValue().catch(() => before);
+      if (after !== before) {
+        await sel.selectOption(before).catch(() => {});
+        await page.waitForTimeout(500);
+      }
       expect(jsErrors).toHaveLength(0);
     }
   });
