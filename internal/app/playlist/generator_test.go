@@ -3,6 +3,7 @@ package playlist
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/evey-project/evey/internal/domain/music"
@@ -255,3 +256,72 @@ func TestGenerate_AlreadyInPlaylists_BatchErrorDegradesGracefully(t *testing.T) 
 
 // Genre affinity is now computed in SQL (MusicPlayRepository.GenreAffinityForProfile);
 // see the postgres test TestMusicPlayRepo_GenreAffinityForProfile.
+
+// The requested size is clamped at both ends before anything is sampled. Those
+// two bounds are what stops a caller from generating an unbounded playlist on a
+// weak NAS, and they had no test: a first mutation pass on this package
+// (2026-08-08) left both boundary mutants alive.
+//
+// The other survivors in this file sit in the scoring loop, which multiplies by
+// rand.Float64() - they are only pinnable statistically, and not worth it.
+func TestGenerate_ClampsTheRequestedSize(t *testing.T) {
+	poolOf := func(n int) []music.Track {
+		var pool []music.Track
+		for i := range n {
+			pool = append(pool, track(fmt.Sprintf("t%d", i), "pop"))
+		}
+		return pool
+	}
+
+	t.Run("a non-positive size falls back to the default, it does not generate nothing", func(t *testing.T) {
+		tracks := &genFakeTracks{tracks: poolOf(defaultGenSize + 10)}
+		items := &genFakeItems{byPlist: map[string][]*playlist.PlaylistItem{}}
+		g := newGen(tracks, &genFakePlays{}, &genFakePlaylists{}, items)
+
+		if _, err := g.Generate(context.Background(), "p1", "lib1", 0, "Mix"); err != nil {
+			t.Fatalf("Generate: %v", err)
+		}
+		if len(items.added) != defaultGenSize {
+			t.Errorf("size 0 produced %d items, want the default %d", len(items.added), defaultGenSize)
+		}
+	})
+
+	t.Run("a negative size is treated the same way", func(t *testing.T) {
+		tracks := &genFakeTracks{tracks: poolOf(defaultGenSize + 10)}
+		items := &genFakeItems{byPlist: map[string][]*playlist.PlaylistItem{}}
+		g := newGen(tracks, &genFakePlays{}, &genFakePlaylists{}, items)
+
+		if _, err := g.Generate(context.Background(), "p1", "lib1", -5, "Mix"); err != nil {
+			t.Fatalf("Generate: %v", err)
+		}
+		if len(items.added) != defaultGenSize {
+			t.Errorf("size -5 produced %d items, want the default %d", len(items.added), defaultGenSize)
+		}
+	})
+
+	t.Run("an oversized request is capped, not honoured", func(t *testing.T) {
+		tracks := &genFakeTracks{tracks: poolOf(maxGenSize + 50)}
+		items := &genFakeItems{byPlist: map[string][]*playlist.PlaylistItem{}}
+		g := newGen(tracks, &genFakePlays{}, &genFakePlaylists{}, items)
+
+		if _, err := g.Generate(context.Background(), "p1", "lib1", maxGenSize+50, "Mix"); err != nil {
+			t.Fatalf("Generate: %v", err)
+		}
+		if len(items.added) != maxGenSize {
+			t.Errorf("an oversized request produced %d items, want the cap %d", len(items.added), maxGenSize)
+		}
+	})
+
+	t.Run("exactly the cap is allowed through", func(t *testing.T) {
+		tracks := &genFakeTracks{tracks: poolOf(maxGenSize + 10)}
+		items := &genFakeItems{byPlist: map[string][]*playlist.PlaylistItem{}}
+		g := newGen(tracks, &genFakePlays{}, &genFakePlaylists{}, items)
+
+		if _, err := g.Generate(context.Background(), "p1", "lib1", maxGenSize, "Mix"); err != nil {
+			t.Fatalf("Generate: %v", err)
+		}
+		if len(items.added) != maxGenSize {
+			t.Errorf("a request of exactly the cap produced %d items, want %d", len(items.added), maxGenSize)
+		}
+	})
+}
