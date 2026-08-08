@@ -612,3 +612,33 @@ func TestVideoSessionLimiter_AutoCountCap_NoCostModel_Zero(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, 0, NewVideoSessionLimiter(0).AutoCountCap())
 }
+
+// Seen live on prod 2026-08-08: the budget allowed five 1080p H.264 sessions
+// while the counter, sized on the 4K HEVC bench source, stopped at one - the
+// belt silently undid the whole point of pricing by source. The belt must be
+// sized on the cheapest stream that can exist, because the budget is the gate.
+func TestVideoSessionLimiter_AutoCountCap_BeltSizedOnTheCheapestSourceNotTheBench(t *testing.T) {
+	t.Parallel()
+	l := prodLimiter()
+
+	// Source-agnostic (bench source) cost at the only rung is ~0.567 -> 1.
+	// The cheapest measured source prices it at ~0.117 -> 8.
+	assert.Equal(t, 8, l.AutoCountCapFor(PoolCPU),
+		"the counter must not refuse what the budget admits")
+
+	// And it really lets eight through end to end.
+	cheap := transcoding.SourceClass{Codec: "h264", Height: 1080}
+	l.SetLimit(l.AutoCountCap())
+	for i := range 8 {
+		assert.True(t, l.TryAcquireFor(fmt.Sprintf("v-%d", i), LadderClassSoftware, 480, cheap), "viewer %d", i)
+	}
+}
+
+// Without decode evidence the belt is unchanged - the source-agnostic rung cost
+// is all there is, and a host that never re-benched must not shift.
+func TestVideoSessionLimiter_AutoCountCap_NoDecodeEvidence_Unchanged(t *testing.T) {
+	t.Parallel()
+	l := NewVideoSessionLimiter(0).WithCostModel(NewVideoCostModel(devBoxSamples()))
+	assert.Equal(t, 2, l.AutoCountCapFor(PoolCPU))
+	assert.Equal(t, 4, l.AutoCountCapFor(PoolGPU))
+}

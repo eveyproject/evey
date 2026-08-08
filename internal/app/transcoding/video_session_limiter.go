@@ -377,6 +377,14 @@ func (l *VideoSessionLimiter) AutoCountCapFor(pool ResourcePool) int {
 }
 
 // autoCountCapFor is AutoCountCapFor with l.mu already held.
+//
+// The cheapest stream is taken across rungs AND source classes, not just rungs.
+// This is a BELT, not the gate: the per-pool budget already prices every stream
+// for what it actually decodes, so sizing the counter on the dearest source
+// would refuse streams the budget has room for. Seen live on 2026-08-08: the
+// budget allowed five 1080p H.264 sessions while the counter, built on the 4K
+// HEVC bench source, stopped at one - the counter silently undid the whole
+// point of pricing by source.
 func (l *VideoSessionLimiter) autoCountCapFor(pool ResourcePool) int {
 	if l.costModel == nil {
 		return 0
@@ -388,11 +396,27 @@ func (l *VideoSessionLimiter) autoCountCapFor(pool ResourcePool) int {
 			return 0
 		}
 	}
-	_, cost, ok := l.costModel.CheapestRung(class)
-	if !ok || cost <= 0 {
+	cheapest := 0.0
+	for _, r := range l.costModel.RungsFor(class) {
+		for _, c := range append([]float64{r.Cost}, sourceFitCosts(r.BySource)...) {
+			if c > 0 && (cheapest == 0 || c < cheapest) {
+				cheapest = c
+			}
+		}
+	}
+	if cheapest <= 0 {
 		return 0
 	}
-	return int(l.budgetFor(pool) / cost)
+	return int(l.budgetFor(pool) / cheapest)
+}
+
+// sourceFitCosts projects the per-source costs of one rung.
+func sourceFitCosts(fits []SourceFit) []float64 {
+	out := make([]float64, 0, len(fits))
+	for _, f := range fits {
+		out = append(out, f.Cost)
+	}
+	return out
 }
 
 // AutoCountCap is the count cap this host's own calibration derives: the sum
