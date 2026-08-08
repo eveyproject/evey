@@ -44,6 +44,33 @@ func observeCastFetch(r *http.Request, obs CastFetchObserver, endMs int64) {
 
 var onDemandSegNameRE = regexp.MustCompile(`^seg(\d+)\.m4s$`)
 
+// planResourceLogHeadSegments is how many segments from the start of a plan get
+// a log line. A load that dies, dies here: on 2026-08-08 a Chromecast HD raised
+// its Shaka error ~5s in, i.e. within the first segment or two.
+const planResourceLogHeadSegments = 3
+
+// shouldLogPlanResource decides whether ONE mkvgo resource is worth a log line.
+// The whole packager path logged nothing at all, which is why the server side
+// of that failed cast was invisible - but a line per segment would be 500 per
+// playback, which is how a log stops being read. So: anything that FAILED (at
+// any index, that is the interesting one), the rare non-segment resources
+// (playlist, init, manifest - a handful per playback), and the head segments.
+// A mid-film seek is deliberately silent: this traces starts, not playback.
+func shouldLogPlanResource(name string, failed bool) bool {
+	if failed {
+		return true
+	}
+	m := onDemandSegNameRE.FindStringSubmatch(name)
+	if m == nil {
+		return true // playlist / init / manifest / subtitle: rare by nature
+	}
+	idx, err := strconv.Atoi(m[1])
+	if err != nil {
+		return true // an unparseable segment name is itself worth seeing
+	}
+	return idx <= planResourceLogHeadSegments
+}
+
 // parseRangeStart extracts the first byte offset of a "bytes=START-..." Range
 // header. Good enough for progress estimation: multipart ranges and suffix
 // ranges ("bytes=-500") return false rather than a wrong guess.

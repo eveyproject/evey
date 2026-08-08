@@ -646,6 +646,28 @@ func (h *hlsVODServe) servePlanResourceData(w http.ResponseWriter, r *http.Reque
 	h.playbackActivity.Touch(mediaID)
 
 	data, contentType, err := plan.Resource(r.Context(), name)
+	// The mkvgo path serves every byte of a copy playback and used to log none
+	// of them: when a cast died at load, the server's side of it was a blank.
+	// Kept deliberately sparse - see shouldLogPlanResource.
+	if shouldLogPlanResource(name, err != nil) {
+		cast := false
+		if st, ok := StreamTokenFromContext(r.Context()); ok && st != nil {
+			cast = st.Cast
+		}
+		if err != nil {
+			slog.WarnContext(r.Context(), "hls-vod: on-demand resource refused",
+				slog.String("media_id", mediaID),
+				slog.String("resource", name),
+				slog.Bool("cast", cast),
+				slog.Any("err", err))
+		} else {
+			slog.InfoContext(r.Context(), "hls-vod: on-demand resource served",
+				slog.String("media_id", mediaID),
+				slog.String("resource", name),
+				slog.Bool("cast", cast),
+				slog.Int("bytes", len(data)))
+		}
+	}
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "on-demand resource")

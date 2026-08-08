@@ -98,3 +98,38 @@ func TestTranscodeSegEndMs(t *testing.T) {
 	assert.Equal(t, int64(600_000), transcodeSegEndMs(9999, grid, 600_000), "a boundary index caps at the duration")
 	assert.Equal(t, int64(3_000), transcodeSegEndMs(0, grid, 0), "unknown duration returns the uncapped estimate")
 }
+
+// The packager path logged nothing, so a failed cast left no server-side trace
+// (2026-08-08). The fix must not swing the other way: a line per segment is
+// ~500 per playback, which is how a log stops being read. Head segments and
+// failures only.
+func TestShouldLogPlanResource_TracesTheStartWithoutFloodingTheLog(t *testing.T) {
+	// The non-segment resources are a handful per playback: always worth a line.
+	for _, name := range []string{"playlist.m3u8", "init.mp4", "manifest.mpd", "audio1.m3u8", "sub1.m3u8"} {
+		if !shouldLogPlanResource(name, false) {
+			t.Errorf("shouldLogPlanResource(%q) = false, want true: without it we cannot tell "+
+				"whether the receiver even asked for the video playlist", name)
+		}
+	}
+
+	// The head of the plan: where a load that dies, dies.
+	for _, name := range []string{"seg00001.m4s", "seg00003.m4s"} {
+		if !shouldLogPlanResource(name, false) {
+			t.Errorf("shouldLogPlanResource(%q) = false, want true (start of playback)", name)
+		}
+	}
+
+	// Steady-state playback must stay SILENT: this is the whole anti-flood point.
+	for _, name := range []string{"seg00004.m4s", "seg00120.m4s", "seg00500.m4s"} {
+		if shouldLogPlanResource(name, false) {
+			t.Errorf("shouldLogPlanResource(%q) = true: one line per segment is ~500 per "+
+				"playback and drowns the very incident this was added for", name)
+		}
+	}
+
+	// A failure is the interesting line, at ANY index.
+	if !shouldLogPlanResource("seg00423.m4s", true) {
+		t.Error("a refused segment must be logged whatever its index: a silent 404 mid-film " +
+			"is exactly the failure this traces")
+	}
+}
