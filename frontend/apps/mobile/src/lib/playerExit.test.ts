@@ -1,5 +1,14 @@
 import { describe, it, expect } from "vitest";
-import { playerCloseTarget, playerExit } from "./playerExit";
+import { backPressAction, playerCloseTarget, playerExit } from "./playerExit";
+
+describe("backPressAction - hardware back closes what is open first", () => {
+  it("dismisses the settings panel instead of exiting the player", () => {
+    expect(backPressAction(true)).toBe("close-settings");
+  });
+  it("exits the player when nothing is open above it", () => {
+    expect(backPressAction(false)).toBe("exit");
+  });
+});
 
 describe("playerExit - same contract as the web player's back button", () => {
   it("pops the history entry whenever there is one to pop", () => {

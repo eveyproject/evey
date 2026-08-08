@@ -46,7 +46,7 @@ import { useSleepTimer } from "../../../src/hooks/useSleepTimer";
 import { SleepTimerPicker } from "../../../src/components/SleepTimerPicker";
 import { pickNativeAudioTrack, pickPreferredStreamIndex } from "../../../src/lib/audioTrackMatch";
 import { reportedPlaybackState } from "../../../src/lib/castPlaybackState";
-import { playerExit } from "../../../src/lib/playerExit";
+import { backPressAction, playerExit } from "../../../src/lib/playerExit";
 import { ChaptersPicker } from "../../../src/components/ChaptersPicker";
 import { PlayerEpisodesPanel } from "../../../src/components/player/PlayerEpisodesPanel";
 import { StreamInfoPanel } from "../../../src/components/StreamInfoPanel";
@@ -670,6 +670,12 @@ const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>()
 
   useEffect(() => {
     const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      // Close the settings panel first: it is a plain View, so unlike the
+      // Modal-based sheets nothing else intercepts the back press for it.
+      if (backPressAction(settingsOpenRef.current) === "close-settings") {
+        setSettingsOpen(false);
+        return true;
+      }
       handleBack();
       return true;
     });
