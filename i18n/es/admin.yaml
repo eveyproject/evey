@@ -13,6 +13,7 @@ nav:
   transcoding: Transcodificación
   artworks: Cache de artworks
   seekIndex: "Salud de medios"
+  introTest: "Prueba de intro"
   usersAccess: Usuarios y acceso
   users: Usuarios
   mediaRequests: Solicitudes de contenido
@@ -1289,3 +1290,25 @@ seekIndex:
   repairAllConfirm: "¿Reparar {{count}} archivo(s) en segundo plano? Cada archivo se valida y se intercambia de forma atómica; se reconstruyen los índices que faltan y (si se marca) se corrige el audio retrasado. Es una operación LARGA: reescribe los archivos uno a uno y puede tardar horas en una biblioteca grande."
   rollbackAllConfirmTitle: "Restaurar originales desde las copias"
   rollbackAllConfirm: "¿Restaurar {{count}} archivo(s) desde sus copias .mkvgobak? Esto deshace reparaciones previas en el ámbito seleccionado."
+
+introTest:
+  title: "Prueba de deteccion de intro"
+  subtitle: "Elija una serie o pelicula, ejecute el detector sobre un episodio testigo y vea en un minuto si funciona - no se escribe nada hasta aplicar."
+  searchPlaceholder: "Buscar una serie o pelicula..."
+  changeMedia: "Cambiar"
+  season: "Temporada"
+  sampleEpisode: "Episodio testigo"
+  test: "Probar (en seco)"
+  testing: "Analizando..."
+  testingHint: "El analisis de audio tarda entre uno y dos minutos."
+  apply: "Aplicar de verdad"
+  applyStarted: "Deteccion lanzada - resultados en unos minutos."
+  testFailed: "La prueba de deteccion fallo."
+  introFound: "Intro detectada"
+  noCandidate: "Sin candidato"
+  dryRunNote: "Prueba en seco: no se escribio nada."
+  colType: "Tipo"
+  colRange: "Rango"
+  colSource: "Fuente"
+  colConfidence: "Confianza"
+  openEditor: "Abrir el editor de segmentos del episodio probado"

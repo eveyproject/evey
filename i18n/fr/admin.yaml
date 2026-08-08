@@ -12,6 +12,7 @@ nav:
   transcoding: Transcodage
   artworks: Cache artworks
   seekIndex: "Santé média"
+  introTest: "Test d'intro"
   usersAccess: Utilisateurs et accès
   users: Utilisateurs
   mediaRequests: Demandes de média
@@ -1288,3 +1289,25 @@ seekIndex:
   repairAllConfirm: "Réparer {{count}} fichier(s) en arrière-plan ? Chaque fichier est validé puis échangé atomiquement ; les index manquants sont reconstruits et (si coché) l'audio décalé est corrigé. C'est une opération LONGUE - elle réécrit les fichiers un par un et peut durer des heures sur une grande bibliothèque."
   rollbackAllConfirmTitle: "Restaurer les originaux depuis les sauvegardes"
   rollbackAllConfirm: "Restaurer {{count}} fichier(s) depuis leur sauvegarde .mkvgobak ? Cela annule les réparations précédentes sur ce périmètre."
+
+introTest:
+  title: "Test de détection d'intro"
+  subtitle: "Choisissez une série ou un film, lancez l'algo sur un épisode témoin et voyez en une minute si la détection est preneuse - rien n'est écrit tant que vous n'appliquez pas."
+  searchPlaceholder: "Rechercher une série ou un film..."
+  changeMedia: "Changer"
+  season: "Saison"
+  sampleEpisode: "Épisode témoin"
+  test: "Tester (à blanc)"
+  testing: "Analyse en cours..."
+  testingHint: "L'analyse audio prend environ une à deux minutes."
+  apply: "Appliquer pour de vrai"
+  applyStarted: "Détection lancée - résultats en base dans quelques minutes."
+  testFailed: "Le test de détection a échoué."
+  introFound: "Intro détectée"
+  noCandidate: "Aucun candidat"
+  dryRunNote: "Test à blanc : rien n'a été écrit."
+  colType: "Type"
+  colRange: "Plage"
+  colSource: "Source"
+  colConfidence: "Confiance"
+  openEditor: "Ouvrir l'éditeur de segments de l'épisode testé"

@@ -168,6 +168,11 @@ type LibraryLister interface {
 type IntroDetectionTrigger interface {
 	DetectIntro(ctx context.Context, mediaItemID string) error
 	DetectIntroDryRun(ctx context.Context, mediaItemID string) ([]domainlibrary.MediaSegment, error)
+	// DetectSeason / DetectSeries run the SEASON pipeline (cluster included)
+	// on one season, or on every season of a series - the admin intro-test
+	// tool's "apply" granularity. DetectSeries returns the season count.
+	DetectSeason(ctx context.Context, seasonID string) error
+	DetectSeries(ctx context.Context, seriesID string) (int, error)
 	BackfillLibrary(ctx context.Context, libraryID string) (int, error)
 	SetManualSegment(ctx context.Context, mediaItemID, segType string, startMs, endMs int64) error
 	DeleteSegment(ctx context.Context, mediaItemID, segType string) error

@@ -13,6 +13,7 @@ nav:
   transcoding: Transkodierung
   artworks: Artwork-Cache
   seekIndex: "Medienzustand"
+  introTest: "Intro-Test"
   usersAccess: Benutzer & Zugriff
   users: Benutzer
   mediaRequests: Medienanfragen
@@ -1289,3 +1290,25 @@ seekIndex:
   repairAllConfirm: "{{count}} Datei(en) im Hintergrund reparieren? Jede Datei wird validiert und atomar getauscht; fehlende Indizes werden neu gebaut und (falls gewählt) verzögertes Audio korrigiert. Das ist ein LANGER Vorgang - Dateien werden einzeln neu geschrieben, das kann bei einer großen Bibliothek Stunden dauern."
   rollbackAllConfirmTitle: "Originale aus Sicherungen wiederherstellen"
   rollbackAllConfirm: "{{count}} Datei(en) aus ihren .mkvgobak-Sicherungen wiederherstellen? Das macht vorherige Reparaturen in diesem Bereich rückgängig."
+
+introTest:
+  title: "Intro-Erkennungstest"
+  subtitle: "Serie oder Film wählen, den Detektor auf einer Zeugen-Episode laufen lassen und in einer Minute sehen, ob er greift - geschrieben wird erst beim Anwenden."
+  searchPlaceholder: "Serie oder Film suchen..."
+  changeMedia: "Ändern"
+  season: "Staffel"
+  sampleEpisode: "Zeugen-Episode"
+  test: "Testen (Probelauf)"
+  testing: "Analyse läuft..."
+  testingHint: "Die Audioanalyse dauert etwa ein bis zwei Minuten."
+  apply: "Wirklich anwenden"
+  applyStarted: "Erkennung gestartet - Ergebnisse in wenigen Minuten."
+  testFailed: "Der Erkennungstest ist fehlgeschlagen."
+  introFound: "Intro erkannt"
+  noCandidate: "Kein Kandidat"
+  dryRunNote: "Probelauf: nichts wurde geschrieben."
+  colType: "Typ"
+  colRange: "Bereich"
+  colSource: "Quelle"
+  colConfidence: "Konfidenz"
+  openEditor: "Segment-Editor der getesteten Episode öffnen"

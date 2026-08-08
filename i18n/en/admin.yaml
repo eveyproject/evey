@@ -12,6 +12,7 @@ nav:
   transcoding: Transcoding
   artworks: Artworks Cache
   seekIndex: "Media Health"
+  introTest: "Intro Test"
   usersAccess: Users & Access
   users: Users
   mediaRequests: Media Requests
@@ -1289,3 +1290,25 @@ seekIndex:
   repairAllConfirm: "Repair {{count}} file(s) in the background? Each file is validated then swapped atomically; missing indexes are rebuilt and (if selected) delayed audio is fixed. This is a LONG operation - it rewrites files one by one and can take hours on a large library."
   rollbackAllConfirmTitle: Restore originals from backups
   rollbackAllConfirm: "Restore {{count}} file(s) from their .mkvgobak backups? This undoes prior repairs in the selected scope."
+
+introTest:
+  title: "Intro detection test"
+  subtitle: "Pick a series or movie, run the detector on a witness episode and see within a minute whether it takes - nothing is written until you apply."
+  searchPlaceholder: "Search a series or movie..."
+  changeMedia: "Change"
+  season: "Season"
+  sampleEpisode: "Witness episode"
+  test: "Test (dry run)"
+  testing: "Analysing..."
+  testingHint: "The audio analysis takes about one to two minutes."
+  apply: "Apply for real"
+  applyStarted: "Detection started - results land in a few minutes."
+  testFailed: "The detection test failed."
+  introFound: "Intro detected"
+  noCandidate: "No candidate"
+  dryRunNote: "Dry run: nothing was written."
+  colType: "Type"
+  colRange: "Range"
+  colSource: "Source"
+  colConfidence: "Confidence"
+  openEditor: "Open the tested episode's segment editor"

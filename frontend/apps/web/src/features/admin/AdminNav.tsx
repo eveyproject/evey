@@ -13,6 +13,7 @@ import {
   Key,
   BarChart3,
   TrendingUp,
+  FlaskConical,
   Gauge,
   Database,
   Cpu,
@@ -58,6 +59,7 @@ const sectionsDef: NavSection[] = [
       { href: "/admin/transcode-cache", labelKey: "admin.nav.transcodeCache", icon: HardDrive },
       { href: "/admin/artworks", labelKey: "admin.nav.artworks", icon: Image },
       { href: "/admin/seek-index", labelKey: "admin.nav.seekIndex", icon: ScanSearch },
+      { href: "/admin/intro-test", labelKey: "admin.nav.introTest", icon: FlaskConical },
     ],
   },
   {

@@ -37,6 +37,10 @@ func (f *fakeIntroDetectionTrigger) DetectIntro(_ context.Context, _ string) err
 	return f.detectErr
 }
 
+func (f *fakeIntroDetectionTrigger) DetectSeason(_ context.Context, _ string) error { return nil }
+func (f *fakeIntroDetectionTrigger) DetectSeries(_ context.Context, _ string) (int, error) {
+	return 0, nil
+}
 func (f *fakeIntroDetectionTrigger) DetectIntroDryRun(_ context.Context, _ string) ([]domainlibrary.MediaSegment, error) {
 	return nil, nil
 }

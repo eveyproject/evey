@@ -39,10 +39,19 @@ func introDetectionHandler(tokenGen TokenVerifier, svc IntroDetectionTrigger, li
 			return
 		}
 
+		isContainer := item.Type == domainlibrary.Season || item.Type == domainlibrary.Series
+
 		// Dry-run: run detection synchronously and return the segments it WOULD
-		// store, without persisting. Used by the offline eval harness to score the
-		// detector against a known ground truth without clobbering it via upsert.
+		// store, without persisting. Used by the offline eval harness and the
+		// admin intro-test tool to score the detector without clobbering the
+		// stored truth via upsert.
 		if r.URL.Query().Get("dry_run") == "true" {
+			// A container has no file to analyse; the caller samples a
+			// concrete episode itself. 400 beats a misleading empty result.
+			if isContainer {
+				http.Error(w, `{"message":"dry-run needs an episode or movie id"}`, http.StatusBadRequest)
+				return
+			}
 			segs, err := svc.DetectIntroDryRun(r.Context(), mediaID)
 			if err != nil {
 				slog.WarnContext(ctx, "intro detection dry-run failed",
@@ -58,8 +67,11 @@ func introDetectionHandler(tokenGen TokenVerifier, svc IntroDetectionTrigger, li
 			return
 		}
 
-		// Detach from the request context so the goroutine outlives the HTTP response.
+		// Detach from the request context so the goroutine outlives the HTTP
+		// response. Containers run the season pipeline (cluster included) -
+		// the tool's "apply" granularity; file media keeps the per-episode path.
 		detached := context.WithoutCancel(r.Context())
+		itemType := item.Type
 		go func() {
 			defer func() {
 				if rec := recover(); rec != nil {
@@ -70,7 +82,16 @@ func introDetectionHandler(tokenGen TokenVerifier, svc IntroDetectionTrigger, li
 					)
 				}
 			}()
-			if err := svc.DetectIntro(detached, mediaID); err != nil {
+			var err error
+			switch itemType {
+			case domainlibrary.Season:
+				err = svc.DetectSeason(detached, mediaID)
+			case domainlibrary.Series:
+				_, err = svc.DetectSeries(detached, mediaID)
+			default:
+				err = svc.DetectIntro(detached, mediaID)
+			}
+			if err != nil {
 				slog.WarnContext(detached, "intro detection failed",
 					slog.String("media_id", mediaID),
 					slog.Any("err", err),

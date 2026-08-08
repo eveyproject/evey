@@ -16,13 +16,35 @@ import (
 // fakeAsyncDetector signals when DetectIntro is invoked so tests can wait on
 // the detached goroutine without time.Sleep.
 type fakeAsyncDetector struct {
-	called chan string
-	err    error
-	panic  bool
+	called       chan string
+	seasonCalled chan string
+	seriesCalled chan string
+	err          error
+	panic        bool
 }
 
 func newFakeAsyncDetector() *fakeAsyncDetector {
-	return &fakeAsyncDetector{called: make(chan string, 1)}
+	return &fakeAsyncDetector{
+		called:       make(chan string, 1),
+		seasonCalled: make(chan string, 1),
+		seriesCalled: make(chan string, 1),
+	}
+}
+
+func (f *fakeAsyncDetector) DetectSeason(_ context.Context, seasonID string) error {
+	select {
+	case f.seasonCalled <- seasonID:
+	default:
+	}
+	return f.err
+}
+
+func (f *fakeAsyncDetector) DetectSeries(_ context.Context, seriesID string) (int, error) {
+	select {
+	case f.seriesCalled <- seriesID:
+	default:
+	}
+	return 1, f.err
 }
 
 func (f *fakeAsyncDetector) DetectIntro(_ context.Context, mediaID string) error {
@@ -150,6 +172,84 @@ func TestIntroDetectionHandler_GoroutinePanicRecovered(t *testing.T) {
 	// the process is still alive (no panic propagated). 200ms is enough for
 	// the goroutine to enter DetectIntro and panic; the recover handles the rest.
 	time.Sleep(200 * time.Millisecond)
+}
+
+// The admin intro-test tool targets seasons and series directly: a season id
+// must run the SEASON pipeline (cluster included), not the per-episode
+// DetectIntro that a season has no file for.
+func TestIntroDetectionHandler_SeasonID_RunsSeasonDetection(t *testing.T) {
+	gen, adminTok, _ := segAdminTokens(t)
+	detector := newFakeAsyncDetector()
+	libSvc := &fakeMediaStreamsGetter{item: &domainlibrary.MediaItem{
+		ID: "season-1", LibraryID: "lib-1", Type: domainlibrary.Season,
+	}}
+	h := introDetectionHandler(gen, detector, libSvc, nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/media/season-1/detect-segments", nil)
+	req.SetPathValue("id", "season-1")
+	req.Header.Set("Authorization", "Bearer "+adminTok)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("expected 202, got %d", w.Code)
+	}
+	select {
+	case got := <-detector.seasonCalled:
+		if got != "season-1" {
+			t.Errorf("expected DetectSeason on season-1, got %q", got)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("DetectSeason never called")
+	}
+	select {
+	case got := <-detector.called:
+		t.Fatalf("DetectIntro must not fire for a season id, got %q", got)
+	case <-time.After(100 * time.Millisecond):
+	}
+}
+
+func TestIntroDetectionHandler_SeriesID_RunsSeriesDetection(t *testing.T) {
+	gen, adminTok, _ := segAdminTokens(t)
+	detector := newFakeAsyncDetector()
+	libSvc := &fakeMediaStreamsGetter{item: &domainlibrary.MediaItem{
+		ID: "series-1", LibraryID: "lib-1", Type: domainlibrary.Series,
+	}}
+	h := introDetectionHandler(gen, detector, libSvc, nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/media/series-1/detect-segments", nil)
+	req.SetPathValue("id", "series-1")
+	req.Header.Set("Authorization", "Bearer "+adminTok)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("expected 202, got %d", w.Code)
+	}
+	select {
+	case got := <-detector.seriesCalled:
+		if got != "series-1" {
+			t.Errorf("expected DetectSeries on series-1, got %q", got)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("DetectSeries never called")
+	}
+}
+
+// Dry-run stays file-scoped: a container has no file to analyse, and the UI
+// samples a concrete episode itself. 400, not a misleading empty result.
+func TestIntroDetectionHandler_DryRunOnContainer_400(t *testing.T) {
+	gen, adminTok, _ := segAdminTokens(t)
+	for _, typ := range []domainlibrary.MediaItemType{domainlibrary.Season, domainlibrary.Series} {
+		libSvc := &fakeMediaStreamsGetter{item: &domainlibrary.MediaItem{
+			ID: "c-1", LibraryID: "lib-1", Type: typ,
+		}}
+		h := introDetectionHandler(gen, newFakeAsyncDetector(), libSvc, nil)
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/media/c-1/detect-segments?dry_run=true", nil)
+		req.SetPathValue("id", "c-1")
+		req.Header.Set("Authorization", "Bearer "+adminTok)
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("%s: dry-run on a container must 400, got %d", typ, w.Code)
+		}
+	}
 }
 
 func TestIntroDetectionHandler_UnknownMedia_404(t *testing.T) {

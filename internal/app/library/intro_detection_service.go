@@ -787,6 +787,46 @@ func (s *IntroDetectionService) DetectIntro(ctx context.Context, mediaItemID str
 	return s.detectIntroWithHint(ctx, mediaItemID, nil)
 }
 
+// DetectSeason runs the full season pipeline (cluster hint included) on one
+// season - the admin intro-test tool's "apply" granularity. detectSeason
+// recovers its own panics and logs per-episode failures, so there is no
+// error to surface beyond scheduling.
+func (s *IntroDetectionService) DetectSeason(ctx context.Context, seasonID string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.library.intro.DetectSeason")
+	defer span.End()
+	s.detectSeason(ctx, seasonID)
+	return nil
+}
+
+// DetectSeries runs DetectSeason over every season of the series, paged past
+// the repo's list cap like the library backfill. Returns the season count.
+func (s *IntroDetectionService) DetectSeries(ctx context.Context, seriesID string) (int, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.library.intro.DetectSeries")
+	defer span.End()
+	seasonType := string(domainlibrary.Season)
+	var seasonIDs []string
+	const pageSize = 200
+	for offset := 0; ; offset += pageSize {
+		seasons, err := s.mediaItems.List(ctx, domainlibrary.ListMediaItemsFilter{
+			ParentID: &seriesID,
+			Type:     &seasonType,
+			Limit:    pageSize,
+			Offset:   offset,
+		})
+		if err != nil {
+			return 0, fmt.Errorf("intro detection: list series seasons: %w", err)
+		}
+		for _, se := range seasons {
+			seasonIDs = append(seasonIDs, string(se.ID))
+		}
+		if len(seasons) < pageSize {
+			break
+		}
+	}
+	s.forEachBackfillTarget(ctx, seasonIDs, s.detectSeason)
+	return len(seasonIDs), nil
+}
+
 // DetectIntroDryRun runs the full per-episode pipeline (season-cluster hint
 // included, for parity with the real detectSeason path) and RETURNS the segments
 // it would store - applying the same heuristic-floor guard - WITHOUT persisting
