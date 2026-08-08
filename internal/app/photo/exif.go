@@ -26,6 +26,15 @@ func readExifData(data []byte) (takenAt *time.Time, cameraModel string) {
 			break
 		}
 		segLen := int(binary.BigEndian.Uint16(data[i+2 : i+4]))
+		// A JPEG segment length counts its own two bytes, so the smallest legal
+		// value is 2. A file declaring 0 or 1 puts `end` before the start of the
+		// payload, and the `data[i+4:end]` slice below then panics with low >
+		// high - found by fuzzing on "FF D8 FF E1 00 00". This parser runs in
+		// the library scan worker, so that panic takes down the whole scan
+		// instead of skipping one unreadable photo.
+		if segLen < 2 {
+			break
+		}
 		end := i + 2 + segLen
 		if end > len(data) {
 			break
