@@ -67,6 +67,14 @@ func TestRemoteIP(t *testing.T) {
 		{"ipv6 bracketed with port", "[::1]:1234", "::1"},
 		{"ipv6 bracketed long", "[2001:db8::1]:443", "2001:db8::1"},
 		{"empty", "", ""},
+		// RemoteAddr always arrives as host:port from net/http, but this value
+		// ends up in the QoE row and in rate-limit decisions, so the degenerate
+		// forms are pinned rather than left to chance. A leading colon means no
+		// host at all: the guard is `i > 0`, so the string is returned as-is
+		// instead of being cut down to "".
+		{"colon first, no host", ":8080", ":8080"},
+		{"colon only", ":", ":"},
+		{"trailing colon", "1.2.3.4:", "1.2.3.4"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
