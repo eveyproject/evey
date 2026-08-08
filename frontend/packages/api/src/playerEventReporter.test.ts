@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const mockEveyFetch = vi.fn(() => Promise.resolve(undefined));
-vi.mock("@evey/api", () => ({ eveyFetch: (...args: unknown[]) => mockEveyFetch(...args) }));
+vi.mock("./fetcher", () => ({ eveyFetch: (...args: unknown[]) => mockEveyFetch(...args) }));
 
 import { createPlayerEventReporter } from "./playerEventReporter";
 

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { noopReporter, type PlayerEventReporter } from "@evey/api";
 
-import { noopReporter, type PlayerEventReporter } from "../features/playback/playerEventReporter";
+
 
 // Chrome for Android's ONLY web cast path is the Remote Playback API
 // (HTMLMediaElement.remote). The Google Cast Sender SDK never initializes

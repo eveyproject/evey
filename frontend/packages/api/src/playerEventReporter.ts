@@ -1,4 +1,4 @@
-import { eveyFetch } from "@evey/api";
+import { eveyFetch } from "./fetcher";
 
 // playerEventReporter - the client half of the playback-error beacon.
 //

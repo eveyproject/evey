@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Hls from "hls.js";
+import { createPlayerEventReporter } from "@evey/api";
 import { buildTranscodeHlsUrl, liftForcedMuteOnNextGesture, pickPinnedLevel, prefersNativeHLS, startPlayback } from "./hlsPlayerUtils";
-import { createPlayerEventReporter } from "../playerEventReporter";
+
 
 // Mirrors the server's shed contract (HTTP 503 on a refused playback start):
 // - too_many_streams: the box can't prepare one more stream because of OTHER

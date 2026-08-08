@@ -4,6 +4,7 @@ export * from "./audioChannelLayout";
 export * from "./notificationLabel";
 export * from "./format";
 export * from "./seekIndexHelpers";
+export * from "./playerEventReporter";
 export * from "./displayTitle";
 export * from "./personDepartment";
 export * from "./pagination";

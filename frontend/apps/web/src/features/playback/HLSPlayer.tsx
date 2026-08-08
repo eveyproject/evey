@@ -32,7 +32,7 @@ import {
   setSubtitleStyle,
   type SubtitleStyle,
 } from "@/hooks/usePlaybackPrefs";
-import { eveyFetch } from "@evey/api";
+import { eveyFetch, createPlayerEventReporter } from "@evey/api";
 import { buildTranscodeHlsUrl, castVideoPreload, getSelectedBurnInTrack, pickCastTapPath, pickPinnedLevel, pickPlayOnFallback, pickTranscodeAudioSwitchPath, planCastLoad, resolveDefaultAudio, resolveDefaultSubtitle } from "./hooks/hlsPlayerUtils";
 import { useDirectPlayback } from "./hooks/useDirectPlayback";
 import { useTranscodePlayback, type ShedReason } from "./hooks/useTranscodePlayback";
@@ -44,7 +44,7 @@ import { useTouchGestures } from "./hooks/useTouchGestures";
 import { useOverlayTime } from "./hooks/useOverlayTime";
 import { useCasting } from "@/hooks/useCasting";
 import { useRemotePlayback } from "@/hooks/useRemotePlayback";
-import { createPlayerEventReporter } from "./playerEventReporter";
+
 
 export type { AudioStream, SubtitleStream };
 

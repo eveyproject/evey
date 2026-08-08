@@ -33,6 +33,7 @@ import {
   usePlaybackServiceMarkAsWatched,
   useUserServiceGetCurrentUser,
   useUserServiceListProfiles,
+  createPlayerEventReporter,
 } from "@evey/api";
 import { usePlaySession } from "../../../src/hooks/usePlaySession";
 import { useAudioCapsBeacon } from "../../../src/hooks/useAudioCapsBeacon";
@@ -228,6 +229,10 @@ const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>()
   const videoViewRef = useRef<VideoView>(null);
   const pipSupported = useMemo(() => isPictureInPictureSupported(), []);
   const mountedRef = useRef(true);
+  // Fatal-native-error beacon, identical to the web player's. Self-throttling
+  // (dedupe + per-session budget) so a stream failing in a loop cannot flood
+  // the admin log.
+  const reportPlayerEvent = useMemo(() => createPlayerEventReporter(mediaId), [mediaId]);
   useEffect(() => { return () => { mountedRef.current = false; void releaseAudioBoost(); }; }, []);
 
   const [activeSheet, setActiveSheet] = useState<null | SheetName>(null);
@@ -575,6 +580,18 @@ const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>()
       setIsBuffering(ev.status === "loading");
       if (ev.status === "error") {
         console.warn("[player] native playback error:", ev.error?.message);
+        // Beacon BEFORE the state flip: this is the only trace the failure
+        // leaves anywhere. A direct-play death is invisible server-side (every
+        // byte it served was a 200 from ServeFile), console.warn goes nowhere
+        // on a tester's phone, and what the viewer reports is "the video bugs"
+        // plus a photo of the error screen. Same reporter, same route and the
+        // same reason as the web player's - see createPlayerEventReporter.
+        reportPlayerEvent({
+          type: "native_player_error",
+          details: ev.error?.message ?? "",
+          fatal: true,
+          posSec: Math.round(currentTimeRef.current),
+        });
         setNativeError(ev.error?.message ?? "playback error");
       }
     });
@@ -599,7 +616,7 @@ const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>()
       playSub.remove();
       audioTracksSub.remove();
     };
-  }, [player]);
+  }, [player, reportPlayerEvent]);
 
   const { castConnected, castClient, castCurrentTime, castDuration, castIsPlaying, castVolume, castIsMuted, castDeviceName, handleCast } = useCastSession({
     player,

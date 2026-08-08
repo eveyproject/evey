@@ -14,6 +14,7 @@ import * as pagination from "./pagination";
 import * as exportPaging from "./exportPaging";
 import * as regionDefaults from "./regionDefaults";
 import * as libraryRules from "./libraryRules";
+import * as playerEventReporter from "./playerEventReporter";
 
 // Static guard: a test that mocks @evey/api wholesale must not hide the shared
 // helpers the file under test imports from it.
@@ -57,6 +58,7 @@ const SHARED_MODULES = {
   exportPaging,
   regionDefaults,
   libraryRules,
+  playerEventReporter,
 };
 
 const SHARED_NAMES = new Set(Object.values(SHARED_MODULES).flatMap((m) => Object.keys(m)));
