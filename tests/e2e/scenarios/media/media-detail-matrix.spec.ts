@@ -101,7 +101,8 @@ for (let i = 0; i < NUM_MEDIA; i++) {
     test.skip(!mediaIds[i], "Not enough media");
     await goto(page, `/media/${mediaIds[i]}`);
     await page.waitForSelector('[data-testid="media-detail"]', { timeout: 10_000 });
-    await expect(page.locator('button[title*="edit" i]').first()).toBeVisible({ timeout: 5_000 });
+    // By test id, not by English title - the label is translated.
+    await expect(page.locator('[data-testid="media-edit-toggle-btn"]').first()).toBeVisible({ timeout: 5_000 });
   });
 
   test(`${label} - no JS errors`, async ({ page }) => {

@@ -1,7 +1,9 @@
 import { test, expect } from "../../fixtures/auth";
 import { gotoRandomMedia, collectErrors, apiGet } from "../shared/helpers";
 
-const editBtn = 'button[title*="Edit Metadata"], button[title*="edit" i]';
+// By test id, not by English title - the label is translated, so this
+// selector matched nothing on a French or German profile.
+const editBtn = '[data-testid="media-edit-toggle-btn"]';
 const modal = '[role="dialog"]';
 
 async function openEditModal(page: import("@playwright/test").Page) {

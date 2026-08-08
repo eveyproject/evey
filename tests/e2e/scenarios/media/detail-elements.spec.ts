@@ -48,7 +48,9 @@ test.describe("Media Detail > Every visible element", () => {
 
   test("edit pencil button visible", async ({ page }) => {
     test.skip(!(await gotoRandomMedia(page)), "No media");
-    const btn = page.locator('button[title*="edit" i]').first();
+    // By test id, not by English title: the label is translated, so matching
+    // it silently passed on any non-English profile.
+    const btn = page.locator('[data-testid="media-edit-toggle-btn"]').first();
     await expect(btn).toBeVisible({ timeout: 5_000 });
   });
 

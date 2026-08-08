@@ -250,7 +250,7 @@ export const ACTIONS: MonkeyAction[] = [
     contexts: ["media-detail"],
     weight: 5,
     fn: async (page) => {
-      const btn = page.locator('button[title*="edit" i], button[title*="Edit" i]').first();
+      const btn = page.locator('[data-testid="media-edit-toggle-btn"]').first();
       if (await btn.isVisible({ timeout: 1_000 }).catch(() => false)) {
         await btn.click();
         await page.waitForTimeout(500);
