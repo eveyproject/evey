@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"time"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -269,6 +270,42 @@ func (r *PluginRepository) Update(ctx context.Context, p *plugin.Plugin) error {
 		p.Entrypoint, p.InstallDir, capJSON, permJSON, schemaJSON, configJSON,
 		p.Enabled, p.Status, p.ErrorMessage, p.UpdatedAt, p.SourceHash, reportJSON, sigJSON,
 		string(kind), frontendJSON, extFetchJSON, p.WebRoot, p.ID,
+	)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		span.RecordError(shared.ErrNotFound)
+		span.SetStatus(codes.Error, shared.ErrNotFound.Error())
+		return shared.ErrNotFound
+	}
+	return nil
+}
+
+// UpdateConfig writes ONLY the config column, so a caller holding a stale
+// snapshot cannot replay it over the columns it never touched. SetConfig - the
+// one HostService RPC a plugin may call with NO permission - went through the
+// blind 22-column Update, so a plugin looping on it restored a permission an
+// admin had just revoked (external_fetch bit immediately: the broker re-reads
+// it from the DB on every call).
+func (r *PluginRepository) UpdateConfig(ctx context.Context, id string, config map[string]any) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.plugin.UpdateConfig")
+	defer span.End()
+	span.SetAttributes(attribute.String("plugin.id", id))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+
+	configJSON, err := json.Marshal(config)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
+		`UPDATE plugins SET config=$1, updated_at=$2 WHERE id=$3`,
+		configJSON, time.Now().UTC(), id,
 	)
 	if err != nil {
 		span.RecordError(err)

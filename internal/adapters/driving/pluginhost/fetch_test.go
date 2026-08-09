@@ -56,7 +56,12 @@ func (f *fakePluginStore) GetByID(_ context.Context, id string) (*plugindomain.P
 	}
 	return f.plugin, nil
 }
-func (f *fakePluginStore) Update(_ context.Context, _ *plugindomain.Plugin) error { return nil }
+func (f *fakePluginStore) UpdateConfig(_ context.Context, _ string, config map[string]any) error {
+	if f.plugin != nil {
+		f.plugin.Config = config
+	}
+	return nil
+}
 
 var _ MediaItemQuerier = (*noopMediaQuerier)(nil)
 

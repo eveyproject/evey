@@ -3,6 +3,7 @@ package pluginhost
 import (
 	"context"
 	"errors"
+	"fmt"
 	"maps"
 	"os"
 	"path/filepath"
@@ -65,6 +66,10 @@ type fakeConfigStore struct {
 	plugins     map[string]*plugindomain.Plugin
 	updateErr   error
 	updateCalls int
+	// afterGet runs once the caller has its snapshot, before it writes back.
+	// That interval is the whole point of the read-modify-write hazard: an
+	// admin's revocation landing there is invisible to the reader.
+	afterGet func()
 }
 
 func (f *fakeConfigStore) GetByID(_ context.Context, id string) (*plugindomain.Plugin, error) {
@@ -72,15 +77,32 @@ func (f *fakeConfigStore) GetByID(_ context.Context, id string) (*plugindomain.P
 	if !ok {
 		return nil, shared.ErrNotFound
 	}
-	return clonePlugin(p), nil
+	snapshot := clonePlugin(p)
+	if f.afterGet != nil {
+		hook := f.afterGet
+		f.afterGet = nil // once: the admin revokes a single time
+		hook()
+	}
+	return snapshot, nil
 }
 
-func (f *fakeConfigStore) Update(_ context.Context, p *plugindomain.Plugin) error {
+// UpdateConfig writes ONLY the config field, like the SQL it stands in for. If
+// this fake stored the whole record instead, a test would pass while the real
+// UPDATE replayed permissions and enabled from the caller's stale snapshot -
+// which is the bug the narrow write exists to prevent.
+func (f *fakeConfigStore) UpdateConfig(_ context.Context, id string, config map[string]any) error {
 	f.updateCalls++
 	if f.updateErr != nil {
 		return f.updateErr
 	}
-	f.plugins[p.ID] = clonePlugin(p)
+	p, ok := f.plugins[id]
+	if !ok {
+		return shared.ErrNotFound
+	}
+	cp := clonePlugin(p)
+	cp.Config = make(map[string]any, len(config))
+	maps.Copy(cp.Config, config)
+	f.plugins[id] = cp
 	return nil
 }
 
@@ -452,6 +474,87 @@ func TestHostSetConfig(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, resp.Found)
 	assert.Equal(t, "newval", resp.Value)
+}
+
+// SetConfig is the ONE HostService RPC a plugin may call with no permission at
+// all (methodPermissions maps it to nil). It used to persist through the blind
+// full-row Update, so the row it wrote back was whatever its own GetByID had
+// read - permissions, external_fetch, enabled, status and all. A plugin calling
+// it in a loop only had to land one write across an admin's revocation to
+// restore the permission, re-enable itself, or wipe the error state the runtime
+// had recorded about its crash. external_fetch bit hardest: the broker re-reads
+// it from the DB on every call, so there is no cache to invalidate.
+func TestHostSetConfig_CannotReplayTheRowItRead(t *testing.T) {
+	stored := &plugindomain.Plugin{
+		ID:            "plg-1",
+		Config:        map[string]any{"key1": "val1"},
+		Permissions:   []string{"network"},
+		ExternalFetch: []string{"https://api.example.com"},
+		Enabled:       true,
+		Status:        "running",
+	}
+	store := &fakeConfigStore{plugins: map[string]*plugindomain.Plugin{"plg-1": stored}}
+	h := NewHostServer(&fakeMediaQuerier{items: map[string]*library.MediaItem{}}, store, &fakeEventBus{}, &fakePluginLogger{}, nil)
+	ctx := ctxWithPluginID("plg-1")
+
+	// The race is INSIDE the handler: it reads the row, and the admin's
+	// revocation lands before it writes back. A plugin calling SetConfig in a
+	// loop hits that window - it is one Postgres round-trip wide - so the hook
+	// makes the timing deterministic instead of hopeful.
+	store.afterGet = func() {
+		store.plugins["plg-1"] = &plugindomain.Plugin{
+			ID:            "plg-1",
+			Config:        map[string]any{"key1": "val1"},
+			Permissions:   nil,
+			ExternalFetch: nil,
+			Enabled:       false,
+			Status:        "error",
+			ErrorMessage:  "crashed",
+		}
+	}
+
+	_, err := h.SetConfig(ctx, &pluginv1.SetConfigRequest{Key: "newkey", Value: "newval"})
+	require.NoError(t, err)
+
+	got := store.plugins["plg-1"]
+	assert.Equal(t, "newval", got.Config["newkey"], "the config write itself must land")
+	assert.Empty(t, got.Permissions, "a revoked permission must not come back through a config write")
+	assert.Empty(t, got.ExternalFetch, "a revoked fetch allow-list must not come back")
+	assert.False(t, got.Enabled, "a disabled plugin must not re-enable itself")
+	assert.Equal(t, plugindomain.PluginStatus("error"), got.Status, "a plugin must not erase its own crash status")
+	assert.Equal(t, "crashed", got.ErrorMessage)
+}
+
+// Nothing else bounds this store: MaxRecvMsgSize caps one call, not the config
+// JSON growing across thousands of them, and the RPC needs no permission.
+func TestHostSetConfig_BoundsKeysAndValues(t *testing.T) {
+	h := newTestHostServer()
+	ctx := ctxWithPluginID("plg-2")
+
+	_, err := h.SetConfig(ctx, &pluginv1.SetConfigRequest{Key: "", Value: "v"})
+	require.Error(t, err, "an empty key is not a key")
+
+	_, err = h.SetConfig(ctx, &pluginv1.SetConfigRequest{Key: strings.Repeat("k", maxConfigKeyLen+1), Value: "v"})
+	require.Error(t, err)
+	st, _ := status.FromError(err)
+	assert.Equal(t, codes.InvalidArgument, st.Code())
+
+	_, err = h.SetConfig(ctx, &pluginv1.SetConfigRequest{Key: "k", Value: strings.Repeat("v", maxConfigValueLen+1)})
+	require.Error(t, err)
+
+	for i := range maxConfigKeys {
+		_, err = h.SetConfig(ctx, &pluginv1.SetConfigRequest{Key: fmt.Sprintf("k%d", i), Value: "v"})
+		require.NoError(t, err)
+	}
+	_, err = h.SetConfig(ctx, &pluginv1.SetConfigRequest{Key: "one-too-many", Value: "v"})
+	require.Error(t, err, "the key count must be bounded")
+	st, _ = status.FromError(err)
+	assert.Equal(t, codes.ResourceExhausted, st.Code())
+
+	// An existing key must still be writable at the cap - otherwise a plugin
+	// that legitimately filled its store could never update anything again.
+	_, err = h.SetConfig(ctx, &pluginv1.SetConfigRequest{Key: "k0", Value: "v2"})
+	require.NoError(t, err)
 }
 
 func TestHostSetConfig_NilConfigMap(t *testing.T) {

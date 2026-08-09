@@ -2,6 +2,7 @@ package fakes
 
 import (
 	"context"
+	"maps"
 	"sync"
 
 	"github.com/evey-project/evey/internal/domain/plugin"
@@ -87,6 +88,26 @@ func (r *FakePluginRepository) Update(_ context.Context, p *plugin.Plugin) error
 		return ErrNotFound
 	}
 	r.items[p.ID] = p
+	return nil
+}
+
+// UpdateConfig writes ONLY the config field, exactly like the SQL it stands in
+// for. Making the fake take the whole struct here would hide the very bug the
+// narrow write exists to prevent: a test would pass while the real UPDATE
+// replayed permissions and enabled.
+func (r *FakePluginRepository) UpdateConfig(_ context.Context, id string, config map[string]any) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	p, ok := r.items[id]
+	if !ok {
+		return ErrNotFound
+	}
+	cp := make(map[string]any, len(config))
+	maps.Copy(cp, config)
+	p.Config = cp
 	return nil
 }
 

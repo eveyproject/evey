@@ -11,6 +11,11 @@ type PluginRepository interface {
 	GetByName(ctx context.Context, name string) (*Plugin, error)
 	List(ctx context.Context) ([]*Plugin, error)
 	Update(ctx context.Context, p *Plugin) error
+	// UpdateConfig writes ONLY the config column. Update is a blind full-row
+	// write, so a read-modify-write through it replays the caller's stale
+	// snapshot over permissions, external_fetch, enabled and status. Any path
+	// where the writer is the PLUGIN itself must use this, never Update.
+	UpdateConfig(ctx context.Context, id string, config map[string]any) error
 	Delete(ctx context.Context, id string) error
 }
 

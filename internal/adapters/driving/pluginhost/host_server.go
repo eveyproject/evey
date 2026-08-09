@@ -45,7 +45,10 @@ type MediaItemQuerier interface {
 
 type PluginConfigStore interface {
 	GetByID(ctx context.Context, id string) (*plugindomain.Plugin, error)
-	Update(ctx context.Context, p *plugindomain.Plugin) error
+	// UpdateConfig, not Update: the writer on this surface is the PLUGIN, so it
+	// must never be able to write back a whole row it read earlier. See the
+	// domain port's doc.
+	UpdateConfig(ctx context.Context, id string, config map[string]any) error
 }
 
 // HostServer holds the shared dependencies for HostService RPCs and a
@@ -470,15 +473,41 @@ func (h *HostServer) SetConfig(ctx context.Context, req *pluginv1.SetConfigReque
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "plugin %s not found", pluginID)
 	}
+	if req.Key == "" {
+		return nil, status.Error(codes.InvalidArgument, "config key must not be empty")
+	}
+	if len(req.Key) > maxConfigKeyLen || len(req.Value) > maxConfigValueLen {
+		return nil, status.Errorf(codes.InvalidArgument,
+			"config key must be <= %d bytes and value <= %d bytes", maxConfigKeyLen, maxConfigValueLen)
+	}
 	if p.Config == nil {
 		p.Config = make(map[string]any)
 	}
+	// Bound the number of DISTINCT keys, not just one call's size. MaxRecvMsgSize
+	// caps a single request; nothing capped the config JSON growing without limit
+	// across thousands of calls, and this RPC needs no permission.
+	if _, exists := p.Config[req.Key]; !exists && len(p.Config) >= maxConfigKeys {
+		return nil, status.Errorf(codes.ResourceExhausted,
+			"config is limited to %d keys", maxConfigKeys)
+	}
 	p.Config[req.Key] = req.Value
-	if err := h.plugins.Update(ctx, p); err != nil {
+	// UpdateConfig, NOT Update: writing back the snapshot read above would replay
+	// permissions, external_fetch, enabled and status as they were at GetByID
+	// time, so a plugin looping here would eventually land across an admin's
+	// revocation and restore it - from the one RPC needing no permission.
+	if err := h.plugins.UpdateConfig(ctx, pluginID, p.Config); err != nil {
 		return nil, status.Errorf(codes.Internal, "save config: %v", err)
 	}
 	return &pluginv1.SetConfigResponse{}, nil
 }
+
+// Config bounds for the plugin-writable store. SetConfig requires no permission,
+// so its growth must be bounded by something other than the caller's restraint.
+const (
+	maxConfigKeyLen   = 256
+	maxConfigValueLen = 16 * 1024
+	maxConfigKeys     = 256
+)
 
 // The data RPCs persist the plugin's OWN key/value store (plugin-global scope,
 // table plugin_data). The plugin id is taken from the authenticated context, so
