@@ -31,12 +31,14 @@ type RoomRepository interface {
 	AdvanceTrackIndex(ctx context.Context, roomID string, delta int) (newIndex int, mediaID string, changed bool, err error)
 	Delete(ctx context.Context, id string) error
 	// DeleteStaleEmptyRooms removes rooms with no members that were created
-	// before olderThan, and returns how many were deleted. A room created via
+	// before olderThan, and returns the ids it deleted. A room created via
 	// REST whose host never opens the ws (or an orphan the delete-if-empty path
 	// missed) otherwise lingers forever; the janitor sweeps them. Rooms with a
 	// live member are never touched, so olderThan only needs to exceed the
 	// create→join window.
-	DeleteStaleEmptyRooms(ctx context.Context, olderThan time.Time) (int64, error)
+	// The IDS, not just a count: each deleted room may have minted guest stream
+	// tokens, and a token whose room is gone must go with it.
+	DeleteStaleEmptyRooms(ctx context.Context, olderThan time.Time) ([]string, error)
 	// CountActiveByHost returns how many rooms this user currently hosts. The
 	// Hub uses it to cap per-user room creation: the janitor bounds growth in
 	// time, but a scripted create loop could still spike the table between

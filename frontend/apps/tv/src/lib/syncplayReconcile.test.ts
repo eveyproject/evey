@@ -40,23 +40,26 @@ describe("reconcilePosition", () => {
 });
 
 describe("isValidRoomCode", () => {
-  it(`accepts a ${ROOM_CODE_LENGTH}-digit code`, () => {
-    expect(isValidRoomCode("12345")).toBe(true);
+  it(`accepts a ${ROOM_CODE_LENGTH}-character code`, () => {
+    expect(isValidRoomCode("ABC123")).toBe(true);
   });
 
   it("rejects a code that is too short", () => {
-    expect(isValidRoomCode("1234")).toBe(false);
+    expect(isValidRoomCode("ABC12")).toBe(false);
   });
 
   it("rejects a code that is too long", () => {
-    expect(isValidRoomCode("123456")).toBe(false);
-  });
-
-  it("rejects non-digit characters", () => {
-    expect(isValidRoomCode("12a45")).toBe(false);
+    expect(isValidRoomCode("ABC1234")).toBe(false);
   });
 
   it("rejects an empty code", () => {
     expect(isValidRoomCode("")).toBe(false);
+  });
+
+  // The remote's keypad only emits alphabet characters, but the same helper
+  // guards a pasted code on the other clients.
+  it("folds what a viewer reads off a screen", () => {
+    expect(isValidRoomCode("abc-123")).toBe(true);
+    expect(isValidRoomCode("ABCI23")).toBe(true);
   });
 });

@@ -693,8 +693,12 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	registerPhotoRoutes(mux, s.PhotoSvc, s.TokenGen, s.LibraryAccessRepo, s.LibQuerySvc, s.ServerCtx, s.PhotoTranscoder, s.PhotoCacheDir, s.SnapshotRL) // binary: photo/serve
 	registerSyncPlayRoutes(mux, s.SyncPlayHub, s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo, s.StreamTokenStore, withSyncPlayParental(parentalChk))   // binary: WebSocket
 	// PUBLIC: a "watch together" guest exchanges a room code for a streaming-only
-	// guest token. Rate-limited (LoginRL) against 5-digit code brute-force.
-	mux.HandleFunc("POST /api/v1/syncplay/join-code", ratelimit.MiddlewareFunc(s.LoginRL, syncplayJoinByCodeHandler(s.SyncPlayHub, s.StreamTokenStore)))
+	// guest token - the product's only unauthenticated mint. Two brakes: LoginRL
+	// per source address, and a global failure gate the handler owns, which a
+	// caller rotating source addresses cannot walk past.
+	mux.HandleFunc("POST /api/v1/syncplay/join-code", ratelimit.MiddlewareFunc(s.LoginRL,
+		syncplayJoinByCodeHandler(s.SyncPlayHub, s.StreamTokenStore,
+			ratelimit.NewFailureGate("syncplay-join-code", joinCodeFailureThreshold, joinCodeFailureWindow, joinCodeCooldown))))
 	registerDeviceRoutes(mux, s.DeviceRegistry, s.TokenGen)                            // Play On: WebSocket + REST
 	registerBackupRoutes(mux, s.BackupSvc, s.TokenGen, s.AdminHeavyRL, s.AdminWriteRL) // binary: download/restore
 	if s.WebhookSvc != nil {

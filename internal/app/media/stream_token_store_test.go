@@ -64,18 +64,49 @@ func TestStreamTokenStore_CreateGuestToken(t *testing.T) {
 	store := media.NewStreamTokenStore(5 * time.Minute)
 	defer store.Stop()
 
-	token := store.CreateGuestToken("media-1", 24*time.Hour)
+	token := store.CreateGuestToken("media-1", "room-1", 3*time.Hour)
 	require.NotEmpty(t, token)
 
 	st, ok := store.Validate(token, "media-1")
 	require.True(t, ok, "guest token must stream its own media")
 	assert.Equal(t, shared.ScopeSyncplayGuest, st.Scope)
 	assert.Equal(t, shared.MediaItemID("media-1"), st.MediaItemID)
+	assert.Equal(t, "room-1", st.RoomID, "a guest token must name the room that minted it")
 	assert.Empty(t, st.UserID, "guest token carries no user")
 	assert.Empty(t, st.ProfileID, "guest token carries no profile")
 
 	_, ok = store.Validate(token, "media-2")
 	assert.False(t, ok, "guest token is scoped to its single media item")
+}
+
+// Closing the room is the host's only way to take back what a shared code gave
+// out. A guest token carries no user, so RevokeByUser can never reach it - it
+// returns 0 on an empty id by design - and before this the token simply
+// outlived the room for its whole TTL.
+func TestStreamTokenStore_RevokeByRoom(t *testing.T) {
+	store := media.NewStreamTokenStore(5 * time.Minute)
+	defer store.Stop()
+
+	guestA := store.CreateGuestToken("media-1", "room-1", 3*time.Hour)
+	guestB := store.CreateGuestToken("media-1", "room-1", 3*time.Hour)
+	otherRoom := store.CreateGuestToken("media-2", "room-2", 3*time.Hour)
+	member := store.Create("user-1", "profile-1", "media-1")
+
+	assert.Equal(t, 0, store.RevokeByUser(""), "an empty user id must never sweep guest tokens")
+
+	assert.Equal(t, 2, store.RevokeByRoom("room-1"))
+
+	_, ok := store.Validate(guestA, "media-1")
+	assert.False(t, ok, "guest token outlived its room")
+	_, ok = store.Validate(guestB, "media-1")
+	assert.False(t, ok, "guest token outlived its room")
+
+	_, ok = store.Validate(otherRoom, "media-2")
+	assert.True(t, ok, "another room's guests must be untouched")
+	_, ok = store.Validate(member, "media-1")
+	assert.True(t, ok, "a signed-in member's own token is not a guest token")
+
+	assert.Equal(t, 0, store.RevokeByRoom(""), "an empty room id must sweep nothing")
 }
 
 func TestStreamTokenStore_ValidateAny(t *testing.T) {
@@ -242,7 +273,7 @@ func TestStreamTokenStore_RevokeByUser(t *testing.T) {
 	a1 := store.Create("user-1", "profile-1", "media-1")
 	a2 := store.CreateWithTTL("user-1", "profile-1", "media-2", 12*time.Hour) // long-lived cast token
 	b1 := store.Create("user-2", "profile-2", "media-1")
-	guest := store.CreateGuestToken("media-3", 5*time.Minute)
+	guest := store.CreateGuestToken("media-3", "room-3", 5*time.Minute)
 
 	n := store.RevokeByUser("user-1")
 	assert.Equal(t, 2, n, "both of user-1's tokens (incl. the 12h cast token) must be revoked")

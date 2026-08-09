@@ -2,6 +2,7 @@ import { useState } from "react";
 import { View, Text, Pressable, TextInput, Modal, StyleSheet, ScrollView } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useTranslation } from "react-i18next";
+import { normalizeRoomCode, ROOM_CODE_LENGTH } from "@evey/api";
 import { useTheme } from "../providers/ThemeProvider";
 import { usePlaylistList } from "../api/playlists";
 import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
@@ -102,11 +103,12 @@ export function SyncPlayModal({ visible, onClose, onCreateRoom, onJoinRoom, onCr
         <View style={{ flexDirection: "row", gap: 8 }}>
           <TextInput
             value={code}
-            onChangeText={setCode}
-            placeholder="12345"
+            onChangeText={(v) => setCode(normalizeRoomCode(v))}
+            placeholder="ABC123"
             placeholderTextColor={theme.colors.textMuted}
-            keyboardType="number-pad"
-            maxLength={5}
+            autoCapitalize="characters"
+            autoCorrect={false}
+            maxLength={ROOM_CODE_LENGTH}
             accessibilityLabel={t("media.syncplay.joinByCode", "Join with code")}
             style={[styles.input, { backgroundColor: theme.colors.bg, color: theme.colors.text, borderColor: theme.colors.border, flex: 1 }]}
           />

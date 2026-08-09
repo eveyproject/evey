@@ -442,7 +442,7 @@ syncplay:
   joinRoom: शामिल हों
   codeLabel: कोड
   codeInput: "कमरे का कोड"
-  invalidCode: "5 अंकों का कमरा कोड दर्ज करें।"
+  invalidCode: "6 वर्णों का कमरा कोड दर्ज करें।"
   members: सदस्य
   sharedTrack: साझा ट्रैक
   followingHost: "आप होस्ट के साथ सिंक हैं।"

@@ -9,6 +9,7 @@ import (
 	domainuser "github.com/evey-project/evey/internal/domain/user"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -20,6 +21,7 @@ import (
 	appsyncplay "github.com/evey-project/evey/internal/app/syncplay"
 	"github.com/evey-project/evey/internal/domain/shared"
 	domainsyncplay "github.com/evey-project/evey/internal/domain/syncplay"
+	"github.com/evey-project/evey/internal/pkg/ratelimit"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
@@ -69,19 +71,41 @@ func registerSyncPlayRoutes(mux *http.ServeMux, hub *appsyncplay.Hub, tokenGen d
 // guestTokenMinter mints a streaming-only, media-scoped token for an
 // unauthenticated syncplay guest. Satisfied by *media.StreamTokenStore.
 type guestTokenMinter interface {
-	CreateGuestToken(mediaItemID string, ttl time.Duration) string
+	CreateGuestToken(mediaItemID, roomID string, ttl time.Duration) string
 }
 
-// guestTokenTTL bounds an unauthenticated "watch together" guest session.
-const guestTokenTTL = 24 * time.Hour
+// guestTokenTTL bounds an unauthenticated "watch together" guest session. It is
+// a SLIDING window (StreamTokenStore.Validate renews it on every fetch, up to
+// the absolute 24 h cap), so this only has to outlast a pause, not a film - a
+// session is one sitting, and a token nobody is using should not outlive the
+// evening it was handed out for.
+const guestTokenTTL = 3 * time.Hour
+
+// Join-code failure gate. The per-IP limiter on this route bounds ONE source;
+// the code space is global, so the counter that protects it has to be global
+// too (see ratelimit.FailureGate). 200 wrong codes inside ten minutes is far
+// beyond a household mistyping and far below what enumeration needs.
+const (
+	joinCodeFailureThreshold = 200
+	joinCodeFailureWindow    = 10 * time.Minute
+	joinCodeCooldown         = 5 * time.Minute
+)
 
 // syncplayJoinByCodeHandler is the PUBLIC (unauthenticated) entry point for a
 // "watch together" guest: given a room code it mints a guest stream token scoped
 // to the room's media so the guest can watch that one title, streaming-only.
-// Must be rate-limited by the caller (brute-force of a 5-digit code). It reveals
-// nothing beyond a generic 404 for an unknown/expired code.
-func syncplayJoinByCodeHandler(hub *appsyncplay.Hub, tokens guestTokenMinter) http.HandlerFunc {
+// It reveals nothing beyond a generic 404 for an unknown/expired code.
+//
+// Two independent brakes, because this is the only unauthenticated mint in the
+// product: the caller's per-IP limiter, and the global failure gate below that
+// survives an attacker rotating source addresses.
+func syncplayJoinByCodeHandler(hub *appsyncplay.Hub, tokens guestTokenMinter, gate *ratelimit.FailureGate) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if !gate.Allow() {
+			w.Header().Set("Retry-After", strconv.Itoa(int(joinCodeCooldown.Seconds())))
+			http.Error(w, `{"message":"too many attempts, try again shortly"}`, http.StatusTooManyRequests)
+			return
+		}
 		ctx, span := tracing.StartSpan(r.Context(), "http.syncplay.JoinByCode")
 		defer span.End()
 		r = r.WithContext(ctx)
@@ -102,10 +126,14 @@ func syncplayJoinByCodeHandler(hub *appsyncplay.Hub, tokens guestTokenMinter) ht
 
 		room, err := hub.GetRoomByCode(ctx, code)
 		if err != nil || room == nil {
+			// A wrong code is the ONLY signal an enumeration produces, so it is
+			// the only thing the gate counts - a malformed body is a client bug.
+			gate.Fail()
 			span.SetStatus(otelcodes.Error, "room not found")
 			http.Error(w, `{"message":"room not found"}`, http.StatusNotFound)
 			return
 		}
+		gate.Succeed()
 		// Guest join is video-only: a music room's MediaID advances with the
 		// queue, so a token pinned to one track would break on the next song.
 		if room.MediaType == "music" {
@@ -114,7 +142,7 @@ func syncplayJoinByCodeHandler(hub *appsyncplay.Hub, tokens guestTokenMinter) ht
 			return
 		}
 
-		token := tokens.CreateGuestToken(string(room.MediaID), guestTokenTTL)
+		token := tokens.CreateGuestToken(string(room.MediaID), room.ID, guestTokenTTL)
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]string{
 			"token":     token,

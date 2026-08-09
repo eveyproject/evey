@@ -442,7 +442,7 @@ syncplay:
   joinRoom: 加入
   codeLabel: 代码
   codeInput: "房间代码"
-  invalidCode: "请输入 5 位房间代码。"
+  invalidCode: "请输入 6 位房间代码。"
   members: 成员
   sharedTrack: 共享曲目
   followingHost: "您已与主持人同步。"

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Play, Users, ChevronDown } from "lucide-react";
 import { createFileRoute, redirect, useNavigate, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useUserServiceLogin, useAdminSystemServiceGetSetupStatus, eveyFetch } from "@evey/api";
+import { useUserServiceLogin, useAdminSystemServiceGetSetupStatus, eveyFetch, normalizeRoomCode, ROOM_CODE_LENGTH } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/Button";
@@ -200,9 +200,9 @@ function LoginPage() {
               <div className="flex gap-2">
                 <Input
                   value={guestCode}
-                  onChange={(e) => { setGuestCode(e.target.value.replace(/[^0-9]/g, "").slice(0, 6)); setGuestError(false); }}
-                  placeholder="12345"
-                  inputMode="numeric"
+                  onChange={(e) => { setGuestCode(normalizeRoomCode(e.target.value).slice(0, ROOM_CODE_LENGTH)); setGuestError(false); }}
+                  placeholder="ABC123"
+                  autoCapitalize="characters"
                   autoComplete="off"
                   autoFocus
                   aria-label={t("media.syncplay.codeLabel", "Code")}

@@ -200,18 +200,18 @@ func (r *FakeRoomRepository) Delete(_ context.Context, id string) error {
 	return nil
 }
 
-func (r *FakeRoomRepository) DeleteStaleEmptyRooms(_ context.Context, olderThan time.Time) (int64, error) {
+func (r *FakeRoomRepository) DeleteStaleEmptyRooms(_ context.Context, olderThan time.Time) ([]string, error) {
 	if r.Err != nil {
-		return 0, r.Err
+		return nil, r.Err
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	var n int64
+	var ids []string
 	for id, room := range r.items {
 		if len(room.Members) == 0 && room.CreatedAt.Before(olderThan) {
 			delete(r.items, id)
-			n++
+			ids = append(ids, id)
 		}
 	}
-	return n, nil
+	return ids, nil
 }

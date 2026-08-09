@@ -64,7 +64,7 @@ func TestStreamTokenStore_ExplicitTTLIsHonoured(t *testing.T) {
 			ttl:  30 * time.Minute,
 			want: 30 * time.Minute,
 			mint: func(s *media.StreamTokenStore, ttl time.Duration) string {
-				return s.CreateGuestToken("m1", ttl)
+				return s.CreateGuestToken("m1", "room-1", ttl)
 			},
 		},
 	}
@@ -103,7 +103,7 @@ func TestStreamTokenStore_GuestTokenStaysScoped(t *testing.T) {
 	s := media.NewStreamTokenStoreForTest(5*time.Minute, func() time.Time { return base })
 	defer s.Stop()
 
-	tok := s.CreateGuestToken("m1", 30*time.Minute)
+	tok := s.CreateGuestToken("m1", "room-1", 30*time.Minute)
 
 	if _, ok := s.Validate(tok, "m1"); !ok {
 		t.Fatal("the guest token was refused on its own media item")

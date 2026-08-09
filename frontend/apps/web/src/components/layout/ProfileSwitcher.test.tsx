@@ -15,7 +15,8 @@ vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => mockNavigate,
 }));
 
-vi.mock("@evey/api", () => ({
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
   userServiceRefreshToken: (...args: unknown[]) => mockRefreshToken(...args),
 }));
 

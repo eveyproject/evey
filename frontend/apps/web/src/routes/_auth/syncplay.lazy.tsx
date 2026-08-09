@@ -6,6 +6,8 @@ import {
   useMusicServiceListTracks,
   musicServiceGetTrack,
   syncPlayServiceGetRoom,
+  normalizeRoomCode,
+  ROOM_CODE_LENGTH,
 } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { Card } from "@/components/ui/Card";
@@ -423,9 +425,9 @@ function SyncPlayPage() {
         <Input
           label={t("media.syncplay.codeLabel")}
           value={code}
-          onChange={(e) => setCode(e.target.value.replace(/[^0-9]/g, "").slice(0, 6))}
-          placeholder="12345"
-          inputMode="numeric"
+          onChange={(e) => setCode(normalizeRoomCode(e.target.value).slice(0, ROOM_CODE_LENGTH))}
+          placeholder="ABC123"
+          autoCapitalize="characters"
           autoComplete="off"
           className="font-mono tracking-widest text-center text-lg"
         />

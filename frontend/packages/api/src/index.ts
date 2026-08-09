@@ -12,6 +12,7 @@ export * from "./pagination";
 export * from "./exportPaging";
 export * from "./regionDefaults";
 export * from "./libraryRules";
+export * from "./roomCode";
 export * from "./generated/user-service/user-service";
 export * from "./generated/admin-media-service/admin-media-service";
 export * from "./generated/admin-plugin-service/admin-plugin-service";

@@ -506,9 +506,12 @@ func TestSyncPlayRoomRepo_DeleteStaleEmptyRooms(t *testing.T) {
 		Members: nil, CreatedAt: fresh,
 	}))
 
-	n, err := repo.DeleteStaleEmptyRooms(ctx, time.Now().Add(-time.Hour))
+	ids, err := repo.DeleteStaleEmptyRooms(ctx, time.Now().Add(-time.Hour))
 	require.NoError(t, err)
-	assert.Equal(t, int64(1), n)
+	// The IDS, not a count: each one may have minted guest stream tokens that
+	// have to die with their room, and the janitor is the only path that ever
+	// deletes a room nobody joined.
+	assert.Equal(t, []string{"stale-empty"}, ids)
 
 	_, err = repo.Get(ctx, "stale-empty")
 	require.Error(t, err, "stale empty room should be deleted")

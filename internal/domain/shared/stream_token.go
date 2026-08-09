@@ -31,7 +31,12 @@ type StreamToken struct {
 	// playback signal once the sender's browser closes. The Safari/iOS "native"
 	// token shares the same long TTL but stays false - that player reports its
 	// own progress and must not be double-tracked.
-	Cast      bool
+	Cast bool
+	// RoomID binds a syncplay-guest token to the room whose code minted it, so
+	// closing the room can revoke it. Without it the sharing decision was
+	// one-way: the host could end the party but not the access it handed out.
+	// Empty on every other scope.
+	RoomID    string
 	ExpiresAt time.Time
 	// TTL is the sliding renewal window for this specific token. Stored
 	// per-token (not just the store default) so a long-lived cast token

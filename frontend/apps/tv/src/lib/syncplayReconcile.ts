@@ -50,12 +50,8 @@ export function reconcilePosition({
   return { shouldSeek: true, positionMs: targetPositionMs };
 }
 
-// Room codes are always exactly 5 digits (see syncplay.GenerateCode
-// server-side: a uniform draw in [10000, 99999]). Validated client-side so a
-// malformed code fails the remote's keypad instantly instead of round
-// tripping to the server for something that can never be a real room.
-export const ROOM_CODE_LENGTH = 5;
-
-export function isValidRoomCode(code: string): boolean {
-  return new RegExp(`^\\d{${ROOM_CODE_LENGTH}}$`).test(code);
-}
+// Re-exported, not restated: the shape of a room code is a security parameter
+// the server owns, and @evey/api pins it to the Go source (roomCode.guard).
+// Validated client-side so a malformed code fails the remote's keypad instantly
+// instead of round tripping for something that can never be a real room.
+export { ROOM_CODE_LENGTH, ROOM_CODE_ALPHABET, isValidRoomCode, normalizeRoomCode } from "@evey/api";

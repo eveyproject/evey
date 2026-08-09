@@ -170,9 +170,12 @@ func buildBackupServices(cfg *config.Config, infra *infraDeps, rootLog *slog.Log
 // the stream-token store into the security revoker (a ban must cut live streams)
 // once it holds the returned store.
 func buildSyncPlayServices(db *sql.DB) (*appsyncplay.Hub, *appsyncplay.DeviceRegistry, *appmedia.StreamTokenStore, *appmedia.ShareService) {
-	syncPlayHub := appsyncplay.NewHub(postgres.NewSyncPlayRoomRepo(db))
-	deviceRegistry := appsyncplay.NewDeviceRegistry()
+	// The store is built first because the hub needs it: a guest token has no
+	// user, so the room dying is the ONLY event that can revoke it.
 	streamTokenStore := appmedia.NewStreamTokenStore(appmedia.DefaultStreamTokenTTL)
+	syncPlayHub := appsyncplay.NewHub(postgres.NewSyncPlayRoomRepo(db),
+		appsyncplay.WithGuestTokenRevoker(streamTokenStore))
+	deviceRegistry := appsyncplay.NewDeviceRegistry()
 	shareLinkRepo := postgres.NewShareLinkRepo(db)
 	shareSvc := appmedia.NewShareService(shareLinkRepo)
 	return syncPlayHub, deviceRegistry, streamTokenStore, shareSvc

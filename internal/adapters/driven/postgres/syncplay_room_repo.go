@@ -371,7 +371,7 @@ func (r *SyncPlayRoomRepo) Delete(ctx context.Context, id string) error {
 	return err
 }
 
-func (r *SyncPlayRoomRepo) DeleteStaleEmptyRooms(ctx context.Context, olderThan time.Time) (int64, error) {
+func (r *SyncPlayRoomRepo) DeleteStaleEmptyRooms(ctx context.Context, olderThan time.Time) ([]string, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.syncplay_room.DeleteStaleEmptyRooms")
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
@@ -379,17 +379,26 @@ func (r *SyncPlayRoomRepo) DeleteStaleEmptyRooms(ctx context.Context, olderThan 
 	// members can be a JSON null (a room created from a nil slice marshals to
 	// 'null', not '[]'), and jsonb_array_length() errors on a non-array scalar -
 	// so normalise anything that isn't an array to '[]' before measuring length.
-	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`DELETE FROM syncplay_rooms
 		 WHERE created_at < $1
-		   AND jsonb_array_length(CASE WHEN jsonb_typeof(members) = 'array' THEN members ELSE '[]'::jsonb END) = 0`,
+		   AND jsonb_array_length(CASE WHEN jsonb_typeof(members) = 'array' THEN members ELSE '[]'::jsonb END) = 0
+		 RETURNING id`,
 		olderThan.UTC(),
 	)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	n, _ := res.RowsAffected()
-	return n, nil
+	defer func() { _ = rows.Close() }()
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
 }
 
 var _ syncplay.RoomRepository = (*SyncPlayRoomRepo)(nil)

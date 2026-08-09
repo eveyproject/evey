@@ -94,7 +94,7 @@ describe("SyncPlayScreen", () => {
       ),
     ).toBeTruthy();
     // Input with placeholder
-    expect(screen.getByPlaceholderText("12345")).toBeTruthy();
+    expect(screen.getByPlaceholderText("ABC123")).toBeTruthy();
   });
 
   it("Join button is disabled when code length < 5", () => {
@@ -105,33 +105,33 @@ describe("SyncPlayScreen", () => {
     expect(joinBtn.hasAttribute("disabled")).toBe(true);
 
     // Type 4 chars - still disabled
-    fireEvent.change(screen.getByPlaceholderText("12345"), {
+    fireEvent.change(screen.getByPlaceholderText("ABC123"), {
       target: { value: "1234" },
     });
     expect(screen.getByRole("button", { name: "Join" }).hasAttribute("disabled")).toBe(true);
   });
 
-  it("Join button is enabled when code length === 5", () => {
+  it("Join button is enabled once the code is complete", () => {
     render(<SyncPlayScreen />);
 
-    fireEvent.change(screen.getByPlaceholderText("12345"), {
-      target: { value: "12345" },
+    fireEvent.change(screen.getByPlaceholderText("ABC123"), {
+      target: { value: "ABC123" },
     });
     expect(screen.getByRole("button", { name: "Join" }).hasAttribute("disabled")).toBe(false);
   });
 
-  it("calls joinByCode once with trimmed code on valid 5-digit code", async () => {
+  it("calls joinByCode once with the normalized code", async () => {
     joinByCodeMock.mockResolvedValue({ roomId: "room-1", mediaId: "media-1" });
 
     render(<SyncPlayScreen />);
 
-    fireEvent.change(screen.getByPlaceholderText("12345"), {
-      target: { value: "12345" },
+    fireEvent.change(screen.getByPlaceholderText("ABC123"), {
+      target: { value: "ABC123" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Join" }));
 
     await waitFor(() => expect(joinByCodeMock).toHaveBeenCalledTimes(1));
-    expect(joinByCodeMock).toHaveBeenCalledWith("12345");
+    expect(joinByCodeMock).toHaveBeenCalledWith("ABC123");
   });
 
   it("navigates to /player/<mediaId> on successful join", async () => {
@@ -139,8 +139,8 @@ describe("SyncPlayScreen", () => {
 
     render(<SyncPlayScreen />);
 
-    fireEvent.change(screen.getByPlaceholderText("12345"), {
-      target: { value: "12345" },
+    fireEvent.change(screen.getByPlaceholderText("ABC123"), {
+      target: { value: "ABC123" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Join" }));
 
@@ -152,8 +152,8 @@ describe("SyncPlayScreen", () => {
 
     render(<SyncPlayScreen />);
 
-    fireEvent.change(screen.getByPlaceholderText("12345"), {
-      target: { value: "12345" },
+    fireEvent.change(screen.getByPlaceholderText("ABC123"), {
+      target: { value: "ABC123" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Join" }));
 

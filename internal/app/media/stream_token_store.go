@@ -126,7 +126,7 @@ func (s *StreamTokenStore) CreateCast(userID shared.UserID, profileID shared.Pro
 // "watch together" guest (no user, no profile). It carries ScopeSyncplayGuest so
 // the download handler (and any non-streaming endpoint) can refuse it while
 // streaming the room's single media item still works.
-func (s *StreamTokenStore) CreateGuestToken(mediaItemID string, ttl time.Duration) string {
+func (s *StreamTokenStore) CreateGuestToken(mediaItemID, roomID string, ttl time.Duration) string {
 	if ttl <= 0 {
 		ttl = s.ttl
 	}
@@ -135,6 +135,7 @@ func (s *StreamTokenStore) CreateGuestToken(mediaItemID string, ttl time.Duratio
 	s.tokens.Store(token, &shared.StreamToken{
 		Token:       token,
 		MediaItemID: shared.MediaItemID(mediaItemID),
+		RoomID:      roomID,
 		Scope:       shared.ScopeSyncplayGuest,
 		ExpiresAt:   s.now().Add(ttl),
 		TTL:         ttl,
@@ -222,6 +223,26 @@ func (s *StreamTokenStore) RevokeByUser(userID string) int {
 	s.tokens.Range(func(key, value any) bool {
 		st, ok := value.(*shared.StreamToken)
 		if ok && string(st.UserID) == userID {
+			s.tokens.Delete(key)
+			s.issuedAt.Delete(key)
+			revoked++
+		}
+		return true
+	})
+	return revoked
+}
+
+// RevokeByRoom drops every guest token minted by one syncplay room. It is the
+// counterpart of RevokeByUser for the one token kind that has no user: closing
+// the room is the host's only way to withdraw access a shared code handed out.
+func (s *StreamTokenStore) RevokeByRoom(roomID string) int {
+	if roomID == "" {
+		return 0
+	}
+	revoked := 0
+	s.tokens.Range(func(key, value any) bool {
+		st, ok := value.(*shared.StreamToken)
+		if ok && st.RoomID == roomID {
 			s.tokens.Delete(key)
 			s.issuedAt.Delete(key)
 			revoked++

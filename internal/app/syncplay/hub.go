@@ -31,20 +31,52 @@ const defaultMaxRoomsPerHost = 20
 // ErrTooManyRooms is returned when a user is already at the per-host room cap.
 var ErrTooManyRooms = errors.New("syncplay: too many active rooms for this user")
 
+// GuestTokenRevoker withdraws the streaming tokens a room's join code minted.
+// A guest token carries no user, so it is unreachable by every other revocation
+// path in the product - the room dying is the only event that can take it back.
+type GuestTokenRevoker interface {
+	RevokeByRoom(roomID string) int
+}
+
 type Hub struct {
 	repo            syncplay.RoomRepository
 	maxRoomsPerHost int
+	guestTokens     GuestTokenRevoker
 	mu              sync.RWMutex
 	conns           map[string]map[string]*connEntry // roomID → userID → entry (latest sender)
 	connCounts      map[string]map[string]int        // roomID → userID → active connection count
 }
 
-func NewHub(repo syncplay.RoomRepository) *Hub {
-	return &Hub{
+type HubOption func(*Hub)
+
+// WithGuestTokenRevoker ties the room lifetime to the guest tokens its code
+// handed out. Optional: a Hub without one still works, it just cannot revoke.
+func WithGuestTokenRevoker(r GuestTokenRevoker) HubOption {
+	return func(h *Hub) { h.guestTokens = r }
+}
+
+func NewHub(repo syncplay.RoomRepository, opts ...HubOption) *Hub {
+	h := &Hub{
 		repo:            repo,
 		maxRoomsPerHost: defaultMaxRoomsPerHost,
 		conns:           make(map[string]map[string]*connEntry),
 		connCounts:      make(map[string]map[string]int),
+	}
+	for _, opt := range opts {
+		opt(h)
+	}
+	return h
+}
+
+// revokeGuestTokens is called on every path that actually deletes a room, so
+// "the room is gone" and "its guest tokens are gone" cannot drift apart.
+func (h *Hub) revokeGuestTokens(ctx context.Context, roomID string) {
+	if h.guestTokens == nil || roomID == "" {
+		return
+	}
+	if n := h.guestTokens.RevokeByRoom(roomID); n > 0 {
+		slog.InfoContext(ctx, "syncplay: revoked guest tokens with their room",
+			slog.String("room_id", roomID), slog.Int("count", n))
 	}
 }
 
@@ -75,12 +107,16 @@ func (h *Hub) StartJanitor(ctx context.Context, interval, maxAge time.Duration) 
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
-		if n, err := h.repo.DeleteStaleEmptyRooms(ctx, time.Now().Add(-maxAge)); err != nil {
+		if ids, err := h.repo.DeleteStaleEmptyRooms(ctx, time.Now().Add(-maxAge)); err != nil {
 			if ctx.Err() == nil {
 				slog.WarnContext(ctx, "syncplay janitor: sweep failed", slog.Any("err", err))
 			}
-		} else if n > 0 {
-			slog.InfoContext(ctx, "syncplay janitor: swept stale rooms", slog.Int64("count", n))
+		} else if len(ids) > 0 {
+			slog.InfoContext(ctx, "syncplay janitor: swept stale rooms", slog.Int("count", len(ids)))
+			// A swept room may have minted guest tokens before anyone joined it.
+			for _, id := range ids {
+				h.revokeGuestTokens(ctx, id)
+			}
 		}
 		select {
 		case <-ctx.Done():
@@ -191,10 +227,13 @@ func (h *Hub) GetRoom(ctx context.Context, roomID string) (*syncplay.Room, error
 	return h.repo.Get(ctx, roomID)
 }
 
+// GetRoomByCode normalizes here rather than at each entry point: the code is
+// typed by a guest on a phone, a television remote or a paste, and the lookup
+// is an exact match in SQL.
 func (h *Hub) GetRoomByCode(ctx context.Context, code string) (*syncplay.Room, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.syncplay.GetRoomByCode")
 	defer span.End()
-	return h.repo.GetByCode(ctx, code)
+	return h.repo.GetByCode(ctx, syncplay.NormalizeCode(code))
 }
 
 func (h *Hub) JoinRoom(ctx context.Context, roomID, userID, username string) error {
@@ -214,8 +253,12 @@ func (h *Hub) JoinRoom(ctx context.Context, roomID, userID, username string) err
 func (h *Hub) LeaveRoom(ctx context.Context, roomID, userID string) error {
 	ctx, span := tracing.StartSpan(ctx, "app.syncplay.LeaveRoom")
 	defer span.End()
-	if _, _, err := h.repo.RemoveMemberAndDeleteIfEmpty(ctx, roomID, userID); err != nil {
+	deleted, _, err := h.repo.RemoveMemberAndDeleteIfEmpty(ctx, roomID, userID)
+	if err != nil {
 		return fmt.Errorf("leave room: %w", err)
+	}
+	if deleted {
+		h.revokeGuestTokens(ctx, roomID)
 	}
 	return nil
 }
@@ -354,9 +397,12 @@ func (h *Hub) DisconnectMember(ctx context.Context, roomID, userID string) error
 	// that ends by everyone closing their tab (the WS-close path, not the
 	// LeaveRoom button) leaks its syncplay_rooms row forever.
 	// Host election (if needed) is performed atomically inside the repo call.
-	_, newHostID, err := h.repo.RemoveMemberAndDeleteIfEmpty(ctx, roomID, userID)
+	deleted, newHostID, err := h.repo.RemoveMemberAndDeleteIfEmpty(ctx, roomID, userID)
 	if err != nil {
 		return fmt.Errorf("disconnect member: %w", err)
+	}
+	if deleted {
+		h.revokeGuestTokens(ctx, roomID)
 	}
 
 	if newHostID != "" {

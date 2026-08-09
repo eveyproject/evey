@@ -3,11 +3,12 @@ import { View, Text, TextInput, Pressable, ActivityIndicator, ScrollView, Alert,
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Stack, useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
+import { normalizeRoomCode, ROOM_CODE_LENGTH } from "@evey/api";
 import { useSyncPlay } from "../../src/hooks/useSyncPlay";
 import { useTheme } from "../../src/providers/ThemeProvider";
 
 // Mobile parity with web /syncplay: join an existing Watch Together / Listen
-// Together room by 5-digit code. Room *creation* on mobile goes through the
+// Together room by its share code. Room *creation* on mobile goes through the
 // player's SyncPlayModal (you start a media first, then invite others) since
 // most mobile playback is media-first; the dedicated route is the explicit
 // "I have a code, get me in" entry point.
@@ -22,7 +23,7 @@ export default function SyncPlayScreen() {
   async function handleJoin() {
     const trimmed = code.trim();
     if (trimmed.length < 5) {
-      Alert.alert(t("media.syncplay.joinByCode", "Join with code"), t("media.syncplay.invalidCode", "Enter the 5-digit room code."));
+      Alert.alert(t("media.syncplay.joinByCode", "Join with code"), t("media.syncplay.invalidCode", "Enter the 6-character room code."));
       return;
     }
     setJoining(true);
@@ -68,11 +69,12 @@ export default function SyncPlayScreen() {
       <View style={s.row}>
         <TextInput
           value={code}
-          onChangeText={setCode}
-          placeholder="12345"
+          onChangeText={(v) => setCode(normalizeRoomCode(v))}
+          placeholder="ABC123"
           placeholderTextColor={theme.colors.textMuted}
-          keyboardType="number-pad"
-          maxLength={5}
+          autoCapitalize="characters"
+          autoCorrect={false}
+          maxLength={ROOM_CODE_LENGTH}
           editable={!joining}
           style={s.input}
           accessibilityLabel={t("media.syncplay.codeInput", "Room code")}

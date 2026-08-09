@@ -175,17 +175,17 @@ func (r *fakeRoomRepo) Delete(_ context.Context, id string) error {
 	return nil
 }
 
-func (r *fakeRoomRepo) DeleteStaleEmptyRooms(_ context.Context, olderThan time.Time) (int64, error) {
+func (r *fakeRoomRepo) DeleteStaleEmptyRooms(_ context.Context, olderThan time.Time) ([]string, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	var n int64
+	var ids []string
 	for id, room := range r.rooms {
 		if len(room.Members) == 0 && room.CreatedAt.Before(olderThan) {
 			delete(r.rooms, id)
-			n++
+			ids = append(ids, id)
 		}
 	}
-	return n, nil
+	return ids, nil
 }
 
 func (r *fakeRoomRepo) CountActiveByHost(_ context.Context, hostID string) (int, error) {
@@ -270,8 +270,8 @@ func TestHub_CreateRoom_HasCode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateRoom: %v", err)
 	}
-	if len(room.Code) != 5 {
-		t.Errorf("Code length = %d, want 5", len(room.Code))
+	if len(room.Code) != 6 {
+		t.Errorf("Code length = %d, want 6", len(room.Code))
 	}
 }
 
@@ -435,6 +435,71 @@ func TestHub_LeaveRoom_DeletesRoomWhenEmpty(t *testing.T) {
 	_, err := h.GetRoom(ctx, room.ID)
 	if err == nil {
 		t.Error("room should be deleted when last member leaves")
+	}
+}
+
+// A guest joined by code holds a token that names no user, so nothing else can
+// ever reach it: ending the party has to be what takes it back. Otherwise the
+// host can close the room and the guest keeps streaming the title for hours.
+type recordingRevoker struct {
+	mu    sync.Mutex
+	rooms []string
+}
+
+func (r *recordingRevoker) RevokeByRoom(roomID string) int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.rooms = append(r.rooms, roomID)
+	return 0
+}
+
+func (r *recordingRevoker) seen() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]string(nil), r.rooms...)
+}
+
+func TestHub_LeaveRoom_RevokesGuestTokensWhenRoomDies(t *testing.T) {
+	t.Parallel()
+	rev := &recordingRevoker{}
+	h := NewHub(newFakeRoomRepo(), WithGuestTokenRevoker(rev))
+	ctx := context.Background()
+
+	room, _ := h.CreateRoom(ctx, "host-1", "media-1", "Room")
+	_ = h.JoinRoom(ctx, room.ID, "host-1", "Host")
+	_ = h.JoinRoom(ctx, room.ID, "user-2", "Guest")
+
+	// Someone leaving is not the party ending: the room lives on, and so must
+	// the tokens of everyone still watching.
+	_ = h.LeaveRoom(ctx, room.ID, "user-2")
+	if got := rev.seen(); len(got) != 0 {
+		t.Fatalf("revoked %v while the room was still alive", got)
+	}
+
+	_ = h.LeaveRoom(ctx, room.ID, "host-1")
+	if got := rev.seen(); len(got) != 1 || got[0] != room.ID {
+		t.Fatalf("revoked rooms = %v, want [%s] once the room was deleted", got, room.ID)
+	}
+}
+
+func TestHub_Janitor_RevokesGuestTokensOfSweptRooms(t *testing.T) {
+	t.Parallel()
+	rev := &recordingRevoker{}
+	repo := newFakeRoomRepo()
+	h := NewHub(repo, WithGuestTokenRevoker(rev))
+	ctx := context.Background()
+
+	// A room whose host never opened the WebSocket: it never goes through
+	// LeaveRoom, so the janitor is the only thing that ever deletes it - and
+	// its code may already have minted a guest token.
+	room, _ := h.CreateRoom(ctx, "host-1", "media-1", "Room")
+
+	ctx, cancel := context.WithCancel(ctx)
+	cancel()
+	h.StartJanitor(ctx, time.Hour, -time.Second)
+
+	if got := rev.seen(); len(got) != 1 || got[0] != room.ID {
+		t.Fatalf("revoked rooms = %v, want [%s] after the sweep", got, room.ID)
 	}
 }
 

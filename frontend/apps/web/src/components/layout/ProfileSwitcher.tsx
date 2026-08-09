@@ -5,7 +5,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuthStore, toast } from "@evey/store";
-import { userServiceRefreshToken, userServiceLogout, syncPlayServiceJoinByCode } from "@evey/api";
+import { userServiceRefreshToken, userServiceLogout, syncPlayServiceJoinByCode, normalizeRoomCode, ROOM_CODE_LENGTH } from "@evey/api";
 import type { V1Profile } from "@evey/api";
 import { Users, Check, Settings, Clock, BarChart3, QrCode, LayoutList, LogOut, ArrowLeftRight } from "lucide-react";
 import { PinPromptDialog } from "@/features/profile/PinPromptDialog";
@@ -296,9 +296,9 @@ export function ProfileSwitcher({ profiles, activeProfileId }: Props) {
             <Input
               label={t("media.syncplay.codeLabel", "Code")}
               value={joinCode}
-              onChange={(e) => setJoinCode(e.target.value.replace(/[^0-9]/g, "").slice(0, 6))}
-              placeholder="12345"
-              inputMode="numeric"
+              onChange={(e) => setJoinCode(normalizeRoomCode(e.target.value).slice(0, ROOM_CODE_LENGTH))}
+              placeholder="ABC123"
+              autoCapitalize="characters"
               autoComplete="off"
               autoFocus
               className="font-mono tracking-widest text-center text-lg"

@@ -22,7 +22,8 @@ vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => mockNavigate,
 }));
 
-vi.mock("@evey/api", () => ({
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
   useUserServiceLogin: (_opts?: unknown) => mockLogin,
   useAdminSystemServiceGetSetupStatus: () => ({ data: { passwordRecoveryEnabled: false } }),
   eveyFetch: vi.fn(),

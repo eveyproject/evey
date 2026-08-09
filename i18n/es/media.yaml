@@ -442,7 +442,7 @@ syncplay:
   joinRoom: Unirse
   codeLabel: Código
   codeInput: Código de la sala
-  invalidCode: Introduce el código de sala de 5 dígitos.
+  invalidCode: Introduce el código de sala de 6 caracteres.
   members: miembros
   sharedTrack: Pista compartida
   followingHost: "Estás sincronizado con el anfitrión."

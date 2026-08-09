@@ -16,6 +16,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/shared"
 	domainsyncplay "github.com/evey-project/evey/internal/domain/syncplay"
 	domainuser "github.com/evey-project/evey/internal/domain/user"
+	"github.com/evey-project/evey/internal/pkg/ratelimit"
 	"golang.org/x/net/websocket"
 )
 
@@ -200,8 +201,8 @@ func (r *fakeSyncPlayRepo) Delete(_ context.Context, id string) error {
 	return nil
 }
 
-func (r *fakeSyncPlayRepo) DeleteStaleEmptyRooms(_ context.Context, _ time.Time) (int64, error) {
-	return 0, nil
+func (r *fakeSyncPlayRepo) DeleteStaleEmptyRooms(_ context.Context, _ time.Time) ([]string, error) {
+	return nil, nil
 }
 
 func (r *fakeSyncPlayRepo) CountActiveByHost(_ context.Context, hostID string) (int, error) {
@@ -273,7 +274,7 @@ func TestSyncPlayJoinByCode(t *testing.T) {
 	defer store.Stop()
 
 	room := createTestRoom(t, hub, "host-jc", "media-jc") // CreateRoom defaults to a video room
-	h := syncplayJoinByCodeHandler(hub, store)
+	h := syncplayJoinByCodeHandler(hub, store, ratelimit.NewFailureGate("test", joinCodeFailureThreshold, joinCodeFailureWindow, joinCodeCooldown))
 
 	// valid code -> 200 + a guest token scoped to the room's media
 	w := httptest.NewRecorder()
@@ -305,9 +306,18 @@ func TestSyncPlayJoinByCode(t *testing.T) {
 
 	// unknown code -> generic 404
 	w2 := httptest.NewRecorder()
-	h(w2, httptest.NewRequest(http.MethodPost, "/api/v1/syncplay/join-code", strings.NewReader(`{"code":"00000"}`)))
+	h(w2, httptest.NewRequest(http.MethodPost, "/api/v1/syncplay/join-code", strings.NewReader(`{"code":"000000"}`)))
 	if w2.Code != http.StatusNotFound {
 		t.Errorf("unknown code: expected 404, got %d", w2.Code)
+	}
+
+	// The code is typed by a guest off a screen: case and separators must not
+	// decide whether the party works.
+	w2b := httptest.NewRecorder()
+	h(w2b, httptest.NewRequest(http.MethodPost, "/api/v1/syncplay/join-code",
+		strings.NewReader(`{"code":" `+strings.ToLower(room.Code[:3])+"-"+strings.ToLower(room.Code[3:])+` "}`)))
+	if w2b.Code != http.StatusOK {
+		t.Errorf("lowercased, spaced and hyphenated code: expected 200, got %d (%s)", w2b.Code, w2b.Body.String())
 	}
 
 	// music room -> 409 (guest join is video-only)
@@ -319,6 +329,45 @@ func TestSyncPlayJoinByCode(t *testing.T) {
 	h(w3, httptest.NewRequest(http.MethodPost, "/api/v1/syncplay/join-code", strings.NewReader(`{"code":"`+mroom.Code+`"}`)))
 	if w3.Code != http.StatusConflict {
 		t.Errorf("music room: expected 409, got %d", w3.Code)
+	}
+}
+
+// The per-IP limiter in front of this route bounds one source. The code space
+// is global, so an attacker rotating source addresses - the exact shape of a
+// guessing attack - never meets it. This is the counter that does not care
+// where the request came from.
+func TestSyncPlayJoinByCode_GlobalFailureGate(t *testing.T) {
+	t.Parallel()
+	repo := newFakeSyncPlayRepo()
+	hub := appsyncplay.NewHub(repo)
+	store := appmedia.NewStreamTokenStore(5 * time.Minute)
+	defer store.Stop()
+
+	room := createTestRoom(t, hub, "host-gate", "media-gate")
+	h := syncplayJoinByCodeHandler(hub, store, ratelimit.NewFailureGate("test", 3, time.Minute, time.Minute))
+
+	post := func(code, ip string) int {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/syncplay/join-code", strings.NewReader(`{"code":"`+code+`"}`))
+		req.RemoteAddr = ip + ":1234"
+		w := httptest.NewRecorder()
+		h(w, req)
+		return w.Code
+	}
+
+	// Every guess from a different address, as a botnet would.
+	for i, ip := range []string{"10.0.0.1", "10.0.0.2", "10.0.0.3"} {
+		if got := post("ZZZZZ"+string(rune('A'+i)), ip); got != http.StatusNotFound {
+			t.Fatalf("guess %d: expected 404, got %d", i, got)
+		}
+	}
+
+	if got := post("ZZZZZZ", "10.0.0.4"); got != http.StatusTooManyRequests {
+		t.Fatalf("after the threshold: expected 429 whatever the source, got %d", got)
+	}
+	// The real code is refused too while the gate is shut: it is blunt on
+	// purpose, and a few minutes is the price of not being enumerable.
+	if got := post(room.Code, "10.0.0.5"); got != http.StatusTooManyRequests {
+		t.Fatalf("gate must apply to everyone while shut, got %d", got)
 	}
 }
 

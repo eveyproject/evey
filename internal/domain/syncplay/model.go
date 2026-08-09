@@ -5,17 +5,50 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"strings"
 	"time"
 
 	"github.com/evey-project/evey/internal/domain/shared"
 )
 
+// codeAlphabet is Crockford base32: no I, L, O or U, so a code read off a
+// television never folds onto another valid code and no draw spells a word.
+const codeAlphabet = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+
+// codeLen of 6 over that alphabet is 2^30 codes. The previous 5 digits were
+// 90 000: enumerable in minutes by an attacker rotating source addresses past
+// the per-IP limiter, for a 3 h streaming token minted without any account.
+const codeLen = 6
+
 func GenerateCode() (string, error) {
-	n, err := rand.Int(rand.Reader, big.NewInt(90000))
-	if err != nil {
-		return "", fmt.Errorf("crypto/rand failed: %w", err)
+	b := make([]byte, codeLen)
+	for i := range b {
+		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(codeAlphabet))))
+		if err != nil {
+			return "", fmt.Errorf("crypto/rand failed: %w", err)
+		}
+		b[i] = codeAlphabet[n.Int64()]
 	}
-	return fmt.Sprintf("%d", 10000+n.Int64()), nil
+	return string(b), nil
+}
+
+// NormalizeCode folds what a guest actually types into the stored form: case,
+// the separators people add to a 6-character code, and the three characters the
+// alphabet drops precisely because they are misread (I and L for 1, O for 0).
+// Everything else is left alone so an unknown code stays unknown.
+func NormalizeCode(code string) string {
+	var b strings.Builder
+	for _, c := range strings.ToUpper(code) {
+		switch {
+		case c == 'I' || c == 'L':
+			b.WriteByte('1')
+		case c == 'O':
+			b.WriteByte('0')
+		case strings.ContainsRune(codeAlphabet, c):
+			b.WriteRune(c)
+		}
+	}
+	return b.String()
 }
 
 type Room struct {

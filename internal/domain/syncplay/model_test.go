@@ -1,6 +1,7 @@
 package syncplay_test
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -8,29 +9,33 @@ import (
 	"github.com/evey-project/evey/internal/domain/syncplay"
 )
 
+// The code is the ONLY secret protecting an unauthenticated guest token, and
+// the route that trades it is public. 5 digits was 90 000 values: a per-IP
+// limiter of 10/min holds one source off for ~75 h, but a thousand rotating
+// sources walk the whole space in nine minutes. 6 symbols over a 32-letter
+// alphabet is 2^30, which no rotation budget reaches.
 func TestGenerateCode(t *testing.T) {
 	t.Parallel()
 	code, err := syncplay.GenerateCode()
 	if err != nil {
 		t.Fatalf("GenerateCode() error: %v", err)
 	}
-	if len(code) != 5 {
-		t.Errorf("code length = %d, want 5", len(code))
+	if len(code) != 6 {
+		t.Errorf("code length = %d, want 6", len(code))
 	}
 	for _, c := range code {
-		if c < '0' || c > '9' {
-			t.Errorf("unexpected char %c in code %q, want digits only", c, code)
+		// Crockford-style alphabet: no I, L, O or U, so nothing a guest reads
+		// off a screen can be mistaken for a digit (and no accidental words).
+		if !strings.ContainsRune("0123456789ABCDEFGHJKMNPQRSTVWXYZ", c) {
+			t.Errorf("unexpected char %c in code %q", c, code)
 		}
 	}
 }
 
 func TestGenerateCode_Unique(t *testing.T) {
 	t.Parallel()
-	// Code space is 90000 (10000..99999). Birthday paradox at N=100
-	// gives ~5% collision rate, so asserting zero collisions is a
-	// flake. Instead assert near-full uniqueness - catches a stuck
-	// RNG that returns the same value repeatedly without making the
-	// test fail on a legitimate statistical collision.
+	// Catches a stuck RNG, not a statistical collision: over 2^30 values a
+	// repeat in 100 draws is impossible in practice, so any repeat is a bug.
 	seen := make(map[string]int)
 	const iters = 100
 	for range iters {
@@ -40,12 +45,26 @@ func TestGenerateCode_Unique(t *testing.T) {
 		}
 		seen[code]++
 	}
-	if len(seen) < iters-3 {
+	if len(seen) != iters {
 		t.Fatalf("only %d unique codes in %d iterations - RNG is stuck", len(seen), iters)
 	}
-	for code, count := range seen {
-		if count > 2 {
-			t.Fatalf("code %q appeared %d times - RNG is stuck", code, count)
+}
+
+func TestNormalizeCode(t *testing.T) {
+	t.Parallel()
+	tests := []struct{ in, want string }{
+		{"abc123", "ABC123"},
+		{" abc 123 ", "ABC123"},
+		{"ABC-123", "ABC123"},
+		// I/L read as 1 and O as 0: the alphabet excludes them, so folding a
+		// misread character can never land on a different valid code.
+		{"IL0O1", "11001"},
+		// Old 5-digit rooms predate the alphabet and must keep working.
+		{"12345", "12345"},
+	}
+	for _, tc := range tests {
+		if got := syncplay.NormalizeCode(tc.in); got != tc.want {
+			t.Errorf("NormalizeCode(%q) = %q, want %q", tc.in, got, tc.want)
 		}
 	}
 }

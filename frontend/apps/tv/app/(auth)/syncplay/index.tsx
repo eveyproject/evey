@@ -5,16 +5,17 @@ import { useTranslation } from "react-i18next";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { FocusableCard } from "../../../src/components/FocusableCard";
 import { joinSyncplayRoomByCode } from "../../../src/hooks/useSyncplay";
-import { isValidRoomCode, ROOM_CODE_LENGTH } from "../../../src/lib/syncplayReconcile";
+import { isValidRoomCode, ROOM_CODE_LENGTH, ROOM_CODE_ALPHABET } from "../../../src/lib/syncplayReconcile";
 import { FONT_SIZE } from "@evey/theme";
 
 // TV is a JOIN-only SyncPlay entry point, deliberately: creating a room means
-// sharing a 5-digit code with other viewers, and that sharing (a screenshot,
-// a text message, reading digits over the phone) is something a phone does
-// far better than a TV - web and mobile already offer room creation.
-// Joining is the one thing that is genuinely a TV-native action, entered on
-// the remote with the SAME numeric-keypad idiom already used for the
-// parental PIN (ParentalPINModal) rather than a new, unfamiliar one.
+// sharing its code with other viewers, and that sharing (a screenshot, a text
+// message, reading it out over the phone) is something a phone does far better
+// than a TV - web and mobile already offer room creation.
+//
+// The grid below is the alphabet, not a numeric keypad: the code gained letters
+// when 5 digits proved enumerable, and a remote cannot paste. Six columns so a
+// row is one D-pad sweep, digits first as they are in the alphabet itself.
 //
 // The room membership itself is granted by this REST call server-side (see
 // syncplay_handler.go's JoinByCode, which calls hub.JoinRoom before this
@@ -22,12 +23,18 @@ import { FONT_SIZE } from "@evey/theme";
 // room/media pair and hands off; the actual live sync connection is opened
 // by the player screen's own useSyncplay instance once it mounts with the
 // resulting media, via the `roomId` navigation param.
-const KEYPAD_ROWS: (string | null)[][] = [
-  ["1", "2", "3"],
-  ["4", "5", "6"],
-  ["7", "8", "9"],
-  [null, "0", "del"],
-];
+const KEYS_PER_ROW = 6;
+
+const KEYPAD_ROWS: (string | null)[][] = (() => {
+  const keys: string[] = [...ROOM_CODE_ALPHABET, "del"];
+  const rows: (string | null)[][] = [];
+  for (let i = 0; i < keys.length; i += KEYS_PER_ROW) {
+    const row: (string | null)[] = keys.slice(i, i + KEYS_PER_ROW);
+    while (row.length < KEYS_PER_ROW) row.push(null);
+    rows.push(row);
+  }
+  return rows;
+})();
 
 export default function SyncplayJoinScreen() {
   const { t } = useTranslation();

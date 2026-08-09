@@ -38,8 +38,8 @@ vi.mock("../../../src/hooks/useSyncplay", () => ({
 
 import SyncplayJoinScreen from "./index";
 
-function pressDigits(getByLabelText: (l: string) => HTMLElement, digits: string) {
-  for (const d of digits) fireEvent.click(getByLabelText(d));
+function pressKeys(getByLabelText: (l: string) => HTMLElement, keys: string) {
+  for (const k of keys) fireEvent.click(getByLabelText(k));
 }
 
 beforeEach(() => {
@@ -47,13 +47,13 @@ beforeEach(() => {
 });
 
 describe("SyncplayJoinScreen", () => {
-  it("navigates to the room's media, carrying the roomId, once 5 digits are entered", async () => {
+  it("navigates to the room's media, carrying the roomId, once the whole code is entered", async () => {
     joinMock.mockResolvedValueOnce({ roomId: "room-1", mediaId: "mi-1" });
     const { getByLabelText } = render(<SyncplayJoinScreen />);
 
-    pressDigits(getByLabelText, "12345");
+    pressKeys(getByLabelText, "AB12CD");
 
-    await waitFor(() => expect(joinMock).toHaveBeenCalledWith("12345"));
+    await waitFor(() => expect(joinMock).toHaveBeenCalledWith("AB12CD"));
     await waitFor(() => expect(replaceMock).toHaveBeenCalledWith("/(auth)/player/mi-1?roomId=room-1"));
   });
 
@@ -61,23 +61,23 @@ describe("SyncplayJoinScreen", () => {
     joinMock.mockRejectedValueOnce(new Error("room not found"));
     const { getByLabelText, findByText } = render(<SyncplayJoinScreen />);
 
-    pressDigits(getByLabelText, "00000");
+    pressKeys(getByLabelText, "000000");
 
     await findByText("Could not join - check the code.");
     expect(replaceMock).not.toHaveBeenCalled();
 
-    // State is not corrupted: the digit dots are back to empty, a new
+    // State is not corrupted: the dots are back to empty, a new
     // attempt can be typed immediately.
-    pressDigits(getByLabelText, "1");
+    pressKeys(getByLabelText, "1");
     expect(getByLabelText("Delete")).toBeTruthy(); // keypad is still usable
   });
 
-  it("deletes the last digit on the delete key", async () => {
+  it("deletes the last character on the delete key", async () => {
     const { getByLabelText } = render(<SyncplayJoinScreen />);
-    pressDigits(getByLabelText, "123");
-    fireEvent.click(getByLabelText("Delete")); // "123" -> "12"
-    pressDigits(getByLabelText, "678");
-    await waitFor(() => expect(joinMock).toHaveBeenCalledWith("12678"));
+    pressKeys(getByLabelText, "12A");
+    fireEvent.click(getByLabelText("Delete")); // "12A" -> "12"
+    pressKeys(getByLabelText, "6BC7");
+    await waitFor(() => expect(joinMock).toHaveBeenCalledWith("126BC7"));
   });
 
   it("goes back without joining when the back button is pressed", () => {

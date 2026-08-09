@@ -442,7 +442,7 @@ syncplay:
   joinRoom: Beitreten
   codeLabel: Code
   codeInput: Raumcode
-  invalidCode: Gib den 5-stelligen Raumcode ein.
+  invalidCode: Gib den 6-stelligen Raumcode ein.
   members: Mitglieder
   sharedTrack: Geteilter Titel
   followingHost: "Sie sind mit dem Host synchronisiert."

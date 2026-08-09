@@ -442,7 +442,7 @@ syncplay:
   joinRoom: Join room
   codeLabel: Code
   codeInput: Room code
-  invalidCode: Enter the 5-digit room code.
+  invalidCode: Enter the 6-character room code.
   members: members
   sharedTrack: Shared track
   followingHost: "You're synced with the host."
