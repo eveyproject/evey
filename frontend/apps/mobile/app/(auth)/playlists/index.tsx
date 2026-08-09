@@ -151,6 +151,8 @@ export default function PlaylistsScreen() {
               onPress={() => setModalVisible(true)}
               style={{ marginRight: 8 }}
               hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={t("media.playlist.createPlaylist")}
             >
               <Ionicons name="add" size={26} color={theme.colors.accent} />
             </TouchableOpacity>

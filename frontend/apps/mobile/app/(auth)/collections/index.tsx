@@ -255,7 +255,7 @@ export default function CollectionsScreen() {
           headerTintColor: theme.colors.text,
           headerRight: () =>
             isAdmin ? (
-              <TouchableOpacity onPress={() => setCreateVisible(true)} style={{ marginRight: 8 }}>
+              <TouchableOpacity onPress={() => setCreateVisible(true)} style={{ marginRight: 8 }} hitSlop={8} accessibilityRole="button" accessibilityLabel={t("media.collections.newCollection")}>
                 <Ionicons name="add-circle-outline" size={26} color={theme.colors.accent} />
               </TouchableOpacity>
             ) : null,

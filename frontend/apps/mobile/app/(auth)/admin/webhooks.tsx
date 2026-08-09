@@ -249,7 +249,7 @@ export default function AdminWebhooksScreen() {
         headerStyle: { backgroundColor: theme.colors.surface },
         headerTintColor: theme.colors.text,
         headerRight: () => (
-          <Pressable onPress={openCreate} style={{ marginRight: 16 }}>
+          <Pressable onPress={openCreate} style={{ marginRight: 16 }} hitSlop={8} accessibilityRole="button" accessibilityLabel={t("admin.webhooks.createWebhook")}>
             <Ionicons name="add" size={24} color={theme.colors.accent} />
           </Pressable>
         ),
