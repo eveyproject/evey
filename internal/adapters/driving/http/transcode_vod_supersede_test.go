@@ -91,6 +91,34 @@ func TestHLSVOD_AudioTrackSwitch_SecondViewerOnTheOldTrackIsProtected(t *testing
 	assert.Len(t, reclaimed, 1, "once the LAST viewer leaves the track, its encoder is dead weight")
 }
 
+// prewarm-next and cast-next build the NEXT episode's fingerprint while the
+// CURRENT one is still playing, under that playback's own stream token. Such a
+// resolution must leave the registry alone: binding it moved the token onto the
+// next episode's hash and handed the hash of the episode being watched to
+// reclaimHash, killing the encoder feeding the viewer - in the last minute of
+// the episode, which is exactly when the prewarm fires.
+func TestHLSVOD_NextEpisodePrewarm_DoesNotReclaimTheEpisodeBeingWatched(t *testing.T) {
+	item, streams := supersede4KItem(t)
+	h, _ := buildVODHandler(t, &testFakeStreamsGetter{item: item, streams: streams}, allowAll(), testFakeParentalChecker{})
+
+	var reclaimed []string
+	h.reclaimHash = func(hash, _ string) int { reclaimed = append(reclaimed, hash); return 1 }
+
+	require.Equal(t, http.StatusOK, doVODRequestAs(h, "tok-viewer", "m1", "master.m3u8", "audioTrack=0").Code)
+	require.Empty(t, reclaimed)
+
+	next, nextStreams := supersede4KItem(t)
+	next.ID = "m2"
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/media/m1/prewarm-next", nil)
+	req = withHTTPClaims(req, testClaims(false))
+	req = req.WithContext(context.WithValue(req.Context(), rawTokenCtxKey, "tok-viewer"))
+	_, err := h.buildFingerprint(req, "m2", next, nextStreams)
+	require.NoError(t, err)
+
+	assert.Empty(t, reclaimed,
+		"warming the next episode must not report the one playing as superseded")
+}
+
 // A request with no stream token (share links, native players before the
 // cookie lands) must stay inert rather than collapsing every anonymous viewer
 // onto one registry entry and reclaiming each other's encoders.

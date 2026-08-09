@@ -109,8 +109,30 @@ func (h *hlsVODServe) marshalPlaybackRequest(r *http.Request, mediaID string, it
 }
 
 // resolvePlan marshals the request and resolves the whole per-request plan
-// through the app-layer resolver.
+// through the app-layer resolver, for a request that is about to SERVE that
+// plan: it also records the stream's move onto this fingerprint and reclaims
+// the one it left.
+//
+// A caller that resolves a plan it may throw away, or a plan for media this
+// request is not serving, must use probePlan instead - see its doc.
 func (h *hlsVODServe) resolvePlan(r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream) (*requestPlan, error) {
+	rp, err := h.probePlan(r, mediaID, item, streams)
+	if err != nil {
+		return nil, err
+	}
+	h.reclaimSupersededHash(r, mediaID, rp)
+	return rp, nil
+}
+
+// probePlan is resolvePlan WITHOUT the registry bind and the superseded-hash
+// reclaim - a pure resolution, no side effect on any other stream.
+//
+// Binding is destructive: it moves this token onto the resolved hash and hands
+// the one it left to reclaimHash, which kills that hash's ffmpeg. A speculative
+// resolution (a fallback rung that may not be advertised, a prewarm fingerprint
+// for the NEXT episode) must never do that - it killed the encoder of the
+// stream actually playing. The segment fetch is what binds for real.
+func (h *hlsVODServe) probePlan(r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream) (*requestPlan, error) {
 	if item == nil || item.File == nil {
 		return nil, errors.New("resolvePlan: nil item")
 	}
@@ -122,7 +144,7 @@ func (h *hlsVODServe) resolvePlan(r *http.Request, mediaID string, item *domainl
 	if err != nil {
 		return nil, err
 	}
-	rp := &requestPlan{
+	return &requestPlan{
 		Plan:       plan,
 		Decision:   plan.Decision,
 		Profiles:   plan.Ladder,
@@ -130,9 +152,7 @@ func (h *hlsVODServe) resolvePlan(r *http.Request, mediaID string, item *domainl
 		FP:         plan.Fingerprint,
 		FPHash:     plan.FingerprintHash,
 		IsCopy:     plan.Packager == apptranscoding.PackagerCopyFFmpeg,
-	}
-	h.reclaimSupersededHash(r, mediaID, rp)
-	return rp, nil
+	}, nil
 }
 
 // reclaimSupersededHash hands back the video-encode slot of the hash THIS

@@ -202,7 +202,10 @@ func (h *hlsVODServe) copyFallbackVariant(r *http.Request, mediaID string, item 
 	q := rT.URL.Query()
 	q.Set("vd", "transcode")
 	rT.URL.RawQuery = q.Encode()
-	rpT, err := h.resolvePlan(rT, mediaID, item, streams)
+	// probePlan, not resolvePlan: this resolution exists to DECIDE whether to
+	// advertise the rung and is dropped on the three paths below. Binding it
+	// would kill the encoder of whatever hash the player is really on.
+	rpT, err := h.probePlan(rT, mediaID, item, streams)
 	if err != nil || rpT.IsCopy || len(rpT.Profiles) == 0 {
 		// One line per outcome, always: the rung's absence must be readable in
 		// the logs, not inferred from a master someone has to fetch and diff.
@@ -309,7 +312,10 @@ func (h *hlsVODServe) buildCappedMaster(r *http.Request, mediaID string, item *d
 	q := rT.URL.Query()
 	q.Set("vd", "transcode")
 	rT.URL.RawQuery = q.Encode()
-	rpT, err := h.resolvePlan(rT, mediaID, item, streams)
+	// probePlan: this master is abandoned on four paths below (unresolvable,
+	// floor refused, no real drop, manifest build failure). The player's first
+	// segment request against the rung binds the hash for real.
+	rpT, err := h.probePlan(rT, mediaID, item, streams)
 	if err != nil || rpT.IsCopy || len(rpT.Profiles) == 0 {
 		slog.WarnContext(r.Context(), "hls-vod: capped master unresolvable, serving the ordinary master",
 			slog.String("media_id", mediaID), slog.Any("err", err))

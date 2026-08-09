@@ -249,11 +249,15 @@ func pinnedVideoDecision(r *http.Request, decision domaintranscoding.PlaybackDec
 // cache lookup misses on every segment. Hence one shared resolution: this
 // wrapper resolves the whole plan and hands back its fingerprint - kept for
 // the call sites (prewarm, tests) that want the fingerprint alone.
+//
+// probePlan, not resolvePlan: both callers are the next-episode prewarms, which
+// fingerprint ANOTHER media under the current playback's token. Binding there
+// killed the encoder of the episode being watched, in its last minute.
 func (h *hlsVODServe) buildFingerprint(r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream) (apptranscoding.DecisionFingerprint, error) {
 	if item == nil || item.File == nil {
 		return apptranscoding.DecisionFingerprint{}, errors.New("buildFingerprint: nil item")
 	}
-	rp, err := h.resolvePlan(r, mediaID, item, streams)
+	rp, err := h.probePlan(r, mediaID, item, streams)
 	if err != nil {
 		return apptranscoding.DecisionFingerprint{}, err
 	}
