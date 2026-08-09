@@ -265,6 +265,52 @@ func TestAdmissionShaper_FrozenLadder_ColdButHeld_StaysFrozen(t *testing.T) {
 	assert.Equal(t, []int{1080, 720}, heightsOf(got))
 }
 
+// bindOverflow is only ever recomputed by ANOTHER Bind on an already-full set,
+// so a stream whose binds stop while the flag is up used to keep it for the
+// life of the process: anyBoundHeld answered "held" forever, GrantRoute could
+// never supersede the plan, evictIfFull could never reclaim the pin, and
+// FrozenLadder kept serving a ladder nobody was playing. A ceiling forced down
+// during a load spike stayed forced for good. The flag must survive only as
+// long as the pin is warm.
+func TestAdmissionShaper_BindOverflow_DoesNotFreezeThePinForever(t *testing.T) {
+	// No cost model: every acquisition succeeds, so maxBoundHashes+1 variants
+	// really can hold a slot at once - the pathological shape the flag exists for.
+	limiter := NewVideoSessionLimiter(0)
+	shaper := NewVideoAdmissionShaper(limiter)
+	clock := time.Unix(1_700_000_000, 0)
+	shaper.now = func() time.Time { return clock }
+
+	require.True(t, shaper.GrantRoute("s1", LadderClassSoftware, ladder, nil, transcoding.SourceClass{}).OK)
+	shaper.FreezeLadder("s1", ladderProfiles(1080, 720))
+
+	hashes := make([]string, 0, maxBoundHashes+1)
+	for i := range maxBoundHashes + 1 {
+		h := fmt.Sprintf("s1-hash-%d", i)
+		hashes = append(hashes, h)
+		require.True(t, limiter.TryAcquire(h, LadderClassSoftware, 1080))
+		shaper.Bind("s1", h)
+	}
+	shaper.mu.Lock()
+	require.True(t, shaper.pins["s1"].bindOverflow, "the 9th simultaneously-live variant must overflow the set")
+	shaper.mu.Unlock()
+
+	// Every session ends. The set still cannot name what it dropped, so while
+	// the pin is warm it must keep failing safe as held.
+	for _, h := range hashes {
+		limiter.Release(h)
+	}
+	_, ok := shaper.FrozenLadder("s1")
+	assert.True(t, ok, "a warm overflowed pin stays authoritative - it cannot prove nothing is live")
+
+	clock = clock.Add(defaultPinFreshFor)
+
+	_, ok = shaper.FrozenLadder("s1")
+	assert.False(t, ok, "once cold, an overflowed pin must be supersedable like any other abandoned stream")
+	shaper.mu.Lock()
+	assert.False(t, shaper.pins["s1"].bindOverflow, "the flag must be cleared, not just ignored once")
+	shaper.mu.Unlock()
+}
+
 func heightsOf(ps []transcoding.HLSProfile) []int {
 	out := make([]int, len(ps))
 	for i, p := range ps {

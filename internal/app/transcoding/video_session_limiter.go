@@ -304,6 +304,10 @@ func (l *VideoSessionLimiter) TryAcquireFor(key string, class LadderClass, topHe
 // The authoritative decision stays in TryAcquire, at spawn.
 //
 // A key that already holds a slot always can: its sibling encoders join it.
+// That shortcut is keyed on the limiter's OWN namespace (fingerprint hashes).
+// The admission shaper probes with a STREAM key instead, which never matches a
+// ref, so for that caller the shortcut is dead and every probe prices as a new
+// stream - harmless today, a trap for a caller that passes a real hash.
 func (l *VideoSessionLimiter) CanAdmit(key string, class LadderClass, topHeight int) bool {
 	return l.CanAdmitFor(key, class, topHeight, transcoding.SourceClass{})
 }
@@ -421,6 +425,12 @@ func sourceFitCosts(fits []SourceFit) []float64 {
 
 // AutoCountCap is the count cap this host's own calibration derives: the sum
 // across pools of AutoCountCapFor. 0 means "no evidence to derive one from".
+//
+// The sum, not the max, precisely BECAUSE the counter gate is global across
+// classes: a host legitimately runs its CPU pool full of software streams AND
+// its GPU pool full of hardware ones, and a max would refuse that mix. Loose
+// for an all-software load on a GPU box, but the per-pool budget refuses those
+// first - this is the belt, not the braces.
 //
 // It lives HERE, on the limiter that owns both the cost model and the budgets,
 // because it used to be computed inline at the wiring site while the admin API

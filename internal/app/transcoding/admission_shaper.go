@@ -97,8 +97,9 @@ type streamPin struct {
 	boundHashes []string
 	// bindOverflow marks the pathological case where maxBoundHashes variants
 	// were SIMULTANEOUSLY live and one more arrived: the set cannot name every
-	// live session anymore, so the pin fails SAFE as held until Bind manages
-	// to compact a slot free again.
+	// live session anymore, so the pin fails SAFE as held until Bind compacts a
+	// slot free again OR the pin goes cold (see anyBoundHeld - a flag no later
+	// Bind ever revisits would otherwise freeze the plan for the process's life).
 	bindOverflow bool
 }
 
@@ -384,9 +385,26 @@ func (s *VideoAdmissionShaper) tallestAdmittable(key string, class LadderClass, 
 	return 0, false
 }
 
+// anyBoundHeld reports whether a live session still holds this pin's plan.
+// Called with s.mu held - it may clear a stale overflow flag.
 func (s *VideoAdmissionShaper) anyBoundHeld(pin *streamPin) bool {
-	// An overflowed set cannot name every live session: fail SAFE as held.
-	return pin.bindOverflow || slices.ContainsFunc(pin.boundHashes, s.limiter.Holds)
+	if slices.ContainsFunc(pin.boundHashes, s.limiter.Holds) {
+		return true
+	}
+	if !pin.bindOverflow {
+		return false
+	}
+	// An overflowed set cannot NAME every live session, so it fails safe as
+	// held - but only while the pin is warm. Nothing else ever clears the flag
+	// (only another Bind on a full set recomputes it), so a stream whose binds
+	// stopped froze its plan for the process's life. A pin untouched for
+	// pinFreshFor has no manifest or segment behind it whatever the set failed
+	// to name: worst case is one re-derivation instead of a permanent freeze.
+	if s.now().Sub(pin.lastSeen) < s.pinFreshFor {
+		return true
+	}
+	pin.bindOverflow = false
+	return false
 }
 
 // evictIfFull bounds the pin map: expired unheld pins first, then the coldest
