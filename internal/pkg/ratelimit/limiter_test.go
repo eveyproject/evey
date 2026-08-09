@@ -495,6 +495,34 @@ func TestSetTrustedProxies_InvalidCIDRSkipped(t *testing.T) {
 	}
 }
 
+// Retry-After must never be 0 or negative: a client honoring it literally
+// would retry immediately (or never), defeating the throttle. The clamp was a
+// surviving mutant (limiter.go `retryAfter < 1`) - this pins it for both
+// refusal writers.
+func TestRefusals_ClampRetryAfterToAtLeastOneSecond(t *testing.T) {
+	SetLogger(slog.New(slog.NewJSONHandler(&bytes.Buffer{}, nil)))
+	t.Cleanup(func() { SetLogger(nil) })
+
+	for _, retryAfter := range []int{0, -3} {
+		w := httptest.NewRecorder()
+		refuse(w, httptest.NewRequest(http.MethodGet, "/x", nil), retryAfter)
+		if got := w.Header().Get("Retry-After"); got != "1" {
+			t.Fatalf("refuse(%d): Retry-After = %q, want \"1\"", retryAfter, got)
+		}
+		ws := httptest.NewRecorder()
+		RefuseStreaming(ws, httptest.NewRequest(http.MethodGet, "/hls/x", nil), retryAfter, "p:x")
+		if got := ws.Header().Get("Retry-After"); got != "1" {
+			t.Fatalf("RefuseStreaming(%d): Retry-After = %q, want \"1\"", retryAfter, got)
+		}
+	}
+	// And an honest value passes through untouched.
+	w := httptest.NewRecorder()
+	refuse(w, httptest.NewRequest(http.MethodGet, "/x", nil), 2)
+	if got := w.Header().Get("Retry-After"); got != "2" {
+		t.Fatalf("refuse(2): Retry-After = %q, want \"2\"", got)
+	}
+}
+
 // A refused request used to leave NO trace at all: an operator investigating
 // "the app refuses my login" saw an empty log and concluded the request never
 // arrived (prod 2026-07-29, a beta tester locked out and invisible). Every
