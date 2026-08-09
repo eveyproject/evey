@@ -1002,6 +1002,87 @@ func TestSanitizeCSS_FixedHeader_RealOverlaysStillBlocked(t *testing.T) {
 	}
 }
 
+// The overlay check used to be handed a whole grouping at-rule as ONE block, so
+// it summed the signals of unrelated rules inside it. A fixed header and a
+// full-bleed hero in the same breakpoint - the most ordinary responsive CSS
+// there is - were deleted together, with a warning blaming the @media itself,
+// while the exact same two rules at root level passed untouched.
+//
+// The existing at-rule tests could not catch it: they each put a SINGLE rule
+// inside the at-rule, which passes whatever the aggregation does.
+func TestSanitizeCSS_AtRule_DoesNotSumSignalsAcrossSiblingRules(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{"media", `@media (max-width:600px){.topbar{position:fixed;top:0}.hero{width:100vw}}`},
+		{"supports", `@supports (display:grid){.bar{position:sticky;top:0}.full{height:100vh}}`},
+		{"signals split three ways", `@layer t{.a{position:fixed}.b{top:0;left:0}.c{width:100vw}}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			out, warns := SanitizeCSS([]byte(tt.input))
+			if string(out) != tt.input {
+				t.Errorf("legitimate rules inside an at-rule were removed:\ngot:  %s\nwant: %s", out, tt.input)
+			}
+			if len(warns) != 0 {
+				t.Errorf("unexpected warnings: %v", warns)
+			}
+		})
+	}
+}
+
+// The browser cascades two rules on the same selector into one overlay, so
+// splitting the declarations was a one-line bypass of this control - no
+// escaping, no var(), none of the obfuscation the rest of the file defends
+// against. The signals must accumulate per selector, not per block.
+func TestSanitizeCSS_OverlaySplitAcrossRules_IsStillRemoved(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{"two blocks", `.ov{position:fixed}.ov{top:0;left:0;width:100vw;height:100vh}`},
+		{"inset in the second", `.ov{position:fixed;z-index:99}.ov{inset:0}`},
+		{"comment between", `.ov{position:fixed}/*x*/.ov{inset:0}`},
+		{"selector list", `.a,.ov{position:fixed}.ov{inset:0}`},
+		{"whitespace differs", `.ov   {position:fixed}   .ov{inset:0}`},
+		{"descendant combinator spacing", `.a  >  .ov{position:fixed}.a > .ov{inset:0}`},
+		{"reversed order", `.ov{inset:0}.ov{position:fixed}`},
+		{"sticky variant", `.ov{position:sticky}.ov{width:100vw;height:100vh}`},
+		{"both halves inside one at-rule", `@media screen{.ov{position:fixed}.ov{inset:0}}`},
+		{"at-rules nested two deep", `@media screen{@supports(display:grid){.ov{position:fixed}.ov{inset:0}}}`},
+		{"completed inside an at-rule", `.ov{position:fixed}@media screen{.ov{inset:0}}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			out, warns := SanitizeCSS([]byte(tt.input))
+			if containsString(out, "inset:0") || containsString(out, "100vw") {
+				t.Errorf("the overlay survived by being split across rules: %s", out)
+			}
+			if len(warns) == 0 {
+				t.Error("expected a warning for the split overlay")
+			}
+		})
+	}
+}
+
+// Accumulating per selector must not become accumulating per scope: two
+// DIFFERENT selectors each holding half the signals are two ordinary rules.
+func TestSanitizeCSS_OverlaySignals_DoNotCrossSelectors(t *testing.T) {
+	for _, in := range []string{
+		`.ov{position:fixed}.other{inset:0}`,
+		`.topbar{position:fixed;top:0}.hero{width:100vw;height:100vh}`,
+	} {
+		out, warns := SanitizeCSS([]byte(in))
+		if string(out) != in {
+			t.Errorf("signals leaked between selectors:\ngot:  %s\nwant: %s", out, in)
+		}
+		if len(warns) != 0 {
+			t.Errorf("unexpected warnings: %v", warns)
+		}
+	}
+}
+
 func containsString(b []byte, s string) bool {
 	return len(b) > 0 && len(s) > 0 && string(b) != "" && contains(string(b), s)
 }

@@ -452,80 +452,234 @@ func stripImageSetExternalCandidates(css string, warnings *[]string) string {
 // stripFullScreenOverlays removes CSS rule blocks that combine position:fixed|sticky
 // with full-viewport geometry (top:0, left:0, width:100vw or height:100vh).
 // This prevents themes from rendering full-screen phishing overlays.
+//
+// Per SELECTOR, not per block: the browser cascades `.ov{position:fixed}` and
+// `.ov{top:0;width:100vw;height:100vh}` into one overlay, so a per-block check
+// passed both and splitting the declarations bypassed the control in one line.
+// The reverse too - an at-rule was judged as ONE block, so `@media{.topbar
+// {position:fixed}.hero{width:100vw}}` was deleted whole; at-rules now recurse.
+//
+// Keyed on normalized selector TEXT, so `.ov` + `div.ov` still passes - deciding
+// that needs a real selector engine. "Per selector" is the guarantee, no more.
 func stripFullScreenOverlays(css string, warnings *[]string) string {
+	return stripFullScreenOverlaysScoped(css, nil, warnings)
+}
+
+// stripFullScreenOverlaysScoped is stripFullScreenOverlays for one scope.
+// inherited carries the signals the ENCLOSING scope already gave each selector:
+// a rule inside `@media` cascades on top of the same selector's root-level
+// rule, so the pair must be judged together. Inheritance is one-directional on
+// purpose - a root rule is NOT condemned by what an at-rule adds, because that
+// overlay only exists while the query matches, and the inner rule is what
+// creates it.
+func stripFullScreenOverlaysScoped(css string, inherited map[string]*overlaySignals, warnings *[]string) string {
+	rules, trailing, ok := splitScopeRules(css)
+
+	// Pass 1: accumulate per selector.
+	acc := make(map[string]*overlaySignals, len(rules)+len(inherited))
+	for k, v := range inherited {
+		cp := *v
+		acc[k] = &cp
+	}
+	for _, ru := range rules {
+		if ru.atRule {
+			continue
+		}
+		for _, key := range selectorKeys(ru.selector) {
+			sig := acc[key]
+			if sig == nil {
+				sig = &overlaySignals{}
+				acc[key] = sig
+			}
+			sig.add(decodeCSSEscapes(ru.inner))
+		}
+	}
+
+	// Pass 2: rewrite.
 	var result strings.Builder
+	for _, ru := range rules {
+		if ru.atRule {
+			result.WriteString(ru.selector)
+			result.WriteString("{")
+			result.WriteString(stripFullScreenOverlaysScoped(ru.inner, acc, warnings))
+			result.WriteString("}")
+			continue
+		}
+		overlay, combined := false, false
+		for _, key := range selectorKeys(ru.selector) {
+			if sig := acc[key]; sig != nil && sig.isOverlay() {
+				overlay = true
+				break
+			}
+		}
+		if overlay {
+			var own overlaySignals
+			own.add(decodeCSSEscapes(ru.inner))
+			combined = !own.isOverlay()
+		}
+		switch {
+		case overlay && combined:
+			*warnings = append(*warnings, "removed full-screen overlay rule: "+
+				strings.TrimSpace(ru.selector)+" (combined with sibling rules for the same selector)")
+		case overlay:
+			*warnings = append(*warnings, "removed full-screen overlay rule: "+strings.TrimSpace(ru.selector))
+		default:
+			result.WriteString(ru.text)
+		}
+	}
+	if !ok {
+		// Malformed/unbalanced block: fail closed, drop the rest.
+		*warnings = append(*warnings, "dropped malformed/unbalanced CSS block")
+		return result.String()
+	}
+	result.WriteString(trailing)
+	return result.String()
+}
+
+// cssRule is one selector+block pair of a scope. text is the rule exactly as it
+// appeared (everything since the previous block's `}`, so leading whitespace and
+// comments survive verbatim); inner is the block content without its braces.
+type cssRule struct {
+	text     string
+	selector string
+	inner    string
+	atRule   bool
+}
+
+// splitScopeRules splits one scope into its rule blocks, in order. ok is false
+// when a block never closes: the rules parsed so far are returned so the caller
+// can keep them and fail closed on the rest, exactly as the single-pass
+// scanners did.
+func splitScopeRules(css string) (rules []cssRule, trailing string, ok bool) {
 	remaining := css
 	for {
 		braceOpen := strings.Index(remaining, "{")
 		if braceOpen < 0 {
-			result.WriteString(remaining)
-			break
+			return rules, remaining, true
 		}
 		closeIdx := findMatchingBrace(remaining, braceOpen)
 		if closeIdx < 0 {
-			// Malformed/unbalanced block: fail closed, drop the rest.
-			*warnings = append(*warnings, "dropped malformed/unbalanced CSS block")
-			break
+			return rules, "", false
 		}
-		block := remaining[braceOpen : closeIdx+1]
 		selector := remaining[:braceOpen]
-
-		if isFullScreenOverlay(decodeCSSEscapes(block)) {
-			*warnings = append(*warnings, "removed full-screen overlay rule: "+strings.TrimSpace(selector))
-		} else {
-			result.WriteString(remaining[:closeIdx+1])
-		}
+		rules = append(rules, cssRule{
+			text:     remaining[:closeIdx+1],
+			selector: selector,
+			inner:    remaining[braceOpen+1 : closeIdx],
+			atRule:   reNestableAtRule.MatchString(decodeCSSEscapes(selector)),
+		})
 		remaining = remaining[closeIdx+1:]
 	}
-	return result.String()
 }
 
-// isFullScreenOverlay returns true when a CSS block contains position:fixed|sticky
-// combined with at least two of: top/right/bottom/left (any zero-unit), inset:0, width:100vw, height:100vh,
-// AND at least one of those signals is a viewport-dimension signal (width:100vw, height:100vh, or
-// inset:0/four-sides-zero). A plain fixed header pinned with top:0;left:0 but sized by content
-// (e.g. height:48px, width:auto) has only offset signals and no viewport-dimension signal, so it
-// is not flagged - offsets alone are common for legitimate fixed headers/toolbars.
-// inset:0 (the shorthand that sets all four sides) counts as two signals on its own
-// because it is semantically equivalent to top:0 + right:0 + bottom:0 + left:0.
-func isFullScreenOverlay(block string) bool {
-	if !rePosFixed.MatchString(block) {
+// selectorKeys normalizes a rule's selector text into one key per selector in
+// the list, so that two rules the browser will cascade together accumulate
+// together. Comments are stripped and whitespace runs collapsed (otherwise
+// `.ov` and `/*x*/ .ov` would be different keys - a free bypass); case is
+// preserved because CSS class and id selectors are case-sensitive. The split is
+// on top-level commas only, so a comma inside :is(...) or [attr=","] does not
+// fragment the key and make two unrelated selectors share one.
+func selectorKeys(selector string) []string {
+	s := stripCSSComments(decodeCSSEscapes(selector))
+	var keys []string
+	depth := 0
+	start := 0
+	for i := range len(s) {
+		switch s[i] {
+		case '(', '[':
+			depth++
+		case ')', ']':
+			if depth > 0 {
+				depth--
+			}
+		case ',':
+			if depth == 0 {
+				keys = appendSelectorKey(keys, s[start:i])
+				start = i + 1
+			}
+		}
+	}
+	return appendSelectorKey(keys, s[start:])
+}
+
+func appendSelectorKey(keys []string, raw string) []string {
+	if k := strings.Join(strings.Fields(raw), " "); k != "" {
+		return append(keys, k)
+	}
+	return keys
+}
+
+// stripCSSComments removes /* ... */ spans. An unterminated comment swallows
+// the rest, which is what a CSS parser does too.
+func stripCSSComments(s string) string {
+	if !strings.Contains(s, "/*") {
+		return s
+	}
+	var b strings.Builder
+	for {
+		start := strings.Index(s, "/*")
+		if start < 0 {
+			b.WriteString(s)
+			return b.String()
+		}
+		b.WriteString(s[:start])
+		end := strings.Index(s[start+2:], "*/")
+		if end < 0 {
+			return b.String()
+		}
+		s = s[start+2+end+2:]
+	}
+}
+
+// overlaySignals is the union of full-screen-overlay signals a selector has
+// received. Accumulating them (rather than testing one block) is what makes the
+// control immune to splitting the declarations across rules.
+type overlaySignals struct {
+	posFixed bool
+	inset    bool
+	top      bool
+	right    bool
+	bottom   bool
+	left     bool
+	width    bool
+	height   bool
+}
+
+// add folds one block's declarations into the set. The block must already be
+// escape-decoded.
+func (s *overlaySignals) add(block string) {
+	s.posFixed = s.posFixed || rePosFixed.MatchString(block)
+	s.inset = s.inset || reFullInset.MatchString(block)
+	s.top = s.top || reFullTop.MatchString(block)
+	s.right = s.right || reFullRight.MatchString(block)
+	s.bottom = s.bottom || reFullBottom.MatchString(block)
+	s.left = s.left || reFullLeft.MatchString(block)
+	s.width = s.width || reFullWidth.MatchString(block)
+	s.height = s.height || reFullHeight.MatchString(block)
+}
+
+// isOverlay is the policy: position:fixed|sticky plus at least two of
+// top/right/bottom/left/width:100vw/height:100vh, one of which must be a
+// viewport DIMENSION - a fixed header pinned with top:0;left:0 but sized by
+// content is legitimate and must not be flagged. inset:0 and all four sides at
+// zero are each equivalent to a full-bleed box on their own.
+func (s *overlaySignals) isOverlay() bool {
+	if !s.posFixed {
 		return false
 	}
-	// inset:0 is equivalent to all four sides pinned to zero; treat it as two signals,
-	// and it is itself a viewport-dimension-equivalent signal.
-	if reFullInset.MatchString(block) {
+	if s.inset {
 		return true
 	}
-	hasViewportDim := reFullWidth.MatchString(block) || reFullHeight.MatchString(block)
-
+	if s.top && s.right && s.bottom && s.left {
+		return true
+	}
 	count := 0
-	if reFullTop.MatchString(block) {
-		count++
+	for _, on := range []bool{s.top, s.right, s.bottom, s.left, s.width, s.height} {
+		if on {
+			count++
+		}
 	}
-	if reFullRight.MatchString(block) {
-		count++
-	}
-	if reFullBottom.MatchString(block) {
-		count++
-	}
-	if reFullLeft.MatchString(block) {
-		count++
-	}
-	if reFullWidth.MatchString(block) {
-		count++
-	}
-	if reFullHeight.MatchString(block) {
-		count++
-	}
-	// Four offset sides pinned to zero is semantically equivalent to inset:0, even
-	// without a viewport-dimension declaration - keep this case blocked.
-	fourSides := reFullTop.MatchString(block) && reFullRight.MatchString(block) &&
-		reFullBottom.MatchString(block) && reFullLeft.MatchString(block)
-	if fourSides {
-		return true
-	}
-	return count >= 2 && hasViewportDim
+	return count >= 2 && (s.width || s.height)
 }
 
 // stripPointerEventsOnInteractive removes pointer-events:none declarations from
