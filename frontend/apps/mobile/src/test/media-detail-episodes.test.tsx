@@ -62,7 +62,7 @@ vi.mock("react-i18next", () => ({
 
 // --- expo-router ---------------------------------------------------------------------
 vi.mock("expo-router", () => ({
-  useLocalSearchParams: () => ({ id: SEASON_ID }),
+  useLocalSearchParams: () => ({ id: currentId }),
   router: { push: vi.fn(), back: vi.fn(), replace: vi.fn() },
   // No real navigator in this test - just run the focus callback on mount,
   // matching downloads-screen.test.tsx's mock of the same hook.
@@ -175,17 +175,25 @@ const allEpisodes = Array.from({ length: EPISODE_COUNT }, (_, i) => ({
   title: `Episode ${i + 1}`,
 }));
 
+// Mutable so the episode-navigation and watched-badge tests below can drive
+// which media the screen renders and per-episode watch progress. Defaults keep
+// every existing test rendering the 100-episode season with no progress.
+let currentId = SEASON_ID;
+const extraItems: Record<string, Record<string, unknown>> = {};
+let progressById: Record<string, { played?: boolean; positionMs?: string; durationMs?: string }> = {};
+
 vi.mock("@evey/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@evey/api")>()),
   useLibraryServiceGetMediaItem: (itemId: string) => {
     if (itemId === SEASON_ID) return { data: seasonItem, isLoading: false };
+    if (extraItems[itemId]) return { data: extraItems[itemId], isLoading: false };
     return { data: undefined, isLoading: false };
   },
   useLibraryServiceListMediaItems: (params: { parentId?: string }) => {
     if (params.parentId === SEASON_ID) return { data: { items: allEpisodes } };
     return { data: { items: [] } };
   },
-  usePlaybackServiceGetWatchProgress: () => ({ data: undefined }),
+  usePlaybackServiceGetWatchProgress: (itemId: string) => ({ data: progressById[itemId] }),
   usePlaybackServiceMarkAsWatched: () => ({ mutate: vi.fn(), isPending: false }),
   usePlaybackServiceMarkAsUnwatched: () => ({ mutate: vi.fn(), isPending: false }),
   useFeedServiceSimilarItems: () => ({ data: { items: [] } }),
@@ -210,6 +218,9 @@ function makeWrapper() {
 beforeEach(() => {
   vi.clearAllMocks();
   pinRequired = false;
+  currentId = SEASON_ID;
+  progressById = {};
+  for (const k of Object.keys(extraItems)) delete extraItems[k];
 });
 
 // EpisodeRow renders its title as two sibling text expressions ("1. " + title)
@@ -342,5 +353,62 @@ describe("MediaDetailScreen episode downloads", () => {
     } finally {
       delete (allEpisodes[0] as { fileSize?: string }).fileSize;
     }
+  });
+});
+
+describe("MediaDetailScreen episode → season navigation", () => {
+  // An episode reached from the Resume row had no way back up to its season.
+  // The SxEy · season line is now a tap-back to the season page.
+  const EP_ID = "ep-solo";
+  const SEASON_PARENT = "season-9";
+  function mountEpisode(parentId: string | undefined) {
+    currentId = EP_ID;
+    extraItems[EP_ID] = {
+      id: EP_ID,
+      type: "MEDIA_ITEM_TYPE_EPISODE",
+      parentId,
+      indexNumber: 4,
+      title: "Some Episode",
+      people: [],
+    };
+    if (parentId) {
+      extraItems[parentId] = { id: parentId, type: "MEDIA_ITEM_TYPE_SEASON", indexNumber: 3, title: "Some Season", people: [] };
+    }
+    render(<MediaDetailScreen />, { wrapper: makeWrapper() });
+  }
+
+  it("navigates to the season when the SxEy · season line is tapped", () => {
+    mountEpisode(SEASON_PARENT);
+    const back = document.querySelector('button[accessibilitylabel="Some Season"]');
+    expect(back).toBeTruthy();
+    fireEvent.click(back!);
+    expect(router.push).toHaveBeenCalledWith(`/(auth)/media/${SEASON_PARENT}`);
+  });
+
+  it("renders the label as plain text (no navigation) when the episode has no parent", () => {
+    mountEpisode(undefined);
+    expect(document.querySelector('button[accessibilitylabel="Some Season"]')).toBeNull();
+    expect(router.push).not.toHaveBeenCalled();
+  });
+});
+
+describe("MediaDetailScreen episode watched indicator", () => {
+  // A fully-watched episode resets its resume position, so a percent-only bar
+  // would make it indistinguishable from a never-watched one. `played` drives
+  // a check badge; a mid-way episode keeps the partial bar (no badge).
+  function badgeInRow(title: string): Element | null {
+    const row = document.querySelector(`button[accessibilitylabel="${title}"]`);
+    return row?.querySelector('[data-testid="icon-checkmark"]') ?? null;
+  }
+
+  it("shows a check badge on a fully-watched episode and none on a partial one", () => {
+    progressById["ep-1"] = { played: true, positionMs: "0", durationMs: "1000" };
+    progressById["ep-2"] = { played: false, positionMs: "300", durationMs: "1000" };
+    render(<MediaDetailScreen />, { wrapper: makeWrapper() });
+
+    expect(badgeInRow("Episode 1")).toBeTruthy();
+    expect(badgeInRow("Episode 2")).toBeNull();
+    // ...and an untouched episode has neither badge nor progress.
+    expect(badgeInRow("Episode 3")).toBeNull();
   });
 });

@@ -181,6 +181,11 @@ const EpisodeRow = memo(function EpisodeRow({
   const posMs = Number(progress?.positionMs ?? 0);
   const durMs = Number(progress?.durationMs ?? 0);
   const percent = durMs > 0 ? (posMs / durMs) * 100 : 0;
+  // A fully-watched episode has its resume position reset, so `percent` is 0 -
+  // it would look identical to a never-watched one. `played` is the truth for
+  // "seen in full"; show the same check badge as the cards, and keep the
+  // partial bar only for an episode left mid-way.
+  const watched = progress?.played === true;
   const downloadable = !!onDownload && hasMediaFile(item);
 
   return (
@@ -203,9 +208,19 @@ const EpisodeRow = memo(function EpisodeRow({
           contentFit="cover"
           transition={200}
         />
-        {percent > 0 && (
+        {!watched && percent > 0 && (
           <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: 2 }}>
             <ProgressBar percent={percent} />
+          </View>
+        )}
+        {watched && (
+          <View style={{
+            position: "absolute", top: 4, right: 4,
+            width: 20, height: 20, borderRadius: 10,
+            backgroundColor: theme.colors.success,
+            alignItems: "center", justifyContent: "center",
+          }}>
+            <Ionicons name="checkmark" size={13} color={theme.colors.onSuccess} />
           </View>
         )}
       </View>
@@ -956,11 +971,33 @@ export default function MediaDetailScreen() {
           <View style={{ flex: 1, justifyContent: "flex-end" }}>
             {isEpisode && (() => {
               const epLabel = formatEpisodeLabel(parentItem?.indexNumber, media.indexNumber);
-              return epLabel ? (
-                <Text style={{ color: theme.colors.textMuted, fontSize: 13, fontWeight: "600", marginBottom: 2 }}>
-                  {epLabel}
-                </Text>
-              ) : null;
+              const seasonName = parentItem?.title;
+              const label = [epLabel, seasonName].filter(Boolean).join(" · ");
+              if (!label) return null;
+              // Reached from the Resume row an episode lands here with no way
+              // back up to its season; parentId is always present on an episode,
+              // so make the SxEy · season line a tap-back to the season page.
+              if (!media.parentId) {
+                return (
+                  <Text style={{ color: theme.colors.textMuted, fontSize: 13, fontWeight: "600", marginBottom: 2 }}>
+                    {label}
+                  </Text>
+                );
+              }
+              return (
+                <Pressable
+                  onPress={() => router.push(`/(auth)/media/${media.parentId}`)}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel={seasonName ?? epLabel ?? undefined}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 3, marginBottom: 2 }}
+                >
+                  <Ionicons name="chevron-back" size={14} color={theme.colors.accent} />
+                  <Text style={{ color: theme.colors.accent, fontSize: 13, fontWeight: "600" }}>
+                    {label}
+                  </Text>
+                </Pressable>
+              );
             })()}
             <Text style={{ color: theme.colors.text, fontSize: 22, fontWeight: "bold" }}>
               {media.title}
