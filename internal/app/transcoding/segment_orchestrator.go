@@ -266,9 +266,18 @@ func (o *SegmentOrchestrator) findCoveringSessionLocked(hash string, variantIdx,
 			continue
 		}
 		s.mu.Lock()
+		// Skip corpses: killSession nulls cancelCtx first but only splices the
+		// session out of o.sessions after SIGTERM + process wait, so a dying
+		// rafale stays matchable for as long as ffmpeg takes to die. Matching one
+		// promises a segment nobody will produce - and worse, makes spawnSession's
+		// race check discard the live replacement it was about to install.
+		dead := s.cancelCtx == nil
 		inWindow := segmentIdx >= s.startSeg && segmentIdx <= s.endSeg
 		nearAhead := segmentIdx > s.endSeg && segmentIdx <= s.endSeg+nearAheadBudget
 		s.mu.Unlock()
+		if dead {
+			continue
+		}
 		if inWindow || nearAhead {
 			return s
 		}
@@ -614,6 +623,12 @@ func (o *SegmentOrchestrator) spawnSession(
 	}
 	o.sessions[hash] = append(o.sessions[hash], session)
 	o.spawnedHashes[hash] = struct{}{}
+	// Count the session live BEFORE anything can reap it. The reap goroutine
+	// below fires metricDecOnce as soon as ffmpeg exits, and an ffmpeg that dies
+	// instantly (codec refused, source gone, GPU dead) would consume the Once
+	// before this Inc ran - stranding the gauge one above zero forever and
+	// silencing the very leak detector metricDecOnce exists to feed.
+	metrics.HLSVODSessions.Inc()
 	evicted := o.evictLRUIfFullLocked(hash)
 	o.mu.Unlock()
 
@@ -765,7 +780,6 @@ func (o *SegmentOrchestrator) spawnSession(
 		slog.String("source", srcPath))
 
 	metrics.HLSVODRafaleSpawned.WithLabelValues("miss").Inc()
-	metrics.HLSVODSessions.Inc()
 
 	return nil
 }
@@ -887,18 +901,37 @@ func (o *SegmentOrchestrator) RemoveSession(mediaItemID string) {
 // decision input (audio track, sub burn-in, offset) left this hash behind,
 // while the media's OTHER hashes may still have a live viewer that a
 // media-wide kill would take down with it. No-op on an empty or unknown hash.
+//
+// Sessions fetched within reclaimMinIdle are spared - see that constant.
 func (o *SegmentOrchestrator) RemoveHash(hash, reason string) int {
 	if hash == "" {
 		return 0
 	}
+	cutoff := time.Now().Add(-reclaimMinIdle)
 	o.mu.Lock()
-	toKill := append([]*orchestratorSession(nil), o.sessions[hash]...)
+	var toKill []*orchestratorSession
+	for _, s := range o.sessions[hash] {
+		s.mu.Lock()
+		idle := s.lastAccess.Before(cutoff)
+		s.mu.Unlock()
+		if idle {
+			toKill = append(toKill, s)
+		}
+	}
 	o.mu.Unlock()
 	for _, s := range toKill {
 		o.killSession(s, reason)
 	}
 	return len(toKill)
 }
+
+// reclaimMinIdle is how long a session must have gone unfetched before a
+// superseded-hash reclaim (RemoveHash, both producers) may kill it. The caller
+// reads "nobody is on this hash" from the StreamHashRegistry, which only sees
+// token-carrying streams: a JWT-authenticated client holds a real encoder while
+// being invisible to it. Short on purpose - stretching it brings back the
+// 2026-07-25 symptom, a track switch refused by the viewer's own dead encoder.
+const reclaimMinIdle = 2 * time.Second
 
 // Compile-time assertion: the orchestrator IS the hardware StreamProducer.
 // It already carried EnsureSegmentRange / PreWarm / NotifyClientHint /

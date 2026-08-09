@@ -23,6 +23,12 @@ import (
 // player instance, and it survives a track switch (the player rebuilds its URL
 // around the same token), which is exactly the equivalence we need.
 //
+// ONE token holds exactly ONE hash, including mid-transition: a player still
+// draining the old rendition has its old encoder killed on the first new-hash
+// request. Deliberate, and it rests on the disk cache - killSession never
+// deletes segments, so the drain reads what is already there. RemoveHash's
+// reclaimMinIdle grace is the other half.
+//
 // Bounded on both axes: entries older than ttl are swept (a tab that vanished
 // must not protect its hash forever) and the map never exceeds maxStreams
 // (the coldest entry is evicted, releasing its hold). Both bounds fail SAFE

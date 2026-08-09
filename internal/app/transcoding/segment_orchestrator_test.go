@@ -477,7 +477,7 @@ func TestOrchestrator_NotifyClientHint_ResumesPausedOnStarvation(t *testing.T) {
 	require.Eventually(t, func() bool { _, _, paused := handle.counts(); return paused }, time.Second, 10*time.Millisecond)
 
 	// CMCD bs=1 arrives - we must SIGCONT immediately, not wait the tick.
-	o.NotifyClientHint(fp.MediaID, 0, true, 1)
+	o.NotifyClientHint(fp.MediaID, 0, 0, true, 1)
 
 	_, resumes, paused := handle.counts()
 	assert.GreaterOrEqual(t, resumes, 1, "starvation hint must resume")
@@ -491,7 +491,7 @@ func TestOrchestrator_NotifyClientHint_NoOpOnUnknownMedia(t *testing.T) {
 	o := NewSegmentOrchestrator(cache, proc, src, testOpts(), discardLogger())
 	defer o.Close()
 
-	o.NotifyClientHint("nobody-here", 12000, true, 5)
+	o.NotifyClientHint("nobody-here", 0, 12000, true, 5)
 	assert.Equal(t, 0, o.ActiveCount())
 }
 
@@ -520,7 +520,7 @@ func TestOrchestrator_NotifyClientHint_ExtendsEndSegOnFatBuffer(t *testing.T) {
 	sess.mu.Unlock()
 
 	// 45s buffer ≥ LookAhead × segmentSeconds (10×3=30s) → stretch endSeg.
-	o.NotifyClientHint(fp.MediaID, 45000, false, 0)
+	o.NotifyClientHint(fp.MediaID, 0, 45000, false, 0)
 
 	sess.mu.Lock()
 	endAfter := sess.endSeg
@@ -544,7 +544,7 @@ func TestOrchestrator_NotifyClientHint_ForgedBufferClamped(t *testing.T) {
 	// A forged CMCD bl of ~277 hours must NOT stretch endSeg to encode the whole
 	// film: bufferAheadSegs is capped at 2×LookAhead, so endSeg stays within
 	// consumableIdx + 3×LookAhead (0 + 30 here), not ~333k.
-	o.NotifyClientHint(fp.MediaID, 999_999_999, false, 0)
+	o.NotifyClientHint(fp.MediaID, 0, 999_999_999, false, 0)
 
 	o.mu.Lock()
 	sess := o.sessions[fp.Hash()][0]
@@ -912,4 +912,34 @@ type stubSource struct {
 
 func (s stubSource) ResolveSource(_ context.Context, _ DecisionFingerprint) (string, []SourceStream, error) {
 	return s.path, s.streams, s.err
+}
+
+// killSession nulls cancelCtx first and only splices the session out of
+// o.sessions after SIGTERM + process wait, so for as long as ffmpeg takes to
+// die a corpse sits in the list looking like a valid cover. Matching one hands
+// the caller a producer that will never write another segment - and the same
+// check runs inside spawnSession, where a corpse match discards the live
+// replacement ("spawn race lost") and leaves nobody producing at all.
+func TestOrchestrator_DyingSessionIsNotAValidCover(t *testing.T) {
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess()
+	o := NewSegmentOrchestrator(cache, proc, stubSource{path: "/media/test.mkv"}, testOpts(), discardLogger())
+	defer o.Close()
+
+	fp := minimalFingerprint(t)
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 0))
+	require.Equal(t, 1, proc.startCount())
+
+	// Reproduce the window inside killSession: claimed, not yet delisted.
+	o.mu.Lock()
+	dying := o.sessions[fp.Hash()][0]
+	o.mu.Unlock()
+	dying.mu.Lock()
+	dying.cancelCtx = nil
+	dying.mu.Unlock()
+
+	// Segment 5 sits inside the corpse's [0, 29] window.
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 5))
+	assert.Equal(t, 2, proc.startCount(),
+		"a session already claimed by killSession must not be reused - the segment would never be produced")
 }

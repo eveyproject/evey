@@ -46,13 +46,24 @@ func (p *SoftwareProducer) RemoveSession(mediaItemID string) {
 // too. Callers must have established that nobody is on this hash anymore (see
 // StreamHashRegistry). Disk segments are preserved exactly like every other
 // kill path, so a viewer who switches back replays the cache instantly.
-// No-op on an empty or unknown hash.
+// No-op on an empty or unknown hash. Sessions fetched within reclaimMinIdle are
+// spared - see that constant: the registry only sees token-carrying streams, so
+// a JWT-authenticated client holds an encoder nothing else can vouch for.
 func (p *SoftwareProducer) RemoveHash(hash, reason string) int {
 	if hash == "" {
 		return 0
 	}
+	cutoff := time.Now().Add(-reclaimMinIdle)
 	p.mu.Lock()
-	toKill := append([]*swSession(nil), p.sessions[hash]...)
+	var toKill []*swSession
+	for _, s := range p.sessions[hash] {
+		s.mu.Lock()
+		idle := s.lastAccess.Before(cutoff)
+		s.mu.Unlock()
+		if idle {
+			toKill = append(toKill, s)
+		}
+	}
 	p.mu.Unlock()
 	for _, s := range toKill {
 		p.killSession(s, reason)

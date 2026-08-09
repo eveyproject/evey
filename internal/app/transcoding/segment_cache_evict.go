@@ -152,12 +152,17 @@ func (c *SegmentCache) sweepOnce(p EvictionPolicy, logger *slog.Logger) {
 		logger.Warn("sweepOnce: list hashes failed", slog.Any("err", err))
 		return
 	}
-	if len(hashes) == 0 {
-		return
-	}
 	var total int64
 	for _, h := range hashes {
 		total += h.Bytes
+	}
+	// Publish the footprint on EVERY sweep, not just the ones that evict:
+	// setting it only past the two early returns below left the gauge stuck at 0
+	// since boot (or frozen on the last over-cap reading) during normal
+	// operation, which is exactly when an operator wants to read it.
+	metrics.HLSVODCacheBytes.Set(float64(total))
+	if len(hashes) == 0 {
+		return
 	}
 	if total <= p.MaxBytes {
 		return

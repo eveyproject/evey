@@ -635,9 +635,18 @@ func (p *SoftwareProducer) findCoveringSessionLocked(hash string, variantIdx, se
 	bestStart := -1
 	for _, s := range p.sessions[hash] {
 		s.mu.Lock()
+		// Skip corpses: killSession nulls cancelCtx first but only removes the
+		// session from p.sessions after SIGTERM + process wait, so a dying encoder
+		// stays matchable meanwhile. Reusing one leaves the caller waiting on a
+		// segment nobody will write, and makes startSession's race check discard
+		// the live replacement.
+		dead := s.cancelCtx == nil
 		sameVariant := s.variantIdx == variantIdx
 		start := s.startSeg
 		s.mu.Unlock()
+		if dead {
+			continue
+		}
 		if sameVariant && start <= segmentIdx && start > bestStart {
 			best = s
 			bestStart = start
@@ -877,6 +886,11 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 	}
 	p.sessions[hash] = append(p.sessions[hash], session)
 	p.spawnedHashes[hash] = struct{}{}
+	// Count the session live BEFORE anything can reap it. The reap goroutine
+	// below fires metricDecOnce as soon as ffmpeg exits, and an encoder that dies
+	// instantly (codec refused, source gone) would consume the Once before this
+	// Inc ran - stranding the gauge one above zero forever.
+	metrics.HLSVODSessions.Inc()
 	// Enforce the per-hash cap: if we just crossed MaxSessionsPerHash, evict the
 	// least-recently-used sibling (never the one we just appended). Kill it
 	// outside the lock - killSession reacquires p.mu.
@@ -970,7 +984,6 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 		slog.Float64("read_rate", procOpts.ReadRate),
 		slog.String("source", srcPath))
 	metrics.HLSVODRafaleSpawned.WithLabelValues("software").Inc()
-	metrics.HLSVODSessions.Inc()
 	return nil
 }
 
