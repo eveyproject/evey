@@ -832,6 +832,7 @@ export default function PlayerScreen() {
             restartWithTracks(selectedAudioIndex, selectedSubtitleIndex ?? undefined, selectedQuality || undefined);
           }}
           style={{ marginTop: 28 }}
+          hasTVPreferredFocus
         >
           <Text style={{ color: theme.colors.accent, fontSize: 22, fontWeight: "600" }}>{t("player.retry")}</Text>
         </Pressable>
@@ -880,6 +881,7 @@ export default function PlayerScreen() {
             restartWithTracks(selectedAudioIndex, selectedSubtitleIndex ?? undefined, selectedQuality || undefined);
           }}
           style={{ marginTop: 24 }}
+          hasTVPreferredFocus
         >
           <Text style={{ color: theme.colors.accent, fontSize: 22, fontWeight: "600" }}>{t("player.retry")}</Text>
         </Pressable>

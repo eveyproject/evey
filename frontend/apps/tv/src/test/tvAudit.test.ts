@@ -163,6 +163,31 @@ describe("audit TV · focus initial déterministe", () => {
     expect(offenders.sort()).toEqual([]);
   });
 
+  // The file-wide check above is satisfied by ONE hasTVPreferredFocus anywhere
+  // - but the player has several early-return error screens (shed, auth,
+  // native error, loading), each a full-screen View with its own Pressables,
+  // reached to the EXCLUSION of the others. One such branch missing the claim
+  // is a dead remote on that exact error, and the file-wide check waves it
+  // through because a SIBLING branch has the focus. Two branches shipped that
+  // way (shed + nativeError, 2026-08-09). This walks each full-screen state
+  // block (opened by styles.container) that renders a Pressable and requires
+  // each to claim focus.
+  it.skipIf(!CAN_RUN)("chaque écran d'état plein écran du player réclame le focus initial", () => {
+    const src = readFileSync(join(APP_ROOT, "app/(auth)/player/[id].tsx"), "utf8");
+    const offenders: string[] = [];
+    const marker = "<View style={[styles.container";
+    const idxs: number[] = [];
+    for (let i = src.indexOf(marker); i !== -1; i = src.indexOf(marker, i + 1)) idxs.push(i);
+    idxs.forEach((start, n) => {
+      const end = n + 1 < idxs.length ? idxs[n + 1] : src.length;
+      const block = src.slice(start, end);
+      if (!block.includes("<Pressable")) return; // a spinner-only state is fine
+      const line = src.slice(0, start).split("\n").length;
+      if (!block.includes("hasTVPreferredFocus")) offenders.push(`player state block @L${line}`);
+    });
+    expect(offenders).toEqual([]);
+  });
+
   it.skipIf(!CAN_RUN)("la liste des exceptions ne contient que des fichiers existants", () => {
     // A stale allowlist silently weakens the rule; this is what makes it
     // shrink instead of drift.
