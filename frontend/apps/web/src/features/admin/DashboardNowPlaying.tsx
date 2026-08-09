@@ -1,5 +1,5 @@
 import { Avatar } from "@/components/ui/Avatar";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Cast, Film, Music, Play, Pause, Square, MessageSquare, Send } from "lucide-react";
 import { ICON } from "@/constants/iconSizes";
 import { Link } from "@tanstack/react-router";
@@ -97,6 +97,14 @@ function NowPlayingCard({ session }: { session: V1ActiveSession }) {
   // must drop the badge entirely, not render a blank green pill.
   const methodLabel = playMethodLabel(session.playMethod ?? "");
   const [showMsg, setShowMsg] = useState(false);
+  // Confirm-to-act (same pattern as the dashboard's Restart): one click arms,
+  // a second within a few seconds kills the session. Replaces window.confirm.
+  const [stopArmed, setStopArmed] = useState(false);
+  useEffect(() => {
+    if (!stopArmed) return;
+    const id = setTimeout(() => setStopArmed(false), 4000);
+    return () => clearTimeout(id);
+  }, [stopArmed]);
   const [msgText, setMsgText] = useState("");
   const progress = Math.min(100, Math.max(0, session.progress ?? 0));
   const positionMs = parseInt(session.positionMs ?? "0");
@@ -144,14 +152,17 @@ function NowPlayingCard({ session }: { session: V1ActiveSession }) {
             {session.isPaused ? <Play size={ICON.lg} fill="currentColor"  aria-hidden="true" /> : <Pause size={ICON.lg}  aria-hidden="true" />}
           </button>
           <button
-            className="p-2 rounded-full hover:bg-[var(--danger-hover,#b91c1c)] transition-colors text-[var(--danger-bg,#dc2626)]"
+            className={`p-2 rounded-full transition-colors ${stopArmed ? "bg-[var(--danger-bg,#dc2626)] text-[var(--on-danger,#fff)]" : "hover:bg-[var(--danger-hover,#b91c1c)] text-[var(--danger-bg,#dc2626)]"}`}
             onClick={() => {
-              if (window.confirm(t("admin.sessions.stopSession") + " ?")) {
-                killSession.mutate({ sessionId: session.sessionId ?? "" });
+              if (!stopArmed) {
+                setStopArmed(true);
+                return;
               }
+              setStopArmed(false);
+              killSession.mutate({ sessionId: session.sessionId ?? "" });
             }}
-            title={t("admin.sessions.stopSession")}
-            aria-label={t("admin.sessions.stopSession")}
+            title={stopArmed ? t("common.confirm") : t("admin.sessions.stopSession")}
+            aria-label={stopArmed ? t("common.confirm") : t("admin.sessions.stopSession")}
           >
             <Square size={16} fill="currentColor"  aria-hidden="true" />
           </button>

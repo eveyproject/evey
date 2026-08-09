@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/Button";
 import { OPERATOR_FLAGS, findOperatorFlag } from "@/features/admin/operatorFlags";
@@ -10,6 +10,23 @@ export function ConfigRow({ entry }: { entry: ConfigEntry }) {
   const [value, setValue] = useState(entry.value ?? "");
   const setEntry = useSetConfigEntry();
   const deleteEntry = useDeleteConfigEntry();
+  // Confirm-to-act (same pattern as the dashboard's Restart): one click arms,
+  // a second within a few seconds deletes. Replaces window.confirm, the only
+  // unthemed, thread-blocking confirmation left in the app.
+  const [deleteArmed, setDeleteArmed] = useState(false);
+  useEffect(() => {
+    if (!deleteArmed) return;
+    const id = setTimeout(() => setDeleteArmed(false), 4000);
+    return () => clearTimeout(id);
+  }, [deleteArmed]);
+  function onDeleteClick() {
+    if (!deleteArmed) {
+      setDeleteArmed(true);
+      return;
+    }
+    setDeleteArmed(false);
+    deleteEntry.mutate(entry.key ?? "");
+  }
 
   function handleSave() {
     setEntry.mutate({ key: entry.key ?? "", value });
@@ -51,7 +68,9 @@ export function ConfigRow({ entry }: { entry: ConfigEntry }) {
           ) : (
             <>
               <Button variant="secondary" onClick={() => setEditing(true)} className="text-xs">{t("common.edit")}</Button>
-              <Button variant="danger" onClick={() => { const k = entry.key ?? ""; if (window.confirm(t("admin.serverConfig.deleteEntryConfirm", { key: k }))) deleteEntry.mutate(k); }} loading={deleteEntry.isPending} className="text-xs">{t("common.delete")}</Button>
+              <Button variant="danger" onClick={onDeleteClick} loading={deleteEntry.isPending} className="text-xs">
+                {deleteArmed ? t("common.confirm") : t("common.delete")}
+              </Button>
             </>
           )}
         </div>

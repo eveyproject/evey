@@ -73,8 +73,6 @@ vi.mock("./AdminTrickplayThumbnail", () => ({
   AdminTrickplayThumbnail: () => null,
 }));
 
-// window.confirm: always accept so kill-session button proceeds
-vi.stubGlobal("confirm", vi.fn(() => true));
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -321,25 +319,32 @@ describe("NowPlaying", () => {
     expect(screen.getByRole("button", { name: /stop session/i })).toBeInTheDocument();
   });
 
-  it("clicking stop calls killSession mutation with the session id after confirm", () => {
+  // Confirm-to-act: the first click only ARMS the button (it relabels to
+  // "Confirm"), the second click kills. Replaced window.confirm.
+  function clickStopTwice() {
+    fireEvent.click(screen.getByRole("button", { name: /stop session/i }));
+    fireEvent.click(screen.getByRole("button", { name: /confirm/i }));
+  }
+
+  it("two clicks call killSession mutation with the session id", () => {
     mockSessions = [SESSION_MOVIE];
     renderNowPlaying();
-    fireEvent.click(screen.getByRole("button", { name: /stop session/i }));
+    clickStopTwice();
     expect(mockKillMutate).toHaveBeenCalledWith({ sessionId: "sess-1" });
   });
 
-  it("clicking stop does NOT kill session when confirm returns false", () => {
-    vi.mocked(window.confirm).mockReturnValueOnce(false);
+  it("a single click only arms the button - nothing is killed", () => {
     mockSessions = [SESSION_MOVIE];
     renderNowPlaying();
     fireEvent.click(screen.getByRole("button", { name: /stop session/i }));
     expect(mockKillMutate).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: /confirm/i })).toBeInTheDocument();
   });
 
   it("successful kill invalidates the active sessions query", async () => {
     mockSessions = [SESSION_MOVIE];
     renderNowPlaying();
-    fireEvent.click(screen.getByRole("button", { name: /stop session/i }));
+    clickStopTwice();
     await waitFor(() =>
       expect(mockInvalidateQueries).toHaveBeenCalledWith(
         expect.objectContaining({ queryKey: ["/api/v1/admin/sessions"] }),
@@ -351,7 +356,7 @@ describe("NowPlaying", () => {
     const { toast } = await import("@evey/store");
     mockSessions = [SESSION_MOVIE];
     renderNowPlaying();
-    fireEvent.click(screen.getByRole("button", { name: /stop session/i }));
+    clickStopTwice();
     await waitFor(() => expect(toast.success).toHaveBeenCalled());
   });
 
