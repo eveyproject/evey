@@ -199,9 +199,6 @@ parental:
   pinLabel: "PIN (4 digits)"
   pinIncorrect: Incorrect PIN
   delete: Delete
-  edit: Edit
-  download: Download
-  restore: Restore
   validate: Validate
 feeds:
   title: Homepage Sections
