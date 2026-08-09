@@ -24,10 +24,6 @@ export interface ReducedJob {
 
 const jobs = new Map<string, ReducedJob>();
 
-export function getReducedJob(mediaItemId: string): ReducedJob | undefined {
-  return jobs.get(mediaItemId);
-}
-
 /** Claim the item. False when one is already running - the caller must not
  * start a second collection into the same staging directory. */
 export function claimReducedJob(mediaItemId: string, slices: number): ReducedJob | null {

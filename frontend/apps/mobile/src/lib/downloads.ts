@@ -1105,9 +1105,11 @@ async function reconcilePendingDownloads(liveIds: Set<string>): Promise<void> {
   }
 }
 
-// Whether mediaItemId has a download currently running that can be stopped -
-// the Downloads screen uses this to decide whether to render a cancel action
-// on an in-flight row.
+// Whether mediaItemId has a download currently running that can be stopped.
+// No production caller: the Downloads screen renders its cancel action off the
+// index's inProgress flag. This is the observation seam the cancel tests need -
+// it is the only view that also covers the compat-preparation phase, which
+// getInFlightDownloads (tasks only) cannot see.
 export function isDownloadCancelable(mediaItemId: string): boolean {
   return activeDownloads.has(mediaItemId) || preparingCompat.has(mediaItemId);
 }
