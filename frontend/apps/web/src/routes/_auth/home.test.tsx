@@ -24,6 +24,7 @@ vi.mock("@evey/api", () => ({
   usePlaybackServiceGetNextUp: () => ({ data: { items: [] }, isLoading: false }),
   useCollectionServiceListCollections: () => ({ data: { collections: [] }, isLoading: false }),
   useActivityServiceGetPopularMedia: () => ({ data: [], isLoading: false }),
+  WATCH_HISTORY_OVERLAY_LIMIT: 500,
   usePlaybackServiceGetWatchHistory: () => ({ data: { items: [] }, isLoading: false }),
   useFeedServiceBecauseYouWatched: () => ({ data: { items: [] }, isLoading: false }),
   useLibraryServiceListLibraries: () => librariesHook(),
