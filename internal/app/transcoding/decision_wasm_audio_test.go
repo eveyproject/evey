@@ -85,11 +85,31 @@ func TestWasmAudio_NonDolbyTrackUnaffected(t *testing.T) {
 	assert.Equal(t, "direct_play", d.PlayMethod)
 }
 
-// The decision and the master handler must name the same sessions.
+// The decision, the master handler and the segment fingerprint must name the
+// same sessions.
 func TestWasmAudioApplies_MatchesTheMasterHandlerConditions(t *testing.T) {
-	assert.True(t, apptranscode.WasmAudioApplies(wasmStreams("eac3", 6), 0))
-	assert.True(t, apptranscode.WasmAudioApplies(wasmStreams("ac3", 2), 0))
-	assert.False(t, apptranscode.WasmAudioApplies(wasmStreams("eac3", 8), 0))
-	assert.False(t, apptranscode.WasmAudioApplies(wasmStreams("aac", 6), 0))
-	assert.False(t, apptranscode.WasmAudioApplies(wasmStreams("eac3", 0), 0))
+	assert.True(t, apptranscode.WasmAudioApplies(wasmStreams("eac3", 6), 0, 0))
+	assert.True(t, apptranscode.WasmAudioApplies(wasmStreams("ac3", 2), 0, 0))
+	assert.False(t, apptranscode.WasmAudioApplies(wasmStreams("eac3", 8), 0, 0))
+	assert.False(t, apptranscode.WasmAudioApplies(wasmStreams("aac", 6), 0, 0))
+	assert.False(t, apptranscode.WasmAudioApplies(wasmStreams("eac3", 0), 0, 0))
+}
+
+// A viewer who capped audio at stereo must get a downmix, and this path cannot
+// make one - it hands over the source track. It has to decline so the AAC
+// rendition takes over.
+func TestWasmAudio_ProfileChannelCapDeclinesTheWasmPath(t *testing.T) {
+	assert.False(t, apptranscode.WasmAudioApplies(wasmStreams("eac3", 6), 0, 2))
+	assert.True(t, apptranscode.WasmAudioApplies(wasmStreams("eac3", 2), 0, 2))
+	// A cap at or above the source changes nothing.
+	assert.True(t, apptranscode.WasmAudioApplies(wasmStreams("eac3", 6), 0, 6))
+
+	prefs := wasmPrefs(true)
+	prefs.MaxAudioChannels = 2
+	d := apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), wasmStreams("eac3", 6), "matroska",
+		transcoding.DefaultWebProfile, 0, prefs)
+
+	assert.Equal(t, "transcode", d.AudioDecision)
+	assert.Contains(t, d.TranscodeReasons, "audio_channels_exceeded")
+	assert.Equal(t, 2, d.MaxAudioChannels)
 }

@@ -435,10 +435,7 @@ func evaluateAudio(d *transcoding.PlaybackDecision, s StreamSpec, client transco
 	}
 }
 
-// Mirrors WasmAudioApplies on the spec the decision already carries. The
-// profile's max_audio_channels is not consulted because the master handler does
-// not consult it either - honouring it here would describe a downmix the server
-// will not perform.
+// Mirrors WasmAudioApplies on the spec the decision already carries.
 func wasmAudioApplies(s StreamSpec, prefs TranscodingPreferences) bool {
 	if !prefs.WasmAudio || !WasmAudioCodecSupported(s.Codec) {
 		return false
@@ -447,7 +444,7 @@ func wasmAudioApplies(s StreamSpec, prefs TranscodingPreferences) bool {
 	if s.Channels != nil {
 		channels = *s.Channels
 	}
-	return WasmAudioChannelsOK(channels)
+	return WasmAudioChannelsOK(channels, prefs.MaxAudioChannels)
 }
 
 // aacMaxTargetChannels caps the transcoded AAC layout at 5.1. Multichannel

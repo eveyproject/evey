@@ -455,22 +455,19 @@ func (h *hlsVODServe) serveWasmAudioMaster(w http.ResponseWriter, r *http.Reques
 	if !apptranscoding.WasmAudioCodecSupported(sourceAudioCodec(streams, audioTrack)) {
 		return false // nothing for the wasm decoder to do - use the normal paths
 	}
-	// Channel ceiling. The wasm path hands the client the ORIGINAL Dolby track
-	// to decode ITSELF. A 7.1 track means 8 channels decoded and then folded to
-	// 5.1, and a TV box does that while also decoding the video: on a low-end quad-A53 operator box
-	// (prod 2026-07-30) the audio arrived in fits, the picture ran silent, and
-	// the box killed the receiver twice. Refusing here returns the client to the
-	// normal muxed-AAC master - sound from the first second, on every client,
-	// without waiting for a receiver-side deployment.
-	//
-	// Unknown (0) is NOT treated as small: an unprobed track is exactly the case
-	// where we cannot promise the device can cope.
-	if ch := apptranscoding.SourceAudioChannels(streams, audioTrack); !apptranscoding.WasmAudioChannelsOK(ch) {
+	// Channel gate. This path hands the client the ORIGINAL Dolby track, so it
+	// can neither spare a weak box the decode nor honour a downmix the viewer
+	// asked for. Declining returns the client to the muxed-AAC master, which
+	// does both. 7.1 killed the receiver twice on a low-end operator box (prod
+	// 2026-07-30).
+	userMaxChannels := h.userPrefs(r.Context()).MaxAudioChannels
+	if ch := apptranscoding.SourceAudioChannels(streams, audioTrack); !apptranscoding.WasmAudioChannelsOK(ch, userMaxChannels) {
 		slog.InfoContext(r.Context(), "hls-vod: wasm-audio declined, serving the muxed master instead",
 			slog.String("media_id", mediaID),
 			slog.Int("audio_track", audioTrack),
 			slog.Int("channels", ch),
-			slog.Int("max_channels", wasmAudioMaxChannels))
+			slog.Int("max_channels", wasmAudioMaxChannels),
+			slog.Int("profile_max_channels", userMaxChannels))
 		return false
 	}
 

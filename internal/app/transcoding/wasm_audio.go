@@ -26,12 +26,19 @@ func WasmAudioCodecSupported(codec string) bool {
 
 // Unknown (0) is not treated as small: an unprobed track is exactly the case
 // where we cannot promise the device copes.
-func WasmAudioChannelsOK(channels int) bool {
-	return channels > 0 && channels <= WasmAudioMaxChannels
+//
+// maxUserChannels is the profile's max_audio_channels (0 = unlimited). This
+// path hands over the SOURCE track, so it cannot downmix: a viewer who asked
+// for stereo has to go back to the AAC rendition, which can.
+func WasmAudioChannelsOK(channels, maxUserChannels int) bool {
+	if channels <= 0 || channels > WasmAudioMaxChannels {
+		return false
+	}
+	return maxUserChannels <= 0 || channels <= maxUserChannels
 }
 
 // WasmAudioApplies answers for the track the client will hear (ffmpeg's 0:a:N).
-func WasmAudioApplies(streams []*library.MediaStream, audioTrack int) bool {
+func WasmAudioApplies(streams []*library.MediaStream, audioTrack, maxUserChannels int) bool {
 	return WasmAudioCodecSupported(SourceAudioCodec(streams, audioTrack)) &&
-		WasmAudioChannelsOK(SourceAudioChannels(streams, audioTrack))
+		WasmAudioChannelsOK(SourceAudioChannels(streams, audioTrack), maxUserChannels)
 }

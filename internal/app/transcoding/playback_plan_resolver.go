@@ -580,13 +580,9 @@ func (pr *PlanResolver) Fingerprint(ctx context.Context, req PlaybackRequest, de
 	// plain-AAC track the server refuses the wasm master and serves the NORMAL
 	// muxed one - stripping the audio here anyway shipped audio-free segments
 	// under a master advertising audio (CAF 104/905, prod 2026-07-29).
-	wasmAudioApplies := false
-	if req.WasmAudio {
-		switch strings.ToLower(SourceAudioCodec(streams, audioTrack)) {
-		case "ac3", "eac3":
-			wasmAudioApplies = true
-		}
-	}
+	// Same predicate as the master handler and the decision: the codec alone is
+	// not the condition, the channel gate is part of it.
+	wasmAudioApplies := req.WasmAudio && WasmAudioApplies(streams, audioTrack, req.Prefs.MaxAudioChannels)
 	if (pr.AudioRenditionEnabled && decision.VideoDecision == "copy") || wasmAudioApplies {
 		videoAudioTrack = -1
 	}

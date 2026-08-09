@@ -273,6 +273,16 @@ type hlsVODServe struct {
 // profilePrefsFor resolves the profile's transcoding preferences through the
 // short-TTL cache. Nil-safe (hand-built test handlers keep the direct fetch);
 // an empty profile ID short-circuits to defaults without touching the cache.
+// userPrefs loads the caller's preferences, nil claims included (an
+// unauthenticated context yields the defaults rather than a panic).
+func (h *hlsVODServe) userPrefs(ctx context.Context) apptranscoding.TranscodingPreferences {
+	profileID := ""
+	if claims := HTTPClaimsFromContext(ctx); claims != nil {
+		profileID = claims.ProfileID
+	}
+	return h.profilePrefsFor(ctx, profileID)
+}
+
 func (h *hlsVODServe) profilePrefsFor(ctx context.Context, profileID string) apptranscoding.TranscodingPreferences {
 	if profileID == "" || h.prefsLookup == nil {
 		return loadProfilePrefs(ctx, h.profilePrefs, profileID)
