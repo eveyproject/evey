@@ -60,6 +60,34 @@ describe("PlayerProgressBar seek commit", () => {
     expect(onSeek.mock.calls[0][0].target.value).toBe("75");
   });
 
+  // A pointer scrub aims with the hover tooltip, which displays whole seconds:
+  // the committed seek must land exactly on that displayed second, not on the
+  // raw pixel value (one pixel spans several seconds on a long media).
+  it("floors a pointer-driven seek to the second the tooltip displays", () => {
+    const onSeek = vi.fn();
+    const { container } = render(<PlayerProgressBar {...defaultProps} onSeek={onSeek} />);
+    const bar = container.querySelector("[data-controls]") as HTMLElement;
+    const slider = screen.getByRole("slider", { name: "Seek" }) as HTMLInputElement;
+
+    fireEvent.mouseMove(bar, { clientX: 40 });
+    fireEvent.change(slider, { target: { value: "75.5" } });
+    act(() => { vi.advanceTimersByTime(200); });
+    expect(onSeek).toHaveBeenCalledTimes(1);
+    expect(onSeek.mock.calls[0][0].target.value).toBe("75");
+  });
+
+  // Keyboard seeks have no hover tooltip and step by 0.5s: they must keep the
+  // fractional value (flooring would swallow every other arrow press).
+  it("keeps the fractional value for a keyboard seek (no hover)", () => {
+    const onSeek = vi.fn();
+    render(<PlayerProgressBar {...defaultProps} onSeek={onSeek} />);
+    const slider = screen.getByRole("slider", { name: "Seek" }) as HTMLInputElement;
+
+    fireEvent.change(slider, { target: { value: "75.5" } });
+    act(() => { vi.advanceTimersByTime(200); });
+    expect(onSeek.mock.calls[0][0].target.value).toBe("75.5");
+  });
+
   // Anti-regression: only the last change in a burst commits - protects the
   // transcode pipeline from a cascade of seek restarts during a drag.
   it("debounces a burst of changes to a single commit on the final value", () => {

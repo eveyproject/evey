@@ -138,7 +138,13 @@ export function PlayerProgressBar({
         step={0.5}
         value={displayTime}
         onChange={(e) => {
-          const v = Number(e.target.value);
+          const raw = Number(e.target.value);
+          // A pointer scrub aims with the hover tooltip, which shows whole
+          // seconds (formatTime floors). On a long media one pixel spans
+          // several seconds, so the raw pixel value carries a fractional
+          // spread the viewer never chose: land exactly on the second they
+          // read. Keyboard seeks (no hover) keep their 0.5s steps.
+          const v = seekHoverPos !== null ? Math.floor(raw) : raw;
           setDragValue(v);
           if (debounceRef.current !== null) {
             window.clearTimeout(debounceRef.current);
