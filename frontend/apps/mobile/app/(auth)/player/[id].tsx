@@ -1418,6 +1418,12 @@ const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>()
         )}
       </View>
 
+      {/* Sheets mount ONLY while open: a hidden RN Modal keeps its children
+          mounted, so every panel below used to re-render on each ~2/s
+          currentTime tick for the whole playback (and SyncPlayModal kept a
+          playlists query alive). All their state lives in this screen's
+          hooks, so unmounting a closed sheet loses nothing. */}
+      {activeSheet === "chapters" && (
       <ChaptersPicker
         visible={activeSheet === "chapters"}
         onClose={() => setActiveSheet(null)}
@@ -1425,7 +1431,9 @@ const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>()
         currentTimeMs={currentTime * 1000}
         onSeek={handleChapterSeek}
       />
+      )}
 
+      {activeSheet === "episodes" && (
       <BottomSheet
         visible={activeSheet === "episodes"}
         onClose={() => setActiveSheet(null)}
@@ -1440,13 +1448,17 @@ const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>()
           onEpisodeChange={(episodeId) => { handleNavigateEpisode(episodeId); setActiveSheet(null); }}
         />
       </BottomSheet>
+      )}
 
+      {activeSheet === "streamInfo" && (
       <StreamInfoPanel
         visible={activeSheet === "streamInfo"}
         onClose={() => setActiveSheet(null)}
         streamInfo={streamInfo}
       />
+      )}
 
+      {activeSheet === "sleepTimer" && (
       <SleepTimerPicker
         visible={activeSheet === "sleepTimer"}
         onClose={() => setActiveSheet(null)}
@@ -1455,7 +1467,9 @@ const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>()
         onPickEndOfEpisode={() => sleepTimer.setEndOfEpisode()}
         onCancel={() => sleepTimer.cancel()}
       />
+      )}
 
+      {activeSheet === "syncPlay" && (
       <SyncPlayModal
         visible={activeSheet === "syncPlay"}
         onClose={() => setActiveSheet(null)}
@@ -1480,6 +1494,7 @@ const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>()
           } finally { setSyncJoining(false); }
         }}
       />
+      )}
 
       {/* Plugin overlays, same slot as web's player page. Anchored to the
           bottom edge; box-none so an empty slot can never eat a tap meant

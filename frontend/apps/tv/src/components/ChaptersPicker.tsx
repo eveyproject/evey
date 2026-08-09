@@ -19,6 +19,11 @@ export function ChaptersPicker({ visible, onClose, chapters, currentTimeMs, onSe
   const theme = useTheme();
   const activeIndex = findCurrentChapterIndex(chapters, currentTimeMs);
 
+  // A hidden RN Modal keeps its children mounted, so this picker re-rendered
+  // on every ~2/s currentTime tick of the player while closed. Render nothing
+  // until opened.
+  if (!visible) return null;
+
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose}>

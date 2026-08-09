@@ -29,6 +29,12 @@ export function SyncPlayModal({ visible, onClose, onCreateRoom, onJoinRoom, onCr
     if (trimmed.length >= 5) onJoinRoom(trimmed);
   }
 
+  // A hidden RN Modal keeps children mounted: this one re-rendered on every
+  // player currentTime tick. Render nothing until opened. (The playlists
+  // query above still runs while MOUNTED - the player mounts this sheet only
+  // when open, which is what stops it during playback.)
+  if (!visible) return null;
+
   return (
     <Modal transparent visible={visible} animationType="fade" onRequestClose={onClose}>
       <Pressable style={[styles.backdrop, { backgroundColor: theme.colors.overlay }]} onPress={onClose} />

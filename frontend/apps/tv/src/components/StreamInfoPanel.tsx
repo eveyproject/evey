@@ -82,6 +82,11 @@ export function StreamInfoPanel({ visible, onClose, streamInfo }: StreamInfoPane
   const videoStream = streamInfo?.mediaStreams?.find((s: V1MediaStream) => s.type === "MEDIA_STREAM_TYPE_VIDEO");
   const audioStream = streamInfo?.mediaStreams?.find((s: V1MediaStream) => s.type === "MEDIA_STREAM_TYPE_AUDIO");
 
+  // A hidden RN Modal keeps its children mounted, so this picker re-rendered
+  // on every ~2/s currentTime tick of the player while closed. Render nothing
+  // until opened.
+  if (!visible) return null;
+
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose}>

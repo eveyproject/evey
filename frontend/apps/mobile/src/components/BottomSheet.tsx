@@ -46,6 +46,13 @@ export function BottomSheet({ visible, onClose, title, children }: BottomSheetPr
     }
   }, [visible, translateY]);
 
+  // A hidden RN Modal keeps its children MOUNTED (it only hides the native
+  // presentation), so every child of every sheet re-rendered on each of the
+  // player's ~2/s currentTime ticks for the whole playback. Rendering nothing
+  // while hidden costs nothing visible either: Modal visible={false} already
+  // hides instantly, the 200ms slide-out above only reset translateY.
+  if (!visible) return null;
+
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
       <Pressable style={[styles.backdrop, { backgroundColor: theme.colors.overlay }]} onPress={onClose} accessible={true} accessibilityLabel={t("common.close", "Close")} accessibilityRole="button">
