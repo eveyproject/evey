@@ -39,11 +39,21 @@ func init() {
 		"240.0.0.0/4",     // reserved / broadcast
 	}
 	v6 := []string{
-		"::/128",        // unspecified
-		"::1/128",       // loopback
+		"::/128",  // unspecified
+		"::1/128", // loopback
+		// ::/96 - IPv4-compatible (deprecated, RFC 4291). ::7f00:1 embeds
+		// 127.0.0.1, and To4() returns nil on it, so NO v4 range above applies
+		// and ::/128 only covers the unspecified address itself. Deprecated and
+		// unrouted on modern Linux, so barely exploitable - but this is a DENY
+		// list, and what is not on it is allowed.
+		"::/96",
 		"::ffff:0:0/96", // IPv4-mapped (handled via To4 but keep for safety)
 		"64:ff9b::/96",  // IPv4/IPv6 translation
 		"100::/64",      // discard-only
+		// 2002::/16 - 6to4. 2002:7f00:0001:: encapsulates 127.0.0.1, and nothing
+		// else here catches it (IsPrivate() over v6 only knows fc00::/7). Same
+		// reasoning as ::/96 above.
+		"2002::/16",
 		"2001:db8::/32", // documentation
 		"fc00::/7",      // unique local (includes fd00::/8)
 		"fe80::/10",     // link-local

@@ -50,6 +50,15 @@ func TestIsPrivateOrReserved(t *testing.T) {
 		// IPv4-mapped IPv6 must be rejected via embedded IPv4
 		{"::ffff:10.0.0.1", true},
 		{"::ffff:127.0.0.1", true},
+		// Deprecated IPv6 forms that EMBED a v4 address without To4() seeing it,
+		// so no v4 range above applies to them. Barely routable on a modern
+		// kernel, but this is a deny list: what is absent is allowed.
+		{"2002:7f00:1::", true},    // 6to4 wrapping 127.0.0.1
+		{"2002:a00:1::", true},     // 6to4 wrapping 10.0.0.1
+		{"2002:a9fe:1::", true},    // 6to4 wrapping 169.254.0.1 (cloud metadata)
+		{"::7f00:1", true},         // IPv4-compatible, 127.0.0.1
+		{"::a00:1", true},          // IPv4-compatible, 10.0.0.1
+		{"2001:4860::8888", false}, /* a real 2001:: address stays reachable */
 		// public
 		{"8.8.8.8", false},
 		{"1.1.1.1", false},
