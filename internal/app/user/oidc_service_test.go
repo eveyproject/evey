@@ -1140,8 +1140,11 @@ func TestHandleCallback_LoginEventPublishError_Continues(t *testing.T) {
 	}
 }
 
-// L252-253: existing user Update errs -> slog.Warn, callback succeeds
-func TestHandleCallback_UpdateExistingUserError_Continues(t *testing.T) {
+// This used to assert that a failing Update on the login path only produced a
+// warning. That write is gone (see findOrCreateUser), so the assertion is now
+// the stronger one: a repository whose Update ALWAYS fails must not perturb an
+// OIDC login at all, because a login writes no user row.
+func TestHandleCallback_ExistingUser_LoginPathWritesNoUserRow(t *testing.T) {
 	sub := "sub-upderr"
 	svc, oidcSrv := setupCallbackSvc(t, map[string]any{
 		"sub":                sub,
@@ -1171,8 +1174,8 @@ func TestHandleCallback_UpdateExistingUserError_Continues(t *testing.T) {
 	if accessTk == "" {
 		t.Error("expected access token")
 	}
-	if !strings.Contains(logs, "oidc: update user timestamp") {
-		t.Errorf("expected update timestamp warning, got: %s", logs)
+	if strings.Contains(logs, "update user timestamp") {
+		t.Errorf("the login path must not write the user row at all, got: %s", logs)
 	}
 }
 
@@ -1409,5 +1412,108 @@ func TestHandleCallback_VerifiedEmail_AllowedUnderAllowlist(t *testing.T) {
 	}
 	if at == "" {
 		t.Error("expected non-empty access token")
+	}
+}
+
+// --- an OIDC login must not rewrite the user row ---
+
+// findOrCreateUser used to stamp UpdatedAt and persist through userRepo.Update,
+// a blind 12-column write with no concurrency control. Replaying a snapshot read
+// microseconds earlier over password_hash, is_admin and enabled means a login
+// silently undoes whatever committed in between:
+//
+//   - a password reset (its own transaction already committed, its token burned
+//     and refresh tokens purged) has the OLD hash restored;
+//   - an admin's revocation of is_admin or enabled is reverted by the user's
+//     next login, which they control and can repeat at will.
+//
+// Nothing was gained: HandleCallback calls TouchLastLogin (one column) right
+// after, and that is what records a login.
+// racingUserRepo lets an admin action land in the window between the handler's
+// read and its write - the interval the whole hazard lives in, made
+// deterministic instead of hopeful.
+type racingUserRepo struct {
+	domainuser.UserRepository
+	inWindow func()
+}
+
+func (r *racingUserRepo) GetByOIDCSubject(ctx context.Context, issuer, subject string) (*domainuser.User, error) {
+	u, err := r.UserRepository.GetByOIDCSubject(ctx, issuer, subject)
+	if err == nil && r.inWindow != nil {
+		hook := r.inWindow
+		r.inWindow = nil // once: the admin acts a single time
+		hook()
+	}
+	return u, err
+}
+
+func TestFindOrCreateUser_ExistingUser_DoesNotReplayTheRowItRead(t *testing.T) {
+	ctx := context.Background()
+	fake := userfakes.NewFakeUserRepository()
+	sub, issuer := "sub-known", "https://idp.test"
+	u, newErr := domainuser.NewUser("known", "known@example.com", "")
+	if newErr != nil {
+		t.Fatal(newErr)
+	}
+	u.OIDCSubject = &sub
+	u.OIDCIssuer = &issuer
+	u.PasswordHash = "old-hash"
+	u.IsAdmin = true
+	if err := fake.Create(ctx, u); err != nil {
+		t.Fatal(err)
+	}
+
+	// Between the login's read and its write: the user completes a password
+	// reset and an admin demotes them. Both are committed.
+	repo := &racingUserRepo{UserRepository: fake}
+	repo.inWindow = func() {
+		cur, err := fake.GetByOIDCSubject(ctx, issuer, sub)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		cur.PasswordHash = "new-hash-from-reset"
+		cur.IsAdmin = false
+		if err := fake.Update(ctx, cur); err != nil {
+			t.Error(err)
+		}
+	}
+
+	svc := &OIDCService{userRepo: repo, issuer: issuer}
+	if _, err := svc.findOrCreateUser(ctx, sub, "known@example.com", "known", true); err != nil {
+		t.Fatalf("findOrCreateUser: %v", err)
+	}
+
+	stored, err := fake.GetByOIDCSubject(ctx, issuer, sub)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.PasswordHash != "new-hash-from-reset" {
+		t.Errorf("password_hash = %q, want the reset one: a login restored the old password, "+
+			"while the reset token is already burned and the refresh tokens purged", stored.PasswordHash)
+	}
+	if stored.IsAdmin {
+		t.Error("is_admin came back: a user can undo their own demotion by logging in, as often as they like")
+	}
+}
+
+// The disabled check must still fail closed, and must do so before any write.
+func TestFindOrCreateUser_DisabledUser_StillRefused(t *testing.T) {
+	repo := userfakes.NewFakeUserRepository()
+	sub, issuer := "sub-disabled", "https://idp.test"
+	u, err := domainuser.NewUser("off", "off@example.com", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	u.OIDCSubject = &sub
+	u.OIDCIssuer = &issuer
+	u.Enabled = false
+	if err := repo.Create(context.Background(), u); err != nil {
+		t.Fatal(err)
+	}
+
+	svc := &OIDCService{userRepo: repo, issuer: issuer}
+	if _, err := svc.findOrCreateUser(context.Background(), sub, "off@example.com", "off", true); !errors.Is(err, ErrUserDisabled) {
+		t.Fatalf("expected ErrUserDisabled, got %v", err)
 	}
 }

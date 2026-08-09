@@ -306,10 +306,12 @@ func (s *OIDCService) findOrCreateUser(ctx context.Context, sub, email, preferre
 		if !u.Enabled {
 			return nil, ErrUserDisabled
 		}
-		u.UpdatedAt = time.Now()
-		if updateErr := s.userRepo.Update(ctx, u); updateErr != nil {
-			slog.WarnContext(ctx, "oidc: update user timestamp", slog.String("user_id", string(u.ID)), slog.Any("err", updateErr))
-		}
+		// NO write here, deliberately. Stamping UpdatedAt went through
+		// userRepo.Update, a blind 12-column write with no concurrency control:
+		// it replayed a snapshot read microseconds earlier over password_hash,
+		// is_admin and enabled, so a concurrent password reset was undone and a
+		// demoted user re-promoted himself by logging in. TouchLastLogin (one
+		// column) already records the login.
 		return u, nil
 	}
 
