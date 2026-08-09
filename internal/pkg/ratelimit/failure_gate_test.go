@@ -84,15 +84,13 @@ func TestFailureGate_Concurrent(t *testing.T) {
 	g := ratelimit.NewFailureGate("test", 1000, time.Minute, time.Minute)
 	var wg sync.WaitGroup
 	for range 50 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for range 20 {
 				g.Fail()
 				g.Allow()
 				g.Succeed()
 			}
-		}()
+		})
 	}
 	wg.Wait()
 }
