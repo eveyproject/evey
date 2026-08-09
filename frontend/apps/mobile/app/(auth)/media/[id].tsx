@@ -46,7 +46,7 @@ import { useIsFavorite, useToggleFavorite } from "../../../src/hooks/useFavorite
 import { startDownload, getDownloadPath, deleteDownload, downloadErrorMessageKey, subscribeToProgress, type ProgressBytes } from "../../../src/lib/downloads";
 import { downloadStageLabel } from "../../../src/lib/downloadStageLabel";
 import { chooseDownloadQuality } from "../../../src/lib/downloadQualityGate";
-import { startReducedDownload } from "../../../src/lib/reducedDownload";
+import { startReducedDownload, reducedDownloadMessage } from "../../../src/lib/reducedDownload";
 import { confirmDownloadOnMobileData } from "../../../src/lib/mobileDataGate";
 import { formatBytes, formatDurationMs, formatTimeMs } from "@evey/api";
 import { buildDownloadAuthContext } from "../../../src/lib/downloadContext";
@@ -1331,10 +1331,11 @@ export default function MediaDetailScreen() {
                 // before spending the space rather than after failing on it.
                 const choice = await chooseDownloadQuality(t, id);
                 if (choice.quality === "cancel") return;
+                const sliced = choice.quality === "reduced" && !!choice.plan;
                 setDownloadProgress(NaN);
                 toast.info(t("media.detail.downloadStarted"), { onPress: () => router.push("/downloads") });
                 try {
-                  if (choice.quality === "reduced" && choice.plan) {
+                  if (sliced && choice.plan) {
                     // The sliced path builds its own file, so it reports
                     // through the same progress stream rather than returning
                     // one task to await.
@@ -1384,9 +1385,10 @@ export default function MediaDetailScreen() {
                   // Surface the real cause instead of a blanket "failed": a
                   // disk-space rejection right after the "started" toast reads
                   // as a contradictory success+error to the user (reported on
-                  // a 2.8 GB file). NOT_ENOUGH_SPACE is the one client failure
-                  // the user can act on.
-                  toast.error(t(downloadErrorMessageKey(err)));
+                  // a 2.8 GB file). The sliced path fails its own way - a slice
+                  // the server never produced, a join the device refused - and
+                  // only reducedDownloadMessage names those.
+                  toast.error(t(sliced ? reducedDownloadMessage(err) : downloadErrorMessageKey(err)));
                 } finally {
                   setDownloadProgress(null);
                   setDownloadBytes(null);
