@@ -5,7 +5,7 @@ import {
   useFeedServiceRecommended,
   useFeedServiceGetFeedConfig,
   useFeedServiceRecentlyAdded,
-  useFeedServiceResumePlayback,
+  usePlaybackServiceGetResumeItems,
   useLibraryServiceListLibraries,
   useLibraryServiceListMediaItems,
   useMusicServiceGetAlbums,
@@ -133,26 +133,34 @@ const MediaItemsLibrarySlider = memo(function MediaItemsLibrarySlider({ libraryI
 
 const ResumePlaybackSlider = memo(function ResumePlaybackSlider({ maxItems }: SectionProps) {
   const { t } = useTranslation();
-  const { data, isLoading } = useFeedServiceResumePlayback({ limit: maxItems });
+  // Same RPC as mobile and TV (PlaybackService.GetResumeItems). The web was
+  // the last client on FeedService.ResumePlayback, whose FeedItem carries no
+  // duration and no percent: this row structurally COULD NOT show a progress
+  // bar - the one thing a "Continue watching" card exists for (audit
+  // 2026-08-09). The full MediaItems also bring artwork/seriesTitle, so
+  // displayTitle renders episodes as the series - no hand-built SxEy label.
+  const { data, isLoading } = usePlaybackServiceGetResumeItems({ limit: maxItems });
   const items = data?.items ?? [];
+  const percents = useMemo(() => {
+    const map: Record<string, number> = {};
+    data?.progress?.forEach((p) => {
+      if (p.mediaItemId && p.percentComplete != null) map[p.mediaItemId] = p.percentComplete;
+    });
+    return map;
+  }, [data?.progress]);
   if (!isLoading && items.length === 0) return null;
 
   return (
     <MediaSlider title={t("common.feeds.labels.resume_playback")} isLoading={isLoading}>
       {items.map((item) => {
-        const isEpisode = item.type === "episode" || item.type === "MEDIA_ITEM_TYPE_EPISODE";
-        const title =
-          isEpisode && item.seasonNumber && item.episodeNumber
-            ? `S${item.seasonNumber}E${item.episodeNumber} - ${item.title}`
-            : item.title;
+        const pct = item.id ? percents[item.id] : undefined;
         return (
           <MediaCard
-            key={item.mediaItemId}
-            item={{ id: item.mediaItemId, title, type: item.type }}
-            posterBlurhash={item.primaryBlurhash}
+            key={item.id}
+            item={item}
             showYear={false}
-            showProgress={!!item.positionMs}
-            lite
+            showProgress={pct !== undefined && pct > 0}
+            progressPercent={pct}
           />
         );
       })}
