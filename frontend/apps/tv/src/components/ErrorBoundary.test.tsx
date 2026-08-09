@@ -8,7 +8,7 @@ import React from "react";
 
 vi.mock("react-native", () => ({
   View: ({ children, ...p }: any) => React.createElement("div", p, children),
-  Text: ({ children, testID, numberOfLines, ...p }: any) =>
+  Text: ({ children, testID, numberOfLines: _numberOfLines, ...p }: any) =>
     React.createElement("span", { "data-testid": testID, ...p }, children),
   Pressable: ({ children, onPress, accessibilityLabel, hasTVPreferredFocus, ...p }: any) =>
     React.createElement(
