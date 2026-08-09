@@ -42,4 +42,26 @@ describe("scanLocalNetwork", () => {
     expect(maxInFlight).toBeGreaterThan(0);
     expect(maxInFlight).toBeLessThanOrEqual(50);
   });
+
+  // The sweep is ~3000 probes over tens of seconds; leaving the screen must
+  // stop it. Before the fix the opts were ignored and the whole subnet sweep
+  // kept running (and reporting) on an unmounted screen.
+  it("stops probing and reporting once the signal aborts", async () => {
+    let calls = 0;
+    globalThis.fetch = vi.fn().mockImplementation(() => {
+      calls++;
+      return Promise.resolve({ ok: false });
+    });
+
+    const controller = new AbortController();
+    const found: Array<{ url: string }> = [];
+    const done = scanLocalNetwork((s) => found.push(s), { signal: controller.signal });
+    controller.abort();
+    await done;
+
+    // A batch (50) may already be in flight when the abort lands; anything
+    // beyond ~2 batches means the sweep kept going.
+    expect(calls).toBeLessThan(150);
+    expect(found).toHaveLength(0);
+  }, 30000);
 });

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { View, Text, TextInput, Pressable, ActivityIndicator, Alert, StyleSheet, ScrollView, Modal } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -49,7 +49,16 @@ export default function ServerConnect() {
     }
   }, [hasServers]);
 
+  // Leaving the screen aborts the subnet sweep (~3000 probes over tens of
+  // seconds): without this the scan kept probing and reporting into an
+  // unmounted screen for its full duration.
+  const scanAbortRef = useRef<AbortController | null>(null);
+  useEffect(() => () => scanAbortRef.current?.abort(), []);
+
   const handleScan = useCallback(async () => {
+    scanAbortRef.current?.abort();
+    const controller = new AbortController();
+    scanAbortRef.current = controller;
     setScanning(true);
     setDiscovered([]);
     const found = new Set<string>();
@@ -58,8 +67,8 @@ export default function ServerConnect() {
         found.add(server.url);
         setDiscovered((prev) => [...prev, server]);
       }
-    });
-    setScanning(false);
+    }, { signal: controller.signal });
+    if (!controller.signal.aborted) setScanning(false);
   }, []);
 
   // Switch to a saved server (non-destructive: tokens rehydrate from store).

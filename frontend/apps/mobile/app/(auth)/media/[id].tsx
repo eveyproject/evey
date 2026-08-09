@@ -708,7 +708,7 @@ export default function MediaDetailScreen() {
         await startDownload(
           ep.id,
           ep.title ?? ep.id,
-          (p) => setEpisodeDownloads((s) => ({ ...s, [ep.id!]: p })),
+          (p) => { if (screenMountedRef.current) setEpisodeDownloads((s) => ({ ...s, [ep.id!]: p })); },
           {
             kind: "video",
             formatHint: ep.containerFormat,
@@ -836,6 +836,13 @@ export default function MediaDetailScreen() {
     }
     openPlayer(target, restart);
   }, [getPlayTarget, needsPin, openPlayer]);
+
+  // The download-progress callbacks below outlive this screen: startDownload
+  // unsubscribes them when the DOWNLOAD settles, not when the screen unmounts,
+  // so a download finishing minutes after navigation kept firing setState into
+  // a dead screen for its whole duration (audit 2026-08-09). Gate them here.
+  const screenMountedRef = useRef(true);
+  useEffect(() => () => { screenMountedRef.current = false; }, []);
 
   // An episode tap is a PLAY action, so it takes the same PIN gate as the Play
   // button - the row used to router.push straight into the player, which has
@@ -1295,6 +1302,7 @@ export default function MediaDetailScreen() {
                     // through the same progress stream rather than returning
                     // one task to await.
                     const unsubscribe = subscribeToProgress(id, (p, b) => {
+                      if (!screenMountedRef.current) return;
                       setDownloadProgress(p);
                       if (b) setDownloadBytes(b);
                     });
@@ -1312,7 +1320,7 @@ export default function MediaDetailScreen() {
                     return;
                   }
                   await startDownload(id, media.title,
-                    (p, b) => { setDownloadProgress(p); if (b) setDownloadBytes(b); },
+                    (p, b) => { if (!screenMountedRef.current) return; setDownloadProgress(p); if (b) setDownloadBytes(b); },
                     {
                       ...buildDownloadAuthContext(activeProfile, {
                         officialRating: media.officialRating,
