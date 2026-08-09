@@ -124,11 +124,15 @@ func (s *SecurityDashboardService) GetSecurityDashboard(ctx context.Context) ([]
 	snapshots := make([]domainplugin.PluginSecuritySnapshot, 0, len(plugins))
 	for _, p := range plugins {
 		snap := domainplugin.PluginSecuritySnapshot{
-			ID:           p.ID,
-			Name:         p.Name,
-			Version:      p.Version,
-			SandboxMode:  s.effectiveSandboxMode(p),
-			Permissions:  permissionsOrEmpty(p.Permissions),
+			ID:          p.ID,
+			Name:        p.Name,
+			Version:     p.Version,
+			SandboxMode: s.effectiveSandboxMode(p),
+			Permissions: permissionsOrEmpty(p.Permissions),
+			// INSTALL-TIME fact, not a live check: SourceHash is the SHA of the
+			// installed ZIP, and the plugin dir is -rw with HOME/TMPDIR on it, so a
+			// plugin can rewrite its own code without moving this value. SizeBytes
+			// below is the only live field here.
 			SourceSHA256: p.SourceHash,
 			InstalledAt:  p.InstalledAt,
 			SizeBytes:    dirSize(p.InstallDir),
@@ -139,7 +143,8 @@ func (s *SecurityDashboardService) GetSecurityDashboard(ctx context.Context) ([]
 			snap.Findings = findingsFromReport(p.AnalysisReport)
 		}
 
-		// Signature status from cosign verification at install time.
+		// Signature status from cosign verification AT INSTALL TIME - never
+		// re-verified at start. See the SourceSHA256 note above.
 		snap.Signature = p.Signature
 
 		// Last error from in-memory cache.

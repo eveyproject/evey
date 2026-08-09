@@ -26,16 +26,21 @@ type SignatureStatus struct {
 
 // PluginSecuritySnapshot aggregates all security-relevant data for one plugin.
 type PluginSecuritySnapshot struct {
-	ID            string            `json:"id"`
-	Name          string            `json:"name"`
-	Version       string            `json:"version"`
-	SandboxMode   string            `json:"sandboxMode"`
-	Permissions   []string          `json:"permissions"`
-	Findings      []SecurityFinding `json:"findings"`
-	LastError     *PluginLastError  `json:"lastError,omitempty"`
-	Signature     *SignatureStatus  `json:"signature,omitempty"`
-	SourceSHA256  string            `json:"sourceSHA256"`
-	InstalledAt   time.Time         `json:"installedAt"`
-	LastStartedAt *time.Time        `json:"lastStartedAt,omitempty"`
-	SizeBytes     int64             `json:"sizeBytes"`
+	ID          string            `json:"id"`
+	Name        string            `json:"name"`
+	Version     string            `json:"version"`
+	SandboxMode string            `json:"sandboxMode"`
+	Permissions []string          `json:"permissions"`
+	Findings    []SecurityFinding `json:"findings"`
+	LastError   *PluginLastError  `json:"lastError,omitempty"`
+	// Signature and SourceSHA256 are INSTALL-TIME facts: cosign runs on the
+	// candidate ZIP when the admin installs it, and neither is re-checked when
+	// the plugin starts. The install dir is writable by the plugin itself, so
+	// these describe what was installed, never what is running. SizeBytes is the
+	// only live value here.
+	Signature     *SignatureStatus `json:"signature,omitempty"`
+	SourceSHA256  string           `json:"sourceSHA256"`
+	InstalledAt   time.Time        `json:"installedAt"`
+	LastStartedAt *time.Time       `json:"lastStartedAt,omitempty"`
+	SizeBytes     int64            `json:"sizeBytes"`
 }
