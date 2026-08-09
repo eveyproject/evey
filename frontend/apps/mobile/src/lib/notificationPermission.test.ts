@@ -21,7 +21,7 @@ vi.mock("react-native", () => ({
   },
 }));
 
-import { ensureCastNotificationPermission } from "./castNotificationPermission";
+import { ensureNotificationPermission } from "./notificationPermission";
 
 beforeEach(() => {
   platformOS = "android";
@@ -30,12 +30,12 @@ beforeEach(() => {
   request.mockReset();
 });
 
-describe("ensureCastNotificationPermission", () => {
+describe("ensureNotificationPermission", () => {
   it("requests POST_NOTIFICATIONS on Android 13+ when not yet granted", async () => {
     check.mockResolvedValue(false);
     request.mockResolvedValue("granted");
 
-    await ensureCastNotificationPermission();
+    await ensureNotificationPermission();
 
     expect(check).toHaveBeenCalledWith("android.permission.POST_NOTIFICATIONS");
     expect(request).toHaveBeenCalledWith("android.permission.POST_NOTIFICATIONS");
@@ -44,7 +44,7 @@ describe("ensureCastNotificationPermission", () => {
   it("does not re-request when the permission is already granted", async () => {
     check.mockResolvedValue(true);
 
-    await ensureCastNotificationPermission();
+    await ensureNotificationPermission();
 
     expect(request).not.toHaveBeenCalled();
   });
@@ -52,7 +52,7 @@ describe("ensureCastNotificationPermission", () => {
   it("is a no-op below Android 13 (permission does not exist there)", async () => {
     platformVersion = 32;
 
-    await ensureCastNotificationPermission();
+    await ensureNotificationPermission();
 
     expect(check).not.toHaveBeenCalled();
     expect(request).not.toHaveBeenCalled();
@@ -61,7 +61,7 @@ describe("ensureCastNotificationPermission", () => {
   it("is a no-op on iOS", async () => {
     platformOS = "ios";
 
-    await ensureCastNotificationPermission();
+    await ensureNotificationPermission();
 
     expect(check).not.toHaveBeenCalled();
     expect(request).not.toHaveBeenCalled();
@@ -71,6 +71,6 @@ describe("ensureCastNotificationPermission", () => {
     check.mockResolvedValue(false);
     request.mockRejectedValue(new Error("dialog dismissed"));
 
-    await expect(ensureCastNotificationPermission()).resolves.toBeUndefined();
+    await expect(ensureNotificationPermission()).resolves.toBeUndefined();
   });
 });

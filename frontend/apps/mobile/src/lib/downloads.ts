@@ -22,6 +22,7 @@ import { deleteMediaFile, getPublicDownloadsDir } from "@evey/media-caps";
 import { getServerUrl } from "./server-config";
 import { getDeviceAudioCodecs } from "./deviceCodecs";
 import { canPlayOffline, OfflineAccessError, type OfflineProfileInfo } from "./offlineAccess";
+import { ensureNotificationPermission } from "./notificationPermission";
 import { artworkUrl } from "./artwork";
 
 // Persistent download index: same path as before so existing offline files
@@ -745,6 +746,12 @@ export async function startDownload(
 ): Promise<string> {
   enableDownloaderLogs();
   assertMediaId(mediaItemId);
+  // The progress rides the foreground service's notification, which Android
+  // 13+ suppresses until POST_NOTIFICATIONS is granted - and only the cast
+  // flow asked for it, so a user who never cast downloaded blind. The tap on
+  // Download is the user-activation moment; a denial degrades to exactly the
+  // old behavior (silent service), never blocks the download.
+  await ensureNotificationPermission();
   await ensureDir();
   const serverUrl = await getServerUrl();
   if (!serverUrl) throw new Error("Not authenticated");

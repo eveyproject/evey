@@ -26,10 +26,10 @@ vi.mock("../lib/audioBoost", () => ({ setAudioBoost: (v: number) => setAudioBoos
 
 // The Cast media notification is the foreground service that keeps the sender
 // alive with the screen off (2026-07-26 operator-box cut). The permission ask
-// is mocked here; its own logic is covered in castNotificationPermission.test.ts.
-const ensureCastNotificationPermission = vi.fn().mockResolvedValue(undefined);
-vi.mock("../lib/castNotificationPermission", () => ({
-  ensureCastNotificationPermission: () => ensureCastNotificationPermission(),
+// is mocked here; its own logic is covered in notificationPermission.test.ts.
+const ensureNotificationPermission = vi.fn().mockResolvedValue(undefined);
+vi.mock("../lib/notificationPermission", () => ({
+  ensureNotificationPermission: () => ensureNotificationPermission(),
 }));
 
 const eveyFetchMock = vi.fn();
@@ -89,7 +89,7 @@ beforeEach(() => {
   showCastDialog.mockReset();
   setAudioBoost.mockReset();
   eveyFetchMock.mockReset();
-  ensureCastNotificationPermission.mockClear();
+  ensureNotificationPermission.mockClear();
 });
 
 describe("useCastSession", () => {
@@ -144,7 +144,7 @@ describe("useCastSession", () => {
       await result.current.handleCast();
     });
 
-    expect(ensureCastNotificationPermission).toHaveBeenCalled();
+    expect(ensureNotificationPermission).toHaveBeenCalled();
   });
 
   it("reports the cast state it is given", () => {

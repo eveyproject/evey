@@ -5,7 +5,7 @@ import { eveyFetch } from "@evey/api";
 import { setAudioBoost } from "../lib/audioBoost";
 import { fetchStreamToken } from "./usePlaySession";
 import { buildCastStreamUrl, pickCastProfile } from "../lib/castUrl";
-import { ensureCastNotificationPermission } from "../lib/castNotificationPermission";
+import { ensureNotificationPermission } from "../lib/notificationPermission";
 import { describeCastTracks, shouldReportTracks } from "../lib/castTrackBeacon";
 import { resumePositionAfterCast } from "../lib/castPlaybackState";
 import {
@@ -184,7 +184,7 @@ export function useCastSession({
     // Android 13+: the Cast media notification (the foreground service that
     // keeps this sender alive with the screen off) needs POST_NOTIFICATIONS.
     // Awaited so its dialog does not race the cast picker below.
-    await ensureCastNotificationPermission();
+    await ensureNotificationPermission();
     if (castConnected && castClient) {
       await castLoadMedia(castClient);
     } else {

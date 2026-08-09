@@ -105,6 +105,11 @@ vi.mock("./deviceCodecs", () => ({
   getDeviceAudioCodecs: () => deviceCodecs.value,
 }));
 
+const ensureNotificationPermissionMock = vi.hoisted(() => vi.fn(async () => {}));
+vi.mock("./notificationPermission", () => ({
+  ensureNotificationPermission: ensureNotificationPermissionMock,
+}));
+
 import * as FileSystem from "expo-file-system/legacy";
 const fsMock = FileSystem as unknown as Record<string, ReturnType<typeof vi.fn>>;
 
@@ -201,6 +206,17 @@ async function waitForTask(id: string, timeoutMs = 500): Promise<TaskHandlers> {
 }
 
 describe("startDownload", () => {
+  // The downloader's progress rides a foreground-service notification, which
+  // Android 13+ suppresses until POST_NOTIFICATIONS is granted - and only the
+  // cast flow ever asked for it, so a user who never cast downloaded blind.
+  it("asks for the notification permission when a download starts", async () => {
+    const pending = startDownload("m-notif", "Some Movie");
+    const handlers = await waitForTask("m-notif");
+    expect(ensureNotificationPermissionMock).toHaveBeenCalled();
+    handlers.done?.({ id: "m-notif" });
+    await pending;
+  });
+
   it("creates a background download task with stream token + bearer URL", async () => {
     const pending = startDownload("m3", "Movie 3");
     const handlers = await waitForTask("m3");
