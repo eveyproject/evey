@@ -36,8 +36,8 @@ vi.mock("./FocusableCard", () => ({
 import { ChaptersPicker } from "./ChaptersPicker";
 
 const CHAPTERS = [
-  { title: "Some Chapter 1", startTimeMs: 0 },
-  { title: "Some Chapter 2", startTimeMs: 60_000 },
+  { title: "Some Chapter 1", startTimeMs: 0, endTimeMs: 60_000 },
+  { title: "Some Chapter 2", startTimeMs: 60_000, endTimeMs: 120_000 },
 ];
 
 // Ratchet for the whole TV picker family (Audio/Subtitle/Quality/Volume/

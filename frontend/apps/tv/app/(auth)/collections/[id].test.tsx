@@ -88,8 +88,8 @@ vi.mock("../../../src/api/collections", () => ({
 import CollectionDetailScreen from "./[id]";
 
 const ITEMS = [
-  { id: "m-1", title: "Iron Man", type: "MEDIA_ITEM_TYPE_MOVIE", year: 2008 },
-  { id: "m-2", title: "Iron Man 2", type: "MEDIA_ITEM_TYPE_MOVIE", year: 2010 },
+  { id: "m-1", title: "Some Movie", type: "MEDIA_ITEM_TYPE_MOVIE", year: 2008 },
+  { id: "m-2", title: "Some Movie 2", type: "MEDIA_ITEM_TYPE_MOVIE", year: 2010 },
 ];
 
 beforeEach(() => {
@@ -159,7 +159,7 @@ describe("CollectionDetailScreen (TV) empty state", () => {
 describe("CollectionDetailScreen (TV) loaded state", () => {
   it("renders every member returned by the server", () => {
     collectionMock.mockReturnValue({
-      data: { collection: { id: "col-1", name: "Iron Man Saga" }, items: ITEMS, total: 2 },
+      data: { collection: { id: "col-1", name: "Some Saga" }, items: ITEMS, total: 2 },
       isLoading: false,
       isError: false,
       refetch: vi.fn(),
@@ -169,8 +169,8 @@ describe("CollectionDetailScreen (TV) loaded state", () => {
     });
     render(<CollectionDetailScreen />);
 
-    expect(screen.getByText("Iron Man")).toBeTruthy();
-    expect(screen.getByText("Iron Man 2")).toBeTruthy();
+    expect(screen.getByText("Some Movie")).toBeTruthy();
+    expect(screen.getByText("Some Movie 2")).toBeTruthy();
   });
 });
 
@@ -192,8 +192,11 @@ describe("CollectionDetailScreen (TV) artwork", () => {
     });
     render(<CollectionDetailScreen />);
 
-    const img = screen.getByRole("img");
-    expect(img.getAttribute("src")).toContain(`/media/${MEMBER.id}/artwork/poster`);
+    // querySelector, not getByRole("img"): the mock renders alt="" which
+    // removes the element from the accessibility tree (role presentation).
+    const img = document.querySelector("img");
+    expect(img).toBeTruthy();
+    expect(img!.getAttribute("src")).toContain(`/media/${MEMBER.id}/artwork/poster`);
     expect(screen.queryByText("common.noPoster")).toBeNull();
   });
 });

@@ -125,8 +125,11 @@ describe("CollectionDetailScreen (mobile) artwork", () => {
     };
     render(<CollectionDetailScreen />);
 
-    const img = screen.getByRole("img");
-    expect(img.getAttribute("src")).toContain(`/media/${MEMBER.id}/artwork/poster`);
+    // querySelector, not getByRole("img"): the mock renders alt="" which
+    // removes the element from the accessibility tree (role presentation).
+    const img = document.querySelector("img");
+    expect(img).toBeTruthy();
+    expect(img!.getAttribute("src")).toContain(`/media/${MEMBER.id}/artwork/poster`);
     expect(screen.queryByText("common.noPoster")).toBeNull();
   });
 });
