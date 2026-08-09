@@ -249,6 +249,8 @@ function SessionCard({ session, theme, t, onKill, onCommand }: {
           <Pressable
             onPress={() => onCommand(session.sessionId, session.isPaused ? "play" : "pause")}
             hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={session.isPaused ? t("common.play") : t("common.pause")}
           >
             <Ionicons
               name={session.isPaused ? "play-circle-outline" : "pause-circle-outline"}
@@ -256,10 +258,20 @@ function SessionCard({ session, theme, t, onKill, onCommand }: {
               color={theme.colors.accent}
             />
           </Pressable>
-          <Pressable onPress={() => setShowMessage(!showMessage)} hitSlop={8}>
+          <Pressable
+            onPress={() => setShowMessage(!showMessage)}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={t("admin.sessions.sendMessage")}
+          >
             <Ionicons name="chatbubble-outline" size={20} color={theme.colors.textMuted} />
           </Pressable>
-          <Pressable onPress={() => onKill(session)} hitSlop={8}>
+          <Pressable
+            onPress={() => onKill(session)}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={t("admin.sessions.stopSession")}
+          >
             <Ionicons name="stop-circle-outline" size={24} color={theme.colors.error} />
           </Pressable>
         </View>
@@ -281,7 +293,7 @@ function SessionCard({ session, theme, t, onKill, onCommand }: {
             onSubmitEditing={handleSendMessage}
             returnKeyType="send"
           />
-          <Pressable onPress={handleSendMessage} hitSlop={8}>
+          <Pressable onPress={handleSendMessage} hitSlop={8} accessibilityRole="button" accessibilityLabel={t("admin.sessions.sendMessage")}>
             <Ionicons name="send" size={20} color={theme.colors.accent} />
           </Pressable>
         </View>

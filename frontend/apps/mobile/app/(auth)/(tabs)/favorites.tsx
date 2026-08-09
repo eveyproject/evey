@@ -392,5 +392,8 @@ const styles = StyleSheet.create({
   empty: { flex: 1, justifyContent: "center", alignItems: "center", paddingTop: 80 },
   checkmark: { position: "absolute", top: 4, right: 4, zIndex: 1, backgroundColor: "rgba(0,0,0,0.5)", borderRadius: 12 },
   bulkBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 10, borderTopWidth: StyleSheet.hairlineWidth },
-  bulkBtn: { alignItems: "center", gap: 2 },
+  // padding, not just gap: the icons are 20px and sit side by side, so without
+  // it the real touch target is ~20px and a mis-tap hits the neighbour (worst
+  // case: "cancel" instead of "mark watched" in bulk selection).
+  bulkBtn: { alignItems: "center", gap: 2, padding: 6 },
 });

@@ -182,6 +182,9 @@ parental:
   pinLabel: "PIN（4位数字）"
   pinIncorrect: "PIN不正确"
   delete: "删除"
+  edit: 编辑
+  download: 下载
+  restore: 恢复
   validate: "验证"
 feeds:
   title: "首页板块"

@@ -350,7 +350,7 @@ export const themeVars: Record<ThemeCSSName, Record<string, string>> = {
     "--accent-subtle": "rgba(29,78,216,0.12)",
     "--text": "#0f172a",
     "--text-secondary": "#475569",
-    "--text-muted": "#586b82",
+    "--text-muted": "#4f6378",
     "--border": "#cbd5e1",
     "--radius-sm": "6px",
     "--radius-md": "12px",

@@ -317,10 +317,10 @@ export default function CollectionDetailScreen() {
           headerRight: () =>
             isAdmin ? (
               <View style={{ flexDirection: "row", gap: 12, marginRight: 8 }}>
-                <TouchableOpacity onPress={() => setEditVisible(true)} testID="collection-edit-button">
+                <TouchableOpacity onPress={() => setEditVisible(true)} testID="collection-edit-button" accessibilityRole="button" accessibilityLabel={t("common.edit")} hitSlop={8}>
                   <Ionicons name="pencil-outline" size={22} color={theme.colors.text} />
                 </TouchableOpacity>
-                <TouchableOpacity onPress={confirmDelete} testID="collection-delete-button">
+                <TouchableOpacity onPress={confirmDelete} testID="collection-delete-button" accessibilityRole="button" accessibilityLabel={t("common.delete")} hitSlop={8}>
                   <Ionicons name="trash-outline" size={22} color={theme.colors.danger} />
                 </TouchableOpacity>
               </View>

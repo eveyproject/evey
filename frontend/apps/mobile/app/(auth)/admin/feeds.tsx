@@ -185,10 +185,10 @@ export default function AdminFeedsScreen() {
 
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                 <View style={{ gap: 2 }}>
-                  <Pressable onPress={() => moveUp(i)} disabled={i === 0} hitSlop={4}>
+                  <Pressable onPress={() => moveUp(i)} disabled={i === 0} hitSlop={12} accessibilityRole="button" accessibilityLabel={t("common.moveUp")}>
                     <Ionicons name="chevron-up" size={16} color={i === 0 ? theme.colors.border : theme.colors.textMuted} />
                   </Pressable>
-                  <Pressable onPress={() => moveDown(i)} disabled={i >= rows.length - 1} hitSlop={4}>
+                  <Pressable onPress={() => moveDown(i)} disabled={i >= rows.length - 1} hitSlop={12} accessibilityRole="button" accessibilityLabel={t("common.moveDown")}>
                     <Ionicons name="chevron-down" size={16} color={i >= rows.length - 1 ? theme.colors.border : theme.colors.textMuted} />
                   </Pressable>
                 </View>

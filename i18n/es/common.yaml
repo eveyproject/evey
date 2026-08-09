@@ -182,6 +182,9 @@ parental:
   pinLabel: "PIN (4 dígitos)"
   pinIncorrect: PIN incorrecto
   delete: Borrar
+  edit: Editar
+  download: Descargar
+  restore: Restaurar
   validate: Validar
 feeds:
   title: "Secciones de la página de inicio"

@@ -182,6 +182,9 @@ parental:
   pinLabel: "PIN (4 अंक)"
   pinIncorrect: "गलत PIN"
   delete: "हटाएं"
+  edit: संपादित करें
+  download: डाउनलोड करें
+  restore: पुनर्स्थापित करें
   validate: "सत्यापित करें"
 feeds:
   title: "होम पेज अनुभाग"

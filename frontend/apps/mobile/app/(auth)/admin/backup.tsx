@@ -294,21 +294,21 @@ export default function AdminBackupScreen() {
           )}
         </View>
         <View style={{ flexDirection: "row", gap: 16 }}>
-          <Pressable onPress={() => downloadBackup.mutate(item)} disabled={!restorable || downloading} hitSlop={8}>
+          <Pressable onPress={() => downloadBackup.mutate(item)} disabled={!restorable || downloading} hitSlop={8} accessibilityRole="button" accessibilityLabel={t("common.download")}>
             {downloading ? (
               <ActivityIndicator size="small" color={theme.colors.text} />
             ) : (
               <Ionicons name="download-outline" size={20} color={restorable ? theme.colors.text : theme.colors.textMuted} />
             )}
           </Pressable>
-          <Pressable onPress={() => handleRestore(item)} disabled={!restorable || restoring} hitSlop={8}>
+          <Pressable onPress={() => handleRestore(item)} disabled={!restorable || restoring} hitSlop={8} accessibilityRole="button" accessibilityLabel={t("common.restore")}>
             {restoring ? (
               <ActivityIndicator size="small" color={theme.colors.text} />
             ) : (
               <Ionicons name="refresh-outline" size={20} color={restorable ? theme.colors.text : theme.colors.textMuted} />
             )}
           </Pressable>
-          <Pressable onPress={() => handleDelete(item)} hitSlop={8}>
+          <Pressable onPress={() => handleDelete(item)} hitSlop={8} accessibilityRole="button" accessibilityLabel={t("common.delete")}>
             <Ionicons name="trash-outline" size={20} color={theme.colors.error} />
           </Pressable>
         </View>
