@@ -2,8 +2,11 @@ package pluginrunner
 
 import (
 	"context"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/evey-project/evey/internal/domain/plugin"
@@ -66,6 +69,71 @@ func TestApplyLandlockSandbox_BuildsArgv(t *testing.T) {
 	assert.Contains(t, cmd.Env, "HOME=/data/plugins/weather")
 	assert.Contains(t, cmd.Env, "TMPDIR=/data/plugins/weather")
 	assert.Contains(t, cmd.Env, "EVEY_PLUGIN_ID=weather", "unrelated env preserved")
+}
+
+// The device allowlist must stay stateless pseudo-devices only. /dev/tty is the
+// SERVER's controlling terminal: granting it to every plugin, with no
+// permission, hands them ioctl(TIOCSTI) - characters pushed into the terminal's
+// input queue run as whoever is attached to it. dev.tty.legacy_tiocsti only
+// exists from Linux 6.2 while Landlock needs >=5.13, so the whole 5.13-6.1 range
+// (an ordinary NAS kernel) is exposed, and ioctl is not in the seccomp denylist.
+// A plugin is a daemon with stdout/stderr already wired; it has no terminal to
+// want.
+func TestBuildLauncherArgv_DeviceAllowlistIsStatelessPseudoDevicesOnly(t *testing.T) {
+	p := &plugin.Plugin{ID: "weather", InstallDir: "/data/plugins/weather"}
+	cmd := exec.Command("/usr/bin/node", "/data/plugins/weather/main.js")
+	args := buildLauncherArgv("/bin/true", p, cmd, false, 0, 0)
+
+	assert.NotContains(t, args, "/dev/tty", "the server's controlling terminal must never be in the allowlist")
+	for _, dev := range safeDevNodes {
+		assert.Contains(t, args, dev)
+	}
+	// A tty by any other path is the same device.
+	for _, banned := range []string{"/dev/tty", "/dev/console", "/dev/ptmx", "/dev/pts"} {
+		assert.NotContains(t, safeDevNodes, banned)
+	}
+}
+
+// glibc getenv returns the FIRST match, so appending LD_PRELOAD behind an
+// existing one leaves the seccomp shim unloaded - silently, with no error and no
+// log. buildPluginEnv is a closed allowlist today, so no such entry exists; this
+// pins the behaviour so the shim does not quietly stop loading the day plugins
+// can supply their own environment.
+func TestSandboxLib_LDPreloadOverridesRatherThanAppends(t *testing.T) {
+	lib := filepath.Join(t.TempDir(), "libevey-sandbox.so")
+	require.NoError(t, os.WriteFile(lib, []byte("stub"), 0o600))
+	t.Setenv("EVEY_PLUGIN_LAUNCHER", "/bin/true") // real executable: launcherPath resolves
+
+	for _, tc := range []struct {
+		name  string
+		apply func(r *Runner, p *plugin.Plugin, cmd *exec.Cmd)
+	}{
+		{"basic mode", func(r *Runner, p *plugin.Plugin, cmd *exec.Cmd) {
+			require.NoError(t, r.applyBasicSandbox(context.Background(), p, cmd))
+		}},
+		{"landlock mode", func(r *Runner, p *plugin.Plugin, cmd *exec.Cmd) {
+			_, err := r.applyLandlockSandbox(context.Background(), p, cmd)
+			require.NoError(t, err)
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := &Runner{sandboxLibOverride: lib, allowMissingSandbox: true}
+			p := &plugin.Plugin{ID: "weather", InstallDir: "/data/plugins/weather"}
+			cmd := exec.Command("/usr/bin/node", "/data/plugins/weather/main.js")
+			cmd.Env = []string{"LD_PRELOAD=/tmp/attacker.so", "EVEY_PLUGIN_ID=weather"}
+
+			tc.apply(r, p, cmd)
+
+			var preloads []string
+			for _, e := range cmd.Env {
+				if strings.HasPrefix(e, "LD_PRELOAD=") {
+					preloads = append(preloads, e)
+				}
+			}
+			require.Len(t, preloads, 1, "a second LD_PRELOAD entry is dead weight: glibc reads the first")
+			assert.Equal(t, "LD_PRELOAD="+lib, preloads[0], "the shim must win, not the pre-existing value")
+		})
+	}
 }
 
 func TestBuildLauncherArgv_UIDSeparation(t *testing.T) {

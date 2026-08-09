@@ -108,7 +108,9 @@ func (r *Runner) applyBasicSandbox(parentCtx context.Context, p *plugin.Plugin, 
 	}
 	libPath := r.ensureSandboxLib()
 	if libPath != "" {
-		cmd.Env = append(cmd.Env, "LD_PRELOAD="+libPath)
+		// overrideEnv, not append: glibc getenv takes the first match, so a
+		// pre-existing LD_PRELOAD would silently keep the shim unloaded.
+		cmd.Env = overrideEnv(cmd.Env, map[string]string{"LD_PRELOAD": libPath})
 		return nil
 	}
 	if !r.allowMissingSandbox {
@@ -159,7 +161,9 @@ func (r *Runner) applyBwrapSandbox(parentCtx context.Context, p *plugin.Plugin, 
 		libPath := r.ensureSandboxLib()
 		switch {
 		case libPath != "":
-			cmd.Env = append(cmd.Env, "LD_PRELOAD="+libPath)
+			// overrideEnv, not append: glibc getenv takes the first match, so a
+			// pre-existing LD_PRELOAD would silently keep the shim unloaded.
+			cmd.Env = overrideEnv(cmd.Env, map[string]string{"LD_PRELOAD": libPath})
 		case !r.allowMissingSandbox:
 			slog.ErrorContext(parentCtx, "refusing to start plugin without seccomp lib (strict mode)",
 				slog.String("plugin_id", p.ID),

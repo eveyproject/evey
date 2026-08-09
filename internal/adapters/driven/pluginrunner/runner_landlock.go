@@ -50,7 +50,14 @@ var systemReadOnlyDirs = []string{"/usr", "/lib", "/lib64", "/bin", "/sbin", "/e
 // by Landlock regardless of DAC, on every vendor (AMD iGPU, Intel, NVIDIA).
 // Each is skipped by the launcher if absent. /dev/urandom covers Node/Python
 // crypto; /dev/null is the common sink (hence read-write).
-var safeDevNodes = []string{"/dev/null", "/dev/zero", "/dev/full", "/dev/random", "/dev/urandom", "/dev/tty"}
+//
+// /dev/tty is deliberately NOT here: it is the SERVER's controlling terminal,
+// not a stateless pseudo-device, and read-write access to it hands every plugin
+// ioctl(TIOCSTI) - characters injected into the terminal of whoever launched
+// the server. dev.tty.legacy_tiocsti only landed in Linux 6.2 while Landlock
+// needs >=5.13, so an ordinary NAS kernel is exposed. No plugin needs it: Start
+// already wires stdout/stderr and a daemon has no legitimate terminal.
+var safeDevNodes = []string{"/dev/null", "/dev/zero", "/dev/full", "/dev/random", "/dev/urandom"}
 
 // buildLauncherArgv builds the evey-plugin-launcher argv wrapping the plugin
 // command: a filesystem allowlist (system dirs read-only; the plugin's own dir
@@ -170,7 +177,12 @@ func (r *Runner) applyLandlockSandbox(parentCtx context.Context, p *plugin.Plugi
 		libPath := r.ensureSandboxLib()
 		switch {
 		case libPath != "":
-			cmd.Env = append(cmd.Env, "LD_PRELOAD="+libPath)
+			// overrideEnv, not append: see its doc. glibc getenv takes the FIRST
+			// match, so appending behind a pre-existing LD_PRELOAD would silently
+			// leave the seccomp shim unloaded - no error, no log. buildPluginEnv is
+			// a closed allowlist today, so there is none; that is an unexpressed
+			// invariant this must not depend on the day plugins can set env vars.
+			cmd.Env = overrideEnv(cmd.Env, map[string]string{"LD_PRELOAD": libPath})
 		case !r.allowMissingSandbox:
 			slog.ErrorContext(parentCtx, "refusing to start plugin without seccomp lib (landlock mode)",
 				slog.String("plugin_id", p.ID), slog.String("sandbox_lib", sandboxLibPath))
