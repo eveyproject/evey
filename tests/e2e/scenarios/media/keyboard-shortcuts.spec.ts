@@ -42,7 +42,11 @@ test.describe("Keyboard shortcuts > Global", () => {
     await page.waitForTimeout(1_000);
     await page.keyboard.press("?");
     await page.waitForTimeout(500);
-    const overlay = page.locator("text=/keyboard|shortcut/i").first();
+    // Match the dialog by ROLE, not by English text: the overlay title is
+    // translated (the shared dev profile is often left non-English by other
+    // e2e runs), and a /keyboard|shortcut/i regex silently missed a German or
+    // French title and failed a working feature.
+    const overlay = page.locator('[role="dialog"]');
     const visible = await overlay.isVisible({ timeout: 2_000 }).catch(() => false);
     expect(visible).toBe(true);
   });
@@ -54,7 +58,8 @@ test.describe("Keyboard shortcuts > Global", () => {
     await page.waitForTimeout(500);
     await page.keyboard.press("Escape");
     await page.waitForTimeout(300);
-    const overlay = page.locator("text=/keyboard|shortcut/i").first();
+    // Role, not English text - see the open test above.
+    const overlay = page.locator('[role="dialog"]');
     const visible = await overlay.isVisible({ timeout: 500 }).catch(() => false);
     expect(visible).toBe(false);
   });
