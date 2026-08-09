@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
-import { Folder, TriangleAlert } from "lucide-react";
+import { Folder } from "lucide-react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { usePlaybackServiceMarkAsWatched, usePlaybackServiceMarkAsUnwatched } from "@evey/api";
 import { useTranslation } from "react-i18next";
@@ -7,6 +7,7 @@ import { useFavoritesList } from "@/hooks/useFavorite";
 import { MediaGrid } from "@/features/library/MediaGrid";
 import { MediaCardWithModals as MediaCard } from "@/features/library/MediaCardWithModals";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { FetchErrorState } from "@/components/ui/FetchErrorState";
 import { MediaGridSkeleton } from "@/components/ui/Skeleton";
 import { BulkActionBar } from "@/components/BulkActionBar";
 import { useSelection } from "@/hooks/useSelection";
@@ -15,7 +16,6 @@ import { AddToCollectionModal } from "@/features/collection/AddToCollectionModal
 import { Modal } from "@/components/ui/Modal";
 import { toast, useAuthStore } from "@evey/store";
 import { useQueryClient } from "@tanstack/react-query";
-import { classifyError } from "@/utils/errorClassification";
 
 export const Route = createLazyFileRoute("/_auth/favorites")({
   component: FavoritesPage,
@@ -247,16 +247,7 @@ function FavoritesPage() {
         <div
           className="rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]"
         >
-          <EmptyState
-            icon={<TriangleAlert size={48} strokeWidth={1.5} />}
-            title={classifyError(error) === "offline" ? t("common.offline.title", "Offline") : t("common.errorBoundary.title")}
-            description={
-              classifyError(error) === "offline"
-                ? t("common.offline.description", "Check your internet connection and try again.")
-                : t("common.errorBoundary.description")
-            }
-            action={{ label: t("common.retry", "Retry"), onClick: () => void refetch() }}
-          />
+          <FetchErrorState error={error} onRetry={() => void refetch()} />
         </div>
       ) : !favorites || favorites.length === 0 ? (
         <div

@@ -1,13 +1,13 @@
-import { Film, Monitor, Music, Folder, ChevronRight, TriangleAlert } from "lucide-react";
+import { Film, Monitor, Music, Folder, ChevronRight } from "lucide-react";
 import { createLazyFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useLibraryServiceListLibraries, useLibraryServiceListMediaItems, useMusicServiceListTracks, usePhotoServiceListPhotos } from "@evey/api";
 import type { V1Library, V1LibraryType } from "@evey/api";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { FetchErrorState } from "@/components/ui/FetchErrorState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { slugify } from "@/utils/slugify";
-import { classifyError } from "@/utils/errorClassification";
 
 export const Route = createLazyFileRoute("/_auth/library/")({
   component: LibraryIndex,
@@ -173,16 +173,7 @@ function LibraryIndex() {
         <div
           className="rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]"
         >
-          <EmptyState
-            icon={<TriangleAlert size={48} strokeWidth={1.5} />}
-            title={classifyError(error) === "offline" ? t("common.offline.title", "Offline") : t("common.errorBoundary.title")}
-            description={
-              classifyError(error) === "offline"
-                ? t("common.offline.description", "Check your internet connection and try again.")
-                : t("common.errorBoundary.description")
-            }
-            action={{ label: t("common.retry", "Retry"), onClick: () => void refetch() }}
-          />
+          <FetchErrorState error={error} onRetry={() => void refetch()} />
         </div>
       ) : libraries.length === 0 ? (
         <div

@@ -1,10 +1,9 @@
 import { useTranslation } from "react-i18next";
 import { useAuthStore, toast } from "@evey/store";
-import { Music, Download, TriangleAlert } from "lucide-react";
+import { Music, Download } from "lucide-react";
 import { ICON } from "@/constants/iconSizes";
 import { MediaGrid } from "@/features/library/MediaGrid";
-import { EmptyState } from "@/components/ui/EmptyState";
-import { classifyError } from "@/utils/errorClassification";
+import { FetchErrorState } from "@/components/ui/FetchErrorState";
 import { startTokenDownload } from "@/utils/downloadToken";
 import type { Album } from "./musicQueries";
 
@@ -30,20 +29,7 @@ export function AlbumsTab({
   const tokenParam = accessToken ? `?token=${encodeURIComponent(accessToken)}` : "";
   // A failed album fetch must not collapse into "no albums found" - that reads
   // as an empty library when the server actually errored.
-  if (!loading && isError) {
-    return (
-      <EmptyState
-        icon={<TriangleAlert size={48} strokeWidth={1.5} />}
-        title={classifyError(error) === "offline" ? t("common.offline.title", "Offline") : t("common.errorBoundary.title")}
-        description={
-          classifyError(error) === "offline"
-            ? t("common.offline.description", "Check your internet connection and try again.")
-            : t("common.errorBoundary.description")
-        }
-        action={onRetry ? { label: t("common.retry", "Retry"), onClick: onRetry } : undefined}
-      />
-    );
-  }
+  if (!loading && isError) return <FetchErrorState error={error} onRetry={onRetry} />;
   if (!loading && !albums.length) return <p className="text-[var(--text-muted)]">{t("media.music.noAlbums")}</p>;
 
   async function downloadAlbum(a: Album) {

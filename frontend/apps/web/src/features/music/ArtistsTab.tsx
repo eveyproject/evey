@@ -2,10 +2,9 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Virtuoso } from "react-virtuoso";
 import { useAuthStore } from "@evey/store";
-import { Music, TriangleAlert } from "lucide-react";
+import { Music } from "lucide-react";
 import { ICON } from "@/constants/iconSizes";
-import { EmptyState } from "@/components/ui/EmptyState";
-import { classifyError } from "@/utils/errorClassification";
+import { FetchErrorState } from "@/components/ui/FetchErrorState";
 import type { Artist } from "./musicQueries";
 
 export function ArtistsTab({
@@ -34,20 +33,7 @@ export function ArtistsTab({
   if (loading) return <p className="text-[var(--text-muted)]">{t("media.music.loading")}</p>;
   // A failed artist fetch must not collapse into "no artists found" - that
   // reads as an empty library when the server actually errored.
-  if (isError) {
-    return (
-      <EmptyState
-        icon={<TriangleAlert size={48} strokeWidth={1.5} />}
-        title={classifyError(error) === "offline" ? t("common.offline.title", "Offline") : t("common.errorBoundary.title")}
-        description={
-          classifyError(error) === "offline"
-            ? t("common.offline.description", "Check your internet connection and try again.")
-            : t("common.errorBoundary.description")
-        }
-        action={onRetry ? { label: t("common.retry", "Retry"), onClick: onRetry } : undefined}
-      />
-    );
-  }
+  if (isError) return <FetchErrorState error={error} onRetry={onRetry} />;
   if (!artists.length) return <p className="text-[var(--text-muted)]">{t("media.music.noArtists")}</p>;
 
   return (

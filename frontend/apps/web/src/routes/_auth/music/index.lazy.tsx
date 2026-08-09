@@ -3,10 +3,9 @@ import { createLazyFileRoute } from "@tanstack/react-router";
 import { useMusicPlayerStore, type MusicSource } from "@evey/store";
 import { useTranslation } from "react-i18next";
 import { useDebounce } from "@/hooks/useDebounce";
-import { Shuffle, TriangleAlert } from "lucide-react";
+import { Shuffle } from "lucide-react";
 import { ICON } from "@/constants/iconSizes";
-import { EmptyState } from "@/components/ui/EmptyState";
-import { classifyError } from "@/utils/errorClassification";
+import { FetchErrorState } from "@/components/ui/FetchErrorState";
 import { shuffleTracks } from "@/features/music/musicFormat";
 import { useMusicLibraries, useMusicTracks, useMusicAlbums, useMusicArtists, type Track } from "@/features/music/musicQueries";
 import { TracksTab } from "@/features/music/TracksTab";
@@ -93,16 +92,7 @@ function MusicPage() {
     // being unreachable.
     return (
       <div className="flex-1 p-6">
-        <EmptyState
-          icon={<TriangleAlert size={48} strokeWidth={1.5} />}
-          title={classifyError(libErrorObj) === "offline" ? t("common.offline.title", "Offline") : t("common.errorBoundary.title")}
-          description={
-            classifyError(libErrorObj) === "offline"
-              ? t("common.offline.description", "Check your internet connection and try again.")
-              : t("common.errorBoundary.description")
-          }
-          action={{ label: t("common.retry", "Retry"), onClick: () => void refetchLibraries() }}
-        />
+        <FetchErrorState error={libErrorObj} onRetry={() => void refetchLibraries()} />
       </div>
     );
   }

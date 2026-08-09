@@ -12,37 +12,16 @@ import {
 import { useAuthStore } from "@evey/store";
 import { useTranslation } from "react-i18next";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { FetchErrorState } from "@/components/ui/FetchErrorState";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
-import { Images, ChevronLeft, ChevronRight, X, RotateCcw, RotateCw, TriangleAlert } from "lucide-react";
+import { Images, ChevronLeft, ChevronRight, X, RotateCcw, RotateCw } from "lucide-react";
 import { Blurhash } from "react-blurhash";
 import { ICON } from "@/constants/iconSizes";
 import { formatBytes } from "@evey/api";
-import { classifyError } from "@/utils/errorClassification";
 
 export const Route = createLazyFileRoute("/_auth/photos/")({
   component: PhotosPage,
 });
-
-// FetchErrorState is the shared visual for "the request failed" - distinct from
-// "the list came back empty" so a server error never renders as an empty photo
-// library. Reused across the library selector, the album grid and the photo
-// grid, which all can fail independently.
-function FetchErrorState({ error, onRetry }: { error: unknown; onRetry: () => void }) {
-  const { t } = useTranslation();
-  const offline = classifyError(error) === "offline";
-  return (
-    <EmptyState
-      icon={<TriangleAlert size={48} strokeWidth={1.5} />}
-      title={offline ? t("common.offline.title", "Offline") : t("common.errorBoundary.title")}
-      description={
-        offline
-          ? t("common.offline.description", "Check your internet connection and try again.")
-          : t("common.errorBoundary.description")
-      }
-      action={{ label: t("common.retry", "Retry"), onClick: onRetry }}
-    />
-  );
-}
 
 // ---- Types ----
 

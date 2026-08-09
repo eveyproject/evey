@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from "react";
-import { Search, X, ListFilter, Music, TriangleAlert } from "lucide-react";
+import { Search, X, ListFilter, Music } from "lucide-react";
 import { createLazyFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { libraryServiceSearchMedia, musicServiceSearchMusic } from "@evey/api";
 import { toast } from "@evey/store";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { FetchErrorState } from "@/components/ui/FetchErrorState";
 import { MediaGridSkeleton } from "@/components/ui/Skeleton";
 import { MediaGrid } from "@/features/library/MediaGrid";
 import { ICON } from "@/constants/iconSizes";
@@ -13,7 +14,6 @@ import { MediaCardWithModals as MediaCard } from "@/features/library/MediaCardWi
 import { useRecentSearches } from "@/hooks/useRecentSearches";
 import { useDebounce } from "@/hooks/useDebounce";
 import { FilterChip } from "@/components/ui/FilterChip";
-import { classifyError } from "@/utils/errorClassification";
 
 export const Route = createLazyFileRoute("/_auth/search")({
   component: SearchPage,
@@ -394,16 +394,7 @@ function SearchPage() {
         <div
           className="rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]"
         >
-          <EmptyState
-            icon={<TriangleAlert size={ICON["4xl"]} strokeWidth={1.5} />}
-            title={classifyError(musicError) === "offline" ? t("common.offline.title", "Offline") : t("common.errorBoundary.title")}
-            description={
-              classifyError(musicError) === "offline"
-                ? t("common.offline.description", "Check your internet connection and try again.")
-                : t("common.errorBoundary.description")
-            }
-            action={{ label: t("common.retry", "Retry"), onClick: () => void refetchMusic() }}
-          />
+          <FetchErrorState error={musicError} onRetry={() => void refetchMusic()} />
         </div>
       )}
 
@@ -411,16 +402,7 @@ function SearchPage() {
         <div
           className="rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]"
         >
-          <EmptyState
-            icon={<TriangleAlert size={ICON["4xl"]} strokeWidth={1.5} />}
-            title={classifyError(error) === "offline" ? t("common.offline.title", "Offline") : t("common.errorBoundary.title")}
-            description={
-              classifyError(error) === "offline"
-                ? t("common.offline.description", "Check your internet connection and try again.")
-                : t("common.errorBoundary.description")
-            }
-            action={{ label: t("common.retry", "Retry"), onClick: () => void refetch() }}
-          />
+          <FetchErrorState error={error} onRetry={() => void refetch()} />
         </div>
       )}
 

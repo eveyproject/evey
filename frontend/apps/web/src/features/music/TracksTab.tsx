@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { X, TriangleAlert } from "lucide-react";
+import { X } from "lucide-react";
 import { ICON } from "@/constants/iconSizes";
-import { EmptyState } from "@/components/ui/EmptyState";
-import { classifyError } from "@/utils/errorClassification";
+import { FetchErrorState } from "@/components/ui/FetchErrorState";
 import { formatTime } from "@evey/api";
 import type { Track } from "./musicQueries";
 import { TrackArt } from "./TrackArt";
@@ -207,20 +206,9 @@ export function TracksTab({
         )}
       </div>
       {loading && <p className="text-[var(--text-muted)]">{t("media.music.loading")}</p>}
-      {!loading && isError && (
-        // A failed track fetch must not collapse into "no tracks found" - that
-        // reads as an empty library when the server actually errored.
-        <EmptyState
-          icon={<TriangleAlert size={48} strokeWidth={1.5} />}
-          title={classifyError(error) === "offline" ? t("common.offline.title", "Offline") : t("common.errorBoundary.title")}
-          description={
-            classifyError(error) === "offline"
-              ? t("common.offline.description", "Check your internet connection and try again.")
-              : t("common.errorBoundary.description")
-          }
-          action={onRetry ? { label: t("common.retry", "Retry"), onClick: onRetry } : undefined}
-        />
-      )}
+      {/* A failed track fetch must not collapse into "no tracks found" - that
+          reads as an empty library when the server actually errored. */}
+      {!loading && isError && <FetchErrorState error={error} onRetry={onRetry} />}
       {!loading && !isError && !tracks.length && <p className="text-[var(--text-muted)]">{search ? t("media.music.noTracksSearch") : t("media.music.noTracks")}</p>}
       {!loading && !isError && tracks.length > 0 && <table className="w-full border-collapse text-sm">
         <thead>

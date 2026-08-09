@@ -2,10 +2,10 @@ import { createLazyFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { libraryServiceGetMediaItem } from "@evey/api";
 import { useTranslation } from "react-i18next";
-import { TriangleAlert } from "lucide-react";
 import { MediaDetailSkeleton } from "@/components/ui/Skeleton";
 import { MediaDetail } from "@/features/library/MediaDetail";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { FetchErrorState } from "@/components/ui/FetchErrorState";
 import { classifyError } from "@/utils/errorClassification";
 
 export const Route = createLazyFileRoute("/_auth/media/$mediaId")({
@@ -34,8 +34,7 @@ function MediaPage() {
   // connection is different: the item may well exist, so offer a retry instead
   // of telling the user it's gone.
   if (isError) {
-    const kind = classifyError(error);
-    if (kind === "not-found") {
+    if (classifyError(error) === "not-found") {
       return (
         <EmptyState
           title={t("media.detail.notFound")}
@@ -43,18 +42,7 @@ function MediaPage() {
         />
       );
     }
-    return (
-      <EmptyState
-        icon={<TriangleAlert size={48} strokeWidth={1.5} />}
-        title={kind === "offline" ? t("common.offline.title", "Offline") : t("common.errorBoundary.title")}
-        description={
-          kind === "offline"
-            ? t("common.offline.description", "Check your internet connection and try again.")
-            : t("common.errorBoundary.description")
-        }
-        action={{ label: t("common.retry", "Retry"), onClick: () => void refetch() }}
-      />
-    );
+    return <FetchErrorState error={error} onRetry={() => void refetch()} />;
   }
 
   if (!item) {

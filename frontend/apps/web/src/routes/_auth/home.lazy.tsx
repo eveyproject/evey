@@ -1,5 +1,5 @@
 import { useState, useMemo, memo, type FC } from "react";
-import { Folder, Settings2, TriangleAlert } from "lucide-react";
+import { Folder, Settings2 } from "lucide-react";
 import { createLazyFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
   useFeedServiceRecommended,
@@ -16,6 +16,7 @@ import { useTranslation } from "react-i18next";
 import { MediaSlider } from "../../features/home/MediaSlider";
 import { MediaCardWithModals as MediaCard } from "../../features/library/MediaCardWithModals";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { FetchErrorState } from "@/components/ui/FetchErrorState";
 import { slugify } from "@/utils/slugify";
 import { useCollections } from "../../features/collection/api";
 import { CollectionCard } from "../../features/collection/CollectionCard";
@@ -24,7 +25,6 @@ import { useWatchedMap } from "@/hooks/useWatchedMap";
 import { PluginSlot } from "@/features/plugins/PluginSlot";
 import { CustomizePanel } from "@/features/home/CustomizePanel";
 import { NextUpRow } from "@/features/home/NextUpRow";
-import { classifyError } from "@/utils/errorClassification";
 
 export const Route = createLazyFileRoute("/_auth/home")({
   component: HomePage,
@@ -309,16 +309,7 @@ function HomePage() {
         <PluginSlot name="home.hero" />
 
         {!isLoading && isContentError ? (
-          <EmptyState
-            icon={<TriangleAlert size={48} strokeWidth={1.5} />}
-            title={classifyError(contentError) === "offline" ? t("common.offline.title", "Offline") : t("common.errorBoundary.title")}
-            description={
-              classifyError(contentError) === "offline"
-                ? t("common.offline.description", "Check your internet connection and try again.")
-                : t("common.errorBoundary.description")
-            }
-            action={{ label: t("common.retry", "Retry"), onClick: retryContent }}
-          />
+          <FetchErrorState error={contentError} onRetry={retryContent} />
         ) : !isLoading && !hasContent ? (
           <EmptyState
             icon={<Folder size={48} strokeWidth={1.5} />}
