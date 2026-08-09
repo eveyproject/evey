@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from "react";
-import { usePlaybackServiceGetWatchHistory } from "@evey/api";
+import { usePlaybackServiceGetWatchHistory, WATCH_HISTORY_OVERLAY_LIMIT } from "@evey/api";
 import type { V1GetWatchHistoryResponse } from "@evey/api";
 
 // useIsWatched is the per-card subscription: it shares the same history query
@@ -14,7 +14,7 @@ export function useIsWatched(id: string | undefined) {
     [id],
   );
   const { data } = usePlaybackServiceGetWatchHistory(
-    { limit: 500 },
+    { limit: WATCH_HISTORY_OVERLAY_LIMIT },
     { query: { staleTime: 30_000, select } },
   );
   return data === true;
@@ -22,7 +22,7 @@ export function useIsWatched(id: string | undefined) {
 
 export function useWatchedMap() {
   const { data } = usePlaybackServiceGetWatchHistory(
-    { limit: 500 },
+    { limit: WATCH_HISTORY_OVERLAY_LIMIT },
     { query: { staleTime: 30_000 } },
   );
 

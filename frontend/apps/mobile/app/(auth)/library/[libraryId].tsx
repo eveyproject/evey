@@ -31,6 +31,7 @@ import {
   usePlaybackServiceGetWatchHistory,
   libraryServiceListMediaItems,
   formatDurationMs,
+  WATCH_HISTORY_OVERLAY_LIMIT,
 } from "@evey/api";
 import type {
   V1MediaItem,
@@ -384,7 +385,7 @@ export default function LibraryDetailScreen() {
   // (src/hooks/useWatchedMap.ts), read directly here so the percent-complete
   // map can be derived from the same single fetch instead of duplicating it.
   const { data: watchHistoryData } = usePlaybackServiceGetWatchHistory(
-    { limit: 500 },
+    { limit: WATCH_HISTORY_OVERLAY_LIMIT },
     { query: { staleTime: 30_000 } },
   );
   const watchedMap = useMemo(() => {

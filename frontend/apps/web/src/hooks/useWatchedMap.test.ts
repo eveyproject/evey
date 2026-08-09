@@ -5,6 +5,7 @@ import { describe, it, expect, vi } from "vitest";
 // generated hook directly so there is no QueryClient dependency.
 vi.mock("@evey/api", () => ({
   usePlaybackServiceGetWatchHistory: vi.fn(),
+  WATCH_HISTORY_OVERLAY_LIMIT: 500,
 }));
 
 async function getWatchHistoryMock() {

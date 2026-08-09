@@ -14,6 +14,7 @@ import {
   useLibraryServiceSearchMedia,
   usePlaybackServiceGetWatchHistory,
   libraryServiceListMediaItems,
+  WATCH_HISTORY_OVERLAY_LIMIT,
 } from "@evey/api";
 import type {
   V1MediaItem,
@@ -253,7 +254,7 @@ export default function LibraryDetailScreen() {
   // Fetched at a generous limit so the map covers everything likely to be
   // visible in one library, mirroring mobile's equivalent (limit: 500).
   const { data: watchHistoryData } = usePlaybackServiceGetWatchHistory(
-    { limit: 500 },
+    { limit: WATCH_HISTORY_OVERLAY_LIMIT },
     { query: { enabled: !!libraryId, staleTime: 30_000 } },
   );
   const { watchedMap, percentMap } = buildWatchProgressMaps(watchHistoryData?.items ?? []);

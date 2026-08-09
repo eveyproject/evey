@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { usePlaybackServiceGetWatchHistory } from "@evey/api";
+import { usePlaybackServiceGetWatchHistory, WATCH_HISTORY_OVERLAY_LIMIT } from "@evey/api";
 
 /**
  * Mirror of web's useWatchedMap - fetches the last N watch-history entries
@@ -12,7 +12,7 @@ import { usePlaybackServiceGetWatchHistory } from "@evey/api";
  */
 export function useWatchedMap() {
   const { data } = usePlaybackServiceGetWatchHistory(
-    { limit: 500 },
+    { limit: WATCH_HISTORY_OVERLAY_LIMIT },
     { query: { staleTime: 30_000 } },
   );
 
