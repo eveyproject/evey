@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
-import { formatTime } from "@evey/api";
+import { createPlayerEventReporter, formatTime } from "@evey/api";
 import { View, Text, Pressable, ActivityIndicator, StyleSheet, useWindowDimensions, useTVEventHandler } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
@@ -57,6 +57,10 @@ export default function PlayerScreen() {
   const { t } = useTranslation();
   const mediaId = id ?? "";
   useAudioCapsBeacon(mediaId);
+  // Fatal-native-error beacon, identical to the web and mobile players'.
+  // Self-throttling (dedupe + per-session budget) so a stream failing in a
+  // loop cannot flood the admin log.
+  const reportPlayerEvent = useMemo(() => createPlayerEventReporter(mediaId), [mediaId]);
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
 
   const { data: media } = useLibraryServiceGetMediaItem(mediaId);
@@ -312,6 +316,18 @@ export default function PlayerScreen() {
       });
       if (ev.status === "error") {
         console.warn("[player] native playback error:", ev.error?.message);
+        // Beacon BEFORE the state flip, same reporter as web and mobile: a
+        // direct-play death is invisible server-side (every byte it served
+        // was a 200), console.warn goes nowhere on a living-room TV, and the
+        // tester's report is a photo of the error screen.
+        let posSec = 0;
+        withPlayer((p) => { posSec = Math.round(p.currentTime || 0); });
+        reportPlayerEvent({
+          type: "native_player_error",
+          details: ev.error?.message ?? "",
+          fatal: true,
+          posSec,
+        });
         setNativeError(ev.error?.message ?? "playback error");
       }
     });
@@ -323,7 +339,7 @@ export default function PlayerScreen() {
       statusSub.remove();
       playSub.remove();
     };
-  }, [player, withPlayer]);
+  }, [player, withPlayer, reportPlayerEvent]);
 
   useEffect(() => {
     return () => stopSession();
