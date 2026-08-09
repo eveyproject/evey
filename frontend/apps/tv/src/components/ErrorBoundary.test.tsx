@@ -8,7 +8,8 @@ import React from "react";
 
 vi.mock("react-native", () => ({
   View: ({ children, ...p }: any) => React.createElement("div", p, children),
-  Text: ({ children, ...p }: any) => React.createElement("span", p, children),
+  Text: ({ children, testID, numberOfLines, ...p }: any) =>
+    React.createElement("span", { "data-testid": testID, ...p }, children),
   Pressable: ({ children, onPress, accessibilityLabel, hasTVPreferredFocus, ...p }: any) =>
     React.createElement(
       "button",
@@ -47,6 +48,10 @@ vi.mock("../providers/ThemeProvider", () => ({
 const logError = vi.fn();
 vi.mock("../lib/log", () => ({
   logger: () => ({ error: (...a: unknown[]) => logError(...a), info: vi.fn(), warn: vi.fn() }),
+}));
+
+vi.mock("../lib/crashGuard", () => ({
+  crashContext: () => "12:00:00 [player] source introuvable\n12:00:01 [ui] rendu interrompu",
 }));
 
 import { ErrorBoundary } from "./ErrorBoundary";
@@ -119,6 +124,24 @@ describe("ErrorBoundary", () => {
     expect(home.getAttribute("data-tv-preferred-focus")).toBe("true");
     fireEvent.click(home);
     expect(replaceMock).toHaveBeenCalledWith("/(auth)/(tabs)");
+  });
+
+  // The television is the one surface with no log console and no adb reflex:
+  // once retrying is off the table, whoever is in front of it has to be able to
+  // read what led there, or the diagnosis is lost with the evening.
+  it("montre le contexte de crash quand le reessai n'est plus propose", () => {
+    const live = { throws: true };
+    render(
+      <ErrorBoundary>
+        <Bomb live={live} />
+      </ErrorBoundary>,
+    );
+    expect(screen.queryByTestId("crash-context")).toBeNull();
+
+    fireEvent.click(screen.getByLabelText("common.tryAgain"));
+    fireEvent.click(screen.getByLabelText("common.tryAgain"));
+
+    expect(screen.getByTestId("crash-context").textContent).toContain("source introuvable");
   });
 
   // House rule: no state may leave the remote without a single, deterministic

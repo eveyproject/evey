@@ -8,6 +8,7 @@ import { FocusableCard } from "./FocusableCard";
 import type { ThemeTokens } from "@evey/theme";
 import { FONT_SIZE } from "@evey/theme";
 import { logger } from "../lib/log";
+import { crashContext } from "../lib/crashGuard";
 
 interface Props {
   children?: React.ReactNode;
@@ -26,6 +27,9 @@ interface State {
 // deterministic and the button just replays it. The viewer is then offered the
 // one action that does change something: leaving the screen.
 const MAX_RETRIES = 2;
+
+// Enough to see what led here, few enough to stay readable from a sofa.
+const CONTEXT_LINES = 6;
 
 class ErrorBoundaryInner extends Component<Props, State> {
   constructor(props: Props) {
@@ -90,6 +94,17 @@ class ErrorBoundaryInner extends Component<Props, State> {
               <Text style={[styles.retryText, { color: theme.colors.text }]}>{t("common.nav.home")}</Text>
             </FocusableCard>
           </View>
+          {/* Only once retrying is off the table: the failure is deterministic
+              and somebody will have to report it, from a room with no console. */}
+          {!canRetry ? (
+            <Text
+              testID="crash-context"
+              style={[styles.context, { color: theme.colors.textMuted }]}
+              numberOfLines={CONTEXT_LINES}
+            >
+              {crashContext().split("\n").slice(-CONTEXT_LINES).join("\n")}
+            </Text>
+          ) : null}
         </View>
       );
     }
@@ -110,6 +125,7 @@ const styles = StyleSheet.create({
   title: { fontSize: FONT_SIZE["4xl"], fontWeight: "700", marginTop: 16 },
   message: { fontSize: FONT_SIZE.xl, textAlign: "center", marginTop: 12, maxWidth: 500 },
   actions: { flexDirection: "row", gap: 16, marginTop: 32 },
+  context: { fontSize: FONT_SIZE.sm, textAlign: "left", marginTop: 32, maxWidth: 900 },
   actionBtn: { paddingVertical: 14, paddingHorizontal: 36, borderRadius: 8 },
   retryText: { fontWeight: "600", fontSize: FONT_SIZE.xl },
 });
