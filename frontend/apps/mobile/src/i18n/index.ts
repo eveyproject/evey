@@ -42,8 +42,11 @@ function detectLanguage(): string {
 // The persisted stores rehydrate ASYNCHRONOUSLY (SecureStore), so reading
 // them at boot races the storage. Deciding before they land is how the
 // server default used to beat a known profile. The timeout keeps a broken
-// storage from hanging the boot forever.
-async function storeHydrated(store: {
+// storage from hanging the boot forever. Exported: the boot sequence must
+// also wait for the SERVER LIST store before resolving the i18n loadPath -
+// an install without the legacy SecureStore url otherwise resolves "" and
+// initialises the backend against a dead relative path.
+export async function storeHydrated(store: {
   persist?: { hasHydrated: () => boolean; onFinishHydration: (cb: () => void) => () => void };
 }): Promise<void> {
   const p = store.persist;
@@ -70,23 +73,32 @@ export function i18nLoaded(): boolean {
   return i18n.isInitialized && i18n.hasResourceBundle(i18n.language, "translation");
 }
 
+// catalogueArrived tracks whether the SERVER catalogue ever landed in this
+// session - not whether i18next holds a bundle (the embedded floor is one).
+// It rides i18next's own load events, so a boot whose single fetch failed
+// (server asleep, store race, flaky link) is recognizable and retriable.
+let catalogueArrived = false;
+
+function watchCatalogue() {
+  i18n.on?.("loaded", () => { catalogueArrived = true; });
+  i18n.on?.("failedLoading", () => { catalogueArrived = false; });
+}
+
 export async function initI18n(serverUrl: string) {
   // Re-entrant on FAILURE: the old `isInitialized` guard made the first
   // attempt final, so a boot with no server (or an offline first launch)
   // condemned the whole session to raw keys. Reloading is cheap and idempotent.
   if (i18n.isInitialized) {
-    // Re-point on the PATH, never on i18nLoaded(): the embedded English floor
-    // IS a loaded bundle, so that guard answered "loaded" after a first launch
-    // with no server and skipped this whole branch. The backend then kept the
-    // unusable relative loadPath of that first init, every later fetch failed
-    // against it - including the changeLanguage() of applyServerLanguage - and
-    // the session stayed on the 74-key floor: English everywhere, and raw key
-    // names for anything the floor does not carry. Reproduced on device
-    // 2026-08-05 (French only came back after a restart, when the URL was
-    // known before the first init).
+    // Re-point on the PATH or on a catalogue that never ARRIVED - never on
+    // i18nLoaded(): the embedded English floor IS a loaded bundle, so that
+    // guard answered "loaded" after a first launch with no server and skipped
+    // this whole branch (device 2026-08-05). And the path alone is not enough
+    // either: a boot that resolved the RIGHT url whose one fetch failed kept
+    // raw keys for the whole session, since nothing ever retried (emulator
+    // 2026-08-09, media loading fine while every t() rendered its key).
     const wanted = serverUrl ? `${serverUrl}/api/v1/i18n/{{lng}}` : "";
     const backend = i18n.services.backendConnector.backend;
-    if (wanted && backend?.options && backend.options.loadPath !== wanted) {
+    if (wanted && backend?.options && (backend.options.loadPath !== wanted || !catalogueArrived)) {
       backend.options.loadPath = wanted;
       try {
         await i18n.reloadResources();
@@ -97,6 +109,7 @@ export async function initI18n(serverUrl: string) {
     return i18n;
   }
 
+  watchCatalogue();
   await i18n
     .use(HttpBackend)
     .use(initReactI18next)

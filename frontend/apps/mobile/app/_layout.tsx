@@ -12,7 +12,7 @@ import { ErrorBoundary } from "../src/components/ErrorBoundary";
 import { initFetcher } from "../src/lib/fetcher-setup";
 import { getServerUrl, resolveServerUrl } from "../src/lib/server-config";
 import { migrateFromSingleServer, useServerListStore } from "@evey/store";
-import { applyServerLanguage, initI18n } from "../src/i18n";
+import { applyServerLanguage, initI18n, storeHydrated } from "../src/i18n";
 import { configureAudioSession } from "../src/lib/audio-session";
 import { refreshAccessTokenIfNeeded } from "../src/lib/auth-refresh";
 import { purgeOrphanedDownloads, rehydrateBackgroundDownloads } from "../src/lib/downloads";
@@ -37,6 +37,13 @@ export default function RootLayout() {
         console.error("server migration failed:", err);
       }
       await initFetcher();
+      // Wait for the server-list store to rehydrate BEFORE resolving: an
+      // install without the legacy SecureStore url (any multi-server-era
+      // install) otherwise resolves null here, i18n initialises against a
+      // dead relative loadPath, and the whole session renders raw keys while
+      // media - whose fetches read the store lazily, post-hydration - loads
+      // fine. Same family as applyServerLanguage's own hydration wait.
+      await storeHydrated(useServerListStore);
       const serverUrl = await resolveServerUrl(useServerListStore.getState().getActiveServer()?.url);
       // ALWAYS initialise i18n - even with no server yet. Without this the
       // first-launch screens (server-connect, then login) rendered raw keys

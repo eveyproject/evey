@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { Redirect, Stack } from "expo-router";
-import { useAuthStore } from "@evey/store";
+import { useAuthStore, useServerListStore } from "@evey/store";
 import { refreshAccessTokenIfNeeded } from "../../src/lib/auth-refresh";
+import { initI18n } from "../../src/i18n";
+import { resolveServerUrl } from "../../src/lib/server-config";
 import { useDeviceRegistration } from "../../src/hooks/useDeviceRegistration";
 import { usePresenceHeartbeat } from "../../src/hooks/usePresenceHeartbeat";
 import { DrawerProvider } from "../../src/providers/DrawerProvider";
@@ -31,6 +33,15 @@ export default function AuthLayout() {
   // accessToken/serverUrl aren't ready, so it's safe to call unconditionally
   // here (must be, since hooks can't sit after the early returns below).
   useDeviceRegistration();
+  // Second chance for the translation catalogue: a boot whose single i18n
+  // fetch failed (server asleep, flaky link) otherwise renders raw keys for
+  // the WHOLE session. initI18n no-ops when the catalogue already arrived.
+  useEffect(() => {
+    void (async () => {
+      const url = await resolveServerUrl(useServerListStore.getState().getActiveServer()?.url);
+      if (url) await initI18n(url);
+    })();
+  }, []);
   // Foreground presence beats for the admin "online" panel - enabled only
   // once fully authenticated, for the same hook-order reason as above.
   usePresenceHeartbeat(!!accessToken && !expired && !!profileId);
