@@ -1,6 +1,7 @@
 export * from "./fetcher";
 export * from "./watchHistoryLabel";
 export * from "./audioChannelLayout";
+export * from "./playMethod";
 export * from "./notificationLabel";
 export * from "./format";
 export * from "./seekIndexHelpers";

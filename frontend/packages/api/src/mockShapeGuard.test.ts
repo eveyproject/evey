@@ -5,6 +5,7 @@ import { join, relative } from "node:path";
 import * as fetcher from "./fetcher";
 import * as watchHistoryLabel from "./watchHistoryLabel";
 import * as audioChannelLayout from "./audioChannelLayout";
+import * as playMethod from "./playMethod";
 import * as notificationLabel from "./notificationLabel";
 import * as format from "./format";
 import * as seekIndexHelpers from "./seekIndexHelpers";
@@ -49,6 +50,7 @@ const SHARED_MODULES = {
   fetcher,
   watchHistoryLabel,
   audioChannelLayout,
+  playMethod,
   notificationLabel,
   format,
   seekIndexHelpers,

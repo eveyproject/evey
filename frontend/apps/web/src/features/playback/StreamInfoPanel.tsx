@@ -1,6 +1,14 @@
 import { Info } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { formatChannelLayout, type V1StreamInfo, type V1MediaStream } from "@evey/api";
+import {
+  formatChannelLayout,
+  effectivePlayMethod,
+  playMethodI18nKey,
+  reasonsHeadingI18nKey,
+  visibleTranscodeReasons,
+  type V1StreamInfo,
+  type V1MediaStream,
+} from "@evey/api";
 
 function formatBitrate(bitrate?: string): string {
   if (!bitrate) return "-";
@@ -9,19 +17,6 @@ function formatBitrate(bitrate?: string): string {
   if (bps >= 1_000_000) return `${(bps / 1_000_000).toFixed(1)} Mbps`;
   if (bps >= 1_000) return `${Math.round(bps / 1_000)} Kbps`;
   return `${bps} bps`;
-}
-
-function formatPlayMethod(method?: string): string {
-  switch (method) {
-    case "PLAY_METHOD_DIRECT_PLAY":
-      return "Direct Play";
-    case "PLAY_METHOD_DIRECT_STREAM":
-      return "Direct Stream";
-    case "PLAY_METHOD_TRANSCODE":
-      return "Transcode";
-    default:
-      return method ?? "-";
-  }
 }
 
 // 23.976023976023978 is a true value and a useless one to read. Show what a human
@@ -120,6 +115,18 @@ export function StreamInfoPanel({ streamInfo, open, onToggle, wasmAudioActive }:
     (s: V1MediaStream) => s.type === "MEDIA_STREAM_TYPE_AUDIO",
   );
 
+  // The method the session is REALLY running: the server flags E-AC-3 as an
+  // unsupported codec and says "transcode" even when the wasm path copies it,
+  // which is how this panel used to announce a transcode over two copied
+  // tracks. See effectivePlayMethod.
+  const decisions = {
+    playMethod: streamInfo?.playMethod,
+    videoDecision: streamInfo?.videoDecision,
+    audioDecision: streamInfo?.audioDecision,
+    wasmAudio: wasmAudioActive,
+  };
+  const methodKey = playMethodI18nKey(effectivePlayMethod(decisions));
+
   return (
     <div className="relative">
       <button
@@ -139,9 +146,12 @@ export function StreamInfoPanel({ streamInfo, open, onToggle, wasmAudioActive }:
           onClick={(e) => e.stopPropagation()}
         >
           <Section title={t("player.streamInfo.playback")} />
-          <InfoRow label={t("player.streamInfo.method")} value={formatPlayMethod(streamInfo.playMethod)} />
+          {methodKey && <InfoRow label={t("player.streamInfo.method")} value={t(methodKey)} />}
+          {/* The SOURCE container. Anything but direct play repackages to fMP4
+              segments, so labelling this row plain "Conteneur" next to a
+              "Remux" method read as a second contradiction. */}
           {streamInfo.container && (
-            <InfoRow label={t("player.streamInfo.container")} value={streamInfo.container.toUpperCase()} />
+            <InfoRow label={t("player.streamInfo.containerSource")} value={streamInfo.container.toUpperCase()} />
           )}
           {streamInfo.bitrate && (
             <InfoRow label={t("player.streamInfo.totalBitrate")} value={formatBitrate(streamInfo.bitrate)} />
@@ -203,17 +213,13 @@ export function StreamInfoPanel({ streamInfo, open, onToggle, wasmAudioActive }:
           )}
 
           {(() => {
-            // On the wasm-audio path the audio is decoded client-side, NOT
-            // transcoded - so the "audio codec unsupported / channels exceeded"
-            // reasons (which merely routed the audio off direct-play into the
-            // wasm path) would read as a transcode that isn't happening. Drop
-            // them; the video/container reasons that remain are real.
-            const reasons = (streamInfo.transcodeReasons ?? []).filter(
-              (r) => !(wasmAudioActive && (r === "audio_codec_unsupported" || r === "audio_channels_exceeded")),
-            );
+            const reasons = visibleTranscodeReasons(streamInfo.transcodeReasons, wasmAudioActive);
             return reasons.length > 0 ? (
             <>
-              <Section title={t("player.streamInfo.transcodeReasons")} />
+              {/* "Raisons du transcodage" only when a track is really
+                  re-encoded; otherwise these are the reasons direct play was
+                  impossible and a remux was needed. */}
+              <Section title={t(reasonsHeadingI18nKey(decisions))} />
               <ul className="px-3 py-1.5 space-y-1">
                 {reasons.map((reason) => (
                   <li key={reason} className="flex gap-1.5 text-xs text-[var(--text-muted)]">

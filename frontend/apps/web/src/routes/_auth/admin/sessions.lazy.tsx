@@ -9,7 +9,8 @@ import {
   getAdminSessionServiceListActiveSessionsQueryKey,
 } from "@evey/api";
 import type { V1ActiveSession } from "@evey/api";
-import { formatTimeMs } from "@evey/api";
+import { formatTimeMs, isRealTranscode } from "@evey/api";
+import { useSessionPlayMethodLabel } from "@/features/admin/playMethodLabel";
 import { toast } from "@evey/store";
 import { Spinner } from "@/components/ui/Spinner";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -31,18 +32,6 @@ function formatBandwidth(bps: number): string {
   if (bps > 1e6) return `${(bps / 1e6).toFixed(1)} Mbps`;
   if (bps > 1e3) return `${(bps / 1e3).toFixed(0)} Kbps`;
   return `${bps} bps`;
-}
-
-function usePlayMethodLabel() {
-  const { t } = useTranslation();
-  return (method: string): string => {
-    switch (method) {
-      case "direct_play": return t("admin.sessions.directPlay");
-      case "direct_stream": return t("admin.sessions.directStream");
-      case "transcode": return t("admin.sessions.transcode");
-      default: return method;
-    }
-  };
 }
 
 // trackEngine derives the serving tool per track: the copy rung is served by
@@ -115,10 +104,10 @@ function SessionCard({ session }: { session: V1ActiveSession }) {
       onError: (err: Error) => toast.error(err.message || t("admin.sessions.failedStop")),
     },
   });
-  const playMethodLabel = usePlayMethodLabel();
+  const playMethodLabel = useSessionPlayMethodLabel();
   // Cast-resurrected and music sessions carry no play_method; an empty label
   // must drop the badge entirely, not render a blank green pill.
-  const methodLabel = playMethodLabel(session.playMethod ?? "");
+  const methodLabel = playMethodLabel(session);
   const [confirming, setConfirming] = useState(false);
 
   const progress = Math.min(100, Math.max(0, session.progress ?? 0));
@@ -161,7 +150,7 @@ function SessionCard({ session }: { session: V1ActiveSession }) {
           </p>
           {methodLabel && (
             <div className="flex items-center gap-2 flex-wrap mt-1">
-              <Badge data-testid="play-method-badge" variant={session.playMethod === "transcode" ? "warning" : "success"}>
+              <Badge data-testid="play-method-badge" variant={isRealTranscode(session) ? "warning" : "success"}>
                 {methodLabel}
               </Badge>
             </div>

@@ -144,6 +144,11 @@ streamInfo:
   language: Langue
   sampleRate: Fréquence d'échantillonnage
   transcodeReasons: Raisons du transcodage
+  noDirectPlayReasons: Pourquoi pas de lecture directe
+  methodDirectPlay: Lecture directe
+  methodDirectStream: Remux
+  methodTranscode: Transcodage
+  containerSource: Conteneur source
   decisionCopy: copié
   decisionTranscode: transcodé
   decisionWasm: décodé client

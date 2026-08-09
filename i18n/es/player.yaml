@@ -144,6 +144,11 @@ streamInfo:
   language: Idioma
   sampleRate: Frecuencia de muestreo
   transcodeReasons: Razones de transcodificación
+  noDirectPlayReasons: Por qué no hay reproducción directa
+  methodDirectPlay: Reproducción directa
+  methodDirectStream: Remux
+  methodTranscode: Transcodificación
+  containerSource: Contenedor de origen
   decisionCopy: copiado
   decisionTranscode: transcodificado
   decisionWasm: descodificado en el cliente

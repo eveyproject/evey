@@ -144,6 +144,11 @@ streamInfo:
   language: भाषा
   sampleRate: नमूना दर
   transcodeReasons: ट्रांसकोड कारण
+  noDirectPlayReasons: सीधा प्लेबैक क्यों नहीं
+  methodDirectPlay: सीधा प्लेबैक
+  methodDirectStream: रीमक्स
+  methodTranscode: ट्रांसकोड
+  containerSource: स्रोत कंटेनर
   decisionCopy: कॉपी किया गया
   decisionTranscode: ट्रांसकोड किया गया
   decisionWasm: क्लाइंट पर डिकोड किया गया

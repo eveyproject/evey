@@ -144,6 +144,11 @@ streamInfo:
   language: Language
   sampleRate: Sample rate
   transcodeReasons: Transcode reasons
+  noDirectPlayReasons: Why not direct play
+  methodDirectPlay: Direct Play
+  methodDirectStream: Remux
+  methodTranscode: Transcode
+  containerSource: Source container
   decisionCopy: copied
   decisionTranscode: transcoded
   decisionWasm: client-decoded

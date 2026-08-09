@@ -144,6 +144,11 @@ streamInfo:
   language: 语言
   sampleRate: 采样率
   transcodeReasons: 转码原因
+  noDirectPlayReasons: 为何无法直接播放
+  methodDirectPlay: 直接播放
+  methodDirectStream: 重封装
+  methodTranscode: 转码
+  containerSource: 源容器
   decisionCopy: 直接复制
   decisionTranscode: 已转码
   decisionWasm: 客户端解码

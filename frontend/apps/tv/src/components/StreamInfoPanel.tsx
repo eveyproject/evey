@@ -2,7 +2,15 @@ import { Text, Modal, Pressable, View, ScrollView, StyleSheet } from "react-nati
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../providers/ThemeProvider";
 import { FocusableCard } from "./FocusableCard";
-import { formatChannelLayout, type V1StreamInfo, type V1MediaStream } from "@evey/api";
+import {
+  formatChannelLayout,
+  effectivePlayMethod,
+  playMethodI18nKey,
+  reasonsHeadingI18nKey,
+  visibleTranscodeReasons,
+  type V1StreamInfo,
+  type V1MediaStream,
+} from "@evey/api";
 import { FONT_SIZE } from "@evey/theme";
 
 interface StreamInfoPanelProps {
@@ -18,15 +26,6 @@ function formatBitrate(bitrate?: string): string {
   if (bps >= 1_000_000) return `${(bps / 1_000_000).toFixed(1)} Mbps`;
   if (bps >= 1_000) return `${Math.round(bps / 1_000)} Kbps`;
   return `${bps} bps`;
-}
-
-function formatPlayMethod(method?: string): string {
-  switch (method) {
-    case "PLAY_METHOD_DIRECT_PLAY": return "Direct Play";
-    case "PLAY_METHOD_DIRECT_STREAM": return "Direct Stream";
-    case "PLAY_METHOD_TRANSCODE": return "Transcode";
-    default: return method ?? "-";
-  }
 }
 
 function InfoRow({ label, value }: { label: string; value: string }) {
@@ -82,6 +81,17 @@ export function StreamInfoPanel({ visible, onClose, streamInfo }: StreamInfoPane
   const videoStream = streamInfo?.mediaStreams?.find((s: V1MediaStream) => s.type === "MEDIA_STREAM_TYPE_VIDEO");
   const audioStream = streamInfo?.mediaStreams?.find((s: V1MediaStream) => s.type === "MEDIA_STREAM_TYPE_AUDIO");
 
+  // A "transcode" verdict whose tracks are both copied is a remux; naming it
+  // Transcode over two "Copié" badges is the contradiction effectivePlayMethod
+  // exists to remove. Shared with web and mobile.
+  const decisions = {
+    playMethod: streamInfo?.playMethod,
+    videoDecision: streamInfo?.videoDecision,
+    audioDecision: streamInfo?.audioDecision,
+  };
+  const methodKey = playMethodI18nKey(effectivePlayMethod(decisions));
+  const reasons = visibleTranscodeReasons(streamInfo?.transcodeReasons);
+
   // A hidden RN Modal keeps its children mounted, so this picker re-rendered
   // on every ~2/s currentTime tick of the player while closed. Render nothing
   // until opened.
@@ -97,9 +107,10 @@ export function StreamInfoPanel({ visible, onClose, streamInfo }: StreamInfoPane
           {streamInfo ? (
             <ScrollView style={styles.body}>
               <SectionHeader title={t("player.streamInfo.playback", "Playback")} />
-              <InfoRow label={t("player.streamInfo.method", "Method")} value={formatPlayMethod(streamInfo.playMethod)} />
+              {methodKey ? <InfoRow label={t("player.streamInfo.method", "Method")} value={t(methodKey)} /> : null}
+              {/* The SOURCE container: anything but direct play repackages to fMP4. */}
               {streamInfo.container && (
-                <InfoRow label={t("player.streamInfo.container", "Container")} value={streamInfo.container.toUpperCase()} />
+                <InfoRow label={t("player.streamInfo.containerSource", "Source container")} value={streamInfo.container.toUpperCase()} />
               )}
               {streamInfo.bitrate && (
                 <InfoRow label={t("player.streamInfo.totalBitrate", "Total Bitrate")} value={formatBitrate(streamInfo.bitrate)} />
@@ -134,10 +145,11 @@ export function StreamInfoPanel({ visible, onClose, streamInfo }: StreamInfoPane
                 </>
               )}
 
-              {streamInfo.transcodeReasons && streamInfo.transcodeReasons.length > 0 && (
+              {reasons.length > 0 && (
                 <>
-                  <SectionHeader title={t("player.streamInfo.transcodeReasons", "Transcode Reasons")} />
-                  {streamInfo.transcodeReasons.map((reason) => (
+                  {/* Only a real re-encode gets the "transcode reasons" heading. */}
+                  <SectionHeader title={t(reasonsHeadingI18nKey(decisions))} />
+                  {reasons.map((reason) => (
                     <View key={reason} style={styles.reasonRow}>
                       <Text style={[styles.reasonBullet, { color: theme.colors.warning }]}>{"•"}</Text>
                       <Text style={[styles.reasons, { color: theme.colors.textMuted }]}>

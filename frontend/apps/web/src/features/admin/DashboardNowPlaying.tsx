@@ -12,25 +12,14 @@ import {
   getAdminSessionServiceListActiveSessionsQueryKey,
 } from "@evey/api";
 import type { V1ActiveSession } from "@evey/api";
-import { formatTimeMs } from "@evey/api";
+import { formatTimeMs, isRealTranscode } from "@evey/api";
+import { useSessionPlayMethodLabel } from "./playMethodLabel";
 import { toast, useAuthStore } from "@evey/store";
 import { Badge } from "@/components/ui/Badge";
 import { AdminTrickplayThumbnail } from "./AdminTrickplayThumbnail";
 import { Spinner } from "@/components/ui/Spinner";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { FetchErrorState } from "@/components/ui/FetchErrorState";
-
-function usePlayMethodLabel() {
-  const { t } = useTranslation();
-  return (method: string): string => {
-    switch (method) {
-      case "direct_play": return t("admin.sessions.directPlay");
-      case "direct_stream": return t("admin.sessions.directStream");
-      case "transcode": return t("admin.sessions.transcode");
-      default: return method;
-    }
-  };
-}
 
 function ProfileAvatar({ profileName, size = 28 }: { profileName?: string; size?: number }) {
   return <Avatar initial={(profileName ?? "?").charAt(0).toUpperCase()} size={size} />;
@@ -92,10 +81,10 @@ function NowPlayingCard({ session }: { session: V1ActiveSession }) {
       onError: (err: Error) => toast.error(err.message || t("admin.sessions.failedStop")),
     },
   });
-  const playMethodLabel = usePlayMethodLabel();
+  const playMethodLabel = useSessionPlayMethodLabel();
   // Cast-resurrected and music sessions carry no play_method; an empty label
   // must drop the badge entirely, not render a blank green pill.
-  const methodLabel = playMethodLabel(session.playMethod ?? "");
+  const methodLabel = playMethodLabel(session);
   const [showMsg, setShowMsg] = useState(false);
   // Confirm-to-act (same pattern as the dashboard's Restart): one click arms,
   // a second within a few seconds kills the session. Replaces window.confirm.
@@ -244,13 +233,14 @@ function NowPlayingCard({ session }: { session: V1ActiveSession }) {
                 TV's wasm decoder takes over and the server ffmpeg dies - the
                 receiver's audio_mode beacon rewrites audioDecision, so the
                 badge follows the REAL path in near real time. */}
-            {session.audioDecision === "wasm" && session.videoDecision !== "transcode" ? (
+            {session.audioDecision === "wasm" && session.videoDecision !== "transcode" && (
               <Badge variant="info">{t("player.streamInfo.decisionWasm")}</Badge>
-            ) : methodLabel ? (
-              <Badge data-testid="play-method-badge" variant={session.playMethod === "transcode" ? "warning" : "success"}>
+            )}
+            {methodLabel && (
+              <Badge data-testid="play-method-badge" variant={isRealTranscode(session) ? "warning" : "success"}>
                 {methodLabel}
               </Badge>
-            ) : null}
+            )}
             {session.resolution && (
               <span className="text-xs text-[var(--text-muted)]">{session.resolution}</span>
             )}
