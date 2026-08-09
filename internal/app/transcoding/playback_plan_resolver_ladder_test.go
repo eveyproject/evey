@@ -86,7 +86,7 @@ func (s *stubProducer) PreWarm(DecisionFingerprint, int, int) {
 	panic("stubProducer: ShapeLadder must never pre-warm")
 }
 func (s *stubProducer) WaitBudget() time.Duration { panic("stubProducer: not a serving path") }
-func (s *stubProducer) NotifyClientHint(string, int, bool, int) {
+func (s *stubProducer) NotifyClientHint(string, int, int, bool, int) {
 	panic("stubProducer: not a serving path")
 }
 func (s *stubProducer) ActiveSessionCount() int { panic("stubProducer: not a serving path") }

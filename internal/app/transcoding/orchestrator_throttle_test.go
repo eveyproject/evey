@@ -53,7 +53,7 @@ func TestNotifyClientHint_PrefetchStretchStartsExactlyAtOneLookahead(t *testing.
 		o, fp := hintedOrchestrator(t)
 		before := endSegOf(t, o, fp)
 
-		o.NotifyClientHint(fp.MediaID, 89_000, false, 0) // 29 segments
+		o.NotifyClientHint(fp.MediaID, 0, 89_000, false, 0) // 29 segments
 		if got := endSegOf(t, o, fp); got != before {
 			t.Errorf("endSeg %d -> %d: a buffer below one lookahead must not stretch the window", before, got)
 		}
@@ -63,7 +63,7 @@ func TestNotifyClientHint_PrefetchStretchStartsExactlyAtOneLookahead(t *testing.
 		o, fp := hintedOrchestrator(t)
 		before := endSegOf(t, o, fp)
 
-		o.NotifyClientHint(fp.MediaID, 90_000, false, 0) // 30 segments
+		o.NotifyClientHint(fp.MediaID, 0, 90_000, false, 0) // 30 segments
 		got := endSegOf(t, o, fp)
 		if got != 2*testOpts().LookAheadSegments {
 			t.Errorf("endSeg = %d (was %d), want %d: hint index + buffer + lookahead",
@@ -79,14 +79,14 @@ func TestNotifyClientHint_PrefetchStretchStartsExactlyAtOneLookahead(t *testing.
 func TestNotifyClientHint_HighWaterOnlyMovesForward(t *testing.T) {
 	o, fp := hintedOrchestrator(t)
 
-	o.NotifyClientHint(fp.MediaID, 9_000, false, 12)
+	o.NotifyClientHint(fp.MediaID, 0, 9_000, false, 12)
 	require.Equal(t, 12, clientHighWaterOf(t, o, fp))
 
-	o.NotifyClientHint(fp.MediaID, 9_000, false, 4) // stale / reordered
-	o.NotifyClientHint(fp.MediaID, 9_000, false, 12)
+	o.NotifyClientHint(fp.MediaID, 0, 9_000, false, 4) // stale / reordered
+	o.NotifyClientHint(fp.MediaID, 0, 9_000, false, 12)
 	// A negative index is nonsense on the wire and must clamp to zero, never
 	// reach the comparison as a rewind.
-	o.NotifyClientHint(fp.MediaID, 9_000, false, -5)
+	o.NotifyClientHint(fp.MediaID, 0, 9_000, false, -5)
 
 	if got := clientHighWaterOf(t, o, fp); got != 12 {
 		t.Errorf("clientHighWater = %d, want 12 - a later hint must never rewind it", got)
@@ -99,8 +99,8 @@ func TestNotifyClientHint_AbsentBufferLengthIsIgnored(t *testing.T) {
 	o, fp := hintedOrchestrator(t)
 	before := endSegOf(t, o, fp)
 
-	o.NotifyClientHint(fp.MediaID, 0, false, 0)
-	o.NotifyClientHint(fp.MediaID, -1, false, 0)
+	o.NotifyClientHint(fp.MediaID, 0, 0, false, 0)
+	o.NotifyClientHint(fp.MediaID, 0, -1, false, 0)
 
 	if got := endSegOf(t, o, fp); got != before {
 		t.Errorf("endSeg %d -> %d: a missing bl must not move the window", before, got)
@@ -170,4 +170,61 @@ func TestEnsureSegmentRange_CoverageWindowEdges(t *testing.T) {
 		assert.Equal(t, 2, proc.startCount(),
 			"the live window is [startSeg, +inf): a request below startSeg is not covered, whatever the distance")
 	})
+}
+
+// A hint is scoped to the rung it describes. In SingleVariant mode each rung has
+// its own rafale, and pushing a rung-0 hint into the rung the player just left
+// set that session's clientHighWater to the live playhead: evaluateThrottle then
+// read a deeply negative buffer (produced - client) forever, so the
+// pause-when-ahead branch never fired again. That branch is the orchestrator's
+// ONLY brake (it has no pauseOtherVariants), so the abandoned rung kept a full
+// decode running against the live one.
+func TestNotifyClientHint_LeavesTheAbandonedRungAlone(t *testing.T) {
+	cache, _ := newTestCache(t)
+	opts := testOpts()
+	opts.SingleVariant = true
+	o := NewSegmentOrchestrator(cache, newFakeProcess(), stubSource{path: "/media/test.mkv"}, opts, discardLogger())
+	t.Cleanup(o.Close)
+
+	fp := minimalFingerprint(t)
+	fp.Profiles = append(fp.Profiles,
+		ProfileFingerprint{Name: "720p", Width: 1280, Height: 720, VideoBitrate: 3000, AudioBitrate: 128})
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 0))
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 1, 0))
+
+	rungs := map[int]*orchestratorSession{}
+	o.mu.Lock()
+	for _, s := range o.sessions[fp.Hash()] {
+		rungs[s.variantIdx] = s
+	}
+	o.mu.Unlock()
+	require.Len(t, rungs, 2, "each rung must own its rafale in SingleVariant mode")
+
+	// The player is consuming rung 0; rung 1 is the one it walked away from.
+	o.NotifyClientHint(fp.MediaID, 0, 9_000, false, 12)
+
+	assert.Equal(t, 12, clientHighWaterOfSession(rungs[0]), "the rung being fetched must track the playhead")
+	assert.Equal(t, 0, clientHighWaterOfSession(rungs[1]),
+		"a hint about another rung must not move this one's cursor - that is what disables its throttle")
+}
+
+// clientHighWater is monotonic, so ONE forged cursor disables the throttle for
+// the whole life of the session. The handler's duration bound cannot be relied
+// on: it skips init segments, copy rungs, and any item whose duration was never
+// probed. Clamp here instead - a hint has no legitimate reason to name a
+// position beyond the window the rafale is producing.
+func TestNotifyClientHint_ForgedCursorIsClampedToTheWindow(t *testing.T) {
+	o, fp := hintedOrchestrator(t)
+	endSeg := endSegOf(t, o, fp)
+
+	o.NotifyClientHint(fp.MediaID, 0, 9_000, false, 999_999)
+
+	assert.Equal(t, endSeg+2*testOpts().LookAheadSegments, clientHighWaterOf(t, o, fp),
+		"a stream_0_999999.m4s must not push the cursor past the rafale's own reach")
+}
+
+func clientHighWaterOfSession(s *orchestratorSession) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.clientHighWater
 }

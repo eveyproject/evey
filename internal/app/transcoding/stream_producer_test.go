@@ -24,12 +24,12 @@ func (f *fakeProducer) Profiles([]transcoding.HLSProfile, SourceDims, transcodin
 func (f *fakeProducer) EnsureSegmentRange(context.Context, DecisionFingerprint, int, int) error {
 	return nil
 }
-func (f *fakeProducer) PreWarm(DecisionFingerprint, int, int)   {}
-func (f *fakeProducer) WaitBudget() time.Duration               { return time.Second }
-func (f *fakeProducer) NotifyClientHint(string, int, bool, int) {}
-func (f *fakeProducer) ActiveSessionCount() int                 { return f.active }
-func (f *fakeProducer) RemoveSession(mediaItemID string)        { f.removed = append(f.removed, mediaItemID) }
-func (f *fakeProducer) Close()                                  { f.closed = true }
+func (f *fakeProducer) PreWarm(DecisionFingerprint, int, int)        {}
+func (f *fakeProducer) WaitBudget() time.Duration                    { return time.Second }
+func (f *fakeProducer) NotifyClientHint(string, int, int, bool, int) {}
+func (f *fakeProducer) ActiveSessionCount() int                      { return f.active }
+func (f *fakeProducer) RemoveSession(mediaItemID string)             { f.removed = append(f.removed, mediaItemID) }
+func (f *fakeProducer) Close()                                       { f.closed = true }
 
 func TestProducerSelector_For_RoutesByPredicate(t *testing.T) {
 	sw := &fakeProducer{name: "sw"}

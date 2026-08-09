@@ -35,7 +35,7 @@ func (s *sentinelProducer) EnsureSegmentRange(_ context.Context, _ apptranscodin
 }
 func (s *sentinelProducer) PreWarm(_ apptranscoding.DecisionFingerprint, _, _ int) {}
 func (s *sentinelProducer) WaitBudget() time.Duration                              { return 0 }
-func (s *sentinelProducer) NotifyClientHint(_ string, _ int, _ bool, _ int)        {}
+func (s *sentinelProducer) NotifyClientHint(_ string, _ int, _ int, _ bool, _ int) {}
 func (s *sentinelProducer) ActiveSessionCount() int                                { return 0 }
 func (s *sentinelProducer) RemoveSession(_ string)                                 {}
 func (s *sentinelProducer) Close()                                                 {}

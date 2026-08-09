@@ -63,7 +63,7 @@ func TestSWNotifyClientHint_ResumesOnlyTheSessionCoveringTheRequestedSegment(t *
 	p, fp, sessions := twoPausedSessions(t)
 
 	// The viewer is back at the beginning: only the from-0 encoder serves it.
-	p.NotifyClientHint(fp.MediaID, 0, true, 0)
+	p.NotifyClientHint(fp.MediaID, 0, 0, true, 0)
 
 	assert.False(t, swIsPaused(sessions[0]), "the covering session must wake on a starvation hint")
 	assert.True(t, swIsPaused(sessions[1]),
@@ -79,7 +79,7 @@ func TestSWNotifyClientHint_PicksTheClosestSessionBehindThePlayhead(t *testing.T
 	p, fp, sessions := twoPausedSessions(t)
 
 	// Segment 200 is covered by both (0 <= 200 and 169 <= 200).
-	p.NotifyClientHint(fp.MediaID, 0, true, 200)
+	p.NotifyClientHint(fp.MediaID, 0, 0, true, 200)
 
 	assert.True(t, swIsPaused(sessions[0]), "the far-behind session must stay suspended when a closer one covers")
 	assert.False(t, swIsPaused(sessions[1]), "the closest session behind the playhead is the one that wakes")
@@ -97,7 +97,7 @@ func TestSWNotifyClientHint_WithoutStarvationKeepsWarmButResumesNothing(t *testi
 		s.mu.Unlock()
 	}
 
-	p.NotifyClientHint(fp.MediaID, 90_000, false, 0)
+	p.NotifyClientHint(fp.MediaID, 0, 90_000, false, 0)
 
 	for i, s := range sessions {
 		assert.True(t, swIsPaused(s), "session %d must stay suspended: nothing reported starvation", i)
@@ -115,7 +115,7 @@ func TestSWNotifyClientHint_UnknownMediaTouchesNothing(t *testing.T) {
 	p, _, sessions := twoPausedSessions(t)
 
 	require.NotPanics(t, func() {
-		p.NotifyClientHint("media-nobody-is-serving", 0, true, 0)
+		p.NotifyClientHint("media-nobody-is-serving", 0, 0, true, 0)
 	})
 	for i, s := range sessions {
 		assert.True(t, swIsPaused(s), "session %d woke on a hint for another media", i)
@@ -141,10 +141,67 @@ func TestSWNotifyClientHint_NoCoveringSessionResumesNobody(t *testing.T) {
 	p.pauseEach(survivors)
 
 	// The viewer is at segment 10, ahead of nothing: 169 > 10, so it is not covered.
-	p.NotifyClientHint(fp.MediaID, 0, true, 10)
+	p.NotifyClientHint(fp.MediaID, 0, 0, true, 10)
 
 	assert.True(t, swIsPaused(survivors[0]),
 		"a session starting past the requested segment must not be woken to serve it")
+}
+
+// Same corpse window as the orchestrator's: killSession claims the session
+// (cancelCtx nil) long before removeFromMap drops it, and a claimed encoder can
+// no longer produce anything. Reusing one leaves the caller waiting out its full
+// budget on a segment nobody will write.
+func TestSWDyingSessionIsNotAValidCover(t *testing.T) {
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess()
+	p := NewSoftwareProducer(cache, proc, stubSource{path: "/m.mkv"}, swTestOpts(), discardLogger())
+	t.Cleanup(p.Close)
+
+	fp := minimalFingerprint(t)
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 0))
+	require.Equal(t, 1, proc.startCount())
+
+	sessions := swSessionsOf(t, p, fp.Hash())
+	require.Len(t, sessions, 1)
+	sessions[0].mu.Lock()
+	sessions[0].cancelCtx = nil
+	sessions[0].mu.Unlock()
+
+	// Segment 4 is well inside the corpse's seek-reach window.
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 4))
+	assert.Equal(t, 2, proc.startCount(),
+		"an encoder already claimed by killSession must not be reused as the covering session")
+}
+
+// A hint carries the rung it was fetched for, and the selection must honour it.
+// Right after a level switch both rungs share the mediaID AND startSeg, so a
+// mediaID-only match fell back to slice order and could SIGCONT the rung the
+// player just left - resurrecting the heavy decode pauseOtherVariants had
+// suspended, which is the whole point of that pause on a weak box.
+func TestSWNotifyClientHint_ResumesOnlyTheHintedRung(t *testing.T) {
+	cache, _ := newTestCache(t)
+	p := NewSoftwareProducer(cache, newFakeProcess(), stubSource{path: "/m.mkv"}, swTestOpts(), discardLogger())
+	t.Cleanup(p.Close)
+
+	fp := minimalFingerprint(t)
+	fp.Profiles = append(fp.Profiles,
+		ProfileFingerprint{Name: "720p", Width: 1280, Height: 720, VideoBitrate: 3000, AudioBitrate: 128})
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 0))
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 1, 0))
+
+	rungs := map[int]*swSession{}
+	for _, s := range swSessionsOf(t, p, fp.Hash()) {
+		rungs[s.variantIdx] = s
+	}
+	require.Len(t, rungs, 2)
+	p.pauseEach([]*swSession{rungs[0], rungs[1]})
+
+	// The player switched UP: it is now fetching rung 1 at the same position.
+	p.NotifyClientHint(fp.MediaID, 1, 0, true, 0)
+
+	assert.False(t, swIsPaused(rungs[1]), "the hinted rung must wake")
+	assert.True(t, swIsPaused(rungs[0]),
+		"the abandoned rung must stay suspended - same media, same startSeg, but not the rung being fetched")
 }
 
 // idleSweepProducer returns a producer with one live session, its handle, and a

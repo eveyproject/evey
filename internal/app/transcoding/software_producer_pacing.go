@@ -14,7 +14,7 @@ import (
 // variant is served (there is only one rung anyway). The single paced encoder
 // has no burst-ahead window to stretch, so a fat-buffer hint is a no-op beyond
 // keeping the session alive.
-func (p *SoftwareProducer) NotifyClientHint(mediaItemID string, bufferLengthMs int, starved bool, segmentIdx int) {
+func (p *SoftwareProducer) NotifyClientHint(mediaItemID string, variantIdx, bufferLengthMs int, starved bool, segmentIdx int) {
 	_ = bufferLengthMs
 	p.mu.Lock()
 	var matched []*swSession
@@ -22,8 +22,15 @@ func (p *SoftwareProducer) NotifyClientHint(mediaItemID string, bufferLengthMs i
 		for _, s := range list {
 			s.mu.Lock()
 			mid := s.mediaID
+			rung := s.variantIdx
 			s.mu.Unlock()
-			if mid == mediaItemID {
+			// Rung filter, same rule as findCoveringSessionLocked: encoders are
+			// per-rung here. Without it, a hint for the rung the player switched TO
+			// could SIGCONT the rung it switched FROM - both carry the same mediaID
+			// and, right after a level switch, the same startSeg, so the tie-break
+			// below fell to map-iteration order. That resurrects the abandoned 4K
+			// decode pauseOtherVariants had just suspended.
+			if mid == mediaItemID && rung == variantIdx {
 				matched = append(matched, s)
 			}
 		}

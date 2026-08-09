@@ -810,7 +810,7 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 	// wake up a paused ffmpeg on starvation and stretch the prefetch window when
 	// the client has a fat buffer. NEVER changes which variant is served - that's
 	// the player's call.
-	h.notifyProducerHint(producer, r, mediaID, segmentIdx)
+	h.notifyProducerHint(producer, r, mediaID, variantIdx, segmentIdx)
 
 	// Bound variantIdx against the actual rung count: a forged stream_99_000.m4s
 	// would otherwise reach EnsureSegmentRange. The software producer range-checks

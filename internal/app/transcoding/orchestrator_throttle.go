@@ -148,17 +148,28 @@ func (o *SegmentOrchestrator) evaluateThrottle() {
 //
 // No-op when no live session matches mediaID. Safe to call from any
 // goroutine.
-func (o *SegmentOrchestrator) NotifyClientHint(mediaItemID string, bufferLengthMs int, bufferStarved bool, segmentIdx int) {
+func (o *SegmentOrchestrator) NotifyClientHint(mediaItemID string, variantIdx, bufferLengthMs int, bufferStarved bool, segmentIdx int) {
 	o.mu.Lock()
 	matched := make([]*orchestratorSession, 0, 1)
 	for _, list := range o.sessions {
 		for _, s := range list {
 			s.mu.Lock()
 			mid := s.mediaID
+			rung := s.variantIdx
 			s.mu.Unlock()
-			if mid == mediaItemID {
-				matched = append(matched, s)
+			// Rung filter, only in SingleVariant mode: a multi-variant session
+			// encodes every rung and leaves variantIdx at 0, where filtering would
+			// silence the hint entirely. Applying a rung-0 hint to the abandoned
+			// rung-2 session pushed its clientHighWater to the live playhead, so
+			// evaluateThrottle's pause-when-ahead branch - the orchestrator's ONLY
+			// brake - never fired again and the abandoned rung ran unthrottled.
+			if mid != mediaItemID {
+				continue
 			}
+			if o.opts.SingleVariant && rung != variantIdx {
+				continue
+			}
+			matched = append(matched, s)
 		}
 	}
 	o.mu.Unlock()
@@ -173,17 +184,20 @@ func (o *SegmentOrchestrator) NotifyClientHint(mediaItemID string, bufferLengthM
 	// CMCD `bl` is client-reported and forgeable: a single hint with
 	// bl=999999999 would otherwise stretch endSeg to encode the whole film below
 	// (the MaxActiveSessions cap bounds the NUMBER of sessions, not their length).
-	// Cap the prefetch reach at 2× the rafale lookahead - combined with the
-	// duration clamp on consumableIdx, endSeg can never run away from the real
-	// playback position.
+	// Cap the prefetch reach at 2× the rafale lookahead.
 	if maxAhead := 2 * o.opts.LookAheadSegments; bufferAheadSegs > maxAhead {
 		bufferAheadSegs = maxAhead
 	}
-	consumableIdx := max(segmentIdx, 0)
+	requestedIdx := max(segmentIdx, 0)
 
 	now := time.Now()
 	for _, s := range matched {
 		s.mu.Lock()
+		// Clamp to just past this rafale's window: the handler's duration bound on
+		// segmentIdx is conditional (init segments, copy rungs, unprobed items), so
+		// a forged stream_0_999999.m4s reaches here, and clientHighWater only ever
+		// moves forward - one such hint disabled the throttle for the whole session.
+		consumableIdx := min(requestedIdx, s.endSeg+2*o.opts.LookAheadSegments)
 		if consumableIdx > s.clientHighWater {
 			s.clientHighWater = consumableIdx
 		}

@@ -73,7 +73,13 @@ type StreamProducer interface {
 	// NotifyClientHint forwards CMCD telemetry (buffer length, starvation,
 	// cursor) so the producer can adjust pacing. NEVER changes which variant is
 	// served - the player owns rendition selection.
-	NotifyClientHint(mediaItemID string, bufferLengthMs int, starved bool, segmentIdx int)
+	//
+	// variantIdx is the rung the hint describes. It is a FILTER, not a
+	// selector: a hint about rung 0 must not resume, un-pause or push the
+	// cursor of the rung the player just abandoned (both rungs share the
+	// mediaID, and after a level switch they even share startSeg, so matching
+	// on mediaID alone picked one at map-iteration random).
+	NotifyClientHint(mediaItemID string, variantIdx, bufferLengthMs int, starved bool, segmentIdx int)
 
 	// ActiveSessionCount reports how many ffmpeg sessions are live (admin
 	// metrics + trickplay scheduler contract).

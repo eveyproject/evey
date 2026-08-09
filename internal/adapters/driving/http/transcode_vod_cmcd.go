@@ -73,7 +73,7 @@ func (h *hlsVODServe) ingestCMCD(r *http.Request, mediaID string, variantIdx, se
 //
 // NEVER touches which variant is served - the player owns rendition
 // selection. The feedback loop only adjusts encoder pacing.
-func (h *hlsVODServe) notifyProducerHint(producer apptranscoding.StreamProducer, r *http.Request, mediaID string, segmentIdx int) {
+func (h *hlsVODServe) notifyProducerHint(producer apptranscoding.StreamProducer, r *http.Request, mediaID string, variantIdx, segmentIdx int) {
 	if producer == nil {
 		return
 	}
@@ -84,5 +84,7 @@ func (h *hlsVODServe) notifyProducerHint(producer apptranscoding.StreamProducer,
 	// Bare-minimum signals: buffer length (ms) and starvation flag drive
 	// the policy. Object type "v"/"av" matters most (video pipeline),
 	// audio-only fetches can still bump clientHighWater forward harmlessly.
-	producer.NotifyClientHint(mediaID, payload.BufferLengthMs, payload.BufferStarved, segmentIdx)
+	// variantIdx scopes the hint to the rung being fetched: without it a hint
+	// could resume or un-throttle the rung the player just left.
+	producer.NotifyClientHint(mediaID, variantIdx, payload.BufferLengthMs, payload.BufferStarved, segmentIdx)
 }
