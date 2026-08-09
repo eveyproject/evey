@@ -160,3 +160,15 @@ func TestSearchWhere_TextAndFiltersKeepTextFirst(t *testing.T) {
 	assert.Len(t, args, 3)
 	assert.Equal(t, "movie", args[2])
 }
+
+// The default order of a search must be the default order of every other
+// listing. "title" alone is a valid identifier here (it resolves to the output
+// alias), so the divergence was silent: results simply came back in a different
+// order than the same items browsed from the library.
+func TestSortClause_UnknownAndEmptySortsFallBackToTheSharedColumn(t *testing.T) {
+	shared := postgres.SortColumnForTest()
+	for _, sort := range [][]string{nil, {}, {"nonexistent_field:desc"}} {
+		assert.Equal(t, shared, postgres.SortClauseForTest(sort),
+			"sort %v must fall back to the same column as every other listing path", sort)
+	}
+}

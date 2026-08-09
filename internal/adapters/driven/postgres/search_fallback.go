@@ -189,7 +189,10 @@ func buildSortClause(sort []string) string {
 		parts = append(parts, col+" "+dir)
 	}
 	if len(parts) == 0 {
-		return "title"
+		// Same fallback column as every other listing path (resolveSortKey):
+		// bare "title" resolves to the output alias and orders differently from
+		// the sort_title used everywhere else.
+		return "mi.sort_title"
 	}
 	return strings.Join(parts, ", ")
 }
