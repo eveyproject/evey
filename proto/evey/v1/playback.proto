@@ -176,6 +176,10 @@ message GetStreamInfoRequest {
   // transcodes regardless (a single bool can't distinguish a DoVi-capable
   // panel from an HDR10-only one).
   bool supports_hdr = 12;
+  // wasm_audio: the client decodes AC-3/E-AC-3 itself (ac3go), same capability
+  // as ?wasmAudio=1 on the master. Needs its own field - such a client must not
+  // advertise those codecs in supported_audio_codecs (MSE refuses them muxed).
+  bool wasm_audio = 13;
 }
 
 message StartStreamRequest {

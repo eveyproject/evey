@@ -73,6 +73,15 @@ describe("StreamInfoPanel - play method honesty", () => {
     expect(screen.getByText("MATROSKA")).toBeInTheDocument();
   });
 
+  // Since the wasmAudio capability rides GetStreamInfo, the server answers
+  // audio_decision=wasm itself and no client flag is needed.
+  it("trusts a server-declared wasm audio decision on its own", () => {
+    renderPanel({ ...WASM_SESSION, audioDecision: "wasm", transcodeReasons: ["container_incompatible"] }, false);
+
+    expect(screen.getByText("Remux")).toBeInTheDocument();
+    expect(screen.getByText("Why not direct play")).toBeInTheDocument();
+  });
+
   it("leaves direct play alone", () => {
     renderPanel(
       {

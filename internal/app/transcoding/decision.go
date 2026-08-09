@@ -113,7 +113,11 @@ type TranscodingPreferences struct {
 	// and judging the wrong track either re-encodes copyable audio or serves a
 	// codec the client cannot decode. Request-scoped, injected by the transport
 	// layer like SubtitleBurnInTrack; ParseTranscodingPreferences leaves it -1.
-	AudioTrack             int
+	AudioTrack int
+	// WasmAudio: the client decodes AC-3/E-AC-3 itself. Request-scoped like
+	// AudioTrack; it cannot ride the supported-codec list (MSE refuses those
+	// codecs muxed), so it needs its own flag.
+	WasmAudio              bool
 	AllowDirectPlay        bool
 	AllowDirectStream      bool
 	AllowTranscoding       bool
@@ -397,6 +401,12 @@ func addReasonOnce(d *transcoding.PlaybackDecision, reason string) {
 // other track would be wrong in both directions (a copyable selected track
 // re-encoded, an unsupported served track copied raw).
 func evaluateAudio(d *transcoding.PlaybackDecision, s StreamSpec, client transcoding.ClientProfile, prefs TranscodingPreferences) {
+	// Served untouched for a client-side decode: neither the codec nor the
+	// channel count is a reason to re-encode anything.
+	if wasmAudioApplies(s, prefs) {
+		d.AudioDecision = "wasm"
+		return
+	}
 	if !audioCodecSupported(client.AudioCodecs, s.Codec) {
 		d.TranscodeReasons = append(d.TranscodeReasons, "audio_codec_unsupported")
 		d.AudioDecision = "transcode"
@@ -423,6 +433,21 @@ func evaluateAudio(d *transcoding.PlaybackDecision, s StreamSpec, client transco
 			d.MaxAudioChannels = prefs.MaxAudioChannels
 		}
 	}
+}
+
+// Mirrors WasmAudioApplies on the spec the decision already carries. The
+// profile's max_audio_channels is not consulted because the master handler does
+// not consult it either - honouring it here would describe a downmix the server
+// will not perform.
+func wasmAudioApplies(s StreamSpec, prefs TranscodingPreferences) bool {
+	if !prefs.WasmAudio || !WasmAudioCodecSupported(s.Codec) {
+		return false
+	}
+	channels := 0
+	if s.Channels != nil {
+		channels = *s.Channels
+	}
+	return WasmAudioChannelsOK(channels)
 }
 
 // aacMaxTargetChannels caps the transcoded AAC layout at 5.1. Multichannel
@@ -655,6 +680,10 @@ func applyDirectPlayPrefs(d *transcoding.PlaybackDecision, prefs TranscodingPref
 // isDirectStreamEligible reports that the only thing keeping this off direct
 // play is an incompatible container while both streams still copy - i.e. a pure
 // remux (direct_stream), no re-encoding.
+//
+// "wasm" is excluded on purpose: PlayMethod routes (direct_stream hands web the
+// /transcode?remux=1 pipe) and the wasm path needs the HLS master. The UI names
+// the method from the per-track decisions instead (effectivePlayMethod).
 func isDirectStreamEligible(d *transcoding.PlaybackDecision) bool {
 	return onlyContainerIssue(d.TranscodeReasons) &&
 		d.VideoDecision == "copy" && d.AudioDecision == "copy"

@@ -81,9 +81,6 @@ export function StreamInfoPanel({ visible, onClose, streamInfo }: StreamInfoPane
   const videoStream = streamInfo?.mediaStreams?.find((s: V1MediaStream) => s.type === "MEDIA_STREAM_TYPE_VIDEO");
   const audioStream = streamInfo?.mediaStreams?.find((s: V1MediaStream) => s.type === "MEDIA_STREAM_TYPE_AUDIO");
 
-  // A "transcode" verdict whose tracks are both copied is a remux; naming it
-  // Transcode over two "Copié" badges is the contradiction effectivePlayMethod
-  // exists to remove. Shared with web and mobile.
   const decisions = {
     playMethod: streamInfo?.playMethod,
     videoDecision: streamInfo?.videoDecision,
@@ -108,7 +105,7 @@ export function StreamInfoPanel({ visible, onClose, streamInfo }: StreamInfoPane
             <ScrollView style={styles.body}>
               <SectionHeader title={t("player.streamInfo.playback", "Playback")} />
               {methodKey ? <InfoRow label={t("player.streamInfo.method", "Method")} value={t(methodKey)} /> : null}
-              {/* The SOURCE container: anything but direct play repackages to fMP4. */}
+              {/* Source, not served: anything but direct play repackages to fMP4. */}
               {streamInfo.container && (
                 <InfoRow label={t("player.streamInfo.containerSource", "Source container")} value={streamInfo.container.toUpperCase()} />
               )}
@@ -147,7 +144,6 @@ export function StreamInfoPanel({ visible, onClose, streamInfo }: StreamInfoPane
 
               {reasons.length > 0 && (
                 <>
-                  {/* Only a real re-encode gets the "transcode reasons" heading. */}
                   <SectionHeader title={t(reasonsHeadingI18nKey(decisions))} />
                   {reasons.map((reason) => (
                     <View key={reason} style={styles.reasonRow}>

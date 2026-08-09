@@ -6,7 +6,7 @@ import {
 } from "@evey/api";
 import type { V1StreamInfo, V1WatchProgress } from "@evey/api";
 import { useAuthStore } from "@evey/store";
-import { getBrowserCapabilities } from "@/utils/codec";
+import { getBrowserCapabilities, canWasmDecodeAC3 } from "@/utils/codec";
 import { appendCodecParams, prefersNativeHLS } from "@/features/playback/hooks/hlsPlayerUtils";
 import { useStreamToken } from "./useStreamToken";
 
@@ -87,6 +87,9 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
     supportedAudioCodecs: caps.audioCodecs,
     supportedContainers: caps.containers,
     supportsHdr: caps.hdr,
+    // Deliberately not in supportedAudioCodecs - see canWasmDecodeAC3. Without
+    // it the server calls the audio "transcode" and serves it untouched.
+    wasmAudio: canWasmDecodeAC3(),
   }), [caps]);
 
   const { data: progress } = usePlaybackServiceGetWatchProgress(mediaId, undefined, {

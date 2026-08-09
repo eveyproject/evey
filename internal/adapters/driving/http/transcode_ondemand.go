@@ -421,12 +421,8 @@ func wasmAudioEffective(r *http.Request, castEnabled bool) bool {
 	return true
 }
 
-// wasmAudioMaxChannels is the widest layout we hand to a client-side decoder.
-// 5.1 is what the browser/receiver engine can fold and play comfortably; 7.1
-// adds two channels of decode plus the fold on top, and that is the exact
-// configuration that silenced a cast and got the receiver killed on a low-end operator box
-// (2026-07-30). The AAC rendition renders those titles perfectly well.
-const wasmAudioMaxChannels = 6
+// Shared with the playback decision so both name the same sessions.
+const wasmAudioMaxChannels = apptranscoding.WasmAudioMaxChannels
 
 // serveWasmAudioMaster serves the VIDEO-ONLY master for a browser wasm-audio
 // client (?wasmAudio=1) whose SELECTED audio track is AC-3/E-AC-3. That client
@@ -456,7 +452,7 @@ func (h *hlsVODServe) serveWasmAudioMaster(w http.ResponseWriter, r *http.Reques
 	}
 
 	audioTrack := h.resolveAudioTrack(r, streams)
-	if c := strings.ToLower(sourceAudioCodec(streams, audioTrack)); c != "ac3" && c != "eac3" {
+	if !apptranscoding.WasmAudioCodecSupported(sourceAudioCodec(streams, audioTrack)) {
 		return false // nothing for the wasm decoder to do - use the normal paths
 	}
 	// Channel ceiling. The wasm path hands the client the ORIGINAL Dolby track
@@ -469,7 +465,7 @@ func (h *hlsVODServe) serveWasmAudioMaster(w http.ResponseWriter, r *http.Reques
 	//
 	// Unknown (0) is NOT treated as small: an unprobed track is exactly the case
 	// where we cannot promise the device can cope.
-	if ch := apptranscoding.SourceAudioChannels(streams, audioTrack); ch == 0 || ch > wasmAudioMaxChannels {
+	if ch := apptranscoding.SourceAudioChannels(streams, audioTrack); !apptranscoding.WasmAudioChannelsOK(ch) {
 		slog.InfoContext(r.Context(), "hls-vod: wasm-audio declined, serving the muxed master instead",
 			slog.String("media_id", mediaID),
 			slog.Int("audio_track", audioTrack),

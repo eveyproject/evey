@@ -156,6 +156,8 @@ func (h *playbackHandler) resolvePlaybackPrefs(ctx context.Context, req *eveyv1.
 		}
 	}
 
+	prefs.WasmAudio = req.WasmAudio
+
 	if idx := int(req.AudioStreamIndex); idx > 0 {
 		if rel, ok := typeRelativeIndex(streams, library.StreamTypeAudio, idx); ok {
 			prefs.AudioTrack = rel

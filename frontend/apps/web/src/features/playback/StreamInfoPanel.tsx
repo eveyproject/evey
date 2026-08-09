@@ -115,10 +115,6 @@ export function StreamInfoPanel({ streamInfo, open, onToggle, wasmAudioActive }:
     (s: V1MediaStream) => s.type === "MEDIA_STREAM_TYPE_AUDIO",
   );
 
-  // The method the session is REALLY running: the server flags E-AC-3 as an
-  // unsupported codec and says "transcode" even when the wasm path copies it,
-  // which is how this panel used to announce a transcode over two copied
-  // tracks. See effectivePlayMethod.
   const decisions = {
     playMethod: streamInfo?.playMethod,
     videoDecision: streamInfo?.videoDecision,
@@ -147,9 +143,7 @@ export function StreamInfoPanel({ streamInfo, open, onToggle, wasmAudioActive }:
         >
           <Section title={t("player.streamInfo.playback")} />
           {methodKey && <InfoRow label={t("player.streamInfo.method")} value={t(methodKey)} />}
-          {/* The SOURCE container. Anything but direct play repackages to fMP4
-              segments, so labelling this row plain "Conteneur" next to a
-              "Remux" method read as a second contradiction. */}
+          {/* Source, not served: anything but direct play repackages to fMP4. */}
           {streamInfo.container && (
             <InfoRow label={t("player.streamInfo.containerSource")} value={streamInfo.container.toUpperCase()} />
           )}
@@ -216,9 +210,6 @@ export function StreamInfoPanel({ streamInfo, open, onToggle, wasmAudioActive }:
             const reasons = visibleTranscodeReasons(streamInfo.transcodeReasons, wasmAudioActive);
             return reasons.length > 0 ? (
             <>
-              {/* "Raisons du transcodage" only when a track is really
-                  re-encoded; otherwise these are the reasons direct play was
-                  impossible and a remux was needed. */}
               <Section title={t(reasonsHeadingI18nKey(decisions))} />
               <ul className="px-3 py-1.5 space-y-1">
                 {reasons.map((reason) => (
