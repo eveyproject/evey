@@ -337,6 +337,15 @@ export function PluginIframe({ pluginId, src, externalFetch, context }: PluginIf
     return text ? JSON.parse(text) : {};
   }, [ensurePluginToken, callPluginEndpoint]);
 
+  // context is an inline object at every call site (context={{ mediaId }}), so
+  // depending on it re-identifies handleMessage on every parent render and the
+  // window "message" listener churns - on the player route that is every
+  // SyncPlay event, with a window where an in-flight plugin RPC reply can land
+  // between the removeEventListener and the re-add. It is only read when the
+  // iframe says "ready", so a ref hands the current value without the churn.
+  const contextRef = useRef(context);
+  useEffect(() => { contextRef.current = context; }, [context]);
+
   const handleMessage = useCallback(
     (e: MessageEvent) => {
       const iframe = iframeRef.current;
@@ -351,7 +360,7 @@ export function PluginIframe({ pluginId, src, externalFetch, context }: PluginIf
           iframe.contentWindow?.postMessage(
             {
               type: "init",
-              context: context ?? {},
+              context: contextRef.current ?? {},
               config: pluginConfig,
               locale: i18n.language,
               theme: detectThemeMode(),
@@ -402,7 +411,7 @@ export function PluginIframe({ pluginId, src, externalFetch, context }: PluginIf
         }
       }
     },
-    [context, pluginConfig, i18n.language, navigate, pluginRpcCall],
+    [pluginConfig, i18n.language, navigate, pluginRpcCall],
   );
 
   useEffect(() => {

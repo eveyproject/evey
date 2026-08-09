@@ -13,7 +13,7 @@ export function QuickConnect() {
   const [secondsLeft, setSecondsLeft] = useState(REFRESH_INTERVAL_S);
   const codeSetAt = useRef<number>(0);
   const { t } = useTranslation();
-  const { setTokens } = useAuthStore();
+  const setTokens = useAuthStore((s) => s.setTokens);
   const navigate = useNavigate();
 
   const initiate = useUserServiceInitiateQuickConnect({

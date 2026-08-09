@@ -37,7 +37,7 @@ export function ProfileSwitcher({ profiles, activeProfileId }: Props) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { logout } = useAuthStore();
+  const logout = useAuthStore((s) => s.logout);
   const isAdmin = useAuthStore((s) => s.isAdmin);
   const [open, setOpen] = useState(false);
   const [switchOpen, setSwitchOpen] = useState(false);

@@ -76,7 +76,7 @@ function buildThemeIframeSrcdoc(pluginId: string): string {
 // an opaque origin - it cannot read parent DOM or cookies, only postMessage.
 // This is the most restrictive sandbox that still permits the bridge to work.
 export function ThemeLoader() {
-  const { pluginId } = useThemeStore();
+  const pluginId = useThemeStore((s) => s.pluginId);
   // Subscribe to PRESENCE of a token (boolean), not its value: this re-runs the
   // effect on a null->value transition (login / re-auth without reload, where
   // pluginId may already be hydrated from persisted state) so theme.js gets
