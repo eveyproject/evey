@@ -45,6 +45,15 @@ vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string, fallback?: string) => fallback ?? key }),
 }));
 
+// --- expo-image mock -------------------------------------------------------
+vi.mock("expo-image", () => ({
+  Image: ({ source, ...p }: any) => React.createElement("img", { src: source?.uri, alt: "", ...p }),
+}));
+
+// --- server/auth hooks mock --------------------------------------------------
+vi.mock("../../../src/hooks/useServerUrl", () => ({ useServerUrl: () => "http://test-server" }));
+vi.mock("../../../src/hooks/useAuthenticatedImage", () => ({ useAuthHeaders: () => undefined }));
+
 // --- expo-router mock -------------------------------------------------------
 const pushMock = vi.fn();
 vi.mock("expo-router", () => ({
@@ -162,5 +171,61 @@ describe("CollectionDetailScreen (TV) loaded state", () => {
 
     expect(screen.getByText("Iron Man")).toBeTruthy();
     expect(screen.getByText("Iron Man 2")).toBeTruthy();
+  });
+});
+
+describe("CollectionDetailScreen (TV) artwork", () => {
+  // Before the fix, every tile rendered the noPoster placeholder text
+  // unconditionally, even for items carrying a valid id - artworkUrl was
+  // never called at all.
+  const MEMBER = { id: "m-9", title: "Some Movie", type: "MEDIA_ITEM_TYPE_MOVIE", year: 1999 };
+
+  it("renders a poster image for a member with an id instead of the placeholder", () => {
+    collectionMock.mockReturnValue({
+      data: { collection: { id: "col-1", name: "Some Collection" }, items: [MEMBER], total: 1 },
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+      fetchNextPage: vi.fn(),
+      hasNextPage: false,
+      isFetchingNextPage: false,
+    });
+    render(<CollectionDetailScreen />);
+
+    const img = screen.getByRole("img");
+    expect(img.getAttribute("src")).toContain(`/media/${MEMBER.id}/artwork/poster`);
+    expect(screen.queryByText("common.noPoster")).toBeNull();
+  });
+});
+
+describe("CollectionDetailScreen (TV) overview", () => {
+  it("shows the saga overview under the title when present", () => {
+    collectionMock.mockReturnValue({
+      data: { collection: { id: "col-1", name: "Some Collection", overview: "A saga about something." }, items: [], total: 0 },
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+      fetchNextPage: vi.fn(),
+      hasNextPage: false,
+      isFetchingNextPage: false,
+    });
+    render(<CollectionDetailScreen />);
+
+    expect(screen.getByText("A saga about something.")).toBeTruthy();
+  });
+
+  it("renders nothing extra when the overview is empty", () => {
+    collectionMock.mockReturnValue({
+      data: { collection: { id: "col-1", name: "Some Collection" }, items: [], total: 0 },
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+      fetchNextPage: vi.fn(),
+      hasNextPage: false,
+      isFetchingNextPage: false,
+    });
+    render(<CollectionDetailScreen />);
+
+    expect(screen.getByText("Some Collection")).toBeTruthy();
   });
 });

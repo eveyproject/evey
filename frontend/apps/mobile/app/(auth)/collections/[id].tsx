@@ -327,6 +327,11 @@ export default function CollectionDetailScreen() {
             ) : null,
         }}
       />
+      {!isError && !isLoading && col?.overview ? (
+        <Text style={[styles.overview, { color: theme.colors.textMuted }]} numberOfLines={3}>
+          {col.overview}
+        </Text>
+      ) : null}
       {isError ? (
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
           <Text style={{ color: theme.colors.textMuted, marginBottom: 12 }}>{t("common.loadError")}</Text>
@@ -385,6 +390,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, justifyContent: "center", alignItems: "center", paddingTop: 64 },
   skeletonGrid: { flexDirection: "row", flexWrap: "wrap", paddingTop: SPACING },
+  overview: { fontSize: 14, paddingHorizontal: SPACING * 2, paddingTop: SPACING, paddingBottom: SPACING },
   gridItem: { alignItems: "center" },
   title: { fontSize: 12, fontWeight: "500", marginTop: 4, textAlign: "center" },
   removeBtn: { position: "absolute", top: 4, right: 4, borderRadius: 12 },
