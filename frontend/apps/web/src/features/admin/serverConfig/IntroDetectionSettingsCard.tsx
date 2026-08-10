@@ -5,6 +5,7 @@ import { useSetConfigEntry, type ConfigEntry } from "./hooks";
 
 const INTRO_PROVIDERS_KEY = "intro_providers.enabled";
 const INTRO_TIDB_SUBMIT_KEY = "intro_providers.tidb_submit_enabled";
+const INTRO_USE_ALL_CORES_KEY = "intro_detection.use_all_cores";
 
 // IntroDetectionSettingsCard surfaces the runtime knobs of the external
 // intro/recap/credits providers (TIDB + IntroDB). The TIDB Bearer token
@@ -21,9 +22,19 @@ export function IntroDetectionSettingsCard({ entries }: { entries: ConfigEntry[]
   const enabled = entries?.find((e) => e.key === INTRO_PROVIDERS_KEY)?.value === "true";
   const tidbKey = entries?.find((e) => e.key === "api.tidb_key")?.value ?? "";
   const tidbSubmitEnabled = entries?.find((e) => e.key === INTRO_TIDB_SUBMIT_KEY)?.value === "true";
+  const useAllCores = entries?.find((e) => e.key === INTRO_USE_ALL_CORES_KEY)?.value === "true";
 
   return (
     <div className="flex flex-col gap-3">
+        <Checkbox
+          label={t("admin.serverConfig.introDetectionUseAllCores")}
+          checked={useAllCores}
+          onChange={(v) => setEntry.mutate({ key: INTRO_USE_ALL_CORES_KEY, value: v ? "true" : "false" })}
+          disabled={setEntry.isPending}
+        />
+        <p className="text-xs text-[var(--text-muted)]">
+          {t("admin.serverConfig.introDetectionUseAllCoresDesc")}
+        </p>
         <Checkbox
           label={t("admin.serverConfig.introProvidersEnabled")}
           checked={enabled}

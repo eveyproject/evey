@@ -61,7 +61,15 @@ type IntroDetectionService struct {
 	// extraction across all siblings) so unbounded parallelism - what the
 	// /api/v1/admin/media/{id}/detect-segments endpoint allowed before - pegs
 	// the box and triggers context deadline exceeded on individual queries.
+	// Guarded by limiterMu: limiterForRun swaps the channel when the admin
+	// use-all-cores toggle changes the desired capacity, without a restart.
 	concurrencyLimiter chan struct{}
+	limiterMu          sync.Mutex
+	// maxParallelBase is the wire-time cap (trickplay CPU budget or env
+	// override); maxParallelAllCores is the full CPU budget the admin toggle
+	// escalates to (0 = toggle inert).
+	maxParallelBase     int
+	maxParallelAllCores int
 
 	// activePlayback, when set, reports live playback sessions. The worker defers
 	// heavy detection (pHash + trickplay decode) while anyone is watching so it
@@ -83,6 +91,13 @@ type IntroDetectionService struct {
 // ErrIntroBackfillAlreadyRunning is returned by BackfillLibrary when a sweep
 // for the same library is still in flight.
 var ErrIntroBackfillAlreadyRunning = errors.New("intro backfill already running for this library")
+
+// IntroDetectionUseAllCoresKey is the server_config toggle that lets the admin
+// run intro detection on the full CPU budget instead of the gentle trickplay
+// share. Read at every run start, so flipping it needs no restart: it applies
+// to the next episode/movie entering detection (a running sweep keeps the
+// worker count it started with).
+const IntroDetectionUseAllCoresKey = "intro_detection.use_all_cores"
 
 // currentPHashAlgoVersion identifies the hash function used to populate the
 // cache. Bump it whenever ExtractTileHashes' output distribution changes
@@ -203,12 +218,55 @@ func NewIntroDetectionService(
 // Returns the service so the call chains cleanly with the other With...
 // helpers in wire.go.
 func (s *IntroDetectionService) WithMaxParallelDetections(n int) *IntroDetectionService {
+	s.maxParallelBase = n
 	if n <= 0 {
 		s.concurrencyLimiter = nil
 		return s
 	}
 	s.concurrencyLimiter = make(chan struct{}, n)
 	return s
+}
+
+// WithAllCoresParallelDetections sets the cap the use-all-cores admin toggle
+// escalates to (wire passes the full sysinfo.CPUBudget). 0 leaves the toggle
+// inert.
+func (s *IntroDetectionService) WithAllCoresParallelDetections(n int) *IntroDetectionService {
+	s.maxParallelAllCores = n
+	return s
+}
+
+// limiterForRun returns the semaphore for one detection run, first resizing it
+// when the admin use-all-cores toggle changed the desired capacity. Callers
+// must release into the returned channel (not the field): in-flight holders of
+// a swapped-out channel drain into it harmlessly.
+func (s *IntroDetectionService) limiterForRun(ctx context.Context) chan struct{} {
+	s.limiterMu.Lock()
+	defer s.limiterMu.Unlock()
+	if s.concurrencyLimiter == nil {
+		return nil
+	}
+	want := s.maxParallelBase
+	if s.useAllCores(ctx) && s.maxParallelAllCores > want {
+		want = s.maxParallelAllCores
+	}
+	if want <= 0 {
+		want = cap(s.concurrencyLimiter)
+	}
+	if want != cap(s.concurrencyLimiter) {
+		slog.InfoContext(ctx, "intro detection: max parallel resized",
+			slog.Int("from", cap(s.concurrencyLimiter)),
+			slog.Int("to", want))
+		s.concurrencyLimiter = make(chan struct{}, want)
+	}
+	return s.concurrencyLimiter
+}
+
+func (s *IntroDetectionService) useAllCores(ctx context.Context) bool {
+	if s.configRepo == nil {
+		return false
+	}
+	entry, err := s.configRepo.Get(ctx, IntroDetectionUseAllCoresKey)
+	return err == nil && entry != nil && entry.Value == "true"
 }
 
 // WithActivePlayback wires the live playback-session counter. While any session
@@ -424,13 +482,15 @@ func (s *IntroDetectionService) backfillMissingSeasons(ctx context.Context) {
 
 // backfillWorkers is how many seasons (or movies) a backfill sweep walks at
 // once: the pipeline concurrency budget (wire sizes concurrencyLimiter from
-// the trickplay CPU budget), not a second knob. The sweeps used to walk
-// sequentially, so that budget was only ever consumed by event triggers.
-func (s *IntroDetectionService) backfillWorkers() int {
-	if s.concurrencyLimiter == nil {
+// the trickplay CPU budget, the use-all-cores toggle escalates it), not a
+// second knob. The sweeps used to walk sequentially, so that budget was only
+// ever consumed by event triggers.
+func (s *IntroDetectionService) backfillWorkers(ctx context.Context) int {
+	lim := s.limiterForRun(ctx)
+	if lim == nil {
 		return defaultMaxParallelDetections
 	}
-	return cap(s.concurrencyLimiter)
+	return cap(lim)
 }
 
 // forEachBackfillTarget fans ids out to backfillWorkers goroutines running fn.
@@ -446,7 +506,7 @@ func (s *IntroDetectionService) forEachBackfillTarget(ctx context.Context, ids [
 		}()
 		fn(ctx, id)
 	}
-	workers := min(s.backfillWorkers(), len(ids))
+	workers := min(s.backfillWorkers(ctx), len(ids))
 	if workers <= 1 {
 		for _, id := range ids {
 			if ctx.Err() != nil {
@@ -921,10 +981,10 @@ func (s *IntroDetectionService) DetectIntroDryRun(ctx context.Context, mediaItem
 func (s *IntroDetectionService) detectIntroWithHint(ctx context.Context, mediaItemID string, hint *domainlibrary.MediaSegment) error {
 	ctx, span := tracing.StartSpan(ctx, "app.library.intro.DetectIntro")
 	defer span.End()
-	if s.concurrencyLimiter != nil {
+	if lim := s.limiterForRun(ctx); lim != nil {
 		select {
-		case s.concurrencyLimiter <- struct{}{}:
-			defer func() { <-s.concurrencyLimiter }()
+		case lim <- struct{}{}:
+			defer func() { <-lim }()
 		case <-ctx.Done():
 			return ctx.Err()
 		}

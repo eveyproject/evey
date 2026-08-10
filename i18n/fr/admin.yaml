@@ -765,6 +765,8 @@ serverConfig:
   introProvidersTitle: "Sources de détection des intros"
   introProvidersDesc: "Sources : TheIntroDB (theintrodb.org) primaire, IntroDB (introdb.app) secours."
   introProvidersInfo: "Deux bases communautaires distinctes pour récupérer les timecodes intro / recap / générique. Évite la détection locale CPU-intensive sur les éléments couverts. Primaire - TheIntroDB (theintrodb.org) : films et séries, clé API gratuite requise. Secours - IntroDB (introdb.app) : épisodes de séries uniquement, sans clé."
+  introDetectionUseAllCores: "Utiliser tous les cœurs CPU disponibles pour la détection d'intro"
+  introDetectionUseAllCoresDesc: "S'applique dès la prochaine détection, sans redémarrage. Désactivé, la détection reste sur le budget CPU doux partagé avec le trickplay."
   introProvidersEnabled: "Activer les sources externes de skip intro"
   introProvidersRestart: "Un redémarrage du serveur est nécessaire après activation ou désactivation."
   introProvidersTidbStatus: "TheIntroDB : "

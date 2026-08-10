@@ -766,6 +766,8 @@ serverConfig:
     usingCustom: "Usando clave personalizada"
   introProvidersTitle: "Proveedores de salto de intro"
   introProvidersDesc: "Consulta bases de datos comunitarias (TheIntroDB primaria, IntroDB alternativa) para marcas de tiempo de intro/recap/créditos. Evita la detección local intensiva en CPU para los elementos que cubren."
+  introDetectionUseAllCores: "Usar todos los núcleos de CPU disponibles para la detección de intros"
+  introDetectionUseAllCoresDesc: "Se aplica desde la próxima detección, sin reiniciar. Desactivado, la detección mantiene el presupuesto de CPU moderado compartido con el trickplay."
   introProvidersEnabled: "Activar proveedores externos de salto de intro"
   introProvidersRestart: "Se requiere reiniciar el servidor tras activar/desactivar."
   introProvidersTidbStatus: "TheIntroDB: "

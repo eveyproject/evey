@@ -2,6 +2,7 @@ package library
 
 import (
 	"context"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -116,6 +117,88 @@ func TestDetectIntro_SlotWaitDoesNotEatTheDetectionBudget(t *testing.T) {
 
 	require.NoError(t, err, "the budget must start when a slot is held, not when the wait begins")
 	require.NotEmpty(t, repo.upserted, "detection must run with a fresh budget after the wait")
+}
+
+// mapConfigRepo serves configurable values per key, unlike fakeConfigRepo
+// which answers every key with the same trickplay entry.
+type mapConfigRepo struct {
+	fakeConfigRepo
+	mu     sync.Mutex
+	values map[string]string
+}
+
+func (r *mapConfigRepo) Get(ctx context.Context, key string) (*shared.ServerConfigEntry, error) {
+	r.mu.Lock()
+	v, ok := r.values[key]
+	r.mu.Unlock()
+	if !ok {
+		return r.fakeConfigRepo.Get(ctx, key)
+	}
+	return &shared.ServerConfigEntry{Key: key, Value: v}, nil
+}
+
+func (r *mapConfigRepo) set(key, value string) {
+	r.mu.Lock()
+	if r.values == nil {
+		r.values = map[string]string{}
+	}
+	r.values[key] = value
+	r.mu.Unlock()
+}
+
+// The admin use-all-cores toggle must resize the limiter live - read at run
+// start, escalating to the full CPU budget when on, shrinking back to the
+// gentle base when off, all without a restart.
+func TestLimiterForRun_UseAllCoresTogglesTheCapLive(t *testing.T) {
+	t.Parallel()
+	cfg := &mapConfigRepo{}
+	svc := NewIntroDetectionService(
+		&fakeSegmentRepo{},
+		&fakeTrickplayRepo{},
+		&fakeMediaItemRepo{},
+		cfg,
+		&fakeDetector{},
+		"/tmp/trickplay",
+	).WithMaxParallelDetections(1).WithAllCoresParallelDetections(6)
+
+	require.Equal(t, 1, cap(svc.limiterForRun(context.Background())), "toggle absent: base cap")
+
+	cfg.set(IntroDetectionUseAllCoresKey, "true")
+	assert.Equal(t, 6, cap(svc.limiterForRun(context.Background())), "toggle on: full CPU budget")
+
+	cfg.set(IntroDetectionUseAllCoresKey, "false")
+	assert.Equal(t, 1, cap(svc.limiterForRun(context.Background())), "toggle off: back to base")
+}
+
+// With the toggle on, concurrent detections must actually fan out past the
+// base cap - the resized semaphore, not just its capacity, is what admits them.
+func TestDetectIntro_UseAllCoresAdmitsMoreConcurrentRuns(t *testing.T) {
+	t.Parallel()
+	cfg := &mapConfigRepo{}
+	cfg.set(IntroDetectionUseAllCoresKey, "true")
+	repo := &blockingMediaItemRepo{release: make(chan struct{})}
+	svc := NewIntroDetectionService(
+		&fakeSegmentRepo{},
+		&fakeTrickplayRepo{},
+		repo,
+		cfg,
+		&fakeDetector{},
+		"/tmp/trickplay",
+	).WithMaxParallelDetections(1).WithAllCoresParallelDetections(3)
+
+	var wg sync.WaitGroup
+	for range 5 {
+		wg.Go(func() {
+			_ = svc.DetectIntro(context.Background(), "media-1")
+		})
+	}
+	assert.Eventually(t, func() bool {
+		return repo.maxInflight.Load() >= 3
+	}, 2*time.Second, 5*time.Millisecond, "toggle on must admit the full budget (3), not the base (1)")
+	peak := repo.maxInflight.Load()
+	close(repo.release)
+	wg.Wait()
+	assert.Equal(t, int32(3), peak, "the escalated cap must still bound the fan-out")
 }
 
 // A second admin trigger for a library whose sweep is still running must be

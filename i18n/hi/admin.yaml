@@ -766,6 +766,8 @@ serverConfig:
     usingCustom: "कस्टम कुंजी का उपयोग"
   introProvidersTitle: "इंट्रो स्किप प्रदाता"
   introProvidersDesc: "इंट्रो/रिकैप/क्रेडिट टाइमस्टैम्प के लिए समुदाय डेटाबेस (TheIntroDB प्राथमिक, IntroDB फ़ॉलबैक) क्वेरी करें। कवर किए गए आइटम पर स्थानीय CPU-भारी पहचान छोड़ता है।"
+  introDetectionUseAllCores: "इंट्रो पहचान के लिए सभी उपलब्ध CPU कोर उपयोग करें"
+  introDetectionUseAllCoresDesc: "अगली पहचान से लागू होता है, पुनरारंभ की आवश्यकता नहीं। बंद होने पर पहचान trickplay के साथ साझा किए गए हल्के CPU बजट पर रहती है।"
   introProvidersEnabled: "बाहरी इंट्रो स्किप प्रदाता सक्षम करें"
   introProvidersRestart: "सक्षम/अक्षम करने के बाद सर्वर पुनरारंभ आवश्यक है।"
   introProvidersTidbStatus: "TheIntroDB: "

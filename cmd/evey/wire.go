@@ -832,6 +832,9 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		slog.Info("intro detection: max parallel calé sur trickplay budget",
 			slog.Int("max", n), slog.Bool("adaptive_cpu", adaptive))
 	}
+	// Full CPU budget the admin `intro_detection.use_all_cores` toggle
+	// escalates to, live (read per run, no restart).
+	introDetectionSvc.WithAllCoresParallelDetections(sysinfo.CPUBudget())
 
 	// External intro/recap/credits providers (TIDB primary, IntroDB fallback)
 	// run ahead of MKV chapter pass when enabled. Off by default - opt-in

@@ -766,6 +766,8 @@ serverConfig:
     usingCustom: "使用自定义密钥"
   introProvidersTitle: "片头跳过提供商"
   introProvidersDesc: "查询社区数据库（TheIntroDB 为主，IntroDB 为备选）以获取片头/回顾/片尾时间戳。对已覆盖的项目跳过本地 CPU 密集型检测。"
+  introDetectionUseAllCores: "片头检测使用所有可用 CPU 核心"
+  introDetectionUseAllCoresDesc: "下次检测起生效，无需重启。关闭时检测保持与预览图共享的温和 CPU 预算。"
   introProvidersEnabled: "启用外部片头跳过提供商"
   introProvidersRestart: "启用/禁用后需要重启服务器。"
   introProvidersTidbStatus: "TheIntroDB: "
