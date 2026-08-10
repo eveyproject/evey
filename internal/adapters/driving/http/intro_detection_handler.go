@@ -3,10 +3,12 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"runtime/debug"
 
+	applibrary "github.com/evey-project/evey/internal/app/library"
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/tracing"
@@ -139,8 +141,12 @@ func libraryIntroBackfillHandler(tokenGen TokenVerifier, svc IntroDetectionTrigg
 			}()
 			n, err := svc.BackfillLibrary(detached, libraryID)
 			if err != nil {
-				slog.WarnContext(detached, "library intro backfill failed",
-					slog.String("library_id", libraryID), slog.Any("err", err))
+				// A duplicate trigger is already logged by the service as an
+				// ignored no-op; only real failures deserve a warning.
+				if !errors.Is(err, applibrary.ErrIntroBackfillAlreadyRunning) {
+					slog.WarnContext(detached, "library intro backfill failed",
+						slog.String("library_id", libraryID), slog.Any("err", err))
+				}
 				return
 			}
 			slog.Info("library intro backfill scheduled",

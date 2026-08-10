@@ -2,11 +2,13 @@ package grpcapi
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"runtime/debug"
 	"sync"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	applibrary "github.com/evey-project/evey/internal/app/library"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 	otelcodes "go.opentelemetry.io/otel/codes"
 	"google.golang.org/grpc/codes"
@@ -96,9 +98,13 @@ func (h *adminIntroHandler) BackfillIntroDetection(ctx context.Context, req *eve
 		// the one thing that stays silent: a failing list query left the admin
 		// watching an empty log forever.
 		if _, err := h.backfill.BackfillLibrary(bgCtx, libraryID); err != nil {
-			slog.ErrorContext(bgCtx, "admin intro backfill failed",
-				slog.String("library_id", libraryID),
-				slog.Any("err", err))
+			// A duplicate trigger (e.g. racing an HTTP-triggered sweep) is
+			// already logged by the service as an ignored no-op.
+			if !errors.Is(err, applibrary.ErrIntroBackfillAlreadyRunning) {
+				slog.ErrorContext(bgCtx, "admin intro backfill failed",
+					slog.String("library_id", libraryID),
+					slog.Any("err", err))
+			}
 		}
 	}()
 

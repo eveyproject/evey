@@ -68,7 +68,21 @@ type IntroDetectionService struct {
 	// can't starve an active transcode on a weak NAS - the trigger is re-armed
 	// until playback goes idle rather than dropped (no periodic catch-up exists).
 	activePlayback func() int
+
+	// episodeBudget bounds one episode's detection run (0 = the 30-minute
+	// default). Tests shrink it; production keeps the default.
+	episodeBudget time.Duration
+
+	// backfillInFlight tracks the library IDs with a BackfillLibrary sweep
+	// currently running, so a duplicate admin trigger is rejected instead of
+	// stacking a concurrent sweep over the same seasons.
+	backfillMu       sync.Mutex
+	backfillInFlight map[string]struct{}
 }
+
+// ErrIntroBackfillAlreadyRunning is returned by BackfillLibrary when a sweep
+// for the same library is still in flight.
+var ErrIntroBackfillAlreadyRunning = errors.New("intro backfill already running for this library")
 
 // currentPHashAlgoVersion identifies the hash function used to populate the
 // cache. Bump it whenever ExtractTileHashes' output distribution changes
@@ -118,6 +132,17 @@ const introDetectionAlgoVersion = 5
 // keeps yielding no usable intro at the same algo version (one retry for the
 // detector's sampling variance, then park until introDetectionAlgoVersion bumps).
 const maxIntroDetectionAttempts = 2
+
+// introDetectionEpisodeBudget bounds one episode's detection run - decode,
+// fingerprinting, credits scan - counted from the moment a concurrency slot is
+// held, never from the wait for one. Generous enough for a software 4K decode
+// on a weak NAS.
+const introDetectionEpisodeBudget = 30 * time.Minute
+
+// introPersistBudget bounds the segment writes after detection, on a context
+// detached from the episode budget so an exhausted budget can't void the
+// found results at the write.
+const introPersistBudget = 2 * time.Minute
 
 // introDeferPoll is how often a detection trigger re-checks for idle while
 // playback is active - it defers (re-arms) rather than decoding on top of a
@@ -461,6 +486,23 @@ func (s *IntroDetectionService) forEachBackfillTarget(ctx context.Context, ids [
 func (s *IntroDetectionService) BackfillLibrary(ctx context.Context, libraryID string) (int, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.library.intro.BackfillLibrary")
 	defer span.End()
+	s.backfillMu.Lock()
+	if _, running := s.backfillInFlight[libraryID]; running {
+		s.backfillMu.Unlock()
+		slog.InfoContext(ctx, "intro detection admin backfill: duplicate trigger ignored",
+			slog.String("library_id", libraryID))
+		return 0, ErrIntroBackfillAlreadyRunning
+	}
+	if s.backfillInFlight == nil {
+		s.backfillInFlight = make(map[string]struct{})
+	}
+	s.backfillInFlight[libraryID] = struct{}{}
+	s.backfillMu.Unlock()
+	defer func() {
+		s.backfillMu.Lock()
+		delete(s.backfillInFlight, libraryID)
+		s.backfillMu.Unlock()
+	}()
 	var parentIDs []string
 	if libraryID == "" {
 		// No filter: use the same missing-segments query as the boot sweep.
@@ -587,9 +629,7 @@ func (s *IntroDetectionService) backfillMovies(ctx context.Context, libraryID st
 			}
 			var ranPage atomic.Int64
 			s.forEachBackfillTarget(ctx, runnable, func(ctx context.Context, id string) {
-				mCtx, cancel := context.WithTimeout(ctx, 30*time.Minute)
-				detErr := s.detectIntroWithHint(mCtx, id, nil)
-				cancel()
+				detErr := s.detectIntroWithHint(ctx, id, nil)
 				if detErr != nil {
 					slog.WarnContext(ctx, "intro backfill movies: detection failed",
 						slog.String("media_id", id), slog.Any("err", detErr))
@@ -752,9 +792,7 @@ func (s *IntroDetectionService) detectSeason(ctx context.Context, parentID strin
 				hh := h
 				hint = &hh
 			}
-			epCtx, cancel := context.WithTimeout(ctx, 30*time.Minute)
-			detErr := s.detectIntroWithHint(epCtx, string(ep.ID), hint)
-			cancel()
+			detErr := s.detectIntroWithHint(ctx, string(ep.ID), hint)
 			if detErr != nil {
 				// A real failure (ffmpeg crash, I/O) - don't count it toward the cap
 				// so a transient problem doesn't park a detectable episode.
@@ -891,6 +929,15 @@ func (s *IntroDetectionService) detectIntroWithHint(ctx context.Context, mediaIt
 			return ctx.Err()
 		}
 	}
+	// The budget starts once a slot is held: under limiter contention (several
+	// sweeps in flight) episodes used to burn the whole allowance waiting in
+	// line, then every pass soft-failed on the already-expired context.
+	budget := s.episodeBudget
+	if budget <= 0 {
+		budget = introDetectionEpisodeBudget
+	}
+	ctx, cancelBudget := context.WithTimeout(ctx, budget)
+	defer cancelBudget()
 	item, err := s.mediaItems.GetByID(ctx, shared.MediaItemID(mediaItemID))
 	if err != nil {
 		return fmt.Errorf("get media item: %w", err)
@@ -923,6 +970,11 @@ func (s *IntroDetectionService) detectIntroWithHint(ctx context.Context, mediaIt
 		return nil
 	}
 
+	// Persist on a context detached from the detection budget: a slow scan
+	// exhausting the allowance must not void the results found before it - the
+	// write costs milliseconds where re-detection costs another full decode.
+	persistCtx, cancelPersist := context.WithTimeout(context.WithoutCancel(ctx), introPersistBudget)
+	defer cancelPersist()
 	for _, seg := range segments {
 		// Heuristic-floor guard: a sub-5s intro from a heuristic source is almost
 		// always a degenerate result - the silence pass locking onto the
@@ -942,7 +994,7 @@ func (s *IntroDetectionService) detectIntroWithHint(ctx context.Context, mediaIt
 		}
 		seg.ID = uuid.New().String()
 		seg.MediaItemID = shared.MediaItemID(mediaItemID)
-		if err := s.upsertSegmentRespectingManual(ctx, &seg); err != nil {
+		if err := s.upsertSegmentRespectingManual(persistCtx, &seg); err != nil {
 			return fmt.Errorf("upsert segment %s: %w", seg.Type, err)
 		}
 		slog.InfoContext(ctx, "intro_detection: segment stored",
