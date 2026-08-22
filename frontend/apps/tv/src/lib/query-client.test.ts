@@ -22,6 +22,16 @@ describe("tv query-client retry predicate", () => {
     expect(retry(0, Object.assign(new Error("not found"), { httpStatus: 404 }))).toBe(false);
   });
 
+  it("does not retry a 410", () => {
+    expect(retry(0, Object.assign(new Error("gone"), { httpStatus: 410 }))).toBe(false);
+  });
+
+  it("does not retry a 429", () => {
+    expect(retry(0, Object.assign(new Error("too many requests"), { httpStatus: 429 }))).toBe(
+      false,
+    );
+  });
+
   it("retries a 500 up to 2 times", () => {
     const err = Object.assign(new Error("server error"), { httpStatus: 500 });
     expect(retry(0, err)).toBe(true);
