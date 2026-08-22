@@ -212,7 +212,16 @@ func (e *Enricher) EnrichItem(ctx context.Context, item *domainlib.MediaItem, re
 }
 
 func applyBasicFields(item *domainlib.MediaItem, result *domainmetadata.MetadataResult) {
-	item.Title = result.Title
+	// A season has no name of its own: its label is derived from its index
+	// number (scan writes "Season N", clients render "Saison N" from
+	// index_number). Providers hand one back anyway - TMDB returns "Gigantor"
+	// for an Alias season, a japanese title for a Banshee one - and writing it
+	// renamed seasons across the whole catalogue. Season is therefore the one
+	// type whose stored title enrichment leaves alone; everything below
+	// (overview, air date, provider ids, artwork upstream) still applies.
+	if item.Type != domainlib.Season {
+		item.Title = result.Title
+	}
 	item.Overview = result.Overview
 	// OriginalTitle and Tagline are preserved when the provider returns nothing:
 	// TMDB season/episode responses carry neither, so blanking them on a re-enrich
