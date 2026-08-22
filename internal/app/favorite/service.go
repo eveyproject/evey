@@ -78,3 +78,14 @@ func (s *Service) IsFavorite(ctx context.Context, profileID, mediaItemID string)
 	defer span.End()
 	return s.repo.IsFavorite(ctx, profileID, mediaItemID)
 }
+
+// IsFavoriteMany answers for a whole screen of media items in one round trip.
+// The returned set holds only favorited ids; an absent id is not favorited.
+func (s *Service) IsFavoriteMany(ctx context.Context, profileID string, mediaItemIDs []string) (map[string]bool, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.favorite.IsFavoriteMany")
+	defer span.End()
+	if len(mediaItemIDs) == 0 {
+		return map[string]bool{}, nil
+	}
+	return s.repo.IsFavoriteMany(ctx, profileID, mediaItemIDs)
+}

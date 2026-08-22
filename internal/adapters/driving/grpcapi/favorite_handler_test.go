@@ -3,6 +3,7 @@ package grpcapi
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
@@ -345,4 +346,207 @@ func TestFavoriteHandler_ListFavorites_HugeLimitClamped(t *testing.T) {
 	_, err := h.ListFavorites(ctx, &eveyv1.ListFavoritesRequest{Limit: 1_000_000})
 	require.NoError(t, err)
 	assert.LessOrEqual(t, cap.lastLimit, maxPageSize, "huge limit must be clamped to at most maxPageSize")
+}
+
+// countingFavRepo counts repository round trips so a test can prove the batch
+// RPC does ONE lookup for N ids instead of N.
+type countingFavRepo struct {
+	*favfakes.FakeRepository
+	manyCalls   int
+	singleCalls int
+	lastIDs     []string
+}
+
+func (c *countingFavRepo) IsFavorite(ctx context.Context, profileID, mediaItemID string) (bool, error) {
+	c.singleCalls++
+	return c.FakeRepository.IsFavorite(ctx, profileID, mediaItemID)
+}
+
+func (c *countingFavRepo) IsFavoriteMany(ctx context.Context, profileID string, ids []string) (map[string]bool, error) {
+	c.manyCalls++
+	c.lastIDs = ids
+	return c.FakeRepository.IsFavoriteMany(ctx, profileID, ids)
+}
+
+// newBatchTestHandler wires an EXPLICIT library grant list. A user with zero
+// grants is unrestricted everywhere in this codebase, which would make the
+// leak test below pass without any guard at all.
+func newBatchTestHandler(t *testing.T) (*favoriteHandler, *countingFavRepo) {
+	t.Helper()
+	repo := &countingFavRepo{FakeRepository: favfakes.NewFakeRepository()}
+	mediaQueryRepo := libfakes.NewFakeMediaItemQueryRepo()
+	for _, id := range []string{"m1", "m2", "m3"} {
+		mediaQueryRepo.Seed(&library.MediaItem{ID: shared.MediaItemID(id), LibraryID: "lib-1", Title: id, Type: "movie"})
+	}
+	mediaQueryRepo.Seed(&library.MediaItem{ID: "m-secret", LibraryID: "lib-private", Title: "Some Movie", Type: "movie"})
+	libQuerySvc := applibrary.NewQueryService(
+		libfakes.NewFakeLibraryQueryRepo(), mediaQueryRepo,
+		libfakes.NewFakeMediaStreamRepository(), libfakes.NewFakeSearchIndex())
+	libAccess := userfakes.NewFakeLibraryAccessRepository()
+	require.NoError(t, libAccess.Grant(context.Background(), shared.UserID("user-1"), shared.LibraryID("lib-1")))
+	userAccess := appuser.NewAccessService(
+		userfakes.NewFakeUserRepository(),
+		userfakes.NewFakeAPIKeyRepository(),
+		userfakes.NewFakeInviteLinkRepository(),
+		userfakes.NewFakeQuickConnectRepository(),
+		userfakes.NewFakePasswordHasher(),
+		sharedfakes.NewFakeEventBus(),
+		appuser.WithLibraryAccess(libAccess),
+	)
+	h := &favoriteHandler{svc: appfavorite.NewService(repo), libQuery: libQuerySvc, userAccess: userAccess}
+	return h, repo
+}
+
+func TestFavoriteHandler_BatchIsFavorite_OneRoundTripForManyIDs(t *testing.T) {
+	h, repo := newBatchTestHandler(t)
+	ctx := ctxWithClaims("user-1", "profile-1", false)
+	_, err := h.AddFavorite(ctx, &eveyv1.AddFavoriteRequest{MediaItemId: "m2"})
+	require.NoError(t, err)
+	repo.singleCalls = 0
+
+	resp, err := h.BatchIsFavorite(ctx, &eveyv1.BatchIsFavoriteRequest{MediaItemIds: []string{"m1", "m2", "m3"}})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"m2"}, resp.FavoriteMediaItemIds)
+	assert.Equal(t, 1, repo.manyCalls, "N ids must cost ONE repository lookup")
+	assert.Zero(t, repo.singleCalls, "the batch path must not fan out into per-id lookups")
+}
+
+func TestFavoriteHandler_BatchIsFavorite_DeduplicatesAndDropsEmpty(t *testing.T) {
+	h, repo := newBatchTestHandler(t)
+	ctx := ctxWithClaims("user-1", "profile-1", false)
+
+	_, err := h.BatchIsFavorite(ctx, &eveyv1.BatchIsFavoriteRequest{MediaItemIds: []string{"m1", "m1", "", "m2"}})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"m1", "m2"}, repo.lastIDs)
+}
+
+// Over the ceiling the call is refused outright. Truncating instead would hand
+// the client "not a favorite" for the dropped ids - an empty heart on a real
+// favorite, silently.
+func TestFavoriteHandler_BatchIsFavorite_OverLimitRefused(t *testing.T) {
+	h, repo := newBatchTestHandler(t)
+	ctx := ctxWithClaims("user-1", "profile-1", false)
+	ids := make([]string, maxBatchIsFavoriteIDs+1)
+	for i := range ids {
+		ids[i] = fmt.Sprintf("m-%d", i)
+	}
+
+	_, err := h.BatchIsFavorite(ctx, &eveyv1.BatchIsFavoriteRequest{MediaItemIds: ids})
+	require.Error(t, err)
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+	assert.Zero(t, repo.manyCalls, "an over-sized batch must be refused before it reaches the repo")
+}
+
+// IDOR: a batch endpoint is the classic place to leak by id. An item in a
+// library the caller was not granted must come back exactly like a non-favorite
+// - absent - even when the favorites row genuinely exists (access revoked after
+// the fact). Anything else turns this RPC into an existence oracle.
+func TestFavoriteHandler_BatchIsFavorite_HidesMediaOutsideLibraryAccess(t *testing.T) {
+	h, repo := newBatchTestHandler(t)
+	ctx := ctxWithClaims("user-1", "profile-1", false)
+	require.NoError(t, repo.Add(ctx, &favorite.Favorite{ID: "f-secret", ProfileID: "profile-1", MediaItemID: "m-secret"}))
+	_, err := h.AddFavorite(ctx, &eveyv1.AddFavoriteRequest{MediaItemId: "m1"})
+	require.NoError(t, err)
+
+	resp, err := h.BatchIsFavorite(ctx, &eveyv1.BatchIsFavoriteRequest{MediaItemIds: []string{"m1", "m-secret"}})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"m1"}, resp.FavoriteMediaItemIds,
+		"an item in a library the caller cannot access must be indistinguishable from a non-favorite")
+}
+
+// An id that matches no media item must also be silent - same shape as above,
+// so probing random ids reveals nothing.
+func TestFavoriteHandler_BatchIsFavorite_UnknownIDsAreSilent(t *testing.T) {
+	h, _ := newBatchTestHandler(t)
+	ctx := ctxWithClaims("user-1", "profile-1", false)
+
+	resp, err := h.BatchIsFavorite(ctx, &eveyv1.BatchIsFavoriteRequest{MediaItemIds: []string{"m-does-not-exist"}})
+	require.NoError(t, err)
+	assert.Empty(t, resp.FavoriteMediaItemIds)
+}
+
+// A DB error while reading library access must fail CLOSED, like ListFavorites.
+func TestFavoriteHandler_BatchIsFavorite_AccessErrorFailsClosed(t *testing.T) {
+	h, _ := newBatchTestHandler(t)
+	ctx := ctxWithClaims("user-1", "profile-1", false)
+	_, err := h.AddFavorite(ctx, &eveyv1.AddFavoriteRequest{MediaItemId: "m1"})
+	require.NoError(t, err)
+
+	broken := userfakes.NewFakeLibraryAccessRepository()
+	broken.Err = errors.New("db down")
+	h.userAccess = appuser.NewAccessService(
+		userfakes.NewFakeUserRepository(),
+		userfakes.NewFakeAPIKeyRepository(),
+		userfakes.NewFakeInviteLinkRepository(),
+		userfakes.NewFakeQuickConnectRepository(),
+		userfakes.NewFakePasswordHasher(),
+		sharedfakes.NewFakeEventBus(),
+		appuser.WithLibraryAccess(broken),
+	)
+
+	_, err = h.BatchIsFavorite(ctx, &eveyv1.BatchIsFavoriteRequest{MediaItemIds: []string{"m1"}})
+	require.Error(t, err)
+	assert.Equal(t, codes.Internal, status.Code(err))
+}
+
+// A wiring regression (userAccess left nil) must deny a non-admin, never
+// fall through to an unguarded lookup.
+func TestFavoriteHandler_BatchIsFavorite_UserAccessUnwiredDenies(t *testing.T) {
+	h := &favoriteHandler{svc: appfavorite.NewService(favfakes.NewFakeRepository())}
+	ctx := ctxWithClaims("user-1", "profile-1", false)
+
+	_, err := h.BatchIsFavorite(ctx, &eveyv1.BatchIsFavoriteRequest{MediaItemIds: []string{"m1"}})
+	require.Error(t, err)
+	assert.Equal(t, codes.FailedPrecondition, status.Code(err))
+}
+
+// A kids profile must not learn that an adult title is favorited.
+func TestFavoriteHandler_BatchIsFavorite_ParentalBlockedHidden(t *testing.T) {
+	repo := favfakes.NewFakeRepository()
+	mediaQueryRepo := libfakes.NewFakeMediaItemQueryRepo()
+	mediaQueryRepo.Seed(&library.MediaItem{ID: "mi-r", Title: "Adult", Type: "movie",
+		Classification: &library.MediaClassification{OfficialRating: "R"}})
+	mediaQueryRepo.Seed(&library.MediaItem{ID: "mi-pg", Title: "Family", Type: "movie",
+		Classification: &library.MediaClassification{OfficialRating: "PG"}})
+	libQuerySvc := applibrary.NewQueryService(
+		libfakes.NewFakeLibraryQueryRepo(), mediaQueryRepo,
+		libfakes.NewFakeMediaStreamRepository(), libfakes.NewFakeSearchIndex())
+	profileRepo := userfakes.NewFakeProfileRepository()
+	userQuery := appuser.NewQueryService(
+		userfakes.NewFakeUserRepository(), profileRepo,
+		userfakes.NewFakeAPIKeyRepository(), userfakes.NewFakeInviteLinkRepository(),
+		userfakes.NewFakeQuickConnectRepository())
+	h := &favoriteHandler{svc: appfavorite.NewService(repo), libQuery: libQuerySvc,
+		userAccess: newPermissiveTestUserAccess(), userQuery: userQuery}
+
+	ctx := context.Background()
+	maxAge := 13
+	require.NoError(t, profileRepo.Create(ctx, &user.Profile{
+		ID: "profile-2", UserID: "user-2", Name: "Kid", IsKids: true,
+		Parental: &user.ParentalSettings{MaxAge: &maxAge, Enabled: true}}))
+	require.NoError(t, repo.Add(ctx, &favorite.Favorite{ID: "f-r", ProfileID: "profile-2", MediaItemID: "mi-r"}))
+	require.NoError(t, repo.Add(ctx, &favorite.Favorite{ID: "f-pg", ProfileID: "profile-2", MediaItemID: "mi-pg"}))
+
+	resp, err := h.BatchIsFavorite(ctxWithClaims("user-2", "profile-2", false),
+		&eveyv1.BatchIsFavoriteRequest{MediaItemIds: []string{"mi-r", "mi-pg"}})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"mi-pg"}, resp.FavoriteMediaItemIds,
+		"a parentally blocked favorite must be hidden, not reported")
+}
+
+func TestFavoriteHandler_BatchIsFavorite_Unauthenticated(t *testing.T) {
+	h, _ := newBatchTestHandler(t)
+
+	_, err := h.BatchIsFavorite(context.Background(), &eveyv1.BatchIsFavoriteRequest{MediaItemIds: []string{"m1"}})
+	require.Error(t, err)
+	assert.Equal(t, codes.Unauthenticated, status.Code(err))
+}
+
+func TestFavoriteHandler_BatchIsFavorite_IDORAnotherProfile(t *testing.T) {
+	h, _ := newBatchTestHandler(t)
+	ctx := ctxWithClaims("user-1", "profile-1", false)
+
+	_, err := h.BatchIsFavorite(ctx, &eveyv1.BatchIsFavoriteRequest{MediaItemIds: []string{"m1"}, ProfileId: "profile-stranger"})
+	require.Error(t, err)
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
 }

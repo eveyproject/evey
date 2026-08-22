@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 
+	"github.com/lib/pq"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 
@@ -111,6 +112,46 @@ func (r *FavoriteRepository) IsFavorite(ctx context.Context, profileID, mediaIte
 		return false, fmt.Errorf("FavoriteRepo.IsFavorite: %w", err)
 	}
 	return exists, nil
+}
+
+func (r *FavoriteRepository) IsFavoriteMany(ctx context.Context, profileID string, mediaItemIDs []string) (map[string]bool, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.favorite.IsFavoriteMany")
+	defer span.End()
+	span.SetAttributes(attribute.String("profile.id", profileID), attribute.Int("media_item.count", len(mediaItemIDs)))
+	result := make(map[string]bool, len(mediaItemIDs))
+	// A nil slice makes pq.Array render SQL NULL, and `x = ANY(NULL)` is NULL,
+	// never true - same trap as media_stream_repo. Skip the query entirely.
+	if len(mediaItemIDs) == 0 {
+		return result, nil
+	}
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
+		`SELECT media_item_id FROM favorites
+		 WHERE profile_id = $1 AND media_item_id = ANY($2)`,
+		profileID, pq.Array(mediaItemIDs),
+	)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, fmt.Errorf("FavoriteRepo.IsFavoriteMany: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return nil, fmt.Errorf("FavoriteRepo.IsFavoriteMany scan: %w", err)
+		}
+		result[id] = true
+	}
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, fmt.Errorf("FavoriteRepo.IsFavoriteMany rows: %w", err)
+	}
+	return result, nil
 }
 
 var _ favorite.Repository = (*FavoriteRepository)(nil)

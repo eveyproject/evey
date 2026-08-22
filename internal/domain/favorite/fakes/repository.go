@@ -83,3 +83,21 @@ func (r *FakeRepository) IsFavorite(_ context.Context, profileID, mediaItemID st
 	_, ok := r.items[key(profileID, mediaItemID)]
 	return ok, nil
 }
+
+func (r *FakeRepository) IsFavoriteMany(_ context.Context, profileID string, mediaItemIDs []string) (map[string]bool, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
+	out := make(map[string]bool, len(mediaItemIDs))
+	for _, id := range mediaItemIDs {
+		if _, ok := r.items[key(profileID, id)]; ok {
+			out[id] = true
+		}
+	}
+	return out, nil
+}

@@ -305,3 +305,28 @@ func TestList_Pagination(t *testing.T) {
 		t.Fatalf("expected 2 items on page2, got %d", len(page2))
 	}
 }
+
+func TestIsFavoriteMany(t *testing.T) {
+	svc := newTestService()
+	ctx := context.Background()
+
+	_, err := svc.SetFavorite(ctx, "p1", "m1", true)
+	require.NoError(t, err)
+	// Another profile's row must not answer for p1.
+	_, err = svc.SetFavorite(ctx, "p2", "m2", true)
+	require.NoError(t, err)
+
+	got, err := svc.IsFavoriteMany(ctx, "p1", []string{"m1", "m2", "m3"})
+	require.NoError(t, err)
+	assert.Equal(t, map[string]bool{"m1": true}, got)
+}
+
+// An empty batch must not reach the repository at all - some drivers turn an
+// empty array into SQL NULL, where `= ANY(NULL)` is never true.
+func TestIsFavoriteMany_EmptyShortCircuits(t *testing.T) {
+	svc := newTestService()
+
+	got, err := svc.IsFavoriteMany(context.Background(), "p1", nil)
+	require.NoError(t, err)
+	assert.Empty(t, got)
+}

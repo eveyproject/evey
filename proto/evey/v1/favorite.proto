@@ -32,6 +32,17 @@ service FavoriteService {
       get: "/api/v1/favorites/{media_item_id}"
     };
   }
+
+  // Batch counterpart of IsFavorite: one call answers for a whole screen.
+  // POST because the id list does not fit a query string at grid sizes, and on
+  // a path deeper than /api/v1/favorites/{media_item_id} so the gateway can
+  // never route it to AddFavorite with media_item_id="batch".
+  rpc BatchIsFavorite(BatchIsFavoriteRequest) returns (BatchIsFavoriteResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/favorites/batch/is-favorite"
+      body: "*"
+    };
+  }
 }
 
 message FavoriteProto {
@@ -78,4 +89,20 @@ message IsFavoriteRequest {
 
 message IsFavoriteResponse {
   bool is_favorite = 1;
+}
+
+message BatchIsFavoriteRequest {
+  // Over the server's ceiling the call is REFUSED, never truncated: a silently
+  // shortened answer reads as "not a favorite" on the client and paints an
+  // empty heart over a real favorite.
+  repeated string media_item_ids = 1;
+  string profile_id = 2;
+}
+
+message BatchIsFavoriteResponse {
+  // Only the ids that ARE favorites of the caller's profile. Anything asked
+  // about and not returned is simply "not a favorite" - which is also what an
+  // unknown id, an item in a library the caller cannot access and a parentally
+  // blocked item look like, so the answer never reveals that a media item exists.
+  repeated string favorite_media_item_ids = 1;
 }

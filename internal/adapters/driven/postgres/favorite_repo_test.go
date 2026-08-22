@@ -166,3 +166,44 @@ func TestFavoriteRepo_IsFavorite(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, isNotFav)
 }
+
+func TestFavoriteRepo_IsFavoriteMany(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	userRepo := postgres.NewUserRepository(db)
+	profileRepo := postgres.NewProfileRepository(db)
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	favRepo := postgres.NewFavoriteRepository(db)
+	ctx := context.Background()
+
+	u := newTestUser("favu5")
+	require.NoError(t, userRepo.Create(ctx, u))
+	p := newTestProfile("favp5", u.ID)
+	require.NoError(t, profileRepo.Create(ctx, p))
+	other := newTestProfile("favp5b", u.ID)
+	require.NoError(t, profileRepo.Create(ctx, other))
+	lib := newTestLibrary("favlib5")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	mi1 := newTestMediaItem("favmi5a", lib.ID)
+	mi2 := newTestMediaItem("favmi5b", lib.ID)
+	mi3 := newTestMediaItem("favmi5c", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, mi1))
+	require.NoError(t, itemRepo.Create(ctx, mi2))
+	require.NoError(t, itemRepo.Create(ctx, mi3))
+
+	now := time.Now().UTC().Truncate(time.Millisecond)
+	require.NoError(t, favRepo.Add(ctx, &favorite.Favorite{ID: "fav5a", ProfileID: p.ID, MediaItemID: mi1.ID, CreatedAt: now}))
+	// Another profile's favorite on mi3 must never leak into p's answer.
+	require.NoError(t, favRepo.Add(ctx, &favorite.Favorite{ID: "fav5c", ProfileID: other.ID, MediaItemID: mi3.ID, CreatedAt: now}))
+
+	got, err := favRepo.IsFavoriteMany(ctx, string(p.ID), []string{string(mi1.ID), string(mi2.ID), string(mi3.ID)})
+	require.NoError(t, err)
+	assert.Equal(t, map[string]bool{string(mi1.ID): true}, got)
+
+	// An empty list must not run `= ANY(NULL)`, which is NULL and never true.
+	empty, err := favRepo.IsFavoriteMany(ctx, string(p.ID), nil)
+	require.NoError(t, err)
+	assert.Empty(t, empty)
+}

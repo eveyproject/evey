@@ -196,3 +196,114 @@ func (h *favoriteHandler) IsFavorite(ctx context.Context, req *eveyv1.IsFavorite
 	}
 	return &eveyv1.IsFavoriteResponse{IsFavorite: isFav}, nil
 }
+
+// maxBatchIsFavoriteIDs bounds one BatchIsFavorite call. Past it the call is
+// refused, not truncated: a silently shortened answer reads as "not a favorite"
+// on the client and paints an empty heart over a real favorite.
+const maxBatchIsFavoriteIDs = 200
+
+func (h *favoriteHandler) BatchIsFavorite(ctx context.Context, req *eveyv1.BatchIsFavoriteRequest) (*eveyv1.BatchIsFavoriteResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.favorite.BatchIsFavorite")
+	defer span.End()
+	claims, err := requireClaims(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("favoriteHandler.BatchIsFavorite: %w", err)
+	}
+	profileID, err := resolveProfileID(claims, req.ProfileId)
+	if err != nil {
+		return nil, fmt.Errorf("favoriteHandler.BatchIsFavorite: %w", err)
+	}
+	if len(req.MediaItemIds) > maxBatchIsFavoriteIDs {
+		return nil, status.Errorf(codes.InvalidArgument, "media_item_ids: at most %d per call", maxBatchIsFavoriteIDs)
+	}
+	ids := dedupeNonEmpty(req.MediaItemIds)
+	visible, err := h.visibleMediaItemIDs(ctx, claims.IsAdmin, ids)
+	if err != nil {
+		return nil, err
+	}
+	favs, err := h.svc.IsFavoriteMany(ctx, profileID, visible)
+	if err != nil {
+		return nil, internalError(ctx, "batch check favorite", err)
+	}
+	resp := &eveyv1.BatchIsFavoriteResponse{}
+	for _, id := range visible {
+		if favs[id] {
+			resp.FavoriteMediaItemIds = append(resp.FavoriteMediaItemIds, id)
+		}
+	}
+	return resp, nil
+}
+
+// visibleMediaItemIDs keeps only the ids the caller is allowed to learn about,
+// in the order given. It is the batch counterpart of requireMediaAccess, with
+// two differences that matter: it resolves every item in ONE query instead of
+// one per id, and a refusal DROPS the id instead of raising NotFound - a batch
+// answer must never let the caller tell "not a favorite" from "not yours" or
+// "does not exist", or the RPC becomes an existence oracle over media ids.
+func (h *favoriteHandler) visibleMediaItemIDs(ctx context.Context, isAdmin bool, ids []string) ([]string, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	if h.libQuery == nil {
+		// Without the catalog there is nothing to check access against. An admin
+		// passes anyway (libraryAccessDecision would too); anyone else is refused
+		// rather than served unguarded.
+		if !isAdmin {
+			return nil, errUserAccessNotConfigured(ctx, "favoriteHandler.BatchIsFavorite")
+		}
+		return ids, nil
+	}
+	items, err := h.libQuery.GetMediaItemsByIDs(ctx, ids)
+	if err != nil {
+		return nil, internalError(ctx, "batch check favorite: media items", err)
+	}
+	itemByID := make(map[string]*library.MediaItem, len(items))
+	for _, it := range items {
+		itemByID[string(it.ID)] = it
+	}
+	pf := resolveParentalFilterFromUserQuery(ctx, h.userQuery)
+	// One decision per LIBRARY, not per item: a grid is a handful of libraries.
+	allowedLib := make(map[string]bool, 4)
+	visible := make([]string, 0, len(ids))
+	for _, id := range ids {
+		it := itemByID[id]
+		if it == nil {
+			continue
+		}
+		libID := string(it.LibraryID)
+		allowed, known := allowedLib[libID]
+		if !known {
+			allowed, err = libraryAccessDecision(ctx, h.userAccess, libID, "favoriteHandler.BatchIsFavorite")
+			if err != nil {
+				// A missing port already carries its own status; anything else is
+				// a lookup failure and must fail CLOSED, like ListFavorites.
+				if status.Code(err) == codes.FailedPrecondition {
+					return nil, err
+				}
+				return nil, internalError(ctx, "batch check favorite: library access", err)
+			}
+			allowedLib[libID] = allowed
+		}
+		if !allowed || mediaItemBlockedByParental(pf, it) {
+			continue
+		}
+		visible = append(visible, id)
+	}
+	return visible, nil
+}
+
+func dedupeNonEmpty(ids []string) []string {
+	seen := make(map[string]struct{}, len(ids))
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if id == "" {
+			continue
+		}
+		if _, dup := seen[id]; dup {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	return out
+}

@@ -318,6 +318,10 @@ var allowedUserCallable = map[string]string{
 	"/evey.v1.FavoriteService/AddFavorite":    "own; media-access checked",
 	"/evey.v1.FavoriteService/RemoveFavorite": "own",
 	"/evey.v1.FavoriteService/IsFavorite":     "own",
+	// Batch form of IsFavorite: same scope, and every id goes through the
+	// library-access + parental filter before it is answered, so it cannot be
+	// used to probe media the caller has no access to.
+	"/evey.v1.FavoriteService/BatchIsFavorite": "own; media-access checked; parental-filtered",
 	// MediaRequestService (requester-facing; scoped to the caller's own profile/user from JWT claims)
 	"/evey.v1.MediaRequestService/SearchTitles":     "read-only metadata provider search; no owned data",
 	"/evey.v1.MediaRequestService/CreateRequest":    "own; profile/user from claims, policy-gated (ErrDisabled)",
