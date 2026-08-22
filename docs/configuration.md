@@ -215,7 +215,7 @@ See [backups.md](backups.md).
 
 ### Reverse Proxy
 ```env
-EVEY_TRUSTED_PROXIES=172.16.0.0/12
+EVEY_TRUSTED_PROXIES=172.16.0.0/12     # added to the always-trusted loopback, not a replacement
 EVEY_REAL_IP_HEADER=X-Forwarded-For
 EVEY_FORWARDED_PROTO=true
 EVEY_DOMAIN=media.example.com          # only for bundled Caddy

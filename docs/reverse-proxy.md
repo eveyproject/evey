@@ -9,7 +9,7 @@ proxy's forwarded headers:
 
 ```env
 EVEY_SERVER_BASE_URL=https://media.example.com
-EVEY_TRUSTED_PROXIES=127.0.0.1/32        # or 172.16.0.0/12 if the proxy is a container on the Docker network
+EVEY_TRUSTED_PROXIES=172.16.0.0/12       # only needed if the proxy is a container; loopback is always trusted
 EVEY_FORWARDED_PROTO=true
 ```
 
@@ -124,7 +124,10 @@ from one on the internet. That is what the WAN bitrate cap and the remote-access
 gate act on, so the two settings only behave correctly together:
 
 - `EVEY_TRUSTED_PROXIES` must cover the proxy (`172.16.0.0/12` when it is a
-  container on the Docker network, `127.0.0.1/32` when it runs on the host).
+  container on the Docker network; nothing to add when it runs on the host,
+  loopback is always trusted). Whatever you set is ADDED to the loopback
+  baseline - it never replaces it, so a Docker value cannot silently stop the
+  gate from seeing real client addresses.
 - Chained proxies each need to preserve `X-Forwarded-For`. In Caddy that is
   `servers { trusted_proxies static private_ranges }`; nginx uses
   `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`.

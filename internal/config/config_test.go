@@ -258,20 +258,23 @@ func TestDBConfig_DSN_SpecialChars(t *testing.T) {
 	}
 }
 
+// EVEY_TRUSTED_PROXIES no longer goes through envStrSlice - it has its own
+// parser that adds to a mandatory baseline (see trusted_proxies.go), so the
+// generic list splitting is exercised on a plain list variable instead.
 func TestEnvStrSlice(t *testing.T) {
-	t.Setenv("EVEY_TRUSTED_PROXIES", "10.0.0.1, 10.0.0.2 , 10.0.0.3")
+	t.Setenv("EVEY_REMOTE_ACCESS_LAN_NETWORKS", "10.0.0.1, 10.0.0.2 , 10.0.0.3")
 
 	cfg, err := Load()
 	require.NoError(t, err)
-	assert.Equal(t, []string{"10.0.0.1", "10.0.0.2", "10.0.0.3"}, cfg.Server.TrustedProxies)
+	assert.Equal(t, []string{"10.0.0.1", "10.0.0.2", "10.0.0.3"}, cfg.RemoteAccess.LANNetworks)
 }
 
 func TestEnvStrSlice_EmptyParts(t *testing.T) {
-	t.Setenv("EVEY_TRUSTED_PROXIES", "a,,b, ,c")
+	t.Setenv("EVEY_REMOTE_ACCESS_LAN_NETWORKS", "a,,b, ,c")
 
 	cfg, err := Load()
 	require.NoError(t, err)
-	assert.Equal(t, []string{"a", "b", "c"}, cfg.Server.TrustedProxies)
+	assert.Equal(t, []string{"a", "b", "c"}, cfg.RemoteAccess.LANNetworks)
 }
 
 func TestEnvStrSlice_OIDCDomains(t *testing.T) {

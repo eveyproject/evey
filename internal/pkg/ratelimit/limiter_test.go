@@ -791,7 +791,7 @@ func TestWarnMisroutedProxy_FiresOnlyOnce(t *testing.T) {
 
 	// "EVEY_TRUSTED_PROXIES" itself appears twice PER line (diagnosis + fix), so
 	// count log lines (records), not substring hits.
-	count := strings.Count(buf.String(), `"msg":"ratelimit: client resolved to loopback`)
+	count := strings.Count(buf.String(), `"msg":"ratelimit: a forwarded-for header was ignored`)
 	if count != 1 {
 		t.Fatalf("the misconfig warning must fire once per process, got %d log lines: %s", count, buf.String())
 	}
@@ -1028,5 +1028,100 @@ func TestLimiter_RetryAfterIsActionableOnceDrained(t *testing.T) {
 	}
 	if got := l.RetryAfter("drained"); got < 1 {
 		t.Errorf("RetryAfter = %d on an empty bucket, want at least 1 second", got)
+	}
+}
+
+// The same misconfiguration, with the proxy at a container address instead of
+// loopback. Now that loopback is always trusted (config.trustedProxiesFromEnv),
+// this is the ONLY shape left: an unlisted infrastructure hop whose
+// forwarded-for is dropped. The warning must still catch it.
+func TestWarnMisroutedProxy_FiresForUntrustedPrivateProxy(t *testing.T) {
+	var buf bytes.Buffer
+	SetLogger(slog.New(slog.NewJSONHandler(&buf, nil)))
+	t.Cleanup(func() { SetLogger(nil) })
+	ResetMisconfigWarnForTest()
+	t.Cleanup(ResetMisconfigWarnForTest)
+
+	orig := trustedProxyNets
+	t.Cleanup(func() {
+		trustedProxyMu.Lock()
+		trustedProxyNets = orig
+		trustedProxyMu.Unlock()
+	})
+	SetTrustedProxies([]string{"127.0.0.1/32", "::1/128"})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", nil)
+	req.RemoteAddr = "192.168.7.7:5000" // the reverse proxy, not listed
+	req.Header.Set("X-Forwarded-For", "203.0.113.9")
+
+	res := resolveClientIPReasoned(req)
+	WarnMisroutedProxy(res)
+
+	if !strings.Contains(buf.String(), "EVEY_TRUSTED_PROXIES") {
+		t.Fatalf("an unlisted private proxy whose forwarded-for was dropped must warn, got %q", buf.String())
+	}
+	if !strings.Contains(buf.String(), "192.168.7.7") {
+		t.Fatalf("the warning must name the address to add, got %q", buf.String())
+	}
+}
+
+// ProxyTrust.Middleware collapses X-Forwarded-For to the authoritative client
+// IP, so downstream EVERY request carries an XFF equal to its own peer. That is
+// not an ignored header and must stay silent, or the warning fires on the
+// nominal path.
+func TestWarnMisroutedProxy_SilentWhenHeaderEqualsPeer(t *testing.T) {
+	var buf bytes.Buffer
+	SetLogger(slog.New(slog.NewJSONHandler(&buf, nil)))
+	t.Cleanup(func() { SetLogger(nil) })
+	ResetMisconfigWarnForTest()
+	t.Cleanup(ResetMisconfigWarnForTest)
+
+	orig := trustedProxyNets
+	t.Cleanup(func() {
+		trustedProxyMu.Lock()
+		trustedProxyNets = orig
+		trustedProxyMu.Unlock()
+	})
+	SetTrustedProxies([]string{"127.0.0.1/32", "::1/128"})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", nil)
+	req.RemoteAddr = "192.168.7.7:5000"
+	req.Header.Set("X-Forwarded-For", "192.168.7.7")
+
+	res := resolveClientIPReasoned(req)
+	WarnMisroutedProxy(res)
+
+	if buf.Len() != 0 {
+		t.Fatalf("a collapsed forwarded-for equal to the peer must not warn: %s", buf.String())
+	}
+}
+
+// A public peer sending a forwarded-for header is a spoof attempt, not a
+// configuration mistake. Naming EVEY_TRUSTED_PROXIES there would tell the
+// operator to widen the very list that stops it.
+func TestWarnMisroutedProxy_SilentForPublicPeer(t *testing.T) {
+	var buf bytes.Buffer
+	SetLogger(slog.New(slog.NewJSONHandler(&buf, nil)))
+	t.Cleanup(func() { SetLogger(nil) })
+	ResetMisconfigWarnForTest()
+	t.Cleanup(ResetMisconfigWarnForTest)
+
+	orig := trustedProxyNets
+	t.Cleanup(func() {
+		trustedProxyMu.Lock()
+		trustedProxyNets = orig
+		trustedProxyMu.Unlock()
+	})
+	SetTrustedProxies([]string{"127.0.0.1/32", "::1/128"})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", nil)
+	req.RemoteAddr = "203.0.113.9:5000"
+	req.Header.Set("X-Forwarded-For", "10.1.1.1")
+
+	res := resolveClientIPReasoned(req)
+	WarnMisroutedProxy(res)
+
+	if buf.Len() != 0 {
+		t.Fatalf("a public peer forging a forwarded-for is not a config warning: %s", buf.String())
 	}
 }

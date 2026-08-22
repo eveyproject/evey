@@ -212,6 +212,11 @@ func (l *Limiter) cleanup() {
 	}
 }
 
+// The authoritative trusted-proxy list is cfg.Server.TrustedProxies, installed
+// by SetTrustedProxies during HTTP wiring (cmd/evey/http.go). This literal is
+// only the value in force before that call - tests, and the boot window - and
+// is deliberately wider than the configured one; it is not a second answer to
+// "who may rename a client". Change the answer in internal/config, not here.
 var (
 	trustedProxyMu   sync.RWMutex
 	trustedProxyNets = parseTrustedCIDRs([]string{"127.0.0.0/8", "::1/128", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "fc00::/7"})
@@ -304,34 +309,57 @@ var (
 	misconfigWarnOnce = &sync.Once{}
 )
 
-// WarnMisroutedProxy flags the exact 2026-07-29 production failure mode: the
-// resolved IP is loopback even though a forwarded-for value arrived, which
-// only happens when the immediate peer (the reverse proxy) isn't covered by
-// EVEY_TRUSTED_PROXIES. When that's true, every external client keys the rate
-// limiter on the SAME loopback bucket - a single shared login budget for
-// every client behind the proxy, not one budget per client. Shared between
-// the HTTP (clientIP) and gRPC (resolveClientIP) resolvers so the same
-// misconfiguration is caught regardless of which edge sees the request first.
+// WarnMisroutedProxy flags the 2026-07-29 production failure mode: a
+// forwarded-for value arrived and was DROPPED because the peer that sent it is
+// not a trusted proxy. When that peer is the reverse proxy, every client behind
+// it keys the rate limiter on the SAME bucket - one shared login budget for the
+// whole household - and is classified by the peer's own address rather than its
+// own. Shared between the HTTP (clientIP) and gRPC (resolveClientIP) resolvers
+// so the same misconfiguration is caught regardless of which edge sees the
+// request first.
+//
+// It used to require the resolved IP to be LOOPBACK, which was the shape of the
+// original incident. Loopback is now always trusted (config.trustedProxiesFromEnv
+// makes EVEY_TRUSTED_PROXIES additive), so that shape can no longer happen and
+// the condition would have made the warning unreachable. What is still possible
+// is an unlisted hop on the container or home network, so the peer's ADDRESS no
+// longer decides - only whether it is plausibly infrastructure.
 //
 // One-shot per process: this is a static config fact, not a per-request one,
 // so repeating it on every refusal would just be log spam that operators
 // learn to ignore. A restart - already required to change
 // EVEY_TRUSTED_PROXIES - re-arms it if the misconfiguration is still there.
 func WarnMisroutedProxy(res ProxyResolution) {
-	if res.XFF == "" || res.XFFHonored {
+	if res.XFF == "" || res.XFFHonored || res.PeerTrusted {
 		return
 	}
-	ip := net.ParseIP(res.IP)
-	if ip == nil || !ip.IsLoopback() {
+	// The trusted boundary (network.ProxyTrust.Middleware) collapses
+	// X-Forwarded-For to the authoritative client IP, so downstream every
+	// request legitimately carries a header equal to its own peer address.
+	// That is a rewritten header, not an ignored one.
+	claimed := strings.TrimSpace(strings.Split(res.XFF, ",")[0])
+	if claimed == "" || claimed == res.PeerIP {
+		return
+	}
+	peer := net.ParseIP(res.PeerIP)
+	if peer == nil {
+		return
+	}
+	// A peer on the public internet forging a forwarded-for is an attack, not a
+	// configuration mistake, and this text would tell the operator to widen the
+	// very list that stops it. Only an address that could plausibly BE our own
+	// reverse proxy - loopback, RFC1918/ULA, link-local - earns the advice.
+	if !peer.IsLoopback() && !peer.IsPrivate() && !peer.IsLinkLocalUnicast() {
 		return
 	}
 	misconfigWarnMu.Lock()
 	once := misconfigWarnOnce
 	misconfigWarnMu.Unlock()
 	once.Do(func() {
-		refusalLogger().Warn("ratelimit: client resolved to loopback despite a forwarded-for header being present - "+
-			"EVEY_TRUSTED_PROXIES likely does not cover the reverse proxy's address, so every remote client shares "+
-			"this one rate-limit bucket (fix: add the proxy's address to EVEY_TRUSTED_PROXIES)",
+		refusalLogger().Warn("ratelimit: a forwarded-for header was ignored because the peer that sent it is not a trusted proxy - "+
+			"if that peer is your reverse proxy, EVEY_TRUSTED_PROXIES does not cover it, so every client behind it shares "+
+			"one rate-limit bucket and is classified by the proxy's address instead of its own "+
+			"(fix: add "+res.PeerIP+" to EVEY_TRUSTED_PROXIES)",
 			slog.String("peer_ip", res.PeerIP),
 			slog.Bool("peer_trusted", res.PeerTrusted),
 			slog.String("xff", res.XFF))
