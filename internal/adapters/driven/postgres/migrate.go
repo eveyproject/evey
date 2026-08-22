@@ -5,10 +5,12 @@ import (
 	"embed"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
+	"github.com/golang-migrate/migrate/v4/source"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 )
 
@@ -16,9 +18,18 @@ import (
 var migrationsFS embed.FS
 
 // RunMigrations applies all pending up migrations. When opts.Dir is
-// non-empty, a pg_dump of the current schema is written there before
-// migrations start so the operator has a rollback artefact if Up()
-// fails. Tests pass an empty BackupOpts to skip the dump.
+// non-empty AND a migration is actually going to be applied, a pg_dump of
+// the current schema is written there first so the operator has a rollback
+// artefact if Up() fails. Tests pass an empty BackupOpts to skip the dump.
+//
+// Failure policy: a dump that cannot be taken FAILS the call, and therefore
+// the boot. Migrating a single-operator NAS with no way back is worse than
+// a server that refuses to start and says why. What makes that gate
+// tolerable is that it is now only reached on a boot that would change the
+// schema - a missing pg_dump or an unwritable backup dir no longer bricks
+// every restart of an up-to-date server. The escape hatch, when a migration
+// really must go through without a net, is `evey admin migrate up
+// --no-backup`.
 func RunMigrations(db *sql.DB, opts BackupOpts) error {
 	source, err := iofs.New(migrationsFS, "migrations")
 	if err != nil {
@@ -35,6 +46,14 @@ func RunMigrations(db *sql.DB, opts BackupOpts) error {
 		return err
 	}
 
+	// Retention runs whatever happens below. It used to hang off a
+	// successful Up(), so a server crash-looping on a failing migration
+	// piled dumps into /data until the volume filled - the one moment an
+	// operator can least afford a full disk.
+	if opts.Dir != "" {
+		defer pruneOldBackups(opts.Dir, retentionOrDefault(opts))
+	}
+
 	// Snapshot current version *before* taking the dump so the filename
 	// names the state we're leaving - that's what the operator will roll
 	// back to if Up() fails.
@@ -42,13 +61,20 @@ func RunMigrations(db *sql.DB, opts BackupOpts) error {
 	if vErr != nil && !errors.Is(vErr, migrate.ErrNilVersion) {
 		return fmt.Errorf("read current migration version: %w", vErr)
 	}
+
+	pending, pendErr := hasPendingMigrations(source, currentVersion, errors.Is(vErr, migrate.ErrNilVersion))
+	if pendErr != nil {
+		return fmt.Errorf("read pending migrations: %w", pendErr)
+	}
 	if dirty {
-		slog.Warn("migrations: schema is in dirty state - backup taken anyway",
+		// golang-migrate refuses to run on a dirty schema, so Up() below will
+		// apply nothing - there is no new state to take a rollback artefact for.
+		slog.Warn("migrations: schema is in dirty state - a previous migration died half way; no backup taken because nothing will be applied",
 			slog.Uint64("version", uint64(currentVersion)))
 	}
 
 	var dumpPath string
-	if opts.Dir != "" {
+	if opts.Dir != "" && pending && !dirty {
 		path, dumpErr := dumpDatabase(opts, currentVersion)
 		if dumpErr != nil {
 			return fmt.Errorf("pre-migration backup: %w", dumpErr)
@@ -69,22 +95,44 @@ func RunMigrations(db *sql.DB, opts BackupOpts) error {
 		return err
 	}
 
-	if opts.Dir != "" {
-		keep := opts.Retention
-		if keep <= 0 {
-			keep = defaultBackupRetention
-		}
-		pruneOldBackups(opts.Dir, keep)
-	}
-
 	return nil
+}
+
+// hasPendingMigrations answers the question m.Up() is about to answer: is
+// there a migration after the one the schema sits on? It mirrors
+// golang-migrate's own walk (First when nothing is applied, Next otherwise)
+// so the two cannot disagree about whether the boot is going to do anything.
+func hasPendingMigrations(src source.Driver, current uint, nothingApplied bool) (bool, error) {
+	var err error
+	if nothingApplied {
+		_, err = src.First()
+	} else {
+		_, err = src.Next(current)
+	}
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
+func retentionOrDefault(opts BackupOpts) int {
+	if opts.Retention <= 0 {
+		return defaultBackupRetention
+	}
+	return opts.Retention
 }
 
 // RollbackLastMigration reverts exactly one migration step. Intended for the
 // `cmd/migrate down` operator path - surgical, not a "tear it all down"
-// button. Pre-rollback backup is taken when opts.Dir is non-empty, same
-// contract as RunMigrations. Returns migrate.ErrNoChange when the schema
-// is already at version 0.
+// button. Returns migrate.ErrNoChange when the schema is already at
+// version 0.
+//
+// Unlike RunMigrations it dumps unconditionally (minus the version-0 case):
+// this runs because a human typed it, not on every restart, so there is no
+// crash loop to protect against and the snapshot is worth its seconds.
 func RollbackLastMigration(db *sql.DB, opts BackupOpts) error {
 	source, err := iofs.New(migrationsFS, "migrations")
 	if err != nil {
@@ -97,6 +145,10 @@ func RollbackLastMigration(db *sql.DB, opts BackupOpts) error {
 	m, err := migrate.NewWithInstance("iofs", source, "postgres", driver)
 	if err != nil {
 		return err
+	}
+
+	if opts.Dir != "" {
+		defer pruneOldBackups(opts.Dir, retentionOrDefault(opts))
 	}
 
 	currentVersion, dirty, vErr := m.Version()

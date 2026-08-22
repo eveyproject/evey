@@ -9,7 +9,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -30,7 +33,19 @@ type BackupOpts struct {
 
 const defaultBackupRetention = 3
 
-const backupFilePrefix = "pre-migration-"
+const (
+	backupFilePrefix = "pre-migration-"
+	backupFileSuffix = ".sql.gz"
+	// backupTimestampLayout is the fixed-width UTC stamp dumpDatabase puts in
+	// every filename. Fixed width is the point: it is the only part of the
+	// name that can be compared.
+	backupTimestampLayout = "20060102T150405Z"
+)
+
+// backupNameRe matches exactly what dumpDatabase writes. Anything else under
+// the prefix was put there by the operator and is not ours to delete.
+var backupNameRe = regexp.MustCompile(
+	`^` + regexp.QuoteMeta(backupFilePrefix) + `(\d+)-(\d{8}T\d{6}Z)` + regexp.QuoteMeta(backupFileSuffix) + `$`)
 
 // pgDumpTimeout caps the pre-migration dump. Sized well above a real NAS run
 // (minutes), so it only ever trips on a dump that is not progressing at all.
@@ -132,32 +147,105 @@ func dumpDatabase(opts BackupOpts, fromVersion uint) (dest string, err error) {
 	return dest, nil
 }
 
-// pruneOldBackups keeps only the `keep` most recent pre-migration
-// dumps under dir, deleting the rest. Sort order is filename - they
-// embed the migration version + UTC timestamp so lexicographic sort ==
-// chronological. Errors are logged, not returned: a failed prune
-// shouldn't block a successful migration.
-func pruneOldBackups(dir string, keep int) {
+// backupFile is one dump under the backup dir, dated by the UTC stamp its
+// name carries (or, for a file we did not write, by its mtime).
+type backupFile struct {
+	name    string
+	version uint64
+	at      time.Time
+	owned   bool // written by dumpDatabase, and therefore ours to prune
+}
+
+// scanBackupDir lists the dumps under dir, OLDEST FIRST.
+//
+// Ordering follows the timestamp, never the filename. The version comes
+// first in the name and is not zero-padded, so a lexical sort puts
+// "pre-migration-99-" after "pre-migration-152-" and ranks the oldest dump
+// as the newest - which, in a retention routine, means deleting the backup
+// the operator would have restored. Single ranking for the whole codebase:
+// the CLI advisor and the retention policy used to disagree, one sorting by
+// mtime and one by name.
+func scanBackupDir(dir string) ([]backupFile, error) {
 	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+	var out []backupFile
+	for _, e := range entries {
+		n := e.Name()
+		if e.IsDir() || !strings.HasPrefix(n, backupFilePrefix) || !strings.HasSuffix(n, backupFileSuffix) {
+			continue
+		}
+		bf := backupFile{name: n}
+		if m := backupNameRe.FindStringSubmatch(n); m != nil {
+			v, vErr := strconv.ParseUint(m[1], 10, 64)
+			ts, tErr := time.Parse(backupTimestampLayout, m[2])
+			if vErr == nil && tErr == nil {
+				bf.version, bf.at, bf.owned = v, ts, true
+			}
+		}
+		if !bf.owned {
+			info, iErr := e.Info()
+			if iErr != nil {
+				continue
+			}
+			bf.at = info.ModTime()
+		}
+		out = append(out, bf)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].at.Equal(out[j].at) {
+			return out[i].name < out[j].name
+		}
+		return out[i].at.Before(out[j].at)
+	})
+	return out, nil
+}
+
+// NewestBackup returns the path of the most recent pre-migration dump under
+// dir, or "" when there is none. Used by the `admin rollback` advisor to
+// name the artefact to restore.
+func NewestBackup(dir string) string {
+	if dir == "" {
+		return ""
+	}
+	files, err := scanBackupDir(dir)
+	if err != nil || len(files) == 0 {
+		return ""
+	}
+	return filepath.Join(dir, files[len(files)-1].name)
+}
+
+// pruneOldBackups keeps one dump per restore point - the newest snapshot of
+// each of the `keep` most recent schema versions - and deletes the rest.
+//
+// Counting distinct versions rather than files is what survives a crash
+// loop. A server retrying the same failing migration writes dumps that all
+// restore to the SAME version; with a file count, three restarts evict the
+// backups of the earlier, genuinely different versions - including the one
+// taken before the migration that broke things. Files we did not write are
+// left alone.
+//
+// Errors are logged, not returned: a failed prune shouldn't block a
+// successful migration.
+func pruneOldBackups(dir string, keep int) {
+	files, err := scanBackupDir(dir)
 	if err != nil {
 		slog.Warn("prune: read backup dir", slog.String("dir", dir), slog.Any("err", err))
 		return
 	}
-	var names []string
-	for _, e := range entries {
-		if !e.IsDir() && strings.HasPrefix(e.Name(), backupFilePrefix) {
-			names = append(names, e.Name())
+	kept := map[uint64]bool{}
+	for _, f := range slices.Backward(files) { // newest first
+		if !f.owned {
+			continue
 		}
-	}
-	if len(names) <= keep {
-		return
-	}
-	sort.Strings(names)
-	toDelete := names[:len(names)-keep]
-	for _, n := range toDelete {
-		path := filepath.Join(dir, n)
-		if err := os.Remove(path); err != nil {
-			slog.Warn("prune: remove old backup", slog.String("path", path), slog.Any("err", err))
+		if !kept[f.version] && len(kept) < keep {
+			kept[f.version] = true
+			continue
+		}
+		path := filepath.Join(dir, f.name)
+		if rmErr := os.Remove(path); rmErr != nil {
+			slog.Warn("prune: remove old backup", slog.String("path", path), slog.Any("err", rmErr))
 		}
 	}
 }
