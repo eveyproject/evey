@@ -86,6 +86,46 @@ RUN apt-get update && apt-get install -y --no-install-recommends gcc libc6-dev \
 COPY sandbox/sandbox.c /tmp/sandbox.c
 RUN gcc -shared -fPIC -nostartfiles -o /libevey-sandbox.so /tmp/sandbox.c
 
+# ── Stage 4c: Download Meilisearch (glibc release binary) ──
+# getmeili/meilisearch is an Alpine image: its /bin/meilisearch is linked
+# against musl (interpreter /lib/ld-musl-*.so.1). Copying that binary straight
+# into the glibc Debian runtime below produces a file the GNU/Linux dynamic
+# linker refuses to load - sh reports "not found" even though the file exists,
+# because the *interpreter* is missing, not the binary (reproduced: `docker run
+# --rm -v <that binary>:/usr/local/bin/meilisearch debian:trixie-slim
+# /usr/local/bin/meilisearch --version` -> exit 127 "not found"). Fetch the
+# official GNU/Linux release binary instead (MIT-licensed, published by
+# meilisearch/meilisearch on GitHub), pinned to the exact patch version the
+# getmeili/meilisearch:v1.12 tag currently resolves to (1.12.8, verified via
+# `docker run getmeili/meilisearch:v1.12 meilisearch --version`) so existing
+# /data/meili index volumes keep upgrading cleanly. Meilisearch does not
+# publish checksums for these release assets, so the pin below is a checksum
+# WE computed from that exact downloaded asset - it guards against a
+# corrupted download or a same-tag substitution, not against a compromise of
+# the release itself.
+FROM debian:trixie-slim AS meili-download
+
+ARG TARGETARCH
+ARG MEILI_VERSION=v1.12.8
+
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN case "$TARGETARCH" in \
+      amd64) meili_arch=amd64;   meili_sha256=c325630ea967462e397899bb733a9fb599b89dcc112f8c5cb44d73ac0f16c553 ;; \
+      arm64) meili_arch=aarch64; meili_sha256=bea0346b76d354508e8f471b835e472452b0fa8be667fa78727b9b8e4318cc59 ;; \
+      *) echo "meili-download: unsupported TARGETARCH '$TARGETARCH'" >&2; exit 1 ;; \
+    esac \
+    && curl -fsSL -o /usr/local/bin/meilisearch \
+         "https://github.com/meilisearch/meilisearch/releases/download/${MEILI_VERSION}/meilisearch-linux-${meili_arch}" \
+    && echo "${meili_sha256}  /usr/local/bin/meilisearch" | sha256sum -c - \
+    && chmod +x /usr/local/bin/meilisearch \
+    # Build-time guard: a musl or wrong-arch binary fails HERE with a
+    # non-zero exit (missing interpreter), failing the build immediately
+    # instead of surfacing at first container start as it did before - this
+    # single line is what would have caught the bug this stage fixes.
+    && /usr/local/bin/meilisearch --version
+
 # ── Stage 5: Runtime ──
 # ONE image: a single glibc base whose distro ffmpeg has
 # every HW encoder compiled in (h264/hevc _nvenc, _vaapi, _qsv - all verified in
@@ -172,10 +212,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # cosign - Debian has no apt package; ride the official ko-built image (pinned).
 COPY --from=gcr.io/projectsigstore/cosign:v2.4.1 /ko-app/cosign /usr/local/bin/cosign
 
-# Embedded Meilisearch - copied from the official image so we ride their
-# release cadence + security patching, no extra download stage to maintain.
-# Pinned to v1.12 so existing /data/meili index volumes upgrade cleanly.
-COPY --from=getmeili/meilisearch:v1.12 /bin/meilisearch /usr/local/bin/meilisearch
+# Embedded Meilisearch - the glibc release binary fetched and build-time
+# smoke-tested in the meili-download stage above (NOT the official Alpine
+# image: its musl binary can't execute on this glibc runtime, see that
+# stage's comment). Pinned to 1.12.8 so existing /data/meili index volumes
+# upgrade cleanly.
+COPY --from=meili-download /usr/local/bin/meilisearch /usr/local/bin/meilisearch
 
 # jellyfin-ffmpeg - its `tonemapx` filter tonemaps HDR->SDR in a single AVX2/SIMD
 # pass, ~1.8x faster than Debian ffmpeg's zscale float32 chain on the SAME CPU

@@ -193,8 +193,16 @@ if [ "$EVEY_EMBEDDED_MEILI" = "true" ]; then
         echo "evey: memory budget $((limit / 1048576)) MiB detected - capping Meilisearch indexing memory at ${budget_mib} MiB"
     fi
 
+    # --dump-dir must be explicit: it defaults to a relative "dumps/" that
+    # Meilisearch creates unconditionally at startup against the process's
+    # CWD, not under --db-path. This script never `cd`s anywhere, so that CWD
+    # is /, unwritable by the unprivileged evey user - meilisearch exited
+    # with "Permission denied (os error 13)" on the mkdir before it ever
+    # reached the healthcheck. Colocating it under MEILI_DATA_DIR is both
+    # writable and gets backed up together with the index.
     /usr/local/bin/meilisearch \
         --db-path "$MEILI_DATA_DIR" \
+        --dump-dir "$MEILI_DATA_DIR/dumps" \
         --http-addr "127.0.0.1:7700" \
         --master-key "$MEILI_MASTER_KEY" \
         --env production \
