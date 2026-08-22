@@ -14,10 +14,12 @@ const SuspiciousCreditsLeadMs = 4 * 60 * 1000
 // on 40-min episodes (bound: 4min) stay refused.
 const creditsLeadRuntimeFraction = 0.12
 
-// maxPlausibleCreditsLeadMs returns the largest distance from the end of a
+// MaxPlausibleCreditsLeadMs returns the largest distance from the end of a
 // runtimeMs file at which an end-credits marker is still believable: the floor,
-// or the fraction of the runtime whenever that is larger.
-func maxPlausibleCreditsLeadMs(runtimeMs, floorMs int64) int64 {
+// or the fraction of the runtime whenever that is larger. Exported because the
+// blackdetect decode sizes its window on it: scanning past the largest
+// acceptable lead only produces clusters CreditsLeadImplausible then refuses.
+func MaxPlausibleCreditsLeadMs(runtimeMs, floorMs int64) int64 {
 	return max(floorMs, int64(float64(runtimeMs)*creditsLeadRuntimeFraction))
 }
 
@@ -31,5 +33,5 @@ func CreditsLeadImplausible(leadMs, runtimeMs, floorMs int64) bool {
 	if floorMs <= 0 || runtimeMs <= 0 {
 		return false
 	}
-	return leadMs > maxPlausibleCreditsLeadMs(runtimeMs, floorMs)
+	return leadMs > MaxPlausibleCreditsLeadMs(runtimeMs, floorMs)
 }

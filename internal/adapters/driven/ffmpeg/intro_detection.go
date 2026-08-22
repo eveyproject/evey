@@ -263,11 +263,11 @@ var (
 
 // DetectEndCredits scans the last portion of a video file for black regions
 // indicating end credits. Returns (startMs, endMs, true, nil) when a credits
-// roll is detected (sustained black region in the last 20% of the file, capped
-// at a 10-minute window - the code has always used 20%, the comment said 10%).
-// Because the window is fixed, any statistic of the form "no credits before 80%
-// of the file" is tautological: judge a credits marker by its LEAD (distance to
-// the end of the file), never by its position percentage.
+// roll is detected in the window creditsScanWindowSec sizes (the last 20% of
+// the file, capped at 10 minutes AND at the largest lead the plausibility bound
+// accepts). Because the window is bounded, any statistic of the form "no
+// credits before 80% of the file" is tautological: judge a credits marker by
+// its LEAD (distance to the end of the file), never by its position percentage.
 // Returns (0, 0, false, nil) when nothing useful is found - caller skips.
 func (d *IntroDetector) DetectEndCredits(ctx context.Context, filePath string, durationSec float64) (startMs, endMs int64, found bool, err error) {
 	ctx, span := tracing.StartSpan(ctx, "ffmpeg.intro.DetectEndCredits")
@@ -275,7 +275,7 @@ func (d *IntroDetector) DetectEndCredits(ctx context.Context, filePath string, d
 	if durationSec < 60 {
 		return 0, 0, false, nil
 	}
-	startSec := math.Max(0, durationSec-math.Min(600, durationSec*0.2))
+	startSec := math.Max(0, durationSec-creditsScanWindowSec(durationSec))
 
 	args := []string{
 		"-nostdin",
@@ -301,6 +301,39 @@ func (d *IntroDetector) DetectEndCredits(ctx context.Context, filePath string, d
 	}
 	return creditsStartMs, creditsEndMs, true, nil
 }
+
+// creditsScanWindowSec returns how many seconds at the end of the file the
+// blackdetect decode covers: the historic window, clamped to the largest lead
+// parseEndCredits can still ACCEPT.
+//
+// Past that bound every decoded frame is spent building a cluster the same
+// bound then refuses, so the clamp costs no detection: an accepted cluster
+// starts at a lead <= the bound, hence entirely inside the clamped window, and
+// dropping the regions before it can only shorten the trailing cluster from the
+// front - which lowers its lead. It even gains detections, because an early
+// fade sitting between the two edges used to be aggregated into the cluster and
+// drag its first member past the bound, sinking the whole thing.
+//
+// The clamp is one-way on purpose. Letting the window FOLLOW the bound would
+// widen the decode past the historic cap on long runtimes (+56% on a 2h10
+// film), and films are where credits detection already finds almost nothing:
+// paying more decode there would buy a hope, not a measured gain, while opening
+// the 600-936s stretch to fades the bound would no longer refuse.
+func creditsScanWindowSec(durationSec float64) float64 {
+	legacy := math.Min(creditsScanCapSec, durationSec*creditsScanFraction)
+	leadMaxSec := float64(domainlibrary.MaxPlausibleCreditsLeadMs(
+		int64(durationSec*1000), domainlibrary.SuspiciousCreditsLeadMs)) / 1000
+	return math.Min(legacy, leadMaxSec)
+}
+
+// Credits-scan window tuning for DetectEndCredits.
+const (
+	// creditsScanFraction: the tail of the file the decode covers. The code has
+	// always used 20%, the comment used to say 10%.
+	creditsScanFraction = 0.2
+	// creditsScanCapSec caps the decode on long runtimes.
+	creditsScanCapSec = 600.0
+)
 
 // Credits-selection tuning for parseEndCredits.
 const (
