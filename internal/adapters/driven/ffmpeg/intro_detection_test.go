@@ -162,11 +162,14 @@ func TestParseEndCredits_Found(t *testing.T) {
 }
 
 // Two nearby regions form one trailing cluster; the credits start at the
-// cluster's FIRST region (the fade into the credits).
+// cluster's FIRST region (the fade into the credits). Runtime and offsets are
+// those of a 30-min episode whose cluster sits 3 minutes before the end: the
+// lead now has to be plausible for the cluster to be trusted at all, so the
+// former toy 5-minute file no longer exercises the structural rule.
 func TestParseEndCredits_ClusterStartsAtFirstMember(t *testing.T) {
 	t.Parallel()
-	const startSec = 50.0
-	const durSec = 300.0
+	const startSec = 1620.0
+	const durSec = 1800.0
 	input := `[blackdetect @ 0x1] black_start:2.0 black_end:3.2 black_duration:1.2
 [blackdetect @ 0x2] black_start:8.0 black_end:15.0 black_duration:7.0`
 	startMs, endMs, found := parseEndCredits(input, startSec, durSec)
@@ -205,15 +208,47 @@ func TestParseEndCredits_TrailingClusterBeatsEarlyFade(t *testing.T) {
 }
 
 // A lone LONG black far from the end is trusted (credits rolling on black
-// carry a long fade), even beyond the single-region lead guard.
+// carry a long fade), even beyond the single-region lead guard - as long as the
+// runtime makes that lead plausible. Here a 2h10 film: 12% of it leaves room
+// for a 500s credits roll, which the 300s single-region guard alone refuses.
+// The same 500s lead on the former 43-min runtime is now rejected: that is the
+// mid-content "skip the credits" prompt measured in prod.
 func TestParseEndCredits_LongBlackTrustedFarOut(t *testing.T) {
 	t.Parallel()
-	const startSec = 2000.0
-	const durSec = 2600.0
+	const startSec = 7200.0
+	const durSec = 7800.0
 	input := "[blackdetect @ 0x1] black_start:100.0 black_end:106.0 black_duration:6.0"
 	startMs, _, found := parseEndCredits(input, startSec, durSec)
 	require.True(t, found)
 	assert.Equal(t, int64((startSec+100.0)*1000), startMs)
+}
+
+// The remaining source of the "skip the credits" prompt in mid-content: a
+// cluster of two short fades had NO lead bound at all, so it could plant the
+// credits anywhere in the scanned window - up to 600s before the end, the exact
+// value seen repeatedly in the 2026-08-22 prod sample. Two 1.5s fades 9 minutes
+// before the end of a 42-min episode are a scene sequence, not the credits.
+func TestParseEndCredits_RejectsClusterWithImplausibleLead(t *testing.T) {
+	t.Parallel()
+	const durSec = 2520.0          // 42-min episode: bound = max(240s, 12% = 302.4s)
+	const startSec = durSec - 600  // the scan window is the last 10 min
+	input := `[blackdetect @ 0x1] black_start:60.0 black_end:61.5 black_duration:1.5
+[blackdetect @ 0x2] black_start:90.0 black_end:91.5 black_duration:1.5`
+	_, _, found := parseEndCredits(input, startSec, durSec)
+	assert.False(t, found, "a two-fade cluster 9 minutes before the end is not the credits roll")
+}
+
+// The same two-fade cluster IS the credits when it sits at a plausible lead.
+func TestParseEndCredits_KeepsClusterWithPlausibleLead(t *testing.T) {
+	t.Parallel()
+	const durSec = 2520.0
+	const startSec = durSec - 600
+	input := `[blackdetect @ 0x1] black_start:480.0 black_end:481.5 black_duration:1.5
+[blackdetect @ 0x2] black_start:520.0 black_end:521.5 black_duration:1.5`
+	startMs, endMs, found := parseEndCredits(input, startSec, durSec)
+	require.True(t, found)
+	assert.Equal(t, int64((startSec+480.0)*1000), startMs)
+	assert.Equal(t, int64(durSec*1000), endMs)
 }
 
 // TestParseEndCredits_ExactBoundary treats black_duration==1.0 as qualifying.

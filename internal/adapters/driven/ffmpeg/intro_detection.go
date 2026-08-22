@@ -15,6 +15,7 @@ import (
 
 	"golang.org/x/image/webp"
 
+	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
@@ -262,7 +263,11 @@ var (
 
 // DetectEndCredits scans the last portion of a video file for black regions
 // indicating end credits. Returns (startMs, endMs, true, nil) when a credits
-// roll is detected (sustained black region in the last 10% / max 10min window).
+// roll is detected (sustained black region in the last 20% of the file, capped
+// at a 10-minute window - the code has always used 20%, the comment said 10%).
+// Because the window is fixed, any statistic of the form "no credits before 80%
+// of the file" is tautological: judge a credits marker by its LEAD (distance to
+// the end of the file), never by its position percentage.
 // Returns (0, 0, false, nil) when nothing useful is found - caller skips.
 func (d *IntroDetector) DetectEndCredits(ctx context.Context, filePath string, durationSec float64) (startMs, endMs int64, found bool, err error) {
 	ctx, span := tracing.StartSpan(ctx, "ffmpeg.intro.DetectEndCredits")
@@ -362,6 +367,14 @@ func parseEndCredits(output string, startSec, durationSec float64) (startMs, end
 		clusterBlackSec += r.durSec
 	}
 	lead := durationSec - cluster[0].startSec
+	// The plausibility bound applies to EVERY trust path: a two-region cluster
+	// and a long lone black were both unbounded, and either could plant the
+	// credits anywhere in the scanned window - up to 600s before the end, the
+	// value that keeps coming back in the prod sample. Same function as the
+	// serving gate and the suspect-credits repair: one answer to "too early?".
+	if domainlibrary.CreditsLeadImplausible(int64(lead*1000), int64(durationSec*1000), domainlibrary.SuspiciousCreditsLeadMs) {
+		return 0, 0, false
+	}
 	trusted := len(cluster) >= 2 ||
 		clusterBlackSec >= creditsClusterMinBlackSec ||
 		lead <= creditsSingleRegionMaxLeadSec
