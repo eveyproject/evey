@@ -1,5 +1,5 @@
 # ── Stage 1: Generate protobuf (swagger for orval) ──
-FROM golang:1.26.5-alpine AS protogen
+FROM golang:1.26.6-alpine AS protogen
 
 RUN apk add --no-cache gcc musl-dev linux-headers
 WORKDIR /src

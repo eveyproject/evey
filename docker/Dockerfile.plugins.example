@@ -3,7 +3,7 @@
 #   build:
 #     dockerfile: docker/Dockerfile.plugins.example
 
-FROM golang:1.26.5-alpine
+FROM golang:1.26.6-alpine
 
 RUN apk add --no-cache ffmpeg curl postgresql-client \
     # ── Default runtimes (always included) ──
