@@ -634,11 +634,23 @@ func (r *fakeTrickplayRepoWithManifest) RecordFailure(_ context.Context, _ share
 }
 
 // fakeConfigRepo disables trickplay so the pHash pass is skipped immediately,
-// preventing the 24h waitForManifest loop from blocking tests.
-type fakeConfigRepo struct{}
+// preventing the 24h waitForManifest loop from blocking tests. values overrides
+// or adds entries per key.
+//
+// It is KEYED, like the real table: the previous version answered the
+// trickplay entry to EVERY key, so a test could not set intro_detection.config
+// at all and loadIntroConfig silently fell back to defaults on a parse error -
+// exactly the shape of fake that keeps a config-driven branch untested.
+type fakeConfigRepo struct{ values map[string]string }
 
-func (r *fakeConfigRepo) Get(_ context.Context, _ string) (*shared.ServerConfigEntry, error) {
-	return &shared.ServerConfigEntry{Key: "trickplay.enabled", Value: "false"}, nil
+func (r *fakeConfigRepo) Get(_ context.Context, key string) (*shared.ServerConfigEntry, error) {
+	if v, ok := r.values[key]; ok {
+		return &shared.ServerConfigEntry{Key: key, Value: v}, nil
+	}
+	if key == "trickplay.enabled" {
+		return &shared.ServerConfigEntry{Key: key, Value: "false"}, nil
+	}
+	return nil, shared.ErrNotFound
 }
 func (r *fakeConfigRepo) Set(_ context.Context, _, _ string) error { return nil }
 func (r *fakeConfigRepo) Delete(_ context.Context, _ string) error { return nil }

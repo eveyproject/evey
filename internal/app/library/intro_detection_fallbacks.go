@@ -58,11 +58,36 @@ func (s *IntroDetectionService) concurrentFallback(ctx context.Context, item *do
 	if ctx.Err() != nil {
 		return 0, 0, "", 0, ctx.Err()
 	}
-	start, end, found, ferr := s.detector.AudioFallback(ctx, item.File.Path, 600)
+	start, end, found, ferr := s.detector.AudioFallback(ctx, item.File.Path, silenceFallbackWindowSec)
 	if ferr != nil || !found {
 		return 0, 0, "", 0, ferr
 	}
-	return start, end, "audio", 0.5, nil
+	return start, end, "audio", silenceFallbackConfidence, nil
+}
+
+// silenceFallbackConfidence is the confidence concurrentFallback stamps on every
+// result it returns - it is a fixed tier, not a measurement. Named because the
+// decision to PAY for the scan depends on it: see silenceFallbackServable.
+const silenceFallbackConfidence = 0.5
+
+// silenceFallbackWindowSec bounds the silence scan to the head of the file. It
+// covers MaxIntroStartMs (660s at the default) minus the tail an intro starting
+// that late would need, so shrinking it would blind the pass to the late title
+// sequences the gold set proved real.
+const silenceFallbackWindowSec = 600.0
+
+// silenceFallbackServable reports whether a silence-fallback result could ever
+// reach a player under the CURRENT configuration. The scan is a blackdetect +
+// silencedetect decode of the first silenceFallbackWindowSec of the file, and
+// it always answers at silenceFallbackConfidence: when the serving gate sits
+// above that tier, every result it produces is computed and then withheld at
+// each serve - 32.6% of the sweep's decisions in the 2026-08-22 prod sample.
+//
+// Read from the effective config, never baked in: MinServeConfidence is
+// admin-tunable and 0 disables the gate, so an operator who lowered the
+// threshold still gets the fallback they asked for.
+func silenceFallbackServable(cfg introConfig) bool {
+	return cfg.MinServeConfidence <= 0 || silenceFallbackConfidence >= cfg.MinServeConfidence
 }
 
 // detectStudioLogo attempts to match the first ~90 seconds of trickplay frames
@@ -174,6 +199,55 @@ func (s *IntroDetectionService) refreshSuspectCredits(ctx context.Context, item 
 		slog.String("media_id", string(item.ID)),
 		slog.Int64("old_start_ms", credits.StartMs),
 		slog.Int64("new_start_ms", seg.StartMs))
+}
+
+// endCreditsPass returns the end_credits segment to persist, or nil when the
+// scan is not worth its price. DetectEndCredits is a blackdetect decode of the
+// last 20% of the file (capped at 600s): measured at 40-50% of one episode's
+// detection cost, and the sweep used to re-pay it on EVERY episode entering the
+// pipeline, including the ~99% of the catalogue that already carries a credits
+// row the same detector produced from the same file.
+//
+// Three cases, and only the first pays:
+//   - no credits row: scan, it is the only way to get one.
+//   - a suspect blackdetect row: hand it to refreshSuspectCredits, the ONE
+//     repair path (re-scan, then repair or drop). Deciding here would give the
+//     same row two different answers depending on whether the episode's intro
+//     happened to be covered.
+//   - any other stored row (plausible, or authoritative like a chapter): skip.
+//     Re-running the same detector over the same file lands on the same answer,
+//     and overwriting an authoritative row with a blackdetect one would be a
+//     regression, not a refresh.
+//
+// Trade-off, stated: a plausible row is now never re-scanned, so a future
+// credits-parser improvement no longer reaches it through the sweep. Suspect
+// rows - the class the parser fixes actually target - still do, via the repair.
+func (s *IntroDetectionService) endCreditsPass(ctx context.Context, item *domainlibrary.MediaItem) *domainlibrary.MediaSegment {
+	// One PK lookup on an episode about to spend minutes in ffmpeg: cheap
+	// enough to keep the decision here rather than threading the season page's
+	// batch through every caller of detectIntroWithHint (movies and the admin
+	// single-item route have no page).
+	existing, err := s.segmentRepo.GetByMediaItemID(ctx, item.ID)
+	if err != nil {
+		// Fail open: an unreadable state must not silently drop the credits.
+		slog.WarnContext(ctx, "intro_detection: credits pre-check read failed",
+			slog.String("media_id", string(item.ID)), slog.Any("err", err))
+		existing = nil
+	}
+	for _, sg := range existing {
+		if sg.Type != "end_credits" {
+			continue
+		}
+		s.refreshSuspectCredits(ctx, item, existing)
+		return nil
+	}
+	seg, ecErr := s.detectEndCredits(ctx, item)
+	if ecErr != nil {
+		slog.WarnContext(ctx, "intro_detection: end credits failed",
+			slog.String("media_id", string(item.ID)), slog.Any("err", ecErr))
+		return nil
+	}
+	return seg
 }
 
 // detectEndCredits runs the credits detector on the file and returns a

@@ -66,6 +66,15 @@ type countingDetector struct {
 	// suspect-credits repair (a full blackdetect pass over the last 20% of the
 	// file), so a test can prove the repair does not re-pay it on every sweep.
 	creditsCalls atomic.Int32
+	// fallbackCalls counts the last-resort silence scans (blackdetect +
+	// silencedetect over the first 600s), the other minutes-long ffmpeg pass of
+	// one episode's detection.
+	fallbackCalls atomic.Int32
+}
+
+func (d *countingDetector) AudioFallback(ctx context.Context, path string, maxSec float64) (int64, int64, bool, error) {
+	d.fallbackCalls.Add(1)
+	return d.fakeDetector.AudioFallback(ctx, path, maxSec)
 }
 
 func (d *countingDetector) ExtractTileHashes(p string, w, h, pw, ph int) ([]uint64, error) {

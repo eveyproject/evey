@@ -187,12 +187,18 @@ func (s *IntroDetectionService) runPipeline(ctx context.Context, item *domainlib
 		}
 	}
 
-	// Last resort: concurrent audio/subtitle silence passes. Its error is only
-	// fatal when nothing else covered the episode - a recap found upstream must
-	// still be returned even if the silence pass fails to find the intro. A
-	// degenerate sub-second result (the studio-logo silence at 0:00) is dropped
-	// downstream by the heuristic-floor guard in detectIntroWithHint.
-	if needIntro() {
+	// Last resort: the silence pass. Its error is only fatal when nothing else
+	// covered the episode - a recap found upstream must still be returned even
+	// if the silence pass fails to find the intro. A degenerate sub-second
+	// result (the studio-logo silence at 0:00) is dropped downstream by the
+	// heuristic-floor guard in detectIntroWithHint.
+	//
+	// Skipped outright when the serving gate sits above the fixed tier this
+	// pass answers at: the scan would decode 600s of video to produce a segment
+	// no player is ever shown. NOTE: under that configuration the sweep no
+	// longer STORES source="audio" rows either, so the eval corpus loses that
+	// tier - lower min_serve_confidence to 0.5 or below to get it back.
+	if needIntro() && silenceFallbackServable(cfg) {
 		startMs, endMs, source, confidence, fbErr := s.concurrentFallback(ctx, item)
 		if fbErr != nil {
 			if len(found) == 0 {

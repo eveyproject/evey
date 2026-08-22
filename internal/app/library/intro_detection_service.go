@@ -1013,9 +1013,7 @@ func (s *IntroDetectionService) detectIntroWithHint(ctx context.Context, mediaIt
 
 	// End credits detection runs independently of the intro pipeline so that
 	// films (which produce no intro windows) also get a credits segment.
-	if seg, ecErr := s.detectEndCredits(ctx, item); ecErr != nil {
-		slog.WarnContext(ctx, "intro_detection: end credits failed", slog.String("media_id", mediaItemID), slog.Any("err", ecErr))
-	} else if seg != nil {
+	if seg := s.endCreditsPass(ctx, item); seg != nil {
 		segments = append(segments, *seg)
 	}
 
