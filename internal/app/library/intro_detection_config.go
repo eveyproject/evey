@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log/slog"
 
+	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
 )
 
@@ -54,6 +55,17 @@ type introConfig struct {
 	// (blackdetect 0.6 and up). Detection still STORES low-confidence segments -
 	// they stay available for eval/training - only serving is gated.
 	MinServeConfidence float64 `json:"min_serve_confidence"` // default 0.55
+
+	// MaxServeCreditsLeadMs is the serving-side plausibility bound on end_credits
+	// (QueryService.GetSegments), the floor of max(floor, 12% of the runtime).
+	// A blackdetect credits row ends at the file duration, so its span IS the
+	// distance between the claimed credits start and the end of the file: past
+	// this bound the marker is a mid-scene fade the detector mistook for the
+	// credits, and serving it raises a "skip" prompt in the middle of the
+	// content (43.5% of the served credits in the 2026-08-22 prod sample).
+	// Storage keeps the row - eval and training still need it - only serving is
+	// gated. 0 disables, like min_serve_confidence.
+	MaxServeCreditsLeadMs int64 `json:"max_serve_credits_lead_ms"` // default 240_000 (4 min)
 
 	// AudioDiscoveryEnabled gates the per-episode Chromaprint discovery fallback
 	// (discoverIntroByAudio). Demoted to OFF by default: an eval against
@@ -108,6 +120,7 @@ func defaultIntroConfig() introConfig {
 		FrameCutoffPercent:    0.25,
 		MaxIntroStartMs:       660_000,
 		MinServeConfidence:    0.55,
+		MaxServeCreditsLeadMs: domainlibrary.SuspiciousCreditsLeadMs,
 		SeasonClusterEnabled:  true,
 		AudioDiscoveryEnabled: false,
 	}

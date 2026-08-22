@@ -77,6 +77,64 @@ func TestGetSegments_RaisedThresholdWithholdsMore(t *testing.T) {
 	assert.Equal(t, "audio_cluster", got[0].Source)
 }
 
+// Measured in prod 2026-08-22: 43.5% of the served end_credits start more than
+// 4 minutes before the end of the file (median lead 162s, p90 472s, a pile of
+// them at 600s - the scan bound), so players raise "skip the credits" in the
+// middle of the content. A blackdetect credits row carries EndMs = file
+// duration, so EndMs-StartMs IS the lead: the implausible ones can be refused
+// at the single serving decision point, for the whole catalogue, with no extra
+// query and no re-scan.
+func TestGetSegments_WithholdsImplausiblyEarlyCredits(t *testing.T) {
+	t.Parallel()
+	const durMs = 42 * 60 * 1000 // 42-min episode
+	segs := []*domainlibrary.MediaSegment{
+		{Type: "end_credits", StartMs: durMs - 600_000, EndMs: durMs, Source: "blackdetect", Confidence: 0.6},
+	}
+	got, err := segQuerySvc(segs).GetSegments(context.Background(), "ep-1")
+	require.NoError(t, err)
+	assert.Empty(t, got, "credits claiming to start 10 minutes before the end of a 42-min episode are not credits")
+}
+
+// The bound is max(4 min, 12% of the runtime): a feature film really can roll
+// 12 minutes of credits, and refusing those would trade one defect for another.
+func TestGetSegments_KeepsLongCreditsOnFeatureFilm(t *testing.T) {
+	t.Parallel()
+	const durMs = 130 * 60 * 1000 // 2h10 film: 12% = 15min36
+	segs := []*domainlibrary.MediaSegment{
+		{Type: "end_credits", StartMs: durMs - 12*60*1000, EndMs: durMs, Source: "blackdetect", Confidence: 0.6},
+	}
+	got, err := segQuerySvc(segs).GetSegments(context.Background(), "ep-1")
+	require.NoError(t, err)
+	require.Len(t, got, 1, "12 minutes of credits on a 2h10 film stay plausible")
+}
+
+// Same knob shape as min_serve_confidence: admin-tunable, 0 disables the gate.
+func TestGetSegments_ZeroCreditsLeadDisablesTheGate(t *testing.T) {
+	t.Parallel()
+	cfgRepo := sharedfakes.NewFakeServerConfigRepository()
+	require.NoError(t, cfgRepo.Set(context.Background(), IntroDetectionConfigKey, `{"max_serve_credits_lead_ms": 0}`))
+	const durMs = 42 * 60 * 1000
+	segs := []*domainlibrary.MediaSegment{
+		{Type: "end_credits", StartMs: durMs - 600_000, EndMs: durMs, Source: "blackdetect", Confidence: 0.6},
+	}
+	got, err := segQuerySvc(segs, WithServerConfig(cfgRepo)).GetSegments(context.Background(), "ep-1")
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+}
+
+// An operator mark is ground truth, not a detector guess: the plausibility
+// bound polices detectors, it does not overrule someone who watched the file.
+func TestGetSegments_KeepsOperatorMarkedCredits(t *testing.T) {
+	t.Parallel()
+	const durMs = 42 * 60 * 1000
+	segs := []*domainlibrary.MediaSegment{
+		{Type: "end_credits", StartMs: durMs - 600_000, EndMs: durMs, Source: "manual", Confidence: 1.0},
+	}
+	got, err := segQuerySvc(segs).GetSegments(context.Background(), "ep-1")
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+}
+
 // User decision 2026-08-06: below 5 seconds there is NO skip-intro button,
 // whatever the source and however confident - a 3s mkv chapter labelled
 // "intro" (9-1-1 S02E02, stored because chapters are exempt from the

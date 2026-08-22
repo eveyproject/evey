@@ -259,7 +259,8 @@ func (s *QueryService) GetSegments(ctx context.Context, mediaItemID string) ([]*
 	// Abstention gate: a low-confidence segment is stored (it stays available
 	// for eval/training) but not served - a wrong skip button costs more than
 	// a missing one. Threshold is admin-tunable; 0 disables the gate.
-	minConf := loadIntroConfig(ctx, s.serverConfig).MinServeConfidence
+	cfg := loadIntroConfig(ctx, s.serverConfig)
+	minConf := cfg.MinServeConfidence
 	// Fresh slice, never segs[:0]: compacting in place would corrupt a shared
 	// backing array the day a cache decorator hands the same slice to every
 	// caller.
@@ -276,6 +277,17 @@ func (s *QueryService) GetSegments(ctx context.Context, mediaItemID string) ([]*
 		if minConf > 0 && sg.Confidence < minConf {
 			continue
 		}
+		// Credits whose start sits implausibly far from the end of the file are
+		// a mid-scene fade the detector called "the credits": serving them
+		// raises a skip prompt in the middle of the content, minutes early.
+		// A blackdetect row ends at the file duration, so its span is exactly
+		// that lead - no extra lookup needed. Operator marks are exempt: the
+		// bound polices detectors, not someone who watched the file. Refusal is
+		// at the SERVE only, the row stays stored for eval/training.
+		if sg.Type == "end_credits" && !isOperatorSegmentMark(sg.Source) &&
+			library.CreditsLeadImplausible(sg.EndMs-sg.StartMs, sg.EndMs, cfg.MaxServeCreditsLeadMs) {
+			continue
+		}
 		out = append(out, sg)
 	}
 	return out, nil
@@ -286,6 +298,13 @@ func (s *QueryService) GetSegments(ctx context.Context, mediaItemID string) ([]*
 // what in-house detectors may EMIT - this one polices what anyone may SEE,
 // authoritative sources included.
 const minServeIntroMs = 5_000
+
+// isOperatorSegmentMark reports whether a segment source is an operator
+// decision (a hand-set mark, or its propagation to the siblings of a season)
+// rather than a detector guess.
+func isOperatorSegmentMark(source string) bool {
+	return source == "manual" || source == "manual_propagated"
+}
 
 func (s *QueryService) GetTrickplayManifest(ctx context.Context, mediaItemID string) (*library.TrickplayManifest, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.library.GetTrickplayManifest")
