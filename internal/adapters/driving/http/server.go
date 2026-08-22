@@ -57,8 +57,15 @@ type SearchHealthChecker interface {
 
 // HTTPServer holds shared dependencies for HTTP handlers.
 type HTTPServer struct {
-	BaseURL   func() string
-	Version   string
+	BaseURL func() string
+	Version string
+	// Commit / BuildDate identify the exact code this process runs, stamped at
+	// link time. Both are the literal "unknown" when the build could not be
+	// stamped - never blank, so a client can tell "not implemented" apart from
+	// "this build cannot say". /healthz reports them so a deployment can be
+	// verified over plain HTTP, with no shell on the host.
+	Commit    string
+	BuildDate string
 	StartTime time.Time
 	LogDir    string
 	DataDir   string

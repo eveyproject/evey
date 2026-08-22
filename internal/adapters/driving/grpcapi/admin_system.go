@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"math"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -73,10 +74,15 @@ type adminSystemHandler struct {
 	activitySvc    *appactivity.QueryService
 	// hlsManager reports the live HLS session count for the dashboard. Wired to
 	// the fan-out selector so the count spans software + hardware producers.
-	hlsManager     hlsSessionManager
-	libLister      adminLibraryLister
-	streamMeter    appactivity.BytesTotaler // optional: nil = no measured bandwidth
-	version        string
+	hlsManager  hlsSessionManager
+	libLister   adminLibraryLister
+	streamMeter appactivity.BytesTotaler // optional: nil = no measured bandwidth
+	version     string
+	// commit / buildDate identify the exact code this process runs. Blank means
+	// the wiring never stamped them, and the handler reports "unknown" rather
+	// than an empty string - see buildStampOrUnknown.
+	commit         string
+	buildDate      string
 	startTime      time.Time
 	ffmpegPath     string
 	translator     *eveyi18n.Translator
@@ -181,6 +187,21 @@ func (d *adminSystemHandler) GetSetupStatus(ctx context.Context, _ *eveyv1.GetSe
 	return resp, nil
 }
 
+// unknownBuildStamp mirrors cmd/evey's unknownStamp and the HTTP handler's:
+// the value reported when a build cannot name itself.
+const unknownBuildStamp = "unknown"
+
+// buildStampOrUnknown keeps a blank build stamp off the wire: "" is
+// indistinguishable from an older server that never had the field, and the
+// caller would have to guess. "unknown" is an explicit answer, and
+// scripts/verify-deploy.sh fails on it instead of assuming a match.
+func buildStampOrUnknown(s string) string {
+	if strings.TrimSpace(s) == "" {
+		return unknownBuildStamp
+	}
+	return s
+}
+
 func (d *adminSystemHandler) GetSystemInfo(ctx context.Context, _ *eveyv1.GetSystemInfoRequest) (*eveyv1.SystemInfo, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.admin.GetSystemInfo")
 	defer span.End()
@@ -197,6 +218,8 @@ func (d *adminSystemHandler) GetSystemInfo(ctx context.Context, _ *eveyv1.GetSys
 
 	info := &eveyv1.SystemInfo{
 		Version:                 d.version,
+		Commit:                  buildStampOrUnknown(d.commit),
+		BuildDate:               buildStampOrUnknown(d.buildDate),
 		Os:                      runtime.GOOS,
 		Arch:                    runtime.GOARCH,
 		GoVersion:               runtime.Version(),

@@ -74,6 +74,39 @@ func TestAdminGetSystemInfo(t *testing.T) {
 	}
 }
 
+// The admin panel is where an operator asks "what is deployed?". A branch name
+// cannot answer it, so the commit must come through verbatim - and an unstamped
+// build must say "unknown" instead of sending "", which a client reads as
+// "field not implemented" and silently ignores.
+func TestAdminGetSystemInfo_BuildStamps(t *testing.T) {
+	d := newTestSystemHandler()
+	d.commit = "0123456789abcdef0123456789abcdef01234567"
+	d.buildDate = "2026-08-22T09:00:00Z"
+	resp, err := d.GetSystemInfo(context.Background(), &eveyv1.GetSystemInfoRequest{})
+	if err != nil {
+		t.Fatalf("GetSystemInfo: %v", err)
+	}
+	if resp.Commit != d.commit {
+		t.Errorf("Commit = %q, want %q", resp.Commit, d.commit)
+	}
+	if resp.BuildDate != d.buildDate {
+		t.Errorf("BuildDate = %q, want %q", resp.BuildDate, d.buildDate)
+	}
+}
+
+func TestAdminGetSystemInfo_UnstampedBuildSaysUnknown(t *testing.T) {
+	d := newTestSystemHandler()
+	d.commit, d.buildDate = "", "   "
+	resp, err := d.GetSystemInfo(context.Background(), &eveyv1.GetSystemInfoRequest{})
+	if err != nil {
+		t.Fatalf("GetSystemInfo: %v", err)
+	}
+	if resp.Commit != "unknown" || resp.BuildDate != "unknown" {
+		t.Errorf("blank stamps must surface as \"unknown\", got commit=%q build_date=%q",
+			resp.Commit, resp.BuildDate)
+	}
+}
+
 func TestAdminGetSystemInfo_WithTranscoding(t *testing.T) {
 	d := newTestSystemHandler()
 	hwDetector := transcodingfakes.NewFakeHWDetector()

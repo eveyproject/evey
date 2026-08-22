@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -52,6 +53,60 @@ func TestHealthzHandler_OK(t *testing.T) {
 	}
 	if resp.UptimeSeconds < 1 {
 		t.Errorf("uptime_seconds: want >= 1, got %d", resp.UptimeSeconds)
+	}
+}
+
+// The build stamps are what makes a deployment verifiable over HTTP alone
+// (scripts/verify-deploy.sh). A stamped server must report the SHA verbatim -
+// not a truncation, not the version string.
+func TestHealthzHandler_ReportsBuildStamps(t *testing.T) {
+	srv := &HTTPServer{
+		Version:      "beta-0.0.1-full",
+		Commit:       "0123456789abcdef0123456789abcdef01234567",
+		BuildDate:    "2026-08-22T09:00:00Z",
+		StartTime:    time.Now(),
+		DB:           &fakeDBPinger{},
+		SearchHealth: &fakeSearchHealth{},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	w := httptest.NewRecorder()
+	srv.healthzHandler(w, req)
+
+	var resp healthResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.Commit != "0123456789abcdef0123456789abcdef01234567" {
+		t.Errorf("commit: got %q", resp.Commit)
+	}
+	if resp.BuildDate != "2026-08-22T09:00:00Z" {
+		t.Errorf("build_date: got %q", resp.BuildDate)
+	}
+}
+
+// An unstamped build must SAY "unknown" rather than send "". An empty string is
+// indistinguishable from an older server that lacks the field, and a caller
+// that cannot tell those apart ends up assuming a match - the exact failure
+// mode this whole mechanism exists to prevent.
+func TestHealthzHandler_UnstampedBuildSaysUnknown(t *testing.T) {
+	srv := &HTTPServer{
+		Version:      "dev",
+		StartTime:    time.Now(),
+		DB:           &fakeDBPinger{},
+		SearchHealth: &fakeSearchHealth{},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	w := httptest.NewRecorder()
+	srv.healthzHandler(w, req)
+
+	raw := w.Body.String()
+	if !strings.Contains(raw, `"commit":"unknown"`) {
+		t.Errorf("commit must be serialised as \"unknown\", got body %s", raw)
+	}
+	if !strings.Contains(raw, `"build_date":"unknown"`) {
+		t.Errorf("build_date must be serialised as \"unknown\", got body %s", raw)
 	}
 }
 

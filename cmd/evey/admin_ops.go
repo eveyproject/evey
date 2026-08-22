@@ -77,7 +77,8 @@ func adminRollback(args []string) error {
 
 	fmt.Println("Evey rollback advisor (read-only)")
 	fmt.Println()
-	fmt.Printf("  running version   %s\n", version)
+	fmt.Printf("  running version   %s\n", buildID().Version)
+	fmt.Printf("  running commit    %s (built %s)\n", buildID().Commit, buildID().BuildDate)
 	fmt.Printf("  schema version    %s\n", schema)
 	if backup != "" {
 		fmt.Printf("  newest DB backup  %s\n", backup)

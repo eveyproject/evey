@@ -23,10 +23,15 @@ import (
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
-// version is set at build time via -ldflags "-X main.version=..."
-var version = "dev"
-
 func main() {
+	// `evey version` answers "what is this binary?" with no config, no DB and
+	// no network - the one question an operator must be able to ask a container
+	// that will not start.
+	if len(os.Args) > 1 && (os.Args[1] == "version" || os.Args[1] == "--version" || os.Args[1] == "-v") {
+		b := buildID()
+		fmt.Printf("evey %s\ncommit     %s\nbuilt      %s\n", b.Version, b.Commit, b.BuildDate)
+		return
+	}
 	if len(os.Args) > 1 && os.Args[1] == "admin" {
 		if err := runAdmin(os.Args[2:]); err != nil {
 			fmt.Fprintf(os.Stderr, "admin: %v\n", err)
@@ -63,7 +68,14 @@ func run() error {
 		return fmt.Errorf("config validation: %w", err)
 	}
 
-	printBootBanner(os.Stderr, cfg, version)
+	build := buildID()
+	printBootBanner(os.Stderr, cfg, build)
+	// First line of every boot: the exact code that is running. Reading it back
+	// from the logs must never require correlating an asset hash with a commit.
+	rootLog.Info("build identity",
+		slog.String("version", build.Version),
+		slog.String("commit", build.Commit),
+		slog.String("build_date", build.BuildDate))
 
 	applyMemoryLimit(rootLog)
 

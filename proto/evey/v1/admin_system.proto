@@ -103,6 +103,14 @@ message SystemInfo {
   // number was chosen instead of a bare integer. Unset when no calibration
   // service is wired (e.g. a hand-built test server).
   VideoSessionCapacity video_sessions = 12;
+  // commit is the git SHA the running binary was built from, build_date its
+  // RFC3339 build timestamp. `version` above is a branch or tag name and so
+  // cannot identify a deployment: two images months apart both report
+  // "beta-0.0.1-full". Both fields are the literal "unknown" - never blank -
+  // when the build could not be stamped, so a client can tell "this server is
+  // too old to answer" from "this build genuinely does not know".
+  string commit = 13;
+  string build_date = 14;
 }
 
 // LoadTestSourceMix is one source class and how many viewers were placed on it.

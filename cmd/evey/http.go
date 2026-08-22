@@ -114,7 +114,9 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 
 	srv := &httpapi.HTTPServer{
 		BaseURL:   cfg.EffectiveBaseURL,
-		Version:   version,
+		Version:   buildID().Version,
+		Commit:    buildID().Commit,
+		BuildDate: buildID().BuildDate,
 		StartTime: startTime,
 		LogDir:    logDir,
 		HTTPSOnly: cfg.Server.ForwardedProto,

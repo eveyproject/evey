@@ -34,7 +34,7 @@ var wordmarkRows = [...][4]string{
 // printBootBanner writes the Evey wordmark + a compact status block to w. Purely
 // cosmetic: the structured logs that follow carry the authoritative detail.
 // Skipped entirely when EVEY_BANNER=off; colour dropped when NO_COLOR is set.
-func printBootBanner(w io.Writer, cfg *config.Config, version string) {
+func printBootBanner(w io.Writer, cfg *config.Config, build buildIdentity) {
 	if os.Getenv("EVEY_BANNER") == "off" {
 		return
 	}
@@ -56,7 +56,8 @@ func printBootBanner(w io.Writer, cfg *config.Config, version string) {
 		b.WriteString(paint(bWhite, r[3]))
 		b.WriteByte('\n')
 	}
-	b.WriteString("  " + paint(bDim, "self-hosted media server") + "              " + paint(bSlate, "v"+version) + "\n\n")
+	b.WriteString("  " + paint(bDim, "self-hosted media server") + "              " + paint(bSlate, "v"+build.Version) + "\n")
+	b.WriteString("  " + paint(bDim, "build "+shortCommit(build.Commit)+" · "+build.BuildDate) + "\n\n")
 
 	httpPort := cfg.Server.Port + 1
 	plugins := paint(bDim, "disabled")

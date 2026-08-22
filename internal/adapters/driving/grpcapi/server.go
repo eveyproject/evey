@@ -83,6 +83,10 @@ type GRPCServerDeps struct {
 	Cfg             *config.Config
 	CfgStore        remoteAccessConfigStore
 	Version         string
+	// Commit / BuildDate are the link-time build stamps surfaced by
+	// GetSystemInfo. Blank is reported as "unknown", never as "".
+	Commit    string
+	BuildDate string
 	// Fields previously set via Set* methods
 	HLSVODOrch *apptranscoding.SegmentOrchestrator
 	// HLSVODRemover fans RemoveSession across the software AND hardware
@@ -204,6 +208,8 @@ func (s *GRPCServer) RegisterServices() {
 		libLister:         d.LibQuery,
 		streamMeter:       d.StreamMeter,
 		version:           d.Version,
+		commit:            d.Commit,
+		buildDate:         d.BuildDate,
 		calibrationSvc:    calibrationProviderOrNil(d.CalibrationSvc),
 		videoLimiter:      videoLimiterOrNil(d.VideoLimiter),
 		startTime:         s.startTime,

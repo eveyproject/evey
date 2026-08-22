@@ -4,16 +4,28 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
+// unknownBuildStamp mirrors cmd/evey's unknownStamp: the value reported when a
+// build cannot name itself. Deployment tooling treats it as a failure, so it
+// must never be substituted by "" or by a guess.
+const unknownBuildStamp = "unknown"
+
 type healthResponse struct {
-	Status        string `json:"status"`
-	DB            string `json:"db"`
-	Meilisearch   string `json:"meilisearch"`
-	Version       string `json:"version"`
+	Status      string `json:"status"`
+	DB          string `json:"db"`
+	Meilisearch string `json:"meilisearch"`
+	Version     string `json:"version"`
+	// Commit is the git SHA the binary was built from and BuildDate its RFC3339
+	// build timestamp - the pair that answers "is production running my last
+	// commit?" without a shell on the host. `version` alone is a branch or tag
+	// name and cannot: two images months apart both report "beta-0.0.1-full".
+	Commit        string `json:"commit"`
+	BuildDate     string `json:"build_date"`
 	UptimeSeconds int64  `json:"uptime_seconds"`
 }
 
@@ -57,6 +69,8 @@ func (s *HTTPServer) healthzHandler(w http.ResponseWriter, r *http.Request) {
 		DB:            dbStatus,
 		Meilisearch:   meiliStatus,
 		Version:       version,
+		Commit:        buildStampOrUnknown(s.Commit),
+		BuildDate:     buildStampOrUnknown(s.BuildDate),
 		UptimeSeconds: int64(time.Since(s.StartTime).Seconds()),
 	}
 
@@ -67,4 +81,15 @@ func (s *HTTPServer) healthzHandler(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		return
 	}
+}
+
+// buildStampOrUnknown keeps a blank stamp off the wire: "" is
+// indistinguishable from an older server that never had the field, and the
+// caller would have to guess. unknownBuildStamp is an explicit answer, and
+// scripts/verify-deploy.sh fails on it instead of assuming a match.
+func buildStampOrUnknown(s string) string {
+	if strings.TrimSpace(s) == "" {
+		return unknownBuildStamp
+	}
+	return s
 }
