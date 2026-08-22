@@ -340,6 +340,71 @@ type fakeSegmentRepo struct {
 	// exhaustedBatchErr makes every IntroDetectionExhaustedBatch call fail with
 	// this error.
 	exhaustedBatchErr error
+	// ops is the ordered write/delete log replayed by the read methods. The real
+	// table is UNIQUE on (media_item_id, type): an upsert REPLACES the row and a
+	// delete removes it. A fake that only appended returned two rows for one key
+	// and kept serving deleted ones, which hides every read-after-write bug.
+	ops []fakeSegOp
+}
+
+// fakeSegOp is one recorded write (seg != nil) or delete (seg == nil, typ ""
+// meaning every type of the item).
+type fakeSegOp struct {
+	seg *domainlibrary.MediaSegment
+	id  shared.MediaItemID
+	typ string
+}
+
+// replay applies the op log on top of the seeded rows for one media item.
+func (r *fakeSegmentRepo) replay(id shared.MediaItemID) []*domainlibrary.MediaSegment {
+	byType := map[string]*domainlibrary.MediaSegment{}
+	var order []string
+	put := func(s *domainlibrary.MediaSegment) {
+		if _, ok := byType[s.Type]; !ok {
+			order = append(order, s.Type)
+		}
+		byType[s.Type] = s
+	}
+	for _, s := range r.seeded {
+		if s.MediaItemID == id {
+			put(s)
+		}
+	}
+	for _, op := range r.ops {
+		if op.id != id {
+			continue
+		}
+		switch {
+		case op.seg != nil:
+			put(op.seg)
+		case op.typ == "":
+			byType = map[string]*domainlibrary.MediaSegment{}
+		default:
+			delete(byType, op.typ)
+		}
+	}
+	out := make([]*domainlibrary.MediaSegment, 0, len(order))
+	for _, t := range order {
+		if s, ok := byType[t]; ok {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// manualLocked reports whether the CURRENT row for (id, type) is an operator
+// mark. operatorOnly excludes 'manual_propagated', matching the two conditional
+// upserts of the real repository.
+func (r *fakeSegmentRepo) manualLocked(seg *domainlibrary.MediaSegment, operatorOnly bool) bool {
+	for _, e := range r.replay(seg.MediaItemID) {
+		if e.Type != seg.Type {
+			continue
+		}
+		if e.Source == "manual" || (!operatorOnly && e.Source == "manual_propagated") {
+			return true
+		}
+	}
+	return false
 }
 
 type fakeIntroAttempt struct {
@@ -349,6 +414,7 @@ type fakeIntroAttempt struct {
 
 func (r *fakeSegmentRepo) Upsert(_ context.Context, seg *domainlibrary.MediaSegment) error {
 	r.upserted = append(r.upserted, seg)
+	r.ops = append(r.ops, fakeSegOp{seg: seg, id: seg.MediaItemID, typ: seg.Type})
 	return nil
 }
 
@@ -359,13 +425,11 @@ func (r *fakeSegmentRepo) UpsertUnlessManual(_ context.Context, seg *domainlibra
 	if r.upsertErr != nil {
 		return false, r.upsertErr
 	}
-	for _, e := range append(append([]*domainlibrary.MediaSegment{}, r.seeded...), r.upserted...) {
-		if e.MediaItemID == seg.MediaItemID && e.Type == seg.Type &&
-			(e.Source == "manual" || e.Source == "manual_propagated") {
-			return false, nil
-		}
+	if r.manualLocked(seg, false) {
+		return false, nil
 	}
 	r.upserted = append(r.upserted, seg)
+	r.ops = append(r.ops, fakeSegOp{seg: seg, id: seg.MediaItemID, typ: seg.Type})
 	return true, nil
 }
 
@@ -376,12 +440,11 @@ func (r *fakeSegmentRepo) UpsertUnlessOperatorManual(_ context.Context, seg *dom
 	if r.upsertErr != nil {
 		return false, r.upsertErr
 	}
-	for _, e := range append(append([]*domainlibrary.MediaSegment{}, r.seeded...), r.upserted...) {
-		if e.MediaItemID == seg.MediaItemID && e.Type == seg.Type && e.Source == "manual" {
-			return false, nil
-		}
+	if r.manualLocked(seg, true) {
+		return false, nil
 	}
 	r.upserted = append(r.upserted, seg)
+	r.ops = append(r.ops, fakeSegOp{seg: seg, id: seg.MediaItemID, typ: seg.Type})
 	return true, nil
 }
 func (r *fakeSegmentRepo) GetByMediaItemID(_ context.Context, id shared.MediaItemID) ([]*domainlibrary.MediaSegment, error) {
@@ -392,19 +455,7 @@ func (r *fakeSegmentRepo) GetByMediaItemID(_ context.Context, id shared.MediaIte
 	if err, ok := r.getErrForID[string(id)]; ok {
 		return nil, err
 	}
-	var out []*domainlibrary.MediaSegment
-	for _, s := range r.seeded {
-		if s.MediaItemID == id {
-			out = append(out, s)
-		}
-	}
-	// Also include previously upserted segments.
-	for _, s := range r.upserted {
-		if s.MediaItemID == id {
-			out = append(out, s)
-		}
-	}
-	return out, nil
+	return r.replay(id), nil
 }
 
 // GetByMediaItemIDs mirrors the postgres batch query: one call covering every
@@ -418,28 +469,21 @@ func (r *fakeSegmentRepo) GetByMediaItemIDs(_ context.Context, ids []shared.Medi
 		return nil, r.batchErr
 	}
 	out := make(map[shared.MediaItemID][]*domainlibrary.MediaSegment, len(ids))
-	want := make(map[shared.MediaItemID]bool, len(ids))
 	for _, id := range ids {
-		want[id] = true
-	}
-	for _, s := range r.seeded {
-		if want[s.MediaItemID] {
-			out[s.MediaItemID] = append(out[s.MediaItemID], s)
-		}
-	}
-	for _, s := range r.upserted {
-		if want[s.MediaItemID] {
-			out[s.MediaItemID] = append(out[s.MediaItemID], s)
+		if segs := r.replay(id); len(segs) > 0 {
+			out[id] = segs
 		}
 	}
 	return out, nil
 }
 
-func (r *fakeSegmentRepo) DeleteByMediaItemID(_ context.Context, _ shared.MediaItemID) error {
+func (r *fakeSegmentRepo) DeleteByMediaItemID(_ context.Context, id shared.MediaItemID) error {
+	r.ops = append(r.ops, fakeSegOp{id: id})
 	return nil
 }
 func (r *fakeSegmentRepo) DeleteByMediaItemIDAndType(_ context.Context, id shared.MediaItemID, segType string) error {
 	r.deleted = append(r.deleted, string(id)+"/"+segType)
+	r.ops = append(r.ops, fakeSegOp{id: id, typ: segType})
 	return nil
 }
 func (r *fakeSegmentRepo) ListSeasonsMissingSegments(_ context.Context) ([]string, error) {
