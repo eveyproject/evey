@@ -12,7 +12,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"syscall"
@@ -74,7 +73,7 @@ func adminRollback(args []string) error {
 			schema += " (DIRTY)"
 		}
 	}
-	backup := newestPreMigrationBackup(cfg.Backup.Dir)
+	backup := postgres.NewestBackup(cfg.Backup.Dir)
 
 	fmt.Println("Evey rollback advisor (read-only)")
 	fmt.Println()
@@ -90,56 +89,29 @@ func adminRollback(args []string) error {
 	fmt.Println("Run these ON THE HOST, choosing the previous image tag:")
 	fmt.Println()
 	fmt.Println("  # 1. list the Evey images cached locally, newest first")
-	fmt.Println("  docker images 'evey*' --format '{{.Repository}}:{{.Tag}}\\t{{.CreatedSince}}'")
+	fmt.Println("  docker images 'gravityz/evey*' --format '{{.Repository}}:{{.Tag}}\\t{{.CreatedSince}}'")
 	fmt.Println()
-	fmt.Println("  # 2. stop the stack")
-	fmt.Println("  docker compose down")
-	fmt.Println()
-	if backup != "" {
+	if backup == "" {
+		// EVEY_VERSION is the variable docker-compose.yml interpolates. `up -d`
+		// on its own recreates only the service whose image changed, so the
+		// database and the reverse proxy keep running: no `down` needed, and
+		// the outage is the one container restart you cannot avoid anyway.
+		fmt.Println("  # 2. relaunch on the previous tag (recreates the evey container only)")
+		fmt.Println("  EVEY_VERSION=<previous> docker compose up -d")
+	} else {
+		fmt.Println("  # 2. stop the server, leaving postgres up for the restore")
+		fmt.Println("  docker compose stop evey")
+		fmt.Println()
 		fmt.Println("  # 3. ONLY if the newer version applied migrations, restore the pre-migration DB")
-		fmt.Printf("  docker compose run --rm evey admin restore-backup %s\n", backup)
+		fmt.Printf("  EVEY_VERSION=<previous> docker compose run --rm evey admin restore-backup %s\n", backup)
 		fmt.Println("  #    (or step back one migration at a time with: evey admin migrate down)")
 		fmt.Println()
+		fmt.Println("  # 4. bring the stack back up on the previous image tag")
+		fmt.Println("  EVEY_VERSION=<previous> docker compose up -d")
 	}
-	fmt.Println("  # 4. bring the stack back up on the previous image tag")
-	fmt.Println("  EVEY_IMAGE_TAG=<previous> docker compose up -d")
 	fmt.Println()
 	fmt.Println("Scripted helper (adapt the image/compose vars to your host): scripts/evey-rollback.sh")
 	return nil
-}
-
-// newestPreMigrationBackup returns the most-recently-modified pre-migration dump
-// in dir, or "". Sorting by mtime (not name) because the version number in the
-// filename breaks lexical order (pre-migration-99 sorts after pre-migration-132).
-func newestPreMigrationBackup(dir string) string {
-	if dir == "" {
-		return ""
-	}
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return ""
-	}
-	type cand struct {
-		name string
-		mod  time.Time
-	}
-	var cands []cand
-	for _, e := range entries {
-		n := e.Name()
-		if !strings.HasPrefix(n, "pre-migration-") || !strings.HasSuffix(n, ".sql.gz") {
-			continue
-		}
-		info, err := e.Info()
-		if err != nil {
-			continue
-		}
-		cands = append(cands, cand{n, info.ModTime()})
-	}
-	if len(cands) == 0 {
-		return ""
-	}
-	sort.Slice(cands, func(i, j int) bool { return cands[i].mod.After(cands[j].mod) })
-	return filepath.Join(dir, cands[0].name)
 }
 
 // -------------------------------------------------------------------------
