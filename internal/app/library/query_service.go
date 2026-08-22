@@ -280,11 +280,15 @@ func (s *QueryService) GetSegments(ctx context.Context, mediaItemID string) ([]*
 		// Credits whose start sits implausibly far from the end of the file are
 		// a mid-scene fade the detector called "the credits": serving them
 		// raises a skip prompt in the middle of the content, minutes early.
-		// A blackdetect row ends at the file duration, so its span is exactly
-		// that lead - no extra lookup needed. Operator marks are exempt: the
-		// bound polices detectors, not someone who watched the file. Refusal is
-		// at the SERVE only, the row stays stored for eval/training.
-		if sg.Type == "end_credits" && !isOperatorSegmentMark(sg.Source) &&
+		// Restricted to blackdetect, the ONLY source whose EndMs is the file
+		// duration - that invariant is what makes the span the lead, with no
+		// extra lookup. A chapter or provider row can end before the file does,
+		// where EndMs-StartMs UNDERSTATES the lead and the bound would silently
+		// under-police it; those need the real runtime, which this call does not
+		// load. 100% of the end_credits measured in prod are blackdetect, so the
+		// restriction costs no coverage today. Refusal is at the SERVE only, the
+		// row stays stored for eval/training.
+		if sg.Type == "end_credits" && sg.Source == "blackdetect" &&
 			library.CreditsLeadImplausible(sg.EndMs-sg.StartMs, sg.EndMs, cfg.MaxServeCreditsLeadMs) {
 			continue
 		}
@@ -298,13 +302,6 @@ func (s *QueryService) GetSegments(ctx context.Context, mediaItemID string) ([]*
 // what in-house detectors may EMIT - this one polices what anyone may SEE,
 // authoritative sources included.
 const minServeIntroMs = 5_000
-
-// isOperatorSegmentMark reports whether a segment source is an operator
-// decision (a hand-set mark, or its propagation to the siblings of a season)
-// rather than a detector guess.
-func isOperatorSegmentMark(source string) bool {
-	return source == "manual" || source == "manual_propagated"
-}
 
 func (s *QueryService) GetTrickplayManifest(ctx context.Context, mediaItemID string) (*library.TrickplayManifest, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.library.GetTrickplayManifest")

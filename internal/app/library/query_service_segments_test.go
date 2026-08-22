@@ -135,6 +135,23 @@ func TestGetSegments_KeepsOperatorMarkedCredits(t *testing.T) {
 	require.Len(t, got, 1)
 }
 
+// The span is the lead only for blackdetect, whose EndMs is the file duration.
+// A chapter row can end before the file does, so EndMs-StartMs UNDERSTATES its
+// lead and the bound cannot judge it without the real runtime - which this call
+// does not load. Such a row is served rather than judged on a wrong number.
+// Documents a known coverage hole, not a desirable outcome: 100% of the
+// end_credits measured in prod are blackdetect, so nothing is lost today.
+func TestGetSegments_LeavesNonBlackdetectCreditsToTheirOwnSource(t *testing.T) {
+	t.Parallel()
+	segs := []*domainlibrary.MediaSegment{
+		// Span far past the bound, but EndMs is a chapter end, not the duration.
+		{Type: "end_credits", StartMs: 600_000, EndMs: 1_800_000, Source: "mkv_chapter", Confidence: 0.9},
+	}
+	got, err := segQuerySvc(segs).GetSegments(context.Background(), "ep-1")
+	require.NoError(t, err)
+	require.Len(t, got, 1, "the gate must not judge a row whose EndMs is not the file duration")
+}
+
 // User decision 2026-08-06: below 5 seconds there is NO skip-intro button,
 // whatever the source and however confident - a 3s mkv chapter labelled
 // "intro" (9-1-1 S02E02, stored because chapters are exempt from the
