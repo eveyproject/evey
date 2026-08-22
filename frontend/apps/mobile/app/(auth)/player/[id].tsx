@@ -70,6 +70,7 @@ import {
   type SubtitleStream,
 } from "../../../src/components/player/PlayerSettingsPanel";
 import { useControlsAutoHide } from "../../../src/components/player/useControlsAutoHide";
+import { useSettledGeometry } from "../../../src/components/player/useSettledGeometry";
 import { SubtitleOverlay } from "../../../src/components/player/SubtitleOverlay";
 import {
   DEFAULT_SUBTITLE_STYLE,
@@ -97,7 +98,12 @@ export default function PlayerScreen() {
 const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>();
   const { t } = useTranslation();
   const { width: screenW, height: screenH } = useWindowDimensions();
-  const insets = useSafeAreaInsets();
+  const rawInsets = useSafeAreaInsets();
+  // Fullscreen rotates the window and moves the safe-area insets through two
+  // separate native events: publish them together (and hide the controls while
+  // a resize is in flight) so the bar is placed in ONE step instead of two.
+  const { geometry, resizing } = useSettledGeometry({ width: screenW, height: screenH, insets: rawInsets });
+  const insets = geometry.insets;
   const mediaId = id ?? "";
   useAudioCapsBeacon(mediaId);
 
@@ -644,17 +650,16 @@ const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>()
   // Measured height of the bottom block (seekbar + row): serves as the
   // pixel anchor for the settings panel, rendered above the bar.
   const [controlsHeight, setControlsHeight] = useState(0);
+  // The orientation lock stays OUT of the state updater: React may invoke an
+  // updater more than once, and a second lockAsync means a second rotation
+  // event - the very churn this screen is trying not to have.
   const toggleFullscreen = useCallback(() => {
-    setIsFullscreen((prev) => {
-      const next = !prev;
-      if (next) {
-        ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
-      } else {
-        ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
-      }
-      return next;
-    });
-  }, []);
+    const next = !isFullscreen;
+    setIsFullscreen(next);
+    ScreenOrientation.lockAsync(
+      next ? ScreenOrientation.OrientationLock.LANDSCAPE : ScreenOrientation.OrientationLock.PORTRAIT_UP,
+    );
+  }, [isFullscreen]);
 
   // Same exit contract as the web player's back button (playerUtils.playerExit):
   // pop the player's own history entry when there is one - safe because episode
@@ -1204,7 +1209,11 @@ const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>()
     <View style={[styles.container, { backgroundColor: "#000" }]}>
       <StatusBar hidden />
 
-      <View style={{ width: screenW, height: screenH }} {...panResponder.panHandlers}>
+      {/* Sized by the native layout, not by a JS pixel measure: a
+          `width: screenW` stage can only follow a rotation one JS commit AFTER
+          the native views have already turned, so the video and every overlay
+          spent those frames laid out at the previous orientation's size. */}
+      <View style={styles.stage} {...panResponder.panHandlers}>
         <View pointerEvents="none" style={styles.video}>
           <VideoView
             ref={videoViewRef}
@@ -1261,7 +1270,16 @@ const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>()
         )}
 
         {showControls && (
-          <View style={styles.overlay} pointerEvents="box-none">
+          // Kept mounted but not painted while the window is resizing: the
+          // secondary row's open/closed state (which holds the fullscreen
+          // button itself) survives the rotation, and the viewer never sees an
+          // intermediate placement.
+          <View
+            style={[styles.overlay, resizing && styles.overlayHidden]}
+            pointerEvents={resizing ? "none" : "box-none"}
+            accessibilityElementsHidden={resizing}
+            importantForAccessibility={resizing ? "no-hide-descendants" : "auto"}
+          >
             <View style={[styles.topBar, { top: 0, paddingTop: Math.max(16, insets.top), paddingLeft: Math.max(20, insets.left), paddingRight: Math.max(20, insets.right) }]}>
               <Pressable onPress={handleBack} hitSlop={16} accessible={true} accessibilityLabel={t("common.back")} accessibilityRole="button">
                 <Ionicons name="chevron-back" size={28} color="#fff" />
@@ -1516,6 +1534,16 @@ const styles = StyleSheet.create({
   video: {
     width: "100%",
     height: "100%",
+  },
+  stage: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  overlayHidden: {
+    opacity: 0,
   },
   overlay: {
     position: "absolute",
