@@ -104,6 +104,7 @@ frontend/apps/mobile/.expo/
 scripts/*
 !scripts/build-test-plugins.sh
 !scripts/gen_cosign_fixtures.go
+!scripts/verify-deploy.sh
 !scripts/tv/
 !scripts/tv/*.sh
 !scripts/tv/README.md
