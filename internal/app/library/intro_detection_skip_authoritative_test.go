@@ -62,11 +62,20 @@ func TestDetectSeason_PaginatesAllEpisodes(t *testing.T) {
 type countingDetector struct {
 	fakeDetector
 	calls atomic.Int32
+	// creditsCalls counts the credits scans, the expensive part of the
+	// suspect-credits repair (a full blackdetect pass over the last 20% of the
+	// file), so a test can prove the repair does not re-pay it on every sweep.
+	creditsCalls atomic.Int32
 }
 
 func (d *countingDetector) ExtractTileHashes(p string, w, h, pw, ph int) ([]uint64, error) {
 	d.calls.Add(1)
 	return d.fakeDetector.ExtractTileHashes(p, w, h, pw, ph)
+}
+
+func (d *countingDetector) DetectEndCredits(ctx context.Context, path string, durationSec float64) (int64, int64, bool, error) {
+	d.creditsCalls.Add(1)
+	return d.fakeDetector.DetectEndCredits(ctx, path, durationSec)
 }
 
 // helper: build a service whose detectSeason will encounter siblings with

@@ -98,18 +98,29 @@ func (s *IntroDetectionService) detectStudioLogo(ctx context.Context, item *doma
 	}
 }
 
-// suspiciousCreditsLeadMs flags a stored blackdetect credits row whose start
-// sits farther than this from the end of the file. Real episode credits run
-// ~30s-2min; a 4+ minute lead is almost always the old first-black parser
-// having latched onto a mid-scene fade (the ">10 minutes early" prod reports).
-const suspiciousCreditsLeadMs = 4 * 60 * 1000
+// creditsSuspect reports whether a stored credits row starts implausibly far
+// from the end of the file, using the SAME bound as the serving gate and the
+// detector - the repair must target exactly what serving refuses. Reads the
+// default floor rather than the admin override: it runs once per skipped
+// episode of a page, and a config read per episode would put the sweep back on
+// an N+1.
+func creditsSuspect(credits *domainlibrary.MediaSegment, durationMs int64) bool {
+	return domainlibrary.CreditsLeadImplausible(
+		durationMs-credits.StartMs, durationMs, domainlibrary.SuspiciousCreditsLeadMs)
+}
 
 // refreshSuspectCredits re-runs the credits detector for an episode whose
 // stored blackdetect credits start implausibly far from the end. Called for
 // episodes the season sweep otherwise skips (their intro is covered), so a
-// credits-parser fix still reaches them. Self-quiescing: the refreshed row is
-// either plausible (no longer suspect) or deleted when the fixed detector
-// finds nothing - a missing credits marker beats a mid-scene skip prompt.
+// credits-parser fix still reaches them. Self-extinguishing, which matters
+// because the scan is a full blackdetect pass over the last 20% of the file:
+// every outcome leaves the episode in a state the next sweep will not scan
+// again. Either the refreshed row is plausible (no longer suspect), or it is
+// deleted - when the detector finds nothing AND when what it finds is no better
+// than the row it would replace, an irreparable file that used to be re-scanned
+// on every sweep forever. A missing credits marker beats a mid-scene skip
+// prompt, and the episode returns to detection through the normal pipeline if
+// it ever loses its intro coverage.
 func (s *IntroDetectionService) refreshSuspectCredits(ctx context.Context, item *domainlibrary.MediaItem, existing []*domainlibrary.MediaSegment) {
 	var credits *domainlibrary.MediaSegment
 	for _, sg := range existing {
@@ -124,7 +135,8 @@ func (s *IntroDetectionService) refreshSuspectCredits(ctx context.Context, item 
 	if item.File == nil || item.File.Path == "" || item.File.Duration.IsZero() {
 		return
 	}
-	if item.File.Duration.Milliseconds()-credits.StartMs <= suspiciousCreditsLeadMs {
+	durationMs := item.File.Duration.Milliseconds()
+	if !creditsSuspect(credits, durationMs) {
 		return
 	}
 	seg, err := s.detectEndCredits(ctx, item)
@@ -132,6 +144,13 @@ func (s *IntroDetectionService) refreshSuspectCredits(ctx context.Context, item 
 		slog.WarnContext(ctx, "intro_detection: suspect credits refresh failed",
 			slog.String("media_id", string(item.ID)), slog.Any("err", err))
 		return
+	}
+	if seg != nil && creditsSuspect(seg, durationMs) {
+		slog.InfoContext(ctx, "intro_detection: suspect credits not repairable, dropping",
+			slog.String("media_id", string(item.ID)),
+			slog.Int64("old_start_ms", credits.StartMs),
+			slog.Int64("new_start_ms", seg.StartMs))
+		seg = nil
 	}
 	if seg == nil {
 		if delErr := s.segmentRepo.DeleteByMediaItemIDAndType(ctx, item.ID, "end_credits"); delErr != nil {

@@ -89,6 +89,51 @@ func TestDetectSeason_LeavesPlausibleCreditsAlone(t *testing.T) {
 	assert.Empty(t, repo.deleted)
 }
 
+// The refresh must be self-extinguishing. An irreparable episode - the detector
+// keeps answering with a start just as implausible as the stored one - used to
+// be re-scanned in full on EVERY sweep, forever, because the refresh wrote the
+// new answer without ever checking it was better.
+func TestDetectSeason_SuspectCreditsRefreshStopsAfterOneFailedRepair(t *testing.T) {
+	t.Parallel()
+	const durMs = 42 * 60 * 1000
+	repo, eps := coveredEpisodeWithCredits(t, durMs-9*60*1000)
+	det := &countingDetector{fakeDetector: fakeDetector{
+		creditsFound: true, creditsStartMs: durMs - 8*60*1000, creditsEndMs: durMs,
+	}}
+	svc := NewIntroDetectionService(
+		repo, &fakeTrickplayRepo{}, &fakeMediaItemRepo{siblings: eps},
+		&fakeConfigRepo{}, det, "/tmp/trickplay",
+	)
+
+	svc.detectSeason(context.Background(), "season-id")
+	svc.detectSeason(context.Background(), "season-id")
+
+	assert.Equal(t, 1, int(det.creditsCalls.Load()), "the second sweep must not re-pay a full credits scan on an episode the refresh could not repair")
+	assert.Empty(t, repo.upserted, "a refreshed start just as implausible as the stored one is not an answer to store")
+	assert.Contains(t, repo.deleted, "ep-1/end_credits")
+}
+
+// A repaired episode is equally extinct: the plausible row it now carries is no
+// longer suspect, so the next sweep skips it without scanning.
+func TestDetectSeason_RepairedCreditsAreNotRescanned(t *testing.T) {
+	t.Parallel()
+	const durMs = 42 * 60 * 1000
+	repo, eps := coveredEpisodeWithCredits(t, durMs-9*60*1000)
+	det := &countingDetector{fakeDetector: fakeDetector{
+		creditsFound: true, creditsStartMs: durMs - 80_000, creditsEndMs: durMs,
+	}}
+	svc := NewIntroDetectionService(
+		repo, &fakeTrickplayRepo{}, &fakeMediaItemRepo{siblings: eps},
+		&fakeConfigRepo{}, det, "/tmp/trickplay",
+	)
+
+	svc.detectSeason(context.Background(), "season-id")
+	svc.detectSeason(context.Background(), "season-id")
+
+	assert.Equal(t, 1, int(det.creditsCalls.Load()))
+	require.Len(t, repo.upserted, 1)
+}
+
 // BackfillLibrary must reach MOVIES too: they have no season path, and without
 // this a detection/credits fix would never re-touch a film. A movie covered
 // only by a community-DB intro re-enters detection (attempt recorded).
