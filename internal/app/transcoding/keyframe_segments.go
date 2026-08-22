@@ -35,23 +35,39 @@ func (s CopySegment) DurationMs() int64 { return s.EndMs - s.StartMs }
 // keyframe-list plan replicates exactly. Pathologically dense keyframes
 // (all-intra sources) are rejected upstream by the planner's density guard.
 //
-// keyframes must be sorted ascending (the prober guarantees it). A leading
-// keyframe later than 0 is treated as if the first GOP starts at 0 (some muxers
-// omit a cue at exactly 0). Keyframes at or beyond durationMs are ignored.
-// Returns nil when there is nothing to segment.
+// keyframes must be sorted ascending (the prober guarantees it). Keyframes at
+// or beyond durationMs are ignored. Returns nil when there is nothing to
+// segment.
+//
+// THE FIRST KEYFRAME IS BOUNDARY 0, it is not a cut. ffmpeg at `-hls_time 0`
+// opens segment 0 on the first packet it muxes and cuts on every keyframe AFTER
+// that: it never emits a segment for the leading partial GOP. So a source whose
+// first keyframe sits at 44 ms (no cue at exactly 0 - common) yields the SAME
+// segment count and numbering as one with a cue at 0; only the produced
+// timeline's origin moves by those 44 ms, which is what the rebase pump's
+// tolerance absorbs. Emitting both a synthetic 0 bound and that first keyframe
+// invented a phantom [0,44 ms) segment ffmpeg never produced and shifted the
+// whole plan one index against the real output (prod: every copy segment
+// tripping the divergence tripwire, and a manifest whose time<->segment map was
+// a full GOP off for the entire media).
 func KeyframeSegments(keyframes []int64, durationMs int64) []CopySegment {
 	if durationMs <= 0 || len(keyframes) == 0 {
 		return nil
 	}
 
-	// Boundary keyframes: 0 first, then every in-range keyframe > 0, ascending,
-	// deduped (a real cue at exactly 0 collides with the synthetic 0).
-	bounds := make([]int64, 0, len(keyframes)+1)
+	// Boundaries: 0 (the stream start, which absorbs the first in-range keyframe
+	// and any leading partial GOP), then every LATER in-range keyframe, deduped.
+	bounds := make([]int64, 0, len(keyframes))
 	bounds = append(bounds, 0)
+	prev := int64(-1) // last in-range keyframe kept; -1 = none seen yet
 	for _, kf := range keyframes {
-		if kf > 0 && kf < durationMs && kf != bounds[len(bounds)-1] {
+		if kf < 0 || kf >= durationMs || kf <= prev {
+			continue
+		}
+		if prev >= 0 {
 			bounds = append(bounds, kf)
 		}
+		prev = kf
 	}
 
 	segs := make([]CopySegment, 0, len(bounds))

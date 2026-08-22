@@ -486,17 +486,19 @@ func (p *SoftwareProducer) Profiles(base []transcoding.HLSProfile, src SourceDim
 			w, h = 1920, 1080 // safe default so the fingerprint stays deterministic
 		}
 		const copyDefaultBitrateKbps int64 = 5_000
-		// "-kf3" suffix = the cache GENERATION of the copy plan/session contract
+		// "-kf4" suffix = the cache GENERATION of the copy plan/session contract
 		// (every-keyframe plan + seek-landing-corrected sessions). The Name is
 		// part of the cache fingerprint, so bumping it orphans cached copy
-		// segments produced under an older, incompatible contract: "-kf2" seek
-		// segments carried audio content trimmed at the -ss target but labeled
-		// from the landing (audio early by up to a GOP), "-kf" ones a mislabeled
-		// video timeline, and the unsuffixed generation ≥6s-coalesced numbering.
-		// Bump this whenever produced segment content/labeling changes for the
-		// same fingerprint inputs.
+		// segments produced under an older, incompatible contract: "-kf3" plans
+		// invented a segment for the leading partial GOP on sources whose first
+		// keyframe is not at 0, so every seek-spawned .m4s they cached is filed
+		// one index too high; "-kf2" seek segments carried audio content trimmed
+		// at the -ss target but labeled from the landing (audio early by up to a
+		// GOP), "-kf" ones a mislabeled video timeline, and the unsuffixed
+		// generation ≥6s-coalesced numbering. Bump this whenever produced segment
+		// content/labeling changes for the same fingerprint inputs.
 		return []transcoding.HLSProfile{{
-			Name:         fmt.Sprintf("%dp-copy-kf3", h),
+			Name:         fmt.Sprintf("%dp-copy-kf4", h),
 			Width:        w,
 			Height:       h,
 			VideoBitrate: copyDefaultBitrateKbps,

@@ -30,6 +30,26 @@ func TestBuildCopyManifest_KeyframeVariableExtinf(t *testing.T) {
 	}
 }
 
+// End of the chain: plan -> manifest for a source whose first keyframe is NOT
+// at 0 (44 ms, the prod shape). The playlist must list exactly the segments
+// ffmpeg emits at `-hls_time 0` - one per keyframe, none for the leading
+// partial GOP - or the client's time<->segment map is a whole GOP off for the
+// entire media (the "seek jumps" report). The last EXTINF must still reach the
+// media end, so the playlist duration stays the media duration.
+func TestBuildCopyManifest_FirstKeyframeAfterZero(t *testing.T) {
+	segs := KeyframeSegments([]int64{44, 3253, 6548}, 10000)
+	m := string(buildCopyManifest(segs))
+	assert.Contains(t, m, "#EXTINF:3.253,\nstream_0_000.m4s")
+	assert.Contains(t, m, "#EXTINF:3.295,\nstream_0_001.m4s")
+	assert.Contains(t, m, "#EXTINF:3.452,\nstream_0_002.m4s")
+	assert.NotContains(t, m, "stream_0_003.m4s", "no phantom segment for the [0,44ms) lead-in")
+	var totalMs int64
+	for _, s := range segs {
+		totalMs += s.DurationMs()
+	}
+	assert.EqualValues(t, 10000, totalMs, "the playlist must still span the whole media")
+}
+
 func TestBuildCopyManifest_Empty(t *testing.T) {
 	m := string(buildCopyManifest(nil))
 	assert.Contains(t, m, "#EXTM3U")

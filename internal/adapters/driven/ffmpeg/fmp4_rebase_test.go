@@ -4,8 +4,11 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/evey-project/evey/internal/domain/transcoding"
@@ -228,22 +231,64 @@ func TestVerifyCopySegmentTimeline(t *testing.T) {
 	read := func() float64 { return testutil.ToFloat64(metrics.HLSVODCopyTimelineDrift) }
 
 	base := read()
+	r := &timelineDriftReporter{}
 	// Aligned (within tolerance: nudge + priming scale skews).
-	verifySegmentTimeline("stream_0_600.m4s", "stream_0_", 1351284, plan, "copy")
+	r.verify("stream_0_600.m4s", "stream_0_", 1351284, plan, "copy")
 	if read() != base {
 		t.Fatal("aligned segment must not trip the drift tripwire")
 	}
 	// Unknown index / foreign name / missing tfdt: no-ops.
-	verifySegmentTimeline("stream_0_601.m4s", "stream_0_", 999999, plan, "copy")
-	verifySegmentTimeline("other_600.m4s", "stream_0_", 0, plan, "copy")
-	verifySegmentTimeline("stream_0_600.m4s", "stream_0_", -1, plan, "copy")
+	r.verify("stream_0_601.m4s", "stream_0_", 999999, plan, "copy")
+	r.verify("other_600.m4s", "stream_0_", 0, plan, "copy")
+	r.verify("stream_0_600.m4s", "stream_0_", -1, plan, "copy")
 	if read() != base {
 		t.Fatal("unknown/foreign/empty segments must not trip the tripwire")
 	}
+	if r.seen != 0 {
+		t.Fatalf("no divergence must have been recorded, got %d", r.seen)
+	}
 	// A GOP-sized divergence (the historical bug class) must trip it.
-	verifySegmentTimeline("stream_0_600.m4s", "stream_0_", 1351308+6340, plan, "copy")
+	r.verify("stream_0_600.m4s", "stream_0_", 1351308+6340, plan, "copy")
 	if read() != base+1 {
 		t.Fatal("a 6.3s divergence must increment the drift counter")
+	}
+	if r.seen != 1 {
+		t.Fatalf("first divergence must be counted once, got %d", r.seen)
+	}
+}
+
+// A broken contract diverges on EVERY segment of a session. The METRIC must
+// still count each one (that is the volume signal), but the ERROR log must fire
+// only once per pump: the leading-keyframe plan bug alone wrote 1238 of the
+// 1239 ERRORs of a 15-day prod window and buried the only other one.
+func TestVerifyCopySegmentTimeline_RepeatsDoNotFloodTheErrorLog(t *testing.T) {
+	plan := func(idx int) (int64, bool) { return int64(idx) * 6000, true }
+	read := func() float64 { return testutil.ToFloat64(metrics.HLSVODCopyTimelineDrift) }
+
+	var logs bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	t.Cleanup(func() { slog.SetDefault(prev) })
+
+	base := read()
+	r := &timelineDriftReporter{}
+	const diverged = 25
+	for i := range diverged {
+		r.verify(fmt.Sprintf("stream_0_%03d.m4s", i), "stream_0_", int64(i)*6000+6000, plan, "copy")
+	}
+	if got := read() - base; got != diverged {
+		t.Fatalf("every divergence must bump the metric: got %v, want %d", got, diverged)
+	}
+	if r.seen != diverged {
+		t.Fatalf("reporter must count every divergence, got %d want %d", r.seen, diverged)
+	}
+	if n := strings.Count(logs.String(), "level=ERROR"); n != 1 {
+		t.Fatalf("a session-wide divergence must log ERROR exactly once, got %d", n)
+	}
+	// The volume stays visible: one Warn summary when the pump exits.
+	r.summarize("/tmp/.rebase_0_1")
+	if n := strings.Count(logs.String(), "diverged_segments=25"); n != 1 {
+		t.Fatalf("the exit summary must report the total once, got %d", n)
 	}
 }
 
@@ -261,13 +306,14 @@ func TestVerifySegmentTimeline_TranscodeSeek(t *testing.T) {
 	seekRead := func() float64 { return testutil.ToFloat64(metrics.HLSVODTranscodeSeekTimelineDrift) }
 
 	copyBase, seekBase := copyRead(), seekRead()
+	r := &timelineDriftReporter{}
 	// Aligned segment 100 -> 600000 ms, within tolerance: no trip.
-	verifySegmentTimeline("stream_0_100.m4s", "stream_0_", 600000, linear, "transcode_seek")
+	r.verify("stream_0_100.m4s", "stream_0_", 600000, linear, "transcode_seek")
 	if seekRead() != seekBase {
 		t.Fatal("aligned transcode-seek segment must not trip")
 	}
 	// A GOP-sized drift bumps the TRANSCODE-SEEK counter, not the copy one.
-	verifySegmentTimeline("stream_0_100.m4s", "stream_0_", 600000+2000, linear, "transcode_seek")
+	r.verify("stream_0_100.m4s", "stream_0_", 600000+2000, linear, "transcode_seek")
 	if seekRead() != seekBase+1 {
 		t.Fatal("a transcode-seek divergence must increment the transcode-seek counter")
 	}

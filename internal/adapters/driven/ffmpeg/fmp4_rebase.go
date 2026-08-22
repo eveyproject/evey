@@ -353,18 +353,31 @@ func fmp4CompleteMoov(path string) bool {
 // hundred ms (a GOP or more). 500 ms separates the two cleanly.
 const copyDriftToleranceMs = 500
 
-// verifySegmentTimeline is the runtime tripwire for the rebase pump's
-// plan<->ffmpeg contract: the published segment stream_<v>_<idx>.m4s must carry
-// a timeline starting at the expected position for <idx>. For the COPY rung
-// that oracle is the keyframe plan; for a TRANSCODE-SEEK session it is the
-// linear idx×segment-length position. Every desync bug of 2026-06-10
-// (session-relative split grid, off-keyframe seek landings, trimmed-but-
-// mislabeled audio) would have tripped this. Divergence -> ERROR log + the
-// kind's drift metric; the segment is still published (a labeled, observable
-// degradation beats a stalled player).
+// timelineDriftReporter is one rebase pump's divergence log budget. A broken
+// plan<->ffmpeg contract diverges on EVERY segment, so the tripwire is a mass
+// event by nature: the leading-keyframe plan bug alone produced 1238 of the
+// 1239 ERRORs of a 15-day prod window, burying the single real one. The metric
+// carries the volume (incremented on every divergence); the log carries the
+// news - the FIRST divergence of a session at ERROR, the rest at Debug, plus
+// one Warn summary with the count when the pump exits.
+//
+// Not concurrency-safe by design: only the pump goroutine's sweep calls it.
+type timelineDriftReporter struct {
+	seen int
+	kind string
+}
+
+// verify is the runtime tripwire for the rebase pump's plan<->ffmpeg contract:
+// the published segment stream_<v>_<idx>.m4s must carry a timeline starting at
+// the expected position for <idx>. For the COPY rung that oracle is the
+// keyframe plan; for a TRANSCODE-SEEK session it is the linear idx×segment-
+// length position. Every desync bug of 2026-06-10 (session-relative split grid,
+// off-keyframe seek landings, trimmed-but-mislabeled audio) would have tripped
+// this. The segment is still published (a labeled, observable degradation beats
+// a stalled player).
 // No ctx parameter: called from runRebasePump, which only has done/stop
 // channels (shared helper, signature change out of scope for this pass).
-func verifySegmentTimeline(name, segPrefix string, tfdtMs int64, expectedStartMs func(int) (int64, bool), driftKind string) {
+func (r *timelineDriftReporter) verify(name, segPrefix string, tfdtMs int64, expectedStartMs func(int) (int64, bool), driftKind string) {
 	if expectedStartMs == nil || tfdtMs < 0 {
 		return
 	}
@@ -384,23 +397,46 @@ func verifySegmentTimeline(name, segPrefix string, tfdtMs int64, expectedStartMs
 	if !known {
 		return
 	}
-	if diff := tfdtMs - want; diff > copyDriftToleranceMs || diff < -copyDriftToleranceMs {
-		if driftKind == "transcode_seek" {
-			metrics.HLSVODTranscodeSeekTimelineDrift.Inc()
-			slog.Error("hls: transcode-seek segment timeline DIVERGES from the expected linear position (rebase contract regression)",
-				slog.String("segment", name),
-				slog.Int64("produced_start_ms", tfdtMs),
-				slog.Int64("expected_start_ms", want),
-				slog.Int64("drift_ms", diff))
-			return
-		}
-		metrics.HLSVODCopyTimelineDrift.Inc()
-		slog.Error("hls: copy segment timeline DIVERGES from the keyframe plan (plan<->ffmpeg contract regression)",
-			slog.String("segment", name),
-			slog.Int64("produced_start_ms", tfdtMs),
-			slog.Int64("plan_start_ms", want),
-			slog.Int64("drift_ms", diff))
+	diff := tfdtMs - want
+	if diff <= copyDriftToleranceMs && diff >= -copyDriftToleranceMs {
+		return
 	}
+
+	r.seen++
+	r.kind = driftKind
+	msg := "hls: copy segment timeline DIVERGES from the keyframe plan (plan<->ffmpeg contract regression)"
+	wantKey := "plan_start_ms"
+	if driftKind == "transcode_seek" {
+		metrics.HLSVODTranscodeSeekTimelineDrift.Inc()
+		msg = "hls: transcode-seek segment timeline DIVERGES from the expected linear position (rebase contract regression)"
+		wantKey = "expected_start_ms"
+	} else {
+		metrics.HLSVODCopyTimelineDrift.Inc()
+	}
+	attrs := []any{
+		slog.String("segment", name),
+		slog.Int64("produced_start_ms", tfdtMs),
+		slog.Int64(wantKey, want),
+		slog.Int64("drift_ms", diff),
+	}
+	if r.seen > 1 {
+		// Same session, same contract break: keep the metric, drop the noise.
+		slog.Debug(msg, append(attrs, slog.Int("repeat", r.seen))...)
+		return
+	}
+	slog.Error(msg, append(attrs, slog.Bool("further_repeats_demoted_to_debug", true))...)
+}
+
+// summarize reports the session's divergence total once, at pump exit, so the
+// volume stays visible in the logs without one line per segment.
+func (r *timelineDriftReporter) summarize(privDir string) {
+	if r.seen < 2 {
+		return
+	}
+	slog.Warn("hls: segment timeline diverged for the whole session",
+		slog.String("dir", privDir),
+		slog.String("drift_kind", r.kind),
+		slog.Int("diverged_segments", r.seen))
 }
 
 // runRebasePump watches privDir for segments ffmpeg completed (temp_file
@@ -429,6 +465,8 @@ func runRebasePump(done <-chan struct{}, stop <-chan struct{}, privDir, pubDir s
 	published := make(map[string]bool, 64)
 	failures := make(map[string]int, 4)
 	var initTS map[uint32]uint32
+	drift := &timelineDriftReporter{}
+	defer drift.summarize(privDir)
 
 	sweep := func() {
 		entries, err := os.ReadDir(privDir)
@@ -480,7 +518,7 @@ func runRebasePump(done <-chan struct{}, stop <-chan struct{}, privDir, pubDir s
 				}
 				continue
 			}
-			verifySegmentTimeline(name, segPrefix, tfdtMs, expectedStartMs, driftKind)
+			drift.verify(name, segPrefix, tfdtMs, expectedStartMs, driftKind)
 			if err := os.Rename(src, filepath.Join(pubDir, name)); err != nil {
 				slog.Warn("hls: copy rebase publish failed",
 					slog.String("segment", name), slog.Any("err", err))

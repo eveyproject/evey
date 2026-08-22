@@ -56,14 +56,44 @@ func TestKeyframeSegments_Deterministic(t *testing.T) {
 	}, a)
 }
 
-func TestKeyframeSegments_SyntheticZeroLeadingKeyframe(t *testing.T) {
-	// First cue at 500ms (no cue at exactly 0): the first GOP still starts at 0.
+func TestKeyframeSegments_LeadingKeyframeAfterZeroIsNotItsOwnSegment(t *testing.T) {
+	// First keyframe at 500ms (no cue at exactly 0). ffmpeg at `-hls_time 0`
+	// OPENS segment 0 at the start of the stream and cuts at every keyframe
+	// AFTER the first one - it never emits a segment for the leading partial
+	// GOP. A plan that keeps both the synthetic 0 bound AND the 500ms keyframe
+	// invents a phantom [0,500) segment and shifts every later index by one.
 	got := apptranscode.KeyframeSegments([]int64{500, 7000}, 12000)
 	assert.Equal(t, []apptranscode.CopySegment{
-		{StartMs: 0, EndMs: 500},
-		{StartMs: 500, EndMs: 7000},
+		{StartMs: 0, EndMs: 7000},
 		{StartMs: 7000, EndMs: 12000},
 	}, got)
+}
+
+func TestKeyframeSegments_ProdOffsetKeyframeIndexAlignment(t *testing.T) {
+	// The prod shape: first keyframe at 44ms, ~3.2s GOPs. Plan index N must map
+	// to the Nth segment ffmpeg produces, i.e. to keyframe N (44ms only shifts
+	// the timeline ORIGIN, never the numbering).
+	kf := []int64{44, 3253, 6548, 9843, 13138}
+	got := apptranscode.KeyframeSegments(kf, 16000)
+	assert.Equal(t, []apptranscode.CopySegment{
+		{StartMs: 0, EndMs: 3253},
+		{StartMs: 3253, EndMs: 6548},
+		{StartMs: 6548, EndMs: 9843},
+		{StartMs: 9843, EndMs: 13138},
+		{StartMs: 13138, EndMs: 16000},
+	}, got)
+	// Witness: the same source WITH a cue at 0 must plan identically - that is
+	// why every dev probe media hid this bug.
+	assert.Equal(t, got, apptranscode.KeyframeSegments([]int64{0, 3253, 6548, 9843, 13138}, 16000),
+		"a leading cue at 0 vs at 44ms must not change the segment COUNT or numbering")
+}
+
+func TestKeyframeSegments_RepeatedLeadingKeyframe(t *testing.T) {
+	// A duplicated first cue must not resurrect the phantom segment.
+	assert.Equal(t, []apptranscode.CopySegment{
+		{StartMs: 0, EndMs: 5000},
+		{StartMs: 5000, EndMs: 9000},
+	}, apptranscode.KeyframeSegments([]int64{44, 44, 5000}, 9000))
 }
 
 func TestKeyframeSegments_KeyframesBeyondDurationIgnored(t *testing.T) {
