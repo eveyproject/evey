@@ -15,6 +15,12 @@ import (
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
+// introPendingSeasonsDefaultLimit bounds a ListSeasonsPendingIntroDetection
+// batch when the caller asks for none. Unlike the paginated List queries this
+// one is not covered by DefaultListLimit, so it carries its own bound: an
+// unbounded query is what let a 500-season truncation go unnoticed for weeks.
+const introPendingSeasonsDefaultLimit = 100
+
 type MediaSegmentRepository struct {
 	db *sql.DB
 }
@@ -257,25 +263,62 @@ func (r *MediaSegmentRepository) DeleteByMediaItemIDAndType(ctx context.Context,
 	return nil
 }
 
-// ListSeasonsMissingSegments returns the parent_ids of seasons whose
-// episodes (type='episode') have a trickplay manifest but no media_segments
-// rows yet. Drives the startup backfill - only returns seasons that can
-// actually be detected (trickplay required by the pHash pass).
-func (r *MediaSegmentRepository) ListSeasonsMissingSegments(ctx context.Context) ([]string, error) {
-	ctx, span := tracing.StartSpan(ctx, "postgres.mediasegment.ListSeasonsMissingSegments")
+// ListSeasonsPendingIntroDetection returns the parent_ids of seasons that still
+// have intro-detection work to do. It IS the sweep's work list, re-derived from
+// the tables on every batch - the same resumability mechanism as the keyframe
+// backfill, and the reason a redeployment landing mid-sweep costs nothing.
+//
+// The predicate it replaced was `ms.id IS NULL` ("no media_segments row at
+// all"), which is dead by construction on a mature catalogue: ~99% of prod
+// episodes carry an end_credits row, so the boot sweep found 9 seasons and
+// finished in 28s while the real detection work sat untouched.
+//
+// The coverage rules are NOT restated here: lockedSources, coveringSources and
+// minCoveringMs come from IntroDetectionSettled's own lists, so the SQL and the
+// in-process sweep cannot drift apart. Episodes with no intro row at all are
+// pending via the IS NULL branch. The trickplay JOIN is gone too: chapters, the
+// season audio cluster and the providers all detect without sprites, and an
+// episode that truly cannot be detected is parked by the attempt counter rather
+// than by a join.
+func (r *MediaSegmentRepository) ListSeasonsPendingIntroDetection(ctx context.Context, algoVersion, maxAttempts, limit int, exclude []string) ([]string, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.mediasegment.ListSeasonsPendingIntroDetection")
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
+	if limit <= 0 {
+		limit = introPendingSeasonsDefaultLimit
+	}
+	if exclude == nil {
+		exclude = []string{}
+	}
 
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, `
 		SELECT DISTINCT mi.parent_id
 		FROM media_items mi
-		JOIN trickplay_manifests tm ON tm.media_item_id = mi.id
-		LEFT JOIN media_segments ms ON ms.media_item_id = mi.id
+		LEFT JOIN media_segments intro
+		       ON intro.media_item_id = mi.id AND intro.type = 'intro'
+		LEFT JOIN intro_detection_attempts att
+		       ON att.media_item_id = mi.id
 		WHERE mi.type = 'episode'
 		  AND mi.parent_id <> ''
-		  AND ms.id IS NULL
-	`)
+		  AND (
+		        intro.id IS NULL
+		     OR NOT (
+		            intro.source = ANY($1)
+		         OR (intro.source = ANY($2) AND intro.end_ms - intro.start_ms >= $3)
+		        )
+		      )
+		  AND (att.media_item_id IS NULL OR att.algo_version <> $4 OR att.attempts < $5)
+		  AND NOT (mi.parent_id = ANY($6))
+		ORDER BY mi.parent_id
+		LIMIT $7
+	`,
+		pq.Array(library.IntroLockedSources()),
+		pq.Array(library.IntroCoveringSources()),
+		library.MinCoveringIntroMs,
+		algoVersion, maxAttempts,
+		pq.Array(exclude), limit,
+	)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

@@ -177,10 +177,22 @@ type MediaSegmentRepository interface {
 	UpsertUnlessOperatorManual(ctx context.Context, seg *MediaSegment) (applied bool, err error)
 	DeleteByMediaItemID(ctx context.Context, mediaItemID shared.MediaItemID) error
 	DeleteByMediaItemIDAndType(ctx context.Context, mediaItemID shared.MediaItemID, segType string) error
-	// ListSeasonsMissingSegments returns the parent_ids of seasons that have
-	// at least one episode without any media_segments rows. Used by the intro
-	// detection backfill sweep at startup.
-	ListSeasonsMissingSegments(ctx context.Context) ([]string, error)
+	// ListSeasonsPendingIntroDetection returns up to limit season parent_ids
+	// that still have intro-detection work to do: at least one episode whose
+	// stored intro does not satisfy IntroDetectionSettled AND that has not
+	// burned maxAttempts at algoVersion. This IS the sweep's work list - it is
+	// re-derived from the database on every batch, so it shrinks as detection
+	// progresses and a process killed mid-sweep loses nothing.
+	//
+	// It replaced a "seasons with no media_segments row at all" predicate that
+	// found almost nothing: ~99% of a real catalogue already carries an
+	// end_credits row, which is not an intro.
+	//
+	// exclude is the caller's in-run skip set (seasons already walked this
+	// cycle): without it a season that makes no progress is handed back by
+	// every batch and the drain loop spins. Ordered by parent_id so the batches
+	// are stable.
+	ListSeasonsPendingIntroDetection(ctx context.Context, algoVersion, maxAttempts, limit int, exclude []string) ([]string, error)
 	// RecordIntroDetectionAttempt counts a detection run that produced no usable
 	// intro for an item, stamped with the algorithm version it ran under. When the
 	// stored version differs from algoVersion (the algorithm improved) the count

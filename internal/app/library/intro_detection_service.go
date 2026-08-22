@@ -86,11 +86,52 @@ type IntroDetectionService struct {
 	// stacking a concurrent sweep over the same seasons.
 	backfillMu       sync.Mutex
 	backfillInFlight map[string]struct{}
+
+	// backfillBootDelay and backfillIdle pace the resumable sweep (0 = the
+	// defaults). Tests shrink them; production keeps the defaults.
+	backfillBootDelay time.Duration
+	backfillIdle      time.Duration
 }
 
 // ErrIntroBackfillAlreadyRunning is returned by BackfillLibrary when a sweep
 // for the same library is still in flight.
 var ErrIntroBackfillAlreadyRunning = errors.New("intro backfill already running for this library")
+
+// backfillAllLibraries is the guard key of the catalogue-wide sweep. It is
+// EXCLUSIVE with every per-library key in both directions: it covers all the
+// libraries, so letting an admin trigger run underneath it would be exactly the
+// "two concurrent sweeps over the same library" the guard exists to prevent -
+// and that only became reachable once the sweep learned to start itself.
+const backfillAllLibraries = ""
+
+// acquireBackfill claims the sweep slot for libraryID, or answers
+// ErrIntroBackfillAlreadyRunning. Every sweep - admin trigger or automatic
+// resume - goes through here so there is ONE answer to "may this sweep start?".
+func (s *IntroDetectionService) acquireBackfill(libraryID string) error {
+	s.backfillMu.Lock()
+	defer s.backfillMu.Unlock()
+	if _, running := s.backfillInFlight[libraryID]; running {
+		return ErrIntroBackfillAlreadyRunning
+	}
+	if libraryID == backfillAllLibraries {
+		if len(s.backfillInFlight) > 0 {
+			return ErrIntroBackfillAlreadyRunning
+		}
+	} else if _, all := s.backfillInFlight[backfillAllLibraries]; all {
+		return ErrIntroBackfillAlreadyRunning
+	}
+	if s.backfillInFlight == nil {
+		s.backfillInFlight = make(map[string]struct{})
+	}
+	s.backfillInFlight[libraryID] = struct{}{}
+	return nil
+}
+
+func (s *IntroDetectionService) releaseBackfill(libraryID string) {
+	s.backfillMu.Lock()
+	delete(s.backfillInFlight, libraryID)
+	s.backfillMu.Unlock()
+}
 
 // IntroDetectionUseAllCoresKey is the server_config toggle that lets the admin
 // run intro detection on the full CPU budget instead of the gentle trickplay
@@ -358,6 +399,10 @@ func (s *IntroDetectionService) isTrickplayEnabled(ctx context.Context) bool {
 // scanned before the feature existed (or while the worker was down) get covered.
 func (s *IntroDetectionService) StartWorker(ctx context.Context) {
 	bgtasks.Register("intro_detection")
+	// Started before the event-bus guard: the sweep is what covers the catalogue
+	// (99% of the detections in the 2026-08-22 prod sample came from it, against
+	// ~8 a day from the event path), so it must not be hostage to a bus.
+	s.StartResumableBackfill(ctx)
 	if s.events == nil {
 		return
 	}
@@ -444,40 +489,107 @@ func (s *IntroDetectionService) StartWorker(ctx context.Context) {
 		}
 	})
 
-	// Backfill sweep - runs once at startup, 60s after boot, in the background.
-	// Picks up seasons that have episodes without segments (legacy data, or
-	// scans that landed while the worker was offline). Each season is detected
-	// sequentially to keep CPU usage bounded.
+}
+
+// StartResumableBackfill launches the sweep that survives a redeployment. It is
+// started from StartWorker and needs no event bus: its intention lives in the
+// database, not in this process.
+func (s *IntroDetectionService) StartResumableBackfill(ctx context.Context) {
 	go func() {
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(60 * time.Second):
-		}
 		defer func() {
 			if r := recover(); r != nil {
 				slog.ErrorContext(ctx, "recovered panic in intro detection backfill", slog.Any("error", r))
 			}
 		}()
-		s.backfillMissingSeasons(ctx)
+		s.runResumableBackfill(ctx)
 	}()
 }
 
-// backfillMissingSeasons enumerates every season parent that has episodes
-// without any media_segments rows and runs detection. Idempotent - episodes
-// already covered are skipped by detectSeason.
-func (s *IntroDetectionService) backfillMissingSeasons(ctx context.Context) {
-	parentIDs, err := s.segmentRepo.ListSeasonsMissingSegments(ctx)
-	if err != nil {
-		slog.WarnContext(ctx, "intro detection backfill: list seasons", slog.Any("err", err))
-		return
+// introBackfillBootDelay lets the boot settle before the first drain.
+const introBackfillBootDelay = 60 * time.Second
+
+// introBackfillIdleInterval is how long the sweep sleeps once the work list
+// comes back empty. It then asks again, so newly scanned seasons and an
+// introDetectionAlgoVersion bump are both picked up without a restart.
+const introBackfillIdleInterval = 30 * time.Minute
+
+// introBackfillBatchSize bounds one batch of the work list.
+const introBackfillBatchSize = 100
+
+// runResumableBackfill drains the work list, sleeps when it is empty, and asks
+// again - forever. The previous design fired ONCE, 60s after boot, off a
+// predicate that matched almost nothing; everything else came from an admin
+// button whose intention lived in a map in memory. A redeployment on 2026-08-09
+// killed a 42h sweep and nothing restarted it: 31 detection decisions in the
+// following 11 days.
+//
+// Nothing here is remembered across a restart on purpose - the next boot asks
+// the database the same question and gets the remaining seasons.
+func (s *IntroDetectionService) runResumableBackfill(ctx context.Context) {
+	delay := s.backfillBootDelay
+	if delay <= 0 {
+		delay = introBackfillBootDelay
 	}
-	if len(parentIDs) == 0 {
-		return
+	idle := s.backfillIdle
+	if idle <= 0 {
+		idle = introBackfillIdleInterval
 	}
-	slog.InfoContext(ctx, "intro detection backfill: starting", slog.Int("seasons", len(parentIDs)))
-	s.forEachBackfillTarget(ctx, parentIDs, s.detectSeason)
-	slog.InfoContext(ctx, "intro detection backfill: done")
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(delay):
+		}
+		s.sweepPendingSeasons(ctx)
+		delay = idle
+	}
+}
+
+// sweepPendingSeasons runs one drain cycle over the seasons whose intro
+// detection is still to do, and returns how many it walked. Guarded like an
+// admin trigger, and holding the guard only while it works: an idle sweep must
+// not lock the admin out of its own library.
+func (s *IntroDetectionService) sweepPendingSeasons(ctx context.Context) int {
+	if err := s.acquireBackfill(backfillAllLibraries); err != nil {
+		slog.InfoContext(ctx, "intro detection backfill: another sweep is running, skipping this cycle")
+		return 0
+	}
+	defer s.releaseBackfill(backfillAllLibraries)
+	return s.drainPendingSeasons(ctx)
+}
+
+// drainPendingSeasons walks the work list batch by batch until it is empty.
+// Caller holds the guard.
+//
+// seen is the in-run skip set (the keyframe backfill's `attempted`): a season
+// the sweep just walked WITHOUT making progress - nothing detectable, no
+// attempt recorded - is still pending, and would otherwise be handed back by
+// every batch forever. Resetting it each cycle is what lets the next wake-up
+// try again.
+func (s *IntroDetectionService) drainPendingSeasons(ctx context.Context) int {
+	var seen []string
+	swept := 0
+	for {
+		if ctx.Err() != nil {
+			return swept
+		}
+		ids, err := s.segmentRepo.ListSeasonsPendingIntroDetection(
+			ctx, introDetectionAlgoVersion, maxIntroDetectionAttempts, introBackfillBatchSize, seen)
+		if err != nil {
+			slog.WarnContext(ctx, "intro detection backfill: list pending seasons", slog.Any("err", err))
+			return swept
+		}
+		if len(ids) == 0 {
+			if swept > 0 {
+				slog.InfoContext(ctx, "intro detection backfill: work list drained", slog.Int("seasons", swept))
+			}
+			return swept
+		}
+		slog.InfoContext(ctx, "intro detection backfill: batch", slog.Int("seasons", len(ids)))
+		seen = append(seen, ids...)
+		s.forEachBackfillTarget(ctx, ids, s.detectSeason)
+		swept += len(ids)
+	}
 }
 
 // backfillWorkers is how many seasons (or movies) a backfill sweep walks at
@@ -535,81 +647,59 @@ func (s *IntroDetectionService) forEachBackfillTarget(ctx context.Context, ids [
 	wg.Wait()
 }
 
-// BackfillLibrary runs the same detection loop as backfillMissingSeasons but
-// scoped to a single library. An empty libraryID is equivalent to calling
-// backfillMissingSeasons (all libraries). This is the entry point for the
-// admin "run backfill" endpoint - it runs synchronously; callers that want
-// non-blocking behaviour should wrap it in a goroutine.
+// BackfillLibrary sweeps one library's seasons and movies. An empty libraryID
+// means the whole catalogue and runs the SAME resumable drain as the automatic
+// sweep - the admin button and the boot now share one work list, so pressing it
+// after a restart re-enters the queue where the killed process left it. This is
+// the entry point for the admin "run backfill" endpoint - it runs synchronously;
+// callers that want non-blocking behaviour should wrap it in a goroutine.
 //
 // Returns the number of seasons that were scheduled (i.e. passed to
 // detectSeason, not necessarily found new segments).
 func (s *IntroDetectionService) BackfillLibrary(ctx context.Context, libraryID string) (int, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.library.intro.BackfillLibrary")
 	defer span.End()
-	s.backfillMu.Lock()
-	if _, running := s.backfillInFlight[libraryID]; running {
-		s.backfillMu.Unlock()
+	if err := s.acquireBackfill(libraryID); err != nil {
 		slog.InfoContext(ctx, "intro detection admin backfill: duplicate trigger ignored",
 			slog.String("library_id", libraryID))
-		return 0, ErrIntroBackfillAlreadyRunning
+		return 0, err
 	}
-	if s.backfillInFlight == nil {
-		s.backfillInFlight = make(map[string]struct{})
+	defer s.releaseBackfill(libraryID)
+	if libraryID == backfillAllLibraries {
+		return s.drainPendingSeasons(ctx), nil
 	}
-	s.backfillInFlight[libraryID] = struct{}{}
-	s.backfillMu.Unlock()
-	defer func() {
-		s.backfillMu.Lock()
-		delete(s.backfillInFlight, libraryID)
-		s.backfillMu.Unlock()
-	}()
 	var parentIDs []string
-	if libraryID == "" {
-		// No filter: use the same missing-segments query as the boot sweep.
-		ids, err := s.segmentRepo.ListSeasonsMissingSegments(ctx)
+	seasonType := string(domainlibrary.Season)
+	libID := shared.LibraryID(libraryID)
+	// Paged like backfillMovies: the repo clamps ANY single List to its
+	// own cap (postgres DefaultListLimit=500), so one big request
+	// silently truncated 500+-season libraries - prod logged exactly
+	// seasons=500 on two consecutive sweeps (2026-08-08) and everything
+	// past the cap was never detected.
+	const seasonPageSize = 200
+	for offset := 0; ; offset += seasonPageSize {
+		seasons, err := s.mediaItems.List(ctx, domainlibrary.ListMediaItemsFilter{
+			LibraryID: &libID,
+			Type:      &seasonType,
+			Limit:     seasonPageSize,
+			Offset:    offset,
+		})
 		if err != nil {
-			return 0, fmt.Errorf("intro detection admin backfill: list seasons: %w", err)
+			return 0, fmt.Errorf("intro detection admin backfill: list library seasons: %w", err)
 		}
-		parentIDs = ids
-	} else {
-		seasonType := string(domainlibrary.Season)
-		libID := shared.LibraryID(libraryID)
-		// Paged like backfillMovies: the repo clamps ANY single List to its
-		// own cap (postgres DefaultListLimit=500), so one big request
-		// silently truncated 500+-season libraries - prod logged exactly
-		// seasons=500 on two consecutive sweeps (2026-08-08) and everything
-		// past the cap was never detected.
-		const seasonPageSize = 200
-		for offset := 0; ; offset += seasonPageSize {
-			seasons, err := s.mediaItems.List(ctx, domainlibrary.ListMediaItemsFilter{
-				LibraryID: &libID,
-				Type:      &seasonType,
-				Limit:     seasonPageSize,
-				Offset:    offset,
-			})
-			if err != nil {
-				return 0, fmt.Errorf("intro detection admin backfill: list library seasons: %w", err)
-			}
-			for _, se := range seasons {
-				parentIDs = append(parentIDs, string(se.ID))
-			}
-			if len(seasons) < seasonPageSize {
-				break
-			}
+		for _, se := range seasons {
+			parentIDs = append(parentIDs, string(se.ID))
+		}
+		if len(seasons) < seasonPageSize {
+			break
 		}
 	}
 
-	if len(parentIDs) == 0 && libraryID == "" {
-		return 0, nil
-	}
 	slog.InfoContext(ctx, "intro detection admin backfill: starting",
 		slog.String("library_id", libraryID),
 		slog.Int("seasons", len(parentIDs)))
 	s.forEachBackfillTarget(ctx, parentIDs, s.detectSeason)
-	movies := 0
-	if libraryID != "" {
-		movies = s.backfillMovies(ctx, libraryID)
-	}
+	movies := s.backfillMovies(ctx, libraryID)
 	slog.InfoContext(ctx, "intro detection admin backfill: done",
 		slog.String("library_id", libraryID),
 		slog.Int("seasons", len(parentIDs)),
@@ -772,38 +862,19 @@ func (s *IntroDetectionService) detectSeason(ctx context.Context, parentID strin
 				return
 			}
 			existing := existingByID[ep.ID]
-			hasGoodIntro := false
-			manualLocked := false
+			// One answer to "is this episode's intro settled?", shared with the
+			// SQL that rebuilds the sweep's work list after a restart: an
+			// operator lock, or a long-enough file-derived intro. See
+			// domainlibrary.IntroDetectionSettled for what is deliberately NOT
+			// coverage (community DBs, last-resort heuristics, sub-5s stubs).
+			settled := false
 			for _, sg := range existing {
-				if sg.Type != "intro" {
-					continue
-				}
-				if sg.Source == "manual" || sg.Source == "manual_propagated" {
-					manualLocked = true
+				if sg.Type == "intro" && domainlibrary.IntroDetectionSettled(sg.Source, sg.EndMs-sg.StartMs) {
+					settled = true
 					break
 				}
-				// Treat a segment from a FILE-DERIVED authoritative source as
-				// "good": once covered, a re-detection would burn CPU re-running
-				// pHash + Chromaprint just to land on the same answer.
-				//
-				// Excluded on purpose: community DBs ("tidb"/"introdb") describe
-				// someone else's copy of the media, and the eval measured them
-				// tens of seconds off where the cluster was within a second -
-				// keep those episodes eligible so a file-derived detection can
-				// replace them (runPipeline ranks it above the provider). Also
-				// excluded: the last-resort heuristics ("audio", "blackdetect").
-				switch sg.Source {
-				case "mkv_chapter", "audio_cluster":
-					if sg.EndMs-sg.StartMs >= 5_000 {
-						hasGoodIntro = true
-					}
-				case "phash":
-					if sg.EndMs-sg.StartMs >= 5_000 {
-						hasGoodIntro = true
-					}
-				}
 			}
-			if manualLocked || hasGoodIntro {
+			if settled {
 				// The episode skips the intro pipeline, but its stored credits
 				// may come from the old first-black parser - refresh the
 				// suspect ones so a parser fix reaches covered episodes too.

@@ -5,6 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
+	"sort"
+	"sync"
 	"testing"
 	"time"
 
@@ -306,6 +309,10 @@ func (f *fakeDetector) SceneCutTimestamps(_ context.Context, _ string, _, _, _ f
 // fakeSegmentRepo records all Upsert calls and stores segments by (mediaItemID, type).
 // GetByMediaItemID returns segments that were previously upserted.
 type fakeSegmentRepo struct {
+	// mu makes the fake safe under the sweep's worker pool, like the database
+	// it stands in for. Without it the fake was only ever correct for a
+	// SEQUENTIAL sweep, and forEachBackfillTarget has fanned out for a while.
+	mu       sync.Mutex
 	upserted []*domainlibrary.MediaSegment
 	// seeded allows tests to pre-populate segments for GetByMediaItemID.
 	seeded []*domainlibrary.MediaSegment
@@ -340,6 +347,20 @@ type fakeSegmentRepo struct {
 	// exhaustedBatchErr makes every IntroDetectionExhaustedBatch call fail with
 	// this error.
 	exhaustedBatchErr error
+	// pendingCalls counts ListSeasonsPendingIntroDetection calls.
+	pendingCalls int
+	// episodesBySeason maps a season parent id to its episode ids. It is what
+	// lets ListSeasonsPendingIntroDetection be DERIVED from the fake's own rows
+	// the way the SQL derives it from the tables - a fake handing back a canned
+	// list would prove nothing about a sweep resuming from the database.
+	episodesBySeason map[string][]shared.MediaItemID
+	// onPendingListed fires inside ListSeasonsPendingIntroDetection with the
+	// number of ids it is about to return, so a test can interrupt or block a
+	// sweep exactly where a redeployment would.
+	onPendingListed func(int)
+	// dropAttempts makes RecordIntroDetectionAttempt a no-op, simulating seasons
+	// the sweep walks without making any progress.
+	dropAttempts bool
 	// ops is the ordered write/delete log replayed by the read methods. The real
 	// table is UNIQUE on (media_item_id, type): an upsert REPLACES the row and a
 	// delete removes it. A fake that only appended returned two rows for one key
@@ -413,6 +434,8 @@ type fakeIntroAttempt struct {
 }
 
 func (r *fakeSegmentRepo) Upsert(_ context.Context, seg *domainlibrary.MediaSegment) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.upserted = append(r.upserted, seg)
 	r.ops = append(r.ops, fakeSegOp{seg: seg, id: seg.MediaItemID, typ: seg.Type})
 	return nil
@@ -422,6 +445,8 @@ func (r *fakeSegmentRepo) Upsert(_ context.Context, seg *domainlibrary.MediaSegm
 // applied=false) when an existing seeded/upserted segment for the same
 // (mediaItemID, type) is a manual mark, else records the upsert.
 func (r *fakeSegmentRepo) UpsertUnlessManual(_ context.Context, seg *domainlibrary.MediaSegment) (bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if r.upsertErr != nil {
 		return false, r.upsertErr
 	}
@@ -437,6 +462,8 @@ func (r *fakeSegmentRepo) UpsertUnlessManual(_ context.Context, seg *domainlibra
 // (applied=false) only when an existing segment is a hard 'manual' mark;
 // 'manual_propagated' rows ARE overwritten (a re-run refreshes its own work).
 func (r *fakeSegmentRepo) UpsertUnlessOperatorManual(_ context.Context, seg *domainlibrary.MediaSegment) (bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if r.upsertErr != nil {
 		return false, r.upsertErr
 	}
@@ -448,6 +475,8 @@ func (r *fakeSegmentRepo) UpsertUnlessOperatorManual(_ context.Context, seg *dom
 	return true, nil
 }
 func (r *fakeSegmentRepo) GetByMediaItemID(_ context.Context, id shared.MediaItemID) ([]*domainlibrary.MediaSegment, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.queriedIDs = append(r.queriedIDs, string(id))
 	if r.getErr != nil {
 		return nil, r.getErr
@@ -461,6 +490,8 @@ func (r *fakeSegmentRepo) GetByMediaItemID(_ context.Context, id shared.MediaIte
 // GetByMediaItemIDs mirrors the postgres batch query: one call covering every
 // requested id, grouped into a map. Missing ids are absent from the map.
 func (r *fakeSegmentRepo) GetByMediaItemIDs(_ context.Context, ids []shared.MediaItemID) (map[shared.MediaItemID][]*domainlibrary.MediaSegment, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.batchCalls++
 	for _, id := range ids {
 		r.batchQueriedIDs = append(r.batchQueriedIDs, string(id))
@@ -478,19 +509,78 @@ func (r *fakeSegmentRepo) GetByMediaItemIDs(_ context.Context, ids []shared.Medi
 }
 
 func (r *fakeSegmentRepo) DeleteByMediaItemID(_ context.Context, id shared.MediaItemID) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.ops = append(r.ops, fakeSegOp{id: id})
 	return nil
 }
 func (r *fakeSegmentRepo) DeleteByMediaItemIDAndType(_ context.Context, id shared.MediaItemID, segType string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.deleted = append(r.deleted, string(id)+"/"+segType)
 	r.ops = append(r.ops, fakeSegOp{id: id, typ: segType})
 	return nil
 }
-func (r *fakeSegmentRepo) ListSeasonsMissingSegments(_ context.Context) ([]string, error) {
-	return nil, nil
+// ListSeasonsPendingIntroDetection mirrors the postgres predicate: a season is
+// returned when at least one of its episodes has no settled intro AND has not
+// burned its retry budget at algoVersion. Derived from the fake's own rows and
+// attempt counters, so it SHRINKS as detection progresses exactly like the SQL -
+// which is the whole property the resumable sweep relies on. exclude is the
+// caller's in-run skip set and limit bounds the batch; neither goes through the
+// paginated List path, so DefaultListLimit does not apply here.
+func (r *fakeSegmentRepo) ListSeasonsPendingIntroDetection(_ context.Context, algoVersion, maxAttempts, limit int, exclude []string) ([]string, error) {
+	out, hook := r.pendingSeasons(algoVersion, maxAttempts, limit, exclude)
+	// Outside the lock: tests use this hook to block a sweep mid-flight, and
+	// holding the repo lock there would freeze every other caller too.
+	if hook != nil {
+		hook(len(out))
+	}
+	return out, nil
+}
+
+func (r *fakeSegmentRepo) pendingSeasons(algoVersion, maxAttempts, limit int, exclude []string) ([]string, func(int)) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.pendingCalls++
+	seasons := make([]string, 0, len(r.episodesBySeason))
+	for season := range r.episodesBySeason {
+		seasons = append(seasons, season)
+	}
+	sort.Strings(seasons) // the query is ORDER BY parent_id
+	var out []string
+	for _, season := range seasons {
+		if slices.Contains(exclude, season) {
+			continue
+		}
+		for _, ep := range r.episodesBySeason[season] {
+			if a, ok := r.attempts[string(ep)]; ok && a.version == algoVersion && a.count >= maxAttempts {
+				continue
+			}
+			settled := false
+			for _, sg := range r.replay(ep) {
+				if sg.Type == "intro" && domainlibrary.IntroDetectionSettled(sg.Source, sg.EndMs-sg.StartMs) {
+					settled = true
+					break
+				}
+			}
+			if !settled {
+				out = append(out, season)
+				break
+			}
+		}
+		if limit > 0 && len(out) >= limit {
+			break
+		}
+	}
+	return out, r.onPendingListed
 }
 
 func (r *fakeSegmentRepo) RecordIntroDetectionAttempt(_ context.Context, mediaItemID string, algoVersion int) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.dropAttempts {
+		return nil
+	}
 	if r.attempts == nil {
 		r.attempts = map[string]fakeIntroAttempt{}
 	}
@@ -509,6 +599,8 @@ func (r *fakeSegmentRepo) RecordIntroDetectionAttempt(_ context.Context, mediaIt
 // covering every requested id, returning a map where a not-exhausted id is
 // simply absent (not false-valued).
 func (r *fakeSegmentRepo) IntroDetectionExhaustedBatch(_ context.Context, mediaItemIDs []string, algoVersion, maxAttempts int) (map[string]bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.exhaustedBatchCalls++
 	if r.exhaustedBatchErr != nil {
 		return nil, r.exhaustedBatchErr
@@ -530,8 +622,20 @@ type fakeMediaItemRepo struct {
 	siblings []*domainlibrary.MediaItem
 }
 
-func (r *fakeMediaItemRepo) GetByID(_ context.Context, _ shared.MediaItemID) (*domainlibrary.MediaItem, error) {
-	return r.item, nil
+// GetByID answers the configured single item when there is one, else looks the
+// id up among the siblings. A fake that answered the SAME item to every id made
+// a multi-season sweep look like it worked while every episode resolved to the
+// same file.
+func (r *fakeMediaItemRepo) GetByID(_ context.Context, id shared.MediaItemID) (*domainlibrary.MediaItem, error) {
+	if r.item != nil {
+		return r.item, nil
+	}
+	for _, it := range r.siblings {
+		if it.ID == id {
+			return it, nil
+		}
+	}
+	return nil, shared.ErrNotFound
 }
 func (r *fakeMediaItemRepo) Create(_ context.Context, _ *domainlibrary.MediaItem) error { return nil }
 func (r *fakeMediaItemRepo) List(_ context.Context, f domainlibrary.ListMediaItemsFilter) ([]*domainlibrary.MediaItem, error) {
@@ -540,6 +644,19 @@ func (r *fakeMediaItemRepo) List(_ context.Context, f domainlibrary.ListMediaIte
 	// caller pages past a full page. Honour Type so callers that enumerate
 	// seasons vs movies vs episodes (BackfillLibrary) see distinct sets.
 	items := r.siblings
+	// Honour ParentID when at least one fixture declares one: a sweep walking
+	// several seasons must not receive every episode of the catalogue for each
+	// of them. Fixtures that leave ParentID empty keep the old "one anonymous
+	// season" behaviour.
+	if f.ParentID != nil && slices.ContainsFunc(items, func(it *domainlibrary.MediaItem) bool { return it.ParentID != "" }) {
+		var scoped []*domainlibrary.MediaItem
+		for _, it := range items {
+			if it.ParentID == *f.ParentID {
+				scoped = append(scoped, it)
+			}
+		}
+		items = scoped
+	}
 	if f.Type != nil {
 		var typed []*domainlibrary.MediaItem
 		for _, it := range items {
