@@ -67,6 +67,18 @@ type introConfig struct {
 	// gated. 0 disables, like min_serve_confidence.
 	MaxServeCreditsLeadMs int64 `json:"max_serve_credits_lead_ms"` // default 240_000 (4 min)
 
+	// SkipUnservableSilenceFallback trades stored data for sweep speed. The
+	// last-resort silence pass is a 600s blackdetect+silencedetect decode that
+	// always answers at 0.5, so MinServeConfidence at its default withholds
+	// every result it produces (32.6% of the sweep's decisions, 7.52s per
+	// episode in the 2026-08-22 prod sample). OFF by default anyway: the sweep
+	// is already on the episode, and a value nobody serves today is still eval
+	// material for the algorithm - recomputing it later means re-sweeping the
+	// whole catalogue. Turn it ON to buy that time back when the sweep's speed
+	// matters more than the corpus. It only ever skips scans whose answer the
+	// serving gate would withhold: see shouldRunSilenceFallback.
+	SkipUnservableSilenceFallback bool `json:"skip_unservable_silence_fallback"` // default false
+
 	// AudioDiscoveryEnabled gates the per-episode Chromaprint discovery fallback
 	// (discoverIntroByAudio). Demoted to OFF by default: an eval against
 	// community ground truth (tidb/introdb) showed it frequently locks onto the
@@ -123,6 +135,8 @@ func defaultIntroConfig() introConfig {
 		MaxServeCreditsLeadMs: domainlibrary.SuspiciousCreditsLeadMs,
 		SeasonClusterEnabled:  true,
 		AudioDiscoveryEnabled: false,
+
+		SkipUnservableSilenceFallback: false,
 	}
 }
 

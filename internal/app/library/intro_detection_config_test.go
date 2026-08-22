@@ -84,3 +84,36 @@ func TestLoadIntroConfig_EmptyValue_ReturnsDefaults(t *testing.T) {
 	cfg := loadIntroConfig(context.Background(), repo)
 	assert.Equal(t, defaultIntroConfig(), cfg)
 }
+
+// The silence fallback is COMPUTED and stored by default, whatever the serving
+// gate withholds: the saving is opt-in, never the other way round (user
+// decision 2026-08-22 - a value the sweep already paid for is eval material,
+// and recovering it later costs a full re-sweep).
+func TestDefaultIntroConfig_ComputesTheSilenceFallbackByDefault(t *testing.T) {
+	t.Parallel()
+	def := defaultIntroConfig()
+	assert.False(t, def.SkipUnservableSilenceFallback)
+	assert.True(t, shouldRunSilenceFallback(def))
+}
+
+func TestLoadIntroConfig_SkipUnservableSilenceFallbackOverride(t *testing.T) {
+	t.Parallel()
+	repo := sharedfakes.NewFakeServerConfigRepository()
+	require.NoError(t, repo.Set(context.Background(), IntroDetectionConfigKey,
+		`{"skip_unservable_silence_fallback": true}`))
+	cfg := loadIntroConfig(context.Background(), repo)
+	assert.True(t, cfg.SkipUnservableSilenceFallback)
+	assert.False(t, shouldRunSilenceFallback(cfg),
+		"opted in, the 0.5 answer the 0.55 gate withholds is not worth its scan")
+}
+
+// Guard on the FAKE, not on the code: fakeConfigRepo once answered the same
+// trickplay entry to every key, which silently made config-driven branches
+// untestable. Every cost test reads the new key through it.
+func TestFakeConfigRepo_HonoursTheIntroConfigKey(t *testing.T) {
+	t.Parallel()
+	cfg := loadIntroConfig(context.Background(), &fakeConfigRepo{values: map[string]string{
+		IntroDetectionConfigKey: `{"skip_unservable_silence_fallback": true}`,
+	}})
+	assert.True(t, cfg.SkipUnservableSilenceFallback)
+}

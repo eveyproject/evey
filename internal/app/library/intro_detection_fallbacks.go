@@ -67,7 +67,7 @@ func (s *IntroDetectionService) concurrentFallback(ctx context.Context, item *do
 
 // silenceFallbackConfidence is the confidence concurrentFallback stamps on every
 // result it returns - it is a fixed tier, not a measurement. Named because the
-// decision to PAY for the scan depends on it: see silenceFallbackServable.
+// decision to PAY for the scan depends on it: see shouldRunSilenceFallback.
 const silenceFallbackConfidence = 0.5
 
 // silenceFallbackWindowSec bounds the silence scan to the head of the file. It
@@ -76,17 +76,26 @@ const silenceFallbackConfidence = 0.5
 // sequences the gold set proved real.
 const silenceFallbackWindowSec = 600.0
 
-// silenceFallbackServable reports whether a silence-fallback result could ever
-// reach a player under the CURRENT configuration. The scan is a blackdetect +
-// silencedetect decode of the first silenceFallbackWindowSec of the file, and
-// it always answers at silenceFallbackConfidence: when the serving gate sits
-// above that tier, every result it produces is computed and then withheld at
-// each serve - 32.6% of the sweep's decisions in the 2026-08-22 prod sample.
+// shouldRunSilenceFallback is the ONE point deciding whether the last-resort
+// silence pass is worth its price - a blackdetect + silencedetect decode of the
+// first silenceFallbackWindowSec of the file. Two inputs, both from the
+// effective config so a live edit applies to the next episode:
 //
-// Read from the effective config, never baked in: MinServeConfidence is
-// admin-tunable and 0 disables the gate, so an operator who lowered the
-// threshold still gets the fallback they asked for.
-func silenceFallbackServable(cfg introConfig) bool {
+//   - SkipUnservableSilenceFallback: OFF by default, so the pass runs and its
+//     result is STORED whatever the serving gate does with it. Storage feeds
+//     the eval corpus; serving feeds the user. Those are different decisions,
+//     and the sweep is already on the episode - the value is far cheaper to
+//     compute now than to recover later by re-sweeping the catalogue.
+//   - MinServeConfidence, consulted only once the operator opted into the
+//     saving: the pass always answers at silenceFallbackConfidence, so a gate
+//     above that tier withholds every result it produces (32.6% of the sweep's
+//     decisions in the 2026-08-22 prod sample). A gate at or below it - 0
+//     disables the gate entirely - keeps the pass running even opted in,
+//     because its answer does reach players.
+func shouldRunSilenceFallback(cfg introConfig) bool {
+	if !cfg.SkipUnservableSilenceFallback {
+		return true
+	}
 	return cfg.MinServeConfidence <= 0 || silenceFallbackConfidence >= cfg.MinServeConfidence
 }
 

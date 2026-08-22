@@ -95,11 +95,13 @@ func TestDetectSeason_SuspectCreditsOnUncoveredEpisodeStillRepairOrDrop(t *testi
 		"an unrepairable suspect row is dropped, as refreshSuspectCredits already decided")
 }
 
-// The silence fallback always answers with confidence 0.5 while the serving
-// gate defaults to 0.55: its result is computed by a 600s blackdetect+
-// silencedetect decode and then withheld from every player. Paying for a scan
-// whose answer cannot be served under the current config is pure waste.
-func TestRunPipeline_SkipsSilenceFallbackWhenItsAnswerCannotBeServed(t *testing.T) {
+// The silence fallback answers at a fixed 0.5 while the serving gate defaults
+// to 0.55, so its result is stored and then withheld from every player. It is
+// computed anyway: the sweep is already decoding this episode, and a value
+// nobody serves today is still eval material for the algorithm. Recomputing it
+// later means re-sweeping the whole catalogue, which costs far more than
+// paying for it now (user decision 2026-08-22).
+func TestRunPipeline_ComputesTheSilenceFallbackEvenWhenItsAnswerCannotBeServed(t *testing.T) {
 	t.Parallel()
 	repo, ep := uncoveredEpisode(t)
 	det := &countingDetector{}
@@ -107,19 +109,36 @@ func TestRunPipeline_SkipsSilenceFallbackWhenItsAnswerCannotBeServed(t *testing.
 
 	svc.detectSeason(context.Background(), "season-id")
 
-	assert.Zero(t, int(det.fallbackCalls.Load()),
-		"the default serve gate (0.55) withholds every 0.5 result, so the scan must not run")
+	assert.Equal(t, 1, int(det.fallbackCalls.Load()),
+		"the default config computes and stores the fallback, whatever the serve gate withholds")
 }
 
-// ... but the gate is admin-tunable and 0 disables it. The condition has to be
-// re-read from the effective config, never baked in: an operator who lowered
-// the threshold still gets the fallback they paid for.
-func TestRunPipeline_RunsSilenceFallbackWhenTheGateAdmitsIt(t *testing.T) {
+// The saving stays available behind an explicit opt-in, for the day the sweep's
+// speed matters more than the eval corpus.
+func TestRunPipeline_SkipsUnservableSilenceFallbackWhenTheAdminOptsIn(t *testing.T) {
 	t.Parallel()
 	repo, ep := uncoveredEpisode(t)
 	det := &countingDetector{}
 	cfg := &fakeConfigRepo{values: map[string]string{
-		IntroDetectionConfigKey: `{"min_serve_confidence": 0}`,
+		IntroDetectionConfigKey: `{"skip_unservable_silence_fallback": true}`,
+	}}
+	svc := costTestService(repo, det, ep, cfg)
+
+	svc.detectSeason(context.Background(), "season-id")
+
+	assert.Zero(t, int(det.fallbackCalls.Load()),
+		"opted in, the scan whose 0.5 answer the 0.55 gate withholds must not run")
+}
+
+// Opted in, the skip is still conditional on the gate: one decision point, and
+// it re-reads the effective config. An operator who lowered the threshold gets
+// the fallback back even with the opt-in on, because its answer is servable.
+func TestRunPipeline_OptedInStillRunsTheFallbackWhenTheGateAdmitsIt(t *testing.T) {
+	t.Parallel()
+	repo, ep := uncoveredEpisode(t)
+	det := &countingDetector{}
+	cfg := &fakeConfigRepo{values: map[string]string{
+		IntroDetectionConfigKey: `{"skip_unservable_silence_fallback": true, "min_serve_confidence": 0}`,
 	}}
 	svc := costTestService(repo, det, ep, cfg)
 
@@ -127,4 +146,32 @@ func TestRunPipeline_RunsSilenceFallbackWhenTheGateAdmitsIt(t *testing.T) {
 
 	assert.Equal(t, 1, int(det.fallbackCalls.Load()),
 		"with the gate disabled the fallback result is servable, so the scan must run")
+}
+
+// Storing is not serving. The row the pipeline now writes back carries the 0.5
+// tier, and the serve gate must still withhold it under the default config -
+// the eval corpus grows without a coin-flip skip button reaching a player.
+func TestRunPipeline_StoresTheFallbackRowButTheServeGateStillWithholdsIt(t *testing.T) {
+	t.Parallel()
+	repo, ep := uncoveredEpisode(t)
+	det := &countingDetector{fakeDetector: fakeDetector{
+		fallbackFound: true, fallbackStartMs: 12_000, fallbackEndMs: 45_000,
+	}}
+	svc := costTestService(repo, det, ep, &fakeConfigRepo{})
+
+	svc.detectSeason(context.Background(), "season-id")
+
+	var stored *domainlibrary.MediaSegment
+	for _, sg := range repo.upserted {
+		if sg.Type == "intro" {
+			stored = sg
+		}
+	}
+	require.NotNil(t, stored, "the fallback result must be persisted")
+	assert.Equal(t, "audio", stored.Source)
+	assert.InDelta(t, silenceFallbackConfidence, stored.Confidence, 1e-9)
+
+	served, err := segQuerySvc([]*domainlibrary.MediaSegment{stored}).GetSegments(context.Background(), "ep-1")
+	require.NoError(t, err)
+	assert.Empty(t, served, "a stored 0.5 row stays withheld from players under the default gate")
 }

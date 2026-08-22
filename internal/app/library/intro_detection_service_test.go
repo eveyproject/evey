@@ -272,6 +272,11 @@ type fakeDetector struct {
 	logoEndMs   int64
 	logoFound   bool
 
+	// fallback* is what AudioFallback answers (the last-resort silence pass).
+	fallbackStartMs int64
+	fallbackEndMs   int64
+	fallbackFound   bool
+
 	// tileHashes is returned by ExtractTileHashes when non-nil; defaults to nil (no hashes).
 	tileHashes []uint64
 
@@ -288,7 +293,7 @@ func (f *fakeDetector) PrecisionPass(_ context.Context, _ string, startSec, endS
 	return int64(startSec * 1000), int64(endSec * 1000), nil
 }
 func (f *fakeDetector) AudioFallback(_ context.Context, _ string, _ float64) (int64, int64, bool, error) {
-	return 0, 0, false, nil
+	return f.fallbackStartMs, f.fallbackEndMs, f.fallbackFound, nil
 }
 func (f *fakeDetector) DetectEndCredits(_ context.Context, _ string, _ float64) (int64, int64, bool, error) {
 	return f.creditsStartMs, f.creditsEndMs, f.creditsFound, f.creditsErr
