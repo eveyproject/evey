@@ -4,10 +4,23 @@
 	migrate-up migrate-down migrate-version setup dev dev-down dev-logs \
 	infra frontend-typecheck \
 	mobile-build mobile-install mobile mobile-go \
-	mutation-test
+	mutation-test docker-image verify-deploy
 
 BINARY=evey
 DC=docker compose --env-file .env.dev
+
+# ── Build identity ─────────────────────────────────────────────────────────────
+# The commit and build date stamped into the binary and into the image labels.
+# Both fall back to the literal "unknown" rather than to an empty string: an
+# empty --build-arg OVERRIDES the Dockerfile default and produces an image that
+# reports "" as its commit - a build that lies. `$(or ...)` collapses the empty
+# `git rev-parse` output (outside a checkout, or without git installed) onto the
+# honest value, and the Dockerfile rejects anything else. See scripts/verify-deploy.sh.
+GIT_COMMIT := $(or $(shell git rev-parse HEAD 2>/dev/null),unknown)
+BUILD_DATE := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+# `/` is legal in a branch name and illegal in a docker tag - substitute it.
+VERSION    := $(subst /,-,$(or $(shell git rev-parse --abbrev-ref HEAD 2>/dev/null),dev))
+GO_LDFLAGS := -X main.version=$(VERSION) -X main.commit=$(GIT_COMMIT) -X main.buildDate=$(BUILD_DATE)
 
 # ── Build ──────────────────────────────────────────────────────────────────────
 
@@ -41,7 +54,23 @@ plugin-zips:
 	@./scripts/build-test-plugins.sh
 
 build:
-	go build -o bin/$(BINARY) ./cmd/evey
+	go build -ldflags="$(GO_LDFLAGS)" -o bin/$(BINARY) ./cmd/evey
+
+# docker-image: local image build carrying the SAME stamps CI applies, so a
+# hand-built image identifies itself exactly like a published one. Never pushes.
+docker-image:
+	docker build \
+	  --build-arg VERSION=$(VERSION) \
+	  --build-arg COMMIT=$(GIT_COMMIT) \
+	  --build-arg BUILD_DATE=$(BUILD_DATE) \
+	  --build-arg RUNTIMES=$(or $(RUNTIMES),lean) \
+	  -t evey:$(VERSION) .
+
+# verify-deploy: ask a running server which commit it is on and compare it to
+# this checkout's HEAD. Exits non-zero on a mismatch AND on "cannot tell".
+# Usage: make verify-deploy URL=https://example.tld [COMMIT=<sha>]
+verify-deploy:
+	@./scripts/verify-deploy.sh $(if $(URL),--url $(URL),) $(if $(COMMIT),--commit $(COMMIT),)
 
 # wasm-decoder: (re)build the ac3go WebAssembly decoder (browser AC-3/E-AC-3
 # path) from the pinned module (go.mod `tool` directive) into the web app's
@@ -55,7 +84,7 @@ build:
 # compiler as the module.
 wasm-decoder:
 	docker run --rm -v $(PWD)/../ac3go:/src/ac3go -v $(PWD)/frontend/apps/web/public/wasm:/out -w /src/ac3go -e HOME=/tmp \
-	  golang:1.26 sh -c '\
+	  golang:1.26.6 sh -c '\
 	  CGO_ENABLED=0 GOOS=js GOARCH=wasm go build -o /out/ac3go.wasm ./cmd/ac3go-wasm \
 	  && cp "$$(go env GOROOT)/lib/wasm/wasm_exec.js" /out/wasm_exec.js'
 	@echo "✅ ac3go.wasm (standard go) + wasm_exec.js (go shim) rebuilt in frontend/apps/web/public/wasm/"

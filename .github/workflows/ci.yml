@@ -14,6 +14,14 @@ on:
     tags: ['v*.*.*']
   pull_request:
     branches: [main, master]
+  # Manual re-run, mainly to force (or skip) the arm64 half of the image
+  # without pushing a commit.
+  workflow_dispatch:
+    inputs:
+      platforms:
+        description: 'Image platforms to build (buildx list)'
+        required: false
+        default: 'linux/amd64,linux/arm64'
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -259,10 +267,11 @@ jobs:
     runs-on: ubuntu-latest  # GitHub-hosted - self-hosted re-disabled 2026-07-03, reusing GitHub runners for now
     # runs-on: self-hosted  # re-enable to switch back to the self-hosted workers
     needs: [quality, correctness, frontend]
-    # Only publish on push events (branch push or release tag) - never on PRs.
-    # The 3 backend/frontend jobs already gate this, so a failing test/lint
-    # blocks the image from reaching either registry.
-    if: github.event_name == 'push'
+    # Only publish on push events (branch push or release tag) and on an
+    # explicit manual run - never on PRs. The 3 backend/frontend jobs already
+    # gate this, so a failing test/lint blocks the image from reaching either
+    # registry.
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     permissions:
       contents: read
       packages: write # required to push to ghcr.io
@@ -319,21 +328,47 @@ jobs:
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
 
-      # Multi-arch (amd64 + arm64) ONLY for a stable semver release tag; branch
-      # builds and pre-release tags (-alpha/-beta) stay amd64-only so the
-      # frequent alpha/beta cadence isn't slowed by ~10x-slower emulated arm64
-      # builds. arm64 has no Intel QSV/NVENC - it is direct-play + software
-      # transcode (see the TARGETARCH guards in the Dockerfile).
+      - name: Build timestamp
+        id: stamp
+        run: echo "date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
+      # Multi-arch (amd64 + arm64) on every published build.
+      #
+      # This used to be gated on a STABLE `vX.Y.Z` tag - a tag this repository
+      # has never created. The arm64 image was therefore configured but never
+      # once built, and the guards written for it (the TARGETARCH branches in
+      # the Dockerfile) were never exercised. A trigger that never fires is not
+      # a conservative default, it is dead configuration.
+      #
+      # What made the old gate defensible was the cost: every stage ran under
+      # QEMU. Since the $BUILDPLATFORM pins on the gomod/protogen/wasm/frontend/
+      # builder stages, the four architecture-independent stages (protos, wasm,
+      # frontend bundle, Go compile) run NATIVE and are shared across both
+      # targets - `go build ./cmd/evey` alone measured 239 s emulated vs 16 s
+      # cross-compiled on the same host, same cold cache, same 4 CPUs.
+      # Only the Debian runtime stage (apt, no compilation) is still emulated,
+      # which is why building both arches on each push is now affordable.
+      #
+      # Escape hatches, in precedence order: the workflow_dispatch input, then
+      # `[skip arm64]` anywhere in the head commit message for a one-off rush.
+      # arm64 has no Intel QSV/NVENC - it is direct-play + software transcode.
       - name: Resolve build platforms
         id: platforms
+        env:
+          DISPATCH_PLATFORMS: ${{ github.event.inputs.platforms }}
+          HEAD_COMMIT_MSG: ${{ github.event.head_commit.message }}
         run: |
-          if [[ "${GITHUB_REF}" == refs/tags/v* && "${GITHUB_REF}" != *-alpha* && "${GITHUB_REF}" != *-beta* ]]; then
-            echo "value=linux/amd64,linux/arm64" >> "$GITHUB_OUTPUT"
-            echo "stable release tag - building multi-arch amd64 + arm64"
+          if [[ -n "${DISPATCH_PLATFORMS}" ]]; then
+            value="${DISPATCH_PLATFORMS}"
+            echo "manual dispatch - building ${value}"
+          elif [[ "${HEAD_COMMIT_MSG}" == *"[skip arm64]"* ]]; then
+            value="linux/amd64"
+            echo "commit message carries [skip arm64] - building amd64 only"
           else
-            echo "value=linux/amd64" >> "$GITHUB_OUTPUT"
-            echo "branch or pre-release - building amd64 only"
+            value="linux/amd64,linux/arm64"
+            echo "building multi-arch amd64 + arm64"
           fi
+          echo "value=${value}" >> "$GITHUB_OUTPUT"
 
       - name: Login to Docker Hub
         uses: docker/login-action@v3
@@ -355,9 +390,17 @@ jobs:
           platforms: ${{ steps.platforms.outputs.value }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # COMMIT/BUILD_DATE stamp the binary so /healthz and the admin API
+          # report the exact code they run - `VERSION` alone is a branch name
+          # and two images months apart both call themselves "beta-0.0.1".
+          # github.sha is always a full 40-char SHA here, so the Dockerfile's
+          # lie guard (which rejects an empty or malformed value) never fires
+          # in CI - it exists for hand-run builds outside a git checkout.
           build-args: |
             VERSION=${{ steps.meta.outputs.version }}
             RUNTIMES=${{ matrix.runtime.name }}
+            COMMIT=${{ github.sha }}
+            BUILD_DATE=${{ steps.stamp.outputs.date }}
           # Scope the GHA cache per variant so a `full` build never overwrites
           # the `lean` cache and vice versa - buildx layers diverge only in the
           # apt layer but the cache key needs to reflect that to stay correct.

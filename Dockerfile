@@ -1,5 +1,12 @@
 # ── Stage 1: Go modules (shared cache for protogen + builder) ──
-FROM golang:1.26.5-alpine AS gomod
+# --platform=$BUILDPLATFORM: everything derived from this stage (generated
+# protos, the CGO-free Go binaries) is either architecture-independent or
+# cross-compiled from it, so it must run NATIVE on the builder even when the
+# image targets another architecture. Without the pin, buildx runs these stages
+# under QEMU on a multi-arch build. Measured on one host, same cold build cache,
+# same 4 CPUs: `go build ./cmd/evey` for arm64 takes 239 s emulated vs 16 s
+# cross-compiled - 15x, and that is one stage out of four.
+FROM --platform=$BUILDPLATFORM golang:1.26.6-alpine AS gomod
 
 RUN apk add --no-cache gcc musl-dev linux-headers
 WORKDIR /src
@@ -25,7 +32,7 @@ RUN buf generate --template buf.gen.local.yaml
 # leaks every crossing value (+6.75 MB/segment measured 2026-07-28) - that
 # memory-killed the cast receiver at ~3 min. Ship wasm_exec.js from the same
 # compiler as the module.
-FROM golang:1.26.5-alpine AS wasmbuild
+FROM --platform=$BUILDPLATFORM golang:1.26.6-alpine AS wasmbuild
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download github.com/gravity-zero/ac3go
@@ -34,7 +41,9 @@ RUN mkdir -p /tmp/out \
     && cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" /tmp/out/wasm_exec.js
 
 # ── Stage 3: Build frontend ──
-FROM node:22-alpine AS frontend
+# Output is static JS/CSS/HTML - identical on every target arch, so build it
+# natively (see the gomod stage note on $BUILDPLATFORM).
+FROM --platform=$BUILDPLATFORM node:22-alpine AS frontend
 
 WORKDIR /app
 ENV CI=true
@@ -58,20 +67,57 @@ RUN cd packages/api \
     && pnpm --filter web build
 
 # ── Stage 4: Build backend ──
+# Inherits gomod's $BUILDPLATFORM pin: the Go toolchain runs NATIVE and
+# cross-compiles to $TARGETARCH. Legitimate because the whole tree is
+# CGO_ENABLED=0 with no `import "C"` anywhere: with cgo off, the Go toolchain
+# needs nothing from the host arch, so the cross-compiled binary is the same
+# artefact an emulated native build would produce - only far faster.
 FROM gomod AS builder
 
 ARG VERSION=dev
+# COMMIT / BUILD_DATE stamp the binary with the exact code it carries. The
+# defaults are the literal "unknown", never a guess: a build that cannot say
+# what it is must SAY so, because a server that reports a plausible-but-wrong
+# commit is worse than one that admits ignorance.
+ARG COMMIT=unknown
+ARG BUILD_DATE=unknown
+# Set automatically by buildx; used to cross-compile instead of emulating.
+ARG TARGETOS
+ARG TARGETARCH
+
+# The lie guard. `--build-arg COMMIT=$(git rev-parse HEAD)` run OUTSIDE a git
+# checkout expands to `--build-arg COMMIT=`, which sets COMMIT to the EMPTY
+# string and silently overrides the default above: the build then succeeds and
+# the image reports "" as its commit - an image that lies. Reject anything that
+# is neither a hex git SHA nor the explicit "unknown", so that mistake fails
+# here, loudly, instead of six weeks later in front of a production incident.
+RUN set -eu; \
+    case "${COMMIT}" in \
+      unknown) \
+        echo "WARNING: building without a commit stamp (COMMIT=unknown) - this image will not be able to identify itself" >&2 ;; \
+      *[!0-9a-f]*|"") \
+        echo "ERROR: COMMIT build-arg must be a lowercase hex git SHA or the literal 'unknown', got '${COMMIT}'" >&2; exit 1 ;; \
+      ???????*) : ;; \
+      *) echo "ERROR: COMMIT build-arg '${COMMIT}' is shorter than 7 hex chars" >&2; exit 1 ;; \
+    esac; \
+    case "${BUILD_DATE}" in \
+      unknown) : ;; \
+      ????-??-??T??:??:??*) : ;; \
+      *) echo "ERROR: BUILD_DATE build-arg must be RFC3339 (e.g. 2026-08-22T10:00:00Z) or the literal 'unknown', got '${BUILD_DATE}'" >&2; exit 1 ;; \
+    esac
 
 COPY . .
 COPY --from=protogen /src/gen/ gen/
-RUN CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=${VERSION}" -o /evey ./cmd/evey
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
+      -ldflags="-s -w -X main.version=${VERSION} -X main.commit=${COMMIT} -X main.buildDate=${BUILD_DATE}" \
+      -o /evey ./cmd/evey
 # Landlock pre-exec shim used by sandbox_mode=landlock (and auto). Pure Go,
 # CGO-free; lives next to /evey so the runner finds it via os.Executable().
-RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /evey-plugin-launcher ./cmd/evey-plugin-launcher
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -ldflags="-s -w" -o /evey-plugin-launcher ./cmd/evey-plugin-launcher
 # mkvgo CLI - the pinned library also ships a command; build it so admins can
 # inspect/repair media from inside the container (`mkvgo <TAB>` for commands).
 # Version stamped from the go.mod pin so `mkvgo --version` matches the library.
-RUN CGO_ENABLED=0 go build \
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
       -ldflags="-s -w -X main.version=$(go list -m -f '{{.Version}}' github.com/gravity-zero/mkvgo)" \
       -o /mkvgo github.com/gravity-zero/mkvgo/cmd/mkvgo
 
@@ -300,6 +346,17 @@ RUN chmod +x /entrypoint.sh
 # to find out which one is running. Lowercased so labels stay grep-friendly.
 LABEL org.evey.runtimes="${RUNTIMES}"
 ENV EVEY_IMAGE_RUNTIMES=${RUNTIMES}
+
+# Same build stamps the binary carries, on the image itself: standard OCI keys
+# so `docker inspect` / registry UIs answer "which commit is this tag?" without
+# starting a container. ARGs are per-stage, hence the re-declaration.
+ARG VERSION=dev
+ARG COMMIT=unknown
+ARG BUILD_DATE=unknown
+LABEL org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.revision="${COMMIT}" \
+      org.opencontainers.image.created="${BUILD_DATE}" \
+      org.opencontainers.image.source="https://github.com/evey-project/evey"
 
 EXPOSE 9091
 
