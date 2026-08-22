@@ -3,7 +3,7 @@ import { renderHook, act, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const mockIsFav = vi.fn(() => ({ data: false }));
+const mockBatchIsFav = vi.fn<(req: { mediaItemIds?: string[] }) => Promise<{ favoriteMediaItemIds?: string[] }>>();
 const mockAdd = vi.fn();
 const mockRemove = vi.fn();
 
@@ -16,12 +16,7 @@ const mockListFavorites = vi.fn();
 vi.mock("@evey/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@evey/api")>()),
   eveyFetch: vi.fn(),
-  useFavoriteServiceIsFavorite: (_id: string, _p: unknown, opts: { query?: { enabled?: boolean; select?: (d: unknown) => unknown } }) => {
-    const raw = mockIsFav();
-    const enabled = opts?.query?.enabled !== false;
-    const select = opts?.query?.select;
-    return { ...raw, data: enabled && raw?.data !== undefined && select ? select({ isFavorite: raw.data }) : (enabled ? raw?.data : undefined) };
-  },
+  favoriteServiceBatchIsFavorite: (req: { mediaItemIds?: string[] }) => mockBatchIsFav(req),
   favoriteServiceListFavorites: (params: unknown, signal?: AbortSignal) => mockListFavorites(params, signal),
   favoriteServiceAddFavorite: (id: string, body: unknown) => mockAdd(id, body),
   favoriteServiceRemoveFavorite: (id: string) => mockRemove(id),
@@ -38,18 +33,41 @@ function wrap() {
 describe("useIsFavorite", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("returns true when API says favorited", async () => {
-    mockIsFav.mockReturnValue({ data: true });
+  it("returns true when the batch answer lists the id", async () => {
+    mockBatchIsFav.mockResolvedValue({ favoriteMediaItemIds: ["media-1"] });
     const { useIsFavorite } = await import("./useFavorite");
     const { result } = renderHook(() => useIsFavorite("media-1"), { wrapper: wrap() });
-    expect(result.current.data).toBe(true);
+    await waitFor(() => expect(result.current.data).toBe(true));
+  });
+
+  it("returns false for an id the batch answer leaves out", async () => {
+    mockBatchIsFav.mockResolvedValue({ favoriteMediaItemIds: [] });
+    const { useIsFavorite } = await import("./useFavorite");
+    const { result } = renderHook(() => useIsFavorite("media-1"), { wrapper: wrap() });
+    await waitFor(() => expect(result.current.data).toBe(false));
   });
 
   it("is disabled when mediaId undefined", async () => {
-    mockIsFav.mockReturnValue({ data: undefined });
     const { useIsFavorite } = await import("./useFavorite");
     const { result } = renderHook(() => useIsFavorite(undefined), { wrapper: wrap() });
     expect(result.current.data).toBeUndefined();
+    expect(mockBatchIsFav).not.toHaveBeenCalled();
+  });
+
+  // Several hooks asking at once must produce ONE request carrying every id.
+  it("coalesces concurrent ids into a single request", async () => {
+    mockBatchIsFav.mockResolvedValue({ favoriteMediaItemIds: ["b"] });
+    const { useIsFavorite } = await import("./useFavorite");
+    const { result } = renderHook(
+      () => [useIsFavorite("a"), useIsFavorite("b"), useIsFavorite("c")] as const,
+      { wrapper: wrap() },
+    );
+
+    await waitFor(() => expect(result.current[1].data).toBe(true));
+    expect(mockBatchIsFav).toHaveBeenCalledTimes(1);
+    expect(mockBatchIsFav.mock.calls[0][0].mediaItemIds).toEqual(["a", "b", "c"]);
+    expect(result.current[0].data).toBe(false);
+    expect(result.current[2].data).toBe(false);
   });
 });
 
@@ -57,7 +75,6 @@ describe("useToggleFavorite", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("calls add on mutate", async () => {
-    mockIsFav.mockReturnValue({ data: false });
     mockAdd.mockResolvedValue({ isFavorite: true });
     const { useToggleFavorite } = await import("./useFavorite");
     const { result } = renderHook(() => useToggleFavorite("media-2"), { wrapper: wrap() });

@@ -44,7 +44,7 @@ vi.mock("@evey/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@evey/api")>()),
   usePlaybackServiceMarkAsWatched: () => ({ mutate: vi.fn() }),
   usePlaybackServiceMarkAsUnwatched: () => ({ mutate: vi.fn() }),
-  useFavoriteServiceIsFavorite: () => ({ data: false }),
+  favoriteServiceBatchIsFavorite: vi.fn().mockResolvedValue({ favoriteMediaItemIds: [] }),
   favoriteServiceAddFavorite: vi.fn(),
   favoriteServiceRemoveFavorite: vi.fn(),
   getFavoriteServiceIsFavoriteQueryKey: (id: string) => ["favorite", id],

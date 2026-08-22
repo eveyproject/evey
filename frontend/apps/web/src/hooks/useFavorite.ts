@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  useFavoriteServiceIsFavorite,
   favoriteServiceAddFavorite,
+  favoriteServiceBatchIsFavorite,
   favoriteServiceListFavorites,
   favoriteServiceRemoveFavorite,
   getFavoriteServiceListFavoritesQueryKey,
@@ -11,9 +11,69 @@ import {
   type V1FavoriteProto,
 } from "@evey/api";
 
+// Must not exceed the server's maxBatchIsFavoriteIDs (grpcapi/favorite_handler.go):
+// past it BatchIsFavorite refuses the whole call rather than truncating.
+const MAX_BATCH = 200;
+
+type FavoriteState = { isFavorite: boolean };
+type Waiter = { resolve: (v: FavoriteState) => void; reject: (e: unknown) => void };
+
+// Every card on a screen asks about its own media id, but they all ask within
+// the same commit. Collect the ids raised during that turn and answer them with
+// ONE request instead of one per card: a 226-card screen used to fire 226
+// GET /api/v1/favorites/{id} and, on its own, saturate the 300 req/min limiter
+// - the page's real calls were then refused as collateral damage (2026-08-15).
+const waiting = new Map<string, Waiter[]>();
+let flushScheduled = false;
+
+function flushFavoriteBatch() {
+  flushScheduled = false;
+  const batch = new Map(waiting);
+  waiting.clear();
+  const ids = [...batch.keys()];
+  for (let i = 0; i < ids.length; i += MAX_BATCH) {
+    const chunk = ids.slice(i, i + MAX_BATCH);
+    favoriteServiceBatchIsFavorite({ mediaItemIds: chunk })
+      .then((res) => {
+        const favorites = new Set(res.favoriteMediaItemIds ?? []);
+        for (const id of chunk) {
+          for (const w of batch.get(id) ?? []) w.resolve({ isFavorite: favorites.has(id) });
+        }
+      })
+      .catch((err) => {
+        // Reject rather than default to false: a swallowed error would paint an
+        // empty heart on a real favorite, which is exactly the silent lie this
+        // whole change exists to remove.
+        for (const id of chunk) {
+          for (const w of batch.get(id) ?? []) w.reject(err);
+        }
+      });
+  }
+}
+
+function loadFavoriteState(mediaId: string): Promise<FavoriteState> {
+  return new Promise<FavoriteState>((resolve, reject) => {
+    const waiters = waiting.get(mediaId);
+    if (waiters) waiters.push({ resolve, reject });
+    else waiting.set(mediaId, [{ resolve, reject }]);
+    if (!flushScheduled) {
+      flushScheduled = true;
+      // A microtask, not a timer: it runs once React has committed the whole
+      // list, and stays deterministic under the fake timers half this suite uses.
+      queueMicrotask(flushFavoriteBatch);
+    }
+  });
+}
+
 export function useIsFavorite(mediaId: string | undefined) {
-  return useFavoriteServiceIsFavorite(mediaId ?? "", undefined, {
-    query: { enabled: !!mediaId, select: (d) => d.isFavorite ?? false, staleTime: 30_000 },
+  return useQuery({
+    // Deliberately the generated single-item key: useToggleFavorite's optimistic
+    // write and every screen that invalidates a favourite already target it.
+    queryKey: getFavoriteServiceIsFavoriteQueryKey(mediaId ?? ""),
+    enabled: !!mediaId,
+    staleTime: 30_000,
+    queryFn: () => loadFavoriteState(mediaId!),
+    select: (d: FavoriteState | { isFavorite?: boolean }) => d.isFavorite ?? false,
   });
 }
 
