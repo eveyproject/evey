@@ -60,6 +60,39 @@
         ]
       }
     },
+    "/api/v1/favorites/batch/is-favorite": {
+      "post": {
+        "summary": "Batch counterpart of IsFavorite: one call answers for a whole screen.\nPOST because the id list does not fit a query string at grid sizes, and on\na path deeper than /api/v1/favorites/{media_item_id} so the gateway can\nnever route it to AddFavorite with media_item_id=\"batch\".",
+        "operationId": "FavoriteService_BatchIsFavorite",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1BatchIsFavoriteResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1BatchIsFavoriteRequest"
+            }
+          }
+        ],
+        "tags": [
+          "FavoriteService"
+        ]
+      }
+    },
     "/api/v1/favorites/{mediaItemId}": {
       "get": {
         "operationId": "FavoriteService_IsFavorite",
@@ -209,6 +242,33 @@
       "properties": {
         "isFavorite": {
           "type": "boolean"
+        }
+      }
+    },
+    "v1BatchIsFavoriteRequest": {
+      "type": "object",
+      "properties": {
+        "mediaItemIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Over the server's ceiling the call is REFUSED, never truncated: a silently\nshortened answer reads as \"not a favorite\" on the client and paints an\nempty heart over a real favorite."
+        },
+        "profileId": {
+          "type": "string"
+        }
+      }
+    },
+    "v1BatchIsFavoriteResponse": {
+      "type": "object",
+      "properties": {
+        "favoriteMediaItemIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Only the ids that ARE favorites of the caller's profile. Anything asked\nabout and not returned is simply \"not a favorite\" - which is also what an\nunknown id, an item in a library the caller cannot access and a parentally\nblocked item look like, so the answer never reveals that a media item exists."
         }
       }
     },
