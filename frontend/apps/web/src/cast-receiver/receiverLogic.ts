@@ -563,7 +563,7 @@ function shakaStackFrames(stack: unknown, max = 5): string {
 // and the picture still falls behind because the box's video decoder cannot
 // keep up with what it is being fed.
 //
-// Born of the the owner freeze (2026-08-23). Measured beacon by beacon in
+// Born of the 2026-08-23 cast freeze. Measured beacon by beacon in
 // production: over the 5 min 30 of degradation the playhead advanced 30.00 s
 // per 30 s beacon (19:29:08 pos=62.64 -> 19:33:38 pos=332.65) with buf=31/21
 // constant, then froze at 340.021 s with the buffer STILL full. Every existing

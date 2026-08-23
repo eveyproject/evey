@@ -167,7 +167,7 @@ export interface FrameDropTracker {
 const BLIND_QUALITY: FrameQuality = { dropped: -1, total: -1, droppedDelta: -1, totalDelta: -1 };
 
 // createFrameDropTracker suit getVideoPlaybackQuality() d'un battement a
-// l'autre. Motivation (2026-08-23, incident the owner) : un cast a gele a
+// l'autre. Motivation (incident cast du 2026-08-23) : un cast a gele a
 // tampon PLEIN, position a 1,000x, 100 % de HTTP 200 - toutes les mesures
 // serveur exonerent la livraison, et la seule qui aurait tranche manquait.
 // Des frames perdues qui montent pendant que la position avance nomment un

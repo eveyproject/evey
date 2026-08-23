@@ -420,8 +420,8 @@ func parseEndCredits(output string, startSec, durationSec float64) (startMs, end
 // Leading-logo scan tuning for DetectLeadingLogoBlock.
 const (
 	// leadingLogoScanWindowSec bounds the head decode. The longest labelled
-	// distributor block in the gold ground-truth set is 172s (The Twilight
-	// Saga: Breaking Dawn Part 2); 240s leaves margin without opening the
+	// distributor block in the gold ground-truth set is 172s; 240s leaves
+	// margin without opening the
 	// door to the film's first real scene fade.
 	leadingLogoScanWindowSec = 240.0
 )

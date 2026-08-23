@@ -152,7 +152,7 @@ describe("postPlayerEventQuery", () => {
   });
 });
 
-// Pourquoi ce bloc existe (2026-08-23, incident the owner) : un cast s'est
+// Pourquoi ce bloc existe (incident cast du 2026-08-23) : un cast s'est
 // FIGE a tampon PLEIN, position a 1,000x pendant 5 min 30 puis gelee. Toutes
 // les mesures serveur exoneraient la livraison (366 s servies en 335 s, 100 %
 // de HTTP 200, timestamps exacts a la milliseconde) - la seule chose que

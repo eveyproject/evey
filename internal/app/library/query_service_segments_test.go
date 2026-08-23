@@ -180,8 +180,8 @@ func TestGetSegments_WithholdsSubFiveSecondIntros(t *testing.T) {
 // Plancher de 12 s pour tout ce qui n'est PAS un chapitre MKV. Mesure du
 // 2026-08-24 sur ce que la PROD sert vraiment (19 intros servies, dump lecture
 // seule) : les trois plus courtes font 5 000, 5 347 et 10 000 ms et sont les
-// TROIS faux positifs du gold (A knight of the seven kingdoms [tidb], Dexter
-// resurrection [phash], The pitt [tidb]) ; la suivante fait 18 015 ms et est un
+// TROIS faux positifs du gold (deux [tidb], un [phash]) ; la suivante fait
+// 18 015 ms et est un
 // vrai positif. La marge sure est donc [10 001, 18 014] ms - 12 000 est au
 // milieu. Un chapitre MKV reste exempt : c'est le muxeur qui l'a ecrit, pas un
 // detecteur qui a devine, et il garde le plancher absolu de 5 s (decision user

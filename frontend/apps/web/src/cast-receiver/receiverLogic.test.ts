@@ -579,7 +579,7 @@ describe("describePlayerError - an error object must never print as [object Obje
   });
 });
 
-// Incident the owner 2026-08-23 : gel du cast a tampon PLEIN. La veille de
+// Incident cast du 2026-08-23 : gel a tampon PLEIN. La veille de
 // famine est structurellement AVEUGLE a ce cas, et la mesure prod le prouve
 // beacon par beacon : pendant les 5 min 30 de degradation la position avance
 // a exactement 1,000x (19:29:08 pos=62,64 -> 19:33:38 pos=332,65, soit 30,00 s

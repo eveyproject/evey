@@ -315,7 +315,7 @@ function startStarvationWatch(): void {
   const watch = createStarvationWatch();
   // Second watch, same cadence, blind spot of the first: bytes arriving,
   // buffer full, playhead at 1.000x, and the decoder still falling behind
-  // (the owner 2026-08-23). Its own frame tracker - the beacon's tracker
+  // (cast freeze 2026-08-23). Its own frame tracker - the beacon's tracker
   // samples every 30s and its deltas belong to it.
   const decoder = createDecoderDistressWatch();
   const decoderFrames = createFrameDropTracker();

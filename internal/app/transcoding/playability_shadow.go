@@ -167,7 +167,7 @@ func (s *PlayabilityShadow) Observe(ctx context.Context, path string, decision *
 	// PlanResolver.Decide applies the vd= pin right after this function
 	// returns. Reading the pointer late made the shadow compare an IMPOSED
 	// verdict against mkvgo's - it emitted a "divergent verdict" WARN on a
-	// pure-copy playback (2026-08-23, In the grey 19:27:49.970) because the
+	// pure-copy playback (2026-08-23, 19:27:49.970) because the
 	// copy-fallback-rung probe pinned vd=transcode a millisecond later, and
 	// that false WARN sent a whole investigation into the wall. It was also a
 	// plain data race. A snapshot fixes both.

@@ -494,7 +494,7 @@ func (h *countingHandler) count() int {
 	return h.warns
 }
 
-// Incident 2026-08-23 (the owner) : "playability shadow: divergent verdict" a
+// Incident cast du 2026-08-23 : "playability shadow: divergent verdict" a
 // ete emis a 19:27:49.970 sur un film servi en COPIE PURE - et ce faux WARN a
 // envoye toute l'enquete dans le mur pendant des heures. Mecanisme reel :
 // Observe confie l'ADRESSE de la decision a une goroutine detachee, qui ne lit
@@ -520,7 +520,7 @@ func TestPlayabilityShadow_SnapshotsTheVerdictBeforeTheCallerPinsIt(t *testing.T
 
 	// Le plan reel : copie pure, direct-play - convergent avec mkvgo.
 	decision := copyDecision("direct_play", "copy")
-	shadow.Observe(context.Background(), "/media/films/In the grey - 1080P.mkv", decision, domaintranscoding.ClientProfile{})
+	shadow.Observe(context.Background(), "/media/films/Some Movie - 1080P.mkv", decision, domaintranscoding.ClientProfile{})
 
 	<-analyzer.entered
 	// La sonde du barreau de secours : vd=transcode force, applique par
@@ -551,7 +551,7 @@ func TestPlayabilityShadow_RealDivergencePresentAtCallTimeStillWarns(t *testing.
 	shadow := NewPlayabilityShadow(analyzer, repo, slog.New(h))
 
 	decision := copyDecision("direct_play", "copy") // evey direct-play vs mkvgo transcode
-	shadow.Observe(context.Background(), "/media/films/In the grey - 1080P.mkv", decision, domaintranscoding.ClientProfile{})
+	shadow.Observe(context.Background(), "/media/films/Some Movie - 1080P.mkv", decision, domaintranscoding.ClientProfile{})
 	<-analyzer.entered
 	close(analyzer.release)
 	shadow.Wait()

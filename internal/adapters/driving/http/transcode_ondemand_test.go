@@ -736,7 +736,7 @@ func TestFloorMaster_ServesOnlyTheLowestRung(t *testing.T) {
 	assert.Contains(t, master, "fp=", "the rung seals its fingerprint")
 }
 
-// Incident the owner 2026-08-23 : le cast a gele a tampon PLEIN sur un flux
+// Incident cast du 2026-08-23 : le cast a gele a tampon PLEIN sur un flux
 // copie de 6,87 Mbps, et l'analyse a conclu que "la box n'a nulle part ou
 // retomber". C'est vrai du MASTER (copyFallbackVariant renvoie nil pour tout
 // recepteur cast, cf. TestBuildHybridMaster_FallbackRung_SkippedForCast) mais
