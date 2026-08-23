@@ -46,6 +46,7 @@ import (
 	"time"
 
 	domainmkv "github.com/evey-project/evey/internal/domain/mkv"
+	"github.com/evey-project/evey/internal/domain/transcoding"
 	"github.com/evey-project/evey/internal/pkg/hdr"
 	"github.com/evey-project/evey/internal/pkg/reduceddl"
 	"github.com/evey-project/evey/internal/pkg/tracing"
@@ -135,6 +136,11 @@ func BuildReducedArgs(src, pattern, listPath string, spec reduceddl.Spec) []stri
 		// after every boundary, and what makes the downloaded file seekable.
 		"-force_key_frames", fmt.Sprintf("expr:gte(t,n_forced*%d)", reduceddl.KeyframeSec),
 		"-c:a", "aac", "-ac", "2", "-b:a", fmt.Sprintf("%dk", reduceddl.AudioKbps),
+	)
+	// Same hardcoded stereo fold as the compat production, same permanent
+	// consequence in the delivered file - see domain/transcoding/audio_downmix.go.
+	args = append(args, transcoding.AudioDownmixArgs(2)...)
+	args = append(args,
 		"-c:s", "copy",
 		"-max_interleave_delta", "0",
 		"-f", "segment",

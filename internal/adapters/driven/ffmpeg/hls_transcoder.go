@@ -260,6 +260,7 @@ func audioOutputArgsSingle(opts transcoding.HLSProcessOpts, bitrateKbps int64) [
 			"-ac", resolveAudioChannels(opts.MaxAudioChannels),
 			"-b:a", fmt.Sprintf("%dk", scaledAudioBitrateKbps(bitrateKbps, opts.MaxAudioChannels)),
 		)
+		a = append(a, transcoding.AudioDownmixArgs(opts.MaxAudioChannels)...)
 		if opts.AudioNormalize {
 			a = append(a, "-filter:a:0", "loudnorm=I=-16:TP=-1.5:LRA=11:linear=true")
 		}
@@ -282,6 +283,7 @@ func audioVariantArgs(opts transcoding.HLSProcessOpts, i int, bitrateKbps int64)
 		"-ac", resolveAudioChannels(opts.MaxAudioChannels),
 		fmt.Sprintf("-b:a:%d", i), fmt.Sprintf("%dk", scaledAudioBitrateKbps(bitrateKbps, opts.MaxAudioChannels)),
 	}
+	a = append(a, transcoding.AudioDownmixArgs(opts.MaxAudioChannels)...)
 	if opts.AudioNormalize {
 		a = append(a, fmt.Sprintf("-filter:a:%d", i), "loudnorm=I=-16:TP=-1.5:LRA=11:linear=true")
 	}
@@ -731,6 +733,7 @@ func buildCopyVideoArgs(opts transcoding.HLSProcessOpts) []string {
 				"-ac", resolveAudioChannels(opts.MaxAudioChannels),
 				"-b:a", "192k",
 			)
+			args = append(args, transcoding.AudioDownmixArgs(opts.MaxAudioChannels)...)
 			if opts.AudioNormalize {
 				args = append(args, "-af", "loudnorm=I=-16:TP=-1.5:LRA=11:linear=true")
 			}

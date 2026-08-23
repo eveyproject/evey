@@ -258,3 +258,26 @@ func TestBuildFFmpegArgs_InputOrdering(t *testing.T) {
 		t.Errorf("expected -ss 12.250, got %s", args[ssIdx+1])
 	}
 }
+
+// The legacy on-the-fly transcode folds to stereo unconditionally; without the
+// matrix headroom swr sums the bed above full scale and the client clips it.
+// See domain/transcoding/audio_downmix.go for the measurements.
+func TestBuildFFmpegArgs_StereoFoldCarriesMatrixHeadroom(t *testing.T) {
+	h := &transcodeServe{}
+	args := h.buildFFmpegArgs("/video.mkv",
+		transcodeParams{subtitleTrack: -1},
+		transcodeAnalysis{needsAudioTranscode: true},
+	)
+	if !argsHas(args, "-rematrix_maxval") {
+		t.Fatalf("stereo fold shipped without matrix headroom: %v", args)
+	}
+
+	// A stream copy has no resampler to configure.
+	copied := h.buildFFmpegArgs("/video.mkv",
+		transcodeParams{subtitleTrack: -1},
+		transcodeAnalysis{},
+	)
+	if argsHas(copied, "-rematrix_maxval") {
+		t.Errorf("audio copy must not carry a resampler option: %v", copied)
+	}
+}

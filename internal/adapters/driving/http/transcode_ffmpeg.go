@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
 	"github.com/evey-project/evey/internal/pkg/hdr"
 )
 
@@ -58,6 +59,8 @@ func (h *transcodeServe) buildFFmpegArgs(filePath string, p transcodeParams, a t
 
 	if a.needsAudioTranscode {
 		args = append(args, "-c:a", "aac", "-ac", "2", "-b:a", "192k")
+		// Headroom for the stereo fold - see domain/transcoding/audio_downmix.go.
+		args = append(args, domaintranscoding.AudioDownmixArgs(2)...)
 	} else {
 		args = append(args, "-c:a", "copy")
 	}

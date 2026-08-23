@@ -28,7 +28,12 @@ import (
 // the produced bytes can change shape (audio codec/bitrate choice, muxer
 // flags) so stale-format files are re-produced, not served. Orphans are
 // reclaimed by the cache janitor, exactly like the remux cache.
-const compatCacheFormat = "compat-v1"
+//
+// v2: the stereo fold got its matrix headroom (see
+// domain/transcoding/audio_downmix.go). Every v1 file was produced by a fold
+// that clipped, and a download keeps its samples forever - serving one from
+// cache would hand out the defect the fix exists to remove.
+const compatCacheFormat = "compat-v2"
 
 // Concurrent production slots. Our client walks a season one episode at a
 // time, but the singleflight only collapses repeats of the SAME item - N

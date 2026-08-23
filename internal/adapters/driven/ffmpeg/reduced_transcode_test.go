@@ -29,6 +29,7 @@ func TestBuildReducedArgs(t *testing.T) {
 		"-profile:v", "high", "-level", "4.0", "-pix_fmt", "yuv420p",
 		"-force_key_frames", "expr:gte(t,n_forced*2)",
 		"-c:a", "aac", "-ac", "2", "-b:a", "128k",
+		"-rematrix_maxval", "1.0000",
 		"-c:s", "copy",
 		"-max_interleave_delta", "0",
 		"-f", "segment",

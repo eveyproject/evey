@@ -245,6 +245,26 @@ type AudioFingerprint struct {
 // hash space can NEVER collide with DecisionFingerprint, even by accident
 // (sha256 collisions aside).
 func (a AudioFingerprint) Hash() string {
+	return a.hashWithDownmixPolicy(a.downmixPolicy())
+}
+
+// downmixPolicy is the fold-down policy this rendition encodes under, or empty
+// when it folds nothing (a layout-preserving target) or re-encodes nothing (the
+// wasm passthrough). Those two keep their pre-policy hash on purpose: their
+// bytes did not change, so their cached segments stay valid.
+func (a AudioFingerprint) downmixPolicy() string {
+	if a.AudioCodec == "copy" {
+		return ""
+	}
+	return transcoding.AudioDownmixPolicy(a.MaxAudioChannels)
+}
+
+// hashWithDownmixPolicy is Hash with the policy injected, so a test can prove
+// that changing the matrix policy really forks the cache. AudioFingerprint has
+// no field that carries it - MaxAudioChannels is 2 before AND after the fix -
+// so without this line the orchestrator would keep serving the clipped
+// segments it already produced and the fix would be invisible.
+func (a AudioFingerprint) hashWithDownmixPolicy(downmixPolicy string) string {
 	var b strings.Builder
 	b.WriteString("audio:\n")
 	fmt.Fprintf(&b, "media=%s\n", a.MediaID)
@@ -257,6 +277,9 @@ func (a AudioFingerprint) Hash() string {
 	// Milliseconds, not the raw float: the probe is quantised to the frame
 	// anyway, and a %f of a float64 would fork the cache on rounding noise.
 	fmt.Fprintf(&b, "vcd=%d\n", int64(a.VideoCompositionDelay*1000+0.5))
+	if downmixPolicy != "" {
+		fmt.Fprintf(&b, "dmx=%s\n", downmixPolicy)
+	}
 	sum := sha256.Sum256([]byte(b.String()))
 	return hex.EncodeToString(sum[:])[:16]
 }
@@ -278,6 +301,21 @@ func (f DecisionFingerprint) AudioDecision() string {
 // canonical form sorts/normalises fields so logically-equivalent decisions
 // (e.g. same profiles in a different append order) collide on the same hash.
 func (f DecisionFingerprint) Hash() string {
+	return f.hashWithDownmixPolicy(f.downmixPolicy())
+}
+
+// downmixPolicy mirrors AudioFingerprint.downmixPolicy for the muxed pipeline:
+// empty when the session copies audio or keeps the source layout.
+func (f DecisionFingerprint) downmixPolicy() string {
+	if f.AudioCopy {
+		return ""
+	}
+	return transcoding.AudioDownmixPolicy(f.MaxAudioChannels)
+}
+
+// hashWithDownmixPolicy is Hash with the policy injected - see the twin on
+// AudioFingerprint for why the fingerprint cannot derive it from its fields.
+func (f DecisionFingerprint) hashWithDownmixPolicy(downmixPolicy string) string {
 	profiles := append([]ProfileFingerprint(nil), f.Profiles...)
 	// Stable order: by width then by name. The orchestrator already pushes
 	// profiles in ascending width but we don't trust callers.
@@ -317,6 +355,9 @@ func (f DecisionFingerprint) Hash() string {
 		// keep the pre-feature hash). Normalised to the reduced ratio so "64:45"
 		// and "128:90" hash identically.
 		fmt.Fprintf(&b, "sar=%d:%d\n", num, den)
+	}
+	if downmixPolicy != "" {
+		fmt.Fprintf(&b, "dmx=%s\n", downmixPolicy)
 	}
 	for _, p := range profiles {
 		fmt.Fprintf(&b, "p=%s|%dx%d|%d|%d|copy=%t\n", p.Name, p.Width, p.Height, p.VideoBitrate, p.AudioBitrate, p.Copy)

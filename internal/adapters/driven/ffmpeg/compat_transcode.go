@@ -30,6 +30,7 @@ import (
 	"time"
 
 	domainmkv "github.com/evey-project/evey/internal/domain/mkv"
+	"github.com/evey-project/evey/internal/domain/transcoding"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
@@ -60,7 +61,7 @@ func NewCompatTranscoder(ffmpegPath string) *CompatTranscoder {
 //   - "-f matroska" because the temp path carries a .tmp suffix the muxer
 //     cannot be inferred from (same reason as the audio-delay remuxer).
 func BuildCompatArgs(src, dst string) []string {
-	return []string{
+	args := []string{
 		"-hide_banner", "-v", "error", "-nostdin", "-y",
 		"-i", src,
 		"-map", "0", "-ignore_unknown",
@@ -68,9 +69,14 @@ func BuildCompatArgs(src, dst string) []string {
 		"-map_chapters", "0",
 		"-c", "copy",
 		"-c:a", "aac", "-ac", "2", "-b:a", "192k",
+	}
+	// The stereo fold is HARDCODED here, so a downloaded file carries the
+	// clipping in its own samples forever - the guard matters most on this path.
+	args = append(args, transcoding.AudioDownmixArgs(2)...)
+	return append(args,
 		"-f", "matroska",
 		dst,
-	}
+	)
 }
 
 // TranscodeCompat writes the compat variant of src at dst. The caller owns

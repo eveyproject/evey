@@ -161,11 +161,9 @@ func scaledAudioBitrateKbps(base int64, maxChannels int) int64 {
 	return transcoding.ServedAudioBitrateKbps(base, maxChannels)
 }
 
-// resolveAudioChannels returns the -ac value. Zero MaxAudioChannels preserves
-// the previous default of 2.
+// resolveAudioChannels returns the -ac value. The 0 -> 2 rule lives in the
+// domain so the downmix policy (which must know whether this encode folds)
+// cannot disagree with what the encoder is actually told to produce.
 func resolveAudioChannels(maxChannels int) string {
-	if maxChannels > 0 {
-		return fmt.Sprintf("%d", maxChannels)
-	}
-	return "2"
+	return fmt.Sprintf("%d", transcoding.ResolvedAudioChannels(maxChannels))
 }

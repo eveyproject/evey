@@ -55,7 +55,12 @@ import (
 // reducedJobFormat versions the on-disk job layout. Bump it when the produced
 // bytes can change shape (target height, codec, slice length) so a half-
 // collected job from an older build is never mixed with new slices.
-const reducedJobFormat = "reduced-v1"
+//
+// v2: the stereo fold got its matrix headroom (see
+// domain/transcoding/audio_downmix.go). Beyond serving a clipped file, a
+// resumed v1 job would join pre-fix slices onto post-fix ones and step 4 dB at
+// the seam.
+const reducedJobFormat = "reduced-v2"
 
 // reducedIdleTTL is how long an untouched job dir survives. A phone that
 // starts a production and never comes back (uninstalled, gave up, out of

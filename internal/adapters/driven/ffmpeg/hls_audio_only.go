@@ -97,6 +97,10 @@ func BuildFFmpegAudioOnlyArgs(opts transcoding.AudioProcessOpts) []string {
 		}
 
 		args = append(args, "-ac", resolveAudioChannels(opts.MaxAudioChannels))
+		// Headroom for the channel matrix when this rendition folds a
+		// multichannel bed to stereo - see domain/transcoding/audio_downmix.go.
+		// Nothing is emitted when the target keeps the source layout.
+		args = append(args, transcoding.AudioDownmixArgs(opts.MaxAudioChannels)...)
 		// 48 kHz is the HLS/CMAF standard sample rate; avoids resampler surprises
 		// when the source carries 44.1 kHz or 96 kHz PCM tracks.
 		args = append(args, "-ar", "48000")
