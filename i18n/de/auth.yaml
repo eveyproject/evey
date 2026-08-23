@@ -312,3 +312,11 @@ watchHistory:
   clearFailed: Wiedergabeverlauf konnte nicht gelöscht werden
   title: Wiedergabeverlauf
   openMedia: Mediendetails öffnen
+rateLimit:
+  title: "Zu viele Versuche"
+  body: "Zu viele Anmeldeversuche. Versuchen Sie es in {{wait}} erneut."
+  seconds: "{{count}} s"
+  minutes: "{{count}} Min."
+remoteAccess:
+  title: "Fernzugriff deaktiviert"
+  body: "Der Fernzugriff ist auf diesem Server deaktiviert. Der Administrator muss ihn unter Admin > Fernzugriff aktivieren, um Verbindungen von außerhalb des lokalen Netzwerks zu erlauben."

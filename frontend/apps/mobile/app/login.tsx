@@ -4,7 +4,15 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { useUserServiceLogin, eveyFetch } from "@evey/api";
+import {
+  useUserServiceLogin,
+  useAdminSystemServiceGetSetupStatus,
+  eveyFetch,
+  formatWait,
+  parseRateLimit,
+  isRemoteAccessDisabled,
+  remoteAccessDisabledMessage,
+} from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { useTheme } from "../src/providers/ThemeProvider";
 import { useServerUrl } from "../src/hooks/useServerUrl";
@@ -12,8 +20,6 @@ import { setRefreshToken } from "../src/lib/refresh-token";
 import { getSavedCredentials, saveCredentials, clearSavedCredentials } from "../src/lib/saved-credentials";
 import { useBiometricAvailable, useBiometricEnabled, authenticateBiometric } from "../src/hooks/useBiometric";
 import { PasswordInput } from "../src/components/PasswordInput";
-import { formatWait, parseRateLimit } from "../src/lib/rateLimitMessage";
-import { isRemoteAccessDisabled, remoteAccessDisabledMessage } from "../src/lib/remoteAccessError";
 
 export default function Login() {
   const theme = useTheme();
@@ -70,6 +76,11 @@ export default function Login() {
     queryFn: () => eveyFetch<{ enabled: boolean }>({ url: "/api/v1/auth/oidc/config", method: "GET" }),
     staleTime: 60_000,
   });
+
+  // Offering "Forgot password" on a server without recovery configured sends
+  // the user to a screen that can only apologize. Same public setup-status
+  // gate the web login already uses.
+  const setupStatus = useAdminSystemServiceGetSetupStatus({ query: { staleTime: 60_000 } });
 
   // Handle OIDC deep link callback (evey://oidc-callback)
   useEffect(() => {
@@ -134,8 +145,8 @@ export default function Login() {
         const limited = parseRateLimit(status ?? 0, null, err);
         if (limited) {
           Alert.alert(
-            t("mobile.rateLimit.title", "Too many attempts"),
-            t("mobile.rateLimit.body", "Too many login attempts. Try again in {{wait}}.")
+            t("auth.rateLimit.title", "Too many attempts"),
+            t("auth.rateLimit.body", "Too many login attempts. Try again in {{wait}}.")
               .replace("{{wait}}", formatWait(limited.retryAfterSeconds, tCount)),
           );
           return;
@@ -252,15 +263,17 @@ export default function Login() {
           <Text style={{ color: theme.colors.onAccent, fontWeight: "600", fontSize: 16 }}>{t("auth.login.signIn")}</Text>
         )}
       </Pressable>
-      <Pressable
-        onPress={() => router.push("/forgot-password")}
-        style={{ marginTop: theme.spacing.md }}
-        accessible={true}
-        accessibilityLabel={t("auth.login.forgotPassword")}
-        accessibilityRole="button"
-      >
-        <Text style={{ color: theme.colors.accent, textAlign: "center" }}>{t("auth.login.forgotPassword")}</Text>
-      </Pressable>
+      {setupStatus.data?.passwordRecoveryEnabled && (
+        <Pressable
+          onPress={() => router.push("/forgot-password")}
+          style={{ marginTop: theme.spacing.md }}
+          accessible={true}
+          accessibilityLabel={t("auth.login.forgotPassword")}
+          accessibilityRole="button"
+        >
+          <Text style={{ color: theme.colors.accent, textAlign: "center" }}>{t("auth.login.forgotPassword")}</Text>
+        </Pressable>
+      )}
       <Pressable
         onPress={() => router.push("/register")}
         style={{ marginTop: theme.spacing.sm }}

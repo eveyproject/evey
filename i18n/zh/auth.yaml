@@ -312,3 +312,11 @@ apiDocs:
   subtitle: "可使用 API 密钥调用的端点，按各自所需的权限范围分组。使用 Authorize 以你的密钥进行试用。"
   link: "查看 API 文档"
   loadError: "加载 API 规范失败。"
+rateLimit:
+  title: "尝试次数过多"
+  body: "登录尝试次数过多。请在 {{wait}} 后重试。"
+  seconds: "{{count}} 秒"
+  minutes: "{{count}} 分钟"
+remoteAccess:
+  title: "远程访问已禁用"
+  body: "此服务器上的远程访问已禁用。管理员必须在 管理 > 远程访问 中启用它，才能允许来自本地网络之外的连接。"

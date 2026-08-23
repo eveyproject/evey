@@ -3,7 +3,7 @@ import { View, Text, TextInput, Pressable, ActivityIndicator, Alert, StyleSheet,
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { setBaseURL } from "@evey/api";
+import { setBaseURL, isRemoteAccessDisabled, remoteAccessDisabledMessage } from "@evey/api";
 import { useAuthStore, useServerListStore } from "@evey/store";
 import { setServerUrl, getServerUrl, probeServer } from "../src/lib/server-config";
 import { initFetcher } from "../src/lib/fetcher-setup";
@@ -13,7 +13,6 @@ import { isCleartextToPublicHost, confirmInsecureServer } from "../src/lib/priva
 import { versionLabel } from "../src/lib/versionLabel";
 import { useTheme } from "../src/providers/ThemeProvider";
 import { scanLocalNetwork } from "../src/lib/network-scan";
-import { isRemoteAccessDisabled, remoteAccessDisabledMessage } from "../src/lib/remoteAccessError";
 
 // describeConnectError turns the near-useless "Network request failed" that
 // React Native's fetch throws into an actionable, cause-specific hint - the

@@ -61,11 +61,3 @@ music:
   previousTrack: Piste precedente
   nextTrack: Piste suivante
   closePlayer: Fermer le lecteur
-rateLimit:
-  title: "Trop de tentatives"
-  body: "Trop de tentatives de connexion. Réessayez dans {{wait}}."
-  seconds: "{{count}} s"
-  minutes: "{{count}} min"
-remoteAccess:
-  title: "Acces distant desactive"
-  body: "Acces distant desactive sur ce serveur. L'administrateur doit l'activer dans Admin > Acces distant pour permettre les connexions hors du reseau local."

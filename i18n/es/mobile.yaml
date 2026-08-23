@@ -61,11 +61,3 @@ music:
   previousTrack: Pista anterior
   nextTrack: Pista siguiente
   closePlayer: Cerrar reproductor
-rateLimit:
-  title: "Demasiados intentos"
-  body: "Demasiados intentos de inicio de sesión. Inténtalo de nuevo en {{wait}}."
-  seconds: "{{count}} s"
-  minutes: "{{count}} min"
-remoteAccess:
-  title: "Acceso remoto desactivado"
-  body: "El acceso remoto está desactivado en este servidor. El administrador debe activarlo en Admin > Acceso remoto para permitir conexiones desde fuera de la red local."

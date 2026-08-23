@@ -312,3 +312,11 @@ watchHistory:
   clearFailed: "Impossible d'effacer l'historique de lecture"
   title: Historique de visionnage
   openMedia: Ouvrir les détails du média
+rateLimit:
+  title: "Trop de tentatives"
+  body: "Trop de tentatives de connexion. Réessayez dans {{wait}}."
+  seconds: "{{count}} s"
+  minutes: "{{count}} min"
+remoteAccess:
+  title: "Acces distant desactive"
+  body: "Acces distant desactive sur ce serveur. L'administrateur doit l'activer dans Admin > Acces distant pour permettre les connexions hors du reseau local."

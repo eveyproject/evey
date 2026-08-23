@@ -61,11 +61,3 @@ music:
   previousTrack: 上一曲
   nextTrack: 下一曲
   closePlayer: 关闭播放器
-rateLimit:
-  title: "尝试次数过多"
-  body: "登录尝试次数过多。请在 {{wait}} 后重试。"
-  seconds: "{{count}} 秒"
-  minutes: "{{count}} 分钟"
-remoteAccess:
-  title: "远程访问已禁用"
-  body: "此服务器上的远程访问已禁用。管理员必须在 管理 > 远程访问 中启用它，才能允许来自本地网络之外的连接。"

@@ -34,9 +34,12 @@ vi.mock("react-i18next", () => ({
   }),
 }));
 
+const setupStatus = vi.hoisted(() => ({ data: undefined as { passwordRecoveryEnabled?: boolean } | undefined }));
+
 vi.mock("@evey/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@evey/api")>()),
   useUserServiceLogin: () => ({ mutate: vi.fn(), isPending: false }),
+  useAdminSystemServiceGetSetupStatus: () => setupStatus,
   eveyFetch: vi.fn(() => Promise.resolve({ enabled: false })),
 }));
 
@@ -80,16 +83,6 @@ vi.mock("../components/PasswordInput", () => ({
   PasswordInput: (p: any) => React.createElement("input", { type: "password", ...p }),
 }));
 
-vi.mock("../lib/rateLimitMessage", () => ({
-  formatWait: vi.fn(() => ""),
-  parseRateLimit: vi.fn(() => null),
-}));
-
-vi.mock("../lib/remoteAccessError", () => ({
-  isRemoteAccessDisabled: vi.fn(() => false),
-  remoteAccessDisabledMessage: vi.fn(() => ({ title: "", body: "" })),
-}));
-
 // -------------------------------------------------------------------------------------
 import Login from "../../app/login";
 
@@ -99,9 +92,36 @@ function makeWrapper() {
     React.createElement(QueryClientProvider, { client: qc }, children);
 }
 
+function renderLogin() {
+  return render(React.createElement(Login), { wrapper: makeWrapper() });
+}
+
+function hasForgotPasswordLink(container: HTMLElement): boolean {
+  return [...container.querySelectorAll("button")].some(
+    (b) => b.getAttribute("accessibilityLabel") === "auth.login.forgotPassword",
+  );
+}
+
 describe("Login screen", () => {
   it("wraps its fields in a scrollable container so the keyboard can't hide controls below the fold", () => {
-    const { container } = render(React.createElement(Login), { wrapper: makeWrapper() });
+    setupStatus.data = { passwordRecoveryEnabled: true };
+    const { container } = renderLogin();
     expect(container.querySelector('[data-testid="scroll-view"]')).toBeTruthy();
+  });
+
+  it("offers the reset link when the server has password recovery configured", () => {
+    setupStatus.data = { passwordRecoveryEnabled: true };
+    expect(hasForgotPasswordLink(renderLogin().container)).toBe(true);
+  });
+
+  // Without the gate the link led to a screen that could only apologize.
+  it("hides the reset link when recovery is disabled server-side", () => {
+    setupStatus.data = { passwordRecoveryEnabled: false };
+    expect(hasForgotPasswordLink(renderLogin().container)).toBe(false);
+  });
+
+  it("hides the reset link while the setup status is still unknown", () => {
+    setupStatus.data = undefined;
+    expect(hasForgotPasswordLink(renderLogin().container)).toBe(false);
   });
 });
