@@ -124,3 +124,27 @@ func TestLibraryHandler_SearchMedia_StampsSeriesTitle(t *testing.T) {
 	assert.Equal(t, "Some Series", resp.Items[0].SeriesTitle)
 	assert.Equal(t, "mi-season", resp.Items[0].ParentId)
 }
+
+// Une SAISON trouvee par la recherche s'affichait « Season 2 » en anglais au
+// milieu d'une page francaise. Cause : l'hydratation des resultats ne visait
+// que les EPISODES, donc une saison repartait sans `index_number` (le document
+// Meilisearch n'en porte pas) et `seasonLabel` cote client n'avait rien a
+// deriver - il retombait sur le titre GELE par le scan. Meme cause pour le
+// titre de serie manquant : `fillAncestorTitles` n'etait appele que s'il y
+// avait au moins un episode dans la page.
+func TestLibraryHandler_SearchMedia_HydratesSeasonNumberAndSeries(t *testing.T) {
+	h, _, mediaQuery, searchIdx, _, _, _ := newTestLibraryHandler()
+	ctx := adminCtx()
+
+	seedShow(mediaQuery.Seed)
+	searchIdx.IndexMediaItem(ctx, &library.MediaItem{
+		ID: "mi-season", Title: "Season 1", Type: library.Season,
+	})
+
+	resp, err := h.SearchMedia(ctx, &eveyv1.SearchMediaRequest{Query: "Season 1", Limit: 10})
+	require.NoError(t, err)
+	require.Len(t, resp.Items, 1)
+	assert.Equal(t, int32(1), resp.Items[0].IndexNumber, "sans le numero le client ne peut rien traduire")
+	assert.Equal(t, "mi-series", resp.Items[0].ParentId)
+	assert.Equal(t, "Some Series", resp.Items[0].SeriesTitle)
+}

@@ -136,21 +136,33 @@ func (h *libraryHandler) SearchMedia(ctx context.Context, req *eveyv1.SearchMedi
 		}
 		resp.Items = append(resp.Items, mi)
 	}
-	// Search hits are minimal index rows without parent linkage: resolve the
-	// episode hits once so their cards can carry the series title.
-	episodesByID := make(map[string]*eveyv1.MediaItem)
+	// Search hits are minimal index rows: the document carries no parent link
+	// and no index number, so a hit inside a show comes back naked. Resolve
+	// EPISODE and SEASON hits once against the DB and stamp both fields back.
+	//
+	// The season number is not cosmetic. A season has no name of its own: the
+	// scan freezes an English "Season N" on the row, and every client derives
+	// the shown label from indexNumber instead (seasonLabel, displayTitle.ts).
+	// With no number to derive from, a season found through search fell back
+	// to that frozen title - "Season 2" in the middle of a French page.
+	// Hydrating here needs no reindex and no new index field.
+	inShowByID := make(map[string]*eveyv1.MediaItem)
 	for _, mi := range resp.Items {
-		if mi.Type == eveyv1.MediaItemType_MEDIA_ITEM_TYPE_EPISODE {
-			episodesByID[mi.Id] = mi
+		if mi.Type == eveyv1.MediaItemType_MEDIA_ITEM_TYPE_EPISODE ||
+			mi.Type == eveyv1.MediaItemType_MEDIA_ITEM_TYPE_SEASON {
+			inShowByID[mi.Id] = mi
 		}
 	}
-	if len(episodesByID) > 0 {
-		ids := make([]string, 0, len(episodesByID))
-		for id := range episodesByID {
+	if len(inShowByID) > 0 {
+		ids := make([]string, 0, len(inShowByID))
+		for id := range inShowByID {
 			ids = append(ids, id)
 		}
 		for id, full := range fetchItemMap(ctx, h.query.GetMediaItemsByIDs, ids) {
-			episodesByID[id].ParentId = full.ParentID
+			inShowByID[id].ParentId = full.ParentID
+			if full.IndexNumber != nil {
+				inShowByID[id].IndexNumber = int32(*full.IndexNumber)
+			}
 		}
 		fillAncestorTitles(ctx, h.query.GetMediaItemsByIDs, resp.Items)
 	}
