@@ -14,8 +14,8 @@ on:
     tags: ['v*.*.*']
   pull_request:
     branches: [main, master]
-  # Manual re-run, mainly to force (or skip) the arm64 half of the image
-  # without pushing a commit.
+  # Manual re-run, mainly to force the arm64 half of the image without pushing
+  # a tag. Branch pushes build amd64 only - see "Resolve build platforms".
   workflow_dispatch:
     inputs:
       platforms:
@@ -349,24 +349,35 @@ jobs:
       # Only the Debian runtime stage (apt, no compilation) is still emulated,
       # which is why building both arches on each push is now affordable.
       #
-      # Escape hatches, in precedence order: the workflow_dispatch input, then
-      # `[skip arm64]` anywhere in the head commit message for a one-off rush.
-      # arm64 has no Intel QSV/NVENC - it is direct-play + software transcode.
+      # BUT: measured on the real repo, a push still costs ~33 min wall clock -
+      # three image variants times two arches, and the Debian runtime stage is
+      # emulated for every one of them. The owner builds on every push; releases
+      # are rare. So amd64 is the DEFAULT and arm64 is opt-in:
+      #   - workflow_dispatch input  -> exactly what the operator asked for
+      #   - a v*.*.* tag             -> both arches (that is what ships)
+      #   - `[arm64]` in the commit  -> both arches, for a one-off check
+      #   - anything else            -> amd64 only
+      # The arm64 path stays exercised (every release goes through it), which is
+      # what the old `[skip arm64]` gate failed to guarantee.
       - name: Resolve build platforms
         id: platforms
         env:
           DISPATCH_PLATFORMS: ${{ github.event.inputs.platforms }}
           HEAD_COMMIT_MSG: ${{ github.event.head_commit.message }}
+          REF_TYPE: ${{ github.ref_type }}
         run: |
           if [[ -n "${DISPATCH_PLATFORMS}" ]]; then
             value="${DISPATCH_PLATFORMS}"
             echo "manual dispatch - building ${value}"
-          elif [[ "${HEAD_COMMIT_MSG}" == *"[skip arm64]"* ]]; then
-            value="linux/amd64"
-            echo "commit message carries [skip arm64] - building amd64 only"
-          else
+          elif [[ "${REF_TYPE}" == "tag" ]]; then
             value="linux/amd64,linux/arm64"
-            echo "building multi-arch amd64 + arm64"
+            echo "release tag - building multi-arch amd64 + arm64"
+          elif [[ "${HEAD_COMMIT_MSG}" == *"[arm64]"* ]]; then
+            value="linux/amd64,linux/arm64"
+            echo "commit message carries [arm64] - building multi-arch"
+          else
+            value="linux/amd64"
+            echo "branch push - building amd64 only (tag or [arm64] to get both)"
           fi
           echo "value=${value}" >> "$GITHUB_OUTPUT"
 
