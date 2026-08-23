@@ -26,15 +26,15 @@ func TestApplyRegionalTitle_GermanDocGetsFrenchRegionalTitle(t *testing.T) {
 func TestApplyRegionalTitle_KeepsGenuineLocalizedTitle(t *testing.T) {
 	d := tmdbDetailResponse{
 		ID:               42,
-		Title:            "Le Parrain", // localized, differs from original
-		OriginalTitle:    "The Godfather",
+		Title:            "Un Certain Film", // localized, differs from original
+		OriginalTitle:    "Some Movie",
 		OriginalLanguage: "en",
 		AlternativeTitles: &tmdbAltTitles{Titles: []tmdbAltTitle{
 			{Region: "FR", Title: "WRONG should not win"},
 		}},
 	}
 	r := mapDetailResult(d, "movie", "fr")
-	if r.Title != "Le Parrain" {
+	if r.Title != "Un Certain Film" {
 		t.Fatalf("genuine localized title clobbered: got %q", r.Title)
 	}
 }

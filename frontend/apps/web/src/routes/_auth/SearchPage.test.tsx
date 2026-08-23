@@ -156,15 +156,15 @@ describe("SearchPage", () => {
   it("renders recent searches when available", async () => {
     const { useRecentSearches } = await import("@/hooks/useRecentSearches");
     vi.mocked(useRecentSearches).mockReturnValue({
-      recents: ["inception", "avatar"],
+      recents: ["some movie", "some movie 2"],
       push: vi.fn(),
       remove: vi.fn(),
       clear: vi.fn(),
     });
     const SearchPage = await getSearchPage();
     render(React.createElement(SearchPage), { wrapper: createWrapper() });
-    expect(screen.getByText("inception")).toBeInTheDocument();
-    expect(screen.getByText("avatar")).toBeInTheDocument();
+    expect(screen.getByText("some movie")).toBeInTheDocument();
+    expect(screen.getByText("some movie 2")).toBeInTheDocument();
     expect(screen.getByText("Recent searches")).toBeInTheDocument();
   });
 });

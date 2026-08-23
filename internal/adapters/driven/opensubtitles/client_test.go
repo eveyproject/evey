@@ -40,7 +40,7 @@ func TestSearchSubtitles_Success(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "/api/v1/subtitles", r.URL.Path)
 		assert.Equal(t, "test-api-key", r.Header.Get("Api-Key"))
-		assert.Equal(t, "The Matrix", r.URL.Query().Get("query"))
+		assert.Equal(t, "Some Movie", r.URL.Query().Get("query"))
 		assert.Equal(t, "en", r.URL.Query().Get("languages"))
 
 		resp := searchResponse{
@@ -71,8 +71,8 @@ func TestSearchSubtitles_Success(t *testing.T) {
 							FileID   int    `json:"file_id"`
 							FileName string `json:"file_name"`
 						}{
-							{FileID: 100, FileName: "The.Matrix.1999.srt"},
-							{FileID: 101, FileName: "The.Matrix.1999.sub"},
+							{FileID: 100, FileName: "Some.Movie.1999.srt"},
+							{FileID: 101, FileName: "Some.Movie.1999.sub"},
 						},
 					},
 				},
@@ -84,13 +84,13 @@ func TestSearchSubtitles_Success(t *testing.T) {
 	defer server.Close()
 
 	client := newTestClient(server.URL)
-	results, err := client.Search(context.Background(), "", "The Matrix", "en")
+	results, err := client.Search(context.Background(), "", "Some Movie", "en")
 
 	require.NoError(t, err)
 	require.Len(t, results, 2)
 
 	assert.Equal(t, 100, results[0].FileID)
-	assert.Equal(t, "The.Matrix.1999.srt", results[0].FileName)
+	assert.Equal(t, "Some.Movie.1999.srt", results[0].FileName)
 	assert.Equal(t, "en", results[0].Language)
 	assert.Equal(t, "srt", results[0].Format)
 	assert.InEpsilon(t, 8.5, results[0].Rating, 1e-6)

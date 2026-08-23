@@ -25,25 +25,25 @@ func TestTVMaze_Name(t *testing.T) {
 
 func TestTVMaze_Search_SkipsMovies(t *testing.T) {
 	p := NewTVMazeProvider(nil)
-	results, err := p.Search(context.Background(), "Inception", nil, "movie")
+	results, err := p.Search(context.Background(), "Some Movie", nil, "movie")
 	require.NoError(t, err)
 	assert.Nil(t, results)
 }
 
 func TestTVMaze_Search(t *testing.T) {
 	srv, p := newTVMazeTestServer(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "Dexter", r.URL.Query().Get("q"))
+		assert.Equal(t, "Some Series", r.URL.Query().Get("q"))
 		json.NewEncoder(w).Encode([]tvmazeSearchResult{
 			{
 				Score: 0.9,
 				Show: tvmazeShow{
 					ID:        161,
-					Name:      "Dexter",
+					Name:      "Some Series",
 					Summary:   "<p>He's smart, he's good looking.</p>",
 					Genres:    []string{"Drama", "Crime"},
 					Premiered: "2006-10-01",
 					Rating:    tvmazeRating{Average: 8.4},
-					Image:     &tvmazeImage{Original: "http://img.com/dexter.jpg"},
+					Image:     &tvmazeImage{Original: "http://img.com/some-series.jpg"},
 					Externals: tvmazeExternal{IMDB: "tt0773262", TheTVDB: 79349},
 				},
 			},
@@ -51,12 +51,12 @@ func TestTVMaze_Search(t *testing.T) {
 	})
 	defer srv.Close()
 
-	results, err := p.Search(context.Background(), "Dexter", nil, "tv")
+	results, err := p.Search(context.Background(), "Some Series", nil, "tv")
 	require.NoError(t, err)
 	require.Len(t, results, 1)
 
 	r := results[0]
-	assert.Equal(t, "Dexter", r.Title)
+	assert.Equal(t, "Some Series", r.Title)
 	assert.Equal(t, "He's smart, he's good looking.", r.Overview)
 	assert.Equal(t, "161", r.ProviderIDs["tvmaze"])
 	assert.Equal(t, "tt0773262", r.ProviderIDs["imdb"])
@@ -72,7 +72,7 @@ func TestTVMaze_LookupByExternalID(t *testing.T) {
 		assert.Equal(t, "tt0773262", r.URL.Query().Get("imdb"))
 		json.NewEncoder(w).Encode(tvmazeShow{
 			ID:        161,
-			Name:      "Dexter",
+			Name:      "Some Series",
 			Externals: tvmazeExternal{IMDB: "tt0773262", TheTVDB: 79349},
 		})
 	})
@@ -89,11 +89,11 @@ func TestTVMaze_GetEpisodeDetails(t *testing.T) {
 		assert.Equal(t, "1", r.URL.Query().Get("number"))
 		json.NewEncoder(w).Encode(tvmazeEpisode{
 			ID:      11596,
-			Name:    "Dexter",
+			Name:    "Some Series",
 			Season:  1,
 			Number:  1,
 			Airdate: "2006-10-01",
-			Summary: "<p>Dexter investigates a serial killer.</p>",
+			Summary: "<p>Some Series investigates a serial killer.</p>",
 			Rating:  tvmazeRating{Average: 8.1},
 		})
 	})
@@ -101,8 +101,8 @@ func TestTVMaze_GetEpisodeDetails(t *testing.T) {
 
 	result, err := p.GetEpisodeDetails(context.Background(), "161", 1, 1)
 	require.NoError(t, err)
-	assert.Equal(t, "Dexter", result.Title)
-	assert.Equal(t, "Dexter investigates a serial killer.", result.Overview)
+	assert.Equal(t, "Some Series", result.Title)
+	assert.Equal(t, "Some Series investigates a serial killer.", result.Overview)
 	assert.InDelta(t, 8.1, *result.CommunityRating, 0.01)
 }
 
@@ -118,22 +118,22 @@ func TestTVMaze_GetByProviderID(t *testing.T) {
 		json.NewEncoder(w).Encode(tvmazeShowDetail{
 			tvmazeShow: tvmazeShow{
 				ID:        161,
-				Name:      "Dexter",
+				Name:      "Some Series",
 				Summary:   "<p>A serial killer.</p>",
 				Genres:    []string{"Drama", "Crime"},
 				Premiered: "2006-10-01",
 				Rating:    tvmazeRating{Average: 8.4},
-				Image:     &tvmazeImage{Original: "http://img.com/dexter.jpg"},
+				Image:     &tvmazeImage{Original: "http://img.com/some-series.jpg"},
 				Externals: tvmazeExternal{IMDB: "tt0773262", TheTVDB: 79349},
 			},
 			Embedded: &tvmazeEmbedded{
 				Cast: []tvmazeCastMember{
 					{
-						Person:    tvmazePerson{ID: 1, Name: "Michael C. Hall", Image: &tvmazeImage{Medium: "http://img.com/hall.jpg"}},
-						Character: tvmazeCharacter{Name: "Dexter Morgan"},
+						Person:    tvmazePerson{ID: 1, Name: "Actor One", Image: &tvmazeImage{Medium: "http://img.com/hall.jpg"}},
+						Character: tvmazeCharacter{Name: "Some Character"},
 					},
 					{
-						Person:    tvmazePerson{ID: 2, Name: "Jennifer Carpenter"},
+						Person:    tvmazePerson{ID: 2, Name: "Actor Two"},
 						Character: tvmazeCharacter{Name: ""},
 					},
 				},
@@ -145,16 +145,16 @@ func TestTVMaze_GetByProviderID(t *testing.T) {
 	result, err := p.GetByProviderID(context.Background(), "161", "tv")
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	assert.Equal(t, "Dexter", result.Title)
+	assert.Equal(t, "Some Series", result.Title)
 	assert.Equal(t, "A serial killer.", result.Overview)
 	assert.Equal(t, "161", result.ProviderIDs["tvmaze"])
 	assert.Equal(t, "tt0773262", result.ProviderIDs["imdb"])
 
 	require.Len(t, result.People, 2)
-	assert.Equal(t, "Michael C. Hall", result.People[0].Name)
-	assert.Equal(t, "Dexter Morgan", result.People[0].Character)
+	assert.Equal(t, "Actor One", result.People[0].Name)
+	assert.Equal(t, "Some Character", result.People[0].Character)
 	assert.Equal(t, "http://img.com/hall.jpg", result.People[0].ThumbURL)
-	assert.Equal(t, "Jennifer Carpenter", result.People[1].Name)
+	assert.Equal(t, "Actor Two", result.People[1].Name)
 	assert.Empty(t, result.People[1].Character)
 	assert.Empty(t, result.People[1].ThumbURL)
 }
@@ -207,7 +207,7 @@ func TestTVMaze_LookupByExternalID_TheTVDB(t *testing.T) {
 		assert.Equal(t, "79349", r.URL.Query().Get("thetvdb"))
 		json.NewEncoder(w).Encode(tvmazeShow{
 			ID:        161,
-			Name:      "Dexter",
+			Name:      "Some Series",
 			Externals: tvmazeExternal{TheTVDB: 79349},
 		})
 	})
@@ -215,7 +215,7 @@ func TestTVMaze_LookupByExternalID_TheTVDB(t *testing.T) {
 
 	result, err := p.LookupByExternalID(context.Background(), "thetvdb", "79349")
 	require.NoError(t, err)
-	assert.Equal(t, "Dexter", result.Title)
+	assert.Equal(t, "Some Series", result.Title)
 }
 
 func TestTVMaze_LookupByExternalID_UnsupportedProvider(t *testing.T) {

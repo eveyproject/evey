@@ -84,7 +84,7 @@ import CollectionsScreen, { collectionSubtitle } from "./index";
 
 const COLLECTIONS = [
   { id: "col-1", name: "Marvel" },
-  { id: "col-2", name: "Star Wars" },
+  { id: "col-2", name: "Some Movie" },
 ];
 
 beforeEach(() => {
@@ -116,7 +116,7 @@ describe("CollectionsScreen (TV) loaded state", () => {
     render(<CollectionsScreen />);
 
     expect(screen.getByText("Marvel")).toBeTruthy();
-    expect(screen.getByText("Star Wars")).toBeTruthy();
+    expect(screen.getByText("Some Movie")).toBeTruthy();
   });
 });
 

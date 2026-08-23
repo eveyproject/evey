@@ -145,7 +145,7 @@ func TestIMDBAPIProvider_GetByProviderID(t *testing.T) {
 			Type:          "movie",
 			PrimaryTitle:  "Some Prison Story",
 			OriginalTitle: "Some Prison Story",
-			Plot:          "Two inmates become friends over the years.",
+			Plot:          "A short synopsis used only as a fixture.",
 			StartYear:     1994,
 			Genres:        []string{"Drama"},
 			Rating:        &imdbRating{AggregateRating: 9.3, VoteCount: 2700000},
@@ -166,7 +166,7 @@ func TestIMDBAPIProvider_GetByProviderID(t *testing.T) {
 
 	assert.Equal(t, "Some Prison Story", result.Title)
 	assert.Equal(t, "Some Prison Story", result.OriginalTitle)
-	assert.Equal(t, "Two inmates become friends over the years.", result.Overview)
+	assert.Equal(t, "A short synopsis used only as a fixture.", result.Overview)
 	assert.Equal(t, "tt0000003", result.ProviderIDs["imdb"])
 	require.NotNil(t, result.Year)
 	assert.Equal(t, 1994, *result.Year)

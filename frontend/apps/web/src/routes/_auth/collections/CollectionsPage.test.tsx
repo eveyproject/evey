@@ -52,7 +52,7 @@ function createWrapper() {
 
 const mockCollections = [
   { id: "c1", name: "Marvel Cinematic Universe", posterUrl: null, createdAt: "", updatedAt: "" },
-  { id: "c2", name: "Star Wars", posterUrl: null, createdAt: "", updatedAt: "" },
+  { id: "c2", name: "Some Movie", posterUrl: null, createdAt: "", updatedAt: "" },
 ];
 
 async function renderPage() {
@@ -74,7 +74,7 @@ describe("CollectionsPage", () => {
       isLoading: false,
     });
     await renderPage();
-    await waitFor(() => expect(screen.getByText("Star Wars")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Some Movie")).toBeInTheDocument());
     expect(screen.queryByTestId("new-smart-collection")).not.toBeInTheDocument();
     expect(screen.queryByTestId("new-collection")).not.toBeInTheDocument();
     expect(screen.queryByTestId("collection-delete-c1")).not.toBeInTheDocument();
@@ -114,7 +114,7 @@ describe("CollectionsPage", () => {
     await renderPage();
     await waitFor(() => {
       expect(screen.getByText("Marvel Cinematic Universe")).toBeInTheDocument();
-      expect(screen.getByText("Star Wars")).toBeInTheDocument();
+      expect(screen.getByText("Some Movie")).toBeInTheDocument();
     });
   });
 

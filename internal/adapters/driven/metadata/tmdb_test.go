@@ -34,8 +34,8 @@ func TestSearch_MovieResponseMapping(t *testing.T) {
 		Results: []tmdbSearchItem{
 			{
 				ID:            550,
-				Title:         "Fight Club",
-				OriginalTitle: "Fight Club",
+				Title:         "Some Movie",
+				OriginalTitle: "Some Movie",
 				Overview:      "An insomniac office worker...",
 				ReleaseDate:   "1999-10-15",
 				VoteAverage:   8.4,
@@ -47,19 +47,19 @@ func TestSearch_MovieResponseMapping(t *testing.T) {
 	srv, p := newTestServer(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "Bearer test-key", r.Header.Get("Authorization"))
 		assert.True(t, strings.HasPrefix(r.URL.Path, "/search/movie"))
-		assert.Equal(t, "fight club", r.URL.Query().Get("query"))
+		assert.Equal(t, "some movie", r.URL.Query().Get("query"))
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(resp)
 	})
 	defer srv.Close()
 
-	results, err := p.Search(context.Background(), "fight club", nil, "movie")
+	results, err := p.Search(context.Background(), "some movie", nil, "movie")
 	require.NoError(t, err)
 	require.Len(t, results, 1)
 
 	r := results[0]
-	assert.Equal(t, "Fight Club", r.Title)
-	assert.Equal(t, "Fight Club", r.OriginalTitle)
+	assert.Equal(t, "Some Movie", r.Title)
+	assert.Equal(t, "Some Movie", r.OriginalTitle)
 	assert.Equal(t, "An insomniac office worker...", r.Overview)
 	assert.Equal(t, 1999, *r.Year)
 	assert.InDelta(t, 8.4, *r.CommunityRating, 0.01)
@@ -74,8 +74,8 @@ func TestSearch_TVResponseMapping(t *testing.T) {
 		Results: []tmdbSearchItem{
 			{
 				ID:           1396,
-				Name:         "Breaking Bad",
-				OriginalName: "Breaking Bad",
+				Name:         "Some Series",
+				OriginalName: "Some Series",
 				Overview:     "A high school chemistry teacher...",
 				FirstAirDate: "2008-01-20",
 				VoteAverage:  8.9,
@@ -91,12 +91,12 @@ func TestSearch_TVResponseMapping(t *testing.T) {
 	})
 	defer srv.Close()
 
-	results, err := p.Search(context.Background(), "breaking bad", nil, "tv")
+	results, err := p.Search(context.Background(), "some series", nil, "tv")
 	require.NoError(t, err)
 	require.Len(t, results, 1)
 
 	r := results[0]
-	assert.Equal(t, "Breaking Bad", r.Title)
+	assert.Equal(t, "Some Series", r.Title)
 	assert.Equal(t, 2008, *r.Year)
 	assert.Equal(t, []string{"Drama", "Crime"}, r.Genres)
 	assert.Equal(t, "1396", r.ProviderIDs["tmdb"])
@@ -186,8 +186,8 @@ func TestSearch_RateLimitExhausted(t *testing.T) {
 func TestGetByProviderID_MovieDetail(t *testing.T) {
 	detail := tmdbDetailResponse{
 		ID:                  550,
-		Title:               "Fight Club",
-		OriginalTitle:       "Fight Club",
+		Title:               "Some Movie",
+		OriginalTitle:       "Some Movie",
 		Overview:            "An insomniac office worker...",
 		Tagline:             "Mischief. Mayhem. Soap.",
 		ReleaseDate:         "1999-10-15",
@@ -220,7 +220,7 @@ func TestGetByProviderID_MovieDetail(t *testing.T) {
 	result, err := p.GetByProviderID(context.Background(), "550", "movie")
 	require.NoError(t, err)
 
-	assert.Equal(t, "Fight Club", result.Title)
+	assert.Equal(t, "Some Movie", result.Title)
 	assert.Equal(t, "Mischief. Mayhem. Soap.", result.Tagline)
 	assert.Equal(t, 1999, *result.Year)
 	assert.Equal(t, []string{"Drama", "Thriller"}, result.Genres)
@@ -246,8 +246,8 @@ func TestGetByProviderID_MovieDetail(t *testing.T) {
 func TestGetByProviderID_TVDetail(t *testing.T) {
 	detail := tmdbDetailResponse{
 		ID:           1396,
-		Name:         "Breaking Bad",
-		OriginalName: "Breaking Bad",
+		Name:         "Some Series",
+		OriginalName: "Some Series",
 		Overview:     "A teacher turned meth cook",
 		FirstAirDate: "2008-01-20",
 		VoteAverage:  8.9,
@@ -264,7 +264,7 @@ func TestGetByProviderID_TVDetail(t *testing.T) {
 	result, err := p.GetByProviderID(context.Background(), "1396", "tv")
 	require.NoError(t, err)
 
-	assert.Equal(t, "Breaking Bad", result.Title)
+	assert.Equal(t, "Some Series", result.Title)
 	assert.Equal(t, 2008, *result.Year)
 }
 
@@ -629,7 +629,7 @@ func TestGetSeasonDetails_NoOptionalFields(t *testing.T) {
 func TestGetByProviderID_WithExternalIDs(t *testing.T) {
 	detail := tmdbDetailResponse{
 		ID:          550,
-		Title:       "Fight Club",
+		Title:       "Some Movie",
 		ReleaseDate: "1999-10-15",
 		ExternalIDs: &tmdbExternalIDs{IMDBID: "tt0137523", TVDBID: 0},
 	}

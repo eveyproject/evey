@@ -27,21 +27,21 @@ func TestOMDb_Name(t *testing.T) {
 func TestOMDb_Search(t *testing.T) {
 	srv, p := newOMDbTestServer(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "testkey", r.URL.Query().Get("apikey"))
-		assert.Equal(t, "Inception", r.URL.Query().Get("s"))
+		assert.Equal(t, "Some Movie", r.URL.Query().Get("s"))
 		assert.Equal(t, "movie", r.URL.Query().Get("type"))
 		json.NewEncoder(w).Encode(omdbSearchResponse{
 			Response: "True",
 			Search: []omdbSearchItem{
-				{Title: "Inception", Year: "2010", ImdbID: "tt1375666", Poster: "http://img.com/poster.jpg"},
+				{Title: "Some Movie", Year: "2010", ImdbID: "tt1375666", Poster: "http://img.com/poster.jpg"},
 			},
 		})
 	})
 	defer srv.Close()
 
-	results, err := p.Search(context.Background(), "Inception", nil, "movie")
+	results, err := p.Search(context.Background(), "Some Movie", nil, "movie")
 	require.NoError(t, err)
 	require.Len(t, results, 1)
-	assert.Equal(t, "Inception", results[0].Title)
+	assert.Equal(t, "Some Movie", results[0].Title)
 	assert.Equal(t, "tt1375666", results[0].ProviderIDs["imdb"])
 	assert.Equal(t, 2010, *results[0].Year)
 	require.Len(t, results[0].Artwork, 1)
@@ -55,7 +55,7 @@ func TestOMDb_Search_TVMapsToSeries(t *testing.T) {
 	})
 	defer srv.Close()
 
-	results, err := p.Search(context.Background(), "Dexter", nil, "tv")
+	results, err := p.Search(context.Background(), "Some Series", nil, "tv")
 	require.NoError(t, err)
 	assert.Empty(t, results)
 }
@@ -65,7 +65,7 @@ func TestOMDb_GetByProviderID_Ratings(t *testing.T) {
 		assert.Equal(t, "tt1375666", r.URL.Query().Get("i"))
 		assert.Equal(t, "full", r.URL.Query().Get("plot"))
 		json.NewEncoder(w).Encode(omdbDetail{
-			Title:    "Inception",
+			Title:    "Some Movie",
 			Year:     "2010",
 			Rated:    "PG-13",
 			Genre:    "Action, Adventure, Sci-Fi",
@@ -89,7 +89,7 @@ func TestOMDb_GetByProviderID_Ratings(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
-	assert.Equal(t, "Inception", result.Title)
+	assert.Equal(t, "Some Movie", result.Title)
 	assert.Equal(t, "A thief who steals corporate secrets...", result.Overview)
 	assert.Equal(t, "PG-13", result.OfficialRating)
 	assert.Equal(t, "tt1375666", result.ProviderIDs["imdb"])
@@ -122,7 +122,7 @@ func TestOMDb_NoAPIKey(t *testing.T) {
 func TestOMDb_SeriesYearParsing(t *testing.T) {
 	srv, p := newOMDbTestServer(func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(omdbDetail{
-			Title:    "Dexter",
+			Title:    "Some Series",
 			Year:     "2006-2013",
 			ImdbID:   "tt0773262",
 			Response: "True",
@@ -168,7 +168,7 @@ func TestOMDb_Search_WithYear(t *testing.T) {
 	defer srv.Close()
 
 	y := 2010
-	_, err := p.Search(context.Background(), "Inception", &y, "movie")
+	_, err := p.Search(context.Background(), "Some Movie", &y, "movie")
 	require.NoError(t, err)
 }
 

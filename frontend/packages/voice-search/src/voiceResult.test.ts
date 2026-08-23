@@ -18,6 +18,6 @@ describe("toVoiceSearchResult", () => {
   });
 
   it("reports the trimmed recognized text", () => {
-    expect(toVoiceSearchResult(true, "  the matrix  ")).toEqual({ status: "recognized", text: "the matrix" });
+    expect(toVoiceSearchResult(true, "  some movie  ")).toEqual({ status: "recognized", text: "some movie" });
   });
 });
