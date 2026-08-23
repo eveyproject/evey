@@ -138,6 +138,20 @@ func (t *Translator) T(locale, key string, params ...map[string]string) string {
 	return msg
 }
 
+// Loaded reports whether this translator holds a real catalogue. An empty one
+// (NewEmpty, installed when the load fails) answers every key with the key
+// itself, so the whole product renders "errors.auth.invalid_pin" where a
+// sentence belongs - the beta.38 raw-key regression, catalogue-wide. The boot
+// path uses this to say so out loud instead of leaving it to a screenshot.
+func (t *Translator) Loaded() bool {
+	if t == nil {
+		return false
+	}
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	return len(t.messages[t.fallback]) > 0
+}
+
 func (t *Translator) lookup(locale, key string) string {
 	if msgs, ok := t.messages[locale]; ok {
 		if msg, ok := msgs[key]; ok {

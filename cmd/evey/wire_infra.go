@@ -194,10 +194,22 @@ func buildInfra(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog *sl
 	pluginAnalyzer := pluginrunner.NewStaticAnalyzer()
 	pluginSigVerifier := pluginrunner.NewCosignVerifier(cfg.Plugins.CosignPolicy, cfg.Plugins.CosignPublicKey)
 
+	// The path is RELATIVE, and the published image copies the catalogue to
+	// /i18n - which only resolves because the runtime stage leaves WorkingDir
+	// empty while every other asset sits under /app. One WORKDIR /app added to
+	// that stage and the load fails here.
 	translator, i18nErr := eveyi18n.NewFromDir("i18n")
 	if i18nErr != nil {
-		slog.WarnContext(ctx, "i18n load failed, using defaults", slog.Any("err", i18nErr))
 		translator = eveyi18n.NewEmpty()
+	}
+	// Say what an empty catalogue actually costs. The old line said "using
+	// defaults" at WARN, which reads like a harmless fallback: there is no
+	// default text: every message in the product, on every client, renders as
+	// its own key ("errors.auth.invalid_pin"). That shipped once already, in
+	// beta.38, and was found from a screenshot.
+	if !translator.Loaded() {
+		slog.ErrorContext(ctx, "i18n catalogue is EMPTY - every message will render as a raw key on every client",
+			slog.String("dir", "i18n"), slog.Any("err", i18nErr))
 	}
 
 	privateKey, err := auth.LoadOrGenerateRSAKey(cfg.JWT.PrivateKeyPath)
