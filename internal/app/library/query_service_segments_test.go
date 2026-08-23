@@ -176,3 +176,48 @@ func TestGetSegments_WithholdsSubFiveSecondIntros(t *testing.T) {
 		}
 	}
 }
+
+// Plancher de 12 s pour tout ce qui n'est PAS un chapitre MKV. Mesure du
+// 2026-08-24 sur ce que la PROD sert vraiment (19 intros servies, dump lecture
+// seule) : les trois plus courtes font 5 000, 5 347 et 10 000 ms et sont les
+// TROIS faux positifs du gold (A knight of the seven kingdoms [tidb], Dexter
+// resurrection [phash], The pitt [tidb]) ; la suivante fait 18 015 ms et est un
+// vrai positif. La marge sure est donc [10 001, 18 014] ms - 12 000 est au
+// milieu. Un chapitre MKV reste exempt : c'est le muxeur qui l'a ecrit, pas un
+// detecteur qui a devine, et il garde le plancher absolu de 5 s (decision user
+// du 2026-08-06).
+func TestGetSegments_WithholdsShortDetectedIntrosButKeepsChapters(t *testing.T) {
+	t.Parallel()
+	cfgRepo := sharedfakes.NewFakeServerConfigRepository()
+	require.NoError(t, cfgRepo.Set(context.Background(), IntroDetectionConfigKey, `{"min_serve_confidence": 0}`))
+	segs := []*domainlibrary.MediaSegment{
+		// Les trois faux positifs mesures en prod, a la milliseconde.
+		{Type: "intro", StartMs: 0, EndMs: 5_000, Source: "tidb", Confidence: 0.97},
+		{Type: "intro", StartMs: 3_000, EndMs: 8_347, Source: "phash", Confidence: 0.95},
+		{Type: "intro", StartMs: 0, EndMs: 10_000, Source: "tidb", Confidence: 0.97},
+		// Le premier vrai positif au-dessus du plancher : intact.
+		{Type: "intro", StartMs: 121_000, EndMs: 139_015, Source: "audio_cluster", Confidence: 0.75},
+		// Chapitre MKV de 8 s : exempt du plancher de 12 s.
+		{Type: "intro", StartMs: 5_000, EndMs: 13_000, Source: "mkv_chapter", Confidence: 1.0},
+	}
+	got, err := segQuerySvc(segs, WithServerConfig(cfgRepo)).GetSegments(context.Background(), "ep-1")
+	require.NoError(t, err)
+	require.Len(t, got, 2, "les 3 faux positifs sous 12 s tombent, le vrai positif et le chapitre restent")
+	sources := []string{got[0].Source, got[1].Source}
+	assert.Contains(t, sources, "audio_cluster")
+	assert.Contains(t, sources, "mkv_chapter")
+}
+
+// Le plancher absolu de 5 s (2026-08-06) vaut TOUJOURS, chapitre compris : le
+// plancher de 12 s s'ajoute pour les detecteurs, il ne remplace pas l'autre.
+func TestGetSegments_ChapterExemptionStopsAtTheAbsoluteFloor(t *testing.T) {
+	t.Parallel()
+	cfgRepo := sharedfakes.NewFakeServerConfigRepository()
+	require.NoError(t, cfgRepo.Set(context.Background(), IntroDetectionConfigKey, `{"min_serve_confidence": 0}`))
+	segs := []*domainlibrary.MediaSegment{
+		{Type: "intro", StartMs: 389_000, EndMs: 392_000, Source: "mkv_chapter", Confidence: 1.0},
+	}
+	got, err := segQuerySvc(segs, WithServerConfig(cfgRepo)).GetSegments(context.Background(), "ep-1")
+	require.NoError(t, err)
+	require.Empty(t, got, "un chapitre de 3 s reste refuse")
+}

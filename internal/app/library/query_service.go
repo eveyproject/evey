@@ -274,6 +274,17 @@ func (s *QueryService) GetSegments(ctx context.Context, mediaItemID string) ([]*
 		if sg.Type == "intro" && sg.EndMs-sg.StartMs < minServeIntroMs {
 			continue
 		}
+		// Detector floor: below 12 seconds a DETECTED intro is a false
+		// positive, not a short intro. Measured 2026-08-24 on what production
+		// actually serves (19 intros, read-only dump): the three shortest are
+		// 5 000, 5 347 and 10 000 ms and are exactly the three gold false
+		// positives; the next one up is 18 015 ms and is a true positive. The
+		// safe margin is [10 001, 18 014] ms - 12 000 sits in the middle.
+		// An mkv chapter is exempt: a muxer wrote it, no detector guessed it,
+		// and it keeps the absolute 5s floor above.
+		if sg.Type == "intro" && sg.Source != "mkv_chapter" && sg.EndMs-sg.StartMs < minDetectedIntroMs {
+			continue
+		}
 		if minConf > 0 && sg.Confidence < minConf {
 			continue
 		}
@@ -302,6 +313,11 @@ func (s *QueryService) GetSegments(ctx context.Context, mediaItemID string) ([]*
 // what in-house detectors may EMIT - this one polices what anyone may SEE,
 // authoritative sources included.
 const minServeIntroMs = 5_000
+
+// minDetectedIntroMs is the serving-side floor on an intro a DETECTOR produced
+// (anything but mkv_chapter). Distinct from minServeIntroMs, which is the
+// absolute product rule every source obeys.
+const minDetectedIntroMs = 12_000
 
 func (s *QueryService) GetTrickplayManifest(ctx context.Context, mediaItemID string) (*library.TrickplayManifest, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.library.GetTrickplayManifest")
