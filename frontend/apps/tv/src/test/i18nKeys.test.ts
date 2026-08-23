@@ -88,10 +88,17 @@ describe("every translation key the three apps ask for exists in the catalogue",
 
     // Only literal keys: a computed one (`t(someVar)`) cannot be checked here,
     // and pretending otherwise would make this guard look stronger than it is.
-    const call = /\bt\(\s*"([a-zA-Z0-9_.]+)"/g;
-    const root = join(REPO_ROOT ?? "", "frontend", "apps", app);
+    // BOTH quote styles: the double-quote-only version measured clean while
+    // single-quoted calls went unread (i18n audit, 2026-08-24) - a guard with
+    // a blind spot reads exactly like a guard with nothing to find.
+    const call = /\bt\(\s*["']([a-zA-Z0-9_.]+)["']/g;
+    const roots = [join(REPO_ROOT ?? "", "frontend", "apps", app)];
+    // The shared packages render translated strings too (displayTitle,
+    // notificationLabel, apiErrorMessage...) and were outside every root.
+    if (app === "web") roots.push(join(REPO_ROOT ?? "", "frontend", "packages"));
+    const root = roots[0];
     const missing: string[] = [];
-    for (const file of sourceFiles(root)) {
+    for (const file of roots.flatMap((r) => sourceFiles(r))) {
       const src = readFileSync(file, "utf8");
       for (const m of src.matchAll(call)) {
         if (!resolves(m[1])) missing.push(`${m[1]}  (${file.slice(root.length + 1)})`);
