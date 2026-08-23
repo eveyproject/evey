@@ -9,6 +9,7 @@ import {
 import type { V1StreamInfo, V1WatchProgress } from "@evey/api";
 import { getServerUrl } from "../lib/server-config";
 import { getDeviceAudioCodecs } from "../lib/deviceCodecs";
+import { probeMaxOutputChannels } from "../lib/outputChannels";
 import { logger } from "../lib/log";
 
 const log = logger("play");
@@ -93,10 +94,14 @@ async function fetchStreamToken(mediaId: string): Promise<string> {
   return res.token;
 }
 
-function appendCodecParams(params: URLSearchParams): void {
+function appendCodecParams(params: URLSearchParams, maxAudioChannels?: number): void {
   params.set("videoCodecs", VIDEO_CODECS.join(","));
   params.set("audioCodecs", getDeviceAudioCodecs().join(","));
   params.set("containers", CONTAINERS.join(","));
+  // Channel ceiling of the OUTPUT, not of the decoder - see lib/outputChannels.
+  // Omitted when the box cannot answer, which leaves the server profile's own
+  // default in place: an unknown output must not silently lose surround.
+  if (maxAudioChannels != null) params.set("maxAudioChannels", String(maxAudioChannels));
 }
 
 export function buildStreamUrl(
@@ -104,6 +109,7 @@ export function buildStreamUrl(
   mediaId: string,
   streamInfo: V1StreamInfo,
   token: string,
+  maxAudioChannels?: number,
 ): string {
   if (streamInfo.playMethod === "PLAY_METHOD_DIRECT_PLAY") {
     return `${serverUrl}/api/v1/media/${mediaId}/stream?token=${token}`;
@@ -114,7 +120,7 @@ export function buildStreamUrl(
   // /transcode?remux=1 is a piped ffmpeg stdout with `Accept-Ranges: none`, so
   // the native player marks it unseekable and resume / timeline / skip all die.
   const params = new URLSearchParams({ token });
-  appendCodecParams(params);
+  appendCodecParams(params, maxAudioChannels);
   // Server publishes a complete VOD manifest from t=0 (no live-edge snap), so
   // there is no start offset to declare: the player seeks natively on the
   // absolute timeline. A startSec param used to be sent here, but no handler
@@ -151,7 +157,7 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
         const screen = Dimensions.get("screen");
         const screenH = Math.round(screen.height * (screen.scale ?? 1));
 
-        const [info, wp] = await Promise.all([
+        const [info, wp, maxAudioChannels] = await Promise.all([
           playbackServiceGetStreamInfo(mediaId, {
             supportedCodecs: VIDEO_CODECS,
             supportedAudioCodecs: getDeviceAudioCodecs(),
@@ -165,6 +171,9 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
             url: `/api/v1/playback/${mediaId}/progress`,
             method: "GET",
           }).catch(() => null),
+          // Re-probed at every negotiation, not memoised at startup: the output
+          // device changes mid-session (headphones, dock, amplifier).
+          probeMaxOutputChannels(),
         ]);
 
         if (wp) setProgress(wp);
@@ -174,7 +183,7 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
           token = await fetchStreamToken(mediaId);
           tokenRef.current = token;
         }
-        const url = buildStreamUrl(serverUrl, mediaId, info, token);
+        const url = buildStreamUrl(serverUrl, mediaId, info, token, maxAudioChannels);
 
         // Direct play streams the original file with no orchestrator involved,
         // so it cannot be shed - only probe the transcode/HLS paths.

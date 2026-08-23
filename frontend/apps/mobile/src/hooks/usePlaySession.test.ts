@@ -17,6 +17,28 @@ vi.mock("../lib/server-config", () => ({
   getServerUrl: vi.fn().mockResolvedValue("http://localhost:8080"),
 }));
 
+const getAudioProbeMock = vi.fn();
+vi.mock("@evey/media-caps", () => ({
+  getAudioProbe: () => getAudioProbeMock(),
+}));
+
+// Minimal shape of the native audio probe; only the two fields the channel
+// ceiling is derived from vary between cases.
+function audioProbe(over: Record<string, unknown>) {
+  return {
+    apiLevel: 34,
+    isTv: false,
+    deviceModel: "test",
+    decoders: [],
+    directPlayback: {},
+    directProfiles: [],
+    hdmi: { available: false },
+    surroundOutputRaw: -1,
+    outputDeviceTypes: [],
+    ...over,
+  };
+}
+
 vi.mock("react-native", () => ({
   Dimensions: {
     get: () => ({ width: 360, height: 800, scale: 2 }),
@@ -32,6 +54,57 @@ beforeEach(() => {
   getStreamInfoMock.mockReset();
   startStreamMock.mockReset();
   stopStreamMock.mockReset();
+  getAudioProbeMock.mockReset();
+  getAudioProbeMock.mockResolvedValue(null);
+});
+
+// The channel ceiling of the OUTPUT, which no playback request used to carry:
+// the server profile pinned MaxAudioChannels = 6 and the device folded 5.1
+// onto two speakers without normalisation - voices fine, music and effects
+// clipping.
+describe("maxAudioChannels reaches the stream URL", () => {
+  const realFetch = global.fetch;
+  const fetchMock = vi.fn();
+
+  beforeEach(() => {
+    global.fetch = fetchMock as unknown as typeof fetch;
+    fetchMock.mockReset();
+    fetchMock.mockResolvedValue({ status: 200, headers: { get: () => null }, json: async () => ({}) });
+    getStreamInfoMock.mockResolvedValue({ playMethod: "PLAY_METHOD_TRANSCODE" });
+    startStreamMock.mockResolvedValue({ id: "sess1" });
+  });
+
+  afterEach(() => {
+    global.fetch = realFetch;
+  });
+
+  async function negotiatedUrl(): Promise<string> {
+    const { renderHook, waitFor } = await import("@testing-library/react");
+    const { usePlaySession } = await import("./usePlaySession");
+    eveyFetchMock
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ token: "t1", mediaId: "m1" });
+    const { result } = renderHook(() => usePlaySession("m1"));
+    await waitFor(() => expect(result.current.streamUrl).not.toBeNull());
+    return result.current.streamUrl as string;
+  }
+
+  it("declares the stereo ceiling of a phone (speaker + headphones + Bluetooth)", async () => {
+    getAudioProbeMock.mockResolvedValue(audioProbe({ outputDeviceTypes: [2, 4, 8] }));
+    expect(new URL(await negotiatedUrl()).searchParams.get("maxAudioChannels")).toBe("2");
+  });
+
+  it("leaves a plugged 5.1 HDMI sink at 5.1", async () => {
+    getAudioProbeMock.mockResolvedValue(
+      audioProbe({ hdmi: { available: true, plugState: 1, maxChannelCount: 6 }, outputDeviceTypes: [9] }),
+    );
+    expect(new URL(await negotiatedUrl()).searchParams.get("maxAudioChannels")).toBe("6");
+  });
+
+  it("omits the param when the device cannot answer, keeping the server default", async () => {
+    getAudioProbeMock.mockResolvedValue(null);
+    expect(new URL(await negotiatedUrl()).searchParams.has("maxAudioChannels")).toBe(false);
+  });
 });
 
 describe("buildStreamUrl", () => {
@@ -122,6 +195,16 @@ describe("buildStreamUrl", () => {
     const { buildStreamUrl } = await import("./usePlaySession");
     const url = buildStreamUrl("http://srv", "m1", { playMethod: "PLAY_METHOD_TRANSCODE" }, "tok", 42.7);
     expect(url).not.toContain("startSec");
+  });
+
+  it("carries the probed channel ceiling, and nothing when there is none", async () => {
+    const { buildStreamUrl } = await import("./usePlaySession");
+    const info = { playMethod: "PLAY_METHOD_TRANSCODE" };
+    expect(buildStreamUrl("http://srv", "m1", info, "tok", undefined, undefined, 2))
+      .toContain("maxAudioChannels=2");
+    expect(buildStreamUrl("http://srv", "m1", info, "tok", undefined, undefined, 6))
+      .toContain("maxAudioChannels=6");
+    expect(buildStreamUrl("http://srv", "m1", info, "tok")).not.toContain("maxAudioChannels");
   });
 
   it("falls back to HLS URL for unknown play method", async () => {

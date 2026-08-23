@@ -1,4 +1,5 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { resetOutputChannelsProbe } from "@/utils/outputChannels";
 import { startPlayback, planCastLoad, pickCastTapPath, castVideoPreload, pickPlayOnFallback, pickTranscodeAudioSwitchPath, pickPinnedLevel, liftForcedMuteOnNextGesture } from "./hlsPlayerUtils";
 import type { SubtitleStream } from "../SubtitleSelector";
 
@@ -97,6 +98,39 @@ describe("getSelectedBurnInTrack", () => {
 
   it("returns null when trackIndex not found in streams", () => {
     expect(getSelectedBurnInTrack(99, streams)).toBeNull();
+  });
+});
+
+// The channel ceiling of the OUTPUT, which no playback request used to carry:
+// the server profile pinned MaxAudioChannels = 6 and the browser folded 5.1
+// onto two speakers with its un-normalised "speakers" matrix (worst case
+// +7.66 dB) - voices fine, music and effects clipping.
+describe("buildTranscodeHlsUrl: maxAudioChannels", () => {
+  class FakeAudioContext {
+    static channels = 2;
+    destination = { maxChannelCount: FakeAudioContext.channels };
+    close() { return Promise.resolve(); }
+  }
+
+  beforeEach(() => { resetOutputChannelsProbe(); });
+  afterEach(() => { vi.unstubAllGlobals(); resetOutputChannelsProbe(); });
+
+  it("declares the stereo ceiling the output actually has", () => {
+    FakeAudioContext.channels = 2;
+    vi.stubGlobal("AudioContext", FakeAudioContext);
+    expect(buildTranscodeHlsUrl("m1", "tok", 0, null, 0)).toContain("maxAudioChannels=2");
+  });
+
+  it("leaves a real 5.1 output at 5.1", () => {
+    FakeAudioContext.channels = 6;
+    vi.stubGlobal("AudioContext", FakeAudioContext);
+    expect(buildTranscodeHlsUrl("m1", "tok", 0, null, 0)).toContain("maxAudioChannels=6");
+  });
+
+  it("omits the param when the browser cannot answer, keeping the server default", () => {
+    vi.stubGlobal("AudioContext", undefined);
+    vi.stubGlobal("webkitAudioContext", undefined);
+    expect(buildTranscodeHlsUrl("m1", "tok", 0, null, 0)).not.toContain("maxAudioChannels");
   });
 });
 

@@ -10,6 +10,7 @@ import {
 import type { V1StreamInfo, V1WatchProgress } from "@evey/api";
 import { getServerUrl } from "../lib/server-config";
 import { getDeviceAudioCodecs, getDeviceHdrSupport } from "../lib/deviceCodecs";
+import { probeMaxOutputChannels } from "../lib/outputChannels";
 
 const DEVICE_ID = "evey-mobile";
 const DEVICE_NAME = "Evey Mobile";
@@ -138,7 +139,7 @@ export async function fetchStreamToken(mediaId: string, opts?: { cast?: boolean 
   return res.token;
 }
 
-function appendCodecParams(params: URLSearchParams): void {
+function appendCodecParams(params: URLSearchParams, maxAudioChannels?: number): void {
   params.set("videoCodecs", VIDEO_CODECS.join(","));
   // Audio codecs come from the device's real decoder list (MediaCodecList via
   // the MediaCaps native module) - a hardcoded list with ac3/eac3 direct-played
@@ -148,6 +149,10 @@ function appendCodecParams(params: URLSearchParams): void {
   // hdr=1 lets the decision keep the video COPY rung for HDR10/HLG sources on
   // an HDR panel (exact colors + on-demand seek) instead of tonemapping to SDR.
   if (getDeviceHdrSupport()) params.set("hdr", "1");
+  // Channel ceiling of the OUTPUT, not of the decoder - see lib/outputChannels.
+  // Omitted when the device cannot answer, which leaves the server profile's
+  // own default in place: an unknown output must not silently lose surround.
+  if (maxAudioChannels != null) params.set("maxAudioChannels", String(maxAudioChannels));
 }
 
 // audioTrack/subtitleTrack are 0-based indices AMONG the audio/subtitle
@@ -164,6 +169,7 @@ export function buildStreamUrl(
   token: string,
   audioTrack?: number,
   subtitleTrack?: number | null,
+  maxAudioChannels?: number,
 ): string {
   if (streamInfo.playMethod === "PLAY_METHOD_DIRECT_PLAY") {
     return `${serverUrl}/api/v1/media/${encodeURIComponent(mediaId)}/stream?token=${token}`;
@@ -181,7 +187,7 @@ export function buildStreamUrl(
   // and what the web player does (HLSPlayer's transcodeMode covers every
   // non-direct-play method).
   const params = new URLSearchParams({ token });
-  appendCodecParams(params);
+  appendCodecParams(params, maxAudioChannels);
   if (audioTrack != null && audioTrack >= 0) params.set("audioTrack", String(audioTrack));
   if (subtitleTrack != null && subtitleTrack >= 0) params.set("subtitleTrack", String(subtitleTrack));
   // Server publishes a complete VOD manifest from t=0 (no live-edge snap), so
@@ -251,7 +257,7 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
         const explicitMaxHeight = maxHeight && maxHeight > 0 ? maxHeight : undefined;
         const networkType = await detectNetworkType();
 
-        const [info, wp] = await Promise.all([
+        const [info, wp, maxAudioChannels] = await Promise.all([
           playbackServiceGetStreamInfo(mediaId, {
             supportedCodecs: VIDEO_CODECS,
             supportedAudioCodecs: getDeviceAudioCodecs(),
@@ -266,6 +272,9 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
             url: `/api/v1/playback/${encodeURIComponent(mediaId)}/progress`,
             method: "GET",
           }).catch(() => null),
+          // Re-probed at every negotiation, not memoised at startup: the output
+          // device changes mid-session (headphones, dock, amplifier).
+          probeMaxOutputChannels(),
         ]);
 
         if (wp) setProgress(wp);
@@ -281,7 +290,7 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
         // needs, so a language switch produces a DIFFERENT url that reloads.
         const audioTrack = typeRelativeIndex(info, "MEDIA_STREAM_TYPE_AUDIO", audioStreamIndex);
         const subtitleTrack = typeRelativeIndex(info, "MEDIA_STREAM_TYPE_SUBTITLE", subtitleStreamIndex);
-        const url = buildStreamUrl(serverUrl, mediaId, info, token, audioTrack, subtitleTrack);
+        const url = buildStreamUrl(serverUrl, mediaId, info, token, audioTrack, subtitleTrack, maxAudioChannels);
 
         // Direct play streams the original file with no orchestrator involved,
         // so it cannot be shed - only probe the transcode/HLS paths.

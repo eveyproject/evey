@@ -1,6 +1,7 @@
 import Hls from "hls.js";
 import type { SubtitleStream } from "../SubtitleSelector";
 import { getBrowserCapabilities } from "@/utils/codec";
+import { getMaxOutputChannels } from "@/utils/outputChannels";
 
 // computeNativeHLSPreference is the pure decision behind prefersNativeHLS,
 // factored out so every browser can be exercised in a unit test without a real
@@ -65,6 +66,11 @@ export function appendCodecParams(params: URLSearchParams): void {
   // decode HEVC+HDR10 natively (the copy rung). Only sent when true: the
   // server default is SDR (conservative, mirrors the gRPC supportsHdr param).
   if (caps.hdr) params.set("hdr", "1");
+  // Channel ceiling of the OUTPUT, not of the decoder - see outputChannels.ts.
+  // Omitted when the browser cannot answer, which leaves the server profile's
+  // own default in place: an unknown output must not silently lose surround.
+  const channels = getMaxOutputChannels();
+  if (channels !== undefined) params.set("maxAudioChannels", String(channels));
 }
 
 export function buildTranscodeHlsUrl(
