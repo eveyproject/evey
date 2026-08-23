@@ -43,15 +43,15 @@ func TestApplyRegionalTitle_KeepsGenuineLocalizedTitle(t *testing.T) {
 func TestApplyRegionalTitle_SameLanguageNoOverride(t *testing.T) {
 	d := tmdbDetailResponse{
 		ID:               7,
-		Title:            "Amélie",
-		OriginalTitle:    "Amélie",
+		Title:            "Un Été Français",
+		OriginalTitle:    "Un Été Français",
 		OriginalLanguage: "fr",
 		AlternativeTitles: &tmdbAltTitles{Titles: []tmdbAltTitle{
 			{Region: "FR", Title: "should not be used"},
 		}},
 	}
 	r := mapDetailResult(d, "movie", "fr")
-	if r.Title != "Amélie" {
+	if r.Title != "Un Été Français" {
 		t.Fatalf("same-language title overridden: got %q", r.Title)
 	}
 }
@@ -90,21 +90,21 @@ func TestApplyRegionalTitle_TVUsesResultsAndEnRegions(t *testing.T) {
 	}
 }
 
-// The exact Avatar case: FR title == original ("Avatar"), and the only FR
-// alternative title is the polluted "Avatar (1)" - it must NOT be applied.
+// The real-world shape: FR title == original, and the only FR alternative
+// title is the polluted "<title> (1)" - it must NOT be applied.
 func TestApplyRegionalTitle_SkipsPollutedRegionalTitle(t *testing.T) {
 	d := tmdbDetailResponse{
 		ID:               19995,
-		Title:            "Avatar",
-		OriginalTitle:    "Avatar",
+		Title:            "Some Movie 2",
+		OriginalTitle:    "Some Movie 2",
 		OriginalLanguage: "en",
 		AlternativeTitles: &tmdbAltTitles{Titles: []tmdbAltTitle{
-			{Region: "FR", Title: "Avatar (1)"},
+			{Region: "FR", Title: "Some Movie 2 (1)"},
 		}},
 	}
 	r := mapDetailResult(d, "movie", "fr")
-	if r.Title != "Avatar" {
-		t.Fatalf("polluted regional title applied: got %q, want %q", r.Title, "Avatar")
+	if r.Title != "Some Movie 2" {
+		t.Fatalf("polluted regional title applied: got %q, want %q", r.Title, "Some Movie 2")
 	}
 }
 
@@ -129,8 +129,8 @@ func TestApplyRegionalTitle_SkipsPollutedButKeepsGenuineLater(t *testing.T) {
 
 func TestStripTrailingParens(t *testing.T) {
 	cases := map[string]string{
-		"Avatar (1)":         "Avatar",
-		"Avatar":             "Avatar",
+		"Some Movie 2 (1)":   "Some Movie 2",
+		"Some Movie 2":       "Some Movie 2",
 		"X (1) (uncredited)": "X",
 		"  Spaced (2) ":      "Spaced",
 		"(Untitled)":         "(Untitled)",

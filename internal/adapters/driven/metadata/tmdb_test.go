@@ -339,14 +339,14 @@ func TestSearch_YearParamSentToAPI(t *testing.T) {
 		capturedParams = append(capturedParams, r.URL.Query())
 		w.Header().Set("Content-Type", "application/json")
 		resp := tmdbSearchResponse{Page: 1, TotalPages: 1,
-			Results: []tmdbSearchItem{{ID: 1, Title: "Robin Hood", ReleaseDate: "2018-11-21"}},
+			Results: []tmdbSearchItem{{ID: 1, Title: "Some Movie 2", ReleaseDate: "2018-11-21"}},
 		}
 		json.NewEncoder(w).Encode(resp)
 	})
 	defer srv.Close()
 
 	y := 2018
-	results, err := p.Search(context.Background(), "Robin Hood", &y, "movie")
+	results, err := p.Search(context.Background(), "Some Movie 2", &y, "movie")
 	require.NoError(t, err)
 	require.Len(t, results, 1)
 	// First call should have primary_release_year
@@ -354,7 +354,7 @@ func TestSearch_YearParamSentToAPI(t *testing.T) {
 	assert.Equal(t, "2018", capturedParams[0].Get("primary_release_year"))
 
 	capturedParams = nil
-	_, err = p.Search(context.Background(), "Robin Hood", &y, "tv")
+	_, err = p.Search(context.Background(), "Some Movie 2", &y, "tv")
 	require.NoError(t, err)
 	require.GreaterOrEqual(t, len(capturedParams), 1)
 	assert.Equal(t, "2018", capturedParams[0].Get("first_air_date_year"))

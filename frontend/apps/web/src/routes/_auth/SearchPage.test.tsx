@@ -88,7 +88,7 @@ describe("SearchPage", () => {
     const SearchPage = await getSearchPage();
     render(React.createElement(SearchPage), { wrapper: createWrapper() });
     const input = screen.getByTestId("search-page-input");
-    fireEvent.change(input, { target: { value: "matrix" } });
+    fireEvent.change(input, { target: { value: "some movie" } });
     expect(screen.getByRole("button", { name: /Clear search/i })).toBeInTheDocument();
   });
 
@@ -96,7 +96,7 @@ describe("SearchPage", () => {
     const SearchPage = await getSearchPage();
     render(React.createElement(SearchPage), { wrapper: createWrapper() });
     const input = screen.getByTestId("search-page-input") as HTMLInputElement;
-    fireEvent.change(input, { target: { value: "matrix" } });
+    fireEvent.change(input, { target: { value: "some movie" } });
     fireEvent.click(screen.getByRole("button", { name: /Clear search/i }));
     expect(input.value).toBe("");
   });

@@ -51,8 +51,8 @@ function createWrapper() {
 }
 
 const mockCollections = [
-  { id: "c1", name: "Marvel Cinematic Universe", posterUrl: null, createdAt: "", updatedAt: "" },
-  { id: "c2", name: "Some Movie", posterUrl: null, createdAt: "", updatedAt: "" },
+  { id: "c1", name: "Some Collection Universe", posterUrl: null, createdAt: "", updatedAt: "" },
+  { id: "c2", name: "Another Collection", posterUrl: null, createdAt: "", updatedAt: "" },
 ];
 
 async function renderPage() {
@@ -74,7 +74,7 @@ describe("CollectionsPage", () => {
       isLoading: false,
     });
     await renderPage();
-    await waitFor(() => expect(screen.getByText("Some Movie")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Another Collection")).toBeInTheDocument());
     expect(screen.queryByTestId("new-smart-collection")).not.toBeInTheDocument();
     expect(screen.queryByTestId("new-collection")).not.toBeInTheDocument();
     expect(screen.queryByTestId("collection-delete-c1")).not.toBeInTheDocument();
@@ -113,8 +113,8 @@ describe("CollectionsPage", () => {
     mockListCollections.mockReturnValue({ data: { collections: mockCollections }, isLoading: false });
     await renderPage();
     await waitFor(() => {
-      expect(screen.getByText("Marvel Cinematic Universe")).toBeInTheDocument();
-      expect(screen.getByText("Some Movie")).toBeInTheDocument();
+      expect(screen.getByText("Some Collection Universe")).toBeInTheDocument();
+      expect(screen.getByText("Another Collection")).toBeInTheDocument();
     });
   });
 
@@ -122,8 +122,8 @@ describe("CollectionsPage", () => {
     mockListCollections.mockReturnValue({ data: { collections: mockCollections }, isLoading: false });
     await renderPage();
     await waitFor(() => {
-      expect(screen.getByText("M")).toBeInTheDocument();
       expect(screen.getByText("S")).toBeInTheDocument();
+      expect(screen.getByText("A")).toBeInTheDocument();
     });
   });
 
@@ -142,13 +142,13 @@ describe("CollectionsPage", () => {
   it("separates smart collections from TMDB collections", async () => {
     const mixed = [
       { id: "s1", name: "Action Movies", rules: [{ field: "genre", operator: "eq", value: "Action" }], createdAt: "", updatedAt: "" },
-      { id: "c1", name: "Marvel", posterUrl: null, createdAt: "", updatedAt: "" },
+      { id: "c1", name: "Some Collection", posterUrl: null, createdAt: "", updatedAt: "" },
     ];
     mockListCollections.mockReturnValue({ data: { collections: mixed }, isLoading: false });
     await renderPage();
     await waitFor(() => {
       expect(screen.getByText("Action Movies")).toBeInTheDocument();
-      expect(screen.getByText("Marvel")).toBeInTheDocument();
+      expect(screen.getByText("Some Collection")).toBeInTheDocument();
       expect(screen.getByText("Smart Collections")).toBeInTheDocument();
       expect(screen.getByText("TMDB Collections")).toBeInTheDocument();
     });
@@ -159,7 +159,7 @@ describe("CollectionsPage", () => {
     // (the installed i18next resolves "_one"/"_other" instead, so any count
     // other than 1 falls back to the unsuffixed singular string here).
     mockListCollections.mockReturnValue({
-      data: { collections: [{ id: "c1", name: "Marvel", posterUrl: null, itemCount: 1, createdAt: "", updatedAt: "" }] },
+      data: { collections: [{ id: "c1", name: "Some Collection", posterUrl: null, itemCount: 1, createdAt: "", updatedAt: "" }] },
       isLoading: false,
     });
     await renderPage();
@@ -172,14 +172,14 @@ describe("CollectionsPage", () => {
     mockListCollections.mockReturnValue({
       data: {
         collections: [
-          { id: "c1", name: "Marvel", posterUrl: null, createdAt: "", updatedAt: "" },
+          { id: "c1", name: "Some Collection", posterUrl: null, createdAt: "", updatedAt: "" },
           { id: "c2", name: "DC", posterUrl: null, itemCount: 0, createdAt: "", updatedAt: "" },
         ],
       },
       isLoading: false,
     });
     await renderPage();
-    await waitFor(() => expect(screen.getByText("Marvel")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Some Collection")).toBeInTheDocument());
     expect(screen.queryByText(/titles?$/)).not.toBeInTheDocument();
   });
 
@@ -187,7 +187,7 @@ describe("CollectionsPage", () => {
     mockListCollections.mockReturnValue({
       data: {
         collections: [
-          { id: "c1", name: "Marvel", posterUrl: null, kind: "saga", itemCount: 12, createdAt: "", updatedAt: "" },
+          { id: "c1", name: "Some Collection", posterUrl: null, kind: "saga", itemCount: 12, createdAt: "", updatedAt: "" },
           { id: "c2", name: "My Favorites", posterUrl: null, kind: "manual", createdAt: "", updatedAt: "" },
         ],
       },
@@ -196,7 +196,7 @@ describe("CollectionsPage", () => {
     await renderPage();
     await waitFor(() => {
       expect(screen.getByText("Saga")).toBeInTheDocument();
-      expect(screen.getByText("Marvel")).toBeInTheDocument();
+      expect(screen.getByText("Some Collection")).toBeInTheDocument();
       expect(screen.getByText("My Favorites")).toBeInTheDocument();
     });
     expect(screen.getAllByText("Saga")).toHaveLength(1);
