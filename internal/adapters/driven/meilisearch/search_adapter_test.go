@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/evey-project/evey/internal/domain/library"
+	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
 )
 
 type fakeIndex struct {
@@ -427,4 +428,47 @@ func TestSearch_DefaultLimit(t *testing.T) {
 	_, _, err := adapter.Search(context.Background(), "test", nil, nil, 0)
 	require.NoError(t, err)
 	assert.Equal(t, int64(20), fake.searchReq.Limit)
+}
+
+// Two doors, one answer: the library grid localizes a title through
+// overlayMediaItemsLocale, so the SAME title found through search must be
+// localized too. The index already stores every translation and this very
+// function already retrieves and decodes them - it just threw the localized
+// string away after using it to re-rank, and served the stored (English)
+// title. A viewer whose profile is French therefore read one title in the
+// grid and another in the search results, for the same media.
+func TestSearch_ServesTheProfileLocaleTitle(t *testing.T) {
+	hit := ms.Hit{
+		"id":           json.RawMessage(`"abc-123"`),
+		"title":        json.RawMessage(`"Some Movie"`),
+		"type":         json.RawMessage(`"movie"`),
+		"translations": json.RawMessage(`{"fr":"Un Certain Film","en":"Some Movie"}`),
+	}
+	fake := &fakeIndex{searchResp: &ms.SearchResponse{Hits: ms.Hits{hit}, EstimatedTotalHits: 1}}
+	adapter := &SearchAdapter{index: fake}
+
+	ctx := eveyi18n.ContextWithLocale(context.Background(), "fr")
+	hits, _, err := adapter.Search(ctx, "film", nil, nil, 20)
+	require.NoError(t, err)
+	require.Len(t, hits, 1)
+	assert.Equal(t, "Un Certain Film", hits[0].Title)
+}
+
+// No translation for that locale: the stored title stays. A missing row must
+// never blank a card.
+func TestSearch_KeepsTheStoredTitleWhenTheLocaleHasNoTranslation(t *testing.T) {
+	hit := ms.Hit{
+		"id":           json.RawMessage(`"abc-123"`),
+		"title":        json.RawMessage(`"Some Movie"`),
+		"type":         json.RawMessage(`"movie"`),
+		"translations": json.RawMessage(`{"en":"Some Movie"}`),
+	}
+	fake := &fakeIndex{searchResp: &ms.SearchResponse{Hits: ms.Hits{hit}, EstimatedTotalHits: 1}}
+	adapter := &SearchAdapter{index: fake}
+
+	ctx := eveyi18n.ContextWithLocale(context.Background(), "fr")
+	hits, _, err := adapter.Search(ctx, "film", nil, nil, 20)
+	require.NoError(t, err)
+	require.Len(t, hits, 1)
+	assert.Equal(t, "Some Movie", hits[0].Title)
 }

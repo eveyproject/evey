@@ -403,6 +403,17 @@ func (a *SearchAdapter) Search(ctx context.Context, query string, filters map[st
 			Tags:           doc.Tags,
 			OfficialRating: doc.OfficialRating,
 		}
+		// The localized title is what the library grid shows for this same media
+		// (overlayMediaItemsLocale), so search must show it too - a viewer who
+		// reads one title in the grid and another in the results is looking at
+		// two answers to one question. Free here: the translations are already
+		// retrieved and decoded for the re-rank below; they were simply thrown
+		// away afterwards. An absent translation keeps the stored title.
+		if rerank {
+			if lt := doc.Translations[profileLocale]; lt != "" {
+				h.Title = lt
+			}
+		}
 		if raw, ok := hit["_formatted"]; ok {
 			var fm map[string]string
 			if json.Unmarshal(raw, &fm) == nil {
