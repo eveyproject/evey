@@ -459,11 +459,6 @@ const (
 	// minutes of "logos". The ground-truth set's worst observed ratio is
 	// ~2.8% (172s on a ~103-minute film); 10% leaves a >3x margin.
 	leadingLogoMaxDurationFraction = 0.10
-	// minLeadingLogoBlockMs mirrors library.minDetectedIntroMs (the
-	// serving-side floor): a candidate shorter than this would never be
-	// served, so it is not worth storing. Keep in sync with
-	// internal/app/library/query_service.go.
-	minLeadingLogoBlockMs = 12_000
 )
 
 // DetectLeadingLogoBlock scans the HEAD of a video file for a cluster of
@@ -572,7 +567,9 @@ func parseLeadingLogoBlock(output string, windowSec, durationSec float64) (start
 	if end > cap {
 		return 0, 0, false
 	}
-	if end*1000 < float64(minLeadingLogoBlockMs) {
+	// The serving gate's own floor, read from the domain rather than mirrored
+	// here: a candidate under it would never be served, so storing it is waste.
+	if end*1000 < float64(domainlibrary.MinDetectedIntroMs) {
 		return 0, 0, false
 	}
 	return 0, int64(end * 1000), true

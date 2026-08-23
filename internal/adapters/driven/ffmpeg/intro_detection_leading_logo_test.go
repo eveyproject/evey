@@ -74,7 +74,7 @@ func TestParseLeadingLogoBlock_BelowServiceFloorRefused(t *testing.T) {
 	assert.Equal(t, int64(0), endMs)
 }
 
-// A demesurate block (past the absolute plausibility cap) is refused even
+// An oversized block (past the absolute plausibility cap) is refused even
 // though every individual region looks like a real black. Chained regions
 // 25s apart (gap 20s, within leadingLogoClusterGapSec) keep the cluster
 // growing well past the 300s cap; durationSec is set very high so the

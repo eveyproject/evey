@@ -282,7 +282,7 @@ func (s *QueryService) GetSegments(ctx context.Context, mediaItemID string) ([]*
 		// safe margin is [10 001, 18 014] ms - 12 000 sits in the middle.
 		// An mkv chapter is exempt: a muxer wrote it, no detector guessed it,
 		// and it keeps the absolute 5s floor above.
-		if sg.Type == "intro" && sg.Source != "mkv_chapter" && sg.EndMs-sg.StartMs < minDetectedIntroMs {
+		if sg.Type == "intro" && sg.Source != "mkv_chapter" && sg.EndMs-sg.StartMs < library.MinDetectedIntroMs {
 			continue
 		}
 		if minConf > 0 && sg.Confidence < minConf {
@@ -314,10 +314,7 @@ func (s *QueryService) GetSegments(ctx context.Context, mediaItemID string) ([]*
 // authoritative sources included.
 const minServeIntroMs = 5_000
 
-// minDetectedIntroMs is the serving-side floor on an intro a DETECTOR produced
-// (anything but mkv_chapter). Distinct from minServeIntroMs, which is the
-// absolute product rule every source obeys.
-const minDetectedIntroMs = 12_000
+
 
 func (s *QueryService) GetTrickplayManifest(ctx context.Context, mediaItemID string) (*library.TrickplayManifest, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.library.GetTrickplayManifest")

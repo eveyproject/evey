@@ -8,6 +8,22 @@ import "slices"
 // so it stays on the sweep's work list.
 const MinCoveringIntroMs = 5_000
 
+// MinDetectedIntroMs is the shortest intro a DETECTOR may have believed. It
+// polices two points that must never disagree: the serving gate that withholds
+// a stored row, and the detectors that decide whether a candidate is worth
+// storing at all. Same doctrine as CreditsLeadImplausible - one answer to
+// "too short to be an intro?", never two constants drifting apart.
+//
+// Bounded by production, not chosen by feel (2026-08-24, read-only dump of the
+// 19 intros the server actually served): the three shortest are 5 000, 5 347
+// and 10 000 ms and are exactly the three gold false positives; the next one
+// up is 18 015 ms and is a true positive. The safe margin is [10 001, 18 014] ms.
+//
+// An mkv chapter is EXEMPT at the serving gate: a muxer wrote it, no detector
+// guessed it. It keeps the absolute 5s product floor instead (user decision
+// 2026-08-06).
+const MinDetectedIntroMs = 12_000
+
 // IntroLockedSources are the operator marks the sweep must never overwrite.
 // An episode carrying one is settled whatever the span: the operator decided.
 func IntroLockedSources() []string { return []string{"manual", "manual_propagated"} }
