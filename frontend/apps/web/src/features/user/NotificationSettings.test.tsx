@@ -6,7 +6,8 @@ import { NotificationSettings } from "./NotificationSettings";
 
 const mutateMock = vi.fn();
 
-vi.mock("@evey/api", () => ({
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
   useNotificationServiceGetNotificationSettings: () => ({
     data: {
       movieLevel: "NOTIFICATION_LEVEL_ALL",

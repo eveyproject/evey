@@ -67,7 +67,8 @@ vi.mock("../../providers/ThemeProvider", () => ({
 const mutateMock = vi.fn();
 const invalidateMock = vi.fn();
 
-vi.mock("@evey/api", () => ({
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
   useUserServiceUpdateUser: (_opts: any) => ({
     mutate: mutateMock,
     isPending: false,

@@ -7,7 +7,8 @@ const toastSuccess = vi.fn();
 const toastError = vi.fn();
 const mockMutateAsync = vi.fn();
 
-vi.mock("@evey/api", () => ({
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
   useUserServiceListAPIKeys: vi.fn(() => ({ data: { apiKeys: [] }, isLoading: false })),
   useUserServiceCreateAPIKey: vi.fn(() => ({ mutateAsync: mockMutateAsync, isPending: false })),
   useUserServiceRevokeAPIKey: vi.fn(() => ({ mutateAsync: mockMutateAsync, isPending: false })),

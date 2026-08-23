@@ -6,7 +6,8 @@ import { LibraryForm } from "./LibraryForm";
 
 const mutateMock = vi.fn();
 
-vi.mock("@evey/api", () => ({
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
   useLibraryServiceCreateLibrary: () => ({ mutate: mutateMock, isPending: false }),
   useLibraryServiceUpdateLibrary: () => ({ mutate: vi.fn(), isPending: false }),
   eveyFetch: vi.fn().mockRejectedValue(new Error("not found")),

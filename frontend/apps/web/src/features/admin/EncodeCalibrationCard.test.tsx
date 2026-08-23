@@ -66,7 +66,8 @@ vi.mock("@tanstack/react-query", async (importActual) => {
   };
 });
 
-vi.mock("@evey/api", () => ({
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
   eveyFetch: vi.fn(),
 }));
 

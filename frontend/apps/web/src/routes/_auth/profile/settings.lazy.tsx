@@ -71,7 +71,7 @@ function ProfileCard() {
         setConfirmPwd("");
         toast.success(t("auth.profile.profileUpdated"));
       },
-      onError: (err: Error) => toast.error(err.message || t("auth.profile.failedToUpdate")),
+      onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("auth.profile.failedToUpdate"))),
     },
   });
 

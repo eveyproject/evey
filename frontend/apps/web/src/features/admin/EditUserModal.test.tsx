@@ -9,7 +9,8 @@ const setAccessMutateAsync = vi.fn();
 const revokeAccessMutateAsync = vi.fn();
 const getAccessMock = vi.fn();
 
-vi.mock("@evey/api", () => ({
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
   // The mock propagates onError so tests can assert that only ONE toast fires
   // when the mutation rejects (the real bug was: onError on the hook + catch = 2 toasts).
   useUserServiceUpdateUser: (opts?: { mutation?: { onError?: (err: Error) => void } }) => ({

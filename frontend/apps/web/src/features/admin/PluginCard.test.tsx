@@ -11,7 +11,8 @@ vi.mock("@tanstack/react-router", () => ({
   useRouterState: () => ({ location: { pathname: "/" } }),
 }));
 
-vi.mock("@evey/api", () => ({
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
   useAdminPluginServiceGetPluginConfig: () => ({ data: undefined, isLoading: false }),
   useAdminPluginServiceUpdatePluginConfig: () => ({ mutate: vi.fn(), isPending: false }),
   useAdminPluginServiceGetPluginLogs: () => ({ data: undefined, isLoading: false }),

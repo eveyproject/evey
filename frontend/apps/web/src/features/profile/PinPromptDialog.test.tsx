@@ -4,7 +4,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { PinPromptDialog } from "./PinPromptDialog";
 import type { V1Profile } from "@evey/api";
 
-vi.mock("@evey/api", () => ({
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
   parentalServiceVerifyPin: vi.fn(),
 }));
 

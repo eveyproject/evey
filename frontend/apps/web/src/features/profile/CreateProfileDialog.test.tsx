@@ -7,7 +7,8 @@ import { CreateProfileDialog } from "./CreateProfileDialog";
 const mockMutate = vi.fn();
 const mockInvalidateQueries = vi.fn().mockResolvedValue(undefined);
 
-vi.mock("@evey/api", () => ({
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
   useUserServiceCreateProfile: (_opts: unknown) => ({ mutate: mockMutate, isPending: false }),
   getUserServiceListProfilesQueryKey: (id: string) => ["/api/v1/users", id, "profiles"],
 }));

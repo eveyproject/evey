@@ -114,7 +114,8 @@ const deleteMutate = vi.fn();
 const disableMutate = vi.fn();
 const impersonateMutate = vi.fn();
 
-vi.mock("@evey/api", () => ({
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
   useUserServiceListUsers: () => ({ data: { users: mockUsers }, isLoading: false, refetch: vi.fn() }),
   useUserServiceCreateUser: (opts: any) => ({
     mutateAsync: async (arg: any) => {
