@@ -349,7 +349,7 @@ func (h *parentalHandler) refuseFromKidsProfile(w http.ResponseWriter, r *http.R
 	}
 	if callerIsKids {
 		span.SetStatus(codes.Error, "parental change from kids profile")
-		http.Error(w, `{"message":"switch to a non-kids profile to change parental settings"}`, http.StatusForbidden)
+		http.Error(w, `{"message":"errors.auth.parental_needs_non_kids"}`, http.StatusForbidden)
 		return false
 	}
 	return true
@@ -364,7 +364,7 @@ func validateNewPINFormat(w http.ResponseWriter, span trace.Span, pin *string) b
 	}
 	if !isFourDigit(*pin) {
 		span.SetStatus(codes.Error, "PIN not 4 digits")
-		http.Error(w, `{"message":"PIN must be 4 digits"}`, http.StatusBadRequest)
+		http.Error(w, `{"message":"errors.auth.pin_must_be_4_digits"}`, http.StatusBadRequest)
 		return false
 	}
 	return true
@@ -409,7 +409,7 @@ func (h *parentalHandler) requireCurrentPIN(w http.ResponseWriter, r *http.Reque
 			span.RecordError(err)
 		}
 		span.SetStatus(codes.Error, "invalid current PIN")
-		http.Error(w, `{"message":"invalid current PIN"}`, http.StatusForbidden)
+		http.Error(w, `{"message":"errors.auth.invalid_pin"}`, http.StatusForbidden)
 		return false
 	}
 	return true
@@ -439,7 +439,7 @@ func (h *parentalHandler) requireAccountPassword(w http.ResponseWriter, r *http.
 			span.RecordError(verr)
 		}
 		span.SetStatus(codes.Error, "invalid password")
-		http.Error(w, `{"message":"invalid password"}`, http.StatusForbidden)
+		http.Error(w, `{"message":"errors.auth.invalid_password"}`, http.StatusForbidden)
 		return false
 	}
 	return true
@@ -510,7 +510,7 @@ func (h *parentalHandler) persistAndRespond(w http.ResponseWriter, r *http.Reque
 		span.RecordError(err)
 		if errors.Is(err, domainuser.ErrKidsRequiresPIN) {
 			span.SetStatus(codes.Error, "kids sibling requires PIN")
-			http.Error(w, `{"message":"non-kids profile must have a PIN when a kids profile exists"}`, http.StatusConflict)
+			http.Error(w, `{"message":"errors.auth.pin_required_for_non_kids"}`, http.StatusConflict)
 			return
 		}
 		span.SetStatus(codes.Error, "invariant check failed")

@@ -7,6 +7,7 @@ export * from "./format";
 export * from "./seekIndexHelpers";
 export * from "./playerEventReporter";
 export * from "./displayTitle";
+export * from "./apiErrorMessage";
 export * from "./personDepartment";
 export * from "./pagination";
 export * from "./exportPaging";

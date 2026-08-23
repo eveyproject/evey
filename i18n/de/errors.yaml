@@ -12,6 +12,11 @@ auth:
   internal_method: "Diese Methode ist nur für internen Gebrauch"
   missing_key: "API-Schlüssel fehlt"
   profile_not_found: "Profil nicht gefunden"
+  parental_needs_non_kids: "Wechseln Sie zu einem Nicht-Kinderprofil, um die Kindersicherung zu ändern"
+  pin_must_be_4_digits: "Die PIN muss aus 4 Ziffern bestehen"
+  invalid_pin: "Falsche PIN"
+  invalid_password: "Falsches Passwort"
+  pin_required_for_non_kids: "Ein Nicht-Kinderprofil braucht eine PIN, solange ein Kinderprofil existiert"
 
 general:
   not_found: "Nicht gefunden"

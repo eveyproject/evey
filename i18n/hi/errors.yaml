@@ -12,6 +12,11 @@ auth:
   internal_method: "यह विधि केवल आंतरिक उपयोग के लिए है"
   missing_key: "API कुंजी अनुपलब्ध"
   profile_not_found: "प्रोफ़ाइल नहीं मिली"
+  parental_needs_non_kids: "पैरेंटल सेटिंग्स बदलने के लिए गैर-बाल प्रोफ़ाइल पर स्विच करें"
+  pin_must_be_4_digits: "PIN 4 अंकों का होना चाहिए"
+  invalid_pin: "गलत PIN"
+  invalid_password: "गलत पासवर्ड"
+  pin_required_for_non_kids: "जब तक कोई बाल प्रोफ़ाइल मौजूद है, गैर-बाल प्रोफ़ाइल में PIN होना आवश्यक है"
 
 general:
   not_found: "नहीं मिला"

@@ -453,3 +453,34 @@ func TestParentalUpdateSettings_CrossProfileIDOR(t *testing.T) {
 		t.Errorf("expected 403, got %d body=%s", w.Code, w.Body.String())
 	}
 }
+
+// Every refusal this route emits is shown VERBATIM to the viewer: the fetcher
+// hands `message` to the caller as the Error text, the web settings screen
+// resolves it through t() only when it starts with "errors.", and the mobile
+// parental screen puts it straight into an Alert. So a message that is not a
+// catalogue key is English prose on a French phone - and one that IS a key but
+// reaches a client that does not resolve it is a RAW KEY on screen, the exact
+// beta.38 regression. The invariant that keeps both honest: this route only
+// ever emits "errors.*" keys, and every client resolves them the same way.
+func TestParentalUpdateSettings_RefusalsCarryTranslatableKeys(t *testing.T) {
+	mux, gen, kidsID := newKidsCallerMux(t)
+	token, _ := gen.GenerateAccessToken(domainuser.Claims{UserID: "user-1", ProfileID: kidsID, IsAdmin: false})
+
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/profiles/"+kidsID+"/parental", strings.NewReader(`{"maxAge":99}`))
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("want 403, got %d body=%s", w.Code, w.Body.String())
+	}
+	var body struct {
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("refusal body is not JSON: %v (%s)", err, w.Body.String())
+	}
+	if !strings.HasPrefix(body.Message, "errors.") {
+		t.Fatalf("refusal must carry an i18n key, got English prose %q", body.Message)
+	}
+}

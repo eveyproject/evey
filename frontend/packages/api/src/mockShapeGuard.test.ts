@@ -10,6 +10,7 @@ import * as notificationLabel from "./notificationLabel";
 import * as format from "./format";
 import * as seekIndexHelpers from "./seekIndexHelpers";
 import * as displayTitle from "./displayTitle";
+import * as apiErrorMessage from "./apiErrorMessage";
 import * as personDepartment from "./personDepartment";
 import * as pagination from "./pagination";
 import * as exportPaging from "./exportPaging";
@@ -58,6 +59,7 @@ const SHARED_MODULES = {
   format,
   seekIndexHelpers,
   displayTitle,
+  apiErrorMessage,
   personDepartment,
   pagination,
   exportPaging,

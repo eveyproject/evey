@@ -12,6 +12,11 @@ auth:
   internal_method: "Cette méthode est réservée à un usage interne"
   missing_key: "Clé API manquante"
   profile_not_found: "Profil introuvable"
+  parental_needs_non_kids: "Basculez sur un profil non-enfant pour modifier le contrôle parental"
+  pin_must_be_4_digits: "Le code PIN doit comporter 4 chiffres"
+  invalid_pin: "Code PIN incorrect"
+  invalid_password: "Mot de passe incorrect"
+  pin_required_for_non_kids: "Un profil non-enfant doit avoir un code PIN tant qu'un profil enfant existe"
 
 general:
   not_found: "Introuvable"

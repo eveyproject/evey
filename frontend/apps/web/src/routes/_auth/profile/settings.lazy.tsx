@@ -3,7 +3,7 @@ import type React from "react";
 import { createLazyFileRoute, Link } from "@tanstack/react-router";
 import { useState, useRef, useEffect } from "react";
 import { useUserServiceGetCurrentUser, useUserServiceUpdateUser, useUserServiceListProfiles, useMediaRequestServiceGetRequestPolicy } from "@evey/api";
-import { useParentalServiceGetParentalSettings, parentalServiceUpdateParentalSettings, getParentalServiceGetParentalSettingsQueryKey } from "@evey/api";
+import { useParentalServiceGetParentalSettings, parentalServiceUpdateParentalSettings, getParentalServiceGetParentalSettingsQueryKey, apiErrorMessage } from "@evey/api";
 import { getUserServiceGetCurrentUserQueryKey, getUserServiceListProfilesQueryKey } from "@evey/api";
 import { eveyFetchRaw } from "@evey/api";
 import { useMutation } from "@tanstack/react-query";
@@ -386,11 +386,7 @@ function ParentalSection() {
       setPassword("");
     },
     onError: (err: Error) => {
-      // Backend i18n keys come back as the raw HTTP `message`. Resolve any
-      // recognized key through t() before surfacing to the user.
-      const raw = err.message ?? "";
-      const translated = raw.startsWith("errors.") ? t(raw, raw) : raw;
-      toast.error(translated || t("auth.settings.parental.failedToUpdate"));
+      toast.error(apiErrorMessage(err, t, t("auth.settings.parental.failedToUpdate")));
     },
   });
 

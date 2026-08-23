@@ -8,6 +8,7 @@ import {
   useParentalServiceGetParentalSettings,
   parentalServiceUpdateParentalSettings,
   getParentalServiceGetParentalSettingsQueryKey,
+  apiErrorMessage,
   type V1Profile,
 } from "@evey/api";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -55,7 +56,7 @@ export default function ParentalSettingsScreen() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: getParentalServiceGetParentalSettingsQueryKey(profileId) });
     },
-    onError: (err: Error) => Alert.alert(t("common.error", "Error"), err.message),
+    onError: (err: Error) => Alert.alert(t("common.error", "Error"), apiErrorMessage(err, t, t("common.error", "Error"))),
   });
 
   function handleToggle() {

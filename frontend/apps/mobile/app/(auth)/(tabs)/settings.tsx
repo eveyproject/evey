@@ -7,7 +7,7 @@ import { router } from "expo-router";
 import Constants from "expo-constants";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
-import { useUserServiceGetCurrentUser, useUserServiceListProfiles, useUserServiceUpdateProfile, useAdminSystemServiceGetSystemInfo, useUserServiceAuthorizeQuickConnect, useUserServiceUpdateUser, useUserServiceLogout, eveyFetch, eveyFetchRaw } from "@evey/api";
+import { useUserServiceGetCurrentUser, useUserServiceListProfiles, useUserServiceUpdateProfile, useAdminSystemServiceGetSystemInfo, useUserServiceAuthorizeQuickConnect, useUserServiceUpdateUser, useUserServiceLogout, eveyFetch, eveyFetchRaw, apiErrorMessage } from "@evey/api";
 import { clearRefreshToken } from "../../../src/lib/refresh-token";
 import { useAuthStore, useLocaleStore, useServerListStore, toast } from "@evey/store";
 import { useBiometricAvailable, useBiometricEnabled } from "../../../src/hooks/useBiometric";
@@ -67,7 +67,7 @@ export default function SettingsScreen() {
         qc.invalidateQueries({ queryKey: ["/api/v1/users/me"] });
       },
       onError: (err: Error) => {
-        toast.error(err.message || "Update failed");
+        toast.error(apiErrorMessage(err, t, t("auth.settings.account.updateFailed", "Update failed")));
       },
     },
   });
@@ -118,8 +118,7 @@ export default function SettingsScreen() {
     try {
       await updateUser.mutateAsync({ id: user.id, data });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : t("auth.settings.account.updateFailed", "Update failed");
-      toast.error(msg);
+      toast.error(apiErrorMessage(err as Error, t, t("auth.settings.account.updateFailed", "Update failed")));
     }
   }, [user, editUsername, editEmail, newPassword, confirmPassword, updateUser, t]);
 
