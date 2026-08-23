@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { absoluteWithToken, appendMaxKbps, bufferedStats, planBackBufferTrim, planFloorRescue, bitrateTestUrl, buildPlayerEventUrl, createStarvationWatch, createStartGate, createStartWatch, describePlayerError, floorMasterUrl, probeMaxAudioChannels, probeReceiverCaps, rewriteCastMasterUrl, shouldMeasure, stereoFallbackUrl, stripWasmAudio, type CanDisplayType } from "./receiverLogic";
+import { absoluteWithToken, appendMaxKbps, bufferedStats, planBackBufferTrim, planFloorRescue, bitrateTestUrl, buildPlayerEventUrl, createDecoderDistressWatch, createStarvationWatch, createStartGate, createStartWatch, describePlayerError, floorMasterUrl, probeMaxAudioChannels, probeReceiverCaps, rewriteCastMasterUrl, shouldMeasure, stereoFallbackUrl, stripWasmAudio, type CanDisplayType } from "./receiverLogic";
 
 // Fake canDisplayType: allows what `yes` lists (substring match on the
 // codec string), refuses the rest. 4K resolution is only granted if
@@ -576,5 +576,69 @@ describe("describePlayerError - an error object must never print as [object Obje
     expect(describePlayerError({ weird: 1 })).toBe('{"weird":1}');
     expect(describePlayerError(undefined)).toBe("?");
     expect(describePlayerError("plain string")).toBe("plain string");
+  });
+});
+
+// Incident the owner 2026-08-23 : gel du cast a tampon PLEIN. La veille de
+// famine est structurellement AVEUGLE a ce cas, et la mesure prod le prouve
+// beacon par beacon : pendant les 5 min 30 de degradation la position avance
+// a exactement 1,000x (19:29:08 pos=62,64 -> 19:33:38 pos=332,65, soit 30,00 s
+// par battement de 30 s) et le tampon reste plein (buf=31/21 constant). Aucun
+// signal existant ne bouge - "floor" n'apparait ZERO fois dans les logs de la
+// soiree. Seule la qualite de RENDU nomme un decodeur qui decroche : des
+// frames perdues qui montent pendant que l'horloge audio tient la cadence.
+describe("createDecoderDistressWatch - le decodeur decroche, tampon plein", () => {
+  it("declenche apres une souffrance soutenue, position parfaite et tampon plein", () => {
+    const w = createDecoderDistressWatch();
+    // 5s de video ~ 120 frames a 23,976 fps ; 10 % de perte = le decodeur lache.
+    expect(w.sample("PLAYING", 18, 120)).toBe(false);
+    expect(w.sample("PLAYING", 24, 120)).toBe(false);
+    expect(w.sample("PLAYING", 31, 120)).toBe(true); // ~15 s de souffrance
+  });
+
+  it("ne declenche JAMAIS sur une lecture saine - le cas nominal 6 Mbps", () => {
+    const w = createDecoderDistressWatch();
+    for (let i = 0; i < 200; i++) expect(w.sample("PLAYING", 0, 120)).toBe(false);
+    expect(w.sample("PLAYING", 1, 120)).toBe(false); // une frame perdue isolee n'est rien
+  });
+
+  it("une reprise fait redescendre le score : un pic passager ne declenche pas", () => {
+    const w = createDecoderDistressWatch();
+    expect(w.sample("PLAYING", 30, 120)).toBe(false);
+    expect(w.sample("PLAYING", 30, 120)).toBe(false);
+    expect(w.sample("PLAYING", 0, 120)).toBe(false); // decodeur repris
+    expect(w.sample("PLAYING", 0, 120)).toBe(false);
+    expect(w.sample("PLAYING", 30, 120)).toBe(false); // reparti de bas
+  });
+
+  it("un runtime aveugle (-1) ne score ni ne decroit : pas de mesure, pas de verdict", () => {
+    const w = createDecoderDistressWatch();
+    for (let i = 0; i < 10; i++) expect(w.sample("PLAYING", -1, -1)).toBe(false);
+    expect(w.sample("PLAYING", 30, 120)).toBe(false);
+    expect(w.sample("PLAYING", 30, 120)).toBe(false);
+    expect(w.sample("PLAYING", 30, 120)).toBe(true);
+  });
+
+  it("un echantillon trop maigre ne decide rien (1 frame perdue sur 3)", () => {
+    const w = createDecoderDistressWatch();
+    for (let i = 0; i < 10; i++) expect(w.sample("PLAYING", 1, 3)).toBe(false);
+  });
+
+  it("PAUSED / IDLE / BUFFERING ne sont pas son affaire", () => {
+    const w = createDecoderDistressWatch();
+    expect(w.sample("PAUSED", 60, 120)).toBe(false);
+    expect(w.sample("IDLE", 60, 120)).toBe(false);
+    expect(w.sample("BUFFERING", 60, 120)).toBe(false); // la famine, pas le decodeur
+    expect(w.sample("PLAYING", 60, 120)).toBe(false);
+    expect(w.sample("PLAYING", 60, 120)).toBe(false);
+    expect(w.sample("PLAYING", 60, 120)).toBe(true);
+  });
+
+  it("se verrouille apres avoir tire : le repli est un cliquet, pas une boucle", () => {
+    const w = createDecoderDistressWatch();
+    w.sample("PLAYING", 30, 120);
+    w.sample("PLAYING", 30, 120);
+    expect(w.sample("PLAYING", 30, 120)).toBe(true);
+    expect(w.sample("PLAYING", 60, 120)).toBe(false);
   });
 });

@@ -10,7 +10,7 @@
 //      silently, which is what made cast incidents undiagnosable.
 import { WasmAudioEngine } from "@/features/playback/wasmaudio/WasmAudioEngine";
 import { extractAacAudioURI, extractAudioURI } from "@/features/playback/wasmaudio/wasmAudioShared";
-import { absoluteWithToken, appendMaxKbps, bitrateTestUrl, buildPlayerEventUrl, bufferedStats, createStartGate, createStartWatch, createStarvationWatch, describePlayerError, planBackBufferTrim, planFloorRescue, probeMaxAudioChannels, probeReceiverCaps, rewriteCastMasterUrl, shouldMeasure, stereoFallbackUrl, stripWasmAudio } from "./receiverLogic";
+import { absoluteWithToken, appendMaxKbps, bitrateTestUrl, buildPlayerEventUrl, bufferedStats, createDecoderDistressWatch, createStartGate, createStartWatch, createStarvationWatch, describePlayerError, planBackBufferTrim, planFloorRescue, probeMaxAudioChannels, probeReceiverCaps, rewriteCastMasterUrl, shouldMeasure, stereoFallbackUrl, stripWasmAudio } from "./receiverLogic";
 import { createAliveHeartbeat, createFrameDropTracker, formatFrameQuality, postPlayerEvent, postPlayerEventQuery, readHeapMB } from "./receiverBeacon";
 import { buildCastNextUrl, buildNextMasterUrl, parseCastNextResponse, shouldFetchNext, upNextLabel, type CastNextInfo } from "./castNext";
 import { buildSegmentsUrl, introSkippedLabel, parseSegments, planIntroSkip, type SkippableSegment } from "./introSkip";
@@ -313,6 +313,12 @@ function stopStarvationWatch(): void {
 function startStarvationWatch(): void {
   stopStarvationWatch();
   const watch = createStarvationWatch();
+  // Second watch, same cadence, blind spot of the first: bytes arriving,
+  // buffer full, playhead at 1.000x, and the decoder still falling behind
+  // (the owner 2026-08-23). Its own frame tracker - the beacon's tracker
+  // samples every 30s and its deltas belong to it.
+  const decoder = createDecoderDistressWatch();
+  const decoderFrames = createFrameDropTracker();
   starvationTimer = setInterval(() => {
     let pos = 0;
     let state = "";
@@ -322,7 +328,14 @@ function startStarvationWatch(): void {
     } catch {
       return; // player torn down: the stop hooks will clear us
     }
-    if (watch.sample(pos, state)) engageFloor(pos);
+    if (watch.sample(pos, state)) {
+      engageFloor(pos);
+      return;
+    }
+    const q = decoderFrames.sample(findMediaElement());
+    if (decoder.sample(state, q.droppedDelta, q.totalDelta)) {
+      engageFloor(pos, `decoder-distress drop=${q.droppedDelta}/${q.totalDelta}`);
+    }
   }, 5_000);
 }
 

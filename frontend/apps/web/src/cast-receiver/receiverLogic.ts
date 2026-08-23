@@ -557,3 +557,62 @@ function shakaStackFrames(stack: unknown, max = 5): string {
   }
   return out.join(",");
 }
+
+// createDecoderDistressWatch names the failure the starvation watch cannot
+// see: the bytes ARRIVE, the buffer stays full, the audio clock holds 1.000x,
+// and the picture still falls behind because the box's video decoder cannot
+// keep up with what it is being fed.
+//
+// Born of the the owner freeze (2026-08-23). Measured beacon by beacon in
+// production: over the 5 min 30 of degradation the playhead advanced 30.00 s
+// per 30 s beacon (19:29:08 pos=62.64 -> 19:33:38 pos=332.65) with buf=31/21
+// constant, then froze at 340.021 s with the buffer STILL full. Every existing
+// signal read healthy - "floor" appears zero times in that evening's logs. The
+// stream weighed 2.1x what the same Chromecast HD had digested 20 minutes
+// earlier (6.87 vs 3.90 Mbps, h264 High L4.0 vs Main).
+//
+// Sampled at the same 5s cadence as the starvation watch, on
+// getVideoPlaybackQuality deltas. Fires once: it reloads on ?abr=floor, which
+// the server answers for a cast token too (proven server-side) - a latch, not
+// a loop. A receiver that holds its bitrate drops ~0 frames and never trips
+// this, which is what keeps the nominal 6 Mbps path untouched.
+export interface DecoderDistressWatch {
+  // sample returns true exactly once, when sustained frame loss crosses the
+  // threshold: reload on the floor rung NOW. droppedDelta/totalDelta are the
+  // per-interval deltas from createFrameDropTracker; -1 means the runtime
+  // exposes nothing.
+  sample(playerState: string, droppedDelta: number, totalDelta: number): boolean;
+}
+
+// 10% of the frames lost in one 5s window is a decoder that has given up, not
+// a hiccup: healthy playback on the same box measured 0. Three such windows
+// (~15s) before firing, and a healthy window decays the score, so a passing
+// spike costs nothing.
+const DECODER_DROP_RATIO = 0.1;
+const DECODER_DISTRESS_FIRE_SCORE = 3;
+// Below ~1s of video the ratio is noise (1 lost out of 3 is not 33% distress).
+const DECODER_MIN_FRAMES = 24;
+
+export function createDecoderDistressWatch(
+  fireScore = DECODER_DISTRESS_FIRE_SCORE,
+  dropRatio = DECODER_DROP_RATIO,
+): DecoderDistressWatch {
+  let score = 0;
+  let fired = false;
+  return {
+    sample(playerState: string, droppedDelta: number, totalDelta: number): boolean {
+      if (fired) return false;
+      if (playerState !== "PLAYING") return false; // BUFFERING is the famine watch's job
+      // No measurement is not a verdict: a blind runtime must neither accuse
+      // nor exonerate, so it leaves the score exactly where it was.
+      if (droppedDelta < 0 || totalDelta < DECODER_MIN_FRAMES) return false;
+      if (droppedDelta / totalDelta >= dropRatio) score++;
+      else score = Math.max(0, score - 1);
+      if (score >= fireScore) {
+        fired = true;
+        return true;
+      }
+      return false;
+    },
+  };
+}

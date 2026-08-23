@@ -736,6 +736,44 @@ func TestFloorMaster_ServesOnlyTheLowestRung(t *testing.T) {
 	assert.Contains(t, master, "fp=", "the rung seals its fingerprint")
 }
 
+// Incident the owner 2026-08-23 : le cast a gele a tampon PLEIN sur un flux
+// copie de 6,87 Mbps, et l'analyse a conclu que "la box n'a nulle part ou
+// retomber". C'est vrai du MASTER (copyFallbackVariant renvoie nil pour tout
+// recepteur cast, cf. TestBuildHybridMaster_FallbackRung_SkippedForCast) mais
+// FAUX du serveur : la sortie de secours ?abr=floor existe et repond a un
+// jeton cast comme a n'importe quel autre. Ce qui manquait n'etait pas la
+// porte, c'etait quelqu'un pour frapper - la veille de famine du recepteur ne
+// voit ni un tampon plein ni une position qui avance a 1,000x (mesure prod :
+// 19:33:38 pos=332,653 -> 19:34:08 pos=340,021, buf=30/20 constant, et ZERO
+// occurrence de "floor" dans les logs de la soiree).
+func TestFloorMaster_StaysAvailableToACastReceiver(t *testing.T) {
+	h := newCopyTestHandler(t)
+	h.manifestGen = apptranscoding.NewManifestGenerator()
+	h.audioRenditionEnabled = true
+	h.copyFallbackRung = true
+
+	dur, err := shared.NewDurationMs(60000)
+	require.NoError(t, err)
+	item := &domainlibrary.MediaItem{File: &domainlibrary.MediaFile{
+		Path: "/m.mkv", Size: 1 << 20, Duration: dur, Bitrate: 6_870_000,
+	}}
+	streams := copyEligibleAV()
+	streams[1].Codec = "dts"
+
+	req := onDemandReq()
+	q := req.URL.Query()
+	q.Set("abr", "floor")
+	req.URL.RawQuery = q.Encode()
+	req = req.WithContext(context.WithValue(req.Context(), streamTokenCtxKey,
+		&shared.StreamToken{UserID: "u1", ProfileID: "p1", MediaItemID: "m1", Scope: shared.ScopeStream, Cast: true}))
+
+	master, ok := h.buildFloorMaster(req, "m1", item, streams)
+	require.True(t, ok, "un recepteur cast doit obtenir le barreau de survie quand il le demande")
+	assert.Equal(t, 1, strings.Count(master, "#EXT-X-STREAM-INF"), "floor is mono-variant by definition")
+	assert.NotContains(t, master, "od_playlist.m3u8", "le barreau copie ne doit pas etre offert en mode survie")
+	assert.Contains(t, master, "vd=transcode")
+}
+
 // The variant URI must carry its baked query exactly ONCE. buildCappedMaster
 // pre-suffixed VideoPlaylistURI and the manifest generator suffixed it again:
 // prod (2026-08-05) emitted "...videoCodecs=h264?ad=transcode&..." - a second
