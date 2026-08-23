@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { ALIVE_BEACON_MS, createAliveHeartbeat, postPlayerEvent, postPlayerEventQuery, readHeapMB } from "./receiverBeacon";
+import { ALIVE_BEACON_MS, createAliveHeartbeat, createFrameDropTracker, formatFrameQuality, postPlayerEvent, postPlayerEventQuery, readHeapMB } from "./receiverBeacon";
 
 // Pourquoi ces tests existent : la telemetrie posee le 2026-07-26 devait nommer
 // la cause des morts de cast cote TV. Elle ne l'a JAMAIS fait, deux fois de
@@ -149,5 +149,52 @@ describe("postPlayerEventQuery", () => {
     expect(typeof captured?.body).toBe("string");
     expect(captured?.headers).toBeUndefined();
     expect(captured?.credentials).toBe("omit");
+  });
+});
+
+// Pourquoi ce bloc existe (2026-08-23, incident the owner) : un cast s'est
+// FIGE a tampon PLEIN, position a 1,000x pendant 5 min 30 puis gelee. Toutes
+// les mesures serveur exoneraient la livraison (366 s servies en 335 s, 100 %
+// de HTTP 200, timestamps exacts a la milliseconde) - la seule chose que
+// personne ne mesurait, c'est ce que le DECODEUR de la box faisait des octets.
+// getVideoPlaybackQuality() est la reponse : des frames perdues qui montent
+// pendant que la position avance a 1x prouvent un decodeur qui decroche.
+describe("createFrameDropTracker - nommer un decodeur qui decroche", () => {
+  const videoWith = (dropped: number, total: number) => ({
+    getVideoPlaybackQuality: () => ({ droppedVideoFrames: dropped, totalVideoFrames: total }),
+  });
+
+  it("rend le cumul et le delta depuis le battement precedent", () => {
+    const t = createFrameDropTracker();
+    expect(t.sample(videoWith(0, 720))).toEqual({ dropped: 0, total: 720, droppedDelta: 0, totalDelta: 720 });
+    expect(t.sample(videoWith(31, 1440))).toEqual({ dropped: 31, total: 1440, droppedDelta: 31, totalDelta: 720 });
+    expect(t.sample(videoWith(94, 2100))).toEqual({ dropped: 94, total: 2100, droppedDelta: 63, totalDelta: 660 });
+  });
+
+  it("repart de zero quand les compteurs reculent (nouvel element apres un load)", () => {
+    const t = createFrameDropTracker();
+    t.sample(videoWith(50, 5000));
+    expect(t.sample(videoWith(2, 300))).toEqual({ dropped: 2, total: 300, droppedDelta: 2, totalDelta: 300 });
+  });
+
+  it("rend -1 partout quand le runtime n'expose rien, sans jamais lever", () => {
+    const t = createFrameDropTracker();
+    const blind = { dropped: -1, total: -1, droppedDelta: -1, totalDelta: -1 };
+    expect(t.sample(null)).toEqual(blind);
+    expect(t.sample({})).toEqual(blind);
+    expect(t.sample({ getVideoPlaybackQuality: () => { throw new Error("torn down"); } })).toEqual(blind);
+    expect(t.sample({ getVideoPlaybackQuality: () => ({}) })).toEqual(blind);
+  });
+
+  it("un trou de mesure ne casse pas la ligne de base du delta", () => {
+    const t = createFrameDropTracker();
+    t.sample(videoWith(10, 1000));
+    t.sample(null); // element arrache une demi-seconde
+    expect(t.sample(videoWith(12, 1700))).toEqual({ dropped: 12, total: 1700, droppedDelta: 2, totalDelta: 700 });
+  });
+
+  it("formatFrameQuality tient dans le budget de 200 caracteres du champ details", () => {
+    expect(formatFrameQuality({ dropped: 94, total: 2100, droppedDelta: 63, totalDelta: 660 })).toBe("drop=63/660 dropTot=94");
+    expect(formatFrameQuality({ dropped: -1, total: -1, droppedDelta: -1, totalDelta: -1 })).toBe("drop=-");
   });
 });

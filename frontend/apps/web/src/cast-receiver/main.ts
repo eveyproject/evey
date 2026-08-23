@@ -11,7 +11,7 @@
 import { WasmAudioEngine } from "@/features/playback/wasmaudio/WasmAudioEngine";
 import { extractAacAudioURI, extractAudioURI } from "@/features/playback/wasmaudio/wasmAudioShared";
 import { absoluteWithToken, appendMaxKbps, bitrateTestUrl, buildPlayerEventUrl, bufferedStats, createStartGate, createStartWatch, createStarvationWatch, describePlayerError, planBackBufferTrim, planFloorRescue, probeMaxAudioChannels, probeReceiverCaps, rewriteCastMasterUrl, shouldMeasure, stereoFallbackUrl, stripWasmAudio } from "./receiverLogic";
-import { createAliveHeartbeat, postPlayerEvent, postPlayerEventQuery, readHeapMB } from "./receiverBeacon";
+import { createAliveHeartbeat, createFrameDropTracker, formatFrameQuality, postPlayerEvent, postPlayerEventQuery, readHeapMB } from "./receiverBeacon";
 import { buildCastNextUrl, buildNextMasterUrl, parseCastNextResponse, shouldFetchNext, upNextLabel, type CastNextInfo } from "./castNext";
 import { buildSegmentsUrl, introSkippedLabel, parseSegments, planIntroSkip, type SkippableSegment } from "./introSkip";
 import { endCardModel, pauseHudModel } from "./hud";
@@ -258,6 +258,11 @@ function applyAdminCommand(cmd: string): void {
   }
 }
 
+// Frames perdues par le decodeur de la box, d'un battement a l'autre. Le
+// 2026-08-23 un cast a gele a tampon PLEIN : toutes les mesures serveur
+// exoneraient la livraison, celle-ci manquait.
+const frameDrops = createFrameDropTracker();
+
 const aliveHeartbeat = createAliveHeartbeat(() => {
   // mem: JS heap in MB (-1 if unavailable). A heap climbing beacon after
   // beacon toward the death names a memory kill; a flat one exonerates it.
@@ -277,12 +282,13 @@ const aliveHeartbeat = createAliveHeartbeat(() => {
       buf = `${s.behindSec.toFixed(0)}/${s.aheadSec.toFixed(0)}/${s.rangeCount}`;
     } catch { /* buffered can throw mid-teardown */ }
   }
+  const drops = formatFrameQuality(frameDrops.sample(video));
   // The alive beat rides fetch (not sendBeacon): its RESPONSE carries the
   // pending admin command. The death events keep sendBeacon - only they race
   // the page teardown.
   void postPlayerEventQuery(
     buildPlayerEventUrl(currentUrl),
-    { type: "cast_receiver_alive", details: `mode=${mode} mem=${readHeapMB()} wasm=${engine?.decoderMemoryMB() ?? -1} buf=${buf} trim=${trimCount}`, posSec },
+    { type: "cast_receiver_alive", details: `mode=${mode} mem=${readHeapMB()} wasm=${engine?.decoderMemoryMB() ?? -1} buf=${buf} trim=${trimCount} ${drops}`, posSec },
     (u, init) => fetch(u, init),
   ).then((cmd) => {
     if (cmd) applyAdminCommand(cmd);

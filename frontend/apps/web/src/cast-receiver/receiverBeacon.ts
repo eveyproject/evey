@@ -148,3 +148,61 @@ export function createAliveHeartbeat(send: () => void, intervalMs = ALIVE_BEACON
     },
   };
 }
+
+// FrameQuality - ce que le DECODEUR de la box a fait des octets qu'on lui a
+// servis, et non ce que le reseau a livre. Cumuls depuis le debut de
+// l'element, plus le delta depuis le battement precedent. -1 partout = le
+// runtime n'expose rien (aucune conclusion possible, surtout pas "0 perdue").
+export interface FrameQuality {
+  dropped: number;
+  total: number;
+  droppedDelta: number;
+  totalDelta: number;
+}
+
+export interface FrameDropTracker {
+  sample(video: unknown): FrameQuality;
+}
+
+const BLIND_QUALITY: FrameQuality = { dropped: -1, total: -1, droppedDelta: -1, totalDelta: -1 };
+
+// createFrameDropTracker suit getVideoPlaybackQuality() d'un battement a
+// l'autre. Motivation (2026-08-23, incident the owner) : un cast a gele a
+// tampon PLEIN, position a 1,000x, 100 % de HTTP 200 - toutes les mesures
+// serveur exonerent la livraison, et la seule qui aurait tranche manquait.
+// Des frames perdues qui montent pendant que la position avance nomment un
+// decodeur qui decroche ; un compteur plat l'exonere.
+export function createFrameDropTracker(): FrameDropTracker {
+  let lastDropped: number | null = null;
+  let lastTotal: number | null = null;
+  return {
+    sample(video: unknown): FrameQuality {
+      let dropped: number;
+      let total: number;
+      try {
+        const q = (video as { getVideoPlaybackQuality?: () => unknown } | null)?.getVideoPlaybackQuality?.() as
+          | { droppedVideoFrames?: number; totalVideoFrames?: number }
+          | undefined;
+        dropped = Number(q?.droppedVideoFrames);
+        total = Number(q?.totalVideoFrames);
+      } catch {
+        return BLIND_QUALITY; // element arrache en plein demontage
+      }
+      if (!isFinite(dropped) || !isFinite(total) || dropped < 0 || total < 0) return BLIND_QUALITY;
+      // Un compteur qui RECULE = nouvel element (load suivant) : la ligne de
+      // base repart de zero plutot que de rendre un delta negatif.
+      const baseDropped = lastDropped !== null && lastDropped <= dropped ? lastDropped : 0;
+      const baseTotal = lastTotal !== null && lastTotal <= total ? lastTotal : 0;
+      lastDropped = dropped;
+      lastTotal = total;
+      return { dropped, total, droppedDelta: dropped - baseDropped, totalDelta: total - baseTotal };
+    },
+  };
+}
+
+// formatFrameQuality - le delta d'abord (c'est lui qui date la souffrance),
+// le cumul ensuite. Le champ details du serveur est borne a 200 caracteres.
+export function formatFrameQuality(q: FrameQuality): string {
+  if (q.total < 0) return "drop=-";
+  return `drop=${q.droppedDelta}/${q.totalDelta} dropTot=${q.dropped}`;
+}
