@@ -176,6 +176,35 @@ func (s *IntroDetectionService) runPipeline(ctx context.Context, item *domainlib
 		}
 	}
 
+	// Leading distributor-logo block: FILMS ONLY. Series label this exact
+	// pattern NEGATIVE in the ground-truth set ("HBO distributeur - Pas
+	// d'intro") since a logo-on-black at 0:00 is common to every episode -
+	// gating on MovieItem is what keeps this pass off series, not an
+	// optimisation. Placed after the metadata provider (an authoritative
+	// external intro still wins) and before the audio-primary discovery /
+	// silence fallback: those two structurally can't find anything on a film
+	// with no sibling episodes to compare against.
+	if needIntro() && item.Type == domainlibrary.MovieItem && item.File != nil && item.File.Path != "" {
+		durationSec := item.File.Duration.Seconds()
+		logoStartMs, logoEndMs, ok, logoErr := s.detector.DetectLeadingLogoBlock(ctx, item.File.Path, durationSec)
+		if logoErr != nil {
+			slog.WarnContext(ctx, "intro_detection: leading logo block failed",
+				slog.String("media_id", mediaItemID), slog.Any("err", logoErr))
+		} else if ok {
+			add([]domainlibrary.MediaSegment{{
+				Type:    "intro",
+				StartMs: logoStartMs,
+				EndMs:   logoEndMs,
+				Source:  "leading_black",
+				// Above the serving floor (min_serve_confidence default
+				// 0.55) but below a chapter/pHash-confirmed result: this
+				// heuristic has no sibling or subtitle corroboration, only
+				// the head-of-file black cluster.
+				Confidence: 0.7,
+			}}, "leading_logo_block")
+		}
+	}
+
 	// Audio-primary DISCOVERY: the visual pass produced nothing confirmable
 	// (poor SD trickplay, or a cold-open show whose title card isn't visually
 	// stable). Let chromaprint discover a recurring intro directly across

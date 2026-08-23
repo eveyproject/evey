@@ -48,6 +48,9 @@ func (d *hashesDetector) DetectEndCredits(_ context.Context, _ string, _ float64
 func (d *hashesDetector) DetectStudioLogo(_ []uint64, _ int) (int64, int64, bool) {
 	return 0, 0, false
 }
+func (d *hashesDetector) DetectLeadingLogoBlock(_ context.Context, _ string, _ float64) (int64, int64, bool, error) {
+	return 0, 0, false, nil
+}
 func (d *hashesDetector) AudioBandedFingerprint(_ context.Context, _ string, _, _ float64, _ int) ([]float64, error) {
 	return nil, nil
 }

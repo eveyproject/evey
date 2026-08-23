@@ -272,6 +272,12 @@ type fakeDetector struct {
 	logoEndMs   int64
 	logoFound   bool
 
+	// leadingLogo* is what DetectLeadingLogoBlock answers.
+	leadingLogoStartMs int64
+	leadingLogoEndMs   int64
+	leadingLogoFound   bool
+	leadingLogoErr     error
+
 	// fallback* is what AudioFallback answers (the last-resort silence pass).
 	fallbackStartMs int64
 	fallbackEndMs   int64
@@ -300,6 +306,9 @@ func (f *fakeDetector) DetectEndCredits(_ context.Context, _ string, _ float64) 
 }
 func (f *fakeDetector) DetectStudioLogo(_ []uint64, _ int) (int64, int64, bool) {
 	return f.logoStartMs, f.logoEndMs, f.logoFound
+}
+func (f *fakeDetector) DetectLeadingLogoBlock(_ context.Context, _ string, _ float64) (int64, int64, bool, error) {
+	return f.leadingLogoStartMs, f.leadingLogoEndMs, f.leadingLogoFound, f.leadingLogoErr
 }
 func (f *fakeDetector) AudioBandedFingerprint(_ context.Context, _ string, _, _ float64, _ int) ([]float64, error) {
 	return nil, nil

@@ -417,6 +417,167 @@ func parseEndCredits(output string, startSec, durationSec float64) (startMs, end
 	return int64(cluster[0].startSec * 1000), int64(durationSec * 1000), true
 }
 
+// Leading-logo scan tuning for DetectLeadingLogoBlock.
+const (
+	// leadingLogoScanWindowSec bounds the head decode. The longest labelled
+	// distributor block in the gold ground-truth set is 172s (The Twilight
+	// Saga: Breaking Dawn Part 2); 240s leaves margin without opening the
+	// door to the film's first real scene fade.
+	leadingLogoScanWindowSec = 240.0
+)
+
+// Leading-logo selection tuning for parseLeadingLogoBlock.
+const (
+	// leadingLogoMinBlackSec: black regions shorter than this are ignored.
+	// The blackdetect filter itself already refuses to report anything
+	// shorter than its d=0.5 parameter, so this is set equal to it rather
+	// than to minCreditsBlackSec's stricter 1.0s: distributor-logo fades are
+	// quick cuts, and raising the floor above the filter's own d would start
+	// dropping real logo transitions the filter already accepted.
+	leadingLogoMinBlackSec = 0.5
+	// leadingLogoFirstRegionMaxStartSec: the cluster's first region must
+	// begin this close to t=0. A film that opens on picture (no black) has
+	// no logo block to find - every labelled example in the ground-truth
+	// set starts on black within the first couple of seconds.
+	leadingLogoFirstRegionMaxStartSec = 5.0
+	// leadingLogoClusterGapSec: black regions closer than this belong to the
+	// same leading cluster. Individual distributor idents run ~5-10s each,
+	// separated by a short fade; 25s comfortably spans that gap while still
+	// cutting the cluster off well before the film's first real scene
+	// transition.
+	leadingLogoClusterGapSec = 25.0
+	// leadingLogoSingleRegionMinBlackSec: a cluster of a single region is
+	// only trusted when it carries this much black - a lone brief fade-in is
+	// a scene opening, not a logo block. A held distributor card usually
+	// holds several seconds of black; a scene fade-in is typically under 2s.
+	leadingLogoSingleRegionMinBlackSec = 5.0
+	// leadingLogoMaxPlausibleSec absolutely caps the result: past this a
+	// "logo block" is no longer plausible as one, it is scene content.
+	leadingLogoMaxPlausibleSec = 300.0
+	// leadingLogoMaxDurationFraction additionally caps the result relative
+	// to the film's own runtime, so a short feature can't be handed several
+	// minutes of "logos". The ground-truth set's worst observed ratio is
+	// ~2.8% (172s on a ~103-minute film); 10% leaves a >3x margin.
+	leadingLogoMaxDurationFraction = 0.10
+	// minLeadingLogoBlockMs mirrors library.minDetectedIntroMs (the
+	// serving-side floor): a candidate shorter than this would never be
+	// served, so it is not worth storing. Keep in sync with
+	// internal/app/library/query_service.go.
+	minLeadingLogoBlockMs = 12_000
+)
+
+// DetectLeadingLogoBlock scans the HEAD of a video file for a cluster of
+// black regions indicating a distributor-logo block preceding a film's real
+// content. Unlike DetectEndCredits, this is a FILM-only signal: series label
+// the same pattern (a distributor ident on black at 0:00) explicitly as NOT
+// an intro, since it is common to every episode. The caller is responsible
+// for gating this pass on the media type.
+//
+// Returns (0, endMs, true, nil) when a leading cluster is found - the start
+// is always 0 by construction, matching every ground-truth label for this
+// pattern. Returns (0, 0, false, nil) when nothing useful is found.
+func (d *IntroDetector) DetectLeadingLogoBlock(ctx context.Context, filePath string, durationSec float64) (startMs, endMs int64, found bool, err error) {
+	ctx, span := tracing.StartSpan(ctx, "ffmpeg.intro.DetectLeadingLogoBlock")
+	defer span.End()
+	if durationSec <= 0 {
+		return 0, 0, false, nil
+	}
+	windowSec := math.Min(leadingLogoScanWindowSec, durationSec)
+
+	args := []string{
+		"-nostdin",
+		"-threads", strconv.Itoa(introFFmpegThreads()),
+		"-ss", "0",
+		"-t", strconv.FormatFloat(windowSec, 'f', 3, 64),
+		"-i", filePath,
+		"-vf", "blackdetect=d=0.5:pix_th=0.10",
+		"-an",
+		"-vsync", "vfr",
+		"-f", "null",
+		"-",
+	}
+	cmd := lowPriorityCommand(ctx, d.binary, args...)
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &out
+	//nolint:errcheck // ffmpeg exits non-zero for -f null; we parse the combined output regardless
+	_ = d.runPausable(cmd)
+
+	logoStartMs, logoEndMs, ok := parseLeadingLogoBlock(out.String(), windowSec, durationSec)
+	if !ok {
+		return 0, 0, false, nil
+	}
+	return logoStartMs, logoEndMs, true, nil
+}
+
+// parseLeadingLogoBlock locates the leading cluster of black regions in the
+// blackdetect output produced for the head of the file (offsets relative to
+// t=0, since the scan always starts at -ss 0). windowSec is the length of the
+// decode; durationSec is the film's total runtime.
+//
+// The result is the LEADING cluster - the first region has to sit near t=0
+// (a film opening on picture has no logo block), and the cluster only
+// extends forward while consecutive regions stay close enough together to be
+// the same run of distributor idents.
+func parseLeadingLogoBlock(output string, windowSec, durationSec float64) (startMs, endMs int64, found bool) {
+	type blackRegion struct{ startSec, durSec float64 }
+	var regions []blackRegion
+	for _, line := range strings.Split(output, "\n") {
+		startMatches := reBlackStart.FindStringSubmatch(line)
+		durMatches := reBlackDuration.FindStringSubmatch(line)
+		if len(startMatches) < 2 || len(durMatches) < 2 {
+			continue
+		}
+		offset, err1 := strconv.ParseFloat(startMatches[1], 64)
+		dur, err2 := strconv.ParseFloat(durMatches[1], 64)
+		if err1 != nil || err2 != nil || dur < leadingLogoMinBlackSec {
+			continue
+		}
+		regions = append(regions, blackRegion{startSec: offset, durSec: dur})
+	}
+	if len(regions) == 0 {
+		return 0, 0, false
+	}
+
+	if regions[0].startSec > leadingLogoFirstRegionMaxStartSec {
+		return 0, 0, false
+	}
+
+	// Leading cluster: walk forward from the first region while gaps stay
+	// within leadingLogoClusterGapSec.
+	last := 0
+	for last+1 < len(regions) {
+		prev := regions[last]
+		next := regions[last+1]
+		if next.startSec-(prev.startSec+prev.durSec) > leadingLogoClusterGapSec {
+			break
+		}
+		last++
+	}
+	cluster := regions[:last+1]
+
+	var clusterBlackSec float64
+	for _, r := range cluster {
+		clusterBlackSec += r.durSec
+	}
+	trusted := len(cluster) >= 2 || clusterBlackSec >= leadingLogoSingleRegionMinBlackSec
+	if !trusted {
+		return 0, 0, false
+	}
+
+	end := cluster[len(cluster)-1].startSec + cluster[len(cluster)-1].durSec
+	// Plausibility cap: bounded absolutely, relative to the film's own
+	// runtime, and never past the scanned window.
+	cap := min(leadingLogoMaxPlausibleSec, durationSec*leadingLogoMaxDurationFraction, windowSec)
+	if end > cap {
+		return 0, 0, false
+	}
+	if end*1000 < float64(minLeadingLogoBlockMs) {
+		return 0, 0, false
+	}
+	return 0, int64(end * 1000), true
+}
+
 // DetectStudioLogo searches the first ~90 seconds of trickplay frame hashes for
 // a match against the embedded studio logo catalog. intervalSec is the number of
 // seconds between consecutive trickplay frames (e.g. 15 for default trickplay).

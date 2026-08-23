@@ -70,6 +70,14 @@ type countingDetector struct {
 	// silencedetect over the first 600s), the other minutes-long ffmpeg pass of
 	// one episode's detection.
 	fallbackCalls atomic.Int32
+	// leadingLogoCalls counts calls to DetectLeadingLogoBlock, the film-only
+	// head-of-file scan.
+	leadingLogoCalls atomic.Int32
+}
+
+func (d *countingDetector) DetectLeadingLogoBlock(ctx context.Context, path string, durationSec float64) (int64, int64, bool, error) {
+	d.leadingLogoCalls.Add(1)
+	return d.fakeDetector.DetectLeadingLogoBlock(ctx, path, durationSec)
 }
 
 func (d *countingDetector) AudioFallback(ctx context.Context, path string, maxSec float64) (int64, int64, bool, error) {

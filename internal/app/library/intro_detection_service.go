@@ -24,6 +24,7 @@ type IntroDetector interface {
 	PrecisionPass(ctx context.Context, filePath string, startSec, endSec, padSec float64) (int64, int64, error)
 	AudioFallback(ctx context.Context, filePath string, maxSec float64) (int64, int64, bool, error)
 	DetectEndCredits(ctx context.Context, filePath string, durationSec float64) (int64, int64, bool, error)
+	DetectLeadingLogoBlock(ctx context.Context, filePath string, durationSec float64) (int64, int64, bool, error)
 	DetectStudioLogo(hashes []uint64, intervalSec int) (int64, int64, bool)
 	AudioBandedFingerprint(ctx context.Context, filePath string, startSec, durationSec float64, binMs int) ([]float64, error)
 	SubtitleCueStarts(ctx context.Context, filePath string) ([]int64, error)
