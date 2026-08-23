@@ -334,7 +334,11 @@ function startStarvationWatch(): void {
     }
     const q = decoderFrames.sample(findMediaElement());
     if (decoder.sample(state, q.droppedDelta, q.totalDelta)) {
-      engageFloor(pos, `decoder-distress drop=${q.droppedDelta}/${q.totalDelta}`);
+      // Not a bandwidth message: the bytes were all there. Saying "débit
+      // insuffisant" to someone whose link is fine sends them debugging the
+      // wrong thing.
+      engageFloor(pos, `decoder-distress drop=${q.droppedDelta}/${q.totalDelta}`,
+        "Lecture saccadée - passage en qualité réduite");
     }
   }, 5_000);
 }
@@ -343,7 +347,7 @@ function startStarvationWatch(): void {
 const MAX_FLOOR_RELOADS = 1;
 let floorReloads = 0;
 
-function engageFloor(posSec: number, reason = "starvation"): void {
+function engageFloor(posSec: number, reason = "starvation", notice = "Débit insuffisant - passage en qualité réduite"): void {
   const plan = planFloorRescue(currentUrl, floorReloads, MAX_FLOOR_RELOADS);
   if (!plan) return; // not a URL we own
   if (plan.kind === "exhausted") {
@@ -358,7 +362,7 @@ function engageFloor(posSec: number, reason = "starvation"): void {
       ? `${reason} at pos=${posSec.toFixed(1)}s - reloading the floor in place`
       : `${reason} at pos=${posSec.toFixed(1)}s - reloading on the floor rung`,
   );
-  showDebug("Débit insuffisant - passage en qualité réduite");
+  showDebug(notice);
   setTimeout(() => showDebug(""), 8_000);
   startGate.cancel();
   destroyEngine();
