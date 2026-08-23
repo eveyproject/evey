@@ -613,6 +613,17 @@ func (e *Enricher) fetchBestCandidate(ctx context.Context, provider domainmetada
 
 pickDone:
 	best := pickBestMatch(results, title, year)
+	// pickBestMatch always returns something - its last resort is results[0],
+	// which is whatever the provider ranked first even when no candidate has
+	// anything to do with the query (see match_confidence.go). Refuse a
+	// candidate that names a different work rather than persisting it.
+	if !titlePlausible(title, candidateTitles(best)) {
+		slog.WarnContext(ctx, "metadata match rejected: title too far from the parsed one",
+			slog.String("provider", provider.Name()),
+			slog.String("query", title),
+			slog.String("candidate", best.Title))
+		return nil
+	}
 	providerID := best.ProviderIDs[provider.Name()]
 	if providerID == "" {
 		if provider.Name() == "omdb" {
