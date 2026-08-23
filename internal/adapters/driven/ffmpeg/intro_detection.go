@@ -517,7 +517,7 @@ func (d *IntroDetector) DetectLeadingLogoBlock(ctx context.Context, filePath str
 func parseLeadingLogoBlock(output string, windowSec, durationSec float64) (startMs, endMs int64, found bool) {
 	type blackRegion struct{ startSec, durSec float64 }
 	var regions []blackRegion
-	for _, line := range strings.Split(output, "\n") {
+	for line := range strings.SplitSeq(output, "\n") {
 		startMatches := reBlackStart.FindStringSubmatch(line)
 		durMatches := reBlackDuration.FindStringSubmatch(line)
 		if len(startMatches) < 2 || len(durMatches) < 2 {
