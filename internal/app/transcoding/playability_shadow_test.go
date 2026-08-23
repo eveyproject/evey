@@ -449,7 +449,112 @@ func TestKnownMappingArtifact(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.wantArtifact, knownMappingArtifact(tt.evey, tt.mkvgo, tt.reasons, tt.decision))
+			assert.Equal(t, tt.wantArtifact, knownMappingArtifact(tt.evey, tt.mkvgo, tt.reasons, newDecisionSnapshot(tt.decision)))
 		})
 	}
+}
+
+// blockingAnalyzer holds the shadow's goroutine inside Playability until the
+// test releases it, so the test can mutate the decision in the window the real
+// caller mutates it: PlanResolver.Decide applies the vd= pin to the SAME
+// *PlaybackDecision pointer immediately after MakePlaybackDecisionWithPrefs
+// returns, while the head-only mkvgo read is still in flight.
+type blockingAnalyzer struct {
+	entered chan struct{}
+	release chan struct{}
+	report  *PlayabilityReport
+}
+
+func (b *blockingAnalyzer) Playability(_ context.Context, _ string, _ PlayabilityTarget) (*PlayabilityReport, error) {
+	close(b.entered)
+	<-b.release
+	return b.report, nil
+}
+
+// countingHandler counts WARN records, which is what an operator actually sees.
+type countingHandler struct {
+	mu    sync.Mutex
+	warns int
+}
+
+func (h *countingHandler) Enabled(context.Context, slog.Level) bool { return true }
+func (h *countingHandler) Handle(_ context.Context, r slog.Record) error {
+	if r.Level == slog.LevelWarn {
+		h.mu.Lock()
+		h.warns++
+		h.mu.Unlock()
+	}
+	return nil
+}
+func (h *countingHandler) WithAttrs([]slog.Attr) slog.Handler { return h }
+func (h *countingHandler) WithGroup(string) slog.Handler      { return h }
+func (h *countingHandler) count() int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.warns
+}
+
+// Incident 2026-08-23 (the owner) : "playability shadow: divergent verdict" a
+// ete emis a 19:27:49.970 sur un film servi en COPIE PURE - et ce faux WARN a
+// envoye toute l'enquete dans le mur pendant des heures. Mecanisme reel :
+// Observe passe le POINTEUR de decision a une goroutine detachee, qui ne lit
+// VideoDecision/PlayMethod qu'APRES le retour du lecteur d'entete mkvgo (des
+// millisecondes plus tard). Entre-temps, PlanResolver.Decide a applique le pin
+// vd=transcode de la sonde du barreau de secours SUR CE MEME POINTEUR. L'ombre
+// compare donc un verdict IMPOSE a celui de mkvgo. C'est aussi une course de
+// donnees pure et simple (-race la voit).
+// Le verdict doit etre pris en photo au moment de l'appel, pas relu plus tard.
+func TestPlayabilityShadow_SnapshotsTheVerdictBeforeTheCallerPinsIt(t *testing.T) {
+	analyzer := &blockingAnalyzer{
+		entered: make(chan struct{}),
+		release: make(chan struct{}),
+		report: &PlayabilityReport{
+			OverallVerdict: "direct-play",
+			Tracks:         []PlayabilityTrackVerdict{{Type: "video", Verdict: "direct-play"}},
+		},
+	}
+	repo := sharedfakes.NewFakeServerConfigRepository()
+	enableShadow(t, repo)
+	h := &countingHandler{}
+	shadow := NewPlayabilityShadow(analyzer, repo, slog.New(h))
+
+	// Le plan reel : copie pure, direct-play - convergent avec mkvgo.
+	decision := copyDecision("direct_play", "copy")
+	shadow.Observe(context.Background(), "/media/films/In the grey - 1080P.mkv", decision, domaintranscoding.ClientProfile{})
+
+	<-analyzer.entered
+	// La sonde du barreau de secours : vd=transcode force, applique par
+	// PlanResolver.Decide sur le pointeur que l'ombre detient encore.
+	decision.VideoDecision = "transcode"
+	decision.TranscodeReasons = append(decision.TranscodeReasons, "decision_pinned")
+	close(analyzer.release)
+	shadow.Wait()
+
+	assert.Zero(t, h.count(), "aucun WARN : la decision REELLE etait convergente, le pin est venu apres")
+}
+
+// L'inverse doit rester vrai : une vraie divergence, presente des l'appel,
+// continue d'etre signalee. Un correctif qui rend l'ombre muette ne corrige
+// rien, il aveugle.
+func TestPlayabilityShadow_RealDivergencePresentAtCallTimeStillWarns(t *testing.T) {
+	analyzer := &blockingAnalyzer{
+		entered: make(chan struct{}),
+		release: make(chan struct{}),
+		report: &PlayabilityReport{
+			OverallVerdict: "transcode",
+			Tracks:         []PlayabilityTrackVerdict{{Type: "video", Verdict: "transcode", Reasons: []string{"video codec unsupported on target"}}},
+		},
+	}
+	repo := sharedfakes.NewFakeServerConfigRepository()
+	enableShadow(t, repo)
+	h := &countingHandler{}
+	shadow := NewPlayabilityShadow(analyzer, repo, slog.New(h))
+
+	decision := copyDecision("direct_play", "copy") // evey direct-play vs mkvgo transcode
+	shadow.Observe(context.Background(), "/media/films/In the grey - 1080P.mkv", decision, domaintranscoding.ClientProfile{})
+	<-analyzer.entered
+	close(analyzer.release)
+	shadow.Wait()
+
+	assert.Equal(t, 1, h.count(), "une divergence reelle doit rester visible")
 }

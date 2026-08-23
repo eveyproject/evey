@@ -161,6 +161,17 @@ func (s *PlayabilityShadow) Observe(ctx context.Context, path string, decision *
 	// context.Background() would drop the caller's trace/values though, so
 	// this propagates from ctx via WithoutCancel instead of starting fresh -
 	// satisfying "propagate from caller" without inheriting cancellation.
+	// Snapshot the verdict HERE, synchronously. The goroutine below outlives
+	// this call by however long the mkvgo head read takes, and the caller
+	// mutates the very same *PlaybackDecision in that window:
+	// PlanResolver.Decide applies the vd= pin right after this function
+	// returns. Reading the pointer late made the shadow compare an IMPOSED
+	// verdict against mkvgo's - it emitted a "divergent verdict" WARN on a
+	// pure-copy playback (2026-08-23, In the grey 19:27:49.970) because the
+	// copy-fallback-rung probe pinned vd=transcode a millisecond later, and
+	// that false WARN sent a whole investigation into the wall. It was also a
+	// plain data race. A snapshot fixes both.
+	snap := newDecisionSnapshot(decision)
 	bgCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), playabilityShadowTimeout)
 	s.wg.Go(func() {
 		defer cancel()
@@ -170,7 +181,7 @@ func (s *PlayabilityShadow) Observe(ctx context.Context, path string, decision *
 					slog.Any("panic", r), slog.String("path", path))
 			}
 		}()
-		s.observeOnce(bgCtx, path, decision, client)
+		s.observeOnce(bgCtx, path, snap, client)
 	})
 }
 
@@ -189,7 +200,7 @@ func (s *PlayabilityShadow) Wait() {
 // the comparison log. Any of these failing (gate off, analyze error, no video
 // track) is a silent no-op - this feature must never surface as an error to
 // anything downstream.
-func (s *PlayabilityShadow) observeOnce(ctx context.Context, path string, decision *transcoding.PlaybackDecision, client transcoding.ClientProfile) {
+func (s *PlayabilityShadow) observeOnce(ctx context.Context, path string, snap decisionSnapshot, client transcoding.ClientProfile) {
 	// No gate check here: Observe already refused to spawn us if the feature is
 	// off. Re-reading it would put a second SELECT per segment on the enabled
 	// path, which is the one that matters once an operator turns this on.
@@ -207,7 +218,7 @@ func (s *PlayabilityShadow) observeOnce(ctx context.Context, path string, decisi
 	if mkvgoVerdict == "" {
 		return // report carries no video track
 	}
-	eveyVerdict := eveyVideoVerdict(decision)
+	eveyVerdict := snap.verdict
 
 	if eveyVerdict == mkvgoVerdict {
 		s.logger.Debug("playability shadow: convergent",
@@ -221,7 +232,7 @@ func (s *PlayabilityShadow) observeOnce(ctx context.Context, path string, decisi
 	// 2026-07-29 investigation read all 34 production WARNs one by one and found
 	// zero genuine disagreements, every 4K 10-bit title still re-logged one WARN
 	// per hour - noise that buries the first real divergence whenever one appears.
-	if artifact := knownMappingArtifact(eveyVerdict, mkvgoVerdict, mkvgoReasons, decision); artifact != "" {
+	if artifact := knownMappingArtifact(eveyVerdict, mkvgoVerdict, mkvgoReasons, snap); artifact != "" {
 		s.logger.Debug("playability shadow: divergence explained by a known mapping gap",
 			slog.String("path", path),
 			slog.String("target", target.Name),
@@ -367,7 +378,7 @@ var unmappedCodecSignalReasons = []string{
 // 2026-07-24..29 (34 WARNs, zero genuine disagreements) - do not widen this
 // without the same kind of evidence, because every string added here is a real
 // divergence someone will stop seeing.
-func knownMappingArtifact(eveyVerdict, mkvgoVerdict string, reasons []string, d *transcoding.PlaybackDecision) string {
+func knownMappingArtifact(eveyVerdict, mkvgoVerdict string, reasons []string, snap decisionSnapshot) string {
 	// Class 1: mkvgo demands a transcode ONLY because of a codec signal this
 	// mapping cannot express. If it cites anything else too, the other reason is
 	// real and the divergence must stay visible.
@@ -380,7 +391,7 @@ func knownMappingArtifact(eveyVerdict, mkvgoVerdict string, reasons []string, d 
 	// the whole session, where an audio codec or the HLS container forces a
 	// repackage. Evey being STRICTER than mkvgo can never cause a playback
 	// failure, which is what makes this one safe to silence.
-	if eveyVerdict == "remux" && mkvgoVerdict == "direct-play" && d != nil && d.VideoDecision == "copy" {
+	if eveyVerdict == "remux" && mkvgoVerdict == "direct-play" && snap.videoCopied {
 		return "global-vs-track-asymmetry"
 	}
 	return ""
@@ -399,6 +410,24 @@ func allUnmappedCodecSignals(reasons []string) bool {
 		}
 	}
 	return true
+}
+
+// decisionSnapshot is everything the shadow needs from a PlaybackDecision,
+// copied by value at Observe time. The comparison runs on a detached
+// goroutine; the decision struct belongs to the caller and keeps being
+// mutated after Observe returns (the vd= / ad= pins, the audio-resync force,
+// the tonemap re-add). Holding the pointer meant reading a decision nobody
+// ever took.
+type decisionSnapshot struct {
+	verdict     string // eveyVideoVerdict at call time
+	videoCopied bool   // VideoDecision == "copy" at call time
+}
+
+func newDecisionSnapshot(d *transcoding.PlaybackDecision) decisionSnapshot {
+	if d == nil {
+		return decisionSnapshot{}
+	}
+	return decisionSnapshot{verdict: eveyVideoVerdict(d), videoCopied: d.VideoDecision == "copy"}
 }
 
 // eveyVideoVerdict folds the real decision's VideoDecision/PlayMethod into the
