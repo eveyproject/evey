@@ -140,6 +140,7 @@ var APIKeyScopeFor = map[string]string{
 	"/evey.v1.CollectionService/GetCollectionItems":          ScopeMediaRead,
 	"/evey.v1.CollectionService/ListCollectionsForMediaItem": ScopeMediaRead,
 	"/evey.v1.CollectionService/ListCollections":             ScopeMediaRead,
+	"/evey.v1.FavoriteService/BatchIsFavorite":               ScopeMediaRead,
 	"/evey.v1.FavoriteService/IsFavorite":                    ScopeMediaRead,
 	"/evey.v1.FavoriteService/ListFavorites":                 ScopeMediaRead,
 	"/evey.v1.MKVService/ListChapters":                       ScopeMediaRead,
