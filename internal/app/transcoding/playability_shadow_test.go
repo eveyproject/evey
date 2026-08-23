@@ -497,10 +497,10 @@ func (h *countingHandler) count() int {
 // Incident 2026-08-23 (the owner) : "playability shadow: divergent verdict" a
 // ete emis a 19:27:49.970 sur un film servi en COPIE PURE - et ce faux WARN a
 // envoye toute l'enquete dans le mur pendant des heures. Mecanisme reel :
-// Observe passe le POINTEUR de decision a une goroutine detachee, qui ne lit
+// Observe confie l'ADRESSE de la decision a une goroutine detachee, qui ne lit
 // VideoDecision/PlayMethod qu'APRES le retour du lecteur d'entete mkvgo (des
 // millisecondes plus tard). Entre-temps, PlanResolver.Decide a applique le pin
-// vd=transcode de la sonde du barreau de secours SUR CE MEME POINTEUR. L'ombre
+// vd=transcode de la sonde du barreau de secours SUR CETTE MEME ADRESSE. L'ombre
 // compare donc un verdict IMPOSE a celui de mkvgo. C'est aussi une course de
 // donnees pure et simple (-race la voit).
 // Le verdict doit etre pris en photo au moment de l'appel, pas relu plus tard.
@@ -524,7 +524,7 @@ func TestPlayabilityShadow_SnapshotsTheVerdictBeforeTheCallerPinsIt(t *testing.T
 
 	<-analyzer.entered
 	// La sonde du barreau de secours : vd=transcode force, applique par
-	// PlanResolver.Decide sur le pointeur que l'ombre detient encore.
+	// PlanResolver.Decide sur l'adresse que l'ombre detient encore.
 	decision.VideoDecision = "transcode"
 	decision.TranscodeReasons = append(decision.TranscodeReasons, "decision_pinned")
 	close(analyzer.release)
