@@ -1,6 +1,7 @@
 package ffmpeg
 
 import (
+	"log/slog"
 	"os"
 	"os/exec"
 	"syscall"
@@ -24,16 +25,29 @@ func pauseProcessWhileBusy(proc *os.Process, busy func() bool) (stop func()) {
 		return func() {}
 	}
 	done := make(chan struct{})
+	// Read the cadence HERE, synchronously: the goroutine below outlives this
+	// call, and reading the package var from inside it races any test that
+	// restores the value once stop() has returned.
+	poll := detectionPausePoll
 	go func() {
-		ticker := time.NewTicker(detectionPausePoll)
+		ticker := time.NewTicker(poll)
 		defer ticker.Stop()
 		paused := false
+		var pausedAt time.Time
+		// One line per TRANSITION, never per tick: the loop wakes every second
+		// on every background decode. Silence here used to be total, and on
+		// 2026-08-23 that silence was read as proof the guard had NOT suspended
+		// anything - a conclusion the code cannot support. An action nobody can
+		// see is an action nobody can rule out.
 		for {
 			select {
 			case <-done:
 				if paused {
 					//nolint:errcheck // best-effort SIGCONT; a dead process just errors
 					_ = proc.Signal(syscall.SIGCONT)
+					slog.Info("ffmpeg: background process resumed, guard released",
+						slog.Int("pid", proc.Pid),
+						slog.Int64("paused_ms", time.Since(pausedAt).Milliseconds()))
 				}
 				return
 			case <-ticker.C:
@@ -41,10 +55,16 @@ func pauseProcessWhileBusy(proc *os.Process, busy func() bool) (stop func()) {
 				case b && !paused:
 					if proc.Signal(syscall.SIGSTOP) == nil {
 						paused = true
+						pausedAt = time.Now()
+						slog.Info("ffmpeg: background process suspended while the server is busy",
+							slog.Int("pid", proc.Pid))
 					}
 				case !b && paused:
 					if proc.Signal(syscall.SIGCONT) == nil {
 						paused = false
+						slog.Info("ffmpeg: background process resumed",
+							slog.Int("pid", proc.Pid),
+							slog.Int64("paused_ms", time.Since(pausedAt).Milliseconds()))
 					}
 				}
 			}
