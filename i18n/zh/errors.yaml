@@ -13,8 +13,8 @@ auth:
   missing_key: "缺少API密钥"
   profile_not_found: "未找到档案"
   parental_needs_non_kids: "请切换到非儿童配置文件以修改家长控制设置"
-  pin_must_be_4_digits: "PIN 必须为 4 位数字"
-  invalid_pin: "PIN 不正确"
+  pin_must_be_4_digits: "PIN 码必须为 4 位数字"
+  invalid_pin: "PIN 码错误"
   invalid_password: "密码不正确"
   pin_required_for_non_kids: "只要存在儿童配置文件，非儿童配置文件就必须设置 PIN"
 
