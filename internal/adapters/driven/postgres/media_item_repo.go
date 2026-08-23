@@ -198,17 +198,22 @@ func (r *MediaItemRepository) Update(ctx context.Context, item *library.MediaIte
 	// healOrphanTitles rewrites Title+ScanTitle in memory, calls Update,
 	// and previously only Title landed in the DB row. ResearchMetadata
 	// (which resets Title := ScanTitle from the stale DB value) then
-	// silently undid the heal on the next call. Persist whatever the
-	// caller passed - heal updates it, vanilla scan keeps it equal to the
-	// freshly-parsed Title so no behavior change.
+	// silently undid the heal on the next call. So a NON-EMPTY value from
+	// the caller still wins.
+	//
+	// An EMPTY one no longer means "overwrite it with the display title".
+	// It used to, and that substitution destroyed the one value that can
+	// repair a mis-enriched row without going back to the disk: a caller
+	// holding a partially-built item wrote the (possibly wrong) provider
+	// title into scan_title. The COALESCE below keeps the stored value in
+	// that case, and only falls back to the title when the column is NULL
+	// (a row created before scan_title existed).
 	scanTitle := item.ScanTitle
-	if scanTitle == "" {
-		scanTitle = item.Title
-	}
 
 	err := r.withMediaItemTx(ctx, func(tx *sql.Tx) error {
 		res, err := tx.ExecContext(ctx,
-			`UPDATE media_items SET library_id=$1, parent_id=$2, type=$3, title=$4, scan_title=$5,
+			`UPDATE media_items SET library_id=$1, parent_id=$2, type=$3, title=$4,
+			 scan_title=COALESCE(NULLIF($5, ''), media_items.scan_title, $4),
 			 sort_title=$6, original_title=$7, overview=$8, tagline=$9, index_number=$10, updated_at=$11
 			 WHERE id=$12`,
 			item.LibraryID, parentID, item.Type, item.Title, scanTitle, sortTitle, item.OriginalTitle,
