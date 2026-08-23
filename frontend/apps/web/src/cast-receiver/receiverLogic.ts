@@ -44,29 +44,35 @@ export interface AudioProbe {
 
 // probeMaxAudioChannels asks the device what it can do, instead of assuming.
 //
-// Only a POSITIVE answer raises the ceiling: a decoder that says it handles
-// 5.1 keeps 5.1 (it downmixes to whatever the sink is - that is the browser's
-// job, not ours), everything else is served stereo. Never the reverse: a
-// stereo output must not demote a decoder that works, or fixing one TV costs
-// the surround of another.
+// The two answers are NOT interchangeable and this function used to conflate
+// them: decodingInfo answers "can this device DECODE 5.1", the sink answers
+// "how many channels come OUT". A box that decodes 5.1 into a 2.0 TV was
+// therefore served 5.1 and folded it to stereo with the browser's "speakers"
+// matrix, which sums C+SL+SR onto L/R with no normalisation (worst case +7.66
+// dB): dialogue survives, music and effects clip. So decodingInfo is a GATE
+// (an explicit "no" forces stereo) and the sink is the CEILING.
+//
+// A sink that does not answer keeps the old behaviour - a working decoder
+// stays at 5.1 - so an unknown output never costs anyone their surround.
 export async function probeMaxAudioChannels(probe: AudioProbe): Promise<number> {
+  let decodes6 = false;
   if (probe.decodingInfo) {
     try {
       const info = await probe.decodingInfo({
         type: "media-source",
         audio: { contentType: AAC_LC, channels: "6", bitrate: 384_000, samplerate: 48_000 },
       });
-      if (info?.supported === true) return 6;
       // An explicit "no" is the Chromecast HD of 2026-08-04: its SourceBuffer
       // refuses 5.1 AAC and the title never starts. Believe it.
-      return 2;
+      if (info?.supported !== true) return 2;
+      decodes6 = true;
     } catch {
       // Malformed config or an API that throws: fall through to the sink.
     }
   }
-  // No decodingInfo (old cast runtime): a sink wired for 6+ channels is still
-  // a positive surround signal. Anything else stays stereo.
-  return (probe.maxChannelCount ?? 0) >= 6 ? 6 : 2;
+  const sink = probe.maxChannelCount;
+  if (typeof sink === "number" && sink > 0) return sink >= 6 ? 6 : 2;
+  return decodes6 ? 6 : 2;
 }
 
 // Probe codec strings - same shapes as jellyfin-chromecast's

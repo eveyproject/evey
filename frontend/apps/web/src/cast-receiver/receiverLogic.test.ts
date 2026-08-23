@@ -37,7 +37,7 @@ describe("probeMaxAudioChannels - the device answers, nothing is assumed", () =>
   const yes = async () => ({ supported: true });
   const no = async () => ({ supported: false });
 
-  it("keeps 5.1 when the decoder says it handles 5.1", async () => {
+  it("keeps 5.1 when the decoder says yes and the sink does not answer", async () => {
     expect(await probeMaxAudioChannels({ decodingInfo: yes })).toBe(6);
   });
 
@@ -47,10 +47,16 @@ describe("probeMaxAudioChannels - the device answers, nothing is assumed", () =>
     expect(await probeMaxAudioChannels({ decodingInfo: no })).toBe(2);
   });
 
-  // The whole point of asking: a working device must not be demoted to fix
-  // another one. A 2-channel sink never overrides a decoder that says yes.
-  it("does not let a stereo sink demote a decoder that answered yes", async () => {
-    expect(await probeMaxAudioChannels({ decodingInfo: yes, maxChannelCount: 2 })).toBe(6);
+  // decodingInfo answers a DECODE question, the sink answers a RESTITUTION
+  // one. Reading the first as the second is what served 5.1 to a 2.0 TV, where
+  // the browser's un-normalised fold (+7.66 dB worst case) clips everything
+  // that is not the lone attenuated centre channel.
+  it("caps a 5.1-capable decoder at the stereo sink behind it", async () => {
+    expect(await probeMaxAudioChannels({ decodingInfo: yes, maxChannelCount: 2 })).toBe(2);
+  });
+
+  it("keeps 5.1 when the sink itself is multichannel", async () => {
+    expect(await probeMaxAudioChannels({ decodingInfo: yes, maxChannelCount: 8 })).toBe(6);
   });
 
   it("falls back to the sink when decodingInfo is missing or throws", async () => {
