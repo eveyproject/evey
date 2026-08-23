@@ -518,14 +518,18 @@ func (h *libraryHandler) FilterMediaItems(ctx context.Context, req *eveyv1.Filte
 	for _, item := range items {
 		ids = append(ids, string(item.ID))
 	}
+	// Same hydration as ListMediaItems, through the same shared mapper: the
+	// filter panel only narrows the set, it must not change what a card is.
+	// Building the proto by hand here dropped the operator's title override,
+	// the locale overlay and the artwork placeholder the moment any filter was
+	// on - silently, since a card with a stale title looks perfectly fine.
+	// Cast stays nil: it is only ever loaded for the person filter, which this
+	// RPC does not have.
+	h.overlayMediaItemsLocale(ctx, ids, items)
+	h.overlayMediaItemsOverrides(ctx, ids, items)
+	artworkMap := h.fetchMediaItemsArtwork(ctx, ids)
 	streamsMap := h.fetchMediaItemsStreams(ctx, ids)
-	for _, item := range items {
-		pb := mediaItemToProto(item, ctxIsAdmin(ctx))
-		for _, s := range streamsMap[string(item.ID)] {
-			pb.Streams = append(pb.Streams, mediaStreamToProto(s))
-		}
-		resp.Items = append(resp.Items, pb)
-	}
+	resp.Items = mediaItemsToProto(ctx, items, pf, artworkMap, nil, streamsMap)
 	fillAncestorTitles(ctx, h.query.GetMediaItemsByIDs, resp.Items)
 	return resp, nil
 }

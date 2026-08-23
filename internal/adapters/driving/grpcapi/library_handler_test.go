@@ -861,3 +861,34 @@ func TestLibraryHandler_DeleteLibrary_IDOR_DeniesNonAdminWithoutAccess(t *testin
 	require.Error(t, err)
 	assert.Equal(t, codes.NotFound, status.Code(err))
 }
+
+// Two doors, one answer: FilterMediaItems and ListMediaItems serve the SAME
+// cards to the SAME screen - the filter panel just narrows the set. Filter
+// hydrated streams only, so turning on a genre/year/rating filter silently
+// dropped the operator's manual title override, the locale overlay and the
+// artwork placeholder. Same family as the season labels found on 2026-08-24:
+// a handler that rebuilds a partial item by hand instead of going through the
+// shared path. Nothing crashes, nothing turns red - the title just reverts.
+func TestLibraryHandler_FilterMediaItems_AppliesOverridesLikeTheListPath(t *testing.T) {
+	h, _, mediaQuery, _, _, _, _ := newTestLibraryHandler()
+	ctx := adminCtx()
+
+	mediaQuery.Seed(&library.MediaItem{ID: "mi-ov1", LibraryID: "lib-1", Title: "Original", Type: "movie"})
+
+	overrideRepo := metafakes.NewFakeMetadataOverrideRepository()
+	artworkRepo := metafakes.NewFakeArtworkRepository()
+	h.metadataSvc = metadata.NewQueryService(overrideRepo, artworkRepo, nil)
+	overrideRepo.Set(ctx, &domainmetadata.MetadataOverride{
+		ID: "mo-ov1", MediaItemID: "mi-ov1", FieldName: "title", CustomValue: "Overridden Title",
+	})
+
+	// Filter FIRST, deliberately: the fake query repo hands out pointers to the
+	// seeded items, so a ListMediaItems call run before this one would overlay
+	// the override onto the shared object and leave the filter path looking
+	// correct for the wrong reason.
+	filtered, err := h.FilterMediaItems(ctx, &eveyv1.FilterMediaItemsRequest{})
+	require.NoError(t, err)
+	require.Len(t, filtered.Items, 1)
+	assert.Equal(t, "Overridden Title", filtered.Items[0].Title,
+		"a filtered card must carry the same title as an unfiltered one")
+}
