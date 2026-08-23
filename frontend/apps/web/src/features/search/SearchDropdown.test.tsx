@@ -189,6 +189,38 @@ describe("SearchDropdown", () => {
     expect(screen.getByText("View all 20 results")).toBeInTheDocument();
   });
 
+  // Documented gap: the Meilisearch document carries no index_number, so a
+  // season hit has nothing to derive a label from. The stored title stays -
+  // an English "Season 2" reads worse than the viewer's language but beats an
+  // empty row, and it IS the number being looked for. Deriving here needs the
+  // number in the index, which is a server change.
+  it("keeps the stored title on a season hit, which carries no number", () => {
+    searchMockReturn = {
+      data: {
+        items: [{ id: "3", title: "Season 2", year: 2009, type: "MEDIA_ITEM_TYPE_SEASON", genres: [] }],
+        totalHits: 1,
+      },
+      isLoading: false,
+    };
+    renderDropdown();
+    expect(screen.getByText("Season 2")).toBeInTheDocument();
+  });
+
+  // But when the number does reach the client (a resolved item, not an index
+  // row), the label is derived like everywhere else.
+  it("derives a season hit that does carry its number", () => {
+    searchMockReturn = {
+      data: {
+        items: [{ id: "3", title: "Saison 2", indexNumber: 2, year: 2009, type: "MEDIA_ITEM_TYPE_SEASON", genres: [] }],
+        totalHits: 1,
+      },
+      isLoading: false,
+    };
+    renderDropdown();
+    expect(screen.getByText("Season 2")).toBeInTheDocument();
+    expect(screen.queryByText("Saison 2")).not.toBeInTheDocument();
+  });
+
   it("calls onNavigateToSearch on 'View all' click", async () => {
     const user = userEvent.setup();
     searchMockReturn = {

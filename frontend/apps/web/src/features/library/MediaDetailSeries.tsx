@@ -5,7 +5,7 @@ import { Link } from "@tanstack/react-router";
 import type { V1MediaItem } from "@evey/api";
 import { useLibraryServiceGetMediaItem, useLibraryServiceListMediaItems } from "@evey/api";
 import { Button } from "@/components/ui/Button";
-import { formatDurationMs } from "@evey/api";
+import { formatDurationMs, seasonLabel } from "@evey/api";
 import { artworkUrl } from "./artworkUrl";
 import { useAuthStore } from "@evey/store";
 import { DownloadButton } from "@/features/playback/DownloadButton";
@@ -122,9 +122,7 @@ function SeasonCard({ seasonId }: { seasonId: string }) {
   const episodes = sortByIndex(episodesData?.items ?? []);
   const firstEpisode = episodes[0];
 
-  const seasonLabel = season?.indexNumber != null
-    ? t("media.season", { number: season.indexNumber })
-    : (season?.title ?? t("media.season", { number: "" }));
+  const label = seasonLabel(season ?? {}, t);
 
   const posterUrl = artworkUrl(seasonId, "poster", season, accessToken || undefined);
   const posterSrcSet = posterUrl
@@ -174,7 +172,7 @@ function SeasonCard({ seasonId }: { seasonId: string }) {
         data-testid="season-link"
         className="block mt-2 text-base font-medium truncate text-[var(--text)] hover:text-[var(--accent)] transition-colors-fast"
       >
-        {seasonLabel}
+        {label}
       </Link>
       <p className="text-sm text-[var(--text-muted)]">
         {t("media.detail.ep", { count: episodes.length })}

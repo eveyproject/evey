@@ -1,7 +1,7 @@
 import { useMemo, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import type { V1MediaItem } from "@evey/api";
-import { useUserServiceGetCurrentUser, useUserServiceListProfiles } from "@evey/api";
+import { useUserServiceGetCurrentUser, useUserServiceListProfiles, itemLabel } from "@evey/api";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@evey/store";
 import { Pencil } from "lucide-react";
@@ -54,6 +54,7 @@ export function MediaDetailHero({
   const { data: profilesResp } = useUserServiceListProfiles(currentUser?.id ?? "", { query: { enabled: !!currentUser?.id } });
   const profileRegion = (profilesResp?.profiles?.find((p) => p.isDefault) ?? profilesResp?.profiles?.[0])?.region;
   const certInfo = certInfoForLocale(item.certificationsByCountry, i18n.language, item.officialRating, profileRegion);
+  const label = itemLabel(item, t);
 
   const backdropSrcSet = useMemo(() => {
     if (!backdropUrl) return undefined;
@@ -87,7 +88,7 @@ export function MediaDetailHero({
           with it. Bounded so it never eats the whole screen. */}
       <div className="absolute inset-x-0 top-0 h-[var(--media-hero-h)] overflow-hidden">
         {backdropUrl ? (
-          <img src={backdropUrl} srcSet={backdropSrcSet} sizes="100vw" alt={item.title ?? ""} className="w-full h-full object-cover object-center" data-testid="media-backdrop" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+          <img src={backdropUrl} srcSet={backdropSrcSet} sizes="100vw" alt={label} className="w-full h-full object-cover object-center" data-testid="media-backdrop" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
         ) : (
           <div className="w-full h-full bg-[var(--surface)]" />
         )}
@@ -126,7 +127,7 @@ export function MediaDetailHero({
                   src={posterUrl}
                   srcSet={posterSrcSet}
                   sizes="(min-width: 1280px) 400px, (min-width: 1024px) 384px, 320px"
-                  alt={item.title ?? ""}
+                  alt={label}
                   fetchPriority="high"
                   className="w-full h-full object-cover"
                   data-testid="media-poster"
@@ -139,7 +140,7 @@ export function MediaDetailHero({
                 />
               ) : null}
               <PosterPlaceholder
-                title={item.title}
+                title={label}
                 type={item.type}
                 iconSize={36}
                 className="absolute inset-0"
@@ -212,7 +213,7 @@ export function MediaDetailHero({
             params={{ mediaId: item.parentId! }}
             className="block mb-2 text-xs uppercase tracking-[0.18em] font-semibold text-white/60 hover:text-white transition-colors-fast no-underline"
           >
-            {parentItem.title}
+            {itemLabel(parentItem, t)}
           </Link>
         )}
         {/* The measure lives on the h1, not on the wrapper: in ch it scales
@@ -223,7 +224,7 @@ export function MediaDetailHero({
           <h1
             className="max-w-[14ch] text-4xl sm:text-6xl lg:text-7xl font-medium tracking-[-0.035em] leading-[0.95] text-white text-balance [text-shadow:0_2px_24px_rgb(0_0_0/0.55)]"
             data-testid="media-title"
-          >{item.title}</h1>
+          >{label}</h1>
           {/* Client-side gate only: the server is what actually enforces this,
               this just stops a non-admin from seeing controls that would fail
               anyway (parity with the mobile detail screen). */}

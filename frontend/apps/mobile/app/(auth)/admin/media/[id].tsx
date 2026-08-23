@@ -12,7 +12,7 @@ import {
 import { Stack } from "expo-router";
 import { useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { useLibraryServiceGetMediaItem } from "@evey/api";
+import { useLibraryServiceGetMediaItem, itemLabel } from "@evey/api";
 import { toast } from "@evey/store";
 import { useTheme } from "../../../../src/providers/ThemeProvider";
 import { HeaderBack } from "../../../../src/components/layout/HeaderBack";
@@ -171,7 +171,7 @@ export default function AdminMediaSegmentsScreen() {
       <Stack.Screen
         options={{
           headerShown: true,
-          title: mediaItem?.title ?? t("admin.segments.title", "Segment Admin"),
+          title: (mediaItem ? itemLabel(mediaItem, t) : "") || t("admin.segments.title", "Segment Admin"),
           headerStyle: { backgroundColor: theme.colors.surface },
           headerTintColor: theme.colors.text,
           headerLeft: () => <HeaderBack />,

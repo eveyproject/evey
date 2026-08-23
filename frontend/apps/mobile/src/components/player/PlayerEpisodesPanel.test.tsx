@@ -138,6 +138,47 @@ describe("PlayerEpisodesPanel", () => {
     expect(queryByText("Pilot")).toBeNull();
   });
 
+  // A season has no name: the chip label comes from the number. Rows enriched
+  // before 8a09537ea still carry a French "Saison 2" in the database.
+  it("derives a season chip from its number, not from the stored title", () => {
+    const stored = [
+      { id: "s1", title: "Saison 1", indexNumber: 1 },
+      { id: "s2", title: "Saison 2", indexNumber: 2 },
+    ];
+    const { getByText, queryByText } = render(
+      <PlayerEpisodesPanel
+        seasons={stored}
+        currentSeasonId="s1"
+        episodes={season1Episodes}
+        currentEpisodeId="e1"
+        onSeasonChange={vi.fn()}
+        onEpisodeChange={vi.fn()}
+      />,
+    );
+    expect(getByText("Season 2")).toBeTruthy();
+    expect(queryByText("Saison 2")).toBeNull();
+  });
+
+  // No index_number (a search hit has none): the stored title stays rather
+  // than a chip reading "Season undefined".
+  it("falls back to the stored title when a season has no number", () => {
+    const stored = [
+      { id: "s1", title: "First batch" },
+      { id: "s2", title: "Second batch" },
+    ];
+    const { getByText } = render(
+      <PlayerEpisodesPanel
+        seasons={stored}
+        currentSeasonId="s1"
+        episodes={season1Episodes}
+        currentEpisodeId="e1"
+        onSeasonChange={vi.fn()}
+        onEpisodeChange={vi.fn()}
+      />,
+    );
+    expect(getByText("Second batch")).toBeTruthy();
+  });
+
   it("tapping an episode from another season navigates to it", () => {
     const onEpisodeChange = vi.fn();
     const { getByText } = render(

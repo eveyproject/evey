@@ -55,7 +55,11 @@ vi.mock("@expo/vector-icons", () => ({
 // --- i18next --------------------------------------------------------------------------
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
-    t: (key: string, fallback?: unknown) => (typeof fallback === "string" ? fallback : key),
+    t: (key: string, fallback?: unknown) => {
+      // Interpolated so the season breadcrumb proves it went through i18n.
+      if (key === "media.season") return `Saison ${(fallback as { number?: number } | undefined)?.number}`;
+      return typeof fallback === "string" ? fallback : key;
+    },
     i18n: { language: "en" },
   }),
 }));
@@ -377,9 +381,13 @@ describe("MediaDetailScreen episode → season navigation", () => {
     render(<MediaDetailScreen />, { wrapper: makeWrapper() });
   }
 
+  // The season on that line is labelled from its number, never from the
+  // stored title: "Some Season" is a provider name the enrichment used to
+  // write, and a season has no name.
   it("navigates to the season when the SxEy · season line is tapped", () => {
     mountEpisode(SEASON_PARENT);
-    const back = document.querySelector('button[accessibilitylabel="Some Season"]');
+    expect(document.querySelector('button[accessibilitylabel="Some Season"]')).toBeNull();
+    const back = document.querySelector('button[accessibilitylabel="Saison 3"]');
     expect(back).toBeTruthy();
     fireEvent.click(back!);
     expect(router.push).toHaveBeenCalledWith(`/(auth)/media/${SEASON_PARENT}`);
@@ -387,7 +395,7 @@ describe("MediaDetailScreen episode → season navigation", () => {
 
   it("renders the label as plain text (no navigation) when the episode has no parent", () => {
     mountEpisode(undefined);
-    expect(document.querySelector('button[accessibilitylabel="Some Season"]')).toBeNull();
+    expect(document.querySelector('button[accessibilitylabel="Saison 3"]')).toBeNull();
     expect(router.push).not.toHaveBeenCalled();
   });
 });

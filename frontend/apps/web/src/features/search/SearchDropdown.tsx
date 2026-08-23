@@ -275,7 +275,7 @@ export const SearchDropdown = memo(function SearchDropdown({
                         src={`/api/v1/media/${item.id}/artwork/poster`}
                         srcSet={`/api/v1/media/${item.id}/artwork/poster?w=50 50w, /api/v1/media/${item.id}/artwork/poster?w=100 100w`}
                         sizes="36px"
-                        alt={displayTitle(item) || "Media poster"}
+                        alt={displayTitle(item, t) || "Media poster"}
                         className="absolute inset-0 w-full h-full object-cover"
                         onError={(e) => {
                           e.currentTarget.style.display = "none";
@@ -287,7 +287,7 @@ export const SearchDropdown = memo(function SearchDropdown({
                     <p
                       className="text-sm font-medium truncate text-[var(--text)]"
                     >
-                      {displayTitle(item)}
+                      {displayTitle(item, t)}
                     </p>
                     <div
                       className="flex items-center gap-2 text-xs text-[var(--text-muted)]"

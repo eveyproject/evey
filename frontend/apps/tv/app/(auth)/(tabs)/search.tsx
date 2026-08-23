@@ -201,21 +201,21 @@ export default function SearchScreen() {
       onPress={() => router.push(`/media/${item.id}`)}
       style={[styles.row, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
       hasTVPreferredFocus={index === 0}
-      accessibilityLabel={displayTitle(item)}
+      accessibilityLabel={displayTitle(item, t)}
     >
       <View style={[styles.thumb, { borderRadius: theme.radii.sm, backgroundColor: theme.colors.surfaceRaised ?? theme.colors.surface }]}>
         <Text style={{ color: theme.colors.textMuted, fontSize: 18 }}>?</Text>
       </View>
       <View style={styles.info}>
         <Text style={[styles.title, { color: theme.colors.text }]} numberOfLines={1}>
-          {displayTitle(item)}
+          {displayTitle(item, t)}
         </Text>
         <Text style={[styles.meta, { color: theme.colors.textMuted }]}>
           {[item.year, typeLabel(item.type)].filter(Boolean).join(" \u00B7 ")}
         </Text>
       </View>
     </FocusableCard>
-  ), [theme, router, typeLabel]);
+  ), [theme, router, typeLabel, t]);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>

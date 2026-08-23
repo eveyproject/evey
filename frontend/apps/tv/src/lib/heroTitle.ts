@@ -1,3 +1,5 @@
+import { itemLabel, type Translate } from "@evey/api";
+
 // What the home hero should call an item.
 //
 // "Recently added" spotlights seasons and episodes alongside films, and their
@@ -9,15 +11,18 @@
 // An episode hangs off its SEASON, not off the series, so the chain is walked
 // to the top: "Some Series - Some Episode" beats "Season 3 - The Spider
 // and the Fly", which still leaves the viewer guessing which show it is.
-type TitledItem = { id?: string; title?: string; type?: string; parentId?: string };
+//
+// Season labels come from itemLabel, never from the stored title: a season has
+// no name, only a number.
+type TitledItem = { id?: string; title?: string; type?: string; parentId?: string; indexNumber?: number };
 
 const NEEDS_PARENT = new Set(["MEDIA_ITEM_TYPE_SEASON", "MEDIA_ITEM_TYPE_EPISODE"]);
 
 // Bounded: a cycle in the data must not hang the home screen.
 const MAX_HOPS = 4;
 
-export function heroTitle(item: TitledItem, siblings: readonly TitledItem[]): string {
-  const own = item.title ?? "";
+export function heroTitle(item: TitledItem, siblings: readonly TitledItem[], t: Translate): string {
+  const own = itemLabel(item, t);
   if (!item.type || !NEEDS_PARENT.has(item.type)) return own;
 
   let cursor = item;
@@ -28,7 +33,8 @@ export function heroTitle(item: TitledItem, siblings: readonly TitledItem[]): st
     seen.add(cursor.parentId);
     const parent = siblings.find((s) => s.id === cursor.parentId);
     if (!parent) break;
-    if (parent.title) topTitle = parent.title;
+    const parentLabel = itemLabel(parent, t);
+    if (parentLabel) topTitle = parentLabel;
     cursor = parent;
   }
 

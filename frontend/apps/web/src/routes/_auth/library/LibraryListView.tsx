@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { typeLabel } from "@/utils/typeLabel";
 import type { V1MediaItem } from "@evey/api";
-import { formatDurationMs } from "@evey/api";
+import { formatDurationMs, itemLabel } from "@evey/api";
 import { artworkUrl } from "@/features/library/artworkUrl";
 
 // Rows have no wrapping text (title is truncated to one line) and every icon/
@@ -29,7 +29,8 @@ function findScrollParent(el: HTMLElement | null): HTMLElement | null {
 }
 
 const ListRow = memo(function ListRow({ item }: { item: V1MediaItem }) {
-  const title = item.title ?? "";
+  const { t } = useTranslation();
+  const title = itemLabel(item, t);
   const year = item.year;
   const rating = item.communityRating;
   const type = item.type;

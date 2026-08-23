@@ -317,7 +317,7 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
     () =>
       [...(seasonsData?.items ?? [])]
         .sort((a, b) => (a.indexNumber ?? 0) - (b.indexNumber ?? 0))
-        .map((s) => ({ id: s.id!, title: s.title ?? `Season ${s.indexNumber}`, indexNumber: s.indexNumber })),
+        .map((s) => ({ id: s.id!, title: s.title, indexNumber: s.indexNumber })),
     [seasonsData?.items],
   );
 

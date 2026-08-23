@@ -89,6 +89,7 @@ function MediaCard({
   isFirst?: boolean;
   watchPercent?: number;
 }) {
+  const { t } = useTranslation();
   const theme = useTheme();
   const posterUri = item.id ? artworkUrl(serverUrl, item.id, "poster", CARD_WIDTH * 2) : undefined;
   const blurhash = (item.artwork ?? []).find((a) => a.type === "ARTWORK_TYPE_PRIMARY")?.blurhash;
@@ -97,7 +98,7 @@ function MediaCard({
     <FocusableCard
       onPress={() => router.push(`/media/${item.id}`)}
       hasTVPreferredFocus={isFirst}
-      accessibilityLabel={displayTitle(item)}
+      accessibilityLabel={displayTitle(item, t)}
       style={styles.card}
     >
       <View style={[styles.poster, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.sm }]}>
@@ -125,7 +126,7 @@ function MediaCard({
         </View>
       )}
       <Text style={[styles.cardTitle, { color: theme.colors.text }]} numberOfLines={1}>
-        {displayTitle(item)}
+        {displayTitle(item, t)}
       </Text>
       {item.year && (
         <Text style={[styles.cardYear, { color: theme.colors.textMuted }]}>{item.year}</Text>
@@ -275,7 +276,7 @@ function HeroBanner({
       </View>
       <View style={styles.heroContent}>
         <Text style={[styles.heroTitle, { color: theme.colors.text }]} numberOfLines={2}>
-          {active ? heroTitle(active, items) : null}
+          {active ? heroTitle(active, items, t) : null}
         </Text>
         {metaLine ? (
           <Text style={[styles.heroMeta, { color: theme.colors.textMuted }]}>{metaLine}</Text>

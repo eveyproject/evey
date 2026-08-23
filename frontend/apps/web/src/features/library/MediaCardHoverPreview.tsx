@@ -1,9 +1,12 @@
 import { memo } from "react";
+import { useTranslation } from "react-i18next";
+import { itemLabel } from "@evey/api";
 import { Star } from "lucide-react";
 import type { MediaCardItem } from "./MediaCard";
 import { typeLabel } from "@/utils/typeLabel";
 
 export const HoverPreview = memo(function HoverPreview({ item }: { item: MediaCardItem }) {
+  const { t } = useTranslation();
   const hasContent = item.overview || item.communityRating || (item.genres && item.genres.length > 0);
   if (!hasContent) return null;
 
@@ -12,7 +15,7 @@ export const HoverPreview = memo(function HoverPreview({ item }: { item: MediaCa
       className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-56 rounded-lg p-3 shadow-xl z-overlay pointer-events-none transition-opacity-fast duration-200 hidden sm:block bg-[var(--surface)] border border-[var(--border)]"
     >
       <p className="text-sm font-semibold mb-1 truncate text-[var(--text)]">
-        {item.title}
+        {itemLabel(item, t)}
       </p>
 
       <div className="flex items-center gap-2 mb-1.5 text-xs text-[var(--text-muted)]">

@@ -1,6 +1,7 @@
 import { Check } from "lucide-react";
 import { List } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { seasonLabel } from "@evey/api";
 import { Select } from "@/components/ui/Select";
 
 export interface EpisodeNavItem { id: string; title?: string; indexNumber?: number }
@@ -41,7 +42,7 @@ export function EpisodesPanel({ seasons, currentSeasonId, episodes, currentEpiso
                 onChange={onSeasonChange}
                 options={seasons.map((s) => ({
                   value: s.id,
-                  label: s.title ?? t("media.season", { number: s.indexNumber }),
+                  label: seasonLabel(s, t),
                 }))}
               />
             </div>

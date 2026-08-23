@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { createLazyFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { libraryServiceGetMediaItem } from "@evey/api";
+import { libraryServiceGetMediaItem, itemLabel } from "@evey/api";
 import type { V1MediaItem } from "@evey/api";
 import { toast } from "@evey/store";
 import { useTranslation } from "react-i18next";
@@ -230,7 +230,7 @@ function AdminMediaSegmentsPage() {
       <PageHeader
         title={
           mediaItem
-            ? `${t("admin.segments.title")} - ${mediaItem.title ?? mediaId}`
+            ? `${t("admin.segments.title")} - ${itemLabel(mediaItem, t) || mediaId}`
             : t("admin.segments.title")
         }
         actions={

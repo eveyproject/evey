@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { formatTimeMs } from "@evey/api";
+import { formatTimeMs, itemLabel } from "@evey/api";
 import { invalidateWatchedState } from "@/lib/invalidateWatchedState";
 import { Play, RotateCcw, EyeOff, Eye, Plus, SlidersHorizontal } from "lucide-react";
 import { ICON } from "@/constants/iconSizes";
@@ -231,7 +231,7 @@ export function MediaDetailActions({
         {item.id && isSeason && (
           <DownloadButton
             mediaId={item.id}
-            title={`${item.title ?? "season"}.zip`}
+            title={`${itemLabel(item, t) || "season"}.zip`}
             mintToken={() => fetchStreamToken(item.id!)}
             label={t("media.detail.downloadSeason")}
             size="lg"

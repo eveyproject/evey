@@ -11,7 +11,8 @@ vi.mock("@tanstack/react-router", () => ({
   useRouterState: () => ({ history: { back: vi.fn() } }),
 }));
 
-vi.mock("@evey/api", () => ({
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
   useUserServiceGetCurrentUser: () => ({ data: undefined }),
   useUserServiceListProfiles: () => ({ data: undefined }),
 }));
@@ -158,6 +159,33 @@ describe("MediaDetailHero", () => {
     const parentItem = { id: "p1", title: "Some Series" };
     render(<MediaDetailHero {...defaultProps} parentItem={parentItem as any} />);
     expect(screen.getByText("Some Series")).toBeInTheDocument();
+  });
+
+  // A season has no name: the label comes from the number, never from the
+  // stored title. Rows enriched before 8a09537ea still carry a French
+  // "Saison 2" in the database, and the ones written since carry a frozen
+  // English "Season 2" - neither may reach the screen.
+  it("derives a season heading from its number, not from the stored title", () => {
+    const season = { id: "s2", title: "Saison 2", indexNumber: 2, type: "MEDIA_ITEM_TYPE_SEASON" as const };
+    render(<MediaDetailHero {...defaultProps} item={season as any} />);
+    expect(screen.getByTestId("media-title")).toHaveTextContent("Season 2");
+  });
+
+  // The eyebrow above an episode title is the season breadcrumb.
+  it("derives the season eyebrow above an episode from its number", () => {
+    const episode = { ...baseItem, title: "Some Episode", parentId: "s2", type: "MEDIA_ITEM_TYPE_EPISODE" as const };
+    const parentItem = { id: "s2", title: "Saison 2", indexNumber: 2, type: "MEDIA_ITEM_TYPE_SEASON" };
+    render(<MediaDetailHero {...defaultProps} item={episode as any} parentItem={parentItem as any} />);
+    expect(screen.getByText("Season 2")).toBeInTheDocument();
+    expect(screen.queryByText("Saison 2")).not.toBeInTheDocument();
+  });
+
+  // No index_number: a Meilisearch hit resolved into this screen has nothing
+  // to derive from, so the stored title stays rather than an empty heading.
+  it("falls back to the stored title when the season has no number", () => {
+    const season = { id: "s2", title: "Season 2", type: "MEDIA_ITEM_TYPE_SEASON" as const };
+    render(<MediaDetailHero {...defaultProps} item={season as any} />);
+    expect(screen.getByTestId("media-title")).toHaveTextContent("Season 2");
   });
 
   it("hides duration when empty", () => {

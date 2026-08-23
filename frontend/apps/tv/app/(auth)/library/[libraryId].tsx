@@ -14,6 +14,7 @@ import {
   useLibraryServiceSearchMedia,
   usePlaybackServiceGetWatchHistory,
   libraryServiceListMediaItems,
+  itemLabel,
   WATCH_HISTORY_OVERLAY_LIMIT,
 } from "@evey/api";
 import type {
@@ -370,7 +371,7 @@ export default function LibraryDetailScreen() {
           onPress={() => router.push(`/media/${item.id}`)}
           hasTVPreferredFocus={index === 0}
           style={styles.gridItem}
-          accessibilityLabel={item.title}
+          accessibilityLabel={itemLabel(item, t)}
         >
           <View style={[styles.poster, { borderRadius: theme.radii.sm, backgroundColor: theme.colors.surface, overflow: "hidden" }]}>
             {posterUri ? (
@@ -434,12 +435,12 @@ export default function LibraryDetailScreen() {
             )}
           </View>
           <Text style={[styles.title, { color: theme.colors.text }]} numberOfLines={2}>
-            {item.title}
+            {itemLabel(item, t)}
           </Text>
         </FocusableCard>
       );
     },
-    [theme, router, serverUrl, authHeaders, watchedMap, percentMap],
+    [theme, router, serverUrl, authHeaders, watchedMap, percentMap, t],
   );
 
   const activeIsLoading = searchActive ? isSearchLoading : isLoading;

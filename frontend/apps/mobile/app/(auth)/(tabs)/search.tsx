@@ -252,7 +252,7 @@ export default function SearchScreen() {
           activeOpacity={0.7}
           onPress={() => router.push(`/media/${item.id}`)}
           accessible={true}
-          accessibilityLabel={displayTitle(item)}
+          accessibilityLabel={displayTitle(item, t)}
           accessibilityRole="button"
         >
           {poster ? (
@@ -286,7 +286,7 @@ export default function SearchScreen() {
               style={[styles.title, { color: theme.colors.text }]}
               numberOfLines={1}
             >
-              {displayTitle(item)}
+              {displayTitle(item, t)}
             </Text>
             <Text style={[styles.meta, { color: theme.colors.textMuted }]}>
               {[item.year, formatType(item.type)].filter(Boolean).join(" · ")}

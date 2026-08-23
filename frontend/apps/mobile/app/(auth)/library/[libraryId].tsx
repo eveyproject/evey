@@ -31,6 +31,7 @@ import {
   usePlaybackServiceGetWatchHistory,
   libraryServiceListMediaItems,
   formatDurationMs,
+  itemLabel,
   WATCH_HISTORY_OVERLAY_LIMIT,
 } from "@evey/api";
 import type {
@@ -690,18 +691,19 @@ export default function LibraryDetailScreen() {
             onPress={() => bulkMode ? toggleSelect(item.id ?? "") : router.push(`/media/${item.id}`)}
             onLongPress={() => !bulkMode && handleLongPress(item.id ?? "")}
             accessibilityRole="button"
-            accessibilityLabel={item.title}
+            accessibilityLabel={itemLabel(item, t)}
           />
         </View>
       );
     },
-    [theme, router, bulkMode, selected, watchedMap, percentMap, toggleSelect, handleLongPress],
+    [theme, router, bulkMode, selected, watchedMap, percentMap, toggleSelect, handleLongPress, t],
   );
 
   const renderListItem = useCallback(
     ({ item }: { item: V1MediaItem }) => {
       const poster = getPoster(item, serverUrl);
       const isSelected = bulkMode && selected.has(item.id ?? "");
+      const label = itemLabel(item, t);
       return (
         <TouchableOpacity
           style={[
@@ -748,7 +750,7 @@ export default function LibraryDetailScreen() {
               style={{ fontSize: 15, fontWeight: "600", color: theme.colors.text }}
               numberOfLines={1}
             >
-              {item.title}
+              {label}
             </Text>
             <Text style={{ fontSize: 12, marginTop: 2, color: theme.colors.textMuted }}>
               {/* Same facts as the web list view: year, type, community
@@ -768,7 +770,7 @@ export default function LibraryDetailScreen() {
         </TouchableOpacity>
       );
     },
-    [theme, router, authHeaders, serverUrl, bulkMode, selected, toggleSelect, handleLongPress],
+    [theme, router, authHeaders, serverUrl, bulkMode, selected, toggleSelect, handleLongPress, t],
   );
 
   return (

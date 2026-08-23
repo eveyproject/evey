@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
-import { createPlayerEventReporter, formatTime } from "@evey/api";
+import { createPlayerEventReporter, formatTime, itemLabel } from "@evey/api";
 import { View, Text, Pressable, ActivityIndicator, StyleSheet, useWindowDimensions, useTVEventHandler } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
@@ -1069,7 +1069,7 @@ export default function PlayerScreen() {
           {/* Top bar */}
           <View style={styles.topBar}>
             <Text style={styles.mediaTitle} numberOfLines={1}>
-              {playerTitle(media, series?.title ?? season?.title)}
+              {playerTitle(media, series?.title ?? (season ? itemLabel(season, t) : undefined))}
             </Text>
             <View style={styles.badgeRow}>
               <SyncplaySessionBadge

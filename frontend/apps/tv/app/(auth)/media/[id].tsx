@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { formatDurationMs, formatTimeMs } from "@evey/api";
+import { formatDurationMs, formatTimeMs, itemLabel, seasonLabel } from "@evey/api";
 import { View, Text, ScrollView, Pressable, FlatList, StyleSheet, Linking } from "react-native";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
@@ -385,7 +385,7 @@ export default function MediaDetailScreen() {
           />
         ) : null}
         <View style={{ flex: 1, justifyContent: "flex-end" }}>
-          <Text style={[styles.title, { color: theme.colors.text }]}>{media.title}</Text>
+          <Text style={[styles.title, { color: theme.colors.text }]}>{itemLabel(media, t)}</Text>
           {meta ? <Text style={[styles.meta, { color: theme.colors.textMuted }]}>{meta}</Text> : null}
           {media.genres && media.genres.length > 0 && (
             <Text style={[styles.genres, { color: theme.colors.textMuted }]}>{media.genres.join(", ")}</Text>
@@ -647,7 +647,7 @@ export default function MediaDetailScreen() {
               <FocusableCard
                 onPress={() => router.push(`/(auth)/media/${season.id}`)}
                 style={{ width: CARD_WIDTH_GRID }}
-                accessibilityLabel={season.title}
+                accessibilityLabel={seasonLabel(season, t)}
               >
                 <Image
                   source={{ uri: artworkUrl(serverUrl, season.id ?? "", "poster", CARD_WIDTH_GRID * 2), headers: authHeaders }}
@@ -661,7 +661,7 @@ export default function MediaDetailScreen() {
                   transition={200}
                 />
                 <Text style={{ color: theme.colors.text, fontSize: 18, marginTop: 8 }} numberOfLines={1}>
-                  {season.title}
+                  {seasonLabel(season, t)}
                 </Text>
               </FocusableCard>
             )}

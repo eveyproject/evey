@@ -2,6 +2,7 @@ import React, { useMemo } from "react";
 import { View, Text, Pressable, Dimensions } from "react-native";
 import { Image } from "expo-image";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { useTranslation } from "react-i18next";
 import type { V1MediaItem, V1Artwork } from "@evey/api";
 import { displayTitle } from "@evey/api";
 import { useTheme } from "../providers/ThemeProvider";
@@ -29,6 +30,7 @@ const POSTER_RATIO = 1.5;
 const DEFAULT_WIDTH = Dimensions.get("window").width * 0.35;
 
 export const MediaCard = React.memo(function MediaCard({ item, onPress, width, watchPercent, watched, posterBlurhash: posterBlurhashProp }: MediaCardProps) {
+  const { t } = useTranslation();
   const theme = useTheme();
   const cardWidth = width ?? DEFAULT_WIDTH;
   const cardHeight = cardWidth * POSTER_RATIO;
@@ -51,7 +53,7 @@ export const MediaCard = React.memo(function MediaCard({ item, onPress, width, w
   }, [item.artwork, posterBlurhashProp]);
 
   return (
-    <Pressable onPress={onPress} style={{ width: cardWidth, marginRight: theme.spacing.sm }} accessible={true} accessibilityLabel={displayTitle(item)} accessibilityRole="button">
+    <Pressable onPress={onPress} style={{ width: cardWidth, marginRight: theme.spacing.sm }} accessible={true} accessibilityLabel={displayTitle(item, t)} accessibilityRole="button">
       <View style={{
         width: cardWidth,
         height: cardHeight,
@@ -94,7 +96,7 @@ export const MediaCard = React.memo(function MediaCard({ item, onPress, width, w
         numberOfLines={1}
         style={{ color: theme.colors.text, fontSize: FONT_SIZE.xs, marginTop: 4 }}
       >
-        {displayTitle(item)}
+        {displayTitle(item, t)}
       </Text>
       {item.year != null && (
         <Text style={{ color: theme.colors.textMuted, fontSize: FONT_SIZE.xs }}>{item.year}</Text>

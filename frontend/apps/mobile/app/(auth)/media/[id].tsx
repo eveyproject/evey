@@ -48,7 +48,7 @@ import { downloadStageLabel } from "../../../src/lib/downloadStageLabel";
 import { chooseDownloadQuality } from "../../../src/lib/downloadQualityGate";
 import { startReducedDownload, reducedDownloadMessage } from "../../../src/lib/reducedDownload";
 import { confirmDownloadOnMobileData } from "../../../src/lib/mobileDataGate";
-import { formatBytes, formatDurationMs, formatTimeMs } from "@evey/api";
+import { formatBytes, formatDurationMs, formatTimeMs, itemLabel, seasonLabel } from "@evey/api";
 import { buildDownloadAuthContext } from "../../../src/lib/downloadContext";
 import { toast } from "@evey/store";
 import { AddToPlaylistSheet } from "../../../src/components/AddToPlaylistSheet";
@@ -916,6 +916,8 @@ export default function MediaDetailScreen() {
   const resumeMs = watchProgress?.positionMs;
   const hasProgress = resumeMs && Number(resumeMs) > 0 && !watchProgress?.played;
 
+  const mediaLabel = itemLabel(media, t);
+
   const trailers = media.trailers ?? [];
   const sortedTrailers = [...trailers].sort((a, b) => {
     if (a.official && !b.official) return -1;
@@ -963,7 +965,7 @@ export default function MediaDetailScreen() {
               alignItems: "center",
             }}>
               <Text style={{ color: theme.colors.textMuted, fontSize: 28, fontWeight: "bold" }}>
-                {media.title?.[0]?.toUpperCase() ?? "?"}
+                {mediaLabel[0]?.toUpperCase() ?? "?"}
               </Text>
             </View>
           )}
@@ -971,7 +973,7 @@ export default function MediaDetailScreen() {
           <View style={{ flex: 1, justifyContent: "flex-end" }}>
             {isEpisode && (() => {
               const epLabel = formatEpisodeLabel(parentItem?.indexNumber, media.indexNumber);
-              const seasonName = parentItem?.title;
+              const seasonName = parentItem ? itemLabel(parentItem, t) : undefined;
               const label = [epLabel, seasonName].filter(Boolean).join(" · ");
               if (!label) return null;
               // Reached from the Resume row an episode lands here with no way
@@ -1000,7 +1002,7 @@ export default function MediaDetailScreen() {
               );
             })()}
             <Text style={{ color: theme.colors.text, fontSize: 22, fontWeight: "bold" }}>
-              {media.title}
+              {mediaLabel}
             </Text>
 
             {/* Meta: year, duration, rating */}
@@ -1568,9 +1570,7 @@ export default function MediaDetailScreen() {
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               {seasons.map((season) => {
                 const active = season.id === selectedSeason;
-                const label = season.indexNumber != null
-                  ? t("media.season", { number: season.indexNumber })
-                  : (season.title ?? "");
+                const label = seasonLabel(season, t);
                 return (
                   <Pressable
                     key={season.id}
