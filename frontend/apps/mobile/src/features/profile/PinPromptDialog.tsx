@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { View, Text, TextInput, Pressable, ActivityIndicator, Modal, StyleSheet } from "react-native";
 import { useTranslation } from "react-i18next";
-import { parentalServiceVerifyPin } from "@evey/api";
+import { parentalServiceVerifyPin, apiErrorMessage } from "@evey/api";
 import type { V1Profile } from "@evey/api";
 import { useTheme } from "../../providers/ThemeProvider";
 import { FONT_SIZE } from "@evey/theme";
@@ -76,7 +76,7 @@ export function PinPromptDialog({ target, fallback, onCancel, onVerified }: Prop
       }
       await onVerified(target, pinToken || undefined);
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("auth.profile.select.pinWrong", "Incorrect PIN"));
+      setError(apiErrorMessage(err as Error, t, t("auth.profile.select.pinWrong", "Incorrect PIN")));
       setPin("");
       inputRef.current?.focus();
     } finally {

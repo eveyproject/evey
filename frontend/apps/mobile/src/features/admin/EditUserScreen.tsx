@@ -16,6 +16,7 @@ import {
   useUserServiceListProfiles,
   getUserServiceListUsersQueryKey,
   getUserServiceListProfilesQueryKey,
+  apiErrorMessage,
 } from "@evey/api";
 import type { V1User, UserServiceUpdateUserBody } from "@evey/api";
 import { toast } from "@evey/store";
@@ -72,7 +73,7 @@ export function EditUserScreen({ user, onSaved, onCancel }: Props) {
         onSaved?.();
       },
       onError: (err: Error) =>
-        toast.error(err.message || t("admin.users.failedUpdateUser", "Failed to update user")),
+        toast.error(apiErrorMessage(err, t, t("admin.users.failedUpdateUser", "Failed to update user"))),
     },
   });
 

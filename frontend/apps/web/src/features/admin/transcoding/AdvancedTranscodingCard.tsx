@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { eveyFetch } from "@evey/api";
+import { eveyFetch, apiErrorMessage } from "@evey/api";
 import { toast } from "@evey/store";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
@@ -45,7 +45,7 @@ export function AdvancedTranscodingCard() {
     mutationFn: (body: Record<string, unknown>) =>
       eveyFetch<ServerSettings>({ url: "/api/v1/admin/server-settings", method: "PUT", data: body }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: SETTINGS_KEY }); toast.success(t("admin.transcoding.savedRestart", "Saved - restart the server to apply")); setDirty(false); },
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("common.error"))),
   });
 
   if (isLoading || !data) return <div className="flex justify-center py-6"><Spinner size="md" /></div>;

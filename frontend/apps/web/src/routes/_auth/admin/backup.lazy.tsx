@@ -14,6 +14,7 @@ import {
   getBackupScheduleServiceGetBackupScheduleQueryKey,
   backupScheduleServiceUpdateBackupSchedule,
   backupScheduleServiceRunBackupNow,
+  apiErrorMessage,
 } from "@evey/api";
 import type { V1BackupManifest, V1BackupSchedule } from "@evey/api";
 import { formatBytes } from "@evey/api";
@@ -89,7 +90,7 @@ function ScheduleSection() {
       toast.success(t("admin.backup.schedule.saved"));
     },
     onError: (err: Error) =>
-      toast.error(err.message || t("admin.backup.schedule.saveFailed")),
+      toast.error(apiErrorMessage(err, t, t("admin.backup.schedule.saveFailed"))),
   });
 
   const runMutation = useMutation({
@@ -100,7 +101,7 @@ function ScheduleSection() {
       toast.success(t("admin.backup.schedule.runStarted"));
     },
     onError: (err: Error) =>
-      toast.error(err.message || t("admin.backup.schedule.runFailed")),
+      toast.error(apiErrorMessage(err, t, t("admin.backup.schedule.runFailed"))),
   });
 
   const lastStatus = schedule?.lastStatus ?? "";
@@ -202,7 +203,7 @@ function useCreateBackup() {
       queryClient.invalidateQueries({ queryKey: BACKUPS_QUERY_KEY });
       toast.success(t("admin.backup.backupCreated"));
     },
-    onError: (err: Error) => toast.error(err.message || t("admin.backup.failedCreate")),
+    onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("admin.backup.failedCreate"))),
   });
 }
 
@@ -215,7 +216,7 @@ function useDeleteBackup() {
       queryClient.invalidateQueries({ queryKey: BACKUPS_QUERY_KEY });
       toast.success(t("admin.backup.backupDeleted"));
     },
-    onError: (err: Error) => toast.error(err.message || t("admin.backup.failedDeleteBackup")),
+    onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("admin.backup.failedDeleteBackup"))),
   });
 }
 
@@ -251,7 +252,7 @@ function BackupRow({ backup }: { backup: Backup }) {
       if (!restoreRes.ok) throw new Error((await restoreRes.text()) || t("admin.backup.restoreFailed"));
       toast.success(t("admin.backup.restoreCompleted"));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("admin.backup.restoreFailed"));
+      toast.error(apiErrorMessage(err as Error, t, t("admin.backup.restoreFailed")));
     } finally {
       setRestoring(false);
     }
@@ -374,7 +375,7 @@ function RestoreUploadModal({
       toast.success(t("admin.backup.restoreCompleted"));
       onClose();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("admin.backup.restoreFailed"));
+      toast.error(apiErrorMessage(err as Error, t, t("admin.backup.restoreFailed")));
     } finally {
       setRestoring(false);
     }

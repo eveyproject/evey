@@ -3,7 +3,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { Stack } from "expo-router";
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { eveyFetch } from "@evey/api";
+import { eveyFetch, apiErrorMessage } from "@evey/api";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast, useAuthStore } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
@@ -82,7 +82,7 @@ function ScheduleSection() {
       setEnabled(undefined);
       toast.success(t("admin.backup.schedule.saved", "Planification enregistrée"));
     },
-    onError: (err: Error) => toast.error(err.message || t("admin.backup.schedule.saveFailed", "Échec de l'enregistrement")),
+    onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("admin.backup.schedule.saveFailed", "Échec de l'enregistrement"))),
   });
 
   const runMutation = useMutation({
@@ -94,7 +94,7 @@ function ScheduleSection() {
       ]);
       toast.success(t("admin.backup.schedule.runStarted", "Sauvegarde lancée"));
     },
-    onError: (err: Error) => toast.error(err.message || t("admin.backup.schedule.runFailed", "Échec du lancement")),
+    onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("admin.backup.schedule.runFailed", "Échec du lancement"))),
   });
 
   const lastStatus = schedule?.lastStatus ?? "";
@@ -228,7 +228,7 @@ export default function AdminBackupScreen() {
       toast.success(t("admin.backup.backupCreated"));
       await qc.invalidateQueries({ queryKey: BACKUPS_KEY });
     },
-    onError: (err: Error) => toast.error(err.message || t("admin.backup.failedCreate")),
+    onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("admin.backup.failedCreate"))),
   });
 
   const deleteBackup = useMutation({
@@ -237,19 +237,19 @@ export default function AdminBackupScreen() {
       toast.success(t("admin.backup.backupDeleted"));
       await qc.invalidateQueries({ queryKey: BACKUPS_KEY });
     },
-    onError: (err: Error) => toast.error(err.message || t("admin.backup.failedDeleteBackup")),
+    onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("admin.backup.failedDeleteBackup"))),
   });
 
   const downloadBackup = useMutation({
     mutationFn: (backup: Backup) => downloadBackupFile(backup, accessToken),
     onSuccess: () => toast.success(t("media.downloadComplete")),
-    onError: (err: Error) => toast.error(err.message || t("media.downloadFailed")),
+    onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("media.downloadFailed"))),
   });
 
   const restoreBackup = useMutation({
     mutationFn: (backup: Backup) => restoreExistingBackup(backup, accessToken),
     onSuccess: () => toast.success(t("admin.backup.restoreCompleted")),
-    onError: (err: Error) => toast.error(err.message || t("admin.backup.restoreFailed")),
+    onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("admin.backup.restoreFailed"))),
   });
 
   const handleDelete = useCallback((backup: Backup) => {

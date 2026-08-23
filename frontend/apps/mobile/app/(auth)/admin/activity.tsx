@@ -15,6 +15,7 @@ import {
   EXPORT_PAGE_SIZE,
   EXPORT_MAX_ROWS,
   eveyFetch,
+  apiErrorMessage,
 } from "@evey/api";
 import { toast } from "@evey/store";
 // Types from generated schemas - not re-exported from @evey/api index
@@ -393,7 +394,7 @@ export default function AdminActivityScreen() {
       }
       await Share.share({ title: filename, message: JSON.stringify(data, null, 2) });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("common.export", "Export JSON"));
+      toast.error(apiErrorMessage(err as Error, t, t("common.export", "Export JSON")));
     }
     setExporting(false);
   }, [tab, t]);

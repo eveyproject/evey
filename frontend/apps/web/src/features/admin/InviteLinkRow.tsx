@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
-import { useUserServiceRevokeInviteLink } from "@evey/api";
+import { useUserServiceRevokeInviteLink, apiErrorMessage } from "@evey/api";
 import { toast } from "@evey/store";
 import type { V1InviteLink } from "@evey/api";
 import { Button } from "@/components/ui/Button";
@@ -19,7 +19,7 @@ export function InviteLinkRow({ link }: { link: V1InviteLink }) {
         queryClient.invalidateQueries({ queryKey: INVITES_QUERY_KEY });
         toast.success(t("admin.users.inviteRevoked"));
       },
-      onError: (err: Error) => toast.error(err.message || t("admin.users.failedRevoke")),
+      onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("admin.users.failedRevoke"))),
     },
   });
 

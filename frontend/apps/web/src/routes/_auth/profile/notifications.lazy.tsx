@@ -8,6 +8,7 @@ import {
   useNotificationServiceDeleteAllNotifications,
   getNotificationServiceListNotificationsQueryKey,
   getNotificationServiceGetUnreadCountQueryKey,
+  apiErrorMessage,
 } from "@evey/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -111,7 +112,7 @@ function NotificationsPage() {
         invalidate();
         setShowDeleteModal(false);
       },
-      onError: (err: Error) => toast.error(err.message || t("common.error")),
+      onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("common.error"))),
     },
   });
 

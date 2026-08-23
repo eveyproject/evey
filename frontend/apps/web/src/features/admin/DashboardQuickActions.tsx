@@ -7,6 +7,7 @@ import {
   useLibraryServiceListLibraries,
   useLibraryServiceScanLibrary,
   useAdminSystemServiceRestartServer,
+  apiErrorMessage,
 } from "@evey/api";
 import { toast } from "@evey/store";
 import { Button } from "@/components/ui/Button";
@@ -22,7 +23,7 @@ export function QuickActions() {
         queryClient.invalidateQueries({ queryKey: ["/api/v1/media"] });
         toast.success(t("admin.dashboardStats.scanStarted"));
       },
-      onError: (err: Error) => toast.error(err.message || t("admin.dashboardStats.scanFailed")),
+      onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("admin.dashboardStats.scanFailed"))),
     },
   });
   const [scanningAll, setScanningAll] = useState(false);

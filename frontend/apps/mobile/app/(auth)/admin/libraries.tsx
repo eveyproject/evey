@@ -15,6 +15,7 @@ import {
   useLibraryServiceDeleteLibrary,
   getLibraryServiceListLibrariesQueryKey,
   eveyFetch,
+  apiErrorMessage,
 } from "@evey/api";
 import type { V1Library, V1LibraryType } from "@evey/api";
 import { toast } from "@evey/store";
@@ -159,7 +160,7 @@ function ScheduleModal({ library, onClose }: { library: V1Library; onClose: () =
       toast.success(t("admin.libraries.scheduleSaved", "Scan schedule saved"));
       onClose();
     },
-    onError: (err: Error) => toast.error(err.message || t("admin.libraries.failedSchedule", "Failed to save schedule")),
+    onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("admin.libraries.failedSchedule", "Failed to save schedule"))),
   });
 
   const deleteMutation = useMutation({
@@ -174,7 +175,7 @@ function ScheduleModal({ library, onClose }: { library: V1Library; onClose: () =
       toast.success(t("admin.libraries.scheduleRemoved", "Schedule removed"));
       onClose();
     },
-    onError: (err: Error) => toast.error(err.message || t("admin.libraries.failedRemoveSchedule", "Failed to remove schedule")),
+    onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("admin.libraries.failedRemoveSchedule", "Failed to remove schedule"))),
   });
 
   return (
@@ -336,7 +337,7 @@ function LibraryRow({
         data: { libraryId: library.id },
       }),
     onSuccess: () => toast.success(t("admin.libraries.refreshAllMetadataStarted", "Metadata refresh started")),
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("common.error"))),
   });
 
   const matchOrphans = useMutation<{ queued?: number }, Error>({
@@ -354,7 +355,7 @@ function LibraryRow({
         toast.success(t("admin.libraries.matchOrphansStarted", { count: queued, defaultValue: "Matching {{count}} orphan files" }));
       }
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("common.error"))),
   });
 
   const icon = TYPE_ICONS[library.type ?? ""] ?? "folder-outline";

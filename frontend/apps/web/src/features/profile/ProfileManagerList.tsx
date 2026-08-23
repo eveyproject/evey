@@ -6,6 +6,7 @@ import {
   useUserServiceDeleteProfile,
   useUserServiceSetDefaultProfile,
   getUserServiceListProfilesQueryKey,
+  apiErrorMessage,
 } from "@evey/api";
 import type { V1Profile } from "@evey/api";
 import { toast } from "@evey/store";
@@ -41,7 +42,7 @@ export function ProfileManagerList({ userId, profiles, canSetDefault = false }: 
         setConfirmDelete(null);
       },
       onError: (err: Error) =>
-        toast.error(err.message || t("auth.profile.failedToUpdate", "Failed to update profile")),
+        toast.error(apiErrorMessage(err, t, t("auth.profile.failedToUpdate", "Failed to update profile"))),
     },
   });
 
@@ -52,7 +53,7 @@ export function ProfileManagerList({ userId, profiles, canSetDefault = false }: 
         toast.success(t("auth.profile.manage.defaultUpdated", "Default profile updated"));
       },
       onError: (err: Error) =>
-        toast.error(err.message || t("auth.profile.failedToUpdate", "Failed to update profile")),
+        toast.error(apiErrorMessage(err, t, t("auth.profile.failedToUpdate", "Failed to update profile"))),
     },
   });
 

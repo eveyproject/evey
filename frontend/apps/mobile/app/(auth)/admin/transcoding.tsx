@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   eveyFetch,
   useAdminSystemServiceGetSystemInfo,
+  apiErrorMessage,
   type V1VideoPool,
   type V1VideoRungFit,
 } from "@evey/api";
@@ -118,7 +119,7 @@ export default function AdminTranscodingScreen() {
       qc.invalidateQueries({ queryKey: SETTINGS_KEY });
       [3000, 9000, 20000].forEach((ms) => setTimeout(() => qc.invalidateQueries({ queryKey: CALIBRATION_KEY }), ms));
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("common.error"))),
   });
 
   const setAV1 = useMutation({
@@ -128,7 +129,7 @@ export default function AdminTranscodingScreen() {
       qc.invalidateQueries({ queryKey: SETTINGS_KEY });
       toast.success(t("admin.calibration.av1Applied", "Réglage AV1 appliqué"));
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("common.error"))),
   });
 
   const recalibrate = useMutation({
@@ -178,7 +179,7 @@ export default function AdminTranscodingScreen() {
       setConcDirty(false);
       toast.success(t("admin.transcoding.saved", "Enregistré"));
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("common.error"))),
   });
 
   const onRefresh = useCallback(async () => {

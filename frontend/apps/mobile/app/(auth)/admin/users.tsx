@@ -17,6 +17,7 @@ import {
   useUserServiceRevokeInviteLink,
   getUserServiceListInviteLinksQueryKey,
   eveyFetch,
+  apiErrorMessage,
 } from "@evey/api";
 import type { V1User, V1InviteLink } from "@evey/api";
 import { onColor } from "@evey/theme";
@@ -432,7 +433,7 @@ export default function AdminUsersScreen() {
         qc.clear();
         router.replace("/(auth)/(tabs)");
       },
-      onError: (err: Error) => toast.error(err.message || t("admin.users.failedImpersonate", "Failed to impersonate user")),
+      onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("admin.users.failedImpersonate", "Failed to impersonate user"))),
     },
   });
 

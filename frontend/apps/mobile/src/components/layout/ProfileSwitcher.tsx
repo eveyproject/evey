@@ -6,7 +6,7 @@ import { router } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
-import { userServiceRefreshToken, userServiceLogout } from "@evey/api";
+import { userServiceRefreshToken, userServiceLogout, apiErrorMessage } from "@evey/api";
 import { clearRefreshToken } from "../../lib/refresh-token";
 import type { V1Profile } from "@evey/api";
 import { useAuthStore, toast } from "@evey/store";
@@ -67,7 +67,7 @@ export function ProfileSwitcher({ profiles, activeProfileId, size = 30 }: Props)
       // target). The refresh token is not consumed, so a retry with a pinToken works.
       if (!pinToken && (err as { httpStatus?: number }).httpStatus === 403) return "pin";
       console.warn("profile switch failed", err);
-      toast.error(err instanceof Error ? err.message : t("auth.profile.switchFailed", "Could not switch profile"));
+      toast.error(apiErrorMessage(err as Error, t, t("auth.profile.switchFailed", "Could not switch profile")));
       return "fail";
     } finally {
       setSwitching(null);

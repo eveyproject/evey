@@ -7,6 +7,7 @@ import {
   useWebhookServiceDeleteWebhook,
   useWebhookServiceUpdateWebhook,
   eveyFetch,
+  apiErrorMessage,
 } from "@evey/api";
 import { toast } from "@evey/store";
 import type { V1WebhookConfig } from "@evey/api";
@@ -40,7 +41,7 @@ function WebhookRow({
         queryClient.invalidateQueries({ queryKey: WEBHOOKS_QUERY_KEY });
         toast.success(t("admin.webhooks.webhookDeleted"));
       },
-      onError: (err: Error) => toast.error(err.message || t("admin.webhooks.failedDelete")),
+      onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("admin.webhooks.failedDelete"))),
     },
   });
 

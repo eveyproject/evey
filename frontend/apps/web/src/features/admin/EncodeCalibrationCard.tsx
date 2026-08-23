@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { TriangleAlert } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { eveyFetch } from "@evey/api";
+import { eveyFetch, apiErrorMessage } from "@evey/api";
 import { toast } from "@evey/store";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -72,7 +72,7 @@ export function EncodeCalibrationCard() {
       qc.invalidateQueries({ queryKey: SETTINGS_QK });
       toast.success(t("admin.calibration.av1Applied", "AV1 setting applied"));
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("common.error"))),
   });
 
   // Local mirror of the active mode so the <select> stays responsive while the
@@ -96,7 +96,7 @@ export function EncodeCalibrationCard() {
         setTimeout(() => qc.invalidateQueries({ queryKey: QK_CALIBRATION }), ms),
       );
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("common.error"))),
   });
 
   const recalibrate = useMutation({

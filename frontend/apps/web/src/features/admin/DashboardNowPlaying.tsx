@@ -10,6 +10,7 @@ import {
   useAdminSessionServiceKillSession,
   useAdminSessionServiceSendSessionCommand,
   getAdminSessionServiceListActiveSessionsQueryKey,
+  apiErrorMessage,
 } from "@evey/api";
 import type { V1ActiveSession } from "@evey/api";
 import { formatTimeMs, isRealTranscode } from "@evey/api";
@@ -73,12 +74,12 @@ function NowPlayingCard({ session }: { session: V1ActiveSession }) {
         queryClient.invalidateQueries({ queryKey: getAdminSessionServiceListActiveSessionsQueryKey() });
         toast.success(t("admin.sessions.sessionStopped"));
       },
-      onError: (err: Error) => toast.error(err.message || t("admin.sessions.failedStop")),
+      onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("admin.sessions.failedStop"))),
     },
   });
   const sendCommand = useAdminSessionServiceSendSessionCommand({
     mutation: {
-      onError: (err: Error) => toast.error(err.message || t("admin.sessions.failedStop")),
+      onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("admin.sessions.failedStop"))),
     },
   });
   const playMethodLabel = useSessionPlayMethodLabel();

@@ -9,6 +9,7 @@ import {
   useUserServiceGetCurrentUser,
   useUserServiceListProfiles,
   userServiceRefreshToken,
+  apiErrorMessage,
 } from "@evey/api";
 import type { V1Profile } from "@evey/api";
 import { useAuthStore, useLocaleStore, toast } from "@evey/store";
@@ -105,7 +106,7 @@ export default function ProfileSelect() {
       // with a pinToken works.
       if (!pinToken && (err as { httpStatus?: number }).httpStatus === 403) return "pin";
       console.warn("profile switch failed", err);
-      toast.error(err instanceof Error ? err.message : t("auth.profile.switchFailed", "Could not switch profile"));
+      toast.error(apiErrorMessage(err as Error, t, t("auth.profile.switchFailed", "Could not switch profile")));
       return "fail";
     }
   }, [qc, setProfile, t]);

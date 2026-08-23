@@ -8,6 +8,7 @@ import {
   useUserServiceCreateAPIKey,
   useUserServiceRevokeAPIKey,
   getUserServiceListAPIKeysQueryKey,
+  apiErrorMessage,
 } from "@evey/api";
 import type { V1APIKey } from "@evey/api";
 import { toast } from "@evey/store";
@@ -68,7 +69,7 @@ export function APIKeySettings() {
           setCreatedKey({ id: key.id, name: key.name, key: key.key });
         }
       },
-      onError: (err: Error) => toast.error(err.message || t("auth.apiKeys.createError")),
+      onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("auth.apiKeys.createError"))),
     },
   });
 
@@ -79,7 +80,7 @@ export function APIKeySettings() {
         setRevokeTarget(null);
         toast.success(t("auth.apiKeys.keyRevoked"));
       },
-      onError: (err: Error) => toast.error(err.message || t("auth.apiKeys.revokeError")),
+      onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("auth.apiKeys.revokeError"))),
     },
   });
 

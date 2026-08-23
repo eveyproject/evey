@@ -5,6 +5,7 @@ import {
   useUserServiceDeleteUser,
   useUserServiceDisableUser,
   useUserServiceImpersonateUser,
+  apiErrorMessage,
 } from "@evey/api";
 import { toast, useAuthStore } from "@evey/store";
 import { useNavigate } from "@tanstack/react-router";
@@ -39,7 +40,7 @@ export function UserRow({ user }: { user: V1User }) {
         queryClient.clear();
         navigate({ to: "/" });
       },
-      onError: (err: Error) => toast.error(err.message || t("admin.users.failedImpersonate")),
+      onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("admin.users.failedImpersonate"))),
     },
   });
 
@@ -49,7 +50,7 @@ export function UserRow({ user }: { user: V1User }) {
         queryClient.invalidateQueries({ queryKey: USERS_QUERY_KEY });
         toast.success(t("admin.users.userDeleted", { name: user.username }));
       },
-      onError: (err: Error) => toast.error(err.message || t("admin.users.failedDeleteUser")),
+      onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("admin.users.failedDeleteUser"))),
     },
   });
 
@@ -59,7 +60,7 @@ export function UserRow({ user }: { user: V1User }) {
         queryClient.invalidateQueries({ queryKey: USERS_QUERY_KEY });
         toast.success(user.enabled !== false ? t("admin.users.userDisabled") : t("admin.users.userEnabled"));
       },
-      onError: (err: Error) => toast.error(err.message || t("admin.users.failedUpdateUser")),
+      onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("admin.users.failedUpdateUser"))),
     },
   });
 

@@ -1,6 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { eveyFetch } from "@evey/api";
+import { eveyFetch, apiErrorMessage } from "@evey/api";
 import { toast } from "@evey/store";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
@@ -32,7 +32,7 @@ export function ArtworkSettingsCard({ entries }: { entries: ConfigEntry[] | unde
         method: "POST",
       }),
     onSuccess: () => toast.success(t("admin.serverConfig.artworkRetryStarted")),
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("common.error"))),
   });
 
   return (

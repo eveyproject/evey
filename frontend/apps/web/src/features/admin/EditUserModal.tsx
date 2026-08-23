@@ -8,6 +8,7 @@ import {
   useLibraryAccessServiceRevokeAllUserLibraryAccess,
   useLibraryAccessServiceSetUserLibraryAccess,
   getLibraryAccessServiceGetUserLibraryAccessQueryKey,
+  apiErrorMessage,
 } from "@evey/api";
 import { toast } from "@evey/store";
 import type { V1User, UserServiceUpdateUserBody } from "@evey/api";
@@ -123,7 +124,7 @@ export function EditUserModal({ user, open, onClose }: { user: V1User; open: boo
       toast.success(t("admin.users.userUpdated") || "User updated");
       onClose();
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : t("admin.users.failedUpdateUser"));
+      toast.error(apiErrorMessage(err as Error, t, t("admin.users.failedUpdateUser")));
     } finally {
       setSaving(false);
     }

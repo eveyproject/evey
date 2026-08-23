@@ -13,6 +13,7 @@ import {
   useServerConfigServiceListServerConfigEntries,
   serverConfigServiceSetServerConfigEntry,
   getServerConfigServiceListServerConfigEntriesQueryKey,
+  apiErrorMessage,
 } from "@evey/api";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
@@ -139,7 +140,7 @@ function TranscodeCachePage() {
       toast.success(t("admin.transcodeCache.cacheCleared"));
       queryClient.invalidateQueries({ queryKey: CACHE_QUERY_KEY });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("admin.transcodeCache.failedClear"));
+      toast.error(apiErrorMessage(err as Error, t, t("admin.transcodeCache.failedClear")));
     } finally {
       setClearing(false);
       setShowClearConfirm(false);
@@ -153,7 +154,7 @@ function TranscodeCachePage() {
       toast.success(t("admin.transcodeCache.deleted", { name: filename }));
       queryClient.invalidateQueries({ queryKey: CACHE_QUERY_KEY });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("admin.transcodeCache.failedDeleteFile"));
+      toast.error(apiErrorMessage(err as Error, t, t("admin.transcodeCache.failedDeleteFile")));
     } finally {
       setDeletingFile(null);
     }

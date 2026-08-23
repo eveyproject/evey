@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import {
   useNotificationServiceGetNotificationSettings,
   useNotificationServiceUpdateNotificationSettings,
+  apiErrorMessage,
 } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 
@@ -94,7 +95,7 @@ export default function NotificationSettingsScreen() {
   const update = useNotificationServiceUpdateNotificationSettings({
     mutation: {
       onSuccess: () => Alert.alert(t("auth.notificationSettings.saved")),
-      onError: (err: Error) => Alert.alert(t("auth.notificationSettings.saveError"), err.message),
+      onError: (err: Error) => Alert.alert(t("auth.notificationSettings.saveError"), apiErrorMessage(err, t, t("auth.notificationSettings.saveError"))),
     },
   });
 

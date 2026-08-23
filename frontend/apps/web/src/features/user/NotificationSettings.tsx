@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import {
   useNotificationServiceGetNotificationSettings,
   useNotificationServiceUpdateNotificationSettings,
+  apiErrorMessage,
 } from "@evey/api";
 import { toast } from "@evey/store";
 import { Button } from "@/components/ui/Button";
@@ -142,7 +143,7 @@ export function NotificationSettings() {
   const update = useNotificationServiceUpdateNotificationSettings({
     mutation: {
       onSuccess: () => toast.success(t("auth.notificationSettings.saved")),
-      onError: (err: Error) => toast.error(err.message || t("auth.notificationSettings.saveError")),
+      onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("auth.notificationSettings.saveError"))),
     },
   });
 

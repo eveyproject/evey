@@ -5,7 +5,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuthStore, toast } from "@evey/store";
-import { userServiceRefreshToken, userServiceLogout, syncPlayServiceJoinByCode, normalizeRoomCode, ROOM_CODE_LENGTH } from "@evey/api";
+import { userServiceRefreshToken, userServiceLogout, syncPlayServiceJoinByCode, normalizeRoomCode, ROOM_CODE_LENGTH, apiErrorMessage } from "@evey/api";
 import type { V1Profile } from "@evey/api";
 import { Users, Check, Settings, Clock, BarChart3, QrCode, LayoutList, LogOut, ArrowLeftRight } from "lucide-react";
 import { PinPromptDialog } from "@/features/profile/PinPromptDialog";
@@ -99,7 +99,7 @@ export function ProfileSwitcher({ profiles, activeProfileId }: Props) {
         return;
       }
       console.warn("profile switch failed", err);
-      toast.error(err instanceof Error ? err.message : t("auth.profile.switchFailed", "Could not switch profile"));
+      toast.error(apiErrorMessage(err as Error, t, t("auth.profile.switchFailed", "Could not switch profile")));
     } finally {
       setSwitching(null);
     }

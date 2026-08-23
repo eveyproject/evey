@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { eveyFetch, useLibraryServiceCreateLibrary, useLibraryServiceUpdateLibrary } from "@evey/api";
+import { eveyFetch, useLibraryServiceCreateLibrary, useLibraryServiceUpdateLibrary, apiErrorMessage } from "@evey/api";
 import { toast } from "@evey/store";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -37,14 +37,14 @@ export function LibraryForm({ onSuccess, library }: LibraryFormProps) {
   const createLib = useLibraryServiceCreateLibrary({
     mutation: {
       onSuccess,
-      onError: (err: Error) => toast.error(err.message || t("common.error")),
+      onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("common.error"))),
     },
   });
 
   const updateLib = useLibraryServiceUpdateLibrary({
     mutation: {
       onSuccess,
-      onError: (err: Error) => toast.error(err.message || t("common.error")),
+      onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("common.error"))),
     },
   });
 

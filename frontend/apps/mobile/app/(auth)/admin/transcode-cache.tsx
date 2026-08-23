@@ -3,7 +3,7 @@ import { View, Text, FlatList, Pressable, Alert, ActivityIndicator, StyleSheet, 
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Stack } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { eveyFetch, useAdminSystemServiceGetSystemInfo, formatBytes } from "@evey/api";
+import { eveyFetch, useAdminSystemServiceGetSystemInfo, formatBytes, apiErrorMessage } from "@evey/api";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
@@ -150,7 +150,7 @@ export default function AdminTranscodeCacheScreen() {
       toast.success(t("admin.transcodeCache.cacheCleared", "Cache cleared"));
       await qc.invalidateQueries({ queryKey: CACHE_KEY });
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to clear cache"),
+    onError: (err) => toast.error(apiErrorMessage(err as Error, t, "Failed to clear cache")),
   });
 
   const handleClearAll = useCallback(() => {
@@ -175,7 +175,7 @@ export default function AdminTranscodeCacheScreen() {
       toast.success(t("admin.transcodeCache.deleted", { name: filename, defaultValue: "Deleted" }));
       await qc.invalidateQueries({ queryKey: CACHE_KEY });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to delete file");
+      toast.error(apiErrorMessage(err as Error, t, "Failed to delete file"));
     } finally {
       setDeletingFile(null);
     }

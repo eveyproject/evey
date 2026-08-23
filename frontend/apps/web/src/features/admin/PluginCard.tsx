@@ -15,6 +15,7 @@ import {
   useAdminPluginServiceGetPluginLogs,
   getAdminPluginServiceGetPluginConfigQueryKey,
   getAdminPluginServiceListPluginsQueryKey,
+  apiErrorMessage,
 } from "@evey/api";
 import { toast } from "@evey/store";
 import type { V1Plugin, V1PluginState } from "@evey/api";
@@ -208,7 +209,7 @@ function PluginConfigPanel({ pluginId }: { pluginId: string }) {
         setErrors({});
         toast.success(t("admin.plugin.configSaved"));
       },
-      onError: (err: Error) => toast.error(err.message || t("admin.plugin.configSaveFailed")),
+      onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("admin.plugin.configSaveFailed"))),
     },
   });
 

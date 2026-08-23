@@ -12,6 +12,7 @@ import {
   useAdminPluginServiceInstallPlugin,
   eveyFetch,
   eveyFetchRaw,
+  apiErrorMessage,
 } from "@evey/api";
 import { toast } from "@evey/store";
 import { Spinner } from "@/components/ui/Spinner";
@@ -271,7 +272,7 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
       setPreview(data);
       setStep("reviewing");
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("admin.plugins.previewFailed"));
+      setError(apiErrorMessage(err as Error, t, t("admin.plugins.previewFailed")));
       setStep("idle");
     }
   }
@@ -316,7 +317,7 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
       setStep("done");
       onSuccess();
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("admin.plugins.installFailed"));
+      setError(apiErrorMessage(err as Error, t, t("admin.plugins.installFailed")));
       setStep("reviewing");
     }
   }
@@ -571,19 +572,19 @@ function PluginsPage() {
   const enablePlugin = useAdminPluginServiceEnablePlugin({
     mutation: {
       onSuccess: () => { invalidate(); toast.success(t("admin.plugins.pluginEnabled")); },
-      onError: (err: Error) => toast.error(err.message || t("admin.plugins.failedEnable")),
+      onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("admin.plugins.failedEnable"))),
     },
   });
   const disablePlugin = useAdminPluginServiceDisablePlugin({
     mutation: {
       onSuccess: () => { invalidate(); toast.success(t("admin.plugins.pluginDisabled")); },
-      onError: (err: Error) => toast.error(err.message || t("admin.plugins.failedDisable")),
+      onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("admin.plugins.failedDisable"))),
     },
   });
   const uninstallPlugin = useAdminPluginServiceUninstallPlugin({
     mutation: {
       onSuccess: () => { invalidate(); toast.success(t("admin.plugins.pluginUninstalled")); },
-      onError: (err: Error) => toast.error(err.message || t("admin.plugins.failedUninstall")),
+      onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("admin.plugins.failedUninstall"))),
     },
   });
 

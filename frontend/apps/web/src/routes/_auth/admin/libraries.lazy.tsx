@@ -7,6 +7,7 @@ import {
   useLibraryServiceDeleteLibrary,
   useLibraryServiceScanLibrary,
   eveyFetch,
+  apiErrorMessage,
 } from "@evey/api";
 import { toast } from "@evey/store";
 import type { V1Library } from "@evey/api";
@@ -127,7 +128,7 @@ function ScheduleModal({ library, onClose }: { library: V1Library; onClose: () =
       toast.success(t("admin.libraries.scheduleSaved"));
       onClose();
     },
-    onError: (err: Error) => toast.error(err.message || t("admin.libraries.failedSchedule")),
+    onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("admin.libraries.failedSchedule"))),
   });
 
   const deleteMutation = useMutation({
@@ -142,7 +143,7 @@ function ScheduleModal({ library, onClose }: { library: V1Library; onClose: () =
       toast.success(t("admin.libraries.scheduleRemoved"));
       onClose();
     },
-    onError: (err: Error) => toast.error(err.message || t("admin.libraries.failedRemoveSchedule")),
+    onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("admin.libraries.failedRemoveSchedule"))),
   });
 
   if (isLoading) {
@@ -227,7 +228,7 @@ function LibraryRow({ library, stats }: { library: V1Library; stats: LibraryStat
         queryClient.invalidateQueries({ queryKey: ["/api/v1/admin/library-stats"] });
         toast.success(t("admin.libraries.libraryDeleted", { name: library.name }));
       },
-      onError: (err: Error) => toast.error(err.message || t("admin.libraries.failedDelete")),
+      onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("admin.libraries.failedDelete"))),
     },
   });
 
@@ -240,7 +241,7 @@ function LibraryRow({ library, stats }: { library: V1Library; stats: LibraryStat
         queryClient.invalidateQueries({ queryKey: ["/api/v1/admin/library-stats"] });
         toast.success(t("admin.libraries.scanStarted"));
       },
-      onError: (err: Error) => toast.error(err.message || t("admin.libraries.failedScan")),
+      onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("admin.libraries.failedScan"))),
     },
   });
 
@@ -252,7 +253,7 @@ function LibraryRow({ library, stats }: { library: V1Library; stats: LibraryStat
         data: { libraryId: library.id },
       }),
     onSuccess: () => toast.success(t("admin.libraries.refreshAllMetadataStarted")),
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("common.error"))),
   });
 
   const matchOrphans = useMutation<{ queued?: number }, Error>({
@@ -270,7 +271,7 @@ function LibraryRow({ library, stats }: { library: V1Library; stats: LibraryStat
         toast.success(t("admin.libraries.matchOrphansStarted", { count: queued }));
       }
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("common.error"))),
   });
 
   const libStat = stats.find((s) => s.id === library.id);
@@ -401,7 +402,7 @@ function LibrariesPage() {
   const relinkCollections = useMutation({
     mutationFn: () => eveyFetch({ url: "/api/v1/admin/collections/relink", method: "POST", data: {} }),
     onSuccess: () => toast.success(t("admin.libraries.relinkCollectionsStarted")),
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("common.error"))),
   });
 
   function handleCreateSuccess() {

@@ -9,6 +9,7 @@ import {
   useRemoteAccessServiceGetNetworkInfo,
   remoteAccessServiceUpdateRemoteAccess,
   getRemoteAccessServiceGetRemoteAccessQueryKey,
+  apiErrorMessage,
 } from "@evey/api";
 import type { V1UpdateRemoteAccessRequest } from "@evey/api";
 import { Spinner } from "@/components/ui/Spinner";
@@ -54,7 +55,7 @@ function RemoteAccessPage() {
       toast.success(t("admin.remoteAccess.saved"));
       setDirty(false);
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("common.error"))),
   });
 
   function handleSave() {

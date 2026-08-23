@@ -17,6 +17,7 @@ import {
   getAdminPluginServiceListPluginsQueryKey,
   getAdminPluginServiceGetPluginConfigQueryKey,
   eveyFetch,
+  apiErrorMessage,
 } from "@evey/api";
 import { toast } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
@@ -219,7 +220,7 @@ function PluginConfigSection({ pluginId, theme, t }: { pluginId: string; theme: 
         setErrors({});
         toast.success(t("admin.plugin.configSaved", "Configuration enregistrée"));
       },
-      onError: (err: Error) => toast.error(err.message || t("admin.plugin.configSaveFailed", "Échec de l'enregistrement")),
+      onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("admin.plugin.configSaveFailed", "Échec de l'enregistrement"))),
     },
   });
 
@@ -432,7 +433,7 @@ function PluginUpdateModal({
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : t("admin.plugin.updateDialog.previewError", "Échec de l'aperçu"));
+          setError(apiErrorMessage(err as Error, t, t("admin.plugin.updateDialog.previewError", "Échec de l'aperçu")));
           setPhase("error");
         }
       }
@@ -452,7 +453,7 @@ function PluginUpdateModal({
       });
       onApplied();
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("admin.plugin.updateDialog.applyError", "Échec de la mise à jour"));
+      setError(apiErrorMessage(err as Error, t, t("admin.plugin.updateDialog.applyError", "Échec de la mise à jour")));
       setPhase("reviewing");
     }
   }
@@ -769,19 +770,19 @@ export default function AdminPluginsScreen() {
   const enablePlugin = useAdminPluginServiceEnablePlugin({
     mutation: {
       onSuccess: () => { toast.success(t("admin.plugins.pluginEnabled")); qc.invalidateQueries({ queryKey: getAdminPluginServiceListPluginsQueryKey() }); },
-      onError: (err: Error) => toast.error(err.message || t("admin.plugins.toggleFailed", "Failed to enable plugin")),
+      onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("admin.plugins.toggleFailed", "Failed to enable plugin"))),
     },
   });
   const disablePlugin = useAdminPluginServiceDisablePlugin({
     mutation: {
       onSuccess: () => { toast.success(t("admin.plugins.pluginDisabled")); qc.invalidateQueries({ queryKey: getAdminPluginServiceListPluginsQueryKey() }); },
-      onError: (err: Error) => toast.error(err.message || t("admin.plugins.toggleFailed", "Failed to disable plugin")),
+      onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("admin.plugins.toggleFailed", "Failed to disable plugin"))),
     },
   });
   const uninstallPlugin = useAdminPluginServiceUninstallPlugin({
     mutation: {
       onSuccess: () => { toast.success(t("admin.plugins.pluginUninstalled")); qc.invalidateQueries({ queryKey: getAdminPluginServiceListPluginsQueryKey() }); },
-      onError: (err: Error) => toast.error(err.message || t("admin.plugins.uninstallFailed", "Failed to uninstall plugin")),
+      onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("admin.plugins.uninstallFailed", "Failed to uninstall plugin"))),
     },
   });
 

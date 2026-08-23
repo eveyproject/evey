@@ -4,7 +4,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { Stack } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
-import { eveyFetch } from "@evey/api";
+import { eveyFetch, apiErrorMessage } from "@evey/api";
 import { toast } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { formatPct, formatInt, formatRelative, qualityStatus, type HealthLevel } from "../../../src/components/admin/qoeHelpers";
@@ -199,7 +199,7 @@ function EncodeOverridesCard({ theme }: { theme: ReturnType<typeof useTheme> }) 
       await eveyFetch<void>({ url: `/api/v1/admin/transcode/calibration/overrides?source_class=${encodeURIComponent(sourceClass)}`, method: "DELETE" });
       await refetch();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("admin.qoe.overrides.reset"));
+      toast.error(apiErrorMessage(err as Error, t, t("admin.qoe.overrides.reset")));
     } finally {
       setResetting(null);
     }

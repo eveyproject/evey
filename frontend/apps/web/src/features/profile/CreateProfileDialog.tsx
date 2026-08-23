@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   useUserServiceCreateProfile,
   getUserServiceListProfilesQueryKey,
+  apiErrorMessage,
 } from "@evey/api";
 import { toast } from "@evey/store";
 
@@ -98,7 +99,7 @@ export function CreateProfileDialog({ open, onClose, userId, hasKidsProfile }: C
         onClose();
       },
       onError: (err: Error) =>
-        toast.error(err.message || t("auth.profile.failedToUpdate", "Failed to update profile")),
+        toast.error(apiErrorMessage(err, t, t("auth.profile.failedToUpdate", "Failed to update profile"))),
     },
   });
 

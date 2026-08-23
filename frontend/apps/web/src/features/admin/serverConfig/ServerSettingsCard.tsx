@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { eveyFetch } from "@evey/api";
+import { eveyFetch, apiErrorMessage } from "@evey/api";
 import { toast } from "@evey/store";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
@@ -74,14 +74,14 @@ export function ServerSettingsCard() {
     mutationFn: (body: Record<string, unknown>) =>
       eveyFetch<ServerSettings>({ url: "/api/v1/admin/server-settings", method: "PUT", data: body }),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: SETTINGS_KEY }); toast.success(t("admin.serverSettings.saved")); setDirty(false); },
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("common.error"))),
   });
 
   const resetMutation = useMutation({
     mutationFn: (field: string) =>
       eveyFetch<ServerSettings>({ url: "/api/v1/admin/server-settings", method: "PUT", data: { [field]: null } }),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: SETTINGS_KEY }); toast.success(t("admin.serverSettings.saved")); },
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("common.error"))),
   });
 
   function handleSave() {

@@ -8,6 +8,7 @@ import {
   useAdminSystemServiceUpdateServerConfig,
   getAdminSystemServiceGetServerConfigQueryKey,
   eveyFetch,
+  apiErrorMessage,
 } from "@evey/api";
 import { toast } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
@@ -142,7 +143,7 @@ export default function AdminServerConfigScreen() {
       toast.success(t("admin.serverSettings.saved"));
       setSettingsDirty(false);
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("common.error"))),
   });
 
   const resetMutation = useMutation({
@@ -152,7 +153,7 @@ export default function AdminServerConfigScreen() {
       await qc.invalidateQueries({ queryKey: SETTINGS_KEY });
       toast.success(t("admin.serverSettings.saved"));
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("common.error"))),
   });
 
   const handleSaveSettings = useCallback(async () => {
@@ -210,7 +211,7 @@ export default function AdminServerConfigScreen() {
       await qc.invalidateQueries({ queryKey: SERVER_CONFIG_ENTRIES_KEY });
       toast.success(t("admin.serverConfig.configUpdated", "Config saved"));
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("common.error"))),
   });
 
   const deleteConfigEntry = useMutation({
@@ -220,7 +221,7 @@ export default function AdminServerConfigScreen() {
       await qc.invalidateQueries({ queryKey: SERVER_CONFIG_ENTRIES_KEY });
       toast.success(t("admin.serverConfig.configUpdated", "Config saved"));
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("common.error"))),
   });
 
   const introEnabled = getEntryValue("intro_providers.enabled") === "true";

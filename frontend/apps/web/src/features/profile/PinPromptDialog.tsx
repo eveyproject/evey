@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { parentalServiceVerifyPin } from "@evey/api";
+import { parentalServiceVerifyPin, apiErrorMessage } from "@evey/api";
 import type { V1Profile } from "@evey/api";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
@@ -66,7 +66,7 @@ export function PinPromptDialog({ target, fallback, onCancel, onVerified }: Prop
       }
       await onVerified(target, pinToken || undefined);
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("auth.profile.select.pinWrong", "Incorrect PIN"));
+      setError(apiErrorMessage(err as Error, t, t("auth.profile.select.pinWrong", "Incorrect PIN")));
     } finally {
       setSubmitting(false);
     }
