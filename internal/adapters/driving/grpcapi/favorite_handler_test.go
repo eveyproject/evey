@@ -550,3 +550,39 @@ func TestFavoriteHandler_BatchIsFavorite_IDORAnotherProfile(t *testing.T) {
 	require.Error(t, err)
 	assert.Equal(t, codes.PermissionDenied, status.Code(err))
 }
+
+// The hydration lookup is not decoration: it is what BOTH filters below read.
+// `items, _ :=` left itemByID empty on a DB blip, and an empty map makes every
+// `if it := itemByID[id]; it != nil` false - so the library-access check and
+// the parental check are both skipped and every favorite is emitted. The
+// neighbouring access read already fails closed for exactly this reason; this
+// one is the same decision, one lookup earlier.
+func TestFavoriteHandler_ListFavorites_HydrationErrorFailsClosed(t *testing.T) {
+	repo := favfakes.NewFakeRepository()
+	svc := appfavorite.NewService(repo)
+	mediaQueryRepo := libfakes.NewFakeMediaItemQueryRepo()
+	libQuerySvc := applibrary.NewQueryService(
+		libfakes.NewFakeLibraryQueryRepo(), mediaQueryRepo,
+		libfakes.NewFakeMediaStreamRepository(), libfakes.NewFakeSearchIndex())
+	profileRepo := userfakes.NewFakeProfileRepository()
+	userQuery := appuser.NewQueryService(
+		userfakes.NewFakeUserRepository(), profileRepo,
+		userfakes.NewFakeAPIKeyRepository(), userfakes.NewFakeInviteLinkRepository(),
+		userfakes.NewFakeQuickConnectRepository())
+	h := &favoriteHandler{svc: svc, libQuery: libQuerySvc, userQuery: userQuery}
+
+	ctx := context.Background()
+	maxAge := 13
+	require.NoError(t, profileRepo.Create(ctx, &user.Profile{
+		ID: "profile-2", UserID: "user-2", Name: "Kid", IsKids: true,
+		Parental: &user.ParentalSettings{MaxAge: &maxAge, Enabled: true}}))
+	require.NoError(t, repo.Add(ctx, &favorite.Favorite{ID: "f-r", ProfileID: "profile-2", MediaItemID: "mi-r"}))
+	mediaQueryRepo.Seed(&library.MediaItem{ID: "mi-r", Title: "Adult", Type: "movie",
+		Classification: &library.MediaClassification{OfficialRating: "R"}})
+	mediaQueryRepo.Err = errors.New("db down")
+
+	resp, err := h.ListFavorites(ctxWithClaims("user-2", "profile-2", false), &eveyv1.ListFavoritesRequest{})
+	if status.Code(err) != codes.Internal {
+		t.Fatalf("want Internal (fail-closed) when the items behind the favorites cannot be read, got err=%v resp=%v", err, resp)
+	}
+}

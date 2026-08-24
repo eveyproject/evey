@@ -51,7 +51,17 @@ func (h *favoriteHandler) ListFavorites(ctx context.Context, req *eveyv1.ListFav
 		for _, f := range favs {
 			ids = append(ids, string(f.MediaItemID))
 		}
-		items, _ := h.libQuery.GetMediaItemsByIDs(ctx, ids)
+		// Fail closed, like the access read below. This lookup is not
+		// decoration: both filters further down are written as
+		// `if it := itemByID[id]; it != nil`, so an empty map skips the
+		// library-access check AND the parental check and emits every
+		// favorite. Swallowing the error turned a DB blip into a listing
+		// nobody filtered. A favorite pointing at a deleted item is NOT this
+		// case - GetByIDs simply returns fewer rows, without an error.
+		items, iErr := h.libQuery.GetMediaItemsByIDs(ctx, ids)
+		if iErr != nil {
+			return nil, internalError(ctx, "list favorites: resolve items", iErr)
+		}
 		for _, it := range items {
 			itemByID[string(it.ID)] = it
 		}
