@@ -63,6 +63,16 @@ var bootWirings = []struct {
 			"and honors X-Forwarded-For from the whole LAN",
 	},
 	{
+		name:       "persisted log level",
+		receiver:   "eveylogger",
+		setter:     "SetLevel",
+		declaredIn: filepath.Join("internal", "pkg", "logger", "logger.go"),
+		argSuffix:  ".Log.Level",
+		why: "a level chosen in the admin panel applies live but is re-read only here: without " +
+			"this line every restart silently reverts to the file default while the panel keeps " +
+			"showing the stored value",
+	},
+	{
 		name:       "intro detection chapter repo",
 		receiver:   "introDetectionSvc",
 		setter:     "WithChapterRepo",
