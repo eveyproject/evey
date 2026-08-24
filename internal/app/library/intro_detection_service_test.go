@@ -287,6 +287,10 @@ type fakeDetector struct {
 	fallbackStartMs int64
 	fallbackEndMs   int64
 	fallbackFound   bool
+	// fallbackErr makes the silence pass FAIL. It is the one detector error the
+	// pipeline propagates to the caller, so it is the only way a test can reach
+	// the sweep's failure branch - and it is the pass that OOMed in prod.
+	fallbackErr error
 
 	// tileHashes is returned by ExtractTileHashes when non-nil; defaults to nil (no hashes).
 	tileHashes []uint64
@@ -300,6 +304,7 @@ type fakeDetector struct {
 func (f *fakeDetector) ExtractTileHashes(_ string, _, _, _, _ int) ([]uint64, error) {
 	return f.tileHashes, nil
 }
+
 // PrecisionPass echoes its input by default, which the pipeline reads as
 // "found nothing" - that is the historical behaviour and every existing test
 // depends on it. precisionStartMs/precisionEndMs let a test answer something
@@ -316,6 +321,9 @@ func (f *fakeDetector) PrecisionPass(_ context.Context, _ string, startSec, endS
 	return int64(startSec * 1000), int64(endSec * 1000), nil
 }
 func (f *fakeDetector) AudioFallback(_ context.Context, _ string, _ float64) (int64, int64, bool, error) {
+	if f.fallbackErr != nil {
+		return 0, 0, false, f.fallbackErr
+	}
 	return f.fallbackStartMs, f.fallbackEndMs, f.fallbackFound, nil
 }
 func (f *fakeDetector) DetectEndCredits(_ context.Context, _ string, _ float64) (int64, int64, bool, error) {
@@ -552,6 +560,7 @@ func (r *fakeSegmentRepo) DeleteByMediaItemIDAndType(_ context.Context, id share
 	r.ops = append(r.ops, fakeSegOp{id: id, typ: segType})
 	return nil
 }
+
 // ListSeasonsPendingIntroDetection mirrors the postgres predicate: a season is
 // returned when at least one of its episodes has no settled intro AND has not
 // burned its retry budget at algoVersion. Derived from the fake's own rows and
@@ -1523,4 +1532,65 @@ func TestPropagateSegment_SiblingGetSegError_SkipsUpsert(t *testing.T) {
 		}
 	}
 	require.Equal(t, 1, segRepo.batchCalls, "PropagateSegment must issue exactly one batched sibling-segments read")
+}
+
+// TestDetectSeason_KilledDecodeConsumesAnAttempt pins the rule that made the
+// 2026-08-24 incident survive three reboots: a decode the kernel killed must
+// consume an attempt.
+//
+// The sweep deliberately does NOT count ordinary failures, so a transient I/O
+// error cannot park a detectable episode. A decode killed by a signal is the
+// opposite case - it is the OOM killer, it reproduces on the same file, and the
+// work list is rebuilt from the database, so an uncounted kill is handed back
+// after every restart. In prod that produced 23 kills, zero error lines, and a
+// host taken down twice.
+func TestDetectSeason_KilledDecodeConsumesAnAttempt(t *testing.T) {
+	t.Parallel()
+
+	parentID := "season-killed"
+	epID := shared.MediaItemID("ep-killed")
+	dur, _ := shared.NewDurationMs(1_200_000)
+	siblings := []*domainlibrary.MediaItem{
+		{
+			ID: epID, Type: domainlibrary.Episode, ParentID: parentID,
+			File: &domainlibrary.MediaFile{Path: "/tv/ep.mkv", Duration: dur},
+		},
+	}
+	segRepo := &fakeSegmentRepo{}
+	itemRepo := &fakeMediaItemRepo{siblings: siblings}
+	det := &fakeDetector{fallbackErr: fmt.Errorf("ffmpeg run: %w", domainlibrary.ErrDetectorKilled)}
+	svc := newTestServiceFull(det, segRepo, itemRepo, &fakeTrickplayRepo{})
+
+	svc.detectSeason(context.Background(), parentID)
+
+	attempt, recorded := segRepo.attempts[string(epID)]
+	require.True(t, recorded,
+		"a killed decode must record an attempt: the work list survives a restart, so an uncounted kill comes back and retakes the host down")
+	require.Equal(t, 1, attempt.count, "exactly one attempt per killed decode")
+}
+
+// TestDetectSeason_TransientFailureDoesNotConsumeAnAttempt is the other half of
+// the rule: the fix must not turn every hiccup into a parked episode.
+func TestDetectSeason_TransientFailureDoesNotConsumeAnAttempt(t *testing.T) {
+	t.Parallel()
+
+	parentID := "season-transient"
+	epID := shared.MediaItemID("ep-transient")
+	dur, _ := shared.NewDurationMs(1_200_000)
+	siblings := []*domainlibrary.MediaItem{
+		{
+			ID: epID, Type: domainlibrary.Episode, ParentID: parentID,
+			File: &domainlibrary.MediaFile{Path: "/tv/ep.mkv", Duration: dur},
+		},
+	}
+	segRepo := &fakeSegmentRepo{}
+	itemRepo := &fakeMediaItemRepo{siblings: siblings}
+	det := &fakeDetector{fallbackErr: errors.New("read /media/ep.mkv: input/output error")}
+	svc := newTestServiceFull(det, segRepo, itemRepo, &fakeTrickplayRepo{})
+
+	svc.detectSeason(context.Background(), parentID)
+
+	_, recorded := segRepo.attempts[string(epID)]
+	require.False(t, recorded,
+		"a transient failure must not consume an attempt, or one bad mount parks a whole library as undetectable")
 }

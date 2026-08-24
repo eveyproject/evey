@@ -3,6 +3,7 @@ package ffmpeg
 import (
 	"image"
 	"image/color"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -230,8 +231,8 @@ func TestParseEndCredits_LongBlackTrustedFarOut(t *testing.T) {
 // before the end of a 42-min episode are a scene sequence, not the credits.
 func TestParseEndCredits_RejectsClusterWithImplausibleLead(t *testing.T) {
 	t.Parallel()
-	const durSec = 2520.0          // 42-min episode: bound = max(240s, 12% = 302.4s)
-	const startSec = durSec - 600  // the scan window is the last 10 min
+	const durSec = 2520.0         // 42-min episode: bound = max(240s, 12% = 302.4s)
+	const startSec = durSec - 600 // the scan window is the last 10 min
 	input := `[blackdetect @ 0x1] black_start:60.0 black_end:61.5 black_duration:1.5
 [blackdetect @ 0x2] black_start:90.0 black_end:91.5 black_duration:1.5`
 	_, _, found := parseEndCredits(input, startSec, durSec)
@@ -261,4 +262,42 @@ func TestParseEndCredits_ExactBoundary(t *testing.T) {
 	require.True(t, found)
 	assert.Equal(t, int64(5000), startMs)
 	assert.Equal(t, int64(durSec*1000), endMs)
+}
+
+// TestEndCreditsArgs_BoundsTheDecodeWithMinusT pins the bound whose absence
+// took the host down on 2026-08-24.
+//
+// The credits scan is documented as "the last 20% of the file, capped at 600s",
+// but that cap was only ever expressed through -ss: ffmpeg was told where to
+// START and left to run to the real end of file. durationSec comes from the
+// database, written by a probe measured failing in prod, so an underestimated
+// duration removed the bound entirely - the scan decoded the whole file.
+func TestEndCreditsArgs_BoundsTheDecodeWithMinusT(t *testing.T) {
+	t.Parallel()
+
+	args := endCreditsArgs("/tv/ep.mkv", 1500, 600)
+
+	idx := slices.Index(args, "-t")
+	require.NotEqual(t, -1, idx, "the credits scan must state its window to ffmpeg, not merely imply it with -ss")
+	require.Less(t, idx+1, len(args), "-t must carry a value")
+	require.Equal(t, "600.000", args[idx+1], "the -t window must be the scan window, not the file duration")
+
+	ss := slices.Index(args, "-ss")
+	require.NotEqual(t, -1, ss)
+	require.Less(t, ss, idx, "-ss must precede -t so the seek applies to the input")
+}
+
+// TestEndCreditsArgs_WindowIsIndependentOfDeclaredDuration proves the bound
+// holds even when the stored duration is wrong, which is the failure that
+// actually happened: a bad duration must shorten or misplace the scan, never
+// remove its ceiling.
+func TestEndCreditsArgs_WindowIsIndependentOfDeclaredDuration(t *testing.T) {
+	t.Parallel()
+
+	for _, startSec := range []float64{0, 60, 100000} {
+		args := endCreditsArgs("/tv/ep.mkv", startSec, 600)
+		idx := slices.Index(args, "-t")
+		require.NotEqual(t, -1, idx, "start=%v must still be bounded", startSec)
+		require.Equal(t, "600.000", args[idx+1], "start=%v must not widen the window", startSec)
+	}
 }

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -12,6 +13,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"golang.org/x/image/webp"
 
@@ -47,6 +49,42 @@ func (d *IntroDetector) WithBusyChecker(busy func() bool) *IntroDetector {
 // whole sweep naturally pauses. With no busy checker it runs unchanged.
 func (d *IntroDetector) runPausable(cmd *exec.Cmd) error {
 	return runPausableCmd(cmd, d.busy)
+}
+
+// endCreditsArgs builds the credits-scan argv. It is split out so the decode
+// bound is testable: -ss alone used to be the only limit, which made the window
+// a CONSEQUENCE of durationSec rather than something stated to ffmpeg. That
+// duration comes from the database and is filled by a probe that can fail, so an
+// underestimate turned the scan into a decode of the whole file.
+func endCreditsArgs(filePath string, startSec, windowSec float64) []string {
+	return []string{
+		"-nostdin",
+		"-threads", strconv.Itoa(introFFmpegThreads()),
+		"-ss", strconv.FormatFloat(startSec, 'f', 3, 64),
+		"-t", strconv.FormatFloat(windowSec, 'f', 3, 64),
+		"-i", filePath,
+		"-vf", "blackdetect=d=0.5:pix_th=0.10",
+		"-an",
+		"-vsync", "vfr",
+		"-f", "null",
+		"-",
+	}
+}
+
+// killedBySignal distinguishes a process the kernel (or anyone else) shot from
+// the ordinary non-zero exit `-f null` produces on every run. A cancelled
+// context also kills the child, so that case is excluded: it is our own doing,
+// not a resource failure.
+func killedBySignal(ctx context.Context, err error) bool {
+	if err == nil || ctx.Err() != nil {
+		return false
+	}
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) {
+		return false
+	}
+	status, ok := exitErr.Sys().(syscall.WaitStatus)
+	return ok && status.Signaled()
 }
 
 // ExtractTileHashes opens a trickplay sprite file and returns one perceptual
@@ -136,8 +174,13 @@ func (d *IntroDetector) runDetect(ctx context.Context, filePath string, startSec
 	cmd := lowPriorityCommand(ctx, d.binary, args...)
 	var stderrBuf bytes.Buffer
 	cmd.Stderr = &stderrBuf
-	//nolint:errcheck // ffmpeg exits non-zero for -f null; we parse stderr regardless of the run error
-	_ = d.runPausable(cmd)
+	// ffmpeg exits non-zero for -f null, so the exit code alone says nothing and
+	// stderr is parsed regardless. A process killed by a SIGNAL is a different
+	// event: swallowing it reported an OOM kill as "nothing found", which sent
+	// the media back through the sweep to kill the host again.
+	if runErr := d.runPausable(cmd); killedBySignal(ctx, runErr) {
+		return nil, nil, fmt.Errorf("%w: %s: %w", domainlibrary.ErrDetectorKilled, filePath, runErr)
+	}
 
 	silences, blacks = parseDetections(stderrBuf.String())
 	return silences, blacks, nil
@@ -275,25 +318,17 @@ func (d *IntroDetector) DetectEndCredits(ctx context.Context, filePath string, d
 	if durationSec < 60 {
 		return 0, 0, false, nil
 	}
-	startSec := math.Max(0, durationSec-creditsScanWindowSec(durationSec))
-
-	args := []string{
-		"-nostdin",
-		"-threads", strconv.Itoa(introFFmpegThreads()),
-		"-ss", strconv.FormatFloat(startSec, 'f', 3, 64),
-		"-i", filePath,
-		"-vf", "blackdetect=d=0.5:pix_th=0.10",
-		"-an",
-		"-vsync", "vfr",
-		"-f", "null",
-		"-",
-	}
+	windowSec := creditsScanWindowSec(durationSec)
+	startSec := math.Max(0, durationSec-windowSec)
+	args := endCreditsArgs(filePath, startSec, windowSec)
 	cmd := lowPriorityCommand(ctx, d.binary, args...)
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = &out
-	//nolint:errcheck // ffmpeg exits non-zero for -f null; we parse the combined output regardless
-	_ = d.runPausable(cmd)
+	// Same reasoning as runDetect: the -f null exit code is noise, a signal is not.
+	if runErr := d.runPausable(cmd); killedBySignal(ctx, runErr) {
+		return 0, 0, false, fmt.Errorf("%w: %s: %w", domainlibrary.ErrDetectorKilled, filePath, runErr)
+	}
 
 	creditsStartMs, creditsEndMs, ok := parseEndCredits(out.String(), startSec, durationSec)
 	if !ok {
@@ -366,7 +401,7 @@ const (
 func parseEndCredits(output string, startSec, durationSec float64) (startMs, endMs int64, found bool) {
 	type blackRegion struct{ startSec, durSec float64 }
 	var regions []blackRegion
-	for _, line := range strings.Split(output, "\n") {
+	for line := range strings.SplitSeq(output, "\n") {
 		startMatches := reBlackStart.FindStringSubmatch(line)
 		durMatches := reBlackDuration.FindStringSubmatch(line)
 		if len(startMatches) < 2 || len(durMatches) < 2 {

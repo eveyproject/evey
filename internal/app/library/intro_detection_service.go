@@ -784,6 +784,14 @@ func (s *IntroDetectionService) backfillMovies(ctx context.Context, libraryID st
 				if detErr != nil {
 					slog.WarnContext(ctx, "intro backfill movies: detection failed",
 						slog.String("media_id", id), slog.Any("err", detErr))
+					// Same rule as the season sweep: a killed decode is repeatable, so
+					// it must consume an attempt or the backfill keeps re-picking it.
+					if errors.Is(detErr, domainlibrary.ErrDetectorKilled) {
+						if recErr := s.segmentRepo.RecordIntroDetectionAttempt(ctx, id, introDetectionAlgoVersion); recErr != nil {
+							slog.WarnContext(ctx, "intro backfill movies: record attempt after kill",
+								slog.String("media_id", id), slog.Any("err", recErr))
+						}
+					}
 					return
 				}
 				ranPage.Add(1)
@@ -926,9 +934,17 @@ func (s *IntroDetectionService) detectSeason(ctx context.Context, parentID strin
 			}
 			detErr := s.detectIntroWithHint(ctx, string(ep.ID), hint)
 			if detErr != nil {
-				// A real failure (ffmpeg crash, I/O) - don't count it toward the cap
-				// so a transient problem doesn't park a detectable episode.
+				// A transient failure (I/O, deadline) is not counted toward the cap,
+				// so it doesn't park an episode that is perfectly detectable. A decode
+				// the kernel KILLED is not transient - see ErrDetectorKilled - and the
+				// work list is rebuilt from the database, so an uncounted kill comes
+				// back after every restart and takes the host down with it.
 				slog.WarnContext(ctx, "intro detection failed", slog.String("media_id", string(ep.ID)), slog.Any("err", detErr))
+				if errors.Is(detErr, domainlibrary.ErrDetectorKilled) {
+					if recErr := s.segmentRepo.RecordIntroDetectionAttempt(ctx, string(ep.ID), introDetectionAlgoVersion); recErr != nil {
+						slog.WarnContext(ctx, "intro detection: record attempt after kill", slog.String("media_id", string(ep.ID)), slog.Any("err", recErr))
+					}
+				}
 				continue
 			}
 			// Clean run: count it. If it found a good intro the episode is skipped
