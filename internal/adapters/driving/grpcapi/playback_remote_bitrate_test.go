@@ -8,10 +8,12 @@ import (
 	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
 	appuser "github.com/evey-project/evey/internal/app/user"
 	"github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/domain/transcoding"
 	"github.com/evey-project/evey/internal/domain/user"
 	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
 	"github.com/evey-project/evey/internal/pkg/network"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestResolvePlaybackPrefs_RemoteBitrateCap covers the operator-wide
@@ -135,4 +137,70 @@ func TestResolvePlaybackPrefs_ProfileSettingsApply(t *testing.T) {
 		assert.Equal(t, "cellular", prefs.NetworkType,
 			"network type comes from the REQUEST, not the profile - the profile parse must not overwrite it")
 	})
+}
+
+// servedResolution is what the "Playing in 1080p" badge reads, and nothing
+// tested it directly: the transcode cap wins, the source height is the
+// fallback, and no height at all must render an EMPTY string rather than
+// "0p" - a badge reading "0p" is worse than no badge.
+func TestServedResolution(t *testing.T) {
+	h1080, h2160 := 1080, 2160
+	video := func(h *int) []*library.MediaStream {
+		return []*library.MediaStream{{StreamType: library.StreamTypeVideo, Height: h}}
+	}
+
+	t.Run("the transcode cap wins over the source", func(t *testing.T) {
+		got := servedResolution(&transcoding.PlaybackDecision{MaxHeight: 720}, video(&h2160))
+		assert.Equal(t, "720p", got, "a 4K source transcoded to 720p is being SERVED at 720p")
+	})
+
+	t.Run("no cap falls back to the source height", func(t *testing.T) {
+		assert.Equal(t, "1080p", servedResolution(&transcoding.PlaybackDecision{}, video(&h1080)))
+	})
+
+	t.Run("a source with no usable height renders nothing, never 0p", func(t *testing.T) {
+		assert.Empty(t, servedResolution(&transcoding.PlaybackDecision{}, video(nil)))
+		assert.Empty(t, servedResolution(&transcoding.PlaybackDecision{}, nil))
+		zero := 0
+		assert.Empty(t, servedResolution(&transcoding.PlaybackDecision{}, video(&zero)))
+	})
+
+	t.Run("the first video stream decides - audio streams are skipped", func(t *testing.T) {
+		streams := []*library.MediaStream{
+			{StreamType: library.StreamTypeAudio, Height: &h2160},
+			{StreamType: library.StreamTypeVideo, Height: &h1080},
+		}
+		assert.Equal(t, "1080p", servedResolution(&transcoding.PlaybackDecision{}, streams))
+	})
+}
+
+// GetWatchProgress answers an EMPTY progress - not an error - when the caller
+// may not see the media. That is deliberate: an empty body is indistinguishable
+// from "never watched", so it leaks nothing, where a PermissionDenied would
+// confirm the id exists. Its write-side siblings (MarkAsWatched /
+// MarkAsUnwatched) propagate the refusal instead, because there is nothing to
+// hide once you are asking to CHANGE state.
+//
+// Nothing asserted either half, so the asymmetry read like an oversight. It
+// is a decision; this test is what makes it one.
+func TestGetWatchProgress_RefusalIsAnEmptyProgressNotAnError(t *testing.T) {
+	profiles := userfakes.NewFakeProfileRepository()
+	h := &playbackHandler{
+		userQuery: appuser.NewQueryService(
+			userfakes.NewFakeUserRepository(), profiles,
+			userfakes.NewFakeAPIKeyRepository(), userfakes.NewFakeInviteLinkRepository(),
+			userfakes.NewFakeQuickConnectRepository(),
+		),
+		// libQuery/userAccess left nil: requireMediaAccess then refuses, which
+		// is exactly the "caller may not see this" branch under test.
+	}
+	ctx := interceptors.ContextWithClaims(context.Background(), &user.Claims{UserID: "u-1", ProfileID: "prf-1"})
+
+	resp, err := h.GetWatchProgress(ctx, &eveyv1.GetWatchProgressRequest{MediaItemId: "mi-secret"})
+
+	require.NoError(t, err, "a refusal here must NOT surface as an error - that would confirm the id exists")
+	require.NotNil(t, resp)
+	assert.Zero(t, resp.PositionMs, "the refusal must be indistinguishable from 'never watched'")
+	assert.False(t, resp.Played)
+	assert.Empty(t, resp.MediaItemId, "an empty progress carries no id either - nothing confirms the media")
 }
