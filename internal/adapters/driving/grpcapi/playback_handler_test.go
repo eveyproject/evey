@@ -1586,3 +1586,32 @@ func TestPlaybackHandler_LibraryAccessLookupFailure_DeniesRatherThanOpens(t *tes
 		"the grant lookup failed, so the caller's allowed set is UNKNOWN - showing a "+
 			"forbidden-library item means a database outage widened what the user can see")
 }
+
+// The stream list is the whole input of the playback decision: it starts at
+// direct_play/copy/copy and only the rules that ITERATE over the streams can
+// demote it. Logging the read error and carrying on with a nil list therefore
+// does not degrade the answer, it invents one - the server hands back a play
+// method (direct play, or direct stream when only the container rule fires)
+// without ever having looked at what is inside the file, and the client acts
+// on it. An item with no streams recorded is NOT this case: that read
+// succeeds, and answering optimistically for it stays deliberate.
+func TestPlaybackHandler_GetStreamInfo_StreamReadErrorIsNotDirectPlay(t *testing.T) {
+	h, _, _, mediaQuery, _, streamRepo := newTestPlaybackHandler()
+	ctx := pbAdminCtx()
+
+	mediaQuery.Seed(&library.MediaItem{
+		ID:    "mi-1",
+		Title: "Some Movie",
+		Type:  "movie",
+		File:  &library.MediaFile{ContainerFormat: "mkv"},
+	})
+	streamRepo.Err = errors.New("db down")
+
+	resp, err := h.GetStreamInfo(ctx, &eveyv1.GetStreamInfoRequest{MediaItemId: "mi-1"})
+	if err == nil {
+		t.Fatalf("want an error when the streams cannot be read, got PlayMethod=%v", resp.PlayMethod)
+	}
+	if status.Code(err) != codes.Internal {
+		t.Fatalf("want Internal, got %v", err)
+	}
+}

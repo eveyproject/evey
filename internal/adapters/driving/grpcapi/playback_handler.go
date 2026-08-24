@@ -223,7 +223,12 @@ func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStre
 	}
 	streams, err := h.librarySvc.GetMediaStreams(ctx, req.MediaItemId)
 	if err != nil {
-		slog.WarnContext(ctx, "get media streams", slog.String("media_item_id", req.MediaItemId), slog.Any("err", err))
+		// Not recoverable here: every rule that could demote the optimistic
+		// direct_play/copy/copy default iterates over these streams, so
+		// carrying on with a nil list answers "playable as-is" about a file
+		// nobody read. An item with no streams recorded returns an empty list
+		// WITHOUT an error and keeps that optimistic answer, deliberately.
+		return nil, internalError(ctx, "get media streams", err)
 	}
 	// On-demand keyframe fill: when the paced background backfill hasn't
 	// indexed this file yet, try the bounded fast-path (container seek index,
