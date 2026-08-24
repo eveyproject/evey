@@ -150,7 +150,7 @@ export default function AdminTranscodeCacheScreen() {
       toast.success(t("admin.transcodeCache.cacheCleared", "Cache cleared"));
       await qc.invalidateQueries({ queryKey: CACHE_KEY });
     },
-    onError: (err) => toast.error(apiErrorMessage(err as Error, t, "Failed to clear cache")),
+    onError: (err) => toast.error(apiErrorMessage(err as Error, t, t("admin.transcodeCache.failedClear"))),
   });
 
   const handleClearAll = useCallback(() => {
@@ -175,7 +175,7 @@ export default function AdminTranscodeCacheScreen() {
       toast.success(t("admin.transcodeCache.deleted", { name: filename, defaultValue: "Deleted" }));
       await qc.invalidateQueries({ queryKey: CACHE_KEY });
     } catch (err) {
-      toast.error(apiErrorMessage(err as Error, t, "Failed to delete file"));
+      toast.error(apiErrorMessage(err as Error, t, t("admin.transcodeCache.failedDeleteFile")));
     } finally {
       setDeletingFile(null);
     }
