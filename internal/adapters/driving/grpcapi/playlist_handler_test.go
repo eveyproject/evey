@@ -2,6 +2,7 @@ package grpcapi
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
@@ -696,4 +697,53 @@ func TestPlaylistAddPlaylistItem_AdminStillGetsNotFoundOnUnknownMedia(t *testing
 	}
 	_, addErr := h.AddPlaylistItem(ctx, &eveyv1.AddPlaylistItemRequest{Id: created.Id, MediaItemId: "mi-does-not-exist"})
 	assertCode(t, addErr, codes.NotFound)
+}
+
+// The twin of TestPlaylistGetPlaylistItems_FiltersInaccessibleLibrary, on the
+// path that feeds it. `extra, _ :=` dropped the hydration error, and the
+// accessible() rule below deliberately keeps a row whose media is nil ("carries
+// no leakable fields"). That rule was written for media that legitimately does
+// not resolve - not for a database that cannot be read: when the read itself
+// fails, EVERY row becomes nil-media and the whole filter turns into a pass.
+func TestPlaylistGetPlaylistItems_HydrationErrorFailsClosed(t *testing.T) {
+	plRepo := playlistfakes.NewFakePlaylistRepository()
+	itemRepo := playlistfakes.NewFakePlaylistItemRepository()
+	mediaReader := libfakes.NewFakeMediaItemQueryRepo()
+	svc := appplaylist.NewService(plRepo, itemRepo, playlistfakes.NewFakeSmartPlaylistQuerier(), mediaReader)
+	libQuery := applibrary.NewQueryService(
+		libfakes.NewFakeLibraryQueryRepo(), mediaReader,
+		libfakes.NewFakeMediaStreamRepository(), libfakes.NewFakeSearchIndex())
+	libAccess := userfakes.NewFakeLibraryAccessRepository()
+	userAccess := appuser.NewAccessService(
+		userfakes.NewFakeUserRepository(), userfakes.NewFakeAPIKeyRepository(),
+		userfakes.NewFakeInviteLinkRepository(), userfakes.NewFakeQuickConnectRepository(),
+		userfakes.NewFakePasswordHasher(), sharedfakes.NewFakeEventBus(),
+		appuser.WithLibraryAccess(libAccess),
+	)
+	h := &playlistHandler{svc: svc, libQuery: libQuery, userAccess: userAccess}
+
+	libAccess.Grant(context.Background(), "user-2", "lib-ok")
+	mediaReader.Seed(&library.MediaItem{ID: "mi-secret", Title: "Hidden", LibraryID: "lib-secret"})
+
+	ctx := ctxWithClaims("user-2", "profile-2", false)
+	created, err := h.CreatePlaylist(ctx, &eveyv1.CreatePlaylistRequest{
+		Name: "Mine", Type: eveyv1.PlaylistType_PLAYLIST_TYPE_MANUAL,
+	})
+	if err != nil {
+		t.Fatalf("CreatePlaylist: %v", err)
+	}
+	// Seeded through the repository, like the sibling test: the write path is
+	// guarded now, the read filter is what protects rows that predate it.
+	if addErr := itemRepo.Add(context.Background(), &playlist.PlaylistItem{
+		PlaylistID: created.Id, MediaItemID: "mi-secret", SortOrder: 1,
+	}); addErr != nil {
+		t.Fatalf("seed mi-secret directly: %v", addErr)
+	}
+
+	mediaReader.Err = errors.New("db down")
+
+	resp, err := h.GetPlaylistItems(ctx, &eveyv1.GetPlaylistItemsRequest{Id: created.Id})
+	if status.Code(err) != codes.Internal {
+		t.Fatalf("want Internal (fail-closed) when playlist item metadata cannot be read, got err=%v resp=%v", err, resp)
+	}
 }

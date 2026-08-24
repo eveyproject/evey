@@ -202,7 +202,16 @@ func (h *playlistHandler) GetPlaylistItems(ctx context.Context, req *eveyv1.GetP
 			}
 		}
 		if len(ids) > 0 {
-			extra, _ := h.libQuery.GetMediaItemsByIDs(ctx, ids)
+			// Fail closed. accessible() below deliberately keeps a row whose
+			// media is nil ("carries no leakable fields"), which is right for
+			// media that legitimately does not resolve - and wrong for a
+			// database that cannot be read: swallowing this error made EVERY
+			// row nil-media, so the library-access and parental checks both
+			// turned into a pass.
+			extra, eErr := h.libQuery.GetMediaItemsByIDs(ctx, ids)
+			if eErr != nil {
+				return nil, internalError(ctx, "get playlist items: resolve metadata", eErr)
+			}
 			for _, m := range extra {
 				mediaByID[string(m.ID)] = m
 			}
