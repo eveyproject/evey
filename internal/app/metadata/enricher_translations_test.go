@@ -341,3 +341,35 @@ func domainmetaResult(title, personName, personTMDB string) *domain.MetadataResu
 		},
 	}
 }
+
+// fetchPersonBio opens with FetchPersonTranslations(id, []string{""}), a call
+// whose own comment says it "returns nothing useful" and whose result is
+// discarded on the next line (`_ = bios`). Its only remaining effect was to
+// early-return on error, so one rate-limited useless call was enough to skip
+// the GetPersonDetails that actually fetches the biography - and the empty bio
+// then reads as "the provider has none".
+func TestFetchPersonBio_UselessTranslationCallDoesNotBlockTheBio(t *testing.T) {
+	stub := &personDetailProviderStub{
+		translationProviderStub: translationProviderStub{
+			fakeProvider: fakeProvider{name: "tmdb"},
+			personErr:    errors.New("429 rate limited"),
+		},
+		details: &domainlib.PersonDetailsResult{
+			Biography:    "an actor's life",
+			PlaceOfBirth: "Paris",
+		},
+	}
+
+	e, miRepo, personRepo := newTransEnricher(stub)
+	EnricherWithPersonFetcher(stub)(e)
+
+	item := &domainlib.MediaItem{ID: "m1", Title: "Movie", Type: "movie"}
+	require.NoError(t, miRepo.Create(context.Background(), item))
+	require.NoError(t, e.EnrichItem(context.Background(), item, domainmetaResult("Movie", "Alice", "42")))
+
+	assert.GreaterOrEqual(t, stub.detailHits.Load(), int32(1),
+		"the biography fetch must not depend on a call whose result is thrown away")
+	stored, err := personRepo.GetByName(context.Background(), "Alice")
+	require.NoError(t, err)
+	assert.Equal(t, "an actor's life", stored.Biography)
+}

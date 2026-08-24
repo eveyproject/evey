@@ -529,21 +529,24 @@ func (e *Enricher) refreshKnownPerson(ctx context.Context, p domainmetadata.Pers
 
 // fetchPersonBio fetches biography from the primary provider and updates the person record.
 func (e *Enricher) fetchPersonBio(ctx context.Context, person *domainlib.Person) {
-	tp, ok := e.chain.TranslationProvider()
-	if !ok {
+	// Kept as-is on purpose: the biography no longer comes from the
+	// translation provider, so this is now a precondition on an UNRELATED
+	// capability. Widening it (a provider with person details but no
+	// translations would start being used) is a behaviour change nobody asked
+	// for tonight - noted, not taken.
+	if _, ok := e.chain.TranslationProvider(); !ok {
 		return
 	}
 	tmdbID := person.ProviderIDs["tmdb"]
 	if tmdbID == "" {
 		return
 	}
-	// Fetch bio in default language
-	bios, err := tp.FetchPersonTranslations(ctx, tmdbID, []string{""})
-	if err != nil {
-		return
-	}
-	// FetchPersonTranslations with empty locale returns nothing useful - use the person detail endpoint instead
-	// Fall back to fetching via the TMDB person detail
+	// The biography comes from the person DETAIL endpoint. This used to open
+	// with FetchPersonTranslations(id, []string{""}) whose own comment said it
+	// "returns nothing useful" and whose result was discarded on the next line
+	// - so its only remaining effect was to skip the fetch below whenever it
+	// failed. One rate-limited call nobody read was enough to leave a person
+	// with an empty bio that reads as "the provider has none".
 	if fetcher, ok2 := capabilityFrom[personDetailFetcher](e.chain.Primary()); ok2 {
 		details, detErr := fetcher.GetPersonDetails(ctx, person.Name)
 		if detErr == nil && details != nil && details.Biography != "" {
@@ -565,7 +568,6 @@ func (e *Enricher) fetchPersonBio(ctx context.Context, person *domainlib.Person)
 			}
 		}
 	}
-	_ = bios // not used directly - translations fetched separately
 }
 
 // personDetailFetcher is an optional capability for providers that can fetch person details.
