@@ -2,6 +2,8 @@ package metadata
 
 import (
 	"context"
+	"fmt"
+	"log/slog"
 
 	"github.com/evey-project/evey/internal/domain/metadata"
 	"github.com/evey-project/evey/internal/pkg/tracing"
@@ -28,14 +30,30 @@ func (s *QueryService) SearchMetadata(ctx context.Context, query, mediaType stri
 	defer span.End()
 	span.SetAttributes(attribute.String("media.type", mediaType))
 	var results []metadata.MetadataResult
+	var failed int
 	for _, p := range s.providers {
 		r, err := p.Search(ctx, query, nil, mediaType)
 		if err != nil {
+			// Skipping ONE provider while another answers is the point of a
+			// chain. Skipping it silently is not: a rate-limited provider makes
+			// the admin's manual search look complete when it is short.
+			failed++
+			slog.WarnContext(ctx, "metadata search: provider failed",
+				slog.String("provider", p.Name()), slog.Any("err", err))
 			continue
 		}
 		results = append(results, r...)
 	}
 	span.SetAttributes(attribute.Int("results.count", len(results)))
+	// Every provider failing is not an empty catalogue. Returning (nil, nil)
+	// tells the admin "no provider knows this title" about a question nobody
+	// managed to ask.
+	if failed > 0 && failed == len(s.providers) {
+		err := fmt.Errorf("metadata search: all %d provider(s) failed", failed)
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, err
+	}
 	return results, nil
 }
 

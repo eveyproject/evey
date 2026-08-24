@@ -1055,3 +1055,24 @@ func TestBatchListOverrides_Empty(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, out)
 }
+
+// Skipping ONE broken provider while another answers is deliberate and tested
+// above. Skipping them ALL is different: the admin typed a title, got an empty
+// list, and reads it as "no provider knows this" - when in fact nobody was
+// asked successfully. A rate-limited TMDB is enough to produce it.
+func TestSearchMetadata_AllProvidersFailingIsNotAnEmptyResult(t *testing.T) {
+	first := metafakes.NewFakeMetadataProvider("tmdb")
+	first.Err = errors.New("429 rate limited")
+	second := metafakes.NewFakeMetadataProvider("omdb")
+	second.Err = errors.New("connection refused")
+
+	querySvc := appmetadata.NewQueryService(
+		metafakes.NewFakeMetadataOverrideRepository(),
+		metafakes.NewFakeArtworkRepository(),
+		[]metadata.MetadataProvider{first, second},
+	)
+
+	results, err := querySvc.SearchMetadata(context.Background(), "test", "movie")
+	require.Error(t, err, "every provider failed - that is not an empty catalogue")
+	assert.Empty(t, results)
+}
