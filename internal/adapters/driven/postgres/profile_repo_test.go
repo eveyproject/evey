@@ -279,3 +279,62 @@ func TestProfileRepo_Update_EveryColumnRoundTripsToItsOwnField(t *testing.T) {
 	assert.Equal(t, "hash-of-a-pin", got.Parental.PINHash)
 	assert.True(t, got.Parental.Enabled)
 }
+
+// The two narrow writers must not touch each other's columns.
+//
+// The comment above UpdateAvatarPath documents the bug this replaced: the
+// avatar upload flow re-saved the WHOLE row from a Profile it had read
+// earlier, so a parental PIN set by a concurrent request in between was
+// silently erased. Scoping each write to the columns that actually changed is
+// what makes that clobber structurally impossible - and nothing asserted it,
+// so a future "let's just call Update()" refactor would reintroduce it
+// silently, on a security-relevant field.
+//
+// This is the interleaving that used to lose data: read profile, someone else
+// sets a PIN, then write the avatar.
+func TestProfileRepo_AvatarAndParentalWritesDoNotClobberEachOther(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	userRepo := postgres.NewUserRepository(db)
+	profileRepo := postgres.NewProfileRepository(db)
+	ctx := context.Background()
+
+	u := newTestUser("pu-iso")
+	require.NoError(t, userRepo.Create(ctx, u))
+	p := newTestProfile("p-iso", u.ID)
+	require.NoError(t, profileRepo.Create(ctx, p))
+
+	// Another request sets a parental PIN.
+	maxAge := 10
+	require.NoError(t, profileRepo.UpdateParentalSettings(ctx, p.ID, &user.ParentalSettings{
+		MaxAge:      &maxAge,
+		BlockedTags: []string{"horror"},
+		PINHash:     "pin-set-by-someone-else",
+		Enabled:     true,
+	}))
+
+	// The avatar upload lands afterwards, carrying its own stale view.
+	avatar := "/avatars/p-iso.webp"
+	require.NoError(t, profileRepo.UpdateAvatarPath(ctx, p.ID, &avatar))
+
+	got, err := profileRepo.GetByID(ctx, p.ID)
+	require.NoError(t, err)
+	require.NotNil(t, got.AvatarPath)
+	assert.Equal(t, avatar, *got.AvatarPath, "the avatar write must land")
+	require.NotNil(t, got.Parental, "the avatar write must not erase the parental settings")
+	assert.Equal(t, "pin-set-by-someone-else", got.Parental.PINHash)
+	assert.True(t, got.Parental.Enabled)
+	require.NotNil(t, got.Parental.MaxAge)
+	assert.Equal(t, 10, *got.Parental.MaxAge)
+
+	// And the reverse order: a parental write must not drop the avatar.
+	require.NoError(t, profileRepo.UpdateParentalSettings(ctx, p.ID, &user.ParentalSettings{
+		PINHash: "a-newer-pin", Enabled: true,
+	}))
+	got2, err := profileRepo.GetByID(ctx, p.ID)
+	require.NoError(t, err)
+	require.NotNil(t, got2.AvatarPath, "the parental write must not erase the avatar")
+	assert.Equal(t, avatar, *got2.AvatarPath)
+	assert.Equal(t, "a-newer-pin", got2.Parental.PINHash)
+}

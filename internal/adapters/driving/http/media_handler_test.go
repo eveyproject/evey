@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -443,5 +444,54 @@ func TestLibraryAccessFunc_NilCheckerStillGrantsAdmin(t *testing.T) {
 	allow := libraryAccessFunc(context.Background(), &domainuser.Claims{UserID: "usr-1", IsAdmin: true}, nil)
 	if !allow("lib-1") {
 		t.Error("admin must keep full access")
+	}
+}
+
+// A checker that ERRORS must deny, and deny the same way a plain refusal
+// does. The distinction matters twice over: fail-open on a transient DB error
+// would hand out another library's media during an outage, and answering 500
+// (or 403) instead of 404 re-opens the existence oracle the 404 exists to
+// close - "this id errored" and "this id is not yours" would read differently
+// to someone probing ids.
+//
+// The fake has carried an `err` field all along; only the refusal path
+// (ok == false) was ever asserted here.
+func TestCheckLibraryAccess_CheckerError_DeniesAsNotFound(t *testing.T) {
+	claims := testClaims(false)
+	// allowed:true on purpose - if the error were ignored, this would PASS.
+	checker := &fakeLibraryAccessChecker{allowed: true, err: errors.New("connection reset by peer")}
+	w := httptest.NewRecorder()
+
+	ok := checkLibraryAccess(context.Background(), w, claims, shared.LibraryID("lib1"), checker)
+
+	if ok {
+		t.Fatal("a failed access check must DENY - fail-closed, not fail-open")
+	}
+	if w.Code != http.StatusNotFound {
+		t.Errorf("an errored check must be indistinguishable from a refusal (404), got %d", w.Code)
+	}
+}
+
+// A nil checker is a wiring mistake, not a permission: deny.
+func TestCheckLibraryAccess_NilChecker_Denies(t *testing.T) {
+	w := httptest.NewRecorder()
+	if checkLibraryAccess(context.Background(), w, testClaims(false), shared.LibraryID("lib1"), nil) {
+		t.Fatal("a missing checker must deny, never wave the caller through")
+	}
+	if w.Code != http.StatusForbidden {
+		t.Errorf("expected 403 for an unwired gate, got %d", w.Code)
+	}
+}
+
+// Nil claims behind the auth middleware "cannot happen" - which is exactly
+// why it must be asserted: the guard exists so a future path that reaches
+// here unauthenticated is refused instead of panicking on claims.IsAdmin.
+func TestCheckLibraryAccess_NilClaims_Denies(t *testing.T) {
+	w := httptest.NewRecorder()
+	if checkLibraryAccess(context.Background(), w, nil, shared.LibraryID("lib1"), &fakeLibraryAccessChecker{allowed: true}) {
+		t.Fatal("nil claims must deny")
+	}
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401 for nil claims, got %d", w.Code)
 	}
 }
