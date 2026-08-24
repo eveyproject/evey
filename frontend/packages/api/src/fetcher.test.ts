@@ -19,14 +19,21 @@ afterEach(() => {
 function mockResponse(status: number, body?: unknown, headers?: Record<string, string>) {
   const hdrs = new Map(Object.entries(headers ?? {}));
   const bodyStr = body !== undefined ? JSON.stringify(body) : "";
-  return {
+  const res = {
     ok: status >= 200 && status < 300,
     status,
     statusText: status === 200 ? "OK" : status === 204 ? "No Content" : status === 401 ? "Unauthorized" : "Error",
     headers: { get: (k: string) => hdrs.get(k) ?? null },
     json: body !== undefined ? () => Promise.resolve(body) : () => Promise.reject(new Error("no body")),
     text: () => Promise.resolve(bodyStr),
+    // The error path reads the body through response.clone() so it never
+    // consumes the stream the caller will read. Without clone() here the mock
+    // silently loses every body-carried field (message, errorCode,
+    // retryAfterSeconds) and the tests that check them pass for the wrong
+    // reason - or fail while the real code is fine.
+    clone: () => res,
   };
+  return res;
 }
 
 function mockNDJSONResponse(lines: unknown[]) {
@@ -235,5 +242,62 @@ describe("eveyFetch", () => {
 
     const result = await eveyFetch({ url: "/api/v1/empty", method: "GET" });
     expect(result).toBeUndefined();
+  });
+});
+
+// The error branch of fetchWithRefresh is what every screen in the product
+// reads when a call fails - and it was never tested on a real non-2xx
+// Response. The two fields it lifts are the two incidents its own comments
+// name: a 429 whose wait was invisible so the user retried straight into the
+// wall (2026-07-29), and a remote-access block that read as a bad password
+// for two days of diagnosis (also 2026-07-29). Both are carried on the thrown
+// Error, and `apiErrorMessage` now depends on `errorCode` being there.
+describe("eveyFetch: what a failed call tells the UI", () => {
+  async function catchError(promise: Promise<unknown>) {
+    try {
+      await promise;
+    } catch (e) {
+      return e as Error & { httpStatus?: number; retryAfterSeconds?: number; errorCode?: string };
+    }
+    throw new Error("expected the call to reject");
+  }
+
+  it("prefers the Retry-After HEADER over the body (a proxy may rewrite the body, not the header)", async () => {
+    fetchMock.mockResolvedValueOnce(mockResponse(429, { message: "slow down", retryAfterSeconds: 5 }, { "Retry-After": "42" }));
+    const err = await catchError(eveyFetch({ url: "/api/v1/x", method: "GET" }));
+    expect(err.retryAfterSeconds).toBe(42);
+    expect(err.httpStatus).toBe(429);
+  });
+
+  it("falls back to the body delay when a proxy stripped the header", async () => {
+    fetchMock.mockResolvedValueOnce(mockResponse(429, { message: "slow down", retryAfterSeconds: 7 }));
+    const err = await catchError(eveyFetch({ url: "/api/v1/x", method: "GET" }));
+    expect(err.retryAfterSeconds).toBe(7);
+  });
+
+  it("carries a STRING error code, and ignores the numeric `code` a grpc-gateway error puts there", async () => {
+    fetchMock.mockResolvedValueOnce(mockResponse(403, { message: "nope", code: "errors.auth.invalid_pin" }));
+    const withCode = await catchError(eveyFetch({ url: "/api/v1/x", method: "GET" }));
+    expect(withCode.errorCode).toBe("errors.auth.invalid_pin");
+
+    fetchMock.mockResolvedValueOnce(mockResponse(403, { message: "nope", code: 7 }));
+    const grpcShaped = await catchError(eveyFetch({ url: "/api/v1/x", method: "GET" }));
+    expect(grpcShaped.errorCode).toBeUndefined();
+  });
+
+  it("the remote-access header WINS over any body code - it survives a rewritten body", async () => {
+    fetchMock.mockResolvedValueOnce(
+      mockResponse(403, { message: "forbidden", code: "errors.auth.invalid_pin" }, { "X-Evey-Remote-Access": "disabled" }),
+    );
+    const err = await catchError(eveyFetch({ url: "/api/v1/x", method: "GET" }));
+    expect(err.errorCode).toBe("remote_access_disabled");
+  });
+
+  it("uses the server's message, and degrades to status text on an unparseable body", async () => {
+    fetchMock.mockResolvedValueOnce(mockResponse(500, { message: "disk full" }));
+    expect((await catchError(eveyFetch({ url: "/api/v1/x", method: "GET" }))).message).toBe("disk full");
+
+    fetchMock.mockResolvedValueOnce(mockResponse(500));
+    expect((await catchError(eveyFetch({ url: "/api/v1/x", method: "GET" }))).message).toBe("500 Error");
   });
 });
