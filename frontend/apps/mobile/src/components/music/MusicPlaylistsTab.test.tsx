@@ -100,6 +100,22 @@ describe("MusicPlaylistsTab", () => {
     expect(screen.getByText("media.music.noPlaylists")).toBeTruthy();
   });
 
+  // "You have no playlists" is a statement about the account. A failed fetch
+  // does not license it - and this tab was the one place left in the app still
+  // making it: AddToPlaylistSheet already renders LoadFailed here, and its own
+  // test is named after exactly this distinction.
+  it("shows LoadFailed with a retry - not 'no playlists' - when the fetch fails", () => {
+    const refetch = vi.fn();
+    usePlaylistListMock.mockReturnValue({ data: undefined, isLoading: false, isError: true, refetch });
+    render(<MusicPlaylistsTab libraryTracks={LIBRARY_TRACKS} />);
+
+    expect(screen.getByText("common.loadError")).toBeTruthy();
+    expect(screen.queryByText("media.music.noPlaylists")).toBeNull();
+
+    fireEvent.click(screen.getByLabelText("common.retry"));
+    expect(refetch).toHaveBeenCalledOnce();
+  });
+
   it("opens a playlist and joins its items against the loaded library tracks", () => {
     usePlaylistDetailMock.mockReturnValue({
       data: { id: "p1", name: "Road Trip", items: [{ media_item_id: "t1" }, { media_item_id: "t2" }] },

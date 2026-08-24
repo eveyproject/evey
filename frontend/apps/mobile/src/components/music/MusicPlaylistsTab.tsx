@@ -12,6 +12,7 @@ import { useMusicQueueStore, type QueueTrack } from "../../stores/musicQueue";
 import { TrackArt } from "./TrackArt";
 import type { Track } from "./musicTypes";
 import { shuffleArray } from "../../lib/shuffleArray";
+import { LoadFailed } from "../LoadFailed";
 
 function toQueueTrack(tr: Track): QueueTrack {
   return { id: tr.id, title: tr.title, artist: tr.artist, album: tr.album, duration: tr.duration };
@@ -47,7 +48,7 @@ export function MusicPlaylistsTab({ libraryTracks, initialSelectedId = null, lib
     if (initialSelectedId) setSelectedId(initialSelectedId);
   }, [initialSelectedId]);
 
-  const { data: playlists, isLoading: listLoading } = usePlaylistList();
+  const { data: playlists, isLoading: listLoading, isError: listFailed, refetch: refetchList } = usePlaylistList();
   const { data: detail, isLoading: detailLoading } = usePlaylistDetail(selectedId ?? "");
   const removeItem = useRemoveFromPlaylist();
   const deletePlaylist = useDeletePlaylist();
@@ -195,6 +196,13 @@ export function MusicPlaylistsTab({ libraryTracks, initialSelectedId = null, lib
 
   if (listLoading) {
     return <Text style={[styles.centerText, { color: theme.colors.textMuted }]}>{t("media.music.loading")}</Text>;
+  }
+
+  // Not the empty state: "you have no playlists" is a statement about the
+  // account, and a fetch that failed has not earned it. Same call as
+  // AddToPlaylistSheet, which already draws this distinction.
+  if (listFailed) {
+    return <LoadFailed inline onRetry={() => void refetchList?.()} />;
   }
 
   return (
