@@ -77,3 +77,43 @@ func TestMediaItemRepo_Update_NonEmptyScanTitleStillWins(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "Some Movie Clean", got.ScanTitle)
 }
+
+// The rest of the media_items UPDATE, alongside the scan_title rule above.
+// overview, tagline and index_number were never read back after an Update:
+// title/sort_title/original_title/overview/tagline sit in five consecutive
+// positional slots, all text, so a shift anywhere in that run swaps a tagline
+// into an overview on every scanned item and nothing complains.
+func TestMediaItemRepo_Update_EveryColumnRoundTripsToItsOwnField(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	ctx := context.Background()
+
+	lib := newTestLibrary("mlib-rt")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	item := newTestMediaItem("mi-col-rt", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, item))
+
+	idx := 7
+	item.Title = "Display Title"
+	item.ScanTitle = "Scan Title"
+	item.SortTitle = "sort title"
+	item.OriginalTitle = "Original Title"
+	item.Overview = "An overview sentence."
+	item.Tagline = "A tagline."
+	item.IndexNumber = &idx
+	require.NoError(t, itemRepo.Update(ctx, item))
+
+	got, err := itemRepo.GetByID(ctx, item.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "Display Title", got.Title)
+	assert.Equal(t, "Scan Title", got.ScanTitle)
+	assert.Equal(t, "sort title", got.SortTitle)
+	assert.Equal(t, "Original Title", got.OriginalTitle)
+	assert.Equal(t, "An overview sentence.", got.Overview)
+	assert.Equal(t, "A tagline.", got.Tagline)
+	require.NotNil(t, got.IndexNumber)
+	assert.Equal(t, 7, *got.IndexNumber)
+}

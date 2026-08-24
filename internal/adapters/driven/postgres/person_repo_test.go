@@ -136,3 +136,45 @@ func TestPersonRepo_List(t *testing.T) {
 		assert.LessOrEqual(t, names[i-1], names[i], "List should be ordered by name")
 	}
 }
+
+// Update had no test, and its SET list puts birthday and deathday side by
+// side - two strings of the same shape, one positional slot apart. Swap them
+// and every person page shows a death date where the birth date belongs, with
+// no error anywhere. place_of_birth and known_for are the same story one slot
+// further on.
+//
+// Distinct values everywhere so no pair can hide a swap.
+func TestPersonRepo_Update_EveryColumnRoundTripsToItsOwnField(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	repo := postgres.NewPersonRepository(db)
+	ctx := context.Background()
+	require.NoError(t, repo.Create(ctx, &library.Person{ID: "p-rt", Name: "Some Person"}))
+
+	thumb := "/thumbs/p-rt.jpg"
+	updated := &library.Person{
+		ID:           "p-rt",
+		Name:         "Some Person",
+		ProviderIDs:  map[string]string{"tmdb": "777"},
+		ThumbPath:    &thumb,
+		Biography:    "A biography sentence.",
+		Birthday:     "1970-03-04",
+		Deathday:     "2019-11-25",
+		PlaceOfBirth: "Somewhere",
+		KnownFor:     "Acting",
+	}
+	require.NoError(t, repo.Update(ctx, updated))
+
+	got, err := repo.GetByID(ctx, "p-rt")
+	require.NoError(t, err)
+	require.NotNil(t, got.ThumbPath)
+	assert.Equal(t, thumb, *got.ThumbPath)
+	assert.Equal(t, "A biography sentence.", got.Biography)
+	// The pair this test exists for.
+	assert.Equal(t, "1970-03-04", got.Birthday)
+	assert.Equal(t, "2019-11-25", got.Deathday)
+	assert.Equal(t, "Somewhere", got.PlaceOfBirth)
+	assert.Equal(t, "Acting", got.KnownFor)
+	assert.Equal(t, map[string]string{"tmdb": "777"}, got.ProviderIDs)
+}
