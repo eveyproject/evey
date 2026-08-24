@@ -306,3 +306,39 @@ func TestShapeLadder_ZeroClassLookupTTLCachesNothing(t *testing.T) {
 	assert.Equal(t, 2, repo.calls,
 		"a 0 TTL is NOT 'cache forever' - it writes an already-expired entry, so every call re-queries")
 }
+
+// A spilled AV1 stream must be FINGERPRINTED as H.264.
+//
+// AV1 rides hardware only. When admission pins a hw-eligible stream to the CPU
+// pool (GPU full), the software encoder produces H.264 - but the fingerprint
+// is the cache key AND what the manifest's CODECS attribute is derived from.
+// Leave "av1" in it and the master advertises av01.* while the producer writes
+// H.264 under that very hash: the player fetches segments it was told are AV1,
+// gets H.264, and fails to decode. Nothing logs an error - the bytes were
+// served 200, the cache hit, the ladder was correct. Exactly the class of
+// silent break this repo keeps paying for.
+//
+// The resolver's own comment states the rule; nothing asserted it.
+func TestFingerprint_SpilledAV1IsFingerprintedAsH264(t *testing.T) {
+	av1Capable := vaapiCapable()
+	av1Capable.HWCodecs = []string{"h264", "hevc", "av1"}
+
+	newResolver := func(pinned LadderClass, hasPin bool) *PlanResolver {
+		pr := hwResolver(av1Capable)
+		pr.AV1Enabled = func() bool { return true }
+		pr.AdmissionPinnedClass = func(string) (LadderClass, bool) { return pinned, hasPin }
+		return pr
+	}
+	req := PlaybackRequest{MediaID: "m1", SourcePath: "/m.mkv", Streams: routeStreams()}
+	decision := transcoding.PlaybackDecision{VideoCodec: "av1", VideoDecision: "transcode"}
+
+	spilled := newResolver(LadderClassSoftware, true).Fingerprint(context.Background(), req, decision, nil)
+	assert.Equal(t, "h264", spilled.VideoCodec,
+		"a spilled AV1 stream is encoded in software as H.264 - the cache key and the CODECS attribute must say so")
+	assert.Empty(t, spilled.HWAccel, "a spilled stream carries no hw accel in its fingerprint")
+
+	// Control: without a spill the AV1 fingerprint stays AV1, or this test
+	// would pass just as well on a resolver that always says h264.
+	notSpilled := newResolver(LadderClassHW, true).Fingerprint(context.Background(), req, decision, nil)
+	assert.Equal(t, "av1", notSpilled.VideoCodec, "an HW pin is not a spill: AV1 stays AV1")
+}
