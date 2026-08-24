@@ -384,3 +384,74 @@ func TestCommandService_StartStopProgressFlusher_DrainsOnStop(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int64(8000), wp.Position.Milliseconds())
 }
+
+// panickingProgressRepo panics on the first UpsertMany and behaves normally
+// afterwards - the shape of a driver that trips once (a nil map, a closed
+// pool) rather than returning an error.
+type panickingProgressRepo struct {
+	*pbfakes.FakeWatchProgressRepository
+	panicked atomic.Bool
+	calls    atomic.Int64
+}
+
+func newPanickingProgressRepo() *panickingProgressRepo {
+	return &panickingProgressRepo{FakeWatchProgressRepository: pbfakes.NewFakeWatchProgressRepository()}
+}
+
+// UpsertMany must be overridden (no virtual dispatch through embedding).
+func (r *panickingProgressRepo) UpsertMany(ctx context.Context, entries []*playback.WatchProgress) error {
+	r.calls.Add(1)
+	if r.panicked.CompareAndSwap(false, true) {
+		panic("simulated driver panic on the first flush")
+	}
+	return r.FakeWatchProgressRepository.UpsertMany(ctx, entries)
+}
+
+// "One bad flush must cost one flush" - the invariant safeFlush's own comment
+// states. It matters because the goroutine-level recover in Start() would
+// otherwise catch the panic and fall straight into the deferred final-flush
+// and close(doneCh): the loop ends for the REST OF THE PROCESS LIFETIME,
+// watch progress is silently never persisted again for any profile, pending
+// grows unbounded, and Stop() still returns cleanly because doneCh is already
+// closed. Nothing crashes, nothing logs an error the operator would connect
+// to "my resume position stopped working".
+//
+// Every existing test in this file makes the repo return an ERROR; none makes
+// it panic, so the recover that exists precisely for this was never exercised.
+func TestWatchProgressBuffer_APanickingFlushCostsOnlyThatFlush(t *testing.T) {
+	repo := newPanickingProgressRepo()
+	b := appplayback.NewWatchProgressBuffer(repo, 10*time.Millisecond)
+	b.Start(t.Context())
+
+	// First tick: the flush panics and is contained.
+	b.Enqueue(&playback.WatchProgress{
+		ProfileID: shared.ProfileID("prf-1"), MediaItemID: shared.MediaItemID("mi-1"),
+		Position: mustDurationMs(1000),
+	})
+	waitForCalls(t, &repo.calls, 1)
+
+	// The loop must still be alive: a LATER write has to reach the repo.
+	b.Enqueue(&playback.WatchProgress{
+		ProfileID: shared.ProfileID("prf-2"), MediaItemID: shared.MediaItemID("mi-2"),
+		Position: mustDurationMs(2000),
+	})
+	waitForCalls(t, &repo.calls, 2)
+
+	b.Stop()
+	stored, err := repo.GetByProfileAndMedia(context.Background(), "prf-2", "mi-2")
+	require.NoError(t, err)
+	require.NotNil(t, stored, "progress written after a panicking flush must still be persisted")
+	assert.Equal(t, int64(2000), stored.Position.Milliseconds())
+}
+
+func waitForCalls(t *testing.T, calls *atomic.Int64, want int64) {
+	t.Helper()
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		if calls.Load() >= want {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatalf("timed out waiting for %d flush call(s), got %d - the flush loop died on the panic", want, calls.Load())
+}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"math/bits"
 	"math/rand"
+	"strconv"
 	"testing"
 
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
@@ -265,6 +266,61 @@ func TestChooseAnchorIndices(t *testing.T) {
 				t.Errorf("chooseAnchorIndices(%d,%d) = %v, want %v", c.n, c.max, got, c.want)
 				break
 			}
+		}
+	}
+}
+
+// MaxIntroStartMs is the ONE thing standing between a recurring in-episode
+// element - a chapter card, a flashback, a "previously on" block that happens
+// to share an audio signature across the season - and a "Skip Intro" button
+// offered nine minutes into an episode. The cap had no test anywhere in the
+// repo (zero occurrences of MaxIntroStartMs in any *_test.go), on either of
+// its two call sites, so raising or dropping it would have been invisible.
+//
+// Same fixture as TestClusterSeasonIntro_ReturnsCarrierHints, with the cap
+// pulled below the deepest carrier: the shallow ones must survive, the deep
+// one must be dropped, and nothing else may change.
+func TestClusterSeasonIntro_DropsCarriersPastTheStartCap(t *testing.T) {
+	rng := rand.New(rand.NewSource(7))
+	sig := noiseFrames(rng, 130)
+	const totalLen = 1100
+	// ep4 sits at frame 800, far deeper than the others.
+	fps := map[string][]uint32{
+		"ep1": embedSignature(rng, 200, sig, totalLen, 0),
+		"ep2": embedSignature(rng, 520, sig, totalLen, 0),
+		"ep3": embedSignature(rng, 360, sig, totalLen, 0),
+		"ep4": embedSignature(rng, 800, sig, totalLen, 0),
+		"ep5": embedSignature(rng, 240, sig, totalLen, 0),
+	}
+	var siblings []*domainlibrary.MediaItem
+	for _, id := range []string{"ep1", "ep2", "ep3", "ep4", "ep5"} {
+		siblings = append(siblings, &domainlibrary.MediaItem{
+			ID:       shared.MediaItemID(id),
+			ParentID: "season-1",
+			Type:     domainlibrary.Episode,
+			File:     &domainlibrary.MediaFile{Path: id},
+		})
+	}
+
+	// Cap between ep3 (frame 360) and ep4 (frame 800).
+	capMs := framesToMs(600)
+	cfgRepo := &fakeConfigRepo{values: map[string]string{
+		IntroDetectionConfigKey: `{"max_intro_start_ms": ` + strconv.FormatInt(capMs, 10) + `}`,
+	}}
+	svc := NewIntroDetectionService(
+		&fakeSegmentRepo{}, &fakeTrickplayRepo{},
+		&fakeMediaItemRepo{siblings: siblings}, cfgRepo, &fakeDetector{}, t.TempDir(),
+	)
+	svc.WithChromaprinter(&fakeChromaprinter{byPath: fps})
+
+	hints := svc.clusterSeasonIntro(context.Background(), "season-1")
+
+	if _, ok := hints["ep4"]; ok {
+		t.Errorf("ep4 starts past the cap (%d ms) and must be dropped, got %+v", capMs, hints["ep4"])
+	}
+	for _, id := range []string{"ep1", "ep2", "ep3", "ep5"} {
+		if _, ok := hints[id]; !ok {
+			t.Errorf("%s starts before the cap and must survive it", id)
 		}
 	}
 }
