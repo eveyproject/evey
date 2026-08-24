@@ -63,6 +63,24 @@ var bootWirings = []struct {
 			"and honors X-Forwarded-For from the whole LAN",
 	},
 	{
+		name:       "external subtitle scanner",
+		receiver:   "libCmdSvc",
+		setter:     "WithSubtitleScanner",
+		declaredIn: filepath.Join("internal", "app", "library", "metadata_extraction_service.go"),
+		why: "discoverExternalSubtitles returns nil on a nil scanner, so the .srt files sitting " +
+			"next to a video are never registered as tracks - the player simply offers no " +
+			"external subtitles, and nothing anywhere says why",
+	},
+	{
+		name:       "scan defers to playback",
+		receiver:   "libCmdSvc",
+		setter:     "WithIngestActivePlayback",
+		declaredIn: filepath.Join("internal", "app", "library", "scan_service.go"),
+		why: "shouldScanNow reads a nil gate as \"nobody is watching\" and scans anyway, and " +
+			"ingestPause drops back to the impolite inter-file gap - a full library walk lands on " +
+			"top of a viewing",
+	},
+	{
 		name:       "intro detection defers to playback",
 		receiver:   "introDetectionSvc",
 		setter:     "WithActivePlayback",
