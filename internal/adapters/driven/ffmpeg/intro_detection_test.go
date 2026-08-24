@@ -301,3 +301,30 @@ func TestEndCreditsArgs_WindowIsIndependentOfDeclaredDuration(t *testing.T) {
 		require.Equal(t, "600.000", args[idx+1], "start=%v must not widen the window", startSec)
 	}
 }
+
+// TestDetectArgs_OneDecodedStreamPerMuxer pins the structural rule the
+// 2026-08-24 incident bought: a detection argv must never feed a video filter
+// AND an audio filter into the same muxer. After an input seek on some MKVs the
+// two timelines resume far apart and the interleave queue buffers decoded video
+// frames without bound (isolated on the incident's files: video alone 141 MiB,
+// audio alone 8 MiB, combined OOM at >500 MiB/s).
+func TestDetectArgs_OneDecodedStreamPerMuxer(t *testing.T) {
+	t.Parallel()
+
+	for name, args := range map[string][]string{
+		"blackDetectArgs":   blackDetectArgs("/tv/ep.mkv", 80, 130),
+		"silenceDetectArgs": silenceDetectArgs("/tv/ep.mkv", 80, 130),
+		"endCreditsArgs":    endCreditsArgs("/tv/ep.mkv", 1500, 600),
+	} {
+		hasVF := slices.Contains(args, "-vf")
+		hasAF := slices.Contains(args, "-af")
+		require.False(t, hasVF && hasAF,
+			"%s: -vf and -af in one invocation share a muxer whose interleave queue is unbounded after -ss", name)
+		if hasVF {
+			require.True(t, slices.Contains(args, "-an"), "%s: a video pass must drop the audio stream explicitly", name)
+		}
+		if hasAF {
+			require.True(t, slices.Contains(args, "-vn"), "%s: an audio pass must drop the video stream explicitly", name)
+		}
+	}
+}

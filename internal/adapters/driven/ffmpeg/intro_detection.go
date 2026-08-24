@@ -158,31 +158,64 @@ func (d *IntroDetector) AudioFallback(ctx context.Context, filePath string, maxS
 	return int64(rStart * 1000), int64(rEnd * 1000), true, nil
 }
 
-// runDetect executes FFmpeg with silencedetect and blackdetect filters and parses
-// the stderr output.
-func (d *IntroDetector) runDetect(ctx context.Context, filePath string, startSec, durationSec float64) (silences, blacks []floatRange, err error) {
-	args := []string{
+// blackDetectArgs and silenceDetectArgs each build a SINGLE-output argv. They
+// exist as separate builders because feeding -vf and -af into one `-f null`
+// muxer is what took the host down on 2026-08-24: after an input seek (-ss) on
+// some MKVs the audio and video timelines resume far apart, and the muxer's
+// interleave queue buffers DECODED video frames (wrapped_avframe) while it
+// waits for the other stream - unbounded, measured at >500 MiB/s until OOM.
+// The same command with -ss 0 stays at ~140 MiB, and each half alone is
+// bounded (video 141 MiB, audio 8 MiB, combined OOM - isolated on the
+// incident's own files). One decoded stream per muxer, structurally.
+func blackDetectArgs(filePath string, startSec, durationSec float64) []string {
+	return []string{
 		"-threads", strconv.Itoa(introFFmpegThreads()),
 		"-ss", strconv.FormatFloat(startSec, 'f', 3, 64),
 		"-t", strconv.FormatFloat(durationSec, 'f', 3, 64),
 		"-i", filePath,
+		"-an",
 		"-vf", "blackdetect=d=0.1:pix_th=0.10",
+		"-f", "null",
+		"-",
+	}
+}
+
+func silenceDetectArgs(filePath string, startSec, durationSec float64) []string {
+	return []string{
+		"-threads", strconv.Itoa(introFFmpegThreads()),
+		"-ss", strconv.FormatFloat(startSec, 'f', 3, 64),
+		"-t", strconv.FormatFloat(durationSec, 'f', 3, 64),
+		"-i", filePath,
+		"-vn",
 		"-af", "silencedetect=n=-50dB:d=0.5",
 		"-f", "null",
 		"-",
 	}
-	cmd := lowPriorityCommand(ctx, d.binary, args...)
-	var stderrBuf bytes.Buffer
-	cmd.Stderr = &stderrBuf
-	// ffmpeg exits non-zero for -f null, so the exit code alone says nothing and
-	// stderr is parsed regardless. A process killed by a SIGNAL is a different
-	// event: swallowing it reported an OOM kill as "nothing found", which sent
-	// the media back through the sweep to kill the host again.
-	if runErr := d.runPausable(cmd); killedBySignal(ctx, runErr) {
-		return nil, nil, fmt.Errorf("%w: %s: %w", domainlibrary.ErrDetectorKilled, filePath, runErr)
-	}
+}
 
-	silences, blacks = parseDetections(stderrBuf.String())
+// runDetect runs the silence and black scans as TWO ffmpeg invocations (see the
+// builders above for why they must never share a muxer) and parses both stderrs.
+func (d *IntroDetector) runDetect(ctx context.Context, filePath string, startSec, durationSec float64) (silences, blacks []floatRange, err error) {
+	// Audio first: it decodes in seconds, so when the media is unreadable the
+	// pass fails before paying the video decode.
+	for _, args := range [][]string{
+		silenceDetectArgs(filePath, startSec, durationSec),
+		blackDetectArgs(filePath, startSec, durationSec),
+	} {
+		cmd := lowPriorityCommand(ctx, d.binary, args...)
+		var stderrBuf bytes.Buffer
+		cmd.Stderr = &stderrBuf
+		// ffmpeg exits non-zero for -f null, so the exit code alone says nothing
+		// and stderr is parsed regardless. A process killed by a SIGNAL is a
+		// different event: swallowing it reported an OOM kill as "nothing found",
+		// which sent the media back through the sweep to kill the host again.
+		if runErr := d.runPausable(cmd); killedBySignal(ctx, runErr) {
+			return nil, nil, fmt.Errorf("%w: %s: %w", domainlibrary.ErrDetectorKilled, filePath, runErr)
+		}
+		s, b := parseDetections(stderrBuf.String())
+		silences = append(silences, s...)
+		blacks = append(blacks, b...)
+	}
 	return silences, blacks, nil
 }
 
