@@ -63,6 +63,31 @@ var bootWirings = []struct {
 			"and honors X-Forwarded-For from the whole LAN",
 	},
 	{
+		name:       "intro detection chapter repo",
+		receiver:   "introDetectionSvc",
+		setter:     "WithChapterRepo",
+		declaredIn: filepath.Join("internal", "app", "library", "intro_detection_service.go"),
+		why: "chapterPass returns early on a nil repo, so the ONE authoritative intro source " +
+			"(chapters labelled by the uploader) stops winning and every heuristic below it " +
+			"silently takes over",
+	},
+	{
+		name:       "intro fingerprint cache",
+		receiver:   "introDetectionSvc",
+		setter:     "WithFingerprintCache",
+		declaredIn: filepath.Join("internal", "app", "library", "intro_detection_service.go"),
+		why: "pHash fingerprints are recomputed on every pass instead of read from the cache - " +
+			"correct, but it multiplies the catalogue sweep, which is already measured in days",
+	},
+	{
+		name:       "intro audio fingerprint cache",
+		receiver:   "introDetectionSvc",
+		setter:     "WithAudioFingerprintCache",
+		declaredIn: filepath.Join("internal", "app", "library", "intro_detection_service.go"),
+		why: "Chromaprint fingerprints are recomputed by fpcalc on every pass instead of read " +
+			"from the cache - same cost, on the slowest signal of the pipeline",
+	},
+	{
 		name:       "artwork post-save hook",
 		receiver:   "enricher",
 		setter:     "SetArtworkPostSaveHook",
