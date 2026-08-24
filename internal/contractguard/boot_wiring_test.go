@@ -63,6 +63,30 @@ var bootWirings = []struct {
 			"and honors X-Forwarded-For from the whole LAN",
 	},
 	{
+		name:       "intro detection defers to playback",
+		receiver:   "introDetectionSvc",
+		setter:     "WithActivePlayback",
+		declaredIn: filepath.Join("internal", "app", "library", "intro_detection_service.go"),
+		why: "`if s.activePlayback != nil && s.activePlayback() > 0` is what makes the detector " +
+			"wait: nil means it spawns its ffmpeg passes WHILE somebody is watching, which is the " +
+			"drain that starved playback once already",
+	},
+	{
+		name:       "hls orchestrator session limiter",
+		receiver:   "hlsVODOrch",
+		setter:     "WithVideoSessionLimiter",
+		declaredIn: filepath.Join("internal", "app", "transcoding", "segment_orchestrator.go"),
+		why: "`if o.videoLimiter != nil` is the concurrent-transcode cap; nil lifts it entirely on " +
+			"a machine the whole ladder is calibrated around",
+	},
+	{
+		name:       "hls software producer session limiter",
+		receiver:   "hlsVODSoftware",
+		setter:     "WithVideoSessionLimiter",
+		declaredIn: filepath.Join("internal", "app", "transcoding", "software_producer.go"),
+		why: "same cap on the software path",
+	},
+	{
 		name:       "playlist media checker",
 		receiver:   "playlistSvc",
 		setter:     "WithMediaChecker",
