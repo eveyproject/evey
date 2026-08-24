@@ -253,6 +253,11 @@ func (h *libraryHandler) overlayMediaItemsOverrides(ctx context.Context, ids []s
 	}
 	ovMap, oErr := h.metadataSvc.BatchListOverrides(ctx, ids)
 	if oErr != nil {
+		// Best-effort like fetchMediaItemsArtwork next door, but say so: the
+		// grid then shows provider titles where an admin corrected them, and a
+		// silent return leaves no way to tell that from "nothing was ever
+		// corrected".
+		slog.WarnContext(ctx, "overlay media item overrides", slog.Int("ids", len(ids)), slog.Any("err", oErr))
 		return
 	}
 	for _, item := range items {

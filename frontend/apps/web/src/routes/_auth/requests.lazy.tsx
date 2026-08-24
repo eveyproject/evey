@@ -256,7 +256,19 @@ function SearchTab({ myRequests }: { myRequests: V1MediaRequestProto[] }) {
   );
 }
 
-function MineTab({ requests, isLoading }: { requests: V1MediaRequestProto[]; isLoading: boolean }) {
+function MineTab({
+  requests,
+  isLoading,
+  isError,
+  error,
+  onRetry,
+}: {
+  requests: V1MediaRequestProto[];
+  isLoading: boolean;
+  isError?: boolean;
+  error?: unknown;
+  onRetry?: () => void;
+}) {
   const { t } = useTranslation();
 
   if (isLoading) {
@@ -265,6 +277,10 @@ function MineTab({ requests, isLoading }: { requests: V1MediaRequestProto[]; isL
         <Spinner />
       </div>
     );
+  }
+
+  if (isError) {
+    return <FetchErrorState error={error} onRetry={onRetry} />;
   }
 
   if (requests.length === 0) {
@@ -323,10 +339,20 @@ function RequestsPage() {
   const [tab, setTab] = useState<Tab>("search");
 
   const { data: policy, isLoading: policyLoading, isError: policyError, error: policyErr, refetch: refetchPolicy } = useMediaRequestServiceGetRequestPolicy();
-  const { data: myRequestsResp, isLoading: mineLoading } = useMediaRequestServiceListMyRequests(
+  const {
+    data: myRequestsResp,
+    isLoading: mineLoading,
+    isError: mineError,
+    error: mineErr,
+    refetch: refetchMine,
+  } = useMediaRequestServiceListMyRequests(
     undefined,
     { query: { enabled: policy?.canRequest === true } },
   );
+  // Same reasoning as the policy read above: an unread list is not an empty
+  // one. The empty list also silently clears requestedKeys, which is what puts
+  // the "already requested" badge on a search result - so a failed read lets
+  // the viewer re-submit what they already asked for.
   const myRequests = myRequestsResp?.items ?? [];
 
   if (policyLoading) {
@@ -379,7 +405,13 @@ function RequestsPage() {
       {tab === "search" ? (
         <SearchTab myRequests={myRequests} />
       ) : (
-        <MineTab requests={myRequests} isLoading={mineLoading} />
+        <MineTab
+          requests={myRequests}
+          isLoading={mineLoading}
+          isError={mineError}
+          error={mineErr}
+          onRetry={() => void refetchMine()}
+        />
       )}
     </div>
   );
