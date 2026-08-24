@@ -1,6 +1,7 @@
 import { Component, type ReactNode } from "react";
 import { TriangleAlert } from "lucide-react";
 import i18n from "@/i18n";
+import { isChunkLoadError, reloadOnceForChunkError } from "@/lib/chunkError";
 
 interface Props {
   children: ReactNode;
@@ -17,23 +18,19 @@ export class ErrorBoundary extends Component<Props, State> {
     return { hasError: true };
   }
 
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    // Auto-reload once on ChunkLoadError (stale lazy chunks after deploy)
-    if (
-      error.name === "ChunkLoadError" ||
-      (error.message && /loading chunk|dynamically imported module/i.test(error.message))
-    ) {
-      const key = "evey_chunk_reload";
-      if (!sessionStorage.getItem(key)) {
-        sessionStorage.setItem(key, "1");
-        window.location.reload();
-        return;
-      }
-      sessionStorage.removeItem(key);
-    }
-    if (import.meta.env.DEV) {
-      console.error("ErrorBoundary caught:", error, errorInfo);
-    }
+  // `unknown`, not `Error`: what React hands over for a failed lazy chunk is
+  // `undefined`, and reading `.name` off it threw inside this very handler - the
+  // boundary then rendered nothing and its own TypeError became the message the
+  // user saw ("can't access property "name", t is undefined"). Nothing in here
+  // may assume a shape; chunkError.ts does the reading.
+  componentDidCatch(error: unknown, errorInfo: React.ErrorInfo) {
+    // Auto-reload once on a failed chunk load (network hiccup, or stale lazy
+    // chunks still requested by a tab left open across a deploy).
+    if (isChunkLoadError(error) && reloadOnceForChunkError()) return;
+    // Logged in production too. The DEV-only branch this replaces meant a prod
+    // crash left no trace anywhere - console, server, nothing - so the screen
+    // above had to be traced back through the minified bundle.
+    console.error("ErrorBoundary caught:", error, errorInfo?.componentStack);
   }
 
   render() {

@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi } from "vitest";
 import { RouteErrorComponent } from "./RouteErrorComponent";
+import { resetPreloadErrorForTests } from "@/lib/chunkError";
 
 const mockNavigate = vi.fn();
 const mockInvalidate = vi.fn();
@@ -28,6 +29,15 @@ describe("RouteErrorComponent", () => {
   it("renders fallback description when error has no message", () => {
     const emptyError = new Error("");
     render(<RouteErrorComponent error={emptyError} reset={defaultReset} />);
+    expect(screen.getByText(/error occurred while loading/i)).toBeInTheDocument();
+  });
+
+  it("renders the fallback description when the thrown value carries no message", () => {
+    // Regression: a route whose lazy chunk failed to load arrives here with
+    // `undefined`, and `error.message` crashed this screen in turn.
+    resetPreloadErrorForTests();
+    sessionStorage.clear();
+    render(<RouteErrorComponent error={undefined as unknown as Error} reset={defaultReset} />);
     expect(screen.getByText(/error occurred while loading/i)).toBeInTheDocument();
   });
 
