@@ -86,6 +86,7 @@ func TestClientsNeverAskForMoreRowsThanTheServerServes(t *testing.T) {
 		want int
 	}
 	var offences []offence
+	var scanned int
 
 	for _, root := range clientRoots {
 		dir := filepath.Join(repoRoot, root)
@@ -115,6 +116,7 @@ func TestClientsNeverAskForMoreRowsThanTheServerServes(t *testing.T) {
 			for i, line := range strings.Split(string(b), "\n") {
 				for _, re := range []*regexp.Regexp{pageSizeLiteral, pageSizeConst} {
 					for _, m := range re.FindAllStringSubmatch(line, -1) {
+						scanned++
 						n, convErr := strconv.Atoi(strings.ReplaceAll(m[1], "_", ""))
 						if convErr != nil || n <= maxPageSize {
 							continue
@@ -129,6 +131,13 @@ func TestClientsNeverAskForMoreRowsThanTheServerServes(t *testing.T) {
 		if err != nil {
 			t.Fatalf("walk %s: %v", root, err)
 		}
+	}
+
+	// The regexes are the whole guard: if a refactor renames the field or the
+	// walk root moves, matching nothing looks exactly like "every client
+	// behaves". Refuse that silence.
+	if scanned == 0 {
+		t.Fatal("no pageSize call site found in the clients - the guard would pass vacuously")
 	}
 
 	for _, o := range offences {

@@ -39,6 +39,7 @@ func TestServerEmittedI18nKeysExistInCatalogue(t *testing.T) {
 
 	type site struct{ file, key string }
 	var missing []site
+	var scanned int
 	seen := map[string]bool{}
 
 	root := filepath.Join(repoRoot, "internal")
@@ -56,6 +57,7 @@ func TestServerEmittedI18nKeysExistInCatalogue(t *testing.T) {
 		}
 		for _, m := range serverErrorKeyRe.FindAllStringSubmatch(string(b), -1) {
 			key := m[1]
+			scanned++
 			// The catalogue answers an unknown key with the key itself.
 			if tr.T(i18n.FallbackLocale, key) == key && !seen[key] {
 				seen[key] = true
@@ -66,6 +68,12 @@ func TestServerEmittedI18nKeysExistInCatalogue(t *testing.T) {
 	})
 	if walkErr != nil {
 		t.Fatalf("walk internal/: %v", walkErr)
+	}
+	// A guard that matches nothing passes forever. Renaming the namespace,
+	// moving the walk root or narrowing the regex must break the check loudly
+	// rather than turn it into a green no-op.
+	if scanned == 0 {
+		t.Fatal("no \"errors.*\" literal found under internal/ - the guard would pass vacuously")
 	}
 
 	if len(missing) > 0 {
