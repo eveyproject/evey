@@ -253,6 +253,15 @@ func (d *DatabaseDumper) CurrentSchemaVersion(ctx context.Context) (string, erro
 	}
 	defer db.Close()
 
+	// Bounded like every other repository here: this runs from the backup
+	// scheduler on the process-root context, which has no deadline, and it
+	// opens its OWN throwaway connection outside the pool - so a database that
+	// stops answering would park the scheduler goroutine on it indefinitely,
+	// and the ticker would stack another one every minute (NextRunAt only
+	// advances once CreateBackup returns).
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+
 	var version int64
 	var dirty bool
 	row := db.QueryRowContext(ctx, `SELECT version, dirty FROM schema_migrations LIMIT 1`)
