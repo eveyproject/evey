@@ -272,6 +272,11 @@ type fakeDetector struct {
 	logoEndMs   int64
 	logoFound   bool
 
+	// precision* is what PrecisionPass answers; zero values keep the echo.
+	precisionStartMs int64
+	precisionEndMs   int64
+	precisionErr     error
+
 	// leadingLogo* is what DetectLeadingLogoBlock answers.
 	leadingLogoStartMs int64
 	leadingLogoEndMs   int64
@@ -295,7 +300,19 @@ type fakeDetector struct {
 func (f *fakeDetector) ExtractTileHashes(_ string, _, _, _, _ int) ([]uint64, error) {
 	return f.tileHashes, nil
 }
+// PrecisionPass echoes its input by default, which the pipeline reads as
+// "found nothing" - that is the historical behaviour and every existing test
+// depends on it. precisionStartMs/precisionEndMs let a test answer something
+// ELSE, which is the only way to reach the refined branch of
+// refineWithPrecisionPass: with both fakes echoing, that branch was
+// unreachable from any test in the repo.
 func (f *fakeDetector) PrecisionPass(_ context.Context, _ string, startSec, endSec, _ float64) (int64, int64, error) {
+	if f.precisionErr != nil {
+		return 0, 0, f.precisionErr
+	}
+	if f.precisionStartMs != 0 || f.precisionEndMs != 0 {
+		return f.precisionStartMs, f.precisionEndMs, nil
+	}
 	return int64(startSec * 1000), int64(endSec * 1000), nil
 }
 func (f *fakeDetector) AudioFallback(_ context.Context, _ string, _ float64) (int64, int64, bool, error) {
