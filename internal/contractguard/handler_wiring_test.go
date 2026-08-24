@@ -123,9 +123,10 @@ func TestRegisteredHandlersGetEveryPortTheyDeclare(t *testing.T) {
 			if keyed[f] {
 				continue
 			}
-			if reason, excused := handlerFieldExceptions[ident.Name][f]; excused {
+			// The exception's value is its reason: it is there to be read in
+			// the source, not consumed here.
+			if _, excused := handlerFieldExceptions[ident.Name][f]; excused {
 				usedException[ident.Name+"."+f] = true
-				_ = reason
 				continue
 			}
 			missing = append(missing, f)
