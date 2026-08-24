@@ -2,6 +2,7 @@ package grpcapi
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
@@ -146,6 +147,25 @@ func TestGetMyThumbRating_NotFound(t *testing.T) {
 	resp, err := f.handler.GetMyThumbRating(ctx, &eveyv1.GetMyThumbRatingRequest{MediaItemId: "m1"})
 	require.NoError(t, err)
 	assert.Equal(t, int32(0), resp.Value)
+}
+
+// The repository already separates the two answers - shared.ErrNotFound for
+// "this profile has not rated it", anything else for "the read failed" - and
+// the handler collapsed them into Value: 0. A neutral thumb is a STATEMENT
+// about what the viewer chose; on a failed read the server does not know what
+// they chose, and a client that then writes a rating overwrites an opinion it
+// never saw. Logged at Debug on top, which is invisible in production.
+func TestGetMyThumbRating_ReadErrorIsNotANeutralThumb(t *testing.T) {
+	t.Parallel()
+	f := newRatingFixture()
+	f.seedMedia("m1", "lib1")
+	f.thumbRepo.Err = errors.New("db down")
+	ctx := authedCtx("u1", "p1", true)
+
+	resp, err := f.handler.GetMyThumbRating(ctx, &eveyv1.GetMyThumbRatingRequest{MediaItemId: "m1"})
+	if status.Code(err) != codes.Internal {
+		t.Fatalf("want Internal when the rating cannot be read, got err=%v resp=%v", err, resp)
+	}
 }
 
 // --- IDOR: non-admin without library access ---

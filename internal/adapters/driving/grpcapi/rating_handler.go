@@ -2,6 +2,7 @@ package grpcapi
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 
@@ -99,8 +100,13 @@ func (h *ratingHandler) GetMyThumbRating(ctx context.Context, req *eveyv1.GetMyT
 	}
 	claims := interceptors.ClaimsFromContext(ctx)
 	thumbRating, getErr := h.starSvc.GetThumb(ctx, claims.ProfileID, req.MediaItemId)
-	if getErr != nil {
-		slog.Debug("get thumb rating not found", slog.Any("err", getErr))
+	if getErr != nil && !errors.Is(getErr, shared.ErrNotFound) {
+		// Value: 0 is a neutral thumb, which is a STATEMENT about what the
+		// viewer chose. On a failed read the server does not know what they
+		// chose, and a client acting on that answer overwrites an opinion it
+		// never saw. The repository already tells the two apart.
+		span.RecordError(getErr)
+		return nil, internalError(ctx, "get thumb rating", getErr)
 	}
 	if thumbRating == nil {
 		return &eveyv1.GetMyThumbRatingResponse{Value: 0}, nil
