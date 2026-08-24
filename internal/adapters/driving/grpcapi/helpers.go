@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
+	applibrary "github.com/evey-project/evey/internal/app/library"
 	appuser "github.com/evey-project/evey/internal/app/user"
 	"github.com/evey-project/evey/internal/domain/user"
 	"google.golang.org/grpc/codes"
@@ -212,4 +213,45 @@ func resolveProfileID(claims *user.Claims, reqProfileID string) (string, error) 
 		return claims.ProfileID, nil
 	}
 	return "", status.Error(codes.PermissionDenied, "cannot access another profile")
+}
+
+// requireMediaLibraryAccess refuses a media item the caller's user has no
+// library grant for, answering NotFound so an inaccessible id is
+// indistinguishable from a missing one (no existence oracle).
+//
+// One implementation, two callers: favoriteHandler.requireMediaAccess and
+// playlistHandler both ask the exact same question - "may this caller act on
+// this media_item_id?" - and AddPlaylistItem simply never asked it, while its
+// sibling AddFavorite did. Copying the body a third time is how the two
+// existing copies already drifted (favorite bypasses admin BEFORE resolving
+// the item, rating resolves first).
+//
+// A missing port REFUSES rather than panics or fails open: this path started
+// dereferencing libQuery only once the fail-open guard was removed.
+func requireMediaLibraryAccess(
+	ctx context.Context,
+	mediaItemID string,
+	libQuery *applibrary.QueryService,
+	userAccess *appuser.AccessService,
+	who string,
+) error {
+	claims := interceptors.ClaimsFromContext(ctx)
+	if claims == nil {
+		return status.Error(codes.Unauthenticated, "unauthenticated")
+	}
+	if claims.IsAdmin {
+		return nil
+	}
+	if userAccess == nil || libQuery == nil {
+		return errUserAccessNotConfigured(ctx, who)
+	}
+	item, err := libQuery.GetMediaItem(ctx, mediaItemID)
+	if err != nil || item == nil {
+		return status.Error(codes.NotFound, "not found")
+	}
+	ok, accessErr := userAccess.HasLibraryAccess(ctx, shared.UserID(claims.UserID), item.LibraryID)
+	if accessErr != nil || !ok {
+		return status.Error(codes.NotFound, "not found")
+	}
+	return nil
 }

@@ -21,13 +21,34 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func newTestPlaylistHandler() *playlistHandler {
+// Wired like production (server.go registers this handler with libQuery AND
+// userAccess): a harness that leaves the access ports nil cannot exercise the
+// guards that run on every write, and a guard added later then looks like it
+// broke the suite when it is the fake that was lying about the shape.
+// Returns the media reader and the access grants so a test can seed an item
+// and say who may see it.
+func newTestPlaylistHandlerWithAccess() (*playlistHandler, *libfakes.FakeMediaItemQueryRepo, *userfakes.FakeLibraryAccessRepository) {
 	plRepo := playlistfakes.NewFakePlaylistRepository()
 	itemRepo := playlistfakes.NewFakePlaylistItemRepository()
 	smartQ := playlistfakes.NewFakeSmartPlaylistQuerier()
 	mediaReader := libfakes.NewFakeMediaItemQueryRepo()
 	svc := appplaylist.NewService(plRepo, itemRepo, smartQ, mediaReader)
-	return &playlistHandler{svc: svc}
+	libQuery := applibrary.NewQueryService(
+		libfakes.NewFakeLibraryQueryRepo(), mediaReader,
+		libfakes.NewFakeMediaStreamRepository(), libfakes.NewFakeSearchIndex())
+	libAccess := userfakes.NewFakeLibraryAccessRepository()
+	userAccess := appuser.NewAccessService(
+		userfakes.NewFakeUserRepository(), userfakes.NewFakeAPIKeyRepository(),
+		userfakes.NewFakeInviteLinkRepository(), userfakes.NewFakeQuickConnectRepository(),
+		userfakes.NewFakePasswordHasher(), sharedfakes.NewFakeEventBus(),
+		appuser.WithLibraryAccess(libAccess),
+	)
+	return &playlistHandler{svc: svc, libQuery: libQuery, userAccess: userAccess}, mediaReader, libAccess
+}
+
+func newTestPlaylistHandler() *playlistHandler {
+	h, _, _ := newTestPlaylistHandlerWithAccess()
+	return h
 }
 
 func TestPlaylistListPlaylists_NoAuth(t *testing.T) {
@@ -189,7 +210,10 @@ func TestPlaylistAddItem_NoAuth(t *testing.T) {
 }
 
 func TestPlaylistAddItem_WrongOwner(t *testing.T) {
-	h := newTestPlaylistHandler()
+	h, mediaReader, libAccess := newTestPlaylistHandlerWithAccess()
+	// The add guard now asks whether the caller may see this media: say so.
+	mediaReader.Seed(&library.MediaItem{ID: "mi-1", Title: "Visible", LibraryID: "lib-ok"})
+	libAccess.Grant(context.Background(), "user-1", "lib-ok")
 	ctxOwner := ctxWithClaims("user-1", "profile-1", false)
 	created, err := h.CreatePlaylist(ctxOwner, &eveyv1.CreatePlaylistRequest{
 		Name: "Mine",
@@ -213,7 +237,10 @@ func TestPlaylistAddItem_WrongOwner(t *testing.T) {
 }
 
 func TestPlaylistAddItem_Owner(t *testing.T) {
-	h := newTestPlaylistHandler()
+	h, mediaReader, libAccess := newTestPlaylistHandlerWithAccess()
+	// The add guard now asks whether the caller may see this media: say so.
+	mediaReader.Seed(&library.MediaItem{ID: "mi-1", Title: "Visible", LibraryID: "lib-ok"})
+	libAccess.Grant(context.Background(), "user-1", "lib-ok")
 	ctx := ctxWithClaims("user-1", "profile-1", false)
 	created, err := h.CreatePlaylist(ctx, &eveyv1.CreatePlaylistRequest{
 		Name: "Mine",
@@ -288,7 +315,11 @@ func TestPlaylistUpdatePlaylist_NoAuth(t *testing.T) {
 }
 
 func TestPlaylistGetPlaylistItems_Success(t *testing.T) {
-	h := newTestPlaylistHandler()
+	h, mediaReader, libAccess := newTestPlaylistHandlerWithAccess()
+	// The add guard now asks whether the caller may see this media: say so.
+	mediaReader.Seed(&library.MediaItem{ID: "mi-1", Title: "Visible", LibraryID: "lib-ok"})
+	mediaReader.Seed(&library.MediaItem{ID: "mi-2", Title: "Visible Two", LibraryID: "lib-ok"})
+	libAccess.Grant(context.Background(), "user-1", "lib-ok")
 	ctx := ctxWithClaims("user-1", "profile-1", false)
 	created, err := h.CreatePlaylist(ctx, &eveyv1.CreatePlaylistRequest{
 		Name: "My List",
@@ -349,8 +380,15 @@ func TestPlaylistGetPlaylistItems_FiltersInaccessibleLibrary(t *testing.T) {
 	if _, addErr := h.AddPlaylistItem(ctx, &eveyv1.AddPlaylistItemRequest{Id: created.Id, MediaItemId: "mi-ok"}); addErr != nil {
 		t.Fatalf("AddPlaylistItem mi-ok: %v", addErr)
 	}
-	if _, addErr := h.AddPlaylistItem(ctx, &eveyv1.AddPlaylistItemRequest{Id: created.Id, MediaItemId: "mi-secret"}); addErr != nil {
-		t.Fatalf("AddPlaylistItem mi-secret: %v", addErr)
+	// mi-secret goes in through the REPOSITORY, not the handler: the write is
+	// now guarded (see TestPlaylistAddPlaylistItem_RefusesInaccessibleMedia),
+	// but rows added before that guard existed - or before the caller lost
+	// access - are still out there. The read filter is what protects those, and
+	// that is exactly what this test must keep proving.
+	if addErr := itemRepo.Add(context.Background(), &playlist.PlaylistItem{
+		PlaylistID: created.Id, MediaItemID: "mi-secret", SortOrder: 99,
+	}); addErr != nil {
+		t.Fatalf("seed mi-secret directly: %v", addErr)
 	}
 
 	resp, err := h.GetPlaylistItems(ctx, &eveyv1.GetPlaylistItemsRequest{Id: created.Id})
@@ -395,7 +433,10 @@ func TestPlaylistGetPlaylistItems_NoAuth(t *testing.T) {
 }
 
 func TestPlaylistRemovePlaylistItem_Success(t *testing.T) {
-	h := newTestPlaylistHandler()
+	h, mediaReader, libAccess := newTestPlaylistHandlerWithAccess()
+	// The add guard now asks whether the caller may see this media: say so.
+	mediaReader.Seed(&library.MediaItem{ID: "mi-1", Title: "Visible", LibraryID: "lib-ok"})
+	libAccess.Grant(context.Background(), "user-1", "lib-ok")
 	ctx := ctxWithClaims("user-1", "profile-1", false)
 	created, err := h.CreatePlaylist(ctx, &eveyv1.CreatePlaylistRequest{
 		Name: "My List",
@@ -584,4 +625,55 @@ func TestPlaylistGetItems_HidesParentallyBlockedTitles(t *testing.T) {
 	if !sawSafe {
 		t.Error("the permitted title must still be listed")
 	}
+}
+
+// AddPlaylistItem never asked whether the caller may see the media it is
+// adding, while its sibling AddFavorite did (favorite_handler.go, via
+// requireMediaAccess). The read side saved face - GetPlaylistItems filters
+// inaccessible rows back out - but the write went through, so the row landed
+// in the table and the FK on media_item_id turned "add it and see" into an
+// existence oracle for any id on the server.
+//
+// The guard belongs on the WRITE, exactly like favourites: same question,
+// same answer, and NotFound rather than PermissionDenied so an inaccessible
+// id stays indistinguishable from a missing one.
+func TestPlaylistAddPlaylistItem_RefusesInaccessibleMedia(t *testing.T) {
+	plRepo := playlistfakes.NewFakePlaylistRepository()
+	itemRepo := playlistfakes.NewFakePlaylistItemRepository()
+	smartQ := playlistfakes.NewFakeSmartPlaylistQuerier()
+	mediaReader := libfakes.NewFakeMediaItemQueryRepo()
+	svc := appplaylist.NewService(plRepo, itemRepo, smartQ, mediaReader)
+	libQuery := applibrary.NewQueryService(
+		libfakes.NewFakeLibraryQueryRepo(), mediaReader,
+		libfakes.NewFakeMediaStreamRepository(), libfakes.NewFakeSearchIndex())
+	libAccess := userfakes.NewFakeLibraryAccessRepository()
+	userAccess := appuser.NewAccessService(
+		userfakes.NewFakeUserRepository(), userfakes.NewFakeAPIKeyRepository(),
+		userfakes.NewFakeInviteLinkRepository(), userfakes.NewFakeQuickConnectRepository(),
+		userfakes.NewFakePasswordHasher(), sharedfakes.NewFakeEventBus(),
+		appuser.WithLibraryAccess(libAccess),
+	)
+	h := &playlistHandler{svc: svc, libQuery: libQuery, userAccess: userAccess}
+
+	libAccess.Grant(context.Background(), "user-2", "lib-ok")
+	mediaReader.Seed(&library.MediaItem{ID: "mi-ok", Title: "Visible", LibraryID: "lib-ok"})
+	mediaReader.Seed(&library.MediaItem{ID: "mi-secret", Title: "Hidden", LibraryID: "lib-secret"})
+
+	ctx := ctxWithClaims("user-2", "profile-2", false)
+	created, err := h.CreatePlaylist(ctx, &eveyv1.CreatePlaylistRequest{
+		Name: "Mine", Type: eveyv1.PlaylistType_PLAYLIST_TYPE_MANUAL,
+	})
+	if err != nil {
+		t.Fatalf("CreatePlaylist: %v", err)
+	}
+	if _, addErr := h.AddPlaylistItem(ctx, &eveyv1.AddPlaylistItemRequest{Id: created.Id, MediaItemId: "mi-ok"}); addErr != nil {
+		t.Fatalf("an accessible item must still be addable: %v", addErr)
+	}
+	_, addErr := h.AddPlaylistItem(ctx, &eveyv1.AddPlaylistItemRequest{Id: created.Id, MediaItemId: "mi-secret"})
+	assertCode(t, addErr, codes.NotFound)
+
+	// A completely unknown id must answer the SAME way as an inaccessible one,
+	// or the difference is the oracle.
+	_, unknownErr := h.AddPlaylistItem(ctx, &eveyv1.AddPlaylistItemRequest{Id: created.Id, MediaItemId: "mi-nope"})
+	assertCode(t, unknownErr, codes.NotFound)
 }

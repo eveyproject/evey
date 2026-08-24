@@ -289,6 +289,14 @@ func (h *playlistHandler) AddPlaylistItem(ctx context.Context, req *eveyv1.AddPl
 	if err != nil {
 		return nil, fmt.Errorf("playlistHandler.AddPlaylistItem: %w", err)
 	}
+	// Same question AddFavorite asks before writing: may this caller act on
+	// this media_item_id? The read side already filters inaccessible rows back
+	// out, but the row still landed - and playlist_items.media_item_id carries
+	// an FK to media_items, so "add it and see" answered whether an arbitrary
+	// id exists on the server.
+	if accessErr := requireMediaLibraryAccess(ctx, req.MediaItemId, h.libQuery, h.userAccess, "playlistHandler.AddPlaylistItem"); accessErr != nil {
+		return nil, fmt.Errorf("playlistHandler.AddPlaylistItem: %w", accessErr)
+	}
 	if err := h.svc.AddItemWithType(ctx, req.Id, req.MediaItemId, shared.ProfileID(claims.ProfileID), req.MediaType); err != nil {
 		switch {
 		case errors.Is(err, appplaylist.ErrNotOwner), errors.Is(err, shared.ErrNotFound):
