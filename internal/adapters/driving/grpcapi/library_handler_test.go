@@ -3,6 +3,7 @@ package grpcapi
 import (
 	"context"
 	"errors"
+	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
 	"testing"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
@@ -891,4 +892,73 @@ func TestLibraryHandler_FilterMediaItems_AppliesOverridesLikeTheListPath(t *test
 	require.Len(t, filtered.Items, 1)
 	assert.Equal(t, "Overridden Title", filtered.Items[0].Title,
 		"a filtered card must carry the same title as an unfiltered one")
+}
+
+// stubMediaTranslations serves one locale's translations from a map.
+type stubMediaTranslations struct {
+	byID map[string]*library.MediaItemTranslation
+}
+
+func (s *stubMediaTranslations) GetByMediaItemAndLocale(_ context.Context, mediaItemID, _ string) (*library.MediaItemTranslation, error) {
+	return s.byID[mediaItemID], nil
+}
+func (s *stubMediaTranslations) GetByMediaItem(_ context.Context, _ string) ([]*library.MediaItemTranslation, error) {
+	return nil, nil
+}
+func (s *stubMediaTranslations) GetByMediaItemsAndLocale(_ context.Context, ids []string, _ string) (map[string]*library.MediaItemTranslation, error) {
+	out := make(map[string]*library.MediaItemTranslation, len(ids))
+	for _, id := range ids {
+		if t := s.byID[id]; t != nil {
+			out[id] = t
+		}
+	}
+	return out, nil
+}
+
+// The operator's correction WINS over the auto-translation.
+//
+// Both overlays write the same field, in sequence: overlayMediaItemsLocale
+// then overlayMediaItemsOverrides. The precedence is stated in the code's own
+// comment ("These win over the auto-translation too") and asserted nowhere -
+// no test in this package ever switched the locale branch ON before applying
+// an override, so the two had never met. Swap the two calls and nothing fails:
+// a title an admin fixed by hand silently reverts to the machine translation
+// on the next refresh, in exactly one locale, which is the hardest kind of
+// report to get back from a user.
+func TestLibraryHandler_ListMediaItems_OverrideBeatsAutoTranslation(t *testing.T) {
+	libCmdRepo := libfakes.NewFakeLibraryCommandRepo()
+	libQueryRepo := libfakes.NewFakeLibraryQueryRepo()
+	mediaQueryRepo := libfakes.NewFakeMediaItemQueryRepo()
+	trans := &stubMediaTranslations{byID: map[string]*library.MediaItemTranslation{
+		"mi-both": {MediaItemID: "mi-both", Locale: "fr", Title: "Titre traduit automatiquement"},
+		"mi-tr":   {MediaItemID: "mi-tr", Locale: "fr", Title: "Traduction seule"},
+	}}
+	querySvc := applibrary.NewQueryService(
+		libQueryRepo, mediaQueryRepo,
+		libfakes.NewFakeMediaStreamRepository(), libfakes.NewFakeSearchIndex(),
+		applibrary.WithTranslations(trans, nil),
+	)
+	_ = libCmdRepo
+
+	overrideRepo := metafakes.NewFakeMetadataOverrideRepository()
+	metaSvc := metadata.NewQueryService(overrideRepo, metafakes.NewFakeArtworkRepository(), nil)
+	h := &libraryHandler{query: querySvc, metadataSvc: metaSvc}
+
+	mediaQueryRepo.Seed(&library.MediaItem{ID: "mi-both", LibraryID: "lib-1", Title: "Stored Title", Type: "movie"})
+	mediaQueryRepo.Seed(&library.MediaItem{ID: "mi-tr", LibraryID: "lib-1", Title: "Stored Title Two", Type: "movie"})
+	ctx := eveyi18n.ContextWithLocale(adminCtx(), "fr")
+	overrideRepo.Set(ctx, &domainmetadata.MetadataOverride{
+		ID: "mo-both", MediaItemID: "mi-both", FieldName: "title", CustomValue: "Titre corrige a la main",
+	})
+
+	resp, err := h.ListMediaItems(ctx, &eveyv1.ListMediaItemsRequest{})
+	require.NoError(t, err)
+	byID := map[string]string{}
+	for _, it := range resp.Items {
+		byID[it.Id] = it.Title
+	}
+	assert.Equal(t, "Titre corrige a la main", byID["mi-both"],
+		"an operator override must beat the auto-translation on the same field")
+	assert.Equal(t, "Traduction seule", byID["mi-tr"],
+		"without an override the auto-translation still applies - or the test would pass on a handler that ignores locale entirely")
 }
