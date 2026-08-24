@@ -211,3 +211,43 @@ func TestLibraryRepo_Delete_NotFound(t *testing.T) {
 	err := repo.Delete(ctx, shared.LibraryID("nonexistent"))
 	assert.ErrorIs(t, err, shared.ErrNotFound)
 }
+
+// Same completion for libraries: scan_on_startup and realtime_monitoring are
+// two adjacent booleans, and enabled is a third a few slots earlier. Swap any
+// pair and a library silently stops watching for new files, or starts a full
+// scan on every boot - both invisible until someone notices the behaviour
+// changed. The existing Update test asserts name/enabled/paths only.
+func TestLibraryRepo_Update_EveryColumnRoundTripsToItsOwnField(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	repo := postgres.NewLibraryRepository(db)
+	ctx := context.Background()
+	lib := newTestLibrary("lib-rt")
+	require.NoError(t, repo.Create(ctx, lib))
+
+	scanned := time.Now().UTC().Truncate(time.Millisecond).Add(-2 * time.Hour)
+	lib.Name = "Round Trip Library"
+	lib.Type = library.TVShow
+	lib.Paths = []string{"/media/a", "/media/b"}
+	lib.ScanIntervalMinutes = 45
+	lib.Enabled = false
+	// The two adjacent booleans, set to DIFFERENT values on purpose.
+	lib.ScanOnStartup = true
+	lib.RealtimeMonitoring = false
+	lib.LastScannedAt = &scanned
+	lib.UpdatedAt = time.Now().UTC().Truncate(time.Millisecond)
+	require.NoError(t, repo.Update(ctx, lib))
+
+	got, err := repo.GetByID(ctx, lib.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "Round Trip Library", got.Name)
+	assert.Equal(t, library.TVShow, got.Type)
+	assert.Equal(t, []string{"/media/a", "/media/b"}, got.Paths)
+	assert.Equal(t, 45, got.ScanIntervalMinutes)
+	assert.False(t, got.Enabled)
+	assert.True(t, got.ScanOnStartup, "scan_on_startup must not pick up realtime_monitoring's value")
+	assert.False(t, got.RealtimeMonitoring)
+	require.NotNil(t, got.LastScannedAt)
+	assert.Equal(t, scanned, got.LastScannedAt.UTC())
+}
