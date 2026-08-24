@@ -116,6 +116,21 @@ describe("MusicPlaylistsTab", () => {
     expect(refetch).toHaveBeenCalledOnce();
   });
 
+  // Same distinction one level down: "this playlist is empty" is a statement
+  // about the playlist, and a failed detail fetch has not earned it either.
+  it("shows LoadFailed - not 'empty playlist' - when the opened playlist fails to load", () => {
+    const refetch = vi.fn();
+    usePlaylistDetailMock.mockReturnValue({ data: undefined, isLoading: false, isError: true, refetch });
+    render(<MusicPlaylistsTab libraryTracks={LIBRARY_TRACKS} />);
+    fireEvent.click(screen.getByText("Road Trip"));
+
+    expect(screen.getByText("common.loadError")).toBeTruthy();
+    expect(screen.queryByText("media.music.emptyPlaylist")).toBeNull();
+
+    fireEvent.click(screen.getByLabelText("common.retry"));
+    expect(refetch).toHaveBeenCalledOnce();
+  });
+
   it("opens a playlist and joins its items against the loaded library tracks", () => {
     usePlaylistDetailMock.mockReturnValue({
       data: { id: "p1", name: "Road Trip", items: [{ media_item_id: "t1" }, { media_item_id: "t2" }] },

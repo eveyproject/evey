@@ -49,7 +49,12 @@ export function MusicPlaylistsTab({ libraryTracks, initialSelectedId = null, lib
   }, [initialSelectedId]);
 
   const { data: playlists, isLoading: listLoading, isError: listFailed, refetch: refetchList } = usePlaylistList();
-  const { data: detail, isLoading: detailLoading } = usePlaylistDetail(selectedId ?? "");
+  const {
+    data: detail,
+    isLoading: detailLoading,
+    isError: detailFailed,
+    refetch: refetchDetail,
+  } = usePlaylistDetail(selectedId ?? "");
   const removeItem = useRemoveFromPlaylist();
   const deletePlaylist = useDeletePlaylist();
   const generate = useGeneratePlaylist();
@@ -149,6 +154,10 @@ export function MusicPlaylistsTab({ libraryTracks, initialSelectedId = null, lib
         </View>
         {detailLoading ? (
           <Text style={[styles.centerText, { color: theme.colors.textMuted }]}>{t("media.music.loading")}</Text>
+        ) : detailFailed ? (
+          // Same distinction as the list above: "this playlist is empty" is a
+          // statement about the playlist, not about the network.
+          <LoadFailed inline onRetry={() => void refetchDetail?.()} />
         ) : (
           <FlatList
             data={playlistTracks}
