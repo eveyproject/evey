@@ -1532,3 +1532,68 @@ func TestEnrichItem_ArtworkHookNotFiredOnFailure(t *testing.T) {
 func (f *fakeCollectionLinker) ListMoviesWithoutCollection(_ context.Context, _ string, _ int) ([]domainlib.UnlinkedMovie, error) {
 	return nil, nil
 }
+
+// The twin of TestAutoEnrichItem_MatchedItemWithOverride_StillSkips, on the
+// read that decides it. `if err == nil && len(overrides) > 0` reads a DB
+// failure as "this item has no overrides", so a transient blip is enough to
+// re-run the provider chain over an item an admin deliberately corrected. The
+// override rows survive and the grid/detail still overlay them, but the stored
+// title and overview are replaced underneath - and the search index, which
+// serves the provider title directly, then disagrees with every other surface.
+func TestAutoEnrichItem_OverrideReadErrorProtectsTheItem(t *testing.T) {
+	// The provider must actually be able to answer, otherwise the assertion
+	// holds for the wrong reason - a chain that finds nothing leaves Overview
+	// empty whether or not the item was protected.
+	newProvider := func() *fakeProvider {
+		return &fakeProvider{
+			name: "tmdb",
+			searchResults: []domain.MetadataResult{
+				{Title: "Some Movie", ProviderIDs: map[string]string{"tmdb": "603"}},
+			},
+			detailResult: &domain.MetadataResult{
+				Title: "Some Movie", Overview: "REPLACED",
+				ProviderIDs: map[string]string{"tmdb": "603"},
+			},
+		}
+	}
+	newItem := func() *domainlib.MediaItem {
+		return &domainlib.MediaItem{
+			ID: "item-matched", Title: "Some Movie", Type: "movie",
+			Catalog: &domainlib.MediaCatalog{ProviderIDs: map[string]string{"tmdb": "603"}},
+		}
+	}
+
+	// Control: a readable override table protects the item, and the chain is
+	// otherwise willing to overwrite it.
+	guard, _, _, _, guardRepo, _ := newTestEnricher(newProvider(), nil, nil)
+	guardOverrides := metafakes.NewFakeMetadataOverrideRepository()
+	EnricherWithOverrides(guardOverrides)(guard)
+	guardItem := newItem()
+	require.NoError(t, guardRepo.Create(context.Background(), guardItem))
+	ov, err := domain.NewMetadataOverride("mo-3", "item-matched", "title",
+		domain.WithOverrideValue("Custom Display Title"))
+	require.NoError(t, err)
+	require.NoError(t, guardOverrides.Set(context.Background(), ov))
+	guard.AutoEnrichItem(context.Background(), guardItem, slog.Default())
+	require.Empty(t, guardItem.Overview, "control: a readable override must protect the item")
+
+	bare, _, _, _, bareRepo, _ := newTestEnricher(newProvider(), nil, nil)
+	EnricherWithOverrides(metafakes.NewFakeMetadataOverrideRepository())(bare)
+	bareItem := newItem()
+	require.NoError(t, bareRepo.Create(context.Background(), bareItem))
+	bare.AutoEnrichItem(context.Background(), bareItem, slog.Default())
+	require.Equal(t, "REPLACED", bareItem.Overview,
+		"control: with no override the chain does overwrite, so the assertion below is not vacuous")
+
+	e, _, _, _, miRepo, _ := newTestEnricher(newProvider(), nil, nil)
+	overrideRepo := metafakes.NewFakeMetadataOverrideRepository()
+	EnricherWithOverrides(overrideRepo)(e)
+	item := newItem()
+	require.NoError(t, miRepo.Create(context.Background(), item))
+	overrideRepo.Err = errors.New("db down")
+
+	e.AutoEnrichItem(context.Background(), item, slog.Default())
+	assert.Empty(t, item.Overview,
+		"an unreadable override table must protect the item, not expose it: the safe answer to "+
+			"\"does an admin edit exist here?\" is yes")
+}

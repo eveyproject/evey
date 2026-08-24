@@ -82,7 +82,21 @@ func (e *Enricher) autoEnrichItem(ctx context.Context, item *domainlib.MediaItem
 		} else {
 			overrides, err = e.overrides.GetByMediaItem(ctx, string(item.ID))
 		}
-		if err == nil && len(overrides) > 0 {
+		if err != nil {
+			// Fail safe, not fail open: the safe answer to "did an admin edit
+			// this item?" is yes. Reading the error as "no overrides" let a
+			// transient blip re-run the whole provider chain over an item
+			// somebody deliberately corrected - the override rows survive and
+			// the grid still overlays them, but the stored title and overview
+			// are replaced underneath, and the search index (which serves the
+			// provider title directly) then disagrees with every other screen.
+			if log != nil {
+				log.Warn("skip auto-enrich: admin overrides unreadable",
+					slog.String("id", string(item.ID)), slog.Any("err", err))
+			}
+			return
+		}
+		if len(overrides) > 0 {
 			if !isOrphan {
 				if log != nil {
 					log.Debug("skip auto-enrich: matched item has admin overrides", slog.String("id", string(item.ID)), slog.Int("overrides", len(overrides)))
@@ -825,7 +839,17 @@ func (e *Enricher) autoEnrichAll(ctx context.Context, items []*domainlib.MediaIt
 		for _, it := range items {
 			ids = append(ids, string(it.ID))
 		}
-		if m, err := e.overrides.GetByMediaItems(ctx, ids); err == nil {
+		m, err := e.overrides.GetByMediaItems(ctx, ids)
+		if err != nil {
+			// Not fatal - autoEnrichItem re-reads per item and now protects
+			// itself when that read fails too. Logged because the silent
+			// fallback is an N+1 over the whole library, a cliff that is
+			// otherwise invisible.
+			if log != nil {
+				log.Warn("auto-enrich: batch override preload failed, falling back to per-item reads",
+					slog.Int("items", len(ids)), slog.Any("err", err))
+			}
+		} else {
 			overridesByItem = m
 			for id, ovs := range m {
 				if len(ovs) > 0 {
