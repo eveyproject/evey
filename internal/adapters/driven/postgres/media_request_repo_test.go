@@ -169,3 +169,51 @@ func TestMediaRequestRepo_PaginationIsStableOnTiedTimestamps(t *testing.T) {
 	assert.Equal(t, []string{"req-d", "req-c", "req-b", "req-a"}, paged,
 		"tied timestamps must fall back to the id tiebreaker, giving one total order")
 }
+
+// Update had NO test at all, and its SET list puts three text-ish columns
+// side by side: status, admin_note, answered_by. Swap two positional
+// arguments and the write succeeds - the operator's handwritten note is
+// stored as the answering profile, or the status becomes the note. The
+// requester then reads a moderation answer that says something nobody wrote.
+//
+// Distinct non-zero values everywhere, so no pair can hide a swap.
+func TestMediaRequestRepo_Update_EveryColumnRoundTripsToItsOwnField(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	repo, uid, pid := seedRequestOwner(t, db, "-rt")
+	ctx := context.Background()
+	req := newTestRequest("req-rt", "770001", mediarequest.StatusPending, uid, pid)
+	require.NoError(t, repo.Create(ctx, req))
+
+	year := 2019
+	answeredAt := time.Now().UTC().Truncate(time.Millisecond)
+	req.MediaType = mediarequest.MediaTypeTV
+	req.Provider = "imdb"
+	req.ProviderID = "tt7654321"
+	req.Title = "Some Series"
+	req.Year = &year
+	req.PosterURL = "https://example.invalid/poster.jpg"
+	req.Status = mediarequest.StatusRejected
+	req.AdminNote = "already in the library"
+	req.AnsweredBy = pid
+	req.AnsweredAt = &answeredAt
+	req.UpdatedAt = answeredAt
+	require.NoError(t, repo.Update(ctx, req))
+
+	got, err := repo.GetByID(ctx, "req-rt")
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	assert.Equal(t, mediarequest.MediaTypeTV, got.MediaType)
+	assert.Equal(t, "imdb", got.Provider)
+	assert.Equal(t, "tt7654321", got.ProviderID)
+	assert.Equal(t, "Some Series", got.Title)
+	require.NotNil(t, got.Year)
+	assert.Equal(t, 2019, *got.Year)
+	assert.Equal(t, "https://example.invalid/poster.jpg", got.PosterURL)
+	// The three adjacent columns this test exists for.
+	assert.Equal(t, mediarequest.StatusRejected, got.Status)
+	assert.Equal(t, "already in the library", got.AdminNote)
+	assert.Equal(t, pid, got.AnsweredBy)
+	require.NotNil(t, got.AnsweredAt)
+}

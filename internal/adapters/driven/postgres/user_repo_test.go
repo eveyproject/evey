@@ -301,3 +301,60 @@ func TestMigration113_DedupesDuplicateOIDCIdentities(t *testing.T) {
 		`CREATE UNIQUE INDEX idx_users_oidc_identity ON users (oidc_issuer, oidc_subject) WHERE oidc_subject IS NOT NULL`)
 	require.NoError(t, err, "index must be creatable after dedup")
 }
+
+// Same reasoning as TestProfileRepo_Update_EveryColumnRoundTripsToItsOwnField:
+// 13 hand-enumerated SET columns, several of them interchangeable in type and
+// adjacent (max_streams / max_profiles / max_devices_per_profile are three
+// *int in a row, and push_consent sits next to the bitrate cap). A positional
+// shift compiles, writes, reports one row affected, and silently stores a
+// stream cap as a profile cap.
+//
+// Distinct non-zero values everywhere: two fields sharing a value cannot
+// detect a swap between them.
+func TestUserRepo_Update_EveryColumnRoundTripsToItsOwnField(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	repo := postgres.NewUserRepository(db)
+	ctx := context.Background()
+	u := newTestUser("u-rt")
+	require.NoError(t, repo.Create(ctx, u))
+
+	sub, iss := "oidc-subject-1", "https://issuer.example"
+	streams, profiles, devices := 3, 5, 7
+	u.Username = "renamed_user"
+	u.Email = "renamed@example.com"
+	u.PasswordHash = "a-different-hash"
+	u.IsAdmin = true
+	u.Enabled = false
+	u.OIDCSubject = &sub
+	u.OIDCIssuer = &iss
+	u.MaxStreams = &streams
+	u.MaxProfiles = &profiles
+	u.MaxDevicesPerProfile = &devices
+	u.MaxBitrateKbps = 9876
+	u.PushConsent = true
+	u.UpdatedAt = time.Now().UTC().Truncate(time.Millisecond)
+	require.NoError(t, repo.Update(ctx, u))
+
+	got, err := repo.GetByID(ctx, u.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "renamed_user", got.Username)
+	assert.Equal(t, "renamed@example.com", got.Email)
+	assert.Equal(t, "a-different-hash", got.PasswordHash)
+	assert.True(t, got.IsAdmin)
+	assert.False(t, got.Enabled)
+	require.NotNil(t, got.OIDCSubject)
+	assert.Equal(t, sub, *got.OIDCSubject)
+	require.NotNil(t, got.OIDCIssuer)
+	assert.Equal(t, iss, *got.OIDCIssuer)
+	// The three adjacent *int caps - the group a shift would scramble.
+	require.NotNil(t, got.MaxStreams)
+	assert.Equal(t, 3, *got.MaxStreams)
+	require.NotNil(t, got.MaxProfiles)
+	assert.Equal(t, 5, *got.MaxProfiles)
+	require.NotNil(t, got.MaxDevicesPerProfile)
+	assert.Equal(t, 7, *got.MaxDevicesPerProfile)
+	assert.Equal(t, 9876, got.MaxBitrateKbps)
+	assert.True(t, got.PushConsent)
+}
