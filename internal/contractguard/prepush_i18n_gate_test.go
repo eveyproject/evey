@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -46,7 +47,7 @@ func TestPrePushStillRunsTheI18nKeyGuard(t *testing.T) {
 		t.Fatalf("pre-push declares only %d prerequisites (%v) - that does not look like the gate, "+
 			"and this guard must not vouch for a target it failed to parse", len(deps), deps)
 	}
-	if !contains(deps, i18nGateStep) {
+	if !slices.Contains(deps, i18nGateStep) {
 		t.Fatalf("pre-push no longer depends on %q: the i18n key guard SKIPS in the frontend test "+
 			"container (it cannot find the repo root there), so this step is the only place it "+
 			"actually runs. Without it the check reports success without having read anything.",
@@ -67,13 +68,4 @@ func TestPrePushStillRunsTheI18nKeyGuard(t *testing.T) {
 		t.Errorf("the %s recipe now runs in a container, where the i18n guard skips itself "+
 			"(4 skipped, exit 0). It has to run on the host:\n%s", i18nGateStep, tv[1])
 	}
-}
-
-func contains(haystack []string, needle string) bool {
-	for _, h := range haystack {
-		if h == needle {
-			return true
-		}
-	}
-	return false
 }
