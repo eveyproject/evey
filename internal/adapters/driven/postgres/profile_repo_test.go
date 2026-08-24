@@ -201,3 +201,81 @@ func TestProfileRepo_Delete(t *testing.T) {
 	_, err := profileRepo.GetByID(ctx, shared.ProfileID(p.ID))
 	assert.Error(t, err)
 }
+
+// Every column of the 15-column UPDATE must land in ITS OWN field.
+//
+// profile_repo's Update is the longest hand-enumerated SET in the repo, and
+// four of its columns are adjacent and interchangeable in type:
+// parental_max_age, parental_blocked_tags, parental_pin_hash,
+// parental_enabled. Swap two positional arguments there and the code compiles,
+// the write succeeds, RowsAffected is 1, and a PIN lands in the wrong column -
+// silently, on a security-relevant field. The existing Update test asserts two
+// fields (Name, IsDefault), so a shift anywhere in the other thirteen was
+// invisible.
+//
+// Every value below is DISTINCT and non-zero on purpose: a round-trip where
+// two fields share a value cannot detect a swap between them.
+func TestProfileRepo_Update_EveryColumnRoundTripsToItsOwnField(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	userRepo := postgres.NewUserRepository(db)
+	profileRepo := postgres.NewProfileRepository(db)
+	ctx := context.Background()
+
+	u := newTestUser("pu-rt")
+	require.NoError(t, userRepo.Create(ctx, u))
+	p := newTestProfile("p-rt", u.ID)
+	require.NoError(t, profileRepo.Create(ctx, p))
+
+	avatar := "/avatars/p-rt.webp"
+	maxRating := "PG-13"
+	maxBitrate := 4321
+	maxAge := 12
+	region := "BE"
+	p.Name = "Round Trip"
+	p.AvatarPath = &avatar
+	p.Preferences = map[string]string{"subtitleSize": "large"}
+	p.MaxRating = &maxRating
+	p.IsDefault = true
+	p.IsKids = true
+	p.AudioLanguages = []string{"fr", "de"}
+	p.SubtitleLanguages = []string{"es", "hi"}
+	p.MaxBitrateKbps = &maxBitrate
+	p.Parental = &user.ParentalSettings{
+		MaxAge:      &maxAge,
+		BlockedTags: []string{"horror", "gore"},
+		PINHash:     "hash-of-a-pin",
+		Enabled:     true,
+	}
+	p.Locale = "fr"
+	p.Region = &region
+	require.NoError(t, profileRepo.Update(ctx, p))
+
+	got, err := profileRepo.GetByID(ctx, p.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "Round Trip", got.Name)
+	require.NotNil(t, got.AvatarPath)
+	assert.Equal(t, avatar, *got.AvatarPath)
+	assert.Equal(t, map[string]string{"subtitleSize": "large"}, got.Preferences)
+	require.NotNil(t, got.MaxRating)
+	assert.Equal(t, "PG-13", *got.MaxRating)
+	assert.True(t, got.IsDefault)
+	assert.True(t, got.IsKids)
+	assert.Equal(t, []string{"fr", "de"}, got.AudioLanguages)
+	assert.Equal(t, []string{"es", "hi"}, got.SubtitleLanguages)
+	require.NotNil(t, got.MaxBitrateKbps)
+	assert.Equal(t, 4321, *got.MaxBitrateKbps)
+	assert.Equal(t, "fr", got.Locale)
+	require.NotNil(t, got.Region)
+	assert.Equal(t, "BE", *got.Region)
+
+	// The four adjacent parental columns, each asserted separately - this is
+	// the group a positional shift would scramble.
+	require.NotNil(t, got.Parental)
+	require.NotNil(t, got.Parental.MaxAge)
+	assert.Equal(t, 12, *got.Parental.MaxAge)
+	assert.Equal(t, []string{"horror", "gore"}, got.Parental.BlockedTags)
+	assert.Equal(t, "hash-of-a-pin", got.Parental.PINHash)
+	assert.True(t, got.Parental.Enabled)
+}
