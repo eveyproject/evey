@@ -10,7 +10,17 @@ services:
     # hardware. Evey already sizes itself to what it finds (GOMEMLIMIT follows
     # the cgroup limit when there IS one, else host RAM; worker pools follow the
     # CPU quota, else the core count), so capping it is an operator's choice,
-    # not a default. To cap it, uncomment and set the two variables:
+    # not a default.
+    #
+    # Know what that choice costs before making it. GOMEMLIMIT bounds the Go
+    # heap ONLY - the ffmpeg children are bounded by nothing at all. On
+    # 2026-08-24 a single analysis ffmpeg grew to ~10 GiB on an 11.5 GiB host:
+    # the OOM killer fired 23 times, and because the kill is global rather than
+    # scoped to a cgroup, the whole machine went down three times (SSH included)
+    # while the Go server itself sat at 43 MiB. A memory limit here turns that
+    # into a container that dies alone. On a host with little headroom, set it.
+    #
+    # To cap it, uncomment and set the two variables:
     #
     # deploy:
     #   resources:
