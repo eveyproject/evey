@@ -63,6 +63,30 @@ var bootWirings = []struct {
 			"and honors X-Forwarded-For from the whole LAN",
 	},
 	{
+		name:       "playlist media checker",
+		receiver:   "playlistSvc",
+		setter:     "WithMediaChecker",
+		declaredIn: filepath.Join("internal", "app", "playlist", "command_service.go"),
+		why: "AddItem's whole default branch hangs off `if s.mediaChecker != nil`, so a nil " +
+			"checker skips BOTH the existence check and the library-access gate nested inside it",
+	},
+	{
+		name:       "playlist library access checker",
+		receiver:   "playlistSvc",
+		setter:     "WithLibraryAccessChecker",
+		declaredIn: filepath.Join("internal", "app", "playlist", "command_service.go"),
+		why: "`if s.libraryAccess != nil` turns off the gate that stops a profile adding media " +
+			"from a library it cannot access - every test wires the checker itself, so nothing " +
+			"else notices",
+	},
+	{
+		name:       "playlist music track checker",
+		receiver:   "playlistSvc",
+		setter:     "WithMusicTrackChecker",
+		declaredIn: filepath.Join("internal", "app", "playlist", "command_service.go"),
+		why: "the music branch of AddItem stops verifying that the track exists at all",
+	},
+	{
 		name:       "persisted log level",
 		receiver:   "eveylogger",
 		setter:     "SetLevel",
