@@ -5,6 +5,7 @@ import { usePresenceServiceListOnline } from "@evey/api";
 import type { V1OnlineUser } from "@evey/api";
 import { ICON } from "@/constants/iconSizes";
 import { deviceIcon, deviceLabel } from "./onlineDevice";
+import { FetchErrorState } from "@/components/ui/FetchErrorState";
 
 const REFRESH_INTERVAL = 5_000;
 
@@ -12,10 +13,15 @@ const REFRESH_INTERVAL = 5_000;
 // heartbeat presence), sized to sit beside the Now Playing panel.
 export function OnlineNow() {
   const { t } = useTranslation();
-  const { data } = usePresenceServiceListOnline({
+  const { data, isError, error, refetch } = usePresenceServiceListOnline({
     query: { refetchInterval: REFRESH_INTERVAL, refetchIntervalInBackground: false },
   });
 
+  // "Nobody connected" and "I could not ask" are the same picture on a card an
+  // admin reads to spot a session that should not be there. Only claim the
+  // failure when there is nothing to show: a poll that fails while a previous
+  // answer is still on screen must keep showing that answer, stale but true.
+  const failed = isError && !data;
   const users = data?.users ?? [];
   const total = data?.total ?? users.length;
 
@@ -35,11 +41,15 @@ export function OnlineNow() {
         </h3>
         <span className="flex items-center gap-1.5 text-xs font-medium text-[var(--text-muted)]">
           <span className="inline-flex h-2 w-2 rounded-full bg-[var(--success)] shadow-[0_0_6px] shadow-[var(--success)]/70 animate-pulse" />
-          {t(total === 1 ? "admin.online.countOne" : "admin.online.countOther", { count: total })}
+          {failed
+            ? "-"
+            : t(total === 1 ? "admin.online.countOne" : "admin.online.countOther", { count: total })}
         </span>
       </div>
 
-      {users.length === 0 ? (
+      {failed ? (
+        <FetchErrorState error={error} onRetry={() => void refetch()} />
+      ) : users.length === 0 ? (
         <p className="text-sm text-[var(--text-muted)] px-4 py-6 text-center">{t("admin.online.empty")}</p>
       ) : (
         <ul className="flex flex-col max-h-[22rem] overflow-y-auto divide-y divide-[var(--border)]">

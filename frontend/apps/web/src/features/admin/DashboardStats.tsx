@@ -31,19 +31,22 @@ interface DashboardStatsProps {
 
 export function DashboardStats({ info }: DashboardStatsProps) {
   const { t } = useTranslation();
-  const { data: moviesData } = useLibraryServiceListMediaItems({
+  const { data: moviesData, isError: moviesFailed } = useLibraryServiceListMediaItems({
     type: "MEDIA_ITEM_TYPE_MOVIE" as never,
     "pagination.page": 1,
     "pagination.pageSize": 1,
   });
-  const { data: seriesData } = useLibraryServiceListMediaItems({
+  const { data: seriesData, isError: seriesFailed } = useLibraryServiceListMediaItems({
     type: "MEDIA_ITEM_TYPE_SERIES" as never,
     "pagination.page": 1,
     "pagination.pageSize": 1,
   });
 
-  const movieCount = moviesData?.pagination?.totalItems ?? 0;
-  const seriesCount = seriesData?.pagination?.totalItems ?? 0;
+  // A failed count and an empty library both used to render "0", which is the
+  // one number an admin reads as "my library is gone". Same convention as the
+  // measured-throughput card: "-" means not known, not zero.
+  const movieCount = moviesFailed ? "-" : (moviesData?.pagination?.totalItems ?? 0);
+  const seriesCount = seriesFailed ? "-" : (seriesData?.pagination?.totalItems ?? 0);
 
   return (
     <div className="flex flex-col gap-8">
