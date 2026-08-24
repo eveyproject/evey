@@ -677,3 +677,23 @@ func TestPlaylistAddPlaylistItem_RefusesInaccessibleMedia(t *testing.T) {
 	_, unknownErr := h.AddPlaylistItem(ctx, &eveyv1.AddPlaylistItemRequest{Id: created.Id, MediaItemId: "mi-nope"})
 	assertCode(t, unknownErr, codes.NotFound)
 }
+
+// An ADMIN adding a media id that does not exist must get NotFound, not the
+// storage layer's complaint. The shared guard used to let admins straight
+// through, so the id reached AddItem and the FK on playlist_items surfaced as
+// something unrelated - the same trap ratingHandler documented in its own
+// helper ("FK violation would surface as a misleading InvalidArgument").
+// The existence check therefore runs for EVERY caller; only the library grant
+// is skipped for an admin.
+func TestPlaylistAddPlaylistItem_AdminStillGetsNotFoundOnUnknownMedia(t *testing.T) {
+	h, _, _ := newTestPlaylistHandlerWithAccess()
+	ctx := ctxWithClaims("admin-1", "profile-admin", true)
+	created, err := h.CreatePlaylist(ctx, &eveyv1.CreatePlaylistRequest{
+		Name: "Admin list", Type: eveyv1.PlaylistType_PLAYLIST_TYPE_MANUAL,
+	})
+	if err != nil {
+		t.Fatalf("CreatePlaylist: %v", err)
+	}
+	_, addErr := h.AddPlaylistItem(ctx, &eveyv1.AddPlaylistItemRequest{Id: created.Id, MediaItemId: "mi-does-not-exist"})
+	assertCode(t, addErr, codes.NotFound)
+}

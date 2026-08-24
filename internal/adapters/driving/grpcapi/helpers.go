@@ -239,15 +239,24 @@ func requireMediaLibraryAccess(
 	if claims == nil {
 		return status.Error(codes.Unauthenticated, "unauthenticated")
 	}
-	if claims.IsAdmin {
-		return nil
-	}
-	if userAccess == nil || libQuery == nil {
+	if libQuery == nil {
 		return errUserAccessNotConfigured(ctx, who)
 	}
+	// The existence check runs for EVERY caller, admin included - the ordering
+	// ratingHandler arrived at and documented. Letting an admin straight
+	// through sends a non-existent id down to the write, where the FK on
+	// playlist_items/ratings surfaces as something unrelated (rating's comment:
+	// a misleading "rating must be between 1 and 10"). Only the library GRANT
+	// is waived for an admin, not the question of whether the thing exists.
 	item, err := libQuery.GetMediaItem(ctx, mediaItemID)
 	if err != nil || item == nil {
 		return status.Error(codes.NotFound, "not found")
+	}
+	if claims.IsAdmin {
+		return nil
+	}
+	if userAccess == nil {
+		return errUserAccessNotConfigured(ctx, who)
 	}
 	ok, accessErr := userAccess.HasLibraryAccess(ctx, shared.UserID(claims.UserID), item.LibraryID)
 	if accessErr != nil || !ok {

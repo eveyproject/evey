@@ -3,10 +3,8 @@ package grpcapi
 import (
 	"context"
 	"fmt"
-	"github.com/evey-project/evey/internal/domain/shared"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
-	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
 	appfavorite "github.com/evey-project/evey/internal/app/favorite"
 	applibrary "github.com/evey-project/evey/internal/app/library"
 	appuser "github.com/evey-project/evey/internal/app/user"
@@ -24,32 +22,11 @@ type favoriteHandler struct {
 	userQuery  *appuser.QueryService
 }
 
+// requireMediaAccess delegates to the shared guard: favourites, playlists and
+// ratings all ask the same question, and keeping three bodies is how favourite
+// and rating drifted apart on where the admin short-circuit sits.
 func (h *favoriteHandler) requireMediaAccess(ctx context.Context, mediaItemID string) error {
-	claims := interceptors.ClaimsFromContext(ctx)
-	if claims == nil {
-		return status.Error(codes.Unauthenticated, "unauthenticated")
-	}
-	if claims.IsAdmin {
-		return nil
-	}
-	if h.userAccess == nil {
-		return errUserAccessNotConfigured(ctx, "favoriteHandler.requireMediaAccess")
-	}
-	// Guarded for the same reason as userAccess above: this path only started
-	// dereferencing libQuery once the fail-open guard was removed, and a missing
-	// port must refuse, not panic. ListFavorites below already nil-checks it.
-	if h.libQuery == nil {
-		return errUserAccessNotConfigured(ctx, "favoriteHandler.requireMediaAccess")
-	}
-	item, err := h.libQuery.GetMediaItem(ctx, mediaItemID)
-	if err != nil || item == nil {
-		return status.Error(codes.NotFound, "not found")
-	}
-	ok, accessErr := h.userAccess.HasLibraryAccess(ctx, shared.UserID(claims.UserID), item.LibraryID)
-	if accessErr != nil || !ok {
-		return status.Error(codes.NotFound, "not found")
-	}
-	return nil
+	return requireMediaLibraryAccess(ctx, mediaItemID, h.libQuery, h.userAccess, "favoriteHandler.requireMediaAccess")
 }
 
 func (h *favoriteHandler) ListFavorites(ctx context.Context, req *eveyv1.ListFavoritesRequest) (*eveyv1.ListFavoritesResponse, error) {
