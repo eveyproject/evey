@@ -144,13 +144,13 @@ func TestListActiveSessions_Seeded(t *testing.T) {
 
 func TestKillSession_MissingSessionID(t *testing.T) {
 	h, _ := newTestAdminSessionHandler()
-	_, err := h.KillSession(context.Background(), &eveyv1.KillSessionRequest{SessionId: ""})
+	_, err := h.KillSession(adminCtx(), &eveyv1.KillSessionRequest{SessionId: ""})
 	assertCode(t, err, codes.InvalidArgument)
 }
 
 func TestKillSession_NotFound(t *testing.T) {
 	h, _ := newTestAdminSessionHandler()
-	_, err := h.KillSession(context.Background(), &eveyv1.KillSessionRequest{SessionId: "nonexistent"})
+	_, err := h.KillSession(adminCtx(), &eveyv1.KillSessionRequest{SessionId: "nonexistent"})
 	assertCode(t, err, codes.NotFound)
 }
 
@@ -164,11 +164,33 @@ func TestKillSession_HappyPath(t *testing.T) {
 		StartedAt:   time.Now(),
 	})
 
-	resp, err := h.KillSession(context.Background(), &eveyv1.KillSessionRequest{SessionId: "sess-kill"})
+	resp, err := h.KillSession(adminCtx(), &eveyv1.KillSessionRequest{SessionId: "sess-kill"})
 	if err != nil {
 		t.Fatalf("KillSession: %v", err)
 	}
 	if resp == nil {
 		t.Fatalf("expected non-nil response")
 	}
+}
+
+// KillSession force-stops ANY viewer's playback from a session id alone. Its
+// sibling SendSessionCommand - same handler, same admin power, same file -
+// re-checks claims.IsAdmin in the handler; KillSession checked nothing and
+// leaned entirely on the RBAC interceptor's MethodRoles entry.
+//
+// That is one deleted map line away from letting any authenticated user stop
+// anyone's stream, and nothing would fail: the interceptor table is data, not
+// a call site, so no compiler and no test complains when an entry vanishes.
+// Defence in depth is exactly the sibling's rule - apply it to both doors.
+func TestKillSession_NonAdminDenied(t *testing.T) {
+	audit := &adminSessionHandler{}
+	ctx := userCtx("usr-1", "prf-1")
+	_, err := audit.KillSession(ctx, &eveyv1.KillSessionRequest{SessionId: "s-1"})
+	assertCode(t, err, codes.PermissionDenied)
+}
+
+func TestKillSession_Unauthenticated(t *testing.T) {
+	audit := &adminSessionHandler{}
+	_, err := audit.KillSession(context.Background(), &eveyv1.KillSessionRequest{SessionId: "s-1"})
+	assertCode(t, err, codes.Unauthenticated)
 }

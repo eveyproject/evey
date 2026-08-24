@@ -170,6 +170,21 @@ func (d *adminSessionHandler) appendMusicSessions(ctx context.Context, resp *eve
 func (d *adminSessionHandler) KillSession(ctx context.Context, req *eveyv1.KillSessionRequest) (*eveyv1.KillSessionResponse, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.admin.KillSession")
 	defer span.End()
+	// Same guard as SendSessionCommand right below - this RPC stops ANY
+	// viewer's playback from a session id alone, and it used to lean entirely
+	// on the interceptor's MethodRoles entry. That entry is data in a map: one
+	// deleted line opens this door to every authenticated user, and nothing
+	// fails to say so. Defence in depth, not a second opinion.
+	claims, err := requireClaims(ctx)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, err
+	}
+	if !claims.IsAdmin {
+		span.SetStatus(otelcodes.Error, "admin required")
+		return nil, status.Error(codes.PermissionDenied, "admin required")
+	}
 	if req.SessionId == "" {
 		span.SetStatus(otelcodes.Error, "session_id required")
 		return nil, status.Error(codes.InvalidArgument, "session_id required")

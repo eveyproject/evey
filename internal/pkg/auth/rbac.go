@@ -267,10 +267,21 @@ var APIKeyScopeFor = map[string]string{
 	// since it carries no persisted account data. Flagged in the dispatch report.
 	"/evey.v1.PresenceService/Heartbeat": ScopePlaybackWrite,
 	// Admin read
+	// GetServerStats is RoleAdmin in the interceptor's MethodRoles, and
+	// GetAnalytics re-checks claims.IsAdmin in the handler
+	// (activity_handler.go:360). Both are genuinely admin-only.
 	"/evey.v1.ActivityService/GetServerStats": ScopeAdminRead,
-	"/evey.v1.ActivityService/GetUserStats":   ScopeAdminRead,
-	// GetAnalytics is handler-enforced admin-only (see activity_handler.go),
-	// same bucket as GetServerStats/GetUserStats.
+	// GetUserStats is NOT admin-enforced anywhere: the handler only calls
+	// resolveProfileID (activity_handler.go:129), exactly like its sibling
+	// GetPlayHistory, which sits in ScopePlaybackRead. It is bucketed here
+	// because an API key is an admin-only artefact anyway (CreateAPIKey is
+	// RoleAdmin) and resolveProfileID confines every caller to their OWN
+	// profile with no admin bypass - so the tier is conservative, not a
+	// security boundary. Said plainly because the previous comment claimed it
+	// was "handler-enforced admin-only", which is false and would have been
+	// read as a guarantee. Moving it to ScopePlaybackRead is a taxonomy call,
+	// not a fix.
+	"/evey.v1.ActivityService/GetUserStats":      ScopeAdminRead,
 	"/evey.v1.ActivityService/GetAnalytics":      ScopeAdminRead,
 	"/evey.v1.LibraryService/GetLibrarySchedule": ScopeAdminRead,
 	// Admin write
