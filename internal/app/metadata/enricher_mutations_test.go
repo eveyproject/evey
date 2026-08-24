@@ -221,6 +221,7 @@ func TestMeta_KillMutant_EpisodeCountMatches_Tolerance(t *testing.T) {
 // enricher_auto.go:164 NEGATION `if e.mediaItems == nil`.
 func TestMeta_KillMutant_CountDiskEpisodes_NilMediaItems(t *testing.T) {
 	e := &Enricher{}
-	got := e.countDiskEpisodesForSeason(context.Background(), "series-1", 1)
+	got, err := e.countDiskEpisodesForSeason(context.Background(), "series-1", 1)
+	require.NoError(t, err, "no repository is not a failure - it is a caller with nothing to count")
 	assert.Equal(t, 0, got)
 }

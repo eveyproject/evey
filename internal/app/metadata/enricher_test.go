@@ -1597,3 +1597,30 @@ func TestAutoEnrichItem_OverrideReadErrorProtectsTheItem(t *testing.T) {
 		"an unreadable override table must protect the item, not expose it: the safe answer to "+
 			"\"does an admin edit exist here?\" is yes")
 }
+
+// diskS01Episodes is the guard that rejects a provider match whose season 1
+// does not match what is on disk. It is an int, and 0 legitimately means "no
+// episodes there" - so returning 0 on a failed read hands the matcher the one
+// value that switches the guard OFF, on the very pass where it is most needed.
+func TestAutoEnrichItem_DiskCountReadErrorDoesNotDisableTheMatchGuard(t *testing.T) {
+	primary := &fakeProvider{
+		name: "tmdb",
+		searchResults: []domain.MetadataResult{
+			{Title: "Some Series", ProviderIDs: map[string]string{"tmdb": "900"}},
+		},
+		detailResult: &domain.MetadataResult{
+			Title: "Some Series", Overview: "REPLACED",
+			ProviderIDs: map[string]string{"tmdb": "900"},
+		},
+	}
+	e, _, _, _, miRepo, _ := newTestEnricher(primary, nil, nil)
+
+	item := &domainlib.MediaItem{ID: "series-1", Title: "Some Series", Type: domainlib.Series}
+	require.NoError(t, miRepo.Create(context.Background(), item))
+	miRepo.ErrList = errors.New("db down")
+
+	e.AutoEnrichItem(context.Background(), item, slog.Default())
+	assert.Empty(t, item.Overview,
+		"a series whose disk structure cannot be read must not be matched against a provider "+
+			"with the validation silently disabled")
+}

@@ -2,6 +2,7 @@ package metadata
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"math"
 	"runtime/debug"
@@ -128,7 +129,18 @@ func (e *Enricher) autoEnrichItem(ctx context.Context, item *domainlib.MediaItem
 	// For series, count episodes in S01 on disk to validate TMDB matches
 	var diskS01Episodes int
 	if mediaType == "tv" {
-		diskS01Episodes = e.countDiskEpisodesForSeason(ctx, string(item.ID), 1)
+		n, cErr := e.countDiskEpisodesForSeason(ctx, string(item.ID), 1)
+		if cErr != nil {
+			// Skip rather than match blind: a provider match accepted without
+			// the disk check is the false positive this guard exists to
+			// refuse, and the next pass will retry the series for free.
+			if log != nil {
+				log.Warn("skip auto-enrich: disk episode count unreadable",
+					slog.String("id", string(item.ID)), slog.Any("err", cErr))
+			}
+			return
+		}
+		diskS01Episodes = n
 	}
 
 	// Search-title precedence for orphans:
@@ -347,10 +359,14 @@ func mergeRatings(item *domainlib.MediaItem, src map[string]float64) bool {
 	return changed
 }
 
-// countDiskEpisodesForSeason counts episodes on disk for a given season of a series.
-func (e *Enricher) countDiskEpisodesForSeason(ctx context.Context, seriesID string, seasonNum int) int {
+// countDiskEpisodesForSeason counts episodes on disk for a given season of a
+// series. The count feeds the guard that rejects a provider match whose season
+// 1 disagrees with the disk, and 0 legitimately means "no episodes there" -
+// which is exactly the value that switches the guard off. A read that FAILED
+// must therefore be told apart from a season that is empty, hence the error.
+func (e *Enricher) countDiskEpisodesForSeason(ctx context.Context, seriesID string, seasonNum int) (int, error) {
 	if e.mediaItems == nil {
-		return 0
+		return 0, nil
 	}
 	seasonType := "season"
 	// Explicit limit: no series has this many seasons, and a stated bound reads
@@ -362,7 +378,7 @@ func (e *Enricher) countDiskEpisodesForSeason(ctx context.Context, seriesID stri
 		Limit:    maxSeasons,
 	})
 	if err != nil {
-		return 0
+		return 0, fmt.Errorf("countDiskEpisodesForSeason: list seasons: %w", err)
 	}
 	for _, s := range seasons {
 		if s.IndexNumber != nil && *s.IndexNumber == seasonNum {
@@ -378,12 +394,12 @@ func (e *Enricher) countDiskEpisodesForSeason(ctx context.Context, seriesID stri
 				Type:     &episodeType,
 			})
 			if epErr != nil {
-				return 0
+				return 0, fmt.Errorf("countDiskEpisodesForSeason: count episodes: %w", epErr)
 			}
-			return n
+			return n, nil
 		}
 	}
-	return 0
+	return 0, nil
 }
 
 // searchAndFetchBest searches a provider and picks the best match, validating
