@@ -24,18 +24,26 @@ function isAccessExpired(token: string | null): boolean {
 // caller is logged out. Coalesce all refresh callers (bootstrap, AppState
 // resume, 401 fetch retry) onto the same promise so only one /auth/refresh
 // hits the wire per refresh window.
-let inFlight: Promise<boolean> | null = null;
+let inFlight: Promise<RefreshOutcome> | null = null;
 
-async function doRefresh(): Promise<boolean> {
+// "refused" = the server rejected the refresh credential: the session is dead
+// and the caller may treat it as such. "unavailable" = we could not get an
+// answer (network down, proxy 5xx, server rebooting): the session is NOT dead
+// and nothing downstream may latch, log out, or clear tokens over it. The old
+// boolean collapsed both - a proxy 502 during a token expiry logged the user
+// out and burned their (still valid) refresh token.
+type RefreshOutcome = "ok" | "refused" | "unavailable";
+
+async function doRefresh(): Promise<RefreshOutcome> {
   const auth = useAuthStore.getState();
   const stored = await getRefreshToken();
   if (!stored) {
     if (auth.accessToken) auth.logout();
-    return false;
+    return "refused";
   }
 
   const base = await getServerUrl();
-  if (!base) return false;
+  if (!base) return "unavailable";
 
   try {
     const res = await fetch(`${base}/api/v1/auth/refresh`, {
@@ -43,17 +51,23 @@ async function doRefresh(): Promise<boolean> {
       headers: { "Content-Type": "application/json", "X-Persistent-Session": "true" },
       body: JSON.stringify({ refreshToken: stored }),
     });
-    if (!res.ok) {
+    // Only a REFUSAL ends the session; any other non-ok answer is the
+    // infrastructure, not the credential, and must leave the session intact.
+    if (res.status === 401 || res.status === 403) {
       await clearRefreshToken();
       auth.logout();
-      return false;
+      return "refused";
     }
-    const data = (await res.json()) as { accessToken: string; refreshToken?: string };
+    if (!res.ok) return "unavailable";
+    const data = (await res.json()) as { accessToken?: string; refreshToken?: string };
+    // A 200 carrying no token is not a success: overwriting the live token with
+    // undefined would log the user out just as surely, only more quietly.
+    if (!data.accessToken) return "unavailable";
     if (data.refreshToken) await setRefreshToken(data.refreshToken);
     auth.setTokens(data.accessToken);
-    return true;
+    return "ok";
   } catch {
-    return false;
+    return "unavailable";
   }
 }
 
@@ -62,10 +76,10 @@ async function doRefresh(): Promise<boolean> {
 // share the same in-flight refresh.
 export async function refreshAccessTokenIfNeeded(): Promise<boolean> {
   if (!isAccessExpired(useAuthStore.getState().accessToken)) return true;
-  if (inFlight) return inFlight;
+  if (inFlight) return (await inFlight) === "ok";
   inFlight = doRefresh();
   try {
-    return await inFlight;
+    return (await inFlight) === "ok";
   } finally {
     inFlight = null;
   }
@@ -75,17 +89,15 @@ export async function refreshAccessTokenIfNeeded(): Promise<boolean> {
 // Used by the fetcher 401 handler - a 401 means the server already rejected
 // our access token, so we must refresh even if its `exp` claim is in the
 // future (e.g. signing-key rotation, server clock drift, server restart).
+// Contract with the fetcher's refresh handler: `null` means REFUSED (dead
+// session - the fetcher latches and fires unauthorized), a THROW means
+// transient unavailability (the fetcher stays free to retry later).
 export async function forceRefresh(): Promise<{ accessToken: string } | null> {
-  if (inFlight) {
-    const ok = await inFlight;
-    if (!ok) return null;
-    const tok = useAuthStore.getState().accessToken;
-    return tok ? { accessToken: tok } : null;
-  }
-  inFlight = doRefresh();
+  if (!inFlight) inFlight = doRefresh();
   try {
-    const ok = await inFlight;
-    if (!ok) return null;
+    const outcome = await inFlight;
+    if (outcome === "refused") return null;
+    if (outcome !== "ok") throw new Error("refresh unavailable: no answer from the server");
     const tok = useAuthStore.getState().accessToken;
     return tok ? { accessToken: tok } : null;
   } finally {

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Stack } from "expo-router";
 import { QueryClientProvider } from "@tanstack/react-query";
+import { AppState } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import * as SecureStore from "expo-secure-store";
 import { setZustandStorage } from "@evey/store";
@@ -68,6 +69,15 @@ export default function RootLayout() {
       // failing must leave a usable screen, not a permanent null render.
       .catch((err) => bootLog.error("bootstrap échoué", err))
       .finally(() => setReady(true));
+
+    // Android TV suspends the app when the set switches input or goes to
+    // standby - hours later the access token is long expired. Renew it as the
+    // app comes back to the foreground so the first visible queries carry a
+    // live token instead of each tripping the 401-retry path at once.
+    const sub = AppState.addEventListener("change", (next) => {
+      if (next === "active") void refreshAccessTokenIfNeeded();
+    });
+    return () => sub.remove();
   }, []);
 
   if (!ready) return null;

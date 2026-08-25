@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { eveyFetch, setTokenProvider, setTokensUpdater, _resetFetcherState } from "./fetcher";
+import { eveyFetch, setTokenProvider, setTokensUpdater, setUnauthorizedHandler, resetRefreshFailure, _resetFetcherState } from "./fetcher";
 
 const fetchMock = vi.fn();
 
@@ -299,5 +299,83 @@ describe("eveyFetch: what a failed call tells the UI", () => {
 
     fetchMock.mockResolvedValueOnce(mockResponse(500));
     expect((await catchError(eveyFetch({ url: "/api/v1/x", method: "GET" }))).message).toBe("500 Error");
+  });
+});
+
+// The refresh-failure latch (2026-08-25). Once a refresh attempt failed, the
+// old code latched `refreshFailed` FOREVER - a single NAS reboot or proxy 502
+// during a token expiry left the app unable to ever refresh again (every call:
+// stale token → 401 → give up), until a full app restart. A television that
+// stays on for days WILL meet a transient failure. The latch must only engage
+// when the server REFUSES the refresh credential (the session is truly dead),
+// and it must be resettable when a new session begins.
+describe("refresh failure latch", () => {
+  const onUnauthorized = vi.fn();
+
+  beforeEach(() => {
+    onUnauthorized.mockReset();
+    setTokenProvider(() => "opaque-token");
+    // The outer beforeEach nulls the updater; a SUCCESSFUL refresh calls it,
+    // so these tests need a real (no-op) one or the success path itself throws.
+    setTokensUpdater(() => {});
+    setUnauthorizedHandler(onUnauthorized);
+  });
+
+  afterEach(() => {
+    setUnauthorizedHandler(null as unknown as () => void);
+  });
+
+  it("a TRANSIENT refresh failure does not latch: the next call refreshes again", async () => {
+    // call 1: request 401 → refresh POST dies on the network
+    fetchMock.mockResolvedValueOnce(mockResponse(401));
+    fetchMock.mockRejectedValueOnce(new TypeError("network request failed"));
+    await expect(eveyFetch({ url: "/api/v1/x", method: "GET" })).rejects.toMatchObject({ httpStatus: 401 });
+
+    // a transient failure is not a dead session - nobody gets logged out for it
+    expect(onUnauthorized).not.toHaveBeenCalled();
+
+    // call 2: request 401 → refresh succeeds → retry succeeds
+    fetchMock.mockResolvedValueOnce(mockResponse(401));
+    fetchMock.mockResolvedValueOnce(mockResponse(200, { accessToken: "fresh" }));
+    fetchMock.mockResolvedValueOnce(mockResponse(200, { ok: true }));
+    await expect(eveyFetch({ url: "/api/v1/x", method: "GET" })).resolves.toEqual({ ok: true });
+  });
+
+  it("a 5xx from the refresh endpoint is transient too - no latch, no logout", async () => {
+    fetchMock.mockResolvedValueOnce(mockResponse(401));
+    fetchMock.mockResolvedValueOnce(mockResponse(502, { message: "bad gateway" }));
+    await expect(eveyFetch({ url: "/api/v1/x", method: "GET" })).rejects.toMatchObject({ httpStatus: 401 });
+    expect(onUnauthorized).not.toHaveBeenCalled();
+
+    fetchMock.mockResolvedValueOnce(mockResponse(401));
+    fetchMock.mockResolvedValueOnce(mockResponse(200, { accessToken: "fresh" }));
+    fetchMock.mockResolvedValueOnce(mockResponse(200, { ok: true }));
+    await expect(eveyFetch({ url: "/api/v1/x", method: "GET" })).resolves.toEqual({ ok: true });
+  });
+
+  it("a REFUSAL (401 from the refresh endpoint) latches and fires unauthorized", async () => {
+    fetchMock.mockResolvedValueOnce(mockResponse(401));
+    fetchMock.mockResolvedValueOnce(mockResponse(401, { message: "refresh token revoked" }));
+    await expect(eveyFetch({ url: "/api/v1/x", method: "GET" })).rejects.toMatchObject({ httpStatus: 401 });
+    expect(onUnauthorized).toHaveBeenCalledTimes(1);
+
+    // latched: the next 401 gives up without touching the refresh endpoint
+    fetchMock.mockResolvedValueOnce(mockResponse(401));
+    await expect(eveyFetch({ url: "/api/v1/x", method: "GET" })).rejects.toMatchObject({ httpStatus: 401 });
+    const refreshCalls = fetchMock.mock.calls.filter(([url]) => String(url).includes("/auth/refresh"));
+    expect(refreshCalls).toHaveLength(1);
+  });
+
+  it("resetRefreshFailure lifts the latch - a new login must not inherit a dead session's latch", async () => {
+    fetchMock.mockResolvedValueOnce(mockResponse(401));
+    fetchMock.mockResolvedValueOnce(mockResponse(401, { message: "refresh token revoked" }));
+    await expect(eveyFetch({ url: "/api/v1/x", method: "GET" })).rejects.toMatchObject({ httpStatus: 401 });
+
+    resetRefreshFailure();
+
+    fetchMock.mockResolvedValueOnce(mockResponse(401));
+    fetchMock.mockResolvedValueOnce(mockResponse(200, { accessToken: "fresh" }));
+    fetchMock.mockResolvedValueOnce(mockResponse(200, { ok: true }));
+    await expect(eveyFetch({ url: "/api/v1/x", method: "GET" })).resolves.toEqual({ ok: true });
   });
 });

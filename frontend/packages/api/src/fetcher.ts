@@ -46,6 +46,16 @@ let refreshFailed = false;
 /** Reset module state - for tests only */
 export function _resetFetcherState() { refreshPromise = null; refreshFailed = false; }
 
+/**
+ * Lift the refresh-failure latch. App wiring calls this whenever a NEW access
+ * token lands in the auth store outside the fetcher's own refresh path (login,
+ * impersonation, a boot-time refresh that bypasses this module) - the latch
+ * describes the PREVIOUS session being dead and must never outlive it. Without
+ * this, a re-login after a revoked session inherited the latch and was thrown
+ * back to the login screen on the first token expiry.
+ */
+export function resetRefreshFailure() { refreshFailed = false; }
+
 // Treat JWTs as expired when within this many seconds of their `exp` claim.
 // Buffers clock skew + the time it takes to round-trip a request.
 const EXPIRY_GRACE_SECONDS = 5;
@@ -176,9 +186,19 @@ async function fetchWithRefresh(
       const newToken = await attemptRefresh();
       refreshFailed = false;
       response = await doFetch(newToken);
-    } catch {
-      refreshFailed = true;
-      fireUnauthorized();
+    } catch (refreshErr) {
+      // Only a REFUSAL - the server rejecting the refresh credential itself -
+      // means the session is dead: latch so we stop hammering the endpoint,
+      // and tell the app so it can route to login. Anything else (network
+      // down, a proxy 502, the NAS rebooting) is TRANSIENT: a later call must
+      // be free to refresh again, and nobody gets logged out for it. Latching
+      // on transients left long-lived clients (a TV stays on for days)
+      // permanently unable to refresh after a single hiccup.
+      const status = (refreshErr as { httpStatus?: number }).httpStatus;
+      if (status === 401 || status === 403) {
+        refreshFailed = true;
+        fireUnauthorized();
+      }
       throw Object.assign(new Error("Unauthorized"), { httpStatus: 401 });
     }
   }

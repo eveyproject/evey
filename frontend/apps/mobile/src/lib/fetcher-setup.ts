@@ -1,4 +1,4 @@
-import { setBaseURL, setTokenProvider, setTokensUpdater, setRefreshHandler, setUnauthorizedHandler, setLocaleProvider, setExtraHeaders } from "@evey/api";
+import { setBaseURL, setTokenProvider, setTokensUpdater, setRefreshHandler, setUnauthorizedHandler, setLocaleProvider, setExtraHeaders, resetRefreshFailure } from "@evey/api";
 import { useAuthStore, useLocaleStore, useServerListStore } from "@evey/store";
 import { router } from "expo-router";
 import { resolveServerUrl } from "./server-config";
@@ -18,6 +18,13 @@ export async function initFetcher() {
   setTokenProvider(() => useAuthStore.getState().accessToken);
   setTokensUpdater((access) => useAuthStore.getState().setTokens(access));
   setLocaleProvider(() => useLocaleStore.getState().locale);
+
+  // A new access token arriving OUTSIDE the fetcher's own refresh (login,
+  // AppState resume refresh) starts a new session: the fetcher's
+  // refresh-failure latch describes the previous one and must not survive it.
+  useAuthStore.subscribe((state, prev) => {
+    if (state.accessToken && state.accessToken !== prev.accessToken) resetRefreshFailure();
+  });
 
   setUnauthorizedHandler(() => {
     useAuthStore.getState().logout();

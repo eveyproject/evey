@@ -4,7 +4,7 @@ import { RouterProvider, createRouter } from "@tanstack/react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { routeTree } from "./routeTree.gen";
 import { useAuthStore, toast, type PersistedAuthState } from "@evey/store";
-import { setTokenProvider, setTokensUpdater, setLocaleProvider, userServiceRefreshToken } from "@evey/api";
+import { setTokenProvider, setTokensUpdater, setLocaleProvider, resetRefreshFailure, userServiceRefreshToken } from "@evey/api";
 import { useLocaleStore } from "@evey/store";
 import { registerServiceWorker } from "@/lib/webpush";
 import { setupOnlineManager } from "@/lib/online-manager";
@@ -171,6 +171,9 @@ if (typeof window !== "undefined") {
 
 useAuthStore.subscribe((state, prev) => {
   if (state.accessToken !== prev.accessToken) scheduleTokenRefresh();
+  // A new token from OUTSIDE the fetcher (login, impersonation) starts a new
+  // session: the fetcher's refresh-failure latch must not survive into it.
+  if (state.accessToken && state.accessToken !== prev.accessToken) resetRefreshFailure();
 });
 scheduleTokenRefresh();
 

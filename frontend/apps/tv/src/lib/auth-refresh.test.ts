@@ -223,3 +223,37 @@ describe("forceRefresh", () => {
     expect(await forceRefresh()).toBeNull();
   });
 });
+
+describe("forceRefresh - contract with the fetcher's refresh handler", () => {
+  // `null` is reserved for a REFUSAL: the fetcher latches its refresh-failure
+  // state and fires unauthorized on it. Returning null for a mere network
+  // blip used to latch that state forever on a TV that stays on for days.
+  it("THROWS on transient unavailability so the fetcher does not latch", async () => {
+    authState.accessToken = past();
+    await setRefreshToken("rt-blip");
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("offline"); }));
+
+    await expect(forceRefresh()).rejects.toThrow();
+    expect(authState.logout).not.toHaveBeenCalled();
+    expect(await getRefreshToken()).toBe("rt-blip");
+  });
+
+  it("throws on a 5xx too - the infrastructure is not the credential", async () => {
+    authState.accessToken = past();
+    await setRefreshToken("rt-502");
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, status: 502, json: async () => ({}) })));
+
+    await expect(forceRefresh()).rejects.toThrow();
+    expect(authState.logout).not.toHaveBeenCalled();
+  });
+
+  it("returns null only when the server REFUSES the credential", async () => {
+    authState.accessToken = past();
+    await setRefreshToken("rt-dead");
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, status: 401, json: async () => ({}) })));
+
+    expect(await forceRefresh()).toBeNull();
+    expect(authState.logout).toHaveBeenCalled();
+    expect(await getRefreshToken()).toBeNull();
+  });
+});
