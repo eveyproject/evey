@@ -121,39 +121,6 @@ func TestNotificationRepo_MarkAllRead(t *testing.T) {
 	assert.Equal(t, 0, count)
 }
 
-func TestNotificationRepo_UnreadCountExcludingTypes(t *testing.T) {
-	db, cleanup := testhelpers.StartPostgres(t)
-	defer cleanup()
-
-	seedNotifProfile(t, db, "pExcl", "notif-uExcl")
-
-	repo := postgres.NewNotificationRepository(db)
-	ctx := context.Background()
-
-	mk := func(id string, typ notification.Type) {
-		require.NoError(t, repo.Create(ctx, &notification.Notification{
-			ID: id, ProfileID: "pExcl", Type: typ, Title: "T",
-			Level: notification.LevelAll, CreatedAt: time.Now().UTC().Truncate(time.Millisecond),
-		}))
-	}
-	mk("e1", notification.TypeNewMovie)
-	mk("e2", notification.TypeNewEpisode)
-	mk("e3", notification.TypeBackupFailed) // admin-only
-	mk("e4", notification.TypePluginError)  // admin-only
-
-	all, err := repo.UnreadCount(ctx, "pExcl")
-	require.NoError(t, err)
-	assert.Equal(t, 4, all)
-
-	personal, err := repo.UnreadCountExcludingTypes(ctx, "pExcl", notification.AdminOnlyTypes())
-	require.NoError(t, err)
-	assert.Equal(t, 2, personal, "admin-only backup_failed/plugin_error must be excluded from the personal badge")
-
-	none, err := repo.UnreadCountExcludingTypes(ctx, "pExcl", nil)
-	require.NoError(t, err)
-	assert.Equal(t, 4, none, "empty exclude list = full unread count")
-}
-
 func TestNotificationRepo_CleanupExpired(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()

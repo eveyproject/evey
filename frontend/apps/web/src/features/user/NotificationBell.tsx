@@ -27,6 +27,10 @@ interface Notification {
 const HIDDEN_TYPES = new Set(["plugin_error"]);
 
 function notificationUrl(n: Notification): string | undefined {
+  // A media request pages an admin: the actionable place is the moderation
+  // queue, and these notifications never carry a mediaItemId (the title is
+  // not in the library yet - that is the whole point of the request).
+  if (n.type === "media_request") return "/admin/media-requests";
   if (n.mediaItemId) return `/media/${n.mediaItemId}`;
   return undefined;
 }

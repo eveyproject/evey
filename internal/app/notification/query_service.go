@@ -46,25 +46,15 @@ func (s *QueryService) List(ctx context.Context, profileID shared.ProfileID, unr
 	if want <= 0 {
 		want = 50
 	}
-	overFetch := want * 4
-	if overFetch > 1000 {
-		overFetch = 1000
-	}
-	raw, err := s.repo.ListByProfile(ctx, profileID, unreadOnly, overFetch, offset)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]*notification.Notification, 0, len(raw))
-	for _, n := range raw {
-		if n != nil && n.Type.IsAdminOnly() {
-			continue
-		}
-		out = append(out, n)
-		if len(out) >= want {
-			break
-		}
-	}
-	return out, nil
+	// Admin-only types are NOT filtered out here. Their rows are only ever
+	// created on admin profiles (the event handlers target ListAdminProfiles),
+	// so excluding them from the owner's feed excluded them from every surface
+	// the product has: no client calls ListAdminNotifications, and in prod
+	// (2026-08-26) media requests piled up for weeks without the operator ever
+	// seeing a notification. The owner's feed is the paging channel; clients
+	// that want less noise filter by type (the bell already hides
+	// plugin_error, which has its own dashboard).
+	return s.repo.ListByProfile(ctx, profileID, unreadOnly, want, offset)
 }
 
 // ListAdminOnly returns admin-only notifications (plugin_error, backup_failed)
@@ -102,14 +92,13 @@ func (s *QueryService) ListAdminOnly(ctx context.Context, profileID shared.Profi
 	return out, nil
 }
 
-// UnreadCount returns the count of unread *personal* notifications (admin-only
-// operational types excluded) via a single COUNT(*). The previous version
-// over-fetched up to 1000 rows and counted in memory, which silently capped the
-// badge at 1000 and shipped wide rows on every page load.
+// UnreadCount returns the count of unread notifications via a single
+// COUNT(*). Admin-only types are counted too - they exist only on admin
+// profiles and the badge is what pages the operator (see List above).
 func (s *QueryService) UnreadCount(ctx context.Context, profileID shared.ProfileID) (int, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.notification.UnreadCount")
 	defer span.End()
-	return s.repo.UnreadCountExcludingTypes(ctx, profileID, notification.AdminOnlyTypes())
+	return s.repo.UnreadCount(ctx, profileID)
 }
 
 func (s *QueryService) GetSettings(ctx context.Context, profileID shared.ProfileID) (*notification.Settings, error) {

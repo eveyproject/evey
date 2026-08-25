@@ -42,9 +42,6 @@ type QueryRepo interface {
 	// episode notification fan-out to avoid one round-trip per profile per series.
 	FindRecentByProfilesTypeAndSeries(ctx context.Context, profileIDs []shared.ProfileID, types []Type, seriesKey SeriesKey, since time.Time) (map[shared.ProfileID][]*Notification, error)
 	UnreadCount(ctx context.Context, profileID shared.ProfileID) (int, error)
-	// UnreadCountExcludingTypes is UnreadCount minus the given types - used for
-	// the personal bell badge, which hides admin-only operational notifications.
-	UnreadCountExcludingTypes(ctx context.Context, profileID shared.ProfileID, excludeTypes []Type) (int, error)
 }
 
 // Repository is the composite the concrete adapters implement; services hold

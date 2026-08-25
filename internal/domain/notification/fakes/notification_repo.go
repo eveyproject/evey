@@ -117,25 +117,6 @@ func (r *FakeNotificationRepository) UnreadCount(_ context.Context, profileID sh
 	return count, nil
 }
 
-func (r *FakeNotificationRepository) UnreadCountExcludingTypes(_ context.Context, profileID shared.ProfileID, excludeTypes []notification.Type) (int, error) {
-	if r.Err != nil {
-		return 0, r.Err
-	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	excluded := make(map[notification.Type]bool, len(excludeTypes))
-	for _, t := range excludeTypes {
-		excluded[t] = true
-	}
-	count := 0
-	for _, n := range r.items {
-		if n.ProfileID == profileID && n.ReadAt == nil && !excluded[n.Type] {
-			count++
-		}
-	}
-	return count, nil
-}
-
 func (r *FakeNotificationRepository) DeleteAll(_ context.Context, profileID shared.ProfileID) error {
 	if r.Err != nil {
 		return r.Err

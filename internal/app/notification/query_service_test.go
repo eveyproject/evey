@@ -24,7 +24,13 @@ func mustCreate(t *testing.T, repo notification.Repository, profileID, id string
 	}
 }
 
-func TestQueryService_List_FiltersAdminOnlyTypes(t *testing.T) {
+// Admin-only rows are only ever CREATED on admin profiles (the event handlers
+// target them via ListAdminProfiles), so hiding them from the owner's feed
+// hid them from everyone: in prod (2026-08-26) media requests piled up for
+// weeks without the operator ever being paged - no badge, no dropdown entry,
+// and no client calls the dedicated ListAdminNotifications endpoint. The feed
+// must therefore INCLUDE them; ListAdminOnly stays as a filtered view.
+func TestQueryService_List_IncludesAdminOnlyTypes(t *testing.T) {
 	t.Parallel()
 	repo := notiffakes.NewFakeNotificationRepository()
 	settings := notiffakes.NewFakeSettingsRepository()
@@ -33,32 +39,35 @@ func TestQueryService_List_FiltersAdminOnlyTypes(t *testing.T) {
 	mustCreate(t, repo, "p1", "n1", notification.TypeNewMovie, false)
 	mustCreate(t, repo, "p1", "n2", notification.TypePluginError, false)
 	mustCreate(t, repo, "p1", "n3", notification.TypeNewEpisode, false)
-	mustCreate(t, repo, "p1", "n4", notification.TypeBackupFailed, false)
+	mustCreate(t, repo, "p1", "n4", notification.TypeMediaRequest, false)
 	mustCreate(t, repo, "p1", "n5", notification.TypeNewSeries, false)
 
 	got, err := svc.List(context.Background(), "p1", false, 50, 0)
 	require.NoError(t, err)
-	require.Len(t, got, 3, "admin-only types must not appear in user feed")
+	require.Len(t, got, 5, "the owner's feed must carry every row written for this profile, admin-only included")
+	types := make(map[notification.Type]bool, len(got))
 	for _, n := range got {
-		assert.False(t, n.Type.IsAdminOnly(), "got admin-only type %q in user list", n.Type)
+		types[n.Type] = true
 	}
+	assert.True(t, types[notification.TypeMediaRequest], "a media request must page the admin in their own feed")
+	assert.True(t, types[notification.TypePluginError])
 }
 
-func TestQueryService_UnreadCount_ExcludesAdminOnly(t *testing.T) {
+func TestQueryService_UnreadCount_CountsAdminOnly(t *testing.T) {
 	t.Parallel()
 	repo := notiffakes.NewFakeNotificationRepository()
 	settings := notiffakes.NewFakeSettingsRepository()
 	svc := appnotification.NewQueryService(repo, settings)
 
 	mustCreate(t, repo, "p1", "n1", notification.TypeNewMovie, false)     // unread, personal
-	mustCreate(t, repo, "p1", "n2", notification.TypePluginError, false)  // unread, admin-only
+	mustCreate(t, repo, "p1", "n2", notification.TypeMediaRequest, false) // unread, admin-only
 	mustCreate(t, repo, "p1", "n3", notification.TypeNewEpisode, true)    // read
 	mustCreate(t, repo, "p1", "n4", notification.TypeBackupFailed, false) // unread, admin-only
 	mustCreate(t, repo, "p1", "n5", notification.TypeNewSeries, false)    // unread, personal
 
 	count, err := svc.UnreadCount(context.Background(), "p1")
 	require.NoError(t, err)
-	assert.Equal(t, 2, count, "only n1 and n5 are unread+personal - admin-only excluded")
+	assert.Equal(t, 4, count, "the badge must count admin-only rows - they are what pages the operator")
 }
 
 // ListAdminOnly is the inverse of List: it surfaces plugin_error and

@@ -53,25 +53,21 @@ func (t Type) IsValid() bool {
 }
 
 // IsAdminOnly returns true for notification types that describe operational
-// or infrastructure events admins need to know about, but that should not
-// pollute the personal notification feed (no badge, no dropdown listing).
-//
-// They still land in the same `notifications` table - querying with
-// AdminOnly() filters them in/out at read time. A future /admin/notifications
-// endpoint can surface them dedicated to admins.
+// or infrastructure events. Their rows are only ever created on ADMIN
+// profiles (the notification event handlers target ListAdminProfiles), and
+// since 2026-08-26 they appear in the owner's regular feed and unread badge
+// like any other row: the old "keep them out of the personal feed, a
+// dedicated endpoint will surface them" design left them unreachable - no
+// client ever called ListAdminNotifications, and media requests sat
+// unnoticed in prod for weeks. The classification still powers
+// ListAdminNotifications (a filtered admin view) and client-side type
+// filters (the web bell hides plugin_error, which has its own dashboard).
 func (t Type) IsAdminOnly() bool {
 	switch t {
 	case TypeBackupFailed, TypePluginError, TypeMediaRequest:
 		return true
 	}
 	return false
-}
-
-// AdminOnlyTypes returns the slice of admin-only notification types so
-// callers can pass them to repository List/Count exclude filters without
-// hardcoding the values.
-func AdminOnlyTypes() []Type {
-	return []Type{TypeBackupFailed, TypePluginError, TypeMediaRequest}
 }
 
 type Level string
