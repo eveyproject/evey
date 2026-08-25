@@ -38,6 +38,18 @@ func IntroLockedSources() []string { return []string{"manual", "manual_propagate
 // so a file-derived detection can replace what they carry.
 func IntroCoveringSources() []string { return []string{"mkv_chapter", "audio_cluster", "phash"} }
 
+// IsCommunityIntroSource reports whether the segment came from a community
+// database rather than from this server's own analysis of this file. Community
+// timestamps describe SOMEONE ELSE'S copy (repack, edit, different cut), so
+// their accuracy on our files is luck: the 2026-08-25 gold measure had one at
+// IoU 1.00 (Spider noir) and one 232 seconds off (Resident alien) - same
+// source, same day. User decision 2026-08-25: never SERVE them; the rows stay
+// stored so the sweep can replace them with a file-derived detection and the
+// eval can keep scoring them.
+func IsCommunityIntroSource(source string) bool {
+	return source == "tidb" || source == "introdb"
+}
+
 // IntroDetectionSettled reports whether the intro segment an episode already
 // carries takes it OFF the detection work list. It is the ONE answer to
 // "does this episode still need its intro detected?", shared by the in-process

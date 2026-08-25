@@ -266,6 +266,15 @@ func (s *QueryService) GetSegments(ctx context.Context, mediaItemID string) ([]*
 	// caller.
 	out := make([]*library.MediaSegment, 0, len(segs))
 	for _, sg := range segs {
+		// Community rows are never served (user decision 2026-08-25): their
+		// timestamps describe someone else's copy of the media, and the gold
+		// measure had the same source perfect on one title and 232s off on
+		// another. Stored rows stay - the sweep replaces them with file-derived
+		// detections and the eval keeps scoring them. All segment types: the
+		// someone-else's-copy argument does not care what the segment marks.
+		if library.IsCommunityIntroSource(sg.Source) {
+			continue
+		}
 		// Product rule (user decision 2026-08-06): under 5 seconds there is no
 		// skip-intro button, whatever the source or confidence. Chapters are
 		// exempt from the detection-side floor, so a 3s chapter labelled

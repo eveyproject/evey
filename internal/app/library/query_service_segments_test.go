@@ -221,3 +221,24 @@ func TestGetSegments_ChapterExemptionStopsAtTheAbsoluteFloor(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, got, "un chapitre de 3 s reste refuse")
 }
+
+// Community rows (tidb/introdb) are never served - user decision 2026-08-25.
+// Their timestamps describe someone else's copy: the same source scored IoU
+// 1.00 on one gold title and 232 seconds off on another the same day. The rows
+// stay stored (the sweep replaces them, the eval scores them); the players
+// just never see them - whatever the type, span or confidence.
+func TestGetSegments_NeverServesCommunityRows(t *testing.T) {
+	t.Parallel()
+	segs := []*domainlibrary.MediaSegment{
+		// High confidence, long span: passes every other gate on its own.
+		{Type: "intro", StartMs: 80_000, EndMs: 170_000, Source: "tidb", Confidence: 0.9},
+		{Type: "intro", StartMs: 0, EndMs: 33_000, Source: "introdb", Confidence: 0.9},
+		{Type: "recap", StartMs: 0, EndMs: 40_000, Source: "tidb", Confidence: 0.9},
+		// The file-derived row must keep flowing.
+		{Type: "intro", StartMs: 80_000, EndMs: 170_000, Source: "audio_cluster", Confidence: 0.9},
+	}
+	got, err := segQuerySvc(segs).GetSegments(context.Background(), "ep-1")
+	require.NoError(t, err)
+	require.Len(t, got, 1, "only the file-derived detection may reach a player")
+	assert.Equal(t, "audio_cluster", got[0].Source)
+}
