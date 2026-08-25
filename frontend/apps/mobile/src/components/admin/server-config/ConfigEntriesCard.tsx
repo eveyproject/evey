@@ -82,6 +82,7 @@ export function ConfigEntriesCard({ entries, saveEntry, deleteEntry, saving }: C
             <View style={{ gap: 8 }}>
               <TextInput
                 testID={`entry-edit-${entry.key}`}
+                accessibilityLabel={entry.key}
                 style={inputStyle}
                 value={editValue}
                 onChangeText={setEditValue}

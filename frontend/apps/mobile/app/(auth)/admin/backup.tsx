@@ -146,6 +146,7 @@ function ScheduleSection() {
               {t("admin.backup.schedule.retentionLabel", "Rétention (jours)")}
             </Text>
             <TextInput
+              accessibilityLabel={t("admin.backup.schedule.retentionLabel", "Rétention (jours)")}
               value={String(effectiveRetention)}
               onChangeText={(text) => {
                 const v = Number(text);

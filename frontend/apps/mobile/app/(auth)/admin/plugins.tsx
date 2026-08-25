@@ -179,6 +179,7 @@ function SchemaField({
     <View style={{ gap: 4 }}>
       <Text style={{ color: theme.colors.textMuted, fontSize: 12, fontWeight: "600" }}>{label}</Text>
       <TextInput
+        accessibilityLabel={label}
         value={value}
         onChangeText={onChange}
         placeholderTextColor={theme.colors.textMuted}

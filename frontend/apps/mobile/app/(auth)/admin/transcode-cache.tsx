@@ -93,6 +93,7 @@ function TranscodingSettings() {
           {t("admin.transcodeCache.maxConcurrent", "Transcodages simultanés max")}
         </Text>
         <TextInput
+          accessibilityLabel={t("admin.transcodeCache.maxConcurrent", "Transcodages simultanés max")}
           value={maxConcurrent}
           onChangeText={setMaxConcurrent}
           keyboardType="numeric"
@@ -195,6 +196,9 @@ export default function AdminTranscodeCacheScreen() {
       <Pressable
         onPress={() => handleDeleteFile(item.name)}
         disabled={deletingFile === item.name}
+        accessible
+        accessibilityRole="button"
+        accessibilityLabel={t("common.delete", "Supprimer") + " " + item.name}
         style={{ padding: 8, opacity: deletingFile === item.name ? 0.4 : 1 }}
       >
         {deletingFile === item.name ? (
