@@ -14,6 +14,10 @@ type FakeCollectionQueryRepo struct {
 	items       map[string][]collectionItem
 	mediaItems  *FakeMediaItemRepository
 	Err         error
+	// GetItemsErr fails ONLY GetItems, so a test can make the per-collection
+	// member read fail while the collection listing itself succeeds - the
+	// exact shape of a transient DB timeout mid-request.
+	GetItemsErr error
 	// GetItemsByCollectionIDsCallCount is incremented on every call to
 	// GetItemsByCollectionIDs, allowing tests to assert batch behaviour.
 	GetItemsByCollectionIDsCallCount int
@@ -56,6 +60,9 @@ func (r *FakeCollectionQueryRepo) List(_ context.Context) ([]*library.Collection
 func (r *FakeCollectionQueryRepo) GetItems(_ context.Context, collectionID string, limit, offset int) ([]*library.MediaItem, error) {
 	if r.Err != nil {
 		return nil, r.Err
+	}
+	if r.GetItemsErr != nil {
+		return nil, r.GetItemsErr
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()

@@ -353,8 +353,15 @@ func (h *collectionHandler) ListCollectionsForMediaItem(ctx context.Context, req
 	for _, c := range cols {
 		items, _, itemsErr := h.svc.GetItems(ctx, c.ID, library.MaxCollectionItems, 0)
 		if itemsErr != nil {
-			slog.WarnContext(ctx, "collections for media item: items lookup", slog.String("collection_id", c.ID), slog.Any("err", itemsErr))
-			continue
+			// User decision 2026-08-25: an infrastructure failure fails the
+			// CALL. Skipping the collection made a transient DB timeout render
+			// exactly like "this film belongs to no saga" - a silently shorter
+			// list the client can neither detect nor retry. The parental and
+			// access skips below stay silent on purpose; they are decisions,
+			// not failures.
+			span.RecordError(itemsErr)
+			span.SetStatus(otelcodes.Error, itemsErr.Error())
+			return nil, internalError(ctx, "collections for media item: items lookup", itemsErr)
 		}
 		visible, skip := filterItemsByAccess(items, allowed)
 		if skip || !h.collectionVisibleUnderParental(ctx, visible) {

@@ -1127,3 +1127,27 @@ func TestCollectionListForMediaItem_Validation(t *testing.T) {
 		t.Errorf("missing media_item_id: want InvalidArgument, got %v", err)
 	}
 }
+
+// A collection whose member read fails used to be silently dropped from the
+// "part of the saga" panel - indistinguishable from the media not belonging to
+// any collection. User decision 2026-08-25 (overruling an earlier wontfix):
+// an infrastructure failure must surface as an ERROR the client can retry,
+// never as a silently shorter list.
+func TestCollectionListForMediaItem_FailedMemberReadFailsTheCall(t *testing.T) {
+	cmdRepo := libraryfakes.NewFakeCollectionCommandRepo()
+	mediaRepo := libraryfakes.NewFakeMediaItemRepository()
+	queryRepo := libraryfakes.NewFakeCollectionQueryRepo(cmdRepo, mediaRepo)
+	smartQ := libraryfakes.NewFakeCollectionSmartQuerier()
+	svc := appcollection.NewService(cmdRepo, queryRepo, smartQ, mediaRepo)
+	h := &collectionHandler{svc: svc}
+
+	seedCollection(cmdRepo, "col-saga", "Some Saga")
+	mediaRepo.Create(context.Background(), &library.MediaItem{ID: "mi-1", LibraryID: "lib-1", Title: "Some Movie", Type: "movie"})
+	cmdRepo.LinkItem(context.Background(), "col-saga", "mi-1", 0)
+
+	queryRepo.GetItemsErr = fmt.Errorf("db down")
+	_, err := h.ListCollectionsForMediaItem(adminCtx(), &eveyv1.ListCollectionsForMediaItemRequest{MediaItemId: "mi-1"})
+	if err == nil {
+		t.Fatal("a failed member read must fail the call - a silently shorter list reads as 'not in any collection'")
+	}
+}
