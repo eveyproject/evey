@@ -82,7 +82,7 @@ func TestBackupScheduleRepo_Update(t *testing.T) {
 	assert.WithinDuration(t, nextRun, *got.NextRunAt, time.Second)
 }
 
-func TestBackupScheduleRepo_UpdateAfterRun_Success(t *testing.T) {
+func TestBackupScheduleRepo_AdvanceNextRun_MovesOnlyTheSchedule(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()
 	seedBackupSchedule(t, db)
@@ -90,21 +90,49 @@ func TestBackupScheduleRepo_UpdateAfterRun_Success(t *testing.T) {
 	repo := postgres.NewBackupScheduleRepository(db)
 	ctx := context.Background()
 
+	before, err := repo.Get(ctx)
+	require.NoError(t, err)
+
+	nextRun := time.Now().UTC().Truncate(time.Millisecond).Add(24 * time.Hour)
+	require.NoError(t, repo.AdvanceNextRun(ctx, nextRun))
+
+	got, err := repo.Get(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, got.NextRunAt)
+	assert.WithinDuration(t, nextRun, *got.NextRunAt, time.Second)
+	// The advance fires at TRIGGER time, before the run has an outcome: the
+	// run bookkeeping must be untouched.
+	assert.Equal(t, before.LastRunAt, got.LastRunAt)
+	assert.Equal(t, before.LastStatus, got.LastStatus)
+	assert.Equal(t, before.LastError, got.LastError)
+}
+
+func TestBackupScheduleRepo_RecordRunResult_Success(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	seedBackupSchedule(t, db)
+
+	repo := postgres.NewBackupScheduleRepository(db)
+	ctx := context.Background()
+
+	before, err := repo.Get(ctx)
+	require.NoError(t, err)
+
 	lastRun := time.Now().UTC().Truncate(time.Millisecond)
-	nextRun := lastRun.Add(24 * time.Hour)
-	require.NoError(t, repo.UpdateAfterRun(ctx, lastRun, nextRun, "success", ""))
+	require.NoError(t, repo.RecordRunResult(ctx, lastRun, "success", ""))
 
 	got, err := repo.Get(ctx)
 	require.NoError(t, err)
 	require.NotNil(t, got.LastRunAt)
 	assert.WithinDuration(t, lastRun, *got.LastRunAt, time.Second)
-	require.NotNil(t, got.NextRunAt)
-	assert.WithinDuration(t, nextRun, *got.NextRunAt, time.Second)
 	assert.Equal(t, "success", got.LastStatus)
 	assert.Equal(t, "", got.LastError)
+	// The outcome landing must not move the schedule: it advanced at trigger
+	// time, and a manual RunNow must not eat the next scheduled slot.
+	assert.Equal(t, before.NextRunAt, got.NextRunAt)
 }
 
-func TestBackupScheduleRepo_UpdateAfterRun_Failed(t *testing.T) {
+func TestBackupScheduleRepo_RecordRunResult_Failed(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()
 	seedBackupSchedule(t, db)
@@ -113,8 +141,7 @@ func TestBackupScheduleRepo_UpdateAfterRun_Failed(t *testing.T) {
 	ctx := context.Background()
 
 	lastRun := time.Now().UTC().Truncate(time.Millisecond)
-	nextRun := lastRun.Add(24 * time.Hour)
-	require.NoError(t, repo.UpdateAfterRun(ctx, lastRun, nextRun, "failed", "disk full"))
+	require.NoError(t, repo.RecordRunResult(ctx, lastRun, "failed", "disk full"))
 
 	got, err := repo.Get(ctx)
 	require.NoError(t, err)

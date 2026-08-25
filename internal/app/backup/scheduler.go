@@ -127,7 +127,24 @@ func (s *Scheduler) tick(ctx context.Context) {
 	if !sched.Enabled {
 		return
 	}
-	if sched.NextRunAt == nil || s.nowFunc().Before(*sched.NextRunAt) {
+	now := s.nowFunc()
+	if sched.NextRunAt == nil || now.Before(*sched.NextRunAt) {
+		return
+	}
+	// Advance NextRunAt at trigger time, not after the backup completes. A
+	// pg_dump can outlive the one-minute tick (weak NAS, big base); when the
+	// advance only happened on completion, every tick behind a slow run saw
+	// the stale NextRunAt and stacked another backup goroutine. Standard cron
+	// semantics, same as the library scan scheduler.
+	nextRun, cronErr := cron.NextTime(sched.CronExpression, now)
+	if cronErr != nil {
+		s.logger.Warn("backup scheduler: invalid cron expression", slog.Any("err", cronErr))
+		nextRun = now.Add(24 * time.Hour)
+	}
+	if advErr := s.schedRepo.AdvanceNextRun(ctx, nextRun); advErr != nil {
+		// Without the advance the next tick WOULD re-fire: skip this run rather
+		// than reintroduce the pileup for the price of one missed slot.
+		s.logger.Error("backup scheduler: advance next run", slog.Any("err", advErr))
 		return
 	}
 	s.logger.Info("backup scheduler: triggering backup")
@@ -163,13 +180,10 @@ func (s *Scheduler) execBackup(ctx context.Context, sched *backup.BackupSchedule
 			s.logger.Warn("backup scheduler: cleanup failed", slog.Any("err", cleanErr))
 		}
 	}
-	nextRun, cronErr := cron.NextTime(sched.CronExpression, now)
-	if cronErr != nil {
-		s.logger.Warn("backup scheduler: invalid cron expression", slog.Any("err", cronErr))
-		nextRun = now.Add(24 * time.Hour)
-	}
-	if updateErr := s.schedRepo.UpdateAfterRun(ctx, now, nextRun, status, errMsg); updateErr != nil {
-		s.logger.Error("backup scheduler: update after run", slog.Any("err", updateErr))
+	// next_run_at is NOT touched here: the cron schedule advanced when the run
+	// fired (tick), and a manual RunNow must not eat the next scheduled slot.
+	if updateErr := s.schedRepo.RecordRunResult(ctx, now, status, errMsg); updateErr != nil {
+		s.logger.Error("backup scheduler: record run result", slog.Any("err", updateErr))
 	}
 	return m, err
 }

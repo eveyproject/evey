@@ -299,14 +299,23 @@ func (r *fakeScheduleRepo) Update(_ context.Context, s *backupmodel.BackupSchedu
 	return nil
 }
 
-func (r *fakeScheduleRepo) UpdateAfterRun(_ context.Context, lastRun, nextRun time.Time, status, errMsg string) error {
+func (r *fakeScheduleRepo) AdvanceNextRun(_ context.Context, nextRun time.Time) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.err != nil {
+		return r.err
+	}
+	r.sched.NextRunAt = &nextRun
+	return nil
+}
+
+func (r *fakeScheduleRepo) RecordRunResult(_ context.Context, lastRun time.Time, status, errMsg string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.err != nil {
 		return r.err
 	}
 	r.sched.LastRunAt = &lastRun
-	r.sched.NextRunAt = &nextRun
 	r.sched.LastStatus = status
 	r.sched.LastError = errMsg
 	return nil
@@ -509,4 +518,72 @@ func TestNewScheduler_Run_StopsOnCancel(t *testing.T) {
 
 func slogDefault() *slog.Logger {
 	return slog.Default()
+}
+
+// blockingRunner parks CreateBackup until release is closed, so a test can
+// hold a run "in flight" across several ticks.
+type blockingRunner struct {
+	mu      sync.Mutex
+	calls   int
+	started chan struct{}
+	release chan struct{}
+}
+
+func (b *blockingRunner) CreateBackup(_ context.Context) (*backupmodel.BackupManifest, error) {
+	b.mu.Lock()
+	b.calls++
+	if b.calls == 1 {
+		close(b.started)
+	}
+	b.mu.Unlock()
+	<-b.release
+	m, _ := backupmodel.NewBackupManifest("bk-slow", "dev", []string{"users"})
+	return m, nil
+}
+
+func (b *blockingRunner) CleanupOldBackups(_ context.Context, _ int) error { return nil }
+
+func (b *blockingRunner) getCalls() int {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.calls
+}
+
+// TestNewScheduler_Tick_SlowRunIsNotRefired pins the anti-pileup rule: the
+// schedule advances at TRIGGER time, so a backup that outlives the tick
+// interval must not be re-fired by the ticks that elapse while it runs. The
+// old order (advance after CreateBackup) stacked one pg_dump goroutine per
+// minute behind any slow run - library/scheduler.go had the correct order all
+// along, this aligns backup on it.
+func TestNewScheduler_Tick_SlowRunIsNotRefired(t *testing.T) {
+	repo := newFakeScheduleRepo()
+	past := time.Now().Add(-time.Minute)
+	repo.sched.Enabled = true
+	repo.sched.NextRunAt = &past
+
+	runner := &blockingRunner{started: make(chan struct{}), release: make(chan struct{})}
+	sched := NewSchedulerForTest(repo, runner, slogDefault(), time.Now)
+
+	sched.Tick(context.Background())
+	select {
+	case <-runner.started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("the first tick never started a backup")
+	}
+
+	// The run is parked in CreateBackup. Every further tick must see the
+	// advanced NextRunAt and decline.
+	sched.Tick(context.Background())
+	sched.Tick(context.Background())
+
+	close(runner.release)
+	sched.WaitForRuns()
+
+	if got := runner.getCalls(); got != 1 {
+		t.Fatalf("a slow run must fire exactly once, got %d backups - the pre-fix pileup", got)
+	}
+	got, _ := repo.Get(context.Background())
+	if got.NextRunAt == nil || !got.NextRunAt.After(time.Now().Add(-time.Second)) {
+		t.Fatalf("NextRunAt must have advanced at trigger time, got %v", got.NextRunAt)
+	}
 }

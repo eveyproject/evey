@@ -47,12 +47,19 @@ func (r *fakeScheduleRepoForHandler) Update(_ context.Context, s *domainbackup.B
 	return nil
 }
 
-func (r *fakeScheduleRepoForHandler) UpdateAfterRun(_ context.Context, lastRun, nextRun time.Time, status, errMsg string) error {
+func (r *fakeScheduleRepoForHandler) AdvanceNextRun(_ context.Context, nextRun time.Time) error {
+	if r.err != nil {
+		return r.err
+	}
+	r.sched.NextRunAt = &nextRun
+	return nil
+}
+
+func (r *fakeScheduleRepoForHandler) RecordRunResult(_ context.Context, lastRun time.Time, status, errMsg string) error {
 	if r.err != nil {
 		return r.err
 	}
 	r.sched.LastRunAt = &lastRun
-	r.sched.NextRunAt = &nextRun
 	r.sched.LastStatus = status
 	r.sched.LastError = errMsg
 	return nil

@@ -68,20 +68,43 @@ func (r *BackupScheduleRepository) Update(ctx context.Context, s *backup.BackupS
 	return nil
 }
 
-func (r *BackupScheduleRepository) UpdateAfterRun(ctx context.Context, lastRun, nextRun time.Time, status, errMsg string) error {
-	ctx, span := tracing.StartSpan(ctx, "postgres.backup_schedule.UpdateAfterRun")
+// AdvanceNextRun moves the schedule forward at trigger time - the one write
+// that keeps a slow backup from being re-fired by every subsequent tick.
+func (r *BackupScheduleRepository) AdvanceNextRun(ctx context.Context, nextRun time.Time) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.backup_schedule.AdvanceNextRun")
+	defer span.End()
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
+		`UPDATE backup_schedule SET
+		   next_run_at = $1,
+		   updated_at  = NOW()
+		 WHERE id = TRUE`,
+		nextRun,
+	)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
+}
+
+// RecordRunResult lands the outcome of a finished run. It deliberately does
+// NOT touch next_run_at: the schedule advanced when the run fired.
+func (r *BackupScheduleRepository) RecordRunResult(ctx context.Context, lastRun time.Time, status, errMsg string) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.backup_schedule.RecordRunResult")
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`UPDATE backup_schedule SET
 		   last_run_at = $1,
-		   next_run_at = $2,
-		   last_status = $3,
-		   last_error  = $4,
+		   last_status = $2,
+		   last_error  = $3,
 		   updated_at  = NOW()
 		 WHERE id = TRUE`,
-		lastRun, nextRun, status, errMsg,
+		lastRun, status, errMsg,
 	)
 	if err != nil {
 		span.RecordError(err)

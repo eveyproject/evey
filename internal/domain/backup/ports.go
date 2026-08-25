@@ -27,8 +27,16 @@ type DatabaseDumper interface {
 }
 
 // ScheduleRepository is the port for the singleton backup_schedule row.
+//
+// The run bookkeeping is split in two on purpose. AdvanceNextRun fires at
+// TRIGGER time so a backup that outlives the tick interval cannot be re-fired
+// by the next tick (the scheduler used to advance only after CreateBackup
+// returned, stacking one pg_dump goroutine per minute behind a slow run).
+// RecordRunResult lands after the run with its outcome. Standard cron
+// semantics, same as the library scan scheduler.
 type ScheduleRepository interface {
 	Get(ctx context.Context) (*BackupSchedule, error)
 	Update(ctx context.Context, s *BackupSchedule) error
-	UpdateAfterRun(ctx context.Context, lastRun, nextRun time.Time, status, errMsg string) error
+	AdvanceNextRun(ctx context.Context, nextRun time.Time) error
+	RecordRunResult(ctx context.Context, lastRun time.Time, status, errMsg string) error
 }
