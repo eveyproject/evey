@@ -29,6 +29,14 @@ vi.mock("../src/components/FocusableCard", () => ({
     React.createElement("button", { onClick: onPress, ...p }, children),
 }));
 
+vi.mock("expo-image", () => ({
+  Image: (props: any) => React.createElement("img", { alt: "", src: props.source?.uri }),
+}));
+
+vi.mock("../src/hooks/useServerUrl", () => ({
+  useServerUrl: () => "http://srv.test",
+}));
+
 // --- ParentalPINModal mock ---------------------------------------------------
 const pinModalPropsRef: { current: any } = { current: null };
 vi.mock("../src/components/ParentalPINModal", () => ({
@@ -80,6 +88,7 @@ beforeEach(() => {
     setProfile: setProfileMock,
     setTokens: setTokensMock,
     profileId: "prof-kids",
+    accessToken: "current-access-token",
   };
   currentUserMock.mockReturnValue({ data: { id: "user-1" } });
 });
@@ -192,6 +201,65 @@ describe("ProfileSelect survives a nameless profile", () => {
     render(<ProfileSelect />);
     expect(screen.getByText("?")).toBeTruthy();
     expect(screen.getByText("R")).toBeTruthy();
+  });
+});
+
+// The TV was the only client that never rendered a profile's avatar image,
+// falling back to an initial letter even when the profile had one.
+describe("ProfileSelect renders avatars like the other clients", () => {
+  it("renders the avatar image, token in the query string, when avatarPath is set", () => {
+    listProfilesMock.mockReturnValue({
+      data: { profiles: [
+        { id: "prof-kids", name: "Kid", isKids: true, avatarPath: "avatars/kid.png" },
+        { id: "prof-adult", name: "Adult", isKids: false },
+      ] },
+      isLoading: false,
+    });
+    render(<ProfileSelect />);
+    const img = screen.getByAltText("") as HTMLImageElement;
+    expect(img.src).toBe("http://srv.test/api/v1/profiles/prof-kids/avatar?token=current-access-token");
+  });
+
+  it("falls back to the initial when avatarPath is absent", () => {
+    listProfilesMock.mockReturnValue({
+      data: { profiles: [
+        { id: "prof-kids", name: "Kid", isKids: true },
+        { id: "prof-adult", name: "Adult", isKids: false },
+      ] },
+      isLoading: false,
+    });
+    render(<ProfileSelect />);
+    expect(screen.queryByAltText("")).toBeNull();
+    expect(screen.getByText("K")).toBeTruthy();
+  });
+});
+
+// A shared television needs to know at a glance which profile is a kids
+// profile and which one is currently active - the whole point of this screen.
+describe("ProfileSelect surfaces kids and active markers", () => {
+  it("shows the kids badge only on the kids profile", () => {
+    listProfilesMock.mockReturnValue({
+      data: { profiles: [
+        { id: "prof-kids", name: "Kid", isKids: true },
+        { id: "prof-adult", name: "Adult", isKids: false },
+      ] },
+      isLoading: false,
+    });
+    render(<ProfileSelect />);
+    expect(screen.getByText("Kids")).toBeTruthy();
+  });
+
+  it("marks the currently active profile", () => {
+    // storeState.profileId is "prof-kids" (see beforeEach).
+    listProfilesMock.mockReturnValue({
+      data: { profiles: [
+        { id: "prof-kids", name: "Kid", isKids: true },
+        { id: "prof-adult", name: "Adult", isKids: false },
+      ] },
+      isLoading: false,
+    });
+    render(<ProfileSelect />);
+    expect(screen.getByText("Active")).toBeTruthy();
   });
 });
 

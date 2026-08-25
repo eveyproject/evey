@@ -115,6 +115,7 @@ profile:
     title: Who's watching?
     description: Select a profile to continue.
     kidsBadge: Kids
+    active: "Active"
     manage: Manage Profiles
     pinPromptTitle: Enter PIN
     pinPromptBody: "Enter the PIN for \"{{name}}\" to continue."

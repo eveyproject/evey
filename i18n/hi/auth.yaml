@@ -115,6 +115,7 @@ profile:
     title: "कौन देख रहा है?"
     description: "जारी रखने के लिए एक प्रोफ़ाइल चुनें।"
     kidsBadge: "बच्चा"
+    active: "सक्रिय"
     manage: "प्रोफ़ाइल प्रबंधित करें"
     pinPromptTitle: "PIN दर्ज करें"
     pinPromptBody: "जारी रखने के लिए \"{{name}}\" का PIN दर्ज करें।"

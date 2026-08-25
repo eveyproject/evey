@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { View, Text, ActivityIndicator, StyleSheet } from "react-native";
+import { Image } from "expo-image";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
@@ -8,6 +9,7 @@ import type { V1Profile } from "@evey/api";
 import { useAuthStore, toast } from "@evey/store";
 import { ScreenState } from "../src/components/ScreenState";
 import { useTheme } from "../src/providers/ThemeProvider";
+import { useServerUrl } from "../src/hooks/useServerUrl";
 import { FocusableCard } from "../src/components/FocusableCard";
 import { ParentalPINModal } from "../src/components/ParentalPINModal";
 
@@ -30,6 +32,8 @@ export default function ProfileSelect() {
   const qc = useQueryClient();
   const setProfile = useAuthStore((s) => s.setProfile);
   const activeProfileId = useAuthStore((s) => s.profileId);
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const serverUrl = useServerUrl();
 
   const { data: user } = useUserServiceGetCurrentUser();
   const userId = user?.id;
@@ -124,6 +128,13 @@ export default function ProfileSelect() {
           // optional call is what keeps a nameless profile from taking the
           // whole picker down. Same guard as mobile.
           const initial = (profile.name ?? "?")[0]?.toUpperCase() ?? "?";
+          // Token in the query string, not a header: RN's Image does not let
+          // the WebView-free native loader attach one. Same pattern as
+          // mobile's profile-select.tsx.
+          const avatarUrl = profile.avatarPath && profile.id && serverUrl && accessToken
+            ? `${serverUrl}/api/v1/profiles/${profile.id}/avatar?token=${accessToken}`
+            : null;
+          const isActive = !!profile.id && profile.id === activeProfileId;
           return (
             <FocusableCard
               key={profile.id}
@@ -133,12 +144,33 @@ export default function ProfileSelect() {
               style={styles.card}
               focusedStyle={{ borderColor: theme.colors.accent }}
             >
-              <View style={[styles.avatar, { backgroundColor: theme.colors.accent }]}>
-                <Text style={[styles.avatarText, { color: theme.colors.onAccent }]}>{initial}</Text>
+              <View style={[styles.avatar, { backgroundColor: theme.colors.accent, overflow: "hidden" }]}>
+                {avatarUrl ? (
+                  <Image
+                    source={{ uri: avatarUrl }}
+                    style={styles.avatarImage}
+                    contentFit="cover"
+                    accessible={false}
+                  />
+                ) : (
+                  <Text style={[styles.avatarText, { color: theme.colors.onAccent }]}>{initial}</Text>
+                )}
               </View>
-              <Text style={[styles.profileName, { color: theme.colors.text }]} numberOfLines={1}>
-                {profile.name}
-              </Text>
+              <View style={styles.nameRow}>
+                <Text style={[styles.profileName, { color: theme.colors.text }]} numberOfLines={1}>
+                  {profile.name}
+                </Text>
+                {profile.isKids && (
+                  <Text style={[styles.kidsBadge, { color: theme.colors.onAccent, backgroundColor: theme.colors.accent }]}>
+                    {t("auth.profile.select.kidsBadge", "Kids")}
+                  </Text>
+                )}
+              </View>
+              {isActive && (
+                <Text style={[styles.activeMarker, { color: theme.colors.textMuted }]}>
+                  {t("auth.profile.select.active", "Active")}
+                </Text>
+              )}
               {busy === profile.id && <ActivityIndicator color={theme.colors.accent} size="small" />}
             </FocusableCard>
           );
@@ -197,8 +229,31 @@ const styles = StyleSheet.create({
     fontSize: 48,
     fontWeight: "bold",
   },
+  avatarImage: {
+    width: 120,
+    height: 120,
+  },
+  nameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    flexWrap: "wrap",
+    gap: 8,
+  },
   profileName: {
     fontSize: 22,
     textAlign: "center",
+  },
+  kidsBadge: {
+    fontSize: 13,
+    fontWeight: "700",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    overflow: "hidden",
+  },
+  activeMarker: {
+    fontSize: 15,
+    marginTop: 4,
   },
 });

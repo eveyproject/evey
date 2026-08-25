@@ -115,6 +115,7 @@ profile:
     title: "¿Quién está viendo?"
     description: "Selecciona un perfil para continuar."
     kidsBadge: "Infantil"
+    active: "Activo"
     manage: "Gestionar perfiles"
     pinPromptTitle: "Introducir PIN"
     pinPromptBody: "Introduce el PIN de \"{{name}}\" para continuar."

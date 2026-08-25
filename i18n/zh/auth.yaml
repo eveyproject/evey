@@ -115,6 +115,7 @@ profile:
     title: "谁在观看？"
     description: "选择一个个人资料以继续。"
     kidsBadge: "儿童"
+    active: "当前使用"
     manage: "管理个人资料"
     pinPromptTitle: "输入 PIN 码"
     pinPromptBody: "输入 \"{{name}}\" 的 PIN 码以继续。"

@@ -52,10 +52,11 @@ vi.mock("../../../src/providers/ThemeProvider", () => ({
 const logoutMock = vi.fn();
 const setThemeMock = vi.fn();
 const setLocaleMock = vi.fn();
+let authStoreState: any;
 vi.mock("@evey/store", () => ({
   useAuthStore: Object.assign(
-    (sel: any) => sel({ logout: logoutMock, setTokens: vi.fn(), profileId: "prof-2" }),
-    { getState: () => ({ setTokens: vi.fn() }) },
+    (sel: any) => sel(authStoreState),
+    { getState: () => authStoreState },
   ),
   // applyFromPreferences included: the screen adopts the theme stored on the
   // profile, so the store mock has to carry it or the mount effect throws.
@@ -67,6 +68,14 @@ vi.mock("@evey/store", () => ({
 // --- hooks mocks ---------------------------------------------------------------
 vi.mock("../../../src/hooks/useServerUrl", () => ({
   useServerUrlNullable: () => "http://srv.test",
+}));
+
+vi.mock("expo-image", () => ({
+  Image: (props: any) => React.createElement("img", { alt: "", src: props.source?.uri }),
+}));
+
+vi.mock("../../../src/features/plugins/PluginSlot", () => ({
+  PluginSlot: (props: any) => React.createElement("div", { "data-plugin-slot": props.name }),
 }));
 
 // --- server-config mock ---------------------------------------------------------
@@ -104,6 +113,7 @@ import SettingsScreen from "./settings";
 
 beforeEach(() => {
   vi.clearAllMocks();
+  authStoreState = { logout: logoutMock, setTokens: vi.fn(), profileId: "prof-2", accessToken: "current-access-token", isAdmin: false };
   currentUserMock.mockReturnValue({ data: { id: "user-1", username: "gravity" } });
   listProfilesMock.mockReturnValue({
     data: {
@@ -227,5 +237,53 @@ describe("SettingsScreen (TV) language change", () => {
     // writing the locale onto the default profile instead of the active one
     // was the bug this screen fixed.
     expect(updateProfileMutateAsyncMock).toHaveBeenCalledWith({ id: "prof-2", data: { locale: "fr" } });
+  });
+});
+
+// The TV was the only client that never rendered a profile's avatar image
+// on this card, falling back to an initial letter even when one existed.
+describe("SettingsScreen (TV) profile card avatar", () => {
+  it("renders the avatar image, token in the query string, when the active profile has avatarPath", () => {
+    listProfilesMock.mockReturnValue({
+      data: {
+        profiles: [
+          { id: "prof-1", name: "Alice", isDefault: true },
+          { id: "prof-2", name: "Chloé", avatarPath: "avatars/chloe.png" },
+        ],
+      },
+    });
+    render(<SettingsScreen />);
+    const img = screen.getByAltText("") as HTMLImageElement;
+    expect(img.src).toBe("http://srv.test/api/v1/profiles/prof-2/avatar?token=current-access-token");
+  });
+
+  it("falls back to the initial when the active profile has no avatarPath", () => {
+    render(<SettingsScreen />);
+    expect(screen.queryByAltText("")).toBeNull();
+    expect(screen.getByText("C")).toBeTruthy();
+  });
+});
+
+describe("SettingsScreen (TV) appearance plugin slot", () => {
+  it("mounts the settings.user.appearance plugin slot, same as web/mobile", () => {
+    render(<SettingsScreen />);
+    expect(document.querySelector('[data-plugin-slot="settings.user.appearance"]')).toBeTruthy();
+  });
+});
+
+// GetSystemInfo is an admin-only RPC: a non-admin got a bare 403 on every
+// visit to this screen and the version line always read "-".
+describe("SettingsScreen (TV) server version is admin-only", () => {
+  it("does not call GetSystemInfo for a non-admin user", () => {
+    render(<SettingsScreen />);
+    expect(systemInfoMock).toHaveBeenCalledWith({ query: { enabled: false } });
+    expect(screen.queryByText("common.serverVersion")).toBeNull();
+  });
+
+  it("calls GetSystemInfo and shows the version for an admin user", () => {
+    authStoreState = { ...authStoreState, isAdmin: true };
+    render(<SettingsScreen />);
+    expect(systemInfoMock).toHaveBeenCalledWith({ query: { enabled: true } });
+    expect(screen.getByText("1.0.0")).toBeTruthy();
   });
 });

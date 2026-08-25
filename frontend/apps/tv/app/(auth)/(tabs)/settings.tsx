@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { View, Text, ScrollView, Pressable, StyleSheet } from "react-native";
+import { Image } from "expo-image";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useUserServiceGetCurrentUser, useUserServiceListProfiles, useUserServiceUpdateProfile, useAdminSystemServiceGetSystemInfo, userServiceLogout, eveyFetch } from "@evey/api";
@@ -8,6 +9,7 @@ import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useServerUrlNullable } from "../../../src/hooks/useServerUrl";
 import { clearServerUrl } from "../../../src/lib/server-config";
 import { supportedLanguages } from "../../../src/i18n";
+import { PluginSlot } from "../../../src/features/plugins/PluginSlot";
 
 // labelKey/fallback pairs mirror mobile's ThemeSelector.tsx builtInI18nKeys
 // mapping - same three built-in themes this TV settings screen exposes.
@@ -36,7 +38,12 @@ export default function SettingsScreen() {
   const activeProfile =
     profilesResp?.profiles?.find((p: { id?: string }) => p.id === activeProfileId) ?? defaultProfile;
   const updateProfile = useUserServiceUpdateProfile();
-  const { data: systemInfo } = useAdminSystemServiceGetSystemInfo();
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const isAdmin = useAuthStore((s) => s.isAdmin);
+  // Non-admin users get a bare 403 on every visit to this screen for a piece
+  // of information (server version) they cannot even use - gate the call on
+  // the role instead of eating a failed request each time.
+  const { data: systemInfo } = useAdminSystemServiceGetSystemInfo({ query: { enabled: isAdmin } });
 
   const [focusedItem, setFocusedItem] = useState<string | null>(null);
   const currentLang = i18n.language;
@@ -149,10 +156,19 @@ export default function SettingsScreen() {
             gate allows, and it was nowhere on this screen. The account name
             stays underneath - it is what you sign out of. */}
         <View style={styles.profileHeader}>
-          <View style={[styles.avatar, { backgroundColor: theme.colors.accent }]}>
-            <Text style={{ color: theme.colors.onAccent, fontSize: 30, fontWeight: "700" }}>
-              {(activeProfile?.name ?? user?.username ?? "?").slice(0, 1).toUpperCase()}
-            </Text>
+          <View style={[styles.avatar, { backgroundColor: theme.colors.accent, overflow: "hidden" }]}>
+            {activeProfile?.avatarPath && activeProfile.id && serverUrl && accessToken ? (
+              <Image
+                source={{ uri: `${serverUrl}/api/v1/profiles/${activeProfile.id}/avatar?token=${accessToken}` }}
+                style={styles.avatarImage}
+                contentFit="cover"
+                accessible={false}
+              />
+            ) : (
+              <Text style={{ color: theme.colors.onAccent, fontSize: 30, fontWeight: "700" }}>
+                {(activeProfile?.name ?? user?.username ?? "?").slice(0, 1).toUpperCase()}
+              </Text>
+            )}
           </View>
           <View style={{ flex: 1 }}>
             <Text style={[styles.profileName, { color: theme.colors.text }]} numberOfLines={1}>
@@ -305,14 +321,24 @@ export default function SettingsScreen() {
         ))}
       </View>
 
-      {/* About */}
-      <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>{t("mobile.settings.about")}</Text>
-      <View style={[styles.section, { backgroundColor: theme.colors.surface }]}>
-        <View style={styles.infoRow}>
-          <Text style={[styles.label, { color: theme.colors.text }]}>{t("common.serverVersion")}</Text>
-          <Text style={[styles.value, { color: theme.colors.textMuted }]}>{systemInfo?.version ?? "-"}</Text>
-        </View>
-      </View>
+      {/* Plugins that declare a settings.user.appearance module render their
+          own per-profile settings UI here - same placement as web/mobile. */}
+      <PluginSlot name="settings.user.appearance" />
+
+      {/* About - the server version row is admin-only info (GetSystemInfo is an
+          admin RPC): showing it to everyone else meant a 403 on every visit
+          and a version that always read "-". */}
+      {isAdmin && (
+        <>
+          <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>{t("mobile.settings.about")}</Text>
+          <View style={[styles.section, { backgroundColor: theme.colors.surface }]}>
+            <View style={styles.infoRow}>
+              <Text style={[styles.label, { color: theme.colors.text }]}>{t("common.serverVersion")}</Text>
+              <Text style={[styles.value, { color: theme.colors.textMuted }]}>{systemInfo?.version ?? "-"}</Text>
+            </View>
+          </View>
+        </>
+      )}
 
       <View style={{ height: 64 }} />
     </ScrollView>
@@ -322,6 +348,7 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   profileHeader: { flexDirection: "row", alignItems: "center", gap: 20, paddingVertical: 16, paddingHorizontal: 20 },
   avatar: { width: 64, height: 64, borderRadius: 32, justifyContent: "center", alignItems: "center" },
+  avatarImage: { width: 64, height: 64 },
   profileName: { fontSize: 26, fontWeight: "700" },
   container: { flex: 1 },
   header: { fontSize: 36, fontWeight: "700", marginBottom: 24 },
