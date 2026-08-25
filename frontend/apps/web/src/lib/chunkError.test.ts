@@ -106,3 +106,22 @@ describe("chunkError", () => {
     vi.restoreAllMocks();
   });
 });
+
+// The navigation-time hole: a route chunk that fails while the router loads it
+// never reaches an error boundary - the transition aborts and the page stays,
+// so the click reads as dead. The vite:preloadError listener itself must
+// reload (once), not merely record evidence for a boundary that will never run.
+describe("navigation-time chunk failure", () => {
+  it("reloads once straight from the vite:preloadError event", () => {
+    const reloadMock = vi.fn();
+    Object.defineProperty(window, "location", {
+      value: { reload: reloadMock, href: "/" },
+      writable: true,
+    });
+    window.dispatchEvent(new Event("vite:preloadError"));
+    expect(reloadMock).toHaveBeenCalledOnce();
+    // A second failure in the same session must NOT loop.
+    window.dispatchEvent(new Event("vite:preloadError"));
+    expect(reloadMock).toHaveBeenCalledOnce();
+  });
+});

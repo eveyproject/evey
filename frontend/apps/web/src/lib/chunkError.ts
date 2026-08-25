@@ -47,6 +47,13 @@ export function installPreloadErrorTracking(): void {
   installed = true;
   window.addEventListener("vite:preloadError", () => {
     lastPreloadErrorAt = Date.now();
+    // A route chunk that fails during NAVIGATION never reaches an error
+    // boundary: the router aborts the transition and the page simply stays,
+    // so every home title reads as "unclickable" in a tab opened before a
+    // redeploy (prod, 2026-08-25). Vite's documented remedy is to reload on
+    // this very event; the once-per-session guard below keeps a genuinely
+    // broken build from looping.
+    reloadOnceForChunkError();
   });
 }
 
@@ -54,9 +61,15 @@ export function installPreloadErrorTracking(): void {
 // route import), so this cannot wait for a React effect to register it.
 installPreloadErrorTracking();
 
-/** For tests only - forget the recorded preload failure. */
+/** For tests only - forget the recorded preload failure AND re-arm the
+ * once-per-session reload guard, so each test starts from a fresh session. */
 export function resetPreloadErrorForTests(): void {
   lastPreloadErrorAt = 0;
+  try {
+    sessionStorage.removeItem(RELOAD_KEY);
+  } catch {
+    // Storage refused: nothing recorded, nothing to clear.
+  }
 }
 
 function readString(value: unknown, key: "name" | "message"): string {

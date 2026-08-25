@@ -32,6 +32,19 @@ func spaHandler(dir string) http.Handler {
 			return
 		}
 
+		// A missing /assets/ file is never a client-side route: Vite
+		// content-hashes every asset name, so this request is a STALE TAB
+		// asking for a chunk a redeploy replaced. Answering index.html made
+		// the dynamic import fail as a module error, which aborts the
+		// navigation with no visible feedback - on 2026-08-25 every home
+		// title looked unclickable in any tab opened before the day's
+		// redeploys. A 404 is what the client's preload-error handler needs
+		// to detect staleness and reload the app.
+		if strings.HasPrefix(cleaned, "/assets/") {
+			http.NotFound(w, r)
+			return
+		}
+
 		// SPA fallback: serve index.html for all other paths
 		setStaticCachePolicy(w, "/index.html")
 		r.URL.Path = "/"

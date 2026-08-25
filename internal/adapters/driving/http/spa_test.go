@@ -175,3 +175,27 @@ func TestSPAHandler_Healthz_NotFound(t *testing.T) {
 		t.Fatalf("expected 404 for /healthz, got %d", w.Code)
 	}
 }
+
+// A missing /assets/ file must be a 404, never the SPA fallback. Vite
+// content-hashes every asset filename, so a request for an asset the server
+// does not have is ALWAYS a stale tab asking for a chunk a redeploy replaced.
+// Serving index.html (200 text/html) instead made the dynamic import fail as
+// a module error, which aborts the navigation silently: on the 2026-08-25
+// prod, every home-page title (Films, Séries, Collections) "could not be
+// clicked" in any tab opened before the day's four redeploys. A 404 lets the
+// client's preload-error handler detect staleness and reload.
+func TestSPAHandler_MissingAssetIs404NotIndexHTML(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "index.html"), []byte("<html>app</html>"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	h := spaHandler(dir)
+
+	req := httptest.NewRequest(http.MethodGet, "/assets/main-STALE123.js", nil)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("missing asset must 404, got %d (the SPA fallback disguises a stale chunk as HTML)", rec.Code)
+	}
+}
