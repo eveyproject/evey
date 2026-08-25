@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import React from "react";
 
 vi.mock("react-native", () => ({
@@ -90,6 +90,9 @@ describe("FeedCustomizePanel reset to defaults", () => {
       />,
     );
     fireEvent.click(screen.getByLabelText("common.feeds.resetDefaults"));
+    // The confirm button is locked for ~600ms right after the first press so a
+    // second, real press cannot land before the "Confirmer ?" label is read.
+    await act(() => new Promise((resolve) => setTimeout(resolve, 650)));
     fireEvent.click(screen.getByLabelText("common.feeds.resetConfirm"));
 
     await waitFor(() => {
@@ -97,5 +100,55 @@ describe("FeedCustomizePanel reset to defaults", () => {
       expect(resetMutateAsyncMock).toHaveBeenCalledWith({ feedType: "most_popular" });
       expect(invalidateQueriesMock).toHaveBeenCalledWith({ queryKey: ["/api/v1/feeds/config"] });
     });
+  });
+});
+
+// Two OK presses fired before the viewer could read "Confirmer ?" used to
+// wipe the customization silently - no confirmation was ever shown.
+describe("FeedCustomizePanel debounces the reset button", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("locks the button right after the first press, so an immediate second press does nothing", () => {
+    render(
+      <FeedCustomizePanel
+        visible
+        onClose={() => {}}
+        configs={CONFIGS}
+        profileId="prof-1"
+        libraryNames={{}}
+        pluginNames={{}}
+      />,
+    );
+    fireEvent.click(screen.getByLabelText("common.feeds.resetDefaults"));
+    const confirmBtn = screen.getByLabelText("common.feeds.resetConfirm") as HTMLButtonElement;
+    expect(confirmBtn.disabled).toBe(true);
+
+    fireEvent.click(confirmBtn);
+    expect(resetMutateAsyncMock).not.toHaveBeenCalled();
+  });
+
+  it("unlocks the button once the confirmation had time to be read", () => {
+    render(
+      <FeedCustomizePanel
+        visible
+        onClose={() => {}}
+        configs={CONFIGS}
+        profileId="prof-1"
+        libraryNames={{}}
+        pluginNames={{}}
+      />,
+    );
+    fireEvent.click(screen.getByLabelText("common.feeds.resetDefaults"));
+    act(() => {
+      vi.advanceTimersByTime(600);
+    });
+    const confirmBtn = screen.getByLabelText("common.feeds.resetConfirm") as HTMLButtonElement;
+    expect(confirmBtn.disabled).toBe(false);
   });
 });

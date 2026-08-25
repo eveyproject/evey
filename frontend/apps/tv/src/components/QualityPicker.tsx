@@ -35,22 +35,23 @@ export function QualityPicker({ visible, currentQuality, onSelect, onClose }: Pr
 
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose}>
+      <Pressable style={styles.backdrop} onPress={onClose} focusable={false}>
         <Pressable
           style={[styles.sheet, { backgroundColor: theme.colors.surface }]}
           onPress={(e) => e.stopPropagation()}
+          focusable={false}
         >
           <Text style={[styles.title, { color: theme.colors.text }]}>
             {t("player.settings.quality", "Quality")}
           </Text>
           <View style={styles.list}>
-            {QUALITY_OPTIONS.map((q, i) => {
+            {QUALITY_OPTIONS.map((q) => {
               const active = q.value === currentQuality;
               const label = q.value === 0 ? t("player.settings.auto", "Auto") : q.label;
               return (
                 <FocusableCard
                   key={q.value}
-                  hasTVPreferredFocus={i === 0}
+                  hasTVPreferredFocus={active}
                   onPress={() => {
                     onSelect(q.value);
                     onClose();

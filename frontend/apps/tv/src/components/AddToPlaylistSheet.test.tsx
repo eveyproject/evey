@@ -29,11 +29,12 @@ vi.mock("../providers/ThemeProvider", () => ({
 }));
 
 vi.mock("./FocusableCard", () => ({
-  FocusableCard: ({ children, onPress, accessibilityLabel, hasTVPreferredFocus }: any) =>
+  FocusableCard: ({ children, onPress, accessibilityLabel, hasTVPreferredFocus, disabled }: any) =>
     React.createElement(
       "button",
       {
-        onClick: onPress,
+        onClick: disabled ? undefined : onPress,
+        disabled,
         "aria-label": accessibilityLabel,
         // Booleans vanish through unknown DOM props: surface it as data-* so
         // the focus claim is observable.
@@ -45,9 +46,10 @@ vi.mock("./FocusableCard", () => ({
 
 const playlistsMock = vi.fn();
 const addMock = vi.fn();
+const addToIsPendingMock = vi.fn(() => false);
 vi.mock("../api/playlists", () => ({
   usePlaylistList: () => playlistsMock(),
-  useAddToPlaylist: () => ({ mutate: addMock, isPending: false }),
+  useAddToPlaylist: () => ({ mutate: addMock, isPending: addToIsPendingMock() }),
 }));
 
 vi.mock("@evey/store", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
@@ -85,5 +87,30 @@ describe("AddToPlaylistSheet keeps the remote alive", () => {
     render(<AddToPlaylistSheet visible mediaItemId="mi-1" onClose={() => {}} />);
     expect(closeFocus()).toBe("false");
     expect(screen.getByText("Soirée")).toBeTruthy();
+  });
+});
+
+// The mobile sibling guards this row with `disabled={added || addTo.isPending}`
+// (AddToPlaylistSheet.tsx:103); the TV row had no such guard, so a second OK
+// press before the mutation settled could fire it twice.
+describe("AddToPlaylistSheet guards an in-flight add", () => {
+  it("disables the row while a previous add is still pending", () => {
+    playlistsMock.mockReturnValue({
+      data: [{ id: "pl-1", name: "Soirée", type: "manual" }],
+      isLoading: false,
+    });
+    addToIsPendingMock.mockReturnValue(true);
+    render(<AddToPlaylistSheet visible mediaItemId="mi-1" onClose={() => {}} />);
+    expect((screen.getByLabelText("Soirée") as HTMLButtonElement).disabled).toBe(true);
+    addToIsPendingMock.mockReturnValue(false);
+  });
+
+  it("re-enables the row once the mutation is no longer pending", () => {
+    playlistsMock.mockReturnValue({
+      data: [{ id: "pl-1", name: "Soirée", type: "manual" }],
+      isLoading: false,
+    });
+    render(<AddToPlaylistSheet visible mediaItemId="mi-1" onClose={() => {}} />);
+    expect((screen.getByLabelText("Soirée") as HTMLButtonElement).disabled).toBe(false);
   });
 });

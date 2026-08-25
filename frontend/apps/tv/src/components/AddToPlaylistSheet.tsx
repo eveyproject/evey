@@ -44,10 +44,11 @@ export function AddToPlaylistSheet({ visible, mediaItemId, onClose }: Props) {
 
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
-      <Pressable style={[styles.backdrop, { backgroundColor: theme.colors.overlay }]} onPress={onClose}>
+      <Pressable style={[styles.backdrop, { backgroundColor: theme.colors.overlay }]} onPress={onClose} focusable={false}>
         <Pressable
           style={[styles.sheet, { backgroundColor: theme.colors.surface, borderRadius: 16 }]}
           onPress={(e) => e.stopPropagation()}
+          focusable={false}
         >
           <Text style={[styles.title, { color: theme.colors.text }]}>{t("media.detail.addToPlaylist")}</Text>
 
@@ -67,6 +68,7 @@ export function AddToPlaylistSheet({ visible, mediaItemId, onClose }: Props) {
                 return (
                   <FocusableCard
                     onPress={() => !added && handleAdd(item.id)}
+                    disabled={added || addTo.isPending}
                     hasTVPreferredFocus={index === 0}
                     accessibilityLabel={added ? `${item.name}, ${t("common.added", "Added")}` : item.name}
                     style={[styles.row, { borderBottomColor: theme.colors.border }]}

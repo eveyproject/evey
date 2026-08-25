@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, Modal, ScrollView, StyleSheet } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
@@ -62,11 +62,21 @@ export function FeedCustomizePanel({
   // relabelled button) commits. Reopening the panel drops the pending
   // confirmation rather than leaving a scary label behind.
   const [confirmingReset, setConfirmingReset] = useState(false);
+  // Two OK presses fired in quick succession (repeat-key or a double click)
+  // land before the viewer ever reads "Confirmer ?": lock the button for the
+  // time it takes to read the relabelled state, then release it for the
+  // real second press.
+  const [resetLocked, setResetLocked] = useState(false);
+  const resetLockTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (resetLockTimer.current) clearTimeout(resetLockTimer.current);
+  }, []);
 
   useEffect(() => {
     if (visible) {
       setRows(buildFeedRows(configs, libraryNames, pluginNames));
       setConfirmingReset(false);
+      setResetLocked(false);
     }
   }, [visible, configs, libraryNames, pluginNames]);
 
@@ -103,6 +113,10 @@ export function FeedCustomizePanel({
   const handleReset = useCallback(async () => {
     if (!confirmingReset) {
       setConfirmingReset(true);
+      setResetLocked(true);
+      // Owned by a ref so closing the panel mid-window clears it instead of
+      // firing setState on an unmounted component.
+      resetLockTimer.current = setTimeout(() => setResetLocked(false), 600);
       return;
     }
     setConfirmingReset(false);
@@ -203,6 +217,7 @@ export function FeedCustomizePanel({
           <View style={styles.footer}>
             <FocusableCard
               onPress={() => void handleReset()}
+              disabled={resetLocked}
               accessibilityLabel={t(confirmingReset ? "common.feeds.resetConfirm" : "common.feeds.resetDefaults")}
               style={[styles.resetBtn, { backgroundColor: theme.colors.surfaceRaised, borderRadius: theme.radii.md }]}
               focusedStyle={{ backgroundColor: theme.colors.accent + "33" }}

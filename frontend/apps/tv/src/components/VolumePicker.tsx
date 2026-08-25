@@ -31,8 +31,12 @@ export function VolumePicker({ visible, onClose, volumePct, muted, onSelect, onT
 
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable style={[styles.sheet, { backgroundColor: theme.colors.surface }]} onPress={(e) => e.stopPropagation()}>
+      <Pressable style={styles.backdrop} onPress={onClose} focusable={false}>
+        <Pressable
+          style={[styles.sheet, { backgroundColor: theme.colors.surface }]}
+          onPress={(e) => e.stopPropagation()}
+          focusable={false}
+        >
           <Text style={[styles.title, { color: theme.colors.text }]}>
             {t("player.controls.volume", "Volume")}
           </Text>

@@ -39,17 +39,21 @@ export function AudioTrackPicker({ visible, onClose, streams, currentIndex, onSe
 
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable style={[styles.sheet, { backgroundColor: theme.colors.surface }]} onPress={(e) => e.stopPropagation()}>
+      <Pressable style={styles.backdrop} onPress={onClose} focusable={false}>
+        <Pressable
+          style={[styles.sheet, { backgroundColor: theme.colors.surface }]}
+          onPress={(e) => e.stopPropagation()}
+          focusable={false}
+        >
           <Text style={[styles.title, { color: theme.colors.text }]}>{t("player.settings.audio")}</Text>
           <View style={styles.list}>
-            {streams.map((s, i) => {
+            {streams.map((s) => {
               const active = s.index === currentIndex;
               const label = formatLabel(s);
               return (
                 <FocusableCard
                   key={s.index}
-                  hasTVPreferredFocus={i === 0}
+                  hasTVPreferredFocus={active}
                   onPress={() => {
                     onSelect(s.index);
                     onClose();
