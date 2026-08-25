@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import { getZustandStorage } from "./storage";
+import { lazyZustandStorage, registerPersistedStore } from "./storage";
 
 export interface SavedServer {
   id: string;
@@ -105,7 +105,7 @@ export const useServerListStore = create<ServerListState>()(
     }),
     {
       name: "evey-servers",
-      storage: createJSONStorage(() => getZustandStorage()),
+      storage: createJSONStorage(() => lazyZustandStorage),
       partialize: (state) => ({
         servers: state.servers,
         activeServerId: state.activeServerId,
@@ -113,3 +113,6 @@ export const useServerListStore = create<ServerListState>()(
     }
   )
 );
+
+// Late-storage rehydration (React Native): see storage.ts.
+registerPersistedStore(useServerListStore);

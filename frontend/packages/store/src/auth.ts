@@ -13,7 +13,7 @@
 
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import { getZustandStorage } from "./storage";
+import { lazyZustandStorage, registerPersistedStore } from "./storage";
 import { useLocaleStore } from "./locale";
 
 function parseJwtPayload(token: string): Record<string, unknown> | null {
@@ -206,7 +206,7 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: "evey-auth",
-      storage: createJSONStorage(() => getZustandStorage()),
+      storage: createJSONStorage(() => lazyZustandStorage),
       partialize: (state) => ({
         tokensByServer: state.tokensByServer,
         profileId: state.profileId,
@@ -238,3 +238,6 @@ setTimeout(() => {
     // no-op: server store not yet available (test environment)
   }
 }, 0);
+
+// Late-storage rehydration (React Native): see storage.ts.
+registerPersistedStore(useAuthStore);

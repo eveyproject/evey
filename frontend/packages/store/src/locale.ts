@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import { getZustandStorage } from "./storage";
+import { lazyZustandStorage, registerPersistedStore } from "./storage";
 
 // Who last chose the locale. Precedence (user decision 2026-08-05):
 // profile > explicit user pick > device language > server default.
@@ -37,7 +37,10 @@ export const useLocaleStore = create<LocaleState>()(
         }
         return persisted as LocaleState;
       },
-      storage: createJSONStorage(() => getZustandStorage()),
+      storage: createJSONStorage(() => lazyZustandStorage),
     }
   )
 );
+
+// Late-storage rehydration (React Native): see storage.ts.
+registerPersistedStore(useLocaleStore);

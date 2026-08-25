@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import { getZustandStorage } from "./storage";
+import { lazyZustandStorage, registerPersistedStore } from "./storage";
 
 interface ThemeState {
   theme: string;
@@ -56,6 +56,9 @@ export const useThemeStore = create<ThemeState>()(
         set({ theme, pluginId, customVars: null });
       },
     }),
-    { name: "evey-theme", storage: createJSONStorage(() => getZustandStorage()) }
+    { name: "evey-theme", storage: createJSONStorage(() => lazyZustandStorage) }
   )
 );
+
+// Late-storage rehydration (React Native): see storage.ts.
+registerPersistedStore(useThemeStore);
