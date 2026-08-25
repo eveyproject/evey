@@ -7,12 +7,43 @@ import (
 	"fmt"
 	"io/fs"
 	"log/slog"
+	"time"
 
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
 	"github.com/golang-migrate/migrate/v4/source"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 )
+
+// migrationHeartbeatInterval paces the "still running" log below. Package
+// variable so the test can fire it without waiting half a minute.
+var migrationHeartbeatInterval = 30 * time.Second
+
+// migrationHeartbeat logs a beat until its stop function is called. The
+// migration runner has no context (golang-migrate holds the bare *sql.DB), so
+// on a database that accepts the connection but never answers, the whole boot
+// used to hang with ZERO log lines - the first line only appeared once Up()
+// succeeded or failed. Restarting a server mid-incident therefore looked
+// identical to a dead binary. The heartbeat does not bound anything; it makes
+// the wait visible and names the two states it can mean.
+func migrationHeartbeat() (stop func()) {
+	start := time.Now()
+	done := make(chan struct{})
+	go func() {
+		t := time.NewTicker(migrationHeartbeatInterval)
+		defer t.Stop()
+		for {
+			select {
+			case <-done:
+				return
+			case <-t.C:
+				slog.Warn("migrations: still running - the database has not answered yet, or a long migration is in flight",
+					slog.Duration("elapsed", time.Since(start).Round(time.Second)))
+			}
+		}
+	}()
+	return func() { close(done) }
+}
 
 //go:embed migrations/*.sql
 var migrationsFS embed.FS
@@ -31,6 +62,11 @@ var migrationsFS embed.FS
 // really must go through without a net, is `evey admin migrate up
 // --no-backup`.
 func RunMigrations(db *sql.DB, opts BackupOpts) error {
+	// From the very first db touch (m.Version() below) to the end of Up():
+	// everything in here can block without a deadline, so keep the operator
+	// informed for the whole span.
+	defer migrationHeartbeat()()
+
 	source, err := iofs.New(migrationsFS, "migrations")
 	if err != nil {
 		return err
