@@ -228,7 +228,15 @@ vi.mock("../../../src/components/ChaptersPicker", () => ({ ChaptersPicker: () =>
 vi.mock("../../../src/components/SleepTimerPicker", () => ({ SleepTimerPicker: () => null }));
 vi.mock("../../../src/components/VolumePicker", () => ({ VolumePicker: () => null }));
 vi.mock("../../../src/components/StreamInfoPanel", () => ({ StreamInfoPanel: () => null }));
-vi.mock("../../../src/components/SkipIntroButton", () => ({ SkipIntroButton: () => null }));
+// Captures the screen's onSkip wiring so the skip-clamp (M2) test below can
+// drive it directly, without needing the (segment-gated) button UI itself.
+let lastSkipIntroProps: { onSkip: (toSec: number) => void } | null = null;
+vi.mock("../../../src/components/SkipIntroButton", () => ({
+  SkipIntroButton: (p: { onSkip: (toSec: number) => void }) => {
+    lastSkipIntroProps = p;
+    return null;
+  },
+}));
 vi.mock("../../../src/components/NextEpisodeOverlay", () => ({ NextEpisodeOverlay: () => null }));
 vi.mock("../../../src/components/SyncplaySessionBadge", () => ({ SyncplaySessionBadge: () => null }));
 // TrickplaySeekPreview captures its own props so the remote-seek tests below
@@ -296,6 +304,7 @@ beforeEach(() => {
   lastAudioPickerProps = null;
   lastSubtitlePickerProps = null;
   lastTrickplayPreviewProps = null;
+  lastSkipIntroProps = null;
   capturedOnNavigate = null;
   needsPinMock.mockImplementation(() => false);
   localSearchParamsMock.mockReturnValue({ id: "ep-1" });
@@ -736,6 +745,108 @@ describe("action bar discoverability (TV)", () => {
     render(<PlayerScreen />);
     act(() => { capturedTVHandler?.({ eventType: "up" }); });
     expect(screen.queryByText("1.25x")).toBeNull();
+  });
+});
+
+// B4: the 30s "up next" card only informs - it must not go deaf on the D-pad
+// the way the other overlays (pickers/menus) legitimately do. Only the real
+// end-of-episode countdown (nextEp.ended) claims that same exclusivity.
+describe("next-episode card does not steal the D-pad early (TV)", () => {
+  const cardState = (overrides: { ended: boolean; cancel?: () => void }) => ({
+    visible: true,
+    ended: overrides.ended,
+    countdown: 5,
+    nextEpisode: { id: "ep-2", officialRating: "R" },
+    previousEpisode: null,
+    playNow: vi.fn(),
+    playPrevious: vi.fn(),
+    cancel: overrides.cancel ?? vi.fn(),
+  });
+
+  it("still seeks while the 30s card is showing but the countdown hasn't started", () => {
+    nextEpisodeStateMock.mockReturnValue(cardState({ ended: false }));
+    render(<PlayerScreen />);
+    act(() => { capturedTVHandler?.({ eventType: "right" }); });
+    expect(playerMock.seekBy).toHaveBeenCalledWith(30);
+  });
+
+  it("blocks the D-pad once the real end-of-episode countdown is running", () => {
+    nextEpisodeStateMock.mockReturnValue(cardState({ ended: true }));
+    render(<PlayerScreen />);
+    act(() => { capturedTVHandler?.({ eventType: "right" }); });
+    expect(playerMock.seekBy).not.toHaveBeenCalled();
+  });
+
+  it("cancels the card on back/menu instead of exiting the player while it is visible", () => {
+    const cancel = vi.fn();
+    nextEpisodeStateMock.mockReturnValue(cardState({ ended: false, cancel }));
+    render(<PlayerScreen />);
+    act(() => { capturedTVHandler?.({ eventType: "back" }); });
+    expect(cancel).toHaveBeenCalled();
+    expect(backMock).not.toHaveBeenCalled();
+    expect(replaceMock).not.toHaveBeenCalled();
+  });
+});
+
+// M2: an unclamped segment end past (or too close to) the true duration
+// jumped straight into a black frame or the credits scroll.
+describe("skip-intro clamp (TV)", () => {
+  it("clamps the skip target to duration - 5s once duration is known", () => {
+    render(<PlayerScreen />);
+    playerMock.duration = 100;
+    act(() => { playerListeners.get("timeUpdate")?.({ currentTime: 10 }); }); // syncs the duration state
+    act(() => { lastSkipIntroProps?.onSkip(999); });
+    expect(playerMock.currentTime).toBe(95);
+  });
+
+  it("leaves an in-bounds target untouched", () => {
+    render(<PlayerScreen />);
+    playerMock.duration = 100;
+    act(() => { playerListeners.get("timeUpdate")?.({ currentTime: 10 }); });
+    act(() => { lastSkipIntroProps?.onSkip(30); });
+    expect(playerMock.currentTime).toBe(30);
+  });
+
+  it("does not clamp before duration is known", () => {
+    render(<PlayerScreen />);
+    act(() => { lastSkipIntroProps?.onSkip(999); });
+    expect(playerMock.currentTime).toBe(999);
+  });
+});
+
+// B3: a native "loading" status fires on every micro-stall - flashing a
+// spinner over those reads as "the app is struggling" when nothing is wrong.
+describe("buffering overlay (TV)", () => {
+  it("shows the overlay only after a sustained stall once playback has started", () => {
+    vi.useFakeTimers();
+    try {
+      render(<PlayerScreen />);
+      playerMock.playing = true;
+      act(() => { playerListeners.get("playingChange")?.(); });
+
+      act(() => { playerListeners.get("statusChange")?.({ status: "loading" }); });
+      expect(screen.queryByTestId("spinner")).toBeNull();
+
+      act(() => { vi.advanceTimersByTime(1200); });
+      expect(screen.getByTestId("spinner")).toBeTruthy();
+
+      act(() => { playerListeners.get("statusChange")?.({ status: "readyToPlay" }); });
+      expect(screen.queryByTestId("spinner")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("never shows the overlay for a stall before playback has ever started", () => {
+    vi.useFakeTimers();
+    try {
+      render(<PlayerScreen />);
+      act(() => { playerListeners.get("statusChange")?.({ status: "loading" }); });
+      act(() => { vi.advanceTimersByTime(5000); });
+      expect(screen.queryByTestId("spinner")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

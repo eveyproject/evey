@@ -47,6 +47,11 @@ const IMAGE_SUBTITLE_CODECS = new Set([
 ]);
 
 const CONTROLS_TIMEOUT = 4000;
+// A native "loading" status fires on every micro-stall (segment boundary, ABR
+// switch), same as the raw `waiting` event web debounces - see
+// HLSPlayer.tsx's setIsBufferingDebounced. Flashing a spinner over those
+// reads as "the app is struggling" when nothing is wrong.
+const BUFFERING_OVERLAY_DELAY_MS = 1200;
 
 export default function PlayerScreen() {
   // `restart=1` means the viewer chose "from the beginning" on the media page.
@@ -140,6 +145,9 @@ export default function PlayerScreen() {
   const [showVolumePicker, setShowVolumePicker] = useState(false);
   const [showStreamInfoPanel, setShowStreamInfoPanel] = useState(false);
   const [skipVisible, setSkipVisible] = useState(false);
+  // Whether the Skip button itself holds TV focus - distinct from skipVisible,
+  // see the remote handler's "select" guard below (B5).
+  const [skipFocused, setSkipFocused] = useState(false);
   const [selectedQuality, setSelectedQuality] = useState(0);
   const [selectedAudioIndex, setSelectedAudioIndex] = useState<number>(0);
   const [selectedSubtitleIndex, setSelectedSubtitleIndex] = useState<number | null>(null);
@@ -149,6 +157,9 @@ export default function PlayerScreen() {
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [volumePct, setVolumePct] = useState(100);
   const [muted, setMuted] = useState(false);
+  // Debounced "the stream stalled" indicator - see setIsBufferingDebounced
+  // below for why it is not just `ev.status === "loading"` on its own.
+  const [isBuffering, setIsBuffering] = useState(false);
   // Local target position shown the instant a seek key is pressed, released once
   // the real playhead (fed by the player's own timeUpdate listener) catches up -
   // see playerSeek.ts. Without this the progress bar only moved on the next
@@ -301,6 +312,32 @@ export default function PlayerScreen() {
   }, [player]);
 
 
+  // Once playback has actually started, a later "loading" status is a real
+  // stall worth telling the viewer about - before that, it is just the normal
+  // startup sequence the entry spinner (isLoading) already covers.
+  const hasStartedPlaybackRef = useRef(false);
+  useEffect(() => { if (isPlaying) hasStartedPlaybackRef.current = true; }, [isPlaying]);
+  const bufferingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const setIsBufferingDebounced = useCallback((stalled: boolean) => {
+    if (stalled) {
+      if (!hasStartedPlaybackRef.current) return;
+      if (bufferingTimerRef.current !== null) return; // already counting down
+      bufferingTimerRef.current = setTimeout(() => {
+        bufferingTimerRef.current = null;
+        setIsBuffering(true);
+      }, BUFFERING_OVERLAY_DELAY_MS);
+      return;
+    }
+    if (bufferingTimerRef.current !== null) {
+      clearTimeout(bufferingTimerRef.current);
+      bufferingTimerRef.current = null;
+    }
+    setIsBuffering(false);
+  }, []);
+  useEffect(() => () => {
+    if (bufferingTimerRef.current !== null) clearTimeout(bufferingTimerRef.current);
+  }, []);
+
   useEffect(() => {
     if (!player) return;
     const timeSub = player.addListener("timeUpdate", (ev) => {
@@ -314,6 +351,7 @@ export default function PlayerScreen() {
         setIsPlaying(p.playing);
         setDuration(p.duration);
       });
+      setIsBufferingDebounced(ev.status === "loading");
       if (ev.status === "error") {
         console.warn("[player] native playback error:", ev.error?.message);
         // Beacon BEFORE the state flip, same reporter as web and mobile: a
@@ -339,7 +377,7 @@ export default function PlayerScreen() {
       statusSub.remove();
       playSub.remove();
     };
-  }, [player, withPlayer, reportPlayerEvent]);
+  }, [player, withPlayer, reportPlayerEvent, setIsBufferingDebounced]);
 
   useEffect(() => {
     return () => stopSession();
@@ -518,9 +556,14 @@ export default function PlayerScreen() {
 
   const handleSkipIntro = useCallback(
     (toSec: number) => {
-      withPlayer((p) => { p.currentTime = toSec; });
+      // An unclamped segment end past (or too close to) the true duration
+      // jumps straight into a black frame or the tail credits scroll instead
+      // of the next scene. Only clamp once duration is known - 0 means it
+      // hasn't loaded yet, and clamping against that would pin every skip to 0.
+      const target = duration > 0 ? Math.min(toSec, Math.max(0, duration - 5)) : toSec;
+      withPlayer((p) => { p.currentTime = target; });
     },
-    [withPlayer],
+    [withPlayer, duration],
   );
 
   const handleToggleMute = useCallback(() => {
@@ -581,13 +624,13 @@ export default function PlayerScreen() {
   const entryGated = !!media && !entryUnlocked && entryNeedsPin();
 
   useEffect(() => {
-    if (entryGated) player?.pause();
-  }, [entryGated, player]);
+    if (entryGated) withPlayer((p) => p.pause());
+  }, [entryGated, withPlayer]);
 
   const handleEntryPinVerified = useCallback(() => {
     setEntryUnlocked(true);
-    player?.play();
-  }, [player]);
+    withPlayer((p) => p.play());
+  }, [withPlayer]);
 
   // useNextEpisode itself has resolved it) can be defined after the hook
   // call without creating a circular dependency.
@@ -658,23 +701,27 @@ export default function PlayerScreen() {
     if (nextEp.previousEpisode?.id) handleNavigateEpisode(nextEp.previousEpisode.id);
   }, [nextEp.previousEpisode, handleNavigateEpisode]);
 
-  const sleepTimer = useSleepTimer({ onMinutesFire: () => player?.pause() });
+  const sleepTimer = useSleepTimer({ onMinutesFire: () => withPlayer((p) => p.pause()) });
 
   // "End of episode" sleep mode has no countdown of its own - it rides the same
   // "ended" signal the next-episode auto-advance uses. Cancelling the
   // auto-advance too stops it from starting the next item right after pausing.
   useEffect(() => {
     if (nextEp.ended && sleepTimer.state?.kind === "endOfEpisode") {
-      player?.pause();
+      withPlayer((p) => p.pause());
       sleepTimer.cancel();
       nextEp.cancel();
     }
-  }, [nextEp.ended, sleepTimer.state?.kind, player, sleepTimer.cancel, nextEp.cancel]);
+  }, [nextEp.ended, sleepTimer.state?.kind, withPlayer, sleepTimer.cancel, nextEp.cancel]);
 
+  // The 30s "up next" card only informs - the D-pad still seeks and pauses
+  // right through it (item B4). Only the real end-of-episode countdown
+  // (nextEp.ended) claims the same exclusive ownership as the other overlays
+  // below, the instant before the auto-advance actually fires.
   const anyOverlayOpen =
     showQualityPicker || showTrackMenu || showAudioPicker || showSubtitlePicker ||
     showChaptersPicker || showSleepTimerPicker || showVolumePicker || showStreamInfoPanel ||
-    nextEp.visible;
+    nextEp.ended;
 
   // D-pad remote handler. The callback param is annotated explicitly: the
   // react-native-tvos alias resolves per-app, and the hoisted classic RN
@@ -709,20 +756,29 @@ export default function PlayerScreen() {
     if (!evt) return;
     const type = evt.eventType;
 
-    // While any overlay (picker/menu/next-episode card) is showing, its own
-    // FocusableCard rows own the D-pad via the native TV focus engine - if we
-    // kept interpreting the same key here (e.g. "select") it would double-fire
-    // (native onPress AND togglePlayPause()).
+    // While a picker/menu is showing, or the end-of-episode auto-advance
+    // countdown is actually running, its own FocusableCard rows own the
+    // D-pad via the native TV focus engine - if we kept interpreting the same
+    // key here (e.g. "select") it would double-fire (native onPress AND
+    // togglePlayPause()).
     if (anyOverlayOpen) return;
-    // The Skip button holds TV focus while visible; its own FocusableCard
-    // native onPress handles OK, so don't ALSO toggle play/pause on "select"
-    // (the double-fire the audit found). The dedicated playPause remote key
-    // still pauses during an intro.
-    if (skipVisible && type === "select") return;
+    // The Skip button holds TV focus while visible, but "select" must only be
+    // swallowed while it is the one that ACTUALLY has it - a `skipVisible`-only
+    // check swallowed OK even when focus had moved elsewhere, muting the key
+    // for no reason (the double-fire this guards against needs the button's
+    // own onPress to be the one about to fire).
+    if (skipFocused && type === "select") return;
     if (syncplayBadgeFocused && type === "select") return;
     // OK on the focused surface already fires its native onPress - handling
     // "select" here too would double-toggle play/pause.
     if (surfaceFocused && type === "select") return;
+    // The 30s "up next" card is on screen but hasn't claimed the D-pad (see
+    // anyOverlayOpen above) - back/menu dismisses IT instead of exiting the
+    // player, since the viewer is a keypress from losing their place otherwise.
+    if (nextEp.visible && (type === "menu" || type === "back")) {
+      nextEp.cancel();
+      return;
+    }
     // While the action bar holds focus its own buttons own the D-pad: left and
     // right walk the row, OK activates. Interpreting the same keys here would
     // seek behind the viewer's back while they are picking an audio track.
@@ -758,15 +814,18 @@ export default function PlayerScreen() {
 
   // Imperative focus reclaim: whenever no overlay/bar should own the D-pad,
   // force native focus back onto the surface - if no native view is focused
-  // Android stops delivering key events and the player goes deaf.
+  // Android stops delivering key events and the player goes deaf. Missing
+  // skipVisible/the PIN modals here (B6) meant the surface never reclaimed
+  // focus once the Skip button (or a PIN prompt) disappeared, leaving the
+  // remote dead until some OTHER overlay happened to toggle anyOverlayOpen.
   useEffect(() => {
-    if (barFocused || anyOverlayOpen) return;
+    if (barFocused || anyOverlayOpen || skipVisible || entryGated || showNextEpPinModal || showPrevEpPinModal) return;
     const t = setTimeout(
       () => (surfaceRef.current as unknown as { requestTVFocus?: () => void })?.requestTVFocus?.(),
       100,
     );
     return () => clearTimeout(t);
-  }, [barFocused, anyOverlayOpen]);
+  }, [barFocused, anyOverlayOpen, skipVisible, entryGated, showNextEpPinModal, showPrevEpPinModal]);
 
   // Called from useProgressReporter's CLEANUP, which runs while the screen is
   // being popped and the native player may already be released. Reading it raw
@@ -784,6 +843,13 @@ export default function PlayerScreen() {
       return true;
     }
   }, [player]);
+
+  // volumePct/muted already track the player's own state (see
+  // handleVolumeSelect/handleToggleMute) - reporting them was previously
+  // skipped entirely, so the "now playing" surface (and a remote command
+  // reacting to it) never knew this TV had turned its volume down or muted.
+  const getVolume = useCallback(() => volumePct / 100, [volumePct]);
+  const getIsMuted = useCallback(() => muted, [muted]);
 
   const remoteCallbacks = useMemo(
     () => ({
@@ -808,7 +874,7 @@ export default function PlayerScreen() {
     [player, handleBack],
   );
 
-  useProgressReporter(sessionId, getPositionMs, getIsPaused, undefined, undefined, remoteCallbacks);
+  useProgressReporter(sessionId, getPositionMs, getIsPaused, getVolume, getIsMuted, remoteCallbacks);
 
   // Server-side load shed (HTTP 503): distinct from isError below - nothing is
   // broken, the server just isn't ready to serve THIS request yet, for one of
@@ -914,12 +980,21 @@ export default function PlayerScreen() {
         contentFit="contain"
       />
 
+      {isBuffering && (
+        <View style={styles.bufferingOverlay} pointerEvents="none">
+          <ActivityIndicator size="large" color="#fff" />
+        </View>
+      )}
+
       {/* Focus holder and pointer surface, kept under every overlay. */}
       <Pressable
         ref={surfaceRef}
         style={StyleSheet.absoluteFill}
         focusable={true}
-        hasTVPreferredFocus={!barFocused && !anyOverlayOpen}
+        // The Skip button also asks for preferred focus while visible (item
+        // B5) - both requesting it on the same mount is the focus fight that
+        // let the surface silently steal OK away from the button.
+        hasTVPreferredFocus={!barFocused && !anyOverlayOpen && !skipVisible}
         onFocus={() => setSurfaceFocused(true)}
         onBlur={() => setSurfaceFocused(false)}
         onPress={() => {
@@ -1026,7 +1101,14 @@ export default function PlayerScreen() {
         streamInfo={streamInfo ?? null}
       />
 
-      <SkipIntroButton mediaId={mediaId} currentTime={currentTime} onSkip={handleSkipIntro} onVisibleChange={setSkipVisible} />
+      <SkipIntroButton
+        mediaId={mediaId}
+        currentTime={currentTime}
+        onSkip={handleSkipIntro}
+        onVisibleChange={setSkipVisible}
+        onFocusChange={setSkipFocused}
+        liftForNextEpisode={nextEp.visible}
+      />
 
       <NextEpisodeOverlay
         visible={nextEp.visible}
@@ -1205,6 +1287,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   video: {},
+  bufferingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.15)",
+  },
   overlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0,0,0,0.4)",

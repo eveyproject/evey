@@ -24,10 +24,16 @@ vi.mock("../hooks/useMediaSegments", () => ({
   useMediaSegments: (...args: unknown[]) => useMediaSegmentsMock(...args),
 }));
 
+const toastInfoMock = vi.fn();
+vi.mock("@evey/store", () => ({
+  toast: { info: (...args: unknown[]) => toastInfoMock(...args) },
+}));
+
 import { SkipIntroButton } from "./SkipIntroButton";
 
 beforeEach(() => {
   useMediaSegmentsMock.mockReset();
+  toastInfoMock.mockReset();
 });
 
 describe("SkipIntroButton", () => {
@@ -64,6 +70,25 @@ describe("SkipIntroButton", () => {
     expect(onSkip).toHaveBeenCalledWith(30);
   });
 
+  // B5: the player screen must know whether the button ITSELF holds TV focus
+  // (not merely that it is visible) before it can safely swallow "select".
+  it("reports its own focus state to the caller, distinctly from visibility", () => {
+    useMediaSegmentsMock.mockReturnValue({
+      data: { introAutoSkip: false, segments: [{ type: "intro", startMs: 0, endMs: 30000, confidence: 0.9, source: "audio" }] },
+    });
+    const onFocusChange = vi.fn();
+    const { getByText } = render(
+      <SkipIntroButton mediaId="mi-1" currentTime={10} onSkip={vi.fn()} onFocusChange={onFocusChange} />,
+    );
+    // focus/blur do not bubble - the handler lives on the button itself, not
+    // the text node getByText resolves to.
+    const button = getByText("player.skipIntro").closest("button")!;
+    fireEvent.focus(button);
+    expect(onFocusChange).toHaveBeenCalledWith(true);
+    fireEvent.blur(button);
+    expect(onFocusChange).toHaveBeenCalledWith(false);
+  });
+
   it("labels a recap segment distinctly from an intro", () => {
     useMediaSegmentsMock.mockReturnValue({
       data: { introAutoSkip: false, segments: [{ type: "recap", startMs: 0, endMs: 20000, confidence: 0.8, source: "audio" }] },
@@ -85,6 +110,21 @@ describe("SkipIntroButton", () => {
     fireEvent.click(getByText("player.skipCredits"));
     expect(onSkip).toHaveBeenCalledWith(90);
   });
+
+  // M3: a recap and an intro can overlap. The server used to decide the
+  // winner by array order (recap listed first shadowed an intro that had
+  // actually started sooner); the earliest-starting segment must win instead.
+  it("prefers the earlier-starting segment when two overlap, regardless of server order", () => {
+    useMediaSegmentsMock.mockReturnValue({
+      data: { introAutoSkip: false, segments: [
+        { type: "recap", startMs: 20000, endMs: 50000, confidence: 0.8, source: "audio" },
+        { type: "intro", startMs: 0, endMs: 30000, confidence: 0.9, source: "audio" },
+      ] },
+    });
+    const { getByText } = render(<SkipIntroButton mediaId="mi-1" currentTime={25} onSkip={vi.fn()} />);
+    expect(getByText("player.skipIntro")).toBeTruthy();
+  });
+
   // The admin "auto-skip the intro" toggle. Web and mobile have honoured it
   // since it shipped; the TV player never read it, so turning it on did
   // nothing on this one player even though the setting claimed to cover them
@@ -104,6 +144,16 @@ describe("SkipIntroButton", () => {
       // control that is about to disappear is the double-fire this screen has
       // already been bitten by.
       expect(container.innerHTML).toBe("");
+    });
+
+    // Silent before this fix (M1): the jump happened with no on-screen notice,
+    // unlike web and mobile which have toasted it since the toggle shipped.
+    it("toasts that the intro was skipped", () => {
+      useMediaSegmentsMock.mockReturnValue({
+        data: { introAutoSkip: true, segments: [intro] },
+      });
+      render(<SkipIntroButton mediaId="mi-1" currentTime={10} onSkip={vi.fn()} />);
+      expect(toastInfoMock).toHaveBeenCalledWith("player.introSkipped");
     });
 
     it("leaves the manual button alone when the toggle is off", () => {
