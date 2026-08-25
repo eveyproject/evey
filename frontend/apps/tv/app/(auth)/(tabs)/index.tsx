@@ -783,7 +783,8 @@ export default function HomeScreen() {
         );
       case "collections": {
         const all = collections.data?.collections ?? [];
-        const cols = section.maxItems && section.maxItems > 0 ? all.slice(0, section.maxItems) : all;
+        // 105 repaired sagas landed today: an unbounded row would mount them all.
+        const cols = all.slice(0, resolveMaxItems(section.maxItems, 20));
         return (
           <TileRow
             key={section.key}

@@ -41,14 +41,17 @@ export default function RootLayout() {
     bootMarker();
 
     async function bootstrap() {
-      // Migrate single-server users to the multi-server store (idempotent)
-      try {
-        await migrateFromSingleServer({ readLegacyServerUrl: getServerUrl });
-      } catch (err) {
-        bootLog.error("migration serveur échouée", err);
-      }
+      // Migrate single-server users to the multi-server store (idempotent).
+      // The audio session has no dependency on the store migration or the
+      // fetcher: running the three serially just lengthened the black screen
+      // before the home (every await here is time with nothing painted).
+      await Promise.all([
+        migrateFromSingleServer({ readLegacyServerUrl: getServerUrl }).catch((err) => {
+          bootLog.error("migration serveur échouée", err);
+        }),
+        configureAudioSession(),
+      ]);
       await initFetcher();
-      await configureAudioSession();
       const serverUrl =
         useServerListStore.getState().getActiveServer()?.url ?? await getServerUrl();
       if (serverUrl) {

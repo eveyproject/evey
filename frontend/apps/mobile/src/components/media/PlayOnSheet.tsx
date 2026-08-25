@@ -28,7 +28,7 @@ function iconFor(type: string): keyof typeof Ionicons.glyphMap {
 export function PlayOnSheet({ visible, mediaId, onClose }: Props) {
   const { t } = useTranslation();
   const theme = useTheme();
-  const { data: devices, isLoading, refetch } = usePlayOnDevices();
+  const { data: devices, isLoading, refetch } = usePlayOnDevices({ enabled: visible });
   const sendCommand = usePlayOnCommand();
 
   function handleSelect(device: PlayOnDevice) {

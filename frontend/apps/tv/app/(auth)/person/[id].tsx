@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { View, Text, ScrollView, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { useLocalSearchParams, router } from "expo-router";
@@ -18,6 +18,7 @@ const POSTER_GAP = GRID_GAP;
 const PAD_H = 48;
 // TV screens target a fixed 1920px-wide display - no runtime Dimensions lookup needed.
 const POSTER_WIDTH = (TV_SCREEN_WIDTH - PAD_H * 2 - POSTER_GAP * (POSTER_COLS - 1)) / POSTER_COLS;
+const FILMOGRAPHY_PAGE_SIZE = 24;
 const POSTER_HEIGHT = POSTER_WIDTH * POSTER_RATIO;
 
 interface PersonInfo {
@@ -44,6 +45,13 @@ export default function PersonDetailScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
   const [bioExpanded, setBioExpanded] = useState(false);
+  // A prolific actor's filmography used to mount up to 500 posters at once
+  // (the fetch cap), freezing a modest TV box before first paint. The fetch
+  // stays whole so the count in the heading stays honest; only the RENDER pages.
+  const [visibleCount, setVisibleCount] = useState(FILMOGRAPHY_PAGE_SIZE);
+  useEffect(() => {
+    setVisibleCount(FILMOGRAPHY_PAGE_SIZE);
+  }, [id]);
 
   const personId = id ?? "";
   const {
@@ -149,7 +157,7 @@ export default function PersonDetailScreen() {
             {t("media.person.filmography")} ({items.length})
           </Text>
           <View style={styles.grid}>
-            {items.map((item, index) => (
+            {items.slice(0, visibleCount).map((item, index) => (
               <FocusableCard
                 key={item.id}
                 onPress={() => router.push(`/(auth)/media/${item.id}`)}
@@ -196,6 +204,17 @@ export default function PersonDetailScreen() {
                 ) : null}
               </FocusableCard>
             ))}
+            {items.length > visibleCount ? (
+              <FocusableCard
+                onPress={() => setVisibleCount((c) => c + FILMOGRAPHY_PAGE_SIZE)}
+                style={{ width: POSTER_WIDTH, marginBottom: POSTER_GAP, justifyContent: "center", alignItems: "center", minHeight: 120 }}
+                accessibilityLabel={t("media.detail.showMoreEpisodes", "Show more")}
+              >
+                <Text style={{ color: theme.colors.accent, fontSize: 18, fontWeight: "600" }}>
+                  {t("media.detail.showMoreEpisodes", "Show more")}
+                </Text>
+              </FocusableCard>
+            ) : null}
           </View>
         </>
       ) : null}

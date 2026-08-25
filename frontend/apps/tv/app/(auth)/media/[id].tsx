@@ -43,6 +43,9 @@ const POSTER_WIDTH = CARD_WIDTH_FEATURED;
 // "backdrop" - that is the artwork type an episode still lives under, same as
 // the web episode rows.
 const EPISODE_THUMB_WIDTH = 240;
+// Client-side page size for the episode list - the fetch stays whole (500) so
+// counts and next-episode math keep seeing every sibling; only the RENDER pages.
+const EPISODE_PAGE_SIZE = 20;
 const POSTER_HEIGHT = POSTER_WIDTH * POSTER_RATIO;
 
 function isSeriesType(type?: string) {
@@ -220,6 +223,15 @@ export default function MediaDetailScreen() {
   const toggleFavorite = useToggleFavorite(id);
 
   const [playlistSheetOpen, setPlaylistSheetOpen] = useState(false);
+  // A long season used to mount its full episode list at once (pageSize 500):
+  // one layout burst on the most visited pre-playback screen. Same paging as
+  // mobile: slice + a focusable "show more".
+  const [visibleEpisodeCount, setVisibleEpisodeCount] = useState(EPISODE_PAGE_SIZE);
+  // expo-router reuses this screen across ids: reset the paging when the
+  // viewer moves to another season, or the new one opens pre-expanded.
+  useEffect(() => {
+    setVisibleEpisodeCount(EPISODE_PAGE_SIZE);
+  }, [id]);
   const [watchedOverride, setWatchedOverride] = useState<boolean | null>(null);
   const watched = watchedOverride ?? (watchProgress?.played === true);
 
@@ -739,7 +751,7 @@ export default function MediaDetailScreen() {
               {t("media.detail.episodeCount", { count: episodes.length })}
             </Text>
           </View>
-          {episodes.map((ep) => (
+          {episodes.slice(0, visibleEpisodeCount).map((ep) => (
             <FocusableCard
               key={ep.id}
               onPress={() => router.push(`/(auth)/media/${ep.id}`)}
@@ -774,6 +786,17 @@ export default function MediaDetailScreen() {
               </View>
             </FocusableCard>
           ))}
+          {episodes.length > visibleEpisodeCount ? (
+            <FocusableCard
+              onPress={() => setVisibleEpisodeCount((c) => c + EPISODE_PAGE_SIZE)}
+              style={[styles.episodeRow, { borderBottomColor: theme.colors.border, justifyContent: "center" }]}
+              accessibilityLabel={t("media.detail.showMoreEpisodes", "Show more")}
+            >
+              <Text style={{ color: theme.colors.accent, fontSize: 18, fontWeight: "600" }}>
+                {t("media.detail.showMoreEpisodes", "Show more")}
+              </Text>
+            </FocusableCard>
+          ) : null}
         </View>
       )}
 

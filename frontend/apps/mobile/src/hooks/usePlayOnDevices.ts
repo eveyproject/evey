@@ -21,7 +21,7 @@ const DEVICE_ID_KEY = "evey-device-id";
 // currently-connected Play On targets (first-party clients holding a
 // persistent WebSocket - TV app, another phone, a browser tab), minus this
 // install itself.
-export function usePlayOnDevices() {
+export function usePlayOnDevices(opts?: { enabled?: boolean }) {
   const [selfId, setSelfId] = useState<string | null>(null);
   useEffect(() => {
     let cancelled = false;
@@ -39,7 +39,11 @@ export function usePlayOnDevices() {
       ),
     select: (devices) => (selfId ? devices.filter((d) => d.id !== selfId) : devices),
     // Devices come and go on their own (TV powered off, app closed) - a
-    // 10-second refetch keeps the picker in sync without spamming.
+    // 10-second refetch keeps the picker in sync without spamming. The poll
+    // only runs while a caller says the picker is actually on screen: the
+    // sheet is mounted (hidden) on every media page, and an unconditional
+    // interval polled /api/v1/devices 6x/min for a UI nobody had opened.
+    enabled: opts?.enabled ?? true,
     refetchInterval: 10_000,
     staleTime: 5_000,
   });
