@@ -293,3 +293,53 @@ describe("usePlaySession: server load-shed (503)", () => {
     expect(startStreamMock).toHaveBeenCalled();
   });
 });
+
+// The TV player is a native segment fetcher (expo-video/ExoPlayer): it cannot
+// re-mint the 5-minute sliding token mid-stream, so a living-room pause longer
+// than the default TTL 401'd the next segment. Mobile got purpose=native long
+// ago; the TV had been left behind.
+describe("usePlaySession stream token", () => {
+  it("requests the long-lived native token, not the 5-minute default", async () => {
+    const { renderHook, waitFor } = await import("@testing-library/react");
+    const { usePlaySession } = await import("./usePlaySession");
+
+    getStreamInfoMock.mockResolvedValue({ playMethod: "PLAY_METHOD_DIRECT_PLAY" });
+    eveyFetchMock
+      .mockResolvedValueOnce({ positionMs: "0", played: false })
+      .mockResolvedValueOnce({ token: "t1", mediaId: "m1" });
+    startStreamMock.mockResolvedValue({ id: "sess1" });
+
+    const { result } = renderHook(() => usePlaySession("m1"));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(eveyFetchMock).toHaveBeenCalledWith(
+      expect.objectContaining({ url: expect.stringContaining("stream-token?purpose=native") }),
+    );
+  });
+
+  it("mints a fresh token on restart instead of replaying the dead one", async () => {
+    const { renderHook, waitFor, act } = await import("@testing-library/react");
+    const { usePlaySession } = await import("./usePlaySession");
+
+    getStreamInfoMock.mockResolvedValue({ playMethod: "PLAY_METHOD_DIRECT_PLAY" });
+    eveyFetchMock
+      .mockResolvedValueOnce({ positionMs: "0", played: false })
+      .mockResolvedValueOnce({ token: "t-dead", mediaId: "m1" })
+      .mockResolvedValue({ token: "t-fresh", mediaId: "m1" });
+    startStreamMock.mockResolvedValue({ id: "sess1" });
+    stopStreamMock.mockResolvedValue({});
+
+    const { result } = renderHook(() => usePlaySession("m1"));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    act(() => result.current.restartWithTracks());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    // Retry exists to recover from a 401: reusing the cached token rebuilds
+    // the same dead URL and fails identically, trapping the viewer.
+    const tokenCalls = eveyFetchMock.mock.calls.filter(
+      (c: unknown[]) => String((c[0] as { url?: string })?.url ?? "").includes("stream-token"),
+    );
+    expect(tokenCalls.length).toBeGreaterThanOrEqual(2);
+  });
+});

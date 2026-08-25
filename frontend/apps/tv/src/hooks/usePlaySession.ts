@@ -87,8 +87,13 @@ export interface PlaySessionResult {
 }
 
 async function fetchStreamToken(mediaId: string): Promise<string> {
+  // Native player (expo-video/ExoPlayer): like a Chromecast, it fetches
+  // segments itself and can't re-mint the short sliding token mid-stream, so
+  // a living-room pause over 5 minutes would 401 on the next segment.
+  // purpose=native returns the long-lived (12h) window instead - the exact
+  // fix mobile received; the TV had been left on the 5-minute default.
   const res = await eveyFetch<StreamTokenResponse>({
-    url: `/api/v1/media/${mediaId}/stream-token`,
+    url: `/api/v1/media/${encodeURIComponent(mediaId)}/stream-token?purpose=native`,
     method: "POST",
   });
   return res.token;
@@ -259,6 +264,10 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
         sessionIdRef.current = null;
       }
       stoppedRef.current = false;
+      // Forget the cached stream token: a retry that reuses the token which
+      // just 401'd rebuilds the same dead URL and fails identically - the
+      // only exit was leaving the player. Minting fresh is the point of retry.
+      tokenRef.current = null;
       setIsError(false);
       setShedReason(null);
       setIsLoading(true);
