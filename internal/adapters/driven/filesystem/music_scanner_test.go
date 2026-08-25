@@ -113,3 +113,16 @@ func TestMusicScanner_OpenFile_NotFound(t *testing.T) {
 	_, err := s.OpenFile("/tmp/nonexistent-music-file-xyz.mp3")
 	require.Error(t, err)
 }
+
+// Prod 2026-08-24: /media/musique vanished from the kernel (dead mount) and
+// the walk logged one WARN, returned nil, and the scan reported "completed,
+// nothing new" - a missing library ROOT looked exactly like an empty library.
+// The root failing is not a per-file hiccup to skip: it means the scan saw
+// NOTHING, and the caller must know.
+func TestWalkAudioFiles_MissingRootIsAnError(t *testing.T) {
+	s := NewMusicScanner()
+	err := s.WalkAudioFiles(context.Background(), "/nonexistent-evey-test-root", func(music.ScannedAudioFile) error { return nil })
+	if err == nil {
+		t.Fatal("a missing library root must fail the walk, not read as an empty library")
+	}
+}

@@ -2,6 +2,7 @@ package filesystem
 
 import (
 	"context"
+	"fmt"
 	"image"
 	_ "image/gif"
 	_ "image/jpeg"
@@ -41,6 +42,13 @@ func (s *PhotoScanner) WalkImageFiles(ctx context.Context, dir string, fn func(p
 
 	return filepath.WalkDir(dir, func(path string, d os.DirEntry, walkErr error) error {
 		if walkErr != nil {
+			// The ROOT failing means the walk saw NOTHING - a dead mount must
+			// surface as an error, not read as an empty library. A per-file
+			// error further down stays a skip. Same contract as the music
+			// scanner.
+			if path == dir {
+				return fmt.Errorf("photo scan: library root %s: %w", dir, walkErr)
+			}
 			slog.Warn("photo walk error", slog.String("path", path), slog.Any("err", walkErr))
 			return nil
 		}

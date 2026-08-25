@@ -2,6 +2,7 @@ package filesystem
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -34,6 +35,13 @@ func (s *MusicScanner) WalkAudioFiles(ctx context.Context, dir string, fn func(m
 
 	return filepath.WalkDir(dir, func(path string, d os.DirEntry, walkErr error) error {
 		if walkErr != nil {
+			// The ROOT failing means the walk saw NOTHING - a dead mount must
+			// surface as an error, not read as an empty library (prod
+			// 2026-08-24: /media/musique vanished and the scan reported
+			// "nothing new"). A per-file error further down stays a skip.
+			if path == dir {
+				return fmt.Errorf("music scan: library root %s: %w", dir, walkErr)
+			}
 			slog.Warn("music scan: walk error", slog.String("path", path), slog.Any("err", walkErr))
 			return nil
 		}

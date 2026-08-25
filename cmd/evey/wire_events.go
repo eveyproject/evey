@@ -35,7 +35,7 @@ func buildEventWiring(ctx context.Context, cfg *config.Config, infra *infraDeps,
 	// watchedScanInterval, the rest keep this configured cadence. A startup pass
 	// runs regardless - inotify is blind to whatever happened while we were down.
 	if watcherSvc != nil {
-		deps.library.cmdSvc.WithWatchHealth(watcherSvc.UnwatchedLibraries)
+		deps.library.cmdSvc.WithWatchHealth(watcherSvc.AliveWatchedLibraries)
 	}
 	deps.library.cmdSvc.StartPeriodicScan(ctx, r.Library, cfg.Library.PeriodicScanInterval, nil)
 

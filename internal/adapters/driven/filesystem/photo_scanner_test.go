@@ -132,3 +132,13 @@ func TestPhotoScanner_ImageDimensions_MissingFile(t *testing.T) {
 	assert.Equal(t, 0, w)
 	assert.Equal(t, 0, h)
 }
+
+// Same contract as TestWalkAudioFiles_MissingRootIsAnError: a vanished library
+// root must surface as an error, not as an empty library.
+func TestWalkImageFiles_MissingRootIsAnError(t *testing.T) {
+	s := NewPhotoScanner()
+	err := s.WalkImageFiles(context.Background(), "/nonexistent-evey-test-root", func(photo.ScannedImageFile) error { return nil })
+	if err == nil {
+		t.Fatal("a missing library root must fail the walk, not read as an empty library")
+	}
+}

@@ -318,6 +318,32 @@ func (ws *WatcherService) UnwatchedLibraries() map[string]bool {
 	return out
 }
 
+// AliveWatchedLibraries is the POSITIVE view the periodic scan's adaptive
+// cadence needs: the libraries with at least one established watch, minus
+// those the health machinery cannot vouch for (failed watch, dead probe).
+// Only a library in THIS set may be demoted to the spaced-out backstop.
+//
+// The polarity is the whole point. Feeding the scan the unwatched-set meant
+// that with realtime monitoring disabled on every library the set came back
+// EMPTY, absence read as "watch alive", and every library was silently demoted
+// to the hourly backstop - in prod (2026-08-26) 365 fresh music files sat
+// invisible for hours while the operator's 2-minute cadence config did
+// nothing. A library this map does not name gets scanned; proof, not absence,
+// is what buys the slower cadence. Safe to call from another goroutine.
+func (ws *WatcherService) AliveWatchedLibraries() map[string]bool {
+	unhealthy := ws.probes.UnhealthyLibraries()
+	ws.mu.Lock()
+	defer ws.mu.Unlock()
+	out := make(map[string]bool, len(ws.pathToLib))
+	for _, libID := range ws.pathToLib {
+		if unhealthy[libID] || ws.failedLibs[libID] {
+			continue
+		}
+		out[libID] = true
+	}
+	return out
+}
+
 // WatcherWithProbeTimeout overrides how long a liveness probe waits for its own
 // event. Tests use a tiny value; production keeps probeTimeout.
 func WatcherWithProbeTimeout(d time.Duration) WatcherOption {

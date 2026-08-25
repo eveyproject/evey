@@ -32,9 +32,10 @@ type CommandService struct {
 	events     shared.EventBus
 
 	scan *ScanService
-	// unwatchedLibs reports which libraries the watcher cannot vouch for. See
-	// WithWatchHealth.
-	unwatchedLibs   func() map[string]bool
+	// aliveWatchedLibs reports the libraries whose watch the watcher POSITIVELY
+	// vouches for - only those may be demoted to the backstop cadence. See
+	// WithWatchHealth for why the polarity is alive-set, not unwatched-set.
+	aliveWatchedLibs func() map[string]bool
 	watchedScanMu   sync.Mutex
 	lastWatchedScan map[string]time.Time
 	trickplay       *TrickplayService
@@ -215,12 +216,18 @@ func (s *CommandService) StartPeriodicScan(ctx context.Context, libQueries libra
 	}()
 }
 
-// WithWatchHealth wires the watcher's liveness verdict. Libraries whose watch
-// is PROVEN alive are walked only every watchedScanInterval; the rest keep the
-// operator's configured cadence. Optional - unset means "trust nothing", i.e.
-// the previous behaviour of scanning everything on every tick.
-func (s *CommandService) WithWatchHealth(unwatched func() map[string]bool) *CommandService {
-	s.unwatchedLibs = unwatched
+// WithWatchHealth wires the watcher's liveness verdict: the set of libraries
+// whose watch the watcher POSITIVELY vouches for. Only those are walked every
+// watchedScanInterval; everything else - watch failed, watch dead, or simply
+// monitoring disabled - keeps the operator's configured cadence. The polarity
+// matters: the previous contract handed over the UNWATCHED set, and with
+// monitoring disabled everywhere that set was EMPTY, so absence read as "watch
+// alive" and every library was silently demoted to the hourly backstop (prod
+// 2026-08-26: 365 fresh music files sat invisible for hours). Absence of proof
+// must mean "scan", never "trust". Optional - unset means "trust nothing",
+// i.e. scan everything on every tick.
+func (s *CommandService) WithWatchHealth(aliveWatched func() map[string]bool) *CommandService {
+	s.aliveWatchedLibs = aliveWatched
 	return s
 }
 
@@ -235,16 +242,19 @@ func (s *CommandService) runScanPass(ctx context.Context, libQueries library.Lib
 		return
 	}
 	// Snapshot once per pass: a library whose watch is answering does not need
-	// walking on every tick.
-	var unwatched map[string]bool
-	if s.unwatchedLibs != nil && reason == "periodic" {
-		unwatched = s.unwatchedLibs()
+	// walking on every tick. Only a POSITIVE entry in the alive set demotes a
+	// library to the backstop - a library the watcher never registered (watch
+	// failed, or monitoring disabled by the operator) keeps the periodic
+	// cadence, because nothing else will ever see its new files.
+	var aliveWatched map[string]bool
+	if s.aliveWatchedLibs != nil && reason == "periodic" {
+		aliveWatched = s.aliveWatchedLibs()
 	}
 	for _, lib := range libs {
 		if len(targetSet) > 0 && !targetSet[string(lib.ID)] {
 			continue
 		}
-		if unwatched != nil && !unwatched[string(lib.ID)] && !s.dueForWatchedScan(string(lib.ID)) {
+		if aliveWatched[string(lib.ID)] && !s.dueForWatchedScan(string(lib.ID)) {
 			// THE question someone will ask in production is "why is my library
 			// not being scanned". Answer it here, with the reason and when the
 			// backstop is next due - a silent skip is undebuggable remotely.
@@ -255,7 +265,7 @@ func (s *CommandService) runScanPass(ctx context.Context, libQueries library.Lib
 			continue
 		}
 		scanReason := reason
-		if reason == "periodic" && unwatched != nil && !unwatched[string(lib.ID)] {
+		if reason == "periodic" && aliveWatched[string(lib.ID)] {
 			scanReason = "watched_backstop"
 		}
 		metrics.LibraryScanTotal.WithLabelValues(string(lib.ID), scanReason).Inc()

@@ -477,3 +477,34 @@ func TestWatcherService_FileRemoved_TriggersScan(t *testing.T) {
 	}, 5*time.Second, 100*time.Millisecond)
 	assert.Equal(t, "lib-1", scanner.Scanned()[0])
 }
+
+// The adaptive scan cadence trusts this map's POLARITY: only a library it
+// names may be demoted to the hourly backstop. It must therefore name ONLY
+// libraries with an established, healthy watch - and stay empty when nothing
+// is watched (prod 2026-08-26: monitoring off everywhere + the old
+// unwatched-set contract read the empty map as "everything healthy" and
+// starved every library down to one walk per hour).
+func TestWatcherService_AliveWatchedLibraries_NamesOnlyEstablishedWatches(t *testing.T) {
+	watcher := libfakes.NewFakeFileWatcher()
+	libRepo := libfakes.NewFakeLibraryRepository()
+	scanner := &fakeLibraryScanner{}
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	ctx := context.Background()
+	_ = libRepo.Create(ctx, &library.Library{
+		ID: "lib-watched", Name: "Movies", Type: "movie",
+		Paths: []string{"/media/movies"}, Enabled: true, RealtimeMonitoring: true,
+	})
+	_ = libRepo.Create(ctx, &library.Library{
+		ID: "lib-off", Name: "Musique", Type: "music",
+		Paths: []string{"/media/musique"}, Enabled: true, RealtimeMonitoring: false,
+	})
+
+	ws := applib.NewWatcherService(watcher, libRepo, scanner, log, applib.WatcherWithDebounce(testDebounceDelay))
+	require.NoError(t, ws.Start(ctx))
+	defer ws.Stop()
+
+	alive := ws.AliveWatchedLibraries()
+	require.True(t, alive["lib-watched"], "an established watch must be vouched for")
+	require.False(t, alive["lib-off"], "monitoring OFF must never read as a live watch - it would starve the periodic scan")
+}

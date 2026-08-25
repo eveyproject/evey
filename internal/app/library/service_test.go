@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -976,4 +977,45 @@ func (b *lockedBuffer) String() string {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return b.buf.String()
+}
+
+// countingDirScanner is a TypedDirectoryScanner that only counts calls - the
+// observable for cadence tests, with no filesystem involved.
+type countingDirScanner struct{ calls atomic.Int64 }
+
+func (c *countingDirScanner) ScanDirectory(_ context.Context, _ string, _ string) (int, error) {
+	c.calls.Add(1)
+	return 0, nil
+}
+
+// Prod 2026-08-26: every library had RealtimeMonitoring=false, so the watcher
+// vouched for NOTHING - and the periodic pass still demoted every library to
+// the hourly backstop, because it read absence from the health map as "watch
+// alive". 365 fresh music files sat invisible for hours. The 2026-07-21
+// design says the opposite: only a watch PROVEN alive may space the walks out;
+// a library nobody watches keeps the operator's periodic cadence.
+func TestStartPeriodicScan_MonitoringOffLibraryKeepsOperatorCadence(t *testing.T) {
+	t.Parallel()
+	svc, _, libQueryRepo, _, _, _ := newCmdSvc()
+	libQueryRepo.Seed(&library.Library{
+		ID: "lib-m", Name: "Musique", Type: "music", Paths: []string{"/music"},
+		Enabled: true, RealtimeMonitoring: false,
+	})
+	counter := &countingDirScanner{}
+	svc.WithMusicScanner(counter)
+	// The watcher service is running but watches nothing (monitoring is off
+	// everywhere) - its health snapshot vouches for no library.
+	svc.WithWatchHealth(func() map[string]bool { return map[string]bool{} })
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	svc.StartPeriodicScan(ctx, libQueryRepo, 30*time.Millisecond, nil)
+	time.Sleep(300 * time.Millisecond)
+	cancel()
+
+	// Startup pass + several periodic ticks. Under the demotion bug only the
+	// startup pass and ONE backstop-armed tick scan (2 calls), then every tick
+	// skips for an hour.
+	require.GreaterOrEqual(t, counter.calls.Load(), int64(3),
+		"a library nobody watches must keep the operator cadence, not be demoted to the hourly backstop")
 }
