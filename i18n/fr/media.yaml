@@ -438,6 +438,9 @@ syncplay:
   queueEmpty: "Ajoutez des albums, titres ou playlists pour constituer la file de la salle."
   noAlbums: "Aucun album trouvé"
   noPlaylists: "Aucune playlist"
+  albumLoadFailed: "Impossible de charger les pistes de cet album"
+  addAlbumFailed: "Impossible d'ajouter l'album à la file"
+  addPlaylistFailed: "Impossible d'ajouter la playlist à la file"
   join: Rejoindre une salle
   joinRoom: Rejoindre
   codeLabel: Code

@@ -8,7 +8,7 @@ import {
   collectAllPages,
   EXPORT_PAGE_SIZE,
 } from "@evey/api";
-import { useAuthStore } from "@evey/store";
+import { useAuthStore, toast } from "@evey/store";
 import { useDebounce } from "@/hooks/useDebounce";
 import { usePlaylistList } from "@/features/playlist/api";
 import { Button } from "@/components/ui/Button";
@@ -167,12 +167,16 @@ export function RoomBuilder({ libraryId, creating, onCreate }: RoomBuilderProps)
         // album's tracks) instead of a fuzzy title search + client filter.
         setExpanded({ title: album.title, tracks: await albumTracks(libraryId, album.id) });
       } catch {
-        setExpanded({ title: album.title, tracks: [] });
+        // Collapse rather than show a fake empty album: a failed load used to
+        // render exactly like an album with zero tracks. Same error surface as
+        // the rest of the feature (SyncPlayBar): a toast.
+        setExpanded(null);
+        toast.error(t("media.syncplay.albumLoadFailed"));
       } finally {
         setBusy(false);
       }
     },
-    [libraryId],
+    [libraryId, t],
   );
 
   const addAlbum = useCallback(
@@ -182,12 +186,14 @@ export function RoomBuilder({ libraryId, creating, onCreate }: RoomBuilderProps)
       try {
         addItems(await albumTracks(libraryId, album.id));
       } catch {
-        /* ignore - leave the queue unchanged */
+        // The queue stays unchanged - but the user asked for an action, so a
+        // silent no-op reads as a broken button. Say it failed.
+        toast.error(t("media.syncplay.addAlbumFailed"));
       } finally {
         setBusy(false);
       }
     },
-    [libraryId, addItems],
+    [libraryId, addItems, t],
   );
 
   const addPlaylist = useCallback(
@@ -202,12 +208,12 @@ export function RoomBuilder({ libraryId, creating, onCreate }: RoomBuilderProps)
         }));
         addItems(its);
       } catch {
-        /* ignore */
+        toast.error(t("media.syncplay.addPlaylistFailed"));
       } finally {
         setBusy(false);
       }
     },
-    [addItems],
+    [addItems, t],
   );
 
   const tabs: { key: Tab; label: string; icon: typeof Disc3 }[] = [

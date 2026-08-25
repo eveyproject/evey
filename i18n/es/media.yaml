@@ -438,6 +438,9 @@ syncplay:
   queueEmpty: "Añade álbumes, canciones o listas para crear la cola de la sala."
   noAlbums: "No se encontraron álbumes"
   noPlaylists: "Sin listas"
+  albumLoadFailed: "No se pudieron cargar las pistas de este álbum"
+  addAlbumFailed: "No se pudo añadir el álbum a la cola"
+  addPlaylistFailed: "No se pudo añadir la lista a la cola"
   join: Unirse a una sala
   joinRoom: Unirse
   codeLabel: Código

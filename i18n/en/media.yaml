@@ -438,6 +438,9 @@ syncplay:
   queueEmpty: "Add albums, tracks or playlists to build the room's queue."
   noAlbums: No albums found
   noPlaylists: No playlists
+  albumLoadFailed: "Could not load this album's tracks"
+  addAlbumFailed: "Could not add the album to the queue"
+  addPlaylistFailed: "Could not add the playlist to the queue"
   join: Join a room
   joinRoom: Join room
   codeLabel: Code

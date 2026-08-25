@@ -438,6 +438,9 @@ syncplay:
   queueEmpty: "कमरे की कतार बनाने के लिए एल्बम, गाने या प्लेलिस्ट जोड़ें।"
   noAlbums: "कोई एल्बम नहीं मिला"
   noPlaylists: "कोई प्लेलिस्ट नहीं"
+  albumLoadFailed: "इस एल्बम के ट्रैक लोड नहीं हो सके"
+  addAlbumFailed: "एल्बम कतार में नहीं जोड़ा जा सका"
+  addPlaylistFailed: "प्लेलिस्ट कतार में नहीं जोड़ी जा सकी"
   join: कमरे में शामिल हों
   joinRoom: शामिल हों
   codeLabel: कोड

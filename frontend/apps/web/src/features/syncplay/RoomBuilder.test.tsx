@@ -29,8 +29,11 @@ vi.mock("@evey/api", async (importOriginal) => ({
   musicServiceListTracks: (...a: unknown[]) => mockListTracksImperative(...a),
   playlistServiceGetPlaylistItems: (...a: unknown[]) => mockGetPlaylistItems(...a),
 }));
+const mockToastError = vi.fn();
+
 vi.mock("@evey/store", () => ({
   useAuthStore: (sel: (s: { accessToken: string }) => unknown) => sel({ accessToken: "tok" }),
+  toast: { error: (...a: unknown[]) => mockToastError(...a) },
 }));
 vi.mock("@/features/playlist/api", () => ({
   usePlaylistList: (...a: unknown[]) => mockPlaylistList(...a),
@@ -149,5 +152,37 @@ describe("RoomBuilder", () => {
     await waitFor(() => expect(screen.getByText("Queue (500)")).toBeInTheDocument());
     expect(mockListTracksImperative).toHaveBeenCalledTimes(2);
     expect(mockListTracksImperative.mock.calls[1][0]).toMatchObject({ limit: 500, offset: 500 });
+  });
+});
+
+// The three swallowed failures (backlog 08-08): a failed request used to render
+// as an EMPTY album / a silent no-op, indistinguishable from real emptiness.
+// Same error surface as the rest of the feature: toast.error (SyncPlayBar).
+describe("RoomBuilder failure surfacing", () => {
+  it("surfaces an album whose tracks failed to load instead of showing it empty", async () => {
+    mockListTracksImperative.mockRejectedValueOnce(new Error("network"));
+    render(<RoomBuilder libraryId="lib-1" creating={false} onCreate={vi.fn()} />);
+
+    fireEvent.click(screen.getByText("Album One"));
+    await waitFor(() => expect(mockToastError).toHaveBeenCalledWith("media.syncplay.albumLoadFailed"));
+    // The album must NOT stay expanded as a fake empty album.
+    expect(screen.queryByText("Queue (0)")).toBeInTheDocument();
+  });
+
+  it("surfaces a failed add-album instead of silently leaving the queue unchanged", async () => {
+    mockListTracksImperative.mockRejectedValueOnce(new Error("network"));
+    render(<RoomBuilder libraryId="lib-1" creating={false} onCreate={vi.fn()} />);
+
+    fireEvent.click(screen.getByLabelText("Add album"));
+    await waitFor(() => expect(mockToastError).toHaveBeenCalledWith("media.syncplay.addAlbumFailed"));
+  });
+
+  it("surfaces a failed add-playlist instead of silently doing nothing", async () => {
+    mockGetPlaylistItems.mockRejectedValueOnce(new Error("network"));
+    render(<RoomBuilder libraryId="lib-1" creating={false} onCreate={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole("tab", { name: /playlists/i }));
+    fireEvent.click(await screen.findByLabelText("Add to queue"));
+    await waitFor(() => expect(mockToastError).toHaveBeenCalledWith("media.syncplay.addPlaylistFailed"));
   });
 });

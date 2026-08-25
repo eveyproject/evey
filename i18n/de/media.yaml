@@ -438,6 +438,9 @@ syncplay:
   queueEmpty: "Füge Alben, Titel oder Playlists hinzu, um die Warteschlange des Raums zu erstellen."
   noAlbums: "Keine Alben gefunden"
   noPlaylists: "Keine Playlists"
+  albumLoadFailed: "Die Titel dieses Albums konnten nicht geladen werden"
+  addAlbumFailed: "Das Album konnte nicht zur Warteschlange hinzugefügt werden"
+  addPlaylistFailed: "Die Playlist konnte nicht zur Warteschlange hinzugefügt werden"
   join: Raum beitreten
   joinRoom: Beitreten
   codeLabel: Code
