@@ -194,6 +194,10 @@ export default function LibraryDetailScreen() {
   const [subLangs, setSubLangs] = useState<string[]>([]);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [bulkMode, setBulkMode] = useState(false);
+  // One bulk action at a time: the handlers are sequential per-item loops, and
+  // a second press while one runs interleaves two loops over the same
+  // selection (half watched / half unwatched - a state nobody asked for).
+  const [bulkBusy, setBulkBusy] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const profileId = useAuthStore((s) => s.profileId) ?? "";
   const isAdmin = useAuthStore((s) => s.isAdmin);
@@ -225,34 +229,43 @@ export default function LibraryDetailScreen() {
   }, []);
 
   const bulkMarkWatched = useCallback(async () => {
+    if (bulkBusy) return;
+    setBulkBusy(true);
     let failed = 0;
     for (const id of selected) {
       try { await markWatched.mutateAsync({ mediaItemId: id, params: { profileId } }); }
       catch { failed++; }
     }
     if (failed > 0) toast.error(t("media.library.bulkPartialFailure", { count: failed, defaultValue: "{{count}} items failed" }));
+    setBulkBusy(false);
     exitBulk();
-  }, [selected, markWatched, profileId, exitBulk, t]);
+  }, [selected, markWatched, profileId, exitBulk, t, bulkBusy]);
 
   const bulkMarkUnwatched = useCallback(async () => {
+    if (bulkBusy) return;
+    setBulkBusy(true);
     let failed = 0;
     for (const id of selected) {
       try { await markUnwatched.mutateAsync({ mediaItemId: id, params: { profileId } }); }
       catch { failed++; }
     }
     if (failed > 0) toast.error(t("media.library.bulkPartialFailure", { count: failed, defaultValue: "{{count}} items failed" }));
+    setBulkBusy(false);
     exitBulk();
-  }, [selected, markUnwatched, profileId, exitBulk, t]);
+  }, [selected, markUnwatched, profileId, exitBulk, t, bulkBusy]);
 
   const bulkToggleFavorite = useCallback(async () => {
+    if (bulkBusy) return;
+    setBulkBusy(true);
     try {
       await bulkFavorite.mutateAsync(Array.from(selected));
       toast.success(t("media.favorites.toggled", "Favorites updated"));
     } catch {
       toast.error(t("media.favorites.bulkFailed", "Failed to toggle favorites"));
     }
+    setBulkBusy(false);
     exitBulk();
-  }, [selected, bulkFavorite, exitBulk, t]);
+  }, [selected, bulkFavorite, exitBulk, t, bulkBusy]);
 
   const authHeaders = useAuthHeaders();
   const serverUrl = useServerUrl();
@@ -1104,24 +1117,24 @@ export default function LibraryDetailScreen() {
             </View>
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
-            <Pressable onPress={bulkMarkWatched} style={styles.bulkBtn} accessible accessibilityLabel={t("media.library.markWatched", "Mark watched")} accessibilityRole="button">
+            <Pressable onPress={bulkMarkWatched} disabled={bulkBusy} style={[styles.bulkBtn, bulkBusy && { opacity: 0.4 }]} accessible accessibilityLabel={t("media.library.markWatched", "Mark watched")} accessibilityRole="button">
               <Ionicons name="checkmark-circle-outline" size={20} color={theme.colors.accent} />
               <Text style={{ color: theme.colors.text, fontSize: 11 }}>{t("media.library.markWatched", "Watched")}</Text>
             </Pressable>
-            <Pressable onPress={bulkMarkUnwatched} style={styles.bulkBtn} accessible accessibilityLabel={t("media.library.markUnwatched", "Mark unwatched")} accessibilityRole="button">
+            <Pressable onPress={bulkMarkUnwatched} disabled={bulkBusy} style={[styles.bulkBtn, bulkBusy && { opacity: 0.4 }]} accessible accessibilityLabel={t("media.library.markUnwatched", "Mark unwatched")} accessibilityRole="button">
               <Ionicons name="eye-off-outline" size={20} color={theme.colors.textMuted} />
               <Text style={{ color: theme.colors.text, fontSize: 11 }}>{t("media.library.markUnwatched", "Unwatched")}</Text>
             </Pressable>
-            <Pressable onPress={bulkToggleFavorite} style={styles.bulkBtn} accessible accessibilityLabel={t("media.favorites.toggleFavorite", "Favorite")} accessibilityRole="button">
+            <Pressable onPress={bulkToggleFavorite} disabled={bulkBusy} style={[styles.bulkBtn, bulkBusy && { opacity: 0.4 }]} accessible accessibilityLabel={t("media.favorites.toggleFavorite", "Favorite")} accessibilityRole="button">
               <Ionicons name="heart-outline" size={20} color={theme.colors.accent} />
               <Text style={{ color: theme.colors.text, fontSize: 11 }}>{t("media.favorites.toggleFavorite", "Favorite")}</Text>
             </Pressable>
-            <Pressable onPress={() => setShowBulkPlaylist(true)} style={styles.bulkBtn} accessible accessibilityLabel={t("media.detail.addToPlaylist", "Playlist")} accessibilityRole="button">
+            <Pressable onPress={() => setShowBulkPlaylist(true)} disabled={bulkBusy} style={[styles.bulkBtn, bulkBusy && { opacity: 0.4 }]} accessible accessibilityLabel={t("media.detail.addToPlaylist", "Playlist")} accessibilityRole="button">
               <Ionicons name="add-circle-outline" size={20} color={theme.colors.accent} />
               <Text style={{ color: theme.colors.text, fontSize: 11 }}>{t("media.detail.addToPlaylist", "Playlist")}</Text>
             </Pressable>
             {isAdmin && (
-              <Pressable onPress={() => setShowBulkCollection(true)} style={styles.bulkBtn} accessible accessibilityLabel={t("media.library.addToCollection", "Add to collection")} accessibilityRole="button">
+              <Pressable onPress={() => setShowBulkCollection(true)} disabled={bulkBusy} style={[styles.bulkBtn, bulkBusy && { opacity: 0.4 }]} accessible accessibilityLabel={t("media.library.addToCollection", "Add to collection")} accessibilityRole="button">
                 <Ionicons name="albums-outline" size={20} color={theme.colors.accent} />
                 <Text style={{ color: theme.colors.text, fontSize: 11 }}>{t("media.library.addToCollection", "Add to collection")}</Text>
               </Pressable>

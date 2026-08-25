@@ -59,6 +59,10 @@ export default function FavoritesScreen() {
   const [sortKey, setSortKey] = useState<SortKey>("addedAt");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [bulkMode, setBulkMode] = useState(false);
+  // One bulk action at a time: the handlers are sequential per-item loops, and
+  // a second press while one runs interleaves two loops over the same
+  // selection (half watched / half unwatched - a state nobody asked for).
+  const [bulkBusy, setBulkBusy] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const profileId = useAuthStore((s) => s.profileId) ?? "";
   const isAdmin = useAuthStore((s) => s.isAdmin);
@@ -80,24 +84,30 @@ export default function FavoritesScreen() {
   const exitBulk = useCallback(() => { setBulkMode(false); setSelected(new Set()); }, []);
 
   const bulkMarkWatched = useCallback(async () => {
+    if (bulkBusy) return;
+    setBulkBusy(true);
     let failed = 0;
     for (const id of selected) {
       try { await markWatched.mutateAsync({ mediaItemId: id, params: { profileId } }); }
       catch { failed++; }
     }
     if (failed > 0) toast.error(t("media.library.bulkPartialFailure", { count: failed, defaultValue: "{{count}} items failed" }));
+    setBulkBusy(false);
     exitBulk();
-  }, [selected, markWatched, profileId, exitBulk, t]);
+  }, [selected, markWatched, profileId, exitBulk, t, bulkBusy]);
 
   const bulkMarkUnwatched = useCallback(async () => {
+    if (bulkBusy) return;
+    setBulkBusy(true);
     let failed = 0;
     for (const id of selected) {
       try { await markUnwatched.mutateAsync({ mediaItemId: id, params: { profileId } }); }
       catch { failed++; }
     }
     if (failed > 0) toast.error(t("media.library.bulkPartialFailure", { count: failed, defaultValue: "{{count}} items failed" }));
+    setBulkBusy(false);
     exitBulk();
-  }, [selected, markUnwatched, profileId, exitBulk, t]);
+  }, [selected, markUnwatched, profileId, exitBulk, t, bulkBusy]);
 
   const sortOptions: Array<{ key: SortKey; label: string }> = [
     { key: "addedAt", label: t("media.search.dateAdded") || "Date added" },
@@ -328,17 +338,17 @@ export default function FavoritesScreen() {
         <View style={[styles.bulkBar, { backgroundColor: theme.colors.surfaceRaised, borderTopColor: theme.colors.border }]}>
           <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: "600" }}>{t("common.selectedCount", "{{count}} selected", { count: selected.size })}</Text>
           <View style={{ flexDirection: "row", gap: 12 }}>
-            <Pressable onPress={bulkMarkWatched} style={styles.bulkBtn} accessible={true} accessibilityLabel={t("media.library.markWatched", "Mark watched")} accessibilityRole="button">
+            <Pressable onPress={bulkMarkWatched} disabled={bulkBusy} style={[styles.bulkBtn, bulkBusy && { opacity: 0.4 }]} accessible={true} accessibilityLabel={t("media.library.markWatched", "Mark watched")} accessibilityRole="button">
               <Ionicons name="checkmark-circle-outline" size={20} color={theme.colors.accent} />
             </Pressable>
-            <Pressable onPress={bulkMarkUnwatched} style={styles.bulkBtn} accessible={true} accessibilityLabel={t("media.library.markUnwatched", "Mark unwatched")} accessibilityRole="button">
+            <Pressable onPress={bulkMarkUnwatched} disabled={bulkBusy} style={[styles.bulkBtn, bulkBusy && { opacity: 0.4 }]} accessible={true} accessibilityLabel={t("media.library.markUnwatched", "Mark unwatched")} accessibilityRole="button">
               <Ionicons name="eye-off-outline" size={20} color={theme.colors.textMuted} />
             </Pressable>
-            <Pressable onPress={() => setShowBulkPlaylist(true)} style={styles.bulkBtn} accessible={true} accessibilityLabel={t("media.detail.addToPlaylist", "Playlist")} accessibilityRole="button">
+            <Pressable onPress={() => setShowBulkPlaylist(true)} disabled={bulkBusy} style={[styles.bulkBtn, bulkBusy && { opacity: 0.4 }]} accessible={true} accessibilityLabel={t("media.detail.addToPlaylist", "Playlist")} accessibilityRole="button">
               <Ionicons name="add-circle-outline" size={20} color={theme.colors.accent} />
             </Pressable>
             {isAdmin && (
-              <Pressable onPress={() => setShowBulkCollection(true)} style={styles.bulkBtn} accessible={true} accessibilityLabel={t("media.library.addToCollection", "Add to collection")} accessibilityRole="button">
+              <Pressable onPress={() => setShowBulkCollection(true)} disabled={bulkBusy} style={[styles.bulkBtn, bulkBusy && { opacity: 0.4 }]} accessible={true} accessibilityLabel={t("media.library.addToCollection", "Add to collection")} accessibilityRole="button">
                 <Ionicons name="albums-outline" size={20} color={theme.colors.accent} />
               </Pressable>
             )}

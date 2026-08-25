@@ -191,3 +191,29 @@ describe("FavoritesScreen bulk 'add to collection' admin gating", () => {
     expect(screen.getByLabelText("Playlist")).toBeTruthy();
   });
 });
+
+// The audit repro (2026-08-25): select items, tap "Watched" (a sequential
+// per-item loop with no visual feedback), then tap "Unwatched" two seconds
+// later - the two loops interleave request by request and the selection ends
+// half watched / half unwatched, a state neither button asked for.
+describe("FavoritesScreen bulk actions run one at a time", () => {
+  it("ignores a second bulk action while the first one's loop is still running", async () => {
+    let releaseFirst: () => void = () => {};
+    markWatchedMock.mockImplementation(
+      () => new Promise<void>((resolve) => { releaseFirst = () => resolve(); }),
+    );
+    render(<FavoritesScreen />);
+    selectFirstItem();
+
+    fireEvent.click(screen.getByLabelText("Mark watched"));
+    // The first loop is parked on its in-flight request; a competing action
+    // must be refused, not queued and not interleaved.
+    fireEvent.click(screen.getByLabelText("Mark unwatched"));
+    expect(markUnwatchedMock).not.toHaveBeenCalled();
+
+    releaseFirst();
+    await screen.findByLabelText("Alpha");
+    expect(markUnwatchedMock).not.toHaveBeenCalled();
+    expect(markWatchedMock).toHaveBeenCalledTimes(1);
+  });
+});
