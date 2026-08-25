@@ -2,6 +2,10 @@ package postgres
 
 import (
 	"bytes"
+	"context"
+	"database/sql"
+	"database/sql/driver"
+	"errors"
 	"log/slog"
 	"sync"
 	"testing"
@@ -57,4 +61,36 @@ func TestMigrationHeartbeat_BeatsWhileRunningAndStopsOnStop(t *testing.T) {
 	settled := buf.snapshot()
 	time.Sleep(60 * time.Millisecond)
 	require.Equal(t, settled, buf.snapshot(), "no beats after stop - the goroutine must exit with the run")
+}
+
+// hangingConnector blocks every connection attempt: the "database accepts the
+// TCP connection and then never answers" incident shape.
+type hangingConnector struct{ block chan struct{} }
+
+func (h *hangingConnector) Connect(context.Context) (driver.Conn, error) {
+	<-h.block
+	return nil, errors.New("released")
+}
+func (h *hangingConnector) Driver() driver.Driver { return nil }
+
+// TestRunMigrations_FailsLoudlyWhenTheDatabaseNeverAnswers pins the bound
+// added after the 2026-08-24 incident: golang-migrate has no context, so a
+// database that hangs used to hold the whole boot forever. The run must come
+// back as an ERROR within the budget instead.
+func TestRunMigrations_FailsLoudlyWhenTheDatabaseNeverAnswers(t *testing.T) {
+	prevBudget := migrationRunBudget
+	migrationRunBudget = 100 * time.Millisecond
+	t.Cleanup(func() { migrationRunBudget = prevBudget })
+
+	block := make(chan struct{})
+	t.Cleanup(func() { close(block) })
+	db := sql.OpenDB(&hangingConnector{block: block})
+	t.Cleanup(func() { _ = db.Close() })
+
+	start := time.Now()
+	err := RunMigrations(db, BackupOpts{})
+	require.Error(t, err, "a database that never answers must fail the boot, not hold it")
+	require.Contains(t, err.Error(), "not finished after",
+		"the error must name the hang so the operator knows what happened")
+	require.Less(t, time.Since(start), 5*time.Second, "the bound must actually bound")
 }

@@ -61,12 +61,33 @@ var migrationsFS embed.FS
 // every restart of an up-to-date server. The escape hatch, when a migration
 // really must go through without a net, is `evey admin migrate up
 // --no-backup`.
+// migrationRunBudget bounds one whole RunMigrations call. Generous on purpose:
+// a legitimate schema migration on a weak NAS can take many minutes, and the
+// budget only exists for the pathological case - a database that accepts the
+// connection and then never answers. Package variable so the test can trip it.
+var migrationRunBudget = 20 * time.Minute
+
 func RunMigrations(db *sql.DB, opts BackupOpts) error {
 	// From the very first db touch (m.Version() below) to the end of Up():
 	// everything in here can block without a deadline, so keep the operator
-	// informed for the whole span.
+	// informed for the whole span - and bound the whole span, because
+	// golang-migrate offers no context: an unanswered query would otherwise
+	// hold the boot forever. On expiry the worker goroutine may stay parked on
+	// its dead connection; the caller fails the boot right after, so the
+	// process exits and takes it along.
 	defer migrationHeartbeat()()
 
+	done := make(chan error, 1)
+	go func() { done <- runMigrations(db, opts) }()
+	select {
+	case err := <-done:
+		return err
+	case <-time.After(migrationRunBudget):
+		return fmt.Errorf("migrations: not finished after %s - the database is not answering or a migration is stuck; failing the boot so this is an error, not a silent hang", migrationRunBudget)
+	}
+}
+
+func runMigrations(db *sql.DB, opts BackupOpts) error {
 	source, err := iofs.New(migrationsFS, "migrations")
 	if err != nil {
 		return err
