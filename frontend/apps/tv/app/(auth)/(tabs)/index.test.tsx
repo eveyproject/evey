@@ -157,6 +157,7 @@ const getPhotoAlbumsQueryOptionsMock = vi.fn((params: { libraryId: string }) => 
 vi.mock("@evey/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@evey/api")>()),
   useFeedServiceUpdateProfileFeedConfig: () => ({ mutateAsync: vi.fn() }),
+  useFeedServiceResetProfileFeedConfig: () => ({ mutateAsync: vi.fn() }),
   eveyFetch: vi.fn().mockResolvedValue({ plugins: [] }),
   usePlaybackServiceGetResumeItems: (...args: unknown[]) => resumeMock(...args),
   usePlaybackServiceGetNextUp: (...args: unknown[]) => nextUpMock(...args),
@@ -420,5 +421,62 @@ describe("HomeScreen music and photo library rows", () => {
     expect(pushMock).toHaveBeenCalledWith("/(auth)/music/album/alb-1?libraryId=lib-mus");
     fireEvent.click(screen.getByLabelText("2024/Holiday"));
     expect(pushMock).toHaveBeenCalledWith("/(auth)/photos");
+  });
+});
+
+// #4: a row whose fetch failed used to return null, which reads exactly like
+// an empty library. It must instead show its title plus a failure block with
+// a focusable retry, wired to that row's own refetch.
+describe("HomeScreen row failure (#4)", () => {
+  it("shows the row title, a failure message and a focusable retry instead of hiding the row", () => {
+    const refetch = vi.fn();
+    resumeMock.mockReturnValue({ data: { items: [], progress: [] }, isLoading: false, isError: true, refetch });
+    render(<HomeScreen />);
+    expect(screen.getByText("media.home.continueWatching")).toBeTruthy();
+    expect(screen.getByText("common.loadError")).toBeTruthy();
+    fireEvent.click(screen.getByLabelText("common.retry"));
+    expect(refetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("applies the same failure treatment to the collections tile row", () => {
+    const refetch = vi.fn();
+    listMediaItemsMock.mockReturnValue({ data: { items: [] }, isLoading: false }); // no hero
+    collectionsMock.mockReturnValue({ data: undefined, isLoading: false, isError: true, refetch });
+    render(<HomeScreen />);
+    expect(screen.getByText("media.home.collections")).toBeTruthy();
+    expect(screen.getByText("common.loadError")).toBeTruthy();
+    fireEvent.click(screen.getByLabelText("common.retry"));
+    expect(refetch).toHaveBeenCalledTimes(1);
+  });
+});
+
+// #5: an empty library (or every feed disabled) used to leave an almost blank
+// screen with only the "Customize" row - indistinguishable from a broken page.
+describe("HomeScreen empty state (#5)", () => {
+  it("renders a focusable empty-library state and gives it the initial focus when nothing else has one", () => {
+    listMediaItemsMock.mockReturnValue({ data: { items: [] }, isLoading: false }); // no hero
+    render(<HomeScreen />);
+    const empty = screen.getByLabelText("media.home.emptyLibrary");
+    expect(empty).toBeTruthy();
+    expect(empty.getAttribute("data-tv-preferred-focus")).toBe("true");
+  });
+
+  it("does not render the empty state once the hero (or any row) has something to show", () => {
+    render(<HomeScreen />); // default mocks: hero item present
+    expect(screen.queryByLabelText("media.home.emptyLibrary")).toBeNull();
+  });
+});
+
+// #6: the recommended/popular projections never carry `year`, which left the
+// card's subtitle line blank. It must fall back to the localized item type.
+describe("HomeScreen card subtitle fallback for cards without a year (#6)", () => {
+  it("shows the localized media type instead of a blank subtitle", () => {
+    listMediaItemsMock.mockReturnValue({ data: { items: [] }, isLoading: false }); // no hero
+    recommendedMock.mockReturnValue({
+      data: { items: [{ mediaItemId: "mi-rec", title: "Recommended Film", type: "MEDIA_ITEM_TYPE_MOVIE" }] },
+      isLoading: false,
+    });
+    render(<HomeScreen />);
+    expect(screen.getByText("media.itemType.movie")).toBeTruthy();
   });
 });

@@ -3,7 +3,7 @@ import { View, Text, Modal, ScrollView, StyleSheet } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
-import { useFeedServiceUpdateProfileFeedConfig } from "@evey/api";
+import { useFeedServiceUpdateProfileFeedConfig, useFeedServiceResetProfileFeedConfig } from "@evey/api";
 import { toast } from "@evey/store";
 import { useTheme } from "../providers/ThemeProvider";
 import { FocusableCard } from "./FocusableCard";
@@ -55,10 +55,19 @@ export function FeedCustomizePanel({
   const { t } = useTranslation();
   const qc = useQueryClient();
   const updateFeed = useFeedServiceUpdateProfileFeedConfig();
+  const resetFeed = useFeedServiceResetProfileFeedConfig();
   const [rows, setRows] = useState<FeedRow[]>([]);
+  // A remote has no long-press and no "are you sure" dialog worth building
+  // for this: the first OK press asks, the second (on the same, now
+  // relabelled button) commits. Reopening the panel drops the pending
+  // confirmation rather than leaving a scary label behind.
+  const [confirmingReset, setConfirmingReset] = useState(false);
 
   useEffect(() => {
-    if (visible) setRows(buildFeedRows(configs, libraryNames, pluginNames));
+    if (visible) {
+      setRows(buildFeedRows(configs, libraryNames, pluginNames));
+      setConfirmingReset(false);
+    }
   }, [visible, configs, libraryNames, pluginNames]);
 
   const persist = useCallback(
@@ -90,6 +99,27 @@ export function FeedCustomizePanel({
     },
     [persist],
   );
+
+  const handleReset = useCallback(async () => {
+    if (!confirmingReset) {
+      setConfirmingReset(true);
+      return;
+    }
+    setConfirmingReset(false);
+    let failed = 0;
+    for (const row of rows) {
+      if (!row.feedType) continue;
+      try {
+        await resetFeed.mutateAsync({ feedType: row.feedType });
+      } catch {
+        failed++;
+      }
+    }
+    // The `configs` -> `rows` effect above picks up the refreshed server
+    // state once this invalidation resolves; no need to reset `rows` by hand.
+    await qc.invalidateQueries({ queryKey: ["/api/v1/feeds/config"] });
+    if (failed > 0) toast.error(t("media.home.customizeSaveFailed", "Failed to save some changes"));
+  }, [confirmingReset, rows, resetFeed, qc, t]);
 
   const label = (feedType: string): string => {
     if (feedType.startsWith("library:")) {
@@ -170,19 +200,33 @@ export function FeedCustomizePanel({
             ))}
           </ScrollView>
 
-          <FocusableCard
-            onPress={onClose}
-            // Same reason as the playlist sheet: with no row to focus this is
-            // the only focusable left, and an unfocused TV screen stops
-            // receiving key events altogether.
-            hasTVPreferredFocus={rows.length === 0}
-            accessibilityLabel={t("common.close", "Close")}
-            style={[styles.close, { backgroundColor: theme.colors.surfaceRaised, borderRadius: theme.radii.md }]}
-          >
-            <Text style={{ color: theme.colors.text, fontWeight: "600", fontSize: FONT_SIZE.lg }}>
-              {t("common.close", "Close")}
-            </Text>
-          </FocusableCard>
+          <View style={styles.footer}>
+            <FocusableCard
+              onPress={() => void handleReset()}
+              accessibilityLabel={t(confirmingReset ? "common.feeds.resetConfirm" : "common.feeds.resetDefaults")}
+              style={[styles.resetBtn, { backgroundColor: theme.colors.surfaceRaised, borderRadius: theme.radii.md }]}
+              focusedStyle={{ backgroundColor: theme.colors.accent + "33" }}
+            >
+              <Ionicons name="refresh-outline" size={20} color={theme.colors.textMuted} />
+              <Text style={{ color: theme.colors.text, fontWeight: "600", fontSize: FONT_SIZE.base }}>
+                {t(confirmingReset ? "common.feeds.resetConfirm" : "common.feeds.resetDefaults")}
+              </Text>
+            </FocusableCard>
+
+            <FocusableCard
+              onPress={onClose}
+              // Same reason as the playlist sheet: with no row to focus this is
+              // the only focusable left, and an unfocused TV screen stops
+              // receiving key events altogether.
+              hasTVPreferredFocus={rows.length === 0}
+              accessibilityLabel={t("common.close", "Close")}
+              style={[styles.close, { backgroundColor: theme.colors.surfaceRaised, borderRadius: theme.radii.md }]}
+            >
+              <Text style={{ color: theme.colors.text, fontWeight: "600", fontSize: FONT_SIZE.lg }}>
+                {t("common.close", "Close")}
+              </Text>
+            </FocusableCard>
+          </View>
         </View>
       </View>
     </Modal>
@@ -199,5 +243,7 @@ const styles = StyleSheet.create({
   rowMain: { flex: 1, flexDirection: "row", alignItems: "center", gap: 16, paddingVertical: 14, paddingHorizontal: 12 },
   rowLabel: { flex: 1, fontSize: FONT_SIZE.lg },
   arrowBtn: { paddingVertical: 14, paddingHorizontal: 12 },
-  close: { marginTop: 20, paddingVertical: 14, alignItems: "center" },
+  footer: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 20 },
+  resetBtn: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 14, paddingHorizontal: 20 },
+  close: { paddingVertical: 14, paddingHorizontal: 24, alignItems: "center" },
 });

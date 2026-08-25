@@ -24,6 +24,7 @@ import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { heroTitle } from "../../../src/lib/heroTitle";
+import { mediaTypeLabelKey } from "../../../src/lib/mediaTypeLabel";
 import { musicAlbumHref } from "../../../src/lib/musicRoutes";
 import { progressPercent } from "../../../src/lib/progressPercent";
 import { artworkUrl } from "../../../src/lib/artwork";
@@ -61,6 +62,31 @@ function RowSeparator() {
   return <View style={{ width: 16 }} />;
 }
 
+// A row whose fetch failed used to return null - identical to a row with no
+// items, so a library or a feed that is unreachable read as "empty" rather
+// than "the server did not answer" (mobile's LoadFailed, ported here inline
+// since a TV row lives inside a vertical scroll, not its own screen).
+function RowFailure({ onRetry }: { onRetry?: () => void }) {
+  const theme = useTheme();
+  const { t } = useTranslation();
+  return (
+    <View style={styles.rowFailure}>
+      <Text style={[styles.rowFailureMessage, { color: theme.colors.textMuted }]}>
+        {t("common.loadError")}
+      </Text>
+      {onRetry ? (
+        <FocusableCard
+          onPress={onRetry}
+          accessibilityLabel={t("common.retry")}
+          style={[styles.rowRetryBtn, { backgroundColor: theme.colors.surface }]}
+        >
+          <Text style={{ color: theme.colors.accent, fontWeight: "600" }}>{t("common.retry")}</Text>
+        </FocusableCard>
+      ) : null}
+    </View>
+  );
+}
+
 // The home screen must hand the TV remote's initial focus to exactly one
 // element. The hero's Play button is the deliberate default (it's the
 // screen's primary call to action); when there's no hero to show (no
@@ -93,6 +119,11 @@ function MediaCard({
   const theme = useTheme();
   const posterUri = item.id ? artworkUrl(serverUrl, item.id, "poster", CARD_WIDTH * 2) : undefined;
   const blurhash = (item.artwork ?? []).find((a) => a.type === "ARTWORK_TYPE_PRIMARY")?.blurhash;
+  // The recommended/popular projections carry no `year` (see recommendedItems
+  // below), which left MediaCard's subtitle line blank on every card in those
+  // two rows. Falling back to the localized type ("Movie"/"Series") gives the
+  // subtitle something to say instead of nothing.
+  const typeLabelKey = !item.year ? mediaTypeLabelKey(item.type) : null;
 
   return (
     <FocusableCard
@@ -119,6 +150,14 @@ function MediaCard({
             <Text style={{ color: theme.colors.textMuted }}>?</Text>
           </View>
         )}
+        {item.communityRating != null && item.communityRating > 0 && (
+          <View style={[styles.ratingBadge, { backgroundColor: theme.colors.warning }]}>
+            <Ionicons name="star" size={12} color={theme.colors.onWarning} />
+            <Text style={[styles.ratingBadgeText, { color: theme.colors.onWarning }]}>
+              {item.communityRating.toFixed(1)}
+            </Text>
+          </View>
+        )}
       </View>
       {watchPercent != null && watchPercent > 0 && (
         <View style={[styles.progressBar, { backgroundColor: theme.colors.border }]}>
@@ -128,9 +167,11 @@ function MediaCard({
       <Text style={[styles.cardTitle, { color: theme.colors.text }]} numberOfLines={1}>
         {displayTitle(item, t)}
       </Text>
-      {item.year && (
+      {item.year ? (
         <Text style={[styles.cardYear, { color: theme.colors.textMuted }]}>{item.year}</Text>
-      )}
+      ) : typeLabelKey ? (
+        <Text style={[styles.cardYear, { color: theme.colors.textMuted }]}>{t(typeLabelKey)}</Text>
+      ) : null}
     </FocusableCard>
   );
 }
@@ -142,6 +183,8 @@ function MediaRow({
   authHeaders,
   watchPercents,
   focusFirst,
+  isError,
+  onRetry,
 }: {
   title: string;
   items: V1MediaItem[];
@@ -149,8 +192,21 @@ function MediaRow({
   authHeaders?: { Authorization: string };
   watchPercents?: Record<string, number>;
   focusFirst?: boolean;
+  /** The fetch behind this row failed - render the failure block instead of
+   * silently disappearing (a failed shelf used to look identical to an
+   * empty one). */
+  isError?: boolean;
+  onRetry?: () => void;
 }) {
   const theme = useTheme();
+  if (isError) {
+    return (
+      <View style={styles.rowContainer}>
+        <Text style={[styles.rowTitle, { color: theme.colors.text }]}>{title}</Text>
+        <RowFailure onRetry={onRetry} />
+      </View>
+    );
+  }
   if (items.length === 0) return null;
 
   return (
@@ -278,8 +334,20 @@ function HeroBanner({
         <Text style={[styles.heroTitle, { color: theme.colors.text }]} numberOfLines={2}>
           {active ? heroTitle(active, items, t) : null}
         </Text>
-        {metaLine ? (
-          <Text style={[styles.heroMeta, { color: theme.colors.textMuted }]}>{metaLine}</Text>
+        {(active?.communityRating ?? 0) > 0 || metaLine ? (
+          <View style={styles.heroMetaRow}>
+            {active?.communityRating != null && active.communityRating > 0 && (
+              <View style={styles.heroRatingChip}>
+                <Ionicons name="star" size={18} color={theme.colors.warning} />
+                <Text style={[styles.heroRatingText, { color: theme.colors.text }]}>
+                  {active.communityRating.toFixed(1)}
+                </Text>
+              </View>
+            )}
+            {metaLine ? (
+              <Text style={[styles.heroMeta, { color: theme.colors.textMuted }]}>{metaLine}</Text>
+            ) : null}
+          </View>
         ) : null}
         {active?.overview ? (
           <Text style={[styles.heroOverview, { color: theme.colors.textMuted }]} numberOfLines={3}>
@@ -344,6 +412,9 @@ function TileRow({
   title,
   tiles,
   focusFirst,
+  aspectRatio = "square",
+  isError,
+  onRetry,
 }: {
   title: string;
   tiles: {
@@ -358,9 +429,24 @@ function TileRow({
     a11yLabel?: string;
   }[];
   focusFirst?: boolean;
+  /** "poster" crops to a 2:3 sheet (collections), "square" keeps the tile
+   * square (music/photo art, which is actually square). A collection poster
+   * forced into a square used to get cropped down to its middle third. */
+  aspectRatio?: "poster" | "square";
+  isError?: boolean;
+  onRetry?: () => void;
 }) {
   const theme = useTheme();
+  if (isError) {
+    return (
+      <View style={styles.rowContainer}>
+        <Text style={[styles.rowTitle, { color: theme.colors.text }]}>{title}</Text>
+        <RowFailure onRetry={onRetry} />
+      </View>
+    );
+  }
   if (tiles.length === 0) return null;
+  const tileHeight = aspectRatio === "poster" ? CARD_HEIGHT : CARD_WIDTH;
   return (
     <View style={styles.rowContainer}>
       <Text style={[styles.rowTitle, { color: theme.colors.text }]}>{title}</Text>
@@ -373,10 +459,27 @@ function TileRow({
             style={styles.card}
             accessibilityLabel={tile.a11yLabel ?? tile.label}
           >
-            <View style={{ width: CARD_WIDTH, height: CARD_WIDTH, borderRadius: theme.radii.sm, overflow: "hidden", backgroundColor: theme.colors.surface }}>
+            <View
+              style={{
+                width: CARD_WIDTH,
+                height: tileHeight,
+                borderRadius: theme.radii.sm,
+                overflow: "hidden",
+                backgroundColor: theme.colors.surface,
+                justifyContent: "center",
+                alignItems: "center",
+              }}
+            >
               {tile.uri ? (
-                <Image source={{ uri: tile.uri }} style={{ width: CARD_WIDTH, height: CARD_WIDTH }} contentFit="cover" transition={200} />
-              ) : null}
+                <Image source={{ uri: tile.uri }} style={{ width: CARD_WIDTH, height: tileHeight }} contentFit="cover" transition={200} />
+              ) : (
+                // No artwork: an empty grey square used to be the tile. The
+                // first letter at least tells a scanning eye what it is
+                // looking at until art arrives.
+                <Text style={[styles.tileInitial, { color: theme.colors.textMuted }]}>
+                  {tile.label.trim().charAt(0).toUpperCase() || "?"}
+                </Text>
+              )}
             </View>
             <Text style={[styles.cardTitle, { color: theme.colors.text }]} numberOfLines={1}>{tile.label}</Text>
             {tile.sublabel ? (
@@ -570,6 +673,24 @@ export default function HomeScreen() {
     sectionCounts.map((n) => n > 0),
   );
 
+  // "Nothing loaded, nothing errored, nothing has an item" used to render as
+  // a near-blank screen with just the Customize row - indistinguishable from
+  // a broken page. Any row still loading or erroring is excluded: those cases
+  // already have their own thing to say (a spinner or RowFailure), and are
+  // not "the library is empty".
+  const transverseRowsPending = recommended.isLoading || popular.isLoading || collections.isLoading;
+  const transverseRowsErrored =
+    resume.isError || nextUp.isError || collections.isError || recommended.isError || popular.isError;
+  const libraryRowsUnsettled = libraryRowQueries.some(
+    (q) => (q as { isLoading?: boolean; isError?: boolean }).isLoading || (q as { isLoading?: boolean; isError?: boolean }).isError,
+  );
+  const isAllEmpty =
+    !transverseRowsPending &&
+    !transverseRowsErrored &&
+    !libraryRowsUnsettled &&
+    recentlyAddedItems.length === 0 &&
+    sectionCounts.every((n) => n === 0);
+
   function renderSection(section: HomeSection, index: number, libraryIndex: number) {
     const focusFirst = focusTarget === index;
     if (section.kind === "plugin") {
@@ -643,6 +764,8 @@ export default function HomeScreen() {
             authHeaders={authHeaders}
             watchPercents={watchPercents}
             focusFirst={focusFirst}
+            isError={resume.isError}
+            onRetry={() => void resume.refetch()}
           />
         );
       case "next_episode":
@@ -654,6 +777,8 @@ export default function HomeScreen() {
             serverUrl={serverUrl}
             authHeaders={authHeaders}
             focusFirst={focusFirst}
+            isError={nextUp.isError}
+            onRetry={() => void nextUp.refetch()}
           />
         );
       case "collections": {
@@ -664,6 +789,9 @@ export default function HomeScreen() {
             key={section.key}
             title={t("media.home.collections")}
             focusFirst={focusFirst}
+            aspectRatio="poster"
+            isError={collections.isError}
+            onRetry={() => void collections.refetch()}
             tiles={cols.map((c) => ({
               key: c.id,
               label: c.name,
@@ -682,6 +810,8 @@ export default function HomeScreen() {
             serverUrl={serverUrl}
             authHeaders={authHeaders}
             focusFirst={focusFirst}
+            isError={recommended.isError}
+            onRetry={() => void recommended.refetch()}
           />
         );
       case "most_popular":
@@ -693,6 +823,8 @@ export default function HomeScreen() {
             serverUrl={serverUrl}
             authHeaders={authHeaders}
             focusFirst={focusFirst}
+            isError={popular.isError}
+            onRetry={() => void popular.refetch()}
           />
         );
       default:
@@ -739,6 +871,26 @@ export default function HomeScreen() {
       {sections.map((section, i) =>
         renderSection(section, i, section.kind === "library" ? renderCursor++ : -1),
       )}
+
+      {/* Nothing loaded anywhere and nothing errored either: a fresh install
+          with no library scanned yet, or every feed disabled. The screen used
+          to fall through to just the Customize row, which reads as broken
+          rather than as "add a library". This is the only focusable content
+          on the page in that case, so it claims the initial focus. */}
+      {isAllEmpty ? (
+        <View style={styles.emptyStateContainer}>
+          <FocusableCard
+            hasTVPreferredFocus={focusTarget === null}
+            onPress={() => setCustomizeOpen(true)}
+            accessibilityLabel={t("media.home.emptyLibrary")}
+            style={[styles.emptyStateCard, { backgroundColor: theme.colors.surface }]}
+          >
+            <Text style={[styles.emptyStateTitle, { color: theme.colors.text }]}>
+              {t("media.home.emptyLibrary")}
+            </Text>
+          </FocusableCard>
+        </View>
+      ) : null}
 
       {/* Last item on the home, deliberately.
           Mobile puts this in the header, but the top of a television home is
@@ -791,13 +943,60 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     marginBottom: 16,
   },
+  rowFailure: {
+    paddingHorizontal: 24,
+    alignItems: "flex-start",
+    gap: 12,
+  },
+  rowFailureMessage: {
+    fontSize: 18,
+  },
+  rowRetryBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+  },
+  emptyStateContainer: {
+    paddingHorizontal: 24,
+    marginBottom: 32,
+    alignItems: "flex-start",
+  },
+  emptyStateCard: {
+    paddingVertical: 24,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+  },
+  emptyStateTitle: {
+    fontSize: 22,
+    fontWeight: "600",
+  },
   card: {
     width: CARD_WIDTH,
+  },
+  tileInitial: {
+    fontSize: 40,
+    fontWeight: "700",
   },
   poster: {
     width: CARD_WIDTH,
     height: CARD_HEIGHT,
     overflow: "hidden",
+    position: "relative",
+  },
+  ratingBadge: {
+    position: "absolute",
+    bottom: 6,
+    right: 6,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+    borderRadius: 4,
+  },
+  ratingBadgeText: {
+    fontSize: 12,
+    fontWeight: "700",
   },
   posterPlaceholder: {
     width: CARD_WIDTH,
@@ -839,9 +1038,23 @@ const styles = StyleSheet.create({
     fontSize: 48,
     fontWeight: "800",
   },
+  heroMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+    marginTop: 12,
+  },
+  heroRatingChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  heroRatingText: {
+    fontSize: 20,
+    fontWeight: "700",
+  },
   heroMeta: {
     fontSize: 20,
-    marginTop: 12,
   },
   heroOverview: {
     fontSize: 20,
