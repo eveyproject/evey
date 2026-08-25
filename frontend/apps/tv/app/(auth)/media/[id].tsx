@@ -53,6 +53,15 @@ function isSeasonType(type?: string) {
   return type === "MEDIA_ITEM_TYPE_SEASON";
 }
 
+// Mirrors web's classifyError (routes/_auth/media/$mediaId.lazy.tsx): a 404
+// is a dead end no retry can fix (the gRPC-gateway maps NOT_FOUND to it), so
+// it gets its own branch instead of the generic offline/server-error one a
+// Retry button implies.
+function isNotFoundError(error: unknown): boolean {
+  if (typeof error !== "object" || error === null) return false;
+  return (error as { httpStatus?: number }).httpStatus === 404;
+}
+
 // Community rating as five stars, the same 0-10 scale web and mobile render.
 function StarRating({ rating, color }: { rating: number; color: string }) {
   const full = Math.round(rating / 2);
@@ -195,25 +204,12 @@ export default function MediaDetailScreen() {
   const [firstSeasonId, setFirstSeasonId] = useState<string | null>(null);
   const [focusedBtn, setFocusedBtn] = useState<string | null>(null);
 
-  const { data: media, isLoading, refetch } = useLibraryServiceGetMediaItem(id ?? "");
+  const { data: media, isLoading, error, refetch } = useLibraryServiceGetMediaItem(id ?? "");
   // Re-arm the play button's preferred focus AFTER the media loads: applied
   // statically at mount it intermittently lands while the view is not
   // attachable yet, native focus is lost and every select goes nowhere.
   const [armPlayFocus, setArmPlayFocus] = useState(false);
   const playBtnRef = useRef<View>(null);
-  useEffect(() => {
-    if (!media) return;
-    // Imperative on purpose: the declarative hasTVPreferredFocus races the
-    // mount and intermittently leaves NO focused native view, at which point
-    // Android stops delivering key events - the page goes dead to the remote.
-    const timers = [50, 400].map((ms) =>
-      setTimeout(() => {
-        setArmPlayFocus(true);
-        (playBtnRef.current as unknown as { requestTVFocus?: () => void })?.requestTVFocus?.();
-      }, ms),
-    );
-    return () => timers.forEach(clearTimeout);
-  }, [media]);
   const { data: watchProgress } = usePlaybackServiceGetWatchProgress(id ?? "");
   const profileId = useAuthStore((s) => s.profileId);
   const qc = useQueryClient();
@@ -301,6 +297,27 @@ export default function MediaDetailScreen() {
   );
   const getPlayTarget = useCallback((): string | null => playTarget, [playTarget]);
 
+  // Re-arm the play button's preferred focus AFTER the media loads: applied
+  // statically at mount it intermittently lands while the view is not
+  // attachable yet, native focus is lost and every select goes nowhere. On a
+  // series, `playTarget` resolves later than `media` (it depends on a second
+  // request for the episode list), so the retry must also fire once
+  // `playTarget` itself changes - otherwise Play stays disabled through both
+  // timers and the remote never gets a focused target.
+  useEffect(() => {
+    if (!media) return;
+    // Imperative on purpose: the declarative hasTVPreferredFocus races the
+    // mount and intermittently leaves NO focused native view, at which point
+    // Android stops delivering key events - the page goes dead to the remote.
+    const timers = [50, 400].map((ms) =>
+      setTimeout(() => {
+        setArmPlayFocus(true);
+        (playBtnRef.current as unknown as { requestTVFocus?: () => void })?.requestTVFocus?.();
+      }, ms),
+    );
+    return () => timers.forEach(clearTimeout);
+  }, [media, playTarget]);
+
   // `restart` travels all the way to the player, PIN prompt included: the
   // choice must survive the detour, or entering a PIN would silently resume
   // the thing the viewer asked to watch from the start.
@@ -331,6 +348,28 @@ export default function MediaDetailScreen() {
   // undefined, so the spinner never stopped - on a television that is
   // indistinguishable from a frozen app.
   if (isLoading || !media) {
+    // A 404 is not "the network dropped" - no amount of retrying brings back
+    // an item that no longer exists, so offer a way out instead of a button
+    // that can only fail again.
+    if (!isLoading && isNotFoundError(error)) {
+      return (
+        <View style={[styles.center, { backgroundColor: theme.colors.bg, gap: 16, padding: 48 }]}>
+          <Text style={[styles.notFoundTitle, { color: theme.colors.text }]}>
+            {t("media.detail.notFound")}
+          </Text>
+          <FocusableCard
+            onPress={() => router.replace("/(auth)/(tabs)")}
+            hasTVPreferredFocus
+            accessibilityLabel={t("common.errorBoundary.goHome", "Go Home")}
+            style={[styles.notFoundButton, { backgroundColor: theme.colors.accent }]}
+          >
+            <Text style={[styles.notFoundButtonLabel, { color: theme.colors.onAccent }]}>
+              {t("common.errorBoundary.goHome", "Go Home")}
+            </Text>
+          </FocusableCard>
+        </View>
+      );
+    }
     return <ScreenState loading={isLoading} error={!isLoading} onRetry={() => void refetch()} />;
   }
 
@@ -385,10 +424,26 @@ export default function MediaDetailScreen() {
           />
         ) : null}
         <View style={{ flex: 1, justifyContent: "flex-end" }}>
+          {/* Surtitle: series/season stamped by the server on an episode
+              payload (both), so an episode reads "Series - Season 2" above
+              its own title instead of a bare episode name with no context. */}
+          {!isSeries && !isSeason && media.seriesTitle ? (
+            <Text style={[styles.eyebrow, { color: theme.colors.textMuted }]} numberOfLines={1}>
+              {media.seriesTitle}
+            </Text>
+          ) : null}
           <Text style={[styles.title, { color: theme.colors.text }]}>{itemLabel(media, t)}</Text>
+          {media.tagline ? (
+            <Text style={[styles.tagline, { color: theme.colors.textMuted }]}>{media.tagline}</Text>
+          ) : null}
           {meta ? <Text style={[styles.meta, { color: theme.colors.textMuted }]}>{meta}</Text> : null}
           {media.genres && media.genres.length > 0 && (
             <Text style={[styles.genres, { color: theme.colors.textMuted }]}>{media.genres.join(", ")}</Text>
+          )}
+          {media.studios && media.studios.length > 0 && (
+            <Text style={[styles.studios, { color: theme.colors.textMuted }]}>
+              {t("media.detail.studio")}{media.studios.join(", ")}
+            </Text>
           )}
           {media.communityRating != null && media.communityRating > 0 ? (
             <View
@@ -485,35 +540,36 @@ export default function MediaDetailScreen() {
           </Text>
         </Pressable>
 
-        {!isSeries && !isSeason && (
-          <Pressable
-            onPress={() => {
-              if (!profileId) return;
-              if (watched) {
-                markUnwatched.mutate({ mediaItemId: id!, params: { profileId } });
-              } else {
-                markWatched.mutate({ mediaItemId: id!, params: { profileId } });
-              }
-            }}
-            disabled={markWatched.isPending || markUnwatched.isPending}
-            onFocus={() => setFocusedBtn("watched")}
-            onBlur={() => setFocusedBtn(null)}
-            accessible={true}
-            accessibilityLabel={watched ? t("media.detail.markUnwatched") : t("media.detail.markWatched")}
-            accessibilityRole="button"
-            style={[
-              styles.actionBtn,
-              {
-                backgroundColor: theme.colors.surface,
-                borderColor: focusedBtn === "watched" ? theme.colors.accent : "transparent",
-              },
-            ]}
-          >
-            <Text style={[styles.actionText, { color: watched ? theme.colors.accent : theme.colors.text }]}>
-              {watched ? t("media.detail.markUnwatched") : t("media.detail.markWatched")}
-            </Text>
-          </Pressable>
-        )}
+        {/* No series/season guard: marking a whole season watched from the
+            couch is a normal TV use, and the web equivalent
+            (MediaDetailActions.tsx) has no such guard either. */}
+        <Pressable
+          onPress={() => {
+            if (!profileId) return;
+            if (watched) {
+              markUnwatched.mutate({ mediaItemId: id!, params: { profileId } });
+            } else {
+              markWatched.mutate({ mediaItemId: id!, params: { profileId } });
+            }
+          }}
+          disabled={markWatched.isPending || markUnwatched.isPending}
+          onFocus={() => setFocusedBtn("watched")}
+          onBlur={() => setFocusedBtn(null)}
+          accessible={true}
+          accessibilityLabel={watched ? t("media.detail.markUnwatched") : t("media.detail.markWatched")}
+          accessibilityRole="button"
+          style={[
+            styles.actionBtn,
+            {
+              backgroundColor: theme.colors.surface,
+              borderColor: focusedBtn === "watched" ? theme.colors.accent : "transparent",
+            },
+          ]}
+        >
+          <Text style={[styles.actionText, { color: watched ? theme.colors.accent : theme.colors.text }]}>
+            {watched ? t("media.detail.markUnwatched") : t("media.detail.markWatched")}
+          </Text>
+        </Pressable>
 
         <Pressable
           onPress={() => setPlaylistSheetOpen(true)}
@@ -537,8 +593,9 @@ export default function MediaDetailScreen() {
             (1 / -1 / 0), so a rating given in the living room shows up in the
             browser. Two separate buttons rather than one toggle - the D-pad
             has no way to express "the other direction" on a single control. */}
-        {!isSeries && !isSeason && (
-          <>
+        {/* No series/season guard here either, matching web's RatingButtons
+            (MediaDetailActions.tsx:266). */}
+        <>
             <Pressable
               onPress={() => setThumbRating.mutate(myRating === 1 ? 0 : 1)}
               disabled={setThumbRating.isPending}
@@ -583,8 +640,7 @@ export default function MediaDetailScreen() {
                 {t("media.rating.dislike", "Dislike")}
               </Text>
             </Pressable>
-          </>
-        )}
+        </>
 
         {/* Trailers hand off to whatever app the television has for the site.
             Only rendered when a link can actually be built, and a device with
@@ -733,6 +789,10 @@ export default function MediaDetailScreen() {
             renderItem={({ item: person }) => (
               <FocusableCard
                 onPress={() => person.id && router.push(`/(auth)/person/${person.id}`)}
+                // No id, no destination: a card the remote can select but
+                // that does nothing reads as a dead button. The name still
+                // renders below - it's information even without a link.
+                disabled={!person.id}
                 style={styles.castCard}
                 accessibilityLabel={person.name}
               >
@@ -776,6 +836,10 @@ export default function MediaDetailScreen() {
             renderItem={({ item: person }) => (
               <FocusableCard
                 onPress={() => person.id && router.push(`/(auth)/person/${person.id}`)}
+                // No id, no destination: a card the remote can select but
+                // that does nothing reads as a dead button. The name still
+                // renders below - it's information even without a link.
+                disabled={!person.id}
                 style={styles.castCard}
                 accessibilityLabel={person.name}
               >
@@ -836,9 +900,15 @@ export default function MediaDetailScreen() {
 
 const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
+  notFoundTitle: { fontSize: 28, fontWeight: "600", textAlign: "center" },
+  notFoundButton: { paddingVertical: 14, paddingHorizontal: 36, borderRadius: 8 },
+  notFoundButtonLabel: { fontSize: 20, fontWeight: "600" },
+  eyebrow: { fontSize: 20, fontWeight: "600", textTransform: "uppercase", letterSpacing: 1 },
   title: { fontSize: 42, fontWeight: "bold" },
+  tagline: { fontSize: 22, fontStyle: "italic", marginTop: 6 },
   meta: { fontSize: 20, marginTop: 8 },
   genres: { fontSize: 18, marginTop: 4 },
+  studios: { fontSize: 18, marginTop: 4 },
   actions: { flexDirection: "row", gap: 16, marginTop: 24 },
   playGroup: { flexDirection: "row", alignItems: "stretch" },
   playButton: {
