@@ -367,6 +367,11 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
         sessionIdRef.current = null;
       }
       stoppedRef.current = false;
+      // Forget the cached stream token: a retry that reuses the token which
+      // just 401'd rebuilds the same dead URL and fails identically - the
+      // retry button was provably unable to repair the one failure it exists
+      // for. Same fix the TV received (see tv usePlaySession).
+      tokenRef.current = null;
       setIsError(false);
       setShedReason(null);
       setIsLoading(true);

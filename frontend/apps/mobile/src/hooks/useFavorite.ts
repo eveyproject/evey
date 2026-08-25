@@ -16,7 +16,19 @@ export function useIsFavorite(mediaId: string | undefined) {
 export function useToggleFavorite(mediaId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => eveyFetch<{ isFavorite: boolean }>({ url: `${favBaseUrl}/${mediaId}`, method: "POST" }),
+    // After onMutate's optimistic flip, the cache holds the DESIRED state:
+    // desired favorite -> POST (AddFavorite), desired not-favorite -> DELETE
+    // (RemoveFavorite). The server POST is state-setting, NOT a toggle
+    // (favorite_handler.go: "State-setting, not toggling"), so the old
+    // POST-only mutation made a favorite impossible to remove: the optimistic
+    // heart blinked off, then the invalidation lit it right back.
+    mutationFn: () => {
+      const desired = qc.getQueryData<{ isFavorite: boolean }>(["favorite", mediaId]);
+      return eveyFetch<{ isFavorite: boolean }>({
+        url: `${favBaseUrl}/${mediaId}`,
+        method: desired?.isFavorite ? "POST" : "DELETE",
+      });
+    },
     onMutate: async () => {
       await qc.cancelQueries({ queryKey: ["favorite", mediaId] });
       const prev = qc.getQueryData<{ isFavorite: boolean }>(["favorite", mediaId]);

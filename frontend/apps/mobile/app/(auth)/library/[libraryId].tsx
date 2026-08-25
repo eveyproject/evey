@@ -247,7 +247,7 @@ export default function LibraryDetailScreen() {
   const bulkToggleFavorite = useCallback(async () => {
     try {
       await bulkFavorite.mutateAsync(Array.from(selected));
-      toast.success(t("media.favorites.toggled", "Favorites toggled"));
+      toast.success(t("media.favorites.toggled", "Favorites updated"));
     } catch {
       toast.error(t("media.favorites.bulkFailed", "Failed to toggle favorites"));
     }

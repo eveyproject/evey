@@ -69,6 +69,22 @@ describe("useToggleFavorite", () => {
     expect(eveyFetchMock).toHaveBeenCalledWith({ url: "/api/v1/favorites/media-3", method: "POST" });
   });
 
+  // The POST-only mutation locked the bug in: the server POST is
+  // state-setting (AddFavorite), never a toggle, so a favorite could not be
+  // removed - the optimistic heart blinked off then relit on invalidation.
+  it("sends DELETE when the media is currently a favorite", async () => {
+    eveyFetchMock.mockResolvedValueOnce({ isFavorite: false });
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    qc.setQueryData(["favorite", "media-9"], { isFavorite: true });
+
+    const { result } = renderHook(() => useToggleFavorite("media-9"), { wrapper: makeWrapper(qc) });
+    await act(async () => { result.current.mutate(); });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(eveyFetchMock).toHaveBeenCalledWith({ url: "/api/v1/favorites/media-9", method: "DELETE" });
+  });
+
+
   it("optimistically toggles isFavorite before response", async () => {
     let resolve!: (v: unknown) => void;
     eveyFetchMock.mockReturnValueOnce(new Promise((r) => { resolve = r; }));

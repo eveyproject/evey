@@ -913,7 +913,13 @@ const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>()
   }, [sleepTimer, nextEp, player, t]);
 
   const getPositionMs = useCallback(() => {
-    if (!mountedRef.current) return 0;
+    // No mounted guard here, deliberately: the progress reporter's own cleanup
+    // runs AFTER this screen's unmount flag flips, so guarding on it made the
+    // final report carry position 0 - and the server keeps the FRESHEST write,
+    // so leaving the player erased the resume point it had just saved. The
+    // try/catch below already covers the released-player case (the reason the
+    // guard existed). The TV player reports the same way, with the incident
+    // that proved it dated 2026-08-03.
     // While casting, the local player sits paused/muted (see useCastSession's
     // muteLocalPlayer) - reporting ITS position froze progress mid-cast and
     // made resume/"watched" wrong. The receiver's own position is the only

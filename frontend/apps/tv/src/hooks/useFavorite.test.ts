@@ -12,12 +12,12 @@ vi.mock("@evey/api", async (importOriginal) => ({
   eveyFetch: (...args: unknown[]) => eveyFetchMock(...args),
 }));
 
-import { useFavoritesList } from "./useFavorite";
+import { useFavoritesList, useToggleFavorite } from "./useFavorite";
 
-function createWrapper() {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+function createWrapper(qc?: QueryClient) {
+  const client = qc ?? new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return ({ children }: { children: React.ReactNode }) =>
-    React.createElement(QueryClientProvider, { client: qc }, children);
+    React.createElement(QueryClientProvider, { client }, children);
 }
 
 beforeEach(() => { eveyFetchMock.mockReset(); });
@@ -48,5 +48,33 @@ describe("useFavoritesList", () => {
 
     await waitFor(() => expect(result.current.data).toHaveLength(1));
     expect(eveyFetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+
+// The server POST is state-setting (AddFavorite), never a toggle - the
+// POST-only mutation made a favorite impossible to remove on TV: the
+// optimistic heart blinked off, then the invalidation relit it.
+describe("useToggleFavorite", () => {
+  it("sends POST when the media is not yet a favorite", async () => {
+    eveyFetchMock.mockResolvedValueOnce({ isFavorite: true });
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    qc.setQueryData(["favorite", "m1"], { isFavorite: false });
+
+    const { result } = renderHook(() => useToggleFavorite("m1"), { wrapper: createWrapper(qc) });
+    result.current.mutate();
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(eveyFetchMock).toHaveBeenCalledWith({ url: "/api/v1/favorites/m1", method: "POST" });
+  });
+
+  it("sends DELETE when the media is currently a favorite", async () => {
+    eveyFetchMock.mockResolvedValueOnce({ isFavorite: false });
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    qc.setQueryData(["favorite", "m2"], { isFavorite: true });
+
+    const { result } = renderHook(() => useToggleFavorite("m2"), { wrapper: createWrapper(qc) });
+    result.current.mutate();
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(eveyFetchMock).toHaveBeenCalledWith({ url: "/api/v1/favorites/m2", method: "DELETE" });
   });
 });
