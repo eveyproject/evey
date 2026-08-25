@@ -454,7 +454,9 @@ func (e *Enricher) upsertPeople(ctx context.Context, mediaItemID string, people 
 func (e *Enricher) findOrCreatePerson(ctx context.Context, p domainmetadata.PersonResult, preloaded *domainlib.Person) (person *domainlib.Person, needsBio bool, err error) {
 	if preloaded != nil {
 		person = e.refreshKnownPerson(ctx, p, preloaded)
-		return person, person.Biography == "" && person.ProviderIDs["tmdb"] != "", nil
+		// needsBio no longer requires a tmdb id: the bio lookup is by NAME
+		// (see fetchPersonBio), so the id gated nothing but the attempt.
+		return person, person.Biography == "", nil
 	}
 	person, err = e.persons.GetByName(ctx, p.Name)
 	if err == nil {
@@ -476,7 +478,7 @@ func (e *Enricher) findOrCreatePerson(ctx context.Context, p domainmetadata.Pers
 				slog.WarnContext(ctx, "update person failed", slog.String("personID", person.ID), slog.Any("err", err))
 			}
 		}
-		return person, person.Biography == "" && person.ProviderIDs["tmdb"] != "", nil
+		return person, person.Biography == "", nil
 	}
 	if !errors.Is(err, shared.ErrNotFound) {
 		return nil, false, fmt.Errorf("get person by name: %w", err)
@@ -499,7 +501,8 @@ func (e *Enricher) findOrCreatePerson(ctx context.Context, p domainmetadata.Pers
 	if err := e.persons.Create(ctx, person); err != nil {
 		return nil, false, fmt.Errorf("create person: %w", err)
 	}
-	return person, person.ProviderIDs["tmdb"] != "", nil
+	// A freshly created person always needs its bio: the lookup is by name.
+	return person, true, nil
 }
 
 // refreshKnownPerson mirrors the "already exists" branch of findOrCreatePerson
@@ -529,18 +532,13 @@ func (e *Enricher) refreshKnownPerson(ctx context.Context, p domainmetadata.Pers
 
 // fetchPersonBio fetches biography from the primary provider and updates the person record.
 func (e *Enricher) fetchPersonBio(ctx context.Context, person *domainlib.Person) {
-	// Kept as-is on purpose: the biography no longer comes from the
-	// translation provider, so this is now a precondition on an UNRELATED
-	// capability. Widening it (a provider with person details but no
-	// translations would start being used) is a behaviour change nobody asked
-	// for tonight - noted, not taken.
-	if _, ok := e.chain.TranslationProvider(); !ok {
-		return
-	}
-	tmdbID := person.ProviderIDs["tmdb"]
-	if tmdbID == "" {
-		return
-	}
+	// The one gate that means something is the capability check below: the bio
+	// comes from GetPersonDetails BY NAME on the primary provider. The two
+	// preconditions that used to sit here - TranslationProvider() present and
+	// ProviderIDs["tmdb"] non-empty - policed capabilities this function does
+	// not use, and each silently produced people whose empty bio read as "the
+	// provider has none". Lifted 2026-08-25 (decision taken, not deferred).
+	//
 	// The biography comes from the person DETAIL endpoint. This used to open
 	// with FetchPersonTranslations(id, []string{""}) whose own comment said it
 	// "returns nothing useful" and whose result was discarded on the next line

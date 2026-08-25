@@ -373,3 +373,65 @@ func TestFetchPersonBio_UselessTranslationCallDoesNotBlockTheBio(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "an actor's life", stored.Biography)
 }
+
+// detailOnlyProviderStub implements MetadataProvider + personDetailFetcher but
+// deliberately NOT TranslationProvider: providers with person details and no
+// translation capability exist, and the bio comes from GetPersonDetails alone.
+type detailOnlyProviderStub struct {
+	fakeProvider
+	details    *domainlib.PersonDetailsResult
+	detailHits atomic.Int32
+}
+
+func (s *detailOnlyProviderStub) GetPersonDetails(_ context.Context, _ string) (*domainlib.PersonDetailsResult, error) {
+	s.detailHits.Add(1)
+	return s.details, nil
+}
+
+// fetchPersonBio gated the whole fetch on two capabilities it does not use:
+// TranslationProvider() (the bio has not come from translations for a while)
+// and ProviderIDs["tmdb"] (the lookup is GetPersonDetails BY NAME). Both gates
+// silently produced people with empty bios that read as "the provider has
+// none". Decision 2026-08-25: the one gate that means something is the
+// personDetailFetcher capability itself.
+func TestFetchPersonBio_RunsWithoutATranslationProvider(t *testing.T) {
+	stub := &detailOnlyProviderStub{
+		fakeProvider: fakeProvider{name: "tmdb"},
+		details:      &domainlib.PersonDetailsResult{Biography: "a director's life"},
+	}
+	e, miRepo, personRepo := newTransEnricher(stub)
+
+	item := &domainlib.MediaItem{ID: "m1", Title: "Movie", Type: "movie"}
+	require.NoError(t, miRepo.Create(context.Background(), item))
+	require.NoError(t, e.EnrichItem(context.Background(), item, domainmetaResult("Movie", "Bob", "77")))
+
+	assert.GreaterOrEqual(t, stub.detailHits.Load(), int32(1),
+		"a provider without translations must still be asked for the bio it CAN produce")
+	stored, err := personRepo.GetByName(context.Background(), "Bob")
+	require.NoError(t, err)
+	assert.Equal(t, "a director's life", stored.Biography)
+}
+
+func TestFetchPersonBio_RunsWithoutATmdbID(t *testing.T) {
+	stub := &detailOnlyProviderStub{
+		fakeProvider: fakeProvider{name: "tmdb"},
+		details:      &domainlib.PersonDetailsResult{Biography: "known by name"},
+	}
+	e, miRepo, personRepo := newTransEnricher(stub)
+
+	item := &domainlib.MediaItem{ID: "m2", Title: "Movie2", Type: "movie"}
+	require.NoError(t, miRepo.Create(context.Background(), item))
+	// No provider id on the person: the detail lookup is by NAME, so the id
+	// must not gate it.
+	res := &domain.MetadataResult{
+		Title:       "Movie2",
+		ProviderIDs: map[string]string{"tmdb": "2"},
+		People:      []domain.PersonResult{{Name: "Carol", Role: "Actor", ProviderID: ""}},
+	}
+	require.NoError(t, e.EnrichItem(context.Background(), item, res))
+
+	stored, err := personRepo.GetByName(context.Background(), "Carol")
+	require.NoError(t, err)
+	assert.Equal(t, "known by name", stored.Biography,
+		"the bio lookup is by name - a missing tmdb id must not leave the bio empty")
+}
