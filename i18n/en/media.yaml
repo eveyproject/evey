@@ -257,6 +257,7 @@ detail:
   genresLabel: "Genres (comma-separated)"
   rating: Rating
   overridden: Overridden
+  overrideUnknown: "Source unknown"
   auto: Auto
   resetToAuto: Reset to auto
   resetSuccess: "Reset {{field}} to auto"

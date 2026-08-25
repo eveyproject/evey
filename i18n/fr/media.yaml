@@ -257,6 +257,7 @@ detail:
   genresLabel: "Genres (séparés par des virgules)"
   rating: Note
   overridden: Personnalisé
+  overrideUnknown: "Source inconnue"
   auto: Auto
   resetToAuto: Réinitialiser
   resetSuccess: "{{field}} réinitialisé"

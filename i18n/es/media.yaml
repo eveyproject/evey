@@ -257,6 +257,7 @@ detail:
   genresLabel: "Géneros (separados por comas)"
   rating: Calificación
   overridden: Personalizado
+  overrideUnknown: "Origen desconocido"
   auto: Auto
   resetToAuto: Restablecer
   resetSuccess: "{{field}} restablecido"

@@ -76,6 +76,8 @@ vi.mock("@tanstack/react-query", () => ({
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
 }));
 
+const { mockListOverrides } = vi.hoisted(() => ({ mockListOverrides: vi.fn() }));
+
 vi.mock("@evey/api", async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
   return {
@@ -83,7 +85,7 @@ vi.mock("@evey/api", async (importOriginal) => {
     useMetadataServiceSetMetadataOverride: () => ({ mutateAsync: vi.fn() }),
     useMetadataServiceRemoveMetadataOverride: () => ({ mutateAsync: vi.fn() }),
     useMetadataServiceRefreshMetadata: () => ({ mutateAsync: vi.fn() }),
-    useMetadataServiceListMetadataOverrides: () => ({ data: { overrides: [] } }),
+    useMetadataServiceListMetadataOverrides: (...a: unknown[]) => mockListOverrides(...a),
     getMetadataServiceListMetadataOverridesQueryKey: (id: string) => [`/api/v1/metadata/${id}/overrides`],
     getLibraryServiceGetMediaItemQueryKey: (id: string) => [`/api/v1/media/${id}`],
     eveyFetch: vi.fn(),
@@ -101,6 +103,7 @@ const ITEM: V1MediaItem = {
 describe("MetadataEditSheet - rematch, identify, artwork wiring", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockListOverrides.mockReturnValue({ data: { overrides: [] } });
   });
 
   it("renders the ArtworkPicker for the current item", () => {
@@ -127,5 +130,20 @@ describe("MetadataEditSheet - rematch, identify, artwork wiring", () => {
     expect(identifySheetSpy).toHaveBeenCalledWith(
       expect.objectContaining({ mediaItemId: "mi-1", initialQuery: "Fictional Feature", mediaType: "movie" }),
     );
+  });
+});
+
+
+// The overrides read can fail. overridesByField then comes back empty, and the
+// sheet used to assert "Auto" on every field - telling the admin the provider
+// owns a title they corrected themselves, with the reset link gone. The one
+// honest answer is a third state: source unknown.
+describe("MetadataEditSheet override badges on a failed overrides read", () => {
+  it("shows the unknown badge instead of asserting Auto", async () => {
+    mockListOverrides.mockReturnValue({ data: undefined, isError: true });
+    render(<MetadataEditSheet visible item={ITEM} onClose={vi.fn()} />);
+    expect(await screen.findAllByText("media.detail.overrideUnknown")).not.toHaveLength(0);
+    expect(screen.queryByText("media.detail.auto")).toBeNull();
+    expect(screen.queryByText("media.detail.overridden")).toBeNull();
   });
 });

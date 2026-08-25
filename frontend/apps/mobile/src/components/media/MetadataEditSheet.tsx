@@ -71,7 +71,7 @@ export function MetadataEditSheet({ visible, onClose, item, onSaved }: MetadataE
   const removeOverride = useMetadataServiceRemoveMetadataOverride();
   const refresh = useMetadataServiceRefreshMetadata();
 
-  const { data: overridesData } = useMetadataServiceListMetadataOverrides(item.id ?? "", {
+  const { data: overridesData, isError: overridesUnknown } = useMetadataServiceListMetadataOverrides(item.id ?? "", {
     query: { enabled: visible && !!item.id },
   });
   const overridesByField = useMemo(
@@ -211,12 +211,21 @@ export function MetadataEditSheet({ visible, onClose, item, onSaved }: MetadataE
     const override = overridesByField[overrideKey];
     const hasOverride = !!override?.id;
     const fieldError = errors[formKey];
+    // When the overrides read failed, overridesByField is empty for a reason
+    // that has nothing to do with the field: asserting "Auto" would tell the
+    // admin the provider owns a value they corrected themselves (and hide the
+    // reset link). The honest badge is a third state: source unknown.
+    const badgeText = overridesUnknown
+      ? t("media.detail.overrideUnknown")
+      : hasOverride
+        ? t("media.detail.overridden")
+        : t("media.detail.auto");
     return (
       <View key={formKey} style={s.field}>
         <View style={s.fieldHeader}>
-          <View style={[s.badge, { backgroundColor: hasOverride ? theme.colors.warning + "33" : theme.colors.surfaceRaised }]}>
-            <Text style={{ color: hasOverride ? theme.colors.warning : theme.colors.textMuted, fontSize: FONT_SIZE.xs }}>
-              {hasOverride ? t("media.detail.overridden") : t("media.detail.auto")}
+          <View style={[s.badge, { backgroundColor: !overridesUnknown && hasOverride ? theme.colors.warning + "33" : theme.colors.surfaceRaised }]}>
+            <Text style={{ color: !overridesUnknown && hasOverride ? theme.colors.warning : theme.colors.textMuted, fontSize: FONT_SIZE.xs }}>
+              {badgeText}
             </Text>
           </View>
           {hasOverride && override?.id && (

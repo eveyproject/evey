@@ -257,6 +257,7 @@ detail:
   genresLabel: "Genres (kommagetrennt)"
   rating: Bewertung
   overridden: Überschrieben
+  overrideUnknown: "Quelle unbekannt"
   auto: Auto
   resetToAuto: Auf Auto zurücksetzen
   resetSuccess: "{{field}} auf Auto zurückgesetzt"

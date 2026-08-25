@@ -257,6 +257,7 @@ detail:
   genresLabel: "शैलियां (अल्पविराम से अलग)"
   rating: रेटिंग
   overridden: ओवरराइड किया गया
+  overrideUnknown: "स्रोत अज्ञात"
   auto: स्वचालित
   resetToAuto: स्वचालित पर रीसेट करें
   resetSuccess: "{{field}} स्वचालित पर रीसेट किया"

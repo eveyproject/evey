@@ -257,6 +257,7 @@ detail:
   genresLabel: "类型（逗号分隔）"
   rating: 评分
   overridden: 已覆盖
+  overrideUnknown: "来源未知"
   auto: 自动
   resetToAuto: 恢复自动
   resetSuccess: "已将 {{field}} 恢复为自动"
