@@ -359,7 +359,7 @@ export default function MediaDetailScreen() {
           </Text>
           <FocusableCard
             onPress={() => router.replace("/(auth)/(tabs)")}
-            hasTVPreferredFocus
+            hasTVPreferredFocus={isNotFoundError(error)}
             accessibilityLabel={t("common.errorBoundary.goHome", "Go Home")}
             style={[styles.notFoundButton, { backgroundColor: theme.colors.accent }]}
           >
