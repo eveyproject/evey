@@ -30,7 +30,12 @@ vi.mock("../src/components/FocusableCard", () => ({
 }));
 
 vi.mock("expo-image", () => ({
-  Image: (props: any) => React.createElement("img", { alt: "", src: props.source?.uri }),
+  Image: (props: any) =>
+    React.createElement("img", {
+      alt: "",
+      src: props.source?.uri,
+      "data-headers": props.source?.headers ? JSON.stringify(props.source.headers) : undefined,
+    }),
 }));
 
 vi.mock("../src/hooks/useServerUrl", () => ({
@@ -207,7 +212,7 @@ describe("ProfileSelect survives a nameless profile", () => {
 // The TV was the only client that never rendered a profile's avatar image,
 // falling back to an initial letter even when the profile had one.
 describe("ProfileSelect renders avatars like the other clients", () => {
-  it("renders the avatar image, token in the query string, when avatarPath is set", () => {
+  it("renders the avatar image with the token in the Authorization header, not the URL", () => {
     listProfilesMock.mockReturnValue({
       data: { profiles: [
         { id: "prof-kids", name: "Kid", isKids: true, avatarPath: "avatars/kid.png" },
@@ -217,7 +222,11 @@ describe("ProfileSelect renders avatars like the other clients", () => {
     });
     render(<ProfileSelect />);
     const img = screen.getByAltText("") as HTMLImageElement;
-    expect(img.src).toBe("http://srv.test/api/v1/profiles/prof-kids/avatar?token=current-access-token");
+    expect(img.src).toBe("http://srv.test/api/v1/profiles/prof-kids/avatar");
+    expect(img.src).not.toContain("token=");
+    expect(img.getAttribute("data-headers")).toBe(
+      JSON.stringify({ Authorization: "Bearer current-access-token" }),
+    );
   });
 
   it("falls back to the initial when avatarPath is absent", () => {

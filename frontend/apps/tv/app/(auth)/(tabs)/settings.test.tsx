@@ -71,7 +71,12 @@ vi.mock("../../../src/hooks/useServerUrl", () => ({
 }));
 
 vi.mock("expo-image", () => ({
-  Image: (props: any) => React.createElement("img", { alt: "", src: props.source?.uri }),
+  Image: (props: any) =>
+    React.createElement("img", {
+      alt: "",
+      src: props.source?.uri,
+      "data-headers": props.source?.headers ? JSON.stringify(props.source.headers) : undefined,
+    }),
 }));
 
 vi.mock("../../../src/features/plugins/PluginSlot", () => ({
@@ -243,7 +248,7 @@ describe("SettingsScreen (TV) language change", () => {
 // The TV was the only client that never rendered a profile's avatar image
 // on this card, falling back to an initial letter even when one existed.
 describe("SettingsScreen (TV) profile card avatar", () => {
-  it("renders the avatar image, token in the query string, when the active profile has avatarPath", () => {
+  it("renders the avatar image with the token in the Authorization header, not the URL", () => {
     listProfilesMock.mockReturnValue({
       data: {
         profiles: [
@@ -254,7 +259,11 @@ describe("SettingsScreen (TV) profile card avatar", () => {
     });
     render(<SettingsScreen />);
     const img = screen.getByAltText("") as HTMLImageElement;
-    expect(img.src).toBe("http://srv.test/api/v1/profiles/prof-2/avatar?token=current-access-token");
+    expect(img.src).toBe("http://srv.test/api/v1/profiles/prof-2/avatar");
+    expect(img.src).not.toContain("token=");
+    expect(img.getAttribute("data-headers")).toBe(
+      JSON.stringify({ Authorization: "Bearer current-access-token" }),
+    );
   });
 
   it("falls back to the initial when the active profile has no avatarPath", () => {

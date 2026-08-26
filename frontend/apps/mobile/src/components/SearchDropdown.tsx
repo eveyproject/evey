@@ -15,6 +15,21 @@ import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
 
 type SearchKind = "media" | "music";
 
+// Same i18n key namespace as TV's mediaTypeLabel.ts (frontend/apps/tv/src/lib/mediaTypeLabel.ts):
+// stripping the enum prefix and lowercasing it shows raw English ("2024 · movie")
+// to every viewer, in every language.
+const ITEM_TYPE_KEYS: Record<string, string> = {
+  MEDIA_ITEM_TYPE_MOVIE: "media.itemType.movie",
+  MEDIA_ITEM_TYPE_SERIES: "media.itemType.series",
+  MEDIA_ITEM_TYPE_SEASON: "media.itemType.season",
+  MEDIA_ITEM_TYPE_EPISODE: "media.itemType.episode",
+  MEDIA_ITEM_TYPE_ALBUM: "media.itemType.album",
+  MEDIA_ITEM_TYPE_TRACK: "media.itemType.track",
+  MEDIA_ITEM_TYPE_ARTIST: "media.itemType.artist",
+  MEDIA_ITEM_TYPE_PHOTO: "media.itemType.photo",
+  MEDIA_ITEM_TYPE_BOOK: "media.itemType.book",
+};
+
 interface SearchDropdownProps {
   /** Absolute position (top/left/width) supplied by the caller, which
    * measures the header input in window coordinates since this panel
@@ -76,6 +91,14 @@ export function SearchDropdown({
   const posterFor = useCallback(
     (id?: string) => (serverUrl && id ? artworkUrl(serverUrl, id, "poster", 120) : undefined),
     [serverUrl],
+  );
+
+  const typeLabel = useCallback(
+    (type?: string) => {
+      const key = type ? ITEM_TYPE_KEYS[type] : undefined;
+      return key ? t(key) : "";
+    },
+    [t],
   );
 
   const showRecents = visible && trimmed.length === 0 && recents.length > 0;
@@ -179,7 +202,7 @@ export function SearchDropdown({
                     {displayTitle(item, t)}
                   </Text>
                   <Text style={{ color: theme.colors.textMuted, fontSize: FONT_SIZE.xs }}>
-                    {item.type?.replace("MEDIA_ITEM_TYPE_", "").toLowerCase()}
+                    {typeLabel(item.type)}
                     {item.year ? ` · ${item.year}` : ""}
                   </Text>
                 </View>

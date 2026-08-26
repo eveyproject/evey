@@ -7,6 +7,7 @@ import { useUserServiceGetCurrentUser, useUserServiceListProfiles, useUserServic
 import { useAuthStore, useThemeStore, useLocaleStore, themePreferences } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useServerUrlNullable } from "../../../src/hooks/useServerUrl";
+import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { clearServerUrl } from "../../../src/lib/server-config";
 import { supportedLanguages } from "../../../src/i18n";
 import { PluginSlot } from "../../../src/features/plugins/PluginSlot";
@@ -39,6 +40,7 @@ export default function SettingsScreen() {
     profilesResp?.profiles?.find((p: { id?: string }) => p.id === activeProfileId) ?? defaultProfile;
   const updateProfile = useUserServiceUpdateProfile();
   const accessToken = useAuthStore((s) => s.accessToken);
+  const authHeaders = useAuthHeaders();
   const isAdmin = useAuthStore((s) => s.isAdmin);
   // Non-admin users get a bare 403 on every visit to this screen for a piece
   // of information (server version) they cannot even use - gate the call on
@@ -158,8 +160,10 @@ export default function SettingsScreen() {
         <View style={styles.profileHeader}>
           <View style={[styles.avatar, { backgroundColor: theme.colors.accent, overflow: "hidden" }]}>
             {activeProfile?.avatarPath && activeProfile.id && serverUrl && accessToken ? (
+              // Token travels in the Authorization header, not the query
+              // string: a query-string token leaks into reverse-proxy logs.
               <Image
-                source={{ uri: `${serverUrl}/api/v1/profiles/${activeProfile.id}/avatar?token=${accessToken}` }}
+                source={{ uri: `${serverUrl}/api/v1/profiles/${activeProfile.id}/avatar`, headers: authHeaders }}
                 style={styles.avatarImage}
                 contentFit="cover"
                 accessible={false}

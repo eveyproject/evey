@@ -10,6 +10,7 @@ import { useAuthStore, toast } from "@evey/store";
 import { ScreenState } from "../src/components/ScreenState";
 import { useTheme } from "../src/providers/ThemeProvider";
 import { useServerUrl } from "../src/hooks/useServerUrl";
+import { useAuthHeaders } from "../src/hooks/useAuthenticatedImage";
 import { FocusableCard } from "../src/components/FocusableCard";
 import { ParentalPINModal } from "../src/components/ParentalPINModal";
 
@@ -34,6 +35,7 @@ export default function ProfileSelect() {
   const activeProfileId = useAuthStore((s) => s.profileId);
   const accessToken = useAuthStore((s) => s.accessToken);
   const serverUrl = useServerUrl();
+  const authHeaders = useAuthHeaders();
 
   const { data: user } = useUserServiceGetCurrentUser();
   const userId = user?.id;
@@ -128,11 +130,10 @@ export default function ProfileSelect() {
           // optional call is what keeps a nameless profile from taking the
           // whole picker down. Same guard as mobile.
           const initial = (profile.name ?? "?")[0]?.toUpperCase() ?? "?";
-          // Token in the query string, not a header: RN's Image does not let
-          // the WebView-free native loader attach one. Same pattern as
-          // mobile's profile-select.tsx.
+          // Token travels in the Authorization header, not the query string:
+          // a query-string token leaks into reverse-proxy access logs.
           const avatarUrl = profile.avatarPath && profile.id && serverUrl && accessToken
-            ? `${serverUrl}/api/v1/profiles/${profile.id}/avatar?token=${accessToken}`
+            ? `${serverUrl}/api/v1/profiles/${profile.id}/avatar`
             : null;
           const isActive = !!profile.id && profile.id === activeProfileId;
           return (
@@ -147,7 +148,7 @@ export default function ProfileSelect() {
               <View style={[styles.avatar, { backgroundColor: theme.colors.accent, overflow: "hidden" }]}>
                 {avatarUrl ? (
                   <Image
-                    source={{ uri: avatarUrl }}
+                    source={{ uri: avatarUrl, headers: authHeaders }}
                     style={styles.avatarImage}
                     contentFit="cover"
                     accessible={false}
