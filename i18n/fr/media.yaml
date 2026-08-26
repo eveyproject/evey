@@ -408,6 +408,9 @@ photos:
   photoCount_other: "{{count}} photos"
   positionOf: "{{current}} sur {{total}}"
   slideshowPaused: En pause
+  slideshowAnnounce: "Photo {{current}} sur {{total}}"
+parental:
+  pinDigitsEntered: "{{count}} chiffres sur {{total}} saisis"
 created: Créé
 updated: Mis à jour
 downloadComplete: Téléchargement terminé

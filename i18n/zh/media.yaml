@@ -408,6 +408,9 @@ photos:
   photoCount_other: "{{count}} 张照片"
   positionOf: "第 {{current}} 张，共 {{total}} 张"
   slideshowPaused: 已暂停
+  slideshowAnnounce: "第 {{current}} 张照片，共 {{total}} 张"
+parental:
+  pinDigitsEntered: "已输入 {{count}} 位，共 {{total}} 位"
 created: 已创建
 updated: 已更新
 downloadComplete: "下载完成"

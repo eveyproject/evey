@@ -1,5 +1,5 @@
 import { memo, useEffect, useRef } from "react";
-import { View, Text, Animated, StyleSheet } from "react-native";
+import { View, Text, Animated, StyleSheet, AccessibilityInfo } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useToastStore, type Toast, type ToastType } from "@evey/store";
 import { useTheme } from "../providers/ThemeProvider";
@@ -36,6 +36,10 @@ const ToastItem = memo(function ToastItem({ toast }: { toast: Toast }) {
       Animated.timing(translateY, { toValue: 0, duration: 250, useNativeDriver: true }),
     ]).start();
 
+    // Runs once, on mount - a toast is a fresh mount per id (memo above), so
+    // this fires exactly once per toast appearance, never per re-render.
+    AccessibilityInfo.announceForAccessibility(toast.message);
+
     const duration = toast.duration ?? 3000;
     const timer = setTimeout(() => {
       Animated.timing(opacity, { toValue: 0, duration: 200, useNativeDriver: true }).start(() =>
@@ -50,6 +54,9 @@ const ToastItem = memo(function ToastItem({ toast }: { toast: Toast }) {
 
   return (
     <Animated.View
+      accessible
+      accessibilityRole="alert"
+      accessibilityLiveRegion="polite"
       style={[
         styles.toast,
         {

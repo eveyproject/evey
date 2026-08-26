@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { View, Text, ActivityIndicator, StyleSheet, useTVEventHandler } from "react-native";
+import { View, Text, ActivityIndicator, StyleSheet, useTVEventHandler, AccessibilityInfo } from "react-native";
 import { Image } from "expo-image";
 import { router, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -109,6 +109,22 @@ export default function PhotoSlideshowScreen() {
   const current = photos[index];
   const upcoming = total > 0 ? photos[(index + 1) % total] : undefined;
 
+  // Screen-reader label for the photo currently on screen - the counter text
+  // already shown in the footer, reused rather than duplicated in a second key.
+  const photoAnnouncement = t("media.photos.slideshowAnnounce", {
+    current: index + 1,
+    total: albumTotal || total,
+  });
+
+  // Announce on index change only (not on every render, e.g. the autoplay
+  // interval re-subscribing): TalkBack has no other way to learn the photo
+  // changed since this screen renders no focus-driven navigation.
+  useEffect(() => {
+    if (!current?.id) return;
+    AccessibilityInfo.announceForAccessibility(photoAnnouncement);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- announce on index change, not every re-render of photoAnnouncement's closure
+  }, [current?.id]);
+
   // Preload at most the next photo, full resolution - never the whole album.
   useEffect(() => {
     if (!serverUrl || !upcoming?.id || upcoming.id === current?.id) return;
@@ -187,15 +203,28 @@ export default function PhotoSlideshowScreen() {
   return (
     <View style={styles.container}>
       {current?.id && (
-        <Image
-          key={current.id}
-          source={{ uri: photoServeUrl(serverUrl, current.id), headers: authHeaders }}
+        // focusable + accessible: this screen has no other focus-reachable
+        // node (D-pad is read directly via useTVEventHandler above, not
+        // native focus), so a screen reader would otherwise have nothing to
+        // land on. Purely a focus/announcement target - pause/next/prev stay
+        // wired through the remote handler above, unchanged.
+        <View
           style={StyleSheet.absoluteFill}
-          contentFit="contain"
-          placeholder={current.blurhash ? { blurhash: current.blurhash } : undefined}
-          placeholderContentFit="contain"
-          transition={200}
-        />
+          focusable
+          accessible
+          accessibilityRole="image"
+          accessibilityLabel={photoAnnouncement}
+        >
+          <Image
+            key={current.id}
+            source={{ uri: photoServeUrl(serverUrl, current.id), headers: authHeaders }}
+            style={StyleSheet.absoluteFill}
+            contentFit="contain"
+            placeholder={current.blurhash ? { blurhash: current.blurhash } : undefined}
+            placeholderContentFit="contain"
+            transition={200}
+          />
+        </View>
       )}
 
       <View style={styles.footer} pointerEvents="none">

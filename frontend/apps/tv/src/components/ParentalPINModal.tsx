@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { View, Text, Modal, ActivityIndicator, StyleSheet } from "react-native";
+import { View, Text, Modal, ActivityIndicator, StyleSheet, AccessibilityInfo } from "react-native";
 import { useTranslation } from "react-i18next";
 import { eveyFetch } from "@evey/api";
 import { useTheme } from "../providers/ThemeProvider";
@@ -59,6 +59,21 @@ export function ParentalPINModal({ visible, onClose, onVerified, profileId, fall
       setError(null);
     }
   }, [visible]);
+
+  // Progress only, never the digit itself - the PIN is a secret. Deliberately
+  // keyed on pin.length alone: t's identity is not guaranteed stable across
+  // renders, and this must announce once per digit, not once per render.
+  useEffect(() => {
+    if (pin.length === 0) return;
+    AccessibilityInfo.announceForAccessibility(
+      t("media.parental.pinDigitsEntered", { count: pin.length, total: PIN_LENGTH }),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pin.length]);
+
+  useEffect(() => {
+    if (error) AccessibilityInfo.announceForAccessibility(error);
+  }, [error]);
 
   async function verifyAgainst(targetProfileId: string, candidate: string): Promise<VerifyPinResponse | null> {
     try {
@@ -120,7 +135,11 @@ export function ParentalPINModal({ visible, onClose, onVerified, profileId, fall
             {t("common.parental.pinRequired", "Enter your parental PIN to continue")}
           </Text>
 
-          <View style={styles.dots}>
+          <View
+            style={styles.dots}
+            accessible
+            accessibilityLabel={t("media.parental.pinDigitsEntered", { count: pin.length, total: PIN_LENGTH })}
+          >
             {Array.from({ length: PIN_LENGTH }).map((_, i) => (
               <View
                 key={i}

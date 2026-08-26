@@ -6,6 +6,9 @@ import React from "react";
 // useTVEventHandler captures the screen's own callback so tests can simulate a
 // remote keypress directly - same convention as player/[id].test.tsx.
 let capturedTVHandler: ((evt: { eventType: string } | undefined) => void) | null = null;
+const { announceForAccessibilityMock } = vi.hoisted(() => ({
+  announceForAccessibilityMock: vi.fn(),
+}));
 vi.mock("react-native", () => ({
   View: ({ children, ...p }: any) => React.createElement("div", p, children),
   Text: ({ children, ...p }: any) => React.createElement("span", p, children),
@@ -20,6 +23,7 @@ vi.mock("react-native", () => ({
   useTVEventHandler: (cb: (evt: { eventType: string } | undefined) => void) => {
     capturedTVHandler = cb;
   },
+  AccessibilityInfo: { announceForAccessibility: announceForAccessibilityMock },
 }));
 
 // --- expo-image mock ---------------------------------------------------------
@@ -174,6 +178,34 @@ describe("PhotoSlideshowScreen (TV) - edges", () => {
       capturedTVHandler?.({ eventType: "right" });
     });
     expect(screen.getByText("Two")).toBeTruthy();
+  });
+});
+
+describe("PhotoSlideshowScreen (TV) - accessibility", () => {
+  it("announces the photo position to the screen reader on mount and on index change", () => {
+    render(<PhotoSlideshowScreen />);
+    expect(announceForAccessibilityMock).toHaveBeenCalledWith("media.photos.slideshowAnnounce");
+
+    announceForAccessibilityMock.mockClear();
+    act(() => {
+      capturedTVHandler?.({ eventType: "right" });
+    });
+    expect(announceForAccessibilityMock).toHaveBeenCalledWith("media.photos.slideshowAnnounce");
+  });
+
+  it("passes the current photo's position to the announcement translation", () => {
+    render(<PhotoSlideshowScreen />);
+    expect(translateMock).toHaveBeenCalledWith(
+      "media.photos.slideshowAnnounce",
+      expect.objectContaining({ current: 2 }),
+    );
+  });
+
+  it("exposes a focusable, accessible node so a screen reader has a D-pad target", () => {
+    const { container } = render(<PhotoSlideshowScreen />);
+    const node = container.querySelector('[accessibilityRole="image"]');
+    expect(node).toBeTruthy();
+    expect(node?.getAttribute("focusable")).not.toBeNull();
   });
 });
 

@@ -3,6 +3,9 @@ import { render, screen } from "@testing-library/react";
 import React from "react";
 
 // --- React Native mock -----------------------------------------------------
+const { announceForAccessibilityMock } = vi.hoisted(() => ({
+  announceForAccessibilityMock: vi.fn(),
+}));
 vi.mock("react-native", () => ({
   View: ({ children, ...p }: any) => React.createElement("div", p, children),
   Text: ({ children, ...p }: any) => React.createElement("span", p, children),
@@ -20,6 +23,7 @@ vi.mock("react-native", () => ({
     }),
   },
   StyleSheet: { create: (s: any) => s },
+  AccessibilityInfo: { announceForAccessibility: announceForAccessibilityMock },
 }));
 
 // --- @expo/vector-icons mock -------------------------------------------------
@@ -69,5 +73,19 @@ describe("ToastContainer (TV)", () => {
     toastStateMock.toasts = [{ id: "t1", type: "info", message: "Shuffle enabled" }];
     render(<ToastContainer />);
     expect(screen.getByText("Shuffle enabled")).toBeTruthy();
+  });
+
+  it("announces a toast's message to the screen reader when it appears", () => {
+    toastStateMock.toasts = [{ id: "t1", type: "error", message: "Failed to load stream" }];
+    render(<ToastContainer />);
+    expect(announceForAccessibilityMock).toHaveBeenCalledWith("Failed to load stream");
+  });
+
+  it("marks each toast as a polite live region alert", () => {
+    toastStateMock.toasts = [{ id: "t1", type: "info", message: "Shuffle enabled" }];
+    const { container } = render(<ToastContainer />);
+    const toastNode = container.querySelector('[accessibilityRole="alert"]');
+    expect(toastNode).toBeTruthy();
+    expect(toastNode?.getAttribute("accessibilityLiveRegion")).toBe("polite");
   });
 });

@@ -408,6 +408,9 @@ photos:
   photoCount_other: "{{count}} फ़ोटो"
   positionOf: "{{total}} में से {{current}}"
   slideshowPaused: रोका गया
+  slideshowAnnounce: "फ़ोटो {{total}} में से {{current}}"
+parental:
+  pinDigitsEntered: "{{total}} में से {{count}} अंक दर्ज किए गए"
 created: बनाया गया
 updated: अपडेट किया गया
 downloadComplete: "डाउनलोड पूरा हुआ"

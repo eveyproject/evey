@@ -2,6 +2,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, fireEvent, waitFor } from "@testing-library/react";
 import React from "react";
 
+const { announceForAccessibilityMock } = vi.hoisted(() => ({
+  announceForAccessibilityMock: vi.fn(),
+}));
 vi.mock("react-native", () => ({
   View: ({ children, ...p }: any) => React.createElement("div", p, children),
   Text: ({ children, ...p }: any) => React.createElement("span", p, children),
@@ -10,10 +13,11 @@ vi.mock("react-native", () => ({
   Pressable: ({ children, onPress, accessibilityLabel, ...p }: any) =>
     React.createElement("button", { onClick: onPress, "aria-label": accessibilityLabel, ...p }, children),
   StyleSheet: { create: (s: any) => s },
+  AccessibilityInfo: { announceForAccessibility: announceForAccessibilityMock },
 }));
 
 vi.mock("react-i18next", () => ({
-  useTranslation: () => ({ t: (key: string, fallback?: string) => fallback ?? key }),
+  useTranslation: () => ({ t: (key: string, fallback?: unknown) => (typeof fallback === "string" ? fallback : key) }),
 }));
 
 vi.mock("../providers/ThemeProvider", () => ({
@@ -57,6 +61,7 @@ describe("ParentalPINModal - server pin proof threading", () => {
   beforeEach(() => {
     eveyFetchMock.mockReset();
     markUnlockedMock.mockReset();
+    announceForAccessibilityMock.mockReset();
   });
 
   it("forwards the server pinToken to onVerified on a direct match", async () => {
@@ -117,5 +122,41 @@ describe("ParentalPINModal - server pin proof threading", () => {
     enterPin(getByLabelText, "1234");
     await findByText("Incorrect PIN");
     expect(onVerified).not.toHaveBeenCalled();
+  });
+});
+
+describe("ParentalPINModal - non-visual feedback", () => {
+  beforeEach(() => {
+    eveyFetchMock.mockReset();
+    markUnlockedMock.mockReset();
+    announceForAccessibilityMock.mockReset();
+  });
+
+  it("announces digit progress, never the digit itself", async () => {
+    eveyFetchMock.mockResolvedValueOnce({ valid: true, pinToken: "proof-abc" });
+    const { getByLabelText } = render(
+      <ParentalPINModal visible onClose={vi.fn()} onVerified={vi.fn()} profileId="prof-target" />,
+    );
+    fireEvent.click(getByLabelText("1"));
+    fireEvent.click(getByLabelText("2"));
+
+    const announced = announceForAccessibilityMock.mock.calls.map((c) => String(c[0]));
+    expect(announced.length).toBeGreaterThan(0);
+    for (const message of announced) {
+      expect(message).not.toContain("1");
+      expect(message).not.toContain("2");
+    }
+    // The i18n mock hands back the key itself since no fallback string is given.
+    expect(announced).toContain("media.parental.pinDigitsEntered");
+  });
+
+  it("announces an incorrect PIN", async () => {
+    eveyFetchMock.mockResolvedValueOnce({ valid: false });
+    const { getByLabelText, findByText } = render(
+      <ParentalPINModal visible onClose={vi.fn()} onVerified={vi.fn()} profileId="prof-target" />,
+    );
+    enterPin(getByLabelText, "1234");
+    await findByText("Incorrect PIN");
+    await waitFor(() => expect(announceForAccessibilityMock).toHaveBeenCalledWith("Incorrect PIN"));
   });
 });
