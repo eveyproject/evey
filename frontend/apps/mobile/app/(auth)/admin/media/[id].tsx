@@ -337,6 +337,7 @@ function SegmentRow({
           <Text style={s.inputLabel}>{t("admin.segments.start", "Start mm:ss")}</Text>
           <TextInput
             style={[s.input, !isValid && parsedStart === null && s.inputError]}
+            accessibilityLabel={t("admin.segments.start", "Start mm:ss")}
             value={startVal}
             onChangeText={(v) => setStartVal(v)}
             onBlur={() => commitStart(startVal)}
@@ -350,6 +351,7 @@ function SegmentRow({
           <Text style={s.inputLabel}>{t("admin.segments.end", "End mm:ss")}</Text>
           <TextInput
             style={[s.input, !isValid && parsedEnd === null && s.inputError]}
+            accessibilityLabel={t("admin.segments.end", "End mm:ss")}
             value={endVal}
             onChangeText={(v) => setEndVal(v)}
             onBlur={() => commitEnd(endVal)}

@@ -432,6 +432,7 @@ export default function AdminTranscodingScreen() {
                   setConcDirty(true);
                 }}
                 style={s.input}
+                accessibilityLabel={t("admin.transcoding.concurrencyManualHint", "Plafonner les transcodages simultanés")}
                 placeholderTextColor={theme.colors.textMuted}
                 placeholder={String(settings?.maxConcurrentTranscodes.default ?? 2)}
                 keyboardType="numeric"
