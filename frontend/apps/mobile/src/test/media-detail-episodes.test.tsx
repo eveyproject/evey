@@ -185,6 +185,12 @@ const allEpisodes = Array.from({ length: EPISODE_COUNT }, (_, i) => ({
 let currentId = SEASON_ID;
 const extraItems: Record<string, Record<string, unknown>> = {};
 let progressById: Record<string, { played?: boolean; positionMs?: string; durationMs?: string }> = {};
+// Batch source for the episode badges/bars (audit 25-08 H3): one history
+// fetch replaces one GetWatchProgress per row. Counting mocks let the tests
+// pin the request pattern, not just the pixels.
+let historyItems: { mediaItemId: string; played?: boolean; percentComplete?: number }[] = [];
+const watchProgressCalls: string[] = [];
+const historyCalls = { n: 0 };
 
 vi.mock("@evey/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@evey/api")>()),
@@ -197,7 +203,14 @@ vi.mock("@evey/api", async (importOriginal) => ({
     if (params.parentId === SEASON_ID) return { data: { items: allEpisodes } };
     return { data: { items: [] } };
   },
-  usePlaybackServiceGetWatchProgress: (itemId: string) => ({ data: progressById[itemId] }),
+  usePlaybackServiceGetWatchProgress: (itemId: string) => {
+    watchProgressCalls.push(itemId);
+    return { data: progressById[itemId] };
+  },
+  usePlaybackServiceGetWatchHistory: () => {
+    historyCalls.n++;
+    return { data: { items: historyItems } };
+  },
   usePlaybackServiceMarkAsWatched: () => ({ mutate: vi.fn(), isPending: false }),
   usePlaybackServiceMarkAsUnwatched: () => ({ mutate: vi.fn(), isPending: false }),
   useFeedServiceSimilarItems: () => ({ data: { items: [] } }),
@@ -224,6 +237,9 @@ beforeEach(() => {
   pinRequired = false;
   currentId = SEASON_ID;
   progressById = {};
+  historyItems = [];
+  watchProgressCalls.length = 0;
+  historyCalls.n = 0;
   for (const k of Object.keys(extraItems)) delete extraItems[k];
 });
 
@@ -410,13 +426,27 @@ describe("MediaDetailScreen episode watched indicator", () => {
   }
 
   it("shows a check badge on a fully-watched episode and none on a partial one", () => {
-    progressById["ep-1"] = { played: true, positionMs: "0", durationMs: "1000" };
-    progressById["ep-2"] = { played: false, positionMs: "300", durationMs: "1000" };
+    historyItems = [
+      { mediaItemId: "ep-1", played: true, percentComplete: 100 },
+      { mediaItemId: "ep-2", played: false, percentComplete: 30 },
+    ];
     render(<MediaDetailScreen />, { wrapper: makeWrapper() });
 
     expect(badgeInRow("Episode 1")).toBeTruthy();
     expect(badgeInRow("Episode 2")).toBeNull();
     // ...and an untouched episode has neither badge nor progress.
     expect(badgeInRow("Episode 3")).toBeNull();
+  });
+
+  // Audit 25-08 H3: opening a season fired one GetWatchProgress per visible
+  // row - a 20-request burst against a weak NAS for data GetWatchHistory
+  // serves in ONE call (the exact pattern library/[libraryId].tsx already
+  // uses). The rows must read the shared map, never fetch for themselves.
+  it("feeds every row from ONE watch-history call, zero per-episode requests", () => {
+    render(<MediaDetailScreen />, { wrapper: makeWrapper() });
+
+    expect(historyCalls.n).toBeGreaterThanOrEqual(1);
+    const perEpisode = watchProgressCalls.filter((id) => id.startsWith("ep-"));
+    expect(perEpisode).toEqual([]);
   });
 });

@@ -24,6 +24,8 @@ import {
   useLibraryServiceGetMediaItem,
   useLibraryServiceListMediaItems,
   usePlaybackServiceGetWatchProgress,
+  usePlaybackServiceGetWatchHistory,
+  WATCH_HISTORY_OVERLAY_LIMIT,
   usePlaybackServiceMarkAsWatched,
   usePlaybackServiceMarkAsUnwatched,
   useFeedServiceSimilarItems,
@@ -67,6 +69,10 @@ import { PluginSlot } from "../../../src/features/plugins/PluginSlot";
 const POSTER_WIDTH = 100;
 const POSTER_HEIGHT = POSTER_WIDTH * 1.5;
 const EPISODE_PAGE_SIZE = 20;
+
+// Per-episode view of the shared watch-history fetch (percent is 0-100, the
+// server's percent_complete scale - same as the row's progress bar).
+type EpisodeProgress = { percent: number; played: boolean };
 
 // Audio codecs of the item's source file, captured into the download index so
 // the player can tell a hearable local copy from one that would play silent
@@ -160,13 +166,15 @@ const CastCard = memo(function CastCard({ person }: { person: V1MediaPerson }) {
 });
 
 const EpisodeRow = memo(function EpisodeRow({
-  item, serverUrl, theme, authHeaders, downloadProgress, onDownload, onPlay,
+  item, serverUrl, theme, authHeaders, downloadProgress,
+  progress, onDownload, onPlay,
 }: {
   item: V1MediaItem;
   serverUrl: string;
   theme: ReturnType<typeof useTheme>;
   authHeaders?: { Authorization: string };
   downloadProgress?: number;
+  progress?: EpisodeProgress;
   onDownload?: (item: V1MediaItem) => void;
   onPlay: (item: V1MediaItem) => void;
 }) {
@@ -175,12 +183,10 @@ const EpisodeRow = memo(function EpisodeRow({
   // (same as the web episode rows). Asking for a poster gave an empty 16:9 box
   // on most episodes, since episodes rarely carry one.
   const episodeUri = item.id ? artworkUrl(serverUrl, item.id, "backdrop", 240) : undefined;
-  const { data: progress } = usePlaybackServiceGetWatchProgress(item.id ?? "", undefined, {
-    query: { enabled: !!item.id, retry: false },
-  });
-  const posMs = Number(progress?.positionMs ?? 0);
-  const durMs = Number(progress?.durationMs ?? 0);
-  const percent = durMs > 0 ? (posMs / durMs) * 100 : 0;
+  // No per-row fetch here: the parent derives every row's progress from ONE
+  // GetWatchHistory call (audit 25-08 H3 - a season open used to fire one
+  // GetWatchProgress per visible row, a 20-request burst on a weak NAS).
+  const percent = progress?.percent ?? 0;
   // A fully-watched episode has its resume position reset, so `percent` is 0 -
   // it would look identical to a never-watched one. `played` is the truth for
   // "seen in full"; show the same check badge as the cards, and keep the
@@ -675,6 +681,23 @@ export default function MediaDetailScreen() {
     () => (isSeries ? [...children].sort((a, b) => (a.indexNumber ?? 0) - (b.indexNumber ?? 0)) : []),
     [isSeries, children],
   );
+
+  // One watch-history fetch feeds every EpisodeRow's badge/progress bar -
+  // same source, shape and limits as library/[libraryId].tsx and
+  // useWatchedMap. Replaces one GetWatchProgress per row (audit 25-08 H3:
+  // a season open fired a 20-request burst on the weak-NAS target).
+  const { data: episodeHistory } = usePlaybackServiceGetWatchHistory(
+    { limit: WATCH_HISTORY_OVERLAY_LIMIT },
+    { query: { staleTime: 30_000, enabled: isSeries || isSeason } },
+  );
+  const episodeProgressMap = useMemo(() => {
+    const map = new Map<string, EpisodeProgress>();
+    for (const w of episodeHistory?.items ?? []) {
+      if (!w.mediaItemId) continue;
+      map.set(w.mediaItemId, { percent: w.percentComplete ?? 0, played: w.played === true });
+    }
+    return map;
+  }, [episodeHistory]);
 
   // Downloads a single episode (single-file, same server endpoint as a
   // movie). Shared by the per-episode button and the "download all" loop
@@ -1633,6 +1656,7 @@ export default function MediaDetailScreen() {
                 theme={theme}
                 authHeaders={authHeaders}
                 downloadProgress={ep.id ? episodeDownloads[ep.id] : undefined}
+                progress={ep.id ? episodeProgressMap.get(ep.id) : undefined}
                 onDownload={handleEpisodeDownload}
                 onPlay={handleEpisodePlay}
               />
