@@ -789,3 +789,34 @@ func TestMusicTrackRepo_CountByLibrary_AgreesWithListTotal(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, nOther)
 }
+
+// Prod 2026-08-26 : un mp3 sans aucun tag ("Star Profile - Audio Documentary")
+// donnait un album au TITRE VIDE - en-tête blanc dans les trois clients. Le
+// dossier EST l'identité de l'album (c'est déjà la clé de groupage) : quand
+// aucune piste du groupe ne porte de tag album, son nom est le meilleur
+// affichage disponible, pas la chaîne vide.
+func TestMusicTrackRepo_GetAlbums_UntaggedFolderFallsBackToFolderName(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	libRepo := postgres.NewLibraryRepository(db)
+	repo := postgres.NewMusicTrackRepository(db)
+	ctx := context.Background()
+
+	lib := newTestLibrary("mt-lib-untagged")
+	lib.Type = "music"
+	require.NoError(t, libRepo.Create(ctx, lib))
+
+	tr := newTestTrack("mt-untag-1", lib.ID, "Star Profile - 01 - Audio Documentary.mp3", "", "")
+	tr.AlbumArtist = ""
+	tr.FilePath = "/music/audio documentary/Star Profile - 01 - Audio Documentary.mp3"
+	tr.AlbumFolder = "/music/audio documentary"
+	_, uerr := repo.Upsert(ctx, tr)
+	require.NoError(t, uerr)
+
+	albums, err := repo.GetAlbums(ctx, lib.ID)
+	require.NoError(t, err)
+	require.Len(t, albums, 1)
+	assert.Equal(t, "audio documentary", albums[0].Title,
+		"an all-untagged folder must display its folder name, not an empty header")
+}

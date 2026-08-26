@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime/debug"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -493,7 +494,7 @@ func (s *CommandService) processOneTrack(ctx context.Context, libraryID string, 
 	t, parseErr := s.parseTrackWithTimeout(ctx, j.path, libraryID, j.mimeType, j.size)
 	if parseErr != nil {
 		slog.WarnContext(ctx, "music scan: parse failed", slog.String("path", j.path), slog.Any("err", parseErr))
-		t, parseErr = music.NewTrack(uuid.New().String(), shared.LibraryID(libraryID), filepath.Base(j.path), j.path,
+		t, parseErr = music.NewTrack(uuid.New().String(), shared.LibraryID(libraryID), titleFromFilename(j.path), j.path,
 			music.WithTrackFile(j.size, j.mimeType),
 		)
 		if parseErr != nil {
@@ -631,6 +632,14 @@ func (s *CommandService) DeleteTrack(ctx context.Context, trackID string) error 
 	return nil
 }
 
+// titleFromFilename is the last-resort display title when the file carries no
+// usable tag: the base name WITHOUT its extension. The raw base leaked the
+// ".mp3" into every client (prod 2026-08-26, an untagged audio documentary).
+func titleFromFilename(path string) string {
+	base := filepath.Base(path)
+	return strings.TrimSuffix(base, filepath.Ext(base))
+}
+
 func (s *CommandService) parseTrackWithTimeout(ctx context.Context, path, libraryID, mimeType string, fileSize int64) (*music.Track, error) {
 	tCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
@@ -684,7 +693,7 @@ func (s *CommandService) parseTrack(ctx context.Context, path, libraryID, mimeTy
 
 	title := m.Title()
 	if title == "" {
-		title = filepath.Base(path)
+		title = titleFromFilename(path)
 	}
 	trackID := uuid.New().String()
 	opts := []music.TrackOption{

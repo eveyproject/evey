@@ -168,9 +168,9 @@ func TestNotificationRepo_FindRecentByProfilesTypeAndSeries(t *testing.T) {
 		require.NoError(t, repo.Create(ctx, &notification.Notification{
 			ID: id, ProfileID: shared.ProfileID(profileID), Type: typ, Title: "T",
 			SeriesKey: notification.SeriesKey(relatedMediaID),
-			Level:          notification.LevelAll,
-			CreatedAt:      createdAt,
-			ExpiresAt:      &expires,
+			Level:     notification.LevelAll,
+			CreatedAt: createdAt,
+			ExpiresAt: &expires,
 		}))
 	}
 

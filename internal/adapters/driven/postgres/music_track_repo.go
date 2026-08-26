@@ -491,6 +491,13 @@ func (r *MusicTrackRepository) GetAlbums(ctx context.Context, libraryID shared.L
 			return nil, err
 		}
 		a.CoverArtURL = cover.String
+		// An all-untagged folder (no album tag on any track) used to render a
+		// BLANK album header in every client (prod 2026-08-26, an untagged
+		// audio-documentary mp3). The folder is already this album's identity -
+		// its name is the best available display, never the empty string.
+		if a.Title == "" {
+			a.Title = filepath.Base(folder)
+		}
 		// Album identity is the folder path, not a (title, artist) tuple. Expose
 		// it to clients as a short opaque id (not the raw path) so URLs don't
 		// leak the filesystem layout and homonym albums don't collide.

@@ -481,3 +481,32 @@ func TestScanDirectory_PublishError(t *testing.T) {
 		t.Fatalf("expected 1 (publish error non-fatal), got %d", count)
 	}
 }
+
+// Prod 2026-08-26: an untagged mp3 surfaced in every client titled
+// "Star Profile - 01 - Audio Documentary.mp3" - extension included. The
+// filename is a legitimate last-resort title, the ".mp3" on the end never is.
+func TestScanDirectory_FallbackTitleHasNoExtension(t *testing.T) {
+	repo := fakes.NewFakeMusicTrackRepository()
+	scanner := fakes.NewFakeMusicScanner()
+
+	scanner.Files = []music.ScannedAudioFile{
+		{Path: "/lib/audio documentary/Star Profile - 01 - Audio Documentary.mp3", Size: 100, MimeType: "audio/mpeg", ModTime: time.Now()},
+	}
+	scanner.OpenErr = errors.New("disk error") // forces the fallback-track path
+
+	cs := appmusic.NewCommandService(repo, sharedfakes.NewFakeEventBus(), nil, scanner)
+	count, err := cs.ScanDirectory(context.Background(), "lib-1", "/lib")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("expected 1 fallback track, got %d", count)
+	}
+	all, _ := repo.ListAllByLibrary(context.Background(), "lib-1")
+	if len(all) != 1 {
+		t.Fatalf("expected 1 track, got %d", len(all))
+	}
+	if got := all[0].Title; got != "Star Profile - 01 - Audio Documentary" {
+		t.Fatalf("fallback title must drop the extension, got %q", got)
+	}
+}

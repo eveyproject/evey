@@ -698,8 +698,10 @@ func TestScanDirectory_TrackFieldsCorrect(t *testing.T) {
 	if tr.LibraryID != "lib-42" {
 		t.Errorf("LibraryID = %q, want lib-42", tr.LibraryID)
 	}
-	if tr.Title != "mysong.flac" {
-		t.Errorf("Title = %q, want mysong.flac", tr.Title)
+	// Extension stripped: the filename is a legitimate fallback title, the
+	// ".flac" on the end never is (prod 2026-08-26).
+	if tr.Title != "mysong" {
+		t.Errorf("Title = %q, want mysong", tr.Title)
 	}
 	if tr.MimeType != "audio/flac" {
 		t.Errorf("MimeType = %q, want audio/flac", tr.MimeType)

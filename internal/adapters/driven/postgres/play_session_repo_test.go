@@ -87,7 +87,7 @@ func TestPlaySessionRepo_PurgeEndedBefore(t *testing.T) {
 		require.NoError(t, sessionRepo.Create(ctx, s))
 	}
 	mkEnded("ps_old_ended", now.Add(-40*24*time.Hour))   // 40 days ago → purged
-	mkEnded("ps_recent_ended", now.Add(-2*24*time.Hour))  // 2 days ago → kept
+	mkEnded("ps_recent_ended", now.Add(-2*24*time.Hour)) // 2 days ago → kept
 	// An active session (ended_at NULL) must never be purged regardless of age.
 	active := newTestPlaySession("ps_active", string(p.ID), string(item.ID))
 	active.StartedAt = now.Add(-100 * 24 * time.Hour)
