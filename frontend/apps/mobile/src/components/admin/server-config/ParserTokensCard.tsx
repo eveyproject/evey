@@ -74,6 +74,7 @@ export function ParserTokensCard({ entries, saveEntry, saving }: { entries: Conf
         </Text>
         <TextInput
           testID="parser-tokens-qualities"
+          accessibilityLabel={t("admin.serverConfig.parserTokensQualities", "Extra quality tokens")}
           style={inputStyle}
           value={qualities}
           onChangeText={(v) => {
@@ -99,6 +100,7 @@ export function ParserTokensCard({ entries, saveEntry, saving }: { entries: Conf
         </Text>
         <TextInput
           testID="parser-tokens-editions"
+          accessibilityLabel={t("admin.serverConfig.parserTokensEditions", "Extra edition suffixes")}
           style={inputStyle}
           value={editions}
           onChangeText={(v) => {

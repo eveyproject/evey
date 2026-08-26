@@ -141,6 +141,7 @@ export default function AdminRemoteAccessScreen() {
             value={externalUrl}
             onChangeText={(v) => { setExternalUrl(v); setDirty(true); }}
             style={s.input}
+            accessibilityLabel={t("admin.remoteAccess.externalUrl")}
             placeholderTextColor={theme.colors.textMuted}
             placeholder={data?.serverBaseUrl || "https://evey.example.com"}
             autoCapitalize="none"
@@ -158,6 +159,7 @@ export default function AdminRemoteAccessScreen() {
             value={lanNetworks}
             onChangeText={(v) => { setLanNetworks(v); setDirty(true); }}
             style={s.input}
+            accessibilityLabel={t("admin.remoteAccess.lanNetworks")}
             placeholderTextColor={theme.colors.textMuted}
             placeholder="192.168.0.0/16, 10.0.0.0/8"
             autoCapitalize="none"
@@ -170,6 +172,7 @@ export default function AdminRemoteAccessScreen() {
             onChangeText={(v) => { setMaxBitrate(v); setDirty(true); }}
             style={s.input}
             keyboardType="numeric"
+            accessibilityLabel={t("admin.remoteAccess.maxRemoteBitrate")}
             placeholder="0"
             placeholderTextColor={theme.colors.textMuted}
           />
