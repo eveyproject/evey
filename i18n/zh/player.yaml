@@ -18,6 +18,8 @@ controls:
   rewind: "倒退 {{seconds}} 秒"
   forward: "快进 {{seconds}} 秒"
   previousEpisode: "上一集"
+  previousChapter: "上一章"
+  nextChapter: "下一章"
   nextEpisode: "下一集"
   seek: "进度"
   seekPosition: "播放位置，{{total}} 中的 {{current}}"

@@ -18,6 +18,8 @@ controls:
   rewind: "{{seconds}} सेकंड पीछे"
   forward: "{{seconds}} सेकंड आगे"
   previousEpisode: "पिछला एपिसोड"
+  previousChapter: "पिछला अध्याय"
+  nextChapter: "अगला अध्याय"
   nextEpisode: "अगला एपिसोड"
   seek: "सीक"
   seekPosition: "प्लेबैक स्थिति, {{total}} में से {{current}}"

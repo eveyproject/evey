@@ -18,6 +18,8 @@ controls:
   rewind: "Rewind {{seconds}}s"
   forward: "Forward {{seconds}}s"
   previousEpisode: Previous episode
+  previousChapter: "Previous chapter"
+  nextChapter: "Next chapter"
   nextEpisode: Next episode
   seek: Seek
   seekPosition: "Seek position, {{current}} of {{total}}"

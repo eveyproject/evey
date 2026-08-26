@@ -135,7 +135,7 @@ export function PlayerControlsRow({
           hitSlop={8}
           style={styles.controlBtn}
           accessible={true}
-          accessibilityLabel={t("player.controls.chapters")}
+          accessibilityLabel={t("player.controls.previousChapter", "Previous chapter")}
           accessibilityRole="button"
         >
           <MaterialIcons name="first-page" size={ICON_SIZE.xl} color="#fff" />
@@ -177,7 +177,7 @@ export function PlayerControlsRow({
           hitSlop={8}
           style={styles.controlBtn}
           accessible={true}
-          accessibilityLabel={t("player.controls.chapters")}
+          accessibilityLabel={t("player.controls.nextChapter", "Next chapter")}
           accessibilityRole="button"
         >
           <MaterialIcons name="last-page" size={ICON_SIZE.xl} color="#fff" />

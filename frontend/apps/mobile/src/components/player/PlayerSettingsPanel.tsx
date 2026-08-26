@@ -154,12 +154,17 @@ function useQualityOptions() {
 
 // Minimalist horizontal bar for brightness (same touch mechanics as
 // PlayerVolumeControl, full width of the panel).
-function HSlider({ value, min, max, onChange, accessibilityLabel }: {
+function HSlider({ value, min, max, onChange, accessibilityLabel, announceScale = 1 }: {
   value: number;
   min: number;
   max: number;
   onChange: (v: number) => void;
   accessibilityLabel: string;
+  // Multiplier applied only to the announced accessibilityValue, for a slider
+  // whose raw range is 0-1 (brightness) and should read as a 0-100 percent. The
+  // already-scaled sliders (size 50-200, background 0-100) leave it at 1 - a
+  // hardcoded x100 here announced 5000-20000 for those.
+  announceScale?: number;
 }) {
   const theme = useTheme();
   const widthRef = useRef(0);
@@ -180,7 +185,7 @@ function HSlider({ value, min, max, onChange, accessibilityLabel }: {
       accessible={true}
       accessibilityRole="adjustable"
       accessibilityLabel={accessibilityLabel}
-      accessibilityValue={{ min: Math.round(min * 100), max: Math.round(max * 100), now: Math.round(value * 100) }}
+      accessibilityValue={{ min: Math.round(min * announceScale), max: Math.round(max * announceScale), now: Math.round(value * announceScale) }}
       onAccessibilityAction={(ev) => {
         const step = (max - min) / 10;
         if (ev.nativeEvent.actionName === "increment") onChange(Math.min(max, value + step));
@@ -388,6 +393,7 @@ export function PlayerSettingsPanel({
                 max={1}
                 onChange={onBrightnessChange}
                 accessibilityLabel={t("player.settings.brightness")}
+                announceScale={100}
               />
             </View>
           </>

@@ -18,6 +18,8 @@ controls:
   rewind: "Retroceder {{seconds}}s"
   forward: "Avanzar {{seconds}}s"
   previousEpisode: Episodio anterior
+  previousChapter: "Capítulo anterior"
+  nextChapter: "Capítulo siguiente"
   nextEpisode: Siguiente episodio
   seek: Buscar
   seekPosition: "Posición de reproducción, {{current}} de {{total}}"
