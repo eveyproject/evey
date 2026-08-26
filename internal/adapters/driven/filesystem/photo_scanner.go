@@ -85,6 +85,13 @@ const maxExifReadBytes = 2 << 20 // 2 MiB
 
 // ReadFile returns the leading bytes of path for metadata (EXIF) extraction,
 // bounded to maxExifReadBytes. It is not a whole-file read.
+// Exists reports whether the file is still on disk - the prune path's
+// last-resort check before deleting a row.
+func (s *PhotoScanner) Exists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}
+
 func (s *PhotoScanner) ReadFile(path string) ([]byte, error) {
 	f, err := os.Open(path)
 	if err != nil {

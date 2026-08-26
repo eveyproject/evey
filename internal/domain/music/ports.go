@@ -146,6 +146,10 @@ type ReadSeekCloser interface {
 // MusicScanner abstracts filesystem operations needed by music scanning.
 type MusicScanner interface {
 	WalkAudioFiles(ctx context.Context, dir string, fn func(ScannedAudioFile) error) error
+	// Exists reports whether the file is really on disk. The scan prune path
+	// double-checks with it before deleting a row, so a transient per-file
+	// walk error can never read as "the file was removed".
+	Exists(path string) bool
 	OpenFile(path string) (ReadSeekCloser, error)
 	ComputeHash(path string) (string, error)
 }

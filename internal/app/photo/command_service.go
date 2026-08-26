@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -53,24 +54,63 @@ func (s *CommandService) ScanDirectory(ctx context.Context, libraryID, dir strin
 		}
 	}
 
-	idx, err := s.loadPhotoIndex(ctx, libraryID)
+	entries, idx, err := s.loadPhotoIndex(ctx, libraryID)
 	if err != nil {
 		return 0, err
 	}
 
-	jobs, walkErr := s.buildPhotoJobs(ctx, dir, idx)
+	seen := make(map[string]bool)
+	movedIDs := make(map[string]bool)
+	jobs, walkErr := s.buildPhotoJobs(ctx, dir, idx, seen, movedIDs)
 	total := s.processPhotoJobs(ctx, libraryID, jobs)
+	// Prune rows whose file is gone - but ONLY off a walk that completed
+	// (same contract, guards and reasons as the music scan's
+	// pruneMissingTracks; until 2026-08-26 neither branch ever pruned).
+	if walkErr == nil && ctx.Err() == nil {
+		s.pruneMissingPhotos(ctx, dir, entries, seen, movedIDs)
+	}
 	return total, walkErr
+}
+
+// pruneMissingPhotos deletes the rows under dir whose file the walk did not
+// report AND whose absence the scanner confirms - see the music twin for the
+// full rationale (the Exists re-check keeps a transient walk error from
+// reading as a user deletion).
+func (s *CommandService) pruneMissingPhotos(ctx context.Context, dir string, entries []scanindex.Summary, seen, movedIDs map[string]bool) {
+	prefix := strings.TrimSuffix(dir, string(os.PathSeparator)) + string(os.PathSeparator)
+	removed := 0
+	for _, e := range entries {
+		if ctx.Err() != nil {
+			return
+		}
+		if !strings.HasPrefix(e.Path, prefix) {
+			continue // another root of a multi-path library
+		}
+		if seen[e.Path] || movedIDs[e.ID] {
+			continue
+		}
+		if s.scanner.Exists(e.Path) {
+			continue
+		}
+		if err := s.DeletePhoto(ctx, e.ID); err != nil {
+			slog.WarnContext(ctx, "photo scan: prune failed", slog.String("id", e.ID), slog.String("path", e.Path), slog.Any("err", err))
+			continue
+		}
+		removed++
+	}
+	if removed > 0 {
+		slog.InfoContext(ctx, "photo scan: pruned photos whose files are gone", slog.Int("removed", removed), slog.String("dir", dir))
+	}
 }
 
 // loadPhotoIndex preloads every photo row for the library into a
 // scanindex keyed by file path and (when available) content hash. The
 // hash lookup drives the "moved file, same content" fast path so a
 // rename doesn't trigger a full re-upsert.
-func (s *CommandService) loadPhotoIndex(ctx context.Context, libraryID string) (*scanindex.Index, error) {
+func (s *CommandService) loadPhotoIndex(ctx context.Context, libraryID string) ([]scanindex.Summary, *scanindex.Index, error) {
 	existing, err := s.scanReads.ListAllByLibrary(ctx, shared.LibraryID(libraryID))
 	if err != nil {
-		return nil, fmt.Errorf("list existing photos: %w", err)
+		return nil, nil, fmt.Errorf("list existing photos: %w", err)
 	}
 	entries := make([]scanindex.Summary, len(existing))
 	for i := range existing {
@@ -83,16 +123,17 @@ func (s *CommandService) loadPhotoIndex(ctx context.Context, libraryID string) (
 			Hash:    p.FileHash,
 		}
 	}
-	return scanindex.New(entries), nil
+	return entries, scanindex.New(entries), nil
 }
 
 // buildPhotoJobs walks the library directory and returns the slice of
 // photos that need full processing. Unchanged files (same path+size+
 // mtime at µs precision) are skipped; moved files (known hash, new
 // path) are updated in-place and also skipped.
-func (s *CommandService) buildPhotoJobs(ctx context.Context, dir string, idx *scanindex.Index) ([]photoJob, error) {
+func (s *CommandService) buildPhotoJobs(ctx context.Context, dir string, idx *scanindex.Index, seen, movedIDs map[string]bool) ([]photoJob, error) {
 	var jobs []photoJob
 	walkErr := s.scanner.WalkImageFiles(ctx, dir, func(f photo.ScannedImageFile) error {
+		seen[f.Path] = true
 		if _, unchanged := idx.Unchanged(f.Path, f.Size, f.ModTime); unchanged {
 			return nil
 		}
@@ -103,6 +144,8 @@ func (s *CommandService) buildPhotoJobs(ctx context.Context, dir string, idx *sc
 		}
 
 		if movedID, isMove := idx.Moved(f.Path, hash); isMove {
+			// The row survives at its NEW path - exclude it from the prune pass.
+			movedIDs[movedID] = true
 			if updateErr := s.repo.UpdateFilePath(ctx, movedID, f.Path, f.ModTime); updateErr != nil {
 				slog.WarnContext(ctx, "photo update path", slog.String("id", movedID), slog.Any("err", updateErr))
 			}

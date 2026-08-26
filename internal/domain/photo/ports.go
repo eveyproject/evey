@@ -70,6 +70,9 @@ type ScannedImageFile struct {
 // PhotoScanner abstracts filesystem operations needed by photo scanning.
 type PhotoScanner interface {
 	WalkImageFiles(ctx context.Context, dir string, fn func(ScannedImageFile) error) error
+	// Exists reports whether the file is really on disk - see the music
+	// scanner port for why the prune path needs it.
+	Exists(path string) bool
 	ReadFile(path string) ([]byte, error)
 	ImageDimensions(path string) (width, height int)
 	ComputeHash(path string) (string, error)

@@ -128,6 +128,10 @@ func TestPhoto_KillMutant_EmptyHashDoesNotMove(t *testing.T) {
 	repo := photofakes.NewFakeRepository()
 	ctx := context.Background()
 	otherPath := dir + "/other.jpg"
+	// The other photo's file is still on disk - without this the (newer)
+	// prune pass would legitimately delete the row and mask what this test
+	// actually targets (the empty-hash move guard).
+	scanner.FileData[otherPath] = []byte{0xFF, 0xD8, 0xFF, 0xD9}
 	if err := repo.Upsert(ctx, photo.Photo{
 		ID:        "p-other",
 		LibraryID: "lib1",

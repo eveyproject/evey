@@ -398,23 +398,66 @@ func (s *CommandService) ScanDirectory(ctx context.Context, libraryID, dir strin
 			return 0, fmt.Errorf("library %s not found: %w", libraryID, err)
 		}
 	}
-	idx, err := s.loadTrackIndex(ctx, libraryID)
+	entries, idx, err := s.loadTrackIndex(ctx, libraryID)
 	if err != nil {
 		return 0, err
 	}
-	jobs, walkErr := s.buildTrackJobs(ctx, dir, idx)
+	seen := make(map[string]bool)
+	movedIDs := make(map[string]bool)
+	jobs, walkErr := s.buildTrackJobs(ctx, dir, idx, seen, movedIDs)
 	total := s.processTrackJobs(ctx, libraryID, jobs)
+	// Prune rows whose file is gone - but ONLY off a walk that completed: a
+	// failed or cancelled walk saw nothing, and on a dead mount "nothing"
+	// looks exactly like "everything was deleted" (prod 2026-08-24,
+	// /media/musique vanished). Until 2026-08-26 the music branch never
+	// pruned at all - deleted albums stayed in the UI forever.
+	if walkErr == nil && ctx.Err() == nil {
+		s.pruneMissingTracks(ctx, dir, entries, seen, movedIDs)
+	}
 	s.kickAlbumArtFetch(libraryID)
 	return total, walkErr
+}
+
+// pruneMissingTracks deletes the library rows under dir whose file the walk
+// did not report AND whose absence the scanner confirms. The per-file Exists
+// re-check is the safety net: a transient stat error during the walk must
+// never read as "the user deleted this" - a wrong prune breaks every playlist
+// referencing the track id. Moved files keep their row (updated in place by
+// buildTrackJobs) and are excluded by id.
+func (s *CommandService) pruneMissingTracks(ctx context.Context, dir string, entries []scanindex.Summary, seen, movedIDs map[string]bool) {
+	prefix := strings.TrimSuffix(dir, string(os.PathSeparator)) + string(os.PathSeparator)
+	removed := 0
+	for _, e := range entries {
+		if ctx.Err() != nil {
+			return
+		}
+		if !strings.HasPrefix(e.Path, prefix) {
+			continue // another root of a multi-path library - not this walk's to judge
+		}
+		if seen[e.Path] || movedIDs[e.ID] {
+			continue
+		}
+		if s.scanner.Exists(e.Path) {
+			continue // the walk missed it but the file is on disk - keep it
+		}
+		if err := s.DeleteTrack(ctx, e.ID); err != nil {
+			slog.WarnContext(ctx, "music scan: prune failed", slog.String("id", e.ID), slog.String("path", e.Path), slog.Any("err", err))
+			continue
+		}
+		removed++
+	}
+	if removed > 0 {
+		slog.InfoContext(ctx, "music scan: pruned tracks whose files are gone", slog.Int("removed", removed), slog.String("dir", dir))
+	}
 }
 
 // loadTrackIndex preloads every track for the library into a scanindex
 // keyed by file path and (when present) content hash. The hash lookup
 // drives the "moved file, same content" fast path.
-func (s *CommandService) loadTrackIndex(ctx context.Context, libraryID string) (*scanindex.Index, error) {
+func (s *CommandService) loadTrackIndex(ctx context.Context, libraryID string) ([]scanindex.Summary, *scanindex.Index, error) {
 	existing, err := s.tracks.ListAllByLibrary(ctx, shared.LibraryID(libraryID))
 	if err != nil {
-		return nil, fmt.Errorf("list existing tracks: %w", err)
+		return nil, nil, fmt.Errorf("list existing tracks: %w", err)
 	}
 	entries := make([]scanindex.Summary, len(existing))
 	for i := range existing {
@@ -427,15 +470,16 @@ func (s *CommandService) loadTrackIndex(ctx context.Context, libraryID string) (
 			Hash:    t.FileHash,
 		}
 	}
-	return scanindex.New(entries), nil
+	return entries, scanindex.New(entries), nil
 }
 
 // buildTrackJobs walks the library directory and returns the slice of
 // tracks needing a full parse. Unchanged (path+size+mtime) are skipped;
 // moved (known hash) are updated in-place and skipped.
-func (s *CommandService) buildTrackJobs(ctx context.Context, dir string, idx *scanindex.Index) ([]trackJob, error) {
+func (s *CommandService) buildTrackJobs(ctx context.Context, dir string, idx *scanindex.Index, seen, movedIDs map[string]bool) ([]trackJob, error) {
 	var jobs []trackJob
 	walkErr := s.scanner.WalkAudioFiles(ctx, dir, func(f music.ScannedAudioFile) error {
+		seen[f.Path] = true
 		if _, unchanged := idx.Unchanged(f.Path, f.Size, f.ModTime); unchanged {
 			return nil
 		}
@@ -444,6 +488,9 @@ func (s *CommandService) buildTrackJobs(ctx context.Context, dir string, idx *sc
 			slog.WarnContext(ctx, "music scan: hash failed", slog.String("path", f.Path), slog.Any("err", hashErr))
 		}
 		if movedID, isMove := idx.Moved(f.Path, hash); isMove {
+			// The row survives at its NEW path; its old path won't be walked,
+			// so mark the id or the prune pass would read the move as a delete.
+			movedIDs[movedID] = true
 			if updateErr := s.tracks.UpdateFilePath(ctx, movedID, f.Path, f.ModTime); updateErr != nil {
 				slog.WarnContext(ctx, "music scan: update path", slog.String("id", movedID), slog.Any("err", updateErr))
 			}
@@ -516,9 +563,34 @@ func (s *CommandService) processOneTrack(ctx context.Context, libraryID string, 
 		return false
 	}
 	// On a re-scan the ON CONFLICT path keeps the existing row's id, so the
-	// locally-minted t.ID was never persisted. Publish the persisted id so
-	// subscribers reference a row that actually exists.
+	// locally-minted t.ID was never persisted - which also tells us whether
+	// this upsert INSERTED (our minted id survived) or updated an existing row.
+	isNew := persistedID == t.ID
 	t.ID = persistedID
+	if isNew {
+		// The event the notification batcher actually consumes: it amalgamates
+		// Track events sharing a SeriesTitle (the album) into one localized
+		// "New Album: X (N tracks)" push, honoring each profile's music level
+		// (batching.go). The music.* events below have no subscriber - until
+		// 2026-08-26 nothing bridged the scan to notifications and new_album
+		// could structurally never fire. New tracks only: a re-parse of an
+		// existing row is not news.
+		var genres []string
+		if t.Genre != "" {
+			genres = []string{t.Genre}
+		}
+		if pubErr := s.bus.Publish(ctx, library.MediaItemAdded{
+			MediaItemID: shared.MediaItemID(t.ID),
+			LibraryID:   shared.LibraryID(libraryID),
+			Title:       t.Title,
+			SeriesTitle: t.Album,
+			Type:        library.Track,
+			Genres:      genres,
+			OccurredAt:  time.Now(),
+		}); pubErr != nil {
+			slog.WarnContext(ctx, "music scan: MediaItemAdded publish failed", slog.String("path", j.path), slog.Any("err", pubErr))
+		}
+	}
 	// Best-effort: keep the search index in sync with the row we just wrote.
 	// A failure here must never fail the scan (the SQL fallback still serves
 	// search), so log and continue.

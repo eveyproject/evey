@@ -9,6 +9,9 @@ import (
 type FakePhotoScanner struct {
 	Files      []photo.ScannedImageFile
 	WalkErr    error
+	// ExistingPaths overrides Exists when non-nil; otherwise a path exists
+	// when the walk would report it (present in Files) or has data.
+	ExistingPaths map[string]bool
 	FileData   map[string][]byte
 	ReadErr    error
 	Dimensions map[string][2]int
@@ -63,4 +66,17 @@ func (f *FakePhotoScanner) ComputeHash(path string) (string, error) {
 		return "", f.HashErr
 	}
 	return f.Hashes[path], nil
+}
+
+func (f *FakePhotoScanner) Exists(path string) bool {
+	if f.ExistingPaths != nil {
+		return f.ExistingPaths[path]
+	}
+	for _, file := range f.Files {
+		if file.Path == path {
+			return true
+		}
+	}
+	_, ok := f.FileData[path]
+	return ok
 }

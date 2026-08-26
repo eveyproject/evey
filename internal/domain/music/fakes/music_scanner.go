@@ -10,6 +10,9 @@ import (
 type FakeMusicScanner struct {
 	Files    []music.ScannedAudioFile
 	WalkErr  error
+	// ExistingPaths overrides Exists when non-nil; otherwise a path exists
+	// when the walk would report it (present in Files) or has data.
+	ExistingPaths map[string]bool
 	FileData map[string][]byte
 	OpenErr  error
 	Hashes   map[string]string
@@ -64,4 +67,17 @@ func (f *FakeMusicScanner) ComputeHash(path string) (string, error) {
 		return "", f.HashErr
 	}
 	return f.Hashes[path], nil
+}
+
+func (f *FakeMusicScanner) Exists(path string) bool {
+	if f.ExistingPaths != nil {
+		return f.ExistingPaths[path]
+	}
+	for _, file := range f.Files {
+		if file.Path == path {
+			return true
+		}
+	}
+	_, ok := f.FileData[path]
+	return ok
 }

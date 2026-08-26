@@ -70,6 +70,13 @@ func (s *MusicScanner) WalkAudioFiles(ctx context.Context, dir string, fn func(m
 	})
 }
 
+// Exists reports whether the file is still on disk - the prune path's
+// last-resort check before deleting a row.
+func (s *MusicScanner) Exists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}
+
 func (s *MusicScanner) OpenFile(path string) (music.ReadSeekCloser, error) {
 	return os.Open(path)
 }

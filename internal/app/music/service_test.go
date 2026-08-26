@@ -631,13 +631,19 @@ func TestScanDirectory_PublishesTrackScannedEvent(t *testing.T) {
 	}
 
 	events := bus.PublishedEvents()
-	if len(events) != 2 {
-		t.Fatalf("expected 2 events (TrackScanned + TrackAdded), got %d", len(events))
+	// 3 events since 2026-08-26: MediaItemAdded (the one the notification
+	// batcher consumes - fires FIRST, for new tracks only) + the music-domain
+	// pair TrackScanned/TrackAdded.
+	if len(events) != 3 {
+		t.Fatalf("expected 3 events (MediaItemAdded + TrackScanned + TrackAdded), got %d", len(events))
 	}
-	if events[0].EventName() != "music.track.scanned" {
-		t.Errorf("expected event name music.track.scanned, got %q", events[0].EventName())
+	if _, ok := events[0].(library.MediaItemAdded); !ok {
+		t.Fatalf("first event must be MediaItemAdded (the notification bridge), got %q", events[0].EventName())
 	}
-	scanned, ok := events[0].(music.TrackScanned)
+	if events[1].EventName() != "music.track.scanned" {
+		t.Errorf("expected event name music.track.scanned, got %q", events[1].EventName())
+	}
+	scanned, ok := events[1].(music.TrackScanned)
 	if !ok {
 		t.Fatal("event is not TrackScanned")
 	}
@@ -647,7 +653,7 @@ func TestScanDirectory_PublishesTrackScannedEvent(t *testing.T) {
 	if scanned.Title == "" {
 		t.Error("expected non-empty Title in TrackScanned")
 	}
-	added, ok := events[1].(music.TrackAdded)
+	added, ok := events[2].(music.TrackAdded)
 	if !ok {
 		t.Fatal("event is not TrackAdded")
 	}

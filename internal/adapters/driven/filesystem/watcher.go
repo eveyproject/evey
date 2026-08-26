@@ -67,8 +67,12 @@ func (fw *FSWatcher) loop() {
 				fw.events <- library.FileEvent{Path: ev.Name, Op: op}
 				continue
 			}
-			ext := strings.ToLower(filepath.Ext(ev.Name))
-			if !videoExtensions[ext] {
+			// The watcher watches whole library roots, so it must speak every
+			// media type the scanners ingest: video AND audio AND image. This
+			// filter only knew video until 2026-08-26 - a created .mp3/.jpg
+			// never produced an event, and realtime detection was structurally
+			// dead for music and photo libraries even with monitoring ON.
+			if !isWatchableMediaFile(ev.Name) {
 				continue
 			}
 			fw.events <- library.FileEvent{Path: ev.Name, Op: op}
@@ -79,6 +83,22 @@ func (fw *FSWatcher) loop() {
 			fw.errors <- err
 		}
 	}
+}
+
+// isWatchableMediaFile reports whether a path carries an extension one of the
+// three scanners (video, music, photo) would ingest. The maps live next to
+// their scanners in this same package, so the three lists cannot drift apart
+// from what a scan would actually pick up.
+func isWatchableMediaFile(path string) bool {
+	ext := strings.ToLower(filepath.Ext(path))
+	if videoExtensions[ext] {
+		return true
+	}
+	if _, ok := audioExts[ext]; ok {
+		return true
+	}
+	_, ok := imageExts[ext]
+	return ok
 }
 
 func (fw *FSWatcher) mapOp(op fsnotify.Op) library.FileOp {
