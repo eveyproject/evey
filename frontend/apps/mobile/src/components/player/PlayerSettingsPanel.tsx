@@ -333,6 +333,9 @@ export function PlayerSettingsPanel({
 
   return (
     <View
+      // Trap the screen reader inside the open settings overlay: without this
+      // the reader can wander onto the player controls behind it.
+      accessibilityViewIsModal={true}
       style={[
         styles.panel,
         { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
