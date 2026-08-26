@@ -426,6 +426,22 @@ func (s *CommandService) ScanDirectory(ctx context.Context, libraryID, dir strin
 // buildTrackJobs) and are excluded by id.
 func (s *CommandService) pruneMissingTracks(ctx context.Context, dir string, entries []scanindex.Summary, seen, movedIDs map[string]bool) {
 	prefix := strings.TrimSuffix(dir, string(os.PathSeparator)) + string(os.PathSeparator)
+	// Safety net against a degraded mount wiping the catalog: a walk that
+	// completed but reported ZERO files while the DB still has rows under this
+	// root is almost never "the user deleted everything" - it is a dropped
+	// NFS/SMB export or a lazy/empty mountpoint (the walk succeeds, the files
+	// are simply gone, so the per-file Exists check below confirms every one as
+	// absent and prunes the lot, CASCADE-deleting playlist references). Same
+	// guard the video orphan pruner already carries. A genuinely emptied folder
+	// just keeps its orphan rows until a later scan sees at least one file.
+	if len(seen) == 0 {
+		for _, e := range entries {
+			if strings.HasPrefix(e.Path, prefix) {
+				slog.WarnContext(ctx, "music scan: prune skipped, walk saw no files but the library still has rows here (likely a degraded mount); refusing to delete the catalog", slog.String("dir", dir))
+				return
+			}
+		}
+	}
 	removed := 0
 	for _, e := range entries {
 		if ctx.Err() != nil {

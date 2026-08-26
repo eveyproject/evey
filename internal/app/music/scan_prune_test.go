@@ -40,15 +40,42 @@ func trackCount(t *testing.T, repo music.TrackRepository) int {
 func TestScanDirectory_PrunesTracksWhoseFileIsGone(t *testing.T) {
 	repo := fakes.NewFakeMusicTrackRepository()
 	scanner := fakes.NewFakeMusicScanner()
+	seedPruneTrack(t, repo, "keep-1", "/lib/a/keep.mp3")
 	seedPruneTrack(t, repo, "gone-1", "/lib/a/gone.mp3")
-	// The walk sees nothing and the file really is absent (Exists=false).
+	// The walk reports the surviving file (so seen is non-empty: a healthy scan,
+	// not a degraded mount) while gone.mp3 is really absent (Exists=false) and
+	// must be pruned.
+	scanner.Files = []music.ScannedAudioFile{
+		{Path: "/lib/a/keep.mp3", Size: 100, MimeType: "audio/mpeg", ModTime: time.Now().Add(-time.Hour)},
+	}
+	scanner.Hashes["/lib/a/keep.mp3"] = "hash-keep-1"
 
 	cs := appmusic.NewCommandService(repo, sharedfakes.NewFakeEventBus(), nil, scanner)
 	if _, err := cs.ScanDirectory(context.Background(), "lib-1", "/lib"); err != nil {
 		t.Fatal(err)
 	}
-	if n := trackCount(t, repo); n != 0 {
-		t.Fatalf("a track whose file is gone must be pruned, still have %d", n)
+	if n := trackCount(t, repo); n != 1 {
+		t.Fatalf("the gone file must be pruned while the surviving one stays, have %d", n)
+	}
+}
+
+func TestScanDirectory_DoesNotPruneWhenWalkSawNothing(t *testing.T) {
+	repo := fakes.NewFakeMusicTrackRepository()
+	scanner := fakes.NewFakeMusicScanner()
+	seedPruneTrack(t, repo, "mount-1", "/lib/a/one.mp3")
+	seedPruneTrack(t, repo, "mount-2", "/lib/a/two.mp3")
+	// Walk SUCCEEDS (no WalkErr) but reports zero files: a present-but-empty
+	// mountpoint (a dropped NFS/SMB export) is indistinguishable per-file from
+	// user deletions, and Exists=false for all of them, so without the guard the
+	// whole catalog is wiped. It must be refused - same contract as the video
+	// orphan pruner.
+
+	cs := appmusic.NewCommandService(repo, sharedfakes.NewFakeEventBus(), nil, scanner)
+	if _, err := cs.ScanDirectory(context.Background(), "lib-1", "/lib"); err != nil {
+		t.Fatal(err)
+	}
+	if n := trackCount(t, repo); n != 2 {
+		t.Fatalf("a walk that saw NO files while the library is non-empty must never prune (degraded mount), have %d", n)
 	}
 }
 

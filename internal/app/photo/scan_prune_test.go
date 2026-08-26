@@ -39,14 +39,47 @@ func photoCount(t *testing.T, repo *fakes.FakeRepository) int {
 func TestPhotoScanDirectory_PrunesGoneFiles(t *testing.T) {
 	repo := fakes.NewFakeRepository()
 	scanner := fakes.NewFakePhotoScanner()
+	// keep.jpg must read as UNCHANGED so the walk only marks it seen (no job):
+	// a shared fixed ModTime makes idx.Unchanged(path,size,modtime) true.
+	keepTime := time.Unix(1_700_000_000, 0)
+	if err := repo.Upsert(context.Background(), photo.Photo{
+		ID: "keep-1", LibraryID: "lib-1", FilePath: "/photos/a/keep.jpg",
+		FileSize: 100, FileHash: "hash-keep-1", ModTime: keepTime,
+	}); err != nil {
+		t.Fatal(err)
+	}
 	seedPrunePhoto(t, repo, "gone-1", "/photos/a/gone.jpg")
+	// The walk reports the surviving file (seen is non-empty: a healthy scan,
+	// not a degraded mount) while gone.jpg is really absent and must be pruned.
+	scanner.Files = []photo.ScannedImageFile{
+		{Path: "/photos/a/keep.jpg", Size: 100, MimeType: "image/jpeg", ModTime: keepTime},
+	}
+	scanner.Hashes["/photos/a/keep.jpg"] = "hash-keep-1"
 
 	cs := appphoto.NewCommandService(repo, sharedfakes.NewFakeEventBus(), nil, scanner)
 	if _, err := cs.ScanDirectory(context.Background(), "lib-1", "/photos"); err != nil {
 		t.Fatal(err)
 	}
-	if n := photoCount(t, repo); n != 0 {
-		t.Fatalf("a photo whose file is gone must be pruned, still have %d", n)
+	if n := photoCount(t, repo); n != 1 {
+		t.Fatalf("the gone file must be pruned while the surviving one stays, have %d", n)
+	}
+}
+
+func TestPhotoScanDirectory_DoesNotPruneWhenWalkSawNothing(t *testing.T) {
+	repo := fakes.NewFakeRepository()
+	scanner := fakes.NewFakePhotoScanner()
+	seedPrunePhoto(t, repo, "mount-1", "/photos/a/one.jpg")
+	seedPrunePhoto(t, repo, "mount-2", "/photos/a/two.jpg")
+	// Walk SUCCEEDS but reports zero files: a present-but-empty mountpoint
+	// (dropped export) would otherwise prune the whole catalog. Must be refused
+	// - same contract as the music twin and the video orphan pruner.
+
+	cs := appphoto.NewCommandService(repo, sharedfakes.NewFakeEventBus(), nil, scanner)
+	if _, err := cs.ScanDirectory(context.Background(), "lib-1", "/photos"); err != nil {
+		t.Fatal(err)
+	}
+	if n := photoCount(t, repo); n != 2 {
+		t.Fatalf("a walk that saw NO files while the library is non-empty must never prune (degraded mount), have %d", n)
 	}
 }
 

@@ -78,6 +78,18 @@ func (s *CommandService) ScanDirectory(ctx context.Context, libraryID, dir strin
 // reading as a user deletion).
 func (s *CommandService) pruneMissingPhotos(ctx context.Context, dir string, entries []scanindex.Summary, seen, movedIDs map[string]bool) {
 	prefix := strings.TrimSuffix(dir, string(os.PathSeparator)) + string(os.PathSeparator)
+	// Safety net against a degraded mount wiping the catalog - see the music
+	// twin (pruneMissingTracks) for the full rationale: a walk that saw ZERO
+	// files while rows remain under this root is a dropped mount, not a mass
+	// deletion, and pruning here would erase non-regenerable rows.
+	if len(seen) == 0 {
+		for _, e := range entries {
+			if strings.HasPrefix(e.Path, prefix) {
+				slog.WarnContext(ctx, "photo scan: prune skipped, walk saw no files but the library still has rows here (likely a degraded mount); refusing to delete the catalog", slog.String("dir", dir))
+				return
+			}
+		}
+	}
 	removed := 0
 	for _, e := range entries {
 		if ctx.Err() != nil {
