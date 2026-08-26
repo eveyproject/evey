@@ -318,6 +318,37 @@ func TestNotificationService_SingleTrackWithoutAlbumEvent_NotDropped(t *testing.
 	assert.NotContains(t, notifs[0].Title, "1 tracks")
 }
 
+// An untagged track (no SeriesTitle - the real prod case of an untagged audio
+// documentary) used to notify NOTHING: it fell past the buffer (which required
+// SeriesTitle != "") to the direct emit, where typeAndTitle maps type "track"
+// to "" and drops it. It must still surface an album notification named by the
+// track's own title.
+func TestNotificationService_UntaggedTrack_StillNotifies(t *testing.T) {
+	t.Parallel()
+	repo := notiffakes.NewFakeNotificationRepository()
+	settings := notiffakes.NewFakeSettingsRepository()
+	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
+	profileRepo := userfakes.NewFakeProfileRepository()
+	bus := sharedfakes.NewFakeEventBus()
+
+	ctx := context.Background()
+	_ = profileRepo.Create(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "Alice"})
+
+	svc := appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
+	svc.Register()
+
+	bus.Publish(ctx, libevent.MediaItemAdded{
+		MediaItemID: "t1", LibraryID: "lib1", Title: "Field Recording", SeriesTitle: "", Type: "track", OccurredAt: time.Now(),
+	})
+	svc.FlushBatches()
+
+	notifs, err := repo.ListByProfile(ctx, "p1", false, 0, 0)
+	require.NoError(t, err)
+	require.Len(t, notifs, 1, "an untagged track must still produce a notification")
+	assert.Equal(t, notifdom.TypeNewAlbum, notifs[0].Type)
+	assert.Equal(t, "Field Recording", notifs[0].Subject)
+}
+
 // TestTrackWithoutSeriesTitle_UsesTitleAsKey covers service.go batchKey fallback
 // and service.go:69 (trackCount > 0 boundary) where trackCount==0 produces plain title.
 func TestNotificationService_AlbumNoTracks_PlainTitle(t *testing.T) {

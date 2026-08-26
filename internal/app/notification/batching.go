@@ -77,8 +77,12 @@ func (s *CommandService) handleMediaItemAdded(_ context.Context, ev shared.Event
 		return
 	}
 
-	// Albums get batched by album title (tracks amalgamated)
-	if e.Type == libevent.Album || (e.Type == libevent.Track && e.SeriesTitle != "") {
+	// Albums get batched by album title (tracks amalgamated). Untagged tracks
+	// (no SeriesTitle) are batched too: batchKey falls back to the track title,
+	// and flushBatch's Track branch names the album by that title. Without this
+	// they fell through to the direct emit below, where typeAndTitle has no
+	// "track" case and drops them (an untagged audio file notified nothing).
+	if e.Type == libevent.Album || e.Type == libevent.Track {
 		s.bufferSeriesEvent(e)
 		s.mu.Unlock()
 		return
