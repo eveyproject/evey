@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -22,6 +22,11 @@ import { LoadFailed } from "../../../src/components/LoadFailed";
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const POSTER_COLS = 3;
 const POSTER_GAP = 8;
+// A prolific actor's filmography used to mount up to 500 posters at once
+// (the fetch cap), freezing mid-range phones before first paint. The fetch
+// stays whole so the count in the heading stays honest; only the RENDER pages.
+// Same page size as the TV filmography grid (frontend/apps/tv/app/(auth)/person/[id].tsx).
+const FILMOGRAPHY_PAGE_SIZE = 24;
 
 interface PersonInfo {
   id?: string;
@@ -50,6 +55,10 @@ export default function PersonDetailScreen() {
   const serverUrl = useServerUrl();
   const authHeaders = useAuthHeaders();
   const [bioExpanded, setBioExpanded] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(FILMOGRAPHY_PAGE_SIZE);
+  useEffect(() => {
+    setVisibleCount(FILMOGRAPHY_PAGE_SIZE);
+  }, [id]);
 
   const personId = id ?? "";
   const { data: person, isLoading: personLoading } = useGetPerson(personId);
@@ -213,7 +222,7 @@ export default function PersonDetailScreen() {
             gap: POSTER_GAP,
           }}
         >
-          {items.map((item) => (
+          {items.slice(0, visibleCount).map((item) => (
             <PosterCard
               key={item.id}
               item={item}
@@ -224,6 +233,25 @@ export default function PersonDetailScreen() {
               theme={theme}
             />
           ))}
+          {items.length > visibleCount ? (
+            <Pressable
+              onPress={() => setVisibleCount((c) => c + FILMOGRAPHY_PAGE_SIZE)}
+              style={{
+                width: posterWidth,
+                height: posterHeight,
+                borderRadius: theme.radii.sm,
+                backgroundColor: theme.colors.surface,
+                justifyContent: "center",
+                alignItems: "center",
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={t("media.detail.showMoreEpisodes", "Show more")}
+            >
+              <Text style={{ color: theme.colors.accent, fontSize: 13, fontWeight: "600" }}>
+                {t("media.detail.showMoreEpisodes", "Show more")}
+              </Text>
+            </Pressable>
+          ) : null}
         </View>
       ) : null}
 

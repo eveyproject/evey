@@ -322,4 +322,51 @@ describe("PhotosScreen", () => {
     const mainList = lists.find((el) => el.getAttribute("data-scroll-enabled") === "true");
     expect(mainList).toBeTruthy();
   });
+
+  // The albums grid lives inside the outer list's header (scrollEnabled=false,
+  // never windowed by RN), so a library with many albums used to mount every
+  // cover at once. This guards the fix: the render is paged (slice + "Show
+  // more"), the same pattern as the person filmography grid.
+  describe("albums grid pagination", () => {
+    const manyAlbums = Array.from({ length: 20 }, (_, i) => ({
+      name: `Album ${i + 1}`,
+      libraryId: LIB_ID,
+      photoCount: 1,
+      coverPhotoId: `cover-${i + 1}`,
+    }));
+
+    beforeEach(() => {
+      eveyFetchMock.mockImplementation(({ url }: { url: string }) => {
+        if (url.startsWith("/api/v1/libraries")) return Promise.resolve({ libraries });
+        if (url.startsWith("/api/v1/photos/albums")) return Promise.resolve({ albums: manyAlbums });
+        if (url.startsWith("/api/v1/photos?")) return Promise.resolve({ photos: allPhotos, total: allPhotos.length });
+        if (url.match(/\/api\/v1\/photos\/[^/]+$/)) {
+          return Promise.resolve({ id: "p1", title: "Beach", filePath: "", fileSize: 0, mimeType: "", width: 0, height: 0, takenAt: "", cameraModel: "", album: ALBUM_NAME });
+        }
+        return Promise.reject(new Error(`unexpected url ${url}`));
+      });
+    });
+
+    it("renders only a bounded page of albums for a large library", async () => {
+      render(<PhotosScreen />, { wrapper: makeWrapper() });
+
+      expect(await screen.findByText("Album 1")).toBeTruthy();
+      expect(screen.getByText("Album 8")).toBeTruthy();
+      expect(screen.queryByText("Album 9")).toBeNull();
+    });
+
+    it("reveals more albums on 'Show more' tap, up to the full list", async () => {
+      render(<PhotosScreen />, { wrapper: makeWrapper() });
+      await screen.findByText("Album 1");
+
+      fireEvent.click(screen.getByText("Show more"));
+
+      expect(screen.getByText("Album 16")).toBeTruthy();
+      expect(screen.queryByText("Album 17")).toBeNull();
+
+      fireEvent.click(screen.getByText("Show more"));
+      expect(screen.getByText("Album 20")).toBeTruthy();
+      expect(screen.queryByText("Show more")).toBeNull();
+    });
+  });
 });
