@@ -181,3 +181,5 @@ playOn:
 sessionExpired:
   title: Deine Sitzung ist abgelaufen
   body: Melde dich erneut an, um weiterzuschauen.
+a11y:
+  progress: "Wiedergabefortschritt"

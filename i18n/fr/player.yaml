@@ -181,3 +181,5 @@ playOn:
 sessionExpired:
   title: Ta session a expiré
   body: Reconnecte-toi pour continuer à regarder.
+a11y:
+  progress: "Progression de la lecture"

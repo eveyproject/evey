@@ -1262,7 +1262,17 @@ export default function PlayerScreen() {
           {/* Bottom bar */}
           <View style={styles.bottomBar}>
             <Text style={styles.timeText}>{formatTime(displayTime)}</Text>
-            <View style={styles.seekBarTrack}>
+            <View
+              style={styles.seekBarTrack}
+              accessibilityRole="progressbar"
+              accessibilityLabel={t("player.a11y.progress", "Playback progress")}
+              accessibilityValue={{
+                min: 0,
+                max: Math.max(0, Math.round(duration)),
+                now: Math.max(0, Math.round(displayTime)),
+                text: `${formatTime(displayTime)} / ${formatTime(duration)}`,
+              }}
+            >
               <View style={[styles.seekBarFill, { flex: seekProgress }]} />
               <View style={{ flex: 1 - seekProgress }} />
               {duration > 0 &&

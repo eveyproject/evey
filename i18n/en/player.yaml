@@ -181,3 +181,5 @@ playOn:
 sessionExpired:
   title: Your session has expired
   body: Sign in again to keep watching.
+a11y:
+  progress: "Playback progress"

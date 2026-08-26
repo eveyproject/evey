@@ -181,3 +181,5 @@ playOn:
 sessionExpired:
   title: Tu sesión ha caducado
   body: Inicia sesión de nuevo para seguir viendo.
+a11y:
+  progress: "Progreso de reproducción"
