@@ -5,6 +5,7 @@ import {
   Pressable,
   Animated,
   StyleSheet,
+  AccessibilityInfo,
 } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useTranslation } from "react-i18next";
@@ -42,6 +43,11 @@ const ToastItem = memo(function ToastItem({ toast }: { toast: Toast }) {
       Animated.timing(translateY, { toValue: 0, duration: 250, useNativeDriver: true }),
     ]).start();
 
+    // A toast lives ~3s and nobody focuses it, so its accessibilityLabel alone
+    // is never voiced. Announce it on appearance (mount-only effect = once per
+    // toast, not per animation frame).
+    AccessibilityInfo.announceForAccessibility(toast.message);
+
     const duration = toast.duration ?? 3000;
     const timer = setTimeout(() => {
       Animated.timing(opacity, { toValue: 0, duration: 200, useNativeDriver: true }).start(() =>
@@ -56,6 +62,7 @@ const ToastItem = memo(function ToastItem({ toast }: { toast: Toast }) {
 
   return (
     <Animated.View
+      accessibilityLiveRegion="polite"
       style={[
         styles.toast,
         {
