@@ -183,6 +183,7 @@ export default function ParentalSettingsScreen() {
               onChangeText={(v) => setCurrentPin(v.replace(/\D/g, "").slice(0, 4))}
               placeholder={t("auth.settings.parental.pin.currentPin", "Code PIN actuel")}
               placeholderTextColor={theme.colors.textMuted}
+              accessibilityLabel={t("auth.settings.parental.pin.currentPin", "Code PIN actuel")}
               editable={enabled}
               style={[
                 s.input,
@@ -203,6 +204,7 @@ export default function ParentalSettingsScreen() {
             onChangeText={(v) => setPin(v.replace(/\D/g, "").slice(0, 4))}
             placeholder={t("auth.settings.parental.pin.newPin", "Nouveau PIN")}
             placeholderTextColor={theme.colors.textMuted}
+            accessibilityLabel={t("auth.settings.parental.pin.newPin", "Nouveau PIN")}
             editable={enabled}
             style={[
               s.input,
@@ -222,6 +224,7 @@ export default function ParentalSettingsScreen() {
             onChangeText={(v) => setConfirmPin(v.replace(/\D/g, "").slice(0, 4))}
             placeholder={t("auth.settings.parental.pin.confirmPin", "Confirmer le PIN")}
             placeholderTextColor={theme.colors.textMuted}
+            accessibilityLabel={t("auth.settings.parental.pin.confirmPin", "Confirmer le PIN")}
             editable={enabled}
             style={[
               s.input,
@@ -241,6 +244,7 @@ export default function ParentalSettingsScreen() {
               onChangeText={setPassword}
               placeholder={t("auth.settings.parental.pin.passwordReauth", "Mot de passe du compte")}
               placeholderTextColor={theme.colors.textMuted}
+              accessibilityLabel={t("auth.settings.parental.pin.passwordReauth", "Mot de passe du compte")}
               editable={enabled}
               style={[
                 s.input,
