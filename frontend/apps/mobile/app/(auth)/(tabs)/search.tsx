@@ -167,7 +167,7 @@ export default function SearchScreen() {
       ...(sortField ? { sortField, sortOrder } : {}),
       limit: 40,
     },
-    { query: { enabled: debouncedQuery.length > 1 } },
+    { query: { enabled: debouncedQuery.length > 1 && searchKind === "media" } },
   );
 
   const { data: musicData, isLoading: musicLoading } = useMusicServiceSearchMusic(
