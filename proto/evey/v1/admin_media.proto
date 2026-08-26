@@ -13,12 +13,6 @@ service AdminMediaService {
     };
   }
 
-  // MatchOrphansInLibrary targets only items missing provider IDs (TMDB
-  // never matched them at scan time) and queues an async re-enrichment.
-  // Returns immediately with the count of queued items; the enricher
-  // pool drains them in the background under its existing concurrency
-  // and rate-limit caps. Idempotent - re-run to pick up the still-
-  // orphaned remainder once any rate limits clear.
   // Repairs saga membership for movies that belong to no collection: their
   // sequels are already in the library, but membership is only written while
   // a title is enriched, so anything enriched before that path existed never
@@ -31,6 +25,12 @@ service AdminMediaService {
     };
   }
 
+  // MatchOrphansInLibrary targets only items missing provider IDs (TMDB
+  // never matched them at scan time) and queues an async re-enrichment.
+  // Returns immediately with the count of queued items; the enricher
+  // pool drains them in the background under its existing concurrency
+  // and rate-limit caps. Idempotent - re-run to pick up the still-
+  // orphaned remainder once any rate limits clear.
   rpc MatchOrphansInLibrary(MatchOrphansInLibraryRequest) returns (MatchOrphansInLibraryResponse) {
     option (google.api.http) = {
       post: "/api/v1/admin/media/match-orphans"

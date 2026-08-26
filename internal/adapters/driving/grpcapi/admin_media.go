@@ -9,6 +9,7 @@ import (
 	applibrary "github.com/evey-project/evey/internal/app/library"
 	appmaintenance "github.com/evey-project/evey/internal/app/maintenance"
 	appmetadata "github.com/evey-project/evey/internal/app/metadata"
+	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	domainmkv "github.com/evey-project/evey/internal/domain/mkv"
 	"github.com/evey-project/evey/internal/domain/shared"
 	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
@@ -19,14 +20,44 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// libraryGetter is the narrow slice of applibrary.QueryService the type guard
+// needs; an interface so tests can fake a library without the full service.
+type libraryGetter interface {
+	GetLibrary(ctx context.Context, id string) (*domainlibrary.Library, error)
+}
+
 type adminMediaHandler struct {
 	eveyv1.UnimplementedAdminMediaServiceServer
 	metadataCmd      *appmetadata.CommandService
 	libCmd           *applibrary.CommandService
+	libQuery         libraryGetter
 	seekIndex        *appmaintenance.SeekIndexService
 	heavyOpSemaphore chan struct{}
 	translator       *eveyi18n.Translator
 	serverCtx        context.Context
+}
+
+// guardProviderMatchable rejects provider re-match requests on library types
+// the enrichment chain cannot serve: music and photo items never live in
+// media_items, so the sweep would be a silent no-op that still holds the
+// heavy-op slot and shows a lying "started" toast. Movie and show libraries
+// pass; an empty scope (whole catalogue) and a missing libQuery keep the
+// legacy permissive behavior.
+func (d *adminMediaHandler) guardProviderMatchable(ctx context.Context, libraryID string) error {
+	if libraryID == "" || d.libQuery == nil {
+		return nil
+	}
+	lib, err := d.libQuery.GetLibrary(ctx, libraryID)
+	if err != nil {
+		if errors.Is(err, shared.ErrNotFound) {
+			return status.Error(codes.NotFound, "library not found")
+		}
+		return internalError(ctx, "load library for metadata guard", err)
+	}
+	if lib.Type != domainlibrary.Movie && lib.Type != domainlibrary.TVShow {
+		return d.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.admin.metadata_library_unmatchable")
+	}
+	return nil
 }
 
 func (d *adminMediaHandler) acquireHeavyOp() bool {
@@ -53,6 +84,10 @@ func (d *adminMediaHandler) RefreshAllMetadata(ctx context.Context, req *eveyv1.
 	if d.metadataCmd == nil {
 		span.SetStatus(otelcodes.Error, "service not configured")
 		return nil, d.translator.TranslatedError(ctx, codes.Unimplemented, "errors.admin.service_not_configured")
+	}
+	if err := d.guardProviderMatchable(ctx, req.GetLibraryId()); err != nil {
+		span.SetStatus(otelcodes.Error, "library type not provider-matchable")
+		return nil, err
 	}
 	if !d.acquireHeavyOp() {
 		span.SetStatus(otelcodes.Error, "heavy op running")
@@ -133,6 +168,10 @@ func (d *adminMediaHandler) MatchOrphansInLibrary(ctx context.Context, req *evey
 	if d.metadataCmd == nil {
 		span.SetStatus(otelcodes.Error, "service not configured")
 		return nil, d.translator.TranslatedError(ctx, codes.Unimplemented, "errors.admin.service_not_configured")
+	}
+	if err := d.guardProviderMatchable(ctx, req.GetLibraryId()); err != nil {
+		span.SetStatus(otelcodes.Error, "library type not provider-matchable")
+		return nil, err
 	}
 	queued, err := d.metadataCmd.MatchOrphansInLibrary(ctx, req.GetLibraryId())
 	if err != nil {

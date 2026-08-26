@@ -50,6 +50,7 @@ admin:
   scanner_not_available: "स्कैनर उपलब्ध नहीं है"
   service_not_configured: "सेवा कॉन्फ़िगर नहीं है"
   heavy_op_running: "एक भारी ऑपरेशन पहले से चल रहा है"
+  metadata_library_unmatchable: "इस लाइब्रेरी प्रकार के लिए कोई मेटाडेटा प्रदाता उपलब्ध नहीं है"
   scheduled_task_not_found: "निर्धारित कार्य नहीं मिला"
   seek_index_read_only: "मीडिया वॉल्यूम केवल-पठन (read-only) माउंट है - इसे लेखन योग्य माउंट करें (:ro हटाएँ), कंटेनर पुनरारंभ करें, फिर पुनः प्रयास करें"
   seek_index_job_running: "एक सीक-इंडेक्स कार्य पहले से चल रहा है - प्रगति देखने के लिए स्कैन फिर से चलाएँ"

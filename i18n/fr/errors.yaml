@@ -50,6 +50,7 @@ admin:
   scanner_not_available: "Scanner non disponible"
   service_not_configured: "Service non configuré"
   heavy_op_running: "Une opération lourde est déjà en cours"
+  metadata_library_unmatchable: "Ce type de bibliothèque n'a aucun fournisseur de métadonnées à re-matcher"
   scheduled_task_not_found: "Tâche planifiée introuvable"
   seek_index_read_only: "Le volume média est monté en lecture seule - remonte-le en lecture-écriture (retire :ro), redémarre les conteneurs, puis réessaye"
   seek_index_job_running: "Une tâche d'index de positionnement est déjà en cours - relance l'analyse pour suivre sa progression"

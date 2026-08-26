@@ -35,6 +35,13 @@ function libraryTypeLabel(type: string | undefined, t: (key: string) => string):
   }
 }
 
+// Only the movie/show enrichment chain has an external provider (TMDB) to
+// re-match against; music artwork is fetched by its own scan-time pipeline and
+// photo libraries carry EXIF only, so the match buttons would lie there.
+function supportsProviderMatching(type: string | undefined): boolean {
+  return type === "LIBRARY_TYPE_MOVIES" || type === "LIBRARY_TYPE_SHOWS";
+}
+
 function formatDate(iso?: string): string {
   if (!iso) return "\u2014";
   try {
@@ -324,24 +331,28 @@ function LibraryRow({ library, stats }: { library: V1Library; stats: LibraryStat
           <Button variant="secondary" onClick={() => setShowEdit(true)}>
             {t("common.edit")}
           </Button>
-          <Button
-            variant="secondary"
-            loading={matchOrphans.isPending}
-            onClick={() => matchOrphans.mutate()}
-            title={t("admin.libraries.matchOrphansTooltip")}
-            data-testid="match-orphans-btn"
-          >
-            {t("admin.libraries.matchOrphans")}
-          </Button>
-          <Button
-            variant="secondary"
-            loading={refreshMetadata.isPending}
-            onClick={() => refreshMetadata.mutate()}
-            title={t("admin.libraries.refreshMetadataTooltip")}
-            data-testid="refresh-library-metadata-btn"
-          >
-            {t("admin.libraries.refreshMetadata")}
-          </Button>
+          {supportsProviderMatching(library.type) && (
+            <>
+              <Button
+                variant="secondary"
+                loading={matchOrphans.isPending}
+                onClick={() => matchOrphans.mutate()}
+                title={t("admin.libraries.matchOrphansTooltip")}
+                data-testid="match-orphans-btn"
+              >
+                {t("admin.libraries.matchOrphans")}
+              </Button>
+              <Button
+                variant="secondary"
+                loading={refreshMetadata.isPending}
+                onClick={() => refreshMetadata.mutate()}
+                title={t("admin.libraries.refreshMetadataTooltip")}
+                data-testid="refresh-library-metadata-btn"
+              >
+                {t("admin.libraries.refreshMetadata")}
+              </Button>
+            </>
+          )}
           <Button variant="secondary" onClick={() => setShowSchedule(true)}>
             {t("admin.libraries.schedule")}
           </Button>

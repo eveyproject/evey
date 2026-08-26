@@ -123,4 +123,38 @@ describe("LibrariesPage", () => {
     expect(screen.getByRole("button", { name: /^Scan$/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Schedule/i })).toBeInTheDocument();
   });
+
+  it("shows provider match buttons only for movie and show libraries", async () => {
+    mockListLibraries.mockReturnValue({
+      data: {
+        libraries: [
+          mockLibrary,
+          { id: "lib-2", name: "My Shows", type: "LIBRARY_TYPE_SHOWS", paths: ["/media/shows"] },
+        ],
+      },
+      isLoading: false,
+    });
+    const LibrariesPage = await getLibrariesPage();
+    render(React.createElement(LibrariesPage), { wrapper: createWrapper() });
+    expect(screen.getAllByTestId("refresh-library-metadata-btn")).toHaveLength(2);
+    expect(screen.getAllByTestId("match-orphans-btn")).toHaveLength(2);
+  });
+
+  it("hides provider match buttons for music and photo libraries", async () => {
+    mockListLibraries.mockReturnValue({
+      data: {
+        libraries: [
+          { id: "lib-3", name: "My Music", type: "LIBRARY_TYPE_MUSIC", paths: ["/media/music"] },
+          { id: "lib-4", name: "My Photos", type: "LIBRARY_TYPE_PHOTOS", paths: ["/media/photos"] },
+        ],
+      },
+      isLoading: false,
+    });
+    const LibrariesPage = await getLibrariesPage();
+    render(React.createElement(LibrariesPage), { wrapper: createWrapper() });
+    expect(screen.queryByTestId("refresh-library-metadata-btn")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("match-orphans-btn")).not.toBeInTheDocument();
+    // The rest of the row still works for these types.
+    expect(screen.getAllByRole("button", { name: /^Scan$/i })).toHaveLength(2);
+  });
 });

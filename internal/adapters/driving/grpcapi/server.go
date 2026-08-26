@@ -251,6 +251,7 @@ func (s *GRPCServer) RegisterServices() {
 	eveyv1.RegisterAdminMediaServiceServer(s.server, &adminMediaHandler{
 		metadataCmd:      d.MetadataCmd,
 		libCmd:           d.LibCmd,
+		libQuery:         d.LibQuery,
 		seekIndex:        d.SeekIndex,
 		heavyOpSemaphore: make(chan struct{}, 1),
 		translator:       d.Translator,

@@ -50,6 +50,7 @@ admin:
   scanner_not_available: "Scanner nicht verfügbar"
   service_not_configured: "Dienst nicht konfiguriert"
   heavy_op_running: "Eine aufwendige Operation läuft bereits"
+  metadata_library_unmatchable: "Dieser Bibliothekstyp hat keinen Metadaten-Anbieter für einen erneuten Abgleich"
   scheduled_task_not_found: "Geplante Aufgabe nicht gefunden"
   seek_index_read_only: "Das Medien-Volume ist schreibgeschützt eingebunden - binde es beschreibbar ein (entferne :ro), starte die Container neu und versuche es erneut"
   seek_index_job_running: "Ein Seek-Index-Auftrag läuft bereits - führe den Scan erneut aus, um den Fortschritt zu verfolgen"

@@ -50,6 +50,7 @@ admin:
   scanner_not_available: "Scanner not available"
   service_not_configured: "Service not configured"
   heavy_op_running: "A heavy operation is already running"
+  metadata_library_unmatchable: "This library type has no metadata provider to re-match against"
   scheduled_task_not_found: "Scheduled task not found"
   seek_index_read_only: "The media volume is mounted read-only - remount it read-write (remove :ro), restart the containers, then retry"
   seek_index_job_running: "A seek-index job is already running - re-run the scan to follow its progress"
