@@ -26,6 +26,21 @@ const (
 	enrichWorkerCount = 4
 )
 
+// enrichableItemType reports whether an added item lives in media_items and can
+// be enriched by an external provider. Music tracks/albums and photos publish
+// MediaItemAdded too (since the 2026-08-26 audio/image ingestion work) but have
+// no media_items row, so a GetByID would miss - and worse, a bulk music import
+// floods the bounded enrich queue and drops the real video items waiting in it.
+// Same allowlist shape as the trickplay and intro subscribers.
+func enrichableItemType(t library.MediaItemType) bool {
+	switch t {
+	case library.MovieItem, library.Series, library.Season, library.Episode:
+		return true
+	default:
+		return false
+	}
+}
+
 // BulkItemEnricher is an optional extension of ItemEnricher for batch auto-enrichment.
 //
 // Kept separate from ForceBulkItemEnricher (rather than folded into one
@@ -448,12 +463,14 @@ func (s *CommandService) StartEnrichmentWorker(ctx context.Context) {
 			})
 		}
 		s.events.Subscribe("media.item.added", func(_ context.Context, ev shared.Event) {
-			if e, ok := ev.(library.MediaItemAdded); ok {
-				select {
-				case queue <- string(e.MediaItemID):
-				default:
-					slog.WarnContext(ctx, "enrich queue full, dropping", slog.String("media_id", string(e.MediaItemID)))
-				}
+			e, ok := ev.(library.MediaItemAdded)
+			if !ok || !enrichableItemType(e.Type) {
+				return
+			}
+			select {
+			case queue <- string(e.MediaItemID):
+			default:
+				slog.WarnContext(ctx, "enrich queue full, dropping", slog.String("media_id", string(e.MediaItemID)))
 			}
 		})
 	}

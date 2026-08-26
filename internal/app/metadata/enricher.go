@@ -547,6 +547,11 @@ func (e *Enricher) fetchPersonBio(ctx context.Context, person *domainlib.Person)
 	// with an empty bio that reads as "the provider has none".
 	if fetcher, ok2 := capabilityFrom[personDetailFetcher](e.chain.Primary()); ok2 {
 		details, detErr := fetcher.GetPersonDetails(ctx, person.Name)
+		if detErr != nil {
+			// A swallowed 429/timeout here is indistinguishable from "the
+			// provider has no bio" - log it so the empty bio isn't read as fact.
+			slog.WarnContext(ctx, "person bio fetch failed", slog.String("person", person.Name), slog.Any("err", detErr))
+		}
 		if detErr == nil && details != nil && details.Biography != "" {
 			person.Biography = details.Biography
 			if details.Birthday != "" {

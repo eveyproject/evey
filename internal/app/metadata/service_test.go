@@ -759,11 +759,13 @@ func TestStartEnrichmentWorker_SingleEnrich_ViaEvent(t *testing.T) {
 	appmetadata.WithEnricher(enricher, mediaRepo)(cmdSvc)
 	ctx, cancel := context.WithCancel(context.Background())
 
-	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "item-99", Title: "New Movie"}))
+	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "item-99", Title: "New Movie", Type: library.MovieItem}))
 
 	cmdSvc.StartEnrichmentWorker(ctx)
 
-	evt := library.MediaItemAdded{MediaItemID: "item-99"}
+	// Real video emitters always set Type (scan_service.go); the subscriber now
+	// filters on it, so a typeless event would be dropped like a music track.
+	evt := library.MediaItemAdded{MediaItemID: "item-99", Type: library.MovieItem}
 	_ = bus.Publish(ctx, evt)
 
 	// give worker time to process

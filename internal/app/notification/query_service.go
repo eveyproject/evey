@@ -30,15 +30,10 @@ func NewQueryService(repo notification.QueryRepo, settings notification.Settings
 	return s
 }
 
-// List returns notifications for the personal feed only - admin-only types
-// (plugin_error, backup_failed) are filtered out so they don't pollute the
-// bell dropdown / profile page. Admins should consume those via the
-// dedicated admin notifications channel.
-//
-// Implementation: over-fetches the repo by 4× the requested limit then
-// filters down. Sufficient for typical UI lists (5-50 items); if a profile
-// ends up with hundreds of admin-only events ahead of personal ones, the
-// caller should paginate. Capped at 1000 over-fetch to bound memory.
+// List returns the owner's notification feed. Admin-only types are NOT filtered
+// out (see the body): their rows only ever exist on admin profiles, so the
+// owner's feed is the single paging channel for them. Defaults an unset limit to
+// 50 and pages straight through the repo - no over-fetch.
 func (s *QueryService) List(ctx context.Context, profileID shared.ProfileID, unreadOnly bool, limit, offset int) ([]*notification.Notification, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.notification.List")
 	defer span.End()
