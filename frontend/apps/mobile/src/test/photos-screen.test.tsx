@@ -3,15 +3,15 @@ import { render, screen, fireEvent, waitFor, act } from "@testing-library/react"
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-// Regression coverage for photos parity items: album cards must be
-// pressable (drill-down), the lightbox needs prev/next + a position
-// counter + rotation, grid thumbnails must request the optimized (webp,
-// w=400) variant, and the photo list must be a single virtualized FlatList
-// (no scrollEnabled={false} FlatList nested in an outer ScrollView).
+// Regression coverage for photos parity items: album cards must be pressable
+// (drill-down), the lightbox needs prev/next + a position counter + rotation,
+// grid thumbnails must request the optimized (webp, w=400) variant, the photo
+// grid must be a single virtualized LegendList, and the albums must be a
+// horizontal carousel (no "show more" wall).
 
-// The grid's onEndReached, captured from the FlatList mock so a test can
+// The grid's onEndReached, captured from the LegendList mock so a test can
 // simulate the scroll that drives pagination.
-const { flatListState } = vi.hoisted(() => ({ flatListState: { onEndReached: null as (() => void) | null } }));
+const { gridState } = vi.hoisted(() => ({ gridState: { onEndReached: null as (() => void) | null } }));
 
 // --- React Native mock ----------------------------------------------------------------
 vi.mock("react-native", () => ({
@@ -28,21 +28,19 @@ vi.mock("react-native", () => ({
     get: () => ({ width: 390, height: 844 }),
   },
   StyleSheet: { create: (s: any) => s, hairlineWidth: 1 },
-  // Renders data items plus header/footer so the header-driven album/section
-  // content (moved out of the old wrapping ScrollView) is still reachable,
-  // while asserting elsewhere that this is the ONLY scrollable list (no
-  // nested non-scrolling FlatList wrapped by an outer ScrollView).
-  // onEndReached is captured, not dropped: the real FlatList calls it when the
-  // user scrolls to the bottom, and that is what drives the grid's paging. A
-  // mock that ignores it cannot see a pagination defect at all.
-  FlatList: ({ data, renderItem, keyExtractor, ListHeaderComponent, ListFooterComponent, scrollEnabled, onEndReached }: any) => {
-    // Only the photo grid passes one. The albums row is rendered as this
-    // list's header, so an unconditional assignment would overwrite the grid's
-    // callback with the header list's undefined.
-    if (onEndReached) flatListState.onEndReached = onEndReached;
+}));
+
+// LegendList mock: renders header + every data item + footer, and captures the
+// grid's onEndReached. Only the vertical photo grid passes one; the horizontal
+// album carousel does not, so an unconditional assignment would overwrite the
+// grid's callback with the carousel's undefined. A mock that ignores
+// onEndReached cannot see a pagination defect at all.
+vi.mock("@legendapp/list/react-native", () => ({
+  LegendList: ({ data, renderItem, keyExtractor, ListHeaderComponent, ListFooterComponent, onEndReached, horizontal }: any) => {
+    if (onEndReached) gridState.onEndReached = onEndReached;
     return React.createElement(
       "div",
-      { "data-testid": "flatlist", "data-scroll-enabled": String(scrollEnabled !== false) },
+      { "data-testid": "legendlist", "data-horizontal": String(!!horizontal) },
       ListHeaderComponent,
       (data ?? []).map((item: any, i: number) =>
         React.createElement(
@@ -157,7 +155,7 @@ function findThumb(id: string): HTMLImageElement | undefined {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  flatListState.onEndReached = null;
+  gridState.onEndReached = null;
   eveyFetchMock.mockImplementation(({ url }: { url: string }) => {
     if (url.startsWith("/api/v1/libraries")) return Promise.resolve({ libraries });
     if (url.startsWith("/api/v1/photos/albums")) return Promise.resolve({ albums });
@@ -210,12 +208,12 @@ describe("PhotosScreen", () => {
     render(<PhotosScreen />, { wrapper: makeWrapper() });
 
     // Wait for page 1, then simulate the scroll that asks for the next one.
-    await waitFor(() => expect(flatListState.onEndReached).toBeTruthy());
+    await waitFor(() => expect(gridState.onEndReached).toBeTruthy());
     await waitFor(() =>
       expect(eveyFetchMock.mock.calls.some(([{ url }]) => url.startsWith("/api/v1/photos?"))).toBe(true),
     );
     await act(async () => {
-      flatListState.onEndReached?.();
+      gridState.onEndReached?.();
     });
 
     await waitFor(() => {
@@ -313,21 +311,22 @@ describe("PhotosScreen", () => {
     expect(screen.getByLabelText("common.previous")).toBeTruthy();
   });
 
-  it("renders the photo grid as a single scrollable FlatList (no nested non-scrolling list)", async () => {
+  it("renders the photo grid and album carousel as virtualized LegendLists", async () => {
     render(<PhotosScreen />, { wrapper: makeWrapper() });
     await waitFor(() => expect(findThumb("p1")).toBeTruthy());
 
-    const lists = screen.getAllByTestId("flatlist");
-    // The main photo grid FlatList must scroll (default scrollEnabled).
-    const mainList = lists.find((el) => el.getAttribute("data-scroll-enabled") === "true");
-    expect(mainList).toBeTruthy();
+    const lists = screen.getAllByTestId("legendlist");
+    // A horizontal album carousel and a vertical photo grid - both virtualized,
+    // neither a non-scrolling nested list mounted whole.
+    expect(lists.some((el) => el.getAttribute("data-horizontal") === "true")).toBe(true);
+    expect(lists.some((el) => el.getAttribute("data-horizontal") === "false")).toBe(true);
   });
 
-  // The albums grid lives inside the outer list's header (scrollEnabled=false,
-  // never windowed by RN), so a library with many albums used to mount every
-  // cover at once. This guards the fix: the render is paged (slice + "Show
-  // more"), the same pattern as the person filmography grid.
-  describe("albums grid pagination", () => {
+  // The albums used to sit in a 2-column grid inside the outer list's header
+  // (scrollEnabled=false, never windowed by RN), so a large library mounted
+  // every cover at once behind a "show more" wall. They are now a horizontal
+  // LegendList carousel - virtualized on its own axis, streaming the full set.
+  describe("albums carousel", () => {
     const manyAlbums = Array.from({ length: 20 }, (_, i) => ({
       name: `Album ${i + 1}`,
       libraryId: LIB_ID,
@@ -347,26 +346,17 @@ describe("PhotosScreen", () => {
       });
     });
 
-    it("renders only a bounded page of albums for a large library", async () => {
+    it("streams the whole album set in a horizontal carousel with no 'show more' wall", async () => {
       render(<PhotosScreen />, { wrapper: makeWrapper() });
 
       expect(await screen.findByText("Album 1")).toBeTruthy();
-      expect(screen.getByText("Album 8")).toBeTruthy();
-      expect(screen.queryByText("Album 9")).toBeNull();
-    });
-
-    it("reveals more albums on 'Show more' tap, up to the full list", async () => {
-      render(<PhotosScreen />, { wrapper: makeWrapper() });
-      await screen.findByText("Album 1");
-
-      fireEvent.click(screen.getByText("Show more"));
-
-      expect(screen.getByText("Album 16")).toBeTruthy();
-      expect(screen.queryByText("Album 17")).toBeNull();
-
-      fireEvent.click(screen.getByText("Show more"));
+      // The full set is fed to the carousel (LegendList windows it at runtime);
+      // there is no client-side slice and no "Show more" button.
       expect(screen.getByText("Album 20")).toBeTruthy();
       expect(screen.queryByText("Show more")).toBeNull();
+
+      const lists = screen.getAllByTestId("legendlist");
+      expect(lists.some((el) => el.getAttribute("data-horizontal") === "true")).toBe(true);
     });
   });
 });

@@ -3,7 +3,6 @@ import { formatBytes } from "@evey/api";
 import {
   View,
   Text,
-  FlatList,
   TouchableOpacity,
   Modal,
   Pressable,
@@ -12,6 +11,7 @@ import {
   StyleSheet,
   ScrollView,
 } from "react-native";
+import { LegendList } from "@legendapp/list/react-native";
 import { Image } from "expo-image";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useTranslation } from "react-i18next";
@@ -67,17 +67,22 @@ interface PhotoDetail {
 }
 
 const NUM_PHOTO_COLS = 3;
-const NUM_ALBUM_COLS = 2;
 const SPACING = 2;
-// A library with hundreds of albums used to mount every cover at once - this
-// grid lives inside the outer FlatList's header (scrollEnabled=false, so RN
-// never windows it), which froze the screen before first paint. Bounding the
-// initial render and revealing the rest on demand mirrors the filmography
-// "show more" pattern used elsewhere (frontend/apps/tv/app/(auth)/person/[id].tsx).
-const ALBUMS_PAGE_SIZE = 8;
 const screenWidth = Dimensions.get("window").width;
 const PHOTO_SIZE = (screenWidth - SPACING * (NUM_PHOTO_COLS + 1)) / NUM_PHOTO_COLS;
-const ALBUM_SIZE = (screenWidth - SPACING * (NUM_ALBUM_COLS + 1) - 32) / NUM_ALBUM_COLS;
+// A library with hundreds of albums used to mount every cover in a 2-column
+// grid that lived inside the outer list's header (scrollEnabled=false, never
+// windowed by RN), freezing the screen before first paint. Albums are now a
+// horizontal LegendList carousel - virtualized on its own axis, so only the
+// visible covers mount and there is no "show more" wall.
+const ALBUM_SIZE = (screenWidth - 32) / 2.4;
+
+function photoKeyExtractor(item: Photo) {
+  return item.id;
+}
+function albumKeyExtractor(item: Album) {
+  return item.name;
+}
 
 function usePhotoLibraries() {
   return useQuery({
@@ -165,17 +170,11 @@ export default function PhotosScreen() {
   const [selectedAlbum, setSelectedAlbum] = useState<string | undefined>(undefined);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [rotation, setRotation] = useState(0);
-  const [albumsVisibleCount, setAlbumsVisibleCount] = useState(ALBUMS_PAGE_SIZE);
 
   const { data: libraries, isLoading: libLoading, isError: libError, refetch: refetchLibs } = usePhotoLibraries();
   const activeLibraryID = selectedLibraryID ?? libraries?.[0]?.id;
   const { data: albums, isLoading: albumsLoading } = useAlbums(activeLibraryID);
 
-  // A new library's album list is unrelated to the previous one's - keep the
-  // "show more" progress from carrying over across a library switch.
-  useEffect(() => {
-    setAlbumsVisibleCount(ALBUMS_PAGE_SIZE);
-  }, [activeLibraryID]);
   const {
     photos,
     total: photosTotal,
@@ -249,6 +248,10 @@ export default function PhotosScreen() {
         >
           {uri ? (
             <Image
+              // recyclingKey: LegendList reuses this tile's view for other
+              // photos on a fast scroll; without it expo-image keeps the prior
+              // bitmap until the new one decodes.
+              recyclingKey={item.id}
               source={{ uri, headers: authHeaders }}
               style={{ width: PHOTO_SIZE, height: PHOTO_SIZE }}
               contentFit="cover"
@@ -278,6 +281,7 @@ export default function PhotosScreen() {
         >
           {coverUri ? (
             <Image
+              recyclingKey={item.coverPhotoId || item.name}
               source={{ uri: coverUri, headers: authHeaders }}
               style={{ width: ALBUM_SIZE, height: ALBUM_SIZE, borderRadius: theme.radii.md }}
               contentFit="cover"
@@ -325,11 +329,11 @@ export default function PhotosScreen() {
     );
   }
 
-  // Everything above the photo grid (title, library picker, albums, section
-  // title / breadcrumb, and the loading/empty states for the grid itself)
-  // rides in as the FlatList header rather than a wrapping ScrollView, so
-  // the grid below stays a single real scroll container and can virtualize
-  // (windowed rendering) instead of mounting every tile up front.
+  // Everything above the photo grid (title, library picker, albums carousel,
+  // section title / breadcrumb, and the grid's own loading/empty states) rides
+  // in as the LegendList header rather than a wrapping ScrollView, so the grid
+  // below stays a single virtualized scroll container instead of mounting every
+  // tile up front.
   const listHeader = (
     <>
       <Text style={[styles.header, { color: theme.colors.text, marginTop: theme.spacing.xl, paddingHorizontal: theme.spacing.md }]}>{t("media.photos.title")}</Text>
@@ -359,45 +363,32 @@ export default function PhotosScreen() {
         </ScrollView>
       )}
 
-      {/* Albums section (hidden while drilled into one album). This inner
-          FlatList lives inside the outer list's header (scrollEnabled=false,
-          never windowed by RN), so the DATA it's fed must already be bounded
-          - hence the slice + "show more" below instead of the full array. */}
+      {/* Albums as a horizontal carousel (hidden while drilled into one album):
+          a LegendList on its own scroll axis, virtualized independently of the
+          vertical photo grid, so hundreds of covers cost only the visible few.
+          No "show more" wall - the whole album set streams as you swipe. */}
       {!selectedAlbum && (
-        <View style={{ paddingHorizontal: theme.spacing.md, marginTop: theme.spacing.lg }}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{t("media.photos.albums")}</Text>
+        <View style={{ marginTop: theme.spacing.lg }}>
+          <Text style={[styles.sectionTitle, { color: theme.colors.text, paddingHorizontal: theme.spacing.md }]}>{t("media.photos.albums")}</Text>
           {albumsLoading ? (
-            <View style={styles.albumGrid}>
+            <View style={[styles.albumGrid, { paddingHorizontal: theme.spacing.md }]}>
               {Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} width={ALBUM_SIZE} height={ALBUM_SIZE} borderRadius={theme.radii.md} style={{ marginBottom: theme.spacing.sm }} />
+                <Skeleton key={i} width={ALBUM_SIZE} height={ALBUM_SIZE} borderRadius={theme.radii.md} style={{ marginRight: theme.spacing.sm }} />
               ))}
             </View>
           ) : !albums || albums.length === 0 ? (
-            <Text style={{ color: theme.colors.textMuted, fontSize: 13, marginBottom: theme.spacing.md }}>{t("media.photos.noAlbums")}</Text>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 13, marginBottom: theme.spacing.md, paddingHorizontal: theme.spacing.md }}>{t("media.photos.noAlbums")}</Text>
           ) : (
-            <>
-              <FlatList
-                data={albums.slice(0, albumsVisibleCount)}
-                keyExtractor={(item) => item.name}
-                renderItem={renderAlbum}
-                numColumns={NUM_ALBUM_COLS}
-                scrollEnabled={false}
-                columnWrapperStyle={{ gap: theme.spacing.sm, marginBottom: theme.spacing.sm }}
-              />
-              {albums.length > albumsVisibleCount ? (
-                <TouchableOpacity
-                  activeOpacity={0.7}
-                  onPress={() => setAlbumsVisibleCount((c) => c + ALBUMS_PAGE_SIZE)}
-                  style={{ alignSelf: "center", paddingVertical: theme.spacing.sm }}
-                  accessibilityRole="button"
-                  accessibilityLabel={t("media.detail.showMoreEpisodes", "Show more")}
-                >
-                  <Text style={{ color: theme.colors.accent, fontSize: 13, fontWeight: "600" }}>
-                    {t("media.detail.showMoreEpisodes", "Show more")}
-                  </Text>
-                </TouchableOpacity>
-              ) : null}
-            </>
+            <LegendList
+              data={albums}
+              keyExtractor={albumKeyExtractor}
+              renderItem={renderAlbum}
+              horizontal
+              recycleItems
+              estimatedItemSize={ALBUM_SIZE + 12}
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingHorizontal: theme.spacing.md, gap: theme.spacing.sm }}
+            />
           )}
         </View>
       )}
@@ -446,11 +437,13 @@ export default function PhotosScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
-      <FlatList
+      <LegendList
         data={photosLoading ? [] : photos}
-        keyExtractor={(item) => item.id}
+        keyExtractor={photoKeyExtractor}
         renderItem={renderPhoto}
         numColumns={NUM_PHOTO_COLS}
+        recycleItems
+        estimatedItemSize={PHOTO_SIZE + SPACING}
         ListHeaderComponent={listHeader}
         ListFooterComponent={listFooter}
         contentContainerStyle={{ paddingHorizontal: SPACING / 2 }}
@@ -458,6 +451,7 @@ export default function PhotosScreen() {
         onEndReached={() => {
           if (hasMorePhotos && !loadingMorePhotos) void fetchMorePhotos();
         }}
+        style={{ flex: 1 }}
       />
 
       {/* Lightbox */}

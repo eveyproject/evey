@@ -1,19 +1,33 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-// A prolific actor's filmography used to .map() every credited title straight
-// into the grid - up to 500 posters (the fetch cap) mounted on first paint.
-// This guards the fix: the render is paged (slice + "Show more"), matching
-// the pattern already applied to the TV filmography grid
-// (frontend/apps/tv/app/(auth)/person/[id].tsx).
+// A prolific actor's filmography used to fetch up to 500 posters at once and
+// .map() them straight into the grid, freezing mid-range phones on first paint.
+// This guards the rewrite: a LegendList streams the DB by opaque cursor
+// (keyset), 30 per page, and only mounts the ~visible rows.
 
-// --- React Native mock ----------------------------------------------------------------
+// --- LegendList mock: render header + every data item + expose onEndReached ---
+vi.mock("@legendapp/list/react-native", () => ({
+  LegendList: ({ data, renderItem, ListHeaderComponent, ListFooterComponent, ListEmptyComponent, onEndReached }: any) =>
+    React.createElement(
+      "div",
+      {},
+      ListHeaderComponent,
+      data.length === 0
+        ? ListEmptyComponent
+        : data.map((item: any, index: number) =>
+            React.createElement("div", { key: item.id }, renderItem({ item, index })),
+          ),
+      ListFooterComponent,
+      React.createElement("button", { "data-testid": "end-reached", onClick: () => onEndReached?.() }, "end"),
+    ),
+}));
+
 vi.mock("react-native", () => ({
   View: ({ children, ...p }: any) => React.createElement("div", p, children),
   Text: ({ children, ...p }: any) => React.createElement("span", p, children),
-  ScrollView: ({ children, ...p }: any) => React.createElement("div", p, children),
   Pressable: ({ children, onPress, accessibilityLabel, ...p }: any) =>
     React.createElement("button", { onClick: onPress, "aria-label": accessibilityLabel, ...p }, children),
   ActivityIndicator: (p: any) => React.createElement("div", { "data-testid": "loading", ...p }),
@@ -21,26 +35,22 @@ vi.mock("react-native", () => ({
   StyleSheet: { create: (s: any) => s, hairlineWidth: 1 },
 }));
 
-// --- expo-image -------------------------------------------------------------------------
 vi.mock("expo-image", () => ({
   Image: (props: Record<string, unknown>) => React.createElement("img", { ...props, alt: "" }),
 }));
 
-// --- expo-router ---------------------------------------------------------------------
 vi.mock("expo-router", () => ({
   useLocalSearchParams: () => ({ id: PERSON_ID }),
   router: { push: vi.fn() },
   Stack: { Screen: () => null },
 }));
 
-// --- i18next --------------------------------------------------------------------------
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
     t: (key: string, fallback?: unknown) => (typeof fallback === "string" ? fallback : key),
   }),
 }));
 
-// --- ThemeProvider --------------------------------------------------------------------
 vi.mock("../providers/ThemeProvider", () => ({
   useTheme: () => ({
     colors: {
@@ -52,33 +62,40 @@ vi.mock("../providers/ThemeProvider", () => ({
   }),
 }));
 
-// --- misc hooks -------------------------------------------------------------------------
 vi.mock("../hooks/useServerUrl", () => ({ useServerUrl: () => "http://test-server" }));
 vi.mock("../hooks/useAuthenticatedImage", () => ({ useAuthHeaders: () => undefined }));
 
-// --- @evey/api -------------------------------------------------------------------------
 const PERSON_ID = "person-1";
 const FILM_COUNT = 60;
-
 const person = { id: PERSON_ID, name: "Jane Actor" };
 const allFilms = Array.from({ length: FILM_COUNT }, (_, i) => ({
   id: `film-${i + 1}`,
   title: `Film ${i + 1}`,
   year: 2000 + i,
 }));
+const PAGE1 = allFilms.slice(0, 30);
+const PAGE2 = allFilms.slice(30, 60);
+
+// STABLE responses per cursor: the real react-query hook memoizes `data`, so a
+// fresh object every render would make the accumulation effect loop forever
+// (prevDataRef compares by reference). Build each page's result once.
+const REFETCH = vi.fn();
+const PAGE1_RESULT = {
+  data: { items: PAGE1, pagination: { totalItems: FILM_COUNT, nextCursor: "c1" } },
+  isLoading: false, isFetching: false, isError: false, refetch: REFETCH,
+};
+const PAGE2_RESULT = {
+  data: { items: PAGE2, pagination: { totalItems: FILM_COUNT, nextCursor: "" } },
+  isLoading: false, isFetching: false, isError: false, refetch: REFETCH,
+};
 
 vi.mock("@evey/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@evey/api")>()),
   eveyFetch: () => Promise.resolve(person),
-  useLibraryServiceListMediaItems: () => ({
-    data: { items: allFilms },
-    isLoading: false,
-    isError: false,
-    refetch: vi.fn(),
-  }),
+  useLibraryServiceListMediaItems: (params: Record<string, unknown>) =>
+    params["pagination.cursor"] === "c1" ? PAGE2_RESULT : PAGE1_RESULT,
 }));
 
-// -------------------------------------------------------------------------------------
 import PersonDetailScreen from "../../app/(auth)/person/[id]";
 
 function makeWrapper() {
@@ -92,24 +109,26 @@ beforeEach(() => {
 });
 
 describe("PersonDetailScreen filmography", () => {
-  it("renders only the first page of a large filmography", async () => {
+  it("streams the first keyset page and shows the honest total in the heading", async () => {
     render(<PersonDetailScreen />, { wrapper: makeWrapper() });
 
     expect(await screen.findByText("Film 1")).toBeTruthy();
-    expect(screen.queryByText("Film 25")).toBeNull();
+    // Heading count uses the server total, not the loaded length.
+    expect(screen.getByText(`media.person.filmography (${FILM_COUNT})`)).toBeTruthy();
+    expect(screen.getByText("Film 30")).toBeTruthy();
+    // Page 2 not loaded until the grid reaches its end.
+    expect(screen.queryByText("Film 31")).toBeNull();
   });
 
-  it("reveals more titles on 'Show more' tap, up to the full filmography", async () => {
+  it("appends the next page when the grid scrolls to its end", async () => {
     render(<PersonDetailScreen />, { wrapper: makeWrapper() });
     await screen.findByText("Film 1");
 
-    fireEvent.click(screen.getByText("Show more"));
+    fireEvent.click(screen.getByTestId("end-reached"));
 
-    expect(screen.getByText("Film 48")).toBeTruthy();
-    expect(screen.queryByText("Film 49")).toBeNull();
-
-    fireEvent.click(screen.getByText("Show more"));
-    expect(screen.getByText(`Film ${FILM_COUNT}`)).toBeTruthy();
-    expect(screen.queryByText("Show more")).toBeNull();
+    await waitFor(() => expect(screen.getByText(`Film ${FILM_COUNT}`)).toBeTruthy());
+    // Earlier page stays mounted (accumulated, not replaced).
+    expect(screen.getByText("Film 1")).toBeTruthy();
+    expect(screen.getByText("Film 31")).toBeTruthy();
   });
 });
