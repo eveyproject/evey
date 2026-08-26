@@ -38,6 +38,19 @@ vi.mock("@expo/vector-icons", () => ({
   Ionicons: (p: any) => React.createElement("span", { "data-icon": p.name }),
 }));
 
+// --- expo-image mock -----------------------------------------------------------
+vi.mock("expo-image", () => ({
+  Image: (props: any) => React.createElement("img", { alt: "", src: props.source?.uri }),
+}));
+
+// --- server url / auth headers hooks mocks --------------------------------------
+vi.mock("../../../src/hooks/useServerUrl", () => ({
+  useServerUrl: () => "http://srv.test",
+}));
+vi.mock("../../../src/hooks/useAuthenticatedImage", () => ({
+  useAuthHeaders: () => undefined,
+}));
+
 // --- expo-router mock --------------------------------------------------------
 const pushMock = vi.fn();
 vi.mock("expo-router", () => ({
@@ -61,8 +74,9 @@ vi.mock("../../../src/providers/ThemeProvider", () => ({
       surface: "#111",
       surfaceRaised: "#222",
       border: "#333",
+      shadow: "#000",
     },
-    radii: { sm: 4, md: 8 },
+    radii: { sm: 4, md: 8, lg: 12 },
   }),
 }));
 
@@ -88,7 +102,13 @@ vi.mock("@evey/voice-search", () => ({
 
 import SearchScreen, { selectSearchResultsView } from "./search";
 
-const MEDIA_ITEM = { id: "mi-1", title: "Movie One", year: 2020, type: "MEDIA_ITEM_TYPE_MOVIE" };
+const MEDIA_ITEM = {
+  id: "mi-1",
+  title: "Movie One",
+  year: 2020,
+  type: "MEDIA_ITEM_TYPE_MOVIE",
+  genres: ["Action", "Thriller", "Drama"],
+};
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -154,6 +174,24 @@ describe("SearchScreen (TV) results", () => {
     render(<SearchScreen />);
     fireEvent.change(screen.getByLabelText("media.search.placeholder"), { target: { value: "movie" } });
     expect(screen.getByText("Movie One")).toBeTruthy();
+  });
+
+  it("shows year, a type badge and up to two genres per row, dropdown-style", () => {
+    searchMediaMock.mockReturnValue({ data: { items: [MEDIA_ITEM] }, isLoading: false, isError: false, refetch: vi.fn() });
+    render(<SearchScreen />);
+    fireEvent.change(screen.getByLabelText("media.search.placeholder"), { target: { value: "movie" } });
+    expect(screen.getByText("2020")).toBeTruthy();
+    expect(screen.getByText("media.itemType.movie")).toBeTruthy();
+    expect(screen.getByText("Action, Thriller")).toBeTruthy();
+    expect(screen.queryByText("Action, Thriller, Drama")).toBeNull();
+  });
+
+  it("renders the poster thumbnail against the configured server", () => {
+    searchMediaMock.mockReturnValue({ data: { items: [MEDIA_ITEM] }, isLoading: false, isError: false, refetch: vi.fn() });
+    const { container } = render(<SearchScreen />);
+    fireEvent.change(screen.getByLabelText("media.search.placeholder"), { target: { value: "movie" } });
+    const poster = container.querySelector("img") as HTMLImageElement;
+    expect(poster?.src).toContain("http://srv.test/api/v1/media/mi-1/artwork/poster");
   });
 });
 

@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { displayTitle } from "@evey/api";
 import { View, Text, TextInput, FlatList, Pressable, ActivityIndicator, StyleSheet } from "react-native";
+import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -9,11 +10,12 @@ import type { V1MediaItem, V1Track } from "@evey/api";
 import { startVoiceSearch } from "@evey/voice-search";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useDebounce } from "../../../src/hooks/useDebounce";
+import { useServerUrl } from "../../../src/hooks/useServerUrl";
+import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { FocusableCard } from "../../../src/components/FocusableCard";
 import { useMusicQueueStore } from "../../../src/stores/musicQueue";
 import { mediaTypeLabelKey } from "../../../src/lib/mediaTypeLabel";
-
-
+import { artworkUrl } from "../../../src/lib/artwork";
 
 function tvSearchKeyExtractor(item: V1MediaItem) {
   return item.id ?? "";
@@ -25,6 +27,15 @@ function tvTrackKeyExtractor(item: V1Track) {
 
 function TVSearchSeparator() {
   return <View style={{ height: 12 }} />;
+}
+
+// Mirrors the local coverUri() helper in music.tsx / music/album/[id].tsx /
+// music/artist/[id].tsx: a track's coverArtUrl already comes back
+// server-relative, so it needs the active server prefixed unless it is
+// already absolute.
+function coverUri(serverUrl: string, coverArtUrl?: string): string | undefined {
+  if (!coverArtUrl) return undefined;
+  return /^https?:/i.test(coverArtUrl) ? coverArtUrl : `${serverUrl}${coverArtUrl}`;
 }
 
 // The screen shows at most one results view at a time (error, loading,
@@ -129,6 +140,8 @@ export default function SearchScreen() {
   const theme = useTheme();
   const router = useRouter();
   const { t } = useTranslation();
+  const serverUrl = useServerUrl();
+  const authHeaders = useAuthHeaders();
   const [query, setQuery] = useState("");
   const [inputFocused, setInputFocused] = useState(false);
   const [searchKind, setSearchKind] = useState<"media" | "music">("media");
@@ -159,34 +172,6 @@ export default function SearchScreen() {
     mediaItemsCount: items.length,
   });
 
-  const renderMusicItem = useCallback(({ item, index }: { item: V1Track; index: number }) => (
-    <FocusableCard
-      onPress={() => setQueue([{
-        id: item.id ?? "",
-        title: item.title ?? "",
-        artist: item.artist ?? "",
-        album: item.album ?? "",
-        duration: item.duration ?? 0,
-      }], 0)}
-      style={[styles.row, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
-      hasTVPreferredFocus={index === 0}
-      accessibilityLabel={item.title}
-    >
-      <View style={[styles.musicThumb, { borderRadius: theme.radii.sm, backgroundColor: theme.colors.surfaceRaised ?? theme.colors.surface }]}>
-        <Ionicons name="musical-notes" size={24} color={theme.colors.textMuted} />
-      </View>
-      <View style={styles.info}>
-        <Text style={[styles.title, { color: theme.colors.text }]} numberOfLines={1}>
-          {item.title}
-        </Text>
-        <Text style={[styles.meta, { color: theme.colors.textMuted }]} numberOfLines={1}>
-          {[item.artist, item.album].filter(Boolean).join(" · ")}
-        </Text>
-      </View>
-      <Ionicons name="play" size={24} color={theme.colors.accent} />
-    </FocusableCard>
-  ), [theme, setQueue]);
-
   // Translated, never the raw enum: "2024 · Film", not "2024 · movie".
   const typeLabel = useCallback(
     (type?: string) => {
@@ -196,26 +181,94 @@ export default function SearchScreen() {
     [t],
   );
 
-  const renderItem = useCallback(({ item, index }: { item: V1MediaItem; index: number }) => (
-    <FocusableCard
-      onPress={() => router.push(`/media/${item.id}`)}
-      style={[styles.row, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
-      hasTVPreferredFocus={index === 0}
-      accessibilityLabel={displayTitle(item, t)}
-    >
-      <View style={[styles.thumb, { borderRadius: theme.radii.sm, backgroundColor: theme.colors.surfaceRaised ?? theme.colors.surface }]}>
-        <Text style={{ color: theme.colors.textMuted, fontSize: 18 }}>?</Text>
-      </View>
-      <View style={styles.info}>
-        <Text style={[styles.title, { color: theme.colors.text }]} numberOfLines={1}>
-          {displayTitle(item, t)}
-        </Text>
-        <Text style={[styles.meta, { color: theme.colors.textMuted }]}>
-          {[item.year, typeLabel(item.type)].filter(Boolean).join(" \u00B7 ")}
-        </Text>
-      </View>
-    </FocusableCard>
-  ), [theme, router, typeLabel, t]);
+  const renderMusicItem = useCallback(({ item, index }: { item: V1Track; index: number }) => {
+    const uri = coverUri(serverUrl, item.coverArtUrl);
+    return (
+      <FocusableCard
+        onPress={() => setQueue([{
+          id: item.id ?? "",
+          title: item.title ?? "",
+          artist: item.artist ?? "",
+          album: item.album ?? "",
+          duration: item.duration ?? 0,
+        }], 0)}
+        style={[styles.row, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
+        hasTVPreferredFocus={index === 0}
+        accessibilityLabel={item.title}
+      >
+        <View style={[styles.musicThumb, { borderRadius: theme.radii.sm, backgroundColor: theme.colors.surfaceRaised ?? theme.colors.surface, overflow: "hidden" }]}>
+          {uri ? (
+            <Image
+              source={{ uri, headers: authHeaders }}
+              style={{ width: 72, height: 72 }}
+              contentFit="cover"
+              transition={150}
+              recyclingKey={item.id}
+            />
+          ) : (
+            <Ionicons name="musical-notes" size={24} color={theme.colors.textMuted} />
+          )}
+        </View>
+        <View style={styles.info}>
+          <Text style={[styles.title, { color: theme.colors.text }]} numberOfLines={1}>
+            {item.title}
+          </Text>
+          <Text style={[styles.meta, { color: theme.colors.textMuted }]} numberOfLines={1}>
+            {[item.artist, item.album].filter(Boolean).join(" · ")}
+          </Text>
+        </View>
+        <Ionicons name="play" size={24} color={theme.colors.accent} />
+      </FocusableCard>
+    );
+  }, [theme, setQueue, serverUrl, authHeaders]);
+
+  const renderItem = useCallback(({ item, index }: { item: V1MediaItem; index: number }) => {
+    const posterUri = item.id ? artworkUrl(serverUrl, item.id, "poster", 160) : undefined;
+    const genres = (item.genres ?? []).filter(Boolean).slice(0, 2);
+    const label = typeLabel(item.type);
+    return (
+      <FocusableCard
+        onPress={() => router.push(`/media/${item.id}`)}
+        style={[styles.row, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
+        hasTVPreferredFocus={index === 0}
+        accessibilityLabel={displayTitle(item, t)}
+      >
+        <View style={[styles.thumb, { borderRadius: theme.radii.sm, backgroundColor: theme.colors.surfaceRaised ?? theme.colors.surface, overflow: "hidden" }]}>
+          {posterUri ? (
+            <Image
+              source={{ uri: posterUri, headers: authHeaders }}
+              style={{ width: 80, height: 120 }}
+              contentFit="cover"
+              transition={150}
+              recyclingKey={item.id}
+            />
+          ) : (
+            <Text style={{ color: theme.colors.textMuted, fontSize: 18 }}>?</Text>
+          )}
+        </View>
+        <View style={styles.info}>
+          <Text style={[styles.title, { color: theme.colors.text }]} numberOfLines={1}>
+            {displayTitle(item, t)}
+          </Text>
+          <View style={styles.metaRow}>
+            {item.year ? (
+              <Text style={[styles.metaText, { color: theme.colors.textMuted }]}>{item.year}</Text>
+            ) : null}
+            {label ? (
+              <View style={[styles.badge, { backgroundColor: theme.colors.bg }]}>
+                <Text style={[styles.badgeText, { color: theme.colors.textMuted }]}>{label}</Text>
+              </View>
+            ) : null}
+            {genres.length > 0 ? (
+              <Text style={[styles.metaText, { color: theme.colors.textMuted }]} numberOfLines={1}>
+                {genres.join(", ")}
+              </Text>
+            ) : null}
+          </View>
+        </View>
+      </FocusableCard>
+    );
+  }, [theme, router, typeLabel, t, serverUrl, authHeaders]);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
@@ -251,56 +304,76 @@ export default function SearchScreen() {
         <ScopeTab label={t("media.search.sectionMusic")} active={searchKind === "music"} onPress={() => setSearchKind("music")} />
       </View>
 
-      {resultsView === "error" ? (
-        <View style={styles.center}>
-          <Text style={{ color: theme.colors.textMuted, fontSize: 22, marginBottom: 12 }}>{t("common.loadError")}</Text>
-          <FocusableCard onPress={() => activeRefetch()} hasTVPreferredFocus accessibilityLabel={t("common.retry")}>
-            <Text style={{ color: theme.colors.accent, fontSize: 20 }}>{t("common.retry")}</Text>
-          </FocusableCard>
+      {/* Results panel: floating card anchored below the input/tabs, mirroring
+          the web dropdown - a raised surface distinct from the screen
+          background rather than a flat, full-page list. */}
+      <View style={styles.resultsAnchor}>
+        <View
+          style={[
+            styles.resultsPanel,
+            {
+              backgroundColor: theme.colors.surfaceRaised ?? theme.colors.surface,
+              borderRadius: theme.radii.lg ?? theme.radii.md,
+              shadowColor: theme.colors.shadow ?? "#000",
+            },
+          ]}
+        >
+          <View style={[styles.resultsPanelInner, { borderRadius: theme.radii.lg ?? theme.radii.md }]}>
+            {resultsView === "error" ? (
+              <View style={styles.center}>
+                <Text style={{ color: theme.colors.textMuted, fontSize: 22, marginBottom: 12 }}>{t("common.loadError")}</Text>
+                <FocusableCard onPress={() => activeRefetch()} hasTVPreferredFocus accessibilityLabel={t("common.retry")}>
+                  <Text style={{ color: theme.colors.accent, fontSize: 20 }}>{t("common.retry")}</Text>
+                </FocusableCard>
+              </View>
+            ) : resultsView === "loading" ? (
+              <View style={styles.center}>
+                <ActivityIndicator color={theme.colors.accent} size="large" />
+              </View>
+            ) : resultsView === "prompt" ? (
+              <View style={styles.center}>
+                <Text style={{ color: theme.colors.textMuted, fontSize: 22 }}>
+                  {t("media.search.searchLibrary")}
+                </Text>
+              </View>
+            ) : resultsView === "musicEmpty" ? (
+              <View style={styles.center}>
+                <Text style={{ color: theme.colors.textMuted, fontSize: 22 }}>{t("media.search.noResults")}</Text>
+              </View>
+            ) : resultsView === "musicResults" ? (
+              <FlatList
+                data={musicItems}
+                keyExtractor={tvTrackKeyExtractor}
+                renderItem={renderMusicItem}
+                style={styles.resultsList}
+                contentContainerStyle={{ padding: 24 }}
+                ItemSeparatorComponent={TVSearchSeparator}
+                initialNumToRender={6}
+                maxToRenderPerBatch={10}
+                windowSize={5}
+                removeClippedSubviews={true}
+              />
+            ) : resultsView === "mediaEmpty" ? (
+              <View style={styles.center}>
+                <Text style={{ color: theme.colors.textMuted, fontSize: 22 }}>{t("media.search.noResults")}</Text>
+              </View>
+            ) : (
+              <FlatList
+                data={items}
+                keyExtractor={tvSearchKeyExtractor}
+                renderItem={renderItem}
+                style={styles.resultsList}
+                contentContainerStyle={{ padding: 24 }}
+                ItemSeparatorComponent={TVSearchSeparator}
+                initialNumToRender={6}
+                maxToRenderPerBatch={10}
+                windowSize={5}
+                removeClippedSubviews={true}
+              />
+            )}
+          </View>
         </View>
-      ) : resultsView === "loading" ? (
-        <View style={styles.center}>
-          <ActivityIndicator color={theme.colors.accent} size="large" />
-        </View>
-      ) : resultsView === "prompt" ? (
-        <View style={styles.center}>
-          <Text style={{ color: theme.colors.textMuted, fontSize: 22 }}>
-            {t("media.search.searchLibrary")}
-          </Text>
-        </View>
-      ) : resultsView === "musicEmpty" ? (
-        <View style={styles.center}>
-          <Text style={{ color: theme.colors.textMuted, fontSize: 22 }}>{t("media.search.noResults")}</Text>
-        </View>
-      ) : resultsView === "musicResults" ? (
-        <FlatList
-          data={musicItems}
-          keyExtractor={tvTrackKeyExtractor}
-          renderItem={renderMusicItem}
-          contentContainerStyle={{ padding: 24 }}
-          ItemSeparatorComponent={TVSearchSeparator}
-          initialNumToRender={6}
-          maxToRenderPerBatch={10}
-          windowSize={5}
-          removeClippedSubviews={true}
-        />
-      ) : resultsView === "mediaEmpty" ? (
-        <View style={styles.center}>
-          <Text style={{ color: theme.colors.textMuted, fontSize: 22 }}>{t("media.search.noResults")}</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={items}
-          keyExtractor={tvSearchKeyExtractor}
-          renderItem={renderItem}
-          contentContainerStyle={{ padding: 24 }}
-          ItemSeparatorComponent={TVSearchSeparator}
-          initialNumToRender={6}
-          maxToRenderPerBatch={10}
-          windowSize={5}
-          removeClippedSubviews={true}
-        />
-      )}
+      </View>
     </View>
   );
 }
@@ -332,6 +405,31 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  // The anchor gives the panel its floating inset (matching the search row's
+  // own horizontal margin) and a bottom gap so the screen background stays
+  // visible beneath it, instead of the panel stretching edge to edge like the
+  // old flat list did.
+  resultsAnchor: {
+    flex: 1,
+    marginHorizontal: 24,
+    marginBottom: 24,
+  },
+  // Elevation/shadow lives on this outer view (no overflow clipping here) so
+  // the rounded corners of resultsPanelInner don't cut the shadow off.
+  resultsPanel: {
+    flex: 1,
+    elevation: 8,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+  },
+  resultsPanelInner: {
+    flex: 1,
+    overflow: "hidden",
+  },
+  resultsList: {
+    flex: 1,
+  },
   row: {
     flexDirection: "row",
     alignItems: "center",
@@ -354,4 +452,18 @@ const styles = StyleSheet.create({
   info: { flex: 1 },
   title: { fontSize: 22, fontWeight: "600" },
   meta: { fontSize: 16, marginTop: 4 },
+  metaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 10,
+    marginTop: 4,
+  },
+  metaText: { fontSize: 16 },
+  badge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  badgeText: { fontSize: 14, fontWeight: "600" },
 });
