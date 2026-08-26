@@ -12,6 +12,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -352,6 +353,42 @@ func (f *fakeBackupRunner) getCreateCalls() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.createCalls
+}
+
+// blockingBackupRunner parks inside CreateBackup until released, so a second
+// concurrent run can be observed hitting (or being refused by) the guard.
+type blockingBackupRunner struct {
+	entered chan struct{}
+	release chan struct{}
+	calls   atomic.Int32
+}
+
+func (r *blockingBackupRunner) CreateBackup(_ context.Context) (*backupmodel.BackupManifest, error) {
+	r.calls.Add(1)
+	r.entered <- struct{}{}
+	<-r.release
+	m, _ := backupmodel.NewBackupManifest("bk-block", "dev", []string{"users"})
+	return m, nil
+}
+
+func (r *blockingBackupRunner) CleanupOldBackups(_ context.Context, _ int) error { return nil }
+
+func TestScheduler_ExecBackup_RefusesConcurrentRun(t *testing.T) {
+	repo := newFakeScheduleRepo()
+	runner := &blockingBackupRunner{entered: make(chan struct{}, 1), release: make(chan struct{})}
+	sched := NewSchedulerForTest(repo, runner, slogDefault(), time.Now)
+
+	go func() { _, _ = sched.RunNow(context.Background()) }()
+	<-runner.entered // the first run now holds the guard, parked in CreateBackup
+
+	_, err := sched.RunNow(context.Background())
+	if !errors.Is(err, ErrBackupInProgress) {
+		t.Fatalf("a second concurrent backup must be refused, got %v", err)
+	}
+	if got := runner.calls.Load(); got != 1 {
+		t.Fatalf("only the first run may reach CreateBackup, got %d", got)
+	}
+	close(runner.release) // let the first goroutine finish cleanly
 }
 
 func TestNewScheduler_GetSchedule(t *testing.T) {

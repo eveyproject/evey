@@ -2,15 +2,23 @@ package backup
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/evey-project/evey/internal/domain/backup"
 	"github.com/evey-project/evey/internal/pkg/cron"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
+
+// ErrBackupInProgress is returned when a backup is requested while another one
+// is already running. A pg_dump can outlive the cron interval on a weak NAS, and
+// a manual RunNow can land during a scheduled run - two concurrent dumps double
+// the disk/memory pressure on exactly the hardware that can least afford it.
+var ErrBackupInProgress = errors.New("a backup is already running")
 
 // BackupRunner is the subset of Service methods required by the Scheduler.
 // Exposed as an interface so tests can inject a fake without the full Service.
@@ -27,6 +35,7 @@ type Scheduler struct {
 	logger    *slog.Logger
 	nowFunc   func() time.Time
 	runWG     sync.WaitGroup
+	running   atomic.Bool
 }
 
 // NewScheduler builds a production Scheduler backed by the real wall clock.
@@ -168,6 +177,14 @@ func (s *Scheduler) runBackup(ctx context.Context, sched *backup.BackupSchedule)
 }
 
 func (s *Scheduler) execBackup(ctx context.Context, sched *backup.BackupSchedule) (*backup.BackupManifest, error) {
+	// Serialize runs: the tick advance stops same-slot stacking, but a dump that
+	// outlives the cron interval, or a RunNow during a scheduled run, would still
+	// start a second concurrent pg_dump. One at a time - the loser is refused,
+	// not queued (a stale backup is worthless once a fresh one is running).
+	if !s.running.CompareAndSwap(false, true) {
+		return nil, ErrBackupInProgress
+	}
+	defer s.running.Store(false)
 	now := s.nowFunc()
 	m, err := s.runner.CreateBackup(ctx)
 	status := "success"

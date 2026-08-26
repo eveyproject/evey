@@ -2,6 +2,7 @@ package grpcapi
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
@@ -72,6 +73,10 @@ func (h *backupScheduleHandler) RunBackupNow(ctx context.Context, _ *eveyv1.RunB
 	defer span.End()
 	m, err := h.scheduler.RunNow(ctx)
 	if err != nil {
+		if errors.Is(err, appbackup.ErrBackupInProgress) {
+			span.SetStatus(otelcodes.Error, err.Error())
+			return nil, status.Error(codes.FailedPrecondition, "a backup is already running")
+		}
 		slog.ErrorContext(ctx, "run backup now", slog.Any("err", err))
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
