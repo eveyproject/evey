@@ -49,6 +49,7 @@ export function ChaptersPicker({ visible, onClose, chapters, currentTimeMs, onSe
                     onClose();
                   }}
                   accessibilityLabel={active ? `${label}, ${t("common.selected", "selected")}` : label}
+                  accessibilityState={{ selected: active }}
                   style={[styles.row, { borderBottomColor: theme.colors.border }]}
                 >
                   <Text style={[styles.timestamp, { color: theme.colors.textMuted }]}>{formatTime(startSec)}</Text>

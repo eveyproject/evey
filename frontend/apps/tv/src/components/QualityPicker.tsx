@@ -57,6 +57,7 @@ export function QualityPicker({ visible, currentQuality, onSelect, onClose }: Pr
                     onClose();
                   }}
                   accessibilityLabel={active ? `${label}, ${t("common.selected", "selected")}` : label}
+                  accessibilityState={{ selected: active }}
                   style={[styles.row, { borderBottomColor: theme.colors.border }]}
                 >
                   <Text style={[styles.label, { color: active ? theme.colors.accent : theme.colors.text }]}>

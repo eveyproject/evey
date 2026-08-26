@@ -29,8 +29,16 @@ vi.mock("../providers/ThemeProvider", () => ({
 }));
 
 vi.mock("./FocusableCard", () => ({
-  FocusableCard: ({ children, onPress }: any) =>
-    React.createElement("button", { onClick: onPress }, children),
+  FocusableCard: ({ children, onPress, accessibilityLabel, accessibilityState }: any) =>
+    React.createElement(
+      "button",
+      {
+        onClick: onPress,
+        "aria-label": accessibilityLabel,
+        "data-selected": accessibilityState?.selected ? "true" : "false",
+      },
+      children,
+    ),
 }));
 
 import { ChaptersPicker } from "./ChaptersPicker";
@@ -59,5 +67,24 @@ describe("ChaptersPicker mount discipline", () => {
     );
     expect(screen.getByText("Some Chapter 1")).toBeTruthy();
     expect(screen.getByText("Some Chapter 2")).toBeTruthy();
+  });
+});
+
+// Screen readers cannot infer the current chapter from the accent-coloured
+// label alone - accessibilityState.selected must mirror the same
+// findCurrentChapterIndex signal the visual checkmark uses.
+describe("ChaptersPicker exposes the current chapter to assistive tech", () => {
+  it("marks only the chapter containing currentTimeMs as selected", () => {
+    render(
+      <ChaptersPicker
+        visible={true}
+        onClose={() => {}}
+        chapters={CHAPTERS}
+        currentTimeMs={65_000}
+        onSeek={() => {}}
+      />,
+    );
+    expect(screen.getByLabelText("Some Chapter 1").getAttribute("data-selected")).toBe("false");
+    expect(screen.getByLabelText("Some Chapter 2, selected").getAttribute("data-selected")).toBe("true");
   });
 });

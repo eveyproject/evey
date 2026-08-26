@@ -28,7 +28,7 @@ vi.mock("../providers/ThemeProvider", () => ({
 }));
 
 vi.mock("./FocusableCard", () => ({
-  FocusableCard: ({ children, onPress, accessibilityLabel, hasTVPreferredFocus }: any) =>
+  FocusableCard: ({ children, onPress, accessibilityLabel, hasTVPreferredFocus, accessibilityState }: any) =>
     React.createElement(
       "button",
       {
@@ -37,6 +37,7 @@ vi.mock("./FocusableCard", () => ({
         // Booleans vanish through unknown DOM props: surface it as data-* so
         // the focus claim is observable.
         "data-tv-preferred-focus": hasTVPreferredFocus ? "true" : "false",
+        "data-selected": accessibilityState?.selected ? "true" : "false",
       },
       children,
     ),
@@ -80,5 +81,28 @@ describe("SubtitlePicker hands the D-pad the active row", () => {
     );
     const nonFocusable = screen.getAllByRole("button").filter((el) => el.getAttribute("data-focusable") === "false");
     expect(nonFocusable.length).toBe(2);
+  });
+});
+
+// Screen readers cannot infer selection from an accent colour/checkmark alone
+// - accessibilityState.selected must mirror the same `active` signal the
+// visual checkmark uses.
+describe("SubtitlePicker exposes the selected track to assistive tech", () => {
+  it("marks the active track's row as selected and the rest as not", () => {
+    render(
+      <SubtitlePicker visible streams={STREAMS} currentIndex={1} onSelect={() => {}} onClose={() => {}} />,
+    );
+    expect(screen.getByLabelText("English").getAttribute("data-selected")).toBe("false");
+    expect(screen.getByLabelText("French, selected").getAttribute("data-selected")).toBe("true");
+    expect(screen.getByLabelText("player.settings.off").getAttribute("data-selected")).toBe("false");
+  });
+
+  it("marks the Off row as selected when no track is picked", () => {
+    render(
+      <SubtitlePicker visible streams={STREAMS} currentIndex={null} onSelect={() => {}} onClose={() => {}} />,
+    );
+    expect(screen.getByLabelText("player.settings.off, selected").getAttribute("data-selected")).toBe("true");
+    expect(screen.getByLabelText("English").getAttribute("data-selected")).toBe("false");
+    expect(screen.getByLabelText("French").getAttribute("data-selected")).toBe("false");
   });
 });

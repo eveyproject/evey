@@ -56,6 +56,7 @@ export function SubtitlePicker({ visible, onClose, streams, currentIndex, onSele
                 onClose();
               }}
               accessibilityLabel={currentIndex === null ? `${offLabel}, ${t("common.selected", "selected")}` : offLabel}
+              accessibilityState={{ selected: currentIndex === null }}
               style={[styles.row, { borderBottomColor: theme.colors.border }]}
             >
               <Text style={[styles.label, { color: currentIndex === null ? theme.colors.accent : theme.colors.text }]}>
@@ -81,6 +82,7 @@ export function SubtitlePicker({ visible, onClose, streams, currentIndex, onSele
                     onClose();
                   }}
                   accessibilityLabel={active ? `${fullLabel}, ${t("common.selected", "selected")}` : fullLabel}
+                  accessibilityState={{ selected: active }}
                   style={[styles.row, { borderBottomColor: theme.colors.border }]}
                 >
                   <View style={{ flex: 1 }}>
