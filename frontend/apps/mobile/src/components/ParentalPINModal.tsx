@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { View, Text, TextInput, Pressable, ActivityIndicator, Modal, StyleSheet } from "react-native";
+import { View, Text, TextInput, Pressable, ActivityIndicator, Modal, StyleSheet, AccessibilityInfo } from "react-native";
 import { useTranslation } from "react-i18next";
 import { eveyFetch } from "@evey/api";
 import { useTheme } from "../providers/ThemeProvider";
@@ -28,6 +28,12 @@ export function ParentalPINModal({ visible, onClose, onVerified, profileId }: Pa
       setTimeout(() => inputRef.current?.focus(), 100);
     }
   }, [visible]);
+
+  // The digit entry is voiced by the native keyboard, but a rejected PIN only
+  // changed a color and a line of text - silent to a screen reader. Announce it.
+  useEffect(() => {
+    if (error) AccessibilityInfo.announceForAccessibility(error);
+  }, [error]);
 
   async function handleSubmit() {
     if (pin.length < 4) return;
@@ -93,7 +99,15 @@ export function ParentalPINModal({ visible, onClose, onVerified, profileId }: Pa
             accessibilityLabel={t("common.parental.pinRequired", "Parental PIN")}
           />
 
-          {error && <Text style={[styles.error, { color: theme.colors.error }]}>{error}</Text>}
+          {error && (
+            <Text
+              style={[styles.error, { color: theme.colors.error }]}
+              accessibilityRole="alert"
+              accessibilityLiveRegion="assertive"
+            >
+              {error}
+            </Text>
+          )}
 
           <View style={styles.buttons}>
             <Pressable
