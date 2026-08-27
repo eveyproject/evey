@@ -345,12 +345,14 @@ func (p *Prober) idetRun(ctx context.Context, filePath string, seek bool) (inter
 //	[Parsed_idet_0 @ ...] Multi frame detection: TFF:   120 BFF:     0 Progressive:   170 Undetermined:    10
 //
 // Returns ok=false when no frames were determined (e.g. a seek past EOF).
+// Compiled once, not per call: parseIdetSummary runs after every idet probe.
+var idetSummaryRe = regexp.MustCompile(`Multi frame detection: TFF:\s*(\d+)\s*BFF:\s*(\d+)\s*Progressive:\s*(\d+)`)
+
 func parseIdetSummary(out []byte) (interlaced, ok bool, err error) {
-	re := regexp.MustCompile(`Multi frame detection: TFF:\s*(\d+)\s*BFF:\s*(\d+)\s*Progressive:\s*(\d+)`)
 	// ffmpeg can print more than one idet summary (an initial all-zero one
 	// before frames flow, plus the real one at stream close). The LAST is the
 	// cumulative result.
-	all := re.FindAllSubmatch(out, -1)
+	all := idetSummaryRe.FindAllSubmatch(out, -1)
 	if len(all) == 0 {
 		return false, false, fmt.Errorf("no multi-frame summary in output")
 	}
