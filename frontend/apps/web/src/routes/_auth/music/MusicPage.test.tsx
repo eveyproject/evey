@@ -40,31 +40,10 @@ vi.mock("@tanstack/react-router", () => ({
   }),
 }));
 
-// JSDOM has no layout, so react-virtuoso (Albums via MediaGrid's VirtuosoGrid,
-// Artists via Virtuoso) renders nothing. Mock both to render every item flatly
-// so tab content is assertable. Mirrors features/library/MediaGrid.test.tsx.
-vi.mock("react-virtuoso", () => ({
-  VirtuosoGrid: ({ totalCount, itemContent, components }: {
-    totalCount: number;
-    itemContent: (index: number) => React.ReactNode;
-    components: { List: React.ComponentType<React.HTMLAttributes<HTMLDivElement>>; Item: React.ComponentType<React.HTMLAttributes<HTMLDivElement> & { children?: React.ReactNode }> };
-  }) => {
-    const List = components.List;
-    const Item = components.Item;
-    return (
-      <List>
-        {Array.from({ length: totalCount }, (_, i) => (
-          <Item key={i}>{itemContent(i)}</Item>
-        ))}
-      </List>
-    );
-  },
-  Virtuoso: ({ totalCount, itemContent }: { totalCount: number; itemContent: (index: number) => React.ReactNode }) => (
-    <div>{Array.from({ length: totalCount }, (_, i) => (
-      <div key={i}>{itemContent(i)}</div>
-    ))}</div>
-  ),
-}));
+// @tanstack/react-virtual is mocked globally in test/setup.ts to render every
+// item flatly (JSDOM has no layout, so real virtualization would render
+// nothing). Covers both Albums (via MediaGrid) and Artists (via ArtistsTab).
+// Mirrors features/library/MediaGrid.test.tsx.
 
 function createWrapper() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -112,7 +91,7 @@ function setupMocks(tracks: typeof mockTracks, total: number) {
 describe("MusicPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // MediaGrid defers its VirtuosoGrid mount until #main-content (AuthLayout's
+    // MediaGrid defers its virtualized mount until #main-content (AuthLayout's
     // scroll region) exists; JSDOM doesn't render AuthLayout, so add it or the
     // Albums tab shows skeletons instead of the album cards.
     if (!document.getElementById("main-content")) {

@@ -340,9 +340,6 @@ importers:
       react-qr-code:
         specifier: 2.0.21
         version: 2.0.21(react@19.2.0)
-      react-virtuoso:
-        specifier: 4.18.12
-        version: 4.18.12(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       swagger-ui-react:
         specifier: 5.32.14
         version: 5.32.14(@types/react@19.2.14)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
@@ -6070,12 +6067,6 @@ packages:
     engines: {node: '>= 16.20.2'}
     peerDependencies:
       react: 19.2.0
-
-  react-virtuoso@4.18.12:
-    resolution: {integrity: sha512-6c1SnRicSBfG+WnbhcyJUxzDHvvxD3vsux/EpcfVbgB7clyP1Od2r81TAGTgwbL7U2qP889RR4u+CH6WjgpW0g==}
-    peerDependencies:
-      react: 19.2.0
-      react-dom: 19.2.0
 
   react@19.2.0:
     resolution: {integrity: sha512-tmbWg6W31tQLeB5cdIBOicJDJRR2KzXsV7uSK9iNfLWQ5bIZfxuPEHp7M8wiHyHnn0DD1i7w3Zmin0FtkrwoCQ==}
@@ -14442,11 +14433,6 @@ snapshots:
       prismjs: 1.30.0
       react: 19.2.0
       refractor: 5.0.0
-
-  react-virtuoso@4.18.12(react-dom@19.2.0(react@19.2.0))(react@19.2.0):
-    dependencies:
-      react: 19.2.0
-      react-dom: 19.2.0(react@19.2.0)
 
   react@19.2.0: {}
 

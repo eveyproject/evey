@@ -671,8 +671,9 @@ function LibraryPage() {
             <MediaGrid
               onEndReached={() => {
                 // Stable callback (always defined). Gating inside the body
-                // avoids react-virtuoso losing the prop reference mid-fetch,
-                // which used to leave the user stuck on page 1.
+                // avoids react-virtual's underlying effect losing the prop
+                // reference mid-fetch, which used to leave the user stuck on
+                // page 1.
                 // Local filters are intentionally NOT gated here: scrolling
                 // continues to load more server pages even when client-side
                 // facets are active; the fetch-until-filled effect above

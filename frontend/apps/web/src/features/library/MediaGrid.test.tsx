@@ -1,28 +1,12 @@
-import React from "react";
 import { renderWithQueryClient } from "@/test/test-utils";
 import { screen, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
+import { afterEach, beforeEach, describe, it, expect } from "vitest";
 import { MediaGrid } from "./MediaGrid";
 
-vi.mock("react-virtuoso", () => ({
-  VirtuosoGrid: ({ totalCount, itemContent, components }: {
-    totalCount: number;
-    itemContent: (index: number) => React.ReactNode;
-    components: { List: React.ComponentType<React.HTMLAttributes<HTMLDivElement>>; Item: React.ComponentType<React.HTMLAttributes<HTMLDivElement> & { children?: React.ReactNode }> };
-  }) => {
-    const List = components.List;
-    const Item = components.Item;
-    return (
-      <List>
-        {Array.from({ length: totalCount }, (_, i) => (
-          <Item key={i}>{itemContent(i)}</Item>
-        ))}
-      </List>
-    );
-  },
-}));
-
-// MediaGrid defers VirtuosoGrid mount until `#main-content` (AuthLayout's
+// @tanstack/react-virtual is mocked globally in test/setup.ts to render every
+// item flatly (JSDOM has no layout, so real virtualization would render nothing).
+//
+// MediaGrid defers its virtualized mount until `#main-content` (AuthLayout's
 // scrollable region) resolves on the client. JSDOM doesn't render
 // AuthLayout, so the test must add the element before mounting or the
 // component renders 12 skeleton cards instead of the children.
