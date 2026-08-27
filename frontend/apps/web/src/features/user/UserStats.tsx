@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
 import { useActivityServiceGetUserStats } from "@evey/api";
 import { useAuthStore } from "@evey/store";
-import { BarChart, PieChart } from "react-gifted-charts";
+import { BarChart, Bar, XAxis, YAxis, PieChart, Pie, Cell } from "recharts";
 import { Spinner } from "@/components/ui/Spinner";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { FetchErrorState } from "@/components/ui/FetchErrorState";
@@ -64,7 +64,7 @@ function StatCard({ label, value }: { label: string; value: string | number }) {
   );
 }
 
-function buildMonthlyData(byMonth: { year?: number; month?: number; totalTimeMs?: string }[], accent: string) {
+function buildMonthlyData(byMonth: { year?: number; month?: number; totalTimeMs?: string }[]) {
   const now = new Date();
   const result = [];
   for (let i = 11; i >= 0; i--) {
@@ -74,7 +74,7 @@ function buildMonthlyData(byMonth: { year?: number; month?: number; totalTimeMs?
     const label = d.toLocaleDateString(undefined, { month: "short" });
     const entry = byMonth.find((e) => e.year === y && e.month === m);
     const hours = parseInt(entry?.totalTimeMs ?? "0") / MS_PER_HOUR;
-    result.push({ value: Math.round(hours * 10) / 10, label, frontColor: accent });
+    result.push({ value: Math.round(hours * 10) / 10, label });
   }
   return result;
 }
@@ -85,6 +85,11 @@ export function UserStats() {
   const { data, isLoading, isError, error, refetch } = useActivityServiceGetUserStats(profileId ?? "", undefined, {
     query: { enabled: !!profileId },
   });
+  // Hooks must run on every render - keep them above the early returns below
+  // (they used to sit after them, a conditional-hook bug).
+  const accent = useCssVar("--accent", "#4f46e5");
+  const textMuted = useCssVar("--text-muted");
+  const lang = i18n.language;
 
   if (isLoading) {
     return (
@@ -103,10 +108,6 @@ export function UserStats() {
     return <EmptyState icon={<BarChart3 size={48} strokeWidth={1.5} />} title={t("common.userStats.noData")} />;
   }
 
-  const accent = useCssVar("--accent", "#4f46e5");
-  const textMuted = useCssVar("--text-muted");
-  const lang = i18n.language;
-
   const genres = [...(data.genres ?? [])].sort((a, b) => parseInt(b.totalTimeMs ?? "0") - parseInt(a.totalTimeMs ?? "0"));
   const pieData = genres.slice(0, 8).map((g, i) => ({
     value: parseInt(g.totalTimeMs ?? "0"),
@@ -115,7 +116,7 @@ export function UserStats() {
     percent: Math.round(g.percent ?? 0),
   }));
 
-  const monthBarData = buildMonthlyData(data.byMonth ?? [], accent);
+  const monthBarData = buildMonthlyData(data.byMonth ?? []);
   const monthMax = Math.max(...monthBarData.map((d) => d.value), 0.1);
 
   const mostPlayed = data.mostPlayed ?? [];
@@ -137,13 +138,22 @@ export function UserStats() {
               {t("common.userStats.genreBreakdown")}
             </h3>
             <div className="flex items-center justify-center gap-6">
-              <PieChart
-                data={pieData}
-                radius={70}
-                innerRadius={40}
-                donut
-                showText={false}
-              />
+              <PieChart width={160} height={160}>
+                <Pie
+                  data={pieData}
+                  dataKey="value"
+                  innerRadius={40}
+                  outerRadius={70}
+                  startAngle={90}
+                  endAngle={-270}
+                  stroke="none"
+                  isAnimationActive={false}
+                >
+                  {pieData.map((entry) => (
+                    <Cell key={entry.text} fill={entry.color} />
+                  ))}
+                </Pie>
+              </PieChart>
               <div className="flex flex-col gap-1.5">
                 {pieData.map((d) => (
                   <div key={d.text} className="flex items-center gap-2 text-xs">
@@ -162,24 +172,19 @@ export function UserStats() {
             {t("common.userStats.monthlyActivity")}
           </h3>
           <div className="overflow-x-auto overflow-y-visible">
-            <BarChart
-              data={monthBarData}
-              barWidth={20}
-              spacing={8}
-              initialSpacing={4}
-              endSpacing={12}
-              disableScroll
-              roundedTop
-              noOfSections={4}
-              maxValue={Math.ceil(monthMax * 1.1) || 1}
-              yAxisTextStyle={{ color: textMuted, fontSize: 11 }}
-              xAxisLabelTextStyle={{ color: textMuted, fontSize: 10 }}
-              yAxisLabelSuffix="h"
-              hideRules
-              isAnimated
-              barBorderTopLeftRadius={4}
-              barBorderTopRightRadius={4}
-            />
+            <BarChart width={Math.max(monthBarData.length * 30 + 44, 320)} height={200} data={monthBarData} barCategoryGap={8}>
+              <XAxis dataKey="label" tick={{ fill: textMuted, fontSize: 10 }} axisLine={false} tickLine={false} interval={0} />
+              <YAxis
+                tick={{ fill: textMuted, fontSize: 11 }}
+                axisLine={false}
+                tickLine={false}
+                width={34}
+                tickCount={5}
+                domain={[0, Math.ceil(monthMax * 1.1) || 1]}
+                tickFormatter={(v: number) => `${v}h`}
+              />
+              <Bar dataKey="value" fill={accent} radius={[4, 4, 0, 0]} maxBarSize={20} isAnimationActive={false} />
+            </BarChart>
           </div>
         </div>
       </div>

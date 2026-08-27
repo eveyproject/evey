@@ -1,13 +1,20 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  useActivityServiceGetAnalytics,
-} from "@evey/api";
-import { BarChart, PieChart } from "react-gifted-charts";
-import { formatBytes } from "@evey/api";
+import { useActivityServiceGetAnalytics, formatBytes } from "@evey/api";
+import { BarChart, Bar, XAxis, YAxis, Cell, PieChart, Pie } from "recharts";
 
 import { useCssVar } from "@/hooks/useCssVar";
 import { CHART_COLORS } from "@/constants/chartColors";
+
+const CHART_HEIGHT = 200;
+
+// recharts is driven with an explicit width (not ResponsiveContainer): a fixed
+// width per bar keeps the horizontal-scroll behaviour these charts had with
+// gifted-charts, and it renders under jsdom (ResponsiveContainer measures 0x0
+// there and draws nothing).
+function barChartWidth(count: number, step: number, pad = 48) {
+  return Math.max(count * step + pad, 240);
+}
 
 export function PlayActivityChart() {
   const { t } = useTranslation();
@@ -21,7 +28,6 @@ export function PlayActivityChart() {
     query: { refetchInterval: 60_000, refetchIntervalInBackground: false },
   });
   const daily = data?.dailyPlays ?? [];
-  // Hooks must run on every render - keep them above the early return below.
   const accent = useCssVar("--accent", "#4f46e5");
   const textMuted = useCssVar("--text-muted");
 
@@ -33,8 +39,8 @@ export function PlayActivityChart() {
     const value = mode === "plays"
       ? (d.playCount ?? 0)
       : Math.round(parseInt(d.watchTimeSeconds ?? "0") / 3600 * 10) / 10;
-    return { value, label, frontColor: accent };
-  }), [daily, mode, accent]);
+    return { value, label };
+  }), [daily, mode]);
 
   const maxVal = Math.max(...barData.map((d) => d.value), 1);
 
@@ -65,27 +71,20 @@ export function PlayActivityChart() {
           </button>
         </div>
       </div>
-      <div
-        className="overflow-x-scroll overflow-y-hidden"
-        style={{ scrollbarWidth: "thin" }}
-        ref={scrollRef}
-      >
-        <BarChart
-          data={barData}
-          barWidth={28}
-          spacing={12}
-          roundedTop
-          roundedBottom
-          noOfSections={4}
-          maxValue={Math.ceil(maxVal * 1.1)}
-          yAxisTextStyle={{ color: textMuted, fontSize: 11 }}
-          xAxisLabelTextStyle={{ color: textMuted, fontSize: 10 }}
-          yAxisLabelSuffix={mode === "watchTime" ? "h" : ""}
-          hideRules
-          isAnimated
-          barBorderTopLeftRadius={4}
-          barBorderTopRightRadius={4}
-        />
+      <div className="overflow-x-scroll overflow-y-hidden" style={{ scrollbarWidth: "thin" }} ref={scrollRef}>
+        <BarChart width={barChartWidth(barData.length, 40)} height={CHART_HEIGHT} data={barData} barCategoryGap={12}>
+          <XAxis dataKey="label" tick={{ fill: textMuted, fontSize: 10 }} axisLine={false} tickLine={false} interval={0} />
+          <YAxis
+            tick={{ fill: textMuted, fontSize: 11 }}
+            axisLine={false}
+            tickLine={false}
+            width={34}
+            tickCount={5}
+            domain={[0, Math.ceil(maxVal * 1.1)]}
+            tickFormatter={(v: number) => (mode === "watchTime" ? `${v}h` : `${v}`)}
+          />
+          <Bar dataKey="value" fill={accent} radius={[4, 4, 0, 0]} maxBarSize={28} isAnimationActive={false} />
+        </BarChart>
       </div>
     </div>
   );
@@ -111,21 +110,32 @@ export function StorageDonut({ storage }: { storage: { path?: string; totalBytes
           const free = total - used;
           const pct = total > 0 ? Math.round((used / total) * 100) : 0;
           const pieData = [
-            { value: used, color: usedColor },
-            { value: free, color: freeColor },
+            { name: "used", value: used, color: usedColor },
+            { name: "free", value: free, color: freeColor },
           ];
           return (
             <div key={i} className="flex flex-col items-center gap-2">
-              <PieChart
-                data={pieData}
-                radius={50}
-                innerRadius={30}
-                donut
-                showText={false}
-                centerLabelComponent={() => (
-                  <span className="text-xs font-bold text-[var(--text)]">{pct}%</span>
-                )}
-              />
+              <div className="relative" style={{ width: 100, height: 100 }}>
+                <PieChart width={100} height={100}>
+                  <Pie
+                    data={pieData}
+                    dataKey="value"
+                    innerRadius={30}
+                    outerRadius={50}
+                    startAngle={90}
+                    endAngle={-270}
+                    stroke="none"
+                    isAnimationActive={false}
+                  >
+                    {pieData.map((entry) => (
+                      <Cell key={entry.name} fill={entry.color} />
+                    ))}
+                  </Pie>
+                </PieChart>
+                <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-[var(--text)]">
+                  {pct}%
+                </span>
+              </div>
               <span className="text-xs text-[var(--text-muted)] truncate max-w-[140px]" title={s.path}>{s.path}</span>
               <span className="text-xs text-[var(--text-muted)]">{formatBytes(s.usedBytes)} / {formatBytes(s.totalBytes)}</span>
             </div>
@@ -152,14 +162,13 @@ export function PeakHours() {
     query: { refetchInterval: 60_000, refetchIntervalInBackground: false },
   });
   const hourly = data?.hourlyPlays ?? [];
-  // Hooks must run on every render - keep them above the early return below.
   const accent = useCssVar("--accent", "#4f46e5");
   const textMuted = useCssVar("--text-muted");
 
   const allHours = useMemo(() => Array.from({ length: 24 }, (_, i) => {
     const entry = hourly.find((h) => h.hour === i);
-    return { value: entry?.count ?? 0, label: `${i}h`, frontColor: accent };
-  }), [hourly, accent]);
+    return { value: entry?.count ?? 0, label: `${i}h` };
+  }), [hourly]);
 
   const maxVal = Math.max(...allHours.map((d) => d.value), 1);
 
@@ -171,20 +180,18 @@ export function PeakHours() {
         {t("admin.dashboardStats.peakHours")}
       </h3>
       <div className="overflow-x-auto">
-        <BarChart
-          data={allHours}
-          barWidth={14}
-          spacing={4}
-          roundedTop
-          noOfSections={3}
-          maxValue={Math.ceil(maxVal * 1.1)}
-          yAxisTextStyle={{ color: textMuted, fontSize: 11 }}
-          xAxisLabelTextStyle={{ color: textMuted, fontSize: 9 }}
-          hideRules
-          isAnimated
-          barBorderTopLeftRadius={3}
-          barBorderTopRightRadius={3}
-        />
+        <BarChart width={barChartWidth(allHours.length, 22)} height={CHART_HEIGHT} data={allHours} barCategoryGap={4}>
+          <XAxis dataKey="label" tick={{ fill: textMuted, fontSize: 9 }} axisLine={false} tickLine={false} interval={0} />
+          <YAxis
+            tick={{ fill: textMuted, fontSize: 11 }}
+            axisLine={false}
+            tickLine={false}
+            width={30}
+            tickCount={4}
+            domain={[0, Math.ceil(maxVal * 1.1)]}
+          />
+          <Bar dataKey="value" fill={accent} radius={[3, 3, 0, 0]} maxBarSize={14} isAnimationActive={false} />
+        </BarChart>
       </div>
     </div>
   );
