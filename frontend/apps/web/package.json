@@ -30,7 +30,7 @@
     "react-i18next": "17.0.6",
     "react-qr-code": "2.0.21",
     "react-virtuoso": "4.18.12",
-    "swagger-ui-react": "^5.32.6"
+    "swagger-ui-react": "5.32.14"
   },
   "devDependencies": {
     "@tailwindcss/vite": "4.2.4",
