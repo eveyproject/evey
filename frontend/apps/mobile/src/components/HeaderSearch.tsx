@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from "react";
-import { View, TextInput, Pressable, Modal, StyleSheet } from "react-native";
+import { View, TextInput, Text, Pressable, Modal, StyleSheet } from "react-native";
 import { router } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useTranslation } from "react-i18next";
@@ -16,11 +16,18 @@ import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
 // The header title lives inside the NATIVE toolbar, and both Android and iOS
 // clip a toolbar's children to the bar's bounds - a result panel positioned
 // with `position: absolute` under the field never painted on device. The
-// panel is therefore rendered in a transparent `Modal`, which is its own
-// native surface (not a toolbar descendant) and can't be clipped by it. The
-// panel's screen position is computed by measuring this component's own
-// wrapper in window coordinates on focus, so it lands directly under the
-// input regardless of where the header sits.
+// panel is therefore rendered in a transparent `Modal`, its own native surface
+// (not a toolbar descendant), positioned by measuring this component's wrapper
+// in window coordinates so it lands directly under the field.
+//
+// CRITICAL: the search TextInput lives INSIDE that Modal, not in the header. A
+// RN Modal is a separate native window; presenting it while a TextInput in the
+// PARENT window holds focus makes Android drop that window's focus and dismiss
+// the soft keyboard - so a header-hosted input lost its keyboard the instant
+// the panel opened (reported: "je n'ai plus le clavier", the panel opening on
+// focus once history existed). With the input in the Modal, the keyboard
+// belongs to the Modal's own window and stays up. The header shows a Pressable
+// that only mirrors the field and opens the panel.
 //
 // Shares its recent-searches storage (SecureStore key below) with the full
 // search screen ((tabs)/search.tsx) so a query saved from either surface
@@ -55,7 +62,7 @@ export function HeaderSearch() {
   const theme = useTheme();
   const { t } = useTranslation();
   const [query, setQuery] = useState("");
-  const [focused, setFocused] = useState(false);
+  const [open, setOpen] = useState(false);
   const [kind, setKind] = useState<"media" | "music">("media");
   const [layout, setLayout] = useState<PanelLayout | null>(null);
   const [recents, setRecents] = useState<string[]>(() => loadSearchHistory());
@@ -70,8 +77,17 @@ export function HeaderSearch() {
     });
   }, []);
 
+  // Tapping the header field opens the panel; the Modal's input then grabs the
+  // keyboard (see the file header for why the input must live in the Modal).
+  const openPanel = useCallback(() => {
+    measure();
+    setOpen(true);
+  }, [measure]);
+
   const closeDropdown = useCallback(() => {
-    setFocused(false);
+    setOpen(false);
+    setQuery("");
+    inputRef.current?.blur();
   }, []);
 
   const addToHistory = useCallback((q: string) => {
@@ -100,27 +116,16 @@ export function HeaderSearch() {
   const navigateToFullSearch = useCallback((q: string, searchKind: "media" | "music") => {
     const trimmed = q.trim();
     addToHistory(trimmed);
-    setQuery("");
     closeDropdown();
-    inputRef.current?.blur();
     router.push({
       pathname: "/(auth)/(tabs)/search",
       params: { q: trimmed, ...(searchKind === "music" ? { kind: "music" } : {}) },
     });
   }, [addToHistory, closeDropdown]);
 
-  const handleFocus = useCallback(() => {
-    measure();
-    if (query.trim().length > 1 || recents.length > 0) setFocused(true);
-  }, [measure, query, recents.length]);
-
   const handleChangeText = useCallback((value: string) => {
     setQuery(value);
-    if (value.trim().length > 1) {
-      measure();
-      setFocused(true);
-    }
-  }, [measure]);
+  }, []);
 
   const handleSubmit = useCallback(() => {
     if (!query.trim()) return;
@@ -128,15 +133,12 @@ export function HeaderSearch() {
   }, [query, kind, navigateToFullSearch]);
 
   const handleSelectMedia = useCallback((item: V1MediaItem) => {
-    setQuery("");
     closeDropdown();
-    inputRef.current?.blur();
     router.push(`/media/${item.id}`);
   }, [closeDropdown]);
 
   const handleSelectTrack = useCallback((tr: V1Track) => {
     closeDropdown();
-    inputRef.current?.blur();
     setQueue([{
       id: tr.id ?? "",
       title: tr.title ?? "",
@@ -150,69 +152,87 @@ export function HeaderSearch() {
     navigateToFullSearch(q, kind);
   }, [navigateToFullSearch, kind]);
 
-  const overlayTop = layout ? layout.y + layout.height + 4 : 0;
+  const inputRow = (interactive: boolean) => (
+    <View style={[styles.inputRow, { backgroundColor: theme.colors.surfaceRaised, borderColor: interactive ? theme.colors.accent : theme.colors.border }]}>
+      <Ionicons name="search-outline" size={ICON_SIZE.md} color={theme.colors.textMuted} style={{ marginRight: 6 }} />
+      {interactive ? (
+        <>
+          <TextInput
+            ref={inputRef}
+            value={query}
+            onChangeText={handleChangeText}
+            onSubmitEditing={handleSubmit}
+            placeholder={t("media.search.placeholder")}
+            placeholderTextColor={theme.colors.textMuted}
+            returnKeyType="search"
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoFocus
+            style={[styles.input, { color: theme.colors.text }]}
+          />
+          {query.length > 0 && (
+            <Pressable
+              onPress={() => { setQuery(""); inputRef.current?.focus(); }}
+              accessible
+              accessibilityLabel={t("common.clear")}
+              accessibilityRole="button"
+            >
+              <Ionicons name="close-circle" size={ICON_SIZE.md} color={theme.colors.textMuted} />
+            </Pressable>
+          )}
+        </>
+      ) : (
+        <Text style={[styles.input, { color: theme.colors.textMuted }]} numberOfLines={1}>
+          {t("media.search.placeholder")}
+        </Text>
+      )}
+    </View>
+  );
 
   return (
     <View style={styles.wrapper} ref={wrapperRef} onLayout={measure} collapsable={false}>
-      <View style={[styles.inputRow, { backgroundColor: theme.colors.surfaceRaised, borderColor: focused ? theme.colors.accent : theme.colors.border }]}>
-        <Ionicons name="search-outline" size={ICON_SIZE.md} color={theme.colors.textMuted} style={{ marginRight: 6 }} />
-        <TextInput
-          ref={inputRef}
-          value={query}
-          onChangeText={handleChangeText}
-          onFocus={handleFocus}
-          onSubmitEditing={handleSubmit}
-          placeholder={t("media.search.placeholder")}
-          placeholderTextColor={theme.colors.textMuted}
-          returnKeyType="search"
-          autoCapitalize="none"
-          autoCorrect={false}
-          style={[styles.input, { color: theme.colors.text }]}
-        />
-        {query.length > 0 && (
-          <Pressable
-            onPress={() => { setQuery(""); inputRef.current?.focus(); }}
-            accessible
-            accessibilityLabel={t("common.clear")}
-            accessibilityRole="button"
-          >
-            <Ionicons name="close-circle" size={ICON_SIZE.md} color={theme.colors.textMuted} />
-          </Pressable>
-        )}
-      </View>
+      {/* Header field: a trigger only. Tapping it opens the panel whose Modal
+          hosts the real input - keeping the focused input out of the toolbar's
+          window is what preserves the keyboard. */}
+      <Pressable onPress={openPanel} accessibilityRole="search">
+        {inputRow(false)}
+      </Pressable>
 
       <Modal
-        visible={focused}
+        visible={open}
         transparent
         animationType="fade"
         presentationStyle="overFullScreen"
         statusBarTranslucent
         onRequestClose={closeDropdown}
+        onShow={() => inputRef.current?.focus()}
       >
-        {/* Starts below the header so the field above stays visible and
-            tappable; tapping this scrim (results area and beyond) closes
-            the panel, like clicking outside the web dropdown. */}
+        {/* Full backdrop behind the panel: tapping outside closes it, like
+            clicking outside the web dropdown. */}
         <Pressable
-          style={[styles.backdrop, { top: overlayTop }]}
+          style={styles.backdrop}
           onPress={closeDropdown}
           accessibilityElementsHidden
           importantForAccessibility="no-hide-descendants"
         />
-        {layout && (
-          <SearchDropdown
-            style={{ position: "absolute", top: overlayTop, left: layout.x, width: layout.width }}
-            query={debouncedQuery}
-            visible={focused}
-            kind={kind}
-            onKindChange={setKind}
-            recents={recents}
-            onPickRecent={handlePickRecent}
-            onRemoveRecent={removeRecent}
-            onClearRecents={clearRecents}
-            onSelectMedia={handleSelectMedia}
-            onSelectTrack={handleSelectTrack}
-            onSeeAll={() => navigateToFullSearch(query, kind)}
-          />
+        {open && layout && (
+          <View style={{ position: "absolute", top: layout.y, left: layout.x, width: layout.width }}>
+            {inputRow(true)}
+            <SearchDropdown
+              style={{ marginTop: 4 }}
+              query={debouncedQuery}
+              visible={open}
+              kind={kind}
+              onKindChange={setKind}
+              recents={recents}
+              onPickRecent={handlePickRecent}
+              onRemoveRecent={removeRecent}
+              onClearRecents={clearRecents}
+              onSelectMedia={handleSelectMedia}
+              onSelectTrack={handleSelectTrack}
+              onSeeAll={() => navigateToFullSearch(query, kind)}
+            />
+          </View>
         )}
       </Modal>
     </View>
@@ -238,9 +258,6 @@ const styles = StyleSheet.create({
     margin: 0,
   },
   backdrop: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
+    ...StyleSheet.absoluteFillObject,
   },
 });

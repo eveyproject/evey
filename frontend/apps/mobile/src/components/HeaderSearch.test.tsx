@@ -95,9 +95,13 @@ beforeEach(() => {
   musicState = settled({ tracks: [] });
 });
 
+// The header field is now only a trigger (a Pressable showing the placeholder
+// TEXT); tapping it opens the Modal whose own TextInput (aria-label = the
+// placeholder) is the real, keyboard-owning input. So: click the trigger text,
+// then type into the modal input.
 function typeAndFocus(query: string) {
+  fireEvent.click(screen.getByText("media.search.placeholder"));
   const input = screen.getByLabelText("media.search.placeholder");
-  fireEvent.focus(input);
   fireEvent.change(input, { target: { value: query } });
 }
 
@@ -185,7 +189,7 @@ describe("HeaderSearch - recent searches", () => {
     secureStoreValue = JSON.stringify(["old query"]);
     render(<HeaderSearch />);
 
-    fireEvent.focus(screen.getByLabelText("media.search.placeholder"));
+    fireEvent.click(screen.getByText("media.search.placeholder"));
 
     expect(screen.getByLabelText("old query")).toBeTruthy();
     fireEvent.click(screen.getByLabelText("old query"));
@@ -200,8 +204,8 @@ describe("HeaderSearch - recent searches", () => {
 describe("HeaderSearch - submitting from the keyboard", () => {
   it("opens the full search screen with the typed query", () => {
     render(<HeaderSearch />);
+    fireEvent.click(screen.getByText("media.search.placeholder"));
     const input = screen.getByLabelText("media.search.placeholder");
-    fireEvent.focus(input);
     fireEvent.change(input, { target: { value: "batman" } });
     fireEvent.keyDown(input, { key: "Enter" });
 
