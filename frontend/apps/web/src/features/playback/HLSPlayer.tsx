@@ -734,8 +734,20 @@ export function HLSPlayer({
     // No more sliding-window restart branch - that legacy code computed
     // currentTime relative to a transcodeOffset the new pipeline doesn't
     // carry, and produced UI/playhead drift on resume.
+    //
+    // Record the intended position SYNCHRONOUSLY. positionRef is otherwise only
+    // advanced by `timeupdate`, which does not fire until playback reaches the
+    // new spot - so for the window between this seek and that first tick,
+    // positionRef still holds the PRE-seek position. A deep seek routinely
+    // triggers a player rebuild inside that window (quality pin, audio
+    // re-select, a 404/token recovery on the not-yet-produced segment), and
+    // every rebuild resumes at positionRef.current / transcodeStartTime - so a
+    // stale positionRef yanked the playhead straight back to where the user
+    // seeked FROM ("I click 2:04, it lands at 1:30"). Writing it here closes
+    // that window: the rebuild resumes at the seek target, not the old spot.
+    positionRef.current = absoluteTimeSec;
     video.currentTime = absoluteTimeSec;
-  }, []);
+  }, [positionRef]);
 
   const seekRef = useRef(handleSeekRequest);
   seekRef.current = handleSeekRequest;
