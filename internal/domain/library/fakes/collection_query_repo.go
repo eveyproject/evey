@@ -21,6 +21,10 @@ type FakeCollectionQueryRepo struct {
 	// GetItemsByCollectionIDsCallCount is incremented on every call to
 	// GetItemsByCollectionIDs, allowing tests to assert batch behaviour.
 	GetItemsByCollectionIDsCallCount int
+	// GetItemsByCollectionIDsErr fails ONLY the batch member read (the twin of
+	// GetItemsErr for the per-collection path), so a test can make the batched
+	// member lookup fail while the collection listing itself succeeds.
+	GetItemsByCollectionIDsErr error
 }
 
 func NewFakeCollectionQueryRepo(cmdRepo *FakeCollectionCommandRepo, mediaItems *FakeMediaItemRepository) *FakeCollectionQueryRepo {
@@ -96,6 +100,9 @@ func (r *FakeCollectionQueryRepo) CountItems(_ context.Context, collectionID str
 func (r *FakeCollectionQueryRepo) GetItemsByCollectionIDs(_ context.Context, collectionIDs []string) (map[string][]*library.MediaItem, error) {
 	if r.Err != nil {
 		return nil, r.Err
+	}
+	if r.GetItemsByCollectionIDsErr != nil {
+		return nil, r.GetItemsByCollectionIDsErr
 	}
 	r.mu.Lock()
 	r.GetItemsByCollectionIDsCallCount++

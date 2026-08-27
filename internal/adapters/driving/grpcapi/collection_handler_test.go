@@ -1145,9 +1145,37 @@ func TestCollectionListForMediaItem_FailedMemberReadFailsTheCall(t *testing.T) {
 	mediaRepo.Create(context.Background(), &library.MediaItem{ID: "mi-1", LibraryID: "lib-1", Title: "Some Movie", Type: "movie"})
 	cmdRepo.LinkItem(context.Background(), "col-saga", "mi-1", 0)
 
-	queryRepo.GetItemsErr = fmt.Errorf("db down")
+	// The panel now batches member reads (GetItemsByCollectionIDs) instead of one
+	// GetItems per collection, so the failure is injected on the batch path.
+	queryRepo.GetItemsByCollectionIDsErr = fmt.Errorf("db down")
 	_, err := h.ListCollectionsForMediaItem(adminCtx(), &eveyv1.ListCollectionsForMediaItemRequest{MediaItemId: "mi-1"})
 	if err == nil {
 		t.Fatal("a failed member read must fail the call - a silently shorter list reads as 'not in any collection'")
+	}
+}
+
+// The "part of the saga" panel must issue exactly ONE member-lookup query no
+// matter how many collections the title belongs to (was one GetItems per
+// collection - an N+1 on a media detail page).
+func TestCollectionListForMediaItem_BatchesMemberReads(t *testing.T) {
+	cmdRepo := libraryfakes.NewFakeCollectionCommandRepo()
+	mediaRepo := libraryfakes.NewFakeMediaItemRepository()
+	queryRepo := libraryfakes.NewFakeCollectionQueryRepo(cmdRepo, mediaRepo)
+	smartQ := libraryfakes.NewFakeCollectionSmartQuerier()
+	svc := appcollection.NewService(cmdRepo, queryRepo, smartQ, mediaRepo)
+	h := &collectionHandler{svc: svc}
+
+	mediaRepo.Create(context.Background(), &library.MediaItem{ID: "mi-1", LibraryID: "lib-1", Title: "Some Movie", Type: "movie"})
+	for _, id := range []string{"col-a", "col-b", "col-c"} {
+		seedCollection(cmdRepo, id, id)
+		cmdRepo.LinkItem(context.Background(), id, "mi-1", 0)
+	}
+
+	_, err := h.ListCollectionsForMediaItem(adminCtx(), &eveyv1.ListCollectionsForMediaItemRequest{MediaItemId: "mi-1"})
+	if err != nil {
+		t.Fatalf("ListCollectionsForMediaItem: %v", err)
+	}
+	if got := queryRepo.GetItemsByCollectionIDsCallCount; got != 1 {
+		t.Errorf("member lookups = %d, want 1 (batched) across 3 collections", got)
 	}
 }

@@ -349,21 +349,27 @@ func (h *collectionHandler) ListCollectionsForMediaItem(ctx context.Context, req
 		span.SetStatus(otelcodes.Error, filterErr.Error())
 		return nil, internalError(ctx, "check access", filterErr)
 	}
+	// Batch-fetch every collection's items in one query instead of one per
+	// collection (this page runs on a media detail view, where a franchise title
+	// can sit in several collections at once). Mirrors ListCollections above.
+	colIDs := make([]string, len(cols))
+	for i, c := range cols {
+		colIDs[i] = c.ID
+	}
+	allItems, batchErr := h.svc.GetItemsForCollections(ctx, colIDs)
+	if batchErr != nil {
+		// User decision 2026-08-25: an infrastructure failure fails the CALL.
+		// Returning a shorter list made a transient DB timeout render exactly
+		// like "this film belongs to no saga" - a list the client can neither
+		// detect nor retry. The parental and access skips below stay silent on
+		// purpose; they are decisions, not failures.
+		span.RecordError(batchErr)
+		span.SetStatus(otelcodes.Error, batchErr.Error())
+		return nil, internalError(ctx, "collections for media item: items lookup", batchErr)
+	}
 	resp := &eveyv1.ListCollectionsForMediaItemResponse{}
 	for _, c := range cols {
-		items, _, itemsErr := h.svc.GetItems(ctx, c.ID, library.MaxCollectionItems, 0)
-		if itemsErr != nil {
-			// User decision 2026-08-25: an infrastructure failure fails the
-			// CALL. Skipping the collection made a transient DB timeout render
-			// exactly like "this film belongs to no saga" - a silently shorter
-			// list the client can neither detect nor retry. The parental and
-			// access skips below stay silent on purpose; they are decisions,
-			// not failures.
-			span.RecordError(itemsErr)
-			span.SetStatus(otelcodes.Error, itemsErr.Error())
-			return nil, internalError(ctx, "collections for media item: items lookup", itemsErr)
-		}
-		visible, skip := filterItemsByAccess(items, allowed)
+		visible, skip := filterItemsByAccess(allItems[c.ID], allowed)
 		if skip || !h.collectionVisibleUnderParental(ctx, visible) {
 			continue
 		}
