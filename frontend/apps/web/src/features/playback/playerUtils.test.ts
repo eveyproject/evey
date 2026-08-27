@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { nominalQualityTier, playerCloseTarget, playerExit } from "./playerUtils";
+import { nominalQualityTier, playerCloseTarget, playerExit, resolveStartPositionMs } from "./playerUtils";
 
 describe("nominalQualityTier", () => {
   it("rounds a widescreen height to the nearest standard tier", () => {
@@ -47,6 +47,42 @@ describe("playerExit", () => {
       const exit = playerExit(canGoBack, "ep-9", episode);
       expect(exit.action === "back" || exit.action === "replace").toBe(true);
     }
+  });
+});
+
+// Regression: a film watched to 100% overnight saved a resume position AT its
+// runtime; the sole Play button (no "start over" for a played item) seeked
+// <video> to EOF, hls.js buffer-stalled on a black screen, and playback never
+// started. A finished title must restart from 0.
+describe("resolveStartPositionMs", () => {
+  it("restarts a title watched to the very end (played) instead of resuming at EOF", () => {
+    expect(
+      resolveStartPositionMs(false, { positionMs: "6953154", durationMs: "6953072", played: true }),
+    ).toBe(0);
+  });
+
+  it("restarts when the position sits within the end epsilon, even if played was not set", () => {
+    expect(resolveStartPositionMs(false, { positionMs: "6950000", durationMs: "6953072" })).toBe(0);
+  });
+
+  it("resumes genuine mid-title progress", () => {
+    expect(resolveStartPositionMs(false, { positionMs: "600000", durationMs: "6953072" })).toBe(600000);
+  });
+
+  it("starts at 0 when restart is asked, whatever the saved progress", () => {
+    expect(resolveStartPositionMs(true, { positionMs: "600000", durationMs: "6953072" })).toBe(0);
+  });
+
+  it("starts at 0 with no progress, a zero position, or an unparseable one", () => {
+    expect(resolveStartPositionMs(false, null)).toBe(0);
+    expect(resolveStartPositionMs(false, undefined)).toBe(0);
+    expect(resolveStartPositionMs(false, { positionMs: "0" })).toBe(0);
+    expect(resolveStartPositionMs(false, { positionMs: "abc" })).toBe(0);
+  });
+
+  it("resumes when the runtime is unknown and the item is not marked played", () => {
+    // No duration to compare against and not played: trust the saved position.
+    expect(resolveStartPositionMs(false, { positionMs: "600000" })).toBe(600000);
   });
 });
 

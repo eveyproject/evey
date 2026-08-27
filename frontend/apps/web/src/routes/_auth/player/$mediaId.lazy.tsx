@@ -7,7 +7,7 @@ import { libraryServiceGetMediaItem, libraryServiceListMediaItems } from "@evey/
 import { usePlaySession } from "@/hooks/usePlaySession";
 import { useChapters } from "@/hooks/useChapters";
 import { HLSPlayer } from "@/features/playback/HLSPlayer";
-import { playerExit } from "@/features/playback/playerUtils";
+import { playerExit, resolveStartPositionMs } from "@/features/playback/playerUtils";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import type { AudioStream, SubtitleStream } from "@/features/playback/HLSPlayer";
@@ -278,7 +278,7 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
   );
 
   const { data: chapters } = useChapters(mediaId);
-  const startPositionMs = restart ? 0 : progress?.positionMs ? Number(progress.positionMs) : 0;
+  const startPositionMs = resolveStartPositionMs(!!restart, progress);
 
   const isEpisode = mediaItem?.type === "MEDIA_ITEM_TYPE_EPISODE";
   const seasonId = isEpisode ? (mediaItem?.parentId ?? "") : "";
