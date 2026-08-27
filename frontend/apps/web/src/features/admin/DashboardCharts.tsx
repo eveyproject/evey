@@ -71,7 +71,13 @@ export function PlayActivityChart() {
           </button>
         </div>
       </div>
-      <div className="overflow-x-scroll overflow-y-hidden" style={{ scrollbarWidth: "thin" }} ref={scrollRef}>
+      <div
+        className="overflow-x-scroll overflow-y-hidden"
+        style={{ scrollbarWidth: "thin" }}
+        ref={scrollRef}
+        role="img"
+        aria-label={t("admin.dashboardStats.playActivity")}
+      >
         <BarChart width={barChartWidth(barData.length, 40)} height={CHART_HEIGHT} data={barData} barCategoryGap={12}>
           <XAxis dataKey="label" tick={{ fill: textMuted, fontSize: 10 }} axisLine={false} tickLine={false} interval={0} />
           <YAxis
@@ -115,7 +121,12 @@ export function StorageDonut({ storage }: { storage: { path?: string; totalBytes
           ];
           return (
             <div key={i} className="flex flex-col items-center gap-2">
-              <div className="relative" style={{ width: 100, height: 100 }}>
+              <div
+                className="relative"
+                style={{ width: 100, height: 100 }}
+                role="img"
+                aria-label={`${t("admin.dashboardStats.storage")} - ${pct}% ${t("admin.dashboardStats.used")}`}
+              >
                 <PieChart width={100} height={100}>
                   <Pie
                     data={pieData}
@@ -179,7 +190,7 @@ export function PeakHours() {
       <h3 className="text-sm font-semibold mb-4 text-[var(--text)]">
         {t("admin.dashboardStats.peakHours")}
       </h3>
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto" role="img" aria-label={t("admin.dashboardStats.peakHours")}>
         <BarChart width={barChartWidth(allHours.length, 22)} height={CHART_HEIGHT} data={allHours} barCategoryGap={4}>
           <XAxis dataKey="label" tick={{ fill: textMuted, fontSize: 9 }} axisLine={false} tickLine={false} interval={0} />
           <YAxis

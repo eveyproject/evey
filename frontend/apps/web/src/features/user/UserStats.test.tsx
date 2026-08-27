@@ -46,5 +46,8 @@ describe("UserStats (recharts)", () => {
     expect(screen.getAllByText("Drama").length).toBeGreaterThan(0);
     expect(screen.getByText("The Film")).toBeTruthy();
     expect(screen.getByText("42")).toBeTruthy();
+    // Charts are exposed to screen readers as labelled images.
+    expect(screen.getByRole("img", { name: "common.userStats.genreBreakdown" })).toBeTruthy();
+    expect(screen.getByRole("img", { name: "common.userStats.monthlyActivity" })).toBeTruthy();
   });
 });

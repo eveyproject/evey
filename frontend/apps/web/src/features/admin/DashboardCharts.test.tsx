@@ -41,6 +41,8 @@ describe("DashboardCharts (recharts)", () => {
     expect(screen.getByText("admin.dashboardStats.playActivity")).toBeTruthy();
     expect(screen.getByText("admin.dashboardStats.plays")).toBeTruthy();
     expect(screen.getByText("admin.dashboardStats.watchTime")).toBeTruthy();
+    // The chart is exposed to screen readers as a labelled image.
+    expect(screen.getByRole("img", { name: "admin.dashboardStats.playActivity" })).toBeTruthy();
   });
 
   it("renders PeakHours with its title", () => {

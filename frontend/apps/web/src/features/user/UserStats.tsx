@@ -138,6 +138,7 @@ export function UserStats() {
               {t("common.userStats.genreBreakdown")}
             </h3>
             <div className="flex items-center justify-center gap-6">
+              <div role="img" aria-label={t("common.userStats.genreBreakdown")}>
               <PieChart width={160} height={160}>
                 <Pie
                   data={pieData}
@@ -154,6 +155,7 @@ export function UserStats() {
                   ))}
                 </Pie>
               </PieChart>
+              </div>
               <div className="flex flex-col gap-1.5">
                 {pieData.map((d) => (
                   <div key={d.text} className="flex items-center gap-2 text-xs">
@@ -171,7 +173,7 @@ export function UserStats() {
           <h3 className="text-sm font-semibold mb-4 text-[var(--text)]">
             {t("common.userStats.monthlyActivity")}
           </h3>
-          <div className="overflow-x-auto overflow-y-visible">
+          <div className="overflow-x-auto overflow-y-visible" role="img" aria-label={t("common.userStats.monthlyActivity")}>
             <BarChart width={Math.max(monthBarData.length * 30 + 44, 320)} height={200} data={monthBarData} barCategoryGap={8}>
               <XAxis dataKey="label" tick={{ fill: textMuted, fontSize: 10 }} axisLine={false} tickLine={false} interval={0} />
               <YAxis
