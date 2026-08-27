@@ -120,11 +120,11 @@ importers:
         specifier: 55.0.16
         version: 55.0.16(expo@55.0.23)(react-native@0.83.6(@babel/core@7.29.0)(@react-native/metro-config@0.84.1(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)
       i18next:
-        specifier: 25.8.18
-        version: 25.8.18(typescript@5.9.3)
+        specifier: 26.0.9
+        version: 26.0.9(typescript@5.9.3)
       i18next-http-backend:
-        specifier: 3.0.2
-        version: 3.0.2
+        specifier: 4.0.0
+        version: 4.0.0
       nativewind:
         specifier: 4.2.3
         version: 4.2.3(react-native-reanimated@4.2.1(react-native-worklets@0.7.1(@babel/core@7.29.0)(react-native@0.83.6(@babel/core@7.29.0)(@react-native/metro-config@0.84.1(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.2.0))(react@19.2.0))(react-native@0.83.6(@babel/core@7.29.0)(@react-native/metro-config@0.84.1(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.2.0))(react@19.2.0))(react-native-safe-area-context@5.6.2(react-native@0.83.6(@babel/core@7.29.0)(@react-native/metro-config@0.84.1(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.2.0))(react@19.2.0))(react-native-svg@15.15.3(react-native@0.83.6(@babel/core@7.29.0)(@react-native/metro-config@0.84.1(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.2.0))(react@19.2.0))(react-native@0.83.6(@babel/core@7.29.0)(@react-native/metro-config@0.84.1(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)(tailwindcss@3.4.17)
@@ -132,8 +132,8 @@ importers:
         specifier: 19.2.0
         version: 19.2.0
       react-i18next:
-        specifier: 16.5.8
-        version: 16.5.8(i18next@25.8.18(typescript@5.9.3))(react-dom@19.2.0(react@19.2.0))(react-native@0.83.6(@babel/core@7.29.0)(@react-native/metro-config@0.84.1(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)(typescript@5.9.3)
+        specifier: 17.0.6
+        version: 17.0.6(i18next@26.0.9(typescript@5.9.3))(react-dom@19.2.0(react@19.2.0))(react-native@0.83.6(@babel/core@7.29.0)(@react-native/metro-config@0.84.1(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)(typescript@5.9.3)
       react-native:
         specifier: 0.83.6
         version: 0.83.6(@babel/core@7.29.0)(@react-native/metro-config@0.84.1(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.2.0)
@@ -165,8 +165,8 @@ importers:
         specifier: 3.4.17
         version: 3.4.17
       zustand:
-        specifier: 5.0.13
-        version: 5.0.13(@types/react@19.2.14)(immer@9.0.21)(react@19.2.0)(use-sync-external-store@1.6.0(react@19.2.0))
+        specifier: 5.0.15
+        version: 5.0.15(@types/react@19.2.14)(immer@9.0.21)(react@19.2.0)(use-sync-external-store@1.6.0(react@19.2.0))
     devDependencies:
       '@testing-library/react':
         specifier: 16.3.2
@@ -232,17 +232,17 @@ importers:
         specifier: 55.0.16
         version: 55.0.16(expo@55.0.23)(react-native-tvos@0.83.10-0)(react@19.2.0)
       i18next:
-        specifier: 25.8.18
-        version: 25.8.18(typescript@5.9.3)
+        specifier: 26.0.9
+        version: 26.0.9(typescript@5.9.3)
       i18next-http-backend:
-        specifier: 3.0.2
-        version: 3.0.2
+        specifier: 4.0.0
+        version: 4.0.0
       react:
         specifier: 19.2.0
         version: 19.2.0
       react-i18next:
-        specifier: 16.5.8
-        version: 16.5.8(i18next@25.8.18(typescript@5.9.3))(react-dom@19.2.0(react@19.2.0))(react-native-tvos@0.83.10-0)(react@19.2.0)(typescript@5.9.3)
+        specifier: 17.0.6
+        version: 17.0.6(i18next@26.0.9(typescript@5.9.3))(react-dom@19.2.0(react@19.2.0))(react-native-tvos@0.83.10-0)(react@19.2.0)(typescript@5.9.3)
       react-native:
         specifier: npm:react-native-tvos@0.83.10-0
         version: react-native-tvos@0.83.10-0(@babel/core@7.29.0)(@react-native/metro-config@0.84.1(@babel/core@7.29.0))(@types/react@19.2.14)(react-native-tvos@0.83.10-0)(react@19.2.0)
@@ -262,8 +262,8 @@ importers:
         specifier: 13.16.1
         version: 13.16.1(react-native-tvos@0.83.10-0)(react@19.2.0)
       zustand:
-        specifier: 5.0.13
-        version: 5.0.13(@types/react@19.2.14)(immer@9.0.21)(react@19.2.0)(use-sync-external-store@1.6.0(react@19.2.0))
+        specifier: 5.0.15
+        version: 5.0.15(@types/react@19.2.14)(immer@9.0.21)(react@19.2.0)(use-sync-external-store@1.6.0(react@19.2.0))
     devDependencies:
       '@react-native-tvos/config-tv':
         specifier: 0.1.6
@@ -307,9 +307,6 @@ importers:
       '@tanstack/react-virtual':
         specifier: 3.13.24
         version: 3.13.24(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
-      blurhash:
-        specifier: ^2.0.5
-        version: 2.0.5
       hls.js:
         specifier: 1.6.16
         version: 1.6.16
@@ -419,8 +416,8 @@ importers:
   packages/store:
     dependencies:
       zustand:
-        specifier: 5.0.3
-        version: 5.0.3(@types/react@19.2.14)(immer@9.0.21)(react@19.2.0)(use-sync-external-store@1.6.0(react@19.2.0))
+        specifier: 5.0.15
+        version: 5.0.15(@types/react@19.2.14)(immer@9.0.21)(react@19.2.0)(use-sync-external-store@1.6.0(react@19.2.0))
 
   packages/theme: {}
 
@@ -3569,9 +3566,6 @@ packages:
   core-js-pure@3.49.0:
     resolution: {integrity: sha512-XM4RFka59xATyJv/cS3O3Kml72hQXUeGRuuTmMYFxwzc9/7C8OYTaIR/Ji+Yt8DXzsFLNhat15cE/JP15HrCgw==}
 
-  cross-fetch@4.0.0:
-    resolution: {integrity: sha512-e4a5N8lVvuLgAWgnCrLr2PP0YyDOTHa9H/Rj54dirp61qXnNq46m82bRhNqIA5VccJtWBvPTFRV3TtvHUKPB1g==}
-
   cross-spawn@7.0.6:
     resolution: {integrity: sha512-uV2QOWP2nWzsy2aMp8aRibhi9dlzF5Hgh5SHaB9OiTGEyDTiJJyx0uy51QXdyWbtAHNua4XJzUKca3OzKUd3vA==}
     engines: {node: '>= 8'}
@@ -4463,20 +4457,9 @@ packages:
   i18next-browser-languagedetector@8.2.1:
     resolution: {integrity: sha512-bZg8+4bdmaOiApD7N7BPT9W8MLZG+nPTOFlLiJiT8uzKXFjhxw4v2ierCXOwB5sFDMtuA5G4kgYZ0AznZxQ/cw==}
 
-  i18next-http-backend@3.0.2:
-    resolution: {integrity: sha512-PdlvPnvIp4E1sYi46Ik4tBYh/v/NbYfFFgTjkwFl0is8A18s7/bx9aXqsrOax9WUbeNS6mD2oix7Z0yGGf6m5g==}
-
   i18next-http-backend@4.0.0:
     resolution: {integrity: sha512-EgSjO3Q1G6f2Q5oy7u9mmxuesE0oSfzAD97NFBjC8EmkK4guBSYLljM0Fng3DarMWIIkU70jfo4+mUzmyVISTA==}
     engines: {node: '>=18'}
-
-  i18next@25.8.18:
-    resolution: {integrity: sha512-lzY5X83BiL5AP77+9DydbrqkQHFN9hUzWGjqjLpPcp5ZOzuu1aSoKaU3xbBLSjWx9dAzW431y+d+aogxOZaKRA==}
-    peerDependencies:
-      typescript: ^5
-    peerDependenciesMeta:
-      typescript:
-        optional: true
 
   i18next@26.0.9:
     resolution: {integrity: sha512-htjWlK5lGpjIDJxUdDLD6dO2jPl/RZHBpeZC80T5yr6Lci/tN3Oq9Doh9110ihliAIb4xmb45ngM76WcbP6GjA==}
@@ -5809,22 +5792,6 @@ packages:
     resolution: {integrity: sha512-YUSt310wAlBK9qpBCcGW+Z2EI4VvrqTgX0Pm0pp4lqDnNJjjDBfjwcWa+kinXzC1Y2HybVj/fTeCxYYQyFTlgA==}
     peerDependencies:
       '@react-spring/web': ^9.7.4
-
-  react-i18next@16.5.8:
-    resolution: {integrity: sha512-2ABeHHlakxVY+LSirD+OiERxFL6+zip0PaHo979bgwzeHg27Sqc82xxXWIrSFmfWX0ZkrvXMHwhsi/NGUf5VQg==}
-    peerDependencies:
-      i18next: '>= 25.6.2'
-      react: 19.2.0
-      react-dom: '*'
-      react-native: '*'
-      typescript: ^5
-    peerDependenciesMeta:
-      react-dom:
-        optional: true
-      react-native:
-        optional: true
-      typescript:
-        optional: true
 
   react-i18next@17.0.6:
     resolution: {integrity: sha512-WzJ6SMKF+GTD7JZZqxSR1AKKmXjaSu39sClUrNlwxS4Tl7a99O+ltFy6yhPMO+wgZuxpQjJ2PZkfrQKmAqrLhw==}
@@ -7264,26 +7231,8 @@ packages:
   zod@3.25.76:
     resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
 
-  zustand@5.0.13:
-    resolution: {integrity: sha512-efI2tVaVQPqtOh114loML/Z80Y4NP3yc+Ff0fYiZJPauNeWZeIp/bRFD7I9bfmCOYBh/PHxlglQ9+wvlwnPikQ==}
-    engines: {node: '>=12.20.0'}
-    peerDependencies:
-      '@types/react': 19.2.14
-      immer: '>=9.0.6'
-      react: 19.2.0
-      use-sync-external-store: '>=1.2.0'
-    peerDependenciesMeta:
-      '@types/react':
-        optional: true
-      immer:
-        optional: true
-      react:
-        optional: true
-      use-sync-external-store:
-        optional: true
-
-  zustand@5.0.3:
-    resolution: {integrity: sha512-14fwWQtU3pH4dE0dOpdMiWjddcH+QzKIgk1cl8epwSE7yag43k/AD/m4L6+K7DytAOr9gGBe3/EXj9g7cdostg==}
+  zustand@5.0.15:
+    resolution: {integrity: sha512-MpSEjRiBkA9crSYeOUH32rJC7SVqAbm0Fqcqge/bUi2PPoLcBWKOsG+C8mevmpr8TwXHBVkChbbJiyvkE+i/3A==}
     engines: {node: '>=12.20.0'}
     peerDependencies:
       '@types/react': 19.2.14
@@ -11408,12 +11357,6 @@ snapshots:
 
   core-js-pure@3.49.0: {}
 
-  cross-fetch@4.0.0:
-    dependencies:
-      node-fetch: 2.7.0
-    transitivePeerDependencies:
-      - encoding
-
   cross-spawn@7.0.6:
     dependencies:
       path-key: 3.1.1
@@ -12593,19 +12536,7 @@ snapshots:
     dependencies:
       '@babel/runtime': 7.28.6
 
-  i18next-http-backend@3.0.2:
-    dependencies:
-      cross-fetch: 4.0.0
-    transitivePeerDependencies:
-      - encoding
-
   i18next-http-backend@4.0.0: {}
-
-  i18next@25.8.18(typescript@5.9.3):
-    dependencies:
-      '@babel/runtime': 7.28.6
-    optionalDependencies:
-      typescript: 5.9.3
 
   i18next@26.0.9(typescript@5.9.3):
     optionalDependencies:
@@ -14015,28 +13946,16 @@ snapshots:
       - react
       - react-native
 
-  react-i18next@16.5.8(i18next@25.8.18(typescript@5.9.3))(react-dom@19.2.0(react@19.2.0))(react-native-tvos@0.83.10-0)(react@19.2.0)(typescript@5.9.3):
+  react-i18next@17.0.6(i18next@26.0.9(typescript@5.9.3))(react-dom@19.2.0(react@19.2.0))(react-native-tvos@0.83.10-0)(react@19.2.0)(typescript@5.9.3):
     dependencies:
-      '@babel/runtime': 7.28.6
+      '@babel/runtime': 7.29.2
       html-parse-stringify: 3.0.1
-      i18next: 25.8.18(typescript@5.9.3)
+      i18next: 26.0.9(typescript@5.9.3)
       react: 19.2.0
       use-sync-external-store: 1.6.0(react@19.2.0)
     optionalDependencies:
       react-dom: 19.2.0(react@19.2.0)
       react-native: react-native-tvos@0.83.10-0(@babel/core@7.29.0)(@react-native/metro-config@0.84.1(@babel/core@7.29.0))(@types/react@19.2.14)(react-native-tvos@0.83.10-0)(react@19.2.0)
-      typescript: 5.9.3
-
-  react-i18next@16.5.8(i18next@25.8.18(typescript@5.9.3))(react-dom@19.2.0(react@19.2.0))(react-native@0.83.6(@babel/core@7.29.0)(@react-native/metro-config@0.84.1(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)(typescript@5.9.3):
-    dependencies:
-      '@babel/runtime': 7.28.6
-      html-parse-stringify: 3.0.1
-      i18next: 25.8.18(typescript@5.9.3)
-      react: 19.2.0
-      use-sync-external-store: 1.6.0(react@19.2.0)
-    optionalDependencies:
-      react-dom: 19.2.0(react@19.2.0)
-      react-native: 0.83.6(@babel/core@7.29.0)(@react-native/metro-config@0.84.1(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.2.0)
       typescript: 5.9.3
 
   react-i18next@17.0.6(i18next@26.0.9(typescript@5.9.3))(react-dom@19.2.0(react@19.2.0))(react-native@0.83.6(@babel/core@7.29.0)(@react-native/metro-config@0.84.1(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)(typescript@5.9.3):
@@ -15641,14 +15560,7 @@ snapshots:
 
   zod@3.25.76: {}
 
-  zustand@5.0.13(@types/react@19.2.14)(immer@9.0.21)(react@19.2.0)(use-sync-external-store@1.6.0(react@19.2.0)):
-    optionalDependencies:
-      '@types/react': 19.2.14
-      immer: 9.0.21
-      react: 19.2.0
-      use-sync-external-store: 1.6.0(react@19.2.0)
-
-  zustand@5.0.3(@types/react@19.2.14)(immer@9.0.21)(react@19.2.0)(use-sync-external-store@1.6.0(react@19.2.0)):
+  zustand@5.0.15(@types/react@19.2.14)(immer@9.0.21)(react@19.2.0)(use-sync-external-store@1.6.0(react@19.2.0)):
     optionalDependencies:
       '@types/react': 19.2.14
       immer: 9.0.21

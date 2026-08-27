@@ -39,11 +39,11 @@
     "expo-screen-orientation": "55.0.14",
     "expo-secure-store": "55.0.13",
     "expo-video": "55.0.16",
-    "i18next": "25.8.18",
-    "i18next-http-backend": "3.0.2",
+    "i18next": "26.0.9",
+    "i18next-http-backend": "4.0.0",
     "nativewind": "4.2.3",
     "react": "19.2.0",
-    "react-i18next": "16.5.8",
+    "react-i18next": "17.0.6",
     "react-native": "0.83.6",
     "react-native-gifted-charts": "1.4.76",
     "react-native-google-cast": "4.9.1",
@@ -54,7 +54,7 @@
     "react-native-svg": "15.15.3",
     "react-native-webview": "13.16.0",
     "tailwindcss": "3.4.17",
-    "zustand": "5.0.13"
+    "zustand": "5.0.15"
   },
   "devDependencies": {
     "@testing-library/react": "16.3.2",
