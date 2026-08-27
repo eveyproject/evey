@@ -58,7 +58,7 @@ function setup() {
   const video = document.createElement("video");
   const videoRef = { current: video };
   const { result, unmount } = renderHook(() => useVolumeBoost(videoRef));
-  return { setBoost: result.current, unmount };
+  return { setBoost: result.current, unmount, video };
 }
 
 const flush = () => act(async () => { await Promise.resolve(); await Promise.resolve(); });
@@ -111,5 +111,32 @@ describe("useVolumeBoost", () => {
     const { setBoost } = setup();
     act(() => setBoost(1));
     expect(FakeAudioContext.instances).toHaveLength(0);
+  });
+
+  // Once createMediaElementSource captures the element, its audio ONLY exists
+  // through this context. A context that drops to "suspended" while the picture
+  // keeps playing is silent video, not just a frozen boost - the reported "le
+  // son se coupe mais la vidéo continue". It must self-heal.
+  it("resumes a context that goes suspended while the video is playing", async () => {
+    const { setBoost, video } = setup();
+    act(() => setBoost(2));
+    await flush();
+    const ctx = FakeAudioContext.instances[0];
+    Object.defineProperty(video, "paused", { configurable: true, value: false });
+    ctx.state = "suspended";
+    const before = ctx.resumeCalls;
+    act(() => { ctx.onstatechange?.(); }); // the browser fired the suspend
+    expect(ctx.resumeCalls).toBeGreaterThan(before);
+  });
+
+  it("resumes on the video's own 'play' after a pause suspended the context", async () => {
+    const { setBoost, video } = setup();
+    act(() => setBoost(2));
+    await flush();
+    const ctx = FakeAudioContext.instances[0];
+    ctx.state = "suspended"; // as if the pause/blur suspended it
+    const before = ctx.resumeCalls;
+    act(() => { video.dispatchEvent(new Event("play")); });
+    expect(ctx.resumeCalls).toBeGreaterThan(before);
   });
 });

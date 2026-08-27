@@ -32,8 +32,17 @@ export function useVolumeBoost(videoRef: React.RefObject<HTMLVideoElement | null
   // audible - the UI says 200% while the native, unboosted path keeps playing.
   // Whenever the context actually reaches "running", this is what to apply.
   const pendingGainRef = useRef(1);
+  // The play/playing listeners that keep the captured element's context awake,
+  // held so teardown can detach them from the exact element they were bound to.
+  const playResumeRef = useRef<{ video: HTMLVideoElement; fn: () => void } | null>(null);
 
   const teardown = useCallback(() => {
+    if (playResumeRef.current) {
+      const { video, fn } = playResumeRef.current;
+      video.removeEventListener("play", fn);
+      video.removeEventListener("playing", fn);
+      playResumeRef.current = null;
+    }
     try { sourceRef.current?.disconnect(); } catch { /* already gone */ }
     try { gainRef.current?.disconnect(); } catch { /* already gone */ }
     try { void ctxRef.current?.close(); } catch { /* already closing */ }
@@ -79,11 +88,31 @@ export function useVolumeBoost(videoRef: React.RefObject<HTMLVideoElement | null
       comp.connect(ctx.destination);
       // However the context reaches "running" (our resume(), a later gesture,
       // the tab regaining audio focus), make the boost real at that moment.
+      // And the mirror case: once createMediaElementSource has CAPTURED the
+      // element, its audio ONLY exists through this context - so a context that
+      // drops to "suspended" while the picture keeps playing (a pause/play
+      // cycle, tab backgrounding, an autoplay-policy blip) is silent video, not
+      // just a frozen boost. Nothing else resumes it until the next slider drag.
+      // Resume it here whenever the video is actually playing - the moment sound
+      // is wanted - so it can never strand a boosted stream mute.
       ctx.onstatechange = () => {
         if (ctx.state === "running" && gainRef.current) {
           gainRef.current.gain.setTargetAtTime(pendingGainRef.current, ctx.currentTime, 0.02);
+        } else if (ctx.state === "suspended" && videoRef.current && !videoRef.current.paused) {
+          ctx.resume().catch(() => { /* autoplay gate: a real gesture retries */ });
         }
       };
+      // Resume on play/playing too: onstatechange does not fire when the video
+      // resumes while the context is ALREADY suspended, so a pause that suspended
+      // the context would otherwise come back picture-only.
+      const resumeIfSuspended = () => {
+        if (ctxRef.current?.state === "suspended") {
+          ctxRef.current.resume().catch(() => { /* gesture-gated; retried next play/drag */ });
+        }
+      };
+      video.addEventListener("play", resumeIfSuspended);
+      video.addEventListener("playing", resumeIfSuspended);
+      playResumeRef.current = { video, fn: resumeIfSuspended };
       ctxRef.current = ctx;
       gainRef.current = gain;
       sourceRef.current = source;
