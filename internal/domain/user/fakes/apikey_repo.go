@@ -43,7 +43,12 @@ func (r *FakeAPIKeyRepository) GetByKeyHash(_ context.Context, hash string) (*us
 	}
 	for _, k := range r.items {
 		if k.KeyHash == hash {
-			return k, nil
+			// Return a COPY, like the real Postgres repo hydrates a fresh row.
+			// Handing back the stored pointer lets a caller read fields (e.g.
+			// LastUsedAt in the auth interceptor's throttle) while the detached
+			// UpdateLastUsed goroutine writes the same object - a data race.
+			cp := *k
+			return &cp, nil
 		}
 	}
 	return nil, ErrNotFound

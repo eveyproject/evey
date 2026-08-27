@@ -249,21 +249,38 @@ func (i *AuthInterceptor) authenticateAPIKey(ctx context.Context, rawKey string)
 		IsAdmin:     u.IsAdmin,
 		Permissions: key.Permissions,
 	}
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				slog.ErrorContext(ctx, "recovered panic in api key last used update", "panic", r)
+	// Throttle the last-used write: a plugin polling by API key would otherwise
+	// write api_keys (and spawn a goroutine) on EVERY request. Minute-level
+	// freshness is plenty for a "last used" column, so skip the write when it is
+	// already recent - this cuts the write amplification to at most one per key
+	// per window.
+	if shouldWriteLastUsed(key.LastUsedAt, time.Now(), apiKeyLastUsedThrottle) {
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					slog.ErrorContext(ctx, "recovered panic in api key last used update", "panic", r)
+				}
+			}()
+			bgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if upErr := i.apiKeys.UpdateLastUsed(bgCtx, key.ID, time.Now()); upErr != nil {
+				slog.WarnContext(bgCtx, "update api key last used", slog.String("keyID", key.ID), slog.Any("err", upErr))
 			}
 		}()
-		bgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		if upErr := i.apiKeys.UpdateLastUsed(bgCtx, key.ID, time.Now()); upErr != nil {
-			slog.WarnContext(bgCtx, "update api key last used", slog.String("keyID", key.ID), slog.Any("err", upErr))
-		}
-	}()
+	}
 	ctx = context.WithValue(ctx, claimsKey{}, claims)
 	ctx = context.WithValue(ctx, apiKeyAuthKey{}, true)
 	return ctx, nil
+}
+
+// apiKeyLastUsedThrottle bounds how often an api key's last_used column is
+// rewritten - a "last used" timestamp does not need per-request precision.
+const apiKeyLastUsedThrottle = 5 * time.Minute
+
+// shouldWriteLastUsed reports whether the api-key last-used write should run:
+// on first use (nil) or once the previous write is at least a window old.
+func shouldWriteLastUsed(lastUsedAt *time.Time, now time.Time, window time.Duration) bool {
+	return lastUsedAt == nil || now.Sub(*lastUsedAt) >= window
 }
 
 // IsAPIKeyAuth returns true if the request was authenticated via API key.
