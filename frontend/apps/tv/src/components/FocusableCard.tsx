@@ -17,6 +17,12 @@ interface FocusableCardProps {
   // action cannot be re-fired by a second click of the remote. Merged into
   // accessibilityState rather than overriding whatever the caller passed.
   disabled?: boolean;
+  // Focus passthrough for callers that must react to the remote landing here -
+  // e.g. the home hero pausing its auto-rotation while its Play button holds
+  // focus, so Play always acts on the title on screen. Optional: existing call
+  // sites are unchanged.
+  onFocus?: () => void;
+  onBlur?: () => void;
 }
 
 export const FocusableCard = React.memo(function FocusableCard({
@@ -28,12 +34,14 @@ export const FocusableCard = React.memo(function FocusableCard({
   accessibilityLabel,
   accessibilityState,
   disabled,
+  onFocus,
+  onBlur,
 }: FocusableCardProps) {
   const [focused, setFocused] = useState(false);
   const theme = useTheme();
 
-  const handleFocus = useCallback(() => setFocused(true), []);
-  const handleBlur = useCallback(() => setFocused(false), []);
+  const handleFocus = useCallback(() => { setFocused(true); onFocus?.(); }, [onFocus]);
+  const handleBlur = useCallback(() => { setFocused(false); onBlur?.(); }, [onBlur]);
 
   return (
     <Pressable

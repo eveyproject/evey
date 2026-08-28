@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, fireEvent, screen } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, fireEvent, screen, act } from "@testing-library/react";
 import React from "react";
 
 // --- React Native mock -----------------------------------------------------
@@ -263,6 +263,41 @@ describe("HomeScreen hero play button (TV parental gate)", () => {
     fireEvent.click(screen.getByLabelText("cancel-pin"));
     expect(pushMock).not.toHaveBeenCalled();
     expect(screen.queryByTestId("pin-modal")).toBeNull();
+  });
+});
+
+describe("HomeScreen hero carousel auto-rotation", () => {
+  const HERO_A = { id: "hero-a", title: "Alpha Film", year: 2021, type: "MEDIA_ITEM_TYPE_MOVIE" };
+  const HERO_B = { id: "hero-b", title: "Bravo Film", year: 2022, type: "MEDIA_ITEM_TYPE_MOVIE" };
+
+  beforeEach(() => {
+    // recentlyAdded feeds the hero; give it two titles so rotation is visible.
+    listMediaItemsMock.mockReturnValue({ data: { items: [HERO_A, HERO_B] }, isLoading: false });
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("advances to the next title after the interval elapses", () => {
+    render(<HomeScreen />);
+    expect(screen.getByText("Alpha Film")).toBeTruthy();
+    act(() => { vi.advanceTimersByTime(8000); });
+    expect(screen.getByText("Bravo Film")).toBeTruthy();
+  });
+
+  it("pauses rotation while a hero control holds focus, so Play acts on the title on screen", () => {
+    render(<HomeScreen />);
+    expect(screen.getByText("Alpha Film")).toBeTruthy();
+    // Remote lands on the Play button: the carousel must freeze.
+    fireEvent.focus(screen.getByLabelText("media.detail.play"));
+    act(() => { vi.advanceTimersByTime(24000); });
+    expect(screen.getByText("Alpha Film")).toBeTruthy();
+    expect(screen.queryByText("Bravo Film")).toBeNull();
+    // Focus leaves the hero: rotation resumes.
+    fireEvent.blur(screen.getByLabelText("media.detail.play"));
+    act(() => { vi.advanceTimersByTime(8000); });
+    expect(screen.getByText("Bravo Film")).toBeTruthy();
   });
 });
 

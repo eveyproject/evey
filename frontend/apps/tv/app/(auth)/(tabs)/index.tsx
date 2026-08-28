@@ -256,14 +256,23 @@ function HeroBanner({
   const { t } = useTranslation();
   const heroItems = items.slice(0, HERO_COUNT);
   const [activeIndex, setActiveIndex] = useState(0);
+  // Auto-rotation pauses while a hero control holds the remote: otherwise the
+  // carousel could swap the title out from under a focused Play button, and
+  // the viewer would launch a title they were no longer looking at. Counter,
+  // not a boolean: moving focus from Play to Info fires blur-then-focus, and a
+  // boolean would briefly flip the pause off mid-hand-off.
+  const [focusCount, setFocusCount] = useState(0);
+  const onHeroFocus = useCallback(() => setFocusCount((n) => n + 1), []);
+  const onHeroBlur = useCallback(() => setFocusCount((n) => Math.max(0, n - 1)), []);
+  const paused = focusCount > 0;
 
   useEffect(() => {
-    if (heroItems.length <= 1) return;
+    if (heroItems.length <= 1 || paused) return;
     const id = setInterval(() => {
       setActiveIndex((prev) => (prev + 1) % heroItems.length);
     }, HERO_INTERVAL);
     return () => clearInterval(id);
-  }, [heroItems.length]);
+  }, [heroItems.length, paused]);
 
   if (heroItems.length === 0) return null;
 
@@ -358,6 +367,8 @@ function HeroBanner({
           <FocusableCard
             onPress={handlePlay}
             hasTVPreferredFocus={focusPlay}
+            onFocus={onHeroFocus}
+            onBlur={onHeroBlur}
             style={[styles.heroPlayBtn, { backgroundColor: theme.colors.accent }]}
             // A series is not played, it is browsed: the primary action names
             // the episode list. Reusing "More info" here put two identical
@@ -371,6 +382,8 @@ function HeroBanner({
           </FocusableCard>
           <FocusableCard
             onPress={() => id && router.push(`/media/${id}`)}
+            onFocus={onHeroFocus}
+            onBlur={onHeroBlur}
             style={[styles.heroInfoBtn, { backgroundColor: theme.colors.surfaceRaised ?? theme.colors.surface }]}
             accessibilityLabel={t("media.home.moreInfo")}
           >
