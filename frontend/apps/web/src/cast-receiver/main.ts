@@ -10,7 +10,7 @@
 //      silently, which is what made cast incidents undiagnosable.
 import { WasmAudioEngine } from "@/features/playback/wasmaudio/WasmAudioEngine";
 import { extractAacAudioURI, extractAudioURI } from "@/features/playback/wasmaudio/wasmAudioShared";
-import { absoluteWithToken, appendMaxKbps, bitrateTestUrl, buildPlayerEventUrl, bufferedStats, createDecoderDistressWatch, createStartGate, createStartWatch, createStarvationWatch, describePlayerError, planBackBufferTrim, planFloorRescue, probeMaxAudioChannels, probeReceiverCaps, rewriteCastMasterUrl, shouldMeasure, stereoFallbackUrl, stripWasmAudio } from "./receiverLogic";
+import { absoluteWithToken, appendMaxKbps, bitrateTestUrl, bufferedStats, createBeaconUrlResolver, createDecoderDistressWatch, createStartGate, createStartWatch, createStarvationWatch, describePlayerError, planBackBufferTrim, planFloorRescue, probeMaxAudioChannels, probeReceiverCaps, rewriteCastMasterUrl, shouldMeasure, stereoFallbackUrl, stripWasmAudio } from "./receiverLogic";
 import { createAliveHeartbeat, createFrameDropTracker, formatFrameQuality, postPlayerEvent, postPlayerEventQuery, readHeapMB } from "./receiverBeacon";
 import { buildCastNextUrl, buildNextMasterUrl, parseCastNextResponse, shouldFetchNext, upNextLabel, type CastNextInfo } from "./castNext";
 import { buildSegmentsUrl, introSkippedLabel, parseSegments, planIntroSkip, type SkippableSegment } from "./introSkip";
@@ -42,13 +42,15 @@ function appendDebug(text: string): void {
   showDebug(current ? `${current}\n${text}` : text);
 }
 
-// TV-side wasm audio kill-switch. OFF 2026-07-28 while the deployed decoder
-// was the leaking TinyGo build (+6.75MB pinned per segment, box dead at
-// ~3-4min); back ON 2026-07-29 with the standard-Go build (flat memory in the
-// differential harness) and the bi-source relay (native AAC sound while the
-// wasm boots). The mem= beacon on every alive heartbeat is the watch: a heap
-// climbing beacon after beacon means flip this OFF again.
-const CAST_WASM_ENABLED = true;
+// TV-side wasm audio kill-switch. OFF 2026-07-28 (leaking TinyGo build), back
+// ON 2026-07-29 with the standard-Go build. OFF again 2026-08-28: the SERVER
+// declines wasm for cast tokens by default (castWasmAudioEnabled, admin
+// setting), so leading with wasmAudio=1 bought a guaranteed double-load at
+// EVERY cast start (wasm master requested, engine boot fails on the muxed
+// answer, AAC fallback reload + INTERRUPTED noise) - and that fallback's
+// failure path was the on-screen death of 2026-08-28 ("repli aac impossible").
+// Flip back ONLY together with the server's castWasmAudioEnabled setting.
+const CAST_WASM_ENABLED = false;
 
 // Shaka for HLS (what jellyfin-chromecast ships): eviction, buffer goal and
 // gap jumping are native there; MPL raises no ERROR, wedges on skipped
@@ -220,12 +222,18 @@ function destroyEngine(): void {
 // (server StopStream at 19:10:37) produced neither cast_receiver_finished nor
 // cast_receiver_shutdown. sendBeacon is handed to the user agent, which
 // delivers it after the document dies.
+// resolveBeaconUrl remembers the last stream url that yielded a telemetry
+// endpoint: the error path is where currentUrl is least trustworthy, and a
+// beacon dropped there blinds the server at the only moment that matters
+// (2026-08-28: a dying cast left zero error beacons).
+const resolveBeaconUrl = createBeaconUrlResolver();
+
 function reportEvent(type: string, details: string, fatal = false): void {
   let posSec = 0;
   try {
     posSec = playerManager.getCurrentTimeSec() || 0;
   } catch { /* player torn down already */ }
-  postPlayerEvent(buildPlayerEventUrl(currentUrl), { type, details, fatal, posSec }, {
+  postPlayerEvent(resolveBeaconUrl(currentUrl), { type, details, fatal, posSec }, {
     sendBeacon: typeof navigator !== "undefined" && navigator.sendBeacon
       ? (u, b) => navigator.sendBeacon(u, b)
       : undefined,
@@ -287,7 +295,7 @@ const aliveHeartbeat = createAliveHeartbeat(() => {
   // pending admin command. The death events keep sendBeacon - only they race
   // the page teardown.
   void postPlayerEventQuery(
-    buildPlayerEventUrl(currentUrl),
+    resolveBeaconUrl(currentUrl),
     { type: "cast_receiver_alive", details: `mode=${mode} mem=${readHeapMB()} wasm=${engine?.decoderMemoryMB() ?? -1} buf=${buf} trim=${trimCount} ${drops}`, posSec },
     (u, init) => fetch(u, init),
   ).then((cmd) => {

@@ -296,6 +296,22 @@ export function buildPlayerEventUrl(streamUrl: string): string | null {
   }
 }
 
+// createBeaconUrlResolver is buildPlayerEventUrl with a memory. The error
+// path is exactly where the CURRENT stream url is least trustworthy (a failed
+// LOAD can leave it foreign, empty or mid-rewrite), and on 2026-08-28 every
+// error beacon of a dying cast was dropped for that reason - the server was
+// blind at the only moment that mattered. The last url that resolved keeps
+// the door open; it can only go stale on a session that already stopped
+// resolving its own urls, where a stale door beats none.
+export function createBeaconUrlResolver(): (streamUrl: string) => string | null {
+  let last: string | null = null;
+  return (streamUrl) => {
+    const fresh = buildPlayerEventUrl(streamUrl);
+    if (fresh) last = fresh;
+    return fresh ?? last;
+  };
+}
+
 // stripWasmAudio is the fallback when ac3go does not start on the TV:
 // reloading the SAME master without wasmAudio re-serves the muxed AAC audio.
 export function stripWasmAudio(rawUrl: string): string {

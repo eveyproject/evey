@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { absoluteWithToken, appendMaxKbps, bufferedStats, planBackBufferTrim, planFloorRescue, bitrateTestUrl, buildPlayerEventUrl, createDecoderDistressWatch, createStarvationWatch, createStartGate, createStartWatch, describePlayerError, floorMasterUrl, probeMaxAudioChannels, probeReceiverCaps, rewriteCastMasterUrl, shouldMeasure, stereoFallbackUrl, stripWasmAudio, type CanDisplayType } from "./receiverLogic";
+import { absoluteWithToken, appendMaxKbps, bufferedStats, planBackBufferTrim, planFloorRescue, bitrateTestUrl, buildPlayerEventUrl, createBeaconUrlResolver, createDecoderDistressWatch, createStarvationWatch, createStartGate, createStartWatch, describePlayerError, floorMasterUrl, probeMaxAudioChannels, probeReceiverCaps, rewriteCastMasterUrl, shouldMeasure, stereoFallbackUrl, stripWasmAudio, type CanDisplayType } from "./receiverLogic";
 
 // Fake canDisplayType: allows what `yes` lists (substring match on the
 // codec string), refuses the rest. 4K resolution is only granted if
@@ -640,5 +640,37 @@ describe("createDecoderDistressWatch - le decodeur decroche, tampon plein", () =
     w.sample("PLAYING", 30, 120);
     expect(w.sample("PLAYING", 30, 120)).toBe(true);
     expect(w.sample("PLAYING", 60, 120)).toBe(false);
+  });
+});
+
+describe("createBeaconUrlResolver - the telemetry door survives a bad currentUrl", () => {
+  // 2026-08-28: a dying cast produced ZERO error beacons - the failed LOAD
+  // had left currentUrl unresolvable, so every report of the death was
+  // silently dropped and the server stayed blind at the only moment that
+  // mattered. The resolver remembers the last url that resolved.
+  it("resolves a fresh owned url and remembers it", () => {
+    const resolve = createBeaconUrlResolver();
+    expect(resolve("https://evey.example/api/v1/media/m-1/hls/master.m3u8?token=t1"))
+      .toBe("https://evey.example/api/v1/media/m-1/player-event?token=t1");
+  });
+
+  it("falls back to the last resolved url when the current one is garbage", () => {
+    const resolve = createBeaconUrlResolver();
+    resolve("https://evey.example/api/v1/media/m-1/hls/master.m3u8?token=t1");
+    expect(resolve("")).toBe("https://evey.example/api/v1/media/m-1/player-event?token=t1");
+    expect(resolve("https://third.party/video.m3u8"))
+      .toBe("https://evey.example/api/v1/media/m-1/player-event?token=t1");
+  });
+
+  it("tracks a legitimate media change instead of clinging to the old door", () => {
+    const resolve = createBeaconUrlResolver();
+    resolve("https://evey.example/api/v1/media/m-1/hls/master.m3u8?token=t1");
+    expect(resolve("https://evey.example/api/v1/media/m-2/hls/master.m3u8?token=t2"))
+      .toBe("https://evey.example/api/v1/media/m-2/player-event?token=t2");
+  });
+
+  it("stays null while no url ever resolved (no door, no beacon)", () => {
+    const resolve = createBeaconUrlResolver();
+    expect(resolve("https://third.party/video.m3u8")).toBeNull();
   });
 });
