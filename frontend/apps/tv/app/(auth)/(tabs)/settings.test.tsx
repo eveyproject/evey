@@ -88,6 +88,23 @@ vi.mock("../../../src/lib/server-config", () => ({
   clearServerUrl: vi.fn(),
 }));
 
+// --- shared-TV teardown mocks ---------------------------------------------------
+// Sign-out must purge the react-query cache (query keys carry no identity, so
+// the next viewer would be served the previous account's rows), the on-disk
+// refresh token, and the in-memory parental unlocks.
+const queryClientClearMock = vi.fn();
+vi.mock("../../../src/lib/query-client", () => ({
+  queryClient: { clear: (...a: unknown[]) => queryClientClearMock(...a) },
+}));
+const clearRefreshTokenMock = vi.fn().mockResolvedValue(undefined);
+vi.mock("../../../src/lib/refresh-token", () => ({
+  clearRefreshToken: (...a: unknown[]) => clearRefreshTokenMock(...a),
+}));
+const clearUnlockedMock = vi.fn();
+vi.mock("../../../src/hooks/useParentalGate", () => ({
+  clearUnlocked: (...a: unknown[]) => clearUnlockedMock(...a),
+}));
+
 // --- i18n mock -------------------------------------------------------------------
 vi.mock("../../../src/i18n", () => ({
   supportedLanguages: [
@@ -175,6 +192,14 @@ describe("SettingsScreen (TV) sign out revokes the server session", () => {
     // Let the rejected promise settle - it must be swallowed, not thrown as
     // an unhandled rejection that would fail this test.
     await new Promise((r) => setTimeout(r, 0));
+  });
+
+  it("purges the query cache, the refresh token and parental unlocks so the next viewer on a shared TV starts clean", () => {
+    render(<SettingsScreen />);
+    fireEvent.click(screen.getByLabelText("mobile.settings.signOut"));
+    expect(queryClientClearMock).toHaveBeenCalled();
+    expect(clearRefreshTokenMock).toHaveBeenCalled();
+    expect(clearUnlockedMock).toHaveBeenCalled();
   });
 });
 

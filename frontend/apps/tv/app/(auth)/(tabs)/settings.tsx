@@ -9,6 +9,9 @@ import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useServerUrlNullable } from "../../../src/hooks/useServerUrl";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { clearServerUrl } from "../../../src/lib/server-config";
+import { queryClient } from "../../../src/lib/query-client";
+import { clearRefreshToken } from "../../../src/lib/refresh-token";
+import { clearUnlocked } from "../../../src/hooks/useParentalGate";
 import { supportedLanguages } from "../../../src/i18n";
 import { PluginSlot } from "../../../src/features/plugins/PluginSlot";
 
@@ -90,7 +93,16 @@ export default function SettingsScreen() {
   }
 
   async function handleChangeServer() {
+    // Same local teardown as sign-out: the cache holds the previous account's
+    // rows and the refresh token would cold-start it back. queryClient.clear()
+    // also fires via the active-server subscription, but clearing here keeps
+    // this path self-contained.
+    queryClient.clear();
+    clearUnlocked();
     logout();
+    void clearRefreshToken().catch((err) => {
+      console.warn("failed to clear refresh token on server change", err);
+    });
     await clearServerUrl();
     router.replace("/server-connect");
   }
@@ -101,10 +113,22 @@ export default function SettingsScreen() {
     // on a network call. The server-side revoke is best-effort and its
     // failure must never be allowed to leave the refresh/stream tokens alive
     // while the UI already shows the login screen.
+    //
+    // A shared television is the whole point here: query keys carry no
+    // identity, so without clearing the cache the NEXT viewer is served the
+    // previous account's continue-watching, history and recommendations from
+    // react-query's 5-minute window; and a refresh token left on disk cold-
+    // starts the session straight back. Clear both, and drop parental unlocks
+    // so the next viewer starts locked.
+    queryClient.clear();
+    clearUnlocked();
     logout();
     router.replace("/login");
     void userServiceLogout({}).catch((err) => {
       console.warn("logout revoke failed", err);
+    });
+    void clearRefreshToken().catch((err) => {
+      console.warn("failed to clear refresh token on logout", err);
     });
   }
 

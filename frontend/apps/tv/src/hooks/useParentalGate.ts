@@ -51,14 +51,32 @@ interface ParentalSettings {
   enabled: boolean;
 }
 
-const unlockedProfiles = new Set<string>();
+// A parental unlock is remembered in memory so a viewer is not re-prompted for
+// every restricted title in a sitting - but on a living-room TV that sits on
+// for days, an unbounded unlock means one PIN entry opens all restricted
+// content for the whole household until the app restarts. So the unlock
+// expires (profileId -> expiry epoch ms) and is cleared on sign-out.
+const UNLOCK_TTL_MS = 30 * 60 * 1000;
+const unlockedProfiles = new Map<string, number>();
 
 export function isProfileUnlocked(profileId: string): boolean {
-  return unlockedProfiles.has(profileId);
+  const expiry = unlockedProfiles.get(profileId);
+  if (expiry == null) return false;
+  if (Date.now() > expiry) {
+    unlockedProfiles.delete(profileId);
+    return false;
+  }
+  return true;
 }
 
 export function markUnlocked(profileId: string) {
-  unlockedProfiles.add(profileId);
+  unlockedProfiles.set(profileId, Date.now() + UNLOCK_TTL_MS);
+}
+
+// Drop every remembered unlock - called on sign-out and server change so the
+// next viewer on a shared television starts locked.
+export function clearUnlocked() {
+  unlockedProfiles.clear();
 }
 
 function useParentalSettings(profileId: string | null) {

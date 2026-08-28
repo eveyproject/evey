@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import { vi } from "vitest";
 
 vi.mock("@tanstack/react-query", () => ({ useQuery: vi.fn() }));
@@ -9,7 +9,7 @@ vi.mock("@evey/api", () => ({
 }));
 vi.mock("@evey/store", () => ({ useAuthStore: vi.fn() }));
 
-import { isAgeExceeded, isProfileUnlocked, markUnlocked } from "./useParentalGate";
+import { isAgeExceeded, isProfileUnlocked, markUnlocked, clearUnlocked } from "./useParentalGate";
 
 describe("isAgeExceeded", () => {
   // Never stricter than the server: it fails closed itself (worst-case age
@@ -47,11 +47,30 @@ describe("isAgeExceeded", () => {
 });
 
 describe("isProfileUnlocked / markUnlocked", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    clearUnlocked();
+  });
+
   it("returns false for unknown profile", () => {
     expect(isProfileUnlocked("profile-xyz-unknown")).toBe(false);
   });
   it("returns true after marking unlocked", () => {
     markUnlocked("profile-abc");
     expect(isProfileUnlocked("profile-abc")).toBe(true);
+  });
+  it("expires the unlock after its TTL so a living-room TV re-locks itself", () => {
+    vi.useFakeTimers();
+    markUnlocked("profile-ttl");
+    expect(isProfileUnlocked("profile-ttl")).toBe(true);
+    vi.advanceTimersByTime(30 * 60 * 1000 + 1);
+    expect(isProfileUnlocked("profile-ttl")).toBe(false);
+  });
+  it("clearUnlocked drops every unlock so the next viewer starts locked", () => {
+    markUnlocked("profile-a");
+    markUnlocked("profile-b");
+    clearUnlocked();
+    expect(isProfileUnlocked("profile-a")).toBe(false);
+    expect(isProfileUnlocked("profile-b")).toBe(false);
   });
 });
