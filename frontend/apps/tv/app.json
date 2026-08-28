@@ -2,7 +2,7 @@
   "expo": {
     "name": "Evey TV",
     "slug": "evey-tv",
-    "version": "1.1.0",
+    "version": "1.1.1",
     "scheme": "evey",
     "icon": "./assets/icon.png",
     "splash": {
@@ -17,6 +17,7 @@
     },
     "android": {
       "package": "com.evey.tv",
+      "versionCode": 3,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0A0A0A"
@@ -24,9 +25,10 @@
     },
     "plugins": [
       "./plugins/withCleartextTraffic",
+      "./plugins/withReleaseSigning",
       "expo-router",
       "expo-video",
-      ["@react-native-tvos/config-tv", { "isTV": true }]
+      ["@react-native-tvos/config-tv", { "isTV": true, "androidTVBanner": "./assets/tv_banner.png" }]
     ]
   }
 }
