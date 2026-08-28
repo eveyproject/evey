@@ -179,4 +179,38 @@ export async function applyServerLanguage(serverUrl: string): Promise<void> {
   }
 }
 
+// A profile EDIT that changes the locale must reflect immediately when it
+// touches the profile the session is running as - the JWT claim only
+// reapplies it at the next login/profile switch, so without this the picker
+// looked broken (saved fine, UI language never moved; reported 2026-08-28).
+export async function applyEditedProfileLocale(
+  profile: { id?: string; isDefault?: boolean },
+  locale: string,
+): Promise<void> {
+  const activeId = useAuthStore.getState().profileId;
+  const isActive = activeId ? profile.id === activeId : !!profile.isDefault;
+  if (!isActive) return;
+  const lang = locale ? locale.split("-")[0] : "";
+  if (lang && isSupported(lang)) {
+    useLocaleStore.getState().setLocale(lang, "profile");
+    try {
+      await i18n.changeLanguage(lang);
+    } catch {
+      /* offline: the store is set, the next boot applies it */
+    }
+    return;
+  }
+  // "" = Automatic: the explicit claim is gone - fall back to the device
+  // language, ranked "server" so a later profile claim or user pick can
+  // reclaim precedence.
+  const deviceLang = getLocales()[0]?.languageCode ?? "en";
+  const resolved = isSupported(deviceLang) ? deviceLang : "en";
+  useLocaleStore.getState().setLocale(resolved, "server");
+  try {
+    await i18n.changeLanguage(resolved);
+  } catch {
+    /* offline: same as above */
+  }
+}
+
 export default i18n;

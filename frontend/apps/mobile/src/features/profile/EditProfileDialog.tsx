@@ -12,7 +12,7 @@ import { toast } from "@evey/store";
 import { useTheme } from "../../providers/ThemeProvider";
 import { FONT_SIZE } from "@evey/theme";
 import { BottomSheet } from "../../components/BottomSheet";
-import { supportedLanguages } from "../../i18n";
+import { supportedLanguages, applyEditedProfileLocale } from "../../i18n";
 import { regionOptions } from "../../lib/regionOptions";
 
 interface Props {
@@ -91,8 +91,15 @@ export function EditProfileDialog({ open, onClose, profile, userId, hasKidsProfi
 
   const updateProfile = useUserServiceUpdateProfile({
     mutation: {
-      onSuccess: () => {
+      onSuccess: (_res, vars) => {
         void qc.invalidateQueries({ queryKey: getUserServiceListProfilesQueryKey(userId) });
+        // The server accepted the new locale; retarget the RUNNING session too
+        // when the edited profile is the active one - otherwise the picker
+        // saves silently and the UI language never moves until the next login.
+        const submitted = (vars?.data ?? {}) as UpdateProfileData;
+        if (submitted.locale !== undefined) {
+          void applyEditedProfileLocale(profile, submitted.locale);
+        }
         toast.success(t("auth.profile.updated", "Profile updated"));
         onClose();
       },
