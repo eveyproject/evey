@@ -3,20 +3,14 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import React from "react";
 
 // The header field lives inside the native toolbar, so the results panel now
-// renders in a Modal (its own native surface) positioned by measuring the
-// field's own wrapper - HeaderSearch.tsx:8-20 for the full rationale. These
-// mocks stand in for that measurement (View.measureInWindow) and for the
-// Modal itself, which always mounts its children in the mock (like
-// BottomSheet.test.tsx) since the real gating is SearchDropdown's own
-// `visible` prop, not the Modal wrapper.
+// renders in a Modal (its own native surface) as a full-screen safe-area
+// overlay - see the header comment in HeaderSearch.tsx for the rationale.
+// The Modal mock always mounts its children (like BottomSheet.test.tsx);
+// the real gating is the `open` guard inside the Modal.
 
 vi.mock("react-native", () => ({
-  View: React.forwardRef(({ children, ...p }: any, ref: any) => {
-    React.useImperativeHandle(ref, () => ({
-      measureInWindow: (cb: (x: number, y: number, w: number, h: number) => void) => cb(0, 40, 300, 40),
-    }));
-    return React.createElement("div", p, children);
-  }),
+  View: React.forwardRef(({ children, ...p }: any, ref: any) =>
+    React.createElement("div", { ...p, ref }, children)),
   Text: ({ children, ...p }: any) => React.createElement("span", p, children),
   TextInput: ({ value, onChangeText, onFocus, onSubmitEditing, placeholder }: any) =>
     React.createElement("input", {
@@ -31,7 +25,12 @@ vi.mock("react-native", () => ({
   ActivityIndicator: (p: any) => React.createElement("div", { "data-testid": "search-loading", ...p }),
   ScrollView: ({ children, ...p }: any) => React.createElement("div", p, children),
   Modal: ({ children }: any) => React.createElement("div", null, children),
-  StyleSheet: { create: (s: any) => s },
+  Keyboard: { addListener: () => ({ remove: () => {} }), dismiss: () => {} },
+  StyleSheet: { create: (s: any) => s, absoluteFillObject: {} },
+}));
+
+vi.mock("react-native-safe-area-context", () => ({
+  useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
 
 vi.mock("expo-image", () => ({
