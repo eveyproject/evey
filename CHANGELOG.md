@@ -8,6 +8,17 @@ line - earlier history lives in git.
 ## [Unreleased]
 
 ### Added
+- Single-container install: the image embeds Postgres (and Meilisearch) and
+  generates their secrets on first boot; `.env` needs only `MEDIA_DIR`.
+  Existing installs with their own Postgres (`EVEY_DB_HOST` set) are
+  unchanged.
+- `evey init` writes a ready compose file: `docker run --rm -v "$PWD":/out
+  gravityz/evey init --media /path`, with `--domain` (bundled Caddy, automatic
+  HTTPS), `--behind-proxy <network>` (an existing proxy owns TLS),
+  `--external-postgres` / `--external-meili`.
+- `scripts/evey-update.sh`: repeatable host-side update (pre-update dump,
+  pull, health wait, commit check, rollback line), twin of
+  `scripts/evey-rollback.sh`.
 - Watch progress now keeps tracking while casting even after the browser
   closes: the server derives the position from the receiver's own fetches.
 - Retention windows (audit log, server metrics, playback QoE, play-session

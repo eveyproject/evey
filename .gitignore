@@ -105,6 +105,10 @@ scripts/*
 !scripts/build-test-plugins.sh
 !scripts/gen_cosign_fixtures.go
 !scripts/verify-deploy.sh
+# Operator scripts shipped with the docs (installation.md § 4, release.md).
+!scripts/evey-update.sh
+!scripts/evey-rollback.sh
+!scripts/entrypoint-sim-test.sh
 !scripts/tv/
 !scripts/tv/*.sh
 !scripts/tv/README.md

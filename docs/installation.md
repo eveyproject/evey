@@ -292,14 +292,31 @@ configs handle this. Full setups: [reverse-proxy.md](reverse-proxy.md).
 
 ## 4. Updating Evey
 
+The short form is `docker compose pull && docker compose up -d`. The
+repeatable form is the update script, run on the host next to your compose
+file (grab it from the repository, it needs only bash + docker):
+
 ```bash
-# Back up first (see below), then:
-docker compose pull && docker compose up -d
+scripts/evey-update.sh                    # prints the plan, changes nothing
+scripts/evey-update.sh --apply            # updates to EVEY_VERSION from .env
+scripts/evey-update.sh --tag sha-1a2b3c4 --commit 1a2b3c4… --apply
 ```
 
-The new image applies any pending migrations automatically when it boots - watch
-`docker compose logs -f evey` until `/healthz` returns 200. Pin a known-good
-version with `EVEY_VERSION` in `.env` instead of tracking `latest`.
+It reads the current state (`evey admin rollback`), takes a pre-update dump
+into `./evey-data/backups/pre-update-<stamp>.sql.gz` with the server's own
+connection (embedded or external database alike), pulls, relaunches only the
+`evey` service, waits for the image's health check (up to 10 minutes - a
+schema migration on a large catalogue takes time, and the server also dumps
+the database before migrating), prints what the server now reports it is
+(`evey version`), and ends with the exact `evey-rollback.sh` line to undo it.
+Exit 1 = never became healthy (rollback line printed), 3 = healthy but not
+the commit you asked for.
+
+**Pin what you run.** Set `EVEY_VERSION` in `.env` to a release tag
+(`0.2.0-beta.1`) or an immutable `sha-<short>` tag; a branch tag such as
+`beta-0.0.1` moves with every push, so two pulls a day apart can run different
+code and "roll back to `beta-0.0.1`" goes nowhere. The script prints the tag it
+launched so you can pin it.
 
 **Image tags** (`gravityz/evey`):
 

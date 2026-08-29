@@ -180,3 +180,75 @@ func TestRunInit_EndToEnd(t *testing.T) {
 		t.Errorf("next steps missing from output:\n%s", out.String())
 	}
 }
+
+func TestRenderInit_BehindProxyIsPlainHTTPOnExternalNetwork(t *testing.T) {
+	files, err := renderInit(initOptions{Media: "/srv/media", Port: 9091, Version: "latest", Domain: "media.example.com", BehindProxy: "proxy-net"}, fixedSecret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compose := fileByName(t, files, "docker-compose.yml").Content
+	caddy := fileByName(t, files, "Caddyfile").Content
+	env := fileByName(t, files, ".env").Content
+	for _, want := range []string{"    expose:\n      - \"80\"\n", "networks:\n  default:\n    name: proxy-net\n    external: true\n"} {
+		if !strings.Contains(compose, want) {
+			t.Errorf("compose lacks %q", want)
+		}
+	}
+	for _, forbidden := range []string{"\"443:443\"", "\"80:80\"", ":9091\""} {
+		if strings.Contains(compose, forbidden) {
+			t.Errorf("behind a proxy nothing may be published, found %q", forbidden)
+		}
+	}
+	for _, want := range []string{"auto_https off", "trusted_proxies static private_ranges", "\n:80 {\n", "Content-Security-Policy"} {
+		if !strings.Contains(caddy, want) {
+			t.Errorf("Caddyfile lacks %q", want)
+		}
+	}
+	if strings.Contains(caddy, "{$EVEY_DOMAIN") || strings.Contains(caddy, "Let's Encrypt") {
+		t.Error("behind a proxy Caddy must neither obtain a certificate for EVEY_DOMAIN nor claim it does")
+	}
+	if !strings.Contains(env, "EVEY_SERVER_BASE_URL=https://media.example.com\n") || !strings.Contains(env, "EVEY_FORWARDED_PROTO=true\n") {
+		t.Errorf(".env lacks the proxy facts:\n%s", env)
+	}
+	if _, err := renderInit(initOptions{Media: "/srv/media", Port: 9091, Version: "latest", BehindProxy: "proxy-net"}, fixedSecret); err == nil {
+		t.Error("--behind-proxy without --domain must be refused")
+	}
+}
+
+func TestRenderInit_ExternalMeiliGetsServiceAndKey(t *testing.T) {
+	files, err := renderInit(initOptions{Media: "/srv/media", Port: 9091, Version: "latest", ExternalMeili: true}, fixedSecret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compose := fileByName(t, files, "docker-compose.yml").Content
+	env := fileByName(t, files, ".env")
+	for _, want := range []string{"  meilisearch:\n", "EVEY_EMBEDDED_MEILI: \"false\"", "EVEY_MEILI_URL: http://meilisearch:7700", "meilisearch: { condition: service_healthy }"} {
+		if !strings.Contains(compose, want) {
+			t.Errorf("compose lacks %q", want)
+		}
+	}
+	if strings.Contains(compose, "  postgres:\n") {
+		t.Error("external Meili alone must keep the database embedded")
+	}
+	if !strings.Contains(env.Content, "MEILI_MASTER_KEY="+strings.Repeat("ab", 32)+"\n") || env.Mode != 0o600 {
+		t.Errorf(".env must carry the generated key at 0600:\n%s (mode %o)", env.Content, env.Mode)
+	}
+}
+
+// The prod layout: everything external, behind an existing proxy network.
+func TestRenderInit_OperatorLayoutBehindProxy(t *testing.T) {
+	files, err := renderInit(initOptions{Media: "/srv/media", Port: 9091, Version: "beta", Domain: "media.example.com", BehindProxy: "proxy-net", ExternalPostgres: true, ExternalMeili: true}, fixedSecret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compose := fileByName(t, files, "docker-compose.yml").Content
+	for _, svc := range []string{"  evey:\n", "  postgres:\n", "  meilisearch:\n", "  caddy:\n"} {
+		if strings.Count(compose, svc) != 1 {
+			t.Errorf("expected exactly one %q service", strings.TrimSpace(svc))
+		}
+	}
+	env := fileByName(t, files, ".env").Content
+	if strings.Contains(env, "generate") {
+		t.Errorf("with everything external no secret is generated at boot, the note must not claim so:\n%s", env)
+	}
+}

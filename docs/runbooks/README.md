@@ -7,6 +7,8 @@ Operational playbooks for running Evey in production (or a serious home lab).
 - [cli.md](cli.md) - `evey admin` operator CLI reference (migrate, reset-password, rotate-jwt-key, restore-backup, reindex-search) + standalone dev/QA binaries.
 - [migration-runbook.md](migration-runbook.md) - applying, rolling back, and recovering from database migrations.
 - [incident-runbook.md](incident-runbook.md) - first-response diagnostics for common outages (server down, auth broken, transcode fail, DB/Meili issues, cache full, plugin crash, WSL git corruption).
+- [release.md](release.md) - what CI publishes for a branch, a pre-release tag and a stable tag; how to cut one; why operators pin `sha-`/release tags, never a branch.
+- `scripts/evey-update.sh` / `scripts/evey-rollback.sh` - host-side update and rollback, dry-run by default (see `docs/installation.md` § 4).
 
 ## When to use which
 
@@ -14,7 +16,9 @@ Operational playbooks for running Evey in production (or a serious home lab).
 |---|---|
 | Looking up an `evey admin` subcommand or invocation pattern | `cli.md` |
 | `make migrate-up` / `make migrate-down` / `make migrate-version` | `cli.md` → migrate |
+| Updating an install (any layout) | `scripts/evey-update.sh --apply` (`installation.md` § 4) |
 | Deploying a new Evey version that changes schema | `migration-runbook.md` |
+| Tagging a beta or a release | `release.md` |
 | `schema_migrations.dirty = true` after a crashed upgrade | `migration-runbook.md` → Recovery |
 | Planning a large `ALTER`, `DROP COLUMN`, or FK addition | `migration-runbook.md` → Special cases |
 | `/healthz` failing, container restart loop, Caddy 502 | `incident-runbook.md` → §1 |

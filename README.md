@@ -68,7 +68,12 @@ working unchanged, `EVEY_DB_HOST` is what selects it).
 docker compose pull && docker compose up -d
 ```
 
-Pin a specific version by setting `EVEY_VERSION` in `.env` (e.g. `v0.1.0-beta.1`, `beta-0.0.1`).
+For a repeatable procedure (state, pre-update dump, pull, wait for health,
+verify the running commit, rollback line ready) use
+[`scripts/evey-update.sh`](scripts/evey-update.sh) next to your compose file:
+`scripts/evey-update.sh --apply`. Pin what you run with `EVEY_VERSION` in
+`.env` - a release tag (`0.2.0-beta.1`) or an immutable `sha-<short>` tag,
+not a branch name, which moves with every push.
 
 ## HTTPS
 

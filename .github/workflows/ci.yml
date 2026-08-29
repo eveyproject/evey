@@ -298,6 +298,7 @@ jobs:
       # Tag strategy:
       # - push to master/main       → `master`  + `sha-<short>`
       # - push git tag vX.Y.Z       → `X.Y.Z`   + `X.Y` + `X` + `latest` + `sha-<short>`
+      # - push git tag vX.Y.Z-beta.N → `X.Y.Z-beta.N` + `sha-<short>` (no `latest`, no X.Y)
       # `latest` is gated on vX.Y.Z tags only so it always means "latest
       # semver release", never "last commit on master that happened to build".
       #
@@ -319,7 +320,11 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
             type=sha,prefix=sha-,format=short
-            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+            # `latest` = the newest STABLE release only. A pre-release tag
+            # (v0.1.0-beta.1, v1.0.0-rc.2 - anything with a hyphen) publishes its
+            # own version tag and leaves `latest` alone, so a closed-beta cut can
+            # never land on the operators who track `latest`.
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-') }}
           flavor: |
             suffix=${{ matrix.runtime.suffix }},onlatest=true
 
