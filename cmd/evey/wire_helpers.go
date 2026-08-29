@@ -51,8 +51,29 @@ func startWatcher(ctx context.Context, cfg *config.Config, bus shared.EventBus, 
 }
 
 func resolveAPIKey(ctx context.Context, cfgRepo shared.ServerConfigRepository, dbKey, envVar string) string {
-	if entry, err := cfgRepo.Get(ctx, dbKey); err == nil && entry.Value != "" {
-		return entry.Value
+	return resolveAPIKeyWithBuiltin(ctx, cfgRepo, dbKey, envVar, "")
+}
+
+// builtinTMDBKey is the TMDB read token migration 000154 seeds into
+// server_config so a fresh install fetches metadata before anyone owns a TMDB
+// account. It must stay byte-identical to the migration (a test reads the
+// file): it is how resolveAPIKeyWithBuiltin tells "still the default" from
+// "an admin's own key".
+const builtinTMDBKey = "eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI0OTdmMDk2NTBlOTlkNGJjZmM0NDE1NjNiYWVmY2NlYiIsIm5iZiI6MTU4NjUxMTg0NS40MTI5OTk5LCJzdWIiOiI1ZTkwM2ZlNWU2NDBkNjAwMWIxZjIzODMiLCJzY29wZXMiOlsiYXBpX3JlYWQiXSwidmVyc2lvbiI6MX0.nG3dwy0jKg2LKxyjipQScOocwA3pEyj2N8qXkI1V51Q"
+
+// resolveAPIKeyWithBuiltin is resolveAPIKey for a key the database may hold
+// as a SHIPPED default: an admin's own value in server_config wins; a
+// non-empty env var wins over an empty row OR over the built-in default (and
+// is seeded, so it shows in the panel); the built-in default comes last. A
+// migration-seeded default must never make an operator's EVEY_*_API_KEY
+// silently inert on first boot, which the plain "row wins" rule would do.
+func resolveAPIKeyWithBuiltin(ctx context.Context, cfgRepo shared.ServerConfigRepository, dbKey, envVar, builtin string) string {
+	stored := ""
+	if entry, err := cfgRepo.Get(ctx, dbKey); err == nil {
+		stored = entry.Value
+	}
+	if stored != "" && stored != builtin {
+		return stored
 	}
 	if v := os.Getenv(envVar); v != "" {
 		if setErr := cfgRepo.Set(ctx, dbKey, v); setErr != nil {
@@ -60,7 +81,7 @@ func resolveAPIKey(ctx context.Context, cfgRepo shared.ServerConfigRepository, d
 		}
 		return v
 	}
-	return ""
+	return stored
 }
 
 // resolveFlag returns the effective value of an operational (non-secret) flag:

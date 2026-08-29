@@ -195,10 +195,12 @@ func renderInit(o initOptions, secret func() (string, error)) ([]initFile, error
 		b.WriteString("      EVEY_MEILI_URL: http://meilisearch:7700\n")
 	}
 	if proxied || o.ExternalPostgres || o.ExternalMeili {
-		b.WriteString("      # Optional first-boot seeds (then managed in Admin -> Server config -> API keys):\n")
+		b.WriteString("      # Optional first-boot seeds (then managed in Admin -> Server config -> API keys;\n")
+		b.WriteString("      # TMDB works out of the box with a built-in key, set yours to replace it):\n")
 		b.WriteString("      # EVEY_TMDB_API_KEY: \"\"\n      # EVEY_OMDB_API_KEY: \"\"\n")
 	} else {
-		b.WriteString("    #   # Optional first-boot seeds (then managed in Admin -> Server config -> API keys):\n")
+		b.WriteString("    #   # Optional first-boot seeds (then managed in Admin -> Server config -> API keys;\n")
+		b.WriteString("    #   # TMDB works out of the box with a built-in key, set yours to replace it):\n")
 		b.WriteString("    #   EVEY_TMDB_API_KEY: \"\"\n    #   EVEY_OMDB_API_KEY: \"\"\n")
 	}
 	withEnvFile := o.ExternalPostgres || o.ExternalMeili

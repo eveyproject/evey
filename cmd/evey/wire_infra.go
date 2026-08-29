@@ -126,7 +126,7 @@ func buildInfra(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog *sl
 			DialContext:         (&net.Dialer{Timeout: 10 * time.Second}).DialContext,
 		},
 	}
-	tmdbKey := resolveAPIKey(ctx, r.ServerCfg, "api.tmdb_key", "EVEY_TMDB_API_KEY")
+	tmdbKey := resolveAPIKeyWithBuiltin(ctx, r.ServerCfg, "api.tmdb_key", "EVEY_TMDB_API_KEY", builtinTMDBKey)
 	serverCfgForLang := r.ServerCfg
 	defaultLang := cfg.Metadata.Language
 	// Resolution order: metadata.language override → server.language (hydrates

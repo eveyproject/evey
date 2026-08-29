@@ -16,6 +16,9 @@ line - earlier history lives in git.
   gravityz/evey init --media /path`, with `--domain` (bundled Caddy, automatic
   HTTPS), `--behind-proxy <network>` (an existing proxy owns TLS),
   `--external-postgres` / `--external-meili`.
+- TMDB metadata works out of the box: a built-in read token is seeded as the
+  default; an admin's own key (panel or `EVEY_TMDB_API_KEY`) replaces it. The
+  other provider keys appear in the panel from the first boot, empty.
 - `scripts/evey-update.sh`: repeatable host-side update (pre-update dump,
   pull, health wait, commit check, rollback line), twin of
   `scripts/evey-rollback.sh`.
