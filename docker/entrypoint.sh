@@ -23,14 +23,12 @@
 set -eu
 
 # ── Subcommands that need no service ─────────────────────────────────────
-# `docker run --rm gravityz/evey init --media /path` writes a compose file for
-# the operator; `version` identifies the image. Neither needs Postgres, Meili,
-# or the privilege drop: init deliberately runs as root so it can hand the
-# generated files to the owner of the mounted output directory (it chowns them
-# itself). Every other invocation (the server, `admin ...`) goes through the
-# full boot below so an embedded database is up when the command runs.
+# `docker run --rm gravityz/evey version` identifies the image without
+# Postgres, Meili or the privilege drop. Every other invocation (the server,
+# `admin ...`) goes through the full boot below so an embedded database is up
+# when the command runs.
 case "${1:-}" in
-    init|version|--version|-v)
+    version|--version|-v)
         exec /evey "$@" ;;
 esac
 

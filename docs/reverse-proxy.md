@@ -115,8 +115,7 @@ a Traefik on a shared Docker network), **no Caddy is needed**: Evey emits its
 own security headers and a complete CSP, and the streaming rules can only be
 enforced by the proxy that faces the client anyway - a second proxy behind it
 adds nothing. Put the evey service on that proxy's network and target
-`evey-server:9091` (`evey init --behind-proxy <network> --domain <name>`
-writes exactly this):
+`evey-server:9091`:
 
 ```yaml
 services:

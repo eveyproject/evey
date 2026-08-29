@@ -18,7 +18,7 @@ the exhaustive reference if you need one.
 ## Must Set
 
 Nothing, for the default install: the media path and the image tag are on the
-compose file itself (`evey init` writes it), and there is no `.env`. The
+compose file itself, and there is no `.env`. The
 repository's own `docker-compose.yml` reads `MEDIA_DIR` from `.env` instead:
 
 ```env

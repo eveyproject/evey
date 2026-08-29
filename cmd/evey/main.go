@@ -3,8 +3,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"errors"
-	"flag"
 	"fmt"
 	"log/slog"
 	"net"
@@ -32,17 +30,6 @@ func main() {
 	if len(os.Args) > 1 && (os.Args[1] == "version" || os.Args[1] == "--version" || os.Args[1] == "-v") {
 		b := buildID()
 		fmt.Printf("evey %s\ncommit     %s\nbuilt      %s\n", b.Version, b.Commit, b.BuildDate)
-		return
-	}
-	// `evey init` writes a compose file for a new install - no config, no DB.
-	if len(os.Args) > 1 && os.Args[1] == "init" {
-		if err := runInit(os.Args[2:], os.Stdout); err != nil {
-			if errors.Is(err, flag.ErrHelp) {
-				return
-			}
-			fmt.Fprintf(os.Stderr, "init: %v\n", err)
-			os.Exit(1)
-		}
 		return
 	}
 	if len(os.Args) > 1 && os.Args[1] == "admin" {

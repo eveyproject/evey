@@ -10,22 +10,9 @@ Brand assets (logo, favicon, social images) live in [`evey-brand/`](evey-brand/)
 
 ## Install
 
-One container, one file, no secret to invent. Let the image write it:
+One container, one file, no secret to invent. Save this as
+`docker-compose.yml` with your media path, then `docker compose up -d`:
 
-```bash
-mkdir evey && cd evey
-docker run --rm -v "$PWD":/out gravityz/evey init --media /path/to/your/media
-docker compose up -d
-```
-
-Open `http://<your-ip>:9091`, create your account, add a library. Postgres and
-Meilisearch run inside the container and generate their own secrets on first
-start (kept in `./evey-data/keys`, next to the JWT signing key - keep that
-directory safe). Migrations run automatically.
-
-Prefer to paste the file yourself? This is the whole of it (no `.env`):
-
-**`docker-compose.yml`**
 ```yaml
 services:
   evey:
@@ -44,10 +31,17 @@ volumes:
   evey-cache:
 ```
 
-`evey init --domain media.example.com` adds the bundled Caddy reverse proxy
-with automatic HTTPS; `--external-postgres` keeps the database as a separate
-compose service (the layout earlier releases used - existing installs keep
-working unchanged, `EVEY_DB_HOST` is what selects it).
+Open `http://<your-ip>:9091`, create your account, add a library. Postgres and
+Meilisearch run inside the container and generate their own secrets on first
+start (kept in `./evey-data/keys`, next to the JWT signing key - keep that
+directory safe). Migrations run automatically. No `.env`.
+
+A second media folder is one more line (`- /other/path:/media2`). Behind a
+reverse proxy you already run, or with HTTPS, or with Postgres as its own
+service: the three-line changes are in
+[docs/installation.md](docs/installation.md). Installs from before the
+embedded database keep working unchanged - `EVEY_DB_HOST` being set is what
+keeps their own Postgres in charge.
 
 > **ARM (Raspberry Pi, ARM NAS)?** Stable `vX.Y.Z` releases ship a multi-arch
 > image (amd64 + arm64) - the same `docker pull` works, but ARM has no hardware
@@ -71,10 +65,10 @@ branch name, which moves with every push.
 
 ## HTTPS
 
-Evey serves plain HTTP on 9091. `evey init --domain media.example.com` writes a
-Caddy service that obtains a Let's Encrypt certificate for you; with your own
-proxy (Nginx, Traefik, Nginx Proxy Manager) see
-[docs/reverse-proxy.md](docs/reverse-proxy.md) for ready-to-use configs.
+Evey serves plain HTTP on 9091. Put your reverse proxy in front (Nginx Proxy
+Manager, Traefik, Nginx, Caddy): [docs/reverse-proxy.md](docs/reverse-proxy.md)
+has the settings for each, and a bundled Caddy block that obtains a Let's
+Encrypt certificate for you if you have no proxy yet.
 
 ## Configuration
 
@@ -92,7 +86,7 @@ Full reference: [docs/configuration.md](docs/configuration.md)
 |--------|--------------|-------------------|
 | `evey-data` | Database (`postgres/`), JWT key + generated secrets (`keys/`), logs, backups, plugins, search index | No - you lose your data and your signing key |
 | `evey-cache` | Transcode + trickplay cache | Yes - regenerated on demand |
-| `postgres-data` | Database, only with `--external-postgres` | No - you lose all data |
+| `postgres-data` | Database, only when Postgres runs as its own service | No - you lose all data |
 
 The embedded Meilisearch index lives under `evey-data` and is rebuilt from the
 database on the next scan if lost. If you run the bundled Caddy reverse proxy,

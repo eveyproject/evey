@@ -12,10 +12,6 @@ line - earlier history lives in git.
   generates their secrets on first boot; `.env` needs only `MEDIA_DIR`.
   Existing installs with their own Postgres (`EVEY_DB_HOST` set) are
   unchanged.
-- `evey init` writes a ready compose file: `docker run --rm -v "$PWD":/out
-  gravityz/evey init --media /path`, with `--domain` (bundled Caddy, automatic
-  HTTPS), `--behind-proxy <network>` (an existing proxy owns TLS),
-  `--external-postgres` / `--external-meili`.
 - TMDB metadata works out of the box: a built-in read token is seeded as the
   default; an admin's own key (panel or `EVEY_TMDB_API_KEY`) replaces it. The
   other provider keys appear in the panel from the first boot, empty.

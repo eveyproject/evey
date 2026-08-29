@@ -52,22 +52,7 @@ bits behind `TARGETARCH`.
 **Default layout: one service.** The evey image serves the API + web UI on one
 port **and** runs both Postgres and Meilisearch embedded - spawned by the
 entrypoint as the non-root server user, loopback-only, their secrets generated
-on first boot into `./evey-data/keys`. Let the image write the files:
-
-```bash
-mkdir evey && cd evey
-docker run --rm -v "$PWD":/out gravityz/evey init --media /path/to/your/media
-```
-
-`evey init` writes one `docker-compose.yml` (owned by you, not root) - no
-`.env`. Flags: `--port 9091` (host port), `--domain media.example.com` (adds
-the Caddy reverse proxy with automatic HTTPS and a `Caddyfile`),
-`--behind-proxy <network>` (you already run a proxy that owns TLS - the server
-joins its network as `evey-server:9091`, nothing published, no Caddy; see
-[reverse-proxy.md](reverse-proxy.md)),
-`--external-postgres` / `--external-meili` (the operator layout below; the
-shared secrets then go to a `.env`), `--version 0.2.0-beta.1` (pin a tag),
-`--force` (overwrite). Or paste the equivalent by hand:
+on first boot into `./evey-data/keys`. One `docker-compose.yml`, no `.env`:
 
 ```yaml
 services:
@@ -92,6 +77,32 @@ services:
 volumes:
   evey-cache:
 ```
+
+**Variations, each a few lines on that file:**
+
+- *A second media folder*: add `- /other/path:/media2` under `volumes:`
+  (`/media3`, ... likewise). Mount them read-write, see the comment above.
+- *Behind a reverse proxy you already run* (Nginx Proxy Manager, Traefik, ...
+  on a Docker network): remove `ports:`, join the proxy's network and tell the
+  server its public URL and which peer to trust:
+  ```yaml
+  services:
+    evey:
+      environment:
+        EVEY_SERVER_BASE_URL: https://media.example.com
+        EVEY_TRUSTED_PROXIES: 172.16.0.0/12     # narrow to the proxy's subnet once known
+        EVEY_FORWARDED_PROTO: "true"
+  networks:
+    default:
+      name: proxy-net        # the network your proxy is on
+      external: true
+  ```
+  The proxy then targets `evey-server:9091`. Settings per proxy:
+  [reverse-proxy.md](reverse-proxy.md).
+- *HTTPS with no proxy yet*: add the bundled Caddy service from
+  [reverse-proxy.md](reverse-proxy.md) (automatic Let's Encrypt certificate).
+- *Postgres or Meilisearch as their own services*: the operator layout
+  below.
 
 Keep the environment **minimal** - only secrets you bring yourself, the DB
 connection when external, storage paths, and reverse-proxy facts belong in the
@@ -122,10 +133,8 @@ docker exec -it evey-server sh -c 'PGPASSWORD=$(cat /data/keys/postgres.password
 
 Operators who want the database lifecycle in their own hands (a managed
 Postgres, pinned major version, separate volume, dump+restore on their terms)
-run it as a sibling service. `evey init --external-postgres` writes this
-layout with a generated password; by hand, add the service and point the
-server at it - **`EVEY_DB_HOST` being set is what turns the embedded database
-off**, which is why every install from before the embedded database keeps
+run it as a sibling service: add the service and point the server at it -
+**`EVEY_DB_HOST` being set is what turns the embedded database off**, which is why every install from before the embedded database keeps
 working untouched:
 
 ```yaml
@@ -282,10 +291,10 @@ only if you accept losing them.
 
 ## 3. Reverse proxy (HTTPS)
 
-Evey serves plain HTTP on 9091. `evey init --domain media.example.com` adds a
-Caddy service that obtains a Let's Encrypt certificate and sets the proxy facts
-in `.env` for you (ports 80/443 must reach the host). With your own proxy
-(Nginx, Traefik, Nginx Proxy Manager): set `EVEY_SERVER_BASE_URL` to your public
+Evey serves plain HTTP on 9091. With no proxy yet, the bundled Caddy service
+in [reverse-proxy.md](reverse-proxy.md) obtains a Let's Encrypt certificate
+for you (ports 80/443 must reach the host). With your own proxy (Nginx,
+Traefik, Nginx Proxy Manager): set `EVEY_SERVER_BASE_URL` to your public
 URL and trust the proxy with `EVEY_TRUSTED_PROXIES` + `EVEY_FORWARDED_PROTO=true`.
 Streaming endpoints need buffering disabled and no timeout - the ready-made
 configs handle this. Full setups: [reverse-proxy.md](reverse-proxy.md).
@@ -352,13 +361,10 @@ docker compose exec -T postgres pg_dump -U evey --no-owner --no-privileges evey 
   | gzip > evey-data/postgres-import.sql.gz
 docker compose down
 
-# 2. write the new compose (keep a copy of the old one), e.g. behind an existing proxy:
-docker run --rm -v "$PWD":/out gravityz/evey init --force \
-  --media /mnt/disk_1/movies --media /mnt/disk_2/movies \
-  --domain media.example.com --behind-proxy proxy-net
-#    then re-add by hand what init does not know: hardware transcoding
-#    (`devices: /dev/dri`, `group_add`, LIBVA_DRIVER_NAME - see transcoding.md)
-#    and any EVEY_* you had set in `environment:`.
+# 2. write the new compose (keep a copy of the old one): the single-service
+#    file from section 1, with your variations (extra media folders, the
+#    proxy block) and whatever you had in `environment:` (hardware
+#    transcoding: `devices: /dev/dri`, `group_add`, LIBVA_DRIVER_NAME).
 
 # 3. first boot: initdb, import, migrations, then the server
 docker compose up -d && docker compose logs -f evey     # "evey: import done"
