@@ -159,13 +159,45 @@ services:
 EVEY_DB_PASSWORD=<strong-password>   # must NOT be the default 'evey' - the server refuses to start otherwise
 ```
 
-> **External Meilisearch** (a shared search cluster, or Meili on dedicated
-> hardware): set `EVEY_EMBEDDED_MEILI=false`, `EVEY_MEILI_URL=http://<host>:7700`
-> and `MEILI_MASTER_KEY=<its key>`, then run Meilisearch yourself. Give its
-> container a non-root `user:` and a `mem_limit` - the official image runs as
-> root and its resident set (memory-mapped index) looks large but is mostly
-> reclaimable page cache. Embedded, the master key is generated for you
-> (`./evey-data/keys/meili.key`); an explicit `MEILI_MASTER_KEY` always wins.
+**External Meilisearch, same idea.** A separate search container keeps its
+own lifecycle and volume (and lets you `docker compose restart meilisearch` to
+reset just the index). Turn the embedded one off, point the server at it, and
+share the key - an explicit `MEILI_MASTER_KEY` always wins over the generated
+`./evey-data/keys/meili.key`:
+
+```yaml
+services:
+  evey:
+    # ... plus:
+    environment:
+      EVEY_EMBEDDED_MEILI: "false"
+      EVEY_MEILI_URL: http://meilisearch:7700
+    depends_on:
+      meilisearch: { condition: service_healthy }
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.12
+    container_name: evey-meilisearch
+    environment:
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:?MEILI_MASTER_KEY must be set in .env}
+      MEILI_NO_ANALYTICS: "true"
+    volumes:
+      - ./meili-data:/meili_data
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:7700/health"]
+      interval: 5s
+      retries: 5
+    restart: unless-stopped
+```
+
+```env
+MEILI_MASTER_KEY=<run: openssl rand -hex 16>
+```
+
+Give that container a non-root `user:` and a `mem_limit` if you can - the
+official image runs as root and its resident set (memory-mapped index) looks
+large but is mostly reclaimable page cache. The index is rebuilt from Postgres
+(`evey admin reindex-search`), so `meili-data` is expendable either way.
 
 Only these env vars are infra/secret and **belong in compose/.env** - they are
 never admin-editable: `EVEY_DB_PASSWORD`, `MEILI_MASTER_KEY`, `EVEY_DB_HOST`,

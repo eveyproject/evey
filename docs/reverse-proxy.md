@@ -93,6 +93,36 @@ headers/CSP from the section above (and strips the app's own CSP so exactly
 one reaches the browser). Add a `caddy` service to your compose (see the
 `caddy` service in the repo [`docker-compose.yml`](../docker-compose.yml)).
 
+### Caddy behind another proxy (TLS terminated upstream)
+
+On a NAS that already runs a reverse proxy (the vendor's, Nginx Proxy Manager,
+a Traefik on a shared Docker network), keep Caddy only for what that proxy
+cannot do well - the streaming timeouts and the curated CSP - and let the
+upstream own TLS. Three changes to the bundled Caddyfile: turn automatic HTTPS
+off, serve plain `:80`, and trust the upstream so the real client address
+survives the hop (the remote-access gate depends on it, see below):
+
+```caddyfile
+{
+	auto_https off
+	servers {
+		trusted_proxies static private_ranges
+	}
+}
+
+:80 {
+	# ... the `encode`, `header` and `handle` blocks of docker/Caddyfile, unchanged
+}
+```
+
+In compose the service then publishes nothing (`expose: ["80"]`), joins the
+proxy's network (`networks: default: { name: proxy-net, external: true }`),
+and the upstream proxy targets `evey-caddy:80`. The server side is the usual
+proxy trio in `.env`: `EVEY_SERVER_BASE_URL=https://<your domain>`,
+`EVEY_TRUSTED_PROXIES=172.16.0.0/12`, `EVEY_FORWARDED_PROTO=true`. Since
+`private_ranges` trusts every RFC1918 peer, scope it to the upstream's subnet
+once you know it.
+
 ## Nginx
 
 Use [`examples/nginx/evey.conf.template`](../examples/nginx/evey.conf.template)
