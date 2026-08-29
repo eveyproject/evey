@@ -233,9 +233,22 @@ RUN sed -i 's/Components: main/Components: main contrib non-free non-free-firmwa
 # EVEY_PLUGINS_COSIGN_POLICY is warn/enforce (copied from the official image
 # below - Debian doesn't package it). Without it, enforce fails closed and blocks
 # EVERY install (the verifier shells out to `cosign verify-blob`).
-RUN apt-get update && apt-get install -y --no-install-recommends \
+#
+# postgresql-17 is the EMBEDDED database (entrypoint: EVEY_EMBEDDED_POSTGRES),
+# the same major as the client already shipped for backups. Debian's package
+# would create and start a "main" cluster under /var/lib/postgresql at install
+# time; postgresql-common's createcluster.conf is flipped first so nothing is
+# created - the entrypoint runs initdb itself into /data/postgres, as the
+# unprivileged evey user, on first boot. Only the server binaries are wanted
+# here (~50 MB): the image stays usable with an external database exactly as
+# before, the operator just sets EVEY_DB_HOST.
+RUN apt-get update && apt-get install -y --no-install-recommends postgresql-common \
+    && sed -i 's/^#\?create_main_cluster = .*/create_main_cluster = false/' \
+         /etc/postgresql-common/createcluster.conf \
+    && grep -q '^create_main_cluster = false' /etc/postgresql-common/createcluster.conf \
+    && apt-get install -y --no-install-recommends \
        ca-certificates curl ffmpeg bubblewrap libcap2-bin libchromaprint-tools \
-       postgresql-client-17 unzip wget python3 \
+       postgresql-client-17 postgresql-17 unzip wget python3 \
        vainfo libva2 libva-drm2 mesa-va-drivers \
     # Intel VAAPI/QSV drivers (iHD/i965 + oneVPL) are x86-only - no arm64 package
     # exists in the archive, so install them only on amd64. On arm64 the host's
@@ -253,7 +266,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
          apt-get install -y --no-install-recommends php-cli ruby lua5.4 \
          && ([ -e /usr/bin/lua ] || ln -sf /usr/bin/lua5.4 /usr/bin/lua); \
        fi \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    # No cluster may exist in the image: the data lives in the /data volume.
+    && ! ls /var/lib/postgresql/17/main >/dev/null 2>&1 \
+    && /usr/lib/postgresql/17/bin/postgres --version \
+    && /usr/lib/postgresql/17/bin/initdb --version >/dev/null
 
 # cosign - Debian has no apt package; ride the official ko-built image (pinned).
 COPY --from=gcr.io/projectsigstore/cosign:v2.4.1 /ko-app/cosign /usr/local/bin/cosign
@@ -298,7 +315,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends gnupg \
 RUN groupadd -g 1000 evey \
     && useradd -u 1000 -g evey -m -s /usr/sbin/nologin evey \
     && useradd -u 1001 -g evey -m -s /usr/sbin/nologin evey-plugin \
-    && mkdir -p /data/transcoding /data/logs /data/plugins /data/keys /data/meili /data/backups /srv /cache \
+    && mkdir -p /data/transcoding /data/logs /data/plugins /data/keys /data/meili /data/postgres /data/backups /srv /cache \
     && chown -R evey:evey /data /cache \
     # The SERVER owns /data/plugins: it extracts uploaded plugins there
     # (evey-plugin ownership denied it mkdir and let a plugin tamper with its
@@ -308,7 +325,16 @@ RUN groupadd -g 1000 evey \
     # Owner-only (no group/other): with the plugin dropped to uid 1001, plain
     # DAC keeps these secret-bearing dirs unreadable to plugins even without
     # Landlock. jwt.key is already 0600; this covers backups (full DB) + logs.
-    && chmod 700 /data/keys /data/logs /data/backups
+    && chmod 700 /data/keys /data/logs /data/backups /data/postgres
+
+# Secrets the image generates on first boot (entrypoint) live under /data/keys;
+# the server reads them through these *_FILE variables when the plain variable
+# is unset (config.go envSecret). Baked into the image, not exported by the
+# entrypoint, so `docker exec evey-server evey admin ...` finds the same
+# database password the server uses. An explicit EVEY_DB_PASSWORD /
+# MEILI_MASTER_KEY in compose always takes precedence over the file.
+ENV EVEY_DB_PASSWORD_FILE=/data/keys/postgres.password \
+    MEILI_MASTER_KEY_FILE=/data/keys/meili.key
 
 COPY --from=builder /evey /evey
 COPY --from=builder /evey-plugin-launcher /evey-plugin-launcher

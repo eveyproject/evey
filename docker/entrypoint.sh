@@ -1,18 +1,38 @@
 #!/bin/sh
-# entrypoint for the evey image - supervises an embedded Meilisearch when
-# requested, then execs the server. Designed to be PID 1 so signals flow
-# through to both processes.
+# entrypoint for the evey image - supervises the embedded services (Postgres,
+# Meilisearch) when requested, then runs the server. Designed to be PID 1 so
+# signals flow through to every process.
 #
-#   EVEY_EMBEDDED_MEILI=true   (default) → spawn meilisearch as a child,
-#                                          wait for /health, then exec evey
-#   EVEY_EMBEDDED_MEILI=false           → trust EVEY_MEILI_URL (must be set
-#                                          to an external instance)
+#   EVEY_EMBEDDED_POSTGRES  unset (default) → embedded when EVEY_DB_HOST is
+#                                             unset, external otherwise
+#                           true / false    → explicit
+#   EVEY_EMBEDDED_MEILI=true   (default)    → spawn meilisearch as a child,
+#                                             wait for /health, then run evey
+#   EVEY_EMBEDDED_MEILI=false               → trust EVEY_MEILI_URL (must be set
+#                                             to an external instance)
 #
-# When embedded, MEILI_MASTER_KEY is required so the index isn't reachable
-# from anyone with /data write access (volume backups + co-tenant). The
-# entrypoint exits 1 if it's missing in embedded mode.
+# Secrets the image owns are generated on first boot and persisted under
+# /data/keys (0600): the embedded Postgres password and the embedded
+# Meilisearch master key. An explicit EVEY_DB_PASSWORD / MEILI_MASTER_KEY in
+# the environment always wins, so an operator bringing their own database or
+# search cluster configures it exactly as before. The server reads the files
+# through EVEY_DB_PASSWORD_FILE / MEILI_MASTER_KEY_FILE (baked into the image),
+# which is what makes `docker exec evey-server evey admin ...` work without
+# the entrypoint's environment.
 
 set -eu
+
+# ── Subcommands that need no service ─────────────────────────────────────
+# `docker run --rm gravityz/evey init --media /path` writes a compose file for
+# the operator; `version` identifies the image. Neither needs Postgres, Meili,
+# or the privilege drop: init deliberately runs as root so it can hand the
+# generated files to the owner of the mounted output directory (it chowns them
+# itself). Every other invocation (the server, `admin ...`) goes through the
+# full boot below so an embedded database is up when the command runs.
+case "${1:-}" in
+    init|version|--version|-v)
+        exec /evey "$@" ;;
+esac
 
 # ── PUID/PGID (linuxserver.io pattern) ────────────────────────────────────
 # The container starts as root ONLY long enough to re-map the 'evey' user to
@@ -156,12 +176,151 @@ fi
 # so no cgroup delegation and no privileged init step is needed. A plugin
 # compromise lands as the separate evey-plugin uid.
 
+# ── Generated secrets ────────────────────────────────────────────────────
+# ensure_secret <file> <label>: print the secret stored at <file>, creating a
+# 64-hex-char one (0600, atomic rename) when the file is absent or empty. The
+# keys dir is owner-only: with plugins dropped to uid 1001, plain DAC keeps
+# these unreadable to them even without Landlock (same posture as jwt.key).
+KEYS_DIR=/data/keys
+ensure_secret() {
+    if [ ! -s "$1" ]; then
+        mkdir -p "$KEYS_DIR"
+        chmod 700 "$KEYS_DIR"
+        (umask 077; od -An -N32 -tx1 /dev/urandom | tr -d ' \n' > "$1.tmp" && mv "$1.tmp" "$1")
+        echo "evey: generated the $2 at $1 - keep /data/keys with the rest of /data" >&2
+    fi
+    cat "$1"
+}
+
+# ── Embedded Postgres ────────────────────────────────────────────────────
+# Default = embedded when the operator names no database host, so the
+# quick-start is ONE container with no secret to invent; every existing
+# compose (which sets EVEY_DB_HOST=postgres) keeps its external database
+# untouched. The cluster lives in /data/postgres, next to the JWT key and the
+# search index, so "back up ./evey-data" stays the whole story. It listens on
+# loopback only and asks a password over TCP (scram): any uid in the container
+# can reach 127.0.0.1:5432 - a plugin included - but only the server holds
+# the password. The boot-time admin work (role password, database creation)
+# goes over a unix socket in an owner-only directory, where no password is
+# needed and no other uid can connect.
+PG_BIN=/usr/lib/postgresql/17/bin
+PG_MAJOR=17
+PGDATA_DIR="${EVEY_POSTGRES_DATA_DIR:-/data/postgres}"
+PG_SOCKET_DIR=/tmp/evey-pg
+case "${EVEY_EMBEDDED_POSTGRES:-}" in
+    true|false) ;;
+    '')
+        if [ -z "${EVEY_DB_HOST:-}" ]; then EVEY_EMBEDDED_POSTGRES=true; else EVEY_EMBEDDED_POSTGRES=false; fi ;;
+    *)
+        echo "evey: EVEY_EMBEDDED_POSTGRES must be true or false (got '$EVEY_EMBEDDED_POSTGRES')" >&2
+        exit 1 ;;
+esac
+
+PG_PID=""
+if [ "$EVEY_EMBEDDED_POSTGRES" = "true" ]; then
+    case "${EVEY_DB_HOST:-127.0.0.1}" in
+        127.0.0.1|localhost|::1) ;;
+        *)
+            echo "evey: EVEY_EMBEDDED_POSTGRES=true but EVEY_DB_HOST='$EVEY_DB_HOST' points elsewhere - unset one of them (an external database wants EVEY_EMBEDDED_POSTGRES=false)" >&2
+            exit 1 ;;
+    esac
+    if [ ! -x "$PG_BIN/postgres" ]; then
+        echo "evey: this image ships no embedded Postgres ($PG_BIN/postgres missing) - set EVEY_DB_HOST to an external database" >&2
+        exit 1
+    fi
+    pg_user="${EVEY_DB_USER:-evey}"
+    pg_db="${EVEY_DB_NAME:-evey}"
+    pg_port="${EVEY_DB_PORT:-5432}"
+    pg_pass_file="${EVEY_DB_PASSWORD_FILE:-$KEYS_DIR/postgres.password}"
+    if [ -n "${EVEY_DB_PASSWORD:-}" ]; then
+        pg_pass="$EVEY_DB_PASSWORD"
+    else
+        pg_pass="$(ensure_secret "$pg_pass_file" "embedded Postgres password")"
+        export EVEY_DB_PASSWORD_FILE="$pg_pass_file"
+    fi
+
+    # A cluster written by another major version cannot be opened by this
+    # binary: refuse loudly with the way out, never let Postgres fail on an
+    # opaque catalogue error after a routine `compose pull`.
+    if [ -s "$PGDATA_DIR/PG_VERSION" ]; then
+        have="$(cat "$PGDATA_DIR/PG_VERSION")"
+        if [ "$have" != "$PG_MAJOR" ]; then
+            echo "evey: $PGDATA_DIR holds a Postgres $have cluster but this image ships Postgres $PG_MAJOR - dump it with the previous image, move the directory aside, then restore (docs/installation.md, 'Postgres major upgrade')" >&2
+            exit 1
+        fi
+    elif [ -d "$PGDATA_DIR" ] && [ -n "$(ls -A "$PGDATA_DIR" 2>/dev/null)" ]; then
+        echo "evey: $PGDATA_DIR is not empty and is not a Postgres cluster - move it aside or point EVEY_POSTGRES_DATA_DIR elsewhere" >&2
+        exit 1
+    else
+        echo "evey: initialising the embedded Postgres $PG_MAJOR cluster in $PGDATA_DIR"
+        mkdir -p "$PGDATA_DIR"
+        chmod 700 "$PGDATA_DIR"
+        # initdb needs the password in a file, never on the command line.
+        pwtmp="$(mktemp)"
+        chmod 600 "$pwtmp"
+        printf '%s\n' "$pg_pass" > "$pwtmp"
+        "$PG_BIN/initdb" -D "$PGDATA_DIR" -U "$pg_user" --pwfile="$pwtmp" \
+            --auth-local=trust --auth-host=scram-sha-256 \
+            --encoding=UTF8 --locale=C.UTF-8 >/dev/null
+        rm -f "$pwtmp"
+    fi
+
+    mkdir -p "$PG_SOCKET_DIR"
+    chmod 700 "$PG_SOCKET_DIR"
+    "$PG_BIN/postgres" -D "$PGDATA_DIR" \
+        -c listen_addresses=127.0.0.1 -c port="$pg_port" \
+        -c unix_socket_directories="$PG_SOCKET_DIR" \
+        -c log_min_messages=warning -c log_line_prefix='postgres: %m [%p] ' &
+    PG_PID=$!
+
+    # Up to 120s: a crash-recovery replay after an unclean stop can take a
+    # while on a slow disk, and a not-yet-ready database is not a failure.
+    i=0
+    # -d postgres: pg_isready opens a session named after the user by default,
+    # which logs a spurious FATAL before the evey database exists.
+    until "$PG_BIN/pg_isready" -q -h "$PG_SOCKET_DIR" -p "$pg_port" -d postgres 2>/dev/null; do
+        i=$((i + 1))
+        if [ "$i" -ge 240 ]; then
+            echo "evey: embedded Postgres did not become ready in 120s" >&2
+            kill -TERM "$PG_PID" 2>/dev/null || true
+            exit 1
+        fi
+        if ! kill -0 "$PG_PID" 2>/dev/null; then
+            echo "evey: embedded Postgres exited before becoming ready - check the postgres: lines above" >&2
+            exit 1
+        fi
+        sleep 0.5
+    done
+
+    # Idempotent every boot: the role password follows whatever the operator
+    # (or the keys file) says NOW, and the database exists. psql variables keep
+    # the values out of the SQL text (:'x' quotes a literal, :"x" an identifier).
+    "$PG_BIN/psql" -q -h "$PG_SOCKET_DIR" -p "$pg_port" -U "$pg_user" -d postgres \
+        -v ON_ERROR_STOP=1 -v u="$pg_user" -v pw="$pg_pass" -v db="$pg_db" <<'SQL'
+ALTER ROLE :"u" PASSWORD :'pw';
+SELECT format('CREATE DATABASE %I OWNER %I', :'db', :'u')
+WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = :'db') \gexec
+SQL
+
+    export EVEY_DB_HOST=127.0.0.1 EVEY_DB_PORT="$pg_port" EVEY_DB_SSLMODE=disable
+    echo "evey: embedded Postgres $PG_MAJOR ready on 127.0.0.1:$pg_port (data in $PGDATA_DIR)"
+fi
+
+# ── Embedded Meilisearch ─────────────────────────────────────────────────
 EVEY_EMBEDDED_MEILI="${EVEY_EMBEDDED_MEILI:-true}"
 
+MEILI_PID=""
 if [ "$EVEY_EMBEDDED_MEILI" = "true" ]; then
-    if [ -z "${MEILI_MASTER_KEY:-}" ]; then
-        echo "evey: MEILI_MASTER_KEY required when EVEY_EMBEDDED_MEILI=true (set to a long random secret)" >&2
-        exit 1
+    # The key protects an index reachable only on the container's loopback -
+    # an internal secret, so the image invents it (persisted next to the other
+    # keys) unless the operator brings one. The server reads the same file
+    # through MEILI_MASTER_KEY_FILE.
+    meili_key_file="${MEILI_MASTER_KEY_FILE:-$KEYS_DIR/meili.key}"
+    if [ -n "${MEILI_MASTER_KEY:-}" ]; then
+        meili_key="$MEILI_MASTER_KEY"
+    else
+        meili_key="$(ensure_secret "$meili_key_file" "embedded Meilisearch master key")"
+        export MEILI_MASTER_KEY_FILE="$meili_key_file"
     fi
 
     MEILI_DATA_DIR="${MEILI_DATA_DIR:-/data/meili}"
@@ -204,15 +363,10 @@ if [ "$EVEY_EMBEDDED_MEILI" = "true" ]; then
         --db-path "$MEILI_DATA_DIR" \
         --dump-dir "$MEILI_DATA_DIR/dumps" \
         --http-addr "127.0.0.1:7700" \
-        --master-key "$MEILI_MASTER_KEY" \
+        --master-key "$meili_key" \
         --env production \
         --no-analytics &
     MEILI_PID=$!
-
-    # Propagate SIGTERM/SIGINT to Meili so `docker stop` returns promptly.
-    # Once evey-server has been replaced by exec below, this trap is moot -
-    # signals go straight to evey, and Meili dies with the container.
-    trap 'kill -TERM "$MEILI_PID" 2>/dev/null || true; wait "$MEILI_PID" 2>/dev/null || true; exit 0' TERM INT
 
     # Wait up to 30s for Meili to answer /health. 0.5s × 60 polls.
     i=0
@@ -231,14 +385,52 @@ if [ "$EVEY_EMBEDDED_MEILI" = "true" ]; then
         sleep 0.5
     done
 
-    # evey reads MEILI_MASTER_KEY directly (see internal/config/config.go)
-    # so we only need to point the URL at the loopback instance - the key
-    # is already in the env, passed from docker-compose.
     export EVEY_MEILI_URL="http://127.0.0.1:7700"
     echo "evey: embedded Meilisearch ready on 127.0.0.1:7700"
 fi
 
-# Hand off to evey-server. PID 1 becomes evey; if it exits, the container
-# exits (and Docker restarts per restart policy). The embedded Meili is
-# tied to the same PID namespace so it dies with us.
-exec /evey
+# ── Hand off to evey ─────────────────────────────────────────────────────
+# Without an embedded database, PID 1 becomes evey (exec): if it exits, the
+# container exits and Docker restarts it; Meili shares the PID namespace and
+# dies with the container, which is harmless for an index rebuilt from the DB.
+#
+# With an embedded database, this script STAYS PID 1 as a small supervisor:
+# a database killed with the container replays its WAL on the next boot,
+# which is safe but slow and needless, so `docker stop` must reach Postgres as
+# an orderly fast shutdown AFTER the server has let go of its connections.
+# SIGTERM/SIGINT are forwarded to the server; when it exits (for any reason,
+# its exit code is the container's) the services are stopped in order.
+if [ -z "$PG_PID" ]; then
+    if [ -n "$MEILI_PID" ]; then
+        # Once exec below has replaced this shell the trap is moot - signals go
+        # straight to evey and Meili dies with the container.
+        trap 'kill -TERM "$MEILI_PID" 2>/dev/null || true; wait "$MEILI_PID" 2>/dev/null || true; exit 0' TERM INT
+    fi
+    exec /evey "$@"
+fi
+
+stop_services() {
+    if [ -n "$PG_PID" ] && kill -0 "$PG_PID" 2>/dev/null; then
+        "$PG_BIN/pg_ctl" -D "$PGDATA_DIR" -m fast -t 30 -s stop 2>/dev/null \
+            || kill -TERM "$PG_PID" 2>/dev/null || true
+        wait "$PG_PID" 2>/dev/null || true
+    fi
+    if [ -n "$MEILI_PID" ] && kill -0 "$MEILI_PID" 2>/dev/null; then
+        kill -TERM "$MEILI_PID" 2>/dev/null || true
+        wait "$MEILI_PID" 2>/dev/null || true
+    fi
+}
+
+/evey "$@" &
+EVEY_PID=$!
+trap 'kill -TERM "$EVEY_PID" 2>/dev/null || true' TERM INT
+rc=0
+# A trapped signal makes `wait` return early (128+signo) while the server is
+# still shutting down: wait again until it has really gone.
+while :; do
+    wait "$EVEY_PID" && rc=0 || rc=$?
+    kill -0 "$EVEY_PID" 2>/dev/null || break
+done
+trap - TERM INT
+stop_services
+exit "$rc"

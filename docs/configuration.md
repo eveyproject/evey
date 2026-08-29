@@ -18,10 +18,17 @@ the exhaustive reference if you need one.
 ## Must Set
 
 ```env
-EVEY_DB_PASSWORD=<strong-password>
-MEILI_MASTER_KEY=<run: openssl rand -hex 16>
 MEDIA_DIR=/path/to/your/media
 ```
+
+That is all for the default install: Postgres and Meilisearch run embedded in
+the container and generate their own secrets on first boot, stored under
+`./evey-data/keys` (`postgres.password`, `meili.key`, 0600). The server reads
+them through `EVEY_DB_PASSWORD_FILE` / `MEILI_MASTER_KEY_FILE` (baked into the
+image), which is also why `docker exec evey-server evey admin ...` needs no
+password on the command line. Set `EVEY_DB_PASSWORD` / `MEILI_MASTER_KEY`
+explicitly only when you bring your own database or search engine - an explicit
+value always wins over the file.
 
 ## File ownership (PUID/PGID)
 
@@ -91,16 +98,25 @@ EVEY_VERSION=latest                    # Docker image tag (latest, v0.1.0-beta.1
 
 ### Database
 ```env
-EVEY_DB_HOST=postgres                 # DB hostname; the bundled compose service is `postgres`
-EVEY_DB_PORT=5432
+# Embedded (default when EVEY_DB_HOST is unset): Postgres 17 inside the container.
+EVEY_EMBEDDED_POSTGRES=            # true | false; unset = embedded iff EVEY_DB_HOST is unset
+EVEY_POSTGRES_DATA_DIR=/data/postgres   # cluster location inside the container (under ./evey-data)
 EVEY_DB_USER=evey
-EVEY_DB_PASSWORD=changeme
 EVEY_DB_NAME=evey
-EVEY_DB_SSLMODE=prefer                # default (works with the bundled Postgres); or disable | require | verify-full
-POSTGRES_DATA_DIR=~/.evey/postgres-data
+EVEY_DB_PASSWORD=                  # unset = generated on first boot into /data/keys/postgres.password
+EVEY_DB_PASSWORD_FILE=/data/keys/postgres.password   # read when EVEY_DB_PASSWORD is unset (image default)
+
+# External: set the host and the secret, the embedded one stays off.
+EVEY_DB_HOST=postgres              # the repository compose's sibling service is `postgres`
+EVEY_DB_PORT=5432
+EVEY_DB_PASSWORD=changeme
+EVEY_DB_SSLMODE=prefer             # or disable | require | verify-full
 ```
 
-Migrations run automatically on startup.
+The embedded Postgres listens on the container's loopback only and asks a
+password over TCP; the generated one is what the server (and `evey admin`) use.
+Its data directory must be on a real filesystem (ext4, btrfs, xfs, ...), not a
+network share. Migrations run automatically on startup in both layouts.
 
 ### Authentication
 ```env

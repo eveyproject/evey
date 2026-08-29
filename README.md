@@ -10,9 +10,22 @@ Brand assets (logo, favicon, social images) live in [`evey-brand/`](evey-brand/)
 
 ## Install
 
-Create a directory for Evey (`mkdir evey && cd evey`), drop these two files in it, then `docker compose up -d`.
+One container, no secret to invent. Let the image write the compose file:
 
-**`docker-compose.yml`** (paste as-is):
+```bash
+mkdir evey && cd evey
+docker run --rm -v "$PWD":/out gravityz/evey init --media /path/to/your/media
+docker compose up -d
+```
+
+Open `http://<your-ip>:9091`, create your account, add a library. Postgres and
+Meilisearch run inside the container and generate their own secrets on first
+start (kept in `./evey-data/keys`, next to the JWT signing key - keep that
+directory safe). Migrations run automatically.
+
+Prefer to paste the file yourself? This is the whole of it:
+
+**`docker-compose.yml`**
 ```yaml
 services:
   evey:
@@ -20,74 +33,33 @@ services:
     container_name: evey-server
     ports:
       - "9091:9091"
-    environment:
-      EVEY_DB_HOST: postgres
-      # Meilisearch runs embedded in this container: the entrypoint spawns it
-      # as the (non-root) server user, loopback-only and memory-capped - no
-      # separate container. To use an external instance instead, set
-      # EVEY_EMBEDDED_MEILI=false and EVEY_MEILI_URL=http://<host>:7700.
-      EVEY_EMBEDDED_MEILI: "true"
-      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:?MEILI_MASTER_KEY must be set in .env}
-      # Leave PUID/PGID unset: the entrypoint adopts the owner of your media
-      # mounts so in-place repairs work out of the box (override with the
-      # output of `id -u`/`id -g`). The server never runs as root.
-      PUID: ${PUID:-}
-      PGID: ${PGID:-}
-      EVEY_JWT_PRIVATE_KEY_PATH: /data/jwt.key
-      EVEY_TRANSCODING_CACHE_DIR: /cache/transcode
-      EVEY_TRICKPLAY_CACHE_DIR: /data/trickplay
-      EVEY_LOG_DIR: /data/logs
-      EVEY_BACKUP_DIR: /data/backups
     env_file: .env
     volumes:
-      - ./evey-data:/data          # keys, logs, backups, embedded search index
-      - evey-cache:/cache
-      # Read-write so the repair features (seek-index rebuild) work in place;
-      # append `:ro` for a read-only library and accept that repairs fail.
-      - ${MEDIA_DIR}:/media
-    depends_on:
-      postgres: { condition: service_healthy }
-    restart: unless-stopped
-
-  postgres:
-    image: postgres:16-alpine
-    container_name: evey-postgres
-    environment:
-      POSTGRES_DB: ${EVEY_DB_NAME:-evey}
-      POSTGRES_USER: ${EVEY_DB_USER:-evey}
-      POSTGRES_PASSWORD: ${EVEY_DB_PASSWORD:?EVEY_DB_PASSWORD must be set in .env}
-    volumes:
-      - ./postgres-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${EVEY_DB_USER:-evey}"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
+      - ./evey-data:/data     # database, JWT key, generated secrets, search index, logs, backups
+      - evey-cache:/cache     # transcode + trickplay cache (safe to prune)
+      - ${MEDIA_DIR}:/media   # read-write so in-place repairs work; append :ro to refuse them
+    stop_grace_period: 60s
     restart: unless-stopped
 
 volumes:
   evey-cache:
 ```
 
-**`.env`** (edit the three values):
+**`.env`**
 ```env
-EVEY_DB_PASSWORD=<strong-password>
-MEILI_MASTER_KEY=<run: openssl rand -hex 16>
 MEDIA_DIR=/path/to/your/media
 # EVEY_VERSION=latest   # pin a specific tag (e.g. v0.1.0, beta-0.0.1)
 ```
 
-Then:
-```bash
-docker compose up -d
-```
-
-Open `http://<your-ip>:9091`, create your account, add a library. The image serves both the API and the web UI on the same port. Migrations run automatically. A JWT signing key is generated on first start in `./evey-data` - keep that directory safe.
+`evey init --domain media.example.com` adds the bundled Caddy reverse proxy
+with automatic HTTPS; `--external-postgres` keeps the database as a separate
+compose service (the layout earlier releases used - existing installs keep
+working unchanged, `EVEY_DB_HOST` is what selects it).
 
 > **ARM (Raspberry Pi, ARM NAS)?** Stable `vX.Y.Z` releases ship a multi-arch
 > image (amd64 + arm64) - the same `docker pull` works, but ARM has no hardware
 > transcoding (direct-play + software only). Details, PUID/PGID, an external
-> Meilisearch, and every other option are in
+> Postgres or Meilisearch, and every other option are in
 > [docs/installation.md](docs/installation.md).
 
 ## Update
@@ -100,17 +72,16 @@ Pin a specific version by setting `EVEY_VERSION` in `.env` (e.g. `v0.1.0-beta.1`
 
 ## HTTPS
 
-Evey doesn't handle HTTPS itself. Put a reverse proxy in front (Caddy, Nginx, Traefik). See [docs/reverse-proxy.md](docs/reverse-proxy.md) for ready-to-use configs.
+Evey serves plain HTTP on 9091. `evey init --domain media.example.com` writes a
+Caddy service that obtains a Let's Encrypt certificate for you; with your own
+proxy (Nginx, Traefik, Nginx Proxy Manager) see
+[docs/reverse-proxy.md](docs/reverse-proxy.md) for ready-to-use configs.
 
 ## Configuration
 
-Everything goes in `.env`. You only need three things to start:
-
-```env
-EVEY_DB_PASSWORD=<strong-password>
-MEILI_MASTER_KEY=<run: openssl rand -hex 16>
-MEDIA_DIR=/path/to/your/media
-```
+`.env` holds only what must exist before the server boots. With the default
+install that is one line - `MEDIA_DIR` - everything else (transcoding, hardware
+acceleration, libraries, plugins, API keys) is set in **Admin → Server config**.
 
 Full reference: [docs/configuration.md](docs/configuration.md)
 
@@ -118,9 +89,9 @@ Full reference: [docs/configuration.md](docs/configuration.md)
 
 | Volume | What's inside | Can you delete it? |
 |--------|--------------|-------------------|
-| `postgres-data` | Database | No - you lose all data |
-| `evey-data` | JWT key, logs, backups, plugins, embedded search index | No - you lose your signing key |
+| `evey-data` | Database (`postgres/`), JWT key + generated secrets (`keys/`), logs, backups, plugins, search index | No - you lose your data and your signing key |
 | `evey-cache` | Transcode + trickplay cache | Yes - regenerated on demand |
+| `postgres-data` | Database, only with `--external-postgres` | No - you lose all data |
 
 The embedded Meilisearch index lives under `evey-data` and is rebuilt from the
 database on the next scan if lost. If you run the bundled Caddy reverse proxy,

@@ -45,6 +45,7 @@ run_case() { # $@ = extra docker run args
     docker run --rm "$@" \
         -v "$ENTRY:/entrypoint.sh:ro" \
         -e EVEY_EMBEDDED_MEILI=false \
+        -e EVEY_EMBEDDED_POSTGRES=false \
         "$IMG" sh -ec "$setup"
 }
 

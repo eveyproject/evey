@@ -49,14 +49,21 @@ bits behind `TARGETARCH`.
 
 ## 1. docker-compose.yml
 
-Two services: the Evey server (which serves the API + web UI on one port **and**
-runs Meilisearch embedded - spawned by the entrypoint as the non-root server
-user, loopback-only and memory-capped) and Postgres. Keep the env **minimal** -
-only secrets, the DB connection, storage paths, the JWT key path, and
-reverse-proxy vars belong here. Almost everything else (server name, transcode
-concurrency, rate limits, log level, scan/watcher intervals, backup schedule) is
-**editable at runtime from Admin → Server Config** and should NOT be stuffed into
-the compose.
+**Default layout: one service.** The evey image serves the API + web UI on one
+port **and** runs both Postgres and Meilisearch embedded - spawned by the
+entrypoint as the non-root server user, loopback-only, their secrets generated
+on first boot into `./evey-data/keys`. Let the image write the files:
+
+```bash
+mkdir evey && cd evey
+docker run --rm -v "$PWD":/out gravityz/evey init --media /path/to/your/media
+```
+
+`evey init` writes `docker-compose.yml` and `.env` (owned by you, not root).
+Flags: `--port 9091` (host port), `--domain media.example.com` (adds the Caddy
+reverse proxy with automatic HTTPS and a `Caddyfile`), `--external-postgres`
+(the operator layout below), `--version v0.1.0` (pin a tag), `--force`
+(overwrite). Or paste the equivalent by hand:
 
 ```yaml
 services:
@@ -65,39 +72,71 @@ services:
     container_name: evey-server
     ports:
       - "9091:9091"
-    environment:
-      EVEY_DB_HOST: postgres
-      EVEY_DB_SSLMODE: disable          # internal Docker network; the bundled Postgres has no TLS
-      # Meilisearch embedded (no separate container). Opt out with
-      # EVEY_EMBEDDED_MEILI=false + EVEY_MEILI_URL=http://<host>:7700.
-      EVEY_EMBEDDED_MEILI: "true"
-      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:?MEILI_MASTER_KEY must be set in .env}
-      # PUID/PGID: unset by default → the entrypoint adopts the owner of your
-      # /media mounts so in-place repairs work; override with `id -u`/`id -g`.
-      # The container starts as root only to apply the mapping, then drops
-      # privileges - the server never runs as root. Refuse even that transient
-      # root with `user: "UID:GID"` and manage ./evey-data ownership yourself.
-      PUID: ${PUID:-}
-      PGID: ${PGID:-}
-      EVEY_JWT_PRIVATE_KEY_PATH: /data/jwt.key
-      EVEY_TRANSCODING_CACHE_DIR: /cache/transcode
-      EVEY_TRICKPLAY_CACHE_DIR: /data/trickplay
-      EVEY_LOG_DIR: /data/logs
-      EVEY_BACKUP_DIR: /data/backups
-      # Tell Evey its public URL + trust the proxy when you put one in front:
-      # EVEY_SERVER_BASE_URL: https://media.example.com
-      # EVEY_TRUSTED_PROXIES: 172.16.0.0/12
-      # EVEY_FORWARDED_PROTO: "true"
     env_file: .env
     volumes:
-      - ./evey-data:/data        # JWT key, logs, backups, plugins, search index
-      - evey-cache:/cache        # transcode cache (safe to prune)
+      - ./evey-data:/data     # database, JWT key, generated secrets, search index, logs, backups
+      - evey-cache:/cache     # transcode + trickplay cache (safe to prune)
       # Read-write so the seek-index repair rebuilds files in place; append
       # `:ro` for a read-only library and accept that those repairs fail.
       - ${MEDIA_DIR}:/media
+    # The embedded database is stopped cleanly AFTER the server on `docker
+    # stop`; a large catalogue needs more than Docker's 10s default.
+    stop_grace_period: 60s
+    restart: unless-stopped
+
+volumes:
+  evey-cache:
+```
+
+```env
+MEDIA_DIR=/path/to/your/media
+# EVEY_VERSION=latest        # pin a tag (e.g. v0.1.0, beta-0.0.1)
+# EVEY_SERVER_BASE_URL=http://<your-ip>:9091   # e-mail links, OIDC redirects, cast/device URLs
+```
+
+Keep the env **minimal** - only secrets you bring yourself, the DB connection
+when external, storage paths, and reverse-proxy facts belong here. Almost
+everything else (server name, transcode concurrency, rate limits, log level,
+scan/watcher intervals, backup schedule, API keys) is **editable at runtime
+from Admin → Server Config** and should NOT be stuffed into the compose.
+`PUID`/`PGID`: unset by default → the entrypoint adopts the owner of your
+`/media` mounts so in-place repairs work; override with `id -u`/`id -g`. The
+container starts as root only to apply the mapping, then drops privileges -
+the server never runs as root.
+
+**How the embedded database behaves.** The cluster lives in
+`./evey-data/postgres` (Postgres 17, `initdb` on first boot, owned by the
+server user). It listens on the container's loopback only and requires the
+generated password over TCP, so a plugin dropped to another uid cannot open it.
+`docker stop` reaches it as an orderly fast shutdown after the server has
+closed its connections. The data directory must sit on a real filesystem
+(ext4, btrfs, xfs, ...) - not on a CIFS/NFS share. Backups (`evey admin`,
+the admin panel, the scheduled `pg_dump`) work exactly as with an external
+database. To open a SQL shell:
+
+```bash
+docker exec -it evey-server sh -c 'PGPASSWORD=$(cat /data/keys/postgres.password) psql -h 127.0.0.1 -U evey evey'
+```
+
+### Operator layout: external Postgres
+
+Operators who want the database lifecycle in their own hands (a managed
+Postgres, pinned major version, separate volume, dump+restore on their terms)
+run it as a sibling service. `evey init --external-postgres` writes this
+layout with a generated password; by hand, add the service and point the
+server at it - **`EVEY_DB_HOST` being set is what turns the embedded database
+off**, which is why every install from before the embedded database keeps
+working untouched:
+
+```yaml
+services:
+  evey:
+    # ... as above, plus:
+    environment:
+      EVEY_DB_HOST: postgres
+      EVEY_DB_SSLMODE: disable          # internal Docker network; the bundled Postgres has no TLS
     depends_on:
       postgres: { condition: service_healthy }
-    restart: unless-stopped
 
   postgres:
     image: postgres:16-alpine
@@ -114,41 +153,29 @@ services:
       timeout: 3s
       retries: 5
     restart: unless-stopped
+```
 
-volumes:
-  evey-cache:
+```env
+EVEY_DB_PASSWORD=<strong-password>   # must NOT be the default 'evey' - the server refuses to start otherwise
 ```
 
 > **External Meilisearch** (a shared search cluster, or Meili on dedicated
-> hardware): set `EVEY_EMBEDDED_MEILI=false` and
-> `EVEY_MEILI_URL=http://<host>:7700`, then run Meilisearch yourself. Give its
+> hardware): set `EVEY_EMBEDDED_MEILI=false`, `EVEY_MEILI_URL=http://<host>:7700`
+> and `MEILI_MASTER_KEY=<its key>`, then run Meilisearch yourself. Give its
 > container a non-root `user:` and a `mem_limit` - the official image runs as
 > root and its resident set (memory-mapped index) looks large but is mostly
-> reclaimable page cache.
-
-`.env` (edit these three; everything else has a sane default):
-
-```env
-EVEY_DB_PASSWORD=<strong-password>          # must NOT be the default 'evey' - server refuses to start otherwise
-MEILI_MASTER_KEY=<run: openssl rand -hex 16>  # >= 16 chars; required
-MEDIA_DIR=/path/to/your/media
-# EVEY_VERSION=latest                        # pin a tag (e.g. v0.1.0, beta-0.0.1)
-```
+> reclaimable page cache. Embedded, the master key is generated for you
+> (`./evey-data/keys/meili.key`); an explicit `MEILI_MASTER_KEY` always wins.
 
 Only these env vars are infra/secret and **belong in compose/.env** - they are
 never admin-editable: `EVEY_DB_PASSWORD`, `MEILI_MASTER_KEY`, `EVEY_DB_HOST`,
-`EVEY_DB_USER`, `EVEY_DB_NAME`, `EVEY_DB_SSLMODE`, `EVEY_MEILI_URL`, the `*_DIR`
-paths, `EVEY_JWT_PRIVATE_KEY_PATH`, `EVEY_SERVER_BASE_URL`,
+`EVEY_DB_USER`, `EVEY_DB_NAME`, `EVEY_DB_SSLMODE`, `EVEY_EMBEDDED_POSTGRES`,
+`EVEY_EMBEDDED_MEILI`, `EVEY_MEILI_URL`, the `*_DIR` paths,
+`EVEY_JWT_PRIVATE_KEY_PATH`, `EVEY_SERVER_BASE_URL`,
 `EVEY_TRUSTED_PROXIES` / `EVEY_FORWARDED_PROTO`, and the plugin master switch
 `EVEY_PLUGINS_ENABLED`. (`EVEY_PLUGINS_SANDBOX_MODE`, `EVEY_PLUGINS_UID_SEPARATION`
 and the resource caps may be set here as initial defaults, but are admin-editable
 at runtime from Admin → Plugins.) Full reference: [configuration.md](configuration.md).
-
-> **Embedded Meilisearch alternative.** The image can also run Meilisearch
-> *inside* the evey container (`EVEY_EMBEDDED_MEILI=true`), in which case you drop
-> the `meilisearch` service and its `EVEY_MEILI_URL`. The standalone service above
-> is the clearer default for ops (separate lifecycle, separate volume). Either
-> way `MEILI_MASTER_KEY` is required.
 
 ### Plugin sandbox & hardening (what the image ships)
 
@@ -223,8 +250,10 @@ only if you accept losing them.
 
 ## 3. Reverse proxy (HTTPS)
 
-Evey serves plain HTTP on 9091. Terminate TLS with a proxy in front (Caddy,
-Nginx, Traefik, Nginx Proxy Manager). Set `EVEY_SERVER_BASE_URL` to your public
+Evey serves plain HTTP on 9091. `evey init --domain media.example.com` adds a
+Caddy service that obtains a Let's Encrypt certificate and sets the proxy facts
+in `.env` for you (ports 80/443 must reach the host). With your own proxy
+(Nginx, Traefik, Nginx Proxy Manager): set `EVEY_SERVER_BASE_URL` to your public
 URL and trust the proxy with `EVEY_TRUSTED_PROXIES` + `EVEY_FORWARDED_PROTO=true`.
 Streaming endpoints need buffering disabled and no timeout - the ready-made
 configs handle this. Full setups: [reverse-proxy.md](reverse-proxy.md).
@@ -252,6 +281,26 @@ version with `EVEY_VERSION` in `.env` instead of tracking `latest`.
   Pick `-nodejs` / `-full` only if your plugins need those runtimes; otherwise
   the default is smallest. Set e.g. `EVEY_VERSION=latest-nodejs`.
 
+### Postgres major upgrade (embedded database)
+
+The image pins the embedded Postgres major (17 today). A newer image shipping a
+newer major **refuses to open** the old cluster with a message naming this
+section - it never silently runs a data directory it cannot read. The way
+across is a dump with the old image and a restore with the new one:
+
+```bash
+docker compose exec evey sh -c 'PGPASSWORD=$(cat /data/keys/postgres.password) pg_dump -h 127.0.0.1 -U evey -Fc evey' > evey-before-upgrade.dump
+docker compose down
+mv evey-data/postgres evey-data/postgres.old      # keep it until the restore is verified
+# set the new EVEY_VERSION in .env, then:
+docker compose up -d                              # initialises an empty cluster on the new major
+docker compose exec -T evey sh -c 'PGPASSWORD=$(cat /data/keys/postgres.password) pg_restore -h 127.0.0.1 -U evey -d evey --no-owner' < evey-before-upgrade.dump
+docker compose restart evey
+```
+
+Operators who prefer `pg_upgrade` or a pinned major for years use the
+[external Postgres layout](#operator-layout-external-postgres).
+
 ## 5. Backups & recovery
 
 Enable scheduled DB backups (`EVEY_BACKUP_INTERVAL_HOURS`, stored in
@@ -273,11 +322,17 @@ docker compose ps                       # are all three services Up / healthy?
 docker compose logs --tail=200 evey     # server logs (migration errors, config validation)
 ```
 
-- **evey won't start / config error.** The server refuses to boot if
-  `EVEY_DB_PASSWORD` is still the default `evey`, or `MEILI_MASTER_KEY` is empty
-  or a default placeholder (a short non-default key only warns). Read the logged
-  validation message and fix `.env`.
-- **DB not reachable.** Confirm Postgres is healthy and the password matches:
+- **evey won't start / config error.** With an external database the server
+  refuses to boot if `EVEY_DB_PASSWORD` is still the default `evey`; with an
+  external Meilisearch, if `MEILI_MASTER_KEY` is empty or a placeholder (a short
+  non-default key only warns). Read the logged validation message and fix `.env`.
+- **Embedded DB refuses to start.** The `evey:` lines at the top of the log say
+  why: a cluster from another major (see the upgrade section above), a data
+  directory that is not a Postgres cluster, or a `postgres:`-prefixed error
+  from Postgres itself (disk full, permissions on `./evey-data/postgres`, a
+  network-share filesystem).
+- **External DB not reachable.** Confirm Postgres is healthy and the password
+  matches:
   ```bash
   docker exec evey-postgres pg_isready -U "$EVEY_DB_USER"
   ```
@@ -290,7 +345,6 @@ docker compose logs --tail=200 evey     # server logs (migration errors, config 
 
 | Volume | Contents | Safe to delete? |
 |--------|----------|-----------------|
-| `postgres-data` | Database | No - all data lost |
-| `evey-data` | JWT key, logs, backups, plugins | No - JWT key + plugins lost |
-| `meili-data` | Search index | Yes - rebuild from Postgres with `evey admin reindex-search` |
+| `evey-data` | Database (`postgres/`), JWT key + generated secrets (`keys/`), logs, backups, plugins, search index (`meili/`) | No - data, JWT key + plugins lost. `meili/` alone: yes, rebuilt with `evey admin reindex-search` |
+| `postgres-data` | Database (external layout only) | No - all data lost |
 | `evey-cache` | Transcode + trickplay cache | Yes - regenerated on demand |

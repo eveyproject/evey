@@ -57,7 +57,10 @@ func TestLoad_Defaults(t *testing.T) {
 	assert.Equal(t, "evey", cfg.DB.User)
 	assert.Equal(t, "evey", cfg.DB.Password)
 	assert.Equal(t, "evey", cfg.DB.DBName)
-	assert.Equal(t, "prefer", cfg.DB.SSLMode)
+	// Loopback host: TLS is pointless and lib/pq rejects "prefer", so the
+	// default is disable - what `docker exec evey admin` needs against the
+	// embedded Postgres without any variable set.
+	assert.Equal(t, "disable", cfg.DB.SSLMode)
 	assert.Equal(t, 25, cfg.DB.MaxOpenConns)
 	assert.Equal(t, 10, cfg.DB.MaxIdleConns)
 
@@ -709,4 +712,66 @@ func strongConfig() *Config {
 		Meilisearch: MeilisearchConfig{APIKey: "x9abc123def45678"},
 		Plugins:     PluginsConfig{SandboxMode: "basic", CosignPolicy: "off"},
 	}
+}
+
+// The image ships EVEY_DB_PASSWORD_FILE / MEILI_MASTER_KEY_FILE baked in so the
+// secrets the entrypoint generates on first boot reach `docker exec evey admin`
+// too. The precedence is what keeps existing installs untouched: an explicit
+// variable must always beat the file.
+func TestEnvSecret_FileFallbackAndPrecedence(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/postgres.password"
+	require.NoError(t, os.WriteFile(path, []byte("from-file\n"), 0o600))
+
+	t.Setenv("EVEY_TEST_SECRET", "")
+	os.Unsetenv("EVEY_TEST_SECRET")
+	t.Setenv("EVEY_TEST_SECRET_FILE", path)
+	assert.Equal(t, "from-file", envSecret("EVEY_TEST_SECRET", "dflt"), "file wins over the default and is trimmed")
+
+	t.Setenv("EVEY_TEST_SECRET", "from-env")
+	assert.Equal(t, "from-env", envSecret("EVEY_TEST_SECRET", "dflt"), "explicit variable beats the file")
+
+	os.Unsetenv("EVEY_TEST_SECRET")
+	t.Setenv("EVEY_TEST_SECRET_FILE", dir+"/missing")
+	assert.Equal(t, "dflt", envSecret("EVEY_TEST_SECRET", "dflt"), "a missing file is an unset secret")
+
+	require.NoError(t, os.WriteFile(path, []byte("  \n"), 0o600))
+	t.Setenv("EVEY_TEST_SECRET_FILE", path)
+	assert.Equal(t, "dflt", envSecret("EVEY_TEST_SECRET", "dflt"), "a blank file is an unset secret")
+}
+
+func TestLoad_SecretsFromFile(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(dir+"/pg", []byte("pg-secret"), 0o600))
+	require.NoError(t, os.WriteFile(dir+"/meili", []byte("meili-secret"), 0o600))
+	t.Setenv("EVEY_DB_PASSWORD", "")
+	os.Unsetenv("EVEY_DB_PASSWORD")
+	t.Setenv("MEILI_MASTER_KEY", "")
+	os.Unsetenv("MEILI_MASTER_KEY")
+	t.Setenv("EVEY_DB_PASSWORD_FILE", dir+"/pg")
+	t.Setenv("MEILI_MASTER_KEY_FILE", dir+"/meili")
+
+	cfg, err := Load()
+	require.NoError(t, err)
+	assert.Equal(t, "pg-secret", cfg.DB.Password)
+	assert.Equal(t, "meili-secret", cfg.Meilisearch.APIKey)
+}
+
+func TestLoad_SSLModeDefaultDependsOnHost(t *testing.T) {
+	t.Setenv("EVEY_DB_SSLMODE", "")
+	os.Unsetenv("EVEY_DB_SSLMODE")
+	t.Setenv("EVEY_DB_HOST", "postgres")
+	cfg, err := Load()
+	require.NoError(t, err)
+	assert.Equal(t, "prefer", cfg.DB.SSLMode, "a remote host keeps the historical default")
+
+	t.Setenv("EVEY_DB_HOST", "127.0.0.1")
+	cfg, err = Load()
+	require.NoError(t, err)
+	assert.Equal(t, "disable", cfg.DB.SSLMode)
+
+	t.Setenv("EVEY_DB_SSLMODE", "require")
+	cfg, err = Load()
+	require.NoError(t, err)
+	assert.Equal(t, "require", cfg.DB.SSLMode, "an explicit mode always wins")
 }

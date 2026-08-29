@@ -35,6 +35,10 @@ services:
     ports:
       - "${EVEY_HTTP_PORT:-9091}:${EVEY_HTTP_PORT:-9091}"
     environment:
+      # Postgres as a sibling service (the operator layout, see the comment
+      # on the service below). Unset EVEY_DB_HOST and drop that service to
+      # run the database embedded in this container instead (data lands in
+      # ./evey-data/postgres, password generated on first boot).
       EVEY_DB_HOST: postgres
       # PUID/PGID: the user the server runs as. Leave UNSET (the default) and
       # the entrypoint adopts the owner of your /media* mounts automatically,
@@ -50,8 +54,10 @@ services:
       # spawns it before exec'ing the server. Set EVEY_EMBEDDED_MEILI=false
       # AND point EVEY_MEILI_URL at an external instance to opt out (useful
       # for shared search clusters or running Meili on dedicated hardware).
+      # The master key is generated on first boot (./evey-data/keys/meili.key)
+      # when MEILI_MASTER_KEY is left empty; set it only to bring your own.
       EVEY_EMBEDDED_MEILI: "true"
-      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:?MEILI_MASTER_KEY must be set in .env}
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-}
       EVEY_JWT_PRIVATE_KEY_PATH: /data/jwt.key
       EVEY_TRANSCODING_CACHE_DIR: /cache/transcode
       EVEY_TRICKPLAY_CACHE_DIR: /data/trickplay

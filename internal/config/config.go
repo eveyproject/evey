@@ -752,7 +752,22 @@ func isLoopbackHost(host string) bool {
 	return false
 }
 
+// defaultSSLMode is the EVEY_DB_SSLMODE applied when the operator sets none.
+// TLS to the container's own loopback (the embedded Postgres, or a `docker
+// exec evey admin ...` reaching it) protects nothing and the lib/pq driver
+// rejects "prefer" outright ("wrong value for sslmode") - so loopback means
+// disable. Any other host keeps the historical "prefer": WarnValidate already
+// tells the operator to pick require/verify-full there, and every documented
+// external layout sets the mode explicitly.
+func defaultSSLMode(host string) string {
+	if isLoopbackHost(host) {
+		return "disable"
+	}
+	return "prefer"
+}
+
 func Load() (*Config, error) {
+	dbHost := envStr("EVEY_DB_HOST", "localhost")
 	// Read before the literal: a malformed CIDR must stop the boot here, where
 	// the variable can be named, rather than deep inside the HTTP wiring.
 	trustedProxies, err := trustedProxiesFromEnv("EVEY_TRUSTED_PROXIES")
@@ -775,12 +790,12 @@ func Load() (*Config, error) {
 			PluginsEnabled:     envBool("EVEY_PLUGINS_ENABLED", true),
 		},
 		DB: DBConfig{
-			Host:     envStr("EVEY_DB_HOST", "localhost"),
+			Host:     dbHost,
 			Port:     envInt("EVEY_DB_PORT", 5432),
 			User:     envStr("EVEY_DB_USER", "evey"),
-			Password: envStr("EVEY_DB_PASSWORD", "evey"),
+			Password: envSecret("EVEY_DB_PASSWORD", "evey"),
 			DBName:   envStr("EVEY_DB_NAME", "evey"),
-			SSLMode:  envStr("EVEY_DB_SSLMODE", "prefer"),
+			SSLMode:  envStr("EVEY_DB_SSLMODE", defaultSSLMode(dbHost)),
 			// Defaults sized for the weak-NAS target (Celeron, 2-4 GB): 50 open
 			// Postgres connections there cost ~250-500 MB of backend RAM for little
 			// gain on a low-concurrency media server. 25/10 halves that footprint
@@ -790,7 +805,7 @@ func Load() (*Config, error) {
 		},
 		Meilisearch: MeilisearchConfig{
 			URL:    envStr("EVEY_MEILI_URL", "http://localhost:7700"),
-			APIKey: envStr("MEILI_MASTER_KEY", "changeme"),
+			APIKey: envSecret("MEILI_MASTER_KEY", "changeme"),
 		},
 		JWT: JWTConfig{
 			PrivateKeyPath:      envStr("EVEY_JWT_PRIVATE_KEY_PATH", "/data/jwt.key"),
@@ -919,6 +934,42 @@ func envPluginSandboxMode(key, fallback string) string {
 
 func envStr(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
+}
+
+// envSecret reads a secret from KEY, or from the file named by KEY_FILE when
+// KEY itself is unset - the Docker secrets convention.
+//
+// The image generates the secrets it can own (the embedded Postgres password,
+// the embedded Meilisearch master key) on first boot and persists them under
+// /data/keys, so a quick-start install needs no hand-made secret at all. The
+// file path is what makes that survive `docker exec`: the entrypoint's exports
+// die with the entrypoint, but an ENV baked into the image reaches every
+// `evey admin ...` an operator runs in the container. An explicit KEY always
+// wins over the file, so an operator who brings their own Postgres or
+// Meilisearch keeps configuring them exactly as before. A KEY_FILE that
+// cannot be read behaves like an unset secret: the caller's default applies
+// and WarnValidate refuses the boot as it does today, with the file named in
+// the log rather than silently swallowed.
+func envSecret(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	path := os.Getenv(key + "_FILE")
+	if path == "" {
+		return fallback
+	}
+	raw, err := os.ReadFile(path) //nolint:gosec // G703 FP: the path comes from the operator's own KEY_FILE environment variable (image default /data/keys/<name>), the same trust as every EVEY_*_PATH the server opens - no request-tainted element
+	if err != nil {
+		if !os.IsNotExist(err) {
+			slog.Warn("config: secret file unreadable - falling back to the default",
+				slog.String("key", key+"_FILE"), slog.String("path", path), slog.Any("err", err))
+		}
+		return fallback
+	}
+	if v := strings.TrimSpace(string(raw)); v != "" {
 		return v
 	}
 	return fallback

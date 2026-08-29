@@ -2,7 +2,7 @@
 
 First-response playbook for common Evey outages. Each section: **symptom → diagnose → fix**.
 
-Containers: `evey-server`, `evey-postgres`, `evey-meilisearch`, `evey-caddy` (prod), `evey-web` + `evey-mailcatcher` (dev override).
+Containers: `evey-server`, `evey-postgres`, `evey-meilisearch`, `evey-caddy` (prod), `evey-web` + `evey-mailcatcher` (dev override). A default (`evey init`) install has **only `evey-server`**: Postgres and Meilisearch run inside it - replace `docker exec evey-postgres psql -U ...` below with `docker exec evey-server sh -c 'PGPASSWORD=$(cat /data/keys/postgres.password) psql -h 127.0.0.1 -U evey evey ...'`, and their logs are the `postgres:` / Meili lines in `docker logs evey-server`.
 
 Default HTTP port: `9091` (`EVEY_HTTP_PORT`). Health endpoint: `/healthz`.
 
