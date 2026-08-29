@@ -161,29 +161,16 @@ func (s *IntroDetectionService) runPipeline(ctx context.Context, item *domainlib
 		}
 	}
 
-	// External metadata provider AFTER the file-derived passes: community DBs
-	// (tidb/introdb) know nothing about the local file's edition (repack, cut,
-	// re-encode), so their timestamps lose to anything derived from the file
-	// itself - the eval measured them tens of seconds off where the cluster was
-	// within a second. They remain additive for the types still missing.
-	// Non-fatal on error - fall through to the remaining heuristics.
-	if s.metadataProvider != nil {
-		if mdSegs, mdErr := s.metadataProvider.GetSegments(ctx, item); mdErr != nil {
-			slog.WarnContext(ctx, "intro_detection: metadata provider failed, falling back",
-				slog.String("media_id", mediaItemID), slog.Any("err", mdErr))
-		} else {
-			add(mdSegs, "metadata_provider_match")
-		}
-	}
-
 	// Leading distributor-logo block: FILMS ONLY. Series label this exact
 	// pattern NEGATIVE in the ground-truth set ("HBO distributeur - Pas
 	// d'intro") since a logo-on-black at 0:00 is common to every episode -
 	// gating on MovieItem is what keeps this pass off series, not an
-	// optimisation. Placed after the metadata provider (an authoritative
-	// external intro still wins) and before the audio-primary discovery /
-	// silence fallback: those two structurally can't find anything on a film
-	// with no sibling episodes to compare against.
+	// optimisation. Placed BEFORE the metadata provider: community rows are
+	// never served (IsCommunityIntroSource), so a provider answer filling
+	// "intro" first only starved this pass - prod 2026-08-29: every gold film
+	// tidb knew about had NO served intro. And before the audio-primary
+	// discovery / silence fallback: those two structurally can't find anything
+	// on a film with no sibling episodes to compare against.
 	if needIntro() && item.Type == domainlibrary.MovieItem && item.File != nil && item.File.Path != "" {
 		durationSec := item.File.Duration.Seconds()
 		logoStartMs, logoEndMs, ok, logoErr := s.detector.DetectLeadingLogoBlock(ctx, item.File.Path, durationSec)
@@ -202,6 +189,21 @@ func (s *IntroDetectionService) runPipeline(ctx context.Context, item *domainlib
 				// the head-of-file black cluster.
 				Confidence: 0.7,
 			}}, "leading_logo_block")
+		}
+	}
+
+	// External metadata provider AFTER the file-derived passes: community DBs
+	// (tidb/introdb) know nothing about the local file's edition (repack, cut,
+	// re-encode), so their timestamps lose to anything derived from the file
+	// itself - the eval measured them tens of seconds off where the cluster was
+	// within a second. They remain additive for the types still missing.
+	// Non-fatal on error - fall through to the remaining heuristics.
+	if s.metadataProvider != nil {
+		if mdSegs, mdErr := s.metadataProvider.GetSegments(ctx, item); mdErr != nil {
+			slog.WarnContext(ctx, "intro_detection: metadata provider failed, falling back",
+				slog.String("media_id", mediaItemID), slog.Any("err", mdErr))
+		} else {
+			add(mdSegs, "metadata_provider_match")
 		}
 	}
 

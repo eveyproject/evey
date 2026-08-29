@@ -114,3 +114,46 @@ func TestRunPipeline_LeadingLogoBlock_SkippedWhenIntroAlreadyFilled(t *testing.T
 	require.Len(t, segs, 1)
 	assert.Equal(t, "audio_cluster", segs[0].Source)
 }
+
+// A community-database answer is never served (IsCommunityIntroSource), so it
+// must not pre-empt the one pass that can find a film's intro locally. Measured
+// in prod 2026-08-29 (gold dry-run): every film tidb knew about ended with NO
+// served intro, because the provider filled "intro" first and the leading-logo
+// pass never ran - while the same pass scored IoU 0.96 on the films tidb did
+// not know.
+func TestRunPipeline_LeadingLogoBlock_RunsBeforeCommunityProvider(t *testing.T) {
+	t.Parallel()
+	det := &countingDetector{fakeDetector: fakeDetector{
+		leadingLogoFound: true, leadingLogoStartMs: 0, leadingLogoEndMs: 35_000,
+	}}
+	svc := NewIntroDetectionService(
+		&fakeSegmentRepo{},
+		&fakeTrickplayRepo{},
+		&fakeMediaItemRepo{},
+		&fakeConfigRepo{},
+		det,
+		"/tmp/trickplay",
+	).WithIntroMetadataProvider(&fakeMetadataProvider{segs: []domainlibrary.MediaSegment{
+		{Type: "intro", StartMs: 0, EndMs: 39_000, Source: "tidb", Confidence: 0.97},
+		{Type: "end_credits", StartMs: 6_588_000, EndMs: 7_315_712, Source: "tidb", Confidence: 0.97},
+	}})
+	item := &domainlibrary.MediaItem{
+		ID:   shared.MediaItemID("movie-3"),
+		Type: domainlibrary.MovieItem,
+		File: &domainlibrary.MediaFile{Path: "/tmp/movie.mkv"},
+	}
+
+	segs, err := svc.runPipeline(context.Background(), item, nil)
+	require.NoError(t, err)
+
+	require.Equal(t, int32(1), det.leadingLogoCalls.Load(),
+		"a community provider answer must not starve the film's local pass")
+	byType := map[string]domainlibrary.MediaSegment{}
+	for _, s := range segs {
+		byType[s.Type] = s
+	}
+	require.Contains(t, byType, "intro")
+	assert.Equal(t, "leading_black", byType["intro"].Source, "the file-derived intro must win over the community row")
+	require.Contains(t, byType, "end_credits")
+	assert.Equal(t, "tidb", byType["end_credits"].Source, "the provider stays additive for the types the local passes missed")
+}
