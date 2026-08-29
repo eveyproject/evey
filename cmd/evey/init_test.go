@@ -25,38 +25,30 @@ func fileByName(t *testing.T, files []initFile, name string) initFile {
 // The default install is ONE container and ZERO secrets: the whole point of
 // the embedded database. A postgres service or a password sneaking back into
 // the default output would silently restore the install tax this removes.
-func TestRenderInit_DefaultIsSingleContainerWithoutSecrets(t *testing.T) {
+func TestRenderInit_DefaultIsOneFileWithoutSecrets(t *testing.T) {
 	files, err := renderInit(initOptions{Media: "/srv/media", Port: 9091, Version: "latest"}, fixedSecret)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(files) != 2 {
-		t.Fatalf("expected compose + env, got %d files", len(files))
+	if len(files) != 1 || files[0].Name != "docker-compose.yml" {
+		t.Fatalf("the default install is ONE file, got %d: %+v", len(files), files)
 	}
-	compose := fileByName(t, files, "docker-compose.yml").Content
-	env := fileByName(t, files, ".env")
-
-	for _, forbidden := range []string{"postgres:", "caddy:", "EVEY_DB_HOST", "PASSWORD", "MASTER_KEY"} {
-		if strings.Contains(compose, forbidden) || strings.Contains(env.Content, forbidden) {
+	compose := files[0].Content
+	for _, forbidden := range []string{"postgres:", "caddy:", "EVEY_DB_HOST", "PASSWORD", "MASTER_KEY", "env_file", "${MEDIA_DIR}", "\n    environment:\n"} {
+		if strings.Contains(compose, forbidden) {
 			t.Errorf("default output must not contain %q", forbidden)
 		}
 	}
 	for _, want := range []string{
 		"image: gravityz/evey:${EVEY_VERSION:-latest}",
-		"\"${EVEY_HTTP_PORT:-9091}:9091\"",
-		"${MEDIA_DIR}:/media",
+		"\"9091:9091\"",
+		"      - /srv/media:/media\n",
 		"./evey-data:/data",
 		"stop_grace_period: 60s",
 	} {
 		if !strings.Contains(compose, want) {
 			t.Errorf("compose lacks %q", want)
 		}
-	}
-	if !strings.Contains(env.Content, "MEDIA_DIR=/srv/media\n") {
-		t.Errorf(".env lacks the media path:\n%s", env.Content)
-	}
-	if env.Mode != 0o644 {
-		t.Errorf(".env without a secret should be 0644, got %o", env.Mode)
 	}
 }
 
@@ -78,6 +70,9 @@ func TestRenderInit_ExternalPostgresGetsServiceAndSecret(t *testing.T) {
 	if env.Mode != 0o600 {
 		t.Errorf(".env carrying a secret must be 0600, got %o", env.Mode)
 	}
+	if !strings.Contains(compose, "env_file: .env") {
+		t.Error("a .env with secrets must be wired into the evey service")
+	}
 }
 
 func TestRenderInit_DomainAddsCaddyAndProxyFacts(t *testing.T) {
@@ -86,9 +81,11 @@ func TestRenderInit_DomainAddsCaddyAndProxyFacts(t *testing.T) {
 		t.Fatal(err)
 	}
 	compose := fileByName(t, files, "docker-compose.yml").Content
-	env := fileByName(t, files, ".env").Content
 	caddy := fileByName(t, files, "Caddyfile").Content
-	for _, want := range []string{"  caddy:\n", "./Caddyfile:/etc/caddy/Caddyfile:ro", "\"443:443\""} {
+	if len(files) != 2 {
+		t.Fatalf("a proxied install is compose + Caddyfile, got %d files", len(files))
+	}
+	for _, want := range []string{"  caddy:\n", "./Caddyfile:/etc/caddy/Caddyfile:ro", "\"443:443\"", "EVEY_DOMAIN: media.example.com"} {
 		if !strings.Contains(compose, want) {
 			t.Errorf("compose lacks %q", want)
 		}
@@ -97,13 +94,12 @@ func TestRenderInit_DomainAddsCaddyAndProxyFacts(t *testing.T) {
 		t.Error("with a domain the server must not publish a host port - the proxy is the way in")
 	}
 	for _, want := range []string{
-		"EVEY_DOMAIN=media.example.com\n",
-		"EVEY_SERVER_BASE_URL=https://media.example.com\n",
-		"EVEY_TRUSTED_PROXIES=172.16.0.0/12\n",
-		"EVEY_FORWARDED_PROTO=true\n",
+		"EVEY_SERVER_BASE_URL: https://media.example.com\n",
+		"EVEY_TRUSTED_PROXIES: 172.16.0.0/12\n",
+		"EVEY_FORWARDED_PROTO: \"true\"\n",
 	} {
-		if !strings.Contains(env, want) {
-			t.Errorf(".env lacks %q", want)
+		if !strings.Contains(compose, want) {
+			t.Errorf("compose lacks %q", want)
 		}
 	}
 	if !strings.Contains(caddy, "{$EVEY_DOMAIN:localhost}") {
@@ -188,7 +184,6 @@ func TestRenderInit_BehindProxyIsPlainHTTPOnExternalNetwork(t *testing.T) {
 	}
 	compose := fileByName(t, files, "docker-compose.yml").Content
 	caddy := fileByName(t, files, "Caddyfile").Content
-	env := fileByName(t, files, ".env").Content
 	for _, want := range []string{"    expose:\n      - \"80\"\n", "networks:\n  default:\n    name: proxy-net\n    external: true\n"} {
 		if !strings.Contains(compose, want) {
 			t.Errorf("compose lacks %q", want)
@@ -207,8 +202,8 @@ func TestRenderInit_BehindProxyIsPlainHTTPOnExternalNetwork(t *testing.T) {
 	if strings.Contains(caddy, "{$EVEY_DOMAIN") || strings.Contains(caddy, "Let's Encrypt") {
 		t.Error("behind a proxy Caddy must neither obtain a certificate for EVEY_DOMAIN nor claim it does")
 	}
-	if !strings.Contains(env, "EVEY_SERVER_BASE_URL=https://media.example.com\n") || !strings.Contains(env, "EVEY_FORWARDED_PROTO=true\n") {
-		t.Errorf(".env lacks the proxy facts:\n%s", env)
+	if !strings.Contains(compose, "EVEY_SERVER_BASE_URL: https://media.example.com\n") || !strings.Contains(compose, "EVEY_FORWARDED_PROTO: \"true\"\n") {
+		t.Errorf("compose lacks the proxy facts:\n%s", compose)
 	}
 	if _, err := renderInit(initOptions{Media: "/srv/media", Port: 9091, Version: "latest", BehindProxy: "proxy-net"}, fixedSecret); err == nil {
 		t.Error("--behind-proxy without --domain must be refused")
@@ -248,7 +243,9 @@ func TestRenderInit_OperatorLayoutBehindProxy(t *testing.T) {
 		}
 	}
 	env := fileByName(t, files, ".env").Content
-	if strings.Contains(env, "generate") {
-		t.Errorf("with everything external no secret is generated at boot, the note must not claim so:\n%s", env)
+	for _, want := range []string{"EVEY_DB_PASSWORD=", "MEILI_MASTER_KEY="} {
+		if !strings.Contains(env, want) {
+			t.Errorf(".env lacks %q", want)
+		}
 	}
 }

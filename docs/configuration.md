@@ -17,11 +17,15 @@ the exhaustive reference if you need one.
 
 ## Must Set
 
+Nothing, for the default install: the media path and the image tag are on the
+compose file itself (`evey init` writes it), and there is no `.env`. The
+repository's own `docker-compose.yml` reads `MEDIA_DIR` from `.env` instead:
+
 ```env
 MEDIA_DIR=/path/to/your/media
 ```
 
-That is all for the default install: Postgres and Meilisearch run embedded in
+Either way, Postgres and Meilisearch run embedded in
 the container and generate their own secrets on first boot, stored under
 `./evey-data/keys` (`postgres.password`, `meili.key`, 0600). The server reads
 them through `EVEY_DB_PASSWORD_FILE` / `MEILI_MASTER_KEY_FILE` (baked into the

@@ -53,7 +53,7 @@ this?" is always answerable without trusting a tag.
    deployment, `scripts/evey-update.sh --tag 0.2.0-beta.1 --apply` - pinning
    the release tag replaces the `sha-` pin.
 6. **Tell the testers** the tag and the changelog section. Operators pin
-   `EVEY_VERSION=0.2.0-beta.1` (or `-full`).
+   `gravityz/evey:0.2.0-beta.1` (or `-full`) on their `image:` line.
 
 Pre-release tags are cheap: `-beta.2`, `-beta.3` as needed. What they are not
 is retractable - a published tag stays published. To undo a bad cut, cut the

@@ -67,8 +67,9 @@ func runInit(args []string, stdout io.Writer) error {
 	fs.Usage = func() {
 		fmt.Fprintf(stdout, `usage: evey init --media /path/to/media [flags]
 
-Writes docker-compose.yml and .env (and a Caddyfile with --domain) for a
-single-container Evey install. Run it from the image:
+Writes docker-compose.yml for a single-container Evey install (plus a
+Caddyfile with --domain / --behind-proxy, and a .env holding the shared
+secrets with --external-postgres / --external-meili). Run it from the image:
 
   docker run --rm -v "$PWD":/out gravityz/evey init --media /path/to/media
   docker compose up -d
@@ -150,16 +151,40 @@ func renderInit(o initOptions, secret func() (string, error)) ([]initFile, error
 	b.WriteString("# lives in Admin -> Server config once the server is up, not in this file.\n")
 	b.WriteString("services:\n")
 	b.WriteString("  evey:\n")
-	b.WriteString("    image: gravityz/evey:${EVEY_VERSION:-latest}\n")
+	// ${EVEY_VERSION:-tag}: the tag is pinned right here, and an operator can
+	// still override it for one run (EVEY_VERSION=x docker compose up -d) -
+	// what scripts/evey-update.sh and evey-rollback.sh rely on.
+	fmt.Fprintf(&b, "    image: gravityz/evey:${EVEY_VERSION:-%s}\n", o.Version)
 	b.WriteString("    container_name: evey-server\n")
 	if !proxied {
-		fmt.Fprintf(&b, "    ports:\n      - \"${EVEY_HTTP_PORT:-%d}:9091\"\n", o.Port)
+		fmt.Fprintf(&b, "    ports:\n      - \"%d:9091\"\n", o.Port)
 	} else {
 		b.WriteString("    # No host port: Caddy below is the only way in (HTTPS on your domain).\n")
 		b.WriteString("    # Publish 9091 here as well if LAN clients should bypass the proxy.\n")
 	}
-	if o.ExternalPostgres || o.ExternalMeili {
+	// A mapping that holds only comments is a YAML null, which compose
+	// rejects ("environment must be a mapping"): open the block only when a
+	// real key goes in, and keep the hints commented out otherwise.
+	if proxied || o.ExternalPostgres || o.ExternalMeili {
 		b.WriteString("    environment:\n")
+	} else {
+		b.WriteString("    # environment:\n")
+	}
+	switch {
+	case o.BehindProxy != "":
+		fmt.Fprintf(&b, "      EVEY_SERVER_BASE_URL: https://%s\n", o.Domain)
+		b.WriteString("      # Your proxy and the bundled Caddy both sit on the Docker network: trust it\n")
+		b.WriteString("      # for client IPs (narrow to your proxy's subnet once you know it).\n")
+		b.WriteString("      EVEY_TRUSTED_PROXIES: 172.16.0.0/12\n")
+		b.WriteString("      EVEY_FORWARDED_PROTO: \"true\"\n")
+	case o.Domain != "":
+		fmt.Fprintf(&b, "      EVEY_SERVER_BASE_URL: https://%s\n", o.Domain)
+		b.WriteString("      # Caddy terminates TLS on the compose network: trust it for client IPs.\n")
+		b.WriteString("      EVEY_TRUSTED_PROXIES: 172.16.0.0/12\n")
+		b.WriteString("      EVEY_FORWARDED_PROTO: \"true\"\n")
+	default:
+		b.WriteString("    #   # Public URL, used for e-mail links, OIDC redirects and cast/device URLs:\n")
+		fmt.Fprintf(&b, "    #   EVEY_SERVER_BASE_URL: http://<your-ip>:%d\n", o.Port)
 	}
 	if o.ExternalPostgres {
 		b.WriteString("      EVEY_DB_HOST: postgres\n")
@@ -169,7 +194,17 @@ func renderInit(o initOptions, secret func() (string, error)) ([]initFile, error
 		b.WriteString("      EVEY_EMBEDDED_MEILI: \"false\"\n")
 		b.WriteString("      EVEY_MEILI_URL: http://meilisearch:7700\n")
 	}
-	b.WriteString("    env_file: .env\n")
+	if proxied || o.ExternalPostgres || o.ExternalMeili {
+		b.WriteString("      # Optional first-boot seeds (then managed in Admin -> Server config -> API keys):\n")
+		b.WriteString("      # EVEY_TMDB_API_KEY: \"\"\n      # EVEY_OMDB_API_KEY: \"\"\n")
+	} else {
+		b.WriteString("    #   # Optional first-boot seeds (then managed in Admin -> Server config -> API keys):\n")
+		b.WriteString("    #   EVEY_TMDB_API_KEY: \"\"\n    #   EVEY_OMDB_API_KEY: \"\"\n")
+	}
+	withEnvFile := o.ExternalPostgres || o.ExternalMeili
+	if withEnvFile {
+		b.WriteString("    env_file: .env          # the secrets shared with the sibling services\n")
+	}
 	b.WriteString("    volumes:\n")
 	switch {
 	case o.ExternalPostgres && o.ExternalMeili:
@@ -184,7 +219,7 @@ func renderInit(o initOptions, secret func() (string, error)) ([]initFile, error
 	b.WriteString("      - evey-cache:/cache     # transcode + trickplay cache (safe to prune)\n")
 	b.WriteString("      # Read-write so the repair features (seek-index rebuild) work in place;\n")
 	b.WriteString("      # append `:ro` for a read-only library and accept that repairs fail.\n")
-	b.WriteString("      - ${MEDIA_DIR}:/media\n")
+	fmt.Fprintf(&b, "      - %s:/media\n", o.Media)
 	b.WriteString("    # The embedded database is stopped cleanly after the server on `docker stop`;\n")
 	b.WriteString("    # a large catalogue needs more than Docker's 10s default before the kill.\n")
 	b.WriteString("    stop_grace_period: 60s\n")
@@ -274,7 +309,9 @@ func renderInit(o initOptions, secret func() (string, error)) ([]initFile, error
       - "80:80"
       - "443:443"
     environment:
-      EVEY_DOMAIN: ${EVEY_DOMAIN:?EVEY_DOMAIN must be set in .env}
+      EVEY_DOMAIN: `)
+		b.WriteString(o.Domain)
+		b.WriteString(`
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
@@ -296,63 +333,30 @@ func renderInit(o initOptions, secret func() (string, error)) ([]initFile, error
 	}
 	files := []initFile{{Name: "docker-compose.yml", Content: b.String(), Mode: 0o644}}
 
-	var e strings.Builder
-	e.WriteString("# Generated by `evey init`. Only what must exist BEFORE the server boots lives\n")
-	e.WriteString("# here. Everything an operator tunes afterwards is in Admin -> Server config.\n\n")
-	fmt.Fprintf(&e, "MEDIA_DIR=%s\n", o.Media)
-	fmt.Fprintf(&e, "EVEY_VERSION=%s\n", o.Version)
-	switch {
-	case o.BehindProxy != "":
-		fmt.Fprintf(&e, "EVEY_DOMAIN=%s\n", o.Domain)
-		fmt.Fprintf(&e, "EVEY_SERVER_BASE_URL=https://%s\n", o.Domain)
-		e.WriteString("# Your proxy and the bundled Caddy both sit on the Docker network: trust it\n")
-		e.WriteString("# for client IPs (narrow to your proxy's subnet once you know it).\n")
-		e.WriteString("EVEY_TRUSTED_PROXIES=172.16.0.0/12\n")
-		e.WriteString("EVEY_FORWARDED_PROTO=true\n")
-	case o.Domain != "":
-		fmt.Fprintf(&e, "EVEY_DOMAIN=%s\n", o.Domain)
-		fmt.Fprintf(&e, "EVEY_SERVER_BASE_URL=https://%s\n", o.Domain)
-		e.WriteString("# Caddy terminates TLS on the compose network: trust it for client IPs.\n")
-		e.WriteString("EVEY_TRUSTED_PROXIES=172.16.0.0/12\n")
-		e.WriteString("EVEY_FORWARDED_PROTO=true\n")
-	default:
-		fmt.Fprintf(&e, "EVEY_HTTP_PORT=%d\n", o.Port)
-		e.WriteString("# Public URL, used for e-mail links, OIDC redirects and cast/device URLs:\n")
-		fmt.Fprintf(&e, "# EVEY_SERVER_BASE_URL=http://<your-ip>:%d\n", o.Port)
-	}
-	envMode := 0o644
-	if o.ExternalPostgres {
-		pw, err := secret()
-		if err != nil {
-			return nil, err
+	// .env exists only to hold a secret shared between services (0600); a
+	// single-container install has none and gets no .env at all.
+	if withEnvFile {
+		var e strings.Builder
+		e.WriteString("# Generated by `evey init`: secrets shared between the compose services.\n")
+		e.WriteString("# Everything else is in docker-compose.yml, or in Admin -> Server config.\n\n")
+		if o.ExternalPostgres {
+			pw, err := secret()
+			if err != nil {
+				return nil, err
+			}
+			e.WriteString("# Database password, shared by the postgres service and the server.\n")
+			fmt.Fprintf(&e, "EVEY_DB_PASSWORD=%s\n", pw)
 		}
-		e.WriteString("# Database password, shared by the postgres service and the server.\n")
-		fmt.Fprintf(&e, "EVEY_DB_PASSWORD=%s\n", pw)
-		envMode = 0o600
-	}
-	if o.ExternalMeili {
-		key, err := secret()
-		if err != nil {
-			return nil, err
+		if o.ExternalMeili {
+			key, err := secret()
+			if err != nil {
+				return nil, err
+			}
+			e.WriteString("# Search master key, shared by the meilisearch service and the server.\n")
+			fmt.Fprintf(&e, "MEILI_MASTER_KEY=%s\n", key)
 		}
-		e.WriteString("# Search master key, shared by the meilisearch service and the server.\n")
-		fmt.Fprintf(&e, "MEILI_MASTER_KEY=%s\n", key)
-		envMode = 0o600
+		files = append(files, initFile{Name: ".env", Content: e.String(), Mode: 0o600})
 	}
-	switch {
-	case !o.ExternalPostgres && !o.ExternalMeili:
-		e.WriteString("# The embedded Postgres and Meilisearch generate their own secrets on first\n")
-		e.WriteString("# boot (stored in ./evey-data/keys): nothing to set here.\n")
-	case !o.ExternalPostgres:
-		e.WriteString("# The embedded Postgres generates its own password on first boot\n")
-		e.WriteString("# (./evey-data/keys/postgres.password): nothing to set for it.\n")
-	case !o.ExternalMeili:
-		e.WriteString("# The embedded Meilisearch generates its own key on first boot\n")
-		e.WriteString("# (./evey-data/keys/meili.key): nothing to set for it.\n")
-	}
-	e.WriteString("# Optional first-boot seeds (then managed in Admin -> Server config -> API keys):\n")
-	e.WriteString("# EVEY_TMDB_API_KEY=\n# EVEY_OMDB_API_KEY=\n")
-	files = append(files, initFile{Name: ".env", Content: e.String(), Mode: os.FileMode(envMode)})
 
 	switch {
 	case o.BehindProxy != "":
@@ -403,8 +407,19 @@ func caddyfileBehindProxy(bundled string) (string, error) {
 // file unless force. Running as root against a mounted directory (the
 // documented form), it hands every file to the directory's owner.
 func writeInitFiles(dir string, files []initFile, force bool) ([]string, error) {
+	// A directory created here (--out pointing at a new subdirectory) belongs
+	// to whoever owns its parent, like the files inside it.
+	uid, gid := -1, -1
+	if _, err := os.Stat(dir); err != nil {
+		uid, gid = ownerOf(filepath.Dir(filepath.Clean(dir)))
+	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, fmt.Errorf("create %s: %w", dir, err)
+	}
+	if uid >= 0 {
+		if err := os.Chown(dir, uid, gid); err != nil {
+			fmt.Fprintf(os.Stderr, "init: %s stays owned by root (chown to %d:%d failed: %v)\n", dir, uid, gid, err)
+		}
 	}
 	if !force {
 		for _, f := range files {
@@ -413,7 +428,7 @@ func writeInitFiles(dir string, files []initFile, force bool) ([]string, error) 
 			}
 		}
 	}
-	uid, gid := ownerOf(dir)
+	uid, gid = ownerOf(dir)
 	var written []string
 	for _, f := range files {
 		path := filepath.Join(dir, f.Name)
@@ -455,4 +470,5 @@ func printInitNextSteps(w io.Writer, o initOptions, written []string) {
 	}
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Keep ./evey-data: it holds the database, the JWT signing key and the generated secrets.")
+	fmt.Fprintln(w, "To update later: docker compose pull && docker compose up -d")
 }

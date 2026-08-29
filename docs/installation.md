@@ -59,26 +59,30 @@ mkdir evey && cd evey
 docker run --rm -v "$PWD":/out gravityz/evey init --media /path/to/your/media
 ```
 
-`evey init` writes `docker-compose.yml` and `.env` (owned by you, not root).
-Flags: `--port 9091` (host port), `--domain media.example.com` (adds the Caddy
-reverse proxy with automatic HTTPS and a `Caddyfile`), `--external-postgres`
-(the operator layout below), `--version v0.1.0` (pin a tag), `--force`
-(overwrite). Or paste the equivalent by hand:
+`evey init` writes one `docker-compose.yml` (owned by you, not root) - no
+`.env`. Flags: `--port 9091` (host port), `--domain media.example.com` (adds
+the Caddy reverse proxy with automatic HTTPS and a `Caddyfile`),
+`--behind-proxy <network>` (you already run a proxy that owns TLS - Caddy
+serves plain `:80` on that network, see [reverse-proxy.md](reverse-proxy.md)),
+`--external-postgres` / `--external-meili` (the operator layout below; the
+shared secrets then go to a `.env`), `--version 0.2.0-beta.1` (pin a tag),
+`--force` (overwrite). Or paste the equivalent by hand:
 
 ```yaml
 services:
   evey:
-    image: gravityz/evey:${EVEY_VERSION:-latest}
+    image: gravityz/evey:latest        # pin a tag here (e.g. 0.2.0-beta.1, sha-1a2b3c4)
     container_name: evey-server
     ports:
       - "9091:9091"
-    env_file: .env
+    # environment:
+    #   EVEY_SERVER_BASE_URL: http://<your-ip>:9091   # e-mail links, OIDC redirects, cast/device URLs
     volumes:
-      - ./evey-data:/data     # database, JWT key, generated secrets, search index, logs, backups
-      - evey-cache:/cache     # transcode + trickplay cache (safe to prune)
+      - ./evey-data:/data              # database, JWT key, generated secrets, search index, logs, backups
+      - evey-cache:/cache              # transcode + trickplay cache (safe to prune)
       # Read-write so the seek-index repair rebuilds files in place; append
       # `:ro` for a read-only library and accept that those repairs fail.
-      - ${MEDIA_DIR}:/media
+      - /path/to/your/media:/media
     # The embedded database is stopped cleanly AFTER the server on `docker
     # stop`; a large catalogue needs more than Docker's 10s default.
     stop_grace_period: 60s
@@ -88,17 +92,12 @@ volumes:
   evey-cache:
 ```
 
-```env
-MEDIA_DIR=/path/to/your/media
-# EVEY_VERSION=latest        # pin a tag (e.g. v0.1.0, beta-0.0.1)
-# EVEY_SERVER_BASE_URL=http://<your-ip>:9091   # e-mail links, OIDC redirects, cast/device URLs
-```
-
-Keep the env **minimal** - only secrets you bring yourself, the DB connection
-when external, storage paths, and reverse-proxy facts belong here. Almost
-everything else (server name, transcode concurrency, rate limits, log level,
-scan/watcher intervals, backup schedule, API keys) is **editable at runtime
-from Admin → Server Config** and should NOT be stuffed into the compose.
+Keep the environment **minimal** - only secrets you bring yourself, the DB
+connection when external, storage paths, and reverse-proxy facts belong in the
+compose file (or in a `.env` for the secrets). Almost everything else (server
+name, transcode concurrency, rate limits, log level, scan/watcher intervals,
+backup schedule, API keys) is **editable at runtime from Admin → Server
+Config** and should NOT be stuffed into the compose.
 `PUID`/`PGID`: unset by default → the entrypoint adopts the owner of your
 `/media` mounts so in-place repairs work; override with `id -u`/`id -g`. The
 container starts as root only to apply the mapping, then drops privileges -
@@ -302,8 +301,9 @@ boots and dumps the database first (`./evey-data/backups/pre-migration-*`),
 the container's health check turns green once it serves, and `up -d` restarts
 only the `evey` service - a sibling database or proxy is never touched.
 
-**Going back.** Set `EVEY_VERSION` in `.env` to the previous tag and run
-`docker compose up -d` again. If the newer version migrated the schema,
+**Going back.** Put the previous tag on the `image:` line (or in
+`EVEY_VERSION` if your compose interpolates it) and run `docker compose up -d`
+again. If the newer version migrated the schema,
 restore its pre-migration dump first - `docker exec evey-server evey admin
 rollback` prints the exact steps, with the dump's path.
 
@@ -317,8 +317,8 @@ version and commit of the running binary (`/healthz` reports the same), so
 > `scripts/evey-rollback.sh`. They are conveniences for the repository's own
 > deployments, not something an install needs.
 
-**Pin what you run.** Set `EVEY_VERSION` in `.env` to a release tag
-(`0.2.0-beta.1`) or an immutable `sha-<short>` tag; a branch tag such as
+**Pin what you run.** Put a release tag (`0.2.0-beta.1`) or an immutable
+`sha-<short>` tag on the `image:` line; a branch tag such as
 `beta-0.0.1` moves with every push, so two pulls a day apart can run different
 code and "roll back to `beta-0.0.1`" goes nowhere. The script prints the tag it
 launched so you can pin it.

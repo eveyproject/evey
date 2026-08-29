@@ -10,7 +10,7 @@ Brand assets (logo, favicon, social images) live in [`evey-brand/`](evey-brand/)
 
 ## Install
 
-One container, no secret to invent. Let the image write the compose file:
+One container, one file, no secret to invent. Let the image write it:
 
 ```bash
 mkdir evey && cd evey
@@ -23,32 +23,25 @@ Meilisearch run inside the container and generate their own secrets on first
 start (kept in `./evey-data/keys`, next to the JWT signing key - keep that
 directory safe). Migrations run automatically.
 
-Prefer to paste the file yourself? This is the whole of it:
+Prefer to paste the file yourself? This is the whole of it (no `.env`):
 
 **`docker-compose.yml`**
 ```yaml
 services:
   evey:
-    image: gravityz/evey:${EVEY_VERSION:-latest}
+    image: gravityz/evey:latest        # pin a tag here (e.g. 0.2.0-beta.1, sha-1a2b3c4)
     container_name: evey-server
     ports:
       - "9091:9091"
-    env_file: .env
     volumes:
-      - ./evey-data:/data     # database, JWT key, generated secrets, search index, logs, backups
-      - evey-cache:/cache     # transcode + trickplay cache (safe to prune)
-      - ${MEDIA_DIR}:/media   # read-write so in-place repairs work; append :ro to refuse them
+      - ./evey-data:/data              # database, JWT key, generated secrets, search index, logs, backups
+      - evey-cache:/cache              # transcode + trickplay cache (safe to prune)
+      - /path/to/your/media:/media     # read-write so in-place repairs work; append :ro to refuse them
     stop_grace_period: 60s
     restart: unless-stopped
 
 volumes:
   evey-cache:
-```
-
-**`.env`**
-```env
-MEDIA_DIR=/path/to/your/media
-# EVEY_VERSION=latest   # pin a specific tag (e.g. v0.1.0, beta-0.0.1)
 ```
 
 `evey init --domain media.example.com` adds the bundled Caddy reverse proxy
@@ -70,11 +63,11 @@ docker compose pull && docker compose up -d
 
 That is the whole procedure: the server backs the database up by itself
 before applying a migration, and the container reports healthy once it is
-serving. To go back, set `EVEY_VERSION` in `.env` to the previous tag and run
+serving. To go back, put the previous tag on the `image:` line and run
 `docker compose up -d` again (`docker exec evey-server evey admin rollback`
 tells you whether the database must be restored first, and how). Pin what you
-run with `EVEY_VERSION` - a release tag (`0.2.0-beta.1`) or an immutable
-`sha-<short>` tag, not a branch name, which moves with every push.
+run - a release tag (`0.2.0-beta.1`) or an immutable `sha-<short>` tag, not a
+branch name, which moves with every push.
 
 ## HTTPS
 
@@ -85,9 +78,11 @@ proxy (Nginx, Traefik, Nginx Proxy Manager) see
 
 ## Configuration
 
-`.env` holds only what must exist before the server boots. With the default
-install that is one line - `MEDIA_DIR` - everything else (transcoding, hardware
-acceleration, libraries, plugins, API keys) is set in **Admin → Server config**.
+The default install has no `.env`: the compose file holds the media path and
+the image tag, and everything else (transcoding, hardware acceleration,
+libraries, plugins, API keys) is set in **Admin → Server config**. A `.env`
+appears only to carry a secret shared between compose services (an external
+Postgres or Meilisearch).
 
 Full reference: [docs/configuration.md](docs/configuration.md)
 
