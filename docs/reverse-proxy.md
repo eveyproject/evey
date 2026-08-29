@@ -13,10 +13,23 @@ EVEY_TRUSTED_PROXIES=172.16.0.0/12       # only needed if the proxy is a contain
 EVEY_FORWARDED_PROTO=true
 ```
 
-## Streaming - required for every proxy
+## Streaming - what a proxy's defaults do to it
 
-These endpoints stream and must run with **response buffering off** and **no
-read/write timeout**, or playback and scans stall:
+Evey works behind a reverse proxy left on its defaults: every long-lived
+response either sends bytes continuously (HLS segments, direct play,
+transcode output) or pings the client every 30 s (the event streams), so a
+default read timeout never fires. Two things are still worth knowing:
+
+- **Buffering.** A proxy that buffers responses (nginx does by default) reads
+  a direct-play file into its own buffers and temp files before the client
+  gets it - functional, but a multi-GB film then transits through the proxy
+  host's disk. `proxy_buffering off` on the streaming paths avoids that.
+- **Scans.** `/api/v1/libraries/*/scan` streams progress for as long as the
+  scan runs; a proxy that caps a response's total duration (rare - nginx and
+  Caddy do not by default) would cut it short. The scan itself continues
+  server-side regardless.
+
+The paths concerned:
 
 ```
 /api/v1/media/*/transcode
@@ -25,7 +38,9 @@ read/write timeout**, or playback and scans stall:
 /api/v1/libraries/*/scan
 ```
 
-All the example configs below already handle this. If you write your own, don't forget.
+The bundled Caddy and the Nginx/Traefik examples below set both (no
+buffering, no timeout) on these paths. With a UI-driven proxy such as Nginx
+Proxy Manager, the defaults are fine and the tuning is an optional snippet.
 
 ## Security headers & CSP - read this if your proxy sets its own
 
@@ -153,10 +168,13 @@ already run" above). Then, **Edit Proxy Host**:
    answers 403 for no reason).
 2. **SSL**: your certificate, Force SSL, HTTP/2. HSTS is optional here - the
    app already sends it.
-3. **Advanced** → *Custom Nginx Configuration*, paste this. NPM already
-   forwards `X-Forwarded-For` / `X-Forwarded-Proto` and the Host header on its
-   own; what its defaults lack is unbuffered, untimed streaming, and the
-   `Custom Locations` tab cannot express the regex these need:
+That is all: NPM forwards `X-Forwarded-For` / `X-Forwarded-Proto` and the
+Host header on its own, and its default timeouts never fire on Evey's
+streams (see the streaming section above).
+
+**Optional** - keep NPM from buffering direct-play files through its own disk:
+**Advanced** → *Custom Nginx Configuration* (the `Custom Locations` tab cannot
+express the regex):
 
 ```nginx
 # Plugin uploads, backup restores.
@@ -193,7 +211,8 @@ location ~ ^/api/v1/libraries/.+/scan {
 ```
 
 Every other path (the web UI, the rest of the API, the SyncPlay WebSocket)
-goes through NPM's own proxy block, which the Details tab configures.
+goes through NPM's own proxy block, which the Details tab configures. Skip
+the snippet and nothing breaks - it only changes where big files are buffered.
 
 ## Real client IPs and the remote-access gate
 
