@@ -196,6 +196,17 @@ const maxIntroDetectionAttempts = 2
 // on a weak NAS.
 const introDetectionEpisodeBudget = 30 * time.Minute
 
+// failureConsumesAttempt reports whether a detection failure counts toward
+// maxIntroDetectionAttempts. Two failures reproduce on the same file and must
+// not be handed back by every sweep: a decode the kernel killed (the OOM
+// killer, 2026-08-24) and a spent episode budget (2026-08-29: three seasons
+// timed out at 30 minutes on every 90-minute idle sweep, for a day). A
+// canceled context is the sweep being stopped, not the episode - it stays
+// uncounted, like an I/O error.
+func failureConsumesAttempt(err error) bool {
+	return errors.Is(err, domainlibrary.ErrDetectorKilled) || errors.Is(err, context.DeadlineExceeded)
+}
+
 // introPersistBudget bounds the segment writes after detection, on a context
 // detached from the episode budget so an exhausted budget can't void the
 // found results at the write.
@@ -784,9 +795,10 @@ func (s *IntroDetectionService) backfillMovies(ctx context.Context, libraryID st
 				if detErr != nil {
 					slog.WarnContext(ctx, "intro backfill movies: detection failed",
 						slog.String("media_id", id), slog.Any("err", detErr))
-					// Same rule as the season sweep: a killed decode is repeatable, so
-					// it must consume an attempt or the backfill keeps re-picking it.
-					if errors.Is(detErr, domainlibrary.ErrDetectorKilled) {
+					// Same rule as the season sweep: a killed decode or a spent budget
+					// is repeatable, so it must consume an attempt or the backfill
+					// keeps re-picking it.
+					if failureConsumesAttempt(detErr) {
 						if recErr := s.segmentRepo.RecordIntroDetectionAttempt(ctx, id, introDetectionAlgoVersion); recErr != nil {
 							slog.WarnContext(ctx, "intro backfill movies: record attempt after kill",
 								slog.String("media_id", id), slog.Any("err", recErr))
@@ -934,13 +946,13 @@ func (s *IntroDetectionService) detectSeason(ctx context.Context, parentID strin
 			}
 			detErr := s.detectIntroWithHint(ctx, string(ep.ID), hint)
 			if detErr != nil {
-				// A transient failure (I/O, deadline) is not counted toward the cap,
+				// A transient failure (I/O, shutdown) is not counted toward the cap,
 				// so it doesn't park an episode that is perfectly detectable. A decode
-				// the kernel KILLED is not transient - see ErrDetectorKilled - and the
-				// work list is rebuilt from the database, so an uncounted kill comes
-				// back after every restart and takes the host down with it.
+				// the kernel KILLED or a spent budget is not transient - see
+				// failureConsumesAttempt - and the work list is rebuilt from the
+				// database, so an uncounted one comes back after every sweep.
 				slog.WarnContext(ctx, "intro detection failed", slog.String("media_id", string(ep.ID)), slog.Any("err", detErr))
-				if errors.Is(detErr, domainlibrary.ErrDetectorKilled) {
+				if failureConsumesAttempt(detErr) {
 					if recErr := s.segmentRepo.RecordIntroDetectionAttempt(ctx, string(ep.ID), introDetectionAlgoVersion); recErr != nil {
 						slog.WarnContext(ctx, "intro detection: record attempt after kill", slog.String("media_id", string(ep.ID)), slog.Any("err", recErr))
 					}

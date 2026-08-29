@@ -1594,3 +1594,58 @@ func TestDetectSeason_TransientFailureDoesNotConsumeAnAttempt(t *testing.T) {
 	require.False(t, recorded,
 		"a transient failure must not consume an attempt, or one bad mount parks a whole library as undetectable")
 }
+
+// TestDetectSeason_BudgetDeadlineConsumesAnAttempt pins the rule the 2026-08-29
+// prod loop was missing: an episode that exhausts its detection budget must
+// consume an attempt. The deadline reproduces on the same file, so an
+// uncounted one is handed back by every idle sweep - prod re-ran the same
+// three seasons every 90 minutes for a day, 30 minutes each, finding nothing.
+func TestDetectSeason_BudgetDeadlineConsumesAnAttempt(t *testing.T) {
+	t.Parallel()
+
+	parentID := "season-deadline"
+	epID := shared.MediaItemID("ep-deadline")
+	dur, _ := shared.NewDurationMs(1_200_000)
+	siblings := []*domainlibrary.MediaItem{
+		{
+			ID: epID, Type: domainlibrary.Episode, ParentID: parentID,
+			File: &domainlibrary.MediaFile{Path: "/tv/ep.mkv", Duration: dur},
+		},
+	}
+	segRepo := &fakeSegmentRepo{}
+	itemRepo := &fakeMediaItemRepo{siblings: siblings}
+	det := &fakeDetector{fallbackErr: fmt.Errorf("silence pass: %w", context.DeadlineExceeded)}
+	svc := newTestServiceFull(det, segRepo, itemRepo, &fakeTrickplayRepo{})
+
+	svc.detectSeason(context.Background(), parentID)
+
+	attempt, recorded := segRepo.attempts[string(epID)]
+	require.True(t, recorded,
+		"a spent detection budget must record an attempt, or the idle sweep re-runs the same episode forever")
+	require.Equal(t, 1, attempt.count, "exactly one attempt per exhausted budget")
+}
+
+// A shutdown (context canceled, not a deadline) is the sweep being killed, not
+// the episode being undetectable: it must not consume an attempt.
+func TestDetectSeason_ShutdownCancelDoesNotConsumeAnAttempt(t *testing.T) {
+	t.Parallel()
+
+	parentID := "season-canceled"
+	epID := shared.MediaItemID("ep-canceled")
+	dur, _ := shared.NewDurationMs(1_200_000)
+	siblings := []*domainlibrary.MediaItem{
+		{
+			ID: epID, Type: domainlibrary.Episode, ParentID: parentID,
+			File: &domainlibrary.MediaFile{Path: "/tv/ep.mkv", Duration: dur},
+		},
+	}
+	segRepo := &fakeSegmentRepo{}
+	itemRepo := &fakeMediaItemRepo{siblings: siblings}
+	det := &fakeDetector{fallbackErr: fmt.Errorf("silence pass: %w", context.Canceled)}
+	svc := newTestServiceFull(det, segRepo, itemRepo, &fakeTrickplayRepo{})
+
+	svc.detectSeason(context.Background(), parentID)
+
+	_, recorded := segRepo.attempts[string(epID)]
+	require.False(t, recorded, "a canceled sweep must not park the episode it was interrupted on")
+}
