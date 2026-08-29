@@ -143,10 +143,57 @@ docker compose -f docker-compose.yml -f examples/traefik/docker-compose.traefik.
 
 ## Nginx Proxy Manager
 
-1. Add a proxy host: your domain → `evey:9091`, enable **WebSocket support**.
-2. SSL tab: request a Let's Encrypt certificate.
-3. Advanced tab: paste the streaming `location` blocks from
-   [`examples/nginx/evey.conf.template`](../examples/nginx/evey.conf.template) so playback isn't buffered.
+The evey container must be on the network NPM uses (see "Behind a proxy you
+already run" above). Then, **Edit Proxy Host**:
+
+1. **Details**: Scheme `http`, Forward Hostname `evey-server`, Forward Port
+   `9091`. **Websockets Support: on** (SyncPlay). **Cache Assets: off** - it
+   would cache media segments and playlists with a fixed expiry. Block Common
+   Exploits can stay on (turn it off if a search or a plugin upload ever
+   answers 403 for no reason).
+2. **SSL**: your certificate, Force SSL, HTTP/2. HSTS is optional here - the
+   app already sends it.
+3. **Advanced** → *Custom Nginx Configuration*, paste this. NPM already
+   forwards `X-Forwarded-For` / `X-Forwarded-Proto` and the Host header on its
+   own; what its defaults lack is unbuffered, untimed streaming, and the
+   `Custom Locations` tab cannot express the regex these need:
+
+```nginx
+# Plugin uploads, backup restores.
+client_max_body_size 100M;
+
+# Streaming - no buffering, no timeout.
+location ~ ^/api/v1/media/.+/(transcode|hls|stream) {
+    proxy_pass http://evey-server:9091;
+    proxy_buffering off;
+    proxy_request_buffering off;
+    proxy_read_timeout 0;
+    proxy_send_timeout 0;
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+
+# Library scans stream their progress for as long as the scan runs.
+location ~ ^/api/v1/libraries/.+/scan {
+    proxy_pass http://evey-server:9091;
+    proxy_buffering off;
+    proxy_read_timeout 0;
+    proxy_send_timeout 0;
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+```
+
+Every other path (the web UI, the rest of the API, the SyncPlay WebSocket)
+goes through NPM's own proxy block, which the Details tab configures.
 
 ## Real client IPs and the remote-access gate
 
