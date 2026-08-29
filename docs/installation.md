@@ -292,25 +292,30 @@ configs handle this. Full setups: [reverse-proxy.md](reverse-proxy.md).
 
 ## 4. Updating Evey
 
-The short form is `docker compose pull && docker compose up -d`. The
-repeatable form is the update script, run on the host next to your compose
-file (grab it from the repository, it needs only bash + docker):
-
 ```bash
-scripts/evey-update.sh                    # prints the plan, changes nothing
-scripts/evey-update.sh --apply            # updates to EVEY_VERSION from .env
-scripts/evey-update.sh --tag sha-1a2b3c4 --commit 1a2b3c4… --apply
+docker compose pull && docker compose up -d
+docker compose logs -f evey      # until "healthy" (a migration on a large catalogue takes minutes)
 ```
 
-It reads the current state (`evey admin rollback`), takes a pre-update dump
-into `./evey-data/backups/pre-update-<stamp>.sql.gz` with the server's own
-connection (embedded or external database alike), pulls, relaunches only the
-`evey` service, waits for the image's health check (up to 10 minutes - a
-schema migration on a large catalogue takes time, and the server also dumps
-the database before migrating), prints what the server now reports it is
-(`evey version`), and ends with the exact `evey-rollback.sh` line to undo it.
-Exit 1 = never became healthy (rollback line printed), 3 = healthy but not
-the commit you asked for.
+Nothing else is required. The new image applies pending migrations when it
+boots and dumps the database first (`./evey-data/backups/pre-migration-*`),
+the container's health check turns green once it serves, and `up -d` restarts
+only the `evey` service - a sibling database or proxy is never touched.
+
+**Going back.** Set `EVEY_VERSION` in `.env` to the previous tag and run
+`docker compose up -d` again. If the newer version migrated the schema,
+restore its pre-migration dump first - `docker exec evey-server evey admin
+rollback` prints the exact steps, with the dump's path.
+
+**Verifying what runs.** `docker exec evey-server evey version` prints the
+version and commit of the running binary (`/healthz` reports the same), so
+"which code is this?" never depends on a tag.
+
+> Operators working from a checkout of the repository have the same procedure
+> scripted: `scripts/evey-update.sh` (dry-run by default; state, pre-update
+> dump, pull, health wait, commit check, rollback line) and
+> `scripts/evey-rollback.sh`. They are conveniences for the repository's own
+> deployments, not something an install needs.
 
 **Pin what you run.** Set `EVEY_VERSION` in `.env` to a release tag
 (`0.2.0-beta.1`) or an immutable `sha-<short>` tag; a branch tag such as

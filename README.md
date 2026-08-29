@@ -68,12 +68,13 @@ working unchanged, `EVEY_DB_HOST` is what selects it).
 docker compose pull && docker compose up -d
 ```
 
-For a repeatable procedure (state, pre-update dump, pull, wait for health,
-verify the running commit, rollback line ready) use
-[`scripts/evey-update.sh`](scripts/evey-update.sh) next to your compose file:
-`scripts/evey-update.sh --apply`. Pin what you run with `EVEY_VERSION` in
-`.env` - a release tag (`0.2.0-beta.1`) or an immutable `sha-<short>` tag,
-not a branch name, which moves with every push.
+That is the whole procedure: the server backs the database up by itself
+before applying a migration, and the container reports healthy once it is
+serving. To go back, set `EVEY_VERSION` in `.env` to the previous tag and run
+`docker compose up -d` again (`docker exec evey-server evey admin rollback`
+tells you whether the database must be restored first, and how). Pin what you
+run with `EVEY_VERSION` - a release tag (`0.2.0-beta.1`) or an immutable
+`sha-<short>` tag, not a branch name, which moves with every push.
 
 ## HTTPS
 
