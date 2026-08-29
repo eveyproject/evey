@@ -93,35 +93,36 @@ headers/CSP from the section above (and strips the app's own CSP so exactly
 one reaches the browser). Add a `caddy` service to your compose (see the
 `caddy` service in the repo [`docker-compose.yml`](../docker-compose.yml)).
 
-### Caddy behind another proxy (TLS terminated upstream)
+### Behind a proxy you already run (TLS terminated upstream)
 
-On a NAS that already runs a reverse proxy (the vendor's, Nginx Proxy Manager,
-a Traefik on a shared Docker network), keep Caddy only for what that proxy
-cannot do well - the streaming timeouts and the curated CSP - and let the
-upstream own TLS. Three changes to the bundled Caddyfile: turn automatic HTTPS
-off, serve plain `:80`, and trust the upstream so the real client address
-survives the hop (the remote-access gate depends on it, see below):
+On a NAS that already has a reverse proxy (the vendor's, Nginx Proxy Manager,
+a Traefik on a shared Docker network), **no Caddy is needed**: Evey emits its
+own security headers and a complete CSP, and the streaming rules can only be
+enforced by the proxy that faces the client anyway - a second proxy behind it
+adds nothing. Put the evey service on that proxy's network and target
+`evey-server:9091` (`evey init --behind-proxy <network> --domain <name>`
+writes exactly this):
 
-```caddyfile
-{
-	auto_https off
-	servers {
-		trusted_proxies static private_ranges
-	}
-}
-
-:80 {
-	# ... the `encode`, `header` and `handle` blocks of docker/Caddyfile, unchanged
-}
+```yaml
+services:
+  evey:
+    # no ports: the proxy is the only way in
+    environment:
+      EVEY_SERVER_BASE_URL: https://media.example.com
+      EVEY_TRUSTED_PROXIES: 172.16.0.0/12     # narrow to the proxy's subnet once known
+      EVEY_FORWARDED_PROTO: "true"
+    # ...
+networks:
+  default:
+    name: proxy-net
+    external: true
 ```
 
-In compose the service then publishes nothing (`expose: ["80"]`), joins the
-proxy's network (`networks: default: { name: proxy-net, external: true }`),
-and the upstream proxy targets `evey-caddy:80`. The server side is the usual
-proxy trio in `.env`: `EVEY_SERVER_BASE_URL=https://<your domain>`,
-`EVEY_TRUSTED_PROXIES=172.16.0.0/12`, `EVEY_FORWARDED_PROTO=true`. Since
-`private_ranges` trusts every RFC1918 peer, scope it to the upstream's subnet
-once you know it.
+Then, in that proxy, for the route to `evey-server:9091`: forward
+`X-Forwarded-For` and `X-Forwarded-Proto`, enable WebSocket support, and apply
+the streaming rules above (no buffering, no read/write timeout on the
+streaming paths) - the Nginx, Traefik and Nginx Proxy Manager sections below
+show the exact lines.
 
 ## Nginx
 

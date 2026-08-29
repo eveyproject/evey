@@ -62,8 +62,9 @@ docker run --rm -v "$PWD":/out gravityz/evey init --media /path/to/your/media
 `evey init` writes one `docker-compose.yml` (owned by you, not root) - no
 `.env`. Flags: `--port 9091` (host port), `--domain media.example.com` (adds
 the Caddy reverse proxy with automatic HTTPS and a `Caddyfile`),
-`--behind-proxy <network>` (you already run a proxy that owns TLS - Caddy
-serves plain `:80` on that network, see [reverse-proxy.md](reverse-proxy.md)),
+`--behind-proxy <network>` (you already run a proxy that owns TLS - the server
+joins its network as `evey-server:9091`, nothing published, no Caddy; see
+[reverse-proxy.md](reverse-proxy.md)),
 `--external-postgres` / `--external-meili` (the operator layout below; the
 shared secrets then go to a `.env`), `--version 0.2.0-beta.1` (pin a tag),
 `--force` (overwrite). Or paste the equivalent by hand:

@@ -177,33 +177,30 @@ func TestRunInit_EndToEnd(t *testing.T) {
 	}
 }
 
-func TestRenderInit_BehindProxyIsPlainHTTPOnExternalNetwork(t *testing.T) {
+func TestRenderInit_BehindProxyJoinsTheNetworkWithoutCaddy(t *testing.T) {
 	files, err := renderInit(initOptions{Media: []string{"/srv/media"}, Port: 9091, Version: "latest", Domain: "media.example.com", BehindProxy: "proxy-net"}, fixedSecret)
 	if err != nil {
 		t.Fatal(err)
 	}
-	compose := fileByName(t, files, "docker-compose.yml").Content
-	caddy := fileByName(t, files, "Caddyfile").Content
-	for _, want := range []string{"    expose:\n      - \"80\"\n", "networks:\n  default:\n    name: proxy-net\n    external: true\n"} {
+	if len(files) != 1 {
+		t.Fatalf("behind an existing proxy the install is the compose file alone, got %d files", len(files))
+	}
+	compose := files[0].Content
+	for _, want := range []string{
+		"networks:\n  default:\n    name: proxy-net\n    external: true\n",
+		"evey-server:9091",
+		"EVEY_SERVER_BASE_URL: https://media.example.com\n",
+		"EVEY_TRUSTED_PROXIES: 172.16.0.0/12\n",
+		"EVEY_FORWARDED_PROTO: \"true\"\n",
+	} {
 		if !strings.Contains(compose, want) {
 			t.Errorf("compose lacks %q", want)
 		}
 	}
-	for _, forbidden := range []string{"\"443:443\"", "\"80:80\"", ":9091\""} {
+	for _, forbidden := range []string{"  caddy:\n", "Caddyfile", "caddy-data", "\"443:443\"", "\"80:80\"", ":9091\"", "    ports:"} {
 		if strings.Contains(compose, forbidden) {
-			t.Errorf("behind a proxy nothing may be published, found %q", forbidden)
+			t.Errorf("behind a proxy nothing may be published and no Caddy is needed (the app serves its own CSP), found %q", forbidden)
 		}
-	}
-	for _, want := range []string{"auto_https off", "trusted_proxies static private_ranges", "\n:80 {\n", "Content-Security-Policy"} {
-		if !strings.Contains(caddy, want) {
-			t.Errorf("Caddyfile lacks %q", want)
-		}
-	}
-	if strings.Contains(caddy, "{$EVEY_DOMAIN") || strings.Contains(caddy, "Let's Encrypt") {
-		t.Error("behind a proxy Caddy must neither obtain a certificate for EVEY_DOMAIN nor claim it does")
-	}
-	if !strings.Contains(compose, "EVEY_SERVER_BASE_URL: https://media.example.com\n") || !strings.Contains(compose, "EVEY_FORWARDED_PROTO: \"true\"\n") {
-		t.Errorf("compose lacks the proxy facts:\n%s", compose)
 	}
 	if _, err := renderInit(initOptions{Media: []string{"/srv/media"}, Port: 9091, Version: "latest", BehindProxy: "proxy-net"}, fixedSecret); err == nil {
 		t.Error("--behind-proxy without --domain must be refused")
@@ -237,7 +234,7 @@ func TestRenderInit_OperatorLayoutBehindProxy(t *testing.T) {
 		t.Fatal(err)
 	}
 	compose := fileByName(t, files, "docker-compose.yml").Content
-	for _, svc := range []string{"  evey:\n", "  postgres:\n", "  meilisearch:\n", "  caddy:\n"} {
+	for _, svc := range []string{"  evey:\n", "  postgres:\n", "  meilisearch:\n"} {
 		if strings.Count(compose, svc) != 1 {
 			t.Errorf("expected exactly one %q service", strings.TrimSpace(svc))
 		}

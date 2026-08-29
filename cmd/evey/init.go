@@ -37,7 +37,7 @@ type initOptions struct {
 	Out              string
 	Port             int
 	Domain           string
-	BehindProxy      string // name of an existing Docker network owning TLS upstream
+	BehindProxy      string // name of an existing Docker network whose proxy owns TLS
 	ExternalPostgres bool
 	ExternalMeili    bool
 	Version          string
@@ -59,7 +59,7 @@ func runInit(args []string, stdout io.Writer) error {
 	fs.StringVar(&o.Out, "out", "", "directory to write into (default: /out when mounted, else the current directory)")
 	fs.IntVar(&o.Port, "port", 9091, "host port to publish the web UI and API on")
 	fs.StringVar(&o.Domain, "domain", "", "public domain: adds the Caddy reverse proxy with automatic HTTPS")
-	fs.StringVar(&o.BehindProxy, "behind-proxy", "", "existing Docker network of a reverse proxy that already terminates TLS (needs --domain): Caddy serves plain :80 on it, nothing is published")
+	fs.StringVar(&o.BehindProxy, "behind-proxy", "", "existing Docker network of a reverse proxy that already terminates TLS (needs --domain): the server joins it, nothing is published, no Caddy")
 	fs.BoolVar(&o.ExternalPostgres, "external-postgres", false, "run Postgres as a separate compose service instead of embedded")
 	fs.BoolVar(&o.ExternalMeili, "external-meili", false, "run Meilisearch as a separate compose service instead of embedded")
 	fs.StringVar(&o.Version, "version", "latest", "image tag to pin in .env (e.g. v0.1.0, beta-0.0.1)")
@@ -68,7 +68,7 @@ func runInit(args []string, stdout io.Writer) error {
 		fmt.Fprintf(stdout, `usage: evey init --media /path/to/media [flags]
 
 Writes docker-compose.yml for a single-container Evey install (plus a
-Caddyfile with --domain / --behind-proxy, and a .env holding the shared
+Caddyfile with --domain, and a .env holding the shared
 secrets with --external-postgres / --external-meili). Run it from the image:
 
   docker run --rm -v "$PWD":/out gravityz/evey init --media /path/to/media
@@ -175,6 +175,10 @@ func renderInit(o initOptions, secret func() (string, error)) ([]initFile, error
 	b.WriteString("    container_name: evey-server\n")
 	if !proxied {
 		fmt.Fprintf(&b, "    ports:\n      - \"%d:9091\"\n", o.Port)
+	} else if o.BehindProxy != "" {
+		fmt.Fprintf(&b, "    # No host port: your reverse proxy on %s reaches this container as\n", o.BehindProxy)
+		b.WriteString("    # evey-server:9091 (streaming needs no buffering and no timeout there, see\n")
+		b.WriteString("    # docs/reverse-proxy.md). Publish 9091 as well if LAN clients should bypass it.\n")
 	} else {
 		b.WriteString("    # No host port: Caddy below is the only way in (HTTPS on your domain).\n")
 		b.WriteString("    # Publish 9091 here as well if LAN clients should bypass the proxy.\n")
@@ -190,8 +194,8 @@ func renderInit(o initOptions, secret func() (string, error)) ([]initFile, error
 	switch {
 	case o.BehindProxy != "":
 		fmt.Fprintf(&b, "      EVEY_SERVER_BASE_URL: https://%s\n", o.Domain)
-		b.WriteString("      # Your proxy and the bundled Caddy both sit on the Docker network: trust it\n")
-		b.WriteString("      # for client IPs (narrow to your proxy's subnet once you know it).\n")
+		b.WriteString("      # Your proxy sits on the Docker network: trust it for client IPs (narrow\n")
+		b.WriteString("      # to its subnet once you know it) and for the https scheme it forwards.\n")
 		b.WriteString("      EVEY_TRUSTED_PROXIES: 172.16.0.0/12\n")
 		b.WriteString("      EVEY_FORWARDED_PROTO: \"true\"\n")
 	case o.Domain != "":
@@ -298,26 +302,7 @@ func renderInit(o initOptions, secret func() (string, error)) ([]initFile, error
     restart: unless-stopped
 `)
 	}
-	if o.BehindProxy != "" {
-		b.WriteString(`
-  # Caddy behind YOUR reverse proxy (which owns TLS): it keeps only what that
-  # proxy cannot do well - the streaming timeouts and the curated CSP - and
-  # serves plain HTTP on the shared network. Point the upstream proxy at
-  # evey-caddy:80 for your domain. See docs/reverse-proxy.md.
-  caddy:
-    image: caddy:2.9-alpine
-    container_name: evey-caddy
-    expose:
-      - "80"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy-data:/data
-      - caddy-config:/config
-    depends_on:
-      - evey
-    restart: unless-stopped
-`)
-	} else if o.Domain != "" {
+	if o.Domain != "" && o.BehindProxy == "" {
 		b.WriteString(`
   # Reverse proxy with automatic HTTPS (Let's Encrypt) for EVEY_DOMAIN.
   # Ports 80 and 443 must reach this host from the internet for the
@@ -343,9 +328,7 @@ func renderInit(o initOptions, secret func() (string, error)) ([]initFile, error
 `)
 	}
 	b.WriteString("\nvolumes:\n  evey-cache:\n")
-	if o.BehindProxy != "" {
-		b.WriteString("  caddy-data:\n  caddy-config:\n")
-	} else if o.Domain != "" {
+	if o.Domain != "" && o.BehindProxy == "" {
 		b.WriteString("  caddy-data:      # TLS certificates (re-requested if deleted)\n  caddy-config:\n")
 	}
 	if o.BehindProxy != "" {
@@ -379,49 +362,10 @@ func renderInit(o initOptions, secret func() (string, error)) ([]initFile, error
 		files = append(files, initFile{Name: ".env", Content: e.String(), Mode: 0o600})
 	}
 
-	switch {
-	case o.BehindProxy != "":
-		cf, err := caddyfileBehindProxy(initCaddyfile)
-		if err != nil {
-			return nil, err
-		}
-		files = append(files, initFile{Name: "Caddyfile", Content: cf, Mode: 0o644})
-	case o.Domain != "":
+	if o.Domain != "" && o.BehindProxy == "" {
 		files = append(files, initFile{Name: "Caddyfile", Content: initCaddyfile, Mode: 0o644})
 	}
 	return files, nil
-}
-
-// caddySiteLine is the head of the bundled Caddyfile: its explanation and the
-// site address for which Caddy obtains a certificate. Behind an upstream proxy
-// that owns TLS the same file serves plain :80 instead - everything else
-// (streaming timeouts, curated CSP, header stripping) is identical, so the
-// transform swaps this head and nothing more.
-const caddySiteLine = `# Bundled reverse proxy. The site address is injected from the environment:
-# set EVEY_DOMAIN in your .env (compose passes it through) and Caddy obtains
-# a Let's Encrypt certificate for it automatically. Default: localhost.
-{$EVEY_DOMAIN:localhost} {
-`
-
-const caddyBehindProxyHead = `# Behind a reverse proxy that terminates TLS upstream: no certificates here,
-# plain HTTP on the shared Docker network, and the upstream is trusted so the
-# real client address reaches Evey (the remote-access gate depends on it).
-# Narrow private_ranges to your proxy's subnet once you know it.
-{
-	auto_https off
-	servers {
-		trusted_proxies static private_ranges
-	}
-}
-
-:80 {
-`
-
-func caddyfileBehindProxy(bundled string) (string, error) {
-	if strings.Count(bundled, caddySiteLine) != 1 {
-		return "", errors.New("bundled Caddyfile no longer has the single site line the behind-proxy transform expects")
-	}
-	return strings.Replace(bundled, caddySiteLine, caddyBehindProxyHead, 1), nil
 }
 
 // writeInitFiles writes files under dir, refusing to clobber an existing
@@ -483,7 +427,7 @@ func printInitNextSteps(w io.Writer, o initOptions, written []string) {
 	fmt.Fprintln(w, "  docker compose up -d")
 	switch {
 	case o.BehindProxy != "":
-		fmt.Fprintf(w, "  in your reverse proxy, route %s to evey-caddy:80 (network %s), then open https://%s\n", o.Domain, o.BehindProxy, o.Domain)
+		fmt.Fprintf(w, "  in your reverse proxy, route %s to evey-server:9091 (network %s) with streaming\n  buffering and timeouts off (docs/reverse-proxy.md), then open https://%s\n", o.Domain, o.BehindProxy, o.Domain)
 	case o.Domain != "":
 		fmt.Fprintf(w, "  point DNS for %s at this host, open ports 80/443, then open https://%s\n", o.Domain, o.Domain)
 	default:
