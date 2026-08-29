@@ -26,7 +26,7 @@ func fileByName(t *testing.T, files []initFile, name string) initFile {
 // the embedded database. A postgres service or a password sneaking back into
 // the default output would silently restore the install tax this removes.
 func TestRenderInit_DefaultIsOneFileWithoutSecrets(t *testing.T) {
-	files, err := renderInit(initOptions{Media: "/srv/media", Port: 9091, Version: "latest"}, fixedSecret)
+	files, err := renderInit(initOptions{Media: []string{"/srv/media"}, Port: 9091, Version: "latest"}, fixedSecret)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +53,7 @@ func TestRenderInit_DefaultIsOneFileWithoutSecrets(t *testing.T) {
 }
 
 func TestRenderInit_ExternalPostgresGetsServiceAndSecret(t *testing.T) {
-	files, err := renderInit(initOptions{Media: "/srv/media", Port: 9091, Version: "latest", ExternalPostgres: true}, fixedSecret)
+	files, err := renderInit(initOptions{Media: []string{"/srv/media"}, Port: 9091, Version: "latest", ExternalPostgres: true}, fixedSecret)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,7 +76,7 @@ func TestRenderInit_ExternalPostgresGetsServiceAndSecret(t *testing.T) {
 }
 
 func TestRenderInit_DomainAddsCaddyAndProxyFacts(t *testing.T) {
-	files, err := renderInit(initOptions{Media: "/srv/media", Port: 9091, Version: "latest", Domain: "media.example.com"}, fixedSecret)
+	files, err := renderInit(initOptions{Media: []string{"/srv/media"}, Port: 9091, Version: "latest", Domain: "media.example.com"}, fixedSecret)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,10 +122,10 @@ func TestInitCaddyfileMatchesBundled(t *testing.T) {
 func TestRenderInit_RejectsBadInput(t *testing.T) {
 	cases := map[string]initOptions{
 		"missing media":      {Port: 9091, Version: "latest"},
-		"relative media":     {Media: "media", Port: 9091, Version: "latest"},
-		"bad port":           {Media: "/m", Port: 70000, Version: "latest"},
-		"domain with scheme": {Media: "/m", Port: 9091, Version: "latest", Domain: "https://x.example"},
-		"empty version":      {Media: "/m", Port: 9091},
+		"relative media":     {Media: []string{"media"}, Port: 9091, Version: "latest"},
+		"bad port":           {Media: []string{"/m"}, Port: 70000, Version: "latest"},
+		"domain with scheme": {Media: []string{"/m"}, Port: 9091, Version: "latest", Domain: "https://x.example"},
+		"empty version":      {Media: []string{"/m"}, Port: 9091},
 	}
 	for name, o := range cases {
 		if _, err := renderInit(o, fixedSecret); err == nil {
@@ -178,7 +178,7 @@ func TestRunInit_EndToEnd(t *testing.T) {
 }
 
 func TestRenderInit_BehindProxyIsPlainHTTPOnExternalNetwork(t *testing.T) {
-	files, err := renderInit(initOptions{Media: "/srv/media", Port: 9091, Version: "latest", Domain: "media.example.com", BehindProxy: "proxy-net"}, fixedSecret)
+	files, err := renderInit(initOptions{Media: []string{"/srv/media"}, Port: 9091, Version: "latest", Domain: "media.example.com", BehindProxy: "proxy-net"}, fixedSecret)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -205,13 +205,13 @@ func TestRenderInit_BehindProxyIsPlainHTTPOnExternalNetwork(t *testing.T) {
 	if !strings.Contains(compose, "EVEY_SERVER_BASE_URL: https://media.example.com\n") || !strings.Contains(compose, "EVEY_FORWARDED_PROTO: \"true\"\n") {
 		t.Errorf("compose lacks the proxy facts:\n%s", compose)
 	}
-	if _, err := renderInit(initOptions{Media: "/srv/media", Port: 9091, Version: "latest", BehindProxy: "proxy-net"}, fixedSecret); err == nil {
+	if _, err := renderInit(initOptions{Media: []string{"/srv/media"}, Port: 9091, Version: "latest", BehindProxy: "proxy-net"}, fixedSecret); err == nil {
 		t.Error("--behind-proxy without --domain must be refused")
 	}
 }
 
 func TestRenderInit_ExternalMeiliGetsServiceAndKey(t *testing.T) {
-	files, err := renderInit(initOptions{Media: "/srv/media", Port: 9091, Version: "latest", ExternalMeili: true}, fixedSecret)
+	files, err := renderInit(initOptions{Media: []string{"/srv/media"}, Port: 9091, Version: "latest", ExternalMeili: true}, fixedSecret)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -232,7 +232,7 @@ func TestRenderInit_ExternalMeiliGetsServiceAndKey(t *testing.T) {
 
 // The prod layout: everything external, behind an existing proxy network.
 func TestRenderInit_OperatorLayoutBehindProxy(t *testing.T) {
-	files, err := renderInit(initOptions{Media: "/srv/media", Port: 9091, Version: "beta", Domain: "media.example.com", BehindProxy: "proxy-net", ExternalPostgres: true, ExternalMeili: true}, fixedSecret)
+	files, err := renderInit(initOptions{Media: []string{"/srv/media"}, Port: 9091, Version: "beta", Domain: "media.example.com", BehindProxy: "proxy-net", ExternalPostgres: true, ExternalMeili: true}, fixedSecret)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -247,5 +247,21 @@ func TestRenderInit_OperatorLayoutBehindProxy(t *testing.T) {
 		if !strings.Contains(env, want) {
 			t.Errorf(".env lacks %q", want)
 		}
+	}
+}
+
+func TestRenderInit_SeveralMediaPathsMountAsMediaN(t *testing.T) {
+	files, err := renderInit(initOptions{Media: []string{"/mnt/disk_1/movies", "/mnt/disk_2/movies"}, Port: 9091, Version: "latest"}, fixedSecret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compose := fileByName(t, files, "docker-compose.yml").Content
+	for _, want := range []string{"      - /mnt/disk_1/movies:/media\n", "      - /mnt/disk_2/movies:/media2\n"} {
+		if !strings.Contains(compose, want) {
+			t.Errorf("compose lacks %q", want)
+		}
+	}
+	if _, err := renderInit(initOptions{Media: []string{"/a", "/b:c"}, Port: 9091, Version: "latest"}, fixedSecret); err == nil {
+		t.Error("a ':' in a media path would break the bind mount and must be refused")
 	}
 }

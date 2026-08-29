@@ -217,6 +217,7 @@ case "${EVEY_EMBEDDED_POSTGRES:-}" in
 esac
 
 PG_PID=""
+pg_fresh=0
 if [ "$EVEY_EMBEDDED_POSTGRES" = "true" ]; then
     case "${EVEY_DB_HOST:-127.0.0.1}" in
         127.0.0.1|localhost|::1) ;;
@@ -253,6 +254,7 @@ if [ "$EVEY_EMBEDDED_POSTGRES" = "true" ]; then
         exit 1
     else
         echo "evey: initialising the embedded Postgres $PG_MAJOR cluster in $PGDATA_DIR"
+        pg_fresh=1
         mkdir -p "$PGDATA_DIR"
         chmod 700 "$PGDATA_DIR"
         # initdb needs the password in a file, never on the command line.
@@ -301,6 +303,34 @@ ALTER ROLE :"u" PASSWORD :'pw';
 SELECT format('CREATE DATABASE %I OWNER %I', :'db', :'u')
 WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = :'db') \gexec
 SQL
+
+    # ── One-shot import: moving an existing install onto the embedded DB ──
+    # A plain `pg_dump | gzip` of the previous database dropped at
+    # /data/postgres-import.sql.gz is restored into the cluster created THIS
+    # boot, before the server runs (so its migrations then apply on top of
+    # the imported schema, exactly as after an image update). Nothing is ever
+    # imported into a cluster that already exists: a stale file next to a live
+    # database is reported and ignored, never merged. A failed import leaves
+    # no half-cluster behind - the directory is removed so the next boot
+    # starts over from the (untouched) dump.
+    PG_IMPORT="${EVEY_POSTGRES_IMPORT:-/data/postgres-import.sql.gz}"
+    if [ -s "$PG_IMPORT" ]; then
+        if [ "$pg_fresh" = "1" ]; then
+            echo "evey: importing $PG_IMPORT into the new embedded database (this can take a while on a large catalogue)"
+            if gunzip -c "$PG_IMPORT" | "$PG_BIN/psql" -q -h "$PG_SOCKET_DIR" -p "$pg_port" -U "$pg_user" -d "$pg_db" -v ON_ERROR_STOP=1 >/dev/null; then
+                mv "$PG_IMPORT" "$PG_IMPORT.imported-$(date -u +%Y%m%dT%H%M%SZ)"
+                echo "evey: import done - the dump was renamed *.imported-<stamp>, delete it once you have checked the server"
+            else
+                echo "evey: import FAILED - discarding the new cluster so the next boot retries from the dump; fix the dump (a plain pg_dump --no-owner --no-privileges of the evey database, gzipped) or remove it to start empty" >&2
+                "$PG_BIN/pg_ctl" -D "$PGDATA_DIR" -m fast -s stop 2>/dev/null || kill -TERM "$PG_PID" 2>/dev/null || true
+                wait "$PG_PID" 2>/dev/null || true
+                rm -rf "$PGDATA_DIR"
+                exit 1
+            fi
+        else
+            echo "evey: $PG_IMPORT is present but the database already exists - NOT imported; remove the file, or move $PGDATA_DIR aside to import into a fresh cluster" >&2
+        fi
+    fi
 
     export EVEY_DB_HOST=127.0.0.1 EVEY_DB_PORT="$pg_port" EVEY_DB_SSLMODE=disable
     echo "evey: embedded Postgres $PG_MAJOR ready on 127.0.0.1:$pg_port (data in $PGDATA_DIR)"

@@ -33,7 +33,7 @@ import (
 // database or the network.
 
 type initOptions struct {
-	Media            string
+	Media            []string // host paths, mounted as /media, /media2, /media3 ...
 	Out              string
 	Port             int
 	Domain           string
@@ -55,7 +55,7 @@ func runInit(args []string, stdout io.Writer) error {
 	fs := flag.NewFlagSet("init", flag.ContinueOnError)
 	fs.SetOutput(stdout)
 	var o initOptions
-	fs.StringVar(&o.Media, "media", "", "absolute host path of your media library (required)")
+	fs.Var((*mediaList)(&o.Media), "media", "absolute host path of a media library (required; repeat for several: /media, /media2, ...)")
 	fs.StringVar(&o.Out, "out", "", "directory to write into (default: /out when mounted, else the current directory)")
 	fs.IntVar(&o.Port, "port", 9091, "host port to publish the web UI and API on")
 	fs.StringVar(&o.Domain, "domain", "", "public domain: adds the Caddy reverse proxy with automatic HTTPS")
@@ -97,6 +97,21 @@ Flags:
 	return nil
 }
 
+// mediaList lets --media repeat: the first path is /media, the next ones
+// /media2, /media3 ... - the mount names the entrypoint's owner detection and
+// the library picker already expect.
+type mediaList []string
+
+func (m *mediaList) String() string     { return strings.Join(*m, ", ") }
+func (m *mediaList) Set(v string) error { *m = append(*m, v); return nil }
+
+func mediaMount(i int) string {
+	if i == 0 {
+		return "/media"
+	}
+	return fmt.Sprintf("/media%d", i+1)
+}
+
 // defaultInitOut picks /out when the operator mounted one (the documented
 // `docker run -v "$PWD":/out` form), otherwise the working directory.
 func defaultInitOut() string {
@@ -117,14 +132,16 @@ func randomSecretHex() (string, error) {
 // renderInit produces the files for o. secret is injected so tests can pin
 // it; production passes randomSecretHex.
 func renderInit(o initOptions, secret func() (string, error)) ([]initFile, error) {
-	if o.Media == "" {
+	if len(o.Media) == 0 {
 		return nil, errors.New("--media is required: the absolute host path of your media library")
 	}
-	if !filepath.IsAbs(o.Media) {
-		return nil, fmt.Errorf("--media must be an absolute host path (got %q): docker bind mounts do not resolve relative paths", o.Media)
-	}
-	if strings.ContainsAny(o.Media, "\n\r") {
-		return nil, errors.New("--media must not contain line breaks")
+	for _, m := range o.Media {
+		if !filepath.IsAbs(m) {
+			return nil, fmt.Errorf("--media must be an absolute host path (got %q): docker bind mounts do not resolve relative paths", m)
+		}
+		if strings.ContainsAny(m, "\n\r:") {
+			return nil, fmt.Errorf("--media must not contain line breaks or ':' (got %q)", m)
+		}
 	}
 	if o.Port < 1 || o.Port > 65535 {
 		return nil, fmt.Errorf("--port must be between 1 and 65535 (got %d)", o.Port)
@@ -221,7 +238,9 @@ func renderInit(o initOptions, secret func() (string, error)) ([]initFile, error
 	b.WriteString("      - evey-cache:/cache     # transcode + trickplay cache (safe to prune)\n")
 	b.WriteString("      # Read-write so the repair features (seek-index rebuild) work in place;\n")
 	b.WriteString("      # append `:ro` for a read-only library and accept that repairs fail.\n")
-	fmt.Fprintf(&b, "      - %s:/media\n", o.Media)
+	for i, m := range o.Media {
+		fmt.Fprintf(&b, "      - %s:%s\n", m, mediaMount(i))
+	}
 	b.WriteString("    # The embedded database is stopped cleanly after the server on `docker stop`;\n")
 	b.WriteString("    # a large catalogue needs more than Docker's 10s default before the kill.\n")
 	b.WriteString("    stop_grace_period: 60s\n")

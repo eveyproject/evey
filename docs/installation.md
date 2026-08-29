@@ -335,6 +335,46 @@ launched so you can pin it.
   Pick `-nodejs` / `-full` only if your plugins need those runtimes; otherwise
   the default is smallest. Set e.g. `EVEY_VERSION=latest-nodejs`.
 
+### Moving an existing install onto the embedded database
+
+An install that runs Postgres as a sibling service (the layout every release
+before the embedded database used) can move to the single container: the
+data is a dump away, everything else in `./evey-data` (JWT key, plugins,
+backups, trickplay) is picked up as-is. The embedded database imports a dump
+found at `./evey-data/postgres-import.sql.gz` **once, into the cluster it
+creates on its first boot**, before the server runs - so the server's own
+migrations then apply on top, as after any update.
+
+```bash
+# 1. dump the current database (plain SQL, gzipped - what the import expects)
+docker compose exec -T postgres pg_dump -U evey --no-owner --no-privileges evey \
+  | gzip > evey-data/postgres-import.sql.gz
+docker compose down
+
+# 2. write the new compose (keep a copy of the old one), e.g. behind an existing proxy:
+docker run --rm -v "$PWD":/out gravityz/evey init --force \
+  --media /mnt/disk_1/movies --media /mnt/disk_2/movies \
+  --domain media.example.com --behind-proxy proxy-net
+#    then re-add by hand what init does not know: hardware transcoding
+#    (`devices: /dev/dri`, `group_add`, LIBVA_DRIVER_NAME - see transcoding.md)
+#    and any EVEY_* you had set in `environment:`.
+
+# 3. first boot: initdb, import, migrations, then the server
+docker compose up -d && docker compose logs -f evey     # "evey: import done"
+
+# 4. search index: an external Meilisearch's index is not carried over, rebuild it
+docker exec evey-server evey admin reindex-search
+```
+
+What is NOT needed anymore: `EVEY_DB_PASSWORD`, `MEILI_MASTER_KEY` and the
+`EVEY_DB_HOST` / `EVEY_MEILI_URL` wiring (the secrets are generated), the
+`postgres` and `meilisearch` services, and API keys seeded from `.env` (they
+already live in the dumped `server_config`). Keep `./postgres-data` and
+`./meili-data` until you have checked the server; the old compose still runs
+them if you need to go back. A dump left next to an already-initialised
+cluster is reported and ignored, never merged; a failed import discards the
+new cluster so the next boot retries from the dump.
+
 ### Postgres major upgrade (embedded database)
 
 The image pins the embedded Postgres major (17 today). A newer image shipping a
