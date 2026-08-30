@@ -336,6 +336,21 @@ RUN groupadd -g 1000 evey \
 ENV EVEY_DB_PASSWORD_FILE=/data/keys/postgres.password \
     MEILI_MASTER_KEY_FILE=/data/keys/meili.key
 
+# Container paths for everything the server writes, baked so a minimal compose
+# (volumes only, no environment) lands every artefact on the right volume. The
+# Go defaults are built for a bare-metal run and are wrong in the container:
+# EVEY_LOG_DIR defaults to the RELATIVE "logs" (cwd is /, unwritable once
+# privileges drop - file logging then fails with "mkdir logs: permission
+# denied" and the admin log viewer stays empty, which is exactly how this was
+# found on a prod install), and the two cache dirs default to each other's
+# volume (transcode cache into the precious /data, trickplay into the prunable
+# /cache). Transcode cache is expendable (/cache); trickplay is expensive to
+# regenerate and stays with /data. A compose `environment:` entry still
+# overrides any of these.
+ENV EVEY_LOG_DIR=/data/logs \
+    EVEY_TRANSCODING_CACHE_DIR=/cache/transcode \
+    EVEY_TRICKPLAY_CACHE_DIR=/data/trickplay
+
 COPY --from=builder /evey /evey
 COPY --from=builder /evey-plugin-launcher /evey-plugin-launcher
 # cap_setuid lets the launcher drop a plugin to the evey-plugin uid (1001) even
