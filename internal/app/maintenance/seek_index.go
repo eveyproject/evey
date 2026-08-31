@@ -193,6 +193,11 @@ type SeekStatus struct {
 	// IndexSparseDetail is the diagnoser's own account of the hole ("the video
 	// cues leave a 44s hole - ..."), shown instead of a generic explanation.
 	IndexSparseDetail string `json:"IndexSparseDetail,omitempty"`
+	// PictureMissing → the hole in the seek index is a hole in the VIDEO itself
+	// (the diagnoser found no picture there): nothing to index, a rebuild is
+	// wasted work, the operator re-acquires the source. Manual verdict at once,
+	// without the "rebuild once, then give up" round trip SeekCoarse needs.
+	PictureMissing bool `json:"PictureMissing,omitempty"`
 	// ReindexAttempted → this file's index was actually rewritten by a repair
 	// (not skipped) since it was last modified. Set by the repair itself and
 	// carried by the incremental re-scan, which only reuses a status whose
@@ -257,7 +262,7 @@ const (
 // re-acquired), and any actionable defect wins over a mere fact.
 func (st SeekStatus) Verdict() Verdict {
 	switch {
-	case st.Truncated, st.SeekCoarse():
+	case st.Truncated, st.PictureMissing, st.SeekCoarse():
 		return VerdictManual
 	case !st.HasIndex, st.DamagedBytes > 0, st.AudioDelaySec > AudioDelayFlagSec, st.WrongContainer:
 		return VerdictRepairable

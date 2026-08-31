@@ -189,6 +189,7 @@ func (s *SeekIndexService) diagnose(ctx context.Context, path string, st *SeekSt
 		st.IndexSparse = !st.WrongContainer && d.IndexSparse()
 		if st.IndexSparse {
 			st.IndexSparseDetail = d.IndexSparseDetail()
+			st.PictureMissing = d.IndexSparsePictureMissing()
 		}
 		st.AudioDelaySec = float64(d.MaxAudioDelayMs()) / 1000
 		st.Truncated = d.Truncated
@@ -229,7 +230,7 @@ func addToRollups(res *ScanResult, st SeekStatus) {
 	// it as "missing" would put it back in a repair queue that can do nothing
 	// for it. It gets its own bucket instead - see SeekStatus.SeekCoarse.
 	switch {
-	case st.SeekCoarse():
+	case st.SeekCoarse(), st.PictureMissing:
 		res.SeekCoarse++
 	case !st.HasIndex:
 		res.MissingIndex++
@@ -333,6 +334,7 @@ func (s *SeekIndexService) noteReindexed(ctx context.Context, path string, hasBa
 		}
 		st.DiagVersion = SeekDiagVersion
 		st.HasIndex, st.IndexSparse, st.IndexSparseDetail = fresh.HasIndex, fresh.IndexSparse, fresh.IndexSparseDetail
+		st.PictureMissing = fresh.PictureMissing
 		st.WrongContainer = fresh.WrongContainer
 		st.Truncated, st.MissingTailBytes = fresh.Truncated, fresh.MissingTailBytes
 		st.DamagedBytes, st.TrailingJunk = fresh.DamagedBytes, fresh.TrailingJunk

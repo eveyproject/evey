@@ -196,7 +196,7 @@ func needsReindex(it SeekStatus, resync bool) bool {
 	}
 	// Already rebuilt once and still too coarse: the encode's keyframes, not
 	// the index, are the limit. Re-offering it every run is the sterile loop.
-	if it.SeekCoarse() {
+	if it.SeekCoarse() || it.PictureMissing {
 		return false
 	}
 	if !it.HasIndex {

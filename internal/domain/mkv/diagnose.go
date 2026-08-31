@@ -1,5 +1,7 @@
 package mkv
 
+import "strings"
+
 import "context"
 
 // DiagnosisFinding is one diagnosed defect with its remedy, mirroring mkvgo's
@@ -66,6 +68,20 @@ func (d *Diagnosis) HasIndexDefect() bool {
 // pairs this with SeekStatus.ReindexAttempted to tell the two apart.
 func (d *Diagnosis) IndexSparse() bool {
 	return d.IndexSparseDetail() != ""
+}
+
+// IndexSparsePictureMissing reports the case mkvgo distinguishes since the
+// 2026-08-31 ticket: the hole in the video cues is a hole in the VIDEO ITSELF
+// (no picture packets there - NUMBER_OF_FRAMES far below duration x fps), so
+// no index can be built for it and a reindex is wasted work. mkvgo keeps the
+// kind "index-sparse" and says so in the remedy ("re-acquire the source").
+func (d *Diagnosis) IndexSparsePictureMissing() bool {
+	for _, f := range d.Findings {
+		if f.Kind == "index-sparse" && strings.Contains(strings.ToLower(f.Remedy), "re-acquire") {
+			return true
+		}
+	}
+	return false
 }
 
 // IndexSparseDetail is mkvgo's own account of the sparse index - "the video

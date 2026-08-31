@@ -327,3 +327,30 @@ func TestSeekIndexService_Scan_CarriesTheSparseDetail(t *testing.T) {
 	assert.True(t, res.Items[0].IndexSparse)
 	assert.Contains(t, res.Items[0].IndexSparseDetail, "44s hole")
 }
+
+// mkvgo (ticket 2026-08-31) tells a hole in the cues from a hole in the
+// PICTURE: the latter has nothing to index, so it goes straight to the
+// operator - no "rebuild once, then give up" round trip, no wasted rewrite.
+func TestSeekIndexService_PictureMissing_IsManualWithoutARebuild(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "holes.mkv")
+	require.NoError(t, os.WriteFile(p, []byte("x"), 0o644))
+	reidx := &fakeReindexer{hasIndex: map[string]bool{p: true}}
+	diag := fakeDiagnoser{byPath: map[string]*mkv.Diagnosis{p: {Findings: []mkv.DiagnosisFinding{{
+		Kind: "index-sparse", Detail: "65s hole at 00:40:34 - the picture itself is missing there (183s short)",
+		Remedy: "re-acquire the source: the video track has no picture in the hole",
+	}}}}}
+	svc := appmaintenance.NewSeekIndexService(reidx, fakeCatalog{files: []appmaintenance.MediaRef{{MediaID: "m1", Path: p}}}, nil).WithDiagnoser(diag)
+	require.NoError(t, svc.StartScan(context.Background(), ""))
+	waitIdle(t, svc)
+	res, _, _ := svc.CachedScan("")
+	require.Len(t, res.Items, 1)
+	assert.True(t, res.Items[0].PictureMissing)
+	assert.Equal(t, appmaintenance.VerdictManual, res.Items[0].Verdict(), "nothing to index: the operator's call, at once")
+	assert.Equal(t, 1, res.Manual)
+	assert.Zero(t, res.Repairable)
+
+	require.NoError(t, svc.StartRepairLibrary(context.Background(), "", appmaintenance.ReindexRunOptions{}))
+	waitIdle(t, svc)
+	assert.Empty(t, reidx.reindexed, "no rewrite for a hole that has no picture to index")
+}
