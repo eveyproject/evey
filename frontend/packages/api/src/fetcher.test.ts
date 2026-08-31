@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { eveyFetch, setTokenProvider, setTokensUpdater, setUnauthorizedHandler, resetRefreshFailure, _resetFetcherState } from "./fetcher";
+import { eveyFetch, DEFAULT_REQUEST_TIMEOUT_MS, setTokenProvider, setTokensUpdater, setUnauthorizedHandler, resetRefreshFailure, _resetFetcherState } from "./fetcher";
 
 const fetchMock = vi.fn();
 
@@ -377,5 +377,52 @@ describe("refresh failure latch", () => {
     fetchMock.mockResolvedValueOnce(mockResponse(200, { accessToken: "fresh" }));
     fetchMock.mockResolvedValueOnce(mockResponse(200, { ok: true }));
     await expect(eveyFetch({ url: "/api/v1/x", method: "GET" })).resolves.toEqual({ ok: true });
+  });
+});
+
+// A request nobody answers must not hang its caller forever: without a caller
+// signal eveyFetch arms a default timeout and rejects with a stable errorCode.
+describe("eveyFetch default timeout", () => {
+  function neverAnswers() {
+    fetchMock.mockImplementation((_url: string, init: { signal?: AbortSignal }) =>
+      new Promise((_resolve, reject) => {
+        init.signal?.addEventListener("abort", () =>
+          reject(Object.assign(new Error("The operation was aborted"), { name: "AbortError" })),
+        );
+      }),
+    );
+  }
+
+  beforeEach(() => { vi.useFakeTimers(); });
+  afterEach(() => { vi.useRealTimers(); });
+
+  it("rejects with errorCode request_timeout when the server never answers", async () => {
+    neverAnswers();
+    const p = eveyFetch({ url: "/api/slow", method: "GET" });
+    const outcome = p.then(() => "resolved", (e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(DEFAULT_REQUEST_TIMEOUT_MS);
+    const err = await outcome;
+    expect(err).toMatchObject({ errorCode: "request_timeout" });
+    expect(String((err as Error).message)).toContain("60s");
+  });
+
+  it("leaves a caller-supplied signal alone: no default timer, the caller decides", async () => {
+    neverAnswers();
+    const controller = new AbortController();
+    const p = eveyFetch({ url: "/api/slow", method: "GET", signal: controller.signal });
+    const outcome = p.then(() => "resolved", (e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(DEFAULT_REQUEST_TIMEOUT_MS * 2);
+    expect(vi.getTimerCount()).toBe(0);
+    expect(fetchMock).toHaveBeenCalledWith("/api/slow", expect.objectContaining({ signal: controller.signal }));
+    controller.abort();
+    const err = await outcome;
+    expect((err as { errorCode?: string }).errorCode).toBeUndefined();
+    expect((err as Error).name).toBe("AbortError");
+  });
+
+  it("clears the timer once the server answered", async () => {
+    fetchMock.mockResolvedValue(mockResponse(200, { ok: true }));
+    await eveyFetch({ url: "/api/fast", method: "GET" });
+    expect(vi.getTimerCount()).toBe(0);
   });
 });

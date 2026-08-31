@@ -300,7 +300,46 @@ export async function eveyFetchRaw(request: RawFetcherRequest): Promise<Response
   return fetchWithRefresh(fullURL, doFetch, token ?? undefined, request.raw ?? false);
 }
 
+// A JSON API call that never answers used to hold its caller forever: no
+// default timeout, only an optional caller signal. On a NAS asleep or a proxy
+// that swallows a request, the screen just spun (audit 2026-08-25). Generous
+// on purpose - the admin RPCs are asynchronous jobs polled by status, nothing
+// in the API is meant to take a minute - and only for eveyFetch: the raw
+// variant streams bodies (downloads, NDJSON) the caller must own.
+export const DEFAULT_REQUEST_TIMEOUT_MS = 60_000;
+
+// A caller-supplied signal is respected untouched (its owner decides); without
+// one, a timer aborts the request and the rejection carries a stable errorCode
+// so the UI can say "no answer from the server" instead of a bare AbortError.
+function timeoutSignal(): { signal: AbortSignal; fired: () => boolean; clear: () => void } {
+  const controller = new AbortController();
+  let fired = false;
+  const timer = setTimeout(() => {
+    fired = true;
+    controller.abort();
+  }, DEFAULT_REQUEST_TIMEOUT_MS);
+  return { signal: controller.signal, fired: () => fired, clear: () => clearTimeout(timer) };
+}
+
 export async function eveyFetch<T>(request: FetcherRequest): Promise<T> {
+  if (request.signal) return eveyFetchWithSignal<T>(request, request.signal);
+  const timeout = timeoutSignal();
+  try {
+    return await eveyFetchWithSignal<T>(request, timeout.signal);
+  } catch (err) {
+    if (timeout.fired()) {
+      throw Object.assign(new Error(`No answer from the server after ${DEFAULT_REQUEST_TIMEOUT_MS / 1000}s`), {
+        errorCode: "request_timeout",
+        cause: err,
+      });
+    }
+    throw err;
+  } finally {
+    timeout.clear();
+  }
+}
+
+async function eveyFetchWithSignal<T>(request: FetcherRequest, signal: AbortSignal): Promise<T> {
   const token = await _ensureFreshToken(request.url);
   const headers: Record<string, string> = { ...extraHeaders, ...request.headers };
   if (token) headers["Authorization"] = `Bearer ${token}`;
@@ -336,7 +375,7 @@ export async function eveyFetch<T>(request: FetcherRequest): Promise<T> {
       credentials: "include" as const,
       headers: authToken ? { ...headers, Authorization: `Bearer ${authToken}` } : headers,
       body: request.data !== undefined ? JSON.stringify(request.data) : undefined,
-      signal: request.signal,
+      signal,
     });
 
   const response = await fetchWithRefresh(url, doFetch, token ?? undefined);
