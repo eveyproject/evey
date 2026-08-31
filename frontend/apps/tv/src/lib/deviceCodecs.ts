@@ -1,21 +1,18 @@
 import { NativeModules, Platform } from "react-native";
+import { declarableAudioCodecs, getAudioProbe, type AudioProbe } from "@evey/media-caps";
 
 interface MediaCapsNative {
   getSupportedAudioCodecs(): Promise<string[]>;
 }
 
 // Safe floor for Android TV boxes: every Android device decodes these in
-// software (AOSP bundled decoders). Deliberately no ac3/eac3: this Expo-managed
-// TV project ships no native probe module today (no android/ios folder at all -
-// see the task report for the exact plan to port apps/mobile's MediaCapsModule.kt
-// here), so there is no way to tell a box with a real Dolby decoder or HDMI
-// passthrough from one without. A direct-played ac3/eac3 track the box can't
-// decode/pass through plays the video SILENT, with nothing surfaced anywhere
-// for a user or an operator to diagnose. Declaring less only costs a
-// server-side audio-only transcode (video stays copy), which is cheap even on
-// the weak-NAS hardware this project targets - unlike an undiagnosable silent
-// movie. Mirrors the same call already made for the mobile app, see
-// apps/mobile/src/lib/deviceCodecs.ts.
+// software (AOSP bundled decoders). Deliberately no ac3/eac3: the family is
+// declared only on evidence from the sink probe below. A direct-played
+// ac3/eac3 track the box can't decode/pass through plays the video SILENT,
+// with nothing surfaced anywhere for a user or an operator to diagnose.
+// Declaring less only costs a server-side audio-only transcode (video stays
+// copy), which is cheap even on the weak-NAS hardware this project targets -
+// unlike an undiagnosable silent movie. Mirrors apps/mobile/src/lib/deviceCodecs.ts.
 export const ANDROID_TV_BASELINE = ["aac", "mp3", "opus", "flac", "vorbis"];
 
 // AVPlayer (tvOS) decodes AC-3/E-AC-3 on every Apple TV we support; it can't
@@ -24,12 +21,11 @@ export const APPLE_TV_CODECS = ["aac", "mp3", "flac", "ac3", "eac3"];
 
 const BASELINE = Platform.OS === "android" ? ANDROID_TV_BASELINE : APPLE_TV_CODECS;
 
-// NATIVE PROBE EXTENSION POINT: no native module ships in this project yet.
-// Reads NativeModules.MediaCaps with the same shape as apps/mobile's lookup so
-// wiring the real ExoPlayer AudioCapabilities probe later is a no-op for every
-// caller of getDeviceAudioCodecs() - only this file changes. Optional chaining
-// on NativeModules (not just `.MediaCaps`) also tolerates the minimal test
-// double in src/test/__mocks__/react-native.ts, which does not export it.
+// Legacy old-bridge probe (apps/mobile's MediaCapsModule.kt). No such module
+// ships in this TV project - the Expo module behind getAudioProbe() is the one
+// that does - but the lookup stays so a future port is a no-op for callers.
+// Optional chaining on NativeModules (not just `.MediaCaps`) also tolerates
+// the minimal test double in src/test/__mocks__/react-native.ts.
 const native: MediaCapsNative | undefined =
   Platform.OS === "android"
     ? ((NativeModules as Record<string, unknown> | undefined)?.MediaCaps as
@@ -55,14 +51,25 @@ export type AudioProbeOutcome =
   | { status: "ok"; codecs: string[] };
 
 /**
- * Pure resolution of the codec list to declare to the server, given what the
- * native probe reported. No module installed, a thrown probe, and an empty
- * response all fall back to the conservative baseline; only a non-empty codec
- * list from a working probe overrides it (whether or not it includes Dolby).
+ * Pure resolution of the codec list to declare to the server. The decoder
+ * list comes from the legacy module when it answered, else from the sink
+ * probe's own MediaCodecList reading; with no evidence at all the baseline
+ * goes through untouched (Apple TV keeps its Dolby, Android TV has none).
+ *
+ * For the Dolby/DTS family the SINK decides, not the decoder: a decoder that
+ * renders choppy (measured on a tablet, 2026-08-31) must not be declared, and
+ * a passthrough box without any decoder must be - ExoPlayer hands the
+ * bitstream to the receiver. See declarableAudioCodecs in @evey/media-caps.
  */
-export function resolveAudioCodecs(baseline: string[], outcome: AudioProbeOutcome): string[] {
-  if (outcome.status !== "ok" || outcome.codecs.length === 0) return baseline;
-  return outcome.codecs;
+export function resolveAudioCodecs(
+  baseline: string[],
+  outcome: AudioProbeOutcome,
+  probe: AudioProbe | null,
+): string[] {
+  const legacy = outcome.status === "ok" && outcome.codecs.length > 0 ? outcome.codecs : null;
+  const decoders = legacy ?? (probe && probe.decoders.length > 0 ? probe.decoders : null);
+  if (!decoders) return baseline;
+  return declarableAudioCodecs(decoders, probe);
 }
 
 async function probe(): Promise<void> {
@@ -75,10 +82,14 @@ async function probe(): Promise<void> {
       outcome = { status: "error" };
     }
   }
-  current = resolveAudioCodecs(BASELINE, outcome);
+  // Never throws, null when the Expo module isn't in this build.
+  const sink = Platform.OS === "android" ? await getAudioProbe() : null;
+  current = resolveAudioCodecs(BASELINE, outcome, sink);
   // Single log line so a "silent audio" report can be diagnosed from device
   // logs without guessing what this box actually detected and declared.
-  console.info(`[deviceCodecs] audio probe=${outcome.status} declared=${current.join(",")}`);
+  console.info(
+    `[deviceCodecs] audio probe=${outcome.status} sink=${sink ? "ok" : "none"} declared=${current.join(",")}`,
+  );
 }
 
 void probe();

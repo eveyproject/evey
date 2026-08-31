@@ -1,33 +1,87 @@
 import { describe, it, expect } from "vitest";
+import type { AudioProbe } from "@evey/media-caps";
 import { resolveAudioCodecs, ANDROID_TV_BASELINE, APPLE_TV_CODECS } from "./deviceCodecs";
 
-// Pure resolution covers every native-probe outcome without touching
-// NativeModules/Platform: this is the part usePlaySession actually depends on.
+// Real-shaped probe fixtures (audio_caps_probe beacons): a decoder list plus
+// what the SINK accepts. The sink is the only witness that counts for the
+// Dolby/DTS family - same rule as apps/mobile, see @evey/media-caps.
+function probe(decoders: string[], directPlayback: Record<string, boolean>): AudioProbe {
+  return {
+    apiLevel: 34,
+    isTv: true,
+    deviceModel: "box",
+    decoders,
+    directPlayback,
+    directProfiles: [],
+    hdmi: { available: true },
+    surroundOutputRaw: -1,
+    outputDeviceTypes: [],
+  };
+}
+
 describe("resolveAudioCodecs", () => {
-  it("falls back to the baseline when no probe module is installed", () => {
-    expect(resolveAudioCodecs(ANDROID_TV_BASELINE, { status: "unavailable" })).toBe(
+  it("falls back to the baseline when no probe of any kind is installed", () => {
+    expect(resolveAudioCodecs(ANDROID_TV_BASELINE, { status: "unavailable" }, null)).toBe(
       ANDROID_TV_BASELINE,
     );
   });
 
-  it("falls back to the baseline when the probe throws", () => {
-    expect(resolveAudioCodecs(ANDROID_TV_BASELINE, { status: "error" })).toBe(ANDROID_TV_BASELINE);
+  it("falls back to the baseline when the legacy probe throws and no sink probe exists", () => {
+    expect(resolveAudioCodecs(ANDROID_TV_BASELINE, { status: "error" }, null)).toBe(
+      ANDROID_TV_BASELINE,
+    );
   });
 
-  it("falls back to the baseline when the probe resolves with an empty list", () => {
+  it("falls back to the baseline when both probes come back empty", () => {
     expect(
-      resolveAudioCodecs(ANDROID_TV_BASELINE, { status: "ok", codecs: [] }),
+      resolveAudioCodecs(ANDROID_TV_BASELINE, { status: "ok", codecs: [] }, probe([], {})),
     ).toBe(ANDROID_TV_BASELINE);
   });
 
-  it("declares the box's real codecs, without Dolby, when the probe says no Dolby decoder is available", () => {
+  it("declares the box's real codecs, without Dolby, when no Dolby decoder is available", () => {
     const codecs = ["aac", "mp3", "opus"];
-    expect(resolveAudioCodecs(ANDROID_TV_BASELINE, { status: "ok", codecs })).toEqual(codecs);
+    expect(resolveAudioCodecs(ANDROID_TV_BASELINE, { status: "ok", codecs }, null)).toEqual(codecs);
   });
 
-  it("declares ac3/eac3 when the probe confirms the box decodes or passes them through", () => {
+  it("takes the decoder list from the sink probe when the legacy module is absent (the TV build)", () => {
+    const p = probe(["aac", "mp3", "opus", "flac"], {});
+    expect(resolveAudioCodecs(ANDROID_TV_BASELINE, { status: "unavailable" }, p)).toEqual([
+      "aac",
+      "mp3",
+      "opus",
+      "flac",
+    ]);
+  });
+
+  it("declares ac3/eac3 only when the sink takes them, even with a decoder present", () => {
+    const decoders = ["aac", "mp3", "ac3", "eac3"];
+    // decoder + sink refuses (the choppy-tablet shape): the family stays out
+    expect(
+      resolveAudioCodecs(ANDROID_TV_BASELINE, { status: "unavailable" }, probe(decoders, { ac3: false, eac3: false })),
+    ).toEqual(["aac", "mp3"]);
+    // decoder + sink accepts (box on an AVR): declared
+    expect(
+      resolveAudioCodecs(ANDROID_TV_BASELINE, { status: "unavailable" }, probe(decoders, { ac3: true, eac3: true })),
+    ).toEqual(["aac", "mp3", "ac3", "eac3"]);
+  });
+
+  it("declares ac3 on a passthrough box that has no decoder at all", () => {
+    const p = probe(["aac", "mp3"], { ac3: true, eac3: false });
+    expect(resolveAudioCodecs(ANDROID_TV_BASELINE, { status: "unavailable" }, p)).toEqual([
+      "aac",
+      "mp3",
+      "ac3",
+    ]);
+  });
+
+  it("strips the family when a legacy decoder list arrives without any sink evidence", () => {
     const codecs = ["aac", "mp3", "opus", "flac", "ac3", "eac3"];
-    expect(resolveAudioCodecs(ANDROID_TV_BASELINE, { status: "ok", codecs })).toEqual(codecs);
+    expect(resolveAudioCodecs(ANDROID_TV_BASELINE, { status: "ok", codecs }, null)).toEqual([
+      "aac",
+      "mp3",
+      "opus",
+      "flac",
+    ]);
   });
 
   it("never includes ac3/eac3 in the Android TV baseline itself", () => {
@@ -38,5 +92,7 @@ describe("resolveAudioCodecs", () => {
   it("keeps ac3/eac3 in the Apple TV baseline (AVPlayer decodes them on every device we support)", () => {
     expect(APPLE_TV_CODECS).toContain("ac3");
     expect(APPLE_TV_CODECS).toContain("eac3");
+    // and no probe on tvOS means the baseline goes through untouched
+    expect(resolveAudioCodecs(APPLE_TV_CODECS, { status: "unavailable" }, null)).toBe(APPLE_TV_CODECS);
   });
 });
