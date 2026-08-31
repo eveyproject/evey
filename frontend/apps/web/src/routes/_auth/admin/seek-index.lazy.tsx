@@ -3,7 +3,6 @@ import { createLazyFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
-import { Checkbox } from "@/components/ui/Checkbox";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { errText } from "@evey/api";
 import { useSeekIndexPage } from "@/features/admin/seekIndex/hooks";
@@ -12,6 +11,7 @@ import { LastJobCard } from "@/features/admin/seekIndex/LastJobCard";
 import { SeekIndexControls } from "@/features/admin/seekIndex/SeekIndexControls";
 import { StatsGrid } from "@/features/admin/seekIndex/StatsGrid";
 import { SeekIndexTable } from "@/features/admin/seekIndex/SeekIndexTable";
+import { SeekIndexFilters } from "@/features/admin/seekIndex/SeekIndexFilters";
 import { RepairConfirmModal } from "@/features/admin/seekIndex/RepairConfirmModal";
 
 export const Route = createLazyFileRoute("/_auth/admin/seek-index")({
@@ -23,8 +23,16 @@ function SeekIndexPage() {
   const {
     libraryId,
     setLibraryId,
-    onlyAttention,
-    setOnlyAttention,
+    view,
+    setView,
+    query,
+    setQuery,
+    sort,
+    setSort,
+    page,
+    setPage,
+    totalPages,
+    counts,
     confirmBatch,
     setConfirmBatch,
     keepBackups,
@@ -56,6 +64,7 @@ function SeekIndexPage() {
     ackOne,
     ackGroup,
     visible,
+    paged,
     busy,
   } = useSeekIndexPage();
 
@@ -113,22 +122,24 @@ function SeekIndexPage() {
             busy={busy}
           />
 
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <Checkbox
-              label={t("admin.seekIndex.onlyAttention")}
-              checked={onlyAttention}
-              onChange={setOnlyAttention}
-            />
-            <span className="text-xs text-[var(--text-muted)]" data-testid="seek-index-scanned-at">
-              {t("admin.seekIndex.scannedAt", {
-                date: new Date(Number(result.scannedAtMs)).toLocaleString(),
-              })}
-            </span>
-          </div>
+          <SeekIndexFilters
+            view={view}
+            setView={setView}
+            query={query}
+            setQuery={setQuery}
+            sort={sort}
+            setSort={setSort}
+            counts={counts}
+            result={result}
+          />
 
           <SeekIndexTable
             items={items}
             visible={visible}
+            paged={paged}
+            page={page}
+            setPage={setPage}
+            totalPages={totalPages}
             busy={busy}
             containerFixAvailable={containerFixAvailable}
             remuxAudioOne={remuxAudioOne}

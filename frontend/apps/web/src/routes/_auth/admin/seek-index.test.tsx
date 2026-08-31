@@ -348,13 +348,80 @@ describe("SeekIndexPage", () => {
     expect(screen.queryByTestId("seek-index-repair-all-btn")).not.toBeInTheDocument();
   });
 
-  it("unchecking the attention filter reveals every scanned file", async () => {
+  it("the 'All' view reveals every scanned file", async () => {
     mockScan.mockReturnValue(scanned);
     const Page = await getPage();
     render(React.createElement(Page));
-    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(screen.getByTestId("seek-index-view-all"));
     expect(screen.getAllByTestId("seek-index-row")).toHaveLength(6);
     expect(screen.getByText("Movie C")).toBeInTheDocument();
+  });
+
+  it("view chips carry live counts and narrow the table to one verdict", async () => {
+    mockScan.mockReturnValue(scanned);
+    const Page = await getPage();
+    render(React.createElement(Page));
+    expect(screen.getByTestId("seek-index-view-attention")).toHaveTextContent("Awaiting (5)");
+    expect(screen.getByTestId("seek-index-view-repairable")).toHaveTextContent("Repairable (2)");
+    expect(screen.getByTestId("seek-index-view-manual")).toHaveTextContent("Your call (1)");
+    expect(screen.getByTestId("seek-index-view-informational")).toHaveTextContent("Info (1)");
+    expect(screen.getByTestId("seek-index-view-backups")).toHaveTextContent("Backups (1)");
+    expect(screen.getByTestId("seek-index-view-all")).toHaveTextContent("All (6)");
+    fireEvent.click(screen.getByTestId("seek-index-view-repairable"));
+    const rows = screen.getAllByTestId("seek-index-row");
+    expect(rows).toHaveLength(2);
+    // Priority sort inside the view: the biggest repairable first.
+    expect(within(rows[0]).getByText("Movie A")).toBeInTheDocument();
+    expect(within(rows[1]).getByText("Movie D")).toBeInTheDocument();
+  });
+
+  it("default order puts what needs doing first: repairable, then your call, then info, then backups", async () => {
+    mockScan.mockReturnValue(scanned);
+    const Page = await getPage();
+    render(React.createElement(Page));
+    const titles = screen.getAllByTestId("seek-index-row").map((r) => within(r).getAllByText(/Movie/)[0].textContent);
+    expect(titles).toEqual(["Movie A", "Movie D", "Movie F", "Movie E", "Movie B"]);
+  });
+
+  it("search narrows by title or path and says what the view holds", async () => {
+    mockScan.mockReturnValue(scanned);
+    const Page = await getPage();
+    render(React.createElement(Page));
+    fireEvent.change(screen.getByTestId("seek-index-search"), { target: { value: "d.mkv" } });
+    expect(screen.getAllByTestId("seek-index-row")).toHaveLength(1);
+    expect(screen.getByText("Movie D")).toBeInTheDocument();
+    expect(screen.getByTestId("seek-index-page-info")).toHaveTextContent("1-1 of 1");
+    fireEvent.change(screen.getByTestId("seek-index-search"), { target: { value: "nothing-like-this" } });
+    expect(screen.queryAllByTestId("seek-index-row")).toHaveLength(0);
+    expect(screen.getByText("Nothing in this view.")).toBeInTheDocument();
+  });
+
+  it("a big library is paged, 50 rows at a time", async () => {
+    const many = {
+      ...scanned,
+      data: {
+        ...scanned.data,
+        items: Array.from({ length: 120 }, (_, i) => ({
+          mediaId: `big-${i}`,
+          title: `Big ${String(i).padStart(3, "0")}`,
+          path: `/media/big-${i}.mkv`,
+          hasIndex: false,
+          hasBackup: false,
+          sizeBytes: String(1000 - i),
+          container: "mkv",
+        })),
+        total: 120,
+      },
+    };
+    mockScan.mockReturnValue(many);
+    const Page = await getPage();
+    render(React.createElement(Page));
+    expect(screen.getAllByTestId("seek-index-row")).toHaveLength(50);
+    expect(screen.getByTestId("seek-index-page-info")).toHaveTextContent("1-50 of 120");
+    expect(screen.getByText("Big 000")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /next/i }));
+    expect(screen.getByTestId("seek-index-page-info")).toHaveTextContent("51-100 of 120");
+    expect(screen.getByText("Big 050")).toBeInTheDocument();
   });
 
   it("row repair button calls the single-file mutation", async () => {
@@ -468,8 +535,8 @@ describe("SeekIndexPage", () => {
     expect(screen.getByTestId("seek-index-informational-count")).toHaveTextContent("0");
     expect(screen.getByTestId("seek-index-acked-count")).toHaveTextContent("1");
     expect(screen.queryByText("Movie E")).not.toBeInTheDocument();
-    // Untick the filter: the row is back, marked seen, with the way back.
-    fireEvent.click(screen.getByRole("checkbox"));
+    // The "Seen" view: the row is back, marked seen, with the way back.
+    fireEvent.click(screen.getByTestId("seek-index-view-acked"));
     const row = screen.getByText("Movie E").closest("tr")!;
     expect(within(row).getByTestId("seek-index-acked-badge")).toBeInTheDocument();
     fireEvent.click(within(row).getByTestId("seek-index-unack-btn"));

@@ -3,9 +3,13 @@ import {
   audioDelayed,
   baseName,
   isAckable,
+  matchesView,
   repairableCount,
+  sortSeekItems,
   triageOf,
+  triageRows,
   verdictOf,
+  viewCounts,
   volumeBackupsRisky,
   volumeTempRisky,
 } from "./seekIndexHelpers";
@@ -116,5 +120,39 @@ describe("volumeTempRisky", () => {
 
   it("is false when there is enough free space for the largest candidate", () => {
     expect(volumeTempRisky({ largestMissingBytes: String(1024 * 1024), freeBytes: String(10 * 1024 * 1024 * 1024) })).toBe(false);
+  });
+});
+
+describe("views, search and sort of the displayed rows", () => {
+  const rows = [
+    { mediaId: "a", title: "Alpha", path: "/m/alpha.mkv", hasIndex: false, sizeBytes: "100" }, // repairable
+    { mediaId: "b", title: "Bravo", path: "/m/bravo.mkv", hasIndex: true, truncated: true, sizeBytes: "900" }, // manual
+    { mediaId: "c", title: "Charlie", path: "/m/charlie.mkv", hasIndex: true, trailingJunk: true, sizeBytes: "300", ackedAtMs: "1" }, // info, acked
+    { mediaId: "d", title: "Delta", path: "/m/delta.mkv", hasIndex: true, hasBackup: true, sizeBytes: "50" }, // healthy + backup
+    { mediaId: "e", title: "Echo", path: "/m/echo.mkv", hasIndex: true, sizeBytes: "10" }, // healthy
+    { mediaId: "f", title: "Foxtrot", path: "/m/foxtrot.mkv", hasIndex: true, audioShortfallSec: 40, sizeBytes: "700" }, // info
+  ];
+
+  it("attention = pending verdicts plus backups, never healthy or acknowledged", () => {
+    expect(rows.filter((r) => matchesView(r, "attention")).map((r) => r.mediaId)).toEqual(["a", "b", "d", "f"]);
+  });
+
+  it("counts every view from the same rows", () => {
+    expect(viewCounts(rows)).toEqual({ attention: 4, repairable: 1, manual: 1, informational: 2, acked: 1, backups: 1, all: 6 });
+  });
+
+  it("priority sort: repairable, manual, information (acknowledged last), healthy - biggest first inside a rank", () => {
+    expect(sortSeekItems(rows, "priority").map((r) => r.mediaId)).toEqual(["a", "b", "f", "c", "d", "e"]);
+  });
+
+  it("size and title sorts", () => {
+    expect(sortSeekItems(rows, "size").map((r) => r.mediaId)).toEqual(["b", "f", "c", "a", "d", "e"]);
+    expect(sortSeekItems(rows, "title").map((r) => r.title)).toEqual(["Alpha", "Bravo", "Charlie", "Delta", "Echo", "Foxtrot"]);
+  });
+
+  it("search matches title or path, case-insensitively, and composes with the view", () => {
+    expect(triageRows(rows, "all", "ECHO", "priority").map((r) => r.mediaId)).toEqual(["e"]);
+    expect(triageRows(rows, "all", "/m/", "title")).toHaveLength(6);
+    expect(triageRows(rows, "informational", "fox", "priority").map((r) => r.mediaId)).toEqual(["f"]);
   });
 });

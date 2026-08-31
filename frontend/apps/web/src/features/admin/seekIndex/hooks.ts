@@ -24,9 +24,16 @@ import {
   errText,
   isAcked,
   triageOf,
+  triageRows,
   verdictOf,
+  viewCounts,
   volumeBackupsRisky,
 } from "@evey/api";
+import type { SeekSort, SeekView } from "@evey/api";
+
+// Rows per page: a 7 000-file library must not render 900 rows at once, and
+// the operator triages a screen at a time anyway.
+export const SEEK_INDEX_PAGE_SIZE = 50;
 
 // useSeekIndexPage owns every piece of state, query and mutation the media
 // health admin page renders from - the page component itself only composes
@@ -35,7 +42,23 @@ export function useSeekIndexPage() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [libraryId, setLibraryId] = useState("");
-  const [onlyAttention, setOnlyAttention] = useState(true);
+  // The displayed rows are triaged three ways: a view (what awaits attention
+  // by default, or one verdict, or acknowledged/backups/all), a search on
+  // title or path, and a sort whose default puts what needs doing first.
+  const [view, setViewState] = useState<SeekView>("attention");
+  const [query, setQueryState] = useState("");
+  const [sort, setSort] = useState<SeekSort>("priority");
+  const [page, setPage] = useState(1);
+  // A new view or search restarts at the first page: page 4 of the old list
+  // is nowhere in the new one.
+  const setView = (v: SeekView) => {
+    setViewState(v);
+    setPage(1);
+  };
+  const setQuery = (q: string) => {
+    setQueryState(q);
+    setPage(1);
+  };
   const [confirmBatch, setConfirmBatch] = useState<"repair" | "rollback" | "purge" | null>(null);
   // "Repair all" repairs EVERY repairable verdict - index, audio start delay,
   // container - with no per-defect checkbox: a button named "all" that left a
@@ -229,18 +252,26 @@ export function useSeekIndexPage() {
     },
   });
 
-  // "Awaits action or a look": every non-healthy, non-acknowledged verdict,
-  // plus the files that carry a backup (rollback/purge are live actions).
-  const visible = onlyAttention
-    ? items.filter((it) => it.hasBackup || (verdictOf(it) !== "healthy" && !isAcked(it)))
-    : items;
+  const counts = viewCounts(items);
+  const visible = triageRows(items, view, query, sort);
+  const totalPages = Math.max(1, Math.ceil(visible.length / SEEK_INDEX_PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const paged = visible.slice((safePage - 1) * SEEK_INDEX_PAGE_SIZE, safePage * SEEK_INDEX_PAGE_SIZE);
   const busy = running || startScan.isPending;
 
   return {
     libraryId,
     setLibraryId,
-    onlyAttention,
-    setOnlyAttention,
+    view,
+    setView,
+    query,
+    setQuery,
+    sort,
+    setSort,
+    page: safePage,
+    setPage,
+    totalPages,
+    counts,
     confirmBatch,
     setConfirmBatch,
     keepBackups,
@@ -272,6 +303,7 @@ export function useSeekIndexPage() {
     ackOne,
     ackGroup,
     visible,
+    paged,
     busy,
   };
 }

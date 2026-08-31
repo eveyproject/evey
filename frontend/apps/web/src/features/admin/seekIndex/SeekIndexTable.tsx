@@ -3,13 +3,18 @@ import type { V1SeekIndexItem } from "@evey/api";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Pagination } from "@/components/ui/Pagination";
 import { audioDelayed, formatBytes, isAckable, isAcked, verdictOf } from "@evey/api";
-import type { SeekIndexPageState } from "./hooks";
+import { SEEK_INDEX_PAGE_SIZE, type SeekIndexPageState } from "./hooks";
 
 type SeekIndexTableProps = Pick<
   SeekIndexPageState,
   | "items"
   | "visible"
+  | "paged"
+  | "page"
+  | "setPage"
+  | "totalPages"
   | "busy"
   | "containerFixAvailable"
   | "remuxAudioOne"
@@ -30,6 +35,10 @@ const VERDICT_KEYS = {
 export function SeekIndexTable({
   items,
   visible,
+  paged,
+  page,
+  setPage,
+  totalPages,
   busy,
   containerFixAvailable,
   remuxAudioOne,
@@ -47,9 +56,10 @@ export function SeekIndexTable({
     </div>
   ) : visible.length === 0 ? (
     <div className="rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]">
-      <EmptyState title={t("admin.seekIndex.allGood")} />
+      <EmptyState title={t("admin.seekIndex.noneInView")} />
     </div>
   ) : (
+    <div className="flex flex-col gap-3">
     <div className="overflow-x-auto rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]">
       <table className="w-full text-sm table-cards">
         <thead>
@@ -70,7 +80,7 @@ export function SeekIndexTable({
           </tr>
         </thead>
         <tbody>
-          {visible.map((it: V1SeekIndexItem) => {
+          {paged.map((it: V1SeekIndexItem) => {
             const verdict = verdictOf(it);
             const acked = isAcked(it);
             const damagedOnly = it.hasIndex && Number(it.damagedBytes ?? 0) > 0 && !it.truncated;
@@ -286,6 +296,17 @@ export function SeekIndexTable({
           })}
         </tbody>
       </table>
+    </div>
+    <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+      <span className="text-xs text-[var(--text-muted)]" data-testid="seek-index-page-info">
+        {t("admin.seekIndex.pageInfo", {
+          from: (page - 1) * SEEK_INDEX_PAGE_SIZE + 1,
+          to: Math.min(page * SEEK_INDEX_PAGE_SIZE, visible.length),
+          total: visible.length,
+        })}
+      </span>
+      {totalPages > 1 && <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />}
+    </div>
     </div>
   );
 }

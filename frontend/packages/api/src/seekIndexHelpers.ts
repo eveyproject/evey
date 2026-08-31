@@ -136,3 +136,88 @@ export function volumeBackupsRisky(v: Pick<V1SeekIndexVolume, "missingBytes" | "
 export function volumeTempRisky(v: Pick<V1SeekIndexVolume, "largestMissingBytes" | "freeBytes">): boolean {
   return Number(v.largestMissingBytes ?? 0) + VOLUME_HEADROOM_BYTES > Number(v.freeBytes ?? 0);
 }
+
+// --- Triage of the displayed rows: views, search, sort ------------------------
+//
+// The list is the same for web and mobile: one view per verdict plus the
+// cross-cutting ones (acknowledged, backups, everything), a free-text search on
+// title/path, and a sort whose default puts what needs doing first.
+
+export type SeekView = "attention" | "repairable" | "manual" | "informational" | "acked" | "backups" | "all";
+export const SEEK_VIEWS: SeekView[] = ["attention", "repairable", "manual", "informational", "acked", "backups", "all"];
+
+export type SeekTriageItem = SeekVerdictInput & Pick<V1SeekIndexItem, "ackedAtMs" | "hasBackup" | "title" | "path" | "sizeBytes">;
+
+// matchesView: "attention" is what awaits an action or a look - every
+// non-healthy, non-acknowledged verdict, plus the files carrying a backup
+// (rollback/purge are live actions). The verdict views show pending AND
+// acknowledged files of that verdict; "acked" gathers the acknowledged ones.
+export function matchesView(it: SeekTriageItem, view: SeekView): boolean {
+  const v = verdictOf(it);
+  switch (view) {
+    case "all":
+      return true;
+    case "attention":
+      return Boolean(it.hasBackup) || (v !== "healthy" && !isAcked(it));
+    case "acked":
+      return isAcked(it);
+    case "backups":
+      return Boolean(it.hasBackup);
+    default:
+      return v === view;
+  }
+}
+
+export function viewCounts(items: SeekTriageItem[]): Record<SeekView, number> {
+  const out = { attention: 0, repairable: 0, manual: 0, informational: 0, acked: 0, backups: 0, all: 0 };
+  for (const it of items) {
+    for (const view of SEEK_VIEWS) {
+      if (matchesView(it, view)) out[view]++;
+    }
+  }
+  return out;
+}
+
+export function searchMatches(it: Pick<V1SeekIndexItem, "title" | "path">, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  return (it.title ?? "").toLowerCase().includes(q) || (it.path ?? "").toLowerCase().includes(q);
+}
+
+export type SeekSort = "priority" | "size" | "title";
+
+const VERDICT_RANK: Record<SeekVerdict, number> = { repairable: 0, manual: 1, informational: 2, healthy: 3 };
+
+// sortSeekItems: "priority" ranks what Evey can fix first, then what the
+// operator must do, then facts, then healthy; acknowledged files sink below
+// their pending peers; ties go to the biggest file (the one that matters
+// most to the shelf). Pure: returns a new array.
+export function sortSeekItems<T extends SeekTriageItem>(items: T[], sort: SeekSort): T[] {
+  const size = (it: T) => Number(it.sizeBytes ?? 0);
+  const title = (it: T) => (it.title || it.path || "").toLowerCase();
+  return [...items].sort((a, b) => {
+    switch (sort) {
+      case "size":
+        return size(b) - size(a) || title(a).localeCompare(title(b));
+      case "title":
+        return title(a).localeCompare(title(b));
+      default: {
+        const rank = VERDICT_RANK[verdictOf(a)] - VERDICT_RANK[verdictOf(b)];
+        if (rank !== 0) return rank;
+        const ack = Number(isAcked(a)) - Number(isAcked(b));
+        if (ack !== 0) return ack;
+        return size(b) - size(a) || title(a).localeCompare(title(b));
+      }
+    }
+  });
+}
+
+// triageRows is the one pipeline both apps render from: view, then search,
+// then sort.
+export function triageRows<T extends SeekTriageItem>(items: T[], view: SeekView, query: string, sort: SeekSort): T[] {
+  return sortSeekItems(
+    items.filter((it) => matchesView(it, view) && searchMatches(it, query)),
+    sort,
+  );
+}
+
