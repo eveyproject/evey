@@ -12,3 +12,13 @@
 -keep class com.facebook.react.turbomodule.** { *; }
 
 # Add any project specific keep options here:
+
+# AudioBoostModule reads expo-video's private player registry reflectively to
+# attach the LoudnessEnhancer to OUR player's audio session instead of the
+# global mix (see AudioBoostModule.resolvePlayerSessionId). R8 must not rename
+# the field, or every release build silently falls back to the global mix.
+-keepclassmembers class expo.modules.video.managers.VideoManager { <fields>; }
+-keep class expo.modules.video.player.VideoPlayer { *; }
+# ...and the reflective hop into media3: getAudioSessionId must keep its name.
+-keepclassmembers class * { int getAudioSessionId(); }
+
