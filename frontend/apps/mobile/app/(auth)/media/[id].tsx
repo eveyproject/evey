@@ -520,6 +520,9 @@ export default function MediaDetailScreen() {
   // omits it.
   const pixelRatio = Dimensions.get("window").scale || 1;
   const backdropWidth = backdropWidthForViewport(screenW, pixelRatio);
+  // The poster is a 100dp thumbnail: ask for its device-pixel size, not the
+  // full-resolution original (audit perf 2026-08-25).
+  const posterWidth = Math.round(POSTER_WIDTH * pixelRatio);
   const [selectedSeason, setSelectedSeason] = useState<string | null>(null);
   // Episodes render inside the screen's single outer ScrollView (see below), so a
   // nested FlatList would trip "VirtualizedLists should never be nested inside
@@ -968,7 +971,7 @@ export default function MediaDetailScreen() {
         <View style={{ flexDirection: "row", gap: theme.spacing.md }}>
           {serverUrl && id ? (
             <Image
-              source={{ uri: artworkUrl(serverUrl, id, "poster"), headers: authHeaders }}
+              source={{ uri: artworkUrl(serverUrl, id, "poster", posterWidth), headers: authHeaders }}
               style={{
                 width: POSTER_WIDTH,
                 height: POSTER_HEIGHT,

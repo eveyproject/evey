@@ -47,6 +47,9 @@ const CARD_TOTAL_WIDTH = CARD_WIDTH + GRID_GAP; // card + separator
 const HERO_COUNT = 5;
 const HERO_INTERVAL = 8000;
 const HERO_HEIGHT = 480;
+// Same reasoning as the media page: the TV renders at 1080p, so the hero
+// backdrop is requested at screen width instead of the full original.
+const HERO_BACKDROP_WIDTH = 1920;
 
 const tvRowGetItemLayout = (_: unknown, index: number) => ({
   length: CARD_TOTAL_WIDTH,
@@ -330,7 +333,7 @@ function HeroBanner({
       {id ? (
         <Image
           key={id}
-          source={{ uri: artworkUrl(serverUrl, id, "backdrop"), headers: authHeaders }}
+          source={{ uri: artworkUrl(serverUrl, id, "backdrop", HERO_BACKDROP_WIDTH), headers: authHeaders }}
           style={StyleSheet.absoluteFillObject}
           contentFit="cover"
           transition={400}

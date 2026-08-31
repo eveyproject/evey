@@ -37,6 +37,9 @@ import { SagaSection } from "../../../src/components/SagaSection";
 import { trailerUrl, sortTrailers } from "../../../src/lib/trailerUrl";
 
 const HERO_HEIGHT = 420;
+// Android TV renders at 1080p whatever the panel: a hero backdrop wider than
+// the screen is decoded then downscaled for nothing (audit perf 2026-08-25).
+const HERO_BACKDROP_WIDTH = 1920;
 const POSTER_WIDTH = CARD_WIDTH_FEATURED;
 // 16:9 still next to the episode text. Wide enough to read at three metres,
 // narrow enough that the title and synopsis keep the room. Served as
@@ -401,7 +404,7 @@ export default function MediaDetailScreen() {
       <View style={{ width: "100%", height: HERO_HEIGHT }}>
         {serverUrl && id ? (
           <Image
-            source={{ uri: artworkUrl(serverUrl, id, "backdrop"), headers: authHeaders }}
+            source={{ uri: artworkUrl(serverUrl, id, "backdrop", HERO_BACKDROP_WIDTH), headers: authHeaders }}
             style={StyleSheet.absoluteFillObject}
             contentFit="cover"
             transition={300}
@@ -422,7 +425,7 @@ export default function MediaDetailScreen() {
       <View style={{ paddingHorizontal: 48, marginTop: -POSTER_HEIGHT * 0.4, flexDirection: "row", gap: 32 }}>
         {serverUrl && id ? (
           <Image
-            source={{ uri: artworkUrl(serverUrl, id, "poster"), headers: authHeaders }}
+            source={{ uri: artworkUrl(serverUrl, id, "poster", POSTER_WIDTH * 2), headers: authHeaders }}
             style={{
               width: POSTER_WIDTH,
               height: POSTER_HEIGHT,
