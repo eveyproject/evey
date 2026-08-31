@@ -111,8 +111,23 @@ export function useCastSession({
     } catch (err) { console.warn("released", err); }
   }, [player, volume]);
 
+  // Which MEDIA the receiver was last loaded with, and where the receiver got
+  // to while casting (by the time the session is gone, so is its media status,
+  // so it cannot be read at the moment it is needed). Both live above
+  // castLoadMedia because a re-load reads them.
+  const castLoadedForMedia = useRef<string | null>(null);
+  const lastCastPositionRef = useRef<number | null>(null);
+
   const castLoadMedia = useCallback(async (client: any) => {
     if (!streamUrl || !title) return;
+    // Re-loading the SAME title (re-cast from the button, a re-negotiated URL)
+    // resumes where the television is, not where the muted local player was
+    // parked - which is the position the cast started from, i.e. zero for a
+    // film cast from the start. Live 2026-08-31: a mid-cast re-login re-loaded
+    // the receiver at 0 after 54 minutes of film.
+    const resumeFromReceiver = castLoadedForMedia.current === mediaId ? lastCastPositionRef.current : null;
+    const startTime = resumeFromReceiver ?? currentTime;
+    castLoadedForMedia.current = mediaId;
     muteLocalPlayer();
     // The device comes from the LIVE session, not the useCastDevice hook: the
     // hook only delivers on a later render, and the auto-load fires right on
@@ -174,7 +189,7 @@ export function useCastSession({
           // web fix validated on this TV on 2026-07-22 (b9bc22c98), ported.
           ...(isHls ? { hlsSegmentFormat: "FMP4", hlsVideoSegmentFormat: "FMP4" } : {}),
         },
-        startTime: currentTime,
+        startTime,
       });
     } catch (e) { console.warn("[CAST] loadMedia failed:", e); }
   }, [streamUrl, title, mediaId, currentTime, muteLocalPlayer, streamInfo, serverUrl, castDevice?.modelName]);
@@ -197,19 +212,21 @@ export function useCastSession({
     }
   }, [castConnected, castClient, castLoadMedia]);
 
-  // Auto-load when cast client becomes available after dialog
-  const castLoadedForMedia = useRef<string | null>(null);
+  // Auto-load when the cast client becomes available after the dialog - keyed
+  // on the MEDIA, never on the stream URL. The URL is re-minted whenever the
+  // play session is re-issued (a token refresh refused mid-cast logs the app
+  // out, the saved credentials log it back in, StartStream runs again): keyed
+  // on the URL, that re-issue re-LOADed the receiver, which interrupted the
+  // running film and restarted it from zero (live, 2026-08-31, 54 min in).
+  // The receiver holds its own 12-hour cast token; a new sender URL changes
+  // nothing for it.
   useEffect(() => {
     if (!castClient || !castConnected || !streamUrl) return;
-    if (castLoadedForMedia.current === streamUrl) return;
-    castLoadedForMedia.current = streamUrl;
+    if (castLoadedForMedia.current === mediaId) return;
     castLoadMedia(castClient);
-  }, [castClient, castConnected, streamUrl, castLoadMedia]);
+  }, [castClient, castConnected, streamUrl, mediaId, castLoadMedia]);
 
-  // Track the receiver's last known position WHILE casting: by the time the
-  // session is gone, so is its media status, so it cannot be read at the moment
-  // it is needed.
-  const lastCastPositionRef = useRef<number | null>(null);
+  // Track the receiver's last known position WHILE casting.
   useEffect(() => {
     if (castConnected && castCurrentTime > 0) {
       lastCastPositionRef.current = castCurrentTime;

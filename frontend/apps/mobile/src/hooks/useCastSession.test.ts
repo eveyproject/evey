@@ -7,13 +7,14 @@ let castClientInstance: { loadMedia: ReturnType<typeof vi.fn> } | null = null;
 let castDeviceModelName: string | null = null;
 let castDeviceFriendlyName: string | null = null;
 let sessionDeviceModelName: string | null = null;
+let castMediaStatus: { streamPosition?: number } | null = null;
 
 vi.mock("./useChromecast", () => ({
   CastContext: { showCastDialog: () => showCastDialog() },
   CastStateEnum: { CONNECTED: 4 },
   useCastStateHook: () => castState,
   useRemoteMediaClientHook: () => castClientInstance,
-  useMediaStatusHook: () => null,
+  useMediaStatusHook: () => castMediaStatus,
   useCastDeviceHook: () =>
     castDeviceModelName || castDeviceFriendlyName
       ? { modelName: castDeviceModelName, friendlyName: castDeviceFriendlyName }
@@ -86,6 +87,7 @@ beforeEach(() => {
   castDeviceModelName = null;
   castDeviceFriendlyName = null;
   sessionDeviceModelName = null;
+  castMediaStatus = null;
   showCastDialog.mockReset();
   setAudioBoost.mockReset();
   eveyFetchMock.mockReset();
@@ -290,4 +292,66 @@ describe("useCastSession", () => {
       .map((c) => c[0] as { url: string; data?: { details?: string } })
       .find((c) => c.url.includes("/player-event"));
     expect(beacon!.data!.details).toContain("model=Chromecast Ultra");
+  
+});
+
+
+// Live, 2026-08-31, 54 minutes into a film: a token refresh was refused,
+// the app logged out, the saved credentials logged it back in, StartStream
+// re-issued the stream URL - and the auto-load, keyed on that URL, re-LOADed
+// the receiver, which interrupted the running film and restarted it from 0.
+it("does not re-load the receiver when the stream URL is re-minted for the same media", async () => {
+  castState = 4; // CONNECTED
+  castClientInstance = { loadMedia: vi.fn().mockResolvedValue(undefined) };
+  eveyFetchMock.mockResolvedValue({ token: "cast-tok", mediaId: "m1" });
+  const player = fakePlayer();
+  const args = (streamUrl: string) => ({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    player: player as any, volume: 1, streamUrl, mediaId: "m1", title: "A Film", currentTime: 0,
+    fallbackDurationSec: 120, streamInfo: null, serverUrl: null,
   });
+  const { rerender } = renderHook((p: ReturnType<typeof args>) => useCastSession(p), {
+    initialProps: args("https://example.invalid/api/v1/media/m1/hls/master.m3u8?token=tok-1"),
+  });
+  await act(async () => {});
+  expect(castClientInstance!.loadMedia).toHaveBeenCalledTimes(1);
+
+  await act(async () => {
+    rerender(args("https://example.invalid/api/v1/media/m1/hls/master.m3u8?token=tok-2"));
+  });
+  expect(castClientInstance!.loadMedia).toHaveBeenCalledTimes(1);
+});
+
+it("re-loads when the MEDIA changes, and resumes a re-cast of the same title where the television is", async () => {
+  castState = 4; // CONNECTED
+  castClientInstance = { loadMedia: vi.fn().mockResolvedValue(undefined) };
+  eveyFetchMock.mockResolvedValue({ token: "cast-tok", mediaId: "m1" });
+  const player = fakePlayer();
+  const args = (mediaId: string) => ({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    player: player as any, volume: 1, streamUrl: `https://example.invalid/api/v1/media/${mediaId}/hls/master.m3u8?token=t`,
+    mediaId, title: "A Film", currentTime: 0, fallbackDurationSec: 120, streamInfo: null, serverUrl: null,
+  });
+  const { result, rerender } = renderHook((p: ReturnType<typeof args>) => useCastSession(p), { initialProps: args("m1") });
+  await act(async () => {});
+  expect(castClientInstance!.loadMedia).toHaveBeenCalledTimes(1);
+
+  // The receiver has reached 54 minutes; the user presses cast again.
+  castMediaStatus = { streamPosition: 3240 };
+  await act(async () => {
+    rerender(args("m1"));
+  });
+  await act(async () => {
+    await result.current.handleCast();
+  });
+  const calls = castClientInstance!.loadMedia.mock.calls;
+  expect(calls).toHaveLength(2);
+  expect(calls[1][0].startTime).toBe(3240);
+
+  // A different title is a new load, from the local player's position (0).
+  await act(async () => {
+    rerender(args("m2"));
+  });
+  expect(castClientInstance!.loadMedia).toHaveBeenCalledTimes(3);
+  expect(castClientInstance!.loadMedia.mock.calls[2][0].startTime).toBe(0);
+});
