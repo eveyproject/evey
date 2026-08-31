@@ -231,6 +231,38 @@ func (s *serverState) refuseTranscodeBeyond(a *audience, _ string, capacity int)
 	}
 }
 
+// refuseTranscodeSticky models the REAL server's encoder pool: an admitted
+// transcode KEEPS its slot when its viewer goes away (the session lingers
+// until an inactivity timeout far longer than a bisection step), and only a
+// reap - the runner asking the server to kill its leftover sessions - frees
+// it. refuseTranscodeBeyond's epoch shortcut (slots vanish with the audience)
+// is exactly the optimistic shape the real server does not have.
+func (s *serverState) refuseTranscodeSticky(capacity int) (reap func(mediaIDs []string)) {
+	held := map[string]bool{}
+	s.masterHook = func(_ int, mediaID, rawQuery string) (int, map[string]string) {
+		if !strings.Contains(rawQuery, "vd=transcode") {
+			return 0, nil // direct play costs the encoder nothing
+		}
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		if held[mediaID] {
+			return 0, nil // joins the session this title already has
+		}
+		if len(held) >= capacity {
+			return http.StatusServiceUnavailable, map[string]string{headerEveyError: errCodeTooManyStreams}
+		}
+		held[mediaID] = true
+		return 0, nil
+	}
+	return func(mediaIDs []string) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		for _, id := range mediaIDs {
+			delete(held, id)
+		}
+	}
+}
+
 // stallBeyond models a server that keeps admitting viewers past its real
 // capacity but can no longer feed them in time: segments arrive slower than
 // they play, which is what a buffering player looks like.
@@ -1219,6 +1251,40 @@ func TestRunner_HeavyMixAdmissionFullOnTranscodePool(t *testing.T) {
 	}
 	if report.ViewerMix["mkvgo"] != 1 || report.ViewerMix["transcode"] != 2 {
 		t.Fatalf("viewer mix = %v, want mkvgo=1 transcode=2", report.ViewerMix)
+	}
+}
+
+// The bisection must never judge a tier against the PREVIOUS tier's leftover
+// encoder sessions. On the real server an admitted transcode outlives its
+// viewer by minutes, so after a broken tier the admission pools are still
+// full when the smaller tier spawns - and every tier down to 1 is refused in
+// turn (measured live 2026-08-30: a box calibrated for 25 streams reported
+// "holds 1"). The runner reaps its own leftovers when it rebuilds the
+// audience, so each tier is admitted on its own load.
+func TestRunner_BisectionReapsLeftoverSessionsBetweenTiers(t *testing.T) {
+	st := newServerState()
+	reap := st.refuseTranscodeSticky(2)
+	srv := httptest.NewServer(st.handler())
+	defer srv.Close()
+
+	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(20)}, zeroActive, testLogger()).
+		WithSessionReaper(reap)
+	cfg := Config{
+		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioBalanced,
+		MaxViewers: 8, RampEvery: 40 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, MaxDuration: 20 * time.Second,
+	}
+	if err := r.Start(context.Background(), cfg); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+
+	report := waitForReport(t, r, 20*time.Second)
+	if report.StopReason != StopAdmissionFull {
+		t.Fatalf("stop reason = %s, want %s (detail=%q)", report.StopReason, StopAdmissionFull, report.StopDetail)
+	}
+	// balanced is [mkvgo, transcode]: ranks 2 and 4 take the two encoder
+	// slots, rank 6 would need a third - the true ceiling is 5 viewers.
+	if report.SustainedViewers != 5 {
+		t.Fatalf("sustained viewers = %d, want 5 (leftover sessions from a broken tier must not refuse the next one)", report.SustainedViewers)
 	}
 }
 

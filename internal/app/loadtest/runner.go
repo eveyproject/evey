@@ -54,6 +54,10 @@ type Runner struct {
 	activeStreams func() int
 	logger        *slog.Logger
 
+	// reapSessions, when wired, asks the server to kill the run's OWN leftover
+	// streaming sessions (by media ID). See WithSessionReaper.
+	reapSessions func(mediaIDs []string)
+
 	// servedBytes is the running total of bytes every viewer has pulled this
 	// run - which is exactly what the server had to push. It is the honest
 	// measure of served throughput: the simulated viewers reach the server
@@ -116,6 +120,20 @@ func New(httpClient *http.Client, media MediaLister, activeStreams func() int, l
 		evictFile:     evictFromCache,
 		status:        Status{Phase: "idle"},
 	}
+}
+
+// WithSessionReaper wires the hook the runner uses to kill ITS OWN leftover
+// streaming sessions server-side, by media ID. An admitted encoder session
+// outlives the simulated viewer that started it - the server only reclaims it
+// on an inactivity timeout minutes long - so between tiers those leftovers
+// still hold their admission slots and get the NEXT tier refused for load it
+// does not produce (measured live 2026-08-30: a box calibrated for 25 streams
+// reported "holds 1"). Reaping aggressively is safe: a run never starts over
+// real viewers (see Start), so every live session is the run's own.
+// Chainable; nil (the default) disables reaping.
+func (r *Runner) WithSessionReaper(reap func(mediaIDs []string)) *Runner {
+	r.reapSessions = reap
+	return r
 }
 
 // Start kicks off a run asynchronously. It refuses to start when a run is

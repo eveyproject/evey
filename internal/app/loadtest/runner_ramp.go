@@ -214,3 +214,14 @@ func (r *Runner) dropViewer(ramp *rampState, slot int) {
 	// scenario's mix no longer holds. The next judged tier gets a clean rebuild.
 	ramp.audienceIntact = false
 }
+
+// reapLeftoverSessions asks the server to kill every streaming session the
+// run's candidates may still hold (see WithSessionReaper). Called only when
+// no simulated viewer is watching: right after the audience was shed to zero
+// for a rebuild, and once the run is over. No-op without a wired reaper.
+func (r *Runner) reapLeftoverSessions(pool *candidatePool) {
+	if r.reapSessions == nil {
+		return
+	}
+	r.reapSessions(pool.candidateIDs())
+}

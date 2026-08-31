@@ -204,6 +204,16 @@ func (p *candidatePool) recordServed(m MediaCandidate) {
 	p.served[SourceMixEntry{Codec: m.VideoCodec, Height: m.VideoHeight}]++
 }
 
+// candidateIDs lists every media ID the pool can hand out - the reap surface:
+// a leftover server session from this run can only belong to one of these.
+func (p *candidatePool) candidateIDs() []string {
+	ids := make([]string, 0, len(p.candidates))
+	for _, m := range p.candidates {
+		ids = append(ids, m.ID)
+	}
+	return ids
+}
+
 // sourceMix reports what the run served, heaviest class first so the reader
 // sees what dominated the verdict before the long tail.
 func (p *candidatePool) sourceMix() []SourceMixEntry {

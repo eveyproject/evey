@@ -381,6 +381,14 @@ runLoop:
 				ramp.audienceIntact = true
 				// Every session the server was holding is now over.
 				r.audienceEpoch.Add(1)
+				// Over for the HARNESS - the server still runs the encoder
+				// sessions those viewers started, and they hold their
+				// admission slots until an inactivity timeout far longer
+				// than a bisection step. Judged against those leftovers,
+				// every smaller tier is refused in turn and a healthy box
+				// measures as "holds 1" (seen live 2026-08-30). Reap them
+				// so this tier is admitted on its own load.
+				r.reapLeftoverSessions(pool)
 				// The viewers about to repopulate this audience all start at
 				// once: a herd whose first fetches must not feed the startup
 				// verdict (see evTTFF).
@@ -421,6 +429,9 @@ runLoop:
 	r.setStatus("stopping", ramp.tier)
 	cancelViewers()
 	wg.Wait()
+	// The last audience's encoder sessions would otherwise grind on for
+	// minutes after the verdict: leave the server as idle as it was found.
+	r.reapLeftoverSessions(pool)
 
 	// sampleTier indexes the per-tier sample buckets. In every mode except
 	// flash, "sustained" IS the tier whose samples we want (it is the highest

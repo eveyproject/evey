@@ -404,6 +404,16 @@ func buildLoadTestRunner(cfg *config.Config, libQuerySvc *applibrary.QueryServic
 		hlsVODRemover.ActivePlaybackCount,
 		slog.Default(),
 	)
+	// A simulated viewer vanishes without a goodbye, but the encoder session
+	// it started lives on (inactivity reap only) - still holding its video
+	// admission slot. The runner reaps its own leftovers between tiers and at
+	// the end of a run; it never runs over real traffic (Start refuses), so
+	// every live session is its own to kill.
+	loadTestRunner.WithSessionReaper(func(mediaIDs []string) {
+		for _, id := range mediaIDs {
+			hlsVODRemover.RemoveSession(id)
+		}
+	})
 	return loadTestRunner, loadTestBaseURL, loadTestPublicURL
 }
 
