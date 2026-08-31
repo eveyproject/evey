@@ -90,6 +90,79 @@
         ]
       }
     },
+    "/api/v1/admin/load-test": {
+      "get": {
+        "operationId": "AdminSystemService_GetLoadTestStatus",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1LoadTestStatus"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "AdminSystemService"
+        ]
+      },
+      "delete": {
+        "operationId": "AdminSystemService_CancelLoadTest",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1LoadTestStatus"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "AdminSystemService"
+        ]
+      },
+      "post": {
+        "summary": "Built-in load test: the server plays synthetic viewers against its own\nHTTP stack and reports measured capacity. Admin-only; refuses to start\nwhile real streams are active.",
+        "operationId": "AdminSystemService_StartLoadTest",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1LoadTestStatus"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1StartLoadTestRequest"
+            }
+          }
+        ],
+        "tags": [
+          "AdminSystemService"
+        ]
+      }
+    },
     "/api/v1/admin/setup": {
       "post": {
         "operationId": "AdminSystemService_SetupWizard",
@@ -139,6 +212,39 @@
             }
           }
         },
+        "tags": [
+          "AdminSystemService"
+        ]
+      }
+    },
+    "/api/v1/admin/system/restart": {
+      "post": {
+        "summary": "RestartServer triggers a graceful shutdown; a process supervisor (Docker\n`restart: unless-stopped`, systemd) then brings the server back up. Admin\nonly. Has no effect when the process is not supervised (bare run / dev).",
+        "operationId": "AdminSystemService_RestartServer",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1RestartServerResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1RestartServerRequest"
+            }
+          }
+        ],
         "tags": [
           "AdminSystemService"
         ]
@@ -247,6 +353,23 @@
         }
       }
     },
+    "v1DecodeThroughput": {
+      "type": "object",
+      "properties": {
+        "codec": {
+          "type": "string"
+        },
+        "height": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "fps": {
+          "type": "number",
+          "format": "double"
+        }
+      },
+      "description": "DecodeThroughput is one measured DECODE-only rate, per source codec."
+    },
     "v1HWAccelType": {
       "type": "string",
       "enum": [
@@ -289,6 +412,333 @@
         }
       }
     },
+    "v1LoadTestReport": {
+      "type": "object",
+      "properties": {
+        "scenario": {
+          "type": "string"
+        },
+        "sustainedViewers": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "stopReason": {
+          "type": "string"
+        },
+        "stopDetail": {
+          "type": "string"
+        },
+        "ttffMsP50": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "ttffMsP95": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "segmentMsP50": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "segmentMsP95": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "segmentSloMs": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "samples": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "sharedCacheViewers": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "startedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "endedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "skippedCandidates": {
+          "type": "integer",
+          "format": "int32",
+          "description": "skipped_candidates counts titles the mkvgo scenario had to pass over\n(not eligible for the on-demand packager)."
+        },
+        "viewerMix": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "description": "viewer_mix is the composition at the sustained tier, per viewer type\n(\"mkvgo\", \"transcode\", \"natural\") - the answer to \"how many DIFFERENT\nkinds of users at once\"."
+        },
+        "segmentMsP95ByType": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "description": "segment_ms_p95_by_type breaks the p95 down per viewer type, so a slow\nmkvgo path cannot hide behind slow transcodes (or vice versa)."
+        },
+        "mode": {
+          "type": "string",
+          "description": "mode is the behavior axis this run used (see StartLoadTestRequest.mode)."
+        },
+        "segmentSloMsByType": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "description": "segment_slo_ms_by_type is the latency budget each path was JUDGED against.\nThe paths do not share a segment length (mkvgo packages on keyframe\nboundaries, the ffmpeg ladder emits 3s segments), so they cannot share a\nbudget. segment_slo_ms above is only the loosest of these."
+        },
+        "resources": {
+          "$ref": "#/definitions/v1LoadTestResources",
+          "description": "resources is what the server CONSUMED while sustaining that viewer count -\nthe evidence behind a cpu_saturated / memory_saturated stop_reason."
+        },
+        "perViewerCost": {
+          "$ref": "#/definitions/v1LoadTestResources",
+          "description": "per_viewer_cost is what ONE more viewer costs, measured as the slope across\ntiers rather than a naive total/viewers (which would charge the idle\nserver's own consumption to the viewers). Absent when fewer than two tiers\nwere measured."
+        },
+        "resourceBaseline": {
+          "$ref": "#/definitions/v1LoadTestResources",
+          "description": "resource_baseline is what the server consumed BEFORE the first viewer\njoined: the floor the per-viewer cost is read against."
+        },
+        "throughputCeilingBytesPerSec": {
+          "type": "string",
+          "format": "int64",
+          "description": "throughput_ceiling_bytes_per_sec is the byte rate the server could not\nexceed, set when stop_reason is throughput_saturated. On a media server this\nis the usual ceiling - not the CPU, not the RAM, but how fast it can READ\nthe films - and no CPU or memory gauge can see it."
+        },
+        "diskReadStarved": {
+          "type": "boolean",
+          "description": "disk_read_starved: the server pushed real traffic while the kernel's I/O\ncounter barely moved. Either the page cache served everything, or the media\ndo not live on a block device (a network share, a 9p/virtiofs mount) where\nper-cgroup I/O accounting is simply blind. Zero read is NOT the same as no\ndisk activity, and the panel must not present it as a fact."
+        },
+        "endpoint": {
+          "type": "string",
+          "description": "endpoint is the origin the viewers actually hit (the reverse proxy when it\nwas reachable, the server's own loopback otherwise). Runs against different\nendpoints are not comparable."
+        },
+        "viaProxy": {
+          "type": "boolean"
+        },
+        "diskReadCeilingBytesPerSec": {
+          "type": "string",
+          "format": "int64",
+          "description": "disk_read_ceiling_bytes_per_sec is how fast this box can READ its media,\nmeasured directly by the run (several files, scattered offsets, read at\nonce - the shape of load an audience creates). On a direct-play server this\nis usually the real ceiling, and the kernel cannot report it when the\nlibrary sits on anything but a plain block device."
+        },
+        "diskCeilingAtReaders": {
+          "type": "integer",
+          "format": "int32",
+          "description": "disk_ceiling_at_readers is the concurrency width at which that ceiling was\nreached. Indispensable next to the figure above: a peak measured at 4\nsequential readers says nothing about what 21 scrubbing viewers will get."
+        },
+        "diskReadAtAudienceBytesPerSec": {
+          "type": "string",
+          "format": "int64",
+          "description": "disk_read_at_audience_bytes_per_sec is what the SAME storage delivered at the\nconcurrency the sustained audience actually imposes on it. This is the figure\nthe run was competing against; the ceiling above is what the hardware gives\nunder laboratory conditions production never sees.\n\nReporting only the ceiling is how a disk at its knees gets read as 40% busy."
+        },
+        "tiers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1LoadTestTierCost"
+          },
+          "description": "tiers is one row per audience size the run measured, smallest first: the\nclimb itself, not just the rung it stopped on. Read the per-viewer cost down\nthe rows and it either holds steady (the server is scaling) or bends upward\n(it is not) - which a single headline figure cannot say."
+        },
+        "harnessCpuFraction": {
+          "type": "number",
+          "format": "double",
+          "description": "harness_cpu_fraction is the share of the measured CPU burned by the load\nGENERATOR rather than by the server. Every CPU figure above already has it\nsubtracted. harness_cpu_measured is false when no profile could be taken, in\nwhich case all the CPU is charged to the server (the pessimistic reading)."
+        },
+        "harnessCpuMeasured": {
+          "type": "boolean"
+        },
+        "memCacheBytes": {
+          "type": "string",
+          "format": "int64",
+          "description": "mem_cache_bytes is the page cache the run accumulated by reading films. NOT\nconsumption: the kernel hands it straight back. Reported so an operator can\nsee why a naive memory gauge climbs to fill the box during a load test."
+        },
+        "slowestDiskBytesPerSec": {
+          "type": "string",
+          "format": "int64",
+          "description": "slowest_disk_bytes_per_sec is what the WEAKEST drive delivered. A library\nspread over several disks is not one big disk: each drive saturates on its\nown, and the film a viewer picks decides which. This is what sets how bad it\ngets when viewers happen to land on that drive."
+        },
+        "disksProbed": {
+          "type": "integer",
+          "format": "int32",
+          "description": "disks_probed is how many distinct drives the library was found to span."
+        },
+        "readAmplification": {
+          "type": "number",
+          "format": "double",
+          "description": "read_amplification is how many bytes the DISK delivered per byte served -\nwhat the hardware actually paid. Zero when the kernel cannot account the\nreads (a library on a network share or a 9p/virtiofs mount)."
+        },
+        "appReadAmplification": {
+          "type": "number",
+          "format": "double",
+          "description": "app_read_amplification is how many bytes the SERVER ASKED FOR per byte\nserved - the packager's own appetite, page cache or not.\n\nThe pair names the culprit, and the two have entirely different fixes:\n  app 1.3 / disk 1.3 -\u003e the code reads what it serves; nothing to win.\n  app 2.5 / disk 2.5 -\u003e the CODE traverses data it discards. Fix the packager.\n  app 1.3 / disk 2.6 -\u003e the KERNEL reads ahead into data nobody wanted. The\n                        code is near-optimal; the fix is in HOW the file is\n                        read, not in what it reads.\nThe disk figure alone leaves an operator guessing which of the three they\nare looking at."
+        },
+        "storageCollapsesAtReaders": {
+          "type": "integer",
+          "format": "int32",
+          "description": "storage_collapses_at_readers is the number of concurrent readers past which\nthe storage stops merely plateauing and FALLS OVER - throughput halves or\nworse, and a single read starts taking seconds. Zero when it never did.\n\nWhen it is not zero it is the most important number in the report: on a\ndirect-play server it is roughly how many people can watch at once before\nthe STORAGE - not the CPU, not Evey - makes playback crawl. No CPU or memory\ngauge shows any of this."
+        },
+        "coldCache": {
+          "type": "boolean",
+          "description": "cold_cache is true when the run kept evicting the library from the page\ncache (and the eviction actually landed): the figures were measured\nagainst the storage, not the RAM. A warm and a cold run of the same box\nare two different answers - never compare them as one."
+        },
+        "sourceMix": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1LoadTestSourceMix"
+          },
+          "description": "source_mix is what the run actually SERVED, per source class, counted as\neach title was handed to a viewer. The candidate pool is drawn by duration\nalone, so two runs on the same host land on different viewer counts purely\nby codec draw - a verdict that cannot name what it decoded cannot be read."
+        },
+        "storageFsType": {
+          "type": "string",
+          "description": "storage_fs_type names the filesystem type(s) the library's files sit on\n(\"ext4\", \"fuse.mergerfs\", \"nfs4\"...), comma-joined when several."
+        },
+        "storageOpaque": {
+          "type": "boolean",
+          "description": "storage_opaque is true when one of those mounts hides the disks from the\nserver's kernel (a FUSE pool, a network or VM share): the disk counter\ncannot see its reads, a cold-cache eviction stops at the mount and a pool\ncounts as one disk. The storage figures then describe the delivery path."
+        }
+      },
+      "description": "LoadTestReport is what the box MEASURED, next to what the admission model\npredicted - the panel shows both so the operator sees promises kept."
+    },
+    "v1LoadTestResources": {
+      "type": "object",
+      "properties": {
+        "cpuPercentAvg": {
+          "type": "number",
+          "format": "double"
+        },
+        "cpuPercentPeak": {
+          "type": "number",
+          "format": "double"
+        },
+        "memUsedBytesAvg": {
+          "type": "string",
+          "format": "int64"
+        },
+        "memUsedBytesMax": {
+          "type": "string",
+          "format": "int64"
+        },
+        "memLimitBytes": {
+          "type": "string",
+          "format": "int64"
+        },
+        "diskReadBytesPerSec": {
+          "type": "string",
+          "format": "int64"
+        },
+        "servedBytesPerSec": {
+          "type": "string",
+          "format": "int64"
+        },
+        "samples": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "description": "LoadTestResources is what the box was actually spending. The figures come\nfrom the server's own cgroup, so every ffmpeg it spawned is already counted;\nserved_bytes_per_sec is tallied by the viewers themselves (they reach the\nserver over loopback, where no NIC counter would see the traffic)."
+    },
+    "v1LoadTestSourceMix": {
+      "type": "object",
+      "properties": {
+        "codec": {
+          "type": "string"
+        },
+        "height": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "count": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "description": "LoadTestSourceMix is one source class and how many viewers were placed on it."
+    },
+    "v1LoadTestStatus": {
+      "type": "object",
+      "properties": {
+        "running": {
+          "type": "boolean"
+        },
+        "phase": {
+          "type": "string"
+        },
+        "viewers": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "elapsedMs": {
+          "type": "string",
+          "format": "int64"
+        },
+        "lastReport": {
+          "$ref": "#/definitions/v1LoadTestReport"
+        }
+      }
+    },
+    "v1LoadTestTierCost": {
+      "type": "object",
+      "properties": {
+        "viewers": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "cpuPercent": {
+          "type": "number",
+          "format": "double"
+        },
+        "memUsedBytes": {
+          "type": "string",
+          "format": "int64"
+        },
+        "diskReadBytesPerSec": {
+          "type": "string",
+          "format": "int64"
+        },
+        "servedBytesPerSec": {
+          "type": "string",
+          "format": "int64"
+        },
+        "cpuPercentPerViewer": {
+          "type": "number",
+          "format": "double",
+          "description": "cpu_percent_per_viewer / mem_bytes_per_viewer: this row's cost divided by its\nheadcount. The TREND down the table is what says whether the server is still\nscaling."
+        },
+        "memBytesPerViewer": {
+          "type": "string",
+          "format": "int64"
+        },
+        "samples": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "description": "LoadTestTierCost is what ONE audience size cost the server: one row of the\nreport's table. Every CPU figure is the SERVER's share - the load generator's\nown overhead has already been subtracted - and mem_used_bytes is anonymous\nmemory, never the page cache of the films being read."
+    },
+    "v1RestartServerRequest": {
+      "type": "object"
+    },
+    "v1RestartServerResponse": {
+      "type": "object",
+      "properties": {
+        "restarting": {
+          "type": "boolean"
+        },
+        "message": {
+          "type": "string"
+        }
+      }
+    },
     "v1ServerConfig": {
       "type": "object",
       "properties": {
@@ -312,6 +762,10 @@
         },
         "serverRegion": {
           "type": "string"
+        },
+        "passwordRecoveryEnabled": {
+          "type": "boolean",
+          "description": "password_recovery_enabled lets the (unauthenticated) login page decide\nwhether to show the \"Forgot password?\" link. The same flag lives on the\nadmin-only SystemInfo; this is its public projection (it only reveals\nwhether SMTP + recovery are configured, no sensitive detail)."
         }
       }
     },
@@ -356,11 +810,52 @@
         }
       }
     },
+    "v1SourceClass": {
+      "type": "object",
+      "properties": {
+        "codec": {
+          "type": "string"
+        },
+        "height": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "description": "SourceClass is a decode workload: the source codec and the height it is\ndecoded at. See apptranscoding / transcoding.SourceClass."
+    },
+    "v1StartLoadTestRequest": {
+      "type": "object",
+      "properties": {
+        "scenario": {
+          "type": "string",
+          "description": "scenario is WHO the simulated viewers are: \"transcode\", \"natural\",\n\"mkvgo\", the ratio mixes \"light\"/\"balanced\"/\"heavy\", or \"mkvgo+N\"\n(N pinned transcodes then pure direct-play)."
+        },
+        "maxViewers": {
+          "type": "integer",
+          "format": "int32",
+          "description": "max_viewers caps the ramp; 0 = server default (12, sized for a weak NAS)."
+        },
+        "mode": {
+          "type": "string",
+          "description": "mode is HOW they behave: \"\" (ramp, default), \"flash\" (everyone arrives at\nonce - the sunday-evening stampede), \"seek\" (viewers jump around the\ntimeline - session churn), \"endurance\" (hold the tier for the duration -\nslow-drift hunting)."
+        },
+        "durationSec": {
+          "type": "integer",
+          "format": "int32",
+          "description": "duration_sec bounds the run; 0 = mode default (4min ramp/flash/seek,\n30min endurance)."
+        },
+        "coldCache": {
+          "type": "boolean",
+          "description": "cold_cache keeps evicting the library's files from the OS page cache for\nthe whole run, so the server's reads hit the actual storage. A box whose\nlibrary fits in RAM otherwise measures its memory bus and overstates the\nviewer count, sometimes by a factor of several. Cold measures the day the\nlibrary dwarfs the RAM; warm (the default) measures today. Both are true,\nand the report says which one was measured."
+        }
+      }
+    },
     "v1StorageInfo": {
       "type": "object",
       "properties": {
         "path": {
-          "type": "string"
+          "type": "string",
+          "description": "Representative path for this physical disk (the first library path that\nresolved to it). Kept for backwards compatibility with older clients."
         },
         "totalBytes": {
           "type": "string",
@@ -373,6 +868,13 @@
         "freeBytes": {
           "type": "string",
           "format": "int64"
+        },
+        "paths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Every distinct library path that lives on this same physical disk (same\nfilesystem device id). Lets the UI group libraries per drive instead of\nshowing the same disk's capacity once per library."
         }
       }
     },
@@ -416,6 +918,17 @@
         },
         "smtpConfigured": {
           "type": "boolean"
+        },
+        "videoSessions": {
+          "$ref": "#/definitions/v1VideoSessionCapacity",
+          "description": "VideoSessions surfaces the AUTO-derived cap on concurrent VIDEO transcode\n(encode, never copy/remux) sessions, the admin-overridden effective limit,\nand how many are live right now - so the admin panel can show \"why\" a\nnumber was chosen instead of a bare integer. Unset when no calibration\nservice is wired (e.g. a hand-built test server)."
+        },
+        "commit": {
+          "type": "string",
+          "description": "commit is the git SHA the running binary was built from, build_date its\nRFC3339 build timestamp. `version` above is a branch or tag name and so\ncannot identify a deployment: two images months apart both report\n\"beta-0.0.1-full\". Both fields are the literal \"unknown\" - never blank -\nwhen the build could not be stamped, so a client can tell \"this server is\ntoo old to answer\" from \"this build genuinely does not know\"."
+        },
+        "buildDate": {
+          "type": "string"
         }
       }
     },
@@ -429,6 +942,179 @@
           }
         }
       }
+    },
+    "v1VideoCapacityEvidence": {
+      "type": "object",
+      "properties": {
+        "height": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "fps": {
+          "type": "number",
+          "format": "double"
+        },
+        "requiredFps": {
+          "type": "number",
+          "format": "double"
+        },
+        "ratio": {
+          "type": "number",
+          "format": "double"
+        },
+        "cpuBudget": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "derived": {
+          "type": "boolean",
+          "description": "derived is false when no usable calibration evidence existed and\nauto_capacity fell back to the conservative default of 1."
+        }
+      },
+      "description": "VideoCapacityEvidence is the \"why\" behind auto_capacity: the tallest\nPASSING software bench rung the number was derived from."
+    },
+    "v1VideoClassRungs": {
+      "type": "object",
+      "properties": {
+        "ladderClass": {
+          "type": "string",
+          "description": "ladder_class is \"software\" | \"software-hdr\" | \"software-av1\" | \"hw\"."
+        },
+        "rungFits": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1VideoRungFit"
+          }
+        }
+      },
+      "description": "VideoClassRungs is one ladder class's calibrated rung costs, for the admin\npanel's per-pool breakdown. See apptranscoding.VideoCostModel.RungsFor."
+    },
+    "v1VideoPool": {
+      "type": "object",
+      "properties": {
+        "pool": {
+          "type": "string",
+          "description": "pool is \"cpu\" or \"gpu\"."
+        },
+        "budgetUsed": {
+          "type": "number",
+          "format": "double"
+        },
+        "budgetTotal": {
+          "type": "number",
+          "format": "double"
+        },
+        "classes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1VideoClassRungs"
+          },
+          "description": "classes is every ladder class billed against this pool that has usable\ncalibration evidence - \"software\" (+ \"software-hdr\"/\"software-av1\" when\nbenched) for the cpu pool, \"hw\" for the gpu pool."
+        }
+      },
+      "description": "VideoPool is one resource pool's (cpu or gpu) admission budget and the\ncalibrated rung costs of the ladder class(es) billed against it. See\napptranscoding.ResourcePool / LadderClass.Pool."
+    },
+    "v1VideoRungFit": {
+      "type": "object",
+      "properties": {
+        "height": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "cost": {
+          "type": "number",
+          "format": "double"
+        },
+        "maxStreams": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "bySource": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1VideoSourceFit"
+          },
+          "description": "by_source prices this same rung for each source class the host measured.\ncost/max_streams above are the source-agnostic figures the bench produced;\nthey answer \"how many streams at this output height\" only for the source\nthe bench decoded, which is why the breakdown exists. Empty when the host\nhas no decode evidence."
+        }
+      },
+      "description": "VideoRungFit is one calibrated resolution rung's admission cost and how\nmany concurrent streams topping out at that height the host's budget\nfits. See apptranscoding.VideoCostModel.Rungs."
+    },
+    "v1VideoSessionCapacity": {
+      "type": "object",
+      "properties": {
+        "autoCapacity": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "effectiveLimit": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "active": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "evidence": {
+          "$ref": "#/definitions/v1VideoCapacityEvidence"
+        },
+        "budgetUsed": {
+          "type": "number",
+          "format": "double",
+          "description": "budget_used / budget_total are the cost-model view of capacity: the\nfraction of \"one whole host\" currently reserved by live streams, and the\nbudget new streams may spend (default 1.0). Both stay 0 / 0 when no cost\nmodel is wired to the limiter - the panel then falls back to the\nauto_capacity/active counter view above."
+        },
+        "budgetTotal": {
+          "type": "number",
+          "format": "double"
+        },
+        "rungFits": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1VideoRungFit"
+          },
+          "description": "rung_fits is the per-resolution cost breakdown the budget above is\nderived from - empty when no cost model is wired."
+        },
+        "pools": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1VideoPool"
+          },
+          "description": "pools is the per-resource-pool view of the SAME budget: CPU (every\nsoftware ladder class) and, only when the host has a hw bench table\n(see apptranscoding.VideoCostModel.Classes), a separate GPU pool. The\naggregate budget_used/budget_total above are the SUM across pools and\nare misleading once two independent pools exist (e.g. a GPU-heavy box\nshows \"0.7/2\" instead of \"0.5/1 cpu, 0.2/1 gpu\") - pools is the\nauthoritative breakdown; the fields above stay for older clients."
+        },
+        "benchSource": {
+          "$ref": "#/definitions/v1SourceClass",
+          "description": "bench_source is the codec+height the encode rungs were DECODED from, and\ndecode_throughput the measured decode-only fps per codec. They are what\nmakes the rung costs interpretable: the same rung costs ~4x more fed by a\n4K HEVC source than by a 1080p H.264 one. Unset on a host calibrated\nbefore decode probing existed."
+        },
+        "decodeThroughput": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1DecodeThroughput"
+          }
+        }
+      },
+      "description": "VideoSessionCapacity is the admin-facing view of the AUTO video-session cap\n(derived from the boot benchmark), the effective limit actually enforced\n(auto, possibly reduced by transcoding.max_video_sessions), and the live\ncount. See apptranscoding.AutoVideoSessionCapacity / ResolveVideoSessionLimit."
+    },
+    "v1VideoSourceFit": {
+      "type": "object",
+      "properties": {
+        "source": {
+          "$ref": "#/definitions/v1SourceClass"
+        },
+        "cost": {
+          "type": "number",
+          "format": "double"
+        },
+        "maxStreams": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "description": "VideoSourceFit is one rung's cost for one SOURCE class - the answer to \"how\nmany of these can I serve\" once the thing being decoded is named."
     }
   }
 }
