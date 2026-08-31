@@ -1054,6 +1054,7 @@ calibration:
   busyToast: "Recalibration already in progress"
   errorToast: "Recalibration failed"
   setupTitle: "Calibrating encode capability"
+  contendedLine: "Provisional: the server was already busy when it measured itself (CPU at {{percent}}%), so these ceilings are underestimated - they describe a shared machine, not this one. It will measure again on its own once idle."
   setupSubtitle: "Measuring how high your host can encode in realtime. This usually takes ~20 seconds and only runs once."
   hwFallbacks: "Hardware fallbacks"
   hwFallbacksDesc: "Recent hardware encodes that fell back automatically - the host keeps playing via software while the cause is recorded. Recalibrate once the hardware is fixed."

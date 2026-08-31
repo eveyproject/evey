@@ -601,7 +601,12 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		apptranscoding.WithSoftwareCapOverrides(
 			cfg.Transcoding.SoftwareMaxHeightOverride,
 			cfg.Transcoding.SoftwareHDRMaxHeightOverride),
-		apptranscoding.WithSoftwareAV1MaxOverride(swAV1Override))
+		apptranscoding.WithSoftwareAV1MaxOverride(swAV1Override),
+		// Host-wide load, not Evey's: a first boot during a library import
+		// measured a shared box and armed a capacity of one stream on a
+		// 25-stream host. The bench keeps its result but marks it provisional,
+		// and the tick below re-benches it once the host is idle.
+		apptranscoding.WithHostLoadProbe(func() float64 { return sysinfo.CPUBusyPercent(time.Second) }))
 	// Idle-gate the admin "recalibrate" button on the SAME live-session counter
 	// trickplay uses: a manual recalibration run while transcodes are active
 	// measures contended throughput and would pin the cap a rung too low. First-boot
@@ -704,6 +709,10 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 				return
 			case <-ticker.C:
 				calibrationSvc.ReprobeDemotedHW(ctx)
+				// Same clock, same idea: a calibration benchmarked while the
+				// host was busy with something else is provisional, and only
+				// an idle host can replace it with the truth.
+				calibrationSvc.RebenchIfContended(ctx)
 			}
 		}
 	}()

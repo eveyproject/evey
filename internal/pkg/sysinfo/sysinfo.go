@@ -151,11 +151,21 @@ func parseKB(line string) int64 {
 }
 
 func sampleCPU() float64 {
+	return CPUBusyPercent(200 * time.Millisecond)
+}
+
+// CPUBusyPercent samples /proc/stat twice, window apart, and returns the share
+// of CPU time the whole host spent NOT idle (0-100). Everything on the box
+// counts - other containers, the embedded Postgres and Meilisearch, a scanner,
+// a neighbour VM's steal - which is the point: it answers "is this host free
+// to be measured right now?", the question the encode calibration asks before
+// trusting its own benchmark. 0 when /proc/stat cannot be read.
+func CPUBusyPercent(window time.Duration) float64 {
 	s1, ok := readCPUStat()
 	if !ok {
 		return 0
 	}
-	time.Sleep(200 * time.Millisecond)
+	time.Sleep(window)
 	s2, ok := readCPUStat()
 	if !ok {
 		return 0

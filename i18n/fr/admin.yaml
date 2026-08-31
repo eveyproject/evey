@@ -1053,6 +1053,7 @@ calibration:
   busyToast: "Calibrage déjà en cours"
   errorToast: "Le calibrage a échoué"
   setupTitle: "Calibrage des capacités d'encodage"
+  contendedLine: "Provisoire : le serveur était déjà occupé quand il s'est mesuré (CPU à {{percent}} %), ces plafonds sont donc sous-estimés - ils décrivent une machine partagée, pas celle-ci. Il se remesurera tout seul dès qu'il sera au repos."
   setupSubtitle: "Mesure de la hauteur maximale que votre machine peut encoder en temps réel. Environ 20 secondes, une seule fois."
   hwFallbacks: "Replis matériels"
   hwFallbacksDesc: "Encodages matériels récents retombés automatiquement - la machine continue en software le temps que la cause soit enregistrée. Recalibrez une fois le matériel corrigé."

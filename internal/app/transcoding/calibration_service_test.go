@@ -3,6 +3,7 @@ package transcoding
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -78,7 +79,7 @@ func (r *fakeBenchmarkRunner) HWBackendUsable(_ context.Context, _ string) bool 
 }
 
 func TestCalibration_Current_StartsAtSafeFallback(t *testing.T) {
-	svc := NewCalibrationService(&fakeCapabilityRepo{}, &fakeBenchmarkRunner{}, nil)
+	svc := newIdleHostCalibrationService(&fakeCapabilityRepo{}, &fakeBenchmarkRunner{}, nil)
 	cap := svc.Current()
 	assert.Equal(t, 720, cap.SoftwareMaxHeight, "must start at the safe fallback so requests pre-EnsureCalibrated still work")
 }
@@ -93,7 +94,7 @@ func TestCalibration_EnsureCalibrated_FirstBootRunsBench(t *testing.T) {
 			CPUSignature:      "fake-sig",
 		},
 	}
-	svc := NewCalibrationService(repo, runner, nil)
+	svc := newIdleHostCalibrationService(repo, runner, nil)
 	require.NoError(t, svc.EnsureCalibrated(context.Background()))
 
 	assert.EqualValues(t, 1, runner.calls.Load(), "benchmark must run on first boot")
@@ -119,7 +120,7 @@ func TestCalibration_EnsureCalibrated_CachedMatch_SkipsBench(t *testing.T) {
 		},
 	}
 	runner := &fakeBenchmarkRunner{}
-	svc := NewCalibrationService(repo, runner, nil)
+	svc := newIdleHostCalibrationService(repo, runner, nil)
 	require.NoError(t, svc.EnsureCalibrated(context.Background()))
 
 	assert.Zero(t, runner.calls.Load(), "matching CPU sig must skip the benchmark")
@@ -146,7 +147,7 @@ func TestCalibration_EnsureCalibrated_ReDerivesFromPersistedProof(t *testing.T) 
 		},
 	}
 	runner := &fakeBenchmarkRunner{}
-	svc := NewCalibrationService(repo, runner, nil)
+	svc := newIdleHostCalibrationService(repo, runner, nil)
 	require.NoError(t, svc.EnsureCalibrated(context.Background()))
 
 	assert.Zero(t, runner.calls.Load(), "re-derivation must NOT re-bench")
@@ -170,7 +171,7 @@ func TestCalibration_EnsureCalibrated_LegacyRowNoSamples_KeepsCeilings(t *testin
 		},
 	}
 	runner := &fakeBenchmarkRunner{}
-	svc := NewCalibrationService(repo, runner, nil)
+	svc := newIdleHostCalibrationService(repo, runner, nil)
 	require.NoError(t, svc.EnsureCalibrated(context.Background()))
 
 	assert.Zero(t, runner.calls.Load(), "matching sig must skip the bench")
@@ -195,19 +196,19 @@ func TestCalibration_SoftwareCapOverrides_ForceCurrentCeilings(t *testing.T) {
 	runner := &fakeBenchmarkRunner{}
 
 	// No override → calibrated values stand.
-	base := NewCalibrationService(repo, runner, nil)
+	base := newIdleHostCalibrationService(repo, runner, nil)
 	require.NoError(t, base.EnsureCalibrated(context.Background()))
 	assert.Equal(t, 480, base.Current().SoftwareHDRMaxHeight, "without override the calibrated HDR cap stands")
 
 	// Override → forced ceilings.
-	svc := NewCalibrationService(repo, runner, nil, WithSoftwareCapOverrides(1080, 720))
+	svc := newIdleHostCalibrationService(repo, runner, nil, WithSoftwareCapOverrides(1080, 720))
 	require.NoError(t, svc.EnsureCalibrated(context.Background()))
 	cur := svc.Current()
 	assert.Equal(t, 1080, cur.SoftwareMaxHeight, "override forces the software ceiling")
 	assert.Equal(t, 720, cur.SoftwareHDRMaxHeight, "override forces the HDR ceiling (empirical 720p HDR test)")
 
 	// Zero values = no override (each knob independent).
-	hdrOnly := NewCalibrationService(repo, runner, nil, WithSoftwareCapOverrides(0, 720))
+	hdrOnly := newIdleHostCalibrationService(repo, runner, nil, WithSoftwareCapOverrides(0, 720))
 	require.NoError(t, hdrOnly.EnsureCalibrated(context.Background()))
 	assert.Equal(t, 720, hdrOnly.Current().SoftwareMaxHeight, "0 software override leaves the calibrated value")
 	assert.Equal(t, 720, hdrOnly.Current().SoftwareHDRMaxHeight, "HDR override applies independently")
@@ -225,7 +226,7 @@ func TestCalibration_SoftwareAV1MaxOverride_AdminSettableLive(t *testing.T) {
 	runner := &fakeBenchmarkRunner{}
 
 	// No override → the calibrated 0 stands (AV1 stays hardware-only via the gate).
-	svc := NewCalibrationService(repo, runner, nil)
+	svc := newIdleHostCalibrationService(repo, runner, nil)
 	require.NoError(t, svc.EnsureCalibrated(context.Background()))
 	assert.Equal(t, 0, svc.Current().SoftwareAV1MaxHeight)
 	assert.Equal(t, 0, svc.SoftwareAV1MaxOverride())
@@ -240,7 +241,7 @@ func TestCalibration_SoftwareAV1MaxOverride_AdminSettableLive(t *testing.T) {
 	assert.Equal(t, 0, svc.Current().SoftwareAV1MaxHeight)
 
 	// Boot-time override option seeds the same field.
-	booted := NewCalibrationService(repo, runner, nil, WithSoftwareAV1MaxOverride(1080))
+	booted := newIdleHostCalibrationService(repo, runner, nil, WithSoftwareAV1MaxOverride(1080))
 	require.NoError(t, booted.EnsureCalibrated(context.Background()))
 	assert.Equal(t, 1080, booted.Current().SoftwareAV1MaxHeight)
 }
@@ -262,7 +263,7 @@ func TestCalibration_EnsureCalibrated_PersistedHWUnusable_StripsToSoftware(t *te
 		},
 	}
 	runner := &fakeBenchmarkRunner{hwUnusable: true} // HW dead on this host
-	svc := NewCalibrationService(repo, runner, nil)
+	svc := newIdleHostCalibrationService(repo, runner, nil)
 	require.NoError(t, svc.EnsureCalibrated(context.Background()))
 
 	assert.Zero(t, runner.calls.Load(), "matching sig still skips the benchmark")
@@ -281,7 +282,7 @@ func TestCalibration_EnsureCalibrated_PersistedHWUsable_Kept(t *testing.T) {
 		},
 	}
 	runner := &fakeBenchmarkRunner{} // hwUnusable=false → usable here
-	svc := NewCalibrationService(repo, runner, nil)
+	svc := newIdleHostCalibrationService(repo, runner, nil)
 	require.NoError(t, svc.EnsureCalibrated(context.Background()))
 
 	cur := svc.Current()
@@ -304,7 +305,7 @@ func TestCalibration_EnsureCalibrated_ModePinMismatch_Rebench(t *testing.T) {
 			SoftwareMaxHeight: 1080, HWMaxHeight: 1080, HWBackend: "vaapi", CPUSignature: hostSig,
 		},
 	}
-	svc := NewCalibrationService(repo, runner, nil, WithHWMode(domaintranscoding.HWModeVAAPI))
+	svc := newIdleHostCalibrationService(repo, runner, nil, WithHWMode(domaintranscoding.HWModeVAAPI))
 	require.NoError(t, svc.EnsureCalibrated(context.Background()))
 
 	assert.EqualValues(t, 1, runner.calls.Load(), "mode pin mismatch must force a fresh bench, not trust the sibling's nvenc cache")
@@ -324,7 +325,7 @@ func TestCalibration_EnsureCalibrated_ModePinMatch_SkipsBench(t *testing.T) {
 		},
 	}
 	runner := &fakeBenchmarkRunner{} // hwUnusable=false → usable here
-	svc := NewCalibrationService(repo, runner, nil, WithHWMode(domaintranscoding.HWModeVAAPI))
+	svc := newIdleHostCalibrationService(repo, runner, nil, WithHWMode(domaintranscoding.HWModeVAAPI))
 	require.NoError(t, svc.EnsureCalibrated(context.Background()))
 
 	assert.Zero(t, runner.calls.Load(), "mode pin matching the cache must still skip the bench")
@@ -343,7 +344,7 @@ func TestCalibration_EnsureCalibrated_ModeOff_RebenchesSoftwareOnly(t *testing.T
 	runner := &fakeBenchmarkRunner{
 		result: domaintranscoding.EncodeCapability{SoftwareMaxHeight: 1080, CPUSignature: hostSig},
 	}
-	svc := NewCalibrationService(repo, runner, nil, WithHWMode(domaintranscoding.HWModeOff))
+	svc := newIdleHostCalibrationService(repo, runner, nil, WithHWMode(domaintranscoding.HWModeOff))
 	require.NoError(t, svc.EnsureCalibrated(context.Background()))
 
 	assert.EqualValues(t, 1, runner.calls.Load(), "mode=off with persisted HW must re-bench software-only")
@@ -361,7 +362,7 @@ func TestCalibration_SetHWMode_OffThenAuto(t *testing.T) {
 			SoftwareMaxHeight: 1080, HWMaxHeight: 2160, HWBackend: "nvenc", CPUSignature: hostSig,
 		},
 	}
-	svc := NewCalibrationService(repo, runner, nil) // defaults to auto
+	svc := newIdleHostCalibrationService(repo, runner, nil) // defaults to auto
 	require.Equal(t, domaintranscoding.HWModeAuto, svc.HWMode())
 
 	require.NoError(t, svc.SetHWMode(context.Background(), domaintranscoding.HWModeOff))
@@ -390,7 +391,7 @@ func TestCalibration_EnsureCalibrated_StaleCpuSig_Rebench(t *testing.T) {
 	runner := &fakeBenchmarkRunner{
 		result: domaintranscoding.EncodeCapability{SoftwareMaxHeight: 720},
 	}
-	svc := NewCalibrationService(repo, runner, nil)
+	svc := newIdleHostCalibrationService(repo, runner, nil)
 	require.NoError(t, svc.EnsureCalibrated(context.Background()))
 
 	assert.EqualValues(t, 1, runner.calls.Load())
@@ -408,7 +409,7 @@ func TestCalibration_Recalibrate_AlwaysRebench(t *testing.T) {
 	runner := &fakeBenchmarkRunner{
 		result: domaintranscoding.EncodeCapability{SoftwareMaxHeight: 2160, CPUSignature: hostSig},
 	}
-	svc := NewCalibrationService(repo, runner, nil)
+	svc := newIdleHostCalibrationService(repo, runner, nil)
 	require.NoError(t, svc.EnsureCalibrated(context.Background())) // 0 calls (cached)
 	require.NoError(t, svc.Recalibrate(context.Background()))      // 1 call (forced)
 
@@ -422,7 +423,7 @@ func TestCalibration_Recalibrate_RejectsConcurrent(t *testing.T) {
 		result: domaintranscoding.EncodeCapability{SoftwareMaxHeight: 1080},
 		delay:  100 * time.Millisecond, // long enough for the second call to hit while the first is running
 	}
-	svc := NewCalibrationService(repo, runner, nil)
+	svc := newIdleHostCalibrationService(repo, runner, nil)
 
 	errCh := make(chan error, 2)
 	go func() { errCh <- svc.Recalibrate(context.Background()) }()
@@ -451,14 +452,14 @@ func TestCalibration_Recalibrate_RejectsConcurrent(t *testing.T) {
 func TestCalibration_EnsureCalibrated_RepoFailure_StaysOnSafeFallback(t *testing.T) {
 	repo := &fakeCapabilityRepo{getErr: errors.New("db unreachable")}
 	runner := &fakeBenchmarkRunner{}
-	svc := NewCalibrationService(repo, runner, nil)
+	svc := newIdleHostCalibrationService(repo, runner, nil)
 	require.NoError(t, svc.EnsureCalibrated(context.Background()), "repo errors must be non-fatal at boot")
 	assert.Equal(t, 720, svc.Current().SoftwareMaxHeight, "stays on safe fallback when repo is down")
 	assert.Zero(t, runner.calls.Load(), "no bench when we can't read repo (would lose the value anyway)")
 }
 
 func TestCalibration_BenchAndPersist_RunnerErrorPropagates(t *testing.T) {
-	svc := NewCalibrationService(&fakeCapabilityRepo{}, &fakeBenchmarkRunner{err: errors.New("ffmpeg crash")}, nil)
+	svc := newIdleHostCalibrationService(&fakeCapabilityRepo{}, &fakeBenchmarkRunner{err: errors.New("ffmpeg crash")}, nil)
 	err := svc.Recalibrate(context.Background())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "ffmpeg crash")
@@ -473,7 +474,7 @@ func TestCalibration_Recalibrate_IdleGate(t *testing.T) {
 		runner := &fakeBenchmarkRunner{result: domaintranscoding.EncodeCapability{
 			SoftwareMaxHeight: 1080, CPUSignature: "sig",
 		}}
-		svc := NewCalibrationService(&fakeCapabilityRepo{}, runner, nil)
+		svc := newIdleHostCalibrationService(&fakeCapabilityRepo{}, runner, nil)
 		if checker != nil {
 			svc.SetActiveStreamChecker(checker)
 		}
@@ -514,7 +515,7 @@ func TestCalibration_IsBenchmarking_TrueDuringBench(t *testing.T) {
 		result: domaintranscoding.EncodeCapability{SoftwareMaxHeight: 1080, CPUSignature: "sig"},
 		delay:  200 * time.Millisecond,
 	}
-	svc := NewCalibrationService(&fakeCapabilityRepo{}, runner, nil)
+	svc := newIdleHostCalibrationService(&fakeCapabilityRepo{}, runner, nil)
 
 	assert.False(t, svc.IsBenchmarking(), "not benchmarking at rest")
 
@@ -547,7 +548,7 @@ func hostCPUSig(t *testing.T) string {
 // advertised by the host.
 func demotedService(t *testing.T, runner *fakeBenchmarkRunner, demotedFor time.Duration) *CalibrationService {
 	t.Helper()
-	svc := NewCalibrationService(&fakeCapabilityRepo{}, runner, nil)
+	svc := newIdleHostCalibrationService(&fakeCapabilityRepo{}, runner, nil)
 	demoted := domaintranscoding.EncodeCapability{
 		SoftwareMaxHeight: 1080,
 		HWBackend:         "", // switched off by the failure
@@ -623,7 +624,7 @@ func TestCalibration_ReprobeDemotedHW_HWModeOff_NeverProbes(t *testing.T) {
 // A host that was never demoted has nothing to reprobe.
 func TestCalibration_ReprobeDemotedHW_NeverDemoted_DoesNothing(t *testing.T) {
 	runner := &fakeBenchmarkRunner{}
-	svc := NewCalibrationService(&fakeCapabilityRepo{}, runner, nil)
+	svc := newIdleHostCalibrationService(&fakeCapabilityRepo{}, runner, nil)
 	healthy := domaintranscoding.EncodeCapability{SoftwareMaxHeight: 1080, HWBackend: "vaapi", HWMaxHeight: 2160}
 	svc.current.Store(&healthy)
 
@@ -635,7 +636,7 @@ func TestCalibration_ReprobeDemotedHW_NeverDemoted_DoesNothing(t *testing.T) {
 // failure switches the backend off.
 func TestCalibration_DemoteCapability_StampsWhenHWGoesOff(t *testing.T) {
 	repo := &fakeCapabilityRepo{}
-	svc := NewCalibrationService(repo, &fakeBenchmarkRunner{}, nil)
+	svc := newIdleHostCalibrationService(repo, &fakeBenchmarkRunner{}, nil)
 	live := domaintranscoding.EncodeCapability{
 		SoftwareMaxHeight: 1080, HWBackend: "vaapi", HWMaxHeight: 2160,
 		HWCodecs: []string{"h264"}, HWDevice: "/dev/dri/renderD128",
@@ -650,7 +651,7 @@ func TestCalibration_DemoteCapability_StampsWhenHWGoesOff(t *testing.T) {
 
 // A feature trim leaves hardware working, so it is not on the clock.
 func TestCalibration_DemoteCapability_FeatureTrim_NotStamped(t *testing.T) {
-	svc := NewCalibrationService(&fakeCapabilityRepo{}, &fakeBenchmarkRunner{}, nil)
+	svc := newIdleHostCalibrationService(&fakeCapabilityRepo{}, &fakeBenchmarkRunner{}, nil)
 	live := domaintranscoding.EncodeCapability{
 		SoftwareMaxHeight: 1080, HWBackend: "vaapi", HWMaxHeight: 2160,
 		HWFeatures: []string{"temporal_aq"},
@@ -661,4 +662,115 @@ func TestCalibration_DemoteCapability_FeatureTrim_NotStamped(t *testing.T) {
 
 	assert.Equal(t, "vaapi", svc.Current().HWBackend, "the backend keeps working")
 	assert.True(t, svc.Current().HWDemotedAt.IsZero(), "nothing was switched off, so nothing is on the clock")
+}
+
+// newIdleHostCalibrationService builds the service the way every existing test
+// expects it: on a host that is NOT busy. The production default samples the
+// real /proc/stat for a second before each bench; here that would only slow
+// the suite down and make the contention verdict depend on the CI runner.
+func newIdleHostCalibrationService(repo domaintranscoding.CapabilityRepo, runner domaintranscoding.BenchmarkRunner, logger *slog.Logger, opts ...CalibrationOption) *CalibrationService {
+	return NewCalibrationService(repo, runner, logger, append([]CalibrationOption{WithHostLoadProbe(func() float64 { return 0 })}, opts...)...)
+}
+
+// ============================================================================
+// A benchmark on a busy host is provisional (BenchContended)
+// ============================================================================
+
+// The production incident: the first boot of a 4K-capable host ran its
+// benchmark while a library import pinned every core - 720p@5fps, "no usable
+// GPU", capacity 1 - and that result was persisted as the truth about the box.
+func TestCalibration_BenchOnBusyHost_IsFlaggedContended(t *testing.T) {
+	repo := &fakeCapabilityRepo{}
+	runner := &fakeBenchmarkRunner{result: domaintranscoding.EncodeCapability{SoftwareMaxHeight: 720, CPUSignature: "fake-sig"}}
+	svc := NewCalibrationService(repo, runner, nil, WithHostLoadProbe(func() float64 { return 87 }))
+	require.NoError(t, svc.EnsureCalibrated(context.Background()))
+
+	cur := svc.Current()
+	assert.True(t, cur.BenchContended, "a bench started on a busy host must be marked provisional")
+	assert.Equal(t, 87, cur.BenchHostBusyPercent, "the evidence travels with the verdict")
+	persisted, found, err := repo.Get(context.Background())
+	require.NoError(t, err)
+	require.True(t, found)
+	assert.True(t, persisted.BenchContended, "the flag must survive a restart, or the next boot trusts the bad bench")
+}
+
+func TestCalibration_BenchOnIdleHost_IsNotContended(t *testing.T) {
+	repo := &fakeCapabilityRepo{}
+	runner := &fakeBenchmarkRunner{result: domaintranscoding.EncodeCapability{SoftwareMaxHeight: 1080, CPUSignature: "fake-sig"}}
+	svc := NewCalibrationService(repo, runner, nil, WithHostLoadProbe(func() float64 { return 12 }))
+	require.NoError(t, svc.EnsureCalibrated(context.Background()))
+	assert.False(t, svc.Current().BenchContended)
+	assert.Equal(t, 12, svc.Current().BenchHostBusyPercent)
+}
+
+// contendedService: a persisted-then-loaded provisional capability, the host
+// load answered by probe.
+func contendedService(t *testing.T, runner *fakeBenchmarkRunner, probe func() float64) *CalibrationService {
+	t.Helper()
+	svc := NewCalibrationService(&fakeCapabilityRepo{}, runner, nil, WithHostLoadProbe(probe))
+	cur := domaintranscoding.EncodeCapability{SoftwareMaxHeight: 720, CPUSignature: "fake-sig", BenchContended: true, BenchHostBusyPercent: 91}
+	svc.current.Store(&cur)
+	return svc
+}
+
+func TestCalibration_RebenchIfContended_IdleHost_Rebenches(t *testing.T) {
+	runner := &fakeBenchmarkRunner{result: domaintranscoding.EncodeCapability{SoftwareMaxHeight: 1440, HWMaxHeight: 2160, HWBackend: "vaapi", CPUSignature: "fake-sig"}}
+	svc := contendedService(t, runner, func() float64 { return 3 })
+
+	assert.True(t, svc.RebenchIfContended(context.Background()))
+	assert.EqualValues(t, 1, runner.calls.Load(), "an idle host re-benches the provisional result")
+	cur := svc.Current()
+	assert.False(t, cur.BenchContended, "the fresh bench replaces the provisional one")
+	assert.Equal(t, 1440, cur.SoftwareMaxHeight)
+	assert.Equal(t, "vaapi", cur.HWBackend, "the GPU the busy bench missed comes back")
+}
+
+func TestCalibration_RebenchIfContended_HostStillBusy_Waits(t *testing.T) {
+	runner := &fakeBenchmarkRunner{result: domaintranscoding.EncodeCapability{SoftwareMaxHeight: 1440, CPUSignature: "fake-sig"}}
+	svc := contendedService(t, runner, func() float64 { return 64 })
+
+	assert.False(t, svc.RebenchIfContended(context.Background()))
+	assert.EqualValues(t, 0, runner.calls.Load(), "a busy host would only produce another contended bench")
+	assert.True(t, svc.Current().BenchContended)
+}
+
+func TestCalibration_RebenchIfContended_NotContended_NoOp(t *testing.T) {
+	runner := &fakeBenchmarkRunner{result: domaintranscoding.EncodeCapability{SoftwareMaxHeight: 1440, CPUSignature: "fake-sig"}}
+	svc := newIdleHostCalibrationService(&fakeCapabilityRepo{}, runner, nil)
+	cur := domaintranscoding.EncodeCapability{SoftwareMaxHeight: 1080, CPUSignature: "fake-sig"}
+	svc.current.Store(&cur)
+
+	assert.False(t, svc.RebenchIfContended(context.Background()))
+	assert.EqualValues(t, 0, runner.calls.Load(), "a trusted calibration is never re-benched behind the operator's back")
+}
+
+func TestCalibration_RebenchIfContended_StreamsActive_Waits(t *testing.T) {
+	runner := &fakeBenchmarkRunner{result: domaintranscoding.EncodeCapability{SoftwareMaxHeight: 1440, CPUSignature: "fake-sig"}}
+	svc := contendedService(t, runner, func() float64 { return 3 })
+	svc.SetActiveStreamChecker(func() int { return 2 })
+
+	assert.False(t, svc.RebenchIfContended(context.Background()))
+	assert.EqualValues(t, 0, runner.calls.Load(), "never bench over real viewers")
+}
+
+// A host that looks idle for the pre-check but is busy again by the time the
+// bench starts yields another contended result: the retry must back off rather
+// than burn ~3 min of full CPU every tick.
+func TestCalibration_RebenchIfContended_ContendedAgain_BacksOff(t *testing.T) {
+	runner := &fakeBenchmarkRunner{result: domaintranscoding.EncodeCapability{SoftwareMaxHeight: 720, CPUSignature: "fake-sig"}}
+	var probes atomic.Int64
+	svc := contendedService(t, runner, func() float64 {
+		// 1st probe: the idle pre-check passes; 2nd probe (inside the bench): busy.
+		if probes.Add(1) == 1 {
+			return 0
+		}
+		return 95
+	})
+
+	assert.False(t, svc.RebenchIfContended(context.Background()), "the bench ran but came back contended")
+	assert.EqualValues(t, 1, runner.calls.Load())
+	assert.True(t, svc.Current().BenchContended)
+
+	assert.False(t, svc.RebenchIfContended(context.Background()))
+	assert.EqualValues(t, 1, runner.calls.Load(), "inside the backoff window no second bench runs, whatever the probe says")
 }

@@ -39,6 +39,8 @@ type EncodeCapability = {
   benchmark_duration_ms: number;
   hw_fallbacks?: HWFallback[];
   bench_samples?: BenchRungSample[]; // per-rung fps evidence behind the caps
+  bench_contended?: boolean; // benchmarked while the host was busy: provisional, auto re-benched when idle
+  bench_host_busy_percent?: number; // host-wide CPU busy share right before the bench (0-100)
 };
 
 const QK_CALIBRATION = ["admin", "transcode-calibration"] as const;
@@ -312,6 +314,19 @@ export function EncodeCalibrationCard() {
           <span className="text-[var(--text-muted)]"> ({(data.benchmark_duration_ms / 1000).toFixed(1)}s)</span>
         </Row>
       </div>
+
+      {/* A bench run on an already-busy host measured the neighbours, not the
+          box: say so next to the ceilings it produced, or a shared-box floor
+          reads as this host's ceiling. The server re-benches by itself. */}
+      {data.bench_contended && (
+        <p className="mt-2 text-xs font-medium text-[var(--color-warning)]" data-testid="calibration-contended">
+          {t(
+            "admin.calibration.contendedLine",
+            "Provisional: the server was already busy when it measured itself (CPU at {{percent}}%), so these ceilings are underestimated - they describe a shared machine, not this one. It will measure again on its own once idle.",
+            { percent: data.bench_host_busy_percent ?? 0 },
+          )}
+        </p>
+      )}
 
       {data.bench_samples && data.bench_samples.length > 0 ? (
         <details className="mt-3 text-xs">

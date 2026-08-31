@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -83,6 +84,19 @@ type CalibrationService struct {
 	// streams at boot and the host needs a cap. Wired once at startup, read later,
 	// so no lock is needed (the wire→serve barrier establishes happens-before).
 	activeStreams func() int
+
+	// hostBusy samples the host-wide CPU busy share (0-100) right before a
+	// benchmark. Everything on the box counts, which is the point: a bench that
+	// starts on a host already pinned by an import or a neighbour is measuring
+	// the neighbour. See WithHostLoadProbe; nil never reports contention.
+	hostBusy func() float64
+
+	// contendedMu guards the automatic re-bench backoff of a provisional
+	// (contended) calibration: contendedNextAt is the earliest next attempt,
+	// contendedWait the doubling delay behind it.
+	contendedMu     sync.Mutex
+	contendedNextAt time.Time
+	contendedWait   time.Duration
 
 	// currentMu serialises the read-modify-write of `current` between a runtime
 	// demotion (load→PlanDemotion→store) and a (re)bench store. They take
@@ -176,6 +190,36 @@ func WithSoftwareAV1MaxOverride(h int) CalibrationOption {
 	}
 }
 
+// WithHostLoadProbe installs the host-wide CPU busy sampler consulted before
+// every benchmark and before every automatic re-bench. Production wires
+// sysinfo.CPUBusyPercent over a one-second window; tests inject a constant.
+func WithHostLoadProbe(probe func() float64) CalibrationOption {
+	return func(s *CalibrationService) {
+		s.hostBusy = probe
+	}
+}
+
+// contendedCPUPercent is the host-wide CPU busy share above which a benchmark
+// is not measuring this host but whatever else runs on it. 50 % leaves the
+// normal boot noise alone (the embedded Postgres and Meilisearch settling, a
+// scanner ticking) and catches the case seen live: a library import plus its
+// indexing pinning every core, so a host that idles at 1440p@59fps with a 4K
+// GPU benched 720p@5fps, lost its GPU and armed a capacity of one stream.
+const contendedCPUPercent = 50.0
+
+// idleCPUPercent is the host-wide busy share under which a re-bench of a
+// provisional calibration is worth its ~3 minutes of full CPU.
+const idleCPUPercent = 20.0
+
+// contendedRebenchInitialWait and contendedRebenchMaxWait bound the retry
+// backoff after a re-bench that came back contended again (the host looked
+// idle for the pre-check, then got busy): doubling from 10 minutes to 6 hours,
+// so a host that stays busy for a day is not benched every tick.
+const (
+	contendedRebenchInitialWait = 10 * time.Minute
+	contendedRebenchMaxWait     = 6 * time.Hour
+)
+
 // SetSoftwareAV1MaxOverride updates the AV1 software ceiling override live (0
 // clears it, restoring the calibrated value). Applied by Current() on the next
 // request - no re-bench needed, the override just overlays the persisted cap.
@@ -201,6 +245,9 @@ func NewCalibrationService(repo domaintranscoding.CapabilityRepo, runner domaint
 		runner: runner,
 		logger: logger,
 		mode:   domaintranscoding.HWModeAuto,
+		// Real host load by default: a service built without the option must
+		// still tell a bench run on a busy host from a trusted one.
+		hostBusy: func() float64 { return sysinfo.CPUBusyPercent(time.Second) },
 	}
 	for _, opt := range opts {
 		opt(s)
@@ -356,6 +403,10 @@ func (s *CalibrationService) EnsureCalibrated(ctx context.Context) error {
 				slog.String("hw_backend", persisted.HWBackend),
 				slog.Int("policy_version", persisted.PolicyVersion),
 				slog.Time("benchmarked_at", persisted.BenchmarkedAt))
+			if persisted.BenchContended {
+				s.logger.Warn("calibration: persisted capability was benchmarked on a busy host - provisional, re-benching once the host is idle",
+					slog.Int("host_busy_percent", persisted.BenchHostBusyPercent))
+			}
 			s.current.Store(&persisted)
 			s.notifyCapabilityChange()
 			return nil
@@ -421,6 +472,9 @@ func (s *CalibrationService) benchAndPersist(ctx context.Context) error {
 	s.benchmarking.Store(true)
 	defer s.benchmarking.Store(false)
 
+	// Sampled BEFORE the first bench encode: the bench itself pins the CPU, so
+	// only the load already there tells whether the host is free to be measured.
+	hostBusy := s.hostBusyPercent()
 	cap, err := s.runner.Run(ctx, s.preference())
 	if err != nil {
 		return fmt.Errorf("calibration: benchmark failed: %w", err)
@@ -447,6 +501,19 @@ func (s *CalibrationService) benchAndPersist(ctx context.Context) error {
 	if cap.SoftwareMaxHeight <= 0 {
 		cap.SoftwareMaxHeight = 720
 	}
+	// A bench started on a busy host measured the neighbours, not the box: keep
+	// the result (it is the best evidence there is right now) but mark it
+	// provisional so RebenchIfContended replaces it once the host is idle and
+	// the admin view does not present a shared-box floor as this box's ceiling.
+	cap.BenchHostBusyPercent = int(math.Round(hostBusy))
+	cap.BenchContended = hostBusy >= contendedCPUPercent
+	if cap.BenchContended {
+		s.logger.Warn("calibration: host was already busy when the benchmark started - result is provisional, will re-bench once the host is idle",
+			slog.Int("host_busy_percent", cap.BenchHostBusyPercent),
+			slog.Float64("threshold_percent", contendedCPUPercent),
+			slog.Int("software_max_height", cap.SoftwareMaxHeight),
+			slog.Int("hw_max_height", cap.HWMaxHeight))
+	}
 
 	// Hold currentMu across BOTH the DB persist and the in-memory store so this
 	// bench can't interleave with a concurrent DemoteCapability (which holds
@@ -466,6 +533,73 @@ func (s *CalibrationService) benchAndPersist(ctx context.Context) error {
 	s.current.Store(&cap)
 	s.notifyCapabilityChange()
 	return nil
+}
+
+// hostBusyPercent answers the host-wide CPU busy share, 0 when no probe is wired.
+func (s *CalibrationService) hostBusyPercent() float64 {
+	if s.hostBusy == nil {
+		return 0
+	}
+	return s.hostBusy()
+}
+
+// RebenchIfContended replaces a provisional calibration - one benchmarked while
+// the host was busy with something else - by a real one, as soon as the host is
+// idle: no active stream, no bench in flight, host-wide CPU under
+// idleCPUPercent. Meant for a periodic tick; every check but the bench itself
+// is a one-second CPU sample. Reports whether a trusted calibration replaced
+// the provisional one.
+//
+// A re-bench that comes back contended again (the host got busy between the
+// pre-check and the encodes) arms a doubling backoff, so a host that stays busy
+// for hours is not benched on every tick.
+func (s *CalibrationService) RebenchIfContended(ctx context.Context) bool {
+	if !s.Current().BenchContended || s.benchmarking.Load() {
+		return false
+	}
+	if s.activeStreams != nil && s.activeStreams() > 0 {
+		return false
+	}
+	s.contendedMu.Lock()
+	tooSoon := time.Now().Before(s.contendedNextAt)
+	s.contendedMu.Unlock()
+	if tooSoon {
+		return false
+	}
+	if busy := s.hostBusyPercent(); busy >= idleCPUPercent {
+		s.logger.Debug("calibration: host still busy, keeping the provisional calibration for now",
+			slog.Float64("host_busy_percent", busy), slog.Float64("idle_threshold_percent", idleCPUPercent))
+		return false
+	}
+	s.logger.Info("calibration: host idle, re-benching the provisional calibration")
+	if err := s.benchAndPersist(ctx); err != nil {
+		s.logger.Warn("calibration: re-bench of the provisional calibration failed", slog.Any("err", err))
+		s.armContendedRetry()
+		return false
+	}
+	if s.Current().BenchContended {
+		s.armContendedRetry()
+		return false
+	}
+	s.contendedMu.Lock()
+	s.contendedWait = 0
+	s.contendedNextAt = time.Time{}
+	s.contendedMu.Unlock()
+	return true
+}
+
+// armContendedRetry pushes the next automatic re-bench out by a doubling delay.
+func (s *CalibrationService) armContendedRetry() {
+	s.contendedMu.Lock()
+	defer s.contendedMu.Unlock()
+	if s.contendedWait == 0 {
+		s.contendedWait = contendedRebenchInitialWait
+	} else {
+		s.contendedWait = min(2*s.contendedWait, contendedRebenchMaxWait)
+	}
+	s.contendedNextAt = time.Now().Add(s.contendedWait)
+	s.logger.Info("calibration: re-bench came back contended, next attempt deferred",
+		slog.Duration("retry_in", s.contendedWait))
 }
 
 // DemoteCapability is the level-2 safety net: after a hardware encode fails,

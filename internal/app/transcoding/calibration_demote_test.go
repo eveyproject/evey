@@ -22,7 +22,7 @@ func seedHWService(t *testing.T) (*CalibrationService, *fakeCapabilityRepo) {
 		CPUSignature:      "sig",
 	}
 	repo := &fakeCapabilityRepo{}
-	svc := NewCalibrationService(repo, &fakeBenchmarkRunner{result: hwCap}, nil)
+	svc := newIdleHostCalibrationService(repo, &fakeBenchmarkRunner{result: hwCap}, nil)
 	require.NoError(t, svc.Recalibrate(context.Background())) // current = hwCap
 	return svc, repo
 }

@@ -1083,6 +1083,7 @@ calibration:
   busyToast: "Ya hay una recalibración en curso"
   errorToast: "Error en la recalibración"
   setupTitle: "Calibrando la capacidad de codificación"
+  contendedLine: "Provisional: el servidor ya estaba ocupado cuando se midió a sí mismo (CPU al {{percent}} %), así que estos límites están subestimados - describen una máquina compartida, no esta. Volverá a medirse por sí solo cuando esté en reposo."
   setupSubtitle: "Midiendo hasta qué punto tu host puede codificar en tiempo real. Esto suele tardar unos 20 segundos y solo se ejecuta una vez."
   hwFallbacks: "Repliegues a software"
   hwFallbacksDesc: "Codificaciones por hardware recientes que recurrieron automáticamente al software - el host sigue reproduciendo mediante software mientras se registra la causa. Recalibra una vez que el hardware esté arreglado."

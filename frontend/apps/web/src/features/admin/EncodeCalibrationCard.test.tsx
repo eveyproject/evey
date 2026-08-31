@@ -517,3 +517,24 @@ describe("EncodeCalibrationCard", () => {
     expect(screen.getByTestId("hw-mode-select")).toBeDisabled();
   });
 });
+
+describe("EncodeCalibrationCard - provisional (contended) benchmark", () => {
+  beforeEach(() => {
+    mockCalibrationIsLoading = false;
+  });
+
+  it("flags a bench run on a busy host as provisional, with the load it saw", () => {
+    mockCalibrationData = { ...SW_ONLY_DATA, bench_contended: true, bench_host_busy_percent: 87 };
+    renderCard();
+    const line = screen.getByTestId("calibration-contended").textContent ?? "";
+    expect(line).toMatch(/provisional/i);
+    expect(line).toContain("87");
+    expect(line).toMatch(/measure again/i);
+  });
+
+  it("says nothing when the bench ran on an idle host", () => {
+    mockCalibrationData = { ...SW_ONLY_DATA };
+    renderCard();
+    expect(screen.queryByTestId("calibration-contended")).toBeNull();
+  });
+});

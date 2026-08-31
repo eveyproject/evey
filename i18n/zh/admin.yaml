@@ -1083,6 +1083,7 @@ calibration:
   busyToast: "重新校准已在进行中"
   errorToast: "重新校准失败"
   setupTitle: "正在校准编码能力"
+  contendedLine: "临时结果：服务器测量自身时已经很忙（CPU 占用 {{percent}}%），因此这些上限被低估了 - 它们描述的是一台共享的机器，而不是这台。服务器空闲后会自动重新测量。"
   setupSubtitle: "正在测量主机的实时编码上限。此过程通常约需 20 秒，且仅运行一次。"
   hwFallbacks: "硬件回退"
   hwFallbacksDesc: "近期自动回退的硬件编码 - 主机会通过软件继续播放，同时记录回退原因。硬件修复后请重新校准。"

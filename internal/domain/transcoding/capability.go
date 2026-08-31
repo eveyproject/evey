@@ -174,6 +174,22 @@ type EncodeCapability struct {
 	// every host deterministically. 0 on pre-Derive rows (treated as stale ⇒
 	// re-derived on next load). omitempty for round-trip.
 	PolicyVersion int `json:"policy_version,omitempty"`
+
+	// BenchContended records that the host was already busy when the benchmark
+	// started - CPU busy above the contention threshold before a single bench
+	// encode ran. The samples then measure a SHARED box, not this box, and every
+	// ceiling derived from them is provisional: seen live on a first boot during
+	// a library import, a 4K-capable host benched 720p@5fps with "no usable GPU"
+	// and armed a capacity of one stream. The service re-benches such a
+	// capability by itself once the host is idle (RebenchIfContended) and the
+	// admin calibration view says so. omitempty: absent from every row written
+	// before the field existed, which correctly reads as "not known contended".
+	BenchContended bool `json:"bench_contended,omitempty"`
+
+	// BenchHostBusyPercent is the host-wide CPU busy share (0-100) sampled right
+	// before the benchmark: the evidence behind BenchContended, shown to the
+	// operator so "provisional" is a number, not a mood.
+	BenchHostBusyPercent int `json:"bench_host_busy_percent,omitempty"`
 }
 
 // BenchRungSample is one resolution rung the boot benchmark measured: the
