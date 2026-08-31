@@ -1966,3 +1966,67 @@ func TestRunner_ViewerPullsItsAudioRenditionToo(t *testing.T) {
 		t.Fatalf("video=%d audio=%d segments: the two renditions are not being pulled together", videoSegs, audioSegs)
 	}
 }
+
+// A flash viewer the server refuses (or drops) stays in the launch count - the
+// verdict is served-of-launched - but its encoder session, if one was admitted
+// before the shed, keeps grinding for nobody and steals CPU from the viewers
+// still under observation. It must be reaped DURING the window, not at the
+// end, and only for the titles no surviving viewer holds.
+func TestRunner_FlashReapsRefusedViewersMidWindow(t *testing.T) {
+	st := newServerState()
+	st.masterHook = func(_ int, mediaID, _ string) (int, map[string]string) {
+		if mediaID == "m1" || mediaID == "m3" {
+			return http.StatusServiceUnavailable, map[string]string{headerEveyError: errCodeTooManyStreams}
+		}
+		return 0, nil
+	}
+	srv := httptest.NewServer(st.handler())
+	defer srv.Close()
+
+	var mu sync.Mutex
+	var reaps [][]string
+	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(5)}, zeroActive, testLogger()).
+		WithSessionReaper(func(ids []string) {
+			mu.Lock()
+			defer mu.Unlock()
+			reaps = append(reaps, append([]string(nil), ids...))
+		})
+	cfg := Config{
+		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioNatural, Mode: ModeFlash,
+		MaxViewers: 5, RampEvery: 100 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, MaxDuration: 5 * time.Second,
+	}
+	if err := r.Start(context.Background(), cfg); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	report := waitForReport(t, r, 5*time.Second)
+	if report.SustainedViewers != 3 {
+		t.Fatalf("sustained viewers = %d, want 3: the reap must not touch the verdict", report.SustainedViewers)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	// The end-of-run reap covers every candidate; a PARTIAL reap can only come
+	// from the window itself.
+	partial := 0
+	for _, ids := range reaps {
+		if len(ids) >= 5 {
+			continue
+		}
+		partial++
+		set := map[string]bool{}
+		for _, id := range ids {
+			set[id] = true
+		}
+		if !set["m1"] && !set["m3"] {
+			t.Errorf("mid-window reap %v names neither refused title", ids)
+		}
+		for _, survivor := range []string{"m0", "m2", "m4"} {
+			if set[survivor] {
+				t.Errorf("mid-window reap %v would kill survivor %s's stream", ids, survivor)
+			}
+		}
+	}
+	if partial == 0 {
+		t.Fatalf("no mid-window reap: refused flash viewers' sessions were left grinding until the end (reaps=%v)", reaps)
+	}
+}

@@ -655,6 +655,10 @@ func (r *Runner) handleViewerEvent(ev viewerEvent, isFlash bool, viewerCtx conte
 		// Leaving it in the audience would inflate every tier above this one and
 		// hand the bisection a count the server never actually served.
 		r.dropViewer(ramp, ev.slot)
+			// The slot stays counted (served-of-launched), but any encoder
+			// session the server admitted before shedding it would keep grinding
+			// for nobody and steal CPU from the viewers still under observation.
+			r.releaseViewerMedia(pool, ramp, ev.slot)
 
 	case evTokenExpired:
 		// Not a capacity signal at all - the run can no longer authenticate, so
@@ -673,6 +677,7 @@ func (r *Runner) handleViewerEvent(ev viewerEvent, isFlash bool, viewerCtx conte
 		r.dropViewer(ramp, ev.slot)
 
 	case evCandidateSkipped:
+			r.releaseViewerMedia(pool, ramp, ev.slot)
 		// This slot never became a real viewer: give it back and immediately
 		// retry against the next assignment. A skip costs a candidate, never a
 		// viewer - the ramp keeps climbing. The title itself is retired: mkvgo

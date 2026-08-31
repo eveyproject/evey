@@ -253,6 +253,16 @@ func (ramp *rampState) liveMedia() map[string]bool {
 // (and admission budget) over the smaller tier being judged; a title a
 // survivor still watches is left alone, because the reap kills media-wide.
 // No-op without a wired reaper, and when every candidate is being watched.
+// releaseViewerMedia forgets which title a viewer that is no longer watching
+// held, then reaps the sessions of every title nobody live is on. It is the
+// reap for modes that keep the slot in the audience count - flash judges
+// served-of-launched, so dropViewer (which shrinks the tier) is not an option
+// there - and it kills media-wide, so a title a survivor shares is spared.
+func (r *Runner) releaseViewerMedia(pool *candidatePool, ramp *rampState, slot int) {
+	delete(ramp.mediaBySlot, slot)
+	r.reapIdleSessions(pool, ramp)
+}
+
 func (r *Runner) reapIdleSessions(pool *candidatePool, ramp *rampState) {
 	if r.reapSessions == nil {
 		return
