@@ -155,13 +155,21 @@ function PhotoLibraryRow({ libraryId, name, maxItems }: { libraryId: string; nam
   );
 }
 
+// Pure dispatch, no hooks: which row component a library gets. The media
+// row's hooks live in MediaLibraryRow so no hook ever sits below an early
+// return - a library whose type changes under a mounted row would otherwise
+// crash with "Rendered fewer hooks than expected" (the eslint-disable comments
+// that used to sit here hid exactly that from the lint gate).
 function LibraryFeedRow({ libraryId, name, libraryType, maxItems, onItemPress }: { libraryId: string; name: string; libraryType?: string; maxItems?: number; onItemPress: (item: V1MediaItem) => void }) {
   // Music + photo libraries don't live in the media_items table - they have
   // their own tables hit via /music/albums and /photos/albums. Fall back to
   // /library/list otherwise (movies/shows).
   if (libraryType === "LIBRARY_TYPE_MUSIC") return <MusicLibraryRow libraryId={libraryId} name={name} maxItems={maxItems} />;
   if (libraryType === "LIBRARY_TYPE_PHOTOS") return <PhotoLibraryRow libraryId={libraryId} name={name} maxItems={maxItems} />;
+  return <MediaLibraryRow libraryId={libraryId} name={name} libraryType={libraryType} maxItems={maxItems} onItemPress={onItemPress} />;
+}
 
+function MediaLibraryRow({ libraryId, name, libraryType, maxItems, onItemPress }: { libraryId: string; name: string; libraryType?: string; maxItems?: number; onItemPress: (item: V1MediaItem) => void }) {
   const typeFilter = libraryType === "LIBRARY_TYPE_SHOWS"
     ? "MEDIA_ITEM_TYPE_SERIES"
     : libraryType === "LIBRARY_TYPE_MOVIES"
@@ -173,7 +181,6 @@ function LibraryFeedRow({ libraryId, name, libraryType, maxItems, onItemPress }:
   // keeping the row full after watched items are dropped. The fetched window
   // scales with maxItems so a configured larger row doesn't come up short
   // after the watched-filter. Mirrors web's MediaItemsLibrarySlider (home.lazy.tsx).
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   const { data, isLoading } = useLibraryServiceListMediaItems({
     libraryId,
     ...(typeFilter ? { type: typeFilter as never } : {}),
@@ -182,10 +189,8 @@ function LibraryFeedRow({ libraryId, name, libraryType, maxItems, onItemPress }:
     sortOrder: "SORT_ORDER_DESC" as never,
   });
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   const watchedMap = useWatchedMap();
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   const items = useMemo(
     () =>
       (data?.items ?? [])
