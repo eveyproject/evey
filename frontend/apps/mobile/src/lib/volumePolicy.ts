@@ -2,10 +2,19 @@
 //
 // The bar used to drive `player.volume` for its 0-100% half, which MULTIPLIES
 // with the device volume. On a tablet left at 20% that made the >100% boost
-// nearly pointless: the amplifier had an already-attenuated signal to work with,
-// so 200% barely differed from 100% (user report, 2026-07-30). Where the device
-// volume is controllable, the bar therefore IS the device volume, and the boost
-// stays what it should be - the last resort past the maximum.
+// nearly pointless (user report, 2026-07-30), so the 0-100% half drives the
+// DEVICE media volume where a control exists.
+//
+// Second report (2026-08-31): adjusting the volume sounded LUMPY. STREAM_MUSIC
+// has ~15 hardware steps of 2-6 dB each, and a drag was riding them raw - every
+// index change mid-gesture was an audible lurch. The device cannot fade any
+// finer than its steps, but the player element can: with the step count known,
+// the device is set to the step AT OR ABOVE the requested level and the player
+// element trims the remainder, so the audible product tracks the finger
+// CONTINUOUSLY (product == requested level, exactly) and the bridge is written
+// at most once per hardware step. This is not the "two attenuations stack"
+// mistake the earlier code guarded against - the product is the requested
+// level by construction, not its square.
 //
 // Pure on purpose: this is the one place the split is decided, so both callers
 // (the slider and the vertical swipe) and both platforms agree without either
@@ -23,6 +32,12 @@ export interface VolumeTargets {
 export interface VolumePolicyOptions {
   /** True when the native device-volume bridge is available (Android). */
   hasDeviceControl: boolean;
+  /**
+   * Hardware step count of the media stream (AudioManager.getStreamMaxVolume),
+   * when known. Enables the smooth split above; absent, the raw fraction is
+   * handed to the device as before (the bridge still coalesces).
+   */
+  deviceSteps?: number;
 }
 
 export function resolveVolume(level: number, opts: VolumePolicyOptions): VolumeTargets {
@@ -43,8 +58,21 @@ export function resolveVolume(level: number, opts: VolumePolicyOptions): VolumeT
     return { deviceFraction: null, playerVolume: 0, boostGain: 1 };
   }
 
-  // Everywhere else playerVolume stays at 1: letting it fade too would square
-  // the attenuation (50% of 50% sounds like 25%). The boost only ever engages
-  // once the device is at maximum.
-  return { deviceFraction: Math.min(1, v), playerVolume: 1, boostGain };
+  // At and above 100% the device is pinned to its maximum first - the boost
+  // only ever amplifies a full-scale signal.
+  if (v >= 1) {
+    return { deviceFraction: 1, playerVolume: 1, boostGain };
+  }
+
+  const steps = opts.deviceSteps;
+  if (!steps || !Number.isFinite(steps) || steps < 2) {
+    // Step count unknown: hand the raw fraction to the device, player at full
+    // (letting it fade too would square the attenuation).
+    return { deviceFraction: v, playerVolume: 1, boostGain };
+  }
+
+  // Smooth split: device on the step at or above v, player trims down to v.
+  const index = Math.min(steps, Math.max(1, Math.ceil(v * steps)));
+  const deviceFraction = index / steps;
+  return { deviceFraction, playerVolume: v / deviceFraction, boostGain };
 }

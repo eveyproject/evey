@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const getDeviceVolume = vi.fn(async () => 0.4);
+const getDeviceVolumeSteps = vi.fn(async () => 15);
 // The device quantizes: 15 steps means a drag lands on multiples of 1/15.
 const setDeviceVolume = vi.fn(async (f: number) => Math.round(f * 15) / 15);
 
@@ -8,7 +9,7 @@ vi.mock("react-native", () => ({
   Platform: { OS: "android" },
   NativeModules: {
     get AudioBoost() {
-      return { getDeviceVolume, setDeviceVolume, setBoost: vi.fn(), release: vi.fn() };
+      return { getDeviceVolume, getDeviceVolumeSteps, setDeviceVolume, setBoost: vi.fn(), release: vi.fn() };
     },
   },
 }));
@@ -17,6 +18,8 @@ const mod = await import("./deviceVolume");
 
 beforeEach(() => {
   getDeviceVolume.mockClear();
+  getDeviceVolumeSteps.mockClear();
+  getDeviceVolumeSteps.mockImplementation(async () => 15);
   setDeviceVolume.mockClear();
   setDeviceVolume.mockImplementation(async (f: number) => Math.round(f * 15) / 15);
   mod._resetDeviceVolumeForTest();
@@ -79,3 +82,24 @@ describe("readDeviceVolumeFraction", () => {
     await expect(mod.readDeviceVolumeFraction()).resolves.toBeNull();
   });
 });
+
+describe("readDeviceVolumeSteps", () => {
+  it("returns the hardware step count and caches it (one native call)", async () => {
+    expect(await mod.readDeviceVolumeSteps()).toBe(15);
+    expect(await mod.readDeviceVolumeSteps()).toBe(15);
+    expect(getDeviceVolumeSteps).toHaveBeenCalledTimes(1);
+  });
+
+  it("answers null - and remembers it - when the bridge refuses", async () => {
+    getDeviceVolumeSteps.mockImplementation(async () => { throw new Error("no AudioManager"); });
+    expect(await mod.readDeviceVolumeSteps()).toBe(null);
+    expect(await mod.readDeviceVolumeSteps()).toBe(null);
+    expect(getDeviceVolumeSteps).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects a nonsensical step count instead of feeding it to the policy", async () => {
+    getDeviceVolumeSteps.mockImplementation(async () => 0);
+    expect(await mod.readDeviceVolumeSteps()).toBe(null);
+  });
+});
+

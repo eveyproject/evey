@@ -19,6 +19,7 @@ import { resolveVolume } from "../../../src/lib/volumePolicy";
 import {
   hasDeviceVolumeControl,
   readDeviceVolumeFraction,
+  readDeviceVolumeSteps,
   setDeviceVolumeFraction,
 } from "../../../src/lib/deviceVolume";
 import { getDownloadPath, getDownloadedMedia, hasRenderableAudio } from "../../../src/lib/downloads";
@@ -704,6 +705,14 @@ const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>()
   // touch jump the sound. Re-read whenever the controls come back up: the
   // hardware volume keys move the same setting behind our back, and a stale bar
   // would silently undo what the user just pressed.
+  // Hardware step count of the media stream, fetched once: the volume policy
+  // needs it synchronously on every drag event to split the level between the
+  // device (per hardware step) and the player element (the smooth remainder).
+  const deviceStepsRef = useRef<number | null>(null);
+  useEffect(() => {
+    void readDeviceVolumeSteps().then((steps) => { deviceStepsRef.current = steps; });
+  }, []);
+
   useEffect(() => {
     if (!showControls || !hasDeviceVolumeControl()) return;
     let cancelled = false;
@@ -716,9 +725,13 @@ const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>()
       if (volumeBaseRef.current > 1 || volumeBaseRef.current === 0) return;
       volumeBaseRef.current = fraction;
       setVolume(fraction);
+      // The hardware keys set an exact device step; the player element may
+      // still carry a mid-step trim from the last drag. Clear it, or the
+      // audible level would be the device level times a stale remainder.
+      if (player) player.volume = 1;
     });
     return () => { cancelled = true; };
-  }, [showControls]);
+  }, [showControls, player]);
 
   const togglePlayPause = useCallback(() => {
     if (!player) return;
@@ -807,7 +820,10 @@ const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>()
       // amplification has a full-scale signal to work with instead of one the
       // device was already attenuating. Elsewhere it stays on the player element.
       const v = Math.max(0, Math.min(2, value));
-      const targets = resolveVolume(v, { hasDeviceControl: hasDeviceVolumeControl() });
+      const targets = resolveVolume(v, {
+        hasDeviceControl: hasDeviceVolumeControl(),
+        deviceSteps: deviceStepsRef.current ?? undefined,
+      });
       player.volume = targets.playerVolume;
       if (targets.deviceFraction !== null) void setDeviceVolumeFraction(targets.deviceFraction);
       void setAudioBoost(targets.boostGain);

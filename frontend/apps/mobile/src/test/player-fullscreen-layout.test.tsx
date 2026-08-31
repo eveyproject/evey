@@ -216,6 +216,7 @@ vi.mock("../lib/audioBoost", () => ({ setAudioBoost: vi.fn(), releaseAudioBoost:
 vi.mock("../lib/deviceVolume", () => ({
   hasDeviceVolumeControl: () => false,
   readDeviceVolumeFraction: vi.fn(() => Promise.resolve(null)),
+  readDeviceVolumeSteps: vi.fn(async () => 15),
   setDeviceVolumeFraction: vi.fn(),
 }));
 vi.mock("../lib/downloads", () => ({

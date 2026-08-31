@@ -3,6 +3,7 @@ import { NativeModules, Platform } from "react-native";
 interface DeviceVolumeNative {
   getDeviceVolume(): Promise<number>;
   setDeviceVolume(fraction: number): Promise<number>;
+  getDeviceVolumeSteps?(): Promise<number>;
 }
 
 // Same native module as the boost (AudioBoostModule.kt): both are about what
@@ -32,6 +33,33 @@ export function _resetDeviceVolumeForTest(): void {
   lastRequested = null;
   inFlight = null;
   pending = null;
+  cachedSteps = undefined;
+}
+
+// The step count never changes while the app runs, and the volume policy needs
+// it synchronously on every drag event - so it is fetched once and cached.
+let cachedSteps: number | null | undefined;
+
+/**
+ * Hardware step count of the media stream (commonly 15), or null when the
+ * bridge cannot say (older native build, iOS). Feeds volumePolicy's smooth
+ * split: the device moves per hardware step, the player element fades the
+ * remainder, and adjusting the volume stops sounding like a staircase
+ * (user report, 2026-08-31).
+ */
+export async function readDeviceVolumeSteps(): Promise<number | null> {
+  if (cachedSteps !== undefined) return cachedSteps;
+  if (!native?.getDeviceVolumeSteps) {
+    cachedSteps = null;
+    return null;
+  }
+  try {
+    const n = await native.getDeviceVolumeSteps();
+    cachedSteps = Number.isFinite(n) && n >= 2 ? Math.floor(n) : null;
+  } catch {
+    cachedSteps = null;
+  }
+  return cachedSteps;
 }
 
 /** Current device media volume as 0-1, or null when it cannot be read. */

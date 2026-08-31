@@ -40,12 +40,17 @@ class AudioBoostModule(reactContext: ReactApplicationContext) :
   @ReactMethod
   fun setBoost(gain: Double, promise: Promise) {
     try {
-      // At or below 100% there is nothing to amplify - turn the effect off so the
-      // native volume path is untouched (and other apps' audio isn't boosted).
+      // At or below 100% there is nothing to amplify. If the effect was never
+      // created, keep it that way; if it exists, take it to ZERO GAIN but keep
+      // it enabled - a zero-gain LoudnessEnhancer is transparent, while
+      // setEnabled(false)/(true) around the 100% boundary audibly broke the
+      // stream up on every crossing of a volume drag (user report,
+      // 2026-08-31). The effect is only truly disabled on release().
       if (gain <= 1.0) {
-        if (appliedMilliBels != null) {
-          enhancer?.setEnabled(false)
-          appliedMilliBels = null
+        val fx = enhancer
+        if (fx != null && appliedMilliBels != 0) {
+          fx.setTargetGain(0)
+          appliedMilliBels = 0
         }
         promise.resolve(false)
         return
@@ -76,6 +81,26 @@ class AudioBoostModule(reactContext: ReactApplicationContext) :
 
   private val audio: AudioManager?
     get() = reactApplicationContext.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+
+  /**
+   * Hardware step count of the media stream (commonly 15). The volume policy
+   * uses it to write the device once per step and let the player element fade
+   * the remainder - see volumePolicy.ts.
+   */
+  @ReactMethod
+  fun getDeviceVolumeSteps(promise: Promise) {
+    val am = audio
+    if (am == null) {
+      promise.reject("device_volume_unavailable", "no AudioManager")
+      return
+    }
+    val max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+    if (max <= 0) {
+      promise.reject("device_volume_unavailable", "stream has no range")
+      return
+    }
+    promise.resolve(max)
+  }
 
   /** Current media volume as a 0-1 fraction, so the bar can open on the truth. */
   @ReactMethod

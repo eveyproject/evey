@@ -65,3 +65,55 @@ describe("resolveVolume without a device volume control (iOS, or module missing)
     }
   });
 });
+
+// The 2026-08-31 report: adjusting the volume sounded LUMPY. STREAM_MUSIC has
+// ~15 hardware steps of several dB each and a drag was riding them raw. With
+// the step count known, the device holds the step at or above the level and
+// the player element trims the remainder - the audible product tracks the
+// finger continuously and the bridge moves at most once per hardware step.
+describe("resolveVolume with the hardware step count (smooth split)", () => {
+  const opts = { hasDeviceControl: true, deviceSteps: 15 };
+
+  it("keeps the audible product EXACTLY at the requested level across the whole band", () => {
+    for (let i = 1; i <= 99; i++) {
+      const v = i / 100;
+      const t = resolveVolume(v, opts);
+      expect(t.deviceFraction).not.toBeNull();
+      expect(t.deviceFraction! * t.playerVolume).toBeCloseTo(v, 9);
+      expect(t.playerVolume).toBeLessThanOrEqual(1);
+      expect(t.boostGain).toBe(1);
+    }
+  });
+
+  it("only ever hands the device a real hardware step", () => {
+    for (let i = 1; i <= 99; i++) {
+      const t = resolveVolume(i / 100, opts);
+      expect((t.deviceFraction! * 15) % 1).toBeCloseTo(0, 9);
+    }
+  });
+
+  it("moves the device at most once per hardware step over a full sweep", () => {
+    const written = new Set<number>();
+    for (let i = 1; i <= 999; i++) {
+      written.add(resolveVolume(i / 1000, opts).deviceFraction!);
+    }
+    expect(written.size).toBeLessThanOrEqual(15);
+  });
+
+  it("keeps the endpoints special: zero never touches the device, 100%+ pins it to max", () => {
+    expect(resolveVolume(0, opts)).toEqual({ deviceFraction: null, playerVolume: 0, boostGain: 1 });
+    expect(resolveVolume(1, opts)).toEqual({ deviceFraction: 1, playerVolume: 1, boostGain: 1 });
+    expect(resolveVolume(1.5, opts)).toEqual({ deviceFraction: 1, playerVolume: 1, boostGain: 1.5 });
+  });
+
+  it("fades continuously to silence below the first step (the player carries it)", () => {
+    const t = resolveVolume(0.01, opts);
+    expect(t.deviceFraction).toBeCloseTo(1 / 15, 9);
+    expect(t.playerVolume).toBeCloseTo(0.15, 9);
+  });
+
+  it("falls back to the raw fraction when the step count is unknown", () => {
+    expect(resolveVolume(0.5, { hasDeviceControl: true })).toEqual({ deviceFraction: 0.5, playerVolume: 1, boostGain: 1 });
+  });
+});
+
