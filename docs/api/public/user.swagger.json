@@ -767,6 +767,45 @@
         ]
       }
     },
+    "/api/v1/users/{userId}/impersonate": {
+      "post": {
+        "summary": "ImpersonateUser mints a short-lived access token that lets an admin act as\nthe target user/profile (\"connect as\"). Admin-only; rejected for API-key\ncallers (interactive web/mobile sessions only). The returned AuthResponse\ncarries an access_token with no refresh_token: the session is bounded by the\naccess TTL and the admin re-impersonates to extend it.",
+        "operationId": "UserService_ImpersonateUser",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1AuthResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/UserServiceImpersonateUserBody"
+            }
+          }
+        ],
+        "tags": [
+          "UserService"
+        ]
+      }
+    },
     "/api/v1/users/{userId}/profiles": {
       "get": {
         "operationId": "UserService_ListProfiles",
@@ -870,6 +909,15 @@
           "type": "integer",
           "format": "int32",
           "description": "Parental age cap. Only honored when is_kids=true; ignored otherwise.\nUnset = fall back to the implicit kids default (12)."
+        }
+      }
+    },
+    "UserServiceImpersonateUserBody": {
+      "type": "object",
+      "properties": {
+        "profileId": {
+          "type": "string",
+          "description": "Optional: which of the target's profiles to activate. Empty = the target's\ndefault profile. Must belong to user_id or the request is rejected."
         }
       }
     },
@@ -1392,6 +1440,11 @@
         "maxDevicesPerProfile": {
           "type": "integer",
           "format": "int32"
+        },
+        "lastLogin": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Most recent successful login (local or OIDC); absent until first login."
         }
       }
     },

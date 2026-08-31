@@ -1341,6 +1341,13 @@
             "type": "string"
           },
           "description": "Per-country content ratings (e.g. {\"US\":\"PG-13\",\"FR\":\"-12\"}).\nofficial_rating mirrors the \"US\" entry when available."
+        },
+        "seriesTitle": {
+          "type": "string",
+          "description": "Ancestor display titles, stamped by the read endpoints on episodes (both)\nand seasons (series_title only): rows and search results can label an\nepisode with its series without one round-trip per card."
+        },
+        "seasonTitle": {
+          "type": "string"
         }
       }
     },

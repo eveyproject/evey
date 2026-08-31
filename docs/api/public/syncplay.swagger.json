@@ -227,6 +227,13 @@
         "playlistId": {
           "type": "string",
           "title": "optional: bind room to a music playlist (implies media_type=music)"
+        },
+        "queue": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "optional: an explicit ordered queue of track IDs (implies media_type=music).\nLets the client build a room from a mix of albums, individual tracks and\nplaylists. When set, the first id becomes the current track and the rest\nform the queue; media_id/playlist_id are ignored."
         }
       }
     },

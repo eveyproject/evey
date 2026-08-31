@@ -70,6 +70,7 @@
     },
     "/api/v1/push/devices": {
       "get": {
+        "summary": "ListDevices backs the profile \"Devices\" tab. Native device-token\nregistration (the FCM-era RegisterDevice/UnregisterDevice pair) was\nremoved: the fcm_device_tokens table is long gone and no client ever\ncalled them, so the list is always empty until a native push backend\nexists.",
         "operationId": "PushService_ListDevices",
         "responses": {
           "200": {

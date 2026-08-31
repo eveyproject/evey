@@ -194,6 +194,20 @@
             "in": "query",
             "required": false,
             "type": "string"
+          },
+          {
+            "name": "albumId",
+            "description": "When set, returns all tracks of the album with this opaque id (see\nMusicAlbum.id), ignoring limit/offset/search. The id is derived from the\nalbum folder, so homonym albums don't collide.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "cursor",
+            "description": "Opaque keyset cursor from a previous ListTracksResponse.next_cursor. When\nset, offset is ignored and the page is served by index seek instead of the\nCOUNT(*) OVER() window the offset path carries.",
+            "in": "query",
+            "required": false,
+            "type": "string"
           }
         ],
         "tags": [
@@ -202,6 +216,35 @@
       }
     },
     "/api/v1/music/tracks/{id}": {
+      "get": {
+        "summary": "GetTrack returns a single track by id. Used by clients that hold a track id\nbut not the track in a paged list - notably a syncplay JOINER whose queue\nreferences tracks outside its own top-100 ListTracks window.",
+        "operationId": "MusicService_GetTrack",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetTrackResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "MusicService"
+        ]
+      },
       "delete": {
         "operationId": "MusicService_DeleteTrack",
         "responses": {
@@ -286,6 +329,14 @@
         }
       }
     },
+    "v1GetTrackResponse": {
+      "type": "object",
+      "properties": {
+        "track": {
+          "$ref": "#/definitions/v1Track"
+        }
+      }
+    },
     "v1ListTracksResponse": {
       "type": "object",
       "properties": {
@@ -298,7 +349,12 @@
         },
         "total": {
           "type": "integer",
-          "format": "int32"
+          "format": "int32",
+          "description": "Exact row count. Only populated on the OFFSET path: computing it is the\nvery cost the cursor path exists to avoid. On the cursor path it stays 0 -\nuse next_cursor (or a page shorter than the requested limit) to know when\nto stop, never total."
+        },
+        "nextCursor": {
+          "type": "string",
+          "description": "Cursor for the following page. Empty means this was the last page."
         }
       }
     },
@@ -457,6 +513,10 @@
         "updatedAt": {
           "type": "string",
           "format": "date-time"
+        },
+        "albumId": {
+          "type": "string",
+          "description": "Opaque id of the album this track belongs to (see MusicAlbum.id), so a\nsearch result can link straight to the album view."
         }
       }
     }

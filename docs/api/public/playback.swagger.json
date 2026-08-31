@@ -72,6 +72,36 @@
         "tags": [
           "PlaybackService"
         ]
+      },
+      "delete": {
+        "summary": "ClearWatchHistory deletes all of the caller's own watch progress.",
+        "operationId": "PlaybackService_ClearWatchHistory",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ClearWatchHistoryResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "profileId",
+            "description": "Defaults to the caller's active profile; a non-admin cannot target another.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "PlaybackService"
+        ]
       }
     },
     "/api/v1/playback/next-up": {
@@ -388,6 +418,13 @@
             "in": "query",
             "required": false,
             "type": "boolean"
+          },
+          {
+            "name": "wasmAudio",
+            "description": "wasm_audio: the client decodes AC-3/E-AC-3 itself (ac3go), same capability\nas ?wasmAudio=1 on the master. Needs its own field - such a client must not\nadvertise those codecs in supported_audio_codecs (MSE refuses them muxed).",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
           }
         ],
         "tags": [
@@ -544,6 +581,15 @@
         "ARTWORK_TYPE_DISC"
       ],
       "default": "ARTWORK_TYPE_UNSPECIFIED"
+    },
+    "v1ClearWatchHistoryResponse": {
+      "type": "object",
+      "properties": {
+        "deleted": {
+          "type": "integer",
+          "format": "int32"
+        }
+      }
     },
     "v1GetNextUpResponse": {
       "type": "object",
@@ -737,6 +783,13 @@
             "type": "string"
           },
           "description": "Per-country content ratings (e.g. {\"US\":\"PG-13\",\"FR\":\"-12\"}).\nofficial_rating mirrors the \"US\" entry when available."
+        },
+        "seriesTitle": {
+          "type": "string",
+          "description": "Ancestor display titles, stamped by the read endpoints on episodes (both)\nand seasons (series_title only): rows and search results can label an\nepisode with its series without one round-trip per card."
+        },
+        "seasonTitle": {
+          "type": "string"
         }
       }
     },
@@ -1012,6 +1065,10 @@
         "volumeLevel": {
           "type": "integer",
           "format": "int32"
+        },
+        "castDeviceName": {
+          "type": "string",
+          "description": "Name of the remote device the media is ACTUALLY playing on when the\nreporting client is only a relay (web sender driving a Chromecast).\nThe position/pause fields above then describe the REMOTE playback.\nEmpty = playing on the session's own device (clears a previous value)."
         }
       }
     },
@@ -1055,6 +1112,27 @@
         "subtitleStreamIndex": {
           "type": "integer",
           "format": "int32"
+        },
+        "servedBitrateBps": {
+          "type": "string",
+          "format": "int64",
+          "description": "Bitrate (bits/s) the client will actually pull, copied from the StreamInfo\nthe player just fetched. Stamped onto the session so the admin dashboard\nshows the served rate, not the source. Absent/0 falls back to the source\nbitrate server-side (older clients keep the previous behaviour)."
+        },
+        "videoDecision": {
+          "type": "string",
+          "description": "Per-track serving decision + served codecs/resolution, copied from the\nStreamInfo the player just resolved. Persisted on the session so the admin\npanel can distinguish a copy rung (video copied) from a real transcode and\nshow the served codecs. video_decision/audio_decision are \"copy\"|\"transcode\";\nvideo_codec/audio_codec carry a \"source-\u003etarget\" form when transcoding."
+        },
+        "audioDecision": {
+          "type": "string"
+        },
+        "videoCodec": {
+          "type": "string"
+        },
+        "audioCodec": {
+          "type": "string"
+        },
+        "resolution": {
+          "type": "string"
         }
       }
     },
@@ -1113,6 +1191,21 @@
         },
         "audioDecision": {
           "type": "string"
+        },
+        "videoCodec": {
+          "type": "string",
+          "description": "Target (served) codecs and resolution the client will actually receive.\nFor a copy decision these equal the source; for a transcode they are the\nrung output (e.g. h264 / aac). The player echoes them back on StartStream\nso the admin \"Now Playing\" panel can show what's really being served."
+        },
+        "audioCodec": {
+          "type": "string"
+        },
+        "resolution": {
+          "type": "string"
+        },
+        "audioBitrate": {
+          "type": "string",
+          "format": "int64",
+          "description": "Audio bitrate actually served, in bits per second. A Matroska container\nrarely carries a per-track bitrate, so the source probe usually has none -\nbut on a transcode we know it exactly: it is what we ask the encoder for.\n0 when unknown (audio copied from a source that declares no bitrate)."
         }
       }
     },

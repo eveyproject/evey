@@ -222,6 +222,39 @@
         ]
       }
     },
+    "/api/v1/activity/page-view": {
+      "post": {
+        "summary": "RecordPageView logs a client-side navigation as an audit entry\n(action \"page_view\", resource \"page\"), so admins can see which pages\nusers visit. Best-effort; the client dedups/throttles.",
+        "operationId": "ActivityService_RecordPageView",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1RecordPageViewResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1RecordPageViewRequest"
+            }
+          }
+        ],
+        "tags": [
+          "ActivityService"
+        ]
+      }
+    },
     "/api/v1/activity/stats/server": {
       "get": {
         "operationId": "ActivityService_GetServerStats",
@@ -853,6 +886,17 @@
           "format": "int32"
         }
       }
+    },
+    "v1RecordPageViewRequest": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        }
+      }
+    },
+    "v1RecordPageViewResponse": {
+      "type": "object"
     },
     "v1ServerMetric": {
       "type": "object",

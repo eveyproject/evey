@@ -164,6 +164,13 @@
         },
         "serverBaseUrl": {
           "type": "string"
+        },
+        "published": {
+          "type": "boolean",
+          "description": "Derived, read-only. The server already computed these to decide whether it\nis refusing everyone; the panel needs the same answer to warn about it, and\nderiving it again client-side would let the two disagree.\n\npublished: this instance has a publicly reachable address configured.\nlockout_risk: published AND remote access off - every client outside the\nlocal network is being refused on every route. That state was invisible\neverywhere on 2026-07-29 and took two days to find, which is why it is part\nof the contract rather than something an operator has to infer."
+        },
+        "lockoutRisk": {
+          "type": "boolean"
         }
       }
     },

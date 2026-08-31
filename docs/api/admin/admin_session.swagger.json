@@ -293,6 +293,21 @@
         },
         "isPaused": {
           "type": "boolean"
+        },
+        "videoDecision": {
+          "type": "string",
+          "description": "Per-track serving decision (\"copy\"|\"transcode\"). The panel derives the\nserving engine from these (copy rung -\u003e mkvgo on-demand, transcode -\u003e ffmpeg)\nand renders per-track badges. video_codec/audio_codec/resolution above carry\nthe served codecs (source-\u003etarget form when transcoding)."
+        },
+        "audioDecision": {
+          "type": "string"
+        },
+        "castDeviceName": {
+          "type": "string",
+          "description": "Non-empty when the client relays playback to a cast device (web sender -\u003e\nChromecast): the media actually plays THERE, not on device_name. The\npanel shows it as the real playback target."
+        },
+        "coverArtUrl": {
+          "type": "string",
+          "description": "Album cover URL for music sessions (media_type \"track\"); empty for video,\nwhich the panel renders from a trickplay thumbnail instead."
         }
       }
     },
@@ -328,6 +343,12 @@
           "format": "date-time"
         },
         "resourceName": {
+          "type": "string"
+        },
+        "userAgent": {
+          "type": "string"
+        },
+        "deviceName": {
           "type": "string"
         }
       }

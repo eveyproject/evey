@@ -457,6 +457,18 @@
         "readAt": {
           "type": "string",
           "format": "date-time"
+        },
+        "subject": {
+          "type": "string",
+          "description": "subject + the counts are the notification AS DATA: the bare name it is\nabout (\"Lioness\") and how much came with it. title stays the label the\nserver rendered in English; a client that reads subject words the whole\nsentence in its own language and ignores title. subject is empty on rows\nwritten before this existed - fall back to title there."
+        },
+        "seasonCount": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "episodeCount": {
+          "type": "integer",
+          "format": "int32"
         }
       }
     },

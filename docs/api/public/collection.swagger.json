@@ -33,6 +33,16 @@
             }
           }
         },
+        "parameters": [
+          {
+            "name": "minItems",
+            "description": "Collections holding fewer than this many VISIBLE members are omitted.\n0 means the server default (2): a saga you own one film of is a film, not\na collection, and 97% of the auto-created TMDB sagas were exactly that -\na wall of one-title entries nobody could use (measured 2026-08-04).\nPass 1 to list everything, which is what curation screens want.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          }
+        ],
         "tags": [
           "CollectionService"
         ]
@@ -91,6 +101,21 @@
             "in": "path",
             "required": true,
             "type": "string"
+          },
+          {
+            "name": "limit",
+            "description": "Page of members to return alongside the collection. 0 means the server\ndefault (50). The mobile and TV clients were already sending these as\nquery parameters, against a response that carried no members at all.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
           }
         ],
         "tags": [
@@ -241,6 +266,111 @@
           "CollectionService"
         ]
       }
+    },
+    "/api/v1/collections/{id}/items/order": {
+      "put": {
+        "operationId": "CollectionService_ReorderCollectionItems",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ReorderCollectionItemsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/CollectionServiceReorderCollectionItemsBody"
+            }
+          }
+        ],
+        "tags": [
+          "CollectionService"
+        ]
+      }
+    },
+    "/api/v1/collections/{id}/items/{mediaItemId}": {
+      "delete": {
+        "operationId": "CollectionService_RemoveCollectionItem",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1RemoveCollectionItemResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "mediaItemId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "CollectionService"
+        ]
+      }
+    },
+    "/api/v1/media/{mediaItemId}/collections": {
+      "get": {
+        "summary": "The collections a title belongs to. Without it a film page cannot say\n\"part of the Alien saga\" nor link to the rest of it - the one place a\nviewer actually wonders about it.",
+        "operationId": "CollectionService_ListCollectionsForMediaItem",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListCollectionsForMediaItemResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "mediaItemId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "CollectionService"
+        ]
+      }
     }
   },
   "definitions": {
@@ -253,6 +383,18 @@
         "sortOrder": {
           "type": "integer",
           "format": "int32"
+        }
+      }
+    },
+    "CollectionServiceReorderCollectionItemsBody": {
+      "type": "object",
+      "properties": {
+        "mediaItemIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The members in their new order. Position in this list IS the new\nposition; any member left out keeps its current one."
         }
       }
     },
@@ -274,6 +416,10 @@
         },
         "smart": {
           "type": "boolean"
+        },
+        "overview": {
+          "type": "string",
+          "description": "Optional so that a client editing only the name leaves the synopsis of a\nTMDB saga alone: absent means \"keep\", empty string means \"clear\"."
         }
       }
     },
@@ -377,10 +523,20 @@
           }
         },
         "sortBy": {
-          "type": "string"
+          "type": "string",
+          "description": "How the members are ordered. \"release\" (default) reads a saga in release\norder; \"manual\" honours the hand-set position, which is the only way to\nexpress a chronological order that differs from it (prequels).\nAlso \"title\", \"added_at\", \"year\", \"rating\"."
         },
         "sortOrder": {
           "type": "string"
+        },
+        "itemCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of members THIS caller can see - already access- and parental-\nfiltered. A client cannot compute it (it never receives the members of\nevery collection) and every surface needs it: to say \"4 films\", and to\ntell a real saga from a one-title stub."
+        },
+        "kind": {
+          "type": "string",
+          "description": "\"saga\" (sourced from a TMDB collection), \"smart\" (rule-driven) or\n\"manual\" (hand-built). Lets a client badge them and filter, instead of\ninferring it from the presence of tmdb_id."
         }
       }
     },
@@ -416,6 +572,10 @@
         },
         "smart": {
           "type": "boolean"
+        },
+        "overview": {
+          "type": "string",
+          "description": "Free text shown under the title, like the synopsis a TMDB saga carries.\nThe column and the domain always had it; only the request did not, so a\ndescription typed at creation went nowhere (found 2026-08-04)."
         }
       }
     },
@@ -457,6 +617,30 @@
       "properties": {
         "collection": {
           "$ref": "#/definitions/v1CollectionProto"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1CollectionItemProto"
+          },
+          "description": "The members themselves, access- and parental-filtered like item_count.\nWithout them a client had to make a second call to show anything, and the\ntwo that did not made an empty page instead (found 2026-08-04)."
+        },
+        "total": {
+          "type": "integer",
+          "format": "int32"
+        }
+      }
+    },
+    "v1ListCollectionsForMediaItemResponse": {
+      "type": "object",
+      "properties": {
+        "collections": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1CollectionProto"
+          }
         }
       }
     },
@@ -471,6 +655,12 @@
           }
         }
       }
+    },
+    "v1RemoveCollectionItemResponse": {
+      "type": "object"
+    },
+    "v1ReorderCollectionItemsResponse": {
+      "type": "object"
     },
     "v1UpdateCollectionResponse": {
       "type": "object",
