@@ -270,7 +270,7 @@ export default function RequestsScreen() {
                   <View style={styles.resultRow}>
                     <View style={{ width: 48, height: 72 }}>
                       {item.posterUrl ? (
-                        <Image source={{ uri: item.posterUrl }} style={{ width: 48, height: 72, borderRadius: theme.radii.sm }} contentFit="cover" />
+                        <Image cachePolicy="memory-disk" source={{ uri: item.posterUrl }} style={{ width: 48, height: 72, borderRadius: theme.radii.sm }} contentFit="cover" />
                       ) : (
                         <View style={{ width: 48, height: 72, borderRadius: theme.radii.sm, backgroundColor: theme.colors.surfaceRaised }} />
                       )}
@@ -349,7 +349,7 @@ export default function RequestsScreen() {
           renderItem={({ item }) => (
             <View style={styles.resultRow}>
               {item.posterUrl ? (
-                <Image source={{ uri: item.posterUrl }} style={{ width: 48, height: 72, borderRadius: theme.radii.sm }} contentFit="cover" />
+                <Image cachePolicy="memory-disk" source={{ uri: item.posterUrl }} style={{ width: 48, height: 72, borderRadius: theme.radii.sm }} contentFit="cover" />
               ) : (
                 <View style={{ width: 48, height: 72, borderRadius: theme.radii.sm, backgroundColor: theme.colors.surfaceRaised }} />
               )}

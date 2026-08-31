@@ -211,6 +211,7 @@ const PosterCard = memo(function PosterCard({
       style={{ width: CELL_WIDTH, paddingHorizontal: GAP / 2, paddingBottom: GAP }}
     >
       <Image
+        cachePolicy="memory-disk"
         // recyclingKey tells expo-image to drop the previous cell's bitmap when
         // LegendList reuses this view for a different item - without it a fast
         // scroll shows the wrong poster until the new one decodes.

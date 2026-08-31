@@ -36,6 +36,7 @@ export function TrackArt({
   }
   return (
     <Image
+      cachePolicy="memory-disk"
       source={{ uri, headers: authHeaders }}
       style={{ width: size, height: size, borderRadius: theme.radii.sm }}
       contentFit="cover"

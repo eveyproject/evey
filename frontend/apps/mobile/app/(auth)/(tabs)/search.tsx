@@ -202,7 +202,7 @@ export default function SearchScreen() {
       >
         <View style={[styles.musicThumb, { borderRadius: theme.radii.sm, backgroundColor: theme.colors.surfaceRaised, justifyContent: "center", alignItems: "center" }]}>
           {cover ? (
-            <Image source={{ uri: cover, headers: authHeaders }} style={{ width: 48, height: 48, borderRadius: theme.radii.sm }} contentFit="cover" transition={150} />
+            <Image cachePolicy="memory-disk" source={{ uri: cover, headers: authHeaders }} style={{ width: 48, height: 48, borderRadius: theme.radii.sm }} contentFit="cover" transition={150} />
           ) : (
             <Ionicons name="musical-notes" size={20} color={theme.colors.textMuted} />
           )}
@@ -257,6 +257,7 @@ export default function SearchScreen() {
         >
           {poster ? (
             <Image
+              cachePolicy="memory-disk"
               source={{ uri: poster, headers: authHeaders }}
               style={[styles.thumb, { borderRadius: theme.radii.sm }]}
               contentFit="cover"

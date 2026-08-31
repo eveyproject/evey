@@ -196,7 +196,7 @@ export function SearchDropdown({
                 accessibilityRole="button"
                 accessibilityLabel={displayTitle(item, t)}
               >
-                <Image source={{ uri: posterFor(item.id), headers: authHeaders }} style={styles.poster} contentFit="cover" />
+                <Image cachePolicy="memory-disk" source={{ uri: posterFor(item.id), headers: authHeaders }} style={styles.poster} contentFit="cover" />
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.resultTitle, { color: theme.colors.text }]} numberOfLines={1}>
                     {displayTitle(item, t)}
@@ -232,7 +232,7 @@ export function SearchDropdown({
                 accessibilityLabel={tr.title ?? ""}
               >
                 {cover ? (
-                  <Image source={{ uri: cover, headers: authHeaders }} style={styles.musicCover} contentFit="cover" />
+                  <Image cachePolicy="memory-disk" source={{ uri: cover, headers: authHeaders }} style={styles.musicCover} contentFit="cover" />
                 ) : (
                   <View style={[styles.musicCover, styles.musicCoverPlaceholder, { backgroundColor: theme.colors.surface }]}>
                     <Ionicons name="musical-notes" size={ICON_SIZE.md} color={theme.colors.textMuted} />

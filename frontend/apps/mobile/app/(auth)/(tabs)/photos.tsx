@@ -248,6 +248,7 @@ export default function PhotosScreen() {
         >
           {uri ? (
             <Image
+              cachePolicy="memory-disk"
               // recyclingKey: LegendList reuses this tile's view for other
               // photos on a fast scroll; without it expo-image keeps the prior
               // bitmap until the new one decodes.
@@ -281,6 +282,7 @@ export default function PhotosScreen() {
         >
           {coverUri ? (
             <Image
+              cachePolicy="memory-disk"
               recyclingKey={item.coverPhotoId || item.name}
               source={{ uri: coverUri, headers: authHeaders }}
               style={{ width: ALBUM_SIZE, height: ALBUM_SIZE, borderRadius: theme.radii.md }}
