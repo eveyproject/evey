@@ -161,6 +161,8 @@ func loadTestStatusToProto(s apploadtest.Status) *eveyv1.LoadTestStatus {
 			Tiers:                         tierCosts(r.Tiers),
 			DiskReadStarved:               r.DiskReadStarved,
 			ColdCache:                     r.ColdCache,
+			StorageFsType:                 r.StorageFSType,
+			StorageOpaque:                 r.StorageOpaque,
 			Endpoint:                      r.Endpoint,
 			ViaProxy:                      r.ViaProxy,
 		}

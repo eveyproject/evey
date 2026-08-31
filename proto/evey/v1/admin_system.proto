@@ -478,6 +478,14 @@ message LoadTestReport {
   // alone, so two runs on the same host land on different viewer counts purely
   // by codec draw - a verdict that cannot name what it decoded cannot be read.
   repeated LoadTestSourceMix source_mix = 39;
+  // storage_fs_type names the filesystem type(s) the library's files sit on
+  // ("ext4", "fuse.mergerfs", "nfs4"...), comma-joined when several.
+  string storage_fs_type = 40;
+  // storage_opaque is true when one of those mounts hides the disks from the
+  // server's kernel (a FUSE pool, a network or VM share): the disk counter
+  // cannot see its reads, a cold-cache eviction stops at the mount and a pool
+  // counts as one disk. The storage figures then describe the delivery path.
+  bool storage_opaque = 41;
 }
 
 // LoadTestTierCost is what ONE audience size cost the server: one row of the

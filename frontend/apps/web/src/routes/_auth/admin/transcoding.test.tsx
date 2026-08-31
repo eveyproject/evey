@@ -427,6 +427,31 @@ describe("LoadTestCard", () => {
     expect(starved).not.toMatch(/fits in RAM/i);
   });
 
+  it("names an opaque mount (mergerfs, NFS...) once, in place of the cold-cache and silent-disk lines", async () => {
+    mockLoadTestStatus = {
+      running: false,
+      lastReport: {
+        scenario: "balanced",
+        sustainedViewers: 7,
+        stopReason: "slo_breach",
+        coldCache: true,
+        diskReadStarved: true,
+        storageOpaque: true,
+        storageFsType: "fuse.mergerfs",
+      },
+    };
+    const Page = await getPage();
+    render(React.createElement(Page), { wrapper: createWrapper() });
+
+    const opaque = screen.getByTestId("load-test-storage-opaque").textContent ?? "";
+    expect(opaque).toContain("fuse.mergerfs");
+    expect(opaque).toMatch(/colder than a warm run/i);
+    // The mount is the one explanation behind both: neither "measured the
+    // storage" nor "the disk counter saw nothing" may stand next to it.
+    expect(screen.queryByTestId("load-test-cold-cache")).toBeNull();
+    expect(screen.queryByTestId("load-test-disk-starved")).toBeNull();
+  });
+
   it("shows the running state (viewers, phase, elapsed) while polling, with a cancel button", async () => {
     mockLoadTestStatus = { running: true, phase: "ramping", viewers: 3, elapsedMs: 15_000 };
     const Page = await getPage();

@@ -57,6 +57,13 @@ func (r *Runner) run(runCtx context.Context, cfg Config) {
 	}
 	pool := newCandidatePool(candidates, cfg.MaxDuration)
 
+	// Where the library lives decides what the storage instruments can see.
+	storageFS, storageOpaque := libraryStorage(candidates, r.mountFSType)
+	if storageOpaque {
+		r.logger.Warn("loadtest: the library sits on a mount this kernel cannot account for - the disk counter will not see its reads, cache eviction stops at the mount, a pool counts as one disk",
+			"fs_types", storageFS)
+	}
+
 	// Cold-cache mode: drop the library from the page cache before anything is
 	// measured - the disk probe below then reads cold storage too - and note
 	// whether the eviction actually landed. A run that claims "cold cache"
@@ -481,6 +488,8 @@ runLoop:
 		ReplayedTitleViewers:       replayed,
 		DiskReadStarved:            diskReadStarved(sustainedRes),
 		ColdCache:                  coldCache,
+		StorageFSType:              storageFS,
+		StorageOpaque:              storageOpaque,
 		ReadAmplification:          readAmplification(sustainedRes),
 		AppReadAmplification:       appReadAmplification(sustainedRes),
 		Tiers:                      tiers,
@@ -646,6 +655,10 @@ func (r *Runner) handleViewerEvent(ev viewerEvent, isFlash bool, viewerCtx conte
 			// keeps observing the rest.
 			flash.shed[ev.slot] = true
 			flash.admissionDenied++
+			// The slot stays counted (served-of-launched), but any encoder
+			// session the server admitted before shedding it would keep grinding
+			// for nobody and steal CPU from the viewers still under observation.
+			r.releaseViewerMedia(pool, ramp, ev.slot)
 			return "", "", 0, false
 		}
 		// The server itself refused the stream: this tier is past what it
@@ -655,10 +668,6 @@ func (r *Runner) handleViewerEvent(ev viewerEvent, isFlash bool, viewerCtx conte
 		// Leaving it in the audience would inflate every tier above this one and
 		// hand the bisection a count the server never actually served.
 		r.dropViewer(ramp, ev.slot)
-			// The slot stays counted (served-of-launched), but any encoder
-			// session the server admitted before shedding it would keep grinding
-			// for nobody and steal CPU from the viewers still under observation.
-			r.releaseViewerMedia(pool, ramp, ev.slot)
 
 	case evTokenExpired:
 		// Not a capacity signal at all - the run can no longer authenticate, so
@@ -668,6 +677,7 @@ func (r *Runner) handleViewerEvent(ev viewerEvent, isFlash bool, viewerCtx conte
 	case evViewerError:
 		if isFlash {
 			flash.shed[ev.slot] = true
+			r.releaseViewerMedia(pool, ramp, ev.slot)
 			return "", "", 0, false
 		}
 		// The server stopped serving this viewer under this load. That is the
@@ -677,7 +687,6 @@ func (r *Runner) handleViewerEvent(ev viewerEvent, isFlash bool, viewerCtx conte
 		r.dropViewer(ramp, ev.slot)
 
 	case evCandidateSkipped:
-			r.releaseViewerMedia(pool, ramp, ev.slot)
 		// This slot never became a real viewer: give it back and immediately
 		// retry against the next assignment. A skip costs a candidate, never a
 		// viewer - the ramp keeps climbing. The title itself is retired: mkvgo

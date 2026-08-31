@@ -53,9 +53,20 @@ export function LoadTestReportPanel({
       {/* A cold-cache run measured the storage on purpose: say so, or
           its (lower) figure gets compared against a warm run's as if
           the server had regressed. */}
-      {report.coldCache && (
+      {report.coldCache && !report.storageOpaque && (
         <p className="text-xs text-[var(--text-muted)]" data-testid="load-test-cold-cache">
           {t("admin.loadtest.coldCacheLine")}
+        </p>
+      )}
+      {/* An opaque mount (mergerfs, NFS, 9p...) hides the disks from the
+          server's kernel. Said once, up front, in place of the cold-cache and
+          silent-disk lines: it is the one explanation behind both, and
+          "measured the storage" would not be true there. */}
+      {report.storageOpaque && (
+        <p className="text-sm font-medium text-[var(--color-warning)]" data-testid="load-test-storage-opaque">
+          {t(report.coldCache ? "admin.loadtest.storageOpaqueColdLine" : "admin.loadtest.storageOpaqueLine", {
+            fs: report.storageFsType ?? "",
+          })}
         </p>
       )}
       {/* Same signal, two different truths. Warm run: the disk sat idle
@@ -63,7 +74,7 @@ export function LoadTestReportPanel({
           Cold run: the cache WAS being evicted, so a silent disk means
           the kernel cannot see the reads at all (a network/9p mount, or
           a cache outside this OS - a VM host, a NAS controller). */}
-      {report.diskReadStarved && (
+      {report.diskReadStarved && !report.storageOpaque && (
         <p className="text-sm font-medium text-[var(--color-warning)]" data-testid="load-test-disk-starved">
           {t(report.coldCache ? "admin.loadtest.coldCacheStillStarvedLine" : "admin.loadtest.servedFromCacheLine")}
         </p>

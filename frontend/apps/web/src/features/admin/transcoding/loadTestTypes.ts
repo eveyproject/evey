@@ -80,6 +80,12 @@ export interface LoadTestReport {
   // figures measure the STORAGE rather than the RAM. A warm and a cold run of
   // the same box are two different answers - never compare them as one.
   coldCache?: boolean;
+  // storageFsType / storageOpaque: what the library sits on. An opaque mount
+  // (a FUSE pool such as mergerfs, a network or VM share) hides the disks from
+  // the server's kernel: blind disk counter, cache eviction that stops at the
+  // mount, a pool counted as one disk. The panel says so before any figure.
+  storageFsType?: string;
+  storageOpaque?: boolean;
   // diskReadCeilingBytesPerSec: how fast this box reads its media - every disk
   // the library spans, read at once. The kernel cannot report this when the
   // library sits on a network share or a 9p mount, so the run measures it itself

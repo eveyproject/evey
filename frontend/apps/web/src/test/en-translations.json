@@ -237,6 +237,8 @@
   "admin.loadtest.stopReason.throughputSaturated": "Throughput flattened out: the server cannot read the media any faster. That is the bottleneck.",
   "admin.loadtest.stopReason.tokenExpired": "Session expired - log back in and try again.",
   "admin.loadtest.storageCollapseLine": "Warning: the storage collapses past {{count}} concurrent reads - throughput falls away and a single read starts taking seconds. It is the storage, not the server, that caps how many people can watch.",
+  "admin.loadtest.storageOpaqueColdLine": "The library sits on a {{fs}} mount. Cold cache was applied to the mount, but the disks underneath may keep serving from their own cache, and the server's kernel cannot see the reads behind it (blind disk counter, a pool counts as a single disk). These figures are colder than a warm run, not a measure of the disks.",
+  "admin.loadtest.storageOpaqueLine": "The library sits on a {{fs}} mount. The server's kernel cannot see the reads behind it, so the disk counter stays blind and a pool counts as a single disk: the storage figures describe this delivery path, not the disks.",
   "admin.loadtest.table.cpu": "CPU",
   "admin.loadtest.table.disk": "Disk read",
   "admin.loadtest.table.mem": "Memory",

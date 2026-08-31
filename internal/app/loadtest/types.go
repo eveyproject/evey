@@ -468,6 +468,17 @@ type Report struct {
 	// if they were one.
 	ColdCache bool
 
+	// StorageFSType names the filesystem type(s) the library's files sit on
+	// ("ext4", "fuse.mergerfs", "nfs4", ...), comma-joined when several.
+	StorageFSType string
+
+	// StorageOpaque is true when at least one of those mounts hides the disks
+	// from this kernel (a FUSE pool, a network or VM share): the disk counter
+	// cannot see its reads, a page-cache eviction stops at the mount, and a
+	// pool counts as one disk. The report states it up front so the storage
+	// figures are read as "the delivery path", not "the disks".
+	StorageOpaque bool
+
 	// SkippedCandidates counts media items an mkvgo-typed viewer tried and
 	// abandoned because the server didn't actually serve them via mkvgo
 	// (missing X-Evey-Served-By: mkvgo). Each skip is retried against the

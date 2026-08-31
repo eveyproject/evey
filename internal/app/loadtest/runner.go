@@ -8,6 +8,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/evey-project/evey/internal/pkg/sysinfo"
 )
 
 // maxRequestTimeout is the ceiling applied to the http.Client passed to New:
@@ -72,6 +74,9 @@ type Runner struct {
 	// evictFile drops one file from the OS page cache (cold-cache mode). The
 	// real one is posix_fadvise; tests record the calls instead.
 	evictFile func(path string) error
+	// mountFSType names the filesystem behind a library path (see libraryStorage);
+	// swapped in tests, sysinfo.MountFSType in production.
+	mountFSType func(path string) string
 
 	// liveViewers is the audience size RIGHT NOW, updated as each viewer is
 	// spawned or shed rather than once per tier. Status() reads it, so a caller
@@ -118,6 +123,7 @@ func New(httpClient *http.Client, media MediaLister, activeStreams func() int, l
 		activeStreams: activeStreams,
 		logger:        logger,
 		evictFile:     evictFromCache,
+		mountFSType:   sysinfo.MountFSType,
 		status:        Status{Phase: "idle"},
 	}
 }
@@ -222,6 +228,8 @@ func (r *Runner) finish(report Report) {
 		"samples", report.Samples,
 		"replayed_title_viewers", report.ReplayedTitleViewers,
 		"disk_read_starved", report.DiskReadStarved,
+		"storage_fs_type", report.StorageFSType,
+		"storage_opaque", report.StorageOpaque,
 		// Whether the library was being evicted from the page cache throughout.
 		// A warm and a cold run of the same box are two different answers, and a
 		// log line that doesn't say which one this was invites comparing them.
