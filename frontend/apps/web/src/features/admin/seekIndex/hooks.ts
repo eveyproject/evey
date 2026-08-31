@@ -14,22 +14,33 @@ import {
   useAdminMediaServiceDeleteSeekIndexBackup,
   useAdminMediaServicePurgeSeekIndexBackups,
   useAdminMediaServiceRemuxAudioMedia,
+  useAdminMediaServiceAckSeekIndexMedia,
+  useAdminMediaServiceAckSeekIndexGroup,
+  useAdminMediaServiceFixContainerMedia,
 } from "@evey/api";
-import { SEEK_INDEX_SCAN_QUERY_BASE, SEEK_INDEX_KIND_KEYS, errText, audioDelayed, volumeBackupsRisky } from "@evey/api";
+import {
+  SEEK_INDEX_SCAN_QUERY_BASE,
+  SEEK_INDEX_KIND_KEYS,
+  errText,
+  isAcked,
+  triageOf,
+  verdictOf,
+  volumeBackupsRisky,
+} from "@evey/api";
 
-// useSeekIndexPage owns every piece of state, query and mutation the seek-index
-// admin page renders from - the page component itself only composes panels
-// around the values this returns.
+// useSeekIndexPage owns every piece of state, query and mutation the media
+// health admin page renders from - the page component itself only composes
+// panels around the values this returns.
 export function useSeekIndexPage() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [libraryId, setLibraryId] = useState("");
   const [onlyAttention, setOnlyAttention] = useState(true);
   const [confirmBatch, setConfirmBatch] = useState<"repair" | "rollback" | "purge" | null>(null);
-  // "Repair all" exposes just two independent choices; the rest is decided for
-  // the operator as the safe default. Strategy is always "auto" (surgical
-  // patch when the layout allows, full rewrite otherwise) - the per-file
-  // power modes are not worth a whole-library toggle.
+  // "Repair all" repairs EVERY repairable verdict - index, audio start delay,
+  // container - with no per-defect checkbox: a button named "all" that left a
+  // known, fixable defect behind an option was lying about its name. The two
+  // choices that remain are real ones:
   //
   // keepBackups ON  -> a .mkvgobak per repaired file survives the job (roll
   //                    back anytime, costs one extra copy per file on disk).
@@ -38,11 +49,13 @@ export function useSeekIndexPage() {
   //                    with none, and each repair is deep-verified in exchange
   //                    for the lost post-run rollback. Pre-set from the live
   //                    volume space so a tight disk defaults to OFF.
+  // resyncDamaged   -> also rewrite the files whose index is fine but which
+  //                    carry a corrupted stretch. It is the ONLY way they
+  //                    become playable, and it LOSES those bytes for good, so
+  //                    it is asked with the count and the bytes at stake.
+  //                    Their backup is always kept, whatever keepBackups says.
   const [keepBackups, setKeepBackups] = useState(true);
-  // alsoAudio folds the audio-delay remux of every flagged file into the same
-  // job. Independent of keepBackups. Default ON: "repair all" should fix every
-  // defect the scan found, not just the index.
-  const [alsoAudio, setAlsoAudio] = useState(true);
+  const [resyncDamaged, setResyncDamaged] = useState(true);
 
   const { data: libData } = useLibraryServiceListLibraries();
   const libraries = libData?.libraries ?? [];
@@ -65,19 +78,26 @@ export function useSeekIndexPage() {
   const hasScan = Number(scan.data?.scannedAtMs ?? 0) > 0;
   const result = hasScan ? scan.data : undefined;
   const items = result?.items ?? [];
-  const missing = result?.missingIndex ?? 0;
   const withBackup = result?.withBackup ?? 0;
-  const delayedAudio = result?.audioDelayed ?? 0;
-  const wrongContainer = result?.wrongContainer ?? 0;
-  const trailingJunk = result?.trailingJunk ?? 0;
-  const audioShort = result?.audioShort ?? 0;
-  const seekCoarse = result?.seekCoarse ?? 0;
-  // What "Repair all" will actually act on: the missing-index count minus the
-  // files the batch (rightly) skips - advertising the raw missing count
-  // promised repairs the job then silently declined. Truncated: the tail is
-  // gone, no repair exists. Coarse: already rebuilt once and still too sparse
-  // to seek, because the encode's keyframes are the limit, not the index.
-  const repairable = items.filter((it) => !it.hasIndex && !it.truncated && !it.seekCoarse).length;
+  const containerFixAvailable = result?.containerFixAvailable ?? false;
+  // The triage is derived from the very rows the table shows, so the group
+  // cards, the button and the table can never disagree with each other.
+  const triage = triageOf(items);
+  const repairable = triage.repairable;
+  // Per-category breakdown under each group card: the same rows, by defect.
+  const breakdown = {
+    missing: items.filter((it) => verdictOf(it) === "repairable" && !it.hasIndex).length,
+    damaged: items.filter((it) => verdictOf(it) === "repairable" && it.hasIndex && Number(it.damagedBytes ?? 0) > 0).length,
+    damagedBytes: items
+      .filter((it) => verdictOf(it) === "repairable" && it.hasIndex)
+      .reduce((sum, it) => sum + Number(it.damagedBytes ?? 0), 0),
+    delayedAudio: items.filter((it) => verdictOf(it) === "repairable" && (it.audioDelaySec ?? 0) > 0.1).length,
+    wrongContainer: items.filter((it) => it.wrongContainer).length,
+    truncated: items.filter((it) => it.truncated && !isAcked(it)).length,
+    seekCoarse: items.filter((it) => it.seekCoarse && !it.truncated && !isAcked(it)).length,
+    audioShort: items.filter((it) => verdictOf(it) === "informational" && (it.audioShortfallSec ?? 0) > 0 && !isAcked(it)).length,
+    trailingJunk: items.filter((it) => verdictOf(it) === "informational" && it.trailingJunk && !isAcked(it)).length,
+  };
   // Per-filesystem numbers for the candidates: Evey pre-sets the safe backup
   // choice itself (a nearly-full volume must not accumulate one copy per
   // repaired file) and flags files whose rewrite temp copy will not fit.
@@ -127,6 +147,9 @@ export function useSeekIndexPage() {
   };
   const onStartError = (err: { message?: string } | null) =>
     toast.error(errText(err, t("admin.seekIndex.startFailed")));
+  // Synchronous mutations (a cache update or an unlink server-side): refresh
+  // the cached scan directly instead of the job-completion path.
+  const refreshScan = () => void queryClient.invalidateQueries({ queryKey: [SEEK_INDEX_SCAN_QUERY_BASE] });
 
   const startScan = useAdminMediaServiceStartSeekIndexScan({
     mutation: {
@@ -164,16 +187,19 @@ export function useSeekIndexPage() {
       onError: onStartError,
     },
   });
-  // Synchronous (an unlink server-side): refresh the cached scan directly
-  // instead of the job-completion path the batch mutations rely on.
+  const fixContainerOne = useAdminMediaServiceFixContainerMedia({
+    mutation: {
+      onSuccess: onStarted("admin.seekIndex.fixContainerStarted"),
+      onError: onStartError,
+    },
+  });
   const deleteBackup = useAdminMediaServiceDeleteSeekIndexBackup({
     mutation: {
       onSuccess: () => {
         toast.success(t("admin.seekIndex.backupDeleted"));
-        void queryClient.invalidateQueries({ queryKey: [SEEK_INDEX_SCAN_QUERY_BASE] });
+        refreshScan();
       },
-      onError: (err: { message?: string } | null) =>
-        toast.error(errText(err, t("admin.seekIndex.startFailed"))),
+      onError: onStartError,
     },
   });
   const purgeLib = useAdminMediaServicePurgeSeekIndexBackups({
@@ -182,22 +208,31 @@ export function useSeekIndexPage() {
       onError: onStartError,
     },
   });
+  // Acknowledging is the operator saying "seen, nothing to do here": the row
+  // leaves the attention list until the file's bytes change.
+  const ackOne = useAdminMediaServiceAckSeekIndexMedia({
+    mutation: {
+      onSuccess: (_res, vars) => {
+        toast.success(t(vars.data.acked ? "admin.seekIndex.ackDone" : "admin.seekIndex.unackDone"));
+        refreshScan();
+      },
+      onError: onStartError,
+    },
+  });
+  const ackGroup = useAdminMediaServiceAckSeekIndexGroup({
+    mutation: {
+      onSuccess: (res) => {
+        toast.success(t("admin.seekIndex.ackGroupDone", { count: res.acked ?? 0 }));
+        refreshScan();
+      },
+      onError: onStartError,
+    },
+  });
 
+  // "Awaits action or a look": every non-healthy, non-acknowledged verdict,
+  // plus the files that carry a backup (rollback/purge are live actions).
   const visible = onlyAttention
-    ? items.filter(
-        (it) =>
-          !it.hasIndex ||
-          it.hasBackup ||
-          audioDelayed(it) ||
-          it.wrongContainer ||
-          // Files whose defect has no automated repair still NEED the
-          // operator's attention - truncated/damaged/short-audio all mean
-          // "re-acquire the source", and hiding them under the default filter
-          // made the badges unreachable without unticking it.
-          it.truncated ||
-          Number(it.damagedBytes ?? 0) > 0 ||
-          (it.audioShortfallSec ?? 0) > 0,
-      )
+    ? items.filter((it) => it.hasBackup || (verdictOf(it) !== "healthy" && !isAcked(it)))
     : items;
   const busy = running || startScan.isPending;
 
@@ -210,21 +245,18 @@ export function useSeekIndexPage() {
     setConfirmBatch,
     keepBackups,
     setKeepBackups,
-    alsoAudio,
-    setAlsoAudio,
+    resyncDamaged,
+    setResyncDamaged,
     libraries,
     job,
     running,
     scan,
     result,
     items,
-    missing,
     withBackup,
-    delayedAudio,
-    wrongContainer,
-    trailingJunk,
-    audioShort,
-    seekCoarse,
+    containerFixAvailable,
+    triage,
+    breakdown,
     repairable,
     repairVolumes,
     backupsRisky,
@@ -234,8 +266,11 @@ export function useSeekIndexPage() {
     repairLib,
     rollbackLib,
     remuxAudioOne,
+    fixContainerOne,
     deleteBackup,
     purgeLib,
+    ackOne,
+    ackGroup,
     visible,
     busy,
   };

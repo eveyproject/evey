@@ -1,100 +1,117 @@
+import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
 import type { SeekIndexPageState } from "./hooks";
 
-interface StatsGridProps {
-  result: NonNullable<SeekIndexPageState["result"]>;
-  missing: SeekIndexPageState["missing"];
-  withBackup: SeekIndexPageState["withBackup"];
-  delayedAudio: SeekIndexPageState["delayedAudio"];
-  wrongContainer: SeekIndexPageState["wrongContainer"];
-  trailingJunk: SeekIndexPageState["trailingJunk"];
-  audioShort: SeekIndexPageState["audioShort"];
-  seekCoarse: SeekIndexPageState["seekCoarse"];
-}
+type StatsGridProps = Pick<
+  SeekIndexPageState,
+  "result" | "triage" | "breakdown" | "withBackup" | "ackGroup" | "libraryId" | "busy"
+> & { result: NonNullable<SeekIndexPageState["result"]> };
 
-export function StatsGrid({
-  result,
-  missing,
-  withBackup,
-  delayedAudio,
-  wrongContainer,
-  trailingJunk,
-  audioShort,
-  seekCoarse,
-}: StatsGridProps) {
+// The grid IS the triage: one card per verdict, each with the action that
+// belongs to it (repair lives on the button above; acknowledge lives here) and
+// the per-defect breakdown underneath, so a number never appears without
+// saying what it is made of and what to do about it.
+export function StatsGrid({ result, triage, breakdown, withBackup, ackGroup, libraryId, busy }: StatsGridProps) {
   const { t } = useTranslation();
+  const part = (count: number, key: string, testId: string) =>
+    count > 0 ? (
+      <span data-testid={testId} className="whitespace-nowrap">
+        {t(key, { count })}
+      </span>
+    ) : null;
+  const joinParts = (parts: ReactNode[]) => {
+    const present = parts.filter(Boolean);
+    return present.length === 0 ? (
+      <span>{t("admin.seekIndex.breakdownNone")}</span>
+    ) : (
+      present.map((p, i) => (
+        <span key={i}>
+          {i > 0 && <span className="mx-1">·</span>}
+          {p}
+        </span>
+      ))
+    );
+  };
+  const ackAll = (verdict: "manual" | "informational") =>
+    ackGroup.mutate({ data: { ...(libraryId ? { libraryId } : {}), verdict } });
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
       <Card>
-        <dt className="text-xs font-medium mb-1 text-[var(--text-muted)]">
-          {t("admin.seekIndex.statsInspected")}
-        </dt>
+        <dt className="text-xs font-medium mb-1 text-[var(--text-muted)]">{t("admin.seekIndex.statsInspected")}</dt>
         <dd className="text-xl font-bold text-[var(--text)]">{result.total ?? 0}</dd>
       </Card>
       <Card>
-        <dt className="text-xs font-medium mb-1 text-[var(--text-muted)]">
-          {t("admin.seekIndex.statsMissing")}
-        </dt>
-        <dd className="text-xl font-bold text-[var(--text)]" data-testid="seek-index-missing-count">
-          {missing}
+        <dt className="text-xs font-medium mb-1 text-[var(--text-muted)]">{t("admin.seekIndex.statsRepairable")}</dt>
+        <dd className="text-xl font-bold text-[var(--text)]" data-testid="seek-index-repairable-count">
+          {triage.repairable}
         </dd>
+        <p className="mt-1 text-xs text-[var(--text-muted)]">
+          {joinParts([
+            part(breakdown.missing, "admin.seekIndex.partMissing", "seek-index-missing-count"),
+            part(breakdown.damaged, "admin.seekIndex.partDamaged", "seek-index-damaged-count"),
+            part(breakdown.delayedAudio, "admin.seekIndex.partAudioDelay", "seek-index-audio-delay-count"),
+            part(breakdown.wrongContainer, "admin.seekIndex.partWrongContainer", "seek-index-wrong-container-count"),
+          ])}
+        </p>
       </Card>
       <Card>
-        <dt className="text-xs font-medium mb-1 text-[var(--text-muted)]">
-          {t("admin.seekIndex.statsBackup")}
-        </dt>
+        <dt className="text-xs font-medium mb-1 text-[var(--text-muted)]">{t("admin.seekIndex.statsManual")}</dt>
+        <dd className="text-xl font-bold text-[var(--text)]" data-testid="seek-index-manual-count">
+          {triage.manual}
+        </dd>
+        <p className="mt-1 text-xs text-[var(--text-muted)]">
+          {joinParts([
+            part(breakdown.truncated, "admin.seekIndex.partTruncated", "seek-index-truncated-count"),
+            part(breakdown.seekCoarse, "admin.seekIndex.partSeekCoarse", "seek-index-coarse-count"),
+          ])}
+        </p>
+        {triage.manual > 0 && (
+          <Button
+            variant="ghost"
+            className="mt-2 text-xs"
+            disabled={busy || ackGroup.isPending}
+            onClick={() => ackAll("manual")}
+            data-testid="seek-index-ack-manual-btn"
+          >
+            {t("admin.seekIndex.ackGroupBtn", { count: triage.manual })}
+          </Button>
+        )}
+      </Card>
+      <Card>
+        <dt className="text-xs font-medium mb-1 text-[var(--text-muted)]">{t("admin.seekIndex.statsInformational")}</dt>
+        <dd className="text-xl font-bold text-[var(--text)]" data-testid="seek-index-informational-count">
+          {triage.informational}
+        </dd>
+        <p className="mt-1 text-xs text-[var(--text-muted)]">
+          {joinParts([
+            part(breakdown.audioShort, "admin.seekIndex.partAudioShort", "seek-index-audio-short-count"),
+            part(breakdown.trailingJunk, "admin.seekIndex.partTrailingJunk", "seek-index-trailing-junk-count"),
+          ])}
+        </p>
+        {triage.informational > 0 && (
+          <Button
+            variant="ghost"
+            className="mt-2 text-xs"
+            disabled={busy || ackGroup.isPending}
+            onClick={() => ackAll("informational")}
+            data-testid="seek-index-ack-informational-btn"
+          >
+            {t("admin.seekIndex.ackGroupBtn", { count: triage.informational })}
+          </Button>
+        )}
+      </Card>
+      <Card>
+        <dt className="text-xs font-medium mb-1 text-[var(--text-muted)]">{t("admin.seekIndex.statsBackup")}</dt>
         <dd className="text-xl font-bold text-[var(--text)]">{withBackup}</dd>
+        {triage.acked > 0 && (
+          <p className="mt-1 text-xs text-[var(--text-muted)]" data-testid="seek-index-acked-count">
+            {t("admin.seekIndex.partAcked", { count: triage.acked })}
+          </p>
+        )}
       </Card>
-      <Card>
-        <dt className="text-xs font-medium mb-1 text-[var(--text-muted)]">
-          {t("admin.seekIndex.statsAudioDelay")}
-        </dt>
-        <dd className="text-xl font-bold text-[var(--text)]" data-testid="seek-index-audio-delay-count">
-          {delayedAudio}
-        </dd>
-      </Card>
-      {wrongContainer > 0 && (
-        <Card>
-          <dt className="text-xs font-medium mb-1 text-[var(--text-muted)]">
-            {t("admin.seekIndex.statsWrongContainer")}
-          </dt>
-          <dd className="text-xl font-bold text-[var(--text)]" data-testid="seek-index-wrong-container-count">
-            {wrongContainer}
-          </dd>
-        </Card>
-      )}
-      {trailingJunk > 0 && (
-        <Card>
-          <dt className="text-xs font-medium mb-1 text-[var(--text-muted)]">
-            {t("admin.seekIndex.statsTrailingJunk")}
-          </dt>
-          <dd className="text-xl font-bold text-[var(--text)]" data-testid="seek-index-trailing-junk-count">
-            {trailingJunk}
-          </dd>
-        </Card>
-      )}
-      {audioShort > 0 && (
-        <Card>
-          <dt className="text-xs font-medium mb-1 text-[var(--text-muted)]">
-            {t("admin.seekIndex.statsAudioShort")}
-          </dt>
-          <dd className="text-xl font-bold text-[var(--text)]" data-testid="seek-index-audio-short-count">
-            {audioShort}
-          </dd>
-        </Card>
-      )}
-      {seekCoarse > 0 && (
-        <Card>
-          <dt className="text-xs font-medium mb-1 text-[var(--text-muted)]">
-            {t("admin.seekIndex.statsSeekCoarse")}
-          </dt>
-          <dd className="text-xl font-bold text-[var(--text)]" data-testid="seek-index-coarse-count">
-            {seekCoarse}
-          </dd>
-        </Card>
-      )}
     </div>
   );
 }

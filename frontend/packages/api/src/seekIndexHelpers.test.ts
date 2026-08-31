@@ -2,7 +2,10 @@ import { describe, it, expect } from "vitest";
 import {
   audioDelayed,
   baseName,
+  isAckable,
   repairableCount,
+  triageOf,
+  verdictOf,
   volumeBackupsRisky,
   volumeTempRisky,
 } from "./seekIndexHelpers";
@@ -52,6 +55,47 @@ describe("repairableCount", () => {
 
   it("treats missing hasIndex as un-indexed (counts it when repairable)", () => {
     expect(repairableCount([{}])).toBe(1);
+  });
+});
+
+describe("verdictOf", () => {
+  it("trusts the server's verdict when present", () => {
+    expect(verdictOf({ verdict: "manual", hasIndex: false })).toBe("manual");
+  });
+
+  // Same table as the Go SeekStatus.Verdict: what only the operator can fix
+  // wins over what Evey could fix, which wins over a mere fact.
+  it("derives the Go precedence from the flags for an older server", () => {
+    expect(verdictOf({ hasIndex: true })).toBe("healthy");
+    expect(verdictOf({ hasIndex: false })).toBe("repairable");
+    expect(verdictOf({ hasIndex: true, damagedBytes: "512" })).toBe("repairable");
+    expect(verdictOf({ hasIndex: true, audioDelaySec: 0.9 })).toBe("repairable");
+    expect(verdictOf({ hasIndex: true, wrongContainer: true })).toBe("repairable");
+    expect(verdictOf({ hasIndex: false, truncated: true })).toBe("manual");
+    expect(verdictOf({ hasIndex: false, seekCoarse: true })).toBe("manual");
+    expect(verdictOf({ hasIndex: true, audioShortfallSec: 40 })).toBe("informational");
+    expect(verdictOf({ hasIndex: true, trailingJunk: true })).toBe("informational");
+    expect(verdictOf({ hasIndex: true, trailingJunk: true, audioDelaySec: 0.5 })).toBe("repairable");
+  });
+
+  it("only lets what nobody can repair be acknowledged", () => {
+    expect(isAckable({ hasIndex: false })).toBe(false);
+    expect(isAckable({ hasIndex: true, trailingJunk: true })).toBe(true);
+    expect(isAckable({ truncated: true })).toBe(true);
+  });
+});
+
+describe("triageOf", () => {
+  it("counts like the server rollups: acknowledged files leave their pile", () => {
+    const t = triageOf([
+      { hasIndex: false },
+      { hasIndex: true, audioDelaySec: 1 },
+      { hasIndex: true, truncated: true },
+      { hasIndex: true, truncated: true, ackedAtMs: "1700000000000" },
+      { hasIndex: true, trailingJunk: true },
+      { hasIndex: true },
+    ]);
+    expect(t).toEqual({ repairable: 2, manual: 1, informational: 1, acked: 1 });
   });
 });
 

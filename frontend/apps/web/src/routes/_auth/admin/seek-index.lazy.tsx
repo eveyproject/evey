@@ -29,21 +29,18 @@ function SeekIndexPage() {
     setConfirmBatch,
     keepBackups,
     setKeepBackups,
-    alsoAudio,
-    setAlsoAudio,
+    resyncDamaged,
+    setResyncDamaged,
     libraries,
     job,
     running,
     scan,
     result,
     items,
-    missing,
     withBackup,
-    delayedAudio,
-    wrongContainer,
-    trailingJunk,
-    audioShort,
-    seekCoarse,
+    containerFixAvailable,
+    triage,
+    breakdown,
     repairable,
     repairVolumes,
     backupsRisky,
@@ -53,8 +50,11 @@ function SeekIndexPage() {
     repairLib,
     rollbackLib,
     remuxAudioOne,
+    fixContainerOne,
     deleteBackup,
     purgeLib,
+    ackOne,
+    ackGroup,
     visible,
     busy,
   } = useSeekIndexPage();
@@ -78,10 +78,8 @@ function SeekIndexPage() {
         busy={busy}
         result={result}
         repairable={repairable}
-        delayedAudio={delayedAudio}
         backupsRisky={backupsRisky}
         setKeepBackups={setKeepBackups}
-        setAlsoAudio={setAlsoAudio}
         setConfirmBatch={setConfirmBatch}
         withBackup={withBackup}
       />
@@ -107,13 +105,12 @@ function SeekIndexPage() {
         <>
           <StatsGrid
             result={result}
-            missing={missing}
+            triage={triage}
+            breakdown={breakdown}
             withBackup={withBackup}
-            delayedAudio={delayedAudio}
-            wrongContainer={wrongContainer}
-            trailingJunk={trailingJunk}
-            audioShort={audioShort}
-            seekCoarse={seekCoarse}
+            ackGroup={ackGroup}
+            libraryId={libraryId}
+            busy={busy}
           />
 
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -133,10 +130,13 @@ function SeekIndexPage() {
             items={items}
             visible={visible}
             busy={busy}
+            containerFixAvailable={containerFixAvailable}
             remuxAudioOne={remuxAudioOne}
             repairOne={repairOne}
             rollbackOne={rollbackOne}
             deleteBackup={deleteBackup}
+            fixContainerOne={fixContainerOne}
+            ackOne={ackOne}
           />
         </>
       )}
@@ -147,9 +147,9 @@ function SeekIndexPage() {
         withBackup={withBackup}
         repairable={repairable}
         repairVolumes={repairVolumes}
-        delayedAudio={delayedAudio}
-        alsoAudio={alsoAudio}
-        setAlsoAudio={setAlsoAudio}
+        breakdown={breakdown}
+        resyncDamaged={resyncDamaged}
+        setResyncDamaged={setResyncDamaged}
         keepBackups={keepBackups}
         setKeepBackups={setKeepBackups}
         repairLib={repairLib}

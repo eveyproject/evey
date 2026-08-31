@@ -12,10 +12,8 @@ type SeekIndexControlsProps = Pick<
   | "busy"
   | "result"
   | "repairable"
-  | "delayedAudio"
   | "backupsRisky"
   | "setKeepBackups"
-  | "setAlsoAudio"
   | "setConfirmBatch"
   | "withBackup"
 >;
@@ -28,10 +26,8 @@ export function SeekIndexControls({
   busy,
   result,
   repairable,
-  delayedAudio,
   backupsRisky,
   setKeepBackups,
-  setAlsoAudio,
   setConfirmBatch,
   withBackup,
 }: SeekIndexControlsProps) {
@@ -59,18 +55,19 @@ export function SeekIndexControls({
       </Button>
       {result && (
         <>
+          {/* The count IS the repairable verdict count: exactly the rows the
+              job will process, nothing hidden behind an option. */}
           <Button
             variant="secondary"
-            disabled={(repairable === 0 && delayedAudio === 0) || busy}
+            disabled={repairable === 0 || busy}
             onClick={() => {
-              // Pre-set the safe choices; the operator can still flip them.
+              // Pre-set the safe backup choice; the operator can still flip it.
               setKeepBackups(!backupsRisky);
-              setAlsoAudio(delayedAudio > 0);
               setConfirmBatch("repair");
             }}
             data-testid="seek-index-repair-all-btn"
           >
-            {t("admin.seekIndex.repairAll", { count: repairable + delayedAudio })}
+            {t("admin.seekIndex.repairAll", { count: repairable })}
           </Button>
           <Button
             variant="secondary"

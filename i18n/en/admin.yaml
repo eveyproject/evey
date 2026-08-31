@@ -1202,7 +1202,7 @@ segments:
 
 seekIndex:
   title: "Media Health"
-  description: "One read-only scan triages every MKV/WebM file: missing or unusable seek index, delayed audio, incomplete downloads, mid-file damage, mislabelled containers, trailing bytes, audio tracks ending before the credits. Repairing rebuilds the index in place (and can also fix delayed audio) and keeps the original as a .mkvgobak backup you can roll back to. Repairing the whole library is a long operation - it rewrites files and can take hours."
+  description: "A read-only scan gives every MKV/WebM file ONE verdict. Repairable here: missing or unusable seek index, corrupted stretch, delayed audio, .mkv that is really an MP4 - Repair all fixes them all in one run. Needs you: incomplete downloads (re-download the source), keyframes too sparse to seek into (re-encode or find a better source). For information: a shorter audio track (playback fills the end with silence), surplus bytes after the end (harmless). What you cannot act on, you can acknowledge - so this page tends towards zero instead of carrying the same rows for years. Every repair keeps the original as a restorable .mkvgobak backup."
   readOnlyNote: "Repairing writes to your media folders. If they are mounted read-only (:ro in docker-compose), remount them read-write and restart the containers first - scanning still works."
   alsoAudio: "Also repair delayed audio ({{count}})"
   alsoAudioHint: "Remuxes each flagged file so its audio lands back on the video. Adds time - the audio files are rewritten too."
@@ -1222,11 +1222,11 @@ seekIndex:
   statsAudioDelay: "Delayed audio"
   statsWrongContainer: "Wrong container"
   statsTrailingJunk: "Trailing bytes"
-  onlyAttention: Only show files needing attention
+  onlyAttention: "Only show what awaits an action or a look"
   emptyTitle: No scan yet
   emptyDescription: Pick a library and scan to find MKV/WebM files without a seek index.
   noEbml: No MKV/WebM files in this scope - other containers don't need a seek index.
-  allGood: Nothing needs attention - every scanned file has a seek index.
+  allGood: "Nothing awaits you - every scanned file is healthy or acknowledged."
   tableHeaders:
     file: File
     container: Container
@@ -1248,9 +1248,9 @@ seekIndex:
   damagedBadge: "Damaged ~{{size}}"
   truncatedHint: "This file is an incomplete download: its last bytes never arrived and no tool can recover them - it plays fine up to the cut, then stops. Re-acquire the source for a complete copy; no repair applies, so none is offered."
   wrongContainerBadge: "Wrong container"
-  wrongContainerHint: "This .mkv is really an MP4/MOV file: it has no Matroska index to build. Rename or remux it to .mp4 (a reindex would fail)."
+  wrongContainerHint: "This .mkv is really an MP4/MOV file: there is no Matroska index to build. Repair renames it to .mp4 and updates the library."
   trailingJunkBadge: "Trailing bytes"
-  trailingJunkHint: "Surplus bytes remain PAST the declared Segment end - the media is complete and plays fine. Harmless: any reindex (rewrite) drops them. No re-download or resync needed."
+  trailingJunkHint: "Surplus bytes lie after the declared end of the Segment - the media is complete and plays fine. Nothing to do: a rewrite for another repair drops them in passing."
   statsAudioShort: "Audio ends early"
   audioShortBadge: "Audio -{{sec}}s"
   audioShortHint: "An audio track stops {{sec}}s before the video does (silent credits on that track). The file is otherwise healthy and playback fills the missing tail with silence. Measured against where the picture actually ends, not against the container's declared duration - so an over-stated duration is never blamed on the audio. No repair can help: the audio simply is not in the file; re-acquire the source for a real fix."
@@ -1291,6 +1291,36 @@ seekIndex:
   jobReadOnlyHint: "Some files are on a read-only volume. Remount your media folders read-write (remove :ro in docker-compose) and restart the containers, then retry."
   scannedAt: "Scanned {{date}}"
   repairAllConfirmTitle: "Repair the library"
-  repairAllConfirm: "Repair {{count}} file(s) in the background? Each file is validated then swapped atomically; missing indexes are rebuilt and (if selected) delayed audio is fixed. This is a LONG operation - it rewrites files one by one and can take hours on a large library."
+  repairAllConfirm: "Repair {{count}} file(s) in the background? Missing indexes are rebuilt, delayed audio is realigned, mislabelled containers are renamed to .mp4 - every rewritten file is verified then swapped atomically. This is a LONG operation: it rewrites files and can take hours."
   rollbackAllConfirmTitle: Restore originals from backups
   rollbackAllConfirm: "Restore {{count}} file(s) from their .mkvgobak backups? This undoes prior repairs in the selected scope."
+  statsRepairable: "Repairable here"
+  statsManual: "Needs you"
+  statsInformational: "For information"
+  partMissing: "{{count}} missing index"
+  partDamaged: "{{count}} damaged"
+  partAudioDelay: "{{count}} delayed audio"
+  partWrongContainer: "{{count}} wrong container"
+  partTruncated: "{{count}} incomplete download(s)"
+  partSeekCoarse: "{{count}} coarse seeking"
+  partAudioShort: "{{count}} shorter audio track(s)"
+  partTrailingJunk: "{{count}} surplus bytes"
+  partAcked: "{{count}} acknowledged"
+  breakdownNone: "nothing"
+  verdictHealthy: "Healthy"
+  verdictRepairable: "Repairable"
+  verdictManual: "Your call"
+  verdictInformational: "Info"
+  ackBtn: "Seen, stop flagging"
+  unackBtn: "Flag again"
+  ackGroupBtn: "Mark all as seen ({{count}})"
+  ackedBadge: "Seen"
+  ackDone: "Marked as seen - it stays out of the list until the file changes"
+  unackDone: "Flagged again"
+  ackGroupDone: "{{count}} file(s) marked as seen"
+  fixContainerBtn: "Rename to .mp4"
+  fixContainerHint: "This .mkv is really an MP4/MOV: the server renames it to .mp4 and updates the library entry. Nothing is rewritten."
+  fixContainerStarted: "Rename started in the background - progress below"
+  jobFixContainer: "Container fix"
+  resyncDamaged: "Also resync {{count}} damaged file(s) (~{{bytes}} lost)"
+  resyncDamagedHint: "Their index is fine but a corrupted stretch makes them unplayable. Resync skips it - those bytes are lost for good - and always keeps the original as a backup, whatever the choice below."

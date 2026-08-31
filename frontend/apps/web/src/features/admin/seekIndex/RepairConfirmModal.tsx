@@ -12,9 +12,9 @@ type RepairConfirmModalProps = Pick<
   | "withBackup"
   | "repairable"
   | "repairVolumes"
-  | "delayedAudio"
-  | "alsoAudio"
-  | "setAlsoAudio"
+  | "breakdown"
+  | "resyncDamaged"
+  | "setResyncDamaged"
   | "keepBackups"
   | "setKeepBackups"
   | "repairLib"
@@ -29,9 +29,9 @@ export function RepairConfirmModal({
   withBackup,
   repairable,
   repairVolumes,
-  delayedAudio,
-  alsoAudio,
-  setAlsoAudio,
+  breakdown,
+  resyncDamaged,
+  setResyncDamaged,
   keepBackups,
   setKeepBackups,
   repairLib,
@@ -40,6 +40,11 @@ export function RepairConfirmModal({
   libraryId,
 }: RepairConfirmModalProps) {
   const { t } = useTranslation();
+  // The damaged files are the one repair that LOSES bytes: asked explicitly,
+  // with the count and the bytes, and left out of the count when declined so
+  // the dialog never promises more than the job will do.
+  const hasDamaged = breakdown.damaged > 0;
+  const willRepair = repairable - (hasDamaged && !resyncDamaged ? breakdown.damaged : 0);
 
   return (
     <Modal
@@ -53,12 +58,12 @@ export function RepairConfirmModal({
             : t("admin.seekIndex.repairAllConfirmTitle")
       }
     >
-      <p className="text-sm text-[var(--text-muted)] mb-4">
+      <p className="text-sm text-[var(--text-muted)] mb-4" data-testid="seek-index-confirm-text">
         {confirmBatch === "rollback"
           ? t("admin.seekIndex.rollbackAllConfirm", { count: withBackup })
           : confirmBatch === "purge"
             ? t("admin.seekIndex.purgeAllConfirm", { count: withBackup })
-            : t("admin.seekIndex.repairAllConfirm", { count: repairable })}
+            : t("admin.seekIndex.repairAllConfirm", { count: willRepair })}
       </p>
       {confirmBatch === "repair" && repairVolumes.length > 0 && (
         <ul className="mb-4 flex flex-col gap-1" data-testid="seek-index-volumes">
@@ -90,17 +95,18 @@ export function RepairConfirmModal({
       )}
       {confirmBatch === "repair" && (
         <div className="mb-4 flex flex-col gap-3">
-          {delayedAudio > 0 && (
+          {hasDamaged && (
             <div>
               <Checkbox
-                label={t("admin.seekIndex.alsoAudio", { count: delayedAudio })}
-                checked={alsoAudio}
-                onChange={setAlsoAudio}
-                data-testid="seek-index-also-audio"
+                label={t("admin.seekIndex.resyncDamaged", {
+                  count: breakdown.damaged,
+                  bytes: formatBytes(breakdown.damagedBytes),
+                })}
+                checked={resyncDamaged}
+                onChange={setResyncDamaged}
+                data-testid="seek-index-resync-damaged"
               />
-              <p className="mt-1 text-xs text-muted-foreground">
-                {t("admin.seekIndex.alsoAudioHint")}
-              </p>
+              <p className="mt-1 text-xs text-muted-foreground">{t("admin.seekIndex.resyncDamagedHint")}</p>
             </div>
           )}
           <div>
@@ -135,9 +141,9 @@ export function RepairConfirmModal({
                 data: {
                   ...(libraryId ? { libraryId } : {}),
                   mode: "auto",
-                  includeAudio: alsoAudio,
                   deepVerify: !keepBackups,
                   ...(keepBackups ? {} : { backupWindow: SEEK_INDEX_BACKUP_WINDOW }),
+                  ...(hasDamaged && resyncDamaged ? { resyncDamaged: true } : {}),
                 },
               });
             setConfirmBatch(null);
