@@ -1204,8 +1204,6 @@ seekIndex:
   title: "Media Health"
   description: "A read-only scan gives every MKV/WebM file ONE verdict. Repairable here: missing or unusable seek index, corrupted stretch, delayed audio, .mkv that is really an MP4 - Repair all fixes them all in one run. Needs you: incomplete downloads (re-download the source), keyframes too sparse to seek into (re-encode or find a better source). For information: a shorter audio track (playback fills the end with silence), surplus bytes after the end (harmless). What you cannot act on, you can acknowledge - so this page tends towards zero instead of carrying the same rows for years. Every repair keeps the original as a restorable .mkvgobak backup."
   readOnlyNote: "Repairing writes to your media folders. If they are mounted read-only (:ro in docker-compose), remount them read-write and restart the containers first - scanning still works."
-  alsoAudio: "Also repair delayed audio ({{count}})"
-  alsoAudioHint: "Remuxes each flagged file so its audio lands back on the video. Adds time - the audio files are rewritten too."
   keepBackups: "Keep backups"
   keepBackupsHint: "A .mkvgobak of every repaired file survives the job so you can roll back anytime - costs one extra copy per file on disk."
   keepBackupsOffHint: "No backup is left behind: only the last {{n}} are kept during the run and removed at the end, and each repair is deep-verified in exchange. Choose this on a tight disk."

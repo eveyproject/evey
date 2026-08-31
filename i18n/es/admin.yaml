@@ -1204,8 +1204,6 @@ seekIndex:
   title: "Salud de los medios"
   description: "Un análisis de solo lectura da a cada archivo MKV/WebM UN veredicto. Reparable aquí: índice de búsqueda ausente o inutilizable, zona corrupta, audio desplazado, .mkv que en realidad es MP4 - «Reparar todo» los trata en una sola pasada. Te toca a ti: descargas incompletas (volver a descargar la fuente), fotogramas clave demasiado espaciados para buscar (recodificar o buscar mejor fuente). Para información: una pista de audio más corta (la reproducción rellena el final con silencio), bytes sobrantes tras el final (inofensivos). Lo que no puedes cambiar, puedes darlo por visto - para que esta página tienda a cero en vez de arrastrar las mismas filas durante años. Cada reparación conserva el original como copia .mkvgobak restaurable."
   readOnlyNote: "La reparación escribe en tus carpetas de medios. Si están montadas en solo lectura (:ro en docker-compose), móntalas con escritura y reinicia los contenedores primero - el análisis sí funciona."
-  alsoAudio: "Reparar también el audio retrasado ({{count}})"
-  alsoAudioHint: "Remultiplexa cada archivo marcado para realinear su audio con el vídeo. Añade tiempo: los archivos de audio también se reescriben."
   keepBackups: "Conservar copias de seguridad"
   keepBackupsHint: "Un .mkvgobak de cada archivo reparado sobrevive al trabajo para poder revertir en cualquier momento; cuesta una copia extra por archivo en el disco."
   keepBackupsOffHint: "No queda ninguna copia: solo se conservan las últimas {{n}} durante el trabajo y se eliminan al final, y a cambio cada reparación se verifica en profundidad. Elígelo si el disco va justo."

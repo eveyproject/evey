@@ -1203,8 +1203,6 @@ seekIndex:
   title: "Santé des médias"
   description: "Une analyse en lecture seule donne à chaque fichier MKV/WebM UN verdict. Réparable ici : index de lecture absent ou inutilisable, zone corrompue, audio décalé, .mkv qui est en fait un MP4 - « Tout réparer » les traite tous en une passe. À ta main : téléchargements incomplets (re-télécharger la source), images-clés trop espacées pour une recherche précise (ré-encoder ou trouver une meilleure source). Pour information : une piste audio plus courte (la lecture comble la fin en silence), des octets excédentaires après la fin (inoffensifs). Ce sur quoi tu ne peux rien, tu peux l'acquitter - pour que cette page tende vers zéro au lieu de traîner les mêmes lignes pendant des années. Chaque réparation conserve l'original en sauvegarde .mkvgobak restaurable."
   readOnlyNote: "La réparation écrit dans tes dossiers médias. S'ils sont montés en lecture seule (:ro dans docker-compose), remonte-les en lecture-écriture et redémarre les conteneurs d'abord - l'analyse, elle, fonctionne."
-  alsoAudio: "Réparer aussi l'audio décalé ({{count}})"
-  alsoAudioHint: "Remuxe chaque fichier signalé pour recaler son audio sur la vidéo. Ajoute du temps - les fichiers audio sont aussi réécrits."
   keepBackups: "Conserver les sauvegardes"
   keepBackupsHint: "Un .mkvgobak de chaque fichier réparé subsiste après la tâche pour un retour arrière à tout moment - coûte une copie supplémentaire par fichier sur le disque."
   keepBackupsOffHint: "Aucune sauvegarde n'est conservée : seules les {{n}} dernières sont gardées pendant la tâche puis supprimées à la fin, et chaque réparation est vérifiée en profondeur en échange. À choisir si le disque est juste."

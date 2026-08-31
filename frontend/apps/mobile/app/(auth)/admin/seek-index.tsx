@@ -16,31 +16,67 @@ import {
   useAdminMediaServiceRemuxAudioMedia,
   useAdminMediaServiceDeleteSeekIndexBackup,
   useAdminMediaServicePurgeSeekIndexBackups,
+  useAdminMediaServiceAckSeekIndexMedia,
+  useAdminMediaServiceAckSeekIndexGroup,
+  useAdminMediaServiceFixContainerMedia,
 } from "@evey/api";
-import type { V1GetSeekIndexJobResponse } from "@evey/api";
+import type { V1GetSeekIndexJobResponse, SeekView } from "@evey/api";
 import { toast } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import {
-  audioDelayed,
   baseName,
   errText,
-  repairableCount,
+  triageOf,
+  triageRows,
+  verdictOf,
+  viewCounts,
   volumeBackupsRisky,
   SEEK_INDEX_BACKUP_WINDOW,
   SEEK_INDEX_SCAN_QUERY_BASE,
   SEEK_INDEX_KIND_KEYS,
+  SEEK_VIEWS,
 } from "@evey/api";
 import { SeekIndexItemRow } from "../../../src/components/admin/seekIndex/SeekIndexItemRow";
 import { RepairConfirmModal, type BatchKind } from "../../../src/components/admin/seekIndex/RepairConfirmModal";
 
-function StatChip({ label, value, theme }: { label: string; value: number; theme: ReturnType<typeof useTheme> }) {
+// One card per verdict (same triage as the web grid): the number, what it is
+// made of, and - for what nobody can repair - the button that acknowledges it.
+function StatChip({
+  label,
+  value,
+  detail,
+  action,
+  theme,
+}: {
+  label: string;
+  value: number;
+  detail?: string;
+  action?: { label: string; onPress: () => void; disabled: boolean };
+  theme: ReturnType<typeof useTheme>;
+}) {
   return (
     <View style={[styles.statChip, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}>
       <Text style={[styles.statValue, { color: theme.colors.text }]}>{value}</Text>
       <Text style={[styles.statLabel, { color: theme.colors.textMuted }]}>{label}</Text>
+      {detail ? <Text style={[styles.statDetail, { color: theme.colors.textMuted }]}>{detail}</Text> : null}
+      {action && value > 0 ? (
+        <Pressable disabled={action.disabled} onPress={action.onPress} style={{ marginTop: 6, opacity: action.disabled ? 0.6 : 1 }}>
+          <Text style={{ color: theme.colors.accent, fontSize: 11, fontWeight: "600" }}>{action.label}</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
+
+const VIEW_KEYS: Record<SeekView, string> = {
+  attention: "admin.seekIndex.viewAttention",
+  repairable: "admin.seekIndex.viewRepairable",
+  manual: "admin.seekIndex.viewManual",
+  informational: "admin.seekIndex.viewInformational",
+  acked: "admin.seekIndex.viewAcked",
+  backups: "admin.seekIndex.viewBackups",
+  all: "admin.seekIndex.viewAll",
+};
 
 function JobProgressCard({ job, theme }: { job: V1GetSeekIndexJobResponse; theme: ReturnType<typeof useTheme> }) {
   const { t } = useTranslation();
@@ -123,14 +159,16 @@ export default function AdminSeekIndexScreen() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [libraryId, setLibraryId] = useState("");
-  const [onlyAttention, setOnlyAttention] = useState(true);
+  // The displayed rows: one view (what awaits attention by default), sorted by
+  // priority - the same pipeline as the web page (triageRows).
+  const [view, setView] = useState<SeekView>("attention");
   const [confirmBatch, setConfirmBatch] = useState<BatchKind | null>(null);
-  // keepBackups/alsoAudio mirror the web modal: strategy is always "auto", the
-  // operator only picks whether backups survive the run and whether delayed
-  // audio is folded into the same job. Pre-set from live scan data when the
-  // dialog opens (see openRepairAll below).
+  // keepBackups/resyncDamaged mirror the web modal: strategy is always "auto",
+  // "repair all" repairs every repairable verdict, and the operator only picks
+  // whether backups survive the run and whether the lossy resync of damaged
+  // files is part of it. Pre-set when the dialog opens (see openRepairAll).
   const [keepBackups, setKeepBackups] = useState(true);
-  const [alsoAudio, setAlsoAudio] = useState(true);
+  const [resyncDamaged, setResyncDamaged] = useState(true);
 
   const { data: libData } = useLibraryServiceListLibraries();
   const libraries = libData?.libraries ?? [];
@@ -147,15 +185,32 @@ export default function AdminSeekIndexScreen() {
   const hasScan = Number(scan.data?.scannedAtMs ?? 0) > 0;
   const result = hasScan ? scan.data : undefined;
   const items = result?.items ?? [];
-  const missing = result?.missingIndex ?? 0;
   const withBackup = result?.withBackup ?? 0;
-  const delayedAudio = result?.audioDelayed ?? 0;
-  const wrongContainer = result?.wrongContainer ?? 0;
-  const trailingJunk = result?.trailingJunk ?? 0;
-  const audioShort = result?.audioShort ?? 0;
-  const seekCoarse = result?.seekCoarse ?? 0;
-  // What "Repair all" actually acts on - see repairableCount's doc comment.
-  const repairable = repairableCount(items);
+  const containerFixAvailable = result?.containerFixAvailable ?? false;
+  // The triage is derived from the very rows the list shows, so the cards, the
+  // button and the rows can never disagree.
+  const triage = triageOf(items);
+  const repairable = triage.repairable;
+  const counts = viewCounts(items);
+  const repairableRows = items.filter((it) => verdictOf(it) === "repairable");
+  const damagedRows = repairableRows.filter((it) => it.hasIndex && Number(it.damagedBytes ?? 0) > 0);
+  const damagedBytes = damagedRows.reduce((sum, it) => sum + Number(it.damagedBytes ?? 0), 0);
+  const detail = (parts: [number, string][]) =>
+    parts.filter(([n]) => n > 0).map(([n, key]) => t(key, { count: n })).join(" · ") || undefined;
+  const repairableDetail = detail([
+    [repairableRows.filter((it) => !it.hasIndex).length, "admin.seekIndex.partMissing"],
+    [damagedRows.length, "admin.seekIndex.partDamaged"],
+    [repairableRows.filter((it) => (it.audioDelaySec ?? 0) > 0.1).length, "admin.seekIndex.partAudioDelay"],
+    [items.filter((it) => it.wrongContainer).length, "admin.seekIndex.partWrongContainer"],
+  ]);
+  const manualDetail = detail([
+    [items.filter((it) => it.truncated && !it.ackedAtMs).length, "admin.seekIndex.partTruncated"],
+    [items.filter((it) => it.seekCoarse && !it.truncated && !it.ackedAtMs).length, "admin.seekIndex.partSeekCoarse"],
+  ]);
+  const infoDetail = detail([
+    [items.filter((it) => verdictOf(it) === "informational" && (it.audioShortfallSec ?? 0) > 0 && !it.ackedAtMs).length, "admin.seekIndex.partAudioShort"],
+    [items.filter((it) => verdictOf(it) === "informational" && it.trailingJunk && !it.ackedAtMs).length, "admin.seekIndex.partTrailingJunk"],
+  ]);
   const repairVolumes = (result?.volumes ?? []).filter((v) => (v.missingFiles ?? 0) > 0);
   const backupsRisky = repairVolumes.some(volumeBackupsRisky);
 
@@ -220,25 +275,38 @@ export default function AdminSeekIndexScreen() {
   const purgeLib = useAdminMediaServicePurgeSeekIndexBackups({
     mutation: { onSuccess: onStarted("admin.seekIndex.purgeStarted"), onError: onStartError },
   });
+  const fixContainerOne = useAdminMediaServiceFixContainerMedia({
+    mutation: { onSuccess: onStarted("admin.seekIndex.fixContainerStarted"), onError: onStartError },
+  });
+  // Acknowledging is the operator saying "seen, nothing to do here": the row
+  // leaves the attention list until the file's bytes change.
+  const ackOne = useAdminMediaServiceAckSeekIndexMedia({
+    mutation: {
+      onSuccess: (_res, vars) => {
+        toast.success(t(vars.data.acked ? "admin.seekIndex.ackDone" : "admin.seekIndex.unackDone"));
+        void queryClient.invalidateQueries({ queryKey: [SEEK_INDEX_SCAN_QUERY_BASE] });
+      },
+      onError: onStartError,
+    },
+  });
+  const ackGroup = useAdminMediaServiceAckSeekIndexGroup({
+    mutation: {
+      onSuccess: (res) => {
+        toast.success(t("admin.seekIndex.ackGroupDone", { count: res.acked ?? 0 }));
+        void queryClient.invalidateQueries({ queryKey: [SEEK_INDEX_SCAN_QUERY_BASE] });
+      },
+      onError: onStartError,
+    },
+  });
+  const ackAll = (verdict: "manual" | "informational") => ackGroup.mutate({ data: { ...(libraryId ? { libraryId } : {}), verdict } });
 
-  const visible = onlyAttention
-    ? items.filter(
-        (it) =>
-          !it.hasIndex ||
-          it.hasBackup ||
-          audioDelayed(it) ||
-          it.wrongContainer ||
-          it.truncated ||
-          Number(it.damagedBytes ?? 0) > 0 ||
-          (it.audioShortfallSec ?? 0) > 0,
-      )
-    : items;
+  const visible = triageRows(items, view, "", "priority");
   const busy = running || startScan.isPending;
 
   function openRepairAll() {
     // Pre-set the safe choices; the operator can still flip them in the modal.
     setKeepBackups(!backupsRisky);
-    setAlsoAudio(delayedAudio > 0);
+    setResyncDamaged(true);
     setConfirmBatch("repair");
   }
 
@@ -252,9 +320,9 @@ export default function AdminSeekIndexScreen() {
         data: {
           ...(libraryId ? { libraryId } : {}),
           mode: "auto",
-          includeAudio: alsoAudio,
           deepVerify: !keepBackups,
           ...(keepBackups ? {} : { backupWindow: SEEK_INDEX_BACKUP_WINDOW }),
+          ...(damagedRows.length > 0 && resyncDamaged ? { resyncDamaged: true } : {}),
         },
       });
     }
@@ -279,15 +347,20 @@ export default function AdminSeekIndexScreen() {
             item={item}
             theme={theme}
             busy={busy}
+            containerFixAvailable={containerFixAvailable}
             onRepair={(mediaId) => repairOne.mutate({ mediaId, data: { mode: "auto" } })}
             onRepairResync={(mediaId) => repairOne.mutate({ mediaId, data: { resync: true } })}
             onRollback={(mediaId) => rollbackOne.mutate({ mediaId })}
             onRemuxAudio={(mediaId) => remuxAudioOne.mutate({ mediaId })}
+            onFixContainer={(mediaId) => fixContainerOne.mutate({ mediaId })}
+            onAck={(mediaId, acked) => ackOne.mutate({ data: { mediaId, acked } })}
             onDeleteBackup={(mediaId) => deleteBackup.mutate({ data: { mediaId } })}
             repairPending={repairOne.isPending && repairOne.variables?.mediaId === item.mediaId && !repairOne.variables?.data?.resync}
             repairResyncPending={repairOne.isPending && repairOne.variables?.mediaId === item.mediaId && repairOne.variables?.data?.resync === true}
             rollbackPending={rollbackOne.isPending && rollbackOne.variables?.mediaId === item.mediaId}
             remuxAudioPending={remuxAudioOne.isPending && remuxAudioOne.variables?.mediaId === item.mediaId}
+            fixContainerPending={fixContainerOne.isPending && fixContainerOne.variables?.mediaId === item.mediaId}
+            ackPending={ackOne.isPending && ackOne.variables?.data?.mediaId === item.mediaId}
             deleteBackupPending={deleteBackup.isPending && deleteBackup.variables?.data?.mediaId === item.mediaId}
           />
         )}
@@ -335,10 +408,10 @@ export default function AdminSeekIndexScreen() {
                   </Text>
                 )}
               </Pressable>
-              {result && (repairable > 0 || delayedAudio > 0) && (
+              {result && repairable > 0 && (
                 <Pressable disabled={busy} onPress={openRepairAll} style={[styles.smallBtn, { backgroundColor: theme.colors.bg, opacity: busy ? 0.6 : 1 }]}>
                   <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: "600" }}>
-                    {t("admin.seekIndex.repairAll", { count: repairable + delayedAudio })}
+                    {t("admin.seekIndex.repairAll", { count: repairable })}
                   </Text>
                 </Pressable>
               )}
@@ -369,29 +442,50 @@ export default function AdminSeekIndexScreen() {
               <>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
                   <StatChip label={t("admin.seekIndex.statsInspected")} value={result.total ?? 0} theme={theme} />
-                  <StatChip label={t("admin.seekIndex.statsMissing")} value={missing} theme={theme} />
-                  <StatChip label={t("admin.seekIndex.statsBackup")} value={withBackup} theme={theme} />
-                  <StatChip label={t("admin.seekIndex.statsAudioDelay")} value={delayedAudio} theme={theme} />
-                  {wrongContainer > 0 && <StatChip label={t("admin.seekIndex.statsWrongContainer")} value={wrongContainer} theme={theme} />}
-                  {trailingJunk > 0 && <StatChip label={t("admin.seekIndex.statsTrailingJunk")} value={trailingJunk} theme={theme} />}
-                  {audioShort > 0 && <StatChip label={t("admin.seekIndex.statsAudioShort")} value={audioShort} theme={theme} />}
-                  {seekCoarse > 0 && <StatChip label={t("admin.seekIndex.statsSeekCoarse")} value={seekCoarse} theme={theme} />}
+                  <StatChip label={t("admin.seekIndex.statsRepairable")} value={triage.repairable} detail={repairableDetail} theme={theme} />
+                  <StatChip
+                    label={t("admin.seekIndex.statsManual")}
+                    value={triage.manual}
+                    detail={manualDetail}
+                    action={{ label: t("admin.seekIndex.ackGroupBtn", { count: triage.manual }), onPress: () => ackAll("manual"), disabled: busy || ackGroup.isPending }}
+                    theme={theme}
+                  />
+                  <StatChip
+                    label={t("admin.seekIndex.statsInformational")}
+                    value={triage.informational}
+                    detail={infoDetail}
+                    action={{ label: t("admin.seekIndex.ackGroupBtn", { count: triage.informational }), onPress: () => ackAll("informational"), disabled: busy || ackGroup.isPending }}
+                    theme={theme}
+                  />
+                  <StatChip
+                    label={t("admin.seekIndex.statsBackup")}
+                    value={withBackup}
+                    detail={triage.acked > 0 ? t("admin.seekIndex.partAcked", { count: triage.acked }) : undefined}
+                    theme={theme}
+                  />
                 </ScrollView>
 
-                <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                  <Pressable
-                    onPress={() => setOnlyAttention((v) => !v)}
-                    style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
-                    accessibilityRole="checkbox"
-                    accessibilityState={{ checked: onlyAttention }}
-                  >
-                    <Ionicons name={onlyAttention ? "checkbox" : "square-outline"} size={20} color={onlyAttention ? theme.colors.accent : theme.colors.textMuted} />
-                    <Text style={{ color: theme.colors.text, fontSize: 13 }}>{t("admin.seekIndex.onlyAttention")}</Text>
-                  </Pressable>
-                  <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>
-                    {t("admin.seekIndex.scannedAt", { date: new Date(Number(result.scannedAtMs)).toLocaleString() })}
-                  </Text>
-                </View>
+                {/* The views: one chip per verdict with its live count, plus
+                    acknowledged / backups / all - what the single "attention"
+                    checkbox could not say it was hiding. */}
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                  {SEEK_VIEWS.map((v) => (
+                    <Pressable
+                      key={v}
+                      onPress={() => setView(v)}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: view === v }}
+                      style={[styles.filterChip, { backgroundColor: view === v ? theme.colors.accent : theme.colors.surfaceRaised, borderRadius: theme.radii.md }]}
+                    >
+                      <Text style={{ color: view === v ? theme.colors.onAccent : theme.colors.textMuted, fontSize: 13, fontWeight: "600" }}>
+                        {t(VIEW_KEYS[v], { count: counts[v] })}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+                <Text style={{ color: theme.colors.textMuted, fontSize: 11, textAlign: "right" }}>
+                  {t("admin.seekIndex.scannedAt", { date: new Date(Number(result.scannedAtMs)).toLocaleString() })}
+                </Text>
               </>
             )}
           </View>
@@ -410,7 +504,7 @@ export default function AdminSeekIndexScreen() {
           ) : (
             <View style={{ alignItems: "center", paddingTop: 40 }}>
               <Text style={{ color: theme.colors.textMuted }}>
-                {items.length === 0 ? t("admin.seekIndex.noEbml") : t("admin.seekIndex.allGood")}
+                {items.length === 0 ? t("admin.seekIndex.noEbml") : view === "attention" ? t("admin.seekIndex.allGood") : t("admin.seekIndex.noneInView")}
               </Text>
             </View>
           )
@@ -425,12 +519,13 @@ export default function AdminSeekIndexScreen() {
         pending={repairLib.isPending || rollbackLib.isPending || purgeLib.isPending}
         repairableCount={repairable}
         withBackupCount={withBackup}
-        delayedAudioCount={delayedAudio}
+        damagedCount={damagedRows.length}
+        damagedBytes={damagedBytes}
         volumes={repairVolumes}
         keepBackups={keepBackups}
         setKeepBackups={setKeepBackups}
-        alsoAudio={alsoAudio}
-        setAlsoAudio={setAlsoAudio}
+        resyncDamaged={resyncDamaged}
+        setResyncDamaged={setResyncDamaged}
       />
     </View>
   );
@@ -438,9 +533,10 @@ export default function AdminSeekIndexScreen() {
 
 const styles = StyleSheet.create({
   card: { padding: 12 },
-  statChip: { padding: 12, minWidth: 80, alignItems: "center" },
+  statChip: { padding: 12, minWidth: 96, maxWidth: 180, alignItems: "center" },
   statValue: { fontSize: 20, fontWeight: "700" },
   statLabel: { fontSize: 11, textAlign: "center" },
+  statDetail: { fontSize: 10, textAlign: "center", marginTop: 2 },
   filterChip: { paddingHorizontal: 12, paddingVertical: 8 },
   smallBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, alignItems: "center", justifyContent: "center", minWidth: 70 },
   badge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 },

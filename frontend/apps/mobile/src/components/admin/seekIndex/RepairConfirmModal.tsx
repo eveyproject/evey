@@ -45,12 +45,13 @@ export function RepairConfirmModal({
   pending,
   repairableCount,
   withBackupCount,
-  delayedAudioCount,
+  damagedCount,
+  damagedBytes,
   volumes,
   keepBackups,
   setKeepBackups,
-  alsoAudio,
-  setAlsoAudio,
+  resyncDamaged,
+  setResyncDamaged,
 }: {
   theme: Theme;
   batch: BatchKind | null;
@@ -59,15 +60,19 @@ export function RepairConfirmModal({
   pending: boolean;
   repairableCount: number;
   withBackupCount: number;
-  delayedAudioCount: number;
+  // The damaged files are the one repair that LOSES bytes: asked explicitly,
+  // with the count and the bytes, and left out of the promise when declined.
+  damagedCount: number;
+  damagedBytes: number;
   volumes: V1SeekIndexVolume[];
   keepBackups: boolean;
   setKeepBackups: (v: boolean) => void;
-  alsoAudio: boolean;
-  setAlsoAudio: (v: boolean) => void;
+  resyncDamaged: boolean;
+  setResyncDamaged: (v: boolean) => void;
 }) {
   const { t } = useTranslation();
   if (!batch) return null;
+  const willRepair = repairableCount - (damagedCount > 0 && !resyncDamaged ? damagedCount : 0);
 
   const title =
     batch === "rollback"
@@ -81,7 +86,7 @@ export function RepairConfirmModal({
       ? t("admin.seekIndex.rollbackAllConfirm", { count: withBackupCount })
       : batch === "purge"
         ? t("admin.seekIndex.purgeAllConfirm", { count: withBackupCount })
-        : t("admin.seekIndex.repairAllConfirm", { count: repairableCount });
+        : t("admin.seekIndex.repairAllConfirm", { count: willRepair });
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
@@ -118,12 +123,12 @@ export function RepairConfirmModal({
 
           {batch === "repair" && (
             <View style={{ marginBottom: 6 }}>
-              {delayedAudioCount > 0 && (
+              {damagedCount > 0 && (
                 <CheckRow
-                  label={t("admin.seekIndex.alsoAudio", { count: delayedAudioCount })}
-                  hint={t("admin.seekIndex.alsoAudioHint")}
-                  checked={alsoAudio}
-                  onToggle={() => setAlsoAudio(!alsoAudio)}
+                  label={t("admin.seekIndex.resyncDamaged", { count: damagedCount, bytes: formatBytes(damagedBytes) })}
+                  hint={t("admin.seekIndex.resyncDamagedHint")}
+                  checked={resyncDamaged}
+                  onToggle={() => setResyncDamaged(!resyncDamaged)}
                   theme={theme}
                 />
               )}

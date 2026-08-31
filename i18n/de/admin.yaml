@@ -1204,8 +1204,6 @@ seekIndex:
   title: "Medienzustand"
   description: "Eine schreibgeschützte Analyse gibt jeder MKV/WebM-Datei EIN Urteil. Hier reparierbar: fehlender oder unbrauchbarer Sprungindex, beschädigter Abschnitt, versetztes Audio, .mkv, die eigentlich MP4 ist - „Alles reparieren“ behandelt sie alle in einem Durchgang. Braucht dich: unvollständige Downloads (Quelle erneut laden), zu weit auseinanderliegende Keyframes (neu kodieren oder bessere Quelle). Zur Information: eine kürzere Tonspur (die Wiedergabe füllt das Ende mit Stille), überschüssige Bytes nach dem Ende (harmlos). Was du nicht ändern kannst, kannst du bestätigen - damit diese Seite gegen null geht, statt jahrelang dieselben Zeilen mitzuschleppen. Jede Reparatur behält das Original als wiederherstellbare .mkvgobak-Sicherung."
   readOnlyNote: "Die Reparatur schreibt in deine Medienordner. Sind sie schreibgeschützt eingebunden (:ro in docker-compose), binde sie zuerst beschreibbar ein und starte die Container neu - der Scan funktioniert trotzdem."
-  alsoAudio: "Auch verzögertes Audio reparieren ({{count}})"
-  alsoAudioHint: "Remuxt jede markierte Datei, damit ihr Audio wieder zum Video passt. Kostet Zeit - die Audiodateien werden ebenfalls neu geschrieben."
   keepBackups: "Sicherungen behalten"
   keepBackupsHint: "Ein .mkvgobak jeder reparierten Datei bleibt nach dem Auftrag erhalten, sodass du jederzeit zurückrollen kannst - kostet eine zusätzliche Kopie pro Datei auf der Festplatte."
   keepBackupsOffHint: "Keine Sicherung bleibt zurück: Nur die letzten {{n}} bleiben während des Laufs erhalten und werden am Ende entfernt, dafür wird jede Reparatur tief verifiziert. Bei knappem Speicher wählen."
