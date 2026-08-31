@@ -18,15 +18,11 @@ import { FocusableCard } from "../../../src/components/FocusableCard";
 import { useMusicQueueStore, type QueueTrack } from "../../../src/stores/musicQueue";
 import { musicAlbumHref, musicArtistHref } from "../../../src/lib/musicRoutes";
 import { CARD_WIDTH_GRID } from "../../../src/lib/tvLayout";
+import { coverArtUri } from "../../../src/lib/artwork";
 
 const CARD_WIDTH = CARD_WIDTH_GRID;
 const ART_SIZE = CARD_WIDTH;
 const TRACKS_QUERY_LIMIT = 100;
-
-function coverUri(serverUrl: string, coverArtUrl?: string): string | undefined {
-  if (!coverArtUrl) return undefined;
-  return /^https?:/i.test(coverArtUrl) ? coverArtUrl : `${serverUrl}${coverArtUrl}`;
-}
 
 function trackToQueueTrack(t: V1Track): QueueTrack {
   return {
@@ -74,7 +70,7 @@ function ArtistCard({
   libraryId: string;
 }) {
   const theme = useTheme();
-  const uri = coverUri(serverUrl, artist.coverArtUrl);
+  const uri = coverArtUri(serverUrl, artist.coverArtUrl, ART_SIZE * 2);
   return (
     <FocusableCard
       onPress={() => artist.id && router.push(musicArtistHref(artist.id, libraryId))}
@@ -121,7 +117,7 @@ function AlbumCard({
   libraryId: string;
 }) {
   const theme = useTheme();
-  const uri = coverUri(serverUrl, album.coverArtUrl);
+  const uri = coverArtUri(serverUrl, album.coverArtUrl, ART_SIZE * 2);
   return (
     <FocusableCard
       onPress={() => album.id && router.push(musicAlbumHref(album.id, libraryId))}
@@ -168,7 +164,7 @@ function TrackCard({
   onPress: () => void;
 }) {
   const theme = useTheme();
-  const uri = coverUri(serverUrl, track.coverArtUrl);
+  const uri = coverArtUri(serverUrl, track.coverArtUrl, ART_SIZE * 2);
   return (
     <FocusableCard
       onPress={onPress}

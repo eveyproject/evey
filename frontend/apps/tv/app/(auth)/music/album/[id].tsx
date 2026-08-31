@@ -10,11 +10,9 @@ import { useAuthHeaders } from "../../../../src/hooks/useAuthenticatedImage";
 import { FocusableCard } from "../../../../src/components/FocusableCard";
 import { ScreenState } from "../../../../src/components/ScreenState";
 import { useMusicQueueStore, type QueueTrack } from "../../../../src/stores/musicQueue";
+import { coverArtUri } from "../../../../src/lib/artwork";
 
-function coverUri(serverUrl: string, coverArtUrl?: string): string | undefined {
-  if (!coverArtUrl) return undefined;
-  return /^https?:/i.test(coverArtUrl) ? coverArtUrl : `${serverUrl}${coverArtUrl}`;
-}
+const ALBUM_ART_SIZE = 160;
 
 function trackToQueueTrack(t: V1Track): QueueTrack {
   return {
@@ -53,7 +51,7 @@ export default function AlbumDetailScreen() {
   const items = tracks ?? [];
   const albumTitle = items[0]?.album || albumId;
   const albumArtist = items[0]?.artist || "";
-  const albumArt = coverUri(serverUrl, items[0]?.coverArtUrl);
+  const albumArt = coverArtUri(serverUrl, items[0]?.coverArtUrl, ALBUM_ART_SIZE * 2);
 
   function handlePlayTrack(index: number) {
     setQueue(items.map(trackToQueueTrack), index);
@@ -84,7 +82,7 @@ export default function AlbumDetailScreen() {
                 {albumArt ? (
                   <Image
                     source={{ uri: albumArt, headers: authHeaders }}
-                    style={{ width: 160, height: 160, borderRadius: theme.radii.sm }}
+                    style={{ width: ALBUM_ART_SIZE, height: ALBUM_ART_SIZE, borderRadius: theme.radii.sm }}
                     contentFit="cover"
                     transition={200}
                   />
@@ -148,7 +146,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, justifyContent: "center", alignItems: "center", paddingTop: 80 },
   albumHeader: { flexDirection: "row", alignItems: "center", marginBottom: 24 },
-  albumArt: { width: 160, height: 160, justifyContent: "center", alignItems: "center", overflow: "hidden" },
+  albumArt: { width: ALBUM_ART_SIZE, height: ALBUM_ART_SIZE, justifyContent: "center", alignItems: "center", overflow: "hidden" },
   albumTitle: { fontSize: 28, fontWeight: "700" },
   albumArtist: { fontSize: 18, marginTop: 6 },
   trackRow: { flexDirection: "row", alignItems: "center", paddingVertical: 14, paddingHorizontal: 16 },

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { artworkUrl } from "./artwork";
+import { artworkUrl, coverArtUri } from "./artwork";
 
 describe("artworkUrl", () => {
   it("builds poster artwork URL by default", () => {
@@ -45,5 +45,33 @@ describe("artworkUrl", () => {
     expect(artworkUrl("https://evey.test", "m5", "backdrop")).toBe(
       "https://evey.test/api/v1/media/m5/artwork/backdrop",
     );
+  });
+});
+
+describe("coverArtUri", () => {
+  it("returns undefined without art", () => {
+    expect(coverArtUri("http://srv", undefined)).toBeUndefined();
+    expect(coverArtUri("http://srv", "")).toBeUndefined();
+  });
+
+  it("prefixes a server path and asks the server for the display width", () => {
+    expect(coverArtUri("http://srv", "/api/v1/music/albums/al-1/art", 160)).toBe(
+      "http://srv/api/v1/music/albums/al-1/art?w=160",
+    );
+  });
+
+  it("extends an existing query string instead of clobbering it", () => {
+    expect(coverArtUri("http://srv", "/api/v1/music/albums/al-1/art?token=abc", 160)).toBe(
+      "http://srv/api/v1/music/albums/al-1/art?token=abc&w=160",
+    );
+  });
+
+  it("leaves provider-hosted art untouched: nothing resizes it", () => {
+    expect(coverArtUri("http://srv", "https://cdn.example/cover.jpg", 160)).toBe("https://cdn.example/cover.jpg");
+  });
+
+  it("omits the width when none or a non-positive one is given", () => {
+    expect(coverArtUri("http://srv", "/art")).toBe("http://srv/art");
+    expect(coverArtUri("http://srv", "/art", 0)).toBe("http://srv/art");
   });
 });

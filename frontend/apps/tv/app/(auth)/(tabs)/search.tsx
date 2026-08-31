@@ -15,7 +15,9 @@ import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { FocusableCard } from "../../../src/components/FocusableCard";
 import { useMusicQueueStore } from "../../../src/stores/musicQueue";
 import { mediaTypeLabelKey } from "../../../src/lib/mediaTypeLabel";
-import { artworkUrl } from "../../../src/lib/artwork";
+import { artworkUrl, coverArtUri } from "../../../src/lib/artwork";
+
+const MUSIC_THUMB_SIZE = 72;
 
 function tvSearchKeyExtractor(item: V1MediaItem) {
   return item.id ?? "";
@@ -29,15 +31,10 @@ function TVSearchSeparator() {
   return <View style={{ height: 12 }} />;
 }
 
-// Mirrors the local coverUri() helper in music.tsx / music/album/[id].tsx /
+// Uses the shared coverArtUri() helper (src/lib/artwork.ts), like music.tsx / music/album/[id].tsx /
 // music/artist/[id].tsx: a track's coverArtUrl already comes back
 // server-relative, so it needs the active server prefixed unless it is
 // already absolute.
-function coverUri(serverUrl: string, coverArtUrl?: string): string | undefined {
-  if (!coverArtUrl) return undefined;
-  return /^https?:/i.test(coverArtUrl) ? coverArtUrl : `${serverUrl}${coverArtUrl}`;
-}
-
 // The screen shows at most one results view at a time (error, loading,
 // prompt, empty, or a single results list) - each with its own first-item
 // hasTVPreferredFocus. Making the choice an explicit, testable function
@@ -182,7 +179,7 @@ export default function SearchScreen() {
   );
 
   const renderMusicItem = useCallback(({ item, index }: { item: V1Track; index: number }) => {
-    const uri = coverUri(serverUrl, item.coverArtUrl);
+    const uri = coverArtUri(serverUrl, item.coverArtUrl, MUSIC_THUMB_SIZE * 2);
     return (
       <FocusableCard
         onPress={() => setQueue([{
@@ -443,8 +440,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   musicThumb: {
-    width: 72,
-    height: 72,
+    width: MUSIC_THUMB_SIZE,
+    height: MUSIC_THUMB_SIZE,
     marginRight: 20,
     justifyContent: "center",
     alignItems: "center",

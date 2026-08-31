@@ -11,6 +11,7 @@ import { FocusableCard } from "../../../../src/components/FocusableCard";
 import { ScreenState } from "../../../../src/components/ScreenState";
 import { musicAlbumHref } from "../../../../src/lib/musicRoutes";
 import { CARD_WIDTH_FEATURED, GRID_GAP } from "../../../../src/lib/tvLayout";
+import { coverArtUri } from "../../../../src/lib/artwork";
 
 const NUM_COLUMNS = 5;
 const CARD_WIDTH = CARD_WIDTH_FEATURED;
@@ -18,11 +19,6 @@ const ART_SIZE = CARD_WIDTH;
 // Taller label block than LABEL_BLOCK_HEIGHT (40): this grid also shows an
 // optional year line below the title, so it needs more reserved height.
 const ROW_HEIGHT = ART_SIZE + 60 + GRID_GAP;
-
-function coverUri(serverUrl: string, coverArtUrl?: string): string | undefined {
-  if (!coverArtUrl) return undefined;
-  return /^https?:/i.test(coverArtUrl) ? coverArtUrl : `${serverUrl}${coverArtUrl}`;
-}
 
 function albumKeyExtractor(item: V1MusicAlbum) {
   return item.id ?? "";
@@ -83,7 +79,7 @@ export default function ArtistDetailScreen() {
           columnWrapperStyle={{ gap: 16, marginBottom: 16 }}
           getItemLayout={albumGetItemLayout}
           renderItem={({ item, index }) => {
-            const uri = coverUri(serverUrl, item.coverArtUrl);
+            const uri = coverArtUri(serverUrl, item.coverArtUrl, ART_SIZE * 2);
             return (
               <FocusableCard
                 onPress={() => item.id && router.push(musicAlbumHref(item.id, libId))}
