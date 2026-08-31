@@ -1,0 +1,112 @@
+diff --git a/android/src/main/java/expo/modules/video/EveyAudioPreamp.kt b/android/src/main/java/expo/modules/video/EveyAudioPreamp.kt
+new file mode 100644
+index 0000000..3d5a812
+--- /dev/null
++++ b/android/src/main/java/expo/modules/video/EveyAudioPreamp.kt
+@@ -0,0 +1,70 @@
++package expo.modules.video
++
++import androidx.media3.common.C
++import androidx.media3.common.audio.AudioProcessor
++import androidx.media3.common.audio.BaseAudioProcessor
++import androidx.media3.common.util.UnstableApi
++import java.nio.ByteBuffer
++import java.nio.ByteOrder
++
++/**
++ * Evey patch - VLC-style multiplicative preamp INSIDE the player's own audio
++ * chain. The app's >100% volume used to ride a LoudnessEnhancer on the output
++ * mix: a compressor under the hood (variable-geometry loudness on dynamic
++ * content) and unreliable on devices with poor global-session effect support.
++ * libVLC applies its 100-200% as a plain sample gain in its own pipeline; this
++ * processor is the media3 equivalent - multiply, saturate, nothing else.
++ *
++ * Wired into DefaultAudioSink through VideoPlayer's renderers factory (see the
++ * companion patch there). The gain is set by the app's AudioBoostModule.
++ */
++@UnstableApi
++object EveyAudioPreamp {
++  /** Linear gain, 1.0 (off) .. 2.0 (+6 dB). Read on the audio thread. */
++  @Volatile var gain: Float = 1f
++
++  /**
++   * True while the live stream runs through the processor (16-bit PCM). A
++   * passthrough or float stream bypasses it; the module then knows the gain
++   * has no effect and can fall back (or report "not boosting").
++   */
++  @Volatile var engaged: Boolean = false
++
++  fun createProcessor(): AudioProcessor = GainAudioProcessor()
++
++  private class GainAudioProcessor : BaseAudioProcessor() {
++    override fun onConfigure(inputAudioFormat: AudioProcessor.AudioFormat): AudioProcessor.AudioFormat {
++      if (inputAudioFormat.encoding != C.ENCODING_PCM_16BIT) {
++        engaged = false
++        return AudioProcessor.AudioFormat.NOT_SET
++      }
++      engaged = true
++      return inputAudioFormat
++    }
++
++    override fun queueInput(inputBuffer: ByteBuffer) {
++      val remaining = inputBuffer.remaining()
++      if (remaining == 0) return
++      val out = replaceOutputBuffer(remaining)
++      val g = gain
++      if (g <= 1.001f) {
++        out.put(inputBuffer)
++      } else {
++        // Q8 fixed point; hard saturation - the same clip VLC's preamp has,
++        // and unlike the LoudnessEnhancer there is no hidden compressor.
++        val gq = (g * 256f).toInt()
++        val src = inputBuffer.duplicate().order(ByteOrder.nativeOrder())
++        while (src.remaining() >= 2) {
++          val v = ((src.short.toInt() * gq) shr 8).coerceIn(-32768, 32767)
++          out.putShort(v.toShort())
++        }
++        inputBuffer.position(inputBuffer.limit())
++      }
++      out.flip()
++    }
++
++    override fun onReset() {
++      engaged = false
++    }
++  }
++}
+diff --git a/android/src/main/java/expo/modules/video/player/VideoPlayer.kt b/android/src/main/java/expo/modules/video/player/VideoPlayer.kt
+index ee4e976..88b4310 100644
+--- a/android/src/main/java/expo/modules/video/player/VideoPlayer.kt
++++ b/android/src/main/java/expo/modules/video/player/VideoPlayer.kt
+@@ -18,6 +18,7 @@ import androidx.media3.common.Tracks
+ import androidx.media3.common.util.UnstableApi
+ import androidx.media3.exoplayer.DecoderReuseEvaluation
+ import androidx.media3.exoplayer.DefaultRenderersFactory
++import expo.modules.video.EveyAudioPreamp
+ import androidx.media3.exoplayer.ExoPlayer
+ import androidx.media3.exoplayer.analytics.AnalyticsListener
+ import androidx.media3.exoplayer.hls.HlsManifest
+@@ -60,7 +61,22 @@ import kotlin.time.DurationUnit
+ @UnstableApi
+ class VideoPlayer(val context: Context, appContext: AppContext, source: VideoSource?, playerBuilderOptions: expo.modules.video.records.PlayerBuilderOptions? = null) : AutoCloseable, SharedObject(appContext), IntervalUpdateEmitter {
+   // This improves the performance of playing DRM-protected content
+-  private var renderersFactory = DefaultRenderersFactory(context)
++  // Evey patch: the audio sink carries EveyAudioPreamp (VLC-style >100% gain
++  // inside OUR chain); setAudioProcessors keeps media3's default silence
++  // skipping + sonic processors after it.
++  private var renderersFactory = object : DefaultRenderersFactory(context) {
++    override fun buildAudioSink(
++      context: Context,
++      enableFloatOutput: Boolean,
++      enableAudioTrackPlaybackParams: Boolean
++    ): androidx.media3.exoplayer.audio.AudioSink {
++      return androidx.media3.exoplayer.audio.DefaultAudioSink.Builder(context)
++        .setEnableFloatOutput(enableFloatOutput)
++        .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
++        .setAudioProcessors(arrayOf(EveyAudioPreamp.createProcessor()))
++        .build()
++    }
++  }
+     .forceEnableMediaCodecAsynchronousQueueing()
+     .setEnableDecoderFallback(true)
+   private val listeners: MutableList<WeakReference<VideoPlayerListener>> = mutableListOf()

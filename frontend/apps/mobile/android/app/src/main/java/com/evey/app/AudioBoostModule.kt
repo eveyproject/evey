@@ -80,6 +80,20 @@ class AudioBoostModule(reactContext: ReactApplicationContext) :
 
   private fun applyBoost(gain: Double, promise: Promise) {
     try {
+      // Preferred path since the expo-video patch: a VLC-style multiplicative
+      // preamp INSIDE our player's audio chain (EveyAudioPreamp) - plain
+      // sample gain, no hidden compressor, no global-mix effect. The
+      // LoudnessEnhancer below remains only as the fallback for streams the
+      // processor cannot carry (non-16-bit-PCM output).
+      expo.modules.video.EveyAudioPreamp.gain = gain.toFloat().coerceIn(1f, 2f)
+      if (expo.modules.video.EveyAudioPreamp.engaged) {
+        if (enhancer != null && appliedMilliBels != 0) {
+          enhancer?.setTargetGain(0)
+          appliedMilliBels = 0
+        }
+        promise.resolve(gain > 1.0)
+        return
+      }
       // At or below 100% there is nothing to amplify. If the effect was never
       // created, keep it that way; if it exists, take it to ZERO GAIN but keep
       // it enabled - a zero-gain LoudnessEnhancer is transparent, while
