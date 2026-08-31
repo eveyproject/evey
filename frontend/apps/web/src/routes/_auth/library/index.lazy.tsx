@@ -67,11 +67,8 @@ function PhotoItemCount({ libraryId }: { libraryId: string }) {
   return <span className="text-sm text-[var(--text-muted)]">{t("common.item", { count: total })}</span>;
 }
 
-function LibraryItemCount({ libraryId, libraryType }: { libraryId: string; libraryType?: V1LibraryType }) {
+function MediaItemCount({ libraryId }: { libraryId: string }) {
   const { t } = useTranslation();
-  // Music + photo libraries live in their own tables, not media_items.
-  if (libraryType === "LIBRARY_TYPE_MUSIC") return <MusicItemCount libraryId={libraryId} />;
-  if (libraryType === "LIBRARY_TYPE_PHOTOS") return <PhotoItemCount libraryId={libraryId} />;
   const { data } = useLibraryServiceListMediaItems({
     libraryId,
     "pagination.page": 1,
@@ -84,6 +81,17 @@ function LibraryItemCount({ libraryId, libraryType }: { libraryId: string; libra
       {t("common.item", { count: total })}
     </span>
   );
+}
+
+// Dispatch only, one sub-component per source - music + photo libraries live
+// in their own tables, not media_items. Returning before a hook is the
+// "rendered more hooks" class (react/rules-of-hooks): safe here only while a
+// card's type never changes, which is exactly the kind of luck lint exists
+// to replace.
+function LibraryItemCount({ libraryId, libraryType }: { libraryId: string; libraryType?: V1LibraryType }) {
+  if (libraryType === "LIBRARY_TYPE_MUSIC") return <MusicItemCount libraryId={libraryId} />;
+  if (libraryType === "LIBRARY_TYPE_PHOTOS") return <PhotoItemCount libraryId={libraryId} />;
+  return <MediaItemCount libraryId={libraryId} />;
 }
 
 function LibraryCard({ library }: { library: V1Library }) {

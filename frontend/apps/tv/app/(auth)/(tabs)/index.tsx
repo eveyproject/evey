@@ -274,15 +274,14 @@ function HeroBanner({
     return () => clearInterval(id);
   }, [heroItems.length, paused]);
 
-  if (heroItems.length === 0) return null;
-
+  // EVERY hook above the empty early return below: the home mounts with zero
+  // items (queries still loading), the hero returns null, and the render
+  // where titles arrive would otherwise run five hooks more - "Rendered more
+  // hooks than during the previous render", the whole home dead behind the
+  // error boundary. Exact class fixed the same day on mobile's music tab;
+  // react/rules-of-hooks now gates it in lint.
   const active = heroItems[activeIndex] ?? heroItems[0];
   const id = active?.id ?? "";
-  const genres = (active?.genres ?? []).slice(0, 3);
-  const metaLine = [active?.year ? String(active.year) : "", genres.join(" · ")]
-    .filter(Boolean)
-    .join("   ·   ");
-  const backdropBlurhash = (active?.artwork ?? []).find((a) => a.type === "ARTWORK_TYPE_BACKDROP")?.blurhash;
 
   // The hero's Play button jumps straight into the player, bypassing the
   // media detail screen where the parental PIN gate normally lives - so it
@@ -317,6 +316,14 @@ function HeroBanner({
       setPendingPlayId(null);
     }
   }, [pendingPlayId]);
+
+  if (heroItems.length === 0) return null;
+
+  const genres = (active?.genres ?? []).slice(0, 3);
+  const metaLine = [active?.year ? String(active.year) : "", genres.join(" · ")]
+    .filter(Boolean)
+    .join("   ·   ");
+  const backdropBlurhash = (active?.artwork ?? []).find((a) => a.type === "ARTWORK_TYPE_BACKDROP")?.blurhash;
 
   return (
     <View style={[styles.heroContainer, { height: HERO_HEIGHT, backgroundColor: theme.colors.surface }]}>
