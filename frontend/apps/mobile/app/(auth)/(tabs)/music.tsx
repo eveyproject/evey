@@ -574,6 +574,26 @@ export default function MusicScreen() {
     [theme, setTab],
   );
 
+  // Every hook above the early returns, without exception: retryTab used to
+  // sit below them, so the first (loading) render ran fewer hooks than the
+  // render after the libraries resolved - "Rendered more hooks than during
+  // the previous render", the whole tab dead behind the error boundary
+  // (tester report, 2026-08-31). Same class the renderArtist comment above
+  // already documents; the regression test in music.test.tsx pins it now.
+  const isLoading = tab === "tracks" ? tracksLoading : tab === "albums" ? albumsLoading : tab === "artists" ? artistsLoading : false;
+  // Per tab, because each one has its own request: an album listing that failed
+  // says nothing about the tracks tab next door. Without this the failed tab
+  // simply rendered its empty state - "no albums" for a server that is down.
+  const isError =
+    libError ||
+    (tab === "tracks" ? tracksError : tab === "albums" ? albumsError : tab === "artists" ? artistsError : false);
+  const retryTab = useCallback(() => {
+    if (libError) void refetchLibs();
+    if (tab === "tracks") void refetchTracks();
+    else if (tab === "albums") void refetchAlbums();
+    else if (tab === "artists") void refetchArtists();
+  }, [libError, tab, refetchLibs, refetchTracks, refetchAlbums, refetchArtists]);
+
   if (libLoading) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
@@ -597,20 +617,6 @@ export default function MusicScreen() {
       </View>
     );
   }
-
-  const isLoading = tab === "tracks" ? tracksLoading : tab === "albums" ? albumsLoading : tab === "artists" ? artistsLoading : false;
-  // Per tab, because each one has its own request: an album listing that failed
-  // says nothing about the tracks tab next door. Without this the failed tab
-  // simply rendered its empty state - "no albums" for a server that is down.
-  const isError =
-    libError ||
-    (tab === "tracks" ? tracksError : tab === "albums" ? albumsError : tab === "artists" ? artistsError : false);
-  const retryTab = useCallback(() => {
-    if (libError) void refetchLibs();
-    if (tab === "tracks") void refetchTracks();
-    else if (tab === "albums") void refetchAlbums();
-    else if (tab === "artists") void refetchArtists();
-  }, [libError, tab, refetchLibs, refetchTracks, refetchAlbums, refetchArtists]);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
