@@ -1,4 +1,5 @@
 import { NativeModules, Platform } from "react-native";
+import { declarableAudioCodecs, getAudioProbe } from "@evey/media-caps";
 
 interface MediaCapsNative {
   getSupportedAudioCodecs(): Promise<string[]>;
@@ -52,7 +53,16 @@ async function probe(): Promise<void> {
   if (!native) return;
   try {
     const codecs = await native.getSupportedAudioCodecs();
-    if (Array.isArray(codecs) && codecs.length > 0) current = codecs;
+    // The decoder list alone answers the wrong question for the Dolby/DTS
+    // family: a a tablet brand tablet DECODES ac3/eac3 but renders them choppy, while
+    // its sink says plainly it does not take those formats (audio_caps_probe,
+    // 2026-08-31 - same story on 2026-07-30). The SINK decides for that
+    // family; see declarableAudioCodecs. Without probe evidence the family
+    // stays out, and the server transcodes the audio only (video stays copy).
+    const audioProbe = await getAudioProbe();
+    if (Array.isArray(codecs) && codecs.length > 0) {
+      current = declarableAudioCodecs(codecs, audioProbe);
+    }
   } catch {
     /* keep the baseline */
   }

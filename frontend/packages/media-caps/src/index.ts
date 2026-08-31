@@ -1,6 +1,7 @@
 import type { AudioProbe } from "./audioProbe";
 
 export { formatAudioProbe, MAX_DETAIL_LEN } from "./audioProbe";
+export { declarableAudioCodecs, sinkAcceptsCodec } from "./audioDeclaration";
 export type { AudioProbe } from "./audioProbe";
 export { reportAudioProbeOnce, resetAudioProbeLatch } from "./reportProbe";
 export type { ProbePoster, ReportOutcome } from "./reportProbe";
