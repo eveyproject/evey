@@ -101,9 +101,8 @@ func (a *Adapter) RestoreBackup(ctx context.Context, path string) error {
 }
 
 // HasSeekIndex reports whether the EBML file at path already has a Cues index
-// that can serve a video seek. It first tries the head-SeekHead probe (a few
-// KB of reads - what makes a whole-library scan feasible); only undecidable
-// files pay the full parse.
+// that can serve a video seek - a head-only read, what makes a whole-library
+// scan feasible.
 func (a *Adapter) HasSeekIndex(ctx context.Context, path string) (bool, error) {
 	ctx, span := tracing.StartSpan(ctx, "mkvgo.HasSeekIndex")
 	defer span.End()
@@ -111,16 +110,15 @@ func (a *Adapter) HasSeekIndex(ctx context.Context, path string) (bool, error) {
 	if !IsEBMLContainer(path) {
 		return false, nil
 	}
-	if has, confirmed := probeCuesPresence(path); confirmed && !has {
-		return false, nil
-	}
-	// A probe positive only proves a Cues ELEMENT sits at the SeekHead offset.
-	// Repacks in the wild ship an EMPTY/garbage Cues body (phantom index), one
-	// keyed onto the audio track only (every seek then lands mid-GOP), or one
-	// so coarse a seek lands a minute from its target - exactly the files a
-	// repair must flag. Take CueHealth's WHOLE verdict, not one of its
-	// components: judging `VideoCues > 0` answers "is any video cue present?",
-	// which "index-sparse" satisfies by definition (see ReindexInPlace).
+	// Presence is not usability. Repacks in the wild ship an EMPTY/garbage
+	// Cues body (phantom index), one keyed onto the audio track only (every
+	// seek then lands mid-GOP), or one so coarse a seek lands a minute from
+	// its target - exactly the files a repair must flag. Take CueHealth's
+	// WHOLE verdict, not one of its components: judging `VideoCues > 0`
+	// answers "is any video cue present?", which "index-sparse" satisfies by
+	// definition (see ReindexInPlace). CueHealth reads head-only and finds a
+	// Cues element the SeekHead never names by itself (tail scan), so the
+	// hand-rolled SeekHead probe that used to short-circuit it is gone.
 	ch, err := ops.CueHealth(ctx, path)
 	if err != nil {
 		return false, fmt.Errorf("mkvgo has-seek-index: %w", err)
@@ -340,7 +338,8 @@ func (a *Adapter) ReindexInPlace(ctx context.Context, path string, opts mkv.Rein
 		}
 	}
 
-	src, err := reader.Open(ctx, path)
+	// Tracks + DurationMs live in the head: no cluster walk for a cross-check.
+	src, err := reader.OpenMeta(ctx, path)
 	if err != nil {
 		return mkv.ReindexResult{}, fmt.Errorf("reindex: open source: %w", err)
 	}
@@ -405,16 +404,15 @@ func (a *Adapter) ReindexInPlace(ctx context.Context, path string, opts mkv.Rein
 	}
 
 	// (4) Cross-check the rebuild against the original.
-	out, err := reader.Open(ctx, tmp)
+	out, err := reader.OpenMeta(ctx, tmp)
 	if err != nil {
 		return mkv.ReindexResult{}, fmt.Errorf("reindex: re-open output: %w", err)
 	}
 	if len(out.Tracks) != srcTracks {
 		return mkv.ReindexResult{}, fmt.Errorf("reindex: track count changed (%d -> %d), refusing swap", srcTracks, len(out.Tracks))
 	}
-	// Same OpenMeta rule as the bail-out: out.Cues (full reader) is synthesized
-	// from the cluster walk, so it can't prove the rebuilt FILE carries an
-	// index. Read the element's real content.
+	// Same rule as the bail-out: read the Cues element's real content to prove
+	// the rebuilt FILE carries an index.
 	outMeta, err := reader.OpenMeta(ctx, tmp, reader.WithCues())
 	if err != nil {
 		return mkv.ReindexResult{}, fmt.Errorf("reindex: re-open output meta: %w", err)

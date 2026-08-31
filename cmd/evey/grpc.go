@@ -76,7 +76,6 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		// cluster walk of the tail as fallback. NOT repairable - the tail is
 		// absent from the file; playback fills it with silence, the operator
 		// re-acquires for a real fix.
-		WithAudioTailProber(mkvgo.NewAudioTailProber()).
 		// Wrong-container repair: a .mkv whose bytes are MP4/MOV is renamed to
 		// .mp4 and the catalog repointed - the extension IS the defect, there
 		// is no Matroska index to build. Without this the file stays a chore

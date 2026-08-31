@@ -513,23 +513,6 @@ func TestSeekIndexService_ScanWithDiagnoser(t *testing.T) {
 	assert.Empty(t, reidx.reindexed, "a scan never mutates files")
 }
 
-// fakeAudioTailProber answers the audio tail-gap probe from a canned map and
-// records which paths were probed (so a test can assert the probe is SKIPPED
-// where it makes no sense).
-type fakeAudioTailProber struct {
-	gaps   map[string]float64
-	probed []string
-}
-
-func (f *fakeAudioTailProber) ProbeAudioTailGapSec(_ context.Context, p string) (float64, error) {
-	f.probed = append(f.probed, p)
-	g, ok := f.gaps[p]
-	if !ok {
-		return 0, os.ErrInvalid
-	}
-	return g, nil
-}
-
 // An audio track ending BEFORE the container's declared duration (mux defect:
 // prod 2026-07-26, "Scary Movie", fr track dead for the last 4 min of credits)
 // must surface as its own category: it is invisible to the index/damage checks
@@ -553,15 +536,15 @@ func TestSeekIndexService_AudioTrackShortfall(t *testing.T) {
 		{MediaID: "m3", Title: "FakeMkv", Path: fake},
 		{MediaID: "m4", Title: "ProbeFails", Path: failing},
 	}}
-	tail := &fakeAudioTailProber{gaps: map[string]float64{short: 249.6, near: 2.0}}
 	svc := appmaintenance.NewSeekIndexService(reidx, cat, nil).
 		WithDiagnoser(fakeDiagnoser{byPath: map[string]*mkv.Diagnosis{
-			short:   {Healthy: true},
-			near:    {Healthy: true},
-			fake:    {Findings: []mkv.DiagnosisFinding{{Kind: "wrong-container"}}},
+			short: {Healthy: true, AudioShortfallMs: 249_600},
+			near:  {Healthy: true, AudioShortfallMs: 2_000},
+			// a wrong container's Matroska duration is not one: whatever the
+			// measurement says, no shortfall may be reported on it
+			fake:    {Findings: []mkv.DiagnosisFinding{{Kind: "wrong-container"}}, AudioShortfallMs: 500_000},
 			failing: {Healthy: true},
-		}}).
-		WithAudioTailProber(tail)
+		}})
 
 	require.NoError(t, svc.StartScan(context.Background(), ""))
 	st := waitIdle(t, svc)
@@ -579,11 +562,10 @@ func TestSeekIndexService_AudioTrackShortfall(t *testing.T) {
 		"a track ending far before the declared duration is the defect")
 	assert.Zero(t, byID["m2"].AudioShortfallSec,
 		"a couple of seconds of mux slack is normal, not a defect")
-	assert.Zero(t, byID["m3"].AudioShortfallSec)
-	assert.NotContains(t, tail.probed, fake,
-		"a wrong-container file has no Matroska audio tail to probe")
-	assert.Zero(t, byID["m4"].AudioShortfallSec, "a probe failure is secondary diagnostics, not a defect")
-	assert.Equal(t, 4, res.Total, "a probe failure must not drop the file from the scan")
+	assert.Zero(t, byID["m3"].AudioShortfallSec,
+		"a wrong-container file's Matroska duration is not one: a shortfall measured on it is meaningless")
+	assert.Zero(t, byID["m4"].AudioShortfallSec, "no measurement, no defect")
+	assert.Equal(t, 4, res.Total)
 
 	assert.Equal(t, 1, res.AudioShort, "rollup counts only the real shortfall")
 	assert.Empty(t, reidx.reindexed, "a scan never mutates files")
@@ -598,10 +580,8 @@ func TestSeekIndexService_AudioTrackShortfall_NotRepairable(t *testing.T) {
 	require.NoError(t, os.WriteFile(short, []byte("x"), 0o644))
 	reidx := &fakeReindexer{hasIndex: map[string]bool{short: true}}
 	cat := fakeCatalog{files: []appmaintenance.MediaRef{{MediaID: "m1", Title: "Short", Path: short}}}
-	tail := &fakeAudioTailProber{gaps: map[string]float64{short: 249.6}}
 	svc := appmaintenance.NewSeekIndexService(reidx, cat, nil).
-		WithDiagnoser(fakeDiagnoser{byPath: map[string]*mkv.Diagnosis{short: {Healthy: true}}}).
-		WithAudioTailProber(tail)
+		WithDiagnoser(fakeDiagnoser{byPath: map[string]*mkv.Diagnosis{short: {Healthy: true, AudioShortfallMs: 249_600}}})
 
 	require.NoError(t, svc.StartRepairLibrary(context.Background(), "", appmaintenance.ReindexRunOptions{}))
 	waitIdle(t, svc)
@@ -630,16 +610,14 @@ func TestSeekIndexService_PersistedScan_RestoresAllRollups(t *testing.T) {
 	state := t.TempDir()
 	reidx := &fakeReindexer{hasIndex: map[string]bool{}}
 	cat := fakeCatalog{files: refs}
-	tail := &fakeAudioTailProber{gaps: map[string]float64{paths[4]: 300}}
 	svc1 := appmaintenance.NewSeekIndexService(reidx, cat, nil).
 		WithDiagnoser(fakeDiagnoser{byPath: map[string]*mkv.Diagnosis{
 			paths[0]: {Findings: []mkv.DiagnosisFinding{{Kind: "damaged"}}, Truncated: true, DamagedBytes: 1},
 			paths[1]: {Findings: []mkv.DiagnosisFinding{{Kind: "damaged"}}, DamagedBytes: 2048},
 			paths[2]: {Findings: []mkv.DiagnosisFinding{{Kind: "wrong-container"}}},
 			paths[3]: {Findings: []mkv.DiagnosisFinding{{Kind: "trailing-junk"}}},
-			paths[4]: {Healthy: true},
+			paths[4]: {Healthy: true, AudioShortfallMs: 300_000},
 		}}).
-		WithAudioTailProber(tail).
 		WithStateDir(state)
 
 	require.NoError(t, svc1.StartScan(context.Background(), ""))
@@ -681,17 +659,15 @@ func TestSeekIndexService_Rescan_ReusesUnchangedDiagnoses(t *testing.T) {
 		{MediaID: "m2", Title: "Touched", Path: touched},
 	}}
 	diag := fakeDiagnoser{calls: map[string]int{}, byPath: map[string]*mkv.Diagnosis{
-		stable:  {Findings: []mkv.DiagnosisFinding{{Kind: "trailing-junk"}}, AudioDelaysMs: map[uint64]int64{1: 900}},
+		stable:  {Findings: []mkv.DiagnosisFinding{{Kind: "trailing-junk"}}, AudioDelaysMs: map[uint64]int64{1: 900}, AudioShortfallMs: 300_000},
 		touched: {Healthy: true},
 	}}
-	tail := &fakeAudioTailProber{gaps: map[string]float64{stable: 300, touched: 0}}
 	svc := appmaintenance.NewSeekIndexService(reidx, cat, nil).
-		WithDiagnoser(diag).WithAudioTailProber(tail)
+		WithDiagnoser(diag)
 
 	require.NoError(t, svc.StartScan(context.Background(), ""))
 	waitIdle(t, svc)
 	require.Equal(t, 1, diag.calls[stable])
-	require.Len(t, tail.probed, 2)
 
 	// Touch one file (mtime changes), leave the other alone.
 	future := time.Now().Add(2 * time.Second)
@@ -702,8 +678,6 @@ func TestSeekIndexService_Rescan_ReusesUnchangedDiagnoses(t *testing.T) {
 
 	assert.Equal(t, 1, diag.calls[stable], "an unchanged file must NOT be re-diagnosed")
 	assert.Equal(t, 2, diag.calls[touched], "a touched file must be re-diagnosed")
-	assert.Equal(t, []string{stable, touched, touched}, tail.probed,
-		"the tail probe follows the same reuse rule")
 
 	// The reused entry keeps every diagnosed fact and the rollups stay right.
 	res, _, ok := svc.CachedScan("")

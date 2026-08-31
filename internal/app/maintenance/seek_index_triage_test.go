@@ -65,7 +65,7 @@ func triageLibrary(t *testing.T) (dir string, paths map[string]string, svc *appm
 		paths["delayed"]:   {Findings: []mkv.DiagnosisFinding{{Kind: "audio-delay"}}, AudioDelaysMs: map[uint64]int64{2: 900}},
 		paths["wrongct"]:   {Findings: []mkv.DiagnosisFinding{{Kind: "wrong-container"}}},
 		paths["truncated"]: {Findings: []mkv.DiagnosisFinding{{Kind: "no-index"}, {Kind: "damaged"}}, DamagedBytes: 16, Truncated: true},
-		paths["short"]:     {Healthy: true},
+		paths["short"]:     {Healthy: true, AudioShortfallMs: 42_000},
 		paths["junk"]:      {Findings: []mkv.DiagnosisFinding{{Kind: "trailing-junk"}}},
 		paths["healthy"]:   {Healthy: true},
 	}}
@@ -77,7 +77,6 @@ func triageLibrary(t *testing.T) (dir string, paths map[string]string, svc *appm
 	svc = appmaintenance.NewSeekIndexService(reidx, fakeCatalog{files: refs}, nil).
 		WithDiagnoser(diag).
 		WithAudioDelayProber(fakeAudioDelayProber{delays: map[string]float64{paths["delayed"]: 0.9}}).
-		WithAudioTailProber(&fakeAudioTailProber{gaps: map[string]float64{paths["short"]: 42}}).
 		WithAudioRemuxer(remux).
 		WithMediaRelocator(reloc)
 	require.NoError(t, svc.StartScan(context.Background(), ""))

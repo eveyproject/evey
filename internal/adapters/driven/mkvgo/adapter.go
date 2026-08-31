@@ -63,11 +63,32 @@ func (a *Adapter) Open(ctx context.Context, path string) (*mkv.Container, error)
 	if !IsEBMLContainer(path) {
 		return &mkv.Container{Path: path}, nil
 	}
-	c, err := reader.Open(ctx, path)
+	c, err := a.openMeta(ctx, path, false)
+	if err != nil {
+		return nil, err
+	}
+	return fromExtContainer(c, path), nil
+}
+
+// openMeta is the one head-only read behind every ContainerReader method:
+// Info, Tracks, Tags, Chapters and the attachment TABLE come from the head,
+// no cluster walk. Attachment payloads (a font set can be tens of MB) stay on
+// disk unless withData: ReadAttachments is the only caller that wants them,
+// and it loads each one on request.
+func (a *Adapter) openMeta(ctx context.Context, path string, withData bool) (*extmkv.Container, error) {
+	c, err := reader.OpenMeta(ctx, path,
+		reader.WithTags(), reader.WithChapters(), reader.WithAttachments(), reader.WithoutAttachmentData())
 	if err != nil {
 		return nil, fmt.Errorf("mkvgo open: %w", err)
 	}
-	return fromExtContainer(c, path), nil
+	if withData {
+		for i := range c.Attachments {
+			if err := ops.LoadAttachmentData(ctx, &c.Attachments[i]); err != nil {
+				return nil, fmt.Errorf("mkvgo open: attachment %d payload: %w", c.Attachments[i].ID, err)
+			}
+		}
+	}
+	return c, nil
 }
 
 func (a *Adapter) ReadTracks(ctx context.Context, path string) ([]mkv.Track, error) {
@@ -96,11 +117,14 @@ func (a *Adapter) ReadAttachments(ctx context.Context, path string) ([]mkv.Attac
 	ctx, span := tracing.StartSpan(ctx, "mkvgo.ReadAttachments")
 	defer span.End()
 
-	c, err := a.Open(ctx, path)
+	if !IsEBMLContainer(path) {
+		return nil, nil
+	}
+	c, err := a.openMeta(ctx, path, true)
 	if err != nil {
 		return nil, err
 	}
-	return c.Attachments, nil
+	return fromExtContainer(c, path).Attachments, nil
 }
 
 func (a *Adapter) ReadTags(ctx context.Context, path string) ([]mkv.Tag, error) {

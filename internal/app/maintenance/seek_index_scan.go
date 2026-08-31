@@ -132,7 +132,6 @@ func (s *SeekIndexService) probeFile(ctx context.Context, f MediaRef, prev map[s
 		if !s.diagnose(ctx, f.Path, &st) {
 			return SeekStatus{}, false, false
 		}
-		s.probeAudioTail(ctx, f.Path, &st)
 	}
 
 	hasBak, bakErr := s.reindexer.HasBackup(ctx, f.Path)
@@ -144,28 +143,6 @@ func (s *SeekIndexService) probeFile(ctx context.Context, f MediaRef, prev map[s
 	}
 	st.HasBackup = hasBak
 	return st, reused, true
-}
-
-// probeAudioTail fills AudioShortfallSec: how far before the VIDEO's end the
-// audio content stops. Skipped for a wrong-container file (its Matroska
-// duration is meaningless) and for a truncated one (the WHOLE tail is
-// missing - the shortfall would only restate it). Secondary diagnostics: a
-// probe failure logs and leaves 0 rather than dropping the file. Gaps under
-// AudioShortfallFlagSec are ordinary mux slack (priming, final-cluster
-// rounding) and stay unreported so the flag means what the UI says it means.
-func (s *SeekIndexService) probeAudioTail(ctx context.Context, path string, st *SeekStatus) {
-	if s.audioTail == nil || st.WrongContainer || st.Truncated {
-		return
-	}
-	gap, err := s.audioTail.ProbeAudioTailGapSec(ctx, path)
-	if err != nil {
-		s.logger.Warn("seek-index scan: audio tail probe failed",
-			slog.String("path", path), slog.Any("err", err))
-		return
-	}
-	if gap > AudioShortfallFlagSec {
-		st.AudioShortfallSec = gap
-	}
 }
 
 // diagnose fills the defect fields of st (HasIndex, AudioDelaySec, Truncated,
@@ -196,6 +173,17 @@ func (s *SeekIndexService) diagnose(ctx context.Context, path string, st *SeekSt
 		st.MissingTailBytes = d.MissingTailBytes
 		st.DamagedBytes = d.DamagedBytes
 		st.TrailingJunk = d.TrailingJunk()
+		// How far before the VIDEO's end the audio content stops (mkvgo
+		// TrackEnds). Meaningless for a wrong-container file (its Matroska
+		// duration is not one) and redundant for a truncated one (the WHOLE
+		// tail is missing - the shortfall would only restate it). Gaps under
+		// AudioShortfallFlagSec are ordinary mux slack (priming, final-cluster
+		// rounding) and stay unreported so the flag means what the UI says.
+		if !st.WrongContainer && !st.Truncated {
+			if gap := float64(d.AudioShortfallMs) / 1000; gap > AudioShortfallFlagSec {
+				st.AudioShortfallSec = gap
+			}
+		}
 		return true
 	}
 

@@ -81,7 +81,8 @@ func inferSubtitleFormat(path string) mkv.SubtitleFormat {
 // string for the subtitle track with the given ID, or ErrTrackNotFound when
 // the track doesn't exist or is not a subtitle track.
 func subtitleTrackCodec(ctx context.Context, srcPath string, trackID uint64) (string, error) {
-	c, err := reader.Open(ctx, srcPath)
+	// Tracks live in the head: a codec lookup must not walk the clusters.
+	c, err := reader.OpenMeta(ctx, srcPath)
 	if err != nil {
 		return "", fmt.Errorf("mkvgo open for codec probe: %w", err)
 	}

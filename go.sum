@@ -90,8 +90,8 @@ github.com/grandcat/zeroconf v1.0.0 h1:uHhahLBKqwWBV6WZUDAT71044vwOTL+McW0mBJvo6
 github.com/grandcat/zeroconf v1.0.0/go.mod h1:lTKmG1zh86XyCoUeIHSA4FJMBwCJiQmGfcP2PdzytEs=
 github.com/gravity-zero/ac3go v0.0.0-20260725211506-1c0c5883d854 h1:upQjfxngJgOULSKaL6QgrT5QN3M/35RO2K5LW6os9jA=
 github.com/gravity-zero/ac3go v0.0.0-20260725211506-1c0c5883d854/go.mod h1:UXGxHHqfqZN5tAZ14pJHh0zzEIS4bcWrs/hRGvKhxas=
-github.com/gravity-zero/mkvgo v0.26.0 h1:THXabsp9gHWH+NKS21ZdZdG4IOZXE1w9HoBcnX+npek=
-github.com/gravity-zero/mkvgo v0.26.0/go.mod h1:a/CQT/ok/uaQgKBlShHxG7ozbifwa0uKaN2tc31F5MM=
+github.com/gravity-zero/mkvgo v0.27.0 h1:xo9/mVluSHFqxueYrnvNyiWpDlpNKR0Vt0l5ywRocfY=
+github.com/gravity-zero/mkvgo v0.27.0/go.mod h1:ZsECc7LZekubqZboTOFvBZEYZK3BylXv3ueJ0ya3LtI=
 github.com/grpc-ecosystem/grpc-gateway/v2 v2.28.0 h1:HWRh5R2+9EifMyIHV7ZV+MIZqgz+PMpZ14Jynv3O2Zs=
 github.com/grpc-ecosystem/grpc-gateway/v2 v2.28.0/go.mod h1:JfhWUomR1baixubs02l85lZYYOm7LV6om4ceouMv45c=
 github.com/h2non/filetype v1.1.3 h1:FKkx9QbD7HR/zjK1Ia5XiBsq9zdLi5Kf3zGyFTAFkGg=

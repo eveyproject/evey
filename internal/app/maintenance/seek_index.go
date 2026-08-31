@@ -94,20 +94,6 @@ type AudioDelayProber interface {
 // codec priming sits at ~20-40ms, the defect class at hundreds of ms.
 const AudioDelayFlagSec = 0.1
 
-// AudioTailProber measures how far BEFORE the container's declared duration
-// the audio content actually ends: the largest gap, in seconds, between the
-// declared duration and the last audio packet of any audio track (0 = the
-// audio runs to the end). The defect class (prod 2026-07-26, "Scary Movie"):
-// a mux whose audio track dies minutes before the video's end - structurally
-// healthy, invisible to the index/damage checks, yet the VOD playlists promise
-// audio segments that can never exist. Satisfied by the ffmpeg adapter
-// (per-track DURATION tags head-only, tail packet read as fallback); optional
-// (nil skips the probe). Primitive-typed on purpose - the driven adapter
-// implements it without importing this package.
-type AudioTailProber interface {
-	ProbeAudioTailGapSec(ctx context.Context, path string) (float64, error)
-}
-
 // AudioShortfallFlagSec is the floor above which an audio track ending before
 // the declared duration is surfaced as a defect. Ordinary muxes leave up to a
 // couple of seconds of slack (priming, final-cluster rounding); the defect
@@ -230,7 +216,10 @@ type SeekStatus struct {
 //
 //	1: implicit (statuses persisted before the field existed)
 //	2: audio tail measured against the video end; index-sparse carries mkvgo's detail
-const SeekDiagVersion = 2
+//	3: mkvgo 0.27 - the index tail is judged against the picture's real end (files
+//	   cued every 2 s were condemned for sound outlasting picture), sparse holes are
+//	   probed (reindex / re-encode / picture-missing), audio-short from TrackEnds
+const SeekDiagVersion = 3
 
 // Verdict is what the health page owes the operator for every file: not a
 // pile of flags, but the ONE answer "who acts on this, if anyone". Three
@@ -363,7 +352,6 @@ type SeekIndexService struct {
 	fileState  FileStateRefresher // optional; see WithFileStateRefresher
 	audioDelay AudioDelayProber   // optional; see WithAudioDelayProber
 	audioRemux AudioDelayRemuxer  // optional; see WithAudioRemuxer
-	audioTail  AudioTailProber    // optional; see WithAudioTailProber
 	diagnoser  mkv.Diagnoser      // optional; see WithDiagnoser
 	relocator  MediaRelocator     // optional; see WithMediaRelocator
 	logger     *slog.Logger
@@ -455,16 +443,6 @@ func (s *SeekIndexService) WithAudioDelayProber(p AudioDelayProber) *SeekIndexSe
 // Optional and chainable; without it the remux entry points fail cleanly.
 func (s *SeekIndexService) WithAudioRemuxer(r AudioDelayRemuxer) *SeekIndexService {
 	s.audioRemux = r
-	return s
-}
-
-// WithAudioTailProber wires the audio tail-gap diagnosis into scans: does the
-// audio content actually reach the container's declared duration? Runs after
-// the mkvgo triage (and is skipped for a wrong-container file, whose Matroska
-// duration is meaningless). Optional and chainable; without it
-// AudioShortfallSec stays 0 everywhere.
-func (s *SeekIndexService) WithAudioTailProber(p AudioTailProber) *SeekIndexService {
-	s.audioTail = p
 	return s
 }
 

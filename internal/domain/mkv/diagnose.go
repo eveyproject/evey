@@ -42,6 +42,13 @@ type Diagnosis struct {
 	// (ms), whether or not it crossed the finding threshold - the raw signal
 	// the audio-remux repair acts on. Keyed by track number.
 	AudioDelaysMs map[uint64]int64
+	// AudioShortfallMs is how far BEFORE THE VIDEO's real end the
+	// earliest-ending audio track stops (mkvgo TrackEnds: content measured
+	// against content, never against the declared duration - a muxer's claim
+	// that over-stated files turned into false audio defects). 0 when every
+	// audio track reaches the picture or nothing is known. Not repairable: the
+	// audio is simply absent from the file.
+	AudioShortfallMs int64
 }
 
 // HasIndexDefect reports whether the diagnosis found a seek-index defect: a

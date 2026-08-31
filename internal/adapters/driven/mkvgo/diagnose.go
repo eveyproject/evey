@@ -1,21 +1,17 @@
 package mkvgo
 
 // One-call triage over mkvgo's ops.Diagnose: seek-index health, audio start
-// delays, and declared-size coherence (a tolerant walk only when the size
-// diverges). It distils the verdict into the domain Diagnosis so the repair UI
-// can route to the right remedy - reindex/resync, retime, or re-download for a
-// truncated source - instead of trying blind.
+// delays, where each track's content really ends, and declared-size coherence
+// (a tolerant walk only when the size diverges). It distils the verdict into
+// the domain Diagnosis so the repair UI can route to the right remedy -
+// reindex/resync, retime, or re-acquire for a truncated or audio-short source
+// - instead of trying blind.
 
 import (
-	"bufio"
 	"context"
 	"fmt"
-	"io"
-	"os"
 
-	"github.com/gravity-zero/mkvgo/ebml"
 	extmatroska "github.com/gravity-zero/mkvgo/matroska"
-	extmkv "github.com/gravity-zero/mkvgo/mkv"
 
 	"github.com/evey-project/evey/internal/domain/mkv"
 	"github.com/evey-project/evey/internal/pkg/tracing"
@@ -35,11 +31,7 @@ func (a *Adapter) Diagnose(ctx context.Context, path string) (*mkv.Diagnosis, er
 	if err != nil {
 		return nil, fmt.Errorf("diagnose: %w", err)
 	}
-	out := mapDiagnosis(d)
-	if out.Truncated {
-		out.MissingTailBytes = missingTailBytes(path)
-	}
-	return out, nil
+	return mapDiagnosis(d), nil
 }
 
 // mapDiagnosis distils mkvgo's triage into the domain Diagnosis. Pure - unit
@@ -65,11 +57,25 @@ func mapDiagnosis(d *extmatroska.Diagnosis) *mkv.Diagnosis {
 			out.Truncated = true
 		}
 	}
+	// The MAGNITUDE of a cut routes the operator's decision (a 9 KB stub vs a
+	// missing final scene); mkvgo measures it on both engines. Only meaningful
+	// next to the classified finding above.
+	if out.Truncated {
+		out.MissingTailBytes = d.MissingTailBytes
+	}
 	if len(d.AudioDelaysNs) > 0 {
 		out.AudioDelaysMs = make(map[uint64]int64, len(d.AudioDelaysNs))
 		for tr, ns := range d.AudioDelaysNs {
 			out.AudioDelaysMs[tr] = ns / 1_000_000
 		}
+	}
+	// Where the audio really stops, against where the picture really stops -
+	// TrackEnds reads statistics tags only when they describe THIS file and
+	// walks the tail header-only otherwise. A shortfall is a lower bound when
+	// that track's end is only walk-bound, which is still the right side to
+	// err on for a "re-acquire" verdict.
+	if ends := d.TrackEnds; ends != nil && ends.AudioShortfallMs > 0 {
+		out.AudioShortfallMs = ends.AudioShortfallMs
 	}
 	if d.Damage != nil {
 		// Since mkvgo v0.25 the salvage walk counts surplus bytes past the
@@ -83,37 +89,4 @@ func mapDiagnosis(d *extmatroska.Diagnosis) *mkv.Diagnosis {
 		}
 	}
 	return out
-}
-
-// missingTailBytes measures HOW MUCH of the declared Segment is absent from
-// the end of a truncated file: declared end (EBML + Segment headers, head-only
-// read) minus the real size. Best-effort - 0 on any read hiccup; the finding
-// itself already stands.
-func missingTailBytes(path string) int64 {
-	f, err := os.Open(path)
-	if err != nil {
-		return 0
-	}
-	defer f.Close()
-	st, err := f.Stat()
-	if err != nil {
-		return 0
-	}
-	r := bufio.NewReaderSize(f, 4096)
-	h1, n1, err := ebml.ReadElementHeader(r)
-	if err != nil || h1.ID != ebml.IDEBMLHeader || h1.Size < 0 {
-		return 0
-	}
-	if _, skipErr := io.CopyN(io.Discard, r, h1.Size); skipErr != nil {
-		return 0
-	}
-	h2, n2, err := ebml.ReadElementHeader(r)
-	if err != nil || h2.ID != extmkv.IDSegment || h2.Size < 0 {
-		return 0
-	}
-	declaredEnd := int64(n1) + h1.Size + int64(n2) + h2.Size
-	if missing := declaredEnd - st.Size(); missing > 0 {
-		return missing
-	}
-	return 0
 }

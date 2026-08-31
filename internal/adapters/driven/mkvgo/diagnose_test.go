@@ -96,3 +96,47 @@ func TestDiagnoseTrailingJunkIntegration(t *testing.T) {
 	assert.False(t, d.Damaged(), "trailing junk is not mid-Segment damage")
 	assert.Zero(t, d.DamagedBytes, "the surplus tail must NOT be relayed as damaged bytes")
 }
+
+// The audio tail and the missing-tail magnitude are mkvgo's measurements now
+// (TrackEnds, Diagnosis.MissingTailBytes): the adapter relays them, it does
+// not re-derive them from the container header or a hand-rolled tail walk.
+func TestMapDiagnosis_RelaysTrackEndsAndMissingTail(t *testing.T) {
+	short := mapDiagnosis(&extmatroska.Diagnosis{
+		Healthy:  false,
+		Findings: []extmatroska.Finding{{Kind: "audio-short", Track: 2}},
+		TrackEnds: &extmatroska.TrackEndsReport{
+			DeclaredDurationMs: 5_400_000,
+			VideoEndMs:         5_398_000,
+			AudioShortfallMs:   249_600,
+			ShortAudioTrack:    2,
+		},
+	})
+	if short.AudioShortfallMs != 249_600 {
+		t.Fatalf("AudioShortfallMs = %d, want 249600", short.AudioShortfallMs)
+	}
+
+	clean := mapDiagnosis(&extmatroska.Diagnosis{Healthy: true, TrackEnds: &extmatroska.TrackEndsReport{VideoEndMs: 100}})
+	if clean.AudioShortfallMs != 0 {
+		t.Fatalf("no shortfall must map to 0, got %d", clean.AudioShortfallMs)
+	}
+
+	cut := mapDiagnosis(&extmatroska.Diagnosis{
+		Findings:         []extmatroska.Finding{{Kind: "truncated"}},
+		FileSize:         900,
+		DeclaredSize:     41_000_900,
+		MissingTailBytes: 41_000_000,
+	})
+	if !cut.Truncated || cut.MissingTailBytes != 41_000_000 {
+		t.Fatalf("truncated=%v missing=%d, want true/41000000", cut.Truncated, cut.MissingTailBytes)
+	}
+
+	// A missing-tail number without the classified finding is trailing-junk
+	// noise from the raw walk, never a cut: it must not leak through.
+	junky := mapDiagnosis(&extmatroska.Diagnosis{
+		Findings:         []extmatroska.Finding{{Kind: "trailing-junk"}},
+		MissingTailBytes: 9,
+	})
+	if junky.Truncated || junky.MissingTailBytes != 0 {
+		t.Fatalf("junk must not read as a cut: truncated=%v missing=%d", junky.Truncated, junky.MissingTailBytes)
+	}
+}
