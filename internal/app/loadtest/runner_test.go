@@ -1254,6 +1254,58 @@ func TestRunner_HeavyMixAdmissionFullOnTranscodePool(t *testing.T) {
 	}
 }
 
+// Shedding viewers WITHOUT a rebuild (an SLO breach leaves no holes: the
+// bisection just shrinks the audience) must also reap - the shed viewers'
+// sessions keep encoding for minutes and their CPU is billed to the smaller
+// tier being judged. But only the media NO live viewer holds may be reaped:
+// RemoveSession kills media-wide, and a survivor sharing a title with a shed
+// viewer must keep its stream. So a shrink-time reap is always PARTIAL
+// (candidates minus live media) while the end-of-run reap stays full.
+func TestRunner_ShrinkWithoutRebuildReapsIdleMediaOnly(t *testing.T) {
+	st := newServerState()
+	st.targetDurRaw = "0.1" // 100ms auto SLO
+	aud := &audience{}
+	st.stallBeyond(aud, 3, 200*time.Millisecond)
+	srv := httptest.NewServer(st.handler())
+	defer srv.Close()
+
+	candidates := manyCandidates(8)
+	var mu sync.Mutex
+	var partialReaps, fullReaps int
+	r := New(&http.Client{}, fakeMediaLister{candidates: candidates}, zeroActive, testLogger())
+	r.WithSessionReaper(func(mediaIDs []string) {
+		mu.Lock()
+		defer mu.Unlock()
+		switch {
+		case len(mediaIDs) == len(candidates):
+			fullReaps++
+		case len(mediaIDs) > 0:
+			partialReaps++
+		}
+	})
+	aud.bind(r)
+	cfg := Config{
+		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioNatural,
+		MaxViewers: 8, RampEvery: 700 * time.Millisecond, FastHold: 700 * time.Millisecond, MeasureHold: 1200 * time.Millisecond, MaxDuration: 30 * time.Second,
+	}
+	if err := r.Start(context.Background(), cfg); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+
+	report := waitForReport(t, r, 30*time.Second)
+	if report.StopReason != StopSLOBreach {
+		t.Fatalf("stop reason = %s, want %s (detail=%q)", report.StopReason, StopSLOBreach, report.StopDetail)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if partialReaps == 0 {
+		t.Fatalf("no shrink-time reap: the shed viewers' sessions were left encoding over the smaller tier being judged")
+	}
+	if fullReaps == 0 {
+		t.Fatalf("expected the end-of-run reap of every candidate")
+	}
+}
+
 // The bisection must never judge a tier against the PREVIOUS tier's leftover
 // encoder sessions. On the real server an admitted transcode outlives its
 // viewer by minutes, so after a broken tier the admission pools are still

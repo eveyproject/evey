@@ -43,6 +43,10 @@ type rampState struct {
 	// time. Any successful viewer resets it.
 	consecutiveSkips int
 	viewerTypeBySlot map[int]viewerType
+	// mediaBySlot is which TITLE each live viewer holds. The shrink-time reap
+	// kills sessions media-wide (RemoveSession), so it must know which media
+	// still have a live viewer on them and leave those alone.
+	mediaBySlot map[int]string
 
 	// rebuilding is true while resizeTo is repopulating a REBUILT audience;
 	// herdBySlot marks the viewers spawned that way. Their first fetches all
@@ -75,6 +79,7 @@ func (r *Runner) shedTo(ramp *rampState, target int) {
 		cancel()
 		delete(ramp.cancelBySlot, slot)
 		delete(ramp.herdBySlot, slot)
+		delete(ramp.mediaBySlot, slot)
 		ramp.tier--
 		r.liveViewers.Add(-1)
 		if ramp.viewerTypeBySlot[slot] == viewerTypeTranscode {
@@ -113,6 +118,7 @@ func (r *Runner) spawnNext(viewerCtx context.Context, cfg Config, pool *candidat
 	}
 	ramp.viewerTypeBySlot[slot] = vt
 	ramp.roundBySlot[slot] = asg.round
+	ramp.mediaBySlot[slot] = asg.media.ID
 	if ramp.rebuilding {
 		ramp.herdBySlot[slot] = true
 	}
@@ -137,6 +143,11 @@ func (r *Runner) spawnNext(viewerCtx context.Context, cfg Config, pool *candidat
 func (r *Runner) resizeTo(target int, viewerCtx context.Context, cfg Config, pool *candidatePool, events chan viewerEvent, wg *sync.WaitGroup, ramp *rampState) (bool, string) {
 	if target < ramp.tier {
 		r.shedTo(ramp, target)
+		// The shed viewers' encoder sessions live on server-side and their
+		// CPU would be billed to the smaller tier about to be judged. Reap
+		// them - but only the media no SURVIVOR holds, because the reap
+		// kills media-wide.
+		r.reapIdleSessions(pool, ramp)
 		return true, ""
 	}
 	for ramp.tier < target {
@@ -205,6 +216,7 @@ func (r *Runner) dropViewer(ramp *rampState, slot int) {
 	cancel()
 	delete(ramp.cancelBySlot, slot)
 	delete(ramp.herdBySlot, slot)
+	delete(ramp.mediaBySlot, slot)
 	ramp.tier--
 	r.liveViewers.Add(-1)
 	if ramp.viewerTypeBySlot[slot] == viewerTypeTranscode {
@@ -224,4 +236,36 @@ func (r *Runner) reapLeftoverSessions(pool *candidatePool) {
 		return
 	}
 	r.reapSessions(pool.candidateIDs())
+}
+
+// liveMedia is the set of media IDs the live audience currently holds.
+func (ramp *rampState) liveMedia() map[string]bool {
+	live := make(map[string]bool, len(ramp.mediaBySlot))
+	for _, id := range ramp.mediaBySlot {
+		live[id] = true
+	}
+	return live
+}
+
+// reapIdleSessions asks the server to kill the sessions of every candidate NO
+// live viewer holds - the shrink-time counterpart of reapLeftoverSessions.
+// A shed viewer's encoder session outlives it by minutes and would spend CPU
+// (and admission budget) over the smaller tier being judged; a title a
+// survivor still watches is left alone, because the reap kills media-wide.
+// No-op without a wired reaper, and when every candidate is being watched.
+func (r *Runner) reapIdleSessions(pool *candidatePool, ramp *rampState) {
+	if r.reapSessions == nil {
+		return
+	}
+	live := ramp.liveMedia()
+	ids := make([]string, 0, len(pool.candidates))
+	for _, m := range pool.candidates {
+		if !live[m.ID] {
+			ids = append(ids, m.ID)
+		}
+	}
+	if len(ids) == 0 {
+		return
+	}
+	r.reapSessions(ids)
 }

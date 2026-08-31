@@ -135,6 +135,7 @@ func (r *Runner) run(runCtx context.Context, cfg Config) {
 
 	ramp := rampState{
 		viewerTypeBySlot: map[int]viewerType{},
+		mediaBySlot:      map[int]string{},
 		cancelBySlot:     map[int]context.CancelFunc{},
 		roundBySlot:      map[int]int{},
 		replayedByTier:   map[int]int{},
