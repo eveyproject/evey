@@ -3,6 +3,7 @@ package fakes
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 
 	"github.com/evey-project/evey/internal/domain/library"
 )
@@ -11,6 +12,9 @@ type FakePersonRepository struct {
 	mu    sync.RWMutex
 	items map[string]*library.Person
 	Err   error
+	// UpdateCalls counts Update invocations, so callers can assert a bio-check
+	// negative cache (or lack thereof) actually persisted.
+	UpdateCalls atomic.Int64
 }
 
 func NewFakePersonRepository() *FakePersonRepository {
@@ -31,6 +35,7 @@ func (r *FakePersonRepository) Create(_ context.Context, person *library.Person)
 }
 
 func (r *FakePersonRepository) Update(_ context.Context, person *library.Person) error {
+	r.UpdateCalls.Add(1)
 	if r.Err != nil {
 		return r.Err
 	}

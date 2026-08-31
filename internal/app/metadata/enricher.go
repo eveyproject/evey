@@ -19,6 +19,12 @@ import (
 	"golang.org/x/time/rate"
 )
 
+// bioRecheckTTL bounds how often a person the provider had NO biography for
+// is asked again. Without it, a bio-less person is re-fetched on every
+// re-enrichment pass (daily), forever - one provider round-trip per
+// bio-less person per day for the whole library.
+const bioRecheckTTL = 30 * 24 * time.Hour
+
 // CollectionLinker upserts provider-sourced collections and links media items.
 type CollectionLinker interface {
 	Upsert(ctx context.Context, tmdbID int, name, overview, posterURL, backdropURL string) (*domainlib.Collection, error)
@@ -53,6 +59,9 @@ type Enricher struct {
 	// people upsert) one transaction. nil (tests / no wiring) keeps the
 	// historical per-write auto-commit behaviour.
 	uow shared.TransactionalUnit
+	// now is the injectable clock behind bioRecheckTTL; tests override it via
+	// EnricherWithClock, production keeps the default set in NewEnricher.
+	now func() time.Time
 }
 
 type EnricherOption func(*Enricher)
@@ -92,6 +101,12 @@ func EnricherWithUnitOfWork(uow shared.TransactionalUnit) EnricherOption {
 	return func(e *Enricher) { e.uow = uow }
 }
 
+// EnricherWithClock overrides the clock behind bioRecheckTTL. Tests only;
+// production keeps the time.Now default set in NewEnricher.
+func EnricherWithClock(now func() time.Time) EnricherOption {
+	return func(e *Enricher) { e.now = now }
+}
+
 func EnricherWithTranslations(
 	mediaTranslations domainlib.MediaItemTranslationRepository,
 	personTranslations domainlib.PersonTranslationRepository,
@@ -125,6 +140,7 @@ func NewEnricher(
 		chain:        NewProviderChain(primary, supplementary...),
 		collections:  collections,
 		apiLimiter:   rate.NewLimiter(rate.Every(250*time.Millisecond), 1),
+		now:          time.Now,
 	}
 	for _, opt := range opts {
 		opt(e)
@@ -446,6 +462,24 @@ func (e *Enricher) upsertPeople(ctx context.Context, mediaItemID string, people 
 	return bioPending, nil
 }
 
+// personNeedsBio reports whether the provider should be asked for this
+// person's biography: it is missing AND either never checked, or last
+// checked longer than bioRecheckTTL ago. A person the provider genuinely has
+// no bio for is otherwise re-fetched on every re-enrichment pass, forever.
+func (e *Enricher) personNeedsBio(p *domainlib.Person) bool {
+	if p.Biography != "" {
+		return false
+	}
+	if p.BioCheckedAt == nil {
+		return true
+	}
+	clock := e.now
+	if clock == nil {
+		clock = time.Now
+	}
+	return clock().Sub(*p.BioCheckedAt) >= bioRecheckTTL
+}
+
 // findOrCreatePerson takes the preloaded person (may be nil when absent
 // from DB) and either enriches the existing row with new provider IDs/
 // thumbnails, or creates a fresh row. needsBio reports that the row has a
@@ -456,7 +490,7 @@ func (e *Enricher) findOrCreatePerson(ctx context.Context, p domainmetadata.Pers
 		person = e.refreshKnownPerson(ctx, p, preloaded)
 		// needsBio no longer requires a tmdb id: the bio lookup is by NAME
 		// (see fetchPersonBio), so the id gated nothing but the attempt.
-		return person, person.Biography == "", nil
+		return person, e.personNeedsBio(person), nil
 	}
 	person, err = e.persons.GetByName(ctx, p.Name)
 	if err == nil {
@@ -478,7 +512,7 @@ func (e *Enricher) findOrCreatePerson(ctx context.Context, p domainmetadata.Pers
 				slog.WarnContext(ctx, "update person failed", slog.String("personID", person.ID), slog.Any("err", err))
 			}
 		}
-		return person, person.Biography == "", nil
+		return person, e.personNeedsBio(person), nil
 	}
 	if !errors.Is(err, shared.ErrNotFound) {
 		return nil, false, fmt.Errorf("get person by name: %w", err)
@@ -550,9 +584,12 @@ func (e *Enricher) fetchPersonBio(ctx context.Context, person *domainlib.Person)
 		if detErr != nil {
 			// A swallowed 429/timeout here is indistinguishable from "the
 			// provider has no bio" - log it so the empty bio isn't read as fact.
+			// Do NOT stamp BioCheckedAt: a transient failure must not silence
+			// this person from being retried for the next bioRecheckTTL.
 			slog.WarnContext(ctx, "person bio fetch failed", slog.String("person", person.Name), slog.Any("err", detErr))
+			return
 		}
-		if detErr == nil && details != nil && details.Biography != "" {
+		if details != nil && details.Biography != "" {
 			person.Biography = details.Biography
 			if details.Birthday != "" {
 				person.Birthday = details.Birthday
@@ -566,9 +603,18 @@ func (e *Enricher) fetchPersonBio(ctx context.Context, person *domainlib.Person)
 			if details.KnownFor != "" {
 				person.KnownFor = details.KnownFor
 			}
-			if err := e.persons.Update(ctx, person); err != nil {
-				slog.WarnContext(ctx, "update person bio failed", slog.String("personID", person.ID), slog.Any("err", err))
-			}
+		}
+		// The provider answered (with or without a biography): stamp the
+		// negative-cache marker so a genuinely bio-less person is not asked
+		// again until bioRecheckTTL elapses.
+		now := e.now
+		if now == nil {
+			now = time.Now
+		}
+		checkedAt := now()
+		person.BioCheckedAt = &checkedAt
+		if err := e.persons.Update(ctx, person); err != nil {
+			slog.WarnContext(ctx, "update person bio failed", slog.String("personID", person.ID), slog.Any("err", err))
 		}
 	}
 }

@@ -3,6 +3,7 @@ package postgres_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/evey-project/evey/internal/adapters/driven/postgres"
 	"github.com/evey-project/evey/internal/adapters/driven/postgres/testhelpers"
@@ -153,6 +154,7 @@ func TestPersonRepo_Update_EveryColumnRoundTripsToItsOwnField(t *testing.T) {
 	require.NoError(t, repo.Create(ctx, &library.Person{ID: "p-rt", Name: "Some Person"}))
 
 	thumb := "/thumbs/p-rt.jpg"
+	checkedAt := time.Date(2026, 8, 1, 12, 0, 0, 0, time.UTC)
 	updated := &library.Person{
 		ID:           "p-rt",
 		Name:         "Some Person",
@@ -163,6 +165,7 @@ func TestPersonRepo_Update_EveryColumnRoundTripsToItsOwnField(t *testing.T) {
 		Deathday:     "2019-11-25",
 		PlaceOfBirth: "Somewhere",
 		KnownFor:     "Acting",
+		BioCheckedAt: &checkedAt,
 	}
 	require.NoError(t, repo.Update(ctx, updated))
 
@@ -177,4 +180,30 @@ func TestPersonRepo_Update_EveryColumnRoundTripsToItsOwnField(t *testing.T) {
 	assert.Equal(t, "Somewhere", got.PlaceOfBirth)
 	assert.Equal(t, "Acting", got.KnownFor)
 	assert.Equal(t, map[string]string{"tmdb": "777"}, got.ProviderIDs)
+	require.NotNil(t, got.BioCheckedAt)
+	assert.True(t, checkedAt.Equal(*got.BioCheckedAt))
+}
+
+func TestPersonRepo_BioCheckedAt_NilByDefaultThenRoundTrips(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	repo := postgres.NewPersonRepository(db)
+	ctx := context.Background()
+
+	p := newTestPerson("p-bio-cache", "Nil Bio Person")
+	require.NoError(t, repo.Create(ctx, p))
+
+	got, err := repo.GetByID(ctx, "p-bio-cache")
+	require.NoError(t, err)
+	assert.Nil(t, got.BioCheckedAt, "a freshly created person has never been bio-checked")
+
+	checkedAt := time.Date(2026, 9, 1, 8, 30, 0, 0, time.UTC)
+	got.BioCheckedAt = &checkedAt
+	require.NoError(t, repo.Update(ctx, got))
+
+	reloaded, err := repo.GetByID(ctx, "p-bio-cache")
+	require.NoError(t, err)
+	require.NotNil(t, reloaded.BioCheckedAt)
+	assert.True(t, checkedAt.Equal(*reloaded.BioCheckedAt))
 }

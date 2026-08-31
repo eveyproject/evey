@@ -404,6 +404,10 @@ type Person struct {
 	Deathday     string
 	PlaceOfBirth string
 	KnownFor     string
+	// BioCheckedAt is the last time the metadata provider was asked for this
+	// person's biography and answered WITHOUT one (a negative cache stamp).
+	// nil means never asked, or never answered.
+	BioCheckedAt *time.Time
 }
 
 type MediaPerson struct {
