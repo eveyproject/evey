@@ -4,6 +4,8 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -261,4 +263,67 @@ func TestSeekIndexService_FixContainer_RenamesBackWhenCatalogRefuses(t *testing.
 	require.NoError(t, err, "renamed back: the .mkv is where the catalog says it is")
 	_, err = os.Stat(filepath.Join(dir, "w.mp4"))
 	assert.True(t, os.IsNotExist(err))
+}
+
+// A detector fix must reach the files already diagnosed. The incremental
+// re-scan reuses a status while the file's fingerprint holds - right for the
+// file, wrong for the detector: a probe corrected in July kept a month of
+// stale false positives alive in production, because no unchanged file was
+// ever re-judged. A status from an older detector version is re-diagnosed.
+func TestSeekIndexService_Rescan_RediagnosesStatusesFromOlderDetectors(t *testing.T) {
+	dir := t.TempDir()
+	stable := filepath.Join(dir, "stable.mkv")
+	require.NoError(t, os.WriteFile(stable, []byte("x"), 0o644))
+	old := time.Now().Add(-time.Hour)
+	require.NoError(t, os.Chtimes(stable, old, old))
+	state := t.TempDir()
+	diag := fakeDiagnoser{calls: map[string]int{}, byPath: map[string]*mkv.Diagnosis{stable: {Healthy: true}}}
+	cat := fakeCatalog{files: []appmaintenance.MediaRef{{MediaID: "m1", Path: stable}}}
+	newSvc := func() *appmaintenance.SeekIndexService {
+		return appmaintenance.NewSeekIndexService(&fakeReindexer{hasIndex: map[string]bool{stable: true}}, cat, nil).
+			WithDiagnoser(diag).WithStateDir(state)
+	}
+	svc := newSvc()
+	require.NoError(t, svc.StartScan(context.Background(), ""))
+	waitIdle(t, svc)
+	require.Equal(t, 1, diag.calls[stable])
+
+	// Same file, same detectors: reused, as before.
+	require.NoError(t, svc.StartScan(context.Background(), ""))
+	waitIdle(t, svc)
+	require.Equal(t, 1, diag.calls[stable], "unchanged file + unchanged detectors = reused")
+	res, _, _ := svc.CachedScan("")
+	assert.Equal(t, appmaintenance.SeekDiagVersion, res.Items[0].DiagVersion)
+
+	// Simulate a status persisted by an older detector version (or before the
+	// field existed): the fingerprint still holds, the verdict must not.
+	raw, err := os.ReadFile(filepath.Join(state, "scans.json"))
+	require.NoError(t, err)
+	require.Contains(t, string(raw), `"DiagVersion":`)
+	stale := strings.ReplaceAll(string(raw), `"DiagVersion":`+strconv.Itoa(appmaintenance.SeekDiagVersion), `"DiagVersion":1`)
+	require.NoError(t, os.WriteFile(filepath.Join(state, "scans.json"), []byte(stale), 0o644))
+
+	svc2 := newSvc()
+	require.NoError(t, svc2.StartScan(context.Background(), ""))
+	waitIdle(t, svc2)
+	assert.Equal(t, 2, diag.calls[stable], "an older detector's verdict is re-judged even though the bytes did not change")
+	res, _, _ = svc2.CachedScan("")
+	assert.Equal(t, appmaintenance.SeekDiagVersion, res.Items[0].DiagVersion, "and re-stamped")
+}
+
+// The operator sees mkvgo's own account of a sparse index, not a generic story
+// about keyframes: live, 3 of 5 "coarse" files had cues every 2-10 s and the
+// hole was the final credits alone.
+func TestSeekIndexService_Scan_CarriesTheSparseDetail(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "sparse.mkv")
+	require.NoError(t, os.WriteFile(p, []byte("x"), 0o644))
+	diag := fakeDiagnoser{byPath: map[string]*mkv.Diagnosis{p: {Findings: []mkv.DiagnosisFinding{{Kind: "index-sparse", Detail: "the video cues leave a 44s hole - a seek there lands that far from its target"}}}}}
+	svc := appmaintenance.NewSeekIndexService(&fakeReindexer{hasIndex: map[string]bool{p: true}}, fakeCatalog{files: []appmaintenance.MediaRef{{MediaID: "m1", Path: p}}}, nil).WithDiagnoser(diag)
+	require.NoError(t, svc.StartScan(context.Background(), ""))
+	waitIdle(t, svc)
+	res, _, _ := svc.CachedScan("")
+	require.Len(t, res.Items, 1)
+	assert.True(t, res.Items[0].IndexSparse)
+	assert.Contains(t, res.Items[0].IndexSparseDetail, "44s hole")
 }

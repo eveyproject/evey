@@ -201,7 +201,7 @@ describe("SeekIndexPage", () => {
         ...scanned.data,
         items: [
           ...scanned.data.items,
-          { mediaId: "mi-8", title: "Movie G", path: "/media/g.mkv", hasIndex: false, hasBackup: false, sizeBytes: "4096", container: "mkv", seekCoarse: true },
+          { mediaId: "mi-8", title: "Movie G", path: "/media/g.mkv", hasIndex: false, hasBackup: false, sizeBytes: "4096", container: "mkv", seekCoarse: true, seekCoarseDetail: "the video cues leave a 44s hole - a seek there lands that far from its target" },
         ],
         total: 7,
         seekCoarse: 1,
@@ -213,6 +213,9 @@ describe("SeekIndexPage", () => {
 
     expect(screen.getByTestId("seek-index-coarse-count")).toHaveTextContent("1");
     const row = screen.getByText("Movie G").closest("tr")!;
+    // The hint carries mkvgo's own account of the hole, not a generic story
+    // about keyframes (live, the hole was usually the final credits).
+    expect(within(row).getByTestId("seek-index-coarse-hint").getAttribute("title")).toContain("the video cues leave a 44s hole");
     // Its own badge, NOT the repairable "Missing" one.
     expect(within(row).getByText("Coarse seeking")).toBeInTheDocument();
     expect(within(row).queryByText("Missing")).toBeNull();

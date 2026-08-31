@@ -190,6 +190,9 @@ type SeekStatus struct {
 	// HasIndex is false; this says WHICH one, because it is the only one a
 	// rebuild can fail to improve.
 	IndexSparse bool
+	// IndexSparseDetail is the diagnoser's own account of the hole ("the video
+	// cues leave a 44s hole - ..."), shown instead of a generic explanation.
+	IndexSparseDetail string `json:"IndexSparseDetail,omitempty"`
 	// ReindexAttempted → this file's index was actually rewritten by a repair
 	// (not skipped) since it was last modified. Set by the repair itself and
 	// carried by the incremental re-scan, which only reuses a status whose
@@ -204,7 +207,25 @@ type SeekStatus struct {
 	// (size, mtime) fingerprint holds - so a re-acquired or rewritten file
 	// comes back un-acknowledged and gets judged afresh.
 	AckedAt int64 `json:"AckedAt,omitempty"`
+	// DiagVersion is the version of the DETECTORS that produced this status.
+	// The incremental re-scan reuses a status while the file's (size, mtime)
+	// fingerprint holds - which is right for the file, and wrong for the
+	// detectors: a probe fixed on the 26th (the audio tail measured against
+	// the declared duration instead of the video's end) kept every earlier
+	// false positive alive in production for a month, because no unchanged
+	// file was ever re-judged. A status from an older detector version is
+	// re-diagnosed regardless of the fingerprint.
+	DiagVersion int `json:"DiagVersion,omitempty"`
 }
+
+// SeekDiagVersion is bumped whenever a detector's verdict can change for an
+// unchanged file (a new rule, a fixed reference, a moved threshold). The next
+// scan then re-diagnoses the whole library once - hours on a NAS, and the
+// price of never showing a stale verdict.
+//
+//	1: implicit (statuses persisted before the field existed)
+//	2: audio tail measured against the video end; index-sparse carries mkvgo's detail
+const SeekDiagVersion = 2
 
 // Verdict is what the health page owes the operator for every file: not a
 // pile of flags, but the ONE answer "who acts on this, if anyone". Three

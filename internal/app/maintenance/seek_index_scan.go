@@ -113,7 +113,7 @@ func (s *SeekIndexService) probeFile(ctx context.Context, f MediaRef, prev map[s
 	// → the file's bytes are the same, so its diagnosis is too. Only the
 	// backup flag is live state (a rollback/purge changes it without touching
 	// the media), so it is re-stat'ed below either way.
-	if p, hit := prev[f.Path]; hit && p.ModTimeUnix != 0 &&
+	if p, hit := prev[f.Path]; hit && p.ModTimeUnix != 0 && p.DiagVersion == SeekDiagVersion &&
 		p.SizeBytes == fi.Size() && p.ModTimeUnix == fi.ModTime().Unix() {
 		st = p
 		// Identity may have moved (rename in the DB) even when the file did not.
@@ -127,6 +127,7 @@ func (s *SeekIndexService) probeFile(ctx context.Context, f MediaRef, prev map[s
 			Container:   containerOf(f.Path),
 			SizeBytes:   fi.Size(),
 			ModTimeUnix: fi.ModTime().Unix(),
+			DiagVersion: SeekDiagVersion,
 		}
 		if !s.diagnose(ctx, f.Path, &st) {
 			return SeekStatus{}, false, false
@@ -186,6 +187,9 @@ func (s *SeekIndexService) diagnose(ctx context.Context, path string, st *SeekSt
 		// reindex list, and surface it through its own WrongContainer flag instead.
 		st.HasIndex = st.WrongContainer || !d.HasIndexDefect()
 		st.IndexSparse = !st.WrongContainer && d.IndexSparse()
+		if st.IndexSparse {
+			st.IndexSparseDetail = d.IndexSparseDetail()
+		}
 		st.AudioDelaySec = float64(d.MaxAudioDelayMs()) / 1000
 		st.Truncated = d.Truncated
 		st.MissingTailBytes = d.MissingTailBytes
@@ -323,11 +327,12 @@ func (s *SeekIndexService) noteReindexed(ctx context.Context, path string, hasBa
 			st.SizeBytes, st.ModTimeUnix = size, mtime
 		}
 		if !ok {
-			st.HasIndex, st.IndexSparse = true, false
+			st.HasIndex, st.IndexSparse, st.IndexSparseDetail = true, false, ""
 			st.DamagedBytes, st.Truncated, st.TrailingJunk = 0, false, false
 			return
 		}
-		st.HasIndex, st.IndexSparse = fresh.HasIndex, fresh.IndexSparse
+		st.DiagVersion = SeekDiagVersion
+		st.HasIndex, st.IndexSparse, st.IndexSparseDetail = fresh.HasIndex, fresh.IndexSparse, fresh.IndexSparseDetail
 		st.WrongContainer = fresh.WrongContainer
 		st.Truncated, st.MissingTailBytes = fresh.Truncated, fresh.MissingTailBytes
 		st.DamagedBytes, st.TrailingJunk = fresh.DamagedBytes, fresh.TrailingJunk

@@ -122,7 +122,11 @@ export function SeekIndexItemRow({
           <HintBadge label={t("admin.seekIndex.statusMissing")} color={theme.colors.warning} />
         )}
         {item.seekCoarse && !item.truncated && (
-          <HintBadge label={t("admin.seekIndex.seekCoarseBadge")} hint={t("admin.seekIndex.seekCoarseHint")} color={theme.colors.info} />
+          <HintBadge
+            label={t("admin.seekIndex.seekCoarseBadge")}
+            hint={t("admin.seekIndex.seekCoarseHint", { detail: item.seekCoarseDetail || t("admin.seekIndex.seekCoarseNoDetail") })}
+            color={theme.colors.info}
+          />
         )}
         {item.hasBackup && <HintBadge label={t("admin.seekIndex.backupBadge")} color={theme.colors.info} />}
         {delayed && (

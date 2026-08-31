@@ -65,12 +65,25 @@ func (d *Diagnosis) HasIndexDefect() bool {
 // names, and re-running the repair forever would achieve nothing. The scan
 // pairs this with SeekStatus.ReindexAttempted to tell the two apart.
 func (d *Diagnosis) IndexSparse() bool {
+	return d.IndexSparseDetail() != ""
+}
+
+// IndexSparseDetail is mkvgo's own account of the sparse index - "the video
+// cues leave a 44s hole - ..." - or "" when the index is not sparse. Shown to
+// the operator as-is: measured live on a library, 3 of 5 "coarse" files had
+// cues every 2-10 s and the hole was only the final credits (last cue to the
+// declared end), so a generic "the encode's keyframes are too far apart"
+// would have lied about them.
+func (d *Diagnosis) IndexSparseDetail() string {
 	for _, f := range d.Findings {
 		if f.Kind == "index-sparse" {
-			return true
+			if f.Detail == "" {
+				return "index-sparse"
+			}
+			return f.Detail
 		}
 	}
-	return false
+	return ""
 }
 
 // WrongContainer reports that the file's extension lies about its content: a

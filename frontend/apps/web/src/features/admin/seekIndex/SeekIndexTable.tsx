@@ -122,7 +122,11 @@ export function SeekIndexTable({
                     <Badge variant="warning" className="ml-1.5">{t("admin.seekIndex.statusMissing")}</Badge>
                   )}
                   {it.seekCoarse && !it.truncated && (
-                    <span title={t("admin.seekIndex.seekCoarseHint")} className="ml-1.5 inline-block">
+                    <span
+                      title={t("admin.seekIndex.seekCoarseHint", { detail: it.seekCoarseDetail || t("admin.seekIndex.seekCoarseNoDetail") })}
+                      className="ml-1.5 inline-block"
+                      data-testid="seek-index-coarse-hint"
+                    >
                       <Badge variant="info">{t("admin.seekIndex.seekCoarseBadge")}</Badge>
                     </span>
                   )}

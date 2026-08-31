@@ -308,6 +308,7 @@ func (d *adminMediaHandler) ScanSeekIndex(ctx context.Context, req *eveyv1.ScanS
 			SeekCoarse:        it.SeekCoarse(),
 			Verdict:           string(it.Verdict()),
 			AckedAtMs:         it.AckedAt * 1000,
+			SeekCoarseDetail:  it.IndexSparseDetail,
 		})
 	}
 	// Live per-volume numbers (free space vs candidate sizes) so the client

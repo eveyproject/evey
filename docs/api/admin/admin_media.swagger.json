@@ -1142,6 +1142,10 @@
           "type": "string",
           "format": "int64",
           "description": "acked_at_ms \u003e 0: the operator acknowledged this file's verdict (it stays\nout of the attention list until the file's bytes change)."
+        },
+        "seekCoarseDetail": {
+          "type": "string",
+          "description": "seek_coarse_detail is the diagnoser's own account of the remaining hole\n(\"the video cues leave a 44s hole - ...\") - often the final credits alone."
         }
       },
       "description": "SeekIndexItem is the per-file diagnosis surfaced by ScanSeekIndex."

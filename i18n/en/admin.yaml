@@ -1254,7 +1254,7 @@ seekIndex:
   audioShortHint: "An audio track stops {{sec}}s before the video does (silent credits on that track). The file is otherwise healthy and playback fills the missing tail with silence. Measured against where the picture actually ends, not against the container's declared duration - so an over-stated duration is never blamed on the audio. No repair can help: the audio simply is not in the file; re-acquire the source for a real fix."
   statsSeekCoarse: "Coarse seeking"
   seekCoarseBadge: "Coarse seeking"
-  seekCoarseHint: "The index was rebuilt and its cues are still too far apart to seek accurately: the encode's own keyframes are that sparse, and no index can be denser than the keyframes it names. Playback works; a seek just lands further from its target. No repair can improve it - the fix is a re-encode or a better source."
+  seekCoarseHint: "The index was rebuilt and a hole remains: {{detail}}. A seek INTO that hole lands at its edge; everywhere else seeking is exact. Measured live, the hole is most often the final credits (no keyframe after the last one), which no index can fix and which matters to nobody. A hole in the middle of the film is the encode's own keyframes - a better source is the only cure."
   repair: Repair
   repairHint: "Rebuilds the seek index. Safe by construction: rewritten to a temp copy, fully re-validated (tracks, duration, real on-disk index), then swapped in with an atomic rename - the original is kept as a .mkvgobak you can roll back to, and any failed check refuses the swap and leaves the file untouched."
   repairResync: "Resync repair"
@@ -1300,7 +1300,7 @@ seekIndex:
   partAudioDelay: "{{count}} delayed audio"
   partWrongContainer: "{{count}} wrong container"
   partTruncated: "{{count}} incomplete download(s)"
-  partSeekCoarse: "{{count}} coarse seeking"
+  partSeekCoarse: "{{count}} with a seek hole"
   partAudioShort: "{{count}} shorter audio track(s)"
   partTrailingJunk: "{{count}} surplus bytes"
   partAcked: "{{count}} acknowledged"
@@ -1337,3 +1337,4 @@ seekIndex:
   sortTitle: "Title"
   pageInfo: "{{from}}-{{to}} of {{total}}"
   noneInView: "Nothing in this view."
+  seekCoarseNoDetail: "the cues stay too far apart at one point"
