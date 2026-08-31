@@ -414,6 +414,29 @@ func (s *CommandService) DeleteLibrary(ctx context.Context, id string) error {
 	return nil
 }
 
+// RelocateMediaFile repoints a media item at a file that moved on disk (the
+// seek-index wrong-container repair renames a mislabelled .mkv to .mp4). Only
+// the path changes: the bytes are the same file, so the fingerprint, streams
+// and watch history all stay valid. The next scan then finds the item where
+// the catalog says it is instead of one vanished .mkv and one unknown .mp4.
+func (s *CommandService) RelocateMediaFile(ctx context.Context, id, newPath string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.library.RelocateMediaFile")
+	defer span.End()
+	item, err := s.mediaItems.GetByID(ctx, shared.MediaItemID(id))
+	if err != nil {
+		return fmt.Errorf("CommandService.RelocateMediaFile: %w", err)
+	}
+	if item.File == nil {
+		return fmt.Errorf("CommandService.RelocateMediaFile: media %s has no file", id)
+	}
+	item.File.Path = newPath
+	item.UpdatedAt = time.Now()
+	if err := s.mediaItems.Update(ctx, item); err != nil {
+		return fmt.Errorf("CommandService.RelocateMediaFile: %w", err)
+	}
+	return nil
+}
+
 func (s *CommandService) DeleteMediaItem(ctx context.Context, id string) error {
 	ctx, span := tracing.StartSpan(ctx, "app.library.DeleteMediaItem")
 	defer span.End()

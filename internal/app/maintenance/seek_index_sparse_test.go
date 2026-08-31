@@ -96,7 +96,7 @@ func TestRepairLibrary_SparseIndex_TruthAfterRepairAndNoReloop(t *testing.T) {
 			origReindex(p)
 		}
 	}
-	require.NoError(t, svc.StartRepairLibrary(context.Background(), "", appmaintenance.ReindexRunOptions{}, false))
+	require.NoError(t, svc.StartRepairLibrary(context.Background(), "", appmaintenance.ReindexRunOptions{}))
 	st := waitIdle(t, svc)
 	require.NotNil(t, st.Last)
 	assert.Equal(t, 2, st.Last.Done)
@@ -120,7 +120,7 @@ func TestRepairLibrary_SparseIndex_TruthAfterRepairAndNoReloop(t *testing.T) {
 
 	// The loop-closing assertion: a second "repair all" must find nothing to do.
 	reidx.reindexed = nil
-	require.NoError(t, svc.StartRepairLibrary(context.Background(), "", appmaintenance.ReindexRunOptions{}, false))
+	require.NoError(t, svc.StartRepairLibrary(context.Background(), "", appmaintenance.ReindexRunOptions{}))
 	st = waitIdle(t, svc)
 	require.NotNil(t, st.Last)
 	assert.Zero(t, st.Last.Total, "a second run has no candidate - this is the sterile loop that must not reopen")
@@ -146,7 +146,7 @@ func TestRepairLibrary_NoIndex_StillRepairedNormally(t *testing.T) {
 
 	require.NoError(t, svc.StartScan(context.Background(), ""))
 	waitIdle(t, svc)
-	require.NoError(t, svc.StartRepairLibrary(context.Background(), "", appmaintenance.ReindexRunOptions{}, false))
+	require.NoError(t, svc.StartRepairLibrary(context.Background(), "", appmaintenance.ReindexRunOptions{}))
 	waitIdle(t, svc)
 
 	res, _, ok := svc.CachedScan("")

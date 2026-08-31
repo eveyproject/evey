@@ -39,6 +39,10 @@ const (
 	// JobRemuxAudio rewrites files whose audio content starts late (repack
 	// mux defect) so the file itself is fixed, not just the playback.
 	JobRemuxAudio = "remux_audio"
+	// JobFixContainer renames .mkv files whose bytes are really MP4/MOV to
+	// .mp4 and repoints the catalog: there is no Matroska index to build in
+	// them, the extension is the defect.
+	JobFixContainer = "fix_container"
 
 	PhaseScanning   = "scanning"
 	PhaseProcessing = "processing"
@@ -192,6 +196,64 @@ type SeekStatus struct {
 	// (size, mtime) fingerprint still matches - so re-acquiring the source
 	// clears it, which is exactly right.
 	ReindexAttempted bool
+	// AckedAt (unix seconds) > 0 → the operator has SEEN this file's verdict
+	// and chose to live with it. Only a file nothing can be done about here
+	// (a manual or informational verdict, see Verdict) can be acknowledged:
+	// a repairable defect is repaired, not waved through. Carried by the
+	// incremental re-scan exactly like ReindexAttempted - as long as the
+	// (size, mtime) fingerprint holds - so a re-acquired or rewritten file
+	// comes back un-acknowledged and gets judged afresh.
+	AckedAt int64 `json:"AckedAt,omitempty"`
+}
+
+// Verdict is what the health page owes the operator for every file: not a
+// pile of flags, but the ONE answer "who acts on this, if anyone". Three
+// non-healthy answers, in decreasing order of what Evey can do:
+//
+//   - VerdictRepairable: Evey repairs it (index rebuild, resync of a damaged
+//     stretch, audio start-delay remux, container rename). "Repair all" acts
+//     on exactly these, and its count is exactly their count.
+//   - VerdictManual: only the operator can act - re-acquire an incomplete
+//     download, re-encode a source whose keyframes are too sparse to seek.
+//   - VerdictInformational: a fact about the file that changes nothing for
+//     playback (a shorter audio track the player pads with silence, junk
+//     bytes after the Segment end). Nothing to do, for anyone.
+//
+// Manual and informational verdicts can be acknowledged so the page tends
+// towards zero instead of carrying the same rows for years.
+type Verdict string
+
+const (
+	VerdictHealthy       Verdict = "healthy"
+	VerdictRepairable    Verdict = "repairable"
+	VerdictManual        Verdict = "manual"
+	VerdictInformational Verdict = "informational"
+)
+
+// Verdict derives the file's single answer from its flags. Precedence: a
+// defect only the operator can fix wins over one Evey could fix (repairing
+// the index of an incomplete download is wasted work until the source is
+// re-acquired), and any actionable defect wins over a mere fact.
+func (st SeekStatus) Verdict() Verdict {
+	switch {
+	case st.Truncated, st.SeekCoarse():
+		return VerdictManual
+	case !st.HasIndex, st.DamagedBytes > 0, st.AudioDelaySec > AudioDelayFlagSec, st.WrongContainer:
+		return VerdictRepairable
+	case st.AudioShortfallSec > AudioShortfallFlagSec, st.TrailingJunk:
+		return VerdictInformational
+	}
+	return VerdictHealthy
+}
+
+// Acked reports whether the operator acknowledged this file's verdict.
+func (st SeekStatus) Acked() bool { return st.AckedAt > 0 }
+
+// Ackable reports whether the verdict is one the operator may acknowledge:
+// only what nobody here can repair. A repairable defect gets repaired.
+func (st SeekStatus) Ackable() bool {
+	v := st.Verdict()
+	return v == VerdictManual || v == VerdictInformational
 }
 
 // SeekCoarse reports a file whose index was rebuilt and is STILL too coarse to
@@ -216,6 +278,15 @@ type ScanResult struct {
 	TrailingJunk   int // count carrying surplus bytes past the Segment end (harmless, a rewrite drops them)
 	AudioShort     int // count whose audio ends before the declared duration (re-acquire; playback fills silence)
 	SeekCoarse     int // count rebuilt and still too coarse to seek into (re-encode; no repair can improve them)
+
+	// The triage the page is built on (see Verdict). Repairable is exactly
+	// what "Repair all" will act on. Manual and Informational count only the
+	// files still AWAITING the operator's eyes: an acknowledged file moves
+	// to Acked, whatever its verdict.
+	Repairable    int
+	Manual        int
+	Informational int
+	Acked         int
 }
 
 // Failure records one file a batch job could not process.
@@ -268,6 +339,7 @@ type SeekIndexService struct {
 	audioRemux AudioDelayRemuxer  // optional; see WithAudioRemuxer
 	audioTail  AudioTailProber    // optional; see WithAudioTailProber
 	diagnoser  mkv.Diagnoser      // optional; see WithDiagnoser
+	relocator  MediaRelocator     // optional; see WithMediaRelocator
 	logger     *slog.Logger
 
 	stateDir string // "" = no persistence (WithStateDir enables it)

@@ -603,7 +603,7 @@ func TestSeekIndexService_AudioTrackShortfall_NotRepairable(t *testing.T) {
 		WithDiagnoser(fakeDiagnoser{byPath: map[string]*mkv.Diagnosis{short: {Healthy: true}}}).
 		WithAudioTailProber(tail)
 
-	require.NoError(t, svc.StartRepairLibrary(context.Background(), "", appmaintenance.ReindexRunOptions{}, true))
+	require.NoError(t, svc.StartRepairLibrary(context.Background(), "", appmaintenance.ReindexRunOptions{}))
 	waitIdle(t, svc)
 
 	assert.Empty(t, reidx.reindexed, "a shortfall is not an index defect")
@@ -1188,7 +1188,7 @@ func TestSeekIndexService_RepairLibrary_Combined(t *testing.T) {
 	waitIdle(t, svc)
 
 	require.NoError(t, svc.StartRepairLibrary(context.Background(), "",
-		appmaintenance.ReindexRunOptions{}, true))
+		appmaintenance.ReindexRunOptions{}))
 	st := waitIdle(t, svc)
 	require.NotNil(t, st.Last)
 	assert.Equal(t, 3, st.Last.Total, "2 reindex candidates + 1 audio-only")
@@ -1201,8 +1201,10 @@ func TestSeekIndexService_RepairLibrary_Combined(t *testing.T) {
 	assert.Zero(t, res.MissingIndex)
 }
 
-// Without includeAudio the combined entry point is a pure reindex batch.
-func TestSeekIndexService_RepairLibrary_IndexOnly(t *testing.T) {
+// The combined entry point repairs the audio defect WITHOUT being asked: a
+// "repair all" that left a known, fixable defect behind a checkbox was the
+// button lying about its own name.
+func TestSeekIndexService_RepairLibrary_AudioIsAlwaysIncluded(t *testing.T) {
 	dir := t.TempDir()
 	noIndex := filepath.Join(dir, "n.mkv")
 	delayed := filepath.Join(dir, "d.mkv")
@@ -1219,12 +1221,12 @@ func TestSeekIndexService_RepairLibrary_IndexOnly(t *testing.T) {
 	waitIdle(t, svc)
 
 	require.NoError(t, svc.StartRepairLibrary(context.Background(), "",
-		appmaintenance.ReindexRunOptions{}, false))
+		appmaintenance.ReindexRunOptions{}))
 	st := waitIdle(t, svc)
 	require.NotNil(t, st.Last)
-	assert.Equal(t, 1, st.Last.Total)
+	assert.Equal(t, 2, st.Last.Total, "1 index + 1 audio")
 	assert.Equal(t, []string{noIndex}, reidx.reindexed)
-	assert.Empty(t, remux.remuxed, "audio untouched when includeAudio is false")
+	assert.Equal(t, []string{delayed}, remux.remuxed, "the audio defect is repaired in the same run")
 }
 
 // includeAudio with no remuxer wired quietly degrades to a reindex-only batch
@@ -1239,7 +1241,7 @@ func TestSeekIndexService_RepairLibrary_AudioWantedButUnavailable(t *testing.T) 
 	require.NoError(t, svc.StartScan(context.Background(), ""))
 	waitIdle(t, svc)
 
-	require.NoError(t, svc.StartRepairLibrary(context.Background(), "", appmaintenance.ReindexRunOptions{}, true))
+	require.NoError(t, svc.StartRepairLibrary(context.Background(), "", appmaintenance.ReindexRunOptions{}))
 	st := waitIdle(t, svc)
 	require.NotNil(t, st.Last)
 	assert.Equal(t, []string{p}, reidx.reindexed)
@@ -1277,7 +1279,7 @@ func TestSeekIndexService_RepairLibrary_ResyncIncludesDamagedIndexedFiles(t *tes
 	svcDefault := appmaintenance.NewSeekIndexService(reidx, cat, nil).WithDiagnoser(diag)
 	require.NoError(t, svcDefault.StartScan(context.Background(), ""))
 	waitIdle(t, svcDefault)
-	require.NoError(t, svcDefault.StartRepairLibrary(context.Background(), "", appmaintenance.ReindexRunOptions{}, false))
+	require.NoError(t, svcDefault.StartRepairLibrary(context.Background(), "", appmaintenance.ReindexRunOptions{}))
 	waitIdle(t, svcDefault)
 	assert.Empty(t, reidx.reindexed, "non-Resync repair must not touch an already-indexed file")
 
@@ -1293,7 +1295,7 @@ func TestSeekIndexService_RepairLibrary_ResyncIncludesDamagedIndexedFiles(t *tes
 	require.NoError(t, svcResync.StartScan(context.Background(), ""))
 	waitIdle(t, svcResync)
 	require.NoError(t, svcResync.StartRepairLibrary(context.Background(), "",
-		appmaintenance.ReindexRunOptions{Resync: true}, false))
+		appmaintenance.ReindexRunOptions{Resync: true}))
 	waitIdle(t, svcResync)
 	assert.Equal(t, []string{damaged}, reidx2.reindexed,
 		"Resync repair must pick up the damaged-but-indexed file, and only that one")
@@ -1326,11 +1328,11 @@ func TestSeekIndexService_RepairLibrary_ExcludesTruncatedEvenWithoutIndex(t *tes
 	waitIdle(t, svc)
 
 	// Both modes: a truncated file is never a candidate, index or no index.
-	require.NoError(t, svc.StartRepairLibrary(context.Background(), "", appmaintenance.ReindexRunOptions{}, false))
+	require.NoError(t, svc.StartRepairLibrary(context.Background(), "", appmaintenance.ReindexRunOptions{}))
 	waitIdle(t, svc)
 	assert.Empty(t, reidx.reindexed, "truncated-without-index must not be reindexed even in the default mode")
 
-	require.NoError(t, svc.StartRepairLibrary(context.Background(), "", appmaintenance.ReindexRunOptions{Resync: true}, false))
+	require.NoError(t, svc.StartRepairLibrary(context.Background(), "", appmaintenance.ReindexRunOptions{Resync: true}))
 	waitIdle(t, svc)
 	assert.Empty(t, reidx.reindexed, "truncated-without-index must not be reindexed under Resync either")
 }
@@ -1358,7 +1360,7 @@ func TestSeekIndexService_RepairLibrary_AudioBackupsHonorWindow(t *testing.T) {
 
 	// BackupWindow > 0 == "don't keep backups": rolling + drain.
 	require.NoError(t, svc.StartRepairLibrary(context.Background(), "",
-		appmaintenance.ReindexRunOptions{BackupWindow: 2}, true))
+		appmaintenance.ReindexRunOptions{BackupWindow: 2}))
 	st := waitIdle(t, svc)
 	require.NotNil(t, st.Last)
 	assert.Equal(t, 2, st.Last.Total, "1 reindex + 1 audio")

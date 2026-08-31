@@ -55,6 +55,8 @@ admin:
   seek_index_read_only: "El volumen de medios está montado en solo lectura - móntalo con escritura (quita :ro), reinicia los contenedores y vuelve a intentarlo"
   seek_index_job_running: "Ya hay una tarea de índice de búsqueda en curso - vuelve a ejecutar el análisis para seguir su progreso"
   seek_index_no_backup: "No existe ninguna copia de seguridad para este archivo"
+  seek_index_ack_not_applicable: "El defecto de este archivo se puede reparar - repáralo en lugar de darlo por visto"
+  seek_index_not_in_scan: "Este archivo no forma parte de ningún análisis de salud terminado"
   seek_index_backup_overcommit: "Conservar una copia de seguridad por archivo reparado necesita más espacio libre del disponible ({volumes}) - libera espacio o repara sin copias de seguridad"
 
 config:

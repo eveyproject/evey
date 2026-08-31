@@ -241,6 +241,12 @@ func (d *adminMediaHandler) seekIndexError(ctx context.Context, op string, err e
 			"errors.admin.seek_index_backup_overcommit", map[string]string{"volumes": spaceErr.Detail()})
 	case errors.Is(err, appmaintenance.ErrRemuxUnavailable):
 		return d.translator.TranslatedError(ctx, codes.Unimplemented, "errors.admin.service_not_configured")
+	case errors.Is(err, appmaintenance.ErrAckNotApplicable):
+		return d.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.admin.seek_index_ack_not_applicable")
+	case errors.Is(err, appmaintenance.ErrNotInScan):
+		return d.translator.TranslatedError(ctx, codes.NotFound, "errors.admin.seek_index_not_in_scan")
+	case errors.Is(err, appmaintenance.ErrContainerFixUnavailable):
+		return d.translator.TranslatedError(ctx, codes.Unimplemented, "errors.admin.service_not_configured")
 	case errors.Is(err, appmaintenance.ErrJobRunning):
 		return d.translator.TranslatedError(ctx, codes.ResourceExhausted, "errors.admin.seek_index_job_running")
 	case errors.Is(err, domainmkv.ErrNoBackup):
@@ -276,7 +282,12 @@ func (d *adminMediaHandler) ScanSeekIndex(ctx context.Context, req *eveyv1.ScanS
 	out.TrailingJunk = int32(res.TrailingJunk)
 	out.AudioShort = int32(res.AudioShort)
 	out.SeekCoarse = int32(res.SeekCoarse)
+	out.Repairable = int32(res.Repairable)
+	out.Manual = int32(res.Manual)
+	out.Informational = int32(res.Informational)
+	out.Acked = int32(res.Acked)
 	out.InplaceAvailable = d.seekIndex.SupportsInPlace()
+	out.ContainerFixAvailable = d.seekIndex.SupportsContainerFix()
 	out.ScannedAtMs = at.UnixMilli()
 	for _, it := range res.Items {
 		out.Items = append(out.Items, &eveyv1.SeekIndexItem{
@@ -295,6 +306,8 @@ func (d *adminMediaHandler) ScanSeekIndex(ctx context.Context, req *eveyv1.ScanS
 			AudioShortfallSec: it.AudioShortfallSec,
 			MissingTailBytes:  it.MissingTailBytes,
 			SeekCoarse:        it.SeekCoarse(),
+			Verdict:           string(it.Verdict()),
+			AckedAtMs:         it.AckedAt * 1000,
 		})
 	}
 	// Live per-volume numbers (free space vs candidate sizes) so the client
@@ -412,14 +425,15 @@ func (d *adminMediaHandler) ReindexLibrarySeekIndex(ctx context.Context, req *ev
 		return nil, err
 	}
 	run := appmaintenance.ReindexRunOptions{
-		Mode:         req.GetMode(),
-		DeepVerify:   req.GetDeepVerify(),
-		SkipBackup:   req.GetSkipBackup(),
-		BackupWindow: int(req.GetBackupWindow()),
+		Mode:          req.GetMode(),
+		DeepVerify:    req.GetDeepVerify(),
+		SkipBackup:    req.GetSkipBackup(),
+		BackupWindow:  int(req.GetBackupWindow()),
+		ResyncDamaged: req.GetResyncDamaged(),
 	}
-	// One entry point: StartRepairLibrary is a pure reindex batch when
-	// include_audio is false, and folds the audio remux in when true.
-	if err := d.seekIndex.StartRepairLibrary(ctx, req.GetLibraryId(), run, req.GetIncludeAudio()); err != nil {
+	// One entry point: "repair all" acts on every repairable verdict (index,
+	// audio start delay, container) - include_audio is deprecated and ignored.
+	if err := d.seekIndex.StartRepairLibrary(ctx, req.GetLibraryId(), run); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, d.seekIndexError(ctx, "reindex library seek index", err)
@@ -501,4 +515,51 @@ func (d *adminMediaHandler) PurgeSeekIndexBackups(ctx context.Context, req *evey
 		return nil, d.seekIndexError(ctx, "purge seek index backups", err)
 	}
 	return &eveyv1.PurgeSeekIndexBackupsResponse{}, nil
+}
+
+// AckSeekIndexMedia records or withdraws the operator's acknowledgement of one
+// file's verdict (synchronous: a cache update + persist).
+func (d *adminMediaHandler) AckSeekIndexMedia(ctx context.Context, req *eveyv1.AckSeekIndexMediaRequest) (*eveyv1.AckSeekIndexMediaResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.admin.AckSeekIndexMedia")
+	defer span.End()
+	if err := d.seekIndexConfigured(ctx, span); err != nil {
+		return nil, err
+	}
+	if err := d.seekIndex.AckMedia(ctx, req.GetMediaId(), req.GetAcked()); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, d.seekIndexError(ctx, "ack seek index media", err)
+	}
+	return &eveyv1.AckSeekIndexMediaResponse{}, nil
+}
+
+// AckSeekIndexGroup acknowledges every pending file of one verdict in scope.
+func (d *adminMediaHandler) AckSeekIndexGroup(ctx context.Context, req *eveyv1.AckSeekIndexGroupRequest) (*eveyv1.AckSeekIndexGroupResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.admin.AckSeekIndexGroup")
+	defer span.End()
+	if err := d.seekIndexConfigured(ctx, span); err != nil {
+		return nil, err
+	}
+	n, err := d.seekIndex.AckGroup(ctx, req.GetLibraryId(), appmaintenance.Verdict(req.GetVerdict()))
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, d.seekIndexError(ctx, "ack seek index group", err)
+	}
+	return &eveyv1.AckSeekIndexGroupResponse{Acked: int32(n)}, nil //nolint:gosec // bounded by the library size
+}
+
+// FixContainerMedia renames one mislabelled .mkv to .mp4 in the background.
+func (d *adminMediaHandler) FixContainerMedia(ctx context.Context, req *eveyv1.FixContainerMediaRequest) (*eveyv1.FixContainerMediaResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.admin.FixContainerMedia")
+	defer span.End()
+	if err := d.seekIndexConfigured(ctx, span); err != nil {
+		return nil, err
+	}
+	if err := d.seekIndex.StartFixContainerMedia(ctx, req.GetMediaId()); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, d.seekIndexError(ctx, "fix container media", err)
+	}
+	return &eveyv1.FixContainerMediaResponse{Accepted: true}, nil
 }

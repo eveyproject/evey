@@ -138,7 +138,7 @@ make doctor                     when your environment misbehaves
 | rafale | a seek-spawned ffmpeg session producing segments from a mid-file keyframe |
 | decision / fingerprint | what to serve for (media × client caps × prefs), and its cache key |
 | keyframe backfill | background worker filling `keyframes_ms` so the copy rung can cut segments |
-| seek-index repair | rebuilding a broken/absent MKV Cues index (admin > Seek Index) |
+| seek-index repair / media health | triaging every MKV/WebM into one verdict (repairable here / needs you / for information), repairing the first group, acknowledging the rest (admin > Media health) |
 | SDUI | sanitized server-driven UI schema (`web/src/features/sdui`) |
 | tripwire | a runtime assertion that logs ERROR + metric instead of corrupting playback |
 ```

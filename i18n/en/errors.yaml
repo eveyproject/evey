@@ -55,6 +55,8 @@ admin:
   seek_index_read_only: "The media volume is mounted read-only - remount it read-write (remove :ro), restart the containers, then retry"
   seek_index_job_running: "A seek-index job is already running - re-run the scan to follow its progress"
   seek_index_no_backup: "No backup exists for this file"
+  seek_index_ack_not_applicable: "This file's defect can be repaired - repair it instead of acknowledging it"
+  seek_index_not_in_scan: "This file is not part of any completed health scan"
   seek_index_backup_overcommit: "Keeping one backup per repaired file needs more free space than available ({volumes}) - free up space or repair without backups"
 
 config:

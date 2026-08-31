@@ -157,6 +157,33 @@ service AdminMediaService {
     };
   }
 
+  // AckSeekIndexMedia records (or withdraws) the operator's acknowledgement of
+  // one file's verdict. Refused (FailedPrecondition) for a repairable file:
+  // what can be repaired is repaired, not waved through.
+  rpc AckSeekIndexMedia(AckSeekIndexMediaRequest) returns (AckSeekIndexMediaResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/media/seek-index/ack"
+      body: "*"
+    };
+  }
+
+  // AckSeekIndexGroup acknowledges every pending file of one verdict
+  // ("manual" or "informational") in scope. Returns how many it marked.
+  rpc AckSeekIndexGroup(AckSeekIndexGroupRequest) returns (AckSeekIndexGroupResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/media/seek-index/ack-group"
+      body: "*"
+    };
+  }
+
+  // FixContainerMedia renames one .mkv whose bytes are really MP4/MOV to .mp4
+  // and repoints the catalog, in the background (outcome via GetSeekIndexJob).
+  rpc FixContainerMedia(FixContainerMediaRequest) returns (FixContainerMediaResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/media/{media_id}/fix-container"
+    };
+  }
+
   // PurgeSeekIndexBackups kicks a background job that re-scans the scope then
   // deletes EVERY reindex backup in it. Returns immediately; progress via
   // GetSeekIndexJob.
@@ -190,6 +217,30 @@ message DeleteSeekIndexBackupRequest {
 }
 
 message DeleteSeekIndexBackupResponse {}
+
+message AckSeekIndexMediaRequest {
+  string media_id = 1;
+  // acked=false withdraws a previous acknowledgement.
+  bool acked = 2;
+}
+message AckSeekIndexMediaResponse {}
+
+message AckSeekIndexGroupRequest {
+  // Optional scope: empty = all libraries.
+  string library_id = 1;
+  // "manual" or "informational" - the only verdicts one can acknowledge.
+  string verdict = 2;
+}
+message AckSeekIndexGroupResponse {
+  int32 acked = 1;
+}
+
+message FixContainerMediaRequest {
+  string media_id = 1;
+}
+message FixContainerMediaResponse {
+  bool accepted = 1;
+}
 
 message PurgeSeekIndexBackupsRequest {
   // Optional: when set, only this library's backups are purged. Empty = all.
@@ -251,6 +302,14 @@ message SeekIndexItem {
   // repair that cannot change anything is what pinned 134 prod files. The
   // remedy is a re-encode or a better source.
   bool seek_coarse = 15;
+  // verdict is the ONE answer per file: "healthy", "repairable" (Evey repairs
+  // it - Repair all acts on exactly these), "manual" (only the operator can:
+  // re-acquire, re-encode) or "informational" (a fact that changes nothing
+  // for playback). Manual/informational files can be acknowledged.
+  string verdict = 16;
+  // acked_at_ms > 0: the operator acknowledged this file's verdict (it stays
+  // out of the attention list until the file's bytes change).
+  int64 acked_at_ms = 17;
 }
 
 message ScanSeekIndexRequest {
@@ -288,6 +347,16 @@ message ScanSeekIndexResponse {
   // can advise for/against backups (their accumulation persists the SUM of
   // the candidates) and flag files whose rewrite temp copy will not fit.
   repeated SeekIndexVolume volumes = 8;
+  // The triage the page is built on. repairable is exactly what Repair all
+  // acts on; manual and informational count only the files still awaiting
+  // the operator's eyes (acknowledged ones are in acked).
+  int32 repairable = 15;
+  int32 manual = 16;
+  int32 informational = 17;
+  int32 acked = 18;
+  // container_fix_available: the server can rename a mislabelled .mkv to .mp4
+  // and repoint the catalog (part of Repair all when true).
+  bool container_fix_available = 19;
 }
 
 // SeekIndexVolume aggregates the repair candidates of one filesystem.
@@ -417,7 +486,14 @@ message ReindexLibrarySeekIndexRequest {
   // the same job (needs the ffmpeg remuxer wired; ignored otherwise). A file
   // that also lacks an index is only reindexed this run - its audio waits for
   // the next, so its true original backup is never clobbered.
-  bool include_audio = 6;
+  // include_audio is IGNORED since the triage rework: Repair all repairs every
+  // repairable defect, the audio start delay included. Kept for wire compat.
+  bool include_audio = 6 [deprecated = true];
+  // resync_damaged also rewrites, in resync mode, the files whose index is
+  // fine but which carry mid-file corruption: the ONLY way they become
+  // playable, at the price of the damaged bytes. Explicit consent; such
+  // repairs always keep their backup.
+  bool resync_damaged = 7;
 }
 
 message ReindexLibrarySeekIndexResponse {

@@ -77,6 +77,11 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		// absent from the file; playback fills it with silence, the operator
 		// re-acquires for a real fix.
 		WithAudioTailProber(mkvgo.NewAudioTailProber()).
+		// Wrong-container repair: a .mkv whose bytes are MP4/MOV is renamed to
+		// .mp4 and the catalog repointed - the extension IS the defect, there
+		// is no Matroska index to build. Without this the file stays a chore
+		// the page can only describe.
+		WithMediaRelocator(seekIndexRelocator{cmd: deps.library.cmdSvc}).
 		// Scans survive restarts and batch jobs reuse them as phase 1; a job
 		// killed by a redeploy resurfaces as "interrupted" instead of
 		// vanishing (the operator used to believe the batch had finished).

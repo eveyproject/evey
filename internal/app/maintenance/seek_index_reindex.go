@@ -37,6 +37,14 @@ type ReindexRunOptions struct {
 	// for the per-file "repair anyway" action on a file that failed a normal
 	// repair. Overrides Mode/SkipBackup.
 	Resync bool
+	// ResyncDamaged, for a whole-library repair, also rewrites the files
+	// whose index is fine but which carry mid-file corruption - in resync
+	// mode (skip the damaged stretch, lose those bytes, mandatory backup and
+	// deep verify), which is the ONLY way such a file becomes playable. It
+	// is the operator's explicit consent to that loss, asked in the confirm
+	// dialog with the count and the bytes at stake; unlike Resync it leaves
+	// every other candidate on the normal, lossless path.
+	ResyncDamaged bool
 }
 
 // reindexOptionsFor maps the operator's choices onto the port options. Resync
@@ -210,21 +218,24 @@ func reindexCandidates(items []SeekStatus, resync bool) []SeekStatus {
 	return out
 }
 
-// StartRepairLibrary is the "repair all" entry point: it reindexes every
-// un-indexed file and, when includeAudio is set and a remuxer is wired, also
-// repairs the audio start-delay of the flagged files - all in one job. A file
-// carrying BOTH defects is only reindexed this run: remuxing it too would
-// rename its fresh .mkvgobak (the true original) out from under itself, so its
-// audio is left for the next run, when the index defect is gone. Backup and
-// preflight semantics match StartReindexLibrary.
-func (s *SeekIndexService) StartRepairLibrary(_ context.Context, libraryID string, run ReindexRunOptions, includeAudio bool) error {
+// StartRepairLibrary is the "repair all" entry point: ONE job that acts on
+// every file whose verdict is repairable, so the count the button shows is the
+// count the job processes. In order: index rebuilds (plus, with ResyncDamaged,
+// the resync of damaged-but-indexed files), then the audio start-delay remux
+// of the flagged files, then the container rename of .mkv files that are
+// really MP4. A file carrying an index defect AND an audio one is only
+// reindexed this run: remuxing it too would rename its fresh .mkvgobak (the
+// true original) out from under itself, so its audio is left for the next
+// run, when the index defect is gone. Backup and preflight semantics match
+// StartReindexLibrary; the damaged files' resync always keeps a backup.
+func (s *SeekIndexService) StartRepairLibrary(_ context.Context, libraryID string, run ReindexRunOptions) error {
 	opts := reindexOptionsFor(run)
 	syncPreflight := opts.KeepBackup && run.BackupWindow <= 0
 	cacheHit := false
 	if syncPreflight {
 		if scan, _, ok := s.CachedScan(libraryID); ok {
 			cacheHit = true
-			if err := s.backupSpacePreflight(reindexCandidates(scan.Items, opts.Resync)); err != nil {
+			if err := s.backupSpacePreflight(repairAllCandidates(scan.Items, opts.Resync, run.ResyncDamaged)); err != nil {
 				return err
 			}
 		}
@@ -232,7 +243,6 @@ func (s *SeekIndexService) StartRepairLibrary(_ context.Context, libraryID strin
 	if !s.tryStart(JobReindex, libraryID) {
 		return ErrJobRunning
 	}
-	doAudio := includeAudio && s.audioRemux != nil
 	go func() {
 		defer s.recoverJob()
 		bg := s.jobContext()
@@ -244,44 +254,87 @@ func (s *SeekIndexService) StartRepairLibrary(_ context.Context, libraryID strin
 				return
 			}
 			if syncPreflight && !cacheHit {
-				if err := s.backupSpacePreflight(reindexCandidates(scan.Items, opts.Resync)); err != nil {
+				if err := s.backupSpacePreflight(repairAllCandidates(scan.Items, opts.Resync, run.ResyncDamaged)); err != nil {
 					s.finish(err)
 					return
 				}
 			}
 		}
-		var idx, aud []string
-		reindexing := map[string]bool{}
+		var idx, resync, aud, containers []string
+		touched := map[string]bool{}
 		for _, it := range scan.Items {
-			if needsReindex(it, opts.Resync) {
+			switch {
+			case needsReindex(it, opts.Resync):
 				idx = append(idx, it.Path)
-				reindexing[it.Path] = true
+				touched[it.Path] = true
+			case run.ResyncDamaged && needsResyncForDamage(it):
+				resync = append(resync, it.Path)
+				touched[it.Path] = true
 			}
 		}
-		if doAudio {
+		if s.audioRemux != nil {
 			for _, it := range scan.Items {
-				if it.AudioDelaySec > AudioDelayFlagSec && !reindexing[it.Path] {
+				if it.AudioDelaySec > AudioDelayFlagSec && !touched[it.Path] {
 					aud = append(aud, it.Path)
 				}
 			}
 		}
-		s.setPhase(PhaseProcessing, len(idx)+len(aud))
-		// One rolling window shared across both phases: index and audio
+		if s.relocator != nil {
+			for _, it := range scan.Items {
+				if it.WrongContainer {
+					containers = append(containers, it.Path)
+				}
+			}
+		}
+		s.setPhase(PhaseProcessing, len(idx)+len(resync)+len(aud)+len(containers))
+		// One rolling window shared across the phases: index and audio
 		// backups roll and drain together, so declining backups leaves NONE
-		// on the volume (the audio backups used to survive the drain).
+		// on the volume (the audio backups used to survive the drain). The
+		// resync backups are NOT in it: a repair that loses bytes keeps its
+		// original whatever the operator chose for the lossless ones.
 		rb := &rollingBackups{max: run.BackupWindow}
 		s.processFiles(bg, JobReindex, idx, func(bg context.Context, path string) (bool, error) {
 			return s.reindexStep(bg, path, opts, rb)
 		})
+		if len(resync) > 0 {
+			resyncOpts := reindexOptionsFor(ReindexRunOptions{Resync: true})
+			s.processFiles(bg, JobReindex, resync, func(bg context.Context, path string) (bool, error) {
+				return s.reindexStep(bg, path, resyncOpts, nil)
+			})
+		}
 		if len(aud) > 0 {
 			s.processFiles(bg, JobRemuxAudio, aud, func(bg context.Context, path string) (bool, error) {
 				return s.remuxAudioStep(bg, path, rb)
 			})
 		}
+		if len(containers) > 0 {
+			s.processFiles(bg, JobFixContainer, containers, s.fixContainerStep)
+		}
 		s.drainRollingBackups(bg, rb)
 		s.finish(nil)
 	}()
 	return nil
+}
+
+// needsResyncForDamage picks the files ONLY a resync can make playable: index
+// fine, mid-file corruption, not an incomplete download (whose damage runs to
+// the end - nothing to resynchronise onto).
+func needsResyncForDamage(it SeekStatus) bool {
+	return it.HasIndex && it.DamagedBytes > 0 && !it.Truncated && !it.SeekCoarse()
+}
+
+// repairAllCandidates is every file the "repair all" job will REWRITE - the
+// set the backup space preflight must size.
+func repairAllCandidates(items []SeekStatus, resync, resyncDamaged bool) []SeekStatus {
+	out := reindexCandidates(items, resync)
+	if resyncDamaged {
+		for _, it := range items {
+			if !needsReindex(it, resync) && needsResyncForDamage(it) {
+				out = append(out, it)
+			}
+		}
+	}
+	return out
 }
 
 // StartReindexMedia rebuilds one media file's seek index in the background.

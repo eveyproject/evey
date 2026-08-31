@@ -250,6 +250,16 @@ func addToRollups(res *ScanResult, st SeekStatus) {
 	if st.AudioShortfallSec > AudioShortfallFlagSec {
 		res.AudioShort++
 	}
+	switch v := st.Verdict(); {
+	case v == VerdictRepairable:
+		res.Repairable++
+	case st.Acked():
+		res.Acked++
+	case v == VerdictManual:
+		res.Manual++
+	case v == VerdictInformational:
+		res.Informational++
+	}
 }
 
 // recomputeRollups rebuilds every rollup counter from the items.
@@ -257,6 +267,7 @@ func recomputeRollups(res *ScanResult) {
 	res.MissingIndex, res.WithBackup, res.AudioDelayed = 0, 0, 0
 	res.Truncated, res.Damaged, res.WrongContainer = 0, 0, 0
 	res.TrailingJunk, res.AudioShort, res.SeekCoarse = 0, 0, 0
+	res.Repairable, res.Manual, res.Informational, res.Acked = 0, 0, 0, 0
 	for _, it := range res.Items {
 		addToRollups(res, it)
 	}

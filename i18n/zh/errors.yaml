@@ -55,6 +55,8 @@ admin:
   seek_index_read_only: "媒体卷以只读方式挂载--请改为可写挂载（移除 :ro）并重启容器后重试"
   seek_index_job_running: "已有一个索引任务正在运行--重新扫描即可查看进度"
   seek_index_no_backup: "此文件没有备份"
+  seek_index_ack_not_applicable: "此文件的缺陷可以修复 - 请修复它而不是将其标记为已知"
+  seek_index_not_in_scan: "此文件不属于任何已完成的健康分析"
   seek_index_backup_overcommit: "为每个修复的文件保留备份所需的可用空间超过现有空间（{volumes}）- 请释放空间或不保留备份进行修复"
 
 config:

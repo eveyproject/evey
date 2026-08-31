@@ -55,6 +55,8 @@ admin:
   seek_index_read_only: "Das Medien-Volume ist schreibgeschützt eingebunden - binde es beschreibbar ein (entferne :ro), starte die Container neu und versuche es erneut"
   seek_index_job_running: "Ein Seek-Index-Auftrag läuft bereits - führe den Scan erneut aus, um den Fortschritt zu verfolgen"
   seek_index_no_backup: "Für diese Datei existiert keine Sicherung"
+  seek_index_ack_not_applicable: "Der Defekt dieser Datei ist reparierbar - repariere ihn, statt ihn zu bestätigen"
+  seek_index_not_in_scan: "Diese Datei ist Teil keiner abgeschlossenen Zustandsanalyse"
   seek_index_backup_overcommit: "Eine Sicherung pro reparierter Datei braucht mehr freien Speicher als verfügbar ({volumes}) - gib Speicherplatz frei oder repariere ohne Sicherungen"
 
 config:

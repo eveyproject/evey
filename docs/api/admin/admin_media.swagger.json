@@ -16,6 +16,72 @@
     "application/json"
   ],
   "paths": {
+    "/api/v1/admin/collections/relink": {
+      "post": {
+        "summary": "Repairs saga membership for movies that belong to no collection: their\nsequels are already in the library, but membership is only written while\na title is enriched, so anything enriched before that path existed never\njoined its saga. Returns immediately; progress shows up as the\n\"collection_relink\" background task.",
+        "operationId": "AdminMediaService_RelinkCollections",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1RelinkCollectionsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1RelinkCollectionsRequest"
+            }
+          }
+        ],
+        "tags": [
+          "AdminMediaService"
+        ]
+      }
+    },
+    "/api/v1/admin/media/audio-remux-library": {
+      "post": {
+        "summary": "RemuxAudioLibrary kicks a background job repairing every file the scan\nflagged with an audio start delay above the defect floor. Progress via\nGetSeekIndexJob (kind \"remux_audio\").",
+        "operationId": "AdminMediaService_RemuxAudioLibrary",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1RemuxAudioLibraryResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1RemuxAudioLibraryRequest"
+            }
+          }
+        ],
+        "tags": [
+          "AdminMediaService"
+        ]
+      }
+    },
     "/api/v1/admin/media/match-orphans": {
       "post": {
         "summary": "MatchOrphansInLibrary targets only items missing provider IDs (TMDB\nnever matched them at scan time) and queues an async re-enrichment.\nReturns immediately with the count of queued items; the enricher\npool drains them in the background under its existing concurrency\nand rate-limit caps. Idempotent - re-run to pick up the still-\norphaned remainder once any rate limits clear.",
@@ -112,6 +178,105 @@
         ]
       }
     },
+    "/api/v1/admin/media/seek-index/ack": {
+      "post": {
+        "summary": "AckSeekIndexMedia records (or withdraws) the operator's acknowledgement of\none file's verdict. Refused (FailedPrecondition) for a repairable file:\nwhat can be repaired is repaired, not waved through.",
+        "operationId": "AdminMediaService_AckSeekIndexMedia",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1AckSeekIndexMediaResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1AckSeekIndexMediaRequest"
+            }
+          }
+        ],
+        "tags": [
+          "AdminMediaService"
+        ]
+      }
+    },
+    "/api/v1/admin/media/seek-index/ack-group": {
+      "post": {
+        "summary": "AckSeekIndexGroup acknowledges every pending file of one verdict\n(\"manual\" or \"informational\") in scope. Returns how many it marked.",
+        "operationId": "AdminMediaService_AckSeekIndexGroup",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1AckSeekIndexGroupResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1AckSeekIndexGroupRequest"
+            }
+          }
+        ],
+        "tags": [
+          "AdminMediaService"
+        ]
+      }
+    },
+    "/api/v1/admin/media/seek-index/delete-backup": {
+      "post": {
+        "summary": "DeleteSeekIndexBackup removes one media's reindex backup (.mkvgobak),\nreclaiming the duplicated disk space once the repair is confirmed fine.\nSynchronous (an unlink) - no job involved.",
+        "operationId": "AdminMediaService_DeleteSeekIndexBackup",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1DeleteSeekIndexBackupResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1DeleteSeekIndexBackupRequest"
+            }
+          }
+        ],
+        "tags": [
+          "AdminMediaService"
+        ]
+      }
+    },
     "/api/v1/admin/media/seek-index/job": {
       "get": {
         "summary": "GetSeekIndexJob reports the live progress of the running seek-index job\n(scan, reindex or rollback) plus a summary of the last finished one.\nPoll it after any Start*/Reindex*/Rollback* call.",
@@ -130,6 +295,39 @@
             }
           }
         },
+        "tags": [
+          "AdminMediaService"
+        ]
+      }
+    },
+    "/api/v1/admin/media/seek-index/purge-backups": {
+      "post": {
+        "summary": "PurgeSeekIndexBackups kicks a background job that re-scans the scope then\ndeletes EVERY reindex backup in it. Returns immediately; progress via\nGetSeekIndexJob.",
+        "operationId": "AdminMediaService_PurgeSeekIndexBackups",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1PurgeSeekIndexBackupsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1PurgeSeekIndexBackupsRequest"
+            }
+          }
+        ],
         "tags": [
           "AdminMediaService"
         ]
@@ -264,6 +462,68 @@
         ]
       }
     },
+    "/api/v1/admin/media/{mediaId}/audio-remux": {
+      "post": {
+        "summary": "RemuxAudioMedia repairs one file whose audio content starts late (repack\nmux defect diagnosed by the scan's audio_delay_sec): a stream-copy remux\nshifts the audio back onto the video, is re-probed to prove the delay is\ngone, then atomically swapped in with the original kept as .mkvgobak.\nAsync like the reindex; outcome via GetSeekIndexJob.",
+        "operationId": "AdminMediaService_RemuxAudioMedia",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1RemuxAudioMediaResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "mediaId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "AdminMediaService"
+        ]
+      }
+    },
+    "/api/v1/admin/media/{mediaId}/fix-container": {
+      "post": {
+        "summary": "FixContainerMedia renames one .mkv whose bytes are really MP4/MOV to .mp4\nand repoints the catalog, in the background (outcome via GetSeekIndexJob).",
+        "operationId": "AdminMediaService_FixContainerMedia",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1FixContainerMediaResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "mediaId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "AdminMediaService"
+        ]
+      }
+    },
     "/api/v1/admin/media/{mediaId}/seek-index/reindex": {
       "post": {
         "summary": "ReindexMediaSeekIndex rebuilds one media file's seek index in the\nbackground (a rewrite of a multi-GB file takes minutes) and returns\nimmediately with accepted=true. Outcome is observable via GetSeekIndexJob.\nThe rebuild is validated + cross-checked before an atomic swap and the\noriginal is kept as a .mkvgobak; on any failure the original is left\nuntouched. Fails with RESOURCE_EXHAUSTED if a job is already running.",
@@ -288,6 +548,14 @@
             "in": "path",
             "required": true,
             "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/AdminMediaServiceReindexMediaSeekIndexBody"
+            }
           }
         ],
         "tags": [
@@ -350,6 +618,27 @@
     }
   },
   "definitions": {
+    "AdminMediaServiceReindexMediaSeekIndexBody": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "description": "Repair strategy: \"inplace\" (surgical patch, file-write only, no backup),\n\"auto\" (try the patch, fall back to the rewrite when the file layout\ndefeats it - backup kept on the fallback), or \"rewrite\" (full rebuild +\n.mkvgobak rollback backup). Empty = rewrite."
+        },
+        "deepVerify": {
+          "type": "boolean",
+          "description": "deep_verify makes mkvgo prove every rebuilt cue lands on a real video\nkeyframe before committing (a full read of the file), on top of the\nalways-on head-only check. A failure rolls the in-place patch back and\naborts the rewrite before its swap. Recommended with \"inplace\", which\nkeeps no backup."
+        },
+        "skipBackup": {
+          "type": "boolean",
+          "description": "skip_backup drops the .mkvgobak of a rewrite once the swap has succeeded,\nso the volume never accumulates one extra copy per repaired file - the\noption for repairing a nearly-full disk. The server compensates by\nforcing deep_verify on. No effect on \"inplace\" (never keeps a backup)."
+        },
+        "resync": {
+          "type": "boolean",
+          "description": "resync repairs a file the strict reindex REFUSED for a corrupted region\n(junk between clusters, a lying size): the tolerant rewrite skips the\ndamaged span and resynchronises, recovering everything before and after.\nIt ALWAYS rewrites and forces a backup - this is the one repair that loses\ndata (the skipped span, logged). For the per-file \"repair anyway\" action\non a file that failed a normal repair. Overrides mode/skip_backup."
+        }
+      }
+    },
     "protobufAny": {
       "type": "object",
       "properties": {
@@ -378,8 +667,64 @@
         }
       }
     },
+    "v1AckSeekIndexGroupRequest": {
+      "type": "object",
+      "properties": {
+        "libraryId": {
+          "type": "string",
+          "description": "Optional scope: empty = all libraries."
+        },
+        "verdict": {
+          "type": "string",
+          "description": "\"manual\" or \"informational\" - the only verdicts one can acknowledge."
+        }
+      }
+    },
+    "v1AckSeekIndexGroupResponse": {
+      "type": "object",
+      "properties": {
+        "acked": {
+          "type": "integer",
+          "format": "int32"
+        }
+      }
+    },
+    "v1AckSeekIndexMediaRequest": {
+      "type": "object",
+      "properties": {
+        "mediaId": {
+          "type": "string"
+        },
+        "acked": {
+          "type": "boolean",
+          "description": "acked=false withdraws a previous acknowledgement."
+        }
+      }
+    },
+    "v1AckSeekIndexMediaResponse": {
+      "type": "object"
+    },
     "v1DeleteMediaItemResponse": {
       "type": "object"
+    },
+    "v1DeleteSeekIndexBackupRequest": {
+      "type": "object",
+      "properties": {
+        "mediaId": {
+          "type": "string"
+        }
+      }
+    },
+    "v1DeleteSeekIndexBackupResponse": {
+      "type": "object"
+    },
+    "v1FixContainerMediaResponse": {
+      "type": "object",
+      "properties": {
+        "accepted": {
+          "type": "boolean"
+        }
+      }
     },
     "v1GenerateAllTrickplaysResponse": {
       "type": "object",
@@ -456,6 +801,18 @@
         }
       }
     },
+    "v1PurgeSeekIndexBackupsRequest": {
+      "type": "object",
+      "properties": {
+        "libraryId": {
+          "type": "string",
+          "description": "Optional: when set, only this library's backups are purged. Empty = all."
+        }
+      }
+    },
+    "v1PurgeSeekIndexBackupsResponse": {
+      "type": "object"
+    },
     "v1RefreshAllMetadataResponse": {
       "type": "object",
       "properties": {
@@ -470,6 +827,31 @@
       "properties": {
         "libraryId": {
           "type": "string"
+        },
+        "mode": {
+          "type": "string",
+          "description": "Repair strategy - see ReindexMediaSeekIndexRequest.mode."
+        },
+        "deepVerify": {
+          "type": "boolean",
+          "description": "See ReindexMediaSeekIndexRequest.deep_verify. Costs a full read PER FILE,\nso a whole-library sweep with it on is a long job."
+        },
+        "skipBackup": {
+          "type": "boolean",
+          "description": "See ReindexMediaSeekIndexRequest.skip_backup. For a whole-library sweep\nthis is the difference between one temporary copy at a time and one\nPERSISTENT copy per repaired file on the volume."
+        },
+        "backupWindow": {
+          "type": "integer",
+          "format": "int32",
+          "description": "backup_window (with backups on) keeps only the N most recent repairs'\n.mkvgobak while the sweep runs: as the job advances past the window, the\noldest backup is purged automatically, and the job's end drains the\nremainder - the volume never holds more than N extra copies and finishes\nwith none. 0 keeps every backup. Ignored with skip_backup or \"inplace\"."
+        },
+        "includeAudio": {
+          "type": "boolean",
+          "description": "include_audio also repairs the audio start-delay of every flagged file in\nthe same job (needs the ffmpeg remuxer wired; ignored otherwise). A file\nthat also lacks an index is only reindexed this run - its audio waits for\nthe next, so its true original backup is never clobbered.\ninclude_audio is IGNORED since the triage rework: Repair all repairs every\nrepairable defect, the audio start delay included. Kept for wire compat."
+        },
+        "resyncDamaged": {
+          "type": "boolean",
+          "description": "resync_damaged also rewrites, in resync mode, the files whose index is\nfine but which carry mid-file corruption: the ONLY way they become\nplayable, at the price of the damaged bytes. Explicit consent; such\nrepairs always keep their backup."
         }
       }
     },
@@ -513,6 +895,49 @@
         "dstBytes": {
           "type": "string",
           "format": "int64"
+        }
+      }
+    },
+    "v1RelinkCollectionsRequest": {
+      "type": "object",
+      "properties": {
+        "limit": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Upper bound on titles examined in this sweep. 0 means the server default."
+        }
+      }
+    },
+    "v1RelinkCollectionsResponse": {
+      "type": "object",
+      "properties": {
+        "accepted": {
+          "type": "boolean"
+        }
+      }
+    },
+    "v1RemuxAudioLibraryRequest": {
+      "type": "object",
+      "properties": {
+        "libraryId": {
+          "type": "string",
+          "description": "Optional: when set, only this library is repaired. Empty = every library."
+        }
+      }
+    },
+    "v1RemuxAudioLibraryResponse": {
+      "type": "object",
+      "properties": {
+        "accepted": {
+          "type": "boolean"
+        }
+      }
+    },
+    "v1RemuxAudioMediaResponse": {
+      "type": "object",
+      "properties": {
+        "accepted": {
+          "type": "boolean"
         }
       }
     },
@@ -575,6 +1000,73 @@
           "type": "string",
           "format": "int64",
           "description": "When the last completed scan for this scope finished (unix ms). 0 = no\nscan has completed yet - items/counters are empty, not \"all clean\"."
+        },
+        "audioDelayed": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Count with audio_delay_sec above the defect floor (~0.1s)."
+        },
+        "inplaceAvailable": {
+          "type": "boolean",
+          "description": "Whether the surgical in-place repair mode is available in this build."
+        },
+        "truncated": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Count of truncated (incomplete-download) files - these need re-acquiring,\nnot repairing. Count of files with resync-repairable mid-file damage."
+        },
+        "damaged": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "wrongContainer": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Count of .mkv files that are really MP4/MOV - rename/remux, not reindex."
+        },
+        "trailingJunk": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Count carrying surplus bytes past the Segment end (harmless, a rewrite drops them)."
+        },
+        "audioShort": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Count whose audio ends before the declared duration (re-acquire the\nsource; playback fills the missing tail with silence meanwhile)."
+        },
+        "seekCoarse": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Count rebuilt and still too coarse to seek into (see seek_coarse). These\nare NOT part of missing_index: no repair can improve them."
+        },
+        "volumes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1SeekIndexVolume"
+          },
+          "description": "Live per-filesystem numbers for the un-indexed candidates, so the client\ncan advise for/against backups (their accumulation persists the SUM of\nthe candidates) and flag files whose rewrite temp copy will not fit."
+        },
+        "repairable": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The triage the page is built on. repairable is exactly what Repair all\nacts on; manual and informational count only the files still awaiting\nthe operator's eyes (acknowledged ones are in acked)."
+        },
+        "manual": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "informational": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "acked": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "containerFixAvailable": {
+          "type": "boolean",
+          "description": "container_fix_available: the server can rename a mislabelled .mkv to .mp4\nand repoint the catalog (part of Repair all when true)."
         }
       }
     },
@@ -605,6 +1097,51 @@
         "container": {
           "type": "string",
           "title": "e.g. \"mkv\", \"webm\""
+        },
+        "audioDelaySec": {
+          "type": "number",
+          "format": "double",
+          "description": "Audio starts this far after the video (seconds, max across audio tracks).\nAbove ~0.1s = repack mux defect playing as a constant A/V desync on\ncopied audio (transcoded audio auto-cancels it at playback). 0 = aligned."
+        },
+        "truncated": {
+          "type": "boolean",
+          "description": "truncated = the file is an incomplete download whose damage runs to EOF:\nno tool recovers the missing tail, a resync only yields a playable prefix.\nThe remedy is re-acquiring the source, NOT a repair. Only diagnosed scans\nset this (older scans leave it false). Repair the source, not the file."
+        },
+        "damagedBytes": {
+          "type": "string",
+          "format": "int64",
+          "description": "damaged_bytes \u003e 0 = mid-file corruption a resync repair skips past, losing\nthis many bytes (the file is otherwise repairable in full). 0 = clean."
+        },
+        "wrongContainer": {
+          "type": "boolean",
+          "description": "wrong_container = a .mkv whose bytes are really MP4/MOV. It has no Matroska\nseek index to build; the remedy is rename/remux, not reindex. Kept out of\nthe missing-index bucket so \"Repair all\" never wastes a doomed reindex on it."
+        },
+        "trailingJunk": {
+          "type": "boolean",
+          "description": "trailing_junk = surplus bytes past the declared Segment end; the media is\ncomplete (leftover junk, or a crashed in-place-repair journal). Harmless -\nany reindex rewrite drops them - so it is NOT damaged_bytes and needs no\nre-download. Surfaced on its own so a whole file is never flagged as corrupt\njust for carrying tail junk."
+        },
+        "audioShortfallSec": {
+          "type": "number",
+          "format": "double",
+          "description": "audio_shortfall_sec \u003e 0 = an audio track stops this many seconds BEFORE\nthe VIDEO does (mux defect: dead audio over the credits). Measured against\nthe picture's real end, not the container's declared duration - that\nduration is only a muxer's claim, and an over-stated one made aligned\nfiles look like audio defects. The file is structurally healthy, so no\nindex/damage check sees it, but players used to die at the wall (playback\nnow fills the tail with silence). NOT repairable - the audio's tail is\nabsent from the file; the remedy is re-acquiring the source. Only gaps\npast the ~10s defect floor are reported (ordinary muxes leave a couple of\nseconds of slack)."
+        },
+        "missingTailBytes": {
+          "type": "string",
+          "format": "int64",
+          "description": "missing_tail_bytes quantifies truncated: how many declared bytes are\nabsent from the end of the file. The magnitude routes the decision - a\n9 KB stub is invisible in playback, 41 MB is a missing final scene."
+        },
+        "seekCoarse": {
+          "type": "boolean",
+          "description": "seek_coarse = the index was rebuilt and is STILL too coarse to seek into:\nthe encode's own keyframes sit further apart than a seek can tolerate, and\nno index can be denser than the keyframes it names. Reported apart from\nmissing_index precisely so it stays OUT of the repair queue - offering a\nrepair that cannot change anything is what pinned 134 prod files. The\nremedy is a re-encode or a better source."
+        },
+        "verdict": {
+          "type": "string",
+          "description": "verdict is the ONE answer per file: \"healthy\", \"repairable\" (Evey repairs\nit - Repair all acts on exactly these), \"manual\" (only the operator can:\nre-acquire, re-encode) or \"informational\" (a fact that changes nothing\nfor playback). Manual/informational files can be acknowledged."
+        },
+        "ackedAtMs": {
+          "type": "string",
+          "format": "int64",
+          "description": "acked_at_ms \u003e 0: the operator acknowledged this file's verdict (it stays\nout of the attention list until the file's bytes change)."
         }
       },
       "description": "SeekIndexItem is the per-file diagnosis surfaced by ScanSeekIndex."
@@ -675,6 +1212,35 @@
         }
       },
       "description": "SeekIndexJobSummary describes the last finished job (since server boot)."
+    },
+    "v1SeekIndexVolume": {
+      "type": "object",
+      "properties": {
+        "root": {
+          "type": "string",
+          "title": "shortest observed directory (label)"
+        },
+        "freeBytes": {
+          "type": "string",
+          "format": "int64",
+          "title": "available right now"
+        },
+        "missingBytes": {
+          "type": "string",
+          "format": "int64",
+          "title": "sum of un-indexed candidate sizes"
+        },
+        "largestMissingBytes": {
+          "type": "string",
+          "format": "int64",
+          "title": "floor for one rewrite temp copy"
+        },
+        "missingFiles": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "description": "SeekIndexVolume aggregates the repair candidates of one filesystem."
     },
     "v1StartSeekIndexScanRequest": {
       "type": "object",

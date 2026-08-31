@@ -60,3 +60,12 @@ func (c seekIndexCatalog) GetMediaFile(ctx context.Context, mediaID string) (app
 	}
 	return ref, nil
 }
+
+// seekIndexRelocator adapts the library CommandService to the maintenance
+// MediaRelocator port: after the wrong-container repair renames a file, the
+// catalog entry follows it.
+type seekIndexRelocator struct{ cmd *applibrary.CommandService }
+
+func (r seekIndexRelocator) RelocateMediaFile(ctx context.Context, mediaID, newPath string) error {
+	return r.cmd.RelocateMediaFile(ctx, mediaID, newPath)
+}
