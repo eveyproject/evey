@@ -69,6 +69,31 @@ func (g *JWTGenerator) GenerateRefreshToken() (string, error) {
 	return token.SignedString(g.privateKey)
 }
 
+// DescribeRefreshToken decodes the token's own claims without verifying the
+// signature - this is for a log line about a token the store does not know,
+// so the signature is exactly what cannot vouch for anything here. The
+// description says when the token claims to have been issued: a refresh token
+// presented long after a sibling rotated it (and the sweep removed the row)
+// carries an old iat, a forged one carries whatever it likes.
+func (g *JWTGenerator) DescribeRefreshToken(raw string) string {
+	claims := jwt.MapClaims{}
+	if _, _, err := jwt.NewParser().ParseUnverified(raw, claims); err != nil {
+		return ""
+	}
+	if t, _ := claims["type"].(string); t != "refresh" {
+		return ""
+	}
+	jti, _ := claims["jti"].(string)
+	desc := "jti=" + jti
+	if iat, err := claims.GetIssuedAt(); err == nil && iat != nil {
+		desc += " issued=" + iat.UTC().Format(time.RFC3339) + " age=" + time.Since(iat.Time).Truncate(time.Second).String()
+	}
+	if exp, err := claims.GetExpirationTime(); err == nil && exp != nil {
+		desc += " expires=" + exp.UTC().Format(time.RFC3339)
+	}
+	return desc
+}
+
 // pinTokenType marks a parental-PIN proof token.
 const pinTokenType = "pin"
 

@@ -293,3 +293,7 @@ func TestUpdateProfile_BitrateLimit(t *testing.T) {
 	require.NoError(t, err)
 	assert.Nil(t, updated.MaxBitrateKbps)
 }
+
+func (g *collidingTokenGen) DescribeRefreshToken(raw string) string {
+	return g.inner.DescribeRefreshToken(raw)
+}

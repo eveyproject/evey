@@ -188,6 +188,14 @@ type TokenGenerator interface {
 	// profile id. Used to gate switching out of a kids profile.
 	GeneratePINToken(profileID string, ttl time.Duration) (string, error)
 	ParsePINToken(raw string) (string, error)
+	// DescribeRefreshToken names a refresh token for a log line WITHOUT
+	// trusting it - its id and its issue/expiry times as the token itself
+	// claims them - or returns "" when the string is not one of ours. A
+	// refresh refused as "not found" used to be undiagnosable: a stale copy of
+	// a token rotated 20 minutes earlier (swept from the store) and a token
+	// forged elsewhere printed the same eight characters. Live 2026-08-31 a
+	// phone lost its session mid-cast on exactly that line.
+	DescribeRefreshToken(raw string) string
 }
 
 // TokenEpochRepository is the narrow slice of user storage backing access-token

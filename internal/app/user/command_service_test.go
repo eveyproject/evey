@@ -1998,3 +1998,7 @@ func TestRefreshToken_ReplayedTokenDoesNotPurgeOtherSessions(t *testing.T) {
 		t.Fatalf("the mobile session must survive a replayed web token: %v", err)
 	}
 }
+
+func (f *failOnNewRefreshGen) DescribeRefreshToken(raw string) string {
+	return f.inner.DescribeRefreshToken(raw)
+}

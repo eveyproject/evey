@@ -1517,3 +1517,7 @@ func TestFindOrCreateUser_DisabledUser_StillRefused(t *testing.T) {
 		t.Fatalf("expected ErrUserDisabled, got %v", err)
 	}
 }
+
+func (f *failOnRefreshTokenGen) DescribeRefreshToken(raw string) string {
+	return f.delegate.DescribeRefreshToken(raw)
+}
