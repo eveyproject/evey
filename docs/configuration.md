@@ -262,8 +262,17 @@ See [adr/0011-intro-detection-providers.md](adr/0011-intro-detection-providers.m
 ### Logging
 ```env
 EVEY_LOG_LEVEL=info                    # debug, info, warn, error
+EVEY_LOG_DIR=/data/logs                # the image's default; the compose file maps it to ./evey-data/logs
 EVEY_LOG_RETENTION_DAYS=90
 ```
+
+The daily file `evey-YYYY-MM-DD.log` under `EVEY_LOG_DIR` is the authoritative
+log. `docker logs evey-server` shows the same stream, but Docker's json-file
+driver rotates it, and after a rotation the command can appear to stop hours
+before the container did. When the two disagree, trust the file - or, as root,
+the raw `/var/lib/docker/containers/<id>/*-json.log*` files. Outside the image
+(a bare-metal install) the default is a `logs` directory relative to the working
+directory, so point `EVEY_LOG_DIR` at a writable absolute path.
 
 ### Remote access (who may connect from outside your network)
 ```env

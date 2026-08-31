@@ -6,6 +6,8 @@ Containers: `evey-server`, `evey-postgres`, `evey-meilisearch`, `evey-caddy` (pr
 
 Default HTTP port: `9091` (`EVEY_HTTP_PORT`). Health endpoint: `/healthz`.
 
+**Logs.** Two copies of the same stream: the daily file `evey-data/logs/evey-YYYY-MM-DD.log` (`EVEY_LOG_DIR`, `/data/logs` inside the image) and `docker logs evey-server`. The file is authoritative: the json-file driver rotates `docker logs`, and after a rotation the command can stop hours before the container did - a load test's `stop_detail` or a calibration verdict then looks missing when it is only rotated away. When they disagree, read the file, or as root the raw `/var/lib/docker/containers/<id>/*-json.log*` files. The `docker logs` one-liners below assume a recent, unrotated window.
+
 ## 1. Server not reachable
 
 **Symptom**: clients fail to connect; `curl http://localhost:9091/healthz` times out or returns connection refused.
