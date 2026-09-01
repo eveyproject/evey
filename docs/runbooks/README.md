@@ -28,6 +28,7 @@ Operational playbooks for running Evey in production (or a serious home lab).
 | Transcodes failing, playback broken | `incident-runbook.md` → §3, §6 |
 | Postgres / Meilisearch outage | `incident-runbook.md` → §4, §5 |
 | Plugin panic in logs | `incident-runbook.md` → §7 |
+| A cast froze or the phone keeps spinning while casting | `incident-runbook.md` → §9 |
 | WSL2 dev host: corrupt git objects | `incident-runbook.md` → §8 |
 
 ## Related docs

@@ -236,6 +236,52 @@ git fsck && git fetch origin
 
 If the files on disk in a worktree are intact but the commit is toast, `cp` them into the main repo and re-commit there.
 
+## 9. A cast froze, went silent, or the phone keeps spinning
+
+Everything below is readable from the admin Logs page (or
+`GET /api/v1/admin/logs/search?q=<term>&limit=200`): no shell on the box is
+needed. Times are UTC. Every beacon is a `player-client: playback event
+reported` line with `type=` and a `details=` string.
+
+1. **Was the receiver alive, and until when?** Search `cast_receiver_alive`.
+   The receiver posts one every 30 s while it plays; `details` carries
+   `buf=<behind>/<ahead>/<ranges>` (seconds buffered behind and ahead of the
+   playhead) and `pos_sec`. Healthy playback shows `ahead` in the tens of
+   seconds. **The last beacon's time is when the receiver died or was
+   killed**: nothing after it means the television is no longer running the
+   receiver, whatever the phone shows.
+2. **Why did it stop?** Search `cast_receiver_finished`: `reason=INTERRUPTED`
+   is a new LOAD replacing the running one (look for a `StartStream` a few
+   seconds earlier), `reason=ERROR` carries the player error. No `finished`
+   at all after the last `alive` = the receiver process disappeared (a
+   Chromecast HD killed for memory on a 20+ Mbps copy master, most often).
+3. **What did the phone see?** Search `cast_sender_stall`: the sender posts
+   `state=playing frozen=<n>s pos=<p>` when the Cast SDK still says PLAYING
+   but the position has not moved for 20 s, and `state=idle reason=<r>` when
+   the receiver reported an idle reason. This is the sender's side of the
+   same minute - compare its `pos` with the receiver's last `pos_sec`.
+4. **Did the session cascade?** Search `refresh rejected`: a refresh token
+   "not found" logs the app out and back in (saved credentials), which
+   re-issues the stream - the line now says the token's `jti`, `issued` and
+   `age`, which tells a stale copy from a forged one. Search `StartStream`
+   to see re-issues; the sender no longer re-loads the receiver on a re-issued
+   URL for the same title.
+5. **Was the stream too big for the device?** Search `advertises a fallback
+   rung` (the copy master's peak bitrate) and `capped master served`: a
+   session that started on a 20+ Mbps copy master and fell to a capped
+   1080p rung after a few seconds is the floor rescue doing its job; a
+   re-LOAD that starts again on the copy master is the pattern that kills a
+   Chromecast HD.
+6. **Server-side starvation?** Search `on-demand resource refused`: a burst
+   of `context canceled` refusals on consecutive segments is a scrub (each
+   request cancelled by the next), not a server fault; `served` lines with
+   long durations are.
+
+If steps 1-3 show the receiver alive and the sender silent, the problem is
+in the phone's Cast session (the SDK, the network to the TV); if the
+receiver's beacons stop first, the television is where to look (memory,
+codec, the stream's bitrate).
+
 ## Kill a compromised session / device
 
 Symptom: admin sees an unexpected device in **Now Playing** (admin panel), or a user reports an unknown device in their session list.
