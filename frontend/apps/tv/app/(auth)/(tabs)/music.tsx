@@ -81,6 +81,7 @@ function ArtistCard({
       <View style={[styles.artistArt, { backgroundColor: theme.colors.surface, borderRadius: ART_SIZE / 2 }]}>
         {uri ? (
           <Image
+            cachePolicy="memory-disk"
             source={{ uri, headers: authHeaders }}
             style={{ width: ART_SIZE, height: ART_SIZE, borderRadius: ART_SIZE / 2 }}
             contentFit="cover"
@@ -128,6 +129,7 @@ function AlbumCard({
       <View style={[styles.albumArt, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.sm }]}>
         {uri ? (
           <Image
+            cachePolicy="memory-disk"
             source={{ uri, headers: authHeaders }}
             style={{ width: ART_SIZE, height: ART_SIZE, borderRadius: theme.radii.sm }}
             contentFit="cover"
@@ -181,6 +183,7 @@ function TrackCard({
       >
         {uri ? (
           <Image
+            cachePolicy="memory-disk"
             source={{ uri, headers: authHeaders }}
             style={{ width: ART_SIZE, height: ART_SIZE, borderRadius: theme.radii.sm }}
             contentFit="cover"

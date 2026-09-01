@@ -139,6 +139,7 @@ function MediaCard({
         {posterUri ? (
           <View style={{ width: CARD_WIDTH, height: CARD_HEIGHT, borderRadius: theme.radii.sm, overflow: "hidden" }}>
             <Image
+              cachePolicy="memory-disk"
               source={{ uri: posterUri, headers: authHeaders }}
               style={{ width: CARD_WIDTH, height: CARD_HEIGHT }}
               contentFit="cover"

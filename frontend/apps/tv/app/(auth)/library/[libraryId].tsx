@@ -376,6 +376,7 @@ export default function LibraryDetailScreen() {
           <View style={[styles.poster, { borderRadius: theme.radii.sm, backgroundColor: theme.colors.surface, overflow: "hidden" }]}>
             {posterUri ? (
               <Image
+                cachePolicy="memory-disk"
                 source={{ uri: posterUri, headers: authHeaders }}
                 style={StyleSheet.absoluteFill}
                 contentFit="cover"

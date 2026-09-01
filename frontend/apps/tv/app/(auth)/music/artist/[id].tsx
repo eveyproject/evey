@@ -90,6 +90,7 @@ export default function ArtistDetailScreen() {
                 <View style={[styles.art, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.sm }]}>
                   {uri ? (
                     <Image
+                      cachePolicy="memory-disk"
                       source={{ uri, headers: authHeaders }}
                       style={{ width: ART_SIZE, height: ART_SIZE, borderRadius: theme.radii.sm }}
                       contentFit="cover"

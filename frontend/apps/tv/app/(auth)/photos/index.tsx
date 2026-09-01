@@ -203,6 +203,7 @@ export default function PhotosScreen() {
           <View style={[styles.tileArt, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.sm, overflow: "hidden" }]}>
             {uri ? (
               <Image
+                cachePolicy="memory-disk"
                 source={{ uri, headers: authHeaders }}
                 style={StyleSheet.absoluteFill}
                 contentFit="cover"

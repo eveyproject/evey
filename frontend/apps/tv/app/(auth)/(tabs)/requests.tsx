@@ -222,7 +222,7 @@ export default function RequestsScreen() {
       <View style={styles.resultRow}>
         <View style={[styles.thumb, { borderRadius: theme.radii.sm, backgroundColor: theme.colors.surfaceRaised, overflow: "hidden" }]}>
           {item.posterUrl ? (
-            <Image source={{ uri: item.posterUrl }} style={StyleSheet.absoluteFill} contentFit="cover" transition={200} />
+            <Image cachePolicy="memory-disk" source={{ uri: item.posterUrl }} style={StyleSheet.absoluteFill} contentFit="cover" transition={200} />
           ) : (
             <Text style={{ color: theme.colors.textMuted, fontSize: 18 }}>?</Text>
           )}
@@ -293,7 +293,7 @@ export default function RequestsScreen() {
     >
       <View style={[styles.thumb, { borderRadius: theme.radii.sm, backgroundColor: theme.colors.surfaceRaised, overflow: "hidden" }]}>
         {item.posterUrl ? (
-          <Image source={{ uri: item.posterUrl }} style={StyleSheet.absoluteFill} contentFit="cover" transition={200} />
+          <Image cachePolicy="memory-disk" source={{ uri: item.posterUrl }} style={StyleSheet.absoluteFill} contentFit="cover" transition={200} />
         ) : (
           <Text style={{ color: theme.colors.textMuted, fontSize: 18 }}>?</Text>
         )}

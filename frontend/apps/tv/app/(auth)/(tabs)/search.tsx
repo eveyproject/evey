@@ -196,6 +196,7 @@ export default function SearchScreen() {
         <View style={[styles.musicThumb, { borderRadius: theme.radii.sm, backgroundColor: theme.colors.surfaceRaised ?? theme.colors.surface, overflow: "hidden" }]}>
           {uri ? (
             <Image
+              cachePolicy="memory-disk"
               source={{ uri, headers: authHeaders }}
               style={{ width: 72, height: 72 }}
               contentFit="cover"
@@ -233,6 +234,7 @@ export default function SearchScreen() {
         <View style={[styles.thumb, { borderRadius: theme.radii.sm, backgroundColor: theme.colors.surfaceRaised ?? theme.colors.surface, overflow: "hidden" }]}>
           {posterUri ? (
             <Image
+              cachePolicy="memory-disk"
               source={{ uri: posterUri, headers: authHeaders }}
               style={{ width: 80, height: 120 }}
               contentFit="cover"
