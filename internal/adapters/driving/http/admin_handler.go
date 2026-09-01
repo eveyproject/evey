@@ -40,6 +40,7 @@ func (h *adminHandler) audit(r *http.Request, action, resourceType string, resou
 	ua := r.UserAgent()
 	e := &activity.AuditLogEntry{
 		UserID:       shared.UserID(claims.UserID),
+		ProfileID:    shared.ProfileID(claims.ProfileID),
 		Action:       action,
 		ResourceType: resourceType,
 		ResourceID:   resourceID,

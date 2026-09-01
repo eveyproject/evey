@@ -57,8 +57,22 @@ vi.mock("expo-router", () => ({
 }));
 
 // --- i18next ------------------------------------------------------------------------------
+// Interpolates {{vars}} like the real i18next: this screen labels its
+// per-profile actions with the profile name, and a mock that returned the raw
+// "{{name}}" would let a broken label pass the tests.
 vi.mock("react-i18next", () => ({
-  useTranslation: () => ({ t: (key: string, fallback?: unknown) => (typeof fallback === "string" ? fallback : key) }),
+  useTranslation: () => ({
+    t: (key: string, fallback?: unknown, vars?: unknown) => {
+      const opts = (typeof fallback === "string" ? vars : fallback) as Record<string, unknown> | undefined;
+      let out = typeof fallback === "string" ? fallback : key;
+      if (opts) {
+        for (const [k, v] of Object.entries(opts)) {
+          out = out.replace(new RegExp(`{{\\s*${k}\\s*}}`, "g"), String(v));
+        }
+      }
+      return out;
+    },
+  }),
 }));
 
 // --- ThemeProvider --------------------------------------------------------------------
@@ -113,6 +127,7 @@ let mockUsers: any[] = [];
 const deleteMutate = vi.fn();
 const disableMutate = vi.fn();
 const impersonateMutate = vi.fn();
+let mockProfiles: any[] = [];
 
 vi.mock("@evey/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@evey/api")>()),
@@ -128,6 +143,7 @@ vi.mock("@evey/api", async (importOriginal) => ({
   useUserServiceDeleteUser: () => ({ mutate: deleteMutate, isPending: false }),
   useUserServiceDisableUser: () => ({ mutate: disableMutate, isPending: false }),
   useUserServiceImpersonateUser: () => ({ mutate: impersonateMutate, isPending: false }),
+  useUserServiceListAllProfiles: () => ({ data: { profiles: mockProfiles }, isLoading: false }),
   getUserServiceListUsersQueryKey: () => ["users"],
   useLibraryServiceListLibraries: () => ({ data: { libraries: [{ id: "lib1", name: "Movies" }] } }),
   useUserServiceListInviteLinks: () => ({ data: { inviteLinks: [] }, isLoading: false }),
@@ -193,6 +209,29 @@ function openSheetFor(username: string) {
 }
 
 describe("AdminUsersScreen - user row action sheet", () => {
+  // Impersonation used to be per USER and always landed on the default
+  // profile: an admin could not reach "Les enfants" at all.
+  it("offers one Connect-as entry per profile, and impersonates the one tapped", () => {
+    mockUsers = [alice];
+    mockProfiles = [
+      { id: "prf-1", userId: "u1", name: "Papa", isDefault: true },
+      { id: "prf-2", userId: "u1", name: "Les enfants", isKids: true },
+    ];
+    render(<AdminUsersScreen />);
+
+    // The row itself already says who lives on the account.
+    expect(screen.getByText(/Papa, Les enfants/)).toBeTruthy();
+
+    openSheetFor("alice");
+    expect(screen.getByText("Connect as Papa")).toBeTruthy();
+    fireEvent.click(screen.getByText("Connect as Les enfants"));
+    expect(impersonateMutate).toHaveBeenCalledWith({
+      userId: "u1",
+      data: { profileId: "prf-2" },
+    });
+    mockProfiles = [];
+  });
+
   it("renders each user as a single row button without inline action icons", () => {
     mockUsers = [alice];
     render(<AdminUsersScreen />);

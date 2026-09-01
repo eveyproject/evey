@@ -47,6 +47,11 @@ message AuditLogEntry {
   string resource_name = 10;
   string user_agent = 11;
   string device_name = 12;
+  // Which PROFILE of that account acted. Persisted with the entry (a profile
+  // can be renamed or deleted later); profile_name is resolved by JOIN and is
+  // empty once the profile is gone.
+  string profile_id = 13;
+  string profile_name = 14;
 }
 
 message ActiveSession {
@@ -86,6 +91,10 @@ message ActiveSession {
   // Album cover URL for music sessions (media_type "track"); empty for video,
   // which the panel renders from a trickplay thumbnail instead.
   string cover_art_url = 27;
+  // Owning account. profile_name alone ("Papa") does not say whose household
+  // it belongs to once two accounts use the same profile names.
+  string user_id = 28;
+  string username = 29;
 }
 
 message ListActiveSessionsRequest {}
@@ -108,6 +117,7 @@ message GetAuditLogRequest {
   google.protobuf.Timestamp to = 5;
   int32 limit = 6;
   int32 offset = 7;
+  string profile_id = 8;
 }
 
 message GetAuditLogResponse {

@@ -75,6 +75,11 @@ export function AuditLogTable({
                   </td>
                   <td className="px-4 py-2 whitespace-nowrap text-[var(--text)] hidden sm:table-cell">
                     {entry.username ?? entry.userId ?? "-"}
+                    {/* The profile is the half that tells two people on one
+                        household account apart; server-side actions have none. */}
+                    {entry.profileName && (
+                      <span className="block text-xs text-[var(--text-muted)]">{entry.profileName}</span>
+                    )}
                   </td>
                   <td className="px-4 py-2 whitespace-nowrap text-[var(--text)]">
                     {entry.action?.replace(/_/g, " ") ?? "-"}

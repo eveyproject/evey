@@ -52,6 +52,9 @@ func playHistoryEntryToProto(e *activity.PlayHistoryEntry) *eveyv1.PlayHistoryEn
 		PlayMethod:  e.PlayMethod,
 		StartedAt:   toTimestamppb(e.StartedAt),
 		EndedAt:     toTimestamppbPtr(e.EndedAt),
+		ProfileName: e.ProfileName,
+		UserId:      string(e.UserID),
+		Username:    e.Username,
 	}
 	return pb
 }
@@ -61,6 +64,8 @@ func auditLogEntryToProto(e *activity.AuditLogEntry) *eveyv1.AuditLogEntry {
 		Id:           e.ID,
 		UserId:       string(e.UserID),
 		Username:     e.Username,
+		ProfileId:    string(e.ProfileID),
+		ProfileName:  e.ProfileName,
 		Action:       e.Action,
 		ResourceType: e.ResourceType,
 		ResourceName: e.ResourceName,

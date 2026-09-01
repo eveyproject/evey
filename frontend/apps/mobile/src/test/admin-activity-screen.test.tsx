@@ -70,6 +70,14 @@ vi.mock("@evey/api", async () => {
     useAdminSessionServiceGetAuditLog: () => ({ data: undefined, isLoading: false, isError: false, refetch: vi.fn() }),
     activityServiceGetPlayHistory: vi.fn(),
     activityServiceGetServerStats: vi.fn(),
+    adminSessionServiceGetAuditLog: vi.fn(),
+    // Read by the watcher filter, which labels each chip with its owner.
+    useUserServiceListUsers: () => ({ data: { users: [] } }),
+    useUserServiceListAllProfiles: () => ({ data: { profiles: [] } }),
+    collectAllPages: vi.fn(),
+    apiErrorMessage: (_e: unknown, _t: unknown, fallback: string) => fallback,
+    EXPORT_PAGE_SIZE: 500,
+    EXPORT_MAX_ROWS: 10000,
     eveyFetch: vi.fn(),
   };
 });

@@ -82,6 +82,12 @@ message PlayHistoryEntry {
   string play_method = 11;
   google.protobuf.Timestamp started_at = 12;
   google.protobuf.Timestamp ended_at = 13;
+  // Who watched. Resolved by JOIN, never persisted on the session row: an
+  // admin reading the server-wide history needs a name, not a profile UUID.
+  // Empty for a profile that has since been deleted.
+  string profile_name = 14;
+  string user_id = 15;
+  string username = 16;
 }
 
 message GenreBreakdown {
@@ -174,12 +180,18 @@ message ServerMetric {
 }
 
 message GetPlayHistoryRequest {
+  // profile_id: a non-admin caller may only ask for its own (anything else is
+  // PermissionDenied). An admin may ask for any profile, or leave it empty
+  // together with user_id to get the whole server's history.
   string profile_id = 1;
   string media_item_id = 2;
   MediaItemType type = 3;
   google.protobuf.Timestamp from = 4;
   google.protobuf.Timestamp to = 5;
   PaginationRequest pagination = 6;
+  // user_id narrows to every profile of one account. Admin-only; ignored for
+  // anyone else.
+  string user_id = 7;
 }
 
 message GetPlayHistoryResponse {

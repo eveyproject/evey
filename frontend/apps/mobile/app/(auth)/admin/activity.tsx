@@ -27,10 +27,15 @@ interface PlayEntry {
   deviceName?: string;
   clientName?: string;
   startedAt?: string;
+  // Who watched, resolved server-side. An admin reading the server-wide
+  // history needs a name, not a profile id.
+  profileName?: string;
+  username?: string;
 }
 interface AuditEntry {
   id?: string;
   username?: string;
+  profileName?: string;
   action?: string;
   resourceType?: string;
   details?: string;
@@ -38,6 +43,7 @@ interface AuditEntry {
 }
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { LoadFailed } from "../../../src/components/LoadFailed";
+import { WatcherChips, type Watcher } from "../../../src/features/admin/WatcherChips";
 import { formatBytes, formatDurationMs } from "@evey/api";
 
 type Tab = "play" | "audit" | "stats";
@@ -54,7 +60,7 @@ function timeAgo(d?: string): string {
   return `${days}d ago`;
 }
 
-function PlayHistoryTab() {
+function PlayHistoryTab({ watcher }: { watcher: Watcher }) {
   const theme = useTheme();
   const { t } = useTranslation();
   const PAGE_SIZE = 25;
@@ -63,6 +69,8 @@ function PlayHistoryTab() {
   const { data, isLoading, isFetching, isError, refetch } = useActivityServiceGetPlayHistory({
     "pagination.page": page,
     "pagination.pageSize": PAGE_SIZE,
+    ...(watcher.userId ? { userId: watcher.userId } : {}),
+    ...(watcher.profileId ? { profileId: watcher.profileId } : {}),
   });
   // Pages are accumulated locally, like history.tsx. Reading straight off
   // `data` meant a failed page N emptied the whole list: the query returns
@@ -94,6 +102,10 @@ function PlayHistoryTab() {
           <Text style={{ color: theme.colors.text, fontSize: 14, fontWeight: "600" }} numberOfLines={1}>
             {item.mediaTitle ?? "-"}
           </Text>
+          <Text style={{ color: theme.colors.text, fontSize: 12, fontWeight: "600" }} numberOfLines={1}>
+            {item.profileName || t("admin.activity.unknownProfile", "Deleted profile")}
+            {item.username ? ` · ${item.username}` : ""}
+          </Text>
           <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>
             {item.deviceName ?? item.clientName ?? "-"} · {timeAgo(item.startedAt)}
           </Text>
@@ -107,7 +119,7 @@ function PlayHistoryTab() {
         </View>
       </View>
     );
-  }, [theme]);
+  }, [theme, t]);
 
   const loadMore = useCallback(() => {
     if (hasMore) setPage((p) => p + 1);
@@ -144,7 +156,7 @@ function PlayHistoryTab() {
   );
 }
 
-function AuditLogTab() {
+function AuditLogTab({ watcher }: { watcher: Watcher }) {
   const theme = useTheme();
   const { t } = useTranslation();
   const PAGE_SIZE = 25;
@@ -153,6 +165,8 @@ function AuditLogTab() {
   const { data, isLoading, isFetching, isError, refetch } = useAdminSessionServiceGetAuditLog({
     limit: PAGE_SIZE,
     offset: page * PAGE_SIZE,
+    ...(watcher.userId ? { userId: watcher.userId } : {}),
+    ...(watcher.profileId ? { profileId: watcher.profileId } : {}),
   });
   // Same accumulation as the play-history tab above: this one pages by offset
   // and starts at 0, so the sentinel has to sit below it.
@@ -177,7 +191,11 @@ function AuditLogTab() {
           <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>{timeAgo(item.createdAt)}</Text>
         </View>
         <Text style={{ color: theme.colors.text, fontSize: 13, marginTop: 4 }} numberOfLines={2}>
-          {item.username ?? "system"}{item.resourceType ? ` · ${item.resourceType}` : ""}
+          {item.username ?? "system"}
+          {/* The profile is what tells two people on one household account
+              apart; server-side actions carry none. */}
+          {item.profileName ? ` (${item.profileName})` : ""}
+          {item.resourceType ? ` · ${item.resourceType}` : ""}
         </Text>
         {item.details ? (
           <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginTop: 2 }} numberOfLines={2}>{item.details}</Text>
@@ -355,6 +373,8 @@ export default function AdminActivityScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
   const [tab, setTab] = useState<Tab>("play");
+  const [watcher, setWatcher] = useState<Watcher>({});
+  const watcherKey = `${watcher.userId ?? ""}|${watcher.profileId ?? ""}`;
   const [exporting, setExporting] = useState(false);
 
   const handleExport = useCallback(async () => {
@@ -371,6 +391,8 @@ export default function AdminActivityScreen() {
           const page = await activityServiceGetPlayHistory({
             "pagination.page": pageIndex + 1,
             "pagination.pageSize": EXPORT_PAGE_SIZE,
+            ...(watcher.userId ? { userId: watcher.userId } : {}),
+            ...(watcher.profileId ? { profileId: watcher.profileId } : {}),
           });
           return { rows: page.entries ?? [], total: page.pagination?.totalItems };
         });
@@ -382,6 +404,8 @@ export default function AdminActivityScreen() {
           const page = await adminSessionServiceGetAuditLog({
             limit: EXPORT_PAGE_SIZE,
             offset: pageIndex * EXPORT_PAGE_SIZE,
+            ...(watcher.userId ? { userId: watcher.userId } : {}),
+            ...(watcher.profileId ? { profileId: watcher.profileId } : {}),
           });
           return { rows: page.entries ?? [], total: page.total };
         });
@@ -397,7 +421,7 @@ export default function AdminActivityScreen() {
       toast.error(apiErrorMessage(err as Error, t, t("common.export", "Export JSON")));
     }
     setExporting(false);
-  }, [tab, t]);
+  }, [tab, t, watcher.userId, watcher.profileId]);
 
   const tabs: Array<{ id: Tab; label: string }> = [
     { id: "play", label: t("admin.activity.tabs.playHistory", "Play History") },
@@ -449,8 +473,13 @@ export default function AdminActivityScreen() {
         ))}
       </View>
 
-      {tab === "play" && <PlayHistoryTab />}
-      {tab === "audit" && <AuditLogTab />}
+      {tab !== "stats" && <WatcherChips value={watcher} onChange={setWatcher} />}
+
+      {/* Both tabs accumulate pages in local state. Keying them on the watcher
+          remounts on a filter change, so the previous profile's rows cannot
+          survive into the new list. */}
+      {tab === "play" && <PlayHistoryTab key={watcherKey} watcher={watcher} />}
+      {tab === "audit" && <AuditLogTab key={watcherKey} watcher={watcher} />}
       {tab === "stats" && <StatsTab />}
     </View>
   );

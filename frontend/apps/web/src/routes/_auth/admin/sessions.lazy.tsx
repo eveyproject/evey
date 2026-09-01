@@ -166,8 +166,10 @@ function SessionCard({ session }: { session: V1ActiveSession }) {
               <p className="text-sm font-semibold truncate text-[var(--text)]">
                 {session.profileName}
               </p>
+              {/* Two households can both name a profile "Papa"; the account is
+                  what makes the card identify one person. */}
               <p className="text-xs truncate text-[var(--text-muted)]">
-                {session.clientIp}
+                {session.username ? `${session.username} - ${session.clientIp}` : session.clientIp}
               </p>
             </div>
           </div>

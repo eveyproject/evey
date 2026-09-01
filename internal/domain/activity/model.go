@@ -20,6 +20,11 @@ type PlayHistoryEntry struct {
 	PlayMethod  string
 	StartedAt   time.Time
 	EndedAt     *time.Time
+	// Who watched, populated by JOIN and never persisted on the session row.
+	// Empty when the profile (or its owner) has since been deleted.
+	ProfileName string
+	UserID      shared.UserID
+	Username    string
 }
 
 type AuthMethod string
@@ -83,9 +88,14 @@ type MediaPlayCount struct {
 }
 
 type AuditLogEntry struct {
-	ID           string
-	UserID       shared.UserID
-	Username     string // populated by JOIN, not persisted
+	ID       string
+	UserID   shared.UserID
+	Username string // populated by JOIN, not persisted
+	// ProfileID is persisted with the entry: a profile can be renamed or
+	// deleted, and the trace must survive it. ProfileName comes from a JOIN
+	// and is empty once the profile is gone.
+	ProfileID    shared.ProfileID
+	ProfileName  string
 	Action       string
 	ResourceType string
 	ResourceID   *string

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { View, Text, FlatList, Pressable, TextInput, Modal, Alert, Switch, ActivityIndicator, StyleSheet, ScrollView, Share } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Stack, useRouter } from "expo-router";
@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import {
   useUserServiceListUsers,
+  useUserServiceListAllProfiles,
   useUserServiceCreateUser,
   useUserServiceDeleteUser,
   useUserServiceDisableUser,
@@ -19,7 +20,7 @@ import {
   eveyFetch,
   apiErrorMessage,
 } from "@evey/api";
-import type { V1User, V1InviteLink } from "@evey/api";
+import type { V1User, V1InviteLink, V1Profile } from "@evey/api";
 import { onColor } from "@evey/theme";
 import { toast, useAuthStore } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
@@ -438,6 +439,20 @@ export default function AdminUsersScreen() {
   });
 
   const { data, isLoading, isError, refetch } = useUserServiceListUsers();
+  // One read for every profile on the server, grouped by owner. A user card
+  // without its profiles cannot say who is actually behind the account, and a
+  // ListProfiles per row would be N+1 requests.
+  const { data: profileData } = useUserServiceListAllProfiles();
+  const profilesByUser = useMemo(() => {
+    const map = new Map<string, V1Profile[]>();
+    for (const p of profileData?.profiles ?? []) {
+      if (!p.userId) continue;
+      const list = map.get(p.userId);
+      if (list) list.push(p);
+      else map.set(p.userId, [p]);
+    }
+    return map;
+  }, [profileData]);
   const users = data?.users ?? [];
   const trimmedQuery = query.trim().toLowerCase();
   const filteredUsers = trimmedQuery
@@ -544,9 +559,12 @@ export default function AdminUsersScreen() {
     disableUser.mutate({ id: user.id, params: { disabled: user.enabled !== false } });
   }, [disableUser]);
 
-  const handleImpersonate = useCallback((user: V1User) => {
+  // profileId empty = the target's default profile, which is all the user-level
+  // button could ever do. Passing one is what lets an admin land on the profile
+  // they actually mean.
+  const handleImpersonate = useCallback((user: V1User, profileId?: string) => {
     if (!user.id) return;
-    impersonateUser.mutate({ userId: user.id, data: {} });
+    impersonateUser.mutate({ userId: user.id, data: profileId ? { profileId } : {} });
   }, [impersonateUser]);
 
   // Close the action sheet, then open the follow-up modal on the next tick:
@@ -566,7 +584,18 @@ export default function AdminUsersScreen() {
     }
     actions.push({ icon: "speedometer-outline", label: t("admin.users.bitrate", "Bitrate"), onPress: () => afterSheet(() => setBitrateUser(user)) });
     if (user.enabled !== false) {
-      actions.push({ icon: "log-in-outline", label: t("admin.users.impersonate", "Connect as"), onPress: () => { setActionUser(null); handleImpersonate(user); } });
+      const profiles = profilesByUser.get(user.id ?? "") ?? [];
+      if (profiles.length === 0) {
+        actions.push({ icon: "log-in-outline", label: t("admin.users.impersonate", "Connect as"), onPress: () => { setActionUser(null); handleImpersonate(user); } });
+      } else {
+        for (const p of profiles) {
+          actions.push({
+            icon: "log-in-outline",
+            label: t("admin.users.impersonateProfile", "Connect as {{name}}", { name: p.name }),
+            onPress: () => { setActionUser(null); handleImpersonate(user, p.id); },
+          });
+        }
+      }
     }
     actions.push({
       icon: user.enabled === false ? "person-add-outline" : "person-remove-outline",
@@ -575,7 +604,7 @@ export default function AdminUsersScreen() {
     });
     actions.push({ icon: "trash-outline", label: t("common.delete", "Delete"), destructive: true, onPress: () => { setActionUser(null); handleDelete(user); } });
     return actions;
-  }, [afterSheet, handleDelete, handleToggleDisable, handleImpersonate, router, t]);
+  }, [afterSheet, handleDelete, handleToggleDisable, handleImpersonate, profilesByUser, router, t]);
 
   const renderUser = useCallback(({ item }: { item: V1User }) => {
     const disabled = item.enabled === false;
@@ -605,6 +634,13 @@ export default function AdminUsersScreen() {
             )}
           </View>
           <Text style={{ color: theme.colors.textMuted, fontSize: 12 }} numberOfLines={1}>{item.email || "-"}</Text>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 11, marginTop: 2 }} numberOfLines={1}>
+            {(() => {
+              const profiles = profilesByUser.get(item.id ?? "") ?? [];
+              if (profiles.length === 0) return t("admin.users.noProfiles", "This user has no profiles yet.");
+              return `${t("admin.users.profileCount", { count: profiles.length })}: ${profiles.map((p) => p.name).join(", ")}`;
+            })()}
+          </Text>
           <Text style={{ color: theme.colors.textMuted, fontSize: 10, marginTop: 2 }}>
             {t("admin.users.registered", "Registered")}: {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : "-"}
             {"  ·  "}
@@ -614,7 +650,7 @@ export default function AdminUsersScreen() {
         <Ionicons name="ellipsis-vertical" size={18} color={theme.colors.textMuted} />
       </Pressable>
     );
-  }, [theme, t]);
+  }, [theme, t, profilesByUser]);
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>

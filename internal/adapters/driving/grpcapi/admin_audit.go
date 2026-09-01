@@ -9,6 +9,7 @@ import (
 	appactivity "github.com/evey-project/evey/internal/app/activity"
 	appmusic "github.com/evey-project/evey/internal/app/music"
 	appplayback "github.com/evey-project/evey/internal/app/playback"
+	appuser "github.com/evey-project/evey/internal/app/user"
 	"github.com/evey-project/evey/internal/domain/activity"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 	otelcodes "go.opentelemetry.io/otel/codes"
@@ -39,6 +40,51 @@ type adminSessionHandler struct {
 	hlsManager  HLSSessionRemover
 	musicNow    *appmusic.NowPlayingRegistry // may be nil; live music sessions
 	musicSvc    *appmusic.Service            // may be nil; enriches a music session's track
+	// userQuery resolves a music session's profile id to a profile name and an
+	// owning account. Video sessions get both straight from SQL; the music
+	// registry is in-memory and holds no profile repository. May be nil.
+	userQuery *appuser.QueryService
+}
+
+// profileLabel is the display identity behind a profile id: which profile, and
+// on whose account.
+type profileLabel struct {
+	name     string
+	userID   string
+	username string
+}
+
+// profileLabels indexes every profile by id in one read. Called once per
+// ListActiveSessions (only when there are music sessions to label), never per
+// session. A failure yields an empty map: an unlabeled session is better than
+// a failed panel.
+func (d *adminSessionHandler) profileLabels(ctx context.Context) map[string]profileLabel {
+	if d.userQuery == nil {
+		return nil
+	}
+	profiles, err := d.userQuery.ListAllProfiles(ctx)
+	if err != nil {
+		slog.WarnContext(ctx, "resolve profile labels", slog.Any("err", err))
+		return nil
+	}
+	users, err := d.userQuery.ListUsers(ctx)
+	if err != nil {
+		slog.WarnContext(ctx, "resolve profile labels", slog.Any("err", err))
+		users = nil
+	}
+	usernames := make(map[string]string, len(users))
+	for _, u := range users {
+		usernames[string(u.ID)] = u.Username
+	}
+	out := make(map[string]profileLabel, len(profiles))
+	for _, p := range profiles {
+		out[string(p.ID)] = profileLabel{
+			name:     p.Name,
+			userID:   string(p.UserID),
+			username: usernames[string(p.UserID)],
+		}
+	}
+	return out
 }
 
 func (d *adminSessionHandler) GetAuditLog(ctx context.Context, req *eveyv1.GetAuditLogRequest) (*eveyv1.GetAuditLogResponse, error) {
@@ -50,6 +96,9 @@ func (d *adminSessionHandler) GetAuditLog(ctx context.Context, req *eveyv1.GetAu
 	}
 	if req.UserId != "" {
 		filter.UserID = &req.UserId
+	}
+	if req.ProfileId != "" {
+		filter.ProfileID = &req.ProfileId
 	}
 	if req.Action != "" {
 		filter.Action = &req.Action
@@ -115,6 +164,8 @@ func (d *adminSessionHandler) ListActiveSessions(ctx context.Context, _ *eveyv1.
 			EpisodeNumber:  int32(s.EpisodeNumber),
 			IsPaused:       s.IsPaused,
 			CastDeviceName: s.CastDeviceName,
+			UserId:         string(s.UserID),
+			Username:       s.Username,
 		}
 		if s.TranscodeInfo != nil {
 			as.TranscodeInfo = *s.TranscodeInfo
@@ -133,10 +184,26 @@ func (d *adminSessionHandler) appendMusicSessions(ctx context.Context, resp *eve
 	if d.musicNow == nil || d.musicSvc == nil {
 		return
 	}
-	for _, ms := range d.musicNow.List() {
+	live := d.musicNow.List()
+	if len(live) == 0 {
+		return
+	}
+	labels := d.profileLabels(ctx)
+	for _, ms := range live {
 		track, err := d.musicSvc.GetTrack(ctx, ms.TrackID)
 		if err != nil || track == nil {
 			continue
+		}
+		label := labels[ms.ProfileID]
+		// The registry only knows the account name; fall back to it so a
+		// session whose profile was deleted mid-play is still identified.
+		profileName := label.name
+		if profileName == "" {
+			profileName = ms.Username
+		}
+		username := label.username
+		if username == "" {
+			username = ms.Username
 		}
 		title := track.Title
 		if track.Artist != "" {
@@ -150,7 +217,9 @@ func (d *adminSessionHandler) appendMusicSessions(ctx context.Context, resp *eve
 		resp.Sessions = append(resp.Sessions, &eveyv1.ActiveSession{
 			SessionId:   ms.SessionID,
 			ProfileId:   ms.ProfileID,
-			ProfileName: ms.ProfileName,
+			ProfileName: profileName,
+			UserId:      label.userID,
+			Username:    username,
 			MediaTitle:  title,
 			MediaType:   "track",
 			MediaItemId: ms.TrackID,

@@ -217,3 +217,83 @@ func TestActivityHandler_GetLoginHistory_Unauthenticated(t *testing.T) {
 	require.Error(t, err)
 	assert.Equal(t, codes.Unauthenticated, status.Code(err))
 }
+
+// The play history answers two questions through one RPC, and the split
+// between them is a privacy boundary: a normal caller sees its own profile and
+// nothing else, an admin sees the server. These four tests pin that boundary.
+
+func seedTwoHouseholds(playHistory *actfakes.FakePlayHistoryRepository, now time.Time) {
+	playHistory.Add(
+		&activity.PlayHistoryEntry{
+			ID: "ph-alice", ProfileID: "profile-alice", UserID: "user-1",
+			Username: "alice", ProfileName: "Alice", MediaItemID: "m1",
+			MediaTitle: "Movie 1", MediaType: "movie", StartedAt: now,
+		},
+		&activity.PlayHistoryEntry{
+			ID: "ph-kid", ProfileID: "profile-kid", UserID: "user-1",
+			Username: "alice", ProfileName: "Les enfants", MediaItemID: "m2",
+			MediaTitle: "Movie 2", MediaType: "movie", StartedAt: now.Add(-time.Minute),
+		},
+		&activity.PlayHistoryEntry{
+			ID: "ph-bob", ProfileID: "profile-bob", UserID: "user-2",
+			Username: "bob", ProfileName: "Bob", MediaItemID: "m3",
+			MediaTitle: "Movie 3", MediaType: "movie", StartedAt: now.Add(-2 * time.Minute),
+		},
+	)
+}
+
+func TestActivityHandler_GetPlayHistory_NonAdminCannotReadAnotherProfile(t *testing.T) {
+	h, _, _, playHistory, _ := newActivityHandler()
+	seedTwoHouseholds(playHistory, time.Now())
+
+	ctx := ctxWithClaims("user-1", "profile-alice", false)
+	_, err := h.GetPlayHistory(ctx, &eveyv1.GetPlayHistoryRequest{ProfileId: "profile-bob"})
+
+	require.Error(t, err)
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
+}
+
+// user_id is admin-only. A non-admin sending it must not widen its read to the
+// account's other profiles - it stays pinned to its own profile.
+func TestActivityHandler_GetPlayHistory_NonAdminUserIDIgnored(t *testing.T) {
+	h, _, _, playHistory, _ := newActivityHandler()
+	seedTwoHouseholds(playHistory, time.Now())
+
+	ctx := ctxWithClaims("user-1", "profile-alice", false)
+	resp, err := h.GetPlayHistory(ctx, &eveyv1.GetPlayHistoryRequest{UserId: "user-1"})
+
+	require.NoError(t, err)
+	require.Len(t, resp.Entries, 1)
+	assert.Equal(t, "ph-alice", resp.Entries[0].Id)
+}
+
+func TestActivityHandler_GetPlayHistory_AdminSeesEveryProfile(t *testing.T) {
+	h, _, _, playHistory, _ := newActivityHandler()
+	seedTwoHouseholds(playHistory, time.Now())
+
+	ctx := ctxWithClaims("admin-1", "profile-admin", true)
+	resp, err := h.GetPlayHistory(ctx, &eveyv1.GetPlayHistoryRequest{})
+
+	require.NoError(t, err)
+	require.Len(t, resp.Entries, 3)
+	// Each row names who watched, not just a profile UUID.
+	assert.Equal(t, "Alice", resp.Entries[0].ProfileName)
+	assert.Equal(t, "alice", resp.Entries[0].Username)
+	assert.Equal(t, "user-1", resp.Entries[0].UserId)
+	assert.Equal(t, int32(3), resp.Pagination.TotalItems)
+}
+
+func TestActivityHandler_GetPlayHistory_AdminNarrowsByUserThenProfile(t *testing.T) {
+	h, _, _, playHistory, _ := newActivityHandler()
+	seedTwoHouseholds(playHistory, time.Now())
+	ctx := ctxWithClaims("admin-1", "profile-admin", true)
+
+	byUser, err := h.GetPlayHistory(ctx, &eveyv1.GetPlayHistoryRequest{UserId: "user-1"})
+	require.NoError(t, err)
+	assert.Len(t, byUser.Entries, 2)
+
+	byProfile, err := h.GetPlayHistory(ctx, &eveyv1.GetPlayHistoryRequest{ProfileId: "profile-kid"})
+	require.NoError(t, err)
+	require.Len(t, byProfile.Entries, 1)
+	assert.Equal(t, "Les enfants", byProfile.Entries[0].ProfileName)
+}

@@ -38,6 +38,9 @@ func (r *FakePlayHistoryRepository) List(_ context.Context, filter activity.Play
 		if filter.ProfileID != "" && e.ProfileID != filter.ProfileID {
 			continue
 		}
+		if filter.UserID != "" && e.UserID != filter.UserID {
+			continue
+		}
 		if filter.MediaItemID != "" && e.MediaItemID != filter.MediaItemID {
 			continue
 		}
@@ -93,6 +96,9 @@ func (r *FakePlayHistoryRepository) Count(_ context.Context, filter activity.Pla
 	n := 0
 	for _, e := range r.items {
 		if filter.ProfileID != "" && e.ProfileID != filter.ProfileID {
+			continue
+		}
+		if filter.UserID != "" && e.UserID != filter.UserID {
 			continue
 		}
 		if filter.MediaItemID != "" && e.MediaItemID != filter.MediaItemID {

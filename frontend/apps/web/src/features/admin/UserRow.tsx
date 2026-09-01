@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -9,7 +10,7 @@ import {
 } from "@evey/api";
 import { toast, useAuthStore } from "@evey/store";
 import { useNavigate } from "@tanstack/react-router";
-import type { V1User } from "@evey/api";
+import type { V1Profile, V1User } from "@evey/api";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
@@ -17,10 +18,15 @@ import { USERS_QUERY_KEY } from "./users-constants";
 import { EditUserModal } from "./EditUserModal";
 import { LibraryAccessModal } from "./LibraryAccessModal";
 import { BitrateModal } from "./BitrateModal";
+import { UserProfilesPanel } from "./UserProfilesPanel";
 
-export function UserRow({ user }: { user: V1User }) {
+// profiles are handed down from the page, which reads every profile in one
+// call: fanning out one ListProfiles per row would be N+1 requests for a table
+// that is almost always fully expanded on a family server.
+export function UserRow({ user, profiles = [] }: { user: V1User; profiles?: V1Profile[] }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  const [expanded, setExpanded] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showLibraryAccess, setShowLibraryAccess] = useState(false);
   const [showBitrate, setShowBitrate] = useState(false);
@@ -65,6 +71,7 @@ export function UserRow({ user }: { user: V1User }) {
   });
 
   return (
+    <>
     <tr className="border-b border-[var(--border)]">
       <td data-label={t("admin.users.username")} className="px-4 py-3 font-medium text-[var(--text)]">
         {user.username}
@@ -74,6 +81,22 @@ export function UserRow({ user }: { user: V1User }) {
       </td>
       <td data-label={t("admin.users.role")} className="px-4 py-3">
         {user.isAdmin ? <Badge variant="warning">{t("admin.users.admin")}</Badge> : <Badge>{t("admin.users.user")}</Badge>}
+      </td>
+      <td data-label={t("admin.users.profiles")} className="px-4 py-3">
+        <button
+          type="button"
+          aria-expanded={expanded}
+          onClick={() => setExpanded((v) => !v)}
+          className="flex items-center gap-1 text-left text-sm text-[var(--text)] hover:underline"
+        >
+          {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+          <span>{t("admin.users.profileCount", { count: profiles.length })}</span>
+        </button>
+        {!expanded && profiles.length > 0 && (
+          <div className="mt-1 truncate text-xs text-[var(--text-muted)]">
+            {profiles.map((p) => p.name).join(", ")}
+          </div>
+        )}
       </td>
       <td data-label={t("common.status")} className="px-4 py-3">
         {user.enabled !== false ? (
@@ -169,5 +192,13 @@ export function UserRow({ user }: { user: V1User }) {
         />
       </td>
     </tr>
+    {expanded && (
+      <tr className="border-b border-[var(--border)] bg-[var(--bg)]">
+        <td colSpan={8} className="px-4 py-3">
+          <UserProfilesPanel user={user} profiles={profiles} />
+        </td>
+      </tr>
+    )}
+    </>
   );
 }

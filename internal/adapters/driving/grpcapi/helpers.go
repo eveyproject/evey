@@ -208,6 +208,19 @@ func isClientCanceled(err error) bool {
 // an impersonating admin legitimately owns the profile. This keeps every
 // profile-scoped write attributable and forbids a silent profile_id override on
 // a normal admin request.
+// auditProfileID returns the profile to stamp on an audit entry: the caller's
+// own, and only when the entry is attributed to that same account. An entry
+// written on behalf of somebody else (admin acting on a target user) or by a
+// path with no claims gets no profile rather than a misleading one - "which
+// profile did this" must never answer with a profile that did not do it.
+func auditProfileID(ctx context.Context, userID string) shared.ProfileID {
+	c := interceptors.ClaimsFromContext(ctx)
+	if c == nil || c.UserID != userID {
+		return ""
+	}
+	return shared.ProfileID(c.ProfileID)
+}
+
 func resolveProfileID(claims *user.Claims, reqProfileID string) (string, error) {
 	if reqProfileID == "" || reqProfileID == claims.ProfileID {
 		return claims.ProfileID, nil

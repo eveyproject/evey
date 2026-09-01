@@ -390,3 +390,32 @@ func (h *userHandler) ListProfiles(ctx context.Context, req *eveyv1.ListProfiles
 	}
 	return resp, nil
 }
+
+// ListAllProfiles answers "who lives on this server?" in one call. Admin-only
+// via the RBAC interceptor; the redundant claims check here keeps the handler
+// safe if it is ever mounted on a chain without it.
+func (h *userHandler) ListAllProfiles(ctx context.Context, _ *eveyv1.ListAllProfilesRequest) (*eveyv1.ListAllProfilesResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.user.ListAllProfiles")
+	defer span.End()
+	claims, err := requireClaims(ctx)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, fmt.Errorf("userHandler.ListAllProfiles: %w", err)
+	}
+	if !claims.IsAdmin {
+		return nil, status.Error(codes.PermissionDenied, "admin only")
+	}
+	profiles, err := h.query.ListAllProfiles(ctx)
+	if err != nil {
+		slog.ErrorContext(ctx, "list all profiles", slog.Any("err", err))
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, status.Errorf(codes.Internal, "internal error")
+	}
+	resp := &eveyv1.ListAllProfilesResponse{}
+	for _, p := range profiles {
+		resp.Profiles = append(resp.Profiles, profileToProto(p))
+	}
+	return resp, nil
+}

@@ -6,7 +6,9 @@ import { useTranslation } from "react-i18next";
 import {
   useUserServiceListUsers,
   useUserServiceListInviteLinks,
+  useUserServiceListAllProfiles,
 } from "@evey/api";
+import type { V1Profile } from "@evey/api";
 import { toast } from "@evey/store";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
@@ -29,9 +31,20 @@ function UsersPage() {
   const [showInviteModal, setShowInviteModal] = useState(false);
   const queryClient = useQueryClient();
   const { data, isLoading } = useUserServiceListUsers();
+  // One read for every profile on the server, then grouped by owner. A user row
+  // without its profiles cannot answer "who is behind this account?", which is
+  // the whole reason this table exists.
+  const { data: profileData } = useUserServiceListAllProfiles();
   const { data: inviteData, isLoading: inviteLoading, isError: inviteError, error: inviteErr, refetch: refetchInvites } = useUserServiceListInviteLinks();
   const users = data?.users ?? [];
   const invites = inviteData?.inviteLinks ?? [];
+  const profilesByUser = new Map<string, V1Profile[]>();
+  for (const p of profileData?.profiles ?? []) {
+    if (!p.userId) continue;
+    const list = profilesByUser.get(p.userId);
+    if (list) list.push(p);
+    else profilesByUser.set(p.userId, [p]);
+  }
 
   function handleCreateSuccess(accessOk = true) {
     queryClient.invalidateQueries({ queryKey: USERS_QUERY_KEY });
@@ -68,7 +81,7 @@ function UsersPage() {
             <table className="w-full text-sm table-cards">
               <thead>
                 <tr className="bg-[var(--surface)] border-b border-[var(--border)]">
-                  {[t("admin.users.username"), t("admin.users.email"), t("admin.users.role"), t("common.status"), t("admin.users.registered"), t("admin.users.lastLogin"), t("common.actions")].map((h) => (
+                  {[t("admin.users.username"), t("admin.users.email"), t("admin.users.role"), t("admin.users.profiles"), t("common.status"), t("admin.users.registered"), t("admin.users.lastLogin"), t("common.actions")].map((h) => (
                     <th
                       key={h}
                       className="px-4 py-2 text-left font-medium text-[var(--text-muted)]"
@@ -81,12 +94,14 @@ function UsersPage() {
               <tbody>
                 {users.length === 0 ? (
                   <tr>
-                    <td colSpan={7}>
+                    <td colSpan={8}>
                       <EmptyState icon={<Folder size={48} strokeWidth={1.5} />} title={t("admin.users.noUsers")} />
                     </td>
                   </tr>
                 ) : (
-                  users.map((u) => <UserRow key={u.id} user={u} />)
+                  users.map((u) => (
+                    <UserRow key={u.id} user={u} profiles={profilesByUser.get(u.id ?? "") ?? []} />
+                  ))
                 )}
               </tbody>
             </table>

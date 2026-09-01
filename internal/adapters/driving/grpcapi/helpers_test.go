@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
 	"github.com/evey-project/evey/internal/domain/user"
 )
 
@@ -174,5 +175,26 @@ func TestSanitizeLogValue_TruncatesLongInputs(t *testing.T) {
 	}
 	if got[len(got)-3:] != "…" {
 		t.Errorf("expected ellipsis suffix, got %q", got[len(got)-3:])
+	}
+}
+
+// An audit entry's profile must be the one that ACTED. When an admin acts on
+// another account (impersonate, disable, delete), the entry is attributed to
+// the admin's user id, and stamping the admin's profile there would be right -
+// but stamping it on an entry attributed to the TARGET would name a profile
+// that did nothing. auditProfileID answers only for the caller's own account.
+func TestAuditProfileID(t *testing.T) {
+	callerCtx := interceptors.ContextWithClaims(context.Background(), &user.Claims{
+		UserID: "usr-1", ProfileID: "prf-1",
+	})
+
+	if got := auditProfileID(callerCtx, "usr-1"); got != "prf-1" {
+		t.Fatalf("own account: got %q, want prf-1", got)
+	}
+	if got := auditProfileID(callerCtx, "usr-2"); got != "" {
+		t.Fatalf("other account: got %q, want empty", got)
+	}
+	if got := auditProfileID(context.Background(), "usr-1"); got != "" {
+		t.Fatalf("no claims: got %q, want empty", got)
 	}
 }

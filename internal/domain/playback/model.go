@@ -126,9 +126,13 @@ func NewPlaySession(id string, profileID shared.ProfileID, mediaItemID shared.Me
 }
 
 type ActiveSessionInfo struct {
-	SessionID     string
-	ProfileID     shared.ProfileID
-	ProfileName   string
+	SessionID   string
+	ProfileID   shared.ProfileID
+	ProfileName string
+	// Owning account: two households can both call a profile "Papa", so the
+	// admin panel needs the account behind the profile name.
+	UserID        shared.UserID
+	Username      string
 	MediaItemID   shared.MediaItemID
 	MediaTitle    string
 	MediaType     string

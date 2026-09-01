@@ -199,7 +199,7 @@ func (r *PlaySessionRepository) ListActiveSessions(ctx context.Context) ([]*play
 	// a player whose stop POST never landed - e.g. an access token that expired during
 	// a long film, 401 silently dropped client-side - linger as "playing" for minutes.
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
-		`SELECT ps.id, ps.profile_id, p.name, ps.media_item_id, mi.title, mi.type,
+		`SELECT ps.id, ps.profile_id, p.name, p.user_id, COALESCE(u.username, ''), ps.media_item_id, mi.title, mi.type,
 		        COALESCE(mf.duration_ms, 0), COALESCE(ps.position_ms, 0),
 		        ps.started_at, ps.device_name, ps.device_type, ps.client_ip,
 		        ps.play_method, ps.video_codec, ps.audio_codec, ps.resolution, ps.video_decision, ps.audio_decision, ps.bandwidth_bps,
@@ -207,6 +207,7 @@ func (r *PlaySessionRepository) ListActiveSessions(ctx context.Context) ([]*play
 		        ps.is_paused, ps.cast_device_name
 		 FROM play_sessions ps
 		 INNER JOIN profiles p ON p.id = ps.profile_id
+		 LEFT JOIN users u ON u.id = p.user_id
 		 INNER JOIN media_items mi ON mi.id = ps.media_item_id
 		 LEFT JOIN media_files mf ON mf.media_item_id = mi.id
 		 LEFT JOIN media_items season ON mi.parent_id = season.id AND mi.type = 'episode'
@@ -226,7 +227,7 @@ func (r *PlaySessionRepository) ListActiveSessions(ctx context.Context) ([]*play
 		s := &playback.ActiveSessionInfo{}
 		var rawDurationMs, rawPositionMs int64
 		if err := rows.Scan(
-			&s.SessionID, &s.ProfileID, &s.ProfileName,
+			&s.SessionID, &s.ProfileID, &s.ProfileName, &s.UserID, &s.Username,
 			&s.MediaItemID, &s.MediaTitle, &s.MediaType,
 			&rawDurationMs, &rawPositionMs,
 			&s.StartedAt, &s.DeviceName, &s.DeviceType, &s.ClientIP,

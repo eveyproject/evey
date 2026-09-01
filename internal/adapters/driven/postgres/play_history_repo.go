@@ -25,17 +25,23 @@ func (r *PlayHistoryRepository) List(ctx context.Context, filter activity.PlayHi
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
+	// The profile/user joins stay LEFT: a session outlives the profile that
+	// created it only until the ON DELETE CASCADE fires, but history read
+	// inside that window must still list the row rather than drop it.
 	query := `
 		SELECT ps.id, ps.profile_id, ps.media_item_id,
 		       mi.title, mi.type,
 		       COALESCE(mf.duration_ms, 0), COALESCE(ps.position_ms, 0),
 		       COALESCE(wp.completed, false),
 		       ps.device_name, ps.device_type, ps.play_method,
-		       ps.started_at, ps.ended_at
+		       ps.started_at, ps.ended_at,
+		       COALESCE(p.name, ''), COALESCE(p.user_id, ''), COALESCE(u.username, '')
 		FROM play_sessions ps
 		INNER JOIN media_items mi ON mi.id = ps.media_item_id
 		LEFT JOIN media_files mf ON mf.media_item_id = mi.id
 		LEFT JOIN watch_progress wp ON wp.profile_id = ps.profile_id AND wp.media_item_id = ps.media_item_id
+		LEFT JOIN profiles p ON p.id = ps.profile_id
+		LEFT JOIN users u ON u.id = p.user_id
 		WHERE 1=1`
 
 	args := []any{}
@@ -44,6 +50,11 @@ func (r *PlayHistoryRepository) List(ctx context.Context, filter activity.PlayHi
 	if filter.ProfileID != "" {
 		query += fmt.Sprintf(" AND ps.profile_id = $%d", i)
 		args = append(args, filter.ProfileID)
+		i++
+	}
+	if filter.UserID != "" {
+		query += fmt.Sprintf(" AND p.user_id = $%d", i)
+		args = append(args, filter.UserID)
 		i++
 	}
 	if filter.MediaItemID != "" {
@@ -100,6 +111,7 @@ func (r *PlayHistoryRepository) List(ctx context.Context, filter activity.PlayHi
 			&e.Completed,
 			&e.DeviceName, &e.ClientName, &e.PlayMethod,
 			&e.StartedAt, &e.EndedAt,
+			&e.ProfileName, &e.UserID, &e.Username,
 		); err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
@@ -131,12 +143,18 @@ func (r *PlayHistoryRepository) Count(ctx context.Context, filter activity.PlayH
 	defer cancel()
 	query := `SELECT COUNT(*) FROM play_sessions ps
 		INNER JOIN media_items mi ON mi.id = ps.media_item_id
+		LEFT JOIN profiles p ON p.id = ps.profile_id
 		WHERE 1=1`
 	args := []any{}
 	i := 1
 	if filter.ProfileID != "" {
 		query += fmt.Sprintf(" AND ps.profile_id = $%d", i)
 		args = append(args, filter.ProfileID)
+		i++
+	}
+	if filter.UserID != "" {
+		query += fmt.Sprintf(" AND p.user_id = $%d", i)
+		args = append(args, filter.UserID)
 		i++
 	}
 	if filter.MediaItemID != "" {

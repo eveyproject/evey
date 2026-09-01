@@ -51,6 +51,15 @@ func (s *QueryService) ListProfiles(ctx context.Context, userID string) ([]*user
 	return s.profiles.GetByUserID(ctx, shared.UserID(userID))
 }
 
+// ListAllProfiles returns every profile on the server (owner carried by
+// Profile.UserID). Callers are admin-only paths: the authorization check lives
+// in the handler, this service only reads.
+func (s *QueryService) ListAllProfiles(ctx context.Context) ([]*user.Profile, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.user.ListAllProfiles")
+	defer span.End()
+	return s.profiles.GetAll(ctx)
+}
+
 func (s *QueryService) ListInviteLinks(ctx context.Context, creatorID string) ([]*user.InviteLink, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.user.ListInviteLinks")
 	defer span.End()

@@ -19,8 +19,24 @@ vi.mock("@evey/api", async (importOriginal) => ({
   eveyFetch: vi.fn(),
 }));
 
+// The page reads its tab + watcher filter from the URL and writes them back
+// with navigate(), so the router mock has to serve both halves.
+let mockSearch: { tab?: string; userId?: string; profileId?: string } = {};
+const mockNavigate = vi.fn((to: { search?: typeof mockSearch }) => {
+  mockSearch = { ...mockSearch, ...to.search };
+});
+
 vi.mock("@tanstack/react-router", () => ({
-  createLazyFileRoute: () => (opts: { component: React.ComponentType }) => opts,
+  createLazyFileRoute: () => (opts: { component: React.ComponentType }) => ({
+    ...opts,
+    useSearch: () => mockSearch,
+  }),
+  useNavigate: () => mockNavigate,
+}));
+
+// The watcher <select> lists every account and profile; it has its own tests.
+vi.mock("@/features/admin/WatcherFilter", () => ({
+  WatcherFilter: () => React.createElement("div", { "data-testid": "watcher-filter" }),
 }));
 
 vi.mock("@/features/admin/AuditLogTable", () => ({
@@ -50,6 +66,7 @@ const mockPlayEntry = {
 describe("ActivityPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockSearch = {};
     mockGetPlayHistory.mockResolvedValue({ entries: [], pagination: { totalItems: 0 } });
     mockGetServerStats.mockReturnValue({ data: undefined, isLoading: false });
     mockGetAuditLog.mockResolvedValue({ entries: [], total: 0 });

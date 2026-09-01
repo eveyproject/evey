@@ -34,6 +34,7 @@ type ServerMetricRepository interface {
 
 type AuditLogFilter struct {
 	UserID       *string
+	ProfileID    *string
 	Action       *string
 	ResourceType *string
 	Limit        int
@@ -69,7 +70,11 @@ type PlayHistoryCursor struct {
 }
 
 type PlayHistoryFilter struct {
-	ProfileID   shared.ProfileID
+	ProfileID shared.ProfileID
+	// UserID narrows to every profile of one account. Both it and ProfileID
+	// empty means "the whole server", which only an admin caller may ask for -
+	// the handler, not this filter, is what enforces that.
+	UserID      shared.UserID
 	MediaItemID shared.MediaItemID
 	From        *time.Time
 	To          *time.Time

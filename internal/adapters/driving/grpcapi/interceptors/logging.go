@@ -13,13 +13,20 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// identityAttrs appends user_id / is_admin to log attrs if claims are in ctx.
-// Returns the attrs slice so LoggingUnary/Stream can emit consistent audit
-// context alongside request_id.
+// identityAttrs appends user_id / profile_id / is_admin to log attrs if claims
+// are in ctx. Returns the attrs slice so LoggingUnary/Stream can emit
+// consistent audit context alongside request_id.
+//
+// profile_id is here because user_id alone does not identify WHO on a shared
+// household account: every profile of one account logs under the same user_id,
+// which makes a log search unable to separate them.
 func identityAttrs(ctx context.Context, attrs []any) []any {
 	if c := ClaimsFromContext(ctx); c != nil {
 		if c.UserID != "" {
 			attrs = append(attrs, slog.String("user_id", c.UserID))
+		}
+		if c.ProfileID != "" {
+			attrs = append(attrs, slog.String("profile_id", c.ProfileID))
 		}
 		if c.IsAdmin {
 			attrs = append(attrs, slog.Bool("admin", true))

@@ -283,6 +283,13 @@ users:
   failedCreateUser: Failed to create user
   failedUpdateUser: Failed to update user
   impersonate: "Connect as"
+  profiles: "Profiles"
+  profileCount_one: "{{count}} profile"
+  profileCount_other: "{{count}} profiles"
+  defaultProfile: "Default"
+  kidsProfile: "Kids"
+  impersonateProfile: "Connect as {{name}}"
+  viewHistory: "History"
   failedImpersonate: "Failed to connect as user"
   impersonationBanner: "You are acting as {{name}}"
   impersonationBannerGeneric: "You are acting as another user"
@@ -609,10 +616,15 @@ activity:
     serverStats: Server Stats
   playHeaders:
     title: Title
+    who: "Who"
     device: Device
     duration: Duration
     progress: Progress
     started: Started
+  watcher: "Who"
+  watcherAll: "Everyone"
+  watcherWholeAccount: "Whole {{name}} account"
+  unknownProfile: "Deleted profile"
   noPlayHistory: No play history
   noAuditEntries: No audit log entries
   totalEntries_one: "{{count}} total entry"

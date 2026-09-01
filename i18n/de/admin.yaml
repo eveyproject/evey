@@ -283,6 +283,13 @@ users:
   failedCreateUser: Benutzer konnte nicht erstellt werden
   failedUpdateUser: Benutzer konnte nicht aktualisiert werden
   impersonate: "Anmelden als"
+  profiles: "Profile"
+  profileCount_one: "{{count}} Profil"
+  profileCount_other: "{{count}} Profile"
+  defaultProfile: "Standard"
+  kidsProfile: "Kinder"
+  impersonateProfile: "Als {{name}} anmelden"
+  viewHistory: "Verlauf"
   failedImpersonate: "Anmelden als Benutzer fehlgeschlagen"
   impersonationBanner: "Sie handeln als {{name}}"
   impersonationBannerGeneric: "Sie handeln als ein anderer Benutzer"
@@ -609,10 +616,15 @@ activity:
     serverStats: Serverstatistiken
   playHeaders:
     title: Titel
+    who: "Wer"
     device: Gerät
     duration: Dauer
     progress: Fortschritt
     started: Gestartet
+  watcher: "Wer"
+  watcherAll: "Alle"
+  watcherWholeAccount: "Gesamtes Konto {{name}}"
+  unknownProfile: "Gelöschtes Profil"
   noPlayHistory: Kein Wiedergabeverlauf
   noAuditEntries: Keine Audit-Protokolleinträge
   totalEntries_one: "{{count}} Eintrag insgesamt"

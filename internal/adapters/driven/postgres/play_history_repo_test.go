@@ -216,3 +216,70 @@ func TestPlayHistoryRepo_List_DefaultLimit(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, entries, 2)
 }
+
+// The server-wide read is the whole point of the admin history: one query must
+// name WHO watched (profile + account) and be narrowable to one account.
+func TestPlayHistoryRepo_List_NamesWatcherAndFiltersByUser(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	userRepo := postgres.NewUserRepository(db)
+	profileRepo := postgres.NewProfileRepository(db)
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	sessionRepo := postgres.NewPlaySessionRepository(db)
+	historyRepo := postgres.NewPlayHistoryRepository(db)
+	ctx := context.Background()
+
+	// Two households, three profiles, one session each.
+	alice := newTestUser("phwho-a")
+	require.NoError(t, userRepo.Create(ctx, alice))
+	bob := newTestUser("phwho-b")
+	require.NoError(t, userRepo.Create(ctx, bob))
+
+	aliceMain := newTestProfile("phwho-p1", alice.ID)
+	aliceMain.Name = "Alice"
+	require.NoError(t, profileRepo.Create(ctx, aliceMain))
+	aliceKids := newTestProfile("phwho-p2", alice.ID)
+	aliceKids.Name = "Les enfants"
+	require.NoError(t, profileRepo.Create(ctx, aliceKids))
+	bobMain := newTestProfile("phwho-p3", bob.ID)
+	bobMain.Name = "Bob"
+	require.NoError(t, profileRepo.Create(ctx, bobMain))
+
+	lib := newTestLibrary("phwho-lib")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	item := newTestMediaItem("phwho-mi", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, item))
+
+	for i, p := range []string{"phwho-p1", "phwho-p2", "phwho-p3"} {
+		s := newTestPlaySession("phwho-ps"+string(rune('1'+i)), p, string(item.ID))
+		require.NoError(t, sessionRepo.Create(ctx, s))
+	}
+
+	// No profile, no user = the whole server.
+	all, err := historyRepo.List(ctx, activity.PlayHistoryFilter{})
+	require.NoError(t, err)
+	byID := map[string]*activity.PlayHistoryEntry{}
+	for _, e := range all {
+		byID[e.ID] = e
+	}
+	require.Contains(t, byID, "phwho-ps1")
+	assert.Equal(t, "Alice", byID["phwho-ps1"].ProfileName)
+	assert.Equal(t, alice.ID, byID["phwho-ps1"].UserID)
+	assert.Equal(t, alice.Username, byID["phwho-ps1"].Username)
+	assert.Equal(t, "Les enfants", byID["phwho-ps2"].ProfileName)
+
+	// One account = every profile it owns, and nothing from the other one.
+	mine, err := historyRepo.List(ctx, activity.PlayHistoryFilter{UserID: alice.ID})
+	require.NoError(t, err)
+	require.Len(t, mine, 2)
+	for _, e := range mine {
+		assert.Equal(t, alice.ID, e.UserID)
+	}
+
+	// Count applies the same predicate, or the UI's total contradicts its rows.
+	n, err := historyRepo.Count(ctx, activity.PlayHistoryFilter{UserID: alice.ID})
+	require.NoError(t, err)
+	assert.Equal(t, 2, n)
+}

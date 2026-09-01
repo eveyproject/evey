@@ -11,6 +11,7 @@ const mockDisableUser = vi.fn();
 const mockUpdateUser = vi.fn();
 const mockCreateInviteLink = vi.fn();
 const mockRevokeInviteLink = vi.fn();
+const mockListAllProfiles = vi.fn();
 const mockInvalidateQueries = vi.fn();
 
 vi.mock("@evey/api", () => ({
@@ -24,6 +25,7 @@ vi.mock("@evey/api", () => ({
   useUserServiceCreateInviteLink: (...args: unknown[]) => mockCreateInviteLink(...args),
   useUserServiceRevokeInviteLink: (...args: unknown[]) => mockRevokeInviteLink(...args),
   useUserServiceListProfiles: () => ({ data: { profiles: [] }, isLoading: false }),
+  useUserServiceListAllProfiles: (...args: unknown[]) => mockListAllProfiles(...args),
   useUserServiceCreateProfile: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false }),
   useUserServiceUpdateProfile: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false }),
   useUserServiceDeleteProfile: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false }),
@@ -91,6 +93,7 @@ describe("UsersPage", () => {
     const mutate = vi.fn();
     mockListUsers.mockReturnValue({ data: { users: [] }, isLoading: false });
     mockListInviteLinks.mockReturnValue({ data: { inviteLinks: [] }, isLoading: false });
+    mockListAllProfiles.mockReturnValue({ data: { profiles: [] }, isLoading: false });
     mockCreateUser.mockReturnValue({ mutate, isPending: false });
     mockDeleteUser.mockReturnValue({ mutate, isPending: false });
     mockDisableUser.mockReturnValue({ mutate, isPending: false });

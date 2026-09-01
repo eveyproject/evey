@@ -112,6 +112,16 @@ service UserService {
     };
   }
 
+  // ListAllProfiles returns every profile on the server, owner included
+  // (Profile.user_id). Admin-only: it is what lets the admin panel show one
+  // row per user WITH its profiles in a single call instead of an N+1 fan-out
+  // of ListProfiles, and what fills the "whose history?" profile picker.
+  rpc ListAllProfiles(ListAllProfilesRequest) returns (ListAllProfilesResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/admin/profiles"
+    };
+  }
+
   rpc CreateInviteLink(CreateInviteLinkRequest) returns (InviteLink) {
     option (google.api.http) = {
       post: "/api/v1/invites"
@@ -388,6 +398,12 @@ message ListProfilesRequest {
 }
 
 message ListProfilesResponse {
+  repeated Profile profiles = 1;
+}
+
+message ListAllProfilesRequest {}
+
+message ListAllProfilesResponse {
   repeated Profile profiles = 1;
 }
 

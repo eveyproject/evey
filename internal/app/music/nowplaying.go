@@ -15,15 +15,19 @@ const nowPlayingTTL = 30 * time.Second
 // playing" is ephemeral state, not history (that is music_track_plays). Enough
 // to render the admin card and route a remote command back to the player.
 type NowPlayingSession struct {
-	SessionID   string
-	ProfileID   string
-	ProfileName string
-	TrackID     string
-	DeviceName  string
-	PositionMs  int64
-	IsPaused    bool
-	StartedAt   time.Time
-	LastSeen    time.Time
+	SessionID string
+	ProfileID string
+	// Username is the ACCOUNT name the heartbeat authenticated as. It used to
+	// be stored (and shown) as the profile name, which is a different thing:
+	// the profile's own name is resolved from ProfileID by whoever renders the
+	// session, since this registry has no profile repository.
+	Username   string
+	TrackID    string
+	DeviceName string
+	PositionMs int64
+	IsPaused   bool
+	StartedAt  time.Time
+	LastSeen   time.Time
 }
 
 // NowPlayingRegistry tracks live music sessions in memory and carries a pending
@@ -53,7 +57,7 @@ func NewNowPlayingRegistry() *NowPlayingRegistry {
 
 // Heartbeat upserts the session's live state and returns (then clears) any
 // pending remote command for it. Called on each player heartbeat.
-func (r *NowPlayingRegistry) Heartbeat(sessionID, profileID, profileName, trackID, deviceName string, positionMs int64, isPaused bool) string {
+func (r *NowPlayingRegistry) Heartbeat(sessionID, profileID, username, trackID, deviceName string, positionMs int64, isPaused bool) string {
 	if sessionID == "" {
 		return ""
 	}
@@ -66,7 +70,7 @@ func (r *NowPlayingRegistry) Heartbeat(sessionID, profileID, profileName, trackI
 		r.sessions[sessionID] = e
 	}
 	e.sess.ProfileID = profileID
-	e.sess.ProfileName = profileName
+	e.sess.Username = username
 	e.sess.TrackID = trackID
 	e.sess.DeviceName = deviceName
 	e.sess.PositionMs = positionMs

@@ -51,6 +51,7 @@ func (h *activityHandler) RecordPageView(ctx context.Context, req *eveyv1.Record
 	}
 	e := &activity.AuditLogEntry{
 		UserID:       shared.UserID(claims.UserID),
+		ProfileID:    shared.ProfileID(claims.ProfileID),
 		Action:       "page_view",
 		ResourceType: "page",
 		Details:      map[string]any{"path": path},
@@ -77,12 +78,21 @@ func (h *activityHandler) GetPlayHistory(ctx context.Context, req *eveyv1.GetPla
 	if err != nil {
 		return nil, fmt.Errorf("activityHandler.GetPlayHistory: %w", err)
 	}
-	profileID, err := resolveProfileID(claims, req.ProfileId)
-	if err != nil {
-		return nil, fmt.Errorf("activityHandler.GetPlayHistory: %w", err)
+	// Two different questions share this RPC. A normal caller asks "what did I
+	// watch?" and stays pinned to its own profile. An admin asks "who watched
+	// what?" - any profile, any account, or (both ids empty) the whole server.
+	// Only IsAdmin widens it; user_id from anyone else is dropped, not honored.
+	profileID, userID := req.ProfileId, req.UserId
+	if !claims.IsAdmin {
+		own, resolveErr := resolveProfileID(claims, req.ProfileId)
+		if resolveErr != nil {
+			return nil, fmt.Errorf("activityHandler.GetPlayHistory: %w", resolveErr)
+		}
+		profileID, userID = own, ""
 	}
 	filter := activity.PlayHistoryFilter{
 		ProfileID:   shared.ProfileID(profileID),
+		UserID:      shared.UserID(userID),
 		MediaItemID: shared.MediaItemID(req.MediaItemId),
 		From:        fromTimestamppbPtr(req.From),
 		To:          fromTimestamppbPtr(req.To),

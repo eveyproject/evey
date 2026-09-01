@@ -860,6 +860,40 @@ func TestListProfiles_NonAdminForcesOwnID(t *testing.T) {
 	}
 }
 
+// --- ListAllProfiles tests ---
+
+func TestListAllProfiles_AdminSeesEveryHousehold(t *testing.T) {
+	env := setupUserHandler()
+	env.profileRepo.Create(context.Background(), &user.Profile{ID: "prf-1", UserID: "usr-1", Name: "Main"})
+	env.profileRepo.Create(context.Background(), &user.Profile{ID: "prf-2", UserID: "usr-1", Name: "Kids"})
+	env.profileRepo.Create(context.Background(), &user.Profile{ID: "prf-3", UserID: "usr-2", Name: "Bob"})
+
+	resp, err := env.handler.ListAllProfiles(adminCtx(), &eveyv1.ListAllProfilesRequest{})
+	if err != nil {
+		t.Fatalf("ListAllProfiles: %v", err)
+	}
+	if len(resp.Profiles) != 3 {
+		t.Fatalf("got %d profiles, want 3", len(resp.Profiles))
+	}
+	// The owner travels with each profile: that is what lets the admin panel
+	// group profiles under their user without a second call.
+	owners := map[string]string{}
+	for _, p := range resp.Profiles {
+		owners[p.Id] = p.UserId
+	}
+	if owners["prf-3"] != "usr-2" {
+		t.Fatalf("prf-3 owner = %q, want usr-2", owners["prf-3"])
+	}
+}
+
+func TestListAllProfiles_NonAdminDenied(t *testing.T) {
+	env := setupUserHandler()
+	env.profileRepo.Create(context.Background(), &user.Profile{ID: "prf-1", UserID: "usr-1", Name: "Main"})
+
+	_, err := env.handler.ListAllProfiles(userCtx("usr-1", "prf-1"), &eveyv1.ListAllProfilesRequest{})
+	assertCode(t, err, codes.PermissionDenied)
+}
+
 // --- InviteLink tests ---
 
 func TestCreateInviteLink_Success(t *testing.T) {

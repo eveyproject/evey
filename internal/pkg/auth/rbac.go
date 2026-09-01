@@ -47,11 +47,12 @@ var MethodPermissions = map[string]string{
 	"/evey.v1.LibraryService/FilterMediaItems":   PermMediaRead,
 	"/evey.v1.LibraryService/GetPerson":          PermMediaRead,
 	// User
-	"/evey.v1.UserService/CreateUser":  PermUserCreate,
-	"/evey.v1.UserService/ListUsers":   PermUserRead,
-	"/evey.v1.UserService/UpdateUser":  PermUserUpdate,
-	"/evey.v1.UserService/DeleteUser":  PermUserDelete,
-	"/evey.v1.UserService/DisableUser": PermUserDisable,
+	"/evey.v1.UserService/CreateUser":      PermUserCreate,
+	"/evey.v1.UserService/ListUsers":       PermUserRead,
+	"/evey.v1.UserService/ListAllProfiles": PermUserRead,
+	"/evey.v1.UserService/UpdateUser":      PermUserUpdate,
+	"/evey.v1.UserService/DeleteUser":      PermUserDelete,
+	"/evey.v1.UserService/DisableUser":     PermUserDisable,
 	// Playback
 	"/evey.v1.PlaybackService/StartStream":      PermPlaybackStart,
 	"/evey.v1.PlaybackService/StopStream":       PermPlaybackStop,
@@ -197,6 +198,7 @@ var APIKeyScopeFor = map[string]string{
 	"/evey.v1.UserService/GetCurrentUser":                  ScopeUsersRead,
 	"/evey.v1.UserService/ListInviteLinks":                 ScopeUsersRead,
 	"/evey.v1.UserService/ListProfiles":                    ScopeUsersRead,
+	"/evey.v1.UserService/ListAllProfiles":                 ScopeUsersRead,
 	"/evey.v1.ParentalService/GetParentalSettings":         ScopeUsersRead,
 	"/evey.v1.PluginUserDataService/GetPref":               ScopeUsersRead,
 	"/evey.v1.PluginUserDataService/ListPrefs":             ScopeUsersRead,
@@ -325,13 +327,14 @@ var InternalMethods = map[string]bool{
 	"/evey.v1.UserService/ResetPassword":         true,
 
 	// User lifecycle (admin infra)
-	"/evey.v1.UserService/CreateUser":   true,
-	"/evey.v1.UserService/DeleteUser":   true,
-	"/evey.v1.UserService/DisableUser":  true,
-	"/evey.v1.UserService/ListUsers":    true,
-	"/evey.v1.UserService/CreateAPIKey": true,
-	"/evey.v1.UserService/ListAPIKeys":  true,
-	"/evey.v1.UserService/RevokeAPIKey": true,
+	"/evey.v1.UserService/CreateUser":      true,
+	"/evey.v1.UserService/DeleteUser":      true,
+	"/evey.v1.UserService/DisableUser":     true,
+	"/evey.v1.UserService/ListUsers":       true,
+	"/evey.v1.UserService/ListAllProfiles": true,
+	"/evey.v1.UserService/CreateAPIKey":    true,
+	"/evey.v1.UserService/ListAPIKeys":     true,
+	"/evey.v1.UserService/RevokeAPIKey":    true,
 
 	// AdminSystemService
 	"/evey.v1.AdminSystemService/SetupWizard":        true,
