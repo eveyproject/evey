@@ -102,6 +102,7 @@ frontend/apps/mobile/.expo/
 # sous un répertoire exclu, donc la forme avec / rendait les "!" ci-dessous
 # inopérants pour tout nouveau fichier.
 scripts/*
+!scripts/i18n-fixture.py
 !scripts/build-test-plugins.sh
 !scripts/gen_cosign_fixtures.go
 !scripts/verify-deploy.sh
