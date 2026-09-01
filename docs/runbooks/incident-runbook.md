@@ -258,8 +258,10 @@ reported` line with `type=` and a `details=` string.
 3. **What did the phone see?** Search `cast_sender_stall`: the sender posts
    `state=playing frozen=<n>s pos=<p>` when the Cast SDK still says PLAYING
    but the position has not moved for 20 s, and `state=idle reason=<r>` when
-   the receiver reported an idle reason. This is the sender's side of the
-   same minute - compare its `pos` with the receiver's last `pos_sec`.
+   the receiver reported an idle reason. These lines are logged at WARN, so
+   the admin Logs page's warning filter surfaces them. This is the sender's
+   side of the same minute - compare its `pos` with the receiver's last
+   `pos_sec`.
 4. **Did the session cascade?** Search `refresh rejected`: a refresh token
    "not found" logs the app out and back in (saved credentials), which
    re-issues the stream - the line now says the token's `jti`, `issued` and
