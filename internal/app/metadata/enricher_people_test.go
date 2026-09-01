@@ -149,3 +149,21 @@ func TestEnricher_EnrichAllPeopleBios_ProviderErrorLeavesNoStamp(t *testing.T) {
 		t.Fatalf("BioCheckedAt = %v, want nil: a transient failure must not silence the person for 30 days", got.BioCheckedAt)
 	}
 }
+
+func TestSleepCtx_ReturnsWhenTheTimerFires(t *testing.T) {
+	start := time.Now()
+	sleepCtx(context.Background(), 20*time.Millisecond)
+	if time.Since(start) < 20*time.Millisecond {
+		t.Fatal("returned before the pause elapsed")
+	}
+}
+
+func TestSleepCtx_ReturnsAtOnceWhenCancelled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	start := time.Now()
+	sleepCtx(ctx, time.Second)
+	if time.Since(start) > 200*time.Millisecond {
+		t.Fatal("a cancelled context must cut the pause short")
+	}
+}

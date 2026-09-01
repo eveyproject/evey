@@ -96,3 +96,24 @@ func TestTrackArtExt(t *testing.T) {
 		}
 	}
 }
+
+// The cache directory may be unwritable (a read-only volume, a permission
+// slip): the resize is skipped, nothing is created anywhere, the original
+// bytes are served.
+func TestTrackArtVariant_UnwritableCacheDirFallsBack(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root ignores directory permissions")
+	}
+	parent := t.TempDir()
+	if err := os.Chmod(parent, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(parent, 0o755) })
+	h := &musicHandler{imgConverter: &fakeImageConverter{}, trackArtDir: filepath.Join(parent, "track-art")}
+	if v := h.trackArtVariant(context.Background(), "tr-1", "image/jpeg", []byte("x"), 100); v != "" {
+		t.Fatalf("got %q, want empty when the cache dir cannot be created", v)
+	}
+	if _, err := os.Stat(h.trackArtDir); !os.IsNotExist(err) {
+		t.Fatalf("cache dir should not exist: %v", err)
+	}
+}
