@@ -3,7 +3,7 @@ import { Image } from "expo-image";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Skeleton } from "../../../src/components/Skeleton";
 import { toggleFeed, moveFeed, changedFeeds } from "../../../src/lib/feedConfigEdits";
-import { useCallback, useMemo, useState, useEffect } from "react";
+import { useCallback, useMemo, useRef, useState, useEffect } from "react";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
@@ -315,17 +315,29 @@ function FeedCustomizeModal({
     if (failed > 0) toast.error(t("media.home.customizeSaveFailed", "Failed to save some changes"));
   }, [updateFeed, profileId, qc, t]);
 
+  // Two taps can land in one React batch (a fast double tap): each handler
+  // would then see the same `local` and the second would silently discard
+  // the first. The ref is the handlers' source of truth between renders - it
+  // is advanced synchronously by each tap and re-synced from state on every
+  // render (a reset or a config reload lands in it too).
+  const localRef = useRef(local);
+  localRef.current = local;
+
   const toggle = (idx: number) => {
-    const next = toggleFeed(local, idx);
+    const prev = localRef.current;
+    const next = toggleFeed(prev, idx);
+    localRef.current = next;
     setLocal(next);
-    void persist(changedFeeds(local, next));
+    void persist(changedFeeds(prev, next));
   };
 
   const move = (idx: number, dir: -1 | 1) => {
-    const next = moveFeed(local, idx, dir);
-    if (next === local) return;
+    const prev = localRef.current;
+    const next = moveFeed(prev, idx, dir);
+    if (next === prev) return;
+    localRef.current = next;
     setLocal(next);
-    void persist(changedFeeds(local, next));
+    void persist(changedFeeds(prev, next));
   };
 
   const resetAll = useCallback(() => {
