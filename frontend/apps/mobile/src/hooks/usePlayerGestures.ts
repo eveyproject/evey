@@ -11,9 +11,38 @@ const SWIPE_THRESHOLD = 8;
 const SENSITIVITY = 0.0025;
 const LEFT_ZONE = 0.35;
 const RIGHT_ZONE = 0.65;
+// Horizontal scrub. The threshold is higher than the vertical one on purpose:
+// a double tap that drifts sideways must stay a double tap, and the tap path
+// already tolerates 20px of slop.
+const SCRUB_THRESHOLD = 16;
+// How much timeline one full-width drag covers. Proportional to the runtime so
+// the gesture feels the same on a 22-minute episode and a 3-hour film, clamped
+// so a very short clip stays scrubbable and a long one does not turn every
+// pixel into half a minute.
+const SCRUB_SPAN_FRACTION = 0.1;
+const SCRUB_SPAN_MIN_SEC = 60;
+const SCRUB_SPAN_MAX_SEC = 600;
+
+export function scrubSpanSeconds(durationSec: number): number {
+  return Math.max(SCRUB_SPAN_MIN_SEC, Math.min(SCRUB_SPAN_MAX_SEC, durationSec * SCRUB_SPAN_FRACTION));
+}
+
+/** Live preview of a horizontal scrub: where the release would land, and by how
+ *  much it moves. Null when no scrub is in progress. */
+export interface ScrubPreview {
+  targetSec: number;
+  deltaSec: number;
+  durationSec: number;
+}
 
 interface UsePlayerGesturesArgs {
   onSeekBy: (seconds: number) => void;
+  /** Commit of a horizontal scrub: an ABSOLUTE position in seconds. Seeking
+   *  once on release rather than on every move keeps a drag from hammering an
+   *  HLS session with dozens of seeks. */
+  onScrubCommit?: (targetSeconds: number) => void;
+  getPosition?: () => number;
+  getDuration?: () => number;
   onTogglePlayPause: () => void;
   onToggleControls: () => void;
   onVolumeChange: (absoluteValue: number) => void;
@@ -32,6 +61,9 @@ interface UsePlayerGesturesArgs {
 
 export function usePlayerGestures({
   onSeekBy,
+  onScrubCommit,
+  getPosition,
+  getDuration,
   onTogglePlayPause,
   onToggleControls,
   onVolumeChange,
@@ -44,14 +76,21 @@ export function usePlayerGestures({
   onCloseOverlays,
 }: UsePlayerGesturesArgs) {
   const [seekFlash, setSeekFlash] = useState<"left" | "right" | null>(null);
+  const [scrubPreview, setScrubPreview] = useState<ScrubPreview | null>(null);
   const [volumeIndicator, setVolumeIndicator] = useState<number | null>(null);
   const [brightnessIndicator, setBrightnessIndicator] = useState<number | null>(null);
   const seekFlashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastTapRef = useRef<{ x: number; time: number } | null>(null);
   const singleTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const swipeActiveRef = useRef<"volume" | "brightness" | null>(null);
+  const swipeActiveRef = useRef<"volume" | "brightness" | "scrub" | null>(null);
   const swipeStartVolumeRef = useRef(1);
   const swipeStartBrightnessRef = useRef(1);
+  const scrubStartPositionRef = useRef(0);
+  const scrubDurationRef = useRef(0);
+  // The move handler owns the target; the release handler commits it. Kept in a
+  // ref rather than read back off `seekPreview`, whose setState has not
+  // necessarily been applied by the time the finger lifts.
+  const scrubTargetRef = useRef(0);
 
   // Latest callbacks/params in a ref so the PanResponder can be built ONCE with
   // stable panHandlers. Recreating it mid-swipe (which happened whenever one of
@@ -59,12 +98,14 @@ export function usePlayerGestures({
   // reset gestureState.dy to ~0 - so volume/brightness barely moved ("stuck at
   // ~97% then snaps back").
   const cb = useRef({
-    onSeekBy, onTogglePlayPause, onToggleControls, onVolumeChange,
+    onSeekBy, onScrubCommit, getPosition, getDuration,
+    onTogglePlayPause, onToggleControls, onVolumeChange,
     onBrightnessChange, getVolume, getBrightness, skipForwardSeconds, skipBackwardSeconds,
     hasOpenPanel, onCloseOverlays,
   });
   cb.current = {
-    onSeekBy, onTogglePlayPause, onToggleControls, onVolumeChange,
+    onSeekBy, onScrubCommit, getPosition, getDuration,
+    onTogglePlayPause, onToggleControls, onVolumeChange,
     onBrightnessChange, getVolume, getBrightness, skipForwardSeconds, skipBackwardSeconds,
     hasOpenPanel, onCloseOverlays,
   };
@@ -82,14 +123,22 @@ export function usePlayerGestures({
         // panel's ScrollView never receives moves (the scrim set by the
         // player screen handles closing on tap).
         onStartShouldSetPanResponder: () => !cb.current.hasOpenPanel?.(),
-        onMoveShouldSetPanResponder: (_, gs) =>
-          !cb.current.hasOpenPanel?.() &&
-          Math.abs(gs.dy) > SWIPE_THRESHOLD && Math.abs(gs.dy) > Math.abs(gs.dx) * 1.2,
+        onMoveShouldSetPanResponder: (_, gs) => {
+          if (cb.current.hasOpenPanel?.()) return false;
+          const vertical = Math.abs(gs.dy) > SWIPE_THRESHOLD && Math.abs(gs.dy) > Math.abs(gs.dx) * 1.2;
+          const horizontal = Math.abs(gs.dx) > SCRUB_THRESHOLD && Math.abs(gs.dx) > Math.abs(gs.dy) * 1.2;
+          return vertical || horizontal;
+        },
 
         onPanResponderGrant: () => {
           swipeActiveRef.current = null;
           swipeStartVolumeRef.current = cb.current.getVolume();
           swipeStartBrightnessRef.current = cb.current.getBrightness();
+          // Snapshot the timeline once: reading the live position on every move
+          // would compound the player's own advance into the drag.
+          scrubStartPositionRef.current = cb.current.getPosition?.() ?? 0;
+          scrubDurationRef.current = cb.current.getDuration?.() ?? 0;
+          scrubTargetRef.current = scrubStartPositionRef.current;
         },
 
         onPanResponderMove: (evt: GestureResponderEvent, gs: PanResponderGestureState) => {
@@ -106,16 +155,43 @@ export function usePlayerGestures({
           const relX = Math.max(0, Math.min(1, evt.nativeEvent.pageX / xExtent));
 
           if (!swipeActiveRef.current) {
-            if (Math.abs(gs.dy) < SWIPE_THRESHOLD) return;
-            if (Math.abs(gs.dx) > Math.abs(gs.dy)) return;
-            // Split the screen 50/50: right half = volume, left half =
-            // brightness. The previous 0.4/0.6 dead-zone in the middle
-            // ate too many genuinely centered swipes.
-            if (relX >= 0.5) {
-              swipeActiveRef.current = "volume";
+            // Horizontal wins first: a drag that is mostly sideways is a
+            // timeline scrub wherever on the screen it started, so it must not
+            // be classified by the left/right half the way a vertical one is.
+            // Needs a known runtime - there is nothing to scrub along without
+            // one (live, or metadata not in yet).
+            if (Math.abs(gs.dx) > SCRUB_THRESHOLD && Math.abs(gs.dx) > Math.abs(gs.dy) * 1.2) {
+              if (scrubDurationRef.current <= 0 || !cb.current.onScrubCommit) return;
+              swipeActiveRef.current = "scrub";
+              // Fall through rather than return: the move that CLASSIFIES the
+              // gesture already carries a real dx, so the overlay must appear
+              // on it. Returning here left the first frame of every drag blank.
             } else {
-              swipeActiveRef.current = "brightness";
+              if (Math.abs(gs.dy) < SWIPE_THRESHOLD) return;
+              if (Math.abs(gs.dx) > Math.abs(gs.dy)) return;
+              // Split the screen 50/50: right half = volume, left half =
+              // brightness. The previous 0.4/0.6 dead-zone in the middle
+              // ate too many genuinely centered swipes.
+              if (relX >= 0.5) {
+                swipeActiveRef.current = "volume";
+              } else {
+                swipeActiveRef.current = "brightness";
+              }
+              return;
             }
+          }
+
+          if (swipeActiveRef.current === "scrub") {
+            const duration = scrubDurationRef.current;
+            const span = scrubSpanSeconds(duration);
+            const raw = scrubStartPositionRef.current + (gs.dx / xExtent) * span;
+            const target = Math.max(0, Math.min(duration, raw));
+            scrubTargetRef.current = target;
+            setScrubPreview({
+              targetSec: target,
+              deltaSec: target - scrubStartPositionRef.current,
+              durationSec: duration,
+            });
             return;
           }
 
@@ -134,7 +210,23 @@ export function usePlayerGestures({
           }
         },
 
+        // A terminated gesture (the OS handing the responder to something else)
+        // must not commit a seek, and must not leave the centred preview pill
+        // frozen over the video.
+        onPanResponderTerminate: () => {
+          swipeActiveRef.current = null;
+          setScrubPreview(null);
+          setVolumeIndicator(null);
+          setBrightnessIndicator(null);
+        },
+
         onPanResponderRelease: (evt: GestureResponderEvent, gs: PanResponderGestureState) => {
+          if (swipeActiveRef.current === "scrub") {
+            swipeActiveRef.current = null;
+            setScrubPreview(null);
+            cb.current.onScrubCommit?.(scrubTargetRef.current);
+            return;
+          }
           if (swipeActiveRef.current) {
             swipeActiveRef.current = null;
             setVolumeIndicator(null);
@@ -195,5 +287,5 @@ export function usePlayerGestures({
     if (singleTapTimer.current) clearTimeout(singleTapTimer.current);
   }, []);
 
-  return { panResponder, seekFlash, volumeIndicator, brightnessIndicator, cleanup };
+  return { panResponder, seekFlash, scrubPreview, volumeIndicator, brightnessIndicator, cleanup };
 }

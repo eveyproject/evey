@@ -747,6 +747,10 @@ const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>()
 
   const knownDuration = media?.durationMs ? Number(media.durationMs) / 1000 : 0;
   const effectiveDuration = knownDuration > 0 ? knownDuration : duration;
+  // Mirrored into a ref for the gesture hook, whose PanResponder is built once
+  // and reads everything through refs (see usePlayerGestures).
+  const effectiveDurationRef = useRef(0);
+  effectiveDurationRef.current = effectiveDuration;
 
   // Standard resume semantics: mark the item as watched once playback
   // crosses the MaxResumePct threshold (90%). The server only marks
@@ -875,8 +879,28 @@ const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>()
   const getGestureVolume = useCallback(() => volumeBaseRef.current, []);
   const getGestureBrightness = useCallback(() => brightnessBaseRef.current, []);
 
-  const { panResponder, seekFlash, volumeIndicator, brightnessIndicator, cleanup } = usePlayerGestures({
+  // The gesture hook works in absolute seconds; seekTo takes a fraction. The
+  // conversion lives here because the runtime is this screen's business.
+  const handleScrubCommit = useCallback(
+    (targetSeconds: number) => {
+      const d = effectiveDurationRef.current;
+      if (d <= 0) return;
+      // Move the ref forward now, not on the next timeUpdate: chained swipes
+      // (how you cross a film) would otherwise each start from the pre-seek
+      // position and undo one another.
+      currentTimeRef.current = targetSeconds;
+      seekTo(Math.max(0, Math.min(1, targetSeconds / d)));
+    },
+    [seekTo],
+  );
+  const getScrubPosition = useCallback(() => currentTimeRef.current, []);
+  const getScrubDuration = useCallback(() => effectiveDurationRef.current, []);
+
+  const { panResponder, seekFlash, scrubPreview, volumeIndicator, brightnessIndicator, cleanup } = usePlayerGestures({
     onSeekBy: seekBy,
+    onScrubCommit: handleScrubCommit,
+    getPosition: getScrubPosition,
+    getDuration: getScrubDuration,
     onTogglePlayPause: togglePlayPause,
     onToggleControls: toggleControls,
     onVolumeChange: handleVolumeChange,
@@ -1249,6 +1273,7 @@ const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>()
 
         <GestureIndicators
           seekFlash={seekFlash}
+          scrubPreview={scrubPreview}
           volumeIndicator={volumeIndicator}
           brightnessIndicator={brightnessIndicator}
           skipFwd={skipFwd}
