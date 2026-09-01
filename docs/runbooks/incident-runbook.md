@@ -179,6 +179,10 @@ docker volume inspect evey_evey-cache   # compose-mangled name may vary
   ```sh
   docker exec evey-server sh -c 'rm -rf /cache/transcode/*'
   ```
+  This also drops `photos/` (resized photo variants) and `track-art/` (a
+  track's tag-embedded cover, extracted once and resized) under it - both are
+  rebuilt on the next request. The admin panel's "Clear cache" button does
+  the same purge.
 - Trickplay is more expensive to regenerate; only purge if necessary:
   ```sh
   docker exec evey-server sh -c 'rm -rf /cache/trickplay/* /data/trickplay/*'
