@@ -9,10 +9,11 @@ type StatsGridProps = Pick<
   "result" | "triage" | "breakdown" | "withBackup" | "ackGroup" | "libraryId" | "busy"
 > & { result: NonNullable<SeekIndexPageState["result"]> };
 
-// The grid IS the triage: one card per verdict, each with the action that
-// belongs to it (repair lives on the button above; acknowledge lives here) and
-// the per-defect breakdown underneath, so a number never appears without
-// saying what it is made of and what to do about it.
+// The grid IS the triage, and the triage is two cards wide: what Evey repairs
+// here, and what it merely noticed. Each carries the action that belongs to it
+// (repair lives on the button above; acknowledge lives here) and the per-defect
+// breakdown underneath, so a number never appears without saying what it is
+// made of. There is deliberately no third card handing the operator homework.
 export function StatsGrid({ result, triage, breakdown, withBackup, ackGroup, libraryId, busy }: StatsGridProps) {
   const { t } = useTranslation();
   const part = (count: number, key: string, testId: string) =>
@@ -34,11 +35,11 @@ export function StatsGrid({ result, triage, breakdown, withBackup, ackGroup, lib
       ))
     );
   };
-  const ackAll = (verdict: "manual" | "informational") =>
-    ackGroup.mutate({ data: { ...(libraryId ? { libraryId } : {}), verdict } });
+  const ackAll = () =>
+    ackGroup.mutate({ data: { ...(libraryId ? { libraryId } : {}), verdict: "informational" } });
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+    <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       <Card>
         <dt className="text-xs font-medium mb-1 text-[var(--text-muted)]">{t("admin.seekIndex.statsInspected")}</dt>
         <dd className="text-xl font-bold text-[var(--text)]">{result.total ?? 0}</dd>
@@ -52,33 +53,9 @@ export function StatsGrid({ result, triage, breakdown, withBackup, ackGroup, lib
           {joinParts([
             part(breakdown.missing, "admin.seekIndex.partMissing", "seek-index-missing-count"),
             part(breakdown.damaged, "admin.seekIndex.partDamaged", "seek-index-damaged-count"),
-            part(breakdown.delayedAudio, "admin.seekIndex.partAudioDelay", "seek-index-audio-delay-count"),
             part(breakdown.wrongContainer, "admin.seekIndex.partWrongContainer", "seek-index-wrong-container-count"),
           ])}
         </p>
-      </Card>
-      <Card>
-        <dt className="text-xs font-medium mb-1 text-[var(--text-muted)]">{t("admin.seekIndex.statsManual")}</dt>
-        <dd className="text-xl font-bold text-[var(--text)]" data-testid="seek-index-manual-count">
-          {triage.manual}
-        </dd>
-        <p className="mt-1 text-xs text-[var(--text-muted)]">
-          {joinParts([
-            part(breakdown.truncated, "admin.seekIndex.partTruncated", "seek-index-truncated-count"),
-            part(breakdown.seekCoarse, "admin.seekIndex.partSeekCoarse", "seek-index-coarse-count"),
-          ])}
-        </p>
-        {triage.manual > 0 && (
-          <Button
-            variant="ghost"
-            className="mt-2 text-xs"
-            disabled={busy || ackGroup.isPending}
-            onClick={() => ackAll("manual")}
-            data-testid="seek-index-ack-manual-btn"
-          >
-            {t("admin.seekIndex.ackGroupBtn", { count: triage.manual })}
-          </Button>
-        )}
       </Card>
       <Card>
         <dt className="text-xs font-medium mb-1 text-[var(--text-muted)]">{t("admin.seekIndex.statsInformational")}</dt>
@@ -87,16 +64,21 @@ export function StatsGrid({ result, triage, breakdown, withBackup, ackGroup, lib
         </dd>
         <p className="mt-1 text-xs text-[var(--text-muted)]">
           {joinParts([
+            part(breakdown.truncated, "admin.seekIndex.partTruncated", "seek-index-truncated-count"),
+            part(breakdown.seekCoarse, "admin.seekIndex.partSeekCoarse", "seek-index-coarse-count"),
+            part(breakdown.tracksDisagree, "admin.seekIndex.partTracksDisagree", "seek-index-tracks-disagree-count"),
+            part(breakdown.delayedAudio, "admin.seekIndex.partAudioDelay", "seek-index-audio-delay-count"),
             part(breakdown.audioShort, "admin.seekIndex.partAudioShort", "seek-index-audio-short-count"),
             part(breakdown.trailingJunk, "admin.seekIndex.partTrailingJunk", "seek-index-trailing-junk-count"),
           ])}
         </p>
+        <p className="mt-1 text-xs text-[var(--text-muted)]">{t("admin.seekIndex.statsInformationalHint")}</p>
         {triage.informational > 0 && (
           <Button
             variant="ghost"
             className="mt-2 text-xs"
             disabled={busy || ackGroup.isPending}
-            onClick={() => ackAll("informational")}
+            onClick={ackAll}
             data-testid="seek-index-ack-informational-btn"
           >
             {t("admin.seekIndex.ackGroupBtn", { count: triage.informational })}

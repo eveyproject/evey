@@ -16,8 +16,7 @@ import {
   useAdminMediaServiceRemuxAudioMedia,
   useAdminMediaServiceAckSeekIndexMedia,
   useAdminMediaServiceAckSeekIndexGroup,
-  useAdminMediaServiceFixContainerMedia,
-} from "@evey/api";
+  useAdminMediaServiceFixContainerMedia, audioDelayed, audioTracksDisagree } from "@evey/api";
 import {
   SEEK_INDEX_SCAN_QUERY_BASE,
   SEEK_INDEX_KIND_KEYS,
@@ -114,7 +113,11 @@ export function useSeekIndexPage() {
     damagedBytes: items
       .filter((it) => verdictOf(it) === "repairable" && it.hasIndex)
       .reduce((sum, it) => sum + Number(it.damagedBytes ?? 0), 0),
-    delayedAudio: items.filter((it) => verdictOf(it) === "repairable" && (it.audioDelaySec ?? 0) > 0.1).length,
+    // An offset is information, not a repair - it belongs under the
+    // information card, and it is counted whether or not the coherence
+    // comparison could run.
+    delayedAudio: items.filter((it) => verdictOf(it) === "informational" && audioDelayed(it)).length,
+    tracksDisagree: items.filter((it) => audioTracksDisagree(it) && !isAcked(it)).length,
     wrongContainer: items.filter((it) => it.wrongContainer).length,
     truncated: items.filter((it) => it.truncated && !isAcked(it)).length,
     seekCoarse: items.filter((it) => it.seekCoarse && !it.truncated && !isAcked(it)).length,

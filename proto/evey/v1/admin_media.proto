@@ -168,7 +168,8 @@ service AdminMediaService {
   }
 
   // AckSeekIndexGroup acknowledges every pending file of one verdict
-  // ("manual" or "informational") in scope. Returns how many it marked.
+  // ("informational" - the only ackable one) in scope. Returns how many it
+  // marked.
   rpc AckSeekIndexGroup(AckSeekIndexGroupRequest) returns (AckSeekIndexGroupResponse) {
     option (google.api.http) = {
       post: "/api/v1/admin/media/seek-index/ack-group"
@@ -228,7 +229,8 @@ message AckSeekIndexMediaResponse {}
 message AckSeekIndexGroupRequest {
   // Optional scope: empty = all libraries.
   string library_id = 1;
-  // "manual" or "informational" - the only verdicts one can acknowledge.
+  // "informational" - the only verdict one can acknowledge. A repairable
+  // defect is repaired, not waved through.
   string verdict = 2;
 }
 message AckSeekIndexGroupResponse {
@@ -300,12 +302,15 @@ message SeekIndexItem {
   // no index can be denser than the keyframes it names. Reported apart from
   // missing_index precisely so it stays OUT of the repair queue - offering a
   // repair that cannot change anything is what pinned 134 prod files. The
-  // remedy is a re-encode or a better source.
+  // remedy is a re-encode or a better source, and it is offered as a remark
+  // (informational verdict), never as an instruction.
   bool seek_coarse = 15;
-  // verdict is the ONE answer per file: "healthy", "repairable" (Evey repairs
-  // it - Repair all acts on exactly these), "manual" (only the operator can:
-  // re-acquire, re-encode) or "informational" (a fact that changes nothing
-  // for playback). Manual/informational files can be acknowledged.
+  // verdict is the ONE answer per file, and there are only two non-healthy
+  // ones: "repairable" (Evey repairs it here - Repair all acts on exactly
+  // these) and "informational" (something we measured and mention, possibly
+  // wrong, never a chore). Informational files can be acknowledged.
+  // The former "manual" verdict is GONE: a detector that cannot repair
+  // something has not earned the right to hand the operator an instruction.
   string verdict = 16;
   // acked_at_ms > 0: the operator acknowledged this file's verdict (it stays
   // out of the attention list until the file's bytes change).
@@ -313,6 +318,18 @@ message SeekIndexItem {
   // seek_coarse_detail is the diagnoser's own account of the remaining hole
   // ("the video cues leave a 44s hole - ...") - often the final credits alone.
   string seek_coarse_detail = 18;
+  // audio_tracks_lag_sec is how far this file's OWN audio tracks disagree once
+  // their declared offsets are applied, in seconds, and it is what decides
+  // whether audio_delay_sec matters. Two tracks of one film share their music
+  // and effects bed: they line up when the offsets are RIGHT (a dub aligned to
+  // its cut - nothing to do) and disagree when a track sits in the wrong place.
+  // 0 with audio_tracks_checked true means PROVEN coherent.
+  double audio_tracks_lag_sec = 19;
+  // audio_tracks_checked says the comparison actually ran, so a 0 lag reads as
+  // "proven coherent" rather than "never looked". False when the file has one
+  // audio track, declares no offset worth explaining, or the two mixes shared
+  // no legible signal.
+  bool audio_tracks_checked = 20;
 }
 
 message ScanSeekIndexRequest {
@@ -351,10 +368,12 @@ message ScanSeekIndexResponse {
   // the candidates) and flag files whose rewrite temp copy will not fit.
   repeated SeekIndexVolume volumes = 8;
   // The triage the page is built on. repairable is exactly what Repair all
-  // acts on; manual and informational count only the files still awaiting
-  // the operator's eyes (acknowledged ones are in acked).
+  // acts on; informational counts only the remarks still awaiting the
+  // operator's eyes (acknowledged ones are in acked).
   int32 repairable = 15;
-  int32 manual = 16;
+  // manual is always 0 since the "your call" verdict was removed. Kept only
+  // so an older client keeps parsing; do not read it.
+  int32 manual = 16 [deprecated = true];
   int32 informational = 17;
   int32 acked = 18;
   // container_fix_available: the server can rename a mislabelled .mkv to .mp4

@@ -14,7 +14,6 @@ type SeekIndexFiltersProps = Pick<
 const VIEW_KEYS: Record<SeekView, string> = {
   attention: "admin.seekIndex.viewAttention",
   repairable: "admin.seekIndex.viewRepairable",
-  manual: "admin.seekIndex.viewManual",
   informational: "admin.seekIndex.viewInformational",
   acked: "admin.seekIndex.viewAcked",
   backups: "admin.seekIndex.viewBackups",

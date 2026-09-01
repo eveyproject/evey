@@ -121,7 +121,7 @@ func (p *AudioCoherence) audioTrackCount(ctx context.Context, path string) (int,
 		return 0, fmt.Errorf("audio coherence: count tracks: %w", err)
 	}
 	n := 0
-	for _, line := range strings.Split(string(out), "\n") {
+	for line := range strings.SplitSeq(string(out), "\n") {
 		if strings.TrimSpace(line) != "" {
 			n++
 		}

@@ -51,9 +51,10 @@ func (s *SeekIndexService) AckMedia(_ context.Context, mediaID string, acked boo
 // AckGroup acknowledges every not-yet-acknowledged file of the given verdict
 // in scope (libraryID "" = all libraries), mirroring the stamp into every
 // other scope holding the same media. Returns how many files it marked. Only
-// manual and informational verdicts are groups one can acknowledge.
+// the informational verdict is a group one can acknowledge - a repairable
+// defect is repaired, not waved through.
 func (s *SeekIndexService) AckGroup(_ context.Context, libraryID string, verdict Verdict) (int, error) {
-	if verdict != VerdictManual && verdict != VerdictInformational {
+	if verdict != VerdictInformational {
 		return 0, ErrAckNotApplicable
 	}
 	res, _, ok := s.CachedScan(libraryID)

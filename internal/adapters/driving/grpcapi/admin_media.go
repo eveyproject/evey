@@ -283,7 +283,6 @@ func (d *adminMediaHandler) ScanSeekIndex(ctx context.Context, req *eveyv1.ScanS
 	out.AudioShort = int32(res.AudioShort)
 	out.SeekCoarse = int32(res.SeekCoarse)
 	out.Repairable = int32(res.Repairable)
-	out.Manual = int32(res.Manual)
 	out.Informational = int32(res.Informational)
 	out.Acked = int32(res.Acked)
 	out.InplaceAvailable = d.seekIndex.SupportsInPlace()
@@ -309,6 +308,9 @@ func (d *adminMediaHandler) ScanSeekIndex(ctx context.Context, req *eveyv1.ScanS
 			Verdict:           string(it.Verdict()),
 			AckedAtMs:         it.AckedAt * 1000,
 			SeekCoarseDetail:  it.IndexSparseDetail,
+			// The proof behind the offset, not just the offset.
+			AudioTracksLagSec:  it.AudioTracksLagSec,
+			AudioTracksChecked: it.AudioTracksChecked,
 		})
 	}
 	// Live per-volume numbers (free space vs candidate sizes) so the client

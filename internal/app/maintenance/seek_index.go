@@ -173,7 +173,7 @@ type SeekStatus struct {
 	// same film share their music and effects bed, so in a sound file they line
 	// up (lag ~0) whatever offsets they declare. A non-zero lag means one track
 	// sits in the wrong place - and since nothing here can tell WHICH, the file
-	// is the operator's call, never an automatic rewrite. 0 = coherent, or the
+	// is reported and nothing more, never an automatic rewrite. 0 = coherent, or the
 	// file has a single audio track (nothing to compare), or not measured.
 	AudioTracksLagSec float64
 	// AudioTracksChecked records that the comparison actually ran, so "0" reads
@@ -234,8 +234,8 @@ type SeekStatus struct {
 	ReindexAttempted bool
 	// AckedAt (unix seconds) > 0 → the operator has SEEN this file's verdict
 	// and chose to live with it. Only a file nothing can be done about here
-	// (a manual or informational verdict, see Verdict) can be acknowledged:
-	// a repairable defect is repaired, not waved through. Carried by the
+	// (an informational verdict, see Verdict) can be acknowledged: a
+	// repairable defect is repaired, not waved through. Carried by the
 	// incremental re-scan exactly like ReindexAttempted - as long as the
 	// (size, mtime) fingerprint holds - so a re-acquired or rewritten file
 	// comes back un-acknowledged and gets judged afresh.
@@ -264,37 +264,46 @@ type SeekStatus struct {
 const SeekDiagVersion = 3
 
 // Verdict is what the health page owes the operator for every file: not a
-// pile of flags, but the ONE answer "who acts on this, if anyone". Three
-// non-healthy answers, in decreasing order of what Evey can do:
+// pile of flags, but the ONE answer "does this need doing, or is it just
+// something we noticed". TWO non-healthy answers, and deliberately only two:
 //
-//   - VerdictRepairable: Evey repairs it (index rebuild, resync of a damaged
-//     stretch, audio start-delay remux, container rename). "Repair all" acts
-//     on exactly these, and its count is exactly their count.
-//   - VerdictManual: only the operator can act - re-acquire an incomplete
-//     download, re-encode a source whose keyframes are too sparse to seek.
-//   - VerdictInformational: a fact about the file that changes nothing for
-//     playback (a shorter audio track the player pads with silence, junk
-//     bytes after the Segment end). Nothing to do, for anyone.
+//   - VerdictRepairable: Evey repairs it, here, now (index rebuild, resync of
+//     a damaged stretch, container rename). "Repair all" acts on exactly
+//     these, and its count is exactly their count.
+//   - VerdictInformational: everything else. What we measured about the file,
+//     offered as a remark and nothing more - possibly wrong, never a chore.
+//     A too-sparse keyframe grid, an incomplete download, a shorter audio
+//     track, an offset between the tracks, junk past the Segment end.
 //
-// Manual and informational verdicts can be acknowledged so the page tends
-// towards zero instead of carrying the same rows for years.
+// There used to be a third, "your call": defects handed BACK to the operator
+// with an instruction (re-encode this, re-acquire that). It was dropped on
+// purpose. A detector that cannot repair something has not earned the right to
+// give orders, and several of these measurements are demonstrably wrong on
+// real files (audio-short false positives, prod 2026-08-31). Either we fix it,
+// or we mention it - there is no third thing to ask of a person whose library
+// plays fine.
+//
+// Informational verdicts can be acknowledged so the page tends towards zero
+// instead of carrying the same rows for years.
 type Verdict string
 
 const (
 	VerdictHealthy       Verdict = "healthy"
 	VerdictRepairable    Verdict = "repairable"
-	VerdictManual        Verdict = "manual"
 	VerdictInformational Verdict = "informational"
 )
 
-// Verdict derives the file's single answer from its flags. Precedence: a
-// defect only the operator can fix wins over one Evey could fix (repairing
-// the index of an incomplete download is wasted work until the source is
-// re-acquired), and any actionable defect wins over a mere fact.
+// Verdict derives the file's single answer from its flags: can Evey act on it
+// here, or is it a remark? A defect Evey cannot repair is NOT promoted above
+// one it can - promoting it only made the page shout louder about the files
+// nothing could be done for.
 func (st SeekStatus) Verdict() Verdict {
 	switch {
+	// Repairing the index of an incomplete download is wasted work until the
+	// source is re-acquired, so a truncated file stays out of the queue - as a
+	// remark, not as an instruction.
 	case st.Truncated, st.PictureMissing, st.SeekCoarse():
-		return VerdictManual
+		return VerdictInformational
 	case !st.HasIndex, st.DamagedBytes > 0, st.WrongContainer:
 		return VerdictRepairable
 	// An audio track that starts after the picture is NOT a defect to rewrite.
@@ -302,12 +311,14 @@ func (st SeekStatus) Verdict() Verdict {
 	// own pipeline already cancels a spurious one at playback (-itsoffset, since
 	// 2026-07-08). Rewriting the file to zero it destroyed a DELIBERATE 12.000 s
 	// alignment on a real title (a prod title, prod 2026-07-13): the dub then
-	// played 12 s early in every player, and no backup existed. The offset is
-	// reported as a fact; the only thing that turns it into a defect is PROOF
-	// that the file's own audio tracks disagree - see AudioTracksLagSec.
-	case st.AudioTracksLagSec > AudioTrackLagFlagSec:
-		return VerdictManual
-	case st.AudioDelaySec > AudioDelayFlagSec, st.AudioShortfallSec > AudioShortfallFlagSec, st.TrailingJunk:
+	// played 12 s early in every player, and no backup existed. Measured
+	// disagreement between the file's own tracks (AudioTracksLagSec) is worth
+	// SAYING, because it is the one case where the offset is probably wrong -
+	// but it is still not something Evey will rewrite behind the operator.
+	case st.AudioTracksLagSec > AudioTrackLagFlagSec,
+		st.AudioDelaySec > AudioDelayFlagSec,
+		st.AudioShortfallSec > AudioShortfallFlagSec,
+		st.TrailingJunk:
 		return VerdictInformational
 	}
 	return VerdictHealthy
@@ -318,10 +329,7 @@ func (st SeekStatus) Acked() bool { return st.AckedAt > 0 }
 
 // Ackable reports whether the verdict is one the operator may acknowledge:
 // only what nobody here can repair. A repairable defect gets repaired.
-func (st SeekStatus) Ackable() bool {
-	v := st.Verdict()
-	return v == VerdictManual || v == VerdictInformational
-}
+func (st SeekStatus) Ackable() bool { return st.Verdict() == VerdictInformational }
 
 // SeekCoarse reports a file whose index was rebuilt and is STILL too coarse to
 // seek into: the encode's own keyframes are further apart than a seek can
@@ -347,11 +355,10 @@ type ScanResult struct {
 	SeekCoarse     int // count rebuilt and still too coarse to seek into (re-encode; no repair can improve them)
 
 	// The triage the page is built on (see Verdict). Repairable is exactly
-	// what "Repair all" will act on. Manual and Informational count only the
-	// files still AWAITING the operator's eyes: an acknowledged file moves
-	// to Acked, whatever its verdict.
+	// what "Repair all" will act on. Informational counts only the remarks
+	// still AWAITING the operator's eyes: an acknowledged file moves to
+	// Acked, whatever its verdict.
 	Repairable    int
-	Manual        int
 	Informational int
 	Acked         int
 }
@@ -494,7 +501,7 @@ func (s *SeekIndexService) WithAudioDelayProber(p AudioDelayProber) *SeekIndexSe
 
 // WithAudioCoherenceProber wires the PROOF behind an audio offset: it decides
 // whether a declared offset is the deliberate alignment of a dub (leave it
-// alone) or a track sitting in the wrong place (the operator's call). It is
+// alone) or a track sitting in the wrong place (worth mentioning). It is
 // deliberately gated on the offset itself, so it runs on the handful of files
 // that declare one - 3 of 6695 on the real library - and costs nothing on the
 // rest. Optional and chainable; without it AudioTracksChecked stays false and

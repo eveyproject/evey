@@ -26,7 +26,6 @@ function HintBadge({ label, hint, color, testID }: { label: string; hint?: strin
 const VERDICT_KEYS = {
   healthy: "admin.seekIndex.verdictHealthy",
   repairable: "admin.seekIndex.verdictRepairable",
-  manual: "admin.seekIndex.verdictManual",
   informational: "admin.seekIndex.verdictInformational",
 } as const;
 
@@ -82,7 +81,7 @@ export function SeekIndexItemRow({
   const indexRepairable = !item.hasIndex && !item.truncated && !item.seekCoarse;
   const damagedOnly = Boolean(item.hasIndex) && damagedBytes > 0 && !item.truncated;
   const verdictColor =
-    verdict === "healthy" ? theme.colors.success : verdict === "repairable" ? theme.colors.warning : verdict === "manual" ? theme.colors.error : theme.colors.info;
+    verdict === "healthy" ? theme.colors.success : verdict === "repairable" ? theme.colors.warning : theme.colors.info;
 
   const btn = (label: string, onPress: () => void, pending: boolean, accent = false, hint?: string, disabled = busy) => (
     <Pressable

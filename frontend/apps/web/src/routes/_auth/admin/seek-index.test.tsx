@@ -135,12 +135,13 @@ describe("SeekIndexPage", () => {
     const Page = await getPage();
     render(React.createElement(Page));
     // The three verdict cards: mi-1 (no index) + mi-4 (delayed audio) are
-    // repairable, mi-7 (truncated) needs the operator, mi-6 (short audio) is
-    // information. The truncated file is NOT counted as "missing index": a
-    // rebuild would be wasted until the source is re-acquired.
-    expect(screen.getByTestId("seek-index-repairable-count")).toHaveTextContent("2");
-    expect(screen.getByTestId("seek-index-manual-count")).toHaveTextContent("1");
-    expect(screen.getByTestId("seek-index-informational-count")).toHaveTextContent("1");
+    // repairable; mi-7 (truncated) and mi-6 (short audio) are information.
+    // The truncated file is NOT counted as "missing index": a rebuild would
+    // be wasted until the source is re-acquired, so it is a remark instead.
+    // mi-4 (audio offset) is INFORMATION now, not a repair: an offset is how a
+    // dub is aligned and every player honours it.
+    expect(screen.getByTestId("seek-index-repairable-count")).toHaveTextContent("1");
+    expect(screen.getByTestId("seek-index-informational-count")).toHaveTextContent("3");
     expect(screen.getByTestId("seek-index-missing-count")).toHaveTextContent("1");
     expect(screen.getByTestId("seek-index-audio-delay-count")).toHaveTextContent("1");
     expect(screen.getByTestId("seek-index-truncated-count")).toHaveTextContent("1");
@@ -184,9 +185,9 @@ describe("SeekIndexPage", () => {
     mockScan.mockReturnValue(scanned);
     const Page = await getPage();
     render(React.createElement(Page));
-    // missingIndex=2 but one of them is truncated (skipped by the batch):
-    // 1 repairable + 1 delayed audio.
-    expect(screen.getByTestId("seek-index-repair-all-btn")).toHaveTextContent("Repair all (2)");
+    // missingIndex=2 but one of them is truncated (skipped by the batch), and
+    // the audio offset is not a repair at all: one file left to repair.
+    expect(screen.getByTestId("seek-index-repair-all-btn")).toHaveTextContent("Repair all (1)");
   });
 
   // A file rebuilt once and still too coarse to seek is NOT a repair candidate:
@@ -222,7 +223,7 @@ describe("SeekIndexPage", () => {
     expect(row.querySelector('[data-testid="seek-index-repair-btn"]')).toBeNull();
     expect(row.querySelector('[data-testid="seek-index-repair-resync-btn"]')).toBeNull();
     // Unchanged by the extra flagged file: the batch cannot act on it.
-    expect(screen.getByTestId("seek-index-repair-all-btn")).toHaveTextContent("Repair all (2)");
+    expect(screen.getByTestId("seek-index-repair-all-btn")).toHaveTextContent("Repair all (1)");
   });
 
   // "138/138 processed" read identically whether the job repaired 138 files or
@@ -238,11 +239,32 @@ describe("SeekIndexPage", () => {
     expect(screen.getByTestId("seek-index-skipped-count")).toHaveTextContent("133 skipped");
   });
 
-  it("a delayed-audio file shows the badge with the probed seconds", async () => {
+  it("an audio offset is stated as a fact, not flagged as a defect", async () => {
     mockScan.mockReturnValue(scanned);
     const Page = await getPage();
     render(React.createElement(Page));
-    expect(screen.getByText("Audio +0.9s")).toBeInTheDocument();
+    expect(screen.getByText("Audio at +0.9s")).toBeInTheDocument();
+  });
+
+  it("tracks measured to disagree get the warning, and say by how much", async () => {
+    const disagree = {
+      ...scanned,
+      data: {
+        ...scanned.data,
+        items: scanned.data.items.map((it: { mediaId: string }) =>
+          it.mediaId === "mi-4"
+            ? { ...it, audioDelaySec: 12, audioTracksLagSec: 11.94, audioTracksChecked: true }
+            : it,
+        ),
+      },
+    };
+    mockScan.mockReturnValue(disagree);
+    const Page = await getPage();
+    render(React.createElement(Page));
+    expect(screen.getByText("Audio tracks 11.9s apart")).toBeInTheDocument();
+    // and it is said, never repaired behind the operator's back
+    expect(screen.getByTestId("seek-index-tracks-disagree-count")).toHaveTextContent("1");
+    expect(screen.getByTestId("seek-index-repairable-count")).toHaveTextContent("1");
   });
 
   it("a wrong-container file shows the badge and a wrong-container rollup count", async () => {
@@ -365,17 +387,15 @@ describe("SeekIndexPage", () => {
     const Page = await getPage();
     render(React.createElement(Page));
     expect(screen.getByTestId("seek-index-view-attention")).toHaveTextContent("Awaiting (5)");
-    expect(screen.getByTestId("seek-index-view-repairable")).toHaveTextContent("Repairable (2)");
-    expect(screen.getByTestId("seek-index-view-manual")).toHaveTextContent("Your call (1)");
-    expect(screen.getByTestId("seek-index-view-informational")).toHaveTextContent("Info (1)");
+    expect(screen.getByTestId("seek-index-view-repairable")).toHaveTextContent("Repairable (1)");
+    expect(screen.getByTestId("seek-index-view-informational")).toHaveTextContent("Info (3)");
+    expect(screen.queryByTestId("seek-index-view-manual")).toBeNull();
     expect(screen.getByTestId("seek-index-view-backups")).toHaveTextContent("Backups (1)");
     expect(screen.getByTestId("seek-index-view-all")).toHaveTextContent("All (6)");
     fireEvent.click(screen.getByTestId("seek-index-view-repairable"));
     const rows = screen.getAllByTestId("seek-index-row");
-    expect(rows).toHaveLength(2);
-    // Priority sort inside the view: the biggest repairable first.
+    expect(rows).toHaveLength(1);
     expect(within(rows[0]).getByText("Movie A")).toBeInTheDocument();
-    expect(within(rows[1]).getByText("Movie D")).toBeInTheDocument();
   });
 
   it("default order puts what needs doing first: repairable, then your call, then info, then backups", async () => {
@@ -383,7 +403,7 @@ describe("SeekIndexPage", () => {
     const Page = await getPage();
     render(React.createElement(Page));
     const titles = screen.getAllByTestId("seek-index-row").map((r) => within(r).getAllByText(/Movie/)[0].textContent);
-    expect(titles).toEqual(["Movie A", "Movie D", "Movie F", "Movie E", "Movie B"]);
+    expect(titles).toEqual(["Movie A", "Movie F", "Movie E", "Movie D", "Movie B"]);
   });
 
   it("search narrows by title or path and says what the view holds", async () => {
@@ -535,7 +555,9 @@ describe("SeekIndexPage", () => {
     mockScan.mockReturnValue(acked);
     const Page = await getPage();
     render(React.createElement(Page));
-    expect(screen.getByTestId("seek-index-informational-count")).toHaveTextContent("0");
+    // Movie D's audio offset and Movie F's truncation are information too,
+    // and neither is acknowledged.
+    expect(screen.getByTestId("seek-index-informational-count")).toHaveTextContent("2");
     expect(screen.getByTestId("seek-index-acked-count")).toHaveTextContent("1");
     expect(screen.queryByText("Movie E")).not.toBeInTheDocument();
     // The "Seen" view: the row is back, marked seen, with the way back.
@@ -553,9 +575,10 @@ describe("SeekIndexPage", () => {
     const row = screen.getByText("Movie A").closest("tr")!;
     expect(row.querySelector('[data-testid="seek-index-ack-btn"]')).toBeNull();
     expect(within(row).getByTestId("seek-index-verdict")).toHaveTextContent("Repairable");
-    // ...while the incomplete download can only be acknowledged.
+    // ...while the incomplete download is only ever mentioned, and waved
+    // through when the operator has seen it.
     const truncatedRow = screen.getByText("Movie F").closest("tr")!;
-    expect(within(truncatedRow).getByTestId("seek-index-verdict")).toHaveTextContent("Your call");
+    expect(within(truncatedRow).getByTestId("seek-index-verdict")).toHaveTextContent("Info");
     expect(within(truncatedRow).getByTestId("seek-index-ack-btn")).toBeInTheDocument();
   });
 
@@ -563,8 +586,8 @@ describe("SeekIndexPage", () => {
     mockScan.mockReturnValue(scanned);
     const Page = await getPage();
     render(React.createElement(Page));
-    fireEvent.click(screen.getByTestId("seek-index-ack-manual-btn"));
-    expect(ackGroupMutate).toHaveBeenCalledWith({ data: { verdict: "manual" } });
+    // One group, because there is one thing to wave through.
+    expect(screen.queryByTestId("seek-index-ack-manual-btn")).toBeNull();
     fireEvent.click(screen.getByTestId("seek-index-ack-informational-btn"));
     expect(ackGroupMutate).toHaveBeenCalledWith({ data: { verdict: "informational" } });
   });
@@ -584,7 +607,7 @@ describe("SeekIndexPage", () => {
     const Page = await getPage();
     render(React.createElement(Page));
     // Counted as repairable (the resync IS the repair)...
-    expect(screen.getByTestId("seek-index-repair-all-btn")).toHaveTextContent("Repair all (3)");
+    expect(screen.getByTestId("seek-index-repair-all-btn")).toHaveTextContent("Repair all (2)");
     const row = screen.getByText("Movie H").closest("tr")!;
     expect(within(row).getByTestId("seek-index-repair-resync-btn")).toBeInTheDocument();
     expect(row.querySelector('[data-testid="seek-index-repair-btn"]')).toBeNull();
@@ -617,7 +640,8 @@ describe("SeekIndexPage", () => {
     fireEvent.click(screen.getByTestId("seek-index-repair-all-btn"));
     await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
     fireEvent.click(screen.getByTestId("seek-index-resync-damaged"));
-    expect(screen.getByTestId("seek-index-confirm-text")).toHaveTextContent("Repair 2 files");
+    // Declining the damaged file leaves the single genuine repair.
+    expect(screen.getByTestId("seek-index-confirm-text")).toHaveTextContent("Repair 1 file");
     fireEvent.click(screen.getByTestId("seek-index-confirm-batch-btn"));
     expect(repairLibMutate).toHaveBeenCalledWith({
       data: { mode: "auto", deepVerify: false },

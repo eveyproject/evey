@@ -64,22 +64,35 @@ describe("repairableCount", () => {
 
 describe("verdictOf", () => {
   it("trusts the server's verdict when present", () => {
-    expect(verdictOf({ verdict: "manual", hasIndex: false })).toBe("manual");
+    expect(verdictOf({ verdict: "informational", hasIndex: false })).toBe("informational");
+    // A server still speaking the retired "your call" verdict is read as the
+    // remark it always was - never as a repair.
+    expect(verdictOf({ verdict: "manual", hasIndex: false })).toBe("informational");
   });
 
-  // Same table as the Go SeekStatus.Verdict: what only the operator can fix
-  // wins over what Evey could fix, which wins over a mere fact.
+  // Same table as the Go SeekStatus.Verdict: what Evey repairs here, and
+  // everything else - which is a remark, never an instruction.
   it("derives the Go precedence from the flags for an older server", () => {
     expect(verdictOf({ hasIndex: true })).toBe("healthy");
     expect(verdictOf({ hasIndex: false })).toBe("repairable");
     expect(verdictOf({ hasIndex: true, damagedBytes: "512" })).toBe("repairable");
-    expect(verdictOf({ hasIndex: true, audioDelaySec: 0.9 })).toBe("repairable");
+    // An offset alone is a fact about the file, never a repair: rewriting one
+    // erased a deliberate 12s dub alignment in prod (a prod title).
+    expect(verdictOf({ hasIndex: true, audioDelaySec: 0.9 })).toBe("informational");
+    // Tracks measured to disagree are worth saying, and still nothing more.
+    expect(
+      verdictOf({ hasIndex: true, audioDelaySec: 12, audioTracksLagSec: 11.9, audioTracksChecked: true }),
+    ).toBe("informational");
+    // Proven coherent: the offset is deliberate, so it stays a plain fact.
+    expect(
+      verdictOf({ hasIndex: true, audioDelaySec: 12, audioTracksLagSec: 0, audioTracksChecked: true }),
+    ).toBe("informational");
     expect(verdictOf({ hasIndex: true, wrongContainer: true })).toBe("repairable");
-    expect(verdictOf({ hasIndex: false, truncated: true })).toBe("manual");
-    expect(verdictOf({ hasIndex: false, seekCoarse: true })).toBe("manual");
+    expect(verdictOf({ hasIndex: false, truncated: true })).toBe("informational");
+    expect(verdictOf({ hasIndex: false, seekCoarse: true })).toBe("informational");
     expect(verdictOf({ hasIndex: true, audioShortfallSec: 40 })).toBe("informational");
     expect(verdictOf({ hasIndex: true, trailingJunk: true })).toBe("informational");
-    expect(verdictOf({ hasIndex: true, trailingJunk: true, audioDelaySec: 0.5 })).toBe("repairable");
+    expect(verdictOf({ hasIndex: true, trailingJunk: true, audioDelaySec: 0.5 })).toBe("informational");
   });
 
   it("only lets what nobody can repair be acknowledged", () => {
@@ -99,7 +112,9 @@ describe("triageOf", () => {
       { hasIndex: true, trailingJunk: true },
       { hasIndex: true },
     ]);
-    expect(t).toEqual({ repairable: 2, manual: 1, informational: 1, acked: 1 });
+    // The audio-offset file counts as information now, not as a repair, and
+    // so does the truncated one: there is no third pile any more.
+    expect(t).toEqual({ repairable: 1, informational: 3, acked: 1 });
   });
 });
 
@@ -126,7 +141,7 @@ describe("volumeTempRisky", () => {
 describe("views, search and sort of the displayed rows", () => {
   const rows = [
     { mediaId: "a", title: "Alpha", path: "/m/alpha.mkv", hasIndex: false, sizeBytes: "100" }, // repairable
-    { mediaId: "b", title: "Bravo", path: "/m/bravo.mkv", hasIndex: true, truncated: true, sizeBytes: "900" }, // manual
+    { mediaId: "b", title: "Bravo", path: "/m/bravo.mkv", hasIndex: true, truncated: true, sizeBytes: "900" }, // informational
     { mediaId: "c", title: "Charlie", path: "/m/charlie.mkv", hasIndex: true, trailingJunk: true, sizeBytes: "300", ackedAtMs: "1" }, // info, acked
     { mediaId: "d", title: "Delta", path: "/m/delta.mkv", hasIndex: true, hasBackup: true, sizeBytes: "50" }, // healthy + backup
     { mediaId: "e", title: "Echo", path: "/m/echo.mkv", hasIndex: true, sizeBytes: "10" }, // healthy
@@ -138,10 +153,10 @@ describe("views, search and sort of the displayed rows", () => {
   });
 
   it("counts every view from the same rows", () => {
-    expect(viewCounts(rows)).toEqual({ attention: 4, repairable: 1, manual: 1, informational: 2, acked: 1, backups: 1, all: 6 });
+    expect(viewCounts(rows)).toEqual({ attention: 4, repairable: 1, informational: 3, acked: 1, backups: 1, all: 6 });
   });
 
-  it("priority sort: repairable, manual, information (acknowledged last), healthy - biggest first inside a rank", () => {
+  it("priority sort: repairable, information (acknowledged last), healthy - biggest first inside a rank", () => {
     expect(sortSeekItems(rows, "priority").map((r) => r.mediaId)).toEqual(["a", "b", "f", "c", "d", "e"]);
   });
 

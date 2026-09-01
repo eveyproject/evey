@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Pagination } from "@/components/ui/Pagination";
-import { audioDelayed, formatBytes, isAckable, isAcked, verdictOf } from "@evey/api";
+import { audioDelayed, formatBytes, isAckable, isAcked, verdictOf, audioTracksDisagree } from "@evey/api";
 import { SEEK_INDEX_PAGE_SIZE, type SeekIndexPageState } from "./hooks";
 
 type SeekIndexTableProps = Pick<
@@ -28,7 +28,6 @@ type SeekIndexTableProps = Pick<
 const VERDICT_KEYS = {
   healthy: "admin.seekIndex.verdictHealthy",
   repairable: "admin.seekIndex.verdictRepairable",
-  manual: "admin.seekIndex.verdictManual",
   informational: "admin.seekIndex.verdictInformational",
 } as const;
 
@@ -107,7 +106,7 @@ export function SeekIndexTable({
                       that make it up, each with its own explanation. */}
                   <Badge
                     variant={
-                      verdict === "healthy" ? "success" : verdict === "repairable" ? "warning" : verdict === "manual" ? "error" : "info"
+                      verdict === "healthy" ? "success" : verdict === "repairable" ? "warning" : "info"
                     }
                     data-testid="seek-index-verdict"
                   >
@@ -135,12 +134,39 @@ export function SeekIndexTable({
                       {t("admin.seekIndex.backupBadge")}
                     </Badge>
                   )}
-                  {audioDelayed(it) && (
-                    <Badge variant="warning" className="ml-1.5">
-                      {t("admin.seekIndex.audioDelayBadge", {
-                        sec: (it.audioDelaySec ?? 0).toFixed(1),
+                  {/* An offset is a FACT, shown in the file's own terms - never
+                      an alarm. It only turns into something to look at when the
+                      file's own audio tracks are measured to disagree. */}
+                  {audioTracksDisagree(it) ? (
+                    <span
+                      title={t("admin.seekIndex.audioTracksDisagreeHint", {
+                        sec: Math.abs(Number(it.audioTracksLagSec ?? 0)).toFixed(1),
                       })}
-                    </Badge>
+                      className="ml-1.5 inline-block"
+                    >
+                      <Badge variant="warning">
+                        {t("admin.seekIndex.audioTracksDisagreeBadge", {
+                          sec: Math.abs(Number(it.audioTracksLagSec ?? 0)).toFixed(1),
+                        })}
+                      </Badge>
+                    </span>
+                  ) : (
+                    audioDelayed(it) && (
+                      <span
+                        title={
+                          it.audioTracksChecked
+                            ? t("admin.seekIndex.audioOffsetProvenHint")
+                            : t("admin.seekIndex.audioOffsetHint")
+                        }
+                        className="ml-1.5 inline-block"
+                      >
+                        <Badge variant="info">
+                          {t("admin.seekIndex.audioOffsetBadge", {
+                            sec: (it.audioDelaySec ?? 0).toFixed(1),
+                          })}
+                        </Badge>
+                      </span>
+                    )
                   )}
                   {it.truncated ? (
                     <span title={t("admin.seekIndex.truncatedHint")} className="ml-1.5 inline-block">

@@ -24,6 +24,7 @@ import type { V1GetSeekIndexJobResponse, SeekView } from "@evey/api";
 import { toast } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import {
+  audioTracksDisagree,
   baseName,
   errText,
   triageOf,
@@ -39,8 +40,9 @@ import {
 import { SeekIndexItemRow } from "../../../src/components/admin/seekIndex/SeekIndexItemRow";
 import { RepairConfirmModal, type BatchKind } from "../../../src/components/admin/seekIndex/RepairConfirmModal";
 
-// One card per verdict (same triage as the web grid): the number, what it is
-// made of, and - for what nobody can repair - the button that acknowledges it.
+// One card per verdict (same triage as the web grid), and there are two: what
+// Evey repairs here, and what it merely noticed. The number, what it is made
+// of, and - for the remarks - the button that waves them through.
 function StatChip({
   label,
   value,
@@ -71,7 +73,6 @@ function StatChip({
 const VIEW_KEYS: Record<SeekView, string> = {
   attention: "admin.seekIndex.viewAttention",
   repairable: "admin.seekIndex.viewRepairable",
-  manual: "admin.seekIndex.viewManual",
   informational: "admin.seekIndex.viewInformational",
   acked: "admin.seekIndex.viewAcked",
   backups: "admin.seekIndex.viewBackups",
@@ -200,14 +201,14 @@ export default function AdminSeekIndexScreen() {
   const repairableDetail = detail([
     [repairableRows.filter((it) => !it.hasIndex).length, "admin.seekIndex.partMissing"],
     [damagedRows.length, "admin.seekIndex.partDamaged"],
-    [repairableRows.filter((it) => (it.audioDelaySec ?? 0) > 0.1).length, "admin.seekIndex.partAudioDelay"],
     [items.filter((it) => it.wrongContainer).length, "admin.seekIndex.partWrongContainer"],
   ]);
-  const manualDetail = detail([
+  // Everything Evey cannot fix here is ONE pile: a remark, never a chore.
+  const infoDetail = detail([
     [items.filter((it) => it.truncated && !it.ackedAtMs).length, "admin.seekIndex.partTruncated"],
     [items.filter((it) => it.seekCoarse && !it.truncated && !it.ackedAtMs).length, "admin.seekIndex.partSeekCoarse"],
-  ]);
-  const infoDetail = detail([
+    [items.filter((it) => audioTracksDisagree(it) && !it.ackedAtMs).length, "admin.seekIndex.partTracksDisagree"],
+    [items.filter((it) => verdictOf(it) === "informational" && (it.audioDelaySec ?? 0) > 0.1 && !it.ackedAtMs).length, "admin.seekIndex.partAudioDelay"],
     [items.filter((it) => verdictOf(it) === "informational" && (it.audioShortfallSec ?? 0) > 0 && !it.ackedAtMs).length, "admin.seekIndex.partAudioShort"],
     [items.filter((it) => verdictOf(it) === "informational" && it.trailingJunk && !it.ackedAtMs).length, "admin.seekIndex.partTrailingJunk"],
   ]);
@@ -298,7 +299,7 @@ export default function AdminSeekIndexScreen() {
       onError: onStartError,
     },
   });
-  const ackAll = (verdict: "manual" | "informational") => ackGroup.mutate({ data: { ...(libraryId ? { libraryId } : {}), verdict } });
+  const ackAll = () => ackGroup.mutate({ data: { ...(libraryId ? { libraryId } : {}), verdict: "informational" } });
 
   const visible = triageRows(items, view, "", "priority");
   const busy = running || startScan.isPending;
@@ -444,17 +445,10 @@ export default function AdminSeekIndexScreen() {
                   <StatChip label={t("admin.seekIndex.statsInspected")} value={result.total ?? 0} theme={theme} />
                   <StatChip label={t("admin.seekIndex.statsRepairable")} value={triage.repairable} detail={repairableDetail} theme={theme} />
                   <StatChip
-                    label={t("admin.seekIndex.statsManual")}
-                    value={triage.manual}
-                    detail={manualDetail}
-                    action={{ label: t("admin.seekIndex.ackGroupBtn", { count: triage.manual }), onPress: () => ackAll("manual"), disabled: busy || ackGroup.isPending }}
-                    theme={theme}
-                  />
-                  <StatChip
                     label={t("admin.seekIndex.statsInformational")}
                     value={triage.informational}
                     detail={infoDetail}
-                    action={{ label: t("admin.seekIndex.ackGroupBtn", { count: triage.informational }), onPress: () => ackAll("informational"), disabled: busy || ackGroup.isPending }}
+                    action={{ label: t("admin.seekIndex.ackGroupBtn", { count: triage.informational }), onPress: ackAll, disabled: busy || ackGroup.isPending }}
                     theme={theme}
                   />
                   <StatChip

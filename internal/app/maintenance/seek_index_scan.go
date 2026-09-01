@@ -299,8 +299,6 @@ func addToRollups(res *ScanResult, st SeekStatus) {
 		res.Repairable++
 	case st.Acked():
 		res.Acked++
-	case v == VerdictManual:
-		res.Manual++
 	case v == VerdictInformational:
 		res.Informational++
 	}
@@ -311,7 +309,7 @@ func recomputeRollups(res *ScanResult) {
 	res.MissingIndex, res.WithBackup, res.AudioDelayed = 0, 0, 0
 	res.Truncated, res.Damaged, res.WrongContainer = 0, 0, 0
 	res.TrailingJunk, res.AudioShort, res.SeekCoarse = 0, 0, 0
-	res.Repairable, res.Manual, res.Informational, res.Acked = 0, 0, 0, 0
+	res.Repairable, res.Informational, res.Acked = 0, 0, 0
 	for _, it := range res.Items {
 		addToRollups(res, it)
 	}
@@ -389,7 +387,7 @@ func (s *SeekIndexService) noteReindexed(ctx context.Context, path string, hasBa
 // A file whose own audio tracks line up is a file whose offsets are RIGHT: a
 // dub aligned to its cut, which nothing here should ever rewrite. A file whose
 // tracks disagree has one track in the wrong place, and since nothing here can
-// tell which, it becomes the operator's call - never an automatic repair. A
+// tell which, it is reported and nothing more - never an automatic repair. A
 // measurement too weak to mean anything (different mixes, a commentary track)
 // changes nothing at all: silence is not an accusation.
 func (s *SeekIndexService) proveAudioCoherence(ctx context.Context, path string, st *SeekStatus) {

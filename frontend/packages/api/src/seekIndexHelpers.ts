@@ -26,6 +26,22 @@ export function audioDelayed(it: Pick<V1SeekIndexItem, "audioDelaySec">): boolea
   return (it.audioDelaySec ?? 0) > AUDIO_DELAY_FLOOR_SEC;
 }
 
+// Mirror of maintenance.AudioTrackLagFlagSec: how far a file's own audio tracks
+// may disagree before the file needs a human. Codec priming leaves tens of
+// milliseconds; a quarter of a second is already audible.
+export const AUDIO_TRACK_LAG_FLOOR_SEC = 0.25;
+
+// audioTracksDisagree is the only thing that turns a declared audio offset into
+// something to look at. An offset on its own is how a dub is aligned to its cut
+// and every player honours it - Evey rewrote such a file once and desynchronised
+// it for good (a prod title, 2026-07-13). What matters is whether the file's
+// OWN tracks, offsets applied, still tell the same story at the same instant.
+export function audioTracksDisagree(
+  it: Pick<V1SeekIndexItem, "audioTracksLagSec" | "audioTracksChecked">,
+): boolean {
+  return !!it.audioTracksChecked && Math.abs(Number(it.audioTracksLagSec ?? 0)) > AUDIO_TRACK_LAG_FLOOR_SEC;
+}
+
 export function errText(err: { message?: string } | null | undefined, fallback: string): string {
   return err?.message || fallback;
 }
@@ -39,7 +55,12 @@ export function baseName(p: string): string {
 export const AUDIO_SHORTFALL_FLOOR_SEC = 10;
 
 // The ONE answer per file the health page is built on - see the Go Verdict.
-export type SeekVerdict = "healthy" | "repairable" | "manual" | "informational";
+// The ONE answer per file, and deliberately only two non-healthy ones:
+// "repairable" (Evey fixes it here) and "informational" (something we
+// measured and mention - possibly wrong, never a chore). The old "your call"
+// verdict is gone: a detector that cannot repair something has not earned the
+// right to hand the operator an instruction.
+export type SeekVerdict = "healthy" | "repairable" | "informational";
 
 export type SeekVerdictInput = Pick<
   V1SeekIndexItem,
@@ -52,30 +73,43 @@ export type SeekVerdictInput = Pick<
   | "wrongContainer"
   | "audioShortfallSec"
   | "trailingJunk"
+  | "audioTracksLagSec"
+  | "audioTracksChecked"
 >;
 
 // verdictOf trusts the server's verdict and, for a server that predates it,
-// derives the same answer from the flags with the same precedence: what only
-// the operator can fix wins over what Evey could fix, which wins over a fact.
+// derives the same answer from the flags: can Evey act on it here, or is it a
+// remark? A server still speaking the retired "manual" verdict is read as the
+// remark it always was.
 export function verdictOf(it: SeekVerdictInput): SeekVerdict {
   switch (it.verdict) {
     case "healthy":
     case "repairable":
-    case "manual":
     case "informational":
       return it.verdict;
+    case "manual":
+      return "informational";
   }
-  if (it.truncated || it.seekCoarse) return "manual";
+  // Same precedence as the Go SeekStatus.Verdict, and the order matters:
+  // rebuilding the index of an incomplete download is wasted work, so those
+  // files leave the repair queue BEFORE the missing-index test sees them.
+  if (it.truncated || it.seekCoarse) return "informational";
   if (
     it.hasIndex === false ||
     it.hasIndex === undefined ||
     Number(it.damagedBytes ?? 0) > 0 ||
-    audioDelayed(it) ||
     it.wrongContainer
   ) {
     return "repairable";
   }
-  if ((it.audioShortfallSec ?? 0) > AUDIO_SHORTFALL_FLOOR_SEC || it.trailingJunk) return "informational";
+  if (
+    audioTracksDisagree(it) ||
+    audioDelayed(it) ||
+    (it.audioShortfallSec ?? 0) > AUDIO_SHORTFALL_FLOOR_SEC ||
+    it.trailingJunk
+  ) {
+    return "informational";
+  }
   return "healthy";
 }
 
@@ -85,27 +119,24 @@ export function isAcked(it: Pick<V1SeekIndexItem, "ackedAtMs">): boolean {
 
 // Only what nobody here can repair may be acknowledged.
 export function isAckable(it: SeekVerdictInput): boolean {
-  const v = verdictOf(it);
-  return v === "manual" || v === "informational";
+  return verdictOf(it) === "informational";
 }
 
 export interface SeekTriage {
   repairable: number;
-  manual: number; // still awaiting the operator (acknowledged ones excluded)
-  informational: number; // idem
+  informational: number; // still awaiting the operator's eyes (acknowledged ones excluded)
   acked: number;
 }
 
 // triageOf counts the items exactly the way the Go rollups do, so the number
 // on the "Repair all" button is the number of rows the job will process.
 export function triageOf(items: (SeekVerdictInput & Pick<V1SeekIndexItem, "ackedAtMs">)[]): SeekTriage {
-  const out: SeekTriage = { repairable: 0, manual: 0, informational: 0, acked: 0 };
+  const out: SeekTriage = { repairable: 0, informational: 0, acked: 0 };
   for (const it of items) {
     const v = verdictOf(it);
     if (v === "repairable") out.repairable++;
     else if (v === "healthy") continue;
     else if (isAcked(it)) out.acked++;
-    else if (v === "manual") out.manual++;
     else out.informational++;
   }
   return out;
@@ -143,8 +174,8 @@ export function volumeTempRisky(v: Pick<V1SeekIndexVolume, "largestMissingBytes"
 // cross-cutting ones (acknowledged, backups, everything), a free-text search on
 // title/path, and a sort whose default puts what needs doing first.
 
-export type SeekView = "attention" | "repairable" | "manual" | "informational" | "acked" | "backups" | "all";
-export const SEEK_VIEWS: SeekView[] = ["attention", "repairable", "manual", "informational", "acked", "backups", "all"];
+export type SeekView = "attention" | "repairable" | "informational" | "acked" | "backups" | "all";
+export const SEEK_VIEWS: SeekView[] = ["attention", "repairable", "informational", "acked", "backups", "all"];
 
 export type SeekTriageItem = SeekVerdictInput & Pick<V1SeekIndexItem, "ackedAtMs" | "hasBackup" | "title" | "path" | "sizeBytes">;
 
@@ -169,7 +200,7 @@ export function matchesView(it: SeekTriageItem, view: SeekView): boolean {
 }
 
 export function viewCounts(items: SeekTriageItem[]): Record<SeekView, number> {
-  const out = { attention: 0, repairable: 0, manual: 0, informational: 0, acked: 0, backups: 0, all: 0 };
+  const out = { attention: 0, repairable: 0, informational: 0, acked: 0, backups: 0, all: 0 };
   for (const it of items) {
     for (const view of SEEK_VIEWS) {
       if (matchesView(it, view)) out[view]++;
@@ -186,10 +217,10 @@ export function searchMatches(it: Pick<V1SeekIndexItem, "title" | "path">, query
 
 export type SeekSort = "priority" | "size" | "title";
 
-const VERDICT_RANK: Record<SeekVerdict, number> = { repairable: 0, manual: 1, informational: 2, healthy: 3 };
+const VERDICT_RANK: Record<SeekVerdict, number> = { repairable: 0, informational: 1, healthy: 2 };
 
-// sortSeekItems: "priority" ranks what Evey can fix first, then what the
-// operator must do, then facts, then healthy; acknowledged files sink below
+// sortSeekItems: "priority" ranks what Evey can fix first, then the remarks,
+// then healthy; acknowledged files sink below
 // their pending peers; ties go to the biggest file (the one that matters
 // most to the shelf). Pure: returns a new array.
 export function sortSeekItems<T extends SeekTriageItem>(items: T[], sort: SeekSort): T[] {

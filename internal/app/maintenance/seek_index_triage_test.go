@@ -27,14 +27,14 @@ func TestSeekStatus_Verdict(t *testing.T) {
 		"no index":                     {appmaintenance.SeekStatus{HasIndex: false}, appmaintenance.VerdictRepairable},
 		"damaged, index fine":          {appmaintenance.SeekStatus{HasIndex: true, DamagedBytes: 512}, appmaintenance.VerdictRepairable},
 		"wrong container":              {appmaintenance.SeekStatus{HasIndex: true, WrongContainer: true}, appmaintenance.VerdictRepairable},
-		"truncated wins over no index": {appmaintenance.SeekStatus{HasIndex: false, Truncated: true}, appmaintenance.VerdictManual},
-		"rebuilt and still coarse":     {appmaintenance.SeekStatus{HasIndex: false, IndexSparse: true, ReindexAttempted: true}, appmaintenance.VerdictManual},
+		"truncated wins over no index": {appmaintenance.SeekStatus{HasIndex: false, Truncated: true}, appmaintenance.VerdictInformational},
+		"rebuilt and still coarse":     {appmaintenance.SeekStatus{HasIndex: false, IndexSparse: true, ReindexAttempted: true}, appmaintenance.VerdictInformational},
 		"sparse, never rebuilt":        {appmaintenance.SeekStatus{HasIndex: false, IndexSparse: true}, appmaintenance.VerdictRepairable},
 		"audio short":                  {appmaintenance.SeekStatus{HasIndex: true, AudioShortfallSec: 40}, appmaintenance.VerdictInformational},
 		"trailing junk":                {appmaintenance.SeekStatus{HasIndex: true, TrailingJunk: true}, appmaintenance.VerdictInformational},
 		"audio delayed":                {appmaintenance.SeekStatus{HasIndex: true, AudioDelaySec: 0.5}, appmaintenance.VerdictInformational},
 		"junk plus audio delay":        {appmaintenance.SeekStatus{HasIndex: true, TrailingJunk: true, AudioDelaySec: 0.5}, appmaintenance.VerdictInformational},
-		"audio tracks disagree":        {appmaintenance.SeekStatus{HasIndex: true, AudioTracksLagSec: 11.9, AudioTracksChecked: true}, appmaintenance.VerdictManual},
+		"audio tracks disagree":        {appmaintenance.SeekStatus{HasIndex: true, AudioTracksLagSec: 11.9, AudioTracksChecked: true}, appmaintenance.VerdictInformational},
 		"offset proven coherent":       {appmaintenance.SeekStatus{HasIndex: true, AudioDelaySec: 12, AudioTracksLagSec: 0, AudioTracksChecked: true}, appmaintenance.VerdictInformational},
 	}
 	for name, c := range cases {
@@ -113,10 +113,9 @@ func TestSeekIndexService_Scan_RollsUpTheTriage(t *testing.T) {
 	// noindex, damaged, wrongct - the delayed file is NOT here any more: a
 	// start offset is a fact, not something Repair all rewrites.
 	assert.Equal(t, 3, res.Repairable, "exactly what Repair all acts on")
-	// truncated (rebuilt-and-coarse needs a repair first, none here)
-	assert.Equal(t, 1, res.Manual)
-	// short, junk, delayed
-	assert.Equal(t, 3, res.Informational)
+	// short, junk, delayed + truncated: everything Evey cannot fix here is
+	// one and the same answer now - a remark, never an instruction.
+	assert.Equal(t, 4, res.Informational)
 	assert.Zero(t, res.Acked)
 }
 
@@ -132,7 +131,7 @@ func TestSeekIndexService_Ack_MovesFilesOutOfTheQueue(t *testing.T) {
 	res, _, _ := svc.CachedScan("")
 	// short, delayed - junk left the pending pile (the offset file is
 	// informational now: a start offset is a fact, never a repair).
-	assert.Equal(t, 2, res.Informational, "junk left the pending pile")
+	assert.Equal(t, 3, res.Informational, "junk left the pending pile")
 	assert.Equal(t, 1, res.Acked)
 	for _, it := range res.Items {
 		if it.Path == paths["junk"] {
@@ -143,18 +142,18 @@ func TestSeekIndexService_Ack_MovesFilesOutOfTheQueue(t *testing.T) {
 	// Withdrawing puts it back.
 	require.NoError(t, svc.AckMedia(ctx, "m-junk", false))
 	res, _, _ = svc.CachedScan("")
-	assert.Equal(t, 3, res.Informational)
+	assert.Equal(t, 4, res.Informational)
 	assert.Zero(t, res.Acked)
 
 	// A whole group at once - and a repairable group is refused.
-	n, err := svc.AckGroup(ctx, "", appmaintenance.VerdictManual)
+	n, err := svc.AckGroup(ctx, "", appmaintenance.VerdictInformational)
 	require.NoError(t, err)
-	assert.Equal(t, 1, n)
+	assert.Equal(t, 4, n)
 	_, err = svc.AckGroup(ctx, "", appmaintenance.VerdictRepairable)
 	require.ErrorIs(t, err, appmaintenance.ErrAckNotApplicable)
 	res, _, _ = svc.CachedScan("")
-	assert.Zero(t, res.Manual)
-	assert.Equal(t, 1, res.Acked)
+	assert.Zero(t, res.Informational)
+	assert.Equal(t, 4, res.Acked)
 }
 
 // The acknowledgement is a judgement on THESE bytes: it survives restarts and
@@ -352,8 +351,8 @@ func TestSeekIndexService_PictureMissing_IsManualWithoutARebuild(t *testing.T) {
 	res, _, _ := svc.CachedScan("")
 	require.Len(t, res.Items, 1)
 	assert.True(t, res.Items[0].PictureMissing)
-	assert.Equal(t, appmaintenance.VerdictManual, res.Items[0].Verdict(), "nothing to index: the operator's call, at once")
-	assert.Equal(t, 1, res.Manual)
+	assert.Equal(t, appmaintenance.VerdictInformational, res.Items[0].Verdict(), "nothing to index: a remark, not a repair")
+	assert.Equal(t, 1, res.Informational)
 	assert.Zero(t, res.Repairable)
 
 	require.NoError(t, svc.StartRepairLibrary(context.Background(), "", appmaintenance.ReindexRunOptions{}))
@@ -400,10 +399,10 @@ func TestSeekIndexService_AudioOffsetIsNeverRepaired(t *testing.T) {
 	assert.Empty(t, reidx.reindexed, "and must not reindex it either")
 }
 
-// The offset only becomes a defect when the file's OWN audio tracks disagree -
-// then nobody here can tell which track is misplaced, so it is the operator's
-// call and still never an automatic rewrite.
-func TestSeekIndexService_IncoherentAudioTracksAreTheOperatorsCall(t *testing.T) {
+// The offset is only WORTH MENTIONING when the file's OWN audio tracks
+// disagree - and even then nobody here can tell which track is misplaced, so
+// it stays a remark and never becomes an automatic rewrite.
+func TestSeekIndexService_IncoherentAudioTracksAreOnlyEverReported(t *testing.T) {
 	dir := t.TempDir()
 	broken := filepath.Join(dir, "tracks_disagree.mkv")
 	require.NoError(t, os.WriteFile(broken, []byte("x"), 0o644))
@@ -411,9 +410,9 @@ func TestSeekIndexService_IncoherentAudioTracksAreTheOperatorsCall(t *testing.T)
 		Path: broken, HasIndex: true,
 		AudioDelaySec: 0, AudioTracksLagSec: 11.94, AudioTracksChecked: true,
 	}
-	assert.Equal(t, appmaintenance.VerdictManual, st.Verdict(),
-		"tracks that disagree are the operator's call, not a repair")
-	assert.True(t, st.Ackable(), "and the operator can acknowledge it")
+	assert.Equal(t, appmaintenance.VerdictInformational, st.Verdict(),
+		"tracks that disagree are worth SAYING, and nothing more")
+	assert.True(t, st.Ackable(), "and the operator can wave it through")
 
 	coherent := appmaintenance.SeekStatus{
 		Path: broken, HasIndex: true,
