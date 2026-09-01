@@ -48,7 +48,7 @@ func (e *Enricher) EnrichAllPeopleBios(ctx context.Context, log *slog.Logger) (i
 			if log != nil {
 				log.Debug("bio fetch failed", slog.String("name", person.Name), slog.Any("err", detErr))
 			}
-			time.Sleep(300 * time.Millisecond)
+			sleepCtx(ctx, 300*time.Millisecond)
 			continue
 		}
 		if details == nil || details.Biography == "" {
@@ -63,7 +63,7 @@ func (e *Enricher) EnrichAllPeopleBios(ctx context.Context, log *slog.Logger) (i
 			if log != nil {
 				log.Debug("no bio found", slog.String("name", person.Name))
 			}
-			time.Sleep(300 * time.Millisecond)
+			sleepCtx(ctx, 300*time.Millisecond)
 			continue
 		}
 		checked := e.clockNow()
@@ -93,8 +93,19 @@ func (e *Enricher) EnrichAllPeopleBios(ctx context.Context, log *slog.Logger) (i
 			}
 		}
 		// Rate limit: ~2 req/s to avoid TMDB throttling
-		time.Sleep(500 * time.Millisecond)
+		sleepCtx(ctx, 500*time.Millisecond)
 	}
 	span.SetAttributes(attribute.Int("persons.enriched", enriched))
 	return enriched, nil
+}
+
+// sleepCtx is the provider pacing between two people, cut short by a
+// cancelled context: a stop request no longer waits out the current pause.
+func sleepCtx(ctx context.Context, d time.Duration) {
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+	case <-t.C:
+	}
 }
