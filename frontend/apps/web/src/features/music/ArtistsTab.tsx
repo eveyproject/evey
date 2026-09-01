@@ -6,6 +6,7 @@ import { Music } from "lucide-react";
 import { ICON } from "@/constants/iconSizes";
 import { FetchErrorState } from "@/components/ui/FetchErrorState";
 import type { Artist } from "./musicQueries";
+import { coverArtSrc } from "./coverArtSrc";
 
 // Rows have no wrapping text (name is truncated to one line) and the avatar is
 // a fixed size, so the row height never varies with content - a constant
@@ -81,7 +82,7 @@ export function ArtistsTab({
               <div className="flex items-center gap-3 min-w-0">
                 <div
                   className="w-12 h-12 rounded-full bg-cover bg-center bg-[var(--surface)] flex items-center justify-center flex-shrink-0"
-                  style={{ backgroundImage: a.CoverArtURL ? `url(${a.CoverArtURL}${tokenParam})` : undefined }}
+                  style={{ backgroundImage: a.CoverArtURL ? `url(${coverArtSrc(a.CoverArtURL, tokenParam, 96)})` : undefined }}
                 >
                   {!a.CoverArtURL && <Music size={ICON.lg} className="opacity-30 text-[var(--text-muted)]" />}
                 </div>

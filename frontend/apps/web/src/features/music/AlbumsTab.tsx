@@ -6,6 +6,7 @@ import { MediaGrid } from "@/features/library/MediaGrid";
 import { FetchErrorState } from "@/components/ui/FetchErrorState";
 import { startTokenDownload } from "@/utils/downloadToken";
 import type { Album } from "./musicQueries";
+import { coverArtSrc } from "./coverArtSrc";
 
 export function AlbumsTab({
   albums,
@@ -66,7 +67,7 @@ export function AlbumsTab({
             <div
               className="w-full flex items-center justify-center bg-[var(--surface)] bg-cover bg-center aspect-square"
               style={{
-                backgroundImage: a.CoverArtURL ? `url(${a.CoverArtURL}${tokenParam})` : undefined,
+                backgroundImage: a.CoverArtURL ? `url(${coverArtSrc(a.CoverArtURL, tokenParam, 400)})` : undefined,
               }}
             >
               {!a.CoverArtURL && (
