@@ -135,6 +135,7 @@ func (g *GeneratorService) Generate(ctx context.Context, profileID string, libra
 		candidates = candidates[:size]
 	}
 	// Shuffle the selection so playback order isn't a giveaway of the scoring.
+	//nolint:gosec // playlist variety, not security - same rationale as the jitter above
 	rand.Shuffle(len(candidates), func(i, j int) { candidates[i], candidates[j] = candidates[j], candidates[i] })
 
 	pl, err := playlist.NewPlaylist(name, profileID, playlist.Manual)

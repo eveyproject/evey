@@ -439,7 +439,9 @@ func (d *adminMediaHandler) ReindexLibrarySeekIndex(ctx context.Context, req *ev
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, d.seekIndexError(ctx, "reindex library seek index", err)
 	}
-	return &eveyv1.ReindexLibrarySeekIndexResponse{Queued: -1}, nil
+	// Queued is deprecated but still WIRED: an old client reads it, and -1
+	// is the agreed "poll GetSeekIndexJob instead" sentinel.
+	return &eveyv1.ReindexLibrarySeekIndexResponse{Queued: -1}, nil //nolint:staticcheck // SA1019: deliberate, see above
 }
 
 func (d *adminMediaHandler) RollbackLibrarySeekIndex(ctx context.Context, req *eveyv1.RollbackLibrarySeekIndexRequest) (*eveyv1.RollbackLibrarySeekIndexResponse, error) {
@@ -453,7 +455,9 @@ func (d *adminMediaHandler) RollbackLibrarySeekIndex(ctx context.Context, req *e
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, d.seekIndexError(ctx, "rollback library seek index", err)
 	}
-	return &eveyv1.RollbackLibrarySeekIndexResponse{Queued: -1}, nil
+	// Queued is deprecated but still WIRED: an old client reads it, and -1
+	// is the agreed "poll GetSeekIndexJob instead" sentinel.
+	return &eveyv1.RollbackLibrarySeekIndexResponse{Queued: -1}, nil //nolint:staticcheck // SA1019: deliberate, see above
 }
 
 // RemuxAudioMedia repairs one file's audio start delay in the background.

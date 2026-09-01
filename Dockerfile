@@ -6,7 +6,7 @@
 # under QEMU on a multi-arch build. Measured on one host, same cold build cache,
 # same 4 CPUs: `go build ./cmd/evey` for arm64 takes 239 s emulated vs 16 s
 # cross-compiled - 15x, and that is one stage out of four.
-FROM --platform=$BUILDPLATFORM golang:1.26.6-alpine AS gomod
+FROM --platform=$BUILDPLATFORM golang:1.27.0-alpine AS gomod
 
 RUN apk add --no-cache gcc musl-dev linux-headers
 WORKDIR /src
@@ -32,7 +32,7 @@ RUN buf generate --template buf.gen.local.yaml
 # leaks every crossing value (+6.75 MB/segment measured 2026-07-28) - that
 # memory-killed the cast receiver at ~3 min. Ship wasm_exec.js from the same
 # compiler as the module.
-FROM --platform=$BUILDPLATFORM golang:1.26.6-alpine AS wasmbuild
+FROM --platform=$BUILDPLATFORM golang:1.27.0-alpine AS wasmbuild
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download github.com/gravity-zero/ac3go

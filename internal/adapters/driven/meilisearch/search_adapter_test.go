@@ -53,7 +53,7 @@ func (f *fakeIndex) UpdateSettingsWithContext(_ context.Context, _ *ms.Settings)
 	return &ms.TaskInfo{TaskUID: 3}, nil
 }
 
-func (f *fakeIndex) GetStatsWithContext(_ context.Context) (*ms.StatsIndex, error) {
+func (f *fakeIndex) GetStatsWithContext(_ context.Context, _ *ms.StatsParams) (*ms.StatsIndex, error) {
 	return &ms.StatsIndex{NumberOfDocuments: 0}, nil
 }
 

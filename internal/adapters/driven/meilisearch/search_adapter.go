@@ -27,7 +27,10 @@ type IndexClient interface {
 	DeleteAllDocumentsWithContext(ctx context.Context, opts *ms.DocumentOptions) (*ms.TaskInfo, error)
 	SearchWithContext(ctx context.Context, query string, request *ms.SearchRequest) (*ms.SearchResponse, error)
 	UpdateSettingsWithContext(ctx context.Context, request *ms.Settings) (*ms.TaskInfo, error)
-	GetStatsWithContext(ctx context.Context) (*ms.StatsIndex, error)
+	// meilisearch-go 0.36.3 gave this method a params argument (nil = the
+	// defaults we have always used). The port mirrors the client exactly so a
+	// real *ms.Index still satisfies it.
+	GetStatsWithContext(ctx context.Context, params *ms.StatsParams) (*ms.StatsIndex, error)
 }
 
 type ServiceClient interface {
@@ -269,7 +272,7 @@ func sanitizeNumeric(v string) string {
 func (a *SearchAdapter) HealthCheck(ctx context.Context) error {
 	ctx, span := tracing.StartSpan(ctx, "meilisearch.HealthCheck")
 	defer span.End()
-	_, err := a.index.GetStatsWithContext(ctx)
+	_, err := a.index.GetStatsWithContext(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("meilisearch health: %w", err)
 	}
@@ -279,7 +282,7 @@ func (a *SearchAdapter) HealthCheck(ctx context.Context) error {
 func (a *SearchAdapter) DocumentCount(ctx context.Context) (int64, error) {
 	ctx, span := tracing.StartSpan(ctx, "meilisearch.DocumentCount")
 	defer span.End()
-	stats, err := a.index.GetStatsWithContext(ctx)
+	stats, err := a.index.GetStatsWithContext(ctx, nil)
 	if err != nil {
 		return 0, fmt.Errorf("get index stats: %w", err)
 	}

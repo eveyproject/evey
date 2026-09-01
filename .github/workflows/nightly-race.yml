@@ -93,5 +93,5 @@ jobs:
       - name: govulncheck (verbose)
         run: |
           BIN="$(go env GOPATH)/bin/govulncheck"
-          test -x "$BIN" || go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
+          test -x "$BIN" || go install golang.org/x/vuln/cmd/govulncheck@v1.7.0
           "$BIN" -show=traces,version,verbose ./cmd/... ./internal/...

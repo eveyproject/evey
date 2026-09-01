@@ -129,7 +129,7 @@ func (d musicDocument) toTrack() music.Track {
 func (a *MusicSearchAdapter) HealthCheck(ctx context.Context) error {
 	ctx, span := tracing.StartSpan(ctx, "meilisearch.music.HealthCheck")
 	defer span.End()
-	if _, err := a.index.GetStatsWithContext(ctx); err != nil {
+	if _, err := a.index.GetStatsWithContext(ctx, nil); err != nil {
 		return fmt.Errorf("meilisearch music health: %w", err)
 	}
 	return nil
@@ -138,7 +138,7 @@ func (a *MusicSearchAdapter) HealthCheck(ctx context.Context) error {
 func (a *MusicSearchAdapter) DocumentCount(ctx context.Context) (int64, error) {
 	ctx, span := tracing.StartSpan(ctx, "meilisearch.music.DocumentCount")
 	defer span.End()
-	stats, err := a.index.GetStatsWithContext(ctx)
+	stats, err := a.index.GetStatsWithContext(ctx, nil)
 	if err != nil {
 		return 0, fmt.Errorf("get music index stats: %w", err)
 	}

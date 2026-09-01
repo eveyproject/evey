@@ -113,11 +113,16 @@ jobs:
       # persistent self-hosted runner GOPATH/bin survives between runs, so we
       # just ensure the binary exists (first run installs, later runs reuse) and
       # call it by full path (GOPATH/bin isn't on PATH there, unlike GitHub
-      # runners). @v1.1.4 pinned so the version is reproducible.
+      # runners). The version is pinned for reproducibility - and CHECKED, not
+      # just "does the file exist": the self-hosted runner keeps GOPATH/bin
+      # between runs, so a stale binary would survive a version bump forever.
+      # v1.7.0 is the floor that understands Go 1.27 syntax (v1.1.4 panics with
+      # "unexpected expr: *ast.KeyValueExpr" on this module).
       - name: govulncheck
         run: |
+          VULN_VERSION=v1.7.0
           BIN="$(go env GOPATH)/bin/govulncheck"
-          test -x "$BIN" || go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
+          "$BIN" -version 2>/dev/null | grep -q "${VULN_VERSION#v}" || go install golang.org/x/vuln/cmd/govulncheck@${VULN_VERSION}
           "$BIN" ./cmd/... ./internal/...
 
       # Code-quality linters (.golangci.yml). Ratchet mode: only-new-issues
@@ -128,7 +133,7 @@ jobs:
         if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref_type == 'branch')
         uses: golangci/golangci-lint-action@v9.2.1
         with:
-          version: v2.12.2
+          version: v2.13.2
           only-new-issues: true
 
       # Curated gosec security scan (.golangci.gosec.yml - high-signal rules
@@ -139,7 +144,7 @@ jobs:
         if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref_type == 'branch')
         uses: golangci/golangci-lint-action@v9.2.1
         with:
-          version: v2.12.2
+          version: v2.13.2
           only-new-issues: true
           skip-save-cache: true
           args: --config=.golangci.gosec.yml
