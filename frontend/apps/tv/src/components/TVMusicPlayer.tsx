@@ -12,6 +12,7 @@ import { useMusicQueueStore } from "../stores/musicQueue";
 import { useTheme } from "../providers/ThemeProvider";
 import { useServerUrl } from "../hooks/useServerUrl";
 import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
+import { coverArtUri } from "../lib/artwork";
 
 function FocusCtrl({
   name,
@@ -114,8 +115,10 @@ function TVMusicPlayerImpl() {
   const duration = (status.duration ?? track.duration ?? 0);
   const position = status.currentTime ?? 0;
   const progress = duration > 0 ? position / duration : 0;
+  // 56px slot, 2x: a display-sized WebP, not the full cover embedded in the
+  // file (the server resizes and caches it).
   const artUri = (serverUrl && accessToken)
-    ? `${serverUrl}/api/v1/music/tracks/${track.id}/art?token=${encodeURIComponent(accessToken)}`
+    ? coverArtUri(serverUrl, `/api/v1/music/tracks/${track.id}/art?token=${encodeURIComponent(accessToken)}`, 112)
     : undefined;
 
   return (

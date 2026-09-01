@@ -20,6 +20,7 @@ import { useTheme } from "../providers/ThemeProvider";
 import { useServerUrl } from "../hooks/useServerUrl";
 import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
 import { shouldRecordScrobble } from "../lib/musicScrobble";
+import { coverArtUri } from "../lib/coverArtUri";
 
 // One nowplaying "session" per mini-player mount (not one per track), so the
 // admin "En cours de lecture" panel shows a single updating tile instead of a
@@ -253,8 +254,10 @@ function MusicMiniPlayerImpl() {
   const position = status.currentTime ?? 0;
   const progress = duration > 0 ? position / duration : 0;
   const displayedProgress = scrubPct ?? progress;
+  // 40dp slot at the device's density - a display-sized WebP, not the full
+  // cover embedded in the file (the server resizes and caches it).
   const artUri = serverUrl
-    ? `${serverUrl}/api/v1/music/tracks/${track.id}/art?token=${encodeURIComponent(accessToken ?? "")}`
+    ? coverArtUri(serverUrl, `/api/v1/music/tracks/${track.id}/art?token=${encodeURIComponent(accessToken ?? "")}`, 40)
     : undefined;
 
   const pctFromX = (x: number) => {
