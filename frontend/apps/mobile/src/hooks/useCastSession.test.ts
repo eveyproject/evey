@@ -7,7 +7,7 @@ let castClientInstance: { loadMedia: ReturnType<typeof vi.fn> } | null = null;
 let castDeviceModelName: string | null = null;
 let castDeviceFriendlyName: string | null = null;
 let sessionDeviceModelName: string | null = null;
-let castMediaStatus: { streamPosition?: number } | null = null;
+let castMediaStatus: { streamPosition?: number; playerState?: number; idleReason?: string | number | null } | null = null;
 
 vi.mock("./useChromecast", () => ({
   CastContext: { showCastDialog: () => showCastDialog() },
@@ -354,4 +354,64 @@ it("re-loads when the MEDIA changes, and resumes a re-cast of the same title whe
   });
   expect(castClientInstance!.loadMedia).toHaveBeenCalledTimes(3);
   expect(castClientInstance!.loadMedia.mock.calls[2][0].startTime).toBe(0);
+});
+
+// A receiver that stops answering must leave a trace from the SENDER's side:
+// the 2026-08-31 death left the phone spinning and the logs silent.
+describe("cast_sender_stall beacon", () => {
+  function stallBeacons() {
+    return eveyFetchMock.mock.calls
+      .map((c) => c[0] as { data?: { type?: string; details?: string } })
+      .filter((r) => r.data?.type === "cast_sender_stall")
+      .map((r) => r.data?.details);
+  }
+
+  it("reports once when a PLAYING position stays frozen for the stall window", () => {
+    vi.useFakeTimers();
+    try {
+      eveyFetchMock.mockResolvedValue(undefined);
+      castState = 4;
+      castClientInstance = { loadMedia: vi.fn().mockResolvedValue(undefined) };
+      castMediaStatus = { streamPosition: 3266, playerState: 2 };
+      const player = fakePlayer();
+      mount(player);
+      act(() => { vi.advanceTimersByTime(15_000); });
+      expect(stallBeacons()).toEqual([]);
+      act(() => { vi.advanceTimersByTime(30_000); });
+      expect(stallBeacons()).toHaveLength(1);
+      expect(stallBeacons()[0]).toMatch(/^state=playing frozen=\d+s pos=3266$/);
+      act(() => { vi.advanceTimersByTime(60_000); });
+      expect(stallBeacons()).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("reports an IDLE receiver with its reason", () => {
+    eveyFetchMock.mockResolvedValue(undefined);
+    castState = 4;
+    castClientInstance = { loadMedia: vi.fn().mockResolvedValue(undefined) };
+    castMediaStatus = { streamPosition: 120, playerState: 1, idleReason: "ERROR" };
+    mount(fakePlayer());
+    expect(stallBeacons()).toEqual(["state=idle reason=ERROR pos=120"]);
+  });
+
+  it("stays silent while the position moves", () => {
+    vi.useFakeTimers();
+    try {
+      eveyFetchMock.mockResolvedValue(undefined);
+      castState = 4;
+      castClientInstance = { loadMedia: vi.fn().mockResolvedValue(undefined) };
+      castMediaStatus = { streamPosition: 10, playerState: 2 };
+      const { rerender } = mount(fakePlayer());
+      for (let i = 1; i <= 10; i++) {
+        castMediaStatus = { streamPosition: 10 + i * 5, playerState: 2 };
+        act(() => { vi.advanceTimersByTime(5_000); });
+        rerender();
+      }
+      expect(stallBeacons()).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

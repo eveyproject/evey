@@ -8,6 +8,7 @@ import { buildCastStreamUrl, pickCastProfile } from "../lib/castUrl";
 import { ensureNotificationPermission } from "../lib/notificationPermission";
 import { describeCastTracks, shouldReportTracks } from "../lib/castTrackBeacon";
 import { resumePositionAfterCast } from "../lib/castPlaybackState";
+import { observeCastStall, initialCastStallTracker } from "../lib/castStallBeacon";
 import {
   CastContext, useCastStateHook, useRemoteMediaClientHook,
   useMediaStatusHook, useCastDeviceHook, CastStateEnum,
@@ -94,6 +95,45 @@ export function useCastSession({
       },
     }).catch(() => { /* telemetry must never break a cast */ });
   }, [castConnected, castMediaStatus?.mediaInfo?.mediaTracks, castMediaStatus?.activeTrackIds, mediaId]);
+
+  // Tell the server what the SENDER sees when the receiver stops answering -
+  // a PLAYING position frozen for CAST_STALL_SEC, or an IDLE state carrying a
+  // reason - one beacon per situation. The 2026-08-31 receiver death left the
+  // phone spinning with nothing in the logs about the sender's side; this is
+  // the evidence a recovery gesture needs before it can be designed. Ticks
+  // every 5 s because a frozen status delivers no re-render on its own.
+  const stallRef = useRef(initialCastStallTracker);
+  const castPlayerState = castMediaStatus?.playerState;
+  const castIdleReason = (castMediaStatus as { idleReason?: string | number | null } | null)?.idleReason;
+  useEffect(() => {
+    if (!castConnected) {
+      stallRef.current = initialCastStallTracker;
+      return;
+    }
+    const observe = () => {
+      const { next, report } = observeCastStall(stallRef.current, {
+        connected: true,
+        playerState: castPlayerState,
+        idleReason: castIdleReason,
+        posSec: castCurrentTime,
+        nowMs: Date.now(),
+      });
+      stallRef.current = next;
+      if (!report) return;
+      eveyFetch({
+        url: `/api/v1/media/${encodeURIComponent(mediaId)}/player-event`,
+        method: "POST",
+        data: {
+          type: "cast_sender_stall",
+          details: report,
+          fatal: false, code: 0, variant: 0, segment: 0, posSec: Math.round(castCurrentTime),
+        },
+      }).catch(() => { /* telemetry must never break a cast */ });
+    };
+    observe();
+    const timer = setInterval(observe, 5000);
+    return () => clearInterval(timer);
+  }, [castConnected, castPlayerState, castIdleReason, castCurrentTime, mediaId]);
 
   const muteLocalPlayer = useCallback(() => {
     if (!player) return;
