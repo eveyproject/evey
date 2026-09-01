@@ -7,7 +7,7 @@ import { toast } from "@evey/store";
 import { formatBytes } from "@evey/api";
 import {
   useTranscodeCacheServiceGetTranscodeCache,
-  transcodeCacheServiceClearTranscodeCache,
+  clearTranscodeCacheUnbounded,
   transcodeCacheServiceDeleteTranscodeCacheFile,
   getTranscodeCacheServiceGetTranscodeCacheQueryKey,
   useServerConfigServiceListServerConfigEntries,
@@ -136,7 +136,7 @@ function TranscodeCachePage() {
   async function handleClearAll() {
     setClearing(true);
     try {
-      await transcodeCacheServiceClearTranscodeCache();
+      await clearTranscodeCacheUnbounded();
       toast.success(t("admin.transcodeCache.cacheCleared"));
       queryClient.invalidateQueries({ queryKey: CACHE_QUERY_KEY });
     } catch (err) {

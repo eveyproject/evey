@@ -13,6 +13,7 @@ import {
   useLibraryServiceCreateLibrary,
   useLibraryServiceUpdateLibrary,
   useLibraryServiceDeleteLibrary,
+  deleteLibraryUnbounded,
   getLibraryServiceListLibrariesQueryKey,
   eveyFetch,
   apiErrorMessage,
@@ -519,6 +520,8 @@ export default function AdminLibrariesScreen() {
 
   const deleteLib = useLibraryServiceDeleteLibrary({
     mutation: {
+      // The cascade runs inside the request: no fetcher timeout on it.
+      mutationFn: ({ id }) => deleteLibraryUnbounded(id),
       onSuccess: () => {
         qc.invalidateQueries({ queryKey: getLibraryServiceListLibrariesQueryKey() });
         qc.invalidateQueries({ queryKey: ["/api/v1/admin/library-stats"] });

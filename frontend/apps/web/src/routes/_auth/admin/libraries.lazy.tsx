@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import {
   useLibraryServiceListLibraries,
   useLibraryServiceDeleteLibrary,
+  deleteLibraryUnbounded,
   useLibraryServiceScanLibrary,
   eveyFetch,
   apiErrorMessage,
@@ -230,6 +231,8 @@ function LibraryRow({ library, stats }: { library: V1Library; stats: LibraryStat
 
   const deleteLib = useLibraryServiceDeleteLibrary({
     mutation: {
+      // The cascade runs inside the request: no fetcher timeout on it.
+      mutationFn: ({ id }) => deleteLibraryUnbounded(id),
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ["/api/v1/libraries"] });
         queryClient.invalidateQueries({ queryKey: ["/api/v1/admin/library-stats"] });
