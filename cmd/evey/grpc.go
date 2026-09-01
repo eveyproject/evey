@@ -69,6 +69,13 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		// with the ffmpeg uniform-shift remux as the fallback for layouts the
 		// retime refuses (unknown-size/streamed segments).
 		WithAudioRemuxer(mkvgo.NewAudioRetimer(ffmpeg.NewAudioRemuxer("ffmpeg", "ffprobe"))).
+		// The PROOF behind an audio start offset: do the file's own audio
+		// tracks agree once their declared offsets are applied? Two tracks of
+		// one film share their music and effects bed, so they line up when the
+		// offsets are RIGHT - a deliberate dub alignment - and disagree when a
+		// track has been moved. Runs only on the files that declare an offset
+		// (3 of 6695 on the real library), so a scan costs the same as before.
+		WithAudioCoherenceProber(ffmpeg.NewAudioCoherence("ffmpeg", "ffprobe")).
 		// Audio tail-gap probe: does the audio content reach the declared
 		// duration? Catches the truncated-audio-track mux (structurally
 		// healthy file, dead audio over the credits) ops.Diagnose cannot

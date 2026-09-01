@@ -182,6 +182,7 @@ func (s *SeekIndexService) probeFile(ctx context.Context, f MediaRef, prev map[s
 		if !s.diagnose(ctx, f.Path, &st) {
 			return SeekStatus{}, false, false
 		}
+		s.proveAudioCoherence(ctx, f.Path, &st)
 	}
 
 	hasBak, bakErr := s.reindexer.HasBackup(ctx, f.Path)
@@ -378,4 +379,37 @@ func (s *SeekIndexService) noteReindexed(ctx context.Context, path string, hasBa
 		st.DamagedBytes, st.TrailingJunk = fresh.DamagedBytes, fresh.TrailingJunk
 		st.AudioDelaySec = fresh.AudioDelaySec
 	})
+}
+
+// proveAudioCoherence turns a declared audio offset from an accusation into a
+// measured fact - or leaves it as a plain fact. It runs ONLY on the files that
+// declare an offset worth explaining (3 of 6695 on the real library), so the
+// scan's cost is unchanged for everything else.
+//
+// A file whose own audio tracks line up is a file whose offsets are RIGHT: a
+// dub aligned to its cut, which nothing here should ever rewrite. A file whose
+// tracks disagree has one track in the wrong place, and since nothing here can
+// tell which, it becomes the operator's call - never an automatic repair. A
+// measurement too weak to mean anything (different mixes, a commentary track)
+// changes nothing at all: silence is not an accusation.
+func (s *SeekIndexService) proveAudioCoherence(ctx context.Context, path string, st *SeekStatus) {
+	if s.audioCoh == nil || st.AudioDelaySec <= AudioDelayFlagSec || st.WrongContainer || st.Truncated {
+		return
+	}
+	lag, confidence, err := s.audioCoh.ProbeAudioTrackLagSec(ctx, path)
+	if err != nil {
+		s.logger.Warn("seek-index scan: audio coherence probe failed",
+			slog.String("path", path), slog.Any("err", err))
+		return
+	}
+	if confidence < AudioCoherenceMinConfidence {
+		// Nothing to compare, or nothing legible in the comparison. The offset
+		// stays what it was: a fact about the file, reported as such.
+		return
+	}
+	st.AudioTracksChecked = true
+	if lag < 0 {
+		lag = -lag
+	}
+	st.AudioTracksLagSec = lag
 }

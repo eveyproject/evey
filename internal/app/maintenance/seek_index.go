@@ -89,6 +89,30 @@ type AudioDelayProber interface {
 	ProbeMaxAudioStartDelaySec(ctx context.Context, path string) (float64, error)
 }
 
+// AudioCoherenceProber answers the only question that turns a declared audio
+// offset into a defect: do this file's OWN audio tracks tell the same story at
+// the same instant? Two tracks of one film share their music and effects bed,
+// so once their declared offsets are applied they line up - whatever those
+// offsets are. A lag between them means one track sits in the wrong place.
+//
+// lagSec is the largest disagreement found between any two tracks (signed,
+// seconds). confidence is the correlation strength behind it, 0..1: two dubs
+// with different mixes, or a commentary track, can leave no common signal at
+// all, and a peak read off noise must never accuse a file. Callers ignore any
+// lag whose confidence is below AudioCoherenceMinConfidence.
+//
+// Returns lag 0 with confidence 0 when the file has a single audio track:
+// there is nothing to compare, which is NOT the same as "proven coherent".
+type AudioCoherenceProber interface {
+	ProbeAudioTrackLagSec(ctx context.Context, path string) (lagSec, confidence float64, err error)
+}
+
+// AudioCoherenceMinConfidence is the correlation strength below which a
+// measured lag is discarded as noise. Measured on the real library: of 13
+// files whose tracks appeared to disagree, 9 sat at r <= 0.36 and were simply
+// dubs with different mixes; every genuine displacement scored r >= 0.71.
+const AudioCoherenceMinConfidence = 0.5
+
 // AudioDelayFlagSec is the floor above which a probed audio start delay is
 // surfaced as a defect. Matches the HLS builders' cancel floor: legitimate
 // codec priming sits at ~20-40ms, the defect class at hundreds of ms.
@@ -377,11 +401,12 @@ type cachedScan struct {
 type SeekIndexService struct {
 	reindexer  mkv.Reindexer
 	catalog    MediaCatalog
-	fileState  FileStateRefresher // optional; see WithFileStateRefresher
-	audioDelay AudioDelayProber   // optional; see WithAudioDelayProber
-	audioRemux AudioDelayRemuxer  // optional; see WithAudioRemuxer
-	diagnoser  mkv.Diagnoser      // optional; see WithDiagnoser
-	relocator  MediaRelocator     // optional; see WithMediaRelocator
+	fileState  FileStateRefresher   // optional; see WithFileStateRefresher
+	audioDelay AudioDelayProber     // optional; see WithAudioDelayProber
+	audioCoh   AudioCoherenceProber // optional; see WithAudioCoherenceProber
+	audioRemux AudioDelayRemuxer    // optional; see WithAudioRemuxer
+	diagnoser  mkv.Diagnoser        // optional; see WithDiagnoser
+	relocator  MediaRelocator       // optional; see WithMediaRelocator
 	logger     *slog.Logger
 
 	stateDir string // "" = no persistence (WithStateDir enables it)
@@ -464,6 +489,18 @@ func (s *SeekIndexService) WithFileStateRefresher(r FileStateRefresher) *SeekInd
 // Optional and chainable; without it AudioDelaySec stays 0 everywhere.
 func (s *SeekIndexService) WithAudioDelayProber(p AudioDelayProber) *SeekIndexService {
 	s.audioDelay = p
+	return s
+}
+
+// WithAudioCoherenceProber wires the PROOF behind an audio offset: it decides
+// whether a declared offset is the deliberate alignment of a dub (leave it
+// alone) or a track sitting in the wrong place (the operator's call). It is
+// deliberately gated on the offset itself, so it runs on the handful of files
+// that declare one - 3 of 6695 on the real library - and costs nothing on the
+// rest. Optional and chainable; without it AudioTracksChecked stays false and
+// no file is ever accused.
+func (s *SeekIndexService) WithAudioCoherenceProber(p AudioCoherenceProber) *SeekIndexService {
+	s.audioCoh = p
 	return s
 }
 
