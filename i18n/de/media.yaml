@@ -140,7 +140,6 @@ library:
   itemsAddedToPlaylist: "{{count}} Element(e) zu \"{{name}}\" hinzugefügt"
   filters: Filter
   clearAll: Alle löschen
-  resultCount: "{{count}} Ergebnis"
   resultCount_one: "{{count}} Ergebnis"
   resultCount_other: "{{count}} Ergebnisse"
   yearLabel: Jahr
@@ -148,7 +147,6 @@ library:
   selectLibrary: "Bibliothek auswählen"
   yearTo: Bis
   minRating: Min. Bewertung
-  minStars: "Min {{count}} Stern"
   minStars_one: "Min {{count}} Stern"
   minStars_other: "Min {{count}} Sterne"
   clearRating: Löschen
@@ -193,7 +191,6 @@ person:
     creator: Idee
   filmography: Filmografie
   unknown: Unbekannt
-  titleCount: "{{count}} Titel"
   titleCount_one: "{{count}} Titel"
   titleCount_other: "{{count}} Titel"
   noFilmography: Keine Filmografie für diese Person gefunden.
@@ -227,12 +224,10 @@ detail:
   cast: Besetzung
   crew: Team
   seasons: Staffeln
-  seasonCount: "{{count}} Staffel"
   seasonCount_one: "{{count}} Staffel"
   seasonCount_other: "{{count}} Staffeln"
   gaplessPlayback: "Nahtlose Wiedergabe"
   episodes: Folgen
-  episodeCount: "{{count}} Folge"
   episodeCount_one: "{{count}} Folge"
   episodeCount_other: "{{count}} Folgen"
   ep: "{{count}} Fo."
@@ -290,7 +285,8 @@ detail:
   downloadFailed: Download fehlgeschlagen
   downloadNoSpace: "Nicht genug Speicherplatz auf dem Gerät für diesen Download."
   downloadNoSpaceAudioPass: "Die Tonspur dieses Films muss nach dem Download für dieses Gerät konvertiert werden - dafür wird vorübergehend freier Speicher in doppelter Dateigröße benötigt."
-  communityRating: 'Community: {{average}}/5 ({{count}} Bewertungen)'
+  communityRating_one: "Community: {{average}}/5 ({{count}} Bewertung)"
+  communityRating_other: "Community: {{average}}/5 ({{count}} Bewertungen)"
   downloadAllEpisodes: Alle herunterladen
   invalidRating: Bewertung muss zwischen 0 und 10 liegen
   invalidYear: Ungültiges Jahr
@@ -371,10 +367,8 @@ music:
   failedDeleteTrack: Titel konnte nicht gelöscht werden
   deleteTrackConfirm: Diesen Titel löschen? Dies kann nicht rückgängig gemacht werden.
   deleteTrack: Titel löschen
-  trackCount: "{{count}} Titel"
   trackCount_one: "{{count}} Titel"
   trackCount_other: "{{count}} Titel"
-  albumCount: "{{count}} Album"
   albumCount_one: "{{count}} Album"
   albumCount_other: "{{count}} Alben"
   genre: Genre
@@ -546,7 +540,8 @@ history:
 search:
   searching: "Suche..."
   noResults: Keine Ergebnisse
-  viewAllResults: "Alle {{count}} Ergebnisse anzeigen"
+  viewAllResults_one: "{{count}} Ergebnis anzeigen"
+  viewAllResults_other: "Alle {{count}} Ergebnisse anzeigen"
   sectionMedia: "Filme & Serien"
   sectionMusic: "Musik"
   recentSearches: Letzte Suchen
@@ -558,7 +553,6 @@ search:
   series: Serien
   noResultsFor: "Keine Ergebnisse für \"{{query}}\""
   noResultsDesc: Versuchen Sie einen anderen Suchbegriff, überprüfen Sie die Schreibweise oder ändern Sie den Filter.
-  resultCount: "{{count}} Ergebnis"
   resultCount_one: "{{count}} Ergebnis"
   resultCount_other: "{{count}} Ergebnisse"
   resultFor: "für \"{{query}}\""

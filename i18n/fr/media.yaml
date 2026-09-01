@@ -140,7 +140,6 @@ library:
   itemsAddedToPlaylist: "{{count}} élément(s) ajouté(s) à \"{{name}}\""
   filters: Filtres
   clearAll: Tout effacer
-  resultCount: "{{count}} résultat"
   resultCount_one: "{{count}} résultat"
   resultCount_other: "{{count}} résultats"
   yearLabel: Année
@@ -148,7 +147,6 @@ library:
   selectLibrary: "Choisir la bibliothèque"
   yearTo: "À"
   minRating: Note minimum
-  minStars: "Min {{count}} étoile"
   minStars_one: "Min {{count}} étoile"
   minStars_other: "Min {{count}} étoiles"
   clearRating: Effacer
@@ -193,7 +191,6 @@ person:
     creator: Création
   filmography: Filmographie
   unknown: Inconnu
-  titleCount: "{{count}} titre"
   titleCount_one: "{{count}} titre"
   titleCount_other: "{{count}} titres"
   noFilmography: Aucune filmographie trouvée pour cette personne.
@@ -227,12 +224,10 @@ detail:
   cast: Distribution
   crew: Équipe technique
   seasons: Saisons
-  seasonCount: "{{count}} saison"
   seasonCount_one: "{{count}} saison"
   seasonCount_other: "{{count}} saisons"
   gaplessPlayback: "Lecture enchaînée"
   episodes: Épisodes
-  episodeCount: "{{count}} épisode"
   episodeCount_one: "{{count}} épisode"
   episodeCount_other: "{{count}} épisodes"
   ep: "{{count}} ép."
@@ -301,7 +296,8 @@ detail:
   downloadFailed: Échec du téléchargement
   downloadNoSpace: "Espace de stockage insuffisant sur l'appareil pour ce téléchargement."
   downloadNoSpaceAudioPass: "L'audio de ce film devra être converti après le téléchargement pour être audible sur cet appareil : il faut temporairement un espace libre égal à deux fois la taille du fichier."
-  communityRating: 'Communauté : {{average}}/5 ({{count}} avis)'
+  communityRating_one: "Communauté : {{average}}/5 ({{count}} avis)"
+  communityRating_other: "Communauté : {{average}}/5 ({{count}} avis)"
   downloadAllEpisodes: Tout télécharger
   invalidRating: La note doit être comprise entre 0 et 10
   invalidYear: Année invalide
@@ -371,10 +367,8 @@ music:
   failedDeleteTrack: Échec de la suppression de la piste
   deleteTrackConfirm: Supprimer cette piste ? Cette action est irréversible.
   deleteTrack: Supprimer la piste
-  trackCount: "{{count}} piste"
   trackCount_one: "{{count}} piste"
   trackCount_other: "{{count}} pistes"
-  albumCount: "{{count}} album"
   albumCount_one: "{{count}} album"
   albumCount_other: "{{count}} albums"
   genre: Genre
@@ -546,7 +540,8 @@ history:
 search:
   searching: "Recherche..."
   noResults: Aucun résultat
-  viewAllResults: "Voir les {{count}} résultats"
+  viewAllResults_one: "Voir {{count}} résultat"
+  viewAllResults_other: "Voir les {{count}} résultats"
   sectionMedia: "Films et séries"
   sectionMusic: "Musique"
   recentSearches: Recherches récentes
@@ -558,7 +553,6 @@ search:
   series: Séries
   noResultsFor: "Aucun résultat pour “{{query}}”"
   noResultsDesc: "Essayez un autre terme, vérifiez l'orthographe ou changez le filtre."
-  resultCount: "{{count}} résultat"
   resultCount_one: "{{count}} résultat"
   resultCount_other: "{{count}} résultats"
   resultFor: "pour “{{query}}”"

@@ -1,4 +1,5 @@
-unreadBanner: "{{count}} अपठित सूचनाएं"
+unreadBanner_one: "{{count}} अपठित सूचना"
+unreadBanner_other: "{{count}} अपठित सूचनाएं"
 push:
   new_movie:
     title: "नई फ़िल्म: {label}"

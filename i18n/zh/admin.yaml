@@ -443,7 +443,8 @@ libraries:
     daily3am: "每天（凌晨 3 点）"
     weekly3am: "每周（周日凌晨 3 点）"
     customCron: "自定义 cron..."
-  items: "{{count}} 项"
+  items_one: "{{count}} 项"
+  items_other: "{{count}} 项"
   "off": "关闭"
   paths: "路径"
   pathsHint: "（输入容器内完整路径，如 /media/movies）"
@@ -465,7 +466,6 @@ sessions:
   failedLoadDesc: "无法获取活跃会话。请检查连接后重试。"
   noSessions: "没有活跃会话"
   noSessionsDesc: "当用户开始播放时，会话将显示在此处。"
-  activeCount: "{{count}} 个活跃会话"
   activeCount_one: "{{count}} 个活跃会话"
   activeCount_other: "{{count}} 个活跃会话"
   stopSession: "停止会话"
@@ -613,7 +613,8 @@ activity:
     started: "开始时间"
   noPlayHistory: "没有播放历史"
   noAuditEntries: "暂无审计日志记录"
-  totalEntries: "共 {{count}} 条记录"
+  totalEntries_one: "共 {{count}} 条记录"
+  totalEntries_other: "共 {{count}} 条记录"
   exportTruncated: "导出在最多 {{max}} 行处停止；实际有 {{total}} 条。请缩小范围后重新导出。"
   stats:
     totalPlays: "总播放次数"
@@ -624,7 +625,8 @@ activity:
     storage: "媒体库大小"
   popularMedia: "热门媒体"
   mostActiveUsers: "最活跃用户"
-  plays: "{{count}} 次播放"
+  plays_one: "{{count}} 次播放"
+  plays_other: "{{count}} 次播放"
   viewers: "{{count}} 位观众"
 
 feeds:
@@ -641,7 +643,8 @@ audit:
     ip: "IP"
     device: "设备"
   noEntries: "未找到记录"
-  entries: "{{count}} 条记录"
+  entries_one: "{{count}} 条记录"
+  entries_other: "{{count}} 条记录"
 
 serverConfig:
   entriesTitle: "配置条目"
@@ -878,7 +881,8 @@ dashboardStats:
   recentActivity: "最近活动"
   viewAll: "查看全部"
   popularMedia: "热门媒体"
-  viewers: "{{count}} 位观众"
+  viewers_one: "{{count}} 位观众"
+  viewers_other: "{{count}} 位观众"
   scanStarted: "扫描已开始"
   scanFailed: "扫描失败"
   allScansTriggered: "所有媒体库扫描已触发"

@@ -443,7 +443,8 @@ libraries:
     daily3am: "Diario (3 AM)"
     weekly3am: "Semanal (domingo 3 AM)"
     customCron: "Cron personalizado..."
-  items: "{{count}} elementos"
+  items_one: "{{count}} elemento"
+  items_other: "{{count}} elementos"
   "off": "Desactivado"
   paths: "Rutas"
   pathsHint: "(ingresa la ruta completa dentro del contenedor, ej. /media/movies)"
@@ -465,7 +466,6 @@ sessions:
   failedLoadDesc: "No se pudieron obtener las sesiones activas. Verifica tu conexión e inténtalo de nuevo."
   noSessions: "Sin sesiones activas"
   noSessionsDesc: "Cuando los usuarios comiencen a transmitir, sus sesiones aparecerán aquí."
-  activeCount: "{{count}} sesiones activas"
   activeCount_one: "{{count}} sesión activa"
   activeCount_other: "{{count}} sesiones activas"
   stopSession: "Detener sesión"
@@ -613,7 +613,8 @@ activity:
     started: "Inicio"
   noPlayHistory: "Sin historial de reproducción"
   noAuditEntries: "Sin entradas de auditoría"
-  totalEntries: "{{count}} registros totales"
+  totalEntries_one: "{{count}} registro total"
+  totalEntries_other: "{{count}} registros totales"
   exportTruncated: "La exportación se detuvo en el máximo de {{max}} filas; existen {{total}}. Reduzca el intervalo y vuelva a exportar."
   stats:
     totalPlays: "Total de reproducciones"
@@ -624,7 +625,8 @@ activity:
     storage: "Tamaño del catálogo"
   popularMedia: "Medios populares"
   mostActiveUsers: "Usuarios más activos"
-  plays: "{{count}} reproducciones"
+  plays_one: "{{count}} reproducción"
+  plays_other: "{{count}} reproducciones"
   viewers: "{{count}} espectador(es)"
 
 feeds:
@@ -641,7 +643,8 @@ audit:
     ip: "IP"
     device: "Dispositivo"
   noEntries: "No se encontraron registros"
-  entries: "{{count}} registros"
+  entries_one: "{{count}} registro"
+  entries_other: "{{count}} registros"
 
 serverConfig:
   entriesTitle: "Entradas de configuración"
@@ -878,7 +881,8 @@ dashboardStats:
   recentActivity: "Actividad reciente"
   viewAll: "Ver todo"
   popularMedia: "Medios populares"
-  viewers: "{{count}} espectadores"
+  viewers_one: "{{count}} espectador"
+  viewers_other: "{{count}} espectadores"
   scanStarted: "Escaneo iniciado"
   scanFailed: "Error en el escaneo"
   allScansTriggered: "Todos los escaneos de bibliotecas iniciados"

@@ -1,4 +1,5 @@
-unreadBanner: "{{count}} unread notifications"
+unreadBanner_one: "{{count}} unread notification"
+unreadBanner_other: "{{count}} unread notifications"
 push:
   new_movie:
     title: "New Movie: {label}"

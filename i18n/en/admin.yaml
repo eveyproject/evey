@@ -443,7 +443,8 @@ libraries:
     daily3am: Daily (3 AM)
     weekly3am: Weekly (Sunday 3 AM)
     customCron: "Custom cron..."
-  items: "{{count}} items"
+  items_one: "{{count}} item"
+  items_other: "{{count}} items"
   "off": "Off"
   paths: Paths
   pathsHint: "(enter the full path inside the container, e.g. /media/movies)"
@@ -465,7 +466,6 @@ sessions:
   failedLoadDesc: Could not fetch active sessions. Check your connection and try again.
   noSessions: No active sessions
   noSessionsDesc: When users start streaming, their sessions will appear here.
-  activeCount: "{{count}} active sessions"
   activeCount_one: "{{count}} active session"
   activeCount_other: "{{count}} active sessions"
   stopSession: Stop session
@@ -613,7 +613,8 @@ activity:
     started: Started
   noPlayHistory: No play history
   noAuditEntries: No audit log entries
-  totalEntries: "{{count}} total entries"
+  totalEntries_one: "{{count}} total entry"
+  totalEntries_other: "{{count}} total entries"
   exportTruncated: "Export stopped at the maximum of {{max}} rows; {{total}} exist. Narrow the range and export again."
   stats:
     totalPlays: Total Plays
@@ -624,7 +625,8 @@ activity:
     storage: Library Size
   popularMedia: Popular Media
   mostActiveUsers: Most Active Users
-  plays: "{{count}} plays"
+  plays_one: "{{count}} play"
+  plays_other: "{{count}} plays"
   viewers: "{{count}} viewer(s)"
 
 feeds:
@@ -641,7 +643,8 @@ audit:
     ip: IP
     device: Device
   noEntries: No entries found
-  entries: "{{count}} entries"
+  entries_one: "{{count}} entry"
+  entries_other: "{{count}} entries"
 
 serverConfig:
   entriesTitle: "Config entries"
@@ -878,7 +881,8 @@ dashboardStats:
   recentActivity: Recent Activity
   viewAll: View all
   popularMedia: Popular Media
-  viewers: "{{count}} viewers"
+  viewers_one: "{{count}} viewer"
+  viewers_other: "{{count}} viewers"
   scanStarted: Scan started
   scanFailed: Scan failed
   allScansTriggered: All library scans triggered

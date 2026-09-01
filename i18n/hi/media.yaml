@@ -140,7 +140,6 @@ library:
   itemsAddedToPlaylist: "{{count}} आइटम \"{{name}}\" में जोड़े गए"
   filters: फ़िल्टर
   clearAll: सब हटाएं
-  resultCount: "{{count}} परिणाम"
   resultCount_one: "{{count}} परिणाम"
   resultCount_other: "{{count}} परिणाम"
   yearLabel: वर्ष
@@ -148,7 +147,6 @@ library:
   selectLibrary: "लाइब्रेरी चुनें"
   yearTo: तक
   minRating: न्यूनतम रेटिंग
-  minStars: "न्यूनतम {{count}} स्टार"
   minStars_one: "न्यूनतम {{count}} स्टार"
   minStars_other: "न्यूनतम {{count}} स्टार"
   clearRating: हटाएं
@@ -193,7 +191,6 @@ person:
     creator: निर्माता
   filmography: "फ़िल्मोग्राफ़ी"
   unknown: अज्ञात
-  titleCount: "{{count}} शीर्षक"
   titleCount_one: "{{count}} शीर्षक"
   titleCount_other: "{{count}} शीर्षक"
   noFilmography: इस व्यक्ति की कोई फ़िल्मोग्राफ़ी नहीं मिली।
@@ -227,12 +224,10 @@ detail:
   cast: कलाकार
   crew: दल
   seasons: सीज़न
-  seasonCount: "{{count}} सीज़न"
   seasonCount_one: "{{count}} सीज़न"
   seasonCount_other: "{{count}} सीज़न"
   gaplessPlayback: "निर्बाध प्लेबैक"
   episodes: एपिसोड
-  episodeCount: "{{count}} एपिसोड"
   episodeCount_one: "{{count}} एपिसोड"
   episodeCount_other: "{{count}} एपिसोड"
   ep: "{{count}} एप."
@@ -290,7 +285,8 @@ detail:
   downloadFailed: डाउनलोड विफल
   downloadNoSpace: "इस डाउनलोड के लिए डिवाइस पर पर्याप्त संग्रहण स्थान नहीं है।"
   downloadNoSpaceAudioPass: "इस डिवाइस पर आवाज़ चलाने के लिए डाउनलोड के बाद इस फ़िल्म का ऑडियो बदलना होगा - इसके लिए अस्थायी रूप से फ़ाइल के आकार से दोगुना खाली स्थान चाहिए।"
-  communityRating: 'समुदाय: {{average}}/5 ({{count}} रेटिंग)'
+  communityRating_one: "समुदाय: {{average}}/5 ({{count}} रेटिंग)"
+  communityRating_other: "समुदाय: {{average}}/5 ({{count}} रेटिंग)"
   downloadAllEpisodes: "सभी डाउनलोड करें"
   invalidRating: "रेटिंग 0 और 10 के बीच होनी चाहिए"
   invalidYear: "अमान्य वर्ष"
@@ -372,10 +368,8 @@ music:
   failedDeleteTrack: ट्रैक मिटाने में विफल
   deleteTrackConfirm: यह ट्रैक मिटाएं? यह क्रिया पूर्ववत नहीं की जा सकती।
   deleteTrack: ट्रैक मिटाएं
-  trackCount: "{{count}} ट्रैक"
   trackCount_one: "{{count}} ट्रैक"
   trackCount_other: "{{count}} ट्रैक"
-  albumCount: "{{count}} एल्बम"
   albumCount_one: "{{count}} एल्बम"
   albumCount_other: "{{count}} एल्बम"
   genre: Genre
@@ -546,7 +540,8 @@ history:
 search:
   searching: "खोज रहे हैं..."
   noResults: कोई परिणाम नहीं
-  viewAllResults: "सभी {{count}} परिणाम देखें"
+  viewAllResults_one: "{{count}} परिणाम देखें"
+  viewAllResults_other: "सभी {{count}} परिणाम देखें"
   sectionMedia: "फ़िल्में और सीरीज़"
   sectionMusic: "संगीत"
   recentSearches: हाल की खोजें
@@ -558,7 +553,6 @@ search:
   series: सीरीज़
   noResultsFor: "“{{query}}” के लिए कोई परिणाम नहीं"
   noResultsDesc: कोई अलग शब्द आज़माएं, वर्तनी जाँचें या फ़िल्टर बदलें।
-  resultCount: "{{count}} परिणाम"
   resultCount_one: "{{count}} परिणाम"
   resultCount_other: "{{count}} परिणाम"
   resultFor: "“{{query}}” के लिए"

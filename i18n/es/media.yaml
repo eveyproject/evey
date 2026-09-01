@@ -140,7 +140,6 @@ library:
   itemsAddedToPlaylist: "{{count}} elemento(s) añadido(s) a \"{{name}}\""
   filters: Filtros
   clearAll: Borrar todo
-  resultCount: "{{count}} resultado"
   resultCount_one: "{{count}} resultado"
   resultCount_other: "{{count}} resultados"
   yearLabel: Año
@@ -148,7 +147,6 @@ library:
   selectLibrary: "Seleccionar biblioteca"
   yearTo: Hasta
   minRating: Puntuación mínima
-  minStars: "Mín {{count}} estrella"
   minStars_one: "Mín {{count}} estrella"
   minStars_other: "Mín {{count}} estrellas"
   clearRating: Borrar
@@ -193,7 +191,6 @@ person:
     creator: Creación
   filmography: Filmografía
   unknown: Desconocido
-  titleCount: "{{count}} título"
   titleCount_one: "{{count}} título"
   titleCount_other: "{{count}} títulos"
   noFilmography: No se encontró filmografía para esta persona.
@@ -227,12 +224,10 @@ detail:
   cast: Reparto
   crew: Equipo
   seasons: Temporadas
-  seasonCount: "{{count}} temporada"
   seasonCount_one: "{{count}} temporada"
   seasonCount_other: "{{count}} temporadas"
   gaplessPlayback: "Reproducción continua"
   episodes: Episodios
-  episodeCount: "{{count}} episodio"
   episodeCount_one: "{{count}} episodio"
   episodeCount_other: "{{count}} episodios"
   ep: "{{count}} ep."
@@ -290,7 +285,8 @@ detail:
   downloadFailed: Error en la descarga
   downloadNoSpace: "No hay suficiente espacio de almacenamiento en el dispositivo para esta descarga."
   downloadNoSpaceAudioPass: "El audio de esta película debe convertirse tras la descarga para sonar en este dispositivo: se necesita temporalmente espacio libre equivalente al doble del tamaño del archivo."
-  communityRating: 'Comunidad: {{average}}/5 ({{count}} valoraciones)'
+  communityRating_one: "Comunidad: {{average}}/5 ({{count}} valoración)"
+  communityRating_other: "Comunidad: {{average}}/5 ({{count}} valoraciones)"
   downloadAllEpisodes: Descargar todo
   invalidRating: La calificación debe estar entre 0 y 10
   invalidYear: Año no válido
@@ -371,10 +367,8 @@ music:
   failedDeleteTrack: Error al eliminar la pista
   deleteTrackConfirm: ¿Eliminar esta pista? Esta acción no se puede deshacer.
   deleteTrack: Eliminar pista
-  trackCount: "{{count}} pista"
   trackCount_one: "{{count}} pista"
   trackCount_other: "{{count}} pistas"
-  albumCount: "{{count}} álbum"
   albumCount_one: "{{count}} álbum"
   albumCount_other: "{{count}} álbumes"
   genre: Genre
@@ -546,7 +540,8 @@ history:
 search:
   searching: "Buscando..."
   noResults: Sin resultados
-  viewAllResults: "Ver los {{count}} resultados"
+  viewAllResults_one: "Ver {{count}} resultado"
+  viewAllResults_other: "Ver los {{count}} resultados"
   sectionMedia: "Películas y series"
   sectionMusic: "Música"
   recentSearches: Búsquedas recientes
@@ -558,7 +553,6 @@ search:
   series: Series
   noResultsFor: "Sin resultados para “{{query}}”"
   noResultsDesc: Prueba con otro término, verifica la ortografía o cambia el filtro.
-  resultCount: "{{count}} resultado"
   resultCount_one: "{{count}} resultado"
   resultCount_other: "{{count}} resultados"
   resultFor: "para “{{query}}”"

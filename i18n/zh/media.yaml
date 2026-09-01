@@ -140,7 +140,6 @@ library:
   itemsAddedToPlaylist: "{{count}} 项已添加到「{{name}}」"
   filters: 筛选
   clearAll: 全部清除
-  resultCount: "{{count}} 个结果"
   resultCount_one: "{{count}} 个结果"
   resultCount_other: "{{count}} 个结果"
   yearLabel: 年份
@@ -148,7 +147,6 @@ library:
   selectLibrary: "选择库"
   yearTo: 至
   minRating: 最低评分
-  minStars: "最低 {{count}} 星"
   minStars_one: "最低 {{count}} 星"
   minStars_other: "最低 {{count}} 星"
   clearRating: 清除
@@ -193,7 +191,6 @@ person:
     creator: 创作
   filmography: "作品列表"
   unknown: 未知
-  titleCount: "{{count}} 部作品"
   titleCount_one: "{{count}} 部作品"
   titleCount_other: "{{count}} 部作品"
   noFilmography: 未找到此人的作品。
@@ -227,12 +224,10 @@ detail:
   cast: 演员
   crew: 剧组
   seasons: 季
-  seasonCount: "{{count}} 季"
   seasonCount_one: "{{count}} 季"
   seasonCount_other: "{{count}} 季"
   gaplessPlayback: "无缝播放"
   episodes: 集
-  episodeCount: "{{count}} 集"
   episodeCount_one: "{{count}} 集"
   episodeCount_other: "{{count}} 集"
   ep: "{{count}} 集"
@@ -290,7 +285,8 @@ detail:
   downloadFailed: 下载失败
   downloadNoSpace: "设备存储空间不足，无法完成此下载。"
   downloadNoSpaceAudioPass: "此影片的音轨需在下载后转换才能在本设备上发声，转换期间需要相当于文件大小两倍的可用空间。"
-  communityRating: 社区：{{average}}/5（{{count}} 条评分）
+  communityRating_one: "社区：{{average}}/5（{{count}} 条评分）"
+  communityRating_other: "社区：{{average}}/5（{{count}} 条评分）"
   downloadAllEpisodes: "全部下载"
   invalidRating: "评分必须介于 0 到 10 之间"
   invalidYear: "无效的年份"
@@ -372,10 +368,8 @@ music:
   failedDeleteTrack: 删除曲目失败
   deleteTrackConfirm: 确定删除此曲目？此操作无法撤销。
   deleteTrack: 删除曲目
-  trackCount: "{{count}} 首曲目"
   trackCount_one: "{{count}} 首曲目"
   trackCount_other: "{{count}} 首曲目"
-  albumCount: "{{count}} 张专辑"
   albumCount_one: "{{count}} 张专辑"
   albumCount_other: "{{count}} 张专辑"
   genre: Genre
@@ -546,7 +540,8 @@ history:
 search:
   searching: "搜索中..."
   noResults: 没有结果
-  viewAllResults: "查看全部 {{count}} 个结果"
+  viewAllResults_one: "查看 {{count}} 个结果"
+  viewAllResults_other: "查看全部 {{count}} 个结果"
   sectionMedia: "电影和剧集"
   sectionMusic: "音乐"
   recentSearches: 最近搜索
@@ -558,7 +553,6 @@ search:
   series: 剧集
   noResultsFor: "「{{query}}」无结果"
   noResultsDesc: 尝试其他搜索词、检查拼写或更换过滤条件。
-  resultCount: "{{count}} 个结果"
   resultCount_one: "{{count}} 个结果"
   resultCount_other: "{{count}} 个结果"
   resultFor: "「{{query}}」"

@@ -1,4 +1,5 @@
-unreadBanner: "{{count}} notifications non lues"
+unreadBanner_one: "{{count}} notification non lue"
+unreadBanner_other: "{{count}} notifications non lues"
 push:
   new_movie:
     title: "Nouveau film : {label}"

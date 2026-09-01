@@ -140,7 +140,6 @@ library:
   itemsAddedToPlaylist: "{{count}} item(s) added to \"{{name}}\""
   filters: Filters
   clearAll: Clear all
-  resultCount: "{{count}} result"
   resultCount_one: "{{count}} result"
   resultCount_other: "{{count}} results"
   yearLabel: Year
@@ -148,7 +147,6 @@ library:
   selectLibrary: "Select library"
   yearTo: To
   minRating: Min Rating
-  minStars: "Min {{count}} star"
   minStars_one: "Min {{count}} star"
   minStars_other: "Min {{count}} stars"
   clearRating: Clear
@@ -193,7 +191,6 @@ person:
     creator: Creator
   filmography: Filmography
   unknown: Unknown
-  titleCount: "{{count}} title"
   titleCount_one: "{{count}} title"
   titleCount_other: "{{count}} titles"
   noFilmography: No filmography found for this person.
@@ -227,12 +224,10 @@ detail:
   cast: Cast
   crew: Crew
   seasons: Seasons
-  seasonCount: "{{count}} season"
   seasonCount_one: "{{count}} season"
   seasonCount_other: "{{count}} seasons"
   gaplessPlayback: "Gapless playback"
   episodes: Episodes
-  episodeCount: "{{count}} episode"
   episodeCount_one: "{{count}} episode"
   episodeCount_other: "{{count}} episodes"
   ep: "{{count}} ep"
@@ -301,7 +296,8 @@ detail:
   downloadFailed: Download failed
   downloadNoSpace: "Not enough storage space on the device for this download."
   downloadNoSpaceAudioPass: "This film's audio must be converted after download to play on this device, which temporarily needs free space equal to twice the file size."
-  communityRating: 'Community: {{average}}/5 ({{count}} ratings)'
+  communityRating_one: "Community: {{average}}/5 ({{count}} rating)"
+  communityRating_other: "Community: {{average}}/5 ({{count}} ratings)"
   downloadAllEpisodes: Download all
   invalidRating: Rating must be between 0 and 10
   invalidYear: Invalid year
@@ -371,10 +367,8 @@ music:
   failedDeleteTrack: Failed to delete track
   deleteTrackConfirm: Delete this track? This cannot be undone.
   deleteTrack: Delete track
-  trackCount: "{{count}} track"
   trackCount_one: "{{count}} track"
   trackCount_other: "{{count}} tracks"
-  albumCount: "{{count}} album"
   albumCount_one: "{{count}} album"
   albumCount_other: "{{count}} albums"
   genre: Genre
@@ -546,7 +540,8 @@ history:
 search:
   searching: "Searching..."
   noResults: No results
-  viewAllResults: "View all {{count}} results"
+  viewAllResults_one: "View {{count}} result"
+  viewAllResults_other: "View all {{count}} results"
   sectionMedia: "Movies & Series"
   sectionMusic: "Music"
   recentSearches: Recent searches
@@ -558,7 +553,6 @@ search:
   series: Series
   noResultsFor: "No results for “{{query}}”"
   noResultsDesc: Try a different search term, check the spelling, or change the filter.
-  resultCount: "{{count}} result"
   resultCount_one: "{{count}} result"
   resultCount_other: "{{count}} results"
   resultFor: "for “{{query}}”"

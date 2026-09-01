@@ -443,7 +443,8 @@ libraries:
     daily3am: "दैनिक (सुबह 3 बजे)"
     weekly3am: "साप्ताहिक (रविवार सुबह 3 बजे)"
     customCron: "कस्टम cron..."
-  items: "{{count}} आइटम"
+  items_one: "{{count}} आइटम"
+  items_other: "{{count}} आइटम"
   "off": "बंद"
   paths: "पथ"
   pathsHint: "(कंटेनर के अंदर पूरा पथ दर्ज करें, जैसे /media/movies)"
@@ -465,7 +466,6 @@ sessions:
   failedLoadDesc: "सक्रिय सत्र प्राप्त नहीं हो सके। अपना कनेक्शन जांचें और पुनः प्रयास करें।"
   noSessions: "कोई सक्रिय सत्र नहीं"
   noSessionsDesc: "जब उपयोगकर्ता स्ट्रीमिंग शुरू करेंगे, उनके सत्र यहां दिखाई देंगे।"
-  activeCount: "{{count}} सक्रिय सत्र"
   activeCount_one: "{{count}} सक्रिय सत्र"
   activeCount_other: "{{count}} सक्रिय सत्र"
   stopSession: "सत्र रोकें"
@@ -613,7 +613,8 @@ activity:
     started: "शुरू हुआ"
   noPlayHistory: "कोई प्ले इतिहास नहीं"
   noAuditEntries: "कोई ऑडिट लॉग प्रविष्टियां नहीं"
-  totalEntries: "कुल {{count}} प्रविष्टियां"
+  totalEntries_one: "कुल {{count}} प्रविष्टि"
+  totalEntries_other: "कुल {{count}} प्रविष्टियां"
   exportTruncated: "निर्यात {{max}} पंक्तियों की अधिकतम सीमा पर रुक गया; {{total}} मौजूद हैं। दायरा घटाकर फिर से निर्यात करें।"
   stats:
     totalPlays: "कुल प्ले"
@@ -624,7 +625,8 @@ activity:
     storage: "लाइब्रेरी का आकार"
   popularMedia: "लोकप्रिय मीडिया"
   mostActiveUsers: "सबसे सक्रिय उपयोगकर्ता"
-  plays: "{{count}} प्ले"
+  plays_one: "{{count}} प्ले"
+  plays_other: "{{count}} प्ले"
   viewers: "{{count}} दर्शक"
 
 feeds:
@@ -641,7 +643,8 @@ audit:
     ip: "IP"
     device: "डिवाइस"
   noEntries: "कोई प्रविष्टि नहीं मिली"
-  entries: "{{count}} प्रविष्टियां"
+  entries_one: "{{count}} प्रविष्टि"
+  entries_other: "{{count}} प्रविष्टियां"
 
 serverConfig:
   entriesTitle: "कॉन्फ़िगरेशन प्रविष्टियाँ"
@@ -878,7 +881,8 @@ dashboardStats:
   recentActivity: "हालिया गतिविधि"
   viewAll: "सभी देखें"
   popularMedia: "लोकप्रिय मीडिया"
-  viewers: "{{count}} दर्शक"
+  viewers_one: "{{count}} दर्शक"
+  viewers_other: "{{count}} दर्शक"
   scanStarted: "स्कैन शुरू हुआ"
   scanFailed: "स्कैन विफल"
   allScansTriggered: "सभी लाइब्रेरी स्कैन शुरू हुए"

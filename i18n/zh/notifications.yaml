@@ -1,4 +1,5 @@
-unreadBanner: "{{count}} 条未读通知"
+unreadBanner_one: "{{count}} 条未读通知"
+unreadBanner_other: "{{count}} 条未读通知"
 push:
   new_movie:
     title: "新电影：{label}"
