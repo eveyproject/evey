@@ -437,11 +437,31 @@ func (f fakeAudioDelayProber) ProbeMaxAudioStartDelaySec(_ context.Context, p st
 type fakeDiagnoser struct {
 	byPath map[string]*mkv.Diagnosis
 	calls  map[string]int
+	gate   *scanGate // optional: holds the diagnosis of one path open until released
+}
+
+// scanGate lets a test keep a scan busy on one file while it acts on the
+// cached result - the shape of an operator acknowledging a verdict while a
+// long scan runs. Arm it after the first scan so the initial pass is free.
+type scanGate struct {
+	path     string
+	armed    atomic.Bool
+	started  chan struct{} // closed when the gated path is being diagnosed
+	release  chan struct{} // closed by the test to let the scan finish
+	onceOpen sync.Once
+}
+
+func newScanGate(path string) *scanGate {
+	return &scanGate{path: path, started: make(chan struct{}), release: make(chan struct{})}
 }
 
 func (f fakeDiagnoser) Diagnose(_ context.Context, p string) (*mkv.Diagnosis, error) {
 	if f.calls != nil {
 		f.calls[p]++
+	}
+	if f.gate != nil && f.gate.armed.Load() && p == f.gate.path {
+		f.gate.onceOpen.Do(func() { close(f.gate.started) })
+		<-f.gate.release
 	}
 	d, ok := f.byPath[p]
 	if !ok {
@@ -1347,4 +1367,58 @@ func TestSeekIndexService_RepairLibrary_AudioBackupsHonorWindow(t *testing.T) {
 		assert.False(t, it.HasBackup, "no backup survives the drain, audio included: %s", it.Path)
 	}
 	assert.Zero(t, res.WithBackup)
+}
+
+// An acknowledgement posted WHILE a scan runs (hours on a NAS) must survive
+// the scan's completion: the scan reuses statuses from a snapshot taken at
+// its start, so without a merge step its final write silently discarded every
+// ack that landed in the meantime (audit 2026-09-01).
+func TestSeekIndexService_AckDuringScan_Survives(t *testing.T) {
+	dir := t.TempDir()
+	junk := filepath.Join(dir, "junk.mkv")
+	slow := filepath.Join(dir, "slow.mkv")
+	for _, p := range []string{junk, slow} {
+		require.NoError(t, os.WriteFile(p, []byte("x"), 0o644))
+	}
+	reidx := &fakeReindexer{hasIndex: map[string]bool{junk: true, slow: true}}
+	cat := fakeCatalog{files: []appmaintenance.MediaRef{
+		{MediaID: "m-junk", Title: "Junk", Path: junk},
+		{MediaID: "m-slow", Title: "Slow", Path: slow},
+	}}
+	gate := newScanGate(slow)
+	diag := fakeDiagnoser{gate: gate, byPath: map[string]*mkv.Diagnosis{
+		junk: {Findings: []mkv.DiagnosisFinding{{Kind: "trailing-junk"}}},
+		slow: {Healthy: true},
+	}}
+	svc := appmaintenance.NewSeekIndexService(reidx, cat, nil).WithDiagnoser(diag).WithStateDir(t.TempDir())
+	ctx := context.Background()
+
+	require.NoError(t, svc.StartScan(ctx, ""))
+	waitIdle(t, svc)
+
+	// The second scan re-diagnoses the touched file and parks on it.
+	future := time.Now().Add(2 * time.Second)
+	require.NoError(t, os.Chtimes(slow, future, future))
+	gate.armed.Store(true)
+	require.NoError(t, svc.StartScan(ctx, ""))
+	select {
+	case <-gate.started:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the scan never reached the gated file")
+	}
+
+	// The operator acknowledges the junk file's verdict while the scan runs.
+	require.NoError(t, svc.AckMedia(ctx, "m-junk", true))
+
+	close(gate.release)
+	waitIdle(t, svc)
+
+	res, _, ok := svc.CachedScan("")
+	require.True(t, ok)
+	assert.Equal(t, 1, res.Acked, "the ack posted during the scan must survive its completion")
+	for _, it := range res.Items {
+		if it.Path == junk {
+			assert.True(t, it.Acked(), "junk stays acknowledged")
+		}
+	}
 }

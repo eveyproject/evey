@@ -79,10 +79,60 @@ func (s *SeekIndexService) scanAndCache(ctx context.Context, libraryID string) (
 	}
 
 	s.mu.Lock()
+	// The statuses above were reused from a snapshot taken when the scan
+	// started; an acknowledgement the operator posted since then lives only
+	// in the CURRENT cache and would be discarded by the write below. Carry
+	// it over for every unchanged file before replacing the entry.
+	s.carryAcksLocked(&res)
 	s.scans[jobKey(libraryID)] = cachedScan{res: res, at: time.Now()}
 	s.mu.Unlock()
 	s.saveScans()
 	return res, nil
+}
+
+// carryAcksLocked copies the acknowledgement stamp of every cached status
+// (any scope) onto the matching item of res when the file is the same bytes
+// under the same detector version and the verdict still admits an ack - a
+// file that changed or became repairable starts afresh. Rollups are rebuilt
+// afterwards so the acknowledged count matches the items. Caller holds s.mu.
+func (s *SeekIndexService) carryAcksLocked(res *ScanResult) {
+	acked := make(map[string]SeekStatus)
+	for _, c := range s.scans {
+		for _, it := range c.res.Items {
+			if it.Acked() {
+				acked[it.Path] = it
+			}
+		}
+	}
+	if len(acked) == 0 {
+		return
+	}
+	carried := 0
+	for i := range res.Items {
+		it := &res.Items[i]
+		if it.Acked() {
+			continue
+		}
+		cur, ok := acked[it.Path]
+		if !ok || cur.SizeBytes != it.SizeBytes || cur.ModTimeUnix != it.ModTimeUnix || cur.DiagVersion != it.DiagVersion || !it.Ackable() {
+			continue
+		}
+		it.AckedAt = cur.AckedAt
+		carried++
+	}
+	if carried > 0 {
+		rebuildRollups(res)
+	}
+}
+
+// rebuildRollups recomputes every counter of res from its items.
+func rebuildRollups(res *ScanResult) {
+	fresh := ScanResult{Items: res.Items}
+	for _, st := range fresh.Items {
+		fresh.Total++
+		addToRollups(&fresh, st)
+	}
+	*res = fresh
 }
 
 // previousStatuses snapshots every cached SeekStatus by path (all scopes) so
