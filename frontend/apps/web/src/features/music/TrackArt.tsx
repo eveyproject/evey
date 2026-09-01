@@ -9,8 +9,10 @@ export function TrackArt({ trackID, coverArtURL, size = 36 }: { trackID: string;
   const src = useMemo(() => {
     const tok = useAuthStore.getState().accessToken;
     const tp = tok ? `?token=${encodeURIComponent(tok)}` : "";
-    return `/api/v1/music/tracks/${trackID}/art${tp}`;
-  }, [trackID]);
+    // Display-sized WebP (2x for high-density screens) instead of the full
+    // cover embedded in the file - the server resizes and caches it.
+    return `/api/v1/music/tracks/${trackID}/art${tp}${tp ? "&" : "?"}w=${size * 2}`;
+  }, [trackID, size]);
   if (error || !coverArtURL) {
     return (
       <div

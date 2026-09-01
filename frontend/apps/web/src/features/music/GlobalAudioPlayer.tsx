@@ -13,7 +13,9 @@ function MiniTrackArt({ trackID, coverArtURL }: { trackID: string; coverArtURL?:
   const src = useMemo(() => {
     const tok = useAuthStore.getState().accessToken;
     const tp = tok ? `?token=${encodeURIComponent(tok)}` : "";
-    return `/api/v1/music/tracks/${trackID}/art${tp}`;
+    // 48px slot, 2x for high-density screens: a display-sized WebP, not the
+    // full cover embedded in the file.
+    return `/api/v1/music/tracks/${trackID}/art${tp}${tp ? "&" : "?"}w=96`;
   }, [trackID]);
   const size = 48;
   if (error || !coverArtURL) {

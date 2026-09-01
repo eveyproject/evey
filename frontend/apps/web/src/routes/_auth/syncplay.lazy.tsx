@@ -192,7 +192,7 @@ function SyncPlayPage() {
     if (!currentTrack) return "";
     const tok = useAuthStore.getState().accessToken;
     const tp = tok ? `?token=${encodeURIComponent(tok)}` : "";
-    return `/api/v1/music/tracks/${currentTrack.id}/art${tp}`;
+    return `/api/v1/music/tracks/${currentTrack.id}/art${tp}${tp ? "&" : "?"}w=320`;
   }, [currentTrack?.id]);
 
   async function handleCreateQueue(items: QueueItem[]) {

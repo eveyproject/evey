@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { View, StyleSheet } from "react-native";
+import { View, StyleSheet, PixelRatio } from "react-native";
 import { Image } from "expo-image";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useTheme } from "../../providers/ThemeProvider";
@@ -21,7 +21,9 @@ export function TrackArt({
   theme: ReturnType<typeof useTheme>;
 }) {
   const [error, setError] = useState(false);
-  const uri = serverUrl ? `${serverUrl}/api/v1/music/tracks/${trackID}/art` : undefined;
+  // Display-sized WebP at the device's pixel density instead of the full cover
+  // embedded in the file - the server resizes and caches it.
+  const uri = serverUrl ? `${serverUrl}/api/v1/music/tracks/${trackID}/art?w=${Math.round(size * (PixelRatio.get?.() ?? 2))}` : undefined;
   if (error || !uri) {
     return (
       <View
