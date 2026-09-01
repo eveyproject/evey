@@ -1220,6 +1220,11 @@ seekIndex:
   scan: Scan
   scanAgain: Scan again
   scanFailed: Scan failed
+  pace: "Disk use"
+  paceGentle: "Discreet"
+  paceFast: "Fast"
+  paceGentleHint: "One file at a time, then a pause as long as that file took to read: your disks stay free about half the time, so a film keeps playing while the scan runs. Slower, and the right choice unless nobody is watching."
+  paceFastHint: "Several files at once, no pause: on a library spread over several disks this is about three times quicker, but the disks are busy for the whole run and playback may stutter."
   repairAll: "Repair all ({{count}})"
   rollbackAll: "Roll back all ({{count}})"
   statsInspected: Files inspected

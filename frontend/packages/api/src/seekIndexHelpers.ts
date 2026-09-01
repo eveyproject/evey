@@ -252,3 +252,27 @@ export function triageRows<T extends SeekTriageItem>(items: T[], view: SeekView,
   );
 }
 
+
+// The one choice the operator makes when starting a scan, mirroring the Go
+// maintenance.ScanPace. It is a DISK budget, never a difference in what the
+// scan finds: the same library comes back with the same verdicts either way.
+//
+//   gentle - one file at a time, then a stand-aside as long as that file took
+//            to read. The disks are free about half the time, so playback
+//            survives the scan. The default, because nobody watches a scan.
+//   fast   - several files at once with no pause, so a library spread over
+//            several disks uses all of them instead of one.
+export type SeekScanPace = "gentle" | "fast";
+
+export const SEEK_SCAN_PACE_DEFAULT: SeekScanPace = "gentle";
+
+// scanRequestBody builds the start-scan payload both apps send, so a pace
+// chosen on the phone means exactly what it means in the browser. The gentle
+// pace is sent as ABSENCE, because that is what the server already does with a
+// missing field: the safe pace is what you get for saying nothing.
+export function scanRequestBody(libraryId: string, pace: SeekScanPace): { libraryId?: string; pace?: SeekScanPace } {
+  return {
+    ...(libraryId ? { libraryId } : {}),
+    ...(pace === SEEK_SCAN_PACE_DEFAULT ? {} : { pace }),
+  };
+}

@@ -20,7 +20,7 @@ import {
   useAdminMediaServiceAckSeekIndexGroup,
   useAdminMediaServiceFixContainerMedia,
 } from "@evey/api";
-import type { V1GetSeekIndexJobResponse, SeekView } from "@evey/api";
+import type { V1GetSeekIndexJobResponse, SeekView, SeekScanPace } from "@evey/api";
 import { toast } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import {
@@ -36,6 +36,8 @@ import {
   SEEK_INDEX_SCAN_QUERY_BASE,
   SEEK_INDEX_KIND_KEYS,
   SEEK_VIEWS,
+  SEEK_SCAN_PACE_DEFAULT,
+  scanRequestBody,
 } from "@evey/api";
 import { SeekIndexItemRow } from "../../../src/components/admin/seekIndex/SeekIndexItemRow";
 import { RepairConfirmModal, type BatchKind } from "../../../src/components/admin/seekIndex/RepairConfirmModal";
@@ -163,6 +165,9 @@ export default function AdminSeekIndexScreen() {
   // The displayed rows: one view (what awaits attention by default), sorted by
   // priority - the same pipeline as the web page (triageRows).
   const [view, setView] = useState<SeekView>("attention");
+  // How much of the disks the next scan may take. Gentle by default, same as
+  // the web page: nobody watches a scan, everybody watches their films.
+  const [pace, setPace] = useState<SeekScanPace>(SEEK_SCAN_PACE_DEFAULT);
   const [confirmBatch, setConfirmBatch] = useState<BatchKind | null>(null);
   // keepBackups/resyncDamaged mirror the web modal: strategy is always "auto",
   // "repair all" repairs every repairable verdict, and the operator only picks
@@ -395,10 +400,29 @@ export default function AdminSeekIndexScreen() {
               ))}
             </ScrollView>
 
+            <Text style={{ color: theme.colors.textMuted, fontSize: 11, fontWeight: "600" }}>{t("admin.seekIndex.pace")}</Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+              {(["gentle", "fast"] as const).map((p) => (
+                <Pressable
+                  key={p}
+                  disabled={busy}
+                  onPress={() => setPace(p)}
+                  style={[styles.filterChip, { backgroundColor: pace === p ? theme.colors.accent : theme.colors.surfaceRaised, borderRadius: theme.radii.md, opacity: busy ? 0.6 : 1 }]}
+                >
+                  <Text style={{ color: pace === p ? theme.colors.onAccent : theme.colors.textMuted, fontSize: 13, fontWeight: "600" }}>
+                    {p === "fast" ? t("admin.seekIndex.paceFast") : t("admin.seekIndex.paceGentle")}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>
+              {pace === "fast" ? t("admin.seekIndex.paceFastHint") : t("admin.seekIndex.paceGentleHint")}
+            </Text>
+
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
               <Pressable
                 disabled={busy}
-                onPress={() => startScan.mutate({ data: libraryId ? { libraryId } : {} })}
+                onPress={() => startScan.mutate({ data: scanRequestBody(libraryId, pace) })}
                 style={[styles.smallBtn, { backgroundColor: theme.colors.accent, opacity: busy ? 0.6 : 1 }]}
               >
                 {startScan.isPending ? (
