@@ -8,6 +8,16 @@ line - earlier history lives in git.
 ## [Unreleased]
 
 ### Added
+- Media health (admin): every MKV/WebM gets one verdict - repairable here,
+  your call, or for information - with acknowledgement, "Repair all" acting
+  on exactly the repairable set (damaged files only with an explicit resync
+  consent), and a one-click rename of a mislabelled .mkv that is really an
+  MP4. Runbook in `docs/runbooks/media-health.md`.
+- Capacity load test: the report names an opaque storage mount (mergerfs,
+  FUSE, network) instead of guessing at disks, and a calibration taken on a
+  busy host is marked provisional and redone when the box is idle.
+- Mobile: volume up to 200% through the app's own audio chain (VLC-style
+  preamp), with smooth steps between the device's hardware levels.
 - Single-container install: the image embeds Postgres (and Meilisearch) and
   generates their secrets on first boot; `.env` needs only `MEDIA_DIR`.
   Existing installs with their own Postgres (`EVEY_DB_HOST` set) are
@@ -30,6 +40,20 @@ line - earlier history lives in git.
 - Built-in capacity load test (admin), synthetic viewers against the real stack.
 
 ### Changed
+- Seek-index diagnosis moves to mkvgo 0.27: an index is judged against the
+  picture's real end (sound outlasting picture is no longer a hole), holes are
+  probed to say whether a rebuild, a re-encode or the source is the remedy,
+  and an audio track ending before the picture is reported as such. The
+  first scan after the upgrade re-diagnoses the whole library.
+- Mobile and TV declare AC-3/E-AC-3/DTS/TrueHD to the server only when the
+  device's audio output accepts them - a decoder alone no longer counts.
+  Devices that rendered direct-played AC-3 choppily now get the audio
+  transcoded; passthrough boxes are unaffected.
+- Counts read correctly in the singular in all six languages ("1 result",
+  "1 élément ajouté").
+- API calls time out after 60 s instead of hanging on a server that never
+  answers; the operations the server performs inside the request (plugin
+  install, backup now, transcode-cache clear, library delete) are exempt.
 - Casting reworked end to end: reliable device pairing on desktop Chrome and
   Android, resume and seek land on the exact position on both direct play and
   transcode, and cast failures are reported server-side.
@@ -40,6 +64,21 @@ line - earlier history lives in git.
   searchable from the admin panel.
 
 ### Fixed
+- Mobile: the Music tab crashed with "Rendered more hooks than during the
+  previous render"; the same class was removed from the TV home banner, the
+  web library page and the mobile home rows, and the lint gate now refuses
+  it (including behind an eslint-disable comment).
+- Mobile cast: a token refresh in the middle of a cast no longer reloads the
+  receiver from the start; the sender now reports a receiver that stops
+  answering (`cast_sender_stall`).
+- Media health: an acknowledgement posted while a scan runs is no longer
+  lost when the scan completes.
+- People the metadata provider has no biography for are no longer re-fetched
+  every day (negative cache, 30 days).
+- Mobile home feeds panel: one save per changed row instead of one per feed,
+  and no duplicate saves under StrictMode.
+- Artwork is requested at display size (hero backdrops, detail posters, music
+  covers) and list thumbnails keep a memory cache.
 - Player regressions: audio after deep resume, back navigation restarting the
   player, episode-change error screens on mobile, focus traps on TV.
 - Library watcher: real-time monitoring survives bad files, reports its own
