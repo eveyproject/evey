@@ -37,9 +37,12 @@ favorites:
   addToPlaylist: Añadir a lista de reproducción
   noPlaylists: Sin listas de reproducción aún.
   failedAddPlaylist: Error al añadir a la lista de reproducción
-  itemsAddedToPlaylist: "{{count}} elemento(s) añadido(s) a \"{{name}}\""
-  markedWatched: "{{count}} elemento(s) marcado(s) como visto(s)"
-  markedUnwatched: "{{count}} elemento(s) marcado(s) como no visto(s)"
+  itemsAddedToPlaylist_one: "{{count}} elemento añadido a \"{{name}}\""
+  itemsAddedToPlaylist_other: "{{count}} elementos añadidos a \"{{name}}\""
+  markedWatched_one: "{{count}} elemento marcado como visto"
+  markedWatched_other: "{{count}} elementos marcados como vistos"
+  markedUnwatched_one: "{{count}} elemento marcado como no visto"
+  markedUnwatched_other: "{{count}} elementos marcados como no vistos"
   filterByType: Filtrar por tipo
   sortBy: Ordenar por
   toggleFavorite: Alternar favorito
@@ -74,7 +77,8 @@ collections:
   smartDeleted: Colección inteligente eliminada
   deleteFailed: Error al eliminar
   noCollectionsAvailable: No hay colecciones disponibles.
-  itemsAdded: "{{count}} elemento(s) añadido(s) a \"{{name}}\""
+  itemsAdded_one: "{{count}} elemento añadido a \"{{name}}\""
+  itemsAdded_other: "{{count}} elementos añadidos a \"{{name}}\""
   addFailed: Error al añadir a la colección
   adding: "Añadiendo…"
   editSmartCollection: Editar colección inteligente
@@ -130,14 +134,16 @@ library:
   goToAdmin: Ir a Administración
   selected: seleccionado(s)
   addToFavorites: Añadir a favoritos
-  addedToFavorites: "{{count}} elemento(s) añadido(s) a favoritos"
+  addedToFavorites_one: "{{count}} elemento añadido a favoritos"
+  addedToFavorites_other: "{{count}} elementos añadidos a favoritos"
   failedFavorites: Error al añadir algunos elementos a favoritos
   duration: Duración
   type: Tipo
   addToPlaylist: Añadir a lista de reproducción
   noPlaylists: Sin listas de reproducción aún.
   failedAddPlaylist: Error al añadir a la lista de reproducción
-  itemsAddedToPlaylist: "{{count}} elemento(s) añadido(s) a \"{{name}}\""
+  itemsAddedToPlaylist_one: "{{count}} elemento añadido a \"{{name}}\""
+  itemsAddedToPlaylist_other: "{{count}} elementos añadidos a \"{{name}}\""
   filters: Filtros
   clearAll: Borrar todo
   resultCount_one: "{{count}} resultado"
@@ -173,7 +179,8 @@ library:
   markWatched: Marcar como visto
   markedUnwatched: Marcado como no visto
   markedWatched: Marcado como visto
-  bulkPartialFailure: "{{count}} elemento(s) fallido(s)"
+  bulkPartialFailure_one: "{{count}} elemento fallido"
+  bulkPartialFailure_other: "{{count}} elementos fallidos"
 person:
   department:
     acting: Interpretación

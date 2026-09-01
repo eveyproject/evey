@@ -37,9 +37,12 @@ favorites:
   addToPlaylist: प्लेलिस्ट में जोड़ें
   noPlaylists: अभी कोई प्लेलिस्ट नहीं।
   failedAddPlaylist: प्लेलिस्ट में जोड़ने में विफल
-  itemsAddedToPlaylist: "{{count}} आइटम \"{{name}}\" में जोड़े गए"
-  markedWatched: "{{count}} आइटम देखा हुआ चिह्नित"
-  markedUnwatched: "{{count}} आइटम न देखा हुआ चिह्नित"
+  itemsAddedToPlaylist_one: "{{count}} आइटम \"{{name}}\" में जोड़ा गया"
+  itemsAddedToPlaylist_other: "{{count}} आइटम \"{{name}}\" में जोड़े गए"
+  markedWatched_one: "{{count}} आइटम देखा हुआ चिह्नित"
+  markedWatched_other: "{{count}} आइटम देखा हुआ चिह्नित"
+  markedUnwatched_one: "{{count}} आइटम न देखा हुआ चिह्नित"
+  markedUnwatched_other: "{{count}} आइटम न देखा हुआ चिह्नित"
   filterByType: प्रकार से फ़िल्टर
   sortBy: क्रमबद्ध करें
   toggleFavorite: पसंदीदा टॉगल करें
@@ -74,7 +77,8 @@ collections:
   smartDeleted: स्मार्ट संग्रह मिटाया गया
   deleteFailed: मिटाने में विफल
   noCollectionsAvailable: कोई संग्रह उपलब्ध नहीं।
-  itemsAdded: "{{count}} आइटम \"{{name}}\" में जोड़े गए"
+  itemsAdded_one: "{{count}} आइटम \"{{name}}\" में जोड़ा गया"
+  itemsAdded_other: "{{count}} आइटम \"{{name}}\" में जोड़े गए"
   addFailed: संग्रह में जोड़ने में विफल
   adding: "जोड़ रहे हैं…"
   editSmartCollection: स्मार्ट संग्रह संपादित करें
@@ -130,14 +134,16 @@ library:
   goToAdmin: एडमिन पर जाएं
   selected: चयनित
   addToFavorites: पसंदीदा में जोड़ें
-  addedToFavorites: "{{count}} आइटम पसंदीदा में जोड़े गए"
+  addedToFavorites_one: "{{count}} आइटम पसंदीदा में जोड़ा गया"
+  addedToFavorites_other: "{{count}} आइटम पसंदीदा में जोड़े गए"
   failedFavorites: कुछ आइटम पसंदीदा में जोड़ने में विफल
   duration: अवधि
   type: प्रकार
   addToPlaylist: प्लेलिस्ट में जोड़ें
   noPlaylists: अभी कोई प्लेलिस्ट नहीं।
   failedAddPlaylist: प्लेलिस्ट में जोड़ने में विफल
-  itemsAddedToPlaylist: "{{count}} आइटम \"{{name}}\" में जोड़े गए"
+  itemsAddedToPlaylist_one: "{{count}} आइटम \"{{name}}\" में जोड़ा गया"
+  itemsAddedToPlaylist_other: "{{count}} आइटम \"{{name}}\" में जोड़े गए"
   filters: फ़िल्टर
   clearAll: सब हटाएं
   resultCount_one: "{{count}} परिणाम"
@@ -173,7 +179,8 @@ library:
   markWatched: देखा गया चिह्नित
   markedUnwatched: अदेखा चिह्नित किया
   markedWatched: देखा गया चिह्नित किया
-  bulkPartialFailure: "{{count}} आइटम विफल"
+  bulkPartialFailure_one: "{{count}} आइटम विफल"
+  bulkPartialFailure_other: "{{count}} आइटम विफल"
 person:
   department:
     acting: अभिनय

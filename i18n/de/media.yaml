@@ -37,9 +37,12 @@ favorites:
   addToPlaylist: Zur Playlist hinzufügen
   noPlaylists: Noch keine Playlists.
   failedAddPlaylist: Zur Playlist hinzufügen fehlgeschlagen
-  itemsAddedToPlaylist: "{{count}} Element(e) zu \"{{name}}\" hinzugefügt"
-  markedWatched: "{{count}} Element(e) als gesehen markiert"
-  markedUnwatched: "{{count}} Element(e) als ungesehen markiert"
+  itemsAddedToPlaylist_one: "{{count}} Element zu \"{{name}}\" hinzugefügt"
+  itemsAddedToPlaylist_other: "{{count}} Elemente zu \"{{name}}\" hinzugefügt"
+  markedWatched_one: "{{count}} Element als gesehen markiert"
+  markedWatched_other: "{{count}} Elemente als gesehen markiert"
+  markedUnwatched_one: "{{count}} Element als ungesehen markiert"
+  markedUnwatched_other: "{{count}} Elemente als ungesehen markiert"
   filterByType: Nach Typ filtern
   sortBy: Sortieren nach
   toggleFavorite: Favorit umschalten
@@ -74,7 +77,8 @@ collections:
   smartDeleted: Smart-Sammlung gelöscht
   deleteFailed: Löschen fehlgeschlagen
   noCollectionsAvailable: Keine Sammlungen verfügbar.
-  itemsAdded: "{{count}} Element(e) zu \"{{name}}\" hinzugefügt"
+  itemsAdded_one: "{{count}} Element zu \"{{name}}\" hinzugefügt"
+  itemsAdded_other: "{{count}} Elemente zu \"{{name}}\" hinzugefügt"
   addFailed: Zur Sammlung hinzufügen fehlgeschlagen
   adding: "Wird hinzugefügt…"
   editSmartCollection: Smart-Sammlung bearbeiten
@@ -130,14 +134,16 @@ library:
   goToAdmin: Zur Verwaltung
   selected: ausgewählt
   addToFavorites: Zu Favoriten hinzufügen
-  addedToFavorites: "{{count}} Element(e) zu Favoriten hinzugefügt"
+  addedToFavorites_one: "{{count}} Element zu Favoriten hinzugefügt"
+  addedToFavorites_other: "{{count}} Elemente zu Favoriten hinzugefügt"
   failedFavorites: Einige Elemente konnten nicht zu Favoriten hinzugefügt werden
   duration: Dauer
   type: Typ
   addToPlaylist: Zur Playlist hinzufügen
   noPlaylists: Noch keine Playlists.
   failedAddPlaylist: Zur Playlist hinzufügen fehlgeschlagen
-  itemsAddedToPlaylist: "{{count}} Element(e) zu \"{{name}}\" hinzugefügt"
+  itemsAddedToPlaylist_one: "{{count}} Element zu \"{{name}}\" hinzugefügt"
+  itemsAddedToPlaylist_other: "{{count}} Elemente zu \"{{name}}\" hinzugefügt"
   filters: Filter
   clearAll: Alle löschen
   resultCount_one: "{{count}} Ergebnis"
@@ -173,7 +179,8 @@ library:
   markWatched: Als gesehen markieren
   markedUnwatched: Als ungesehen markiert
   markedWatched: Als gesehen markiert
-  bulkPartialFailure: "{{count}} Element(e) fehlgeschlagen"
+  bulkPartialFailure_one: "{{count}} Element fehlgeschlagen"
+  bulkPartialFailure_other: "{{count}} Elemente fehlgeschlagen"
 person:
   department:
     acting: Schauspiel

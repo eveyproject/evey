@@ -111,7 +111,8 @@ artworks:
   purgeVariantsDesc: "Löscht 0-Byte-Poster-Varianten, die von einer fehlgeschlagenen oder abgelaufenen Größenänderung übrig geblieben sind. Sie werden bei Bedarf automatisch neu erzeugt; dies bereinigt sie nur in einem Durchgang."
   purgeVariantsRun: Beschädigte Varianten bereinigen
   purgeVariantsRunning: Wird bereinigt...
-  purgeVariantsSuccess: "{{count}} beschädigte Variante(n) entfernt."
+  purgeVariantsSuccess_one: "{{count}} beschädigte Variante entfernt."
+  purgeVariantsSuccess_other: "{{count}} beschädigte Varianten entfernt."
   purgeVariantsFailed: Bereinigung der Varianten fehlgeschlagen
 
 plugin:
@@ -400,7 +401,8 @@ libraries:
   refreshAllMetadataStarted: "Erneuter Abgleich gestartet - Titel und Poster werden im Hintergrund aktualisiert"
   matchOrphans: Nur Waisen abgleichen
   matchOrphansTooltip: "Zielt nur auf Elemente ab, die beim Scan nie mit TMDB übereinstimmten (Anbieter-IDs leer). Schnell, läuft im Hintergrund."
-  matchOrphansStarted: "{{count}} Waise(n) für Abgleich eingereiht - sie erscheinen mit Poster/Übersicht, sobald TMDB antwortet"
+  matchOrphansStarted_one: "{{count}} Waise für Abgleich eingereiht - sie erscheint mit Poster/Übersicht, sobald TMDB antwortet"
+  matchOrphansStarted_other: "{{count}} Waisen für Abgleich eingereiht - sie erscheinen mit Poster/Übersicht, sobald TMDB antwortet"
   matchOrphansEmpty: "Keine Waisen in dieser Bibliothek zum Abgleichen - alle Elemente haben bereits Anbieter-IDs"
   relinkCollections: "Reihen reparieren"
   relinkCollectionsTooltip: "Ordnet Filme ohne Sammlung wieder ihrer Reihe zu: Die Fortsetzungen sind bereits in der Bibliothek, die Zugehörigkeit wurde aber nur beim Anreichern geschrieben. Läuft im Hintergrund."
@@ -627,7 +629,8 @@ activity:
   mostActiveUsers: Aktivste Benutzer
   plays_one: "{{count}} Wiedergabe"
   plays_other: "{{count}} Wiedergaben"
-  viewers: "{{count}} Zuschauer"
+  viewers_one: "{{count}} Zuschauer"
+  viewers_other: "{{count}} Zuschauer"
 
 feeds:
   noSections: Keine Feed-Abschnitte konfiguriert
@@ -1185,7 +1188,8 @@ segments:
   propagate: Auf Staffel anwenden
   lockedHint: Dieses Segment ist manuell gesperrt und wird durch die automatische Erkennung nicht überschrieben.
   locked: Gesperrt
-  propagateSuccess: "Auf {{count}} Folge(n) übertragen"
+  propagateSuccess_one: "Auf {{count}} Folge übertragen"
+  propagateSuccess_other: "Auf {{count}} Folgen übertragen"
   preview: Vorschau
   playerLoading: "Player wird geladen …"
   selectHint: "(Wähle ein Segment auf der Zeitleiste)"
@@ -1240,7 +1244,8 @@ seekIndex:
   jobPurge: "Sicherungsbereinigung"
   purgeAll: "Sicherungen löschen ({{count}})"
   purgeAllConfirmTitle: "Alle Sicherungen löschen?"
-  purgeAllConfirm: "{{count}} Sicherungsdatei(en) (.mkvgobak) endgültig löschen? Zuerst zurücksetzen, falls eine reparierte Datei Probleme macht - danach gibt es kein Zurück."
+  purgeAllConfirm_one: "{{count}} Sicherungsdatei (.mkvgobak) endgültig löschen? Zuerst zurücksetzen, falls eine reparierte Datei Probleme macht - danach gibt es kein Zurück."
+  purgeAllConfirm_other: "{{count}} Sicherungsdateien (.mkvgobak) endgültig löschen? Zuerst zurücksetzen, falls eine reparierte Datei Probleme macht - danach gibt es kein Zurück."
   purgeStarted: "Sicherungsbereinigung gestartet"
   deleteBackup: "Sicherung löschen"
   backupDeleted: "Sicherung gelöscht"
@@ -1293,9 +1298,11 @@ seekIndex:
   jobReadOnlyHint: "Einige Dateien liegen auf einem schreibgeschützten Volume. Binde die Medienordner lese-schreibbar ein (:ro aus docker-compose entfernen), starte die Container neu und versuche es erneut."
   scannedAt: "Gescannt am {{date}}"
   repairAllConfirmTitle: "Bibliothek reparieren"
-  repairAllConfirm: "{{count}} Datei(en) im Hintergrund reparieren? Fehlende Indizes werden neu aufgebaut, versetztes Audio ausgerichtet, falsch benannte Container in .mp4 umbenannt - jede neu geschriebene Datei wird geprüft und atomar getauscht. Das ist ein LANGER Vorgang: Er schreibt Dateien neu und kann Stunden dauern."
+  repairAllConfirm_one: "{{count}} Datei im Hintergrund reparieren? Fehlende Indizes werden neu aufgebaut, versetztes Audio ausgerichtet, falsch benannte Container in .mp4 umbenannt - jede neu geschriebene Datei wird geprüft und atomar getauscht. Das ist ein LANGER Vorgang: Er schreibt Dateien neu und kann Stunden dauern."
+  repairAllConfirm_other: "{{count}} Dateien im Hintergrund reparieren? Fehlende Indizes werden neu aufgebaut, versetztes Audio ausgerichtet, falsch benannte Container in .mp4 umbenannt - jede neu geschriebene Datei wird geprüft und atomar getauscht. Das ist ein LANGER Vorgang: Er schreibt Dateien neu und kann Stunden dauern."
   rollbackAllConfirmTitle: "Originale aus Sicherungen wiederherstellen"
-  rollbackAllConfirm: "{{count}} Datei(en) aus ihren .mkvgobak-Sicherungen wiederherstellen? Das macht vorherige Reparaturen in diesem Bereich rückgängig."
+  rollbackAllConfirm_one: "{{count}} Datei aus ihrer .mkvgobak-Sicherung wiederherstellen? Das macht vorherige Reparaturen in diesem Bereich rückgängig."
+  rollbackAllConfirm_other: "{{count}} Dateien aus ihren .mkvgobak-Sicherungen wiederherstellen? Das macht vorherige Reparaturen in diesem Bereich rückgängig."
   statsRepairable: "Hier reparierbar"
   statsManual: "Braucht dich"
   statsInformational: "Zur Information"
@@ -1303,9 +1310,11 @@ seekIndex:
   partDamaged: "{{count}} beschädigt"
   partAudioDelay: "{{count}} Audio versetzt"
   partWrongContainer: "{{count}} falscher Container"
-  partTruncated: "{{count}} unvollständige(r) Download(s)"
+  partTruncated_one: "{{count}} unvollständiger Download"
+  partTruncated_other: "{{count}} unvollständige Downloads"
   partSeekCoarse: "{{count}} mit Sprunglücke"
-  partAudioShort: "{{count}} kürzere Tonspur(en)"
+  partAudioShort_one: "{{count}} kürzere Tonspur"
+  partAudioShort_other: "{{count}} kürzere Tonspuren"
   partTrailingJunk: "{{count}} überschüssige Bytes"
   partAcked: "{{count}} bestätigt"
   breakdownNone: "nichts"
@@ -1319,12 +1328,14 @@ seekIndex:
   ackedBadge: "Gesehen"
   ackDone: "Als gesehen markiert - bleibt aus der Liste, bis sich die Datei ändert"
   unackDone: "Erneut gemeldet"
-  ackGroupDone: "{{count}} Datei(en) als gesehen markiert"
+  ackGroupDone_one: "{{count}} Datei als gesehen markiert"
+  ackGroupDone_other: "{{count}} Dateien als gesehen markiert"
   fixContainerBtn: "In .mp4 umbenennen"
   fixContainerHint: "Diese .mkv ist in Wirklichkeit MP4/MOV: Der Server benennt sie in .mp4 um und aktualisiert den Bibliothekseintrag. Nichts wird neu geschrieben."
   fixContainerStarted: "Umbenennung im Hintergrund gestartet - Fortschritt unten"
   jobFixContainer: "Container-Korrektur"
-  resyncDamaged: "Auch {{count}} beschädigte Datei(en) neu synchronisieren (~{{bytes}} gehen verloren)"
+  resyncDamaged_one: "Auch {{count}} beschädigte Datei neu synchronisieren (~{{bytes}} gehen verloren)"
+  resyncDamaged_other: "Auch {{count}} beschädigte Dateien neu synchronisieren (~{{bytes}} gehen verloren)"
   resyncDamagedHint: "Ihr Index ist in Ordnung, aber ein beschädigter Abschnitt macht sie unabspielbar. Resync überspringt ihn - diese Bytes sind endgültig verloren - und behält das Original immer als Sicherung, unabhängig von der Wahl unten."
   viewsLabel: "Ansichten"
   viewAttention: "Wartend ({{count}})"

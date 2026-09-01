@@ -37,9 +37,12 @@ favorites:
   addToPlaylist: 添加到播放列表
   noPlaylists: 暂无播放列表。
   failedAddPlaylist: 添加到播放列表失败
-  itemsAddedToPlaylist: "{{count}} 项已添加到「{{name}}」"
-  markedWatched: "{{count}} 项已标记为已看"
-  markedUnwatched: "{{count}} 项已标记为未看"
+  itemsAddedToPlaylist_one: "{{count}} 项已添加到「{{name}}」"
+  itemsAddedToPlaylist_other: "{{count}} 项已添加到「{{name}}」"
+  markedWatched_one: "{{count}} 项已标记为已看"
+  markedWatched_other: "{{count}} 项已标记为已看"
+  markedUnwatched_one: "{{count}} 项已标记为未看"
+  markedUnwatched_other: "{{count}} 项已标记为未看"
   filterByType: 按类型筛选
   sortBy: 排序
   toggleFavorite: 切换收藏
@@ -74,7 +77,8 @@ collections:
   smartDeleted: 智能合集已删除
   deleteFailed: 删除失败
   noCollectionsAvailable: 没有可用的合集。
-  itemsAdded: "{{count}} 项已添加到「{{name}}」"
+  itemsAdded_one: "{{count}} 项已添加到「{{name}}」"
+  itemsAdded_other: "{{count}} 项已添加到「{{name}}」"
   addFailed: 添加到合集失败
   adding: "添加中…"
   editSmartCollection: 编辑智能合集
@@ -130,14 +134,16 @@ library:
   goToAdmin: 前往管理
   selected: 已选择
   addToFavorites: 添加到收藏
-  addedToFavorites: "{{count}} 项已添加到收藏"
+  addedToFavorites_one: "{{count}} 项已添加到收藏"
+  addedToFavorites_other: "{{count}} 项已添加到收藏"
   failedFavorites: 添加到收藏失败
   duration: 时长
   type: 类型
   addToPlaylist: 添加到播放列表
   noPlaylists: 暂无播放列表。
   failedAddPlaylist: 添加到播放列表失败
-  itemsAddedToPlaylist: "{{count}} 项已添加到「{{name}}」"
+  itemsAddedToPlaylist_one: "{{count}} 项已添加到「{{name}}」"
+  itemsAddedToPlaylist_other: "{{count}} 项已添加到「{{name}}」"
   filters: 筛选
   clearAll: 全部清除
   resultCount_one: "{{count}} 个结果"
@@ -173,7 +179,8 @@ library:
   markWatched: 标为已观看
   markedUnwatched: 已标为未观看
   markedWatched: 已标为已观看
-  bulkPartialFailure: "{{count}} 项失败"
+  bulkPartialFailure_one: "{{count}} 项失败"
+  bulkPartialFailure_other: "{{count}} 项失败"
 person:
   department:
     acting: 表演

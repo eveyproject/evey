@@ -111,7 +111,8 @@ artworks:
   purgeVariantsDesc: "Delete 0-byte resized poster variants left behind by a failed or timed-out resize. They are regenerated automatically on demand, so this just clears them in bulk."
   purgeVariantsRun: Purge corrupt variants
   purgeVariantsRunning: Purging...
-  purgeVariantsSuccess: "Removed {{count}} corrupt variant(s)."
+  purgeVariantsSuccess_one: "Removed {{count}} corrupt variant."
+  purgeVariantsSuccess_other: "Removed {{count}} corrupt variants."
   purgeVariantsFailed: Failed to purge variants
 
 plugin:
@@ -400,7 +401,8 @@ libraries:
   refreshAllMetadataStarted: Re-match started - titles and posters will update in the background
   matchOrphans: Match orphans only
   matchOrphansTooltip: Targets only items that never matched TMDB at scan time (provider IDs empty). Fast, runs in the background.
-  matchOrphansStarted: "Queued {{count}} orphan(s) for matching - they'll appear with poster/overview as TMDB responds"
+  matchOrphansStarted_one: "Queued {{count}} orphan for matching - it'll appear with poster/overview as TMDB responds"
+  matchOrphansStarted_other: "Queued {{count}} orphans for matching - they'll appear with poster/overview as TMDB responds"
   matchOrphansEmpty: No orphans to match in this library - all items already have provider IDs
   relinkCollections: "Repair sagas"
   relinkCollectionsTooltip: "Joins movies that belong to no collection back to their saga: the sequels are already in the library, but membership was only ever written while enriching. Runs in the background."
@@ -627,7 +629,8 @@ activity:
   mostActiveUsers: Most Active Users
   plays_one: "{{count}} play"
   plays_other: "{{count}} plays"
-  viewers: "{{count}} viewer(s)"
+  viewers_one: "{{count}} viewer"
+  viewers_other: "{{count}} viewers"
 
 feeds:
   noSections: No feed sections configured
@@ -1185,7 +1188,8 @@ segments:
   propagate: Apply to season
   lockedHint: This segment is locked manually and will not be overwritten by auto detection.
   locked: Locked
-  propagateSuccess: "Propagated to {{count}} episode(s)"
+  propagateSuccess_one: "Propagated to {{count}} episode"
+  propagateSuccess_other: "Propagated to {{count}} episodes"
   preview: Preview
   playerLoading: "Loading player..."
   selectHint: "(Select a segment on the timeline)"
@@ -1240,7 +1244,8 @@ seekIndex:
   jobPurge: "Backup purge"
   purgeAll: "Delete backups ({{count}})"
   purgeAllConfirmTitle: "Delete all backups?"
-  purgeAllConfirm: "Permanently delete {{count}} backup file(s) (.mkvgobak)? Roll back first if a repaired file misbehaves - after this there is no undo."
+  purgeAllConfirm_one: "Permanently delete {{count}} backup file (.mkvgobak)? Roll back first if a repaired file misbehaves - after this there is no undo."
+  purgeAllConfirm_other: "Permanently delete {{count}} backup files (.mkvgobak)? Roll back first if a repaired file misbehaves - after this there is no undo."
   purgeStarted: "Backup purge started"
   deleteBackup: "Delete backup"
   backupDeleted: "Backup deleted"
@@ -1293,9 +1298,11 @@ seekIndex:
   jobReadOnlyHint: "Some files are on a read-only volume. Remount your media folders read-write (remove :ro in docker-compose) and restart the containers, then retry."
   scannedAt: "Scanned {{date}}"
   repairAllConfirmTitle: "Repair the library"
-  repairAllConfirm: "Repair {{count}} file(s) in the background? Missing indexes are rebuilt, delayed audio is realigned, mislabelled containers are renamed to .mp4 - every rewritten file is verified then swapped atomically. This is a LONG operation: it rewrites files and can take hours."
+  repairAllConfirm_one: "Repair {{count}} file in the background? Missing indexes are rebuilt, delayed audio is realigned, mislabelled containers are renamed to .mp4 - every rewritten file is verified then swapped atomically. This is a LONG operation: it rewrites files and can take hours."
+  repairAllConfirm_other: "Repair {{count}} files in the background? Missing indexes are rebuilt, delayed audio is realigned, mislabelled containers are renamed to .mp4 - every rewritten file is verified then swapped atomically. This is a LONG operation: it rewrites files and can take hours."
   rollbackAllConfirmTitle: Restore originals from backups
-  rollbackAllConfirm: "Restore {{count}} file(s) from their .mkvgobak backups? This undoes prior repairs in the selected scope."
+  rollbackAllConfirm_one: "Restore {{count}} file from its .mkvgobak backup? This undoes prior repairs in the selected scope."
+  rollbackAllConfirm_other: "Restore {{count}} files from their .mkvgobak backups? This undoes prior repairs in the selected scope."
   statsRepairable: "Repairable here"
   statsManual: "Needs you"
   statsInformational: "For information"
@@ -1303,9 +1310,11 @@ seekIndex:
   partDamaged: "{{count}} damaged"
   partAudioDelay: "{{count}} delayed audio"
   partWrongContainer: "{{count}} wrong container"
-  partTruncated: "{{count}} incomplete download(s)"
+  partTruncated_one: "{{count}} incomplete download"
+  partTruncated_other: "{{count}} incomplete downloads"
   partSeekCoarse: "{{count}} with a seek hole"
-  partAudioShort: "{{count}} shorter audio track(s)"
+  partAudioShort_one: "{{count}} shorter audio track"
+  partAudioShort_other: "{{count}} shorter audio tracks"
   partTrailingJunk: "{{count}} surplus bytes"
   partAcked: "{{count}} acknowledged"
   breakdownNone: "nothing"
@@ -1319,12 +1328,14 @@ seekIndex:
   ackedBadge: "Seen"
   ackDone: "Marked as seen - it stays out of the list until the file changes"
   unackDone: "Flagged again"
-  ackGroupDone: "{{count}} file(s) marked as seen"
+  ackGroupDone_one: "{{count}} file marked as seen"
+  ackGroupDone_other: "{{count}} files marked as seen"
   fixContainerBtn: "Rename to .mp4"
   fixContainerHint: "This .mkv is really an MP4/MOV: the server renames it to .mp4 and updates the library entry. Nothing is rewritten."
   fixContainerStarted: "Rename started in the background - progress below"
   jobFixContainer: "Container fix"
-  resyncDamaged: "Also resync {{count}} damaged file(s) (~{{bytes}} lost)"
+  resyncDamaged_one: "Also resync {{count}} damaged file (~{{bytes}} lost)"
+  resyncDamaged_other: "Also resync {{count}} damaged files (~{{bytes}} lost)"
   resyncDamagedHint: "Their index is fine but a corrupted stretch makes them unplayable. Resync skips it - those bytes are lost for good - and always keeps the original as a backup, whatever the choice below."
   viewsLabel: "Views"
   viewAttention: "Awaiting ({{count}})"

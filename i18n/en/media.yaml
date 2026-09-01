@@ -37,9 +37,12 @@ favorites:
   addToPlaylist: Add to Playlist
   noPlaylists: No playlists yet.
   failedAddPlaylist: Failed to add to playlist
-  itemsAddedToPlaylist: "{{count}} item(s) added to \"{{name}}\""
-  markedWatched: "{{count}} item(s) marked as watched"
-  markedUnwatched: "{{count}} item(s) marked as unwatched"
+  itemsAddedToPlaylist_one: "{{count}} item added to \"{{name}}\""
+  itemsAddedToPlaylist_other: "{{count}} items added to \"{{name}}\""
+  markedWatched_one: "{{count}} item marked as watched"
+  markedWatched_other: "{{count}} items marked as watched"
+  markedUnwatched_one: "{{count}} item marked as unwatched"
+  markedUnwatched_other: "{{count}} items marked as unwatched"
   filterByType: Filter by type
   sortBy: Sort by
   toggleFavorite: Toggle favorite
@@ -74,7 +77,8 @@ collections:
   smartDeleted: Smart collection deleted
   deleteFailed: Failed to delete
   noCollectionsAvailable: No collections available.
-  itemsAdded: "{{count}} item(s) added to \"{{name}}\""
+  itemsAdded_one: "{{count}} item added to \"{{name}}\""
+  itemsAdded_other: "{{count}} items added to \"{{name}}\""
   addFailed: Failed to add to collection
   adding: "Adding…"
   editSmartCollection: Edit smart collection
@@ -130,14 +134,16 @@ library:
   goToAdmin: Go to Admin
   selected: selected
   addToFavorites: Add to favorites
-  addedToFavorites: "{{count}} item(s) added to favorites"
+  addedToFavorites_one: "{{count}} item added to favorites"
+  addedToFavorites_other: "{{count}} items added to favorites"
   failedFavorites: Failed to add some items to favorites
   duration: Duration
   type: Type
   addToPlaylist: Add to Playlist
   noPlaylists: No playlists yet.
   failedAddPlaylist: Failed to add to playlist
-  itemsAddedToPlaylist: "{{count}} item(s) added to \"{{name}}\""
+  itemsAddedToPlaylist_one: "{{count}} item added to \"{{name}}\""
+  itemsAddedToPlaylist_other: "{{count}} items added to \"{{name}}\""
   filters: Filters
   clearAll: Clear all
   resultCount_one: "{{count}} result"
@@ -173,7 +179,8 @@ library:
   markWatched: Mark watched
   markedUnwatched: Marked unwatched
   markedWatched: Marked watched
-  bulkPartialFailure: "{{count}} item(s) failed"
+  bulkPartialFailure_one: "{{count}} item failed"
+  bulkPartialFailure_other: "{{count}} items failed"
 person:
   department:
     acting: Acting
