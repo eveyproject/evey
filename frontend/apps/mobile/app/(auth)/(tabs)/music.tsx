@@ -39,6 +39,7 @@ import { shuffleArray } from "../../../src/lib/shuffleArray";
 import { trackListMusicSource, restoreMusicFilterFromParams } from "../../../src/components/music/musicSource";
 import { averageAlbumProgress } from "../../../src/components/music/albumDownloadProgress";
 import { buildTrackQueryUrl } from "../../../src/components/music/musicTrackQuery";
+import { coverArtUri } from "../../../src/lib/coverArtUri";
 
 interface LibraryItem {
   id: string;
@@ -406,7 +407,7 @@ export default function MusicScreen() {
   );
 
   const albumArtUri = useCallback(
-    (albumID: string) => (serverUrl ? `${serverUrl}/api/v1/music/albums/${albumID}/artwork` : undefined),
+    (albumID: string) => coverArtUri(serverUrl, serverUrl ? `/api/v1/music/albums/${albumID}/artwork` : undefined, ALBUM_ART_SIZE),
     [serverUrl],
   );
 
@@ -481,10 +482,7 @@ export default function MusicScreen() {
       // album row; fall back to the album-level artwork endpoint. Resolve
       // relative paths against the active server (expo-image refuses
       // relative URIs, unlike browser <img>).
-      const cover = item.coverArtUrl;
-      const uri = cover
-        ? (/^https?:/i.test(cover) ? cover : `${serverUrl ?? ""}${cover}`)
-        : albumArtUri(item.id);
+      const uri = coverArtUri(serverUrl, item.coverArtUrl, ALBUM_ART_SIZE) ?? albumArtUri(item.id);
       return (
         <TouchableOpacity
           activeOpacity={0.7}

@@ -14,6 +14,7 @@ import { MediaCardWithModals as MediaCard } from "@/features/library/MediaCardWi
 import { useRecentSearches } from "@/hooks/useRecentSearches";
 import { useDebounce } from "@/hooks/useDebounce";
 import { FilterChip } from "@/components/ui/FilterChip";
+import { coverArtSrc } from "../../lib/coverArtSrc";
 
 export const Route = createLazyFileRoute("/_auth/search")({
   component: SearchPage,
@@ -421,7 +422,7 @@ function SearchPage() {
                 >
                   <div className="w-10 h-10 rounded overflow-hidden shrink-0 flex items-center justify-center bg-[var(--surface-raised)]">
                     {track.coverArtUrl ? (
-                      <img src={track.coverArtUrl} alt="" aria-hidden="true" className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = "none"; }} />
+                      <img src={coverArtSrc(track.coverArtUrl, "", 80)} alt="" aria-hidden="true" className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = "none"; }} />
                     ) : (
                       <Music size={ICON.lg} className="text-[var(--text-muted)]" aria-hidden="true" />
                     )}

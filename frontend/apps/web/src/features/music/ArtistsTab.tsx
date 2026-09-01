@@ -6,7 +6,7 @@ import { Music } from "lucide-react";
 import { ICON } from "@/constants/iconSizes";
 import { FetchErrorState } from "@/components/ui/FetchErrorState";
 import type { Artist } from "./musicQueries";
-import { coverArtSrc } from "./coverArtSrc";
+import { coverArtSrc } from "../../lib/coverArtSrc";
 
 // Rows have no wrapping text (name is truncated to one line) and the avatar is
 // a fixed size, so the row height never varies with content - a constant

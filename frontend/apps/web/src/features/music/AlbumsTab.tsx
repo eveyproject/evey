@@ -6,7 +6,7 @@ import { MediaGrid } from "@/features/library/MediaGrid";
 import { FetchErrorState } from "@/components/ui/FetchErrorState";
 import { startTokenDownload } from "@/utils/downloadToken";
 import type { Album } from "./musicQueries";
-import { coverArtSrc } from "./coverArtSrc";
+import { coverArtSrc } from "../../lib/coverArtSrc";
 
 export function AlbumsTab({
   albums,

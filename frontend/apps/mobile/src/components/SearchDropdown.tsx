@@ -12,6 +12,7 @@ import { useServerUrl } from "../hooks/useServerUrl";
 import { artworkUrl } from "../lib/artwork";
 import { LoadFailed } from "./LoadFailed";
 import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
+import { coverArtUri } from "../lib/coverArtUri";
 
 type SearchKind = "media" | "music";
 
@@ -219,9 +220,7 @@ export function SearchDropdown({
           </>
         ) : (
           musicItems.map((tr) => {
-            const cover = tr.coverArtUrl
-              ? (/^https?:/i.test(tr.coverArtUrl) ? tr.coverArtUrl : `${serverUrl ?? ""}${tr.coverArtUrl}`)
-              : undefined;
+            const cover = coverArtUri(serverUrl, tr.coverArtUrl, 36);
             return (
               <Pressable
                 key={tr.id}

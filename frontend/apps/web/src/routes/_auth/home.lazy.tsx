@@ -25,6 +25,7 @@ import { useWatchedMap } from "@/hooks/useWatchedMap";
 import { PluginSlot } from "@/features/plugins/PluginSlot";
 import { CustomizePanel } from "@/features/home/CustomizePanel";
 import { NextUpRow } from "@/features/home/NextUpRow";
+import { coverArtSrc } from "../../lib/coverArtSrc";
 
 export const Route = createLazyFileRoute("/_auth/home")({
   component: HomePage,
@@ -47,7 +48,7 @@ const MusicLibrarySlider = memo(function MusicLibrarySlider({ libraryId, name, m
         >
           <div
             className="aspect-square rounded-[var(--radius-md)] overflow-hidden bg-[var(--surface-raised)] bg-cover bg-center"
-            style={{ backgroundImage: a.coverArtUrl ? `url(${a.coverArtUrl}${tokenParam})` : undefined }}
+            style={{ backgroundImage: a.coverArtUrl ? `url(${coverArtSrc(a.coverArtUrl, tokenParam, 320)})` : undefined }}
           />
           <p className="text-sm font-medium text-[var(--text)] truncate mt-2">{a.title}</p>
           <p className="text-xs text-[var(--text-muted)] truncate">{a.artist}</p>

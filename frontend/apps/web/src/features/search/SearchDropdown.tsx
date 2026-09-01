@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { libraryServiceSearchMedia, musicServiceSearchMusic, displayTitle } from "@evey/api";
 import { typeLabel } from "@/utils/typeLabel";
 import { PosterPlaceholder } from "@/features/library/PosterPlaceholder";
+import { coverArtSrc } from "../../lib/coverArtSrc";
 
 type SearchKind = "media" | "music";
 
@@ -340,7 +341,7 @@ export const SearchDropdown = memo(function SearchDropdown({
                   <div className="w-9 h-9 rounded overflow-hidden shrink-0 flex items-center justify-center bg-[var(--surface)]">
                     {track.coverArtUrl ? (
                       <img
-                        src={track.coverArtUrl}
+                        src={coverArtSrc(track.coverArtUrl, "", 72)}
                         alt=""
                         aria-hidden="true"
                         className="w-full h-full object-cover"

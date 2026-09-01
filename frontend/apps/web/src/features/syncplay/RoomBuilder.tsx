@@ -14,6 +14,7 @@ import { usePlaylistList } from "@/features/playlist/api";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { ICON } from "@/constants/iconSizes";
+import { coverArtSrc } from "../../lib/coverArtSrc";
 import {
   Music2,
   ListMusic,
@@ -283,7 +284,7 @@ export function RoomBuilder({ libraryId, creating, onCreate }: RoomBuilderProps)
                     >
                       <div
                         className="w-full aspect-square bg-cover bg-center bg-[var(--surface)] flex items-center justify-center"
-                        style={{ backgroundImage: a.coverArtUrl ? `url(${a.coverArtUrl}${tokenParam})` : undefined }}
+                        style={{ backgroundImage: a.coverArtUrl ? `url(${coverArtSrc(a.coverArtUrl, tokenParam, 320)})` : undefined }}
                       >
                         {!a.coverArtUrl && <Disc3 size={ICON["2xl"]} className="opacity-30 text-[var(--text-muted)]" />}
                       </div>

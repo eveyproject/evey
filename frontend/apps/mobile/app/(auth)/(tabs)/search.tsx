@@ -27,6 +27,7 @@ import { useMusicQueueStore } from "../../../src/stores/musicQueue";
 import { searchTrackMusicSource } from "../../../src/components/music/musicSource";
 import { MAX_SEARCH_HISTORY, pushSearchHistory, removeSearchHistoryEntry } from "../../../src/components/library/searchHistory";
 import * as SecureStore from "expo-secure-store";
+import { coverArtUri } from "../../../src/lib/coverArtUri";
 
 const HISTORY_KEY = "evey-search-history";
 
@@ -191,9 +192,7 @@ export default function SearchScreen() {
   }, [setQueue]);
 
   const renderMusicItem = useCallback(({ item }: { item: V1Track }) => {
-    const cover = item.coverArtUrl
-      ? (/^https?:/i.test(item.coverArtUrl) ? item.coverArtUrl : `${serverUrl ?? ""}${item.coverArtUrl}`)
-      : undefined;
+    const cover = coverArtUri(serverUrl, item.coverArtUrl, 48);
     return (
       <TouchableOpacity
         activeOpacity={0.7}

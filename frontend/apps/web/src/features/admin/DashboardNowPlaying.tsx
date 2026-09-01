@@ -21,6 +21,7 @@ import { AdminTrickplayThumbnail } from "./AdminTrickplayThumbnail";
 import { Spinner } from "@/components/ui/Spinner";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { FetchErrorState } from "@/components/ui/FetchErrorState";
+import { coverArtSrc } from "../../lib/coverArtSrc";
 
 function ProfileAvatar({ profileName, size = 28 }: { profileName?: string; size?: number }) {
   return <Avatar initial={(profileName ?? "?").charAt(0).toUpperCase()} size={size} />;
@@ -46,7 +47,7 @@ function formatBandwidth(bps: number): string {
 // counterpart of the video trickplay thumbnail.
 function NowPlayingAlbumArt({ coverArtUrl }: { coverArtUrl?: string }) {
   const token = useAuthStore((s) => s.accessToken);
-  const src = coverArtUrl ? `${coverArtUrl}${token ? `?token=${encodeURIComponent(token)}` : ""}` : "";
+  const src = coverArtSrc(coverArtUrl, token ? `?token=${encodeURIComponent(token)}` : "", 640) ?? "";
   return (
     <div className="relative w-full aspect-video bg-[var(--overlay-scrim)] flex items-center justify-center overflow-hidden">
       {src ? (
