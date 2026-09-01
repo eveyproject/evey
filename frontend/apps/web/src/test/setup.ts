@@ -33,20 +33,14 @@ vi.mock("@tanstack/react-virtual", () => ({
   },
 }));
 
-// Fetch translations from backend (always in sync, no stale JSON file)
-const res = await fetch("https://evey.test/api/v1/i18n/en", {
-  // Ignore self-signed cert in dev
-  // @ts-expect-error -- node fetch option
-  rejectUnauthorized: false,
-}).catch(() => null);
-
-let translations: Record<string, string> = {};
-if (res?.ok) {
-  translations = await res.json();
-} else {
-  // Fallback: load from static file if backend is down
-  translations = (await import("./en-translations.json")).default;
-}
+// The English catalogue the tests render with. This used to try a live fetch
+// of the dev server's catalogue first, "always in sync" - it never succeeded
+// (self-signed TLS; `rejectUnauthorized` is not a Node fetch option), so every
+// run, local or CI, silently used this file while it drifted to 1166 missing
+// keys (2026-09-01). The file is now the one deterministic source and the Go
+// test internal/pkg/i18n TestWebFixtureMatchesEnglishYAML keeps it equal to
+// i18n/en; regenerate with `python3 scripts/i18n-fixture.py`.
+const translations: Record<string, string> = (await import("./en-translations.json")).default;
 
 void i18n.use(initReactI18next).init({
   lng: "en",
