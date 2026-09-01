@@ -428,3 +428,32 @@ func TestPlayerEvent_CastAudioModeReachesTheSession(t *testing.T) {
 		t.Fatalf("touches = %v, want exactly the cast audio_mode one", got)
 	}
 }
+
+// A sender reporting a receiver that stopped answering is not fatal to the
+// client, yet it is exactly the line an operator searches for after "the
+// phone kept spinning": it must land at WARN like a fatal error, not drown
+// among the INFO beacons.
+func TestPlayerEvent_CastSenderStallIsAWarning(t *testing.T) {
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&buf, nil))
+
+	rec := postPlayerEvent(t, logger, `{
+		"type": "cast_sender_stall",
+		"details": "state=playing frozen=25s pos=3266",
+		"fatal": false,
+		"code": 0,
+		"variant": 0,
+		"segment": 0,
+		"posSec": 3266
+	}`)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204 (body=%s)", rec.Code, rec.Body.String())
+	}
+	var line map[string]any
+	if err := json.Unmarshal(buf.Bytes(), &line); err != nil {
+		t.Fatalf("no parseable log line was written: %v (raw=%q)", err, buf.String())
+	}
+	if line["level"] != "WARN" || line["type"] != "cast_sender_stall" {
+		t.Fatalf("level=%v type=%v, want WARN cast_sender_stall (line=%v)", line["level"], line["type"], line)
+	}
+}

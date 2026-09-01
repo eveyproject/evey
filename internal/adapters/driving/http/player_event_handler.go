@@ -206,7 +206,10 @@ func playerEventHandler(logger *slog.Logger, opts ...PlayerEventOption) http.Han
 		// where=player filter still shows the full story in one place.
 		logLine := logger.Info
 		msg := "player-client: playback event reported"
-		if body.Fatal || strings.Contains(body.Type, "error") || strings.Contains(body.Type, "fatal") {
+		// A receiver that stopped answering (cast_sender_stall) is an anomaly
+		// worth the WARN level, like a fatal error: it is what an operator
+		// searches for after "the phone kept spinning".
+		if body.Fatal || strings.Contains(body.Type, "error") || strings.Contains(body.Type, "fatal") || strings.Contains(body.Type, "stall") {
 			logLine = logger.Warn
 			msg = "player-client: playback error reported"
 		}
