@@ -23,7 +23,13 @@ vi.mock("@tanstack/react-query", async (importActual) => {
   };
 });
 
+// Stable identity on purpose: a fresh object per render would re-run every
+// effect keyed on `data` and spin the page in a synchronous loop.
+const stableEmptyQuery = { data: { plugins: [], libraries: [], configs: [], items: [] }, isLoading: false, isError: false };
 vi.mock("@evey/api", () => ({
+  useAdminPluginServiceListPlugins: () => stableEmptyQuery,
+  useLibraryServiceListLibraries: () => stableEmptyQuery,
+  useFeedServiceGetAdminFeedConfigs: () => stableEmptyQuery,
   eveyFetch: vi.fn(),
   useServerConfigServiceListServerConfigEntries: (...args: unknown[]) => mockUseQuery(...args),
   serverConfigServiceSetServerConfigEntry: vi.fn(),
@@ -171,9 +177,9 @@ describe("ServerConfigPage", () => {
     // The password toggle lives inside the (collapsed) SMTP card - expand first.
     fireEvent.click(screen.getByRole("button", { name: /Email \/ SMTP/i }));
     // Several password fields each carry a Show/Hide eye; toggle the first.
-    const showBtns = await screen.findAllByRole("button", { name: /Show/i });
+    const showBtns = await screen.findAllByRole("button", { name: /^show$/i });
     fireEvent.click(showBtns[0]);
-    expect(screen.getByRole("button", { name: /Hide/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^hide$/i })).toBeInTheDocument();
   });
 
   it("renders Memory Profile card with Auto/Normal/Low options", async () => {

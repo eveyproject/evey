@@ -217,7 +217,7 @@ describe("CustomizePanel keyboard reordering", () => {
 
   it("moves a section down with a focusable, labelled control", () => {
     renderPanel();
-    const down = screen.getAllByLabelText("common.feeds.moveDown");
+    const down = screen.getAllByLabelText("Move section down");
     expect(down.length).toBe(3);
     // A <button> is reachable by Tab; a bare icon with onPointerDown is not.
     expect(down[0].tagName).toBe("BUTTON");
@@ -233,7 +233,7 @@ describe("CustomizePanel keyboard reordering", () => {
 
   it("moves a section up", () => {
     renderPanel();
-    fireEvent.click(screen.getAllByLabelText("common.feeds.moveUp")[2]);
+    fireEvent.click(screen.getAllByLabelText("Move section up")[2]);
 
     const rows = screen.getAllByText(/Resume Playback|Recommended|Most Popular/);
     expect(rows[1]).toHaveTextContent("Most Popular");
@@ -244,7 +244,7 @@ describe("CustomizePanel keyboard reordering", () => {
   // into nothing and still fire a persist call.
   it("disables the moves that would fall off either end", () => {
     renderPanel();
-    expect(screen.getAllByLabelText("common.feeds.moveUp")[0]).toBeDisabled();
-    expect(screen.getAllByLabelText("common.feeds.moveDown")[2]).toBeDisabled();
+    expect(screen.getAllByLabelText("Move section up")[0]).toBeDisabled();
+    expect(screen.getAllByLabelText("Move section down")[2]).toBeDisabled();
   });
 });

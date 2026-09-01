@@ -281,19 +281,19 @@ describe("NowPlaying", () => {
     mockSessions = [SESSION_MOVIE]; // isPaused=false
     renderNowPlaying();
     // t("common.pause") falls back to the key when not in static translations
-    expect(screen.getByRole("button", { name: /common\.pause/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^pause$/i })).toBeInTheDocument();
   });
 
   it("shows Play button aria-label when session is paused", () => {
     mockSessions = [SESSION_EPISODE]; // isPaused=true
     renderNowPlaying();
-    expect(screen.getByRole("button", { name: /common\.play/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^play$/i })).toBeInTheDocument();
   });
 
   it("clicking play/pause sends 'pause' command for a playing session", () => {
     mockSessions = [SESSION_MOVIE]; // isPaused=false
     renderNowPlaying();
-    fireEvent.click(screen.getByRole("button", { name: /common\.pause/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^pause$/i }));
     expect(mockSendCommandMutate).toHaveBeenCalledWith({
       sessionId: "sess-1",
       data: { command: "pause" },
@@ -303,7 +303,7 @@ describe("NowPlaying", () => {
   it("clicking play/pause sends 'play' command for a paused session", () => {
     mockSessions = [SESSION_EPISODE]; // isPaused=true
     renderNowPlaying();
-    fireEvent.click(screen.getByRole("button", { name: /common\.play/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^play$/i }));
     expect(mockSendCommandMutate).toHaveBeenCalledWith({
       sessionId: "sess-2",
       data: { command: "play" },
@@ -372,7 +372,7 @@ describe("NowPlaying", () => {
     mockSessions = [SESSION_MOVIE];
     renderNowPlaying();
     const msgBtn = screen.getByRole("button", {
-      name: /admin\.sessions\.sendMessage/i,
+      name: /send message/i,
     });
     fireEvent.click(msgBtn);
     expect(screen.getByRole("textbox")).toBeInTheDocument();
@@ -382,7 +382,7 @@ describe("NowPlaying", () => {
     mockSessions = [SESSION_MOVIE];
     renderNowPlaying();
     fireEvent.click(
-      screen.getByRole("button", { name: /admin\.sessions\.sendMessage/i }),
+      screen.getByRole("button", { name: /send message/i }),
     );
     const input = screen.getByRole("textbox") as HTMLInputElement;
     fireEvent.change(input, { target: { value: "Hello viewer!" } });
@@ -399,7 +399,7 @@ describe("NowPlaying", () => {
     mockSessions = [SESSION_MOVIE];
     renderNowPlaying();
     fireEvent.click(
-      screen.getByRole("button", { name: /admin\.sessions\.sendMessage/i }),
+      screen.getByRole("button", { name: /send message/i }),
     );
     const input = screen.getByRole("textbox") as HTMLInputElement;
     fireEvent.change(input, { target: { value: "   " } });
@@ -412,7 +412,7 @@ describe("NowPlaying", () => {
     mockSessions = [SESSION_MOVIE];
     renderNowPlaying();
     fireEvent.click(
-      screen.getByRole("button", { name: /admin\.sessions\.sendMessage/i }),
+      screen.getByRole("button", { name: /send message/i }),
     );
     const input = screen.getByRole("textbox");
     fireEvent.change(input, { target: { value: "Hello!" } });
@@ -451,11 +451,11 @@ describe("NowPlaying", () => {
     mockSessions = [SESSION_MOVIE];
     renderNowPlaying();
     fireEvent.click(
-      screen.getByRole("button", { name: /admin\.sessions\.sendMessage/i }),
+      screen.getByRole("button", { name: /send message/i }),
     );
     // aria-label mirrors the placeholder key so screen readers announce the field purpose
     expect(
-      screen.getByRole("textbox", { name: /admin\.sessions\.messagePlaceholder/i }),
+      screen.getByRole("textbox", { name: /type a message/i }),
     ).toBeInTheDocument();
   });
 });

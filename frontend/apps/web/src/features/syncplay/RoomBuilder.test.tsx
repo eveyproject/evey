@@ -164,7 +164,7 @@ describe("RoomBuilder failure surfacing", () => {
     render(<RoomBuilder libraryId="lib-1" creating={false} onCreate={vi.fn()} />);
 
     fireEvent.click(screen.getByText("Album One"));
-    await waitFor(() => expect(mockToastError).toHaveBeenCalledWith("media.syncplay.albumLoadFailed"));
+    await waitFor(() => expect(mockToastError).toHaveBeenCalledWith("Could not load this album's tracks"));
     // The album must NOT stay expanded as a fake empty album.
     expect(screen.queryByText("Queue (0)")).toBeInTheDocument();
   });
@@ -174,7 +174,7 @@ describe("RoomBuilder failure surfacing", () => {
     render(<RoomBuilder libraryId="lib-1" creating={false} onCreate={vi.fn()} />);
 
     fireEvent.click(screen.getByLabelText("Add album"));
-    await waitFor(() => expect(mockToastError).toHaveBeenCalledWith("media.syncplay.addAlbumFailed"));
+    await waitFor(() => expect(mockToastError).toHaveBeenCalledWith("Could not add the album to the queue"));
   });
 
   it("surfaces a failed add-playlist instead of silently doing nothing", async () => {
@@ -183,6 +183,6 @@ describe("RoomBuilder failure surfacing", () => {
 
     fireEvent.click(screen.getByRole("tab", { name: /playlists/i }));
     fireEvent.click(await screen.findByLabelText("Add to queue"));
-    await waitFor(() => expect(mockToastError).toHaveBeenCalledWith("media.syncplay.addPlaylistFailed"));
+    await waitFor(() => expect(mockToastError).toHaveBeenCalledWith("Could not add the playlist to the queue"));
   });
 });

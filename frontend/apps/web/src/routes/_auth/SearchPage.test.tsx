@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
@@ -109,8 +109,9 @@ describe("SearchPage", () => {
     fireEvent.change(input, { target: { value: "ma" } });
     await waitFor(() => expect(screen.getByTestId("search-type-filters")).toBeInTheDocument(), { timeout: 1000 });
     expect(screen.getByRole("button", { name: /all/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /movies/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /series/i })).toBeInTheDocument();
+    // Scoped to the type filter group: the translated page carries another "Movies" button elsewhere.
+    expect(within(screen.getByTestId("search-type-filters")).getByRole("button", { name: /movies/i })).toBeInTheDocument();
+    expect(within(screen.getByTestId("search-type-filters")).getByRole("button", { name: /series/i })).toBeInTheDocument();
   });
 
   it("shows no-results empty state when search returns empty", async () => {

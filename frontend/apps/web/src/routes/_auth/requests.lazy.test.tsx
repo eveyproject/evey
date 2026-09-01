@@ -50,7 +50,7 @@ describe("RequestsPage", () => {
       // render as an empty one - it is also what hides the "already requested"
       // badge on the search tab, so the viewer re-submits what they already asked for.
       // i18n is not initialised in this harness, so the catalogue KEYS render.
-      fireEvent.click(screen.getByRole("button", { name: "requests.tabMine" }));
+      fireEvent.click(screen.getByRole("button", { name: "My Requests" }));
       expect(screen.queryByText("requests.noRequests")).not.toBeInTheDocument();
     } finally {
       api.myRequests = { data: { items: [] }, isLoading: false };

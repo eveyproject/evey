@@ -117,7 +117,7 @@ describe("SeekIndexPage", () => {
   it("renders heading, read-only note and scan button before any scan", async () => {
     const Page = await getPage();
     render(React.createElement(Page));
-    expect(screen.getByText("Seek Index Repair")).toBeInTheDocument();
+    expect(screen.getByText("Media Health")).toBeInTheDocument();
     expect(screen.getByTestId("seek-index-ro-note")).toHaveTextContent(/read-only/i);
     expect(screen.getByTestId("seek-index-scan-btn")).toBeInTheDocument();
     expect(screen.queryByTestId("seek-index-repair-all-btn")).not.toBeInTheDocument();
@@ -617,7 +617,7 @@ describe("SeekIndexPage", () => {
     fireEvent.click(screen.getByTestId("seek-index-repair-all-btn"));
     await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
     fireEvent.click(screen.getByTestId("seek-index-resync-damaged"));
-    expect(screen.getByTestId("seek-index-confirm-text")).toHaveTextContent("Repair 2 file(s)");
+    expect(screen.getByTestId("seek-index-confirm-text")).toHaveTextContent("Repair 2 files");
     fireEvent.click(screen.getByTestId("seek-index-confirm-batch-btn"));
     expect(repairLibMutate).toHaveBeenCalledWith({
       data: { mode: "auto", deepVerify: false },

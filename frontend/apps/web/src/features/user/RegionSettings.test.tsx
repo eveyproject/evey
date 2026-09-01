@@ -66,7 +66,7 @@ describe("RegionSettings", () => {
   it("renders region description", () => {
     renderRegionSettings();
     // i18n key resolves to literal key in test environment
-    expect(screen.getByText("common.region.desc")).toBeInTheDocument();
+    expect(screen.getByText("Used for content classifications and regional preferences.")).toBeInTheDocument();
   });
 
   // ── Select rendered ───────────────────────────────────────────────────────────
