@@ -2,6 +2,7 @@ package maintenance
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 
 	"github.com/evey-project/evey/internal/domain/mkv"
@@ -102,39 +103,22 @@ func (s *SeekIndexService) StartReindexLibrary(_ context.Context, libraryID stri
 	}
 	// Backup paths of the most recent successful rewrites, oldest first. Job
 	// state: the batch runs on a single goroutine, so no locking needed.
-	var window []string
+	// The per-file work goes through the SAME reindexStep as the combined
+	// repair - this path used to carry its own copy of it, and a guard added
+	// to one was silently absent from the other.
+	rb := &rollingBackups{max: run.BackupWindow}
 	var epilogue func(context.Context)
 	if run.BackupWindow > 0 {
 		// Drain what the sliding purge left: the job ends with ZERO backups on
 		// the volume, no manual purge pass needed. Each repair was already
 		// validated before its swap; the window only existed to keep a short
 		// abort-and-rollback horizon while the job was alive.
-		epilogue = func(bg context.Context) {
-			for _, p := range window {
-				s.purgeRolledBackup(bg, p)
-			}
-		}
+		epilogue = func(bg context.Context) { s.drainRollingBackups(bg, rb) }
 	}
 	return s.startBatch(JobReindex, libraryID, preflight,
 		func(it SeekStatus) bool { return needsReindex(it, opts.Resync) },
 		func(bg context.Context, path string) (bool, error) {
-			res, err := s.reindexer.ReindexInPlace(bg, path, opts)
-			if err != nil {
-				return false, err
-			}
-			if !res.Skipped {
-				s.refreshFileState(bg, path)
-				hasBak := res.BackupPath != ""
-				s.noteReindexed(bg, path, hasBak)
-				if hasBak && run.BackupWindow > 0 {
-					window = append(window, path)
-					if len(window) > run.BackupWindow {
-						s.purgeRolledBackup(bg, window[0])
-						window = window[1:]
-					}
-				}
-			}
-			return res.Skipped, nil
+			return s.reindexStep(bg, path, opts, rb)
 		}, epilogue)
 }
 
@@ -150,12 +134,22 @@ type rollingBackups struct {
 // reindex-only and combined-repair batches so their per-file semantics stay
 // identical.
 func (s *SeekIndexService) reindexStep(bg context.Context, path string, opts mkv.ReindexOptions, rb *rollingBackups) (bool, error) {
+	// What the file sounded like BEFORE, so a loss can be proven rather than
+	// suspected. Measured first because after the rewrite the original is
+	// only reachable through its backup.
+	audibleBefore, haveBaseline := s.audibleTracks(bg, path)
+
 	res, err := s.reindexer.ReindexInPlace(bg, path, opts)
 	if err != nil {
 		return false, err
 	}
 	if res.Skipped {
 		return true, nil
+	}
+	if haveBaseline {
+		if err := s.guardAudioSurvived(bg, path, audibleBefore, res.BackupPath != ""); err != nil {
+			return false, err
+		}
 	}
 	s.refreshFileState(bg, path)
 	hasBak := res.BackupPath != ""
@@ -168,6 +162,55 @@ func (s *SeekIndexService) reindexStep(bg context.Context, path string, opts mkv
 		}
 	}
 	return false, nil
+}
+
+// audibleTracks measures how many audio tracks carry sound, and says whether
+// the measurement is usable at all. A prober that is not wired, or one that
+// fails, yields no baseline: the repair then runs as it always did rather
+// than being blocked by a broken ffmpeg.
+func (s *SeekIndexService) audibleTracks(ctx context.Context, path string) (int, bool) {
+	if s.audible == nil {
+		return 0, false
+	}
+	n, err := s.audible.ProbeAudibleAudioTracks(ctx, path)
+	if err != nil {
+		s.logger.Warn("seek-index: audio presence unmeasurable, repairing unguarded",
+			slog.String("path", path), slog.Any("err", err))
+		return 0, false
+	}
+	return n, true
+}
+
+// guardAudioSurvived re-measures a just-rewritten file and, when the rewrite
+// cost it an audible track, puts the backup back and reports the file as
+// failed. Anything short of a PROVEN loss leaves the repair standing: a file
+// that had no sound to lose is fine, and a second measurement that could not
+// run is not evidence.
+func (s *SeekIndexService) guardAudioSurvived(ctx context.Context, path string, before int, hasBackup bool) error {
+	if before == 0 {
+		return nil // nothing to lose, nothing to prove
+	}
+	after, ok := s.audibleTracks(ctx, path)
+	if !ok || after >= before {
+		return nil
+	}
+	s.logger.Error("seek-index: the repair silenced audio, rolling it back",
+		slog.String("path", path), slog.Int("audible_before", before), slog.Int("audible_after", after))
+	if !hasBackup {
+		// No backup to go back to: say so plainly instead of pretending the
+		// file was restored. This is why a rewrite keeps one.
+		return fmt.Errorf("%w (%d audible before, %d after) and no backup exists to restore",
+			ErrAudioLost, before, after)
+	}
+	if rerr := s.reindexer.RestoreBackup(ctx, path); rerr != nil {
+		return fmt.Errorf("%w (%d audible before, %d after); restoring the backup ALSO failed: %w",
+			ErrAudioLost, before, after, rerr)
+	}
+	// The original is back: it carries its pre-repair defect again and its
+	// backup is gone, exactly like an operator-driven rollback.
+	s.updateCachedFile(path, func(st *SeekStatus) { st.HasIndex = false; st.HasBackup = false })
+	return fmt.Errorf("%w (%d audible before, %d after) - the original has been restored",
+		ErrAudioLost, before, after)
 }
 
 // drainRollingBackups purges whatever the sliding window still holds at the

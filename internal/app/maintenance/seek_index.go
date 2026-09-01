@@ -107,6 +107,28 @@ type AudioCoherenceProber interface {
 	ProbeAudioTrackLagSec(ctx context.Context, path string) (lagSec, confidence float64, err error)
 }
 
+// AudibleTracksProber counts how many of a file's audio tracks actually carry
+// SOUND - not how many are declared, which is what a structural verification
+// already checks and what a silent track satisfies just as well.
+//
+// It exists because of what a structural check cannot see: on prod
+// (2026-09-01) two films came back from an audio repair with their French
+// track intact in every header and completely silent in every player. The
+// rewrite had verified track count, duration and index, and passed.
+//
+// Returns the count of tracks with signal, or an error when the file could not
+// be measured at all - the caller treats "could not measure" as no evidence,
+// never as a loss. Satisfied by the ffmpeg adapter; optional (nil disables the
+// guard).
+type AudibleTracksProber interface {
+	ProbeAudibleAudioTracks(ctx context.Context, path string) (int, error)
+}
+
+// ErrAudioLost is the refusal of a repair that cost the file its sound: the
+// rewrite succeeded structurally, the backup has been put back, and the file
+// is reported so the operator sees it rather than discovering it in a player.
+var ErrAudioLost = errors.New("the repair left fewer audible audio tracks than the original")
+
 // AudioCoherenceMinConfidence is the correlation strength below which a
 // measured lag is discarded as noise. Measured on the real library: of 13
 // files whose tracks appeared to disagree, 9 sat at r <= 0.36 and were simply
@@ -411,6 +433,7 @@ type SeekIndexService struct {
 	fileState  FileStateRefresher   // optional; see WithFileStateRefresher
 	audioDelay AudioDelayProber     // optional; see WithAudioDelayProber
 	audioCoh   AudioCoherenceProber // optional; see WithAudioCoherenceProber
+	audible    AudibleTracksProber  // optional; see WithAudibleTracksProber
 	audioRemux AudioDelayRemuxer    // optional; see WithAudioRemuxer
 	diagnoser  mkv.Diagnoser        // optional; see WithDiagnoser
 	relocator  MediaRelocator       // optional; see WithMediaRelocator
@@ -508,6 +531,16 @@ func (s *SeekIndexService) WithAudioDelayProber(p AudioDelayProber) *SeekIndexSe
 // no file is ever accused.
 func (s *SeekIndexService) WithAudioCoherenceProber(p AudioCoherenceProber) *SeekIndexService {
 	s.audioCoh = p
+	return s
+}
+
+// WithAudibleTracksProber wires the guard that stands between a repair and a
+// silent file: every rewrite is measured before and after, and one that costs
+// the file an audible track is undone from its own backup. Optional and
+// chainable; without it a rewrite is verified structurally only, which is
+// exactly what let a silenced track through in prod (see AudibleTracksProber).
+func (s *SeekIndexService) WithAudibleTracksProber(p AudibleTracksProber) *SeekIndexService {
+	s.audible = p
 	return s
 }
 

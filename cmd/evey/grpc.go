@@ -76,6 +76,12 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		// track has been moved. Runs only on the files that declare an offset
 		// (3 of 6695 on the real library), so a scan costs the same as before.
 		WithAudioCoherenceProber(ffmpeg.NewAudioCoherence("ffmpeg", "ffprobe")).
+		// The guard between a repair and a silent file: every rewrite is
+		// measured for AUDIBLE tracks before and after, and one that costs the
+		// file a soundtrack is undone from its own backup. A structural
+		// verification passes a silenced track happily - that is how two films
+		// lost their French audio in prod (2026-09-01).
+		WithAudibleTracksProber(ffmpeg.NewAudioSanity("ffmpeg", "ffprobe")).
 		// Audio tail-gap probe: does the audio content reach the declared
 		// duration? Catches the truncated-audio-track mux (structurally
 		// healthy file, dead audio over the credits) ops.Diagnose cannot

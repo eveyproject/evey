@@ -114,11 +114,17 @@ func (p *AudioCoherence) ProbeAudioTrackLagSec(ctx context.Context, path string)
 
 // audioTrackCount counts the file's audio streams (header read).
 func (p *AudioCoherence) audioTrackCount(ctx context.Context, path string) (int, error) {
-	out, err := exec.CommandContext(ctx, p.ffprobePath, //nolint:gosec // operator media path, fixed binary
+	return audioStreamCount(ctx, p.ffprobePath, path)
+}
+
+// audioStreamCount counts a file's audio streams (header read). Shared with
+// the audibility guard, which asks the same question of the same tools.
+func audioStreamCount(ctx context.Context, ffprobePath, path string) (int, error) {
+	out, err := exec.CommandContext(ctx, ffprobePath, //nolint:gosec // operator media path, fixed binary
 		"-v", "error", "-select_streams", "a",
 		"-show_entries", "stream=index", "-of", "csv=p=0", path).Output()
 	if err != nil {
-		return 0, fmt.Errorf("audio coherence: count tracks: %w", err)
+		return 0, fmt.Errorf("count audio tracks: %w", err)
 	}
 	n := 0
 	for line := range strings.SplitSeq(string(out), "\n") {
@@ -134,13 +140,20 @@ func (p *AudioCoherence) audioTrackCount(ctx context.Context, path string) (int,
 // start offset is applied for us - which is exactly what makes the comparison
 // meaningful.
 func (p *AudioCoherence) audioEnvelope(ctx context.Context, path string, track int) ([]float64, error) {
+	return decodeEnvelope(ctx, p.ffmpegPath, path, track, coherenceStartSec, coherenceWindowSec)
+}
+
+// decodeEnvelope decodes windowSec seconds of one audio track from atSec and
+// returns its loudness envelope in dB, one value per astats window. Silence
+// (-inf) is flattened to coherenceSilenceDB, which arithmetic survives.
+func decodeEnvelope(ctx context.Context, ffmpegPath, path string, track int, atSec float64, windowSec int) ([]float64, error) {
 	filter := fmt.Sprintf(
 		"aformat=channel_layouts=mono,astats=metadata=1:reset=1:length=%v,"+
 			"ametadata=print:key=lavfi.astats.Overall.RMS_level:file=-",
 		coherenceEnvelopeStep)
-	cmd := exec.CommandContext(ctx, p.ffmpegPath, //nolint:gosec // operator media path, fixed binary
+	cmd := exec.CommandContext(ctx, ffmpegPath, //nolint:gosec // operator media path, fixed binary
 		"-v", "error", "-nostdin",
-		"-ss", strconv.Itoa(coherenceStartSec), "-t", strconv.Itoa(coherenceWindowSec),
+		"-ss", strconv.FormatFloat(atSec, 'f', 3, 64), "-t", strconv.Itoa(windowSec),
 		"-i", path, "-map", fmt.Sprintf("0:a:%d", track),
 		"-af", filter, "-f", "null", "-")
 	out, err := cmd.Output()
