@@ -78,7 +78,8 @@ line - earlier history lives in git.
 - Mobile home feeds panel: one save per changed row instead of one per feed,
   and no duplicate saves under StrictMode.
 - Artwork is requested at display size (hero backdrops, detail posters, music
-  covers) and list thumbnails keep a memory cache.
+  covers) and list thumbnails keep a memory cache; a track's tag-embedded
+  cover is now resized server-side too (`?w=`) instead of shipped in full.
 - Player regressions: audio after deep resume, back navigation restarting the
   player, episode-change error screens on mobile, focus traps on TV.
 - Library watcher: real-time monitoring survives bad files, reports its own
