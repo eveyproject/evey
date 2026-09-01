@@ -51,6 +51,51 @@ const (
 // maxFailures bounds the per-job failure list kept for the status endpoint.
 const maxFailures = 50
 
+// ScanPace is the operator's single choice when starting a scan: how much of
+// the media disks the walk is allowed to take while it runs.
+type ScanPace string
+
+const (
+	// ScanPaceGentle probes one file at a time and then stands aside for about
+	// as long as that file took to read, so the disks are free roughly half the
+	// time and a film keeps playing while the library is diagnosed. In prod the
+	// scan reads three zones per file (head, cues near the end, tail): three
+	// head moves that a player sharing the spindle loses every time. The
+	// default, because nobody watches a scan and everybody watches their films.
+	ScanPaceGentle ScanPace = "gentle"
+	// ScanPaceFast probes several files at once and never pauses. It is for a
+	// library spread over several disks (the prod pool is three ext4 disks
+	// behind mergerfs), where one file at a time leaves two spindles idle and
+	// the first full scan takes ~2h on 6695 files.
+	ScanPaceFast ScanPace = "fast"
+)
+
+// ScanRunOptions carries the operator's scan choices from the API layer.
+type ScanRunOptions struct {
+	Pace ScanPace
+}
+
+// pace resolves the effective pace: anything but an explicit "fast" - unset,
+// unknown, a value from an older client - is the gentle one. A wrong guess
+// must cost a slow scan, never a starved player.
+func (o ScanRunOptions) pace() ScanPace {
+	if o.Pace == ScanPaceFast {
+		return ScanPaceFast
+	}
+	return ScanPaceGentle
+}
+
+// scanGentleIdleRatio is how long the gentle pace idles per unit of time spent
+// reading. 1 gives a 50 % duty cycle: measured, not guessed - the pause is
+// derived from the file that was just probed, so a 4 GB remux earns a longer
+// stand-aside than a 300 MB episode without anyone tuning a byte rate.
+const scanGentleIdleRatio = 1.0
+
+// scanFastWorkers bounds the fast pace. Sized for the prod pool (three disks
+// behind mergerfs) plus one in flight while another waits on a head move; more
+// workers than spindles only turns sequential reads into a seek storm.
+const scanFastWorkers = 4
+
 // MediaRef is the minimal media-file info the seek-index tools need. It is
 // resolved from the library by a MediaCatalog adapter.
 type MediaRef struct {
@@ -450,6 +495,12 @@ type SeekIndexService struct {
 	// idlePoll is how often the batch re-checks whether playback has stopped.
 	idlePoll time.Duration
 
+	// now and sleep are the scan pacer's only contact with time. Fields rather
+	// than direct calls so a pacing test can drive a virtual clock and read the
+	// pauses back instead of waiting them out. Always non-nil (constructor).
+	now   func() time.Time
+	sleep func(ctx context.Context, d time.Duration)
+
 	mu          sync.Mutex
 	running     bool
 	cancel      context.CancelFunc // non-nil while a job runs; see Cancel
@@ -484,6 +535,20 @@ func NewSeekIndexService(reindexer mkv.Reindexer, catalog MediaCatalog, logger *
 		logger:    logger.With("component", "seek_index"),
 		scans:     map[string]cachedScan{},
 		idlePoll:  defaultIdlePoll,
+		now:       time.Now,
+		sleep:     sleepCtx,
+	}
+}
+
+// sleepCtx waits d, or until the job is cancelled - whichever comes first. A
+// pause taken to spare the disks must never be a pause the operator has to sit
+// through after pressing cancel.
+func sleepCtx(ctx context.Context, d time.Duration) {
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+	case <-t.C:
 	}
 }
 

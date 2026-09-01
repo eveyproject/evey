@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"sync"
 	"time"
 )
 
@@ -23,24 +24,37 @@ func (s *SeekIndexService) CachedScan(libraryID string) (ScanResult, time.Time, 
 // StartScan kicks a background scan of the library (all libraries when empty)
 // and returns immediately. Poll Status() for progress; fetch the result with
 // CachedScan once the job finishes.
-func (s *SeekIndexService) StartScan(_ context.Context, libraryID string) error {
+// run is variadic so the ~30 existing call sites (and every caller that has no
+// opinion on the pace) keep the two-argument form and the gentle default.
+func (s *SeekIndexService) StartScan(_ context.Context, libraryID string, run ...ScanRunOptions) error {
 	if !s.tryStart(JobScan, libraryID) {
 		return ErrJobRunning
+	}
+	var opts ScanRunOptions
+	if len(run) > 0 {
+		opts = run[0]
 	}
 	go func() {
 		defer s.recoverJob()
 		// Detached from the triggering request (the job outlives it) but
 		// cancellable, so Cancel and shutdown can stop it.
 		bg := s.jobContext()
-		_, err := s.scanAndCache(bg, libraryID)
+		_, err := s.scanAndCachePaced(bg, libraryID, opts)
 		s.finish(err)
 	}()
 	return nil
 }
 
-// scanAndCache walks the scope, publishing progress, and stores the result for
-// CachedScan. Used both by scan jobs and as phase 1 of batch jobs.
+// scanAndCache walks the scope at the gentle pace - the one every caller that
+// has no operator choice to relay wants (a repair batch's phase 1 already
+// competes with its own rewrites for the disk).
 func (s *SeekIndexService) scanAndCache(ctx context.Context, libraryID string) (ScanResult, error) {
+	return s.scanAndCachePaced(ctx, libraryID, ScanRunOptions{})
+}
+
+// scanAndCachePaced walks the scope at the operator's chosen pace, publishing
+// progress, and stores the result for CachedScan.
+func (s *SeekIndexService) scanAndCachePaced(ctx context.Context, libraryID string, run ScanRunOptions) (ScanResult, error) {
 	files, err := s.catalog.ListMediaFiles(ctx, libraryID)
 	if err != nil {
 		return ScanResult{}, fmt.Errorf("seek-index scan: list media: %w", err)
@@ -54,24 +68,31 @@ func (s *SeekIndexService) scanAndCache(ctx context.Context, libraryID string) (
 	s.setPhase(PhaseScanning, len(candidates))
 
 	prev := s.previousStatuses()
+	// One slot per candidate, filled in place: whichever pace ran, the rollup
+	// below folds the files in catalog order, so the two paces cannot disagree
+	// on what the library looks like - only on how long it took to find out.
+	probed := make([]probeOutcome, len(candidates))
+	if run.pace() == ScanPaceFast {
+		s.probeInParallel(ctx, candidates, prev, probed)
+	} else {
+		s.probeGently(ctx, candidates, prev, probed)
+	}
+
 	reused := 0
 	var res ScanResult
-	for _, f := range candidates {
-		if ctx.Err() != nil {
-			return res, ctx.Err()
-		}
-		s.setCurrent(f.Path)
-		st, wasReused, ok := s.probeFile(ctx, f, prev)
-		s.recordDone(false)
-		if !ok {
+	for _, p := range probed {
+		if !p.ok {
 			continue
 		}
-		if wasReused {
+		if p.reused {
 			reused++
 		}
-		res.Items = append(res.Items, st)
+		res.Items = append(res.Items, p.st)
 		res.Total++
-		addToRollups(&res, st)
+		addToRollups(&res, p.st)
+	}
+	if ctx.Err() != nil {
+		return res, ctx.Err()
 	}
 	if reused > 0 {
 		s.logger.Info("seek-index scan: reused unchanged diagnoses",
@@ -88,6 +109,100 @@ func (s *SeekIndexService) scanAndCache(ctx context.Context, libraryID string) (
 	s.mu.Unlock()
 	s.saveScans()
 	return res, nil
+}
+
+// probeOutcome is one candidate's slot in the scan's result table. Filled in
+// place (never appended) so a parallel walk keeps the catalog's order.
+type probeOutcome struct {
+	st     SeekStatus
+	reused bool
+	ok     bool
+}
+
+// probeGently walks the candidates one at a time and, after every file it
+// actually read, stands aside for as long as that read took. The scan's cost is
+// not CPU but head movement - three zones per file (head, cues near the end,
+// tail) on disks a player is trying to read at the same time - and there is no
+// portable ionice from a container. Yielding half the wall clock is the lever
+// that exists: measured against the file just probed, so it scales itself.
+//
+// A file whose diagnosis was REUSED read nothing and owes nothing back:
+// pausing for it would double a scan that costs almost nothing (between two
+// scans virtually no file changed).
+func (s *SeekIndexService) probeGently(ctx context.Context, candidates []MediaRef, prev map[string]SeekStatus, out []probeOutcome) {
+	for i, f := range candidates {
+		if ctx.Err() != nil {
+			return
+		}
+		s.setCurrent(f.Path)
+		start := s.now()
+		st, reused, ok := s.probeGuarded(ctx, f, prev)
+		s.recordDone(false)
+		out[i] = probeOutcome{st: st, reused: reused, ok: ok}
+		if reused {
+			continue
+		}
+		if d := time.Duration(float64(s.now().Sub(start)) * scanGentleIdleRatio); d > 0 {
+			s.sleep(ctx, d)
+		}
+	}
+}
+
+// probeInParallel spreads the walk over a bounded pool. The library lives on a
+// pool of several disks (mergerfs over three ext4 volumes in prod), and one
+// file at a time keeps exactly one spindle busy: the first full scan of 6695
+// files takes ~2h that way. No pause here - this pace is the operator saying
+// they want the disks for the scan.
+func (s *SeekIndexService) probeInParallel(ctx context.Context, candidates []MediaRef, prev map[string]SeekStatus, out []probeOutcome) {
+	workers := min(scanFastWorkers, len(candidates))
+	if workers <= 0 {
+		return
+	}
+	feed := make(chan int)
+	var wg sync.WaitGroup
+	for range workers {
+		wg.Go(func() {
+			for i := range feed {
+				if ctx.Err() != nil {
+					return
+				}
+				f := candidates[i]
+				s.setCurrent(f.Path)
+				st, reused, ok := s.probeGuarded(ctx, f, prev)
+				s.recordDone(false)
+				// Disjoint indices, so no lock: the slots are read only after
+				// wg.Wait, which is the happens-before edge.
+				out[i] = probeOutcome{st: st, reused: reused, ok: ok}
+			}
+		})
+	}
+	// The send must watch the cancellation too: the workers leave the moment
+	// the job is cancelled, and a bare send into a channel nobody reads any
+	// more would park this goroutine for good - the job would never finish.
+feeding:
+	for i := range candidates {
+		select {
+		case feed <- i:
+		case <-ctx.Done():
+			break feeding
+		}
+	}
+	close(feed)
+	wg.Wait()
+}
+
+// probeGuarded turns a panic in a prober into one skipped file. The job
+// goroutine has recoverJob; a worker goroutine has nothing, and a panic
+// escaping there takes the whole server down instead of the scan.
+func (s *SeekIndexService) probeGuarded(ctx context.Context, f MediaRef, prev map[string]SeekStatus) (st SeekStatus, reused, ok bool) {
+	defer func() {
+		if r := recover(); r != nil {
+			s.logger.Error("seek-index scan: probe panicked, skipping file",
+				slog.String("path", f.Path), slog.Any("panic", r))
+			st, reused, ok = SeekStatus{}, false, false
+		}
+	}()
+	return s.probeFile(ctx, f, prev)
 }
 
 // carryAcksLocked copies the acknowledgement stamp of every cached status

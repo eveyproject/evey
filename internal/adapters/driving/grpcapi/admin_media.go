@@ -334,7 +334,8 @@ func (d *adminMediaHandler) StartSeekIndexScan(ctx context.Context, req *eveyv1.
 	if err := d.seekIndexConfigured(ctx, span); err != nil {
 		return nil, err
 	}
-	if err := d.seekIndex.StartScan(ctx, req.GetLibraryId()); err != nil {
+	run := appmaintenance.ScanRunOptions{Pace: appmaintenance.ScanPace(req.GetPace())}
+	if err := d.seekIndex.StartScan(ctx, req.GetLibraryId(), run); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, d.seekIndexError(ctx, "start seek index scan", err)
