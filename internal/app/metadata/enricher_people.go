@@ -36,17 +36,38 @@ func (e *Enricher) EnrichAllPeopleBios(ctx context.Context, log *slog.Logger) (i
 		if ctx.Err() != nil {
 			break
 		}
-		if person.Biography != "" {
+		// Same negative cache as the per-item enrichment: a person the provider
+		// had no biography for is not asked again before bioRecheckTTL.
+		if !e.personNeedsBio(person) {
 			continue
 		}
 		details, detErr := fetcher.GetPersonDetails(ctx, person.Name)
-		if detErr != nil || details == nil || details.Biography == "" {
+		if detErr != nil {
+			// Transient (429, timeout): leave the stamp alone so the next pass
+			// retries instead of silencing the person for a month.
+			if log != nil {
+				log.Debug("bio fetch failed", slog.String("name", person.Name), slog.Any("err", detErr))
+			}
+			time.Sleep(300 * time.Millisecond)
+			continue
+		}
+		if details == nil || details.Biography == "" {
+			// A real "no bio" answer is remembered, otherwise this loop and the
+			// daily re-enrichment repeat the round-trip for every bio-less
+			// person, forever.
+			checked := e.clockNow()
+			person.BioCheckedAt = &checked
+			if updateErr := e.persons.Update(ctx, person); updateErr != nil {
+				slog.WarnContext(ctx, "stamp person bio check", slog.String("name", person.Name), slog.Any("err", updateErr))
+			}
 			if log != nil {
 				log.Debug("no bio found", slog.String("name", person.Name))
 			}
 			time.Sleep(300 * time.Millisecond)
 			continue
 		}
+		checked := e.clockNow()
+		person.BioCheckedAt = &checked
 		person.Biography = details.Biography
 		if details.Birthday != "" {
 			person.Birthday = details.Birthday
