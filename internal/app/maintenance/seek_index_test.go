@@ -1422,3 +1422,57 @@ func TestSeekIndexService_AckDuringScan_Survives(t *testing.T) {
 		}
 	}
 }
+
+// The carry-over is for the SAME bytes only: a file that changed during the
+// scan (touched, re-downloaded) is diagnosed afresh and its old
+// acknowledgement must not follow it - the operator acknowledged a verdict
+// about other bytes.
+func TestSeekIndexService_AckDuringScan_DroppedWhenTheFileChanged(t *testing.T) {
+	dir := t.TempDir()
+	junk := filepath.Join(dir, "junk.mkv")
+	slow := filepath.Join(dir, "slow.mkv")
+	for _, p := range []string{junk, slow} {
+		require.NoError(t, os.WriteFile(p, []byte("x"), 0o644))
+	}
+	reidx := &fakeReindexer{hasIndex: map[string]bool{junk: true, slow: true}}
+	cat := fakeCatalog{files: []appmaintenance.MediaRef{
+		{MediaID: "m-junk", Title: "Junk", Path: junk},
+		{MediaID: "m-slow", Title: "Slow", Path: slow},
+	}}
+	gate := newScanGate(slow)
+	diag := fakeDiagnoser{gate: gate, byPath: map[string]*mkv.Diagnosis{
+		junk: {Findings: []mkv.DiagnosisFinding{{Kind: "trailing-junk"}}},
+		slow: {Healthy: true},
+	}}
+	svc := appmaintenance.NewSeekIndexService(reidx, cat, nil).WithDiagnoser(diag).WithStateDir(t.TempDir())
+	ctx := context.Background()
+
+	require.NoError(t, svc.StartScan(ctx, ""))
+	waitIdle(t, svc)
+
+	// Both files change: junk is re-diagnosed by this scan (same finding, new
+	// bytes), slow parks the scan so the ack can land in the meantime.
+	future := time.Now().Add(2 * time.Second)
+	require.NoError(t, os.WriteFile(junk, []byte("xy"), 0o644))
+	require.NoError(t, os.Chtimes(junk, future, future))
+	require.NoError(t, os.Chtimes(slow, future, future))
+	gate.armed.Store(true)
+	require.NoError(t, svc.StartScan(ctx, ""))
+	select {
+	case <-gate.started:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the scan never reached the gated file")
+	}
+	require.NoError(t, svc.AckMedia(ctx, "m-junk", true))
+	close(gate.release)
+	waitIdle(t, svc)
+
+	res, _, ok := svc.CachedScan("")
+	require.True(t, ok)
+	assert.Zero(t, res.Acked, "an ack about the old bytes must not follow the changed file")
+	for _, it := range res.Items {
+		if it.Path == junk {
+			assert.False(t, it.Acked())
+		}
+	}
+}
