@@ -31,14 +31,37 @@ type musicHandler struct {
 	libLister    MediaArchiveSource           // may be nil; used for path confinement (fail-open)
 	imgConverter ImageConverter               // may be nil; ?w= resize is skipped when unset
 	nowPlaying   *appmusic.NowPlayingRegistry // may be nil; "En cours de lecture" heartbeat
+	// trackArtDir holds the cover bytes embedded in audio files once they have
+	// been served with ?w=, so the resizer has a source PATH to work from
+	// (album art resizes next to the folder cover; a track's art has no file
+	// of its own). Empty = ?w= is ignored for track art and the tag bytes are
+	// served in full, as before.
+	trackArtDir string
+}
+
+// musicRouteOption tunes registerMusicRoutes without widening its signature
+// for every test that builds the routes.
+type musicRouteOption func(*musicHandler)
+
+// withTrackArtCacheDir enables ?w= resizing of track (tag-embedded) art,
+// caching the extracted originals and their variants under dir.
+func withTrackArtCacheDir(dir string) musicRouteOption {
+	return func(h *musicHandler) { h.trackArtDir = dir }
 }
 
 var albumArtHashRe = regexp.MustCompile(`^[a-f0-9]{16,128}$`)
 
-func registerMusicRoutes(mux *http.ServeMux, svc *appmusic.Service, tokenGen domainuser.TokenGenerator, libChecker LibraryAccessChecker, _ libraryPathsGetter, rl *ratelimit.Limiter, libLister MediaArchiveSource, imgConverter ImageConverter, nowPlaying *appmusic.NowPlayingRegistry) {
+// trackArtIDRe admits a track id as a cache FILE NAME: the id is the caller's
+// (a route parameter), and the cache lives under a directory the server owns.
+var trackArtIDRe = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
+
+func registerMusicRoutes(mux *http.ServeMux, svc *appmusic.Service, tokenGen domainuser.TokenGenerator, libChecker LibraryAccessChecker, _ libraryPathsGetter, rl *ratelimit.Limiter, libLister MediaArchiveSource, imgConverter ImageConverter, nowPlaying *appmusic.NowPlayingRegistry, opts ...musicRouteOption) {
 	authMw := httpAuthMiddleware(tokenGen)
 	adminMw := httpAdminMiddleware(tokenGen)
-	h := &musicHandler{svc: svc, libChecker: libChecker, libLister: libLister, imgConverter: imgConverter, nowPlaying: nowPlaying}
+	h := &musicHandler{svc: svc, libChecker: libChecker, libLister: libLister, imgConverter: imgConverter, nowPlaying: nowPlaying, trackArtDir: ""}
+	for _, o := range opts {
+		o(h)
+	}
 	mux.HandleFunc("GET /api/v1/music/tracks/{id}/art", authMw(h.getTrackArt))
 	mux.HandleFunc("GET /api/v1/music/tracks/{id}/stream", authMw(h.streamTrack))
 	// streamAuth on the two download routes: opaque per-resource token
@@ -175,10 +198,68 @@ func (h *musicHandler) getTrackArt(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
+	// ?w= asks for a display-sized WebP, like album and poster art: a 48px
+	// row thumbnail must not ship the full embedded cover (audit 2026-08-25).
+	// Every failure falls through to the original bytes.
+	if width := parseRequestedWidth(r); width > 0 {
+		if variant := h.trackArtVariant(r.Context(), id, mimeType, data, width); variant != "" {
+			w.Header().Set("Content-Type", "image/webp")
+			w.Header().Set("Cache-Control", "public, max-age=86400")
+			http.ServeFile(w, r, variant)
+			return
+		}
+	}
 	w.Header().Set("Content-Type", mimeType)
 	w.Header().Set("Cache-Control", "public, max-age=86400")
 	if _, err := w.Write(data); err != nil {
 		slog.ErrorContext(r.Context(), "music art write", slog.Any("err", err))
+	}
+}
+
+// trackArtVariant returns the path of the WebP variant of a track's embedded
+// cover at width, producing it on first request: the tag bytes are written
+// once as trackArtDir/<id>.<ext> (the resizer works on a path), then resized
+// with the same coalescing and timeout rules as album art. "" when the
+// feature is off, the id is not a safe file name, or any step fails - the
+// caller serves the original bytes then.
+func (h *musicHandler) trackArtVariant(ctx context.Context, id, mimeType string, data []byte, width int) string {
+	if h.trackArtDir == "" || h.imgConverter == nil || width <= 0 || len(data) == 0 || !trackArtIDRe.MatchString(id) {
+		return ""
+	}
+	src := filepath.Join(h.trackArtDir, id+trackArtExt(mimeType))
+	if fi, err := os.Stat(src); err != nil || fi.Size() == 0 {
+		if err := os.MkdirAll(h.trackArtDir, 0o755); err != nil {
+			slog.WarnContext(ctx, "track art cache dir", slog.String("dir", h.trackArtDir), slog.Any("err", err))
+			return ""
+		}
+		tmp := src + ".tmp"
+		if err := os.WriteFile(tmp, data, 0o644); err != nil { //nolint:gosec // server-owned cache dir
+			slog.WarnContext(ctx, "track art cache write", slog.String("path", tmp), slog.Any("err", err))
+			return ""
+		}
+		if err := os.Rename(tmp, src); err != nil {
+			removeVariant(tmp)
+			slog.WarnContext(ctx, "track art cache rename", slog.String("path", src), slog.Any("err", err))
+			return ""
+		}
+	}
+	return h.resizeAlbumArt(ctx, src, width)
+}
+
+// trackArtExt maps the tag's picture MIME type to the extension the resizer's
+// ffmpeg probe expects; anything else is left generic, ffmpeg sniffs content.
+func trackArtExt(mimeType string) string {
+	switch strings.ToLower(strings.TrimSpace(mimeType)) {
+	case "image/jpeg", "image/jpg":
+		return ".jpg"
+	case "image/png":
+		return ".png"
+	case "image/webp":
+		return ".webp"
+	case "image/gif":
+		return ".gif"
+	default:
+		return ".img"
 	}
 }
 

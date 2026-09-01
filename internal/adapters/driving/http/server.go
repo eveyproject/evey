@@ -764,7 +764,13 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	// Ratings, popular, analytics, filter → gRPC (grpcapi/rating_handler, activity_handler, library_handler)
 	registerLogsRoute(mux, s.LogDir, s.TokenGen)
 	registerAvailableRuntimesRoute(mux, s.TokenGen)
-	registerMusicRoutes(mux, s.MusicSvc, s.TokenGen, s.LibraryAccessRepo, s.LibQuerySvc, s.GlobalRL, s.LibQuerySvc, s.ImageConverter, s.MusicNowPlaying)
+	musicOpts := []musicRouteOption{}
+	if s.PhotoCacheDir != "" {
+		// Track (tag-embedded) art variants live next to the photo cache, under
+		// the same transcode cache root: derived data, regenerated on demand.
+		musicOpts = append(musicOpts, withTrackArtCacheDir(filepath.Join(s.PhotoCacheDir, "track-art")))
+	}
+	registerMusicRoutes(mux, s.MusicSvc, s.TokenGen, s.LibraryAccessRepo, s.LibQuerySvc, s.GlobalRL, s.LibQuerySvc, s.ImageConverter, s.MusicNowPlaying, musicOpts...)
 	if s.CollectionSvc != nil {
 		registerCollectionRoutes(mux, s.CollectionSvc, s.LibQuerySvc, s.TokenGen, s.LibraryAccessRepo, parentalChk, s.BaseURL(), s.GlobalRL)
 	}
