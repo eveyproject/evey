@@ -2,6 +2,7 @@ import { ScrollView, View, RefreshControl, Text, Pressable, Modal, Switch, Style
 import { Image } from "expo-image";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Skeleton } from "../../../src/components/Skeleton";
+import { toggleFeed, moveFeed, changedFeeds } from "../../../src/lib/feedConfigEdits";
 import { useCallback, useMemo, useState, useEffect } from "react";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -296,39 +297,35 @@ function FeedCustomizeModal({
     }
   }, [visible, configs, libraryNames, pluginNames]);
 
-  const persist = useCallback(async (updated: FeedConfig[]) => {
-    let failed = 0;
-    for (const c of updated) {
-      if (!c.feedType) continue;
-      try {
-        await updateFeed.mutateAsync({
-          feedType: c.feedType,
+  // Persists the rows a click changed - one PUT per changed feed, in
+  // parallel - and never from inside a setState updater (StrictMode runs
+  // updaters twice, which doubled every PUT before).
+  const persist = useCallback(async (changed: FeedConfig[]) => {
+    if (changed.length === 0) return;
+    const results = await Promise.allSettled(
+      changed
+        .filter((c) => !!c.feedType)
+        .map((c) => updateFeed.mutateAsync({
+          feedType: c.feedType as string,
           data: { profileId, enabled: c.enabled, displayOrder: c.displayOrder },
-        });
-      } catch { failed++; }
-    }
+        })),
+    );
+    const failed = results.filter((r) => r.status === "rejected").length;
     await qc.invalidateQueries({ queryKey: ["/api/v1/feeds/config"] });
     if (failed > 0) toast.error(t("media.home.customizeSaveFailed", "Failed to save some changes"));
   }, [updateFeed, profileId, qc, t]);
 
   const toggle = (idx: number) => {
-    setLocal((prev) => {
-      const next = prev.map((c, i) => (i === idx ? { ...c, enabled: !c.enabled } : c));
-      persist(next);
-      return next;
-    });
+    const next = toggleFeed(local, idx);
+    setLocal(next);
+    void persist(changedFeeds(local, next));
   };
 
   const move = (idx: number, dir: -1 | 1) => {
-    const target = idx + dir;
-    if (target < 0 || target >= local.length) return;
-    setLocal((prev) => {
-      const arr = [...prev];
-      [arr[idx], arr[target]] = [arr[target], arr[idx]];
-      const next = arr.map((c, i) => ({ ...c, displayOrder: i }));
-      persist(next);
-      return next;
-    });
+    const next = moveFeed(local, idx, dir);
+    if (next === local) return;
+    setLocal(next);
+    void persist(changedFeeds(local, next));
   };
 
   const resetAll = useCallback(() => {
