@@ -94,6 +94,12 @@ type AudioDelayProber interface {
 // codec priming sits at ~20-40ms, the defect class at hundreds of ms.
 const AudioDelayFlagSec = 0.1
 
+// AudioTrackLagFlagSec is how far two of a file's own audio tracks may disagree
+// before the file is called incoherent. Codec priming and frame quantisation
+// leave tens of milliseconds between an AC-3 and an AAC rendition of the same
+// soundtrack; a quarter of a second is far beyond that and already audible.
+const AudioTrackLagFlagSec = 0.25
+
 // AudioShortfallFlagSec is the floor above which an audio track ending before
 // the declared duration is surfaced as a defect. Ordinary muxes leave up to a
 // couple of seconds of slack (priming, final-cluster rounding); the defect
@@ -132,11 +138,23 @@ type SeekStatus struct {
 	// moves - deliberate tooling does not do that, and every evey repair
 	// re-stamps the fingerprint itself.
 	ModTimeUnix int64
-	// AudioDelaySec > AudioDelayFlagSec → the audio track starts that far
-	// after the video (mux defect → constant A/V desync on copied audio).
-	// Playback with TRANSCODED audio auto-cancels it; the flag tells the
-	// operator the file itself carries the defect. 0 when not probed.
+	// AudioDelaySec is how far after the picture the latest audio track starts,
+	// as the CONTAINER declares it. This is a FACT, not a verdict: a dub is
+	// aligned to a cut exactly this way, and every player honours it. Evey's own
+	// pipeline cancels a spurious one at playback (-itsoffset). Only
+	// AudioTracksLagSec can turn it into a defect. 0 when not probed.
 	AudioDelaySec float64
+	// AudioTracksLagSec is the PROOF: how far two of this file's own audio
+	// tracks disagree once their declared offsets are applied. Two tracks of the
+	// same film share their music and effects bed, so in a sound file they line
+	// up (lag ~0) whatever offsets they declare. A non-zero lag means one track
+	// sits in the wrong place - and since nothing here can tell WHICH, the file
+	// is the operator's call, never an automatic rewrite. 0 = coherent, or the
+	// file has a single audio track (nothing to compare), or not measured.
+	AudioTracksLagSec float64
+	// AudioTracksChecked records that the comparison actually ran, so "0" reads
+	// as "proven coherent" instead of "never looked".
+	AudioTracksChecked bool
 	// Truncated → the file is an incomplete download whose damage runs to the
 	// end: no tool can recover the missing tail, a resync would only produce a
 	// playable prefix. The operator must re-acquire the source. Only a
@@ -253,9 +271,19 @@ func (st SeekStatus) Verdict() Verdict {
 	switch {
 	case st.Truncated, st.PictureMissing, st.SeekCoarse():
 		return VerdictManual
-	case !st.HasIndex, st.DamagedBytes > 0, st.AudioDelaySec > AudioDelayFlagSec, st.WrongContainer:
+	case !st.HasIndex, st.DamagedBytes > 0, st.WrongContainer:
 		return VerdictRepairable
-	case st.AudioShortfallSec > AudioShortfallFlagSec, st.TrailingJunk:
+	// An audio track that starts after the picture is NOT a defect to rewrite.
+	// It is how a dub gets aligned to a cut, every player honours it, and Evey's
+	// own pipeline already cancels a spurious one at playback (-itsoffset, since
+	// 2026-07-08). Rewriting the file to zero it destroyed a DELIBERATE 12.000 s
+	// alignment on a real title (a prod title, prod 2026-07-13): the dub then
+	// played 12 s early in every player, and no backup existed. The offset is
+	// reported as a fact; the only thing that turns it into a defect is PROOF
+	// that the file's own audio tracks disagree - see AudioTracksLagSec.
+	case st.AudioTracksLagSec > AudioTrackLagFlagSec:
+		return VerdictManual
+	case st.AudioDelaySec > AudioDelayFlagSec, st.AudioShortfallSec > AudioShortfallFlagSec, st.TrailingJunk:
 		return VerdictInformational
 	}
 	return VerdictHealthy

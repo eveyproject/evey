@@ -26,14 +26,16 @@ func TestSeekStatus_Verdict(t *testing.T) {
 		"healthy":                      {appmaintenance.SeekStatus{HasIndex: true}, appmaintenance.VerdictHealthy},
 		"no index":                     {appmaintenance.SeekStatus{HasIndex: false}, appmaintenance.VerdictRepairable},
 		"damaged, index fine":          {appmaintenance.SeekStatus{HasIndex: true, DamagedBytes: 512}, appmaintenance.VerdictRepairable},
-		"audio delayed":                {appmaintenance.SeekStatus{HasIndex: true, AudioDelaySec: 0.9}, appmaintenance.VerdictRepairable},
 		"wrong container":              {appmaintenance.SeekStatus{HasIndex: true, WrongContainer: true}, appmaintenance.VerdictRepairable},
 		"truncated wins over no index": {appmaintenance.SeekStatus{HasIndex: false, Truncated: true}, appmaintenance.VerdictManual},
 		"rebuilt and still coarse":     {appmaintenance.SeekStatus{HasIndex: false, IndexSparse: true, ReindexAttempted: true}, appmaintenance.VerdictManual},
 		"sparse, never rebuilt":        {appmaintenance.SeekStatus{HasIndex: false, IndexSparse: true}, appmaintenance.VerdictRepairable},
 		"audio short":                  {appmaintenance.SeekStatus{HasIndex: true, AudioShortfallSec: 40}, appmaintenance.VerdictInformational},
 		"trailing junk":                {appmaintenance.SeekStatus{HasIndex: true, TrailingJunk: true}, appmaintenance.VerdictInformational},
-		"junk plus audio delay":        {appmaintenance.SeekStatus{HasIndex: true, TrailingJunk: true, AudioDelaySec: 0.5}, appmaintenance.VerdictRepairable},
+		"audio delayed":                {appmaintenance.SeekStatus{HasIndex: true, AudioDelaySec: 0.5}, appmaintenance.VerdictInformational},
+		"junk plus audio delay":        {appmaintenance.SeekStatus{HasIndex: true, TrailingJunk: true, AudioDelaySec: 0.5}, appmaintenance.VerdictInformational},
+		"audio tracks disagree":        {appmaintenance.SeekStatus{HasIndex: true, AudioTracksLagSec: 11.9, AudioTracksChecked: true}, appmaintenance.VerdictManual},
+		"offset proven coherent":       {appmaintenance.SeekStatus{HasIndex: true, AudioDelaySec: 12, AudioTracksLagSec: 0, AudioTracksChecked: true}, appmaintenance.VerdictInformational},
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -108,12 +110,13 @@ func TestSeekIndexService_Scan_RollsUpTheTriage(t *testing.T) {
 	res, _, ok := svc.CachedScan("")
 	require.True(t, ok)
 	assert.Equal(t, 8, res.Total)
-	// noindex, damaged, delayed, wrongct
-	assert.Equal(t, 4, res.Repairable, "exactly what Repair all acts on")
+	// noindex, damaged, wrongct - the delayed file is NOT here any more: a
+	// start offset is a fact, not something Repair all rewrites.
+	assert.Equal(t, 3, res.Repairable, "exactly what Repair all acts on")
 	// truncated (rebuilt-and-coarse needs a repair first, none here)
 	assert.Equal(t, 1, res.Manual)
-	// short, junk
-	assert.Equal(t, 2, res.Informational)
+	// short, junk, delayed
+	assert.Equal(t, 3, res.Informational)
 	assert.Zero(t, res.Acked)
 }
 
@@ -127,7 +130,9 @@ func TestSeekIndexService_Ack_MovesFilesOutOfTheQueue(t *testing.T) {
 
 	require.NoError(t, svc.AckMedia(ctx, "m-junk", true))
 	res, _, _ := svc.CachedScan("")
-	assert.Equal(t, 1, res.Informational, "junk left the pending pile")
+	// short, delayed - junk left the pending pile (the offset file is
+	// informational now: a start offset is a fact, never a repair).
+	assert.Equal(t, 2, res.Informational, "junk left the pending pile")
 	assert.Equal(t, 1, res.Acked)
 	for _, it := range res.Items {
 		if it.Path == paths["junk"] {
@@ -138,7 +143,7 @@ func TestSeekIndexService_Ack_MovesFilesOutOfTheQueue(t *testing.T) {
 	// Withdrawing puts it back.
 	require.NoError(t, svc.AckMedia(ctx, "m-junk", false))
 	res, _, _ = svc.CachedScan("")
-	assert.Equal(t, 2, res.Informational)
+	assert.Equal(t, 3, res.Informational)
 	assert.Zero(t, res.Acked)
 
 	// A whole group at once - and a repairable group is refused.
@@ -192,7 +197,9 @@ func TestSeekIndexService_Ack_PersistsUntilTheFileChanges(t *testing.T) {
 }
 
 // "Repair all" repairs everything repairable - no hidden checkbox - except the
-// lossy resync of damaged files, which needs the operator's explicit consent.
+// lossy resync of damaged files, which needs the operator's explicit consent,
+// and the audio START OFFSET, which is not a defect at all (see
+// TestSeekIndexService_AudioOffsetIsNeverRepaired).
 func TestSeekIndexService_RepairAll_CoversEveryRepairableVerdict(t *testing.T) {
 	_, paths, svc, reidx, remux, reloc := triageLibrary(t)
 	ctx := context.Background()
@@ -202,11 +209,11 @@ func TestSeekIndexService_RepairAll_CoversEveryRepairableVerdict(t *testing.T) {
 	require.NotNil(t, st.Last)
 	assert.Zero(t, st.Last.Failed, "%+v", st.Last.Failures)
 	assert.Equal(t, []string{paths["noindex"]}, reidx.reindexed, "index rebuilt; the damaged file waits for consent, truncated is never touched")
-	assert.Equal(t, []string{paths["delayed"]}, remux.remuxed, "audio repaired without being asked twice")
+	assert.Empty(t, remux.remuxed, "a start offset is a fact about the file, not something a bulk job rewrites")
 	assert.Equal(t, filepath.Join(filepath.Dir(paths["wrongct"]), "wrongct.mp4"), reloc.moved["m-wrongct"], "the .mkv that is an MP4 is renamed and the catalog follows")
 	_, statErr := os.Stat(paths["wrongct"])
 	assert.True(t, os.IsNotExist(statErr), "old .mkv path gone")
-	assert.Equal(t, 3, st.Last.Total, "1 index + 1 audio + 1 container")
+	assert.Equal(t, 2, st.Last.Total, "1 index + 1 container - the offset file is deliberately left alone")
 
 	res, _, _ := svc.CachedScan("")
 	assert.Equal(t, 7, res.Total, "the renamed file is no longer the scan's business")
@@ -352,4 +359,66 @@ func TestSeekIndexService_PictureMissing_IsManualWithoutARebuild(t *testing.T) {
 	require.NoError(t, svc.StartRepairLibrary(context.Background(), "", appmaintenance.ReindexRunOptions{}))
 	waitIdle(t, svc)
 	assert.Empty(t, reidx.reindexed, "no rewrite for a hole that has no picture to index")
+}
+
+// A declared audio start offset is a FACT about the file, never a defect to
+// rewrite. a prod title (prod 2026-07-13) carried a deliberate 12.000 s
+// alignment for its French dub; "repair all" retimed it to zero, the dub then
+// played 12 s early in every player, and no backup existed. These two tests are
+// that incident, frozen: the verdict must not be repairable, and the bulk job
+// must not touch the file.
+func TestSeekIndexService_AudioOffsetIsNeverRepaired(t *testing.T) {
+	dir := t.TempDir()
+	dub := filepath.Join(dir, "deliberate_dub_offset.mkv")
+	require.NoError(t, os.WriteFile(dub, []byte("x"), 0o644))
+	reidx := &fakeReindexer{hasIndex: map[string]bool{dub: true}}
+	cat := fakeCatalog{files: []appmaintenance.MediaRef{{MediaID: "m-dub", Title: "a prod title", Path: dub}}}
+	remux := &fakeAudioRemuxer{}
+	svc := appmaintenance.NewSeekIndexService(reidx, cat, nil).
+		WithDiagnoser(fakeDiagnoser{byPath: map[string]*mkv.Diagnosis{
+			// 12 seconds: exactly the alignment the repair destroyed.
+			dub: {Healthy: true, AudioDelaysMs: map[uint64]int64{2: 12_000}},
+		}}).
+		WithAudioDelayProber(fakeAudioDelayProber{delays: map[string]float64{dub: 12.0}}).
+		WithAudioRemuxer(remux)
+
+	ctx := context.Background()
+	require.NoError(t, svc.StartScan(ctx, ""))
+	waitIdle(t, svc)
+
+	res, _, ok := svc.CachedScan("")
+	require.True(t, ok)
+	require.Len(t, res.Items, 1)
+	assert.InDelta(t, 12.0, res.Items[0].AudioDelaySec, 1e-9, "the offset is still measured and shown")
+	assert.NotEqual(t, appmaintenance.VerdictRepairable, res.Items[0].Verdict(),
+		"a start offset alone must never read as repairable")
+	assert.Zero(t, res.Repairable, "and it must not be counted in what Repair all will act on")
+
+	require.NoError(t, svc.StartRepairLibrary(ctx, "", appmaintenance.ReindexRunOptions{}))
+	waitIdle(t, svc)
+	assert.Empty(t, remux.remuxed, "Repair all must not rewrite a file for a start offset")
+	assert.Empty(t, reidx.reindexed, "and must not reindex it either")
+}
+
+// The offset only becomes a defect when the file's OWN audio tracks disagree -
+// then nobody here can tell which track is misplaced, so it is the operator's
+// call and still never an automatic rewrite.
+func TestSeekIndexService_IncoherentAudioTracksAreTheOperatorsCall(t *testing.T) {
+	dir := t.TempDir()
+	broken := filepath.Join(dir, "tracks_disagree.mkv")
+	require.NoError(t, os.WriteFile(broken, []byte("x"), 0o644))
+	st := appmaintenance.SeekStatus{
+		Path: broken, HasIndex: true,
+		AudioDelaySec: 0, AudioTracksLagSec: 11.94, AudioTracksChecked: true,
+	}
+	assert.Equal(t, appmaintenance.VerdictManual, st.Verdict(),
+		"tracks that disagree are the operator's call, not a repair")
+	assert.True(t, st.Ackable(), "and the operator can acknowledge it")
+
+	coherent := appmaintenance.SeekStatus{
+		Path: broken, HasIndex: true,
+		AudioDelaySec: 12.0, AudioTracksLagSec: 0, AudioTracksChecked: true,
+	}
+	assert.Equal(t, appmaintenance.VerdictInformational, coherent.Verdict(),
+		"a large offset PROVEN coherent is information, nothing more")
 }

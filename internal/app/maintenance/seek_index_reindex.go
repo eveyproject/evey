@@ -260,7 +260,7 @@ func (s *SeekIndexService) StartRepairLibrary(_ context.Context, libraryID strin
 				}
 			}
 		}
-		var idx, resync, aud, containers []string
+		var idx, resync, containers []string
 		touched := map[string]bool{}
 		for _, it := range scan.Items {
 			switch {
@@ -272,13 +272,16 @@ func (s *SeekIndexService) StartRepairLibrary(_ context.Context, libraryID strin
 				touched[it.Path] = true
 			}
 		}
-		if s.audioRemux != nil {
-			for _, it := range scan.Items {
-				if it.AudioDelaySec > AudioDelayFlagSec && !touched[it.Path] {
-					aud = append(aud, it.Path)
-				}
-			}
-		}
+		// NOTHING is collected here any more, and that is the point. "Repair
+		// all" used to retime every file whose audio started more than
+		// AudioDelayFlagSec after the picture. That threshold has no upper
+		// bound, so a DELIBERATE alignment was treated like a 150 ms mux slip:
+		// on a prod title (prod 2026-07-13) it erased a 12.000 s dub offset,
+		// the French track then played 12 s early in every player, and no
+		// backup was kept. A start offset is not evidence of a defect - the
+		// container is usually right and every player honours it. The audio
+		// remux stays available as a deliberate, per-file action; a bulk job
+		// that rewrites media on a threshold does not.
 		if s.relocator != nil {
 			for _, it := range scan.Items {
 				if it.WrongContainer {
@@ -286,7 +289,7 @@ func (s *SeekIndexService) StartRepairLibrary(_ context.Context, libraryID strin
 				}
 			}
 		}
-		s.setPhase(PhaseProcessing, len(idx)+len(resync)+len(aud)+len(containers))
+		s.setPhase(PhaseProcessing, len(idx)+len(resync)+len(containers))
 		// One rolling window shared across the phases: index and audio
 		// backups roll and drain together, so declining backups leaves NONE
 		// on the volume (the audio backups used to survive the drain). The
@@ -300,11 +303,6 @@ func (s *SeekIndexService) StartRepairLibrary(_ context.Context, libraryID strin
 			resyncOpts := reindexOptionsFor(ReindexRunOptions{Resync: true})
 			s.processFiles(bg, JobReindex, resync, func(bg context.Context, path string) (bool, error) {
 				return s.reindexStep(bg, path, resyncOpts, nil)
-			})
-		}
-		if len(aud) > 0 {
-			s.processFiles(bg, JobRemuxAudio, aud, func(bg context.Context, path string) (bool, error) {
-				return s.remuxAudioStep(bg, path, rb)
 			})
 		}
 		if len(containers) > 0 {

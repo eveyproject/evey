@@ -1185,20 +1185,22 @@ func TestSeekIndexService_RepairLibrary_Combined(t *testing.T) {
 		appmaintenance.ReindexRunOptions{}))
 	st := waitIdle(t, svc)
 	require.NotNil(t, st.Last)
-	assert.Equal(t, 3, st.Last.Total, "2 reindex candidates + 1 audio-only")
+	assert.Equal(t, 2, st.Last.Total, "the 2 reindex candidates; the audio-only file is not a candidate at all")
 	assert.Zero(t, st.Last.Failed)
 	assert.ElementsMatch(t, []string{noIndex, both}, reidx.reindexed, "both un-indexed files reindexed")
-	assert.Equal(t, []string{delayed}, remux.remuxed, "only the audio-ONLY file remuxed; the both-defect file's audio is deferred")
+	assert.Empty(t, remux.remuxed, "a start offset never triggers a rewrite, alone or alongside another defect")
 
 	res, _, ok := svc.CachedScan("")
 	require.True(t, ok)
 	assert.Zero(t, res.MissingIndex)
 }
 
-// The combined entry point repairs the audio defect WITHOUT being asked: a
-// "repair all" that left a known, fixable defect behind a checkbox was the
-// button lying about its own name.
-func TestSeekIndexService_RepairLibrary_AudioIsAlwaysIncluded(t *testing.T) {
+// The combined entry point must NEVER rewrite a file for an audio start
+// offset. It used to, "without being asked" - and that is precisely how a
+// deliberate 12.000 s dub alignment was erased in prod (2026-07-13): the
+// threshold had no upper bound, so an intentional offset looked exactly like a
+// mux slip. The offset is measured and shown; the file is not touched.
+func TestSeekIndexService_RepairLibrary_AudioIsNeverRewritten(t *testing.T) {
 	dir := t.TempDir()
 	noIndex := filepath.Join(dir, "n.mkv")
 	delayed := filepath.Join(dir, "d.mkv")
@@ -1218,9 +1220,9 @@ func TestSeekIndexService_RepairLibrary_AudioIsAlwaysIncluded(t *testing.T) {
 		appmaintenance.ReindexRunOptions{}))
 	st := waitIdle(t, svc)
 	require.NotNil(t, st.Last)
-	assert.Equal(t, 2, st.Last.Total, "1 index + 1 audio")
+	assert.Equal(t, 1, st.Last.Total, "the index only - the offset file is not a candidate")
 	assert.Equal(t, []string{noIndex}, reidx.reindexed)
-	assert.Equal(t, []string{delayed}, remux.remuxed, "the audio defect is repaired in the same run")
+	assert.Empty(t, remux.remuxed, "no bulk job may rewrite a file to move its audio")
 }
 
 // includeAudio with no remuxer wired quietly degrades to a reindex-only batch
@@ -1331,11 +1333,9 @@ func TestSeekIndexService_RepairLibrary_ExcludesTruncatedEvenWithoutIndex(t *tes
 	assert.Empty(t, reidx.reindexed, "truncated-without-index must not be reindexed under Resync either")
 }
 
-// In a combined "repair all" that does NOT keep backups (a rolling window),
-// the AUDIO repair backups must be drained at job end too - they used to
-// survive the window that only covered the index step (the "125 backups"
-// surprise). After the job, zero backup remains and the cache reflects it.
-func TestSeekIndexService_RepairLibrary_AudioBackupsHonorWindow(t *testing.T) {
+// A "repair all" that does NOT keep backups (a rolling window) must leave zero
+// backup behind - and must not have rewritten the audio-offset file at all.
+func TestSeekIndexService_RepairLibrary_BackupsHonorWindow(t *testing.T) {
 	dir := t.TempDir()
 	noIndex := filepath.Join(dir, "n.mkv")
 	delayed := filepath.Join(dir, "d.mkv")
@@ -1357,14 +1357,14 @@ func TestSeekIndexService_RepairLibrary_AudioBackupsHonorWindow(t *testing.T) {
 		appmaintenance.ReindexRunOptions{BackupWindow: 2}))
 	st := waitIdle(t, svc)
 	require.NotNil(t, st.Last)
-	assert.Equal(t, 2, st.Last.Total, "1 reindex + 1 audio")
+	assert.Equal(t, 1, st.Last.Total, "the reindex only")
 	assert.Zero(t, st.Last.Failed)
-	assert.Equal(t, []string{delayed}, remux.remuxed, "the audio file was repaired")
+	assert.Empty(t, remux.remuxed, "the offset file was left alone")
 
 	res, _, ok := svc.CachedScan("")
 	require.True(t, ok)
 	for _, it := range res.Items {
-		assert.False(t, it.HasBackup, "no backup survives the drain, audio included: %s", it.Path)
+		assert.False(t, it.HasBackup, "no backup survives the drain: %s", it.Path)
 	}
 	assert.Zero(t, res.WithBackup)
 }
