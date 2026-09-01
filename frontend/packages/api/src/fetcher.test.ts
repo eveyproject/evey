@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { eveyFetch, DEFAULT_REQUEST_TIMEOUT_MS, setTokenProvider, setTokensUpdater, setUnauthorizedHandler, resetRefreshFailure, _resetFetcherState } from "./fetcher";
+import { eveyFetch, DEFAULT_REQUEST_TIMEOUT_MS, NO_TIMEOUT, setTokenProvider, setTokensUpdater, setUnauthorizedHandler, resetRefreshFailure, _resetFetcherState } from "./fetcher";
 
 const fetchMock = vi.fn();
 
@@ -418,6 +418,16 @@ describe("eveyFetch default timeout", () => {
     const err = await outcome;
     expect((err as { errorCode?: string }).errorCode).toBeUndefined();
     expect((err as Error).name).toBe("AbortError");
+  });
+
+  it("NO_TIMEOUT disables the default timer for a request the server works on for minutes", async () => {
+    neverAnswers();
+    const p = eveyFetch({ url: "/api/v1/admin/backup-schedule/run", method: "POST", signal: NO_TIMEOUT });
+    let settled = false;
+    void p.then(() => { settled = true; }, () => { settled = true; });
+    await vi.advanceTimersByTimeAsync(DEFAULT_REQUEST_TIMEOUT_MS * 10);
+    expect(settled).toBe(false);
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it("clears the timer once the server answered", async () => {

@@ -10,6 +10,8 @@ import {
   useAdminPluginServiceDisablePlugin,
   useAdminPluginServiceUninstallPlugin,
   useAdminPluginServiceInstallPlugin,
+  adminPluginServiceInstallPlugin,
+  NO_TIMEOUT,
   eveyFetch,
   eveyFetchRaw,
   apiErrorMessage,
@@ -236,6 +238,9 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
   const [name, setName] = useState("");
   const installPlugin = useAdminPluginServiceInstallPlugin({
     mutation: {
+      // The server downloads and verifies the archive inside the request:
+      // opt out of the fetcher's default timeout.
+      mutationFn: ({ data }) => adminPluginServiceInstallPlugin(data, NO_TIMEOUT),
       onSuccess: () => {
         setEscalationEntries([]);
         onSuccess();

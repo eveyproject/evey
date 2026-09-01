@@ -308,6 +308,13 @@ export async function eveyFetchRaw(request: RawFetcherRequest): Promise<Response
 // variant streams bodies (downloads, NDJSON) the caller must own.
 export const DEFAULT_REQUEST_TIMEOUT_MS = 60_000;
 
+// The opt-out for the few RPCs that legitimately run longer than the default
+// because the server does the work INSIDE the request (a plugin install
+// downloads and verifies the archive, "back up now" runs the dump). A caller
+// signal disables the default timer, and this one never fires. Pass it as the
+// generated client's `signal` argument.
+export const NO_TIMEOUT: AbortSignal = new AbortController().signal;
+
 // A caller-supplied signal is respected untouched (its owner decides); without
 // one, a timer aborts the request and the rejection carries a stable errorCode
 // so the UI can say "no answer from the server" instead of a bare AbortError.

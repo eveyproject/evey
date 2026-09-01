@@ -11,6 +11,8 @@ import {
   useAdminPluginServiceDisablePlugin,
   useAdminPluginServiceUninstallPlugin,
   useAdminPluginServiceInstallPlugin,
+  adminPluginServiceInstallPlugin,
+  NO_TIMEOUT,
   useAdminPluginServiceGetPluginConfig,
   useAdminPluginServiceUpdatePluginConfig,
   useAdminPluginServiceGetPluginLogs,
@@ -794,6 +796,9 @@ export default function AdminPluginsScreen() {
 
   const installPlugin = useAdminPluginServiceInstallPlugin({
     mutation: {
+      // The server downloads and verifies the archive inside the request:
+      // opt out of the fetcher's default timeout.
+      mutationFn: ({ data }) => adminPluginServiceInstallPlugin(data, NO_TIMEOUT),
       onSuccess: () => {
         toast.success(t("admin.plugins.pluginInstalled", "Plugin installed"));
         qc.invalidateQueries({ queryKey: getAdminPluginServiceListPluginsQueryKey() });

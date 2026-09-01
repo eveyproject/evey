@@ -14,6 +14,7 @@ import {
   getBackupScheduleServiceGetBackupScheduleQueryKey,
   backupScheduleServiceUpdateBackupSchedule,
   backupScheduleServiceRunBackupNow,
+  NO_TIMEOUT,
   apiErrorMessage,
 } from "@evey/api";
 import type { V1BackupManifest, V1BackupSchedule } from "@evey/api";
@@ -94,7 +95,8 @@ function ScheduleSection() {
   });
 
   const runMutation = useMutation({
-    mutationFn: () => backupScheduleServiceRunBackupNow({}),
+    // The dump runs inside the request: opt out of the fetcher's default timeout.
+    mutationFn: () => backupScheduleServiceRunBackupNow({}, NO_TIMEOUT),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: BACKUPS_QUERY_KEY });
       queryClient.invalidateQueries({ queryKey: SCHEDULE_QUERY_KEY });
