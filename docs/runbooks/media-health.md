@@ -63,7 +63,9 @@ grouped by verdict:
 *Seen, stop flagging* (per file) and *Mark all as seen* (per group) take a
 finding out of the *Awaiting* view. The acknowledgement is tied to the file's
 identity **and its bytes**: if the file changes (size or mtime), the next scan
-diagnoses it afresh and the flag comes back. *Flag again* undoes it.
+diagnoses it afresh and the flag comes back. *Flag again* undoes it. An
+acknowledgement posted while a scan is running is kept when that scan
+completes (for an unchanged file).
 
 The views at the top of the table (*Awaiting*, *Repairable*, *Your call*,
 *Info*, *Seen*, *Backups*, *All*) plus the search box are how you work through
