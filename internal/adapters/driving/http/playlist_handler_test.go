@@ -124,8 +124,12 @@ func TestGeneratePlaylist_DefaultName(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
 	}
-	if capturedName != "Mix" {
-		t.Errorf("expected default name Mix, got %q", capturedName)
+	// The handler forwards the ABSENCE of a name rather than inventing one:
+	// naming a generated playlist is the generator's business, because only it
+	// can step aside when "Mix" is already taken. Doing it here returned a 500
+	// on the second press of the button (prod, 2026-09-02).
+	if capturedName != "" {
+		t.Errorf("expected the empty name to be forwarded, got %q", capturedName)
 	}
 }
 

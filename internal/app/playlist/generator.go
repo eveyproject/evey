@@ -93,6 +93,14 @@ func (g *GeneratorService) Generate(ctx context.Context, profileID string, libra
 	ctx, span := tracing.StartSpan(ctx, "app.playlist.Generate")
 	defer span.End()
 
+	// An empty name means the caller had no opinion, so ours may be adjusted to
+	// get out of its own way. A name the person typed is theirs and is never
+	// silently changed.
+	explicitName := strings.TrimSpace(name) != ""
+	if !explicitName {
+		name = DefaultGeneratedName
+	}
+
 	if size <= 0 {
 		size = defaultGenSize
 	}
@@ -138,12 +146,9 @@ func (g *GeneratorService) Generate(ctx context.Context, profileID string, libra
 	//nolint:gosec // playlist variety, not security - same rationale as the jitter above
 	rand.Shuffle(len(candidates), func(i, j int) { candidates[i], candidates[j] = candidates[j], candidates[i] })
 
-	pl, err := playlist.NewPlaylist(name, profileID, playlist.Manual)
+	pl, err := g.createNamed(ctx, profileID, name, explicitName)
 	if err != nil {
-		return nil, fmt.Errorf("new playlist: %w", err)
-	}
-	if err := g.playlists.Create(ctx, pl); err != nil {
-		return nil, fmt.Errorf("create playlist: %w", err)
+		return nil, err
 	}
 	now := time.Now()
 	for i, c := range candidates {
@@ -217,4 +222,42 @@ func (g *GeneratorService) genreAffinity(ctx context.Context, profileID string) 
 		return nil
 	}
 	return aff
+}
+
+// DefaultGeneratedName is what a generated playlist is called when the person
+// did not name it.
+const DefaultGeneratedName = "Mix"
+
+// maxNameAttempts bounds the search for a free name. A profile with sixty
+// mixes has a naming problem this code cannot solve for them; past that the
+// collision is reported like any other.
+const maxNameAttempts = 50
+
+// createNamed persists the playlist, working around a name collision ONLY when
+// the name is ours to choose.
+//
+// Prod, 2026-09-02: generating a second mix returned a 500, because "Mix" was
+// already taken by the first and one profile may hold one playlist per name.
+// Pressing the button twice is the most ordinary thing a person does, so the
+// default name now steps aside; an explicit one is reported so the person can
+// decide what to do about it.
+func (g *GeneratorService) createNamed(ctx context.Context, profileID, name string, explicit bool) (*playlist.Playlist, error) {
+	for attempt := range maxNameAttempts {
+		candidate := name
+		if attempt > 0 {
+			candidate = fmt.Sprintf("%s %d", name, attempt+1)
+		}
+		pl, err := playlist.NewPlaylist(candidate, profileID, playlist.Manual)
+		if err != nil {
+			return nil, fmt.Errorf("new playlist: %w", err)
+		}
+		createErr := g.playlists.Create(ctx, pl)
+		if createErr == nil {
+			return pl, nil
+		}
+		if !errors.Is(createErr, playlist.ErrDuplicateName) || explicit {
+			return nil, fmt.Errorf("create playlist: %w", createErr)
+		}
+	}
+	return nil, fmt.Errorf("create playlist: %w", playlist.ErrDuplicateName)
 }

@@ -178,15 +178,22 @@ func (h *playlistHandler) generatePlaylist(w http.ResponseWriter, r *http.Reques
 		span.SetStatus(otelcodes.Error, "library access denied")
 		return
 	}
+	// The default name is the generator's business now: it steps aside when
+	// taken, which is what makes pressing generate twice work at all.
 	name := strings.TrimSpace(body.Name)
-	if name == "" {
-		name = "Mix"
-	}
 
 	pl, err := h.gen.Generate(r.Context(), claims.ProfileID, shared.LibraryID(body.LibraryID), body.Size, name)
 	if errors.Is(err, appplaylist.ErrNoTracks) {
 		span.SetStatus(otelcodes.Error, "no tracks")
 		http.Error(w, `{"message":"no tracks to generate from"}`, http.StatusUnprocessableEntity)
+		return
+	}
+	if errors.Is(err, playlist.ErrDuplicateName) {
+		// A name the person chose is already theirs on another playlist. That
+		// is their decision to make, not a server failure - it was reported as
+		// a 500 until 2026-09-02.
+		span.SetStatus(otelcodes.Error, "duplicate name")
+		http.Error(w, `{"message":"a playlist of yours already uses that name"}`, http.StatusConflict)
 		return
 	}
 	if err != nil {
