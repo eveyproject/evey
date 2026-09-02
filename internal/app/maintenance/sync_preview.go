@@ -140,10 +140,11 @@ func (s *SeekIndexService) ApplyOperatorShift(ctx context.Context, mediaID strin
 			Detail: "judged on a preview clip and applied by hand",
 		},
 	}
-	// The same guard every other rewrite gets: a repair must never cost the
-	// file its sound, whoever asked for it.
-	audibleBefore, haveBaseline := s.audibleTracks(ctx, f.Path)
-	rec.AudibleBefore = audibleBefore
+	// The same guard every other rewrite gets, and the same implementation:
+	// a repair must never cost the file its sound, whoever asked for it. No
+	// backup exists by design, so the way back is the inverse shift.
+	before, haveBaseline := s.audioIntegrityBaseline(ctx, f.Path)
+	rec.AudibleBefore = len(before)
 
 	if err := s.retimer.RetimeTracks(ctx, f.Path, rec.ShiftSec); err != nil {
 		rec.Outcome, rec.Error = "failed", err.Error()
@@ -151,18 +152,12 @@ func (s *SeekIndexService) ApplyOperatorShift(ctx context.Context, mediaID strin
 		return fmt.Errorf("apply shift: %w", err)
 	}
 	if haveBaseline {
-		after, measured := s.audibleTracks(ctx, f.Path)
-		rec.AudibleAfter = after
-		if measured && after < audibleBefore {
-			// No backup exists by design, so the way back is the journal: put
-			// the track where it was and say what happened.
-			rec.Outcome = "rolled_back"
-			rec.Error = fmt.Sprintf("%v (%d audible before, %d after)", ErrAudioLost, audibleBefore, after)
-			if back := s.retimer.RetimeTracks(ctx, f.Path, map[uint64]float64{track: -shiftSec}); back != nil {
-				rec.Error += "; putting it back ALSO failed: " + back.Error()
-			}
+		if err := s.guardAudioIntegrity(ctx, f.Path, before, func() error {
+			return s.retimer.RetimeTracks(ctx, f.Path, map[uint64]float64{track: -shiftSec})
+		}); err != nil {
+			rec.Outcome, rec.Error = "rolled_back", err.Error()
 			s.journalRepair(ctx, rec)
-			return fmt.Errorf("apply shift: %w", ErrAudioLost)
+			return fmt.Errorf("apply shift: %w", err)
 		}
 	}
 	rec.Outcome = "applied"

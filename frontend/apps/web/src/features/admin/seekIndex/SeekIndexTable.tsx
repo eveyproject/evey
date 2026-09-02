@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/Badge";
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { RepairHistoryPanel } from "./RepairHistoryPanel";
+import { SyncPreviewPanel } from "./SyncPreviewPanel";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Pagination } from "@/components/ui/Pagination";
 import { audioDelayed, audioTrackZeroed, baseName, formatBytes, isAckable, isAcked, verdictOf, audioTracksDisagree } from "@evey/api";
@@ -51,6 +52,9 @@ export function SeekIndexTable({
   // Which row has its journal open. One at a time: the history is a detour, not
   // a column, and stacking several would bury the table it belongs to.
   const [historyFor, setHistoryFor] = useState<string | null>(null);
+  // The preview is the only thing that answers "does the sound follow the
+  // picture". One row at a time, like the journal.
+  const [previewFor, setPreviewFor] = useState<string | null>(null);
 
   return items.length === 0 ? (
     <div className="rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]">
@@ -301,6 +305,14 @@ export function SeekIndexTable({
                     >
                       {t("admin.repairHistory.btn")}
                     </Button>
+                    <Button
+                      variant="ghost"
+                      className="text-xs"
+                      onClick={() => setPreviewFor(previewFor === it.mediaId ? null : (it.mediaId ?? null))}
+                      data-testid="seek-index-sync-preview-btn"
+                    >
+                      {t("admin.syncPreview.btn")}
+                    </Button>
                     {isAckable(it) && (
                       <Button
                         variant="ghost"
@@ -338,6 +350,13 @@ export function SeekIndexTable({
                       </Button>
                     )}
                   </div>
+                  {previewFor && previewFor === it.mediaId && (
+                    <SyncPreviewPanel
+                      mediaId={previewFor}
+                      title={it.title || baseName(it.path ?? "")}
+                      onClose={() => setPreviewFor(null)}
+                    />
+                  )}
                   {historyFor && historyFor === it.mediaId && (
                     <RepairHistoryPanel
                       mediaId={historyFor}
