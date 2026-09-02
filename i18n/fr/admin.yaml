@@ -1271,6 +1271,8 @@ seekIndex:
   audioOffsetProvenHint: "Une piste audio démarre après l'image, et les pistes de ce fichier ont été comparées : elles concordent, le décalage est voulu. Rien à faire."
   audioTracksDisagreeBadge: "Pistes audio décalées de {{sec}} s"
   audioTracksDisagreeHint: "Les pistes audio de ce fichier ont été comparées : elles divergent de {{sec}} s, donc l'une d'elles est mal placée. Rien ici ne peut dire laquelle, donc rien n'est modifié automatiquement : écoutez les deux et gardez la bonne, ou reprenez le fichier."
+  audioTrackZeroedBadge: "Piste audio ramenée à 0"
+  audioTrackZeroedHint: "Une piste audio de ce fichier démarre exactement sur l'image alors qu'une autre garde son petit décalage d'origine. C'est la marque que laisse une ancienne réparation audio quand elle tire une piste en arrière de son propre décalage déclaré. Si le doublage est en avance, la valeur retirée n'est plus dans le fichier et rien ici ne peut la rendre automatiquement : écoutez, corrigez à la main, ou récupérez le fichier."
   truncatedBadge: "Téléchargement incomplet"
   truncatedSizeBadge: "Incomplet - fin manquante ~{{size}}"
   damagedBadge: "Endommagé ~{{size}}"

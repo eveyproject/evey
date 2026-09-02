@@ -743,6 +743,8 @@
   "admin.seekIndex.audioOffsetProvenHint": "An audio track starts after the picture, and this file's own tracks were compared and agree: the offset is deliberate. Nothing to do.",
   "admin.seekIndex.audioShortBadge": "Audio -{{sec}}s",
   "admin.seekIndex.audioShortHint": "An audio track stops {{sec}}s before the video does (silent credits on that track). The file is otherwise healthy and playback fills the missing tail with silence. Measured against where the picture actually ends, not against the container's declared duration - so an over-stated duration is never blamed on the audio. No repair can help: the audio simply is not in the file; re-acquire the source for a real fix.",
+  "admin.seekIndex.audioTrackZeroedBadge": "Audio track pulled to 0",
+  "admin.seekIndex.audioTrackZeroedHint": "One audio track of this file starts exactly on the picture while another keeps its small original offset. That is the mark an earlier audio repair leaves when it pulls a track back by its own declared delay. If the dub plays early, the amount removed is no longer in the file and nothing here can put it back automatically: listen, correct it by hand, or re-acquire the file.",
   "admin.seekIndex.audioTracksDisagreeBadge": "Audio tracks {{sec}}s apart",
   "admin.seekIndex.audioTracksDisagreeHint": "This file's audio tracks were compared and drift {{sec}}s apart, so one of them sits in the wrong place. Nothing here can tell which, so nothing is changed automatically: play both and keep the good one, or re-acquire the file.",
   "admin.seekIndex.backupBadge": "Backup",

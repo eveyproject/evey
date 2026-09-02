@@ -36,6 +36,7 @@ func TestSeekStatus_Verdict(t *testing.T) {
 		"junk plus audio delay":        {appmaintenance.SeekStatus{HasIndex: true, TrailingJunk: true, AudioDelaySec: 0.5}, appmaintenance.VerdictInformational},
 		"audio tracks disagree":        {appmaintenance.SeekStatus{HasIndex: true, AudioTracksLagSec: 11.9, AudioTracksChecked: true}, appmaintenance.VerdictInformational},
 		"offset proven coherent":       {appmaintenance.SeekStatus{HasIndex: true, AudioDelaySec: 12, AudioTracksLagSec: 0, AudioTracksChecked: true}, appmaintenance.VerdictInformational},
+		"retime fingerprint":           {appmaintenance.SeekStatus{HasIndex: true, AudioTrackZeroed: true}, appmaintenance.VerdictInformational},
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {

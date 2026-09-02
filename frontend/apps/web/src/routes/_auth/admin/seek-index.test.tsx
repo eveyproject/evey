@@ -267,6 +267,25 @@ describe("SeekIndexPage", () => {
     expect(screen.getByTestId("seek-index-repairable-count")).toHaveTextContent("1");
   });
 
+  it("a track pulled to 0 by an earlier repair is named, as a remark", async () => {
+    const zeroed = {
+      ...scanned,
+      data: {
+        ...scanned.data,
+        items: scanned.data.items.map((it: { mediaId: string }) =>
+          it.mediaId === "mi-4" ? { ...it, audioDelaySec: 0, audioTrackZeroed: true } : it,
+        ),
+      },
+    };
+    mockScan.mockReturnValue(zeroed);
+    const Page = await getPage();
+    render(React.createElement(Page));
+    expect(screen.getByText("Audio track pulled to 0")).toBeInTheDocument();
+    expect(screen.getByTestId("seek-index-track-zeroed-hint")).toHaveAttribute("title", expect.stringContaining("earlier audio repair"));
+    // nothing to repair here: the amount removed is not in the file any more
+    expect(screen.getByTestId("seek-index-repairable-count")).toHaveTextContent("1");
+  });
+
   it("a wrong-container file shows the badge and a wrong-container rollup count", async () => {
     const wc = {
       ...scanned,

@@ -42,7 +42,8 @@ const (
 	coherenceStartSec = 900
 	// coherenceMaxLagSec bounds the search. Deliberate dub alignments observed
 	// in the wild sit between 3 and 12 s; 30 covers them with room to spare
-	// while keeping the search cheap.
+	// while keeping the search cheap. A displacement beyond it is reported as
+	// "could not conclude", never as the best peak of the wrong window.
 	coherenceMaxLagSec = 30
 	// coherenceEnvelopeStep is the resolution asked of astats. ffmpeg emits one
 	// value per decoded frame regardless, so this only bounds its accounting.
@@ -153,6 +154,11 @@ func decodeEnvelope(ctx context.Context, ffmpegPath, path string, track int, atS
 		coherenceEnvelopeStep)
 	cmd := exec.CommandContext(ctx, ffmpegPath, //nolint:gosec // operator media path, fixed binary
 		"-v", "error", "-nostdin",
+		// Input-side discards: the picture and subtitles are never read, let
+		// alone decoded. Measured at ~2 s per file against ~10 s without, and
+		// the difference is what makes running this on every multi-track
+		// file affordable.
+		"-vn", "-sn", "-dn",
 		"-ss", strconv.FormatFloat(atSec, 'f', 3, 64), "-t", strconv.Itoa(windowSec),
 		"-i", path, "-map", fmt.Sprintf("0:a:%d", track),
 		"-af", filter, "-f", "null", "-")
@@ -224,6 +230,13 @@ func correlateEnvelopes(a, b []float64) (lag, confidence float64, ok bool) {
 		}
 	}
 	if best <= 0 {
+		return 0, 0, false
+	}
+	// A peak sitting on the edge of the search is not a measurement: the true
+	// alignment may lie anywhere beyond it, and the best of a wrong window is
+	// still wrong. Say "could not conclude" rather than hand back a lag that
+	// happens to be the largest one tried.
+	if bestLag <= -span || bestLag >= span {
 		return 0, 0, false
 	}
 	return float64(bestLag) * step, math.Min(best, 1), true

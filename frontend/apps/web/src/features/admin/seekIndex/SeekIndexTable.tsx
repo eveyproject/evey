@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { RepairHistoryPanel } from "./RepairHistoryPanel";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Pagination } from "@/components/ui/Pagination";
-import { audioDelayed, baseName, formatBytes, isAckable, isAcked, verdictOf, audioTracksDisagree } from "@evey/api";
+import { audioDelayed, audioTrackZeroed, baseName, formatBytes, isAckable, isAcked, verdictOf, audioTracksDisagree } from "@evey/api";
 import { SEEK_INDEX_PAGE_SIZE, type SeekIndexPageState } from "./hooks";
 
 type SeekIndexTableProps = Pick<
@@ -172,6 +172,18 @@ export function SeekIndexTable({
                         </Badge>
                       </span>
                     )
+                  )}
+                  {/* The mark an earlier repair left: one track pulled to 0
+                      while its sibling kept its priming. Names the file; the
+                      amount removed is not in it any more. */}
+                  {audioTrackZeroed(it) && (
+                    <span
+                      title={t("admin.seekIndex.audioTrackZeroedHint")}
+                      className="ml-1.5 inline-block"
+                      data-testid="seek-index-track-zeroed-hint"
+                    >
+                      <Badge variant="warning">{t("admin.seekIndex.audioTrackZeroedBadge")}</Badge>
+                    </span>
                   )}
                   {it.truncated ? (
                     <span title={t("admin.seekIndex.truncatedHint")} className="ml-1.5 inline-block">

@@ -2,7 +2,7 @@ import { View, Text, Pressable, ActivityIndicator, Alert, StyleSheet } from "rea
 import { useTranslation } from "react-i18next";
 import type { V1SeekIndexItem } from "@evey/api";
 import { useTheme } from "../../../providers/ThemeProvider";
-import { audioDelayed, formatBytes, isAckable, isAcked, verdictOf } from "@evey/api";
+import { audioDelayed, audioTrackZeroed, formatBytes, isAckable, isAcked, verdictOf } from "@evey/api";
 
 type Theme = ReturnType<typeof useTheme>;
 
@@ -130,6 +130,13 @@ export function SeekIndexItemRow({
         {item.hasBackup && <HintBadge label={t("admin.seekIndex.backupBadge")} color={theme.colors.info} />}
         {delayed && (
           <HintBadge label={t("admin.seekIndex.audioDelayBadge", { sec: (item.audioDelaySec ?? 0).toFixed(1) })} color={theme.colors.warning} />
+        )}
+        {audioTrackZeroed(item) && (
+          <HintBadge
+            label={t("admin.seekIndex.audioTrackZeroedBadge")}
+            hint={t("admin.seekIndex.audioTrackZeroedHint")}
+            color={theme.colors.warning}
+          />
         )}
         {item.truncated ? (
           <HintBadge

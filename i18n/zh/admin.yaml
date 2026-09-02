@@ -1272,6 +1272,8 @@ seekIndex:
   audioOffsetProvenHint: "某条音轨在画面之后开始，且已比对本文件自身的各条音轨：它们一致，该偏移是有意为之。无需处理。"
   audioTracksDisagreeBadge: "音轨相差 {{sec}} 秒"
   audioTracksDisagreeHint: "已比对本文件的音轨，它们相差 {{sec}} 秒，说明其中一条位置不对。这里无法判断是哪一条，因此不会自动更改：请试听两条并保留正确的那条，或重新获取该文件。"
+  audioTrackZeroedBadge: "音轨被拉到 0"
+  audioTrackZeroedHint: "此文件的一条音轨恰好与画面同时开始，而另一条仍保留其原有的微小偏移。这是早先的音频修复把某条音轨按其自身声明的延迟向前拉回后留下的痕迹。如果配音提前播放，被去掉的数值已不在文件中，这里没有任何功能能自动恢复：请试听、手动校正，或重新获取文件。"
   truncatedBadge: "下载不完整"
   truncatedSizeBadge: "不完整 - 缺失结尾 ~{{size}}"
   repairHint: "重建检索索引。构造上安全:重写到临时副本、完整重新校验、原子交换 - 原文件保留为可回滚的 .mkvgobak 备份。"

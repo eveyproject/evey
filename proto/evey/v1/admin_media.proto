@@ -392,10 +392,17 @@ message SeekIndexItem {
   // 0 with audio_tracks_checked true means PROVEN coherent.
   double audio_tracks_lag_sec = 19;
   // audio_tracks_checked says the comparison actually ran, so a 0 lag reads as
-  // "proven coherent" rather than "never looked". False when the file has one
-  // audio track, declares no offset worth explaining, or the two mixes shared
-  // no legible signal.
+  // "proven coherent" rather than "never looked". It runs on every file with
+  // two or more audio tracks; false when the file has one audio track, or the
+  // two mixes shared no legible signal.
   bool audio_tracks_checked = 20;
+  // audio_track_zeroed is the fingerprint of a track that was retimed onto the
+  // picture: one audio track starts at exactly 0 while a sibling keeps its
+  // small priming offset. A muxer treats sibling tracks alike; only a repair
+  // that pulled ONE track back by its own declared delay leaves this shape
+  // (the 2026-07-13 batch). It names the touched file; the amount removed is
+  // gone from the file and nothing here can restore it. Informational.
+  bool audio_track_zeroed = 21;
 }
 
 message ScanSeekIndexRequest {

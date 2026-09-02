@@ -108,3 +108,41 @@ func TestCorrelateEnvelopes_RefusesWithoutSignal(t *testing.T) {
 		t.Error("a silent track correlates with nothing and must say so")
 	}
 }
+
+// The envelope's time step is DERIVED from the data - window length over
+// sample count - never assumed from the resolution asked of astats. astats
+// emits one value per decoded audio frame whatever length it is given (32 ms
+// for AC-3 at 48 kHz, not the 0.2 s requested), and a script that assumed the
+// requested step once read every lag 1.5625 times too large, "proved" a
+// timestamp fault that did not exist, and got two films rewritten for nothing
+// (2026-09-01). This test refuses the "simplification" that would put a
+// constant back: the same displacement must come out right at a frame count
+// the requested step cannot explain.
+func TestCorrelateEnvelopes_StepIsDerivedFromTheData(t *testing.T) {
+	// 240 s of 32 ms frames: 7500 samples, a step of 0.032 s - nowhere near
+	// coherenceEnvelopeStep.
+	const n = 7500
+	a := filmEnvelope(n, 21)
+	const d = 373 // frames, the a prod title displacement (373 x 32 ms = 11.936 s)
+	b := shift(a, d)
+	lag, _, ok := correlateEnvelopes(a, b)
+	if !ok {
+		t.Fatal("not comparable")
+	}
+	want := float64(d) * float64(coherenceWindowSec) / n
+	if math.Abs(lag-want) > 0.1 {
+		t.Fatalf("lag = %.3fs, want %.3fs (derived step); a constant step would read %.3fs",
+			lag, want, float64(d)*coherenceEnvelopeStep)
+	}
+}
+
+// A displacement beyond the search window must come back as "could not
+// conclude", not as the best peak the wrong window happened to hold.
+func TestCorrelateEnvelopes_BeyondTheWindowIsNoVerdict(t *testing.T) {
+	a := filmEnvelope(4000, 31)
+	step := float64(coherenceWindowSec) / 4000
+	b := shift(a, int(math.Round(45/step))) // 45 s, past coherenceMaxLagSec
+	if lag, conf, ok := correlateEnvelopes(a, b); ok {
+		t.Fatalf("a 45 s displacement was reported as %+.2fs (r=%.2f) - a false peak", lag, conf)
+	}
+}

@@ -185,6 +185,37 @@ const AudioCoherenceMinConfidence = 0.5
 // codec priming sits at ~20-40ms, the defect class at hundreds of ms.
 const AudioDelayFlagSec = 0.1
 
+// RetimeSignature reports the fingerprint a track retime leaves in a file's
+// declared audio start delays (ms, keyed by track): one track at EXACTLY 0
+// while a sibling keeps a small non-zero offset under AudioDelayFlagSec, and no
+// track above that floor. A muxer treats sibling tracks alike (both 0, or both
+// carrying their priming); only a repair that pulled ONE track back by its own
+// declared delay - the 2026-07-13 batch, which acted on every track above the
+// floor - leaves exactly one at zero. Observed on the victims: track 2 at
+// 0.000 s, track 3 at 0.020 s. A file whose tracks are ALL at zero is not
+// flagged: that is what a plain mux looks like too, and the track comparison
+// is what catches those.
+func RetimeSignature(delaysMs map[uint64]int64) bool {
+	if len(delaysMs) < 2 {
+		return false
+	}
+	floorMs := int64(AudioDelayFlagSec * 1000)
+	zeroed, kept := false, false
+	for _, ms := range delaysMs {
+		switch {
+		case ms == 0:
+			zeroed = true
+		case ms > floorMs:
+			// A track still above the floor was not retimed - the batch
+			// zeroed every one of those. Not the shape it leaves behind.
+			return false
+		default:
+			kept = true
+		}
+	}
+	return zeroed && kept
+}
+
 // AudioTrackLagFlagSec is how far two of a file's own audio tracks may disagree
 // before the file is called incoherent. Codec priming and frame quantisation
 // leave tens of milliseconds between an AC-3 and an AAC rendition of the same
@@ -246,6 +277,22 @@ type SeekStatus struct {
 	// AudioTracksChecked records that the comparison actually ran, so "0" reads
 	// as "proven coherent" instead of "never looked".
 	AudioTracksChecked bool
+	// AudioTracks is how many audio tracks the diagnosis saw. It decides
+	// whether the coherence comparison has anything to compare: it used to run
+	// only on files DECLARING an offset, and a file whose track has been pulled
+	// back onto the picture declares none - the 98 files rewritten on
+	// 2026-07-13 would all have passed as healthy. 0 when the diagnosis did not
+	// count them (no diagnoser wired).
+	AudioTracks int `json:"AudioTracks,omitempty"`
+	// AudioTrackZeroed is the FINGERPRINT of a track that was retimed onto the
+	// picture: one audio track starts at exactly 0 while another keeps its
+	// small original offset (codec priming, a few tens of milliseconds). A
+	// muxer gives sibling tracks the same treatment; only a repair that pulls
+	// ONE track back by its own declared delay leaves this shape behind. It
+	// says WHICH files were touched, for the price of a header read - what the
+	// track comparison could establish on 4 of the 81 victims. It does not say
+	// by how much: that value is gone from the file.
+	AudioTrackZeroed bool `json:"AudioTrackZeroed,omitempty"`
 	// Truncated → the file is an incomplete download whose damage runs to the
 	// end: no tool can recover the missing tail, a resync would only produce a
 	// playable prefix. The operator must re-acquire the source. Only a
@@ -328,7 +375,12 @@ type SeekStatus struct {
 //	3: mkvgo 0.27 - the index tail is judged against the picture's real end (files
 //	   cued every 2 s were condemned for sound outlasting picture), sparse holes are
 //	   probed (reindex / re-encode / picture-missing), audio-short from TrackEnds
-const SeekDiagVersion = 3
+//	4: the audio track comparison runs on EVERY file with two or more audio
+//	   tracks, not only on those declaring an offset (a retimed track declares
+//	   none - none of the 98 files of 2026-07-13 would have been caught); a
+//	   track pulled to exactly 0 next to a sibling keeping its priming offset is
+//	   reported as the fingerprint of that retime
+const SeekDiagVersion = 4
 
 // Verdict is what the health page owes the operator for every file: not a
 // pile of flags, but the ONE answer "does this need doing, or is it just
@@ -384,6 +436,7 @@ func (st SeekStatus) Verdict() Verdict {
 	// but it is still not something Evey will rewrite behind the operator.
 	case st.AudioTracksLagSec > AudioTrackLagFlagSec,
 		st.AudioDelaySec > AudioDelayFlagSec,
+		st.AudioTrackZeroed,
 		st.AudioShortfallSec > AudioShortfallFlagSec,
 		st.TrailingJunk:
 		return VerdictInformational

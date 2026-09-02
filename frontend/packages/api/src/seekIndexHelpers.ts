@@ -42,6 +42,13 @@ export function audioTracksDisagree(
   return !!it.audioTracksChecked && Math.abs(Number(it.audioTracksLagSec ?? 0)) > AUDIO_TRACK_LAG_FLOOR_SEC;
 }
 
+// audioTrackZeroed is the fingerprint of a track that an earlier repair pulled
+// back onto the picture: one track at exactly 0 while a sibling keeps its small
+// priming offset. It names the file; the amount removed is gone from it.
+export function audioTrackZeroed(it: Pick<V1SeekIndexItem, "audioTrackZeroed">): boolean {
+  return Boolean(it.audioTrackZeroed);
+}
+
 export function errText(err: { message?: string } | null | undefined, fallback: string): string {
   return err?.message || fallback;
 }
@@ -75,6 +82,7 @@ export type SeekVerdictInput = Pick<
   | "trailingJunk"
   | "audioTracksLagSec"
   | "audioTracksChecked"
+  | "audioTrackZeroed"
 >;
 
 // verdictOf trusts the server's verdict and, for a server that predates it,
@@ -105,6 +113,7 @@ export function verdictOf(it: SeekVerdictInput): SeekVerdict {
   if (
     audioTracksDisagree(it) ||
     audioDelayed(it) ||
+    audioTrackZeroed(it) ||
     (it.audioShortfallSec ?? 0) > AUDIO_SHORTFALL_FLOOR_SEC ||
     it.trailingJunk
   ) {

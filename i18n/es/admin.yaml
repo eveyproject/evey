@@ -1272,6 +1272,8 @@ seekIndex:
   audioOffsetProvenHint: "Una pista de audio empieza después de la imagen, y las pistas de este archivo se compararon: coinciden, el desfase es intencionado. Nada que hacer."
   audioTracksDisagreeBadge: "Pistas de audio a {{sec}} s de diferencia"
   audioTracksDisagreeHint: "Las pistas de audio de este archivo se compararon y difieren {{sec}} s, así que una está mal colocada. Nada aquí puede decir cuál, así que no se cambia nada automáticamente: escucha ambas y quédate con la buena, o vuelve a obtener el archivo."
+  audioTrackZeroedBadge: "Pista de audio llevada a 0"
+  audioTrackZeroedHint: "Una pista de audio de este archivo empieza exactamente con la imagen mientras otra conserva su pequeño desfase original. Es la marca que deja una reparación de audio anterior al tirar de una pista hacia atrás por su propio retraso declarado. Si el doblaje va adelantado, el valor retirado ya no está en el archivo y nada aquí puede devolverlo automáticamente: escuche, corríjalo a mano o vuelva a obtener el archivo."
   truncatedBadge: "Descarga incompleta"
   truncatedSizeBadge: "Incompleto - falta el final ~{{size}}"
   repairHint: "Reconstruye el índice de búsqueda. Seguro por construcción: reescritura a una copia temporal, revalidación completa, intercambio atómico - el original se conserva como .mkvgobak restaurable."

@@ -335,6 +335,11 @@ func (s *SeekIndexService) diagnose(ctx context.Context, path string, st *SeekSt
 			st.PictureMissing = d.IndexSparsePictureMissing()
 		}
 		st.AudioDelaySec = float64(d.MaxAudioDelayMs()) / 1000
+		// Every audio track's own offset, not just the largest: the count
+		// decides whether the coherence comparison has anything to compare,
+		// and the SHAPE of the set is the fingerprint of a retimed track.
+		st.AudioTracks = len(d.AudioDelaysMs)
+		st.AudioTrackZeroed = !st.WrongContainer && RetimeSignature(d.AudioDelaysMs)
 		st.Truncated = d.Truncated
 		st.MissingTailBytes = d.MissingTailBytes
 		st.DamagedBytes = d.DamagedBytes
@@ -494,10 +499,19 @@ func (s *SeekIndexService) noteReindexed(ctx context.Context, path string, hasBa
 	})
 }
 
-// proveAudioCoherence turns a declared audio offset from an accusation into a
-// measured fact - or leaves it as a plain fact. It runs ONLY on the files that
-// declare an offset worth explaining (3 of 6695 on the real library), so the
-// scan's cost is unchanged for everything else.
+// proveAudioCoherence asks the one question that tells a sound file from a
+// damaged one: do its own audio tracks tell the same story at the same
+// instant? It runs on EVERY file with two or more audio tracks.
+//
+// It used to run only on files DECLARING an offset above the floor - 3 of 6695
+// on the real library - on the theory that the offset was the thing to
+// explain. That theory was backwards. A track that has been pulled back onto
+// the picture declares NO offset any more: that is precisely what the repair
+// did to it. a prod title declared 0.000 s and another 0.02 s after the
+// 2026-07-13 batch, and both were classed healthy; none of the 98 rewritten
+// files would ever have been looked at. The cost is about two seconds per
+// multi-track file (the video is not demuxed), which the gentle scan pace
+// absorbs.
 //
 // A file whose own audio tracks line up is a file whose offsets are RIGHT: a
 // dub aligned to its cut, which nothing here should ever rewrite. A file whose
@@ -506,7 +520,13 @@ func (s *SeekIndexService) noteReindexed(ctx context.Context, path string, hasBa
 // measurement too weak to mean anything (different mixes, a commentary track)
 // changes nothing at all: silence is not an accusation.
 func (s *SeekIndexService) proveAudioCoherence(ctx context.Context, path string, st *SeekStatus) {
-	if s.audioCoh == nil || st.AudioDelaySec <= AudioDelayFlagSec || st.WrongContainer || st.Truncated {
+	if s.audioCoh == nil || st.WrongContainer || st.Truncated {
+		return
+	}
+	// Without a track count (no diagnoser) the old trigger stands: an offset
+	// worth explaining. With one, a single-track file has nothing to compare
+	// and is not worth a subprocess.
+	if st.AudioTracks == 0 && st.AudioDelaySec <= AudioDelayFlagSec || st.AudioTracks == 1 {
 		return
 	}
 	lag, confidence, err := s.audioCoh.ProbeAudioTrackLagSec(ctx, path)
