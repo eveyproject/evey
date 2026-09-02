@@ -552,6 +552,12 @@ type PersonTranslation struct {
 	Biography string
 }
 
+// ErrMediaItemGone is returned when a trickplay manifest cannot be written
+// because the media item it references has been deleted - a foreign-key
+// violation. The generation job runs for minutes and races user deletes, so a
+// vanished subject is a skip, not a failure (prod, 2026-09-02).
+var ErrMediaItemGone = errors.New("media item deleted before its trickplay manifest could be written")
+
 type TrickplayManifest struct {
 	ID          string
 	MediaItemID shared.MediaItemID

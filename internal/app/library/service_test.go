@@ -374,9 +374,11 @@ func TestGenerateTrickplay_MediaNotFound(t *testing.T) {
 	trickplayGen := libfakes.NewFakeTrickplayGenerator()
 	svc, _, _, _, _, _ := newCmdSvcWith(&cmdSvcDeps{trickplayRepo: trickplayRepo, trickplayGen: trickplayGen, cacheDir: "/cache/trickplay"})
 
+	// A media item deleted before its trickplay job ran is a quiet skip, not a
+	// failure: the worker logged these as "trickplay generation failed" on prod
+	// (2026-09-02) and cried wolf. Nothing to generate, nothing wrong.
 	err := svc.GenerateTrickplay(context.Background(), "nonexistent")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "get media item")
+	require.NoError(t, err)
 }
 
 func TestGenerateTrickplay_NoFilePath(t *testing.T) {

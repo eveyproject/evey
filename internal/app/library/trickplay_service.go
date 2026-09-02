@@ -166,6 +166,12 @@ func (s *TrickplayService) GenerateTrickplay(ctx context.Context, mediaItemID st
 	s.waitForIdleStreams(ctx)
 
 	item, err := s.mediaItems.GetByID(ctx, shared.MediaItemID(mediaItemID))
+	if errors.Is(err, shared.ErrNotFound) {
+		// Deleted before the job ran. Nothing to do, and nothing wrong.
+		slog.DebugContext(ctx, "trickplay: media item gone before generation, skipping",
+			slog.String("media_item_id", mediaItemID))
+		return nil
+	}
 	if err != nil {
 		return fmt.Errorf("get media item: %w", err)
 	}
@@ -207,6 +213,14 @@ func (s *TrickplayService) GenerateTrickplay(ctx context.Context, mediaItemID st
 	}
 
 	if err := s.trickplayRepo.Create(ctx, manifest); err != nil {
+		if errors.Is(err, library.ErrMediaItemGone) {
+			// Deleted DURING the (minutes-long) generation - the FK target is
+			// gone. The images we just made are orphaned; drop them and move on.
+			slog.DebugContext(ctx, "trickplay: media item deleted during generation, discarding output",
+				slog.String("media_item_id", mediaItemID))
+			_ = os.RemoveAll(outputDir)
+			return nil
+		}
 		return fmt.Errorf("store trickplay manifest: %w", err)
 	}
 

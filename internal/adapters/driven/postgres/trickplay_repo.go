@@ -45,6 +45,14 @@ func (r *TrickplayRepository) Create(ctx context.Context, m *library.TrickplayMa
 		m.ID, m.MediaItemID, m.Interval, m.Width, m.Height, m.TileWidth, m.TileHeight, m.ImageCount, m.ImagePath, m.AlgoVersion, m.CreatedAt,
 	)
 	if err != nil {
+		// A foreign-key violation here means the media item was deleted while
+		// the (minutes-long) trickplay generation was running: the manifest has
+		// nothing to attach to. The caller treats this as a skip, not a
+		// failure, so classify it rather than surfacing a raw pq error.
+		var pqErr *pq.Error
+		if errors.As(err, &pqErr) && pqErr.Code == "23503" {
+			return library.ErrMediaItemGone
+		}
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		return err
