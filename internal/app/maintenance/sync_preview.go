@@ -140,25 +140,19 @@ func (s *SeekIndexService) ApplyOperatorShift(ctx context.Context, mediaID strin
 			Detail: "judged on a preview clip and applied by hand",
 		},
 	}
-	// The same guard every other rewrite gets, and the same implementation:
-	// a repair must never cost the file its sound, whoever asked for it. No
-	// backup exists by design, so the way back is the inverse shift.
-	before, haveBaseline := s.audioIntegrityBaseline(ctx, f.Path)
-	rec.AudibleBefore = len(before)
-
-	if err := s.retimer.RetimeTracks(ctx, f.Path, rec.ShiftSec); err != nil {
-		rec.Outcome, rec.Error = "failed", err.Error()
+	// One call, one implementation of the rule: the retime, the whole-track
+	// integrity check around it, and the inverse shift that puts the file back
+	// if sound went missing. No backup exists by design, so that inverse IS
+	// the way back.
+	if err := s.RetimeTracksGuarded(ctx, f.Path, rec.ShiftSec); err != nil {
+		if errors.Is(err, ErrAudioLost) {
+			rec.Outcome = "rolled_back"
+		} else {
+			rec.Outcome = "failed"
+		}
+		rec.Error = err.Error()
 		s.journalRepair(ctx, rec)
 		return fmt.Errorf("apply shift: %w", err)
-	}
-	if haveBaseline {
-		if err := s.guardAudioIntegrity(ctx, f.Path, before, func() error {
-			return s.retimer.RetimeTracks(ctx, f.Path, map[uint64]float64{track: -shiftSec})
-		}); err != nil {
-			rec.Outcome, rec.Error = "rolled_back", err.Error()
-			s.journalRepair(ctx, rec)
-			return fmt.Errorf("apply shift: %w", err)
-		}
 	}
 	rec.Outcome = "applied"
 	rec.SizeAfter = fileSizeOf(f.Path)
