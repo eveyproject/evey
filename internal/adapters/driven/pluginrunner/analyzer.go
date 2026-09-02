@@ -261,6 +261,19 @@ func isDepLockfile(name string) bool {
 // actually lists third-party dependencies. Empty / metadata-only manifests
 // (e.g. a package.json with no "dependencies" field) don't trigger the
 // unvendored_deps warning since they pull in nothing at runtime.
+// hasVendoredModules reports whether a dependency tree sits beside a manifest -
+// node_modules for npm, vendor for Go/PHP, or a populated site-packages. When
+// one is present the "please vendor your deps" warning is a false positive
+// (redteam-bridge ships node_modules and still tripped it).
+func hasVendoredModules(dir string) bool {
+	for _, name := range []string{"node_modules", "vendor"} {
+		if info, err := os.Stat(filepath.Join(dir, name)); err == nil && info.IsDir() {
+			return true
+		}
+	}
+	return false
+}
+
 func manifestDeclaresDeps(path string) bool {
 	data, err := os.ReadFile(path) //nolint:gosec
 	if err != nil {
@@ -413,7 +426,16 @@ func AnalyzePluginWithWebRoot(dir, _ string) (*AnalysisReport, error) {
 		// An empty/no-deps manifest (e.g. package.json with only {"main":"x.js"})
 		// is fine - many plugins rely solely on the runtime's bundled SDK.
 		base := info.Name()
-		if depManifests[base] && manifestDeclaresDeps(path) {
+		// A nested package.json INSIDE node_modules is a dependency's own
+		// manifest, not the plugin's - its deps resolve up the tree, so the
+		// "please vendor your deps" warning is meaningless noise there (16 of
+		// them on redteam-bridge's grpc tree). Only the plugin's own top-level
+		// manifest gets this check.
+		relForManifest, relErr := filepath.Rel(dir, path)
+		if relErr != nil {
+			relForManifest = path
+		}
+		if depManifests[base] && !vendoredPath(relForManifest) && manifestDeclaresDeps(path) && !hasVendoredModules(filepath.Dir(path)) {
 			relPath, relErr := filepath.Rel(dir, path)
 			if relErr != nil {
 				relPath = path
@@ -491,7 +513,7 @@ func AnalyzePluginWithWebRoot(dir, _ string) (*AnalysisReport, error) {
 		// Keep only what is never acceptable in a dependency either: the
 		// Critical findings (shell exec, eval, raw syscall, obfuscated payload).
 		if vendoredPath(relPath) {
-			findings = criticalOnly(findings)
+			findings = vendoredCritical(findings)
 			urls = nil
 		}
 		report.Findings = append(report.Findings, findings...)
@@ -529,11 +551,41 @@ func vendoredPath(relPath string) bool {
 	return false
 }
 
-// criticalOnly keeps just the Critical findings of a scan.
-func criticalOnly(in []AnalysisFinding) []AnalysisFinding {
+// vendoredCriticalDescriptions are the findings trustworthy enough to raise from
+// inside a bundled dependency. The bar is deliberately high: a legitimately
+// published library trips eval(), bare exec(), package.json install-scripts,
+// native FFI and dynamic imports all the time (lodash, protobufjs, wrap-ansi,
+// grpc-js all do), so raising those from vendored code would flag every plugin
+// that ships a normal dependency tree - which is how the real backdoor would
+// then hide in the noise. What remains is what a real library never contains by
+// accident: process spawning, a reverse shell, a raw execve, a payload piped to
+// a shell, a read of /etc/shadow, or a deliberate string-concat evasion.
+var vendoredCriticalDescriptions = map[string]bool{
+	"shell command execution":                                   true,
+	"shell command execution via pipe":                          true,
+	"Node.js child_process import (shell/process execution)":    true,
+	"PHP shell execution function":                              true,
+	"Ruby Kernel.exec/system/spawn or IO.popen":                 true,
+	"Ruby open('|cmd') shell injection via pipe prefix":         true,
+	"aliased OS module used for shell execution":                true,
+	"potential reverse/bind shell":                              true,
+	"access to sensitive system files":                          true,
+	"host secret access":                                        true,
+	"access to process environment via /proc":                   true,
+	"raw syscall by number":                                     true,
+	"base64-decoded payload piped to shell":                     true,
+	"inline base64 blob piped to decoder (obfuscated shell payload)": true,
+	"obfuscated child_process/subprocess import":                true,
+	"obfuscated sensitive file path construction":               true,
+	"obfuscated kill() construction":                            true,
+}
+
+// vendoredCritical keeps only the high-confidence critical findings (see
+// vendoredCriticalDescriptions) from a scan of bundled dependency code.
+func vendoredCritical(in []AnalysisFinding) []AnalysisFinding {
 	var out []AnalysisFinding
 	for _, f := range in {
-		if f.Severity == SeverityCritical {
+		if f.Severity == SeverityCritical && vendoredCriticalDescriptions[f.Description] {
 			out = append(out, f)
 		}
 	}

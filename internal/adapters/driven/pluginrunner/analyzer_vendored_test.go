@@ -70,3 +70,35 @@ const x = Buffer.from("aGVsbG8=", "base64");
 		t.Error("ordinary vendored library behaviour must not block a plugin")
 	}
 }
+
+// eval() and a local function named exec() are everyday sights in published
+// libraries (templating engines; wrap-ansi literally defines its own exec()).
+// Raising them from vendored code false-positived redteam-bridge's
+// grpc/protobufjs tree on prod (2026-09-02), so they must NOT block - only the
+// unambiguous payloads do.
+func TestAnalyzePlugin_VendoredEvalAndBareExecAreNotCritical(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "main.js", `module.exports = require("./node_modules/tpl");`)
+	writeFile(t, dir, "package.json", `{"name":"p","version":"1.0.0","dependencies":{"tpl":"1.0.0"}}`)
+	writeFile(t, dir, "node_modules/tpl/index.js", `
+function exec(line, cols) { return line.slice(0, cols); }
+const render = new Function("data", "return eval('data.x')");
+module.exports = { exec, render };
+`)
+	// protobufjs ships install scripts in its package.json; that must not block.
+	writeFile(t, dir, "node_modules/tpl/package.json", `{"name":"tpl","version":"1.0.0","scripts":{"install":"npm install --ignore-scripts"}}`)
+
+	report, err := AnalyzePlugin(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !report.Safe {
+		var why []string
+		for _, f := range report.Findings {
+			if f.Severity == SeverityCritical {
+				why = append(why, f.File+": "+f.Description)
+			}
+		}
+		t.Errorf("everyday vendored library code must not block a plugin; criticals: %v", why)
+	}
+}
