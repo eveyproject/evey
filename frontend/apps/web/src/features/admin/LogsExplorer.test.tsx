@@ -40,14 +40,25 @@ const virtualMockState = vi.hoisted(() => ({
 }));
 
 vi.mock("@tanstack/react-virtual", () => ({
-  useVirtualizer: (opts: { count: number; estimateSize: (i: number) => number }) => {
+  useVirtualizer: (opts: {
+    count: number;
+    estimateSize: (i: number) => number;
+    getItemKey?: (i: number) => string | number;
+  }) => {
     const { windowStart, windowSize, measureElement } = virtualMockState;
     const maxStart = Math.max(0, opts.count - windowSize);
     const start = Math.min(windowStart, maxStart);
     const end = Math.min(opts.count, start + windowSize);
     const items = Array.from({ length: Math.max(0, end - start) }, (_, i) => {
       const idx = start + i;
-      return { index: idx, key: idx, start: idx * opts.estimateSize(idx), size: opts.estimateSize(idx) };
+      // Mirror the real hook: the item key comes from getItemKey when the
+      // caller provides one, and only falls back to the index otherwise.
+      return {
+        index: idx,
+        key: opts.getItemKey ? opts.getItemKey(idx) : idx,
+        start: idx * opts.estimateSize(idx),
+        size: opts.estimateSize(idx),
+      };
     });
     return {
       getVirtualItems: () => items,
@@ -268,6 +279,45 @@ describe("LogsExplorer", () => {
 
       await new Promise((r) => setTimeout(r, 50));
       expect(mockFetch.mock.calls.length).toBe(callsAfterHistory);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("keeps an expanded live row on its own entry when newer lines arrive", async () => {
+    // Live lines are PREPENDED, so every existing row shifts down one index on
+    // each tick. With rows keyed by index the open row kept its position and
+    // silently adopted the newcomer's content - the reader watched the log
+    // they had just expanded turn into another one.
+    let push!: (rec: Record<string, unknown>) => void;
+    const enc = new TextEncoder();
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        push = (rec) => controller.enqueue(enc.encode(`data: ${JSON.stringify(rec)}\n\n`));
+      },
+    });
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(body, { status: 200 }));
+
+    try {
+      renderExplorer(); // starts on the live tail
+      await waitFor(() => expect(fetchSpy).toHaveBeenCalled());
+
+      push({ time: "2026-07-07T19:22:01Z", level: "INFO", msg: "first line", component: "player_client", detail: "detail-first" });
+      const firstRow = await screen.findByRole("button", { name: /first line/ });
+
+      await userEvent.click(firstRow);
+      expect(firstRow).toHaveAttribute("aria-expanded", "true");
+      expect(screen.getByText("detail-first")).toBeInTheDocument();
+
+      push({ time: "2026-07-07T19:22:02Z", level: "INFO", msg: "second line", component: "player_client", detail: "detail-second" });
+      await screen.findByText("second line");
+
+      // The panel still belongs to the row the operator opened, and the
+      // newcomer arrives collapsed.
+      expect(screen.getByRole("button", { name: /first line/ })).toHaveAttribute("aria-expanded", "true");
+      expect(screen.getByRole("button", { name: /second line/ })).toHaveAttribute("aria-expanded", "false");
+      expect(screen.getByText("detail-first")).toBeInTheDocument();
+      expect(screen.queryByText("detail-second")).not.toBeInTheDocument();
     } finally {
       fetchSpy.mockRestore();
     }

@@ -303,10 +303,17 @@ export function LogsExplorer() {
   // element at the bottom of the (now windowed) DOM - it watches the last
   // *virtual* item instead, which is the standard tanstack-virtual pattern.
   const parentRef = useRef<HTMLDivElement>(null);
+  // getItemKey ties both React's reconciliation and the virtualizer's size
+  // cache to the entry's own uid rather than to its index. In live tail every
+  // new line is PREPENDED, so index N holds a different entry one tick later:
+  // keyed by index, an expanded row kept its open state (and its measured
+  // height) while its content slid to the next log under the reader's eyes.
+  const getItemKey = useCallback((index: number) => entries[index]?.uid ?? index, [entries]);
   const virtualizer = useVirtualizer({
     count: entries.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => ROW_HEIGHT_ESTIMATE,
+    getItemKey,
     overscan: 8,
   });
   const virtualItems = virtualizer.getVirtualItems();
