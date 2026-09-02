@@ -93,6 +93,20 @@ const IMAGE_SUBTITLE_CODECS = new Set([
 
 const WATCHED_THRESHOLD = 0.9;
 
+// An expired or vanished stream token is the one native failure worth
+// retrying, and it is common: the token store is in memory, so a server
+// restart kills every token a paused player still holds. Prod saw 16 of these
+// in one day from the Android app, each one a viewer stuck on an error screen
+// with nothing wrong but a dead capability.
+//
+// ExoPlayer and AVPlayer both surface the HTTP status in the message, which is
+// all we have to go on - there is no typed error for it.
+function isAuthPlaybackError(message: string | undefined): boolean {
+  if (!message) return false;
+  const m = message.toLowerCase();
+  return m.includes("401") || m.includes("403") || m.includes("unauthorized") || m.includes("forbidden");
+}
+
 export default function PlayerScreen() {
   // `restart=1` means the viewer chose "from the beginning" on the media page.
 // Resuming is the right default; this is the only way to say otherwise.
@@ -232,6 +246,7 @@ const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>()
   const { streamUrl, streamToken, sessionId, streamInfo, serverUrl, isLoading, isError, shedReason, stopSession, restartWithTracks, progress } =
     usePlaySession(sessionMediaId);
 
+
   const { data: chapters = [] } = useChapters(mediaId);
   const videoViewRef = useRef<VideoView>(null);
   const pipSupported = useMemo(() => isPictureInPictureSupported(), []);
@@ -248,12 +263,25 @@ const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>()
   // its closure would be frozen, the ref always stays up to date.
   const settingsOpenRef = useRef(false);
   useEffect(() => { settingsOpenRef.current = settingsOpen; }, [settingsOpen]);
+  // One recovery per media: a dead stream token is worth one silent retry, a
+  // second identical failure is a real one and must be shown.
+  const authRetriedRef = useRef(false);
+  // The status listener is installed before restartWithTracks exists in its
+  // closure, so it reaches it through a ref that is kept current below.
+  const restartWithTracksRef = useRef<(() => void) | null>(null);
   const [selectedAudioIndex, setSelectedAudioIndex] = useState<number>(0);
   // Audio tracks the NATIVE player exposes from the HLS manifest - the source
   // of truth for a no-reload client-side switch (see handleAudioSelect).
   const [nativeAudioTracks, setNativeAudioTracks] = useState<{ id?: string; language?: string; label?: string }[]>([]);
   const [selectedSubtitleIndex, setSelectedSubtitleIndex] = useState<number | null>(null);
   const [selectedQuality, setSelectedQuality] = useState(0);
+
+  // Keep the recovery path pointing at the CURRENT selection, so a retry after
+  // a dead token comes back on the same audio, subtitle and quality the viewer
+  // had chosen rather than resetting them.
+  restartWithTracksRef.current = () =>
+    restartWithTracks(selectedAudioIndex, selectedSubtitleIndex ?? undefined, selectedQuality || undefined);
+
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   // Audio resync (lip-sync). Mirrors the web player: audioOffsetMs is the
   // raw value the stepper shows, appliedAudioOffsetMs is what's baked into
@@ -587,6 +615,21 @@ const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>()
       setIsBuffering(ev.status === "loading");
       if (ev.status === "error") {
         console.warn("[player] native playback error:", ev.error?.message);
+        // A dead token is repairable: restartWithTracks forgets it and mints a
+        // fresh one, which is exactly what the viewer would get by leaving and
+        // coming back. Once only - a second identical failure is a real one,
+        // and retrying it forever would hide it.
+        if (isAuthPlaybackError(ev.error?.message) && !authRetriedRef.current) {
+          authRetriedRef.current = true;
+          reportPlayerEvent({
+            type: "native_player_auth_retry",
+            details: ev.error?.message ?? "",
+            fatal: false,
+            posSec: Math.round(currentTimeRef.current),
+          });
+          restartWithTracksRef.current?.();
+          return;
+        }
         // Beacon BEFORE the state flip: this is the only trace the failure
         // leaves anywhere. A direct-play death is invisible server-side (every
         // byte it served was a 200 from ServeFile), console.warn goes nowhere
