@@ -439,6 +439,22 @@ func (r *timelineDriftReporter) summarize(privDir string) {
 		slog.Int("diverged_segments", r.seen))
 }
 
+// waitProcExit blocks until the session's ffmpeg has really exited, or the
+// grace period lapses. A nil channel (call sites that do not track the process)
+// returns immediately, preserving the previous behaviour for them.
+func waitProcExit(procExited <-chan struct{}) {
+	if procExited == nil {
+		return
+	}
+	t := time.NewTimer(procExitGrace)
+	defer t.Stop()
+	select {
+	case <-procExited:
+	case <-t.C:
+		slog.Warn("hls: rebase pump gave up waiting for ffmpeg to exit; removing its scratch dir anyway")
+	}
+}
+
 // runRebasePump watches privDir for segments ffmpeg completed (temp_file
 // rename done → final name present without a `.tmp` sibling), rebases their
 // fMP4 timestamps to the session's absolute start, and atomically renames
@@ -449,7 +465,13 @@ func (r *timelineDriftReporter) summarize(privDir string) {
 // privDir.
 // namePrefix selects the rung's filenames: "stream" for the video variants,
 // "audio" for the EXT-X-MEDIA renditions (which seek exactly the same way).
-func runRebasePump(done <-chan struct{}, stop <-chan struct{}, privDir, pubDir string, deltaMs int64, namePrefix string, variantIdx int, expectedStartMs func(int) (int64, bool), driftKind string) {
+// procExitGrace bounds the wait for a cancelled ffmpeg to actually die before
+// its scratch directory is removed. The kill is a SIGKILL from
+// exec.CommandContext, so this is microseconds in practice; the bound only
+// exists so a wedged process cannot leak the directory forever.
+const procExitGrace = 5 * time.Second
+
+func runRebasePump(done <-chan struct{}, stop <-chan struct{}, procExited <-chan struct{}, privDir, pubDir string, deltaMs int64, namePrefix string, variantIdx int, expectedStartMs func(int) (int64, bool), driftKind string) {
 	// ADR-0007: both call sites spawn this as a bare goroutine, and a parent
 	// recover never covers a child goroutine - a panic here (file I/O races,
 	// box parsing on a truncated segment) would kill the whole server.
@@ -533,6 +555,14 @@ func runRebasePump(done <-chan struct{}, stop <-chan struct{}, privDir, pubDir s
 	for {
 		select {
 		case <-stop:
+			// Let ffmpeg die BEFORE its scratch directory goes. Removing it
+			// first is what produced the burst of `audio-only exited with
+			// error / exit status 254` on every seek: the superseded process
+			// was still writing segments into the directory the pump had just
+			// deleted, so it died on ENOENT and dumped a page of muxer errors
+			// instead of exiting on its kill. The sweep after the wait can also
+			// still publish a segment the process finished on its way out.
+			waitProcExit(procExited)
 			sweep()
 			_ = os.RemoveAll(privDir)
 			return

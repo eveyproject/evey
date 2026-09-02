@@ -22,6 +22,11 @@ import { useCallback, useEffect, useRef } from "react";
 export function useVolumeBoost(videoRef: React.RefObject<HTMLVideoElement | null>) {
   const ctxRef = useRef<AudioContext | null>(null);
   const gainRef = useRef<GainNode | null>(null);
+  const compRef = useRef<DynamicsCompressorNode | null>(null);
+  // Whether the compressor is currently WIRED between gain and destination.
+  // Tracked rather than derived from the gain, because the routing is what
+  // costs a reconnect and must not be redone on every slider tick.
+  const compEngagedRef = useRef(false);
   const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   // The element the source node is bound to - a MediaElementSourceNode lives
   // and dies with one element, so a media swap (new <video>) must rebuild it.
@@ -45,11 +50,41 @@ export function useVolumeBoost(videoRef: React.RefObject<HTMLVideoElement | null
     }
     try { sourceRef.current?.disconnect(); } catch { /* already gone */ }
     try { gainRef.current?.disconnect(); } catch { /* already gone */ }
+    try { compRef.current?.disconnect(); } catch { /* already gone */ }
     try { void ctxRef.current?.close(); } catch { /* already closing */ }
     ctxRef.current = null;
     gainRef.current = null;
+    compRef.current = null;
+    compEngagedRef.current = false;
     sourceRef.current = null;
     elRef.current = null;
+  }, []);
+
+  // routeCompressor wires the limiter in or out of the graph. At unity gain
+  // there is no overshoot to catch, so leaving it wired only damages the
+  // signal: a -3 dBFS threshold at 12:1 with a 250 ms release pumps on any
+  // normal programme material, which reads as "the levels jump around and it
+  // distorts". That is what it did, permanently: the graph is built on the
+  // first excursion above 100% and createMediaElementSource can never be
+  // undone, so every later playback stayed compressed even back at 100% - the
+  // element's audio only exists through this context once captured.
+  const routeCompressor = useCallback((engage: boolean) => {
+    const gain = gainRef.current;
+    const comp = compRef.current;
+    const ctx = ctxRef.current;
+    if (!gain || !comp || !ctx) return;
+    if (compEngagedRef.current === engage) return;
+    try {
+      gain.disconnect();
+      comp.disconnect();
+      if (engage) {
+        gain.connect(comp);
+        comp.connect(ctx.destination);
+      } else {
+        gain.connect(ctx.destination);
+      }
+      compEngagedRef.current = engage;
+    } catch { /* context dying: the next ensureGraph rebuilds */ }
   }, []);
 
   const ensureGraph = useCallback((): GainNode | null => {
@@ -84,8 +119,11 @@ export function useVolumeBoost(videoRef: React.RefObject<HTMLVideoElement | null
       comp.attack.value = 0.003;
       comp.release.value = 0.25;
       source.connect(gain);
-      gain.connect(comp);
-      comp.connect(ctx.destination);
+      // Bypassed until something actually asks for >100%; routeCompressor
+      // wires it in then.
+      gain.connect(ctx.destination);
+      compRef.current = comp;
+      compEngagedRef.current = false;
       // However the context reaches "running" (our resume(), a later gesture,
       // the tab regaining audio focus), make the boost real at that moment.
       // And the mirror case: once createMediaElementSource has CAPTURED the
@@ -145,6 +183,9 @@ export function useVolumeBoost(videoRef: React.RefObject<HTMLVideoElement | null
     const ctx = ctxRef.current;
     if (!node || !ctx) return;
     pendingGainRef.current = Math.max(0, gain);
+    // The limiter exists to round off what the AMPLIFICATION overshoots; at or
+    // below unity it has nothing to do and must be out of the path.
+    routeCompressor(gain > 1);
     if (ctx.state === "suspended") {
       // Re-apply once the resume actually lands (async in every browser; may
       // even be denied and only granted on a later gesture - each new setBoost
@@ -154,7 +195,7 @@ export function useVolumeBoost(videoRef: React.RefObject<HTMLVideoElement | null
       });
     }
     applyPendingGain();
-  }, [ensureGraph, applyPendingGain]);
+  }, [ensureGraph, applyPendingGain, routeCompressor]);
 
   useEffect(() => teardown, [teardown]);
 

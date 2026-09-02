@@ -16,6 +16,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/testutil"
 
 	"github.com/evey-project/evey/internal/pkg/metrics"
+	"time"
 )
 
 func be32(v uint32) []byte { b := make([]byte, 4); binary.BigEndian.PutUint32(b, v); return b }
@@ -150,7 +151,9 @@ func TestRunRebasePump_CloseErrorNeverPublishesSegment(t *testing.T) {
 
 	stop := make(chan struct{})
 	close(stop) // drives the pump straight to its final sweep, no ticker wait
-	runRebasePump(nil, stop, priv, pub, 2500, "stream", 0, nil, "copy")
+	// nil procExited: this test drives the pump directly, with no ffmpeg to
+	// outlive - waitProcExit returns immediately for it.
+	runRebasePump(nil, stop, nil, priv, pub, 2500, "stream", 0, nil, "copy")
 
 	if _, err := os.Stat(filepath.Join(pub, segName)); err == nil {
 		t.Fatal("segment must NOT be published when its Close failed - the client would receive corrupted bytes")
@@ -335,5 +338,69 @@ func TestNeedsAudioFMP4Rebase(t *testing.T) {
 	seeked := transcoding.AudioProcessOpts{StartNumber: 600, StartSec: 1800}
 	if !needsAudioFMP4Rebase(seeked) {
 		t.Error("a seeked audio session MUST be rebased, or its audio lands at t=0")
+	}
+}
+
+// A superseded session (every seek supersedes the previous one) used to have
+// its scratch directory removed while its ffmpeg was still writing into it:
+// the process then died on ENOENT and dumped a page of muxer errors ("exit
+// status 254") instead of exiting on its kill. The pump must let the process
+// go first.
+func TestRebasePumpWaitsForProcessBeforeRemovingScratchDir(t *testing.T) {
+	priv := t.TempDir()
+	pub := t.TempDir()
+
+	stop := make(chan struct{})
+	close(stop)
+	procExited := make(chan struct{})
+
+	removed := make(chan struct{})
+	go func() {
+		runRebasePump(nil, stop, procExited, priv, pub, 0, "stream", 0, nil, "copy")
+		close(removed)
+	}()
+
+	// Stop is already closed, yet the directory must survive while the process
+	// is still alive.
+	select {
+	case <-removed:
+		t.Fatal("pump removed the scratch dir before ffmpeg exited")
+	case <-time.After(150 * time.Millisecond):
+	}
+	if _, err := os.Stat(priv); err != nil {
+		t.Fatalf("scratch dir gone while the process was still running: %v", err)
+	}
+
+	close(procExited)
+	select {
+	case <-removed:
+	case <-time.After(2 * time.Second):
+		t.Fatal("pump did not finish after the process exited")
+	}
+	if _, err := os.Stat(priv); !os.IsNotExist(err) {
+		t.Fatalf("scratch dir should be gone once the process exited, got %v", err)
+	}
+}
+
+// A wedged process must not leak the scratch directory forever.
+func TestRebasePumpGivesUpWaitingAfterTheGrace(t *testing.T) {
+	if procExitGrace > 10*time.Second {
+		t.Skipf("grace too long to exercise directly (%s)", procExitGrace)
+	}
+	priv := t.TempDir()
+	pub := t.TempDir()
+	stop := make(chan struct{})
+	close(stop)
+
+	done := make(chan struct{})
+	go func() {
+		// procExited never closes: the pump must still return, on the grace.
+		runRebasePump(nil, stop, make(chan struct{}), priv, pub, 0, "stream", 0, nil, "copy")
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(procExitGrace + 3*time.Second):
+		t.Fatal("pump blocked forever on a process that never exited")
 	}
 }

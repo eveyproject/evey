@@ -30,12 +30,14 @@ class FakeAudioContext {
   createGain() {
     return this.gain;
   }
+  comp = {
+    threshold: { value: 0 }, knee: { value: 0 }, ratio: { value: 0 },
+    attack: { value: 0 }, release: { value: 0 },
+    connect: vi.fn(), disconnect: vi.fn(),
+  };
+  destination = { id: "destination" };
   createDynamicsCompressor() {
-    return {
-      threshold: { value: 0 }, knee: { value: 0 }, ratio: { value: 0 },
-      attack: { value: 0 }, release: { value: 0 },
-      connect: vi.fn(), disconnect: vi.fn(),
-    };
+    return this.comp;
   }
   resume() {
     this.resumeCalls++;
@@ -138,5 +140,57 @@ describe("useVolumeBoost", () => {
     const before = ctx.resumeCalls;
     act(() => { video.dispatchEvent(new Event("play")); });
     expect(ctx.resumeCalls).toBeGreaterThan(before);
+  });
+});
+
+// The limiter is there to round off what the AMPLIFICATION overshoots. Leaving
+// it wired at unity gain compresses ordinary programme material at 12:1 with a
+// 250 ms release - heard as "the levels jump around and it distorts", and it
+// survived every later playback because createMediaElementSource captures the
+// element for good (preprod report, 2026-09-02: distortion vs Jellyfin on a
+// plain stereo AAC file the server was copying byte for byte).
+describe("useVolumeBoost - limiter routing", () => {
+  // Same fixture as the suite above: a sibling describe does not inherit its
+  // beforeEach, so without this the hook builds a REAL AudioContext and the
+  // assertions read a stale instance left over from the previous block.
+  beforeEach(() => {
+    FakeAudioContext.instances = [];
+    vi.stubGlobal("AudioContext", FakeAudioContext as unknown as typeof AudioContext);
+    Object.defineProperty(navigator, "userActivation", {
+      configurable: true,
+      value: { hasBeenActive: true },
+    });
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("wires the limiter in only while boosting, and takes it back out at 100%", async () => {
+    const { setBoost } = setup();
+
+    act(() => { setBoost(1.5); });
+    await flush();
+    const ctx = FakeAudioContext.instances[0];
+
+    // Boosting wires gain -> compressor -> destination.
+    expect(ctx.gain.connect).toHaveBeenCalledWith(ctx.comp);
+    expect(ctx.comp.connect).toHaveBeenCalledWith(ctx.destination);
+
+    ctx.gain.connect.mockClear();
+    ctx.comp.connect.mockClear();
+    ctx.comp.disconnect.mockClear();
+
+    // Staying inside the boosted zone must not re-wire a live graph - that
+    // churn is what broke the mobile boost once.
+    act(() => { setBoost(1.7); });
+    await flush();
+    expect(ctx.gain.connect).not.toHaveBeenCalled();
+
+    // Back to 100%: straight gain -> destination, compressor unwired.
+    act(() => { setBoost(1); });
+    await flush();
+    expect(ctx.comp.disconnect).toHaveBeenCalled();
+    expect(ctx.gain.connect).toHaveBeenCalledWith(ctx.destination);
+    expect(ctx.comp.connect).not.toHaveBeenCalled();
   });
 });

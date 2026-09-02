@@ -135,7 +135,7 @@ func startOne(ctx context.Context, opts transcoding.HLSProcessOpts, noMaster boo
 	go h.run(processCtx)
 	if rebase {
 		deltaMs := int64(opts.StartSec*1000 + 0.5)
-		go runRebasePump(h.done, processCtx.Done(), opts.OutputDir, pubDir, deltaMs, "stream", opts.VariantIndex, opts.ExpectedSegmentStartMs, opts.TimelineDriftKind)
+		go runRebasePump(h.done, processCtx.Done(), h.procExited, opts.OutputDir, pubDir, deltaMs, "stream", opts.VariantIndex, opts.ExpectedSegmentStartMs, opts.TimelineDriftKind)
 	}
 	return h, nil
 }

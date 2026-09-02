@@ -239,7 +239,7 @@ func (t *HLSTranscoder) StartAudioOnly(ctx context.Context, opts transcoding.Aud
 		// are per-rendition. No expected-start tripwire on audio (the video
 		// pipeline's copy plan supplies one; audio has no such plan).
 		deltaMs := int64(opts.StartSec*1000 + 0.5)
-		go runRebasePump(h.done, processCtx.Done(), opts.OutputDir, pubDir, deltaMs, "audio", opts.SourceTrackIdx, nil, "audio")
+		go runRebasePump(h.done, processCtx.Done(), h.procExited, opts.OutputDir, pubDir, deltaMs, "audio", opts.SourceTrackIdx, nil, "audio")
 	}
 	return h, nil
 }
