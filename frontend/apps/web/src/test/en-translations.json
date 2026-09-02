@@ -438,7 +438,7 @@
   "admin.logs.subtitle": "Search and live-tail server logs (ffmpeg, mkvgo, playback...) to diagnose user-reported issues.",
   "admin.logs.title": "Logs & Debug",
   "admin.logs.truncated": "Results truncated - narrow the search for a complete view.",
-  "admin.logs.userId": "User ID",
+  "admin.logs.userId": "User (name or ID)",
   "admin.logs.where.all": "All areas",
   "admin.logs.where.auth": "Auth",
   "admin.logs.where.chromecast": "Chromecast",

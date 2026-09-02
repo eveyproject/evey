@@ -53,7 +53,7 @@ logs:
   liveCount_other: "{{count}} live entries"
   liveUnavailableMobile: "Live tail isn't available on mobile yet - use the search below."
   sessionId: Session ID
-  userId: User ID
+  userId: User (name or ID)
   mediaId: Media ID
   level:
     label: Level

@@ -3,7 +3,7 @@ import { useInfiniteQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useTranslation } from "react-i18next";
 import { Search, Radio, ChevronRight, Copy, SlidersHorizontal, AlertTriangle } from "lucide-react";
-import { eveyFetch, getBaseURL } from "@evey/api";
+import { eveyFetch, getBaseURL, useUserServiceListUsers, useUserServiceListAllProfiles } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { Select } from "@/components/ui/Select";
 import { Input } from "@/components/ui/Input";
@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Spinner } from "@/components/ui/Spinner";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ICON } from "@/constants/iconSizes";
+import { buildIdentityIndex, labelFor, resolveUserFilter, type IdentityIndex } from "./logIdentities";
 import {
   type LogEntry,
   type LogSearchResponse,
@@ -100,7 +101,10 @@ function matchClient(e: LogEntry, f: FilterParams): boolean {
 // entries array (up to LIVE_CAP=1000). Each row's `entry` object is stable once
 // created, so memo lets an unchanged row skip re-render instead of re-rendering
 // all ~1000 on every tick.
-const LogRow = memo(function LogRow({ entry }: { entry: LogEntry }) {
+// `who` resolves user/profile ids to names (see logIdentities.ts). It is a
+// prop, not a hook call: the row is memoised per entry and the index changes
+// only when the account listing does.
+const LogRow = memo(function LogRow({ entry, who }: { entry: LogEntry; who: IdentityIndex }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const copy = useCallback(
@@ -113,8 +117,12 @@ const LogRow = memo(function LogRow({ entry }: { entry: LogEntry }) {
   const ids: Array<[string, string | undefined]> = [
     ["media", entry.mediaId],
     ["session", entry.sessionId],
-    ["user", entry.userId],
+    ["user", entry.userId && labelFor(who, entry.userId)],
   ];
+  // The name rides the collapsed line too: "who" is the first question an
+  // operator asks of a line, and expanding each one to find out is what made
+  // the explorer useless for a tester's report.
+  const userName = entry.userId ? who.get(entry.userId) : undefined;
   return (
     <div
       className="border-b border-[var(--border)] text-sm"
@@ -141,6 +149,11 @@ const LogRow = memo(function LogRow({ entry }: { entry: LogEntry }) {
         <Badge variant={levelVariant(entry.level)}>{entry.level || "?"}</Badge>
         <Badge>{entry.where}</Badge>
         {entry.source && entry.source !== "other" && <Badge>{entry.source}</Badge>}
+        {userName && (
+          <span className="shrink-0 text-xs text-[var(--text-muted)]" title={entry.userId}>
+            {userName}
+          </span>
+        )}
         <span className="min-w-0 flex-1 truncate text-[var(--text)]">{entry.msg}</span>
       </button>
       {open && (
@@ -169,7 +182,7 @@ const LogRow = memo(function LogRow({ entry }: { entry: LogEntry }) {
               {Object.entries(entry.fields).map(([k, v]) => (
                 <div key={k} className="flex gap-2 break-all">
                   <span className="text-[var(--accent)] shrink-0">{k}</span>
-                  <span className="text-[var(--text)]">{typeof v === "string" ? v : JSON.stringify(v)}</span>
+                  <span className="text-[var(--text)]">{typeof v === "string" ? labelFor(who, v) : JSON.stringify(v)}</span>
                 </div>
               ))}
             </div>
@@ -211,9 +224,22 @@ export function LogsExplorer() {
     return () => clearTimeout(id);
   }, [qInput]);
 
+  // Names for the ids the lines carry, from the admin listings this page
+  // already has the right to read. Missing data (still loading, RPC down) just
+  // leaves the ids bare - the explorer must never depend on it.
+  const { data: userData } = useUserServiceListUsers();
+  const { data: profileData } = useUserServiceListAllProfiles();
+  const users = useMemo(() => userData?.users ?? [], [userData]);
+  const who = useMemo(() => buildIdentityIndex(users, profileData?.profiles ?? []), [users, profileData]);
+
   const filters: FilterParams = useMemo(
-    () => ({ levels, where, source, q, sessionId: sessionId.trim(), userId: userId.trim(), mediaId: mediaId.trim() }),
-    [levels, where, source, q, sessionId, userId, mediaId],
+    () => ({
+      levels, where, source, q,
+      sessionId: sessionId.trim(),
+      userId: resolveUserFilter(users, userId),
+      mediaId: mediaId.trim(),
+    }),
+    [levels, where, source, q, sessionId, userId, mediaId, users],
   );
 
   const { data, isLoading, isError, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
@@ -396,7 +422,7 @@ export function LogsExplorer() {
         {showAdvanced && (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
             <Input label={t("admin.logs.sessionId")} value={sessionId} onChange={(e) => setSessionId(e.target.value)} placeholder="ps-..." />
-            <Input label={t("admin.logs.userId")} value={userId} onChange={(e) => setUserId(e.target.value)} placeholder="usr-..." />
+            <Input label={t("admin.logs.userId")} value={userId} onChange={(e) => setUserId(e.target.value)} placeholder="alice, usr-..." />
             <Input label={t("admin.logs.mediaId")} value={mediaId} onChange={(e) => setMediaId(e.target.value)} placeholder="mi-..." />
           </div>
         )}
@@ -435,7 +461,7 @@ export function LogsExplorer() {
                     ref={virtualizer.measureElement}
                     style={{ position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${vItem.start}px)` }}
                   >
-                    <LogRow entry={entry} />
+                    <LogRow entry={entry} who={who} />
                   </div>
                 );
               })}

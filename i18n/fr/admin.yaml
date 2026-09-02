@@ -53,7 +53,7 @@ logs:
   liveCount_other: "{{count}} entrées en direct"
   liveUnavailableMobile: "Le suivi en direct n'est pas encore disponible sur mobile - utilise la recherche ci-dessous."
   sessionId: ID de session
-  userId: ID utilisateur
+  userId: Utilisateur (nom ou ID)
   mediaId: ID média
   level:
     label: Niveau

@@ -13,9 +13,19 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 const mockFetch = vi.fn();
 
+// The admin listings the explorer resolves ids against: one account with one
+// profile. The ids are deliberately opaque - the point is that the operator
+// never has to read them.
+const identityState = vi.hoisted(() => ({
+  users: [{ id: "usr-ddcb76cd509e05d0aa289796", username: "mcarvalho" }],
+  profiles: [{ id: "prf-77aa", userId: "usr-ddcb76cd509e05d0aa289796", name: "Salon" }],
+}));
+
 vi.mock("@evey/api", () => ({
   eveyFetch: (...args: unknown[]) => mockFetch(...args),
   getBaseURL: () => "",
+  useUserServiceListUsers: () => ({ data: { users: identityState.users } }),
+  useUserServiceListAllProfiles: () => ({ data: { profiles: identityState.profiles } }),
 }));
 
 vi.mock("@evey/store", () => ({
@@ -171,6 +181,38 @@ describe("LogsExplorer", () => {
     await waitFor(() => {
       const urls = mockFetch.mock.calls.map((c) => (c[0] as { url: string }).url);
       expect(urls.some((u) => u.includes("where=player"))).toBe(true);
+    });
+  });
+
+  it("names the account on the collapsed line and decorates every id it knows", async () => {
+    mockFetch.mockResolvedValue(
+      resp([{
+        ...sampleEntry,
+        userId: "usr-ddcb76cd509e05d0aa289796",
+        fields: { user_id: "usr-ddcb76cd509e05d0aa289796", profile_id: "prf-77aa", session_id: "ses-1" },
+      }]),
+    );
+    await renderExplorerOnHistory();
+    const row = await screen.findByText("hls: ffmpeg exited with error");
+    // Collapsed: the name is already there, the id only as a tooltip.
+    expect(screen.getByTitle("usr-ddcb76cd509e05d0aa289796")).toHaveTextContent("mcarvalho");
+    await userEvent.click(row);
+    // Expanded: both the promoted user line and the raw fields carry the name
+    // in front of the id; the profile names its owner; unknown ids stay bare.
+    expect(screen.getAllByText("mcarvalho (usr-ddcb76cd509e05d0aa289796)").length).toBeGreaterThan(0);
+    expect(screen.getByText("Salon (mcarvalho) (prf-77aa)")).toBeInTheDocument();
+    expect(screen.getByText("ses-1")).toBeInTheDocument();
+  });
+
+  it("accepts a username in the user filter and searches by its id", async () => {
+    await renderExplorerOnHistory();
+    await screen.findByText("hls: ffmpeg exited with error");
+    await userEvent.click(screen.getByRole("button", { name: /advanced/i }));
+    await userEvent.type(screen.getByLabelText(/user \(name or id\)/i), "MCarvalho");
+
+    await waitFor(() => {
+      const urls = mockFetch.mock.calls.map((c) => (c[0] as { url: string }).url);
+      expect(urls.some((u) => u.includes("user_id=usr-ddcb76cd509e05d0aa289796"))).toBe(true);
     });
   });
 
