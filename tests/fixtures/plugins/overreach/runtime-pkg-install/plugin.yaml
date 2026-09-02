@@ -1,0 +1,5 @@
+name: runtime-pkg-install
+version: 1.0.0
+kind: plugin
+language: python
+entrypoint: main.py

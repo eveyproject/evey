@@ -1,0 +1,5 @@
+name: docker-orchestrator
+version: 1.0.0
+kind: plugin
+language: nodejs
+entrypoint: index.js

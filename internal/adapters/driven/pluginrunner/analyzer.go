@@ -73,6 +73,18 @@ var analyzerRules = []analyzerRule{
 	// covered by the obfuscation rule below - not duplicated here.
 	{regexp.MustCompile(`(?i)require\s*\(\s*["']child_process["']\s*\)|import\s+[^;\n]*\bfrom\s+["']child_process["']|import\s*\(\s*["']child_process["']\s*\)`), SeverityCritical, "shell_exec", "Node.js child_process import (shell/process execution)", nil},
 
+	// Overreach - a plugin trying to be infrastructure. Not necessarily
+	// malicious: the recurring case is a well-meaning author who packaged a
+	// whole application as a plugin (spins up Docker, installs packages at
+	// runtime, reaches for its own database) instead of the small sandboxed
+	// thing a plugin is. WARNING, not Critical - the admin must SEE it at
+	// preview and decide, because none of it can work inside the sandbox and
+	// the plugin will fail confusingly if installed blind.
+	{regexp.MustCompile(`(?i)(docker\s+(run|compose|build|pull)|docker-compose|dockerode|["'` + "`" + `]dockerode["'` + "`" + `]|/var/run/docker\.sock)`), SeverityWarning, "overreach", "drives Docker - a plugin runs sandboxed, it cannot manage containers", nil},
+	{regexp.MustCompile("(?i)((npm|pnpm|yarn)\\s+(install|add|i)\\s|(pip3?|apt(-get)?|apk|gem|go)\\s+(install|add|get)\\s|[\"'`](npm|pnpm|yarn|pip|pip3|apt|apt-get|apk|gem)[\"'`]\\s*,\\s*[\"'`](install|add|get|i)[\"'`])"), SeverityWarning, "overreach", "installs packages at runtime - dependencies must be vendored in the bundle, not fetched on the host", nil},
+	{regexp.MustCompile("(?i)(postgres(ql)?|mysql|mongodb(\\+srv)?|redis|mariadb)://[^\\s\"'`]+"), SeverityWarning, "overreach", "connects to a database by URL - a plugin has no database of its own; use the host data RPCs", nil},
+	{regexp.MustCompile(`(?i)(new\s+Pool\s*\(|new\s+Client\s*\(|mysql\.createConnection|mongoose\.connect|psycopg2\.connect|sqlalchemy\.create_engine|new\s+Sequelize\s*\()`), SeverityWarning, "overreach", "opens a database client - a plugin persists through the host data RPCs, not its own DB", nil},
+
 	// Network - outbound connections.
 	// Qualified network APIs first (always meaningful).
 	{regexp.MustCompile(`(?i)(socket\.connect|http\.request|urllib\.request|requests\.(get|post|put|delete)|axios\.|net\.Dial)`), SeverityWarning, "network", "outbound network connection", nil},
@@ -552,11 +564,21 @@ func verifyAssetMIME(path, ext string, expected []string) string {
 	return fmt.Sprintf("file extension %s does not match detected content type %q - possible disguised file", ext, detected)
 }
 
+// docExtensions are prose, not executed code: a README that shows "docker run"
+// as an example, or a CHANGELOG mentioning eval(), is describing, not doing.
+// Running the code-pattern rules over them cries wolf (real false positives on
+// the shipped example plugins, 2026-09-02), so scanFile skips the rules for
+// these while still noting any URLs they carry.
+var docExtensions = map[string]bool{
+	".md": true, ".markdown": true, ".mdx": true, ".rst": true, ".txt": true, ".adoc": true,
+}
+
 func scanFile(path, relPath string) ([]AnalysisFinding, []ExtractedURL, error) {
 	raw, err := os.ReadFile(path) //nolint:gosec
 	if err != nil {
 		return nil, nil, err
 	}
+	isDoc := docExtensions[strings.ToLower(filepath.Ext(path))]
 
 	// File-level alias pre-pass: resolves simple variable/module bindings across
 	// lines so that per-line rules can match patterns like $f = "system"; $f($x).
@@ -593,6 +615,9 @@ func scanFile(path, relPath string) ([]AnalysisFinding, []ExtractedURL, error) {
 		normalized := normalizeLine(line)
 
 		for _, rule := range analyzerRules {
+			if isDoc {
+				break // prose describes, it does not execute - URLs still noted below
+			}
 			if len(rule.extensions) > 0 {
 				ext := strings.ToLower(filepath.Ext(path))
 				if !slices.Contains(rule.extensions, ext) {
