@@ -1,10 +1,12 @@
 import { useTranslation } from "react-i18next";
 import type { V1SeekIndexItem } from "@evey/api";
 import { Badge } from "@/components/ui/Badge";
+import { useState } from "react";
 import { Button } from "@/components/ui/Button";
+import { RepairHistoryPanel } from "./RepairHistoryPanel";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Pagination } from "@/components/ui/Pagination";
-import { audioDelayed, formatBytes, isAckable, isAcked, verdictOf, audioTracksDisagree } from "@evey/api";
+import { audioDelayed, baseName, formatBytes, isAckable, isAcked, verdictOf, audioTracksDisagree } from "@evey/api";
 import { SEEK_INDEX_PAGE_SIZE, type SeekIndexPageState } from "./hooks";
 
 type SeekIndexTableProps = Pick<
@@ -48,6 +50,9 @@ export function SeekIndexTable({
   ackOne,
 }: SeekIndexTableProps) {
   const { t } = useTranslation();
+  // Which row has its journal open. One at a time: the history is a detour, not
+  // a column, and stacking several would bury the table it belongs to.
+  const [historyFor, setHistoryFor] = useState<string | null>(null);
 
   return items.length === 0 ? (
     <div className="rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]">
@@ -283,6 +288,17 @@ export function SeekIndexTable({
                         {t("admin.seekIndex.fixContainerBtn")}
                       </Button>
                     )}
+                    {/* What was done to this file's bytes. Evey keeps no copy
+                        of a repaired file, so this journal is both the history
+                        and the way back. */}
+                    <Button
+                      variant="ghost"
+                      className="text-xs"
+                      onClick={() => setHistoryFor(historyFor === it.mediaId ? null : (it.mediaId ?? null))}
+                      data-testid="seek-index-history-btn"
+                    >
+                      {t("admin.repairHistory.btn")}
+                    </Button>
                     {isAckable(it) && (
                       <Button
                         variant="ghost"
@@ -320,6 +336,13 @@ export function SeekIndexTable({
                       </Button>
                     )}
                   </div>
+                  {historyFor && historyFor === it.mediaId && (
+                    <RepairHistoryPanel
+                      mediaId={historyFor}
+                      title={it.title || baseName(it.path ?? "")}
+                      onClose={() => setHistoryFor(null)}
+                    />
+                  )}
                 </td>
               </tr>
             );

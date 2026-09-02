@@ -74,8 +74,17 @@ type RepairEvidence struct {
 	Detail string `json:"detail,omitempty"`
 }
 
+// RepairJournalSchema is the version of the payload shape below. It is stored
+// with every entry so a future reader knows how to interpret one written by an
+// older build: the whole point of this journal is to be read years later, by
+// code that has moved on, to undo something. A reader that meets a version it
+// does not know must refuse to act on the entry rather than guess.
+const RepairJournalSchema = 1
+
 // RepairRecord is one file's rewrite, start to finish.
 type RepairRecord struct {
+	// Schema is RepairJournalSchema at write time. Never omitted.
+	Schema int `json:"schema"`
 	MediaID string   `json:"media_id,omitempty"`
 	Path    string   `json:"path"`
 	Op      RepairOp `json:"op"`
@@ -114,12 +123,75 @@ type RepairRecord struct {
 	Error   string `json:"error,omitempty"`
 }
 
+// Reversible reports whether this entry carries enough to put the file back
+// WITHOUT a copy of the original. That is the whole bargain: no automatic
+// duplication of multi-gigabyte files, but every transformation written down
+// precisely enough to be replayed backwards.
+//
+//   - audio_retime moved tracks by a known amount; applying the opposite shift
+//     restores them exactly, and losslessly.
+//   - container_fix renamed a file; renaming it back is the inverse.
+//   - reindex rebuilt an index and left the picture and sound untouched, so
+//     there is nothing a viewer would want undone.
+//   - resync_damaged DISCARDED bytes. No record can bring them back, which is
+//     why that one repair still demands a real backup (ErrBackupRequired).
+func (r RepairRecord) Reversible() bool {
+	if r.Outcome != "applied" {
+		return false
+	}
+	switch r.Op {
+	case RepairAudioRetime:
+		return len(r.ShiftSec) > 0
+	case RepairContainerFix:
+		return true
+	case RepairResync:
+		return r.BackupPath != ""
+	case RepairReindex, RepairRollback:
+		return false
+	}
+	return false
+}
+
+// InverseShift is the shift that undoes this entry, per track. Empty when the
+// entry is not a retime.
+func (r RepairRecord) InverseShift() map[uint64]float64 {
+	if r.Op != RepairAudioRetime || len(r.ShiftSec) == 0 {
+		return nil
+	}
+	out := make(map[uint64]float64, len(r.ShiftSec))
+	for track, sec := range r.ShiftSec {
+		out[track] = -sec
+	}
+	return out
+}
+
 // RepairJournal records what a repair did. Implemented by the audit-log
 // adapter; optional (nil disables journalling), because a journal failure must
 // never abort a repair - but its absence is a defect to fix, not a mode to
 // live in.
 type RepairJournal interface {
 	RecordRepair(ctx context.Context, rec RepairRecord) error
+	// RepairHistory returns what was done to one file, newest first. This is
+	// the read side that makes software rollback possible at all: without it
+	// the entries are a write-only archive, which is no better than the mtime
+	// forensics the 2026-07-13 incident had to settle for.
+	RepairHistory(ctx context.Context, path string, limit int) ([]RepairRecord, error)
+}
+
+// TrackRetimer applies a signed per-track shift on the container timeline,
+// losslessly and whatever the codec. It is the same primitive that caused the
+// July damage, which is precisely why it is the one that can undo it: the
+// inverse of a known shift is exact. Satisfied by the mkvgo adapter; optional
+// (nil means a retime cannot be undone in software, and the API says so rather
+// than pretending).
+type TrackRetimer interface {
+	RetimeTracks(ctx context.Context, path string, shiftSec map[uint64]float64) error
+}
+
+// WithTrackRetimer wires the primitive that replays a repair backwards.
+func (s *SeekIndexService) WithTrackRetimer(r TrackRetimer) *SeekIndexService {
+	s.retimer = r
+	return s
 }
 
 // WithRepairJournal wires the journal. Optional and chainable.
@@ -136,6 +208,7 @@ func (s *SeekIndexService) journalRepair(ctx context.Context, rec RepairRecord) 
 	if s.journal == nil {
 		return
 	}
+	rec.Schema = RepairJournalSchema
 	if err := s.journal.RecordRepair(ctx, rec); err != nil {
 		s.logger.Error("seek-index: the repair journal refused an entry - this rewrite is now untraceable",
 			"path", rec.Path, "op", string(rec.Op), "err", err)

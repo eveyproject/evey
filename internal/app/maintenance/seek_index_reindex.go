@@ -2,6 +2,7 @@ package maintenance
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -13,6 +14,24 @@ import (
 // seek_index_reindex.go holds the Cues-rebuild + "repair all" paths: the
 // operator's ReindexRunOptions, the per-file reindex step and the rolling
 // backup window shared by reindex and combined repair.
+
+// ErrBackupRequired refuses a run that would alter a file's CONTENT with no
+// way back. Deep-verify proves the result is well formed; it never proves the
+// operator wanted what the file now contains, and a resync has just thrown
+// bytes away. Kept distinct so the API layer can say why in the operator's
+// language instead of surfacing a generic failure.
+var ErrBackupRequired = errors.New("this repair alters the file's content and cannot run without a backup")
+
+// altersContent reports whether a run rewrites what the file PLAYS, as opposed
+// to how it is indexed. A reindex rebuilds a container's index and leaves the
+// picture and sound byte for byte; a resync discards the damaged span. The
+// distinction decides two things: whether the run may trade its backup away,
+// and whether the rolling window may purge it.
+//
+// The 2026-07-13 batch is why the second one exists. It kept a backup of all
+// 98 files it rewrote and the window then purged every one of them, so when the
+// damage surfaced seven weeks later there was nothing to restore.
+func (o ReindexRunOptions) altersContent() bool { return o.Resync || o.ResyncDamaged }
 
 // ReindexRunOptions carries the operator's repair choices from the API layer.
 type ReindexRunOptions struct {
@@ -86,6 +105,9 @@ func (s *SeekIndexService) SupportsInPlace() bool { return s.reindexer.SupportsI
 // rewrite persists a .mkvgobak copy), the job refuses upfront instead of
 // failing its tail hours in.
 func (s *SeekIndexService) StartReindexLibrary(_ context.Context, libraryID string, run ReindexRunOptions) error {
+	if run.altersContent() && run.SkipBackup {
+		return ErrBackupRequired
+	}
 	opts := reindexOptionsFor(run)
 	var preflight func([]SeekStatus) error
 	// A rolling window bounds the accumulation to ~N files, so the whole-sum
@@ -108,9 +130,9 @@ func (s *SeekIndexService) StartReindexLibrary(_ context.Context, libraryID stri
 	// The per-file work goes through the SAME reindexStep as the combined
 	// repair - this path used to carry its own copy of it, and a guard added
 	// to one was silently absent from the other.
-	rb := &rollingBackups{max: run.BackupWindow}
+	rb := &rollingBackups{max: run.BackupWindow, keepAll: run.altersContent()}
 	var epilogue func(context.Context)
-	if run.BackupWindow > 0 {
+	if run.BackupWindow > 0 && !run.altersContent() {
 		// Drain what the sliding purge left: the job ends with ZERO backups on
 		// the volume, no manual purge pass needed. Each repair was already
 		// validated before its swap; the window only existed to keep a short
@@ -129,6 +151,10 @@ func (s *SeekIndexService) StartReindexLibrary(_ context.Context, libraryID stri
 type rollingBackups struct {
 	window []string
 	max    int
+	// keepAll suspends the purge for a repair that alters the file's content:
+	// its backup is the only way back, and bounding disk use is not worth an
+	// unrecoverable original.
+	keepAll bool
 }
 
 // reindexStep reindexes one file and folds the result into the cached scan,
@@ -172,7 +198,7 @@ func (s *SeekIndexService) reindexStep(bg context.Context, path string, opts mkv
 	s.refreshFileState(bg, path)
 	hasBak := res.BackupPath != ""
 	s.noteReindexed(bg, path, hasBak)
-	if hasBak && rb != nil && rb.max > 0 {
+	if hasBak && rb != nil && rb.max > 0 && !rb.keepAll {
 		rb.window = append(rb.window, path)
 		if len(rb.window) > rb.max {
 			s.purgeRolledBackup(bg, rb.window[0])
@@ -429,7 +455,7 @@ func (s *SeekIndexService) StartRepairLibrary(_ context.Context, libraryID strin
 		// on the volume (the audio backups used to survive the drain). The
 		// resync backups are NOT in it: a repair that loses bytes keeps its
 		// original whatever the operator chose for the lossless ones.
-		rb := &rollingBackups{max: run.BackupWindow}
+		rb := &rollingBackups{max: run.BackupWindow, keepAll: run.altersContent()}
 		s.processFiles(bg, JobReindex, idx, func(bg context.Context, path string) (bool, error) {
 			return s.reindexStep(bg, path, opts, rb)
 		})

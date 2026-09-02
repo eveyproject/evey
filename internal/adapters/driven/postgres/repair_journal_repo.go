@@ -80,3 +80,47 @@ func (r *RepairJournalRepository) RecordRepair(ctx context.Context, rec appmaint
 	}
 	return nil
 }
+
+// RepairHistory returns what was done to one file, newest first. The filter is
+// on the path inside the payload rather than on resource_id: a media item can
+// be deleted and re-added with a new id, and the question "what happened to
+// THIS file" must survive that.
+func (r *RepairJournalRepository) RepairHistory(ctx context.Context, path string, limit int) ([]appmaintenance.RepairRecord, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.repair_journal.History")
+	defer span.End()
+	if limit <= 0 || limit > 200 {
+		limit = 20
+	}
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+
+	rows, err := txFromCtx(ctx, r.audit.db).QueryContext(ctx,
+		`SELECT details FROM audit_log
+		 WHERE action = $1 AND details->>'path' = $2
+		 ORDER BY created_at DESC
+		 LIMIT $3`, RepairAuditAction, path, limit)
+	if err != nil {
+		return nil, fmt.Errorf("repair journal: read history: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var out []appmaintenance.RepairRecord
+	for rows.Next() {
+		var raw []byte
+		if err := rows.Scan(&raw); err != nil {
+			return nil, fmt.Errorf("repair journal: scan entry: %w", err)
+		}
+		var rec appmaintenance.RepairRecord
+		if err := json.Unmarshal(raw, &rec); err != nil {
+			// One unreadable row must not hide the rest of a file's history -
+			// which is the only thing standing between an operator and a
+			// manual investigation.
+			continue
+		}
+		out = append(out, rec)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("repair journal: read history: %w", err)
+	}
+	return out, nil
+}

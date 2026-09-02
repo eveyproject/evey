@@ -68,6 +68,10 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		// done, on what evidence, and what it became. A repair nobody recorded
 		// is a repair nobody can undo - 98 files learned that the hard way.
 		WithRepairJournal(deps.repos.repairJournal).
+		// The way back, without keeping a copy of every repaired file: the
+		// journal holds the shift that was applied, and this replays its
+		// opposite - losslessly, whatever the codec.
+		WithTrackRetimer(mkvgo.NewTrackRetimer()).
 		// Audio start-delay repair: mkvgo per-track retime (fixes multi-track
 		// files whose tracks disagree on the delay - the dominant real case),
 		// with the ffmpeg uniform-shift remux as the fallback for layouts the

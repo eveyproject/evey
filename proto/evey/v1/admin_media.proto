@@ -167,6 +167,27 @@ service AdminMediaService {
     };
   }
 
+  // GetMediaRepairHistory returns what has been done to one file's bytes,
+  // newest first: which operation, on what evidence, and whether it can still
+  // be undone. Evey keeps no copy of a repaired file - the entry itself is the
+  // way back - so this is the only place that history exists.
+  rpc GetMediaRepairHistory(GetMediaRepairHistoryRequest) returns (GetMediaRepairHistoryResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/admin/media/{media_id}/repair-history"
+    };
+  }
+
+  // UndoMediaRepair replays the file's most recent reversible repair
+  // backwards, from its journal entry. Refused when the last repair discarded
+  // bytes (nothing can bring those back) or was written by a newer version
+  // whose payload this build cannot read safely.
+  rpc UndoMediaRepair(UndoMediaRepairRequest) returns (UndoMediaRepairResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/media/{media_id}/undo-repair"
+      body: "*"
+    };
+  }
+
   // AckSeekIndexGroup acknowledges every pending file of one verdict
   // ("informational" - the only ackable one) in scope. Returns how many it
   // marked.
@@ -225,6 +246,51 @@ message AckSeekIndexMediaRequest {
   bool acked = 2;
 }
 message AckSeekIndexMediaResponse {}
+
+message GetMediaRepairHistoryRequest {
+  string media_id = 1;
+  // Optional cap, default 20.
+  int32 limit = 2;
+}
+message GetMediaRepairHistoryResponse {
+  repeated MediaRepairEntry entries = 1;
+}
+
+// MediaRepairEntry is one rewrite of one file, as recorded when it happened.
+message MediaRepairEntry {
+  int64 at_ms = 1;
+  // op: "reindex", "resync_damaged", "container_fix", "audio_retime",
+  // "rollback".
+  string op = 2;
+  // outcome: "applied", "skipped", "rolled_back", "failed".
+  string outcome = 3;
+  string error = 4;
+  // job names the batch this belonged to, so a whole run reads as one thing.
+  string job = 5;
+  // evidence_method says what justified acting: "track-coherence" is a
+  // measurement, "declared-defect" is the file's own claim taken at face
+  // value - the weak case that caused the 2026-07-13 incident.
+  string evidence_method = 6;
+  double evidence_lag_sec = 7;
+  double evidence_confidence = 8;
+  // shift_sec is what was applied per audio track, signed. Its opposite is the
+  // undo, which is why no copy of the original is kept.
+  map<uint64, double> shift_sec = 9;
+  int32 audible_before = 10;
+  int32 audible_after = 11;
+  int64 size_before = 12;
+  int64 size_after = 13;
+  // reversible: this entry alone carries enough to put the file back.
+  bool reversible = 14;
+}
+
+message UndoMediaRepairRequest {
+  string media_id = 1;
+}
+message UndoMediaRepairResponse {
+  // shift_sec is what was applied to undo, per track.
+  map<uint64, double> shift_sec = 1;
+}
 
 message AckSeekIndexGroupRequest {
   // Optional scope: empty = all libraries.

@@ -88,6 +88,8 @@ func DefaultRBACConfig() RBACConfig {
 			"/evey.v1.AdminMediaService/RollbackLibrarySeekIndex":           RoleAdmin,
 			"/evey.v1.AdminMediaService/DeleteSeekIndexBackup":              RoleAdmin,
 			"/evey.v1.AdminMediaService/AckSeekIndexMedia":                  RoleAdmin,
+			"/evey.v1.AdminMediaService/GetMediaRepairHistory":              RoleAdmin,
+			"/evey.v1.AdminMediaService/UndoMediaRepair":                    RoleAdmin,
 			"/evey.v1.AdminMediaService/AckSeekIndexGroup":                  RoleAdmin,
 			"/evey.v1.AdminMediaService/FixContainerMedia":                  RoleAdmin,
 			"/evey.v1.AdminMediaService/PurgeSeekIndexBackups":              RoleAdmin,

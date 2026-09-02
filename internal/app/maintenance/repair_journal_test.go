@@ -33,6 +33,12 @@ func (f *fakeJournal) RecordRepair(_ context.Context, rec appmaintenance.RepairR
 	return f.fail
 }
 
+// The write-only fake still has to satisfy the read side of the port; these
+// tests only care about what gets written.
+func (f *fakeJournal) RepairHistory(_ context.Context, _ string, _ int) ([]appmaintenance.RepairRecord, error) {
+	return f.all(), nil
+}
+
 func (f *fakeJournal) all() []appmaintenance.RepairRecord {
 	f.mu.Lock()
 	defer f.mu.Unlock()

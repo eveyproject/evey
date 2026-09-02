@@ -82,6 +82,7 @@ export type {
   V1GetSeekIndexJobResponse,
   V1SeekIndexJobSummary,
   V1SeekIndexJobFailure,
+  V1MediaRepairEntry,
 } from "./generated/admin_media.schemas";
 export type {
   V1Artwork, V1MediaItem, V1MediaPerson, V1Trailer, V1MediaStream,

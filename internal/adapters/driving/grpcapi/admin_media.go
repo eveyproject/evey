@@ -541,6 +541,66 @@ func (d *adminMediaHandler) AckSeekIndexMedia(ctx context.Context, req *eveyv1.A
 	return &eveyv1.AckSeekIndexMediaResponse{}, nil
 }
 
+// GetMediaRepairHistory returns what has been done to one file's bytes. Evey
+// keeps no copy of a repaired file, so this journal is the only place that
+// history exists - and the only way back.
+func (d *adminMediaHandler) GetMediaRepairHistory(ctx context.Context, req *eveyv1.GetMediaRepairHistoryRequest) (*eveyv1.GetMediaRepairHistoryResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.admin.GetMediaRepairHistory")
+	defer span.End()
+	if err := d.seekIndexConfigured(ctx, span); err != nil {
+		return nil, err
+	}
+	recs, err := d.seekIndex.RepairHistoryOfMedia(ctx, req.GetMediaId(), int(req.GetLimit()))
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, d.seekIndexError(ctx, "media repair history", err)
+	}
+	out := &eveyv1.GetMediaRepairHistoryResponse{Entries: make([]*eveyv1.MediaRepairEntry, 0, len(recs))}
+	for _, r := range recs {
+		out.Entries = append(out.Entries, repairEntryToProto(r))
+	}
+	return out, nil
+}
+
+// UndoMediaRepair replays the file's last reversible repair backwards.
+func (d *adminMediaHandler) UndoMediaRepair(ctx context.Context, req *eveyv1.UndoMediaRepairRequest) (*eveyv1.UndoMediaRepairResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.admin.UndoMediaRepair")
+	defer span.End()
+	if err := d.seekIndexConfigured(ctx, span); err != nil {
+		return nil, err
+	}
+	shift, err := d.seekIndex.UndoLastRepairOfMedia(ctx, req.GetMediaId())
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, d.seekIndexError(ctx, "undo media repair", err)
+	}
+	return &eveyv1.UndoMediaRepairResponse{ShiftSec: shift}, nil
+}
+
+// repairEntryToProto keeps the wire shape flat: the UI shows a list of what
+// happened, and computing "can this be undone" belongs to the domain, not to
+// a client re-deriving it from an operation name.
+func repairEntryToProto(r appmaintenance.RepairRecord) *eveyv1.MediaRepairEntry {
+	return &eveyv1.MediaRepairEntry{
+		AtMs:               r.Started.UnixMilli(),
+		Op:                 string(r.Op),
+		Outcome:            r.Outcome,
+		Error:              r.Error,
+		Job:                r.Job,
+		EvidenceMethod:     r.Evidence.Method,
+		EvidenceLagSec:     r.Evidence.LagSec,
+		EvidenceConfidence: r.Evidence.Confidence,
+		ShiftSec:           r.ShiftSec,
+		AudibleBefore:      int32(r.AudibleBefore),
+		AudibleAfter:       int32(r.AudibleAfter),
+		SizeBefore:         r.SizeBefore,
+		SizeAfter:          r.SizeAfter,
+		Reversible:         r.Reversible(),
+	}
+}
+
 // AckSeekIndexGroup acknowledges every pending file of one verdict in scope.
 func (d *adminMediaHandler) AckSeekIndexGroup(ctx context.Context, req *eveyv1.AckSeekIndexGroupRequest) (*eveyv1.AckSeekIndexGroupResponse, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.admin.AckSeekIndexGroup")
