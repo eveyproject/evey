@@ -49,7 +49,7 @@ func TestSeekStatus_Verdict(t *testing.T) {
 }
 
 // triageLibrary: one file per verdict, diagnosed by the fake diagnoser.
-func triageLibrary(t *testing.T) (dir string, paths map[string]string, svc *appmaintenance.SeekIndexService, reidx *fakeReindexer, remux *fakeAudioRemuxer, reloc *fakeRelocator) {
+func triageLibrary(t *testing.T) (dir string, paths map[string]string, svc *appmaintenance.SeekIndexService, reidx *fakeReindexer, reloc *fakeRelocator) {
 	t.Helper()
 	dir = t.TempDir()
 	paths = map[string]string{}
@@ -75,16 +75,14 @@ func triageLibrary(t *testing.T) (dir string, paths map[string]string, svc *appm
 	// A rewrite really repairs the file: once rebuilt, the diagnoser must see
 	// a healthy one (the service re-diagnoses after every rewrite).
 	reidx.onReindexed = func(p string) { diag.byPath[p] = &mkv.Diagnosis{Healthy: true} }
-	remux = &fakeAudioRemuxer{}
 	reloc = &fakeRelocator{}
 	svc = appmaintenance.NewSeekIndexService(reidx, fakeCatalog{files: refs}, nil).
 		WithDiagnoser(diag).
 		WithAudioDelayProber(fakeAudioDelayProber{delays: map[string]float64{paths["delayed"]: 0.9}}).
-		WithAudioRemuxer(remux).
 		WithMediaRelocator(reloc)
 	require.NoError(t, svc.StartScan(context.Background(), ""))
 	waitIdle(t, svc)
-	return dir, paths, svc, reidx, remux, reloc
+	return dir, paths, svc, reidx, reloc
 }
 
 type fakeRelocator struct {
@@ -107,7 +105,7 @@ func (f *fakeRelocator) RelocateMediaFile(_ context.Context, mediaID, newPath st
 }
 
 func TestSeekIndexService_Scan_RollsUpTheTriage(t *testing.T) {
-	_, _, svc, _, _, _ := triageLibrary(t)
+	_, _, svc, _, _ := triageLibrary(t)
 	res, _, ok := svc.CachedScan("")
 	require.True(t, ok)
 	assert.Equal(t, 8, res.Total)
@@ -121,7 +119,7 @@ func TestSeekIndexService_Scan_RollsUpTheTriage(t *testing.T) {
 }
 
 func TestSeekIndexService_Ack_MovesFilesOutOfTheQueue(t *testing.T) {
-	_, paths, svc, _, _, _ := triageLibrary(t)
+	_, paths, svc, _, _ := triageLibrary(t)
 	ctx := context.Background()
 
 	// A fixable defect is never waved through.
@@ -201,15 +199,14 @@ func TestSeekIndexService_Ack_PersistsUntilTheFileChanges(t *testing.T) {
 // and the audio START OFFSET, which is not a defect at all (see
 // TestSeekIndexService_AudioOffsetIsNeverRepaired).
 func TestSeekIndexService_RepairAll_CoversEveryRepairableVerdict(t *testing.T) {
-	_, paths, svc, reidx, remux, reloc := triageLibrary(t)
+	_, paths, svc, reidx, reloc := triageLibrary(t)
 	ctx := context.Background()
 
 	require.NoError(t, svc.StartRepairLibrary(ctx, "", appmaintenance.ReindexRunOptions{}))
 	st := waitIdle(t, svc)
 	require.NotNil(t, st.Last)
 	assert.Zero(t, st.Last.Failed, "%+v", st.Last.Failures)
-	assert.Equal(t, []string{paths["noindex"]}, reidx.reindexed, "index rebuilt; the damaged file waits for consent, truncated is never touched")
-	assert.Empty(t, remux.remuxed, "a start offset is a fact about the file, not something a bulk job rewrites")
+	assert.Equal(t, []string{paths["noindex"]}, reidx.reindexed, "index rebuilt; the damaged file waits for consent, truncated is never touched, and a start offset is a fact about the file, not something a bulk job rewrites")
 	assert.Equal(t, filepath.Join(filepath.Dir(paths["wrongct"]), "wrongct.mp4"), reloc.moved["m-wrongct"], "the .mkv that is an MP4 is renamed and the catalog follows")
 	_, statErr := os.Stat(paths["wrongct"])
 	assert.True(t, os.IsNotExist(statErr), "old .mkv path gone")
@@ -373,14 +370,12 @@ func TestSeekIndexService_AudioOffsetIsNeverRepaired(t *testing.T) {
 	require.NoError(t, os.WriteFile(dub, []byte("x"), 0o644))
 	reidx := &fakeReindexer{hasIndex: map[string]bool{dub: true}}
 	cat := fakeCatalog{files: []appmaintenance.MediaRef{{MediaID: "m-dub", Title: "a prod title", Path: dub}}}
-	remux := &fakeAudioRemuxer{}
 	svc := appmaintenance.NewSeekIndexService(reidx, cat, nil).
 		WithDiagnoser(fakeDiagnoser{byPath: map[string]*mkv.Diagnosis{
 			// 12 seconds: exactly the alignment the repair destroyed.
 			dub: {Healthy: true, AudioDelaysMs: map[uint64]int64{2: 12_000}},
 		}}).
-		WithAudioDelayProber(fakeAudioDelayProber{delays: map[string]float64{dub: 12.0}}).
-		WithAudioRemuxer(remux)
+		WithAudioDelayProber(fakeAudioDelayProber{delays: map[string]float64{dub: 12.0}})
 
 	ctx := context.Background()
 	require.NoError(t, svc.StartScan(ctx, ""))
@@ -396,8 +391,7 @@ func TestSeekIndexService_AudioOffsetIsNeverRepaired(t *testing.T) {
 
 	require.NoError(t, svc.StartRepairLibrary(ctx, "", appmaintenance.ReindexRunOptions{}))
 	waitIdle(t, svc)
-	assert.Empty(t, remux.remuxed, "Repair all must not rewrite a file for a start offset")
-	assert.Empty(t, reidx.reindexed, "and must not reindex it either")
+	assert.Empty(t, reidx.reindexed, "Repair all must not rewrite a file for a start offset - there is no longer any code path that could")
 }
 
 // The offset is only WORTH MENTIONING when the file's OWN audio tracks

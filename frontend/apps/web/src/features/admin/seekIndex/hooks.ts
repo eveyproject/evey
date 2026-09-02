@@ -13,7 +13,6 @@ import {
   useAdminMediaServiceRollbackLibrarySeekIndex,
   useAdminMediaServiceDeleteSeekIndexBackup,
   useAdminMediaServicePurgeSeekIndexBackups,
-  useAdminMediaServiceRemuxAudioMedia,
   useAdminMediaServiceAckSeekIndexMedia,
   useAdminMediaServiceAckSeekIndexGroup,
   useAdminMediaServiceFixContainerMedia, audioDelayed, audioTracksDisagree } from "@evey/api";
@@ -207,12 +206,6 @@ export function useSeekIndexPage() {
       onError: onStartError,
     },
   });
-  const remuxAudioOne = useAdminMediaServiceRemuxAudioMedia({
-    mutation: {
-      onSuccess: onStarted("admin.seekIndex.remuxAudioStarted"),
-      onError: onStartError,
-    },
-  });
   const fixContainerOne = useAdminMediaServiceFixContainerMedia({
     mutation: {
       onSuccess: onStarted("admin.seekIndex.fixContainerStarted"),
@@ -299,7 +292,6 @@ export function useSeekIndexPage() {
     rollbackOne,
     repairLib,
     rollbackLib,
-    remuxAudioOne,
     fixContainerOne,
     deleteBackup,
     purgeLib,

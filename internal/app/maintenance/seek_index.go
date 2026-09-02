@@ -36,9 +36,6 @@ const (
 	JobReindex  = "reindex"
 	JobRollback = "rollback"
 	JobPurge    = "purge" // delete every .mkvgobak backup in scope
-	// JobRemuxAudio rewrites files whose audio content starts late (repack
-	// mux defect) so the file itself is fixed, not just the playback.
-	JobRemuxAudio = "remux_audio"
 	// JobFixContainer renames .mkv files whose bytes are really MP4/MOV to
 	// .mp4 and repoints the catalog: there is no Matroska index to build in
 	// them, the extension is the defect.
@@ -227,19 +224,6 @@ const AudioTrackLagFlagSec = 0.25
 // couple of seconds of slack (priming, final-cluster rounding); the defect
 // class is measured in minutes (249 s on the file that motivated this).
 const AudioShortfallFlagSec = 10.0
-
-// AudioDelayRemuxer repairs the audio start-delay defect AT THE FILE level:
-// a remux that shifts the late audio content back onto the video, with the
-// same fail-safe contract as the reindexer (rewrite to a temp, re-verify,
-// atomic swap, original kept as .mkvgobak; any failure leaves the original
-// byte-for-byte intact). skipped=true means no track sits above the defect
-// floor anymore (nothing to fix); backupPath is the kept original ("" when
-// skipped). Satisfied by the ffmpeg adapter; optional (nil disables the
-// remux jobs). Primitive-typed on purpose - the driven adapter implements it
-// without importing this package.
-type AudioDelayRemuxer interface {
-	RemuxAudioDelay(ctx context.Context, path string) (backupPath string, skipped bool, err error)
-}
 
 // SeekStatus is the per-file diagnosis surfaced by a scan.
 type SeekStatus struct {
@@ -534,7 +518,6 @@ type SeekIndexService struct {
 	audible    AudibleTracksProber  // optional; see WithAudibleTracksProber
 	journal    RepairJournal        // optional; see WithRepairJournal
 	retimer    TrackRetimer         // optional; see WithTrackRetimer
-	audioRemux AudioDelayRemuxer    // optional; see WithAudioRemuxer
 	diagnoser  mkv.Diagnoser        // optional; see WithDiagnoser
 	relocator  MediaRelocator       // optional; see WithMediaRelocator
 	logger     *slog.Logger
@@ -661,13 +644,6 @@ func (s *SeekIndexService) WithAudioCoherenceProber(p AudioCoherenceProber) *See
 // exactly what let a silenced track through in prod (see AudibleTracksProber).
 func (s *SeekIndexService) WithAudibleTracksProber(p AudibleTracksProber) *SeekIndexService {
 	s.audible = p
-	return s
-}
-
-// WithAudioRemuxer wires the audio start-delay REPAIR (a validated remux).
-// Optional and chainable; without it the remux entry points fail cleanly.
-func (s *SeekIndexService) WithAudioRemuxer(r AudioDelayRemuxer) *SeekIndexService {
-	s.audioRemux = r
 	return s
 }
 

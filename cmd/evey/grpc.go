@@ -72,17 +72,13 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		// journal holds the shift that was applied, and this replays its
 		// opposite - losslessly, whatever the codec.
 		WithTrackRetimer(mkvgo.NewTrackRetimer()).
-		// Audio start-delay repair: mkvgo per-track retime (fixes multi-track
-		// files whose tracks disagree on the delay - the dominant real case),
-		// with the ffmpeg uniform-shift remux as the fallback for layouts the
-		// retime refuses (unknown-size/streamed segments).
-		WithAudioRemuxer(mkvgo.NewAudioRetimer(ffmpeg.NewAudioRemuxer("ffmpeg", "ffprobe"))).
 		// The PROOF behind an audio start offset: do the file's own audio
 		// tracks agree once their declared offsets are applied? Two tracks of
 		// one film share their music and effects bed, so they line up when the
 		// offsets are RIGHT - a deliberate dub alignment - and disagree when a
-		// track has been moved. Runs only on the files that declare an offset
-		// (3 of 6695 on the real library), so a scan costs the same as before.
+		// track has been moved. Runs on every file with two or more audio
+		// tracks: a track pulled back onto the picture declares no offset,
+		// so a trigger keyed on the declaration would never see the damage.
 		WithAudioCoherenceProber(ffmpeg.NewAudioCoherence("ffmpeg", "ffprobe")).
 		// The guard between a repair and a silent file: every rewrite is
 		// measured for AUDIBLE tracks before and after, and one that costs the

@@ -13,7 +13,6 @@ import {
   useAdminMediaServiceRollbackMediaSeekIndex,
   useAdminMediaServiceReindexLibrarySeekIndex,
   useAdminMediaServiceRollbackLibrarySeekIndex,
-  useAdminMediaServiceRemuxAudioMedia,
   useAdminMediaServiceDeleteSeekIndexBackup,
   useAdminMediaServicePurgeSeekIndexBackups,
   useAdminMediaServiceAckSeekIndexMedia,
@@ -264,9 +263,6 @@ export default function AdminSeekIndexScreen() {
   const rollbackLib = useAdminMediaServiceRollbackLibrarySeekIndex({
     mutation: { onSuccess: onStarted("admin.seekIndex.rollbackStarted"), onError: onStartError },
   });
-  const remuxAudioOne = useAdminMediaServiceRemuxAudioMedia({
-    mutation: { onSuccess: onStarted("admin.seekIndex.remuxAudioStarted"), onError: onStartError },
-  });
   // Synchronous (an unlink server-side): refresh the cached scan directly
   // instead of the job-completion path the batch mutations rely on.
   const deleteBackup = useAdminMediaServiceDeleteSeekIndexBackup({
@@ -357,14 +353,12 @@ export default function AdminSeekIndexScreen() {
             onRepair={(mediaId) => repairOne.mutate({ mediaId, data: { mode: "auto" } })}
             onRepairResync={(mediaId) => repairOne.mutate({ mediaId, data: { resync: true } })}
             onRollback={(mediaId) => rollbackOne.mutate({ mediaId })}
-            onRemuxAudio={(mediaId) => remuxAudioOne.mutate({ mediaId })}
             onFixContainer={(mediaId) => fixContainerOne.mutate({ mediaId })}
             onAck={(mediaId, acked) => ackOne.mutate({ data: { mediaId, acked } })}
             onDeleteBackup={(mediaId) => deleteBackup.mutate({ data: { mediaId } })}
             repairPending={repairOne.isPending && repairOne.variables?.mediaId === item.mediaId && !repairOne.variables?.data?.resync}
             repairResyncPending={repairOne.isPending && repairOne.variables?.mediaId === item.mediaId && repairOne.variables?.data?.resync === true}
             rollbackPending={rollbackOne.isPending && rollbackOne.variables?.mediaId === item.mediaId}
-            remuxAudioPending={remuxAudioOne.isPending && remuxAudioOne.variables?.mediaId === item.mediaId}
             fixContainerPending={fixContainerOne.isPending && fixContainerOne.variables?.mediaId === item.mediaId}
             ackPending={ackOne.isPending && ackOne.variables?.data?.mediaId === item.mediaId}
             deleteBackupPending={deleteBackup.isPending && deleteBackup.variables?.data?.mediaId === item.mediaId}

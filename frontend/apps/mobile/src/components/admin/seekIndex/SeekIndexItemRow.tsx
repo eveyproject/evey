@@ -37,14 +37,12 @@ export function SeekIndexItemRow({
   onRepair,
   onRepairResync,
   onRollback,
-  onRemuxAudio,
   onFixContainer,
   onAck,
   onDeleteBackup,
   repairPending,
   repairResyncPending,
   rollbackPending,
-  remuxAudioPending,
   fixContainerPending,
   ackPending,
   deleteBackupPending,
@@ -56,14 +54,12 @@ export function SeekIndexItemRow({
   onRepair: (mediaId: string) => void;
   onRepairResync: (mediaId: string) => void;
   onRollback: (mediaId: string) => void;
-  onRemuxAudio: (mediaId: string) => void;
   onFixContainer: (mediaId: string) => void;
   onAck: (mediaId: string, acked: boolean) => void;
   onDeleteBackup: (mediaId: string) => void;
   repairPending: boolean;
   repairResyncPending: boolean;
   rollbackPending: boolean;
-  remuxAudioPending: boolean;
   fixContainerPending: boolean;
   ackPending: boolean;
   deleteBackupPending: boolean;
@@ -173,7 +169,6 @@ export function SeekIndexItemRow({
       </View>
 
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
-        {delayed && btn(t("admin.seekIndex.remuxAudioBtn"), () => item.mediaId && onRemuxAudio(item.mediaId), remuxAudioPending)}
         {indexRepairable && !item.wrongContainer &&
           btn(t("admin.seekIndex.repair"), () => item.mediaId && onRepair(item.mediaId), repairPending, true, t("admin.seekIndex.repairHint"))}
         {(indexRepairable || damagedOnly) && !item.wrongContainer &&

@@ -126,20 +126,22 @@ service AdminMediaService {
     };
   }
 
-  // RemuxAudioMedia repairs one file whose audio content starts late (repack
-  // mux defect diagnosed by the scan's audio_delay_sec): a stream-copy remux
-  // shifts the audio back onto the video, is re-probed to prove the delay is
-  // gone, then atomically swapped in with the original kept as .mkvgobak.
-  // Async like the reindex; outcome via GetSeekIndexJob.
+  // RemuxAudioMedia is RETIRED: it always fails with FAILED_PRECONDITION.
+  // It used to pull every audio track that started after the picture back
+  // onto it by its own declared delay, with no upper bound - which is exactly
+  // how a deliberate dub alignment looks - and rewrote 98 files that way on
+  // 2026-07-13 with no surviving backup. An audio start offset is a fact
+  // about a file, measured and shown by the scan (audio_delay_sec,
+  // audio_tracks_lag_sec), never something Evey rewrites. The RPC stays so a
+  // deployed client gets a translated refusal instead of UNIMPLEMENTED.
   rpc RemuxAudioMedia(RemuxAudioMediaRequest) returns (RemuxAudioMediaResponse) {
     option (google.api.http) = {
       post: "/api/v1/admin/media/{media_id}/audio-remux"
     };
   }
 
-  // RemuxAudioLibrary kicks a background job repairing every file the scan
-  // flagged with an audio start delay above the defect floor. Progress via
-  // GetSeekIndexJob (kind "remux_audio").
+  // RemuxAudioLibrary is RETIRED: it always fails with FAILED_PRECONDITION.
+  // See RemuxAudioMedia - this is the bulk form that did the July damage.
   rpc RemuxAudioLibrary(RemuxAudioLibraryRequest) returns (RemuxAudioLibraryResponse) {
     option (google.api.http) = {
       post: "/api/v1/admin/media/audio-remux-library"

@@ -239,8 +239,6 @@ func (d *adminMediaHandler) seekIndexError(ctx context.Context, op string, err e
 		// locale-neutral, so they ride a translated envelope as one param.
 		return d.translator.TranslatedError(ctx, codes.FailedPrecondition,
 			"errors.admin.seek_index_backup_overcommit", map[string]string{"volumes": spaceErr.Detail()})
-	case errors.Is(err, appmaintenance.ErrRemuxUnavailable):
-		return d.translator.TranslatedError(ctx, codes.Unimplemented, "errors.admin.service_not_configured")
 	case errors.Is(err, appmaintenance.ErrAckNotApplicable):
 		return d.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.admin.seek_index_ack_not_applicable")
 	case errors.Is(err, appmaintenance.ErrNotInScan):
@@ -464,35 +462,27 @@ func (d *adminMediaHandler) RollbackLibrarySeekIndex(ctx context.Context, req *e
 	return &eveyv1.RollbackLibrarySeekIndexResponse{Queued: -1}, nil //nolint:staticcheck // SA1019: deliberate, see above
 }
 
-// RemuxAudioMedia repairs one file's audio start delay in the background.
-func (d *adminMediaHandler) RemuxAudioMedia(ctx context.Context, req *eveyv1.RemuxAudioMediaRequest) (*eveyv1.RemuxAudioMediaResponse, error) {
+// RemuxAudioMedia is RETIRED and refuses. It used to pull every audio track
+// that started after the picture back onto it, by its own declared delay, with
+// no upper bound - and a deliberate 12.000 s dub alignment looks exactly like a
+// mux slip to that rule. On 2026-07-13 it rewrote 98 files that way, the
+// backups were purged by the rolling window, and the amounts removed exist
+// nowhere any more. An audio start offset is a fact about a file, and nothing
+// here can prove which track to move: the file is measured and reported, and
+// the RPC stays in the API only so a deployed client gets an answer instead of
+// an unimplemented error.
+func (d *adminMediaHandler) RemuxAudioMedia(ctx context.Context, _ *eveyv1.RemuxAudioMediaRequest) (*eveyv1.RemuxAudioMediaResponse, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.admin.RemuxAudioMedia")
 	defer span.End()
-	if err := d.seekIndexConfigured(ctx, span); err != nil {
-		return nil, err
-	}
-	if err := d.seekIndex.StartRemuxAudioMedia(ctx, req.GetMediaId()); err != nil {
-		span.RecordError(err)
-		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, d.seekIndexError(ctx, "remux audio media", err)
-	}
-	return &eveyv1.RemuxAudioMediaResponse{Accepted: true}, nil
+	return nil, d.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.admin.seek_index_audio_offset_not_a_repair")
 }
 
-// RemuxAudioLibrary repairs every audio-delayed file of the scope in the
-// background.
-func (d *adminMediaHandler) RemuxAudioLibrary(ctx context.Context, req *eveyv1.RemuxAudioLibraryRequest) (*eveyv1.RemuxAudioLibraryResponse, error) {
+// RemuxAudioLibrary is RETIRED and refuses, for the same reason as
+// RemuxAudioMedia - and it is the one that did the July damage in bulk.
+func (d *adminMediaHandler) RemuxAudioLibrary(ctx context.Context, _ *eveyv1.RemuxAudioLibraryRequest) (*eveyv1.RemuxAudioLibraryResponse, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.admin.RemuxAudioLibrary")
 	defer span.End()
-	if err := d.seekIndexConfigured(ctx, span); err != nil {
-		return nil, err
-	}
-	if err := d.seekIndex.StartRemuxAudioLibrary(ctx, req.GetLibraryId()); err != nil {
-		span.RecordError(err)
-		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, d.seekIndexError(ctx, "remux audio library", err)
-	}
-	return &eveyv1.RemuxAudioLibraryResponse{Accepted: true}, nil
+	return nil, d.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.admin.seek_index_audio_offset_not_a_repair")
 }
 
 // DeleteSeekIndexBackup removes one media's reindex backup - synchronous, an

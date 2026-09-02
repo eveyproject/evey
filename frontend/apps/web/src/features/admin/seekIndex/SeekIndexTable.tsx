@@ -19,7 +19,6 @@ type SeekIndexTableProps = Pick<
   | "totalPages"
   | "busy"
   | "containerFixAvailable"
-  | "remuxAudioOne"
   | "repairOne"
   | "rollbackOne"
   | "deleteBackup"
@@ -42,7 +41,6 @@ export function SeekIndexTable({
   totalPages,
   busy,
   containerFixAvailable,
-  remuxAudioOne,
   repairOne,
   rollbackOne,
   deleteBackup,
@@ -233,18 +231,10 @@ export function SeekIndexTable({
                 </td>
                 <td className="px-4 py-3 whitespace-nowrap" data-label="">
                   <div className="flex items-center justify-end gap-2">
-                    {audioDelayed(it) && (
-                      <Button
-                        variant="secondary"
-                        className="text-xs"
-                        disabled={busy}
-                        loading={remuxAudioOne.isPending && remuxAudioOne.variables?.mediaId === it.mediaId}
-                        onClick={() => it.mediaId && remuxAudioOne.mutate({ mediaId: it.mediaId })}
-                        data-testid="seek-index-remux-audio-btn"
-                      >
-                        {t("admin.seekIndex.remuxAudioBtn")}
-                      </Button>
-                    )}
+                    {/* No button for an audio start offset, on purpose: it is a
+                        fact about the file, and the "fix" that used to live here
+                        pulled tracks back by their own declared delay - which is
+                        how 98 deliberate dub alignments were erased in July. */}
                     {/* No repair exists for a truncated file - the tail is
                         simply absent - nor for a coarse one, whose index was
                         already rebuilt and cannot beat the encode's keyframes.

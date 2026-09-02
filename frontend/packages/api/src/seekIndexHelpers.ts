@@ -13,7 +13,6 @@ export const SEEK_INDEX_KIND_KEYS: Record<string, string> = {
   reindex: "admin.seekIndex.jobReindex",
   rollback: "admin.seekIndex.jobRollback",
   purge: "admin.seekIndex.jobPurge",
-  remux_audio: "admin.seekIndex.jobRemuxAudio",
   fix_container: "admin.seekIndex.jobFixContainer",
 };
 

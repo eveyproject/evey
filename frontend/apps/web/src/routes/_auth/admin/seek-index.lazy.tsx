@@ -57,7 +57,6 @@ function SeekIndexPage() {
     rollbackOne,
     repairLib,
     rollbackLib,
-    remuxAudioOne,
     fixContainerOne,
     deleteBackup,
     purgeLib,
@@ -142,7 +141,6 @@ function SeekIndexPage() {
             totalPages={totalPages}
             busy={busy}
             containerFixAvailable={containerFixAvailable}
-            remuxAudioOne={remuxAudioOne}
             repairOne={repairOne}
             rollbackOne={rollbackOne}
             deleteBackup={deleteBackup}

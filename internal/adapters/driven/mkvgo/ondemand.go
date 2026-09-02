@@ -271,17 +271,30 @@ func keepTracksFor(tracks []extmkv.Track, audioOrdinal int) []uint64 {
 	return kept
 }
 
+// delaysFunc measures each audio track's start delay (Matroska track number ->
+// nanoseconds, positive = late). Injectable for tests; production passes
+// matroska.AudioStartDelays. It lived beside the persistent retime adapter
+// until that was removed - the retime that rewrote 98 files on 2026-07-13 -
+// and stayed here because CANCELLING a delay in presentation touches nothing
+// on disk and is a different thing entirely.
+type delaysFunc func(ctx context.Context, path string) (map[uint64]int64, error)
+
+// audioDelayFloorNs is the delay below which a track is considered aligned:
+// codec priming territory (tens of ms), never a defect. Mirrors
+// maintenance.AudioDelayFlagSec.
+const audioDelayFloorNs = 100_000_000
+
 // audioPresentationShift floors AudioStartDelays' raw map to mp4.Options.
-// AudioPresentationShift: only tracks past retimeDelayFloorNs (the same
-// defect floor audio_retime.go applies) are shifted, so codec priming (tens
-// of ms) never moves a healthy file's presentation. The value is passed
+// AudioPresentationShift: only tracks past audioDelayFloorNs are shifted, so
+// codec priming (tens of ms) never moves a healthy file's presentation. The
+// value is passed
 // through UNNEGATED - unlike RetimeTracks' persistent shift, which takes the
 // negated delay, AudioPresentationShift takes AudioStartDelays' sign
 // directly (positive = presented earlier).
 func audioPresentationShift(delays map[uint64]int64) map[uint64]int64 {
 	var shift map[uint64]int64
 	for track, ns := range delays {
-		if ns > retimeDelayFloorNs {
+		if ns > audioDelayFloorNs {
 			if shift == nil {
 				shift = make(map[uint64]int64, len(delays))
 			}

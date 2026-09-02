@@ -29,6 +29,11 @@ const durToleranceMs = 50
 // ReindexInPlace agree.
 const backupSuffix = ".mkvgobak"
 
+// mkvgoReplaceBackupSuffix is what mkvgo's KeepBackup actually produces; the
+// adapter renames it to backupSuffix so the existing rollback/purge/scan-badge
+// lifecycle sees it.
+const mkvgoReplaceBackupSuffix = ".bak"
+
 // HasBackup reports whether path has a reindex backup it can be rolled back to.
 func (a *Adapter) HasBackup(_ context.Context, path string) (bool, error) {
 	_, err := os.Stat(path + backupSuffix) //nolint:gosec // operator media path
