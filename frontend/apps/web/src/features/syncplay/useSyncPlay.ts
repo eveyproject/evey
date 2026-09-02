@@ -38,6 +38,11 @@ interface SyncPlayControls {
   sendSetIndex: (index: number) => void;
   /** v2 "everyone sync to me": any member pulls the party to their position. */
   sendResync: (positionMs: number) => void;
+  // "Put ME back with the room". The mirror image of sendResync, which moves
+  // everyone: this one moves only the caller, so someone who drifted can rejoin
+  // without anyone else's picture jumping. The server answers with a plain
+  // state message, handled by the same path as a mid-session join.
+  sendCatchUp: () => void;
 }
 
 interface SyncMessage {
@@ -351,6 +356,10 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}): [SyncPlayState, Sync
     send({ type: "resync", positionMs });
   }, [send]);
 
+  const sendCatchUp = useCallback(() => {
+    send({ type: "catch_up" });
+  }, [send]);
+
   useEffect(() => {
     if (!accessToken) return;
     try {
@@ -363,5 +372,5 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}): [SyncPlayState, Sync
     }
   }, [accessToken]);
 
-  return [state, { createRoom, createRoomFromPlaylist, createRoomFromQueue, joinRoom, joinByCode, leaveRoom, sendPlay, sendPause, sendSeek, sendNext, sendPrev, sendSetIndex, sendResync }];
+  return [state, { createRoom, createRoomFromPlaylist, createRoomFromQueue, joinRoom, joinByCode, leaveRoom, sendPlay, sendPause, sendSeek, sendNext, sendPrev, sendSetIndex, sendResync, sendCatchUp }];
 }

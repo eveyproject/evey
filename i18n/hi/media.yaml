@@ -422,6 +422,8 @@ syncplay:
   connecting: "कनेक्ट हो रहा है..."
   leave: छोड़ें
   resyncAll: "सभी को सिंक करें"
+  catchUp: "मुझे मिलाएँ"
+  catchUpHint: "मुझे वहाँ ले जाएँ जहाँ कमरा है। किसी और पर असर नहीं।"
   joinError: "शामिल नहीं हो सके - कोड जांचें।"
   shareLink: लिंक शेयर करें
   copyCode: कोड कॉपी करें

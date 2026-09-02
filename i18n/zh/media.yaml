@@ -422,6 +422,8 @@ syncplay:
   connecting: "连接中..."
   leave: 离开
   resyncAll: "同步所有人"
+  catchUp: "追上进度"
+  catchUpHint: "把我带到房间当前的位置。不影响其他人。"
   joinError: "无法加入 - 请检查代码。"
   shareLink: 分享链接
   copyCode: 复制代码

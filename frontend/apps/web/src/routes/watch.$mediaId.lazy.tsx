@@ -90,6 +90,10 @@ function GuestWatch() {
             void navigate({ to: "/login" });
           }}
           onResync={() => syncControls.sendResync(Math.floor((videoRef.current?.currentTime ?? 0) * 1000))}
+          // The guest's own catch-up: asks the room where it is and seeks there
+          // alone. Nobody else moves, which is what makes it usable by someone
+          // who is not running the session.
+          onCatchUp={() => syncControls.sendCatchUp()}
         />
       )}
     </div>

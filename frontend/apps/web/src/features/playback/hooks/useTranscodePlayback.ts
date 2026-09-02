@@ -127,6 +127,12 @@ export function useTranscodePlayback({
   // hls.js instance (audio/quality switches rebuild the instance).
   const reportPlayerEvent = useMemo(() => createPlayerEventReporter(mediaId), [mediaId]);
   const [hlsLevels, setHlsLevels] = useState<number[]>([]);
+  // The audio renditions the MASTER declares, read straight from hls.js. The
+  // menu is normally built from the server's stream list, but a guest in a
+  // "watch together" room cannot ask for it - GetStreamInfo needs a JWT they do
+  // not have - and so had no way to pick a language at all. The manifest knows,
+  // and it is the same manifest the guest is already playing.
+  const [manifestAudioTracks, setManifestAudioTracks] = useState<{ name: string; lang: string }[]>([]);
   // Disarm handle for the forced-mute recovery: at most one armed at a time,
   // and removed on unmount so no document listener outlives the player.
   const disarmMuteLiftRef = useRef<(() => void) | null>(null);
@@ -296,6 +302,11 @@ export function useTranscodePlayback({
         hls.currentLevel = pinned;
       }
       setHlsLevels(hls.levels.map((l) => l.height));
+      // A master with no audio group has no audioTracks at all, and neither
+      // does a stripped-down player in a test: absent is a legitimate answer.
+      setManifestAudioTracks(
+        (hls.audioTracks ?? []).map((t) => ({ name: t.name ?? t.lang ?? "", lang: t.lang ?? "" })),
+      );
       // Re-select the track chosen by the client-side switch: this rebuild
       // (token refresh, subtitles, offset) did not go through
       // currentTrackIndex, and the master's DEFAULT is not enough to re-aim the
@@ -520,5 +531,5 @@ export function useTranscodePlayback({
   // eslint-disable-next-line react-hooks/exhaustive-deps -- streamTokenRef/onStreamTokenRefreshRef read imperatively; setFatalError/setShedReason/setIsBuffering/setTranscodeStartTime are stable setState
   }, [transcodeMode, mediaId, onEnded, currentTrackIndex, transcodeStartTime, selectedBurnInTrack, audioOffsetMs, gapless, wasmAudio]);
 
-  return { transcodeStartTime, setTranscodeStartTime, hlsLevels, autoLevelHeight };
+  return { transcodeStartTime, setTranscodeStartTime, hlsLevels, autoLevelHeight, manifestAudioTracks };
 }

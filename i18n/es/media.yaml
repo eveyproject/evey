@@ -422,6 +422,8 @@ syncplay:
   connecting: "Conectando..."
   leave: Salir
   resyncAll: "Sincronizar a todos"
+  catchUp: "Ponerme al día"
+  catchUpHint: "Llevarme a donde está la sala. No afecta a nadie más."
   joinError: "No se pudo unir - comprueba el código."
   shareLink: Compartir enlace
   copyCode: Copiar código

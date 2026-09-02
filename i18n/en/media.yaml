@@ -423,6 +423,8 @@ syncplay:
   leave: Leave
   joinError: "Could not join - check the code."
   resyncAll: Sync everyone
+  catchUp: "Catch up"
+  catchUpHint: "Move me back to where the room is. Nobody else is affected."
   shareLink: Share link
   copyCode: Copy code
   watchTogetherRoom: Watch Together room

@@ -422,6 +422,8 @@ syncplay:
   connecting: "Verbinden..."
   leave: Verlassen
   resyncAll: "Alle synchronisieren"
+  catchUp: "Aufholen"
+  catchUpHint: "Mich dorthin setzen, wo der Raum steht. Sonst wird niemand bewegt."
   joinError: "Beitritt fehlgeschlagen - Code prüfen."
   shareLink: Link teilen
   copyCode: Code kopieren

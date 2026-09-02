@@ -12,9 +12,11 @@ interface SyncPlayBarProps {
   onLeave: () => void;
   /** v2 "everyone sync to me": pull the whole party to this member's position. */
   onResync?: () => void;
+  // Pulls only the caller back to the room's position - nobody else moves.
+  onCatchUp?: () => void;
 }
 
-export const SyncPlayBar = memo(function SyncPlayBar({ roomId, roomCode, isHost, members, connected, onLeave, onResync }: SyncPlayBarProps) {
+export const SyncPlayBar = memo(function SyncPlayBar({ roomId, roomCode, isHost, members, connected, onLeave, onResync, onCatchUp }: SyncPlayBarProps) {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
@@ -88,6 +90,16 @@ export const SyncPlayBar = memo(function SyncPlayBar({ roomId, roomCode, isHost,
       >
         {copied ? t("common.copied") : t("media.syncplay.shareLink")}
       </button>
+      {onCatchUp && (
+        <button
+          onClick={onCatchUp}
+          className="px-3 py-1 rounded text-xs font-medium hover:opacity-80 transition-opacity-fast flex-shrink-0 bg-[var(--overlay-btn-bg)]"
+          title={t("media.syncplay.catchUpHint")}
+          aria-label={t("media.syncplay.catchUp")}
+        >
+          {t("media.syncplay.catchUp")}
+        </button>
+      )}
       {onResync && (
         <button
           onClick={onResync}

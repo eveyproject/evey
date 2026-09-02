@@ -102,7 +102,7 @@ export function HLSPlayer({
   knownDurationMs,
   filePath,
   onEnded,
-  audioStreams = [],
+  audioStreams: audioStreamsProp = [],
   subtitleStreams = [],
   title,
   onClose,
@@ -187,6 +187,7 @@ export function HLSPlayer({
 
   // Initialize audio/subtitle from streams + whatever prefs are available at
   // first render (profile may not be loaded yet - profileAudioLangs is empty).
+  const audioStreams = audioStreamsProp;
   const defaultAudio = resolveDefaultAudio(
     audioStreams,
     seriesId,
@@ -653,7 +654,7 @@ export function HLSPlayer({
     canWasmDecodeAC3() &&
     isWasmDecodableAudioCodec(selectedAudioCodec);
 
-  const { transcodeStartTime, setTranscodeStartTime, hlsLevels, autoLevelHeight } = useTranscodePlayback({
+  const { transcodeStartTime, setTranscodeStartTime, hlsLevels, autoLevelHeight, manifestAudioTracks } = useTranscodePlayback({
     videoRef, hlsRef, positionRef, transcodeOffsetRef,
     wasPausedRef, streamTokenRef, onStreamTokenRefreshRef, audioTrackOverrideRef,
     pinnedQualityRef,
@@ -664,6 +665,23 @@ export function HLSPlayer({
     gapless,
     wasmAudio: wasmAudioActive,
   });
+
+  // What the audio menu offers. Normally the server's stream list; when the
+  // caller has none, the renditions the MASTER declares - which is the only
+  // thing a guest in a "watch together" room can see, since GetStreamInfo
+  // needs a JWT they do not have. Without this a guest could not choose a
+  // language at all: the menu simply was not there.
+  const menuAudioStreams = useMemo<AudioStream[]>(() => {
+    if (audioStreamsProp.length > 0) return audioStreamsProp;
+    return manifestAudioTracks.map((t, i) => ({
+      index: i,
+      trackIndex: i,
+      language: t.lang || undefined,
+      title: t.name || undefined,
+      isDefault: i === 0,
+    }));
+  }, [audioStreamsProp, manifestAudioTracks]);
+
 
   // Client-side AC-3/E-AC-3 decode (ac3go wasm) for browsers without native
   // support. Runs alongside hls.js: the video plays video-only, this engine
@@ -1241,7 +1259,7 @@ export function HLSPlayer({
       <PlayerProvider
         videoRef={videoRef}
         knownDurationSec={knownDurationMs ? knownDurationMs / 1000 : undefined}
-        audioStreams={audioStreams}
+        audioStreams={menuAudioStreams}
         subtitleStreams={subtitleStreams}
         title={title}
         currentAudioIndex={currentAudioIndex}

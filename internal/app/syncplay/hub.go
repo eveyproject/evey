@@ -318,21 +318,7 @@ func (h *Hub) ConnectMember(ctx context.Context, roomID, userID, username string
 		return nil, err
 	}
 
-	// The stored position is a snapshot taken at State.UpdatedAt (when the last
-	// play/pause/seek landed). While the room is playing it keeps advancing, so a
-	// mid-session joiner must seek to the LIVE position (snapshot + time elapsed
-	// since), not the stale snapshot, or it starts behind everyone else.
-	posMs := room.State.PositionMs
-	if room.State.Playing && !room.State.UpdatedAt.IsZero() {
-		if elapsed := time.Since(room.State.UpdatedAt).Milliseconds(); elapsed > 0 {
-			posMs += elapsed
-		}
-	}
-	stateMsg := syncplay.SyncCommand{
-		Type:       "state",
-		Playing:    room.State.Playing,
-		PositionMs: posMs,
-	}
+	stateMsg := liveStateOf(room)
 	if data, mErr := json.Marshal(stateMsg); mErr == nil {
 		if err := sender.SendMessage(data); err != nil {
 			slog.WarnContext(ctx, "send initial state failed", slog.String("roomID", roomID), slog.String("userID", userID), slog.Any("err", err))
@@ -416,6 +402,46 @@ func (h *Hub) DisconnectMember(ctx context.Context, roomID, userID string) error
 	return nil
 }
 
+// liveStateOf is the room's position RIGHT NOW, as a "state" message.
+//
+// The stored position is a snapshot taken at State.UpdatedAt (when the last
+// play/pause/seek landed). While the room is playing it keeps advancing, so a
+// joiner - or a member catching up - must be given the LIVE position (snapshot
+// plus the time elapsed since), not the stale snapshot, or they land behind
+// everyone else. A paused room has not moved, so its snapshot IS live.
+func liveStateOf(room *syncplay.Room) syncplay.SyncCommand {
+	posMs := room.State.PositionMs
+	if room.State.Playing && !room.State.UpdatedAt.IsZero() {
+		if elapsed := time.Since(room.State.UpdatedAt).Milliseconds(); elapsed > 0 {
+			posMs += elapsed
+		}
+	}
+	return syncplay.SyncCommand{Type: "state", Playing: room.State.Playing, PositionMs: posMs}
+}
+
+// sendTo delivers one message to a single member, and to nobody else.
+func (h *Hub) sendTo(roomID, userID string, cmd syncplay.SyncCommand) {
+	data, err := json.Marshal(cmd)
+	if err != nil {
+		return
+	}
+	h.mu.RLock()
+	var sender syncplay.MessageSender
+	if room := h.conns[roomID]; room != nil {
+		if entry := room[userID]; entry != nil {
+			sender = entry.sender
+		}
+	}
+	h.mu.RUnlock()
+	if sender == nil {
+		return
+	}
+	if err := sender.SendMessage(data); err != nil {
+		slog.Warn("syncplay: send to member failed",
+			slog.String("roomID", roomID), slog.String("userID", userID), slog.Any("err", err))
+	}
+}
+
 // HandleCommand processes a playback command and broadcasts to other room members.
 func (h *Hub) HandleCommand(ctx context.Context, roomID, userID, username string, cmd syncplay.SyncCommand) (syncplay.SyncCommand, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.syncplay.HandleCommand")
@@ -453,6 +479,21 @@ func (h *Hub) HandleCommand(ctx context.Context, roomID, userID, username string
 			return cmd, fmt.Errorf("update room state: %w", err)
 		}
 		h.broadcast(roomID, userID, cmd)
+	case "catch_up":
+		// "Put ME back with the room", the mirror image of resync. It moves the
+		// asker alone and broadcasts nothing: a viewer who drifted, or who
+		// paused for a minute, can rejoin the group without anyone else's
+		// picture jumping. Members only - a room's position is not public.
+		room, err := h.repo.Get(ctx, roomID)
+		if err != nil || room == nil {
+			return cmd, fmt.Errorf("get room: %w", err)
+		}
+		if !room.IsMember(userID) {
+			return cmd, nil
+		}
+		h.sendTo(roomID, userID, liveStateOf(room))
+		return cmd, nil
+
 	case "resync":
 		// The v2 "everyone sync to me": ANY member - not just the host - can pull
 		// the whole party to their current position and resume. Unlike host-only

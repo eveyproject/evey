@@ -423,6 +423,8 @@ syncplay:
   leave: Quitter
   joinError: "Impossible de rejoindre - vérifiez le code."
   resyncAll: Tout le monde me rejoint
+  catchUp: "Me resynchroniser"
+  catchUpHint: "Me replacer là où en est la salle. Personne d'autre n'est déplacé."
   shareLink: Partager le lien
   copyCode: Copier le code
   watchTogetherRoom: Salle Regarder ensemble
