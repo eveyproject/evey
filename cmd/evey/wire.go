@@ -1007,6 +1007,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 			pluginDataRepo:    r.PluginData,
 			quickConnectRepo:  r.QuickConnect,
 			introMetaCache:    r.IntroMetadataCache,
+			repairJournal:     postgres.NewRepairJournalRepository(r.AuditLog),
 		},
 		cfgStore:          httpapi.NewServerConfigStore(r.ServerCfg),
 		serverCfgSvc:      serverCfgSvc,

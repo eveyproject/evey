@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
+	"time"
 
 	"github.com/evey-project/evey/internal/domain/mkv"
 )
@@ -134,20 +136,36 @@ type rollingBackups struct {
 // reindex-only and combined-repair batches so their per-file semantics stay
 // identical.
 func (s *SeekIndexService) reindexStep(bg context.Context, path string, opts mkv.ReindexOptions, rb *rollingBackups) (bool, error) {
+	// The entry is opened BEFORE the rewrite and closed whatever happens, so a
+	// file can never be rewritten without a trace - the exact gap that made the
+	// 2026-07-13 batch unexplainable seven weeks later.
+	rec := s.openRepairRecord(bg, path, opts)
+
 	// What the file sounded like BEFORE, so a loss can be proven rather than
 	// suspected. Measured first because after the rewrite the original is
 	// only reachable through its backup.
 	audibleBefore, haveBaseline := s.audibleTracks(bg, path)
+	rec.AudibleBefore = audibleBefore
 
 	res, err := s.reindexer.ReindexInPlace(bg, path, opts)
 	if err != nil {
+		rec.Outcome, rec.Error = "failed", err.Error()
+		s.journalRepair(bg, rec)
 		return false, err
 	}
 	if res.Skipped {
+		rec.Outcome = "skipped"
+		s.journalRepair(bg, rec)
 		return true, nil
 	}
+	rec.BackupPath = res.BackupPath
 	if haveBaseline {
-		if err := s.guardAudioSurvived(bg, path, audibleBefore, res.BackupPath != ""); err != nil {
+		after, ok := s.audibleTracks(bg, path)
+		rec.AudibleAfter = after
+		if err := s.guardAudioSurvived(bg, path, audibleBefore, after, ok, res.BackupPath != ""); err != nil {
+			rec.Outcome, rec.Error = "rolled_back", err.Error()
+			rec.BackupPath = "" // the backup was consumed putting the original back
+			s.journalRepair(bg, rec)
 			return false, err
 		}
 	}
@@ -161,7 +179,81 @@ func (s *SeekIndexService) reindexStep(bg context.Context, path string, opts mkv
 			rb.window = rb.window[1:]
 		}
 	}
+	rec.Outcome = "applied"
+	rec.SizeAfter = fileSizeOf(path)
+	s.journalRepair(bg, rec)
 	return false, nil
+}
+
+// openRepairRecord captures what the file was before anything touched it, and
+// the evidence that justified touching it. Evidence is the field that tells a
+// genuine repair from a rewrite performed on a bare declaration: a coherence
+// measurement is proof, a declared offset on its own is not - and acting on the
+// latter alone is precisely what broke 98 files.
+func (s *SeekIndexService) openRepairRecord(ctx context.Context, path string, opts mkv.ReindexOptions) RepairRecord {
+	rec := RepairRecord{
+		Path:       path,
+		Op:         RepairReindex,
+		Started:    time.Now(),
+		SizeBefore: fileSizeOf(path),
+		Evidence:   RepairEvidence{Method: "declared-defect"},
+	}
+	if opts.Resync {
+		rec.Op = RepairResync
+	}
+	if st, ok := s.statusOf(path); ok {
+		rec.MediaID = st.MediaID
+		if st.AudioDelaySec > 0 {
+			rec.DelaysBefore = []TrackDelay{{DelaySec: st.AudioDelaySec}}
+		}
+		if st.AudioTracksChecked {
+			// A measurement ran: say what it found, including a lag too weak to
+			// act on. Silence here would read as "never looked".
+			rec.Evidence = RepairEvidence{
+				Method:     "track-coherence",
+				LagSec:     st.AudioTracksLagSec,
+				Confidence: AudioCoherenceMinConfidence,
+				Detail:     st.IndexSparseDetail,
+			}
+		} else if st.IndexSparseDetail != "" {
+			rec.Evidence.Detail = st.IndexSparseDetail
+		}
+	}
+	rec.Job = s.runningJobKind()
+	_ = ctx
+	return rec
+}
+
+// runningJobKind names the batch this file belongs to, so a whole night's work
+// can be reviewed as one thing instead of reconstructed from file timestamps.
+func (s *SeekIndexService) runningJobKind() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.cur.Kind
+}
+
+// statusOf returns the cached diagnosis of a path, from whichever scope holds
+// it. Used to fill a journal entry with what was known at decision time.
+func (s *SeekIndexService) statusOf(path string) (SeekStatus, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, c := range s.scans {
+		for _, it := range c.res.Items {
+			if it.Path == path {
+				return it, true
+			}
+		}
+	}
+	return SeekStatus{}, false
+}
+
+// fileSizeOf is best effort: a size we could not read must not cost a repair.
+func fileSizeOf(path string) int64 {
+	fi, err := os.Stat(path)
+	if err != nil {
+		return 0
+	}
+	return fi.Size()
 }
 
 // audibleTracks measures how many audio tracks carry sound, and says whether
@@ -186,12 +278,11 @@ func (s *SeekIndexService) audibleTracks(ctx context.Context, path string) (int,
 // failed. Anything short of a PROVEN loss leaves the repair standing: a file
 // that had no sound to lose is fine, and a second measurement that could not
 // run is not evidence.
-func (s *SeekIndexService) guardAudioSurvived(ctx context.Context, path string, before int, hasBackup bool) error {
+func (s *SeekIndexService) guardAudioSurvived(ctx context.Context, path string, before, after int, measured, hasBackup bool) error {
 	if before == 0 {
 		return nil // nothing to lose, nothing to prove
 	}
-	after, ok := s.audibleTracks(ctx, path)
-	if !ok || after >= before {
+	if !measured || after >= before {
 		return nil
 	}
 	s.logger.Error("seek-index: the repair silenced audio, rolling it back",

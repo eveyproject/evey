@@ -479,6 +479,7 @@ type SeekIndexService struct {
 	audioDelay AudioDelayProber     // optional; see WithAudioDelayProber
 	audioCoh   AudioCoherenceProber // optional; see WithAudioCoherenceProber
 	audible    AudibleTracksProber  // optional; see WithAudibleTracksProber
+	journal    RepairJournal        // optional; see WithRepairJournal
 	audioRemux AudioDelayRemuxer    // optional; see WithAudioRemuxer
 	diagnoser  mkv.Diagnoser        // optional; see WithDiagnoser
 	relocator  MediaRelocator       // optional; see WithMediaRelocator

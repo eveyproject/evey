@@ -64,6 +64,10 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		eveylogger.NewWith(rootLog, "seek-index"),
 	).WithFileStateRefresher(deps.seekIndexFileState).
 		WithDiagnoser(mkvgo.New()).
+		// Every rewrite leaves an audit_log entry: what the file was, what was
+		// done, on what evidence, and what it became. A repair nobody recorded
+		// is a repair nobody can undo - 98 files learned that the hard way.
+		WithRepairJournal(deps.repos.repairJournal).
 		// Audio start-delay repair: mkvgo per-track retime (fixes multi-track
 		// files whose tracks disagree on the delay - the dominant real case),
 		// with the ffmpeg uniform-shift remux as the fallback for layouts the
