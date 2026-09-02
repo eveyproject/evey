@@ -56,6 +56,25 @@ func upsertMediaFile(ctx context.Context, tx *sql.Tx, item *library.MediaItem) e
 	if f.Fingerprint != "" {
 		fingerprint = &f.Fingerprint
 	}
+	// The fingerprint is size + mtime: a HINT about whether a file changed, not
+	// an identity. Two distinct files genuinely can share one (a copy made with
+	// cp -p, two files restored from the same backup), and the unique index
+	// turned that coincidence into an item whose every update failed - twelve
+	// times in one day on prod, for ever, because nothing cleared the way.
+	//
+	// The row being written was just scanned, so it is the fresher claim on the
+	// value. Whoever else holds it gives up the HINT, not the row: their file
+	// is simply re-probed at the next scan, which is the honest outcome of a
+	// real collision.
+	if fingerprint != nil {
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE media_files SET file_fingerprint = NULL
+			 WHERE file_fingerprint = $1 AND media_item_id <> $2`,
+			*fingerprint, string(item.ID),
+		); err != nil {
+			return fmt.Errorf("clear colliding fingerprint: %w", err)
+		}
+	}
 	_, err := tx.ExecContext(ctx,
 		`INSERT INTO media_files (media_item_id, file_path, file_size, file_fingerprint, mod_time, duration_ms, bitrate, container_format, stream_probe_attempts)
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
