@@ -2,6 +2,7 @@ package pluginrunner
 
 import (
 	"os"
+	"strings"
 	"path/filepath"
 	"testing"
 )
@@ -225,7 +226,10 @@ func TestAnalyzePlugin_SignalPID1_Obfuscated(t *testing.T) {
 	}
 }
 
-func TestAnalyzePlugin_SkipsNodeModules(t *testing.T) {
+func TestAnalyzePlugin_ScansNodeModulesForCriticalOnly(t *testing.T) {
+	// node_modules used to be skipped whole, which hid a payload buried in a
+	// dependency (redteam-bridge, 2026-09-02). It is now walked: vendored code
+	// runs, so a Critical finding there counts, and the file IS scanned.
 	dir := t.TempDir()
 	writeFile(t, dir, "index.js", `console.log("clean")`)
 	writeFile(t, dir, "node_modules/evil/index.js", `eval("malicious")`)
@@ -234,11 +238,11 @@ func TestAnalyzePlugin_SkipsNodeModules(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !report.Safe {
-		t.Error("expected safe - node_modules should be skipped")
+	if report.Safe {
+		t.Error("eval() in a vendored dep must make the plugin UNSAFE, not be skipped")
 	}
-	if report.TotalFilesScanned != 1 {
-		t.Errorf("expected 1 file scanned (node_modules skipped), got %d", report.TotalFilesScanned)
+	if report.TotalFilesScanned != 2 {
+		t.Errorf("expected both files scanned, got %d", report.TotalFilesScanned)
 	}
 }
 
@@ -566,19 +570,25 @@ func TestAnalyze_WarningOnly_StillSafe(t *testing.T) {
 	}
 }
 
-func TestAnalyze_SkipsNodeModules_NoFindings(t *testing.T) {
+func TestAnalyze_VendoredWarningsStaySilent(t *testing.T) {
+	// The other half of the rule: warning-level behaviour in a vendored library
+	// (a network call) must NOT surface, or the report drowns in noise from
+	// legitimate dependencies and the admin stops reading it.
 	dir := t.TempDir()
 	writeFile(t, dir, "clean.js", `console.log("ok")`)
-	writeFile(t, dir, "node_modules/pkg/index.js", `eval("evil")`)
+	writeFile(t, dir, "node_modules/pkg/index.js", `fetch("https://api.example.com")`)
 
 	report, err := AnalyzePlugin(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, f := range report.Findings {
-		if f.Category == "obfuscation" {
-			t.Fatal("eval in node_modules should not be flagged")
+		if strings.Contains(f.File, "node_modules") && f.Severity != SeverityCritical {
+			t.Fatalf("vendored warning leaked: %s in %s", f.Category, f.File)
 		}
+	}
+	if !report.Safe {
+		t.Error("an ordinary vendored network call must not block a plugin")
 	}
 }
 

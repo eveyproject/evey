@@ -387,7 +387,11 @@ func AnalyzePluginWithWebRoot(dir, _ string) (*AnalysisReport, error) {
 		}
 		if info.IsDir() {
 			base := filepath.Base(path)
-			if base == "node_modules" || base == ".git" || base == "__pycache__" || base == ".venv" {
+			// .git holds no executed code, and __pycache__/.venv are build
+			// detritus. node_modules and vendor, on the other hand, RUN - so
+			// they are walked (see vendoredPath below), not skipped: a payload
+			// buried in a dependency is still a payload.
+			if base == ".git" || base == "__pycache__" || base == ".venv" {
 				return filepath.SkipDir
 			}
 			return nil
@@ -469,6 +473,15 @@ func AnalyzePluginWithWebRoot(dir, _ string) (*AnalysisReport, error) {
 		if scanErr != nil {
 			return scanErr
 		}
+		// Vendored code runs, so it is scanned - but a legitimate library trips
+		// every warning-level rule (fetch, base64, dynamic require) by the
+		// hundred, and a report drowned in that noise is a report nobody reads.
+		// Keep only what is never acceptable in a dependency either: the
+		// Critical findings (shell exec, eval, raw syscall, obfuscated payload).
+		if vendoredPath(relPath) {
+			findings = criticalOnly(findings)
+			urls = nil
+		}
 		report.Findings = append(report.Findings, findings...)
 		// Lockfiles list every transitive dep's tarball URL - that's not
 		// signal, just noise. Keep findings (the unvendored_deps warning
@@ -490,6 +503,29 @@ func AnalyzePluginWithWebRoot(dir, _ string) (*AnalysisReport, error) {
 	}
 
 	return report, nil
+}
+
+// vendoredPath reports whether relPath lives inside a bundled dependency tree.
+// Such code runs but is not the plugin author's own, so it is held to the one
+// bar that matters there: nothing Critical.
+func vendoredPath(relPath string) bool {
+	for seg := range strings.SplitSeq(filepath.ToSlash(relPath), "/") {
+		if seg == "node_modules" || seg == "vendor" {
+			return true
+		}
+	}
+	return false
+}
+
+// criticalOnly keeps just the Critical findings of a scan.
+func criticalOnly(in []AnalysisFinding) []AnalysisFinding {
+	var out []AnalysisFinding
+	for _, f := range in {
+		if f.Severity == SeverityCritical {
+			out = append(out, f)
+		}
+	}
+	return out
 }
 
 // verifyAssetMIME reads the first 512 bytes and checks the detected MIME type
