@@ -21,6 +21,8 @@ coverage or explicitly acknowledge the regression.
 | `python-getattr-builtin` | Python | `getattr(__builtins__, ...)` retrieves `exec` dynamically |
 | `go-raw-syscall` | Go | Direct `syscall.Syscall(59, ...)` = raw `execve` without stdlib |
 | `php-combo-realistic` | PHP | Multi-vector: RCE + JWT exfil + outbound HTTP |
+| `python-exec-base64` | Python | Payload is a base64 blob decoded into `exec()` - nothing dangerous is spelled out in the source |
+| `js-datafile-function` | JS/Node | Payload lives in a `.dat` file and is turned into a function at runtime - loader and payload are innocuous apart |
 
 ## Adding a new fixture
 

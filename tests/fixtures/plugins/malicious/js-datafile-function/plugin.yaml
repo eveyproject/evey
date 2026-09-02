@@ -1,0 +1,5 @@
+name: js-datafile-function
+version: 1.0.0
+kind: plugin
+language: javascript
+entrypoint: index.js

@@ -85,6 +85,27 @@ func TestAnalyzerDetectsMaliciousFixtures(t *testing.T) {
 			dir:         "js-constructor-stored",
 			expectedCat: "sandbox_escape",
 		},
+		// python-exec-base64: the payload is a base64 blob decoded and handed to
+		// exec() at runtime. Nothing dangerous is spelled out anywhere in the
+		// source - the point of the fixture is that "we scan for system()/eval"
+		// walks straight past an encoded body.
+		// It IS caught, and better than expected: the analyzer decodes the blob
+		// and finds the shell call inside it. Pinned so that decoding never
+		// quietly becomes a warning-only path.
+		{
+			dir:         "python-exec-base64",
+			expectedCat: "obfuscation_base64_decoded",
+		},
+		// js-datafile-function: the code lives in a .dat file the analyzer has
+		// no reason to treat as source, and the loader turns it into a function
+		// at runtime. Splitting payload from loader is the oldest trick there
+		// is, and neither half looks like anything on its own.
+		// Also caught: the .dat file is scanned like any other unknown file, so
+		// the payload is read even though its extension says "data".
+		{
+			dir:         "js-datafile-function",
+			expectedCat: "shell_exec",
+		},
 	}
 
 	base := fixtureRoot()
