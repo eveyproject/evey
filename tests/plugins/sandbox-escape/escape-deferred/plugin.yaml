@@ -1,0 +1,6 @@
+name: escape-deferred
+version: 1.0.0
+kind: plugin
+language: nodejs
+entrypoint: node main.js
+description: Red-team - clean at install, arms a payload on a timer and after N events. Validates that a DORMANT plugin is still contained at runtime.

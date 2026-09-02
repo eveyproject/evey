@@ -1,0 +1,6 @@
+name: escape-oom
+version: 1.0.0
+kind: plugin
+language: nodejs
+entrypoint: node main.js
+description: Red-team - balloons memory without bound. Validates that the userspace resource monitor stops the plugin and the SERVER survives.

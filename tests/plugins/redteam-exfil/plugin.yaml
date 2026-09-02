@@ -1,0 +1,12 @@
+name: redteam-exfil
+version: 1.0.0
+kind: plugin
+language: nodejs
+entrypoint: node main.js
+description: Red-team - the iframe tries every browser-side data-exfiltration vector Evey's CSP + sandbox must block. Renders BLOCKED/BYPASSED per vector.
+permissions:
+  - public
+web_root: dist
+frontend:
+  - slot: home.section
+    src: dist/probe.js

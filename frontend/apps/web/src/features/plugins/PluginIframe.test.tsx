@@ -87,6 +87,34 @@ describe("PluginIframe", () => {
     });
   });
 
+  // The redteam-exfil fixture (tests/plugins/redteam-exfil) attempts eight
+  // browser-side exfiltration vectors and expects every one to render BLOCKED.
+  // This is the in-gate proof that its expectation is real: the containment it
+  // relies on - a strict CSP and a locked-down sandbox attribute - is actually
+  // emitted. If any of these assertions breaks, that fixture would start
+  // showing BYPASSED in the browser.
+  it("denies the browser exfiltration vectors at the sandbox boundary", async () => {
+    render(<PluginIframe pluginId="plg-test1" src="index.js" />);
+    const iframe = (await screen.findByTitle(/plg-test1/)) as HTMLIFrameElement;
+    const srcdoc = iframe.getAttribute("srcdoc") ?? "";
+
+    // default-src none is the floor: nothing is allowed unless re-granted.
+    expect(srcdoc).toContain("default-src 'none'");
+    // No external_fetch here, so connect-src is none: fetch/sendBeacon/WebSocket
+    // to an attacker sink cannot leave the iframe (vectors 1, 2, 4).
+    expect(srcdoc).toContain("connect-src 'none'");
+    // img-src never includes an arbitrary host, so the pixel beacon dies (3).
+    expect(srcdoc).toMatch(/img-src [^;]*data: blob:/);
+    expect(srcdoc).not.toContain("img-src *");
+
+    // The sandbox attribute is allow-scripts and nothing else: no
+    // allow-same-origin (opaque origin -> no parent DOM read, vector 5), no
+    // allow-top-navigation (URL exfil via top.location, vector 7), no
+    // allow-popups. This is what keeps the iframe from reaching the host page.
+    const sandbox = iframe.getAttribute("sandbox") ?? "";
+    expect(sandbox).toBe("allow-scripts");
+  });
+
   it("inlines the plugin bundle into the iframe srcdoc (no <script src>)", async () => {
     render(<PluginIframe pluginId="plg-test1" src="index.js" />);
     const iframe = (await screen.findByTitle(/plg-test1/)) as HTMLIFrameElement;

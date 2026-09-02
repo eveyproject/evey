@@ -34,6 +34,8 @@ docker exec evey-server sh -c 'grep -hE "\[ESCAPE\]|\[MINER\]" /data/logs/plugin
 | probe-miner | resource_cpu_burn | de-prioritised | `nice` at spawn (`EVEY_PLUGINS_CPU_NICE`); monitor logs sustained pegging |
 | probe-miner | resource_mem_balloon | **STOPPED** past the cap | userspace resource monitor (`EVEY_PLUGINS_MEMORY_MB`) - stops the plugin, server survives |
 | escape-datastore | own_data_store_CONTROL | BYPASSED | (control - a plugin owns its own data, no permission needed) |
+| escape-deferred | deferred_spawn | **BLOCKED** | seccomp `execve` denial - a payload armed on a timer/after N events is contained exactly like an immediate one (the "passed static, fired later" case) |
+| escape-oom | balloon (retained memory grows unbounded) | **STOPPED past the cap** | userspace resource monitor (`EVEY_PLUGINS_MEMORY_MB`) stops the plugin; the server survives |
 | escape-datastore | cross_plugin_data_read | **BLOCKED** | data RPCs take the plugin id from the authenticated socket - no API to name another plugin |
 | escape-datastore | getmediaitem_without_perm | **BLOCKED** | HostService permission check (no `media.read` declared) |
 
