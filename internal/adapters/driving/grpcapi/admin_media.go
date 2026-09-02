@@ -592,6 +592,22 @@ func repairEntryToProto(r appmaintenance.RepairRecord) *eveyv1.MediaRepairEntry 
 	}
 }
 
+// ApplyAudioShift moves one audio track by the amount an operator judged on a
+// preview clip.
+func (d *adminMediaHandler) ApplyAudioShift(ctx context.Context, req *eveyv1.ApplyAudioShiftRequest) (*eveyv1.ApplyAudioShiftResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.admin.ApplyAudioShift")
+	defer span.End()
+	if err := d.seekIndexConfigured(ctx, span); err != nil {
+		return nil, err
+	}
+	if err := d.seekIndex.ApplyOperatorShift(ctx, req.GetMediaId(), req.GetTrack(), req.GetShiftSec()); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, d.seekIndexError(ctx, "apply audio shift", err)
+	}
+	return &eveyv1.ApplyAudioShiftResponse{}, nil
+}
+
 // AckSeekIndexGroup acknowledges every pending file of one verdict in scope.
 func (d *adminMediaHandler) AckSeekIndexGroup(ctx context.Context, req *eveyv1.AckSeekIndexGroupRequest) (*eveyv1.AckSeekIndexGroupResponse, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.admin.AckSeekIndexGroup")

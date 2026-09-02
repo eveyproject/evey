@@ -209,6 +209,10 @@ type appDeps struct {
 	presenceTracker    *apppresence.Tracker
 	hlsAESSecret       []byte
 	seekIndexFileState appmaintenance.FileStateRefresher
+	// seekIndexSvc is published by buildGRPCServer so the HTTP layer can serve
+	// the sync-preview clip from the same instance. Built before the HTTP
+	// handler, so it is never nil by the time that route is registered.
+	seekIndexSvc *appmaintenance.SeekIndexService
 	// keyframeOnDemand fills a missing keyframe index inline at playback
 	// negotiation (bounded fast-path probe shared with the backfill worker).
 	keyframeOnDemand *apptranscoding.KeyframeOnDemand

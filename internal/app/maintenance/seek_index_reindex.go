@@ -172,6 +172,14 @@ func (s *SeekIndexService) reindexStep(bg context.Context, path string, opts mkv
 	// only reachable through its backup.
 	audibleBefore, haveBaseline := s.audibleTracks(bg, path)
 	rec.AudibleBefore = audibleBefore
+	// A resync DROPS bytes, so it is judged on the whole track, not on three
+	// windows: a hole between the windows, or a frame-format change that
+	// decodes fine and plays silent, is exactly what the sampled guard misses.
+	var integrityBefore []mkv.TrackIntegrity
+	haveIntegrity := false
+	if opts.Resync {
+		integrityBefore, haveIntegrity = s.audioIntegrityBaseline(bg, path)
+	}
 
 	res, err := s.reindexer.ReindexInPlace(bg, path, opts)
 	if err != nil {
@@ -192,6 +200,19 @@ func (s *SeekIndexService) reindexStep(bg context.Context, path string, opts mkv
 			rec.Outcome, rec.Error = "rolled_back", err.Error()
 			rec.BackupPath = "" // the backup was consumed putting the original back
 			s.journalRepair(bg, rec)
+			return false, err
+		}
+	}
+	if haveIntegrity {
+		var restore func() error
+		if res.BackupPath != "" {
+			restore = func() error { return s.reindexer.RestoreBackup(bg, path) }
+		}
+		if err := s.guardAudioIntegrity(bg, path, integrityBefore, restore); err != nil {
+			rec.Outcome, rec.Error = "rolled_back", err.Error()
+			rec.BackupPath = ""
+			s.journalRepair(bg, rec)
+			s.updateCachedFile(path, func(st *SeekStatus) { st.HasIndex = false; st.HasBackup = false })
 			return false, err
 		}
 	}

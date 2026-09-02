@@ -190,6 +190,18 @@ service AdminMediaService {
     };
   }
 
+  // ApplyAudioShift moves one audio track by an amount a PERSON judged on a
+  // preview clip. Nothing this server measures can say whether the sound
+  // follows the picture - comparing a file's own tracks says only whether they
+  // agree with each other - so this is the one path where a human's ear is the
+  // evidence, and the journal records it as exactly that.
+  rpc ApplyAudioShift(ApplyAudioShiftRequest) returns (ApplyAudioShiftResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/media/{media_id}/audio-shift"
+      body: "*"
+    };
+  }
+
   // AckSeekIndexGroup acknowledges every pending file of one verdict
   // ("informational" - the only ackable one) in scope. Returns how many it
   // marked.
@@ -293,6 +305,15 @@ message UndoMediaRepairResponse {
   // shift_sec is what was applied to undo, per track.
   map<uint64, double> shift_sec = 1;
 }
+
+message ApplyAudioShiftRequest {
+  string media_id = 1;
+  // track is the Matroska track number to move, as listed by the preview.
+  uint64 track = 2;
+  // shift_sec is signed: positive delays the track against the picture.
+  double shift_sec = 3;
+}
+message ApplyAudioShiftResponse {}
 
 message AckSeekIndexGroupRequest {
   // Optional scope: empty = all libraries.

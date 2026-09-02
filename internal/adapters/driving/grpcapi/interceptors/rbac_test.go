@@ -104,6 +104,7 @@ func TestDefaultRBACConfig_AdminMethods(t *testing.T) {
 		"/evey.v1.AdminMediaService/DeleteSeekIndexBackup",
 		"/evey.v1.AdminMediaService/AckSeekIndexMedia",
 		"/evey.v1.AdminMediaService/GetMediaRepairHistory",
+		"/evey.v1.AdminMediaService/ApplyAudioShift",
 		"/evey.v1.AdminMediaService/UndoMediaRepair",
 		"/evey.v1.AdminMediaService/AckSeekIndexGroup",
 		"/evey.v1.AdminMediaService/FixContainerMedia",

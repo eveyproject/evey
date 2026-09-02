@@ -19,6 +19,7 @@ import (
 	appdlna "github.com/evey-project/evey/internal/app/dlna"
 	appfavorite "github.com/evey-project/evey/internal/app/favorite"
 	applibrary "github.com/evey-project/evey/internal/app/library"
+	appmaintenance "github.com/evey-project/evey/internal/app/maintenance"
 	appmedia "github.com/evey-project/evey/internal/app/media"
 	appmetadata "github.com/evey-project/evey/internal/app/metadata"
 	appmusic "github.com/evey-project/evey/internal/app/music"
@@ -197,7 +198,10 @@ type HTTPServer struct {
 	QoEQuerySvc *appqoe.QueryService
 
 	// Metadata
-	MetadataCmdSvc   *appmetadata.CommandService
+	MetadataCmdSvc *appmetadata.CommandService
+	// SeekIndexSvc serves the sync-preview clip an operator judges a desync on.
+	// Optional: without it the route is simply not registered.
+	SeekIndexSvc     *appmaintenance.SeekIndexService
 	MetadataQuerySvc *appmetadata.QueryService
 
 	// Activity
@@ -736,6 +740,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	if s.MetadataCmdSvc != nil && s.MetadataQuerySvc != nil {
 		registerAdminRoutes(mux, s.MetadataCmdSvc, s.MetadataQuerySvc, s.TokenGen, s.AdminHeavyRL, s.AdminWriteRL, s.ServerCtx, s.ActivityCmdSvc)
 	}
+	registerSyncPreviewRoute(mux, s.SeekIndexSvc, s.TokenGen, s.AdminHeavyRL)
 	if s.MetadataCmdSvc != nil {
 		var cfgSvc *appconfig.Service
 		if s.ServerCfgRepo != nil {

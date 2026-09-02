@@ -157,6 +157,10 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		CapOverrideSvc: deps.media.capsOverrideSvc,
 
 		MetadataCmdSvc:   deps.content.metadataCmdSvc,
+		// The preview clip route: a few seconds of picture with one audio
+		// track, which is the only way to tell whether the sound follows the
+		// image. Nil until the seek-index service exists.
+		SeekIndexSvc: deps.seekIndexSvc,
 		MetadataQuerySvc: deps.content.metadataQuerySvc,
 
 		ActivityQuerySvc: deps.engagement.activityQuerySvc,

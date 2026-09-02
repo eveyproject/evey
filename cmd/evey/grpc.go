@@ -72,6 +72,10 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		// journal holds the shift that was applied, and this replays its
 		// opposite - losslessly, whatever the codec.
 		WithTrackRetimer(mkvgo.NewTrackRetimer()).
+		// A few seconds of picture with one audio track, rendered small enough
+		// for a browser. Nothing measurable here says whether the sound follows
+		// the IMAGE - only someone watching can, and this is what they watch.
+		WithSyncPreviewRenderer(ffmpeg.NewSyncPreview("ffmpeg")).
 		// The PROOF behind an audio start offset: do the file's own audio
 		// tracks agree once their declared offsets are applied? Two tracks of
 		// one film share their music and effects bed, so they line up when the
@@ -86,6 +90,13 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		// verification passes a silenced track happily - that is how two films
 		// lost their French audio in prod (2026-09-01).
 		WithAudibleTracksProber(ffmpeg.NewAudioSanity("ffmpeg", "ffprobe")).
+		// The exhaustive form of that guard, for the rewrites that MOVE or
+		// DROP audio bytes (a resync, an undone retime): every track measured
+		// end to end - silence map and frame-size uniformity - before and
+		// after, and a loss puts the original back. Three sampled windows
+		// cover a tenth of a film and pass a track whose frames change format
+		// at a joint, which decodes cleanly and plays silent (prod 2026-09-01).
+		WithAudioIntegrityProber(ffmpeg.NewAudioIntegrity("ffmpeg", "ffprobe")).
 		// Audio tail-gap probe: does the audio content reach the declared
 		// duration? Catches the truncated-audio-track mux (structurally
 		// healthy file, dead audio over the credits) ops.Diagnose cannot
@@ -107,6 +118,7 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		// viewer is what starved playback of I/O on 2026-07-19. Same source as
 		// the trickplay generator and the transcode calibrator use.
 		WithActiveStreamChecker(deps.media.hlsVODRemover)
+	deps.seekIndexSvc = seekIndexSvc
 
 	grpcDeps := grpcapi.GRPCServerDeps{
 		LibCmd:                 deps.library.cmdSvc,

@@ -518,7 +518,9 @@ type SeekIndexService struct {
 	audible    AudibleTracksProber  // optional; see WithAudibleTracksProber
 	journal    RepairJournal        // optional; see WithRepairJournal
 	retimer    TrackRetimer         // optional; see WithTrackRetimer
+	preview    SyncPreviewRenderer  // optional; see WithSyncPreviewRenderer
 	diagnoser  mkv.Diagnoser        // optional; see WithDiagnoser
+	integrity  AudioIntegrityProber // optional; see WithAudioIntegrityProber
 	relocator  MediaRelocator       // optional; see WithMediaRelocator
 	logger     *slog.Logger
 
