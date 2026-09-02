@@ -127,14 +127,14 @@ func TestRetimeSignature(t *testing.T) {
 		delays map[uint64]int64
 		want   bool
 	}{
-		"one zeroed, sibling keeps priming":  {map[uint64]int64{2: 0, 3: 20}, true},
-		"one zeroed, sibling slightly early": {map[uint64]int64{2: 0, 3: -8}, true},
-		"three tracks, one zeroed":           {map[uint64]int64{2: 0, 3: 20, 4: 32}, true},
-		"all at zero - a plain mux":          {map[uint64]int64{2: 0, 3: 0}, false},
-		"all carry priming - a plain mux":    {map[uint64]int64{2: 21, 3: 20}, false},
-		"single track":                       {map[uint64]int64{2: 0}, false},
-		"no audio":                           {nil, false},
-		"a track still above the floor":      {map[uint64]int64{2: 0, 3: 12_000}, false},
+		"one zeroed, sibling keeps priming":   {map[uint64]int64{2: 0, 3: 20}, true},
+		"one zeroed, sibling slightly early":  {map[uint64]int64{2: 0, 3: -8}, true},
+		"three tracks, one zeroed":            {map[uint64]int64{2: 0, 3: 20, 4: 32}, true},
+		"all at zero - a plain mux":           {map[uint64]int64{2: 0, 3: 0}, false},
+		"all carry priming - a plain mux":     {map[uint64]int64{2: 21, 3: 20}, false},
+		"single track":                        {map[uint64]int64{2: 0}, false},
+		"no audio":                            {nil, false},
+		"a track still above the floor":       {map[uint64]int64{2: 0, 3: 12_000}, false},
 		"deliberate dub with priming sibling": {map[uint64]int64{2: 12_000, 3: 20}, false},
 	}
 	for name, tc := range cases {

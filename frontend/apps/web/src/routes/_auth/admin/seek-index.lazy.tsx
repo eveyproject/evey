@@ -8,6 +8,7 @@ import { errText } from "@evey/api";
 import { useSeekIndexPage } from "@/features/admin/seekIndex/hooks";
 import { JobProgressCard } from "@/features/admin/seekIndex/JobProgressCard";
 import { LastJobCard } from "@/features/admin/seekIndex/LastJobCard";
+import { RepairJournalPanel } from "@/features/admin/seekIndex/RepairJournalPanel";
 import { SeekIndexControls } from "@/features/admin/seekIndex/SeekIndexControls";
 import { StatsGrid } from "@/features/admin/seekIndex/StatsGrid";
 import { SeekIndexTable } from "@/features/admin/seekIndex/SeekIndexTable";
@@ -94,6 +95,7 @@ function SeekIndexPage() {
 
       {running && job && <JobProgressCard job={job} />}
       {!running && job?.last && <LastJobCard last={job.last} />}
+      <RepairJournalPanel />
 
       {scan.isError && (
         <p className="text-sm text-[var(--color-danger)]" role="alert">

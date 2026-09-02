@@ -4,6 +4,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mockScan = vi.fn();
 const mockJob = vi.fn();
+const mockJournal = vi.fn(() => ({ data: { entries: [] }, isLoading: false }));
 const startScanMutate = vi.fn();
 const repairOneMutate = vi.fn();
 const rollbackOneMutate = vi.fn();
@@ -32,6 +33,7 @@ vi.mock("@evey/api", async (importOriginal) => ({
   useAdminMediaServiceAckSeekIndexMedia: () => ({ mutate: ackOneMutate, isPending: false, variables: undefined }),
   useAdminMediaServiceAckSeekIndexGroup: () => ({ mutate: ackGroupMutate, isPending: false }),
   useAdminMediaServiceFixContainerMedia: () => ({ mutate: fixContainerMutate, isPending: false, variables: undefined }),
+  useAdminMediaServiceListMediaRepairs: (...args: unknown[]) => mockJournal(...args),
 }));
 
 vi.mock("@evey/store", () => ({ toast: mockToast }));
@@ -702,4 +704,31 @@ describe("SeekIndexPage", () => {
     expect(rollbackLibMutate).not.toHaveBeenCalled();
   });
 
+});
+
+describe("repair journal", () => {
+  it("opens on demand and lists what the repairs touched, evidence included", async () => {
+    mockScan.mockReturnValue(scanned);
+    mockJournal.mockReturnValue({
+      isLoading: false,
+      data: {
+        entries: [
+          { atMs: "1757800000000", op: "reindex", outcome: "applied", job: "reindex", evidenceMethod: "declared-defect", path: "/media/a.mkv", mediaId: "mi-1" },
+          { atMs: "1757800001000", op: "audio_retime", outcome: "rolled_back", job: "", evidenceMethod: "operator", path: "/media/d.mkv", mediaId: "mi-4", error: "the rewrite damaged an audio track" },
+        ],
+      },
+    });
+    const Page = await getPage();
+    render(React.createElement(Page));
+    expect(screen.queryByTestId("repair-journal-entry")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("repair-journal-toggle"));
+    expect(screen.getAllByTestId("repair-journal-entry")).toHaveLength(2);
+    expect(screen.getByText("a.mkv")).toBeInTheDocument();
+    expect(screen.getByText("Acted on what the file declared about itself, without measuring.")).toBeInTheDocument();
+    expect(screen.getByText("Judged by a person.")).toBeInTheDocument();
+    expect(screen.getByText("the rewrite damaged an audio track")).toBeInTheDocument();
+    // the operator view keeps only what a person did on one file
+    fireEvent.change(screen.getByTestId("repair-journal-job"), { target: { value: "operator" } });
+    expect(screen.getAllByTestId("repair-journal-entry")).toHaveLength(1);
+  });
 });

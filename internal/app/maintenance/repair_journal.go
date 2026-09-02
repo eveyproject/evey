@@ -84,7 +84,7 @@ const RepairJournalSchema = 1
 // RepairRecord is one file's rewrite, start to finish.
 type RepairRecord struct {
 	// Schema is RepairJournalSchema at write time. Never omitted.
-	Schema int `json:"schema"`
+	Schema  int      `json:"schema"`
 	MediaID string   `json:"media_id,omitempty"`
 	Path    string   `json:"path"`
 	Op      RepairOp `json:"op"`
@@ -213,4 +213,26 @@ func (s *SeekIndexService) journalRepair(ctx context.Context, rec RepairRecord) 
 		s.logger.Error("seek-index: the repair journal refused an entry - this rewrite is now untraceable",
 			"path", rec.Path, "op", string(rec.Op), "err", err)
 	}
+}
+
+// RepairQuery selects journal entries across the whole library: a time
+// window, optionally one job kind, newest first. It is the question the
+// 2026-07-13 forensics had to answer with "select ... where mod_time between"
+// on the media table, because the journal did not exist: what did that batch
+// touch?
+type RepairQuery struct {
+	// Since and Until bound the window; a zero value is open on that side.
+	Since, Until time.Time
+	// Job keeps only entries of one batch kind ("reindex", "rollback", ...);
+	// "" keeps all of them.
+	Job string
+	// Limit caps the result; 0 means the adapter's default.
+	Limit int
+}
+
+// RepairLister is the cross-file read side of the journal. Kept apart from
+// RepairJournal so a journal that can only answer per file (or a test fake)
+// still satisfies the port; the service checks for it at runtime.
+type RepairLister interface {
+	ListRepairs(ctx context.Context, q RepairQuery) ([]RepairRecord, error)
 }

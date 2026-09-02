@@ -124,3 +124,57 @@ func (r *RepairJournalRepository) RepairHistory(ctx context.Context, path string
 	}
 	return out, nil
 }
+
+// ListRepairs implements maintenance.RepairLister: every entry in the window,
+// newest first, optionally one batch kind. Filtered on created_at (indexed)
+// and on the job inside the payload.
+func (r *RepairJournalRepository) ListRepairs(ctx context.Context, q appmaintenance.RepairQuery) ([]appmaintenance.RepairRecord, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.repair_journal.List")
+	defer span.End()
+	limit := q.Limit
+	if limit <= 0 || limit > 1000 {
+		limit = 100
+	}
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+
+	where := "action = $1"
+	args := []any{RepairAuditAction}
+	if !q.Since.IsZero() {
+		args = append(args, q.Since)
+		where += fmt.Sprintf(" AND created_at >= $%d", len(args))
+	}
+	if !q.Until.IsZero() {
+		args = append(args, q.Until)
+		where += fmt.Sprintf(" AND created_at <= $%d", len(args))
+	}
+	if q.Job != "" {
+		args = append(args, q.Job)
+		where += fmt.Sprintf(" AND details->>'job' = $%d", len(args))
+	}
+	args = append(args, limit)
+	rows, err := txFromCtx(ctx, r.audit.db).QueryContext(ctx,
+		fmt.Sprintf(`SELECT details FROM audit_log WHERE %s ORDER BY created_at DESC LIMIT $%d`, where, len(args)),
+		args...)
+	if err != nil {
+		return nil, fmt.Errorf("repair journal: list: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var out []appmaintenance.RepairRecord
+	for rows.Next() {
+		var raw []byte
+		if err := rows.Scan(&raw); err != nil {
+			return nil, fmt.Errorf("repair journal: scan entry: %w", err)
+		}
+		var rec appmaintenance.RepairRecord
+		if err := json.Unmarshal(raw, &rec); err != nil {
+			continue // one unreadable row must not hide the batch
+		}
+		out = append(out, rec)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("repair journal: list: %w", err)
+	}
+	return out, nil
+}

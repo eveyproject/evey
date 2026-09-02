@@ -127,3 +127,29 @@ func (s *SeekIndexService) guardAudioIntegrity(ctx context.Context, path string,
 	}
 	return fmt.Errorf("%w - the original has been restored", lost)
 }
+
+// RetimeTracksGuarded moves tracks on the container timeline and judges the
+// result on the whole track. A retime is exact in both directions, so a
+// damaged result is put back by applying the opposite shift - there is no
+// backup, by design, and none is needed. Returns ErrNotReversible when no
+// retimer is wired, and an error wrapping ErrAudioIntegrityLost when the
+// result was refused and the original restored. The ONE implementation of
+// that rule: the undo path and the operator-judged shift both go through it.
+func (s *SeekIndexService) RetimeTracksGuarded(ctx context.Context, path string, shiftSec map[uint64]float64) error {
+	if s.retimer == nil {
+		return ErrNotReversible
+	}
+	before, haveIntegrity := s.audioIntegrityBaseline(ctx, path)
+	if err := s.retimer.RetimeTracks(ctx, path, shiftSec); err != nil {
+		return err
+	}
+	if !haveIntegrity {
+		return nil
+	}
+	inverse := make(map[uint64]float64, len(shiftSec))
+	for track, sec := range shiftSec {
+		inverse[track] = -sec
+	}
+	restore := func() error { return s.retimer.RetimeTracks(ctx, path, inverse) }
+	return s.guardAudioIntegrity(ctx, path, before, restore)
+}

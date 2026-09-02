@@ -115,6 +115,8 @@ var parentalExempt = map[string]string{
 	"/evey.v1.NotificationService/ListAdminNotifications": "RoleAdmin",
 	"/evey.v1.ShareService/CreateShareLink":               "RoleAdmin",
 	"/evey.v1.AdminMediaService/ScanSeekIndex":            "RoleAdmin",
+	"/evey.v1.AdminMediaService/GetMediaRepairHistory":    "RoleAdmin",
+	"/evey.v1.AdminMediaService/ListMediaRepairs":         "RoleAdmin",
 	"/evey.v1.AdminSessionService/ListActiveSessions":     "RoleAdmin",
 	"/evey.v1.ActivityService/GetServerStats":             "RoleAdmin",
 	"/evey.v1.ActivityService/GetAnalytics":               "admin enforced in the handler (PermissionDenied for non-admin)",

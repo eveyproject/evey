@@ -91,6 +91,7 @@ func DefaultRBACConfig() RBACConfig {
 			"/evey.v1.AdminMediaService/GetMediaRepairHistory":              RoleAdmin,
 			"/evey.v1.AdminMediaService/ApplyAudioShift":                    RoleAdmin,
 			"/evey.v1.AdminMediaService/UndoMediaRepair":                    RoleAdmin,
+			"/evey.v1.AdminMediaService/ListMediaRepairs":                   RoleAdmin,
 			"/evey.v1.AdminMediaService/AckSeekIndexGroup":                  RoleAdmin,
 			"/evey.v1.AdminMediaService/FixContainerMedia":                  RoleAdmin,
 			"/evey.v1.AdminMediaService/PurgeSeekIndexBackups":              RoleAdmin,

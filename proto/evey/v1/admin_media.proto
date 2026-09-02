@@ -190,6 +190,17 @@ service AdminMediaService {
     };
   }
 
+  // ListMediaRepairs answers "what did the repairs touch" across the whole
+  // library: every journal entry in a time window, newest first, optionally
+  // one batch kind. The 98 files rewritten on 2026-07-13 were only ever found
+  // by a hand-written query on file modification times; this is that
+  // question, asked of the journal, from the health page.
+  rpc ListMediaRepairs(ListMediaRepairsRequest) returns (ListMediaRepairsResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/admin/media/repairs"
+    };
+  }
+
   // ApplyAudioShift moves one audio track by an amount a PERSON judged on a
   // preview clip. Nothing this server measures can say whether the sound
   // follows the picture - comparing a file's own tracks says only whether they
@@ -296,6 +307,11 @@ message MediaRepairEntry {
   int64 size_after = 13;
   // reversible: this entry alone carries enough to put the file back.
   bool reversible = 14;
+  // media_id and path name the file, for the cross-library listing where an
+  // entry is not read under one media's row. path is the file as it was
+  // recorded, which survives a media being deleted and re-added.
+  string media_id = 15;
+  string path = 16;
 }
 
 message UndoMediaRepairRequest {
@@ -304,6 +320,20 @@ message UndoMediaRepairRequest {
 message UndoMediaRepairResponse {
   // shift_sec is what was applied to undo, per track.
   map<uint64, double> shift_sec = 1;
+}
+
+message ListMediaRepairsRequest {
+  // since_ms / until_ms bound the window (unix ms); 0 = open on that side.
+  int64 since_ms = 1;
+  int64 until_ms = 2;
+  // job keeps only one batch kind ("reindex", "rollback", "purge",
+  // "fix_container", "scan"); empty = every entry, operator actions included.
+  string job = 3;
+  // Optional cap, default 100.
+  int32 limit = 4;
+}
+message ListMediaRepairsResponse {
+  repeated MediaRepairEntry entries = 1;
 }
 
 message ApplyAudioShiftRequest {

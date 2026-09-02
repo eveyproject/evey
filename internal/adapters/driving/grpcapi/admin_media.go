@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"time"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	applibrary "github.com/evey-project/evey/internal/app/library"
@@ -589,7 +590,38 @@ func repairEntryToProto(r appmaintenance.RepairRecord) *eveyv1.MediaRepairEntry 
 		SizeBefore:         r.SizeBefore,
 		SizeAfter:          r.SizeAfter,
 		Reversible:         r.Reversible(),
+		MediaId:            r.MediaID,
+		Path:               r.Path,
 	}
+}
+
+// ListMediaRepairs lists the journal across the library: a window, newest
+// first, optionally one batch kind. What a repair batch touched, as a screen
+// instead of a query on file timestamps.
+func (d *adminMediaHandler) ListMediaRepairs(ctx context.Context, req *eveyv1.ListMediaRepairsRequest) (*eveyv1.ListMediaRepairsResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.admin.ListMediaRepairs")
+	defer span.End()
+	if err := d.seekIndexConfigured(ctx, span); err != nil {
+		return nil, err
+	}
+	q := appmaintenance.RepairQuery{Job: req.GetJob(), Limit: int(req.GetLimit())}
+	if req.GetSinceMs() > 0 {
+		q.Since = time.UnixMilli(req.GetSinceMs())
+	}
+	if req.GetUntilMs() > 0 {
+		q.Until = time.UnixMilli(req.GetUntilMs())
+	}
+	recs, err := d.seekIndex.ListRepairs(ctx, q)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, d.seekIndexError(ctx, "list media repairs", err)
+	}
+	out := &eveyv1.ListMediaRepairsResponse{Entries: make([]*eveyv1.MediaRepairEntry, 0, len(recs))}
+	for _, r := range recs {
+		out.Entries = append(out.Entries, repairEntryToProto(r))
+	}
+	return out, nil
 }
 
 // ApplyAudioShift moves one audio track by the amount an operator judged on a

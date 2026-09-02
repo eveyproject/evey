@@ -131,19 +131,13 @@ func (s *SeekIndexService) UndoLastRepair(ctx context.Context, path string) erro
 		// whole track, and a damaged result is put back by replaying the
 		// shift that was being undone - the inverse of an exact shift is
 		// exact in both directions.
-		before, haveIntegrity := s.audioIntegrityBaseline(ctx, path)
-		if err := s.retimer.RetimeTracks(ctx, path, inverse); err != nil {
+		if err := s.RetimeTracksGuarded(ctx, path, inverse); err != nil {
 			rec.Outcome, rec.Error = "failed", err.Error()
+			if errors.Is(err, ErrAudioIntegrityLost) {
+				rec.Outcome = "rolled_back"
+			}
 			s.journalRepair(ctx, rec)
 			return fmt.Errorf("undo repair: %w", err)
-		}
-		if haveIntegrity {
-			restore := func() error { return s.retimer.RetimeTracks(ctx, path, last.ShiftSec) }
-			if err := s.guardAudioIntegrity(ctx, path, before, restore); err != nil {
-				rec.Outcome, rec.Error = "rolled_back", err.Error()
-				s.journalRepair(ctx, rec)
-				return fmt.Errorf("undo repair: %w", err)
-			}
 		}
 	default:
 		return ErrNotReversible
