@@ -687,6 +687,10 @@ export function HLSPlayer({
   // support. Runs alongside hls.js: the video plays video-only, this engine
   // decodes the out-of-band AC-3 rendition and plays it in sync. A fatal error
   // latches the fallback, which re-requests the muxed/AAC master.
+  // Its own reporter, like the cast one: the transcode reporter's 20-event
+  // budget is what an hls.js stall storm drains first, and the engine's mode
+  // and gate lines are exactly what must survive such a storm.
+  const reportWasmAudioEvent = useMemo(() => createPlayerEventReporter(mediaId), [mediaId]);
   useWasmAudioPlayback({
     videoRef,
     mediaId,
@@ -694,6 +698,7 @@ export function HLSPlayer({
     streamTokenRef,
     active: wasmAudioActive,
     onFallback: () => setWasmAudioDisabled(true),
+    reportEvent: reportWasmAudioEvent,
   });
 
   useEffect(() => {

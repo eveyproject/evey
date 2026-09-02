@@ -76,6 +76,13 @@ export interface WasmAudioEngineOptions {
   // cast receiver holds the video start on it so picture and sound begin
   // together, like the muxed master did.
   onFirstAudio?: () => void;
+  // onStallGate fires each time the stall gate actually CUTS the sound: the
+  // picture stopped advancing while audio was anchored or scheduled, so the
+  // engine suspended the context and dropped the schedule. Called with the
+  // running count. A server that serves every segment late trips this at each
+  // boundary, and from the viewer's seat that is "no sound" - the 2026-09-02
+  // beta report could only be inferred, the gate left no trace. Telemetry only.
+  onStallGate?: (cuts: number) => void;
   leadCompensationSec?: number;
   // Credentials for playlist/segment fetches. The web (same-origin) keeps
   // "include" (hls cookie). The Cast Web Receiver is CROSS-origin with the
@@ -152,6 +159,8 @@ export class WasmAudioEngine {
   // mid-play stall) freezes the audio too, instead of letting it run - and loop
   // on re-sync - ahead of a stalled picture.
   private lastCt = -1;
+  // Running count of stall-gate cuts, for onStallGate.
+  private stallCuts = 0;
   private timer: ReturnType<typeof setInterval> | null = null;
   private pumping = false;
   private destroyed = false;
@@ -795,6 +804,8 @@ export class WasmAudioEngine {
       if (this.anchored || this.activeSources.size > 0) {
         this.anchored = false;
         this.clearScheduled();
+        this.stallCuts++;
+        this.opts.onStallGate?.(this.stallCuts);
       }
       return;
     }

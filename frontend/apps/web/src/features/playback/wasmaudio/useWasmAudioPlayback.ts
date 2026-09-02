@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { noopReporter, type PlayerEventReporter } from "@evey/api";
 import { buildTranscodeHlsUrl } from "../hooks/hlsPlayerUtils";
 import { WasmAudioEngine } from "./WasmAudioEngine";
 import { extractAacAudioURI, extractAudioURI, injectToken } from "./wasmAudioShared";
@@ -21,6 +22,21 @@ interface UseWasmAudioPlaybackArgs {
   // host re-negotiates without wasmAudio. Volume/mute are NOT props: the engine
   // mirrors the <video> element's volume/muted directly (the native UI's target).
   onFallback: () => void;
+  // reportEvent carries the engine's telemetry to the server's player-event
+  // beacon: which leg is playing (wasm_audio_mode), why the relay latched
+  // (wasm_audio_guard), what killed it (wasm_audio_fatal) and how often the
+  // stall gate cut the sound (wasm_audio_gate). The cast receiver has had the
+  // first two since 2026-07-30; the web player had NONE, so a beta tester's
+  // "no sound" on 2026-09-02 could only be inferred from hls.js stall lines.
+  reportEvent?: PlayerEventReporter;
+}
+
+// stallGateReportDue thins the stall-gate stream: report the first cut, then
+// every doubling (1, 2, 4, 8, ...). The reporter's per-session budget is 20
+// events; a server serving every segment late trips the gate at each 3 s
+// boundary, and reporting each cut would drain the budget in one minute.
+export function stallGateReportDue(cuts: number): boolean {
+  return cuts > 0 && (cuts & (cuts - 1)) === 0;
 }
 
 // useWasmAudioPlayback runs the ac3go wasm audio engine alongside hls.js. The
@@ -34,10 +50,13 @@ export function useWasmAudioPlayback({
   streamTokenRef,
   active,
   onFallback,
+  reportEvent = noopReporter,
 }: UseWasmAudioPlaybackArgs): void {
   const engineRef = useRef<WasmAudioEngine | null>(null);
   const onFallbackRef = useRef(onFallback);
   onFallbackRef.current = onFallback;
+  const reportRef = useRef(reportEvent);
+  reportRef.current = reportEvent;
 
   // (Re)build the engine when the media, the selected audio track, or the active
   // gate changes.
@@ -47,6 +66,10 @@ export function useWasmAudioPlayback({
     if (!video) return;
 
     let cancelled = false;
+    // posSec is the picture's clock at the moment of the event: it is what
+    // lets an operator line a mode change up with the server's segment lines.
+    const report = (type: string, details: string, fatal = false): void =>
+      reportRef.current({ type, details, fatal, posSec: Math.round(video.currentTime * 10) / 10 });
     // The video-only stream carries no audio track, so we do NOT mute the
     // element: video.volume / video.muted stay under the native UI's control and
     // the engine mirrors them (they are silent no-ops on the element itself).
@@ -71,6 +94,7 @@ export function useWasmAudioPlayback({
         if (cancelled) return;
         if (!audioUri) {
           // Server didn't take the wasm path - play natively.
+          report("wasm_audio_mode", "declined");
           onFallbackRef.current();
           return;
         }
@@ -82,14 +106,23 @@ export function useWasmAudioPlayback({
         const aacUri = extractAacAudioURI(text);
         const engine = new WasmAudioEngine(video, playlistUrl, {
           resolveUrl: (u) => injectToken(u, streamTokenRef.current),
-          onFatal: () => onFallbackRef.current(),
+          onFatal: (reason) => {
+            report("wasm_audio_fatal", reason, true);
+            onFallbackRef.current();
+          },
           aacPlaylistUrl: aacUri ? new URL(aacUri, base).toString() : undefined,
+          onModeChange: (mode) => report("wasm_audio_mode", mode),
+          onDiagnostic: (detail) => report("wasm_audio_guard", detail),
+          onStallGate: (cuts) => {
+            if (stallGateReportDue(cuts)) report("wasm_audio_gate", `cuts=${cuts}`);
+          },
         });
         engineRef.current = engine;
         await engine.start();
       } catch (err) {
         if (cancelled) return;
         console.warn("[useWasmAudioPlayback] setup failed, falling back:", err);
+        report("wasm_audio_fatal", err instanceof Error ? err.message : String(err), true);
         onFallbackRef.current();
       }
     })();
