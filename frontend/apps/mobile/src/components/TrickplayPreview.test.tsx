@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render } from "@testing-library/react";
+import { act, render } from "@testing-library/react";
 import React from "react";
 
 const eveyFetchRawMock = vi.fn();
@@ -63,11 +63,15 @@ describe("TrickplayPreview", () => {
     expect(container.innerHTML).toBe("");
   });
 
-  it("renders nothing when no cues loaded yet", () => {
+  it("renders nothing when no cues loaded yet", async () => {
     eveyFetchRawMock.mockResolvedValue({ text: () => Promise.resolve("") });
     const { container } = render(
       <TrickplayPreview mediaId="m-empty" currentTime={5} visible={true} />,
     );
+    expect(container.innerHTML).toBe("");
+    // The VTT fetch settles after the assertion; flush it inside act so the
+    // resulting (still empty) state update is covered.
+    await act(async () => {});
     expect(container.innerHTML).toBe("");
   });
 
@@ -125,8 +129,10 @@ describe("parseVTT logic (via component)", () => {
       <TrickplayPreview mediaId="m-nocue" currentTime={999} visible={true} />,
     );
 
-    // Wait a tick for fetch to complete
-    await new Promise((r) => setTimeout(r, 50));
+    // Wait a tick for fetch to complete - inside act, it updates state.
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 50));
+    });
     // No cue matches time=999, so nothing renders (or empty)
     // The component returns null when no matching cue
     expect(container.querySelector("[data-testid='trickplay-img']")).toBeNull();

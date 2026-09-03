@@ -46,7 +46,9 @@ vi.mock("@evey/api", async (importOriginal) => ({
   useMetadataServiceListMetadataOverrides: () => ({ data: undefined }),
   useMetadataServiceRemoveMetadataOverride: () => ({ mutateAsync: vi.fn() }),
   getMetadataServiceListMetadataOverridesQueryKey: () => ["overrides"],
-  eveyFetch: vi.fn(),
+  // Resolves to an empty payload: a bare vi.fn() hands react-query
+  // `undefined`, which it rejects with a warning on every render.
+  eveyFetch: vi.fn().mockResolvedValue({}),
   useParentalServiceGetParentalSettings: () => ({ data: undefined }),
   useRatingServiceGetMyThumbRating: () => ({ data: 0 }),
   useRatingServiceGetRatingAggregate: () => ({ data: undefined }),

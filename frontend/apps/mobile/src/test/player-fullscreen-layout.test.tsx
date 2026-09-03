@@ -277,15 +277,25 @@ function snapshot(): Snapshot {
 }
 
 describe("player fullscreen layout", () => {
+  let warnSpy: ReturnType<typeof vi.spyOn> | undefined;
   beforeEach(() => {
     dimsStore.set(PORTRAIT);
     insetsStore.set(PORTRAIT_INSETS);
     vi.useFakeTimers();
+    // The screen reads the system brightness through a bare `require`, which
+    // vi.mock cannot intercept and node cannot load here: the player's own
+    // "not available" warning is the expected outcome, not a layout finding.
+    const realWarn = console.warn.bind(console);
+    warnSpy = vi.spyOn(console, "warn").mockImplementation((...args: unknown[]) => {
+      if (args[0] === "expo-brightness not available") return;
+      realWarn(...args);
+    });
   });
   afterEach(() => {
     cleanup();
     vi.runOnlyPendingTimers();
     vi.useRealTimers();
+    warnSpy?.mockRestore();
   });
 
   // Mounting settles a couple of promises (download lookup, subtitle style),

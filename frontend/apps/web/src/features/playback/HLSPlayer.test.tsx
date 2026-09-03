@@ -168,6 +168,14 @@ beforeEach(async () => {
   });
   const mod = await import("./HLSPlayer");
   HLSPlayer = mod.HLSPlayer;
+  // Half of these tests drive hls.js into a fatal error on purpose; the
+  // player's DEV-only warning for it is the expected outcome, not noise worth
+  // a stderr block per test. Everything else console.warn says still shows.
+  const realWarn = console.warn.bind(console);
+  vi.spyOn(console, "warn").mockImplementation((...args: unknown[]) => {
+    if (args[0] === "[player] HLS fatal error:") return;
+    realWarn(...args);
+  });
 });
 
 afterEach(() => {
@@ -509,8 +517,14 @@ describe("HLSPlayer: transcode rung pinning", () => {
     hls.levels = [{ height: 480 }, { height: 720 }, { height: 1080 }];
 
     // Deliberately OUTSIDE act(): we want the state left by the handler itself,
-    // before React has flushed anything.
-    for (const h of hlsEventListeners["hlsManifestParsed"] ?? []) h();
+    // before React has flushed anything. React's "not wrapped in act" warning
+    // is the expected side effect of that choice, so it is muted here only.
+    const muted = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      for (const h of hlsEventListeners["hlsManifestParsed"] ?? []) h();
+    } finally {
+      muted.mockRestore();
+    }
 
     expect(hls.currentLevel).toBe(2);
   });

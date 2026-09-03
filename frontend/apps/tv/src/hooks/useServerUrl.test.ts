@@ -37,9 +37,12 @@ describe("useServerUrl", () => {
 });
 
 describe("useServerUrlNullable", () => {
-  it("returns undefined initially", () => {
+  it("returns undefined initially", async () => {
     const { result } = renderHook(() => useServerUrlNullable());
     expect(result.current).toBeUndefined();
+    // The read from secure store resolves after the assertion: flush it
+    // inside act rather than letting it update state once the test is over.
+    await act(async () => {});
   });
 
   it("returns null when no URL stored", async () => {

@@ -22,7 +22,9 @@ vi.mock("@evey/api", () => ({
   getParentalServiceGetParentalSettingsQueryKey: () => ["/api/v1/parental"],
   getUserServiceGetCurrentUserQueryKey: () => ["/api/v1/users/me"],
   getUserServiceListProfilesQueryKey: (id: string) => ["/api/v1/users", id, "profiles"],
-  eveyFetch: vi.fn(),
+  // Resolves to an empty payload: a bare vi.fn() hands react-query
+  // `undefined`, which it rejects with a warning on every render.
+  eveyFetch: vi.fn().mockResolvedValue({}),
   eveyFetchRaw: vi.fn(),
 }));
 

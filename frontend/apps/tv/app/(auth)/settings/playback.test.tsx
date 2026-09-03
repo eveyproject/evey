@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { act, render, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import React from "react";
 
 // --- React Native mock -----------------------------------------------------
@@ -66,6 +66,16 @@ import PlaybackSettingsScreen, { resolveLangPref } from "./playback";
 
 const DEFAULT_PROFILE = { id: "prof-1", isDefault: true, preferences: {} };
 
+// The save runs after the press and mirrors its outcome into state once the
+// mutation settles: pressing inside act and flushing the microtask queue keeps
+// every state update covered.
+async function pressAndSettle(el: Element) {
+  await act(async () => {
+    fireEvent.click(el);
+    await new Promise((r) => setTimeout(r, 0));
+  });
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   currentUserMock.mockReturnValue({ data: { id: "user-1" } });
@@ -75,7 +85,7 @@ beforeEach(() => {
 });
 
 describe("PlaybackSettingsScreen (TV)", () => {
-  it("renders every preference section", () => {
+  it("renders every preference section", async () => {
     render(<PlaybackSettingsScreen />);
     expect(screen.getByText("Max Streaming Bitrate")).toBeTruthy();
     expect(screen.getByText("Preferred Video Codec")).toBeTruthy();
@@ -87,13 +97,13 @@ describe("PlaybackSettingsScreen (TV)", () => {
     expect(screen.getByText("Transcoding")).toBeTruthy();
   });
 
-  it("saves the max bitrate preference on press, merging existing preferences", () => {
+  it("saves the max bitrate preference on press, merging existing preferences", async () => {
     listProfilesMock.mockReturnValue({
       data: { profiles: [{ ...DEFAULT_PROFILE, preferences: { default_audio_language: "eng" } }] },
     });
     render(<PlaybackSettingsScreen />);
 
-    fireEvent.click(screen.getByLabelText("8 Mbps"));
+    await pressAndSettle(screen.getByLabelText("8 Mbps"));
 
     expect(mutateMock).toHaveBeenCalledWith({
       id: "prof-1",
@@ -101,46 +111,46 @@ describe("PlaybackSettingsScreen (TV)", () => {
     });
   });
 
-  it("saves the preferred video codec on press", () => {
+  it("saves the preferred video codec on press", async () => {
     render(<PlaybackSettingsScreen />);
-    fireEvent.click(screen.getByLabelText("HEVC (H.265)"));
+    await pressAndSettle(screen.getByLabelText("HEVC (H.265)"));
     expect(mutateMock).toHaveBeenCalledWith({
       id: "prof-1",
       data: { preferences: { preferred_video_codec: "hevc" } },
     });
   });
 
-  it("toggles allow direct play off via the Disabled row", () => {
+  it("toggles allow direct play off via the Disabled row", async () => {
     render(<PlaybackSettingsScreen />);
     const disabledRows = screen.getAllByLabelText("Disabled");
-    fireEvent.click(disabledRows[0]);
+    await pressAndSettle(disabledRows[0]);
     expect(mutateMock).toHaveBeenCalledWith({
       id: "prof-1",
       data: { preferences: { allow_direct_play: "false" } },
     });
   });
 
-  it("does not save when there is no default profile yet", () => {
+  it("does not save when there is no default profile yet", async () => {
     listProfilesMock.mockReturnValue({ data: { profiles: [] } });
     render(<PlaybackSettingsScreen />);
     const bitrateButton = screen.getByLabelText("8 Mbps") as HTMLButtonElement;
     expect(bitrateButton.disabled).toBe(true);
   });
 
-  it("saves the audio language under the shared audio_languages key (not the legacy default_audio_language)", () => {
+  it("saves the audio language under the shared audio_languages key (not the legacy default_audio_language)", async () => {
     render(<PlaybackSettingsScreen />);
     // "Default Subtitle Language" renders before "Default Audio Language", so
     // the second "Français" row (index 1) belongs to the audio language section.
-    fireEvent.click(screen.getAllByLabelText("Français")[1]);
+    await pressAndSettle(screen.getAllByLabelText("Français")[1]);
     expect(mutateMock).toHaveBeenCalledWith({
       id: "prof-1",
       data: { preferences: { audio_languages: "fr" } },
     });
   });
 
-  it("saves the subtitle language under the shared subtitle_languages key", () => {
+  it("saves the subtitle language under the shared subtitle_languages key", async () => {
     render(<PlaybackSettingsScreen />);
-    fireEvent.click(screen.getAllByLabelText("Español")[0]);
+    await pressAndSettle(screen.getAllByLabelText("Español")[0]);
     expect(mutateMock).toHaveBeenCalledWith({
       id: "prof-1",
       data: { preferences: { subtitle_languages: "es" } },
@@ -157,7 +167,7 @@ describe("PlaybackSettingsScreen (TV)", () => {
       render(<PlaybackSettingsScreen />);
       expect(within(screen.getAllByLabelText("Auto")[0]).queryByText("✓")).not.toBeNull();
 
-      fireEvent.click(screen.getByLabelText("HEVC (H.265)"));
+      await pressAndSettle(screen.getByLabelText("HEVC (H.265)"));
 
       await waitFor(() =>
         expect(within(screen.getByLabelText("HEVC (H.265)")).queryByText("✓")).not.toBeNull(),
@@ -169,11 +179,9 @@ describe("PlaybackSettingsScreen (TV)", () => {
       mutateMock.mockRejectedValueOnce(new Error("network down"));
       render(<PlaybackSettingsScreen />);
 
-      fireEvent.click(screen.getByLabelText("HEVC (H.265)"));
+      await pressAndSettle(screen.getByLabelText("HEVC (H.265)"));
 
-      await waitFor(() => expect(mutateMock).toHaveBeenCalled());
-      // let the rejected mutateAsync settle before asserting nothing moved
-      await new Promise((r) => setTimeout(r, 0));
+      expect(mutateMock).toHaveBeenCalled();
       expect(within(screen.getAllByLabelText("Auto")[0]).queryByText("✓")).not.toBeNull();
       expect(within(screen.getByLabelText("HEVC (H.265)")).queryByText("✓")).toBeNull();
     });
@@ -186,7 +194,7 @@ describe("PlaybackSettingsScreen (TV)", () => {
       render(<PlaybackSettingsScreen />);
       expect(within(screen.getAllByLabelText("Enabled")[0]).queryByText("✓")).not.toBeNull();
 
-      fireEvent.click(screen.getAllByLabelText("Disabled")[0]);
+      await pressAndSettle(screen.getAllByLabelText("Disabled")[0]);
 
       await waitFor(() =>
         expect(within(screen.getAllByLabelText("Disabled")[0]).queryByText("✓")).not.toBeNull(),
@@ -198,10 +206,9 @@ describe("PlaybackSettingsScreen (TV)", () => {
       mutateMock.mockRejectedValueOnce(new Error("network down"));
       render(<PlaybackSettingsScreen />);
 
-      fireEvent.click(screen.getAllByLabelText("Disabled")[0]);
+      await pressAndSettle(screen.getAllByLabelText("Disabled")[0]);
 
-      await waitFor(() => expect(mutateMock).toHaveBeenCalled());
-      await new Promise((r) => setTimeout(r, 0));
+      expect(mutateMock).toHaveBeenCalled();
       expect(within(screen.getAllByLabelText("Enabled")[0]).queryByText("✓")).not.toBeNull();
       expect(within(screen.getAllByLabelText("Disabled")[0]).queryByText("✓")).toBeNull();
     });
@@ -209,7 +216,7 @@ describe("PlaybackSettingsScreen (TV)", () => {
 });
 
 describe("resolveLangPref", () => {
-  it("prefers the shared key over the legacy one when both are present", () => {
+  it("prefers the shared key over the legacy one when both are present", async () => {
     expect(
       resolveLangPref(
         { audio_languages: "de", default_audio_language: "eng" },
@@ -219,19 +226,19 @@ describe("resolveLangPref", () => {
     ).toBe("de");
   });
 
-  it("takes only the first code of a multi-language CSV value", () => {
+  it("takes only the first code of a multi-language CSV value", async () => {
     expect(
       resolveLangPref({ audio_languages: "fr,en,es" }, "audio_languages", "default_audio_language"),
     ).toBe("fr");
   });
 
-  it("falls back to the legacy key, converting its ISO 639-2/B code to ISO 639-1", () => {
+  it("falls back to the legacy key, converting its ISO 639-2/B code to ISO 639-1", async () => {
     expect(
       resolveLangPref({ default_subtitle_language: "ger" }, "subtitle_languages", "default_subtitle_language"),
     ).toBe("de");
   });
 
-  it("returns an empty string when neither key is set", () => {
+  it("returns an empty string when neither key is set", async () => {
     expect(resolveLangPref({}, "audio_languages", "default_audio_language")).toBe("");
   });
 });

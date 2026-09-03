@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, waitFor } from "@testing-library/react";
+import { act, render, waitFor } from "@testing-library/react";
 import React from "react";
 
 vi.mock("react-native", () => ({
@@ -80,7 +80,11 @@ describe("QuickConnectScreen", () => {
       auth: { accessToken: "tok-123" },
     });
 
-    render(<QuickConnectScreen />);
+    // The first poll fires from a mount effect and settles asynchronously:
+    // flushing it inside act keeps React from flagging the state update.
+    await act(async () => {
+      render(<QuickConnectScreen />);
+    });
 
     await waitFor(() => {
       expect(checkQuickConnect).toHaveBeenCalledWith("abcdef123456");
@@ -93,10 +97,17 @@ describe("QuickConnectScreen", () => {
     vi.useFakeTimers();
     checkQuickConnect.mockResolvedValue({ authorized: false });
 
-    render(<QuickConnectScreen />);
+    await act(async () => {
+      render(<QuickConnectScreen />);
+    });
 
-    await vi.advanceTimersByTimeAsync(3100);
-    await vi.advanceTimersByTimeAsync(3100);
+    // Each interval tick polls and updates the countdown - both inside act.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3100);
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3100);
+    });
     // Immediate first tick + one per 3s interval.
     expect(checkQuickConnect.mock.calls.length).toBeGreaterThanOrEqual(3);
     expect(setTokens).not.toHaveBeenCalled();

@@ -23,7 +23,17 @@ function setup(extra: Partial<Record<string, unknown>> = {}) {
     ...extra,
   } as any;
   const { result } = renderHook(() => usePlayerGestures(cbs));
-  const config = (result.current.panResponder as any)._config;
+  // The responder handlers set hook state (indicators, scrub preview): run
+  // each one inside act() so the tests drive them the way a real gesture
+  // would and React does not warn about a stray update.
+  const raw = (result.current.panResponder as any)._config;
+  const config: any = {};
+  for (const key of Object.keys(raw)) {
+    const fn = raw[key];
+    config[key] = typeof fn === "function"
+      ? (...args: unknown[]) => { let out: unknown; act(() => { out = fn(...args); }); return out; }
+      : fn;
+  }
   return { result, config, cbs };
 }
 

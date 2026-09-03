@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -20,21 +20,29 @@ function createWrapper() {
   );
 }
 
+// The form lists media directories from a mount effect; flushing that fetch
+// inside act keeps its state update covered in the tests that never await.
+async function renderForm() {
+  const result = render(<LibraryForm onSuccess={vi.fn()} />, { wrapper: createWrapper() });
+  await act(async () => {});
+  return result;
+}
+
 describe("LibraryForm", () => {
-  it("renders Name input and Type select", () => {
-    render(<LibraryForm onSuccess={vi.fn()} />, { wrapper: createWrapper() });
+  it("renders Name input and Type select", async () => {
+    await renderForm();
     expect(screen.getByLabelText("Name")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Create Library" })).toBeInTheDocument();
   });
 
-  it("Create Library button disabled when name empty", () => {
-    render(<LibraryForm onSuccess={vi.fn()} />, { wrapper: createWrapper() });
+  it("Create Library button disabled when name empty", async () => {
+    await renderForm();
     expect(screen.getByRole("button", { name: "Create Library" })).toBeDisabled();
   });
 
   it("submits library data on valid form", async () => {
     mutateMock.mockClear();
-    render(<LibraryForm onSuccess={vi.fn()} />, { wrapper: createWrapper() });
+    await renderForm();
     await userEvent.type(screen.getByLabelText("Name"), "My Movies");
     const pathInput = screen.getByPlaceholderText("/media/movies");
     await userEvent.type(pathInput, "/media/movies");
@@ -49,7 +57,7 @@ describe("LibraryForm", () => {
   });
 
   it("can add and remove paths", async () => {
-    render(<LibraryForm onSuccess={vi.fn()} />, { wrapper: createWrapper() });
+    await renderForm();
     await userEvent.click(screen.getByRole("button", { name: "+ Add Path" }));
     const pathInputs = screen.getAllByPlaceholderText("/media/movies");
     expect(pathInputs).toHaveLength(2);

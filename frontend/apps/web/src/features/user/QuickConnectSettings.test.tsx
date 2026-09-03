@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { act, render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mockMutate = vi.fn();
@@ -79,7 +79,8 @@ describe("QuickConnectSettings", () => {
     const input = screen.getByPlaceholderText("A1B2C3") as HTMLInputElement;
     fireEvent.change(input, { target: { value: "AB12CD" } });
 
-    onSuccessCb?.();
+    // The success callback resets the input state: call it inside act.
+    act(() => onSuccessCb?.());
 
     await waitFor(() => {
       expect(input.value).toBe("");

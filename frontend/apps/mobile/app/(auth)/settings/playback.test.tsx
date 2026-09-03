@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { act, render, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import React from "react";
 
 // --- React Native mock -----------------------------------------------------
@@ -83,6 +83,16 @@ import PlaybackSettingsScreen from "./playback";
 
 const DEFAULT_PROFILE = { id: "prof-1", isDefault: true, preferences: {} };
 
+// The save runs after the click and mirrors its outcome into state once
+// mutateAsync settles: clicking inside act and flushing the microtask queue
+// keeps every state update covered.
+async function clickAndSettle(el: Element) {
+  await act(async () => {
+    fireEvent.click(el);
+    await new Promise((r) => setTimeout(r, 0));
+  });
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   currentUserMock.mockReturnValue({ data: { id: "user-1" } });
@@ -99,7 +109,7 @@ describe("PlaybackSettingsScreen (mobile)", () => {
       render(<PlaybackSettingsScreen />);
       expect(within(screen.getAllByText("Auto")[0].closest("button")!).queryByText("✓")).not.toBeNull();
 
-      fireEvent.click(screen.getByText("HEVC (H.265)").closest("button")!);
+      await clickAndSettle(screen.getByText("HEVC (H.265)").closest("button")!);
 
       await waitFor(() =>
         expect(
@@ -114,7 +124,7 @@ describe("PlaybackSettingsScreen (mobile)", () => {
       mutateAsyncMock.mockRejectedValueOnce(new Error("network down"));
       render(<PlaybackSettingsScreen />);
 
-      fireEvent.click(screen.getByText("HEVC (H.265)").closest("button")!);
+      await clickAndSettle(screen.getByText("HEVC (H.265)").closest("button")!);
 
       await waitFor(() => expect(mutateAsyncMock).toHaveBeenCalled());
       // let the rejected mutateAsync settle before asserting nothing moved
@@ -132,7 +142,7 @@ describe("PlaybackSettingsScreen (mobile)", () => {
       const directPlaySwitch = screen.getAllByRole("switch")[0];
       expect(directPlaySwitch.getAttribute("aria-checked")).toBe("true");
 
-      fireEvent.click(directPlaySwitch);
+      await clickAndSettle(directPlaySwitch);
 
       await waitFor(() =>
         expect(screen.getAllByRole("switch")[0].getAttribute("aria-checked")).toBe("false"),
@@ -145,7 +155,7 @@ describe("PlaybackSettingsScreen (mobile)", () => {
       render(<PlaybackSettingsScreen />);
       const directPlaySwitch = screen.getAllByRole("switch")[0];
 
-      fireEvent.click(directPlaySwitch);
+      await clickAndSettle(directPlaySwitch);
 
       await waitFor(() => expect(mutateAsyncMock).toHaveBeenCalled());
       await new Promise((r) => setTimeout(r, 0));

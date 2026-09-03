@@ -16,7 +16,9 @@ vi.mock("@evey/api", async (importOriginal) => ({
   adminSessionServiceGetAuditLog: (...args: unknown[]) => mockGetAuditLog(...args),
   activityServiceGetServerStats: vi.fn(),
   useActivityServiceGetServerStats: (...args: unknown[]) => mockGetServerStats(...args),
-  eveyFetch: vi.fn(),
+  // Resolves to an empty payload: a bare vi.fn() hands react-query
+  // `undefined`, which it rejects with a warning on every render.
+  eveyFetch: vi.fn().mockResolvedValue({}),
 }));
 
 // The page reads its tab + watcher filter from the URL and writes them back

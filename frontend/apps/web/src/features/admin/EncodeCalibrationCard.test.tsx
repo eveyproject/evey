@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { act, render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { EncodeCalibrationCard } from "./EncodeCalibrationCard";
@@ -477,7 +477,8 @@ describe("EncodeCalibrationCard", () => {
   it("setMode onSuccess shows 'Mode applied' toast", async () => {
     const { toast } = await import("@evey/store");
     renderCard();
-    setModeOnSuccess?.({}, "auto");
+    // The success callback writes the new mode into state: call it inside act.
+    act(() => setModeOnSuccess?.({}, "auto"));
     await waitFor(() => {
       expect(toast.success).toHaveBeenCalledWith(
         expect.stringMatching(/Mode applied/i),
@@ -487,7 +488,7 @@ describe("EncodeCalibrationCard", () => {
 
   it("setMode onSuccess invalidates calibration query", async () => {
     renderCard();
-    setModeOnSuccess?.({}, "nvenc");
+    act(() => setModeOnSuccess?.({}, "nvenc"));
     await waitFor(() => {
       expect(mockInvalidateQueries).toHaveBeenCalledWith(
         expect.objectContaining({ queryKey: ["admin", "transcode-calibration"] }),

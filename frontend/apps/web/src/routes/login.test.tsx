@@ -26,7 +26,9 @@ vi.mock("@evey/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@evey/api")>()),
   useUserServiceLogin: (_opts?: unknown) => mockLogin,
   useAdminSystemServiceGetSetupStatus: () => ({ data: { passwordRecoveryEnabled: false } }),
-  eveyFetch: vi.fn(),
+  // Resolves to an empty payload: a bare vi.fn() hands react-query
+  // `undefined`, which it rejects with a warning on every render.
+  eveyFetch: vi.fn().mockResolvedValue({}),
 }));
 
 vi.mock("@evey/store", () => ({

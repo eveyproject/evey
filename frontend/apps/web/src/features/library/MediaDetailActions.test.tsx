@@ -87,8 +87,9 @@ vi.mock("./MediaDetailEdit", () => ({
 }));
 
 vi.mock("@/components/ui/Button", () => ({
-  Button: ({ children, ...props }: { children: React.ReactNode; [k: string]: unknown }) => (
-    <button {...props}>{children}</button>
+  // `loading` and `variant`/`size` are Button's own props, not DOM attributes.
+  Button: ({ children, loading, variant: _variant, size: _size, ...props }: { children: React.ReactNode; [k: string]: unknown }) => (
+    <button disabled={Boolean(loading)} {...props}>{children}</button>
   ),
 }));
 

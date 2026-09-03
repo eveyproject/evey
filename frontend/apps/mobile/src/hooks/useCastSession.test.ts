@@ -369,7 +369,7 @@ describe("cast_sender_stall beacon", () => {
   it("reports once when a PLAYING position stays frozen for the stall window", () => {
     vi.useFakeTimers();
     try {
-      eveyFetchMock.mockResolvedValue(undefined);
+      eveyFetchMock.mockResolvedValue({ token: "cast-tok", mediaId: "m1" });
       castState = 4;
       castClientInstance = { loadMedia: vi.fn().mockResolvedValue(undefined) };
       castMediaStatus = { streamPosition: 3266, playerState: 2 };
@@ -388,7 +388,7 @@ describe("cast_sender_stall beacon", () => {
   });
 
   it("reports an IDLE receiver with its reason", () => {
-    eveyFetchMock.mockResolvedValue(undefined);
+    eveyFetchMock.mockResolvedValue({ token: "cast-tok", mediaId: "m1" });
     castState = 4;
     castClientInstance = { loadMedia: vi.fn().mockResolvedValue(undefined) };
     castMediaStatus = { streamPosition: 120, playerState: 1, idleReason: "ERROR" };
@@ -399,7 +399,7 @@ describe("cast_sender_stall beacon", () => {
   it("stays silent while the position moves", () => {
     vi.useFakeTimers();
     try {
-      eveyFetchMock.mockResolvedValue(undefined);
+      eveyFetchMock.mockResolvedValue({ token: "cast-tok", mediaId: "m1" });
       castState = 4;
       castClientInstance = { loadMedia: vi.fn().mockResolvedValue(undefined) };
       castMediaStatus = { streamPosition: 10, playerState: 2 };

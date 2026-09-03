@@ -28,10 +28,16 @@ async function probeHost(ip: string, port: number, outer?: AbortSignal): Promise
       try {
         const data = await res.json();
         version = data?.version;
-      } catch (err) { console.warn("caught", err); }
+      } catch {
+        // A healthz that is not JSON is still a server; the version is
+        // just unknown.
+      }
       return { url, version };
     }
-  } catch (err) { console.warn("caught", err); }
+  } catch {
+    // A probe that times out or is refused is the EXPECTED outcome for
+    // ~3000 of the ~3000 addresses a scan tries - not something to log.
+  }
   return null;
 }
 

@@ -13,7 +13,9 @@ const mockEnablePlugin = vi.fn();
 const mockDisablePlugin = vi.fn();
 const mockUninstallPlugin = vi.fn();
 const mockInstallPlugin = vi.fn();
-const mockEveyFetch = vi.fn();
+// Answers the page's runtimes query by default; the URL-preview tests
+// override it per URL.
+const mockEveyFetch = vi.fn().mockResolvedValue({ runtimes: [] });
 
 vi.mock("@evey/api", () => ({
   eveyFetch: (...args: unknown[]) => mockEveyFetch(...args),

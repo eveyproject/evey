@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 import { GlobalAudioPlayer } from "./GlobalAudioPlayer";
 import { useAuthStore, useMusicPlayerStore } from "@evey/store";
 import { eveyFetchRaw } from "@evey/api";
@@ -42,13 +42,22 @@ beforeEach(() => {
   window.HTMLMediaElement.prototype.pause = vi.fn();
 });
 
+// The player starts playback in a mount effect and mirrors the outcome into
+// state once `play()` resolves: flush that microtask inside act() so the
+// assertions read the settled tree and React stays quiet about it.
+async function renderPlayer() {
+  const result = render(<GlobalAudioPlayer />);
+  await act(async () => {});
+  return result;
+}
+
 describe("GlobalAudioPlayer", () => {
-  it("renders nothing when no track is playing", () => {
-    const { container } = render(<GlobalAudioPlayer />);
+  it("renders nothing when no track is playing", async () => {
+    const { container } = await renderPlayer();
     expect(container.firstChild).toBeNull();
   });
 
-  it("embeds access token in audio src on track start", () => {
+  it("embeds access token in audio src on track start", async () => {
     useAuthStore.setState({ accessToken: makeJwt(9999999999) });
     useMusicPlayerStore.setState({
       playing: {
@@ -71,13 +80,13 @@ describe("GlobalAudioPlayer", () => {
       externallyPaused: false,
     });
 
-    render(<GlobalAudioPlayer />);
+    await renderPlayer();
     const audio = document.querySelector("audio");
     expect(audio).not.toBeNull();
     expect(audio?.getAttribute("src")).toContain("/api/v1/music/tracks/track-1/stream?token=");
   });
 
-  it("does NOT rebuild src when the access token rotates mid-playback", () => {
+  it("does NOT rebuild src when the access token rotates mid-playback", async () => {
     const initialToken = makeJwt(9999999999);
     useAuthStore.setState({ accessToken: initialToken });
     useMusicPlayerStore.setState({
@@ -100,7 +109,7 @@ describe("GlobalAudioPlayer", () => {
       shuffle: false,
       externallyPaused: false,
     });
-    render(<GlobalAudioPlayer />);
+    await renderPlayer();
     const audio = document.querySelector("audio");
     const before = audio?.getAttribute("src");
     expect(before).toBeTruthy();
@@ -114,7 +123,7 @@ describe("GlobalAudioPlayer", () => {
     expect(after).toBe(before);
   });
 
-  it("rebuilds src when the track changes (keyed by playing.ID)", () => {
+  it("rebuilds src when the track changes (keyed by playing.ID)", async () => {
     useAuthStore.setState({ accessToken: makeJwt(9999999999) });
     useMusicPlayerStore.setState({
       playing: {
@@ -136,10 +145,11 @@ describe("GlobalAudioPlayer", () => {
       shuffle: false,
       externallyPaused: false,
     });
-    const { rerender } = render(<GlobalAudioPlayer />);
+    const { rerender } = await renderPlayer();
     expect(document.querySelector("audio")?.getAttribute("src")).toContain("track-1");
 
-    useMusicPlayerStore.setState({
+    // The player is mounted and subscribed: a store write re-renders it.
+    act(() => useMusicPlayerStore.setState({
       playing: {
         ID: "track-2",
         Title: "",
@@ -158,12 +168,13 @@ describe("GlobalAudioPlayer", () => {
       queue: [],
       shuffle: false,
       externallyPaused: false,
-    });
+    }));
     rerender(<GlobalAudioPlayer />);
+    await act(async () => {});
     expect(document.querySelector("audio")?.getAttribute("src")).toContain("track-2");
   });
 
-  it("links the track to its album source and navigates without remounting audio", () => {
+  it("links the track to its album source and navigates without remounting audio", async () => {
     useAuthStore.setState({ accessToken: makeJwt(9999999999) });
     useMusicPlayerStore.setState({
       playing: {
@@ -174,12 +185,12 @@ describe("GlobalAudioPlayer", () => {
       queue: [], shuffle: false, externallyPaused: false,
       source: { type: "album", id: "Greatest Hits", label: "Greatest Hits" },
     });
-    render(<GlobalAudioPlayer />);
+    await renderPlayer();
     fireEvent.click(screen.getByRole("button", { name: "Greatest Hits" }));
     expect(mockNavigate).toHaveBeenCalledWith({ to: "/music", search: { tab: "tracks", album: "Greatest Hits" } });
   });
 
-  it("shows a non-interactive title when no source is set", () => {
+  it("shows a non-interactive title when no source is set", async () => {
     useAuthStore.setState({ accessToken: makeJwt(9999999999) });
     useMusicPlayerStore.setState({
       playing: {
@@ -189,11 +200,11 @@ describe("GlobalAudioPlayer", () => {
       },
       queue: [], shuffle: false, externallyPaused: false, source: null,
     });
-    render(<GlobalAudioPlayer />);
+    await renderPlayer();
     expect(screen.queryByRole("button", { name: "Song" })).toBeNull();
   });
 
-  it("records a finished track only once even if `ended` fires twice", () => {
+  it("records a finished track only once even if `ended` fires twice", async () => {
     (eveyFetchRaw as ReturnType<typeof vi.fn>).mockClear();
     useAuthStore.setState({ accessToken: makeJwt(9999999999) });
     useMusicPlayerStore.setState({
@@ -205,7 +216,7 @@ describe("GlobalAudioPlayer", () => {
       queue: [], shuffle: false, externallyPaused: false, source: null,
     });
 
-    render(<GlobalAudioPlayer />);
+    await renderPlayer();
     const audio = document.querySelector("audio")!;
     fireEvent.loadedMetadata(audio); // new playthrough → arms the guard
     fireEvent.ended(audio);
@@ -229,23 +240,23 @@ describe("GlobalAudioPlayer", () => {
       });
     });
 
-    it("is hidden until the queue button is toggled", () => {
-      render(<GlobalAudioPlayer />);
+    it("is hidden until the queue button is toggled", async () => {
+      await renderPlayer();
       expect(screen.queryByRole("dialog")).toBeNull();
       fireEvent.click(screen.getByRole("button", { name: "Queue" }));
       expect(screen.getByRole("dialog")).toBeInTheDocument();
     });
 
-    it("lists every queued track and marks the current one", () => {
-      render(<GlobalAudioPlayer />);
+    it("lists every queued track and marks the current one", async () => {
+      await renderPlayer();
       fireEvent.click(screen.getByRole("button", { name: "Queue" }));
 
       expect(screen.getByRole("button", { name: /Song A/ })).toHaveAttribute("aria-current", "true");
       expect(screen.getByRole("button", { name: /Song B/ })).not.toHaveAttribute("aria-current");
     });
 
-    it("jumps to a track when its row is clicked", () => {
-      render(<GlobalAudioPlayer />);
+    it("jumps to a track when its row is clicked", async () => {
+      await renderPlayer();
       fireEvent.click(screen.getByRole("button", { name: "Queue" }));
       fireEvent.click(screen.getByRole("button", { name: /Song B/ }));
 
@@ -254,8 +265,8 @@ describe("GlobalAudioPlayer", () => {
       expect(useMusicPlayerStore.getState().queue.map((t) => t.ID)).toEqual(["track-1", "track-2"]);
     });
 
-    it("removes a non-playing track without disturbing playback", () => {
-      render(<GlobalAudioPlayer />);
+    it("removes a non-playing track without disturbing playback", async () => {
+      await renderPlayer();
       fireEvent.click(screen.getByRole("button", { name: "Queue" }));
       fireEvent.click(screen.getAllByRole("button", { name: "Remove from queue" })[1]);
 
@@ -263,8 +274,8 @@ describe("GlobalAudioPlayer", () => {
       expect(useMusicPlayerStore.getState().playing?.ID).toBe("track-1");
     });
 
-    it("removing the currently playing track advances to its neighbour", () => {
-      render(<GlobalAudioPlayer />);
+    it("removing the currently playing track advances to its neighbour", async () => {
+      await renderPlayer();
       fireEvent.click(screen.getByRole("button", { name: "Queue" }));
       fireEvent.click(screen.getAllByRole("button", { name: "Remove from queue" })[0]);
 
@@ -272,9 +283,9 @@ describe("GlobalAudioPlayer", () => {
       expect(useMusicPlayerStore.getState().queue.map((t) => t.ID)).toEqual(["track-2"]);
     });
 
-    it("shows an empty message when the queue has no other tracks", () => {
+    it("shows an empty message when the queue has no other tracks", async () => {
       useMusicPlayerStore.setState({ queue: [] });
-      render(<GlobalAudioPlayer />);
+      await renderPlayer();
       fireEvent.click(screen.getByRole("button", { name: "Queue" }));
       expect(screen.getByText("Queue empty")).toBeInTheDocument();
     });

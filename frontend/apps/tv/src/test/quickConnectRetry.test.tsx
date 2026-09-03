@@ -58,7 +58,10 @@ describe("TV quick connect", () => {
   it("offers a way out when the code request failed", async () => {
     isError = true;
     const Screen = (await import("../../app/quick-connect")).default;
-    render(<Screen />);
+    // The mount effect requests a code and starts timers: flush inside act.
+    await act(async () => {
+      render(<Screen />);
+    });
 
     expect(screen.queryByTestId("spinner")).toBeNull();
     const retry = screen.getByTestId("quick-connect-retry");
@@ -70,7 +73,10 @@ describe("TV quick connect", () => {
   it("shows the spinner while the code is still coming", async () => {
     isError = false;
     const Screen = (await import("../../app/quick-connect")).default;
-    render(<Screen />);
+    // The mount effect requests a code and starts timers: flush inside act.
+    await act(async () => {
+      render(<Screen />);
+    });
 
     expect(screen.getByTestId("spinner")).toBeTruthy();
     expect(screen.queryByTestId("quick-connect-retry")).toBeNull();
