@@ -13,6 +13,7 @@ package library_test
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"testing"
 
 	applib "github.com/evey-project/evey/internal/app/library"
@@ -47,11 +48,14 @@ func TestTrickplay_ItemDeletedDuringGeneration_IsASkipNotAnError(t *testing.T) {
 	item.File = &library.MediaFile{Path: "/media/films/x.mkv"}
 	require.NoError(t, media.Create(context.Background(), item))
 	bus := sharedfakes.NewFakeEventBus()
-	svc := applib.NewTrickplayService(repo, gen, "/cache", media, bus, nil)
+	// The service writes a real sidecar under the cache dir before the manifest
+	// row: a fixed "/cache" only works where the runner may create it (CI cannot).
+	cache := t.TempDir()
+	svc := applib.NewTrickplayService(repo, gen, cache, media, bus, nil)
 
 	err := svc.GenerateTrickplay(context.Background(), "media-1")
 	require.NoError(t, err, "the item vanishing during the ffmpeg pass is a skip, not a failure")
-	assert.Equal(t, "/cache/media-1", gen.LastOutputDir, "generation did run - the delete landed after it")
+	assert.Equal(t, filepath.Join(cache, "media-1"), gen.LastOutputDir, "generation did run - the delete landed after it")
 }
 
 // A real repo error (not a vanished item) must still surface: we are widening
@@ -66,7 +70,7 @@ func TestTrickplay_RealRepoErrorStillSurfaces(t *testing.T) {
 	item.File = &library.MediaFile{Path: "/media/films/y.mkv"}
 	require.NoError(t, media.Create(context.Background(), item))
 	bus := sharedfakes.NewFakeEventBus()
-	svc := applib.NewTrickplayService(repo, gen, "/cache", media, bus, nil)
+	svc := applib.NewTrickplayService(repo, gen, t.TempDir(), media, bus, nil)
 
 	err := svc.GenerateTrickplay(context.Background(), "media-2")
 	require.Error(t, err, "a genuine write failure must not be hidden")

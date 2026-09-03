@@ -254,9 +254,26 @@ ci-fast-build:
 # AND flags, so keeping it costs nothing in fidelity and makes an unchanged push
 # ~1s instead of minutes. Postgres is excluded exactly as in CI - it runs
 # without -race, via repo-itest-gate.
+#
+# Runs in a THROWAWAY golang container as the host user, NOT in evey-server:
+# that one is root and mounts the real /cache volume, so a test writing to a
+# hardcoded "/cache/<id>" passed here and failed on the GitHub runner
+# ("mkdir /cache: permission denied", 2026-09-03). The CI runner is non-root
+# with nothing but the checkout; this mirrors it. Only the module cache and a
+# build cache under ~/.cache are shared, so the second run is as fast as before.
+# The package patterns name the tracked Go trees explicitly: `./...` trips on
+# the root-owned compose data dirs (postgres-data, caddy-config) that CI never
+# has.
+GO_CI_IMAGE ?= golang:1.27-trixie
+GO_UNIT_PKGS = ./cmd/... ./internal/... ./tests/...
 ci-fast-unit:
-	@echo "→ go test (unit, -race, excl. postgres+gen)"
-	@docker exec -w /app -e GOTOOLCHAIN=auto evey-server sh -c 'go test $$(go list ./... | grep -v "adapters/driven/postgres" | grep -v /gen/) -timeout=600s -race'
+	@echo "→ go test (unit, -race, excl. postgres+gen) - throwaway $(GO_CI_IMAGE), non-root, as CI"
+	@mkdir -p "$$HOME/.cache/evey-gocache" "$$HOME/go/pkg/mod"
+	@docker run --rm --user $$(id -u):$$(id -g) \
+		-v "$(CURDIR)":/app -w /app \
+		-v "$$HOME/go/pkg/mod":/go/pkg/mod \
+		-v "$$HOME/.cache/evey-gocache":/gocache -e GOCACHE=/gocache -e HOME=/tmp \
+		$(GO_CI_IMAGE) sh -c 'go test $$(go list $(GO_UNIT_PKGS) | grep -v "adapters/driven/postgres" | grep -v /gen/) -timeout=600s -race'
 
 # ci-fast-frontend: mirror of the CI `frontend` job, which gates the docker
 # build just like the backend jobs do - yet nothing frontend-side ran in
