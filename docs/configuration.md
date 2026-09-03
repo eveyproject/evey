@@ -237,9 +237,12 @@ See [backups.md](backups.md).
 ```env
 EVEY_TRUSTED_PROXIES=172.16.0.0/12     # added to the always-trusted loopback, not a replacement
 EVEY_REAL_IP_HEADER=X-Forwarded-For
-EVEY_FORWARDED_PROTO=true
 EVEY_DOMAIN=media.example.com          # only for bundled Caddy
 ```
+
+HTTPS behaviour (Secure cookies, HSTS, trusting `X-Forwarded-Proto`) follows
+the scheme of `EVEY_SERVER_BASE_URL`: an `https://` base URL turns it on.
+`EVEY_FORWARDED_PROTO=true|false` is deprecated and only kept as an override.
 
 See [reverse-proxy.md](reverse-proxy.md).
 

@@ -55,7 +55,7 @@ run the epoch query. The Prometheus counter is
 
 **Common causes + fix**:
 - **JWT key missing or changed**: `EVEY_JWT_PRIVATE_KEY_PATH` (default `/data/jwt.key`) not readable, or was rotated. Every token signed by the old key is now invalid - there is no mitigation beyond restoring the old key from backup or forcing every user to re-login. Confirm the `evey-data` volume is mounted correctly at `/data`.
-- **Rate limit tripping every request**: check `EVEY_RATELIMIT_LOGIN_MAX` (default `10` per IP per minute) and `EVEY_RATELIMIT_GLOBAL_MAX` (default `300`). Reverse proxy forwarding all traffic as a single IP will trip this fast - set `EVEY_TRUSTED_PROXIES` and `EVEY_FORWARDED_PROTO=true`, restart. Dev override already sets `1000` / `10000`.
+- **Rate limit tripping every request**: check `EVEY_RATELIMIT_LOGIN_MAX` (default `10` per IP per minute) and `EVEY_RATELIMIT_GLOBAL_MAX` (default `300`). Reverse proxy forwarding all traffic as a single IP will trip this fast - set `EVEY_TRUSTED_PROXIES`, restart. Dev override already sets `1000` / `10000`.
 - Clock skew between server and clients → `date -u` on the host.
 
 ## 3. Transcoding fails / videos won't play transcoded

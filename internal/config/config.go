@@ -775,16 +775,18 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 
+	baseURL := envStr("EVEY_SERVER_BASE_URL", "http://localhost:9091")
+
 	cfg := &Config{
 		Server: ServerConfig{
 			Port:               envInt("EVEY_SERVER_PORT", 9090),
 			GRPCBindAddr:       envStr("EVEY_GRPC_BIND", "127.0.0.1"),
-			BaseURL:            envStr("EVEY_SERVER_BASE_URL", "http://localhost:9091"),
+			BaseURL:            baseURL,
 			Name:               envStr("EVEY_SERVER_NAME", "Evey"),
 			WebDir:             envStr("EVEY_WEB_DIR", "/srv"),
 			TrustedProxies:     trustedProxies,
 			RealIPHeader:       envStr("EVEY_REAL_IP_HEADER", "X-Forwarded-For"),
-			ForwardedProto:     envBool("EVEY_FORWARDED_PROTO", false),
+			ForwardedProto:     forwardedProtoFromEnv(baseURL),
 			LoginRateLimitMax:  envInt("EVEY_RATELIMIT_LOGIN_MAX", 10),
 			GlobalRateLimitMax: envInt("EVEY_RATELIMIT_GLOBAL_MAX", 300),
 			PluginsEnabled:     envBool("EVEY_PLUGINS_ENABLED", true),
@@ -982,6 +984,20 @@ func envSecret(key, fallback string) string {
 // anywhere, while the operator read their own compose file and believed the
 // setting applied. The received value is logged as-is: every caller of this
 // parses a number, a boolean or a duration, so none of them can carry a secret.
+// forwardedProtoFromEnv decides whether the server behaves as served over
+// HTTPS (Secure cookies, HSTS, X-Forwarded-Proto trusted from proxies). An
+// https:// base URL already says a proxy terminates TLS in front, so the
+// scheme is the source of truth; EVEY_FORWARDED_PROTO stays as an explicit
+// override for installs that predate the inference.
+func forwardedProtoFromEnv(baseURL string) bool {
+	fromScheme := strings.HasPrefix(strings.ToLower(baseURL), "https://")
+	if os.Getenv("EVEY_FORWARDED_PROTO") == "" {
+		return fromScheme
+	}
+	slog.Warn("config: EVEY_FORWARDED_PROTO is deprecated - the HTTPS behaviour now follows the scheme of EVEY_SERVER_BASE_URL; drop the variable unless you need to force it")
+	return envBool("EVEY_FORWARDED_PROTO", fromScheme)
+}
+
 func warnBadEnv(key, value, expected string) {
 	slog.Warn("config: environment variable ignored, value could not be parsed - falling back to the default",
 		slog.String("key", key), slog.String("value", value), slog.String("expected", expected))

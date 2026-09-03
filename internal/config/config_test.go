@@ -775,3 +775,40 @@ func TestLoad_SSLModeDefaultDependsOnHost(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "require", cfg.DB.SSLMode, "an explicit mode always wins")
 }
+
+func TestLoad_ForwardedProtoFollowsBaseURLScheme(t *testing.T) {
+	t.Setenv("EVEY_FORWARDED_PROTO", "")
+	os.Unsetenv("EVEY_FORWARDED_PROTO")
+
+	t.Setenv("EVEY_SERVER_BASE_URL", "https://media.example.com")
+	cfg, err := Load()
+	require.NoError(t, err)
+	assert.True(t, cfg.Server.ForwardedProto, "an https base URL means a proxy terminates TLS in front")
+
+	t.Setenv("EVEY_SERVER_BASE_URL", "HTTPS://media.example.com/")
+	cfg, err = Load()
+	require.NoError(t, err)
+	assert.True(t, cfg.Server.ForwardedProto, "scheme match is case-insensitive")
+
+	t.Setenv("EVEY_SERVER_BASE_URL", "http://nas.local:9091")
+	cfg, err = Load()
+	require.NoError(t, err)
+	assert.False(t, cfg.Server.ForwardedProto)
+}
+
+func TestLoad_ForwardedProtoExplicitOverridesBaseURL(t *testing.T) {
+	buf := captureLogs(t)
+
+	t.Setenv("EVEY_SERVER_BASE_URL", "https://media.example.com")
+	t.Setenv("EVEY_FORWARDED_PROTO", "false")
+	cfg, err := Load()
+	require.NoError(t, err)
+	assert.False(t, cfg.Server.ForwardedProto, "an explicit value still wins")
+	assert.Contains(t, buf.String(), "EVEY_FORWARDED_PROTO is deprecated")
+
+	t.Setenv("EVEY_SERVER_BASE_URL", "http://nas.local:9091")
+	t.Setenv("EVEY_FORWARDED_PROTO", "true")
+	cfg, err = Load()
+	require.NoError(t, err)
+	assert.True(t, cfg.Server.ForwardedProto)
+}

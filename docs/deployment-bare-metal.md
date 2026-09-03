@@ -245,7 +245,7 @@ walkthrough. Don't duplicate the table here. Notes specific to bare metal:
 
 - Point `EVEY_DB_HOST` / `EVEY_MEILI_URL` at your local PostgreSQL / Meilisearch.
 - The server still serves **plain HTTP** - put a reverse proxy in front for TLS
-  (`EVEY_SERVER_BASE_URL`, `EVEY_TRUSTED_PROXIES`, `EVEY_FORWARDED_PROTO`). See
+  (`EVEY_SERVER_BASE_URL` with an `https://` scheme, `EVEY_TRUSTED_PROXIES`). See
   [reverse-proxy.md](reverse-proxy.md).
 - **The server opens TWO ports, and only one of them may be exposed.**
   `EVEY_SERVER_PORT` (default `9090`) is the native gRPC listener; the HTTP API

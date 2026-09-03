@@ -10,8 +10,12 @@ proxy's forwarded headers:
 ```env
 EVEY_SERVER_BASE_URL=https://media.example.com
 EVEY_TRUSTED_PROXIES=172.16.0.0/12       # only needed if the proxy is a container; loopback is always trusted
-EVEY_FORWARDED_PROTO=true
 ```
+
+An `https://` base URL is what tells Evey a proxy terminates TLS in front of
+it: cookies get the `Secure` flag, HSTS is sent, and `X-Forwarded-Proto` from
+a trusted proxy is honoured. No separate switch is needed (the former
+`EVEY_FORWARDED_PROTO` is still accepted as an override, but deprecated).
 
 ## Streaming - what a proxy's defaults do to it
 
@@ -124,7 +128,6 @@ services:
     environment:
       EVEY_SERVER_BASE_URL: https://media.example.com
       EVEY_TRUSTED_PROXIES: 172.16.0.0/12     # narrow to the proxy's subnet once known
-      EVEY_FORWARDED_PROTO: "true"
     # ...
 networks:
   default:

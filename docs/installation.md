@@ -91,7 +91,6 @@ volumes:
       environment:
         EVEY_SERVER_BASE_URL: https://media.example.com
         EVEY_TRUSTED_PROXIES: 172.16.0.0/12     # narrow to the proxy's subnet once known
-        EVEY_FORWARDED_PROTO: "true"
   networks:
     default:
       name: proxy-net        # the network your proxy is on
@@ -213,7 +212,7 @@ never admin-editable: `EVEY_DB_PASSWORD`, `MEILI_MASTER_KEY`, `EVEY_DB_HOST`,
 `EVEY_DB_USER`, `EVEY_DB_NAME`, `EVEY_DB_SSLMODE`, `EVEY_EMBEDDED_POSTGRES`,
 `EVEY_EMBEDDED_MEILI`, `EVEY_MEILI_URL`, the `*_DIR` paths,
 `EVEY_JWT_PRIVATE_KEY_PATH`, `EVEY_SERVER_BASE_URL`,
-`EVEY_TRUSTED_PROXIES` / `EVEY_FORWARDED_PROTO`, and the plugin master switch
+`EVEY_TRUSTED_PROXIES`, and the plugin master switch
 `EVEY_PLUGINS_ENABLED`. (`EVEY_PLUGINS_SANDBOX_MODE`, `EVEY_PLUGINS_UID_SEPARATION`
 and the resource caps may be set here as initial defaults, but are admin-editable
 at runtime from Admin → Plugins.) Full reference: [configuration.md](configuration.md).
@@ -295,7 +294,8 @@ Evey serves plain HTTP on 9091. With no proxy yet, the bundled Caddy service
 in [reverse-proxy.md](reverse-proxy.md) obtains a Let's Encrypt certificate
 for you (ports 80/443 must reach the host). With your own proxy (Nginx,
 Traefik, Nginx Proxy Manager): set `EVEY_SERVER_BASE_URL` to your public
-URL and trust the proxy with `EVEY_TRUSTED_PROXIES` + `EVEY_FORWARDED_PROTO=true`.
+`https://` URL (that scheme is what switches on Secure cookies and HSTS) and
+trust the proxy with `EVEY_TRUSTED_PROXIES`.
 Streaming endpoints need buffering disabled and no timeout - the ready-made
 configs handle this. Full setups: [reverse-proxy.md](reverse-proxy.md).
 
