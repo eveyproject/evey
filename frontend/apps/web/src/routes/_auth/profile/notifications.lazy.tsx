@@ -1,5 +1,5 @@
 import { Bell, Plus, Play, Info } from "lucide-react";
-import { createLazyFileRoute } from "@tanstack/react-router";
+import { createLazyFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import {
   useNotificationServiceListNotifications,
@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { FetchErrorState } from "@/components/ui/FetchErrorState";
 import { Modal } from "@/components/ui/Modal";
-import { translateNotificationTitle, useRelativeTime } from "@/features/user/notificationUtils";
+import { translateNotificationTitle, useRelativeTime, notificationUrl } from "@/features/user/notificationUtils";
 
 type Notification = {
   id?: string;
@@ -50,8 +50,12 @@ function NotifIcon({ type }: { type?: string }) {
   return <Info size={20} className="shrink-0" style={{ color }} />;
 }
 
+// A row is the notification itself: clicking it goes where the bell's
+// dropdown goes (the title, the request queue) and marks it read on the way.
+// The page used to be display-only - pretty, and useless.
 function NotificationRow({ notif }: { notif: Notification }) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const relativeTime = useRelativeTime();
   const qc = useQueryClient();
   const invalidate = () => {
@@ -61,12 +65,23 @@ function NotificationRow({ notif }: { notif: Notification }) {
 
   const markRead = useNotificationServiceMarkRead({ mutation: { onSuccess: invalidate } });
   const isRead = !!notif.readAt;
+  const url = notificationUrl(notif);
+
+  function open() {
+    if (!isRead && notif.id) markRead.mutate({ id: notif.id });
+    if (url) void navigate({ to: url });
+  }
 
   return (
     <div
+      role={url ? "link" : undefined}
+      tabIndex={url ? 0 : undefined}
+      onClick={url ? open : undefined}
+      onKeyDown={url ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } } : undefined}
+      data-testid={`notification-row-${notif.id ?? ""}`}
       className={`flex items-start gap-3 py-3 px-3 border-b border-[var(--border)] last:border-0 transition-colors-fast ${
-        isRead ? "opacity-50" : "border-l-2 border-l-[var(--accent)]"
-      }`}
+        url ? "cursor-pointer hover:bg-[var(--surface)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]" : ""
+      } ${isRead ? "opacity-50" : "border-l-2 border-l-[var(--accent)]"}`}
     >
       <div className="mt-0.5">
         <NotifIcon type={notif.type} />
@@ -83,7 +98,7 @@ function NotificationRow({ notif }: { notif: Notification }) {
       </div>
       {!isRead && notif.id && (
         <button
-          onClick={() => markRead.mutate({ id: notif.id! })}
+          onClick={(e) => { e.stopPropagation(); markRead.mutate({ id: notif.id! }); }}
           disabled={markRead.isPending}
           className="shrink-0 text-xs text-[var(--accent)] hover:underline disabled:opacity-50 mt-1"
         >

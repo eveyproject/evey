@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	libevent "github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/notification"
 	"github.com/evey-project/evey/internal/domain/shared"
 	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
@@ -99,10 +100,26 @@ func NewCommandService(
 
 func (s *CommandService) Register() {
 	s.events.Subscribe("media.item.added", s.handleMediaItemAdded)
+	s.events.Subscribe("media.item.removed", s.handleMediaItemRemoved)
 	s.events.Subscribe("backup.failed", s.handleBackupFailed)
 	s.events.Subscribe("plugin.error", s.handlePluginError)
 	s.events.Subscribe("media.request.created", s.handleMediaRequestCreated)
 	s.events.Subscribe("media.request.answered", s.handleRequestAnswered)
+}
+
+// handleMediaItemRemoved drops every notification about a title the moment
+// it leaves the library: with no foreign key on media_item_id, they used to
+// outlive it and open a media page that answers 404 (prod, 2026-09-03). The
+// daily CleanupExpired sweep covers whatever a missed event leaves behind.
+func (s *CommandService) handleMediaItemRemoved(ctx context.Context, ev shared.Event) {
+	e, ok := ev.(libevent.MediaItemRemoved)
+	if !ok || e.MediaItemID == "" {
+		return
+	}
+	if err := s.repo.DeleteByMediaItem(ctx, e.MediaItemID); err != nil {
+		slog.WarnContext(ctx, "notifications: delete for removed media item",
+			slog.String("media_id", string(e.MediaItemID)), slog.Any("err", err))
+	}
 }
 
 func (s *CommandService) Start(ctx context.Context) {

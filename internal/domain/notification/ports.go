@@ -30,6 +30,9 @@ type CommandRepo interface {
 	MarkRead(ctx context.Context, id string, profileID shared.ProfileID) error
 	MarkAllRead(ctx context.Context, profileID shared.ProfileID) error
 	DeleteAll(ctx context.Context, profileID shared.ProfileID) error
+	// DeleteByMediaItem removes every profile's notifications about one
+	// title, the moment that title leaves the library.
+	DeleteByMediaItem(ctx context.Context, mediaItemID shared.MediaItemID) error
 	CleanupExpired(ctx context.Context) error
 }
 

@@ -136,6 +136,22 @@ func (r *FakeNotificationRepository) DeleteAll(_ context.Context, profileID shar
 	return nil
 }
 
+func (r *FakeNotificationRepository) DeleteByMediaItem(_ context.Context, mediaItemID shared.MediaItemID) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var out []*notification.Notification
+	for _, n := range r.items {
+		if n.MediaItemID != mediaItemID {
+			out = append(out, n)
+		}
+	}
+	r.items = out
+	return nil
+}
+
 func (r *FakeNotificationRepository) CleanupExpired(_ context.Context) error {
 	if r.Err != nil {
 		return r.Err

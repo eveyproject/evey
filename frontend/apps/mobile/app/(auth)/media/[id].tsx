@@ -532,7 +532,7 @@ export default function MediaDetailScreen() {
   const [visibleEpisodeCount, setVisibleEpisodeCount] = useState(EPISODE_PAGE_SIZE);
   useEffect(() => { setVisibleEpisodeCount(EPISODE_PAGE_SIZE); }, [selectedSeason]);
 
-  const { data: media, isLoading, isError, refetch } = useLibraryServiceGetMediaItem(id ?? "");
+  const { data: media, isLoading, isError, error: mediaError, refetch } = useLibraryServiceGetMediaItem(id ?? "");
 
   const { data: currentUser } = useUserServiceGetCurrentUser();
   const { data: profilesResp } = useUserServiceListProfiles(currentUser?.id ?? "", { query: { enabled: !!currentUser?.id } } as never);
@@ -915,11 +915,23 @@ export default function MediaDetailScreen() {
   // error branch that left the most-visited screen stuck on the loading skeleton
   // forever, with no message or retry. Mirrors library/[libraryId].tsx.
   if (isError && !media) {
+    // A 404 is not a failure to load, it is a title that left the library
+    // (deleted, or re-imported under a new id) while something still linked
+    // here - an old notification, a stale deep link. Retrying can never
+    // succeed; the way out is back.
+    const gone = (mediaError as { httpStatus?: number } | null)?.httpStatus === 404;
     return (
-      <View style={{ flex: 1, backgroundColor: theme.colors.bg, justifyContent: "center", alignItems: "center" }}>
-        <Text style={{ color: theme.colors.textMuted, marginBottom: 12 }}>{t("common.loadError")}</Text>
-        <Pressable onPress={() => refetch()}>
-          <Text style={{ color: theme.colors.accent }}>{t("common.retry")}</Text>
+      <View style={{ flex: 1, backgroundColor: theme.colors.bg, justifyContent: "center", alignItems: "center", paddingHorizontal: theme.spacing.xl }}>
+        <Text style={{ color: theme.colors.textMuted, marginBottom: 12, textAlign: "center" }}>
+          {gone ? t("common.mediaGone") : t("common.loadError")}
+        </Text>
+        <Pressable
+          onPress={() => (gone ? (router.canGoBack() ? router.back() : router.replace("/(auth)/(tabs)")) : refetch())}
+          accessible
+          accessibilityRole="button"
+          accessibilityLabel={gone ? t("common.back") : t("common.retry")}
+        >
+          <Text style={{ color: theme.colors.accent }}>{gone ? t("common.back") : t("common.retry")}</Text>
         </Pressable>
       </View>
     );

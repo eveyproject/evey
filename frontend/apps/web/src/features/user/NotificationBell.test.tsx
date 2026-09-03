@@ -84,4 +84,21 @@ describe("NotificationBell", () => {
     await user.click(screen.getByText("New media request: Some Movie"));
     expect(navigateSpy).toHaveBeenCalledWith({ to: "/admin/media-requests" });
   });
+
+  it("shows up to fifteen notifications in one scrollable box instead of five", async () => {
+    notificationsRef.current = Array.from({ length: 20 }, (_, i) => ({
+      id: `n${i}`,
+      title: `Movie ${i} added`,
+      message: "added",
+      createdAt: new Date().toISOString(),
+    }));
+    render(<NotificationBell />, { wrapper: createWrapper() });
+    await userEvent.click(screen.getByTestId("notification-bell"));
+    const list = screen.getByTestId("notification-list");
+    expect(list.querySelectorAll("button")).toHaveLength(15);
+    // The list scrolls inside a capped box: the dropdown keeps its size
+    // whatever the count.
+    expect(list.className).toContain("max-h-96");
+    expect(list.className).toContain("overflow-y-auto");
+  });
 });

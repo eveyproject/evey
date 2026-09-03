@@ -9,7 +9,7 @@ import {
   useNotificationServiceMarkAllRead,
 } from "@evey/api";
 import { toast } from "@evey/store";
-import { translateNotificationTitle, useRelativeTime } from "./notificationUtils";
+import { translateNotificationTitle, useRelativeTime, notificationUrl } from "./notificationUtils";
 
 interface Notification {
   id?: string;
@@ -26,14 +26,11 @@ interface Notification {
 // dedicated plugin security dashboard.
 const HIDDEN_TYPES = new Set(["plugin_error"]);
 
-function notificationUrl(n: Notification): string | undefined {
-  // A media request pages an admin: the actionable place is the moderation
-  // queue, and these notifications never carry a mediaItemId (the title is
-  // not in the library yet - that is the whole point of the request).
-  if (n.type === "media_request") return "/admin/media-requests";
-  if (n.mediaItemId) return `/media/${n.mediaItemId}`;
-  return undefined;
-}
+// The dropdown shows this many and scrolls inside a fixed box - it never
+// grows with the count. The fetch pulls a few extra so the hidden types
+// filtered below cannot leave it short.
+const DROPDOWN_LIMIT = 15;
+const FETCH_LIMIT = 25;
 
 export function NotificationBell() {
   const { t } = useTranslation();
@@ -50,12 +47,12 @@ export function NotificationBell() {
   // the dropdown opens: the bell is mounted on every page, and the unread
   // badge above needs just the count query.
   const { data: listData, isError: listError } = useNotificationServiceListNotifications(
-    { limit: 15 },
+    { limit: FETCH_LIMIT },
     { query: { enabled: open } },
   );
   const notifications = (listData?.notifications ?? [])
     .filter((n: Notification) => !n.type || !HIDDEN_TYPES.has(n.type))
-    .slice(0, 5);
+    .slice(0, DROPDOWN_LIMIT);
   const queryClient = useQueryClient();
   const markAllRead = useNotificationServiceMarkAllRead({
     mutation: {
@@ -134,7 +131,7 @@ export function NotificationBell() {
               {t("common.noNotifications")}
             </div>
           ) : (
-            <div className="max-h-80 overflow-y-auto">
+            <div className="max-h-96 overflow-y-auto overscroll-contain" data-testid="notification-list">
               {notifications.map((n) => {
                 const url = notificationUrl(n);
                 return (

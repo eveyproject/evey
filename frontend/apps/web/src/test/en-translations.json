@@ -1752,6 +1752,7 @@
   "common.loadError": "Failed to load",
   "common.loading": "Loading...",
   "common.markAllRead": "Mark all read",
+  "common.mediaGone": "This title is no longer in the library.",
   "common.name": "Name",
   "common.nav.admin": "Admin",
   "common.nav.adminNav": "Admin navigation",

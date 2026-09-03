@@ -209,6 +209,7 @@ noGenres: अभी तक कोई जॉनर नहीं
 playlists: प्लेलिस्ट
 collections: संग्रह
 loadError: लोड करने में विफल
+mediaGone: "यह शीर्षक अब लाइब्रेरी में नहीं है।"
 activity: गतिविधि
 addToPlaylist: प्लेलिस्ट में जोड़ें
 noManualPlaylists: कोई मैन्युअल प्लेलिस्ट उपलब्ध नहीं

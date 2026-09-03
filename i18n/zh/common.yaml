@@ -209,6 +209,7 @@ noGenres: 暂无类型
 playlists: 播放列表
 collections: 合集
 loadError: 加载失败
+mediaGone: "该标题已不在媒体库中。"
 activity: 活动
 addToPlaylist: 添加到播放列表
 noManualPlaylists: 没有可用的手动播放列表

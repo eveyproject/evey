@@ -318,3 +318,30 @@ func TestCommandService_FlushBatches_FlushesPending(t *testing.T) {
 	}, 2*time.Second, 5*time.Millisecond)
 	assert.Len(t, items, 1)
 }
+
+// A title leaving the library takes its notifications with it, for every
+// profile: they used to outlive it (no foreign key on media_item_id) and open
+// a media page that answers 404.
+func TestCommandService_MediaItemRemoved_DeletesItsNotifications(t *testing.T) {
+	t.Parallel()
+	svc, repo, _, _, bus := newTestCmdService(t)
+	ctx := context.Background()
+	for _, n := range []*notifdom.Notification{
+		{ID: "n-gone-1", ProfileID: "p1", Type: notifdom.TypeNewMovie, Title: "Gone", MediaItemID: "m-gone", Level: notifdom.LevelAll, CreatedAt: time.Now()},
+		{ID: "n-gone-2", ProfileID: "p2", Type: notifdom.TypeNewMovie, Title: "Gone", MediaItemID: "m-gone", Level: notifdom.LevelAll, CreatedAt: time.Now()},
+		{ID: "n-keep", ProfileID: "p1", Type: notifdom.TypeNewMovie, Title: "Keep", MediaItemID: "m-keep", Level: notifdom.LevelAll, CreatedAt: time.Now()},
+	} {
+		require.NoError(t, repo.Create(ctx, n))
+	}
+	svc.Register()
+
+	require.NoError(t, bus.Publish(ctx, libevent.MediaItemRemoved{MediaItemID: "m-gone", LibraryID: "lib1", OccurredAt: time.Now()}))
+
+	p1, err := repo.ListByProfile(ctx, "p1", false, 10, 0)
+	require.NoError(t, err)
+	require.Len(t, p1, 1)
+	assert.Equal(t, "n-keep", p1[0].ID)
+	p2, err := repo.ListByProfile(ctx, "p2", false, 10, 0)
+	require.NoError(t, err)
+	assert.Empty(t, p2)
+}

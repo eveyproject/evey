@@ -3,8 +3,10 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
+const mockNavigate = vi.fn();
 vi.mock("@tanstack/react-router", () => ({
   createLazyFileRoute: () => (def: { component: React.ComponentType }) => def,
+  useNavigate: () => mockNavigate,
 }));
 
 const mockMarkRead = vi.fn();
@@ -121,5 +123,28 @@ describe("NotificationsPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /Cancel/i }));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(mockDeleteAll).not.toHaveBeenCalled();
+  });
+
+  it("opens the title a notification is about and marks it read on the way", async () => {
+    const { useNotificationServiceListNotifications } = await import("@evey/api");
+    vi.mocked(useNotificationServiceListNotifications).mockReturnValue({
+      data: { notifications: [
+        { id: "n3", type: "new_movie", title: "New movie", message: "x", mediaItemId: "mi-9", createdAt: new Date().toISOString() },
+        { id: "n4", type: "system", title: "Backup done", message: "y", createdAt: new Date().toISOString() },
+      ] },
+      isLoading: false,
+    } as never);
+    const mod = await import("./notifications.lazy");
+    const NotificationsPage = (mod.Route as unknown as { component: React.ComponentType }).component;
+    render(React.createElement(NotificationsPage), { wrapper: createWrapper() });
+
+    const row = await screen.findByTestId("notification-row-n3");
+    expect(row).toHaveAttribute("role", "link");
+    fireEvent.click(row);
+    expect(mockNavigate).toHaveBeenCalledWith({ to: "/media/mi-9" });
+    expect(mockMarkRead).toHaveBeenCalledWith({ id: "n3" });
+
+    // A notification with nowhere to go stays a plain row.
+    expect(screen.getByTestId("notification-row-n4")).not.toHaveAttribute("role");
   });
 });

@@ -46,6 +46,14 @@ func (r *NotificationRepository) Create(ctx context.Context, n *notification.Not
 	return nil
 }
 
+// mediaStillExistsClause hides a notification whose subject left the library.
+// media_item_id carries no foreign key (a batched "3 new episodes" line points
+// at a season; the item may be re-imported under a new id), so a deleted or
+// re-scanned title left its notifications behind: tapping one opened a media
+// page that answers 404 and offers a "retry" that can never succeed (prod,
+// 2026-09-03). The daily CleanupExpired sweeps the orphans out for good.
+const mediaStillExistsClause = ` AND (media_item_id = '' OR EXISTS (SELECT 1 FROM media_items m WHERE m.id = notifications.media_item_id))`
+
 func (r *NotificationRepository) ListByProfile(ctx context.Context, profileID shared.ProfileID, unreadOnly bool, limit, offset int) ([]*notification.Notification, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.notification.ListByProfile")
 	defer span.End()
@@ -53,7 +61,7 @@ func (r *NotificationRepository) ListByProfile(ctx context.Context, profileID sh
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	q := `SELECT id, profile_id, type, title, subject, message, media_item_id, related_media_id, season_count, episode_count, level, created_at, expires_at, read_at
-	      FROM notifications WHERE profile_id = $1`
+	      FROM notifications WHERE profile_id = $1` + mediaStillExistsClause
 	if unreadOnly {
 		q += ` AND read_at IS NULL`
 	}
@@ -226,7 +234,7 @@ func (r *NotificationRepository) UnreadCount(ctx context.Context, profileID shar
 	defer cancel()
 	var count int
 	err := txFromCtx(ctx, r.db).QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM notifications WHERE profile_id = $1 AND read_at IS NULL`, string(profileID),
+		`SELECT COUNT(*) FROM notifications WHERE profile_id = $1 AND read_at IS NULL`+mediaStillExistsClause, string(profileID),
 	).Scan(&count)
 	if err != nil {
 		span.RecordError(err)
@@ -251,12 +259,28 @@ func (r *NotificationRepository) DeleteAll(ctx context.Context, profileID shared
 	return nil
 }
 
+func (r *NotificationRepository) DeleteByMediaItem(ctx context.Context, mediaItemID shared.MediaItemID) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.notification.DeleteByMediaItem")
+	defer span.End()
+	span.SetAttributes(attribute.String("media_item.id", string(mediaItemID)))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `DELETE FROM notifications WHERE media_item_id = $1`, string(mediaItemID))
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
+}
+
 func (r *NotificationRepository) CleanupExpired(ctx context.Context) error {
 	ctx, span := tracing.StartSpan(ctx, "postgres.notification.CleanupExpired")
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `DELETE FROM notifications WHERE expires_at IS NOT NULL AND expires_at < NOW()`)
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `DELETE FROM notifications WHERE (expires_at IS NOT NULL AND expires_at < NOW())
+	   OR (media_item_id <> '' AND NOT EXISTS (SELECT 1 FROM media_items m WHERE m.id = notifications.media_item_id))`)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

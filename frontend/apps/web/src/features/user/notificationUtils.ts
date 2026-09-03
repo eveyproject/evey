@@ -27,3 +27,13 @@ export function useRelativeTime() {
     return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
   };
 }
+
+// notificationUrl is where a notification leads: a media request pages an
+// admin, so the actionable place is the moderation queue (those never carry a
+// mediaItemId - the title is not in the library yet, that is the whole point);
+// anything about a title opens it.
+export function notificationUrl(n: { type?: string; mediaItemId?: string }): string | undefined {
+  if (n.type === "media_request") return "/admin/media-requests";
+  if (n.mediaItemId) return `/media/${n.mediaItemId}`;
+  return undefined;
+}

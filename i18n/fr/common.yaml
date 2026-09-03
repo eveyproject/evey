@@ -209,6 +209,7 @@ noGenres: Aucun genre pour le moment
 playlists: Playlists
 collections: Collections
 loadError: Échec du chargement
+mediaGone: "Ce titre n'est plus dans la bibliothèque."
 activity: Activité
 addToPlaylist: Ajouter à la playlist
 noManualPlaylists: Aucune playlist manuelle disponible

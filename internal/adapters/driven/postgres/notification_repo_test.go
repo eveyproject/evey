@@ -14,6 +14,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// seedNotifProfile seeds the profile plus the "media-1" title the fixtures
+// point at: a notification whose media item is gone is hidden by design.
 func seedNotifProfile(t *testing.T, db *sql.DB, profileID, userID string) {
 	t.Helper()
 	ctx := context.Background()
@@ -21,6 +23,70 @@ func seedNotifProfile(t *testing.T, db *sql.DB, profileID, userID string) {
 	profileRepo := postgres.NewProfileRepository(db)
 	require.NoError(t, userRepo.Create(ctx, newTestUser(userID)))
 	require.NoError(t, profileRepo.Create(ctx, newTestProfile(profileID, shared.UserID(userID))))
+	seedNotifMedia(t, db, "media-1")
+}
+
+func seedNotifMedia(t *testing.T, db *sql.DB, mediaID string) {
+	t.Helper()
+	ctx := context.Background()
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	if _, err := libRepo.GetByID(ctx, "notif-lib"); err != nil {
+		require.NoError(t, libRepo.Create(ctx, newTestLibrary("notif-lib")))
+	}
+	// Idempotent: a test that seeds two profiles seeds the title twice.
+	if _, err := itemRepo.GetByID(ctx, shared.MediaItemID(mediaID)); err == nil {
+		return
+	}
+	require.NoError(t, itemRepo.Create(ctx, newTestMediaItem(mediaID, "notif-lib")))
+}
+
+// A deleted or re-imported title leaves its notifications behind (no foreign
+// key on media_item_id, on purpose). Those must neither be listed nor counted
+// - tapping one opened a 404 with a useless retry - and the daily sweep removes
+// them. A notification about nothing in particular (empty media id) stays.
+func TestNotificationRepo_HidesAndSweepsOrphans(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	seedNotifProfile(t, db, "pO", "notif-u9")
+	seedNotifMedia(t, db, "media-gone")
+	repo := postgres.NewNotificationRepository(db)
+	ctx := context.Background()
+
+	mk := func(id, mediaID string) *notification.Notification {
+		return &notification.Notification{
+			ID: id, ProfileID: "pO", Type: notification.TypeNewMovie, Title: id,
+			MediaItemID: shared.MediaItemID(mediaID), Level: notification.LevelAll, CreatedAt: time.Now(),
+		}
+	}
+	require.NoError(t, repo.Create(ctx, mk("alive", "media-1")))
+	require.NoError(t, repo.Create(ctx, mk("orphan", "media-gone")))
+	require.NoError(t, repo.Create(ctx, mk("no-media", "")))
+	require.NoError(t, postgres.NewMediaItemRepository(db).Delete(ctx, "media-gone"))
+
+	list, err := repo.ListByProfile(ctx, "pO", false, 10, 0)
+	require.NoError(t, err)
+	ids := make([]string, 0, len(list))
+	for _, n := range list {
+		ids = append(ids, n.ID)
+	}
+	assert.ElementsMatch(t, []string{"alive", "no-media"}, ids)
+
+	count, err := repo.UnreadCount(ctx, "pO")
+	require.NoError(t, err)
+	assert.Equal(t, 2, count, "the orphan must not keep the badge lit")
+
+	require.NoError(t, repo.CleanupExpired(ctx))
+	var left int
+	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM notifications WHERE id = 'orphan'`).Scan(&left))
+	assert.Equal(t, 0, left, "the sweep removes the orphan for good")
+
+	// The removal event path: the title's notifications go at once, the rest stay.
+	require.NoError(t, repo.DeleteByMediaItem(ctx, "media-1"))
+	list, err = repo.ListByProfile(ctx, "pO", false, 10, 0)
+	require.NoError(t, err)
+	require.Len(t, list, 1)
+	assert.Equal(t, "no-media", list[0].ID)
 }
 
 func TestNotificationRepo_CRUD(t *testing.T) {

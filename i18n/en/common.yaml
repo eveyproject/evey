@@ -81,6 +81,7 @@ addToPlaylist: Add to Playlist
 noManualPlaylists: No manual playlists available
 collections: Collections
 loadError: Failed to load
+mediaGone: "This title is no longer in the library."
 activity: Activity
 serverVersion: Server Version
 retry: Retry
