@@ -134,7 +134,7 @@ func TestBuildMultiVariantHWArgs_VAAPI_Device(t *testing.T) {
 	if !ok || !strings.Contains(fc, "scale_vaapi=640:-2") {
 		t.Errorf("expected scale_vaapi in filter_complex, got %q", fc)
 	}
-	if !strings.Contains(fc, "[0:v]deinterlace_vaapi,split=2") {
+	if !strings.Contains(fc, "[0:v]deinterlace_vaapi=auto=1,split=2") {
 		t.Errorf("expected single pre-split deinterlace_vaapi: %q", fc)
 	}
 }
@@ -218,7 +218,7 @@ func TestNVENCProbeNames_MatchBuilderGating(t *testing.T) {
 func TestHWDeinterlaceFilter(t *testing.T) {
 	cases := map[transcoding.HWAccelType]string{
 		transcoding.NVENC: "yadif_cuda=deint=interlaced",
-		transcoding.VAAPI: "deinterlace_vaapi",
+		transcoding.VAAPI: "deinterlace_vaapi=auto=1",
 		transcoding.QSV:   "", // vpp_qsv has no field-flag-respecting mode → none
 		transcoding.None:  "",
 		"":                "",

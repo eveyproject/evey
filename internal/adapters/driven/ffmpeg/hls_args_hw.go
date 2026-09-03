@@ -156,8 +156,11 @@ func hwScaleFilter(accel transcoding.HWAccelType, width int) string {
 // on the GPU surfaces (no hwdownload round-trip). Returns "" for backends with
 // no field-flag-respecting HW deinterlacer:
 //   - NVENC/CUDA: yadif_cuda with deint=interlaced (mode 0 ⇒ one frame per frame)
-//   - VAAPI: deinterlace_vaapi (auto=1 default ⇒ progressive passes through),
-//     which covers AMD iGPUs and Intel iGPUs driven through VAAPI
+//   - VAAPI: deinterlace_vaapi=auto=1 - auto defaults to 0 (verified with
+//     `ffmpeg -h filter=deinterlace_vaapi`), which deinterlaces EVERY frame,
+//     progressive films included (softened picture, doubled VPP work; prod
+//     2026-09-04). auto=1 passes frames the decoder did not flag through
+//     unchanged. Covers AMD iGPUs and Intel iGPUs driven through VAAPI.
 //   - QSV: empty - vpp_qsv's deinterlace has no "only-if-flagged" mode and would
 //     wrongly deinterlace progressive content; left to the software path / a
 //     follow-up that gates on a probed interlace signal.
@@ -166,7 +169,7 @@ func hwDeinterlaceFilter(accel transcoding.HWAccelType) string {
 	case transcoding.NVENC:
 		return "yadif_cuda=deint=interlaced"
 	case transcoding.VAAPI:
-		return "deinterlace_vaapi"
+		return "deinterlace_vaapi=auto=1"
 	}
 	return ""
 }
