@@ -380,3 +380,40 @@ func TestNormalizeContainer(t *testing.T) {
 		}
 	}
 }
+
+// A Matroska PNG cover stored as a plain video track carries no attached_pic
+// disposition; it is still cover art when a real video stream sits beside it
+// and must not reach the library as a second "video" stream.
+func TestProbeStreams_PNGCoverTrackWithoutAttachedPicIsSkipped(t *testing.T) {
+	fakeJSON := `{"streams":[{"index":0,"codec_name":"h264","codec_type":"video","width":1920,"height":804,"r_frame_rate":"24000/1001","disposition":{"default":1}},{"index":1,"codec_name":"ac3","codec_type":"audio","channels":6,"sample_rate":"48000","disposition":{"default":1}},{"index":2,"codec_name":"png","codec_type":"video","width":200,"height":258,"r_frame_rate":"90000/1","disposition":{"default":0,"attached_pic":0},"tags":{"title":"cover"}}],"format":{"duration":"6960"}}`
+	p := NewProber(fakeFFprobe(t, fakeJSON))
+	result, err := p.ProbeStreams(context.Background(), "/fake/movie.mkv")
+	require.NoError(t, err)
+	require.Len(t, result.Streams, 2)
+	assert.Equal(t, "h264", result.Streams[0].Codec)
+	assert.Equal(t, library.StreamTypeAudio, result.Streams[1].StreamType)
+}
+
+// Camera footage whose only video stream is MJPEG keeps it: the still-image
+// codec is cover art only next to a real video stream.
+func TestProbeStreams_SoleMJPEGVideoIsKept(t *testing.T) {
+	fakeJSON := `{"streams":[{"index":0,"codec_name":"mjpeg","codec_type":"video","width":1280,"height":720,"r_frame_rate":"30/1","disposition":{"default":1}},{"index":1,"codec_name":"pcm_s16le","codec_type":"audio","channels":2,"sample_rate":"48000","disposition":{"default":1}}],"format":{"duration":"12"}}`
+	p := NewProber(fakeFFprobe(t, fakeJSON))
+	result, err := p.ProbeStreams(context.Background(), "/fake/clip.avi")
+	require.NoError(t, err)
+	require.Len(t, result.Streams, 2)
+	assert.Equal(t, "mjpeg", result.Streams[0].Codec)
+	assert.Equal(t, library.StreamTypeVideo, result.Streams[0].StreamType)
+}
+
+func fakeFFprobe(t *testing.T, fakeJSON string) string {
+	t.Helper()
+	script, err := os.CreateTemp("", "fake_ffprobe_*.sh")
+	require.NoError(t, err)
+	t.Cleanup(func() { os.Remove(script.Name()) })
+	_, err = script.WriteString("#!/bin/sh\necho '" + fakeJSON + "'\n")
+	require.NoError(t, err)
+	require.NoError(t, script.Close())
+	require.NoError(t, os.Chmod(script.Name(), 0755))
+	return script.Name()
+}

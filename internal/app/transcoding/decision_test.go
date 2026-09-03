@@ -711,3 +711,33 @@ func TestSelectedAudioSpec_NonCommentaryDefaultWinsOverLaterTracks(t *testing.T)
 	assert.Equal(t, "transcode", d.AudioDecision,
 		"a non-commentary default must be honoured even when a cheaper track exists")
 }
+
+// A Matroska PNG cover muxed as a plain video track (no attached_pic flag, so
+// older scans stored it) must not turn a copyable H.264 film into a transcode:
+// prod 2026-09-04, a 1920x804 H.264 film was re-encoded on VAAPI because its
+// 200x258 "cover" track was judged an unsupported video codec.
+func TestDirectPlay_CoverArtTrackIsNotVideo(t *testing.T) {
+	streams := []*library.MediaStream{
+		{StreamType: "video", Codec: "h264", Width: new(1920), Height: new(804), Bitrate: int64Ptr(3300000), IsDefault: true},
+		{StreamType: "audio", Codec: "aac", Channels: new(2), IsDefault: true},
+		{StreamType: "video", Codec: "png", Width: new(200), Height: new(258), Title: "cover"},
+	}
+	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0)
+
+	assert.Equal(t, "direct_play", d.PlayMethod)
+	assert.Equal(t, "copy", d.VideoDecision)
+	assert.Empty(t, d.TranscodeReasons)
+}
+
+// Camera footage whose ONLY video stream is MJPEG is still judged as video:
+// the still-image codec is only cover art when a real picture sits beside it.
+func TestVideoTranscode_SoleMJPEGIsStillVideo(t *testing.T) {
+	streams := []*library.MediaStream{
+		{StreamType: "video", Codec: "mjpeg", Width: new(1280), Height: new(720), IsDefault: true},
+		{StreamType: "audio", Codec: "aac", Channels: new(2), IsDefault: true},
+	}
+	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0)
+
+	assert.Equal(t, "transcode", d.VideoDecision)
+	assert.Contains(t, d.TranscodeReasons, "video_codec_unsupported")
+}

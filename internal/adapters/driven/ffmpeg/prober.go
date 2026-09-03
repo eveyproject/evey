@@ -144,12 +144,24 @@ func (p *Prober) ProbeStreams(ctx context.Context, filePath string) (*library.Pr
 	}
 
 	var streams []*library.MediaStream
+	hasRealVideo := false
+	for _, s := range probe.Streams {
+		if s.CodecType == "video" && !library.IsStillImageCodec(s.CodecName) {
+			hasRealVideo = true
+		}
+	}
 	for _, s := range probe.Streams {
 		// Cover art / thumbnails ride as attached_pic "video" streams (mjpeg/png)
 		// in both MP4 and Matroska; they are not playable video and the mkvgo
 		// fast path does not surface them as tracks, so skip them to keep stream
 		// counts and the playback decision aligned between the two probers.
+		// A Matroska PNG cover muxed as a plain video track carries no
+		// attached_pic flag at all: a still-image codec next to a real video
+		// stream is cover art just the same.
 		if s.Disposition.AttachedPic == 1 {
+			continue
+		}
+		if s.CodecType == "video" && hasRealVideo && library.IsStillImageCodec(s.CodecName) {
 			continue
 		}
 		ms := &library.MediaStream{

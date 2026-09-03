@@ -63,3 +63,36 @@ func (s *MediaStream) Validate() error {
 	}
 	return nil
 }
+
+// stillImageCodecs are the codecs a muxer uses for cover art riding as a
+// "video" track. ffprobe flags most of them attached_pic, but a Matroska PNG
+// cover stored as a real video track (seen in prod, 2026-09-04: a 1920x804
+// H.264 film with a 200x258 "cover" PNG track) carries no such disposition
+// and still is not a picture anyone can play.
+var stillImageCodecs = map[string]bool{
+	"png": true, "mjpeg": true, "bmp": true, "webp": true, "tiff": true,
+}
+
+// IsStillImageCodec reports whether codec is a still-image codec (png, mjpeg,
+// bmp, webp, tiff) - cover art when it sits next to a real video stream.
+func IsStillImageCodec(codec string) bool {
+	return stillImageCodecs[codec]
+}
+
+// IsCoverArtStream reports whether s is a still-image "video" track shadowing
+// a real video stream: only then is it cover art. A file whose ONLY video is
+// MJPEG (camera footage) keeps that stream as its picture.
+func IsCoverArtStream(s *MediaStream, hasRealVideo bool) bool {
+	return s != nil && s.StreamType == StreamTypeVideo && hasRealVideo && IsStillImageCodec(s.Codec)
+}
+
+// HasRealVideoStream reports whether streams carry at least one video track
+// whose codec is not a still image.
+func HasRealVideoStream(streams []*MediaStream) bool {
+	for _, s := range streams {
+		if s != nil && s.StreamType == StreamTypeVideo && !IsStillImageCodec(s.Codec) {
+			return true
+		}
+	}
+	return false
+}

@@ -107,3 +107,26 @@ func TestStreamType_LegacyAliases(t *testing.T) {
 		t.Errorf("Subtitle=%q, StreamTypeSubtitle=%q: must match", library.Subtitle, library.StreamTypeSubtitle)
 	}
 }
+
+func TestIsCoverArtStream(t *testing.T) {
+	h264 := &library.MediaStream{StreamType: library.StreamTypeVideo, Codec: "h264"}
+	png := &library.MediaStream{StreamType: library.StreamTypeVideo, Codec: "png"}
+	mjpeg := &library.MediaStream{StreamType: library.StreamTypeVideo, Codec: "mjpeg"}
+	audio := &library.MediaStream{StreamType: library.StreamTypeAudio, Codec: "png"}
+
+	if !library.HasRealVideoStream([]*library.MediaStream{h264, png}) {
+		t.Fatal("h264 next to a png cover: expected a real video stream")
+	}
+	if library.HasRealVideoStream([]*library.MediaStream{mjpeg, nil}) {
+		t.Fatal("a sole mjpeg stream is not a real video stream by codec")
+	}
+	if !library.IsCoverArtStream(png, true) {
+		t.Fatal("png beside a real video stream must be cover art")
+	}
+	if library.IsCoverArtStream(mjpeg, false) {
+		t.Fatal("a sole mjpeg stream must stay the picture")
+	}
+	if library.IsCoverArtStream(audio, true) || library.IsCoverArtStream(nil, true) {
+		t.Fatal("only video streams can be cover art")
+	}
+}

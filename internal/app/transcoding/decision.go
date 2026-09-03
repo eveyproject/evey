@@ -42,8 +42,17 @@ type StreamSpec struct {
 // depends on the value object.
 func toStreamSpecs(streams []*library.MediaStream) []StreamSpec {
 	out := make([]StreamSpec, 0, len(streams))
+	hasRealVideo := library.HasRealVideoStream(streams)
 	for _, s := range streams {
 		if s == nil {
+			continue
+		}
+		// A cover-art track (PNG/MJPEG "video" next to the real picture) is not
+		// something the client has to decode: judging it as video flagged
+		// "video_codec_unsupported" and transcoded a copyable H.264 film
+		// (prod, 2026-09-04). Older scans still store such tracks, so the
+		// decision filters them itself rather than trusting the prober.
+		if library.IsCoverArtStream(s, hasRealVideo) {
 			continue
 		}
 		// MediaStream.HDRType is never populated by the prober (it stores
