@@ -179,3 +179,29 @@ func (s *InstallerService) PreviewUpdate(ctx context.Context, pluginID, source s
 
 	return preview, nil
 }
+
+// PreviewSource is PreviewPlugin for an install SOURCE - a URL or a local
+// path, exactly what InstallPlugin accepts. Installing from a URL used to
+// skip the preview entirely (the web page said so in so many words): the
+// admin saw the manifest, the warnings and the outbound URLs only AFTER the
+// plugin was installed and running. This downloads the same archive the
+// install would, previews it, and throws it away; a "#sha256:" fragment on
+// the URL is checked against the archive, since that is the only reason a
+// caller writes one.
+func (s *InstallerService) PreviewSource(ctx context.Context, source string) (*PluginPreview, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.plugin.PreviewSource")
+	defer span.End()
+	localPath, expectedHash, cleanupDL, dlErr := s.downloadIfURL(ctx, source)
+	defer cleanupDL()
+	if dlErr != nil {
+		return nil, fmt.Errorf("resolve plugin source: %w", dlErr)
+	}
+	preview, err := s.PreviewPlugin(ctx, localPath)
+	if err != nil {
+		return nil, err
+	}
+	if expectedHash != "" && preview.SourceHash != expectedHash {
+		return nil, fmt.Errorf("plugin hash mismatch: expected %s, got %s", expectedHash, preview.SourceHash)
+	}
+	return preview, nil
+}

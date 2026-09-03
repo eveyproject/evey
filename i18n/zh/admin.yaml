@@ -195,7 +195,6 @@ plugins:
   sigFileOptional: "签名文件 (.zip.sig，可选)"
   sourceUrl: "来源 URL"
   nameOptional: "名称（可选）"
-  urlSkipPreview: "注意：URL 安装将跳过预览步骤。"
   permissions: "权限"
   capabilities: "功能"
   staticAnalysis: "静态分析"

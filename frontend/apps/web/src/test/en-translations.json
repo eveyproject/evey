@@ -642,7 +642,6 @@
   "admin.plugins.uninstallFailed": "Failed to uninstall plugin",
   "admin.plugins.uninstallTitle": "Uninstall Plugin",
   "admin.plugins.uploadFile": "Upload File",
-  "admin.plugins.urlSkipPreview": "Note: URL installs skip the preview step.",
   "admin.qoe.byDevice.empty": "No telemetry in this window yet.",
   "admin.qoe.byDevice.subtitle": "Coarse player-side class derived from User-Agent. No fingerprinting.",
   "admin.qoe.byDevice.title": "By device class",

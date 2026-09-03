@@ -339,9 +339,36 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
     setSelectedSigFileName("");
   }
 
-  function handleUrlSubmit(e: React.FormEvent) {
+  // The URL path used to install blind: the static analysis ran server-side
+  // but its WARNINGs (overreach, extracted URLs) were only visible once the
+  // plugin was already running. Preview the source first, like a file.
+  async function handleUrlPreview(e: React.FormEvent) {
     e.preventDefault();
-    installPlugin.mutate({ data: { source, name } });
+    const src = source.trim();
+    if (!src) return;
+    setStep("previewing");
+    setError("");
+    try {
+      const data = await eveyFetch<PluginPreview>({
+        url: "/api/v1/admin/plugins/preview",
+        method: "POST",
+        data: { source: src },
+      });
+      setPreview(data);
+      setStep("reviewing");
+    } catch (err) {
+      setError(apiErrorMessage(err as Error, t, t("admin.plugins.previewFailed")));
+      setStep("idle");
+    }
+  }
+
+  function handleUrlInstall() {
+    setStep("installing");
+    setError("");
+    installPlugin.mutate(
+      { data: { source: source.trim(), name } },
+      { onSettled: () => setStep("reviewing") },
+    );
   }
 
   function handleConfirmEscalation() {
@@ -527,11 +554,25 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
         </>
       )}
 
-      {mode === "url" && (
-        <form onSubmit={handleUrlSubmit} className="flex flex-col gap-4">
-          <p className="text-xs text-[var(--text-muted)]">
-            {t("admin.plugins.urlSkipPreview")}
-          </p>
+      {mode === "url" && (step === "reviewing" || step === "installing") && preview && (
+        <>
+          {error && (
+            <p className="text-sm font-semibold p-3 rounded-[var(--radius-md)] bg-[var(--badge-error-bg,#7f1d1d)] text-[var(--badge-error-text,#fca5a5)]">
+              {error}
+            </p>
+          )}
+          <PreviewPanel
+            preview={preview}
+            hasWarnings={hasWarnings}
+            installing={step === "installing" || installPlugin.isPending}
+            onCancel={resetFileFlow}
+            onConfirm={handleUrlInstall}
+          />
+        </>
+      )}
+
+      {mode === "url" && step !== "reviewing" && step !== "installing" && (
+        <form onSubmit={handleUrlPreview} className="flex flex-col gap-4">
           <Input
             label={t("admin.plugins.sourceUrl")}
             value={source}
@@ -545,9 +586,14 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
             onChange={(e) => setName(e.target.value)}
             placeholder="my-plugin"
           />
+          {error && (
+            <p className="text-xs text-[var(--badge-error-text,#fca5a5)]">
+              {error}
+            </p>
+          )}
           <div className="flex justify-end pt-2">
-            <Button type="submit" loading={installPlugin.isPending} disabled={!source.trim()}>
-              {t("admin.plugins.install")}
+            <Button type="submit" loading={step === "previewing"} disabled={!source.trim()}>
+              {t("admin.plugins.previewInstall")}
             </Button>
           </div>
         </form>

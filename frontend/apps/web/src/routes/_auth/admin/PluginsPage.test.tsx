@@ -13,8 +13,14 @@ const mockEnablePlugin = vi.fn();
 const mockDisablePlugin = vi.fn();
 const mockUninstallPlugin = vi.fn();
 const mockInstallPlugin = vi.fn();
+const mockEveyFetch = vi.fn();
 
 vi.mock("@evey/api", () => ({
+  eveyFetch: (...args: unknown[]) => mockEveyFetch(...args),
+  eveyFetchRaw: vi.fn(),
+  adminPluginServiceInstallPlugin: vi.fn(),
+  apiErrorMessage: (err: Error, _t: unknown, fallback: string) => err?.message || fallback,
+  NO_TIMEOUT: { timeout: 0 },
   useAdminPluginServiceListPlugins: vi.fn(() => ({ data: undefined, isLoading: true })),
   useAdminPluginServiceEnablePlugin: vi.fn(() => ({ mutate: mockEnablePlugin, isPending: false })),
   useAdminPluginServiceDisablePlugin: vi.fn(() => ({ mutate: mockDisablePlugin, isPending: false })),
@@ -126,5 +132,67 @@ describe("PluginsPage", () => {
     const PluginsPage = (mod.Route as unknown as { component: React.ComponentType }).component;
     render(React.createElement(PluginsPage), { wrapper: createWrapper() });
     expect(screen.getByText("Fetches metadata")).toBeInTheDocument();
+  });
+
+  // Install-from-URL used to install blind ("URL installs skip the preview
+  // step"): the static analysis WARNINGs were visible only once the plugin was
+  // already running. The URL form now previews the source first.
+  describe("install from URL", () => {
+    async function openUrlForm() {
+      const { useAdminPluginServiceListPlugins } = await import("@evey/api");
+      vi.mocked(useAdminPluginServiceListPlugins).mockReturnValue({ data: { plugins: [] }, isLoading: false } as ReturnType<typeof useAdminPluginServiceListPlugins>);
+      const mod = await import("./plugins.lazy");
+      const PluginsPage = (mod.Route as unknown as { component: React.ComponentType }).component;
+      render(React.createElement(PluginsPage), { wrapper: createWrapper() });
+      fireEvent.click(screen.getByRole("button", { name: /Install Plugin/i }));
+      fireEvent.click(screen.getByRole("button", { name: /From URL/i }));
+      fireEvent.change(screen.getByLabelText("Source URL"), { target: { value: " https://example.com/p.zip#sha256:abc " } });
+    }
+
+    // The page also fetches the available runtimes through eveyFetch: answer
+    // by URL so the preview stub is not consumed by that query.
+    function stubPreview(impl: () => Promise<unknown>) {
+      mockEveyFetch.mockImplementation((req: { url: string }) =>
+        req.url === "/api/v1/admin/plugins/preview" ? impl() : Promise.resolve({ runtimes: [] }),
+      );
+    }
+
+    it("previews the source and installs only after the admin confirms", async () => {
+      stubPreview(() => Promise.resolve({
+        name: "remote-plugin",
+        version: "1.2.0",
+        language: "Go",
+        permissions: ["api.library"],
+        capabilities: [],
+        analysis: { safe: true, file_count: 3, issues: ["[WARNING] overreach: docker invoked at runtime"], urls: [] },
+      }));
+      await openUrlForm();
+      expect(screen.queryByText(/skip the preview/i)).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: /Preview & Install/i }));
+      await waitFor(() => expect(screen.getByText("remote-plugin")).toBeInTheDocument());
+      expect(mockEveyFetch).toHaveBeenCalledWith({
+        url: "/api/v1/admin/plugins/preview",
+        method: "POST",
+        data: { source: "https://example.com/p.zip#sha256:abc" },
+      });
+      expect(screen.getByText("[WARNING] overreach: docker invoked at runtime")).toBeInTheDocument();
+      expect(mockInstallPlugin).not.toHaveBeenCalled();
+
+      fireEvent.click(screen.getByRole("button", { name: /Install Anyway/i }));
+      expect(mockInstallPlugin).toHaveBeenCalledWith(
+        { data: { source: "https://example.com/p.zip#sha256:abc", name: "" } },
+        expect.anything(),
+      );
+    });
+
+    it("a failed preview keeps the form and says why", async () => {
+      stubPreview(() => Promise.reject(new Error("plugin preview failed: resolve plugin source: HTTP 404")));
+      await openUrlForm();
+      fireEvent.click(screen.getByRole("button", { name: /Preview & Install/i }));
+      await waitFor(() => expect(screen.getByText(/HTTP 404/)).toBeInTheDocument());
+      expect(screen.getByLabelText("Source URL")).toBeInTheDocument();
+      expect(mockInstallPlugin).not.toHaveBeenCalled();
+    });
   });
 });

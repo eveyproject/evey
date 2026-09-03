@@ -82,3 +82,23 @@ export function parseEscalationEntries(msg: string): string[] {
     .map((s) => s.trim())
     .filter(Boolean);
 }
+
+// InstallPreview is what POST /admin/plugins/preview returns for a source:
+// the manifest facts plus the static analysis, BEFORE anything is installed.
+export interface InstallPreview {
+  name: string;
+  version: string;
+  description?: string;
+  author?: string;
+  language?: string;
+  permissions?: string[];
+  capabilities?: string[];
+  source_hash?: string;
+  analysis?: { safe?: boolean; file_count?: number; issues?: string[]; urls?: string[] };
+}
+
+// installPreviewHasWarnings mirrors the web page: a subprocess permission or
+// any analysis finding turns the confirm button into "Install anyway".
+export function installPreviewHasWarnings(p: InstallPreview): boolean {
+  return !!p.permissions?.includes("subprocess") || (p.analysis?.issues?.length ?? 0) > 0;
+}

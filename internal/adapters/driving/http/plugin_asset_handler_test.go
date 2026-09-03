@@ -4,10 +4,13 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
+	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -316,6 +319,8 @@ type stubPluginManager struct {
 	installErr    error
 	previewResult *appplugin.PluginPreview
 	previewErr    error
+	// previewedSource records what PreviewSource was asked for.
+	previewedSource string
 }
 
 func (s *stubPluginManager) InstallPlugin(_ context.Context, _ string) (*plugin.Plugin, error) {
@@ -323,6 +328,11 @@ func (s *stubPluginManager) InstallPlugin(_ context.Context, _ string) (*plugin.
 }
 
 func (s *stubPluginManager) PreviewPlugin(_ context.Context, _ string) (*appplugin.PluginPreview, error) {
+	return s.previewResult, s.previewErr
+}
+
+func (s *stubPluginManager) PreviewSource(_ context.Context, source string) (*appplugin.PluginPreview, error) {
+	s.previewedSource = source
 	return s.previewResult, s.previewErr
 }
 
@@ -334,6 +344,92 @@ func TestPluginPreview_Forbidden(t *testing.T) {
 	mux.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+// A JSON body names an install SOURCE (URL or path) to preview instead of
+// uploading a file - the install-from-URL dialogs used to skip the preview.
+func TestPluginPreview_FromSource(t *testing.T) {
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	tokenGen := auth.NewJWTGenerator(key, time.Minute)
+	adminToken, err := tokenGen.GenerateAccessToken(domainuser.Claims{UserID: "admin-1", IsAdmin: true})
+	require.NoError(t, err)
+	svc := &stubPluginManager{previewResult: &appplugin.PluginPreview{
+		Name:        "remote-plugin",
+		Version:     "1.2.0",
+		Permissions: []string{"api.library"},
+		SourceHash:  "abc",
+		Analysis: &plugin.AnalysisReport{
+			Safe:      true,
+			FileCount: 4,
+			Issues:    []string{"[WARNING] overreach: docker invoked at runtime"},
+			URLs:      []plugin.ExtractedURL{{URL: "https://example.com/ping", File: "main.js", Line: 3}},
+		},
+	}}
+	mux := http.NewServeMux()
+	registerPluginPreviewRoute(mux, tokenGen, svc, ratelimit.New(100))
+
+	t.Run("previews the source and returns the findings", func(t *testing.T) {
+		req := httptest.NewRequest("POST", "/api/v1/admin/plugins/preview",
+			strings.NewReader(`{"source":" https://example.com/plugin.zip#sha256:abc "}`))
+		req.Header.Set("Authorization", "Bearer "+adminToken)
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+
+		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+		assert.Equal(t, "https://example.com/plugin.zip#sha256:abc", svc.previewedSource)
+		var body struct {
+			Name        string   `json:"name"`
+			Permissions []string `json:"permissions"`
+			SourceHash  string   `json:"source_hash"`
+			Analysis    struct {
+				Safe   bool     `json:"safe"`
+				Issues []string `json:"issues"`
+				URLs   []string `json:"urls"`
+			} `json:"analysis"`
+		}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+		assert.Equal(t, "remote-plugin", body.Name)
+		assert.Equal(t, []string{"api.library"}, body.Permissions)
+		assert.Equal(t, "abc", body.SourceHash)
+		assert.True(t, body.Analysis.Safe)
+		assert.Equal(t, []string{"[WARNING] overreach: docker invoked at runtime"}, body.Analysis.Issues)
+		assert.Equal(t, []string{"https://example.com/ping  (main.js:3)"}, body.Analysis.URLs)
+	})
+
+	t.Run("an empty source is a 400", func(t *testing.T) {
+		req := httptest.NewRequest("POST", "/api/v1/admin/plugins/preview", strings.NewReader(`{"source":"  "}`))
+		req.Header.Set("Authorization", "Bearer "+adminToken)
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Contains(t, w.Body.String(), "plugin source required")
+	})
+
+	t.Run("a failed preview names the reason - it is the admin's input", func(t *testing.T) {
+		failing := &stubPluginManager{previewErr: errors.New("resolve plugin source: download plugin: HTTP 404")}
+		fmux := http.NewServeMux()
+		registerPluginPreviewRoute(fmux, tokenGen, failing, ratelimit.New(100))
+		req := httptest.NewRequest("POST", "/api/v1/admin/plugins/preview", strings.NewReader(`{"source":"https://example.com/missing.zip"}`))
+		req.Header.Set("Authorization", "Bearer "+adminToken)
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		fmux.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		var body map[string]string
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+		assert.Equal(t, "plugin preview failed: resolve plugin source: download plugin: HTTP 404", body["message"])
+	})
+
+	t.Run("without a token it is a 401 like the upload path", func(t *testing.T) {
+		req := httptest.NewRequest("POST", "/api/v1/admin/plugins/preview", strings.NewReader(`{"source":"https://example.com/plugin.zip"}`))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusUnauthorized, w.Code)
+	})
 }
 
 func TestPluginPreview_NoFile(t *testing.T) {

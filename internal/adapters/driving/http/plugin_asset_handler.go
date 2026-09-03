@@ -28,6 +28,9 @@ import (
 type pluginManager interface {
 	InstallPlugin(ctx context.Context, source string) (*domainplugin.Plugin, error)
 	PreviewPlugin(ctx context.Context, zipPath string) (*appplugin.PluginPreview, error)
+	// PreviewSource previews an install source (URL or path) the way
+	// InstallPlugin would resolve it, installing nothing.
+	PreviewSource(ctx context.Context, source string) (*appplugin.PluginPreview, error)
 }
 
 type cssSanitizer func(data []byte) (sanitized []byte, warnings []string)
@@ -536,6 +539,38 @@ func registerPluginPreviewRoute(mux *http.ServeMux, tokenGen domainuser.TokenGen
 		// read deadline (BodyReadTimeoutMiddleware) so it is not cut off.
 		ClearBodyReadDeadline(w)
 		r.Body = http.MaxBytesReader(w, r.Body, 100<<20) // 100MB max
+
+		// JSON body {"source": ...} = preview an install source (URL or path)
+		// instead of an uploaded file. Install-from-URL used to skip the
+		// preview entirely, so warnings and outbound URLs were only visible
+		// once the plugin was already running.
+		if strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") {
+			var body struct {
+				Source string `json:"source"`
+			}
+			if decErr := json.NewDecoder(io.LimitReader(r.Body, 64<<10)).Decode(&body); decErr != nil || strings.TrimSpace(body.Source) == "" {
+				span.SetStatus(otelcodes.Error, "plugin source required")
+				http.Error(w, `{"message":"plugin source required"}`, http.StatusBadRequest)
+				return
+			}
+			preview, previewErr := svc.PreviewSource(r.Context(), strings.TrimSpace(body.Source))
+			if previewErr != nil {
+				span.RecordError(previewErr)
+				span.SetStatus(otelcodes.Error, "preview plugin source failed")
+				slog.WarnContext(ctx, "preview plugin source", slog.Any("err", previewErr))
+				// The source is what the admin typed: a 404 on the URL or a hash
+				// mismatch is THEIR input to fix, so the reason is returned.
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusBadRequest)
+				if encErr := json.NewEncoder(w).Encode(map[string]string{"message": "plugin preview failed: " + previewErr.Error()}); encErr != nil {
+					slog.WarnContext(ctx, "encode plugin preview error", slog.Any("err", encErr))
+				}
+				return
+			}
+			writePluginPreview(ctx, w, preview)
+			return
+		}
+
 		file, _, formErr := r.FormFile("plugin")
 		if formErr != nil {
 			span.RecordError(formErr)
@@ -581,87 +616,92 @@ func registerPluginPreviewRoute(mux *http.ServeMux, tokenGen domainuser.TokenGen
 			http.Error(w, `{"message":"plugin preview failed"}`, http.StatusBadRequest)
 			return
 		}
-
-		type analysisResp struct {
-			Safe              bool     `json:"safe"`
-			Issues            []string `json:"issues"`
-			URLs              []string `json:"urls,omitempty"`
-			TotalFilesScanned int      `json:"total_files_scanned"`
-		}
-
-		perms := preview.Permissions
-		if perms == nil {
-			perms = []string{}
-		}
-		caps := preview.Capabilities
-		if caps == nil {
-			caps = []string{}
-		}
-
-		resp := struct {
-			Name         string        `json:"name"`
-			Version      string        `json:"version"`
-			Description  string        `json:"description"`
-			Author       string        `json:"author"`
-			Language     string        `json:"language"`
-			Entrypoint   string        `json:"entrypoint"`
-			Permissions  []string      `json:"permissions"`
-			Capabilities []string      `json:"capabilities"`
-			SourceHash   string        `json:"source_hash"`
-			Analysis     *analysisResp `json:"analysis,omitempty"`
-		}{
-			Name:         preview.Name,
-			Version:      preview.Version,
-			Description:  preview.Description,
-			Author:       preview.Author,
-			Language:     preview.Language,
-			Entrypoint:   preview.Entrypoint,
-			Permissions:  perms,
-			Capabilities: caps,
-			SourceHash:   preview.SourceHash,
-		}
-
-		if preview.Analysis != nil {
-			issues := preview.Analysis.Issues
-			if issues == nil {
-				issues = []string{}
-			}
-			// Surface the outbound URLs the analyzer extracted so the admin can
-			// SEE which endpoints a plugin will contact, right next to the
-			// network warning - not just that it makes network calls. Dedup by
-			// URL, annotate with the first location, cap to avoid flooding.
-			var urls []string
-			seen := make(map[string]bool)
-			for _, u := range preview.Analysis.URLs {
-				// Trim quote/backtick artifacts left by template-literal
-				// extraction so the displayed URL reads cleanly.
-				clean := strings.Trim(u.URL, "`'\"")
-				if clean == "" || seen[clean] {
-					continue
-				}
-				seen[clean] = true
-				label := clean
-				if u.File != "" {
-					label = fmt.Sprintf("%s  (%s:%d)", clean, u.File, u.Line)
-				}
-				urls = append(urls, label)
-				if len(urls) >= 100 {
-					break
-				}
-			}
-			resp.Analysis = &analysisResp{
-				Safe:              preview.Analysis.Safe,
-				Issues:            issues,
-				URLs:              urls,
-				TotalFilesScanned: preview.Analysis.FileCount,
-			}
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		if encErr := json.NewEncoder(w).Encode(resp); encErr != nil {
-			slog.WarnContext(ctx, "encode plugin preview", slog.Any("err", encErr))
-		}
+		writePluginPreview(ctx, w, preview)
 	})))
+}
+
+// writePluginPreview renders a preview as the JSON the install dialogs read,
+// whether the archive came as an upload or from a source.
+func writePluginPreview(ctx context.Context, w http.ResponseWriter, preview *appplugin.PluginPreview) {
+	type analysisResp struct {
+		Safe              bool     `json:"safe"`
+		Issues            []string `json:"issues"`
+		URLs              []string `json:"urls,omitempty"`
+		TotalFilesScanned int      `json:"total_files_scanned"`
+	}
+
+	perms := preview.Permissions
+	if perms == nil {
+		perms = []string{}
+	}
+	caps := preview.Capabilities
+	if caps == nil {
+		caps = []string{}
+	}
+
+	resp := struct {
+		Name         string        `json:"name"`
+		Version      string        `json:"version"`
+		Description  string        `json:"description"`
+		Author       string        `json:"author"`
+		Language     string        `json:"language"`
+		Entrypoint   string        `json:"entrypoint"`
+		Permissions  []string      `json:"permissions"`
+		Capabilities []string      `json:"capabilities"`
+		SourceHash   string        `json:"source_hash"`
+		Analysis     *analysisResp `json:"analysis,omitempty"`
+	}{
+		Name:         preview.Name,
+		Version:      preview.Version,
+		Description:  preview.Description,
+		Author:       preview.Author,
+		Language:     preview.Language,
+		Entrypoint:   preview.Entrypoint,
+		Permissions:  perms,
+		Capabilities: caps,
+		SourceHash:   preview.SourceHash,
+	}
+
+	if preview.Analysis != nil {
+		issues := preview.Analysis.Issues
+		if issues == nil {
+			issues = []string{}
+		}
+		// Surface the outbound URLs the analyzer extracted so the admin can
+		// SEE which endpoints a plugin will contact, right next to the
+		// network warning - not just that it makes network calls. Dedup by
+		// URL, annotate with the first location, cap to avoid flooding.
+		var urls []string
+		seen := make(map[string]bool)
+		for _, u := range preview.Analysis.URLs {
+			// Trim quote/backtick artifacts left by template-literal
+			// extraction so the displayed URL reads cleanly.
+			clean := strings.Trim(u.URL, "`'\"")
+			if clean == "" || seen[clean] {
+				continue
+			}
+			seen[clean] = true
+			label := clean
+			if u.File != "" {
+				label = fmt.Sprintf("%s  (%s:%d)", clean, u.File, u.Line)
+			}
+			urls = append(urls, label)
+			if len(urls) >= 100 {
+				break
+			}
+		}
+		resp.Analysis = &analysisResp{
+			Safe:              preview.Analysis.Safe,
+			Issues:            issues,
+			URLs:              urls,
+			TotalFilesScanned: preview.Analysis.FileCount,
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if encErr := json.NewEncoder(w).Encode(resp); encErr != nil {
+		slog.WarnContext(ctx, "encode plugin preview", slog.Any("err", encErr))
+	}
 }
 
 // extractBlockedIssues parses individual issues from the analyzer error message.

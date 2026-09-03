@@ -184,7 +184,6 @@ plugins:
   sigFileOptional: "Signature file (.zip.sig, optional)"
   sourceUrl: Source URL
   nameOptional: Name (optional)
-  urlSkipPreview: "Note: URL installs skip the preview step."
   permissions: Permissions
   capabilities: Capabilities
   staticAnalysis: Static Analysis

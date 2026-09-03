@@ -30,6 +30,8 @@ import {
   validateConfigField,
   parseEscalationEntries,
   parseBlockedIssues,
+  type InstallPreview,
+  installPreviewHasWarnings,
 } from "../../../src/components/admin/plugins/pluginConfigUtils";
 
 type Theme = ReturnType<typeof useTheme>;
@@ -360,6 +362,99 @@ function PluginLogsSection({ pluginId, theme, t }: { pluginId: string; theme: Th
         </View>
       ))}
     </ScrollView>
+  );
+}
+
+// --- Install-from-URL preview -------------------------------------------
+
+function InstallPreviewPanel({ preview, theme, t, installing, onCancel, onConfirm }: {
+  preview: InstallPreview;
+  theme: Theme;
+  t: TFunction;
+  installing: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const warn = installPreviewHasWarnings(preview);
+  const issues = preview.analysis?.issues ?? [];
+  const urls = preview.analysis?.urls ?? [];
+  return (
+    <>
+      <Text style={{ color: theme.colors.text, fontSize: 17, fontWeight: "700" }}>{preview.name}</Text>
+      <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>
+        v{preview.version}{preview.language ? ` - ${preview.language}` : ""}{preview.author ? ` - ${preview.author}` : ""}
+      </Text>
+      {preview.description ? (
+        <Text style={{ color: theme.colors.textMuted, fontSize: 13 }}>{preview.description}</Text>
+      ) : null}
+      {(preview.permissions?.length ?? 0) > 0 ? (
+        <View style={{ gap: 2 }}>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 12, fontWeight: "600" }}>{t("admin.plugins.permissions", "Permissions")}</Text>
+          <Text style={{ color: theme.colors.text, fontSize: 12, fontFamily: "monospace" }}>{preview.permissions!.join(", ")}</Text>
+        </View>
+      ) : null}
+      {(preview.capabilities?.length ?? 0) > 0 ? (
+        <View style={{ gap: 2 }}>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 12, fontWeight: "600" }}>{t("admin.plugins.capabilities", "Capabilities")}</Text>
+          <Text style={{ color: theme.colors.text, fontSize: 12, fontFamily: "monospace" }}>{preview.capabilities!.join(", ")}</Text>
+        </View>
+      ) : null}
+      {issues.length > 0 ? (
+        <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
+          <Ionicons name="alert-circle-outline" size={20} color={theme.colors.warning} />
+          <View style={{ flex: 1, gap: 4 }}>
+            {issues.map((issue, i) => (
+              <Text
+                key={i}
+                style={{
+                  color: issue.startsWith("[CRITICAL]") ? theme.colors.error : issue.startsWith("[WARNING]") ? theme.colors.warning : theme.colors.textMuted,
+                  fontSize: 12,
+                  fontFamily: "monospace",
+                }}
+              >
+                {issue}
+              </Text>
+            ))}
+          </View>
+        </View>
+      ) : null}
+      {urls.length > 0 ? (
+        <View style={{ gap: 2 }}>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 12, fontWeight: "600" }}>{t("admin.plugin.analysisReport.urls", "Detected URLs")}</Text>
+          {urls.map((u, i) => (
+            <Text key={i} style={{ color: theme.colors.textMuted, fontSize: 11, fontFamily: "monospace" }} numberOfLines={1}>{u}</Text>
+          ))}
+        </View>
+      ) : null}
+      <View style={{ flexDirection: "row", gap: theme.spacing.sm, marginTop: theme.spacing.sm }}>
+        <Pressable
+          onPress={onCancel}
+          style={{ flex: 1, alignItems: "center", paddingVertical: theme.spacing.sm + 2, borderRadius: theme.radii.md, borderWidth: 1, borderColor: theme.colors.border }}
+        >
+          <Text style={{ color: theme.colors.text, fontWeight: "600" }}>{t("common.cancel")}</Text>
+        </Pressable>
+        <Pressable
+          onPress={onConfirm}
+          disabled={installing}
+          style={{
+            flex: 1,
+            alignItems: "center",
+            paddingVertical: theme.spacing.sm + 2,
+            borderRadius: theme.radii.md,
+            backgroundColor: warn ? theme.colors.warning : theme.colors.accent,
+            opacity: installing ? 0.5 : 1,
+          }}
+        >
+          {installing ? (
+            <ActivityIndicator color={theme.colors.onAccent} size="small" />
+          ) : (
+            <Text style={{ color: theme.colors.onAccent, fontWeight: "600" }}>
+              {warn ? t("admin.plugins.installAnyway", "Install anyway") : t("admin.plugins.install", "Install")}
+            </Text>
+          )}
+        </Pressable>
+      </View>
+    </>
   );
 }
 
@@ -793,6 +888,11 @@ export default function AdminPluginsScreen() {
   const [installSource, setInstallSource] = useState("");
   const [escalationEntries, setEscalationEntries] = useState<string[]>([]);
   const [blockedIssues, setBlockedIssues] = useState<string[]>([]);
+  // Install-from-URL previews the source before installing: the static
+  // analysis WARNINGs (overreach, extracted URLs) used to be visible only once
+  // the plugin was already running.
+  const [installPreview, setInstallPreview] = useState<InstallPreview | null>(null);
+  const [previewing, setPreviewing] = useState(false);
 
   const installPlugin = useAdminPluginServiceInstallPlugin({
     mutation: {
@@ -806,6 +906,7 @@ export default function AdminPluginsScreen() {
         setInstallSource("");
         setEscalationEntries([]);
         setBlockedIssues([]);
+        setInstallPreview(null);
       },
       onError: (err: Error) => {
         const msg = err.message || "";
@@ -851,7 +952,30 @@ export default function AdminPluginsScreen() {
     setInstallSource("");
     setEscalationEntries([]);
     setBlockedIssues([]);
+    setInstallPreview(null);
   }, []);
+
+  const handlePreviewInstall = useCallback(async () => {
+    const source = installSource.trim();
+    if (!source) return;
+    setPreviewing(true);
+    try {
+      const data = await eveyFetch<InstallPreview>({
+        url: "/api/v1/admin/plugins/preview",
+        method: "POST",
+        data: { source },
+      });
+      setInstallPreview(data);
+    } catch (err) {
+      toast.error(apiErrorMessage(err as Error, t, t("admin.plugins.previewFailed", "Preview failed")));
+    } finally {
+      setPreviewing(false);
+    }
+  }, [installSource, t]);
+
+  const handleInstallPreviewed = useCallback(() => {
+    installPlugin.mutate({ data: { source: installSource.trim() } });
+  }, [installPlugin, installSource]);
 
   const renderPlugin = useCallback(({ item }: { item: Plugin }) => (
     <PluginRow
@@ -983,6 +1107,15 @@ export default function AdminPluginsScreen() {
                 </Pressable>
               </View>
             </>
+          ) : installPreview ? (
+            <InstallPreviewPanel
+              preview={installPreview}
+              theme={theme}
+              t={t}
+              installing={installPlugin.isPending}
+              onCancel={closeInstallModal}
+              onConfirm={handleInstallPreviewed}
+            />
           ) : (
             <>
               <Text style={{ color: theme.colors.text, fontSize: 17, fontWeight: "700" }}>
@@ -1017,21 +1150,21 @@ export default function AdminPluginsScreen() {
                   <Text style={{ color: theme.colors.text, fontWeight: "600" }}>{t("common.cancel")}</Text>
                 </Pressable>
                 <Pressable
-                  onPress={() => installSource.trim() && installPlugin.mutate({ data: { source: installSource.trim() } })}
-                  disabled={!installSource.trim() || installPlugin.isPending}
+                  onPress={() => void handlePreviewInstall()}
+                  disabled={!installSource.trim() || previewing}
                   style={{
                     flex: 1,
                     alignItems: "center",
                     paddingVertical: theme.spacing.sm + 2,
                     borderRadius: theme.radii.md,
                     backgroundColor: theme.colors.accent,
-                    opacity: !installSource.trim() || installPlugin.isPending ? 0.5 : 1,
+                    opacity: !installSource.trim() || previewing ? 0.5 : 1,
                   }}
                 >
-                  {installPlugin.isPending ? (
+                  {previewing ? (
                     <ActivityIndicator color={theme.colors.onAccent} size="small" />
                   ) : (
-                    <Text style={{ color: theme.colors.onAccent, fontWeight: "600" }}>{t("admin.plugins.install", "Install")}</Text>
+                    <Text style={{ color: theme.colors.onAccent, fontWeight: "600" }}>{t("admin.plugins.previewInstall", "Preview & Install")}</Text>
                   )}
                 </Pressable>
               </View>

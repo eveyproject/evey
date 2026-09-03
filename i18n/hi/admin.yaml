@@ -195,7 +195,6 @@ plugins:
   sigFileOptional: "हस्ताक्षर फ़ाइल (.zip.sig, वैकल्पिक)"
   sourceUrl: "स्रोत URL"
   nameOptional: "नाम (वैकल्पिक)"
-  urlSkipPreview: "नोट: URL इंस्टॉल पूर्वावलोकन चरण छोड़ देता है।"
   permissions: "अनुमतियां"
   capabilities: "क्षमताएं"
   staticAnalysis: "स्थैतिक विश्लेषण"

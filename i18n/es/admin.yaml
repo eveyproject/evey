@@ -195,7 +195,6 @@ plugins:
   sigFileOptional: "Archivo de firma (.zip.sig, opcional)"
   sourceUrl: "URL de origen"
   nameOptional: "Nombre (opcional)"
-  urlSkipPreview: "Nota: Las instalaciones por URL omiten el paso de vista previa."
   permissions: "Permisos"
   capabilities: "Capacidades"
   staticAnalysis: "Análisis estático"
