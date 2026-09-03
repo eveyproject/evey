@@ -395,3 +395,46 @@ func TestSearchLogs_TruncatedStillRisesOnScanBudget(t *testing.T) {
 		t.Fatal("scan budget was hit but truncated stayed false - total would read as exact")
 	}
 }
+
+// Four lines in five on a live instance are the gRPC interceptor's access log
+// of heartbeats and dashboard polls. hide_access keeps the application log and
+// the FAILED calls, which are the ones worth reading.
+func TestSearchLogs_HideAccessKeepsFailuresAndAppLogs(t *testing.T) {
+	dir := t.TempDir()
+	writeLog(t, dir, "evey-2026-09-03.log",
+		`{"time":"2026-09-03T18:00:00Z","level":"INFO","msg":"grpc unary","component":"grpc","method":"/evey.v1.PresenceService/Heartbeat","status":"OK"}`,
+		`{"time":"2026-09-03T18:00:01Z","level":"INFO","msg":"grpc stream","component":"grpc","method":"/evey.v1.X/Y","status":"OK"}`,
+		`{"time":"2026-09-03T18:00:02Z","level":"INFO","msg":"grpc unary","component":"grpc","method":"/evey.v1.UserService/Login","status":"Unauthenticated","error":"bad password"}`,
+		`{"time":"2026-09-03T18:00:03Z","level":"INFO","msg":"intro_detection: segment stored","media_id":"m1"}`,
+	)
+
+	all, err := searchLogs(dir, logSearchFilter{Limit: 100})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if all.Total != 4 {
+		t.Fatalf("without the flag every line must come back, got %d", all.Total)
+	}
+
+	res, err := searchLogs(dir, logSearchFilter{Limit: 100, HideAccess: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Total != 2 {
+		t.Fatalf("hide_access want 2 (app line + failed RPC), got %d: %+v", res.Total, res.Entries)
+	}
+	for _, e := range res.Entries {
+		if st, _ := e.Fields["status"].(string); st == "OK" {
+			t.Fatalf("a successful access line leaked through: %s", e.Raw)
+		}
+	}
+}
+
+func TestParseLogSearchFilter_HideAccess(t *testing.T) {
+	for raw, want := range map[string]bool{"": false, "0": false, "1": true, "true": true, "yes": true} {
+		r := httptest.NewRequest(http.MethodGet, "/api/v1/admin/logs/search?hide_access="+raw, nil)
+		if got := parseLogSearchFilter(r).HideAccess; got != want {
+			t.Fatalf("hide_access=%q: got %v want %v", raw, got, want)
+		}
+	}
+}

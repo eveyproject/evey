@@ -72,6 +72,10 @@ function buildSearchQS(f: FilterParams, limit: number, offset: number): string {
   if (f.sessionId) p.set("session_id", f.sessionId);
   if (f.userId) p.set("user_id", f.userId);
   if (f.mediaId) p.set("media_id", f.mediaId);
+  // Successful gRPC access lines (heartbeats, polls) are four lines in five
+  // on a live server and bury what the operator is looking for. Picking the
+  // grpc source explicitly is the way to see them.
+  if (f.source !== "grpc") p.set("hide_access", "1");
   p.set("limit", String(limit));
   p.set("offset", String(offset));
   return p.toString();

@@ -125,6 +125,15 @@ export function classifyWhere(component: string, msg: string): string {
   return "other";
 }
 
+// isAccessLog tells the gRPC interceptor's per-call access line of a call that
+// SUCCEEDED apart from everything else. On a live instance these are four
+// lines in five (heartbeats, dashboard polls) and bury the application log;
+// failed calls are not access noise and stay. Mirrors isAccessLog in Go.
+export function isAccessLog(e: LogEntry): boolean {
+  if (e.msg !== "grpc unary" && e.msg !== "grpc stream") return false;
+  return e.fields?.status === "OK";
+}
+
 function str(rec: Record<string, unknown>, key: string): string {
   const v = rec[key];
   return typeof v === "string" ? v : "";

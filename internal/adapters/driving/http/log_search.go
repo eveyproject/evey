@@ -47,6 +47,11 @@ type logSearchFilter struct {
 	Until     time.Time // zero = unbounded
 	Limit     int
 	Offset    int
+	// HideAccess drops the gRPC access-log lines of RPCs that succeeded
+	// ("grpc unary"/"grpc stream" with status OK). On a live instance they are
+	// four lines in five - heartbeats and dashboard polls - and bury the
+	// application log the operator came for. Failed RPCs stay visible.
+	HideAccess bool
 }
 
 type logSearchResult struct {
@@ -377,8 +382,22 @@ func fileModTime(path string) (time.Time, bool) {
 	return info.ModTime(), true
 }
 
+// isAccessLog tells a per-RPC access line (emitted by the gRPC logging
+// interceptor) that reports success apart from everything else. Mirrored on
+// the client for the live tail in logsClassify.ts.
+func isAccessLog(e logSearchEntry) bool {
+	if e.Msg != "grpc unary" && e.Msg != "grpc stream" {
+		return false
+	}
+	st, _ := e.Fields["status"].(string)
+	return st == "OK"
+}
+
 func matchLog(e logSearchEntry, f logSearchFilter) bool {
 	if len(f.Levels) > 0 && !f.Levels[e.Level] {
+		return false
+	}
+	if f.HideAccess && isAccessLog(e) {
 		return false
 	}
 	if f.Where != "" && e.Where != f.Where {

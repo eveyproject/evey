@@ -1,8 +1,8 @@
-import { memo, useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { memo, useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useTranslation } from "react-i18next";
-import { Search, Radio, ChevronRight, Copy, SlidersHorizontal, AlertTriangle } from "lucide-react";
+import { Search, Radio, ChevronRight, Copy, SlidersHorizontal, AlertTriangle, ArrowUp } from "lucide-react";
 import { eveyFetch, getBaseURL, useUserServiceListUsers, useUserServiceListAllProfiles } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { Select } from "@/components/ui/Select";
@@ -19,6 +19,7 @@ import {
   WHERE_VALUES,
   SOURCE_VALUES,
   parseLogLine,
+  isAccessLog,
 } from "./logsClassify";
 
 const LEVELS = ["ERROR", "WARN", "INFO", "DEBUG"] as const;
@@ -36,6 +37,17 @@ interface FilterParams {
   sessionId: string;
   userId: string;
   mediaId: string;
+  // Show the gRPC interceptor's per-call access lines of SUCCESSFUL calls.
+  // Off by default: on a live server they are four lines in five (heartbeats,
+  // dashboard polls) and were all the operator saw in the live tail. Picking
+  // the grpc source explicitly also shows them.
+  showAccess: boolean;
+}
+
+// hidesAccess is the one predicate both the server query and the live-tail
+// client filter derive from.
+function hidesAccess(f: FilterParams): boolean {
+  return !f.showAccess && f.source !== "grpc";
 }
 
 function levelVariant(level: string): "error" | "warning" | "info" | "default" {
@@ -79,6 +91,7 @@ function buildSearchQS(f: FilterParams, limit: number, offset: number): string {
   if (f.sessionId) p.set("session_id", f.sessionId);
   if (f.userId) p.set("user_id", f.userId);
   if (f.mediaId) p.set("media_id", f.mediaId);
+  if (hidesAccess(f)) p.set("hide_access", "1");
   p.set("limit", String(limit));
   p.set("offset", String(offset));
   return p.toString();
@@ -94,6 +107,7 @@ function matchClient(e: LogEntry, f: FilterParams): boolean {
   if (f.userId && e.userId !== f.userId) return false;
   if (f.mediaId && e.mediaId !== f.mediaId) return false;
   if (f.q && !e.raw.toLowerCase().includes(f.q.toLowerCase())) return false;
+  if (hidesAccess(f) && isAccessLog(e)) return false;
   return true;
 }
 
@@ -104,9 +118,21 @@ function matchClient(e: LogEntry, f: FilterParams): boolean {
 // `who` resolves user/profile ids to names (see logIdentities.ts). It is a
 // prop, not a hook call: the row is memoised per entry and the index changes
 // only when the account listing does.
-const LogRow = memo(function LogRow({ entry, who }: { entry: LogEntry; who: IdentityIndex }) {
+// `open` is owned by the explorer, not the row: the live tail anchors the
+// viewport on an expanded row as new lines pile up above it, so the parent has
+// to know which rows are open.
+const LogRow = memo(function LogRow({
+  entry,
+  who,
+  open,
+  onToggle,
+}: {
+  entry: LogEntry;
+  who: IdentityIndex;
+  open: boolean;
+  onToggle: (uid: string) => void;
+}) {
   const { t } = useTranslation();
-  const [open, setOpen] = useState(false);
   const copy = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
@@ -130,7 +156,7 @@ const LogRow = memo(function LogRow({ entry, who }: { entry: LogEntry; who: Iden
     >
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => onToggle(entry.uid)}
         className="w-full flex items-start gap-2 px-3 py-1.5 text-left hover:bg-[var(--surface-raised)] transition-colors-fast"
         aria-expanded={open}
       >
@@ -217,6 +243,24 @@ export function LogsExplorer() {
   // search over history (toggle off for forensic queries).
   const [live, setLive] = useState(true);
   const [liveEntries, setLiveEntries] = useState<LogEntry[]>([]);
+  const [showAccess, setShowAccess] = useState(false);
+  // Which rows are expanded, by entry uid. Lives here (not in the row) because
+  // an open row is what pins the live viewport - see the anchor below.
+  const [openUids, setOpenUids] = useState<ReadonlySet<string>>(() => new Set());
+  const toggleOpen = useCallback((uid: string) => {
+    setOpenUids((prev) => {
+      const next = new Set(prev);
+      if (next.has(uid)) next.delete(uid);
+      else next.add(uid);
+      return next;
+    });
+  }, []);
+  // Live lines that arrived above an anchored viewport and are therefore out
+  // of sight; surfaced as a "N new lines" pill that jumps back to the top.
+  const [hiddenAbove, setHiddenAbove] = useState(0);
+  // The entry the live viewport is pinned to, if any (see the anchor block
+  // further down). Declared here because the SSE effect consults it.
+  const anchorRef = useRef<{ uid: string; delta: number } | null>(null);
 
   // Debounce the free-text box so we don't refetch on every keystroke.
   useEffect(() => {
@@ -238,8 +282,9 @@ export function LogsExplorer() {
       sessionId: sessionId.trim(),
       userId: resolveUserFilter(users, userId),
       mediaId: mediaId.trim(),
+      showAccess,
     }),
-    [levels, where, source, q, sessionId, userId, mediaId, users],
+    [levels, where, source, q, sessionId, userId, mediaId, users, showAccess],
   );
 
   const { data, isLoading, isError, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
@@ -272,12 +317,16 @@ export function LogsExplorer() {
   useEffect(() => {
     if (!live) return;
     setLiveEntries([]);
+    setOpenUids(new Set());
+    setHiddenAbove(0);
+    anchorRef.current = null;
     const ctrl = new AbortController();
     const handleLine = (line: string) => {
       if (!line.startsWith("data:")) return;
       const entry = parseLogLine(line.slice(5).trimStart());
       if (!entry || !matchClient(entry, filters)) return;
       setLiveEntries((prev) => [entry, ...prev].slice(0, LIVE_CAP));
+      if (anchorRef.current) setHiddenAbove((n) => n + 1);
     };
     (async () => {
       while (!ctrl.signal.aborted) {
@@ -351,6 +400,55 @@ export function LogsExplorer() {
     if (last.index >= entries.length - 1 && hasNextPage && !isFetchingNextPage) fetchNextPage();
   }, [live, virtualItems, entries.length, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
+  // Live-tail viewport anchor. New lines are PREPENDED, so without help every
+  // arrival slides the whole list down by one row under the reader's eyes -
+  // the one thing that made an expanded entry impossible to read or copy. The
+  // viewport follows the stream only while it sits at the top with nothing
+  // expanded; otherwise it is pinned to the entry it was on (`uid` plus how far
+  // into it the viewport had scrolled) and re-placed after every render from
+  // the virtualizer's measurements, which also absorbs the estimate-to-measured
+  // height corrections of the rows piling up above.
+  const captureAnchor = useCallback(() => {
+    const el = parentRef.current;
+    if (!el || !live) return;
+    if (el.scrollTop <= 0 && openUids.size === 0) {
+      anchorRef.current = null;
+      setHiddenAbove(0);
+      return;
+    }
+    const item = virtualizer.measurementsCache.find((m) => m.end > el.scrollTop);
+    if (!item) return;
+    anchorRef.current = { uid: String(item.key), delta: el.scrollTop - item.start };
+  }, [live, openUids, virtualizer]);
+  // Expanding a row while following the stream is what starts the pinning.
+  useEffect(() => {
+    if (openUids.size > 0 && !anchorRef.current) captureAnchor();
+    if (openUids.size === 0 && parentRef.current && parentRef.current.scrollTop <= 0) {
+      anchorRef.current = null;
+      setHiddenAbove(0);
+    }
+  }, [openUids, captureAnchor]);
+  useLayoutEffect(() => {
+    const anchor = anchorRef.current;
+    const el = parentRef.current;
+    if (!live || !anchor || !el) return;
+    const index = entries.findIndex((e) => e.uid === anchor.uid);
+    if (index < 0) {
+      // Fell off the LIVE_CAP window: nothing left to pin to.
+      anchorRef.current = null;
+      return;
+    }
+    const m = virtualizer.measurementsCache[index];
+    if (!m) return;
+    const want = m.start + anchor.delta;
+    if (Math.abs(el.scrollTop - want) > 1) el.scrollTop = want;
+  });
+  const jumpToTop = useCallback(() => {
+    anchorRef.current = null;
+    setHiddenAbove(0);
+    if (parentRef.current) parentRef.current.scrollTop = 0;
+  }, []);
+
   const toggleLevel = useCallback((l: string) => {
     setLevels((prev) => (prev.includes(l) ? prev.filter((x) => x !== l) : [...prev, l]));
   }, []);
@@ -408,6 +506,9 @@ export function LogsExplorer() {
               {l}
             </FilterChip>
           ))}
+          <FilterChip active={showAccess} onClick={() => setShowAccess((v) => !v)}>
+            {t("admin.logs.accessLog")}
+          </FilterChip>
           <button
             type="button"
             onClick={() => setShowAdvanced((v) => !v)}
@@ -450,7 +551,19 @@ export function LogsExplorer() {
         ) : entries.length === 0 ? (
           <EmptyState icon={<Search size={ICON["3xl"]} strokeWidth={1.5} />} title={t("admin.logs.empty")} />
         ) : (
-          <div ref={parentRef} className="max-h-[70vh] overflow-auto">
+          <div ref={parentRef} onScroll={captureAnchor} data-testid="log-viewport" className="relative max-h-[70vh] overflow-auto">
+            {hiddenAbove > 0 && (
+              <div className="sticky top-2 z-10 flex h-0 justify-center overflow-visible">
+                <button
+                  type="button"
+                  onClick={jumpToTop}
+                  className="flex items-center gap-1.5 rounded-full border border-[var(--accent)] bg-[var(--surface)] px-3 py-1 text-xs font-medium text-[var(--accent)] shadow transition-colors-fast hover:bg-[var(--surface-raised)]"
+                >
+                  <ArrowUp size={ICON.xs} aria-hidden="true" />
+                  {t("admin.logs.newLines", { count: hiddenAbove })}
+                </button>
+              </div>
+            )}
             <div style={{ height: virtualizer.getTotalSize(), width: "100%", position: "relative" }}>
               {virtualItems.map((vItem) => {
                 const entry = entries[vItem.index];
@@ -461,7 +574,7 @@ export function LogsExplorer() {
                     ref={virtualizer.measureElement}
                     style={{ position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${vItem.start}px)` }}
                   >
-                    <LogRow entry={entry} who={who} />
+                    <LogRow entry={entry} who={who} open={openUids.has(entry.uid)} onToggle={toggleOpen} />
                   </div>
                 );
               })}

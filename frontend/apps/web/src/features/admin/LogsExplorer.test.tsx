@@ -59,21 +59,22 @@ vi.mock("@tanstack/react-virtual", () => ({
     const maxStart = Math.max(0, opts.count - windowSize);
     const start = Math.min(windowStart, maxStart);
     const end = Math.min(opts.count, start + windowSize);
-    const items = Array.from({ length: Math.max(0, end - start) }, (_, i) => {
-      const idx = start + i;
-      // Mirror the real hook: the item key comes from getItemKey when the
-      // caller provides one, and only falls back to the index otherwise.
-      return {
-        index: idx,
-        key: opts.getItemKey ? opts.getItemKey(idx) : idx,
-        start: idx * opts.estimateSize(idx),
-        size: opts.estimateSize(idx),
-      };
-    });
+    // Mirror the real hook: the item key comes from getItemKey when the
+    // caller provides one, and only falls back to the index otherwise.
+    const measurementsCache = Array.from({ length: opts.count }, (_, idx) => ({
+      index: idx,
+      key: opts.getItemKey ? opts.getItemKey(idx) : idx,
+      start: idx * opts.estimateSize(idx),
+      size: opts.estimateSize(idx),
+      end: (idx + 1) * opts.estimateSize(idx),
+      lane: 0,
+    }));
+    const items = measurementsCache.slice(start, Math.max(start, end));
     return {
       getVirtualItems: () => items,
       getTotalSize: () => opts.count * opts.estimateSize(0),
       measureElement,
+      measurementsCache,
     };
   },
 }));
@@ -362,6 +363,100 @@ describe("LogsExplorer", () => {
       expect(screen.queryByText("detail-second")).not.toBeInTheDocument();
     } finally {
       fetchSpy.mockRestore();
+    }
+  });
+
+  // A live SSE source that survives reconnects: the explorer re-opens the
+  // stream on every filter change, and a Response body can only be read once,
+  // so each fetch gets its own stream and `push` always feeds the latest one.
+  function liveSource() {
+    const enc = new TextEncoder();
+    const controllers: ReadableStreamDefaultController<Uint8Array>[] = [];
+    const spy = vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
+      new Response(
+        new ReadableStream<Uint8Array>({ start(c) { controllers.push(c); } }),
+        { status: 200 },
+      ),
+    );
+    return {
+      spy,
+      push: (rec: Record<string, unknown>) =>
+        controllers[controllers.length - 1].enqueue(enc.encode(`data: ${JSON.stringify(rec)}\n\n`)),
+    };
+  }
+
+  it("hides successful gRPC access lines from the live tail until the access chip is on", async () => {
+    // Measured on the live instance: four lines in five are the interceptor's
+    // "grpc unary" access log of heartbeats and dashboard polls. That is what
+    // the operator saw instead of the log they came for.
+    const src = liveSource();
+    try {
+      renderExplorer();
+      await waitFor(() => expect(src.spy).toHaveBeenCalledTimes(1));
+      src.push({ time: "2026-09-03T18:00:00Z", level: "INFO", msg: "grpc unary", component: "grpc", method: "/evey.v1.PresenceService/Heartbeat", status: "OK" });
+      src.push({ time: "2026-09-03T18:00:01Z", level: "INFO", msg: "grpc unary", component: "grpc", method: "/evey.v1.UserService/Login", status: "Unauthenticated" });
+      src.push({ time: "2026-09-03T18:00:02Z", level: "INFO", msg: "intro_detection: segment stored" });
+      await screen.findByText("intro_detection: segment stored");
+      // Of the two "grpc unary" lines only the FAILED call is not noise: one
+      // access row on screen, and it is that one.
+      expect(screen.getAllByText("grpc unary")).toHaveLength(1);
+      await userEvent.click(screen.getByRole("button", { name: /grpc unary/ }));
+      expect(screen.getByText("Unauthenticated")).toBeInTheDocument();
+
+      await userEvent.click(screen.getByRole("button", { name: /gRPC access log/i }));
+      await waitFor(() => expect(src.spy).toHaveBeenCalledTimes(2));
+      src.push({ time: "2026-09-03T18:00:03Z", level: "INFO", msg: "grpc unary", component: "grpc", method: "/evey.v1.PresenceService/Heartbeat", status: "OK" });
+      await screen.findByText("grpc unary");
+    } finally {
+      src.spy.mockRestore();
+    }
+  });
+
+  it("asks the history search to hide access lines unless the chip is on", async () => {
+    await renderExplorerOnHistory();
+    await waitFor(() => expect(mockFetch).toHaveBeenCalled());
+    const firstUrl = (mockFetch.mock.calls[0][0] as { url: string }).url;
+    expect(firstUrl).toContain("hide_access=1");
+
+    await userEvent.click(screen.getByRole("button", { name: /gRPC access log/i }));
+    await waitFor(() => {
+      const last = mockFetch.mock.calls[mockFetch.mock.calls.length - 1][0] as { url: string };
+      expect(last.url).not.toContain("hide_access");
+    });
+  });
+
+  it("pins the viewport on an expanded live row while new lines pile up above it", async () => {
+    // Lines are prepended, so every arrival used to slide the open row down by
+    // one height under the reader. The viewport is now re-placed on the entry
+    // it was on, and the lines that arrived out of sight are counted in a pill
+    // that jumps back to the top of the stream.
+    const src = liveSource();
+    try {
+      renderExplorer();
+      await waitFor(() => expect(src.spy).toHaveBeenCalledTimes(1));
+      src.push({ time: "2026-09-03T18:00:00Z", level: "INFO", msg: "first line" });
+      const firstRow = await screen.findByRole("button", { name: /first line/ });
+      const viewport = screen.getByTestId("log-viewport");
+      // jsdom does no layout: give the scroll container a real, writable
+      // scrollTop so the anchor arithmetic is observable.
+      Object.defineProperty(viewport, "scrollTop", { value: 0, writable: true, configurable: true });
+
+      await userEvent.click(firstRow);
+      src.push({ time: "2026-09-03T18:00:01Z", level: "INFO", msg: "second line" });
+      src.push({ time: "2026-09-03T18:00:02Z", level: "INFO", msg: "third line" });
+      await screen.findByText("third line");
+
+      // Two rows (40px each in the mocked virtualizer) now sit above the open
+      // one; the viewport moved down by exactly that, so the row did not.
+      await waitFor(() => expect(viewport.scrollTop).toBe(80));
+      expect(screen.getByRole("button", { name: /first line/ })).toHaveAttribute("aria-expanded", "true");
+      const pill = screen.getByRole("button", { name: /2 new lines above/ });
+
+      await userEvent.click(pill);
+      expect(viewport.scrollTop).toBe(0);
+      expect(screen.queryByRole("button", { name: /new lines? above/ })).not.toBeInTheDocument();
+    } finally {
+      src.spy.mockRestore();
     }
   });
 });

@@ -169,6 +169,10 @@ func parseLogSearchFilter(r *http.Request) logSearchFilter {
 		// never accepts an offset it would answer with a silent empty page.
 		Offset: parseLogSearchInt(q.Get("offset"), 0, logRetainCapMax),
 	}
+	switch strings.ToLower(q.Get("hide_access")) {
+	case "1", "true", "yes":
+		f.HideAccess = true
+	}
 	return f
 }
 

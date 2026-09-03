@@ -27,6 +27,7 @@ vi.mock("@tanstack/react-virtual", () => ({
     return {
       getVirtualItems: () => items,
       getTotalSize: () => offset,
+      measurementsCache: items,
       measureElement: () => {},
       options: { scrollMargin: opts.scrollMargin ?? 0 },
     };
