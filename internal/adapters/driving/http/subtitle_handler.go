@@ -8,12 +8,13 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"os/exec"
 	"path/filepath"
 	"runtime/debug"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/evey-project/evey/internal/pkg/procfork"
 
 	"github.com/evey-project/evey/internal/pkg/langcode"
 	extmkv "github.com/gravity-zero/mkvgo/mkv"
@@ -148,12 +149,16 @@ func subtitleHandler(libSvc MediaStreamsGetter, baseURL string, libraryAccess Li
 
 		ctx, cancel := context.WithCancel(r.Context())
 		defer cancel()
-		cmd := exec.CommandContext(ctx, "ffmpeg",
+		cmd, finish, err := procfork.Command(ctx, procfork.Options{Class: procfork.Interactive, Site: "http.subtitle", NoNice: true}, "ffmpeg",
 			"-i", filePath,
 			"-map", fmt.Sprintf("0:s:%d", trackIndex),
 			"-f", "webvtt",
 			"-",
 		)
+		if err != nil {
+			logInternal(ctx, "ffmpeg subtitle refused", err)
+			return
+		}
 		w.Header().Set("Content-Type", "text/vtt; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-cache")
 		setCORSHeaders(w, r, baseURL)
@@ -171,7 +176,7 @@ func subtitleHandler(libSvc MediaStreamsGetter, baseURL string, libraryAccess Li
 			<-r.Context().Done()
 			cancel()
 		}()
-		if err := cmd.Wait(); err != nil && ctx.Err() == nil {
+		if err := finish(cmd.Wait(), nil); err != nil && ctx.Err() == nil {
 			slog.WarnContext(ctx, "ffmpeg subtitle", slog.String("media_id", mediaID), slog.Any("err", err))
 		}
 	}
@@ -363,7 +368,11 @@ func serveExternalSubtitle(w http.ResponseWriter, r *http.Request, path, baseDir
 	}
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "ffmpeg", "-i", safePath, "-f", "webvtt", "-")
+	cmd, finish, err := procfork.Command(ctx, procfork.Options{Class: procfork.Interactive, Site: "http.external_subtitle", NoNice: true}, "ffmpeg", "-i", safePath, "-f", "webvtt", "-")
+	if err != nil {
+		slog.WarnContext(r.Context(), "ffmpeg external subtitle refused", slog.Any("err", err))
+		return
+	}
 	w.Header().Set("Content-Type", "text/vtt; charset=utf-8")
 	cmd.Stdout = w
 	if err := cmd.Start(); err != nil {
@@ -379,7 +388,7 @@ func serveExternalSubtitle(w http.ResponseWriter, r *http.Request, path, baseDir
 		<-r.Context().Done()
 		cancel()
 	}()
-	if err := cmd.Wait(); err != nil && ctx.Err() == nil {
+	if err := finish(cmd.Wait(), nil); err != nil && ctx.Err() == nil {
 		slog.WarnContext(r.Context(), "ffmpeg external subtitle convert", slog.String("path", safePath), slog.Any("err", err))
 	}
 }

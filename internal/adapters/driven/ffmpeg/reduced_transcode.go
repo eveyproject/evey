@@ -38,12 +38,13 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/evey-project/evey/internal/pkg/procfork"
 
 	domainmkv "github.com/evey-project/evey/internal/domain/mkv"
 	"github.com/evey-project/evey/internal/domain/transcoding"
@@ -85,9 +86,9 @@ func NewReducedTranscoder(ffmpegPath string) *ReducedTranscoder {
 //   - "-segment_list ... -segment_list_flags +live": the list gains a line
 //     when a slice is CLOSED. That is the readiness signal the handler serves
 //     on; the file merely existing means ffmpeg is still writing into it.
-//   - "-max_interleave_delta 0": subtitle tracks are sparse, and the default
-//     interleaver will hold a segment open waiting for the next subtitle
-//     packet. On a film with few subtitles that stalls delivery for minutes.
+//   - no "-max_interleave_delta 0": zero means "buffer until every stream has
+//     a packet", so a sparse subtitle track held minutes of encoded video in
+//     memory and stalled delivery. The default 10 s bound is the fix.
 //   - no "-map_chapters": chapter timestamps are whole-file, and copying them
 //     into every timestamp-reset slice would produce garbage after the join.
 //     Chapters are a known, accepted loss on the reduced variant.
@@ -142,7 +143,6 @@ func BuildReducedArgs(src, pattern, listPath string, spec reduceddl.Spec) []stri
 	args = append(args, transcoding.AudioDownmixArgs(2)...)
 	args = append(args,
 		"-c:s", "copy",
-		"-max_interleave_delta", "0",
 		"-f", "segment",
 		"-segment_format", "matroska",
 		"-segment_time", strconv.Itoa(slice),
@@ -190,9 +190,11 @@ func (t *ReducedTranscoder) TranscodeReducedSlices(ctx context.Context, src, dir
 
 	pattern := filepath.Join(dir, reduceddl.SlicePattern)
 	listPath := filepath.Join(dir, reduceddl.ListName(spec.StartSlice))
-	argv := append([]string{"-n", "19", t.ffmpegPath, "-progress", "pipe:1", "-nostats"},
-		BuildReducedArgs(src, pattern, listPath, spec)...)
-	cmd := exec.CommandContext(ctx, "nice", argv...)
+	argv := append([]string{"-progress", "pipe:1", "-nostats"}, BuildReducedArgs(src, pattern, listPath, spec)...)
+	cmd, finish, err := procfork.Command(ctx, procfork.Options{Class: procfork.Production, Site: "reduced.transcode", Source: procfork.Source{Width: spec.SourceWidth, Height: spec.SourceHeight, TenBit: spec.SourceTenBit}}, t.ffmpegPath, argv...)
+	if err != nil {
+		return fmt.Errorf("reduced-transcode: %w", err)
+	}
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	stdout, err := cmd.StdoutPipe()
@@ -206,7 +208,7 @@ func (t *ReducedTranscoder) TranscodeReducedSlices(ctx context.Context, src, dir
 	// left of it: the user's progress bar must not jump back to 0.
 	offsetMs := int64(spec.StartSec * 1000)
 	scanReducedProgress(stdout, durationMs, offsetMs, onProgress)
-	if err := cmd.Wait(); err != nil {
+	if err := finish(cmd.Wait(), stderr.Bytes()); err != nil {
 		return fmt.Errorf("reduced-transcode: ffmpeg: %w: %s", err, firstLine(stderr.Bytes()))
 	}
 	return nil

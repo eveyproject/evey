@@ -22,12 +22,13 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/evey-project/evey/internal/pkg/procfork"
 
 	domainmkv "github.com/evey-project/evey/internal/domain/mkv"
 	"github.com/evey-project/evey/internal/domain/transcoding"
@@ -112,8 +113,11 @@ func (t *CompatTranscoder) TranscodeCompat(ctx context.Context, src, dst string,
 	defer cancel()
 	// "-progress pipe:1" streams key=value lines on stdout (stderr keeps the
 	// error text); "-nostats" silences the human status line.
-	argv := append([]string{"-n", "19", t.ffmpegPath, "-progress", "pipe:1", "-nostats"}, BuildCompatArgs(src, dst)...)
-	cmd := exec.CommandContext(ctx, "nice", argv...)
+	argv := append([]string{"-progress", "pipe:1", "-nostats"}, BuildCompatArgs(src, dst)...)
+	cmd, finish, err := procfork.Command(ctx, procfork.Options{Class: procfork.Production, Site: "compat.transcode"}, t.ffmpegPath, argv...)
+	if err != nil {
+		return fmt.Errorf("compat-transcode: %w", err)
+	}
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	stdout, err := cmd.StdoutPipe()
@@ -124,7 +128,7 @@ func (t *CompatTranscoder) TranscodeCompat(ctx context.Context, src, dst string,
 		return fmt.Errorf("compat-transcode: start ffmpeg: %w", err)
 	}
 	scanCompatProgress(stdout, durationMs, onProgress)
-	if err := cmd.Wait(); err != nil {
+	if err := finish(cmd.Wait(), stderr.Bytes()); err != nil {
 		return fmt.Errorf("compat-transcode: ffmpeg: %w: %s", err, firstLine(stderr.Bytes()))
 	}
 	return nil

@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os/exec"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/evey-project/evey/internal/pkg/procfork"
 
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
@@ -47,8 +48,7 @@ func NewChromaprinter(binary string) *Chromaprinter {
 func (c *Chromaprinter) Available(ctx context.Context) error {
 	ctx, span := tracing.StartSpan(ctx, "ffmpeg.chromaprint.Available")
 	defer span.End()
-	cmd := exec.CommandContext(ctx, c.binary, "-version")
-	if err := cmd.Run(); err != nil {
+	if err := procfork.Run(ctx, procfork.Options{Class: procfork.Probe, Site: "chromaprint.version"}, c.binary, "-version"); err != nil {
 		return fmt.Errorf("fpcalc -version: %w", err)
 	}
 	return nil
@@ -93,7 +93,10 @@ func (c *Chromaprinter) Compute(ctx context.Context, filePath string, startSec, 
 	)
 	// The decode side of the fpcalc pipe reads up to 12 minutes of media - an
 	// I/O profile, demoted on both axes like every other background scan.
-	ffmpegCmd := lowPriorityCommand(ctx, "ffmpeg", ffmpegArgs...)
+	ffmpegCmd, finishFFmpeg, err := procfork.Command(ctx, procfork.Options{Class: procfork.Scan, Site: "chromaprint.decode"}, "ffmpeg", ffmpegArgs...)
+	if err != nil {
+		return nil, err
+	}
 	pipe, err := ffmpegCmd.StdoutPipe()
 	if err != nil {
 		return nil, fmt.Errorf("ffmpeg stdout pipe: %w", err)
@@ -106,12 +109,21 @@ func (c *Chromaprinter) Compute(ctx context.Context, filePath string, startSec, 
 	// drained pipe, so the whole fingerprint pauses and resumes cleanly.
 	stopPause := pauseProcessWhileBusy(ffmpegCmd.Process, c.busy)
 
-	fpCmd := exec.CommandContext(ctx, c.binary, "-raw", "-length", strconv.FormatFloat(lengthSec, 'f', 0, 64), "-")
+	// fpcalc is not ffmpeg: no -threads injection (UnboundedThreads).
+	fpCmd, finishFp, err := procfork.Command(ctx, procfork.Options{Class: procfork.Scan, Site: "chromaprint.fpcalc", UnboundedThreads: true},
+		c.binary, "-raw", "-length", strconv.FormatFloat(lengthSec, 'f', 0, 64), "-")
+	if err != nil {
+		_ = ffmpegCmd.Process.Kill()
+		_ = finishFFmpeg(ffmpegCmd.Wait(), nil) //nolint:errcheck // the refusal is the error being returned
+		stopPause()
+		return nil, err
+	}
 	fpCmd.Stdin = pipe
 	out, fpErr := fpCmd.Output()
+	fpErr = finishFp(fpErr, nil)
 	// Wait for ffmpeg to finish so we don't leak the process; ignore its exit
 	// status because EOF on stdout is normal once fpcalc closed the pipe.
-	_ = ffmpegCmd.Wait()
+	_ = finishFFmpeg(ffmpegCmd.Wait(), nil) //nolint:errcheck // EOF on stdout is normal once fpcalc closed the pipe
 	stopPause()
 	if fpErr != nil {
 		return nil, fmt.Errorf("fpcalc: %w", fpErr)

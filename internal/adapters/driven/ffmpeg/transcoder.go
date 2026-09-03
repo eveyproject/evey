@@ -14,6 +14,8 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/evey-project/evey/internal/pkg/procfork"
+
 	"github.com/evey-project/evey/internal/domain/transcoding"
 )
 
@@ -42,7 +44,13 @@ func (t *Transcoder) Start(ctx context.Context, job *transcoding.TranscodeJob) (
 	args := t.BuildTranscodeArgs(job)
 
 	jobCtx, cancel := detachedJobContext(ctx)
-	cmd := exec.CommandContext(jobCtx, t.binaryPath, args...)
+	// GPU drivers map address space far beyond RSS: no RLIMIT_AS on the HW path.
+	hw := job.HWAccelType != "" && transcoding.HWAccelType(job.HWAccelType) != transcoding.None
+	cmd, finish, err := procfork.Command(jobCtx, procfork.Options{Class: procfork.Production, Site: "transcoder.job", NoMemCap: hw}, t.binaryPath, args...)
+	if err != nil {
+		cancel()
+		return "", err
+	}
 
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
@@ -69,7 +77,7 @@ func (t *Transcoder) Start(ctx context.Context, job *transcoding.TranscodeJob) (
 			if r := recover(); r != nil {
 				slog.ErrorContext(jobCtx, "transcoder: panic in stderr reader", slog.Any("panic", r), slog.String("jobID", job.ID))
 			}
-			if err := cmd.Wait(); err != nil {
+			if err := finish(cmd.Wait(), nil); err != nil {
 				slog.WarnContext(jobCtx, "transcoder wait", slog.String("jobID", job.ID), slog.Any("err", err))
 			}
 			t.jobs.Delete(job.ID)

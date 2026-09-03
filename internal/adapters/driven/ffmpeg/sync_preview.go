@@ -16,13 +16,13 @@ package ffmpeg
 //     nobody can open is not a preview.
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
+
+	"github.com/evey-project/evey/internal/pkg/procfork"
 
 	appmaintenance "github.com/evey-project/evey/internal/app/maintenance"
 	"github.com/evey-project/evey/internal/pkg/tracing"
@@ -74,11 +74,8 @@ func (p *SyncPreview) RenderSyncPreview(ctx context.Context, req appmaintenance.
 		"-movflags", "+faststart",
 		out,
 	}
-	cmd := exec.CommandContext(ctx, p.ffmpegPath, args...) //nolint:gosec // operator media path, fixed binary
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	if runErr := cmd.Run(); runErr != nil {
-		return nil, fmt.Errorf("sync preview: render: %w: %s", runErr, stderr.String())
+	if log, runErr := procfork.CombinedOutput(ctx, procfork.Options{Class: procfork.Interactive, Site: "sync_preview.render"}, p.ffmpegPath, args...); runErr != nil {
+		return nil, fmt.Errorf("sync preview: render: %w: %s", runErr, log)
 	}
 
 	data, err := os.ReadFile(out) //nolint:gosec // path built here, inside our own temp dir

@@ -16,9 +16,10 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"os/exec"
 	"strconv"
 	"strings"
+
+	"github.com/evey-project/evey/internal/pkg/procfork"
 
 	"github.com/evey-project/evey/internal/domain/mkv"
 )
@@ -90,12 +91,11 @@ func (p *AudioIntegrity) ProbeAudioIntegrity(ctx context.Context, path string) (
 // ffmpeg's log, where the filter reports every stretch it found.
 func (p *AudioIntegrity) silenceLog(ctx context.Context, path string, track int) (string, error) {
 	filter := fmt.Sprintf("silencedetect=n=%vdB:d=%v", integritySilenceDB, mkv.AudioIntegritySilenceSec)
-	cmd := exec.CommandContext(ctx, p.ffmpegPath, //nolint:gosec // operator media path, fixed binary
+	out, err := procfork.CombinedOutput(ctx, procfork.Options{Class: procfork.Scan, Site: "audio_integrity.silence"}, p.ffmpegPath,
 		"-v", "info", "-nostats", "-nostdin",
 		"-vn", "-sn", "-dn",
 		"-i", path, "-map", fmt.Sprintf("0:a:%d", track),
 		"-af", filter, "-f", "null", "-")
-	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("silencedetect: %w: %s", err, firstLine(out))
 	}
@@ -139,9 +139,9 @@ func parseSilenceLog(log string, durationSec float64) (audibleSec float64, stret
 
 // audioStreamCodecs lists the codec of every audio stream, in audio order.
 func audioStreamCodecs(ctx context.Context, ffprobePath, path string) ([]string, error) {
-	out, err := exec.CommandContext(ctx, ffprobePath, //nolint:gosec // operator media path, fixed binary
+	out, err := procfork.Output(ctx, procfork.Options{Class: procfork.Probe, Site: "audio_integrity.codecs"}, ffprobePath,
 		"-v", "error", "-select_streams", "a",
-		"-show_entries", "stream=codec_name", "-of", "csv=p=0", path).Output()
+		"-show_entries", "stream=codec_name", "-of", "csv=p=0", path)
 	if err != nil {
 		return nil, fmt.Errorf("audio integrity: streams: %w", err)
 	}
@@ -159,9 +159,9 @@ func audioStreamCodecs(ctx context.Context, ffprobePath, path string) ([]string,
 // distinct sizes seen - capped, because past a handful the codec is simply
 // variable-frame.
 func audioPacketSizeSets(ctx context.Context, ffprobePath, path string) (map[int]map[int]struct{}, error) {
-	out, err := exec.CommandContext(ctx, ffprobePath, //nolint:gosec // operator media path, fixed binary
+	out, err := procfork.Output(ctx, procfork.Options{Class: procfork.Probe, Site: "audio_integrity.packets"}, ffprobePath,
 		"-v", "error", "-select_streams", "a",
-		"-show_entries", "packet=stream_index,size", "-of", "csv=p=0", path).Output()
+		"-show_entries", "packet=stream_index,size", "-of", "csv=p=0", path)
 	if err != nil {
 		return nil, fmt.Errorf("audio integrity: packets: %w", err)
 	}

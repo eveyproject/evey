@@ -7,11 +7,12 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/evey-project/evey/internal/pkg/procfork"
 
 	"github.com/evey-project/evey/internal/domain/transcoding"
 )
@@ -77,14 +78,13 @@ func (r *BenchmarkRunner) ffprobeBin() string {
 func (r *BenchmarkRunner) probeSourceClass(ctx context.Context, path string) (transcoding.SourceClass, bool) {
 	probeCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(probeCtx, r.ffprobeBin(),
+	out, err := procfork.Output(probeCtx, procfork.Options{Class: procfork.Probe, Site: "benchmark.probe_sample"}, r.ffprobeBin(),
 		"-v", "error",
 		"-select_streams", "v:0",
 		"-show_entries", "stream=codec_name,height",
 		"-of", "json",
 		path,
 	)
-	out, err := cmd.Output()
 	if err != nil {
 		r.logger.Warn("benchmark: could not probe the bench sample's codec",
 			slog.String("path", path), slog.Any("err", err))
@@ -113,17 +113,20 @@ func (r *BenchmarkRunner) probeSourceClass(ctx context.Context, path string) (tr
 func (r *BenchmarkRunner) benchDecodeFPS(ctx context.Context, path string) (float64, bool) {
 	runCtx, cancel := context.WithTimeout(ctx, time.Duration(r.durationSec*3)*time.Second+10*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(runCtx, r.ffmpegBin(),
+	cmd, finish, err := procfork.Command(runCtx, procfork.Options{Class: procfork.Production, Site: "benchmark.decode", UnboundedThreads: true}, r.ffmpegBin(),
 		"-hide_banner", "-nostats",
 		"-t", strconv.Itoa(r.durationSec),
 		"-i", path,
 		"-an", "-sn",
 		"-f", "null", "-",
 	)
+	if err != nil {
+		return 0, false
+	}
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	startedAt := time.Now()
-	err := cmd.Run()
+	err = finish(cmd.Run(), stderr.Bytes())
 	wall := time.Since(startedAt).Seconds()
 	if err != nil || wall <= 0 {
 		r.logger.Debug("benchmark: decode probe failed",
@@ -162,15 +165,14 @@ func (r *BenchmarkRunner) ensureCompanionSample(ctx context.Context, src, encode
 	}
 	genCtx, cancel := context.WithTimeout(ctx, 180*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(genCtx, r.ffmpegBin(),
+	if out, err := procfork.CombinedOutput(genCtx, procfork.Options{Class: procfork.Production, Site: "benchmark.companion_sample", UnboundedThreads: true}, r.ffmpegBin(),
 		"-hide_banner", "-nostats", "-y",
 		"-t", strconv.Itoa(r.durationSec),
 		"-i", src,
 		"-c:v", encoder, "-preset", "ultrafast", "-b:v", "5M",
 		"-an", "-sn",
 		dst,
-	)
-	if out, err := cmd.CombinedOutput(); err != nil {
+	); err != nil {
 		r.logger.Warn("benchmark: could not build the decode companion sample",
 			slog.String("codec", codec), slog.Any("err", err),
 			slog.String("tail", tailString(string(out), 200)))

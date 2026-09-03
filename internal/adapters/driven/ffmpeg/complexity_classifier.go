@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/evey-project/evey/internal/pkg/procfork"
 
 	"github.com/evey-project/evey/internal/domain/transcoding"
 )
@@ -168,7 +169,7 @@ func (c *ComplexityClassifier) sampleAt(parent context.Context, filePath string,
 	// (trickplay, intro detection) so a classification burst can't preempt a
 	// live software transcode on a weak NAS - the very starvation the QoE
 	// pipeline measures. nice -n 19 + a bounded decode thread count.
-	cmd := exec.CommandContext(ctx, "nice", "-n", "19", c.ffmpegBin,
+	cmd, finish, err := procfork.Command(ctx, procfork.Options{Class: procfork.Scan, Site: "complexity.sample"}, c.ffmpegBin,
 		"-hide_banner", "-nostats",
 		"-threads", strconv.Itoa(introFFmpegThreads()),
 		"-ss", fmt.Sprintf("%.3f", atSec),
@@ -187,6 +188,9 @@ func (c *ComplexityClassifier) sampleAt(parent context.Context, filePath string,
 		"-an", "-sn",
 		"-f", "null", "-",
 	)
+	if err != nil {
+		return 0, 0, 0
+	}
 	var stderr, stdout bytes.Buffer
 	cmd.Stderr = &stderr
 	cmd.Stdout = &stdout
@@ -194,9 +198,7 @@ func (c *ComplexityClassifier) sampleAt(parent context.Context, filePath string,
 	// input, timeout) all yield "no samples here", which parseSignalStats
 	// handles via the FramesSampled==0 fallback. We deliberately don't
 	// propagate the error to the caller.
-	if err := runPausableCmd(cmd, c.busy); err != nil {
-		_ = err // keep best-effort semantics
-	}
+	_ = finish(runPausableCmd(cmd, c.busy), stderr.Bytes()) //nolint:errcheck // best-effort sampler, see above
 	return parseSignalStats(stdout.String() + "\n" + stderr.String())
 }
 
@@ -206,14 +208,13 @@ func (c *ComplexityClassifier) sampleAt(parent context.Context, filePath string,
 func (c *ComplexityClassifier) probeSource(ctx context.Context, filePath string) (bitrateKbps int64, width, height int, err error) {
 	runCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(runCtx, c.ffprobeBin,
+	out, e := procfork.Output(runCtx, procfork.Options{Class: procfork.Probe, Site: "complexity.probe_source"}, c.ffprobeBin,
 		"-v", "error",
 		"-select_streams", "v:0",
 		"-show_entries", "format=bit_rate:stream=width,height",
 		"-of", "default=noprint_wrappers=1",
 		filePath,
 	)
-	out, e := cmd.Output()
 	if e != nil {
 		return 0, 0, 0, fmt.Errorf("ffprobe: %w", e)
 	}

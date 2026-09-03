@@ -91,3 +91,43 @@ func TestCPUBudget_Unlimited_FallsBackToNumCPU(t *testing.T) {
 		t.Errorf("unlimited quota should fall back to NumCPU (%d), got %d", runtime.NumCPU(), got)
 	}
 }
+
+func TestMemAvailableBytes_HostOnly(t *testing.T) {
+	root := stageFS(t, map[string]string{
+		"proc/meminfo": "MemTotal:       16384000 kB\nMemAvailable:    8192000 kB\n",
+	})
+	got, ok := memAvailableBytes(root)
+	if !ok || got != 8192000*1024 {
+		t.Fatalf("got %d ok=%v, want MemAvailable", got, ok)
+	}
+}
+
+func TestMemAvailableBytes_CgroupHeadroomBinds(t *testing.T) {
+	root := stageFS(t, map[string]string{
+		"proc/meminfo":                 "MemTotal:       16384000 kB\nMemAvailable:    8192000 kB\n",
+		"sys/fs/cgroup/memory.max":     "2147483648\n",
+		"sys/fs/cgroup/memory.current": "1610612736\n",
+	})
+	got, ok := memAvailableBytes(root)
+	if !ok || got != 2147483648-1610612736 {
+		t.Fatalf("got %d ok=%v, want cgroup headroom (512 MiB)", got, ok)
+	}
+}
+
+func TestMemAvailableBytes_CgroupUnlimited_UsesHost(t *testing.T) {
+	root := stageFS(t, map[string]string{
+		"proc/meminfo":                 "MemAvailable:    1000000 kB\n",
+		"sys/fs/cgroup/memory.max":     "max\n",
+		"sys/fs/cgroup/memory.current": "1610612736\n",
+	})
+	got, ok := memAvailableBytes(root)
+	if !ok || got != 1000000*1024 {
+		t.Fatalf("got %d ok=%v, want host MemAvailable", got, ok)
+	}
+}
+
+func TestMemAvailableBytes_NothingReadable(t *testing.T) {
+	if got, ok := memAvailableBytes(t.TempDir()); ok || got != 0 {
+		t.Fatalf("got %d ok=%v, want 0,false", got, ok)
+	}
+}

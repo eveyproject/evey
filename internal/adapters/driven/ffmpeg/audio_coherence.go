@@ -26,9 +26,10 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"os/exec"
 	"strconv"
 	"strings"
+
+	"github.com/evey-project/evey/internal/pkg/procfork"
 )
 
 const (
@@ -121,9 +122,9 @@ func (p *AudioCoherence) audioTrackCount(ctx context.Context, path string) (int,
 // audioStreamCount counts a file's audio streams (header read). Shared with
 // the audibility guard, which asks the same question of the same tools.
 func audioStreamCount(ctx context.Context, ffprobePath, path string) (int, error) {
-	out, err := exec.CommandContext(ctx, ffprobePath, //nolint:gosec // operator media path, fixed binary
+	out, err := procfork.Output(ctx, procfork.Options{Class: procfork.Probe, Site: "audio_coherence.stream_count"}, ffprobePath,
 		"-v", "error", "-select_streams", "a",
-		"-show_entries", "stream=index", "-of", "csv=p=0", path).Output()
+		"-show_entries", "stream=index", "-of", "csv=p=0", path)
 	if err != nil {
 		return 0, fmt.Errorf("count audio tracks: %w", err)
 	}
@@ -152,7 +153,7 @@ func decodeEnvelope(ctx context.Context, ffmpegPath, path string, track int, atS
 		"aformat=channel_layouts=mono,astats=metadata=1:reset=1:length=%v,"+
 			"ametadata=print:key=lavfi.astats.Overall.RMS_level:file=-",
 		coherenceEnvelopeStep)
-	cmd := exec.CommandContext(ctx, ffmpegPath, //nolint:gosec // operator media path, fixed binary
+	out, err := procfork.Output(ctx, procfork.Options{Class: procfork.Scan, Site: "audio_coherence.envelope"}, ffmpegPath,
 		"-v", "error", "-nostdin",
 		// Input-side discards: the picture and subtitles are never read, let
 		// alone decoded. Measured at ~2 s per file against ~10 s without, and
@@ -162,7 +163,6 @@ func decodeEnvelope(ctx context.Context, ffmpegPath, path string, track int, atS
 		"-ss", strconv.FormatFloat(atSec, 'f', 3, 64), "-t", strconv.Itoa(windowSec),
 		"-i", path, "-map", fmt.Sprintf("0:a:%d", track),
 		"-af", filter, "-f", "null", "-")
-	out, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("envelope: %w", err)
 	}

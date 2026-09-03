@@ -10,13 +10,14 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/evey-project/evey/internal/pkg/procfork"
 
 	"github.com/evey-project/evey/internal/domain/transcoding"
 	"github.com/evey-project/evey/internal/pkg/hdr"
@@ -422,7 +423,7 @@ func (r *BenchmarkRunner) probeHWFeatures(ctx context.Context, backend string) [
 func (r *BenchmarkRunner) probeOption(ctx context.Context, args []string) bool {
 	ctx, cancel := context.WithTimeout(ctx, 8*time.Second)
 	defer cancel()
-	return exec.CommandContext(ctx, r.ffmpegBin(), args...).Run() == nil
+	return procfork.Run(ctx, procfork.Options{Class: procfork.Probe, Site: "benchmark.probe_option"}, r.ffmpegBin(), args...) == nil
 }
 
 // resolveSample picks the bench input. When the bundled sample isn't on
@@ -578,7 +579,7 @@ func (r *BenchmarkRunner) generateSample(dst string) error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, r.ffmpegBin(),
+	out, err := procfork.CombinedOutput(ctx, procfork.Options{Class: procfork.Production, Site: "benchmark.generate_sample", UnboundedThreads: true}, r.ffmpegBin(),
 		"-hide_banner", "-nostats", "-y",
 		"-f", "lavfi", "-i", synthBenchSource("yuv420p"),
 		"-c:v", "libx265", "-preset", "medium",
@@ -588,7 +589,7 @@ func (r *BenchmarkRunner) generateSample(dst string) error {
 		"-an",
 		dst,
 	)
-	if out, err := cmd.CombinedOutput(); err != nil {
+	if err != nil {
 		return fmt.Errorf("ffmpeg generate sample: %w (tail: %s)", err, tailString(string(out), 200))
 	}
 	return nil
@@ -620,7 +621,7 @@ func (r *BenchmarkRunner) generateHDRSample(dst string) error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, r.ffmpegBin(),
+	out, err := procfork.CombinedOutput(ctx, procfork.Options{Class: procfork.Production, Site: "benchmark.generate_hdr_sample", UnboundedThreads: true}, r.ffmpegBin(),
 		"-hide_banner", "-nostats", "-y",
 		"-f", "lavfi", "-i", synthBenchSource("yuv420p10le"),
 		"-c:v", "libx265", "-preset", "medium", "-pix_fmt", "yuv420p10le",
@@ -634,7 +635,7 @@ func (r *BenchmarkRunner) generateHDRSample(dst string) error {
 		"-tag:v", "hvc1", "-an",
 		dst,
 	)
-	if out, err := cmd.CombinedOutput(); err != nil {
+	if err != nil {
 		return fmt.Errorf("ffmpeg generate HDR sample: %w (tail: %s)", err, tailString(string(out), 200))
 	}
 	return nil
@@ -1117,11 +1118,14 @@ func (r *BenchmarkRunner) runMultiVariant(ctx context.Context, sample string, fa
 	// container, just throughput.
 	args = append(args, "-an", "-sn", "-f", "null", "-")
 
-	cmd := exec.CommandContext(runCtx, r.ffmpegPath, args...)
+	cmd, finish, err := procfork.Command(runCtx, procfork.Options{Class: procfork.Production, Site: "benchmark.encode", UnboundedThreads: true}, r.ffmpegPath, args...)
+	if err != nil {
+		return 0, false
+	}
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	startedAt := time.Now()
-	err := cmd.Run()
+	err = finish(cmd.Run(), stderr.Bytes())
 	wall := time.Since(startedAt).Seconds()
 	if err != nil {
 		r.logger.Debug("benchmark: runMultiVariant failed",

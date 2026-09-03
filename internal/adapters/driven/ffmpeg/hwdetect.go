@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/evey-project/evey/internal/pkg/procfork"
+
 	"github.com/evey-project/evey/internal/domain/transcoding"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
@@ -90,8 +92,7 @@ func detectNVENC(ctx context.Context, ffmpegPath string) *transcoding.HWDevice {
 		return nil
 	}
 
-	cmd := exec.CommandContext(ctx, smiPath, "--query-gpu=name", "--format=csv,noheader")
-	out, err := cmd.Output()
+	out, err := procfork.Output(ctx, procfork.Options{Class: procfork.Probe, Site: "hwdetect.nvidia_smi"}, smiPath, "--query-gpu=name", "--format=csv,noheader")
 	if err != nil {
 		return nil
 	}
@@ -115,8 +116,7 @@ func detectQSV(ctx context.Context, ffmpegPath string) *transcoding.HWDevice {
 		return nil
 	}
 
-	cmd := exec.CommandContext(ctx, "ls", "/sys/class/drm/card0/device/driver/module/drivers/")
-	out, err := cmd.Output()
+	out, err := procfork.Output(ctx, procfork.Options{Class: procfork.Probe, Site: "hwdetect.drm_driver"}, "ls", "/sys/class/drm/card0/device/driver/module/drivers/")
 	if err != nil {
 		return nil
 	}
@@ -209,10 +209,9 @@ func probeHWDecode(ctx context.Context, ffmpegPath, swEncoder, format, hwType, d
 	}
 
 	// 1. software-encode a tiny real sample of the codec.
-	gen := exec.CommandContext(ctx, ffmpegPath, "-hide_banner", "-v", "error", "-nostdin", "-y",
+	if procfork.Run(ctx, procfork.Options{Class: procfork.Probe, Site: "hwdetect.decode_sample"}, ffmpegPath, "-hide_banner", "-v", "error", "-nostdin", "-y",
 		"-f", "lavfi", "-i", "testsrc2=size=128x128:rate=5:duration=0.4",
-		"-c:v", swEncoder, "-f", format, tmpPath)
-	if gen.Run() != nil {
+		"-c:v", swEncoder, "-f", format, tmpPath) != nil {
 		return false
 	}
 
@@ -233,7 +232,7 @@ func probeHWDecode(ctx context.Context, ffmpegPath, swEncoder, format, hwType, d
 		return false
 	}
 	args = append(args, "-i", tmpPath, "-f", "null", "-")
-	return exec.CommandContext(ctx, ffmpegPath, args...).Run() == nil
+	return procfork.Run(ctx, procfork.Options{Class: procfork.Probe, Site: "hwdetect.hw_decode"}, ffmpegPath, args...) == nil
 }
 
 // probeHWEncode runs a tiny real encode through the hardware encoder to confirm
@@ -262,7 +261,7 @@ func probeHWEncode(ctx context.Context, ffmpegPath, encoder, hwType, device stri
 	args = append(args, filter...)
 	args = append(args, "-c:v", encoder, "-f", "null", "-")
 
-	return exec.CommandContext(ctx, ffmpegPath, args...).Run() == nil
+	return procfork.Run(ctx, procfork.Options{Class: procfork.Probe, Site: "hwdetect.hw_encode"}, ffmpegPath, args...) == nil
 }
 
 // probeHW10BitTranscode reports whether the HW VPP can scale a 10-bit (p010)
@@ -300,7 +299,7 @@ func probeHW10BitTranscode(ctx context.Context, ffmpegPath, hwType, device strin
 	args = append(args, "-f", "lavfi", "-i", "testsrc2=size=128x128:rate=5:duration=0.3")
 	args = append(args, "-vf", vf, "-f", "null", "-")
 
-	return exec.CommandContext(ctx, ffmpegPath, args...).Run() == nil
+	return procfork.Run(ctx, procfork.Options{Class: procfork.Probe, Site: "hwdetect.hw_10bit"}, ffmpegPath, args...) == nil
 }
 
 // probeHWTonemap reports whether the HW backend can run an HDR->SDR tone-map on
@@ -335,7 +334,7 @@ func probeHWTonemap(ctx context.Context, ffmpegPath, hwType, device string) bool
 	args = append(args, "-f", "lavfi", "-i", "testsrc2=size=128x128:rate=5:duration=0.3")
 	args = append(args, "-vf", vf, "-f", "null", "-")
 
-	return exec.CommandContext(ctx, ffmpegPath, args...).Run() == nil
+	return procfork.Run(ctx, procfork.Options{Class: procfork.Probe, Site: "hwdetect.hw_tonemap"}, ffmpegPath, args...) == nil
 }
 
 // classifyGPU labels the calibrated accelerator integrated vs discrete for the
@@ -371,8 +370,7 @@ func classifyGPU(backend, device string) string {
 }
 
 func checkEncoderAvailable(ctx context.Context, ffmpegPath, encoder string) bool {
-	cmd := exec.CommandContext(ctx, ffmpegPath, "-encoders")
-	out, err := cmd.Output()
+	out, err := procfork.Output(ctx, procfork.Options{Class: procfork.Probe, Site: "hwdetect.encoders"}, ffmpegPath, "-encoders")
 	if err != nil {
 		return false
 	}

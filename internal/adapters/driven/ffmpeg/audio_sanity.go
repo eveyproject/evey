@@ -18,9 +18,10 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"os/exec"
 	"strconv"
 	"strings"
+
+	"github.com/evey-project/evey/internal/pkg/procfork"
 )
 
 const (
@@ -121,9 +122,9 @@ func probeOffsets(durSec float64) []float64 {
 
 // mediaDurationSec reads the container runtime (header only).
 func mediaDurationSec(ctx context.Context, ffprobePath, path string) (float64, error) {
-	out, err := exec.CommandContext(ctx, ffprobePath, //nolint:gosec // operator media path, fixed binary
+	out, err := procfork.Output(ctx, procfork.Options{Class: procfork.Probe, Site: "audio_sanity.duration"}, ffprobePath,
 		"-v", "error", "-show_entries", "format=duration",
-		"-of", "default=nw=1:nk=1", path).Output()
+		"-of", "default=nw=1:nk=1", path)
 	if err != nil {
 		return 0, fmt.Errorf("audio sanity: duration: %w", err)
 	}

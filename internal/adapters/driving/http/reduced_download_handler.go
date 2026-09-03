@@ -40,6 +40,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/evey-project/evey/internal/pkg/procfork"
+
 	"go.opentelemetry.io/otel/codes"
 	"golang.org/x/sync/singleflight"
 
@@ -195,9 +197,10 @@ func (h *reducedServe) resolve(w http.ResponseWriter, r *http.Request) (reducedT
 	t.jobDir = filepath.Join(h.cacheDir, reducedJobDirName(string(item.ID), fingerprint))
 	t.spec = reduceddl.Spec{SliceSec: reduceddl.SliceSec}
 
-	width, toneMap := h.videoShape(r.Context(), t.mediaID)
+	width, toneMap, src := h.videoShape(r.Context(), t.mediaID)
 	t.spec.Width = width
 	t.spec.ToneMap = toneMap
+	t.spec.SourceWidth, t.spec.SourceHeight, t.spec.SourceTenBit = src.Width, src.Height, src.TenBit
 	t.eligible = width > 0 && t.durationMs > 0
 	return t, true
 }
@@ -206,13 +209,13 @@ func (h *reducedServe) resolve(w http.ResponseWriter, r *http.Request) (reducedT
 // source needs HDR->SDR grading off the item's probed streams. An unprobed or
 // unreadable item yields 0: refusing to offer beats offering a variant we
 // cannot size or grade.
-func (h *reducedServe) videoShape(ctx context.Context, mediaID string) (width int, toneMap bool) {
+func (h *reducedServe) videoShape(ctx context.Context, mediaID string) (width int, toneMap bool, src procfork.Source) {
 	if h.streams == nil {
-		return 0, false
+		return 0, false, src
 	}
 	streams, err := h.streams.GetMediaStreams(ctx, mediaID)
 	if err != nil {
-		return 0, false
+		return 0, false, src
 	}
 	hdrStreams := make([]hdr.VideoStream, 0, len(streams))
 	for _, s := range streams {
@@ -222,9 +225,10 @@ func (h *reducedServe) videoShape(ctx context.Context, mediaID string) (width in
 		hdrStreams = append(hdrStreams, s)
 		if s.StreamType == domainlibrary.Video && width == 0 && s.Width != nil && s.Height != nil {
 			width = reduceddl.WidthFor(*s.Width, *s.Height)
+			src = procfork.Source{Width: *s.Width, Height: *s.Height, TenBit: s.BitDepth != nil && *s.BitDepth > 8}
 		}
 	}
-	return width, hdr.DetectHDR(hdrStreams).IsHDR
+	return width, hdr.DetectHDR(hdrStreams).IsHDR, src
 }
 
 // --- readiness -------------------------------------------------------------

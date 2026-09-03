@@ -31,7 +31,6 @@ func TestBuildReducedArgs(t *testing.T) {
 		"-c:a", "aac", "-ac", "2", "-b:a", "128k",
 		"-rematrix_maxval", "1.0000",
 		"-c:s", "copy",
-		"-max_interleave_delta", "0",
 		"-f", "segment",
 		"-segment_format", "matroska",
 		"-segment_time", "600",
@@ -98,4 +97,18 @@ func indexOf(t *testing.T, args []string, flag string) int {
 	}
 	t.Fatalf("%s not in argv: %v", flag, args)
 	return -1
+}
+
+// -max_interleave_delta 0 does the OPPOSITE of what its comment claimed: it
+// makes libavformat buffer until every stream has a packet, so a sparse
+// subtitle track holds minutes of encoded video in memory (ffmpeg docs, and
+// premise 8 of the 2026-08-24 OOM forensics). The default 10 s bound stays.
+func TestBuildReducedArgs_InterleaveStaysBounded(t *testing.T) {
+	t.Parallel()
+	args := BuildReducedArgs("/media/film.mkv", "/cache/reduced/j/slice-%05d.mkv", "/cache/reduced/j/slices-00000.csv", reduceddl.Spec{Width: 1280})
+	for _, a := range args {
+		if a == "-max_interleave_delta" {
+			t.Fatal("-max_interleave_delta must not be set on the reduced production")
+		}
+	}
 }

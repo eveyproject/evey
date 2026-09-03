@@ -13,12 +13,13 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"os/exec"
 	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/evey-project/evey/internal/pkg/procfork"
 
 	"github.com/evey-project/evey/internal/domain/transcoding"
 )
@@ -127,12 +128,12 @@ const audioDelayProbeTimeout = 15 * time.Second
 func runAudioDelayProbe(ctx context.Context, binary, filePath string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(ctx, audioDelayProbeTimeout)
 	defer cancel()
-	out, err := exec.CommandContext(ctx, binary,
+	out, err := procfork.Output(ctx, procfork.Options{Class: procfork.Probe, Site: "audio_delay.probe"}, binary,
 		"-v", "error",
 		"-show_entries", "stream=codec_type,start_time:stream_disposition=attached_pic",
 		"-of", "json",
 		filePath,
-	).Output()
+	)
 	if err != nil {
 		return nil, fmt.Errorf("ffprobe audio-delay: %w", err)
 	}
@@ -261,13 +262,13 @@ func VideoCompositionDelaySec(ctx context.Context, ffprobeBinary, filePath strin
 }
 
 func probeVideoCompositionDelaySec(ctx context.Context, binary, filePath string) float64 {
-	out, err := exec.CommandContext(ctx, binary,
+	out, err := procfork.Output(ctx, procfork.Options{Class: procfork.Probe, Site: "audio_delay.composition_delay"}, binary,
 		"-v", "quiet",
 		"-select_streams", "v:0",
 		"-print_format", "json",
 		"-show_entries", "stream=has_b_frames,avg_frame_rate",
 		filePath,
-	).Output()
+	)
 	if err != nil {
 		return 0
 	}

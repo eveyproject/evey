@@ -15,6 +15,7 @@ import (
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/bgtasks"
+	"github.com/evey-project/evey/internal/pkg/procfork"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
@@ -202,9 +203,11 @@ const introDetectionEpisodeBudget = 30 * time.Minute
 // killer, 2026-08-24) and a spent episode budget (2026-08-29: three seasons
 // timed out at 30 minutes on every 90-minute idle sweep, for a day). A
 // canceled context is the sweep being stopped, not the episode - it stays
-// uncounted, like an I/O error.
+// uncounted, like an I/O error or memory pressure on the host (transient).
 func failureConsumesAttempt(err error) bool {
-	return errors.Is(err, domainlibrary.ErrDetectorKilled) || errors.Is(err, context.DeadlineExceeded)
+	return errors.Is(err, domainlibrary.ErrDetectorKilled) ||
+		errors.Is(err, context.DeadlineExceeded) ||
+		errors.Is(err, procfork.ErrMemoryCapExceeded)
 }
 
 // introPersistBudget bounds the segment writes after detection, on a context

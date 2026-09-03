@@ -4,8 +4,9 @@ import (
 	"bufio"
 	"context"
 	"log/slog"
-	"os/exec"
 	"strings"
+
+	"github.com/evey-project/evey/internal/pkg/procfork"
 )
 
 // av1DecoderNames are the ffmpeg decoder names that can decode an AV1 video
@@ -49,7 +50,7 @@ func WarnIfNoAV1Decoder(ctx context.Context, ffmpegPath string, logger *slog.Log
 	if logger == nil {
 		logger = slog.Default()
 	}
-	out, err := exec.CommandContext(ctx, ffmpegPath, "-hide_banner", "-decoders").Output()
+	out, err := procfork.Output(ctx, procfork.Options{Class: procfork.Probe, Site: "decoder_probe.decoders"}, ffmpegPath, "-hide_banner", "-decoders")
 	if err != nil {
 		logger.Debug("av1 decoder probe: ffmpeg -decoders failed", slog.Any("err", err))
 		return

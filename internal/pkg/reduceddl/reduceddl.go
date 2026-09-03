@@ -95,6 +95,9 @@ func ListStart(name string) (int, bool) {
 // the HTTP handler can build one without importing the ffmpeg adapter (the
 // port/adapter direction the rest of the server keeps).
 type Spec struct {
+	// Source picture, for sizing the decoder (zero = worst case).
+	SourceWidth, SourceHeight int
+	SourceTenBit              bool
 	// Width of the delivered video, even, already clamped to the source (the
 	// height follows from the aspect ratio: -2). Width rather than height
 	// because the tonemap filter folds its downscale in as scale=W:-2.

@@ -7,11 +7,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/evey-project/evey/internal/pkg/procfork"
 
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/pkg/cpuutil"
@@ -44,12 +45,12 @@ func NewTrickplayGenerator(binary, probeBinary string) *TrickplayGenerator {
 }
 
 func (g *TrickplayGenerator) probeDuration(ctx context.Context, filePath string) (float64, error) {
-	out, err := lowPriorityCommand(ctx, g.probeBinary,
+	out, err := procfork.Output(ctx, procfork.Options{Class: procfork.Probe, Site: "trickplay.duration"}, g.probeBinary,
 		"-v", "quiet",
 		"-print_format", "json",
 		"-show_format",
 		filePath,
-	).Output()
+	)
 	if err != nil {
 		return 0, fmt.Errorf("ffprobe: %w", err)
 	}
@@ -141,7 +142,7 @@ func (g *TrickplayGenerator) Generate(ctx context.Context, filePath, outputDir s
 		"select='isnan(prev_selected_t)+gte(t-prev_selected_t\\,%d)',scale=%d:-1,showinfo,tile=%dx%d",
 		interval, width, tileWidth, tileHeight,
 	), g.probeColour(ctx, filePath))
-	cmd := lowPriorityCommand(ctx, g.binary,
+	cmd, finish, err := procfork.Command(ctx, procfork.Options{Class: procfork.Scan, Site: "trickplay.sprites"}, g.binary,
 		"-nostdin",
 		"-threads", strconv.Itoa(threads),
 		"-skip_frame", "nokey",
@@ -153,8 +154,11 @@ func (g *TrickplayGenerator) Generate(ctx context.Context, filePath, outputDir s
 		"-quality", "75",
 		"-y", outputPattern,
 	)
+	if err != nil {
+		return nil, err
+	}
 	out, runErr := cmd.CombinedOutput()
-	if runErr != nil {
+	if runErr = finish(runErr, out); runErr != nil {
 		return nil, fmt.Errorf("ffmpeg trickplay single-pass: %w\n%s", runErr, string(out))
 	}
 
@@ -210,7 +214,7 @@ func (g *TrickplayGenerator) ExtractFrame(ctx context.Context, filePath string, 
 	ctx, span := tracing.StartSpan(ctx, "ffmpeg.trickplay.ExtractFrame")
 	defer span.End()
 	ss := fmt.Sprintf("%.3f", positionSec)
-	cmd := exec.CommandContext(ctx, g.binary,
+	out, err := procfork.Output(ctx, procfork.Options{Class: procfork.Interactive, Site: "trickplay.extract_frame"}, g.binary,
 		"-ss", ss,
 		"-i", filePath,
 		"-frames:v", "1",
@@ -220,7 +224,6 @@ func (g *TrickplayGenerator) ExtractFrame(ctx context.Context, filePath string, 
 		"-q:v", "3",
 		"-y", "pipe:1",
 	)
-	out, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("ffmpeg extract frame at %ss: %w", ss, err)
 	}
@@ -240,7 +243,7 @@ func (g *TrickplayGenerator) DecodePacketToJPEG(ctx context.Context, packet []by
 	if inFmt == "" {
 		return nil, fmt.Errorf("decode keyframe packet: unsupported ext %q", ext)
 	}
-	cmd := exec.CommandContext(ctx, g.binary,
+	cmd, finish, err := procfork.Command(ctx, procfork.Options{Class: procfork.Interactive, Site: "trickplay.decode_packet"}, g.binary,
 		"-nostdin",
 		"-f", inFmt,
 		"-i", "pipe:0",
@@ -251,8 +254,12 @@ func (g *TrickplayGenerator) DecodePacketToJPEG(ctx context.Context, packet []by
 		"-q:v", "3",
 		"-y", "pipe:1",
 	)
+	if err != nil {
+		return nil, err
+	}
 	cmd.Stdin = bytes.NewReader(packet)
 	out, err := cmd.Output()
+	err = finish(err, nil)
 	if err != nil {
 		return nil, fmt.Errorf("ffmpeg decode keyframe packet (%s): %w", inFmt, err)
 	}
@@ -302,13 +309,13 @@ func trickplayFilter(base string, col trickplayColour) string {
 // on any failure it returns the zero value (SDR), i.e. today's behaviour - a
 // thumbnail pass must never fail because a probe did.
 func (g *TrickplayGenerator) probeColour(ctx context.Context, filePath string) trickplayColour {
-	out, err := lowPriorityCommand(ctx, g.probeBinary,
+	out, err := procfork.Output(ctx, procfork.Options{Class: procfork.Probe, Site: "trickplay.colour"}, g.probeBinary,
 		"-v", "quiet",
 		"-select_streams", "v:0",
 		"-print_format", "json",
 		"-show_entries", "stream=color_transfer:stream_side_data=side_data_type",
 		filePath,
-	).Output()
+	)
 	if err != nil {
 		return trickplayColour{}
 	}

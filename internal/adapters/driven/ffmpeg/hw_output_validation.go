@@ -5,10 +5,11 @@ import (
 	"fmt"
 	"image/png"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/evey-project/evey/internal/pkg/procfork"
 )
 
 // Hardware encoders can fail SILENTLY: exit 0, healthy FPS, and yet visually
@@ -115,7 +116,7 @@ func (r *BenchmarkRunner) validateHWVisualOutput(ctx context.Context, sample str
 		args = append(args, "-preset", "veryfast", "-pix_fmt", "yuv420p")
 	}
 	args = append(args, "-an", "-sn", "-f", "mp4", "-y", outPath)
-	if out, err := exec.CommandContext(runCtx, r.ffmpegPath, args...).CombinedOutput(); err != nil {
+	if out, err := procfork.CombinedOutput(runCtx, procfork.Options{Class: procfork.Production, Site: "hw_validate.encode", UnboundedThreads: true}, r.ffmpegPath, args...); err != nil {
 		return hwVisualVerdict{}, fmt.Errorf("hw validate: probe encode failed: %w (%s)", err, tailString(string(out), 200))
 	}
 
@@ -159,7 +160,7 @@ func (r *BenchmarkRunner) extractFrameHash(ctx context.Context, inputArgs []stri
 	args := []string{"-hide_banner", "-nostats"}
 	args = append(args, inputArgs...)
 	args = append(args, "-ss", fmt.Sprintf("%.3f", offset), "-frames:v", "1", "-f", "image2", "-y", dst)
-	if out, err := exec.CommandContext(ctx, r.ffmpegPath, args...).CombinedOutput(); err != nil {
+	if out, err := procfork.CombinedOutput(ctx, procfork.Options{Class: procfork.Production, Site: "hw_validate.frame_hash", UnboundedThreads: true}, r.ffmpegPath, args...); err != nil {
 		return 0, fmt.Errorf("frame extract: %w (%s)", err, tailString(string(out), 200))
 	}
 	f, err := os.Open(dst)

@@ -3,9 +3,10 @@ package ffmpeg
 import (
 	"bytes"
 	"context"
-	"os/exec"
 	"sync"
 	"time"
+
+	"github.com/evey-project/evey/internal/pkg/procfork"
 )
 
 var (
@@ -27,7 +28,7 @@ func tonemapxAvailable(ffmpegPath string) bool {
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		out, err := exec.CommandContext(ctx, ffmpegPath, "-hide_banner", "-filters").Output()
+		out, err := procfork.Output(ctx, procfork.Options{Class: procfork.Probe, Site: "tonemapx.filters"}, ffmpegPath, "-hide_banner", "-filters")
 		tonemapxOK = err == nil && bytes.Contains(out, []byte("tonemapx"))
 	})
 	return tonemapxOK

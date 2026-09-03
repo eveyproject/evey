@@ -15,6 +15,8 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/evey-project/evey/internal/pkg/procfork"
+
 	"golang.org/x/image/webp"
 
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
@@ -202,14 +204,21 @@ func (d *IntroDetector) runDetect(ctx context.Context, filePath string, startSec
 		silenceDetectArgs(filePath, startSec, durationSec),
 		blackDetectArgs(filePath, startSec, durationSec),
 	} {
-		cmd := lowPriorityCommand(ctx, d.binary, args...)
+		cmd, finish, err := procfork.Command(ctx, procfork.Options{Class: procfork.Scan, Site: "intro.detect"}, d.binary, args...)
+		if err != nil {
+			return nil, nil, err
+		}
 		var stderrBuf bytes.Buffer
 		cmd.Stderr = &stderrBuf
 		// ffmpeg exits non-zero for -f null, so the exit code alone says nothing
 		// and stderr is parsed regardless. A process killed by a SIGNAL is a
 		// different event: swallowing it reported an OOM kill as "nothing found",
 		// which sent the media back through the sweep to kill the host again.
-		if runErr := d.runPausable(cmd); killedBySignal(ctx, runErr) {
+		runErr := finish(d.runPausable(cmd), stderrBuf.Bytes())
+		if errors.Is(runErr, procfork.ErrMemoryCapExceeded) {
+			return nil, nil, fmt.Errorf("%w: %s", runErr, filePath)
+		}
+		if killedBySignal(ctx, runErr) {
 			return nil, nil, fmt.Errorf("%w: %s: %w", domainlibrary.ErrDetectorKilled, filePath, runErr)
 		}
 		s, b := parseDetections(stderrBuf.String())
@@ -354,12 +363,19 @@ func (d *IntroDetector) DetectEndCredits(ctx context.Context, filePath string, d
 	windowSec := creditsScanWindowSec(durationSec)
 	startSec := math.Max(0, durationSec-windowSec)
 	args := endCreditsArgs(filePath, startSec, windowSec)
-	cmd := lowPriorityCommand(ctx, d.binary, args...)
+	cmd, finish, err := procfork.Command(ctx, procfork.Options{Class: procfork.Scan, Site: "intro.end_credits"}, d.binary, args...)
+	if err != nil {
+		return 0, 0, false, err
+	}
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = &out
 	// Same reasoning as runDetect: the -f null exit code is noise, a signal is not.
-	if runErr := d.runPausable(cmd); killedBySignal(ctx, runErr) {
+	runErr := finish(d.runPausable(cmd), out.Bytes())
+	if errors.Is(runErr, procfork.ErrMemoryCapExceeded) {
+		return 0, 0, false, fmt.Errorf("%w: %s", runErr, filePath)
+	}
+	if killedBySignal(ctx, runErr) {
 		return 0, 0, false, fmt.Errorf("%w: %s: %w", domainlibrary.ErrDetectorKilled, filePath, runErr)
 	}
 
@@ -559,12 +575,17 @@ func (d *IntroDetector) DetectLeadingLogoBlock(ctx context.Context, filePath str
 		"-f", "null",
 		"-",
 	}
-	cmd := lowPriorityCommand(ctx, d.binary, args...)
+	cmd, finish, err := procfork.Command(ctx, procfork.Options{Class: procfork.Scan, Site: "intro.leading_logo"}, d.binary, args...)
+	if err != nil {
+		return 0, 0, false, err
+	}
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = &out
-	//nolint:errcheck // ffmpeg exits non-zero for -f null; we parse the combined output regardless
-	_ = d.runPausable(cmd)
+	// ffmpeg exits non-zero for -f null; the combined output is parsed regardless.
+	if runErr := finish(d.runPausable(cmd), out.Bytes()); errors.Is(runErr, procfork.ErrMemoryCapExceeded) {
+		return 0, 0, false, fmt.Errorf("%w: %s", runErr, filePath)
+	}
 
 	logoStartMs, logoEndMs, ok := parseLeadingLogoBlock(out.String(), windowSec, durationSec)
 	if !ok {
@@ -681,11 +702,14 @@ func (d *IntroDetector) AudioRMSProfile(ctx context.Context, filePath string, st
 		"-f", "s16le",
 		"pipe:1",
 	}
-	cmd := lowPriorityCommand(ctx, d.binary, args...)
+	cmd, finish, err := procfork.Command(ctx, procfork.Options{Class: procfork.Scan, Site: "intro.audio_envelope"}, d.binary, args...)
+	if err != nil {
+		return nil, err
+	}
 	var stdout bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = nil
-	if err := d.runPausable(cmd); err != nil {
+	if err := finish(d.runPausable(cmd), nil); err != nil {
 		// FFmpeg may exit non-zero on stream end; tolerate when we got bytes.
 		if stdout.Len() == 0 {
 			return nil, fmt.Errorf("ffmpeg pcm decode: %w", err)
@@ -736,11 +760,16 @@ func (d *IntroDetector) SceneCutTimestamps(ctx context.Context, filePath string,
 		"-f", "null",
 		"-",
 	}
-	cmd := lowPriorityCommand(ctx, d.binary, args...)
+	cmd, finish, err := procfork.Command(ctx, procfork.Options{Class: procfork.Scan, Site: "intro.scene_cuts"}, d.binary, args...)
+	if err != nil {
+		return nil, err
+	}
 	var stderrBuf bytes.Buffer
 	cmd.Stderr = &stderrBuf
-	//nolint:errcheck // ffmpeg exits non-zero for -f null; we parse stderr regardless
-	_ = d.runPausable(cmd)
+	// ffmpeg exits non-zero for -f null; stderr is parsed regardless.
+	if runErr := finish(d.runPausable(cmd), stderrBuf.Bytes()); errors.Is(runErr, procfork.ErrMemoryCapExceeded) {
+		return nil, fmt.Errorf("%w: %s", runErr, filePath)
+	}
 
 	// -ss before -i resets output pts to 0 at the segment start, so showinfo's
 	// pts_time is relative to startSec; add it back for an absolute timestamp.
@@ -779,15 +808,13 @@ func (d *IntroDetector) SubtitleCueStarts(ctx context.Context, filePath string) 
 		"-of", "csv=p=0",
 		filePath,
 	}
-	cmd := lowPriorityCommand(ctx, d.probeBinary, args...)
-	var stdout bytes.Buffer
-	cmd.Stdout = &stdout
-	if err := cmd.Run(); err != nil {
+	out, err := procfork.Output(ctx, procfork.Options{Class: procfork.Probe, Site: "intro.subtitle_cues"}, d.probeBinary, args...)
+	if err != nil {
 		// No subtitle stream / probe failure: a no-op, not an error.
 		return nil, nil
 	}
 	var cues []int64
-	sc := bufio.NewScanner(&stdout)
+	sc := bufio.NewScanner(bytes.NewReader(out))
 	for sc.Scan() {
 		line := strings.TrimSpace(sc.Text())
 		if line == "" || line == "N/A" {
@@ -838,11 +865,14 @@ func (d *IntroDetector) AudioBandedFingerprint(ctx context.Context, filePath str
 		"-f", "s16le",
 		"pipe:1",
 	}
-	cmd := lowPriorityCommand(ctx, d.binary, args...)
+	cmd, finish, err := procfork.Command(ctx, procfork.Options{Class: procfork.Scan, Site: "intro.audio_bands"}, d.binary, args...)
+	if err != nil {
+		return nil, err
+	}
 	var stdout bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = nil
-	if err := d.runPausable(cmd); err != nil {
+	if err := finish(d.runPausable(cmd), nil); err != nil {
 		if stdout.Len() == 0 {
 			return nil, fmt.Errorf("ffmpeg pcm decode: %w", err)
 		}

@@ -4,11 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os/exec"
 	"regexp"
 	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/evey-project/evey/internal/pkg/procfork"
 
 	"github.com/google/uuid"
 
@@ -127,14 +128,13 @@ func bpsTagBitrate(tags map[string]string) int64 {
 func (p *Prober) ProbeStreams(ctx context.Context, filePath string) (*library.ProbeResult, error) {
 	ctx, span := tracing.StartSpan(ctx, "ffmpeg.prober.ProbeStreams")
 	defer span.End()
-	cmd := exec.CommandContext(ctx, p.binary,
+	out, err := procfork.Output(ctx, procfork.Options{Class: procfork.Probe, Site: "prober.streams"}, p.binary,
 		"-v", "quiet",
 		"-print_format", "json",
 		"-show_streams",
 		"-show_format",
 		filePath,
 	)
-	out, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("ffprobe: %w", err)
 	}
@@ -272,14 +272,13 @@ func (p *Prober) ProbeStreams(ctx context.Context, filePath string) (*library.Pr
 func (p *Prober) ProbeKeyframes(ctx context.Context, filePath string) ([]int64, error) {
 	ctx, span := tracing.StartSpan(ctx, "ffmpeg.prober.ProbeKeyframes")
 	defer span.End()
-	cmd := exec.CommandContext(ctx, p.binary,
+	out, err := procfork.Output(ctx, procfork.Options{Class: procfork.Probe, Site: "prober.keyframes"}, p.binary,
 		"-v", "error",
 		"-select_streams", "v:0",
 		"-show_entries", "packet=pts_time,flags",
 		"-of", "csv=p=0",
 		filePath,
 	)
-	out, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("ffprobe keyframes: %w", err)
 	}
@@ -332,7 +331,7 @@ func (p *Prober) idetRun(ctx context.Context, filePath string, seek bool) (inter
 	args = append(args, "-i", filePath, "-map", "0:v:0",
 		"-vf", "idet", "-frames:v", "300", "-an", "-sn", "-f", "null", "-")
 	// idet prints its summary on stderr at stream close.
-	out, runErr := exec.CommandContext(ctx, seekLandingBinary, args...).CombinedOutput()
+	out, runErr := procfork.CombinedOutput(ctx, procfork.Options{Class: procfork.Scan, Site: "prober.idet"}, seekLandingBinary, args...)
 	if runErr != nil {
 		return false, false, runErr
 	}
@@ -394,7 +393,7 @@ const seekLandingBinary = "ffmpeg"
 func (p *Prober) ProbeSeekLanding(ctx context.Context, filePath string, targetSec float64) (float64, error) {
 	ctx, span := tracing.StartSpan(ctx, "ffmpeg.prober.ProbeSeekLanding")
 	defer span.End()
-	cmd := exec.CommandContext(ctx, seekLandingBinary,
+	out, err := procfork.Output(ctx, procfork.Options{Class: procfork.Probe, Site: "prober.seek_landing"}, seekLandingBinary,
 		"-v", "error",
 		"-ss", fmt.Sprintf("%.3f", targetSec),
 		"-copyts",
@@ -404,7 +403,6 @@ func (p *Prober) ProbeSeekLanding(ctx context.Context, filePath string, targetSe
 		"-frames:v", "1",
 		"-f", "framecrc", "-",
 	)
-	out, err := cmd.Output()
 	if err != nil {
 		return 0, fmt.Errorf("ffmpeg seek-landing probe: %w", err)
 	}

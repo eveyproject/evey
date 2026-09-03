@@ -1,11 +1,11 @@
 package ffmpeg
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"os/exec"
 	"strconv"
+
+	"github.com/evey-project/evey/internal/pkg/procfork"
 
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
@@ -24,13 +24,12 @@ func (c *ImageConverter) ConvertToWebP(ctx context.Context, srcPath, dstPath str
 	if quality <= 0 {
 		quality = 80
 	}
-	cmd := exec.CommandContext(ctx, c.binary,
+	out, err := procfork.CombinedOutput(ctx, procfork.Options{Class: procfork.Interactive, Site: "image_converter.webp"}, c.binary,
 		"-i", srcPath,
 		"-c:v", "libwebp",
 		"-quality", fmt.Sprintf("%d", quality),
 		"-y", dstPath,
 	)
-	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("ffmpeg webp convert: %w\n%s", err, out)
 	}
@@ -58,11 +57,8 @@ func (c *ImageConverter) ResizeAndConvertToWebP(ctx context.Context, srcPath, ds
 		"-compression_level", "4",
 		dstPath,
 	}
-	cmd := exec.CommandContext(ctx, c.binary, args...)
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("ffmpeg resize+webp: %w (%s)", err, stderr.String())
+	if out, err := procfork.CombinedOutput(ctx, procfork.Options{Class: procfork.Interactive, Site: "image_converter.resize_webp"}, c.binary, args...); err != nil {
+		return fmt.Errorf("ffmpeg resize+webp: %w (%s)", err, out)
 	}
 	return nil
 }

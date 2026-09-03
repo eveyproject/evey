@@ -6,11 +6,12 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"os/exec"
 	"runtime/debug"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/evey-project/evey/internal/pkg/procfork"
 
 	"go.opentelemetry.io/otel/codes"
 
@@ -400,7 +401,15 @@ func (h *transcodeServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 
 	args := h.buildFFmpegArgs(item.File.Path, params, analysis)
 	slog.Debug("transcode: ffmpeg", slog.String("media_id", mediaID), slog.String("args", strings.Join(args, " ")))
-	cmd := exec.CommandContext(ctx, "ffmpeg", args...)
+	// A viewer is waiting on this stream: default priority, production caps.
+	cmd, finish, err := procfork.Command(ctx, procfork.Options{Class: procfork.Production, Site: "http.transcode", NoNice: true}, "ffmpeg", args...)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "transcode refused")
+		slog.WarnContext(r.Context(), "transcode refused", slog.String("media_id", mediaID), slog.Any("err", err))
+		http.Error(w, `{"message":"server busy, retry later"}`, http.StatusServiceUnavailable)
+		return
+	}
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		span.RecordError(err)
@@ -437,7 +446,7 @@ func (h *transcodeServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	if copyErr != nil && ctx.Err() == nil {
 		slog.WarnContext(r.Context(), "transcode copy", slog.Any("err", copyErr))
 	}
-	if err := cmd.Wait(); err != nil && ctx.Err() == nil {
+	if err := finish(cmd.Wait(), nil); err != nil && ctx.Err() == nil {
 		slog.WarnContext(r.Context(), "ffmpeg transcode", slog.String("media_id", mediaID), slog.Any("err", err))
 		// ffmpeg failed before emitting any bytes: the 200 status line hasn't
 		// been committed yet (io.Copy wrote nothing), so we can still send a 500.

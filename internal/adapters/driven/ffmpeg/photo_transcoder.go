@@ -3,7 +3,8 @@ package ffmpeg
 import (
 	"context"
 	"fmt"
-	"os/exec"
+
+	"github.com/evey-project/evey/internal/pkg/procfork"
 
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
@@ -39,8 +40,7 @@ func (p *PhotoTranscoder) Transcode(ctx context.Context, srcPath, dstPath string
 		return fmt.Errorf("unsupported format: %s", format)
 	}
 	args = append(args, dstPath)
-	cmd := exec.CommandContext(ctx, p.binary, args...)
-	out, err := cmd.CombinedOutput()
+	out, err := procfork.CombinedOutput(ctx, procfork.Options{Class: procfork.Interactive, Site: "photo.transcode"}, p.binary, args...)
 	if err != nil {
 		return fmt.Errorf("ffmpeg photo transcode: %w\n%s", err, out)
 	}

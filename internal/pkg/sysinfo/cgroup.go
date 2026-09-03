@@ -61,21 +61,7 @@ func readCgroupMemLimit(fsRoot string) (int64, bool) {
 }
 
 func readMeminfoTotal(path string) (int64, bool) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return 0, false
-	}
-	for line := range strings.SplitSeq(string(data), "\n") {
-		if rest, ok := strings.CutPrefix(line, "MemTotal:"); ok {
-			fields := strings.Fields(rest)
-			if len(fields) > 0 {
-				if kb, perr := strconv.ParseInt(fields[0], 10, 64); perr == nil {
-					return kb * 1024, true
-				}
-			}
-		}
-	}
-	return 0, false
+	return readMeminfoField(path, "MemTotal:")
 }
 
 // CPUBudget returns the number of cores this process may actually use: the
@@ -125,4 +111,53 @@ func ceilDiv(a, b int64) int {
 		return 1
 	}
 	return n
+}
+
+// MemAvailableBytes returns how much memory a new process may still claim
+// without pushing the host or the container into reclaim: the kernel's
+// MemAvailable, further bounded by the cgroup headroom (memory.max minus
+// memory.current) when a limit is set. ok is false when nothing is readable.
+func MemAvailableBytes() (int64, bool) {
+	return memAvailableBytes("/")
+}
+
+func memAvailableBytes(fsRoot string) (int64, bool) {
+	avail, ok := readMeminfoField(filepath.Join(fsRoot, "proc/meminfo"), "MemAvailable:")
+	limit, limited := readCgroupMemLimit(fsRoot)
+	if limited {
+		if current, cok := readInt64File(filepath.Join(fsRoot, "sys/fs/cgroup/memory.current")); cok {
+			headroom := max(limit-current, 0)
+			if !ok || headroom < avail {
+				return headroom, true
+			}
+		}
+	}
+	return avail, ok
+}
+
+func readMeminfoField(path, field string) (int64, bool) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return 0, false
+	}
+	for line := range strings.SplitSeq(string(data), "\n") {
+		if rest, ok := strings.CutPrefix(line, field); ok {
+			fields := strings.Fields(rest)
+			if len(fields) > 0 {
+				if kb, perr := strconv.ParseInt(fields[0], 10, 64); perr == nil {
+					return kb * 1024, true
+				}
+			}
+		}
+	}
+	return 0, false
+}
+
+func readInt64File(path string) (int64, bool) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return 0, false
+	}
+	n, perr := strconv.ParseInt(strings.TrimSpace(string(data)), 10, 64)
+	return n, perr == nil
 }
