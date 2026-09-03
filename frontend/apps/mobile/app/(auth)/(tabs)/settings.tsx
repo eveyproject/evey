@@ -220,9 +220,12 @@ export default function SettingsScreen() {
                 style={{ width: 56, height: 56, borderRadius: 28 }}
                 contentFit="cover"
               />
-            ) : defaultProfile?.avatarPath && serverUrl && accessToken ? (
+            ) : activeProfile?.avatarPath && activeProfile.id && serverUrl && accessToken ? (
+              // The ACTIVE profile, the one the upload above writes to. Reading
+              // defaultProfile here meant anyone on a non-default profile saw an
+              // initial instead of the avatar they had just set.
               <Image
-                source={{ uri: `${serverUrl}/api/v1/profiles/${defaultProfile?.id}/avatar?token=${accessToken}` }}
+                source={{ uri: `${serverUrl}/api/v1/profiles/${activeProfile.id}/avatar?token=${accessToken}` }}
                 style={{ width: 56, height: 56, borderRadius: 28 }}
                 contentFit="cover"
               />
