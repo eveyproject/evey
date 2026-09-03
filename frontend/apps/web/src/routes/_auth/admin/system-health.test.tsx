@@ -5,12 +5,28 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 const mockGetDashboard = vi.fn();
 const mockGetSystemInfo = vi.fn();
+const mockFetch = vi.fn();
 
 vi.mock("@evey/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@evey/api")>()),
   useAdminSystemServiceGetDashboard: (...args: unknown[]) => mockGetDashboard(...args),
   useAdminSystemServiceGetSystemInfo: (...args: unknown[]) => mockGetSystemInfo(...args),
+  // The finer metrics and the background-tasks panel read plain JSON routes.
+  eveyFetch: (...args: unknown[]) => mockFetch(...args),
 }));
+
+const metrics = {
+  load: { avg1: 1.5, avg5: 1.2, avg15: 0.9, known: true, cpus: 8, cpuBudget: 4 },
+  memory: { totalBytes: 16e9, availableBytes: 8e9, budgetBytes: 0 },
+  process: { rssBytes: 312 * 1024 * 1024, heapInUseBytes: 120 * 1024 * 1024, heapSysBytes: 200 * 1024 * 1024, goroutines: 143, gcCount: 57, gcPauseTotalNs: 1e6 },
+  forks: {
+    count: 2, rssBytes: 1.5 * 1024 * 1024 * 1024, cpuPercent: 250,
+    byClass: [
+      { class: "production", count: 1, rssBytes: 1024 * 1024 * 1024, cpuPercent: 200 },
+      { class: "scan", count: 1, rssBytes: 512 * 1024 * 1024, cpuPercent: 50 },
+    ],
+  },
+};
 
 vi.mock("@tanstack/react-router", () => ({
   createLazyFileRoute: () => (opts: { component: React.ComponentType }) => opts,
@@ -58,6 +74,9 @@ describe("SystemHealthPage", () => {
     vi.clearAllMocks();
     mockGetDashboard.mockReturnValue({ data: null, isLoading: false, dataUpdatedAt: 0 });
     mockGetSystemInfo.mockReturnValue({ data: null, isLoading: false });
+    mockFetch.mockImplementation(({ url }: { url: string }) =>
+      Promise.resolve(url.includes("/system/metrics") ? metrics : []),
+    );
   });
 
   it("shows page heading", async () => {
@@ -96,13 +115,25 @@ describe("SystemHealthPage", () => {
     expect(screen.getByTestId("bandwidth-card")).toHaveTextContent("-");
   });
 
-  it("renders dashboard activity badges", async () => {
+  it("reads the load against the CPU budget, Evey's own weight and the media processes by class", async () => {
     mockGetDashboard.mockReturnValue({ data: dashData, isLoading: false, dataUpdatedAt: Date.now() });
     mockGetSystemInfo.mockReturnValue({ data: sysData, isLoading: false });
     const SystemHealthPage = await getSystemHealthPage();
     render(React.createElement(SystemHealthPage), { wrapper: createWrapper() });
-    expect(screen.getByText(/Active Streams/i)).toBeInTheDocument();
-    expect(screen.getByText(/Total Users/i)).toBeInTheDocument();
+    const load = await screen.findByTestId("load-card");
+    expect(load).toHaveTextContent("1.50 / 1.20 / 0.90");
+    // The cgroup budget (4), not the host's 8 cores, is the reference.
+    expect(load).toHaveTextContent("4 CPUs available");
+    const proc = screen.getByTestId("process-card");
+    expect(proc).toHaveTextContent("312.0 MB");
+    expect(proc).toHaveTextContent("143 goroutines");
+    const forks = screen.getByTestId("forks-card");
+    expect(forks).toHaveTextContent("2 · 1.5 GB · 250% CPU");
+    expect(forks).toHaveTextContent("production: 1 · 1.0 GB · 200% CPU");
+    expect(forks).toHaveTextContent("scan: 1 · 512.0 MB · 50% CPU");
+    // The activity counters (streams, users) left for the dashboard.
+    expect(screen.queryByText(/Total Users/i)).not.toBeInTheDocument();
+    expect(screen.getByTestId("background-tasks-panel")).toBeInTheDocument();
   });
 
   it("renders server info panel with version", async () => {

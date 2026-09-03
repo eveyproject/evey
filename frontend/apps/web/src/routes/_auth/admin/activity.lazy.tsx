@@ -1,10 +1,10 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { Film, Download } from "lucide-react";
 import { createLazyFileRoute, useNavigate } from "@tanstack/react-router";
-import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "@evey/store";
-import { eveyFetch, activityServiceGetPlayHistory, activityServiceGetServerStats, adminSessionServiceGetAuditLog, formatBytes, formatDurationMs, collectAllPages, EXPORT_PAGE_SIZE, EXPORT_MAX_ROWS } from "@evey/api";
+import { activityServiceGetPlayHistory, activityServiceGetServerStats, adminSessionServiceGetAuditLog, formatBytes, formatDurationMs, collectAllPages, EXPORT_PAGE_SIZE, EXPORT_MAX_ROWS } from "@evey/api";
 import { useActivityServiceGetServerStats } from "@evey/api";
 import { Spinner } from "@/components/ui/Spinner";
 import { Card } from "@/components/ui/Card";
@@ -219,47 +219,6 @@ function AuditTab({ watcher }: { watcher: Watcher }) {
   );
 }
 
-type BgTask = { name: string; state: string; detail?: string; processed: number; lastActiveAt?: string };
-
-// BackgroundTasksCard shows what the background workers are doing right now
-// (keyframe/level backfill, complexity classify, intro detection) so an operator
-// understands why the CPU isn't idle. Polls every 5s for a live-ish view.
-function BackgroundTasksCard() {
-  const { t } = useTranslation();
-  const { data } = useQuery<BgTask[]>({
-    queryKey: ["/api/v1/admin/background-tasks"],
-    queryFn: () => eveyFetch<BgTask[]>({ url: "/api/v1/admin/background-tasks", method: "GET" }),
-    refetchInterval: 5000,
-  });
-  if (!data || data.length === 0) return null;
-  return (
-    <Card>
-      <h3 className="font-semibold mb-4 text-[var(--text)]">
-        {t("admin.activity.backgroundTasks", "Background tasks")}
-      </h3>
-      <div className="flex flex-col gap-2">
-        {data.map((task) => {
-          const running = task.state === "running";
-          return (
-            <div key={task.name} className="flex items-center justify-between text-sm py-1 border-b border-[var(--border)] last:border-b-0">
-              <div className="flex min-w-0 items-center gap-2">
-                <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${running ? "animate-pulse bg-[var(--success,#16a34a)]" : "bg-[var(--border)]"}`} />
-                <span className="text-[var(--text)]">{t(`admin.activity.bgTask.${task.name}`, task.name)}</span>
-                {running && task.detail && (
-                  <span className="truncate text-xs text-[var(--text-muted)]">{task.detail}</span>
-                )}
-              </div>
-              <div className="flex shrink-0 gap-4 text-xs text-[var(--text-muted)]">
-                <span>{running ? t("admin.activity.bgRunning", "running") : t("admin.activity.bgIdle", "idle")}</span>
-                <span>{t("admin.activity.bgProcessed", "{{n}} done", { n: task.processed })}</span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </Card>
-  );
-}
 
 function StatsTab() {
   const { t } = useTranslation();
@@ -296,8 +255,6 @@ function StatsTab() {
           </Card>
         ))}
       </div>
-
-      <BackgroundTasksCard />
 
       {stats?.popularMedia && stats.popularMedia.length > 0 && (
         <Card>

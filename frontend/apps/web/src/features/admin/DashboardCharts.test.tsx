@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import React from "react";
-import { PlayActivityChart, StorageDonut, PeakHours } from "./DashboardCharts";
+import { PlayActivityChart, PeakHours } from "./DashboardCharts";
 
 // recharts is mocked to simple markup: it renders real SVG that trips jsdom
 // (getBBox/getComputedTextLength are unimplemented). The point of this test is
@@ -50,10 +50,4 @@ describe("DashboardCharts (recharts)", () => {
     expect(screen.getByText("admin.dashboardStats.peakHours")).toBeTruthy();
   });
 
-  it("renders StorageDonut with the used percentage and legend", () => {
-    render(<StorageDonut storage={[{ path: "/data", totalBytes: "100", usedBytes: "40" }]} />);
-    expect(screen.getByText("40%")).toBeTruthy();
-    expect(screen.getByText("admin.dashboardStats.used")).toBeTruthy();
-    expect(screen.getByText("admin.dashboardStats.free")).toBeTruthy();
-  });
 });

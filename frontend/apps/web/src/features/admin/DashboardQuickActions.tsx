@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Search, Folder, Users, Power } from "lucide-react";
+import { Search, Folder, Users, Power, Cpu } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -11,6 +11,7 @@ import {
 } from "@evey/api";
 import { toast } from "@evey/store";
 import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
 
 export function QuickActions() {
   const { t } = useTranslation();
@@ -74,14 +75,17 @@ export function QuickActions() {
     }
   }
 
+  // A card of full-width actions, sized to sit beside the background-tasks
+  // panel: the row of loose buttons it replaced sat alone across the page.
   return (
-    <div>
+    <Card>
       <h3 className="text-sm font-semibold mb-3 text-[var(--text)]">
         {t("admin.dashboardStats.quickActions")}
       </h3>
-      <div className="flex gap-3 flex-wrap">
+      <div className="flex flex-col gap-2">
         <Button
           variant="secondary"
+          className="justify-start"
           loading={scanningAll}
           onClick={scanAll}
           disabled={libraries.length === 0}
@@ -89,20 +93,27 @@ export function QuickActions() {
           <Search size={16} />
           {t("admin.dashboardStats.scanAllLibraries")}
         </Button>
-        <Link to="/admin/libraries">
-          <Button variant="secondary">
+        <Link to="/admin/libraries" className="flex">
+          <Button variant="secondary" className="w-full justify-start">
             <Folder size={16} />
             {t("admin.dashboardStats.manageLibraries")}
           </Button>
         </Link>
-        <Link to="/admin/users">
-          <Button variant="secondary">
+        <Link to="/admin/users" className="flex">
+          <Button variant="secondary" className="w-full justify-start">
             <Users size={16} />
             {t("admin.dashboardStats.manageUsers")}
           </Button>
         </Link>
+        <Link to="/admin/system-health" className="flex">
+          <Button variant="secondary" className="w-full justify-start">
+            <Cpu size={16} />
+            {t("admin.nav.systemHealth")}
+          </Button>
+        </Link>
         <Button
           variant={restartArmed ? "danger" : "secondary"}
+          className="justify-start"
           loading={restart.isPending}
           onClick={onRestartClick}
           title={t("admin.dashboardStats.restartHint")}
@@ -114,10 +125,10 @@ export function QuickActions() {
         </Button>
       </div>
       {restartArmed && (
-        <p className="mt-2 text-xs text-[var(--text-muted)] max-w-md">
+        <p className="mt-2 text-xs text-[var(--text-muted)]">
           {t("admin.dashboardStats.restartHint")}
         </p>
       )}
-    </div>
+    </Card>
   );
 }

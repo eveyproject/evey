@@ -614,6 +614,10 @@ activity:
     intro_detection: "Intro-Erkennung"
     keyframe_backfill: "Keyframe-Indexierung"
     level_backfill: "Level-Nachtrag"
+    trickplay_generation: "Trickplay-Erzeugung"
+    collection_relink: "Sammlungen neu verknüpfen"
+    compat_download: "Kompatibler Download"
+    reduced_download: "Reduzierter Download"
   tabs:
     playHistory: Wiedergabeverlauf
     serverStats: Serverstatistiken
@@ -840,6 +844,21 @@ systemHealth:
   totalUsers: Benutzer gesamt
   hwAcceleration: HW-Beschleunigung
   serverId: Server-ID
+  load: "Durchschnittslast"
+  loadCpus: "1 / 5 / 15 Min., {{budget}} CPUs verfügbar"
+  process: "Evey-Prozess"
+  goroutines: "{{count}} Goroutinen"
+  heap: "Heap {{size}}"
+  gcCount: "{{count}} GC"
+  forks: "Medienprozesse"
+  forksNone: "keiner aktiv"
+  forksLine: "{{count}} · {{memory}} · {{cpu}} % CPU"
+  forkClass:
+    probe: "Sonde"
+    scan: "Scan"
+    interactive: "interaktiv"
+    production: "Produktion"
+  backgroundTasksSection: "Hintergrundaufgaben"
   videoCapacitySection: "Video-Transcodierkapazität"
   videoCapacityTitle: "Video-Transcodierkapazität"
   videoCapacityRatio: "{{active}} / {{limit}} Streams"
@@ -884,6 +903,10 @@ dashboardStats:
   totalMedia: Medien gesamt
   throughput: Durchsatz
   theoretical: Theoretische Rate
+  inventory: "{{movies}} Filme · {{series}} Serien · {{media}} Medien · {{users}} Benutzer"
+  transcodesSub_one: "davon {{count}} transkodiert"
+  transcodesSub_other: "davon {{count}} transkodiert"
+  theoreticalSub: "theoretisch {{rate}}"
   storage: Speicherplatz
   quickActions: Schnellaktionen
   scanAllLibraries: Alle Bibliotheken scannen
@@ -1427,3 +1450,26 @@ syncPreview:
   idle: "Einen Moment wählen und auf Zeig es mir klicken. Der Clip entsteht auf dem Server, das dauert ein paar Sekunden."
   apply: "{{shift}} s auf diese Spur anwenden"
   applyHint: "Als dein Urteil festgehalten, nicht als Messung - und aus dem Verlauf rückgängig zu machen wie jede andere Reparatur."
+backgroundTasks:
+  title: "Hintergrundaufgaben"
+  runningCount_one: "{{count}} läuft"
+  runningCount_other: "{{count}} laufen"
+  allIdle: "alle im Leerlauf"
+  empty: "Auf diesem Server ist keine Hintergrundaufgabe instrumentiert."
+  unavailable: "Hintergrundaufgaben konnten nicht gelesen werden."
+  stop: "Stoppen"
+  confirmStop: "Stopp bestätigen?"
+  resume: "Fortsetzen"
+  paused: "vom Admin gestoppt"
+  stopping: "wird gestoppt"
+  stopped: "{{name}} gestoppt. Bleibt gestoppt bis zur Fortsetzung oder zum Neustart des Servers."
+  resumed: "{{name}} fortgesetzt."
+  stopFailed: "Aufgabe konnte nicht gestoppt werden."
+  resumeFailed: "Aufgabe konnte nicht fortgesetzt werden."
+  impact: "{{processes}} Proz. · {{memory}} · {{cpu}} % CPU"
+  cpuTotal: "{{seconds}} s CPU seit dem Start"
+  sinceNow: "gerade gestartet"
+  sinceMinutes_one: "seit {{count}} Min."
+  sinceMinutes_other: "seit {{count}} Min."
+  sinceHours_one: "seit {{count}} Std."
+  sinceHours_other: "seit {{count}} Std."

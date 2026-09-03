@@ -28,6 +28,8 @@ const counts = vi.hoisted(() => ({
 
 vi.mock("@evey/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@evey/api")>()),
+  // The background-tasks panel polls its own JSON route.
+  eveyFetch: () => Promise.resolve([]),
   useLibraryServiceListMediaItems: (params: { type?: string }) => {
     if (params?.type === "MEDIA_ITEM_TYPE_MOVIE") {
       return counts.movies;
@@ -37,7 +39,6 @@ vi.mock("@evey/api", async (importOriginal) => ({
     }
     return { data: undefined };
   },
-  useAdminSessionServiceGetAuditLog: () => ({ data: { entries: [] }, isLoading: false }),
   // The OnlineNow presence widget and the restart button mount inside the
   // dashboard tree.
   usePresenceServiceListOnline: () => counts.online,
@@ -77,21 +78,28 @@ const baseInfo = {
 };
 
 describe("DashboardStats", () => {
-  it("renders stat cards with correct values", () => {
+  it("renders the live tiles and folds the inventory into one line", () => {
     render(<DashboardStats info={baseInfo as never} />, { wrapper: createWrapper() });
-    expect(screen.getByText("42")).toBeInTheDocument();
-    expect(screen.getByText("7")).toBeInTheDocument();
-    expect(screen.getByText("5")).toBeInTheDocument();
+    // Four live tiles: streams (with the transcode count as a sub-line),
+    // throughput (with the theoretical rate), CPU, memory.
     expect(screen.getByText("2")).toBeInTheDocument();
+    expect(screen.getByText("1 transcoded")).toBeInTheDocument();
     expect(screen.getByText("34.5%")).toBeInTheDocument();
     expect(screen.getByText("61.2%")).toBeInTheDocument();
-    expect(screen.getByText("1")).toBeInTheDocument();
-    expect(screen.getByText("120")).toBeInTheDocument();
     // Measured throughput (real served rate) and theoretical rate (sum of
     // active source bitrates) - for a transcode the two diverge, which is the
     // point: measured is the truth, theoretical is the source-rate upper bound.
     expect(screen.getByText("8.0 Mbps")).toBeInTheDocument();
-    expect(screen.getByText("42.6 Mbps")).toBeInTheDocument();
+    expect(screen.getByText("theoretical 42.6 Mbps")).toBeInTheDocument();
+    // Movies, series, media and users are inventory, not activity: one line,
+    // not four tiles.
+    expect(screen.getByTestId("dashboard-inventory")).toHaveTextContent("42 movies · 7 series · 120 media items · 5 users");
+  });
+
+  it("hosts the background-tasks panel and the quick actions side by side", () => {
+    render(<DashboardStats info={baseInfo as never} />, { wrapper: createWrapper() });
+    expect(screen.getByTestId("background-tasks-panel")).toBeInTheDocument();
+    expect(screen.getByText("Quick Actions")).toBeInTheDocument();
   });
 
   it("shows an em dash for measured throughput before the first sample", () => {
@@ -105,8 +113,7 @@ describe("DashboardStats", () => {
       render(<DashboardStats info={baseInfo as never} />, { wrapper: createWrapper() });
       // "0 movies" is what an admin sees after a wiped library. A failed count
       // must not be able to say that.
-      expect(screen.queryByText("0")).not.toBeInTheDocument();
-      expect(screen.getByText("7")).toBeInTheDocument();
+      expect(screen.getByTestId("dashboard-inventory")).toHaveTextContent("- movies · 7 series");
     } finally {
       counts.movies = { data: { pagination: { totalItems: 42 } } };
     }
@@ -124,7 +131,7 @@ describe("DashboardStats", () => {
     }
   });
 
-  it("renders storage section when storage data present", () => {
+  it("leaves storage to the System Health page", () => {
     const infoWithStorage = {
       ...baseInfo,
       storage: [
@@ -132,7 +139,6 @@ describe("DashboardStats", () => {
       ],
     };
     render(<DashboardStats info={infoWithStorage as never} />, { wrapper: createWrapper() });
-    expect(screen.getByText("Storage")).toBeInTheDocument();
-    expect(screen.getByText("/mnt/media")).toBeInTheDocument();
+    expect(screen.queryByText("/mnt/media")).not.toBeInTheDocument();
   });
 });

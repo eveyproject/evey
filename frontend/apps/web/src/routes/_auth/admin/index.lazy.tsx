@@ -1,6 +1,6 @@
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { useAdminSystemServiceGetDashboard, useAdminSystemServiceGetSystemInfo } from "@evey/api";
+import { useAdminSystemServiceGetDashboard } from "@evey/api";
 import { Spinner } from "@/components/ui/Spinner";
 import { DashboardStats } from "@/features/admin/DashboardStats";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -9,52 +9,8 @@ export const Route = createLazyFileRoute("/_auth/admin/")({
   component: AdminDashboard,
 });
 
-function SystemInfoCard() {
-  const { t } = useTranslation();
-  const { data: sysData, isLoading } = useAdminSystemServiceGetSystemInfo();
-
-  if (isLoading) {
-    return (
-      <div className="flex justify-center py-8">
-        <Spinner size="md" />
-      </div>
-    );
-  }
-
-  if (!sysData) return null;
-
-  const fields: [string, string | undefined][] = [
-    [t("admin.dashboard.version"), sysData.version],
-    [t("admin.dashboard.os"), sysData.os],
-    [t("admin.dashboard.arch"), sysData.arch],
-    [t("admin.dashboard.goVersion"), sysData.goVersion],
-    [t("admin.dashboard.ffmpeg"), sysData.ffmpegVersion],
-    [t("admin.dashboard.uptime"), sysData.uptimeSeconds ? `${Math.floor(parseInt(sysData.uptimeSeconds) / 60)}m` : undefined],
-  ];
-
-  return (
-    <div
-      className="p-4 rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]"
-    >
-      <h3 className="text-sm font-semibold mb-3 text-[var(--text)]">
-        {t("admin.dashboard.systemInfo")}
-      </h3>
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-8 gap-y-3 text-sm">
-        {fields.map(([k, v]) =>
-          v ? (
-            <div key={k}>
-              <dt className="font-medium text-[var(--text-muted)]">
-                {k}
-              </dt>
-              <dd className="text-[var(--text)]">{v}</dd>
-            </div>
-          ) : null,
-        )}
-      </div>
-    </div>
-  );
-}
-
+// The dashboard is the live view; version, OS, ffmpeg and uptime belong to
+// System Health, where they sit next to the hardware and capacity facts.
 function AdminDashboard() {
   const { t } = useTranslation();
   const { data: dashData, isLoading: dashLoading, dataUpdatedAt } = useAdminSystemServiceGetDashboard({
@@ -62,7 +18,7 @@ function AdminDashboard() {
   });
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-6">
       <PageHeader title={t("admin.dashboard.title")} actions={dataUpdatedAt > 0 ? (
         <p className="text-xs text-[var(--text-muted)]">
           {t("admin.dashboard.autoRefresh", { time: new Date(dataUpdatedAt).toLocaleTimeString(), interval: "3s" })}
@@ -75,8 +31,6 @@ function AdminDashboard() {
       ) : dashData ? (
         <DashboardStats info={dashData} />
       ) : null}
-
-      <SystemInfoCard />
     </div>
   );
 }

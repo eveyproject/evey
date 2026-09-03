@@ -33,9 +33,12 @@ interface StatCardProps {
   label: string;
   value: string | number;
   valueColor?: string;
+  // A second, quieter fact under the label ("2 transcoded", "theoretical 42
+  // Mbps"): one tile carries the pair instead of two tiles diluting the row.
+  sub?: string;
 }
 
-export function StatCard({ icon, label, value, valueColor }: StatCardProps) {
+export function StatCard({ icon, label, value, valueColor, sub }: StatCardProps) {
   return (
     <div
       className="flex items-center gap-3 p-4 rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]"
@@ -52,6 +55,7 @@ export function StatCard({ icon, label, value, valueColor }: StatCardProps) {
         <span className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">
           {label}
         </span>
+        {sub && <span className="text-xs text-[var(--text-muted)]">{sub}</span>}
       </div>
     </div>
   );

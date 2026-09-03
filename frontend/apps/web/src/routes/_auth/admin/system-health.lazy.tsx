@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { useAdminSystemServiceGetDashboard, useAdminSystemServiceGetSystemInfo, formatBytes } from "@evey/api";
+import { useQuery } from "@tanstack/react-query";
+import { useAdminSystemServiceGetDashboard, useAdminSystemServiceGetSystemInfo, formatBytes, eveyFetch } from "@evey/api";
 import { Spinner } from "@/components/ui/Spinner";
 import { PageHeader } from "@/components/ui/PageHeader";
-import type { V1DashboardInfo, V1SystemInfo } from "@evey/api";
+import { BackgroundTasksPanel } from "@/features/admin/BackgroundTasksPanel";
+import type { V1SystemInfo } from "@evey/api";
 
 export const Route = createLazyFileRoute("/_auth/admin/system-health")({
   component: SystemHealthPage,
@@ -299,26 +301,91 @@ function ServerInfoPanel({ info }: { info: V1SystemInfo }) {
   );
 }
 
-function StatBadge({ label, value }: { label: string; value: number | undefined }) {
+// SystemMetrics mirrors systemMetrics in the Go handler behind
+// /api/v1/admin/system/metrics: the finer facts under the two percentages.
+interface SystemMetrics {
+  load: { avg1: number; avg5: number; avg15: number; known: boolean; cpus: number; cpuBudget: number };
+  memory: { totalBytes: number; availableBytes: number; budgetBytes: number };
+  process: { rssBytes: number; heapInUseBytes: number; heapSysBytes: number; goroutines: number; gcCount: number; gcPauseTotalNs: number };
+  forks: {
+    count: number;
+    rssBytes: number;
+    cpuPercent: number;
+    byClass: { class: string; count: number; rssBytes: number; cpuPercent: number }[];
+  };
+}
+
+function FineCard({ title, value, lines, testId }: { title: string; value: string; lines: string[]; testId: string }) {
   return (
     <div
-      className="flex flex-col items-center justify-center p-4 rounded-[var(--radius-lg)] gap-1 bg-[var(--surface)] border border-[var(--border)]"
+      className="p-4 rounded-[var(--radius-lg)] flex flex-col gap-2 bg-[var(--surface)] border border-[var(--border)]"
+      data-testid={testId}
     >
-      <span className="text-2xl font-bold text-[var(--text)]">{value ?? 0}</span>
-      <span className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">{label}</span>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">{title}</span>
+        <span className="text-xl font-bold tabular-nums text-[var(--text)]">{value}</span>
+      </div>
+      {lines.map((l) => (
+        <span key={l} className="text-xs text-[var(--text-muted)]">{l}</span>
+      ))}
     </div>
   );
 }
 
-function DashboardPanel({ info }: { info: V1DashboardInfo; }) {
+// LoadCard reads the load average against the CPUs Evey may actually use: a
+// load of 6 is a calm number on 8 cores and a saturated one on a 2-CPU cgroup.
+function LoadCard({ load }: { load: SystemMetrics["load"] }) {
+  const { t } = useTranslation();
+  const budget = load.cpuBudget > 0 ? load.cpuBudget : load.cpus;
+  const pct = budget > 0 ? (load.avg1 / budget) * 100 : 0;
+  return (
+    <div
+      className="p-4 rounded-[var(--radius-lg)] flex flex-col gap-2 bg-[var(--surface)] border border-[var(--border)]"
+      data-testid="load-card"
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">{t("admin.systemHealth.load")}</span>
+        <span className={`text-xl font-bold tabular-nums ${load.known ? getUsageTextColor(pct) : "text-[var(--text-muted)]"}`}>
+          {load.known ? `${load.avg1.toFixed(2)} / ${load.avg5.toFixed(2)} / ${load.avg15.toFixed(2)}` : "-"}
+        </span>
+      </div>
+      <span className="text-xs text-[var(--text-muted)]">{t("admin.systemHealth.loadCpus", { budget })}</span>
+    </div>
+  );
+}
+
+function ProcessCard({ process }: { process: SystemMetrics["process"] }) {
   const { t } = useTranslation();
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-      <StatBadge label={t("admin.systemHealth.activeStreams")} value={info.activeStreams} />
-      <StatBadge label={t("admin.systemHealth.activeTranscodes")} value={info.activeTranscodes} />
-      <StatBadge label={t("admin.systemHealth.totalMedia")} value={info.totalMediaItems} />
-      <StatBadge label={t("admin.systemHealth.totalUsers")} value={info.totalUsers} />
-    </div>
+    <FineCard
+      testId="process-card"
+      title={t("admin.systemHealth.process")}
+      value={formatBytes(process.rssBytes)}
+      lines={[
+        `${t("admin.systemHealth.heap", { size: formatBytes(process.heapInUseBytes) })} · ${t("admin.systemHealth.goroutines", { count: process.goroutines })}`,
+        t("admin.systemHealth.gcCount", { count: process.gcCount }),
+      ]}
+    />
+  );
+}
+
+// ForksCard is where the CPU goes when it is not Evey itself: the ffmpeg,
+// ffprobe and fpcalc processes in flight, by class (a viewer's transcode is
+// "production", a library sweep is "scan").
+function ForksCard({ forks }: { forks: SystemMetrics["forks"] }) {
+  const { t } = useTranslation();
+  const lines = forks.count === 0
+    ? [t("admin.systemHealth.forksNone")]
+    : forks.byClass.map((g) =>
+        `${t(`admin.systemHealth.forkClass.${g.class}`, g.class)}: ${t("admin.systemHealth.forksLine", { count: g.count, memory: formatBytes(g.rssBytes), cpu: Math.round(g.cpuPercent) })}`,
+      );
+  return (
+    <FineCard
+      testId="forks-card"
+      title={t("admin.systemHealth.forks")}
+      value={forks.count === 0 ? "0" : t("admin.systemHealth.forksLine", { count: forks.count, memory: formatBytes(forks.rssBytes), cpu: Math.round(forks.cpuPercent) })}
+      lines={lines}
+    />
   );
 }
 
@@ -328,6 +395,14 @@ function SystemHealthPage() {
     query: { refetchInterval: 5_000, refetchIntervalInBackground: false },
   });
   const { data: sysData, isLoading: sysLoading } = useAdminSystemServiceGetSystemInfo();
+  // Pure in-process reads on the server: safe to poll as often as the
+  // dashboard numbers.
+  const { data: metrics } = useQuery<SystemMetrics>({
+    queryKey: ["/api/v1/admin/system/metrics"],
+    queryFn: () => eveyFetch<SystemMetrics>({ url: "/api/v1/admin/system/metrics", method: "GET" }),
+    refetchInterval: 5_000,
+    refetchIntervalInBackground: false,
+  });
 
   const cpuHistory = useRef<number[]>([]);
   const memHistory = useRef<number[]>([]);
@@ -378,6 +453,21 @@ function SystemHealthPage() {
             </div>
           )}
 
+          {metrics && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <LoadCard load={metrics.load} />
+              <ProcessCard process={metrics.process} />
+              <ForksCard forks={metrics.forks} />
+            </div>
+          )}
+
+          <div>
+            <h2 className="text-sm font-semibold uppercase tracking-wide mb-3 text-[var(--text-muted)]">
+              {t("admin.systemHealth.backgroundTasksSection")}
+            </h2>
+            <BackgroundTasksPanel />
+          </div>
+
           {dashData?.storage && dashData.storage.length > 0 && (
             <div>
               <h2 className="text-sm font-semibold uppercase tracking-wide mb-3 text-[var(--text-muted)]">
@@ -395,15 +485,6 @@ function SystemHealthPage() {
                   />
                 ))}
               </div>
-            </div>
-          )}
-
-          {dashData && (
-            <div>
-              <h2 className="text-sm font-semibold uppercase tracking-wide mb-3 text-[var(--text-muted)]">
-                {t("admin.systemHealth.activitySection")}
-              </h2>
-              <DashboardPanel info={dashData} />
             </div>
           )}
 

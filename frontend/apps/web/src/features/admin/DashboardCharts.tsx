@@ -1,10 +1,9 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { useActivityServiceGetAnalytics, formatBytes } from "@evey/api";
-import { BarChart, Bar, XAxis, YAxis, Cell, PieChart, Pie } from "recharts";
+import { useActivityServiceGetAnalytics } from "@evey/api";
+import { BarChart, Bar, XAxis, YAxis } from "recharts";
 
 import { useCssVar } from "@/hooks/useCssVar";
-import { CHART_COLORS } from "@/constants/chartColors";
 
 const CHART_HEIGHT = 200;
 
@@ -91,77 +90,6 @@ export function PlayActivityChart() {
           />
           <Bar dataKey="value" fill={accent} radius={[4, 4, 0, 0]} maxBarSize={28} isAnimationActive={false} />
         </BarChart>
-      </div>
-    </div>
-  );
-}
-
-export function StorageDonut({ storage }: { storage: { path?: string; totalBytes?: string; usedBytes?: string; freeBytes?: string }[] }) {
-  const { t } = useTranslation();
-
-  if (!storage || storage.length === 0) return null;
-
-  const usedColor = CHART_COLORS[0];
-  const freeColor = CHART_COLORS[2];
-
-  return (
-    <div className="p-4 rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]">
-      <h3 className="text-sm font-semibold mb-4 text-[var(--text)]">
-        {t("admin.dashboardStats.storage")}
-      </h3>
-      <div className="flex items-center justify-center gap-8 flex-wrap">
-        {storage.map((s, i) => {
-          const used = parseInt(s.usedBytes ?? "0");
-          const total = parseInt(s.totalBytes ?? "1");
-          const free = total - used;
-          const pct = total > 0 ? Math.round((used / total) * 100) : 0;
-          const pieData = [
-            { name: "used", value: used, color: usedColor },
-            { name: "free", value: free, color: freeColor },
-          ];
-          return (
-            <div key={i} className="flex flex-col items-center gap-2">
-              <div
-                className="relative"
-                style={{ width: 100, height: 100 }}
-                role="img"
-                aria-label={`${t("admin.dashboardStats.storage")} - ${pct}% ${t("admin.dashboardStats.used")}`}
-              >
-                <PieChart width={100} height={100}>
-                  <Pie
-                    data={pieData}
-                    dataKey="value"
-                    innerRadius={30}
-                    outerRadius={50}
-                    startAngle={90}
-                    endAngle={-270}
-                    stroke="none"
-                    isAnimationActive={false}
-                  >
-                    {pieData.map((entry) => (
-                      <Cell key={entry.name} fill={entry.color} />
-                    ))}
-                  </Pie>
-                </PieChart>
-                <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-[var(--text)]">
-                  {pct}%
-                </span>
-              </div>
-              <span className="text-xs text-[var(--text-muted)] truncate max-w-[140px]" title={s.path}>{s.path}</span>
-              <span className="text-xs text-[var(--text-muted)]">{formatBytes(s.usedBytes)} / {formatBytes(s.totalBytes)}</span>
-            </div>
-          );
-        })}
-      </div>
-      <div className="flex items-center justify-center gap-4 mt-3 text-xs">
-        <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: usedColor }} />
-          <span className="text-[var(--text-muted)]">{t("admin.dashboardStats.used")}</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: freeColor }} />
-          <span className="text-[var(--text-muted)]">{t("admin.dashboardStats.free")}</span>
-        </div>
       </div>
     </div>
   );

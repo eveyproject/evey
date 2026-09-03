@@ -614,6 +614,10 @@ activity:
     intro_detection: "Intro detection"
     keyframe_backfill: "Keyframe backfill"
     level_backfill: "Level backfill"
+    trickplay_generation: "Trickplay generation"
+    collection_relink: "Collection relink"
+    compat_download: "Compatible download"
+    reduced_download: "Reduced download"
   tabs:
     playHistory: Play History
     serverStats: Server Stats
@@ -840,6 +844,21 @@ systemHealth:
   totalUsers: Total Users
   hwAcceleration: HW Acceleration
   serverId: Server ID
+  load: "Load average"
+  loadCpus: "1 / 5 / 15 min, {{budget}} CPUs available"
+  process: "Evey process"
+  goroutines: "{{count}} goroutines"
+  heap: "heap {{size}}"
+  gcCount: "{{count}} GC"
+  forks: "Media processes"
+  forksNone: "none running"
+  forksLine: "{{count}} · {{memory}} · {{cpu}}% CPU"
+  forkClass:
+    probe: "probe"
+    scan: "scan"
+    interactive: "interactive"
+    production: "production"
+  backgroundTasksSection: "Background tasks"
   videoCapacitySection: Video Transcode Capacity
   videoCapacityTitle: Video Transcode Capacity
   videoCapacityRatio: "{{active}} / {{limit}} streams"
@@ -884,6 +903,10 @@ dashboardStats:
   totalMedia: Total Media
   throughput: Throughput
   theoretical: Theoretical Rate
+  inventory: "{{movies}} movies · {{series}} series · {{media}} media items · {{users}} users"
+  transcodesSub_one: "{{count}} transcoded"
+  transcodesSub_other: "{{count}} transcoded"
+  theoreticalSub: "theoretical {{rate}}"
   storage: Storage
   quickActions: Quick Actions
   scanAllLibraries: Scan All Libraries
@@ -1427,3 +1450,26 @@ syncPreview:
   idle: "Choose a moment and press Show me. The clip is built on the server, which takes a couple of seconds."
   apply: "Apply {{shift}}s to this track"
   applyHint: "Recorded as your judgement, not as a measurement - and undoable from the history like any other repair."
+backgroundTasks:
+  title: "Background tasks"
+  runningCount_one: "{{count}} running"
+  runningCount_other: "{{count}} running"
+  allIdle: "all idle"
+  empty: "No background task is instrumented on this server."
+  unavailable: "Background tasks could not be read."
+  stop: "Stop"
+  confirmStop: "Confirm stop?"
+  resume: "Resume"
+  paused: "stopped by admin"
+  stopping: "stopping"
+  stopped: "{{name}} stopped. It stays stopped until you resume it or the server restarts."
+  resumed: "{{name}} resumed."
+  stopFailed: "Failed to stop the task."
+  resumeFailed: "Failed to resume the task."
+  impact: "{{processes}} proc · {{memory}} · {{cpu}}% CPU"
+  cpuTotal: "{{seconds}} s CPU since start"
+  sinceNow: "just started"
+  sinceMinutes_one: "for {{count}} min"
+  sinceMinutes_other: "for {{count}} min"
+  sinceHours_one: "for {{count}} h"
+  sinceHours_other: "for {{count}} h"
