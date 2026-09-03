@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/lib/pq"
 	"go.opentelemetry.io/otel/attribute"
@@ -134,12 +135,12 @@ func (r *ProfileRepository) GetByID(ctx context.Context, id shared.ProfileID) (*
 	var pBlockedTags []string
 	var pEnabled bool
 	err := txFromCtx(ctx, r.db).QueryRowContext(ctx,
-		`SELECT id, user_id, name, avatar_path, preferences, max_rating, is_default, is_kids, audio_languages, subtitle_languages, max_bitrate_kbps, parental_max_age, parental_blocked_tags, parental_pin_hash, parental_enabled, locale, region, created_at
+		`SELECT id, user_id, name, avatar_path, preferences, max_rating, is_default, is_kids, audio_languages, subtitle_languages, max_bitrate_kbps, parental_max_age, parental_blocked_tags, parental_pin_hash, parental_enabled, locale, region, created_at, last_active_at
 		 FROM profiles WHERE id = $1`, string(id),
 	).Scan(&p.ID, &p.UserID, &p.Name, &p.AvatarPath, &prefsJSON, &p.MaxRating, &p.IsDefault, &p.IsKids,
 		pq.Array(&p.AudioLanguages), pq.Array(&p.SubtitleLanguages), &p.MaxBitrateKbps,
 		&pMaxAge, pq.Array(&pBlockedTags), &pPINHash, &pEnabled,
-		&p.Locale, &p.Region, &p.CreatedAt)
+		&p.Locale, &p.Region, &p.CreatedAt, &p.LastActiveAt)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -165,7 +166,7 @@ func (r *ProfileRepository) GetByUserID(ctx context.Context, userID shared.UserI
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
-		`SELECT id, user_id, name, avatar_path, preferences, max_rating, is_default, is_kids, audio_languages, subtitle_languages, max_bitrate_kbps, parental_max_age, parental_blocked_tags, parental_pin_hash, parental_enabled, locale, region, created_at
+		`SELECT id, user_id, name, avatar_path, preferences, max_rating, is_default, is_kids, audio_languages, subtitle_languages, max_bitrate_kbps, parental_max_age, parental_blocked_tags, parental_pin_hash, parental_enabled, locale, region, created_at, last_active_at
 		 FROM profiles WHERE user_id = $1 ORDER BY is_default DESC, name`, string(userID))
 	if err != nil {
 		span.RecordError(err)
@@ -266,6 +267,29 @@ func (r *ProfileRepository) UpdateAvatarPath(ctx context.Context, id shared.Prof
 	return nil
 }
 
+// TouchLastActive writes ONLY last_active_at, on the same column-scoped
+// principle as UpdateAvatarPath: it runs on every token refresh and must never
+// be able to replay a stale snapshot of any other column.
+func (r *ProfileRepository) TouchLastActive(ctx context.Context, id shared.ProfileID, at time.Time) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.profile.TouchLastActive")
+	defer span.End()
+	span.SetAttributes(attribute.String("profile.id", string(id)))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
+		`UPDATE profiles SET last_active_at=$1 WHERE id=$2`, at, string(id),
+	)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return fmt.Errorf("ProfileRepo.TouchLastActive: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return shared.ErrNotFound
+	}
+	return nil
+}
+
 // UpdateParentalSettings writes ONLY the parental_* columns - the mirror
 // image of UpdateAvatarPath. Without this, saving a PIN/age/tags/enabled
 // change from a Profile read before a concurrent avatar upload landed would
@@ -354,7 +378,7 @@ func (r *ProfileRepository) GetAll(ctx context.Context) ([]*user.Profile, error)
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
-		`SELECT id, user_id, name, avatar_path, preferences, max_rating, is_default, is_kids, audio_languages, subtitle_languages, max_bitrate_kbps, parental_max_age, parental_blocked_tags, parental_pin_hash, parental_enabled, locale, region, created_at
+		`SELECT id, user_id, name, avatar_path, preferences, max_rating, is_default, is_kids, audio_languages, subtitle_languages, max_bitrate_kbps, parental_max_age, parental_blocked_tags, parental_pin_hash, parental_enabled, locale, region, created_at, last_active_at
 		 FROM profiles ORDER BY user_id, is_default DESC, name LIMIT 1000`)
 	if err != nil {
 		span.RecordError(err)
@@ -411,7 +435,7 @@ func scanProfile(rows *sql.Rows) (*user.Profile, error) {
 	if err := rows.Scan(&p.ID, &p.UserID, &p.Name, &p.AvatarPath, &prefsJSON, &p.MaxRating, &p.IsDefault, &p.IsKids,
 		pq.Array(&p.AudioLanguages), pq.Array(&p.SubtitleLanguages), &p.MaxBitrateKbps,
 		&pMaxAge, pq.Array(&pBlockedTags), &pPINHash, &pEnabled,
-		&p.Locale, &p.Region, &p.CreatedAt); err != nil {
+		&p.Locale, &p.Region, &p.CreatedAt, &p.LastActiveAt); err != nil {
 		return nil, fmt.Errorf("scanProfile: %w", err)
 	}
 	if err := json.Unmarshal(prefsJSON, &p.Preferences); err != nil {
@@ -454,7 +478,7 @@ func (r *ProfileRepository) ListAdminProfiles(ctx context.Context) ([]*user.Prof
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT p.id, p.user_id, p.name, p.avatar_path, p.preferences, p.max_rating, p.is_default, p.is_kids,
 		 p.audio_languages, p.subtitle_languages, p.max_bitrate_kbps, p.parental_max_age, p.parental_blocked_tags,
-		 p.parental_pin_hash, p.parental_enabled, p.locale, p.region, p.created_at
+		 p.parental_pin_hash, p.parental_enabled, p.locale, p.region, p.created_at, p.last_active_at
 		 FROM profiles p
 		 INNER JOIN users u ON u.id = p.user_id
 		 WHERE u.is_admin = TRUE

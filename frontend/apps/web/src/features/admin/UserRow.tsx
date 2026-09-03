@@ -76,12 +76,6 @@ export function UserRow({ user, profiles = [] }: { user: V1User; profiles?: V1Pr
       <td data-label={t("admin.users.username")} className="px-4 py-3 font-medium text-[var(--text)]">
         {user.username}
       </td>
-      <td data-label={t("admin.users.email")} className="px-4 py-3 text-sm text-[var(--text-muted)]">
-        {user.email ?? "-"}
-      </td>
-      <td data-label={t("admin.users.role")} className="px-4 py-3">
-        {user.isAdmin ? <Badge variant="warning">{t("admin.users.admin")}</Badge> : <Badge>{t("admin.users.user")}</Badge>}
-      </td>
       <td data-label={t("admin.users.profiles")} className="px-4 py-3">
         <button
           type="button"
@@ -97,6 +91,12 @@ export function UserRow({ user, profiles = [] }: { user: V1User; profiles?: V1Pr
             {profiles.map((p) => p.name).join(", ")}
           </div>
         )}
+      </td>
+      <td data-label={t("admin.users.email")} className="px-4 py-3 text-sm text-[var(--text-muted)]">
+        {user.email ?? "-"}
+      </td>
+      <td data-label={t("admin.users.role")} className="px-4 py-3">
+        {user.isAdmin ? <Badge variant="warning">{t("admin.users.admin")}</Badge> : <Badge>{t("admin.users.user")}</Badge>}
       </td>
       <td data-label={t("common.status")} className="px-4 py-3">
         {user.enabled !== false ? (

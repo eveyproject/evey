@@ -836,3 +836,71 @@ func TestStartLoginAttemptCleanup_NilRepoIsSafe(t *testing.T) {
 	svc.StartLoginAttemptCleanup(t.Context())
 	time.Sleep(100 * time.Millisecond)
 }
+
+// --- Profile last_active_at: which profile was used, and when ---
+
+func TestLogin_StampsOnlyTheActivatedProfile(t *testing.T) {
+	d := newAuthTestDeps()
+	ctx := context.Background()
+	seedAuthUser(t, d, "u1", "alice", "pw", false, true)
+	_ = d.profiles.Create(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "Alice", IsDefault: true})
+	_ = d.profiles.Create(ctx, &user.Profile{ID: "p2", UserID: "u1", Name: "Kids"})
+
+	if _, _, err := d.svc.Login(ctx, "alice", "pw"); err != nil {
+		t.Fatal(err)
+	}
+	p1, _ := d.profiles.GetByID(ctx, "p1")
+	if p1.LastActiveAt == nil {
+		t.Fatal("login lands on the default profile: it must be stamped")
+	}
+	p2, _ := d.profiles.GetByID(ctx, "p2")
+	if p2.LastActiveAt != nil {
+		t.Fatal("a profile nobody activated must stay unstamped")
+	}
+}
+
+func TestRefreshToken_ProfileSwitchStampsTheTargetProfile(t *testing.T) {
+	d := newAuthTestDeps()
+	ctx := context.Background()
+	seedAuthUser(t, d, "u1", "alice", "pw", false, true)
+	_ = d.profiles.Create(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "Alice", IsDefault: true})
+	_ = d.profiles.Create(ctx, &user.Profile{ID: "p2", UserID: "u1", Name: "Kids"})
+
+	raw := "refresh-switch-tok"
+	h := sha256.Sum256([]byte(raw))
+	_ = d.refreshTkns.Create(ctx, &user.RefreshToken{
+		ID: "rt1", UserID: "u1", TokenHash: hex.EncodeToString(h[:]),
+		ExpiresAt: time.Now().Add(time.Hour),
+	})
+
+	before := time.Now().Add(-time.Second)
+	if _, _, err := d.svc.RefreshToken(ctx, raw, "p2", ""); err != nil {
+		t.Fatal(err)
+	}
+	p2, _ := d.profiles.GetByID(ctx, "p2")
+	if p2.LastActiveAt == nil || p2.LastActiveAt.Before(before) {
+		t.Fatalf("switched-to profile must be stamped now, got %v", p2.LastActiveAt)
+	}
+	p1, _ := d.profiles.GetByID(ctx, "p1")
+	if p1.LastActiveAt != nil {
+		t.Fatal("the profile being left must not be stamped by the switch")
+	}
+}
+
+// An admin looking around under someone's profile is not that profile being
+// used: "last active" would otherwise lie to the very person reading it.
+func TestImpersonate_DoesNotStampProfileLastActive(t *testing.T) {
+	d := newAuthTestDeps()
+	ctx := context.Background()
+	seedAuthUser(t, d, "usr-admin", "root", "pw", true, true)
+	seedAuthUser(t, d, "usr-bob", "bob", "pw", false, true)
+	_ = d.profiles.Create(ctx, &user.Profile{ID: "prf-bob-1", UserID: "usr-bob", Name: "Bob", IsDefault: true})
+
+	if _, err := d.svc.Impersonate(ctx, "usr-admin", "usr-bob", "prf-bob-1"); err != nil {
+		t.Fatal(err)
+	}
+	p, _ := d.profiles.GetByID(ctx, "prf-bob-1")
+	if p.LastActiveAt != nil {
+		t.Fatalf("impersonation stamped the target profile: %v", p.LastActiveAt)
+	}
+}

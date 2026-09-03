@@ -68,6 +68,9 @@ type ProfileRepository interface {
 	// by userID and sets it on profileID. Returns ErrNotFound if profileID
 	// does not exist or does not belong to userID.
 	SetDefault(ctx context.Context, userID shared.UserID, profileID shared.ProfileID) error
+	// TouchLastActive stamps last_active_at only. Best-effort on the token
+	// paths (login, refresh): a failure is logged, never surfaced.
+	TouchLastActive(ctx context.Context, id shared.ProfileID, at time.Time) error
 }
 
 type RefreshTokenRepository interface {

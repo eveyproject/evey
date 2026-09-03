@@ -20,6 +20,10 @@ function avatarUrl(p: V1Profile): string | null {
 // under this account. Impersonation lives HERE rather than on the row because
 // "connect as this user" without a profile always lands on the default one -
 // the panel is what lets an admin land on the profile they mean.
+//
+// Profiles are laid out as compact cards that pack to the left, not one
+// full-width bar per profile: a bar spanning eight table columns with its
+// buttons pushed to the far right was mostly empty space.
 export function UserProfilesPanel({ user, profiles }: { user: V1User; profiles: V1Profile[] }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -48,25 +52,27 @@ export function UserProfilesPanel({ user, profiles }: { user: V1User; profiles: 
   }
 
   return (
-    <ul className="flex flex-col gap-2">
+    <ul className="flex flex-wrap gap-2">
       {profiles.map((p) => (
         <li
           key={p.id}
-          className="flex flex-wrap items-center gap-3 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2"
+          className="flex items-center gap-3 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2"
         >
           <Avatar initial={(p.name ?? "?").charAt(0).toUpperCase()} imageUrl={avatarUrl(p)} size={32} />
-          <div className="flex min-w-[8rem] flex-col">
-            <span className="font-medium text-[var(--text)]">{p.name}</span>
-            <span className="text-xs text-[var(--text-muted)]">
-              {p.createdAt ? new Date(p.createdAt).toLocaleDateString() : "-"}
+          <div className="flex min-w-0 flex-col">
+            <span className="flex flex-wrap items-center gap-1.5">
+              <span className="font-medium text-[var(--text)]">{p.name}</span>
+              {p.isDefault && <Badge>{t("admin.users.defaultProfile")}</Badge>}
+              {p.isKids && <Badge variant="warning">{t("admin.users.kidsProfile")}</Badge>}
+              {p.maxRating && <Badge variant="default">{p.maxRating}</Badge>}
+            </span>
+            <span className="whitespace-nowrap text-xs text-[var(--text-muted)]">
+              {t("admin.users.lastActive")}
+              {": "}
+              {p.lastActiveAt ? new Date(p.lastActiveAt).toLocaleString() : t("admin.users.never")}
             </span>
           </div>
-          <div className="flex flex-wrap gap-1">
-            {p.isDefault && <Badge>{t("admin.users.defaultProfile")}</Badge>}
-            {p.isKids && <Badge variant="warning">{t("admin.users.kidsProfile")}</Badge>}
-            {p.maxRating && <Badge variant="default">{p.maxRating}</Badge>}
-          </div>
-          <div className="ml-auto flex flex-wrap gap-2">
+          <div className="ml-1 flex gap-1">
             {user.enabled !== false && (
               <Button
                 variant="secondary"

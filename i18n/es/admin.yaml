@@ -51,6 +51,9 @@ logs:
   resultCount_other: "{{count}} entradas"
   liveCount_one: "{{count}} entrada en vivo"
   liveCount_other: "{{count}} entradas en vivo"
+  accessLog: "Registro de acceso gRPC"
+  newLines_one: "{{count}} línea nueva arriba"
+  newLines_other: "{{count}} líneas nuevas arriba"
   liveUnavailableMobile: El seguimiento en vivo aún no está disponible en móvil - usa la búsqueda de abajo.
   sessionId: ID de sesión
   userId: ID de usuario
@@ -289,6 +292,7 @@ users:
   kidsProfile: "Infantil"
   impersonateProfile: "Conectarse como {{name}}"
   viewHistory: "Historial"
+  lastActive: "Última actividad"
   failedImpersonate: "Error al conectarse como usuario"
   impersonationBanner: "Estás actuando como {{name}}"
   impersonationBannerGeneric: "Estás actuando como otro usuario"

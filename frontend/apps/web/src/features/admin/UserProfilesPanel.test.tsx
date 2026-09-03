@@ -78,6 +78,20 @@ describe("UserProfilesPanel", () => {
     });
   });
 
+  // "When was this profile last used?" is what the expanded row is for; a
+  // profile nobody ever opened must say so rather than show a blank.
+  it("shows when each profile was last active, or never", () => {
+    const at = "2026-09-01T10:00:00Z";
+    render(
+      <UserProfilesPanel
+        user={user}
+        profiles={[{ ...profiles[0], lastActiveAt: at }, profiles[1]]}
+      />,
+    );
+    expect(screen.getByText(new RegExp(new Date(at).getFullYear().toString()))).toBeInTheDocument();
+    expect(screen.getByText(/Never|Jamais/)).toBeInTheDocument();
+  });
+
   it("offers no impersonation for a disabled account", () => {
     render(<UserProfilesPanel user={{ ...user, enabled: false }} profiles={profiles} />);
     expect(screen.queryByRole("button", { name: /Papa/ })).not.toBeInTheDocument();

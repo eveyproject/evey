@@ -61,6 +61,9 @@ func profileToProto(p *user.Profile) *eveyv1.Profile {
 	if p.AvatarPath != nil {
 		pb.AvatarPath = *p.AvatarPath
 	}
+	if p.LastActiveAt != nil {
+		pb.LastActiveAt = toTimestamppb(*p.LastActiveAt)
+	}
 	if p.MaxRating != nil {
 		pb.MaxRating = *p.MaxRating
 	}

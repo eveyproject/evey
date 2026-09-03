@@ -3,6 +3,7 @@ package fakes
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/user"
@@ -152,6 +153,23 @@ func (r *FakeProfileRepository) UpdateParentalSettings(_ context.Context, id sha
 	return nil
 }
 
+// TouchLastActive mirrors the postgres column-scoped write: only LastActiveAt
+// moves on the stored record.
+func (r *FakeProfileRepository) TouchLastActive(_ context.Context, id shared.ProfileID, at time.Time) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	p, ok := r.items[string(id)]
+	if !ok {
+		return ErrNotFound
+	}
+	t := at
+	p.LastActiveAt = &t
+	return nil
+}
+
 func (r *FakeProfileRepository) GetAll(_ context.Context) ([]*user.Profile, error) {
 	if r.Err != nil {
 		return nil, r.Err
@@ -217,6 +235,10 @@ func cloneProfile(p *user.Profile) *user.Profile {
 	if p.Parental != nil {
 		par := *p.Parental
 		cp.Parental = &par
+	}
+	if p.LastActiveAt != nil {
+		t := *p.LastActiveAt
+		cp.LastActiveAt = &t
 	}
 	return &cp
 }

@@ -51,6 +51,9 @@ logs:
   resultCount_other: "{{count}} Einträge"
   liveCount_one: "{{count}} Live-Eintrag"
   liveCount_other: "{{count}} Live-Einträge"
+  accessLog: "gRPC-Zugriffsprotokoll"
+  newLines_one: "{{count}} neue Zeile oberhalb"
+  newLines_other: "{{count}} neue Zeilen oberhalb"
   liveUnavailableMobile: Live-Verfolgung ist auf Mobilgeräten noch nicht verfügbar - nutze die Suche unten.
   sessionId: Sitzungs-ID
   userId: Benutzer-ID
@@ -289,6 +292,7 @@ users:
   kidsProfile: "Kinder"
   impersonateProfile: "Als {{name}} anmelden"
   viewHistory: "Verlauf"
+  lastActive: "Zuletzt aktiv"
   failedImpersonate: "Anmelden als Benutzer fehlgeschlagen"
   impersonationBanner: "Sie handeln als {{name}}"
   impersonationBannerGeneric: "Sie handeln als ein anderer Benutzer"

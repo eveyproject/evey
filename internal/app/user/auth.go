@@ -138,7 +138,21 @@ func (s *CommandService) Login(ctx context.Context, username, password string, t
 	if err := s.users.TouchLastLogin(ctx, u.ID, evtLogin.OccurredAt); err != nil {
 		slog.WarnContext(ctx, "touch last_login", slog.String("user_id", string(u.ID)), slog.Any("err", err))
 	}
+	s.touchProfileActive(ctx, defaultProfileID, evtLogin.OccurredAt)
 	return accessToken, refreshToken, nil
+}
+
+// touchProfileActive records that a token was just minted for profileID, which
+// is what the admin panel shows as the profile's last activity. Best-effort:
+// worth a log line, never a failed login or refresh. Impersonate deliberately
+// does not call it - an admin looking around is not the profile being used.
+func (s *CommandService) touchProfileActive(ctx context.Context, profileID string, at time.Time) {
+	if profileID == "" {
+		return
+	}
+	if err := s.profiles.TouchLastActive(ctx, shared.ProfileID(profileID), at); err != nil {
+		slog.WarnContext(ctx, "touch profile last_active", slog.String("profile_id", profileID), slog.Any("err", err))
+	}
 }
 
 func (s *CommandService) GenerateTokensForUser(ctx context.Context, userID string, ttlOverride ...time.Duration) (accessToken, refreshToken string, err error) {
@@ -196,6 +210,7 @@ func (s *CommandService) GenerateTokensForUser(ctx context.Context, userID strin
 	if err != nil {
 		return "", "", fmt.Errorf("CommandService.GenerateTokensForUser: %w", err)
 	}
+	s.touchProfileActive(ctx, defaultProfileID, time.Now())
 	return accessToken, refreshToken, nil
 }
 
@@ -405,6 +420,9 @@ func (s *CommandService) RefreshToken(ctx context.Context, token, requestedProfi
 		return "", "", rotErr
 	}
 
+	// Every refresh, silent or switch: a silent one means the app is open
+	// under this profile right now, which is exactly what "last active" means.
+	s.touchProfileActive(ctx, activeProfileID, time.Now())
 	return accessToken, newRefresh, nil
 }
 

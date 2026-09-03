@@ -51,6 +51,9 @@ logs:
   resultCount_other: "{{count}} entrées"
   liveCount_one: "{{count}} entrée en direct"
   liveCount_other: "{{count}} entrées en direct"
+  accessLog: "Journal d'accès gRPC"
+  newLines_one: "{{count}} nouvelle ligne au-dessus"
+  newLines_other: "{{count}} nouvelles lignes au-dessus"
   liveUnavailableMobile: "Le suivi en direct n'est pas encore disponible sur mobile - utilise la recherche ci-dessous."
   sessionId: ID de session
   userId: Utilisateur (nom ou ID)
@@ -288,6 +291,7 @@ users:
   kidsProfile: "Enfant"
   impersonateProfile: "Se connecter en {{name}}"
   viewHistory: "Historique"
+  lastActive: "Dernière activité"
   failedImpersonate: "Échec de la connexion en tant qu'utilisateur"
   impersonationBanner: "Vous agissez en tant que {{name}}"
   impersonationBannerGeneric: "Vous agissez en tant qu'un autre utilisateur"

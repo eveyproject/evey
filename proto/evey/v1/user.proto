@@ -247,6 +247,9 @@ message Profile {
   // Parental MaxAge cap stored on the profile. Only meaningful when
   // is_kids=true; absent means "use the implicit kids default (12)".
   optional int32 max_age = 14;
+  // When an access token was last minted for this profile (login or refresh).
+  // Absent = never. Admin impersonation does not count.
+  google.protobuf.Timestamp last_active_at = 15;
 }
 
 message AuthResponse {

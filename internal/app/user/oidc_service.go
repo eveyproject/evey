@@ -296,6 +296,11 @@ func (s *OIDCService) HandleCallback(ctx context.Context, code, expectedNonce st
 	if err := s.userRepo.TouchLastLogin(ctx, u.ID, evt.OccurredAt); err != nil {
 		slog.WarnContext(ctx, "oidc: touch last_login", slog.String("user_id", string(u.ID)), slog.Any("err", err))
 	}
+	if defaultProfileID != "" {
+		if err := s.profiles.TouchLastActive(ctx, shared.ProfileID(defaultProfileID), evt.OccurredAt); err != nil {
+			slog.WarnContext(ctx, "oidc: touch profile last_active", slog.String("profile_id", defaultProfileID), slog.Any("err", err))
+		}
+	}
 
 	return accessToken, refreshToken, rawIDToken, nil
 }
