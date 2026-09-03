@@ -126,8 +126,11 @@ func (w *ComplexityWorker) Stop() {
 	<-w.done
 }
 
+// complexityTask is this worker's name in the bgtasks registry.
+const complexityTask = "complexity_classifier"
+
 func (w *ComplexityWorker) run(ctx context.Context) {
-	bgtasks.Register("complexity_classifier")
+	bgtasks.RegisterControllable(complexityTask)
 	defer close(w.done)
 	defer func() {
 		if r := recover(); r != nil {
@@ -208,6 +211,10 @@ func (w *ComplexityWorker) processBatch(ctx context.Context) int {
 			return i
 		default:
 		}
+		// An admin's Stop holds the worker here.
+		if bgtasks.WaitResumed(ctx, complexityTask, w.stop) != nil {
+			return i
+		}
 		w.classifyOne(ctx, id)
 		// Throttle: don't sleep after the last item - keeps the worker
 		// snappy when ListUnclassified came back full and another batch
@@ -226,7 +233,8 @@ func (w *ComplexityWorker) processBatch(ctx context.Context) int {
 }
 
 func (w *ComplexityWorker) classifyOne(ctx context.Context, mediaItemID string) {
-	defer bgtasks.Begin("complexity_classifier", mediaItemID)()
+	ctx, done := bgtasks.BeginCtx(ctx, complexityTask, mediaItemID)
+	defer done()
 	item, err := w.items.GetByID(ctx, shared.MediaItemID(mediaItemID))
 	if err != nil {
 		w.logger.Warn("complexity: media item lookup failed",
@@ -256,6 +264,11 @@ func (w *ComplexityWorker) classifyOne(ctx context.Context, mediaItemID string) 
 
 	metrics, err := w.classifier.Classify(ctx, item.File.Path, durationSec, known)
 	if err != nil && metrics.FramesSampled == 0 {
+		if ctx.Err() != nil {
+			// Cancelled (an admin stopped the worker, or shutdown): a verdict on
+			// nothing, so no fallback class may be persisted for the file.
+			return
+		}
 		// Transient vs permanent (same doctrine as mkvgo AnalyzeFrameRateMode):
 		// a file the OS can't even stat may heal (unmounted share) - leave the
 		// row NULL so the next sweep retries. A present file that still

@@ -57,7 +57,10 @@ func manifestTotalFrames(m *domainlibrary.TrickplayManifest) int {
 func (s *IntroDetectionService) runPipeline(ctx context.Context, item *domainlibrary.MediaItem, hint *domainlibrary.MediaSegment) ([]domainlibrary.MediaSegment, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.library.intro.runPipeline")
 	defer span.End()
-	defer bgtasks.Begin("intro_detection", string(item.ID))()
+	// The registry's context: Stop cancels it, and the forks below are charged
+	// to the task through it.
+	ctx, done := bgtasks.BeginCtx(ctx, introDetectionTask, string(item.ID))
+	defer done()
 
 	mediaItemID := string(item.ID)
 	cfg := loadIntroConfig(ctx, s.configRepo)

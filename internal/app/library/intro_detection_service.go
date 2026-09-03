@@ -412,8 +412,11 @@ func (s *IntroDetectionService) isTrickplayEnabled(ctx context.Context) bool {
 //
 // Also schedules a background backfill sweep at startup so seasons that were
 // scanned before the feature existed (or while the worker was down) get covered.
+// introDetectionTask is the detection's name in the bgtasks registry.
+const introDetectionTask = "intro_detection"
+
 func (s *IntroDetectionService) StartWorker(ctx context.Context) {
-	bgtasks.Register("intro_detection")
+	bgtasks.RegisterControllable(introDetectionTask)
 	// Started before the event-bus guard: the sweep is what covers the catalogue
 	// (99% of the detections in the 2026-08-22 prod sample came from it, against
 	// ~8 a day from the event path), so it must not be hostage to a bus.
@@ -437,8 +440,8 @@ func (s *IntroDetectionService) StartWorker(ctx context.Context) {
 			t.Stop()
 		}
 		timers[key] = time.AfterFunc(delay, func() {
-			if s.activePlayback != nil && s.activePlayback() > 0 {
-				runDeferred(key, introDeferPoll, run) // still watching - try again later
+			if (s.activePlayback != nil && s.activePlayback() > 0) || bgtasks.Paused(introDetectionTask) {
+				runDeferred(key, introDeferPoll, run) // still watching, or stopped by an admin - try again later
 				return
 			}
 			mu.Lock()
@@ -631,6 +634,10 @@ func (s *IntroDetectionService) forEachBackfillTarget(ctx context.Context, ids [
 					slog.String("id", id), slog.Any("error", r))
 			}
 		}()
+		// An admin's Stop holds every sweep worker here until Resume.
+		if bgtasks.WaitResumed(ctx, introDetectionTask, nil) != nil {
+			return
+		}
 		fn(ctx, id)
 	}
 	workers := min(s.backfillWorkers(ctx), len(ids))

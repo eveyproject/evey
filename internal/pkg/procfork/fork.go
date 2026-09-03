@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/evey-project/evey/internal/pkg/bgtasks"
 	"github.com/evey-project/evey/internal/pkg/sysinfo"
 )
 
@@ -94,16 +95,32 @@ func Command(ctx context.Context, o Options, bin string, args ...string) (*exec.
 	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...) //nolint:gosec // fixed binaries, args built by the callers
 
 	started := time.Now()
+	track.add(cmd, &flight{cmd: cmd, site: o.Site, class: o.Class, task: bgtasks.TaskFromContext(ctx), started: started})
 	var once sync.Once
 	var result error
 	finish := func(runErr error, stderr []byte) error {
 		once.Do(func() {
 			release()
+			track.remove(cmd, cpuSeconds(cmd))
 			result = logExit(ctx, o, cmd, runErr, stderr, rssCap, threads, time.Since(started))
 		})
 		return result
 	}
 	return cmd, finish, nil
+}
+
+// cpuSeconds is the user+system CPU time the finished process consumed, from
+// the wait rusage; 0 when the process never ran.
+func cpuSeconds(cmd *exec.Cmd) float64 {
+	ps := cmd.ProcessState
+	if ps == nil {
+		return 0
+	}
+	ru, ok := ps.SysUsage().(*syscall.Rusage)
+	if !ok || ru == nil {
+		return 0
+	}
+	return float64(ru.Utime.Sec+ru.Stime.Sec) + float64(ru.Utime.Usec+ru.Stime.Usec)/1e6
 }
 
 // prefix is [prlimit --as=N] [ionice -c 3] [nice -n 19]: the address-space
@@ -155,7 +172,7 @@ func logExit(ctx context.Context, o Options, cmd *exec.Cmd, runErr error, stderr
 	if ps := cmd.ProcessState; ps != nil {
 		attrs = append(attrs, slog.Int("exit", ps.ExitCode()))
 		if ru, ok := ps.SysUsage().(*syscall.Rusage); ok && ru != nil {
-			attrs = append(attrs, slog.Int64("maxrss_mb", ru.Maxrss>>10))
+			attrs = append(attrs, slog.Int64("maxrss_mb", ru.Maxrss>>10), slog.Float64("cpu_s", cpuSeconds(cmd)))
 		}
 		if ws, ok := ps.Sys().(syscall.WaitStatus); ok && ws.Signaled() {
 			attrs = append(attrs, slog.String("signal", ws.Signal().String()))

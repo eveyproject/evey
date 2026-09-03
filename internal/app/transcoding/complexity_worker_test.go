@@ -16,6 +16,7 @@ import (
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
 	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/evey-project/evey/internal/pkg/bgtasks"
 )
 
 // fakeComplexityRepo records Set calls and replays the configured
@@ -293,4 +294,39 @@ func TestComplexityWorker_UnwiredCounterDoesNotGate(t *testing.T) {
 		ComplexityWorkerOpts{IdleInterval: time.Hour},
 		slog.New(slog.NewTextHandler(io.Discard, nil)))
 	assert.False(t, w.playbackActive())
+}
+
+// stoppingClassifier is a classification during which an admin presses Stop.
+type stoppingClassifier struct{}
+
+func (stoppingClassifier) Classify(ctx context.Context, _ string, _ float64, _ domaintranscoding.KnownSourceFacts) (domaintranscoding.ComplexityMetrics, error) {
+	bgtasks.Stop(complexityTask)
+	return domaintranscoding.ComplexityMetrics{}, ctx.Err()
+}
+
+func TestComplexityWorker_StopMidClassifyPersistsNoFallback(t *testing.T) {
+	// Present file + hard failure is the shape that settles the item with the
+	// sample-free fallback class. A cancellation is not a failure of the
+	// file: no class may be written for it.
+	const id = "media-stop"
+	f, err := os.CreateTemp(t.TempDir(), "*.mkv")
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
+	bgtasks.RegisterControllable(complexityTask)
+	t.Cleanup(func() { bgtasks.Resume(complexityTask) })
+
+	repo := &fakeComplexityRepo{unclassified: []string{id}}
+	reader := &fakeMediaReader{items: map[string]*domainlibrary.MediaItem{
+		id: {
+			ID:   shared.MediaItemID(id),
+			File: &domainlibrary.MediaFile{Path: f.Name(), Duration: mustDuration(t, time.Hour)},
+		},
+	}}
+	w := NewComplexityWorker(repo, stoppingClassifier{}, reader, ComplexityWorkerOpts{
+		BatchSize: 5,
+	}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+
+	w.processBatch(context.Background())
+	assert.Empty(t, repo.setsSnapshot(), "a cancelled classification must persist nothing")
+	assert.True(t, bgtasks.Paused(complexityTask))
 }

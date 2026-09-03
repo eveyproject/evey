@@ -361,8 +361,13 @@ func (s *TrickplayService) GenerateAllMissingTrickplays(ctx context.Context, inc
 			// The idle-gate makes the LOAD invisible but stretches the DURATION
 			// (a busy library spends its time waiting): the registry is how the
 			// operator sees that the sweep runs and how much remains.
-			done := bgtasks.Begin("trickplay_generation", fmt.Sprintf("%s (%d/%d)", id, i+1, len(ids)))
-			itemCtx, cancel := context.WithTimeout(bgCtx, 30*time.Minute)
+			// An admin's Stop holds the sweep here until Resume (or shutdown),
+			// and cancels the item in flight through the registry's context.
+			if bgtasks.WaitResumed(bgCtx, trickplayTask, nil) != nil {
+				return
+			}
+			runCtx, done := bgtasks.BeginCtx(bgCtx, trickplayTask, fmt.Sprintf("%s (%d/%d)", id, i+1, len(ids)))
+			itemCtx, cancel := context.WithTimeout(runCtx, 30*time.Minute)
 			err := s.GenerateTrickplay(itemCtx, id)
 			cancel()
 			done()
@@ -382,13 +387,21 @@ func (s *TrickplayService) GenerateAllMissingTrickplays(ctx context.Context, inc
 	return len(ids), nil
 }
 
+// trickplayTask is the sweep's name in the bgtasks registry.
+const trickplayTask = "trickplay_generation"
+
 func (s *TrickplayService) StartTrickplayWorker(ctx context.Context) {
 	if s.trickplayRepo == nil || s.trickplayGen == nil {
 		return
 	}
+	bgtasks.RegisterControllable(trickplayTask)
 	sem := make(chan struct{}, 1)
 	s.events.Subscribe("media.item.added", func(_ context.Context, ev shared.Event) {
 		if !s.isTrickplayEnabled(ctx) {
+			return
+		}
+		// Stopped by an admin: the item is not lost, the next sweep lists it.
+		if bgtasks.Paused(trickplayTask) {
 			return
 		}
 		e, ok := ev.(library.MediaItemAdded)

@@ -243,8 +243,11 @@ func (w *KeyframeBackfillWorker) Stop() {
 	<-w.done
 }
 
+// keyframeBackfillTask is this worker's name in the bgtasks registry.
+const keyframeBackfillTask = "keyframe_backfill"
+
 func (w *KeyframeBackfillWorker) run(ctx context.Context) {
-	bgtasks.Register("keyframe_backfill")
+	bgtasks.RegisterControllable(keyframeBackfillTask)
 	defer close(w.done)
 	defer func() {
 		if r := recover(); r != nil {
@@ -306,7 +309,16 @@ func (w *KeyframeBackfillWorker) processKeyframeBatch(ctx context.Context) int {
 			return i
 		default:
 		}
-		if !w.backfillOne(ctx, id) {
+		// An admin's Stop holds the worker here; a stop that lands mid-item
+		// cancels that item, which must not count as an attempt on the file.
+		if bgtasks.WaitResumed(ctx, keyframeBackfillTask, w.stop) != nil {
+			return i
+		}
+		progressed := w.backfillOne(ctx, id)
+		if bgtasks.Paused(keyframeBackfillTask) {
+			return i
+		}
+		if !progressed {
 			w.attempted[id] = struct{}{}
 		}
 		// Pause after EVERY item, including the last of the batch: run() loops
@@ -330,7 +342,8 @@ func (w *KeyframeBackfillWorker) processKeyframeBatch(ctx context.Context) int {
 // when at least one row was written (progress); false on any skip/failure so the
 // caller marks it. NEVER overwrites (SetKeyframes is NULL-guarded).
 func (w *KeyframeBackfillWorker) backfillOne(ctx context.Context, mediaItemID string) bool {
-	defer bgtasks.Begin("keyframe_backfill", mediaItemID)()
+	ctx, done := bgtasks.BeginCtx(ctx, keyframeBackfillTask, mediaItemID)
+	defer done()
 	item, err := w.items.GetByID(ctx, shared.MediaItemID(mediaItemID))
 	if err != nil {
 		w.logger.Warn("keyframe backfill: item lookup failed",
@@ -349,6 +362,11 @@ func (w *KeyframeBackfillWorker) backfillOne(ctx context.Context, mediaItemID st
 		// same nothing on every sweep; before the stamp existed those files were
 		// re-walked at every single boot. The stamp clears on a version bump or
 		// when a rescan of a replaced file recreates the stream rows.
+		if ctx.Err() != nil {
+			// Cancelled (an admin stopped the worker, or shutdown): says nothing
+			// about the file, so it must not be stamped unindexable.
+			return false
+		}
 		if _, statErr := os.Stat(item.File.Path); statErr != nil {
 			w.logger.Warn("keyframe backfill: probe failed, source unavailable - will retry",
 				slog.String("media_id", mediaItemID),

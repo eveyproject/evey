@@ -15,6 +15,7 @@ import (
 
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/bgtasks"
 )
 
 type fakeKeyframeStore struct {
@@ -481,4 +482,32 @@ func TestFrameRateReclassify_BailsOutMidBatchWhenPlaybackStarts(t *testing.T) {
 	handled := w.processBatch(context.Background())
 	assert.Len(t, store.reclassified(), 1, "the drain must yield after the in-flight item, not finish the batch")
 	assert.LessOrEqual(t, handled, 1)
+}
+
+// stoppingKeyframeProber is a probe during which an admin presses Stop: it
+// reports the cancellation the real prober would see once its ffprobe dies.
+type stoppingKeyframeProber struct{}
+
+func (stoppingKeyframeProber) ProbeKeyframes(ctx context.Context, _ string) ([]int64, error) {
+	bgtasks.Stop(keyframeBackfillTask)
+	return nil, ctx.Err()
+}
+
+func TestKeyframeBackfill_StopMidProbeIsNotAVerdictOnTheFile(t *testing.T) {
+	// The file is present and the probe "failed" - exactly the shape that
+	// stamps a file unindexable. An admin stopping the worker is not that:
+	// nothing may be stamped, nothing marked attempted, and the batch ends.
+	f, err := os.CreateTemp(t.TempDir(), "*.mkv")
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
+	bgtasks.RegisterControllable(keyframeBackfillTask)
+	t.Cleanup(func() { bgtasks.Resume(keyframeBackfillTask) })
+
+	store := &fakeKeyframeStore{queue: [][]string{{"m1", "m2"}}, setReturn: 1}
+	w := newKeyframeWorker(store, oneItemReader("m1", f.Name()), stoppingKeyframeProber{})
+	assert.Equal(t, 0, w.processBatch(context.Background()), "the batch stops at the cancelled item")
+	assert.Empty(t, store.marked(), "a cancelled probe must never stamp the file unindexable")
+	assert.Empty(t, store.setTargets())
+	assert.False(t, w.attemptedHas("m1"), "not attempted: the next sweep must retry it")
+	assert.True(t, bgtasks.Paused(keyframeBackfillTask))
 }

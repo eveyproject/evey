@@ -719,7 +719,8 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	}
 	registerRemoteAccessRoutes(mux, s.Cfg, s.TokenGen, s.CfgStore, s.AdminWriteRL)
 	registerServerSettingsRoutes(mux, s.Cfg, s.CfgStore, s.TokenGen, s.TranscodingSvc, hwModeControllerOf(s.CalibrationSvc), s.LoginRL, s.GlobalRL, s.AdminWriteRL)
-	registerBackgroundTasksRoute(mux, s.TokenGen)
+	registerBackgroundTasksRoute(mux, s.TokenGen, s.ActivityCmdSvc)
+	registerSystemMetricsRoute(mux, s.TokenGen)
 	func() {
 		var cfgSvc *appconfig.Service
 		if s.ServerCfgRepo != nil {

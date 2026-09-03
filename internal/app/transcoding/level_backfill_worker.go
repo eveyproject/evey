@@ -157,8 +157,11 @@ func (w *LevelBackfillWorker) Stop() {
 	<-w.done
 }
 
+// levelBackfillTask is this worker's name in the bgtasks registry.
+const levelBackfillTask = "level_backfill"
+
 func (w *LevelBackfillWorker) run(ctx context.Context) {
-	bgtasks.Register("level_backfill")
+	bgtasks.RegisterControllable(levelBackfillTask)
 	defer close(w.done)
 	defer func() {
 		if r := recover(); r != nil {
@@ -218,7 +221,16 @@ func (w *LevelBackfillWorker) processBatch(ctx context.Context) int {
 		if w.activePlayback != nil && w.activePlayback() > 0 {
 			return i
 		}
-		if !w.backfillOne(ctx, id) {
+		// An admin's Stop holds the worker here; a stop that lands mid-item
+		// cancels that item, which is not a verdict on the file.
+		if bgtasks.WaitResumed(ctx, levelBackfillTask, w.stop) != nil {
+			return i
+		}
+		progressed := w.backfillOne(ctx, id)
+		if bgtasks.Paused(levelBackfillTask) {
+			return i
+		}
+		if !progressed {
 			// Failed, or resolved no new level - mark so it isn't re-queried this
 			// run (skip + mark, no loop).
 			w.attempted[id] = struct{}{}
@@ -241,7 +253,8 @@ func (w *LevelBackfillWorker) processBatch(ctx context.Context) int {
 // caller marks it. It NEVER replaces streams - a degraded or empty probe can't
 // wipe existing metadata the way a full replace would.
 func (w *LevelBackfillWorker) backfillOne(ctx context.Context, mediaItemID string) bool {
-	defer bgtasks.Begin("level_backfill", mediaItemID)()
+	ctx, done := bgtasks.BeginCtx(ctx, levelBackfillTask, mediaItemID)
+	defer done()
 	item, err := w.items.GetByID(ctx, shared.MediaItemID(mediaItemID))
 	if err != nil {
 		w.logger.Warn("level backfill: item lookup failed",
