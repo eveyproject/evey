@@ -369,13 +369,19 @@ function matchLang(
 // resolveDefaultAudio picks the best matching audio stream from an ordered
 // preference list. Resolution order:
 //   1. Per-series override (localStorage)
-//   2. Device-local preferred lang (localStorage)
-//   3. Profile preferred langs (ordered list from profile.preferences)
+//   2. Profile preferred langs (ordered list from profile.preferences, locale last)
+//   3. Device-local preferred lang (localStorage)
 //   4. isDefault flag
 //   5. First available stream
 //
 // For steps 2-3 we iterate the ordered list and return the first stream that
 // is actually present in the file, so missing languages are silently skipped.
+//
+// The device-local pick sits BELOW the profile on purpose: it is written on
+// every manual track change, so with it above the profile a one-off VO
+// viewing turned into a permanent device override - an account set to French
+// then started every next film on the English track (2026-09-03). Per-series
+// memory keeps its priority: that one is scoped to what the user picked it on.
 export function resolveDefaultAudio(
   audioStreams: { index: number; trackIndex: number; language?: string; title?: string; isDefault?: boolean }[],
   seriesId: string | undefined,
@@ -390,21 +396,22 @@ export function resolveDefaultAudio(
     if (match) return match;
   }
 
-  // 2. Device-local preferred lang (single value, set when user manually
-  //    picks a track during playback).
-  const deviceLang = getPreferredAudioLang();
-  if (deviceLang) {
-    const match = audioStreams.find((s) => matchLang(s.language, s.title, deviceLang));
-    if (match) return match;
-  }
-
-  // 3. Profile preferred langs - ordered list, skip codes absent in the file.
+  // 2. Profile preferred langs - ordered list, skip codes absent in the file.
   if (profileAudioLangs) {
     for (const lang of profileAudioLangs) {
       if (!lang) continue;
       const match = audioStreams.find((s) => matchLang(s.language, s.title, lang));
       if (match) return match;
     }
+  }
+
+  // 3. Device-local preferred lang (single value, set when user manually
+  //    picks a track during playback). Only reached when the profile has no
+  //    preference the file can satisfy.
+  const deviceLang = getPreferredAudioLang();
+  if (deviceLang) {
+    const match = audioStreams.find((s) => matchLang(s.language, s.title, deviceLang));
+    if (match) return match;
   }
 
   // 4. isDefault flag, then first stream.

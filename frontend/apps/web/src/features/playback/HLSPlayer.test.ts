@@ -109,6 +109,19 @@ describe("resolveDefaultAudio", () => {
     expect(result?.index).toBe(2);
   });
 
+  // A manual pick on one film used to become a device-wide override that beat
+  // the profile forever: an account set to French started every next film on
+  // the English track remembered from a one-off VO viewing (2026-09-03).
+  it("profile langs win over the device-local pick", () => {
+    const result = resolveDefaultAudio(audioStreams, undefined, () => null, () => "eng", ["fr"]);
+    expect(result?.index).toBe(1);
+  });
+
+  it("device-local pick still applies when the profile has no matching lang", () => {
+    const result = resolveDefaultAudio(audioStreams, undefined, () => null, () => "jpn", ["deu"]);
+    expect(result?.index).toBe(2);
+  });
+
   it("falls back to default stream", () => {
     const result = resolveDefaultAudio(audioStreams, undefined, () => null, () => null);
     expect(result?.index).toBe(0);
