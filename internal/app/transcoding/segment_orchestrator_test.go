@@ -839,7 +839,11 @@ func (p *fakeProcess) Start(_ context.Context, opts transcoding.HLSProcessOpts) 
 	}
 	h := &fakeHandle{done: make(chan struct{}), failure: fail}
 	if fail != "" {
-		close(h.done) // simulate an immediate process exit with this failure
+		// Simulate an immediate process exit with this failure. The handle is
+		// already stopped: a Stop() racing the reaper (Close after churn) must
+		// not close done twice.
+		h.stopped = true
+		close(h.done)
 	}
 	return h, nil
 }
