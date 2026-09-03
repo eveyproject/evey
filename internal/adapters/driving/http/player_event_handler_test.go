@@ -41,7 +41,8 @@ func TestPlayerEvent_LogsAClientErrorWithItsContext(t *testing.T) {
 		"code": 3,
 		"variant": 2,
 		"segment": 1023,
-		"posSec": 3066.5
+		"posSec": 3066.5,
+		"state": "rs=4 buf=320.0-347.2 drop=12/2300 vis=visible"
 	}`)
 	if rec.Code != http.StatusNoContent {
 		t.Fatalf("status = %d, want 204 (body=%s)", rec.Code, rec.Body.String())
@@ -58,6 +59,8 @@ func TestPlayerEvent_LogsAClientErrorWithItsContext(t *testing.T) {
 		"details":   "bufferAppendError",
 		"fatal":     true,
 		"level":     "WARN",
+		// The snapshot is what tells a full buffer from an empty one.
+		"state": "rs=4 buf=320.0-347.2 drop=12/2300 vis=visible",
 	} {
 		if got := line[field]; got != want {
 			t.Fatalf("log field %q = %v, want %v (line=%v)", field, got, want, line)
@@ -422,7 +425,7 @@ func TestPlayerEvent_CastAudioModeReachesTheSession(t *testing.T) {
 		}
 	}
 	post(`{"type":"cast_receiver_audio_mode","details":"wasm"}`, true)
-	post(`{"type":"cast_receiver_alive","details":"mode=wasm"}`, true)  // not an audio_mode event
+	post(`{"type":"cast_receiver_alive","details":"mode=wasm"}`, true) // not an audio_mode event
 	post(`{"type":"cast_receiver_audio_mode","details":"aac"}`, false) // JWT caller: ignored
 	if len(got) != 1 || got[0] != "prof-cast|media-1|wasm" {
 		t.Fatalf("touches = %v, want exactly the cast audio_mode one", got)

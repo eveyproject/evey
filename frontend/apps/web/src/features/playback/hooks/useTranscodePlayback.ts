@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Hls from "hls.js";
 import { createPlayerEventReporter } from "@evey/api";
 import { buildTranscodeHlsUrl, liftForcedMuteOnNextGesture, pickPinnedLevel, prefersNativeHLS, startPlayback } from "./hlsPlayerUtils";
+import { playbackSnapshot } from "../playbackSnapshot";
 
 
 // Mirrors the server's shed contract (HTTP 503 on a refused playback start):
@@ -368,6 +369,7 @@ export function useTranscodePlayback({
           variant: data.frag?.level ?? 0,
           segment: typeof sn === "number" ? sn : 0,
           posSec: transcodeOffsetRef.current + (video.currentTime || 0),
+          state: playbackSnapshot(video),
         });
       }
       if (!data.fatal) return;

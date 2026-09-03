@@ -17,7 +17,7 @@ describe("playerEventReporter", () => {
 
   it("posts the event with its full context", () => {
     const report = createPlayerEventReporter("media-1");
-    report({ type: "hls_media_error", details: "bufferAppendError", fatal: true, code: 3, variant: 2, segment: 1023, posSec: 3066.5 });
+    report({ type: "hls_media_error", details: "bufferAppendError", fatal: true, code: 3, variant: 2, segment: 1023, posSec: 3066.5, state: "rs=4 buf=320.0-347.2" });
 
     expect(mockEveyFetch).toHaveBeenCalledWith({
       url: "/api/v1/media/media-1/player-event",
@@ -30,8 +30,18 @@ describe("playerEventReporter", () => {
         variant: 2,
         segment: 1023,
         posSec: 3066.5,
+        state: "rs=4 buf=320.0-347.2",
       },
     });
+  });
+
+  it("keeps the snapshot out of the dedupe key", () => {
+    // The buffer picture changes on every stall; the stall itself is the same
+    // event, and reporting each picture would drain the session budget.
+    const report = createPlayerEventReporter("media-1");
+    report({ type: "hls_media_error", details: "bufferNudgeOnStall", state: "buf=1-2" });
+    report({ type: "hls_media_error", details: "bufferNudgeOnStall", state: "buf=3-4" });
+    expect(mockEveyFetch).toHaveBeenCalledTimes(1);
   });
 
   it("dedupes identical consecutive events inside the window, and lets them through after it", () => {

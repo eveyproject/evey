@@ -24,6 +24,8 @@ export interface PlayerEventPayload {
   variant?: number;
   segment?: number;
   posSec?: number;
+  /** Player snapshot at the event (buffer, readyState, dropped frames...). Not part of the dedupe key. */
+  state?: string;
 }
 
 const DEDUPE_WINDOW_MS = 5_000;
@@ -58,6 +60,7 @@ export function createPlayerEventReporter(mediaId: string): PlayerEventReporter 
         variant: evt.variant ?? 0,
         segment: evt.segment ?? 0,
         posSec: evt.posSec ?? 0,
+        state: evt.state ?? "",
       },
     }).catch(() => {
       // Telemetry must never break playback. Rate-limited (429) or offline:

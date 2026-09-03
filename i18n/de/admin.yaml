@@ -52,6 +52,14 @@ logs:
   liveCount_one: "{{count}} Live-Eintrag"
   liveCount_other: "{{count}} Live-Einträge"
   accessLog: "gRPC-Zugriffsprotokoll"
+  mediaKind:
+    movie: "Film"
+    episode: "Episode"
+    season: "Staffel"
+    series: "Serie"
+    track: "Titel"
+    album: "Album"
+    other: "Medium"
   newLines_one: "{{count}} neue Zeile oberhalb"
   newLines_other: "{{count}} neue Zeilen oberhalb"
   liveUnavailableMobile: Live-Verfolgung ist auf Mobilgeräten noch nicht verfügbar - nutze die Suche unten.

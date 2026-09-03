@@ -24,6 +24,15 @@ const identityState = vi.hoisted(() => ({
 vi.mock("@evey/api", () => ({
   eveyFetch: (...args: unknown[]) => mockFetch(...args),
   getBaseURL: () => "",
+  // The title behind a media id: one series, one season, one episode.
+  libraryServiceGetMediaItem: (id: string) => {
+    const items: Record<string, unknown> = {
+      "mi-series": { id: "mi-series", type: "MEDIA_ITEM_TYPE_SERIES", title: "Black Bird" },
+      "mi-season": { id: "mi-season", type: "MEDIA_ITEM_TYPE_SEASON", title: "Season 1", indexNumber: 1, parentId: "mi-series" },
+      "mi-1": { id: "mi-1", type: "MEDIA_ITEM_TYPE_EPISODE", title: "Pilot", indexNumber: 1, parentId: "mi-season" },
+    };
+    return items[id] ? Promise.resolve(items[id]) : Promise.reject(new Error("404"));
+  },
   useUserServiceListUsers: () => ({ data: { users: identityState.users } }),
   useUserServiceListAllProfiles: () => ({ data: { profiles: identityState.profiles } }),
 }));
@@ -458,5 +467,13 @@ describe("LogsExplorer", () => {
     } finally {
       src.spy.mockRestore();
     }
+  });
+
+  it("names the series, season and episode behind a media id", async () => {
+    // sampleEntry carries mediaId "mi-1": an episode titled "Pilot" - which
+    // every series has. The row must say whose.
+    await renderExplorerOnHistory();
+    expect(await screen.findByText("hls: ffmpeg exited with error")).toBeInTheDocument();
+    expect(await screen.findByTestId("log-media-label")).toHaveTextContent("Black Bird S01E01 - Pilot");
   });
 });

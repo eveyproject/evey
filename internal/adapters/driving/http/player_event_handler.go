@@ -39,7 +39,11 @@ type playerEventBody struct {
 	// Details carries the player's own error detail string
 	// (e.g. hls.js data.details "bufferAppendError").
 	Details string `json:"details"`
-	Fatal   bool   `json:"fatal"`
+	// State is the player's snapshot at the event (readyState, buffered range
+	// around the playhead, dropped frames, tab visibility, wasm audio leg): the
+	// same stall reads differently with an empty buffer than with a full one.
+	State string `json:"state,omitempty"`
+	Fatal bool   `json:"fatal"`
 	// Code is whatever numeric code the player had: an HTTP status for network
 	// errors, a MediaError.code for element-level ones.
 	Code    int     `json:"code"`
@@ -222,6 +226,7 @@ func playerEventHandler(logger *slog.Logger, opts ...PlayerEventOption) http.Han
 			slog.String("user_id", userID),
 			slog.String("type", body.Type),
 			slog.String("details", clampString(body.Details, playerEventMaxDetail)),
+			slog.String("state", clampString(body.State, playerEventMaxDetail)),
 			slog.Bool("fatal", body.Fatal),
 			slog.Int("code", body.Code),
 			slog.Int("variant", body.Variant),

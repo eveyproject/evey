@@ -13,6 +13,7 @@ import { Spinner } from "@/components/ui/Spinner";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ICON } from "@/constants/iconSizes";
 import { buildIdentityIndex, labelFor, resolveUserFilter, type IdentityIndex } from "./logIdentities";
+import { useMediaLabels, type MediaLabelIndex } from "./logMedia";
 import {
   type LogEntry,
   type LogSearchResponse,
@@ -121,18 +122,23 @@ function matchClient(e: LogEntry, f: FilterParams): boolean {
 // `open` is owned by the explorer, not the row: the live tail anchors the
 // viewport on an expanded row as new lines pile up above it, so the parent has
 // to know which rows are open.
+// `media` names the title behind a media id ("Black Bird S01E01 - Pilot"):
+// an episode called "Pilot" is every series' first episode.
 const LogRow = memo(function LogRow({
   entry,
   who,
+  media,
   open,
   onToggle,
 }: {
   entry: LogEntry;
   who: IdentityIndex;
+  media: MediaLabelIndex;
   open: boolean;
   onToggle: (uid: string) => void;
 }) {
   const { t } = useTranslation();
+  const mediaLabel = entry.mediaId ? media.get(entry.mediaId) : undefined;
   const copy = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
@@ -180,6 +186,15 @@ const LogRow = memo(function LogRow({
             {userName}
           </span>
         )}
+        {mediaLabel && (
+          <span
+            className="max-w-[18rem] shrink-0 truncate text-xs text-[var(--accent)]"
+            title={`${t(`admin.logs.mediaKind.${mediaLabel.kind}`)} · ${entry.mediaId}`}
+            data-testid="log-media-label"
+          >
+            {mediaLabel.label}
+          </span>
+        )}
         <span className="min-w-0 flex-1 truncate text-[var(--text)]">{entry.msg}</span>
       </button>
       {open && (
@@ -188,6 +203,11 @@ const LogRow = memo(function LogRow({
             {entry.component && (
               <span>
                 <span className="opacity-60">component:</span> {entry.component}
+              </span>
+            )}
+            {mediaLabel && (
+              <span>
+                <span className="opacity-60">{t(`admin.logs.mediaKind.${mediaLabel.kind}`)}:</span> {mediaLabel.label}
               </span>
             )}
             {ids.map(([k, v]) =>
@@ -392,6 +412,13 @@ export function LogsExplorer() {
     overscan: 8,
   });
   const virtualItems = virtualizer.getVirtualItems();
+  // Only the ids on screen are resolved: a live tail holds up to a thousand
+  // lines, and the window is what the operator reads.
+  const visibleMediaIds = useMemo(
+    () => virtualItems.map((v) => entries[v.index]?.mediaId ?? "").filter(Boolean),
+    [virtualItems, entries],
+  );
+  const mediaLabels = useMediaLabels(visibleMediaIds);
 
   useEffect(() => {
     if (live) return;
@@ -574,7 +601,7 @@ export function LogsExplorer() {
                     ref={virtualizer.measureElement}
                     style={{ position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${vItem.start}px)` }}
                   >
-                    <LogRow entry={entry} who={who} open={openUids.has(entry.uid)} onToggle={toggleOpen} />
+                    <LogRow entry={entry} who={who} media={mediaLabels} open={openUids.has(entry.uid)} onToggle={toggleOpen} />
                   </div>
                 );
               })}

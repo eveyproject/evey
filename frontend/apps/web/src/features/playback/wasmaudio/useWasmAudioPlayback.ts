@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { noopReporter, type PlayerEventReporter } from "@evey/api";
 import { buildTranscodeHlsUrl } from "../hooks/hlsPlayerUtils";
 import { WasmAudioEngine } from "./WasmAudioEngine";
+import { playbackSnapshot, registerEngineStats } from "../playbackSnapshot";
 import { extractAacAudioURI, extractAudioURI, injectToken } from "./wasmAudioShared";
 
 // Compatibility re-export: the pure helpers live in wasmAudioShared
@@ -66,10 +67,17 @@ export function useWasmAudioPlayback({
     if (!video) return;
 
     let cancelled = false;
+    let unregisterStats: (() => void) | null = null;
     // posSec is the picture's clock at the moment of the event: it is what
     // lets an operator line a mode change up with the server's segment lines.
     const report = (type: string, details: string, fatal = false): void =>
-      reportRef.current({ type, details, fatal, posSec: Math.round(video.currentTime * 10) / 10 });
+      reportRef.current({
+        type,
+        details,
+        fatal,
+        posSec: Math.round(video.currentTime * 10) / 10,
+        state: playbackSnapshot(video),
+      });
     // The video-only stream carries no audio track, so we do NOT mute the
     // element: video.volume / video.muted stay under the native UI's control and
     // the engine mirrors them (they are silent no-ops on the element itself).
@@ -118,6 +126,7 @@ export function useWasmAudioPlayback({
           },
         });
         engineRef.current = engine;
+        unregisterStats = registerEngineStats(video, () => engine.debugStats());
         await engine.start();
       } catch (err) {
         if (cancelled) return;
@@ -129,6 +138,7 @@ export function useWasmAudioPlayback({
 
     return () => {
       cancelled = true;
+      unregisterStats?.();
       engineRef.current?.destroy();
       engineRef.current = null;
     };
