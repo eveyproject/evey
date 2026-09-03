@@ -788,6 +788,15 @@ export class WasmAudioEngine {
       this.revertToNativeLeg("starvation: no wasm audio decoded while the picture ran");
     }
 
+    if (this.video.paused || !advancing) {
+      // The starvation clock measures the wasm leg against a RUNNING picture.
+      // A paused or buffering picture asks for no audio, so the seconds it
+      // spends frozen must not be charged to the decoder: on the 2026-09-03
+      // "stays in buffering" sessions the first frame after a long stall
+      // read "no wasm audio decoded while the picture ran" and latched the
+      // film to AAC before the leg was ever given a chance.
+      if (this.switched) this.lastWasmDecodeAt = Date.now();
+    }
     if (this.video.paused) {
       // Pause: freeze the audio clock seamlessly and KEEP the anchor + scheduled
       // sources, so resume continues exactly where it stopped (both clocks froze

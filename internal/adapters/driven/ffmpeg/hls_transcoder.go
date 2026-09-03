@@ -59,16 +59,20 @@ func (t *HLSTranscoder) Start(ctx context.Context, opts transcoding.HLSProcessOp
 //     is absolute by construction (deltaMs 0, parse-only) but still routes
 //     through the pump so the timeline TRIPWIRE (verifySegmentTimeline)
 //     covers it - the historical numbering-drift bug lived on the cold path.
-//   - transcode SEEK (StartNumber > 0): pre-input `-ss` resets the output PTS
-//     to 0, so the seek segment's tfdt is 0 instead of StartSec → the browser
-//     can't place it on the VOD timeline and seeking stalls in permanent
-//     buffering. These need the same shift. Cold transcode (StartNumber 0) is
-//     absolute by construction (start 0) and stays on the direct-write path.
+//   - transcode SEEK: pre-input `-ss` resets the output PTS to 0, so the seek
+//     segment's tfdt is 0 instead of StartSec → the browser can't place it on
+//     the VOD timeline and seeking stalls in permanent buffering. These need
+//     the same shift. A seek is recognised by EITHER StartNumber or StartSec:
+//     the segment orchestrator only ever filled StartSec (startNumberFor
+//     derives -start_number from it), so keying on StartNumber alone left
+//     every transcode seek un-rebased - 0-based fragments under absolute
+//     names in the shared cache. Cold transcode (start 0) is absolute by
+//     construction and stays on the direct-write path.
 func needsFMP4Rebase(o transcoding.HLSProcessOpts) bool {
 	if !o.UseFMP4 {
 		return false
 	}
-	return o.VideoDecision == "copy" || o.StartNumber > 0
+	return o.VideoDecision == "copy" || o.StartNumber > 0 || o.StartSec > 0
 }
 
 // startOne spawns a single ffmpeg process for opts and returns its handle.

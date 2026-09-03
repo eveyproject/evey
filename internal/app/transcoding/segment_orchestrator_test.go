@@ -297,8 +297,13 @@ func TestOrchestrator_EnsureSegmentRange_SeekSpawnsAdditionalRafale(t *testing.T
 		return o.ActiveCount() == 2 && proc.startCount() == 2
 	}, time.Second, 10*time.Millisecond)
 
-	// The 2nd spawn's StartSec reflects the seek target.
+	// The 2nd spawn's StartSec reflects the seek target, and StartNumber
+	// names the segment it starts at: that is what routes its 0-based fMP4
+	// output through the rebase pump. A rafale with StartSec alone published
+	// fragments stamped from 0 under absolute segment names, poisoning the
+	// cache for every later viewer of the title (prod, 2026-09-02/03).
 	assert.InDelta(t, 500.0*3.0, proc.lastOpts().StartSec, 0.001)
+	assert.Equal(t, 500, proc.lastOpts().StartNumber)
 }
 
 func TestOrchestrator_EnsureSegmentRange_LRUEvictsOldestBeyondCap(t *testing.T) {

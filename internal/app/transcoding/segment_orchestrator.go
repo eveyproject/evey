@@ -528,11 +528,19 @@ func (o *SegmentOrchestrator) spawnSession(
 		ToneMap:            fp.HDRTonemap, // HDR->SDR tonemap decision, carried as a bool (Streams not threaded here)
 		AudioNormalize:     fp.AudioNormalize,
 		StartSec:           float64(startSegIdx) * o.opts.SegmentSeconds,
-		Streams:            nil, // HDR tonemap is wired via ToneMap; bitmap burn-in via SubtitleCodec (reads 0:s:N from the source input directly, no Streams needed)
-		VideoCodec:         fp.VideoCodec,
-		AudioCodec:         fp.AudioCodec,
-		MaxAudioChannels:   fp.MaxAudioChannels,
-		ForceSidecarSubs:   fp.ForceSidecarSubs,
+		// StartNumber is what tells the transcoder this rafale is a SEEK whose
+		// fMP4 fragments come out 0-based and must be rebased to the absolute
+		// timeline before they reach the shared cache. It was never set here:
+		// every seek or resume into a transcoded title published fragments
+		// stamped from 0 under absolute segment names, hls.js placed them at
+		// the wrong position, and the player stayed in buffering (prod,
+		// 2026-09-02/03 - the segment cache then carried them to every viewer).
+		StartNumber:      startSegIdx,
+		Streams:          nil, // HDR tonemap is wired via ToneMap; bitmap burn-in via SubtitleCodec (reads 0:s:N from the source input directly, no Streams needed)
+		VideoCodec:       fp.VideoCodec,
+		AudioCodec:       fp.AudioCodec,
+		MaxAudioChannels: fp.MaxAudioChannels,
+		ForceSidecarSubs: fp.ForceSidecarSubs,
 		// fp.UseFMP4 is the container choice baked into the manifest the
 		// player will receive (.m4s vs .ts). Without forwarding it, ffmpeg
 		// always wrote .ts via the multi-variant builder while the manifest
