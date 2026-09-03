@@ -245,7 +245,10 @@ func (s *TrickplayService) GenerateTrickplay(ctx context.Context, mediaItemID st
 // rescan of a replaced file invalidates the record naturally. Best-effort: a
 // failed write only logs, the next sweep simply retries.
 func (s *TrickplayService) recordGenerationFailure(ctx context.Context, mediaItemID string, file *library.MediaFile, genErr error) {
-	if errors.Is(genErr, context.Canceled) || errors.Is(genErr, context.DeadlineExceeded) {
+	// The context itself, not only the error: an admin's Stop kills the ffmpeg
+	// mid-encode and what comes back is "signal: killed", which says nothing
+	// about the file either.
+	if ctx.Err() != nil || errors.Is(genErr, context.Canceled) || errors.Is(genErr, context.DeadlineExceeded) {
 		return
 	}
 	if _, statErr := os.Stat(file.Path); statErr != nil {

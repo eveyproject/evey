@@ -3,6 +3,7 @@ package library
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
@@ -31,5 +32,20 @@ func TestFailureConsumesAttempt_MemoryErrors(t *testing.T) {
 				t.Fatalf("got %v, want %v", got, tc.want)
 			}
 		})
+	}
+}
+
+// A killed decode counts as an attempt only while the sweep itself is alive:
+// an admin's Stop kills the same ffmpeg the same way, and the episode must not
+// pay for it.
+func TestAttemptConsumed_NotWhileTheSweepIsStopped(t *testing.T) {
+	killed := fmt.Errorf("%w: /x.mkv", domainlibrary.ErrDetectorKilled)
+	if !attemptConsumed(context.Background(), killed) {
+		t.Fatal("a killed decode on a live sweep must consume an attempt")
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if attemptConsumed(ctx, killed) {
+		t.Fatal("a killed decode on a stopped sweep must not consume an attempt")
 	}
 }

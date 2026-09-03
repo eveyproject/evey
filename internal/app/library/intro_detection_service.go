@@ -210,6 +210,14 @@ func failureConsumesAttempt(err error) bool {
 		errors.Is(err, procfork.ErrMemoryCapExceeded)
 }
 
+// attemptConsumed is failureConsumesAttempt with the sweep's own context in
+// the picture: a decode killed because an admin stopped the sweep (or the
+// server is shutting down) surfaces as ErrDetectorKilled too, and is not the
+// episode's fault.
+func attemptConsumed(ctx context.Context, err error) bool {
+	return ctx.Err() == nil && failureConsumesAttempt(err)
+}
+
 // introPersistBudget bounds the segment writes after detection, on a context
 // detached from the episode budget so an exhausted budget can't void the
 // found results at the write.
@@ -808,7 +816,7 @@ func (s *IntroDetectionService) backfillMovies(ctx context.Context, libraryID st
 					// Same rule as the season sweep: a killed decode or a spent budget
 					// is repeatable, so it must consume an attempt or the backfill
 					// keeps re-picking it.
-					if failureConsumesAttempt(detErr) {
+					if attemptConsumed(ctx, detErr) {
 						if recErr := s.segmentRepo.RecordIntroDetectionAttempt(ctx, id, introDetectionAlgoVersion); recErr != nil {
 							slog.WarnContext(ctx, "intro backfill movies: record attempt after kill",
 								slog.String("media_id", id), slog.Any("err", recErr))
@@ -962,7 +970,7 @@ func (s *IntroDetectionService) detectSeason(ctx context.Context, parentID strin
 				// failureConsumesAttempt - and the work list is rebuilt from the
 				// database, so an uncounted one comes back after every sweep.
 				slog.WarnContext(ctx, "intro detection failed", slog.String("media_id", string(ep.ID)), slog.Any("err", detErr))
-				if failureConsumesAttempt(detErr) {
+				if attemptConsumed(ctx, detErr) {
 					if recErr := s.segmentRepo.RecordIntroDetectionAttempt(ctx, string(ep.ID), introDetectionAlgoVersion); recErr != nil {
 						slog.WarnContext(ctx, "intro detection: record attempt after kill", slog.String("media_id", string(ep.ID)), slog.Any("err", recErr))
 					}

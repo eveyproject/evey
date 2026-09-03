@@ -281,6 +281,30 @@ func TestTrickplay_GenerateTrickplay_MissingFileFailureNotRecorded(t *testing.T)
 	assert.Empty(t, repo.Failures(), "missing file ⇒ transient, nothing recorded")
 }
 
+func TestTrickplay_GenerateTrickplay_StoppedSweepNotRecorded(t *testing.T) {
+	t.Parallel()
+	// An admin's Stop cancels the item's context and kills the ffmpeg: the
+	// generator then reports "signal: killed", a plain error that does not
+	// wrap context.Canceled. The context says what happened; the file must not
+	// be blacklisted for it.
+	f, err := os.CreateTemp(t.TempDir(), "*.mkv")
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
+
+	repo := newMissingIDsRepo(nil)
+	gen := &countingGen{failOn: map[string]error{f.Name(): errors.New("ffmpeg trickplay single-pass: signal: killed")}}
+	media := libfakes.NewFakeMediaItemCommandRepo()
+	require.NoError(t, media.Create(context.Background(), &library.MediaItem{
+		ID: "m1", File: &library.MediaFile{Path: f.Name(), Size: 1}, Title: "A",
+	}))
+	svc := applib.NewTrickplayService(repo, gen, t.TempDir(), media, sharedfakes.NewFakeEventBus(), nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	require.Error(t, svc.GenerateTrickplay(ctx, "m1"))
+	assert.Empty(t, repo.Failures(), "a stopped sweep must not record a permanent failure")
+}
+
 func TestTrickplay_GenerateTrickplay_ContextErrorNotRecorded(t *testing.T) {
 	t.Parallel()
 	// A cancelled/timed-out generation says nothing about the file: a shutdown
