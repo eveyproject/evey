@@ -1,4 +1,5 @@
 import { memo, useRef, useState, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { invalidateWatchedState } from "@/lib/invalidateWatchedState";
 import { useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
@@ -178,7 +179,21 @@ export const CardContextMenu = memo(function CardContextMenu({
     }
   }, [focusedIndex, items.length, onClose]);
 
-  return (
+  // Rendered into <body>, not next to the card that opened it.
+  //
+  // Inline, the menu inherited the card's stacking context, so a card LATER in
+  // the DOM painted over it - the menu opened underneath the neighbouring
+  // posters and could not be clicked (user report, 2026-09-04). z-popover
+  // cannot help there: a z-index only orders siblings within its own context.
+  //
+  // The same nesting also made `position: fixed` unreliable, because any
+  // transformed ancestor (the grid uses hover scaling) makes `fixed` resolve
+  // against that ancestor instead of the viewport - which is how a menu asked
+  // to appear at the cursor ended up hundreds of pixels away.
+  //
+  // A portal fixes both at once and is what `fixed` + clientX/clientY already
+  // assumed: coordinates relative to the viewport, painted above everything.
+  return createPortal(
     <div
       ref={ref}
       role="menu"
@@ -204,6 +219,7 @@ export const CardContextMenu = memo(function CardContextMenu({
           {it.label}
         </button>
       ))}
-    </div>
+    </div>,
+    document.body,
   );
 });

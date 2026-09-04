@@ -410,4 +410,20 @@ describe("CardContextMenu", () => {
     const menu = screen.getByRole("menu");
     expect(menu).toHaveStyle({ left: "350px", top: "450px" });
   });
+
+  // ── Portal: the menu must escape the card's stacking context ─────────────────
+
+  // Rendered inline, the menu sat inside the card's stacking context: a card
+  // later in the DOM painted over it, so it opened UNDER the neighbouring
+  // posters and was unclickable - and any transformed ancestor also broke its
+  // `position: fixed`, dropping it hundreds of pixels from the cursor (user
+  // report, 2026-09-04). Both symptoms come from where it is mounted, so that
+  // is what this pins.
+  it("mounts into document.body rather than inside the card tree", () => {
+    const { container } = renderMenu({});
+    const menu = screen.getByRole("menu");
+
+    expect(container).not.toContainElement(menu);
+    expect(menu.parentElement).toBe(document.body);
+  });
 });
