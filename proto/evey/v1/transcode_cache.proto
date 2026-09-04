@@ -29,6 +29,12 @@ message TranscodeCacheInfo {
   int64 total_size = 1;
   int32 file_count = 2;
   repeated CacheFileEntry files = 3;
+  // Viewers whose stream is being ENCODED right now - the ones a wipe cuts off,
+  // because their ffmpeg is writing into the very directory it removes. Surfaced
+  // so the confirmation can say so: the server logged the warning, but nobody
+  // reads a server log while clicking a button. Direct-play viewers are not
+  // counted; a wipe never touches them.
+  int32 active_encoding_sessions = 4;
 }
 
 message GetTranscodeCacheRequest {}

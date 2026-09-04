@@ -887,6 +887,7 @@ transcodeCache:
   failedDeleteFile: Failed to delete file
   clearConfirmTitle: Clear Transcode Cache
   clearConfirm: "Delete all {{count}} cached files ({{size}})? This cannot be undone."
+  clearConfirmLiveSessions: "{{count}} viewer(s) are being transcoded right now. Wiping the cache cuts their stream: it will rebuffer, and playback resumes on its own."
   tableHeaders:
     file: File
     size: Size

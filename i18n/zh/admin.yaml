@@ -887,6 +887,7 @@ transcodeCache:
   failedDeleteFile: "删除文件失败"
   clearConfirmTitle: "清除转码缓存"
   clearConfirm: "确定删除所有 {{count}} 个缓存文件（{{size}}）？此操作无法撤销。"
+  clearConfirmLiveSessions: "当前有 {{count}} 位观众正在转码。清除缓存会中断他们的播放流：将重新缓冲，播放会自动恢复。"
   tableHeaders:
     file: "文件"
     size: "大小"

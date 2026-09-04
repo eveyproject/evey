@@ -887,6 +887,7 @@ transcodeCache:
   failedDeleteFile: "Error al eliminar el archivo"
   clearConfirmTitle: "Limpiar caché de transcodificación"
   clearConfirm: "¿Eliminar los {{count}} archivos en caché ({{size}})? Esta acción no se puede deshacer."
+  clearConfirmLiveSessions: "{{count}} espectador(es) se están transcodificando ahora mismo. Vaciar la caché corta su flujo: volverá a almacenar en búfer y la reproducción se reanuda sola."
   tableHeaders:
     file: "Archivo"
     size: "Tamaño"

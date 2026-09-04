@@ -18,6 +18,10 @@ interface CacheInfo {
   totalSize: number;
   fileCount: number;
   files: CacheFile[];
+  // Viewers being transcoded right now - the ones a wipe cuts off. Optional
+  // because an older server does not send it, and an admin app that crashed
+  // against a server one version behind would be worse than a missing warning.
+  activeEncodingSessions?: number;
 }
 
 interface ConfigEntry {
@@ -155,13 +159,23 @@ export default function AdminTranscodeCacheScreen() {
   });
 
   const handleClearAll = useCallback(() => {
+    // A wipe deletes the segments a live encode is still writing, so anyone
+    // being transcoded rebuffers. Nothing on this page shows that, and the
+    // warning the server logs reaches nobody holding the phone.
+    const live = data?.activeEncodingSessions ?? 0;
+    const liveWarning = live > 0
+      ? "\n\n" + t("admin.transcodeCache.clearConfirmLiveSessions", {
+        count: live,
+        defaultValue: `${live} viewer(s) are being transcoded right now; their stream will rebuffer.`,
+      })
+      : "";
     Alert.alert(
       t("admin.transcodeCache.clearConfirmTitle", "Clear Cache"),
       t("admin.transcodeCache.clearConfirm", {
         count: data?.fileCount ?? 0,
         size: formatBytes(data?.totalSize ?? 0),
         defaultValue: `Delete all ${data?.fileCount ?? 0} cached files (${formatBytes(data?.totalSize ?? 0)})?`,
-      }),
+      }) + liveWarning,
       [
         { text: t("common.cancel", "Cancel"), style: "cancel" },
         { text: t("admin.transcodeCache.clearAll", "Clear All"), style: "destructive", onPress: () => clearAll.mutate() },

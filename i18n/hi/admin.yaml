@@ -887,6 +887,7 @@ transcodeCache:
   failedDeleteFile: "फ़ाइल मिटाने में विफल"
   clearConfirmTitle: "ट्रांसकोड कैश साफ़ करें"
   clearConfirm: "सभी {{count}} कैश फ़ाइलें ({{size}}) मिटाएं? यह क्रिया पूर्ववत नहीं की जा सकती।"
+  clearConfirmLiveSessions: "{{count}} दर्शक अभी ट्रांसकोड हो रहे हैं। कैश साफ़ करने से उनकी स्ट्रीम कट जाएगी: वह फिर से बफ़र होगी और प्लेबैक अपने आप जारी रहेगा।"
   tableHeaders:
     file: "फ़ाइल"
     size: "आकार"

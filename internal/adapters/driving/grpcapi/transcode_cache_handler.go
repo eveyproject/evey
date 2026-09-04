@@ -22,8 +22,9 @@ func (h *transcodeCacheHandler) GetTranscodeCache(ctx context.Context, _ *eveyv1
 		return nil, internalError(ctx, "get cache info", err)
 	}
 	resp := &eveyv1.TranscodeCacheInfo{
-		TotalSize: info.TotalSize,
-		FileCount: int32(info.FileCount),
+		TotalSize:              info.TotalSize,
+		FileCount:              int32(info.FileCount),
+		ActiveEncodingSessions: int32(h.svc.ActiveEncodingSessions()),
 	}
 	for _, f := range info.Files {
 		resp.Files = append(resp.Files, &eveyv1.CacheFileEntry{

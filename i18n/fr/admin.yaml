@@ -886,6 +886,7 @@ transcodeCache:
   failedDeleteFile: "Échec de la suppression du fichier"
   clearConfirmTitle: "Vider le cache de transcodage"
   clearConfirm: "Supprimer les {{count}} fichiers en cache ({{size}}) ? Cette action est irréversible."
+  clearConfirmLiveSessions: "{{count}} spectateur(s) sont en cours de transcodage. Vider le cache coupe leur flux : il va remettre en tampon, la lecture repart toute seule."
   tableHeaders:
     file: "Fichier"
     size: "Taille"

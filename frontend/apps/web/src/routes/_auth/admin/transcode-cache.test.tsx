@@ -118,6 +118,27 @@ describe("TranscodeCachePage", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 
+  // The consequence an admin cannot see from this page: a wipe deletes the
+  // segments a live encode is still writing, so those viewers rebuffer. The
+  // server logged that and nobody read it.
+  it("warns in the confirmation when viewers are being transcoded", async () => {
+    mockUseQuery.mockReturnValue({ data: { ...cacheData, activeEncodingSessions: 2 }, isLoading: false });
+    const TranscodeCachePage = await getTranscodeCachePage();
+    render(React.createElement(TranscodeCachePage), { wrapper: createWrapper() });
+    fireEvent.click(screen.getByRole("button", { name: /Clear All/i }));
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+    expect(screen.getByTestId("clear-cache-live-warning")).toBeInTheDocument();
+  });
+
+  it("stays quiet when nobody is being transcoded - a warning that always shows is noise", async () => {
+    mockUseQuery.mockReturnValue({ data: { ...cacheData, activeEncodingSessions: 0 }, isLoading: false });
+    const TranscodeCachePage = await getTranscodeCachePage();
+    render(React.createElement(TranscodeCachePage), { wrapper: createWrapper() });
+    fireEvent.click(screen.getByRole("button", { name: /Clear All/i }));
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+    expect(screen.queryByTestId("clear-cache-live-warning")).not.toBeInTheDocument();
+  });
+
   it("each file row has a Delete button", async () => {
     mockUseQuery.mockReturnValue({ data: cacheData, isLoading: false });
     const TranscodeCachePage = await getTranscodeCachePage();

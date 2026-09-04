@@ -266,6 +266,15 @@ function TranscodeCachePage() {
         <p className="text-sm mb-4 text-[var(--text-muted)]">
           {t("admin.transcodeCache.clearConfirm", { count: data?.fileCount ?? 0, size: formatBytes(Number(data?.totalSize ?? 0)) })}
         </p>
+        {/* The consequence the admin cannot see from this page: a wipe deletes
+            the segments a live encode is still writing, so anyone being
+            transcoded rebuffers. The server has always logged it - which is no
+            use to someone standing in front of the button. */}
+        {(data?.activeEncodingSessions ?? 0) > 0 && (
+          <p className="text-sm mb-4" style={{ color: "var(--warning)" }} data-testid="clear-cache-live-warning">
+            {t("admin.transcodeCache.clearConfirmLiveSessions", { count: data?.activeEncodingSessions ?? 0 })}
+          </p>
+        )}
         <div className="flex justify-end gap-3">
           <Button variant="secondary" onClick={() => setShowClearConfirm(false)}>
             {t("common.cancel")}

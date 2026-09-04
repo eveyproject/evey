@@ -468,6 +468,18 @@ func (s *Service) GetCacheInfo(ctx context.Context) (*transcoding.CacheInfo, err
 	return info, err
 }
 
+// ActiveEncodingSessions is how many viewers are being ENCODED right now - the
+// ones a cache wipe cuts off. Zero when no gauge is wired.
+//
+// Deliberately not a field of CacheInfo: that struct is filled by the cache
+// store, which reads a directory and knows nothing about who is watching.
+func (s *Service) ActiveEncodingSessions() int {
+	if s.playback == nil {
+		return 0
+	}
+	return s.playback.Active()
+}
+
 // ClearCache empties the transcode cache.
 //
 // It does NOT stop the sessions writing into it: the store deletes the bytes out
