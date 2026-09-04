@@ -4,6 +4,16 @@ package postgres
 // All entries are table-qualified so they slot directly into queries
 // that JOIN media_items (mi) with the sub-aggregates (mc, mcl) - see
 // mediaItemFromJoins.
+// Every name a CLIENT can ask for must be a key here. resolveSortKey falls back
+// to title on an unknown key, silently - so a missing entry does not fail, it
+// sorts by title and looks like the feature was never implemented. That is
+// exactly what "rating" did: the gRPC layer converts MEDIA_SORT_FIELD_RATING to
+// "rating" (grpcapi/library_converters.go), this map only knew
+// "community_rating", and every library sorted by rating came back in title
+// order on web, mobile and TV alike. Reported 2026-09-04.
+//
+// sortFieldContractTest locks the two sides together: it fails if the gRPC
+// converter ever emits a name absent from here.
 var SortColumnMap = map[string]string{
 	"title":            "mi.sort_title",
 	"sort_title":       "mi.sort_title",
@@ -11,5 +21,6 @@ var SortColumnMap = map[string]string{
 	"date_added":       "mi.added_at",
 	"year":             "mc.year",
 	"premiere_date":    "mc.premiere_date",
+	"rating":           "mcl.community_rating",
 	"community_rating": "mcl.community_rating",
 }
