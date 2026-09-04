@@ -102,11 +102,25 @@ func (r *MediaItemRepository) buildWhereClause(f library.ListMediaItemsFilter) (
 		argIdx++
 	}
 	if len(f.Genres) > 0 {
-		// OR-match: item kept if its genres array contains ANY of the
-		// requested genres (jsonb ?| text[]). For a single genre this is
-		// equivalent to the prior @> containment check.
-		conditions = append(conditions, fmt.Sprintf("mc.genres ?| $%d::text[]", argIdx))
-		args = append(args, pq.Array(f.Genres))
+		// OR-match: the item is kept if ANY of its genres matches ANY requested
+		// one - but compared LOWERCASED, and after expanding each request into
+		// its known spellings.
+		//
+		// Both parts are required by the data. Genres are stored as the provider
+		// wrote them, so one library holds "Drama" and "Drame" for the same
+		// thing, plus IMDb's "Sci-Fi" beside TMDB's "Science-Fiction", in
+		// whatever case each used. The old `?|` was an exact, case-sensitive
+		// match, so picking a genre in the panel silently hid every title tagged
+		// in the other language - and ListGenres now folds those duplicates
+		// away, which would have made that worse by offering only one of the two
+		// labels. Expansion and folding must ship together.
+		//
+		// The lateral subquery costs a scan of one small jsonb array per row,
+		// which is what the previous operator did anyway.
+		conditions = append(conditions, fmt.Sprintf(
+			`EXISTS (SELECT 1 FROM jsonb_array_elements_text(mc.genres) AS eg
+			          WHERE lower(eg) = ANY($%d::text[]))`, argIdx))
+		args = append(args, pq.Array(library.ExpandGenreAliases(f.Genres)))
 		argIdx++
 	}
 	if len(f.AllowedRatings) > 0 {

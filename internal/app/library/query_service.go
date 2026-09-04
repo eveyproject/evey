@@ -3,6 +3,7 @@ package library
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
@@ -171,11 +172,45 @@ func (s *QueryService) CountMediaItems(ctx context.Context, filter library.ListM
 	return s.mediaItems.Count(ctx, filter)
 }
 
-// ListGenres returns the distinct, sorted genres present in a library.
+// ListGenres returns the distinct, sorted genres present in a library, folded
+// onto one label per genre.
+//
+// The stored values are whatever each provider returned at scan time, so a
+// library that has seen TMDB in two languages plus the OMDB enricher lists the
+// same genre several ways - a real one held 28 entries for 20 genres, with
+// "Drama" next to "Drame" and IMDb's "Sci-Fi" next to "Science-Fiction". Folding
+// happens here rather than in SQL because it is a presentation concern and
+// needs the language; the matching side lives in ExpandGenreAliases, and the two
+// must stay consistent or the filter panel offers a label that selects nothing.
 func (s *QueryService) ListGenres(ctx context.Context, libraryID shared.LibraryID) ([]string, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.library.ListGenres")
 	defer span.End()
-	return s.mediaItems.ListGenres(ctx, libraryID)
+	stored, err := s.mediaItems.ListGenres(ctx, libraryID)
+	if err != nil {
+		return nil, err
+	}
+	return library.CanonicalGenres(stored, s.displayLanguage(ctx)), nil
+}
+
+// displayLanguage is the language genre labels are rendered in. The server
+// setting is the right source here: ListGenres feeds a filter panel whose
+// options must match what the library pages already display, and those follow
+// the server language too.
+//
+// No configured language returns "", which tells CanonicalGenres to fold
+// duplicates WITHOUT translating. Picking a language on the operator's behalf
+// would show French to an English server just because that is what the code
+// happened to default to. A read failure is treated the same way: a filter panel
+// is not worth failing a request over, and not translating is the safe answer.
+func (s *QueryService) displayLanguage(ctx context.Context) string {
+	if s.serverConfig == nil {
+		return ""
+	}
+	e, err := s.serverConfig.Get(ctx, "server.language")
+	if err != nil || e == nil {
+		return ""
+	}
+	return strings.ToLower(strings.TrimSpace(e.Value))
 }
 
 // ReindexSearch moved to CommandService (it WRITES the index). The query

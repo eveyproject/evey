@@ -69,6 +69,7 @@ linters:
         - journalis # journalisée, journalisation
         - sence # présence
         - portait
+        - documentaire # le genre TMDB en français, lu comme une faute de "documentaries"
     exhaustruct:
       # Scope to the HTTP handler dependency structs ONLY - enabling exhaustruct
       # globally would flag every legitimate partial literal in the codebase.
