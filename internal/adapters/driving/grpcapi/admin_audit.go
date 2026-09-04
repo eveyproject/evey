@@ -331,3 +331,34 @@ func (d *adminSessionHandler) SendSessionCommand(ctx context.Context, req *eveyv
 	}
 	return &eveyv1.SendSessionCommandResponse{}, nil
 }
+
+// SendCastReceiverCommand reaches a Chromecast still beating with no play
+// session left - a television that never really switches off keeps the receiver
+// page loaded long after its session ended, and SendSessionCommand has no row
+// to write on. Same admin guard and same vocabulary as SendSessionCommand: this
+// controls somebody else's television, and it must not lean on the
+// interceptor's role map alone.
+func (d *adminSessionHandler) SendCastReceiverCommand(ctx context.Context, req *eveyv1.SendCastReceiverCommandRequest) (*eveyv1.SendCastReceiverCommandResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.admin.SendCastReceiverCommand")
+	defer span.End()
+	claims, err := requireClaims(ctx)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, err
+	}
+	if !claims.IsAdmin {
+		span.SetStatus(otelcodes.Error, "admin required")
+		return nil, status.Error(codes.PermissionDenied, "admin required")
+	}
+	if req.ProfileId == "" || req.Command == "" {
+		span.SetStatus(otelcodes.Error, "profile_id and command required")
+		return nil, status.Error(codes.InvalidArgument, "profile_id and command required")
+	}
+	if err := d.playbackCmd.SetCastReceiverCommand(ctx, req.ProfileId, req.Command); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, internalError(ctx, "send cast receiver command", err)
+	}
+	return &eveyv1.SendCastReceiverCommandResponse{}, nil
+}

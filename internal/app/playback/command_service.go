@@ -67,6 +67,9 @@ type CommandService struct {
 	// stale-session sweep (single-goroutine, no lock).
 	sessionRetention func() int
 	lastSessionPurge time.Time
+	// orphanCastCommands reaches a Chromecast that is still beating but whose
+	// session has ended - see cast_orphan_commands.go.
+	orphanCastCommands *castOrphanCommands
 }
 
 type CommandServiceOption func(*CommandService)
@@ -117,6 +120,9 @@ func NewCommandService(
 		users:          users,
 		profiles:       profiles,
 		events:         events,
+		// Always built, never optional: a nil store would make the control
+		// silently do nothing, which is the failure it exists to end.
+		orphanCastCommands: newCastOrphanCommands(),
 	}
 	for _, opt := range opts {
 		opt(s)
@@ -692,11 +698,56 @@ func (s *CommandService) ConsumeCastCommand(ctx context.Context, profileID, medi
 		if sess == nil || string(sess.MediaItemID) != mediaItemID {
 			continue
 		}
-		return s.sessions.ConsumeRemoteCommand(ctx, sess.ID)
+		if cmd, cErr := s.sessions.ConsumeRemoteCommand(ctx, sess.ID); cErr != nil || cmd != "" {
+			return cmd, cErr
+		}
+		break
 	}
-	return "", nil
+	// No session, or a session with nothing pending: fall back to the command
+	// parked for the profile itself. That is the only channel left to a receiver
+	// still beating on a television that never switches off, whose session ended
+	// when its picture stopped moving.
+	return s.orphanCastCommands.take(profileID), nil
 }
 
+
+// SetCastReceiverCommand parks a command for the next cast beacon of this
+// profile, whether or not it still has a play session.
+//
+// The session-bound SendSessionCommand cannot reach that receiver: there is no
+// row to write on. And the receiver is not gone - it is listed in online
+// devices, beating every 30s, holding the television. Before this the only way
+// to release it was to unplug it.
+//
+// Delivery is best-effort and unacknowledged by design, exactly like the
+// session path: the command rides the answer to the next beacon, so it lands
+// within one beacon interval or expires unseen.
+func (s *CommandService) SetCastReceiverCommand(ctx context.Context, profileID, command string) error {
+	_, span := tracing.StartSpan(ctx, "app.playback.SetCastReceiverCommand")
+	defer span.End()
+	if profileID == "" || command == "" {
+		return errors.New("SetCastReceiverCommand: profile id and command are required")
+	}
+	s.orphanCastCommands.set(profileID, command)
+	return nil
+}
+
+// EndAllSessions closes every open play session. Called once while the server
+// drains.
+//
+// Everything that made those sessions real dies with the process: the ffmpeg
+// behind each transcode, the HLS orchestrators, the in-memory limiter. What
+// survives is a row in play_sessions with ended_at NULL, which the admin panel
+// reads as somebody watching. The stale sweep does eventually clear them, but
+// only 2 minutes after their last heartbeat - so a restart handed the operator
+// a now-playing list full of viewers who had been disconnected by the restart
+// itself. Clients re-negotiate a fresh session on their next request; there is
+// nothing here worth carrying across the exit.
+func (s *CommandService) EndAllSessions(ctx context.Context) (int, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.playback.EndAllSessions")
+	defer span.End()
+	return s.sessions.CloseAllActive(ctx)
+}
 
 func (s *CommandService) CleanupStaleSessions(ctx context.Context, maxAge time.Duration) (int, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.playback.CleanupStaleSessions")

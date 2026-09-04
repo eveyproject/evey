@@ -28,6 +28,9 @@ nav:
   backupRestore: "备份与恢复"
 
 online:
+  stopReceiver: "停止此 Chromecast"
+  receiverStopSent: "已发送停止指令，电视将在 30 秒内执行"
+  receiverStopFailed: "无法发送停止指令"
   title: "在线用户"
   countOne: "{{count}} 位用户在线"
   countOther: "{{count}} 位用户在线"

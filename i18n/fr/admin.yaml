@@ -28,6 +28,9 @@ nav:
   backupRestore: Sauvegarde BDD et restauration
 
 online:
+  stopReceiver: "Arrêter ce Chromecast"
+  receiverStopSent: "Arrêt envoyé - la télévision l'applique sous 30 s"
+  receiverStopFailed: "Impossible d'envoyer la commande d'arrêt"
   title: Qui est en ligne
   countOne: "{{count}} utilisateur en ligne"
   countOther: "{{count}} utilisateurs en ligne"

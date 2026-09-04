@@ -17,6 +17,19 @@ import (
 // user drops off the list.
 const DefaultWindow = 90 * time.Second
 
+// CastReceiverUserAgent is the product user agent a beaconing Chromecast is
+// filed under. The receiver's own CrKey string would render as a desktop Chrome
+// on Linux, so the beacon handler substitutes this, and the admin panel keys the
+// TV chip - and the "stop this receiver" control - off it.
+//
+// One constant rather than the literal in each place: the string is the only
+// thing that says "this online device is a television", and three copies of it
+// is three chances for the control to silently stop appearing.
+const CastReceiverUserAgent = "EveyCast (Chromecast)"
+
+// IsCastReceiver reports whether an online entry is a beaconing Chromecast.
+func IsCastReceiver(userAgent string) bool { return userAgent == CastReceiverUserAgent }
+
 // Entry is one online DEVICE's live presence snapshot: the same account on the
 // web app and the mobile app is two entries. The latest heartbeat for a given
 // (user, user agent) wins, so a profile switch on one device updates in place.

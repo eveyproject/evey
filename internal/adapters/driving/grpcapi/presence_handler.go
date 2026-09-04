@@ -49,6 +49,11 @@ func (h *presenceHandler) ListOnline(_ context.Context, _ *eveyv1.ListOnlineRequ
 			UserAgent:    e.UserAgent,
 			LastSeenUnix: e.LastSeen.Unix(),
 			IdleSeconds:  idle,
+			// Derived here rather than in the panel: the product user agent is
+			// the only thing that says "this device is a television", and the
+			// stop control must not stop appearing because a UI copy of that
+			// string drifted.
+			IsCastReceiver: presence.IsCastReceiver(e.UserAgent),
 		})
 	}
 	// Users has one row per DEVICE; Total stays the distinct-USER figure the

@@ -32,6 +32,17 @@ service AdminSessionService {
       body: "*"
     };
   }
+
+  // SendCastReceiverCommand reaches a Chromecast that is still beating but has
+  // no play session left to address. Keyed by PROFILE because that is all the
+  // online-devices panel knows, and what the receiver's own stream token
+  // carries. Same vocabulary as SendSessionCommand.
+  rpc SendCastReceiverCommand(SendCastReceiverCommandRequest) returns (SendCastReceiverCommandResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/cast-receivers/{profile_id}/command"
+      body: "*"
+    };
+  }
 }
 
 message AuditLogEntry {
@@ -131,3 +142,12 @@ message SendSessionCommandRequest {
 }
 
 message SendSessionCommandResponse {}
+
+
+message SendCastReceiverCommandRequest {
+  string profile_id = 1;
+  // "pause" | "play" | "stop" | "message:<text>"
+  string command = 2;
+}
+
+message SendCastReceiverCommandResponse {}

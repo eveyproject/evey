@@ -28,6 +28,9 @@ nav:
   backupRestore: Copia de seguridad y restauración
 
 online:
+  stopReceiver: "Detener este Chromecast"
+  receiverStopSent: "Parada enviada: el televisor la aplica en menos de 30 s"
+  receiverStopFailed: "No se pudo enviar el comando de parada"
   title: Quién está en línea
   countOne: "{{count}} usuario en línea"
   countOther: "{{count}} usuarios en línea"

@@ -1,8 +1,10 @@
+import { useEffect, useState } from "react";
 import { Avatar } from "@/components/ui/Avatar";
-import { Radio, Shield } from "lucide-react";
+import { Radio, Shield, Square } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { usePresenceServiceListOnline } from "@evey/api";
+import { usePresenceServiceListOnline, useAdminSessionServiceSendCastReceiverCommand, apiErrorMessage } from "@evey/api";
 import type { V1OnlineUser } from "@evey/api";
+import { toast } from "@evey/store";
 import { ICON } from "@/constants/iconSizes";
 import { deviceIcon, deviceLabel } from "./onlineDevice";
 import { FetchErrorState } from "@/components/ui/FetchErrorState";
@@ -22,6 +24,17 @@ export function OnlineNow() {
   // failure when there is nothing to show: a poll that fails while a previous
   // answer is still on screen must keep showing that answer, stale but true.
   const failed = isError && !data;
+
+  // A cast receiver keeps beating for as long as its page is loaded, and a
+  // television that is never really switched off never unloads it - so it
+  // outlives its play session and disappears from Now Playing while still
+  // holding the screen. This card is then the only place it can be reached.
+  const stopReceiver = useAdminSessionServiceSendCastReceiverCommand({
+    mutation: {
+      onSuccess: () => toast.success(t("admin.online.receiverStopSent")),
+      onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("admin.online.receiverStopFailed"))),
+    },
+  });
   const users = data?.users ?? [];
   const total = data?.total ?? users.length;
 
@@ -80,11 +93,56 @@ export function OnlineNow() {
                   </div>
                 </div>
                 <span className="shrink-0 text-xs text-[var(--text-muted)] tabular-nums">{lastSeen(u)}</span>
+                {u.isCastReceiver && u.profileId && (
+                  <StopReceiverButton
+                    profileId={u.profileId}
+                    onStop={(profileId) => stopReceiver.mutate({ profileId, data: { command: "stop" } })}
+                  />
+                )}
               </li>
             );
           })}
         </ul>
       )}
     </div>
+  );
+}
+
+// StopReceiverButton releases a television nobody is watching any more.
+//
+// Confirm-to-act, like the Now Playing stop: one click arms, a second within a
+// few seconds sends it. This ends someone else's playback on a screen the
+// operator cannot see, so a single misplaced click must not do it.
+//
+// Delivery rides the receiver's next beacon, which is every 30s - the button
+// reports that it was SENT, never that it was obeyed, because nothing here can
+// know the latter.
+function StopReceiverButton({ profileId, onStop }: { profileId: string; onStop: (profileId: string) => void }) {
+  const { t } = useTranslation();
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    if (!armed) return;
+    const timer = setTimeout(() => setArmed(false), 4000);
+    return () => clearTimeout(timer);
+  }, [armed]);
+
+  return (
+    <button
+      type="button"
+      data-testid="stop-cast-receiver"
+      className={`shrink-0 p-1.5 rounded-full transition-colors ${armed ? "bg-[var(--danger-bg,#dc2626)] text-[var(--on-danger,#fff)]" : "text-[var(--danger-bg,#dc2626)] hover:bg-[var(--surface)]"}`}
+      onClick={() => {
+        if (!armed) {
+          setArmed(true);
+          return;
+        }
+        setArmed(false);
+        onStop(profileId);
+      }}
+      title={armed ? t("common.confirm") : t("admin.online.stopReceiver")}
+      aria-label={armed ? t("common.confirm") : t("admin.online.stopReceiver")}
+    >
+      <Square size={14} fill="currentColor" aria-hidden="true" />
+    </button>
   );
 }

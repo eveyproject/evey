@@ -28,6 +28,9 @@ nav:
   backupRestore: Database Backup
 
 online:
+  stopReceiver: "Stop this Chromecast"
+  receiverStopSent: "Stop sent - the television applies it within 30 s"
+  receiverStopFailed: "Could not send the stop command"
   title: Who's Online
   countOne: "{{count}} user online"
   countOther: "{{count}} users online"

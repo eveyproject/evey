@@ -51,4 +51,8 @@ message OnlineUser {
   // Epoch seconds of the last heartbeat, and how many seconds ago that was.
   int64 last_seen_unix = 7;
   int32 idle_seconds = 8;
+  // True when this online device is a beaconing cast receiver. Derived
+  // server-side from the product user agent so the panel needs no knowledge of
+  // that string, and can offer the "stop this receiver" control.
+  bool is_cast_receiver = 9;
 }

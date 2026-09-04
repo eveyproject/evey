@@ -72,6 +72,7 @@ func TestDefaultRBACConfig_AdminMethods(t *testing.T) {
 		"/evey.v1.AdminSessionService/ListActiveSessions",
 		"/evey.v1.AdminSessionService/KillSession",
 		"/evey.v1.AdminSessionService/SendSessionCommand",
+		"/evey.v1.AdminSessionService/SendCastReceiverCommand",
 		// AdminPluginService
 		"/evey.v1.AdminPluginService/ListPluginRuntimes",
 		"/evey.v1.AdminPluginService/AddPluginRuntime",

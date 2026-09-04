@@ -28,6 +28,9 @@ nav:
   backupRestore: Sicherung & Wiederherstellung
 
 online:
+  stopReceiver: "Diesen Chromecast stoppen"
+  receiverStopSent: "Stopp gesendet - das Fernsehgerät wendet ihn innerhalb von 30 s an"
+  receiverStopFailed: "Stopp-Befehl konnte nicht gesendet werden"
   title: Wer ist online
   countOne: "{{count}} Benutzer online"
   countOther: "{{count}} Benutzer online"

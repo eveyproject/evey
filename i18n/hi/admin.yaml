@@ -28,6 +28,9 @@ nav:
   backupRestore: "बैकअप और पुनर्स्थापना"
 
 online:
+  stopReceiver: "इस Chromecast को रोकें"
+  receiverStopSent: "रोकने का आदेश भेजा गया - टीवी इसे 30 सेकंड में लागू करेगा"
+  receiverStopFailed: "रोकने का आदेश नहीं भेजा जा सका"
   title: "कौन ऑनलाइन है"
   countOne: "{{count}} उपयोगकर्ता ऑनलाइन"
   countOther: "{{count}} उपयोगकर्ता ऑनलाइन"

@@ -321,7 +321,7 @@ func notifyCastLiveness(r *http.Request, deps *playerEventDeps, mediaID, eventTy
 			// A product UA the online panel maps to a TV chip, like the mobile
 			// and TV apps' own UAs - the receiver's raw CrKey string would
 			// render as a desktop Chrome on Linux.
-			UserAgent: "EveyCast (Chromecast)",
+			UserAgent: presence.CastReceiverUserAgent,
 		})
 	}
 	if deps.castSession != nil && posSec > 0 {
