@@ -3,7 +3,7 @@ import { createLazyFileRoute, useRouter } from "@tanstack/react-router";
 import { useCallback, useMemo, useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { libraryServiceGetMediaItem, libraryServiceListMediaItems } from "@evey/api";
+import { libraryServiceGetMediaItem, libraryServiceListMediaItems, isImageSubtitle } from "@evey/api";
 import { usePlaySession } from "@/hooks/usePlaySession";
 import { useChapters } from "@/hooks/useChapters";
 import { HLSPlayer } from "@/features/playback/HLSPlayer";
@@ -21,10 +21,6 @@ import { useAuthStore, usePlayerStore, setPlayerCleanup, useMusicPlayerStore, to
 
 // Seasons of a series: far beyond any real count, stated rather than implied.
 const SEASONS_PAGE_SIZE = 100;
-
-const IMAGE_SUBTITLE_CODECS = new Set([
-  "pgssub", "hdmv_pgs_subtitle", "dvd_subtitle", "dvbsub", "xsub",
-]);
 
 export const Route = createLazyFileRoute("/_auth/player/$mediaId")({
   component: PlayerPage,
@@ -260,7 +256,7 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
         ?.filter((s) => s.type === "MEDIA_STREAM_TYPE_SUBTITLE")
         .map((s, i) => {
           const codec = s.codec?.toLowerCase() ?? "";
-          const burnIn = IMAGE_SUBTITLE_CODECS.has(codec);
+          const burnIn = isImageSubtitle(codec);
           return {
             index: s.index ?? 0,
             trackIndex: i,

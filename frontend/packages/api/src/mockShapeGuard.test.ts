@@ -16,6 +16,7 @@ import * as pagination from "./pagination";
 import * as exportPaging from "./exportPaging";
 import * as fileNiceName from "./fileNiceName";
 import * as genreColor from "./genreColor";
+import * as imageSubtitles from "./imageSubtitles";
 import * as regionDefaults from "./regionDefaults";
 import * as libraryRules from "./libraryRules";
 import * as playerEventReporter from "./playerEventReporter";
@@ -68,6 +69,7 @@ const SHARED_MODULES = {
   exportPaging,
   fileNiceName,
   genreColor,
+  imageSubtitles,
   regionDefaults,
   libraryRules,
   playerEventReporter,

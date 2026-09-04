@@ -10,6 +10,7 @@ export * from "./playerEventReporter";
 export * from "./displayTitle";
 export * from "./fileNiceName";
 export * from "./genreColor";
+export * from "./imageSubtitles";
 export * from "./apiErrorMessage";
 export * from "./personDepartment";
 export * from "./pagination";

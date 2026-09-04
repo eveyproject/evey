@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
-import { createPlayerEventReporter, formatTime, itemLabel } from "@evey/api";
+import { createPlayerEventReporter, formatTime, itemLabel, isImageSubtitle } from "@evey/api";
 import { View, Text, Pressable, ActivityIndicator, StyleSheet, useWindowDimensions, useTVEventHandler } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
@@ -41,10 +41,6 @@ import { useParentalGate } from "../../../src/hooks/useParentalGate";
 import { ParentalPINModal } from "../../../src/components/ParentalPINModal";
 import { useSyncplay } from "../../../src/hooks/useSyncplay";
 import { SyncplaySessionBadge } from "../../../src/components/SyncplaySessionBadge";
-
-const IMAGE_SUBTITLE_CODECS = new Set([
-  "pgssub", "hdmv_pgs_subtitle", "dvd_subtitle", "dvbsub", "xsub",
-]);
 
 const CONTROLS_TIMEOUT = 4000;
 // A native "loading" status fires on every micro-stall (segment boundary, ABR
@@ -210,7 +206,7 @@ export default function PlayerScreen() {
           isDefault: s.isDefault,
           isForced: s.isForced,
           codec: s.codec,
-          burnIn: IMAGE_SUBTITLE_CODECS.has(s.codec?.toLowerCase() ?? ""),
+          burnIn: isImageSubtitle(s.codec),
         })) ?? [],
     [streamInfo],
   );

@@ -35,7 +35,9 @@ import {
   useUserServiceGetCurrentUser,
   useUserServiceListProfiles,
   createPlayerEventReporter,
+  isImageSubtitle,
 } from "@evey/api";
+import { clientSubtitleTrack } from "../../../src/lib/clientSubtitleTrack";
 import { usePlaySession } from "../../../src/hooks/usePlaySession";
 import { useAudioCapsBeacon } from "../../../src/hooks/useAudioCapsBeacon";
 import { useProgressReporter } from "../../../src/hooks/useProgressReporter";
@@ -86,10 +88,6 @@ import { PluginSlot } from "../../../src/features/plugins/PluginSlot";
 // Sheets still carried by a BottomSheet; audio / subtitles / quality / speed
 // now live in the settings panel (web parity).
 type SheetName = "chapters" | "streamInfo" | "sleepTimer" | "syncPlay" | "episodes";
-
-const IMAGE_SUBTITLE_CODECS = new Set([
-  "pgssub", "hdmv_pgs_subtitle", "dvd_subtitle", "dvbsub", "xsub",
-]);
 
 const WATCHED_THRESHOLD = 0.9;
 
@@ -345,7 +343,7 @@ const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>()
           isDefault: s.isDefault,
           isForced: s.isForced,
           codec: s.codec,
-          burnIn: IMAGE_SUBTITLE_CODECS.has(s.codec?.toLowerCase() ?? ""),
+          burnIn: isImageSubtitle(s.codec),
         })) ?? [],
     [streamInfo],
   );
@@ -1141,14 +1139,17 @@ const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>()
     setSelectedSubtitleIndex(null);
   }, [externalSubtitle, restartForSubtitleChange]);
 
-  // The subtitle stream (if any) SubtitleOverlay should render client-side:
-  // null when off, or when the current selection is a burn-in image track the
-  // server already draws into the video (avoids a doubled rendering).
-  const clientSubtitleIndex = useMemo(() => {
-    if (selectedSubtitleIndex === null) return null;
-    const stream = subtitleStreams.find((s) => s.index === selectedSubtitleIndex);
-    return stream && !stream.burnIn ? selectedSubtitleIndex : null;
-  }, [selectedSubtitleIndex, subtitleStreams]);
+  // The subtitle track (if any) SubtitleOverlay should fetch and draw itself:
+  // null when off, or when the selection is a burn-in image track the server
+  // already draws into the video (avoids a doubled rendering).
+  //
+  // Note the SUBTITLE-RELATIVE index, not the absolute stream index the
+  // selection carries - see clientSubtitleTrack for why the two must not be
+  // confused.
+  const clientSubtitleIndex = useMemo(
+    () => clientSubtitleTrack(selectedSubtitleIndex, subtitleStreams),
+    [selectedSubtitleIndex, subtitleStreams],
+  );
 
   const handleQualitySelect = useCallback(
     (quality: number) => {
