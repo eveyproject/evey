@@ -127,24 +127,20 @@ func TestManifestGenerator_Master_Bandwidth(t *testing.T) {
 	assert.Contains(t, out, "BANDWIDTH=896000")
 }
 
+// Every rung of the real ladder must be advertised at video+audio. Derived from
+// the table rather than pinned to figures: those are a product decision that has
+// already moved (audio floors raised on 2026-09-04), and a frozen copy here
+// tests nothing but its own staleness. What is asserted is the RULE.
 func TestManifestGenerator_Master_AllProfileBandwidths(t *testing.T) {
 	g := NewManifestGenerator()
 	in := baseInput(transcoding.DefaultHLSProfiles, 10.0)
 	out, err := g.Master(in)
 	require.NoError(t, err)
 
-	expected := []struct {
-		name string
-		bps  int64
-	}{
-		{"360p", (800 + 96) * 1000},
-		{"480p", (1400 + 128) * 1000},
-		{"720p", (2800 + 128) * 1000},
-		{"1080p", (5000 + 192) * 1000},
-	}
-	for _, e := range expected {
-		t.Run(e.name, func(t *testing.T) {
-			assert.Contains(t, out, fmt.Sprintf("BANDWIDTH=%d", e.bps))
+	require.NotEmpty(t, transcoding.DefaultHLSProfiles)
+	for _, p := range transcoding.DefaultHLSProfiles {
+		t.Run(p.Name, func(t *testing.T) {
+			assert.Contains(t, out, fmt.Sprintf("BANDWIDTH=%d", (p.VideoBitrate+p.AudioBitrate)*1000))
 		})
 	}
 }

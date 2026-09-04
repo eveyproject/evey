@@ -36,9 +36,19 @@ func (c ContentClass) IsValid() bool {
 // or flat colour anime, classic 2D). YDEV stays low, scenecuts rare, source
 // bitrate typically <3 Mbps for a 1080p anime. Two rungs are enough because
 // the per-frame bandwidth is so flat that ABR has little to switch between.
+// Audio floors across every ladder below, revised 2026-09-04. A rung's audio
+// figure is quoted for STEREO, and a stereo rung on a multichannel title is a
+// FOLD: two channels carry dialogue, music, effects and both surrounds at once,
+// which is the opposite of the per-channel arithmetic that sizes a 5.1 encode.
+// Measured on an AC-3 5.1 film, coding noise under the signal on a quiet
+// ambience passage (the first thing to suffer, -38 dBFS): 21.6 dB at 96k,
+// 26.7 at 128k, 31.9 at 160k, 35.5 at 192k, 38.4 at 256k. The return per
+// kilobit collapses past 192k, so that is the ceiling for anything but 2160p;
+// 128k is the floor kept on the lowest rung, where the whole budget is 400-800
+// kbps of video and 64 extra kbps would be felt.
 var LadderAnimation = []HLSProfile{
-	{Name: "360p", Width: 640, Height: 360, VideoBitrate: 400, AudioBitrate: 96},
-	{Name: "720p", Width: 1280, Height: 720, VideoBitrate: 1200, AudioBitrate: 128},
+	{Name: "360p", Width: 640, Height: 360, VideoBitrate: 400, AudioBitrate: 128},
+	{Name: "720p", Width: 1280, Height: 720, VideoBitrate: 1200, AudioBitrate: 192},
 }
 
 // LadderFilmLowMotion - drama, romance, dialogue-driven, fixed cameras.
@@ -46,8 +56,8 @@ var LadderAnimation = []HLSProfile{
 // default; ladder keeps the 1080p rung but cuts both lower rungs and the
 // per-rung bitrate.
 var LadderFilmLowMotion = []HLSProfile{
-	{Name: "360p", Width: 640, Height: 360, VideoBitrate: 600, AudioBitrate: 96},
-	{Name: "480p", Width: 854, Height: 480, VideoBitrate: 1000, AudioBitrate: 128},
+	{Name: "360p", Width: 640, Height: 360, VideoBitrate: 600, AudioBitrate: 128},
+	{Name: "480p", Width: 854, Height: 480, VideoBitrate: 1000, AudioBitrate: 192},
 	{Name: "1080p", Width: 1920, Height: 1080, VideoBitrate: 2500, AudioBitrate: 192},
 }
 
@@ -55,9 +65,9 @@ var LadderFilmLowMotion = []HLSProfile{
 // classifier is undecided, when complexity_class is null (unclassified
 // rows), and when an admin override forces it.
 var LadderFilmNormal = []HLSProfile{
-	{Name: "360p", Width: 640, Height: 360, VideoBitrate: 800, AudioBitrate: 96},
-	{Name: "480p", Width: 854, Height: 480, VideoBitrate: 1400, AudioBitrate: 128},
-	{Name: "720p", Width: 1280, Height: 720, VideoBitrate: 2800, AudioBitrate: 128},
+	{Name: "360p", Width: 640, Height: 360, VideoBitrate: 800, AudioBitrate: 128},
+	{Name: "480p", Width: 854, Height: 480, VideoBitrate: 1400, AudioBitrate: 192},
+	{Name: "720p", Width: 1280, Height: 720, VideoBitrate: 2800, AudioBitrate: 192},
 	{Name: "1080p", Width: 1920, Height: 1080, VideoBitrate: 5000, AudioBitrate: 192},
 }
 
@@ -66,7 +76,7 @@ var LadderFilmNormal = []HLSProfile{
 // hard cases (sustained explosions, fast pans, grain) don't crater
 // perceptual quality.
 var LadderFilmHighMotion = []HLSProfile{
-	{Name: "480p", Width: 854, Height: 480, VideoBitrate: 1500, AudioBitrate: 128},
+	{Name: "480p", Width: 854, Height: 480, VideoBitrate: 1500, AudioBitrate: 192},
 	{Name: "720p", Width: 1280, Height: 720, VideoBitrate: 3500, AudioBitrate: 192},
 	{Name: "1080p", Width: 1920, Height: 1080, VideoBitrate: 7000, AudioBitrate: 192},
 	{Name: "2160p", Width: 3840, Height: 2160, VideoBitrate: 15000, AudioBitrate: 256},
@@ -77,7 +87,7 @@ var LadderFilmHighMotion = []HLSProfile{
 // 720p rung because sports viewers watching on mobile still want sharp
 // motion. Rare in a self-hosted film/TV library - kept for completeness.
 var LadderSport = []HLSProfile{
-	{Name: "480p", Width: 854, Height: 480, VideoBitrate: 1800, AudioBitrate: 128},
+	{Name: "480p", Width: 854, Height: 480, VideoBitrate: 1800, AudioBitrate: 192},
 	{Name: "720p", Width: 1280, Height: 720, VideoBitrate: 4500, AudioBitrate: 192},
 	{Name: "1080p", Width: 1920, Height: 1080, VideoBitrate: 8000, AudioBitrate: 192},
 }
