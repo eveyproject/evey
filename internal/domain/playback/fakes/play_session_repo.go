@@ -200,6 +200,23 @@ func (r *FakePlaySessionRepository) CloseStale(_ context.Context, olderThan time
 	return closed, nil
 }
 
+func (r *FakePlaySessionRepository) CloseAllActive(_ context.Context) (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.Err != nil {
+		return 0, r.Err
+	}
+	closed := 0
+	for _, s := range r.items {
+		if s.EndedAt == nil {
+			now := time.Now()
+			s.EndedAt = &now
+			closed++
+		}
+	}
+	return closed, nil
+}
+
 func (r *FakePlaySessionRepository) PurgeEndedBefore(_ context.Context, cutoff time.Time) (int, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()

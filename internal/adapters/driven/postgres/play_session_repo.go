@@ -358,6 +358,29 @@ func (r *PlaySessionRepository) CloseStale(ctx context.Context, olderThan time.D
 	return int(n), nil
 }
 
+// CloseAllActive ends every open session. Same single statement as CloseStale
+// without the age predicate: a draining server has no session worth keeping,
+// and doing it in one UPDATE keeps it inside the shutdown budget however many
+// viewers were connected.
+func (r *PlaySessionRepository) CloseAllActive(ctx context.Context) (int, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.playsession.CloseAllActive")
+	defer span.End()
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
+		`UPDATE play_sessions SET ended_at = NOW() WHERE ended_at IS NULL`)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return 0, fmt.Errorf("PlaySessionRepo.CloseAllActive: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		slog.Warn("rows affected", slog.Any("err", err))
+	}
+	return int(n), nil
+}
+
 func (r *PlaySessionRepository) PurgeEndedBefore(ctx context.Context, cutoff time.Time) (int, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.playsession.PurgeEndedBefore")
 	defer span.End()

@@ -45,6 +45,13 @@ type SessionCommandRepo interface {
 	// REAL audio path (server AAC transcode vs TV-side wasm decode).
 	SetSessionAudioDecision(ctx context.Context, sessionID, decision string) (bool, error)
 	CloseStale(ctx context.Context, olderThan time.Duration) (int, error)
+	// CloseAllActive ends every session still open, regardless of age. Called
+	// once as the server drains: the process is going away and every encode
+	// with it, so no open session can survive the exit as anything but a
+	// phantom - and the stale sweep would otherwise leave the youngest of them
+	// claiming to be playing for two more minutes after the restart.
+	// Returns the number of sessions ended.
+	CloseAllActive(ctx context.Context) (int, error)
 	// PurgeEndedBefore deletes finished sessions (ended_at set) whose ended_at
 	// is older than the cutoff, bounding the table's growth. Active sessions
 	// (ended_at NULL) are never touched. Returns the number of rows removed.

@@ -697,6 +697,7 @@ func (s *CommandService) ConsumeCastCommand(ctx context.Context, profileID, medi
 	return "", nil
 }
 
+
 func (s *CommandService) CleanupStaleSessions(ctx context.Context, maxAge time.Duration) (int, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.playback.CleanupStaleSessions")
 	defer span.End()

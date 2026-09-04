@@ -345,6 +345,21 @@ func run() error {
 	}
 	deps.engagement.pluginHostServer.Stop()
 	deps.engagement.notifCmdSvc.Stop()
+	// Close every play session: the process is going away and every encode with
+	// it, so anything still open in the table would come back after the restart
+	// as a viewer who is not there. Only ended_at is written - the resume
+	// position each viewer already reported is untouched, and the flusher below
+	// still lands whatever is buffered.
+	//
+	// Its own context: ctx is already cancelled by the signal that brought us
+	// here, and a cancelled one would skip the write entirely.
+	closeCtx, closeCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	if n, err := deps.media.playbackSvc.CommandService().EndAllSessions(closeCtx); err != nil {
+		slog.WarnContext(closeCtx, "ending active play sessions", slog.Any("err", err))
+	} else if n > 0 {
+		rootLog.Info("ended active play sessions on shutdown", slog.Int("count", n))
+	}
+	closeCancel()
 	deps.media.playbackSvc.CommandService().StopProgressFlusher()
 	// Drain the transcode background workers (complexity / level+keyframe backfill
 	// / CMCD cap-override) BEFORE bus.Stop and the deferred db.Close: each blocks
