@@ -47,13 +47,33 @@ func TestDownmixPolicyChange_ForksBothCaches(t *testing.T) {
 // MUST have moved off them.
 func TestDownmixPolicy_MovedOffTheUnprotectedHashes(t *testing.T) {
 	afp := stereoAudioFp()
-	require.Equal(t, "rematrix_maxval=1.0000", afp.downmixPolicy())
+	require.Equal(t, domaintranscoding.AudioDownmixPolicy(2), afp.downmixPolicy())
 	assert.NotEqual(t, afp.hashWithDownmixPolicy(""), afp.Hash(),
 		"stereo audio rendition still hashes like the unprotected fold")
 
 	dfp := stereoDecisionFp()
 	assert.NotEqual(t, dfp.hashWithDownmixPolicy(""), dfp.Hash(),
 		"stereo muxed session still hashes like the unprotected fold")
+}
+
+// 2026-09-04: the cap moved 1.0 -> 2.0 to give the fold back the 6 dB the
+// normalisation took. Segments already on disk were produced at 1.0 and are 6 dB
+// quieter, so they MUST NOT be served for a session that now asks for 2.0 -
+// otherwise the level a viewer gets depends on whether someone watched the title
+// before them. The policy string carries the cap, so this is automatic; the test
+// exists so it stays that way.
+func TestDownmixPolicy_LevelChangeForksTheCache(t *testing.T) {
+	const fullyNormalised = "rematrix_maxval=1.0000"
+	require.NotEqual(t, fullyNormalised, domaintranscoding.AudioDownmixPolicy(2),
+		"this test is stale: the cap is back at the fully normalised value")
+
+	afp := stereoAudioFp()
+	assert.NotEqual(t, afp.hashWithDownmixPolicy(fullyNormalised), afp.Hash(),
+		"audio rendition would serve the 6 dB quieter segments cached under the old cap")
+
+	dfp := stereoDecisionFp()
+	assert.NotEqual(t, dfp.hashWithDownmixPolicy(fullyNormalised), dfp.Hash(),
+		"muxed session would serve the 6 dB quieter segments cached under the old cap")
 }
 
 // The nominal 5.1 path produces the SAME bytes as before, so it must keep its

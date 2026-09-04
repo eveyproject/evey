@@ -13,7 +13,18 @@ const (
 	// AudioRenditionBaseKbps is the stereo base of the standalone AAC rendition
 	// served next to a COPIED video track. Independent of any ladder rung - on
 	// that path there is no ladder, the video passes through untouched.
-	AudioRenditionBaseKbps = 128
+	//
+	// 192, not 128, since 2026-09-04. The per-channel rule below is right for a
+	// layout-PRESERVING encode, where each channel carries its own share of the
+	// mix, and wrong for a FOLD: a stereo rendition made from a 5.1 bed carries
+	// dialogue, music, effects and both surrounds on two channels, so it needs
+	// more bits per channel than the 5.1 it came from, not fewer. The client that
+	// declares a stereo output was getting 128k for the whole mix while a browser
+	// declaring 5.1 got 384k for the same title. Measured on an AC-3 5.1 film,
+	// coding noise under the signal on a quiet ambience passage (the case that
+	// suffers first, -38 dBFS): 26.9 dB at 128k, 34.4 dB at 192k. The extra
+	// 64 kbps sit next to a 1500-7000 kbps video rung.
+	AudioRenditionBaseKbps = 192
 )
 
 // ServedAudioBitrateKbps is the bitrate an AAC track is actually encoded at.

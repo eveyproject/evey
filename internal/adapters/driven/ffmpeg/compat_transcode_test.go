@@ -1,9 +1,12 @@
 package ffmpeg
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/evey-project/evey/internal/domain/transcoding"
 )
 
 // The argv IS the behavior: per-stream override order ("-c copy" before
@@ -22,7 +25,10 @@ func TestBuildCompatArgs(t *testing.T) {
 		"-map_chapters", "0",
 		"-c", "copy",
 		"-c:a", "aac", "-ac", "2", "-b:a", "192k",
-		"-rematrix_maxval", "1.0000",
+		// Derived, not literal: the cap is a measured product decision that has
+		// already moved once (1.0 -> 2.0, see audio_downmix.go). This test guards
+		// the argv ORDER, not the value.
+		"-rematrix_maxval", fmt.Sprintf("%.4f", transcoding.DownmixRematrixMaxval),
 		"-f", "matroska",
 		"/cache/compat/out.mkv.tmp",
 	}, args)

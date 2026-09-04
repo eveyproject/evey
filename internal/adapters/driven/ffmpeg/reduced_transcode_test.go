@@ -1,12 +1,14 @@
 package ffmpeg
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/evey-project/evey/internal/domain/transcoding"
 	"github.com/evey-project/evey/internal/pkg/reduceddl"
 )
 
@@ -29,7 +31,8 @@ func TestBuildReducedArgs(t *testing.T) {
 		"-profile:v", "high", "-level", "4.0", "-pix_fmt", "yuv420p",
 		"-force_key_frames", "expr:gte(t,n_forced*2)",
 		"-c:a", "aac", "-ac", "2", "-b:a", "128k",
-		"-rematrix_maxval", "1.0000",
+		// Derived, not literal - see the same note in compat_transcode_test.go.
+		"-rematrix_maxval", fmt.Sprintf("%.4f", transcoding.DownmixRematrixMaxval),
 		"-c:s", "copy",
 		"-f", "segment",
 		"-segment_format", "matroska",

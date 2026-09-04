@@ -26,11 +26,17 @@ func TestStereoFold_CarriesMatrixHeadroom(t *testing.T) {
 		"compat download": ffmpeg.BuildCompatArgs("/media/film.mkv", "/cache/out.mkv.tmp"),
 		"reduced download": ffmpeg.BuildReducedArgs("/media/film.mkv", "/cache/j/slice-%05d.mkv", "/cache/j/slices-00000.csv",
 			reduceddl.Spec{Width: 1280, SliceSec: 600}),
+		// The bitrate is the one the handler really passes on this path, taken
+		// from the constant rather than pinned: it moved once already (128 -> 192
+		// on 2026-09-04) and a fixture frozen on the old value would quietly stop
+		// describing the argv this test is meant to guard.
 		"audio rendition (explicit stereo)": ffmpeg.BuildFFmpegAudioOnlyArgs(transcoding.AudioProcessOpts{
-			FilePath: "/f.mkv", OutputDir: "/o", AudioCodec: "aac", AudioBitrate: 128, MaxAudioChannels: 2,
+			FilePath: "/f.mkv", OutputDir: "/o", AudioCodec: "aac",
+			AudioBitrate: transcoding.AudioRenditionBaseKbps, MaxAudioChannels: 2,
 		}),
 		"audio rendition (default stereo)": ffmpeg.BuildFFmpegAudioOnlyArgs(transcoding.AudioProcessOpts{
-			FilePath: "/f.mkv", OutputDir: "/o", AudioCodec: "aac", AudioBitrate: 128,
+			FilePath: "/f.mkv", OutputDir: "/o", AudioCodec: "aac",
+			AudioBitrate: transcoding.AudioRenditionBaseKbps,
 		}),
 		"muxed copy-video": ffmpeg.BuildFFmpegArgs(transcoding.HLSProcessOpts{
 			OutputDir: "/o", FilePath: "/f.mkv", Profiles: transcoding.DefaultHLSProfiles,

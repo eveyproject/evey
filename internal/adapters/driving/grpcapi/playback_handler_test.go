@@ -1466,13 +1466,17 @@ func TestServedAudioBitrateBps(t *testing.T) {
 			name:        "hybrid rung (video copied), 5.1: the rendition base scaled to 6 channels",
 			decision:    transcoding.PlaybackDecision{AudioDecision: "transcode", VideoDecision: "copy", MaxAudioChannels: 6},
 			srcChannels: i(6),
-			want:        384_000, // 6 x 64k - NOT the 128k base
+			want:        384_000, // 6 x 64k, the per-channel rule - not the stereo base
 		},
 		{
+			// Derived from the constant: the panel must quote whatever the encoder
+			// is handed, and that base moved once already (128 -> 192 on 2026-09-04,
+			// see domain/transcoding/audio_bitrate.go). A literal here would let the
+			// panel drift from the argv, which is the one thing this test exists for.
 			name:        "hybrid rung, stereo: the rendition base, unscaled",
 			decision:    transcoding.PlaybackDecision{AudioDecision: "transcode", VideoDecision: "copy", MaxAudioChannels: 6},
 			srcChannels: i(2),
-			want:        128_000,
+			want:        transcoding.AudioRenditionBaseKbps * 1000,
 		},
 		{
 			name:        "full transcode, stereo: the ladder rung's own base",

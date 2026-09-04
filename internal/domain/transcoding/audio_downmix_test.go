@@ -11,7 +11,7 @@ import (
 func TestAudioDownmixArgs_OnlyWhenFolding(t *testing.T) {
 	// 0 resolves to stereo (the historical "-ac 2"), so it folds too.
 	for _, ch := range []int{0, 1, 2} {
-		assert.Equal(t, []string{"-rematrix_maxval", "1.0000"}, AudioDownmixArgs(ch),
+		assert.Equal(t, []string{"-rematrix_maxval", "2.0000"}, AudioDownmixArgs(ch),
 			"channels=%d folds and must bound the matrix", ch)
 	}
 	// A layout-preserving target sums nothing: no option, no filter, no CPU.
@@ -21,18 +21,28 @@ func TestAudioDownmixArgs_OnlyWhenFolding(t *testing.T) {
 	}
 }
 
-// maxval IS the worst-case output of the fold, so anything above 1.0 leaves a
-// source-dependent chance of clipping - measured, not assumed: 1.5233 still
-// clipped a real AC-3 5.1 track. Guard the constant against a well-meaning
-// "let's give a bit of level back".
-func TestAudioDownmixArgs_MaxvalCannotExceedFullScale(t *testing.T) {
+// The cap is a measured trade, bounded on BOTH sides, and each bound is a
+// separate report:
+//
+//   - at or below 1.0 the fold is fully normalised and the server hands back a
+//     stream 6 to 7.7 dB under what a browser folding the same 5.1 itself
+//     produces. That gap is the 2026-09-04 "voices are fine, the background is
+//     not on the same plane" report, mobile-only.
+//   - above the generic 5.1 matrix sum (1 + 2*0.7071 = 2.4142) the value stops
+//     normalising anything at all and only adds raw gain, which is the clipping
+//     the 2026-09-02 fix removed.
+//
+// Anything moving this constant outside those bounds is a new decision that
+// needs its own measurements, not a tweak. See the file header for both.
+func TestAudioDownmixArgs_MaxvalStaysWithinMeasuredBounds(t *testing.T) {
 	args := AudioDownmixArgs(2)
 	require.Len(t, args, 2)
 	maxval, err := strconv.ParseFloat(args[1], 64)
 	require.NoError(t, err)
-	assert.LessOrEqual(t, maxval, 1.0,
-		"a maxval above 1.0 lets the fold exceed full scale for coherent input")
-	assert.Greater(t, maxval, 0.0)
+	assert.Greater(t, maxval, 1.0,
+		"a fully normalised fold leaves multichannel titles 6-7.7 dB below every other player in the chain")
+	assert.LessOrEqual(t, maxval, 2.4142,
+		"above the generic 5.1 matrix sum the cap normalises nothing and is pure gain")
 }
 
 // No filter-graph node is ever added: a resampler option costs nothing and, on
