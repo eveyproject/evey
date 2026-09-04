@@ -291,12 +291,25 @@ const aliveHeartbeat = createAliveHeartbeat(() => {
     } catch { /* buffered can throw mid-teardown */ }
   }
   const drops = formatFrameQuality(frameDrops.sample(video));
+  // paused says a HUMAN stopped the picture, which the server cannot otherwise
+  // tell from a stall: this heartbeat is a bare setInterval that keeps beating
+  // whatever the player is doing, so from the server's side a paused film and a
+  // frozen one look identical - a playhead that stopped moving. It treats a
+  // frozen playhead as no proof of life and lets the session age out, which is
+  // right for a stall and wrong for a pause. This is the missing half.
+  //
+  // Only PAUSED counts. BUFFERING must not: that IS the stall, and reporting it
+  // as life would hold the session open exactly when it should be released.
+  let paused = false;
+  try {
+    paused = String(playerManager.getPlayerState() ?? "") === "PAUSED";
+  } catch { /* player torn down already */ }
   // The alive beat rides fetch (not sendBeacon): its RESPONSE carries the
   // pending admin command. The death events keep sendBeacon - only they race
   // the page teardown.
   void postPlayerEventQuery(
     resolveBeaconUrl(currentUrl),
-    { type: "cast_receiver_alive", details: `mode=${mode} mem=${readHeapMB()} wasm=${engine?.decoderMemoryMB() ?? -1} buf=${buf} trim=${trimCount} ${drops}`, posSec },
+    { type: "cast_receiver_alive", details: `mode=${mode} mem=${readHeapMB()} wasm=${engine?.decoderMemoryMB() ?? -1} buf=${buf} trim=${trimCount} ${drops} paused=${paused ? 1 : 0}`, posSec, paused },
     (u, init) => fetch(u, init),
   ).then((cmd) => {
     if (cmd) applyAdminCommand(cmd);

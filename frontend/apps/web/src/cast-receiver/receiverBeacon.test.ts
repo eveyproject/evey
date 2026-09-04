@@ -140,6 +140,28 @@ describe("postPlayerEventQuery", () => {
     expect(await postPlayerEventQuery(null, { type: "cast_receiver_alive" }, async () => mkResp(200, { command: "pause" }))).toBeNull();
   });
 
+  // Le drapeau de pause est la seule chose qui distingue, cote serveur, une
+  // television mise en pause d'une television bloquee : la tete de lecture ne
+  // bouge plus dans les deux cas, et le battement continue dans les deux cas.
+  // Perdu ici, chaque pause serait lue comme un blocage et la session tuee.
+  it("carries the paused flag on the alive beat", async () => {
+    let captured: RequestInit | undefined;
+    await postPlayerEventQuery("https://srv/e", { type: "cast_receiver_alive", posSec: 42, paused: true }, async (_u, init) => {
+      captured = init;
+      return mkResp(204);
+    });
+    expect(JSON.parse(String(captured?.body)).paused).toBe(true);
+  });
+
+  it("defaults paused to false rather than omitting it", async () => {
+    let captured: RequestInit | undefined;
+    await postPlayerEventQuery("https://srv/e", { type: "cast_receiver_alive" }, async (_u, init) => {
+      captured = init;
+      return mkResp(204);
+    });
+    expect(JSON.parse(String(captured?.body)).paused).toBe(false);
+  });
+
   it("keeps the CORS-simple shape: string body, no Content-Type header", async () => {
     let captured: RequestInit | undefined;
     await postPlayerEventQuery("https://srv/e", { type: "cast_receiver_alive" }, async (_u, init) => {

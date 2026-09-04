@@ -45,7 +45,7 @@ func TestTouchCastSession_RefreshesTheActiveSession(t *testing.T) {
 	svc, sessions := newTouchSvc(t)
 	require.NoError(t, sessions.Create(context.Background(), activeSession("s-1", "prof-1", "media-1", "Salon TV")))
 
-	touched, err := svc.TouchCastSession(context.Background(), "prof-1", "media-1", 214_200, false)
+	touched, err := svc.TouchCastSession(context.Background(), appplayback.CastBeacon{ProfileID: "prof-1", MediaItemID: "media-1", PositionMs: 214_200, AllowCreate: false})
 	require.NoError(t, err)
 	assert.True(t, touched)
 
@@ -66,7 +66,7 @@ func TestTouchCastSession_IgnoresOtherMediaOfTheProfile(t *testing.T) {
 	svc, sessions := newTouchSvc(t)
 	require.NoError(t, sessions.Create(context.Background(), activeSession("s-1", "prof-1", "media-OTHER", "")))
 
-	touched, err := svc.TouchCastSession(context.Background(), "prof-1", "media-1", 5_000, true)
+	touched, err := svc.TouchCastSession(context.Background(), appplayback.CastBeacon{ProfileID: "prof-1", MediaItemID: "media-1", PositionMs: 5_000, AllowCreate: true})
 	require.NoError(t, err)
 	assert.True(t, touched, "resurrects a session for media-1 alongside")
 
@@ -151,7 +151,7 @@ func TestTouchCastSession_ResurrectsWhenNoActiveSession(t *testing.T) {
 	t.Parallel()
 	svc, sessions := newTouchSvc(t)
 
-	touched, err := svc.TouchCastSession(context.Background(), "prof-1", "media-1", 214_200, true)
+	touched, err := svc.TouchCastSession(context.Background(), appplayback.CastBeacon{ProfileID: "prof-1", MediaItemID: "media-1", PositionMs: 214_200, AllowCreate: true})
 	require.NoError(t, err)
 	assert.True(t, touched, "a positioned beacon with no session must create one")
 
@@ -165,7 +165,7 @@ func TestTouchCastSession_ResurrectsWhenNoActiveSession(t *testing.T) {
 	assert.Equal(t, int64(214_200), active[0].Position.Milliseconds())
 
 	// The next beacon touches the SAME session (no duplicate rows).
-	touched, err = svc.TouchCastSession(context.Background(), "prof-1", "media-1", 244_200, true)
+	touched, err = svc.TouchCastSession(context.Background(), appplayback.CastBeacon{ProfileID: "prof-1", MediaItemID: "media-1", PositionMs: 244_200, AllowCreate: true})
 	require.NoError(t, err)
 	assert.True(t, touched)
 	active, err = sessions.GetActiveByProfile(context.Background(), "prof-1")
@@ -197,7 +197,7 @@ func TestTouchCastSession_IgnoresAnUnusableBeacon(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			svc, sessions := newTouchSvc(t)
 
-			touched, err := svc.TouchCastSession(context.Background(), tc.profileID, tc.mediaID, tc.positionMs, true)
+			touched, err := svc.TouchCastSession(context.Background(), appplayback.CastBeacon{ProfileID: tc.profileID, MediaItemID: tc.mediaID, PositionMs: tc.positionMs, AllowCreate: true})
 			require.NoError(t, err, "an unusable beacon is ignored, never an error to the caller")
 			assert.False(t, touched, "nothing was resurrected")
 
@@ -221,7 +221,7 @@ func TestTouchCastSession_AcceptsPositionZeroAndRejectsNegative(t *testing.T) {
 		svc, sessions := newTouchSvc(t)
 		require.NoError(t, sessions.Create(context.Background(), activeSession("s-z", "prof-z", "media-z", "Salon TV")))
 
-		touched, err := svc.TouchCastSession(context.Background(), "prof-z", "media-z", 0, true)
+		touched, err := svc.TouchCastSession(context.Background(), appplayback.CastBeacon{ProfileID: "prof-z", MediaItemID: "media-z", PositionMs: 0, AllowCreate: true})
 		require.NoError(t, err)
 		assert.True(t, touched, "a cast beating at position 0 has just started - dropping it "+
 			"leaves the session looking dead until the first second elapses")
@@ -236,7 +236,7 @@ func TestTouchCastSession_AcceptsPositionZeroAndRejectsNegative(t *testing.T) {
 		svc, sessions := newTouchSvc(t)
 		require.NoError(t, sessions.Create(context.Background(), activeSession("s-n", "prof-n", "media-n", "Salon TV")))
 
-		touched, err := svc.TouchCastSession(context.Background(), "prof-n", "media-n", -1, true)
+		touched, err := svc.TouchCastSession(context.Background(), appplayback.CastBeacon{ProfileID: "prof-n", MediaItemID: "media-n", PositionMs: -1, AllowCreate: true})
 		require.NoError(t, err)
 		assert.False(t, touched, "a negative position is not a place in the media")
 	})
@@ -265,7 +265,7 @@ func TestTouchCastSession_AFrozenPlayheadWritesNothing(t *testing.T) {
 
 	// The exact prod signature: beat after beat on the same position.
 	for range 6 {
-		touched, tErr := svc.TouchCastSession(context.Background(), "prof-1", "media-1", 1_156_157, false)
+		touched, tErr := svc.TouchCastSession(context.Background(), appplayback.CastBeacon{ProfileID: "prof-1", MediaItemID: "media-1", PositionMs: 1_156_157, AllowCreate: false})
 		require.NoError(t, tErr)
 		assert.False(t, touched, "a beat that proves no advancement must not refresh the session")
 	}
@@ -285,7 +285,7 @@ func TestTouchCastSession_AnAdvancingPlayheadStillRefreshes(t *testing.T) {
 	require.NoError(t, sessions.Create(context.Background(), sess))
 
 	// One beacon interval of real playback.
-	touched, err := svc.TouchCastSession(context.Background(), "prof-1", "media-1", 90_000, false)
+	touched, err := svc.TouchCastSession(context.Background(), appplayback.CastBeacon{ProfileID: "prof-1", MediaItemID: "media-1", PositionMs: 90_000, AllowCreate: false})
 	require.NoError(t, err)
 	assert.True(t, touched)
 
@@ -308,7 +308,7 @@ func TestTouchCastSession_ABackwardsSeekIsAlsoLife(t *testing.T) {
 	sess.Position = &pos
 	require.NoError(t, sessions.Create(context.Background(), sess))
 
-	touched, err := svc.TouchCastSession(context.Background(), "prof-1", "media-1", 300_000, false)
+	touched, err := svc.TouchCastSession(context.Background(), appplayback.CastBeacon{ProfileID: "prof-1", MediaItemID: "media-1", PositionMs: 300_000, AllowCreate: false})
 	require.NoError(t, err)
 	assert.True(t, touched, "someone rewound - that is a viewer, not a stall")
 }
@@ -324,7 +324,7 @@ func TestTouchCastSession_SubSecondJitterIsNotProgress(t *testing.T) {
 	sess.Position = &pos
 	require.NoError(t, sessions.Create(context.Background(), sess))
 
-	touched, err := svc.TouchCastSession(context.Background(), "prof-1", "media-1", 1_156_157+40, false)
+	touched, err := svc.TouchCastSession(context.Background(), appplayback.CastBeacon{ProfileID: "prof-1", MediaItemID: "media-1", PositionMs: 1_156_157+40, AllowCreate: false})
 	require.NoError(t, err)
 	assert.False(t, touched, "40ms over a 30s beat is noise, not a moving picture")
 }
@@ -337,7 +337,7 @@ func TestTouchCastSession_FirstBeaconWithNoStoredPositionCounts(t *testing.T) {
 	svc, sessions := newTouchSvc(t)
 	require.NoError(t, sessions.Create(context.Background(), activeSession("s-new", "prof-1", "media-1", "Salon TV")))
 
-	touched, err := svc.TouchCastSession(context.Background(), "prof-1", "media-1", 214_200, false)
+	touched, err := svc.TouchCastSession(context.Background(), appplayback.CastBeacon{ProfileID: "prof-1", MediaItemID: "media-1", PositionMs: 214_200, AllowCreate: false})
 	require.NoError(t, err)
 	assert.True(t, touched)
 }
@@ -348,7 +348,7 @@ func TestTouchCastSession_AnAliveBeatNeverResurrects(t *testing.T) {
 	t.Parallel()
 	svc, sessions := newTouchSvc(t)
 
-	touched, err := svc.TouchCastSession(context.Background(), "prof-1", "media-1", 214_200, false)
+	touched, err := svc.TouchCastSession(context.Background(), appplayback.CastBeacon{ProfileID: "prof-1", MediaItemID: "media-1", PositionMs: 214_200, AllowCreate: false})
 	require.NoError(t, err)
 	assert.False(t, touched, "an endless alive beat is not a new playback")
 
@@ -401,4 +401,94 @@ func TestEndCastSession_TouchesOnlyItsOwnPair(t *testing.T) {
 	keep, err := sessions.GetByID(context.Background(), "s-keep")
 	require.NoError(t, err)
 	assert.Nil(t, keep.EndedAt, "the profile's other title keeps playing")
+}
+
+// ── Une pause est une preuve de vie, un blocage n'en est pas une ──────────────
+//
+// Both look identical from the server's seat - a playhead that stopped moving -
+// and the receiver's heartbeat beats through either. The beacon's paused flag is
+// what separates them, so a viewer who pauses is not treated as a dead session
+// and a stalled television still is.
+
+func TestTouchCastSession_APausedReceiverStaysAlive(t *testing.T) {
+	t.Parallel()
+	svc, sessions := newTouchSvc(t)
+	sess := activeSession("s-pause", "prof-1", "media-1", "Salon TV")
+	pos, err := shared.NewDurationMs(1_156_157)
+	require.NoError(t, err)
+	sess.Position = &pos
+	require.NoError(t, sessions.Create(context.Background(), sess))
+
+	// Frozen playhead, but the television says a human paused it.
+	touched, err := svc.TouchCastSession(context.Background(), appplayback.CastBeacon{
+		ProfileID: "prof-1", MediaItemID: "media-1", PositionMs: 1_156_157, Paused: true,
+	})
+	require.NoError(t, err)
+	assert.True(t, touched, "somebody paused it - that is a viewer, not a phantom")
+
+	got, err := sessions.GetByID(context.Background(), "s-pause")
+	require.NoError(t, err)
+	assert.True(t, got.IsPaused, "and the panel must say so rather than claim it is playing")
+}
+
+// The whole point of the flag: without it, this and the test above are the same
+// request. A receiver that still believes it is playing while frozen is the
+// prod signature of 2026-09-04 and must still age out.
+func TestTouchCastSession_AStallStillDiesWhenNotPaused(t *testing.T) {
+	t.Parallel()
+	svc, sessions := newTouchSvc(t)
+	sess := activeSession("s-stall2", "prof-1", "media-1", "Salon TV")
+	pos, err := shared.NewDurationMs(1_156_157)
+	require.NoError(t, err)
+	sess.Position = &pos
+	require.NoError(t, sessions.Create(context.Background(), sess))
+
+	touched, err := svc.TouchCastSession(context.Background(), appplayback.CastBeacon{
+		ProfileID: "prof-1", MediaItemID: "media-1", PositionMs: 1_156_157, Paused: false,
+	})
+	require.NoError(t, err)
+	assert.False(t, touched)
+}
+
+// Resuming must clear the flag, or the row would stay labelled "paused" for the
+// rest of the film.
+func TestTouchCastSession_ResumingClearsThePausedFlag(t *testing.T) {
+	t.Parallel()
+	svc, sessions := newTouchSvc(t)
+	sess := activeSession("s-resume", "prof-1", "media-1", "Salon TV")
+	pos, err := shared.NewDurationMs(60_000)
+	require.NoError(t, err)
+	sess.Position = &pos
+	sess.IsPaused = true
+	require.NoError(t, sessions.Create(context.Background(), sess))
+
+	touched, err := svc.TouchCastSession(context.Background(), appplayback.CastBeacon{
+		ProfileID: "prof-1", MediaItemID: "media-1", PositionMs: 90_000, Paused: false,
+	})
+	require.NoError(t, err)
+	assert.True(t, touched)
+
+	got, err := sessions.GetByID(context.Background(), "s-resume")
+	require.NoError(t, err)
+	assert.False(t, got.IsPaused)
+}
+
+// A receiver too old to send the flag leaves it false, so the playhead alone
+// decides - exactly the behaviour shipped before it existed. The published
+// receiver bundle lags the source, so this is the live case, not a hypothetical.
+func TestTouchCastSession_AnOlderReceiverFallsBackToThePlayhead(t *testing.T) {
+	t.Parallel()
+	svc, sessions := newTouchSvc(t)
+	sess := activeSession("s-old", "prof-1", "media-1", "Salon TV")
+	pos, err := shared.NewDurationMs(60_000)
+	require.NoError(t, err)
+	sess.Position = &pos
+	require.NoError(t, sessions.Create(context.Background(), sess))
+
+	// No Paused field at all: the picture moving is still proof of life.
+	touched, err := svc.TouchCastSession(context.Background(), appplayback.CastBeacon{
+		ProfileID: "prof-1", MediaItemID: "media-1", PositionMs: 90_000,
+	})
+	require.NoError(t, err)
+	assert.True(t, touched)
 }

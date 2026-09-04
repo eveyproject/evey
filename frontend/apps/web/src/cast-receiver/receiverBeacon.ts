@@ -22,6 +22,11 @@ export interface PlayerEventPayload {
   variant?: number;
   segment?: number;
   posSec?: number;
+  // paused: sur un battement de vie, l'etat REEL du lecteur. Le serveur ne peut
+  // pas distinguer autrement une pause d'un blocage - dans les deux cas la tete
+  // de lecture ne bouge plus - et il laisse mourir la session dans le second
+  // cas, ce qu'il ne doit pas faire dans le premier.
+  paused?: boolean;
 }
 
 export interface BeaconTransport {
@@ -55,6 +60,7 @@ export function postPlayerEvent(
     variant: payload.variant ?? 0,
     segment: payload.segment ?? 0,
     posSec: payload.posSec ?? 0,
+    paused: payload.paused ?? false,
   });
   try {
     if (transport.sendBeacon?.(url, body)) return "beacon";
@@ -98,6 +104,7 @@ export async function postPlayerEventQuery(
     variant: payload.variant ?? 0,
     segment: payload.segment ?? 0,
     posSec: payload.posSec ?? 0,
+    paused: payload.paused ?? false,
   });
   try {
     // Corps en chaine simple sans Content-Type : requete "simple" au sens

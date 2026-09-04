@@ -50,6 +50,15 @@ type playerEventBody struct {
 	Variant int     `json:"variant"`
 	Segment int     `json:"segment"`
 	PosSec  float64 `json:"posSec"`
+	// Paused is the cast receiver's own player state on a liveness beat. It
+	// separates a television someone paused - a human act, and proof of life
+	// even with the playhead frozen - from one that is merely stuck and still
+	// believes it is playing.
+	//
+	// Absent on any other beacon, and on a receiver older than 2026-09-05,
+	// where it decodes to false and the playhead alone decides. That fallback
+	// is the safe one: a stall stays a stall.
+	Paused bool `json:"paused,omitempty"`
 }
 
 // playerEventDeps carries the optional library/parental guard for
@@ -95,11 +104,22 @@ type CastPresenceToucher interface {
 // a receiver liveness beacon - position AND updated_at, so the stale-session
 // reaper leaves a phone-orphaned cast alone. Fire-and-forget by contract.
 //
-// allowCreate says the beacon may CREATE the session when none is active. Only
-// cast_receiver_loaded may: it fires once per media load, which is the re-cast
-// the resurrection exists for. An alive beat that created sessions would let a
-// stalled receiver rebuild the phantom the reaper had just cleared.
-type CastSessionTouch func(ctx context.Context, profileID, mediaItemID string, positionMs int64, allowCreate bool)
+// What the beat carries, and why each field matters, is on CastBeacon below.
+type CastSessionTouch func(ctx context.Context, b CastBeacon)
+
+// CastBeacon is one receiver liveness beat, as the session keepalive reads it.
+// Mirrors playback.CastBeacon; cmd/evey maps between the two so this adapter
+// keeps no dependency on the app package's types.
+type CastBeacon struct {
+	ProfileID   string
+	MediaItemID string
+	PositionMs  int64
+	// AllowCreate: only cast_receiver_loaded may create a session.
+	AllowCreate bool
+	// Paused: the receiver reports a human paused it, which is proof of life
+	// even with the playhead frozen.
+	Paused bool
+}
 
 // CastSessionEnd ends the active play session of (profile, media) when the
 // receiver announces its own death (cast_receiver_shutdown /
@@ -216,7 +236,7 @@ func playerEventHandler(logger *slog.Logger, opts ...PlayerEventOption) http.Han
 		if claims := HTTPClaimsFromContext(r.Context()); claims != nil {
 			userID = claims.UserID
 		}
-		notifyCastLiveness(r, &deps, mediaID, body.Type, body.PosSec)
+		notifyCastLiveness(r, &deps, mediaID, body.Type, body.PosSec, body.Paused)
 		notifyCastAudioMode(r, &deps, mediaID, body.Type, body.Details)
 
 		// Severity follows what the event IS. The route carries telemetry
@@ -285,7 +305,7 @@ func isCastEndOfLife(eventType string) bool {
 // impossible, so the receiver's own announcement of death was the one signal
 // being thrown away. Presence is deliberately NOT touched for them: a dying
 // receiver is not an online device.
-func notifyCastLiveness(r *http.Request, deps *playerEventDeps, mediaID, eventType string, posSec float64) {
+func notifyCastLiveness(r *http.Request, deps *playerEventDeps, mediaID, eventType string, posSec float64, paused bool) {
 	if isCastEndOfLife(eventType) {
 		if deps.castSessionEnd == nil {
 			return
@@ -326,8 +346,14 @@ func notifyCastLiveness(r *http.Request, deps *playerEventDeps, mediaID, eventTy
 	}
 	if deps.castSession != nil && posSec > 0 {
 		// Only a load may create a session; an alive beat may merely refresh one
-		// - see CastSessionTouch.
-		deps.castSession(r.Context(), string(st.ProfileID), mediaID, int64(posSec*1000), eventType == "cast_receiver_loaded")
+		// - see CastBeacon.
+		deps.castSession(r.Context(), CastBeacon{
+			ProfileID:   string(st.ProfileID),
+			MediaItemID: mediaID,
+			PositionMs:  int64(posSec * 1000),
+			AllowCreate: eventType == "cast_receiver_loaded",
+			Paused:      paused,
+		})
 	}
 }
 

@@ -483,6 +483,30 @@ func (s *CommandService) ConsumeRemoteCommand(ctx context.Context, sessionID str
 	return s.sessions.ConsumeRemoteCommand(ctx, sessionID)
 }
 
+// CastBeacon is one liveness beat from a cast receiver, as TouchCastSession
+// reads it.
+//
+// A struct rather than a parameter list because the two booleans mean opposite
+// kinds of thing and sit next to each other: swapping them at a call site would
+// compile, and would silently turn "a paused television" into "any beat may
+// resurrect a session".
+type CastBeacon struct {
+	ProfileID   string
+	MediaItemID string
+	PositionMs  int64
+	// AllowCreate permits creating a session when none is active. True ONLY for
+	// cast_receiver_loaded, which fires once per media load; an alive beat that
+	// could create would let a stalled receiver rebuild the phantom row the
+	// reaper has just cleared.
+	AllowCreate bool
+	// Paused is what the receiver says its player state is. A pause is a human
+	// act and therefore proof of life on its own, even though the playhead is
+	// frozen - which is what separates it from a stall, where the receiver
+	// still believes it is playing. A receiver too old to report it leaves this
+	// false, which falls back to judging on the playhead alone.
+	Paused bool
+}
+
 // castBeaconAdvanceMs is how far the playhead must move between two receiver
 // beacons to count as proof of life.
 //
@@ -541,32 +565,34 @@ func castBeaconIsAlive(stored *shared.Duration, beaconMs int64) bool {
 // beacon carries no pause flag; the phone's own ticks do, and they keep a
 // paused session alive as before). Resuming re-creates it - see allowCreate.
 //
-// allowCreate must be true only for cast_receiver_loaded. Returns whether an
-// active session was found and refreshed.
-func (s *CommandService) TouchCastSession(ctx context.Context, profileID, mediaItemID string, positionMs int64, allowCreate bool) (bool, error) {
+// Returns whether an active session was found and refreshed.
+func (s *CommandService) TouchCastSession(ctx context.Context, b CastBeacon) (bool, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.playback.TouchCastSession")
 	defer span.End()
-	if profileID == "" || mediaItemID == "" || positionMs < 0 {
+	if b.ProfileID == "" || b.MediaItemID == "" || b.PositionMs < 0 {
 		return false, nil
 	}
-	sessions, err := s.sessionQueries.GetActiveByProfile(ctx, profileID)
+	sessions, err := s.sessionQueries.GetActiveByProfile(ctx, b.ProfileID)
 	if err != nil {
 		return false, err
 	}
 	for _, sess := range sessions {
-		if sess == nil || string(sess.MediaItemID) != mediaItemID {
+		if sess == nil || string(sess.MediaItemID) != b.MediaItemID {
 			continue
 		}
-		if !castBeaconIsAlive(sess.Position, positionMs) {
-			// Deliberately no write, not even of is_paused: touching the row at
-			// all would bump updated_at and re-arm the phantom.
+		// Two things count as life, and a stall is neither: the playhead moved,
+		// or a human paused it. Everything else writes nothing.
+		if !castBeaconIsAlive(sess.Position, b.PositionMs) && !b.Paused {
+			// Deliberately no write at all: touching the row would bump
+			// updated_at and re-arm the phantom.
 			return false, nil
 		}
-		// IsPaused false is now MEASURED, not assumed: we only reach this line
-		// having just seen the playhead move.
-		return s.sessions.UpdateProgress(ctx, sess.ID, positionMs, false, sess.CastDeviceName)
+		// IsPaused is now REPORTED by the receiver rather than assumed false.
+		// A receiver too old to send it says nothing, which decodes to false -
+		// and then only an advancing playhead got us here, so false is true.
+		return s.sessions.UpdateProgress(ctx, sess.ID, b.PositionMs, b.Paused, sess.CastDeviceName)
 	}
-	if !allowCreate {
+	if !b.AllowCreate {
 		// A stalled receiver must not be able to re-create what the reaper just
 		// closed. Only cast_receiver_loaded reaches here, and it fires once per
 		// media load - which is exactly the event the resurrection exists for
@@ -580,7 +606,7 @@ func (s *CommandService) TouchCastSession(ctx context.Context, profileID, mediaI
 	// reaped (prod 2026-07-29). The beacon's token pins (profile, media), so
 	// a minimal row makes the cast visible and pilotable again; the stale
 	// reaper ends it when the beacons stop.
-	pos, dErr := shared.NewDurationMs(positionMs)
+	pos, dErr := shared.NewDurationMs(b.PositionMs)
 	if dErr != nil {
 		return false, nil
 	}
@@ -592,8 +618,8 @@ func (s *CommandService) TouchCastSession(ctx context.Context, profileID, mediaI
 	// an invalid PlayMethod cannot slip into the store.
 	sess, cErr := playback.NewPlaySession(
 		id.New("ps-"),
-		shared.ProfileID(profileID),
-		shared.MediaItemID(mediaItemID),
+		shared.ProfileID(b.ProfileID),
+		shared.MediaItemID(b.MediaItemID),
 		playback.WithPlaySessionDevice("Chromecast", ""),
 		playback.WithPlaySessionCastDevice("Chromecast"),
 		playback.WithPlaySessionPosition(pos),

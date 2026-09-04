@@ -310,8 +310,8 @@ func postCastBeaconWithPresence(t *testing.T, tr CastPresenceToucher, touch Cast
 func TestPlayerEvent_CastBeaconTouchesPresenceAndSession(t *testing.T) {
 	tr := &fakeCastPresence{}
 	var touches []sessionTouch
-	touch := func(_ context.Context, profileID, mediaID string, posMs int64, _ bool) {
-		touches = append(touches, sessionTouch{profileID, mediaID, posMs})
+	touch := func(_ context.Context, b CastBeacon) {
+		touches = append(touches, sessionTouch{b.ProfileID, b.MediaItemID, b.PositionMs})
 	}
 	postCastBeaconWithPresence(t, tr, touch, "cast_receiver_alive", `{"type":"cast_receiver_alive","posSec":214.2}`, true)
 
@@ -347,7 +347,7 @@ func TestPlayerEvent_CastEndBeaconsEndTheSession(t *testing.T) {
 			tr := &fakeCastPresence{}
 			var touches []sessionTouch
 			var ended []sessionTouch
-			touch := func(_ context.Context, p, m string, pos int64, _ bool) { touches = append(touches, sessionTouch{p, m, pos}) }
+			touch := func(_ context.Context, b CastBeacon) { touches = append(touches, sessionTouch{b.ProfileID, b.MediaItemID, b.PositionMs}) }
 			end := func(_ context.Context, p, m string) { ended = append(ended, sessionTouch{p, m, 0}) }
 
 			req := httptest.NewRequest(http.MethodPost, "/api/v1/media/media-1/player-event",
@@ -404,7 +404,7 @@ func TestPlayerEvent_OnlyTheLoadBeaconMayCreateASession(t *testing.T) {
 	} {
 		t.Run(tc.event, func(t *testing.T) {
 			var got []bool
-			touch := func(_ context.Context, _, _ string, _ int64, allowCreate bool) { got = append(got, allowCreate) }
+			touch := func(_ context.Context, b CastBeacon) { got = append(got, b.AllowCreate) }
 			req := httptest.NewRequest(http.MethodPost, "/api/v1/media/media-1/player-event",
 				strings.NewReader(`{"type":"`+tc.event+`","posSec":214.2}`))
 			req.SetPathValue("id", "media-1")
@@ -426,7 +426,7 @@ func TestPlayerEvent_OnlyTheLoadBeaconMayCreateASession(t *testing.T) {
 func TestPlayerEvent_CastPresenceIgnoresNonCastCallers(t *testing.T) {
 	tr := &fakeCastPresence{}
 	var touches []sessionTouch
-	touch := func(_ context.Context, p, m string, pos int64, _ bool) { touches = append(touches, sessionTouch{p, m, pos}) }
+	touch := func(_ context.Context, b CastBeacon) { touches = append(touches, sessionTouch{b.ProfileID, b.MediaItemID, b.PositionMs}) }
 	postCastBeaconWithPresence(t, tr, touch, "cast_receiver_alive", `{"type":"cast_receiver_alive","posSec":10}`, false)
 	if len(tr.entries) != 0 || len(touches) != 0 {
 		t.Fatalf("JWT caller must not create cast presence (presence=%d touches=%d)", len(tr.entries), len(touches))
@@ -533,5 +533,40 @@ func TestPlayerEvent_CastSenderStallIsAWarning(t *testing.T) {
 	}
 	if line["level"] != "WARN" || line["type"] != "cast_sender_stall" {
 		t.Fatalf("level=%v type=%v, want WARN cast_sender_stall (line=%v)", line["level"], line["type"], line)
+	}
+}
+
+// The paused flag has to survive the wire. It is the only thing separating a
+// television somebody paused from one that is stuck, and if it were dropped in
+// decoding, every pause would silently be read as a stall and reaped - with
+// nothing anywhere to say why.
+func TestPlayerEvent_CastBeaconCarriesThePausedFlag(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		body string
+		want bool
+	}{
+		{"paused", `{"type":"cast_receiver_alive","posSec":214.2,"paused":true}`, true},
+		{"playing", `{"type":"cast_receiver_alive","posSec":214.2,"paused":false}`, false},
+		// A receiver older than the flag sends no such field. It must decode to
+		// false so the playhead alone decides, which is what shipped before -
+		// the published receiver bundle lags the source, so this is live.
+		{"receiver too old to send it", `{"type":"cast_receiver_alive","posSec":214.2}`, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var got []bool
+			touch := func(_ context.Context, b CastBeacon) { got = append(got, b.Paused) }
+			req := httptest.NewRequest(http.MethodPost, "/api/v1/media/media-1/player-event", strings.NewReader(tc.body))
+			req.SetPathValue("id", "media-1")
+			ctx := context.WithValue(req.Context(), streamTokenCtxKey, &shared.StreamToken{
+				UserID: "usr-cast", ProfileID: "prof-cast", MediaItemID: "media-1", Scope: "stream", Cast: true,
+			})
+			rec := httptest.NewRecorder()
+			logger := slog.New(slog.NewJSONHandler(&bytes.Buffer{}, nil))
+			playerEventHandler(logger, WithPlayerEventCastSession(touch))(rec, req.WithContext(ctx))
+			if len(got) != 1 || got[0] != tc.want {
+				t.Fatalf("paused = %+v, want [%v]", got, tc.want)
+			}
+		})
 	}
 }

@@ -14,6 +14,7 @@ import (
 	httpapi "github.com/evey-project/evey/internal/adapters/driving/http"
 	appcast "github.com/evey-project/evey/internal/app/chromecast"
 	appdlna "github.com/evey-project/evey/internal/app/dlna"
+	appplayback "github.com/evey-project/evey/internal/app/playback"
 	"github.com/evey-project/evey/internal/config"
 	"github.com/evey-project/evey/internal/domain/shared"
 	eveymetrics "github.com/evey-project/evey/internal/pkg/metrics"
@@ -224,10 +225,17 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 			}
 			return u.Username
 		},
-		CastSessionKeepalive: func(ctx context.Context, profileID, mediaItemID string, positionMs int64, allowCreate bool) {
-			if _, err := deps.media.playbackSvc.CommandService().TouchCastSession(ctx, profileID, mediaItemID, positionMs, allowCreate); err != nil {
+		CastSessionKeepalive: func(ctx context.Context, b httpapi.CastBeacon) {
+			_, err := deps.media.playbackSvc.CommandService().TouchCastSession(ctx, appplayback.CastBeacon{
+				ProfileID:   b.ProfileID,
+				MediaItemID: b.MediaItemID,
+				PositionMs:  b.PositionMs,
+				AllowCreate: b.AllowCreate,
+				Paused:      b.Paused,
+			})
+			if err != nil {
 				slog.WarnContext(ctx, "cast session keepalive failed",
-					slog.String("profile_id", profileID), slog.String("media_id", mediaItemID), slog.Any("err", err))
+					slog.String("profile_id", b.ProfileID), slog.String("media_id", b.MediaItemID), slog.Any("err", err))
 			}
 		},
 		CastSessionTerminate: func(ctx context.Context, profileID, mediaItemID string) {
