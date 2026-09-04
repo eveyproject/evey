@@ -477,16 +477,67 @@ func (s *CommandService) ConsumeRemoteCommand(ctx context.Context, sessionID str
 	return s.sessions.ConsumeRemoteCommand(ctx, sessionID)
 }
 
-// TouchCastSession refreshes the ACTIVE session of (profile, media) from a
-// cast receiver's liveness beacon: position + updated_at, through the same
-// guarded UpdateProgress the phone's ticks use (a racing StopStream can never
-// be resurrected). During a cast the PHONE owns ReportProgress, and an OEM
-// freeze silences it - without this, the stale reaper ends the session ~2min
-// later while the TV plays on, and the now-playing panel goes blind. The
-// receiver beats only while playing, so IsPaused is false by construction;
-// the device name the phone set at cast start is preserved. Returns whether
-// an active session was found and refreshed.
-func (s *CommandService) TouchCastSession(ctx context.Context, profileID, mediaItemID string, positionMs int64) (bool, error) {
+// castBeaconAdvanceMs is how far the playhead must move between two receiver
+// beacons to count as proof of life.
+//
+// The beat is every 30s (ALIVE_BEACON_MS), so real playback advances ~30000ms;
+// one second is a floor far below any genuine progress and above the float
+// noise a stalled currentTime can jitter by (the beacon sends seconds as a
+// float and we scale by 1000).
+const castBeaconAdvanceMs = 1000
+
+// castBeaconIsAlive reports whether a beacon's position proves the picture is
+// still moving. A backwards jump counts: only a human seeks.
+func castBeaconIsAlive(stored *shared.Duration, beaconMs int64) bool {
+	if stored == nil {
+		// Nothing recorded yet: the first positioned beacon is the only
+		// evidence there is, and refusing it would strand a session that never
+		// got a progress tick.
+		return true
+	}
+	delta := beaconMs - stored.Milliseconds()
+	if delta < 0 {
+		delta = -delta
+	}
+	return delta >= castBeaconAdvanceMs
+}
+
+// TouchCastSession refreshes the ACTIVE session of (profile, media) from a cast
+// receiver's liveness beacon: position + updated_at, through the same guarded
+// UpdateProgress the phone's ticks use (a racing StopStream can never be
+// resurrected). During a cast the PHONE owns ReportProgress, and an OEM freeze
+// silences it - without this, the stale reaper ends the session ~2min later
+// while the TV plays on, and the now-playing panel goes blind. The device name
+// the phone set at cast start is preserved.
+//
+// ⚠️ A BEAT IS NOT PROOF OF LIFE - ADVANCEMENT IS.
+//
+// This used to refresh unconditionally, on the belief (stated in this comment,
+// and wrong) that "the receiver beats only while playing". It does not:
+// createAliveHeartbeat is a plain setInterval started at PLAYER_LOAD_COMPLETE
+// and stopped only at MEDIA_FINISHED / SHUTDOWN / pagehide, so it keeps beating
+// through a stall - and a television that is never really switched off keeps
+// the receiver page loaded indefinitely.
+//
+// Because UpdateProgress writes updated_at=NOW() whether or not the position
+// moved, one beat every 30s made the 2-minute stale reaper structurally
+// unreachable. Measured on prod 2026-09-04: a session held open 3h26, playhead
+// frozen at 19min16 across every sample, is_paused false, videoSessions.active
+// 0 - no encode, no viewer, an immortal row claiming to be playing.
+//
+// So a beacon whose playhead has not moved writes NOTHING. updated_at stays
+// where the picture last advanced, and the ordinary reaper ends the session
+// ~2min later. That 2-minute window IS the stall tolerance; it needs no state
+// and no second timer.
+//
+// Consequence to know: a cast PAUSED with the phone gone also ages out, because
+// the server then holds no evidence at all that anyone is still there (the
+// beacon carries no pause flag; the phone's own ticks do, and they keep a
+// paused session alive as before). Resuming re-creates it - see allowCreate.
+//
+// allowCreate must be true only for cast_receiver_loaded. Returns whether an
+// active session was found and refreshed.
+func (s *CommandService) TouchCastSession(ctx context.Context, profileID, mediaItemID string, positionMs int64, allowCreate bool) (bool, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.playback.TouchCastSession")
 	defer span.End()
 	if profileID == "" || mediaItemID == "" || positionMs < 0 {
@@ -500,7 +551,22 @@ func (s *CommandService) TouchCastSession(ctx context.Context, profileID, mediaI
 		if sess == nil || string(sess.MediaItemID) != mediaItemID {
 			continue
 		}
+		if !castBeaconIsAlive(sess.Position, positionMs) {
+			// Deliberately no write, not even of is_paused: touching the row at
+			// all would bump updated_at and re-arm the phantom.
+			return false, nil
+		}
+		// IsPaused false is now MEASURED, not assumed: we only reach this line
+		// having just seen the playhead move.
 		return s.sessions.UpdateProgress(ctx, sess.ID, positionMs, false, sess.CastDeviceName)
+	}
+	if !allowCreate {
+		// A stalled receiver must not be able to re-create what the reaper just
+		// closed. Only cast_receiver_loaded reaches here, and it fires once per
+		// media load - which is exactly the event the resurrection exists for
+		// (a re-cast from an already mounted player). An endless alive beat is
+		// not a new playback and can no longer masquerade as one.
+		return false, nil
 	}
 	// Resurrection: a positioned beacon with NO active session is a real
 	// playback the panel cannot see - the phone re-cast from an already
@@ -533,6 +599,44 @@ func (s *CommandService) TouchCastSession(ctx context.Context, profileID, mediaI
 		return false, fmt.Errorf("TouchCastSession resurrect: %w", err)
 	}
 	return true, nil
+}
+
+// EndCastSession ends the ACTIVE session of (profile, media) on a receiver
+// end-of-life beacon (cast_receiver_shutdown / cast_receiver_finished).
+//
+// Those beacons used to touch nothing, on the reasoning that "aging out is the
+// point" - but aging out is exactly what the alive beat prevented, so the one
+// moment the TV explicitly announced the end was the one moment the server
+// ignored. The receiver stops its heartbeat on both events (MEDIA_FINISHED,
+// SHUTDOWN, pagehide), so this is the earliest and most reliable end signal
+// there is: it beats waiting 2 minutes for silence, and it is the only signal
+// at all when the sender phone is gone and no StopStream will ever arrive.
+//
+// Reuses StopStream so an ended cast is indistinguishable from any other ended
+// session - same ended_at, same duration, same PlaybackStopped event, so watch
+// progress and the now-playing panel behave identically. Missing or already
+// ended sessions are a no-op: a receiver may legitimately send shutdown twice
+// (SHUTDOWN then pagehide), and the second must not error.
+func (s *CommandService) EndCastSession(ctx context.Context, profileID, mediaItemID string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.playback.EndCastSession")
+	defer span.End()
+	if profileID == "" || mediaItemID == "" {
+		return nil
+	}
+	sessions, err := s.sessionQueries.GetActiveByProfile(ctx, profileID)
+	if err != nil {
+		return err
+	}
+	for _, sess := range sessions {
+		if sess == nil || string(sess.MediaItemID) != mediaItemID {
+			continue
+		}
+		if err := s.StopStream(ctx, sess.ID); err != nil && !errors.Is(err, ErrSessionNotFound) {
+			return fmt.Errorf("EndCastSession: %w", err)
+		}
+		return nil
+	}
+	return nil
 }
 
 // SetCastAudioPath mirrors the receiver's audio_mode beacon onto the active

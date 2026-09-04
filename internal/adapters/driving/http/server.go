@@ -293,6 +293,9 @@ type HTTPServer struct {
 	CastPresence         CastPresenceToucher
 	CastResolveUsername  func(ctx context.Context, userID string) string
 	CastSessionKeepalive CastSessionTouch
+	// CastSessionTerminate ends the session on the receiver's own death beacon,
+	// rather than waiting for a silence the alive beat prevents.
+	CastSessionTerminate CastSessionEnd
 	CastCommandConsume   CastCommandConsumer
 	CastAudioModeTouch   CastAudioModeTouch
 
@@ -478,6 +481,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 			// now-playing session, phone-independent.
 			WithPlayerEventCastPresence(s.CastPresence, s.CastResolveUsername),
 			WithPlayerEventCastSession(s.CastSessionKeepalive),
+			WithPlayerEventCastSessionEnd(s.CastSessionTerminate),
 			WithPlayerEventCastAudioMode(s.CastAudioModeTouch),
 			WithPlayerEventCastCommand(s.CastCommandConsume)))))
 	}

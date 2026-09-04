@@ -71,6 +71,7 @@ type playerEventDeps struct {
 	castPresence    CastPresenceToucher
 	resolveUsername func(ctx context.Context, userID string) string
 	castSession     CastSessionTouch
+	castSessionEnd  CastSessionEnd
 	castCommand     CastCommandConsumer
 	castAudioMode   CastAudioModeTouch
 }
@@ -93,7 +94,17 @@ type CastPresenceToucher interface {
 // CastSessionTouch refreshes the active play session of (profile, media) from
 // a receiver liveness beacon - position AND updated_at, so the stale-session
 // reaper leaves a phone-orphaned cast alone. Fire-and-forget by contract.
-type CastSessionTouch func(ctx context.Context, profileID, mediaItemID string, positionMs int64)
+//
+// allowCreate says the beacon may CREATE the session when none is active. Only
+// cast_receiver_loaded may: it fires once per media load, which is the re-cast
+// the resurrection exists for. An alive beat that created sessions would let a
+// stalled receiver rebuild the phantom the reaper had just cleared.
+type CastSessionTouch func(ctx context.Context, profileID, mediaItemID string, positionMs int64, allowCreate bool)
+
+// CastSessionEnd ends the active play session of (profile, media) when the
+// receiver announces its own death (cast_receiver_shutdown /
+// cast_receiver_finished). Fire-and-forget by contract.
+type CastSessionEnd func(ctx context.Context, profileID, mediaItemID string)
 
 // PlayerEventOption configures playerEventHandler's optional dependencies.
 type PlayerEventOption func(*playerEventDeps)
@@ -112,6 +123,13 @@ func WithPlayerEventCastPresence(tr CastPresenceToucher, resolveUsername func(ct
 // WithPlayerEventCastSession wires the TV-driven session keepalive.
 func WithPlayerEventCastSession(touch CastSessionTouch) PlayerEventOption {
 	return func(d *playerEventDeps) { d.castSession = touch }
+}
+
+// WithPlayerEventCastSessionEnd wires the receiver's end-of-life beacons to an
+// immediate session end, instead of waiting on a silence the alive beat used to
+// prevent.
+func WithPlayerEventCastSessionEnd(end CastSessionEnd) PlayerEventOption {
+	return func(d *playerEventDeps) { d.castSessionEnd = end }
 }
 
 // WithPlayerEventCastAudioMode wires the audio-path mirror.
@@ -248,13 +266,37 @@ func playerEventHandler(logger *slog.Logger, opts ...PlayerEventOption) http.Han
 	}
 }
 
+// castEndOfLifeEvents are the beacons the receiver sends as it dies. It stops
+// its own heartbeat on each of them (MEDIA_FINISHED, SHUTDOWN, pagehide), so
+// they are the earliest honest end of a cast - and the only one that ever
+// arrives when the sender phone is already gone.
+func isCastEndOfLife(eventType string) bool {
+	return eventType == "cast_receiver_shutdown" || eventType == "cast_receiver_finished"
+}
+
 // notifyCastLiveness turns a receiver liveness beacon (loaded/alive, cast
 // stream token only) into (1) a presence touch - the Chromecast shows up as an
 // online device of the casting user - and (2) a play-session refresh, so the
-// now-playing panel keeps tracking a cast whose phone froze. End-of-life
-// beacons (shutdown/finished) deliberately touch nothing: aging out is the
-// point. The phone's own JWT beacons are excluded - its RPCs cover it.
+// now-playing panel keeps tracking a cast whose phone froze. The phone's own
+// JWT beacons are excluded - its RPCs cover it.
+//
+// End-of-life beacons END the session here. They used to touch nothing, on the
+// reasoning that aging out was the point; but the alive beat made aging out
+// impossible, so the receiver's own announcement of death was the one signal
+// being thrown away. Presence is deliberately NOT touched for them: a dying
+// receiver is not an online device.
 func notifyCastLiveness(r *http.Request, deps *playerEventDeps, mediaID, eventType string, posSec float64) {
+	if isCastEndOfLife(eventType) {
+		if deps.castSessionEnd == nil {
+			return
+		}
+		st, ok := StreamTokenFromContext(r.Context())
+		if !ok || st == nil || !st.Cast || st.UserID == "" {
+			return
+		}
+		deps.castSessionEnd(r.Context(), string(st.ProfileID), mediaID)
+		return
+	}
 	if eventType != "cast_receiver_loaded" && eventType != "cast_receiver_alive" {
 		return
 	}
@@ -283,7 +325,9 @@ func notifyCastLiveness(r *http.Request, deps *playerEventDeps, mediaID, eventTy
 		})
 	}
 	if deps.castSession != nil && posSec > 0 {
-		deps.castSession(r.Context(), string(st.ProfileID), mediaID, int64(posSec*1000))
+		// Only a load may create a session; an alive beat may merely refresh one
+		// - see CastSessionTouch.
+		deps.castSession(r.Context(), string(st.ProfileID), mediaID, int64(posSec*1000), eventType == "cast_receiver_loaded")
 	}
 }
 

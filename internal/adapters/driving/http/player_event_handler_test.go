@@ -310,7 +310,7 @@ func postCastBeaconWithPresence(t *testing.T, tr CastPresenceToucher, touch Cast
 func TestPlayerEvent_CastBeaconTouchesPresenceAndSession(t *testing.T) {
 	tr := &fakeCastPresence{}
 	var touches []sessionTouch
-	touch := func(_ context.Context, profileID, mediaID string, posMs int64) {
+	touch := func(_ context.Context, profileID, mediaID string, posMs int64, _ bool) {
 		touches = append(touches, sessionTouch{profileID, mediaID, posMs})
 	}
 	postCastBeaconWithPresence(t, tr, touch, "cast_receiver_alive", `{"type":"cast_receiver_alive","posSec":214.2}`, true)
@@ -333,16 +333,91 @@ func TestPlayerEvent_CastBeaconTouchesPresenceAndSession(t *testing.T) {
 	}
 }
 
-// End-of-life beacons must NOT refresh presence or the session: the TV is
-// going away, letting the entries age out is the point.
-func TestPlayerEvent_CastEndBeaconsDoNotTouch(t *testing.T) {
-	tr := &fakeCastPresence{}
-	var touches []sessionTouch
-	touch := func(_ context.Context, p, m string, pos int64) { touches = append(touches, sessionTouch{p, m, pos}) }
-	postCastBeaconWithPresence(t, tr, touch, "cast_receiver_shutdown", `{"type":"cast_receiver_shutdown"}`, true)
-	postCastBeaconWithPresence(t, tr, touch, "cast_receiver_finished", `{"type":"cast_receiver_finished"}`, true)
-	if len(tr.entries) != 0 || len(touches) != 0 {
-		t.Fatalf("end beacons must not touch (presence=%d touches=%d)", len(tr.entries), len(touches))
+// End-of-life beacons must not refresh presence or the session - a dying
+// receiver is not an online device - and must END the session outright.
+//
+// They used to do nothing at all, on the reasoning that ageing out was the
+// point. Ageing out is precisely what the alive beat prevented (it beats on a
+// bare setInterval, through stalls, on a TV that is never really switched off),
+// so the one moment the television announced its own death was the one moment
+// the server threw away.
+func TestPlayerEvent_CastEndBeaconsEndTheSession(t *testing.T) {
+	for _, ev := range []string{"cast_receiver_shutdown", "cast_receiver_finished"} {
+		t.Run(ev, func(t *testing.T) {
+			tr := &fakeCastPresence{}
+			var touches []sessionTouch
+			var ended []sessionTouch
+			touch := func(_ context.Context, p, m string, pos int64, _ bool) { touches = append(touches, sessionTouch{p, m, pos}) }
+			end := func(_ context.Context, p, m string) { ended = append(ended, sessionTouch{p, m, 0}) }
+
+			req := httptest.NewRequest(http.MethodPost, "/api/v1/media/media-1/player-event",
+				strings.NewReader(`{"type":"`+ev+`"}`))
+			req.SetPathValue("id", "media-1")
+			req.RemoteAddr = "192.168.1.42:51000"
+			ctx := context.WithValue(req.Context(), streamTokenCtxKey, &shared.StreamToken{
+				UserID: "usr-cast", ProfileID: "prof-cast", MediaItemID: "media-1", Scope: "stream", Cast: true,
+			})
+			rec := httptest.NewRecorder()
+			logger := slog.New(slog.NewJSONHandler(&bytes.Buffer{}, nil))
+			playerEventHandler(logger,
+				WithPlayerEventCastPresence(tr, func(context.Context, string) string { return "gravity" }),
+				WithPlayerEventCastSession(touch),
+				WithPlayerEventCastSessionEnd(end),
+			)(rec, req.WithContext(ctx))
+
+			if len(ended) != 1 || ended[0] != (sessionTouch{"prof-cast", "media-1", 0}) {
+				t.Fatalf("session ends = %+v, want one end for (prof-cast, media-1)", ended)
+			}
+			if len(tr.entries) != 0 || len(touches) != 0 {
+				t.Fatalf("a dying receiver must not be refreshed (presence=%d touches=%d)", len(tr.entries), len(touches))
+			}
+		})
+	}
+}
+
+// The end beacon carries no JWT bypass: only a cast stream token may end a
+// session this way, or any authenticated client could end someone else's.
+func TestPlayerEvent_CastEndBeaconIgnoresNonCastCallers(t *testing.T) {
+	var ended []sessionTouch
+	end := func(_ context.Context, p, m string) { ended = append(ended, sessionTouch{p, m, 0}) }
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/media/media-1/player-event",
+		strings.NewReader(`{"type":"cast_receiver_shutdown"}`))
+	req.SetPathValue("id", "media-1")
+	rec := httptest.NewRecorder()
+	logger := slog.New(slog.NewJSONHandler(&bytes.Buffer{}, nil))
+	playerEventHandler(logger, WithPlayerEventCastSessionEnd(end))(rec, req)
+	if len(ended) != 0 {
+		t.Fatalf("a non-cast caller must not end a session: %+v", ended)
+	}
+}
+
+// Only a load may CREATE a session. An alive beat that could create one lets a
+// stalled receiver rebuild the phantom row the reaper has just cleared - and on
+// a television that never really switches off, that loop never ends.
+func TestPlayerEvent_OnlyTheLoadBeaconMayCreateASession(t *testing.T) {
+	for _, tc := range []struct {
+		event string
+		want  bool
+	}{
+		{"cast_receiver_loaded", true},
+		{"cast_receiver_alive", false},
+	} {
+		t.Run(tc.event, func(t *testing.T) {
+			var got []bool
+			touch := func(_ context.Context, _, _ string, _ int64, allowCreate bool) { got = append(got, allowCreate) }
+			req := httptest.NewRequest(http.MethodPost, "/api/v1/media/media-1/player-event",
+				strings.NewReader(`{"type":"`+tc.event+`","posSec":214.2}`))
+			req.SetPathValue("id", "media-1")
+			ctx := context.WithValue(req.Context(), streamTokenCtxKey, &shared.StreamToken{
+				UserID: "usr-cast", ProfileID: "prof-cast", MediaItemID: "media-1", Scope: "stream", Cast: true,
+			})
+			rec := httptest.NewRecorder()
+			logger := slog.New(slog.NewJSONHandler(&bytes.Buffer{}, nil))
+			playerEventHandler(logger, WithPlayerEventCastSession(touch))(rec, req.WithContext(ctx))
+			if len(got) != 1 || got[0] != tc.want {
+				t.Fatalf("%s allowCreate = %+v, want [%v]", tc.event, got, tc.want)
+			}
+		})
 	}
 }
 
@@ -351,7 +426,7 @@ func TestPlayerEvent_CastEndBeaconsDoNotTouch(t *testing.T) {
 func TestPlayerEvent_CastPresenceIgnoresNonCastCallers(t *testing.T) {
 	tr := &fakeCastPresence{}
 	var touches []sessionTouch
-	touch := func(_ context.Context, p, m string, pos int64) { touches = append(touches, sessionTouch{p, m, pos}) }
+	touch := func(_ context.Context, p, m string, pos int64, _ bool) { touches = append(touches, sessionTouch{p, m, pos}) }
 	postCastBeaconWithPresence(t, tr, touch, "cast_receiver_alive", `{"type":"cast_receiver_alive","posSec":10}`, false)
 	if len(tr.entries) != 0 || len(touches) != 0 {
 		t.Fatalf("JWT caller must not create cast presence (presence=%d touches=%d)", len(tr.entries), len(touches))
