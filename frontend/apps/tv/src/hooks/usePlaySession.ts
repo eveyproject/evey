@@ -109,12 +109,40 @@ function appendCodecParams(params: URLSearchParams, maxAudioChannels?: number): 
   if (maxAudioChannels != null) params.set("maxAudioChannels", String(maxAudioChannels));
 }
 
+// The 0-based position of an absolute media-stream index among streams of one
+// type - the form the HLS query params are counted in. Mirrors the mobile twin
+// (apps/mobile/src/hooks/usePlaySession.ts).
+function typeRelativeIndex(
+  streamInfo: V1StreamInfo | undefined,
+  type: "MEDIA_STREAM_TYPE_AUDIO" | "MEDIA_STREAM_TYPE_SUBTITLE",
+  absoluteIndex: number | undefined,
+): number | undefined {
+  if (absoluteIndex == null || absoluteIndex <= 0) return undefined;
+  const ofType = (streamInfo?.mediaStreams ?? []).filter((s) => s.type === type);
+  const pos = ofType.findIndex((s) => (s.index ?? -1) === absoluteIndex);
+  return pos >= 0 ? pos : undefined;
+}
+
+// audioTrack / subtitleTrack are TYPE-RELATIVE, not the absolute media-stream
+// index. They MUST land in the HLS master URL, and until 2026-09-04 the TV app
+// left them out entirely while telling the gRPC calls about them - so the
+// server negotiated one thing and served another:
+//
+//   - the manifest's audio is picked by ?audioTrack= (transcode_handler_vod.go),
+//     so every TV stream played the default track whatever the picker said;
+//   - a bitmap subtitle is burnt in only when ?subtitleTrack= names it
+//     (transcode_params.go), so selecting one drew nothing;
+//   - and without either param the URL is byte-identical for every track, so
+//     switching language rebuilt the same URL and the native player never
+//     reloaded - the pick could not even take effect on the next segment.
 export function buildStreamUrl(
   serverUrl: string,
   mediaId: string,
   streamInfo: V1StreamInfo,
   token: string,
   maxAudioChannels?: number,
+  audioTrack?: number,
+  subtitleTrack?: number | null,
 ): string {
   if (streamInfo.playMethod === "PLAY_METHOD_DIRECT_PLAY") {
     return `${serverUrl}/api/v1/media/${mediaId}/stream?token=${token}`;
@@ -126,6 +154,8 @@ export function buildStreamUrl(
   // the native player marks it unseekable and resume / timeline / skip all die.
   const params = new URLSearchParams({ token });
   appendCodecParams(params, maxAudioChannels);
+  if (audioTrack != null && audioTrack >= 0) params.set("audioTrack", String(audioTrack));
+  if (subtitleTrack != null && subtitleTrack >= 0) params.set("subtitleTrack", String(subtitleTrack));
   // Server publishes a complete VOD manifest from t=0 (no live-edge snap), so
   // there is no start offset to declare: the player seeks natively on the
   // absolute timeline. A startSec param used to be sent here, but no handler
@@ -188,7 +218,9 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
           token = await fetchStreamToken(mediaId);
           tokenRef.current = token;
         }
-        const url = buildStreamUrl(serverUrl, mediaId, info, token, maxAudioChannels);
+        const audioTrack = typeRelativeIndex(info, "MEDIA_STREAM_TYPE_AUDIO", audioStreamIndex);
+        const subtitleTrack = typeRelativeIndex(info, "MEDIA_STREAM_TYPE_SUBTITLE", subtitleStreamIndex);
+        const url = buildStreamUrl(serverUrl, mediaId, info, token, maxAudioChannels, audioTrack, subtitleTrack);
 
         // Direct play streams the original file with no orchestrator involved,
         // so it cannot be shed - only probe the transcode/HLS paths.

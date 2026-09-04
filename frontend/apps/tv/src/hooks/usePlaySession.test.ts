@@ -200,6 +200,41 @@ describe("buildStreamUrl", () => {
     const url = buildStreamUrl("http://srv", "m1", { playMethod: "PLAY_METHOD_TRANSCODE" }, "tok");
     expect(url).not.toContain("startSec");
   });
+
+  // The TV told the gRPC calls which tracks it wanted and then asked for a URL
+  // that named neither, so the manifest kept serving the default audio and never
+  // burnt a selected bitmap subtitle. Worse, the URL was byte-identical for
+  // every track, so the native player had no reason to reload at all.
+  it("names the chosen audio and subtitle tracks", async () => {
+    const { buildStreamUrl } = await import("./usePlaySession");
+    const info = { playMethod: "PLAY_METHOD_TRANSCODE" } as const;
+    const url = buildStreamUrl("http://srv", "m1", info, "tok", 2, 1, 0);
+    expect(url).toContain("audioTrack=1");
+    expect(url).toContain("subtitleTrack=0");
+  });
+
+  it("differs between two track choices - an identical URL never reloads", async () => {
+    const { buildStreamUrl } = await import("./usePlaySession");
+    const info = { playMethod: "PLAY_METHOD_TRANSCODE" } as const;
+    expect(buildStreamUrl("http://srv", "m1", info, "tok", 2, 0))
+      .not.toBe(buildStreamUrl("http://srv", "m1", info, "tok", 2, 1));
+  });
+
+  it("omits the params when no track was chosen, leaving the server's own default", async () => {
+    const { buildStreamUrl } = await import("./usePlaySession");
+    const url = buildStreamUrl("http://srv", "m1", { playMethod: "PLAY_METHOD_TRANSCODE" }, "tok", 2);
+    expect(url).not.toContain("audioTrack");
+    expect(url).not.toContain("subtitleTrack");
+  });
+
+  // Direct play streams the original file: no manifest, so no track params to
+  // put anywhere. Pinned so nobody "fixes" this by appending them there too.
+  it("leaves the direct-play URL alone", async () => {
+    const { buildStreamUrl } = await import("./usePlaySession");
+    const url = buildStreamUrl("http://srv", "m1", { playMethod: "PLAY_METHOD_DIRECT_PLAY" }, "tok", 2, 1, 0);
+    expect(url).not.toContain("audioTrack");
+    expect(url).toContain("/stream?token=tok");
+  });
 });
 
 describe("usePlaySession: server load-shed (503)", () => {
