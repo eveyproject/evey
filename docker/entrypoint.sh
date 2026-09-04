@@ -418,24 +418,46 @@ if [ "$EVEY_EMBEDDED_MEILI" = "true" ]; then
 fi
 
 # ── Hand off to evey ─────────────────────────────────────────────────────
-# Without an embedded database, PID 1 becomes evey (exec): if it exits, the
-# container exits and Docker restarts it; Meili shares the PID namespace and
-# dies with the container, which is harmless for an index rebuilt from the DB.
+# This script STAYS PID 1 as a small supervisor, with or without an embedded
+# database. Two things depend on it:
 #
-# With an embedded database, this script STAYS PID 1 as a small supervisor:
-# a database killed with the container replays its WAL on the next boot,
-# which is safe but slow and needless, so `docker stop` must reach Postgres as
-# an orderly fast shutdown AFTER the server has let go of its connections.
-# SIGTERM/SIGINT are forwarded to the server; when it exits (for any reason,
-# its exit code is the container's) the services are stopped in order.
-if [ -z "$PG_PID" ]; then
-    if [ -n "$MEILI_PID" ]; then
-        # Once exec below has replaced this shell the trap is moot - signals go
-        # straight to evey and Meili dies with the container.
-        trap 'kill -TERM "$MEILI_PID" 2>/dev/null || true; wait "$MEILI_PID" 2>/dev/null || true; exit 0' TERM INT
-    fi
-    exec /evey "$@"
-fi
+#  1. An embedded database killed with the container replays its WAL on the
+#     next boot - safe but slow and needless. `docker stop` must therefore
+#     reach Postgres as an orderly fast shutdown AFTER the server has let go
+#     of its connections, which only a supervisor can sequence.
+#  2. The admin panel's "restart server" (EVEY_RESTART_EXIT_CODE below).
+#
+# SIGTERM/SIGINT are forwarded to the server; when it exits for any other
+# reason its exit code becomes the container's, exactly as when evey was
+# exec'd into PID 1.
+#
+# It used to `exec /evey` when there was no embedded database, which left evey
+# as PID 1 - and the restart RPC keyed its availability on `getpid() == 1`.
+# The result was backwards: restart worked ONLY on the deployment shape
+# without an embedded database, and was refused ("server restart is not
+# available in this deployment") on the single-file install the project
+# recommends. One supervised path removes both the special case and the
+# heuristic.
+
+# EVEY_RESTART_EXIT_CODE is the contract between the admin restart RPC and this
+# supervisor: evey drains, exits with it, and we relaunch it in place.
+#
+# Doing it here rather than letting the container die and trusting Docker's
+# `restart:` policy is deliberate. Nothing inside a container can read that
+# policy, so relying on it means the button either works or silently stops the
+# server for good, with no way to tell which beforehand. Restarting the process
+# ourselves is the only guarantee available from in here - and it is also
+# faster, since Postgres and Meilisearch keep running underneath.
+#
+# 86: outside the conventional ranges (0-2 shells, 126-127 exec failures,
+# 128+n signals), so it cannot collide with a real crash.
+EVEY_RESTART_EXIT_CODE=86
+export EVEY_RESTART_EXIT_CODE
+# Tells evey the restart RPC has somewhere to land. Absent (a bare binary, or
+# any launcher that is not this script), the RPC correctly reports itself
+# unavailable instead of exiting into nothing.
+EVEY_SUPERVISED=1
+export EVEY_SUPERVISED
 
 stop_services() {
     if [ -n "$PG_PID" ] && kill -0 "$PG_PID" 2>/dev/null; then
@@ -449,16 +471,30 @@ stop_services() {
     fi
 }
 
-/evey "$@" &
-EVEY_PID=$!
-trap 'kill -TERM "$EVEY_PID" 2>/dev/null || true' TERM INT
-rc=0
-# A trapped signal makes `wait` return early (128+signo) while the server is
-# still shutting down: wait again until it has really gone.
+# stopping distinguishes "the operator asked us to stop" from "the server
+# exited on its own". Without it, a SIGTERM that races the drain would be read
+# as a plain exit and, on the restart code, relaunch a server we were told to
+# shut down.
+stopping=0
+trap 'stopping=1; kill -TERM "$EVEY_PID" 2>/dev/null || true' TERM INT
+
 while :; do
-    wait "$EVEY_PID" && rc=0 || rc=$?
-    kill -0 "$EVEY_PID" 2>/dev/null || break
+    /evey "$@" &
+    EVEY_PID=$!
+    rc=0
+    # A trapped signal makes `wait` return early (128+signo) while the server is
+    # still shutting down: wait again until it has really gone.
+    while :; do
+        wait "$EVEY_PID" && rc=0 || rc=$?
+        kill -0 "$EVEY_PID" 2>/dev/null || break
+    done
+    if [ "$stopping" -eq 0 ] && [ "$rc" -eq "$EVEY_RESTART_EXIT_CODE" ]; then
+        echo "evey: admin-requested restart - relaunching the server (database and search stay up)"
+        continue
+    fi
+    break
 done
+
 trap - TERM INT
 stop_services
 exit "$rc"

@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -44,7 +45,29 @@ func main() {
 		slog.Error("fatal", slog.Any("err", err))
 		os.Exit(1)
 	}
+	// A clean drain that an admin asked for is not the same event as a clean
+	// drain the operator asked for, and only the exit code can tell the
+	// supervisor apart. See docker/entrypoint.sh, which relaunches on this code
+	// and lets any other one stop the container.
+	if restartRequested.Load() {
+		slog.Warn("restart: drained cleanly, exiting for the supervisor to relaunch",
+			slog.Int("exit_code", restartExitCode))
+		os.Exit(restartExitCode)
+	}
 }
+
+// restartExitCode is how a drained server tells docker/entrypoint.sh that it
+// wants to come back rather than stay down. It MUST match EVEY_RESTART_EXIT_CODE
+// there; contractguard pins the pair.
+//
+// 86 sits outside the conventional ranges (0-2 shells, 126-127 exec failures,
+// 128+n signals), so a real crash can never be mistaken for a restart request.
+const restartExitCode = 86
+
+// restartRequested is set by the admin restart RPC just before it signals the
+// process, and read once the drain has finished. An atomic because the RPC's
+// delayed trigger fires on its own goroutine.
+var restartRequested atomic.Bool
 
 func run() error {
 	hardenProcess() // mark non-dumpable so same-uid plugins can't read /proc/<srv>/{mem,environ}

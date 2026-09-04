@@ -19,22 +19,38 @@ import (
 	"github.com/evey-project/evey/internal/pkg/ratelimit"
 )
 
-// selfRestartFn returns a graceful-restart trigger, or nil when the process is
-// not supervised. Restart = send SIGTERM to self so the existing shutdown drain
-// runs and a supervisor brings us back. We only wire it when running as PID 1
-// (Docker `exec /evey` / `restart: unless-stopped`); under dev (Air is PID 1)
-// or a bare run, exiting would just stop the server, so the RPC stays disabled.
+// selfRestartFn returns a graceful-restart trigger, or nil when nothing would
+// bring the server back. Restart = mark the intent, then SIGTERM ourselves so
+// the ordinary shutdown drain runs; main then exits with restartExitCode and
+// docker/entrypoint.sh relaunches us.
+//
+// It used to key on `getpid() == 1`, which was a proxy for "am I supervised?"
+// and got the answer exactly backwards. The entrypoint exec'd evey into PID 1
+// only WITHOUT an embedded database; with one - the single-file install the
+// project recommends - it stayed PID 1 itself and ran evey as a child, so the
+// admin panel answered "server restart is not available in this deployment" on
+// precisely the deployment shape we ship (reported in prod 2026-09-04).
+//
+// The entrypoint now supervises in every case and says so with EVEY_SUPERVISED,
+// which is a fact about the launcher rather than a guess from the process tree.
+// Nothing inside a container can read Docker's `restart:` policy, so a restart
+// that relies on the container dying can only be hoped for; one the entrypoint
+// performs itself can be verified. A bare binary, or any other launcher, leaves
+// the variable unset and the RPC correctly reports itself unavailable rather
+// than exiting into nothing.
 func selfRestartFn() func() {
-	if os.Getpid() != 1 {
+	if os.Getenv("EVEY_SUPERVISED") != "1" {
 		return nil
 	}
 	return func() {
 		slog.Warn("admin restart: sending SIGTERM to self for graceful shutdown")
+		restartRequested.Store(true)
 		if p, err := os.FindProcess(os.Getpid()); err == nil {
 			if sigErr := p.Signal(syscall.SIGTERM); sigErr != nil {
 				// Fired by time.AfterFunc after the grace delay, detached from
 				// the RPC that requested the restart - no request ctx survives.
 				slog.Error("admin restart: SIGTERM self failed", slog.Any("err", sigErr))
+				restartRequested.Store(false)
 			}
 		}
 	}
