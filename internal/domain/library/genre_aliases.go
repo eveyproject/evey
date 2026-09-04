@@ -110,6 +110,21 @@ func lookupKey(genre string) (genreKey, bool) {
 	return k, ok
 }
 
+// GenreIdentity returns a value that is equal for two spellings of the same
+// genre, and different otherwise. It is what lets a caller holding a MAP keyed
+// by genre merge its entries - CanonicalGenres only folds a list, and a list
+// cannot carry the numbers that have to be summed.
+//
+// A spelling we do not know is its own identity (lowercased, so "Mecha" and
+// "mecha" still merge). Unlike the display helpers this never returns a label:
+// callers pair it with CanonicalGenre for what to show.
+func GenreIdentity(genre string) string {
+	if key, ok := lookupKey(genre); ok {
+		return string(key)
+	}
+	return strings.ToLower(strings.TrimSpace(genre))
+}
+
 // CanonicalGenre renders one stored genre in lang ("fr", "en"). A spelling we
 // do not know comes back unchanged - never empty, never dropped.
 //

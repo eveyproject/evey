@@ -2,10 +2,13 @@ package activity
 
 import (
 	"context"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/evey-project/evey/internal/domain/activity"
+	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
@@ -22,6 +25,7 @@ type QueryService struct {
 	statsReader     activity.PlaySessionStatsReader
 	playHistory     activity.PlayHistoryRepository
 	analyticsReader activity.AnalyticsReader
+	serverConfig    shared.ServerConfigRepository
 
 	bwMu       sync.Mutex
 	bwCached   int64
@@ -33,6 +37,12 @@ type Option func(*QueryService)
 
 func WithAnalyticsReader(r activity.AnalyticsReader) Option {
 	return func(s *QueryService) { s.analyticsReader = r }
+}
+
+// WithServerConfig supplies the server language used to label genres in the
+// stats. Optional: without it duplicates are still merged, just not translated.
+func WithServerConfig(cfg shared.ServerConfigRepository) Option {
+	return func(s *QueryService) { s.serverConfig = cfg }
 }
 
 func NewQueryService(
@@ -89,7 +99,73 @@ func (s *QueryService) CountAuditLog(ctx context.Context, filter activity.AuditL
 func (s *QueryService) GetUserStats(ctx context.Context, profileID string) (*activity.UserStats, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.activity.GetUserStats")
 	defer span.End()
-	return s.statsReader.GetUserStats(ctx, shared.ProfileID(profileID))
+	stats, err := s.statsReader.GetUserStats(ctx, shared.ProfileID(profileID))
+	if err != nil {
+		return nil, err
+	}
+	if stats != nil {
+		stats.GenreBreakdown = foldGenreBreakdown(stats.GenreBreakdown, s.displayLanguage(ctx))
+	}
+	return stats, nil
+}
+
+// foldGenreBreakdown merges the spellings of one genre into a single entry.
+//
+// The stats query groups by the genre string stored on the fiche, and a library
+// built over several providers and languages holds both "Drama" and "Drame" -
+// so the pie chart showed the same genre as two slices, each with half the
+// watch time, and the "favourite genre" line could name the loser of a split
+// that never should have happened. This is the read-side fold the filter panel
+// already does, applied where the numbers live.
+//
+// Watch time and play counts are summed; percentages are computed downstream
+// from these totals, so they follow automatically.
+func foldGenreBreakdown(in map[string]activity.GenreStats, lang string) map[string]activity.GenreStats {
+	if len(in) == 0 {
+		return in
+	}
+	// The winning label per identity has to be deterministic, and map iteration
+	// is not: without sorting, two calls could name the same genre "Drama" and
+	// "Drame" in turn.
+	stored := make([]string, 0, len(in))
+	for g := range in {
+		stored = append(stored, g)
+	}
+	sort.Strings(stored)
+
+	out := make(map[string]activity.GenreStats, len(in))
+	labelFor := make(map[string]string, len(in))
+	for _, g := range stored {
+		id := library.GenreIdentity(g)
+		label, seen := labelFor[id]
+		if !seen {
+			label = library.CanonicalGenre(g, lang)
+			if label == "" {
+				continue
+			}
+			labelFor[id] = label
+		}
+		agg := out[label]
+		agg.TotalTimeMs += in[g].TotalTimeMs
+		agg.PlayCount += in[g].PlayCount
+		out[label] = agg
+	}
+	return out
+}
+
+// displayLanguage mirrors the library query service: the server setting decides,
+// and no setting means fold WITHOUT translating rather than pick a language for
+// the operator. A read failure is treated as unset - a stats page is not worth
+// failing a request over.
+func (s *QueryService) displayLanguage(ctx context.Context) string {
+	if s.serverConfig == nil {
+		return ""
+	}
+	e, err := s.serverConfig.Get(ctx, "server.language")
+	if err != nil || e == nil {
+		return ""
+	}
+	return strings.ToLower(strings.TrimSpace(e.Value))
 }
 
 func (s *QueryService) GetServerStats(ctx context.Context) (*activity.ServerStatsResult, error) {

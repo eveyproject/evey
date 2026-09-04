@@ -9,33 +9,6 @@ import { useTheme } from "../../../src/providers/ThemeProvider";
 import { chartColorAt } from "../../../src/lib/chartPalette";
 import { LoadFailed } from "../../../src/components/LoadFailed";
 
-const GENRE_FR: Record<string, string> = {
-  Action: "Action",
-  Adventure: "Aventure",
-  Animation: "Animation",
-  Comedy: "Comédie",
-  Crime: "Crime",
-  Documentary: "Documentaire",
-  Drama: "Drame",
-  Family: "Famille",
-  Fantasy: "Fantaisie",
-  History: "Histoire",
-  Horror: "Horreur",
-  Music: "Musique",
-  Mystery: "Mystère",
-  Romance: "Romance",
-  "Science Fiction": "Science-Fiction",
-  "TV Movie": "Téléfilm",
-  Thriller: "Thriller",
-  War: "Guerre",
-  Western: "Western",
-};
-
-function translateGenre(genre: string, lang: string): string {
-  if (lang.startsWith("fr")) return GENRE_FR[genre] ?? genre;
-  return genre;
-}
-
 function formatWatchTime(ms: string | undefined): string {
   const total = parseInt(ms ?? "0");
   const h = Math.floor(total / 3600000);
@@ -68,7 +41,7 @@ function buildMonthlyData(byMonth: { year?: number; month?: number; totalTimeMs?
 
 export default function StatsScreen() {
   const theme = useTheme();
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const profileId = useAuthStore((s) => s.profileId);
   const screenWidth = Dimensions.get("window").width;
 
@@ -105,12 +78,15 @@ export default function StatsScreen() {
     );
   }
 
-  const lang = i18n.language;
+  // Genres arrive already folded and labelled by the server (GetUserStats):
+  // it is the only side that knows every stored spelling of a genre, so a
+  // second table here could only disagree with it - which is exactly how the
+  // pie ended up with a "Drama" slice next to a "Drame" one.
   const genres = [...(data.genres ?? [])].sort((a, b) => parseInt(b.totalTimeMs ?? "0") - parseInt(a.totalTimeMs ?? "0"));
   const pieData = genres.slice(0, 8).map((g, i) => ({
     value: parseInt(g.totalTimeMs ?? "0") || 1,
     color: chartColorAt(theme, i),
-    text: translateGenre(g.genre ?? "", lang),
+    text: g.genre ?? "",
     percent: Math.round(g.percent ?? 0),
   }));
 
@@ -118,7 +94,7 @@ export default function StatsScreen() {
   const monthMax = Math.max(...monthBarData.map((d) => d.value), 0.1);
 
   const mostPlayed = data.mostPlayed ?? [];
-  const favoriteGenre = genres.length > 0 ? translateGenre(genres[0].genre ?? "-", lang) : "-";
+  const favoriteGenre = genres.length > 0 ? genres[0].genre ?? "-" : "-";
 
   const barWidth = Math.max(14, Math.floor((screenWidth - 120) / 12) - 6);
 

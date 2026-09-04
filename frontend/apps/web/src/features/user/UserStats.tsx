@@ -10,33 +10,6 @@ import { BarChart3 } from "lucide-react";
 
 import { CHART_COLORS as GENRE_COLORS } from "@/constants/chartColors";
 
-const GENRE_FR: Record<string, string> = {
-  Action: "Action",
-  Adventure: "Aventure",
-  Animation: "Animation",
-  Comedy: "Comédie",
-  Crime: "Crime",
-  Documentary: "Documentaire",
-  Drama: "Drame",
-  Family: "Famille",
-  Fantasy: "Fantaisie",
-  History: "Histoire",
-  Horror: "Horreur",
-  Music: "Musique",
-  Mystery: "Mystère",
-  Romance: "Romance",
-  "Science Fiction": "Science-Fiction",
-  "TV Movie": "Téléfilm",
-  Thriller: "Thriller",
-  War: "Guerre",
-  Western: "Western",
-};
-
-function translateGenre(genre: string, lang: string): string {
-  if (lang.startsWith("fr")) return GENRE_FR[genre] ?? genre;
-  return genre;
-}
-
 import { useCssVar } from "@/hooks/useCssVar";
 import { MS_PER_HOUR, MS_PER_MINUTE } from "@/lib/time";
 
@@ -80,7 +53,7 @@ function buildMonthlyData(byMonth: { year?: number; month?: number; totalTimeMs?
 }
 
 export function UserStats() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const profileId = useAuthStore((s) => s.profileId);
   const { data, isLoading, isError, error, refetch } = useActivityServiceGetUserStats(profileId ?? "", undefined, {
     query: { enabled: !!profileId },
@@ -89,7 +62,10 @@ export function UserStats() {
   // (they used to sit after them, a conditional-hook bug).
   const accent = useCssVar("--accent", "#4f46e5");
   const textMuted = useCssVar("--text-muted");
-  const lang = i18n.language;
+  // Genres arrive already folded and labelled by the server (GetUserStats):
+  // it is the only side that knows every stored spelling of a genre, so a
+  // second table here could only disagree with it - which is exactly how the
+  // pie ended up with a "Drama" slice next to a "Drame" one.
 
   if (isLoading) {
     return (
@@ -112,7 +88,7 @@ export function UserStats() {
   const pieData = genres.slice(0, 8).map((g, i) => ({
     value: parseInt(g.totalTimeMs ?? "0"),
     color: GENRE_COLORS[i % GENRE_COLORS.length],
-    text: translateGenre(g.genre ?? "", lang),
+    text: g.genre ?? "",
     percent: Math.round(g.percent ?? 0),
   }));
 
@@ -120,7 +96,7 @@ export function UserStats() {
   const monthMax = Math.max(...monthBarData.map((d) => d.value), 0.1);
 
   const mostPlayed = data.mostPlayed ?? [];
-  const favoriteGenre = genres.length > 0 ? translateGenre(genres[0].genre ?? "-", lang) : "-";
+  const favoriteGenre = genres.length > 0 ? genres[0].genre ?? "-" : "-";
 
   return (
     <div className="flex flex-col gap-6">

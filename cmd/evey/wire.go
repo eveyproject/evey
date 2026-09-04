@@ -290,6 +290,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	activityCmdSvc := appactivity.NewCommandService(r.LoginHistory, r.ServerMetric, r.AuditLog, bus)
 	activityQuerySvc := appactivity.NewQueryService(r.LoginHistory, r.ServerMetric, r.AuditLog, r.PlaySessionStats, r.PlayHistory,
 		appactivity.WithAnalyticsReader(postgres.NewAnalyticsReader(db)),
+		appactivity.WithServerConfig(r.ServerCfg),
 	)
 	// Counts the bytes the streaming routes actually serve; the sampler turns
 	// that into the server_metrics history (dashboard rate + consumed total).
