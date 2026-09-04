@@ -8,6 +8,7 @@ import { Pencil } from "lucide-react";
 import { ACTION_ICON_BOX } from "@/components/ui/Button";
 import { ICON } from "@/constants/iconSizes";
 import { BackButton } from "@/components/ui/BackButton";
+import { GenreDot } from "@/components/ui/GenreDot";
 import { PosterPlaceholder } from "./PosterPlaceholder";
 import { Stars } from "./MediaDetailStars";
 import { certInfoForLocale } from "@/utils/certifications";
@@ -245,8 +246,9 @@ export function MediaDetailHero({
             {item.genres.map((g) => (
               <span
                 key={g}
-                className="text-xs uppercase tracking-[0.14em] font-medium px-3 py-1.5 border border-white/25 text-white/75 rounded-full"
+                className="text-xs uppercase tracking-[0.14em] font-medium px-3 py-1.5 border border-white/25 text-white/75 rounded-full inline-flex items-center gap-1.5"
               >
+                <GenreDot label={g} />
                 {g}
               </span>
             ))}

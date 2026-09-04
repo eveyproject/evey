@@ -17,6 +17,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { Skeleton } from "../../../src/components/Skeleton";
 import { ProgressBar } from "../../../src/components/ProgressBar";
 import { MediaCard } from "../../../src/components/MediaCard";
+import { GenreDot } from "../../../src/components/GenreDot";
 import { useLocalSearchParams, router, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
@@ -1109,11 +1110,15 @@ export default function MediaDetailScreen() {
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: theme.spacing.sm }}>
             {media.genres.map((g) => (
               <View key={g} style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 5,
                 paddingHorizontal: 10,
                 paddingVertical: 4,
                 borderRadius: 16,
                 backgroundColor: theme.colors.surface,
               }}>
+                <GenreDot label={g} />
                 <Text style={{ color: theme.colors.text, fontSize: 12, fontWeight: "500" }}>{g}</Text>
               </View>
             ))}

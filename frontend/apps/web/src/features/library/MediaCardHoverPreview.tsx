@@ -4,6 +4,7 @@ import { itemLabel } from "@evey/api";
 import { Star } from "lucide-react";
 import type { MediaCardItem } from "./MediaCard";
 import { typeLabel } from "@/utils/typeLabel";
+import { GenreDot } from "@/components/ui/GenreDot";
 
 export const HoverPreview = memo(function HoverPreview({ item }: { item: MediaCardItem }) {
   const { t } = useTranslation();
@@ -34,8 +35,9 @@ export const HoverPreview = memo(function HoverPreview({ item }: { item: MediaCa
           {item.genres.slice(0, 3).map((g) => (
             <span
               key={g}
-              className="text-xs px-1.5 py-0.5 rounded-full bg-[var(--surface-raised)] text-[var(--text-muted)]"
+              className="text-xs px-1.5 py-0.5 rounded-full bg-[var(--surface-raised)] text-[var(--text-muted)] inline-flex items-center gap-1"
             >
+              <GenreDot label={g} />
               {g}
             </span>
           ))}

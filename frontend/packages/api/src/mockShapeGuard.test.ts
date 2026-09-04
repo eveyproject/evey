@@ -15,6 +15,7 @@ import * as personDepartment from "./personDepartment";
 import * as pagination from "./pagination";
 import * as exportPaging from "./exportPaging";
 import * as fileNiceName from "./fileNiceName";
+import * as genreColor from "./genreColor";
 import * as regionDefaults from "./regionDefaults";
 import * as libraryRules from "./libraryRules";
 import * as playerEventReporter from "./playerEventReporter";
@@ -66,6 +67,7 @@ const SHARED_MODULES = {
   pagination,
   exportPaging,
   fileNiceName,
+  genreColor,
   regionDefaults,
   libraryRules,
   playerEventReporter,

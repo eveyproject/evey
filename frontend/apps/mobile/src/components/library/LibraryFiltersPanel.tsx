@@ -8,6 +8,7 @@ import type {
   LibraryServiceListMediaItemsSortOrder,
 } from "@evey/api";
 import { BottomSheet } from "../BottomSheet";
+import { GenreDot } from "../GenreDot";
 import { useTheme } from "../../providers/ThemeProvider";
 import type { FilterFacets } from "./libraryFilterUtils";
 
@@ -57,7 +58,10 @@ function SingleChip({ label, active, onPress }: { label: string; active: boolean
 // onto multiple lines instead of the horizontal-scroll row used for single
 // selects, since these lists can be long and the whole point is to see what's
 // already picked at a glance.
-function MultiChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+// dot: show the genre's colour swatch. Only while inactive - the checkmark
+// already occupies that slot on a selected chip, and two markers in front of a
+// three-word label is noise, not information.
+function MultiChip({ label, active, onPress, dot = false }: { label: string; active: boolean; onPress: () => void; dot?: boolean }) {
   const theme = useTheme();
   return (
     <TouchableOpacity
@@ -70,6 +74,7 @@ function MultiChip({ label, active, onPress }: { label: string; active: boolean;
       onPress={onPress}
     >
       {active && <Ionicons name="checkmark" size={12} color={theme.colors.onAccent} style={{ marginRight: 4 }} />}
+      {!active && dot && <View style={{ marginRight: 5 }}><GenreDot label={label} /></View>}
       <Text style={{ color: active ? theme.colors.onAccent : theme.colors.text, fontSize: 13 }}>{label}</Text>
     </TouchableOpacity>
   );
@@ -213,7 +218,7 @@ export function LibraryFiltersPanel(props: LibraryFiltersPanelProps) {
           <SectionLabel>{t("media.library.genreLabel")}</SectionLabel>
           <View style={styles.wrapRow}>
             {availableGenres.map((g) => (
-              <MultiChip key={g} label={g} active={genres.includes(g)} onPress={() => onGenresChange(toggle(genres, g))} />
+              <MultiChip key={g} label={g} active={genres.includes(g)} dot onPress={() => onGenresChange(toggle(genres, g))} />
             ))}
           </View>
         </>

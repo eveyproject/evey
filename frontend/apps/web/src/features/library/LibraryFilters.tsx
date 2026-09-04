@@ -4,6 +4,7 @@ import { Check, Star, Filter } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/Button";
 import { FilterChip } from "@/components/ui/FilterChip";
+import { GenreDot } from "@/components/ui/GenreDot";
 import type { LibrarySearch } from "@/routes/_auth/library/$libraryId";
 import { ICON } from "@/constants/iconSizes";
 import { normalizeLangCode } from "@/features/playback/hooks/hlsPlayerUtils";
@@ -389,6 +390,7 @@ function GenreChips({
               key={g}
               active={active}
               onClick={() => onChange(active ? selected.filter((v) => v !== g) : [...selected, g])}
+              icon={<GenreDot label={g} />}
             >
               {g}
             </FilterChip>
