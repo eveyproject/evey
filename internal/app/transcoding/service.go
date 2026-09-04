@@ -468,11 +468,37 @@ func (s *Service) GetCacheInfo(ctx context.Context) (*transcoding.CacheInfo, err
 	return info, err
 }
 
+// ClearCache empties the transcode cache.
+//
+// It does NOT stop the sessions writing into it: the store deletes the bytes out
+// from under any live ffmpeg, which then dies mid-segment on ENOENT (`exit status
+// 254`) instead of on a clean kill. Playback survives - the orchestrator respawns
+// and re-encodes what it lost - so this is a rough edge, not data loss, and the
+// admin asking for a wipe usually means it.
+//
+// What was missing was the WARNING. On 2026-09-04 a wipe landed during a
+// playback; the resulting error burst looked exactly like an orchestrator race
+// and cost an investigation to rule out every other suspect. The count below
+// makes the connection explicit at the moment it happens.
+//
+// Deliberately NOT a refusal: the user's call (2026-09-04) is that warning is
+// enough. Blocking a wipe because someone is watching would make the admin
+// action unreliable, which is worse than a respawn.
 func (s *Service) ClearCache(ctx context.Context) error {
 	ctx, span := tracing.StartSpan(ctx, "app.transcoding.ClearCache")
 	defer span.End()
 	if s.cache == nil {
 		return nil
+	}
+	// The gauge counts live ENCODING sessions - the ones with an ffmpeg holding
+	// files open in the very directory about to be removed. A direct-play viewer
+	// never counts and is never disturbed by a wipe, which is why this is the
+	// right thing to measure here.
+	if s.playback != nil {
+		if live := s.playback.Active(); live > 0 {
+			slog.WarnContext(ctx, "clearing the transcode cache while playback is encoding: those sessions lose their segments and their ffmpeg will die mid-write (they respawn)",
+				slog.Int("live_encoding_sessions", live))
+		}
 	}
 	if err := s.cache.ClearCache(ctx); err != nil {
 		span.RecordError(err)
