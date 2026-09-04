@@ -161,6 +161,20 @@ func dirStats(root string) (int64, time.Time) {
 	return total, latest
 }
 
+// ClearCache empties the cache directory.
+//
+// ⚠️ It deletes the bytes out from under whatever is writing them: a live
+// transcode session keeps its ffmpeg writing into <dir>/segments/<hash>/, and
+// that process dies on ENOENT mid-segment (`exit status 254`, a page of muxer
+// rename failures) rather than on a clean kill. The orchestrator respawns and
+// playback survives, so this is a rough edge, not data loss - but it means an
+// admin clearing the cache during a playback WILL show up as errors in the log.
+//
+// Hence the Info line below, added 2026-09-04. Without it nothing anywhere
+// recorded that a wipe happened, and a real incident (a segment directory
+// vanishing 7 s after its creation, mid-playback) could not be told apart from
+// a concurrency bug in the orchestrator without ruling out every other suspect
+// first. A destructive admin action must leave a trace.
 func (s *CacheStore) ClearCache(_ context.Context) error {
 	defer s.invalidate()
 	entries, err := os.ReadDir(s.dir)
@@ -170,11 +184,22 @@ func (s *CacheStore) ClearCache(_ context.Context) error {
 		}
 		return fmt.Errorf("read cache dir: %w", err)
 	}
+	// Sized before the delete: afterwards there is nothing left to measure.
+	freed, _ := dirStats(s.dir)
+	removed, failed := 0, 0
 	for _, e := range entries {
 		if err := os.RemoveAll(filepath.Join(s.dir, e.Name())); err != nil {
-			slog.Warn("clear cache entry", slog.Any("err", err))
+			failed++
+			slog.Warn("clear cache entry", slog.String("entry", e.Name()), slog.Any("err", err))
+			continue
 		}
+		removed++
 	}
+	slog.Info("transcode cache cleared by admin",
+		slog.Int("entries_removed", removed),
+		slog.Int("entries_failed", failed),
+		slog.Int64("freed_bytes", freed),
+		slog.String("dir", s.dir))
 	return nil
 }
 
