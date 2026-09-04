@@ -99,9 +99,18 @@ function libraryKeyExtractor(item: V1MediaItem) {
   return item.id ?? "";
 }
 
+// With numColumns > 1, FlatList batches items into rows and calls getItemLayout
+// with the ROW index - not the item index. Dividing by NUM_COLUMNS here divided
+// it a second time, so rows 0, 1 and 2 all reported offset 0, rows 3-5 all
+// reported ROW_HEIGHT, and so on: the list believed three rows shared one
+// vertical position. Scrolling then jumped a screenful at a time and the grid
+// looked like it swapped every poster at once instead of flowing ("j'ai pas un
+// fil continu mais comme des pages", user report 2026-09-04).
+//
+// length is the row height for the same reason - a row, not a poster.
 const libraryGetItemLayout = (_: unknown, index: number) => ({
   length: ROW_HEIGHT,
-  offset: ROW_HEIGHT * Math.floor(index / NUM_COLUMNS),
+  offset: ROW_HEIGHT * index,
   index,
 });
 

@@ -45,9 +45,13 @@ function colKeyExtractor(item: CollectionItem) {
   return item.id;
 }
 
+// FlatList hands getItemLayout the ROW index when numColumns > 1, so dividing by
+// NUM_COLUMNS here divided it twice: consecutive rows reported the same offset,
+// and the grid scrolled in jumps instead of flowing. Same defect as the library
+// screen, fixed together on 2026-09-04.
 const colGetItemLayout = (_: unknown, index: number) => ({
   length: ROW_HEIGHT,
-  offset: ROW_HEIGHT * Math.floor(index / NUM_COLUMNS),
+  offset: ROW_HEIGHT * index,
   index,
 });
 
