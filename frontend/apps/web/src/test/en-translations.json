@@ -2185,6 +2185,8 @@
   "media.detail.trailerUnavailable": "No app on this device can open the trailer",
   "media.detail.turnOnWifi": "Turn on Wi-Fi",
   "media.detail.unsupportedPlatform": "Unsupported platform: {{platform}}",
+  "media.detail.uploadBackdrop": "Upload a backdrop",
+  "media.detail.uploadPoster": "Upload a poster",
   "media.detail.viewOnImdb": "View on IMDB",
   "media.detail.viewOnTmdb": "View on TMDB",
   "media.detail.writer": "Writer: ",

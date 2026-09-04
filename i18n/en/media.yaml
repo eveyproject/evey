@@ -251,6 +251,8 @@ detail:
   artworkUpdated: Artwork updated
   artworkFailed: Failed to update artwork
   fileName: File name
+  uploadPoster: Upload a poster
+  uploadBackdrop: Upload a backdrop
   poster: Poster
   backdrop: Backdrop
   title: Title

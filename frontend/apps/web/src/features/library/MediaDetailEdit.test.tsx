@@ -162,6 +162,27 @@ describe("MetadataEditPanel", () => {
     expect(screen.queryByTestId("media-edit-filename")).not.toBeInTheDocument();
   });
 
+  // ── Custom artwork upload ───────────────────────────────────────────────────
+
+  // The picker used to render nothing when there was fewer than two images to
+  // choose from - which is exactly the item an admin needs to upload one for.
+  it("offers poster and backdrop upload even with no artwork to choose from", () => {
+    render(<MetadataEditPanel {...defaultProps} item={baseItem} />, { wrapper: Wrapper });
+
+    expect(screen.getByTestId("upload-poster")).toBeInTheDocument();
+    expect(screen.getByTestId("upload-backdrop")).toBeInTheDocument();
+  });
+
+  // Only the three formats the server stores. Notably absent: SVG, which is an
+  // image by MIME type and a script container in practice.
+  it("restricts the file picker to the formats the server accepts", () => {
+    render(<MetadataEditPanel {...defaultProps} item={baseItem} />, { wrapper: Wrapper });
+
+    const input = screen.getByTestId("upload-poster") as HTMLInputElement;
+    expect(input.accept).toBe("image/jpeg,image/png,image/webp");
+    expect(input.accept).not.toContain("svg");
+  });
+
   it("handles missing optional fields", () => {
     const item: V1MediaItem = {
       id: "m2",

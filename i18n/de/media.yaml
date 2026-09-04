@@ -251,6 +251,8 @@ detail:
   artworkUpdated: Artwork aktualisiert
   artworkFailed: Artwork konnte nicht aktualisiert werden
   fileName: Dateiname
+  uploadPoster: Poster hochladen
+  uploadBackdrop: Hintergrund hochladen
   poster: Poster
   backdrop: Hintergrund
   title: Titel

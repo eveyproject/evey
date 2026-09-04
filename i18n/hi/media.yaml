@@ -251,6 +251,8 @@ detail:
   artworkUpdated: कलाकृति अपडेट हो गई
   artworkFailed: कलाकृति अपडेट करने में विफल
   fileName: फ़ाइल का नाम
+  uploadPoster: पोस्टर अपलोड करें
+  uploadBackdrop: बैकड्रॉप अपलोड करें
   poster: पोस्टर
   backdrop: पृष्ठभूमि
   title: शीर्षक

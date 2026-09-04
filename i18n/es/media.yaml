@@ -251,6 +251,8 @@ detail:
   artworkUpdated: Artwork actualizado
   artworkFailed: Error al actualizar el artwork
   fileName: Nombre del archivo
+  uploadPoster: Subir un póster
+  uploadBackdrop: Subir un fondo
   poster: Póster
   backdrop: Fondo
   title: Título

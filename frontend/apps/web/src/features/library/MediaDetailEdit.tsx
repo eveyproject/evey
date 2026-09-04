@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { V1MediaItem } from "@evey/api";
 import {
@@ -58,6 +58,13 @@ function ArtworkPicker({ mediaItemId }: { mediaItemId: string }) {
   const queryClient = useQueryClient();
   const [selecting, setSelecting] = useState<string | null>(null);
 
+  // Both the picker and the upload buttons need the same two invalidations:
+  // the artwork list, and the item itself (whose poster URL is embedded).
+  const refreshArtwork = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: [`/api/v1/metadata/${mediaItemId}/artwork`] });
+    queryClient.invalidateQueries({ queryKey: [`/api/v1/media/${mediaItemId}`] });
+  }, [queryClient, mediaItemId]);
+
   const allArtwork = data?.artwork ?? [];
   const posters = allArtwork.filter((a) => a.type === "ARTWORK_TYPE_PRIMARY");
   const backdrops = allArtwork.filter((a) => a.type === "ARTWORK_TYPE_BACKDROP");
@@ -66,8 +73,7 @@ function ArtworkPicker({ mediaItemId }: { mediaItemId: string }) {
     setSelecting(artworkId);
     try {
       await eveyFetch<void>({ url: `/api/v1/media/${mediaItemId}/artwork/${artworkId}/select`, method: "POST" });
-      queryClient.invalidateQueries({ queryKey: [`/api/v1/metadata/${mediaItemId}/artwork`] });
-      queryClient.invalidateQueries({ queryKey: [`/api/v1/media/${mediaItemId}`] });
+      refreshArtwork();
       toast.success(t("media.detail.artworkUpdated"));
     } catch {
       toast.error(t("media.detail.artworkFailed"));
@@ -76,7 +82,9 @@ function ArtworkPicker({ mediaItemId }: { mediaItemId: string }) {
     }
   }
 
-  if (posters.length <= 1 && backdrops.length <= 1) return null;
+  // Previously returned null when there was nothing to choose between. It now
+  // also hosts the upload buttons, and an item with no artwork at all is
+  // exactly the case where an admin most needs them.
 
   return (
     <div className="flex flex-col gap-3">
@@ -128,7 +136,71 @@ function ArtworkPicker({ mediaItemId }: { mediaItemId: string }) {
           </div>
         </div>
       )}
+      <div className="flex gap-2">
+        <UploadArtworkButton mediaItemId={mediaItemId} type="poster" label={t("media.detail.uploadPoster")} onDone={refreshArtwork} />
+        <UploadArtworkButton mediaItemId={mediaItemId} type="backdrop" label={t("media.detail.uploadBackdrop")} onDone={refreshArtwork} />
+      </div>
     </div>
+  );
+}
+
+// A file picker that posts one image and makes it the item's current poster or
+// backdrop. Rendered as a label wrapping a hidden input: a styled <button> that
+// programmatically clicks an input is the usual approach and the usual source of
+// keyboard/screen-reader bugs, whereas a label IS the input's accessible name.
+function UploadArtworkButton({
+  mediaItemId,
+  type,
+  label,
+  onDone,
+}: {
+  mediaItemId: string;
+  type: "poster" | "backdrop";
+  label: string;
+  onDone: () => void;
+}) {
+  const { t } = useTranslation();
+  const [busy, setBusy] = useState(false);
+
+  async function upload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    // Reset immediately so picking the SAME file again still fires onChange.
+    e.target.value = "";
+    if (!file) return;
+    setBusy(true);
+    try {
+      const body = new FormData();
+      body.append("artwork", file);
+      body.append("type", type);
+      await eveyFetch<{ id: string }>({
+        url: `/api/v1/admin/media/${mediaItemId}/artwork`,
+        method: "POST",
+        data: body,
+      });
+      toast.success(t("media.detail.artworkUpdated"));
+      onDone();
+    } catch {
+      toast.error(t("media.detail.artworkFailed"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <label
+      className="text-xs px-3 py-2 rounded-[var(--radius-md)] border border-[var(--border)] cursor-pointer hover:bg-[var(--surface-raised)] transition-colors-fast"
+      style={{ opacity: busy ? 0.5 : 1 }}
+    >
+      {busy ? t("common.loading") : label}
+      <input
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        className="sr-only"
+        disabled={busy}
+        onChange={upload}
+        data-testid={`upload-${type}`}
+      />
+    </label>
   );
 }
 

@@ -748,6 +748,11 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 			cfgSvc = appconfig.NewService(s.ServerCfgRepo)
 		}
 		registerArtworkAdminRoutes(mux, s.MetadataCmdSvc, s.TokenGen, s.ServerCtx, s.DataDir, cfgSvc)
+		// Admin-supplied poster/backdrop upload. Same guard as the rest of fiche
+		// editing, and needs the artwork repo only to drop its memoised list.
+		if s.ArtworkRepo != nil {
+			registerArtworkUploadRoute(mux, s.MetadataCmdSvc, s.TokenGen, s.LibQuerySvc, s.ArtworkRepo)
+		}
 	}
 	if s.MetadataCmdSvc != nil {
 		mux.HandleFunc("POST /api/v1/admin/translations/refresh-all", admin(func(w http.ResponseWriter, r *http.Request) {

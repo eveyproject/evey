@@ -251,6 +251,8 @@ detail:
   artworkUpdated: Artwork mis à jour
   artworkFailed: "Échec de la mise à jour de l'artwork"
   fileName: Nom du fichier
+  uploadPoster: Ajouter une affiche
+  uploadBackdrop: Ajouter un fond
   poster: Affiche
   backdrop: Fond
   title: Titre
