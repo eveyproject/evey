@@ -250,6 +250,7 @@ detail:
   unsupportedPlatform: "Nicht unterstützte Plattform: {{platform}}"
   artworkUpdated: Artwork aktualisiert
   artworkFailed: Artwork konnte nicht aktualisiert werden
+  fileName: Dateiname
   poster: Poster
   backdrop: Hintergrund
   title: Titel

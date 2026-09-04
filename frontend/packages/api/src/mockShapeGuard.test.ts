@@ -14,6 +14,7 @@ import * as apiErrorMessage from "./apiErrorMessage";
 import * as personDepartment from "./personDepartment";
 import * as pagination from "./pagination";
 import * as exportPaging from "./exportPaging";
+import * as fileNiceName from "./fileNiceName";
 import * as regionDefaults from "./regionDefaults";
 import * as libraryRules from "./libraryRules";
 import * as playerEventReporter from "./playerEventReporter";
@@ -64,6 +65,7 @@ const SHARED_MODULES = {
   personDepartment,
   pagination,
   exportPaging,
+  fileNiceName,
   regionDefaults,
   libraryRules,
   playerEventReporter,

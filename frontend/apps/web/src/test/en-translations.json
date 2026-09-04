@@ -2123,6 +2123,7 @@
   "media.detail.favorite": "Favorite",
   "media.detail.favorited": "Favorited",
   "media.detail.fileInfo": "File Info",
+  "media.detail.fileName": "File name",
   "media.detail.gaplessPlayback": "Gapless playback",
   "media.detail.genresLabel": "Genres (comma-separated)",
   "media.detail.idChangedWarning": "ID changed - saving will re-fetch metadata from the provider",

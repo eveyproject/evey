@@ -250,6 +250,7 @@ detail:
   unsupportedPlatform: "不支持的平台：{{platform}}"
   artworkUpdated: 封面已更新
   artworkFailed: 更新封面失败
+  fileName: 文件名
   poster: 海报
   backdrop: 背景
   title: 标题

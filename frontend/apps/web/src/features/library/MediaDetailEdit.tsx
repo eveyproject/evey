@@ -9,6 +9,7 @@ import {
   useMetadataServiceListMetadataOverrides,
   getMetadataServiceListMetadataOverridesQueryKey,
   eveyFetch,
+  niceNameFromPath,
 } from "@evey/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@evey/store";
@@ -142,6 +143,11 @@ export function MetadataEditPanel({
 }) {
   const { t } = useTranslation();
   const origImdbId = item.providerIds?.imdb ?? "";
+  // The readable title of the file on disk, e.g. "Rocket 2 - 1080P.mkv" -> "Rocket 2".
+  // Empty when the path yields nothing usable, which is why every use of it
+  // falls back rather than showing a blank.
+  const fileNiceName = niceNameFromPath(item.filePath);
+
   const origTmdbId = item.providerIds?.tmdb ?? "";
   const initialForm: EditForm = {
     title: item.title ?? "",
@@ -348,6 +354,21 @@ export function MetadataEditPanel({
 
   return (
     <form onSubmit={handleSave} className="flex flex-col gap-4">
+      {/* What is actually on disk, read-only. When a match is wrong every other
+          field here already holds the WRONG film's data - the filename is the
+          only evidence that has not been overwritten, so it belongs at the top
+          where it can be compared at a glance. It also seeds the TMDB identify
+          box below. */}
+      {fileNiceName && (
+        <Input
+          label={t("media.detail.fileName", "Nom du fichier")}
+          value={fileNiceName}
+          readOnly
+          disabled
+          data-testid="media-edit-filename"
+          title={item.filePath ?? ""}
+        />
+      )}
       {FIELD_MAP.map(renderField)}
       <div className="grid grid-cols-2 gap-3">
         <div className="flex flex-col gap-1">
@@ -400,7 +421,7 @@ export function MetadataEditPanel({
           open={identifyOpen}
           onClose={() => setIdentifyOpen(false)}
           mediaItemId={item.id}
-          initialQuery={(item.title ?? "").replace(/\s*\d{3,4}p?\s*$/i, "").trim()}
+          initialQuery={fileNiceName || (item.title ?? "").trim()}
           mediaType={mediaType}
           onApplied={() => onSave()}
         />

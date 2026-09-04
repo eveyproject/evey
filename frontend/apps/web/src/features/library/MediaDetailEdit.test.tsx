@@ -11,7 +11,11 @@ const mockRefresh = { mutateAsync: vi.fn().mockResolvedValue({}) };
 const mockListOverrides = vi.fn().mockReturnValue({ data: { overrides: [] } });
 const mockEveyFetch = vi.fn().mockResolvedValue({ mediaItemId: "m1", matched: true, newTitle: "Some Series" });
 
-vi.mock("@evey/api", () => ({
+// Partial mock: the data hooks are stubbed, but pure helpers keep their real
+// implementation - niceNameFromPath feeds a field whose exact text is the point,
+// so stubbing it would test the stub.
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
   useMetadataServiceSetMetadataOverride: () => mockSetOverride,
   useMetadataServiceRemoveMetadataOverride: () => mockRemoveOverride,
   useMetadataServiceRefreshMetadata: () => mockRefresh,
@@ -134,6 +138,28 @@ describe("MetadataEditPanel", () => {
     const item = { ...baseItem, providerIds: undefined };
     render(<MetadataEditPanel {...defaultProps} item={item} />, { wrapper: Wrapper });
     expect(screen.getByDisplayValue("Some Movie")).toBeInTheDocument();
+  });
+
+  // ── Filename on disk ────────────────────────────────────────────────────────
+
+  // When a match is wrong, every other field on this panel holds the WRONG
+  // film's data. The filename is the only evidence left untouched, so it is
+  // shown read-only at the top - and it is what the TMDB identify box should
+  // start from, rather than the stored (possibly wrong) title.
+  it("shows the cleaned filename, read-only", () => {
+    const item = { ...baseItem, filePath: "/media/films/Rocket 2 - 1080P.mkv" };
+    render(<MetadataEditPanel {...defaultProps} item={item} />, { wrapper: Wrapper });
+
+    const field = screen.getByTestId("media-edit-filename") as HTMLInputElement;
+    expect(field.value).toBe("Rocket 2");
+    expect(field).toBeDisabled();
+  });
+
+  it("omits the filename field when the path yields nothing usable", () => {
+    const item = { ...baseItem, filePath: "" };
+    render(<MetadataEditPanel {...defaultProps} item={item} />, { wrapper: Wrapper });
+
+    expect(screen.queryByTestId("media-edit-filename")).not.toBeInTheDocument();
   });
 
   it("handles missing optional fields", () => {

@@ -250,6 +250,7 @@ detail:
   unsupportedPlatform: "असमर्थित प्लेटफ़ॉर्म: {{platform}}"
   artworkUpdated: कलाकृति अपडेट हो गई
   artworkFailed: कलाकृति अपडेट करने में विफल
+  fileName: फ़ाइल का नाम
   poster: पोस्टर
   backdrop: पृष्ठभूमि
   title: शीर्षक
