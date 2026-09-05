@@ -95,7 +95,7 @@ func (r *MediaRequestRepository) Update(ctx context.Context, req *mediarequest.R
 	defer cancel()
 
 	answeredBy := sql.NullString{String: string(req.AnsweredBy), Valid: req.AnsweredBy != ""}
-	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`UPDATE media_requests SET media_type=$1, provider=$2, provider_id=$3, title=$4, year=$5, poster_url=$6,
 		 status=$7, admin_note=$8, answered_by=$9, updated_at=$10, answered_at=$11
 		 WHERE id=$12`,
@@ -106,6 +106,16 @@ func (r *MediaRequestRepository) Update(ctx context.Context, req *mediarequest.R
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		return err
+	}
+	// An UPDATE that matched nothing is not a save. The caller reads a nil
+	// here as "persisted" and goes on to publish RequestAnswered, so a row
+	// deleted between its GetByID and this write would tell the requester
+	// their request was approved while the decision was written nowhere.
+	// Same RowsAffected discipline as every other mutation in this package.
+	if n, _ := res.RowsAffected(); n == 0 {
+		span.RecordError(mediarequest.ErrNotFound)
+		span.SetStatus(codes.Error, mediarequest.ErrNotFound.Error())
+		return mediarequest.ErrNotFound
 	}
 	return nil
 }

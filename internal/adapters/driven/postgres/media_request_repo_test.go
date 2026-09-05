@@ -217,3 +217,28 @@ func TestMediaRequestRepo_Update_EveryColumnRoundTripsToItsOwnField(t *testing.T
 	assert.Equal(t, pid, got.AnsweredBy)
 	require.NotNil(t, got.AnsweredAt)
 }
+
+// Answering a request that is no longer there must SAY so.
+//
+// Update threw its result away, so an UPDATE that matched nothing returned
+// nil - and the service above it read that as "saved", then published
+// RequestAnswered. The requester got told their request was approved while
+// the decision was never written anywhere. The window is narrow (the service
+// reads the row immediately before), but the whole point of this repository's
+// RowsAffected discipline is that "narrow" is not "impossible": every other
+// mutation here already reports a no-op as ErrNotFound.
+func TestMediaRequestRepo_UpdateOnAVanishedRowIsNotASuccess(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	repo, userID, profileID := seedRequestOwner(t, db, "upd-gone")
+
+	req := newTestRequest("req-gone-1", "tt-gone-1", mediarequest.StatusPending, userID, profileID)
+	require.NoError(t, repo.Create(context.Background(), req))
+	require.NoError(t, repo.Delete(context.Background(), req.ID))
+
+	req.Status = mediarequest.StatusApproved
+	err := repo.Update(context.Background(), req)
+
+	require.ErrorIs(t, err, mediarequest.ErrNotFound,
+		"an update that touched no row must not be reported as saved")
+}
