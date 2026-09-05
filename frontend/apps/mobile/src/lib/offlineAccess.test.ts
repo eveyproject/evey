@@ -55,6 +55,33 @@ describe("canPlayOffline", () => {
     expect(canPlayOffline(e, otherAdult, NOW)).toEqual({ allowed: true });
   });
 
+  // A cold start with no network is now a supported way into the app, and the
+  // profile list is exactly what never arrives then: `isKids: undefined` there
+  // means "nobody could tell us", not "not a kids profile".
+  describe("when the active profile's restriction could not be resolved", () => {
+    const unknown: OfflineProfileInfo = { id: "kid-1", restrictionKnown: false };
+
+    it("refuses another profile's download rather than assume no parental cap", () => {
+      const e = entry({ downloadedByProfileId: "adult-1", downloadedByIsKids: false });
+      expect(canPlayOffline(e, unknown, NOW)).toEqual({ allowed: false, reason: "more-restricted-profile" });
+    });
+
+    it("still lets the viewer replay a download made by this very profile", () => {
+      const e = entry({ downloadedByProfileId: "kid-1" });
+      expect(canPlayOffline(e, unknown, NOW)).toEqual({ allowed: true });
+    });
+
+    it("leaves legacy entries with no recorded downloader alone", () => {
+      expect(canPlayOffline(entry(), unknown, NOW)).toEqual({ allowed: true });
+    });
+
+    it("does not tighten anything once the profile HAS been resolved", () => {
+      const e = entry({ downloadedByProfileId: "adult-1", downloadedByIsKids: false });
+      const resolvedAdult: OfflineProfileInfo = { id: "adult-2", isKids: false, restrictionKnown: true };
+      expect(canPlayOffline(e, resolvedAdult, NOW)).toEqual({ allowed: true });
+    });
+  });
+
   it("does not retroactively block a legacy entry with no recorded downloader profile", () => {
     const e = entry(); // predates downloadedByProfileId
     expect(canPlayOffline(e, kid10, NOW)).toEqual({ allowed: true });
