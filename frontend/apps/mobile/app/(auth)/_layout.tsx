@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Redirect, Stack } from "expo-router";
 import { useAuthStore, useServerListStore } from "@evey/store";
-import { refreshAccessTokenIfNeeded } from "../../src/lib/auth-refresh";
+import { ensureAccessToken } from "../../src/lib/auth-refresh";
+import { useOnlineStatus } from "../../src/hooks/useOnlineStatus";
 import { initI18n } from "../../src/i18n";
 import { resolveServerUrl } from "../../src/lib/server-config";
 import { useDeviceRegistration } from "../../src/hooks/useDeviceRegistration";
@@ -28,7 +29,12 @@ export default function AuthLayout() {
   const accessToken = useAuthStore((s) => s.accessToken);
   const profileId = useAuthStore((s) => s.profileId);
   const expired = !!accessToken && isTokenExpired(accessToken);
-  const [refreshFailed, setRefreshFailed] = useState(false);
+  // "pending" covers both the initial state and a refresh in flight - the tree
+  // stays unrendered only for as long as we genuinely don't know yet.
+  const [refreshState, setRefreshState] = useState<"pending" | "refused" | "unavailable">("pending");
+  // Retrying the refresh the moment the link comes back is what turns "offline
+  // mode" back into a live session without the user restarting the app.
+  const online = useOnlineStatus();
   // Registers this app as a Play On target. No-ops internally while
   // accessToken/serverUrl aren't ready, so it's safe to call unconditionally
   // here (must be, since hooks can't sit after the early returns below).
@@ -50,21 +56,34 @@ export default function AuthLayout() {
   // still sits in SecureStore (access TTL is 15 min). Swap it for a fresh JWT
   // instead of bouncing to /login - logging out here raced every re-render of
   // this layout (navigation, rotation, resume) against the fetchers' own
-  // refresh and disconnected users mid-session. refreshAccessTokenIfNeeded is
+  // refresh and disconnected users mid-session. ensureAccessToken is
   // single-flight, so this coalesces with bootstrap/resume/401 refreshes.
   useEffect(() => {
-    if (!expired) return;
+    if (!expired) { setRefreshState("pending"); return; }
     let cancelled = false;
-    void refreshAccessTokenIfNeeded().then((ok) => {
-      if (!cancelled && !ok) setRefreshFailed(true);
+    setRefreshState("pending");
+    void ensureAccessToken().then((state) => {
+      if (cancelled) return;
+      if (state === "refused") setRefreshState("refused");
+      else if (state === "unavailable") setRefreshState("unavailable");
+      // "valid"/"refreshed": a fresh token landed in the store and re-renders
+      // us with expired=false, so there is nothing to latch.
     });
     return () => { cancelled = true; };
-  }, [expired, accessToken]);
+  }, [expired, accessToken, online]);
 
   if (!accessToken) return <Redirect href="/login" />;
   if (expired) {
-    if (refreshFailed) return <Redirect href="/login" />;
-    return null; // refresh in flight; setTokens re-renders us with the new JWT
+    // Only a REFUSAL ends the session. An unanswered refresh means the network
+    // is gone, not the credential: bouncing to /login there locked a user out
+    // of their own downloads the moment the access token aged out offline (a
+    // plane, a tunnel, a flat data plan) - and /login cannot be completed
+    // offline either, so it was a dead end. Fall through into the app instead:
+    // every screen degrades to its own error state, the Downloads screen and
+    // local playback need no token at all, and the effect above retries the
+    // refresh as soon as connectivity returns.
+    if (refreshState === "refused") return <Redirect href="/login" />;
+    if (refreshState === "pending") return null; // refresh in flight
   }
   if (!profileId) return <Redirect href="/profile-select" />;
 

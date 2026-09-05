@@ -24,6 +24,15 @@ setZustandStorage({
   removeItem: (name) => SecureStore.deleteItemAsync(name),
 });
 
+// Ceiling on any single network step of the boot sequence. Offline is a
+// supported way to start this app (a downloaded title must play on a plane),
+// so no step of the splash may wait on an answer that is not coming.
+const BOOT_NETWORK_BUDGET_MS = 6000;
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export default function RootLayout() {
   const [ready, setReady] = useState(false);
 
@@ -50,9 +59,17 @@ export default function RootLayout() {
       // until the app was restarted (2026-07-29). With no server the embedded
       // English floor answers; the instance catalogue merges over it as soon
       // as a server is set.
-      await initI18n(serverUrl ?? "");
+      // Bounded: the catalogue is fetched over HTTP with no timeout of its
+      // own, and nothing renders until this resolves. A server that refuses
+      // the connection fails fast, but one that ACCEPTS and never answers
+      // (sleeping NAS on a reachable LAN, captive portal) holds the splash for
+      // the OS connect timeout. The embedded English floor is already in
+      // memory by then, and the (auth) layout retries initI18n on mount, so
+      // giving up here costs a few seconds of English at worst.
+      await Promise.race([initI18n(serverUrl ?? ""), delay(BOOT_NETWORK_BUDGET_MS)]);
       if (serverUrl) {
-        await applyServerLanguage(serverUrl);
+        // Same budget, same reason: its last resort is a /setup/status fetch.
+        await Promise.race([applyServerLanguage(serverUrl), delay(BOOT_NETWORK_BUDGET_MS)]);
         // Silently refresh a stale access token on cold start so the user
         // is not bounced to /login when the cached JWT has expired.
         await refreshAccessTokenIfNeeded();

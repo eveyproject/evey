@@ -13,10 +13,15 @@ export default function EntryRedirect() {
   const serverUrl = useServerUrlNullable();
   const [serverOk, setServerOk] = useState<boolean | undefined>(undefined);
 
+  // A saved session skips the probe entirely (see the redirect below for why),
+  // so don't spend a 5s round-trip - and a 5s spinner - on an answer nothing
+  // reads.
+  const hasSession = !!accessToken && !!profileId;
+
   useEffect(() => {
-    if (!serverUrl) return;
+    if (!serverUrl || hasSession) return;
     pingServer(serverUrl).then(setServerOk);
-  }, [serverUrl]);
+  }, [serverUrl, hasSession]);
 
   // Still loading URL from SecureStore
   if (serverUrl === undefined) {
@@ -29,6 +34,16 @@ export default function EntryRedirect() {
 
   // No saved URL → server-connect
   if (!serverUrl) return <Redirect href="/server-connect" />;
+
+  // An already-authenticated session goes straight in, reachable server or not.
+  // The probe is a diagnosis for the CONNECT flow; as a GATE on a returning
+  // user it was a dead end: offline (plane, tunnel, no data) it always fails,
+  // and /server-connect cannot be completed without a server, so the app was
+  // unusable exactly when its downloads were the point. Inside, every screen
+  // has its own error state, the Downloads screen and local playback need no
+  // server at all, and a genuinely moved server is still fixable from
+  // Settings → the server list.
+  if (hasSession) return <Redirect href="/(auth)/(tabs)" />;
 
   // URL saved, pinging server...
   if (serverOk === undefined) {

@@ -34,6 +34,14 @@ let inFlight: Promise<RefreshOutcome> | null = null;
 // out and burned their (still valid) refresh token.
 type RefreshOutcome = "ok" | "refused" | "unavailable";
 
+// A refresh that never answers must not hold the boot - or the (auth) layout,
+// which renders nothing while one is in flight - hostage. An unreachable but
+// ROUTABLE host (captive portal, NAS asleep on a reachable LAN, phone on a
+// data plan that resolves but drops) leaves fetch pending for the OS connect
+// timeout, tens of seconds of blank screen. Offline is a supported mode, so
+// give up early and answer "unavailable": the session is not dead, the link is.
+const REFRESH_TIMEOUT_MS = 8000;
+
 async function doRefresh(): Promise<RefreshOutcome> {
   const auth = useAuthStore.getState();
   const stored = await getRefreshToken();
@@ -45,11 +53,14 @@ async function doRefresh(): Promise<RefreshOutcome> {
   const base = await getServerUrl();
   if (!base) return "unavailable";
 
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REFRESH_TIMEOUT_MS);
   try {
     const res = await fetch(`${base}/api/v1/auth/refresh`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-Persistent-Session": "true" },
       body: JSON.stringify({ refreshToken: stored }),
+      signal: controller.signal,
     });
     // Only a REFUSAL ends the session; any other non-ok answer is the
     // infrastructure, not the credential, and must leave the session intact.
@@ -67,22 +78,52 @@ async function doRefresh(): Promise<RefreshOutcome> {
     auth.setTokens(data.accessToken);
     return "ok";
   } catch {
+    // Includes the abort above: a timed-out refresh is an absent answer, not a
+    // rejected credential.
     return "unavailable";
+  } finally {
+    clearTimeout(timer);
   }
+}
+
+// Coalesces every caller onto one round-trip (see `inFlight` above) and clears
+// the slot exactly once, in the initiating call.
+async function runRefresh(): Promise<RefreshOutcome> {
+  if (inFlight) return inFlight;
+  inFlight = doRefresh();
+  try {
+    return await inFlight;
+  } finally {
+    inFlight = null;
+  }
+}
+
+/**
+ * What the app may conclude about the session right now.
+ *
+ * The boolean below collapses "refused" and "unavailable" into one `false`,
+ * which is exactly the confusion doRefresh's outcome type exists to prevent:
+ * a caller that ROUTES on the answer (the (auth) layout redirecting to /login)
+ * must be able to tell a dead session from a dead link. Offline with a valid
+ * refresh token still sitting in SecureStore is a supported mode - downloaded
+ * titles play there - and must never end at the login screen.
+ */
+export type AccessTokenState = "valid" | "refreshed" | "refused" | "unavailable";
+
+export async function ensureAccessToken(): Promise<AccessTokenState> {
+  if (!isAccessExpired(useAuthStore.getState().accessToken)) return "valid";
+  const outcome = await runRefresh();
+  if (outcome === "ok") return "refreshed";
+  return outcome === "refused" ? "refused" : "unavailable";
 }
 
 // Returns true if a usable access token is present after the call. Non-throwing.
 // Safe to invoke from any number of call sites - concurrent invocations
-// share the same in-flight refresh.
+// share the same in-flight refresh. Callers that must distinguish "the server
+// said no" from "nobody answered" use ensureAccessToken instead.
 export async function refreshAccessTokenIfNeeded(): Promise<boolean> {
-  if (!isAccessExpired(useAuthStore.getState().accessToken)) return true;
-  if (inFlight) return (await inFlight) === "ok";
-  inFlight = doRefresh();
-  try {
-    return (await inFlight) === "ok";
-  } finally {
-    inFlight = null;
-  }
+  const state = await ensureAccessToken();
+  return state === "valid" || state === "refreshed";
 }
 
 // Force a refresh regardless of whether the cached token *looks* valid.
@@ -93,14 +134,9 @@ export async function refreshAccessTokenIfNeeded(): Promise<boolean> {
 // session - the fetcher latches and fires unauthorized), a THROW means
 // transient unavailability (the fetcher stays free to retry later).
 export async function forceRefresh(): Promise<{ accessToken: string } | null> {
-  if (!inFlight) inFlight = doRefresh();
-  try {
-    const outcome = await inFlight;
-    if (outcome === "refused") return null;
-    if (outcome !== "ok") throw new Error("refresh unavailable: no answer from the server");
-    const tok = useAuthStore.getState().accessToken;
-    return tok ? { accessToken: tok } : null;
-  } finally {
-    inFlight = null;
-  }
+  const outcome = await runRefresh();
+  if (outcome === "refused") return null;
+  if (outcome !== "ok") throw new Error("refresh unavailable: no answer from the server");
+  const tok = useAuthStore.getState().accessToken;
+  return tok ? { accessToken: tok } : null;
 }
