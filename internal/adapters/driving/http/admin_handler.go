@@ -57,7 +57,7 @@ func (h *adminHandler) audit(r *http.Request, action, resourceType string, resou
 
 func registerAdminRoutes(mux *http.ServeMux, metaCmd *appmetadata.CommandService, metaQuery *appmetadata.QueryService, tokenGen domainuser.TokenGenerator, heavyRL, writeRL *ratelimit.Limiter, serverCtx context.Context, actCmdSvc *appactivity.CommandService) {
 	admin := httpAdminMiddleware(tokenGen)
-	//nolint:exhaustruct // adminHandler is shared by two route groups; this one serves the metadata routes and deliberately omits logDir (set by registerLogsRoute).
+	//nolint:exhaustruct_v5 // adminHandler is shared by two route groups; this one serves the metadata routes and deliberately omits logDir (set by registerLogsRoute).
 	h := &adminHandler{tokenGen: tokenGen, metaCmd: metaCmd, metaQuery: metaQuery, heavyRL: heavyRL, serverCtx: serverCtx, activityCmdSvc: actCmdSvc}
 	// Explicit method+path routes (Go 1.22+ mux): without them, the default
 	// catch-all falls through to the gRPC gateway and every call 404s. A
@@ -75,7 +75,7 @@ func registerAdminRoutes(mux *http.ServeMux, metaCmd *appmetadata.CommandService
 
 func registerLogsRoute(mux *http.ServeMux, logDir string, tokenGen domainuser.TokenGenerator) {
 	admin := httpAdminMiddleware(tokenGen)
-	//nolint:exhaustruct // adminHandler is shared by two route groups; this one serves the logs routes and deliberately omits the metadata services (set by registerAdminRoutes).
+	//nolint:exhaustruct_v5 // adminHandler is shared by two route groups; this one serves the logs routes and deliberately omits the metadata services (set by registerAdminRoutes).
 	h := &adminHandler{tokenGen: tokenGen, logDir: logDir}
 	mux.HandleFunc("GET /api/v1/admin/logs", admin(h.handleGetLogs))
 	mux.HandleFunc("GET /api/v1/admin/logs/search", admin(h.handleSearchLogs))

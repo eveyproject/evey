@@ -65,7 +65,7 @@ func backgroundTaskViews() []backgroundTaskView {
 // registry does not know and 409 for a worker that does not honour them.
 func registerBackgroundTasksRoute(mux *http.ServeMux, tokenGen TokenVerifier, actCmdSvc *appactivity.CommandService) {
 	admin := httpAdminMiddleware(tokenGen)
-	//nolint:exhaustruct // only the audit dependency is needed here
+	//nolint:exhaustruct_v5 // only the audit dependency is needed here
 	h := &adminHandler{activityCmdSvc: actCmdSvc}
 	mux.HandleFunc("GET /api/v1/admin/background-tasks", admin(func(w http.ResponseWriter, r *http.Request) {
 		_, span := tracing.StartSpan(r.Context(), "http.admin.BackgroundTasks")

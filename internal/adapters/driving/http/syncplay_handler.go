@@ -54,6 +54,7 @@ func withSyncPlayParental(pc ParentalChecker) syncPlayOption {
 }
 
 func registerSyncPlayRoutes(mux *http.ServeMux, hub *appsyncplay.Hub, tokenGen domainuser.TokenGenerator, mediaGetter mediaLibraryGetter, libChecker LibraryAccessChecker, guestTokens guestTokenValidator, opts ...syncPlayOption) {
+	//nolint:exhaustruct_v5 // parental is deliberately absent here: it arrives through withSyncPlayParental, which server.go passes on the production call site.
 	h := &syncplayHandler{
 		hub:         hub,
 		tokenGen:    tokenGen,

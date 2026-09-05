@@ -32,9 +32,9 @@ linters:
     # field is a service/checker set by the constructor). A keyed literal that
     # forgets a field compiles fine but leaves a nil dependency that nil-panics or
     # fails-open at request time (favorites/scheduler slipped this way). exhaustruct
-    # is scoped (settings.exhaustruct.include) to ONLY these handler types, so a
+    # is scoped (settings.exhaustruct_v5.include) to ONLY these handler types, so a
     # forgotten field is a build-time lint error instead of a runtime surprise.
-    - exhaustruct
+    - exhaustruct_v5
 
   settings:
     # golangci-lint 2.13 shipped two NEW modernize analyzers that fire across
@@ -70,10 +70,22 @@ linters:
         - sence # présence
         - portait
         - documentaire # le genre TMDB en français, lu comme une faute de "documentaries"
-    exhaustruct:
-      # Scope to the HTTP handler dependency structs ONLY - enabling exhaustruct
-      # globally would flag every legitimate partial literal in the codebase.
-      include:
+    # exhaustruct_v5, not exhaustruct: the original was DEPRECATED in
+    # golangci-lint 2.13 ("new major version") and will go away. Same checker,
+    # same scoping key, renamed.
+    exhaustruct_v5:
+      # Scope to the HTTP handler dependency structs ONLY - enabling it
+      # globally would flag every legitimate partial literal in the codebase
+      # (measured: 1338 hits unscoped, against 1 when scoped).
+      #
+      # v5 did not just rename the option, it FLIPPED THE DEFAULT: v4's
+      # `include` meant "check only these", while v5 checks every struct
+      # literal in the codebase and `enforce-patterns` only adds to that.
+      # Renaming alone took this from 1 finding to 1338. `explicit-mode` is
+      # what restores the v4 behaviour: nothing is checked unless a pattern
+      # (or an //exhaustruct:enforce directive) names it.
+      explicit-mode: true
+      enforce-patterns:
         - 'github.com/evey-project/evey/internal/adapters/driving/http\..*Handler$'
     forbidigo:
       forbid:
@@ -153,7 +165,7 @@ linters:
           # Tests construct handlers with partial/positional fields on purpose
           # (exercising one code path); the sub-wiring guard is for production
           # constructors only.
-          - exhaustruct
+          - exhaustruct_v5
       - path: gen/
         linters:
           - errcheck
