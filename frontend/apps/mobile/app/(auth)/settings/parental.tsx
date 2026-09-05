@@ -3,16 +3,14 @@ import { View, Text, ScrollView, Pressable, TextInput, Alert, ActivityIndicator,
 import { Stack } from "expo-router";
 import { useTranslation } from "react-i18next";
 import {
-  useUserServiceGetCurrentUser,
-  useUserServiceListProfiles,
   useParentalServiceGetParentalSettings,
   parentalServiceUpdateParentalSettings,
   getParentalServiceGetParentalSettingsQueryKey,
   apiErrorMessage,
-  type V1Profile,
 } from "@evey/api";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTheme } from "../../../src/providers/ThemeProvider";
+import { useActiveProfile } from "../../../src/hooks/useActiveProfile";
 
 const AGE_OPTIONS = ["", "0", "6", "7", "10", "12", "13", "14", "15", "16", "17", "18"];
 
@@ -21,14 +19,13 @@ export default function ParentalSettingsScreen() {
   const { t } = useTranslation();
   const qc = useQueryClient();
 
-  const { data: user } = useUserServiceGetCurrentUser();
-  const { data: profilesResp } = useUserServiceListProfiles(user?.id ?? "", {
-    query: { enabled: !!user?.id },
-  });
-
-  const profiles = profilesResp?.profiles;
-  const defaultProfile: V1Profile | undefined = profiles?.find((p) => p.isDefault) ?? profiles?.[0];
-  const profileId = defaultProfile?.id ?? "";
+  // useParentalGate enforces the PIN and the age cap of the ACTIVE profile
+  // (useParentalGate.ts reads useAuthStore's profileId). Reading and writing
+  // the DEFAULT profile's settings here meant a household member on their own
+  // profile was shown, and edited, restrictions that were never the ones
+  // applied to them.
+  const { profile: editedProfile } = useActiveProfile();
+  const profileId = editedProfile?.id ?? "";
 
   const { data: parental } = useParentalServiceGetParentalSettings(profileId, { query: { enabled: !!profileId } } as never);
 

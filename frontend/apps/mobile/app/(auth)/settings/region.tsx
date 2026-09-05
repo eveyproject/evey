@@ -5,21 +5,24 @@ import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useUserServiceGetCurrentUser,
-  useUserServiceListProfiles,
   useUserServiceUpdateProfile,
   getUserServiceListProfilesQueryKey,
 } from "@evey/api";
 import { toast } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { regionOptions } from "../../../src/lib/regionOptions";
+import { useActiveProfile } from "../../../src/hooks/useActiveProfile";
 
 export default function RegionScreen() {
   const theme = useTheme();
   const { t, i18n } = useTranslation();
   const qc = useQueryClient();
   const { data: user } = useUserServiceGetCurrentUser();
-  const { data: profilesResp } = useUserServiceListProfiles(user?.id ?? "", { query: { enabled: !!user?.id } } as never);
-  const defaultProfile = profilesResp?.profiles?.find((p) => p.isDefault) ?? profilesResp?.profiles?.[0];
+  // The profile in front of the user, not the household's default one: the
+  // region set here is what the parental age check reads on the ACTIVE profile
+  // (offlineAccess.ts, useParentalGate), so writing it onto the default one
+  // left the setting visibly saved and functionally dead.
+  const { profile: editedProfile } = useActiveProfile();
   const updateProfile = useUserServiceUpdateProfile({
     mutation: {
       onError: () => toast.error(t("common.region.updateFailed", "Failed to update region")),
@@ -34,12 +37,12 @@ export default function RegionScreen() {
     return options.filter((o) => o.label.toLowerCase().includes(q) || o.code.toLowerCase().includes(q));
   }, [options, query]);
 
-  const current = defaultProfile?.region ?? "";
+  const current = editedProfile?.region ?? "";
 
   async function pick(code: string) {
-    if (!defaultProfile?.id) return;
+    if (!editedProfile?.id) return;
     try {
-      await updateProfile.mutateAsync({ id: defaultProfile.id, data: { region: code } });
+      await updateProfile.mutateAsync({ id: editedProfile.id, data: { region: code } });
       if (user?.id) void qc.invalidateQueries({ queryKey: getUserServiceListProfilesQueryKey(user.id) });
     } catch {
       // mutation onError already toasts

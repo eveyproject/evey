@@ -5,13 +5,12 @@ import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useUserServiceGetCurrentUser,
-  useUserServiceListProfiles,
   getUserServiceListProfilesQueryKey,
   eveyFetch,
-  type V1Profile,
 } from "@evey/api";
 import { useMutation } from "@tanstack/react-query";
 import { useTheme } from "../../../src/providers/ThemeProvider";
+import { useActiveProfile } from "../../../src/hooks/useActiveProfile";
 
 // Values are ISO 639-1 (2-letter) to match the audio_languages/subtitle_languages
 // convention written by web (frontend/apps/web/src/features/user/LanguageSettings.tsx)
@@ -101,12 +100,11 @@ export default function PlaybackSettingsScreen() {
   const qc = useQueryClient();
 
   const { data: user } = useUserServiceGetCurrentUser();
-  const { data: profilesResp } = useUserServiceListProfiles(user?.id ?? "", {
-    query: { enabled: !!user?.id },
-  });
-
-  const profiles = profilesResp?.profiles;
-  const defaultProfile: V1Profile | undefined = profiles?.find((p) => p.isDefault) ?? profiles?.[0];
+  // The profile in front of the user, not the household's default one: the
+  // player reads audio_languages / subtitle_languages off the ACTIVE profile,
+  // so preferences written onto the default one looked saved and changed
+  // nothing about playback.
+  const { profile: editedProfile } = useActiveProfile();
 
   const [bitrate, setBitrate] = useState("0");
   const [cellularBitrate, setCellularBitrate] = useState("0");
@@ -121,7 +119,7 @@ export default function PlaybackSettingsScreen() {
   const [allowTranscoding, setAllowTranscoding] = useState(true);
 
   useEffect(() => {
-    const prefs: PrefMap = defaultProfile?.preferences ?? {};
+    const prefs: PrefMap = editedProfile?.preferences ?? {};
     if (prefs.max_bitrate_kbps) setBitrate(prefs.max_bitrate_kbps);
     if (prefs.max_bitrate_cellular_kbps) setCellularBitrate(prefs.max_bitrate_cellular_kbps);
     // audio_languages/subtitle_languages is the shared web/tv convention (CSV
@@ -138,17 +136,17 @@ export default function PlaybackSettingsScreen() {
     if (prefs.allow_direct_play !== undefined) setAllowDirectPlay(prefs.allow_direct_play !== "false");
     if (prefs.allow_direct_stream !== undefined) setAllowDirectStream(prefs.allow_direct_stream !== "false");
     if (prefs.allow_transcoding !== undefined) setAllowTranscoding(prefs.allow_transcoding !== "false");
-  }, [defaultProfile]);
+  }, [editedProfile]);
 
   const updatePreference = useMutation({
     mutationFn: (patch: PrefMap) =>
       eveyFetch({
-        url: `/api/v1/profiles/${defaultProfile?.id}`,
+        url: `/api/v1/profiles/${editedProfile?.id}`,
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         data: {
           preferences: {
-            ...defaultProfile?.preferences,
+            ...editedProfile?.preferences,
             ...patch,
           },
         },
@@ -165,10 +163,10 @@ export default function PlaybackSettingsScreen() {
   // check mark on a value the profile doesn't actually have.
   const savePref = useCallback(
     (patch: PrefMap) => {
-      if (!defaultProfile) return Promise.reject(new Error("no default profile"));
+      if (!editedProfile) return Promise.reject(new Error("no default profile"));
       return updatePreference.mutateAsync(patch);
     },
-    [defaultProfile, updatePreference],
+    [editedProfile, updatePreference],
   );
 
   async function handleBitrate(v: string) {
@@ -285,7 +283,7 @@ export default function PlaybackSettingsScreen() {
             key={opt.value}
             style={s.row}
             onPress={() => handleBitrate(opt.value)}
-            disabled={!defaultProfile || updatePreference.isPending}
+            disabled={!editedProfile || updatePreference.isPending}
             accessibilityRole="radio"
           >
             <Text style={s.label}>{opt.label}</Text>
@@ -312,7 +310,7 @@ export default function PlaybackSettingsScreen() {
             key={opt.value}
             style={s.row}
             onPress={() => handleCellularBitrate(opt.value)}
-            disabled={!defaultProfile || updatePreference.isPending}
+            disabled={!editedProfile || updatePreference.isPending}
             accessibilityRole="radio"
           >
             <Text style={s.label}>{opt.label}</Text>
@@ -331,7 +329,7 @@ export default function PlaybackSettingsScreen() {
             key={opt.value}
             style={s.row}
             onPress={() => handleVideoCodec(opt.value)}
-            disabled={!defaultProfile || updatePreference.isPending}
+            disabled={!editedProfile || updatePreference.isPending}
             accessibilityRole="radio"
           >
             <Text style={s.label}>{labelOf(opt)}</Text>
@@ -350,7 +348,7 @@ export default function PlaybackSettingsScreen() {
             key={opt.value}
             style={s.row}
             onPress={() => handleAudioCodec(opt.value)}
-            disabled={!defaultProfile || updatePreference.isPending}
+            disabled={!editedProfile || updatePreference.isPending}
             accessibilityRole="radio"
           >
             <Text style={s.label}>{labelOf(opt)}</Text>
@@ -369,7 +367,7 @@ export default function PlaybackSettingsScreen() {
             key={opt.value}
             style={s.row}
             onPress={() => handleAudioChannels(opt.value)}
-            disabled={!defaultProfile || updatePreference.isPending}
+            disabled={!editedProfile || updatePreference.isPending}
             accessibilityRole="radio"
           >
             <Text style={s.label}>{labelOf(opt)}</Text>
@@ -386,7 +384,7 @@ export default function PlaybackSettingsScreen() {
             key={opt.value}
             style={s.row}
             onPress={() => handleSubtitleLang(opt.value)}
-            disabled={!defaultProfile}
+            disabled={!editedProfile}
             accessibilityRole="radio"
           >
             <Text style={s.label}>{opt.label}</Text>
@@ -403,7 +401,7 @@ export default function PlaybackSettingsScreen() {
             key={opt.value}
             style={s.row}
             onPress={() => handleAudioLang(opt.value)}
-            disabled={!defaultProfile}
+            disabled={!editedProfile}
             accessibilityRole="radio"
           >
             <Text style={s.label}>{opt.label}</Text>
@@ -430,7 +428,7 @@ export default function PlaybackSettingsScreen() {
             key={opt.value}
             style={s.row}
             onPress={() => handleSubtitleBurn(opt.value)}
-            disabled={!defaultProfile || updatePreference.isPending}
+            disabled={!editedProfile || updatePreference.isPending}
             accessibilityRole="radio"
           >
             <Text style={s.label}>{labelOf(opt)}</Text>
@@ -457,7 +455,7 @@ export default function PlaybackSettingsScreen() {
           <Switch
             value={allowDirectPlay}
             onValueChange={handleAllowDirectPlay}
-            disabled={!defaultProfile}
+            disabled={!editedProfile}
             trackColor={{ true: theme.colors.accent, false: theme.colors.surfaceRaised }}
           />
         </View>
@@ -476,7 +474,7 @@ export default function PlaybackSettingsScreen() {
           <Switch
             value={allowDirectStream}
             onValueChange={handleAllowDirectStream}
-            disabled={!defaultProfile}
+            disabled={!editedProfile}
             trackColor={{ true: theme.colors.accent, false: theme.colors.surfaceRaised }}
           />
         </View>
@@ -495,7 +493,7 @@ export default function PlaybackSettingsScreen() {
           <Switch
             value={allowTranscoding}
             onValueChange={handleAllowTranscoding}
-            disabled={!defaultProfile}
+            disabled={!editedProfile}
             trackColor={{ true: theme.colors.accent, false: theme.colors.surfaceRaised }}
           />
         </View>
