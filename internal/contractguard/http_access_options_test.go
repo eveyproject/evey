@@ -8,21 +8,25 @@ import (
 	"testing"
 )
 
-// The parental gate reaches most HTTP routes as a POSITIONAL argument, where
-// dropping it is a compile error and nothing needs guarding. Two surfaces are
-// different: they take it as a FUNCTIONAL OPTION, and an option nobody passes
+// The access controls of the HTTP layer reach most routes as POSITIONAL
+// arguments, where dropping one is a compile error and nothing needs guarding.
+// Three do not: they arrive as FUNCTIONAL OPTIONS, and an option nobody passes
 // is simply an option nobody passes.
 //
 //   - withParental(...) on the media serve handlers (byte range, decision,
 //     stream token);
+//   - withLibraryLister(...), which confines a streamed path to the library
+//     roots;
 //   - withSyncPlayParental(...) on the watch-together WebSocket.
 //
-// Both read the checker behind a nil test - `checkParental` no-ops on a nil
-// checker, by design, because a handler built in a unit test has no user
+// All three are read behind a nil test - `checkParental` no-ops on a nil
+// checker and `h.libLister != nil` gates the confinement - by design, because
+// a handler built in a unit test has neither a user service nor a library
 // service to consult. That design is what makes the omission silent: delete
 // the option from server.go and the build passes, every handler test passes
-// (each one passes its own checker explicitly, which is exactly why they
-// cannot see this), and a kids profile can stream any title in the library.
+// (each one passes its own dependency explicitly, which is exactly why they
+// cannot see this), and a kids profile can stream any title in the library
+// while a poisoned path can be read off the disk.
 //
 // The syncplay one also guards `serveCastNext` and the master concat - the
 // Chromecast surfaces - so it is the path most likely to be exercised by
@@ -30,7 +34,7 @@ import (
 //
 // Static on purpose, like the boot wirings next door: this is a property of
 // the source, and it must fail on a laptop in under a second.
-var httpParentalOptions = []struct {
+var httpAccessOptions = []struct {
 	// option is the functional-option constructor that carries the checker.
 	option string
 	// declaredIn is where it lives; a rename there must break this guard
@@ -48,6 +52,13 @@ var httpParentalOptions = []struct {
 			"may see the title, so a kids profile plays anything by asking for its bytes directly",
 	},
 	{
+		option:     "withLibraryLister",
+		declaredIn: filepath.Join("internal", "adapters", "driving", "http", "media_handler.go"),
+		why: "`h.libLister != nil` is the whole path-confinement check, so a poisoned DB path " +
+			"turns the stream endpoint into an arbitrary-file read - the same defence " +
+			"serveDownload applies, and the same silent omission",
+	},
+	{
 		option:     "withSyncPlayParental",
 		declaredIn: filepath.Join("internal", "adapters", "driving", "http", "syncplay_handler.go"),
 		passedTo:   "registerSyncPlayRoutes",
@@ -56,7 +67,7 @@ var httpParentalOptions = []struct {
 	},
 }
 
-func TestParentalOptionsReachTheRoutesThatNeedThem(t *testing.T) {
+func TestAccessOptionsReachTheRoutesThatNeedThem(t *testing.T) {
 	serverGo := filepath.Join(repoRoot, "internal", "adapters", "driving", "http", "server.go")
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, serverGo, nil, 0)
@@ -95,7 +106,7 @@ func TestParentalOptionsReachTheRoutesThatNeedThem(t *testing.T) {
 		return true
 	})
 
-	for _, w := range httpParentalOptions {
+	for _, w := range httpAccessOptions {
 		t.Run(w.option, func(t *testing.T) {
 			assertFuncDeclared(t, w.declaredIn, w.option)
 

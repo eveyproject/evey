@@ -89,15 +89,18 @@ func withParental(pc ParentalChecker) mediaServeOption {
 	return func(h *mediaServe) { h.parental = pc }
 }
 
-// withLibraryLister wires library-root path confinement onto the stream
-// handler (the same defense-in-depth serveDownload applies): a poisoned DB
-// path must not turn the stream endpoint into an arbitrary-file read.
 // withPlaybackActivity wires the direct-play read into the "someone is
 // watching" signal every background worker yields on.
 func withPlaybackActivity(a *apptranscoding.PlaybackActivity) mediaServeOption {
 	return func(h *mediaServe) { h.activity = a }
 }
 
+// withLibraryLister wires library-root path confinement onto the stream
+// handler (the same defense-in-depth serveDownload applies): a poisoned DB
+// path must not turn the stream endpoint into an arbitrary-file read.
+//
+// This comment used to sit on top of withPlaybackActivity, one function up,
+// leaving the security note attached to the wrong thing and this one bare.
 func withLibraryLister(ll LibraryLister) mediaServeOption {
 	return func(h *mediaServe) { h.libLister = ll }
 }
