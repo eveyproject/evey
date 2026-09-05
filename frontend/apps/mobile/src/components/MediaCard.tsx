@@ -27,6 +27,21 @@ interface MediaCardProps {
 }
 
 const POSTER_RATIO = 1.5;
+
+/**
+ * Height of ONE line of the card's caption (title, and year under it).
+ *
+ * Set explicitly, and exported, because a grid that hands FlatList a row height
+ * through getItemLayout needs that height to be a fact rather than a guess.
+ * Left to the platform's default leading for a 13px font, the two lines came out
+ * a couple of pixels taller than the cell reserved for them and the year was
+ * sliced in half (emulator, 2026-09-05).
+ */
+export const CARD_LINE_HEIGHT = 17;
+/** Gap between the poster and the first caption line. */
+export const CARD_TEXT_GAP = 4;
+/** Exact height of the caption block: title + year. */
+export const CARD_CAPTION_HEIGHT = CARD_TEXT_GAP + CARD_LINE_HEIGHT * 2;
 const DEFAULT_WIDTH = Dimensions.get("window").width * 0.35;
 
 export const MediaCard = React.memo(function MediaCard({ item, onPress, width, watchPercent, watched, posterBlurhash: posterBlurhashProp }: MediaCardProps) {
@@ -94,12 +109,12 @@ export const MediaCard = React.memo(function MediaCard({ item, onPress, width, w
       </View>
       <Text
         numberOfLines={1}
-        style={{ color: theme.colors.text, fontSize: FONT_SIZE.xs, marginTop: 4 }}
+        style={{ color: theme.colors.text, fontSize: FONT_SIZE.xs, lineHeight: CARD_LINE_HEIGHT, marginTop: CARD_TEXT_GAP }}
       >
         {displayTitle(item, t)}
       </Text>
       {item.year != null && (
-        <Text style={{ color: theme.colors.textMuted, fontSize: FONT_SIZE.xs }}>{item.year}</Text>
+        <Text style={{ color: theme.colors.textMuted, fontSize: FONT_SIZE.xs, lineHeight: CARD_LINE_HEIGHT }}>{item.year}</Text>
       )}
     </Pressable>
   );

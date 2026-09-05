@@ -22,11 +22,19 @@ import { normalizeLangCode } from "../../lib/langCodes";
 
 // --- Resolution / codec facet labels (mirrors web's getResolutionLabel/normalizeCodec) ---
 
-export const RESOLUTION_OPTIONS = ["4K", "1080p", "720p", "SD"] as const;
+// The ONE resolution vocabulary, used by the filter chips AND by the badge on
+// each poster. They used to be two different functions: the card labelled a
+// 1440p file "1440p" while the filter had no such band and quietly folded it
+// into "1080p". A viewer could therefore read "1440p" on a poster in front of
+// them and find no way to filter for it (emulator, 2026-09-05).
+//
+// Ordered from highest to lowest, which is the order the chips are offered in.
+export const RESOLUTION_OPTIONS = ["4K", "1440p", "1080p", "720p", "SD"] as const;
 export type ResolutionBand = (typeof RESOLUTION_OPTIONS)[number];
 
 export function getResolutionLabel(height: number): ResolutionBand {
   if (height >= 2160) return "4K";
+  if (height >= 1440) return "1440p";
   if (height >= 1080) return "1080p";
   if (height >= 720) return "720p";
   return "SD";

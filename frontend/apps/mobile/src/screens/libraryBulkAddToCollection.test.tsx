@@ -90,7 +90,14 @@ vi.mock("../hooks/useServerUrl", () => ({ useServerUrl: () => "http://test-serve
 vi.mock("../hooks/useDebounce", () => ({ useDebounce: (v: unknown) => v }));
 vi.mock("../hooks/useFavorite", () => ({ useBulkFavorite: () => ({ mutateAsync: vi.fn(), isPending: false }) }));
 vi.mock("../components/Skeleton", () => ({ Skeleton: () => null }));
-vi.mock("../components/MediaCard", () => ({ MediaCard: () => null }));
+// importOriginal, not a bare stub: the library screen also reads MediaCard's
+// layout constants (CARD_CAPTION_HEIGHT) to build the row height it hands to
+// getItemLayout. A wholesale mock hides them and the screen fails to import -
+// the same trap mockShapeGuard pins for @evey/api.
+vi.mock("../components/MediaCard", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../components/MediaCard")>()),
+  MediaCard: () => null,
+}));
 vi.mock("../components/library/LibraryFiltersPanel", () => ({ LibraryFiltersPanel: () => null }));
 vi.mock("../features/plugins/PluginSlot", () => ({ PluginSlot: () => null }));
 

@@ -12,17 +12,37 @@ import { GenreDot } from "../GenreDot";
 import { useTheme } from "../../providers/ThemeProvider";
 import type { FilterFacets } from "./libraryFilterUtils";
 
-// Localized display name for a normalized ISO 639-1 audio/subtitle filter
-// code (e.g. "fr" -> "French"), so the chips read as language names rather
-// than raw container codes. Falls back to the code itself when
-// Intl.DisplayNames is unavailable or doesn't know the code - mirrors web's
-// langLabel (LibraryFilters.tsx) and mobile's own regionOptions.ts pattern.
+// Display name for a normalized ISO 639-1 audio/subtitle filter code, so the
+// chips read as language names rather than raw container codes.
+//
+// ⚠️ Intl.DisplayNames alone is NOT enough here. React Native runs on Hermes,
+// which ships without the Intl data unless the app is built against it, so the
+// constructor throws and every chip fell back to its own code: the panel showed
+// "en fr ru zh" where web showed "English, French..." (emulator, 2026-09-05).
+// Web keeps working through Intl because a browser always has that data.
+//
+// So: the runtime first when it can answer, and a table of the codes a media
+// library actually carries behind it. Anything neither knows still falls back to
+// the code, which is a poor label but never a blank chip.
+const LANG_NAMES: Record<string, string> = {
+  ar: "العربية", cs: "Čeština", da: "Dansk", de: "Deutsch", el: "Ελληνικά",
+  en: "English", es: "Español", fi: "Suomi", fr: "Français", he: "עברית",
+  hi: "हिन्दी", hu: "Magyar", id: "Bahasa Indonesia", it: "Italiano",
+  ja: "日本語", ko: "한국어", nl: "Nederlands", no: "Norsk", pl: "Polski",
+  pt: "Português", ro: "Română", ru: "Русский", sv: "Svenska", th: "ไทย",
+  tr: "Türkçe", uk: "Українська", vi: "Tiếng Việt", zh: "中文",
+};
+
 function langChipLabel(code: string, locale: string): string {
   try {
-    return new Intl.DisplayNames([locale], { type: "language" }).of(code) ?? code;
+    const viaIntl = new Intl.DisplayNames([locale], { type: "language" }).of(code);
+    // Intl returns the INPUT unchanged for a code it does not know, so an
+    // answer equal to the code is not an answer.
+    if (viaIntl && viaIntl !== code) return viaIntl;
   } catch {
-    return code;
+    /* Hermes without Intl data - the table below is the answer */
   }
+  return LANG_NAMES[code.toLowerCase()] ?? code;
 }
 
 const SORT_OPTIONS: Array<{ labelKey: string; value: LibraryServiceListMediaItemsSortField }> = [

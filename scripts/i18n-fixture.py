@@ -22,6 +22,12 @@ import yaml
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, "i18n", "en")
 DST = os.path.join(ROOT, "frontend", "apps", "web", "src", "test", "en-translations.json")
+# The mobile app ships an embedded English catalogue as its floor: until the
+# server's answer lands, every t() falls back to it. Hand-maintained, that floor
+# held 74 keys out of 2878, so a cold start painted raw keys - the header search
+# read "media.search.placeholder" on the home screen (emulator, 2026-09-05).
+# Generated from the same source as the web fixture so the two cannot drift.
+MOBILE_DST = os.path.join(ROOT, "frontend", "apps", "mobile", "src", "i18n", "fallback.en.json")
 
 
 def flatten(prefix, mapping, out):
@@ -40,10 +46,12 @@ def main():
         with open(path, encoding="utf-8") as fh:
             data = yaml.load(fh, Loader=yaml.BaseLoader) or {}
         flatten(stem, data, out)
-    with open(DST, "w", encoding="utf-8") as fh:
-        json.dump(dict(sorted(out.items())), fh, ensure_ascii=False, indent=2)
-        fh.write("\n")
-    print(f"{len(out)} keys -> {os.path.relpath(DST, ROOT)}")
+    ordered = dict(sorted(out.items()))
+    for dst in (DST, MOBILE_DST):
+        with open(dst, "w", encoding="utf-8") as fh:
+            json.dump(ordered, fh, ensure_ascii=False, indent=2)
+            fh.write("\n")
+        print(f"{len(out)} keys -> {os.path.relpath(dst, ROOT)}")
     return 0
 
 

@@ -51,6 +51,29 @@ describe("library grid geometry", () => {
     ).not.toMatch(/ROW_HEIGHT = POSTER_HEIGHT \+ 30/);
   });
 
+  // The caption height must come from the component that DRAWS the caption.
+  // Guessed at 34 here, it was two pixels short of the two lines MediaCard
+  // renders, and the cell's own clip sliced the year in half - a fix that
+  // introduced a defect of its own (emulator, 2026-09-05).
+  it("takes the caption height from MediaCard instead of guessing it", () => {
+    const src = source();
+    expect(src).toMatch(/const META_HEIGHT = CARD_CAPTION_HEIGHT;/);
+    expect(src).toMatch(/import \{ MediaCard, CARD_CAPTION_HEIGHT \}/);
+  });
+
+  it("pins the caption line height in MediaCard, so the total is arithmetic", () => {
+    const card = readFileSync(
+      join(__dirname, "..", "components", "MediaCard.tsx"),
+      "utf8",
+    );
+    expect(
+      card,
+      "left to the platform's default leading, two 13px lines are not a number this grid can rely on",
+    ).toMatch(/export const CARD_CAPTION_HEIGHT = CARD_TEXT_GAP \+ CARD_LINE_HEIGHT \* 2;/);
+    // Both lines must actually use it, or the constant describes nothing.
+    expect(card.match(/lineHeight: CARD_LINE_HEIGHT/g) ?? []).toHaveLength(2);
+  });
+
   it("clips the cell to the height it promised, so a long title cannot stretch a row", () => {
     expect(source()).toMatch(/height: POSTER_HEIGHT \+ META_HEIGHT, overflow: "hidden"/);
   });

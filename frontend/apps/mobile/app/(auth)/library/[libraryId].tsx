@@ -48,7 +48,7 @@ import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useDebounce } from "../../../src/hooks/useDebounce";
 import { useBulkFavorite } from "../../../src/hooks/useFavorite";
-import { MediaCard } from "../../../src/components/MediaCard";
+import { MediaCard, CARD_CAPTION_HEIGHT } from "../../../src/components/MediaCard";
 import { artworkUrl } from "../../../src/lib/artwork";
 import { LibraryFiltersPanel } from "../../../src/components/library/LibraryFiltersPanel";
 import { BulkAddToPlaylistSheet, BulkAddToCollectionSheet } from "../../../src/components/library/BulkAddSheets";
@@ -64,6 +64,7 @@ import {
   computeNextFilterOffset,
   buildBulkMediaIds,
   selectableMediaIds,
+  getResolutionLabel,
 } from "../../../src/components/library/libraryFilterUtils";
 
 const NUM_COLUMNS = 3;
@@ -78,11 +79,12 @@ const ITEM_WIDTH = (screenWidth - SPACING * (NUM_COLUMNS + 1)) / NUM_COLUMNS;
 // height no row had.
 const CARD_WIDTH = ITEM_WIDTH - SPACING;
 const POSTER_HEIGHT = CARD_WIDTH * 1.5;
-// Title + year under the poster, PINNED here rather than measured. The cell
-// clips to it (see renderItem), so a long title or a missing year can never make
-// a row a different height than the one getItemLayout promises. Two text lines
-// at FONT_SIZE.xs plus MediaCard's marginTop of 4.
-const META_HEIGHT = 34;
+// Title + year under the poster. Taken FROM MediaCard rather than guessed here:
+// it is the component that draws those two lines, and it now pins their
+// lineHeight so the total is arithmetic instead of whatever leading the platform
+// chose. Guessed at 34, it was a couple of pixels short and the cell's clip cut
+// the year in half (emulator, 2026-09-05).
+const META_HEIGHT = CARD_CAPTION_HEIGHT;
 const ROW_HEIGHT = POSTER_HEIGHT + META_HEIGHT + SPACING;
 const PAGE_SIZE = 30;
 
@@ -134,14 +136,13 @@ function isHdrStream(stream?: V1MediaStream): boolean {
   return cs.startsWith("bt2020") && (stream.bitDepth ?? 0) >= 10;
 }
 
+// Delegates to the filter's own vocabulary so a badge is always something the
+// panel can actually offer. This function used to have its own ladder, with a
+// "1440p" band the filter did not know and a `${h}p` tail nothing could match.
 function resolutionLabel(stream?: V1MediaStream): string | null {
   const h = stream?.height ?? 0;
   if (h <= 0) return null;
-  if (h >= 2160) return "4K";
-  if (h >= 1440) return "1440p";
-  if (h >= 1080) return "1080p";
-  if (h >= 720) return "720p";
-  return `${h}p`;
+  return getResolutionLabel(h);
 }
 
 export default function LibraryDetailScreen() {
@@ -541,7 +542,10 @@ export default function LibraryDetailScreen() {
   const filterCount = useMemo(
     () =>
       countActiveFilters({
-        type: typeFilter,
+        // The type a MOVIES library sets on itself is not something the viewer
+        // chose, so it must not read as "Filters (1)" on a library nobody has
+        // filtered - nor invite a "Clear all (1)" that would un-scope the grid.
+        type: typeFilterTouchedRef.current ? typeFilter : "",
         genre,
         genres,
         resolutions,

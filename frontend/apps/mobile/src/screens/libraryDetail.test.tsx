@@ -115,7 +115,14 @@ vi.mock("../components/AddToPlaylistSheet", () => ({ AddToPlaylistSheet: () => n
 vi.mock("../components/Skeleton", () => ({ Skeleton: () => null }));
 // The grid now renders the shared MediaCard (pulls in image/watch hooks); the
 // shuffle tests only exercise the shuffle button, so stub it out.
-vi.mock("../components/MediaCard", () => ({ MediaCard: () => null }));
+// importOriginal, not a bare stub: the library screen also reads MediaCard's
+// layout constants (CARD_CAPTION_HEIGHT) to build the row height it hands to
+// getItemLayout. A wholesale mock hides them and the screen fails to import -
+// the same trap mockShapeGuard pins for @evey/api.
+vi.mock("../components/MediaCard", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../components/MediaCard")>()),
+  MediaCard: () => null,
+}));
 // The filters bottom sheet pulls in the real BottomSheet, which imports
 // react-native-safe-area-context - unparseable under vitest without its own
 // mock (see media-detail-episodes.test.tsx). Irrelevant to the shuffle tests
