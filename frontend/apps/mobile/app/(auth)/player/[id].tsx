@@ -23,6 +23,13 @@ import {
   setDeviceVolumeFraction,
 } from "../../../src/lib/deviceVolume";
 import { getDownloadPath, getDownloadedMedia, hasRenderableAudio } from "../../../src/lib/downloads";
+import {
+  saveOfflineProgress,
+  getOfflineProgress,
+  clearOfflineProgress,
+  preferLocalProgress,
+  type OfflineProgress,
+} from "../../../src/lib/offlineProgress";
 import { getDeviceAudioCodecs } from "../../../src/lib/deviceCodecs";
 import { useTranslation } from "react-i18next";
 import { toast, useAuthStore } from "@evey/store";
@@ -37,6 +44,7 @@ import {
   createPlayerEventReporter,
   isImageSubtitle,
   pickDefaultSubtitle,
+  playbackServiceReportProgress,
 } from "@evey/api";
 import { clientSubtitleTrack } from "../../../src/lib/clientSubtitleTrack";
 import { usePlaySession } from "../../../src/hooks/usePlaySession";
@@ -133,6 +141,9 @@ const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>()
   // Audio codecs recorded in the download index entry (null for entries that
   // predate the field) - one of the two inputs to the localAudioOk decision.
   const [downloadedAudioCodecs, setDownloadedAudioCodecs] = useState<string[] | null>(null);
+  // Playhead recorded by a previous OFFLINE session of this title, if any -
+  // the only place it exists when no play session could be opened.
+  const [offlineProgress, setOfflineProgress] = useState<OfflineProgress | null>(null);
 
   const { data: media } = useLibraryServiceGetMediaItem(mediaId);
   // Series and seasons have no underlying file, so the streaming endpoints 404.
@@ -380,7 +391,14 @@ const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>()
   // resolves to null, which falls back to the normal online path.
   useEffect(() => {
     let cancelled = false;
-    if (!mediaId) { setLocalFilePath(null); return; }
+    // Reset per-title state before resolving: this screen is REUSED from one
+    // episode to the next, and leaving the previous episode's path in place
+    // means videoSource can point at the previous file while mediaId already
+    // names the new one.
+    setLocalFilePath(null);
+    setDownloadedAudioCodecs(null);
+    setOfflineProgress(null);
+    if (!mediaId) return;
     getDownloadPath(mediaId, {
       activeProfile: {
         id: activeProfileId ?? undefined,
@@ -394,12 +412,19 @@ const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>()
     })
       .then(async (p) => {
         if (cancelled) return;
+        if (!p) { setLocalFilePath(null); return; }
+        // Resolve the local playhead BEFORE publishing the path: videoSource
+        // reacts to localFilePath, and the player's setup callback reads
+        // resumePositionSec once, at creation. Setting the path first would
+        // create the player with no resume point and never revisit it.
+        const [entry, saved] = await Promise.all([
+          getDownloadedMedia(mediaId).catch(() => null),
+          getOfflineProgress(mediaId),
+        ]);
+        if (cancelled) return;
+        setDownloadedAudioCodecs(entry?.audioCodecs ?? null);
+        setOfflineProgress(saved);
         setLocalFilePath(p);
-        if (!p) return;
-        try {
-          const entry = await getDownloadedMedia(mediaId);
-          if (!cancelled) setDownloadedAudioCodecs(entry?.audioCodecs ?? null);
-        } catch { /* keep the playable assumption */ }
       })
       .catch(() => { if (!cancelled) setLocalFilePath(null); });
     return () => { cancelled = true; };
@@ -537,11 +562,28 @@ const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>()
     return hasRenderableAudio({ audioCodecs: codecs }, getDeviceAudioCodecs());
   }, [downloadedAudioCodecs, streamInfo]);
 
+  // How long a downloaded copy waits for the stream that would have sound
+  // before giving up and playing silent. The play-session request runs on the
+  // api client's generic 60s timeout and is never retried, so a server that
+  // ACCEPTS the connection and then says nothing (captive portal, sleeping NAS
+  // on a reachable LAN) bought a full minute of loading screen before the
+  // local file played anyway. A minute of nothing is worse than eight seconds
+  // then silent video, and the viewer can still leave.
+  const LOCAL_FALLBACK_WAIT_MS = 8000;
+  const [localFallbackDue, setLocalFallbackDue] = useState(false);
+  useEffect(() => {
+    setLocalFallbackDue(false);
+    if (!localFilePath || localAudioOk || streamUrl || isError) return;
+    const id = setTimeout(() => setLocalFallbackDue(true), LOCAL_FALLBACK_WAIT_MS);
+    return () => clearTimeout(id);
+  }, [localFilePath, localAudioOk, streamUrl, isError]);
+
   // Downloaded copy preferred only when it can be HEARD here. When the audio
   // is not renderable, a reachable server stream wins - the transcode is the
   // only version with sound - and the local file stays the fallback for
-  // offline (isError) or shed, where silent video beats no playback at all.
-  const useLocalSource = !!localFilePath && (localAudioOk || isError || !!shedReason);
+  // offline (isError), shed, or a stream that never arrives, where silent
+  // video beats no playback at all.
+  const useLocalSource = !!localFilePath && (localAudioOk || isError || !!shedReason || localFallbackDue);
 
   const videoSource = useMemo(() => {
     // Downloaded copy on disk takes priority over the network stream - no
@@ -571,10 +613,17 @@ const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>()
 
   const resumePositionSec = useMemo(() => {
     if (restart === "1") return 0;
+    // A locally recorded playhead beats the server's when it is FRESHER (see
+    // preferLocalProgress). Everything watched offline lives only here, and
+    // the server's copy is whatever it last heard - possibly from before the
+    // flight.
+    if (preferLocalProgress(offlineProgress, progress?.updatedAt) && offlineProgress) {
+      return offlineProgress.positionMs / 1000;
+    }
     if (!progress?.positionMs || progress.played) return 0;
     const ms = Number(progress.positionMs);
     return ms > 0 ? ms / 1000 : 0;
-  }, [progress, restart]);
+  }, [progress, restart, offlineProgress]);
 
   const player = useVideoPlayer(videoSource, (p) => {
     p.timeUpdateEventInterval = 0.5;
@@ -1068,6 +1117,55 @@ const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>()
     isEpisode,
     getDurationMs: () => effectiveDuration * 1000,
   }, () => castDeviceName);
+
+  // The playhead of a LOCAL file, kept on disk. useProgressReporter above only
+  // runs once a play session exists, and opening one is a request to the
+  // server: offline there is no session, so not one tick and not the flush at
+  // unmount ever records where the viewer got to. Forty minutes watched on a
+  // plane resumed at the pre-takeoff position. This runs off localFilePath, not
+  // off the network, so it covers the case by construction.
+  const getPositionRef = useRef(getPositionMs);
+  getPositionRef.current = getPositionMs;
+  const durationRef = useRef(effectiveDuration);
+  durationRef.current = effectiveDuration;
+  useEffect(() => {
+    if (!localFilePath || !mediaId) return;
+    const save = () => {
+      const ms = getPositionRef.current();
+      if (ms > 0) void saveOfflineProgress(mediaId, ms, durationRef.current * 1000);
+    };
+    // Ten seconds, not the reporter's three: this write costs a file rewrite
+    // rather than a request, and losing ten seconds of a resume point is not
+    // something anyone notices.
+    const id = setInterval(save, 10_000);
+    return () => {
+      clearInterval(id);
+      save();
+    };
+  }, [localFilePath, mediaId]);
+
+  // Hand the offline playhead back to the server the moment a session exists
+  // again, then drop the local copy: it has done its job, and leaving it would
+  // let a stale local record outrank a fresher server one later.
+  useEffect(() => {
+    if (!sessionId || !mediaId) return;
+    let cancelled = false;
+    void (async () => {
+      const local = await getOfflineProgress(mediaId);
+      if (cancelled || !local || local.positionMs <= 0) return;
+      try {
+        await playbackServiceReportProgress({
+          sessionId,
+          positionMs: String(local.positionMs),
+          isPaused: true,
+        });
+        await clearOfflineProgress(mediaId);
+      } catch {
+        // Still offline, or the server refused: keep the record for next time.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [sessionId, mediaId]);
 
   const handleAudioSelect = useCallback(
     (index: number) => {
