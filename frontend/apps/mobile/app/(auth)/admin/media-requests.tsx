@@ -299,7 +299,9 @@ function AddOverrideModal({
                   accessibilityLabel={item.username ?? item.id}
                   accessibilityRole="button"
                 >
-                  <Text style={{ color: theme.colors.text, fontSize: 15 }}>{item.username ?? item.id}</Text>
+                  <Text style={{ color: theme.colors.text, fontSize: 15, flex: 1, marginRight: 8 }} numberOfLines={1}>
+                    {item.username ?? item.id}
+                  </Text>
                   <Ionicons name="chevron-forward" size={16} color={theme.colors.textMuted} />
                 </Pressable>
               )}
