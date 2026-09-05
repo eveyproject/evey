@@ -99,6 +99,15 @@ export function PlayerSeekBar({
         onCommit(seekPctRef.current);
         setSeekTouchX(null);
       }}
+      // A responder can be TAKEN AWAY without ever delivering a release: the
+      // Android back-edge gesture, the notification shade being pulled down, a
+      // system dialog appearing mid-drag. seekTouchX then stays non-null
+      // forever, and since the player treats it as "still scrubbing" it stops
+      // applying timeUpdate - the clock, the duration and the thumb freeze
+      // while the film keeps playing. Ending the scrub here is the whole fix;
+      // no commit, because an interrupted drag is not a chosen position.
+      onResponderTerminationRequest={() => true}
+      onResponderTerminate={() => setSeekTouchX(null)}
     >
       {seekTouchX != null && (
         <View style={{ position: "absolute", bottom: "50%", left: seekTouchX, transform: [{ translateX: -80 }] }}>
