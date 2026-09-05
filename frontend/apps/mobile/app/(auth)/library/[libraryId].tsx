@@ -70,30 +70,26 @@ const NUM_COLUMNS = 3;
 const SPACING = 8;
 const screenWidth = Dimensions.get("window").width;
 const ITEM_WIDTH = (screenWidth - SPACING * (NUM_COLUMNS + 1)) / NUM_COLUMNS;
-const POSTER_HEIGHT = ITEM_WIDTH * 1.5;
-const ROW_HEIGHT = POSTER_HEIGHT + 30 + SPACING;
+// MediaCard puts a marginRight of SPACING on its own outer box, so the poster it
+// draws is NARROWER than the cell by exactly that much. POSTER_HEIGHT used to be
+// derived from ITEM_WIDTH and therefore described a poster nobody drew: ~12px
+// taller than the real one. Everything anchored to it was off by that much, and
+// getItemLayout - which FlatList TRUSTS instead of measuring - declared a row
+// height no row had.
+const CARD_WIDTH = ITEM_WIDTH - SPACING;
+const POSTER_HEIGHT = CARD_WIDTH * 1.5;
+// Title + year under the poster, PINNED here rather than measured. The cell
+// clips to it (see renderItem), so a long title or a missing year can never make
+// a row a different height than the one getItemLayout promises. Two text lines
+// at FONT_SIZE.xs plus MediaCard's marginTop of 4.
+const META_HEIGHT = 34;
+const ROW_HEIGHT = POSTER_HEIGHT + META_HEIGHT + SPACING;
 const PAGE_SIZE = 30;
 
 // The dedicated screens this app implements, handed to dedicatedRouteFor so a
 // library type is never redirected to a route that does not exist here.
 const MOBILE_DEDICATED_ROUTES = ["/photos", "/music"];
 
-const COMMON_GENRES = [
-  "Action",
-  "Adventure",
-  "Animation",
-  "Comedy",
-  "Crime",
-  "Documentary",
-  "Drama",
-  "Fantasy",
-  "Horror",
-  "Mystery",
-  "Romance",
-  "Sci-Fi",
-  "Thriller",
-  "Western",
-];
 
 function libraryKeyExtractor(item: V1MediaItem) {
   return item.id ?? "";
@@ -398,10 +394,17 @@ export default function LibraryDetailScreen() {
   const { data: genresData } = useLibraryServiceListGenres(libraryId ?? "", {
     query: { enabled: !!libraryId && showFilters },
   });
-  const availableGenres = useMemo(() => {
-    const fetched = genresData?.genres ?? [];
-    return Array.from(new Set([...COMMON_GENRES, ...fetched])).sort();
-  }, [genresData?.genres]);
+  // ONLY the genres the library actually contains. A hardcoded English list
+  // used to be merged in here - the same one removed from web on 2026-09-04 and
+  // left behind on mobile. Providers return genres in the SERVER's language, so
+  // a French library listed "Action, Adventure, Animation, Aventure, Comedy,
+  // Comédie..." - every genre twice, in two languages. Worse, the English chips
+  // that were not also a real genre matched nothing at all: half the filter
+  // panel was guaranteed to return an empty library.
+  const availableGenres = useMemo(
+    () => Array.from(new Set(genresData?.genres ?? [])).sort((a, b) => a.localeCompare(b)),
+    [genresData?.genres],
+  );
 
   // Watched status + resume progress for the badge/progress-bar overlay
   // MediaCard already supports. Same source and shape as useWatchedMap
@@ -506,11 +509,34 @@ export default function LibraryDetailScreen() {
     [rawItems, resolutions, codecs, audioLangs, subLangs, searchActive, genres, minRating],
   );
 
-  // Facet options are sampled from whatever's currently loaded (same source
-  // the genre chips used before) rather than a dedicated sampling query -
-  // kept independent of the facet selections themselves (built from rawItems,
-  // not displayItems) so picking one facet doesn't shrink the others' options.
-  const availableFacets = useMemo(() => collectFilterOptions(rawItems), [rawItems]);
+  // Facet options (resolution, codec, audio and subtitle languages) come from a
+  // DEDICATED sample, not from whatever the infinite list happens to have
+  // scrolled to.
+  //
+  // They used to be read off rawItems alone, which on opening the panel is just
+  // the first page - 30 items out of a thousand. A viewer therefore saw three
+  // audio languages and three subtitle languages, always the same three, and
+  // could not filter on anything the top of their library did not happen to
+  // contain. Web has fired a dedicated sampling query since the beginning
+  // ($libraryId.lazy.tsx, PAGE_SIZE * 4 gated on filtersOpen); this is the same
+  // request, gated the same way.
+  //
+  // Still merged with rawItems: a language the viewer can SEE on screen must
+  // never be missing from the panel, whatever the sample happened to catch.
+  const { data: facetSample } = useLibraryServiceListMediaItems(
+    {
+      libraryId,
+      ...(typeFilter ? { type: typeFilter } : {}),
+      "pagination.pageSize": PAGE_SIZE * 4,
+    },
+    { query: { enabled: !!libraryId && showFilters } },
+  );
+  // Built from rawItems rather than displayItems on purpose: picking one facet
+  // must not shrink the choices offered by the others.
+  const availableFacets = useMemo(
+    () => collectFilterOptions([...(facetSample?.items ?? []), ...rawItems]),
+    [facetSample?.items, rawItems],
+  );
 
   const filterCount = useMemo(
     () =>
@@ -661,42 +687,52 @@ export default function LibraryDetailScreen() {
       // match this cell's declared ITEM_WIDTH - otherwise the 3-column grid
       // overflows to the right by SPACING per column.
       return (
-        <View style={{ width: ITEM_WIDTH, marginLeft: SPACING, marginBottom: SPACING }}>
+        <View style={{ width: ITEM_WIDTH, height: POSTER_HEIGHT + META_HEIGHT, overflow: "hidden", marginLeft: SPACING, marginBottom: SPACING }}>
           <View style={{ opacity: bulkMode && !isSelected ? 0.5 : 1 }}>
             <MediaCard
               item={item}
-              width={ITEM_WIDTH - SPACING}
+              width={CARD_WIDTH}
               watchPercent={watchPercent}
               watched={watched}
             />
-            {rating > 0 && (
-              <View
-                style={[
-                  styles.techBadge,
-                  { bottom: hasProgress ? 14 : 6, right: 6, backgroundColor: theme.colors.surfaceRaised, borderRadius: theme.radii.sm },
-                ]}
-                pointerEvents="none"
-              >
-                <Ionicons name="star" size={10} color={theme.colors.warning} />
-                <Text style={[styles.techBadgeText, { color: theme.colors.text }]}>
-                  {rating.toFixed(1)}
-                </Text>
-              </View>
-            )}
-            {(resLabel || hdr) && (
-              <View style={[styles.techBadgeRow, { bottom: hasProgress ? 14 : 6, left: 6 }]} pointerEvents="none">
-                {resLabel && (
-                  <View style={[styles.techBadge, { backgroundColor: theme.colors.surfaceRaised, borderRadius: theme.radii.sm }]}>
-                    <Text style={[styles.techBadgeText, { color: theme.colors.text }]}>{resLabel}</Text>
-                  </View>
-                )}
-                {hdr && (
-                  <View style={[styles.techBadge, { backgroundColor: theme.colors.accent, borderRadius: theme.radii.sm }]}>
-                    <Text style={[styles.techBadgeText, { color: theme.colors.onAccent }]}>HDR</Text>
-                  </View>
-                )}
-              </View>
-            )}
+            {/* Badge layer sized to the POSTER, not to the cell. Anchored to the
+                cell they were `bottom: 6` of poster + title + year, so the
+                quality chip rendered under the artwork, in the gap before the
+                next row - "la qualité est entre 2 vignettes" (user, 2026-09-05).
+                Clipping the cell alone would not have fixed it: it would have
+                hidden them instead. */}
+            <View
+              style={{ position: "absolute", top: 0, left: 0, width: CARD_WIDTH, height: POSTER_HEIGHT }}
+              pointerEvents="none"
+            >
+              {rating > 0 && (
+                <View
+                  style={[
+                    styles.techBadge,
+                    { bottom: hasProgress ? 14 : 6, right: 6, backgroundColor: theme.colors.surfaceRaised, borderRadius: theme.radii.sm },
+                  ]}
+                >
+                  <Ionicons name="star" size={10} color={theme.colors.warning} />
+                  <Text style={[styles.techBadgeText, { color: theme.colors.text }]}>
+                    {rating.toFixed(1)}
+                  </Text>
+                </View>
+              )}
+              {(resLabel || hdr) && (
+                <View style={[styles.techBadgeRow, { bottom: hasProgress ? 14 : 6, left: 6 }]}>
+                  {resLabel && (
+                    <View style={[styles.techBadge, { position: "relative", backgroundColor: theme.colors.surfaceRaised, borderRadius: theme.radii.sm }]}>
+                      <Text style={[styles.techBadgeText, { color: theme.colors.text }]}>{resLabel}</Text>
+                    </View>
+                  )}
+                  {hdr && (
+                    <View style={[styles.techBadge, { position: "relative", backgroundColor: theme.colors.accent, borderRadius: theme.radii.sm }]}>
+                      <Text style={[styles.techBadgeText, { color: theme.colors.onAccent }]}>HDR</Text>
+                    </View>
+                  )}
+                </View>
+              )}
+            </View>
             {isSelected && (
               <View style={styles.selectCheckmark} pointerEvents="none">
                 <Ionicons name="checkmark-circle" size={22} color={theme.colors.accent} />
@@ -994,13 +1030,15 @@ export default function LibraryDetailScreen() {
                       width: ITEM_WIDTH,
                     }}
                   >
+                    {/* Same footprint as a real cell, or the grid jumps the
+                        moment the first page lands. */}
                     <Skeleton
-                      width={ITEM_WIDTH}
+                      width={CARD_WIDTH}
                       height={POSTER_HEIGHT}
                       borderRadius={theme.radii.sm}
                     />
                     <Skeleton
-                      width={ITEM_WIDTH * 0.7}
+                      width={CARD_WIDTH * 0.7}
                       height={12}
                       borderRadius={4}
                       style={{ marginTop: 6 }}
