@@ -30,6 +30,12 @@ vi.mock("expo-file-system/legacy", () => ({
   writeAsStringAsync: vi.fn(),
   deleteAsync: vi.fn(),
   readDirectoryAsync: vi.fn(),
+  // moveAsync: the index is written to a .tmp then moved into place, so a
+  // reader never parses a half file. downloadAsync: cacheDownloadPoster calls
+  // it for every non-audio download and swallows its errors - leaving it out
+  // of this mock meant every download test silently ran the failure branch.
+  moveAsync: vi.fn(),
+  downloadAsync: vi.fn(),
   documentDirectory: "/data/user/0/app/files/",
 }));
 
@@ -128,6 +134,7 @@ import {
   getDownloads,
   startDownload,
   deleteDownload,
+  updateDownloadedAudio,
   cancelDownload,
   isDownloadCancelable,
   getDownloadPath,
@@ -156,8 +163,12 @@ const sampleIndex = [
 // The module persists TWO files now (index.json + the pending.json crash
 // records), so "the last write" is ambiguous - assertions about persisted
 // entries must filter on the index path instead of call order.
+// The index lands via a .tmp file that is then moved into place (see
+// writeIndex), so the CONTENT assertions below match either name.
 function lastIndexWritten(): Array<Record<string, unknown>> {
-  const calls = fsMock.writeAsStringAsync.mock.calls.filter((c) => String(c[0]).endsWith("index.json"));
+  const calls = fsMock.writeAsStringAsync.mock.calls.filter((c) =>
+    /index\.json(\.tmp)?$/.test(String(c[0])),
+  );
   expect(calls.length).toBeGreaterThan(0);
   return JSON.parse(calls.at(-1)![1]);
 }
@@ -178,6 +189,8 @@ beforeEach(() => {
   fsMock.makeDirectoryAsync.mockResolvedValue(undefined);
   fsMock.deleteAsync.mockResolvedValue(undefined);
   fsMock.readDirectoryAsync.mockResolvedValue([]);
+  fsMock.moveAsync.mockResolvedValue(undefined);
+  fsMock.downloadAsync.mockResolvedValue({ status: 200 });
 });
 
 describe("getDownloads", () => {
@@ -420,6 +433,90 @@ describe("deleteDownload", () => {
     expect(fsMock.deleteAsync).not.toHaveBeenCalled();
     const written = lastIndexWritten();
     expect(written).toHaveLength(2);
+  });
+});
+
+// Every index write is a read-modify-write on one JSON file, and the callers
+// genuinely overlap: rehydrateBackgroundDownloads re-attaches every background
+// download that finished while the app was dead and their completion callbacks
+// fire together, while the audio compat pass writes on its own schedule. Two
+// interleaved cycles start from the same snapshot and the second write drops
+// the first one's change - the bytes stay on disk with nothing referencing
+// them, and the orphan sweep deletes them at the next boot.
+describe("concurrent index writes", () => {
+  // A real (if tiny) filesystem: the static mock in beforeEach always answers
+  // the same snapshot, which is precisely the interleaving that must NOT be
+  // silently tolerated here.
+  function useEchoingIndex(initial: Array<Record<string, unknown>>) {
+    const files = new Map<string, string>([
+      ["/data/user/0/app/files/downloads/index.json", JSON.stringify(initial)],
+    ]);
+    fsMock.readAsStringAsync.mockImplementation(async (path: string) => {
+      const v = files.get(String(path));
+      if (v === undefined) throw new Error("not found");
+      // Yield, so a competing cycle gets a chance to interleave here - exactly
+      // where the lost update used to happen.
+      await new Promise((r) => setTimeout(r, 0));
+      return v;
+    });
+    fsMock.writeAsStringAsync.mockImplementation(async (path: string, data: string) => {
+      files.set(String(path), data);
+    });
+    fsMock.moveAsync.mockImplementation(async ({ from, to }: { from: string; to: string }) => {
+      const v = files.get(String(from));
+      if (v !== undefined) {
+        files.set(String(to), v);
+        files.delete(String(from));
+      }
+    });
+    return files;
+  }
+
+  it("keeps both changes when two writers run at once", async () => {
+    const files = useEchoingIndex([
+      { mediaItemId: "m1", title: "A", filePath: "/d/m1.mp4", fileSize: 1, downloadedAt: "2026-01-01T00:00:00Z" },
+      { mediaItemId: "m2", title: "B", filePath: "/d/m2.mp4", fileSize: 2, downloadedAt: "2026-01-01T00:00:00Z" },
+    ]);
+
+    await Promise.all([
+      updateDownloadedAudio("m1", { audioCodecs: ["aac"] }),
+      updateDownloadedAudio("m2", { audioCodecs: ["opus"] }),
+    ]);
+
+    const final = JSON.parse(files.get("/data/user/0/app/files/downloads/index.json")!);
+    expect(final.find((i: { mediaItemId: string }) => i.mediaItemId === "m1").audioCodecs).toEqual(["aac"]);
+    expect(final.find((i: { mediaItemId: string }) => i.mediaItemId === "m2").audioCodecs).toEqual(["opus"]);
+  });
+
+  it("does not lose an entry when a delete and an update overlap", async () => {
+    const files = useEchoingIndex([
+      { mediaItemId: "m1", title: "A", filePath: "/d/m1.mp4", fileSize: 1, downloadedAt: "2026-01-01T00:00:00Z" },
+      { mediaItemId: "m2", title: "B", filePath: "/d/m2.mp4", fileSize: 2, downloadedAt: "2026-01-01T00:00:00Z" },
+    ]);
+
+    await Promise.all([
+      deleteDownload("m1"),
+      updateDownloadedAudio("m2", { audioCodecs: ["aac"] }),
+    ]);
+
+    const final = JSON.parse(files.get("/data/user/0/app/files/downloads/index.json")!);
+    expect(final).toHaveLength(1);
+    expect(final[0].mediaItemId).toBe("m2");
+    // The update must survive the delete's own read-modify-write.
+    expect(final[0].audioCodecs).toEqual(["aac"]);
+  });
+
+  // readIndex answers [] on a parse failure, and purgeOrphanedDownloads
+  // DELETES every private file the index does not reference. A reader landing
+  // mid-write must therefore never see a truncated file.
+  it("never leaves the index file half written", async () => {
+    useEchoingIndex([]);
+    await updateDownloadedAudio("m1", { audioCodecs: ["aac"] });
+
+    const writes = fsMock.writeAsStringAsync.mock.calls.filter((c) => String(c[0]).includes("index.json"));
+    for (const [path] of writes) {
+      expect(String(path)).toMatch(/index\.json\.tmp$/);
+    }
   });
 });
 
@@ -1046,7 +1143,7 @@ describe("lost-completion reconciliation", () => {
     await rehydrateBackgroundDownloads();
 
     expect(fsMock.deleteAsync).toHaveBeenCalledWith(`file://${DEST}`, { idempotent: true });
-    const indexWrites = fsMock.writeAsStringAsync.mock.calls.filter((c) => String(c[0]).endsWith("index.json"));
+    const indexWrites = fsMock.writeAsStringAsync.mock.calls.filter((c) => /index\.json(\.tmp)?$/.test(String(c[0])));
     expect(indexWrites).toHaveLength(0);
     expect(lastPendingWritten()).toEqual([]);
   });
@@ -1090,7 +1187,7 @@ describe("lost-completion reconciliation", () => {
     await rehydrateBackgroundDownloads();
 
     expect(fsMock.deleteAsync).not.toHaveBeenCalled();
-    const indexWrites = fsMock.writeAsStringAsync.mock.calls.filter((c) => String(c[0]).endsWith("index.json"));
+    const indexWrites = fsMock.writeAsStringAsync.mock.calls.filter((c) => /index\.json(\.tmp)?$/.test(String(c[0])));
     expect(indexWrites).toHaveLength(0);
     expect(lastPendingWritten()).toEqual([]);
   });
