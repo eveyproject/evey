@@ -126,7 +126,7 @@ export default function StatsScreen() {
           <Text style={s.cardLabel}>{t("common.userStats.uniqueItems")}</Text>
         </View>
         <View style={s.card}>
-          <Text style={s.cardValue}>{favoriteGenre}</Text>
+          <Text style={s.cardValue} numberOfLines={1}>{favoriteGenre}</Text>
           <Text style={s.cardLabel}>{t("common.userStats.favoriteGenre")}</Text>
         </View>
       </View>

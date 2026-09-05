@@ -138,6 +138,9 @@ export function AddToPlaylistSheet({ visible, mediaItemId, mediaType, onClose }:
                 onPress={handleCreateAndAdd}
                 disabled={!newName.trim() || createPl.isPending || addTo.isPending}
                 style={[styles.createBtn, { backgroundColor: theme.colors.accent, opacity: !newName.trim() ? 0.5 : 1 }]}
+                accessibilityRole="button"
+                accessibilityLabel={t("media.playlist.createPlaylist")}
+                accessibilityState={{ disabled: !newName.trim() || createPl.isPending || addTo.isPending }}
               >
                 {createPl.isPending ? (
                   <ActivityIndicator color={theme.colors.onAccent} size="small" />

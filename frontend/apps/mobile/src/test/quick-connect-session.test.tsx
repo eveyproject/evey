@@ -14,6 +14,7 @@ vi.mock("react-native", () => ({
   Pressable: ({ children, onPress, ...p }: any) =>
     React.createElement("button", { onClick: onPress, ...p }, children),
   ActivityIndicator: (p: any) => React.createElement("div", { "data-testid": "loading", ...p }),
+  StyleSheet: { create: (styles: any) => styles },
 }));
 
 vi.mock("react-native-qrcode-svg", () => ({

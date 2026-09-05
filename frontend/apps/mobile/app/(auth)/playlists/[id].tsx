@@ -23,6 +23,7 @@ function PlaylistItemRow({
   total,
   isManual,
   theme,
+  t,
   onPress,
   onMoveUp,
   onMoveDown,
@@ -33,6 +34,7 @@ function PlaylistItemRow({
   total: number;
   isManual: boolean;
   theme: ReturnType<typeof useTheme>;
+  t: ReturnType<typeof useTranslation>["t"];
   onPress: () => void;
   onMoveUp: () => void;
   onMoveDown: () => void;
@@ -51,13 +53,13 @@ function PlaylistItemRow({
     >
       {isManual && (
         <View style={{ alignItems: "center", marginRight: 4, gap: 2 }}>
-          <Pressable onPress={onMoveUp} disabled={index === 0} hitSlop={6} accessible={true} accessibilityLabel="Move up" accessibilityRole="button">
+          <Pressable onPress={onMoveUp} disabled={index === 0} hitSlop={6} accessible={true} accessibilityLabel={t("media.playlist.moveItemUp")} accessibilityRole="button">
             <Ionicons name="chevron-up" size={16} color={index === 0 ? theme.colors.border : theme.colors.textMuted} />
           </Pressable>
           <Text style={[styles.order, { color: theme.colors.accent }]}>
             {item.sort_order != null ? item.sort_order + 1 : index + 1}
           </Text>
-          <Pressable onPress={onMoveDown} disabled={index === total - 1} hitSlop={6} accessible={true} accessibilityLabel="Move down" accessibilityRole="button">
+          <Pressable onPress={onMoveDown} disabled={index === total - 1} hitSlop={6} accessible={true} accessibilityLabel={t("media.playlist.moveItemDown")} accessibilityRole="button">
             <Ionicons name="chevron-down" size={16} color={index === total - 1 ? theme.colors.border : theme.colors.textMuted} />
           </Pressable>
         </View>
@@ -81,7 +83,7 @@ function PlaylistItemRow({
         </View>
       </View>
       {isManual && (
-        <Pressable onPress={onRemove} hitSlop={8} style={{ padding: 4 }} accessible={true} accessibilityLabel="Remove" accessibilityRole="button">
+        <Pressable onPress={onRemove} hitSlop={8} style={{ padding: 4 }} accessible={true} accessibilityLabel={t("media.playlist.removeItem")} accessibilityRole="button">
           <Ionicons name="close-circle-outline" size={18} color={theme.colors.textMuted} />
         </Pressable>
       )}
@@ -244,6 +246,7 @@ export default function PlaylistDetailScreen() {
             total={items.length}
             isManual={isManual}
             theme={theme}
+            t={t}
             onPress={() => router.push(`/media/${item.media_item_id}`)}
             onMoveUp={() => handleMove(index, -1)}
             onMoveDown={() => handleMove(index, 1)}

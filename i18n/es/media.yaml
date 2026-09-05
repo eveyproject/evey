@@ -388,6 +388,7 @@ music:
   mute: Silenciar
   unmute: Activar sonido
   seekPosition: Posición de reproducción
+  miniPlayer: Reproductor de música
   volume: Volumen
   resetFilters: Restablecer filtros
   addToPlaylist: Añadir a la lista
@@ -521,6 +522,9 @@ playlist:
   noItemsManual: Añade elementos desde la página de detalle del medio.
   removedFromPlaylist: Eliminado de la lista de reproducción
   failedRemove: Error al eliminar
+  moveItemUp: Subir
+  moveItemDown: Bajar
+  removeItem: Eliminar
   deleteConfirm: "¿Eliminar \"{{name}}\"?"
   deleted: "\"{{name}}\" eliminada"
   deleteFailed: Error al eliminar

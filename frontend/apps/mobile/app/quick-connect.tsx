@@ -8,6 +8,7 @@ import { useAuthStore } from "@evey/store";
 import { useTheme } from "../src/providers/ThemeProvider";
 import { useServerUrlNullable } from "../src/hooks/useServerUrl";
 import { setRefreshToken } from "../src/lib/refresh-token";
+import { LoadFailed } from "../src/components/LoadFailed";
 
 const REFRESH_INTERVAL_S = 120;
 
@@ -29,6 +30,7 @@ export default function QuickConnectScreen() {
           setSecondsLeft(REFRESH_INTERVAL_S);
         }
       },
+      onError: () => setCode(null),
     },
   });
 
@@ -125,6 +127,8 @@ export default function QuickConnectScreen() {
           <View style={{ backgroundColor: "#fff", padding: 12, borderRadius: 8 }}>
             <QRCode value={qrValue} size={160} />
           </View>
+        ) : initiate.isError ? (
+          <LoadFailed inline onRetry={doInitiate} />
         ) : (
           <ActivityIndicator color={theme.colors.accent} size="large" />
         )}
@@ -165,7 +169,7 @@ export default function QuickConnectScreen() {
         onPress={() => router.back()}
         style={{ marginTop: theme.spacing.md }}
         accessible={true}
-        accessibilityLabel="Back to login"
+        accessibilityLabel={t("auth.forgotPassword.backToLogin")}
         accessibilityRole="button"
       >
         <Text style={{ color: theme.colors.accent, fontSize: 16 }}>{t("common.back")}</Text>

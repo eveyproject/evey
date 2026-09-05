@@ -21,6 +21,7 @@ import { useServerUrl } from "../../src/hooks/useServerUrl";
 import { useAuthenticatedImage } from "../../src/hooks/useAuthenticatedImage";
 import { ProgressBar } from "../../src/components/ProgressBar";
 import { LoadFailed } from "../../src/components/LoadFailed";
+import { Skeleton } from "../../src/components/Skeleton";
 import { groupHistoryByDate } from "../../src/lib/historyGrouping";
 
 function formatDate(iso: string | undefined): string {
@@ -229,9 +230,17 @@ export default function HistoryScreen() {
         ) : undefined,
       }} />
 
-      {!isLoading && isError && items.length === 0 ? (
+      {isLoading ? (
+        <View style={{ padding: theme.spacing.md }}>
+          {Array.from({ length: 5 }).map((_, i) => (
+            <View key={i} style={{ marginBottom: theme.spacing.sm }}>
+              <Skeleton width="100%" height={64} borderRadius={theme.radii.md} />
+            </View>
+          ))}
+        </View>
+      ) : isError && items.length === 0 ? (
         <LoadFailed onRetry={() => void refetch()} />
-      ) : !isLoading && items.length === 0 ? (
+      ) : items.length === 0 ? (
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: theme.spacing.xl }}>
           <Ionicons name="time-outline" size={48} color={theme.colors.textMuted} />
           <Text style={{ color: theme.colors.textMuted, fontSize: 16, marginTop: theme.spacing.md, textAlign: "center" }}>

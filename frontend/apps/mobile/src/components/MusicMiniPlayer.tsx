@@ -280,7 +280,7 @@ function MusicMiniPlayerImpl() {
   return (
     <View
       style={[styles.root, { backgroundColor: theme.colors.surfaceRaised, borderTopColor: theme.colors.border }]}
-      accessibilityLabel="Music player"
+      accessibilityLabel={t("media.music.miniPlayer")}
     >
       <View style={styles.seekRow}>
         <Text style={[styles.timeLabel, { color: theme.colors.textMuted }]}>{formatTime(position)}</Text>

@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from "react";
-import { View, Text, TextInput, Pressable, Alert, ScrollView, Modal, StyleSheet } from "react-native";
+import { View, Text, TextInput, Pressable, Alert, ScrollView, Modal, ActivityIndicator, StyleSheet } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -27,6 +27,10 @@ export default function ManageServersScreen() {
   // Rename state
   const [renameId, setRenameId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
+
+  // Guards double taps while the reachability probe (probeServer) is in
+  // flight - without it a fast double-tap fired two probes and two switches.
+  const [switchingId, setSwitchingId] = useState<string | null>(null);
 
   const openRename = useCallback((id: string) => {
     setRenameId(id);
@@ -65,36 +69,42 @@ export default function ManageServersScreen() {
   }, [servers, serverList.length, activeServerId, removeServer, t]);
 
   const handleSwitch = useCallback(async (id: string) => {
+    if (switchingId) return;
     const server = servers[id];
     if (!server) return;
-    // Reachability BEFORE switching: routing to /login against a server that
-    // cannot answer produces failures the user cannot interpret, and nothing
-    // reaches the real server's logs (2026-07-29). Same gate as
-    // server-connect and the boot redirect - no path to /login skips it.
-    const probe = await probeServer(server.url);
-    if (probe !== "ok") {
-      Alert.alert(
-        t("mobile.serverConnect.connectionFailed", "Connection failed"),
-        probe === "not-evey"
-          ? t("mobile.serverConnect.notEvey", "{{url}} answered, but it is not an Evey server.").replace("{{url}}", server.url)
-          : t("mobile.serverConnect.unreachableSaved", "{{url}} did not answer. Check the address or your connection.").replace("{{url}}", server.url),
-      );
-      return;
+    setSwitchingId(id);
+    try {
+      // Reachability BEFORE switching: routing to /login against a server that
+      // cannot answer produces failures the user cannot interpret, and nothing
+      // reaches the real server's logs (2026-07-29). Same gate as
+      // server-connect and the boot redirect - no path to /login skips it.
+      const probe = await probeServer(server.url);
+      if (probe !== "ok") {
+        Alert.alert(
+          t("mobile.serverConnect.connectionFailed", "Connection failed"),
+          probe === "not-evey"
+            ? t("mobile.serverConnect.notEvey", "{{url}} answered, but it is not an Evey server.").replace("{{url}}", server.url)
+            : t("mobile.serverConnect.unreachableSaved", "{{url}} did not answer. Check the address or your connection.").replace("{{url}}", server.url),
+        );
+        return;
+      }
+      setActiveServer(id);
+      setBaseURL(server.url);
+      await setServerUrl(server.url);
+      await initFetcher();
+      const name = server.label ?? server.url;
+      toast.success(t("mobile.servers.switchedTo", "Switched to {{name}}", { name }));
+      // Tokens auto-rehydrate via store; check access token now.
+      const token = useAuthStore.getState().accessToken;
+      if (token) {
+        router.replace("/(auth)/(tabs)");
+      } else {
+        router.replace("/login");
+      }
+    } finally {
+      setSwitchingId(null);
     }
-    setActiveServer(id);
-    setBaseURL(server.url);
-    await setServerUrl(server.url);
-    await initFetcher();
-    const name = server.label ?? server.url;
-    toast.success(t("mobile.servers.switchedTo", "Switched to {{name}}", { name }));
-    // Tokens auto-rehydrate via store; check access token now.
-    const token = useAuthStore.getState().accessToken;
-    if (token) {
-      router.replace("/(auth)/(tabs)");
-    } else {
-      router.replace("/login");
-    }
-  }, [servers, setActiveServer, t]);
+  }, [servers, setActiveServer, t, switchingId]);
 
   const s = msStyles(theme);
 
@@ -115,16 +125,26 @@ export default function ManageServersScreen() {
                   <Pressable
                     style={s.serverMain}
                     onPress={() => isActive ? router.back() : handleSwitch(server.id)}
+                    disabled={switchingId !== null}
                     accessible={true}
                     accessibilityLabel={server.label ?? server.url}
                     accessibilityRole="button"
+                    accessibilityState={{ disabled: switchingId !== null, busy: switchingId === server.id }}
                   >
-                    <Ionicons
-                      name="server-outline"
-                      size={20}
-                      color={isActive ? theme.colors.accent : theme.colors.textMuted}
-                      style={{ marginRight: theme.spacing.sm }}
-                    />
+                    {switchingId === server.id ? (
+                      <ActivityIndicator
+                        size="small"
+                        color={theme.colors.textMuted}
+                        style={{ marginRight: theme.spacing.sm }}
+                      />
+                    ) : (
+                      <Ionicons
+                        name="server-outline"
+                        size={20}
+                        color={isActive ? theme.colors.accent : theme.colors.textMuted}
+                        style={{ marginRight: theme.spacing.sm }}
+                      />
+                    )}
                     <View style={{ flex: 1 }}>
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                         <Text style={[s.serverLabel, { color: theme.colors.text }]} numberOfLines={1}>

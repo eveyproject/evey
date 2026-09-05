@@ -78,7 +78,12 @@ export default function PersonDetailScreen() {
     prevDataRef.current = null;
   }, [id]);
 
-  const { data: person, isLoading: personLoading } = useGetPerson(personId);
+  const {
+    data: person,
+    isLoading: personLoading,
+    isError: personError,
+    refetch: refetchPerson,
+  } = useGetPerson(personId);
   const {
     data: mediaData,
     isLoading: mediaLoading,
@@ -158,6 +163,8 @@ export default function PersonDetailScreen() {
             <ActivityIndicator size="large" color={theme.colors.accent} />
           </View>
         </>
+      ) : personError && !person ? (
+        <LoadFailed onRetry={() => void refetchPerson()} />
       ) : (
         <LegendList
           data={items}
