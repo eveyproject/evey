@@ -81,7 +81,16 @@ export function TrickplaySeekPreview({ mediaId, previewTimeSec }: TrickplaySeekP
       try {
         const res = await eveyFetchRaw({ url: `/api/v1/media/${mediaId}/trickplay`, method: "GET" });
         const text = await res.text();
-        if (cancelled) return;
+        if (cancelled) {
+          // Nothing was stored, so the guard must not survive: it is only
+          // ever cleaned by an LRU eviction from cueCache, and an id that
+          // never entered the cache would never be evicted from it either.
+          // Left in place it did two things - killed seek previews for this
+          // title until the app restarted, and grew the set without bound on
+          // a box that stays up for weeks.
+          fetchedIds.delete(mediaId);
+          return;
+        }
         const parsed = parseTrickplayVTT(text);
         rememberCues(mediaId, parsed);
         setCues(parsed);

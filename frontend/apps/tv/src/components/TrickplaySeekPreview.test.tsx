@@ -145,3 +145,43 @@ describe("TrickplaySeekPreview", () => {
     expect(container.firstChild).toBeNull();
   });
 });
+
+// A seek that is abandoned before its manifest lands - the viewer stops
+// seeking, leaves the player, or the screen remounts - used to poison that
+// title for the rest of the app session.
+//
+// The guard set is added to BEFORE the fetch and only cleaned on failure or on
+// LRU eviction from the cue cache. A cancelled fetch reached neither: it
+// returned early, so the id stayed in the set with nothing stored behind it.
+// Two consequences, one for the viewer and one for the box: seek previews were
+// silently dead for that title until the app restarted, and the set grew
+// without bound on a device that stays up for weeks with the least memory of
+// the three.
+describe("TrickplaySeekPreview, an abandoned fetch", () => {
+  it("lets the title fetch again after a seek is abandoned mid-flight", async () => {
+    let release!: (v: { text: () => Promise<string> }) => void;
+    eveyFetchRawMock.mockReturnValueOnce(
+      new Promise((res) => {
+        release = res as (v: { text: () => Promise<string> }) => void;
+      }),
+    );
+
+    const { unmount } = render(<TrickplaySeekPreview mediaId="mi-abandoned" previewTimeSec={5} />);
+    await waitFor(() => expect(eveyFetchRawMock).toHaveBeenCalledTimes(1));
+
+    // The viewer leaves while the manifest is still in flight, and it lands
+    // after the component is gone.
+    unmount();
+    release({ text: async () => REALISTIC_VTT });
+    // Two awaits deep (the response, then its text) before the component's
+    // cancelled branch runs - a microtask turn is not enough.
+    await new Promise((r) => setTimeout(r, 0));
+
+    // Coming back to the same title must fetch again - the first attempt
+    // stored nothing.
+    mockManifestOk(REALISTIC_VTT);
+    const { container } = render(<TrickplaySeekPreview mediaId="mi-abandoned" previewTimeSec={5} />);
+    await waitFor(() => expect(eveyFetchRawMock).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(container.querySelector("img")).not.toBeNull());
+  });
+});
