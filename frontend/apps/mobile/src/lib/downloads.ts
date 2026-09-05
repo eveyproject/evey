@@ -180,17 +180,46 @@ async function readIndex(): Promise<DownloadedMedia[]> {
 
 async function writeIndex(items: DownloadedMedia[]) {
   await ensureDir();
-  await FileSystem.writeAsStringAsync(INDEX_FILE, JSON.stringify(items));
+  // Write-then-move: writeAsStringAsync truncates in place, so a reader that
+  // lands mid-write parses a half file, readIndex's catch answers [], and the
+  // caller concludes there are no downloads. In purgeOrphanedDownloads that
+  // conclusion deletes every downloaded file on the device.
+  const tmp = `${INDEX_FILE}.tmp`;
+  await FileSystem.writeAsStringAsync(tmp, JSON.stringify(items));
+  await FileSystem.moveAsync({ from: tmp, to: INDEX_FILE });
+}
+
+/**
+ * Serializes read-modify-write cycles on the index.
+ *
+ * The callers run concurrently by design: rehydrateBackgroundDownloads
+ * re-attaches every background download that finished while the app was dead,
+ * and their completion callbacks fire together; the audio compat pass writes
+ * while a fresh download completes. Two interleaved cycles both start from the
+ * same snapshot, and the second write drops the entry the first one added -
+ * the bytes stay on disk with nothing referencing them, and the orphan sweep
+ * deletes them at the next boot. Same shape as audioCompatPass's own chain.
+ *
+ * Only the index critical section belongs in here: never a network call, or
+ * one stalled request would block every download's bookkeeping.
+ */
+let indexChain: Promise<unknown> = Promise.resolve();
+
+function withIndexLock<T>(fn: () => Promise<T>): Promise<T> {
+  // then(fn, fn): a previous holder's failure must not skip our turn.
+  const run = indexChain.then(fn, fn);
+  indexChain = run.catch(() => undefined);
+  return run;
 }
 
 export async function getDownloads(): Promise<DownloadedMedia[]> {
-  return readIndex();
+  return withIndexLock(readIndex);
 }
 
 // The full index entry for one media item - the player reads audioCodecs off
 // it to decide whether the local copy can actually be heard on this device.
 export async function getDownloadedMedia(mediaItemId: string): Promise<DownloadedMedia | null> {
-  const index = await readIndex();
+  const index = await withIndexLock(readIndex);
   return index.find((i) => i.mediaItemId === mediaItemId) ?? null;
 }
 
@@ -463,21 +492,23 @@ async function persistDownloaded(
   audioCodecs?: string[],
   display?: DownloadDisplay,
 ) {
-  const index = await readIndex();
-  // Replace any existing entry with the same id so retry-after-failure keeps
-  // a single row instead of accumulating duplicates.
-  const without = index.filter((i) => i.mediaItemId !== mediaItemId);
-  without.push({
-    mediaItemId,
-    title,
-    filePath: destPath,
-    fileSize: totalBytes,
-    downloadedAt: new Date().toISOString(),
-    ...authContext,
-    ...(audioCodecs && audioCodecs.length > 0 ? { audioCodecs } : {}),
-    ...display,
+  await withIndexLock(async () => {
+    const index = await readIndex();
+    // Replace any existing entry with the same id so retry-after-failure keeps
+    // a single row instead of accumulating duplicates.
+    const without = index.filter((i) => i.mediaItemId !== mediaItemId);
+    without.push({
+      mediaItemId,
+      title,
+      filePath: destPath,
+      fileSize: totalBytes,
+      downloadedAt: new Date().toISOString(),
+      ...authContext,
+      ...(audioCodecs && audioCodecs.length > 0 ? { audioCodecs } : {}),
+      ...display,
+    });
+    await writeIndex(without);
   });
-  await writeIndex(without);
 }
 
 /**
@@ -560,11 +591,13 @@ export async function updateDownloadedAudio(
   mediaItemId: string,
   patch: Partial<Pick<DownloadedMedia, "fileSize" | "audioCodecs" | "audioPassFailed" | "filePath">>,
 ): Promise<void> {
-  const index = await readIndex();
-  const item = index.find((i) => i.mediaItemId === mediaItemId);
-  if (!item) return;
-  Object.assign(item, patch);
-  await writeIndex(index);
+  await withIndexLock(async () => {
+    const index = await readIndex();
+    const item = index.find((i) => i.mediaItemId === mediaItemId);
+    if (!item) return;
+    Object.assign(item, patch);
+    await writeIndex(index);
+  });
 }
 
 // Audio codecs of the source file, from the one endpoint that hydrates
@@ -1146,17 +1179,19 @@ export async function cancelDownload(mediaItemId: string): Promise<void> {
 }
 
 export async function deleteDownload(mediaItemId: string): Promise<void> {
-  const index = await readIndex();
-  const item = index.find((i) => i.mediaItemId === mediaItemId);
-  if (item) {
-    await deleteMediaFileAnywhere(item.filePath);
-    // The cached poster is ours (app-private), so it goes with the media -
-    // otherwise every deleted download leaves a thumbnail behind forever.
-    if (item.posterPath) {
-      await FileSystem.deleteAsync(item.posterPath, { idempotent: true }).catch(() => undefined);
+  await withIndexLock(async () => {
+    const index = await readIndex();
+    const item = index.find((i) => i.mediaItemId === mediaItemId);
+    if (item) {
+      await deleteMediaFileAnywhere(item.filePath);
+      // The cached poster is ours (app-private), so it goes with the media -
+      // otherwise every deleted download leaves a thumbnail behind forever.
+      if (item.posterPath) {
+        await FileSystem.deleteAsync(item.posterPath, { idempotent: true }).catch(() => undefined);
+      }
     }
-  }
-  await writeIndex(index.filter((i) => i.mediaItemId !== mediaItemId));
+    await writeIndex(index.filter((i) => i.mediaItemId !== mediaItemId));
+  });
 }
 
 async function resolveExistingPath(item: DownloadedMedia, mediaItemId: string): Promise<string | null> {
@@ -1215,7 +1250,10 @@ export async function getDownloadPath(
   mediaItemId: string,
   options?: GetDownloadPathOptions,
 ): Promise<string | null> {
-  const index = await readIndex();
+  // Read under the lock, revalidate OUTSIDE it: the server round-trip below
+  // can take a minute, and holding the index that long would stall every
+  // download's bookkeeping.
+  const index = await withIndexLock(readIndex);
   const item = index.find((i) => i.mediaItemId === mediaItemId);
   if (!item) return null;
 
@@ -1269,7 +1307,10 @@ export async function purgeOrphanedDownloads(): Promise<number> {
   } catch {
     return 0; // directory unreadable/absent: nothing to sweep
   }
-  const index = await readIndex();
+  // Under the lock: this loop DELETES every private file the index does not
+  // reference, so reading a half-written index here would wipe the device's
+  // downloads.
+  const index = await withIndexLock(readIndex);
   const referenced = new Set(index.map((i) => i.mediaItemId));
   let purged = 0;
   for (const name of names) {
@@ -1291,7 +1332,7 @@ export async function purgeOrphanedDownloads(): Promise<number> {
 }
 
 export async function getTotalDownloadSize(): Promise<number> {
-  const index = await readIndex();
+  const index = await withIndexLock(readIndex);
   let total = 0;
   for (const item of index) {
     try {
