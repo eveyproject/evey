@@ -63,12 +63,13 @@ export default function ParentalSettingsScreen() {
 
   function handleSaveAge(age: string) {
     if (!profileId) return;
-    setMaxAge(age);
-    if (age === "") {
-      updateParental.mutate({ unsetMaxAge: true });
-    } else {
-      updateParental.mutate({ maxAge: parseInt(age, 10) });
-    }
+    // The checkmark moves only once the SERVER has taken the new cap. Moving it
+    // optimistically meant a failed save left the tick sitting on an age
+    // rating that was never applied - a parent reads that as a restriction in
+    // force and it is not. This is the one screen where showing an unconfirmed
+    // value is worse than showing a slow one. Same shape as settings/playback.
+    const body = age === "" ? { unsetMaxAge: true } : { maxAge: parseInt(age, 10) };
+    updateParental.mutate(body, { onSuccess: () => setMaxAge(age) });
   }
 
   function handleSavePin() {
