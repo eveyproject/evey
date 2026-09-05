@@ -2,7 +2,7 @@ import { View, Text, Pressable, ActivityIndicator, Alert, StyleSheet } from "rea
 import { useTranslation } from "react-i18next";
 import type { V1SeekIndexItem } from "@evey/api";
 import { useTheme } from "../../../providers/ThemeProvider";
-import { audioDelayed, audioTrackZeroed, formatBytes, isAckable, isAcked, verdictOf } from "@evey/api";
+import { audioDelayed, audioTracksDisagree, audioTrackZeroed, formatBytes, isAckable, isAcked, verdictOf } from "@evey/api";
 
 type Theme = ReturnType<typeof useTheme>;
 
@@ -124,8 +124,36 @@ export function SeekIndexItemRow({
           />
         )}
         {item.hasBackup && <HintBadge label={t("admin.seekIndex.backupBadge")} color={theme.colors.info} />}
-        {delayed && (
-          <HintBadge label={t("admin.seekIndex.audioDelayBadge", { sec: (item.audioDelaySec ?? 0).toFixed(1) })} color={theme.colors.warning} />
+        {/* An offset is a FACT, shown in the file's own terms - never an
+            alarm. A dub lined up on a cut declares one, every player follows
+            it, and rewriting it is what desynchronised films on 2026-07-13.
+            It only becomes something to look at when the file's OWN tracks are
+            measured to disagree, which is a different badge and the only one
+            painted as a warning. Mobile showed the plain offset in warning
+            colours and never showed the disagreement at all - it had the
+            alarm on the harmless case and nothing on the real one. */}
+        {audioTracksDisagree(item) ? (
+          <HintBadge
+            label={t("admin.seekIndex.audioTracksDisagreeBadge", {
+              sec: Math.abs(Number(item.audioTracksLagSec ?? 0)).toFixed(1),
+            })}
+            hint={t("admin.seekIndex.audioTracksDisagreeHint", {
+              sec: Math.abs(Number(item.audioTracksLagSec ?? 0)).toFixed(1),
+            })}
+            color={theme.colors.warning}
+          />
+        ) : (
+          delayed && (
+            <HintBadge
+              label={t("admin.seekIndex.audioOffsetBadge", { sec: (item.audioDelaySec ?? 0).toFixed(1) })}
+              hint={
+                item.audioTracksChecked
+                  ? t("admin.seekIndex.audioOffsetProvenHint")
+                  : t("admin.seekIndex.audioOffsetHint")
+              }
+              color={theme.colors.info}
+            />
+          )
         )}
         {audioTrackZeroed(item) && (
           <HintBadge
