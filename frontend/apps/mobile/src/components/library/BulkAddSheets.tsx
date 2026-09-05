@@ -38,7 +38,13 @@ export function BulkAddToPlaylistSheet({
   async function handleAdd(playlistId: string, name: string) {
     setPendingId(playlistId);
     try {
-      await Promise.all(mediaItemIds.map((id) => addTo.mutateAsync({ playlistId, mediaItemId: id })));
+      // One at a time, like useBulkFavorite and the library screen's bulk
+      // watched actions. "Select all" on a scrolled library hands this several
+      // hundred ids, and Promise.all opened that many sockets at once against
+      // a NAS that is the weak end of this link.
+      for (const id of mediaItemIds) {
+        await addTo.mutateAsync({ playlistId, mediaItemId: id });
+      }
       toast.success(t("media.library.itemsAddedToPlaylist", { count: mediaItemIds.length, name }));
       onClose();
     } catch {
@@ -131,9 +137,10 @@ export function BulkAddToCollectionSheet({
   async function handleAdd(collectionId: string, name: string) {
     setPendingId(collectionId);
     try {
-      await Promise.all(
-        mediaItemIds.map((id) => collectionServiceAddCollectionItem(collectionId, { mediaItemId: id, sortOrder: 0 })),
-      );
+      // Sequential for the same reason as the playlist sheet above.
+      for (const id of mediaItemIds) {
+        await collectionServiceAddCollectionItem(collectionId, { mediaItemId: id, sortOrder: 0 });
+      }
       toast.success(t("media.collections.itemsAdded", { count: mediaItemIds.length, name }));
       onClose();
     } catch {
