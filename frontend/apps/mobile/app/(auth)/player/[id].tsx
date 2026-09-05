@@ -387,6 +387,9 @@ const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>()
         isKids: activeProfile?.isKids,
         maxAge: activeProfile?.maxAge,
         region: activeProfile?.region,
+        // Offline the profile list never arrives, and an unknown parental cap
+        // must not resolve to "unrestricted" - see offlineAccess.ts.
+        restrictionKnown: !!activeProfile,
       },
     })
       .then(async (p) => {

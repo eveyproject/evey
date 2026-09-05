@@ -254,7 +254,16 @@ export default function DownloadsScreen() {
   const { data: profilesResp } = useUserServiceListProfiles(user?.id ?? "", { query: { enabled: !!user?.id } } as never);
   const activeProfile: OfflineProfileInfo = useMemo(() => {
     const profile = profilesResp?.profiles?.find((p) => p.id === profileId);
-    return { id: profileId, isKids: profile?.isKids, maxAge: profile?.maxAge, region: profile?.region };
+    // restrictionKnown says whether the fields below describe the profile or
+    // are merely absent: offline, this query never answers, and an unknown
+    // parental cap must not read as "no cap" (see offlineAccess.ts).
+    return {
+      id: profileId,
+      isKids: profile?.isKids,
+      maxAge: profile?.maxAge,
+      region: profile?.region,
+      restrictionKnown: !!profile,
+    };
   }, [profileId, profilesResp]);
 
   const listDownloads = useCallback(async () => {
