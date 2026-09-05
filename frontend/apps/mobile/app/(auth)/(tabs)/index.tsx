@@ -230,6 +230,16 @@ const FEED_LABELS: Record<string, string> = {
   recently_added: "media.home.recentlyAdded",
 };
 
+// One array, shared, for "the feed config has not arrived yet". Written as a
+// module constant because `?? []` builds a NEW array on every render, and this
+// value is a dependency of the modal's init effect: with the panel OPEN and
+// the config still loading, every parent render handed it a different empty
+// array, the effect re-ran, setLocal re-rendered, and round it went. React
+// stops that with "Maximum update depth exceeded" - the screen dies rather
+// than spins, and it dies exactly for the viewer who opened Customize before
+// the query came back.
+const NO_FEED_CONFIGS: FeedConfig[] = [];
+
 function FeedCustomizeModal({
   visible,
   onClose,
@@ -703,7 +713,7 @@ export default function HomeScreen() {
       <FeedCustomizeModal
         visible={showCustomize}
         onClose={() => setShowCustomize(false)}
-        configs={feedConfigData?.configs ?? []}
+        configs={feedConfigData?.configs ?? NO_FEED_CONFIGS}
         profileId={profileId}
         libraryNames={libraryNames}
         pluginNames={pluginNames}
