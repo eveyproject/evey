@@ -388,6 +388,7 @@ music:
   mute: Mute
   unmute: Unmute
   seekPosition: Seek position
+  miniPlayer: Music player
   volume: Volume
   resetFilters: Reset filters
   addToPlaylist: Add to playlist
@@ -521,6 +522,9 @@ playlist:
   noItemsManual: Add items from the media detail page.
   removedFromPlaylist: Removed from playlist
   failedRemove: Failed to remove
+  moveItemUp: Move up
+  moveItemDown: Move down
+  removeItem: Remove
   deleteConfirm: "Delete \"{{name}}\"?"
   deleted: "Deleted \"{{name}}\""
   deleteFailed: Failed to delete

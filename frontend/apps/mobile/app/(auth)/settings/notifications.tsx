@@ -8,6 +8,7 @@ import {
   apiErrorMessage,
 } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
+import { LoadFailed } from "../../../src/components/LoadFailed";
 
 type NotificationLevel =
   | "NOTIFICATION_LEVEL_UNSPECIFIED"
@@ -78,7 +79,7 @@ export default function NotificationSettingsScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
 
-  const { data: settings, isLoading } = useNotificationServiceGetNotificationSettings();
+  const { data: settings, isLoading, isError, refetch } = useNotificationServiceGetNotificationSettings();
 
   const [movieLevel, setMovieLevel] = useState<NotificationLevel>("NOTIFICATION_LEVEL_UNSPECIFIED");
   const [seriesLevel, setSeriesLevel] = useState<NotificationLevel>("NOTIFICATION_LEVEL_UNSPECIFIED");
@@ -100,6 +101,9 @@ export default function NotificationSettingsScreen() {
   });
 
   function handleSave() {
+    // A failed GET leaves the three levels on their UNSPECIFIED default;
+    // saving those would overwrite the real settings already on the server.
+    if (isError) return;
     update.mutate({ data: { movieLevel, seriesLevel, musicLevel } });
   }
 
@@ -120,6 +124,8 @@ export default function NotificationSettingsScreen() {
         <View style={{ padding: theme.spacing.xl, alignItems: "center" }}>
           <ActivityIndicator color={theme.colors.accent} />
         </View>
+      ) : isError ? (
+        <LoadFailed onRetry={() => void refetch()} />
       ) : (
         <>
           <Text style={s.sectionTitle}>{t("auth.notificationSettings.movies")}</Text>

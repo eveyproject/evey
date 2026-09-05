@@ -77,6 +77,9 @@ export default function RegionScreen() {
           <Pressable
             onPress={() => pick(item.code)}
             style={({ pressed }) => [styles.row, { borderBottomColor: theme.colors.border, backgroundColor: pressed ? theme.colors.surfaceRaised : "transparent" }]}
+            accessibilityRole="radio"
+            accessibilityLabel={item.label}
+            accessibilityState={{ selected: current === item.code }}
           >
             <Text style={{ color: theme.colors.text, fontSize: 16 }}>{item.label}</Text>
             {current === item.code && (

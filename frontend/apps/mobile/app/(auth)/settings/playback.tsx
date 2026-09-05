@@ -285,6 +285,7 @@ export default function PlaybackSettingsScreen() {
             onPress={() => handleBitrate(opt.value)}
             disabled={!editedProfile || updatePreference.isPending}
             accessibilityRole="radio"
+            accessibilityState={{ selected: bitrate === opt.value, disabled: !editedProfile || updatePreference.isPending }}
           >
             <Text style={s.label}>{opt.label}</Text>
             {bitrate === opt.value && <Text style={s.check}>{"\u2713"}</Text>}
@@ -312,6 +313,7 @@ export default function PlaybackSettingsScreen() {
             onPress={() => handleCellularBitrate(opt.value)}
             disabled={!editedProfile || updatePreference.isPending}
             accessibilityRole="radio"
+            accessibilityState={{ selected: cellularBitrate === opt.value, disabled: !editedProfile || updatePreference.isPending }}
           >
             <Text style={s.label}>{opt.label}</Text>
             {cellularBitrate === opt.value && <Text style={s.check}>{"\u2713"}</Text>}
@@ -331,6 +333,7 @@ export default function PlaybackSettingsScreen() {
             onPress={() => handleVideoCodec(opt.value)}
             disabled={!editedProfile || updatePreference.isPending}
             accessibilityRole="radio"
+            accessibilityState={{ selected: videoCodec === opt.value, disabled: !editedProfile || updatePreference.isPending }}
           >
             <Text style={s.label}>{labelOf(opt)}</Text>
             {videoCodec === opt.value && <Text style={s.check}>{"\u2713"}</Text>}
@@ -350,6 +353,7 @@ export default function PlaybackSettingsScreen() {
             onPress={() => handleAudioCodec(opt.value)}
             disabled={!editedProfile || updatePreference.isPending}
             accessibilityRole="radio"
+            accessibilityState={{ selected: audioCodec === opt.value, disabled: !editedProfile || updatePreference.isPending }}
           >
             <Text style={s.label}>{labelOf(opt)}</Text>
             {audioCodec === opt.value && <Text style={s.check}>{"\u2713"}</Text>}
@@ -369,6 +373,7 @@ export default function PlaybackSettingsScreen() {
             onPress={() => handleAudioChannels(opt.value)}
             disabled={!editedProfile || updatePreference.isPending}
             accessibilityRole="radio"
+            accessibilityState={{ selected: audioChannels === opt.value, disabled: !editedProfile || updatePreference.isPending }}
           >
             <Text style={s.label}>{labelOf(opt)}</Text>
             {audioChannels === opt.value && <Text style={s.check}>{"\u2713"}</Text>}
@@ -386,6 +391,7 @@ export default function PlaybackSettingsScreen() {
             onPress={() => handleSubtitleLang(opt.value)}
             disabled={!editedProfile}
             accessibilityRole="radio"
+            accessibilityState={{ selected: subtitleLang === opt.value, disabled: !editedProfile }}
           >
             <Text style={s.label}>{opt.label}</Text>
             {subtitleLang === opt.value && <Text style={s.check}>{"\u2713"}</Text>}
@@ -403,6 +409,7 @@ export default function PlaybackSettingsScreen() {
             onPress={() => handleAudioLang(opt.value)}
             disabled={!editedProfile}
             accessibilityRole="radio"
+            accessibilityState={{ selected: audioLang === opt.value, disabled: !editedProfile }}
           >
             <Text style={s.label}>{opt.label}</Text>
             {audioLang === opt.value && <Text style={s.check}>{"\u2713"}</Text>}
@@ -430,6 +437,7 @@ export default function PlaybackSettingsScreen() {
             onPress={() => handleSubtitleBurn(opt.value)}
             disabled={!editedProfile || updatePreference.isPending}
             accessibilityRole="radio"
+            accessibilityState={{ selected: subtitleBurn === opt.value, disabled: !editedProfile || updatePreference.isPending }}
           >
             <Text style={s.label}>{labelOf(opt)}</Text>
             {subtitleBurn === opt.value && <Text style={s.check}>{"\u2713"}</Text>}

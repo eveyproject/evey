@@ -89,9 +89,10 @@ const PAGE2_RESULT = {
   isLoading: false, isFetching: false, isError: false, refetch: REFETCH,
 };
 
+let eveyFetchImpl: () => Promise<unknown> = () => Promise.resolve(person);
 vi.mock("@evey/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@evey/api")>()),
-  eveyFetch: () => Promise.resolve(person),
+  eveyFetch: () => eveyFetchImpl(),
   useLibraryServiceListMediaItems: (params: Record<string, unknown>) =>
     params["pagination.cursor"] === "c1" ? PAGE2_RESULT : PAGE1_RESULT,
 }));
@@ -106,6 +107,7 @@ function makeWrapper() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  eveyFetchImpl = () => Promise.resolve(person);
 });
 
 describe("PersonDetailScreen filmography", () => {
@@ -130,5 +132,15 @@ describe("PersonDetailScreen filmography", () => {
     // Earlier page stays mounted (accumulated, not replaced).
     expect(screen.getByText("Film 1")).toBeTruthy();
     expect(screen.getByText("Film 31")).toBeTruthy();
+  });
+
+  it("offers a retry instead of an empty profile when the person fetch fails", async () => {
+    eveyFetchImpl = () => Promise.reject(new Error("boom"));
+
+    render(<PersonDetailScreen />, { wrapper: makeWrapper() });
+
+    expect(await screen.findByLabelText("common.retry")).toBeTruthy();
+    // Not silently rendered as a personless "Unknown" profile.
+    expect(screen.queryByText("Film 1")).toBeNull();
   });
 });

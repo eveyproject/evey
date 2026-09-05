@@ -17,6 +17,7 @@ import type { V1Notification } from "@evey/api";
 import { toast } from "@evey/store";
 import { useTheme } from "../../src/providers/ThemeProvider";
 import { LoadFailed } from "../../src/components/LoadFailed";
+import { Skeleton } from "../../src/components/Skeleton";
 
 // Wording lives in @evey/api: the three apps had three copies of this, each
 // with its own TITLE_KEYS map, and none of them could render the counts in the
@@ -236,9 +237,17 @@ export default function NotificationsScreen() {
         ),
       }} />
 
-      {!isLoading && isError && notifications.length === 0 ? (
+      {isLoading ? (
+        <View style={{ padding: theme.spacing.md }}>
+          {Array.from({ length: 5 }).map((_, i) => (
+            <View key={i} style={{ marginBottom: theme.spacing.sm }}>
+              <Skeleton width="100%" height={64} borderRadius={theme.radii.md} />
+            </View>
+          ))}
+        </View>
+      ) : isError && notifications.length === 0 ? (
         <LoadFailed onRetry={() => void refetch()} />
-      ) : !isLoading && notifications.length === 0 ? (
+      ) : notifications.length === 0 ? (
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: theme.spacing.xl }}>
           <Ionicons name="notifications-off-outline" size={48} color={theme.colors.textMuted} />
           <Text style={{ color: theme.colors.textMuted, fontSize: 16, marginTop: theme.spacing.md, textAlign: "center" }}>

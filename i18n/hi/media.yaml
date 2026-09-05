@@ -388,6 +388,7 @@ music:
   mute: म्यूट करें
   unmute: अनम्यूट करें
   seekPosition: प्लेबैक स्थिति
+  miniPlayer: संगीत प्लेयर
   volume: वॉल्यूम
   resetFilters: फ़िल्टर रीसेट करें
   addToPlaylist: प्लेलिस्ट में जोड़ें
@@ -521,6 +522,9 @@ playlist:
   noItemsManual: मीडिया विवरण पृष्ठ से आइटम जोड़ें।
   removedFromPlaylist: प्लेलिस्ट से हटाया गया
   failedRemove: हटाने में विफल
+  moveItemUp: ऊपर ले जाएं
+  moveItemDown: नीचे ले जाएं
+  removeItem: हटाएं
   deleteConfirm: "\"{{name}}\" मिटाएं?"
   deleted: "\"{{name}}\" मिटाया गया"
   deleteFailed: मिटाने में विफल

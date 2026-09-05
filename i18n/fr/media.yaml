@@ -388,6 +388,7 @@ music:
   mute: Couper le son
   unmute: Rétablir le son
   seekPosition: Position de lecture
+  miniPlayer: Lecteur de musique
   volume: Volume
   resetFilters: Réinitialiser les filtres
   addToPlaylist: Ajouter à la playlist
@@ -521,6 +522,9 @@ playlist:
   noItemsManual: Ajoutez des éléments depuis la page de détail du média.
   removedFromPlaylist: Retiré de la liste de lecture
   failedRemove: Échec du retrait
+  moveItemUp: Monter
+  moveItemDown: Descendre
+  removeItem: Retirer
   deleteConfirm: "Supprimer \"{{name}}\" ?"
   deleted: "\"{{name}}\" supprimée"
   deleteFailed: Échec de la suppression

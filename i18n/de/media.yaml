@@ -388,6 +388,7 @@ music:
   mute: Stummschalten
   unmute: Ton wiederherstellen
   seekPosition: Wiedergabeposition
+  miniPlayer: Musikplayer
   volume: Lautstärke
   resetFilters: Filter zurücksetzen
   addToPlaylist: Zur Playlist hinzufügen
@@ -521,6 +522,9 @@ playlist:
   noItemsManual: Fügen Sie Elemente von der Mediendetailseite hinzu.
   removedFromPlaylist: Aus Playlist entfernt
   failedRemove: Entfernen fehlgeschlagen
+  moveItemUp: Nach oben verschieben
+  moveItemDown: Nach unten verschieben
+  removeItem: Entfernen
   deleteConfirm: "\"{{name}}\" löschen?"
   deleted: "\"{{name}}\" gelöscht"
   deleteFailed: Löschen fehlgeschlagen
