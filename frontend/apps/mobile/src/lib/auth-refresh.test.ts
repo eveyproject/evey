@@ -22,7 +22,7 @@ vi.mock("./server-config", () => ({
   getServerUrl: () => Promise.resolve("http://srv.test"),
 }));
 
-import { refreshAccessTokenIfNeeded, forceRefresh } from "./auth-refresh";
+import { refreshAccessTokenIfNeeded, forceRefresh, ensureAccessToken } from "./auth-refresh";
 import { setRefreshToken, getRefreshToken } from "./refresh-token";
 
 function jwt(exp: number): string {
@@ -96,6 +96,83 @@ describe("refreshAccessTokenIfNeeded - what ends a session and what does not", (
     expect(await refreshAccessTokenIfNeeded()).toBe(false);
     expect(authState.setTokens).not.toHaveBeenCalled();
     expect(authState.logout).not.toHaveBeenCalled();
+  });
+});
+
+// The boolean above collapses "the server said no" and "nobody answered" into
+// one false. Callers that ROUTE on the answer need them apart: bouncing to
+// /login on an unanswered refresh locks a user out of their own downloads
+// while offline, and /login cannot be completed offline either.
+describe("ensureAccessToken - a dead link is not a dead session", () => {
+  it("reports 'valid' without a round-trip when the token is still fresh", async () => {
+    authState.accessToken = jwt(Math.floor(Date.now() / 1000) + 3600);
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+
+    expect(await ensureAccessToken()).toBe("valid");
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("reports 'refreshed' when a new token lands", async () => {
+    authState.accessToken = past();
+    await setRefreshToken("rt-old");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: true, json: async () => ({ accessToken: "fresh" }) })),
+    );
+
+    expect(await ensureAccessToken()).toBe("refreshed");
+  });
+
+  it("reports 'unavailable' - NOT 'refused' - when the network is down", async () => {
+    authState.accessToken = past();
+    await setRefreshToken("rt-ok");
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("offline"); }));
+
+    expect(await ensureAccessToken()).toBe("unavailable");
+    expect(authState.logout).not.toHaveBeenCalled();
+    expect(await getRefreshToken()).toBe("rt-ok");
+  });
+
+  it("reports 'unavailable' on a proxy 5xx, keeping the refresh token", async () => {
+    authState.accessToken = past();
+    await setRefreshToken("rt-502");
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, status: 502, json: async () => ({}) })));
+
+    expect(await ensureAccessToken()).toBe("unavailable");
+    expect(await getRefreshToken()).toBe("rt-502");
+  });
+
+  it("reports 'refused' only when the server rejects the credential", async () => {
+    authState.accessToken = past();
+    await setRefreshToken("rt-dead");
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, status: 401, json: async () => ({}) })));
+
+    expect(await ensureAccessToken()).toBe("refused");
+    expect(authState.logout).toHaveBeenCalled();
+  });
+
+  // An unreachable but ROUTABLE host (captive portal, sleeping NAS) leaves
+  // fetch pending for the OS connect timeout. The (auth) layout renders
+  // nothing while a refresh is in flight, so an unbounded one is a blank app.
+  it("gives up on a refresh that never answers instead of hanging", async () => {
+    authState.accessToken = past();
+    await setRefreshToken("rt-hang");
+    vi.useFakeTimers();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((_url: string, init?: { signal?: AbortSignal }) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => reject(new Error("aborted")));
+        }),
+      ),
+    );
+
+    const pending = ensureAccessToken();
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(await pending).toBe("unavailable");
+    expect(authState.logout).not.toHaveBeenCalled();
+    vi.useRealTimers();
   });
 });
 
