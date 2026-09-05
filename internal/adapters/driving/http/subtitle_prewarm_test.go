@@ -121,7 +121,7 @@ func TestTextSubtitleTracks_NothingToDo(t *testing.T) {
 // A player re-requests the master playlist on every seek, quality change and
 // token refresh. Each one must not re-queue the same film.
 func TestPrewarmer_EnqueuesAMediaOnlyOnce(t *testing.T) {
-	p := newSubtitlePrewarmer(newSubtitleCache(t.TempDir()))
+	p := newSubtitlePrewarmer(newSubtitleCache(t.TempDir()), subtitleIndexCache{})
 	streams := []*domainlibrary.MediaStream{sub("subrip", "fre", false)}
 	for range 5 {
 		p.Enqueue("m1", "/media/film.mkv", streams, "")
@@ -134,7 +134,7 @@ func TestPrewarmer_EnqueuesAMediaOnlyOnce(t *testing.T) {
 // Without a data dir there is nowhere to put the result: extracting would read
 // the film and throw it away.
 func TestPrewarmer_WithoutACacheDoesNothing(t *testing.T) {
-	p := newSubtitlePrewarmer(newSubtitleCache(""))
+	p := newSubtitlePrewarmer(newSubtitleCache(""), subtitleIndexCache{})
 	p.Enqueue("m1", "/media/film.mkv", []*domainlibrary.MediaStream{sub("subrip", "fre", false)}, "")
 	if got := len(p.jobs); got != 0 {
 		t.Fatalf("queued %d jobs, want 0", got)
@@ -144,7 +144,7 @@ func TestPrewarmer_WithoutACacheDoesNothing(t *testing.T) {
 // Enqueue must never hold up the request that triggered it - it runs inside the
 // master-playlist response.
 func TestPrewarmer_AFullQueueDropsRatherThanBlocks(t *testing.T) {
-	p := newSubtitlePrewarmer(newSubtitleCache(t.TempDir()))
+	p := newSubtitlePrewarmer(newSubtitleCache(t.TempDir()), subtitleIndexCache{})
 	streams := []*domainlibrary.MediaStream{sub("subrip", "fre", false)}
 	for i := range subtitlePrewarmQueue + 10 {
 		p.Enqueue(string(rune('a'+i%26))+string(rune('0'+i/26)), "/media/film.mkv", streams, "")

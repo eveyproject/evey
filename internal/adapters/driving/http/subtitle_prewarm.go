@@ -25,6 +25,8 @@ package httpapi
 import (
 	"context"
 	"log/slog"
+	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -59,8 +61,9 @@ type prewarmTrack struct {
 // subtitlePrewarmer extracts a media's text subtitle tracks in the background.
 // The zero value is not usable; see newSubtitlePrewarmer.
 type subtitlePrewarmer struct {
-	cache subtitleCache
-	jobs  chan prewarmJob
+	cache   subtitleCache
+	indexes subtitleIndexCache
+	jobs    chan prewarmJob
 	// seen keeps a media from being queued again for the life of the process:
 	// a player re-requests the master playlist on every seek, quality change
 	// and token refresh, and each one would otherwise enqueue the same film.
@@ -70,12 +73,13 @@ type subtitlePrewarmer struct {
 	delay time.Duration
 }
 
-func newSubtitlePrewarmer(cache subtitleCache) *subtitlePrewarmer {
+func newSubtitlePrewarmer(cache subtitleCache, indexes subtitleIndexCache) *subtitlePrewarmer {
 	return &subtitlePrewarmer{
-		cache: cache,
-		jobs:  make(chan prewarmJob, subtitlePrewarmQueue),
-		seen:  make(map[string]struct{}),
-		delay: subtitlePrewarmDelay,
+		cache:   cache,
+		indexes: indexes,
+		jobs:    make(chan prewarmJob, subtitlePrewarmQueue),
+		seen:    make(map[string]struct{}),
+		delay:   subtitlePrewarmDelay,
 	}
 }
 
@@ -176,6 +180,15 @@ func (p *subtitlePrewarmer) run(ctx context.Context, job prewarmJob) {
 	case <-time.After(p.delay):
 	}
 
+	// ONE walk for the whole file, before extracting anything. Without it each
+	// track costs its own full read: four tracks meant four traversals of the
+	// container for what is one pass worth of information. With it, the walk
+	// happens once and every track after is a handful of seeks.
+	//
+	// Matroska only - an MP4's sample table already is this index, and .avi
+	// never reaches mkvgo at all.
+	p.ensureIndex(ctx, job)
+
 	for _, t := range job.tracks {
 		if ctx.Err() != nil {
 			return
@@ -217,14 +230,57 @@ func (p *subtitlePrewarmer) run(ctx context.Context, job prewarmJob) {
 // startSubtitlePrewarmer builds the prewarmer and starts its worker. Returns nil
 // when there is no cache to fill, so the caller's field stays nil and Enqueue is
 // a no-op rather than a queue nobody drains.
-func startSubtitlePrewarmer(ctx context.Context, cache subtitleCache) *subtitlePrewarmer {
+func startSubtitlePrewarmer(ctx context.Context, cache subtitleCache, indexes subtitleIndexCache) *subtitlePrewarmer {
 	if cache.dir == "" {
 		return nil
 	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	p := newSubtitlePrewarmer(cache)
+	p := newSubtitlePrewarmer(cache, indexes)
 	p.Start(ctx)
 	return p
+}
+
+// ensureIndex builds and stores the file's subtitle index if it is missing.
+// Best-effort: a failure leaves every extraction on the slow path, which is what
+// happened before the index existed.
+func (p *subtitlePrewarmer) ensureIndex(ctx context.Context, job prewarmJob) {
+	if p.indexes.dir == "" {
+		return
+	}
+	ext := strings.ToLower(filepath.Ext(job.filePath))
+	if !isMkvgoSubtitleFastPath(ext) || isMkvgoMP4Ext(ext) {
+		return
+	}
+	if _, ok := p.indexes.get(job.filePath); ok {
+		return
+	}
+	ids, err := mkvgoTextSubtitleTrackIDs(ctx, ext, job.filePath)
+	if err != nil {
+		slog.WarnContext(ctx, "subtitle prewarm: cannot read track ids for the index",
+			slog.String("media_id", job.mediaID), slog.Any("err", err))
+		return
+	}
+	// Only the tracks this job will actually extract: an index entry for a
+	// bitmap track is bytes nobody reads, and the route never serves one as text.
+	var trackIDs []uint64
+	for _, t := range job.tracks {
+		if id, ok := ids[t.index]; ok {
+			trackIDs = append(trackIDs, id)
+		}
+	}
+	if len(trackIDs) == 0 {
+		return
+	}
+	started := time.Now()
+	if _, err := p.indexes.buildAndStore(ctx, job.filePath, trackIDs); err != nil {
+		slog.WarnContext(ctx, "subtitle prewarm: index build failed",
+			slog.String("media_id", job.mediaID), slog.Any("err", err))
+		return
+	}
+	slog.InfoContext(ctx, "subtitle prewarm: index ready",
+		slog.String("media_id", job.mediaID),
+		slog.Int("tracks", len(trackIDs)),
+		slog.Duration("took", time.Since(started)))
 }

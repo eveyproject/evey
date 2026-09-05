@@ -32,6 +32,7 @@ import (
 	domainuser "github.com/evey-project/evey/internal/domain/user"
 	"github.com/evey-project/evey/internal/pkg/ratelimit"
 	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/gravity-zero/mkvgo/matroska"
 )
 
 // subtitleService is the subset of appsubtitle.Service used by HTTP routes.
@@ -268,9 +269,48 @@ func openMkvgoSubtitleContainer(ctx context.Context, ext, filePath string) (*ext
 // per ext.
 func extractMkvgoSubtitleWebVTT(ctx context.Context, ext, filePath string, trackID uint64, w io.Writer) error {
 	if isMkvgoMP4Ext(ext) {
+		// MP4 needs no index: its sample table already is one, which is why
+		// this path answers in milliseconds where Matroska takes a full read.
 		return mkvgomp4.ExtractSubtitleWebVTT(ctx, filePath, trackID, w)
 	}
+	// A stored index turns the walk into a handful of seeks. A stale or absent
+	// one just means the slow path, which is the correct answer either way -
+	// mkvgo refuses an index that does not match this exact file rather than
+	// read cues out of the wrong bytes.
+	if ix, ok := subtitleIndexes.get(filePath); ok {
+		if err := matroska.ExtractSubtitleWebVTTFrom(ctx, filePath, trackID, ix, w); err == nil {
+			return nil
+		}
+	}
 	return mkvops.ExtractSubtitleWebVTT(ctx, filePath, trackID, w)
+}
+
+// mkvgoTextSubtitleTrackIDs returns the mkvgo track IDs of the TEXT subtitle
+// tracks, in declaration order, alongside their subtitle-relative ordinal.
+//
+// Two numbering schemes meet here: the route and the cache count subtitles among
+// themselves (0, 1, 2...), mkvgo addresses them by container track ID. The index
+// is built from the latter.
+func mkvgoTextSubtitleTrackIDs(ctx context.Context, ext, filePath string) (map[int]uint64, error) {
+	c, err := openMkvgoSubtitleContainer(ctx, ext, filePath)
+	if err != nil {
+		return nil, fmt.Errorf("open container: %w", err)
+	}
+	out := make(map[int]uint64)
+	subIdx := 0
+	for i := range c.Tracks {
+		if c.Tracks[i].Type != extmkv.SubtitleTrack {
+			continue
+		}
+		cur := subIdx
+		subIdx++
+		if apptranscoding.IsImageSubtitle(extmkv.FFprobeCodecName(c.Tracks[i].Codec)) {
+			// Never served as text, so never worth an index entry.
+			continue
+		}
+		out[cur] = c.Tracks[i].ID
+	}
+	return out, nil
 }
 
 // subtitleLanguageMatches reports whether the DB's language tag and mkvgo's can
