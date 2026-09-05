@@ -8,11 +8,18 @@ import { getAudioProbe, reportAudioProbeOnce } from "@evey/media-caps";
  * surround setting, decoders). It changes NOTHING about what we declare to the
  * server.
  *
- * This is the app where it matters most: the TV baseline currently omits
- * ac3/eac3 because a decoder-only probe cannot tell a box with a Dolby decoder
- * from one that merely passes the bitstream through to a receiver - and the
- * second case is the common one on a TV. This beacon is how that gets settled
- * on evidence from real hardware instead of a guess.
+ * Diagnostic does NOT mean the probe is unused: the declaration path reads the
+ * same getAudioProbe(), through resolveAudioCodecs -> declarableAudioCodecs in
+ * lib/deviceCodecs.ts, and that is what usePlaySession sends as
+ * supportedAudioCodecs. The static ANDROID_TV_BASELINE is only the floor for a
+ * box whose probe answered nothing.
+ *
+ * This comment used to say the baseline omitted ac3/eac3 because a
+ * decoder-only probe could not tell a Dolby decoder from a passthrough box,
+ * and that this beacon was how it would be settled. It WAS settled, on
+ * 2026-08-31: the SINK decides, not the decoder. Read alone the old wording
+ * suggested nothing was wired at all, which is how an already-closed item came
+ * back onto a backlog.
  */
 export function useAudioCapsBeacon(mediaId: string): void {
   useEffect(() => {

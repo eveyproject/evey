@@ -1304,7 +1304,6 @@ seekIndex:
   purgeStarted: "备份清理已开始"
   deleteBackup: "删除备份"
   backupDeleted: "备份已删除"
-  audioDelayBadge: "音频 +{{sec}}s"
   audioOffsetBadge: "音轨从 +{{sec}} 秒开始"
   audioOffsetHint: "某条音轨在画面之后开始。配音就是这样对齐剪辑版本的，所有播放器都会遵循它 - 无需修复。"
   audioOffsetProvenHint: "某条音轨在画面之后开始，且已比对本文件自身的各条音轨：它们一致，该偏移是有意为之。无需处理。"

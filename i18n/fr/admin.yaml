@@ -1303,7 +1303,6 @@ seekIndex:
   purgeStarted: "Purge des sauvegardes démarrée"
   deleteBackup: "Supprimer la sauvegarde"
   backupDeleted: "Sauvegarde supprimée"
-  audioDelayBadge: "Audio +{{sec}}s"
   audioOffsetBadge: "Audio à +{{sec}} s"
   audioOffsetHint: "Une piste audio démarre après l'image. C'est ainsi qu'un doublage est calé sur un montage, et tous les lecteurs le respectent - il n'y a rien à corriger."
   audioOffsetProvenHint: "Une piste audio démarre après l'image, et les pistes de ce fichier ont été comparées : elles concordent, le décalage est voulu. Rien à faire."

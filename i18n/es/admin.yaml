@@ -1304,7 +1304,6 @@ seekIndex:
   purgeStarted: "Purga de copias iniciada"
   deleteBackup: "Eliminar copia"
   backupDeleted: "Copia eliminada"
-  audioDelayBadge: "Audio +{{sec}}s"
   audioOffsetBadge: "Audio a +{{sec}} s"
   audioOffsetHint: "Una pista de audio empieza después de la imagen. Así se ajusta un doblaje a un montaje, y todos los reproductores lo respetan: no hay nada que corregir."
   audioOffsetProvenHint: "Una pista de audio empieza después de la imagen, y las pistas de este archivo se compararon: coinciden, el desfase es intencionado. Nada que hacer."

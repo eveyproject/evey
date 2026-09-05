@@ -795,7 +795,6 @@
   "admin.seekIndex.ackedBadge": "Seen",
   "admin.seekIndex.allGood": "Nothing awaits you - every scanned file is healthy or acknowledged.",
   "admin.seekIndex.allLibraries": "All libraries",
-  "admin.seekIndex.audioDelayBadge": "Audio +{{sec}}s",
   "admin.seekIndex.audioOffsetBadge": "Audio at +{{sec}}s",
   "admin.seekIndex.audioOffsetHint": "An audio track starts after the picture. That is how a dub is lined up with a cut, and every player follows it - nothing to fix here.",
   "admin.seekIndex.audioOffsetProvenHint": "An audio track starts after the picture, and this file's own tracks were compared and agree: the offset is deliberate. Nothing to do.",

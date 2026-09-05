@@ -67,6 +67,8 @@ describe("SeekIndexItemRow, the audio offset badges", () => {
     row({ audioDelaySec: 12 });
     const badge = screen.getByText("admin.seekIndex.audioOffsetBadge:12.0");
     expect(badge).toBeTruthy();
+    // audioDelayBadge was the old warning-coloured label; the key is gone
+    // from the catalogues now, and nothing may bring it back.
     expect(screen.queryByText(/audioDelayBadge/)).toBeNull();
   });
 

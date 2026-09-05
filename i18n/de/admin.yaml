@@ -1304,7 +1304,6 @@ seekIndex:
   purgeStarted: "Sicherungsbereinigung gestartet"
   deleteBackup: "Sicherung löschen"
   backupDeleted: "Sicherung gelöscht"
-  audioDelayBadge: "Audio +{{sec}}s"
   audioOffsetBadge: "Ton bei +{{sec}} s"
   audioOffsetHint: "Eine Tonspur beginnt nach dem Bild. Genau so wird eine Synchronfassung auf einen Schnitt gelegt, und jeder Player folgt dem - hier ist nichts zu reparieren."
   audioOffsetProvenHint: "Eine Tonspur beginnt nach dem Bild, und die Spuren dieser Datei wurden verglichen: Sie stimmen überein, der Versatz ist gewollt. Nichts zu tun."

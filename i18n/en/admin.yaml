@@ -1304,7 +1304,6 @@ seekIndex:
   purgeStarted: "Backup purge started"
   deleteBackup: "Delete backup"
   backupDeleted: "Backup deleted"
-  audioDelayBadge: "Audio +{{sec}}s"
   audioOffsetBadge: "Audio at +{{sec}}s"
   audioOffsetHint: "An audio track starts after the picture. That is how a dub is lined up with a cut, and every player follows it - nothing to fix here."
   audioOffsetProvenHint: "An audio track starts after the picture, and this file's own tracks were compared and agree: the offset is deliberate. Nothing to do."
