@@ -20,6 +20,9 @@ evey-brand/
 │   ├── favicon-{16..512}.png     # Toutes tailles standard
 │   ├── apple-touch-icon-180.png  # iOS
 │   └── android-chrome-{192,512}.png
+├── play/                         # Google Play
+│   ├── play-icon-512.png                    # Icône de l'appli (512×512)
+│   └── play-feature-graphic-1024x500.png    # Image de présentation (1024×500)
 └── social/
     ├── github-social.png         # 1280×640 (GitHub repo card)
     ├── og-image.png              # 1200×630 (Open Graph / og:image)
