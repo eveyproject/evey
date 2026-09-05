@@ -7,6 +7,7 @@ import { useUserServiceInitiateQuickConnect, userServiceCheckQuickConnect } from
 import { useAuthStore } from "@evey/store";
 import { useTheme } from "../src/providers/ThemeProvider";
 import { useServerUrlNullable } from "../src/hooks/useServerUrl";
+import { setRefreshToken } from "../src/lib/refresh-token";
 
 const REFRESH_INTERVAL_S = 120;
 
@@ -73,6 +74,13 @@ export default function QuickConnectScreen() {
         if (cancelled) return;
         if (resp.authorized && resp.auth?.accessToken) {
           setTokens(resp.auth.accessToken);
+          // The server issues a refresh token here exactly as it does for a
+          // password login (CheckQuickConnect calls GenerateTokensForUser).
+          // Dropping it made this the only sign-in path that produced a
+          // 15-minute session: at the access token's expiry the refresher
+          // found nothing in SecureStore, read the absence as a dead session,
+          // and logged the user back out minutes after they signed in.
+          if (resp.auth.refreshToken) await setRefreshToken(resp.auth.refreshToken);
           router.replace("/(auth)/(tabs)");
         }
       } catch {
