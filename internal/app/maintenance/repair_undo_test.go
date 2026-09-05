@@ -24,10 +24,12 @@ import (
 )
 
 type fakeRetimer struct {
-	mu    sync.Mutex
-	calls []map[uint64]float64
-	paths []string
-	fail  error
+	mu       sync.Mutex
+	calls    []map[uint64]float64
+	paths    []string
+	fail     error
+	failNth  int
+	failWith error
 }
 
 func (f *fakeRetimer) RetimeTracks(_ context.Context, path string, shift map[uint64]float64) error {
@@ -35,6 +37,12 @@ func (f *fakeRetimer) RetimeTracks(_ context.Context, path string, shift map[uin
 	defer f.mu.Unlock()
 	f.paths = append(f.paths, path)
 	f.calls = append(f.calls, shift)
+	// failNth lets a test fail ONE call and not the others - the case that
+	// matters is the second one, where the shift went through and putting the
+	// file back did not.
+	if f.failNth > 0 && len(f.calls) == f.failNth {
+		return f.failWith
+	}
 	return f.fail
 }
 

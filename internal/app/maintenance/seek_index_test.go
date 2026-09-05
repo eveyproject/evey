@@ -28,11 +28,14 @@ type fakeReindexer struct {
 	hasBackup map[string]bool
 	failWith  map[string]error
 	skip      map[string]bool // when true, ReindexInPlace reports Skipped (already indexed)
-	panicOn   string          // when set, ReindexInPlace panics on this path
-	reindexed []string
-	restored  []string
-	deleted   []string
-	gate      chan struct{} // when non-nil, ReindexInPlace blocks until it's closed
+	// restoreFail makes putting the original back fail - the case where the
+	// damaged file stays on disk and the journal must not claim otherwise.
+	restoreFail error
+	panicOn     string // when set, ReindexInPlace panics on this path
+	reindexed   []string
+	restored    []string
+	deleted     []string
+	gate        chan struct{} // when non-nil, ReindexInPlace blocks until it's closed
 	// onReindexed fires after a successful rewrite, before the service
 	// re-diagnoses the file - the hook a test needs to make the fake diagnoser
 	// answer differently once the file has actually been repaired.
@@ -76,8 +79,9 @@ func (f *fakeReindexer) SupportsInPlace() bool { return false }
 func (f *fakeReindexer) RestoreBackup(_ context.Context, p string) error {
 	f.mu.Lock()
 	f.restored = append(f.restored, p)
+	err := f.restoreFail
 	f.mu.Unlock()
-	return nil
+	return err
 }
 
 type fakeCatalog struct {

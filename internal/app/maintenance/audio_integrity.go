@@ -47,6 +47,30 @@ type AudioIntegrityProber interface {
 // than it found it: a new hole, a frame-format change, or lost audible time.
 var ErrAudioIntegrityLost = errors.New("the rewrite damaged an audio track")
 
+// ErrOriginalRestored says the file on disk is the file we started with. It is
+// wrapped into the refusal on the ONE path where that is true, so a caller can
+// tell it apart from the two where it is not: no way back existed, or putting
+// the original back itself failed.
+//
+// It exists because callers were inferring that from the loss sentinel alone,
+// which cannot distinguish them - and the journal then recorded a damaged file
+// as "rolled_back". That entry is the only thing a reader has weeks later
+// (2026-07-13), so it must never overstate what happened.
+var ErrOriginalRestored = errors.New("the original has been restored")
+
+// repairOutcomeAfterGuard turns a guard's refusal into the journal's word for
+// what is on disk now. There are three refusals and only one of them means the
+// file came back; the other two - no backup existed, restoring it failed -
+// leave the damaged bytes in place. Guessing from the loss sentinel alone made
+// all three read as "rolled_back", which is the one claim a reader must be
+// able to trust: it says "there is nothing to do here".
+func repairOutcomeAfterGuard(err error) string {
+	if errors.Is(err, ErrOriginalRestored) {
+		return "rolled_back"
+	}
+	return "failed"
+}
+
 // WithAudioIntegrityProber wires the exhaustive guard. Optional and chainable.
 func (s *SeekIndexService) WithAudioIntegrityProber(p AudioIntegrityProber) *SeekIndexService {
 	s.integrity = p
@@ -125,7 +149,7 @@ func (s *SeekIndexService) guardAudioIntegrity(ctx context.Context, path string,
 	if rerr := restore(); rerr != nil {
 		return fmt.Errorf("%w; restoring the original ALSO failed: %w", lost, rerr)
 	}
-	return fmt.Errorf("%w - the original has been restored", lost)
+	return fmt.Errorf("%w - %w", lost, ErrOriginalRestored)
 }
 
 // RetimeTracksGuarded moves tracks on the container timeline and judges the

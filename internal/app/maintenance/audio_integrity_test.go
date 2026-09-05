@@ -198,3 +198,31 @@ func TestUndo_DamagedResultIsPutBack(t *testing.T) {
 	assert.Equal(t, "rolled_back", j.written[0].Outcome)
 	assert.WithinDuration(t, time.Now(), j.written[0].Started, time.Minute)
 }
+
+// The worst case a repair can reach: the rewrite damaged the sound AND putting
+// the original back failed. The damaged file is what is on disk.
+//
+// The journal used to write "rolled_back" here - the outcome was hardcoded on
+// the guard's error path, without asking whether the restore had worked - and
+// cleared the backup path on top, so the entry said "nothing to do here" AND
+// hid the backup that was still sitting next to the file. That entry is all a
+// reader gets weeks later; it has to be true.
+func TestResync_AFailedRestoreIsNotARollback(t *testing.T) {
+	prober := &fakeIntegrityProber{answers: [][]mkv.TrackIntegrity{
+		{sound(0, 6000, 2, 1)},
+		{sound(0, 5400, 3, 1)}, // a ten-minute hole
+	}}
+	p, svc, reidx := resyncLibrary(t, prober)
+	reidx.restoreFail = errors.New("read-only volume")
+	j := &fakeJournal{}
+	svc.WithRepairJournal(j)
+
+	require.NoError(t, svc.StartRepairLibrary(context.Background(), "", appmaintenance.ReindexRunOptions{ResyncDamaged: true, BackupWindow: 1}))
+	waitIdle(t, svc)
+
+	entries := j.all()
+	require.Len(t, entries, 1)
+	assert.Equal(t, "failed", entries[0].Outcome, "the file was NOT put back")
+	assert.NotEmpty(t, entries[0].BackupPath, "the backup was not consumed - it is still there to restore from")
+	assert.Equal(t, []string{p}, reidx.restored, "the restore was at least attempted")
+}

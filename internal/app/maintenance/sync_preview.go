@@ -145,11 +145,12 @@ func (s *SeekIndexService) ApplyOperatorShift(ctx context.Context, mediaID strin
 	// if sound went missing. No backup exists by design, so that inverse IS
 	// the way back.
 	if err := s.RetimeTracksGuarded(ctx, f.Path, rec.ShiftSec); err != nil {
-		if errors.Is(err, ErrAudioLost) {
-			rec.Outcome = "rolled_back"
-		} else {
-			rec.Outcome = "failed"
-		}
+		// "rolled_back" only when the file on disk really is the original
+		// again - ErrOriginalRestored says so. This used to test for
+		// ErrAudioLost, which a retime cannot return (that is the SAMPLED
+		// guard's sentinel; a retime is judged by the exhaustive one), so
+		// every restored retime was filed as a plain failure.
+		rec.Outcome = repairOutcomeAfterGuard(err)
 		rec.Error = err.Error()
 		s.journalRepair(ctx, rec)
 		return fmt.Errorf("apply shift: %w", err)

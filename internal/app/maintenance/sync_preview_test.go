@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	appmaintenance "github.com/evey-project/evey/internal/app/maintenance"
+	"github.com/evey-project/evey/internal/domain/mkv"
 )
 
 type fakePreview struct {
@@ -133,4 +134,49 @@ func TestOperatorShift_FailureIsRecorded(t *testing.T) {
 	require.Error(t, svc.ApplyOperatorShift(context.Background(), "m1", 2, 1.0))
 	require.Len(t, j.all(), 1)
 	assert.Equal(t, "failed", j.all()[0].Outcome)
+}
+
+// The journal is the answer to 2026-07-13: seven weeks later, the only
+// question that mattered was "what state is this file in". "failed" and
+// "rolled_back" answer it differently - one says the file may be anything, the
+// other says it is exactly what it was - and the operator path was writing the
+// wrong one. It tested for ErrAudioLost, the SAMPLED guard's sentinel, while a
+// retime is judged by the EXHAUSTIVE one and can only ever return
+// ErrAudioIntegrityLost. So every restored retime was filed as a failure.
+func TestOperatorShift_ARestoredFileIsRecordedAsRolledBack(t *testing.T) {
+	r := &fakeRetimer{}
+	j := &fakeJournal{}
+	_, svc := previewService(t, nil, r, j)
+	svc = svc.WithAudioIntegrityProber(&fakeIntegrityProber{answers: [][]mkv.TrackIntegrity{
+		{sound(0, 6000, 2, 1)},
+		{sound(0, 6000, 2, 2)}, // the frames now change format mid-track
+	}})
+
+	err := svc.ApplyOperatorShift(context.Background(), "m1", 2, 2.5)
+
+	require.ErrorIs(t, err, appmaintenance.ErrAudioIntegrityLost)
+	require.Len(t, r.calls, 2, "the shift, then its inverse to put the file back")
+	require.Len(t, j.all(), 1)
+	assert.Equal(t, "rolled_back", j.all()[0].Outcome)
+}
+
+// The worst outcome of all, and the one the ledger must never dress up: the
+// sound was damaged AND putting the original back failed. The file on disk is
+// the damaged one. Calling that "rolled_back" would send a reader looking for
+// a file that no longer exists.
+func TestOperatorShift_AFailedRestoreIsNotARollback(t *testing.T) {
+	r := &fakeRetimer{failNth: 2, failWith: errors.New("read-only volume")}
+	j := &fakeJournal{}
+	_, svc := previewService(t, nil, r, j)
+	svc = svc.WithAudioIntegrityProber(&fakeIntegrityProber{answers: [][]mkv.TrackIntegrity{
+		{sound(0, 6000, 2, 1)},
+		{sound(0, 6000, 2, 2)},
+	}})
+
+	err := svc.ApplyOperatorShift(context.Background(), "m1", 2, 2.5)
+
+	require.ErrorIs(t, err, appmaintenance.ErrAudioIntegrityLost)
+	require.Len(t, j.all(), 1)
+	assert.Equal(t, "failed", j.all()[0].Outcome,
+		"the restore failed, so the damaged file is still there")
 }

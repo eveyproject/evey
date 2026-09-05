@@ -197,8 +197,10 @@ func (s *SeekIndexService) reindexStep(bg context.Context, path string, opts mkv
 		after, ok := s.audibleTracks(bg, path)
 		rec.AudibleAfter = after
 		if err := s.guardAudioSurvived(bg, path, audibleBefore, after, ok, res.BackupPath != ""); err != nil {
-			rec.Outcome, rec.Error = "rolled_back", err.Error()
-			rec.BackupPath = "" // the backup was consumed putting the original back
+			rec.Outcome, rec.Error = repairOutcomeAfterGuard(err), err.Error()
+			if rec.Outcome == "rolled_back" {
+				rec.BackupPath = "" // consumed putting the original back
+			}
 			s.journalRepair(bg, rec)
 			return false, err
 		}
@@ -209,8 +211,10 @@ func (s *SeekIndexService) reindexStep(bg context.Context, path string, opts mkv
 			restore = func() error { return s.reindexer.RestoreBackup(bg, path) }
 		}
 		if err := s.guardAudioIntegrity(bg, path, integrityBefore, restore); err != nil {
-			rec.Outcome, rec.Error = "rolled_back", err.Error()
-			rec.BackupPath = ""
+			rec.Outcome, rec.Error = repairOutcomeAfterGuard(err), err.Error()
+			if rec.Outcome == "rolled_back" {
+				rec.BackupPath = ""
+			}
 			s.journalRepair(bg, rec)
 			s.updateCachedFile(path, func(st *SeekStatus) { st.HasIndex = false; st.HasBackup = false })
 			return false, err
@@ -347,8 +351,8 @@ func (s *SeekIndexService) guardAudioSurvived(ctx context.Context, path string, 
 	// The original is back: it carries its pre-repair defect again and its
 	// backup is gone, exactly like an operator-driven rollback.
 	s.updateCachedFile(path, func(st *SeekStatus) { st.HasIndex = false; st.HasBackup = false })
-	return fmt.Errorf("%w (%d audible before, %d after) - the original has been restored",
-		ErrAudioLost, before, after)
+	return fmt.Errorf("%w (%d audible before, %d after) - %w",
+		ErrAudioLost, before, after, ErrOriginalRestored)
 }
 
 // drainRollingBackups purges whatever the sliding window still holds at the

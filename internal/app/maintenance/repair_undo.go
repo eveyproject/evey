@@ -132,10 +132,7 @@ func (s *SeekIndexService) UndoLastRepair(ctx context.Context, path string) erro
 		// shift that was being undone - the inverse of an exact shift is
 		// exact in both directions.
 		if err := s.RetimeTracksGuarded(ctx, path, inverse); err != nil {
-			rec.Outcome, rec.Error = "failed", err.Error()
-			if errors.Is(err, ErrAudioIntegrityLost) {
-				rec.Outcome = "rolled_back"
-			}
+			rec.Outcome, rec.Error = repairOutcomeAfterGuard(err), err.Error()
 			s.journalRepair(ctx, rec)
 			return fmt.Errorf("undo repair: %w", err)
 		}
