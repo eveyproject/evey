@@ -35,8 +35,13 @@ vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string, fallback?: string) => fallback ?? key }),
 }));
 
+// searchParams: the screen seeds its watcher from a ?profileId= deep link
+// (the Users screen's per-profile "History" button). Empty here - these tests
+// cover the unfiltered landing.
+let searchParams: Record<string, string> = {};
 vi.mock("expo-router", () => ({
   Stack: { Screen: () => React.createElement("div", { "data-testid": "stack-screen" }) },
+  useLocalSearchParams: () => searchParams,
 }));
 
 vi.mock("../providers/ThemeProvider", () => ({
@@ -107,6 +112,7 @@ let served: Map<number, unknown>;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  searchParams = {};
   failPage = 0;
   served = new Map();
   playHistoryMock.mockImplementation((params: any) => {
@@ -162,5 +168,26 @@ describe("admin activity - play history paging", () => {
     failPage = 1;
     render(<ActivityScreen />);
     await waitFor(() => expect(screen.getByTestId("load-failed")).toBeTruthy());
+  });
+});
+
+// The Users screen's per-profile "History" button deep-links here with the
+// profile attached, mirroring the web's /admin/activity?profileId=. Landing
+// unfiltered would make the admin pick the same profile over again, which is
+// the work the button exists to remove.
+describe("admin activity - deep link from the users screen", () => {
+  it("asks for the linked profile's history, not the whole server's", async () => {
+    searchParams = { profileId: "prf-42" };
+    render(<ActivityScreen />);
+
+    await waitFor(() => expect(playHistoryMock).toHaveBeenCalled());
+    expect(playHistoryMock.mock.calls[0][0]).toMatchObject({ profileId: "prf-42" });
+  });
+
+  it("asks for the whole server's history with no link", async () => {
+    render(<ActivityScreen />);
+
+    await waitFor(() => expect(playHistoryMock).toHaveBeenCalled());
+    expect(playHistoryMock.mock.calls[0][0]).not.toHaveProperty("profileId");
   });
 });

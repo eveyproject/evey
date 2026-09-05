@@ -1,6 +1,6 @@
 import { View, Text, FlatList, Pressable, ActivityIndicator, StyleSheet, Share } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { Stack } from "expo-router";
+import { Stack, useLocalSearchParams } from "expo-router";
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
@@ -355,7 +355,7 @@ function StatsTab() {
               </Text>
               {data.activeUsers.map((u) => (
                 <View key={u.userId} style={[styles.listRow, { borderBottomColor: theme.colors.border }]}>
-                  <Text style={{ color: theme.colors.text, fontSize: 13, flex: 1 }}>{u.username}</Text>
+                  <Text style={{ color: theme.colors.text, fontSize: 13, flex: 1 }} numberOfLines={1}>{u.username}</Text>
                   <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>
                     {u.playCount} · {formatDurationMs(u.totalWatchTimeMs) || "0min"}
                   </Text>
@@ -373,7 +373,16 @@ export default function AdminActivityScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
   const [tab, setTab] = useState<Tab>("play");
-  const [watcher, setWatcher] = useState<Watcher>({});
+  // Deep link from the Users screen ("History" on a profile), mirroring the
+  // web's /admin/activity?profileId=. Landing on the unfiltered list and
+  // making the admin pick the same profile again is what the button exists to
+  // avoid. Initial state only: WatcherChips owns the filter from then on.
+  const { profileId: linkedProfileId, userId: linkedUserId } =
+    useLocalSearchParams<{ profileId?: string; userId?: string }>();
+  const [watcher, setWatcher] = useState<Watcher>(() => ({
+    ...(linkedUserId ? { userId: linkedUserId } : {}),
+    ...(linkedProfileId ? { profileId: linkedProfileId } : {}),
+  }));
   const watcherKey = `${watcher.userId ?? ""}|${watcher.profileId ?? ""}`;
   const [exporting, setExporting] = useState(false);
 
