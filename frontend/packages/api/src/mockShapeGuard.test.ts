@@ -16,6 +16,7 @@ import * as pagination from "./pagination";
 import * as exportPaging from "./exportPaging";
 import * as fileNiceName from "./fileNiceName";
 import * as genreColor from "./genreColor";
+import * as hlsRungs from "./hlsRungs";
 import * as imageSubtitles from "./imageSubtitles";
 import * as defaultSubtitle from "./defaultSubtitle";
 import * as langCodes from "./langCodes";
@@ -71,6 +72,7 @@ const SHARED_MODULES = {
   exportPaging,
   fileNiceName,
   genreColor,
+  hlsRungs,
   imageSubtitles,
   defaultSubtitle,
   langCodes,

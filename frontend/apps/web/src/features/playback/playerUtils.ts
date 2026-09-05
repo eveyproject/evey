@@ -1,17 +1,8 @@
-const QUALITY_TIERS = [360, 480, 720, 1080, 1440, 2160];
-
-// nominalQualityTier maps an ENCODED height to the nearest standard quality
-// tier. A widescreen master (e.g. 2.40:1) is scaled to a fixed rung WIDTH with
-// the height left to preserve aspect, so the "1080p" rung of a 1920×800 film is
-// actually 1920×798 - and the raw height (798p) reads as a bug to users. Round
-// it to the nearest familiar label (798 → 720p) for display only; playback and
-// rung selection still key off the exact height.
-export function nominalQualityTier(height: number): number {
-  if (!height || height <= 0) return 0;
-  return QUALITY_TIERS.reduce((best, tier) =>
-    Math.abs(tier - height) < Math.abs(best - height) ? tier : best,
-  );
-}
+// nominalQualityTier lives in @evey/api now: mobile needs the same rounding to
+// read the same manifest, and a second copy of a rule like this is how the two
+// players end up labelling the same rung differently. Re-exported here so the
+// call sites in this folder keep importing from where they always did.
+export { nominalQualityTier } from "@evey/api";
 
 // playerCloseTarget picks the media page the player lands on when it cannot
 // simply pop its own history entry (deep link, hard refresh).

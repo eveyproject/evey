@@ -130,6 +130,40 @@ describe("PlayerSettingsPanel - qualite", () => {
     fireEvent.click(getByLabelText("720p"));
     expect(onQualityChange).toHaveBeenCalledWith(720);
   });
+
+  // The fixed ladder offered 1080p on a 720p source and then served whatever
+  // the server had: a choice that does nothing is worse than no choice. The
+  // manifest is the only thing that knows what exists.
+  it("n'offre que les barreaux que le manifeste declare", () => {
+    const { queryByLabelText } = render(
+      <PlayerSettingsPanel {...baseProps} availableQualities={[798, 532]} />,
+    );
+    // Labelled by tier - 798p reads as a bug - and 1080p is simply not offered.
+    expect(queryByLabelText("720p")).toBeTruthy();
+    expect(queryByLabelText("480p")).toBeTruthy();
+    expect(queryByLabelText("1080p")).toBeNull();
+    expect(queryByLabelText("360p")).toBeNull();
+    expect(queryByLabelText("Auto")).toBeTruthy();
+  });
+
+  // The value sent back is the EXACT encoded height, not the rounded label:
+  // the label is for the viewer, the height is for the server.
+  it("renvoie la hauteur reelle, pas le palier affiche", () => {
+    const onQualityChange = vi.fn();
+    const { getByLabelText } = render(
+      <PlayerSettingsPanel {...baseProps} availableQualities={[798, 532]} onQualityChange={onQualityChange} />,
+    );
+    fireEvent.click(getByLabelText("720p"));
+    expect(onQualityChange).toHaveBeenCalledWith(798);
+  });
+
+  // Direct play has no manifest, and a manifest not read yet is not an answer:
+  // in both cases the menu keeps what it always showed.
+  it("garde l'echelle statique quand le manifeste ne dit rien", () => {
+    const { queryByLabelText } = render(<PlayerSettingsPanel {...baseProps} availableQualities={[]} />);
+    expect(queryByLabelText("1080p")).toBeTruthy();
+    expect(queryByLabelText("360p")).toBeTruthy();
+  });
 });
 
 describe("PlayerSettingsPanel - external subtitle upload", () => {

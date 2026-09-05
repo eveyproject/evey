@@ -6,7 +6,7 @@ import type { SubtitleStream } from "./SubtitleSelector";
 import type { SubtitleStyle } from "@/hooks/usePlaybackPrefs";
 import type { SleepTimerState } from "@/hooks/useSleepTimer";
 import { SPEED_OPTIONS } from "./constants";
-import { nominalQualityTier } from "./playerUtils";
+import { qualityRungsFromHeights } from "@evey/api";
 
 // Mirrors the mobile/TV sleep timer presets (apps/mobile/src/components/SleepTimerPicker.tsx,
 // apps/tv/src/components/SleepTimerPicker.tsx).
@@ -285,13 +285,8 @@ export function SettingsPanel({
   // by tier keeping the tallest rung. Fall back to the static list before the
   // manifest is parsed.
   const QUALITY_OPTIONS = (() => {
-    if (!availableQualities || availableQualities.length === 0) return allQualityOptions;
-    const seen = new Set<number>();
-    const rungs = [...availableQualities]
-      .sort((a, b) => b - a)
-      .map((h) => ({ tier: nominalQualityTier(h), h }))
-      .filter(({ tier }) => (seen.has(tier) ? false : (seen.add(tier), true)))
-      .map(({ tier, h }) => ({ label: `${tier}p`, value: h }));
+    const rungs = qualityRungsFromHeights(availableQualities ?? []);
+    if (rungs.length === 0) return allQualityOptions;
     return [{ label: t("player.quality.original"), value: 0 }, ...rungs];
   })();
   const subtitleFontSize = subtitleStyle?.fontSize ?? 100;

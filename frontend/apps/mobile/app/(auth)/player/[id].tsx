@@ -46,6 +46,7 @@ import { usePlayerGestures } from "../../../src/hooks/usePlayerGestures";
 import { usePlaybackSettings } from "../../../src/hooks/usePlaybackSettings";
 import { useNextEpisode } from "../../../src/hooks/useNextEpisode";
 import { useChapters } from "../../../src/hooks/useChapters";
+import { useHlsRungs } from "../../../src/hooks/useHlsRungs";
 import { useSleepTimer } from "../../../src/hooks/useSleepTimer";
 import { SleepTimerPicker } from "../../../src/components/SleepTimerPicker";
 import { pickNativeAudioTrack, pickPreferredStreamIndex } from "../../../src/lib/audioTrackMatch";
@@ -247,6 +248,9 @@ const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>()
 
 
   const { data: chapters = [] } = useChapters(mediaId);
+  // What the transcode actually offers, read from the master playlist. Empty
+  // on direct play - there is no ladder to choose from there.
+  const availableQualities = useHlsRungs(streamUrl, streamToken);
   const videoViewRef = useRef<VideoView>(null);
   const pipSupported = useMemo(() => isPictureInPictureSupported(), []);
   const mountedRef = useRef(true);
@@ -1494,6 +1498,7 @@ const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>()
                 onSubtitleChange={handleSubtitleSelect}
                 currentQuality={selectedQuality}
                 onQualityChange={handleQualitySelect}
+                availableQualities={availableQualities}
                 playbackSpeed={playbackSpeed}
                 onSpeedChange={handleSpeedSelect}
                 brightness={brightness}

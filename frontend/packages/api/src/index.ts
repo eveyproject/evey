@@ -13,6 +13,7 @@ export * from "./genreColor";
 export * from "./imageSubtitles";
 export * from "./langCodes";
 export * from "./defaultSubtitle";
+export * from "./hlsRungs";
 export * from "./apiErrorMessage";
 export * from "./personDepartment";
 export * from "./pagination";

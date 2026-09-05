@@ -11,7 +11,7 @@ import {
   SUBTITLE_TEXT_COLORS,
   type SubtitleStyle,
 } from "../../lib/subtitleStyle";
-import { formatAudioTrackLabel } from "@evey/api";
+import { formatAudioTrackLabel, qualityRungsFromHeights } from "@evey/api";
 
 export interface AudioStream {
   index: number;
@@ -74,6 +74,9 @@ interface PlayerSettingsPanelProps {
   externalSubtitleActive?: boolean;
   onPickExternalSubtitle?: () => void;
   onSelectExternalSubtitle?: () => void;
+  // Heights declared by the manifest, tallest-first order irrelevant. Empty
+  // (direct play, or not read yet) keeps the static ladder.
+  availableQualities?: readonly number[];
   style?: StyleProp<ViewStyle>;
 }
 
@@ -144,12 +147,23 @@ function OffsetStepper({ label, valueMs, onChange, disabled, hint }: {
 // cannot hide.
 export const QUALITY_HEIGHTS = [0, 1080, 720, 480, 360] as const;
 
-function useQualityOptions() {
+// availableQualities is what the MANIFEST declares, when it has been read.
+// Empty means "not known yet, or direct play": the static ladder stands, which
+// is what this menu always showed.
+//
+// 🔻 Still missing next to web: an "Auto (720p)" label naming the rung that is
+// actually playing. expo-video does not expose the level it picked, so that
+// half needs native support - it is not a plumbing job like this one.
+function useQualityOptions(availableQualities: readonly number[]) {
   const { t } = useTranslation();
-  return QUALITY_HEIGHTS.map((height) => ({
-    value: height,
-    label: height === 0 ? t("player.quality.auto") : `${height}p`,
-  }));
+  const rungs = qualityRungsFromHeights(availableQualities);
+  if (rungs.length === 0) {
+    return QUALITY_HEIGHTS.map((height) => ({
+      value: height,
+      label: height === 0 ? t("player.quality.auto") : `${height}p`,
+    }));
+  }
+  return [{ value: 0, label: t("player.quality.auto") }, ...rungs];
 }
 
 // Minimalist horizontal bar for brightness (same touch mechanics as
@@ -230,17 +244,14 @@ export function PlayerSettingsPanel({
   externalSubtitleActive = false,
   onPickExternalSubtitle,
   onSelectExternalSubtitle,
+  availableQualities,
   style,
 }: PlayerSettingsPanelProps) {
   const { t } = useTranslation();
   const theme = useTheme();
   const { height: screenH } = useWindowDimensions();
-  const QUALITY_OPTIONS = useQualityOptions();
+  const QUALITY_OPTIONS = useQualityOptions(availableQualities ?? []);
   const [menu, setMenu] = useState<"main" | "audio" | "subtitles" | "speed" | "subtitle-style">("main");
-  // 🔻 Still missing next to web: the real rungs from the manifest
-  // (`availableQualities` there) and an "Auto (720p)" label saying which one is
-  // actually playing. The heights below are fixed, so a source with no 1080p
-  // rung still offers 1080p. That needs the manifest plumbed down here.
 
   const select = (fn: () => void) => {
     fn();
