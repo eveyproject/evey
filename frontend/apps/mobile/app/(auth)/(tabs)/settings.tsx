@@ -334,7 +334,7 @@ export default function SettingsScreen() {
       <Text style={s.sectionTitle}>{t("common.language")}</Text>
       <View style={s.section}>
         {supportedLanguages.map((lang) => (
-          <Pressable key={lang.code} style={s.row} onPress={() => handleLanguageChange(lang.code)} accessible={true} accessibilityLabel={lang.label} accessibilityRole="radio">
+          <Pressable key={lang.code} style={s.row} onPress={() => handleLanguageChange(lang.code)} accessible={true} accessibilityLabel={lang.label} accessibilityRole="radio" accessibilityState={{ selected: currentLang === lang.code }}>
             <Text style={s.label}>{lang.label}</Text>
             {currentLang === lang.code && <Text style={{ color: theme.colors.accent, fontSize: 16, fontWeight: "600" }}>{"\u2713"}</Text>}
           </Pressable>
@@ -382,7 +382,7 @@ export default function SettingsScreen() {
             <Switch value={biometricEnabled} onValueChange={toggleBiometric} trackColor={{ true: theme.colors.accent, false: theme.colors.surfaceRaised }} />
           </View>
         )}
-        <Pressable style={s.row} onPress={() => router.push("/admin/api-keys")} accessible={true} accessibilityLabel="API Keys" accessibilityRole="button"><Text style={s.label}>API Keys</Text><ChevronRight color={theme.colors.textMuted} /></Pressable>
+        <Pressable style={s.row} onPress={() => router.push("/admin/api-keys")} accessible={true} accessibilityLabel={t("auth.apiKeys.title")} accessibilityRole="button"><Text style={s.label}>{t("auth.apiKeys.title")}</Text><ChevronRight color={theme.colors.textMuted} /></Pressable>
         <Pressable style={s.row} onPress={() => router.push("/settings/devices")} accessible={true} accessibilityLabel={t("auth.devices.title")} accessibilityRole="button"><Text style={s.label}>{t("auth.devices.title")}</Text><ChevronRight color={theme.colors.textMuted} /></Pressable>
       </View>
 

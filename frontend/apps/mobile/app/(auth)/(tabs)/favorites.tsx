@@ -286,6 +286,7 @@ export default function FavoritesScreen() {
             accessible={true}
             accessibilityLabel={opt.label}
             accessibilityRole="radio"
+            accessibilityState={{ selected: typeFilter === opt.key }}
           >
             <Text style={{ color: typeFilter === opt.key ? theme.colors.onAccent : theme.colors.text, fontSize: 13 }}>
               {opt.label}
@@ -311,6 +312,7 @@ export default function FavoritesScreen() {
             accessible={true}
             accessibilityLabel={opt.label}
             accessibilityRole="radio"
+            accessibilityState={{ selected: sortKey === opt.key }}
           >
             <Text style={{ color: sortKey === opt.key ? theme.colors.onAccent : theme.colors.text, fontSize: 13 }}>
               {opt.label}

@@ -171,7 +171,7 @@ export default function SearchScreen() {
     { query: { enabled: debouncedQuery.length > 1 && searchKind === "media" } },
   );
 
-  const { data: musicData, isLoading: musicLoading } = useMusicServiceSearchMusic(
+  const { data: musicData, isLoading: musicLoading, isError: musicIsError, refetch: refetchMusic } = useMusicServiceSearchMusic(
     { query: debouncedQuery, limit: 40 },
     { query: { enabled: debouncedQuery.length > 1 && searchKind === "music" } },
   );
@@ -319,7 +319,7 @@ export default function SearchScreen() {
         autoCorrect={false}
         returnKeyType="search"
         accessible={true}
-        accessibilityLabel="Search media"
+        accessibilityLabel={t("media.search.placeholder")}
       />
 
       {/* Scope selector: video catalog (default) vs music */}
@@ -598,7 +598,7 @@ export default function SearchScreen() {
         </View>
       )}
 
-      {searchKind === "media" && isError && debouncedQuery.length > 0 ? (
+      {(searchKind === "media" ? isError : musicIsError) && debouncedQuery.length > 0 ? (
         <View
           style={{
             flex: 1,
@@ -611,7 +611,7 @@ export default function SearchScreen() {
           >
             {t("common.loadError")}
           </Text>
-          <Pressable onPress={() => refetch()}>
+          <Pressable onPress={() => (searchKind === "media" ? refetch() : refetchMusic())}>
             <Text style={{ color: theme.colors.accent }}>
               {t("common.retry")}
             </Text>

@@ -71,7 +71,10 @@ vi.mock("@evey/store", () => ({
 }));
 
 const { fetchState } = vi.hoisted(() => ({
-  fetchState: { resolveLibraries: null as ((v: unknown) => void) | null },
+  fetchState: {
+    resolveLibraries: null as ((v: unknown) => void) | null,
+    rejectLibraries: null as ((e: unknown) => void) | null,
+  },
 }));
 vi.mock("@evey/api", () => ({
   formatTime: (s: number) => String(s),
@@ -80,9 +83,10 @@ vi.mock("@evey/api", () => ({
   useUserServiceListProfiles: () => ({ data: undefined }),
   eveyFetch: ({ url }: { url: string }) => {
     if (url === "/api/v1/libraries") {
-      // Held open so the test controls the pending -> resolved transition.
-      return new Promise((resolve) => {
+      // Held open so the test controls the pending -> resolved/rejected transition.
+      return new Promise((resolve, reject) => {
         fetchState.resolveLibraries = resolve;
+        fetchState.rejectLibraries = reject;
       });
     }
     return Promise.resolve({ tracks: [], albums: [], artists: [] });
@@ -93,6 +97,7 @@ import MusicScreen from "./music";
 
 beforeEach(() => {
   fetchState.resolveLibraries = null;
+  fetchState.rejectLibraries = null;
 });
 
 describe("MusicScreen", () => {
@@ -114,5 +119,23 @@ describe("MusicScreen", () => {
     // hooks. (The tracks tab may legitimately show its own loading skeletons
     // while its query runs; only the hooks crash is under test here.)
     expect(screen.getByText("media.music.title")).toBeTruthy();
+  });
+
+  // A failed libraries request used to fall through to the "no music
+  // libraries" empty state, which reads as "you have not set one up" rather
+  // than "the server did not answer" (mirrors the fix already applied to
+  // photos.tsx).
+  it("shows LoadFailed when the libraries query fails, not the no-libraries screen", async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={qc}>
+        <MusicScreen />
+      </QueryClientProvider>,
+    );
+    expect(screen.getAllByTestId("skeleton").length).toBeGreaterThan(0);
+
+    fetchState.rejectLibraries?.(new Error("boom"));
+    await waitFor(() => expect(screen.getByTestId("load-failed")).toBeTruthy());
+    expect(screen.queryByText("media.music.noMusicLibraries")).toBeNull();
   });
 });
