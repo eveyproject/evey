@@ -473,7 +473,7 @@ export default function AdminTranscodingScreen() {
                     : t("admin.transcoding.videoPoolCpu", "Pool CPU");
                 return (
                   <View key={pool.pool} style={{ marginTop: 8 }}>
-                    <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
                       <Text style={{ color: theme.colors.text, fontSize: 14, fontWeight: "600" }}>{label}</Text>
                       <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>
                         {t("admin.transcoding.videoPoolBudget", "{{used}} / {{total}}", {

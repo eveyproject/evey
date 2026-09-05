@@ -180,7 +180,7 @@ const styles = StyleSheet.create({
   statsGrid: { flexDirection: "row", flexWrap: "wrap", padding: 16, gap: 12 },
   statCard: { flex: 1, minWidth: "45%", padding: 16, alignItems: "center", gap: 4 },
   statValue: { fontSize: 28, fontWeight: "700" },
-  statLabel: { fontSize: 12 },
+  statLabel: { fontSize: 12, textAlign: "center" },
   sectionTitle: { fontSize: 13, fontWeight: "600", textTransform: "uppercase", marginTop: 20, marginBottom: 8, marginHorizontal: 16 },
   listCard: { overflow: "hidden" },
   listRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 12, paddingHorizontal: 16, borderBottomWidth: StyleSheet.hairlineWidth },

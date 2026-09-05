@@ -553,13 +553,13 @@ export default function AdminDashboard() {
             {dashboard?.cpuPercent != null && (
               <View style={[styles.infoRow, { borderBottomColor: theme.colors.border }]}>
                 <Text style={{ color: theme.colors.textMuted, fontSize: 13 }}>{t("admin.dashboardStats.cpu")}</Text>
-                <Text style={{ color: getUsageColor(dashboard.cpuPercent, theme), fontSize: 13 }}>{Math.round(dashboard.cpuPercent)}%</Text>
+                <Text style={{ color: getUsageColor(dashboard.cpuPercent, theme), fontSize: 13, flex: 1, textAlign: "right" }}>{Math.round(dashboard.cpuPercent)}%</Text>
               </View>
             )}
             {dashboard?.memoryPercent != null && (
               <View style={[styles.infoRow, { borderBottomColor: theme.colors.border }]}>
                 <Text style={{ color: theme.colors.textMuted, fontSize: 13 }}>{t("admin.dashboardStats.memory")}</Text>
-                <Text style={{ color: getUsageColor(dashboard.memoryPercent, theme), fontSize: 13 }}>{Math.round(dashboard.memoryPercent)}%</Text>
+                <Text style={{ color: getUsageColor(dashboard.memoryPercent, theme), fontSize: 13, flex: 1, textAlign: "right" }}>{Math.round(dashboard.memoryPercent)}%</Text>
               </View>
             )}
           </View>
@@ -584,7 +584,7 @@ const styles = StyleSheet.create({
   statsGrid: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 16, gap: 12 },
   statCard: { flex: 1, minWidth: "45%", padding: 16, alignItems: "center", gap: 4 },
   statValue: { fontSize: 28, fontWeight: "700" },
-  statLabel: { fontSize: 12 },
+  statLabel: { fontSize: 12, textAlign: "center" },
   sectionTitle: { fontSize: 13, fontWeight: "600", textTransform: "uppercase", marginTop: 20, marginBottom: 8, marginHorizontal: 16 },
   sectionHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   infoCard: { overflow: "hidden" },
