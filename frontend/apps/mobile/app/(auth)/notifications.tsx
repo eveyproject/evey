@@ -139,7 +139,11 @@ export default function NotificationsScreen() {
   // plugin security dashboard). Mirror web fix `ebe634946`.
   const HIDDEN_TYPES = new Set(["plugin_error"]);
 
-  const { data, isLoading, isError, refetch } = useNotificationServiceListNotifications({ limit: 50 });
+  // No limit on purpose: the server's own default is 200 and the web asks for
+  // nothing, so the number lives in one place. Asking for 50 here made these
+  // two screens hide notifications 51..200 that the server was already willing
+  // to send, with no "load more" to reach them.
+  const { data, isLoading, isError, refetch } = useNotificationServiceListNotifications();
   const notifications = (data?.notifications ?? []).filter(
     (n) => !n.type || !HIDDEN_TYPES.has(n.type),
   );
