@@ -208,7 +208,16 @@ export function useCastSession({
     } catch (err) {
       console.warn("[Cast] cast token mint failed, casting with native token:", err);
     }
-    console.log("[Cast] loadMedia URL:", castUrl);
+    // Never the full URL in a release build: a cast token is minted for 12
+    // hours and rides in the query string, so this line put a ready-to-use
+    // stream link into Logcat on every cast - readable by adb, by an OEM
+    // "send logs to support" flow, or by anything on a rooted device. The
+    // media id is what debugging actually needs.
+    if (process.env.NODE_ENV !== "production") {
+      console.log("[Cast] loadMedia URL:", castUrl);
+    } else {
+      console.log("[Cast] loadMedia mediaId:", mediaId);
+    }
     const isHls = castUrl.includes("m3u8");
     try {
       await client.loadMedia({
