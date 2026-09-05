@@ -102,3 +102,82 @@ func TestEverySortFieldTheAPIAcceptsHasASQLColumn(t *testing.T) {
 		}
 	}
 }
+
+// switchCaseStrings returns every string literal used as a `case` in the named
+// top-level function.
+func switchCaseStrings(t *testing.T, path, funcName string) []string {
+	t.Helper()
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
+	if err != nil {
+		t.Fatalf("parse %s: %v", path, err)
+	}
+	var out []string
+	var found bool
+	ast.Inspect(f, func(n ast.Node) bool {
+		fn, ok := n.(*ast.FuncDecl)
+		if !ok || fn.Name.Name != funcName {
+			return true
+		}
+		found = true
+		ast.Inspect(fn.Body, func(n ast.Node) bool {
+			cc, ok := n.(*ast.CaseClause)
+			if !ok {
+				return true
+			}
+			for _, e := range cc.List {
+				if s := stringLit(e); s != "" {
+					out = append(out, s)
+				}
+			}
+			return true
+		})
+		return false
+	})
+	if !found {
+		t.Fatalf("%s: function %q not found - was it renamed? this guard must be updated with it", path, funcName)
+	}
+	return out
+}
+
+// A sort field needs TWO things, and having only one is silent both ways.
+//
+// The test above pins the SQL column. This pins the other half: the value the
+// keyset cursor encodes for the LAST row of a page. mediaItemSortValue answers
+// by sort key, and its default returns the item's UUID - fine as a fallback for
+// a key that never paginates, fatal for one that does.
+//
+// That is exactly what shipped on 2026-09-05. "rating" was added to
+// SortColumnMap so the ORDER BY finally worked, the guard above went green, and
+// nothing looked at this switch - which only knew "community_rating". Sorting a
+// library by rating therefore built a cursor holding a UUID, and page 2 bound
+// that UUID against a numeric column: HTTP 500. From the viewer's seat, "échec
+// du chargement" the moment they scrolled.
+func TestEverySortFieldTheAPIAcceptsCanBuildACursorValue(t *testing.T) {
+	_, emitted := mapLiteralEntries(t,
+		filepath.Join(repoRoot, "internal/adapters/driving/grpcapi/library_converters.go"),
+		"mediaSortFieldFromProto")
+	cases := switchCaseStrings(t,
+		filepath.Join(repoRoot, "internal/adapters/driving/grpcapi/library_handler_mediaitems.go"),
+		"mediaItemSortValue")
+
+	known := make(map[string]bool, len(cases))
+	for _, c := range cases {
+		known[c] = true
+	}
+
+	if len(emitted) == 0 || len(cases) == 0 {
+		t.Fatalf("parsed %d sort fields and %d cursor cases - the guard would pass vacuously", len(emitted), len(cases))
+	}
+	for _, field := range emitted {
+		if field == "" {
+			continue
+		}
+		if !known[field] {
+			t.Errorf("the API accepts sort field %q but mediaItemSortValue has no case for it: "+
+				"the cursor would carry the item's UUID as its sort value, and the next page binds that "+
+				"UUID against the sort column - a 500 the moment a viewer scrolls. "+
+				"Add a %q case in internal/adapters/driving/grpcapi/library_handler_mediaitems.go", field, field)
+		}
+	}
+}

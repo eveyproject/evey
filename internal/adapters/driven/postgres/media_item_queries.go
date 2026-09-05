@@ -190,54 +190,63 @@ func whereAnd(where, predicate string) string {
 // 2026-08-08 and both reproduced against a real Postgres:
 //
 //   - a row comparison involving NULL evaluates to NULL, not true, so those
-//     items were silently DROPPED from every page after the first. Ascending
-//     (NULLs last), the whole tail of the library simply vanished mid-scroll;
-//   - descending puts NULLs FIRST, so one of them ends page 1 and the handler,
-//     having no value to encode, put an EMPTY STRING in the cursor. Binding ""
-//     against an integer column is `invalid input syntax for type integer`,
-//     i.e. a 500 on ordinary data.
+//     items were silently DROPPED from every page after the first. Ascending,
+//     the whole tail of the library simply vanished mid-scroll;
+//   - the handler, having no value to encode for a NULL row, put an EMPTY
+//     STRING in the cursor. Binding "" against a numeric column is `invalid
+//     input syntax`, i.e. a 500 on ordinary data.
 //
-// So NULL is treated as a position in the ordering, exactly where Postgres puts
-// it: last on ASC, first on DESC. An empty SortValue means "the previous row
-// had no value" and is never bound, which is also what keeps the cast from
-// happening. It stays unambiguous because every nullable sort key encodes
-// non-empty for a present value (zero-padded number, RFC3339 date).
+// So NULL is treated as a position in the ordering. That position is now LAST
+// in BOTH directions, which is what mediaItemOrderBy pins with NULLS LAST and
+// what this function must mirror exactly - a seek that disagrees with the
+// ORDER BY skips rows or repeats a page forever.
+//
+// Last in both directions is also the only answer that is not absurd to a
+// viewer: sorting a library by rating, descending, used to open on the eight
+// films nobody has rated before the 8.7s (prod, 2026-09-05 - "trier par note ça
+// marche pas"). An unrated item is not the best-rated item.
+//
+// An empty SortValue means "the previous row had no value" and is never bound,
+// which is also what keeps the cast from happening. It stays unambiguous
+// because every nullable sort key encodes non-empty for a present value
+// (zero-padded number, RFC3339 date).
 func mediaItemCursorSeek(sortField, sortOrder string, cursor shared.Cursor, args []any) (string, []any) {
 	// mi.* columns come from the base table and are never NULL here; everything
 	// else arrives through a LEFT JOIN and can be.
 	nullable := !strings.HasPrefix(sortField, "mi.")
 	atNullRow := nullable && cursor.SortValue == ""
 
-	if sortOrder == "DESC" { // Postgres orders NULLs FIRST on DESC
-		if atNullRow {
-			// Still inside the leading NULL block: the rest of it, then
-			// everything that has a value.
-			idIdx := len(args) + 1
-			args = append(args, cursor.LastID)
-			return fmt.Sprintf("((%s IS NULL AND mi.id < $%d) OR %s IS NOT NULL)", sortField, idIdx, sortField), args
-		}
-		// Past the NULL block already - a plain tuple comparison excludes NULLs
-		// on its own, which is what we want.
-		vIdx := len(args) + 1
-		args = append(args, cursor.SortValue, cursor.LastID)
-		return fmt.Sprintf("((%s, mi.id) < ($%d, $%d))", sortField, vIdx, vIdx+1), args
+	cmp := ">"
+	if sortOrder == "DESC" {
+		cmp = "<"
 	}
 
-	// ASC: Postgres orders NULLs LAST.
+	// Inside the trailing NULL block: only the rest of that block remains,
+	// ordered by id in the same direction as the ORDER BY.
 	if atNullRow {
 		idIdx := len(args) + 1
 		args = append(args, cursor.LastID)
-		return fmt.Sprintf("(%s IS NULL AND mi.id > $%d)", sortField, idIdx), args
+		return fmt.Sprintf("(%s IS NULL AND mi.id %s $%d)", sortField, cmp, idIdx), args
 	}
+
 	vIdx := len(args) + 1
 	args = append(args, cursor.SortValue, cursor.LastID)
 	if !nullable {
-		return fmt.Sprintf("((%s, mi.id) > ($%d, $%d))", sortField, vIdx, vIdx+1), args
+		return fmt.Sprintf("((%s, mi.id) %s ($%d, $%d))", sortField, cmp, vIdx, vIdx+1), args
 	}
-	// The NULL block is still ahead, so it has to be part of what remains.
-	// Parenthesised as one term: AND binds tighter than OR, and getting that
-	// wrong is how an earlier keyset query served the same page forever.
-	return fmt.Sprintf("((%s, mi.id) > ($%d, $%d) OR %s IS NULL)", sortField, vIdx, vIdx+1, sortField), args
+	// The NULL block is still ahead (it is always last), so it has to be part of
+	// what remains. Parenthesised as one term: AND binds tighter than OR, and
+	// getting that wrong is how an earlier keyset query served the same page
+	// forever.
+	return fmt.Sprintf("((%s, mi.id) %s ($%d, $%d) OR %s IS NULL)", sortField, cmp, vIdx, vIdx+1, sortField), args
+}
+
+// mediaItemOrderBy renders the ordering shared by the cursor and non-cursor
+// paths. NULLS LAST in both directions: Postgres would otherwise open a
+// descending sort on the unrated items, and mediaItemCursorSeek is written
+// against this exact placement.
+func mediaItemOrderBy(sortField, sortOrder string) string {
+	return fmt.Sprintf("%s %s NULLS LAST, mi.id %s", sortField, sortOrder, sortOrder)
 }
 
 func (r *MediaItemRepository) Count(ctx context.Context, f library.ListMediaItemsFilter) (int, error) {
@@ -282,7 +291,7 @@ func (r *MediaItemRepository) List(ctx context.Context, f library.ListMediaItems
 
 	switch {
 	case f.Cursor.LastID != "":
-		query += fmt.Sprintf(" ORDER BY %s %s, mi.id %s", sortField, sortOrder, sortOrder)
+		query += " ORDER BY " + mediaItemOrderBy(sortField, sortOrder)
 	case f.AfterID != "":
 		query += " ORDER BY mi.id ASC"
 	case sortField == "added_at" || sortField == "mi.added_at":
@@ -294,7 +303,9 @@ func (r *MediaItemRepository) List(ctx context.Context, f library.ListMediaItems
 			 THEN COALESCE(mi.latest_child_added_at, mi.added_at)
 			 ELSE mi.added_at END %s, mi.id %s`, sortOrder, sortOrder)
 	default:
-		query += fmt.Sprintf(" ORDER BY %s %s, mi.id %s", sortField, sortOrder, sortOrder)
+		// Same ordering as the cursor branch, or the first page an offset serves
+		// would not agree with the pages a cursor serves after it.
+		query += " ORDER BY " + mediaItemOrderBy(sortField, sortOrder)
 	}
 
 	limit := f.Limit

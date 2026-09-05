@@ -112,3 +112,95 @@ func TestMediaItemRepo_ListCursor_SortByNullableYear(t *testing.T) {
 		})
 	}
 }
+
+// cursorSortValueForRating mirrors mediaItemSortValue's "rating" case.
+func cursorSortValueForRating(it *library.MediaItem) string {
+	if it.Classification != nil && it.Classification.CommunityRating != nil {
+		return fmt.Sprintf("%020.6f", *it.Classification.CommunityRating)
+	}
+	return ""
+}
+
+// Sorting by rating, descending, is the one an operator reaches for to see the
+// best films first. Two things made it useless on 2026-09-05, both live on prod:
+//
+//   - Postgres orders NULLs FIRST on DESC, so a library opened on the films
+//     NOBODY has rated, above the 8.7s. "Trier par note ça marche pas";
+//   - and scrolling died with a 500, because the cursor for a rating page
+//     carried the item's UUID (mediaItemSortValue knew only "community_rating"
+//     while the API emits "rating") and page 2 bound it against a numeric
+//     column.
+//
+// The ordering is now NULLS LAST in both directions, which this pins against a
+// real Postgres: the seek predicate and the ORDER BY must agree, or a page
+// boundary skips rows or repeats forever.
+func TestMediaItemRepo_ListCursor_SortByRating_UnratedComeLast(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	ctx := context.Background()
+
+	lib := newTestLibrary("mi-rating-lib")
+	require.NoError(t, libRepo.Create(ctx, lib))
+
+	withRating := func(id string, r *float64) *library.MediaItem {
+		it := newTestMediaItem(id, lib.ID)
+		// newTestMediaItem leaves Classification nil (unlike Catalog).
+		it.Classification = &library.MediaClassification{CommunityRating: r}
+		return it
+	}
+	high, low := 8.7, 4.2
+	require.NoError(t, itemRepo.Create(ctx, withRating("mir-high", &high)))
+	require.NoError(t, itemRepo.Create(ctx, withRating("mir-low", &low)))
+	require.NoError(t, itemRepo.Create(ctx, withRating("mir-none1", nil)))
+	require.NoError(t, itemRepo.Create(ctx, withRating("mir-none2", nil)))
+
+	libID := lib.ID
+	want := []string{"mir-high", "mir-low", "mir-none1", "mir-none2"}
+
+	t.Run("descending opens on the best rated, not on the unrated", func(t *testing.T) {
+		page, err := itemRepo.List(ctx, library.ListMediaItemsFilter{
+			LibraryID: &libID, SortField: "rating", SortOrder: "DESC", Limit: 2,
+		})
+		require.NoError(t, err)
+		require.Len(t, page, 2)
+		assert.Equal(t, "mir-high", string(page[0].ID), "8.7 must come first - an unrated film is not the best-rated film")
+		assert.Equal(t, "mir-low", string(page[1].ID))
+	})
+
+	for _, order := range []string{"ASC", "DESC"} {
+		t.Run("paging holds every row - "+order, func(t *testing.T) {
+			var collected []string
+			cursor := shared.Cursor{}
+			for range len(want) + 3 {
+				page, err := itemRepo.List(ctx, library.ListMediaItemsFilter{
+					LibraryID: &libID,
+					SortField: "rating",
+					SortOrder: order,
+					Limit:     1,
+					Cursor:    cursor,
+				})
+				require.NoError(t, err, "paging by rating must not error once an unrated row becomes the cursor position")
+				if len(page) == 0 {
+					break
+				}
+				for _, it := range page {
+					collected = append(collected, string(it.ID))
+				}
+				last := page[len(page)-1]
+				cursor = shared.Cursor{
+					SortField: "rating",
+					SortValue: cursorSortValueForRating(last),
+					LastID:    string(last.ID),
+				}
+			}
+			assert.ElementsMatch(t, want, collected, "every item reached exactly once")
+			assert.Len(t, collected, len(want), "no row skipped or repeated across a page boundary")
+			if order == "DESC" {
+				assert.Equal(t, []string{"mir-high", "mir-low"}, collected[:2], "rated films first, in order")
+			}
+		})
+	}
+}

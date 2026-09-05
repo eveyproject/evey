@@ -441,12 +441,22 @@ func mediaItemSortValue(m *library.MediaItem, sortKey string) string {
 			return m.Catalog.PremiereDate.UTC().Format("2006-01-02T15:04:05.999999999Z07:00")
 		}
 		return ""
-	case "community_rating":
+	case "rating", "community_rating":
+		// BOTH spellings. The API emits "rating" (mediaSortFieldFromProto) while
+		// the SQL column map accepts either - and this switch used to know only
+		// "community_rating", so every rating cursor fell through to the default
+		// and encoded the item's UUID as its sort value. Page 2 then bound that
+		// UUID against a numeric column: HTTP 500, "échec du chargement" the
+		// moment a viewer scrolled a library sorted by rating (prod, 2026-09-05).
 		if m.Classification != nil && m.Classification.CommunityRating != nil {
 			return fmt.Sprintf("%020.6f", *m.Classification.CommunityRating)
 		}
 		return ""
 	default:
+		// ⚠️ Reached only by a sort key nothing above knows, which cannot
+		// paginate: the id is not comparable against the sort column.
+		// contractguard/sort_field_contract_test.go fails the build rather than
+		// let a new sort field arrive here.
 		return string(m.ID)
 	}
 }
