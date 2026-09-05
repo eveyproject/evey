@@ -61,3 +61,40 @@ describe("RatingButtons", () => {
     await waitFor(() => expect(mockPut).toHaveBeenCalledWith("m5", { value: -1 }));
   });
 });
+
+// The server was taught (2026-08-24) to stop claiming it knows a viewer's
+// opinion when the read failed - it returns an error instead of a quiet
+// `value: 0`. The screen never learned: `data = 0` on error paints a NEUTRAL
+// thumb, which is a statement, and clicking it writes that statement over an
+// opinion the viewer was never shown.
+//
+// Disabled is the honest state here: it says "not now" without inventing a
+// third look for "unknown".
+describe("RatingButtons when the rating could not be read", () => {
+  // The beforeEach above lives inside the first describe, so this block starts
+  // with whatever the previous tests left on the mocks.
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockPut.mockResolvedValue({ value: 0 });
+  });
+
+  it("does not let a click overwrite an opinion it never saw", async () => {
+    mockRating.mockReturnValue({ data: undefined, isError: true } as never);
+    const { RatingButtons } = await import("./RatingButtons");
+    render(React.createElement(RatingButtons, { mediaId: "m1" }), { wrapper: createWrapper() });
+
+    const like = screen.getByLabelText("Like") as HTMLButtonElement;
+    expect(like.disabled).toBe(true);
+    fireEvent.click(like);
+    await waitFor(() => expect(mockPut).not.toHaveBeenCalled());
+  });
+
+  it("stays usable once the rating is readable again", async () => {
+    mockRating.mockReturnValue({ data: 0 });
+    const { RatingButtons } = await import("./RatingButtons");
+    render(React.createElement(RatingButtons, { mediaId: "m1" }), { wrapper: createWrapper() });
+
+    const like = screen.getByLabelText("Like") as HTMLButtonElement;
+    expect(like.disabled).toBe(false);
+  });
+});

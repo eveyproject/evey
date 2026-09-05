@@ -270,8 +270,12 @@ export default function MediaDetailScreen() {
   // here so the same person appears in the same place on both.
   const crew = people.filter((p: V1MediaPerson) =>
     p.type === "PERSON_TYPE_DIRECTOR" || p.type === "PERSON_TYPE_WRITER" || p.type === "PERSON_TYPE_PRODUCER");
-  const { data: myRating } = useMyThumbRating(id);
+  const { data: myRating, isError: ratingUnknown } = useMyThumbRating(id);
   const setThumbRating = useSetThumbRating(id);
+  // A failed read leaves the thumbs on NEUTRAL, which is a statement ("no
+  // opinion"), not an absence - and pressing OK from there writes it over an
+  // opinion the viewer was never shown. Same guard on web and mobile.
+  const thumbsBusy = setThumbRating.isPending || ratingUnknown;
 
   const { data: childrenData } = useLibraryServiceListMediaItems(
     // Serves both the season list of a series and the episode list of a
@@ -613,7 +617,7 @@ export default function MediaDetailScreen() {
         <>
             <Pressable
               onPress={() => setThumbRating.mutate(myRating === 1 ? 0 : 1)}
-              disabled={setThumbRating.isPending}
+              disabled={thumbsBusy}
               onFocus={() => setFocusedBtn("like")}
               onBlur={() => setFocusedBtn(null)}
               accessible={true}
@@ -625,7 +629,7 @@ export default function MediaDetailScreen() {
                 {
                   backgroundColor: theme.colors.surface,
                   borderColor: focusedBtn === "like" ? theme.colors.accent : "transparent",
-                  opacity: setThumbRating.isPending ? 0.5 : 1,
+                  opacity: thumbsBusy ? 0.5 : 1,
                 },
               ]}
             >
@@ -635,7 +639,7 @@ export default function MediaDetailScreen() {
             </Pressable>
             <Pressable
               onPress={() => setThumbRating.mutate(myRating === -1 ? 0 : -1)}
-              disabled={setThumbRating.isPending}
+              disabled={thumbsBusy}
               onFocus={() => setFocusedBtn("dislike")}
               onBlur={() => setFocusedBtn(null)}
               accessible={true}
@@ -647,7 +651,7 @@ export default function MediaDetailScreen() {
                 {
                   backgroundColor: theme.colors.surface,
                   borderColor: focusedBtn === "dislike" ? theme.colors.accent : "transparent",
-                  opacity: setThumbRating.isPending ? 0.5 : 1,
+                  opacity: thumbsBusy ? 0.5 : 1,
                 },
               ]}
             >

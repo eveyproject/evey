@@ -582,8 +582,14 @@ export default function MediaDetailScreen() {
 
   const { data: isFavorite } = useIsFavorite(id);
   const toggleFavorite = useToggleFavorite(id);
-  const { data: myRating = 0 } = useMyThumbRating(id);
+  const { data: myRating = 0, isError: ratingUnknown } = useMyThumbRating(id);
   const setThumbRating = useSetThumbRating(id);
+  // A failed read leaves the thumbs on NEUTRAL, which is a statement ("no
+  // opinion"), not an absence - and tapping from there writes it over an
+  // opinion the viewer was never shown. The server stopped pretending on
+  // 2026-08-24; the screens are catching up. Same guard on web and TV.
+  const thumbsBusy = setThumbRating.isPending || ratingUnknown;
+
 
   const [playlistSheetOpen, setPlaylistSheetOpen] = useState(false);
   const [playOnSheetOpen, setPlayOnSheetOpen] = useState(false);
@@ -1213,7 +1219,7 @@ export default function MediaDetailScreen() {
 
           <Pressable
             onPress={() => setThumbRating.mutate(myRating === 1 ? 0 : 1)}
-            disabled={setThumbRating.isPending}
+            disabled={thumbsBusy}
             style={{
               flexDirection: "row",
               alignItems: "center",
@@ -1221,7 +1227,7 @@ export default function MediaDetailScreen() {
               borderRadius: theme.radii.md,
               paddingVertical: theme.spacing.sm,
               paddingHorizontal: theme.spacing.md,
-              opacity: setThumbRating.isPending ? 0.5 : 1,
+              opacity: thumbsBusy ? 0.5 : 1,
             }}
             accessible={true}
             accessibilityLabel={myRating === 1 ? t("media.rating.removeLike") : t("media.rating.like")}
@@ -1236,7 +1242,7 @@ export default function MediaDetailScreen() {
 
           <Pressable
             onPress={() => setThumbRating.mutate(myRating === -1 ? 0 : -1)}
-            disabled={setThumbRating.isPending}
+            disabled={thumbsBusy}
             style={{
               flexDirection: "row",
               alignItems: "center",
@@ -1244,7 +1250,7 @@ export default function MediaDetailScreen() {
               borderRadius: theme.radii.md,
               paddingVertical: theme.spacing.sm,
               paddingHorizontal: theme.spacing.md,
-              opacity: setThumbRating.isPending ? 0.5 : 1,
+              opacity: thumbsBusy ? 0.5 : 1,
             }}
             accessible={true}
             accessibilityLabel={myRating === -1 ? t("media.rating.removeDislike") : t("media.rating.dislike")}
