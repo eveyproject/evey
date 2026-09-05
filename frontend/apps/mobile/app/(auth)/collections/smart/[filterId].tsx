@@ -40,7 +40,12 @@ export default function SmartFilterScreen() {
   const serverUrl = useServerUrl();
   const authHeaders = useAuthHeaders();
 
-  const { data, isLoading, isError, refetch } = useCollection(filterId ?? "");
+  // The header counts what the SERVER holds while the grid only ever rendered
+  // the first page of 50 - a 312-item smart collection stopped dead at 50 with
+  // no "load more" and nothing saying so, which reads as "that is everything".
+  // useCollection is already paged; this screen simply never asked for page 2.
+  const { data, isLoading, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } =
+    useCollection(filterId ?? "");
   const col = data?.collection;
   const items = data?.items ?? [];
   const rules = col?.rules ?? [];
@@ -137,6 +142,10 @@ export default function SmartFilterScreen() {
           renderItem={renderItem}
           numColumns={NUM_COLUMNS}
           contentContainerStyle={{ paddingTop: SPACING }}
+          onEndReachedThreshold={0.5}
+          onEndReached={() => {
+            if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
+          }}
           ListHeaderComponent={
             data ? (
               <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginLeft: SPACING, marginBottom: SPACING }}>
