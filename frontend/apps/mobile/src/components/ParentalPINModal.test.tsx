@@ -68,4 +68,23 @@ describe("ParentalPINModal accessibility", () => {
     await waitFor(() => expect(onVerified).toHaveBeenCalled());
     expect(announceMock).not.toHaveBeenCalled();
   });
+
+  // The gate is fail-closed by project decision, and its catch block is the
+  // only thing standing between "the server did not answer" and "come in". A
+  // regression that called onVerified() from that catch - opening restricted
+  // content whenever the network hiccups - passed every test until this one.
+  it("stays closed when the verify request fails outright", async () => {
+    eveyFetchMock.mockRejectedValue(new Error("network down"));
+    const onVerified = vi.fn();
+    render(<ParentalPINModal visible onClose={() => {}} onVerified={onVerified} profileId="p1" />);
+
+    fireEvent.change(screen.getByLabelText("Parental PIN"), { target: { value: "1234" } });
+    fireEvent.click(screen.getByText("Verify"));
+
+    await waitFor(() => expect(announceMock).toHaveBeenCalledWith("Incorrect PIN"));
+    expect(onVerified).not.toHaveBeenCalled();
+    // And the field is cleared, so the failed attempt cannot be re-submitted
+    // by a stray second tap.
+    expect((screen.getByLabelText("Parental PIN") as HTMLInputElement).value).toBe("");
+  });
 });

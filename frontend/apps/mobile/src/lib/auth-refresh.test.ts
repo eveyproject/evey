@@ -176,6 +176,65 @@ describe("ensureAccessToken - a dead link is not a dead session", () => {
   });
 });
 
+// The single-flight guard is not an optimization. The server rotates and
+// single-uses refresh tokens: a second concurrent call finds the row already
+// claimed, reads it as reuse, and purges every session for the user. Bootstrap,
+// the AppState resume and a 401 retry genuinely fire together, so this has to
+// hold - and until now nothing tested it.
+describe("concurrent callers share one round-trip", () => {
+  function slowFetch(resolveWith: unknown) {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => { release = r; });
+    const spy = vi.fn(async () => { await gate; return resolveWith; });
+    return { spy, release };
+  }
+
+  it("hits /auth/refresh once for three simultaneous callers", async () => {
+    authState.accessToken = past();
+    await setRefreshToken("rt-1");
+    const { spy, release } = slowFetch({ ok: true, json: async () => ({ accessToken: "fresh" }) });
+    vi.stubGlobal("fetch", spy);
+
+    const all = Promise.all([ensureAccessToken(), ensureAccessToken(), refreshAccessTokenIfNeeded()]);
+    release();
+    const [a, b, c] = await all;
+
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(a).toBe("refreshed");
+    expect(b).toBe("refreshed");
+    expect(c).toBe(true);
+  });
+
+  it("coalesces ensureAccessToken with the fetcher's own forceRefresh", async () => {
+    authState.accessToken = past();
+    await setRefreshToken("rt-2");
+    const { spy, release } = slowFetch({ ok: true, json: async () => ({ accessToken: "fresh" }) });
+    vi.stubGlobal("fetch", spy);
+    authState.setTokens = vi.fn((tok: string) => { authState.accessToken = tok; });
+
+    const all = Promise.all([ensureAccessToken(), forceRefresh()]);
+    release();
+    await all;
+
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  // The slot must be released whatever the outcome, or the first network blip
+  // freezes every later refresh on a resolved promise.
+  it("lets a later caller refresh again after a failed round", async () => {
+    authState.accessToken = past();
+    await setRefreshToken("rt-3");
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("offline"); }));
+    expect(await ensureAccessToken()).toBe("unavailable");
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: true, json: async () => ({ accessToken: "fresh" }) })),
+    );
+    expect(await ensureAccessToken()).toBe("refreshed");
+  });
+});
+
 describe("forceRefresh - contract with the fetcher's refresh handler", () => {
   // `null` is reserved for a REFUSAL: the fetcher latches its refresh-failure
   // state and fires unauthorized on it. Returning null for a transient error
