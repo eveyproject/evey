@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { View, Text, FlatList, Pressable, TextInput, Modal, Alert, Switch, ActivityIndicator, StyleSheet, ScrollView, Share } from "react-native";
+import { Image } from "expo-image";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Stack, useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -176,11 +177,30 @@ interface UserAction {
   onPress: () => void;
 }
 
+// Small colored tag for a profile trait (Default / Kids / rating cap) - the
+// same shape as the Admin/Disabled tags already drawn inline above, just
+// reused for the profile list instead of duplicated per badge.
+function ProfileBadge({ label, bg, fg }: { label: string; bg: string; fg: string }) {
+  return (
+    <View style={{ backgroundColor: bg, borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1 }}>
+      <Text style={{ color: fg, fontSize: 9, fontWeight: "700" }}>{label.toUpperCase()}</Text>
+    </View>
+  );
+}
+
 // One labelled row per action, replacing the six 18px icon buttons that used
 // to share each list row: full-width touch targets and explicit wording so
 // destructive taps can't happen by fat-fingering the neighbour icon.
-function UserActionsSheet({ user, actions, onClose, theme }: { user: V1User; actions: UserAction[]; onClose: () => void; theme: ReturnType<typeof useTheme> }) {
+//
+// The profiles list mirrors the web admin panel's expanded row (avatar,
+// Default/Kids/rating badges, last active, history link) - the mobile screen
+// has nowhere to expand a row into, so it lives here instead, right above the
+// per-profile "Connect as" entries already in `actions`.
+function UserActionsSheet({ user, actions, profiles, onClose, theme }: { user: V1User; actions: UserAction[]; profiles: V1Profile[]; onClose: () => void; theme: ReturnType<typeof useTheme> }) {
   const { t } = useTranslation();
+  const router = useRouter();
+  const serverUrl = useServerUrl();
+  const accessToken = useAuthStore((s) => s.accessToken);
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <Pressable
@@ -213,6 +233,55 @@ function UserActionsSheet({ user, actions, onClose, theme }: { user: V1User; act
             )}
           </View>
         </View>
+        {profiles.length > 0 && (
+          <View style={{ gap: 10, marginTop: 8, marginBottom: 4 }}>
+            {profiles.map((p) => {
+              const avatarUrl = p.avatarPath && p.id && serverUrl && accessToken
+                ? `${serverUrl}/api/v1/profiles/${p.id}/avatar?token=${accessToken}`
+                : null;
+              return (
+                <View key={p.id} style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                  <View style={[styles.profileAvatar, { backgroundColor: theme.colors.surfaceRaised }]}>
+                    {avatarUrl ? (
+                      <Image source={{ uri: avatarUrl }} style={{ width: 28, height: 28, borderRadius: 14 }} />
+                    ) : (
+                      <Text style={{ color: theme.colors.text, fontSize: 12, fontWeight: "700" }}>
+                        {(p.name ?? "?").charAt(0).toUpperCase()}
+                      </Text>
+                    )}
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
+                      <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: "600" }} numberOfLines={1}>{p.name}</Text>
+                      {p.isDefault && <ProfileBadge label={t("admin.users.defaultProfile", "Default")} bg={theme.colors.accent} fg={theme.colors.onAccent} />}
+                      {p.isKids && <ProfileBadge label={t("admin.users.kidsProfile", "Kids")} bg={theme.colors.warning} fg={theme.colors.onWarning} />}
+                      {!!p.maxRating && <ProfileBadge label={p.maxRating} bg={theme.colors.surfaceRaised} fg={theme.colors.text} />}
+                    </View>
+                    <Text style={{ color: theme.colors.textMuted, fontSize: 11, marginTop: 2 }}>
+                      {t("admin.users.lastActive", "Last active")}: {p.lastActiveAt ? new Date(p.lastActiveAt).toLocaleString() : t("admin.users.never", "Never")}
+                    </Text>
+                  </View>
+                  <Pressable
+                    onPress={() => {
+                      onClose();
+                      // Pre-filtered on THIS profile, like the web's
+                      // /admin/activity?profileId= - the screen reads both
+                      // params as its initial watcher.
+                      router.push({ pathname: "/admin/activity", params: { profileId: p.id } } as never);
+                    }}
+                    hitSlop={8}
+                    style={{ padding: 6 }}
+                    accessible={true}
+                    accessibilityLabel={t("admin.users.viewHistory", "History")}
+                    accessibilityRole="button"
+                  >
+                    <Ionicons name="time-outline" size={18} color={theme.colors.accent} />
+                  </Pressable>
+                </View>
+              );
+            })}
+          </View>
+        )}
         {actions.map((a) => (
           <Pressable
             key={a.label}
@@ -642,9 +711,9 @@ export default function AdminUsersScreen() {
             })()}
           </Text>
           <Text style={{ color: theme.colors.textMuted, fontSize: 10, marginTop: 2 }}>
-            {t("admin.users.registered", "Registered")}: {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : "-"}
+            {t("admin.users.registered", "Registered")}: {item.createdAt ? new Date(item.createdAt).toLocaleString() : "-"}
             {"  ·  "}
-            {t("admin.users.lastLogin", "Last login")}: {item.lastLogin ? new Date(item.lastLogin).toLocaleDateString() : "-"}
+            {t("admin.users.lastLogin", "Last login")}: {item.lastLogin ? new Date(item.lastLogin).toLocaleString() : "-"}
           </Text>
         </View>
         <Ionicons name="ellipsis-vertical" size={18} color={theme.colors.textMuted} />
@@ -841,6 +910,7 @@ export default function AdminUsersScreen() {
         <UserActionsSheet
           user={actionUser}
           actions={sheetActions(actionUser)}
+          profiles={profilesByUser.get(actionUser.id ?? "") ?? []}
           onClose={() => setActionUser(null)}
           theme={theme}
         />
@@ -869,6 +939,7 @@ export default function AdminUsersScreen() {
 const styles = StyleSheet.create({
   userCard: { flexDirection: "row", alignItems: "center", padding: 14, gap: 12 },
   avatar: { width: 36, height: 36, borderRadius: 18, justifyContent: "center", alignItems: "center" },
+  profileAvatar: { width: 28, height: 28, borderRadius: 14, justifyContent: "center", alignItems: "center", overflow: "hidden" },
   backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.5)" },
   sheet: { position: "absolute", bottom: 0, left: 0, right: 0, padding: 20, paddingBottom: 32 },
   input: { paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, marginBottom: 12 },

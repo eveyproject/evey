@@ -2,6 +2,13 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import React from "react";
 
+// --- expo-image -------------------------------------------------------------------------
+// The real module reaches for the native EventEmitter at import time; the
+// profile list in the actions sheet renders an avatar through it.
+vi.mock("expo-image", () => ({
+  Image: (props: Record<string, unknown>) => React.createElement("img", { ...props, alt: "" }),
+}));
+
 // --- React Native mock -----------------------------------------------------------------
 vi.mock("react-native", () => ({
   View: ({ children, ...p }: any) => React.createElement("div", p, children),
@@ -45,6 +52,7 @@ vi.mock("@expo/vector-icons", () => ({
 }));
 
 // --- expo-router ------------------------------------------------------------------------
+const routerPush = vi.fn();
 vi.mock("expo-router", () => ({
   Stack: {
     // headerRight is invoked so the "+" button that opens the create-user
@@ -53,7 +61,7 @@ vi.mock("expo-router", () => ({
     Screen: ({ options }: any) =>
       React.createElement("div", { "data-testid": "stack-screen" }, options?.headerRight?.()),
   },
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useRouter: () => ({ push: routerPush, replace: vi.fn() }),
 }));
 
 // --- i18next ------------------------------------------------------------------------------
@@ -101,7 +109,7 @@ const toastSuccess = vi.fn();
 const toastError = vi.fn();
 vi.mock("@evey/store", () => ({
   toast: { success: (...a: unknown[]) => toastSuccess(...a), error: (...a: unknown[]) => toastError(...a) },
-  useAuthStore: (selector: (s: any) => unknown) => selector({ impersonate: vi.fn() }),
+  useAuthStore: (selector: (s: any) => unknown) => selector({ impersonate: vi.fn(), accessToken: "tok-123" }),
 }));
 
 // --- @tanstack/react-query -----------------------------------------------------------------
@@ -228,6 +236,36 @@ describe("AdminUsersScreen - user row action sheet", () => {
     expect(impersonateMutate).toHaveBeenCalledWith({
       userId: "u1",
       data: { profileId: "prf-2" },
+    });
+    mockProfiles = [];
+  });
+
+  // The web admin panel shows Default/Kids/rating badges, an avatar, last
+  // active time and a history link per profile; the mobile row only had a
+  // name list until this sheet section was added.
+  it("shows profile badges, last active time, and a history link per profile", () => {
+    mockUsers = [alice];
+    mockProfiles = [
+      { id: "prf-1", userId: "u1", name: "Papa", isDefault: true, maxRating: "PG-13", lastActiveAt: "2026-01-02T12:00:00Z" },
+      { id: "prf-2", userId: "u1", name: "Les enfants", isKids: true },
+    ];
+    render(<AdminUsersScreen />);
+
+    openSheetFor("alice");
+    expect(screen.getByText("DEFAULT")).toBeTruthy();
+    expect(screen.getByText("PG-13")).toBeTruthy();
+    expect(screen.getByText("KIDS")).toBeTruthy();
+    expect(screen.getByText(/Last active: 1\/2\/2026/)).toBeTruthy();
+    // No lastActiveAt on the second profile falls back to "Never", not a blank.
+    expect(screen.getByText(/Last active: Never/)).toBeTruthy();
+
+    const historyButtons = screen.getAllByLabelText("History");
+    fireEvent.click(historyButtons[0]);
+    // Carries the profile, like the web's /admin/activity?profileId= - an
+    // unfiltered landing makes the admin pick the same profile all over again.
+    expect(routerPush).toHaveBeenCalledWith({
+      pathname: "/admin/activity",
+      params: { profileId: "prf-1" },
     });
     mockProfiles = [];
   });
