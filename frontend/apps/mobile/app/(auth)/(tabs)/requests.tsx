@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ScrollView,
   StyleSheet,
+  ActivityIndicator,
 } from "react-native";
 import { Image } from "expo-image";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -157,6 +158,7 @@ export default function RequestsScreen() {
   if (policyLoading) {
     return (
       <View style={[styles.container, styles.center, { backgroundColor: theme.colors.bg }]}>
+        <ActivityIndicator color={theme.colors.accent} size="large" />
       </View>
     );
   }
@@ -337,6 +339,14 @@ export default function RequestsScreen() {
               }}
             />
           )}
+        </View>
+      ) : mineLoading ? (
+        <View style={{ paddingTop: 8 }}>
+          {Array.from({ length: 4 }).map((_, i) => (
+            <View key={i} style={styles.resultRow}>
+              <Skeleton width={48} height={72} borderRadius={theme.radii.sm} />
+            </View>
+          ))}
         </View>
       ) : mineError && myRequests.length === 0 ? (
         <LoadFailed onRetry={() => void refetchMine()} />

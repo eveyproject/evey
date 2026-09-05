@@ -467,7 +467,7 @@ export default function MusicScreen() {
           }}
           hitSlop={8}
           style={styles.addBtn}
-          accessibilityLabel="Add to playlist"
+          accessibilityLabel={t("media.music.addToPlaylist")}
         >
           <Ionicons name="add-circle-outline" size={20} color={theme.colors.textMuted} />
         </Pressable>
@@ -607,6 +607,13 @@ export default function MusicScreen() {
     );
   }
 
+  // Before this the failed library call fell through to "no music libraries",
+  // which reads as "you have not set one up" rather than "the server did not
+  // answer" - and sends the user configuring something that is already fine.
+  if (libError) {
+    return <LoadFailed onRetry={() => void refetchLibs()} />;
+  }
+
   if (!libraries || libraries.length === 0) {
     return (
       <View style={[styles.center, { backgroundColor: theme.colors.bg }]}>
@@ -719,6 +726,9 @@ export default function MusicScreen() {
               {albumFilter && (
                 <Pressable
                   onPress={() => { setAlbumFilter(null); setAlbumFilterLabel(""); }}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel={t("common.removeItem", { item: albumFilterLabel || albumFilter })}
                   style={[styles.filterChip, { backgroundColor: theme.colors.accent, borderRadius: theme.radii.lg }]}
                 >
                   <Text style={{ color: theme.colors.onAccent, fontSize: 12 }}>{t("media.music.albums")}: {albumFilterLabel || albumFilter}</Text>
@@ -728,6 +738,9 @@ export default function MusicScreen() {
               {artistFilter && (
                 <Pressable
                   onPress={() => setArtistFilter(null)}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel={t("common.removeItem", { item: artistFilter })}
                   style={[styles.filterChip, { backgroundColor: theme.colors.accent, borderRadius: theme.radii.lg }]}
                 >
                   <Text style={{ color: theme.colors.onAccent, fontSize: 12 }}>{t("media.music.artists")}: {artistFilter}</Text>

@@ -29,7 +29,7 @@ function HeaderRight({ theme }: { theme: ReturnType<typeof useTheme> }) {
         <Ionicons name="notifications-outline" size={22} color={theme.colors.text} />
         {count > 0 && (
           <View style={[styles.badge, { backgroundColor: theme.colors.accent }]}>
-            <Text style={[styles.badgeText, { color: theme.colors.onAccent }]}>{count > 9 ? "9+" : count}</Text>
+            <Text style={[styles.badgeText, { color: theme.colors.onAccent }]} maxFontSizeMultiplier={1.2}>{count > 9 ? "9+" : count}</Text>
           </View>
         )}
       </Pressable>

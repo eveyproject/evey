@@ -81,6 +81,11 @@ let popularError = false;
 let popularItems: unknown[] = [];
 const popularRefetch = vi.fn();
 
+let musicAlbumsError = false;
+const musicAlbumsRefetch = vi.fn();
+let photoAlbumsError = false;
+const photoAlbumsRefetch = vi.fn();
+
 vi.mock("@tanstack/react-query", () => ({
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
   useQuery: (opts: { queryKey: readonly unknown[] }) => {
@@ -90,6 +95,12 @@ vi.mock("@tanstack/react-query", () => ({
     if (opts.queryKey[0] === "collections") {
       return { data: { collections: [] }, isLoading: false, isError: false, refetch: vi.fn() };
     }
+    if (opts.queryKey[0] === "music") {
+      return { data: [], isLoading: false, isError: musicAlbumsError, refetch: musicAlbumsRefetch };
+    }
+    if (opts.queryKey[0] === "photos") {
+      return { data: [], isLoading: false, isError: photoAlbumsError, refetch: photoAlbumsRefetch };
+    }
     // installed-plugins list and anything else: settled, empty, harmless.
     return { data: {}, isLoading: false, isError: false, refetch: vi.fn() };
   },
@@ -98,14 +109,16 @@ vi.mock("@tanstack/react-query", () => ({
 // --- @evey/api ----------------------------------------------------------------------------
 const emptySettled = { data: { items: [] }, isLoading: false, isError: false, refetch: vi.fn() };
 const resetMutateAsync = vi.fn().mockResolvedValue({});
+let feedLibraries: { id: string; name: string; type: string }[] = [];
+let feedConfigsOverride: { feedType: string; enabled: boolean; displayOrder: number }[] | null = null;
 vi.mock("@evey/api", () => ({
   usePlaybackServiceGetResumeItems: () => emptySettled,
   usePlaybackServiceGetNextUp: () => emptySettled,
   useFeedServiceRecommended: () => emptySettled,
-  useFeedServiceGetFeedConfig: () => ({ data: { configs: [] } }),
+  useFeedServiceGetFeedConfig: () => ({ data: { configs: feedConfigsOverride ?? [] } }),
   useFeedServiceUpdateProfileFeedConfig: () => ({ mutateAsync: vi.fn() }),
   useFeedServiceResetProfileFeedConfig: () => ({ mutateAsync: resetMutateAsync }),
-  useLibraryServiceListLibraries: () => ({ data: { libraries: [] } }),
+  useLibraryServiceListLibraries: () => ({ data: { libraries: feedLibraries } }),
   useLibraryServiceListMediaItems: () => ({ data: { items: [] }, isLoading: false }),
   eveyFetch: vi.fn().mockResolvedValue({}),
 }));
@@ -129,6 +142,10 @@ beforeEach(() => {
   popularError = false;
   popularItems = [];
   resetMutateAsync.mockClear();
+  musicAlbumsError = false;
+  photoAlbumsError = false;
+  feedLibraries = [];
+  feedConfigsOverride = null;
 });
 
 describe("HomeScreen - most_popular shelf, loading vs failure vs empty", () => {
@@ -154,6 +171,30 @@ describe("HomeScreen - most_popular shelf, loading vs failure vs empty", () => {
     render(<HomeScreen />);
     expect(screen.queryByText("common.loadError")).toBeNull();
     expect(screen.queryByText("media.home.mostPopular")).toBeNull();
+  });
+});
+
+describe("HomeScreen - music/photo library rows, loading vs failure vs empty", () => {
+  it("MusicLibraryRow shows LoadFailed with a retry instead of silently disappearing", () => {
+    feedLibraries = [{ id: "m1", name: "Musique", type: "LIBRARY_TYPE_MUSIC" }];
+    feedConfigsOverride = [{ feedType: "library:m1", enabled: true, displayOrder: 0 }];
+    musicAlbumsError = true;
+    render(<HomeScreen />);
+    expect(screen.getByText("common.loadError")).toBeTruthy();
+
+    fireEvent.click(screen.getByLabelText("common.retry"));
+    expect(musicAlbumsRefetch).toHaveBeenCalledOnce();
+  });
+
+  it("PhotoLibraryRow shows LoadFailed with a retry instead of silently disappearing", () => {
+    feedLibraries = [{ id: "p1", name: "Photos", type: "LIBRARY_TYPE_PHOTOS" }];
+    feedConfigsOverride = [{ feedType: "library:p1", enabled: true, displayOrder: 0 }];
+    photoAlbumsError = true;
+    render(<HomeScreen />);
+    expect(screen.getByText("common.loadError")).toBeTruthy();
+
+    fireEvent.click(screen.getByLabelText("common.retry"));
+    expect(photoAlbumsRefetch).toHaveBeenCalledOnce();
   });
 });
 

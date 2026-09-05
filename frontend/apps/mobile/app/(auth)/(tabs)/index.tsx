@@ -53,7 +53,7 @@ function MusicLibraryRow({ libraryId, name, maxItems }: { libraryId: string; nam
   const theme = useTheme();
   const serverUrl = useServerUrl();
   const accessToken = useAuthStore((s) => s.accessToken);
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["music", "albums", libraryId],
     queryFn: () => eveyFetch<{ albums: MusicAlbumLite[] }>({ url: `/api/v1/music/albums?library_id=${libraryId}`, method: "GET" }),
     enabled: !!libraryId,
@@ -61,6 +61,10 @@ function MusicLibraryRow({ libraryId, name, maxItems }: { libraryId: string; nam
     staleTime: 60_000,
   });
   const albums = (data ?? []).slice(0, resolveMaxItems(maxItems, 20));
+  // A failed shelf renders LoadFailed IN PLACE of just that row rather than
+  // silently disappearing - matches the convention every other row follows
+  // (see renderSection above).
+  if (isError) return <LoadFailed inline onRetry={() => void refetch()} />;
   if (!isLoading && albums.length === 0) return null;
   const tokenParam = accessToken ? `?token=${encodeURIComponent(accessToken)}` : "";
   // The album card is 120dp - decoding the full-res original for a strip of
@@ -112,7 +116,7 @@ function PhotoLibraryRow({ libraryId, name, maxItems }: { libraryId: string; nam
   const theme = useTheme();
   const serverUrl = useServerUrl();
   const accessToken = useAuthStore((s) => s.accessToken);
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["photos", "albums", libraryId],
     queryFn: () => eveyFetch<{ albums: PhotoAlbumLite[] }>({ url: `/api/v1/photos/albums?library_id=${libraryId}`, method: "GET" }),
     enabled: !!libraryId,
@@ -120,6 +124,10 @@ function PhotoLibraryRow({ libraryId, name, maxItems }: { libraryId: string; nam
     staleTime: 60_000,
   });
   const albums = (data ?? []).slice(0, resolveMaxItems(maxItems, 20));
+  // A failed shelf renders LoadFailed IN PLACE of just that row rather than
+  // silently disappearing - matches the convention every other row follows
+  // (see renderSection above).
+  if (isError) return <LoadFailed inline onRetry={() => void refetch()} />;
   if (!isLoading && albums.length === 0) return null;
   const tokenParam = accessToken ? `?token=${encodeURIComponent(accessToken)}` : "";
   return (
