@@ -474,6 +474,17 @@ export function resolveDefaultSubtitle(
     }
   }
 
+  // 2bis. The track the FILE marks as default. A container names the subtitle
+  // it wants played, exactly as it names the default audio track, and whoever
+  // mastered the release knew which one belongs with which audio. Missing here,
+  // a film whose forced French track is flagged default opened with its
+  // foreign-language lines untranslated whenever the audio was not French
+  // (prod, 2026-09-05).
+  const fileDefault = subtitleStreams.find(
+    (s) => (s as SubtitleStream & { isDefault?: boolean }).isDefault === true,
+  );
+  if (fileDefault) return fileDefault.trackIndex;
+
   // Forced track in the audio language wins over "no preference".
   if (forcedInAudioLang) return forcedInAudioLang.trackIndex;
 

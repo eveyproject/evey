@@ -17,6 +17,8 @@ import * as exportPaging from "./exportPaging";
 import * as fileNiceName from "./fileNiceName";
 import * as genreColor from "./genreColor";
 import * as imageSubtitles from "./imageSubtitles";
+import * as defaultSubtitle from "./defaultSubtitle";
+import * as langCodes from "./langCodes";
 import * as regionDefaults from "./regionDefaults";
 import * as libraryRules from "./libraryRules";
 import * as playerEventReporter from "./playerEventReporter";
@@ -70,6 +72,8 @@ const SHARED_MODULES = {
   fileNiceName,
   genreColor,
   imageSubtitles,
+  defaultSubtitle,
+  langCodes,
   regionDefaults,
   libraryRules,
   playerEventReporter,

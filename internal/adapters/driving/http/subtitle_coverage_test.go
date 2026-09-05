@@ -34,6 +34,7 @@ func TestSubtitleHandler_NoAuth_401(t *testing.T) {
 		"http://localhost",
 		allowAll(),
 		nil,
+		subtitleCache{},
 	))
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/subtitle/0", nil)
 	req.SetPathValue("id", "m1")
@@ -52,6 +53,7 @@ func TestSubtitleHandler_InvalidToken_401(t *testing.T) {
 		"http://localhost",
 		allowAll(),
 		nil,
+		subtitleCache{},
 	))
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/subtitle/0", nil)
 	req.SetPathValue("id", "m1")
@@ -70,6 +72,7 @@ func TestSubtitleHandler_NotFound_404(t *testing.T) {
 		"http://localhost",
 		allowAll(),
 		nil,
+		subtitleCache{},
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/subtitle/0", nil)
 	req.SetPathValue("id", "m1")
@@ -88,6 +91,7 @@ func TestSubtitleHandler_IDOR_403(t *testing.T) {
 		"http://localhost",
 		denyAll(),
 		nil,
+		subtitleCache{},
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/subtitle/0", nil)
 	req.SetPathValue("id", "m1")
@@ -106,6 +110,7 @@ func TestSubtitleHandler_QueryToken(t *testing.T) {
 		"http://localhost",
 		allowAll(),
 		nil,
+		subtitleCache{},
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/subtitle/0?token=valid", nil)
 	req.SetPathValue("id", "m1")
@@ -484,6 +489,7 @@ func TestSubtitleFileHandler_NoAuth_401(t *testing.T) {
 		"http://localhost",
 		allowAll(),
 		nil,
+		subtitleCache{},
 	))
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/subtitle/0", nil)
 	req.SetPathValue("id", "m1")
@@ -502,6 +508,7 @@ func TestSubtitleFileHandler_InvalidToken_401(t *testing.T) {
 		"http://localhost",
 		allowAll(),
 		nil,
+		subtitleCache{},
 	))
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/subtitle/0", nil)
 	req.SetPathValue("id", "m1")
@@ -520,6 +527,7 @@ func TestSubtitleFileHandler_NotFound_404(t *testing.T) {
 		"http://localhost",
 		allowAll(),
 		nil,
+		subtitleCache{},
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/subtitle/0", nil)
 	req.SetPathValue("id", "m1")
@@ -538,6 +546,7 @@ func TestSubtitleFileHandler_IDOR_403(t *testing.T) {
 		"http://localhost",
 		denyAll(),
 		nil,
+		subtitleCache{},
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/subtitle/0", nil)
 	req.SetPathValue("id", "m1")
@@ -556,6 +565,7 @@ func TestSubtitleFileHandler_QueryToken(t *testing.T) {
 		"http://localhost",
 		allowAll(),
 		nil,
+		subtitleCache{},
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/subtitle/0?token=tok", nil)
 	req.SetPathValue("id", "m1")

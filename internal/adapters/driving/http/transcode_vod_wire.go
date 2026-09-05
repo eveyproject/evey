@@ -142,6 +142,9 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 		profilePrefs:          s.ProfilePrefs,
 		audioNormalizeGetter:  s.AudioNormalizeGetter,
 		userMaxStreams:        s.UserMaxStreams,
+		// Started with the server so it stops with it; nil when there is no
+		// data dir, in which case Enqueue is a no-op.
+		subtitlePrewarm: startSubtitlePrewarmer(s.ServerCtx, newSubtitleCache(s.DataDir)),
 		manifestGen:           apptranscoding.NewManifestGenerator(),
 		cache:                 cache,
 		orchestrator:          orch,

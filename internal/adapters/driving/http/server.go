@@ -386,8 +386,8 @@ type HTTPServer struct {
 // damaged EBML) falls through to exec.CommandContext'ing ffmpeg per request -
 // the same fork cost as the snapshot route, so it shares its nil-safe gate
 // pattern instead of riding the generous global limiter.
-func subtitleRouteHandler(libSvc MediaStreamsGetter, baseURL string, libraryAccess LibraryAccessChecker, parental ParentalChecker, rl *ratelimit.Limiter) http.HandlerFunc {
-	h := subtitleHandler(libSvc, baseURL, libraryAccess, parental)
+func subtitleRouteHandler(libSvc MediaStreamsGetter, baseURL string, libraryAccess LibraryAccessChecker, parental ParentalChecker, rl *ratelimit.Limiter, cache subtitleCache) http.HandlerFunc {
+	h := subtitleHandler(libSvc, baseURL, libraryAccess, parental, cache)
 	if rl != nil {
 		h = ratelimit.MiddlewareFunc(rl, h)
 	}
@@ -529,7 +529,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 		libraryAccess: s.LibraryAccessRepo, throttle: transcodeThrottle, userMaxStreams: s.UserMaxStreams,
 		parental: parentalChk,
 	})))
-	mux.HandleFunc("GET /api/v1/media/{id}/subtitle/{track}", streamAuth(subtitleRouteHandler(s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo, parentalChk, s.SubtitleRL)))
+	mux.HandleFunc("GET /api/v1/media/{id}/subtitle/{track}", streamAuth(subtitleRouteHandler(s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo, parentalChk, s.SubtitleRL, newSubtitleCache(s.DataDir))))
 	mux.HandleFunc("GET /api/v1/media/{id}/chapters", streamAuth(chaptersHandler(s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo, s.LibQuerySvc, parentalChk)))
 	mux.HandleFunc("GET /api/v1/media/{id}/segments", streamAuth(segmentsHandler(s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo, s.LibQuerySvc, func() bool { return s.Cfg.EffectiveSkipPreviewEnabled() }, parentalChk, func() bool { return s.Cfg.EffectiveIntroAutoSkipEnabled() })))
 	// Trickplay (manifest + sprite images) is NOT public: the sprites are frames

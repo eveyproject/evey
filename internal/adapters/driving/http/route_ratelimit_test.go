@@ -24,6 +24,7 @@ func TestSubtitleRoute_RateLimited_429AfterBurst(t *testing.T) {
 	h := subtitleRouteHandler(
 		&fakeMediaStreamsGetter{item: item},
 		"http://localhost", allowAll(), allowAllParental{}, rl,
+		subtitleCache{},
 	)
 
 	mux := http.NewServeMux()
@@ -62,6 +63,7 @@ func TestSubtitleRoute_NilRateLimiter_NoBlocking(t *testing.T) {
 	h := subtitleRouteHandler(
 		&fakeMediaStreamsGetter{item: item},
 		"http://localhost", allowAll(), allowAllParental{}, nil,
+		subtitleCache{},
 	)
 
 	mux := http.NewServeMux()

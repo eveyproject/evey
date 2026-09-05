@@ -36,6 +36,7 @@ import {
   useUserServiceListProfiles,
   createPlayerEventReporter,
   isImageSubtitle,
+  pickDefaultSubtitle,
 } from "@evey/api";
 import { clientSubtitleTrack } from "../../../src/lib/clientSubtitleTrack";
 import { usePlaySession } from "../../../src/hooks/usePlaySession";
@@ -421,14 +422,20 @@ const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>()
     else if (audioStreams.length > 0) setSelectedAudioIndex(audioStreams[0].index);
   }, [audioStreams, profileAudioLangs]);
 
-  // Same guard for subtitles: applies the profile's subtitle_languages
-  // preference once, and never once the user has picked a subtitle by hand
-  // (see handleSubtitleSelect). No preference match means "no subtitle" -
-  // mobile has no isDefault-subtitle fallback (matches prior behaviour).
+  // Same guard for subtitles: applies the choice once, and never again once the
+  // viewer has picked a subtitle by hand (see handleSubtitleSelect).
+  //
+  // It used to consult the profile's subtitle_languages preference and nothing
+  // else, so "no preference" meant "no subtitle". Since no profile on a real
+  // server had that preference set, the answer was always none - and a film
+  // whose forced French track is flagged DEFAULT by the container opened with
+  // its foreign-language lines untranslated (prod, 2026-09-05). The audio side
+  // of this screen has always honoured the file's default; the subtitle side
+  // now does too.
   const userPickedSubtitleRef = useRef(false);
   useEffect(() => {
     if (userPickedSubtitleRef.current) return;
-    const preferred = pickPreferredStreamIndex(subtitleStreams, profileSubtitleLangs);
+    const preferred = pickDefaultSubtitle(subtitleStreams, profileSubtitleLangs);
     if (preferred !== null) setSelectedSubtitleIndex(preferred);
   }, [subtitleStreams, profileSubtitleLangs]);
   const [currentTime, setCurrentTime] = useState(0);

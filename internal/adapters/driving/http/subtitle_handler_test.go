@@ -429,6 +429,7 @@ func TestSubtitleHandler_TrackOutOfRange_404(t *testing.T) {
 			{StreamType: domainlibrary.StreamTypeSubtitle, Codec: "subrip"},
 		}},
 		"http://localhost", allowAll(), allowAllParental{},
+		subtitleCache{},
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/subtitle/5", nil)
 	req.SetPathValue("id", "m1")
@@ -452,6 +453,7 @@ func TestSubtitleHandler_StreamsError_500(t *testing.T) {
 	h := subtitleHandler(
 		&fakeMediaStreamsGetter{item: item, sErr: errTest},
 		"http://localhost", allowAll(), allowAllParental{},
+		subtitleCache{},
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/subtitle/0", nil)
 	req.SetPathValue("id", "m1")
@@ -476,6 +478,7 @@ func TestSubtitleHandler_ImageSubtitle_422(t *testing.T) {
 			{StreamType: domainlibrary.StreamTypeSubtitle, Codec: "hdmv_pgs_subtitle"},
 		}},
 		"http://localhost", allowAll(), allowAllParental{},
+		subtitleCache{},
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/subtitle/0", nil)
 	req.SetPathValue("id", "m1")
@@ -501,6 +504,7 @@ func TestSubtitleHandler_ParentalBlocked_NotFound(t *testing.T) {
 		"http://localhost",
 		allowAll(),
 		alwaysBlockChecker{},
+		subtitleCache{},
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/subtitle/0", nil)
 	req.SetPathValue("id", "m1")
@@ -524,6 +528,7 @@ func TestSubtitleHandler_ParentalAdmin_NotBlocked(t *testing.T) {
 		"http://localhost",
 		allowAll(),
 		alwaysBlockChecker{},
+		subtitleCache{},
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/subtitle/0", nil)
 	req.SetPathValue("id", "m1")
@@ -584,6 +589,7 @@ func TestSubtitleHandler_MKV_TextSub_MkVgoFallback(t *testing.T) {
 			{StreamType: domainlibrary.StreamTypeSubtitle, Codec: "subrip"},
 		}},
 		"http://localhost", allowAll(), allowAllParental{},
+		subtitleCache{},
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/subtitle/0", nil)
 	req.SetPathValue("id", "m1")
@@ -591,13 +597,22 @@ func TestSubtitleHandler_MKV_TextSub_MkVgoFallback(t *testing.T) {
 	req = withHTTPClaims(req, testClaims(true))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
-	// mkvgo.OpenMeta fails (non-existent file) → ffmpeg fallback is attempted.
-	// ffmpeg is also absent in the unit-test environment, but the handler writes
-	// headers before the spawn attempt, so status 200 is the observable outcome.
-	// The key assertion: our logic must NOT produce 404/422/500 (those are our
-	// own guard responses, not ffmpeg's).
-	if w.Code == http.StatusNotFound || w.Code == http.StatusUnprocessableEntity || w.Code == http.StatusInternalServerError {
-		t.Errorf("mkvgo fallback must not produce %d: expected fall-through to ffmpeg", w.Code)
+	// mkvgo.OpenMeta fails (non-existent file) → the ffmpeg fallback is
+	// attempted, and it fails too in the unit-test environment.
+	//
+	// What matters is WHICH answer that produces. Our own guard responses - 404
+	// "no such track", 422 "this one is a picture" - must not fire: neither is
+	// true here, and a client that believes them stops asking.
+	if w.Code == http.StatusNotFound || w.Code == http.StatusUnprocessableEntity {
+		t.Errorf("mkvgo fallback must not produce %d: that is a guard answer, and neither guard applies", w.Code)
+	}
+	// And an extraction that produced nothing must SAY so. This used to answer
+	// 200 with an empty body, because the handler wrote its headers before
+	// spawning ffmpeg and streamed the process straight into the response: a
+	// player then rendered a subtitle track that silently had no lines, with
+	// nothing anywhere to say the extraction had failed.
+	if w.Code == http.StatusOK && w.Body.Len() == 0 {
+		t.Error("a failed extraction answered 200 with an empty body - the player cannot tell that from a subtitle with no dialogue")
 	}
 }
 
@@ -619,6 +634,7 @@ func TestSubtitleHandler_MP4_TextSub_MkvgoFallback(t *testing.T) {
 			{StreamType: domainlibrary.StreamTypeSubtitle, Codec: "subrip"},
 		}},
 		"http://localhost", allowAll(), allowAllParental{},
+		subtitleCache{},
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/subtitle/0", nil)
 	req.SetPathValue("id", "m1")
@@ -626,8 +642,11 @@ func TestSubtitleHandler_MP4_TextSub_MkvgoFallback(t *testing.T) {
 	req = withHTTPClaims(req, testClaims(true))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
-	if w.Code == http.StatusNotFound || w.Code == http.StatusUnprocessableEntity || w.Code == http.StatusInternalServerError {
-		t.Errorf("mkvgo mp4 fallback must not produce %d: expected fall-through to ffmpeg", w.Code)
+	if w.Code == http.StatusNotFound || w.Code == http.StatusUnprocessableEntity {
+		t.Errorf("mkvgo mp4 fallback must not produce %d: that is a guard answer, and neither guard applies", w.Code)
+	}
+	if w.Code == http.StatusOK && w.Body.Len() == 0 {
+		t.Error("a failed extraction answered 200 with an empty body - see the .mkv counterpart")
 	}
 }
 

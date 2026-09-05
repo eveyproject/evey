@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
-import { createPlayerEventReporter, formatTime, itemLabel, isImageSubtitle } from "@evey/api";
+import { createPlayerEventReporter, formatTime, itemLabel, isImageSubtitle, pickDefaultSubtitle } from "@evey/api";
 import { View, Text, Pressable, ActivityIndicator, StyleSheet, useWindowDimensions, useTVEventHandler } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
@@ -233,7 +233,11 @@ export default function PlayerScreen() {
   const userPickedSubtitleRef = useRef(false);
   useEffect(() => {
     if (userPickedSubtitleRef.current) return;
-    const preferred = pickPreferredStreamIndex(subtitleStreams, profileSubtitleLangs);
+    // Preference first, then the track the FILE marks as default - the same
+    // rule the audio side above already follows. "No preference means no
+    // subtitle" left a film's forced track off on every client (prod,
+    // 2026-09-05); see apps/mobile/src/lib/defaultSubtitle.ts.
+    const preferred = pickDefaultSubtitle(subtitleStreams, profileSubtitleLangs);
     if (preferred !== null) setSelectedSubtitleIndex(preferred);
   }, [subtitleStreams, profileSubtitleLangs]);
 

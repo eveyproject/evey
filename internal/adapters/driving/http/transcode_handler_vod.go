@@ -37,6 +37,10 @@ type hlsVODServe struct {
 	profilePrefs         ProfilePrefsGetter
 	audioNormalizeGetter func(ctx context.Context) bool
 	userMaxStreams       UserMaxStreamsGetter
+	// subtitlePrewarm fills the subtitle cache in the background from playback
+	// start, so the subtitle menu is not the thing that pays for a full read of
+	// the container. nil = disabled. See subtitle_prewarm.go.
+	subtitlePrewarm *subtitlePrewarmer
 
 	// compositionDelayProbe measures how late a source's video is presented
 	// once packaged as MP4 (has_b_frames/fps). Injected so this adapter keeps
@@ -283,6 +287,27 @@ func (h *hlsVODServe) userPrefs(ctx context.Context) apptranscoding.TranscodingP
 	return h.profilePrefsFor(ctx, profileID)
 }
 
+// subtitlePrewarmLang is the language to extract FIRST: the caller's own
+// subtitle preference when they have one, else their audio preference, which is
+// the language whose forced track a file usually carries. Empty means "file
+// order", which is what the subtitle menu shows anyway.
+func (h *hlsVODServe) subtitlePrewarmLang(ctx context.Context) string {
+	claims := HTTPClaimsFromContext(ctx)
+	if claims == nil || claims.ProfileID == "" || h.profilePrefs == nil {
+		return ""
+	}
+	prefs, err := h.profilePrefs.GetProfilePreferences(ctx, claims.ProfileID)
+	if err != nil || prefs == nil {
+		return ""
+	}
+	for _, key := range []string{"subtitle_languages", "audio_languages"} {
+		if v := strings.TrimSpace(strings.Split(prefs[key], ",")[0]); v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
 func (h *hlsVODServe) profilePrefsFor(ctx context.Context, profileID string) apptranscoding.TranscodingPreferences {
 	if profileID == "" || h.prefsLookup == nil {
 		return loadProfilePrefs(ctx, h.profilePrefs, profileID)
@@ -484,6 +509,16 @@ func (h *hlsVODServe) serveMaster(w http.ResponseWriter, r *http.Request, mediaI
 	// Catches the startup CMCD payload (?CMCD=su,sid=...,ot=m) - the first
 	// thing every player sends. Useful for "time to first frame" admin views.
 	h.ingestCMCD(r, mediaID, 0, 0, false, true, false)
+
+	// Playback is starting: begin filling the subtitle cache. Deliberately
+	// here, on the master playlist, because that is the earliest moment the
+	// server knows a specific film is about to be watched - and it is a request
+	// every client makes exactly once per session. The prewarmer waits for the
+	// picture to have its head start before touching the disk, and drops the
+	// job rather than delay this response.
+	if h.subtitlePrewarm != nil && item != nil && item.File != nil {
+		h.subtitlePrewarm.Enqueue(mediaID, item.File.Path, streams, h.subtitlePrewarmLang(r.Context()))
+	}
 
 	// Gapless multi-episode session: only when the request opts in
 	// (?gapless=1). Falls through (feature off / not requested / chain too

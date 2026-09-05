@@ -42,7 +42,7 @@ type subtitleService interface {
 	Delete(ctx context.Context, subtitleID string) error
 }
 
-func subtitleHandler(libSvc MediaStreamsGetter, baseURL string, libraryAccess LibraryAccessChecker, parental ParentalChecker) http.HandlerFunc {
+func subtitleHandler(libSvc MediaStreamsGetter, baseURL string, libraryAccess LibraryAccessChecker, parental ParentalChecker, cache subtitleCache) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, span := tracing.StartSpan(r.Context(), "http.subtitle.Serve")
 		defer span.End()
@@ -136,50 +136,98 @@ func subtitleHandler(libSvc MediaStreamsGetter, baseURL string, libraryAccess Li
 			return
 		}
 
-		// Fast path: serve the embedded subtitle in-process via mkvgo (no ffmpeg
-		// fork) for EBML (.mkv/.webm) and ISO-BMFF (.mp4/.m4v) containers. Falls
-		// back to ffmpeg transparently on any failure - the guard + buffer-first
-		// approach ensures we never write a partial or mismatched subtitle.
-		ext := strings.ToLower(filepath.Ext(filePath))
-		if isMkvgoSubtitleFastPath(ext) {
-			if tryMKVGoSubtitle(ctx, w, r, ext, filePath, trackIndex, matchedCodec, matchedLanguage, baseURL) {
+		// Cached? Producing this costs a full read of the film - 71s measured on
+		// a real server for 7 KB of text - and the answer never changes while
+		// the file does not. See subtitle_cache.go.
+		cacheKey := cache.keyFor(filePath, trackIndex)
+		if data, ok := cache.get(cacheKey); ok {
+			writeSubtitleVTT(w, r, baseURL, data)
+			return
+		}
+
+		// One extraction at a time per track. A player that retries what it
+		// believes is a hung request - which a 71-second wait invites - would
+		// otherwise start a second full read of the same film.
+		produced, err, _ := subtitleExtractions.Do(cacheKey+"|"+filePath, func() (any, error) {
+			// Re-check under the flight: the request we queued behind may have
+			// just filled the cache.
+			if data, ok := cache.get(cacheKey); ok {
+				return data, nil
+			}
+			data, perr := extractSubtitleVTT(ctx, filePath, trackIndex, matchedCodec, matchedLanguage)
+			if perr != nil {
+				return nil, perr
+			}
+			if cerr := cache.put(cacheKey, data); cerr != nil {
+				// Not fatal: the viewer gets their subtitle, the next one pays
+				// for it again. Logged because a cache that never stores turns
+				// every request back into a 71-second wait.
+				slog.WarnContext(ctx, "subtitle: cache store failed",
+					slog.String("media_id", mediaID), slog.Any("err", cerr))
+			}
+			return data, nil
+		})
+		if err == nil {
+			if data, ok := produced.([]byte); ok && len(data) > 0 {
+				writeSubtitleVTT(w, r, baseURL, data)
 				return
 			}
 		}
+		slog.WarnContext(ctx, "subtitle: extraction failed",
+			slog.String("media_id", mediaID), slog.Int("track", trackIndex), slog.Any("err", err))
+		http.Error(w, `{"message":"could not extract this subtitle"}`, http.StatusInternalServerError)
+	}
+}
 
-		ctx, cancel := context.WithCancel(r.Context())
-		defer cancel()
-		cmd, finish, err := procfork.Command(ctx, procfork.Options{Class: procfork.Interactive, Site: "http.subtitle", NoNice: true}, "ffmpeg",
-			"-i", filePath,
-			"-map", fmt.Sprintf("0:s:%d", trackIndex),
-			"-f", "webvtt",
-			"-",
-		)
-		if err != nil {
-			logInternal(ctx, "ffmpeg subtitle refused", err)
-			return
-		}
-		w.Header().Set("Content-Type", "text/vtt; charset=utf-8")
-		w.Header().Set("Cache-Control", "no-cache")
-		setCORSHeaders(w, r, baseURL)
-		cmd.Stdout = w
-		if err := cmd.Start(); err != nil {
-			logInternal(ctx, "ffmpeg subtitle start", err)
-			return
-		}
-		go func() {
-			defer func() {
-				if r := recover(); r != nil {
-					slog.ErrorContext(ctx, "panic recovered in subtitle ffmpeg cancel", "error", r, "stack", string(debug.Stack()))
-				}
-			}()
-			<-r.Context().Done()
-			cancel()
-		}()
-		if err := finish(cmd.Wait(), nil); err != nil && ctx.Err() == nil {
-			slog.WarnContext(ctx, "ffmpeg subtitle", slog.String("media_id", mediaID), slog.Any("err", err))
+// writeSubtitleVTT sends an already-produced WebVTT body.
+func writeSubtitleVTT(w http.ResponseWriter, r *http.Request, baseURL string, data []byte) {
+	w.Header().Set("Content-Type", "text/vtt; charset=utf-8")
+	// The bytes are pinned to the source file's size and mtime by the cache key,
+	// so a client may keep them: re-fetching costs a full read of the film.
+	w.Header().Set("Cache-Control", "private, max-age=86400")
+	setCORSHeaders(w, r, baseURL)
+	if _, err := w.Write(data); err != nil {
+		slog.WarnContext(r.Context(), "subtitle: response write failed", slog.Any("err", err))
+	}
+}
+
+// extractSubtitleVTT produces the WebVTT for one embedded track, mkvgo first and
+// ffmpeg as the fallback. Buffered, never streamed: a failed extraction must
+// leave no partial response, and the result has to be whole before it can be
+// cached.
+func extractSubtitleVTT(ctx context.Context, filePath string, trackIndex int, matchedCodec, matchedLanguage string) ([]byte, error) {
+	ext := strings.ToLower(filepath.Ext(filePath))
+	if isMkvgoSubtitleFastPath(ext) {
+		if data, ok := tryMKVGoSubtitleBytes(ctx, ext, filePath, trackIndex, matchedCodec, matchedLanguage); ok {
+			return data, nil
 		}
 	}
+	return extractSubtitleWithFFmpeg(ctx, filePath, trackIndex)
+}
+
+// extractSubtitleWithFFmpeg is the fallback for containers mkvgo does not read
+// (MPEG-TS) and for any file its guards refuse.
+func extractSubtitleWithFFmpeg(ctx context.Context, filePath string, trackIndex int) ([]byte, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	cmd, finish, err := procfork.Command(ctx, procfork.Options{Class: procfork.Interactive, Site: "http.subtitle", NoNice: true}, "ffmpeg",
+		"-i", filePath,
+		"-map", fmt.Sprintf("0:s:%d", trackIndex),
+		"-f", "webvtt",
+		"-",
+	)
+	if err != nil {
+		return nil, fmt.Errorf("ffmpeg subtitle refused: %w", err)
+	}
+	var buf bytes.Buffer
+	cmd.Stdout = &buf
+	if err := cmd.Start(); err != nil {
+		return nil, fmt.Errorf("ffmpeg subtitle start: %w", err)
+	}
+	if err := finish(cmd.Wait(), nil); err != nil {
+		return nil, fmt.Errorf("ffmpeg subtitle: %w", err)
+	}
+	return buf.Bytes(), nil
 }
 
 // isMkvgoSubtitleFastPath reports whether ext (already lower-cased by the caller
@@ -266,14 +314,14 @@ func splitLangTag(tag string) (primary, rest string) {
 // and w is only touched on success. The codec guard (DB value matchedCodec vs
 // mkvgo FFprobeCodecName) ensures we never serve a track whose identity has
 // drifted from the DB record.
-func tryMKVGoSubtitle(ctx context.Context, w http.ResponseWriter, r *http.Request,
-	ext, filePath string, trackIndex int, matchedCodec, matchedLanguage, baseURL string) bool {
+func tryMKVGoSubtitleBytes(ctx context.Context,
+	ext, filePath string, trackIndex int, matchedCodec, matchedLanguage string) ([]byte, bool) {
 
 	c, err := openMkvgoSubtitleContainer(ctx, ext, filePath)
 	if err != nil {
 		slog.WarnContext(ctx, "subtitle: mkvgo open failed, falling back to ffmpeg",
 			slog.String("path", filePath), slog.Any("err", err))
-		return false
+		return nil, false
 	}
 
 	// Enumerate subtitle tracks in declaration order; pick the trackIndex-th.
@@ -292,7 +340,7 @@ func tryMKVGoSubtitle(ctx context.Context, w http.ResponseWriter, r *http.Reques
 	if mkvTrack == nil {
 		slog.WarnContext(ctx, "subtitle: mkvgo subtitle track index out of range, falling back to ffmpeg",
 			slog.String("path", filePath), slog.Int("track_index", trackIndex))
-		return false
+		return nil, false
 	}
 
 	// Codec guard: the DB stores the ffprobe codec_name; mkvgo uses its own short
@@ -306,7 +354,7 @@ func tryMKVGoSubtitle(ctx context.Context, w http.ResponseWriter, r *http.Reques
 			slog.String("path", filePath),
 			slog.String("db_codec", matchedCodec),
 			slog.String("mkvgo_codec", mkvCodec))
-		return false
+		return nil, false
 	}
 
 	// Language guard: only enforced when both sides carry a non-empty tag.
@@ -316,7 +364,7 @@ func tryMKVGoSubtitle(ctx context.Context, w http.ResponseWriter, r *http.Reques
 			slog.String("path", filePath),
 			slog.String("db_lang", matchedLanguage),
 			slog.String("mkvgo_lang", mkvTrack.Language))
-		return false
+		return nil, false
 	}
 
 	// Buffer-first: populate a local buffer before touching w. A failed extraction
@@ -325,17 +373,10 @@ func tryMKVGoSubtitle(ctx context.Context, w http.ResponseWriter, r *http.Reques
 	if err := extractMkvgoSubtitleWebVTT(ctx, ext, filePath, mkvTrack.ID, &buf); err != nil {
 		slog.WarnContext(ctx, "subtitle: mkvgo WebVTT extraction failed, falling back to ffmpeg",
 			slog.String("path", filePath), slog.Any("err", err))
-		return false
+		return nil, false
 	}
 
-	w.Header().Set("Content-Type", "text/vtt; charset=utf-8")
-	w.Header().Set("Cache-Control", "no-cache")
-	setCORSHeaders(w, r, baseURL)
-	if _, err := io.Copy(w, &buf); err != nil {
-		slog.WarnContext(ctx, "subtitle: mkvgo response write failed",
-			slog.String("path", filePath), slog.Any("err", err))
-	}
-	return true
+	return buf.Bytes(), true
 }
 
 func serveExternalSubtitle(w http.ResponseWriter, r *http.Request, path, baseDir, baseURL string) {
