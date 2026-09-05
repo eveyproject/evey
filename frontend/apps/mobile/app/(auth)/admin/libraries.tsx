@@ -644,6 +644,7 @@ export default function AdminLibrariesScreen() {
         headerRight: () => (
           <Pressable
             onPress={openCreate}
+            hitSlop={10}
             style={{ marginRight: 8 }}
             accessible={true}
             accessibilityLabel={t("admin.libraries.addLibrary", "Add Library")}

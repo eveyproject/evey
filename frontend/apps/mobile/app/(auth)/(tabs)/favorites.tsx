@@ -342,21 +342,21 @@ export default function FavoritesScreen() {
         <View style={[styles.bulkBar, { backgroundColor: theme.colors.surfaceRaised, borderTopColor: theme.colors.border }]}>
           <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: "600" }}>{t("common.selectedCount", "{{count}} selected", { count: selected.size })}</Text>
           <View style={{ flexDirection: "row", gap: 12 }}>
-            <Pressable onPress={bulkMarkWatched} disabled={bulkBusy} style={[styles.bulkBtn, bulkBusy && { opacity: 0.4 }]} accessible={true} accessibilityLabel={t("media.library.markWatched", "Mark watched")} accessibilityRole="button">
+            <Pressable onPress={bulkMarkWatched} disabled={bulkBusy} hitSlop={BULK_HIT_SLOP} style={[styles.bulkBtn, bulkBusy && { opacity: 0.4 }]} accessible={true} accessibilityLabel={t("media.library.markWatched", "Mark watched")} accessibilityRole="button">
               <Ionicons name="checkmark-circle-outline" size={20} color={theme.colors.accent} />
             </Pressable>
-            <Pressable onPress={bulkMarkUnwatched} disabled={bulkBusy} style={[styles.bulkBtn, bulkBusy && { opacity: 0.4 }]} accessible={true} accessibilityLabel={t("media.library.markUnwatched", "Mark unwatched")} accessibilityRole="button">
+            <Pressable onPress={bulkMarkUnwatched} disabled={bulkBusy} hitSlop={BULK_HIT_SLOP} style={[styles.bulkBtn, bulkBusy && { opacity: 0.4 }]} accessible={true} accessibilityLabel={t("media.library.markUnwatched", "Mark unwatched")} accessibilityRole="button">
               <Ionicons name="eye-off-outline" size={20} color={theme.colors.textMuted} />
             </Pressable>
-            <Pressable onPress={() => setShowBulkPlaylist(true)} disabled={bulkBusy} style={[styles.bulkBtn, bulkBusy && { opacity: 0.4 }]} accessible={true} accessibilityLabel={t("media.detail.addToPlaylist", "Playlist")} accessibilityRole="button">
+            <Pressable onPress={() => setShowBulkPlaylist(true)} disabled={bulkBusy} hitSlop={BULK_HIT_SLOP} style={[styles.bulkBtn, bulkBusy && { opacity: 0.4 }]} accessible={true} accessibilityLabel={t("media.detail.addToPlaylist", "Playlist")} accessibilityRole="button">
               <Ionicons name="add-circle-outline" size={20} color={theme.colors.accent} />
             </Pressable>
             {isAdmin && (
-              <Pressable onPress={() => setShowBulkCollection(true)} disabled={bulkBusy} style={[styles.bulkBtn, bulkBusy && { opacity: 0.4 }]} accessible={true} accessibilityLabel={t("media.library.addToCollection", "Add to collection")} accessibilityRole="button">
+              <Pressable onPress={() => setShowBulkCollection(true)} disabled={bulkBusy} hitSlop={BULK_HIT_SLOP} style={[styles.bulkBtn, bulkBusy && { opacity: 0.4 }]} accessible={true} accessibilityLabel={t("media.library.addToCollection", "Add to collection")} accessibilityRole="button">
                 <Ionicons name="albums-outline" size={20} color={theme.colors.accent} />
               </Pressable>
             )}
-            <Pressable onPress={exitBulk} style={styles.bulkBtn} accessible={true} accessibilityLabel={t("common.cancel")} accessibilityRole="button">
+            <Pressable onPress={exitBulk} hitSlop={BULK_HIT_SLOP} style={styles.bulkBtn} accessible={true} accessibilityLabel={t("common.cancel")} accessibilityRole="button">
               <Ionicons name="close" size={20} color={theme.colors.error} />
             </Pressable>
           </View>
@@ -379,6 +379,11 @@ export default function FavoritesScreen() {
     </View>
   );
 }
+
+// The bulk bar's buttons are a 20px icon in 6px of padding: 32dp, under the
+// 44dp minimum. The bar's own gap is 12, so 6 on each side reaches 44 without
+// two neighbouring targets ever overlapping.
+const BULK_HIT_SLOP = { top: 8, bottom: 8, left: 6, right: 6 };
 
 const styles = StyleSheet.create({
   container: { flex: 1 },

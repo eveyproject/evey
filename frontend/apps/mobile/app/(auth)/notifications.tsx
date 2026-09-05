@@ -224,7 +224,7 @@ export default function NotificationsScreen() {
               </Pressable>
             )}
             {notifications.length > 0 && (
-              <Pressable onPress={handleClearAll} accessible accessibilityLabel="Clear all" accessibilityRole="button">
+              <Pressable onPress={handleClearAll} hitSlop={12} accessible accessibilityLabel="Clear all" accessibilityRole="button">
                 <Ionicons name="trash-outline" size={22} color={theme.colors.textMuted} />
               </Pressable>
             )}

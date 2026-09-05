@@ -29,6 +29,10 @@ interface PlayerControlsRowProps {
   hasPrevChapter: boolean;
   hasNextChapter: boolean;
   hasChapters: boolean;
+  // Title of the chapter the playhead is in, when there is one. Read out on
+  // the chapters button so "where am I" does not require opening the picker -
+  // the only place the current chapter was ever stated.
+  currentChapterTitle?: string;
   settingsOpen: boolean;
   sleepTimerActive: boolean;
   pipSupported: boolean;
@@ -87,6 +91,7 @@ export function PlayerControlsRow({
   hasPrevChapter,
   hasNextChapter,
   hasChapters,
+  currentChapterTitle,
   settingsOpen,
   sleepTimerActive,
   pipSupported,
@@ -205,8 +210,20 @@ export function PlayerControlsRow({
         onVolumeChange={onVolumeChange}
       />
 
+      {/* A spinner says "wait" to anyone who can see it and nothing at all to
+          anyone who cannot: a stall was silent, and the viewer was left
+          wondering whether their tap had even registered. The live region
+          announces it when it appears, and the label names it if the spinner
+          is reached directly. */}
       {isBuffering && isPlaying && (
-        <ActivityIndicator size="small" color="rgba(255,255,255,0.7)" />
+        <ActivityIndicator
+          size="small"
+          color="rgba(255,255,255,0.7)"
+          accessible={true}
+          accessibilityRole="progressbar"
+          accessibilityLabel={t("player.buffering")}
+          accessibilityLiveRegion="polite"
+        />
       )}
 
       <View style={{ flex: 1 }} />
@@ -231,6 +248,7 @@ export function PlayerControlsRow({
               style={styles.controlBtn}
               accessible={true}
               accessibilityLabel={t("player.controls.chapters")}
+              accessibilityValue={currentChapterTitle ? { text: currentChapterTitle } : undefined}
               accessibilityRole="button"
             >
               <Ionicons name="book-outline" size={ICON_SIZE.lg} color="#fff" />

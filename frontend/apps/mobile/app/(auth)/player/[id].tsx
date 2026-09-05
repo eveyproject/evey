@@ -1436,6 +1436,9 @@ const { id, restart } = useLocalSearchParams<{ id: string; restart?: string }>()
                     hasPrevChapter={chapters.length > 0 && currentChapterIndex > 0}
                     hasNextChapter={chapters.length > 0 && currentChapterIndex >= 0 && currentChapterIndex < chapters.length - 1}
                     hasChapters={chapters.length > 0}
+                    currentChapterTitle={
+                      currentChapterIndex >= 0 ? chapters[currentChapterIndex]?.title : undefined
+                    }
                     settingsOpen={settingsOpen}
                     sleepTimerActive={sleepTimer.state !== null}
                     pipSupported={pipSupported}

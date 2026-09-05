@@ -19,7 +19,7 @@ import { useAudioCapsBeacon } from "../../../src/hooks/useAudioCapsBeacon";
 import { useProgressReporter } from "../../../src/hooks/useProgressReporter";
 import { usePlaybackSettings } from "../../../src/hooks/usePlaybackSettings";
 import { useNextEpisode } from "../../../src/hooks/useNextEpisode";
-import { useChapters } from "../../../src/hooks/useChapters";
+import { useChapters, findCurrentChapterIndex } from "../../../src/hooks/useChapters";
 import { pickPreferredStreamIndex } from "../../../src/lib/langMatch";
 import { useSleepTimer } from "../../../src/hooks/useSleepTimer";
 import { seekDeltaForKey, clampSeekTarget, shouldReleaseSeekPreview } from "../../../src/hooks/playerSeek";
@@ -1034,6 +1034,7 @@ export default function PlayerScreen() {
           handleManualNextEpisode();
         } : undefined}
         hasChapters={chapters.length > 0}
+        currentChapterTitle={chapters[findCurrentChapterIndex(chapters, currentTime * 1000)]?.title}
         onOpenChapters={() => {
           setShowTrackMenu(false);
           setShowChaptersPicker(true);

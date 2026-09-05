@@ -53,7 +53,7 @@ export function SyncPlayBar({ roomCode, isHost, members, connected, onLeave, que
           <Pressable
             onPress={onPrev}
             disabled={idx <= 0}
-            style={[styles.chip, { backgroundColor: theme.colors.surfaceRaised, opacity: idx <= 0 ? 0.4 : 1 }]}
+            hitSlop={CHIP_HIT_SLOP} style={[styles.chip, { backgroundColor: theme.colors.surfaceRaised, opacity: idx <= 0 ? 0.4 : 1 }]}
             accessibilityLabel={t("common.previous", "Previous")}
           >
             <Ionicons name="play-skip-back" size={ICON_SIZE.sm} color={theme.colors.text} />
@@ -62,7 +62,7 @@ export function SyncPlayBar({ roomCode, isHost, members, connected, onLeave, que
           <Pressable
             onPress={onNext}
             disabled={idx >= total - 1}
-            style={[styles.chip, { backgroundColor: theme.colors.surfaceRaised, opacity: idx >= total - 1 ? 0.4 : 1 }]}
+            hitSlop={CHIP_HIT_SLOP} style={[styles.chip, { backgroundColor: theme.colors.surfaceRaised, opacity: idx >= total - 1 ? 0.4 : 1 }]}
             accessibilityLabel={t("common.next", "Next")}
           >
             <Ionicons name="play-skip-forward" size={ICON_SIZE.sm} color={theme.colors.text} />
@@ -73,17 +73,24 @@ export function SyncPlayBar({ roomCode, isHost, members, connected, onLeave, que
         <Text style={[styles.chipText, { color: theme.colors.textMuted }]}>{idx + 1}/{total}</Text>
       )}
       {isHost && roomCode && (
-        <Pressable onPress={handleCopyCode} style={[styles.chip, { backgroundColor: theme.colors.surfaceRaised }]}>
+        <Pressable onPress={handleCopyCode} hitSlop={CHIP_HIT_SLOP} style={[styles.chip, { backgroundColor: theme.colors.surfaceRaised }]}>
           <Text style={[styles.chipText, { color: theme.colors.text }]}>{copied ? t("common.copied", "Copied") : roomCode}</Text>
         </Pressable>
       )}
-      <Pressable onPress={onLeave} style={[styles.chip, { backgroundColor: theme.colors.error + "4D" }]}>
+      <Pressable onPress={onLeave} hitSlop={CHIP_HIT_SLOP} style={[styles.chip, { backgroundColor: theme.colors.error + "4D" }]}>
         <Ionicons name="exit-outline" size={ICON_SIZE.sm} color={theme.colors.text} />
         <Text style={[styles.chipText, { color: theme.colors.text }]}>{t("media.syncplay.leave", "Leave")}</Text>
       </Pressable>
     </View>
   );
 }
+
+// The bar's chips are a 14px icon in 8/4 of padding: 30x22dp, under the 44dp
+// minimum, and they sit on a video overlay where a missed tap costs the tap
+// AND hides the controls. The bar's gap is 8, so 4 on each side never lets two
+// neighbouring targets overlap; the vertical slop is free, nothing sits above
+// or below inside the bar.
+const CHIP_HIT_SLOP = { top: 11, bottom: 11, left: 4, right: 4 };
 
 const styles = StyleSheet.create({
   bar: {

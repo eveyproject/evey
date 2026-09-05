@@ -47,12 +47,24 @@ export interface ThemeTokens {
 }
 
 // error is a mobile-only surface tint with no web CSS var, so it stays here.
+//
+// It is overwhelmingly a FOREGROUND: ~57 of its 60-odd uses paint text or an
+// icon (destructive rows, error messages, trash icons), and only three fill a
+// surface. So it is pinned against the page backgrounds, not just against the
+// text laid on top of it - the light themes shipped #ef4444 and #dc2626, which
+// read at 3.30:1 and 3.92:1 on their own raised surface, well under AA.
+//
+// The two light values are the same reds darkened to ~80/88% of their channels:
+// same hue, enough contrast. The dark themes are untouched, they already read
+// at 6.26:1 to 7.59:1. Kept as literals rather than computed, because a colour
+// that moves on its own is a colour nobody can look up - contrast.test.ts is
+// what guarantees they stay legible.
 const MOBILE_ERROR: Record<ThemeCSSName, string> = {
   "default": "#e57373",
   "amoled": "#f87171",
   "dark-red": "#f87171",
-  "light-default": "#ef4444",
-  "light-blue": "#dc2626",
+  "light-default": "#bf3636",
+  "light-blue": "#c22121",
 };
 
 // The spacing scale is a native-only concept (web uses Tailwind's scale, not

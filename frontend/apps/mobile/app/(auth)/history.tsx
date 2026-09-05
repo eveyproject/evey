@@ -223,7 +223,7 @@ export default function HistoryScreen() {
         headerStyle: { backgroundColor: theme.colors.surface },
         headerTintColor: theme.colors.text,
         headerRight: () => items.length > 0 ? (
-          <Pressable onPress={handleClear} accessible accessibilityLabel={t("auth.watchHistory.clearHistory")} accessibilityRole="button">
+          <Pressable onPress={handleClear} hitSlop={12} accessible accessibilityLabel={t("auth.watchHistory.clearHistory")} accessibilityRole="button">
             <Ionicons name="trash-outline" size={22} color={theme.colors.textMuted} />
           </Pressable>
         ) : undefined,

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { Pressable, Text, StyleSheet } from "react-native";
+import { AccessibilityInfo, Pressable, Text, StyleSheet } from "react-native";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { mKVServiceListChapters } from "@evey/api";
@@ -119,6 +119,20 @@ export function SkipIntroOverlay({ mediaId, filePath, currentTime, onSkip }: Ski
     onSkipRef.current(autoTarget.endSec);
     toast.info(t("player.introSkipped"));
   }, [autoTarget, t]);
+
+  // The button appears on its own, a few seconds into a segment, and vanishes
+  // on its own at the end of it. Sighted viewers see it arrive; nobody else
+  // did, and a chance to skip that is never announced is a chance that does
+  // not exist. Announced once per segment - re-announcing on every tick would
+  // talk over the film.
+  const announcedRef = useRef<string | null>(null);
+  const announceKey = resolved ? `${resolved.type}:${resolved.startSec}` : null;
+  useEffect(() => {
+    if (!announceKey || announcedRef.current === announceKey) return;
+    announcedRef.current = announceKey;
+    const type = announceKey.slice(0, announceKey.indexOf(":")) as SkippableType;
+    AccessibilityInfo.announceForAccessibility(t(LABEL_KEY[type]));
+  }, [announceKey, t]);
 
   if (!resolved) return null;
 

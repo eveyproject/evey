@@ -16,6 +16,10 @@ interface TrackOptionsMenuProps {
   onOpenSubtitles?: () => void;
   hasChapters?: boolean;
   onOpenChapters?: () => void;
+  // Title of the chapter the playhead is in. Shown - and spoken - on the
+  // chapters row, so "where am I" no longer requires opening the picker, the
+  // only place the current chapter was ever stated.
+  currentChapterTitle?: string;
   onOpenSleepTimer?: () => void;
   onOpenVolume?: () => void;
   hasStreamInfo?: boolean;
@@ -61,6 +65,7 @@ export function TrackOptionsMenu({
   onNextEpisode,
   hasChapters,
   onOpenChapters,
+  currentChapterTitle,
   onOpenSleepTimer,
   onOpenVolume,
   hasStreamInfo,
@@ -87,7 +92,12 @@ export function TrackOptionsMenu({
     items.push({ key: "nextEpisode", label: t("player.controls.nextEpisode"), onPress: onNextEpisode });
   }
   if (hasChapters && onOpenChapters) {
-    items.push({ key: "chapters", label: t("player.controls.chapters", "Chapters"), onPress: onOpenChapters });
+    items.push({
+      key: "chapters",
+      label: t("player.controls.chapters", "Chapters"),
+      value: currentChapterTitle,
+      onPress: onOpenChapters,
+    });
   }
   if (onOpenVolume) items.push({ key: "volume", label: t("player.controls.volume", "Volume"), onPress: onOpenVolume });
   if (onOpenSleepTimer) {
@@ -119,7 +129,11 @@ export function TrackOptionsMenu({
                 key={item.key}
                 hasTVPreferredFocus={i === 0}
                 onPress={item.onPress}
-                accessibilityLabel={item.label}
+                // The value is the half that carries the answer - which
+                // quality, which speed, which chapter you are in - and it was
+                // painted on screen but never spoken: the label alone said
+                // "Quality" and stopped there.
+                accessibilityLabel={item.value ? `${item.label}, ${item.value}` : item.label}
                 style={[styles.row, { borderBottomColor: theme.colors.border }]}
               >
                 <View style={styles.rowInner}>

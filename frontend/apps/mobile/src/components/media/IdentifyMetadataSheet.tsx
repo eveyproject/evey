@@ -103,7 +103,7 @@ export function IdentifyMetadataSheet({ visible, onClose, mediaItemId, initialQu
       <View style={[s.container, { backgroundColor: theme.colors.bg }]}>
         <View style={[s.header, { borderBottomColor: theme.colors.divider }]}>
           <Text style={[s.headerTitle, { color: theme.colors.text }]}>{t("media.detail.identify.title", "Identify on TMDB")}</Text>
-          <Pressable onPress={handleClose} disabled={applyingId !== null} accessibilityRole="button" accessibilityLabel={t("common.close", "Close")}>
+          <Pressable onPress={handleClose} hitSlop={12} disabled={applyingId !== null} accessibilityRole="button" accessibilityLabel={t("common.close", "Close")}>
             <Ionicons name="close" size={ICON_SIZE.md} color={theme.colors.text} />
           </Pressable>
         </View>

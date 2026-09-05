@@ -59,6 +59,30 @@ describe("theme contrast (WCAG AA)", () => {
         });
       }
 
+      // The three text ramps on the three surfaces. All 45 pairs already pass
+      // (5.03:1 at the tightest, light-blue's muted on its raised surface), so
+      // this is a tripwire rather than a fix: nothing asserted them, and that
+      // is precisely how the error tint drifted to 3.30:1 unnoticed. Secondary
+      // and muted carry real content - dates, counts, episode subtitles - not
+      // decoration, so AA applies to them exactly as to the primary ramp.
+      for (const [ramp, fg] of [
+        ["primary text", vars["--text"]],
+        ["secondary text", vars["--text-secondary"]],
+        ["muted text", vars["--text-muted"]],
+      ] as const) {
+        if (!isHex(fg)) continue;
+        for (const [where, value] of [
+          ["page background", bg],
+          ["surface", vars["--surface"]],
+          ["raised surface", surface],
+        ] as const) {
+          if (!isHex(value)) continue;
+          it(`reads ${ramp} on the ${where}`, () => {
+            expect(ratio(fg, value)).toBeGreaterThanOrEqual(AA);
+          });
+        }
+      }
+
       if (isHex(onAccent)) {
         it("renders button text legibly on an accent fill", () => {
           expect(ratio(onAccent, accent)).toBeGreaterThanOrEqual(AA);
@@ -128,6 +152,23 @@ describe("derived on-colour tokens (mobile/TV chips)", () => {
     it(`${name}: text reads on the mobile error fill`, () => {
       expect(ratio(t.colors.onError, t.colors.error)).toBeGreaterThanOrEqual(AA);
     });
+    // ...and the other direction, which is the one that was missing. `error` is
+    // a FOREGROUND far more often than a fill (~57 of its uses paint text or an
+    // icon, three fill a surface), yet only the fill was asserted. Both light
+    // themes failed here: #ef4444 read at 3.30:1 on light-default's raised
+    // surface and #dc2626 at 3.92:1 on light-blue's - an error message that the
+    // viewer who most needs to read it cannot.
+    //
+    // All three surfaces, because a destructive row sits on any of them.
+    for (const [surface, value] of [
+      ["page background", t.colors.bg],
+      ["surface", t.colors.surface],
+      ["raised surface", t.colors.surfaceRaised],
+    ] as const) {
+      it(`${name}: error-coloured text reads on the ${surface}`, () => {
+        expect(ratio(t.colors.error, value)).toBeGreaterThanOrEqual(AA);
+      });
+    }
     // onDanger against `danger` (--color-danger) is asserted above, per theme,
     // against the raw CSS var - not repeated here against the derived token,
     // since tokens.colors.danger is the same value via resolveVar().
