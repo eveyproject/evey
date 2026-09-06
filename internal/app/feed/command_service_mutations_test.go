@@ -173,16 +173,22 @@ func TestCommandService_EnsureLibraryFeedConfig_ConcurrentCreationsGetDistinctOr
 	svc := appfeed.NewCommandService(&orderTrackingCmdRepo{FakeConfigCommandRepo: cmdRepo, query: queryRepo}, queryRepo)
 
 	const libs = 5
+	// Errors are collected, not asserted in the goroutine: require calls
+	// t.FailNow, which is only defined on the test's own goroutine.
+	errs := make([]error, libs)
 	var wg sync.WaitGroup
-	for i := 0; i < libs; i++ {
+	for i := range libs {
 		wg.Add(1)
 		go func(n int) {
 			defer wg.Done()
 			id := shared.LibraryID(fmt.Sprintf("lib-%d", n))
-			require.NoError(t, svc.EnsureLibraryFeedConfig(context.Background(), id, "L"))
+			errs[n] = svc.EnsureLibraryFeedConfig(context.Background(), id, "L")
 		}(i)
 	}
 	wg.Wait()
+	for _, err := range errs {
+		require.NoError(t, err)
+	}
 
 	seen := map[int]string{}
 	for _, cfg := range cmdRepo.AdminConfigs {
