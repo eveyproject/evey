@@ -27,6 +27,15 @@ func swTestOpts() SoftwareProducerOptions {
 	}
 }
 
+// reachSegs is the seek-reach window these options actually run with. Tests
+// below assert the REUSE RULE ("a request the running encoder can still reach
+// shares it"), and the window is derived from the pacing rather than fixed, so
+// hardcoding a distance here would silently stop testing the rule the day the
+// pacing changes - which is exactly what happened with the old fixed 16.
+func reachSegs() int {
+	return swTestOpts().withDefaults().SeekReachWindowSegs
+}
+
 // ============================================================================
 // One process per hash; ReadRate pacing
 // ============================================================================
@@ -55,9 +64,12 @@ func TestSoftwareProducer_OneSequentialProcessPerHash(t *testing.T) {
 	// Forward requests that each stay within the seek-reach window of the running
 	// encoder's advancing frontier share ONE ffmpeg (normal sequential playback,
 	// where the playhead never jumps far past what has been produced).
+	// Each step lands inside the window of the frontier the PREVIOUS step
+	// committed, which is what continuous playback looks like from here.
+	w := reachSegs()
 	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 0))
-	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 10))
-	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 20))
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, w))
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 2*w))
 
 	assert.Equal(t, 1, proc.startCount(), "in-reach forward requests share the single long-lived encoder")
 	assert.Equal(t, 1, p.ActiveSessionCount())
@@ -284,7 +296,7 @@ func TestSoftwareProducer_ForwardSeekReusesProcess(t *testing.T) {
 	// A SMALL forward jump stays within the seek-reach window - the sequential
 	// encoder is already producing toward it - so no restart. (A far jump spawns a
 	// fresh seek encoder instead: see ForwardSeekBeyondReachSpawnsSeekEncoder.)
-	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 8))
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, reachSegs()))
 	assert.Equal(t, 1, proc.startCount(), "an in-reach forward seek reuses the running encoder")
 }
 
@@ -367,8 +379,8 @@ func TestSoftwareProducer_SamePositionViewersShareOneEncoder(t *testing.T) {
 
 	fp := minimalFingerprint(t)
 	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 0))
-	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 0))  // second viewer, same start
-	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 10)) // a beat ahead, within the seek-reach window → shared
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 0))           // second viewer, same start
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, reachSegs())) // a beat ahead, within the seek-reach window → shared
 	assert.Equal(t, 1, proc.startCount(), "viewers at or just ahead of the live start share ONE encoder")
 	assert.Equal(t, 1, p.ActiveSessionCount())
 }
@@ -493,8 +505,8 @@ func TestSoftwareProducer_VariantAwareReuse_SameRungShares(t *testing.T) {
 	fp := twoRungFingerprint(t)
 	hash := fp.Hash()
 
-	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 1, 0))  // variant 1
-	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 1, 10)) // same rung, in-reach
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 1, 0))           // variant 1
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 1, reachSegs())) // same rung, in-reach
 	assert.Equal(t, 1, proc.startCount(), "same-rung in-reach requests share one encoder")
 
 	p.mu.Lock()
@@ -506,7 +518,7 @@ func TestSoftwareProducer_VariantAwareReuse_SameRungShares(t *testing.T) {
 	}
 	p.mu.Unlock()
 	require.NotNil(t, s)
-	assert.Equal(t, 10, s.frontier, "the reused variant-1 encoder's frontier advanced to the request")
+	assert.Equal(t, reachSegs(), s.frontier, "the reused variant-1 encoder's frontier advanced to the request")
 }
 
 func TestSoftwareProducer_CacheHitTouchesCorrectVariant(t *testing.T) {

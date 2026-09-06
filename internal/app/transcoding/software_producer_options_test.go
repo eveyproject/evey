@@ -24,7 +24,10 @@ func TestSoftwareProducerOptions_WithDefaults_FillsEveryZeroField(t *testing.T) 
 	assert.Equal(t, 2, got.MaxSessionsPerHash)
 	assert.Equal(t, 2, got.MaxConcurrentVariantsPerHash)
 	assert.Equal(t, 60*time.Second, got.NewbornEvictionShield)
-	assert.Equal(t, 16, got.SeekReachWindowSegs)
+	// The RULE, not a copy of the number: the window is whatever a paced
+	// encoder can cross inside the client's patience. Freezing "16" here is
+	// exactly what let the old value drift out of agreement with the pacing.
+	assert.Equal(t, derivedSeekReachWindow(got.ReadRate, got.SegmentSeconds), got.SeekReachWindowSegs)
 	assert.Equal(t, 8, got.ResumeCushionSegs)
 }
 
@@ -100,4 +103,60 @@ func TestSoftwareProducerOptions_WithDefaults_DoesNotMutateTheInput(t *testing.T
 
 	assert.Zero(t, in.ReadRate, "the caller's struct must be left alone")
 	assert.Zero(t, in.MaxSessionsPerHash)
+}
+
+// The seek-reach window exists to answer one question: can a paced encoder
+// reach this segment before the player hangs up? A fixed count cannot answer
+// it, because the answer moves with the pacing. Prod, 2026-09-06: at the old
+// fixed 16, a request could land 48 s of content ahead of the frontier and the
+// server would make a 1.5x encoder crawl to it for 32 s - while the client
+// abandoned the segment after ~8 s and retried (measured 10.026 s apart,
+// `context canceled` server-side). The window promised a wait no client honours.
+func TestDerivedSeekReachWindow_StaysInsideClientPatience(t *testing.T) {
+	cases := []struct {
+		name           string
+		readRate       float64
+		segmentSeconds float64
+	}{
+		{"transcode pacing", 1.5, ManifestSegmentSeconds},
+		{"copy pacing", 8.0, ManifestSegmentSeconds},
+		{"audio rendition pacing", 8.0, 6.0},
+		{"slow box", 1.0, ManifestSegmentSeconds},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			segs := derivedSeekReachWindow(c.readRate, c.segmentSeconds)
+			// Worst-case wall clock to cross the window at the steady rate.
+			waitSec := float64(segs) * c.segmentSeconds / c.readRate
+			assert.LessOrEqual(t, waitSec, clientSegmentPatience.Seconds(),
+				"a request at the edge of the window must be servable before the client gives up")
+			assert.GreaterOrEqual(t, segs, minSeekReachWindowSegs,
+				"continuous playback draws 0-1 segments ahead and must never spawn a rival encoder")
+		})
+	}
+}
+
+// The old constant is the regression this replaces: at the default pacing the
+// window must now be far below it, or nothing changed.
+func TestDerivedSeekReachWindow_MuchTighterThanTheOldFixed16(t *testing.T) {
+	segs := derivedSeekReachWindow(1.5, ManifestSegmentSeconds)
+	assert.Less(t, segs, 16)
+	assert.GreaterOrEqual(t, segs, minSeekReachWindowSegs)
+}
+
+// A faster producer legitimately reaches further in the same time - the window
+// is about wall clock, not about segment counts.
+func TestDerivedSeekReachWindow_GrowsWithTheProductionRate(t *testing.T) {
+	slow := derivedSeekReachWindow(1.5, ManifestSegmentSeconds)
+	fast := derivedSeekReachWindow(8.0, ManifestSegmentSeconds)
+	assert.Greater(t, fast, slow)
+}
+
+// Garbage pacing must not produce a zero window: 0 would make EVERY request one
+// segment ahead of the frontier spawn a rival encoder, i.e. a spawn storm on
+// ordinary continuous playback.
+func TestDerivedSeekReachWindow_NeverZero(t *testing.T) {
+	assert.GreaterOrEqual(t, derivedSeekReachWindow(0, 0), minSeekReachWindowSegs)
+	assert.GreaterOrEqual(t, derivedSeekReachWindow(-1, -1), minSeekReachWindowSegs)
+	assert.GreaterOrEqual(t, derivedSeekReachWindow(0.01, 3), minSeekReachWindowSegs)
 }
