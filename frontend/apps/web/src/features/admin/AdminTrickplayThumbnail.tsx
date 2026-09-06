@@ -69,7 +69,17 @@ export function AdminTrickplayThumbnail({ mediaId, positionMs, mediaType, fullWi
   // Fallback: on-demand snapshot (only reached when there is no trickplay).
   if (error) return null;
   const tokenParam = token ? `&token=${encodeURIComponent(token)}` : "";
-  const src = `/api/v1/media/${mediaId}/snapshot?position_ms=${positionMs}${tokenParam}`;
+  // Quantised, because this URL is a WORK ORDER, not a lookup: the snapshot
+  // endpoint is an mkvgo keyframe seek plus a full ffmpeg decode. positionMs
+  // comes from the 3s session poll, so an unrounded value produced a brand new
+  // URL - and a brand new decode - every three seconds, per session, for as
+  // long as an admin left the dashboard open. Two or three trickplay-less
+  // sessions and the NAS this project targets is spawning ffmpeg around the
+  // clock. Rounding makes consecutive polls land on the same cacheable URL;
+  // 15s is well under the shot length anyone reads a thumbnail for.
+  const SNAPSHOT_QUANTUM_MS = 15_000;
+  const snapshotAt = Math.floor(positionMs / SNAPSHOT_QUANTUM_MS) * SNAPSHOT_QUANTUM_MS;
+  const src = `/api/v1/media/${mediaId}/snapshot?position_ms=${snapshotAt}${tokenParam}`;
 
   if (fullWidth) {
     return (

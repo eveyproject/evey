@@ -516,7 +516,7 @@ export function LogsExplorer() {
             className="flex items-center gap-1.5 px-3 py-2 rounded-[var(--radius-md)] text-sm font-medium transition-colors-fast border"
             style={{
               backgroundColor: live ? "var(--accent)" : "var(--surface-raised)",
-              color: live ? "white" : "var(--text-muted)",
+              color: live ? "var(--filter-active-text, #fff)" : "var(--text-muted)",
               borderColor: live ? "var(--accent)" : "var(--border)",
             }}
             aria-pressed={live}

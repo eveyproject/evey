@@ -391,7 +391,7 @@ function ActivityPage() {
             className="px-4 py-1.5 text-sm rounded-[var(--radius-sm)] font-medium transition-colors-fast"
             style={{
               backgroundColor: tab === id ? "var(--accent)" : "transparent",
-              color: tab === id ? "white" : "var(--text-muted)",
+              color: tab === id ? "var(--filter-active-text, #fff)" : "var(--text-muted)",
             }}
             aria-pressed={tab === id}
           >

@@ -62,9 +62,17 @@ vi.mock("@tanstack/react-query", async (importActual) => {
   };
 });
 
-vi.mock("lucide-react", () => {
+// Spread the real module: a mock that lists only the icons in use today goes
+// red the day a component adds one, on an error that says nothing about the
+// change being tested.
+vi.mock("lucide-react", async (importOriginal) => {
   const Icon = ({ size }: { size?: number }) => <span data-size={size} />;
-  return { GripVertical: Icon };
+  return {
+    ...(await importOriginal<typeof import("lucide-react")>()),
+    GripVertical: Icon,
+    ChevronUp: Icon,
+    ChevronDown: Icon,
+  };
 });
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -120,6 +128,21 @@ describe("FeedConfigCard", () => {
     renderCard();
     const switches = screen.getAllByRole("switch");
     expect(switches).toHaveLength(3);
+  });
+
+  // The grip carries a pointer handler and nothing else, so an admin on a
+  // keyboard or a screen reader could enable and disable feeds but never
+  // reorder them. The user-facing CustomizePanel already ships these buttons
+  // for the very same list.
+  it("lets a keyboard user reorder a section, not just a pointer", () => {
+    renderCard();
+
+    const up = screen.getAllByLabelText("Move section up");
+    const down = screen.getAllByLabelText("Move section down");
+    expect(up.length).toBeGreaterThan(0);
+    expect(down.length).toBe(up.length);
+    expect(up[0]).toBeDisabled();
+    expect(down[down.length - 1]).toBeDisabled();
   });
 
   it("reflects enabled=true via aria-checked=true on toggle", () => {

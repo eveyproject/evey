@@ -10,7 +10,7 @@ import {
 } from "@evey/api";
 import { toast } from "@evey/store";
 import { useQueryClient } from "@tanstack/react-query";
-import { GripVertical } from "lucide-react";
+import { GripVertical, ChevronUp, ChevronDown } from "lucide-react";
 import { Switch } from "@/components/ui/Switch";
 
 // Mirrors AdminFeedsPage from routes/_auth/admin/feeds.lazy.tsx but as an
@@ -271,7 +271,32 @@ export function FeedConfigCard() {
               onPointerDown={(e) => startPointerDrag(i, e)}
               style={{ touchAction: "none" }}
               className="cursor-grab active:cursor-grabbing text-[var(--text-muted)]"
+              aria-hidden="true"
             />
+            {/* The grip carries a pointer handler and nothing else, so an admin
+                on a keyboard or a screen reader could enable and disable feeds
+                but never reorder them. Same two buttons the user-facing
+                CustomizePanel already ships for this exact list. */}
+            <button
+              type="button"
+              onClick={() => commitReorder(i, i - 1)}
+              disabled={i === 0}
+              aria-label={t("common.feeds.moveUp")}
+              title={t("common.feeds.moveUp")}
+              className="p-0.5 text-[var(--text-muted)] hover:text-[var(--text)] disabled:opacity-30 cursor-pointer disabled:cursor-default"
+            >
+              <ChevronUp size={14} />
+            </button>
+            <button
+              type="button"
+              onClick={() => commitReorder(i, i + 1)}
+              disabled={i === rows.length - 1}
+              aria-label={t("common.feeds.moveDown")}
+              title={t("common.feeds.moveDown")}
+              className="p-0.5 text-[var(--text-muted)] hover:text-[var(--text)] disabled:opacity-30 cursor-pointer disabled:cursor-default"
+            >
+              <ChevronDown size={14} />
+            </button>
             {/* The Puzzle icon used to sit here for plugins, but it
                 doubled as a "non-draggable" cue. Now that admin can
                 reorder plugins too, the grip is shown everywhere - the
