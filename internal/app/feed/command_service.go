@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/evey-project/evey/internal/domain/feed"
@@ -42,6 +43,14 @@ type CommandService struct {
 	commands feed.ConfigCommandRepo
 	queries  feed.ConfigQueryRepo
 	bus      shared.EventBus
+	// ensureMu serialises EnsureLibraryFeedConfig. It reads the whole admin
+	// config to derive the next display_order and then writes it back, and the
+	// event bus can fire library.created twice in quick succession (initial
+	// setup with several libraries, two admins at once). Two concurrent runs
+	// read the same snapshot, compute the same maxOrder+1, and the upsert has
+	// no constraint on display_order - so both rows land on the same position
+	// and the admin feed order becomes arbitrary between them.
+	ensureMu sync.Mutex
 }
 
 func NewCommandService(commands feed.ConfigCommandRepo, queries feed.ConfigQueryRepo, opts ...CommandServiceOption) *CommandService {
@@ -118,6 +127,10 @@ func (s *CommandService) ResetProfileConfig(ctx context.Context, profileID strin
 func (s *CommandService) EnsureLibraryFeedConfig(ctx context.Context, libraryID shared.LibraryID, name string) error {
 	ctx, span := tracing.StartSpan(ctx, "app.feed.EnsureLibraryFeedConfig")
 	defer span.End()
+	// Read-derive-write, so the whole thing is the critical section, not just
+	// the write. This runs once per library creation - the contention is nil.
+	s.ensureMu.Lock()
+	defer s.ensureMu.Unlock()
 	existing, err := s.queries.GetAdminConfig(ctx)
 	if err != nil {
 		return fmt.Errorf("CommandService.EnsureLibraryFeedConfig: %w", err)

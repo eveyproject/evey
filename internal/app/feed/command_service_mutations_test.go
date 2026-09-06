@@ -4,13 +4,16 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
+	"sync"
 	"testing"
 
 	appfeed "github.com/evey-project/evey/internal/app/feed"
 	"github.com/evey-project/evey/internal/domain/feed"
 	"github.com/evey-project/evey/internal/domain/feed/fakes"
 	"github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/domain/shared"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -151,4 +154,55 @@ func TestCommandService_EnsureLibraryFeedConfig_DisplayOrderFromMax(t *testing.T
 	created := cmdRepo.AdminConfigs[feed.LibraryType("lib-9")]
 	require.NotNil(t, created)
 	assert.Equal(t, 8, created.DisplayOrder)
+}
+
+// display_order is derived from a full read and written straight back, and the
+// event bus fires library.created once per library - so an initial setup that
+// creates several at once ran this concurrently. Two runs on the same snapshot
+// computed the same maxOrder+1, and the upsert has no constraint on
+// display_order: both rows landed on the same position. Run under -race, this
+// also pins the read-derive-write as one critical section.
+func TestCommandService_EnsureLibraryFeedConfig_ConcurrentCreationsGetDistinctOrders(t *testing.T) {
+	cmdRepo := fakes.NewFakeConfigCommandRepo()
+	queryRepo := fakes.NewFakeConfigQueryRepo()
+	// The fake query repo must answer what has been written so far, otherwise
+	// the test measures a frozen snapshot instead of the interleaving.
+	queryRepo.AdminConfigs = []*feed.AdminConfig{
+		{FeedType: feed.TypeRecentlyAdded, DisplayOrder: 1, MaxItems: 10},
+	}
+	svc := appfeed.NewCommandService(&orderTrackingCmdRepo{FakeConfigCommandRepo: cmdRepo, query: queryRepo}, queryRepo)
+
+	const libs = 5
+	var wg sync.WaitGroup
+	for i := 0; i < libs; i++ {
+		wg.Add(1)
+		go func(n int) {
+			defer wg.Done()
+			id := shared.LibraryID(fmt.Sprintf("lib-%d", n))
+			require.NoError(t, svc.EnsureLibraryFeedConfig(context.Background(), id, "L"))
+		}(i)
+	}
+	wg.Wait()
+
+	seen := map[int]string{}
+	for _, cfg := range cmdRepo.AdminConfigs {
+		if prev, dup := seen[cfg.DisplayOrder]; dup {
+			t.Fatalf("display_order %d used by both %s and %s", cfg.DisplayOrder, prev, cfg.FeedType)
+		}
+		seen[cfg.DisplayOrder] = string(cfg.FeedType)
+	}
+}
+
+// Mirrors what Postgres does: a written config is visible to the next read.
+type orderTrackingCmdRepo struct {
+	*fakes.FakeConfigCommandRepo
+	query *fakes.FakeConfigQueryRepo
+}
+
+func (r *orderTrackingCmdRepo) UpsertAdminConfig(ctx context.Context, cfg *feed.AdminConfig) error {
+	if err := r.FakeConfigCommandRepo.UpsertAdminConfig(ctx, cfg); err != nil {
+		return err
+	}
+	r.query.AdminConfigs = append(r.query.AdminConfigs, cfg)
+	return nil
 }
