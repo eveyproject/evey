@@ -10,6 +10,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@evey/store";
 import { useTranslation } from "react-i18next";
+import { useActiveProfile } from "@/hooks/useActiveProfile";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
@@ -44,8 +45,12 @@ function ProfileCard() {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const { data: user } = useUserServiceGetCurrentUser();
-  const { data: profilesResp } = useUserServiceListProfiles(user?.id ?? "", { query: { enabled: !!user?.id } });
-  const defaultProfile = profilesResp?.profiles?.find((p) => p.isDefault) ?? profilesResp?.profiles?.[0];
+  // The avatar shown, and the one an upload REPLACES, belong to the profile in
+  // front of the user. Targeting the household default meant anyone on a
+  // non-default profile saw an initial instead of their picture, and their
+  // upload landed on somebody else's profile. Same defect the mobile app had
+  // until 03-09.
+  const { profile: activeProfile } = useActiveProfile();
 
   const [editing, setEditing] = useState(false);
   const [username, setUsername] = useState("");
@@ -101,11 +106,11 @@ function ProfileCard() {
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !defaultProfile?.id) return;
+    if (!file || !activeProfile?.id) return;
     const formData = new FormData();
     formData.append("avatar", file);
     try {
-      const res = await eveyFetchRaw({ url: `/api/v1/profiles/${defaultProfile.id}/avatar`, method: "POST", body: formData });
+      const res = await eveyFetchRaw({ url: `/api/v1/profiles/${activeProfile.id}/avatar`, method: "POST", body: formData });
       if (!res.ok) throw new Error((await res.text()) || t("auth.profile.avatarFailed"));
       setAvatarPreview(URL.createObjectURL(file));
       if (user?.id) void qc.invalidateQueries({ queryKey: getUserServiceListProfilesQueryKey(user.id) });
@@ -122,8 +127,8 @@ function ProfileCard() {
 
   const avatarUrl = avatarPreview
     ? avatarPreview
-    : defaultProfile?.avatarPath && defaultProfile?.id
-      ? `/api/v1/profiles/${defaultProfile.id}/avatar`
+    : activeProfile?.avatarPath && activeProfile?.id
+      ? `/api/v1/profiles/${activeProfile.id}/avatar`
       : null;
 
   return (
@@ -356,14 +361,12 @@ function PinInput({
 function ParentalSection() {
   const { t } = useTranslation();
   const qc = useQueryClient();
-  const { data: user } = useUserServiceGetCurrentUser();
-  const { data: profilesResp } = useUserServiceListProfiles(user?.id ?? "", {
-    query: { enabled: !!user?.id },
-  });
-
-  const profiles = profilesResp?.profiles;
-  const defaultProfile = profiles?.find((p) => p.isDefault) ?? profiles?.[0];
-  const profileId = defaultProfile?.id ?? "";
+  // The server enforces the PIN and the age cap of the ACTIVE profile
+  // (checkParental reads claims.ProfileID). Reading and writing the DEFAULT
+  // profile's settings here showed a household member restrictions that were
+  // never the ones applied to them, and edited a profile they were not on.
+  const { profile: activeProfile } = useActiveProfile();
+  const profileId = activeProfile?.id ?? "";
 
   const { data: parental } = useParentalServiceGetParentalSettings(profileId, { query: { enabled: !!profileId } });
 
@@ -420,7 +423,7 @@ function ParentalSection() {
     updateParental.mutate(body);
   }
 
-  if (!defaultProfile) {
+  if (!activeProfile) {
     return (
       <p className="text-sm text-[var(--text-muted)]">{t("auth.settings.parental.noProfile")}</p>
     );

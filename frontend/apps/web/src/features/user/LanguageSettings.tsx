@@ -3,8 +3,9 @@ import { useTranslation } from "react-i18next";
 import { Select } from "@/components/ui/Select";
 import { supportedLanguages } from "@/i18n";
 import { useLocaleStore, useAuthStore } from "@evey/store";
-import { useUserServiceGetCurrentUser, useUserServiceListProfiles, useUserServiceUpdateProfile, userServiceRefreshToken, getUserServiceListProfilesQueryKey } from "@evey/api";
+import { useUserServiceUpdateProfile, userServiceRefreshToken, getUserServiceListProfilesQueryKey } from "@evey/api";
 import { useQueryClient } from "@tanstack/react-query";
+import { useActiveProfile } from "@/hooks/useActiveProfile";
 
 // Common media languages offered in the audio/subtitle selectors (ISO 639-1).
 // Rendered via Intl.DisplayNames so the label is localized to the UI language.
@@ -30,14 +31,8 @@ export function LanguageSettings() {
   const { t, i18n } = useTranslation();
   const setLocale = useLocaleStore((s) => s.setLocale);
   const qc = useQueryClient();
-  const { data: user } = useUserServiceGetCurrentUser();
-  const activeProfileId = useAuthStore((s) => s.profileId);
-  const { data: profilesResp } = useUserServiceListProfiles(user?.id ?? "", { query: { enabled: !!user?.id } });
-  // Use the active profile (from JWT) when available, fall back to default.
-  const activeProfile =
-    profilesResp?.profiles?.find((p) => p.id === activeProfileId) ??
-    profilesResp?.profiles?.find((p) => p.isDefault) ??
-    profilesResp?.profiles?.[0];
+  // The active profile (from the JWT), falling back to the default one.
+  const { profile: activeProfile, userId } = useActiveProfile();
   const updateProfile = useUserServiceUpdateProfile();
 
   // Mirror the server-truth preferences in a ref so two quick edits (e.g. audio
@@ -104,7 +99,7 @@ export function LanguageSettings() {
     prefsRef.current = next;
     try {
       await updateProfile.mutateAsync({ id: activeProfile.id, data: { preferences: next } });
-      if (user?.id) void qc.invalidateQueries({ queryKey: getUserServiceListProfilesQueryKey(user.id) });
+      if (userId) void qc.invalidateQueries({ queryKey: getUserServiceListProfilesQueryKey(userId) });
     } catch (err) { console.warn("audio lang update failed", err); }
   };
 
@@ -116,7 +111,7 @@ export function LanguageSettings() {
     prefsRef.current = next;
     try {
       await updateProfile.mutateAsync({ id: activeProfile.id, data: { preferences: next } });
-      if (user?.id) void qc.invalidateQueries({ queryKey: getUserServiceListProfilesQueryKey(user.id) });
+      if (userId) void qc.invalidateQueries({ queryKey: getUserServiceListProfilesQueryKey(userId) });
     } catch (err) { console.warn("subtitle lang update failed", err); }
   };
 

@@ -1,15 +1,14 @@
 import { useCallback, useEffect } from "react";
-import { useThemeStore, useAuthStore, themePreferences } from "@evey/store";
+import { useThemeStore, themePreferences } from "@evey/store";
 import { themes, type ThemeName } from "@evey/theme";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import {
   eveyFetch,
-  useUserServiceGetCurrentUser,
-  useUserServiceListProfiles,
   useUserServiceUpdateProfile,
 } from "@evey/api";
 import { pluginThemeName } from "./theme-utils";
+import { useActiveProfile } from "@/hooks/useActiveProfile";
 
 const builtInLabels: Record<ThemeName, string> = {
   default: "Dark",
@@ -46,13 +45,7 @@ export function ThemeSelector() {
 
   // The theme is a property of the profile, not of this browser: change it
   // here and the phone and the television follow, and the other way round.
-  const { data: user } = useUserServiceGetCurrentUser();
-  const activeProfileId = useAuthStore((s) => s.profileId);
-  const { data: profilesResp } = useUserServiceListProfiles(user?.id ?? "", { query: { enabled: !!user?.id } });
-  const activeProfile =
-    profilesResp?.profiles?.find((p) => p.id === activeProfileId) ??
-    profilesResp?.profiles?.find((p) => p.isDefault) ??
-    profilesResp?.profiles?.[0];
+  const { profile: activeProfile } = useActiveProfile();
   const updateProfile = useUserServiceUpdateProfile();
 
   useEffect(() => {
