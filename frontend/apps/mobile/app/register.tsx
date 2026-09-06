@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { Text, TextInput, Pressable, ActivityIndicator, Alert, ScrollView } from "react-native";
+import { View, Text, TextInput, Pressable, ActivityIndicator, Alert, ScrollView } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { useUserServiceRegisterWithInvite } from "@evey/api";
+import { useUserServiceRegisterWithInvite, eveyFetch } from "@evey/api";
+import { useQuery } from "@tanstack/react-query";
 import { useAuthStore } from "@evey/store";
 import { useTheme } from "../src/providers/ThemeProvider";
 import { PasswordInput } from "../src/components/PasswordInput";
@@ -19,6 +20,26 @@ export default function Register() {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [validationError, setValidationError] = useState("");
+  // Set when a submit is refused because the link is no longer usable - the
+  // screen may have been open since before it was disabled.
+  const [inviteRejected, setInviteRejected] = useState(false);
+
+  // Validate a link that came from the URL BEFORE showing the form. Without
+  // this, a disabled, expired or already-used invite let someone fill in five
+  // fields and only then get a flat "Registration failed" with no reason. The
+  // web has answered this properly since its own register screen was written.
+  const { data: validation, isLoading: validating } = useQuery<{ valid?: boolean }>({
+    queryKey: ["invite-validate", invite],
+    queryFn: () =>
+      eveyFetch<{ valid?: boolean }>({
+        url: `/api/v1/invites/${encodeURIComponent(invite ?? "")}/validate`,
+        method: "GET",
+      }),
+    enabled: !!invite,
+    retry: false,
+    staleTime: 30_000,
+  });
+  const inviteUnusable = !!invite && (inviteRejected || (!validating && validation?.valid === false));
 
   const { mutate: register, isPending } = useUserServiceRegisterWithInvite({
     mutation: {
@@ -29,6 +50,13 @@ export default function Register() {
         }
       },
       onError: (err) => {
+        // The server refuses an unusable invite at submit time too: show the
+        // dedicated "link no longer valid" screen rather than a raw error.
+        const status = (err as { httpStatus?: number } | undefined)?.httpStatus;
+        if (invite && (status === 403 || status === 404 || status === 410)) {
+          setInviteRejected(true);
+          return;
+        }
         Alert.alert(
           t("auth.register.registrationFailed"),
           err instanceof Error ? err.message : t("auth.register.registrationFailed"),
@@ -61,6 +89,44 @@ export default function Register() {
   };
 
   const canSubmit = !!username.trim() && !!password && !!confirm && !!inviteCode.trim();
+
+  // Checking the link from the URL - hold the form until we know it is usable.
+  if (invite && validating && !inviteRejected) {
+    return (
+      <View
+        testID="invite-checking"
+        style={{ flex: 1, backgroundColor: theme.colors.bg, justifyContent: "center", alignItems: "center", gap: theme.spacing.md }}
+      >
+        <ActivityIndicator color={theme.colors.accent} />
+        <Text style={{ color: theme.colors.textMuted }}>{t("auth.register.inviteChecking")}</Text>
+      </View>
+    );
+  }
+
+  // Disabled, expired or already used: no form at all, just the reason.
+  if (inviteUnusable) {
+    return (
+      <View
+        testID="invite-invalid"
+        style={{ flex: 1, backgroundColor: theme.colors.bg, justifyContent: "center", alignItems: "center", padding: theme.spacing.xl, gap: theme.spacing.md }}
+      >
+        <Text style={{ fontSize: 20, fontWeight: "bold", color: theme.colors.text, textAlign: "center" }}>
+          {t("auth.register.inviteInvalidTitle")}
+        </Text>
+        <Text style={{ color: theme.colors.textMuted, textAlign: "center" }}>
+          {t("auth.register.inviteInvalidMessage")}
+        </Text>
+        <Pressable
+          onPress={() => router.replace("/login")}
+          accessible={true}
+          accessibilityRole="button"
+          accessibilityLabel={t("auth.register.backToLogin")}
+        >
+          <Text style={{ color: theme.colors.accent, fontSize: 16 }}>{t("auth.register.backToLogin")}</Text>
+        </Pressable>
+      </View>
+    );
+  }
 
   return (
     <ScrollView
