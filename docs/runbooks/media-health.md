@@ -87,12 +87,29 @@ everything:
 
 ## Backups and rollback
 
-Every rewrite keeps a `.mkvgobak` copy of the original next to the file
-(*Keep backups*, on by default). *Roll back* restores one file, *Roll back
-all* restores the selected scope. When backups would overflow the volume the
-page says so and suggests turning them off - then only the last few are kept
-during the run and removed at the end, each repair having been validated
-before the swap.
+**Read this before you reach for *Roll back* during an incident: whether a
+physical copy of the original exists depends on the repair strategy, and one of
+the three keeps none.**
+
+| Strategy | Physical backup | How a rollback works |
+|---|---|---|
+| `rewrite` | `.mkvgobak` next to the file | Restore the copy |
+| `auto` | `.mkvgobak` (falls back to a rewrite) | Restore the copy |
+| `inplace` | **none, ever** | Re-apply the inverse shift recorded in the repair journal |
+
+`inplace` is a surgical patch - a file write, no remux - and it is the path an
+audio realignment takes (the "Audio +Ns" badge). Nothing is copied: the way
+back is the journal entry in `audit_log`, which carries the shift that was
+applied, and the fact that the opposite shift undoes it. If that journal entry
+is gone, so is the rollback. `admin_media.proto` is the reference for the three
+strategies; `inplace` ignores both *Keep backups* and the backup-retention
+count.
+
+For the two strategies that do keep a copy: *Roll back* restores one file,
+*Roll back all* restores the selected scope. When backups would overflow the
+volume the page says so and suggests turning them off - then only the last few
+are kept during the run and removed at the end, each repair having been
+validated before the swap.
 
 Repairs need the media folders mounted **read-write** in the container (no
 `:ro` on the bind mount) - the page tells you which files sit on a read-only
