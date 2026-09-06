@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"path/filepath"
 	"runtime/debug"
 	"slices"
 	"sync"
@@ -211,6 +212,13 @@ type SoftwareProducerOptions struct {
 	// the missing cushion quickly) and revisited on a later sweep. Default 8.
 	ResumeCushionSegs int
 
+	// FFmpegProgressLogDir returns the directory this producer's sessions write
+	// their ffmpeg `-progress` stream into, or "" to record nothing. Read per
+	// SESSION rather than captured once, so an operator flipping the setting
+	// takes effect on the next encoder instead of on the next restart - the
+	// same live-read contract as the audio-normalize knob. nil = off.
+	FFmpegProgressLogDir func(context.Context) string
+
 	// SeekReachWindowSegs is how many segments AHEAD of a session's production
 	// frontier a request may be and still reuse that (paced) encoder rather than
 	// seek a fresh one. Within the window the player waits a beat for the
@@ -260,6 +268,19 @@ const minSeekReachWindowSegs = 2
 // Deliberately assumes the STEADY-STATE rate and ignores the initial burst: the
 // burst only makes a real session catch up faster than this predicts, so the
 // error is on the side of spawning, which is the side the viewer feels.
+// ffmpegProgressLogPath names one encoder's -progress file. The name carries
+// what an investigation needs to line the file up with the JSON log: which
+// decision hash, which rung, and which start position. The nanosecond suffix
+// keeps a RESPAWN at the same position from overwriting the run before it -
+// that repetition is itself the symptom worth reading (four encoders and two
+// kills in 72 s, prod 2026-09-06).
+func ffmpegProgressLogPath(dir, hash string, variantIdx, startSeg int) string {
+	if dir == "" {
+		return ""
+	}
+	return filepath.Join(dir, fmt.Sprintf("ffmpeg-%s-v%d-s%d-%d.log", hash, variantIdx, startSeg, time.Now().UnixNano()))
+}
+
 func derivedSeekReachWindow(readRate, segmentSeconds float64) int {
 	if readRate <= 0 || segmentSeconds <= 0 {
 		return minSeekReachWindowSegs
@@ -613,8 +634,9 @@ func (p *SoftwareProducer) EnsureSegmentRange(ctx context.Context, fp DecisionFi
 	metrics.HLSVODCacheMisses.Inc()
 
 	p.mu.Lock()
-	covering := p.coveringWithinReachLocked(hash, variantIdx, segmentIdx)
+	covering, reachPoint := p.coveringWithinReachLocked(hash, variantIdx, segmentIdx)
 	p.mu.Unlock()
+	p.logReachDecision(ctx, hash, variantIdx, segmentIdx, reachPoint, covering != nil)
 
 	if covering != nil {
 		// A sibling encoder started at or below this position is already producing
@@ -812,9 +834,14 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 
 	teardown := p.cache.RegisterSession(hash)
 
+	progressLogDir := ""
+	if p.opts.FFmpegProgressLogDir != nil {
+		progressLogDir = p.opts.FFmpegProgressLogDir(ctx)
+	}
 	procOpts := transcoding.HLSProcessOpts{
 		OutputDir:          outDir,
 		FilePath:           srcPath,
+		ProgressLogPath:    ffmpegProgressLogPath(progressLogDir, hash, variantIdx, startSeg),
 		Profiles:           profilesToDomain(fp.Profiles[variantIdx : variantIdx+1]),
 		VariantIndex:       variantIdx,
 		VideoDecision:      videoDecision,
@@ -918,7 +945,7 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 	// distant sibling that merely started BELOW startSeg does not count - that is
 	// the forward-seek case we are spawning this fresh encoder for; distinct live
 	// positions are the coexistence we want, not a race.
-	if winner := p.coveringWithinReachLocked(hash, variantIdx, startSeg); winner != nil {
+	if winner, _ := p.coveringWithinReachLocked(hash, variantIdx, startSeg); winner != nil {
 		p.mu.Unlock()
 		cancel()
 		if stopErr := handle.Stop(); stopErr != nil {
@@ -1102,18 +1129,71 @@ func (p *SoftwareProducer) touch(hash string, variantIdx, segmentIdx int) {
 // forward seek, and reusing a sequential encoder that would take minutes to
 // arrive is exactly what made deep seeks buffer forever; the caller instead
 // seeks a FRESH encoder (`-ss`) to segmentIdx. Must be called with p.mu held.
-func (p *SoftwareProducer) coveringWithinReachLocked(hash string, variantIdx, segmentIdx int) *swSession {
+// Returns the reusable session (nil when nothing reaches this position) AND the
+// production point it was judged against, or -1 when no session covers the
+// position at all. The caller logs that point: it is the one number that cannot
+// be reconstructed afterwards, and its absence is what stopped the 2026-09-06
+// investigation from proving why a client gave up on a segment.
+func (p *SoftwareProducer) coveringWithinReachLocked(hash string, variantIdx, segmentIdx int) (*swSession, int) {
 	s := p.findCoveringSessionLocked(hash, variantIdx, segmentIdx)
 	if s == nil {
-		return nil
+		return nil, -1
 	}
 	s.mu.Lock()
 	point := max(s.startSeg, s.frontier)
 	s.mu.Unlock()
 	if segmentIdx-point > p.opts.SeekReachWindowSegs {
-		return nil
+		return nil, point
 	}
-	return s
+	return s, point
+}
+
+// predictedReachWaitSec is the wall clock a paced encoder needs to cross
+// `distance` segments at the steady rate - the wait this decision is about to
+// impose on the player. Compare it against clientSegmentPatience: above that,
+// the player hangs up before the segment lands.
+func (p *SoftwareProducer) predictedReachWaitSec(distance int) float64 {
+	if distance <= 0 || p.opts.ReadRate <= 0 {
+		return 0
+	}
+	return float64(distance) * p.opts.SegmentSeconds / p.opts.ReadRate
+}
+
+// logReachDecision records why this request reuses an encoder or spawns one,
+// with the numbers the decision was made on.
+//
+// Deliberately NOT logged for the boring case. Continuous playback draws 0-1
+// segments ahead of the frontier and misses the cache on nearly every segment,
+// so logging all of them would bury the file on a weak NAS for no information.
+// A line is written when the decision COSTS the viewer something: a reuse that
+// makes the player wait more than one segment, or a spawn. That is precisely
+// the set of moments an investigation needs, and it is rare.
+func (p *SoftwareProducer) logReachDecision(ctx context.Context, hash string, variantIdx, segmentIdx, point int, reused bool) {
+	distance := segmentIdx - point
+	if point < 0 {
+		distance = -1 // nothing covers this position; there is no distance to speak of
+	}
+	if reused && distance <= 1 {
+		return
+	}
+	waitSec := p.predictedReachWaitSec(distance)
+	decision := "spawn"
+	if reused {
+		decision = "reuse"
+	}
+	p.logger.InfoContext(ctx, "software: reach decision",
+		slog.String("hash", hash),
+		slog.Int("variant", variantIdx),
+		slog.Int("seg", segmentIdx),
+		// The covering encoder's production point, -1 when none covers it.
+		slog.Int("frontier", point),
+		slog.Int("distance_segs", distance),
+		slog.Int("reach_window_segs", p.opts.SeekReachWindowSegs),
+		slog.String("decision", decision),
+		// What this costs the player, and what the player will actually tolerate.
+		slog.Float64("predicted_wait_s", math.Round(waitSec*10)/10),
+		slog.Float64("client_patience_s", clientSegmentPatience.Seconds()),
+		slog.Bool("over_client_patience", waitSec > clientSegmentPatience.Seconds()))
 }
 
 // ActiveSessionCount returns how many software ffmpeg sessions are live across
