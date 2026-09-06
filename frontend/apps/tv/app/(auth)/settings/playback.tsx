@@ -11,6 +11,7 @@ import {
 } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { ScreenState } from "../../../src/components/ScreenState";
+import { useAuthStore } from "@evey/store";
 
 // ISO 639-1 (2-letter) to match the audio_languages/subtitle_languages
 // convention shared with web (LanguageSettings.tsx) and mobile (settings/
@@ -141,7 +142,15 @@ export default function PlaybackSettingsScreen() {
   }, [refetchUser, refetchProfiles, user?.id]);
 
   const profiles = profilesResp?.profiles;
-  const defaultProfile: V1Profile | undefined = profiles?.find((p) => p.isDefault) ?? profiles?.[0];
+  // The profile in front of the viewer, not the household's default one. The
+  // player reads audio_languages / subtitle_languages off the ACTIVE profile,
+  // so preferences written onto the default one looked saved and changed
+  // nothing about playback. (tabs)/settings.tsx already resolves it this way.
+  const activeProfileId = useAuthStore((s) => s.profileId);
+  const editedProfile: V1Profile | undefined =
+    profiles?.find((p) => p.id === activeProfileId) ??
+    profiles?.find((p) => p.isDefault) ??
+    profiles?.[0];
 
   const [bitrate, setBitrate] = useState("0");
   const [subtitleLang, setSubtitleLang] = useState("");
@@ -156,7 +165,7 @@ export default function PlaybackSettingsScreen() {
   const [focusedItem, setFocusedItem] = useState<string | null>(null);
 
   useEffect(() => {
-    const prefs: PrefMap = defaultProfile?.preferences ?? {};
+    const prefs: PrefMap = editedProfile?.preferences ?? {};
     if (prefs.max_bitrate_kbps) setBitrate(prefs.max_bitrate_kbps);
     setSubtitleLang(resolveLangPref(prefs, "subtitle_languages", "default_subtitle_language"));
     setAudioLang(resolveLangPref(prefs, "audio_languages", "default_audio_language"));
@@ -167,7 +176,7 @@ export default function PlaybackSettingsScreen() {
     if (prefs.allow_direct_play !== undefined) setAllowDirectPlay(prefs.allow_direct_play !== "false");
     if (prefs.allow_direct_stream !== undefined) setAllowDirectStream(prefs.allow_direct_stream !== "false");
     if (prefs.allow_transcoding !== undefined) setAllowTranscoding(prefs.allow_transcoding !== "false");
-  }, [defaultProfile]);
+  }, [editedProfile]);
 
   const updateProfile = useUserServiceUpdateProfile({
     mutation: {
@@ -184,13 +193,13 @@ export default function PlaybackSettingsScreen() {
   // check mark on a value the profile doesn't actually have.
   const savePref = useCallback(
     (patch: PrefMap) => {
-      if (!defaultProfile?.id) return Promise.reject(new Error("no default profile"));
+      if (!editedProfile?.id) return Promise.reject(new Error("no default profile"));
       return updateProfile.mutateAsync({
-        id: defaultProfile.id,
-        data: { preferences: { ...defaultProfile.preferences, ...patch } },
+        id: editedProfile.id,
+        data: { preferences: { ...editedProfile.preferences, ...patch } },
       });
     },
-    [defaultProfile, updateProfile],
+    [editedProfile, updateProfile],
   );
 
   async function handleBitrate(v: string) {
@@ -307,7 +316,7 @@ export default function PlaybackSettingsScreen() {
         onPress={onPress}
         onFocus={() => setFocusedItem(rowKey)}
         onBlur={() => setFocusedItem(null)}
-        disabled={!defaultProfile || updateProfile.isPending}
+        disabled={!editedProfile || updateProfile.isPending}
         accessible={true}
         accessibilityLabel={label}
         accessibilityRole="radio"

@@ -28,6 +28,16 @@ vi.mock("react-i18next", () => ({
 // package's build output isn't transformable by this test's JSX pipeline.
 vi.mock("expo-router", () => ({ router: { back: vi.fn() } }));
 
+// The profile the session is running as. Switching profiles never moves
+// isDefault server-side, so a screen that resolves the DEFAULT profile writes
+// preferences onto somebody else - and the player reads audio_languages off
+// the ACTIVE one, so the setting silently does nothing.
+const authProfileId = vi.hoisted(() => ({ current: null as string | null }));
+vi.mock("@evey/store", () => ({
+  useAuthStore: (selector: (s: Record<string, unknown>) => unknown) =>
+    selector({ profileId: authProfileId.current }),
+}));
+
 // --- @tanstack/react-query mock --------------------------------------------------
 const invalidateQueriesMock = vi.fn();
 vi.mock("@tanstack/react-query", () => ({
@@ -82,6 +92,39 @@ beforeEach(() => {
   listProfilesMock.mockReturnValue({ data: { profiles: [DEFAULT_PROFILE] } });
   mutateMock.mockResolvedValue(undefined);
   updateProfileMock.mockReturnValue({ mutate: mutateMock, mutateAsync: mutateMock, isPending: false });
+  authProfileId.current = null;
+});
+
+// Switching profiles moves the JWT's profile id, never isDefault server-side.
+// Resolving the default profile here wrote preferences onto a profile nobody
+// was on, while the player kept reading the active one's - a setting that
+// saves successfully and changes nothing.
+describe("targets the profile the session is running as", () => {
+  const KID = { id: "prof-kid", isDefault: false, preferences: {} };
+
+  it("saves onto the active profile, not the household default", async () => {
+    authProfileId.current = "prof-kid";
+    listProfilesMock.mockReturnValue({ data: { profiles: [DEFAULT_PROFILE, KID] } });
+    render(<PlaybackSettingsScreen />);
+
+    await pressAndSettle(screen.getAllByLabelText("Français")[1]);
+    expect(mutateMock).toHaveBeenCalledWith({
+      id: "prof-kid",
+      data: { preferences: { audio_languages: "fr" } },
+    });
+  });
+
+  it("falls back to the default profile when the active id matches nothing", async () => {
+    authProfileId.current = "prof-deleted";
+    listProfilesMock.mockReturnValue({ data: { profiles: [DEFAULT_PROFILE, KID] } });
+    render(<PlaybackSettingsScreen />);
+
+    await pressAndSettle(screen.getAllByLabelText("Français")[1]);
+    expect(mutateMock).toHaveBeenCalledWith({
+      id: "prof-1",
+      data: { preferences: { audio_languages: "fr" } },
+    });
+  });
 });
 
 describe("PlaybackSettingsScreen (TV)", () => {
