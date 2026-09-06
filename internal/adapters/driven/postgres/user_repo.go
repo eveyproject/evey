@@ -384,6 +384,12 @@ func (r *UserRepository) scanUser(row *sql.Row) (*user.User, error) {
 func (r *UserRepository) TouchLastLogin(ctx context.Context, id shared.UserID, at time.Time) error {
 	ctx, span := tracing.StartSpan(ctx, "postgres.user.TouchLastLogin")
 	defer span.End()
+	// The only one of this file's 17 exported methods that had no bound, and it
+	// sits on the login path - the most travelled request on the server. The
+	// file-level guard could not see it: it checks that a FILE mentions the
+	// helper, and this one mentions it sixteen times elsewhere.
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`UPDATE users SET last_login_at = $2 WHERE id = $1`, string(id), at)
 	if err != nil {
