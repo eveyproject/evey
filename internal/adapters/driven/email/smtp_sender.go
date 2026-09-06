@@ -69,7 +69,7 @@ func (s *SMTPSender) Send(to []string, subject, body string) error {
 }
 
 func (s *SMTPSender) sendSSL(addr string, auth smtp.Auth, to []string, msg []byte) error {
-	tlsCfg := &tls.Config{ServerName: s.host}
+	tlsCfg := &tls.Config{ServerName: s.host, MinVersion: tls.VersionTLS12}
 	conn, err := tls.DialWithDialer(&net.Dialer{Timeout: s.timeout}, "tcp", addr, tlsCfg)
 	if err != nil {
 		return fmt.Errorf("smtp ssl dial: %w", err)
@@ -141,7 +141,7 @@ func (s *SMTPSender) sendStartTLS(addr string, auth smtp.Auth, to []string, msg 
 		}
 	}()
 	if ok, _ := c.Extension("STARTTLS"); ok {
-		if err := c.StartTLS(&tls.Config{ServerName: s.host}); err != nil {
+		if err := c.StartTLS(&tls.Config{ServerName: s.host, MinVersion: tls.VersionTLS12}); err != nil {
 			return fmt.Errorf("smtp starttls: %w", err)
 		}
 	}
