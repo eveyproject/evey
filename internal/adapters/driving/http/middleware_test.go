@@ -89,6 +89,30 @@ func TestSecurityHeadersMiddleware_CSPAllowsWasmAndCastSDK(t *testing.T) {
 	}
 }
 
+// base-uri and object-src have no fallback to default-src, so a policy that
+// omits them leaves <base href> injection and <object>/<embed> plugin embedding
+// unrestricted (flagged by the ZAP passive/active scan, 2026-09-06). Both the
+// app and the cast-receiver page must carry the locked-down values. NOTE: we do
+// NOT add frame-ancestors here - plugin frontends render in srcdoc iframes that
+// inherit this policy, and 'none' would blank them (see the unsafe-inline note
+// above); framing is covered by X-Frame-Options: DENY on the top-level response.
+func TestSecurityHeadersMiddleware_CSPBaseAndObjectLockedDown(t *testing.T) {
+	for _, path := range []string{"/", "/cast-receiver.html"} {
+		next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
+		h := securityHeadersMiddleware(false, next)
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		csp := w.Header().Get("Content-Security-Policy")
+		if !strings.Contains(csp, "base-uri 'self'") {
+			t.Errorf("%s: CSP must set base-uri 'self', got %q", path, csp)
+		}
+		if !strings.Contains(csp, "object-src 'none'") {
+			t.Errorf("%s: CSP must set object-src 'none', got %q", path, csp)
+		}
+	}
+}
+
 // hls.js attaches the MediaSource through a blob: URL and runs its demuxer in a
 // blob: worker. Neither directive was present, so both fell back to
 // `default-src 'self'`, which does not match blob: - MSE playback dies.
