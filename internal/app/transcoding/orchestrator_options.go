@@ -86,6 +86,14 @@ type OrchestratorOptions struct {
 	// unaffected; zero disables the watchdog.
 	HWFirstSegmentTimeout time.Duration
 
+	// FFmpegProgressLogDir returns the directory this orchestrator's sessions
+	// write their ffmpeg `-progress` stream into, or "" to record nothing. Same
+	// contract as the software producer's: read per session so an operator's
+	// toggle applies to the next encoder, nil = off. The hardware path carries
+	// it too on purpose - a diagnostic that only covers software transcodes
+	// would go missing on exactly the boxes that transcode fastest.
+	FFmpegProgressLogDir func(context.Context) string
+
 	// WaitBudgetDur is how long the segment handler blocks on cache.Wait for an
 	// orchestrated segment (returned by WaitBudget()). Default 25 s - a generous
 	// HW cold-start window. Configurable so unit tests fail fast instead of summing
