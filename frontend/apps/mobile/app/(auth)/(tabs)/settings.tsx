@@ -122,8 +122,13 @@ export default function SettingsScreen() {
     }
   }, [user, editUsername, editEmail, newPassword, confirmPassword, updateUser, t]);
 
+  // An avatar upload can take seconds on a phone link, and nothing on screen
+  // said one was in flight: repeated taps fired concurrent POSTs on the same
+  // profile, and the last one to land won. Every other mutation on this screen
+  // already guards its own pending state.
+  const [avatarUploading, setAvatarUploading] = useState(false);
   const handleAvatarPick = useCallback(async () => {
-    if (!activeProfile?.id) return;
+    if (!activeProfile?.id || avatarUploading) return;
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
@@ -138,6 +143,7 @@ export default function SettingsScreen() {
       type: asset.mimeType ?? "image/jpeg",
       name: `avatar.${asset.mimeType?.split("/")[1] ?? "jpg"}`,
     } as any);
+    setAvatarUploading(true);
     try {
       await eveyFetchRaw({ url: `/api/v1/profiles/${activeProfile.id}/avatar`, method: "POST", body: formData as any });
       setAvatarPreview(asset.uri);
@@ -145,8 +151,10 @@ export default function SettingsScreen() {
       toast.success(t("auth.profile.avatarUpdated"));
     } catch {
       toast.error(t("auth.profile.avatarFailed"));
+    } finally {
+      setAvatarUploading(false);
     }
-  }, [activeProfile]);
+  }, [activeProfile, avatarUploading, user?.id, qc, t]);
 
   function handleAuthorizeQc() {
     const trimmed = qcCode.trim().toUpperCase();
@@ -213,7 +221,7 @@ export default function SettingsScreen() {
       {/* Profile card */}
       <View style={[s.profileCard, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md, marginHorizontal: theme.spacing.md, marginTop: theme.spacing.lg }]}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: theme.spacing.md }}>
-          <Pressable onPress={handleAvatarPick} style={[s.avatar, { backgroundColor: theme.colors.accent }]} accessible={true} accessibilityLabel={t("auth.profile.avatarUpdated") || "Change avatar"} accessibilityRole="button">
+          <Pressable onPress={handleAvatarPick} disabled={avatarUploading} style={[s.avatar, { backgroundColor: theme.colors.accent, opacity: avatarUploading ? 0.6 : 1 }]} accessible={true} accessibilityLabel={t("auth.profile.avatarUpdated") || "Change avatar"} accessibilityRole="button" accessibilityState={{ disabled: avatarUploading, busy: avatarUploading }}>
             {avatarPreview ? (
               <Image
                 source={{ uri: avatarPreview }}

@@ -163,7 +163,7 @@ export function SideDrawer() {
         ]}
       >
         {/* Logo */}
-        <Pressable onPress={() => navigate("/(auth)/(tabs)/")} style={styles.logoRow} accessible={true} accessibilityLabel="Evey home" accessibilityRole="button">
+        <Pressable onPress={() => navigate("/(auth)/(tabs)/")} style={styles.logoRow} accessible={true} accessibilityLabel={t("common.nav.home", "Home")} accessibilityRole="button">
           <EveyWordmark height={24} color={theme.colors.text} />
         </Pressable>
 
