@@ -1,10 +1,10 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Select } from "@/components/ui/Select";
-import { useUserServiceGetCurrentUser, useUserServiceListProfiles, useUserServiceUpdateProfile, getUserServiceListProfilesQueryKey } from "@evey/api";
-import { useAuthStore } from "@evey/store";
+import { useUserServiceUpdateProfile, getUserServiceListProfilesQueryKey } from "@evey/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { ISO_REGIONS } from "./regionList";
+import { useActiveProfile } from "@/hooks/useActiveProfile";
 
 function regionOptions(locale: string): { value: string; label: string }[] {
   try {
@@ -24,15 +24,10 @@ function regionOptions(locale: string): { value: string; label: string }[] {
 export function RegionSettings() {
   const { t, i18n } = useTranslation();
   const qc = useQueryClient();
-  const { data: user } = useUserServiceGetCurrentUser();
-  const activeProfileId = useAuthStore((s) => s.profileId);
-  const { data: profilesResp } = useUserServiceListProfiles(user?.id ?? "", { query: { enabled: !!user?.id } });
-  // region is per-profile: operate on the active profile (from JWT), not the
-  // default one - otherwise a non-default profile reads/writes the wrong region.
-  const activeProfile =
-    profilesResp?.profiles?.find((p) => p.id === activeProfileId) ??
-    profilesResp?.profiles?.find((p) => p.isDefault) ??
-    profilesResp?.profiles?.[0];
+  // region is per-profile: operate on the active profile (from the JWT), not
+  // the default one - otherwise a non-default profile reads and writes the
+  // wrong region.
+  const { profile: activeProfile, userId } = useActiveProfile();
   const updateProfile = useUserServiceUpdateProfile();
 
   const options = useMemo(() => {
@@ -45,7 +40,7 @@ export function RegionSettings() {
     if (!activeProfile?.id) return;
     try {
       await updateProfile.mutateAsync({ id: activeProfile.id, data: { region: code } });
-      if (user?.id) void qc.invalidateQueries({ queryKey: getUserServiceListProfilesQueryKey(user.id) });
+      if (userId) void qc.invalidateQueries({ queryKey: getUserServiceListProfilesQueryKey(userId) });
     } catch (err) { console.warn("region update failed", err); }
   };
 

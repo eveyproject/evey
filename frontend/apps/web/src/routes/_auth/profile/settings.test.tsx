@@ -37,14 +37,18 @@ vi.mock("@tanstack/react-query", async (importActual) => {
   };
 });
 
+// The profile the session is running as. Settable per test: which profile this
+// screen reads and WRITES is the whole point of the cases below.
+const authProfileId = vi.hoisted(() => ({ current: null as string | null }));
+
 vi.mock("@evey/store", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
   useAuthStore: Object.assign(
     (selector?: (s: Record<string, unknown>) => unknown) => {
-      const state = { accessToken: "fake-token", isAdmin: false };
+      const state = { accessToken: "fake-token", isAdmin: false, profileId: authProfileId.current };
       return selector ? selector(state) : state;
     },
-    { getState: () => ({ accessToken: "fake-token", isAdmin: false }) },
+    { getState: () => ({ accessToken: "fake-token", isAdmin: false, profileId: authProfileId.current }) },
   ),
   useLocaleStore: (selector: (s: { locale: string; setLocale: () => void }) => unknown) =>
     selector({ locale: "en", setLocale: vi.fn() }),
@@ -100,6 +104,39 @@ describe("SettingsPage", () => {
     mockUpdateProfile.mockReturnValue({ mutate: vi.fn(), isPending: false });
     mockUseMutation.mockReturnValue({ mutate: vi.fn(), isPending: false });
     mockGetParentalSettings.mockReturnValue({ data: { enabled: true, hasPin: false, maxAge: null } });
+    authProfileId.current = null;
+  });
+
+  // The server enforces the PIN and the age cap of the ACTIVE profile
+  // (checkParental reads claims.ProfileID). Resolving the DEFAULT profile here
+  // showed a household member restrictions that were never applied to them,
+  // and edited a profile they were not on. The write SUCCEEDS either way,
+  // which is why only a test catches it.
+  describe("targets the profile the session is running as", () => {
+    const kid = { id: "prof-kid", isDefault: false, preferences: {} };
+
+    it("reads the parental settings of the active profile, not the default one", async () => {
+      authProfileId.current = "prof-kid";
+      mockListProfiles.mockReturnValue({ data: { profiles: [mockProfile, kid] } });
+      const SettingsPage = await getSettingsPage();
+      render(React.createElement(SettingsPage), { wrapper: createWrapper() });
+      fireEvent.click(screen.getByRole("button", { name: /Parental/i }));
+
+      await waitFor(() => expect(mockGetParentalSettings).toHaveBeenCalled());
+      expect(mockGetParentalSettings.mock.calls.some((c) => c[0] === "prof-kid")).toBe(true);
+      expect(mockGetParentalSettings.mock.calls.some((c) => c[0] === "prof-1")).toBe(false);
+    });
+
+    it("falls back to the default profile when the active id matches nothing", async () => {
+      authProfileId.current = "prof-deleted";
+      mockListProfiles.mockReturnValue({ data: { profiles: [mockProfile, kid] } });
+      const SettingsPage = await getSettingsPage();
+      render(React.createElement(SettingsPage), { wrapper: createWrapper() });
+      fireEvent.click(screen.getByRole("button", { name: /Parental/i }));
+
+      await waitFor(() => expect(mockGetParentalSettings).toHaveBeenCalled());
+      expect(mockGetParentalSettings.mock.calls.some((c) => c[0] === "prof-1")).toBe(true);
+    });
   });
 
   it("renders Settings heading", async () => {
