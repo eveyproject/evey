@@ -61,6 +61,15 @@ vi.mock("../lib/auth-refresh", () => ({
   refreshAccessTokenIfNeeded: async () => false,
 }));
 
+// --- cached profile list ---------------------------------------------------
+// The entry screen reads it to decide whether a cold start stops at the
+// picker. Empty here: these cases are about the routing gates, not the picker.
+let cachedProfiles: Array<{ id: string; name: string; isKids: boolean }> = [];
+vi.mock("../lib/profileCache", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../lib/profileCache")>()),
+  loadProfileCache: () => Promise.resolve(cachedProfiles),
+}));
+
 // --- connectivity ----------------------------------------------------------
 let online = false;
 vi.mock("../hooks/useOnlineStatus", () => ({ useOnlineStatus: () => online }));
@@ -71,6 +80,7 @@ vi.mock("../providers/ThemeProvider", () => ({
 }));
 vi.mock("../i18n", () => ({ initI18n: vi.fn(async () => undefined) }));
 vi.mock("../hooks/useDeviceRegistration", () => ({ useDeviceRegistration: () => undefined }));
+vi.mock("../hooks/useProfileCacheSync", () => ({ useProfileCacheSync: () => undefined }));
 vi.mock("../hooks/usePresenceHeartbeat", () => ({ usePresenceHeartbeat: () => undefined }));
 vi.mock("../providers/DrawerProvider", () => ({
   DrawerProvider: ({ children }: any) => React.createElement("div", null, children),
@@ -104,6 +114,7 @@ beforeEach(() => {
   pingMock.mockResolvedValue(false);
   ensureAccessTokenMock.mockClear();
   ensureAccessTokenMock.mockResolvedValue("unavailable");
+  cachedProfiles = [];
 });
 
 describe("entry screen - a saved session is not gated on a reachable server", () => {
@@ -134,6 +145,54 @@ describe("entry screen - a saved session is not gated on a reachable server", ()
 
     await waitFor(() => expect(redirectedTo()).toBe("/server-connect"));
     expect(pingMock).toHaveBeenCalledWith("http://srv.test");
+  });
+
+  // "Who is watching", asked once per process launch and only where somebody
+  // could pick wrong. This screen is the initial route, so it mounts on a cold
+  // start and never on a resume - which is the distinction the user asked for.
+  it("stops at the picker on a cold start when the household has a kids profile", async () => {
+    authState.accessToken = freshToken();
+    authState.profileId = "p1";
+    online = true;
+    cachedProfiles = [
+      { id: "p1", name: "Papa", isKids: false },
+      { id: "p2", name: "Lou", isKids: true },
+    ];
+
+    render(React.createElement(EntryRedirect));
+
+    await waitFor(() => expect(redirectedTo()).toBe("/profile-select"));
+  });
+
+  it("walks straight in when no profile is a kids profile", async () => {
+    authState.accessToken = freshToken();
+    authState.profileId = "p1";
+    online = true;
+    cachedProfiles = [
+      { id: "p1", name: "Papa", isKids: false },
+      { id: "p2", name: "Maman", isKids: false },
+    ];
+
+    render(React.createElement(EntryRedirect));
+
+    await waitFor(() => expect(redirectedTo()).toBe("/(auth)/(tabs)"));
+  });
+
+  // Offline the picker leads nowhere new - switching profiles is a server
+  // round-trip - and making the one screen a signed-in user must cross into a
+  // network dependency is how the app stopped working on a plane last time.
+  it("skips the picker offline and keeps the profile the session was left on", async () => {
+    authState.accessToken = freshToken();
+    authState.profileId = "p1";
+    online = false;
+    cachedProfiles = [
+      { id: "p1", name: "Papa", isKids: false },
+      { id: "p2", name: "Lou", isKids: true },
+    ];
+
+    render(React.createElement(EntryRedirect));
+
+    await waitFor(() => expect(redirectedTo()).toBe("/(auth)/(tabs)"));
   });
 
   it("sends an authenticated user with no profile to the profile picker", async () => {

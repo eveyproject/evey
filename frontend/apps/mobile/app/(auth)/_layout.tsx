@@ -3,6 +3,7 @@ import { Redirect, Stack } from "expo-router";
 import { useAuthStore, useServerListStore } from "@evey/store";
 import { ensureAccessToken } from "../../src/lib/auth-refresh";
 import { useOnlineStatus } from "../../src/hooks/useOnlineStatus";
+import { useProfileCacheSync } from "../../src/hooks/useProfileCacheSync";
 import { initI18n } from "../../src/i18n";
 import { resolveServerUrl } from "../../src/lib/server-config";
 import { useDeviceRegistration } from "../../src/hooks/useDeviceRegistration";
@@ -39,6 +40,11 @@ export default function AuthLayout() {
   // accessToken/serverUrl aren't ready, so it's safe to call unconditionally
   // here (must be, since hooks can't sit after the early returns below).
   useDeviceRegistration();
+  // Writes the four fields the cold-start picker draws itself from, whenever
+  // the server's profile list lands. Here rather than on one screen so it
+  // covers the whole session, and it costs no request - React Query dedupes it
+  // against every other caller of the same list.
+  useProfileCacheSync();
   // Second chance for the translation catalogue: a boot whose single i18n
   // fetch failed (server asleep, flaky link) otherwise renders raw keys for
   // the WHOLE session. initI18n no-ops when the catalogue already arrived.
