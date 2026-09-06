@@ -47,6 +47,45 @@ export function prefersNativeHLS(): boolean {
   return _prefersNativeHLS;
 }
 
+// getFmp4AudioPassthrough reports the audio codecs this browser accepts as a
+// RAW passthrough inside the server's fMP4 segments, beyond the always-wired
+// AAC/AC-3/E-AC-3. Today that means one question: MP3.
+//
+// Why ask at all: without it the server re-encodes an MP3 source to AAC, and on
+// an already-lossy track that cascade is audible. Measured on a 128 kbps MP3
+// DVD rip (2026-09-06), coding noise under the signal at the 192k rendition was
+// 30.6 dB on dialogue but 20.3 dB on dense music - "the background is not on
+// the same plane as the voices". A passthrough adds none of it.
+//
+// Why PROBE rather than assume: a browser that cannot demux MP3 out of fMP4
+// gets SILENCE, not degraded audio. getBrowserCapabilities().audioCodecs lists
+// "mp3" unconditionally and always has - that answers "can you decode an MP3
+// file", which is a different question from "can you take MP3 inside fMP4".
+//
+// Both conditions are required:
+//   - the playback path must be hls.js/MSE. Safari and iOS run our HLS through
+//     AVPlayer, which does not take MP3 in fMP4 at all, and canPlayType is not
+//     a trustworthy proxy for what that engine accepts inside a segment.
+//   - that MSE must claim the type itself. Same isTypeSupported gate, and the
+//     same reasoning, as canPlayHevc: a capability the plain <video> element
+//     advertises is worthless if the MSE path is the one doing the decoding.
+//
+// mp4a.6B is the RFC 6381 form of MP3 in an MP4 sample entry (esds
+// objectTypeIndication 0x6B, MPEG-1 Audio) - read off the bytes ffmpeg writes
+// for `-c:a copy` into fMP4, and what the server's master advertises.
+let _fmp4AudioPassthrough: string[] | undefined;
+export function getFmp4AudioPassthrough(): string[] {
+  if (_fmp4AudioPassthrough !== undefined) return _fmp4AudioPassthrough;
+  if (prefersNativeHLS()) return (_fmp4AudioPassthrough = []);
+  const MS =
+    typeof window !== "undefined"
+      ? (window.MediaSource ??
+        (window as unknown as { ManagedMediaSource?: typeof MediaSource }).ManagedMediaSource)
+      : undefined;
+  if (!MS || typeof MS.isTypeSupported !== "function") return (_fmp4AudioPassthrough = []);
+  return (_fmp4AudioPassthrough = MS.isTypeSupported('audio/mp4; codecs="mp4a.6B"') ? ["mp3"] : []);
+}
+
 export function getSelectedBurnInTrack(
   currentSubtitle: number | null,
   subtitleStreams: SubtitleStream[],
@@ -61,6 +100,12 @@ export function appendCodecParams(params: URLSearchParams): void {
   if (caps.videoCodecs.length > 0) params.set("videoCodecs", caps.videoCodecs.join(","));
   if (caps.audioCodecs.length > 0) params.set("audioCodecs", caps.audioCodecs.join(","));
   if (caps.containers.length > 0) params.set("containers", caps.containers.join(","));
+  // What this browser takes muxed in fMP4, NOT what it decodes - see
+  // getFmp4AudioPassthrough. Lets the server COPY an MP3 track (old DVD rips)
+  // instead of cascading it through its AAC encoder. Omitted when empty so the
+  // URL of a browser that cannot take it stays byte-identical to before.
+  const passthrough = getFmp4AudioPassthrough();
+  if (passthrough.length > 0) params.set("fmp4AudioPassthrough", passthrough.join(","));
   // HDR display capability: without it the server decision is HDR-blind and
   // forces a tonemap transcode on every HDR title - even for clients that
   // decode HEVC+HDR10 natively (the copy rung). Only sent when true: the
