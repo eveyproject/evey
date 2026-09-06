@@ -406,7 +406,14 @@ func (r *MediaItemRepository) BackfillEmptySortTitles(ctx context.Context) (int,
 	// One batch per call so rows can be closed by defer (sqlclosecheck) while
 	// the outer loop keeps issuing fresh queries until the table is drained.
 	readBatch := func() ([]pair, error) {
-		rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
+		// Per BATCH, not once around the loop: this runs from a boot goroutine
+		// on the process-lifetime context, and it loops until the table is
+		// drained. A single bound would either expire mid-backfill on a big
+		// library or, taken from the process context, never expire at all -
+		// parking a pool connection for as long as the server lives.
+		batchCtx, cancel := withTimeout(ctx, defaultQueryTimeout)
+		defer cancel()
+		rows, err := txFromCtx(batchCtx, r.db).QueryContext(batchCtx,
 			`SELECT id, title FROM media_items WHERE sort_title = '' AND title <> '' LIMIT $1`,
 			batchSize,
 		)
@@ -448,12 +455,14 @@ func (r *MediaItemRepository) BackfillEmptySortTitles(ctx context.Context) (int,
 			ids[i] = p.id
 			sorts[i] = p.sortTitle
 		}
-		res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
+		writeCtx, cancelWrite := withTimeout(ctx, defaultQueryTimeout)
+		res, err := txFromCtx(writeCtx, r.db).ExecContext(writeCtx,
 			`UPDATE media_items SET sort_title = data.sort_title
 			 FROM (SELECT UNNEST($1::text[]) AS id, UNNEST($2::text[]) AS sort_title) AS data
 			 WHERE media_items.id = data.id AND media_items.sort_title = ''`,
 			pq.Array(ids), pq.Array(sorts),
 		)
+		cancelWrite()
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
