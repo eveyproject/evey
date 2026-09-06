@@ -221,6 +221,17 @@ func mediaStreamToProto(s *library.MediaStream) *eveyv1.MediaStream {
 	if s.ColorSpace != nil {
 		pb.ColorSpace = *s.ColorSpace
 	}
+	// color_transfer is the only field that tells PQ from HLG, and every client
+	// reads it: the web and the two device apps label HDR from it, and mobile's
+	// castSafeDirectPlay refuses a direct play of PQ/HLG toward a non-HDR
+	// Chromecast on it. The domain has carried it all along and this converter
+	// never put it on the wire, so it arrived empty everywhere - which made
+	// every HLG title read as "HDR10" and made that cast gate unable to fire.
+	// (color_primaries stays unwritten: the domain has no such field, and no
+	// client reads it - that one is dead proto surface, not a broken contract.)
+	if s.ColorTransfer != nil {
+		pb.ColorTransfer = *s.ColorTransfer
+	}
 	if s.Channels != nil {
 		pb.Channels = int32(*s.Channels)
 	}

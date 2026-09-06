@@ -540,6 +540,25 @@ func TestMediaStreamToProto_NilOptionals(t *testing.T) {
 	}
 }
 
+// color_transfer is the only field that separates PQ from HLG, and all three
+// clients read it: two label HDR from it, and mobile's castSafeDirectPlay
+// refuses a direct play of PQ/HLG toward a non-HDR Chromecast on it. The
+// domain carried it from the start and this converter never put it on the
+// wire, so every client saw "" - which made every HLG title read as HDR10 and
+// left that cast gate unable to fire, with nothing failing anywhere.
+func TestMediaStreamToProto_PutsColorTransferOnTheWire(t *testing.T) {
+	t.Parallel()
+	for _, transfer := range []string{"smpte2084", "arib-std-b67"} {
+		ct := transfer
+		pb := mediaStreamToProto(&library.MediaStream{
+			StreamIndex: 0, StreamType: "video", Codec: "hevc", ColorTransfer: &ct,
+		})
+		if pb.ColorTransfer != transfer {
+			t.Fatalf("ColorTransfer = %q, want %q", pb.ColorTransfer, transfer)
+		}
+	}
+}
+
 func TestLoginEntryToProto(t *testing.T) {
 	t.Parallel()
 	reason := "bad password"

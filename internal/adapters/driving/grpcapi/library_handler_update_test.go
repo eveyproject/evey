@@ -69,7 +69,7 @@ func TestGrpcLibraryUpdate_NotFound(t *testing.T) {
 func TestGrpcLibraryUpdate_InvalidPath(t *testing.T) {
 	t.Parallel()
 	h, _, libQuery := newUpdateLibHandler()
-	libQuery.Seed(&library.Library{ID: "lib-1", Name: "Old", Paths: []string{"/media/old"}})
+	libQuery.Seed(&library.Library{ID: "lib-1", Name: "Old", Type: "movie", Paths: []string{"/media/old"}})
 
 	_, err := h.UpdateLibrary(context.Background(), &eveyv1.UpdateLibraryRequest{
 		Id:    "lib-1",
@@ -87,7 +87,9 @@ func TestGrpcLibraryUpdate_InvalidPath(t *testing.T) {
 func TestGrpcLibraryUpdate_Success(t *testing.T) {
 	t.Parallel()
 	h, libCmd, libQuery := newUpdateLibHandler()
-	lib := &library.Library{ID: "lib-2", Name: "Old", Paths: []string{"/media/old"}}
+	// Type set: a stored library always has one (CreateLibrary validates), and
+	// UpdateLibrary now re-checks the same invariant.
+	lib := &library.Library{ID: "lib-2", Name: "Old", Type: "movie", Paths: []string{"/media/old"}}
 	libQuery.Seed(lib)
 	libCmd.Seed(lib)
 
