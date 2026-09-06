@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useUserServiceGetCurrentUser, useUserServiceListProfiles } from "@evey/api";
-import { saveProfileCache } from "../lib/profileCache";
+import { saveProfileCache } from "@evey/store";
 
 /**
  * Keeps the on-device profile cache in step with the server's list.

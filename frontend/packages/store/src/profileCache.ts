@@ -1,5 +1,10 @@
 // The little that the profile picker needs to draw itself, kept on the device.
 //
+// Lives here, not in one app, because the rule below ("when is the picker
+// worth showing") has to be the SAME on the phone and on the television. This
+// codebase has already paid for one rule copied into three players (the bitmap
+// subtitle codec lists, which drifted and cost a silent 422).
+//
 // The picker is shown at cold start, which is exactly the moment the profile
 // list has not arrived yet - and, on a plane, never will. Rendering it from a
 // network response would make it either a spinner or a dead end. So the four
@@ -11,7 +16,7 @@
 // RefreshToken, which re-reads the profiles itself and demands a PIN proof to
 // leave a restricted profile. A tampered cache buys a different-looking list,
 // not a switch the server would have refused.
-import * as SecureStore from "expo-secure-store";
+import { getZustandStorage } from "./storage";
 
 const KEY = "evey:profiles_min";
 
@@ -45,7 +50,7 @@ export async function saveProfileCache(profiles: ProfileLike[] | undefined): Pro
     }));
   if (minimal.length === 0) return;
   try {
-    await SecureStore.setItemAsync(KEY, JSON.stringify(minimal));
+    await getZustandStorage().setItem(KEY, JSON.stringify(minimal));
   } catch {
     // Best effort: losing the cache costs a spinner, never a broken screen.
   }
@@ -53,7 +58,7 @@ export async function saveProfileCache(profiles: ProfileLike[] | undefined): Pro
 
 export async function loadProfileCache(): Promise<CachedProfile[]> {
   try {
-    const raw = await SecureStore.getItemAsync(KEY);
+    const raw = await getZustandStorage().getItem(KEY);
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
@@ -68,7 +73,7 @@ export async function loadProfileCache(): Promise<CachedProfile[]> {
 /** Dropped on logout and on a server switch - it describes one account on one server. */
 export async function clearProfileCache(): Promise<void> {
   try {
-    await SecureStore.deleteItemAsync(KEY);
+    await getZustandStorage().removeItem(KEY);
   } catch {
     /* best effort */
   }

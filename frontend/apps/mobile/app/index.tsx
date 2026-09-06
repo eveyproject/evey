@@ -6,7 +6,7 @@ import { useServerUrlNullable } from "../src/hooks/useServerUrl";
 import { pingServer } from "../src/lib/server-config";
 import { useTheme } from "../src/providers/ThemeProvider";
 import { useOnlineStatus } from "../src/hooks/useOnlineStatus";
-import { loadProfileCache, shouldPickProfileOnColdStart } from "../src/lib/profileCache";
+import { loadProfileCache, shouldPickProfileOnColdStart } from "@evey/store";
 
 export default function EntryRedirect() {
   const theme = useTheme();

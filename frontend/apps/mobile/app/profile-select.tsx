@@ -19,7 +19,7 @@ import { supportedLanguages } from "../src/i18n";
 import i18n from "../src/i18n";
 import { useBiometricAvailable, useBiometricEnabled } from "../src/hooks/useBiometric";
 import { PinPromptDialog } from "../src/features/profile/PinPromptDialog";
-import { loadProfileCache, type CachedProfile } from "../src/lib/profileCache";
+import { loadProfileCache, type CachedProfile } from "@evey/store";
 
 const LAST_PROFILE_KEY = "evey:last_profile_id";
 

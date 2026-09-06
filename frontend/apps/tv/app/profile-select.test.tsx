@@ -75,7 +75,11 @@ const setProfileMock = vi.fn();
 const setTokensMock = vi.fn();
 const toastErrorMock = vi.fn();
 let storeState: any;
-vi.mock("@evey/store", () => ({
+// Spread the real module: listing only what is used today makes this file go
+// red the day the screen imports one more export, on an error that says
+// nothing about the change being tested.
+vi.mock("@evey/store", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/store")>()),
   useAuthStore: Object.assign(
     (sel: any) => sel(storeState),
     { getState: () => storeState },

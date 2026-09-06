@@ -1,9 +1,9 @@
 import { setBaseURL, setTokenProvider, setTokensUpdater, setRefreshHandler, setUnauthorizedHandler, setLocaleProvider, setExtraHeaders, resetRefreshFailure } from "@evey/api";
-import { useAuthStore, useLocaleStore, useServerListStore } from "@evey/store";
+import { useAuthStore, useLocaleStore, useServerListStore, clearProfileCache } from "@evey/store";
 import { router } from "expo-router";
 import { resolveServerUrl } from "./server-config";
 import { clearRefreshToken } from "./refresh-token";
-import { clearProfileCache } from "./profileCache";
+
 import { forceRefresh } from "./auth-refresh";
 import { eveyClientUserAgent } from "./clientIdentity";
 

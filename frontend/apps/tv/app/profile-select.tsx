@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { useUserServiceGetCurrentUser, useUserServiceListProfiles, userServiceRefreshToken } from "@evey/api";
 import type { V1Profile } from "@evey/api";
-import { useAuthStore, toast } from "@evey/store";
+import { useAuthStore, toast, saveProfileCache } from "@evey/store";
 import { ScreenState } from "../src/components/ScreenState";
 import { useTheme } from "../src/providers/ThemeProvider";
 import { useServerUrl } from "../src/hooks/useServerUrl";
@@ -54,12 +54,26 @@ export default function ProfileSelect() {
   const [busy, setBusy] = useState<string | null>(null);
   const [pinTarget, setPinTarget] = useState<V1Profile | null>(null);
 
+  // The picker exists to stop somebody picking wrong. A single profile, or a
+  // household with no kids profile, has nothing to protect - so it is pure
+  // friction there and we walk straight through. Same rule as the phone.
+  const hasKidsProfile = profiles.some((p) => p.isKids === true);
   useEffect(() => {
-    if (!isLoading && profiles.length === 1 && profiles[0].id) {
-      setProfile(profiles[0].id);
+    if (isLoading || profiles.length === 0) return;
+    if (profiles.length === 1 || !hasKidsProfile) {
+      const target = profiles.find((p) => p.id === activeProfileId)
+        ?? profiles.find((p) => p.isDefault)
+        ?? profiles[0];
+      if (target?.id) setProfile(target.id);
       router.replace("/(auth)/(tabs)");
     }
-  }, [isLoading, profiles, setProfile]);
+  }, [isLoading, profiles, hasKidsProfile, activeProfileId, setProfile]);
+
+  // Feeds the cache the cold-start decision is taken from, on the one screen
+  // of this app that always has the list in hand.
+  useEffect(() => {
+    void saveProfileCache(profiles);
+  }, [profiles]);
 
   // Applies the switch only once the SERVER has confirmed it (RefreshToken).
   // The JWT carries the profile_id every parental gate keys off, so a local
