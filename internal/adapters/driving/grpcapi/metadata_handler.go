@@ -2,6 +2,7 @@ package grpcapi
 
 import (
 	"context"
+	"log/slog"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
@@ -35,8 +36,17 @@ func (h *metadataHandler) checkMediaItemAccess(ctx context.Context, mediaItemID 
 	if h.userAccess == nil {
 		return errUserAccessNotConfigured(ctx, "metadataHandler.checkMediaItemAccess")
 	}
+	// Deny, like the userAccess check above. This function is the ONLY
+	// authorization layer for MetadataService writes - rbac.go leaves the
+	// service un-gated on purpose and points here - so an unwired port
+	// returning "allow" would hand every authenticated caller edit rights on
+	// media in libraries they were never granted. Not reachable today (grpc.go
+	// always wires LibQuery); this is the fail-closed default that keeps it
+	// unreachable after the next refactor. Mirrors http/helpers.go's
+	// checkLibraryAccess, which already denies on a nil checker.
 	if h.libQuery == nil {
-		return nil
+		slog.ErrorContext(ctx, "metadataHandler.checkMediaItemAccess: library query service not configured")
+		return status.Error(codes.FailedPrecondition, "library query service not configured")
 	}
 	item, err := h.libQuery.GetMediaItem(ctx, mediaItemID)
 	if err != nil || item == nil {

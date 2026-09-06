@@ -391,6 +391,11 @@ func (s *CommandService) CreateLibrary(ctx context.Context, lib *library.Library
 func (s *CommandService) UpdateLibrary(ctx context.Context, lib *library.Library) error {
 	ctx, span := tracing.StartSpan(ctx, "app.library.UpdateLibrary")
 	defer span.End()
+	// Same reason as CreateLibrary, which does validate: an invariant only
+	// checked on the create path stops being an invariant at the first update.
+	if err := lib.Validate(); err != nil {
+		return fmt.Errorf("update library: %w", err)
+	}
 	lib.UpdatedAt = time.Now()
 	if err := s.libraries.Update(ctx, lib); err != nil {
 		return fmt.Errorf("update library: %w", err)

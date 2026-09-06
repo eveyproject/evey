@@ -160,6 +160,24 @@ func TestUpdateLibrary_Success_PersistsChange_BumpsUpdatedAt(t *testing.T) {
 	assert.Equal(t, []string{"/new"}, got.Paths)
 }
 
+// CreateLibrary validates; UpdateLibrary did not. An aggregate that could not
+// be CREATED in this shape could still be written into that shape.
+func TestUpdateLibrary_RejectsAnInvalidAggregate(t *testing.T) {
+	t.Parallel()
+	h := newHarness()
+	lib := &library.Library{ID: "lib-inv", Name: "Good", Type: "movie", Paths: []string{"/p"}}
+	h.libCmd.Seed(lib)
+	h.libQuery.Seed(lib)
+
+	invalid := &library.Library{ID: "lib-inv", Name: "", Type: "movie", Paths: []string{"/p"}}
+	err := h.svc.UpdateLibrary(context.Background(), invalid)
+	require.Error(t, err)
+
+	got, gerr := h.libQuery.GetByID(context.Background(), shared.LibraryID("lib-inv"))
+	require.NoError(t, gerr)
+	assert.Equal(t, "Good", got.Name, "the refused update must not have been persisted")
+}
+
 func TestUpdateLibrary_RepoNotFound_Propagates(t *testing.T) {
 	t.Parallel()
 	h := newHarness()
