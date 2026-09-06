@@ -513,9 +513,14 @@ func (o *SegmentOrchestrator) spawnSession(
 		sessionVariantIdx = 0 // multi-variant: VariantIndex unused by the multi-variant builder
 	}
 
+	progressLogDir := ""
+	if o.opts.FFmpegProgressLogDir != nil {
+		progressLogDir = o.opts.FFmpegProgressLogDir(ctx)
+	}
 	procOpts := transcoding.HLSProcessOpts{
 		OutputDir:          outDir,
 		FilePath:           srcPath,
+		ProgressLogPath:    ffmpegProgressLogPath(progressLogDir, hash, sessionVariantIdx, startSegIdx),
 		Profiles:           sessionProfiles,
 		VariantIndex:       sessionVariantIdx,
 		VideoDecision:      "transcode",

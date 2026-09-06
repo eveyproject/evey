@@ -82,6 +82,64 @@ docker exec evey-server df -h /cache
 - **HW accel misconfigured**: set `EVEY_TRANSCODING_HW_ACCEL_ENABLED=false` to force software, restart, confirm the regression is HW-related before re-enabling.
 - **Too many concurrent transcodes**: `EVEY_TRANSCODING_MAX_CONCURRENT` (default `2`). Raise cautiously if the box has cores.
 
+### 3c. "It buffers / it cut out" and the logs do not say why
+
+**Symptom**: a viewer reports stalls or dropouts on a transcoded title, and the
+server logs show `hls-vod: segment timeout` with `err:"context canceled"` -
+which means the CLIENT hung up, not that the server timed out.
+
+**Diagnose**: the server already records every decision it made. Start there,
+because it is free:
+
+```sh
+# Why a segment request reused an encoder or spawned one, and what it cost the
+# player. Only logged when it costs something: a wait beyond one segment, or a
+# spawn. `over_client_patience: true` is the smoking gun.
+docker exec evey-server grep '"software: reach decision"' /data/logs/evey-$(date +%F).log | tail -40
+
+# The encoders themselves: spawns, kills and their reason.
+docker exec evey-server grep -E '"software: session (started|killed)"|per-hash cap' \
+  /data/logs/evey-$(date +%F).log | tail -40
+```
+
+Those lines say what the server *decided*. When you need what ffmpeg actually
+*achieved* second by second - the frontier's real position over time - turn on
+the per-encoder progress recording:
+
+```sh
+# ON. Applies to the NEXT encoder; no restart needed. $TOKEN is an admin JWT.
+curl -sf -X PUT http://localhost:9091/api/v1/admin/server-config/transcode.ffmpeg_progress_log \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"value":"true"}'
+
+# Reproduce the problem, then read one session: out_time = content produced so
+# far, speed = how far ahead of real time the encoder ran.
+docker exec evey-server ls -t /data/logs/ffmpeg | head
+docker exec evey-server tail -20 /data/logs/ffmpeg/<file>.log
+
+# OFF again when you are done.
+curl -sf -X PUT http://localhost:9091/api/v1/admin/server-config/transcode.ffmpeg_progress_log \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"value":"false"}'
+```
+
+**Leave it off outside an investigation.** It is one file per encoder, a few MB
+per session, written for every playback on the box - real disk and real writes
+on a weak NAS. The file name carries the decision hash, the rung (`-vN-`) and
+the start segment (`-sN-`), so it lines up with the JSON log above; a respawn at
+the same position gets its own file rather than overwriting the previous run,
+which is what makes encoder churn visible.
+
+**Common causes + fix**:
+- **Repeated short forward seeks**: each one may spawn a fresh encoder, and the
+  per-hash cap (`MaxSessionsPerHash`, default 2) evicts the least recently used
+  one. Expect `session killed reason:lru_cap` in the log. Normal in moderation.
+- **The client is less patient than the server**: `clientSegmentPatience` (6 s)
+  is what the seek-reach window is sized against; AndroidX Media3 abandons a
+  segment at ~8 s while the server's `WaitBudgetDur` is 60 s. A `reach decision`
+  line with `over_client_patience: true` means the server was about to ask for a
+  wait no player would sit through.
+
 ### 3b. `stale_rendition` 410s / player refetches its master mid-play
 
 **Symptom**: player briefly stalls then recovers; logs show

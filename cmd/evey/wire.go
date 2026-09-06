@@ -403,12 +403,33 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	if maxHLSSessions <= 0 {
 		maxHLSSessions = runtime.NumCPU()
 	}
+	// ffmpeg -progress recording: OFF unless an operator turns it on with
+	// `transcode.ffmpeg_progress_log`. Read per SESSION (not captured once
+	// here) so flipping the key applies to the next encoder rather than the
+	// next restart - the same live-read contract as transcode.audio_normalize.
+	//
+	// It is the only record of what ffmpeg ACHIEVED over time; everything else
+	// this server logs is what it DECIDED. The argv, the spawn, the kill and
+	// the reach verdict all describe intent, and on 2026-09-06 that left the
+	// question "was the encoder actually too far behind when the client hung
+	// up?" answerable only by deduction. One file per encoder is real disk and
+	// real writes on a weak NAS, hence off by default and worth every byte when
+	// an operator is actually chasing something.
+	ffmpegProgressLogDir := func(ctx context.Context) string {
+		entry, err := r.ServerCfg.Get(ctx, "transcode.ffmpeg_progress_log")
+		if err != nil || entry.Value != "true" {
+			return ""
+		}
+		return filepath.Join(cfg.Log.Dir, "ffmpeg")
+	}
+
 	hlsVODOrch := apptranscoding.NewSegmentOrchestrator(hlsVODCache, hlsTranscoder, sourceResolver, apptranscoding.OrchestratorOptions{
 		ThrottleEnabled:       true,
 		MaxActiveSessions:     maxHLSSessions,
 		HWFirstSegmentTimeout: cfg.Transcoding.HWFirstSegmentTimeout,
 		HWPerVariant:          cfg.Transcoding.HWPerVariant,
 		SingleVariant:         cfg.Transcoding.SingleVariant,
+		FFmpegProgressLogDir:  ffmpegProgressLogDir,
 	}, slog.Default())
 
 	// Software producer lifecycle knobs. The low-memory profile trims them hard:
@@ -447,6 +468,10 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 			slog.Duration("kill_paused_after", swProducerOpts.KillPausedAfter),
 			slog.Int("resume_cushion_segs", swProducerOpts.ResumeCushionSegs))
 	}
+	// Set AFTER the profile branch on purpose: the low-memory path REPLACES the
+	// whole struct, so anything assigned before it would be silently dropped on
+	// exactly the boxes most likely to need the diagnostic.
+	swProducerOpts.FFmpegProgressLogDir = ffmpegProgressLogDir
 
 	// The software StreamProducer is built HERE (not in the HTTP route
 	// registration) so it is a SINGLE instance shared between two consumers: the

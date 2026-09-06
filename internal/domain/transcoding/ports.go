@@ -218,6 +218,21 @@ type HLSProcessOpts struct {
 	ReadRate float64
 	Streams  []*library.MediaStream
 
+	// ProgressLogPath, when non-empty, makes this session write ffmpeg's own
+	// `-progress` stream (frame, fps, out_time, speed, every ~0.5 s) to that
+	// file. Empty = off, and off is the default: it is one file per encoder on
+	// a box that may serve thousands of playbacks, so it is a DEBUG facility an
+	// operator turns on (transcode.ffmpeg_progress_log), not a running cost.
+	//
+	// Why it exists: everything else about a session is logged at DECISION time
+	// (the argv, the spawn, the kill, the reach verdict), which says what the
+	// server MEANT to do. This is the only record of what ffmpeg actually
+	// achieved second by second. On 2026-09-06 its absence is precisely what
+	// left "the encoder was too far behind when the client hung up" a deduction
+	// rather than a measurement - the stderr ring buffer is 8 KB, overwritten
+	// continuously, and read only when a session FAILS.
+	ProgressLogPath string
+
 	// SourceVideoCodec is the codec of the SOURCE video stream ("h264",
 	// "hevc"…). The COPY builder reads it to tag the fMP4 sample entry
 	// (`-tag:v hvc1` for HEVC - Safari refuses ffmpeg's hev1 default);

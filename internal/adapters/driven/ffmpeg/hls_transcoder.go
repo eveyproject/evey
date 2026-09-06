@@ -92,6 +92,17 @@ func startOne(ctx context.Context, opts transcoding.HLSProcessOpts, noMaster boo
 		}
 		opts.OutputDir = priv
 	}
+	// A debug facility must never be able to take a playback down. ffmpeg exits
+	// if it cannot open its -progress target, so an unwritable or missing
+	// directory would turn "the operator enabled a log" into "no film plays".
+	// Drop the option and carry on instead.
+	if opts.ProgressLogPath != "" {
+		if err := os.MkdirAll(filepath.Dir(opts.ProgressLogPath), 0o755); err != nil {
+			slog.Warn("hls: ffmpeg progress log disabled for this session, its directory is not writable",
+				slog.String("path", opts.ProgressLogPath), slog.Any("err", err))
+			opts.ProgressLogPath = ""
+		}
+	}
 	args := BuildFFmpegArgs(opts)
 	slog.Info("hls: ffmpeg start",
 		slog.String("media_path", opts.FilePath),
@@ -295,6 +306,10 @@ func audioVariantArgs(opts transcoding.HLSProcessOpts, i int, bitrateKbps int64)
 }
 
 func BuildFFmpegArgs(opts transcoding.HLSProcessOpts) []string {
+	return withProgressLog(opts, buildDecisionArgs(opts))
+}
+
+func buildDecisionArgs(opts transcoding.HLSProcessOpts) []string {
 	if opts.VideoDecision == "copy" {
 		return buildCopyVideoArgs(opts)
 	}
@@ -302,6 +317,25 @@ func BuildFFmpegArgs(opts transcoding.HLSProcessOpts) []string {
 		return buildSingleTranscodeArgs(opts)
 	}
 	return buildMultiVariantArgs(opts)
+}
+
+// withProgressLog prepends `-progress` when the session was asked to record
+// ffmpeg's own progress stream (see HLSProcessOpts.ProgressLogPath).
+//
+// PREPENDED, and it has to be: `-progress` is a global option, so it must come
+// ahead of everything the builders emit - including the pre-input `-ss` that
+// opens a seek session. `file:` is explicit rather than decorative: ffmpeg
+// parses this argument as a URL, and a path carrying a colon would otherwise be
+// read as a protocol name.
+//
+// Every one of the three builders is covered because this wraps their common
+// entry point - a builder added later gets it for free, which is the point:
+// a debug facility that silently misses one code path is worse than none.
+func withProgressLog(opts transcoding.HLSProcessOpts, args []string) []string {
+	if opts.ProgressLogPath == "" {
+		return args
+	}
+	return append([]string{"-progress", "file:" + opts.ProgressLogPath}, args...)
 }
 
 // HLS playlist mode: event (growing, immutable beginning).
