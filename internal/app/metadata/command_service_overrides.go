@@ -27,6 +27,13 @@ func (s *CommandService) SetOverride(ctx context.Context, override *metadata.Met
 		attribute.String("media_item.id", string(override.MediaItemID)),
 		attribute.String("override.field", override.FieldName),
 	)
+	// The invariant lives in NewMetadataOverride; re-checking it here is what
+	// keeps it an invariant rather than a property of one call site. Today the
+	// only caller goes through that constructor, so this changes nothing - the
+	// next one (an import job, a backfill) is why it is here.
+	if err := override.Validate(); err != nil {
+		return fmt.Errorf("CommandService.SetOverride: %w", err)
+	}
 	override.CreatedAt = time.Now()
 	if err := s.overrides.Set(ctx, override); err != nil {
 		span.RecordError(err)

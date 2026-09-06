@@ -52,6 +52,12 @@ func (s *CommandService) Update(ctx context.Context, id, name string, overview *
 	col.Rules = rules
 	col.SortBy = sortBy
 	col.UpdatedAt = time.Now()
+	// Upsert below already validates (after the 2026-08-04 incident); this path
+	// did not, so the invariant was enforced by the transport layer rejecting an
+	// empty name rather than by the aggregate itself.
+	if err := col.Validate(); err != nil {
+		return fmt.Errorf("collection update: %w", err)
+	}
 	// Update, not Upsert: the upsert arbitrates on tmdb_id, which is NULL for
 	// every hand-built collection, so the insert fell through to a primary-key
 	// violation - renaming one returned 500, and the sort_by=manual write that
