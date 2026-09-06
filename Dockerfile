@@ -242,12 +242,12 @@ RUN sed -i 's/Components: main/Components: main contrib non-free non-free-firmwa
 # unprivileged evey user, on first boot. Only the server binaries are wanted
 # here (~50 MB): the image stays usable with an external database exactly as
 # before, the operator just sets EVEY_DB_HOST.
-RUN apt-get update && apt-get install -y --no-install-recommends postgresql-common \
+RUN apt-get update && apt-get -y upgrade && apt-get install -y --no-install-recommends postgresql-common \
     && sed -i 's/^#\?create_main_cluster = .*/create_main_cluster = false/' \
          /etc/postgresql-common/createcluster.conf \
     && grep -q '^create_main_cluster = false' /etc/postgresql-common/createcluster.conf \
     && apt-get install -y --no-install-recommends \
-       ca-certificates curl ffmpeg bubblewrap libcap2-bin libchromaprint-tools \
+       ca-certificates curl bubblewrap libcap2-bin libchromaprint-tools \
        postgresql-client-17 postgresql-17 unzip wget python3 \
        vainfo libva2 libva-drm2 mesa-va-drivers \
     # Intel VAAPI/QSV drivers (iHD/i965 + oneVPL) are x86-only - no arm64 package
@@ -289,8 +289,11 @@ COPY --from=meili-download /usr/local/bin/meilisearch /usr/local/bin/meilisearch
 # to playable 1080p where the portable zscale path stalls. Installed from the
 # jellyfin-ffmpeg project's OFFICIAL Debian repo (the standalone
 # jellyfin-ffmpeg7 package - leaner than vendoring the whole Jellyfin image) and
-# symlinked AHEAD of Debian's /usr/bin/ffmpeg on PATH; Debian's ffmpeg stays
-# installed as a fallback (drop the symlink to revert). The Go side probes for
+# is the ONLY ffmpeg CLI in the image. The Debian `ffmpeg` package is deliberately
+# NOT installed: it was redundant with jellyfin-ffmpeg (shadowed on PATH) and only
+# widened the CVE surface on a binary never invoked. The libav* shared libs still
+# ship - libchromaprint-tools (fpcalc, audio fingerprinting) hard-depends on them -
+# so that path is unaffected; only the redundant CLI is gone. The Go side probes for
 # `tonemapx` at runtime (tonemapxAvailable) and falls back to the zscale chain when
 # absent, so a build without this layer still works. The build-time smoke test
 # fails the image early if the binary can't run or lacks the filter, never in prod.

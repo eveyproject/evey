@@ -2,43 +2,51 @@
 # Usage: replace Dockerfile.dev reference in docker-compose.yml
 #   build:
 #     dockerfile: docker/Dockerfile.plugins.example
+#
+# Debian base (NOT Alpine): evey uses jellyfin-ffmpeg everywhere (tonemapx + HLS
+# patches, parity with prod), and jellyfin-ffmpeg7 ships ONLY as a Debian package.
 
-FROM golang:1.27.0-alpine
+FROM golang:1.27.0-trixie
 
-RUN apk add --no-cache ffmpeg curl postgresql-client \
+RUN apt-get update && apt-get -y upgrade && apt-get install -y --no-install-recommends \
+    ca-certificates curl gnupg postgresql-client-17 libchromaprint-tools \
     # ── Default runtimes (always included) ──
-    python3 py3-pip py3-grpcio \
+    python3 python3-pip python3-grpcio python3-protobuf \
     nodejs npm \
+    && ([ -e /usr/bin/node ] || ln -sf /usr/bin/nodejs /usr/bin/node) \
     && go install github.com/air-verse/air@latest \
     && npm install -g esbuild@0.25.12
 
-# ── Uncomment the runtimes you need for your plugins ──
+# jellyfin-ffmpeg7 - the ONLY ffmpeg (tonemapx HDR filter + HLS/muxer patches;
+# parity with the prod runtime). Installed from the Jellyfin project's official
+# Debian repo, symlinked onto PATH. No Debian/vanilla ffmpeg is installed.
+RUN install -d /etc/apt/keyrings \
+    && curl -fsSL https://repo.jellyfin.org/jellyfin_team.gpg.key \
+         | gpg --dearmor -o /etc/apt/keyrings/jellyfin.gpg \
+    && printf 'Types: deb\nURIs: https://repo.jellyfin.org/debian\nSuites: trixie\nComponents: main\nSigned-By: /etc/apt/keyrings/jellyfin.gpg\n' \
+         > /etc/apt/sources.list.d/jellyfin.sources \
+    && apt-get update && apt-get install -y --no-install-recommends jellyfin-ffmpeg7 \
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -sf /usr/lib/jellyfin-ffmpeg/ffmpeg  /usr/local/bin/ffmpeg \
+    && ln -sf /usr/lib/jellyfin-ffmpeg/ffprobe /usr/local/bin/ffprobe
 
-# PHP (requires PECL extensions - heavy)
-# RUN apk add --no-cache php83 php83-phar php83-openssl php83-json \
-#     && wget -O /usr/local/bin/composer https://getcomposer.org/download/latest-stable/composer.phar \
-#     && chmod +x /usr/local/bin/composer \
-#     && apk add --no-cache --virtual .build-deps php83-dev php83-pear gcc musl-dev \
-#     && pecl install grpc protobuf \
-#     && echo "extension=grpc.so" > /etc/php83/conf.d/grpc.ini \
-#     && echo "extension=protobuf.so" > /etc/php83/conf.d/protobuf.ini \
-#     && apk del .build-deps
+# ── Uncomment the runtimes you need for your plugins (Debian / apt) ──
+
+# PHP
+# RUN apt-get update && apt-get install -y --no-install-recommends php-cli php-grpc php-protobuf composer
 
 # Ruby
-# RUN apk add --no-cache ruby ruby-dev gcc musl-dev make \
+# RUN apt-get update && apt-get install -y --no-install-recommends ruby ruby-dev build-essential \
 #     && gem install grpc google-protobuf
 
 # Java/Kotlin (JRE only - plugins ship compiled .jar)
-# RUN apk add --no-cache openjdk17-jre
-
-# Swift (no Alpine package - use ubuntu-based image or cross-compile)
-# Not recommended on Alpine.
+# RUN apt-get update && apt-get install -y --no-install-recommends openjdk-17-jre-headless
 
 # Dart
-# RUN apk add --no-cache dart
+# RUN apt-get update && apt-get install -y --no-install-recommends dart
 
 # Elixir
-# RUN apk add --no-cache elixir
+# RUN apt-get update && apt-get install -y --no-install-recommends elixir
 
 WORKDIR /app
 
