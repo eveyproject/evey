@@ -141,3 +141,26 @@ func TestMaster_AudioPassthroughCodec(t *testing.T) {
 	assert.Contains(t, out, `CODECS="avc1.640029,ec-3"`, "passthrough rung advertises the real audio codec")
 	assert.NotContains(t, out, "mp4a.40.2", "no stale AAC claim anywhere in a passthrough master")
 }
+
+// An MP3 passthrough rung must advertise mp4a.6B: that is the
+// objectTypeIndication ffmpeg writes into the esds when it copies MP3 into
+// fMP4 (0x6B, MPEG-1 Audio - read off the produced bytes, 2026-09-06). The
+// codec-attr default would have claimed mp4a.40.2 (AAC-LC) over MP3 samples.
+func TestMaster_MP3PassthroughCodec(t *testing.T) {
+	g := NewManifestGenerator()
+	in := ManifestInput{
+		MediaID:          "m1",
+		DurationSec:      100,
+		StreamToken:      "tok",
+		ChosenVideoCodec: "h264",
+		ChosenAudioCodec: "mp3", // servedAudioCodec on an MP3 passthrough
+		CopyVideoCodec:   "avc1.640029",
+		Profiles: []transcoding.HLSProfile{
+			{Name: "1080p-copy", Width: 1920, Height: 1080, VideoBitrate: 8000, AudioBitrate: 128, Copy: true},
+		},
+	}
+	out, err := g.Master(in)
+	require.NoError(t, err)
+	assert.Contains(t, out, `CODECS="avc1.640029,mp4a.6B"`)
+	assert.NotContains(t, out, "mp4a.40.2", "no stale AAC claim over MP3 bytes")
+}

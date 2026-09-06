@@ -20,8 +20,8 @@ func sourceCopyVideoCodec(streams []*domainlibrary.MediaStream) string {
 	return apptranscoding.SourceCopyVideoCodec(streams)
 }
 
-func audioCopyEligible(decision domaintranscoding.PlaybackDecision, normalize bool, profileCount int, srcCodec string) bool {
-	return apptranscoding.AudioCopyEligible(decision, normalize, profileCount, srcCodec)
+func audioCopyEligible(decision domaintranscoding.PlaybackDecision, normalize bool, profileCount int, srcCodec string, client domaintranscoding.ClientProfile) bool {
+	return apptranscoding.AudioCopyEligible(decision, normalize, profileCount, srcCodec, client)
 }
 
 func servedAudioCodec(copyEligible bool, srcCodec string, decision domaintranscoding.PlaybackDecision) string {

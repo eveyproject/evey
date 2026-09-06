@@ -36,6 +36,29 @@ export function getDeviceAudioCodecs(): string[] {
   return current;
 }
 
+// Audio codecs this device accepts as a RAW passthrough inside the server's
+// fMP4 segments, on top of the always-wired AAC/AC-3/E-AC-3. A DIFFERENT
+// question from getDeviceAudioCodecs(): every platform here decodes MP3, but
+// only media3/ExoPlayer reads it back out of an fMP4 `mp4a` sample entry.
+// AVPlayer does not take MP3 in that container at all, so iOS declares nothing
+// and keeps the server-side AAC re-encode.
+//
+// Why it is worth asking for: re-encoding an already-lossy track cascades.
+// Measured on a 128 kbps MP3 DVD rip (2026-09-06), coding noise under the
+// signal at the server's 192k rendition was 30.6 dB on dialogue but only
+// 20.3 dB on dense music - which is what "the background is not on the same
+// plane as the voices" sounds like. A passthrough adds none of it.
+const FMP4_AUDIO_PASSTHROUGH = Platform.OS === "android" ? ["mp3"] : [];
+
+/**
+ * The audio codecs this device takes muxed in fMP4, for the play session's
+ * fmp4AudioPassthrough declaration (proto field + `?fmp4AudioPassthrough=` on
+ * the HLS master). Static: it depends on the player engine, not on the device.
+ */
+export function getFmp4AudioPassthrough(): string[] {
+  return FMP4_AUDIO_PASSTHROUGH;
+}
+
 let hdrSupported = false;
 
 /**

@@ -136,6 +136,16 @@ describe("buildStreamUrl", () => {
     expect(url).toContain("containers=");
   });
 
+  // The passthrough opt-in must reach the MASTER URL, not just the gRPC
+  // stream-info call: the HLS handler builds its plan from these query params,
+  // and without it the server re-encodes the MP3 the panel said it would copy
+  // (prod 2026-09-06). Android only - see getFmp4AudioPassthrough.
+  it("carries the fMP4 audio-passthrough opt-in on the HLS master", async () => {
+    const { buildStreamUrl } = await import("./usePlaySession");
+    const url = buildStreamUrl("http://srv", "m1", { playMethod: "PLAY_METHOD_TRANSCODE" }, "tok");
+    expect(url).toContain("fmp4AudioPassthrough=mp3");
+  });
+
   // A direct_stream that carries a hand-picked audio/subtitle track must reach
   // the manifest with those params, exactly like a transcode - the remux branch
   // used to build its own URL shape and this went untested.

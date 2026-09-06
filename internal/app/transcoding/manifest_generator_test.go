@@ -833,3 +833,16 @@ func TestQuerySuffix_MaxAudioChannels(t *testing.T) {
 	in.MaxAudioChannels = 0
 	assert.NotContains(t, QuerySuffixFor(in), "maxAudioChannels")
 }
+
+// The passthrough opt-in is a decision input like the codec lists: the segment
+// handler re-parses the query to rebuild the plan, so a URI that drops it makes
+// the segment re-derive an AAC re-encode under a master that already advertised
+// mp4a.6B over the source MP3 (2026-09-06).
+func TestQuerySuffix_FMP4AudioPassthrough(t *testing.T) {
+	in := ManifestInput{StreamToken: "tok", FMP4AudioPassthrough: []string{"mp3"}}
+	assert.Contains(t, QuerySuffixFor(in), "fmp4AudioPassthrough=mp3")
+
+	in.FMP4AudioPassthrough = nil
+	assert.NotContains(t, QuerySuffixFor(in), "fmp4AudioPassthrough",
+		"a client that declared nothing must keep byte-identical URLs")
+}

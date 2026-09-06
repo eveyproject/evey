@@ -613,7 +613,7 @@ func (pr *PlanResolver) Fingerprint(ctx context.Context, req PlaybackRequest, de
 	}
 	normalize := pr.AudioNormalize != nil && pr.AudioNormalize(ctx)
 	srcAudio := SourceAudioCodec(streams, audioTrack)
-	audioCopy := AudioCopyEligible(decision, normalize, len(fpProfiles), srcAudio)
+	audioCopy := AudioCopyEligible(decision, normalize, len(fpProfiles), srcAudio, req.Client)
 	fp := DecisionFingerprint{
 		MediaID:    req.MediaID,
 		SourcePath: req.SourcePath,
