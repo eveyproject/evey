@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { AudioProbe } from "@evey/media-caps";
-import { resolveAudioCodecs, ANDROID_TV_BASELINE, APPLE_TV_CODECS } from "./deviceCodecs";
+import { resolveAudioCodecs, getFmp4AudioPassthrough, ANDROID_TV_BASELINE, APPLE_TV_CODECS } from "./deviceCodecs";
 
 // Real-shaped probe fixtures (audio_caps_probe beacons): a decoder list plus
 // what the SINK accepts. The sink is the only witness that counts for the
@@ -94,5 +94,31 @@ describe("resolveAudioCodecs", () => {
     expect(APPLE_TV_CODECS).toContain("eac3");
     // and no probe on tvOS means the baseline goes through untouched
     expect(resolveAudioCodecs(APPLE_TV_CODECS, { status: "unavailable" }, null)).toBe(APPLE_TV_CODECS);
+  });
+});
+
+// The react-native alias in vitest.config.ts reports Platform.OS "android", so
+// this file covers the Android TV half. The Apple TV half needs its own module
+// mock and lives in fmp4AudioPassthrough.appletv.test.ts.
+describe("getFmp4AudioPassthrough (Android TV)", () => {
+  // media3/ExoPlayer reads MP3 back out of an fMP4 `mp4a` sample entry, so the
+  // server may COPY an old rip's MP3 track instead of cascading it through its
+  // AAC encoder (20.3 dB of coding noise under dense music, measured 2026-09-06).
+  it("declares mp3 so the server can pass the track through", () => {
+    expect(getFmp4AudioPassthrough()).toEqual(["mp3"]);
+  });
+
+  // The opt-in selects from what the server can mux and advertise; anything
+  // else here would be refused server-side anyway.
+  it("declares mp3 and nothing else", () => {
+    expect(getFmp4AudioPassthrough()).toHaveLength(1);
+  });
+
+  // Two different questions. Conflating them is what shipped the re-encode on
+  // every client: the baseline decodes mp3, which says nothing about fMP4.
+  it("stays separate from the decoder baseline, which also lists mp3", () => {
+    expect(ANDROID_TV_BASELINE).toContain("mp3");
+    expect(APPLE_TV_CODECS).toContain("mp3");
+    expect(getFmp4AudioPassthrough()).not.toBe(ANDROID_TV_BASELINE);
   });
 });

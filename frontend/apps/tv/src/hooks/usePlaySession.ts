@@ -8,7 +8,7 @@ import {
 } from "@evey/api";
 import type { V1StreamInfo, V1WatchProgress } from "@evey/api";
 import { getServerUrl } from "../lib/server-config";
-import { getDeviceAudioCodecs } from "../lib/deviceCodecs";
+import { getDeviceAudioCodecs, getFmp4AudioPassthrough } from "../lib/deviceCodecs";
 import { probeMaxOutputChannels } from "../lib/outputChannels";
 import { logger } from "../lib/log";
 
@@ -103,6 +103,12 @@ function appendCodecParams(params: URLSearchParams, maxAudioChannels?: number): 
   params.set("videoCodecs", VIDEO_CODECS.join(","));
   params.set("audioCodecs", getDeviceAudioCodecs().join(","));
   params.set("containers", CONTAINERS.join(","));
+  // What the box takes muxed in fMP4, NOT what it decodes - see
+  // getFmp4AudioPassthrough. Lets the server COPY an MP3 track (old DVD rips)
+  // instead of cascading it through its AAC encoder. Omitted when empty so an
+  // Apple TV's URL stays byte-identical to before.
+  const passthrough = getFmp4AudioPassthrough();
+  if (passthrough.length > 0) params.set("fmp4AudioPassthrough", passthrough.join(","));
   // Channel ceiling of the OUTPUT, not of the decoder - see lib/outputChannels.
   // Omitted when the box cannot answer, which leaves the server profile's own
   // default in place: an unknown output must not silently lose surround.
@@ -197,6 +203,9 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
             supportedCodecs: VIDEO_CODECS,
             supportedAudioCodecs: getDeviceAudioCodecs(),
             supportedContainers: CONTAINERS,
+            // Same declaration the HLS master URL carries, so the stream-info
+            // panel describes the bytes the segments will actually hold.
+            fmp4AudioPassthrough: getFmp4AudioPassthrough(),
             maxWidth: Math.round(screen.width * (screen.scale ?? 1)),
             maxHeight: maxHeight && maxHeight > 0 ? Math.min(maxHeight, screenH) : screenH,
             audioStreamIndex,
