@@ -11,6 +11,7 @@ import { applyServerLanguage, initI18n } from "../src/i18n";
 import { parseEveyHealth } from "../src/lib/serverIdentity";
 import { isCleartextToPublicHost, confirmInsecureServer } from "../src/lib/privateHost";
 import { versionLabel } from "../src/lib/versionLabel";
+import { FONT_SIZE } from "@evey/theme";
 import { useTheme } from "../src/providers/ThemeProvider";
 import { scanLocalNetwork } from "../src/lib/network-scan";
 
@@ -44,6 +45,7 @@ export default function ServerConnect() {
   const [loading, setLoading] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [discovered, setDiscovered] = useState<{ url: string; version?: string }[]>([]);
+  const [scanned, setScanned] = useState(false);
 
   const servers = useServerListStore((s) => s.servers);
   const activeServerId = useServerListStore((s) => s.activeServerId);
@@ -74,6 +76,7 @@ export default function ServerConnect() {
     const controller = new AbortController();
     scanAbortRef.current = controller;
     setScanning(true);
+    setScanned(false);
     setDiscovered([]);
     const found = new Set<string>();
     await scanLocalNetwork((server) => {
@@ -82,7 +85,13 @@ export default function ServerConnect() {
         setDiscovered((prev) => [...prev, server]);
       }
     }, { signal: controller.signal });
-    if (!controller.signal.aborted) setScanning(false);
+    if (!controller.signal.aborted) {
+      setScanning(false);
+      // A scan that finds nothing used to leave the button reverting in
+      // silence, indistinguishable from a scan that never ran. `scanned`
+      // separates "not tried yet" from "tried, found nothing".
+      setScanned(true);
+    }
   }, []);
 
   // Switch to an existing saved server.
@@ -316,6 +325,15 @@ export default function ServerConnect() {
             : t("mobile.serverConnect.scanLocalNetwork", "Scan local network")}
         </Text>
       </Pressable>
+
+      {scanned && !scanning && discovered.length === 0 && (
+        <Text
+          style={{ color: theme.colors.textMuted, fontSize: FONT_SIZE.sm, marginTop: theme.spacing.sm, textAlign: "center" }}
+          accessibilityLiveRegion="polite"
+        >
+          {t("mobile.serverConnect.noServersFound", "No server found on this network - enter the address below")}
+        </Text>
+      )}
 
       {discovered.length > 0 && (
         <View style={{ marginTop: theme.spacing.md }}>

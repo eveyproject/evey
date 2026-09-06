@@ -4,6 +4,7 @@ serverConnect:
   scanLocalNetwork: "Scan local network"
   serversFound_one: "{{count}} server found"
   serversFound_other: "{{count}} servers found"
+  noServersFound: "No server found on this network - enter the address below"
   missingScheme: "Start the address with http:// or https://."
   insecureTitle: "This connection is not encrypted"
   insecureBody: "{{url}} is outside your home network and uses http://. Your password and everything you watch would travel unencrypted. Use https:// if your server supports it."

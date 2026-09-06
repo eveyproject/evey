@@ -4,6 +4,7 @@ serverConnect:
   scanLocalNetwork: "Scanner le réseau local"
   serversFound_one: "{{count}} serveur trouvé"
   serversFound_other: "{{count}} serveurs trouvés"
+  noServersFound: "Aucun serveur trouvé sur ce réseau - saisissez l'adresse ci-dessous"
   missingScheme: "Commencez l'adresse par http:// ou https://."
   insecureTitle: "Cette connexion n'est pas chiffrée"
   insecureBody: "{{url}} est hors de votre réseau local et utilise http://. Votre mot de passe et tout ce que vous regardez circuleraient en clair. Utilisez https:// si votre serveur le permet."

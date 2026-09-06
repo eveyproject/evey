@@ -2627,6 +2627,7 @@
   "mobile.serverConnect.insecureBody": "{{url}} is outside your home network and uses http://. Your password and everything you watch would travel unencrypted. Use https:// if your server supports it.",
   "mobile.serverConnect.insecureTitle": "This connection is not encrypted",
   "mobile.serverConnect.missingScheme": "Start the address with http:// or https://.",
+  "mobile.serverConnect.noServersFound": "No server found on this network - enter the address below",
   "mobile.serverConnect.notEvey": "{{url}} answered, but it is not an Evey server. Check the address (a captive portal or your ISP may be answering instead).",
   "mobile.serverConnect.scanLocalNetwork": "Scan local network",
   "mobile.serverConnect.serverUnreachable": "Your server did not answer. It may be asleep or off the network.",
