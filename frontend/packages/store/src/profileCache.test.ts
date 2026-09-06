@@ -1,21 +1,25 @@
 // The picker is shown at cold start - the one moment the profile list has not
 // arrived yet, and on a plane never will. These tests pin what the cache keeps
 // and, more importantly, WHEN the picker is worth showing at all.
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 
 const store: Record<string, string> = {};
-vi.mock("expo-secure-store", () => ({
-  getItemAsync: async (k: string) => store[k] ?? null,
-  setItemAsync: async (k: string, v: string) => { store[k] = v; },
-  deleteItemAsync: async (k: string) => { delete store[k]; },
-}));
 
+import { setZustandStorage } from "./storage";
 import {
   saveProfileCache,
   loadProfileCache,
   clearProfileCache,
   shouldPickProfileOnColdStart,
 } from "./profileCache";
+
+// The real storage each app injects at boot (SecureStore on the devices,
+// localStorage on the web) - here, a map.
+setZustandStorage({
+  getItem: (k: string) => store[k] ?? null,
+  setItem: (k: string, v: string) => { store[k] = v; },
+  removeItem: (k: string) => { delete store[k]; },
+});
 
 beforeEach(() => {
   for (const k of Object.keys(store)) delete store[k];

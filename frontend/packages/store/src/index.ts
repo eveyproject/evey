@@ -1,4 +1,5 @@
 export * from "./storage";
+export * from "./profileCache";
 export * from "./servers";
 export * from "./auth";
 export * from "./locale";

@@ -36,9 +36,16 @@ vi.mock("expo-router", () => ({
 // --- auth store ------------------------------------------------------------
 const authState = { accessToken: null as string | null, profileId: null as string | null };
 const serverListState = { getActiveServer: () => ({ url: "http://srv.test" }) };
-vi.mock("@evey/store", () => ({
+// The cached profile list the entry screen reads to decide whether a cold
+// start stops at the picker. Empty by default: most cases here are about the
+// routing gates, not the picker. shouldPickProfileOnColdStart stays REAL - the
+// rule is what these tests are about.
+const cached = vi.hoisted(() => ({ profiles: [] as Array<{ id: string; name: string; isKids: boolean }> }));
+vi.mock("@evey/store", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/store")>()),
   useAuthStore: (sel: (s: typeof authState) => unknown) => sel(authState),
   useServerListStore: Object.assign(() => serverListState, { getState: () => serverListState }),
+  loadProfileCache: () => Promise.resolve(cached.profiles),
 }));
 
 // --- server reachability ---------------------------------------------------
@@ -59,15 +66,6 @@ const ensureAccessTokenMock = vi.fn(async () => "unavailable" as string);
 vi.mock("../lib/auth-refresh", () => ({
   ensureAccessToken: () => ensureAccessTokenMock(),
   refreshAccessTokenIfNeeded: async () => false,
-}));
-
-// --- cached profile list ---------------------------------------------------
-// The entry screen reads it to decide whether a cold start stops at the
-// picker. Empty here: these cases are about the routing gates, not the picker.
-let cachedProfiles: Array<{ id: string; name: string; isKids: boolean }> = [];
-vi.mock("../lib/profileCache", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../lib/profileCache")>()),
-  loadProfileCache: () => Promise.resolve(cachedProfiles),
 }));
 
 // --- connectivity ----------------------------------------------------------
@@ -114,7 +112,7 @@ beforeEach(() => {
   pingMock.mockResolvedValue(false);
   ensureAccessTokenMock.mockClear();
   ensureAccessTokenMock.mockResolvedValue("unavailable");
-  cachedProfiles = [];
+  cached.profiles = [];
 });
 
 describe("entry screen - a saved session is not gated on a reachable server", () => {
@@ -154,7 +152,7 @@ describe("entry screen - a saved session is not gated on a reachable server", ()
     authState.accessToken = freshToken();
     authState.profileId = "p1";
     online = true;
-    cachedProfiles = [
+    cached.profiles = [
       { id: "p1", name: "Papa", isKids: false },
       { id: "p2", name: "Lou", isKids: true },
     ];
@@ -168,7 +166,7 @@ describe("entry screen - a saved session is not gated on a reachable server", ()
     authState.accessToken = freshToken();
     authState.profileId = "p1";
     online = true;
-    cachedProfiles = [
+    cached.profiles = [
       { id: "p1", name: "Papa", isKids: false },
       { id: "p2", name: "Maman", isKids: false },
     ];
@@ -185,7 +183,7 @@ describe("entry screen - a saved session is not gated on a reachable server", ()
     authState.accessToken = freshToken();
     authState.profileId = "p1";
     online = false;
-    cachedProfiles = [
+    cached.profiles = [
       { id: "p1", name: "Papa", isKids: false },
       { id: "p2", name: "Lou", isKids: true },
     ];

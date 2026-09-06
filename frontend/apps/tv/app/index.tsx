@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { Redirect } from "expo-router";
-import { useAuthStore } from "@evey/store";
+import { useAuthStore, loadProfileCache, shouldPickProfileOnColdStart } from "@evey/store";
 import { useServerUrlNullable } from "../src/hooks/useServerUrl";
 import { pingServer } from "../src/lib/server-config";
 import { seedOfflineStrings } from "../src/i18n";
@@ -24,6 +24,20 @@ export default function EntryRedirect() {
       setServerOk(ok);
     });
   }, [serverUrl]);
+
+  // Read once, at launch, from the same cache the phone uses. A television is
+  // mains-powered and wired, so there is no offline branch here: unlike the
+  // phone it holds no downloads to fall back on.
+  const hasSession = !!accessToken && !!profileId;
+  const [pickProfile, setPickProfile] = useState<boolean | undefined>(undefined);
+  useEffect(() => {
+    if (!hasSession) { setPickProfile(false); return; }
+    let cancelled = false;
+    void loadProfileCache().then((cached) => {
+      if (!cancelled) setPickProfile(shouldPickProfileOnColdStart(cached));
+    });
+    return () => { cancelled = true; };
+  }, [hasSession]);
 
   if (serverUrl === undefined) {
     return (
@@ -49,5 +63,18 @@ export default function EntryRedirect() {
   if (!serverOk) return <Redirect href="/server-connect?unreachable=1" />;
   if (!accessToken) return <Redirect href="/login" />;
   if (!profileId) return <Redirect href="/profile-select" />;
+  // "Who is watching", on a cold start only. This screen is the initial route,
+  // so it mounts once per launch and never on a resume. Asked only where
+  // somebody could pick wrong: a household with a kids profile AND more than
+  // one profile. Same rule and same cache as the phone - it lives in
+  // @evey/store precisely so the two cannot drift apart.
+  if (pickProfile === undefined) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: theme.colors.bg }}>
+        <ActivityIndicator color={theme.colors.accent} size="large" />
+      </View>
+    );
+  }
+  if (pickProfile) return <Redirect href="/profile-select" />;
   return <Redirect href="/(auth)/(tabs)" />;
 }
